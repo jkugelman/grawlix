@@ -1,0 +1,836 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Wordlist Manager</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: system-ui, -apple-system, sans-serif; font-size: 14px; background: #f5f5f5; color: #222; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+
+header { background: #1a1a2e; color: white; padding: 10px 20px; display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; }
+header h1 { font-size: 17px; font-weight: 600; letter-spacing: -0.01em; }
+
+main { display: flex; flex: 1; overflow: hidden; }
+
+/* Lists panel */
+#lists-panel { width: 320px; background: white; border-right: 1px solid #ddd; display: flex; flex-direction: column; overflow: hidden; flex-shrink: 0; }
+#lists-panel h2 { padding: 10px 14px; font-size: 11px; font-weight: 700; color: #888; text-transform: uppercase; letter-spacing: 0.06em; border-bottom: 1px solid #eee; }
+#lists-container { flex: 1; overflow-y: auto; }
+#add-list-area { padding: 10px 14px; border-top: 1px solid #eee; }
+
+/* List card */
+.list-card { padding: 10px 14px; border-bottom: 1px solid #f0f0f0; cursor: pointer; display: flex; align-items: center; gap: 9px; transition: background 0.1s; }
+.list-card:hover { background: #f8f8f8; }
+.list-card.selected { background: #e8f0fe; border-left: 3px solid #4285f4; padding-left: 11px; }
+.card-info { flex: 1; min-width: 0; }
+.card-name { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 13px; }
+.card-meta { color: #999; font-size: 11px; margin-top: 2px; }
+.card-actions { display: flex; gap: 5px; align-items: center; flex-shrink: 0; }
+
+/* Buttons */
+button { font-size: 13px; padding: 5px 11px; border-radius: 4px; border: 1px solid #ccc; background: white; cursor: pointer; font-family: inherit; }
+button:hover:not(:disabled) { background: #f0f0f0; }
+button.primary { background: #4285f4; color: white; border-color: #4285f4; }
+button.primary:hover:not(:disabled) { background: #3367d6; }
+button.small { font-size: 12px; padding: 2px 7px; }
+button:disabled { opacity: 0.45; cursor: not-allowed; }
+
+/* Detail panel */
+#detail-panel { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+
+.no-selection { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; color: #bbb; background: #f5f5f5; }
+.no-selection p { font-size: 15px; margin-bottom: 6px; }
+.no-selection small { font-size: 13px; }
+
+.detail-header { background: white; padding: 12px 18px; border-bottom: 1px solid #ddd; display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+.detail-header h2 { font-size: 15px; font-weight: 600; flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.detail-source { font-size: 11px; color: #999; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 220px; }
+
+/* Stats bar */
+.stats-bar { background: #fafafa; border-bottom: 1px solid #eee; padding: 10px 18px; display: flex; align-items: center; gap: 22px; flex-shrink: 0; }
+.stat { display: flex; flex-direction: column; gap: 2px; }
+.stat-label { font-size: 10px; font-weight: 700; color: #aaa; text-transform: uppercase; letter-spacing: 0.05em; }
+.stat-value { font-size: 15px; font-weight: 700; line-height: 1; }
+.score-dist { display: flex; gap: 3px; align-items: flex-end; height: 36px; margin-left: auto; }
+.score-bar { width: 7px; background: #4285f4; border-radius: 2px 2px 0 0; min-height: 2px; opacity: 0.75; }
+
+/* Search */
+.search-bar { padding: 7px 14px; background: white; border-bottom: 1px solid #eee; flex-shrink: 0; }
+.search-bar input { width: 100%; padding: 5px 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px; font-family: inherit; }
+.search-bar input:focus { outline: none; border-color: #4285f4; }
+
+/* Virtual scroll table */
+#table-container { flex: 1; overflow-y: auto; background: white; }
+.word-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+.word-table th { position: sticky; top: 0; background: #f8f8f8; padding: 7px 16px; font-size: 11px; font-weight: 700; color: #888; text-transform: uppercase; letter-spacing: 0.04em; border-bottom: 2px solid #eee; z-index: 1; cursor: pointer; user-select: none; white-space: nowrap; overflow: hidden; }
+.word-table th:hover { background: #efefef; }
+.word-table td { padding: 0 16px; font-family: ui-monospace, 'Cascadia Code', monospace; font-size: 13px; border-bottom: 1px solid #f5f5f5; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.word-table td:nth-child(2) { text-align: right; }
+.word-table td.comment-cell { font-family: inherit; font-size: 12px; color: #888; }
+.word-table tr:hover td { background: #f5f8ff; }
+.vs-spacer td { padding: 0; border: none; }
+.score-badge { display: inline-block; padding: 1px 5px; border-radius: 3px; font-size: 11px; font-weight: 700; }
+.sort-arrow { font-size: 9px; opacity: 0.7; }
+.col-resize-handle { position: absolute; right: 0; top: 0; bottom: 0; width: 5px; cursor: col-resize; z-index: 2; }
+.col-resize-handle:hover, .col-resize-handle.active { background: rgba(66,133,244,0.35); }
+
+/* Status dot */
+.status { display: inline-block; width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+.status.loaded  { background: #34a853; }
+.status.empty   { background: #dadce0; }
+.status.loading { background: #4285f4; animation: pulse 1s infinite; }
+.status.error   { background: #ea4335; }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+/* Upload zone */
+.upload-zone { border: 2px dashed #ddd; border-radius: 6px; padding: 24px 16px; text-align: center; color: #aaa; cursor: pointer; transition: border-color 0.15s, color 0.15s; user-select: none; }
+.upload-zone:hover, .upload-zone.drag-over { border-color: #4285f4; color: #4285f4; }
+
+/* Dialog */
+dialog { width: 420px; border-radius: 10px; border: none; box-shadow: 0 8px 40px rgba(0,0,0,0.18); padding: 22px; font-family: system-ui, sans-serif; }
+dialog::backdrop { background: rgba(0,0,0,0.3); }
+dialog h2 { font-size: 16px; margin-bottom: 14px; }
+.tabs { display: flex; border: 1px solid #ddd; border-radius: 5px; overflow: hidden; margin-bottom: 16px; }
+.tab-btn { flex: 1; border: none; border-radius: 0; padding: 7px; font-size: 12px; font-weight: 600; color: #666; background: white; cursor: pointer; }
+.tab-btn + .tab-btn { border-left: 1px solid #ddd; }
+.tab-btn.active { background: #e8f0fe; color: #4285f4; }
+.tab-btn:hover:not(.active) { background: #f5f5f5; }
+.form-field { margin-bottom: 10px; }
+.form-field label { display: block; font-size: 12px; color: #666; margin-bottom: 4px; }
+.form-field input { width: 100%; padding: 7px 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px; font-family: inherit; }
+.form-field input:focus { outline: none; border-color: #4285f4; }
+.builtin-item { display: flex; align-items: center; justify-content: space-between; padding: 9px 12px; border: 1px solid #eee; border-radius: 6px; margin-bottom: 7px; }
+.builtin-item-info { flex: 1; }
+.builtin-item-name { font-size: 13px; font-weight: 600; }
+.builtin-item-sub  { font-size: 11px; color: #999; margin-top: 2px; }
+.dialog-footer { margin-top: 16px; padding-top: 14px; border-top: 1px solid #eee; display: flex; justify-content: flex-end; gap: 8px; }
+
+/* Toast */
+#toast { position: fixed; bottom: 18px; right: 18px; background: #333; color: white; padding: 9px 15px; border-radius: 6px; font-size: 13px; z-index: 1000; opacity: 0; transition: opacity 0.25s; pointer-events: none; max-width: 360px; }
+#toast.show { opacity: 1; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Wordlist Manager</h1>
+  <button class="primary" id="btn-add-list">+ Add List</button>
+</header>
+
+<main>
+  <div id="lists-panel">
+    <h2>Lists <span id="list-count" style="font-weight:400;color:#bbb"></span></h2>
+    <div id="lists-container"></div>
+    <div id="add-list-area">
+      <button style="width:100%" id="btn-add-list-2">+ Add List</button>
+    </div>
+  </div>
+
+  <div id="detail-panel">
+    <div class="no-selection">
+      <p>No list selected</p>
+      <small>Select a list or click + Add List</small>
+    </div>
+  </div>
+</main>
+
+<div id="toast"></div>
+
+<dialog id="add-dialog">
+  <h2>Add Wordlist</h2>
+  <div class="tabs">
+    <button class="tab-btn active" data-tab="builtin">Known Lists</button>
+    <button class="tab-btn" data-tab="upload">Upload File</button>
+    <button class="tab-btn" data-tab="url">From URL</button>
+  </div>
+
+  <div id="tab-builtin">
+    <div id="builtin-list"></div>
+  </div>
+
+  <div id="tab-upload" style="display:none">
+    <div class="upload-zone" id="drop-zone">
+      Drop file here or click to browse
+      <input type="file" id="file-input" accept=".txt,.csv" style="display:none">
+    </div>
+    <div class="form-field" style="margin-top:10px">
+      <label>Name (optional)</label>
+      <input type="text" id="upload-name" placeholder="My Wordlist">
+    </div>
+  </div>
+
+  <div id="tab-url" style="display:none">
+    <div class="form-field">
+      <label>URL</label>
+      <input type="text" id="url-input" placeholder="https://...">
+    </div>
+    <div class="form-field">
+      <label>Name (optional)</label>
+      <input type="text" id="url-name" placeholder="My Wordlist">
+    </div>
+    <div style="text-align:right">
+      <button class="primary" id="btn-fetch-url">Fetch</button>
+    </div>
+  </div>
+
+  <div class="dialog-footer">
+    <button id="btn-dialog-close">Close</button>
+  </div>
+</dialog>
+
+<script>
+'use strict';
+
+// ─── Constants ────────────────────────────────────────────────────────────────
+
+const ROW_HEIGHT   = 24;
+const VS_BUFFER    = 60;
+const LS_PREFIX    = 'wlm2_';
+
+const BUILTIN_TEMPLATES = [
+  {
+    id: 'jkugelman',
+    name: 'jkugelman',
+    source: 'builtin-download',
+    url: 'https://raw.githubusercontent.com/jkugelman/crossword/refs/heads/main/wordlists/jkugelman-wordlist.txt',
+  },
+  {
+    id: 'xwi',
+    name: 'XWordInfo (XWI)',
+    source: 'upload',
+    url: null,
+  },
+  {
+    id: 'stwl',
+    name: 'Spread the Wordlist',
+    source: 'builtin-download',
+    url: 'https://drive.usercontent.google.com/download?id=1Ruxn8XzRNstU6sDPOMm_K72fVookrPPr&export=download',
+  },
+  {
+    id: 'broda',
+    name: 'Peter Broda',
+    source: 'builtin-download',
+    url: null,
+  },
+];
+
+// ─── State ────────────────────────────────────────────────────────────────────
+
+const state = {
+  lists: [],            // [{id, name, source, url, enabled, rawEntries, cachedAt, _loading}]
+  selectedId: null,
+  searchQuery: '',
+};
+
+// ─── Parsing ─────────────────────────────────────────────────────────────────
+
+function parseWordlist(text) {
+  const entries = [];
+  for (const line of text.split('\n')) {
+    if (!line) continue;
+    const semi = line.indexOf(';');
+    if (semi === -1) continue;
+    const word = line.slice(0, semi);
+    if (!word || !/^[A-Za-z]+$/.test(word)) continue;
+    const rest = line.slice(semi + 1);
+    const semi2 = rest.indexOf(';');
+    const score = parseInt(semi2 === -1 ? rest : rest.slice(0, semi2), 10);
+    if (isNaN(score)) continue;
+    const comment = semi2 === -1 ? '' : rest.slice(semi2 + 1).trim();
+    entries.push({ word, score, comment });
+  }
+  return entries;
+}
+
+// ─── Storage ──────────────────────────────────────────────────────────────────
+
+function lsSave(key, value) {
+  try { localStorage.setItem(LS_PREFIX + key, value); return true; }
+  catch { return false; }
+}
+function lsLoad(key) { return localStorage.getItem(LS_PREFIX + key); }
+function lsDel(key)  { localStorage.removeItem(LS_PREFIX + key); }
+
+function persistMeta() {
+  lsSave('meta', JSON.stringify(state.lists.map(l => ({
+    id: l.id, name: l.name, source: l.source, url: l.url || null,
+    enabled: l.enabled, cachedAt: l.cachedAt || null,
+  }))));
+}
+
+function persistData(id, text) {
+  if (!lsSave('data_' + id, text)) showToast('Warning: localStorage full — data not saved');
+  lsSave('ts_' + id, Date.now());
+}
+
+// ─── Init ─────────────────────────────────────────────────────────────────────
+
+function init() {
+  const raw = lsLoad('meta');
+  if (raw) {
+    try {
+      const meta = JSON.parse(raw);
+      state.lists = meta.map(m => {
+        const text = lsLoad('data_' + m.id);
+        return { ...m, rawEntries: text ? parseWordlist(text) : [], _loading: false };
+      });
+    } catch { state.lists = defaultLists(); }
+  } else {
+    state.lists = defaultLists();
+    persistMeta();
+  }
+
+  if (!state.selectedId && state.lists.length) state.selectedId = state.lists[0].id;
+
+  renderAll();
+  bindEvents();
+}
+
+function defaultLists() {
+  return BUILTIN_TEMPLATES.map(t => ({ ...t, enabled: true, rawEntries: [], cachedAt: null, _loading: false }));
+}
+
+// ─── Stats ────────────────────────────────────────────────────────────────────
+
+function computeStats(entries) {
+  if (!entries.length) return null;
+  let min = Infinity, max = -Infinity, sum = 0;
+  const buckets = new Array(11).fill(0);
+  for (const { score } of entries) {
+    if (score < min) min = score;
+    if (score > max) max = score;
+    sum += score;
+    buckets[Math.min(10, Math.max(0, Math.floor(score / 10)))]++;
+  }
+  return { count: entries.length, min, max, avg: sum / entries.length, buckets, maxBucket: Math.max(...buckets) };
+}
+
+// ─── Virtual Scroller ─────────────────────────────────────────────────────────
+
+const colWidths = { word: 220, score: 70 }; // persists across list switches
+
+class VirtualScroller {
+  constructor(container) {
+    this.container = container;
+    this.allEntries = [];
+    this.entries = [];
+    this.hasComments = false;
+    this.sortKey = null;
+    this.sortDir = 'asc';
+    this._lastQuery = '';
+    this._colEls = {};
+
+    container.style.overflowY = 'auto';
+
+    this.table = document.createElement('table');
+    this.table.className = 'word-table';
+
+    this.colgroup = document.createElement('colgroup');
+    this.table.appendChild(this.colgroup);
+
+    const thead = document.createElement('thead');
+    this.theadRow = document.createElement('tr');
+    thead.appendChild(this.theadRow);
+    this.table.appendChild(thead);
+
+    this.tbody = document.createElement('tbody');
+    this.table.appendChild(this.tbody);
+
+    this.topRow = document.createElement('tr');
+    this.topRow.className = 'vs-spacer';
+    this.topRow.innerHTML = '<td colspan="2"></td>';
+    this.botRow = document.createElement('tr');
+    this.botRow.className = 'vs-spacer';
+    this.botRow.innerHTML = '<td colspan="2"></td>';
+    this.tbody.appendChild(this.topRow);
+    this.tbody.appendChild(this.botRow);
+
+    container.appendChild(this.table);
+    container.addEventListener('scroll', () => this._render(), { passive: true });
+    new ResizeObserver(() => this._render()).observe(container);
+  }
+
+  setEntries(allEntries, query) {
+    this.allEntries = allEntries;
+    this.hasComments = allEntries.some(e => e.comment);
+    this.sortKey = null;
+    this.sortDir = 'asc';
+    this._buildHeader();
+    this.filter(query);
+  }
+
+  _cols() {
+    return this.hasComments ? ['word', 'score', 'comment'] : ['word', 'score'];
+  }
+
+  _buildHeader() {
+    const LABELS = { word: 'Word', score: 'Score', comment: 'Comment' };
+    const ALIGN  = { word: 'left', score: 'right', comment: 'left' };
+    const cols = this._cols();
+
+    this.topRow.firstElementChild.colSpan = cols.length;
+    this.botRow.firstElementChild.colSpan = cols.length;
+
+    this.colgroup.innerHTML = '';
+    this._colEls = {};
+    for (const key of cols) {
+      const col = document.createElement('col');
+      if (colWidths[key] != null) col.style.width = colWidths[key] + 'px';
+      this.colgroup.appendChild(col);
+      this._colEls[key] = col;
+    }
+
+    this.theadRow.innerHTML = '';
+    for (let i = 0; i < cols.length; i++) {
+      const key = cols[i];
+      const isLast = i === cols.length - 1;
+      const th = document.createElement('th');
+      th.style.textAlign = ALIGN[key];
+
+      const labelSpan = document.createElement('span');
+      labelSpan.textContent = LABELS[key];
+      th.appendChild(labelSpan);
+
+      if (this.sortKey === key) {
+        const arrow = document.createElement('span');
+        arrow.className = 'sort-arrow';
+        arrow.textContent = this.sortDir === 'asc' ? ' ▲' : ' ▼';
+        th.appendChild(arrow);
+      }
+
+      th.addEventListener('click', e => {
+        if (e.target.classList.contains('col-resize-handle')) return;
+        if (this.sortKey === key) {
+          this.sortDir = this.sortDir === 'asc' ? 'desc' : 'asc';
+        } else {
+          this.sortKey = key;
+          this.sortDir = key === 'score' ? 'desc' : 'asc';
+        }
+        this._buildHeader();
+        this._applyFilterAndSort();
+      });
+
+      if (!isLast) {
+        const handle = document.createElement('div');
+        handle.className = 'col-resize-handle';
+        th.appendChild(handle);
+
+        handle.addEventListener('mousedown', e => {
+          e.preventDefault();
+          e.stopPropagation();
+          const colEl = this._colEls[key];
+          const startX = e.clientX;
+          const startW = th.offsetWidth;
+          handle.classList.add('active');
+          const onMove = mv => {
+            const w = Math.max(50, startW + mv.clientX - startX);
+            colEl.style.width = w + 'px';
+            colWidths[key] = w;
+          };
+          const onUp = () => {
+            handle.classList.remove('active');
+            document.removeEventListener('mousemove', onMove);
+            document.removeEventListener('mouseup', onUp);
+          };
+          document.addEventListener('mousemove', onMove);
+          document.addEventListener('mouseup', onUp);
+        });
+      }
+
+      this.theadRow.appendChild(th);
+    }
+  }
+
+  filter(query) {
+    this._lastQuery = query || '';
+    this._applyFilterAndSort();
+  }
+
+  _applyFilterAndSort() {
+    const q = this._lastQuery.toLowerCase();
+    let entries = q
+      ? this.allEntries.filter(e => e.word.toLowerCase().includes(q))
+      : this.allEntries;
+
+    if (this.sortKey) {
+      const key = this.sortKey;
+      const dir = this.sortDir === 'asc' ? 1 : -1;
+      entries = [...entries].sort((a, b) => {
+        const av = a[key] ?? '';
+        const bv = b[key] ?? '';
+        if (typeof av === 'number' && typeof bv === 'number') return dir * (av - bv);
+        return dir * String(av).localeCompare(String(bv));
+      });
+    }
+
+    this.entries = entries;
+    this.container.scrollTop = 0;
+    this._render();
+  }
+
+  _render() {
+    const n = this.entries.length;
+    const scrollTop = this.container.scrollTop;
+    const viewH = this.container.clientHeight;
+
+    const start = Math.max(0, Math.floor(scrollTop / ROW_HEIGHT) - VS_BUFFER);
+    const end   = Math.min(n, Math.ceil((scrollTop + viewH) / ROW_HEIGHT) + VS_BUFFER);
+
+    this.topRow.firstElementChild.style.height = (start * ROW_HEIGHT) + 'px';
+    this.botRow.firstElementChild.style.height = ((n - end) * ROW_HEIGHT) + 'px';
+
+    while (this.topRow.nextSibling !== this.botRow) {
+      this.tbody.removeChild(this.topRow.nextSibling);
+    }
+
+    const frag = document.createDocumentFragment();
+    for (let i = start; i < end; i++) {
+      const { word, score, comment } = this.entries[i];
+      const { bg, fg } = scoreColor(score);
+      const tr = document.createElement('tr');
+      tr.style.height = ROW_HEIGHT + 'px';
+      tr.innerHTML =
+        `<td>${word}</td>` +
+        `<td><span class="score-badge" style="background:${bg};color:${fg}">${score}</span></td>` +
+        (this.hasComments ? `<td class="comment-cell">${comment || ''}</td>` : '');
+      frag.appendChild(tr);
+    }
+    this.tbody.insertBefore(frag, this.botRow);
+  }
+}
+
+function scoreColor(s) {
+  if (s >= 60) return { bg: '#d4edda', fg: '#155724' };
+  if (s >= 50) return { bg: '#cce5ff', fg: '#004085' };
+  if (s >= 30) return { bg: '#fff3cd', fg: '#856404' };
+  return { bg: '#f8d7da', fg: '#721c24' };
+}
+
+// ─── Rendering ────────────────────────────────────────────────────────────────
+
+let scroller = null;
+
+function renderAll() {
+  renderLists();
+  renderDetail(getSelected());
+}
+
+function renderLists() {
+  const container = document.getElementById('lists-container');
+  document.getElementById('list-count').textContent =
+    state.lists.length ? `(${state.lists.length})` : '';
+
+  if (!state.lists.length) {
+    container.innerHTML = '<div style="padding:20px;color:#bbb;text-align:center;font-size:13px">No lists yet</div>';
+    return;
+  }
+
+  container.innerHTML = state.lists.map(list => {
+    const sel = list.id === state.selectedId;
+    const hasData = list.rawEntries.length > 0;
+    const dot = list._loading ? 'loading' : hasData ? 'loaded' : 'empty';
+    const meta = hasData
+      ? `${list.rawEntries.length.toLocaleString()} entries`
+        + (list.cachedAt ? ' · ' + new Date(list.cachedAt).toLocaleDateString() : '')
+      : 'No data';
+
+    let actionBtn;
+    if (list.source === 'upload') {
+      actionBtn = `<button class="small" onclick="uploadToList('${list.id}',event)" title="Upload file">↑</button>`;
+    } else if (list.url) {
+      actionBtn = `<button class="small" onclick="downloadList('${list.id}',event)" title="Download" ${list._loading ? 'disabled' : ''}>↓</button>`;
+    } else {
+      actionBtn = `<span style="font-size:10px;color:#ccc">TBD</span>`;
+    }
+
+    return `<div class="list-card${sel ? ' selected' : ''}" onclick="selectList('${list.id}')">
+      <span class="status ${dot}"></span>
+      <div class="card-info">
+        <div class="card-name">${esc(list.name)}</div>
+        <div class="card-meta">${meta}</div>
+      </div>
+      <div class="card-actions">
+        ${actionBtn}
+        <button class="small" onclick="removeList('${list.id}',event)" title="Remove">×</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function renderDetail(list) {
+  const panel = document.getElementById('detail-panel');
+
+  if (!list) {
+    panel.innerHTML = '<div class="no-selection"><p>No list selected</p><small>Select a list or click + Add List</small></div>';
+    scroller = null;
+    return;
+  }
+
+  const stats = computeStats(list.rawEntries);
+
+  let statsHtml;
+  if (stats) {
+    const bars = stats.buckets.map((b, i) => {
+      const h = stats.maxBucket ? Math.max(2, Math.round((b / stats.maxBucket) * 34)) : 2;
+      return `<div class="score-bar" style="height:${h}px" title="${i*10}–${i===10?'100':i*10+9}: ${b.toLocaleString()}"></div>`;
+    }).join('');
+    statsHtml = `<div class="stats-bar">
+      <div class="stat"><span class="stat-label">Entries</span><span class="stat-value">${stats.count.toLocaleString()}</span></div>
+      <div class="stat"><span class="stat-label">Min</span><span class="stat-value">${stats.min}</span></div>
+      <div class="stat"><span class="stat-label">Max</span><span class="stat-value">${stats.max}</span></div>
+      <div class="stat"><span class="stat-label">Avg</span><span class="stat-value">${stats.avg.toFixed(1)}</span></div>
+      <div class="score-dist" title="Score distribution by decile">${bars}</div>
+    </div>`;
+  } else {
+    statsHtml = `<div class="stats-bar" style="color:#bbb;font-size:13px">No data loaded — use the button above to load this list</div>`;
+  }
+
+  let sourceDesc, actionBtn;
+  if (list.source === 'upload') {
+    sourceDesc = 'Manual upload';
+    actionBtn = `<button onclick="uploadToList('${list.id}')">↑ Upload</button>`;
+  } else if (list.url) {
+    sourceDesc = list.url;
+    actionBtn = `<button onclick="downloadList('${list.id}')" ${list._loading ? 'disabled' : ''}>${list._loading ? 'Downloading…' : '↓ Refresh'}</button>`;
+  } else {
+    sourceDesc = 'URL not yet configured';
+    actionBtn = '';
+  }
+
+  panel.innerHTML = `
+    <div class="detail-header">
+      <h2>${esc(list.name)}</h2>
+      <span class="detail-source" title="${esc(sourceDesc)}">${esc(sourceDesc)}</span>
+      ${actionBtn}
+    </div>
+    ${statsHtml}
+    <div class="search-bar">
+      <input type="text" id="search-input" placeholder="Search words…" value="${esc(state.searchQuery)}" oninput="onSearch(this.value)">
+    </div>
+    <div id="table-container" style="flex:1;overflow:hidden;display:flex;flex-direction:column;">
+      <div id="vs-host" style="flex:1;min-height:0;"></div>
+    </div>
+  `;
+
+  const host = document.getElementById('vs-host');
+  scroller = new VirtualScroller(host);
+  scroller.setEntries(list.rawEntries, state.searchQuery);
+}
+
+// ─── Actions ──────────────────────────────────────────────────────────────────
+
+function getSelected() {
+  return state.lists.find(l => l.id === state.selectedId) || null;
+}
+
+function selectList(id) {
+  state.selectedId = id;
+  state.searchQuery = '';
+  renderLists();
+  renderDetail(getSelected());
+}
+
+function onSearch(query) {
+  state.searchQuery = query;
+  if (scroller) scroller.filter(query);
+}
+
+async function downloadList(id, event) {
+  if (event) event.stopPropagation();
+  const list = state.lists.find(l => l.id === id);
+  if (!list || !list.url || list._loading) return;
+
+  list._loading = true;
+  renderLists();
+  if (state.selectedId === id) renderDetail(list);
+  showToast(`Downloading ${list.name}…`);
+
+  try {
+    const resp = await fetch(list.url);
+    if (!resp.ok) throw new Error(`HTTP ${resp.status} ${resp.statusText}`);
+    const text = await resp.text();
+
+    list.rawEntries = parseWordlist(text);
+    list.cachedAt = Date.now();
+    list._loading = false;
+
+    persistData(id, text);
+    persistMeta();
+
+    renderLists();
+    if (state.selectedId === id) renderDetail(list);
+    showToast(`Loaded ${list.rawEntries.length.toLocaleString()} entries from ${list.name}`);
+  } catch (err) {
+    list._loading = false;
+    renderLists();
+    if (state.selectedId === id) renderDetail(list);
+    showToast(`Download failed: ${err.message}`);
+  }
+}
+
+function uploadToList(id, event) {
+  if (event) event.stopPropagation();
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = '.txt,.csv';
+  input.onchange = () => { if (input.files[0]) ingestFile(input.files[0], id); };
+  input.click();
+}
+
+function ingestFile(file, listId, nameOverride) {
+  const reader = new FileReader();
+  reader.onload = e => {
+    const text = e.target.result;
+    const list = state.lists.find(l => l.id === listId);
+    if (!list) return;
+
+    if (nameOverride) list.name = nameOverride;
+    list.rawEntries = parseWordlist(text);
+    list.cachedAt = Date.now();
+
+    persistData(listId, text);
+    persistMeta();
+
+    renderLists();
+    if (state.selectedId === listId) renderDetail(list);
+    showToast(`Loaded ${list.rawEntries.length.toLocaleString()} entries`);
+  };
+  reader.readAsText(file);
+}
+
+function removeList(id, event) {
+  if (event) event.stopPropagation();
+  const list = state.lists.find(l => l.id === id);
+  if (!list || !confirm(`Remove "${list.name}"?`)) return;
+
+  state.lists = state.lists.filter(l => l.id !== id);
+  lsDel('data_' + id);
+  lsDel('ts_' + id);
+  persistMeta();
+
+  if (state.selectedId === id) {
+    state.selectedId = null;
+    scroller = null;
+  }
+  renderAll();
+}
+
+function addNewList(listDef) {
+  state.lists.push({ ...listDef, rawEntries: [], cachedAt: null, _loading: false });
+  persistMeta();
+  renderLists();
+}
+
+// ─── Add Dialog ───────────────────────────────────────────────────────────────
+
+function openDialog() {
+  const bl = document.getElementById('builtin-list');
+  bl.innerHTML = BUILTIN_TEMPLATES.map(t => {
+    const exists = state.lists.some(l => l.id === t.id);
+    const sub = t.source === 'upload' ? 'Manual upload'
+      : t.url ? 'Auto-download'
+      : 'URL TBD';
+    return `<div class="builtin-item">
+      <div class="builtin-item-info">
+        <div class="builtin-item-name">${esc(t.name)}</div>
+        <div class="builtin-item-sub">${sub}</div>
+      </div>
+      <button class="small${exists ? '' : ' primary'}" ${exists ? 'disabled' : ''} onclick="addBuiltin('${t.id}')">
+        ${exists ? 'Added' : '+ Add'}
+      </button>
+    </div>`;
+  }).join('');
+
+  document.getElementById('url-input').value = '';
+  document.getElementById('url-name').value = '';
+  document.getElementById('upload-name').value = '';
+  document.getElementById('add-dialog').showModal();
+}
+
+function addBuiltin(id) {
+  if (state.lists.some(l => l.id === id)) return;
+  const t = BUILTIN_TEMPLATES.find(t => t.id === id);
+  if (!t) return;
+  addNewList({ id: t.id, name: t.name, source: t.source, url: t.url || null, enabled: true });
+  document.getElementById('add-dialog').close();
+  showToast(`Added ${t.name}`);
+}
+
+// ─── Event wiring ─────────────────────────────────────────────────────────────
+
+function bindEvents() {
+  const openBtn = () => openDialog();
+  document.getElementById('btn-add-list').onclick  = openBtn;
+  document.getElementById('btn-add-list-2').onclick = openBtn;
+  document.getElementById('btn-dialog-close').onclick = () => document.getElementById('add-dialog').close();
+
+  // Tabs
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.onclick = () => {
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      ['builtin','upload','url'].forEach(t => {
+        document.getElementById('tab-' + t).style.display = btn.dataset.tab === t ? '' : 'none';
+      });
+    };
+  });
+
+  // Drop zone
+  const zone  = document.getElementById('drop-zone');
+  const finput = document.getElementById('file-input');
+  zone.onclick     = () => finput.click();
+  zone.ondragover  = e => { e.preventDefault(); zone.classList.add('drag-over'); };
+  zone.ondragleave = () => zone.classList.remove('drag-over');
+  zone.ondrop      = e => {
+    e.preventDefault();
+    zone.classList.remove('drag-over');
+    const file = e.dataTransfer.files[0];
+    if (file) handleDialogUpload(file);
+  };
+  finput.onchange  = () => { if (finput.files[0]) handleDialogUpload(finput.files[0]); };
+
+  // URL fetch
+  document.getElementById('btn-fetch-url').onclick = async () => {
+    const url  = document.getElementById('url-input').value.trim();
+    const name = document.getElementById('url-name').value.trim();
+    if (!url) { document.getElementById('url-input').focus(); return; }
+    const id = 'url_' + Date.now();
+    addNewList({ id, name: name || url.split('/').pop() || 'Custom List', source: 'url', url, enabled: true });
+    document.getElementById('add-dialog').close();
+    await downloadList(id);
+    selectList(id);
+  };
+}
+
+function handleDialogUpload(file) {
+  const id   = 'up_' + Date.now();
+  const name = document.getElementById('upload-name').value.trim() || file.name.replace(/\.[^.]+$/, '');
+  addNewList({ id, name, source: 'upload', url: null, enabled: true });
+  document.getElementById('add-dialog').close();
+  ingestFile(file, id, name);
+  selectList(id);
+}
+
+// ─── Utility ──────────────────────────────────────────────────────────────────
+
+function esc(s) {
+  if (!s) return '';
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+let _toastTimer;
+function showToast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(_toastTimer);
+  _toastTimer = setTimeout(() => el.classList.remove('show'), 3500);
+}
+
+// ─── Boot ─────────────────────────────────────────────────────────────────────
+
+init();
+</script>
+</body>
+</html>
