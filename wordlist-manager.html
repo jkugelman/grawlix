@@ -168,7 +168,6 @@ a.get-file:hover { text-decoration: underline; }
   <h1>Wordlist Manager</h1>
   <div style="display:flex;gap:8px;align-items:center">
     <button id="btn-reset" class="danger" title="Delete all lists and data">🗑 Reset</button>
-    <button class="primary" id="btn-add-list">+ Add List</button>
   </div>
 </header>
 
@@ -177,7 +176,7 @@ a.get-file:hover { text-decoration: underline; }
     <h2>Lists <span id="list-count" style="font-weight:400;color:#bbb"></span></h2>
     <div id="lists-container"></div>
     <div id="add-list-area">
-      <button style="width:100%" id="btn-add-list-2">+ Add List</button>
+      <button class="primary" style="width:100%" id="btn-add-list">+ Add List</button>
     </div>
   </div>
 
@@ -1208,9 +1207,7 @@ function bindEvents() {
     showToast('Reset complete');
   };
 
-  const openBtn = () => openDialog();
-  document.getElementById('btn-add-list').onclick  = openBtn;
-  document.getElementById('btn-add-list-2').onclick = openBtn;
+  document.getElementById('btn-add-list').onclick = () => openDialog();
   document.getElementById('btn-dialog-close').onclick = () => document.getElementById('add-dialog').close();
   document.getElementById('btn-guide-close').onclick  = () => document.getElementById('upload-guide-dialog').close();
 
