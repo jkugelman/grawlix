@@ -241,6 +241,8 @@ a.get-file:hover { text-decoration: underline; }
 .rule-note-input { flex: 1; padding: 1px 4px; border: 1px solid var(--accent); border-radius: 3px; font-size: 12px; background: var(--input-bg); color: var(--text); outline: none; min-width: 0; }
 .rule-del { width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; border: none; background: none; cursor: pointer; color: var(--faint); font-size: 15px; padding: 0; line-height: 1; border-radius: 3px; font-family: inherit; }
 .rule-del:hover { color: #e53935; background: var(--del-hover); }
+.rule-reset { width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; border: none; background: none; cursor: pointer; color: var(--faint); font-size: 15px; padding: 0; line-height: 1; border-radius: 3px; font-family: inherit; }
+.rule-reset:hover { color: var(--accent); background: var(--hover); }
 
 /* Header */
 .header-controls { display: flex; gap: 12px; align-items: center; }
@@ -1062,9 +1064,12 @@ function buildRescoreSectionHTML(list) {
       }).join('')
     : `<div class="no-rules">No rules — words kept as-is</div>`;
 
+  const tmpl = getTemplate(list.id);
+  const showReset = tmpl?.defaultRules && !rulesMatchDefaults(list);
   return `
     <div class="rescore-top">
       <span class="rescore-lbl">Rescoring</span>
+      <button class="rule-reset" onclick="resetRescoreRules()" title="Reset to default rescoring rules" style="margin-left:auto;visibility:${showReset ? 'visible' : 'hidden'}">↺</button>
     </div>
     <div id="rescore-rules">${rulesHTML}</div>
   `;
@@ -1162,7 +1167,7 @@ function renderDetail(list) {
   const hasData = list.rawEntries.length > 0;
   if (list.source === 'upload') {
     const tmpl = getTemplate(list.id);
-    const label = hasData ? '↻ Update' : '↑ Upload';
+    const label = hasData ? 'Update' : 'Upload';
     if (tmpl?.downloadPage) {
       sourceDesc = 'Manual upload required';
       actionBtn = `<button class="primary" onclick="openUploadGuide('${list.id}')">${label}</button>`;
@@ -1172,7 +1177,7 @@ function renderDetail(list) {
     }
   } else if (list.source === 'builtin-download' && list.url) {
     sourceDesc = hasData ? list.url : 'Auto-download available';
-    const label = hasData ? '↻ Update' : '↑ Upload';
+    const label = hasData ? 'Update' : 'Upload';
     actionBtn = `<button class="primary" onclick="openAutoDownloadDialog('${list.id}')" ${list._loading ? 'disabled' : ''}>${list._loading ? 'Updating…' : label}</button>`;
   } else if (list.url) {
     sourceDesc = list.url;
@@ -1668,6 +1673,31 @@ function buildGuideHTML(listId, tmpl) {
 
 // ─── Rescore rule management ──────────────────────────────────────────────────
 
+function rulesMatchDefaults(list) {
+  const tmpl = getTemplate(list.id);
+  if (!tmpl?.defaultRules) return true;
+  const userRules = list.rescoreRules.filter(r => !r._catchAll);
+  if (userRules.length !== tmpl.defaultRules.length) return false;
+  return userRules.every((r, i) => {
+    const d = tmpl.defaultRules[i];
+    return r.input === d.input && (r.length || '') === (d.length || '') &&
+           r.output === d.output && (r.note || '') === (d.note || '');
+  });
+}
+
+function resetRescoreRules() {
+  const list = getSelected();
+  if (!list) return;
+  const tmpl = getTemplate(list.id);
+  if (!tmpl?.defaultRules) return;
+  list.rescoreRules = JSON.parse(JSON.stringify(tmpl.defaultRules));
+  updateCatchAll(list);
+  persistMeta();
+  renderRescoreSection();
+  updateRescorePreview();
+  showToast('Rescoring rules reset to defaults');
+}
+
 function deleteRule(idx) {
   const list = getSelected();
   if (!list) return;
@@ -1684,9 +1714,9 @@ function saveRuleField(idx, field, value) {
   list.rescoreRules[idx][field] = value;
   // User explicitly edited this rule — promote it from catch-all to regular rule
   delete list.rescoreRules[idx]._catchAll;
-  const changed = updateCatchAll(list);
+  updateCatchAll(list);
   persistMeta();
-  if (changed) renderRescoreSection();
+  renderRescoreSection();
   updateRescorePreview();
 }
 
