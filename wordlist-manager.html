@@ -383,7 +383,8 @@ function computeStats(entries) {
   for (const [s, c] of Object.entries(freq)) {
     if (c > modeCount) { modeCount = c; mode = +s; }
   }
-  return { count: entries.length, min, max, median, mode, buckets, maxBucket: Math.max(...buckets) };
+  const avg = scores.reduce((a, b) => a + b, 0) / scores.length;
+  return { count: entries.length, min, max, avg, median, mode, buckets, maxBucket: Math.max(...buckets) };
 }
 
 // ─── Virtual Scroller ─────────────────────────────────────────────────────────
@@ -665,6 +666,7 @@ function renderDetail(list) {
       <div class="stat"><span class="stat-label">Entries</span><span class="stat-value">${stats.count.toLocaleString()}</span></div>
       <div class="stat"><span class="stat-label">Min</span><span class="stat-value">${stats.min}</span></div>
       <div class="stat"><span class="stat-label">Max</span><span class="stat-value">${stats.max}</span></div>
+      <div class="stat"><span class="stat-label">Avg</span><span class="stat-value">${stats.avg.toFixed(1)}</span></div>
       <div class="stat"><span class="stat-label">Median</span><span class="stat-value">${stats.median % 1 === 0 ? stats.median : stats.median.toFixed(1)}</span></div>
       <div class="stat"><span class="stat-label">Mode</span><span class="stat-value">${stats.mode}</span></div>
       <div class="score-dist" title="Score distribution by decile">${bars}</div>
