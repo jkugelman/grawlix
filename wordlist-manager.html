@@ -66,7 +66,6 @@ button:disabled { opacity: 0.45; cursor: not-allowed; }
 .word-table th { position: sticky; top: 0; background: #f8f8f8; padding: 7px 16px; font-size: 11px; font-weight: 700; color: #888; text-transform: uppercase; letter-spacing: 0.04em; border-bottom: 2px solid #eee; z-index: 1; cursor: pointer; user-select: none; white-space: nowrap; overflow: hidden; }
 .word-table th:hover { background: #efefef; }
 .word-table td { padding: 0 16px; font-family: ui-monospace, 'Cascadia Code', monospace; font-size: 13px; border-bottom: 1px solid #f5f5f5; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.word-table td:nth-child(2) { text-align: right; }
 .word-table td.comment-cell { font-family: inherit; font-size: 12px; color: #888; }
 .word-table tr:hover td { background: #f5f8ff; }
 .vs-spacer td { padding: 0; border: none; }
@@ -115,7 +114,10 @@ dialog h2 { font-size: 16px; margin-bottom: 14px; }
 
 <header>
   <h1>Wordlist Manager</h1>
-  <button class="primary" id="btn-add-list">+ Add List</button>
+  <div style="display:flex;gap:8px;align-items:center">
+    <button id="btn-reset" style="background:#c0392b;color:white;border-color:#922b21" title="Delete all lists and data">🗑 Reset</button>
+    <button class="primary" id="btn-add-list">+ Add List</button>
+  </div>
 </header>
 
 <main>
@@ -204,8 +206,8 @@ const BUILTIN_TEMPLATES = [
   {
     id: 'stwl',
     name: 'Spread the Wordlist',
-    source: 'builtin-download',
-    url: 'https://drive.usercontent.google.com/download?id=1Ruxn8XzRNstU6sDPOMm_K72fVookrPPr&export=download',
+    source: 'upload',
+    url: null,
   },
   {
     id: 'broda',
@@ -252,6 +254,47 @@ function lsSave(key, value) {
 function lsLoad(key) { return localStorage.getItem(LS_PREFIX + key); }
 function lsDel(key)  { localStorage.removeItem(LS_PREFIX + key); }
 
+// IndexedDB for large word list data (localStorage has ~5MB limit)
+const IDB_NAME  = 'wlm2';
+const IDB_STORE = 'data';
+let _db = null;
+
+function openDB() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(IDB_NAME, 1);
+    req.onupgradeneeded = e => e.target.result.createObjectStore(IDB_STORE);
+    req.onsuccess = e => { _db = e.target.result; resolve(); };
+    req.onerror   = () => reject(req.error);
+  });
+}
+
+function idbPut(key, val) {
+  return new Promise(resolve => {
+    const tx = _db.transaction(IDB_STORE, 'readwrite');
+    tx.objectStore(IDB_STORE).put(val, key);
+    tx.oncomplete = resolve;
+    tx.onerror    = resolve;
+  });
+}
+
+function idbGet(key) {
+  return new Promise(resolve => {
+    const tx  = _db.transaction(IDB_STORE, 'readonly');
+    const req = tx.objectStore(IDB_STORE).get(key);
+    req.onsuccess = () => resolve(req.result ?? null);
+    req.onerror   = () => resolve(null);
+  });
+}
+
+function idbDel(key) {
+  return new Promise(resolve => {
+    const tx = _db.transaction(IDB_STORE, 'readwrite');
+    tx.objectStore(IDB_STORE).delete(key);
+    tx.oncomplete = resolve;
+    tx.onerror    = resolve;
+  });
+}
+
 function persistMeta() {
   lsSave('meta', JSON.stringify(state.lists.map(l => ({
     id: l.id, name: l.name, source: l.source, url: l.url || null,
@@ -259,22 +302,23 @@ function persistMeta() {
   }))));
 }
 
-function persistData(id, text) {
-  if (!lsSave('data_' + id, text)) showToast('Warning: localStorage full — data not saved');
-  lsSave('ts_' + id, Date.now());
+async function persistData(id, text) {
+  await idbPut('data_' + id, text);
 }
 
 // ─── Init ─────────────────────────────────────────────────────────────────────
 
-function init() {
+async function init() {
+  await openDB();
+
   const raw = lsLoad('meta');
   if (raw) {
     try {
       const meta = JSON.parse(raw);
-      state.lists = meta.map(m => {
-        const text = lsLoad('data_' + m.id);
+      state.lists = await Promise.all(meta.map(async m => {
+        const text = await idbGet('data_' + m.id);
         return { ...m, rawEntries: text ? parseWordlist(text) : [], _loading: false };
-      });
+      }));
     } catch { state.lists = defaultLists(); }
   } else {
     state.lists = defaultLists();
@@ -361,12 +405,12 @@ class VirtualScroller {
   }
 
   _cols() {
-    return this.hasComments ? ['word', 'score', 'comment'] : ['word', 'score'];
+    return ['word', 'score', 'comment'];
   }
 
   _buildHeader() {
     const LABELS = { word: 'Word', score: 'Score', comment: 'Comment' };
-    const ALIGN  = { word: 'left', score: 'right', comment: 'left' };
+    const ALIGN  = { word: 'left', score: 'left', comment: 'left' };
     const cols = this._cols();
 
     this.topRow.firstElementChild.colSpan = cols.length;
@@ -388,30 +432,34 @@ class VirtualScroller {
       const th = document.createElement('th');
       th.style.textAlign = ALIGN[key];
 
-      const labelSpan = document.createElement('span');
-      labelSpan.textContent = LABELS[key];
-      th.appendChild(labelSpan);
+      const isFillerComment = key === 'comment' && !this.hasComments;
 
-      if (this.sortKey === key) {
-        const arrow = document.createElement('span');
-        arrow.className = 'sort-arrow';
-        arrow.textContent = this.sortDir === 'asc' ? ' ▲' : ' ▼';
-        th.appendChild(arrow);
+      if (!isFillerComment) {
+        const labelSpan = document.createElement('span');
+        labelSpan.textContent = LABELS[key];
+        th.appendChild(labelSpan);
+
+        if (this.sortKey === key) {
+          const arrow = document.createElement('span');
+          arrow.className = 'sort-arrow';
+          arrow.textContent = this.sortDir === 'asc' ? ' ▲' : ' ▼';
+          th.appendChild(arrow);
+        }
+
+        th.addEventListener('click', e => {
+          if (e.target.classList.contains('col-resize-handle')) return;
+          if (this.sortKey === key) {
+            this.sortDir = this.sortDir === 'asc' ? 'desc' : 'asc';
+          } else {
+            this.sortKey = key;
+            this.sortDir = key === 'score' ? 'desc' : 'asc';
+          }
+          this._buildHeader();
+          this._applyFilterAndSort();
+        });
       }
 
-      th.addEventListener('click', e => {
-        if (e.target.classList.contains('col-resize-handle')) return;
-        if (this.sortKey === key) {
-          this.sortDir = this.sortDir === 'asc' ? 'desc' : 'asc';
-        } else {
-          this.sortKey = key;
-          this.sortDir = key === 'score' ? 'desc' : 'asc';
-        }
-        this._buildHeader();
-        this._applyFilterAndSort();
-      });
-
-      if (!isLast) {
+      if (!isLast && !isFillerComment) {
         const handle = document.createElement('div');
         handle.className = 'col-resize-handle';
         th.appendChild(handle);
@@ -493,7 +541,7 @@ class VirtualScroller {
       tr.innerHTML =
         `<td>${word}</td>` +
         `<td><span class="score-badge" style="background:${bg};color:${fg}">${score}</span></td>` +
-        (this.hasComments ? `<td class="comment-cell">${comment || ''}</td>` : '');
+        `<td class="comment-cell">${comment || ''}</td>`;
       frag.appendChild(tr);
     }
     this.tbody.insertBefore(frag, this.botRow);
@@ -539,7 +587,7 @@ function renderLists() {
     if (list.source === 'upload') {
       actionBtn = `<button class="small" onclick="uploadToList('${list.id}',event)" title="Upload file">↑</button>`;
     } else if (list.url) {
-      actionBtn = `<button class="small" onclick="downloadList('${list.id}',event)" title="Download" ${list._loading ? 'disabled' : ''}>↓</button>`;
+      actionBtn = `<button class="small" onclick="downloadList('${list.id}',event)" title="Update" ${list._loading ? 'disabled' : ''}>↻</button>`;
     } else {
       actionBtn = `<span style="font-size:10px;color:#ccc">TBD</span>`;
     }
@@ -592,7 +640,7 @@ function renderDetail(list) {
     actionBtn = `<button onclick="uploadToList('${list.id}')">↑ Upload</button>`;
   } else if (list.url) {
     sourceDesc = list.url;
-    actionBtn = `<button onclick="downloadList('${list.id}')" ${list._loading ? 'disabled' : ''}>${list._loading ? 'Downloading…' : '↓ Refresh'}</button>`;
+    actionBtn = `<button onclick="downloadList('${list.id}')" ${list._loading ? 'disabled' : ''}>${list._loading ? 'Updating…' : '↻ Update'}</button>`;
   } else {
     sourceDesc = 'URL not yet configured';
     actionBtn = '';
@@ -655,7 +703,7 @@ async function downloadList(id, event) {
     list.cachedAt = Date.now();
     list._loading = false;
 
-    persistData(id, text);
+    await persistData(id, text);
     persistMeta();
 
     renderLists();
@@ -680,7 +728,7 @@ function uploadToList(id, event) {
 
 function ingestFile(file, listId, nameOverride) {
   const reader = new FileReader();
-  reader.onload = e => {
+  reader.onload = async e => {
     const text = e.target.result;
     const list = state.lists.find(l => l.id === listId);
     if (!list) return;
@@ -689,7 +737,7 @@ function ingestFile(file, listId, nameOverride) {
     list.rawEntries = parseWordlist(text);
     list.cachedAt = Date.now();
 
-    persistData(listId, text);
+    await persistData(listId, text);
     persistMeta();
 
     renderLists();
@@ -699,14 +747,13 @@ function ingestFile(file, listId, nameOverride) {
   reader.readAsText(file);
 }
 
-function removeList(id, event) {
+async function removeList(id, event) {
   if (event) event.stopPropagation();
   const list = state.lists.find(l => l.id === id);
   if (!list || !confirm(`Remove "${list.name}"?`)) return;
 
   state.lists = state.lists.filter(l => l.id !== id);
-  lsDel('data_' + id);
-  lsDel('ts_' + id);
+  await idbDel('data_' + id);
   persistMeta();
 
   if (state.selectedId === id) {
@@ -760,6 +807,13 @@ function addBuiltin(id) {
 // ─── Event wiring ─────────────────────────────────────────────────────────────
 
 function bindEvents() {
+  document.getElementById('btn-reset').onclick = async () => {
+    if (!confirm('Delete all lists and data? This cannot be undone.')) return;
+    localStorage.clear();
+    const req = indexedDB.deleteDatabase(IDB_NAME);
+    req.onsuccess = () => location.reload();
+  };
+
   const openBtn = () => openDialog();
   document.getElementById('btn-add-list').onclick  = openBtn;
   document.getElementById('btn-add-list-2').onclick = openBtn;
