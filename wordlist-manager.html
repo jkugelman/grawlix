@@ -243,7 +243,7 @@ const BUILTIN_TEMPLATES = [
   },
   {
     id: 'stwl',
-    name: 'Spread the Wordlist',
+    name: 'Spread the Word(list)',
     source: 'upload',
     url: null,
     downloadPage: 'https://www.spreadthewordlist.com/',
@@ -419,7 +419,7 @@ function computeStats(entries) {
 
 // ─── Virtual Scroller ─────────────────────────────────────────────────────────
 
-const colWidths = { word: 220, score: 70, rescored: 70 }; // persists across list switches
+const colWidths = { word: 220, score: 130 }; // persists across list switches
 
 class VirtualScroller {
   constructor(container) {
@@ -480,20 +480,13 @@ class VirtualScroller {
     this._applyFilterAndSort(false);
   }
 
-  _hasRescore() {
-    return this.rescoreRules.length > 0;
-  }
-
   _cols() {
-    const cols = ['word', 'score'];
-    if (this._hasRescore()) cols.push('rescored');
-    cols.push('comment');
-    return cols;
+    return ['word', 'score', 'comment'];
   }
 
   _buildHeader() {
-    const LABELS = { word: 'Word', score: 'Score', rescored: 'After', comment: 'Comment' };
-    const ALIGN  = { word: 'left', score: 'left', rescored: 'left', comment: 'left' };
+    const LABELS = { word: 'Word', score: 'Score', comment: 'Comment' };
+    const ALIGN  = { word: 'left', score: 'left', comment: 'left' };
     const cols = this._cols();
     this._currentCols = cols;
 
@@ -536,7 +529,7 @@ class VirtualScroller {
             this.sortDir = this.sortDir === 'asc' ? 'desc' : 'asc';
           } else {
             this.sortKey = key;
-            this.sortDir = key === 'score' ? 'desc' : 'asc';
+            this.sortDir = (key === 'score') ? 'desc' : 'asc';
           }
           this._buildHeader();
           this._applyFilterAndSort();
@@ -589,7 +582,7 @@ class VirtualScroller {
       const key = this.sortKey;
       const dir = this.sortDir === 'asc' ? 1 : -1;
       entries = [...entries].sort((a, b) => {
-        if (key === 'rescored') {
+        if (key === 'score' && this.rescoreRules.length) {
           const ar = rescoreEntry(a, this.rescoreRules);
           const br = rescoreEntry(b, this.rescoreRules);
           return dir * ((ar.kept ? ar.score : -1) - (br.kept ? br.score : -1));
@@ -621,7 +614,6 @@ class VirtualScroller {
       this.tbody.removeChild(this.topRow.nextSibling);
     }
 
-    const showRescore = this._currentCols.includes('rescored');
     const frag = document.createDocumentFragment();
     for (let i = start; i < end; i++) {
       const entry = this.entries[i];
@@ -630,24 +622,25 @@ class VirtualScroller {
       const tr = document.createElement('tr');
       tr.style.height = ROW_HEIGHT + 'px';
 
-      let rescoredHtml = '';
-      if (showRescore) {
+      let wordCell  = `<td>${word}</td>`;
+      let scoreCell = `<td><span class="score-badge" style="background:${bg};color:${fg}">${score}</span></td>`;
+
+      if (this.rescoreRules.length) {
         const r = rescoreEntry(entry, this.rescoreRules);
         if (!r.kept) {
-          tr.style.opacity = '0.35';
-          rescoredHtml = `<td><span class="score-badge" style="background:#f8d7da;color:#721c24">excl</span></td>`;
+          tr.style.opacity = '0.4';
+          wordCell  = `<td><span style="text-decoration:line-through">${word}</span></td>`;
+          scoreCell = `<td><span class="score-badge" style="background:${bg};color:${fg};text-decoration:line-through">${score}</span></td>`;
         } else if (r.score !== score) {
           const { bg: rb, fg: rf } = scoreColor(r.score);
-          rescoredHtml = `<td><span class="score-badge" style="background:${rb};color:${rf}">${r.score}</span></td>`;
-        } else {
-          rescoredHtml = `<td style="color:#ddd;padding-left:20px">—</td>`;
+          const orig = `<span style="color:#aaa;font-size:11px">${score}</span><span style="color:#ccc;font-size:10px;padding:0 3px">→</span>`;
+          scoreCell = `<td>${orig}<span class="score-badge" style="background:${rb};color:${rf}">${r.score}</span></td>`;
         }
       }
 
       tr.innerHTML =
-        `<td>${word}</td>` +
-        `<td><span class="score-badge" style="background:${bg};color:${fg}">${score}</span></td>` +
-        rescoredHtml +
+        wordCell +
+        scoreCell +
         `<td class="comment-cell">${comment || ''}</td>`;
       frag.appendChild(tr);
     }
