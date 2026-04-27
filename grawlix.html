@@ -64,6 +64,8 @@ body { font-family: system-ui, -apple-system, sans-serif; font-size: 14px; backg
 
 header { background: var(--hdr-bg); color: white; padding: 10px 20px; display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; }
 header h1 { font-size: 17px; font-weight: 600; letter-spacing: -0.01em; }
+.bubble { display: inline-flex; align-items: center; background: white; color: var(--accent); border-radius: 8px; padding: 1px 7px 2px; font-size: 15px; font-weight: 800; position: relative; margin-left: 9px; line-height: 1.5; vertical-align: middle; }
+.bubble::before { content: ''; position: absolute; left: -15px; top: 50%; transform: translateY(-50%); border: 9px solid transparent; border-right-color: white; }
 
 main { display: flex; flex: 1; overflow: hidden; }
 
@@ -299,7 +301,7 @@ input[type="file"] { display: none; }
 <body>
 
 <header>
-  <h1>Grawlix !@#$</h1>
+  <h1>Grawlix <span class="bubble">!@#$</span></h1>
   <button id="btn-settings" class="header-icon-btn" title="Settings">⚙️</button>
 </header>
 
