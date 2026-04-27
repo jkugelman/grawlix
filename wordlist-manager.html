@@ -146,7 +146,7 @@ button.danger:hover:not(:disabled) { background: #e74c3c; border-color: #c0392b;
 .list-card.disabled .status { opacity: 0.45; }
 
 /* No-data list */
-.list-card.no-data .toggle { opacity: 0.35; cursor: not-allowed; }
+.list-card.no-data .toggle { opacity: 0.35; }
 .list-card.no-data .toggle input { pointer-events: none; }
 
 
@@ -1041,7 +1041,8 @@ function renderLists() {
 
     const icon = getListIcon(list.id);
 
-    const toggleTitle = !hasData ? 'Load data to enable' : list.enabled ? 'Enabled — click to disable' : 'Disabled — click to enable';
+    const toggleTitle = !hasData ? 'Click to upload' : list.enabled ? 'Enabled — click to disable' : 'Disabled — click to enable';
+    const toggleClick = hasData ? 'event.stopPropagation()' : `triggerLoadForList('${list.id}',event)`;
     return `<div class="list-card${sel ? ' selected' : ''}${list.enabled ? '' : ' disabled'}${hasData ? '' : ' no-data'}" data-id="${list.id}" draggable="true" onclick="selectList('${list.id}')">
       <span class="drag-handle" title="Drag to reorder">≡</span>
       ${icon}
@@ -1050,7 +1051,7 @@ function renderLists() {
         <div class="card-meta"><span class="status ${dot}"></span>${meta}</div>
       </div>
       <div class="card-actions">
-        <label class="toggle" onclick="event.stopPropagation()" title="${toggleTitle}">
+        <label class="toggle" onclick="${toggleClick}" title="${toggleTitle}">
           <input type="checkbox"${hasData && list.enabled ? ' checked' : ''}${hasData ? '' : ' disabled'} onchange="toggleList('${list.id}',event)">
           <span class="toggle-slider"></span>
         </label>
@@ -1194,6 +1195,17 @@ async function downloadList(id, event) {
     renderLists();
     if (state.selectedId === id) renderDetail(list);
     showToast(`Download failed: ${err.message}`);
+  }
+}
+
+function triggerLoadForList(id, event) {
+  if (event) event.stopPropagation();
+  const list = state.lists.find(l => l.id === id);
+  if (!list) return;
+  if (list.source === 'upload') {
+    openUploadGuide(id);
+  } else if (list.source === 'builtin-download') {
+    openAutoDownloadDialog(id);
   }
 }
 
