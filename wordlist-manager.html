@@ -35,6 +35,8 @@ button.primary { background: #4285f4; color: white; border-color: #4285f4; }
 button.primary:hover:not(:disabled) { background: #3367d6; }
 button.small { font-size: 12px; padding: 2px 7px; }
 button:disabled { opacity: 0.45; cursor: not-allowed; }
+button.danger { background: #c0392b; color: white; border-color: #922b21; }
+button.danger:hover:not(:disabled) { background: #e74c3c; border-color: #c0392b; }
 
 /* Detail panel */
 #detail-panel { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
@@ -145,7 +147,7 @@ a.get-file:hover { text-decoration: underline; }
 <header>
   <h1>Wordlist Manager</h1>
   <div style="display:flex;gap:8px;align-items:center">
-    <button id="btn-reset" style="background:#c0392b;color:white;border-color:#922b21" title="Delete all lists and data">🗑 Reset</button>
+    <button id="btn-reset" class="danger" title="Delete all lists and data">🗑 Reset</button>
     <button class="primary" id="btn-add-list">+ Add List</button>
   </div>
 </header>
@@ -791,11 +793,9 @@ function renderLists() {
       const title = hasData ? 'Update' : 'Upload';
       actionBtn = `<button class="small" onclick="${uploadFn}('${list.id}',event)" title="${title}">${label}</button>`;
     } else if (list.source === 'builtin-download' && list.url) {
-      if (hasData) {
-        actionBtn = `<button class="small" onclick="downloadList('${list.id}',event)" title="Update" ${list._loading ? 'disabled' : ''}>↻</button>`;
-      } else {
-        actionBtn = `<button class="small" onclick="openJKUploadDialog('${list.id}',event)" title="Upload or download">↑</button>`;
-      }
+      const label = hasData ? '↻' : '↑';
+      const title = hasData ? 'Update' : 'Upload or download';
+      actionBtn = `<button class="small" onclick="openJKUploadDialog('${list.id}',event)" title="${title}" ${list._loading ? 'disabled' : ''}>${label}</button>`;
     } else if (list.url) {
       actionBtn = `<button class="small" onclick="downloadList('${list.id}',event)" title="Update" ${list._loading ? 'disabled' : ''}>↻</button>`;
     } else {
@@ -803,10 +803,9 @@ function renderLists() {
     }
 
     const icon = getListIcon(list.id);
-    const isBuiltin = !!getTemplate(list.id);
-    const removeTitle = isBuiltin && hasData ? 'Clear data' : isBuiltin ? '' : 'Remove';
-    const removeBtn = isBuiltin && !hasData ? '' :
-      `<button class="small" onclick="removeList('${list.id}',event)" title="${removeTitle}">×</button>`;
+    const clearBtn = hasData
+      ? `<button class="small" onclick="clearListData('${list.id}',event)" title="Clear data">🗑</button>`
+      : `<button class="small" onclick="deleteList('${list.id}',event)" title="Remove">×</button>`;
 
     return `<div class="list-card${sel ? ' selected' : ''}" onclick="selectList('${list.id}')">
       <span class="status ${dot}"></span>
@@ -817,7 +816,7 @@ function renderLists() {
       </div>
       <div class="card-actions">
         ${actionBtn}
-        ${removeBtn}
+        ${clearBtn}
       </div>
     </div>`;
   }).join('');
@@ -868,13 +867,9 @@ function renderDetail(list) {
       actionBtn = `<button onclick="uploadToList('${list.id}')">${label}</button>`;
     }
   } else if (list.source === 'builtin-download' && list.url) {
-    if (hasData) {
-      sourceDesc = list.url;
-      actionBtn = `<button onclick="downloadList('${list.id}')" ${list._loading ? 'disabled' : ''}>${list._loading ? 'Updating…' : '↻ Update'}</button>`;
-    } else {
-      sourceDesc = 'Auto-download available';
-      actionBtn = `<button onclick="openJKUploadDialog('${list.id}')">↑ Upload</button>`;
-    }
+    sourceDesc = hasData ? list.url : 'Auto-download available';
+    const label = hasData ? '↻ Update' : '↑ Upload';
+    actionBtn = `<button onclick="openJKUploadDialog('${list.id}')" ${list._loading ? 'disabled' : ''}>${list._loading ? 'Updating…' : label}</button>`;
   } else if (list.url) {
     sourceDesc = list.url;
     actionBtn = `<button onclick="downloadList('${list.id}')" ${list._loading ? 'disabled' : ''}>${list._loading ? 'Updating…' : '↻ Update'}</button>`;
@@ -986,33 +981,33 @@ function ingestFile(file, listId, nameOverride) {
   reader.readAsText(file);
 }
 
-async function removeList(id, event) {
+async function clearListData(id, event) {
+  if (event) event.stopPropagation();
+  const list = state.lists.find(l => l.id === id);
+  if (!list || !list.rawEntries.length) return;
+  if (!confirm(`Clear data for "${list.name}"?`)) return;
+  list.rawEntries = [];
+  list.cachedAt = null;
+  await idbDel('data_' + id);
+  persistMeta();
+  renderLists();
+  if (state.selectedId === id) renderDetail(list);
+}
+
+async function deleteList(id, event) {
   if (event) event.stopPropagation();
   const list = state.lists.find(l => l.id === id);
   if (!list) return;
-
-  const isBuiltin = !!getTemplate(id);
-
-  if (isBuiltin) {
-    if (!list.rawEntries.length || !confirm(`Clear data for "${list.name}"?`)) return;
-    list.rawEntries = [];
-    list.cachedAt = null;
-    await idbDel('data_' + id);
-    persistMeta();
-    renderLists();
-    if (state.selectedId === id) renderDetail(list);
-  } else {
-    if (!confirm(`Remove "${list.name}"?`)) return;
-    state.lists = state.lists.filter(l => l.id !== id);
-    await idbDel('data_' + id);
-    persistMeta();
-    if (state.selectedId === id) {
-      state.selectedId = null;
-      lsSave('selectedId', '');
-      scroller = null;
-    }
-    renderAll();
+  if (!confirm(`Remove "${list.name}"?`)) return;
+  state.lists = state.lists.filter(l => l.id !== id);
+  await idbDel('data_' + id);
+  persistMeta();
+  if (state.selectedId === id) {
+    state.selectedId = null;
+    lsSave('selectedId', '');
+    scroller = null;
   }
+  renderAll();
 }
 
 function addNewList(listDef) {
@@ -1220,7 +1215,7 @@ function openJKUploadDialog(listId, event) {
         <div class="builtin-item-name">Auto-download</div>
         <div class="builtin-item-sub">Download directly from GitHub</div>
       </div>
-      <button class="small primary" id="jk-auto-dl-btn">↻ Download</button>
+      <button class="small primary" id="jk-auto-dl-btn">Download</button>
     </div>
     <div style="text-align:center;color:#aaa;font-size:12px;margin:12px 0">— or upload a file —</div>
     <div class="upload-zone" id="guide-drop-zone" style="padding:16px">
