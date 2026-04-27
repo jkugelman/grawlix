@@ -112,6 +112,33 @@ dialog h2 { font-size: 16px; margin-bottom: 14px; }
 a.get-file { font-size: 12px; color: #4285f4; text-decoration: none; white-space: nowrap; }
 a.get-file:hover { text-decoration: underline; }
 
+/* ── Rescore section ──────────────────────────────────────────────────────── */
+.rescore-section { background: #fafafa; border-bottom: 1px solid #eee; padding: 9px 18px; flex-shrink: 0; max-height: 240px; overflow-y: auto; }
+.rescore-top { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+.rescore-lbl { font-size: 10px; font-weight: 700; color: #aaa; text-transform: uppercase; letter-spacing: 0.05em; }
+.rescore-minlen { display: flex; align-items: center; gap: 5px; font-size: 12px; color: #666; margin-left: auto; }
+.rescore-minlen input { width: 44px; padding: 2px 5px; border: 1px solid #ddd; border-radius: 3px; font-size: 12px; text-align: center; font-family: inherit; }
+.rescore-minlen input:focus { outline: none; border-color: #4285f4; }
+.rule-row { display: flex; align-items: center; gap: 5px; margin-bottom: 3px; }
+.rule-in  { width: 72px; padding: 2px 6px; border: 1px solid #ddd; border-radius: 3px; font-size: 12px; font-family: ui-monospace, 'Cascadia Code', monospace; text-align: center; }
+.rule-out { width: 68px; padding: 2px 6px; border: 1px solid #ddd; border-radius: 3px; font-size: 12px; font-family: ui-monospace, 'Cascadia Code', monospace; text-align: center; }
+.rule-in:focus, .rule-out:focus { outline: none; border-color: #4285f4; }
+.rule-in.invalid, .rule-out.invalid { border-color: #ea4335; background: #fff8f8; }
+.rule-arrow { color: #ccc; font-size: 14px; width: 14px; text-align: center; flex-shrink: 0; }
+.rule-del { width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; border: none; background: none; cursor: pointer; color: #ccc; font-size: 15px; padding: 0; line-height: 1; border-radius: 3px; font-family: inherit; }
+.rule-del:hover { color: #e53935; background: #fdecea; }
+.rescore-preview { font-size: 11px; color: #888; margin-top: 7px; padding-top: 7px; border-top: 1px solid #eee; line-height: 2; }
+.preview-label { font-size: 10px; font-weight: 700; color: #aaa; text-transform: uppercase; letter-spacing: 0.04em; margin-right: 3px; }
+.p-chip { display: inline-flex; align-items: center; gap: 2px; background: #eef2fb; border-radius: 10px; padding: 1px 8px; margin: 1px 3px 1px 0; font-family: ui-monospace, 'Cascadia Code', monospace; }
+.p-chip .pw { font-size: 11px; color: #333; }
+.p-chip .ps-from { font-size: 10px; color: #aaa; margin-left: 2px; }
+.p-chip .ps-arr  { font-size: 10px; color: #ccc; }
+.p-chip .ps-to   { font-size: 10px; font-weight: 700; color: #1a73e8; }
+.p-chip.p-excl { background: #fdecea; }
+.p-chip.p-excl .pw { text-decoration: line-through; color: #c62828; }
+.p-chip.p-excl .ps-from { color: #e57373; }
+.p-chip.p-same .ps-from { color: #555; }
+
 /* Upload guide dialog */
 #upload-guide-dialog { width: 660px; }
 .guide-steps { display: flex; flex-direction: column; gap: 16px; }
@@ -245,6 +272,12 @@ const BUILTIN_TEMPLATES = [
   },
 ];
 
+const DEFAULT_RULES = {
+  xwi:   { rescoreRules: [{ input:'60+', output:'60' }, { input:'50-59', output:'50' }, { input:'30-49', output:'30' }, { input:'0-29', output:'20' }], minWordLength: null },
+  stwl:  { rescoreRules: [{ input:'50+', output:'50' }, { input:'0-49', output:'exclude' }], minWordLength: null },
+  broda: { rescoreRules: [{ input:'80+', output:'60' }, { input:'0-79', output:'exclude' }], minWordLength: 7 },
+};
+
 // ─── State ────────────────────────────────────────────────────────────────────
 
 const state = {
@@ -327,6 +360,7 @@ function persistMeta() {
   lsSave('meta', JSON.stringify(state.lists.map(l => ({
     id: l.id, name: l.name, source: l.source, url: l.url || null,
     enabled: l.enabled, cachedAt: l.cachedAt || null,
+    rescoreRules: l.rescoreRules || [], minWordLength: l.minWordLength || null,
   }))));
 }
 
@@ -345,7 +379,8 @@ async function init() {
       const meta = JSON.parse(raw);
       state.lists = await Promise.all(meta.map(async m => {
         const text = await idbGet('data_' + m.id);
-        return { ...m, rawEntries: text ? parseWordlist(text) : [], _loading: false };
+        return { ...m, rawEntries: text ? parseWordlist(text) : [], _loading: false,
+                 rescoreRules: m.rescoreRules || [], minWordLength: m.minWordLength || null };
       }));
     } catch { state.lists = defaultLists(); }
   } else {
@@ -360,7 +395,14 @@ async function init() {
 }
 
 function defaultLists() {
-  return BUILTIN_TEMPLATES.map(t => ({ ...t, enabled: true, rawEntries: [], cachedAt: null, _loading: false }));
+  return BUILTIN_TEMPLATES.map(t => {
+    const dr = DEFAULT_RULES[t.id] ?? {};
+    return {
+      ...t, enabled: true, rawEntries: [], cachedAt: null, _loading: false,
+      rescoreRules: dr.rescoreRules ? JSON.parse(JSON.stringify(dr.rescoreRules)) : [],
+      minWordLength: dr.minWordLength ?? null,
+    };
+  });
 }
 
 // ─── Stats ────────────────────────────────────────────────────────────────────
@@ -594,6 +636,124 @@ function scoreColor(s) {
   return { bg: '#f8d7da', fg: '#721c24' };
 }
 
+// ─── Rescoring ────────────────────────────────────────────────────────────────
+
+function parseRuleInput(str) {
+  str = (str || '').trim();
+  if (!str || str === '*') return { min: null, max: null };
+  const mPlus  = str.match(/^(\d+)\+$/);        if (mPlus)  return { min: +mPlus[1],  max: null };
+  const mRange = str.match(/^(\d+)[-–](\d+)$/); if (mRange) return { min: +mRange[1], max: +mRange[2] };
+  const mExact = str.match(/^(\d+)$/);           if (mExact) return { min: +mExact[1], max: +mExact[1] };
+  return null;
+}
+
+function parseRuleOutput(str) {
+  str = (str || '').trim().toLowerCase();
+  if (!str || str === 'exclude' || str === 'x') return 'exclude';
+  const n = parseInt(str, 10);
+  return isNaN(n) ? null : n;
+}
+
+function applyRescoring(entries, rules, minLen) {
+  const len = +minLen || 0;
+  const result = [];
+  for (const entry of entries) {
+    if (len > 1 && entry.word.length < len) continue;
+    let out = entry;
+    for (const rule of rules) {
+      const parsed = parseRuleInput(rule.input);
+      if (!parsed) continue;
+      const { min, max } = parsed;
+      if ((min === null || entry.score >= min) && (max === null || entry.score <= max)) {
+        const s = parseRuleOutput(rule.output);
+        if (s === null) continue;
+        out = s === 'exclude' ? null : { ...entry, score: s };
+        break;
+      }
+    }
+    if (out !== null) result.push(out);
+  }
+  return result;
+}
+
+function pickPreviewSamples(entries, rules, minLen) {
+  const samples = [];
+  const used = new Set();
+  for (const rule of rules) {
+    const parsed = parseRuleInput(rule.input);
+    if (!parsed) continue;
+    const out = parseRuleOutput(rule.output);
+    if (out === null) continue;
+    const { min, max } = parsed;
+    for (const e of entries) {
+      if (used.has(e.word)) continue;
+      if (minLen > 1 && e.word.length < minLen) continue;
+      if ((min === null || e.score >= min) && (max === null || e.score <= max)) {
+        used.add(e.word);
+        samples.push({ word: e.word, origScore: e.score, newScore: out === 'exclude' ? 'excluded' : out });
+        break;
+      }
+    }
+    if (samples.length >= 6) break;
+  }
+  return samples;
+}
+
+function buildPreviewHTML(entries, rules, minLen) {
+  const samples = pickPreviewSamples(entries, rules, +minLen || 0);
+  if (!samples.length) return '<span style="color:#ccc;font-size:11px">Load data to see a preview</span>';
+  return samples.map(s => {
+    if (s.newScore === 'excluded')
+      return `<span class="p-chip p-excl" title="${s.word}: ${s.origScore} → excluded"><span class="pw">${s.word}</span><span class="ps-from"> ${s.origScore}</span></span>`;
+    if (s.newScore === s.origScore)
+      return `<span class="p-chip p-same" title="${s.word}: unchanged"><span class="pw">${s.word}</span><span class="ps-from"> ${s.origScore}</span></span>`;
+    return `<span class="p-chip" title="${s.word}: ${s.origScore} → ${s.newScore}"><span class="pw">${s.word}</span><span class="ps-from"> ${s.origScore}</span><span class="ps-arr">→</span><span class="ps-to">${s.newScore}</span></span>`;
+  }).join('');
+}
+
+function buildRescoreSectionHTML(list) {
+  if (!list) return '';
+  const rules = list.rescoreRules || [];
+  const hasData = list.rawEntries.length > 0;
+
+  const rulesHTML = rules.length
+    ? rules.map((r, i) =>
+        `<div class="rule-row" data-i="${i}">
+          <input class="rule-in" value="${esc(r.input)}" placeholder="60+"
+            oninput="onRescoreInput()" onchange="saveRuleField(${i},'input',this.value)">
+          <span class="rule-arrow">→</span>
+          <input class="rule-out" value="${esc(r.output)}" placeholder="60"
+            oninput="onRescoreInput()" onchange="saveRuleField(${i},'output',this.value)">
+          <button class="rule-del" onclick="deleteRule(${i})" title="Remove rule">×</button>
+        </div>`).join('')
+    : `<div style="font-size:12px;color:#ccc;font-style:italic;margin-bottom:3px">No rules — words kept as-is</div>`;
+
+  const previewHTML = hasData ? buildPreviewHTML(list.rawEntries, rules, list.minWordLength || 0) : '';
+
+  return `
+    <div class="rescore-top">
+      <span class="rescore-lbl">Rescoring</span>
+      <div class="rescore-minlen">
+        <span>Min length</span>
+        <input type="number" id="rescore-minlen" min="1" max="25"
+          value="${list.minWordLength || ''}" placeholder="—"
+          oninput="onRescoreInput()" onchange="saveMinLen(this.value)">
+        <span>letters</span>
+      </div>
+    </div>
+    <div id="rescore-rules">${rulesHTML}</div>
+    <div style="margin-top:4px">
+      <button class="small" onclick="addRule()" style="font-size:11px;padding:2px 8px">+ Add rule</button>
+    </div>
+    ${previewHTML ? `<div id="rescore-preview" class="rescore-preview"><span class="preview-label">Preview</span>${previewHTML}</div>` : ''}
+  `;
+}
+
+function renderRescoreSection() {
+  const el = document.getElementById('rescore-section');
+  if (el) el.innerHTML = buildRescoreSectionHTML(getSelected());
+}
+
 // ─── Rendering ────────────────────────────────────────────────────────────────
 
 let scroller = null;
@@ -727,6 +887,7 @@ function renderDetail(list) {
       ${actionBtn}
     </div>
     ${statsHtml}
+    <div id="rescore-section" class="rescore-section">${buildRescoreSectionHTML(list)}</div>
     <div class="search-bar">
       <input type="text" id="search-input" placeholder="Search words…" value="${esc(state.searchQuery)}" oninput="onSearch(this.value)">
     </div>
@@ -850,7 +1011,7 @@ async function removeList(id, event) {
 }
 
 function addNewList(listDef) {
-  state.lists.push({ ...listDef, rawEntries: [], cachedAt: null, _loading: false });
+  state.lists.push({ rescoreRules: [], minWordLength: null, ...listDef, rawEntries: [], cachedAt: null, _loading: false });
   persistMeta();
   renderLists();
 }
@@ -888,7 +1049,12 @@ function addBuiltin(id) {
   if (state.lists.some(l => l.id === id)) return;
   const t = BUILTIN_TEMPLATES.find(t => t.id === id);
   if (!t) return;
-  addNewList({ id: t.id, name: t.name, source: t.source, url: t.url || null, enabled: true });
+  const dr = DEFAULT_RULES[id] ?? {};
+  addNewList({
+    id: t.id, name: t.name, source: t.source, url: t.url || null, enabled: true,
+    rescoreRules: dr.rescoreRules ? JSON.parse(JSON.stringify(dr.rescoreRules)) : [],
+    minWordLength: dr.minWordLength ?? null,
+  });
   document.getElementById('add-dialog').close();
   showToast(`Added ${t.name}`);
 }
@@ -1135,6 +1301,67 @@ function guideScreenshotBroda() {
     <img src="broda-download-page.png" alt="Peter Broda wordlist download page">
     <div class="annotation" style="left:21%;top:15%;width:21%;height:19%"></div>
   </div>`;
+}
+
+// ─── Rescore rule management ──────────────────────────────────────────────────
+
+function addRule() {
+  const list = getSelected();
+  if (!list) return;
+  if (!list.rescoreRules) list.rescoreRules = [];
+  list.rescoreRules.push({ input: '', output: '' });
+  persistMeta();
+  renderRescoreSection();
+  const rows = document.querySelectorAll('#rescore-rules .rule-row');
+  if (rows.length) rows[rows.length - 1].querySelector('.rule-in')?.focus();
+}
+
+function deleteRule(idx) {
+  const list = getSelected();
+  if (!list) return;
+  list.rescoreRules.splice(idx, 1);
+  persistMeta();
+  renderRescoreSection();
+}
+
+function saveRuleField(idx, field, value) {
+  const list = getSelected();
+  if (!list || !list.rescoreRules[idx]) return;
+  list.rescoreRules[idx][field] = value;
+  persistMeta();
+}
+
+function saveMinLen(value) {
+  const list = getSelected();
+  if (!list) return;
+  const n = parseInt(value, 10);
+  list.minWordLength = (!isNaN(n) && n >= 1) ? n : null;
+  persistMeta();
+}
+
+function onRescoreInput() {
+  document.querySelectorAll('.rule-in').forEach(el => {
+    const v = el.value.trim();
+    el.classList.toggle('invalid', v !== '' && parseRuleInput(v) === null);
+  });
+  document.querySelectorAll('.rule-out').forEach(el => {
+    const v = el.value.trim();
+    el.classList.toggle('invalid', v !== '' && parseRuleOutput(v) === null);
+  });
+  updateRescorePreview();
+}
+
+function updateRescorePreview() {
+  const preview = document.getElementById('rescore-preview');
+  if (!preview) return;
+  const list = getSelected();
+  if (!list || !list.rawEntries.length) return;
+  const rules = Array.from(document.querySelectorAll('#rescore-rules .rule-row')).map(row => ({
+    input:  row.querySelector('.rule-in')?.value  || '',
+    output: row.querySelector('.rule-out')?.value || '',
+  }));
+  const minLen = parseInt(document.getElementById('rescore-minlen')?.value || '0') || 0;
+  preview.innerHTML = buildPreviewHTML(list.rawEntries, rules, minLen);
 }
 
 // ─── Boot ─────────────────────────────────────────────────────────────────────
