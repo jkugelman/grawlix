@@ -231,8 +231,14 @@ a.get-file:hover { text-decoration: underline; }
 .rule-in.invalid, .rule-len.invalid, .rule-out.invalid { border-color: #ea4335; background: var(--error-bg); }
 .rule-catchall { background: var(--surface); border-radius: 4px; }.rule-field-lbl { font-size: 10px; color: var(--faint); font-family: inherit; flex-shrink: 0; }
 .rule-arrow { color: var(--faint); font-size: 14px; width: 14px; text-align: center; flex-shrink: 0; }
-.rule-note { flex: 1; min-width: 60px; padding: 2px 6px; border: 1px solid var(--border); border-radius: 3px; font-size: 12px; background: var(--input-bg); color: var(--muted); }
-.rule-note:focus { outline: none; border-color: var(--accent); color: var(--text); }
+.rule-note-wrap { flex: 1; min-width: 0; display: flex; align-items: center; cursor: text; border-radius: 3px; padding: 2px 3px; gap: 3px; }
+.rule-note-wrap:hover { background: var(--surface); }
+.rule-note-text { flex: 0 1 auto; min-width: 0; font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.4; }
+.rule-note-text:empty::before { content: 'add note…'; font-style: italic; color: transparent; pointer-events: none; }
+.rule-row:hover .rule-note-text:empty::before { color: var(--faint); }
+.rule-note-pencil { font-size: 11px; color: var(--faint); flex-shrink: 0; opacity: 0; line-height: 1; user-select: none; }
+.rule-row:hover .rule-note-wrap.has-note .rule-note-pencil { opacity: 1; }
+.rule-note-input { flex: 1; padding: 1px 4px; border: 1px solid var(--accent); border-radius: 3px; font-size: 12px; background: var(--input-bg); color: var(--text); outline: none; min-width: 0; }
 .rule-del { width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; border: none; background: none; cursor: pointer; color: var(--faint); font-size: 15px; padding: 0; line-height: 1; border-radius: 3px; font-family: inherit; }
 .rule-del:hover { color: #e53935; background: var(--del-hover); }
 
@@ -1045,8 +1051,10 @@ function buildRescoreSectionHTML(list) {
           <input class="rule-out" value="${esc(r.output)}" placeholder="unchanged"
             title="Output score, 'exclude', or blank for unchanged"
             oninput="onRescoreInput()" onchange="saveRuleField(${i},'output',this.value)">
-          <input class="rule-note" value="${esc(r.note||'')}" placeholder="note…"
-            onchange="saveRuleField(${i},'note',this.value)">
+          <span class="rule-note-wrap${r.note ? ' has-note' : ''}" onclick="startNoteEdit(this)">
+            <span class="rule-note-text">${esc(r.note||'')}</span>
+            <span class="rule-note-pencil">✎</span>
+          </span>
           ${isCatchAll ? '' : `<button class="rule-del" onclick="deleteRule(${i})" title="Remove rule">×</button>`}
         </div>`;
       }).join('')
@@ -1680,6 +1688,45 @@ function saveRuleField(idx, field, value) {
   updateRescorePreview();
 }
 
+function noteDisplayHTML(note) {
+  return `<span class="rule-note-text">${esc(note)}</span><span class="rule-note-pencil">✎</span>`;
+}
+
+function startNoteEdit(wrapEl) {
+  if (wrapEl.querySelector('.rule-note-input')) return;
+  const i = parseInt(wrapEl.closest('.rule-row').dataset.i, 10);
+  const list = getSelected();
+  if (!list || !list.rescoreRules[i]) return;
+  const currentNote = list.rescoreRules[i].note || '';
+
+  wrapEl.innerHTML = `<input class="rule-note-input" value="${esc(currentNote)}" placeholder="note…">`;
+  const input = wrapEl.querySelector('input');
+  input.focus();
+  input.select();
+
+  let committed = false;
+  function commit() {
+    if (committed) return;
+    committed = true;
+    const newNote = input.value;
+    saveRuleField(i, 'note', newNote);
+    if (wrapEl.isConnected) {
+      wrapEl.innerHTML = noteDisplayHTML(newNote);
+      wrapEl.classList.toggle('has-note', !!newNote.trim());
+    }
+  }
+  input.addEventListener('blur', commit, { once: true });
+  input.addEventListener('keydown', e => {
+    if (e.key === 'Enter') { input.blur(); }
+    if (e.key === 'Escape') {
+      committed = true;
+      if (wrapEl.isConnected) {
+        wrapEl.innerHTML = noteDisplayHTML(currentNote);
+        wrapEl.classList.toggle('has-note', !!currentNote.trim());
+      }
+    }
+  });
+}
 
 function onRescoreInput() {
   document.querySelectorAll('.rule-in, .rule-len').forEach(el => {
