@@ -225,7 +225,7 @@ const BUILTIN_TEMPLATES = [
     source: 'upload',
     url: null,
     downloadPage: 'https://www.xwordinfo.com/WordList',
-    downloadNote: "Download a .txt file",
+    downloadNote: 'Download a <strong>.txt</strong> version.',
   },
   {
     id: 'stwl',
@@ -233,13 +233,15 @@ const BUILTIN_TEMPLATES = [
     source: 'upload',
     url: null,
     downloadPage: 'https://www.spreadthewordlist.com/',
-    downloadNote: 'Download the “lowercase + compiler” version',
+    downloadNote: 'Download the <strong>lowercase + compiler</strong> version.',
   },
   {
     id: 'broda',
     name: 'Peter Broda',
     source: 'upload',
     url: null,
+    downloadPage: 'http://www.peterbroda.me/crosswords/wordlist/',
+    downloadNote: 'Download the <strong>.txt</strong> version.',
   },
 ];
 
@@ -824,7 +826,7 @@ function openDialog() {
     const exists = state.lists.some(l => l.id === t.id);
     const sub = t.source === 'upload'
       ? (t.downloadPage
-        ? `Manual download &middot; <a class="get-file" href="${esc(t.downloadPage)}" target="_blank" rel="noopener">Get file →</a>`
+        ? `Manual download &middot; <a class="get-file" href="${esc(t.downloadPage)}" target="_blank" rel="noopener">Get file 🔗</a>`
         : 'Manual upload')
       : t.url ? 'Auto-download'
       : 'URL TBD';
@@ -982,11 +984,10 @@ function openUploadGuide(listId, event) {
   dialog.showModal();
 }
 
+const guideScreenshots = { xwi: guideScreenshotXwi, stwl: guideScreenshotStwl, broda: guideScreenshotBroda };
+
 function buildGuideHTML(listId, tmpl) {
-  const screenshot = listId === 'xwi' ? guideScreenshotXwi() : guideScreenshotStwl();
-  const step2note  = listId === 'xwi'
-    ? 'Click a <strong>.txt</strong> download button.'
-    : 'Click the <strong>lowercase + compiler</strong> button (top right).';
+  const screenshot = (guideScreenshots[listId] ?? (() => ''))();
   const subscriptionNote = listId === 'xwi'
     ? `<div style="background:#fff3cd;border:1px solid #ffc107;border-radius:5px;padding:9px 12px;margin-bottom:16px;font-size:12px;color:#856404">
         <strong>Note:</strong> XWord Info requires a paid subscription to access the wordlist download.
@@ -996,13 +997,13 @@ function buildGuideHTML(listId, tmpl) {
     <div class="guide-step">
       <div class="guide-step-num">1</div>
       <div class="guide-step-body">
-        Go to the download page: <a class="get-file" href="${esc(tmpl.downloadPage)}" target="_blank" rel="noopener">${esc(tmpl.downloadPage)} →</a>
+        Go to the download page: <a class="get-file" href="${esc(tmpl.downloadPage)}" target="_blank" rel="noopener">${esc(tmpl.downloadPage)} 🔗</a>
       </div>
     </div>
     <div class="guide-step">
       <div class="guide-step-num">2</div>
       <div class="guide-step-body">
-        ${step2note}
+        ${tmpl.downloadNote}
         ${screenshot}
       </div>
     </div>
@@ -1030,6 +1031,13 @@ function guideScreenshotStwl() {
   return `<div class="screenshot-container">
     <img src="stwl-download-page.png" alt="Spread the Word(list) download page">
     <div class="annotation" style="left:51%;top:25%;width:49%;height:34%"></div>
+  </div>`;
+}
+
+function guideScreenshotBroda() {
+  return `<div class="screenshot-container">
+    <img src="broda-download-page.png" alt="Peter Broda wordlist download page">
+    <div class="annotation" style="left:21%;top:15%;width:21%;height:19%"></div>
   </div>`;
 }
 
