@@ -122,10 +122,10 @@ a.get-file:hover { text-decoration: underline; }
 .rule-row { display: flex; align-items: center; gap: 5px; margin-bottom: 3px; }
 .rule-in  { width: 72px; padding: 2px 6px; border: 1px solid #ddd; border-radius: 3px; font-size: 12px; font-family: ui-monospace, 'Cascadia Code', monospace; text-align: center; }
 .rule-len { width: 60px; padding: 2px 6px; border: 1px solid #ddd; border-radius: 3px; font-size: 12px; font-family: ui-monospace, 'Cascadia Code', monospace; text-align: center; }
-.rule-out { width: 68px; padding: 2px 6px; border: 1px solid #ddd; border-radius: 3px; font-size: 12px; font-family: ui-monospace, 'Cascadia Code', monospace; text-align: center; }
+.rule-out { width: 80px; padding: 2px 6px; border: 1px solid #ddd; border-radius: 3px; font-size: 12px; font-family: ui-monospace, 'Cascadia Code', monospace; text-align: center; }
 .rule-in:focus, .rule-len:focus, .rule-out:focus { outline: none; border-color: #4285f4; }
 .rule-in.invalid, .rule-len.invalid, .rule-out.invalid { border-color: #ea4335; background: #fff8f8; }
-.rule-field-lbl { font-size: 10px; color: #bbb; font-family: inherit; flex-shrink: 0; }
+.rule-catchall { background: #f5f5f5; border-radius: 4px; }.rule-field-lbl { font-size: 10px; color: #bbb; font-family: inherit; flex-shrink: 0; }
 .rule-arrow { color: #ccc; font-size: 14px; width: 14px; text-align: center; flex-shrink: 0; }
 .rule-del { width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; border: none; background: none; cursor: pointer; color: #ccc; font-size: 15px; padding: 0; line-height: 1; border-radius: 3px; font-family: inherit; }
 .rule-del:hover { color: #e53935; background: #fdecea; }
@@ -265,8 +265,8 @@ const BUILTIN_TEMPLATES = [
 
 const DEFAULT_RULES = {
   xwi:   { rescoreRules: [{ input:'60+', length:'', output:'60' }, { input:'50-59', length:'', output:'50' }, { input:'30-49', length:'', output:'30' }, { input:'0-29', length:'', output:'20' }] },
-  stwl:  { rescoreRules: [{ input:'50+', length:'', output:'50' }, { input:'0-49', length:'', output:'exclude' }] },
-  broda: { rescoreRules: [{ input:'80+', length:'7+', output:'60' }, { input:'0-79', length:'', output:'exclude' }] },
+  stwl:  { rescoreRules: [{ input:'50', length:'', output:'50' }, { input:'40', length:'', output:'30' }, { input:'30', length:'', output:'20' }, { input:'0', length:'', output:'10' }, { input:'10,20', length:'', output:'0' }] },
+  broda: { rescoreRules: [{ input:'80-100', length:'7+', output:'60' }, { input:'0-79', length:'', output:'exclude' }] },
 };
 
 // ─── State ────────────────────────────────────────────────────────────────────
@@ -370,8 +370,10 @@ async function init() {
       const meta = JSON.parse(raw);
       state.lists = await Promise.all(meta.map(async m => {
         const text = await idbGet('data_' + m.id);
-        return { ...m, rawEntries: text ? parseWordlist(text) : [], _loading: false,
-                 rescoreRules: (m.rescoreRules || []).map(r => ({ length: '', ...r })) };
+        const list = { ...m, rawEntries: text ? parseWordlist(text) : [], _loading: false,
+                       rescoreRules: (m.rescoreRules || []).map(r => ({ length: '', ...r })) };
+        updateCatchAll(list);
+        return list;
       }));
     } catch { state.lists = defaultLists(); }
   } else {
@@ -390,10 +392,12 @@ async function init() {
 function defaultLists() {
   return BUILTIN_TEMPLATES.map(t => {
     const dr = DEFAULT_RULES[t.id] ?? {};
-    return {
+    const list = {
       ...t, enabled: true, rawEntries: [], cachedAt: null, _loading: false,
       rescoreRules: dr.rescoreRules ? JSON.parse(JSON.stringify(dr.rescoreRules)) : [],
     };
+    updateCatchAll(list);
+    return list;
   });
 }
 
@@ -665,16 +669,104 @@ function scoreColor(s) {
 
 function parseRange(str) {
   str = (str || '').trim();
-  if (!str || str === '*') return { min: null, max: null };
-  const mPlus  = str.match(/^(\d+)\+$/);        if (mPlus)  return { min: +mPlus[1],  max: null };
-  const mRange = str.match(/^(\d+)[-–](\d+)$/); if (mRange) return { min: +mRange[1], max: +mRange[2] };
-  const mExact = str.match(/^(\d+)$/);           if (mExact) return { min: +mExact[1], max: +mExact[1] };
-  return null;
+  if (!str || str === '*') return [{ min: null, max: null }];
+  const parts = str.split(',').map(s => s.trim()).filter(Boolean);
+  if (!parts.length) return null;
+  const intervals = [];
+  for (const part of parts) {
+    const mPlus  = part.match(/^(\d+)\+$/);        if (mPlus)  { intervals.push({ min: +mPlus[1],  max: null });            continue; }
+    const mRange = part.match(/^(\d+)[-–](\d+)$/); if (mRange) { intervals.push({ min: +mRange[1], max: +mRange[2] });       continue; }
+    const mExact = part.match(/^(\d+)$/);           if (mExact) { intervals.push({ min: +mExact[1], max: +mExact[1] });       continue; }
+    return null;
+  }
+  return intervals.length ? intervals : null;
+}
+
+function matchesRange(value, intervals) {
+  for (const { min, max } of intervals) {
+    if ((min === null || value >= min) && (max === null || value <= max)) return true;
+  }
+  return false;
+}
+
+function scoresToRangeStr(scores) {
+  if (!scores.length) return '';
+  const sorted = [...scores].sort((a, b) => a - b);
+  // Build exact disjoint representation (compresses consecutive runs)
+  const ranges = [];
+  let start = sorted[0], end = sorted[0];
+  for (let i = 1; i < sorted.length; i++) {
+    if (sorted[i] === end + 1) { end = sorted[i]; }
+    else { ranges.push(start === end ? `${start}` : `${start}-${end}`); start = end = sorted[i]; }
+  }
+  ranges.push(start === end ? `${start}` : `${start}-${end}`);
+  const exact = ranges.join(',');
+  // Compare with a simple min-max span — pick whichever string is shorter
+  const min = sorted[0], max = sorted[sorted.length - 1];
+  const span = min === max ? `${min}` : `${min}-${max}`;
+  return span.length <= exact.length ? span : exact;
+}
+
+function getRuleMaxScore(rule) {
+  const intervals = parseRange(rule.input);
+  if (!intervals) return -1;
+  let max = -Infinity;
+  for (const { max: imax } of intervals) {
+    const m = imax === null ? Infinity : imax;
+    if (m > max) max = m;
+  }
+  return max;
+}
+
+function outputSortKey(rule) {
+  const s = parseRuleOutput(rule.output);
+  if (typeof s === 'number') return s;
+  if (s === 'exclude') return -1;
+  return -2; // 'unchanged' sorts last
+}
+
+function rulesSig(rules) {
+  return rules.map(r => `${r.input}|${r.length}|${r.output}|${r._catchAll ? 1 : 0}`).join(';');
+}
+
+function updateCatchAll(list) {
+  const rules = list.rescoreRules;
+  const before = rulesSig(rules);
+
+  // Remove existing auto catch-all
+  const caIdx = rules.findIndex(r => r._catchAll);
+  if (caIdx !== -1) rules.splice(caIdx, 1);
+
+  // Sort user rules: primary = output score descending, then input score, then length
+  rules.sort((a, b) => {
+    const ao = outputSortKey(a), bo = outputSortKey(b);
+    if (ao !== bo) return bo - ao;
+    const am = getRuleMaxScore(a), bm = getRuleMaxScore(b);
+    if (am !== bm) return bm - am;
+    const aL = !!(a.length && a.length.trim()), bL = !!(b.length && b.length.trim());
+    return (aL ? 0 : 1) - (bL ? 0 : 1);
+  });
+
+  // Find actual scores in the data not covered by any length-filter-free rule
+  const actualScores = list.rawEntries && list.rawEntries.length
+    ? [...new Set(list.rawEntries.map(e => e.score))].sort((a, b) => a - b)
+    : [];
+  const uncovered = actualScores.filter(s => !rules.some(r => {
+    if (r.length && r.length.trim()) return false;
+    const intervals = parseRange(r.input);
+    return intervals && matchesRange(s, intervals);
+  }));
+
+  if (uncovered.length > 0) {
+    rules.push({ input: scoresToRangeStr(uncovered), length: '', output: '', _catchAll: true });
+  }
+  return rulesSig(rules) !== before;
 }
 
 function parseRuleOutput(str) {
   str = (str || '').trim().toLowerCase();
-  if (!str || str === 'exclude' || str === 'x') return 'exclude';
+  if (!str || str === 'unchanged') return 'unchanged';
+  if (str === 'exclude' || str === 'x') return 'exclude';
   const n = parseInt(str, 10);
   return isNaN(n) ? null : n;
 }
@@ -684,17 +776,16 @@ function applyRescoring(entries, rules) {
   for (const entry of entries) {
     let out = entry;
     for (const rule of rules) {
-      const score = parseRange(rule.input);
-      if (!score) continue;
-      if ((score.min !== null && entry.score < score.min) || (score.max !== null && entry.score > score.max)) continue;
+      const scoreIntervals = parseRange(rule.input);
+      if (!scoreIntervals || !matchesRange(entry.score, scoreIntervals)) continue;
       if (rule.length && rule.length.trim()) {
-        const len = parseRange(rule.length);
-        if (!len) continue;
-        if ((len.min !== null && entry.word.length < len.min) || (len.max !== null && entry.word.length > len.max)) continue;
+        const lenIntervals = parseRange(rule.length);
+        if (!lenIntervals || !matchesRange(entry.word.length, lenIntervals)) continue;
       }
       const s = parseRuleOutput(rule.output);
       if (s === null) continue;
-      out = s === 'exclude' ? null : { ...entry, score: s };
+      if (s === 'exclude') { out = null; }
+      else if (s !== 'unchanged') { out = { ...entry, score: s }; }
       break;
     }
     if (out !== null) result.push(out);
@@ -704,17 +795,16 @@ function applyRescoring(entries, rules) {
 
 function rescoreEntry(entry, rules) {
   for (const rule of rules) {
-    const score = parseRange(rule.input);
-    if (!score) continue;
-    if ((score.min !== null && entry.score < score.min) || (score.max !== null && entry.score > score.max)) continue;
+    const scoreIntervals = parseRange(rule.input);
+    if (!scoreIntervals || !matchesRange(entry.score, scoreIntervals)) continue;
     if (rule.length && rule.length.trim()) {
-      const len = parseRange(rule.length);
-      if (!len) continue;
-      if ((len.min !== null && entry.word.length < len.min) || (len.max !== null && entry.word.length > len.max)) continue;
+      const lenIntervals = parseRange(rule.length);
+      if (!lenIntervals || !matchesRange(entry.word.length, lenIntervals)) continue;
     }
     const s = parseRuleOutput(rule.output);
     if (s === null) continue;
     if (s === 'exclude') return { kept: false };
+    if (s === 'unchanged') return { kept: true, score: entry.score };
     return { kept: true, score: s };
   }
   return { kept: true, score: entry.score };
@@ -725,20 +815,22 @@ function buildRescoreSectionHTML(list) {
   const rules = list.rescoreRules || [];
 
   const rulesHTML = rules.length
-    ? rules.map((r, i) =>
-        `<div class="rule-row" data-i="${i}">
-          <input class="rule-in" value="${esc(r.input)}" placeholder="60+"
-            title="Score range: 60+, 50-59, 42, or *"
+    ? rules.map((r, i) => {
+        const isCatchAll = !!r._catchAll;
+        return `<div class="rule-row${isCatchAll ? ' rule-catchall' : ''}" data-i="${i}">
+          <input class="rule-in" value="${esc(r.input)}" placeholder="60-100"
+            title="Score range: 60+, 50-59, 42, *, or comma-separated like 50-59,30,1-10"
             oninput="onRescoreInput()" onchange="saveRuleField(${i},'input',this.value)">
           <span class="rule-field-lbl">length</span><input class="rule-len" value="${esc(r.length||'')}" placeholder="any"
             title="Word length filter: 7, 7+, or 7-10 (blank = any length)"
             oninput="onRescoreInput()" onchange="saveRuleField(${i},'length',this.value)">
           <span class="rule-arrow">→</span>
-          <input class="rule-out" value="${esc(r.output)}" placeholder="60"
-            title="Output score, or 'exclude'"
+          <input class="rule-out" value="${esc(r.output)}" placeholder="unchanged"
+            title="Output score, 'exclude', or blank for unchanged"
             oninput="onRescoreInput()" onchange="saveRuleField(${i},'output',this.value)">
-          <button class="rule-del" onclick="deleteRule(${i})" title="Remove rule">×</button>
-        </div>`).join('')
+          ${isCatchAll ? '' : `<button class="rule-del" onclick="deleteRule(${i})" title="Remove rule">×</button>`}
+        </div>`;
+      }).join('')
     : `<div style="font-size:12px;color:#ccc;font-style:italic;margin-bottom:3px">No rules — words kept as-is</div>`;
 
   return `
@@ -746,9 +838,6 @@ function buildRescoreSectionHTML(list) {
       <span class="rescore-lbl">Rescoring</span>
     </div>
     <div id="rescore-rules">${rulesHTML}</div>
-    <div style="margin-top:4px">
-      <button class="small" onclick="addRule()" style="font-size:11px;padding:2px 8px">+ Add rule</button>
-    </div>
   `;
 }
 
@@ -936,6 +1025,7 @@ async function downloadList(id, event) {
     list.rawEntries = parseWordlist(text);
     list.cachedAt = Date.now();
     list._loading = false;
+    updateCatchAll(list);
 
     await persistData(id, text);
     persistMeta();
@@ -970,6 +1060,7 @@ function ingestFile(file, listId, nameOverride) {
     if (nameOverride) list.name = nameOverride;
     list.rawEntries = parseWordlist(text);
     list.cachedAt = Date.now();
+    updateCatchAll(list);
 
     await persistData(listId, text);
     persistMeta();
@@ -1011,7 +1102,9 @@ async function deleteList(id, event) {
 }
 
 function addNewList(listDef) {
-  state.lists.push({ rescoreRules: [], ...listDef, rawEntries: [], cachedAt: null, _loading: false });
+  const list = { rescoreRules: [], ...listDef, rawEntries: [], cachedAt: null, _loading: false };
+  updateCatchAll(list);
+  state.lists.push(list);
   persistMeta();
   renderLists();
 }
@@ -1304,22 +1397,11 @@ function guideScreenshotBroda() {
 
 // ─── Rescore rule management ──────────────────────────────────────────────────
 
-function addRule() {
-  const list = getSelected();
-  if (!list) return;
-  if (!list.rescoreRules) list.rescoreRules = [];
-  list.rescoreRules.push({ input: '', length: '', output: '' });
-  persistMeta();
-  renderRescoreSection();
-  updateRescorePreview();
-  const rows = document.querySelectorAll('#rescore-rules .rule-row');
-  if (rows.length) rows[rows.length - 1].querySelector('.rule-in')?.focus();
-}
-
 function deleteRule(idx) {
   const list = getSelected();
   if (!list) return;
   list.rescoreRules.splice(idx, 1);
+  updateCatchAll(list);
   persistMeta();
   renderRescoreSection();
   updateRescorePreview();
@@ -1329,7 +1411,12 @@ function saveRuleField(idx, field, value) {
   const list = getSelected();
   if (!list || !list.rescoreRules[idx]) return;
   list.rescoreRules[idx][field] = value;
+  // User explicitly edited this rule — promote it from catch-all to regular rule
+  delete list.rescoreRules[idx]._catchAll;
+  const changed = updateCatchAll(list);
   persistMeta();
+  if (changed) renderRescoreSection();
+  updateRescorePreview();
 }
 
 
