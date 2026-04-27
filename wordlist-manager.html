@@ -62,10 +62,13 @@ main { display: flex; flex: 1; overflow: hidden; }
 #lists-panel { width: 320px; background: var(--surface); border-right: 1px solid var(--border); display: flex; flex-direction: column; overflow: hidden; flex-shrink: 0; }
 #lists-panel h2 { padding: 10px 14px; font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; border-bottom: 1px solid var(--border2); }
 #lists-container { flex: 1; overflow-y: auto; }
-#add-list-area { padding: 10px 14px; border-top: 1px solid var(--border2); }
+/* #add-list-area removed — replaced by inline .add-list-row */
+.add-list-row { padding: 9px 14px; cursor: pointer; color: var(--faint); font-size: 13px; display: flex; align-items: center; gap: 9px; transition: background 0.1s, color 0.1s; user-select: none; }
+.add-list-row:hover { background: var(--hover); color: #4285f4; }
+.add-list-icon { font-size: 15px; line-height: 1; width: 16px; text-align: center; flex-shrink: 0; }
 
 /* List card */
-.list-card { padding: 10px 14px; border-bottom: 1px solid var(--border3); cursor: pointer; display: flex; align-items: center; gap: 9px; transition: background 0.1s; }
+.list-card { padding: 10px 14px; border-bottom: 1px solid var(--border3); cursor: default; display: flex; align-items: center; gap: 9px; transition: background 0.1s; }
 .list-card:hover { background: var(--hover); }
 .list-card.selected { background: var(--sel); border-left: 3px solid #4285f4; padding-left: 11px; }
 .card-info { flex: 1; min-width: 0; }
@@ -217,7 +220,6 @@ a.get-file:hover { text-decoration: underline; }
 
 /* Lists panel */
 #list-count { font-weight: 400; color: var(--muted); }
-#btn-add-list { width: 100%; }
 
 /* Tabs — hidden until activated by JS */
 #tab-upload, #tab-url { display: none; }
@@ -284,9 +286,6 @@ input[type="file"] { display: none; }
   <div id="lists-panel">
     <h2>Lists <span id="list-count"></span></h2>
     <div id="lists-container"></div>
-    <div id="add-list-area">
-      <button class="primary" id="btn-add-list">+ Add List</button>
-    </div>
   </div>
 
   <div id="detail-panel">
@@ -1033,8 +1032,10 @@ function renderLists() {
   document.getElementById('list-count').textContent =
     state.lists.length ? `(${state.lists.length})` : '';
 
+  const addRow = `<div class="add-list-row" onclick="openDialog()"><span class="drag-handle" style="visibility:hidden" aria-hidden="true">≡</span><span class="add-list-icon">+</span>Add list</div>`;
+
   if (!state.lists.length) {
-    container.innerHTML = '<div class="no-lists">No lists yet</div>';
+    container.innerHTML = '<div class="no-lists">No lists yet</div>' + addRow;
     return;
   }
 
@@ -1065,14 +1066,14 @@ function renderLists() {
         </label>
       </div>
     </div>`;
-  }).join('');
+  }).join('') + addRow;
 }
 
 function renderDetail(list) {
   const panel = document.getElementById('detail-panel');
 
   if (!list) {
-    panel.innerHTML = '<div class="no-selection"><p>No list selected</p><small>Select a list or click + Add List</small></div>';
+    panel.innerHTML = '<div class="no-selection"><p>No list selected</p><small>Select a list from the left panel</small></div>';
     scroller = null;
     return;
   }
@@ -1364,7 +1365,6 @@ function bindEvents() {
     showToast('Reset complete');
   };
 
-  document.getElementById('btn-add-list').onclick = () => openDialog();
   document.getElementById('btn-dialog-close').onclick = () => document.getElementById('add-dialog').close();
   document.getElementById('btn-guide-close').onclick  = () => document.getElementById('upload-guide-dialog').close();
 
