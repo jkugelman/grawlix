@@ -1325,6 +1325,14 @@ function openDialog() {
   document.getElementById('url-input').value = '';
   document.getElementById('url-name').value = '';
   document.getElementById('upload-name').value = '';
+
+  const allAdded = BUILTIN_WORDLISTS.every(t => state.lists.some(l => l.id === t.id));
+  const defaultTab = allAdded ? 'upload' : 'builtin';
+  document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.toggle('active', btn.dataset.tab === defaultTab));
+  ['builtin', 'upload', 'url'].forEach(t => {
+    document.getElementById('tab-' + t).style.display = t === defaultTab ? 'block' : 'none';
+  });
+
   document.getElementById('add-dialog').showModal();
 }
 
