@@ -193,13 +193,13 @@ const LS_PREFIX    = 'wlm2_';
 const BUILTIN_TEMPLATES = [
   {
     id: 'jkugelman',
-    name: 'jkugelman',
+    name: 'John Kugelman',
     source: 'builtin-download',
     url: 'https://raw.githubusercontent.com/jkugelman/crossword/refs/heads/main/wordlists/jkugelman-wordlist.txt',
   },
   {
     id: 'xwi',
-    name: 'XWordInfo (XWI)',
+    name: 'XWordInfo',
     source: 'upload',
     url: null,
   },
@@ -212,7 +212,7 @@ const BUILTIN_TEMPLATES = [
   {
     id: 'broda',
     name: 'Peter Broda',
-    source: 'builtin-download',
+    source: 'upload',
     url: null,
   },
 ];
@@ -810,8 +810,23 @@ function bindEvents() {
   document.getElementById('btn-reset').onclick = async () => {
     if (!confirm('Delete all lists and data? This cannot be undone.')) return;
     localStorage.clear();
-    const req = indexedDB.deleteDatabase(IDB_NAME);
-    req.onsuccess = () => location.reload();
+    if (_db) { _db.close(); _db = null; }
+    await new Promise(resolve => {
+      const req = indexedDB.deleteDatabase(IDB_NAME);
+      req.onsuccess = resolve;
+      req.onerror   = resolve;
+      req.onblocked = resolve;
+    });
+    state.lists = [];
+    state.selectedId = null;
+    state.searchQuery = '';
+    scroller = null;
+    await openDB();
+    state.lists = defaultLists();
+    persistMeta();
+    state.selectedId = state.lists[0]?.id ?? null;
+    renderAll();
+    showToast('Reset complete');
   };
 
   const openBtn = () => openDialog();
