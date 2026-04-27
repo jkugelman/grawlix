@@ -87,7 +87,7 @@ button:disabled { opacity: 0.45; cursor: not-allowed; }
 .upload-zone:hover, .upload-zone.drag-over { border-color: #4285f4; color: #4285f4; }
 
 /* Dialog */
-dialog { width: 420px; border-radius: 10px; border: none; box-shadow: 0 8px 40px rgba(0,0,0,0.18); padding: 22px; font-family: system-ui, sans-serif; }
+dialog { width: 420px; border-radius: 10px; border: none; box-shadow: 0 8px 40px rgba(0,0,0,0.18); padding: 22px; font-family: system-ui, sans-serif; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); max-height: 90vh; overflow-y: auto; }
 dialog::backdrop { background: rgba(0,0,0,0.3); }
 dialog h2 { font-size: 16px; margin-bottom: 14px; }
 .tabs { display: flex; border: 1px solid #ddd; border-radius: 5px; overflow: hidden; margin-bottom: 16px; }
@@ -109,11 +109,6 @@ dialog h2 { font-size: 16px; margin-bottom: 14px; }
 #toast { position: fixed; bottom: 18px; right: 18px; background: #333; color: white; padding: 9px 15px; border-radius: 6px; font-size: 13px; z-index: 1000; opacity: 0; transition: opacity 0.25s; pointer-events: none; max-width: 360px; }
 #toast.show { opacity: 1; }
 
-/* Ingest banner */
-#ingest-banner { background: #e8f0fe; border-bottom: 1px solid #c5d8fb; padding: 10px 14px; font-size: 12px; }
-.ingest-banner-title { font-weight: 700; color: #1a56b0; margin-bottom: 6px; }
-.ingest-file-row { display: flex; align-items: center; gap: 6px; margin-top: 4px; }
-.ingest-file-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 a.get-file { font-size: 12px; color: #4285f4; text-decoration: none; white-space: nowrap; }
 a.get-file:hover { text-decoration: underline; }
 
@@ -142,7 +137,6 @@ a.get-file:hover { text-decoration: underline; }
 <main>
   <div id="lists-panel">
     <h2>Lists <span id="list-count" style="font-weight:400;color:#bbb"></span></h2>
-    <div id="ingest-banner" style="display:none"></div>
     <div id="lists-container"></div>
     <div id="add-list-area">
       <button style="width:100%" id="btn-add-list-2">+ Add List</button>
@@ -361,8 +355,6 @@ async function init() {
 
   renderAll();
   bindEvents();
-  await loadWatchedDir();
-  checkDownloadsFolder(); // intentionally not awaited — runs in background
 }
 
 function defaultLists() {
@@ -373,15 +365,25 @@ function defaultLists() {
 
 function computeStats(entries) {
   if (!entries.length) return null;
-  let min = Infinity, max = -Infinity, sum = 0;
+  let min = Infinity, max = -Infinity;
   const buckets = new Array(11).fill(0);
+  const freq = {};
+  const scores = [];
   for (const { score } of entries) {
     if (score < min) min = score;
     if (score > max) max = score;
-    sum += score;
     buckets[Math.min(10, Math.max(0, Math.floor(score / 10)))]++;
+    scores.push(score);
+    freq[score] = (freq[score] || 0) + 1;
   }
-  return { count: entries.length, min, max, avg: sum / entries.length, buckets, maxBucket: Math.max(...buckets) };
+  scores.sort((a, b) => a - b);
+  const mid = Math.floor(scores.length / 2);
+  const median = scores.length % 2 === 0 ? (scores[mid - 1] + scores[mid]) / 2 : scores[mid];
+  let mode = null, modeCount = 0;
+  for (const [s, c] of Object.entries(freq)) {
+    if (c > modeCount) { modeCount = c; mode = +s; }
+  }
+  return { count: entries.length, min, max, median, mode, buckets, maxBucket: Math.max(...buckets) };
 }
 
 // ─── Virtual Scroller ─────────────────────────────────────────────────────────
@@ -663,7 +665,8 @@ function renderDetail(list) {
       <div class="stat"><span class="stat-label">Entries</span><span class="stat-value">${stats.count.toLocaleString()}</span></div>
       <div class="stat"><span class="stat-label">Min</span><span class="stat-value">${stats.min}</span></div>
       <div class="stat"><span class="stat-label">Max</span><span class="stat-value">${stats.max}</span></div>
-      <div class="stat"><span class="stat-label">Avg</span><span class="stat-value">${stats.avg.toFixed(1)}</span></div>
+      <div class="stat"><span class="stat-label">Median</span><span class="stat-value">${stats.median % 1 === 0 ? stats.median : stats.median.toFixed(1)}</span></div>
+      <div class="stat"><span class="stat-label">Mode</span><span class="stat-value">${stats.mode}</span></div>
       <div class="score-dist" title="Score distribution by decile">${bars}</div>
     </div>`;
   } else {
@@ -674,7 +677,7 @@ function renderDetail(list) {
   if (list.source === 'upload') {
     const tmpl = getTemplate(list.id);
     if (tmpl?.downloadPage) {
-      sourceDesc = 'Manual download required';
+      sourceDesc = 'Manual upload required';
       actionBtn = `<button onclick="openUploadGuide('${list.id}')">↑ Upload</button>`;
     } else {
       sourceDesc = 'Manual upload';
@@ -785,7 +788,6 @@ function ingestFile(file, listId, nameOverride) {
     renderLists();
     if (state.selectedId === listId) renderDetail(list);
     showToast(`Loaded ${list.rawEntries.length.toLocaleString()} entries`);
-    if (getTemplate(listId)?.downloadPage) offerWatchDir();
   };
   reader.readAsText(file);
 }
@@ -983,7 +985,12 @@ function buildGuideHTML(listId, tmpl) {
   const step2note  = listId === 'xwi'
     ? 'Click a <strong>.txt</strong> download button.'
     : 'Click the <strong>lowercase + compiler</strong> button (top right).';
-  return `
+  const subscriptionNote = listId === 'xwi'
+    ? `<div style="background:#fff3cd;border:1px solid #ffc107;border-radius:5px;padding:9px 12px;margin-bottom:16px;font-size:12px;color:#856404">
+        <strong>Note:</strong> XWord Info requires a paid subscription to access the wordlist download.
+       </div>`
+    : '';
+  return `${subscriptionNote}
     <div class="guide-step">
       <div class="guide-step-num">1</div>
       <div class="guide-step-body">
@@ -1022,132 +1029,6 @@ function guideScreenshotStwl() {
     <img src="stwl-download-page.png" alt="Spread the Word(list) download page">
     <div class="annotation" style="left:51%;top:25%;width:49%;height:34%"></div>
   </div>`;
-}
-
-// ─── File System Access API ───────────────────────────────────────────────────
-
-let _watchedDirHandle = null;
-let _watchDirOffered  = false;
-
-async function loadWatchedDir() {
-  try { _watchedDirHandle = await idbGet('watched_dir'); } catch {}
-}
-
-async function setupWatchDir() {
-  if (!('showDirectoryPicker' in window)) { showToast('Not supported in this browser'); return; }
-  dismissIngestBanner();
-  try {
-    const handle = await showDirectoryPicker({ id: 'downloads', startIn: 'downloads', mode: 'read' });
-    _watchedDirHandle = handle;
-    await idbPut('watched_dir', handle);
-    showToast('Downloads folder linked — new wordlists will be detected automatically');
-    await checkDownloadsFolder();
-  } catch (e) {
-    if (e.name !== 'AbortError') showToast('Could not access folder');
-  }
-}
-
-async function checkDownloadsFolder() {
-  if (!_watchedDirHandle) return;
-  try {
-    const perm = await _watchedDirHandle.queryPermission({ mode: 'read' });
-    if (perm === 'prompt') { showReGrantBanner(); return; }
-    if (perm !== 'granted') return;
-  } catch { return; }
-
-  const uploadLists = state.lists.filter(l => l.source === 'upload' && l.cachedAt);
-  if (!uploadLists.length) return;
-  const newerThan = Math.min(...uploadLists.map(l => l.cachedAt));
-
-  const found = [];
-  try {
-    for await (const [name, fh] of _watchedDirHandle.entries()) {
-      if (fh.kind !== 'file') continue;
-      const lname = name.toLowerCase();
-      if (!lname.endsWith('.txt') && !lname.endsWith('.csv')) continue;
-      const file = await fh.getFile();
-      if (file.lastModified <= newerThan) continue;
-      const text = await file.text();
-      const entries = parseWordlist(text);
-      if (entries.length >= 500) found.push({ name, file, text, entries });
-    }
-  } catch { return; }
-
-  if (found.length) showFileIngestBanner(found);
-}
-
-function showReGrantBanner() {
-  const b = document.getElementById('ingest-banner');
-  b.style.display = '';
-  b.innerHTML = `<div class="ingest-banner-title">Downloads folder access needed</div>
-    <div style="color:#555;margin-bottom:6px">Click to re-grant access to detect new wordlist files.</div>
-    <button class="small primary" onclick="reGrantAndCheck()">Re-grant access</button>
-    <button class="small" style="margin-left:6px" onclick="dismissIngestBanner()">Dismiss</button>`;
-}
-
-async function reGrantAndCheck() {
-  try {
-    if ((await _watchedDirHandle.requestPermission({ mode: 'read' })) === 'granted') {
-      dismissIngestBanner();
-      await checkDownloadsFolder();
-    }
-  } catch {}
-}
-
-function showFileIngestBanner(files) {
-  const uploadLists = state.lists.filter(l => l.source === 'upload');
-  const opts = uploadLists.map(l => `<option value="${esc(l.id)}">${esc(l.name)}</option>`).join('');
-  const rows = files.map((f, i) => `
-    <div class="ingest-file-row">
-      <span class="ingest-file-name" title="${esc(f.name)}">${esc(f.name)}</span>
-      <span style="color:#888">${f.entries.length.toLocaleString()} entries</span>
-      <select id="ingest-sel-${i}" style="font-size:12px;padding:2px 4px;border:1px solid #ccc;border-radius:3px">${opts}</select>
-      <button class="small primary" onclick="doIngestFile(${i})">Import</button>
-    </div>`).join('');
-  const b = document.getElementById('ingest-banner');
-  b.style.display = '';
-  b.innerHTML = `<div class="ingest-banner-title">New wordlist files detected in Downloads</div>
-    ${rows}
-    <button class="small" style="margin-top:6px" onclick="dismissIngestBanner()">Dismiss</button>`;
-  b._files = files;
-}
-
-async function doIngestFile(idx) {
-  const b = document.getElementById('ingest-banner');
-  const files = b._files;
-  if (!files?.[idx]) return;
-  const { text } = files[idx];
-  const listId = document.getElementById(`ingest-sel-${idx}`).value;
-  const list = state.lists.find(l => l.id === listId);
-  if (!list) return;
-  list.rawEntries = parseWordlist(text);
-  list.cachedAt = Date.now();
-  await persistData(listId, text);
-  persistMeta();
-  renderLists();
-  if (state.selectedId === listId) renderDetail(list);
-  showToast(`Loaded ${list.rawEntries.length.toLocaleString()} entries into ${list.name}`);
-  files.splice(idx, 1);
-  if (files.length === 0) dismissIngestBanner();
-  else showFileIngestBanner(files);
-}
-
-function dismissIngestBanner() {
-  document.getElementById('ingest-banner').style.display = 'none';
-}
-
-function offerWatchDir() {
-  if (!('showDirectoryPicker' in window)) return;
-  if (_watchedDirHandle) return;
-  if (_watchDirOffered) return;
-  _watchDirOffered = true;
-  const b = document.getElementById('ingest-banner');
-  if (b.style.display !== 'none') return;
-  b.style.display = '';
-  b.innerHTML = `<div class="ingest-banner-title">Auto-detect future downloads?</div>
-    <div style="color:#555;margin-bottom:6px">Grant read access to your Downloads folder and new wordlist files will be detected automatically on the next visit.</div>
-    <button class="small primary" onclick="setupWatchDir()">Grant Downloads access</button>
-    <button class="small" style="margin-left:6px" onclick="dismissIngestBanner()">Not now</button>`;
 }
 
 // ─── Boot ─────────────────────────────────────────────────────────────────────
