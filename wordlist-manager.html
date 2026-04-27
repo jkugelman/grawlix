@@ -626,7 +626,15 @@ function renderLists() {
     if (list.source === 'upload') {
       const hasGuide = !!getTemplate(list.id)?.downloadPage;
       const uploadFn = hasGuide ? 'openUploadGuide' : 'uploadToList';
-      actionBtn = `<button class="small" onclick="${uploadFn}('${list.id}',event)" title="Upload file">↑</button>`;
+      const label = hasData ? '↻' : '↑';
+      const title = hasData ? 'Update' : 'Upload';
+      actionBtn = `<button class="small" onclick="${uploadFn}('${list.id}',event)" title="${title}">${label}</button>`;
+    } else if (list.source === 'builtin-download' && list.url) {
+      if (hasData) {
+        actionBtn = `<button class="small" onclick="downloadList('${list.id}',event)" title="Update" ${list._loading ? 'disabled' : ''}>↻</button>`;
+      } else {
+        actionBtn = `<button class="small" onclick="openJKUploadDialog('${list.id}',event)" title="Upload or download">↑</button>`;
+      }
     } else if (list.url) {
       actionBtn = `<button class="small" onclick="downloadList('${list.id}',event)" title="Update" ${list._loading ? 'disabled' : ''}>↻</button>`;
     } else {
@@ -678,14 +686,24 @@ function renderDetail(list) {
   }
 
   let sourceDesc, actionBtn;
+  const hasData = list.rawEntries.length > 0;
   if (list.source === 'upload') {
     const tmpl = getTemplate(list.id);
+    const label = hasData ? '↻ Update' : '↑ Upload';
     if (tmpl?.downloadPage) {
       sourceDesc = 'Manual upload required';
-      actionBtn = `<button onclick="openUploadGuide('${list.id}')">↑ Upload</button>`;
+      actionBtn = `<button onclick="openUploadGuide('${list.id}')">${label}</button>`;
     } else {
       sourceDesc = 'Manual upload';
-      actionBtn = `<button onclick="uploadToList('${list.id}')">↑ Upload</button>`;
+      actionBtn = `<button onclick="uploadToList('${list.id}')">${label}</button>`;
+    }
+  } else if (list.source === 'builtin-download' && list.url) {
+    if (hasData) {
+      sourceDesc = list.url;
+      actionBtn = `<button onclick="downloadList('${list.id}')" ${list._loading ? 'disabled' : ''}>${list._loading ? 'Updating…' : '↻ Update'}</button>`;
+    } else {
+      sourceDesc = 'Auto-download available';
+      actionBtn = `<button onclick="openJKUploadDialog('${list.id}')">↑ Upload</button>`;
     }
   } else if (list.url) {
     sourceDesc = list.url;
@@ -966,6 +984,47 @@ function openUploadGuide(listId, event) {
   const dialog = document.getElementById('upload-guide-dialog');
   document.getElementById('guide-title').textContent = `${tmpl.name} — Where to get it`;
   document.getElementById('guide-steps').innerHTML = buildGuideHTML(listId, tmpl);
+
+  const zone   = document.getElementById('guide-drop-zone');
+  const finput = document.getElementById('guide-file-input');
+  zone.onclick     = () => finput.click();
+  zone.ondragover  = e => { e.preventDefault(); zone.classList.add('drag-over'); };
+  zone.ondragleave = () => zone.classList.remove('drag-over');
+  zone.ondrop      = e => {
+    e.preventDefault(); zone.classList.remove('drag-over');
+    const file = e.dataTransfer.files[0];
+    if (file) { dialog.close(); ingestFile(file, listId); selectList(listId); }
+  };
+  finput.onchange = () => {
+    if (finput.files[0]) { dialog.close(); ingestFile(finput.files[0], listId); selectList(listId); }
+  };
+
+  dialog.showModal();
+}
+
+function openJKUploadDialog(listId, event) {
+  if (event) event.stopPropagation();
+  const tmpl = getTemplate(listId);
+  const dialog = document.getElementById('upload-guide-dialog');
+  document.getElementById('guide-title').textContent = `${tmpl?.name ?? 'Wordlist'} — Load Wordlist`;
+  document.getElementById('guide-steps').innerHTML = `
+    <div class="builtin-item" style="margin-bottom:12px">
+      <div class="builtin-item-info">
+        <div class="builtin-item-name">Auto-download</div>
+        <div class="builtin-item-sub">Download directly from GitHub</div>
+      </div>
+      <button class="small primary" id="jk-auto-dl-btn">↻ Download</button>
+    </div>
+    <div style="text-align:center;color:#aaa;font-size:12px;margin:12px 0">— or upload a file —</div>
+    <div class="upload-zone" id="guide-drop-zone" style="padding:16px">
+      Drop file here or click to browse
+      <input type="file" id="guide-file-input" accept=".txt,.csv" style="display:none">
+    </div>`;
+
+  document.getElementById('jk-auto-dl-btn').onclick = () => {
+    dialog.close();
+    downloadList(listId);
+  };
 
   const zone   = document.getElementById('guide-drop-zone');
   const finput = document.getElementById('guide-file-input');
