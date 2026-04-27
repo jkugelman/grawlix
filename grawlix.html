@@ -410,7 +410,7 @@ const BUILTIN_WORDLISTS = [
     defaultRules: [
       { input:'60', length:'', output:'', note:'Great (colorful phrases, sayings, people, etc.)' },
       { input:'50', length:'', output:'', note:'Good (dictionary words, phrases)' },
-      { input:'40', length:'', output:'', note:'Fine but watch crosses (proper names, prepositional phrases, unusual plurals)' },
+      { input:'40', length:'', output:'', note:'Fine but watch crosses (proper names, abbreviations, prepositional phrases, unusual plurals)' },
       { input:'30', length:'', output:'', note:'Not good (plural names, crosswordese, contrived inflections)' },
       { input:'20', length:'', output:'', note:'Junk (Roman numerals, variant spellings, unusable crosswordese)' },
       { input:'10', length:'', output:'', note:'Offensive' },
@@ -432,10 +432,12 @@ const BUILTIN_WORDLISTS = [
       <div class="annotation" style="left:0%;top:82%;width:50%;height:17%"></div>
     </div>`,
     defaultRules: [
-      { input:'60',   length:'', output:'60' },
-      { input:'50',   length:'', output:'50' },
-      { input:'30',   length:'', output:'30' },
-      { input:'5-25', length:'', output:'20' },
+      { input:'60', length:'', output:'60', note:'Entries considered "assets" to a puzzle' },
+      { input:'50', length:'', output:'50', note:'Fine entries' },
+      { input:'25', length:'', output:'30', note:'Partials, odd abbreviations, very esoteric names, short Roman numerals, etc.' },
+      { input:'20', length:'', output:'20', note:'Five-letter entries that would be hard to defend as fine' },
+      { input:'15', length:'', output:'20', note:'Random Roman numerals that are longer than three letters' },
+      { input:'5',  length:'', output:'20', note:'Entries that Will Shortz or other editors have identified as "puzzle-killers"' },
     ],
   },
   {
@@ -451,12 +453,12 @@ const BUILTIN_WORDLISTS = [
       <div class="annotation" style="left:51%;top:25%;width:49%;height:34%"></div>
     </div>`,
     defaultRules: [
-      { input:'50', length:'', output:'50' },
-      { input:'40', length:'', output:'30' },
-      { input:'30', length:'', output:'20' },
-      { input:'0',  length:'', output:'10' },
-      { input:'20', length:'', output:'0'  },
-      { input:'10', length:'', output:'0'  },
+      { input:'50', length:'', output:'50', note:'Clean' },
+      { input:'40', length:'', output:'30', note:'Dubious'},
+      { input:'30', length:'', output:'20', note:'Dubious+'},
+      { input:'0',  length:'', output:'10', note:'Offensive'},
+      { input:'20', length:'', output:'0',  note:'Dubious++'},
+      { input:'10', length:'', output:'0',  note:'Dubious+++'},
     ],
   },
   {
