@@ -116,14 +116,12 @@ a.get-file:hover { text-decoration: underline; }
 .rescore-section { background: #fafafa; border-bottom: 1px solid #eee; padding: 9px 18px; flex-shrink: 0; max-height: 240px; overflow-y: auto; }
 .rescore-top { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
 .rescore-lbl { font-size: 10px; font-weight: 700; color: #aaa; text-transform: uppercase; letter-spacing: 0.05em; }
-.rescore-minlen { display: flex; align-items: center; gap: 5px; font-size: 12px; color: #666; margin-left: auto; }
-.rescore-minlen input { width: 44px; padding: 2px 5px; border: 1px solid #ddd; border-radius: 3px; font-size: 12px; text-align: center; font-family: inherit; }
-.rescore-minlen input:focus { outline: none; border-color: #4285f4; }
 .rule-row { display: flex; align-items: center; gap: 5px; margin-bottom: 3px; }
 .rule-in  { width: 72px; padding: 2px 6px; border: 1px solid #ddd; border-radius: 3px; font-size: 12px; font-family: ui-monospace, 'Cascadia Code', monospace; text-align: center; }
+.rule-len { width: 60px; padding: 2px 6px; border: 1px solid #ddd; border-radius: 3px; font-size: 12px; font-family: ui-monospace, 'Cascadia Code', monospace; text-align: center; }
 .rule-out { width: 68px; padding: 2px 6px; border: 1px solid #ddd; border-radius: 3px; font-size: 12px; font-family: ui-monospace, 'Cascadia Code', monospace; text-align: center; }
-.rule-in:focus, .rule-out:focus { outline: none; border-color: #4285f4; }
-.rule-in.invalid, .rule-out.invalid { border-color: #ea4335; background: #fff8f8; }
+.rule-in:focus, .rule-len:focus, .rule-out:focus { outline: none; border-color: #4285f4; }
+.rule-in.invalid, .rule-len.invalid, .rule-out.invalid { border-color: #ea4335; background: #fff8f8; }
 .rule-arrow { color: #ccc; font-size: 14px; width: 14px; text-align: center; flex-shrink: 0; }
 .rule-del { width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; border: none; background: none; cursor: pointer; color: #ccc; font-size: 15px; padding: 0; line-height: 1; border-radius: 3px; font-family: inherit; }
 .rule-del:hover { color: #e53935; background: #fdecea; }
@@ -273,9 +271,9 @@ const BUILTIN_TEMPLATES = [
 ];
 
 const DEFAULT_RULES = {
-  xwi:   { rescoreRules: [{ input:'60+', output:'60' }, { input:'50-59', output:'50' }, { input:'30-49', output:'30' }, { input:'0-29', output:'20' }], minWordLength: null },
-  stwl:  { rescoreRules: [{ input:'50+', output:'50' }, { input:'0-49', output:'exclude' }], minWordLength: null },
-  broda: { rescoreRules: [{ input:'80+', output:'60' }, { input:'0-79', output:'exclude' }], minWordLength: 7 },
+  xwi:   { rescoreRules: [{ input:'60+', length:'', output:'60' }, { input:'50-59', length:'', output:'50' }, { input:'30-49', length:'', output:'30' }, { input:'0-29', length:'', output:'20' }] },
+  stwl:  { rescoreRules: [{ input:'50+', length:'', output:'50' }, { input:'0-49', length:'', output:'exclude' }] },
+  broda: { rescoreRules: [{ input:'80+', length:'7+', output:'60' }, { input:'0-79', length:'7+', output:'exclude' }] },
 };
 
 // ─── State ────────────────────────────────────────────────────────────────────
@@ -360,7 +358,7 @@ function persistMeta() {
   lsSave('meta', JSON.stringify(state.lists.map(l => ({
     id: l.id, name: l.name, source: l.source, url: l.url || null,
     enabled: l.enabled, cachedAt: l.cachedAt || null,
-    rescoreRules: l.rescoreRules || [], minWordLength: l.minWordLength || null,
+    rescoreRules: l.rescoreRules || [],
   }))));
 }
 
@@ -380,7 +378,7 @@ async function init() {
       state.lists = await Promise.all(meta.map(async m => {
         const text = await idbGet('data_' + m.id);
         return { ...m, rawEntries: text ? parseWordlist(text) : [], _loading: false,
-                 rescoreRules: m.rescoreRules || [], minWordLength: m.minWordLength || null };
+                 rescoreRules: (m.rescoreRules || []).map(r => ({ length: '', ...r })) };
       }));
     } catch { state.lists = defaultLists(); }
   } else {
@@ -400,7 +398,6 @@ function defaultLists() {
     return {
       ...t, enabled: true, rawEntries: [], cachedAt: null, _loading: false,
       rescoreRules: dr.rescoreRules ? JSON.parse(JSON.stringify(dr.rescoreRules)) : [],
-      minWordLength: dr.minWordLength ?? null,
     };
   });
 }
@@ -638,7 +635,7 @@ function scoreColor(s) {
 
 // ─── Rescoring ────────────────────────────────────────────────────────────────
 
-function parseRuleInput(str) {
+function parseRange(str) {
   str = (str || '').trim();
   if (!str || str === '*') return { min: null, max: null };
   const mPlus  = str.match(/^(\d+)\+$/);        if (mPlus)  return { min: +mPlus[1],  max: null };
@@ -654,53 +651,55 @@ function parseRuleOutput(str) {
   return isNaN(n) ? null : n;
 }
 
-function applyRescoring(entries, rules, minLen) {
-  const len = +minLen || 0;
+function applyRescoring(entries, rules) {
   const result = [];
   for (const entry of entries) {
-    if (len > 1 && entry.word.length < len) continue;
     let out = entry;
     for (const rule of rules) {
-      const parsed = parseRuleInput(rule.input);
-      if (!parsed) continue;
-      const { min, max } = parsed;
-      if ((min === null || entry.score >= min) && (max === null || entry.score <= max)) {
-        const s = parseRuleOutput(rule.output);
-        if (s === null) continue;
-        out = s === 'exclude' ? null : { ...entry, score: s };
-        break;
+      const score = parseRange(rule.input);
+      if (!score) continue;
+      if ((score.min !== null && entry.score < score.min) || (score.max !== null && entry.score > score.max)) continue;
+      if (rule.length && rule.length.trim()) {
+        const len = parseRange(rule.length);
+        if (!len) continue;
+        if ((len.min !== null && entry.word.length < len.min) || (len.max !== null && entry.word.length > len.max)) continue;
       }
+      const s = parseRuleOutput(rule.output);
+      if (s === null) continue;
+      out = s === 'exclude' ? null : { ...entry, score: s };
+      break;
     }
     if (out !== null) result.push(out);
   }
   return result;
 }
 
-function pickPreviewSamples(entries, rules, minLen) {
+function pickPreviewSamples(entries, rules) {
   const samples = [];
   const used = new Set();
   for (const rule of rules) {
-    const parsed = parseRuleInput(rule.input);
-    if (!parsed) continue;
+    const score = parseRange(rule.input);
+    if (!score) continue;
     const out = parseRuleOutput(rule.output);
     if (out === null) continue;
-    const { min, max } = parsed;
+    const lenParsed = (rule.length && rule.length.trim()) ? parseRange(rule.length) : null;
     for (const e of entries) {
       if (used.has(e.word)) continue;
-      if (minLen > 1 && e.word.length < minLen) continue;
-      if ((min === null || e.score >= min) && (max === null || e.score <= max)) {
-        used.add(e.word);
-        samples.push({ word: e.word, origScore: e.score, newScore: out === 'exclude' ? 'excluded' : out });
-        break;
+      if ((score.min !== null && e.score < score.min) || (score.max !== null && e.score > score.max)) continue;
+      if (lenParsed) {
+        if ((lenParsed.min !== null && e.word.length < lenParsed.min) || (lenParsed.max !== null && e.word.length > lenParsed.max)) continue;
       }
+      used.add(e.word);
+      samples.push({ word: e.word, origScore: e.score, newScore: out === 'exclude' ? 'excluded' : out });
+      break;
     }
     if (samples.length >= 6) break;
   }
   return samples;
 }
 
-function buildPreviewHTML(entries, rules, minLen) {
-  const samples = pickPreviewSamples(entries, rules, +minLen || 0);
+function buildPreviewHTML(entries, rules) {
+  const samples = pickPreviewSamples(entries, rules);
   if (!samples.length) return '<span style="color:#ccc;font-size:11px">Load data to see a preview</span>';
   return samples.map(s => {
     if (s.newScore === 'excluded')
@@ -720,26 +719,24 @@ function buildRescoreSectionHTML(list) {
     ? rules.map((r, i) =>
         `<div class="rule-row" data-i="${i}">
           <input class="rule-in" value="${esc(r.input)}" placeholder="60+"
+            title="Score range: 60+, 50-59, 42, or *"
             oninput="onRescoreInput()" onchange="saveRuleField(${i},'input',this.value)">
+          <input class="rule-len" value="${esc(r.length||'')}" placeholder="any"
+            title="Word length filter: 7, 7+, or 7-10 (blank = any length)"
+            oninput="onRescoreInput()" onchange="saveRuleField(${i},'length',this.value)">
           <span class="rule-arrow">→</span>
           <input class="rule-out" value="${esc(r.output)}" placeholder="60"
+            title="Output score, or 'exclude'"
             oninput="onRescoreInput()" onchange="saveRuleField(${i},'output',this.value)">
           <button class="rule-del" onclick="deleteRule(${i})" title="Remove rule">×</button>
         </div>`).join('')
     : `<div style="font-size:12px;color:#ccc;font-style:italic;margin-bottom:3px">No rules — words kept as-is</div>`;
 
-  const previewHTML = hasData ? buildPreviewHTML(list.rawEntries, rules, list.minWordLength || 0) : '';
+  const previewHTML = hasData ? buildPreviewHTML(list.rawEntries, rules) : '';
 
   return `
     <div class="rescore-top">
       <span class="rescore-lbl">Rescoring</span>
-      <div class="rescore-minlen">
-        <span>Min length</span>
-        <input type="number" id="rescore-minlen" min="1" max="25"
-          value="${list.minWordLength || ''}" placeholder="—"
-          oninput="onRescoreInput()" onchange="saveMinLen(this.value)">
-        <span>letters</span>
-      </div>
     </div>
     <div id="rescore-rules">${rulesHTML}</div>
     <div style="margin-top:4px">
@@ -1011,7 +1008,7 @@ async function removeList(id, event) {
 }
 
 function addNewList(listDef) {
-  state.lists.push({ rescoreRules: [], minWordLength: null, ...listDef, rawEntries: [], cachedAt: null, _loading: false });
+  state.lists.push({ rescoreRules: [], ...listDef, rawEntries: [], cachedAt: null, _loading: false });
   persistMeta();
   renderLists();
 }
@@ -1053,7 +1050,6 @@ function addBuiltin(id) {
   addNewList({
     id: t.id, name: t.name, source: t.source, url: t.url || null, enabled: true,
     rescoreRules: dr.rescoreRules ? JSON.parse(JSON.stringify(dr.rescoreRules)) : [],
-    minWordLength: dr.minWordLength ?? null,
   });
   document.getElementById('add-dialog').close();
   showToast(`Added ${t.name}`);
@@ -1331,18 +1327,11 @@ function saveRuleField(idx, field, value) {
   persistMeta();
 }
 
-function saveMinLen(value) {
-  const list = getSelected();
-  if (!list) return;
-  const n = parseInt(value, 10);
-  list.minWordLength = (!isNaN(n) && n >= 1) ? n : null;
-  persistMeta();
-}
 
 function onRescoreInput() {
-  document.querySelectorAll('.rule-in').forEach(el => {
+  document.querySelectorAll('.rule-in, .rule-len').forEach(el => {
     const v = el.value.trim();
-    el.classList.toggle('invalid', v !== '' && parseRuleInput(v) === null);
+    el.classList.toggle('invalid', v !== '' && parseRange(v) === null);
   });
   document.querySelectorAll('.rule-out').forEach(el => {
     const v = el.value.trim();
@@ -1358,10 +1347,10 @@ function updateRescorePreview() {
   if (!list || !list.rawEntries.length) return;
   const rules = Array.from(document.querySelectorAll('#rescore-rules .rule-row')).map(row => ({
     input:  row.querySelector('.rule-in')?.value  || '',
+    length: row.querySelector('.rule-len')?.value || '',
     output: row.querySelector('.rule-out')?.value || '',
   }));
-  const minLen = parseInt(document.getElementById('rescore-minlen')?.value || '0') || 0;
-  preview.innerHTML = buildPreviewHTML(list.rawEntries, rules, minLen);
+  preview.innerHTML = buildPreviewHTML(list.rawEntries, rules);
 }
 
 // ─── Boot ─────────────────────────────────────────────────────────────────────
