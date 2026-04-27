@@ -149,8 +149,19 @@ button.danger:hover:not(:disabled) { background: #e74c3c; border-color: #c0392b;
 .toggle input:checked + .toggle-slider { background: #7b6db8; }
 .toggle input:checked + .toggle-slider::before { transform: translateX(12px); }
 
-/* Dark mode toggle in header */
-.dark-toggle-wrap { display: flex; align-items: center; gap: 6px; color: rgba(255,255,255,0.75); font-size: 12px; user-select: none; }
+/* Dark mode toggle */
+.dark-toggle-wrap { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 12px; user-select: none; }
+
+/* Settings button */
+.header-icon-btn { background: none; border: none; color: rgba(255,255,255,0.8); font-size: 19px; padding: 4px 8px; border-radius: 4px; cursor: pointer; line-height: 1; font-family: inherit; }
+.header-icon-btn:hover { background: rgba(255,255,255,0.15); color: white; }
+
+/* Settings dialog */
+#settings-dialog { width: 340px; }
+.settings-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 13px 0; border-bottom: 1px solid var(--border2); }
+.settings-row:first-of-type { border-top: 1px solid var(--border2); margin-top: 4px; }
+.settings-row-label { font-size: 13px; font-weight: 600; }
+.settings-row-sub { font-size: 12px; color: var(--muted); margin-top: 2px; }
 
 /* Disabled list */
 .list-card.disabled .card-info { opacity: 0.45; }
@@ -269,17 +280,7 @@ input[type="file"] { display: none; }
 
 <header>
   <h1>Wordlist Manager</h1>
-  <div class="header-controls">
-    <div class="dark-toggle-wrap">
-      <span>☽</span>
-      <span>Dark</span>
-      <label class="toggle" title="Toggle dark mode">
-        <input type="checkbox" id="dark-mode-toggle">
-        <span class="toggle-slider"></span>
-      </label>
-    </div>
-    <button id="btn-reset" class="danger" title="Delete all lists and data">🗑 Reset</button>
-  </div>
+  <button id="btn-settings" class="header-icon-btn" title="Settings">⚙️</button>
 </header>
 
 <main>
@@ -297,6 +298,30 @@ input[type="file"] { display: none; }
 </main>
 
 <div id="toast"></div>
+
+<dialog id="settings-dialog">
+  <h2>Settings</h2>
+  <div class="settings-row">
+    <span class="settings-row-label">Dark mode</span>
+    <div class="dark-toggle-wrap">
+      <span>☽</span>
+      <label class="toggle" title="Toggle dark mode">
+        <input type="checkbox" id="dark-mode-toggle">
+        <span class="toggle-slider"></span>
+      </label>
+    </div>
+  </div>
+  <div class="settings-row">
+    <div>
+      <div class="settings-row-label">Reset all data</div>
+      <div class="settings-row-sub">Delete all lists and word data</div>
+    </div>
+    <button id="btn-reset" class="danger small" title="Delete all lists and data">🗑 Reset</button>
+  </div>
+  <div class="dialog-footer">
+    <button id="btn-settings-close">Close</button>
+  </div>
+</dialog>
 
 <dialog id="add-dialog">
   <h2>Add Wordlist</h2>
@@ -1373,8 +1398,10 @@ function bindEvents() {
     showToast('Reset complete');
   };
 
-  document.getElementById('btn-dialog-close').onclick = () => document.getElementById('add-dialog').close();
-  document.getElementById('btn-guide-close').onclick  = () => document.getElementById('upload-guide-dialog').close();
+  document.getElementById('btn-settings').onclick       = () => document.getElementById('settings-dialog').showModal();
+  document.getElementById('btn-settings-close').onclick = () => document.getElementById('settings-dialog').close();
+  document.getElementById('btn-dialog-close').onclick   = () => document.getElementById('add-dialog').close();
+  document.getElementById('btn-guide-close').onclick    = () => document.getElementById('upload-guide-dialog').close();
 
   // Tabs
   document.querySelectorAll('.tab-btn').forEach(btn => {
