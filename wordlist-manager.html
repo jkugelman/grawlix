@@ -108,6 +108,25 @@ dialog h2 { font-size: 16px; margin-bottom: 14px; }
 /* Toast */
 #toast { position: fixed; bottom: 18px; right: 18px; background: #333; color: white; padding: 9px 15px; border-radius: 6px; font-size: 13px; z-index: 1000; opacity: 0; transition: opacity 0.25s; pointer-events: none; max-width: 360px; }
 #toast.show { opacity: 1; }
+
+/* Ingest banner */
+#ingest-banner { background: #e8f0fe; border-bottom: 1px solid #c5d8fb; padding: 10px 14px; font-size: 12px; }
+.ingest-banner-title { font-weight: 700; color: #1a56b0; margin-bottom: 6px; }
+.ingest-file-row { display: flex; align-items: center; gap: 6px; margin-top: 4px; }
+.ingest-file-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+a.get-file { font-size: 12px; color: #4285f4; text-decoration: none; white-space: nowrap; }
+a.get-file:hover { text-decoration: underline; }
+
+/* Upload guide dialog */
+#upload-guide-dialog { width: 660px; }
+.guide-steps { display: flex; flex-direction: column; gap: 16px; }
+.guide-step { display: flex; gap: 12px; align-items: flex-start; font-size: 13px; }
+.guide-step-num { flex-shrink: 0; width: 22px; height: 22px; border-radius: 50%; background: #4285f4; color: white; font-size: 12px; font-weight: 700; display: flex; align-items: center; justify-content: center; margin-top: 1px; }
+.guide-step-body { flex: 1; }
+.guide-step-body a.get-file { font-size: 13px; }
+.screenshot-container { position: relative; margin-top: 8px; border: 1px solid #eee; border-radius: 4px; overflow: hidden; display: block; }
+.screenshot-container img { display: block; width: 100%; }
+.annotation { position: absolute; border: 3px solid #e53935; border-radius: 50px; pointer-events: none; box-shadow: 0 0 6px rgba(229,57,53,0.4); }
 </style>
 </head>
 <body>
@@ -123,6 +142,7 @@ dialog h2 { font-size: 16px; margin-bottom: 14px; }
 <main>
   <div id="lists-panel">
     <h2>Lists <span id="list-count" style="font-weight:400;color:#bbb"></span></h2>
+    <div id="ingest-banner" style="display:none"></div>
     <div id="lists-container"></div>
     <div id="add-list-area">
       <button style="width:100%" id="btn-add-list-2">+ Add List</button>
@@ -181,6 +201,14 @@ dialog h2 { font-size: 16px; margin-bottom: 14px; }
   </div>
 </dialog>
 
+<dialog id="upload-guide-dialog">
+  <h2 id="guide-title"></h2>
+  <div class="guide-steps" id="guide-steps"></div>
+  <div class="dialog-footer">
+    <button id="btn-guide-close">Cancel</button>
+  </div>
+</dialog>
+
 <script>
 'use strict';
 
@@ -199,15 +227,19 @@ const BUILTIN_TEMPLATES = [
   },
   {
     id: 'xwi',
-    name: 'XWordInfo',
+    name: 'XWord Info',
     source: 'upload',
     url: null,
+    downloadPage: 'https://www.xwordinfo.com/WordList',
+    downloadNote: "Download a .txt file",
   },
   {
     id: 'stwl',
     name: 'Spread the Wordlist',
     source: 'upload',
     url: null,
+    downloadPage: 'https://www.spreadthewordlist.com/',
+    downloadNote: 'Download the “lowercase + compiler” version',
   },
   {
     id: 'broda',
@@ -329,6 +361,8 @@ async function init() {
 
   renderAll();
   bindEvents();
+  await loadWatchedDir();
+  checkDownloadsFolder(); // intentionally not awaited — runs in background
 }
 
 function defaultLists() {
@@ -585,7 +619,9 @@ function renderLists() {
 
     let actionBtn;
     if (list.source === 'upload') {
-      actionBtn = `<button class="small" onclick="uploadToList('${list.id}',event)" title="Upload file">↑</button>`;
+      const hasGuide = !!getTemplate(list.id)?.downloadPage;
+      const uploadFn = hasGuide ? 'openUploadGuide' : 'uploadToList';
+      actionBtn = `<button class="small" onclick="${uploadFn}('${list.id}',event)" title="Upload file">↑</button>`;
     } else if (list.url) {
       actionBtn = `<button class="small" onclick="downloadList('${list.id}',event)" title="Update" ${list._loading ? 'disabled' : ''}>↻</button>`;
     } else {
@@ -636,8 +672,14 @@ function renderDetail(list) {
 
   let sourceDesc, actionBtn;
   if (list.source === 'upload') {
-    sourceDesc = 'Manual upload';
-    actionBtn = `<button onclick="uploadToList('${list.id}')">↑ Upload</button>`;
+    const tmpl = getTemplate(list.id);
+    if (tmpl?.downloadPage) {
+      sourceDesc = 'Manual download required';
+      actionBtn = `<button onclick="openUploadGuide('${list.id}')">↑ Upload</button>`;
+    } else {
+      sourceDesc = 'Manual upload';
+      actionBtn = `<button onclick="uploadToList('${list.id}')">↑ Upload</button>`;
+    }
   } else if (list.url) {
     sourceDesc = list.url;
     actionBtn = `<button onclick="downloadList('${list.id}')" ${list._loading ? 'disabled' : ''}>${list._loading ? 'Updating…' : '↻ Update'}</button>`;
@@ -743,6 +785,7 @@ function ingestFile(file, listId, nameOverride) {
     renderLists();
     if (state.selectedId === listId) renderDetail(list);
     showToast(`Loaded ${list.rawEntries.length.toLocaleString()} entries`);
+    if (getTemplate(listId)?.downloadPage) offerWatchDir();
   };
   reader.readAsText(file);
 }
@@ -775,7 +818,10 @@ function openDialog() {
   const bl = document.getElementById('builtin-list');
   bl.innerHTML = BUILTIN_TEMPLATES.map(t => {
     const exists = state.lists.some(l => l.id === t.id);
-    const sub = t.source === 'upload' ? 'Manual upload'
+    const sub = t.source === 'upload'
+      ? (t.downloadPage
+        ? `Manual download &middot; <a class="get-file" href="${esc(t.downloadPage)}" target="_blank" rel="noopener">Get file →</a>`
+        : 'Manual upload')
       : t.url ? 'Auto-download'
       : 'URL TBD';
     return `<div class="builtin-item">
@@ -833,6 +879,7 @@ function bindEvents() {
   document.getElementById('btn-add-list').onclick  = openBtn;
   document.getElementById('btn-add-list-2').onclick = openBtn;
   document.getElementById('btn-dialog-close').onclick = () => document.getElementById('add-dialog').close();
+  document.getElementById('btn-guide-close').onclick  = () => document.getElementById('upload-guide-dialog').close();
 
   // Tabs
   document.querySelectorAll('.tab-btn').forEach(btn => {
@@ -895,6 +942,212 @@ function showToast(msg) {
   el.classList.add('show');
   clearTimeout(_toastTimer);
   _toastTimer = setTimeout(() => el.classList.remove('show'), 3500);
+}
+
+// ─── Template lookup ──────────────────────────────────────────────────────────
+
+function getTemplate(id) {
+  return BUILTIN_TEMPLATES.find(t => t.id === id) ?? null;
+}
+
+// ─── Upload Guide ─────────────────────────────────────────────────────────────
+
+function openUploadGuide(listId, event) {
+  if (event) event.stopPropagation();
+  const tmpl = getTemplate(listId);
+  if (!tmpl?.downloadPage) { uploadToList(listId); return; }
+
+  const dialog = document.getElementById('upload-guide-dialog');
+  document.getElementById('guide-title').textContent = `${tmpl.name} — Where to get it`;
+  document.getElementById('guide-steps').innerHTML = buildGuideHTML(listId, tmpl);
+
+  const zone   = document.getElementById('guide-drop-zone');
+  const finput = document.getElementById('guide-file-input');
+  zone.onclick     = () => finput.click();
+  zone.ondragover  = e => { e.preventDefault(); zone.classList.add('drag-over'); };
+  zone.ondragleave = () => zone.classList.remove('drag-over');
+  zone.ondrop      = e => {
+    e.preventDefault(); zone.classList.remove('drag-over');
+    const file = e.dataTransfer.files[0];
+    if (file) { dialog.close(); ingestFile(file, listId); selectList(listId); }
+  };
+  finput.onchange = () => {
+    if (finput.files[0]) { dialog.close(); ingestFile(finput.files[0], listId); selectList(listId); }
+  };
+
+  dialog.showModal();
+}
+
+function buildGuideHTML(listId, tmpl) {
+  const screenshot = listId === 'xwi' ? guideScreenshotXwi() : guideScreenshotStwl();
+  const step2note  = listId === 'xwi'
+    ? 'Click a <strong>.txt</strong> download button.'
+    : 'Click the <strong>lowercase + compiler</strong> button (top right).';
+  return `
+    <div class="guide-step">
+      <div class="guide-step-num">1</div>
+      <div class="guide-step-body">
+        Go to the download page: <a class="get-file" href="${esc(tmpl.downloadPage)}" target="_blank" rel="noopener">${esc(tmpl.downloadPage)} →</a>
+      </div>
+    </div>
+    <div class="guide-step">
+      <div class="guide-step-num">2</div>
+      <div class="guide-step-body">
+        ${step2note}
+        ${screenshot}
+      </div>
+    </div>
+    <div class="guide-step">
+      <div class="guide-step-num">3</div>
+      <div class="guide-step-body">
+        Come back here and drop the downloaded file:
+        <div class="upload-zone" id="guide-drop-zone" style="margin-top:8px;padding:16px">
+          Drop file here or click to browse
+          <input type="file" id="guide-file-input" accept=".txt,.csv" style="display:none">
+        </div>
+      </div>
+    </div>`;
+}
+
+function guideScreenshotXwi() {
+  return `<div class="screenshot-container">
+    <img src="xwi-download-page.png" alt="XWord Info download page">
+    <div class="annotation" style="left:0%;top:27%;width:52%;height:17%"></div>
+    <div class="annotation" style="left:0%;top:82%;width:50%;height:17%"></div>
+  </div>`;
+}
+
+function guideScreenshotStwl() {
+  return `<div class="screenshot-container">
+    <img src="stwl-download-page.png" alt="Spread the Word(list) download page">
+    <div class="annotation" style="left:51%;top:25%;width:49%;height:34%"></div>
+  </div>`;
+}
+
+// ─── File System Access API ───────────────────────────────────────────────────
+
+let _watchedDirHandle = null;
+let _watchDirOffered  = false;
+
+async function loadWatchedDir() {
+  try { _watchedDirHandle = await idbGet('watched_dir'); } catch {}
+}
+
+async function setupWatchDir() {
+  if (!('showDirectoryPicker' in window)) { showToast('Not supported in this browser'); return; }
+  dismissIngestBanner();
+  try {
+    const handle = await showDirectoryPicker({ id: 'downloads', startIn: 'downloads', mode: 'read' });
+    _watchedDirHandle = handle;
+    await idbPut('watched_dir', handle);
+    showToast('Downloads folder linked — new wordlists will be detected automatically');
+    await checkDownloadsFolder();
+  } catch (e) {
+    if (e.name !== 'AbortError') showToast('Could not access folder');
+  }
+}
+
+async function checkDownloadsFolder() {
+  if (!_watchedDirHandle) return;
+  try {
+    const perm = await _watchedDirHandle.queryPermission({ mode: 'read' });
+    if (perm === 'prompt') { showReGrantBanner(); return; }
+    if (perm !== 'granted') return;
+  } catch { return; }
+
+  const uploadLists = state.lists.filter(l => l.source === 'upload' && l.cachedAt);
+  if (!uploadLists.length) return;
+  const newerThan = Math.min(...uploadLists.map(l => l.cachedAt));
+
+  const found = [];
+  try {
+    for await (const [name, fh] of _watchedDirHandle.entries()) {
+      if (fh.kind !== 'file') continue;
+      const lname = name.toLowerCase();
+      if (!lname.endsWith('.txt') && !lname.endsWith('.csv')) continue;
+      const file = await fh.getFile();
+      if (file.lastModified <= newerThan) continue;
+      const text = await file.text();
+      const entries = parseWordlist(text);
+      if (entries.length >= 500) found.push({ name, file, text, entries });
+    }
+  } catch { return; }
+
+  if (found.length) showFileIngestBanner(found);
+}
+
+function showReGrantBanner() {
+  const b = document.getElementById('ingest-banner');
+  b.style.display = '';
+  b.innerHTML = `<div class="ingest-banner-title">Downloads folder access needed</div>
+    <div style="color:#555;margin-bottom:6px">Click to re-grant access to detect new wordlist files.</div>
+    <button class="small primary" onclick="reGrantAndCheck()">Re-grant access</button>
+    <button class="small" style="margin-left:6px" onclick="dismissIngestBanner()">Dismiss</button>`;
+}
+
+async function reGrantAndCheck() {
+  try {
+    if ((await _watchedDirHandle.requestPermission({ mode: 'read' })) === 'granted') {
+      dismissIngestBanner();
+      await checkDownloadsFolder();
+    }
+  } catch {}
+}
+
+function showFileIngestBanner(files) {
+  const uploadLists = state.lists.filter(l => l.source === 'upload');
+  const opts = uploadLists.map(l => `<option value="${esc(l.id)}">${esc(l.name)}</option>`).join('');
+  const rows = files.map((f, i) => `
+    <div class="ingest-file-row">
+      <span class="ingest-file-name" title="${esc(f.name)}">${esc(f.name)}</span>
+      <span style="color:#888">${f.entries.length.toLocaleString()} entries</span>
+      <select id="ingest-sel-${i}" style="font-size:12px;padding:2px 4px;border:1px solid #ccc;border-radius:3px">${opts}</select>
+      <button class="small primary" onclick="doIngestFile(${i})">Import</button>
+    </div>`).join('');
+  const b = document.getElementById('ingest-banner');
+  b.style.display = '';
+  b.innerHTML = `<div class="ingest-banner-title">New wordlist files detected in Downloads</div>
+    ${rows}
+    <button class="small" style="margin-top:6px" onclick="dismissIngestBanner()">Dismiss</button>`;
+  b._files = files;
+}
+
+async function doIngestFile(idx) {
+  const b = document.getElementById('ingest-banner');
+  const files = b._files;
+  if (!files?.[idx]) return;
+  const { text } = files[idx];
+  const listId = document.getElementById(`ingest-sel-${idx}`).value;
+  const list = state.lists.find(l => l.id === listId);
+  if (!list) return;
+  list.rawEntries = parseWordlist(text);
+  list.cachedAt = Date.now();
+  await persistData(listId, text);
+  persistMeta();
+  renderLists();
+  if (state.selectedId === listId) renderDetail(list);
+  showToast(`Loaded ${list.rawEntries.length.toLocaleString()} entries into ${list.name}`);
+  files.splice(idx, 1);
+  if (files.length === 0) dismissIngestBanner();
+  else showFileIngestBanner(files);
+}
+
+function dismissIngestBanner() {
+  document.getElementById('ingest-banner').style.display = 'none';
+}
+
+function offerWatchDir() {
+  if (!('showDirectoryPicker' in window)) return;
+  if (_watchedDirHandle) return;
+  if (_watchDirOffered) return;
+  _watchDirOffered = true;
+  const b = document.getElementById('ingest-banner');
+  if (b.style.display !== 'none') return;
+  b.style.display = '';
+  b.innerHTML = `<div class="ingest-banner-title">Auto-detect future downloads?</div>
+    <div style="color:#555;margin-bottom:6px">Grant read access to your Downloads folder and new wordlist files will be detected automatically on the next visit.</div>
+    <button class="small primary" onclick="setupWatchDir()">Grant Downloads access</button>
+    <button class="small" style="margin-left:6px" onclick="dismissIngestBanner()">Not now</button>`;
 }
 
 // ─── Boot ─────────────────────────────────────────────────────────────────────
