@@ -641,15 +641,22 @@ function renderLists() {
       actionBtn = `<span style="font-size:10px;color:#ccc">TBD</span>`;
     }
 
+    const icon = getListIcon(list.id);
+    const isBuiltin = !!getTemplate(list.id);
+    const removeTitle = isBuiltin && hasData ? 'Clear data' : isBuiltin ? '' : 'Remove';
+    const removeBtn = isBuiltin && !hasData ? '' :
+      `<button class="small" onclick="removeList('${list.id}',event)" title="${removeTitle}">×</button>`;
+
     return `<div class="list-card${sel ? ' selected' : ''}" onclick="selectList('${list.id}')">
       <span class="status ${dot}"></span>
+      ${icon}
       <div class="card-info">
         <div class="card-name">${esc(list.name)}</div>
         <div class="card-meta">${meta}</div>
       </div>
       <div class="card-actions">
         ${actionBtn}
-        <button class="small" onclick="removeList('${list.id}',event)" title="Remove">×</button>
+        ${removeBtn}
       </div>
     </div>`;
   }).join('');
@@ -817,17 +824,29 @@ function ingestFile(file, listId, nameOverride) {
 async function removeList(id, event) {
   if (event) event.stopPropagation();
   const list = state.lists.find(l => l.id === id);
-  if (!list || !confirm(`Remove "${list.name}"?`)) return;
+  if (!list) return;
 
-  state.lists = state.lists.filter(l => l.id !== id);
-  await idbDel('data_' + id);
-  persistMeta();
+  const isBuiltin = !!getTemplate(id);
 
-  if (state.selectedId === id) {
-    state.selectedId = null;
-    scroller = null;
+  if (isBuiltin) {
+    if (!list.rawEntries.length || !confirm(`Clear data for "${list.name}"?`)) return;
+    list.rawEntries = [];
+    list.cachedAt = null;
+    await idbDel('data_' + id);
+    persistMeta();
+    renderLists();
+    if (state.selectedId === id) renderDetail(list);
+  } else {
+    if (!confirm(`Remove "${list.name}"?`)) return;
+    state.lists = state.lists.filter(l => l.id !== id);
+    await idbDel('data_' + id);
+    persistMeta();
+    if (state.selectedId === id) {
+      state.selectedId = null;
+      scroller = null;
+    }
+    renderAll();
   }
-  renderAll();
 }
 
 function addNewList(listDef) {
@@ -972,6 +991,24 @@ function showToast(msg) {
 
 function getTemplate(id) {
   return BUILTIN_TEMPLATES.find(t => t.id === id) ?? null;
+}
+
+// ─── List icons ───────────────────────────────────────────────────────────────
+
+function getListIcon(id) {
+  const imgStyle = 'width:16px;height:16px;border-radius:3px;flex-shrink:0;vertical-align:middle;display:block';
+  switch (id) {
+    case 'jkugelman':
+      return `<svg width="16" height="16" viewBox="0 0 16 16" style="border-radius:3px;flex-shrink:0" aria-hidden="true"><rect width="16" height="16" fill="#7b3ff2"/><text x="8" y="12" text-anchor="middle" fill="white" font-family="system-ui,sans-serif" font-size="8.5" font-weight="700">JK</text></svg>`;
+    case 'broda':
+      return `<svg width="16" height="16" viewBox="0 0 16 16" style="border-radius:3px;flex-shrink:0" aria-hidden="true"><rect width="16" height="16" fill="#0f9d58"/><text x="8" y="12" text-anchor="middle" fill="white" font-family="system-ui,sans-serif" font-size="8.5" font-weight="700">PB</text></svg>`;
+    case 'xwi':
+      return `<img src="https://www.xwordinfo.com/favicon.ico" style="${imgStyle}" onerror="this.style.display='none'" alt="">`;
+    case 'stwl':
+      return `<img src="https://www.spreadthewordlist.com/favicon.ico" style="${imgStyle}" onerror="this.style.display='none'" alt="">`;
+    default:
+      return '';
+  }
 }
 
 // ─── Upload Guide ─────────────────────────────────────────────────────────────
