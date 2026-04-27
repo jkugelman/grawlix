@@ -30,6 +30,10 @@
   --del-hover: #361818;
   --shadow:    0 8px 40px rgba(0,0,0,0.5);
   --backdrop:  rgba(0,0,0,0.5);
+  --score-great-bg: #1e5230; --score-great-fg: #90e6b0;
+  --score-good-bg:  #1a3a6b; --score-good-fg:  #8ec4fb;
+  --score-ok-bg:    #4d4808; --score-ok-fg:    #f5e066;
+  --score-bad-bg:   #6b1d1d; --score-bad-fg:   #f9a8a8;
 }
 html.light-mode {
   --bg:        #f5f5f5;
@@ -50,6 +54,10 @@ html.light-mode {
   --del-hover: #fdecea;
   --shadow:    0 8px 40px rgba(0,0,0,0.18);
   --backdrop:  rgba(0,0,0,0.3);
+  --score-great-bg: #d4edda; --score-great-fg: #155724;
+  --score-good-bg:  #cce5ff; --score-good-fg:  #004085;
+  --score-ok-bg:    #fff3cd; --score-ok-fg:    #856404;
+  --score-bad-bg:   #f8d7da; --score-bad-fg:   #721c24;
 }
 
 body { font-family: system-ui, -apple-system, sans-serif; font-size: 14px; background: var(--bg); color: var(--text); height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
@@ -857,10 +865,10 @@ class VirtualScroller {
 }
 
 function scoreColor(s) {
-  if (s >= 60) return { bg: '#d4edda', fg: '#155724' };
-  if (s >= 50) return { bg: '#cce5ff', fg: '#004085' };
-  if (s >= 30) return { bg: '#fff3cd', fg: '#856404' };
-  return { bg: '#f8d7da', fg: '#721c24' };
+  if (s >= 60) return { bg: 'var(--score-great-bg)', fg: 'var(--score-great-fg)' };
+  if (s >= 50) return { bg: 'var(--score-good-bg)',  fg: 'var(--score-good-fg)' };
+  if (s >= 30) return { bg: 'var(--score-ok-bg)',    fg: 'var(--score-ok-fg)' };
+  return        { bg: 'var(--score-bad-bg)',  fg: 'var(--score-bad-fg)' };
 }
 
 // ─── Rescoring ────────────────────────────────────────────────────────────────
