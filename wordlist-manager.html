@@ -91,7 +91,7 @@ button.danger:hover:not(:disabled) { background: #e74c3c; border-color: #c0392b;
 .no-selection small { font-size: 13px; }
 
 .detail-header { background: var(--surface); padding: 12px 18px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
-.detail-header h2 { font-size: 15px; font-weight: 600; flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.detail-header h2 { font-size: 15px; font-weight: 600; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: text; }
 .detail-source { font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 220px; }
 
 /* Stats bar */
@@ -122,6 +122,14 @@ button.danger:hover:not(:disabled) { background: #e74c3c; border-color: #c0392b;
 .sort-arrow { font-size: 9px; opacity: 0.7; }
 .col-resize-handle { position: absolute; right: 0; top: 0; bottom: 0; width: 5px; cursor: col-resize; z-index: 2; }
 .col-resize-handle:hover, .col-resize-handle.active { background: rgba(66,133,244,0.35); }
+
+/* Inline name editing */
+.detail-name-wrap { display: flex; align-items: center; gap: 6px; flex: 1; min-width: 0; overflow: hidden; }
+.detail-edit-hint { opacity: 0; font-size: 13px; transition: opacity 0.15s; flex-shrink: 0; cursor: pointer; }
+.detail-name-wrap:hover .detail-edit-hint { opacity: 0.85; }
+.detail-name-wrap:has(input) .detail-edit-hint { display: none; }
+.name-edit-input { font-family: inherit; width: 100%; padding: 1px 5px; border: 1px solid #4285f4; border-radius: 3px; background: var(--input-bg); color: var(--text); font-size: 15px; font-weight: 600; outline: none; }
+.card-name-edit { font-family: inherit; width: 100%; padding: 0 3px; border: 1px solid #4285f4; border-radius: 3px; background: var(--input-bg); color: var(--text); font-size: 13px; font-weight: 600; outline: none; }
 
 /* Drag handle */
 .drag-handle { color: var(--faint); cursor: grab; font-size: 13px; flex-shrink: 0; padding: 0 1px; user-select: none; }
@@ -1123,7 +1131,10 @@ function renderDetail(list) {
 
   panel.innerHTML = `
     <div class="detail-header">
-      <h2>${esc(list.name)}</h2>
+      <div class="detail-name-wrap">
+        <h2 onclick="startHeaderRename()" title="Click to rename">${esc(list.name)}</h2>
+        <span class="detail-edit-hint" onclick="startHeaderRename()">✏️</span>
+      </div>
       <span class="detail-source" title="${esc(sourceDesc)}">${esc(sourceDesc)}</span>
       ${actionBtn}
       ${clearBtn}
@@ -1430,6 +1441,14 @@ function bindEvents() {
     renderLists();
   });
 
+  // F2 to rename selected list
+  document.addEventListener('keydown', e => {
+    if (e.key !== 'F2') return;
+    const active = document.activeElement;
+    if (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA') return;
+    if (state.selectedId) { e.preventDefault(); startCardRename(state.selectedId); }
+  });
+
   // URL fetch
   document.getElementById('btn-fetch-url').onclick = async () => {
     const url  = document.getElementById('url-input').value.trim();
@@ -1626,6 +1645,110 @@ function updateRescorePreview() {
     output: row.querySelector('.rule-out')?.value || '',
   }));
   scroller.setRescore(rules);
+}
+
+// ─── Rename ───────────────────────────────────────────────────────────────────
+
+function startHeaderRename() {
+  const list = getSelected();
+  if (!list) return;
+  const h2 = document.querySelector('.detail-header h2');
+  if (!h2 || h2.querySelector('input')) return;
+
+  const input = document.createElement('input');
+  input.className = 'name-edit-input';
+  input.value = list.name;
+
+  const originalName = list.name;
+  h2.textContent = '';
+  h2.appendChild(input);
+  input.select();
+
+  let done = false;
+  function commit() {
+    if (done) return;
+    done = true;
+    const newName = input.value.trim() || originalName;
+    h2.textContent = newName;
+    if (newName !== originalName) {
+      list.name = newName;
+      persistMeta();
+      renderLists();
+    }
+  }
+  function cancel() {
+    if (done) return;
+    done = true;
+    h2.textContent = originalName;
+    const cardNameEl = document.querySelector(`.list-card[data-id="${CSS.escape(list.id)}"] .card-name`);
+    if (cardNameEl && !cardNameEl.querySelector('input')) cardNameEl.textContent = originalName;
+  }
+
+  input.oninput = () => {
+    const cardNameEl = document.querySelector(`.list-card[data-id="${CSS.escape(list.id)}"] .card-name`);
+    if (cardNameEl && !cardNameEl.querySelector('input')) cardNameEl.textContent = input.value || originalName;
+  };
+  input.onblur = commit;
+  input.onkeydown = e => {
+    if (e.key === 'Enter') { e.preventDefault(); commit(); }
+    if (e.key === 'Escape') { input.onblur = null; cancel(); }
+  };
+}
+
+function startCardRename(id) {
+  const card = document.querySelector(`.list-card[data-id="${CSS.escape(id)}"]`);
+  if (!card) return;
+  const nameEl = card.querySelector('.card-name');
+  if (!nameEl || nameEl.querySelector('input')) return;
+
+  const list = state.lists.find(l => l.id === id);
+  if (!list) return;
+
+  const input = document.createElement('input');
+  input.className = 'card-name-edit';
+  input.value = list.name;
+
+  const originalName = list.name;
+  nameEl.textContent = '';
+  nameEl.appendChild(input);
+  input.focus();
+  input.select();
+
+  let done = false;
+  function commit() {
+    if (done) return;
+    done = true;
+    const newName = input.value.trim() || originalName;
+    if (newName !== originalName) {
+      list.name = newName;
+      persistMeta();
+      renderLists();
+      if (state.selectedId === id) {
+        const h2 = document.querySelector('.detail-header h2');
+        if (h2 && !h2.querySelector('input')) h2.textContent = newName;
+      }
+    } else {
+      nameEl.textContent = originalName;
+    }
+  }
+  function cancel() {
+    if (done) return;
+    done = true;
+    nameEl.textContent = originalName;
+    const h2 = document.querySelector('.detail-header h2');
+    if (h2 && !h2.querySelector('input')) h2.textContent = originalName;
+  }
+
+  input.oninput = () => {
+    const h2 = document.querySelector('.detail-header h2');
+    if (h2 && !h2.querySelector('input')) h2.textContent = input.value || originalName;
+  };
+  input.onclick = e => e.stopPropagation();
+  input.onblur = commit;
+  input.onkeydown = e => {
+    if (e.key === 'Enter') { e.preventDefault(); commit(); }
+    if (e.key === 'Escape') { input.onblur = null; cancel(); }
+  };
 }
 
 // ─── Boot ─────────────────────────────────────────────────────────────────────
