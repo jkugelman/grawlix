@@ -223,10 +223,10 @@ Derived data (computed on the fly, not stored):
 - [x] Stats: entry count, score distribution
 
 ### Phase 2 — Rescore
-- [ ] Rule editor UI (add/remove/reorder rules)
-- [ ] Live preview of rule effects on sample entries
-- [ ] Minimum word length filter
-- [ ] Pre-populate rules for default lists
+- [x] Rule editor UI (add/remove/reorder rules)
+- [x] Live preview of rule effects on sample entries
+- [x] Minimum word length filter
+- [x] Pre-populate rules for default lists
 
 ### Phase 3 — List Management
 - [ ] Drag-and-drop reorder

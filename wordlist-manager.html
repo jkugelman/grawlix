@@ -125,17 +125,6 @@ a.get-file:hover { text-decoration: underline; }
 .rule-arrow { color: #ccc; font-size: 14px; width: 14px; text-align: center; flex-shrink: 0; }
 .rule-del { width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; border: none; background: none; cursor: pointer; color: #ccc; font-size: 15px; padding: 0; line-height: 1; border-radius: 3px; font-family: inherit; }
 .rule-del:hover { color: #e53935; background: #fdecea; }
-.rescore-preview { font-size: 11px; color: #888; margin-top: 7px; padding-top: 7px; border-top: 1px solid #eee; line-height: 2; }
-.preview-label { font-size: 10px; font-weight: 700; color: #aaa; text-transform: uppercase; letter-spacing: 0.04em; margin-right: 3px; }
-.p-chip { display: inline-flex; align-items: center; gap: 2px; background: #eef2fb; border-radius: 10px; padding: 1px 8px; margin: 1px 3px 1px 0; font-family: ui-monospace, 'Cascadia Code', monospace; }
-.p-chip .pw { font-size: 11px; color: #333; }
-.p-chip .ps-from { font-size: 10px; color: #aaa; margin-left: 2px; }
-.p-chip .ps-arr  { font-size: 10px; color: #ccc; }
-.p-chip .ps-to   { font-size: 10px; font-weight: 700; color: #1a73e8; }
-.p-chip.p-excl { background: #fdecea; }
-.p-chip.p-excl .pw { text-decoration: line-through; color: #c62828; }
-.p-chip.p-excl .ps-from { color: #e57373; }
-.p-chip.p-same .ps-from { color: #555; }
 
 /* Upload guide dialog */
 #upload-guide-dialog { width: 660px; }
@@ -273,7 +262,7 @@ const BUILTIN_TEMPLATES = [
 const DEFAULT_RULES = {
   xwi:   { rescoreRules: [{ input:'60+', length:'', output:'60' }, { input:'50-59', length:'', output:'50' }, { input:'30-49', length:'', output:'30' }, { input:'0-29', length:'', output:'20' }] },
   stwl:  { rescoreRules: [{ input:'50+', length:'', output:'50' }, { input:'0-49', length:'', output:'exclude' }] },
-  broda: { rescoreRules: [{ input:'80+', length:'7+', output:'60' }, { input:'0-79', length:'7+', output:'exclude' }] },
+  broda: { rescoreRules: [{ input:'80+', length:'7+', output:'60' }, { input:'0-79', length:'', output:'exclude' }] },
 };
 
 // ─── State ────────────────────────────────────────────────────────────────────
@@ -430,7 +419,7 @@ function computeStats(entries) {
 
 // ─── Virtual Scroller ─────────────────────────────────────────────────────────
 
-const colWidths = { word: 220, score: 70 }; // persists across list switches
+const colWidths = { word: 220, score: 70, rescored: 70 }; // persists across list switches
 
 class VirtualScroller {
   constructor(container) {
@@ -442,6 +431,8 @@ class VirtualScroller {
     this.sortDir = 'asc';
     this._lastQuery = '';
     this._colEls = {};
+    this.rescoreRules = [];
+    this._currentCols = [];
 
     container.style.overflowY = 'auto';
 
@@ -473,23 +464,38 @@ class VirtualScroller {
     new ResizeObserver(() => this._render()).observe(container);
   }
 
-  setEntries(allEntries, query) {
+  setEntries(allEntries, query, rescoreRules) {
     this.allEntries = allEntries;
     this.hasComments = allEntries.some(e => e.comment);
+    this.rescoreRules = rescoreRules || [];
     this.sortKey = null;
     this.sortDir = 'asc';
     this._buildHeader();
     this.filter(query);
   }
 
+  setRescore(rules) {
+    this.rescoreRules = rules || [];
+    this._buildHeader();
+    this._applyFilterAndSort(false);
+  }
+
+  _hasRescore() {
+    return this.rescoreRules.length > 0;
+  }
+
   _cols() {
-    return ['word', 'score', 'comment'];
+    const cols = ['word', 'score'];
+    if (this._hasRescore()) cols.push('rescored');
+    cols.push('comment');
+    return cols;
   }
 
   _buildHeader() {
-    const LABELS = { word: 'Word', score: 'Score', comment: 'Comment' };
-    const ALIGN  = { word: 'left', score: 'left', comment: 'left' };
+    const LABELS = { word: 'Word', score: 'Score', rescored: 'After', comment: 'Comment' };
+    const ALIGN  = { word: 'left', score: 'left', rescored: 'left', comment: 'left' };
     const cols = this._cols();
+    this._currentCols = cols;
 
     this.topRow.firstElementChild.colSpan = cols.length;
     this.botRow.firstElementChild.colSpan = cols.length;
@@ -573,7 +579,7 @@ class VirtualScroller {
     this._applyFilterAndSort();
   }
 
-  _applyFilterAndSort() {
+  _applyFilterAndSort(resetScroll = true) {
     const q = this._lastQuery.toLowerCase();
     let entries = q
       ? this.allEntries.filter(e => e.word.toLowerCase().includes(q))
@@ -583,6 +589,11 @@ class VirtualScroller {
       const key = this.sortKey;
       const dir = this.sortDir === 'asc' ? 1 : -1;
       entries = [...entries].sort((a, b) => {
+        if (key === 'rescored') {
+          const ar = rescoreEntry(a, this.rescoreRules);
+          const br = rescoreEntry(b, this.rescoreRules);
+          return dir * ((ar.kept ? ar.score : -1) - (br.kept ? br.score : -1));
+        }
         const av = a[key] ?? '';
         const bv = b[key] ?? '';
         if (typeof av === 'number' && typeof bv === 'number') return dir * (av - bv);
@@ -591,7 +602,7 @@ class VirtualScroller {
     }
 
     this.entries = entries;
-    this.container.scrollTop = 0;
+    if (resetScroll) this.container.scrollTop = 0;
     this._render();
   }
 
@@ -610,15 +621,33 @@ class VirtualScroller {
       this.tbody.removeChild(this.topRow.nextSibling);
     }
 
+    const showRescore = this._currentCols.includes('rescored');
     const frag = document.createDocumentFragment();
     for (let i = start; i < end; i++) {
-      const { word, score, comment } = this.entries[i];
+      const entry = this.entries[i];
+      const { word, score, comment } = entry;
       const { bg, fg } = scoreColor(score);
       const tr = document.createElement('tr');
       tr.style.height = ROW_HEIGHT + 'px';
+
+      let rescoredHtml = '';
+      if (showRescore) {
+        const r = rescoreEntry(entry, this.rescoreRules);
+        if (!r.kept) {
+          tr.style.opacity = '0.35';
+          rescoredHtml = `<td><span class="score-badge" style="background:#f8d7da;color:#721c24">excl</span></td>`;
+        } else if (r.score !== score) {
+          const { bg: rb, fg: rf } = scoreColor(r.score);
+          rescoredHtml = `<td><span class="score-badge" style="background:${rb};color:${rf}">${r.score}</span></td>`;
+        } else {
+          rescoredHtml = `<td style="color:#ddd;padding-left:20px">—</td>`;
+        }
+      }
+
       tr.innerHTML =
         `<td>${word}</td>` +
         `<td><span class="score-badge" style="background:${bg};color:${fg}">${score}</span></td>` +
+        rescoredHtml +
         `<td class="comment-cell">${comment || ''}</td>`;
       frag.appendChild(tr);
     }
@@ -674,46 +703,27 @@ function applyRescoring(entries, rules) {
   return result;
 }
 
-function pickPreviewSamples(entries, rules) {
-  const samples = [];
-  const used = new Set();
+function rescoreEntry(entry, rules) {
   for (const rule of rules) {
     const score = parseRange(rule.input);
     if (!score) continue;
-    const out = parseRuleOutput(rule.output);
-    if (out === null) continue;
-    const lenParsed = (rule.length && rule.length.trim()) ? parseRange(rule.length) : null;
-    for (const e of entries) {
-      if (used.has(e.word)) continue;
-      if ((score.min !== null && e.score < score.min) || (score.max !== null && e.score > score.max)) continue;
-      if (lenParsed) {
-        if ((lenParsed.min !== null && e.word.length < lenParsed.min) || (lenParsed.max !== null && e.word.length > lenParsed.max)) continue;
-      }
-      used.add(e.word);
-      samples.push({ word: e.word, origScore: e.score, newScore: out === 'exclude' ? 'excluded' : out });
-      break;
+    if ((score.min !== null && entry.score < score.min) || (score.max !== null && entry.score > score.max)) continue;
+    if (rule.length && rule.length.trim()) {
+      const len = parseRange(rule.length);
+      if (!len) continue;
+      if ((len.min !== null && entry.word.length < len.min) || (len.max !== null && entry.word.length > len.max)) continue;
     }
-    if (samples.length >= 6) break;
+    const s = parseRuleOutput(rule.output);
+    if (s === null) continue;
+    if (s === 'exclude') return { kept: false };
+    return { kept: true, score: s };
   }
-  return samples;
-}
-
-function buildPreviewHTML(entries, rules) {
-  const samples = pickPreviewSamples(entries, rules);
-  if (!samples.length) return '<span style="color:#ccc;font-size:11px">Load data to see a preview</span>';
-  return samples.map(s => {
-    if (s.newScore === 'excluded')
-      return `<span class="p-chip p-excl" title="${s.word}: ${s.origScore} → excluded"><span class="pw">${s.word}</span><span class="ps-from"> ${s.origScore}</span></span>`;
-    if (s.newScore === s.origScore)
-      return `<span class="p-chip p-same" title="${s.word}: unchanged"><span class="pw">${s.word}</span><span class="ps-from"> ${s.origScore}</span></span>`;
-    return `<span class="p-chip" title="${s.word}: ${s.origScore} → ${s.newScore}"><span class="pw">${s.word}</span><span class="ps-from"> ${s.origScore}</span><span class="ps-arr">→</span><span class="ps-to">${s.newScore}</span></span>`;
-  }).join('');
+  return { kept: true, score: entry.score };
 }
 
 function buildRescoreSectionHTML(list) {
   if (!list) return '';
   const rules = list.rescoreRules || [];
-  const hasData = list.rawEntries.length > 0;
 
   const rulesHTML = rules.length
     ? rules.map((r, i) =>
@@ -732,8 +742,6 @@ function buildRescoreSectionHTML(list) {
         </div>`).join('')
     : `<div style="font-size:12px;color:#ccc;font-style:italic;margin-bottom:3px">No rules — words kept as-is</div>`;
 
-  const previewHTML = hasData ? buildPreviewHTML(list.rawEntries, rules) : '';
-
   return `
     <div class="rescore-top">
       <span class="rescore-lbl">Rescoring</span>
@@ -742,7 +750,6 @@ function buildRescoreSectionHTML(list) {
     <div style="margin-top:4px">
       <button class="small" onclick="addRule()" style="font-size:11px;padding:2px 8px">+ Add rule</button>
     </div>
-    ${previewHTML ? `<div id="rescore-preview" class="rescore-preview"><span class="preview-label">Preview</span>${previewHTML}</div>` : ''}
   `;
 }
 
@@ -895,7 +902,7 @@ function renderDetail(list) {
 
   const host = document.getElementById('vs-host');
   scroller = new VirtualScroller(host);
-  scroller.setEntries(list.rawEntries, state.searchQuery);
+  scroller.setEntries(list.rawEntries, state.searchQuery, list.rescoreRules);
 }
 
 // ─── Actions ──────────────────────────────────────────────────────────────────
@@ -1305,9 +1312,10 @@ function addRule() {
   const list = getSelected();
   if (!list) return;
   if (!list.rescoreRules) list.rescoreRules = [];
-  list.rescoreRules.push({ input: '', output: '' });
+  list.rescoreRules.push({ input: '', length: '', output: '' });
   persistMeta();
   renderRescoreSection();
+  updateRescorePreview();
   const rows = document.querySelectorAll('#rescore-rules .rule-row');
   if (rows.length) rows[rows.length - 1].querySelector('.rule-in')?.focus();
 }
@@ -1318,6 +1326,7 @@ function deleteRule(idx) {
   list.rescoreRules.splice(idx, 1);
   persistMeta();
   renderRescoreSection();
+  updateRescorePreview();
 }
 
 function saveRuleField(idx, field, value) {
@@ -1341,16 +1350,13 @@ function onRescoreInput() {
 }
 
 function updateRescorePreview() {
-  const preview = document.getElementById('rescore-preview');
-  if (!preview) return;
-  const list = getSelected();
-  if (!list || !list.rawEntries.length) return;
+  if (!scroller) return;
   const rules = Array.from(document.querySelectorAll('#rescore-rules .rule-row')).map(row => ({
     input:  row.querySelector('.rule-in')?.value  || '',
     length: row.querySelector('.rule-len')?.value || '',
     output: row.querySelector('.rule-out')?.value || '',
   }));
-  preview.innerHTML = buildPreviewHTML(list.rawEntries, rules);
+  scroller.setRescore(rules);
 }
 
 // ─── Boot ─────────────────────────────────────────────────────────────────────
