@@ -96,6 +96,7 @@ button.danger:hover:not(:disabled) { background: #e74c3c; border-color: #c0392b;
 .list-card.disabled .card-info { opacity: 0.45; }
 .list-card.disabled .status { opacity: 0.45; }
 
+
 /* Status dot */
 .status { display: inline-block; width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
 .status.loaded  { background: #34a853; }
@@ -908,27 +909,7 @@ function renderLists() {
         + (list.cachedAt ? ' · ' + new Date(list.cachedAt).toLocaleDateString() : '')
       : 'No data';
 
-    let actionBtn;
-    if (list.source === 'upload') {
-      const hasGuide = !!getTemplate(list.id)?.downloadPage;
-      const uploadFn = hasGuide ? 'openUploadGuide' : 'uploadToList';
-      const label = hasData ? '↻' : '↑';
-      const title = hasData ? 'Update' : 'Upload';
-      actionBtn = `<button class="small" onclick="${uploadFn}('${list.id}',event)" title="${title}">${label}</button>`;
-    } else if (list.source === 'builtin-download' && list.url) {
-      const label = hasData ? '↻' : '↑';
-      const title = hasData ? 'Update' : 'Upload or download';
-      actionBtn = `<button class="small" onclick="openJKUploadDialog('${list.id}',event)" title="${title}" ${list._loading ? 'disabled' : ''}>${label}</button>`;
-    } else if (list.url) {
-      actionBtn = `<button class="small" onclick="downloadList('${list.id}',event)" title="Update" ${list._loading ? 'disabled' : ''}>↻</button>`;
-    } else {
-      actionBtn = `<span style="font-size:10px;color:#ccc">TBD</span>`;
-    }
-
     const icon = getListIcon(list.id);
-    const clearBtn = hasData
-      ? `<button class="small" onclick="clearListData('${list.id}',event)" title="Clear data">🗑</button>`
-      : `<button class="small" onclick="deleteList('${list.id}',event)" title="Remove">×</button>`;
 
     return `<div class="list-card${sel ? ' selected' : ''}${list.enabled ? '' : ' disabled'}" data-id="${list.id}" draggable="true" onclick="selectList('${list.id}')">
       <span class="drag-handle" title="Drag to reorder">≡</span>
@@ -943,8 +924,6 @@ function renderLists() {
           <input type="checkbox"${list.enabled ? ' checked' : ''} onchange="toggleList('${list.id}',event)">
           <span class="toggle-slider"></span>
         </label>
-        ${actionBtn}
-        ${clearBtn}
       </div>
     </div>`;
   }).join('');
@@ -979,7 +958,7 @@ function renderDetail(list) {
       </div>
     </div>`;
   } else {
-    statsHtml = `<div class="stats-bar" style="color:#bbb;font-size:13px">No data loaded — use the button above to load this list</div>`;
+    statsHtml = `<div class="stats-bar" style="color:#bbb;font-size:13px">No data loaded — use the Upload button to load this list</div>`;
   }
 
   let sourceDesc, actionBtn;
@@ -1006,11 +985,17 @@ function renderDetail(list) {
     actionBtn = '';
   }
 
+  const isBuiltin = !!getTemplate(list.id);
+  const clearBtn = hasData
+    ? `<button class="danger" onclick="clearListData('${list.id}')">Clear data</button>`
+    : !isBuiltin ? `<button class="danger" onclick="deleteList('${list.id}')">Remove</button>` : '';
+
   panel.innerHTML = `
     <div class="detail-header">
       <h2>${esc(list.name)}</h2>
       <span class="detail-source" title="${esc(sourceDesc)}">${esc(sourceDesc)}</span>
       ${actionBtn}
+      ${clearBtn}
     </div>
     ${statsHtml}
     <div id="rescore-section" class="rescore-section">${buildRescoreSectionHTML(list)}</div>
