@@ -1124,10 +1124,9 @@ function renderDetail(list) {
     actionBtn = '';
   }
 
-  const isBuiltin = !!getTemplate(list.id);
   const clearBtn = hasData
     ? `<button class="danger" onclick="clearListData('${list.id}')">Clear data</button>`
-    : !isBuiltin ? `<button class="danger" onclick="deleteList('${list.id}')">Remove</button>` : '';
+    : `<button class="danger" onclick="deleteList('${list.id}')">Remove</button>`;
 
   panel.innerHTML = `
     <div class="detail-header">
