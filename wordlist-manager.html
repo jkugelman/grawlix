@@ -25,7 +25,7 @@ main { display: flex; flex: 1; overflow: hidden; }
 .list-card.selected { background: #e8f0fe; border-left: 3px solid #4285f4; padding-left: 11px; }
 .card-info { flex: 1; min-width: 0; }
 .card-name { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 13px; }
-.card-meta { color: #999; font-size: 11px; margin-top: 2px; }
+.card-meta { color: #999; font-size: 11px; margin-top: 2px; display: flex; align-items: center; gap: 5px; }
 .card-actions { display: flex; gap: 5px; align-items: center; flex-shrink: 0; }
 
 /* Buttons */
@@ -913,11 +913,10 @@ function renderLists() {
 
     return `<div class="list-card${sel ? ' selected' : ''}${list.enabled ? '' : ' disabled'}" data-id="${list.id}" draggable="true" onclick="selectList('${list.id}')">
       <span class="drag-handle" title="Drag to reorder">≡</span>
-      <span class="status ${dot}"></span>
       ${icon}
       <div class="card-info">
         <div class="card-name">${esc(list.name)}</div>
-        <div class="card-meta">${meta}</div>
+        <div class="card-meta"><span class="status ${dot}"></span>${meta}</div>
       </div>
       <div class="card-actions">
         <label class="toggle" onclick="event.stopPropagation()" title="${list.enabled ? 'Enabled — click to disable' : 'Disabled — click to enable'}">
