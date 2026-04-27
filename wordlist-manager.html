@@ -122,6 +122,7 @@ a.get-file:hover { text-decoration: underline; }
 .rule-out { width: 68px; padding: 2px 6px; border: 1px solid #ddd; border-radius: 3px; font-size: 12px; font-family: ui-monospace, 'Cascadia Code', monospace; text-align: center; }
 .rule-in:focus, .rule-len:focus, .rule-out:focus { outline: none; border-color: #4285f4; }
 .rule-in.invalid, .rule-len.invalid, .rule-out.invalid { border-color: #ea4335; background: #fff8f8; }
+.rule-field-lbl { font-size: 10px; color: #bbb; font-family: inherit; flex-shrink: 0; }
 .rule-arrow { color: #ccc; font-size: 14px; width: 14px; text-align: center; flex-shrink: 0; }
 .rule-del { width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; border: none; background: none; cursor: pointer; color: #ccc; font-size: 15px; padding: 0; line-height: 1; border-radius: 3px; font-family: inherit; }
 .rule-del:hover { color: #e53935; background: #fdecea; }
@@ -724,7 +725,7 @@ function buildRescoreSectionHTML(list) {
           <input class="rule-in" value="${esc(r.input)}" placeholder="60+"
             title="Score range: 60+, 50-59, 42, or *"
             oninput="onRescoreInput()" onchange="saveRuleField(${i},'input',this.value)">
-          <input class="rule-len" value="${esc(r.length||'')}" placeholder="any"
+          <span class="rule-field-lbl">length</span><input class="rule-len" value="${esc(r.length||'')}" placeholder="any"
             title="Word length filter: 7, 7+, or 7-10 (blank = any length)"
             oninput="onRescoreInput()" onchange="saveRuleField(${i},'length',this.value)">
           <span class="rule-arrow">→</span>
