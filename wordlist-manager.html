@@ -109,7 +109,8 @@ button.danger:hover:not(:disabled) { background: #e74c3c; border-color: #c0392b;
 .search-bar input:focus { outline: none; border-color: #4285f4; }
 
 /* Virtual scroll table */
-#table-container { flex: 1; overflow-y: auto; background: var(--surface); }
+#table-container { flex: 1; overflow: hidden; display: flex; flex-direction: column; background: var(--surface); }
+#vs-host { flex: 1; min-height: 0; }
 .word-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
 .word-table th { position: sticky; top: 0; background: var(--surface2); padding: 7px 16px; font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; border-bottom: 2px solid var(--border2); z-index: 1; cursor: pointer; user-select: none; white-space: nowrap; overflow: hidden; }
 .word-table th:hover { background: var(--hover); }
@@ -198,6 +199,46 @@ a.get-file:hover { text-decoration: underline; }
 .rule-del { width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; border: none; background: none; cursor: pointer; color: var(--faint); font-size: 15px; padding: 0; line-height: 1; border-radius: 3px; font-family: inherit; }
 .rule-del:hover { color: #e53935; background: var(--del-hover); }
 
+/* Header */
+.header-controls { display: flex; gap: 12px; align-items: center; }
+.dark-toggle-wrap .toggle { margin: 0; }
+
+/* Lists panel */
+#list-count { font-weight: 400; color: var(--muted); }
+#btn-add-list { width: 100%; }
+
+/* Tabs — hidden until activated by JS */
+#tab-upload, #tab-url { display: none; }
+
+/* Empty states */
+.no-lists { padding: 20px; color: var(--faint); text-align: center; font-size: 13px; }
+.no-rules { font-size: 12px; color: var(--faint); font-style: italic; margin-bottom: 3px; }
+.stats-bar.stats-empty { color: var(--muted); font-size: 13px; }
+
+/* List icons */
+.list-icon-img { width: 16px; height: 16px; border-radius: 3px; flex-shrink: 0; display: block; }
+.list-icon-svg { border-radius: 3px; flex-shrink: 0; }
+
+/* Score display */
+.score-orig { color: #aaa; font-size: 11px; }
+.score-arrow-indicator { color: #ccc; font-size: 10px; padding: 0 3px; }
+.excluded-word { text-decoration: line-through; }
+.score-badge.excluded { text-decoration: line-through; }
+
+/* Dialog helpers */
+.dialog-actions { text-align: right; }
+.form-field-gap { margin-top: 10px; }
+.dialog-divider { text-align: center; color: var(--muted); font-size: 12px; margin: 12px 0; }
+.subscription-note { background: #fff3cd; border: 1px solid #ffc107; border-radius: 5px; padding: 9px 12px; margin-bottom: 16px; font-size: 12px; color: #856404; }
+.upload-zone.compact { padding: 16px; }
+#guide-steps .builtin-item { margin-bottom: 12px; }
+
+/* Hidden file inputs (triggered programmatically by their upload zones) */
+input[type="file"] { display: none; }
+
+/* Guide step upload zone spacing */
+.guide-step-body .upload-zone { margin-top: 8px; }
+
 /* Upload guide dialog */
 #upload-guide-dialog { width: 660px; }
 .guide-steps { display: flex; flex-direction: column; gap: 16px; }
@@ -214,11 +255,11 @@ a.get-file:hover { text-decoration: underline; }
 
 <header>
   <h1>Wordlist Manager</h1>
-  <div style="display:flex;gap:12px;align-items:center">
+  <div class="header-controls">
     <div class="dark-toggle-wrap">
       <span>☽</span>
       <span>Dark</span>
-      <label class="toggle" style="margin:0" title="Toggle dark mode">
+      <label class="toggle" title="Toggle dark mode">
         <input type="checkbox" id="dark-mode-toggle">
         <span class="toggle-slider"></span>
       </label>
@@ -229,10 +270,10 @@ a.get-file:hover { text-decoration: underline; }
 
 <main>
   <div id="lists-panel">
-    <h2>Lists <span id="list-count" style="font-weight:400;color:#bbb"></span></h2>
+    <h2>Lists <span id="list-count"></span></h2>
     <div id="lists-container"></div>
     <div id="add-list-area">
-      <button class="primary" style="width:100%" id="btn-add-list">+ Add List</button>
+      <button class="primary" id="btn-add-list">+ Add List</button>
     </div>
   </div>
 
@@ -258,18 +299,18 @@ a.get-file:hover { text-decoration: underline; }
     <div id="builtin-list"></div>
   </div>
 
-  <div id="tab-upload" style="display:none">
+  <div id="tab-upload">
     <div class="upload-zone" id="drop-zone">
       Drop file here or click to browse
-      <input type="file" id="file-input" accept=".txt,.csv" style="display:none">
+      <input type="file" id="file-input" accept=".txt,.csv">
     </div>
-    <div class="form-field" style="margin-top:10px">
+    <div class="form-field form-field-gap">
       <label>Name (optional)</label>
       <input type="text" id="upload-name" placeholder="My Wordlist">
     </div>
   </div>
 
-  <div id="tab-url" style="display:none">
+  <div id="tab-url">
     <div class="form-field">
       <label>URL</label>
       <input type="text" id="url-input" placeholder="https://...">
@@ -278,7 +319,7 @@ a.get-file:hover { text-decoration: underline; }
       <label>Name (optional)</label>
       <input type="text" id="url-name" placeholder="My Wordlist">
     </div>
-    <div style="text-align:right">
+    <div class="dialog-actions">
       <button class="primary" id="btn-fetch-url">Fetch</button>
     </div>
   </div>
@@ -744,11 +785,11 @@ class VirtualScroller {
         const r = rescoreEntry(entry, this.rescoreRules);
         if (!r.kept) {
           tr.style.opacity = '0.4';
-          wordCell  = `<td><span style="text-decoration:line-through">${word}</span></td>`;
-          scoreCell = `<td><span class="score-badge" style="background:${bg};color:${fg};text-decoration:line-through">${score}</span></td>`;
+          wordCell  = `<td><span class="excluded-word">${word}</span></td>`;
+          scoreCell = `<td><span class="score-badge excluded" style="background:${bg};color:${fg}">${score}</span></td>`;
         } else if (r.score !== score) {
           const { bg: rb, fg: rf } = scoreColor(r.score);
-          const orig = `<span style="color:#aaa;font-size:11px">${score}</span><span style="color:#ccc;font-size:10px;padding:0 3px">→</span>`;
+          const orig = `<span class="score-orig">${score}</span><span class="score-arrow-indicator">→</span>`;
           scoreCell = `<td>${orig}<span class="score-badge" style="background:${rb};color:${rf}">${r.score}</span></td>`;
         }
       }
@@ -936,7 +977,7 @@ function buildRescoreSectionHTML(list) {
           ${isCatchAll ? '' : `<button class="rule-del" onclick="deleteRule(${i})" title="Remove rule">×</button>`}
         </div>`;
       }).join('')
-    : `<div style="font-size:12px;color:var(--faint);font-style:italic;margin-bottom:3px">No rules — words kept as-is</div>`;
+    : `<div class="no-rules">No rules — words kept as-is</div>`;
 
   return `
     <div class="rescore-top">
@@ -966,7 +1007,7 @@ function renderLists() {
     state.lists.length ? `(${state.lists.length})` : '';
 
   if (!state.lists.length) {
-    container.innerHTML = '<div style="padding:20px;color:var(--faint);text-align:center;font-size:13px">No lists yet</div>';
+    container.innerHTML = '<div class="no-lists">No lists yet</div>';
     return;
   }
 
@@ -1027,7 +1068,7 @@ function renderDetail(list) {
       </div>
     </div>`;
   } else {
-    statsHtml = `<div class="stats-bar" style="color:var(--muted);font-size:13px">No data loaded — use the Upload button to load this list</div>`;
+    statsHtml = `<div class="stats-bar stats-empty">No data loaded — use the Upload button to load this list</div>`;
   }
 
   let sourceDesc, actionBtn;
@@ -1071,8 +1112,8 @@ function renderDetail(list) {
     <div class="search-bar">
       <input type="text" id="search-input" placeholder="Search words…" value="${esc(state.searchQuery)}" oninput="onSearch(this.value)">
     </div>
-    <div id="table-container" style="flex:1;overflow:hidden;display:flex;flex-direction:column;">
-      <div id="vs-host" style="flex:1;min-height:0;"></div>
+    <div id="table-container">
+      <div id="vs-host"></div>
     </div>
   `;
 
@@ -1288,7 +1329,7 @@ function bindEvents() {
       document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
       ['builtin','upload','url'].forEach(t => {
-        document.getElementById('tab-' + t).style.display = btn.dataset.tab === t ? '' : 'none';
+        document.getElementById('tab-' + t).style.display = btn.dataset.tab === t ? 'block' : 'none';
       });
     };
   });
@@ -1401,16 +1442,15 @@ function getTemplate(id) {
 // ─── List icons ───────────────────────────────────────────────────────────────
 
 function getListIcon(id) {
-  const imgStyle = 'width:16px;height:16px;border-radius:3px;flex-shrink:0;vertical-align:middle;display:block';
   switch (id) {
     case 'jkugelman':
-      return `<svg width="16" height="16" viewBox="0 0 16 16" style="border-radius:3px;flex-shrink:0" aria-hidden="true"><rect width="16" height="16" fill="#7b3ff2"/><text x="8" y="12" text-anchor="middle" fill="white" font-family="system-ui,sans-serif" font-size="8.5" font-weight="700">JK</text></svg>`;
+      return `<svg width="16" height="16" viewBox="0 0 16 16" class="list-icon-svg" aria-hidden="true"><rect width="16" height="16" fill="#7b3ff2"/><text x="8" y="12" text-anchor="middle" fill="white" font-family="system-ui,sans-serif" font-size="8.5" font-weight="700">JK</text></svg>`;
     case 'broda':
-      return `<svg width="16" height="16" viewBox="0 0 16 16" style="border-radius:3px;flex-shrink:0" aria-hidden="true"><rect width="16" height="16" fill="#0f9d58"/><text x="8" y="12" text-anchor="middle" fill="white" font-family="system-ui,sans-serif" font-size="8.5" font-weight="700">PB</text></svg>`;
+      return `<svg width="16" height="16" viewBox="0 0 16 16" class="list-icon-svg" aria-hidden="true"><rect width="16" height="16" fill="#0f9d58"/><text x="8" y="12" text-anchor="middle" fill="white" font-family="system-ui,sans-serif" font-size="8.5" font-weight="700">PB</text></svg>`;
     case 'xwi':
-      return `<img src="https://www.xwordinfo.com/favicon.ico" style="${imgStyle}" onerror="this.style.display='none'" alt="">`;
+      return `<img src="https://www.xwordinfo.com/favicon.ico" class="list-icon-img" onerror="this.style.display='none'" alt="">`;
     case 'stwl':
-      return `<img src="https://www.spreadthewordlist.com/favicon.ico" style="${imgStyle}" onerror="this.style.display='none'" alt="">`;
+      return `<img src="https://www.spreadthewordlist.com/favicon.ico" class="list-icon-img" onerror="this.style.display='none'" alt="">`;
     default:
       return '';
   }
@@ -1450,17 +1490,17 @@ function openJKUploadDialog(listId, event) {
   const dialog = document.getElementById('upload-guide-dialog');
   document.getElementById('guide-title').textContent = `${tmpl?.name ?? 'Wordlist'} — Load Wordlist`;
   document.getElementById('guide-steps').innerHTML = `
-    <div class="builtin-item" style="margin-bottom:12px">
+    <div class="builtin-item">
       <div class="builtin-item-info">
         <div class="builtin-item-name">Auto-download</div>
         <div class="builtin-item-sub">Download directly from GitHub</div>
       </div>
       <button class="small primary" id="jk-auto-dl-btn">Download</button>
     </div>
-    <div style="text-align:center;color:var(--muted);font-size:12px;margin:12px 0">— or upload a file —</div>
-    <div class="upload-zone" id="guide-drop-zone" style="padding:16px">
+    <div class="dialog-divider">— or upload a file —</div>
+    <div class="upload-zone compact" id="guide-drop-zone">
       Drop file here or click to browse
-      <input type="file" id="guide-file-input" accept=".txt,.csv" style="display:none">
+      <input type="file" id="guide-file-input" accept=".txt,.csv">
     </div>`;
 
   document.getElementById('jk-auto-dl-btn').onclick = () => {
@@ -1490,7 +1530,7 @@ const guideScreenshots = { xwi: guideScreenshotXwi, stwl: guideScreenshotStwl, b
 function buildGuideHTML(listId, tmpl) {
   const screenshot = (guideScreenshots[listId] ?? (() => ''))();
   const subscriptionNote = listId === 'xwi'
-    ? `<div style="background:#fff3cd;border:1px solid #ffc107;border-radius:5px;padding:9px 12px;margin-bottom:16px;font-size:12px;color:#856404">
+    ? `<div class="subscription-note">
         <strong>Note:</strong> XWord Info requires a paid subscription to access the wordlist download.
        </div>`
     : '';
@@ -1512,9 +1552,9 @@ function buildGuideHTML(listId, tmpl) {
       <div class="guide-step-num">3</div>
       <div class="guide-step-body">
         Come back here and drop the downloaded file:
-        <div class="upload-zone" id="guide-drop-zone" style="margin-top:8px;padding:16px">
+        <div class="upload-zone compact" id="guide-drop-zone">
           Drop file here or click to browse
-          <input type="file" id="guide-file-input" accept=".txt,.csv" style="display:none">
+          <input type="file" id="guide-file-input" accept=".txt,.csv">
         </div>
       </div>
     </div>`;
