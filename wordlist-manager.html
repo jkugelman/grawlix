@@ -145,6 +145,10 @@ button.danger:hover:not(:disabled) { background: #e74c3c; border-color: #c0392b;
 .list-card.disabled .card-info { opacity: 0.45; }
 .list-card.disabled .status { opacity: 0.45; }
 
+/* No-data list */
+.list-card.no-data .toggle { opacity: 0.35; cursor: not-allowed; }
+.list-card.no-data .toggle input { pointer-events: none; }
+
 
 /* Status dot */
 .status { display: inline-block; width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
@@ -1022,7 +1026,8 @@ function renderLists() {
 
     const icon = getListIcon(list.id);
 
-    return `<div class="list-card${sel ? ' selected' : ''}${list.enabled ? '' : ' disabled'}" data-id="${list.id}" draggable="true" onclick="selectList('${list.id}')">
+    const toggleTitle = !hasData ? 'Load data to enable' : list.enabled ? 'Enabled — click to disable' : 'Disabled — click to enable';
+    return `<div class="list-card${sel ? ' selected' : ''}${list.enabled ? '' : ' disabled'}${hasData ? '' : ' no-data'}" data-id="${list.id}" draggable="true" onclick="selectList('${list.id}')">
       <span class="drag-handle" title="Drag to reorder">≡</span>
       ${icon}
       <div class="card-info">
@@ -1030,8 +1035,8 @@ function renderLists() {
         <div class="card-meta"><span class="status ${dot}"></span>${meta}</div>
       </div>
       <div class="card-actions">
-        <label class="toggle" onclick="event.stopPropagation()" title="${list.enabled ? 'Enabled — click to disable' : 'Disabled — click to enable'}">
-          <input type="checkbox"${list.enabled ? ' checked' : ''} onchange="toggleList('${list.id}',event)">
+        <label class="toggle" onclick="event.stopPropagation()" title="${toggleTitle}">
+          <input type="checkbox"${hasData && list.enabled ? ' checked' : ''}${hasData ? '' : ' disabled'} onchange="toggleList('${list.id}',event)">
           <span class="toggle-slider"></span>
         </label>
       </div>
@@ -1078,18 +1083,18 @@ function renderDetail(list) {
     const label = hasData ? '↻ Update' : '↑ Upload';
     if (tmpl?.downloadPage) {
       sourceDesc = 'Manual upload required';
-      actionBtn = `<button onclick="openUploadGuide('${list.id}')">${label}</button>`;
+      actionBtn = `<button class="primary" onclick="openUploadGuide('${list.id}')">${label}</button>`;
     } else {
       sourceDesc = 'Manual upload';
-      actionBtn = `<button onclick="uploadToList('${list.id}')">${label}</button>`;
+      actionBtn = `<button class="primary" onclick="uploadToList('${list.id}')">${label}</button>`;
     }
   } else if (list.source === 'builtin-download' && list.url) {
     sourceDesc = hasData ? list.url : 'Auto-download available';
     const label = hasData ? '↻ Update' : '↑ Upload';
-    actionBtn = `<button onclick="openJKUploadDialog('${list.id}')" ${list._loading ? 'disabled' : ''}>${list._loading ? 'Updating…' : label}</button>`;
+    actionBtn = `<button class="primary" onclick="openJKUploadDialog('${list.id}')" ${list._loading ? 'disabled' : ''}>${list._loading ? 'Updating…' : label}</button>`;
   } else if (list.url) {
     sourceDesc = list.url;
-    actionBtn = `<button onclick="downloadList('${list.id}')" ${list._loading ? 'disabled' : ''}>${list._loading ? 'Updating…' : '↻ Update'}</button>`;
+    actionBtn = `<button class="primary" onclick="downloadList('${list.id}')" ${list._loading ? 'disabled' : ''}>${list._loading ? 'Updating…' : '↻ Update'}</button>`;
   } else {
     sourceDesc = 'URL not yet configured';
     actionBtn = '';
@@ -1156,9 +1161,11 @@ async function downloadList(id, event) {
     if (!resp.ok) throw new Error(`HTTP ${resp.status} ${resp.statusText}`);
     const text = await resp.text();
 
+    const wasEmpty = !list.rawEntries.length;
     list.rawEntries = parseWordlist(text);
     list.cachedAt = Date.now();
     list._loading = false;
+    if (wasEmpty) list.enabled = true;
     updateCatchAll(list);
 
     await persistData(id, text);
@@ -1191,9 +1198,11 @@ function ingestFile(file, listId, nameOverride) {
     const list = state.lists.find(l => l.id === listId);
     if (!list) return;
 
+    const wasEmpty = !list.rawEntries.length;
     if (nameOverride) list.name = nameOverride;
     list.rawEntries = parseWordlist(text);
     list.cachedAt = Date.now();
+    if (wasEmpty) list.enabled = true;
     updateCatchAll(list);
 
     await persistData(listId, text);
@@ -1238,7 +1247,7 @@ async function deleteList(id, event) {
 function toggleList(id, event) {
   if (event) event.stopPropagation();
   const list = state.lists.find(l => l.id === id);
-  if (!list) return;
+  if (!list || !list.rawEntries.length) return;
   list.enabled = !list.enabled;
   persistMeta();
   renderLists();
