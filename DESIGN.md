@@ -228,16 +228,14 @@ Derived data (computed on the fly, not stored):
 - [x] Minimum word length filter
 - [x] Pre-populate rules for default lists
 
-### Phase 3 — List Management
-- [ ] Drag-and-drop reorder
-- [ ] Enable/disable toggle per list
-- [ ] Default config: four lists pre-wired with recommended rescoring
+### Phase 3 — List Management ✓
+- [x] Drag-and-drop reorder
+- [x] Enable/disable toggle per list
 
 ### Phase 4 — Merge & Export
 - [ ] Priority-order merge (highest priority list wins)
 - [ ] Merge stats (total entries, how many from each source)
 - [ ] Export as `word;score` file
-- [ ] Optional score floor on export
 
 ---
 
