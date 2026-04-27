@@ -376,6 +376,8 @@ async function init() {
     persistMeta();
   }
 
+  const savedId = lsLoad('selectedId');
+  if (savedId && state.lists.some(l => l.id === savedId)) state.selectedId = savedId;
   if (!state.selectedId && state.lists.length) state.selectedId = state.lists[0].id;
 
   renderAll();
@@ -414,8 +416,8 @@ function computeStats(entries) {
   for (const [s, c] of Object.entries(freq)) {
     if (c > modeCount) { modeCount = c; mode = +s; }
   }
-  const avg = scores.reduce((a, b) => a + b, 0) / scores.length;
-  return { count: entries.length, min, max, avg, median, mode, buckets, maxBucket: Math.max(...buckets) };
+  const mean = Math.round(scores.reduce((a, b) => a + b, 0) / scores.length);
+  return { count: entries.length, min, max, mean, median, mode, buckets, maxBucket: Math.max(...buckets) };
 }
 
 // ─── Virtual Scroller ─────────────────────────────────────────────────────────
@@ -841,9 +843,9 @@ function renderDetail(list) {
       <div class="stat"><span class="stat-label">Entries</span><span class="stat-value">${stats.count.toLocaleString()}</span></div>
       <div class="stat"><span class="stat-label">Min</span><span class="stat-value">${stats.min}</span></div>
       <div class="stat"><span class="stat-label">Max</span><span class="stat-value">${stats.max}</span></div>
-      <div class="stat"><span class="stat-label">Avg</span><span class="stat-value">${stats.avg.toFixed(1)}</span></div>
-      <div class="stat"><span class="stat-label">Median</span><span class="stat-value">${stats.median % 1 === 0 ? stats.median : stats.median.toFixed(1)}</span></div>
-      <div class="stat"><span class="stat-label">Mode</span><span class="stat-value">${stats.mode}</span></div>
+      <div class="stat" title="Average score"><span class="stat-label">Mean</span><span class="stat-value">${stats.mean}</span></div>
+      <div class="stat" title="50th percentile score"><span class="stat-label">Median</span><span class="stat-value">${stats.median % 1 === 0 ? stats.median : stats.median.toFixed(1)}</span></div>
+      <div class="stat" title="Most common score"><span class="stat-label">Mode</span><span class="stat-value">${stats.mode}</span></div>
       <div class="score-dist" title="Score distribution by decile">${bars}</div>
     </div>`;
   } else {
@@ -907,6 +909,7 @@ function getSelected() {
 
 function selectList(id) {
   state.selectedId = id;
+  lsSave('selectedId', id);
   state.searchQuery = '';
   renderLists();
   renderDetail(getSelected());
@@ -1002,6 +1005,7 @@ async function removeList(id, event) {
     persistMeta();
     if (state.selectedId === id) {
       state.selectedId = null;
+      lsSave('selectedId', '');
       scroller = null;
     }
     renderAll();
