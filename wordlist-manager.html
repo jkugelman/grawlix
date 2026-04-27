@@ -52,7 +52,8 @@ button:disabled { opacity: 0.45; cursor: not-allowed; }
 .stat { display: flex; flex-direction: column; gap: 2px; }
 .stat-label { font-size: 10px; font-weight: 700; color: #aaa; text-transform: uppercase; letter-spacing: 0.05em; }
 .stat-value { font-size: 15px; font-weight: 700; line-height: 1; }
-.score-dist { display: flex; gap: 3px; align-items: flex-end; height: 36px; margin-left: auto; }
+.score-dist { display: flex; gap: 3px; align-items: flex-end; height: 36px; }
+.stats-right { display: flex; align-items: center; gap: 22px; margin-left: auto; }
 .score-bar { width: 7px; background: #4285f4; border-radius: 2px 2px 0 0; min-height: 2px; opacity: 0.75; }
 
 /* Search */
@@ -843,10 +844,12 @@ function renderDetail(list) {
       <div class="stat"><span class="stat-label">Entries</span><span class="stat-value">${stats.count.toLocaleString()}</span></div>
       <div class="stat"><span class="stat-label">Min</span><span class="stat-value">${stats.min}</span></div>
       <div class="stat"><span class="stat-label">Max</span><span class="stat-value">${stats.max}</span></div>
-      <div class="stat" title="Average score"><span class="stat-label">Mean</span><span class="stat-value">${stats.mean}</span></div>
-      <div class="stat" title="50th percentile score"><span class="stat-label">Median</span><span class="stat-value">${stats.median % 1 === 0 ? stats.median : stats.median.toFixed(1)}</span></div>
-      <div class="stat" title="Most common score"><span class="stat-label">Mode</span><span class="stat-value">${stats.mode}</span></div>
-      <div class="score-dist" title="Score distribution by decile">${bars}</div>
+      <div class="stats-right">
+        <div class="stat" title="Average score"><span class="stat-label">Mean</span><span class="stat-value">${stats.mean}</span></div>
+        <div class="stat" title="50th percentile score"><span class="stat-label">Median</span><span class="stat-value">${stats.median % 1 === 0 ? stats.median : stats.median.toFixed(1)}</span></div>
+        <div class="stat" title="Most common score"><span class="stat-label">Mode</span><span class="stat-value">${stats.mode}</span></div>
+        <div class="score-dist" title="Score distribution by decile">${bars}</div>
+      </div>
     </div>`;
   } else {
     statsHtml = `<div class="stats-bar" style="color:#bbb;font-size:13px">No data loaded — use the button above to load this list</div>`;
