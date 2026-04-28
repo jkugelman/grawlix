@@ -194,6 +194,8 @@ button.danger:hover:not(:disabled) { background: #e74c3c; border-color: #c0392b;
 
 /* Status dot */
 @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+.card-name-row { display: flex; align-items: center; gap: 5px; min-width: 0; }
+.update-dot { width: 7px; height: 7px; border-radius: 50%; background: #f59e0b; flex-shrink: 0; display: inline-block; cursor: default; }
 
 /* Upload zone */
 .upload-zone { border: 2px dashed var(--border); border-radius: 6px; padding: 24px 16px; text-align: center; color: var(--faint); cursor: pointer; transition: border-color 0.15s, color 0.15s; user-select: none; }
@@ -626,6 +628,7 @@ function persistMeta() {
   lsSave('meta', JSON.stringify(state.lists.map(l => ({
     id: l.id, name: l.name, source: l.source, url: l.url || null,
     enabled: l.enabled, lastUpdated: l.lastUpdated || null,
+    downloadFingerprint: l.downloadFingerprint || null,
     rescoreRules: l.rescoreRules || [],
   }))));
 }
@@ -700,6 +703,8 @@ async function init() {
 
   renderAll();
   bindEvents();
+  checkForUpdates();
+  setInterval(checkForUpdates, UPDATE_CHECK_INTERVAL);
 }
 
 function defaultLists() {
@@ -1242,7 +1247,10 @@ function renderLists() {
       <span class="drag-handle" title="Drag to reorder">≡</span>
       ${icon}
       <div class="card-info">
-        <div class="card-name">${esc(list.name)}</div>
+        <div class="card-name-row">
+          <div class="card-name">${esc(list.name)}</div>
+          ${list._updateAvailable ? `<span class="update-dot" title="Update available" aria-label="Update available"></span>` : ''}
+        </div>
         <div class="card-meta">${meta}</div>
       </div>
       <div class="card-actions">
@@ -1318,9 +1326,11 @@ function renderDetail(list) {
     }
   } else if (list.source === 'builtin-download' && list.url) {
     const label = hasData ? 'Update' : 'Upload';
-    actionBtn = `<button class="primary" onclick="openAutoDownloadDialog('${list.id}')" ${list._loading ? 'disabled' : ''}>${list._loading ? 'Updating…' : label}</button>`;
+    const dot = list._updateAvailable && !list._loading ? `<span class="update-dot" title="Update available" aria-label="Update available"></span>` : '';
+    actionBtn = `<button class="primary" onclick="openAutoDownloadDialog('${list.id}')" ${list._loading ? 'disabled' : ''}>${list._loading ? 'Updating…' : label}${dot}</button>`;
   } else if (list.url) {
-    actionBtn = `<button class="primary" onclick="downloadList('${list.id}')" ${list._loading ? 'disabled' : ''}>${list._loading ? 'Updating…' : '↻ Update'}</button>`;
+    const dot = list._updateAvailable && !list._loading ? `<span class="update-dot" title="Update available" aria-label="Update available"></span>` : '';
+    actionBtn = `<button class="primary" onclick="downloadList('${list.id}')" ${list._loading ? 'disabled' : ''}>${list._loading ? 'Updating…' : '↻ Update'}${dot}</button>`;
   } else {
     actionBtn = '';
   }
@@ -1405,6 +1415,8 @@ async function downloadList(id, event) {
     const wasEmpty = !list.rawEntries.length;
     list.rawEntries = parseWordlist(text);
     list.lastUpdated = Date.now();
+    list.downloadFingerprint = resp.headers.get('etag') || resp.headers.get('last-modified') || resp.headers.get('content-length') || null;
+    list._updateAvailable = false;
     list._loading = false;
     if (wasEmpty) list.enabled = true;
     invalidateStatsCache(id);
@@ -1422,6 +1434,32 @@ async function downloadList(id, event) {
     renderLists();
     if (state.selectedId === id) renderDetail(list);
     showToast(`Download failed: ${err.message}`);
+  }
+}
+
+const UPDATE_CHECK_INTERVAL = 60 * 60 * 1000; // 1 hour
+
+async function checkForUpdates() {
+  const candidates = state.lists.filter(l => l.url && l.rawEntries.length > 0 && l.downloadFingerprint);
+  if (!candidates.length) return;
+
+  let anyChanged = false;
+  await Promise.all(candidates.map(async list => {
+    try {
+      const resp = await fetch(list.url, { method: 'HEAD' });
+      if (!resp.ok) return;
+      const size = resp.headers.get('etag') || resp.headers.get('last-modified') || resp.headers.get('content-length');
+      if (size && size !== list.downloadFingerprint && !list._updateAvailable) {
+        list._updateAvailable = true;
+        anyChanged = true;
+      }
+    } catch { /* offline or network error — silently ignore */ }
+  }));
+
+  if (anyChanged) {
+    renderLists();
+    const selected = getSelected();
+    if (selected?.url && selected._updateAvailable) renderDetail(selected);
   }
 }
 
