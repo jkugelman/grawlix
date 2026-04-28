@@ -141,6 +141,7 @@ button.danger:hover:not(:disabled) { background: #e74c3c; border-color: #c0392b;
 
 /* Inline name editing */
 .detail-name-wrap { display: flex; align-items: center; gap: 6px; flex: 1; min-width: 0; overflow: hidden; }
+.detail-date { font-size: 11px; color: var(--muted); white-space: nowrap; }
 .detail-edit-hint { opacity: 0; font-size: 13px; transition: opacity 0.15s; flex-shrink: 0; cursor: pointer; }
 .detail-name-wrap:hover .detail-edit-hint { opacity: 0.85; }
 .detail-name-wrap:has(input) .detail-edit-hint { display: none; }
@@ -499,6 +500,21 @@ const state = {
 };
 
 // ─── Parsing ─────────────────────────────────────────────────────────────────
+
+function timeAgo(ts) {
+  const s = Math.floor((Date.now() - ts) / 1000);
+  if (s < 60)  return 'just now';
+  const m = Math.floor(s / 60);
+  if (m < 60)  return `${m}m ago`;
+  const h = Math.floor(m / 60);
+  if (h < 24)  return `${h}h ago`;
+  const d = Math.floor(h / 24);
+  if (d < 30)  return `${d} day${d === 1 ? '' : 's'} ago`;
+  const mo = Math.floor(d / 30);
+  if (mo < 12) return `${mo} month${mo === 1 ? '' : 's'} ago`;
+  const yr = Math.floor(d / 365);
+  return `${yr} year${yr === 1 ? '' : 's'} ago`;
+}
 
 function parseWordlist(text) {
   const entries = [];
@@ -1066,7 +1082,7 @@ function buildRescoreSectionHTML(list) {
             oninput="onRescoreInput()" onchange="saveRuleField(${i},'output',this.value)">
           <span class="rule-note-wrap${r.note ? ' has-note' : ''}" onclick="startNoteEdit(this)">
             <span class="rule-note-text">${esc(r.note||'')}</span>
-            <span class="rule-note-pencil">✎</span>
+            <span class="rule-note-pencil">✏️</span>
           </span>
           ${isCatchAll ? '' : `<button class="rule-del" onclick="deleteRule(${i})" title="Remove rule">×</button>`}
         </div>`;
@@ -1092,6 +1108,7 @@ function renderRescoreSection() {
 // ─── Rendering ────────────────────────────────────────────────────────────────
 
 let scroller = null;
+let _dateTimer = null;
 
 function renderAll() {
   renderLists();
@@ -1153,6 +1170,9 @@ function renderLists() {
 function renderDetail(list) {
   const panel = document.getElementById('detail-panel');
 
+  clearInterval(_dateTimer);
+  _dateTimer = null;
+
   if (!list) {
     panel.innerHTML = '<div class="no-selection"><p>No list selected</p><small>Select a list from the left panel</small></div>';
     scroller = null;
@@ -1211,6 +1231,7 @@ function renderDetail(list) {
         <h2 onclick="startHeaderRename()" title="Click to rename">${esc(list.name)}</h2>
         <span class="detail-edit-hint" onclick="startHeaderRename()">✏️</span>
       </div>
+      ${hasData && list.cachedAt ? `<span class="detail-date">Last updated ${timeAgo(list.cachedAt)}</span>` : ''}
       ${actionBtn}
       ${clearBtn}
     </div>
@@ -1227,6 +1248,13 @@ function renderDetail(list) {
   const host = document.getElementById('vs-host');
   scroller = new VirtualScroller(host);
   scroller.setEntries(list.rawEntries, state.searchQuery, list.rescoreRules);
+
+  if (list.cachedAt) {
+    _dateTimer = setInterval(() => {
+      const el = document.querySelector('.detail-date');
+      if (el) el.textContent = `Updated ${timeAgo(list.cachedAt)}`;
+    }, 60_000);
+  }
 }
 
 // ─── Actions ──────────────────────────────────────────────────────────────────
@@ -1735,7 +1763,7 @@ function saveRuleField(idx, field, value) {
 }
 
 function noteDisplayHTML(note) {
-  return `<span class="rule-note-text">${esc(note)}</span><span class="rule-note-pencil">✎</span>`;
+  return `<span class="rule-note-text">${esc(note)}</span><span class="rule-note-pencil">✏️</span>`;
 }
 
 function startNoteEdit(wrapEl) {
