@@ -195,7 +195,7 @@ button.danger:hover:not(:disabled) { background: #e74c3c; border-color: #c0392b;
 /* Status dot */
 @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
 .card-name-row { display: flex; align-items: center; gap: 5px; min-width: 0; }
-.update-dot { width: 7px; height: 7px; border-radius: 50%; background: #f59e0b; flex-shrink: 0; display: inline-block; cursor: default; }
+.update-dot { width: 7px; height: 7px; border-radius: 50%; background: #f59e0b; flex-shrink: 0; display: inline-block; }
 
 /* Upload zone */
 .upload-zone { border: 2px dashed var(--border); border-radius: 6px; padding: 24px 16px; text-align: center; color: var(--faint); cursor: pointer; transition: border-color 0.15s, color 0.15s; user-select: none; }
@@ -1326,11 +1326,13 @@ function renderDetail(list) {
     }
   } else if (list.source === 'builtin-download' && list.url) {
     const label = hasData ? 'Update' : 'Upload';
-    const dot = list._updateAvailable && !list._loading ? `<span class="update-dot" title="Update available" aria-label="Update available"></span>` : '';
-    actionBtn = `<button class="primary" onclick="openAutoDownloadDialog('${list.id}')" ${list._loading ? 'disabled' : ''}>${list._loading ? 'Updating…' : label}${dot}</button>`;
+    const dot = list._updateAvailable && !list._loading ? `<span class="update-dot"></span>` : '';
+    const title = list._updateAvailable && !list._loading ? ' title="Update available"' : '';
+    actionBtn = `<button class="primary"${title} onclick="openAutoDownloadDialog('${list.id}')" ${list._loading ? 'disabled' : ''}>${list._loading ? 'Updating…' : label}${dot}</button>`;
   } else if (list.url) {
-    const dot = list._updateAvailable && !list._loading ? `<span class="update-dot" title="Update available" aria-label="Update available"></span>` : '';
-    actionBtn = `<button class="primary" onclick="downloadList('${list.id}')" ${list._loading ? 'disabled' : ''}>${list._loading ? 'Updating…' : '↻ Update'}${dot}</button>`;
+    const dot = list._updateAvailable && !list._loading ? `<span class="update-dot"></span>` : '';
+    const title = list._updateAvailable && !list._loading ? ' title="Update available"' : '';
+    actionBtn = `<button class="primary"${title} onclick="downloadList('${list.id}')" ${list._loading ? 'disabled' : ''}>${list._loading ? 'Updating…' : '↻ Update'}${dot}</button>`;
   } else {
     actionBtn = '';
   }
