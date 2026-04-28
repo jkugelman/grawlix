@@ -134,7 +134,7 @@ button.danger:hover:not(:disabled) { background: #e74c3c; border-color: #c0392b;
 .search-help kbd { font-family: ui-monospace, 'Cascadia Code', monospace; font-size: 11px; }
 .search-bar:focus-within .search-help { color: var(--faint); }
 .search-bar:focus-within .search-help kbd { color: var(--muted); }
-mark.search-match { background: var(--accent); color: white; border-radius: 2px; padding: 0 1px; font-style: normal; }
+mark.search-match { color: rgba(0,0,0,0.72); border-radius: 2px; padding: 0 1px; font-style: normal; }
 
 /* Virtual scroll table */
 #table-container { flex: 1; overflow: hidden; display: flex; flex-direction: column; background: var(--surface); }
@@ -769,6 +769,13 @@ function computeStats(listId, entries) {
 const CONSONANTS = 'bcdfghjklmnpqrstvwxyz';
 const VOWELS = 'aeiou';
 
+const HIGHLIGHT_COLORS = ['#ddd6fe', '#99f6e4', '#fde68a', '#fbcfe8', '#bbf7d0'];
+
+function markSpan(text, colorIdx) {
+  const bg = HIGHLIGHT_COLORS[colorIdx % HIGHLIGHT_COLORS.length];
+  return `<mark class="search-match" style="background:${bg}">${text}</mark>`;
+}
+
 function segmentToPat(str) {
   let pat = '';
   for (let i = 0; i < str.length; i++) {
@@ -816,17 +823,17 @@ function buildSearchPattern(query) {
 function highlightSubstring(word, re) {
   const m = re.exec(word);
   if (!m) return word;
-  return word.slice(0, m.index) + '<mark class="search-match">' + m[0] + '</mark>' + word.slice(m.index + m[0].length);
+  return word.slice(0, m.index) + markSpan(m[0], 0) + word.slice(m.index + m[0].length);
 }
 
 function highlightSegments(word, hlRe) {
   const m = hlRe.exec(word);
   if (!m?.indices) return word;
-  let result = '', pos = 0;
+  let result = '', pos = 0, colorIdx = 0;
   for (let g = 1; g < m.indices.length; g++) {
     if (!m.indices[g]) continue;
     const [start, end] = m.indices[g];
-    result += word.slice(pos, start) + '<mark class="search-match">' + word.slice(start, end) + '</mark>';
+    result += word.slice(pos, start) + markSpan(word.slice(start, end), colorIdx++);
     pos = end;
   }
   return result + word.slice(pos);
