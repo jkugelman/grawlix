@@ -1084,7 +1084,7 @@ class VirtualScroller {
       tr.style.height = ROW_HEIGHT + 'px';
 
       const wordHtml = this._highlight ? this._highlight(word) : word;
-      let wordCell  = `<td>${wordHtml}</td>`;
+      let wordCell  = `<td title="${word}">${wordHtml}</td>`;
       let innerScore = `<span class="score-badge" style="background:${bg};color:${fg}">${score}</span>`;
       let excluded = false;
 
@@ -1093,7 +1093,7 @@ class VirtualScroller {
         if (!r.kept) {
           excluded = true;
           tr.style.opacity = '0.4';
-          wordCell   = `<td><span class="excluded-word">${wordHtml}</span></td>`;
+          wordCell   = `<td title="${word}"><span class="excluded-word">${wordHtml}</span></td>`;
           innerScore = `<span class="score-badge excluded" style="background:${bg};color:${fg}">${score}</span>`;
         } else if (r.score !== score) {
           const { bg: rb, fg: rf } = scoreColor(r.score);
