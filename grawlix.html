@@ -864,7 +864,7 @@ function highlightSegments(word, hlRe) {
 
 // ─── Virtual Scroller ─────────────────────────────────────────────────────────
 
-const colWidths = { word: 200, score: 90, source: 170 }; // persists across list switches
+const colWidths = { length: 55, word: 200, score: 90, source: 170 }; // persists across list switches
 
 class VirtualScroller {
   constructor(container) {
@@ -930,15 +930,15 @@ class VirtualScroller {
   }
 
   _cols() {
-    const cols = ['word', 'score'];
+    const cols = ['length', 'word', 'score'];
     if (this.showSource) cols.push('source');
     cols.push('comment');
     return cols;
   }
 
   _buildHeader() {
-    const LABELS = { word: 'Word', score: 'Score', comment: 'Comment', source: 'Source' };
-    const ALIGN  = { word: 'left', score: 'left', comment: 'left', source: 'left' };
+    const LABELS = { length: 'Len', word: 'Word', score: 'Score', comment: 'Comment', source: 'Source' };
+    const ALIGN  = { length: 'right', word: 'left', score: 'left', comment: 'left', source: 'left' };
     const cols = this._cols();
     this._currentCols = cols;
 
@@ -1046,8 +1046,8 @@ class VirtualScroller {
           const br = rescoreEntry(b, this.rescoreRules);
           return dir * ((ar.kept ? ar.score : -1) - (br.kept ? br.score : -1));
         }
-        const av = a[key] ?? '';
-        const bv = b[key] ?? '';
+        const av = key === 'length' ? a.word.length : (a[key] ?? '');
+        const bv = key === 'length' ? b.word.length : (b[key] ?? '');
         if (typeof av === 'number' && typeof bv === 'number') return dir * (av - bv);
         return dir * String(av).localeCompare(String(bv));
       });
@@ -1106,9 +1106,11 @@ class VirtualScroller {
         tr.classList.add('overridden-row');
         tr.title = `Overridden by ${ov.listName} at ${ov.score}`;
       }
+      const lengthCell = `<td style="text-align:right">${word.length}</td>`;
       const scoreCell = `<td>${innerScore}</td>`;
 
       tr.innerHTML =
+        lengthCell +
         wordCell +
         scoreCell +
         (this.showSource ? `<td class="comment-cell">${esc(listName || '')}</td>` : '') +
