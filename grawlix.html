@@ -495,7 +495,7 @@ const BUILTIN_WORDLISTS = [
 // ─── State ────────────────────────────────────────────────────────────────────
 
 const state = {
-  lists: [],            // [{id, name, source, url, enabled, rawEntries, cachedAt, _loading}]
+  lists: [],            // [{id, name, source, url, enabled, rawEntries, lastUpdated, _loading}]
   selectedId: null,
   searchQuery: '',
 };
@@ -588,7 +588,7 @@ function idbDel(key) {
 function persistMeta() {
   lsSave('meta', JSON.stringify(state.lists.map(l => ({
     id: l.id, name: l.name, source: l.source, url: l.url || null,
-    enabled: l.enabled, cachedAt: l.cachedAt || null,
+    enabled: l.enabled, lastUpdated: l.lastUpdated || null,
     rescoreRules: l.rescoreRules || [],
   }))));
 }
@@ -645,7 +645,7 @@ async function init() {
 function defaultLists() {
   return BUILTIN_WORDLISTS.map(t => {
     const list = {
-      ...t, enabled: true, rawEntries: [], cachedAt: null, _loading: false,
+      ...t, enabled: true, rawEntries: [], lastUpdated: null, _loading: false,
       rescoreRules: t.defaultRules ? JSON.parse(JSON.stringify(t.defaultRules)) : [],
     };
     updateCatchAll(list);
@@ -655,8 +655,13 @@ function defaultLists() {
 
 // ─── Stats ────────────────────────────────────────────────────────────────────
 
-function computeStats(entries) {
-  if (!entries.length) return null;
+const _statsCache = new Map();
+
+function invalidateStatsCache(id) { _statsCache.delete(id); }
+
+function computeStats(listId, entries) {
+  if (_statsCache.has(listId)) return _statsCache.get(listId);
+  if (!entries.length) { _statsCache.set(listId, null); return null; }
   let min = Infinity, max = -Infinity;
   const buckets = new Array(11).fill(0);
   const freq = {};
@@ -676,7 +681,9 @@ function computeStats(entries) {
     if (c > modeCount) { modeCount = c; mode = +s; }
   }
   const mean = Math.round(scores.reduce((a, b) => a + b, 0) / scores.length);
-  return { count: entries.length, min, max, mean, median, mode, buckets, maxBucket: Math.max(...buckets) };
+  const result = { count: entries.length, min, max, mean, median, mode, buckets, maxBucket: Math.max(...buckets) };
+  _statsCache.set(listId, result);
+  return result;
 }
 
 // ─── Virtual Scroller ─────────────────────────────────────────────────────────
@@ -1180,7 +1187,7 @@ function renderDetail(list) {
     return;
   }
 
-  const stats = computeStats(list.rawEntries);
+  const stats = computeStats(list.id, list.rawEntries);
 
   let statsHtml;
   if (stats) {
@@ -1232,7 +1239,7 @@ function renderDetail(list) {
         <h2 onclick="startHeaderRename()" title="Click to rename">${esc(list.name)}</h2>
         <span class="edit-hint detail-edit-hint" onclick="startHeaderRename()">✏️</span>
       </div>
-      ${hasData && list.cachedAt ? `<span class="detail-date">Last updated ${timeAgo(list.cachedAt)}</span>` : ''}
+      ${hasData && list.lastUpdated ? `<span class="detail-date"></span>` : ''}
       ${actionBtn}
       ${clearBtn}
     </div>
@@ -1250,12 +1257,17 @@ function renderDetail(list) {
   scroller = new VirtualScroller(host);
   scroller.setEntries(list.rawEntries, state.searchQuery, list.rescoreRules);
 
-  if (list.cachedAt) {
-    _dateTimer = setInterval(() => {
-      const el = document.querySelector('.detail-date');
-      if (el) el.textContent = `Updated ${timeAgo(list.cachedAt)}`;
-    }, 60_000);
+  if (list.lastUpdated) {
+    setDetailDate(list.lastUpdated);
+    _dateTimer = setInterval(() => setDetailDate(list.lastUpdated), 60_000);
   }
+}
+
+function setDetailDate(ts) {
+  const el = document.querySelector('.detail-date');
+  if (!el) return;
+  el.textContent = `Last updated ${timeAgo(ts)}`;
+  el.title = new Date(ts).toLocaleString();
 }
 
 // ─── Actions ──────────────────────────────────────────────────────────────────
@@ -1265,10 +1277,12 @@ function getSelected() {
 }
 
 function selectList(id) {
+  const prev = state.selectedId;
   state.selectedId = id;
   lsSave('selectedId', id);
   state.searchQuery = '';
-  renderLists();
+  document.querySelector(`.list-card[data-id="${CSS.escape(prev)}"]`)?.classList.remove('selected');
+  document.querySelector(`.list-card[data-id="${CSS.escape(id)}"]`)?.classList.add('selected');
   renderDetail(getSelected());
 }
 
@@ -1294,9 +1308,10 @@ async function downloadList(id, event) {
 
     const wasEmpty = !list.rawEntries.length;
     list.rawEntries = parseWordlist(text);
-    list.cachedAt = Date.now();
+    list.lastUpdated = Date.now();
     list._loading = false;
     if (wasEmpty) list.enabled = true;
+    invalidateStatsCache(id);
     updateCatchAll(list);
 
     await persistData(id, text);
@@ -1343,8 +1358,9 @@ function ingestFile(file, listId, nameOverride) {
     const wasEmpty = !list.rawEntries.length;
     if (nameOverride) list.name = nameOverride;
     list.rawEntries = parseWordlist(text);
-    list.cachedAt = Date.now();
+    list.lastUpdated = Date.now();
     if (wasEmpty) list.enabled = true;
+    invalidateStatsCache(listId);
     updateCatchAll(list);
 
     await persistData(listId, text);
@@ -1363,7 +1379,8 @@ async function clearListData(id, event) {
   if (!list || !list.rawEntries.length) return;
   if (!confirm(`Clear data for "${list.name}"?`)) return;
   list.rawEntries = [];
-  list.cachedAt = null;
+  list.lastUpdated = null;
+  invalidateStatsCache(id);
   await idbDel('data_' + id);
   persistMeta();
   renderLists();
@@ -1396,7 +1413,7 @@ function toggleList(id, event) {
 }
 
 function addNewList(listDef) {
-  const list = { rescoreRules: [], ...listDef, rawEntries: [], cachedAt: null, _loading: false };
+  const list = { rescoreRules: [], ...listDef, rawEntries: [], lastUpdated: null, _loading: false };
   updateCatchAll(list);
   state.lists.push(list);
   persistMeta();
