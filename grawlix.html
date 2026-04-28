@@ -2236,11 +2236,10 @@ function resetRescoreRules() {
   if (!tmpl?.defaultRules) return;
   list.rescoreRules = JSON.parse(JSON.stringify(tmpl.defaultRules));
   updateCatchAll(list);
-  invalidateSourceCounts();
-  invalidateStatsCache(MERGED_ID);
   persistMeta();
   renderRescoreSection();
   updateRescorePreview();
+  refreshSourceCounts();
   showToast('Rescoring rules reset to defaults');
 }
 
@@ -2249,11 +2248,10 @@ function deleteRule(idx) {
   if (!list) return;
   list.rescoreRules.splice(idx, 1);
   updateCatchAll(list);
-  invalidateSourceCounts();
-  invalidateStatsCache(MERGED_ID);
   persistMeta();
   renderRescoreSection();
   updateRescorePreview();
+  refreshSourceCounts();
 }
 
 function saveRuleField(idx, field, value) {
@@ -2263,11 +2261,10 @@ function saveRuleField(idx, field, value) {
   // User explicitly edited this rule — promote it from catch-all to regular rule
   delete list.rescoreRules[idx]._catchAll;
   updateCatchAll(list);
-  invalidateSourceCounts();
-  invalidateStatsCache(MERGED_ID);
   persistMeta();
   renderRescoreSection();
   updateRescorePreview();
+  refreshSourceCounts();
 }
 
 function noteDisplayHTML(note) {
