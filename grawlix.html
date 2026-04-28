@@ -135,6 +135,7 @@ button.danger:hover:not(:disabled) { background: #e74c3c; border-color: #c0392b;
 .search-bar:focus-within .search-help { color: var(--faint); }
 .search-bar:focus-within .search-help kbd { color: var(--muted); }
 mark.search-match { color: rgba(0,0,0,0.72); border-radius: 2px; padding: 0 1px; font-style: normal; }
+#search-count { margin-left: auto; font-size: 11px; color: var(--faint); }
 
 /* Virtual scroll table */
 #table-container { flex: 1; overflow: hidden; display: flex; flex-direction: column; background: var(--surface); }
@@ -1006,6 +1007,8 @@ class VirtualScroller {
 
     this.entries = entries;
     if (resetScroll) this.container.scrollTop = 0;
+    const countEl = document.getElementById('search-count');
+    if (countEl) countEl.textContent = q ? entries.length.toLocaleString() + (entries.length === 1 ? ' match' : ' matches') : '';
     this._render();
   }
 
@@ -1435,6 +1438,7 @@ function renderDetail(list) {
         <span><kbd>[jqxz]</kbd> any of these letters</span>
         <span><kbd>[^jqxz]</kbd> none of these letters</span>
         <span><kbd>[a-m]</kbd> letter range</span>
+        <span id="search-count"></span>
       </div>
       <input type="text" id="search-input" placeholder="Search words…" value="${esc(state.searchQuery)}" oninput="onSearch(this.value)">
     </div>
