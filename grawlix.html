@@ -98,7 +98,7 @@ main { display: flex; flex: 1; overflow: hidden; }
 /* Buttons */
 button { font-size: 13px; padding: 5px 11px; border-radius: 4px; border: 1px solid var(--border); background: var(--btn-bg); color: var(--text); cursor: pointer; font-family: inherit; }
 button:hover:not(:disabled) { background: var(--hover); }
-button.primary { background: var(--accent); color: white; border-color: var(--accent); }
+button.primary { background: var(--accent); color: white; border-color: var(--accent); display: inline-flex; align-items: center; justify-content: center; gap: 5px; }
 button.primary:hover:not(:disabled) { background: var(--accent-hover); }
 button.small { font-size: 12px; padding: 2px 7px; }
 button:disabled { opacity: 0.45; cursor: not-allowed; }
