@@ -562,7 +562,7 @@ const DEFAULT_MERGED_SCORING = [
 ];
 
 const state = {
-  lists: [],            // [{id, name, source, url, enabled, rawEntries, lastUpdated, _loading}]
+  inputLists: [],       // [{id, name, source, url, enabled, rawEntries, lastUpdated, _loading}]
   selectedId: null,
   searchQuery: '',
   searchWholeWord: false,
@@ -655,7 +655,7 @@ function idbDel(key) {
 }
 
 function persistMeta() {
-  lsSave('meta', JSON.stringify(state.lists.map(l => ({
+  lsSave('meta', JSON.stringify(state.inputLists.map(l => ({
     id: l.id, name: l.name, source: l.source, url: l.url || null,
     enabled: l.enabled, lastUpdated: l.lastUpdated || null,
     downloadFingerprint: l.downloadFingerprint || null,
@@ -730,7 +730,7 @@ async function init() {
   if (raw) {
     try {
       const meta = JSON.parse(raw);
-      state.lists = await Promise.all(meta.map(async m => {
+      state.inputLists = await Promise.all(meta.map(async m => {
         const text = await idbGet('data_' + m.id);
         const list = { ...m, rawEntries: text ? parseWordlist(text) : [], _loading: false,
                        rescoreRules: (m.rescoreRules || []).map(r => ({ length: '', ...r })),
@@ -738,9 +738,9 @@ async function init() {
         updateCatchAll(list);
         return list;
       }));
-    } catch { state.lists = defaultLists(); }
+    } catch { state.inputLists = defaultInputLists(); }
   } else {
-    state.lists = defaultLists();
+    state.inputLists = defaultInputLists();
     persistMeta();
   }
 
@@ -750,10 +750,10 @@ async function init() {
   const savedId = lsLoad('selectedId');
   if (savedId === MERGED_ID) {
     state.selectedId = MERGED_ID;
-  } else if (savedId && state.lists.some(l => l.id === savedId)) {
+  } else if (savedId && state.inputLists.some(l => l.id === savedId)) {
     state.selectedId = savedId;
   }
-  if (!state.selectedId && state.lists.length) state.selectedId = state.lists[0].id;
+  if (!state.selectedId && state.inputLists.length) state.selectedId = state.inputLists[0].id;
 
   renderAll();
   bindEvents();
@@ -761,7 +761,7 @@ async function init() {
   setInterval(checkForUpdates, UPDATE_CHECK_INTERVAL);
 }
 
-function defaultLists() {
+function defaultInputLists() {
   return BUILTIN_WORDLISTS.map(t => {
     const list = {
       ...t, enabled: true, rawEntries: [], lastUpdated: null, _loading: false,
@@ -1346,19 +1346,19 @@ let _dateTimer = null;
 let _refreshCountsTimer = null;
 
 function renderAll() {
-  renderLists();
+  renderInputLists();
   if (state.selectedId === MERGED_ID) renderMergedDetail();
   else renderDetail(getSelected());
 }
 
-function renderLists() {
+function renderInputLists() {
   const container = document.getElementById('lists-container');
   document.getElementById('list-count').textContent =
-    state.lists.length ? `(${state.lists.length})` : '';
+    state.inputLists.length ? `(${state.inputLists.length})` : '';
 
   const addRow = `<div class="add-list-row" onclick="openDialog()"><span class="drag-handle" style="visibility:hidden" aria-hidden="true">≡</span><span class="add-list-icon">+</span>Add list</div>`;
 
-  if (!state.lists.length) {
+  if (!state.inputLists.length) {
     container.innerHTML = '<div class="no-lists">No lists yet</div>' + addRow;
     const mergedMetaEl = document.getElementById('merged-card-meta');
     if (mergedMetaEl) mergedMetaEl.textContent = 'No data';
@@ -1374,7 +1374,7 @@ function renderLists() {
   if (mergedMetaEl) mergedMetaEl.textContent = totalMerged ? `${totalMerged.toLocaleString()} entries` : 'No data';
   document.getElementById('merged-card')?.classList.toggle('selected', state.selectedId === MERGED_ID);
 
-  container.innerHTML = state.lists.map(list => {
+  container.innerHTML = state.inputLists.map(list => {
     const sel = list.id === state.selectedId;
     const hasData = list.rawEntries.length > 0;
     let meta;
@@ -1419,7 +1419,7 @@ function refreshSourceCounts() {
   invalidateStatsCache(MERGED_ID);
   _sourceCountsCache = buildMergedList().sourceCounts;
   const contribMap = new Map(_sourceCountsCache.map(s => [s.id, s.count]));
-  for (const list of state.lists) {
+  for (const list of state.inputLists) {
     if (!list.enabled || !list.rawEntries.length) continue;
     const meta = document.querySelector(`.list-card[data-id="${CSS.escape(list.id)}"] .card-meta`);
     if (!meta) continue;
@@ -1681,7 +1681,7 @@ function setDetailDate(ts) {
 // ─── Actions ──────────────────────────────────────────────────────────────────
 
 function getSelected() {
-  return state.lists.find(l => l.id === state.selectedId) || null;
+  return state.inputLists.find(l => l.id === state.selectedId) || null;
 }
 
 function selectMergedList() {
@@ -1716,11 +1716,11 @@ function onSearchWholeWord(checked) {
 
 async function downloadList(id, event) {
   if (event) event.stopPropagation();
-  const list = state.lists.find(l => l.id === id);
+  const list = state.inputLists.find(l => l.id === id);
   if (!list || !list.url || list._loading) return;
 
   list._loading = true;
-  renderLists();
+  renderInputLists();
   if (state.selectedId === id) renderDetail(list);
   showToast(`Downloading ${list.name}…`);
 
@@ -1744,13 +1744,13 @@ async function downloadList(id, event) {
     await persistData(id, text);
     persistMeta();
 
-    renderLists();
+    renderInputLists();
     if (state.selectedId === id) renderDetail(list);
     if (state.selectedId === MERGED_ID) renderMergedDetail();
     showToast(`Loaded ${list.rawEntries.length.toLocaleString()} entries from ${list.name}`);
   } catch (err) {
     list._loading = false;
-    renderLists();
+    renderInputLists();
     if (state.selectedId === id) renderDetail(list);
     showToast(`Download failed: ${err.message}`);
   }
@@ -1759,7 +1759,7 @@ async function downloadList(id, event) {
 const UPDATE_CHECK_INTERVAL = 60 * 60 * 1000; // 1 hour
 
 async function checkForUpdates() {
-  const candidates = state.lists.filter(l => l.url && l.rawEntries.length > 0 && l.downloadFingerprint);
+  const candidates = state.inputLists.filter(l => l.url && l.rawEntries.length > 0 && l.downloadFingerprint);
   if (!candidates.length) return;
 
   let anyChanged = false;
@@ -1776,7 +1776,7 @@ async function checkForUpdates() {
   }));
 
   if (anyChanged) {
-    renderLists();
+    renderInputLists();
     const selected = getSelected();
     if (selected?.url && selected._updateAvailable) renderDetail(selected);
   }
@@ -1784,7 +1784,7 @@ async function checkForUpdates() {
 
 function triggerLoadForList(id, event) {
   if (event) event.stopPropagation();
-  const list = state.lists.find(l => l.id === id);
+  const list = state.inputLists.find(l => l.id === id);
   if (!list) return;
   if (list.source === 'upload') {
     openUploadGuide(id);
@@ -1806,7 +1806,7 @@ function ingestFile(file, listId, nameOverride) {
   const reader = new FileReader();
   reader.onload = async e => {
     const text = e.target.result;
-    const list = state.lists.find(l => l.id === listId);
+    const list = state.inputLists.find(l => l.id === listId);
     if (!list) return;
 
     const wasEmpty = !list.rawEntries.length;
@@ -1823,7 +1823,7 @@ function ingestFile(file, listId, nameOverride) {
     await persistData(listId, text);
     persistMeta();
 
-    renderLists();
+    renderInputLists();
     if (state.selectedId === listId) renderDetail(list);
     if (state.selectedId === MERGED_ID) renderMergedDetail();
     showToast(`Loaded ${list.rawEntries.length.toLocaleString()} entries`);
@@ -1833,7 +1833,7 @@ function ingestFile(file, listId, nameOverride) {
 
 async function clearListData(id, event) {
   if (event) event.stopPropagation();
-  const list = state.lists.find(l => l.id === id);
+  const list = state.inputLists.find(l => l.id === id);
   if (!list || !list.rawEntries.length) return;
   if (!confirm(`Clear data for "${list.name}"?`)) return;
   list.rawEntries = [];
@@ -1843,17 +1843,17 @@ async function clearListData(id, event) {
   invalidateStatsCache(MERGED_ID);
   await idbDel('data_' + id);
   persistMeta();
-  renderLists();
+  renderInputLists();
   if (state.selectedId === id) renderDetail(list);
   if (state.selectedId === MERGED_ID) renderMergedDetail();
 }
 
 async function deleteList(id, event) {
   if (event) event.stopPropagation();
-  const list = state.lists.find(l => l.id === id);
+  const list = state.inputLists.find(l => l.id === id);
   if (!list) return;
   if (!confirm(`Remove "${list.name}"?`)) return;
-  state.lists = state.lists.filter(l => l.id !== id);
+  state.inputLists = state.inputLists.filter(l => l.id !== id);
   invalidateStatsCache(id);
   invalidateSourceCounts();
   invalidateStatsCache(MERGED_ID);
@@ -1869,23 +1869,23 @@ async function deleteList(id, event) {
 
 function toggleList(id, event) {
   if (event) event.stopPropagation();
-  const list = state.lists.find(l => l.id === id);
+  const list = state.inputLists.find(l => l.id === id);
   if (!list || !list.rawEntries.length) return;
   list.enabled = !list.enabled;
   invalidateSourceCounts();
   invalidateStatsCache(MERGED_ID);
   persistMeta();
-  renderLists();
+  renderInputLists();
 }
 
 function addNewList(listDef) {
   const list = { rescoreRules: [], ...listDef, rawEntries: [], lastUpdated: null, _loading: false };
   updateCatchAll(list);
-  state.lists.push(list);
+  state.inputLists.push(list);
   invalidateSourceCounts();
   invalidateStatsCache(MERGED_ID);
   persistMeta();
-  renderLists();
+  renderInputLists();
 }
 
 // ─── Add Dialog ───────────────────────────────────────────────────────────────
@@ -1893,7 +1893,7 @@ function addNewList(listDef) {
 function openDialog() {
   const bl = document.getElementById('builtin-list');
   bl.innerHTML = BUILTIN_WORDLISTS.map(t => {
-    const exists = state.lists.some(l => l.id === t.id);
+    const exists = state.inputLists.some(l => l.id === t.id);
     const sub = t.source === 'upload'
       ? (t.downloadPage
         ? `Manual download &middot; <a class="get-file" href="${esc(t.downloadPage)}" target="_blank" rel="noopener">Get file 🔗</a>`
@@ -1915,7 +1915,7 @@ function openDialog() {
   document.getElementById('url-name').value = '';
   document.getElementById('upload-name').value = '';
 
-  const allAdded = BUILTIN_WORDLISTS.every(t => state.lists.some(l => l.id === t.id));
+  const allAdded = BUILTIN_WORDLISTS.every(t => state.inputLists.some(l => l.id === t.id));
   const defaultTab = allAdded ? 'upload' : 'builtin';
   document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.toggle('active', btn.dataset.tab === defaultTab));
   ['builtin', 'upload', 'url'].forEach(t => {
@@ -1926,7 +1926,7 @@ function openDialog() {
 }
 
 function addBuiltin(id) {
-  if (state.lists.some(l => l.id === id)) return;
+  if (state.inputLists.some(l => l.id === id)) return;
   const t = BUILTIN_WORDLISTS.find(t => t.id === id);
   if (!t) return;
   addNewList({
@@ -1950,14 +1950,14 @@ function bindEvents() {
       req.onerror   = resolve;
       req.onblocked = resolve;
     });
-    state.lists = [];
+    state.inputLists = [];
     state.selectedId = null;
     state.searchQuery = '';
     scroller = null;
     await openDB();
-    state.lists = defaultLists();
+    state.inputLists = defaultInputLists();
     persistMeta();
-    state.selectedId = state.lists[0]?.id ?? null;
+    state.selectedId = state.inputLists[0]?.id ?? null;
     renderAll();
     showToast('Reset complete');
   };
@@ -2030,13 +2030,13 @@ function bindEvents() {
     const card = e.target.closest('.list-card');
     const toId = card?.dataset.id;
     if (!_dragId || !toId || _dragId === toId) return;
-    const fromIdx = state.lists.findIndex(l => l.id === _dragId);
-    const toIdx   = state.lists.findIndex(l => l.id === toId);
+    const fromIdx = state.inputLists.findIndex(l => l.id === _dragId);
+    const toIdx   = state.inputLists.findIndex(l => l.id === toId);
     if (fromIdx === -1 || toIdx === -1) return;
-    const [item] = state.lists.splice(fromIdx, 1);
-    state.lists.splice(toIdx, 0, item);
+    const [item] = state.inputLists.splice(fromIdx, 1);
+    state.inputLists.splice(toIdx, 0, item);
     persistMeta();
-    renderLists();
+    renderInputLists();
     clearTimeout(_refreshCountsTimer);
     _refreshCountsTimer = setTimeout(refreshSourceCounts, 0);
   });
@@ -2396,7 +2396,7 @@ function startCardRename(id) {
   const nameEl = card.querySelector('.card-name');
   if (!nameEl || nameEl.querySelector('input')) return;
 
-  const list = state.lists.find(l => l.id === id);
+  const list = state.inputLists.find(l => l.id === id);
   if (!list) return;
 
   const input = document.createElement('input');
@@ -2450,7 +2450,7 @@ function startCardRename(id) {
 
 function buildOverrideMap(listId) {
   const map = new Map();
-  for (const list of state.lists) {
+  for (const list of state.inputLists) {
     if (list.id === listId) break;
     if (!list.enabled || !list.rawEntries.length) continue;
     const rescored = applyRescoring(list.rawEntries, list.rescoreRules);
@@ -2466,7 +2466,7 @@ function buildMergedList() {
   const merged = new Map(); // UPPERCASE_KEY → {word, score}
   const sourceCounts = [];
 
-  for (const list of state.lists) {
+  for (const list of state.inputLists) {
     if (!list.enabled || !list.rawEntries.length) continue;
     const rescored = applyRescoring(list.rawEntries, list.rescoreRules);
     let count = 0;
@@ -2503,7 +2503,7 @@ function downloadMerged(entries) {
 }
 
 function downloadIndividualList(id) {
-  const list = state.lists.find(l => l.id === id);
+  const list = state.inputLists.find(l => l.id === id);
   if (!list || !list.rawEntries.length) return;
   const text = list.rawEntries.map(e => `${e.word};${e.score}`).join('\n') + '\n';
   const blob = new Blob([text], { type: 'text/plain' });
