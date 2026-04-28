@@ -100,7 +100,6 @@ button { font-size: 13px; padding: 5px 11px; border-radius: 4px; border: 1px sol
 button:hover:not(:disabled) { background: var(--hover); }
 button.primary { background: var(--accent); color: white; border-color: var(--accent); display: inline-flex; align-items: center; justify-content: center; gap: 5px; }
 button.primary:hover:not(:disabled) { background: var(--accent-hover); }
-button.small { font-size: 12px; padding: 2px 7px; }
 button:disabled { opacity: 0.45; cursor: not-allowed; }
 button.danger { background: #c0392b; color: white; border-color: #922b21; }
 button.danger:hover:not(:disabled) { background: #e74c3c; border-color: #c0392b; }
@@ -382,7 +381,7 @@ input[type="file"] { display: none; }
       <div class="settings-row-label">Reset all data</div>
       <div class="settings-row-sub">Delete all lists and word data</div>
     </div>
-    <button id="btn-reset" class="danger small" title="Delete all lists and data">🗑 Reset</button>
+    <button id="btn-reset" class="danger" title="Delete all lists and data">🗑 Reset</button>
   </div>
   <div class="dialog-footer">
     <button id="btn-settings-close">Close</button>
@@ -1580,7 +1579,7 @@ function openDialog() {
         <div class="builtin-item-name">${esc(t.name)}</div>
         <div class="builtin-item-sub">${sub}</div>
       </div>
-      <button class="small${exists ? '' : ' primary'}" ${exists ? 'disabled' : ''} onclick="addBuiltin('${t.id}')">
+      <button class="${exists ? '' : 'primary'}" ${exists ? 'disabled' : ''} onclick="addBuiltin('${t.id}')">
         ${exists ? 'Added' : '+ Add'}
       </button>
     </div>`;
@@ -1814,7 +1813,7 @@ function openAutoDownloadDialog(listId, event) {
         <div class="builtin-item-name">Auto-download</div>
         <div class="builtin-item-sub">Download directly from GitHub</div>
       </div>
-      <button class="small primary" id="jk-auto-dl-btn">Download</button>
+      <button class="primary" id="jk-auto-dl-btn">Download</button>
     </div>
     <div class="dialog-divider">— or upload a file —</div>
     <div class="upload-zone compact" id="guide-drop-zone">
