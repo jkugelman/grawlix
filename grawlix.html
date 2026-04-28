@@ -4,11 +4,16 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Grawlix !@#$</title>
-<script>if(localStorage.getItem('wlm2_darkMode')==='0')document.documentElement.classList.add('light-mode');</script>
+<script>const _dm=localStorage.getItem('wlm2_darkMode');const _dark=_dm==='dark'||(_dm!=='light'&&window.matchMedia('(prefers-color-scheme: dark)').matches);document.documentElement.classList.add(_dark?'dark-mode':'light-mode');</script>
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 :root {
+  --accent:      #7b6db8;
+  --accent-hover:#6558a0;
+  --hdr-bg:      var(--accent);
+}
+html.dark-mode {
   --bg:        #1e1e1e;
   --surface:   #282828;
   --surface2:  #232323;
@@ -19,13 +24,10 @@
   --muted:     #a0a0a0;
   --faint:     #6c6c6c;
   --hover:     #303030;
-  --accent:      #7b6db8;
-  --accent-hover:#6558a0;
-  --sel:         #383838;
-  --row-hover:   #2c2c2c;
-  --input-bg:    #2e2e2e;
-  --btn-bg:      #363636;
-  --hdr-bg:      var(--accent);
+  --sel:       #383838;
+  --row-hover: #2c2c2c;
+  --input-bg:  #2e2e2e;
+  --btn-bg:    #363636;
   --error-bg:  #361818;
   --del-hover: #361818;
   --shadow:    0 8px 40px rgba(0,0,0,0.5);
@@ -169,8 +171,6 @@ button.danger:hover:not(:disabled) { background: #e74c3c; border-color: #c0392b;
 .toggle input:checked + .toggle-slider { background: var(--accent); }
 .toggle input:checked + .toggle-slider::before { transform: translateX(12px); }
 
-/* Dark mode toggle */
-.dark-toggle-wrap { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 12px; user-select: none; }
 
 /* Settings button */
 .header-icon-btn { background: none; border: none; color: rgba(255,255,255,0.8); font-size: 19px; padding: 4px 8px; border-radius: 4px; cursor: pointer; line-height: 1; font-family: inherit; }
@@ -253,7 +253,6 @@ a.get-file:hover { text-decoration: underline; }
 
 /* Header */
 .header-controls { display: flex; gap: 12px; align-items: center; }
-.dark-toggle-wrap .toggle { margin: 0; }
 
 /* Segmented control */
 .seg-ctrl { display: flex; border: 1px solid var(--border); border-radius: 4px; overflow: hidden; }
@@ -309,7 +308,7 @@ input[type="file"] { display: none; }
 .guide-step-body a.get-file { font-size: 13px; }
 .screenshot-container { position: relative; margin-top: 8px; border: 1px solid var(--border2); border-radius: 4px; overflow: hidden; display: block; }
 .screenshot-container img { display: block; width: 100%; }
-:root:not(.light-mode) .screenshot-container img { filter: brightness(0.843) invert(1) hue-rotate(180deg); }
+html.dark-mode .screenshot-container img { filter: brightness(0.843) invert(1) hue-rotate(180deg); }
 .annotation { position: absolute; border: 3px solid #e53935; border-radius: 50px; pointer-events: none; box-shadow: 0 0 6px rgba(229,57,53,0.4); }
 
 /* Lists panel footer */
@@ -356,13 +355,10 @@ input[type="file"] { display: none; }
   <h2>Settings</h2>
   <div class="settings-row">
     <span class="settings-row-label">Dark mode</span>
-    <div class="dark-toggle-wrap">
-      <span>☀</span>
-      <label class="toggle" title="Toggle dark mode">
-        <input type="checkbox" id="dark-mode-toggle">
-        <span class="toggle-slider"></span>
-      </label>
-      <span>☽</span>
+    <div class="seg-ctrl" id="dark-mode-seg">
+      <button class="seg-btn" data-val="light">☀ Light</button>
+      <button class="seg-btn" data-val="auto">Auto</button>
+      <button class="seg-btn" data-val="dark">☽ Dark</button>
     </div>
   </div>
   <div class="settings-row">
@@ -638,17 +634,28 @@ async function persistData(id, text) {
 
 // ─── Dark mode ────────────────────────────────────────────────────────────────
 
-function initDarkMode() {
-  const saved = lsLoad('darkMode');
-  const dark = saved !== '0'; // default on
+function applyDarkMode(val) {
+  const dark = val === 'dark' || (val !== 'light' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+  document.documentElement.classList.toggle('dark-mode', dark);
   document.documentElement.classList.toggle('light-mode', !dark);
-  const toggle = document.getElementById('dark-mode-toggle');
-  toggle.checked = dark;
-  toggle.onchange = e => {
-    const on = e.target.checked;
-    document.documentElement.classList.toggle('light-mode', !on);
-    lsSave('darkMode', on ? '1' : '0');
-  };
+}
+
+function initDarkMode() {
+  const saved = lsLoad('darkMode') || 'auto';
+  applyDarkMode(saved);
+  const seg = document.getElementById('dark-mode-seg');
+  seg.querySelectorAll('.seg-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.val === saved);
+    btn.onclick = () => {
+      const val = btn.dataset.val;
+      lsSave('darkMode', val);
+      applyDarkMode(val);
+      seg.querySelectorAll('.seg-btn').forEach(b => b.classList.toggle('active', b === btn));
+    };
+  });
+  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+    if ((lsLoad('darkMode') || 'auto') === 'auto') applyDarkMode('auto');
+  });
 }
 
 // ─── Output case setting ──────────────────────────────────────────────────────
