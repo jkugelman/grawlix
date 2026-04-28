@@ -289,8 +289,8 @@ a.get-file:hover { text-decoration: underline; }
 /* Score display */
 .score-orig { color: #aaa; font-size: 11px; }
 .score-arrow-indicator { color: #ccc; font-size: 10px; padding: 0 3px; }
-.excluded-word { text-decoration: line-through; }
-.score-badge.excluded { text-decoration: line-through; }
+.ignored-word { text-decoration: line-through; }
+.score-badge.ignored { text-decoration: line-through; }
 .overridden-row { cursor: help; }
 .overridden-row td { opacity: 0.45; }
 
@@ -544,7 +544,7 @@ const BUILTIN_WORDLISTS = [
     </div>`,
     defaultRules: [
       { input:'80-100', length:'7+', output:'60'      },
-      { input:'0-100',  length:'',   output:'exclude' },
+      { input:'0-100',  length:'',   output:'ignore' },
     ],
   },
 ];
@@ -1086,22 +1086,22 @@ class VirtualScroller {
       const wordHtml = this._highlight ? this._highlight(word) : word;
       let wordCell  = `<td title="${word}">${wordHtml}</td>`;
       let innerScore = `<span class="score-badge" style="background:${bg};color:${fg}">${score}</span>`;
-      let excluded = false;
+      let ignored = false;
 
       if (this.rescoreRules.length) {
         const r = rescoreEntry(entry, this.rescoreRules);
         if (!r.kept) {
-          excluded = true;
+          ignored = true;
           tr.style.opacity = '0.4';
-          wordCell   = `<td title="${word}"><span class="excluded-word">${wordHtml}</span></td>`;
-          innerScore = `<span class="score-badge excluded" style="background:${bg};color:${fg}">${score}</span>`;
+          wordCell   = `<td title="${word}"><span class="ignored-word">${wordHtml}</span></td>`;
+          innerScore = `<span class="score-badge ignored" style="background:${bg};color:${fg}">${score}</span>`;
         } else if (r.score !== score) {
           const { bg: rb, fg: rf } = scoreColor(r.score);
           innerScore = `<span class="score-orig">${score}</span><span class="score-arrow-indicator">→</span><span class="score-badge" style="background:${rb};color:${rf}">${r.score}</span>`;
         }
       }
 
-      const ov = !excluded && this.overrideMap.get(word.toUpperCase());
+      const ov = !ignored && this.overrideMap.get(word.toUpperCase());
       if (ov) {
         tr.classList.add('overridden-row');
         tr.title = `Overridden by ${ov.listName} at ${ov.score}`;
@@ -1185,7 +1185,7 @@ function getRuleMaxScore(rule) {
 function outputSortKey(rule) {
   const s = parseRuleOutput(rule.output);
   if (typeof s === 'number') return s;
-  if (s === 'exclude') return -1;
+  if (s === 'ignore') return -1;
   return getRuleMaxScore(rule); // 'unchanged' sorts by input score
 }
 
@@ -1231,7 +1231,7 @@ function updateCatchAll(list) {
 function parseRuleOutput(str) {
   str = (str || '').trim().toLowerCase();
   if (!str || str === 'unchanged') return 'unchanged';
-  if (str === 'exclude' || str === 'x') return 'exclude';
+  if (str === 'ignore') return 'ignore';
   const n = parseInt(str, 10);
   return isNaN(n) ? null : n;
 }
@@ -1255,7 +1255,7 @@ function applyRescoring(entries, rules) {
       }
       const s = rule._output !== undefined ? rule._output : parseRuleOutput(rule.output);
       if (s === null) continue;
-      if (s === 'exclude') { out = null; }
+      if (s === 'ignore') { out = null; }
       else if (s !== 'unchanged') { out = { ...entry, score: s }; }
       break;
     }
@@ -1274,7 +1274,7 @@ function rescoreEntry(entry, rules) {
     }
     const s = rule._output !== undefined ? rule._output : parseRuleOutput(rule.output);
     if (s === null) continue;
-    if (s === 'exclude') return { kept: false };
+    if (s === 'ignore') return { kept: false };
     if (s === 'unchanged') return { kept: true, score: entry.score };
     return { kept: true, score: s };
   }
@@ -1323,7 +1323,7 @@ function buildRescoreSectionHTML(list) {
             oninput="onRuleInput(this)" onchange="saveRuleField(${i},'length',this.value)">
           <span class="rule-arrow">→</span>
           <input class="rule-out" value="${esc(r.output)}" placeholder="unchanged"
-            title="Output score, 'exclude', or blank for unchanged"
+            title="Output score, 'ignore', or blank for unchanged"
             oninput="onRuleInput(this)" onchange="saveRuleField(${i},'output',this.value)">`;
         return buildRuleRowHTML(i, isCatchAll, fieldsHTML, r.note, 'deleteRule');
       }).join('')
