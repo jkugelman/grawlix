@@ -129,7 +129,9 @@ button.danger:hover:not(:disabled) { background: #e74c3c; border-color: #c0392b;
 /* Search */
 .search-bar { padding: 7px 14px 6px; background: var(--surface); border-bottom: 1px solid var(--border2); flex-shrink: 0; }
 .search-row { display: flex; align-items: center; gap: 10px; }
-.search-row input[type="text"] { flex: 1; padding: 5px 10px; border: 1px solid var(--border); border-radius: 4px; font-size: 13px; font-family: inherit; background: var(--input-bg); color: var(--text); }
+.search-input-wrap { position: relative; flex: 1; display: flex; align-items: center; }
+.search-input-wrap svg { position: absolute; left: 9px; pointer-events: none; color: var(--muted); }
+.search-row input[type="text"] { width: 100%; padding: 5px 10px 5px 28px; border: 1px solid var(--border); border-radius: 4px; font-size: 13px; font-family: inherit; background: var(--input-bg); color: var(--text); }
 .search-row input[type="text"]:focus { outline: none; border-color: var(--accent); }
 .search-whole-word-label { display: flex; align-items: center; gap: 5px; font-size: 12px; color: var(--muted); white-space: nowrap; cursor: pointer; user-select: none; }
 .search-help { margin-bottom: 5px; font-size: 11px; color: transparent; line-height: 1.6; display: flex; flex-wrap: wrap; gap: 0 14px; transition: color 0.15s; }
@@ -1446,7 +1448,10 @@ function renderDetail(list) {
         <span id="search-count"></span>
       </div>
       <div class="search-row">
-        <input type="text" id="search-input" placeholder="Search words…" value="${esc(state.searchQuery)}" oninput="onSearch(this.value)">
+        <div class="search-input-wrap">
+          <svg width="13" height="13" viewBox="0 0 13 13" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="5.5" cy="5.5" r="4" stroke="currentColor" stroke-width="1.5"/><line x1="8.7" y1="8.7" x2="12" y2="12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+          <input type="text" id="search-input" placeholder="Search" value="${esc(state.searchQuery)}" oninput="onSearch(this.value)">
+        </div>
         <label class="search-whole-word-label"><input type="checkbox" id="search-whole-word" onchange="onSearchWholeWord(this.checked)" ${state.searchWholeWord ? 'checked' : ''}> Match whole word</label>
       </div>
     </div>
