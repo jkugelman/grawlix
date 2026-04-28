@@ -1022,6 +1022,7 @@ function updateCatchAll(list) {
   if (uncovered.length > 0) {
     rules.push({ input: scoresToRangeStr(uncovered), length: '', output: '', _catchAll: true });
   }
+  rules.forEach(compileRule);
   return rulesSig(rules) !== before;
 }
 
@@ -1033,18 +1034,24 @@ function parseRuleOutput(str) {
   return isNaN(n) ? null : n;
 }
 
+function compileRule(rule) {
+  rule._scoreIntervals = parseRange(rule.input);
+  rule._lenIntervals   = (rule.length && rule.length.trim()) ? parseRange(rule.length) : null;
+  rule._output         = parseRuleOutput(rule.output);
+}
+
 function applyRescoring(entries, rules) {
   const result = [];
   for (const entry of entries) {
     let out = entry;
     for (const rule of rules) {
-      const scoreIntervals = parseRange(rule.input);
+      const scoreIntervals = rule._scoreIntervals !== undefined ? rule._scoreIntervals : parseRange(rule.input);
       if (!scoreIntervals || !matchesRange(entry.score, scoreIntervals)) continue;
       if (rule.length && rule.length.trim()) {
-        const lenIntervals = parseRange(rule.length);
+        const lenIntervals = rule._lenIntervals !== undefined ? rule._lenIntervals : parseRange(rule.length);
         if (!lenIntervals || !matchesRange(entry.word.length, lenIntervals)) continue;
       }
-      const s = parseRuleOutput(rule.output);
+      const s = rule._output !== undefined ? rule._output : parseRuleOutput(rule.output);
       if (s === null) continue;
       if (s === 'exclude') { out = null; }
       else if (s !== 'unchanged') { out = { ...entry, score: s }; }
@@ -1057,13 +1064,13 @@ function applyRescoring(entries, rules) {
 
 function rescoreEntry(entry, rules) {
   for (const rule of rules) {
-    const scoreIntervals = parseRange(rule.input);
+    const scoreIntervals = rule._scoreIntervals !== undefined ? rule._scoreIntervals : parseRange(rule.input);
     if (!scoreIntervals || !matchesRange(entry.score, scoreIntervals)) continue;
     if (rule.length && rule.length.trim()) {
-      const lenIntervals = parseRange(rule.length);
+      const lenIntervals = rule._lenIntervals !== undefined ? rule._lenIntervals : parseRange(rule.length);
       if (!lenIntervals || !matchesRange(entry.word.length, lenIntervals)) continue;
     }
-    const s = parseRuleOutput(rule.output);
+    const s = rule._output !== undefined ? rule._output : parseRuleOutput(rule.output);
     if (s === null) continue;
     if (s === 'exclude') return { kept: false };
     if (s === 'unchanged') return { kept: true, score: entry.score };
