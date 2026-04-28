@@ -294,6 +294,7 @@ a.get-file:hover { text-decoration: underline; }
 
 /* Hidden file inputs (triggered programmatically by their upload zones) */
 input[type="file"] { display: none; }
+#output-filename-input { width: 12em; font-size: .9em; padding: 3px 6px; border: 1px solid var(--border); border-radius: 4px; background: var(--bg); color: var(--fg); }
 
 /* Guide step upload zone spacing */
 .guide-step-body .upload-zone { margin-top: 8px; }
@@ -362,6 +363,10 @@ input[type="file"] { display: none; }
       </label>
       <span>☽</span>
     </div>
+  </div>
+  <div class="settings-row">
+    <span class="settings-row-label">Output filename</span>
+    <input type="text" id="output-filename-input">
   </div>
   <div class="settings-row">
     <span class="settings-row-label">Output case</span>
@@ -657,6 +662,14 @@ function initOutputCase() {
       lsSave('outputCase', btn.dataset.case);
     };
   });
+}
+
+// ─── Output filename setting ──────────────────────────────────────────────────
+
+function initOutputFilename() {
+  const input = document.getElementById('output-filename-input');
+  input.value = lsLoad('outputFilename') || 'grawlix-wordlist.txt';
+  input.oninput = () => lsSave('outputFilename', input.value.trim());
 }
 
 // ─── Init ─────────────────────────────────────────────────────────────────────
@@ -2091,7 +2104,7 @@ function downloadMerged(entries) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = 'merged-wordlist.txt';
+  a.download = lsLoad('outputFilename') || 'grawlix-wordlist.txt';
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
@@ -2103,6 +2116,7 @@ function downloadMerged(entries) {
 
 initDarkMode();
 initOutputCase();
+initOutputFilename();
 init();
 </script>
 </body>
