@@ -134,6 +134,7 @@ button.danger:hover:not(:disabled) { background: #e74c3c; border-color: #c0392b;
 .search-help kbd { font-family: ui-monospace, 'Cascadia Code', monospace; font-size: 11px; }
 .search-bar:focus-within .search-help { color: var(--faint); }
 .search-bar:focus-within .search-help kbd { color: var(--muted); }
+mark.search-match { background: var(--accent); color: white; border-radius: 2px; padding: 0 1px; font-style: normal; }
 
 /* Virtual scroll table */
 #table-container { flex: 1; overflow: hidden; display: flex; flex-direction: column; background: var(--surface); }
@@ -768,42 +769,59 @@ function computeStats(listId, entries) {
 const CONSONANTS = 'bcdfghjklmnpqrstvwxyz';
 const VOWELS = 'aeiou';
 
-function buildSearchRegex(query) {
+function buildSearchPattern(query) {
   const q = query.toLowerCase();
   const hasWildcard = /[?*#@[]/.test(q);
-  if (!hasWildcard) return null;
 
-  let pattern = '';
+  if (!hasWildcard) {
+    const esc = q.replace(/[.+^${}()|[\]\\]/g, '\\$&');
+    return { filterRe: new RegExp(esc), matchRe: new RegExp(esc, 'i') };
+  }
+
+  const anchored = q.includes('*');
+  let pat = '';
   let i = 0;
   while (i < q.length) {
     const ch = q[i];
     if (ch === '?') {
-      pattern += '.';
+      pat += '.';
       i++;
     } else if (ch === '*') {
-      pattern += '.*';
+      pat += '.*';
       i++;
     } else if (ch === '#') {
-      pattern += `[${CONSONANTS}]`;
+      pat += `[${CONSONANTS}]`;
       i++;
     } else if (ch === '@') {
-      pattern += `[${VOWELS}]`;
+      pat += `[${VOWELS}]`;
       i++;
     } else if (ch === '[') {
       const end = q.indexOf(']', i);
       if (end === -1) {
-        pattern += '\\[';
+        pat += '\\[';
         i++;
       } else {
-        pattern += q.slice(i, end + 1);
+        pat += q.slice(i, end + 1);
         i = end + 1;
       }
     } else {
-      pattern += ch.replace(/[.+^${}()|[\]\\]/g, '\\$&');
+      pat += ch.replace(/[.+^${}()|[\]\\]/g, '\\$&');
       i++;
     }
   }
-  return new RegExp('^' + pattern + '$');
+
+  return {
+    filterRe: anchored ? new RegExp('^' + pat + '$') : new RegExp(pat),
+    matchRe:  anchored ? null : new RegExp(pat, 'i'),
+  };
+}
+
+function highlightWord(word, matchRe) {
+  const m = matchRe.exec(word);
+  if (!m) return word;
+  const pre  = word.slice(0, m.index);
+  const post = word.slice(m.index + m[0].length);
+  return pre + '<mark class="search-match">' + m[0] + '</mark>' + post;
 }
 
 // ─── Virtual Scroller ─────────────────────────────────────────────────────────
@@ -819,6 +837,7 @@ class VirtualScroller {
     this.sortKey = null;
     this.sortDir = 'asc';
     this._lastQuery = '';
+    this._matchRe = null;
     this._colEls = {};
     this.rescoreRules = [];
     this.overrideMap = new Map();
@@ -967,10 +986,12 @@ class VirtualScroller {
     const q = this._lastQuery.toLowerCase();
     let entries;
     if (!q) {
+      this._matchRe = null;
       entries = this.allEntries;
     } else {
-      const re = buildSearchRegex(q) ?? new RegExp('^' + q.replace(/[.+^${}()|[\]\\]/g, '\\$&') + '$');
-      entries = this.allEntries.filter(e => re.test(e.word.toLowerCase()));
+      const { filterRe, matchRe } = buildSearchPattern(q);
+      this._matchRe = matchRe;
+      entries = this.allEntries.filter(e => filterRe.test(e.word.toLowerCase()));
     }
 
     if (this.sortKey) {
@@ -1017,7 +1038,8 @@ class VirtualScroller {
       const tr = document.createElement('tr');
       tr.style.height = ROW_HEIGHT + 'px';
 
-      let wordCell  = `<td>${word}</td>`;
+      const wordHtml = this._matchRe ? highlightWord(word, this._matchRe) : word;
+      let wordCell  = `<td>${wordHtml}</td>`;
       let innerScore = `<span class="score-badge" style="background:${bg};color:${fg}">${score}</span>`;
       let excluded = false;
 
@@ -1026,7 +1048,7 @@ class VirtualScroller {
         if (!r.kept) {
           excluded = true;
           tr.style.opacity = '0.4';
-          wordCell   = `<td><span class="excluded-word">${word}</span></td>`;
+          wordCell   = `<td><span class="excluded-word">${wordHtml}</span></td>`;
           innerScore = `<span class="score-badge excluded" style="background:${bg};color:${fg}">${score}</span>`;
         } else if (r.score !== score) {
           const { bg: rb, fg: rf } = scoreColor(r.score);
