@@ -296,6 +296,20 @@ input[type="file"] { display: none; }
 .screenshot-container img { display: block; width: 100%; }
 :root:not(.light-mode) .screenshot-container img { filter: brightness(0.843) invert(1) hue-rotate(180deg); }
 .annotation { position: absolute; border: 3px solid #e53935; border-radius: 50px; pointer-events: none; box-shadow: 0 0 6px rgba(229,57,53,0.4); }
+
+/* Lists panel footer */
+#lists-footer { flex-shrink: 0; }
+#btn-merge-download { width: 100%; border-radius: 0; border: none; border-top: 1px solid var(--accent-hover); padding: 11px; font-size: 14px; font-weight: bold; }
+
+/* Merge & download dialog */
+.merge-total { margin-bottom: 12px; font-size: 14px; }
+.merge-table { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 6px; }
+.merge-table th { text-align: left; padding: 5px 10px; font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 2px solid var(--border2); }
+.merge-table td { padding: 7px 10px; border-bottom: 1px solid var(--border3); }
+.merge-table td:last-child { text-align: right; font-variant-numeric: tabular-nums; color: var(--muted); }
+.merge-table tr:last-child td { border-bottom: none; }
+.merge-empty { color: var(--muted); font-size: 13px; font-style: italic; margin: 8px 0; }
+.merge-total-row td { font-weight: 700; color: var(--text); border-top: 2px solid var(--border2); border-bottom: none; }
 </style>
 </head>
 <body>
@@ -309,6 +323,9 @@ input[type="file"] { display: none; }
   <div id="lists-panel">
     <h2>Lists <span id="list-count"></span></h2>
     <div id="lists-container"></div>
+    <div id="lists-footer">
+      <button id="btn-merge-download" class="primary">Merge & Download</button>
+    </div>
   </div>
 
   <div id="detail-panel">
@@ -384,6 +401,15 @@ input[type="file"] { display: none; }
 
   <div class="dialog-footer">
     <button id="btn-dialog-close">Close</button>
+  </div>
+</dialog>
+
+<dialog id="merge-dialog" style="width:400px">
+  <h2>Merge & Download</h2>
+  <div id="merge-stats"></div>
+  <div class="dialog-footer">
+    <button id="btn-merge-close">Cancel</button>
+    <button id="btn-download-merged" class="primary">Download .txt</button>
   </div>
 </dialog>
 
@@ -1437,6 +1463,8 @@ function bindEvents() {
     showToast('Reset complete');
   };
 
+  document.getElementById('btn-merge-download').onclick = openMergeDialog;
+  document.getElementById('btn-merge-close').onclick    = () => document.getElementById('merge-dialog').close();
   document.getElementById('btn-settings').onclick       = () => document.getElementById('settings-dialog').showModal();
   document.getElementById('btn-settings-close').onclick = () => document.getElementById('settings-dialog').close();
   document.getElementById('btn-dialog-close').onclick   = () => document.getElementById('add-dialog').close();
@@ -1886,6 +1914,75 @@ function startCardRename(id) {
     if (e.key === 'Enter') { e.preventDefault(); commit(); }
     if (e.key === 'Escape') { input.onblur = null; cancel(); }
   };
+}
+
+// ─── Merge & Download ─────────────────────────────────────────────────────────
+
+function buildMergedList() {
+  const merged = new Map(); // WORD → score
+  const sourceCounts = [];
+
+  for (const list of state.lists) {
+    if (!list.enabled || !list.rawEntries.length) continue;
+    const rescored = applyRescoring(list.rawEntries, list.rescoreRules);
+    let count = 0;
+    for (const { word, score } of rescored) {
+      const w = word.toUpperCase();
+      if (!merged.has(w)) {
+        merged.set(w, score);
+        count++;
+      }
+    }
+    sourceCounts.push({ id: list.id, name: list.name, count });
+  }
+
+  const entries = [...merged.entries()]
+    .map(([word, score]) => ({ word, score }))
+    .sort((a, b) => a.word.localeCompare(b.word));
+
+  return { entries, sourceCounts };
+}
+
+function openMergeDialog() {
+  const { entries, sourceCounts } = buildMergedList();
+  const total = entries.length;
+
+  let statsHtml;
+  if (!sourceCounts.length) {
+    statsHtml = `<p class="merge-empty">No enabled lists with data. Load at least one list first.</p>`;
+  } else {
+    const rows = sourceCounts.map(s =>
+      `<tr><td>${esc(s.name)}</td><td>${s.count.toLocaleString()}</td></tr>`
+    ).join('');
+    statsHtml = `
+      <table class="merge-table">
+        <thead><tr><th>List</th><th style="text-align:right">Contributed</th></tr></thead>
+        <tbody>${rows}</tbody>
+        <tfoot><tr class="merge-total-row"><td>Total</td><td>${total.toLocaleString()}</td></tr></tfoot>
+      </table>`;
+  }
+
+  document.getElementById('merge-stats').innerHTML = statsHtml;
+
+  const dlBtn = document.getElementById('btn-download-merged');
+  dlBtn.disabled = total === 0;
+  dlBtn.onclick = () => { downloadMerged(entries); document.getElementById('merge-dialog').close(); };
+
+  document.getElementById('merge-dialog').showModal();
+}
+
+function downloadMerged(entries) {
+  const text = entries.map(e => `${e.word};${e.score}`).join('\n') + '\n';
+  const blob = new Blob([text], { type: 'text/plain' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'merged-wordlist.txt';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  showToast(`Downloaded ${entries.length.toLocaleString()} entries`);
 }
 
 // ─── Boot ─────────────────────────────────────────────────────────────────────
