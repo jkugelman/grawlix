@@ -656,8 +656,10 @@ function defaultLists() {
 // ─── Stats ────────────────────────────────────────────────────────────────────
 
 const _statsCache = new Map();
+let _sourceCountsCache = null;
 
 function invalidateStatsCache(id) { _statsCache.delete(id); }
+function invalidateSourceCounts() { _sourceCountsCache = null; }
 
 function computeStats(listId, entries) {
   if (_statsCache.has(listId)) return _statsCache.get(listId);
@@ -1117,6 +1119,7 @@ function renderRescoreSection() {
 
 let scroller = null;
 let _dateTimer = null;
+let _refreshCountsTimer = null;
 
 function renderAll() {
   renderLists();
@@ -1135,8 +1138,8 @@ function renderLists() {
     return;
   }
 
-  const { sourceCounts } = buildMergedList();
-  const contribMap = new Map(sourceCounts.map(s => [s.id, s.count]));
+  if (!_sourceCountsCache) _sourceCountsCache = buildMergedList().sourceCounts;
+  const contribMap = new Map(_sourceCountsCache.map(s => [s.id, s.count]));
 
   container.innerHTML = state.lists.map(list => {
     const sel = list.id === state.selectedId;
@@ -1173,6 +1176,22 @@ function renderLists() {
       </div>
     </div>`;
   }).join('') + addRow;
+}
+
+function refreshSourceCounts() {
+  invalidateSourceCounts();
+  _sourceCountsCache = buildMergedList().sourceCounts;
+  const contribMap = new Map(_sourceCountsCache.map(s => [s.id, s.count]));
+  for (const list of state.lists) {
+    if (!list.enabled || !list.rawEntries.length) continue;
+    const meta = document.querySelector(`.list-card[data-id="${CSS.escape(list.id)}"] .card-meta`);
+    if (!meta) continue;
+    const used = contribMap.get(list.id) ?? 0;
+    const total = list.rawEntries.length;
+    meta.textContent = used === total
+      ? `${used.toLocaleString()} entries used`
+      : `${used.toLocaleString()} of ${total.toLocaleString()} entries used`;
+  }
 }
 
 function renderDetail(list) {
@@ -1312,6 +1331,7 @@ async function downloadList(id, event) {
     list._loading = false;
     if (wasEmpty) list.enabled = true;
     invalidateStatsCache(id);
+    invalidateSourceCounts();
     updateCatchAll(list);
 
     await persistData(id, text);
@@ -1361,6 +1381,7 @@ function ingestFile(file, listId, nameOverride) {
     list.lastUpdated = Date.now();
     if (wasEmpty) list.enabled = true;
     invalidateStatsCache(listId);
+    invalidateSourceCounts();
     updateCatchAll(list);
 
     await persistData(listId, text);
@@ -1381,6 +1402,7 @@ async function clearListData(id, event) {
   list.rawEntries = [];
   list.lastUpdated = null;
   invalidateStatsCache(id);
+  invalidateSourceCounts();
   await idbDel('data_' + id);
   persistMeta();
   renderLists();
@@ -1393,6 +1415,8 @@ async function deleteList(id, event) {
   if (!list) return;
   if (!confirm(`Remove "${list.name}"?`)) return;
   state.lists = state.lists.filter(l => l.id !== id);
+  invalidateStatsCache(id);
+  invalidateSourceCounts();
   await idbDel('data_' + id);
   persistMeta();
   if (state.selectedId === id) {
@@ -1408,6 +1432,7 @@ function toggleList(id, event) {
   const list = state.lists.find(l => l.id === id);
   if (!list || !list.rawEntries.length) return;
   list.enabled = !list.enabled;
+  invalidateSourceCounts();
   persistMeta();
   renderLists();
 }
@@ -1416,6 +1441,7 @@ function addNewList(listDef) {
   const list = { rescoreRules: [], ...listDef, rawEntries: [], lastUpdated: null, _loading: false };
   updateCatchAll(list);
   state.lists.push(list);
+  invalidateSourceCounts();
   persistMeta();
   renderLists();
 }
@@ -1570,6 +1596,8 @@ function bindEvents() {
     state.lists.splice(toIdx, 0, item);
     persistMeta();
     renderLists();
+    clearTimeout(_refreshCountsTimer);
+    _refreshCountsTimer = setTimeout(refreshSourceCounts, 0);
   });
 
   // F2 to rename selected list
@@ -1752,6 +1780,7 @@ function resetRescoreRules() {
   if (!tmpl?.defaultRules) return;
   list.rescoreRules = JSON.parse(JSON.stringify(tmpl.defaultRules));
   updateCatchAll(list);
+  invalidateSourceCounts();
   persistMeta();
   renderRescoreSection();
   updateRescorePreview();
@@ -1763,6 +1792,7 @@ function deleteRule(idx) {
   if (!list) return;
   list.rescoreRules.splice(idx, 1);
   updateCatchAll(list);
+  invalidateSourceCounts();
   persistMeta();
   renderRescoreSection();
   updateRescorePreview();
@@ -1775,6 +1805,7 @@ function saveRuleField(idx, field, value) {
   // User explicitly edited this rule — promote it from catch-all to regular rule
   delete list.rescoreRules[idx]._catchAll;
   updateCatchAll(list);
+  invalidateSourceCounts();
   persistMeta();
   renderRescoreSection();
   updateRescorePreview();
@@ -1868,7 +1899,8 @@ function startHeaderRename() {
     if (newName !== originalName) {
       list.name = newName;
       persistMeta();
-      renderLists();
+      const cardNameEl = document.querySelector(`.list-card[data-id="${CSS.escape(list.id)}"] .card-name`);
+      if (cardNameEl) cardNameEl.textContent = newName;
     }
   }
   function cancel() {
@@ -1917,7 +1949,7 @@ function startCardRename(id) {
     if (newName !== originalName) {
       list.name = newName;
       persistMeta();
-      renderLists();
+      nameEl.textContent = newName;
       if (state.selectedId === id) {
         const h2 = document.querySelector('.detail-header h2');
         if (h2 && !h2.querySelector('input')) h2.textContent = newName;
