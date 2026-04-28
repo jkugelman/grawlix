@@ -769,59 +769,67 @@ function computeStats(listId, entries) {
 const CONSONANTS = 'bcdfghjklmnpqrstvwxyz';
 const VOWELS = 'aeiou';
 
+function segmentToPat(str) {
+  let pat = '';
+  for (let i = 0; i < str.length; i++) {
+    const ch = str[i];
+    if (ch === '?')      { pat += '.'; }
+    else if (ch === '#') { pat += `[${CONSONANTS}]`; }
+    else if (ch === '@') { pat += `[${VOWELS}]`; }
+    else if (ch === '[') {
+      const end = str.indexOf(']', i);
+      if (end === -1) { pat += '\\['; }
+      else { pat += str.slice(i, end + 1); i = end; }
+    } else {
+      pat += ch.replace(/[.+^${}()|[\]\\]/g, '\\$&');
+    }
+  }
+  return pat;
+}
+
 function buildSearchPattern(query) {
   const q = query.toLowerCase();
   const hasWildcard = /[?*#@[]/.test(q);
 
   if (!hasWildcard) {
     const esc = q.replace(/[.+^${}()|[\]\\]/g, '\\$&');
-    return { filterRe: new RegExp(esc), matchRe: new RegExp(esc, 'i') };
+    const re = new RegExp(esc, 'i');
+    return { filterRe: new RegExp(esc), highlight: w => highlightSubstring(w, re) };
   }
 
-  const anchored = q.includes('*');
-  let pat = '';
-  let i = 0;
-  while (i < q.length) {
-    const ch = q[i];
-    if (ch === '?') {
-      pat += '.';
-      i++;
-    } else if (ch === '*') {
-      pat += '.*';
-      i++;
-    } else if (ch === '#') {
-      pat += `[${CONSONANTS}]`;
-      i++;
-    } else if (ch === '@') {
-      pat += `[${VOWELS}]`;
-      i++;
-    } else if (ch === '[') {
-      const end = q.indexOf(']', i);
-      if (end === -1) {
-        pat += '\\[';
-        i++;
-      } else {
-        pat += q.slice(i, end + 1);
-        i = end + 1;
-      }
-    } else {
-      pat += ch.replace(/[.+^${}()|[\]\\]/g, '\\$&');
-      i++;
-    }
+  const segs = q.split('*');
+  const segPats = segs.map(segmentToPat);
+
+  if (segs.length === 1) {
+    // Wildcards but no * — unanchored substring-style match
+    const re = new RegExp(segPats[0], 'i');
+    return { filterRe: new RegExp(segPats[0]), highlight: w => highlightSubstring(w, re) };
   }
 
-  return {
-    filterRe: anchored ? new RegExp('^' + pat + '$') : new RegExp(pat),
-    matchRe:  anchored ? null : new RegExp(pat, 'i'),
-  };
+  // Has * — anchored, highlight each non-* segment
+  const filterRe = new RegExp('^' + segPats.join('.*') + '$');
+  const hlParts  = segPats.map(p => p ? '(' + p + ')' : '');
+  const hlRe     = new RegExp('^' + hlParts.join('.*') + '$', 'id');
+  return { filterRe, highlight: w => highlightSegments(w, hlRe) };
 }
 
-function highlightWord(word, matchRe) {
-  const m = matchRe.exec(word);
+function highlightSubstring(word, re) {
+  const m = re.exec(word);
   if (!m) return word;
-  const pre  = word.slice(0, m.index);
-  const post = word.slice(m.index + m[0].length);
-  return pre + '<mark class="search-match">' + m[0] + '</mark>' + post;
+  return word.slice(0, m.index) + '<mark class="search-match">' + m[0] + '</mark>' + word.slice(m.index + m[0].length);
+}
+
+function highlightSegments(word, hlRe) {
+  const m = hlRe.exec(word);
+  if (!m?.indices) return word;
+  let result = '', pos = 0;
+  for (let g = 1; g < m.indices.length; g++) {
+    if (!m.indices[g]) continue;
+    const [start, end] = m.indices[g];
+    result += word.slice(pos, start) + '<mark class="search-match">' + word.slice(start, end) + '</mark>';
+    pos = end;
+  }
+  return result + word.slice(pos);
 }
 
 // ─── Virtual Scroller ─────────────────────────────────────────────────────────
@@ -837,7 +845,7 @@ class VirtualScroller {
     this.sortKey = null;
     this.sortDir = 'asc';
     this._lastQuery = '';
-    this._matchRe = null;
+    this._highlight = null;
     this._colEls = {};
     this.rescoreRules = [];
     this.overrideMap = new Map();
@@ -986,11 +994,11 @@ class VirtualScroller {
     const q = this._lastQuery.toLowerCase();
     let entries;
     if (!q) {
-      this._matchRe = null;
+      this._highlight = null;
       entries = this.allEntries;
     } else {
-      const { filterRe, matchRe } = buildSearchPattern(q);
-      this._matchRe = matchRe;
+      const { filterRe, highlight } = buildSearchPattern(q);
+      this._highlight = highlight;
       entries = this.allEntries.filter(e => filterRe.test(e.word.toLowerCase()));
     }
 
@@ -1038,7 +1046,7 @@ class VirtualScroller {
       const tr = document.createElement('tr');
       tr.style.height = ROW_HEIGHT + 'px';
 
-      const wordHtml = this._matchRe ? highlightWord(word, this._matchRe) : word;
+      const wordHtml = this._highlight ? this._highlight(word) : word;
       let wordCell  = `<td>${wordHtml}</td>`;
       let innerScore = `<span class="score-badge" style="background:${bg};color:${fg}">${score}</span>`;
       let excluded = false;
