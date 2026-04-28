@@ -128,8 +128,10 @@ button.danger:hover:not(:disabled) { background: #e74c3c; border-color: #c0392b;
 
 /* Search */
 .search-bar { padding: 7px 14px 6px; background: var(--surface); border-bottom: 1px solid var(--border2); flex-shrink: 0; }
-.search-bar input { width: 100%; padding: 5px 10px; border: 1px solid var(--border); border-radius: 4px; font-size: 13px; font-family: inherit; background: var(--input-bg); color: var(--text); }
-.search-bar input:focus { outline: none; border-color: var(--accent); }
+.search-row { display: flex; align-items: center; gap: 10px; }
+.search-row input[type="text"] { flex: 1; padding: 5px 10px; border: 1px solid var(--border); border-radius: 4px; font-size: 13px; font-family: inherit; background: var(--input-bg); color: var(--text); }
+.search-row input[type="text"]:focus { outline: none; border-color: var(--accent); }
+.search-whole-word-label { display: flex; align-items: center; gap: 5px; font-size: 12px; color: var(--muted); white-space: nowrap; cursor: pointer; user-select: none; }
 .search-help { margin-bottom: 5px; font-size: 11px; color: transparent; line-height: 1.6; display: flex; flex-wrap: wrap; gap: 0 14px; transition: color 0.15s; }
 .search-help kbd { font-family: ui-monospace, 'Cascadia Code', monospace; font-size: 11px; }
 .search-bar:focus-within .search-help { color: var(--faint); }
@@ -538,6 +540,7 @@ const state = {
   lists: [],            // [{id, name, source, url, enabled, rawEntries, lastUpdated, _loading}]
   selectedId: null,
   searchQuery: '',
+  searchWholeWord: false,
 };
 
 // ─── Parsing ─────────────────────────────────────────────────────────────────
@@ -795,13 +798,14 @@ function segmentToPat(str) {
   return pat;
 }
 
-function buildSearchPattern(query) {
+function buildSearchPattern(query, wholeWord = false) {
   const q = query.toLowerCase();
   const segs    = q.split('*');
   const segPats = segs.map(segmentToPat);
   const hlParts = segPats.map(p => p ? '(' + p + ')' : '');
+  const joined  = segPats.join('.*');
   return {
-    filterRe: new RegExp(segPats.join('.*')),
+    filterRe: new RegExp(wholeWord ? '^' + joined + '$' : joined),
     highlight: w => highlightSegments(w, new RegExp(hlParts.join('.*'), 'id')),
   };
 }
@@ -868,7 +872,7 @@ class VirtualScroller {
     new ResizeObserver(() => this._render()).observe(container);
   }
 
-  setEntries(allEntries, query, rescoreRules, overrideMap) {
+  setEntries(allEntries, query, rescoreRules, overrideMap, wholeWord = false) {
     this.allEntries = allEntries;
     this.hasComments = allEntries.some(e => e.comment);
     this.rescoreRules = rescoreRules || [];
@@ -876,7 +880,7 @@ class VirtualScroller {
     this.sortKey = null;
     this.sortDir = 'asc';
     this._buildHeader();
-    this.filter(query);
+    this.filter(query, wholeWord);
   }
 
   setRescore(rules) {
@@ -972,8 +976,9 @@ class VirtualScroller {
     }
   }
 
-  filter(query) {
+  filter(query, wholeWord = false) {
     this._lastQuery = query || '';
+    this._wholeWord = wholeWord;
     this._applyFilterAndSort();
   }
 
@@ -984,7 +989,7 @@ class VirtualScroller {
       this._highlight = null;
       entries = this.allEntries;
     } else {
-      const { filterRe, highlight } = buildSearchPattern(q);
+      const { filterRe, highlight } = buildSearchPattern(q, this._wholeWord);
       this._highlight = highlight;
       entries = this.allEntries.filter(e => filterRe.test(e.word.toLowerCase()));
     }
@@ -1440,7 +1445,10 @@ function renderDetail(list) {
         <span><kbd>[a-m]</kbd> letter range</span>
         <span id="search-count"></span>
       </div>
-      <input type="text" id="search-input" placeholder="Search words…" value="${esc(state.searchQuery)}" oninput="onSearch(this.value)">
+      <div class="search-row">
+        <input type="text" id="search-input" placeholder="Search words…" value="${esc(state.searchQuery)}" oninput="onSearch(this.value)">
+        <label class="search-whole-word-label"><input type="checkbox" id="search-whole-word" onchange="onSearchWholeWord(this.checked)" ${state.searchWholeWord ? 'checked' : ''}> Match whole word</label>
+      </div>
     </div>
     <div id="table-container">
       <div id="vs-host"></div>
@@ -1449,7 +1457,7 @@ function renderDetail(list) {
 
   const host = document.getElementById('vs-host');
   scroller = new VirtualScroller(host);
-  scroller.setEntries(list.rawEntries, state.searchQuery, list.rescoreRules, buildOverrideMap(list.id));
+  scroller.setEntries(list.rawEntries, state.searchQuery, list.rescoreRules, buildOverrideMap(list.id), state.searchWholeWord);
 
   if (list.lastUpdated) {
     setDetailDate(list.lastUpdated);
@@ -1482,7 +1490,12 @@ function selectList(id) {
 
 function onSearch(query) {
   state.searchQuery = query;
-  if (scroller) scroller.filter(query);
+  if (scroller) scroller.filter(query, state.searchWholeWord);
+}
+
+function onSearchWholeWord(checked) {
+  state.searchWholeWord = checked;
+  if (scroller) scroller.filter(state.searchQuery, checked);
 }
 
 async function downloadList(id, event) {
