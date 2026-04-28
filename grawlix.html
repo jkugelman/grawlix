@@ -127,9 +127,13 @@ button.danger:hover:not(:disabled) { background: #e74c3c; border-color: #c0392b;
 .score-bar { width: 7px; background: var(--accent); border-radius: 2px 2px 0 0; min-height: 2px; }
 
 /* Search */
-.search-bar { padding: 7px 14px; background: var(--surface); border-bottom: 1px solid var(--border2); flex-shrink: 0; }
+.search-bar { padding: 7px 14px 6px; background: var(--surface); border-bottom: 1px solid var(--border2); flex-shrink: 0; }
 .search-bar input { width: 100%; padding: 5px 10px; border: 1px solid var(--border); border-radius: 4px; font-size: 13px; font-family: inherit; background: var(--input-bg); color: var(--text); }
 .search-bar input:focus { outline: none; border-color: var(--accent); }
+.search-help { margin-bottom: 5px; font-size: 11px; color: transparent; line-height: 1.6; display: flex; flex-wrap: wrap; gap: 0 14px; transition: color 0.15s; }
+.search-help kbd { font-family: ui-monospace, 'Cascadia Code', monospace; font-size: 11px; }
+.search-bar:focus-within .search-help { color: var(--faint); }
+.search-bar:focus-within .search-help kbd { color: var(--muted); }
 
 /* Virtual scroll table */
 #table-container { flex: 1; overflow: hidden; display: flex; flex-direction: column; background: var(--surface); }
@@ -759,6 +763,49 @@ function computeStats(listId, entries) {
   return result;
 }
 
+// ─── Search ───────────────────────────────────────────────────────────────────
+
+const CONSONANTS = 'bcdfghjklmnpqrstvwxyz';
+const VOWELS = 'aeiou';
+
+function buildSearchRegex(query) {
+  const q = query.toLowerCase();
+  const hasWildcard = /[?*#@[]/.test(q);
+  if (!hasWildcard) return null;
+
+  let pattern = '';
+  let i = 0;
+  while (i < q.length) {
+    const ch = q[i];
+    if (ch === '?') {
+      pattern += '.';
+      i++;
+    } else if (ch === '*') {
+      pattern += '.*';
+      i++;
+    } else if (ch === '#') {
+      pattern += `[${CONSONANTS}]`;
+      i++;
+    } else if (ch === '@') {
+      pattern += `[${VOWELS}]`;
+      i++;
+    } else if (ch === '[') {
+      const end = q.indexOf(']', i);
+      if (end === -1) {
+        pattern += '\\[';
+        i++;
+      } else {
+        pattern += q.slice(i, end + 1);
+        i = end + 1;
+      }
+    } else {
+      pattern += ch.replace(/[.+^${}()|[\]\\]/g, '\\$&');
+      i++;
+    }
+  }
+  return new RegExp('^' + pattern + '$');
+}
+
 // ─── Virtual Scroller ─────────────────────────────────────────────────────────
 
 const colWidths = { word: 220, score: 130 }; // persists across list switches
@@ -918,9 +965,13 @@ class VirtualScroller {
 
   _applyFilterAndSort(resetScroll = true) {
     const q = this._lastQuery.toLowerCase();
-    let entries = q
-      ? this.allEntries.filter(e => e.word.toLowerCase().includes(q))
-      : this.allEntries;
+    let entries;
+    if (!q) {
+      entries = this.allEntries;
+    } else {
+      const re = buildSearchRegex(q) ?? new RegExp('^' + q.replace(/[.+^${}()|[\]\\]/g, '\\$&') + '$');
+      entries = this.allEntries.filter(e => re.test(e.word.toLowerCase()));
+    }
 
     if (this.sortKey) {
       const key = this.sortKey;
@@ -1360,6 +1411,15 @@ function renderDetail(list) {
     ${statsHtml}
     <div id="rescore-section" class="rescore-section">${buildRescoreSectionHTML(list)}</div>
     <div class="search-bar">
+      <div class="search-help">
+        <span><kbd>?</kbd> any letter</span>
+        <span><kbd>*</kbd> any number of letters</span>
+        <span><kbd>#</kbd> consonant</span>
+        <span><kbd>@</kbd> vowel</span>
+        <span><kbd>[jqxz]</kbd> any of these letters</span>
+        <span><kbd>[^jqxz]</kbd> none of these letters</span>
+        <span><kbd>[a-m]</kbd> letter range</span>
+      </div>
       <input type="text" id="search-input" placeholder="Search words…" value="${esc(state.searchQuery)}" oninput="onSearch(this.value)">
     </div>
     <div id="table-container">
