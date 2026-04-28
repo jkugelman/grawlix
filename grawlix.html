@@ -248,6 +248,13 @@ a.get-file:hover { text-decoration: underline; }
 .header-controls { display: flex; gap: 12px; align-items: center; }
 .dark-toggle-wrap .toggle { margin: 0; }
 
+/* Segmented control */
+.seg-ctrl { display: flex; border: 1px solid var(--border); border-radius: 4px; overflow: hidden; }
+.seg-btn { border: none; border-radius: 0; padding: 4px 10px; font-size: 12px; font-weight: 600; color: var(--muted); background: var(--btn-bg); cursor: pointer; font-family: inherit; }
+.seg-btn + .seg-btn { border-left: 1px solid var(--border); }
+.seg-btn.active { background: var(--sel); color: var(--accent); }
+.seg-btn:hover:not(.active) { background: var(--hover); }
+
 /* Lists panel */
 #list-count { font-weight: 400; color: var(--muted); }
 
@@ -335,11 +342,19 @@ input[type="file"] { display: none; }
   <div class="settings-row">
     <span class="settings-row-label">Dark mode</span>
     <div class="dark-toggle-wrap">
-      <span>☽</span>
+      <span>☀</span>
       <label class="toggle" title="Toggle dark mode">
         <input type="checkbox" id="dark-mode-toggle">
         <span class="toggle-slider"></span>
       </label>
+      <span>☽</span>
+    </div>
+  </div>
+  <div class="settings-row">
+    <span class="settings-row-label">Output case</span>
+    <div class="seg-ctrl" id="output-case-ctrl">
+      <button class="seg-btn" data-case="lower">lower</button>
+      <button class="seg-btn" data-case="upper">UPPER</button>
     </div>
   </div>
   <div class="settings-row">
@@ -614,6 +629,21 @@ function initDarkMode() {
     document.documentElement.classList.toggle('light-mode', !on);
     lsSave('darkMode', on ? '1' : '0');
   };
+}
+
+// ─── Output case setting ──────────────────────────────────────────────────────
+
+function initOutputCase() {
+  const ctrl = document.getElementById('output-case-ctrl');
+  const saved = lsLoad('outputCase') || 'lower';
+  ctrl.querySelectorAll('.seg-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.case === saved);
+    btn.onclick = () => {
+      ctrl.querySelectorAll('.seg-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      lsSave('outputCase', btn.dataset.case);
+    };
+  });
 }
 
 // ─── Init ─────────────────────────────────────────────────────────────────────
@@ -2042,7 +2072,8 @@ function buildMergedList() {
 
 
 function downloadMerged(entries) {
-  const text = entries.map(e => `${e.word};${e.score}`).join('\n') + '\n';
+  const upper = (lsLoad('outputCase') || 'lower') === 'upper';
+  const text = entries.map(e => `${upper ? e.word : e.word.toLowerCase()};${e.score}`).join('\n') + '\n';
   const blob = new Blob([text], { type: 'text/plain' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -2058,6 +2089,7 @@ function downloadMerged(entries) {
 // ─── Boot ─────────────────────────────────────────────────────────────────────
 
 initDarkMode();
+initOutputCase();
 init();
 </script>
 </body>
