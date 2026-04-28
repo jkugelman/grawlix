@@ -323,7 +323,19 @@ html.dark-mode .screenshot-container img { filter: brightness(0.843) invert(1) h
 
 /* Lists panel footer */
 #lists-footer { flex-shrink: 0; }
-#btn-merge-download { width: 100%; border-radius: 0; border: none; border-top: 1px solid var(--accent-hover); padding: 11px; font-size: 14px; font-weight: bold; }
+#merged-selector {
+  width: 100%; padding: 11px 14px; font-size: 14px; font-weight: bold;
+  background: var(--accent); color: white; cursor: pointer;
+  border-top: 1px solid var(--accent-hover);
+  display: flex; align-items: center; gap: 8px;
+  user-select: none; transition: background 0.1s;
+}
+#merged-selector:hover { background: var(--accent-hover); }
+#merged-selector.selected {
+  border-left: 3px solid white; padding-left: 11px;
+  background: var(--accent-hover);
+}
+.merged-sel-icon { font-size: 15px; flex-shrink: 0; }
 
 
 </style>
@@ -347,7 +359,10 @@ html.dark-mode .screenshot-container img { filter: brightness(0.843) invert(1) h
     <h2>Lists <span id="list-count"></span></h2>
     <div id="lists-container"></div>
     <div id="lists-footer">
-      <button id="btn-merge-download" class="primary">Merge & Download</button>
+      <div id="merged-selector" onclick="selectMergedList()">
+        <span class="merged-sel-icon">⊕</span>
+        <span class="merged-sel-label">Merged Wordlist</span>
+      </div>
     </div>
   </div>
 
@@ -453,6 +468,7 @@ html.dark-mode .screenshot-container img { filter: brightness(0.843) invert(1) h
 const ROW_HEIGHT   = 24;
 const VS_BUFFER    = 60;
 const LS_PREFIX    = 'wlm2_';
+const MERGED_ID    = '__merged__';
 
 const BUILTIN_WORDLISTS = [
   {
@@ -538,11 +554,22 @@ const BUILTIN_WORDLISTS = [
 
 // ─── State ────────────────────────────────────────────────────────────────────
 
+const DEFAULT_MERGED_SCORING = [
+  { score: '60', note: 'Great (colorful phrases, sayings, people, etc.)' },
+  { score: '50', note: 'Good (dictionary words, phrases)' },
+  { score: '40', note: 'Fine but watch crosses (proper names, abbreviations, prepositional phrases, unusual plurals)' },
+  { score: '30', note: 'Not good (plural names, crosswordese, contrived inflections)' },
+  { score: '20', note: 'Junk (Roman numerals, variant spellings, unusable crosswordese)' },
+  { score: '10', note: 'Offensive' },
+  { score: '0',  note: 'Gibberish' },
+];
+
 const state = {
   lists: [],            // [{id, name, source, url, enabled, rawEntries, lastUpdated, _loading}]
   selectedId: null,
   searchQuery: '',
   searchWholeWord: false,
+  mergedScoring: DEFAULT_MERGED_SCORING.map(r => ({ ...r })),
 };
 
 // ─── Parsing ─────────────────────────────────────────────────────────────────
@@ -636,7 +663,12 @@ function persistMeta() {
     enabled: l.enabled, lastUpdated: l.lastUpdated || null,
     downloadFingerprint: l.downloadFingerprint || null,
     rescoreRules: l.rescoreRules || [],
+    originalFilename: l.originalFilename || null,
   }))));
+}
+
+function persistMergedScoring() {
+  lsSave('mergedScoring', JSON.stringify(state.mergedScoring.filter(r => !r._catchAll)));
 }
 
 async function persistData(id, text) {
@@ -704,7 +736,8 @@ async function init() {
       state.lists = await Promise.all(meta.map(async m => {
         const text = await idbGet('data_' + m.id);
         const list = { ...m, rawEntries: text ? parseWordlist(text) : [], _loading: false,
-                       rescoreRules: (m.rescoreRules || []).map(r => ({ length: '', ...r })) };
+                       rescoreRules: (m.rescoreRules || []).map(r => ({ length: '', ...r })),
+                       originalFilename: m.originalFilename || null };
         updateCatchAll(list);
         return list;
       }));
@@ -714,8 +747,15 @@ async function init() {
     persistMeta();
   }
 
+  const rawMs = lsLoad('mergedScoring');
+  if (rawMs) { try { state.mergedScoring = JSON.parse(rawMs); } catch {} }
+
   const savedId = lsLoad('selectedId');
-  if (savedId && state.lists.some(l => l.id === savedId)) state.selectedId = savedId;
+  if (savedId === MERGED_ID) {
+    state.selectedId = MERGED_ID;
+  } else if (savedId && state.lists.some(l => l.id === savedId)) {
+    state.selectedId = savedId;
+  }
   if (!state.selectedId && state.lists.length) state.selectedId = state.lists[0].id;
 
   renderAll();
@@ -1237,6 +1277,32 @@ function rescoreEntry(entry, rules) {
   return { kept: true, score: entry.score };
 }
 
+// ─── Shared rule section helpers ─────────────────────────────────────────────
+
+function buildRuleSectionHTML({ label, rulesId, rulesHTML, showReset, onResetFn }) {
+  return `
+    <div class="rescore-top">
+      <span class="rescore-lbl">${label}</span>
+      <button class="rule-reset" onclick="${onResetFn}()" title="Reset to defaults"
+        style="margin-left:auto;visibility:${showReset ? 'visible' : 'hidden'}">↺</button>
+    </div>
+    <div id="${rulesId}">${rulesHTML}</div>
+  `;
+}
+
+function buildRuleRowHTML(i, isCatchAll, fieldsHTML, note, onDeleteFn) {
+  return `<div class="rule-row${isCatchAll ? ' rule-catchall' : ''}" data-i="${i}">
+      ${fieldsHTML}
+      <span class="rule-note-wrap${note ? ' has-note' : ''}" onclick="startNoteEdit(this)" title="Click to edit">
+        <span class="rule-note-text">${esc(note||'')}</span>
+        <span class="edit-hint rule-note-pencil">✏️</span>
+      </span>
+      ${isCatchAll ? '' : `<button class="rule-del" onclick="${onDeleteFn}(${i})" title="Remove row">×</button>`}
+    </div>`;
+}
+
+// ─── Rescoring section ────────────────────────────────────────────────────────
+
 function buildRescoreSectionHTML(list) {
   if (!list) return '';
   const rules = list.rescoreRules || [];
@@ -1244,35 +1310,24 @@ function buildRescoreSectionHTML(list) {
   const rulesHTML = rules.length
     ? rules.map((r, i) => {
         const isCatchAll = !!r._catchAll;
-        return `<div class="rule-row${isCatchAll ? ' rule-catchall' : ''}" data-i="${i}">
+        const fieldsHTML = `
           <input class="rule-in" value="${esc(r.input)}" placeholder="60-100"
             title="Score range: 60+, 50-59, 42, *, or comma-separated like 50-59,30,1-10"
-            oninput="onRescoreInput()" onchange="saveRuleField(${i},'input',this.value)">
+            oninput="onRuleInput(this)" onchange="saveRuleField(${i},'input',this.value)">
           <span class="rule-field-lbl">length</span><input class="rule-len" value="${esc(r.length||'')}" placeholder="any"
             title="Word length filter: 7, 7+, or 7-10 (blank = any length)"
-            oninput="onRescoreInput()" onchange="saveRuleField(${i},'length',this.value)">
+            oninput="onRuleInput(this)" onchange="saveRuleField(${i},'length',this.value)">
           <span class="rule-arrow">→</span>
           <input class="rule-out" value="${esc(r.output)}" placeholder="unchanged"
             title="Output score, 'exclude', or blank for unchanged"
-            oninput="onRescoreInput()" onchange="saveRuleField(${i},'output',this.value)">
-          <span class="rule-note-wrap${r.note ? ' has-note' : ''}" onclick="startNoteEdit(this)" title="Click to edit">
-            <span class="rule-note-text">${esc(r.note||'')}</span>
-            <span class="edit-hint rule-note-pencil">✏️</span>
-          </span>
-          ${isCatchAll ? '' : `<button class="rule-del" onclick="deleteRule(${i})" title="Remove rule">×</button>`}
-        </div>`;
+            oninput="onRuleInput(this)" onchange="saveRuleField(${i},'output',this.value)">`;
+        return buildRuleRowHTML(i, isCatchAll, fieldsHTML, r.note, 'deleteRule');
       }).join('')
     : `<div class="no-rules">No rules — words kept as-is</div>`;
 
   const tmpl = getTemplate(list.id);
-  const showReset = tmpl?.defaultRules && !rulesMatchDefaults(list);
-  return `
-    <div class="rescore-top">
-      <span class="rescore-lbl">Rescoring</span>
-      <button class="rule-reset" onclick="resetRescoreRules()" title="Reset to default rescoring rules" style="margin-left:auto;visibility:${showReset ? 'visible' : 'hidden'}">↺</button>
-    </div>
-    <div id="rescore-rules">${rulesHTML}</div>
-  `;
+  const showReset = !!(tmpl?.defaultRules && !rulesMatchDefaults(list));
+  return buildRuleSectionHTML({ label: 'Rescoring', rulesId: 'rescore-rules', rulesHTML, showReset, onResetFn: 'resetRescoreRules' });
 }
 
 function renderRescoreSection() {
@@ -1288,7 +1343,8 @@ let _refreshCountsTimer = null;
 
 function renderAll() {
   renderLists();
-  renderDetail(getSelected());
+  if (state.selectedId === MERGED_ID) renderMergedDetail();
+  else renderDetail(getSelected());
 }
 
 function renderLists() {
@@ -1305,6 +1361,10 @@ function renderLists() {
 
   if (!_sourceCountsCache) _sourceCountsCache = buildMergedList().sourceCounts;
   const contribMap = new Map(_sourceCountsCache.map(s => [s.id, s.count]));
+
+  if (state.selectedId === MERGED_ID) {
+    document.getElementById('merged-selector')?.classList.add('selected');
+  }
 
   container.innerHTML = state.lists.map(list => {
     const sel = list.id === state.selectedId;
@@ -1348,6 +1408,7 @@ function renderLists() {
 
 function refreshSourceCounts() {
   invalidateSourceCounts();
+  invalidateStatsCache(MERGED_ID);
   _sourceCountsCache = buildMergedList().sourceCounts;
   const contribMap = new Map(_sourceCountsCache.map(s => [s.id, s.count]));
   for (const list of state.lists) {
@@ -1361,6 +1422,146 @@ function refreshSourceCounts() {
       : `${used.toLocaleString()} of ${total.toLocaleString()} entries used`;
   }
 }
+
+function buildSearchBarHTML() {
+  return `<div class="search-bar">
+      <div class="search-help">
+        <span><kbd>?</kbd> any letter</span>
+        <span><kbd>*</kbd> any number of letters</span>
+        <span><kbd>#</kbd> consonant</span>
+        <span><kbd>@</kbd> vowel</span>
+        <span><kbd>[jqxz]</kbd> any of these letters</span>
+        <span><kbd>[^jqxz]</kbd> none of these letters</span>
+        <span><kbd>[a-m]</kbd> letter range</span>
+        <span id="search-count"></span>
+      </div>
+      <div class="search-row">
+        <div class="search-input-wrap">
+          <svg width="13" height="13" viewBox="0 0 13 13" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="5.5" cy="5.5" r="4" stroke="currentColor" stroke-width="1.5"/><line x1="8.7" y1="8.7" x2="12" y2="12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+          <input type="text" id="search-input" placeholder="Search" value="${esc(state.searchQuery)}" oninput="onSearch(this.value)">
+        </div>
+        <label class="search-whole-word-label"><input type="checkbox" id="search-whole-word" onchange="onSearchWholeWord(this.checked)" ${state.searchWholeWord ? 'checked' : ''}> Match whole word</label>
+      </div>
+    </div>`;
+}
+
+function renderMergedDetail() {
+  const panel = document.getElementById('detail-panel');
+  clearInterval(_dateTimer);
+  _dateTimer = null;
+
+  updateMergedCatchAll();
+  const { entries } = buildMergedList();
+  const stats = computeStats(MERGED_ID, entries);
+
+  let statsHtml;
+  if (stats && entries.length) {
+    const bars = stats.buckets.map((b, i) => {
+      const h = stats.maxBucket ? Math.max(2, Math.round((b / stats.maxBucket) * 34)) : 2;
+      return `<div class="score-bar" style="height:${h}px" title="${i*10}–${i===10?'100':i*10+9}: ${b.toLocaleString()}"></div>`;
+    }).join('');
+    statsHtml = `<div class="stats-bar">
+      <div class="stat"><span class="stat-label">Entries</span><span class="stat-value">${stats.count.toLocaleString()}</span></div>
+      <div class="stat"><span class="stat-label">Min</span><span class="stat-value">${stats.min}</span></div>
+      <div class="stat"><span class="stat-label">Max</span><span class="stat-value">${stats.max}</span></div>
+      <div class="stats-right">
+        <div class="stat" title="Average score"><span class="stat-label">Mean</span><span class="stat-value">${stats.mean}</span></div>
+        <div class="stat" title="50th percentile"><span class="stat-label">Median</span><span class="stat-value">${stats.median % 1 === 0 ? stats.median : stats.median.toFixed(1)}</span></div>
+        <div class="stat" title="Most common score"><span class="stat-label">Mode</span><span class="stat-value">${stats.mode}</span></div>
+        <div class="score-dist" title="Score distribution by decile">${bars}</div>
+      </div>
+    </div>`;
+  } else {
+    statsHtml = `<div class="stats-bar stats-empty">No lists loaded — add and populate lists to see the merged result</div>`;
+  }
+
+  panel.innerHTML = `
+    <div class="detail-header">
+      <div class="detail-name-wrap">
+        <h2>Merged Wordlist</h2>
+      </div>
+      <button class="primary" onclick="downloadMergedFromPanel()">↓ Download</button>
+    </div>
+    ${statsHtml}
+    <div id="merged-scoring-section" class="rescore-section">${buildMergedScoringSectionHTML()}</div>
+    ${buildSearchBarHTML()}
+    <div id="table-container">
+      <div id="vs-host"></div>
+    </div>
+  `;
+
+  const host = document.getElementById('vs-host');
+  scroller = new VirtualScroller(host);
+  scroller.setEntries(entries, state.searchQuery, [], new Map(), state.searchWholeWord);
+}
+
+function downloadMergedFromPanel() {
+  const { entries } = buildMergedList();
+  downloadMerged(entries);
+}
+
+// ─── Merged Scoring ───────────────────────────────────────────────────────────
+
+function updateMergedCatchAll() {
+  const rows = state.mergedScoring;
+
+  // Remove existing auto catch-all
+  const caIdx = rows.findIndex(r => r._catchAll);
+  if (caIdx !== -1) rows.splice(caIdx, 1);
+
+  // Find actual scores in the merged list not covered by any user row
+  const { entries } = buildMergedList();
+  const actualScores = entries.length
+    ? [...new Set(entries.map(e => e.score))].sort((a, b) => a - b)
+    : [];
+
+  const uncovered = actualScores.filter(s => !rows.some(r => {
+    const intervals = parseRange(r.score);
+    return intervals && matchesRange(s, intervals);
+  }));
+
+  if (uncovered.length > 0) {
+    rows.push({ score: scoresToRangeStr(uncovered), note: '', _catchAll: true });
+  }
+}
+
+function buildMergedScoringSectionHTML() {
+  const rows = state.mergedScoring;
+  const rulesHTML = rows.map((r, i) => {
+    const isCatchAll = !!r._catchAll;
+    const fieldsHTML = `
+      <input class="rule-in" value="${esc(r.score)}" placeholder="60-100"
+        title="Score range: 60+, 50-59, 42, *, or comma-separated like 50-59,30"
+        oninput="onRuleInput(this)" onchange="saveMergedScoringField(${i},'score',this.value)">`;
+    return buildRuleRowHTML(i, isCatchAll, fieldsHTML, r.note, 'deleteMergedScoringRow');
+  }).join('');
+
+  const showReset = !mergedScoringMatchesDefaults();
+  return buildRuleSectionHTML({ label: 'Scoring', rulesId: 'merged-scoring-rules', rulesHTML, showReset, onResetFn: 'resetMergedScoring' });
+}
+
+function renderMergedScoring() {
+  const el = document.getElementById('merged-scoring-section');
+  if (el) el.innerHTML = buildMergedScoringSectionHTML();
+}
+
+
+function deleteMergedScoringRow(i) {
+  state.mergedScoring.splice(i, 1);
+  updateMergedCatchAll();
+  persistMergedScoring();
+  renderMergedScoring();
+}
+
+function saveMergedScoringField(i, field, val) {
+  if (!state.mergedScoring[i]) return;
+  state.mergedScoring[i][field] = val;
+  delete state.mergedScoring[i]._catchAll;
+  updateMergedCatchAll();
+  persistMergedScoring();
+  renderMergedScoring();
+}
+
 
 function renderDetail(list) {
   const panel = document.getElementById('detail-panel');
@@ -1424,6 +1625,10 @@ function renderDetail(list) {
     ? `<button onclick="clearListData('${list.id}')">Clear words</button>`
     : `<button onclick="deleteList('${list.id}')">Remove</button>`;
 
+  const dlBtn = hasData
+    ? `<button onclick="downloadIndividualList('${list.id}')" title="Download this list">↓ Download</button>`
+    : '';
+
   panel.innerHTML = `
     <div class="detail-header">
       <div class="detail-name-wrap">
@@ -1432,29 +1637,12 @@ function renderDetail(list) {
       </div>
       ${hasData && list.lastUpdated ? `<span class="detail-date"></span>` : ''}
       ${actionBtn}
+      ${dlBtn}
       ${clearBtn}
     </div>
     ${statsHtml}
     <div id="rescore-section" class="rescore-section">${buildRescoreSectionHTML(list)}</div>
-    <div class="search-bar">
-      <div class="search-help">
-        <span><kbd>?</kbd> any letter</span>
-        <span><kbd>*</kbd> any number of letters</span>
-        <span><kbd>#</kbd> consonant</span>
-        <span><kbd>@</kbd> vowel</span>
-        <span><kbd>[jqxz]</kbd> any of these letters</span>
-        <span><kbd>[^jqxz]</kbd> none of these letters</span>
-        <span><kbd>[a-m]</kbd> letter range</span>
-        <span id="search-count"></span>
-      </div>
-      <div class="search-row">
-        <div class="search-input-wrap">
-          <svg width="13" height="13" viewBox="0 0 13 13" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="5.5" cy="5.5" r="4" stroke="currentColor" stroke-width="1.5"/><line x1="8.7" y1="8.7" x2="12" y2="12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
-          <input type="text" id="search-input" placeholder="Search" value="${esc(state.searchQuery)}" oninput="onSearch(this.value)">
-        </div>
-        <label class="search-whole-word-label"><input type="checkbox" id="search-whole-word" onchange="onSearchWholeWord(this.checked)" ${state.searchWholeWord ? 'checked' : ''}> Match whole word</label>
-      </div>
-    </div>
+    ${buildSearchBarHTML()}
     <div id="table-container">
       <div id="vs-host"></div>
     </div>
@@ -1483,11 +1671,21 @@ function getSelected() {
   return state.lists.find(l => l.id === state.selectedId) || null;
 }
 
+function selectMergedList() {
+  state.selectedId = MERGED_ID;
+  lsSave('selectedId', MERGED_ID);
+  state.searchQuery = '';
+  document.querySelectorAll('.list-card.selected').forEach(el => el.classList.remove('selected'));
+  document.getElementById('merged-selector')?.classList.add('selected');
+  renderMergedDetail();
+}
+
 function selectList(id) {
   const prev = state.selectedId;
   state.selectedId = id;
   lsSave('selectedId', id);
   state.searchQuery = '';
+  document.getElementById('merged-selector')?.classList.remove('selected');
   document.querySelector(`.list-card[data-id="${CSS.escape(prev)}"]`)?.classList.remove('selected');
   document.querySelector(`.list-card[data-id="${CSS.escape(id)}"]`)?.classList.add('selected');
   renderDetail(getSelected());
@@ -1527,6 +1725,7 @@ async function downloadList(id, event) {
     if (wasEmpty) list.enabled = true;
     invalidateStatsCache(id);
     invalidateSourceCounts();
+    invalidateStatsCache(MERGED_ID);
     updateCatchAll(list);
 
     await persistData(id, text);
@@ -1534,6 +1733,7 @@ async function downloadList(id, event) {
 
     renderLists();
     if (state.selectedId === id) renderDetail(list);
+    if (state.selectedId === MERGED_ID) renderMergedDetail();
     showToast(`Loaded ${list.rawEntries.length.toLocaleString()} entries from ${list.name}`);
   } catch (err) {
     list._loading = false;
@@ -1600,9 +1800,11 @@ function ingestFile(file, listId, nameOverride) {
     if (nameOverride) list.name = nameOverride;
     list.rawEntries = parseWordlist(text);
     list.lastUpdated = Date.now();
+    list.originalFilename = file.name;
     if (wasEmpty) list.enabled = true;
     invalidateStatsCache(listId);
     invalidateSourceCounts();
+    invalidateStatsCache(MERGED_ID);
     updateCatchAll(list);
 
     await persistData(listId, text);
@@ -1610,6 +1812,7 @@ function ingestFile(file, listId, nameOverride) {
 
     renderLists();
     if (state.selectedId === listId) renderDetail(list);
+    if (state.selectedId === MERGED_ID) renderMergedDetail();
     showToast(`Loaded ${list.rawEntries.length.toLocaleString()} entries`);
   };
   reader.readAsText(file);
@@ -1624,10 +1827,12 @@ async function clearListData(id, event) {
   list.lastUpdated = null;
   invalidateStatsCache(id);
   invalidateSourceCounts();
+  invalidateStatsCache(MERGED_ID);
   await idbDel('data_' + id);
   persistMeta();
   renderLists();
   if (state.selectedId === id) renderDetail(list);
+  if (state.selectedId === MERGED_ID) renderMergedDetail();
 }
 
 async function deleteList(id, event) {
@@ -1638,6 +1843,7 @@ async function deleteList(id, event) {
   state.lists = state.lists.filter(l => l.id !== id);
   invalidateStatsCache(id);
   invalidateSourceCounts();
+  invalidateStatsCache(MERGED_ID);
   await idbDel('data_' + id);
   persistMeta();
   if (state.selectedId === id) {
@@ -1654,6 +1860,7 @@ function toggleList(id, event) {
   if (!list || !list.rawEntries.length) return;
   list.enabled = !list.enabled;
   invalidateSourceCounts();
+  invalidateStatsCache(MERGED_ID);
   persistMeta();
   renderLists();
 }
@@ -1663,6 +1870,7 @@ function addNewList(listDef) {
   updateCatchAll(list);
   state.lists.push(list);
   invalidateSourceCounts();
+  invalidateStatsCache(MERGED_ID);
   persistMeta();
   renderLists();
 }
@@ -1741,7 +1949,6 @@ function bindEvents() {
     showToast('Reset complete');
   };
 
-  document.getElementById('btn-merge-download').onclick = () => { const { entries } = buildMergedList(); downloadMerged(entries); };
   document.getElementById('btn-settings').onclick       = () => document.getElementById('settings-dialog').showModal();
   document.getElementById('btn-settings-close').onclick = () => document.getElementById('settings-dialog').close();
   document.getElementById('btn-dialog-close').onclick   = () => document.getElementById('add-dialog').close();
@@ -1994,6 +2201,21 @@ function rulesMatchDefaults(list) {
   });
 }
 
+function mergedScoringMatchesDefaults() {
+  const userRows = state.mergedScoring.filter(r => !r._catchAll);
+  if (userRows.length !== DEFAULT_MERGED_SCORING.length) return false;
+  return userRows.every((r, i) => r.score === DEFAULT_MERGED_SCORING[i].score &&
+    (r.note || '') === (DEFAULT_MERGED_SCORING[i].note || ''));
+}
+
+function resetMergedScoring() {
+  state.mergedScoring = DEFAULT_MERGED_SCORING.map(r => ({ ...r }));
+  updateMergedCatchAll();
+  persistMergedScoring();
+  renderMergedScoring();
+  showToast('Scoring reset to defaults');
+}
+
 function resetRescoreRules() {
   const list = getSelected();
   if (!list) return;
@@ -2002,6 +2224,7 @@ function resetRescoreRules() {
   list.rescoreRules = JSON.parse(JSON.stringify(tmpl.defaultRules));
   updateCatchAll(list);
   invalidateSourceCounts();
+  invalidateStatsCache(MERGED_ID);
   persistMeta();
   renderRescoreSection();
   updateRescorePreview();
@@ -2014,6 +2237,7 @@ function deleteRule(idx) {
   list.rescoreRules.splice(idx, 1);
   updateCatchAll(list);
   invalidateSourceCounts();
+  invalidateStatsCache(MERGED_ID);
   persistMeta();
   renderRescoreSection();
   updateRescorePreview();
@@ -2027,6 +2251,7 @@ function saveRuleField(idx, field, value) {
   delete list.rescoreRules[idx]._catchAll;
   updateCatchAll(list);
   invalidateSourceCounts();
+  invalidateStatsCache(MERGED_ID);
   persistMeta();
   renderRescoreSection();
   updateRescorePreview();
@@ -2039,9 +2264,19 @@ function noteDisplayHTML(note) {
 function startNoteEdit(wrapEl) {
   if (wrapEl.querySelector('.rule-note-input')) return;
   const i = parseInt(wrapEl.closest('.rule-row').dataset.i, 10);
-  const list = getSelected();
-  if (!list || !list.rescoreRules[i]) return;
-  const currentNote = list.rescoreRules[i].note || '';
+  const isMerged = !!wrapEl.closest('#merged-scoring-section');
+
+  let currentNote, onSave;
+  if (isMerged) {
+    if (!state.mergedScoring[i]) return;
+    currentNote = state.mergedScoring[i].note || '';
+    onSave = note => saveMergedScoringField(i, 'note', note);
+  } else {
+    const list = getSelected();
+    if (!list?.rescoreRules[i]) return;
+    currentNote = list.rescoreRules[i].note || '';
+    onSave = note => saveRuleField(i, 'note', note);
+  }
 
   wrapEl.innerHTML = `<input class="rule-note-input" value="${esc(currentNote)}" placeholder="note…">`;
   const input = wrapEl.querySelector('input');
@@ -2053,7 +2288,7 @@ function startNoteEdit(wrapEl) {
     if (committed) return;
     committed = true;
     const newNote = input.value;
-    saveRuleField(i, 'note', newNote);
+    onSave(newNote);
     if (wrapEl.isConnected) {
       wrapEl.innerHTML = noteDisplayHTML(newNote);
       wrapEl.classList.toggle('has-note', !!newNote.trim());
@@ -2072,16 +2307,18 @@ function startNoteEdit(wrapEl) {
   });
 }
 
-function onRescoreInput() {
-  document.querySelectorAll('.rule-in, .rule-len').forEach(el => {
-    const v = el.value.trim();
-    el.classList.toggle('invalid', v !== '' && parseRange(v) === null);
+function onRuleInput(el) {
+  const container = el.closest('#rescore-rules, #merged-scoring-rules');
+  if (!container) return;
+  container.querySelectorAll('.rule-in, .rule-len').forEach(inp => {
+    const v = inp.value.trim();
+    inp.classList.toggle('invalid', v !== '' && parseRange(v) === null);
   });
-  document.querySelectorAll('.rule-out').forEach(el => {
-    const v = el.value.trim();
-    el.classList.toggle('invalid', v !== '' && parseRuleOutput(v) === null);
+  container.querySelectorAll('.rule-out').forEach(inp => {
+    const v = inp.value.trim();
+    inp.classList.toggle('invalid', v !== '' && parseRuleOutput(v) === null);
   });
-  updateRescorePreview();
+  if (container.id === 'rescore-rules') updateRescorePreview();
 }
 
 function updateRescorePreview() {
@@ -2216,7 +2453,7 @@ function buildOverrideMap(listId) {
 }
 
 function buildMergedList() {
-  const merged = new Map(); // WORD → score
+  const merged = new Map(); // UPPERCASE_KEY → {word, score}
   const sourceCounts = [];
 
   for (const list of state.lists) {
@@ -2224,17 +2461,16 @@ function buildMergedList() {
     const rescored = applyRescoring(list.rawEntries, list.rescoreRules);
     let count = 0;
     for (const { word, score } of rescored) {
-      const w = word.toUpperCase();
-      if (!merged.has(w)) {
-        merged.set(w, score);
+      const key = word.toUpperCase();
+      if (!merged.has(key)) {
+        merged.set(key, { word: word.toLowerCase(), score });
         count++;
       }
     }
     sourceCounts.push({ id: list.id, name: list.name, count });
   }
 
-  const entries = [...merged.entries()]
-    .map(([word, score]) => ({ word, score }))
+  const entries = [...merged.values()]
     .sort((a, b) => a.word.localeCompare(b.word));
 
   return { entries, sourceCounts };
@@ -2243,7 +2479,7 @@ function buildMergedList() {
 
 function downloadMerged(entries) {
   const upper = (lsLoad('outputCase') || 'lower') === 'upper';
-  const text = entries.map(e => `${upper ? e.word : e.word.toLowerCase()};${e.score}`).join('\n') + '\n';
+  const text = entries.map(e => `${upper ? e.word.toUpperCase() : e.word};${e.score}`).join('\n') + '\n';
   const blob = new Blob([text], { type: 'text/plain' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -2254,6 +2490,22 @@ function downloadMerged(entries) {
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
   showToast(`Downloaded ${entries.length.toLocaleString()} entries`);
+}
+
+function downloadIndividualList(id) {
+  const list = state.lists.find(l => l.id === id);
+  if (!list || !list.rawEntries.length) return;
+  const text = list.rawEntries.map(e => `${e.word};${e.score}`).join('\n') + '\n';
+  const blob = new Blob([text], { type: 'text/plain' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = list.originalFilename || `${list.name.replace(/\s+/g, '-').toLowerCase()}.txt`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  showToast(`Downloaded ${list.rawEntries.length.toLocaleString()} entries`);
 }
 
 // ─── Boot ─────────────────────────────────────────────────────────────────────
