@@ -796,34 +796,13 @@ function segmentToPat(str) {
 
 function buildSearchPattern(query) {
   const q = query.toLowerCase();
-  const hasWildcard = /[?*#@[]/.test(q);
-
-  if (!hasWildcard) {
-    const esc = q.replace(/[.+^${}()|[\]\\]/g, '\\$&');
-    const re = new RegExp(esc, 'i');
-    return { filterRe: new RegExp(esc), highlight: w => highlightSubstring(w, re) };
-  }
-
-  const segs = q.split('*');
+  const segs    = q.split('*');
   const segPats = segs.map(segmentToPat);
-
-  if (segs.length === 1) {
-    // Wildcards but no * — unanchored substring-style match
-    const re = new RegExp(segPats[0], 'i');
-    return { filterRe: new RegExp(segPats[0]), highlight: w => highlightSubstring(w, re) };
-  }
-
-  // Has * — anchored, highlight each non-* segment
-  const filterRe = new RegExp('^' + segPats.join('.*') + '$');
-  const hlParts  = segPats.map(p => p ? '(' + p + ')' : '');
-  const hlRe     = new RegExp('^' + hlParts.join('.*') + '$', 'id');
-  return { filterRe, highlight: w => highlightSegments(w, hlRe) };
-}
-
-function highlightSubstring(word, re) {
-  const m = re.exec(word);
-  if (!m) return word;
-  return word.slice(0, m.index) + markSpan(m[0], 0) + word.slice(m.index + m[0].length);
+  const hlParts = segPats.map(p => p ? '(' + p + ')' : '');
+  return {
+    filterRe: new RegExp(segPats.join('.*')),
+    highlight: w => highlightSegments(w, new RegExp(hlParts.join('.*'), 'id')),
+  };
 }
 
 function highlightSegments(word, hlRe) {
