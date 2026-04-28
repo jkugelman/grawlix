@@ -864,7 +864,7 @@ function highlightSegments(word, hlRe) {
 
 // ─── Virtual Scroller ─────────────────────────────────────────────────────────
 
-const colWidths = { word: 220, score: 130 }; // persists across list switches
+const colWidths = { word: 200, score: 90, source: 170 }; // persists across list switches
 
 class VirtualScroller {
   constructor(container) {
@@ -880,6 +880,7 @@ class VirtualScroller {
     this.rescoreRules = [];
     this.overrideMap = new Map();
     this._currentCols = [];
+    this.showSource = false;
 
     container.style.overflowY = 'auto';
 
@@ -929,12 +930,15 @@ class VirtualScroller {
   }
 
   _cols() {
-    return ['word', 'score', 'comment'];
+    const cols = ['word', 'score'];
+    if (this.showSource) cols.push('source');
+    cols.push('comment');
+    return cols;
   }
 
   _buildHeader() {
-    const LABELS = { word: 'Word', score: 'Score', comment: 'Comment' };
-    const ALIGN  = { word: 'left', score: 'left', comment: 'left' };
+    const LABELS = { word: 'Word', score: 'Score', comment: 'Comment', source: 'Source' };
+    const ALIGN  = { word: 'left', score: 'left', comment: 'left', source: 'left' };
     const cols = this._cols();
     this._currentCols = cols;
 
@@ -1074,7 +1078,7 @@ class VirtualScroller {
     const frag = document.createDocumentFragment();
     for (let i = start; i < end; i++) {
       const entry = this.entries[i];
-      const { word, score, comment } = entry;
+      const { word, score, comment, listName } = entry;
       const { bg, fg } = scoreColor(score);
       const tr = document.createElement('tr');
       tr.style.height = ROW_HEIGHT + 'px';
@@ -1107,6 +1111,7 @@ class VirtualScroller {
       tr.innerHTML =
         wordCell +
         scoreCell +
+        (this.showSource ? `<td class="comment-cell">${esc(listName || '')}</td>` : '') +
         `<td class="comment-cell">${comment || ''}</td>`;
       frag.appendChild(tr);
     }
@@ -1497,6 +1502,7 @@ function renderMergedDetail() {
 
   const host = document.getElementById('vs-host');
   scroller = new VirtualScroller(host);
+  scroller.showSource = true;
   scroller.setEntries(entries, state.searchQuery, [], new Map(), state.searchWholeWord);
 }
 
@@ -2465,10 +2471,10 @@ function buildMergedList() {
     if (!list.enabled || !list.rawEntries.length) continue;
     const rescored = applyRescoring(list.rawEntries, list.rescoreRules);
     let count = 0;
-    for (const { word, score } of rescored) {
+    for (const { word, score, comment } of rescored) {
       const key = word.toUpperCase();
       if (!merged.has(key)) {
-        merged.set(key, { word: word.toLowerCase(), score });
+        merged.set(key, { word: word.toLowerCase(), score, comment: comment || '', listName: list.name });
         count++;
       }
     }
