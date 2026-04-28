@@ -321,21 +321,16 @@ input[type="file"] { display: none; }
 html.dark-mode .screenshot-container img { filter: brightness(0.843) invert(1) hue-rotate(180deg); }
 .annotation { position: absolute; border: 3px solid #e53935; border-radius: 50px; pointer-events: none; box-shadow: 0 0 6px rgba(229,57,53,0.4); }
 
-/* Lists panel footer */
-#lists-footer { flex-shrink: 0; }
-#merged-selector {
-  width: 100%; padding: 11px 14px; font-size: 14px; font-weight: bold;
-  background: var(--accent); color: white; cursor: pointer;
-  border-top: 1px solid var(--accent-hover);
-  display: flex; align-items: center; gap: 8px;
+/* Merged wordlist card */
+#merged-card {
+  padding: 10px 14px; cursor: pointer;
+  display: flex; align-items: center; gap: 9px; flex-shrink: 0;
+  border-bottom: 1px solid var(--border3);
   user-select: none; transition: background 0.1s;
 }
-#merged-selector:hover { background: var(--accent-hover); }
-#merged-selector.selected {
-  border-left: 3px solid white; padding-left: 11px;
-  background: var(--accent-hover);
-}
-.merged-sel-icon { font-size: 15px; flex-shrink: 0; }
+#merged-card:hover { background: var(--hover); }
+#merged-card.selected { background: var(--sel); border-left: 3px solid var(--accent); padding-left: 11px; }
+.merged-card-icon { font-size: 22px; width: 37px; text-align: center; flex-shrink: 0; line-height: 1; }
 
 
 </style>
@@ -356,14 +351,16 @@ html.dark-mode .screenshot-container img { filter: brightness(0.843) invert(1) h
 
 <main>
   <div id="lists-panel">
-    <h2>Lists <span id="list-count"></span></h2>
-    <div id="lists-container"></div>
-    <div id="lists-footer">
-      <div id="merged-selector" onclick="selectMergedList()">
-        <span class="merged-sel-icon">⊕</span>
-        <span class="merged-sel-label">Merged Wordlist</span>
+    <h2>Output List</h2>
+    <div id="merged-card" onclick="selectMergedList()">
+      <span class="merged-card-icon">⊕</span>
+      <div class="card-info">
+        <div class="card-name">Merged Wordlist</div>
+        <div class="card-meta" id="merged-card-meta"></div>
       </div>
     </div>
+    <h2>Input Lists <span id="list-count"></span></h2>
+    <div id="lists-container"></div>
   </div>
 
   <div id="detail-panel">
@@ -381,8 +378,8 @@ html.dark-mode .screenshot-container img { filter: brightness(0.843) invert(1) h
   <div class="settings-row">
     <span class="settings-row-label">Dark mode</span>
     <div class="seg-ctrl" id="dark-mode-seg">
-      <button class="seg-btn" data-val="light">☀ Light</button>
       <button class="seg-btn" data-val="auto">Auto</button>
+      <button class="seg-btn" data-val="light">☀ Light</button>
       <button class="seg-btn" data-val="dark">☽ Dark</button>
     </div>
   </div>
@@ -1356,15 +1353,19 @@ function renderLists() {
 
   if (!state.lists.length) {
     container.innerHTML = '<div class="no-lists">No lists yet</div>' + addRow;
+    const mergedMetaEl = document.getElementById('merged-card-meta');
+    if (mergedMetaEl) mergedMetaEl.textContent = 'No data';
+    document.getElementById('merged-card')?.classList.toggle('selected', state.selectedId === MERGED_ID);
     return;
   }
 
   if (!_sourceCountsCache) _sourceCountsCache = buildMergedList().sourceCounts;
   const contribMap = new Map(_sourceCountsCache.map(s => [s.id, s.count]));
 
-  if (state.selectedId === MERGED_ID) {
-    document.getElementById('merged-selector')?.classList.add('selected');
-  }
+  const totalMerged = _sourceCountsCache.reduce((sum, s) => sum + s.count, 0);
+  const mergedMetaEl = document.getElementById('merged-card-meta');
+  if (mergedMetaEl) mergedMetaEl.textContent = totalMerged ? `${totalMerged.toLocaleString()} entries` : 'No data';
+  document.getElementById('merged-card')?.classList.toggle('selected', state.selectedId === MERGED_ID);
 
   container.innerHTML = state.lists.map(list => {
     const sel = list.id === state.selectedId;
@@ -1421,6 +1422,10 @@ function refreshSourceCounts() {
       ? `${used.toLocaleString()} entries used`
       : `${used.toLocaleString()} of ${total.toLocaleString()} entries used`;
   }
+
+  const totalMerged = _sourceCountsCache.reduce((sum, s) => sum + s.count, 0);
+  const mergedMetaEl = document.getElementById('merged-card-meta');
+  if (mergedMetaEl) mergedMetaEl.textContent = totalMerged ? `${totalMerged.toLocaleString()} entries` : 'No data';
 }
 
 function buildSearchBarHTML() {
@@ -1676,7 +1681,7 @@ function selectMergedList() {
   lsSave('selectedId', MERGED_ID);
   state.searchQuery = '';
   document.querySelectorAll('.list-card.selected').forEach(el => el.classList.remove('selected'));
-  document.getElementById('merged-selector')?.classList.add('selected');
+  document.getElementById('merged-card')?.classList.add('selected');
   renderMergedDetail();
 }
 
@@ -1685,7 +1690,7 @@ function selectList(id) {
   state.selectedId = id;
   lsSave('selectedId', id);
   state.searchQuery = '';
-  document.getElementById('merged-selector')?.classList.remove('selected');
+  document.getElementById('merged-card')?.classList.remove('selected');
   document.querySelector(`.list-card[data-id="${CSS.escape(prev)}"]`)?.classList.remove('selected');
   document.querySelector(`.list-card[data-id="${CSS.escape(id)}"]`)?.classList.add('selected');
   renderDetail(getSelected());
