@@ -142,7 +142,8 @@ button.danger:hover:not(:disabled) { background: #e74c3c; border-color: #c0392b;
 /* Inline name editing */
 .detail-name-wrap { display: flex; align-items: center; gap: 6px; flex: 1; min-width: 0; overflow: hidden; }
 .detail-date { font-size: 11px; color: var(--muted); white-space: nowrap; }
-.detail-edit-hint { opacity: 0; font-size: 13px; transition: opacity 0.15s; flex-shrink: 0; cursor: pointer; }
+.edit-hint { opacity: 0; flex-shrink: 0; cursor: pointer; user-select: none; transition: opacity 0.15s; }
+.detail-edit-hint { font-size: 13px; }
 .detail-name-wrap:hover .detail-edit-hint { opacity: 0.85; }
 .detail-name-wrap:has(input) .detail-edit-hint { display: none; }
 .name-edit-input { font-family: inherit; width: 100%; padding: 1px 5px; border: 1px solid var(--accent); border-radius: 3px; background: var(--input-bg); color: var(--text); font-size: 15px; font-weight: 600; outline: none; }
@@ -235,7 +236,7 @@ a.get-file:hover { text-decoration: underline; }
 .rule-note-text { flex: 0 1 auto; min-width: 0; font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.4; }
 .rule-note-text:empty::before { content: 'add note…'; font-style: italic; color: transparent; pointer-events: none; }
 .rule-row:hover .rule-note-text:empty::before { color: var(--faint); }
-.rule-note-pencil { font-size: 11px; color: var(--faint); flex-shrink: 0; opacity: 0; line-height: 1; user-select: none; }
+.rule-note-pencil { font-size: 11px; color: var(--faint); line-height: 1; }
 .rule-row:hover .rule-note-wrap.has-note .rule-note-pencil { opacity: 1; }
 .rule-note-input { flex: 1; padding: 1px 4px; border: 1px solid var(--accent); border-radius: 3px; font-size: 12px; background: var(--input-bg); color: var(--text); outline: none; min-width: 0; }
 .rule-del { width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; border: none; background: none; cursor: pointer; color: var(--faint); font-size: 15px; padding: 0; line-height: 1; border-radius: 3px; font-family: inherit; }
@@ -1080,9 +1081,9 @@ function buildRescoreSectionHTML(list) {
           <input class="rule-out" value="${esc(r.output)}" placeholder="unchanged"
             title="Output score, 'exclude', or blank for unchanged"
             oninput="onRescoreInput()" onchange="saveRuleField(${i},'output',this.value)">
-          <span class="rule-note-wrap${r.note ? ' has-note' : ''}" onclick="startNoteEdit(this)">
+          <span class="rule-note-wrap${r.note ? ' has-note' : ''}" onclick="startNoteEdit(this)" title="Click to edit">
             <span class="rule-note-text">${esc(r.note||'')}</span>
-            <span class="rule-note-pencil">✏️</span>
+            <span class="edit-hint rule-note-pencil">✏️</span>
           </span>
           ${isCatchAll ? '' : `<button class="rule-del" onclick="deleteRule(${i})" title="Remove rule">×</button>`}
         </div>`;
@@ -1229,7 +1230,7 @@ function renderDetail(list) {
     <div class="detail-header">
       <div class="detail-name-wrap">
         <h2 onclick="startHeaderRename()" title="Click to rename">${esc(list.name)}</h2>
-        <span class="detail-edit-hint" onclick="startHeaderRename()">✏️</span>
+        <span class="edit-hint detail-edit-hint" onclick="startHeaderRename()">✏️</span>
       </div>
       ${hasData && list.cachedAt ? `<span class="detail-date">Last updated ${timeAgo(list.cachedAt)}</span>` : ''}
       ${actionBtn}
@@ -1763,7 +1764,7 @@ function saveRuleField(idx, field, value) {
 }
 
 function noteDisplayHTML(note) {
-  return `<span class="rule-note-text">${esc(note)}</span><span class="rule-note-pencil">✏️</span>`;
+  return `<span class="rule-note-text">${esc(note)}</span><span class="edit-hint rule-note-pencil">✏️</span>`;
 }
 
 function startNoteEdit(wrapEl) {
