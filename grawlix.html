@@ -268,6 +268,8 @@ a.get-file:hover { text-decoration: underline; }
 .score-arrow-indicator { color: #ccc; font-size: 10px; padding: 0 3px; }
 .excluded-word { text-decoration: line-through; }
 .score-badge.excluded { text-decoration: line-through; }
+.overridden-row { cursor: help; }
+.overridden-row td { opacity: 0.45; }
 
 /* Dialog helpers */
 .dialog-actions { text-align: right; }
@@ -703,6 +705,7 @@ class VirtualScroller {
     this._lastQuery = '';
     this._colEls = {};
     this.rescoreRules = [];
+    this.overrideMap = new Map();
     this._currentCols = [];
 
     container.style.overflowY = 'auto';
@@ -735,10 +738,11 @@ class VirtualScroller {
     new ResizeObserver(() => this._render()).observe(container);
   }
 
-  setEntries(allEntries, query, rescoreRules) {
+  setEntries(allEntries, query, rescoreRules, overrideMap) {
     this.allEntries = allEntries;
     this.hasComments = allEntries.some(e => e.comment);
     this.rescoreRules = rescoreRules || [];
+    this.overrideMap = overrideMap || new Map();
     this.sortKey = null;
     this.sortDir = 'asc';
     this._buildHeader();
@@ -894,20 +898,28 @@ class VirtualScroller {
       tr.style.height = ROW_HEIGHT + 'px';
 
       let wordCell  = `<td>${word}</td>`;
-      let scoreCell = `<td><span class="score-badge" style="background:${bg};color:${fg}">${score}</span></td>`;
+      let innerScore = `<span class="score-badge" style="background:${bg};color:${fg}">${score}</span>`;
+      let excluded = false;
 
       if (this.rescoreRules.length) {
         const r = rescoreEntry(entry, this.rescoreRules);
         if (!r.kept) {
+          excluded = true;
           tr.style.opacity = '0.4';
-          wordCell  = `<td><span class="excluded-word">${word}</span></td>`;
-          scoreCell = `<td><span class="score-badge excluded" style="background:${bg};color:${fg}">${score}</span></td>`;
+          wordCell   = `<td><span class="excluded-word">${word}</span></td>`;
+          innerScore = `<span class="score-badge excluded" style="background:${bg};color:${fg}">${score}</span>`;
         } else if (r.score !== score) {
           const { bg: rb, fg: rf } = scoreColor(r.score);
-          const orig = `<span class="score-orig">${score}</span><span class="score-arrow-indicator">→</span>`;
-          scoreCell = `<td>${orig}<span class="score-badge" style="background:${rb};color:${rf}">${r.score}</span></td>`;
+          innerScore = `<span class="score-orig">${score}</span><span class="score-arrow-indicator">→</span><span class="score-badge" style="background:${rb};color:${rf}">${r.score}</span>`;
         }
       }
+
+      const ov = !excluded && this.overrideMap.get(word.toUpperCase());
+      if (ov) {
+        tr.classList.add('overridden-row');
+        tr.title = `Overridden by ${ov.listName} at ${ov.score}`;
+      }
+      const scoreCell = `<td>${innerScore}</td>`;
 
       tr.innerHTML =
         wordCell +
@@ -1281,7 +1293,7 @@ function renderDetail(list) {
 
   const host = document.getElementById('vs-host');
   scroller = new VirtualScroller(host);
-  scroller.setEntries(list.rawEntries, state.searchQuery, list.rescoreRules);
+  scroller.setEntries(list.rawEntries, state.searchQuery, list.rescoreRules, buildOverrideMap(list.id));
 
   if (list.lastUpdated) {
     setDetailDate(list.lastUpdated);
@@ -1986,6 +1998,20 @@ function startCardRename(id) {
 }
 
 // ─── Merge & Download ─────────────────────────────────────────────────────────
+
+function buildOverrideMap(listId) {
+  const map = new Map();
+  for (const list of state.lists) {
+    if (list.id === listId) break;
+    if (!list.enabled || !list.rawEntries.length) continue;
+    const rescored = applyRescoring(list.rawEntries, list.rescoreRules);
+    for (const { word, score } of rescored) {
+      const w = word.toUpperCase();
+      if (!map.has(w)) map.set(w, { listName: list.name, score });
+    }
+  }
+  return map;
+}
 
 function buildMergedList() {
   const merged = new Map(); // WORD → score
