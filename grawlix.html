@@ -178,7 +178,6 @@ button.danger:hover:not(:disabled) { background: #e74c3c; border-color: #c0392b;
 
 /* Disabled list */
 .list-card.disabled .card-info { opacity: 0.45; }
-.list-card.disabled .status { opacity: 0.45; }
 
 /* No-data list */
 .list-card.no-data .toggle { opacity: 0.35; }
@@ -186,11 +185,6 @@ button.danger:hover:not(:disabled) { background: #e74c3c; border-color: #c0392b;
 
 
 /* Status dot */
-.status { display: inline-block; width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
-.status.loaded  { background: #34a853; }
-.status.empty   { background: #dadce0; }
-.status.loading { background: var(--accent); animation: pulse 1s infinite; }
-.status.error   { background: #ea4335; }
 @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
 
 /* Upload zone */
@@ -303,15 +297,7 @@ input[type="file"] { display: none; }
 #lists-footer { flex-shrink: 0; }
 #btn-merge-download { width: 100%; border-radius: 0; border: none; border-top: 1px solid var(--accent-hover); padding: 11px; font-size: 14px; font-weight: bold; }
 
-/* Merge & download dialog */
-.merge-total { margin-bottom: 12px; font-size: 14px; }
-.merge-table { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 6px; }
-.merge-table th { text-align: left; padding: 5px 10px; font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 2px solid var(--border2); }
-.merge-table td { padding: 7px 10px; border-bottom: 1px solid var(--border3); }
-.merge-table td:last-child { text-align: right; font-variant-numeric: tabular-nums; color: var(--muted); }
-.merge-table tr:last-child td { border-bottom: none; }
-.merge-empty { color: var(--muted); font-size: 13px; font-style: italic; margin: 8px 0; }
-.merge-total-row td { font-weight: 700; color: var(--text); border-top: 2px solid var(--border2); border-bottom: none; }
+
 </style>
 </head>
 <body>
@@ -406,14 +392,6 @@ input[type="file"] { display: none; }
   </div>
 </dialog>
 
-<dialog id="merge-dialog" style="width:400px">
-  <h2>Merge & Download</h2>
-  <div id="merge-stats"></div>
-  <div class="dialog-footer">
-    <button id="btn-merge-close">Cancel</button>
-    <button id="btn-download-merged" class="primary">Download .txt</button>
-  </div>
-</dialog>
 
 <dialog id="upload-guide-dialog">
   <h2 id="guide-title"></h2>
@@ -1132,14 +1110,24 @@ function renderLists() {
     return;
   }
 
+  const { sourceCounts } = buildMergedList();
+  const contribMap = new Map(sourceCounts.map(s => [s.id, s.count]));
+
   container.innerHTML = state.lists.map(list => {
     const sel = list.id === state.selectedId;
     const hasData = list.rawEntries.length > 0;
-    const dot = list._loading ? 'loading' : hasData ? 'loaded' : 'empty';
-    const meta = hasData
-      ? `${list.rawEntries.length.toLocaleString()} entries`
-        + (list.cachedAt ? ' · ' + new Date(list.cachedAt).toLocaleDateString() : '')
-      : 'No data';
+    let meta;
+    if (!hasData) {
+      meta = 'No data';
+    } else if (!list.enabled) {
+      meta = `${list.rawEntries.length.toLocaleString()} entries`;
+    } else {
+      const used = contribMap.get(list.id) ?? 0;
+      const total = list.rawEntries.length;
+      meta = used === total
+        ? `${used.toLocaleString()} entries used`
+        : `${used.toLocaleString()} of ${total.toLocaleString()} entries used`;
+    }
 
     const icon = getListIcon(list.id);
 
@@ -1150,7 +1138,7 @@ function renderLists() {
       ${icon}
       <div class="card-info">
         <div class="card-name">${esc(list.name)}</div>
-        <div class="card-meta"><span class="status ${dot}"></span>${meta}</div>
+        <div class="card-meta">${meta}</div>
       </div>
       <div class="card-actions">
         <label class="toggle" onclick="${toggleClick}" title="${toggleTitle}">
@@ -1194,27 +1182,22 @@ function renderDetail(list) {
     statsHtml = `<div class="stats-bar stats-empty">No data loaded — use the Upload button to load this list</div>`;
   }
 
-  let sourceDesc, actionBtn;
+  let actionBtn;
   const hasData = list.rawEntries.length > 0;
   if (list.source === 'upload') {
     const tmpl = getTemplate(list.id);
     const label = hasData ? 'Update' : 'Upload';
     if (tmpl?.downloadPage) {
-      sourceDesc = 'Manual upload required';
       actionBtn = `<button class="primary" onclick="openUploadGuide('${list.id}')">${label}</button>`;
     } else {
-      sourceDesc = 'Manual upload';
       actionBtn = `<button class="primary" onclick="uploadToList('${list.id}')">${label}</button>`;
     }
   } else if (list.source === 'builtin-download' && list.url) {
-    sourceDesc = hasData ? list.url : 'Auto-download available';
     const label = hasData ? 'Update' : 'Upload';
     actionBtn = `<button class="primary" onclick="openAutoDownloadDialog('${list.id}')" ${list._loading ? 'disabled' : ''}>${list._loading ? 'Updating…' : label}</button>`;
   } else if (list.url) {
-    sourceDesc = list.url;
     actionBtn = `<button class="primary" onclick="downloadList('${list.id}')" ${list._loading ? 'disabled' : ''}>${list._loading ? 'Updating…' : '↻ Update'}</button>`;
   } else {
-    sourceDesc = 'URL not yet configured';
     actionBtn = '';
   }
 
@@ -1228,7 +1211,6 @@ function renderDetail(list) {
         <h2 onclick="startHeaderRename()" title="Click to rename">${esc(list.name)}</h2>
         <span class="detail-edit-hint" onclick="startHeaderRename()">✏️</span>
       </div>
-      <span class="detail-source" title="${esc(sourceDesc)}">${esc(sourceDesc)}</span>
       ${actionBtn}
       ${clearBtn}
     </div>
@@ -1466,8 +1448,7 @@ function bindEvents() {
     showToast('Reset complete');
   };
 
-  document.getElementById('btn-merge-download').onclick = openMergeDialog;
-  document.getElementById('btn-merge-close').onclick    = () => document.getElementById('merge-dialog').close();
+  document.getElementById('btn-merge-download').onclick = () => { const { entries } = buildMergedList(); downloadMerged(entries); };
   document.getElementById('btn-settings').onclick       = () => document.getElementById('settings-dialog').showModal();
   document.getElementById('btn-settings-close').onclick = () => document.getElementById('settings-dialog').close();
   document.getElementById('btn-dialog-close').onclick   = () => document.getElementById('add-dialog').close();
@@ -1946,33 +1927,6 @@ function buildMergedList() {
   return { entries, sourceCounts };
 }
 
-function openMergeDialog() {
-  const { entries, sourceCounts } = buildMergedList();
-  const total = entries.length;
-
-  let statsHtml;
-  if (!sourceCounts.length) {
-    statsHtml = `<p class="merge-empty">No enabled lists with data. Load at least one list first.</p>`;
-  } else {
-    const rows = sourceCounts.map(s =>
-      `<tr><td>${esc(s.name)}</td><td>${s.count.toLocaleString()}</td></tr>`
-    ).join('');
-    statsHtml = `
-      <table class="merge-table">
-        <thead><tr><th>List</th><th style="text-align:right">Contributed</th></tr></thead>
-        <tbody>${rows}</tbody>
-        <tfoot><tr class="merge-total-row"><td>Total</td><td>${total.toLocaleString()}</td></tr></tfoot>
-      </table>`;
-  }
-
-  document.getElementById('merge-stats').innerHTML = statsHtml;
-
-  const dlBtn = document.getElementById('btn-download-merged');
-  dlBtn.disabled = total === 0;
-  dlBtn.onclick = () => { downloadMerged(entries); document.getElementById('merge-dialog').close(); };
-
-  document.getElementById('merge-dialog').showModal();
-}
 
 function downloadMerged(entries) {
   const text = entries.map(e => `${e.word};${e.score}`).join('\n') + '\n';
