@@ -788,6 +788,11 @@ let _sourceCountsCache = null;
 
 function invalidateStatsCache(id) { _statsCache.delete(id); }
 function invalidateSourceCounts() { _sourceCountsCache = null; }
+function invalidateListCaches(id) {
+  invalidateStatsCache(id);
+  invalidateSourceCounts();
+  invalidateStatsCache(MERGED_ID);
+}
 
 function computeStats(listId, entries) {
   if (_statsCache.has(listId)) return _statsCache.get(listId);
@@ -1252,25 +1257,11 @@ function compileRule(rule) {
 }
 
 function applyRescoring(entries, rules) {
-  const result = [];
-  for (const entry of entries) {
-    let out = entry;
-    for (const rule of rules) {
-      const scoreIntervals = rule._scoreIntervals !== undefined ? rule._scoreIntervals : parseRange(rule.input);
-      if (!scoreIntervals || !matchesRange(entry.score, scoreIntervals)) continue;
-      if (rule.length && rule.length.trim()) {
-        const lenIntervals = rule._lenIntervals !== undefined ? rule._lenIntervals : parseRange(rule.length);
-        if (!lenIntervals || !matchesRange(entry.word.length, lenIntervals)) continue;
-      }
-      const s = rule._output !== undefined ? rule._output : parseRuleOutput(rule.output);
-      if (s === null) continue;
-      if (s === 'ignore') { out = null; }
-      else if (s !== 'unchanged') { out = { ...entry, score: s }; }
-      break;
-    }
-    if (out !== null) result.push(out);
-  }
-  return result;
+  return entries.flatMap(e => {
+    const r = rescoreEntry(e, rules);
+    if (!r.kept) return [];
+    return [r.score !== e.score ? { ...e, score: r.score } : e];
+  });
 }
 
 function rescoreEntry(entry, rules) {
@@ -1466,22 +1457,13 @@ function buildSearchBarHTML() {
     </div>`;
 }
 
-function renderMergedDetail() {
-  const panel = document.getElementById('detail-panel');
-  clearInterval(_dateTimer);
-  _dateTimer = null;
-
-  updateMergedCatchAll();
-  const { entries } = buildMergedList();
-  const stats = computeStats(MERGED_ID, entries);
-
-  let statsHtml;
-  if (stats && entries.length) {
-    const bars = stats.buckets.map((b, i) => {
-      const h = stats.maxBucket ? Math.max(2, Math.round((b / stats.maxBucket) * 34)) : 2;
-      return `<div class="score-bar" style="height:${h}px" title="${i*10}–${i===10?'100':i*10+9}: ${b.toLocaleString()}"></div>`;
-    }).join('');
-    statsHtml = `<div class="stats-bar">
+function buildStatsBarHTML(stats, emptyMsg) {
+  if (!stats) return `<div class="stats-bar stats-empty">${emptyMsg}</div>`;
+  const bars = stats.buckets.map((b, i) => {
+    const h = stats.maxBucket ? Math.max(2, Math.round((b / stats.maxBucket) * 34)) : 2;
+    return `<div class="score-bar" style="height:${h}px" title="${i*10}–${i===10?'100':i*10+9}: ${b.toLocaleString()}"></div>`;
+  }).join('');
+  return `<div class="stats-bar">
       <div class="stat"><span class="stat-label">Entries</span><span class="stat-value">${stats.count.toLocaleString()}</span></div>
       <div class="stat"><span class="stat-label">Min</span><span class="stat-value">${stats.min}</span></div>
       <div class="stat"><span class="stat-label">Max</span><span class="stat-value">${stats.max}</span></div>
@@ -1492,9 +1474,18 @@ function renderMergedDetail() {
         <div class="score-dist" title="Score distribution by decile">${bars}</div>
       </div>
     </div>`;
-  } else {
-    statsHtml = `<div class="stats-bar stats-empty">No lists loaded — add and populate lists to see the merged result</div>`;
-  }
+}
+
+function renderMergedDetail() {
+  const panel = document.getElementById('detail-panel');
+  clearInterval(_dateTimer);
+  _dateTimer = null;
+
+  updateMergedCatchAll();
+  const { entries } = buildMergedList();
+  const stats = computeStats(MERGED_ID, entries);
+
+  const statsHtml = buildStatsBarHTML(stats, 'No lists loaded — add and populate lists to see the merged result');
 
   panel.innerHTML = `
     <div class="detail-header">
@@ -1599,26 +1590,7 @@ function renderDetail(list) {
 
   const stats = computeStats(list.id, list.rawEntries);
 
-  let statsHtml;
-  if (stats) {
-    const bars = stats.buckets.map((b, i) => {
-      const h = stats.maxBucket ? Math.max(2, Math.round((b / stats.maxBucket) * 34)) : 2;
-      return `<div class="score-bar" style="height:${h}px" title="${i*10}–${i===10?'100':i*10+9}: ${b.toLocaleString()}"></div>`;
-    }).join('');
-    statsHtml = `<div class="stats-bar">
-      <div class="stat"><span class="stat-label">Entries</span><span class="stat-value">${stats.count.toLocaleString()}</span></div>
-      <div class="stat"><span class="stat-label">Min</span><span class="stat-value">${stats.min}</span></div>
-      <div class="stat"><span class="stat-label">Max</span><span class="stat-value">${stats.max}</span></div>
-      <div class="stats-right">
-        <div class="stat" title="Average score"><span class="stat-label">Mean</span><span class="stat-value">${stats.mean}</span></div>
-        <div class="stat" title="50th percentile score"><span class="stat-label">Median</span><span class="stat-value">${stats.median % 1 === 0 ? stats.median : stats.median.toFixed(1)}</span></div>
-        <div class="stat" title="Most common score"><span class="stat-label">Mode</span><span class="stat-value">${stats.mode}</span></div>
-        <div class="score-dist" title="Score distribution by decile">${bars}</div>
-      </div>
-    </div>`;
-  } else {
-    statsHtml = `<div class="stats-bar stats-empty">No data loaded — use the Upload button to load this list</div>`;
-  }
+  const statsHtml = buildStatsBarHTML(stats, 'No data loaded — use the Upload button to load this list');
 
   let actionBtn;
   const hasData = list.rawEntries.length > 0;
@@ -1630,15 +1602,13 @@ function renderDetail(list) {
     } else {
       actionBtn = `<button class="primary" onclick="uploadToList('${list.id}')">${label}</button>`;
     }
-  } else if (list.source === 'builtin-download' && list.url) {
-    const label = hasData ? 'Update' : 'Upload';
-    const dot = list._updateAvailable && !list._loading ? `<span class="update-dot"></span>` : '';
-    const title = list._updateAvailable && !list._loading ? ' title="Update available"' : '';
-    actionBtn = `<button class="primary"${title} onclick="openAutoDownloadDialog('${list.id}')" ${list._loading ? 'disabled' : ''}>${list._loading ? 'Updating…' : label}${dot}</button>`;
   } else if (list.url) {
+    const isBuiltin = list.source === 'builtin-download';
+    const label = isBuiltin ? (hasData ? 'Update' : 'Upload') : '↻ Update';
+    const onclick = isBuiltin ? `openAutoDownloadDialog('${list.id}')` : `downloadList('${list.id}')`;
     const dot = list._updateAvailable && !list._loading ? `<span class="update-dot"></span>` : '';
     const title = list._updateAvailable && !list._loading ? ' title="Update available"' : '';
-    actionBtn = `<button class="primary"${title} onclick="downloadList('${list.id}')" ${list._loading ? 'disabled' : ''}>${list._loading ? 'Updating…' : '↻ Update'}${dot}</button>`;
+    actionBtn = `<button class="primary"${title} onclick="${onclick}" ${list._loading ? 'disabled' : ''}>${list._loading ? 'Updating…' : label}${dot}</button>`;
   } else {
     actionBtn = '';
   }
@@ -1745,9 +1715,7 @@ async function downloadList(id, event) {
     list._updateAvailable = false;
     list._loading = false;
     if (wasEmpty) list.enabled = true;
-    invalidateStatsCache(id);
-    invalidateSourceCounts();
-    invalidateStatsCache(MERGED_ID);
+    invalidateListCaches(id);
     updateCatchAll(list);
 
     await persistData(id, text);
@@ -1824,9 +1792,7 @@ function ingestFile(file, listId, nameOverride) {
     list.lastUpdated = Date.now();
     list.originalFilename = file.name;
     if (wasEmpty) list.enabled = true;
-    invalidateStatsCache(listId);
-    invalidateSourceCounts();
-    invalidateStatsCache(MERGED_ID);
+    invalidateListCaches(listId);
     updateCatchAll(list);
 
     await persistData(listId, text);
@@ -1847,9 +1813,7 @@ async function clearListData(id, event) {
   if (!confirm(`Clear data for "${list.name}"?`)) return;
   list.rawEntries = [];
   list.lastUpdated = null;
-  invalidateStatsCache(id);
-  invalidateSourceCounts();
-  invalidateStatsCache(MERGED_ID);
+  invalidateListCaches(id);
   await idbDel('data_' + id);
   persistMeta();
   renderInputLists();
@@ -1863,9 +1827,7 @@ async function deleteList(id, event) {
   if (!list) return;
   if (!confirm(`Remove "${list.name}"?`)) return;
   state.inputLists = state.inputLists.filter(l => l.id !== id);
-  invalidateStatsCache(id);
-  invalidateSourceCounts();
-  invalidateStatsCache(MERGED_ID);
+  invalidateListCaches(id);
   await idbDel('data_' + id);
   persistMeta();
   if (state.selectedId === id) {
@@ -1988,18 +1950,7 @@ function bindEvents() {
   });
 
   // Drop zone
-  const zone  = document.getElementById('drop-zone');
-  const finput = document.getElementById('file-input');
-  zone.onclick     = () => finput.click();
-  zone.ondragover  = e => { e.preventDefault(); zone.classList.add('drag-over'); };
-  zone.ondragleave = () => zone.classList.remove('drag-over');
-  zone.ondrop      = e => {
-    e.preventDefault();
-    zone.classList.remove('drag-over');
-    const file = e.dataTransfer.files[0];
-    if (file) handleDialogUpload(file);
-  };
-  finput.onchange  = () => { if (finput.files[0]) handleDialogUpload(finput.files[0]); };
+  bindDropZone(document.getElementById('drop-zone'), document.getElementById('file-input'), handleDialogUpload);
 
   // Drag-to-reorder
   let _dragId = null;
@@ -2110,6 +2061,19 @@ function getListIcon(id) {
 
 // ─── Upload Guide ─────────────────────────────────────────────────────────────
 
+function bindDropZone(zone, fileInput, onFile) {
+  zone.onclick     = () => fileInput.click();
+  zone.ondragover  = e => { e.preventDefault(); zone.classList.add('drag-over'); };
+  zone.ondragleave = () => zone.classList.remove('drag-over');
+  zone.ondrop      = e => {
+    e.preventDefault();
+    zone.classList.remove('drag-over');
+    const file = e.dataTransfer.files[0];
+    if (file) onFile(file);
+  };
+  fileInput.onchange = () => { if (fileInput.files[0]) onFile(fileInput.files[0]); };
+}
+
 function openUploadGuide(listId, event) {
   if (event) event.stopPropagation();
   const tmpl = getTemplate(listId);
@@ -2119,19 +2083,11 @@ function openUploadGuide(listId, event) {
   document.getElementById('guide-title').textContent = `${tmpl.name} — Where to get it`;
   document.getElementById('guide-steps').innerHTML = buildGuideHTML(listId, tmpl);
 
-  const zone   = document.getElementById('guide-drop-zone');
-  const finput = document.getElementById('guide-file-input');
-  zone.onclick     = () => finput.click();
-  zone.ondragover  = e => { e.preventDefault(); zone.classList.add('drag-over'); };
-  zone.ondragleave = () => zone.classList.remove('drag-over');
-  zone.ondrop      = e => {
-    e.preventDefault(); zone.classList.remove('drag-over');
-    const file = e.dataTransfer.files[0];
-    if (file) { dialog.close(); ingestFile(file, listId); selectList(listId); }
-  };
-  finput.onchange = () => {
-    if (finput.files[0]) { dialog.close(); ingestFile(finput.files[0], listId); selectList(listId); }
-  };
+  bindDropZone(
+    document.getElementById('guide-drop-zone'),
+    document.getElementById('guide-file-input'),
+    file => { dialog.close(); ingestFile(file, listId); selectList(listId); }
+  );
 
   dialog.showModal();
 }
@@ -2160,19 +2116,11 @@ function openAutoDownloadDialog(listId, event) {
     downloadList(listId);
   };
 
-  const zone   = document.getElementById('guide-drop-zone');
-  const finput = document.getElementById('guide-file-input');
-  zone.onclick     = () => finput.click();
-  zone.ondragover  = e => { e.preventDefault(); zone.classList.add('drag-over'); };
-  zone.ondragleave = () => zone.classList.remove('drag-over');
-  zone.ondrop      = e => {
-    e.preventDefault(); zone.classList.remove('drag-over');
-    const file = e.dataTransfer.files[0];
-    if (file) { dialog.close(); ingestFile(file, listId); selectList(listId); }
-  };
-  finput.onchange = () => {
-    if (finput.files[0]) { dialog.close(); ingestFile(finput.files[0], listId); selectList(listId); }
-  };
+  bindDropZone(
+    document.getElementById('guide-drop-zone'),
+    document.getElementById('guide-file-input'),
+    file => { dialog.close(); ingestFile(file, listId); selectList(listId); }
+  );
 
   dialog.showModal();
 }
@@ -2352,6 +2300,26 @@ function updateRescorePreview() {
 
 // ─── Rename ───────────────────────────────────────────────────────────────────
 
+function startInlineRename(inputEl, originalName, { onCommit, onCancel, onInput }) {
+  let done = false;
+  function commit() {
+    if (done) return;
+    done = true;
+    onCommit(inputEl.value.trim() || originalName);
+  }
+  function cancel() {
+    if (done) return;
+    done = true;
+    onCancel();
+  }
+  if (onInput) inputEl.oninput = () => onInput(inputEl.value || originalName);
+  inputEl.onblur = commit;
+  inputEl.onkeydown = e => {
+    if (e.key === 'Enter') { e.preventDefault(); commit(); }
+    if (e.key === 'Escape') { inputEl.onblur = null; cancel(); }
+  };
+}
+
 function startHeaderRename() {
   const list = getSelected();
   if (!list) return;
@@ -2367,36 +2335,26 @@ function startHeaderRename() {
   h2.appendChild(input);
   input.select();
 
-  let done = false;
-  function commit() {
-    if (done) return;
-    done = true;
-    const newName = input.value.trim() || originalName;
-    h2.textContent = newName;
-    if (newName !== originalName) {
-      list.name = newName;
-      persistMeta();
+  startInlineRename(input, originalName, {
+    onCommit(newName) {
+      h2.textContent = newName;
+      if (newName !== originalName) {
+        list.name = newName;
+        persistMeta();
+        const cardNameEl = document.querySelector(`.list-card[data-id="${CSS.escape(list.id)}"] .card-name`);
+        if (cardNameEl) cardNameEl.textContent = newName;
+      }
+    },
+    onCancel() {
+      h2.textContent = originalName;
       const cardNameEl = document.querySelector(`.list-card[data-id="${CSS.escape(list.id)}"] .card-name`);
-      if (cardNameEl) cardNameEl.textContent = newName;
-    }
-  }
-  function cancel() {
-    if (done) return;
-    done = true;
-    h2.textContent = originalName;
-    const cardNameEl = document.querySelector(`.list-card[data-id="${CSS.escape(list.id)}"] .card-name`);
-    if (cardNameEl && !cardNameEl.querySelector('input')) cardNameEl.textContent = originalName;
-  }
-
-  input.oninput = () => {
-    const cardNameEl = document.querySelector(`.list-card[data-id="${CSS.escape(list.id)}"] .card-name`);
-    if (cardNameEl && !cardNameEl.querySelector('input')) cardNameEl.textContent = input.value || originalName;
-  };
-  input.onblur = commit;
-  input.onkeydown = e => {
-    if (e.key === 'Enter') { e.preventDefault(); commit(); }
-    if (e.key === 'Escape') { input.onblur = null; cancel(); }
-  };
+      if (cardNameEl && !cardNameEl.querySelector('input')) cardNameEl.textContent = originalName;
+    },
+    onInput(val) {
+      const cardNameEl = document.querySelector(`.list-card[data-id="${CSS.escape(list.id)}"] .card-name`);
+      if (cardNameEl && !cardNameEl.querySelector('input')) cardNameEl.textContent = val;
+    },
+  });
 }
 
 function startCardRename(id) {
@@ -2417,42 +2375,32 @@ function startCardRename(id) {
   nameEl.appendChild(input);
   input.focus();
   input.select();
-
-  let done = false;
-  function commit() {
-    if (done) return;
-    done = true;
-    const newName = input.value.trim() || originalName;
-    if (newName !== originalName) {
-      list.name = newName;
-      persistMeta();
-      nameEl.textContent = newName;
-      if (state.selectedId === id) {
-        const h2 = document.querySelector('.detail-header h2');
-        if (h2 && !h2.querySelector('input')) h2.textContent = newName;
-      }
-    } else {
-      nameEl.textContent = originalName;
-    }
-  }
-  function cancel() {
-    if (done) return;
-    done = true;
-    nameEl.textContent = originalName;
-    const h2 = document.querySelector('.detail-header h2');
-    if (h2 && !h2.querySelector('input')) h2.textContent = originalName;
-  }
-
-  input.oninput = () => {
-    const h2 = document.querySelector('.detail-header h2');
-    if (h2 && !h2.querySelector('input')) h2.textContent = input.value || originalName;
-  };
   input.onclick = e => e.stopPropagation();
-  input.onblur = commit;
-  input.onkeydown = e => {
-    if (e.key === 'Enter') { e.preventDefault(); commit(); }
-    if (e.key === 'Escape') { input.onblur = null; cancel(); }
-  };
+
+  startInlineRename(input, originalName, {
+    onCommit(newName) {
+      if (newName !== originalName) {
+        list.name = newName;
+        persistMeta();
+        nameEl.textContent = newName;
+        if (state.selectedId === id) {
+          const h2 = document.querySelector('.detail-header h2');
+          if (h2 && !h2.querySelector('input')) h2.textContent = newName;
+        }
+      } else {
+        nameEl.textContent = originalName;
+      }
+    },
+    onCancel() {
+      nameEl.textContent = originalName;
+      const h2 = document.querySelector('.detail-header h2');
+      if (h2 && !h2.querySelector('input')) h2.textContent = originalName;
+    },
+    onInput(val) {
+      const h2 = document.querySelector('.detail-header h2');
+      if (h2 && !h2.querySelector('input')) h2.textContent = val;
+    },
+  });
 }
 
 // ─── Merge & Download ─────────────────────────────────────────────────────────
@@ -2496,18 +2444,22 @@ function buildMergedList() {
 }
 
 
-function downloadMerged(entries) {
-  const upper = (lsLoad('outputCase') || 'lower') === 'upper';
-  const text = entries.map(e => `${upper ? e.word.toUpperCase() : e.word};${e.score}`).join('\n') + '\n';
+function triggerDownload(text, filename) {
   const blob = new Blob([text], { type: 'text/plain' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = lsLoad('outputFilename') || 'grawlix-wordlist.txt';
+  a.download = filename;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
+}
+
+function downloadMerged(entries) {
+  const upper = (lsLoad('outputCase') || 'lower') === 'upper';
+  const text = entries.map(e => `${upper ? e.word.toUpperCase() : e.word};${e.score}`).join('\n') + '\n';
+  triggerDownload(text, lsLoad('outputFilename') || 'grawlix-wordlist.txt');
   showToast(`Downloaded ${entries.length.toLocaleString()} entries`);
 }
 
@@ -2515,15 +2467,7 @@ function downloadIndividualList(id) {
   const list = state.inputLists.find(l => l.id === id);
   if (!list || !list.rawEntries.length) return;
   const text = list.rawEntries.map(e => `${e.word};${e.score}`).join('\n') + '\n';
-  const blob = new Blob([text], { type: 'text/plain' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = list.originalFilename || `${list.name.replace(/\s+/g, '-').toLowerCase()}.txt`;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
+  triggerDownload(text, list.originalFilename || `${list.name.replace(/\s+/g, '-').toLowerCase()}.txt`);
   showToast(`Downloaded ${list.rawEntries.length.toLocaleString()} entries`);
 }
 
