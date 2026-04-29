@@ -103,10 +103,10 @@ main { display: flex; flex: 1; overflow: hidden; position: relative; }
 .add-list-row:hover { background: var(--hover); color: var(--accent); }
 .add-list-icon { font-size: 15px; line-height: 1; width: 16px; text-align: center; flex-shrink: 0; }
 
-/* List card */
-.list-card { padding: 10px 14px; border-bottom: 1px solid var(--border3); cursor: default; display: flex; align-items: center; gap: 9px; transition: background 0.1s; }
-.list-card:hover { background: var(--hover); }
-.list-card.selected { background: var(--sel); border-left: 3px solid var(--accent); padding-left: 11px; }
+/* List card / Merged card */
+.list-card, #merged-card { padding: 10px 14px; border-bottom: 1px solid var(--border3); cursor: pointer; display: flex; align-items: center; gap: 9px; transition: background 0.1s; }
+.list-card:hover, #merged-card:hover { background: var(--hover); }
+.list-card.selected, #merged-card.selected { background: var(--sel); border-left: 3px solid var(--accent); padding-left: 11px; }
 .card-info { flex: 1; min-width: 0; }
 .card-name { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 13px; }
 .card-meta { color: var(--muted); font-size: 11px; margin-top: 2px; display: flex; align-items: center; gap: 5px; }
@@ -374,14 +374,7 @@ html.dark-mode .screenshot-container img { filter: brightness(0.843) invert(1) h
 .annotation { position: absolute; border: 3px solid #e53935; border-radius: 50px; pointer-events: none; box-shadow: 0 0 6px rgba(229,57,53,0.4); }
 
 /* Merged wordlist card */
-#merged-card {
-  padding: 10px 14px; cursor: pointer;
-  display: flex; align-items: center; gap: 9px; flex-shrink: 0;
-  border-bottom: 1px solid var(--border3);
-  user-select: none; transition: background 0.1s;
-}
-#merged-card:hover { background: var(--hover); }
-#merged-card.selected { background: var(--sel); border-left: 3px solid var(--accent); padding-left: 11px; }
+#merged-card { flex-shrink: 0; user-select: none; }
 .merged-card-icon { font-size: 22px; width: 37px; text-align: center; flex-shrink: 0; line-height: 1; }
 
 
