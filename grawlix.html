@@ -436,8 +436,15 @@ html.dark-mode .screenshot-container img { filter: brightness(0.843) invert(1) h
     </div>
   </div>
   <div class="settings-row">
-    <span class="settings-row-label">Output case</span>
-    <div class="seg-ctrl" id="output-case-ctrl">
+    <span class="settings-row-label">Download extension</span>
+    <div class="seg-ctrl" id="download-ext-ctrl">
+      <button class="seg-btn" data-ext="txt">.txt</button>
+      <button class="seg-btn" data-ext="dict">.dict</button>
+    </div>
+  </div>
+  <div class="settings-row">
+    <span class="settings-row-label">Download case</span>
+    <div class="seg-ctrl" id="download-case-ctrl">
       <button class="seg-btn" data-case="lower">lower</button>
       <button class="seg-btn" data-case="upper">UPPER</button>
     </div>
@@ -738,17 +745,34 @@ function initDarkMode() {
   });
 }
 
-// ─── Output case setting ──────────────────────────────────────────────────────
+// ─── Download case setting ────────────────────────────────────────────────────
 
-function initOutputCase() {
-  const ctrl = document.getElementById('output-case-ctrl');
-  const saved = lsLoad('outputCase') || 'lower';
+function initDownloadCase() {
+  const ctrl = document.getElementById('download-case-ctrl');
+  const saved = lsLoad('downloadCase') || 'lower';
   ctrl.querySelectorAll('.seg-btn').forEach(btn => {
     btn.classList.toggle('active', btn.dataset.case === saved);
     btn.onclick = () => {
       ctrl.querySelectorAll('.seg-btn').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
-      lsSave('outputCase', btn.dataset.case);
+      lsSave('downloadCase', btn.dataset.case);
+    };
+  });
+}
+
+// ─── Download extension setting ───────────────────────────────────────────────
+
+function getDownloadExt() { return lsLoad('downloadExt') || 'txt'; }
+
+function initDownloadExt() {
+  const ctrl = document.getElementById('download-ext-ctrl');
+  const saved = lsLoad('downloadExt') || 'txt';
+  ctrl.querySelectorAll('.seg-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.ext === saved);
+    btn.onclick = () => {
+      ctrl.querySelectorAll('.seg-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      lsSave('downloadExt', btn.dataset.ext);
     };
   });
 }
@@ -2613,27 +2637,32 @@ function triggerDownload(text, filename) {
 }
 
 function downloadMerged(entries) {
-  const upper = (lsLoad('outputCase') || 'lower') === 'upper';
+  const upper = (lsLoad('downloadCase') || 'lower') === 'upper';
   const text = entries.map(e => `${upper ? e.word.toUpperCase() : e.word};${e.score}`).join('\n') + '\n';
-  triggerDownload(text, 'Grawlix Wordlist.txt');
+  triggerDownload(text, `Grawlix Wordlist.${getDownloadExt()}`);
   showToast(`Downloaded ${entries.length.toLocaleString()} entries`);
 }
 
 function downloadIndividualList(id) {
   const list = state.inputLists.find(l => l.id === id);
   if (!list || !list.rawEntries.length) return;
+  const ext = getDownloadExt();
   const text = list.rawEntries.map(e => `${e.word};${e.score}`).join('\n') + '\n';
-  triggerDownload(text, list.originalFilename || `${list.name.replace(/\s+/g, '-').toLowerCase()}.txt`);
+  const base = list.originalFilename
+    ? list.originalFilename.replace(/\.[^.]+$/, '')
+    : list.name.replace(/\s+/g, '-').toLowerCase();
+  triggerDownload(text, `${base}.${ext}`);
   showToast(`Downloaded ${list.rawEntries.length.toLocaleString()} entries`);
 }
 
 function downloadIndividualListRescored(id) {
   const list = state.inputLists.find(l => l.id === id);
   if (!list || !list.rawEntries.length) return;
-  const upper = (lsLoad('outputCase') || 'lower') === 'upper';
+  const ext = getDownloadExt();
+  const upper = (lsLoad('downloadCase') || 'lower') === 'upper';
   const rescored = applyRescoring(list.rawEntries, list.rescoreRules);
   const text = rescored.map(e => `${upper ? e.word.toUpperCase() : e.word};${e.score}`).join('\n') + '\n';
-  triggerDownload(text, `Grawlix ${list.name}.txt`);
+  triggerDownload(text, `Grawlix ${list.name}.${ext}`);
   showToast(`Downloaded ${rescored.length.toLocaleString()} entries`);
 }
 
@@ -2648,7 +2677,8 @@ function toggleSplitMenu(event, id) {
 // ─── Boot ─────────────────────────────────────────────────────────────────────
 
 initDarkMode();
-initOutputCase();
+initDownloadCase();
+initDownloadExt();
 document.addEventListener('click', () => document.querySelectorAll('.split-btn.open').forEach(b => b.classList.remove('open')));
 // Hide the busy overlay immediately if no lists have data.
 { let _m; try { _m = JSON.parse(lsLoad('meta') || '[]'); } catch { _m = []; }
