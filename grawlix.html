@@ -123,10 +123,12 @@ button.danger:hover:not(:disabled) { background: #e74c3c; border-color: #c0392b;
 
 /* Split button */
 .split-btn { position: relative; display: inline-flex; }
-.split-btn-main { border-top-right-radius: 0; border-bottom-right-radius: 0; border-right: none; background: var(--accent); color: white; border-color: var(--accent); }
-.split-btn-main:hover:not(:disabled) { background: var(--accent-hover); }
-.split-btn-arrow { border-top-left-radius: 0; border-bottom-left-radius: 0; padding: 5px 8px; background: var(--accent); color: white; border-color: var(--accent); border-left: 1px solid rgba(255,255,255,0.35); font-size: 10px; }
-.split-btn-arrow:hover:not(:disabled) { background: var(--accent-hover); }
+.split-btn-main { border-top-right-radius: 0; border-bottom-right-radius: 0; border-right: none; }
+.split-btn-arrow { border-top-left-radius: 0; border-bottom-left-radius: 0; padding: 5px 8px; font-size: 10px; }
+.split-btn.primary .split-btn-main { background: var(--accent); color: white; border-color: var(--accent); }
+.split-btn.primary .split-btn-main:hover:not(:disabled) { background: var(--accent-hover); }
+.split-btn.primary .split-btn-arrow { background: var(--accent); color: white; border-color: var(--accent); border-left: 1px solid rgba(255,255,255,0.35); }
+.split-btn.primary .split-btn-arrow:hover:not(:disabled) { background: var(--accent-hover); }
 .split-btn-menu { display: none; position: absolute; top: 100%; right: 0; margin-top: 3px; background: var(--surface); border: 1px solid var(--border); border-radius: 4px; box-shadow: 0 2px 8px rgba(0,0,0,0.15); z-index: 200; min-width: 170px; padding: 4px 0; white-space: nowrap; }
 .split-btn.open .split-btn-menu { display: block; }
 .split-btn-menu button { display: block; width: 100%; text-align: left; border: none; background: none; border-radius: 0; padding: 6px 13px; color: var(--text); }
@@ -404,7 +406,7 @@ html.dark-mode .screenshot-container img { filter: brightness(0.843) invert(1) h
   <div id="lists-panel">
     <h2>Output List</h2>
     <div id="merged-card" onclick="selectMergedList()" tabindex="0" role="option" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();selectMergedList()}">
-      <span class="merged-card-icon">⊕</span>
+      <span class="merged-card-icon">★</span>
       <div class="card-info">
         <div class="card-name">All Merged</div>
         <div class="card-meta" id="merged-card-meta"></div>
@@ -2282,7 +2284,7 @@ function openAutoDownloadDialog(listId, event) {
         <div class="known-list-name">Auto-download</div>
         <div class="known-list-sub">Download directly from GitHub</div>
       </div>
-      <button class="primary" id="jk-auto-dl-btn">Download</button>
+      <button class="primary" id="auto-dl-btn">Download</button>
     </div>
     <div class="dialog-divider">— or upload a file —</div>
     <div class="upload-zone compact" id="guide-drop-zone">
@@ -2290,7 +2292,7 @@ function openAutoDownloadDialog(listId, event) {
       <input type="file" id="guide-file-input" accept=".txt,.csv">
     </div>`;
 
-  document.getElementById('jk-auto-dl-btn').onclick = () => {
+  document.getElementById('auto-dl-btn').onclick = () => {
     dialog.close();
     downloadList(listId);
   };
