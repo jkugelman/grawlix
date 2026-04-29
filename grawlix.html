@@ -458,8 +458,8 @@ html.dark-mode .screenshot-container img { filter: brightness(0.843) invert(1) h
       <input type="file" id="file-input" accept=".txt,.csv">
     </div>
     <div class="form-field form-field-gap">
-      <label>Name (optional)</label>
-      <input type="text" id="upload-name" placeholder="My Wordlist">
+      <label>Name</label>
+      <input type="text" id="upload-name">
     </div>
     <div class="dialog-actions">
       <button class="primary" id="btn-upload-file" disabled>Add</button>
@@ -472,8 +472,8 @@ html.dark-mode .screenshot-container img { filter: brightness(0.843) invert(1) h
       <input type="text" id="url-input" placeholder="https://...">
     </div>
     <div class="form-field">
-      <label>Name (optional)</label>
-      <input type="text" id="url-name" placeholder="My Wordlist">
+      <label>Name</label>
+      <input type="text" id="url-name">
     </div>
     <div class="dialog-actions">
       <button class="primary" id="btn-fetch-url">Fetch</button>
@@ -2023,9 +2023,12 @@ function bindEvents() {
   bindDropZone(document.getElementById('drop-zone'), document.getElementById('file-input'), file => {
     _pendingUploadFile = file;
     document.getElementById('upload-zone-label').textContent = file.name;
+    const nameField = document.getElementById('upload-name');
+    if (!nameField.value.trim()) nameField.value = nameFromPath(file.name);
     document.getElementById('btn-upload-file').disabled = false;
   });
   document.getElementById('btn-upload-file').onclick = () => {
+    if (!document.getElementById('upload-name').value.trim()) { document.getElementById('upload-name').focus(); return; }
     if (_pendingUploadFile) handleDialogUpload(_pendingUploadFile);
   };
 
@@ -2133,12 +2136,18 @@ function bindEvents() {
   });
 
   // URL fetch
+  document.getElementById('url-input').addEventListener('blur', () => {
+    const url = document.getElementById('url-input').value.trim();
+    const nameField = document.getElementById('url-name');
+    if (url && !nameField.value.trim()) nameField.value = nameFromPath(url);
+  });
   document.getElementById('btn-fetch-url').onclick = async () => {
     const url  = document.getElementById('url-input').value.trim();
     const name = document.getElementById('url-name').value.trim();
     if (!url) { document.getElementById('url-input').focus(); return; }
+    if (!name) { document.getElementById('url-name').focus(); return; }
     const id = 'url_' + Date.now();
-    addNewList({ id, name: name || url.split('/').pop() || 'Custom List', source: 'url', url, enabled: true });
+    addNewList({ id, name, source: 'url', url, enabled: true });
     document.getElementById('add-dialog').close();
     await downloadList(id);
     selectList(id);
@@ -2147,9 +2156,13 @@ function bindEvents() {
 
 let _pendingUploadFile = null;
 
+function nameFromPath(str) {
+  return str.split('/').pop().replace(/\.[^.]+$/, '');
+}
+
 function handleDialogUpload(file) {
   const id   = 'up_' + Date.now();
-  const name = document.getElementById('upload-name').value.trim() || file.name.replace(/\.[^.]+$/, '');
+  const name = document.getElementById('upload-name').value.trim();
   addNewList({ id, name, source: 'upload', url: null, enabled: true });
   document.getElementById('add-dialog').close();
   ingestFile(file, id, name);
