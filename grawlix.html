@@ -124,7 +124,7 @@ button.danger:hover:not(:disabled) { background: #e74c3c; border-color: #c0392b;
 /* Split button */
 .split-btn { position: relative; display: inline-flex; }
 .split-btn-main { border-top-right-radius: 0; border-bottom-right-radius: 0; border-right: none; }
-.split-btn-arrow { border-top-left-radius: 0; border-bottom-left-radius: 0; padding: 5px 8px; font-size: 10px; }
+.split-btn-arrow { border-top-left-radius: 0; border-bottom-left-radius: 0; padding: 5px 8px; display: inline-flex; align-items: center; justify-content: center; }
 .split-btn.primary .split-btn-main { background: var(--accent); color: white; border-color: var(--accent); }
 .split-btn.primary .split-btn-main:hover:not(:disabled) { background: var(--accent-hover); }
 .split-btn.primary .split-btn-arrow { background: var(--accent); color: white; border-color: var(--accent); border-left: 1px solid rgba(255,255,255,0.35); }
@@ -1657,7 +1657,7 @@ function renderDetail(list) {
   const dlBtn = hasData ? `
     <div class="split-btn">
       <button class="split-btn-main" onclick="downloadIndividualListRescored('${list.id}')">Download</button>
-      <button class="split-btn-arrow" onclick="toggleSplitMenu(event,'${list.id}')" title="More download options">▾</button>
+      <button class="split-btn-arrow" onclick="toggleSplitMenu(event,'${list.id}')" title="More download options"><svg width="8" height="5" viewBox="0 0 8 5" fill="currentColor"><path d="M0 0l4 5 4-5z"/></svg></button>
       <div class="split-btn-menu">
         <button onclick="downloadIndividualListRescored('${list.id}')">Download rescored</button>
         <button onclick="downloadIndividualList('${list.id}')">Download original</button>
