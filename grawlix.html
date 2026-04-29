@@ -1517,7 +1517,7 @@ function renderMergedDetail() {
       <div class="detail-name-wrap">
         <h2>All Merged</h2>
       </div>
-      <button class="primary" onclick="downloadMergedFromPanel()">↓ Download</button>
+      <button class="primary" onclick="downloadMergedFromPanel()">Download</button>
     </div>
     ${statsHtml}
     <div id="merged-scoring-section" class="rescore-section">${buildMergedScoringSectionHTML()}</div>
@@ -1643,7 +1643,7 @@ function renderDetail(list) {
     : `<button onclick="deleteList('${list.id}')">Remove</button>`;
 
   const dlBtn = hasData
-    ? `<button onclick="downloadIndividualList('${list.id}')" title="Download this list">↓ Download</button>`
+    ? `<button onclick="downloadIndividualList('${list.id}')" title="Download this list">Download</button>`
     : '';
 
   panel.innerHTML = `
