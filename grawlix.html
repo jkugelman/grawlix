@@ -4,7 +4,14 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Grawlix !@#$</title>
-<script>const _dm=localStorage.getItem('wlm2_darkMode');const _dark=_dm==='dark'||(_dm!=='light'&&window.matchMedia('(prefers-color-scheme: dark)').matches);document.documentElement.classList.add(_dark?'dark-mode':'light-mode');</script>
+<!-- Prevents FOUC: must run synchronously before first paint. -->
+<script>
+  const LS_PREFIX = 'grawlix_';
+
+  const _dm    = localStorage.getItem(LS_PREFIX + 'darkMode');
+  const _dark  = _dm === 'dark' || (_dm !== 'light' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+  document.documentElement.classList.add(_dark ? 'dark-mode' : 'light-mode');
+</script>
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -37,6 +44,7 @@ html.dark-mode {
   --score-fair-bg:  #615b0d; --score-fair-fg:  #fef7c0;
   --score-meh-bg:   #6b3d00; --score-meh-fg:   #fddcaa;
   --score-bad-bg:   #6b1d1d; --score-bad-fg:   #fdd8d8;
+  --callout-bg: #201d09; --callout-border: #3d3410; --callout-fg: #b09840;
 }
 html.light-mode {
   --bg:        #f5f5f5;
@@ -62,6 +70,7 @@ html.light-mode {
   --score-fair-bg:  #fff3cd; --score-fair-fg:  #856404;
   --score-meh-bg:   #fde9c8; --score-meh-fg:   #7a3d00;
   --score-bad-bg:   #f8d7da; --score-bad-fg:   #721c24;
+  --callout-bg: #fff3cd; --callout-border: #ffc107; --callout-fg: #856404;
 }
 
 body { font-family: system-ui, -apple-system, sans-serif; font-size: 14px; background: var(--bg); color: var(--text); height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
@@ -298,13 +307,13 @@ a.get-file:hover { text-decoration: underline; }
 .dialog-actions { text-align: right; }
 .form-field-gap { margin-top: 10px; }
 .dialog-divider { text-align: center; color: var(--muted); font-size: 12px; margin: 12px 0; }
-.subscription-note { background: #fff3cd; border: 1px solid #ffc107; border-radius: 5px; padding: 9px 12px; margin-bottom: 16px; font-size: 12px; color: #856404; }
+.subscription-note { background: var(--callout-bg); border: 1px solid var(--callout-border); border-radius: 5px; padding: 9px 12px; margin-bottom: 16px; font-size: 12px; color: var(--callout-fg); }
 .upload-zone.compact { padding: 16px; }
 #guide-steps .builtin-item { margin-bottom: 12px; }
 
 /* Hidden file inputs (triggered programmatically by their upload zones) */
 input[type="file"] { display: none; }
-#output-filename-input { width: 12em; font-size: .9em; padding: 3px 6px; border: 1px solid var(--border); border-radius: 4px; background: var(--bg); color: var(--fg); }
+#output-filename-input { width: 12em; font-size: .9em; padding: 3px 6px; border: 1px solid var(--border); border-radius: 4px; background: var(--bg); color: var(--text); }
 
 /* Guide step upload zone spacing */
 .guide-step-body .upload-zone { margin-top: 8px; }
@@ -464,7 +473,7 @@ html.dark-mode .screenshot-container img { filter: brightness(0.843) invert(1) h
 
 const ROW_HEIGHT   = 24;
 const VS_BUFFER    = 60;
-const LS_PREFIX    = 'wlm2_';
+// LS_PREFIX defined in <head> so the FOUC-prevention script can share it.
 const MERGED_ID    = '__merged__';
 
 const BUILTIN_WORDLISTS = [
@@ -614,7 +623,7 @@ function lsLoad(key) { return localStorage.getItem(LS_PREFIX + key); }
 function lsDel(key)  { localStorage.removeItem(LS_PREFIX + key); }
 
 // IndexedDB for large word list data (localStorage has ~5MB limit)
-const IDB_NAME  = 'wlm2';
+const IDB_NAME  = 'grawlix';
 const IDB_STORE = 'data';
 let _db = null;
 
@@ -1942,7 +1951,7 @@ function addBuiltin(id) {
 function bindEvents() {
   document.getElementById('btn-reset').onclick = async () => {
     if (!confirm('Delete all lists and data? This cannot be undone.')) return;
-    localStorage.clear();
+    Object.keys(localStorage).filter(k => k.startsWith(LS_PREFIX)).forEach(k => localStorage.removeItem(k));
     if (_db) { _db.close(); _db = null; }
     await new Promise(resolve => {
       const req = indexedDB.deleteDatabase(IDB_NAME);
@@ -2183,7 +2192,7 @@ function buildGuideHTML(listId, tmpl) {
     <div class="guide-step">
       <div class="guide-step-num">2</div>
       <div class="guide-step-body">
-        ${tmpl.downloadNote}
+        ${tmpl.downloadNote}<!-- trusted HTML: hardcoded in BUILTIN_WORDLISTS, never user-supplied -->
         ${screenshot}
       </div>
     </div>
