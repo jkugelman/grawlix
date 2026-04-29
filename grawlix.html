@@ -80,9 +80,9 @@ header h1 { font-size: 17px; font-weight: 600; letter-spacing: -0.01em; }
 .header-center { flex: 1; display: flex; justify-content: center; align-items: center; gap: 7px; font-size: 14px; }
 .header-tagline { font-style: italic; opacity: 0.75; }
 .header-sep { opacity: 0.35; }
-.header-byline { opacity: 0.65; white-space: nowrap; }
-.header-byline a { color: white; text-decoration: none; border-bottom: 1px solid rgba(255,255,255,0.35); transition: opacity 0.15s; }
-.header-byline a:hover { opacity: 1; border-bottom-color: white; }
+.header-byline, .header-feedback { opacity: 0.65; white-space: nowrap; }
+.header-feedback a { color: white; text-decoration: none; border-bottom: 1px solid rgba(255,255,255,0.35); transition: opacity 0.15s; }
+.header-feedback a:hover { opacity: 1; border-bottom-color: white; }
 .bubble { display: inline-flex; align-items: center; background: white; color: var(--accent); border-radius: 8px; padding: 1px 7px 2px; font-size: 15px; font-weight: 800; position: relative; margin-left: 9px; line-height: 1.5; vertical-align: middle; }
 .bubble::before { content: ''; position: absolute; left: -15px; top: 50%; transform: translateY(-50%); border: 9px solid transparent; border-right-color: white; }
 
@@ -386,11 +386,11 @@ html.dark-mode .screenshot-container img { filter: brightness(0.843) invert(1) h
 <header>
   <h1>Grawlix <span class="bubble">!@#$</span></h1>
   <div class="header-center">
-    <span class="header-tagline">&ldquo;Use your words!&rdquo;</span>
+    <span class="header-tagline">Use your words!</span>
     <span class="header-sep">&middot;</span>
     <span class="header-byline">Made by John Kugelman <a href="https://github.com/jkugelman/crossword/tree/main/grawlix" target="_blank" rel="noopener" title="View on GitHub" class="header-github-link"><svg width="15" height="15" viewBox="0 0 16 16" fill="currentColor" aria-label="GitHub" role="img"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg></a></span>
     <span class="header-sep">&middot;</span>
-    <span class="header-byline">Got feedback? <a href="mailto:john@kugelman.name">Email me</a></span>
+    <span class="header-feedback">Got feedback? <a href="mailto:john@kugelman.name">Email me</a></span>
   </div>
   <button id="btn-settings" class="header-icon-btn" title="Settings"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 15.5A3.5 3.5 0 0 1 8.5 12 3.5 3.5 0 0 1 12 8.5a3.5 3.5 0 0 1 3.5 3.5 3.5 3.5 0 0 1-3.5 3.5m7.43-2.92c.04-.34.07-.69.07-1.08s-.03-.74-.07-1.08l2.32-1.82c.21-.16.27-.46.13-.7l-2.2-3.81a.55.55 0 0 0-.68-.24l-2.74 1.1c-.57-.44-1.18-.8-1.86-1.07L14 2.42A.55.55 0 0 0 13.45 2h-4.4a.55.55 0 0 0-.54.42L8.14 5.09C7.46 5.36 6.85 5.72 6.28 6.16L3.54 5.06a.54.54 0 0 0-.68.24L.66 9.11a.54.54 0 0 0 .13.7l2.32 1.82c-.04.34-.07.69-.07 1.08s.03.74.07 1.08L.79 15.6a.54.54 0 0 0-.13.7l2.2 3.81c.14.24.43.32.68.24l2.74-1.1c.57.44 1.18.8 1.86 1.07l.37 2.67c.06.24.28.42.54.42h4.4c.26 0 .48-.18.54-.42l.37-2.67c.68-.27 1.29-.63 1.86-1.07l2.74 1.1c.25.08.54 0 .68-.24l2.2-3.81a.54.54 0 0 0-.13-.7l-2.32-1.81z"/></svg></button>
 </header>
