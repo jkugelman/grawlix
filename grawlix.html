@@ -147,7 +147,17 @@ button.danger:hover:not(:disabled) { background: #e74c3c; border-color: #c0392b;
 .search-help kbd { font-family: ui-monospace, 'Cascadia Code', monospace; font-size: 11px; }
 .search-bar:focus-within .search-help { color: var(--faint); }
 .search-bar:focus-within .search-help kbd { color: var(--muted); }
-mark.search-match { color: rgba(0,0,0,0.72); border-radius: 2px; padding: 0 1px; font-style: normal; }
+mark.search-match { border-radius: 2px; padding: 0 1px; font-style: normal; }
+html.light-mode .search-match-0 { background: #ddd6fe; color: rgba(0,0,0,0.72); }
+html.light-mode .search-match-1 { background: #99f6e4; color: rgba(0,0,0,0.72); }
+html.light-mode .search-match-2 { background: #fde68a; color: rgba(0,0,0,0.72); }
+html.light-mode .search-match-3 { background: #fbcfe8; color: rgba(0,0,0,0.72); }
+html.light-mode .search-match-4 { background: #bbf7d0; color: rgba(0,0,0,0.72); }
+html.dark-mode .search-match-0 { background: #4a1d96; color: #e9d5ff; }
+html.dark-mode .search-match-1 { background: #065f46; color: #a7f3d0; }
+html.dark-mode .search-match-2 { background: #78350f; color: #fef3c7; }
+html.dark-mode .search-match-3 { background: #831843; color: #fce7f3; }
+html.dark-mode .search-match-4 { background: #14532d; color: #d1fae5; }
 #search-count { margin-left: auto; font-size: 11px; color: var(--faint); }
 
 /* Virtual scroll table */
@@ -185,7 +195,7 @@ mark.search-match { color: rgba(0,0,0,0.72); border-radius: 2px; padding: 0 1px;
 /* Toggle switch */
 .toggle { position: relative; display: inline-block; width: 28px; height: 16px; flex-shrink: 0; cursor: pointer; }
 .toggle input { opacity: 0; width: 0; height: 0; position: absolute; }
-.toggle-slider { position: absolute; inset: 0; background: #ccc; border-radius: 16px; transition: background 0.2s; }
+.toggle-slider { position: absolute; inset: 0; background: var(--faint); border-radius: 16px; transition: background 0.2s; }
 .toggle-slider::before { content: ''; position: absolute; height: 12px; width: 12px; left: 2px; bottom: 2px; background: white; border-radius: 50%; transition: transform 0.2s; }
 .toggle input:checked + .toggle-slider { background: var(--accent); }
 .toggle input:checked + .toggle-slider::before { transform: translateX(12px); }
@@ -820,11 +830,8 @@ function computeStats(listId, entries) {
 const CONSONANTS = 'bcdfghjklmnpqrstvwxyz';
 const VOWELS = 'aeiou';
 
-const HIGHLIGHT_COLORS = ['#ddd6fe', '#99f6e4', '#fde68a', '#fbcfe8', '#bbf7d0'];
-
 function markSpan(text, colorIdx) {
-  const bg = HIGHLIGHT_COLORS[colorIdx % HIGHLIGHT_COLORS.length];
-  return `<mark class="search-match" style="background:${bg}">${text}</mark>`;
+  return `<mark class="search-match search-match-${colorIdx % 5}">${text}</mark>`;
 }
 
 function segmentToPat(str) {
@@ -2063,7 +2070,7 @@ function getTemplate(id) {
 // ─── List icons ───────────────────────────────────────────────────────────────
 
 function getListIcon(id) {
-  return BUILTIN_WORDLISTS.find(w => w.id === id)?.icon ?? '';
+  return getTemplate(id)?.icon ?? '';
 }
 
 // ─── Upload Guide ─────────────────────────────────────────────────────────────
