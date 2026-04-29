@@ -2645,6 +2645,9 @@ function downloadIndividualList(id) {
 initDarkMode();
 initOutputCase();
 initOutputFilename();
+// Hide the busy overlay immediately if no lists have data.
+{ let _m; try { _m = JSON.parse(lsLoad('meta') || '[]'); } catch { _m = []; }
+  if (!_m.some(l => l.lastUpdated)) document.getElementById('busy-overlay').remove(); }
 init();
 </script>
 </body>
