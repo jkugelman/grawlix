@@ -104,9 +104,9 @@ main { display: flex; flex: 1; overflow: hidden; position: relative; }
 .add-list-icon { font-size: 15px; line-height: 1; width: 16px; text-align: center; flex-shrink: 0; }
 
 /* List card / Merged card */
-.list-card, #merged-card { padding: 10px 14px; border-bottom: 1px solid var(--border3); cursor: pointer; display: flex; align-items: center; gap: 9px; transition: background 0.1s; }
-.list-card:hover, #merged-card:hover { background: var(--hover); }
-.list-card.selected, #merged-card.selected { background: var(--sel); border-left: 3px solid var(--accent); padding-left: 11px; }
+.list-card { padding: 10px 14px; border-bottom: 1px solid var(--border3); cursor: pointer; display: flex; align-items: center; gap: 9px; transition: background 0.1s; }
+.list-card:hover { background: var(--hover); }
+.list-card.selected { background: var(--sel); border-left: 3px solid var(--accent); padding-left: 11px; }
 .card-info { flex: 1; min-width: 0; }
 .card-name { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 13px; }
 .card-meta { color: var(--muted); font-size: 11px; margin-top: 2px; display: flex; align-items: center; gap: 5px; }
@@ -211,6 +211,7 @@ html.dark-mode .search-match-4 { background: #14532d; color: #d1fae5; }
 /* Drag handle */
 .drag-handle { color: var(--faint); cursor: grab; font-size: 13px; flex-shrink: 0; padding: 0 1px; user-select: none; }
 .drag-handle:hover { color: var(--muted); }
+.drag-handle[aria-hidden] { visibility: hidden; }
 .list-card[draggable]:active .drag-handle { cursor: grabbing; }
 .list-card.dragging { opacity: 0.4; }
 .list-card.drag-over { background: var(--sel) !important; box-shadow: inset 0 0 0 2px var(--accent); }
@@ -375,7 +376,7 @@ html.dark-mode .screenshot-container img { filter: brightness(0.843) invert(1) h
 
 /* Merged wordlist card */
 #merged-card { flex-shrink: 0; user-select: none; }
-.merged-card-icon { font-size: 22px; width: 37px; text-align: center; flex-shrink: 0; line-height: 1; }
+.merged-icon { color: var(--accent); }
 
 
 </style>
@@ -398,13 +399,7 @@ html.dark-mode .screenshot-container img { filter: brightness(0.843) invert(1) h
   <div id="busy-overlay"><div class="busy-spinner"></div></div>
   <div id="lists-panel">
     <h2>Output List</h2>
-    <div id="merged-card" onclick="selectMergedList()" tabindex="0" role="option" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();selectMergedList()}">
-      <span class="merged-card-icon">★</span>
-      <div class="card-info">
-        <div class="card-name">All Merged</div>
-        <div class="card-meta" id="merged-card-meta"></div>
-      </div>
-    </div>
+    <div id="merged-card" tabindex="0" role="option"></div>
     <h2>Input Lists <span id="list-count"></span></h2>
     <div id="lists-container"></div>
   </div>
@@ -521,6 +516,7 @@ const ROW_HEIGHT   = 24;
 const VS_BUFFER    = 60;
 // LS_PREFIX defined in <head> so the FOUC-prevention script can share it.
 const MERGED_ID    = '__merged__';
+const MERGED_ICON  = `<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" class="list-icon-svg merged-icon" aria-hidden="true"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>`;
 
 const BUILTIN_WORDLISTS = [
   {
@@ -1392,18 +1388,23 @@ function renderAll() {
   else renderDetail(getSelected());
 }
 
+function renderMergedCard(meta, selected) {
+  const card = document.getElementById('merged-card');
+  if (!card) return;
+  card.className = 'list-card' + (selected ? ' selected' : '');
+  card.innerHTML = `<span class="drag-handle" aria-hidden="true">≡</span>${MERGED_ICON}<div class="card-info"><div class="card-name-row"><div class="card-name">All Merged</div></div><div class="card-meta">${meta}</div></div>`;
+}
+
 function renderInputLists() {
   const container = document.getElementById('lists-container');
   document.getElementById('list-count').textContent =
     state.inputLists.length ? `(${state.inputLists.length})` : '';
 
-  const addRow = `<div class="add-list-row" onclick="openDialog()"><span class="drag-handle" style="visibility:hidden" aria-hidden="true">≡</span><span class="add-list-icon">+</span>Add list</div>`;
+  const addRow = `<div class="add-list-row" onclick="openDialog()"><span class="drag-handle" aria-hidden="true">≡</span><span class="add-list-icon">+</span>Add list</div>`;
 
   if (!state.inputLists.length) {
     container.innerHTML = '<div class="no-lists">No lists yet</div>' + addRow;
-    const mergedMetaEl = document.getElementById('merged-card-meta');
-    if (mergedMetaEl) mergedMetaEl.textContent = 'No data';
-    document.getElementById('merged-card')?.classList.toggle('selected', state.selectedId === MERGED_ID);
+    renderMergedCard('No data', state.selectedId === MERGED_ID);
     return;
   }
 
@@ -1411,9 +1412,7 @@ function renderInputLists() {
   const contribMap = new Map(_sourceCountsCache.map(s => [s.id, s.count]));
 
   const totalMerged = _sourceCountsCache.reduce((sum, s) => sum + s.count, 0);
-  const mergedMetaEl = document.getElementById('merged-card-meta');
-  if (mergedMetaEl) mergedMetaEl.textContent = totalMerged ? `${totalMerged.toLocaleString()} entries` : 'No data';
-  document.getElementById('merged-card')?.classList.toggle('selected', state.selectedId === MERGED_ID);
+  renderMergedCard(totalMerged ? `${totalMerged.toLocaleString()} entries` : 'No data', state.selectedId === MERGED_ID);
 
   container.innerHTML = state.inputLists.map(list => {
     const sel = list.id === state.selectedId;
@@ -1472,8 +1471,7 @@ function refreshSourceCounts() {
   }
 
   const totalMerged = _sourceCountsCache.reduce((sum, s) => sum + s.count, 0);
-  const mergedMetaEl = document.getElementById('merged-card-meta');
-  if (mergedMetaEl) mergedMetaEl.textContent = totalMerged ? `${totalMerged.toLocaleString()} entries` : 'No data';
+  renderMergedCard(totalMerged ? `${totalMerged.toLocaleString()} entries` : 'No data', state.selectedId === MERGED_ID);
 }
 
 function buildSearchBarHTML() {
@@ -1994,6 +1992,10 @@ function addBuiltin(id) {
 // ─── Event wiring ─────────────────────────────────────────────────────────────
 
 function bindEvents() {
+  const mergedCard = document.getElementById('merged-card');
+  mergedCard.onclick = selectMergedList;
+  mergedCard.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); selectMergedList(); } };
+
   document.getElementById('toast').onclick = dismissToast;
   document.getElementById('btn-reset').onclick = async () => {
     if (!await showConfirm('Delete all lists and data? This cannot be undone.', { confirmText: 'Reset' })) return;
