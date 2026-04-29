@@ -212,6 +212,8 @@ html.dark-mode .search-match-4 { background: #14532d; color: #d1fae5; }
 
 /* Settings dialog */
 #settings-dialog { width: 340px; }
+#confirm-dialog { width: 320px; }
+#confirm-dialog p { margin-bottom: 4px; line-height: 1.5; }
 .settings-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 13px 0; border-bottom: 1px solid var(--border2); }
 .settings-row:first-of-type { border-top: 1px solid var(--border2); margin-top: 4px; }
 .settings-row-label { font-size: 13px; font-weight: 600; }
@@ -485,6 +487,14 @@ html.dark-mode .screenshot-container img { filter: brightness(0.843) invert(1) h
   <div class="guide-steps" id="guide-steps"></div>
   <div class="dialog-footer">
     <button id="btn-guide-close">Cancel</button>
+  </div>
+</dialog>
+
+<dialog id="confirm-dialog" aria-labelledby="confirm-dialog-msg">
+  <p id="confirm-dialog-msg"></p>
+  <div class="dialog-footer">
+    <button id="btn-confirm-cancel">Cancel</button>
+    <button id="btn-confirm-ok" class="danger"></button>
   </div>
 </dialog>
 
@@ -1823,7 +1833,7 @@ async function clearListData(id, event) {
   if (event) event.stopPropagation();
   const list = state.inputLists.find(l => l.id === id);
   if (!list || !list.rawEntries.length) return;
-  if (!confirm(`Clear data for "${list.name}"?`)) return;
+  if (!await showConfirm(`Clear data for "${list.name}"?`, { confirmText: 'Clear' })) return;
   list.rawEntries = [];
   list.lastUpdated = null;
   invalidateListCaches(id);
@@ -1838,7 +1848,7 @@ async function deleteList(id, event) {
   if (event) event.stopPropagation();
   const list = state.inputLists.find(l => l.id === id);
   if (!list) return;
-  if (!confirm(`Remove "${list.name}"?`)) return;
+  if (!await showConfirm(`Remove "${list.name}"?`, { confirmText: 'Remove' })) return;
   state.inputLists = state.inputLists.filter(l => l.id !== id);
   invalidateListCaches(id);
   await idbDel('data_' + id);
@@ -1870,6 +1880,38 @@ function addNewList(listDef) {
   invalidateStatsCache(MERGED_ID);
   persistMeta();
   renderInputLists();
+}
+
+// ─── Confirm Dialog ───────────────────────────────────────────────────────────
+
+function showConfirm(message, { confirmText = 'OK', danger = true } = {}) {
+  return new Promise(resolve => {
+    const dialog  = document.getElementById('confirm-dialog');
+    const msgEl   = document.getElementById('confirm-dialog-msg');
+    const okBtn   = document.getElementById('btn-confirm-ok');
+    const cancelBtn = document.getElementById('btn-confirm-cancel');
+
+    msgEl.textContent = message;
+    okBtn.textContent = confirmText;
+    okBtn.className   = danger ? 'danger' : '';
+
+    function finish(result) {
+      dialog.removeEventListener('cancel', onCancel);
+      okBtn.removeEventListener('click', onOk);
+      cancelBtn.removeEventListener('click', onCancelClick);
+      dialog.close();
+      resolve(result);
+    }
+    function onOk()          { finish(true);  }
+    function onCancelClick() { finish(false); }
+    function onCancel(e)     { e.preventDefault(); finish(false); }
+
+    dialog.addEventListener('cancel', onCancel);
+    okBtn.addEventListener('click', onOk);
+    cancelBtn.addEventListener('click', onCancelClick);
+
+    dialog.showModal();
+  });
 }
 
 // ─── Add Dialog ───────────────────────────────────────────────────────────────
@@ -1926,7 +1968,7 @@ function addBuiltin(id) {
 function bindEvents() {
   document.getElementById('toast').onclick = dismissToast;
   document.getElementById('btn-reset').onclick = async () => {
-    if (!confirm('Delete all lists and data? This cannot be undone.')) return;
+    if (!await showConfirm('Delete all lists and data? This cannot be undone.', { confirmText: 'Reset' })) return;
     Object.keys(localStorage).filter(k => k.startsWith(LS_PREFIX)).forEach(k => localStorage.removeItem(k));
     if (_db) { _db.close(); _db = null; }
     await new Promise(resolve => {
