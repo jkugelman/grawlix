@@ -495,6 +495,7 @@ html.dark-mode .screenshot-container img { filter: brightness(0.843) invert(1) h
 <dialog id="upload-guide-dialog" aria-labelledby="guide-title">
   <button class="dialog-close-btn" aria-label="Close">✕</button>
   <h2 id="guide-title"></h2>
+  <div id="guide-tabs"></div>
   <div class="guide-steps" id="guide-steps"></div>
 </dialog>
 
@@ -524,6 +525,11 @@ const BUILTIN_WORDLISTS = [
     name: 'John Kugelman',
     source: 'builtin-download',
     url: 'https://raw.githubusercontent.com/jkugelman/crossword/refs/heads/main/wordlists/jkugelman-wordlist.txt',
+    downloadPage: 'https://github.com/jkugelman/crossword/blob/main/wordlists/jkugelman-wordlist.txt',
+    downloadNote: 'Click the <strong>Download raw file</strong> button (↓ icon) in the toolbar above the file.',
+    screenshot: () => `<div class="screenshot-container">
+      <img src="jkugelman-download-page.png" alt="John Kugelman wordlist on GitHub">
+    </div>`,
     icon: `<svg width="16" height="16" viewBox="0 0 16 16" class="list-icon-svg" aria-hidden="true"><rect width="16" height="16" fill="#d46a1a"/><text x="8" y="12" text-anchor="middle" fill="white" font-family="system-ui,sans-serif" font-size="8.5" font-weight="700">JK</text></svg>`,
     defaultRules: [
       { input:'60', length:'', output:'', note:'Great (colorful phrases, sayings, people, etc.)' },
@@ -563,8 +569,8 @@ const BUILTIN_WORDLISTS = [
   {
     id: 'stwl',
     name: 'Spread the Word(list)',
-    source: 'upload',
-    url: null,
+    source: 'builtin-download',
+    url: 'spreadthewordlist.txt',
     downloadPage: 'https://www.spreadthewordlist.com/',
     downloadNote: 'Download the <strong>lowercase + compiler</strong> version.',
     icon: `<img src="https://www.spreadthewordlist.com/favicon.ico" class="list-icon-img" onerror="this.style.display='none'" alt="">`,
@@ -584,8 +590,8 @@ const BUILTIN_WORDLISTS = [
   {
     id: 'broda',
     name: 'Peter Broda',
-    source: 'upload',
-    url: null,
+    source: 'builtin-download',
+    url: 'peter-broda-wordlist__gridtext__scored__july-25-2023.txt',
     downloadPage: 'http://www.peterbroda.me/crosswords/wordlist/',
     downloadNote: 'Download the <strong>.txt</strong> version.',
     icon: `<svg width="16" height="16" viewBox="0 0 16 16" class="list-icon-svg" aria-hidden="true"><rect width="16" height="16" fill="#0f9d58"/><text x="8" y="12" text-anchor="middle" fill="white" font-family="system-ui,sans-serif" font-size="8.5" font-weight="700">PB</text></svg>`,
@@ -1633,23 +1639,17 @@ function renderDetail(list) {
 
   let actionBtn;
   const hasData = list.rawEntries.length > 0;
-  if (list.source === 'upload') {
-    const tmpl = getTemplate(list.id);
-    const label = hasData ? 'Update' : 'Upload';
-    if (tmpl?.downloadPage) {
-      actionBtn = `<button class="primary" onclick="openUploadGuide('${list.id}')">${label}</button>`;
-    } else {
-      actionBtn = `<button class="primary" onclick="uploadToList('${list.id}')">${label}</button>`;
-    }
-  } else if (list.url) {
-    const isBuiltin = list.source === 'builtin-download';
-    const label = isBuiltin ? (hasData ? 'Update' : 'Upload') : '↻ Update';
-    const onclick = isBuiltin ? `openAutoDownloadDialog('${list.id}')` : `downloadList('${list.id}')`;
+  const label = hasData ? 'Update' : 'Upload';
+  if (getTemplate(list.id)) {
     const dot = list._updateAvailable && !list._loading ? `<span class="update-dot"></span>` : '';
     const title = list._updateAvailable && !list._loading ? ' title="Update available"' : '';
-    actionBtn = `<button class="primary"${title} onclick="${onclick}" ${list._loading ? 'disabled' : ''}>${list._loading ? 'Updating…' : label}${dot}</button>`;
+    actionBtn = `<button class="primary"${title} onclick="openLoadDialog('${list.id}')" ${list._loading ? 'disabled' : ''}>${list._loading ? 'Updating…' : label}${dot}</button>`;
+  } else if (list.url) {
+    const dot = list._updateAvailable && !list._loading ? `<span class="update-dot"></span>` : '';
+    const title = list._updateAvailable && !list._loading ? ' title="Update available"' : '';
+    actionBtn = `<button class="primary"${title} onclick="downloadList('${list.id}')" ${list._loading ? 'disabled' : ''}>${list._loading ? 'Updating…' : '↻ Update'}${dot}</button>`;
   } else {
-    actionBtn = '';
+    actionBtn = `<button class="primary" onclick="uploadToList('${list.id}')">${label}</button>`;
   }
 
   const removeBtn = `<button onclick="removeList('${list.id}')">Remove</button>`;
@@ -1739,6 +1739,10 @@ function onSearchWholeWord(checked) {
 async function downloadList(id, event) {
   if (event) event.stopPropagation();
   const list = state.inputLists.find(l => l.id === id);
+  if (list && !list.url) {
+    const tmpl = getTemplate(id);
+    if (tmpl?.url) { list.url = tmpl.url; persistMeta(); }
+  }
   if (!list || !list.url || list._loading) return;
 
   list._loading = true;
@@ -1804,13 +1808,8 @@ async function checkForUpdates() {
 
 function triggerLoadForList(id, event) {
   if (event) event.stopPropagation();
-  const list = state.inputLists.find(l => l.id === id);
-  if (!list) return;
-  if (list.source === 'upload') {
-    openUploadGuide(id);
-  } else if (list.source === 'builtin-download') {
-    openAutoDownloadDialog(id);
-  }
+  if (!state.inputLists.find(l => l.id === id)) return;
+  openLoadDialog(id);
 }
 
 function uploadToList(id, event) {
@@ -1942,12 +1941,11 @@ function openDialog() {
   const builtinList = document.getElementById('builtin-list');
   builtinList.innerHTML = BUILTIN_WORDLISTS.map(t => {
     const exists = state.inputLists.some(l => l.id === t.id);
-    const sub = t.source === 'upload'
-      ? (t.downloadPage
+    const sub = t.url
+      ? 'Auto-download'
+      : (t.downloadPage
         ? `Manual download &middot; <a class="get-file" href="${esc(t.downloadPage)}" target="_blank" rel="noopener">Get file 🔗</a>`
-        : 'Manual upload')
-      : t.url ? 'Auto-download'
-      : 'URL TBD';
+        : 'Manual upload');
     return `<div class="known-list">
       ${t.icon || ''}
       <div class="known-list-info">
@@ -2250,58 +2248,78 @@ function bindDropZone(zone, fileInput, onFile) {
   fileInput.onchange = () => { if (fileInput.files[0]) onFile(fileInput.files[0]); };
 }
 
-function openUploadGuide(listId, event) {
-  if (event) event.stopPropagation();
-  const tmpl = getTemplate(listId);
-  if (!tmpl?.downloadPage) { uploadToList(listId); return; }
-
-  const dialog = document.getElementById('upload-guide-dialog');
-  document.getElementById('guide-title').textContent = `${tmpl.name} — Where to get it`;
-  document.getElementById('guide-steps').innerHTML = buildGuideHTML(listId, tmpl);
-
-  bindDropZone(
-    document.getElementById('guide-drop-zone'),
-    document.getElementById('guide-file-input'),
-    file => { dialog.close(); ingestFile(file, listId); selectList(listId); }
-  );
-
-  dialog.showModal();
-}
-
-function openAutoDownloadDialog(listId, event) {
+function openLoadDialog(listId, event) {
   if (event) event.stopPropagation();
   const tmpl = getTemplate(listId);
   const dialog = document.getElementById('upload-guide-dialog');
   document.getElementById('guide-title').textContent = `${tmpl?.name ?? 'Wordlist'} — Load Wordlist`;
-  document.getElementById('guide-steps').innerHTML = `
-    <div class="known-list">
-      <div class="known-list-info">
-        <div class="known-list-name">Auto-download</div>
-        <div class="known-list-sub">Download directly from GitHub</div>
-      </div>
-      <button class="primary" id="auto-dl-btn">Download</button>
-    </div>
-    <div class="dialog-divider">— or upload a file —</div>
-    <div class="upload-zone compact" id="guide-drop-zone">
-      Drop file here or click to browse
-      <input type="file" id="guide-file-input" accept=".txt,.csv">
-    </div>`;
 
-  document.getElementById('auto-dl-btn').onclick = () => {
+  const hasUrl = !!tmpl?.url;
+  const hasManual = !!(tmpl?.downloadPage);
+
+  if (!hasUrl && !hasManual) { uploadToList(listId); return; }
+
+  let tabsHTML = '';
+  let stepsHTML;
+
+  if (hasUrl && hasManual) {
+    tabsHTML = `<div class="tabs" id="guide-tab-strip">
+      <button class="tab-btn active" data-guide-tab="auto">Auto-download</button>
+      <button class="tab-btn" data-guide-tab="manual">Manual download</button>
+    </div>`;
+    stepsHTML = `
+      <div id="guide-pane-auto">${buildAutoHTML()}</div>
+      <div id="guide-pane-manual" class="guide-steps" style="display:none">${buildManualHTML(tmpl)}</div>`;
+  } else if (hasUrl) {
+    stepsHTML = `
+      ${buildAutoHTML()}
+      <div class="dialog-divider">— or upload a file —</div>
+      <div class="upload-zone compact" id="guide-drop-zone">
+        Drop file here or click to browse
+        <input type="file" id="guide-file-input" accept=".txt,.csv">
+      </div>`;
+  } else {
+    stepsHTML = buildManualHTML(tmpl);
+  }
+
+  document.getElementById('guide-tabs').innerHTML = tabsHTML;
+  document.getElementById('guide-steps').innerHTML = stepsHTML;
+
+  if (hasUrl && hasManual) {
+    document.querySelectorAll('#guide-tab-strip .tab-btn').forEach(btn => {
+      btn.onclick = () => {
+        document.querySelectorAll('#guide-tab-strip .tab-btn').forEach(b => b.classList.toggle('active', b === btn));
+        document.getElementById('guide-pane-auto').style.display = btn.dataset.guideTab === 'auto' ? '' : 'none';
+        document.getElementById('guide-pane-manual').style.display = btn.dataset.guideTab === 'manual' ? '' : 'none';
+      };
+    });
+  }
+
+  const dropZone = document.getElementById('guide-drop-zone');
+  const fileInput = document.getElementById('guide-file-input');
+  if (dropZone && fileInput) {
+    bindDropZone(dropZone, fileInput, file => { dialog.close(); ingestFile(file, listId); selectList(listId); });
+  }
+
+  document.getElementById('auto-dl-btn')?.addEventListener('click', () => {
     dialog.close();
     downloadList(listId);
-  };
-
-  bindDropZone(
-    document.getElementById('guide-drop-zone'),
-    document.getElementById('guide-file-input'),
-    file => { dialog.close(); ingestFile(file, listId); selectList(listId); }
-  );
+  });
 
   dialog.showModal();
 }
 
-function buildGuideHTML(listId, tmpl) {
+function buildAutoHTML() {
+  return `<div class="known-list">
+    <div class="known-list-info">
+      <div class="known-list-name">One-click download</div>
+      <div class="known-list-sub">No manual steps needed.</div>
+    </div>
+    <button class="primary" id="auto-dl-btn">Download</button>
+  </div>`;
+}
+
+function buildManualHTML(tmpl) {
   const screenshot = tmpl.screenshot?.() ?? '';
   const subscriptionNote = tmpl.subscriptionNote
     ? `<div class="subscription-note"><strong>Note:</strong> ${esc(tmpl.subscriptionNote)}</div>`
