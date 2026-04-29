@@ -248,11 +248,14 @@ a.get-file:hover { text-decoration: underline; }
 /* ── Rescore section ──────────────────────────────────────────────────────── */
 .rescore-section { background: var(--surface2); border-bottom: 1px solid var(--border2); padding: 9px 18px; flex-shrink: 0; max-height: 240px; overflow-y: auto; }
 .rescore-top { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+.rescore-top .rule-reset { margin-left: auto; }
+.hidden { visibility: hidden; }
 .rescore-lbl { font-size: 10px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
 .rule-row { display: flex; align-items: center; gap: 5px; margin-bottom: 3px; }
-.rule-in  { width: 80px; padding: 2px 6px; border: 1px solid var(--border); border-radius: 3px; font-size: 12px; font-family: ui-monospace, 'Cascadia Code', monospace; text-align: center; background: var(--input-bg); color: var(--text); }
-.rule-len { width: 60px; padding: 2px 6px; border: 1px solid var(--border); border-radius: 3px; font-size: 12px; font-family: ui-monospace, 'Cascadia Code', monospace; text-align: center; background: var(--input-bg); color: var(--text); }
-.rule-out { width: 80px; padding: 2px 6px; border: 1px solid var(--border); border-radius: 3px; font-size: 12px; font-family: ui-monospace, 'Cascadia Code', monospace; text-align: center; background: var(--input-bg); color: var(--text); }
+.rule-in, .rule-len, .rule-out { padding: 2px 6px; border: 1px solid var(--border); border-radius: 3px; font-size: 12px; font-family: ui-monospace, 'Cascadia Code', monospace; text-align: center; background: var(--input-bg); color: var(--text); }
+.rule-in  { width: 80px; }
+.rule-len { width: 60px; }
+.rule-out { width: 80px; }
 .rule-in:focus, .rule-len:focus, .rule-out:focus { outline: none; border-color: var(--accent); }
 .rule-in::placeholder, .rule-len::placeholder, .rule-out::placeholder { color: var(--faint); }
 .rule-in.invalid, .rule-len.invalid, .rule-out.invalid { border-color: #ea4335; background: var(--error-bg); }
@@ -266,13 +269,14 @@ a.get-file:hover { text-decoration: underline; }
 .rule-note-pencil { font-size: 11px; color: var(--faint); line-height: 1; }
 .rule-row:hover .rule-note-wrap.has-note .rule-note-pencil { opacity: 1; }
 .rule-note-input { flex: 1; padding: 1px 4px; border: 1px solid var(--accent); border-radius: 3px; font-size: 12px; background: var(--input-bg); color: var(--text); outline: none; min-width: 0; }
-.rule-del { width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; border: none; background: none; cursor: pointer; color: var(--faint); font-size: 15px; padding: 0; line-height: 1; border-radius: 3px; font-family: inherit; }
+.rule-del, .rule-reset { width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; border: none; background: none; cursor: pointer; color: var(--faint); font-size: 15px; padding: 0; line-height: 1; border-radius: 3px; font-family: inherit; }
 .rule-del:hover { color: #e53935; background: var(--del-hover); }
-.rule-reset { width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; border: none; background: none; cursor: pointer; color: var(--faint); font-size: 15px; padding: 0; line-height: 1; border-radius: 3px; font-family: inherit; }
 .rule-reset:hover { color: var(--accent); background: var(--hover); }
 
 /* Header */
 .header-controls { display: flex; gap: 12px; align-items: center; }
+.header-github-link { display: inline-flex; vertical-align: middle; margin-left: 4px; opacity: 0.75; color: white; text-decoration: none; border-bottom: none; }
+.header-github-link:hover { opacity: 1; }
 
 /* Segmented control */
 .seg-ctrl { display: flex; border: 1px solid var(--border); border-radius: 4px; overflow: hidden; }
@@ -297,8 +301,10 @@ a.get-file:hover { text-decoration: underline; }
 .list-icon-svg { border-radius: 3px; flex-shrink: 0; }
 
 /* Score display */
-.score-orig { color: #aaa; font-size: 11px; }
-.score-arrow-indicator { color: #ccc; font-size: 10px; padding: 0 3px; }
+.entry-ignored { opacity: 0.4; }
+.col-length { text-align: right; }
+.score-orig { color: var(--muted); font-size: 11px; }
+.score-arrow-indicator { color: var(--faint); font-size: 10px; padding: 0 3px; }
 .ignored-word { text-decoration: line-through; }
 .score-badge.ignored { text-decoration: line-through; }
 .overridden-row { cursor: help; }
@@ -352,7 +358,7 @@ html.dark-mode .screenshot-container img { filter: brightness(0.843) invert(1) h
   <div class="header-center">
     <span class="header-tagline">&ldquo;Use your words!&rdquo;</span>
     <span class="header-sep">&middot;</span>
-    <span class="header-byline">Made by John Kugelman <a href="https://github.com/jkugelman/crossword/tree/main/grawlix" target="_blank" rel="noopener" title="View on GitHub" style="display:inline-flex;vertical-align:middle;margin-left:4px;opacity:0.75;color:white;text-decoration:none;border-bottom:none;" onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0.75'"><svg width="15" height="15" viewBox="0 0 16 16" fill="currentColor" aria-label="GitHub" role="img"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg></a></span>
+    <span class="header-byline">Made by John Kugelman <a href="https://github.com/jkugelman/crossword/tree/main/grawlix" target="_blank" rel="noopener" title="View on GitHub" class="header-github-link"><svg width="15" height="15" viewBox="0 0 16 16" fill="currentColor" aria-label="GitHub" role="img"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg></a></span>
     <span class="header-sep">&middot;</span>
     <span class="header-byline">Got feedback? <a href="mailto:john@kugelman.name">Email me</a></span>
   </div>
@@ -1107,7 +1113,7 @@ class VirtualScroller {
         const r = rescoreEntry(entry, this.rescoreRules);
         if (!r.kept) {
           ignored = true;
-          tr.style.opacity = '0.4';
+          tr.classList.add('entry-ignored');
           wordCell   = `<td title="${word}"><span class="ignored-word">${wordHtml}</span></td>`;
           innerScore = `<span class="score-badge ignored" style="background:${bg};color:${fg}">${score}</span>`;
         } else if (r.score !== score) {
@@ -1121,7 +1127,7 @@ class VirtualScroller {
         tr.classList.add('overridden-row');
         tr.title = `Overridden by ${ov.listName} at ${ov.score}`;
       }
-      const lengthCell = `<td style="text-align:right">${word.length}</td>`;
+      const lengthCell = `<td class="col-length">${word.length}</td>`;
       const scoreCell = `<td>${innerScore}</td>`;
 
       tr.innerHTML =
@@ -1288,8 +1294,7 @@ function buildRuleSectionHTML({ label, rulesId, rulesHTML, showReset, onResetFn 
   return `
     <div class="rescore-top">
       <span class="rescore-lbl">${label}</span>
-      <button class="rule-reset" onclick="${onResetFn}()" title="Reset to defaults"
-        style="margin-left:auto;visibility:${showReset ? 'visible' : 'hidden'}">↺</button>
+      <button class="rule-reset${showReset ? '' : ' hidden'}" onclick="${onResetFn}()" title="Reset to defaults">↺</button>
     </div>
     <div id="${rulesId}">${rulesHTML}</div>
   `;
