@@ -817,6 +817,10 @@ async function init() {
   bindEvents();
   checkForUpdates();
   _updateCheckInterval = setInterval(checkForUpdates, UPDATE_CHECK_INTERVAL);
+
+  state.inputLists
+    .filter(l => (l.url || getTemplate(l.id)?.url) && !l.rawEntries.length)
+    .forEach(l => fetchList(l.id));
 }
 
 function defaultInputLists() {
