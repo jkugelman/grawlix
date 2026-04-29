@@ -525,8 +525,8 @@ const BUILTIN_WORDLISTS = [
     name: 'John Kugelman',
     source: 'builtin-download',
     url: 'https://raw.githubusercontent.com/jkugelman/crossword/refs/heads/main/wordlists/jkugelman-wordlist.txt',
-    downloadPage: 'https://github.com/jkugelman/crossword/blob/main/wordlists/jkugelman-wordlist.txt',
-    downloadNote: 'Click the <strong>Download raw file</strong> button (↓ icon) in the toolbar above the file.',
+    sourcePage: 'https://github.com/jkugelman/crossword/blob/main/wordlists/jkugelman-wordlist.txt',
+    sourceNote: 'Click the <strong>Download raw file</strong> button (↓ icon) in the toolbar above the file.',
     screenshot: () => `<div class="screenshot-container">
       <img src="jkugelman-download-page.png" alt="John Kugelman wordlist on GitHub">
     </div>`,
@@ -546,8 +546,8 @@ const BUILTIN_WORDLISTS = [
     name: 'XWord Info',
     source: 'upload',
     url: null,
-    downloadPage: 'https://www.xwordinfo.com/WordList',
-    downloadNote: 'Download a <strong>.txt</strong> version.',
+    sourcePage: 'https://www.xwordinfo.com/WordList',
+    sourceNote: 'Download a <strong>.txt</strong> version.',
     subscriptionNote: 'XWord Info requires a paid subscription to access the wordlist download.',
     icon: `<img src="https://www.xwordinfo.com/favicon.ico" class="list-icon-img" onerror="this.style.display='none'" alt="">`,
     screenshot: () => `<div class="screenshot-container">
@@ -571,8 +571,8 @@ const BUILTIN_WORDLISTS = [
     name: 'Spread the Word(list)',
     source: 'builtin-download',
     url: 'spreadthewordlist.txt',
-    downloadPage: 'https://www.spreadthewordlist.com/',
-    downloadNote: 'Download the <strong>lowercase + compiler</strong> version.',
+    sourcePage: 'https://www.spreadthewordlist.com/',
+    sourceNote: 'Download the <strong>lowercase + compiler</strong> version.',
     icon: `<img src="https://www.spreadthewordlist.com/favicon.ico" class="list-icon-img" onerror="this.style.display='none'" alt="">`,
     screenshot: () => `<div class="screenshot-container">
       <img src="stwl-download-page.png" alt="Spread the Word(list) download page">
@@ -592,8 +592,8 @@ const BUILTIN_WORDLISTS = [
     name: 'Peter Broda',
     source: 'builtin-download',
     url: 'peter-broda-wordlist__gridtext__scored__july-25-2023.txt',
-    downloadPage: 'http://www.peterbroda.me/crosswords/wordlist/',
-    downloadNote: 'Download the <strong>.txt</strong> version.',
+    sourcePage: 'http://www.peterbroda.me/crosswords/wordlist/',
+    sourceNote: 'Download the <strong>.txt</strong> version.',
     icon: `<svg width="16" height="16" viewBox="0 0 16 16" class="list-icon-svg" aria-hidden="true"><rect width="16" height="16" fill="#0f9d58"/><text x="8" y="12" text-anchor="middle" fill="white" font-family="system-ui,sans-serif" font-size="8.5" font-weight="700">PB</text></svg>`,
     screenshot: () => `<div class="screenshot-container">
       <img src="broda-download-page.png" alt="Peter Broda wordlist download page">
@@ -702,7 +702,7 @@ function persistMeta() {
   lsSave('meta', JSON.stringify(state.inputLists.map(l => ({
     id: l.id, name: l.name, source: l.source, url: l.url || null,
     enabled: l.enabled, lastUpdated: l.lastUpdated || null,
-    downloadFingerprint: l.downloadFingerprint || null,
+    fetchFingerprint: l.fetchFingerprint || null,
     rescoreRules: l.rescoreRules || [],
     originalFilename: l.originalFilename || null,
   }))));
@@ -1658,7 +1658,7 @@ function renderDetail(list) {
     const title = list._updateAvailable && !list._loading ? 'Update available' : '';
     const btnLabel = `${list._loading ? 'Updating…' : label}${dot}`;
     if (tmpl.url) {
-      actionBtn = buildSplitBtn(btnLabel, `downloadList('${list.id}')`,
+      actionBtn = buildSplitBtn(btnLabel, `fetchList('${list.id}')`,
         [['Manual upload…', `openManualGuide('${list.id}')`]],
         { primary: true, disabled: !!list._loading, title });
     } else {
@@ -1667,7 +1667,7 @@ function renderDetail(list) {
   } else if (list.url) {
     const dot = list._updateAvailable && !list._loading ? `<span class="update-dot"></span>` : '';
     const title = list._updateAvailable && !list._loading ? ' title="Update available"' : '';
-    actionBtn = `<button class="primary"${title} onclick="downloadList('${list.id}')" ${list._loading ? 'disabled' : ''}>${list._loading ? 'Updating…' : '↻ Update'}${dot}</button>`;
+    actionBtn = `<button class="primary"${title} onclick="fetchList('${list.id}')" ${list._loading ? 'disabled' : ''}>${list._loading ? 'Updating…' : '↻ Update'}${dot}</button>`;
   } else {
     actionBtn = `<button class="primary" onclick="uploadToList('${list.id}')">${label}</button>`;
   }
@@ -1749,7 +1749,7 @@ function onSearchWholeWord(checked) {
   if (scroller) scroller.filter(state.searchQuery, checked);
 }
 
-async function downloadList(id, event) {
+async function fetchList(id, event) {
   if (event) event.stopPropagation();
   const list = state.inputLists.find(l => l.id === id);
   if (list && !list.url) {
@@ -1761,7 +1761,7 @@ async function downloadList(id, event) {
   list._loading = true;
   renderInputLists();
   if (state.selectedId === id) renderDetail(list);
-  showToast(`Downloading ${list.name}…`);
+  showToast(`Fetching ${list.name}…`);
 
   try {
     const resp = await fetch(list.url);
@@ -1771,7 +1771,7 @@ async function downloadList(id, event) {
     const wasEmpty = !list.rawEntries.length;
     list.rawEntries = parseWordlist(text);
     list.lastUpdated = Date.now();
-    list.downloadFingerprint = resp.headers.get('etag') || resp.headers.get('last-modified') || resp.headers.get('content-length') || null;
+    list.fetchFingerprint = resp.headers.get('etag') || resp.headers.get('last-modified') || resp.headers.get('content-length') || null;
     list._updateAvailable = false;
     list._loading = false;
     if (wasEmpty) list.enabled = true;
@@ -1789,14 +1789,14 @@ async function downloadList(id, event) {
     list._loading = false;
     renderInputLists();
     if (state.selectedId === id) renderDetail(list);
-    showToast(`Download failed: ${err.message}`);
+    showToast(`Fetch failed: ${err.message}`);
   }
 }
 
 const UPDATE_CHECK_INTERVAL = 60 * 60 * 1000; // 1 hour
 
 async function checkForUpdates() {
-  const candidates = state.inputLists.filter(l => l.url && l.rawEntries.length > 0 && l.downloadFingerprint);
+  const candidates = state.inputLists.filter(l => l.url && l.rawEntries.length > 0 && l.fetchFingerprint);
   if (!candidates.length) return;
 
   let anyChanged = false;
@@ -1805,7 +1805,7 @@ async function checkForUpdates() {
       const resp = await fetch(list.url, { method: 'HEAD' });
       if (!resp.ok) return;
       const size = resp.headers.get('etag') || resp.headers.get('last-modified') || resp.headers.get('content-length');
-      if (size && size !== list.downloadFingerprint && !list._updateAvailable) {
+      if (size && size !== list.fetchFingerprint && !list._updateAvailable) {
         list._updateAvailable = true;
         anyChanged = true;
       }
@@ -1822,7 +1822,7 @@ async function checkForUpdates() {
 function triggerUploadForList(id, event) {
   if (event) event.stopPropagation();
   if (!state.inputLists.find(l => l.id === id)) return;
-  if (getTemplate(id)?.url) downloadList(id);
+  if (getTemplate(id)?.url) fetchList(id);
   else openManualGuide(id);
 }
 
@@ -1956,9 +1956,9 @@ function openDialog() {
   builtinList.innerHTML = BUILTIN_WORDLISTS.map(t => {
     const exists = state.inputLists.some(l => l.id === t.id);
     const sub = t.url
-      ? 'Auto-download'
-      : (t.downloadPage
-        ? `Manual download &middot; <a class="get-file" href="${esc(t.downloadPage)}" target="_blank" rel="noopener">Get file 🔗</a>`
+      ? 'Auto-fetch'
+      : (t.sourcePage
+        ? `Manual upload &middot; <a class="get-file" href="${esc(t.sourcePage)}" target="_blank" rel="noopener">Get file 🔗</a>`
         : 'Manual upload');
     return `<div class="known-list">
       ${t.icon || ''}
@@ -2179,7 +2179,7 @@ function bindEvents() {
     const id = 'url_' + Date.now();
     addNewList({ id, name, source: 'url', url, enabled: true });
     document.getElementById('add-dialog').close();
-    await downloadList(id);
+    await fetchList(id);
     selectList(id);
   };
 }
@@ -2267,7 +2267,7 @@ function openManualGuide(listId) {
   const dialog = document.getElementById('upload-guide-dialog');
   document.getElementById('guide-title').textContent = `${tmpl?.name ?? 'Wordlist'} — Upload Wordlist`;
 
-  if (!tmpl?.downloadPage) { uploadToList(listId); return; }
+  if (!tmpl?.sourcePage) { uploadToList(listId); return; }
 
   document.getElementById('guide-tabs').innerHTML = '';
   document.getElementById('guide-steps').innerHTML = buildManualHTML(tmpl);
@@ -2291,13 +2291,13 @@ function buildManualHTML(tmpl) {
     <div class="guide-step">
       <div class="guide-step-num">1</div>
       <div class="guide-step-body">
-        Go to the download page: <a class="get-file" href="${esc(tmpl.downloadPage)}" target="_blank" rel="noopener">${esc(tmpl.downloadPage)} 🔗</a>
+        Go to the download page: <a class="get-file" href="${esc(tmpl.sourcePage)}" target="_blank" rel="noopener">${esc(tmpl.sourcePage)} 🔗</a>
       </div>
     </div>
     <div class="guide-step">
       <div class="guide-step-num">2</div>
       <div class="guide-step-body">
-        ${tmpl.downloadNote}<!-- trusted HTML: hardcoded in BUILTIN_WORDLISTS, never user-supplied -->
+        ${tmpl.sourceNote}<!-- trusted HTML: hardcoded in BUILTIN_WORDLISTS, never user-supplied -->
         ${screenshot}
       </div>
     </div>
