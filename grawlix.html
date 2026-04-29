@@ -993,8 +993,8 @@ class VirtualScroller {
 
   _cols() {
     const cols = ['length', 'word', 'score'];
-    if (this.showSource) cols.push('source');
     cols.push('comment');
+    if (this.showSource) cols.push('source');
     return cols;
   }
 
@@ -1176,8 +1176,8 @@ class VirtualScroller {
         lengthCell +
         wordCell +
         scoreCell +
-        (this.showSource ? `<td class="comment-cell">${esc(listName || '')}</td>` : '') +
-        `<td class="comment-cell">${comment || ''}</td>`;
+        `<td class="comment-cell">${comment || ''}</td>` +
+        (this.showSource ? `<td class="comment-cell">${esc(listName || '')}</td>` : '');
       frag.appendChild(tr);
     }
     this.tbody.insertBefore(frag, this.botRow);
