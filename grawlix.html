@@ -86,7 +86,13 @@ header h1 { font-size: 17px; font-weight: 600; letter-spacing: -0.01em; }
 .bubble { display: inline-flex; align-items: center; background: white; color: var(--accent); border-radius: 8px; padding: 1px 7px 2px; font-size: 15px; font-weight: 800; position: relative; margin-left: 9px; line-height: 1.5; vertical-align: middle; }
 .bubble::before { content: ''; position: absolute; left: -15px; top: 50%; transform: translateY(-50%); border: 9px solid transparent; border-right-color: white; }
 
-main { display: flex; flex: 1; overflow: hidden; }
+main { display: flex; flex: 1; overflow: hidden; position: relative; }
+
+/* Busy overlay */
+#busy-overlay { position: absolute; inset: 0; z-index: 200; background: var(--bg); display: flex; align-items: center; justify-content: center; transition: opacity 0.2s; }
+#busy-overlay.done { opacity: 0; pointer-events: none; }
+.busy-spinner { width: 36px; height: 36px; border: 3px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: busy-spin 0.7s linear infinite; }
+@keyframes busy-spin { to { transform: rotate(360deg); } }
 
 /* Lists panel */
 #lists-panel { width: 320px; background: var(--surface); border-right: 1px solid var(--border); display: flex; flex-direction: column; overflow: hidden; flex-shrink: 0; }
@@ -385,6 +391,7 @@ html.dark-mode .screenshot-container img { filter: brightness(0.843) invert(1) h
 </header>
 
 <main>
+  <div id="busy-overlay"><div class="busy-spinner"></div></div>
   <div id="lists-panel">
     <h2>Output List</h2>
     <div id="merged-card" onclick="selectMergedList()" tabindex="0" role="option" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();selectMergedList()}">
@@ -784,6 +791,9 @@ async function init() {
   if (!state.selectedId && state.inputLists.length) state.selectedId = state.inputLists[0].id;
 
   renderAll();
+  const _overlay = document.getElementById('busy-overlay');
+  _overlay.classList.add('done');
+  _overlay.addEventListener('transitionend', () => _overlay.remove(), { once: true });
   bindEvents();
   checkForUpdates();
   _updateCheckInterval = setInterval(checkForUpdates, UPDATE_CHECK_INTERVAL);
