@@ -799,6 +799,7 @@ async function init() {
 
   const rawMs = lsLoad('mergedScoring');
   if (rawMs) { try { state.mergedScoring = JSON.parse(rawMs); } catch {} }
+  else { lsSave('mergedScoring', JSON.stringify(state.mergedScoring.filter(r => !r._catchAll))); }
 
   const savedId = lsLoad('selectedId');
   if (savedId === MERGED_ID) {
