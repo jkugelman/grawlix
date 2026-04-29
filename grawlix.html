@@ -585,22 +585,9 @@ const state = {
   mergedScoring: DEFAULT_MERGED_SCORING.map(r => ({ ...r })),
 };
 
-// ─── Parsing ─────────────────────────────────────────────────────────────────
+const colWidths = { length: 55, word: 200, score: 90, source: 170 }; // persists across list switches
 
-function timeAgo(ts) {
-  const s = Math.floor((Date.now() - ts) / 1000);
-  if (s < 60)  return 'just now';
-  const m = Math.floor(s / 60);
-  if (m < 60)  return `${m}m ago`;
-  const h = Math.floor(m / 60);
-  if (h < 24)  return `${h}h ago`;
-  const d = Math.floor(h / 24);
-  if (d < 30)  return `${d} day${d === 1 ? '' : 's'} ago`;
-  const mo = Math.floor(d / 30);
-  if (mo < 12) return `${mo} month${mo === 1 ? '' : 's'} ago`;
-  const yr = Math.floor(d / 365);
-  return `${yr} year${yr === 1 ? '' : 's'} ago`;
-}
+// ─── Parsing ─────────────────────────────────────────────────────────────────
 
 function parseWordlist(text) {
   const entries = [];
@@ -885,7 +872,13 @@ function highlightSegments(word, hlRe) {
 
 // ─── Virtual Scroller ─────────────────────────────────────────────────────────
 
-const colWidths = { length: 55, word: 200, score: 90, source: 170 }; // persists across list switches
+function scoreColor(s) {
+  if (s >= 60) return { bg: 'var(--score-great-bg)', fg: 'var(--score-great-fg)' };
+  if (s >= 50) return { bg: 'var(--score-good-bg)',  fg: 'var(--score-good-fg)'  };
+  if (s >= 40) return { bg: 'var(--score-fair-bg)',  fg: 'var(--score-fair-fg)'  };
+  if (s >= 30) return { bg: 'var(--score-meh-bg)',   fg: 'var(--score-meh-fg)'   };
+  return              { bg: 'var(--score-bad-bg)',   fg: 'var(--score-bad-fg)'   };
+}
 
 class VirtualScroller {
   constructor(container) {
@@ -1142,14 +1135,6 @@ class VirtualScroller {
   }
 }
 
-function scoreColor(s) {
-  if (s >= 60) return { bg: 'var(--score-great-bg)', fg: 'var(--score-great-fg)' };
-  if (s >= 50) return { bg: 'var(--score-good-bg)',  fg: 'var(--score-good-fg)' };
-  if (s >= 40) return { bg: 'var(--score-fair-bg)',    fg: 'var(--score-fair-fg)' };
-  if (s >= 30) return { bg: 'var(--score-meh-bg)',   fg: 'var(--score-meh-fg)' };
-  return        { bg: 'var(--score-bad-bg)',  fg: 'var(--score-bad-fg)' };
-}
-
 // ─── Rescoring ────────────────────────────────────────────────────────────────
 
 function parseRange(str) {
@@ -1214,6 +1199,7 @@ function rulesSig(rules) {
   return rules.map(r => `${r.input}|${r.length}|${r.output}|${r._catchAll ? 1 : 0}`).join(';');
 }
 
+// Any score not matched by a user rule is collected into a read-only catch-all row so the UI always shows complete coverage.
 function updateCatchAll(list) {
   const rules = list.rescoreRules;
   const before = rulesSig(rules);
@@ -1283,7 +1269,7 @@ function rescoreEntry(entry, rules) {
     if (s === null) continue;
     if (s === 'ignore') return { kept: false };
     if (s === 'unchanged') return { kept: true, score: entry.score };
-    return { kept: true, score: s };
+    return { kept: true, score: s }; // first matching rule wins
   }
   return { kept: true, score: entry.score };
 }
@@ -1868,8 +1854,8 @@ function addNewList(listDef) {
 // ─── Add Dialog ───────────────────────────────────────────────────────────────
 
 function openDialog() {
-  const bl = document.getElementById('builtin-list');
-  bl.innerHTML = BUILTIN_WORDLISTS.map(t => {
+  const builtinList = document.getElementById('builtin-list');
+  builtinList.innerHTML = BUILTIN_WORDLISTS.map(t => {
     const exists = state.inputLists.some(l => l.id === t.id);
     const sub = t.source === 'upload'
       ? (t.downloadPage
@@ -1895,8 +1881,8 @@ function openDialog() {
   const allAdded = BUILTIN_WORDLISTS.every(t => state.inputLists.some(l => l.id === t.id));
   const defaultTab = allAdded ? 'upload' : 'builtin';
   document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.toggle('active', btn.dataset.tab === defaultTab));
-  ['builtin', 'upload', 'url'].forEach(t => {
-    document.getElementById('tab-' + t).style.display = t === defaultTab ? 'block' : 'none';
+  ['builtin', 'upload', 'url'].forEach(tabId => {
+    document.getElementById('tab-' + tabId).style.display = tabId === defaultTab ? 'block' : 'none';
   });
 
   document.getElementById('add-dialog').showModal();
@@ -2042,6 +2028,21 @@ function handleDialogUpload(file) {
 function esc(s) {
   if (!s) return '';
   return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function timeAgo(ts) {
+  const s = Math.floor((Date.now() - ts) / 1000);
+  if (s < 60)  return 'just now';
+  const m = Math.floor(s / 60);
+  if (m < 60)  return `${m}m ago`;
+  const h = Math.floor(m / 60);
+  if (h < 24)  return `${h}h ago`;
+  const d = Math.floor(h / 24);
+  if (d < 30)  return `${d} day${d === 1 ? '' : 's'} ago`;
+  const mo = Math.floor(d / 30);
+  if (mo < 12) return `${mo} month${mo === 1 ? '' : 's'} ago`;
+  const yr = Math.floor(d / 365);
+  return `${yr} year${yr === 1 ? '' : 's'} ago`;
 }
 
 let _toastTimer;
@@ -2411,6 +2412,7 @@ function startCardRename(id) {
 
 // ─── Merge & Download ─────────────────────────────────────────────────────────
 
+// List order determines merge priority: higher-priority lists appear earlier in state.inputLists; the loop breaks at the target list's position.
 function buildOverrideMap(listId) {
   const map = new Map();
   for (const list of state.inputLists) {
