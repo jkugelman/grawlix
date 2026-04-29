@@ -121,6 +121,16 @@ button:disabled { opacity: 0.45; cursor: not-allowed; }
 button.danger { background: #c0392b; color: white; border-color: #922b21; }
 button.danger:hover:not(:disabled) { background: #e74c3c; border-color: #c0392b; }
 
+/* Split button */
+.split-btn { position: relative; display: inline-flex; }
+.split-btn-main { border-top-right-radius: 0; border-bottom-right-radius: 0; border-right: none; background: var(--accent); color: white; border-color: var(--accent); }
+.split-btn-main:hover:not(:disabled) { background: var(--accent-hover); }
+.split-btn-arrow { border-top-left-radius: 0; border-bottom-left-radius: 0; padding: 5px 8px; background: var(--accent); color: white; border-color: var(--accent); border-left: 1px solid rgba(255,255,255,0.35); font-size: 10px; }
+.split-btn-arrow:hover:not(:disabled) { background: var(--accent-hover); }
+.split-btn-menu { display: none; position: absolute; top: 100%; right: 0; margin-top: 3px; background: var(--surface); border: 1px solid var(--border); border-radius: 4px; box-shadow: 0 2px 8px rgba(0,0,0,0.15); z-index: 200; min-width: 170px; padding: 4px 0; white-space: nowrap; }
+.split-btn.open .split-btn-menu { display: block; }
+.split-btn-menu button { display: block; width: 100%; text-align: left; border: none; background: none; border-radius: 0; padding: 6px 13px; color: var(--text); }
+
 /* Detail panel */
 #detail-panel { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
 
@@ -345,7 +355,6 @@ a.get-file:hover { text-decoration: underline; }
 
 /* Hidden file inputs (triggered programmatically by their upload zones) */
 input[type="file"] { display: none; }
-#output-filename-input { width: 12em; font-size: .9em; padding: 3px 6px; border: 1px solid var(--border); border-radius: 4px; background: var(--bg); color: var(--text); }
 
 /* Guide step upload zone spacing */
 .guide-step-body .upload-zone { margin-top: 8px; }
@@ -425,10 +434,6 @@ html.dark-mode .screenshot-container img { filter: brightness(0.843) invert(1) h
       <button class="seg-btn" data-val="light">☀ Light</button>
       <button class="seg-btn" data-val="dark">☽ Dark</button>
     </div>
-  </div>
-  <div class="settings-row">
-    <span class="settings-row-label">Output filename</span>
-    <input type="text" id="output-filename-input">
   </div>
   <div class="settings-row">
     <span class="settings-row-label">Output case</span>
@@ -746,14 +751,6 @@ function initOutputCase() {
       lsSave('outputCase', btn.dataset.case);
     };
   });
-}
-
-// ─── Output filename setting ──────────────────────────────────────────────────
-
-function initOutputFilename() {
-  const input = document.getElementById('output-filename-input');
-  input.value = lsLoad('outputFilename') || 'grawlix-wordlist.txt';
-  input.oninput = () => lsSave('outputFilename', input.value.trim());
 }
 
 // ─── Init ─────────────────────────────────────────────────────────────────────
@@ -1640,9 +1637,15 @@ function renderDetail(list) {
 
   const removeBtn = `<button onclick="removeList('${list.id}')">Remove</button>`;
 
-  const dlBtn = hasData
-    ? `<button onclick="downloadIndividualList('${list.id}')" title="Download this list">Download</button>`
-    : '';
+  const dlBtn = hasData ? `
+    <div class="split-btn">
+      <button class="split-btn-main" onclick="downloadIndividualListRescored('${list.id}')">Download</button>
+      <button class="split-btn-arrow" onclick="toggleSplitMenu(event,'${list.id}')" title="More download options">▾</button>
+      <div class="split-btn-menu">
+        <button onclick="downloadIndividualListRescored('${list.id}')">Download rescored</button>
+        <button onclick="downloadIndividualList('${list.id}')">Download original</button>
+      </div>
+    </div>` : '';
 
   panel.innerHTML = `
     <div class="detail-header">
@@ -2612,7 +2615,7 @@ function triggerDownload(text, filename) {
 function downloadMerged(entries) {
   const upper = (lsLoad('outputCase') || 'lower') === 'upper';
   const text = entries.map(e => `${upper ? e.word.toUpperCase() : e.word};${e.score}`).join('\n') + '\n';
-  triggerDownload(text, lsLoad('outputFilename') || 'grawlix-wordlist.txt');
+  triggerDownload(text, 'Grawlix Wordlist.txt');
   showToast(`Downloaded ${entries.length.toLocaleString()} entries`);
 }
 
@@ -2624,11 +2627,29 @@ function downloadIndividualList(id) {
   showToast(`Downloaded ${list.rawEntries.length.toLocaleString()} entries`);
 }
 
+function downloadIndividualListRescored(id) {
+  const list = state.inputLists.find(l => l.id === id);
+  if (!list || !list.rawEntries.length) return;
+  const upper = (lsLoad('outputCase') || 'lower') === 'upper';
+  const rescored = applyRescoring(list.rawEntries, list.rescoreRules);
+  const text = rescored.map(e => `${upper ? e.word.toUpperCase() : e.word};${e.score}`).join('\n') + '\n';
+  triggerDownload(text, `Grawlix ${list.name}.txt`);
+  showToast(`Downloaded ${rescored.length.toLocaleString()} entries`);
+}
+
+function toggleSplitMenu(event, id) {
+  event.stopPropagation();
+  const btn = event.currentTarget.closest('.split-btn');
+  const isOpen = btn.classList.contains('open');
+  document.querySelectorAll('.split-btn.open').forEach(b => b.classList.remove('open'));
+  if (!isOpen) btn.classList.add('open');
+}
+
 // ─── Boot ─────────────────────────────────────────────────────────────────────
 
 initDarkMode();
 initOutputCase();
-initOutputFilename();
+document.addEventListener('click', () => document.querySelectorAll('.split-btn.open').forEach(b => b.classList.remove('open')));
 // Hide the busy overlay immediately if no lists have data.
 { let _m; try { _m = JSON.parse(lsLoad('meta') || '[]'); } catch { _m = []; }
   if (!_m.some(l => l.lastUpdated)) document.getElementById('busy-overlay').remove(); }
