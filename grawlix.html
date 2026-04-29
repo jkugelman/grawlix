@@ -1439,7 +1439,7 @@ function renderInputLists() {
     const icon = getListIcon(list.id);
 
     const toggleTitle = !hasData ? 'Click to upload' : list.enabled ? 'Enabled — click to disable' : 'Disabled — click to enable';
-    const toggleClick = hasData ? 'event.stopPropagation()' : `triggerLoadForList('${list.id}',event)`;
+    const toggleClick = hasData ? 'event.stopPropagation()' : `triggerUploadForList('${list.id}',event)`;
     return `<div class="list-card${sel ? ' selected' : ''}${list.enabled ? '' : ' disabled'}${hasData ? '' : ' no-data'}" data-id="${list.id}" draggable="true" onclick="selectList('${list.id}')" tabindex="0" role="option" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();selectList('${list.id}')}" >
       <span class="drag-handle" title="Drag to reorder" aria-label="Drag to reorder">≡</span>
       ${icon}
@@ -1621,6 +1621,18 @@ function saveMergedScoringField(i, field, val) {
 }
 
 
+function buildSplitBtn(mainLabel, mainOnclick, menuItems, { primary = false, disabled = false, title = '' } = {}) {
+  const dis = disabled ? ' disabled' : '';
+  const titleAttr = title ? ` title="${title}"` : '';
+  const arrow = `<svg width="8" height="5" viewBox="0 0 8 5" fill="currentColor"><path d="M0 0l4 5 4-5z"/></svg>`;
+  const items = menuItems.map(([lbl, fn]) => `<button onclick="${fn}">${lbl}</button>`).join('');
+  return `<div class="split-btn${primary ? ' primary' : ''}">` +
+    `<button class="split-btn-main"${titleAttr} onclick="${mainOnclick}"${dis}>${mainLabel}</button>` +
+    `<button class="split-btn-arrow" onclick="toggleSplitMenu(event)" title="More options"${dis}>${arrow}</button>` +
+    `<div class="split-btn-menu">${items}</div>` +
+    `</div>`;
+}
+
 function renderDetail(list) {
   const panel = document.getElementById('detail-panel');
 
@@ -1640,10 +1652,18 @@ function renderDetail(list) {
   let actionBtn;
   const hasData = list.rawEntries.length > 0;
   const label = hasData ? 'Update' : 'Upload';
-  if (getTemplate(list.id)) {
+  const tmpl = getTemplate(list.id);
+  if (tmpl) {
     const dot = list._updateAvailable && !list._loading ? `<span class="update-dot"></span>` : '';
-    const title = list._updateAvailable && !list._loading ? ' title="Update available"' : '';
-    actionBtn = `<button class="primary"${title} onclick="openLoadDialog('${list.id}')" ${list._loading ? 'disabled' : ''}>${list._loading ? 'Updating…' : label}${dot}</button>`;
+    const title = list._updateAvailable && !list._loading ? 'Update available' : '';
+    const btnLabel = `${list._loading ? 'Updating…' : label}${dot}`;
+    if (tmpl.url) {
+      actionBtn = buildSplitBtn(btnLabel, `downloadList('${list.id}')`,
+        [['Manual upload…', `openManualGuide('${list.id}')`]],
+        { primary: true, disabled: !!list._loading, title });
+    } else {
+      actionBtn = `<button class="primary"${title ? ` title="${title}"` : ''} onclick="openManualGuide('${list.id}')" ${list._loading ? 'disabled' : ''}>${btnLabel}</button>`;
+    }
   } else if (list.url) {
     const dot = list._updateAvailable && !list._loading ? `<span class="update-dot"></span>` : '';
     const title = list._updateAvailable && !list._loading ? ' title="Update available"' : '';
@@ -1654,15 +1674,8 @@ function renderDetail(list) {
 
   const removeBtn = `<button onclick="removeList('${list.id}')">Remove</button>`;
 
-  const dlBtn = hasData ? `
-    <div class="split-btn">
-      <button class="split-btn-main" onclick="downloadIndividualListRescored('${list.id}')">Download</button>
-      <button class="split-btn-arrow" onclick="toggleSplitMenu(event,'${list.id}')" title="More download options"><svg width="8" height="5" viewBox="0 0 8 5" fill="currentColor"><path d="M0 0l4 5 4-5z"/></svg></button>
-      <div class="split-btn-menu">
-        <button onclick="downloadIndividualListRescored('${list.id}')">Download rescored</button>
-        <button onclick="downloadIndividualList('${list.id}')">Download original</button>
-      </div>
-    </div>` : '';
+  const dlBtn = hasData ? buildSplitBtn('Download', `downloadIndividualListRescored('${list.id}')`,
+    [['Download original', `downloadIndividualList('${list.id}')`]]) : '';
 
   panel.innerHTML = `
     <div class="detail-header">
@@ -1806,10 +1819,11 @@ async function checkForUpdates() {
   }
 }
 
-function triggerLoadForList(id, event) {
+function triggerUploadForList(id, event) {
   if (event) event.stopPropagation();
   if (!state.inputLists.find(l => l.id === id)) return;
-  openLoadDialog(id);
+  if (getTemplate(id)?.url) downloadList(id);
+  else openManualGuide(id);
 }
 
 function uploadToList(id, event) {
@@ -2248,52 +2262,15 @@ function bindDropZone(zone, fileInput, onFile) {
   fileInput.onchange = () => { if (fileInput.files[0]) onFile(fileInput.files[0]); };
 }
 
-function openLoadDialog(listId, event) {
-  if (event) event.stopPropagation();
+function openManualGuide(listId) {
   const tmpl = getTemplate(listId);
   const dialog = document.getElementById('upload-guide-dialog');
-  document.getElementById('guide-title').textContent = `${tmpl?.name ?? 'Wordlist'} — Load Wordlist`;
+  document.getElementById('guide-title').textContent = `${tmpl?.name ?? 'Wordlist'} — Upload Wordlist`;
 
-  const hasUrl = !!tmpl?.url;
-  const hasManual = !!(tmpl?.downloadPage);
+  if (!tmpl?.downloadPage) { uploadToList(listId); return; }
 
-  if (!hasUrl && !hasManual) { uploadToList(listId); return; }
-
-  let tabsHTML = '';
-  let stepsHTML;
-
-  if (hasUrl && hasManual) {
-    tabsHTML = `<div class="tabs" id="guide-tab-strip">
-      <button class="tab-btn active" data-guide-tab="auto">Auto-download</button>
-      <button class="tab-btn" data-guide-tab="manual">Manual download</button>
-    </div>`;
-    stepsHTML = `
-      <div id="guide-pane-auto">${buildAutoHTML()}</div>
-      <div id="guide-pane-manual" class="guide-steps" style="display:none">${buildManualHTML(tmpl)}</div>`;
-  } else if (hasUrl) {
-    stepsHTML = `
-      ${buildAutoHTML()}
-      <div class="dialog-divider">— or upload a file —</div>
-      <div class="upload-zone compact" id="guide-drop-zone">
-        Drop file here or click to browse
-        <input type="file" id="guide-file-input" accept=".txt,.csv">
-      </div>`;
-  } else {
-    stepsHTML = buildManualHTML(tmpl);
-  }
-
-  document.getElementById('guide-tabs').innerHTML = tabsHTML;
-  document.getElementById('guide-steps').innerHTML = stepsHTML;
-
-  if (hasUrl && hasManual) {
-    document.querySelectorAll('#guide-tab-strip .tab-btn').forEach(btn => {
-      btn.onclick = () => {
-        document.querySelectorAll('#guide-tab-strip .tab-btn').forEach(b => b.classList.toggle('active', b === btn));
-        document.getElementById('guide-pane-auto').style.display = btn.dataset.guideTab === 'auto' ? '' : 'none';
-        document.getElementById('guide-pane-manual').style.display = btn.dataset.guideTab === 'manual' ? '' : 'none';
-      };
-    });
-  }
+  document.getElementById('guide-tabs').innerHTML = '';
+  document.getElementById('guide-steps').innerHTML = buildManualHTML(tmpl);
 
   const dropZone = document.getElementById('guide-drop-zone');
   const fileInput = document.getElementById('guide-file-input');
@@ -2301,23 +2278,9 @@ function openLoadDialog(listId, event) {
     bindDropZone(dropZone, fileInput, file => { dialog.close(); ingestFile(file, listId); selectList(listId); });
   }
 
-  document.getElementById('auto-dl-btn')?.addEventListener('click', () => {
-    dialog.close();
-    downloadList(listId);
-  });
-
   dialog.showModal();
 }
 
-function buildAutoHTML() {
-  return `<div class="known-list">
-    <div class="known-list-info">
-      <div class="known-list-name">One-click download</div>
-      <div class="known-list-sub">No manual steps needed.</div>
-    </div>
-    <button class="primary" id="auto-dl-btn">Download</button>
-  </div>`;
-}
 
 function buildManualHTML(tmpl) {
   const screenshot = tmpl.screenshot?.() ?? '';
@@ -2681,7 +2644,7 @@ function downloadIndividualListRescored(id) {
   showToast(`Downloaded ${rescored.length.toLocaleString()} entries`);
 }
 
-function toggleSplitMenu(event, id) {
+function toggleSplitMenu(event) {
   event.stopPropagation();
   const btn = event.currentTarget.closest('.split-btn');
   const isOpen = btn.classList.contains('open');
