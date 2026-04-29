@@ -173,7 +173,7 @@ html.dark-mode .search-match-4 { background: #14532d; color: #d1fae5; }
 .score-badge { display: inline-block; padding: 1px 5px; border-radius: 3px; font-size: 11px; font-weight: 700; }
 .sort-arrow { font-size: 9px; opacity: 0.7; }
 .col-resize-handle { position: absolute; right: 0; top: 0; bottom: 0; width: 5px; cursor: col-resize; z-index: 2; }
-.col-resize-handle:hover, .col-resize-handle.active { background: color-mix(in srgb, var(--accent) 35%, transparent); }
+.col-resize-handle:hover, .col-resize-handle.active { background: rgba(123, 109, 184, 0.35); background: color-mix(in srgb, var(--accent) 35%, transparent); }
 
 /* Inline name editing */
 .detail-name-wrap { display: flex; align-items: center; gap: 6px; flex: 1; min-width: 0; overflow: hidden; }
@@ -1015,13 +1015,14 @@ class VirtualScroller {
         handle.className = 'col-resize-handle';
         th.appendChild(handle);
 
-        handle.addEventListener('mousedown', e => {
+        handle.addEventListener('pointerdown', e => {
           e.preventDefault();
           e.stopPropagation();
           const colEl = this._colEls[key];
           const startX = e.clientX;
           const startW = th.offsetWidth;
           handle.classList.add('active');
+          handle.setPointerCapture(e.pointerId);
           const onMove = mv => {
             const w = Math.max(50, startW + mv.clientX - startX);
             colEl.style.width = w + 'px';
@@ -1029,11 +1030,11 @@ class VirtualScroller {
           };
           const onUp = () => {
             handle.classList.remove('active');
-            document.removeEventListener('mousemove', onMove);
-            document.removeEventListener('mouseup', onUp);
+            handle.removeEventListener('pointermove', onMove);
+            handle.removeEventListener('pointerup', onUp);
           };
-          document.addEventListener('mousemove', onMove);
-          document.addEventListener('mouseup', onUp);
+          handle.addEventListener('pointermove', onMove);
+          handle.addEventListener('pointerup', onUp);
         });
       }
 
@@ -2000,6 +2001,52 @@ function bindEvents() {
     clearTimeout(_refreshCountsTimer);
     _refreshCountsTimer = setTimeout(refreshSourceCounts, 0);
   });
+
+  // Touch drag-to-reorder (for mobile/touch screens)
+  let _touchDragId = null;
+
+  const commitTouchReorder = toId => {
+    if (!toId || toId === _touchDragId) return;
+    const fromIdx = state.inputLists.findIndex(l => l.id === _touchDragId);
+    const toIdx   = state.inputLists.findIndex(l => l.id === toId);
+    if (fromIdx === -1 || toIdx === -1) return;
+    const [item] = state.inputLists.splice(fromIdx, 1);
+    state.inputLists.splice(toIdx, 0, item);
+    persistMeta();
+    renderInputLists();
+    clearTimeout(_refreshCountsTimer);
+    _refreshCountsTimer = setTimeout(refreshSourceCounts, 0);
+  };
+
+  listsContainer.addEventListener('touchstart', e => {
+    if (!e.target.closest('.drag-handle')) return;
+    const card = e.target.closest('.list-card');
+    if (!card) return;
+    e.preventDefault();
+    _touchDragId = card.dataset.id;
+    card.classList.add('dragging');
+  }, { passive: false });
+
+  listsContainer.addEventListener('touchmove', e => {
+    if (!_touchDragId) return;
+    e.preventDefault();
+    const touch = e.touches[0];
+    const overCard = document.elementFromPoint(touch.clientX, touch.clientY)?.closest('.list-card');
+    listsContainer.querySelectorAll('.list-card.drag-over').forEach(c => c.classList.remove('drag-over'));
+    if (overCard && overCard.dataset.id !== _touchDragId) overCard.classList.add('drag-over');
+  }, { passive: false });
+
+  const endTouchDrag = () => {
+    if (!_touchDragId) return;
+    const overCard = listsContainer.querySelector('.list-card.drag-over');
+    const toId = overCard?.dataset.id;
+    listsContainer.querySelectorAll('.list-card.dragging, .list-card.drag-over')
+      .forEach(el => el.classList.remove('dragging', 'drag-over'));
+    commitTouchReorder(toId);
+    _touchDragId = null;
+  };
+  listsContainer.addEventListener('touchend', endTouchDrag);
+  listsContainer.addEventListener('touchcancel', endTouchDrag);
 
   // F2 to rename selected list
   document.addEventListener('keydown', e => {
