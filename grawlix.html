@@ -378,7 +378,7 @@ html.dark-mode .screenshot-container img { filter: brightness(0.843) invert(1) h
 <main>
   <div id="lists-panel">
     <h2>Output List</h2>
-    <div id="merged-card" onclick="selectMergedList()">
+    <div id="merged-card" onclick="selectMergedList()" tabindex="0" role="option" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();selectMergedList()}">
       <span class="merged-card-icon">⊕</span>
       <div class="card-info">
         <div class="card-name">All Merged</div>
@@ -399,8 +399,8 @@ html.dark-mode .screenshot-container img { filter: brightness(0.843) invert(1) h
 
 <div id="toast"></div>
 
-<dialog id="settings-dialog">
-  <h2>Settings</h2>
+<dialog id="settings-dialog" aria-labelledby="settings-dialog-title">
+  <h2 id="settings-dialog-title">Settings</h2>
   <div class="settings-row">
     <span class="settings-row-label">Dark mode</span>
     <div class="seg-ctrl" id="dark-mode-seg">
@@ -432,8 +432,8 @@ html.dark-mode .screenshot-container img { filter: brightness(0.843) invert(1) h
   </div>
 </dialog>
 
-<dialog id="add-dialog">
-  <h2>Add Wordlist</h2>
+<dialog id="add-dialog" aria-labelledby="add-dialog-title">
+  <h2 id="add-dialog-title">Add Wordlist</h2>
   <div class="tabs">
     <button class="tab-btn active" data-tab="builtin">Known Lists</button>
     <button class="tab-btn" data-tab="upload">Upload File</button>
@@ -475,7 +475,7 @@ html.dark-mode .screenshot-container img { filter: brightness(0.843) invert(1) h
 </dialog>
 
 
-<dialog id="upload-guide-dialog">
+<dialog id="upload-guide-dialog" aria-labelledby="guide-title">
   <h2 id="guide-title"></h2>
   <div class="guide-steps" id="guide-steps"></div>
   <div class="dialog-footer">
@@ -985,6 +985,7 @@ class VirtualScroller {
       const isFillerComment = key === 'comment' && !this.hasComments;
 
       if (!isFillerComment) {
+        th.setAttribute('aria-sort', this.sortKey === key ? (this.sortDir === 'asc' ? 'ascending' : 'descending') : 'none');
         const labelSpan = document.createElement('span');
         labelSpan.textContent = LABELS[key];
         th.appendChild(labelSpan);
@@ -1393,8 +1394,8 @@ function renderInputLists() {
 
     const toggleTitle = !hasData ? 'Click to upload' : list.enabled ? 'Enabled — click to disable' : 'Disabled — click to enable';
     const toggleClick = hasData ? 'event.stopPropagation()' : `triggerLoadForList('${list.id}',event)`;
-    return `<div class="list-card${sel ? ' selected' : ''}${list.enabled ? '' : ' disabled'}${hasData ? '' : ' no-data'}" data-id="${list.id}" draggable="true" onclick="selectList('${list.id}')">
-      <span class="drag-handle" title="Drag to reorder">≡</span>
+    return `<div class="list-card${sel ? ' selected' : ''}${list.enabled ? '' : ' disabled'}${hasData ? '' : ' no-data'}" data-id="${list.id}" draggable="true" onclick="selectList('${list.id}')" tabindex="0" role="option" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();selectList('${list.id}')}" >
+      <span class="drag-handle" title="Drag to reorder" aria-label="Drag to reorder">≡</span>
       ${icon}
       <div class="card-info">
         <div class="card-name-row">
@@ -1404,7 +1405,7 @@ function renderInputLists() {
         <div class="card-meta">${meta}</div>
       </div>
       <div class="card-actions">
-        <label class="toggle" onclick="${toggleClick}" title="${toggleTitle}">
+        <label class="toggle" onclick="${toggleClick}" title="${toggleTitle}" aria-label="Toggle ${esc(list.name)}">
           <input type="checkbox"${hasData && list.enabled ? ' checked' : ''}${hasData ? '' : ' disabled'} onchange="toggleList('${list.id}',event)">
           <span class="toggle-slider"></span>
         </label>
