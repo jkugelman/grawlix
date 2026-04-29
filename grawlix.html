@@ -249,7 +249,7 @@ dialog h2 { font-size: 16px; margin-bottom: 14px; }
 .form-field label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 4px; }
 .form-field input { width: 100%; padding: 7px 10px; border: 1px solid var(--border); border-radius: 4px; font-size: 13px; font-family: inherit; background: var(--input-bg); color: var(--text); }
 .form-field input:focus { outline: none; border-color: var(--accent); }
-.builtin-item { display: flex; align-items: center; justify-content: space-between; padding: 9px 12px; border: 1px solid var(--border2); border-radius: 6px; margin-bottom: 7px; }
+.builtin-item { display: flex; align-items: center; justify-content: space-between; gap: 9px; padding: 9px 12px; border: 1px solid var(--border2); border-radius: 6px; margin-bottom: 7px; }
 .builtin-item-info { flex: 1; }
 .builtin-item-name { font-size: 13px; font-weight: 600; }
 .builtin-item-sub  { font-size: 11px; color: var(--muted); margin-top: 2px; }
@@ -1927,6 +1927,7 @@ function openDialog() {
       : t.url ? 'Auto-download'
       : 'URL TBD';
     return `<div class="builtin-item">
+      ${t.icon || ''}
       <div class="builtin-item-info">
         <div class="builtin-item-name">${esc(t.name)}</div>
         <div class="builtin-item-sub">${sub}</div>
