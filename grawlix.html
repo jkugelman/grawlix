@@ -171,6 +171,11 @@ html.dark-mode .search-match-4 { background: #14532d; color: #d1fae5; }
 .word-table tr:hover td { background: var(--row-hover); }
 .vs-spacer td { padding: 0; border: none; }
 .score-badge { display: inline-block; padding: 1px 5px; border-radius: 3px; font-size: 11px; font-weight: 700; }
+.score-badge[data-tier="great"] { background: var(--score-great-bg); color: var(--score-great-fg); }
+.score-badge[data-tier="good"]  { background: var(--score-good-bg);  color: var(--score-good-fg);  }
+.score-badge[data-tier="fair"]  { background: var(--score-fair-bg);  color: var(--score-fair-fg);  }
+.score-badge[data-tier="meh"]   { background: var(--score-meh-bg);   color: var(--score-meh-fg);   }
+.score-badge[data-tier="bad"]   { background: var(--score-bad-bg);   color: var(--score-bad-fg);   }
 .sort-arrow { font-size: 9px; opacity: 0.7; }
 .col-resize-handle { position: absolute; right: 0; top: 0; bottom: 0; width: 5px; cursor: col-resize; z-index: 2; }
 .col-resize-handle:hover, .col-resize-handle.active { background: rgba(123, 109, 184, 0.35); background: color-mix(in srgb, var(--accent) 35%, transparent); }
@@ -249,8 +254,8 @@ dialog h2 { font-size: 16px; margin-bottom: 14px; }
 .dialog-footer { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--border2); display: flex; justify-content: flex-end; gap: 8px; }
 
 /* Toast */
-#toast { position: fixed; bottom: 18px; right: 18px; background: #333; color: white; padding: 9px 15px; border-radius: 6px; font-size: 13px; z-index: 1000; opacity: 0; transition: opacity 0.25s; pointer-events: none; max-width: 360px; }
-#toast.show { opacity: 1; }
+#toast { position: fixed; bottom: 18px; right: 18px; background: #333; color: white; padding: 9px 15px; border-radius: 6px; font-size: 13px; z-index: 1000; opacity: 0; transition: opacity 0.25s; max-width: 360px; pointer-events: none; }
+#toast.show { opacity: 1; pointer-events: auto; cursor: pointer; }
 
 a.get-file { font-size: 12px; color: var(--accent); text-decoration: none; white-space: nowrap; }
 a.get-file:hover { text-decoration: underline; }
@@ -269,7 +274,7 @@ a.get-file:hover { text-decoration: underline; }
 .rule-in:focus, .rule-len:focus, .rule-out:focus { outline: none; border-color: var(--accent); }
 .rule-in::placeholder, .rule-len::placeholder, .rule-out::placeholder { color: var(--faint); }
 .rule-in.invalid, .rule-len.invalid, .rule-out.invalid { border-color: #ea4335; background: var(--error-bg); }
-.rule-catchall { border-radius: 4px; }.rule-field-lbl { font-size: 10px; color: var(--faint); font-family: inherit; flex-shrink: 0; }
+.rule-field-lbl { font-size: 10px; color: var(--faint); font-family: inherit; flex-shrink: 0; }
 .rule-arrow { color: var(--faint); font-size: 14px; width: 14px; text-align: center; flex-shrink: 0; }
 .rule-note-wrap { flex: 1; min-width: 0; display: flex; align-items: center; cursor: text; border-radius: 3px; padding: 2px 3px; gap: 3px; }
 .rule-note-wrap:hover { background: var(--surface); }
@@ -771,7 +776,7 @@ async function init() {
   renderAll();
   bindEvents();
   checkForUpdates();
-  setInterval(checkForUpdates, UPDATE_CHECK_INTERVAL);
+  _updateCheckInterval = setInterval(checkForUpdates, UPDATE_CHECK_INTERVAL);
 }
 
 function defaultInputLists() {
@@ -879,12 +884,12 @@ function highlightSegments(word, hlRe) {
 
 // ─── Virtual Scroller ─────────────────────────────────────────────────────────
 
-function scoreColor(s) {
-  if (s >= 60) return { bg: 'var(--score-great-bg)', fg: 'var(--score-great-fg)' };
-  if (s >= 50) return { bg: 'var(--score-good-bg)',  fg: 'var(--score-good-fg)'  };
-  if (s >= 40) return { bg: 'var(--score-fair-bg)',  fg: 'var(--score-fair-fg)'  };
-  if (s >= 30) return { bg: 'var(--score-meh-bg)',   fg: 'var(--score-meh-fg)'   };
-  return              { bg: 'var(--score-bad-bg)',   fg: 'var(--score-bad-fg)'   };
+function scoreTier(s) {
+  if (s >= 60) return 'great';
+  if (s >= 50) return 'good';
+  if (s >= 40) return 'fair';
+  if (s >= 30) return 'meh';
+  return 'bad';
 }
 
 class VirtualScroller {
@@ -1102,13 +1107,13 @@ class VirtualScroller {
     for (let i = start; i < end; i++) {
       const entry = this.entries[i];
       const { word, score, comment, listName } = entry;
-      const { bg, fg } = scoreColor(score);
+      const tier = scoreTier(score);
       const tr = document.createElement('tr');
       tr.style.height = ROW_HEIGHT + 'px';
 
       const wordHtml = this._highlight ? this._highlight(word) : word;
       let wordCell  = `<td title="${word}">${wordHtml}</td>`;
-      let innerScore = `<span class="score-badge" style="background:${bg};color:${fg}">${score}</span>`;
+      let innerScore = `<span class="score-badge" data-tier="${tier}">${score}</span>`;
       let ignored = false;
 
       if (this.rescoreRules.length) {
@@ -1117,10 +1122,9 @@ class VirtualScroller {
           ignored = true;
           tr.classList.add('entry-ignored');
           wordCell   = `<td title="${word}"><span class="ignored-word">${wordHtml}</span></td>`;
-          innerScore = `<span class="score-badge ignored" style="background:${bg};color:${fg}">${score}</span>`;
+          innerScore = `<span class="score-badge ignored" data-tier="${tier}">${score}</span>`;
         } else if (r.score !== score) {
-          const { bg: rb, fg: rf } = scoreColor(r.score);
-          innerScore = `<span class="score-orig">${score}</span><span class="score-arrow-indicator">→</span><span class="score-badge" style="background:${rb};color:${rf}">${r.score}</span>`;
+          innerScore = `<span class="score-orig">${score}</span><span class="score-arrow-indicator">→</span><span class="score-badge" data-tier="${scoreTier(r.score)}">${r.score}</span>`;
         }
       }
 
@@ -1782,14 +1786,22 @@ function uploadToList(id, event) {
 
 function ingestFile(file, listId, nameOverride) {
   const reader = new FileReader();
+  reader.onerror = () => showToast('Error reading file');
+  reader.onabort = () => showToast('File read cancelled');
   reader.onload = async e => {
     const text = e.target.result;
     const list = state.inputLists.find(l => l.id === listId);
     if (!list) return;
 
+    const entries = parseWordlist(text);
+    if (!entries.length && text.trim()) {
+      showToast('No valid wordlist entries found — check the file format');
+      return;
+    }
+
     const wasEmpty = !list.rawEntries.length;
     if (nameOverride) list.name = nameOverride;
-    list.rawEntries = parseWordlist(text);
+    list.rawEntries = entries;
     list.lastUpdated = Date.now();
     list.originalFilename = file.name;
     if (wasEmpty) list.enabled = true;
@@ -1912,6 +1924,7 @@ function addBuiltin(id) {
 // ─── Event wiring ─────────────────────────────────────────────────────────────
 
 function bindEvents() {
+  document.getElementById('toast').onclick = dismissToast;
   document.getElementById('btn-reset').onclick = async () => {
     if (!confirm('Delete all lists and data? This cannot be undone.')) return;
     Object.keys(localStorage).filter(k => k.startsWith(LS_PREFIX)).forEach(k => localStorage.removeItem(k));
@@ -2101,12 +2114,17 @@ function timeAgo(ts) {
 }
 
 let _toastTimer;
+let _updateCheckInterval;
 function showToast(msg) {
   const el = document.getElementById('toast');
   el.textContent = msg;
   el.classList.add('show');
   clearTimeout(_toastTimer);
   _toastTimer = setTimeout(() => el.classList.remove('show'), 3500);
+}
+function dismissToast() {
+  clearTimeout(_toastTimer);
+  document.getElementById('toast').classList.remove('show');
 }
 
 // ─── Template lookup ──────────────────────────────────────────────────────────
