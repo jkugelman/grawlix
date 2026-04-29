@@ -249,10 +249,10 @@ dialog h2 { font-size: 16px; margin-bottom: 14px; }
 .form-field label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 4px; }
 .form-field input { width: 100%; padding: 7px 10px; border: 1px solid var(--border); border-radius: 4px; font-size: 13px; font-family: inherit; background: var(--input-bg); color: var(--text); }
 .form-field input:focus { outline: none; border-color: var(--accent); }
-.builtin-item { display: flex; align-items: center; justify-content: space-between; gap: 9px; padding: 9px 12px; border: 1px solid var(--border2); border-radius: 6px; margin-bottom: 7px; }
-.builtin-item-info { flex: 1; }
-.builtin-item-name { font-size: 13px; font-weight: 600; }
-.builtin-item-sub  { font-size: 11px; color: var(--muted); margin-top: 2px; }
+.known-list { display: flex; align-items: center; justify-content: space-between; gap: 9px; padding: 9px 12px; border: 1px solid var(--border2); border-radius: 6px; margin-bottom: 7px; }
+.known-list-info { flex: 1; }
+.known-list-name { font-size: 13px; font-weight: 600; }
+.known-list-sub  { font-size: 11px; color: var(--muted); margin-top: 2px; }
 .dialog-footer { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--border2); display: flex; justify-content: flex-end; gap: 8px; }
 
 /* Toast */
@@ -333,7 +333,7 @@ a.get-file:hover { text-decoration: underline; }
 .dialog-divider { text-align: center; color: var(--muted); font-size: 12px; margin: 12px 0; }
 .subscription-note { background: var(--callout-bg); border: 1px solid var(--callout-border); border-radius: 5px; padding: 9px 12px; margin-bottom: 16px; font-size: 12px; color: var(--callout-fg); }
 .upload-zone.compact { padding: 16px; }
-#guide-steps .builtin-item { margin-bottom: 12px; }
+#guide-steps .known-list { margin-bottom: 12px; }
 
 /* Hidden file inputs (triggered programmatically by their upload zones) */
 input[type="file"] { display: none; }
@@ -1926,11 +1926,11 @@ function openDialog() {
         : 'Manual upload')
       : t.url ? 'Auto-download'
       : 'URL TBD';
-    return `<div class="builtin-item">
+    return `<div class="known-list">
       ${t.icon || ''}
-      <div class="builtin-item-info">
-        <div class="builtin-item-name">${esc(t.name)}</div>
-        <div class="builtin-item-sub">${sub}</div>
+      <div class="known-list-info">
+        <div class="known-list-name">${esc(t.name)}</div>
+        <div class="known-list-sub">${sub}</div>
       </div>
       <button class="${exists ? '' : 'primary'}" ${exists ? 'disabled' : ''} onclick="addBuiltin('${t.id}')">
         ${exists ? 'Added' : '+ Add'}
@@ -2221,10 +2221,10 @@ function openAutoDownloadDialog(listId, event) {
   const dialog = document.getElementById('upload-guide-dialog');
   document.getElementById('guide-title').textContent = `${tmpl?.name ?? 'Wordlist'} — Load Wordlist`;
   document.getElementById('guide-steps').innerHTML = `
-    <div class="builtin-item">
-      <div class="builtin-item-info">
-        <div class="builtin-item-name">Auto-download</div>
-        <div class="builtin-item-sub">Download directly from GitHub</div>
+    <div class="known-list">
+      <div class="known-list-info">
+        <div class="known-list-name">Auto-download</div>
+        <div class="known-list-sub">Download directly from GitHub</div>
       </div>
       <button class="primary" id="jk-auto-dl-btn">Download</button>
     </div>
