@@ -239,7 +239,9 @@ html.dark-mode .search-match-4 { background: #14532d; color: #d1fae5; }
 /* Dialog */
 dialog { width: 420px; border-radius: 10px; border: none; box-shadow: var(--shadow); padding: 22px; font-family: system-ui, sans-serif; background: var(--surface); color: var(--text); position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); max-height: 90vh; overflow-y: auto; }
 dialog::backdrop { background: var(--backdrop); }
-dialog h2 { font-size: 16px; margin-bottom: 14px; }
+dialog h2 { font-size: 16px; margin-bottom: 14px; padding-right: 24px; }
+.dialog-close-btn { position: absolute; top: 10px; right: 12px; background: none; border: none; font-size: 18px; line-height: 1; color: var(--muted); cursor: pointer; padding: 2px 6px; border-radius: 4px; }
+.dialog-close-btn:hover { background: var(--hover); color: var(--text); }
 .tabs { display: flex; border: 1px solid var(--border); border-radius: 5px; overflow: hidden; margin-bottom: 16px; }
 .tab-btn { flex: 1; border: none; border-radius: 0; padding: 7px; font-size: 12px; font-weight: 600; color: var(--muted); background: var(--btn-bg); cursor: pointer; }
 .tab-btn + .tab-btn { border-left: 1px solid var(--border); }
@@ -407,6 +409,7 @@ html.dark-mode .screenshot-container img { filter: brightness(0.843) invert(1) h
 <div id="toast"></div>
 
 <dialog id="settings-dialog" aria-labelledby="settings-dialog-title">
+  <button class="dialog-close-btn" aria-label="Close">✕</button>
   <h2 id="settings-dialog-title">Settings</h2>
   <div class="settings-row">
     <span class="settings-row-label">Dark mode</span>
@@ -434,12 +437,10 @@ html.dark-mode .screenshot-container img { filter: brightness(0.843) invert(1) h
     </div>
     <button id="btn-reset" class="danger" title="Delete all lists and data">🗑 Reset</button>
   </div>
-  <div class="dialog-footer">
-    <button id="btn-settings-close">Close</button>
-  </div>
 </dialog>
 
 <dialog id="add-dialog" aria-labelledby="add-dialog-title">
+  <button class="dialog-close-btn" aria-label="Close">✕</button>
   <h2 id="add-dialog-title">Add Wordlist</h2>
   <div class="tabs">
     <button class="tab-btn active" data-tab="builtin">Known Lists</button>
@@ -453,12 +454,15 @@ html.dark-mode .screenshot-container img { filter: brightness(0.843) invert(1) h
 
   <div id="tab-upload">
     <div class="upload-zone" id="drop-zone">
-      Drop file here or click to browse
+      <span id="upload-zone-label">Drop file here or click to browse</span>
       <input type="file" id="file-input" accept=".txt,.csv">
     </div>
     <div class="form-field form-field-gap">
       <label>Name (optional)</label>
       <input type="text" id="upload-name" placeholder="My Wordlist">
+    </div>
+    <div class="dialog-actions">
+      <button class="primary" id="btn-upload-file" disabled>Add</button>
     </div>
   </div>
 
@@ -476,21 +480,17 @@ html.dark-mode .screenshot-container img { filter: brightness(0.843) invert(1) h
     </div>
   </div>
 
-  <div class="dialog-footer">
-    <button id="btn-dialog-close">Close</button>
-  </div>
 </dialog>
 
 
 <dialog id="upload-guide-dialog" aria-labelledby="guide-title">
+  <button class="dialog-close-btn" aria-label="Close">✕</button>
   <h2 id="guide-title"></h2>
   <div class="guide-steps" id="guide-steps"></div>
-  <div class="dialog-footer">
-    <button id="btn-guide-close">Cancel</button>
-  </div>
 </dialog>
 
 <dialog id="confirm-dialog" aria-labelledby="confirm-dialog-msg">
+  <button class="dialog-close-btn" aria-label="Close">✕</button>
   <p id="confirm-dialog-msg"></p>
   <div class="dialog-footer">
     <button id="btn-confirm-cancel">Cancel</button>
@@ -1895,20 +1895,28 @@ function showConfirm(message, { confirmText = 'OK', danger = true } = {}) {
     okBtn.textContent = confirmText;
     okBtn.className   = danger ? 'danger' : '';
 
+    const xBtn = dialog.querySelector('.dialog-close-btn');
+
     function finish(result) {
       dialog.removeEventListener('cancel', onCancel);
+      dialog.removeEventListener('click', onClickOutside);
       okBtn.removeEventListener('click', onOk);
       cancelBtn.removeEventListener('click', onCancelClick);
+      if (xBtn) xBtn.removeEventListener('click', onXClick);
       dialog.close();
       resolve(result);
     }
-    function onOk()          { finish(true);  }
-    function onCancelClick() { finish(false); }
-    function onCancel(e)     { e.preventDefault(); finish(false); }
+    function onOk()            { finish(true);  }
+    function onCancelClick()   { finish(false); }
+    function onCancel(e)       { e.preventDefault(); finish(false); }
+    function onXClick()        { finish(false); }
+    function onClickOutside(e) { if (e.target === dialog) finish(false); }
 
     dialog.addEventListener('cancel', onCancel);
+    dialog.addEventListener('click', onClickOutside);
     okBtn.addEventListener('click', onOk);
     cancelBtn.addEventListener('click', onCancelClick);
+    if (xBtn) xBtn.addEventListener('click', onXClick);
 
     dialog.showModal();
   });
@@ -1941,6 +1949,9 @@ function openDialog() {
   document.getElementById('url-input').value = '';
   document.getElementById('url-name').value = '';
   document.getElementById('upload-name').value = '';
+  _pendingUploadFile = null;
+  document.getElementById('upload-zone-label').textContent = 'Drop file here or click to browse';
+  document.getElementById('btn-upload-file').disabled = true;
 
   const allAdded = BUILTIN_WORDLISTS.every(t => state.inputLists.some(l => l.id === t.id));
   const defaultTab = allAdded ? 'upload' : 'builtin';
@@ -1990,10 +2001,12 @@ function bindEvents() {
     showToast('Reset complete');
   };
 
-  document.getElementById('btn-settings').onclick       = () => document.getElementById('settings-dialog').showModal();
-  document.getElementById('btn-settings-close').onclick = () => document.getElementById('settings-dialog').close();
-  document.getElementById('btn-dialog-close').onclick   = () => document.getElementById('add-dialog').close();
-  document.getElementById('btn-guide-close').onclick    = () => document.getElementById('upload-guide-dialog').close();
+  document.getElementById('btn-settings').onclick = () => document.getElementById('settings-dialog').showModal();
+  ['settings-dialog', 'add-dialog', 'upload-guide-dialog'].forEach(id => {
+    const d = document.getElementById(id);
+    d.querySelector('.dialog-close-btn').onclick = () => d.close();
+    d.addEventListener('click', e => { if (e.target === d) d.close(); });
+  });
 
   // Tabs
   document.querySelectorAll('.tab-btn').forEach(btn => {
@@ -2007,7 +2020,14 @@ function bindEvents() {
   });
 
   // Drop zone
-  bindDropZone(document.getElementById('drop-zone'), document.getElementById('file-input'), handleDialogUpload);
+  bindDropZone(document.getElementById('drop-zone'), document.getElementById('file-input'), file => {
+    _pendingUploadFile = file;
+    document.getElementById('upload-zone-label').textContent = file.name;
+    document.getElementById('btn-upload-file').disabled = false;
+  });
+  document.getElementById('btn-upload-file').onclick = () => {
+    if (_pendingUploadFile) handleDialogUpload(_pendingUploadFile);
+  };
 
   // Drag-to-reorder
   let _dragId = null;
@@ -2124,6 +2144,8 @@ function bindEvents() {
     selectList(id);
   };
 }
+
+let _pendingUploadFile = null;
 
 function handleDialogUpload(file) {
   const id   = 'up_' + Date.now();
