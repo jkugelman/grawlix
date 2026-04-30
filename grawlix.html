@@ -1393,20 +1393,21 @@ class VirtualScroller {
       const effectiveScore = ov ? ov.score : rescoredScore;
       const effectiveComment = (ov && ov.comment) ? ov.comment : (comment || '');
       const commentOverridden = !!(ov && ov.comment && ov.comment !== (comment || ''));
+      const scoreOv = ov && ov.score !== rescoredScore;
 
       let innerScore;
       if (ignored) {
         innerScore = `<span class="score-badge ignored" data-tier="${tier}">${score}</span>`;
       } else {
         innerScore = `<span class="score-badge" data-tier="${scoreTier(effectiveScore)}">${effectiveScore}</span>`;
-        if (wasRescored || ov) innerScore += `<sup class="effective-asterisk">*</sup>`;
+        if (wasRescored || scoreOv) innerScore += `<sup class="effective-asterisk">*</sup>`;
       }
 
       let scoreAttrs = '';
-      if (!ignored && (wasRescored || ov)) {
+      if (!ignored && (wasRescored || scoreOv)) {
         scoreAttrs = ` data-score-raw="${score}" data-score-list-name="${esc(listName)}"`;
         if (wasRescored) scoreAttrs += ` data-score-rescaled="${rescoredScore}"`;
-        if (ov) scoreAttrs += ` data-score-ov-name="${esc(ov.listName)}" data-score-ov-val="${ov.score}"`;
+        if (scoreOv) scoreAttrs += ` data-score-ov-name="${esc(ov.listName)}" data-score-ov-val="${ov.score}"`;
       }
       let commentAttrs = '';
       if (commentOverridden) {
