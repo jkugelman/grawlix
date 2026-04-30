@@ -32,6 +32,10 @@ WORD;SCORE;COMMENT
 
 ## Key concepts
 
+**My Edits** — `EDITS_ID = '__edits__'` is a special list always at `inputLists[0]`, giving it the highest merge priority. Created automatically on first boot. It has no rescore rules (scores pass through as-is). Clicking a score or comment cell in any view opens an inline editor; saving upserts the entry into My Edits. From the My Edits view the user can also add new words and delete entries (with undo). The UI enforces: not deletable, not reorderable, always enabled.
+
+**Override and rescore display** — When viewing an input list, score and comment cells always show the *effective* value (what actually appears in the merged output), not the raw value from that list. A red superscript asterisk (`*`) indicates the displayed value differs from what the list itself contains. An instant HTML popover (`#cell-popover`) explains why: the original score for rescored entries, or the overriding list's name for overrides. Both conditions can apply simultaneously. The overrideMap (built by `buildOverrideMap`) stores `{ listName, score, comment }` from the highest-priority list above the current one; a comment override only applies when that list has a non-empty comment. Editing an overridden cell pre-fills the input with the effective value (not the raw value) so the user is editing what actually matters — the result always lands in My Edits regardless.
+
 **Merged view** — `MERGED_ID = '__merged__'` selects a union of all enabled lists, deduped by word. The highest rescored value wins; losers are shown faded with a tooltip.
 
 **Score tiers** — `great` (≥60), `good` (≥50), `fair` (≥40), `meh` (≥30), `bad` (<30). Drive score badge colors via `data-tier` and `--score-{tier}-{bg,fg}` CSS vars.

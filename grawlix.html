@@ -341,12 +341,12 @@ a.get-file:hover { text-decoration: underline; }
 /* Score display */
 .entry-ignored { opacity: 0.4; }
 .col-length { text-align: right; }
-.score-orig { color: var(--muted); font-size: 11px; }
-.score-arrow-indicator { color: var(--faint); font-size: 10px; padding: 0 3px; }
 .ignored-word { text-decoration: line-through; }
 .score-badge.ignored { text-decoration: line-through; }
-.overridden-row { cursor: help; }
-.overridden-row td { opacity: 0.45; }
+.effective-asterisk { color: #e53; font-size: 9px; vertical-align: super; margin-left: 2px; pointer-events: none; line-height: 0; }
+
+/* Cell popover */
+#cell-popover { position: fixed; background: var(--surface2); border: 1px solid var(--border); border-radius: 6px; padding: 8px 12px; font-size: 12px; line-height: 1.6; max-width: 300px; z-index: 9999; box-shadow: 0 4px 16px rgba(0,0,0,0.18); pointer-events: none; }
 
 /* Dialog helpers */
 .dialog-actions { text-align: right; }
@@ -378,6 +378,53 @@ html.dark-mode .screenshot-container img { filter: brightness(0.843) invert(1) h
 #merged-card { flex-shrink: 0; user-select: none; }
 .merged-icon { color: var(--accent); }
 
+/* My Edits card */
+#my-edits-card { flex-shrink: 0; user-select: none; }
+.my-edits-icon { color: var(--muted); }
+
+/* Inline cell editing */
+.word-table td.score-cell,
+.word-table td.comment-cell { cursor: pointer; }
+.word-table td.score-cell:hover,
+.word-table td.comment-cell:hover { background: color-mix(in srgb, var(--accent) 8%, var(--row-hover)); }
+input.cell-edit { font-family: inherit; font-size: 12px; padding: 1px 4px; border: 1px solid var(--accent); border-radius: 3px; background: var(--input-bg); color: var(--text); outline: none; width: 100%; box-sizing: border-box; }
+input.cell-edit.score-edit { font-family: ui-monospace, 'Cascadia Code', monospace; width: 60px; }
+
+/* Informational note */
+.edit-info-note { height: 28px; display: flex; align-items: center; gap: 5px; padding: 0 18px; font-size: 12px; color: var(--muted); background: var(--surface2); border-bottom: 1px solid var(--border2); flex-shrink: 0; opacity: 0; visibility: hidden; transition: opacity 0.15s, visibility 0.15s; }
+.edit-info-note.visible { opacity: 1; visibility: visible; }
+
+/* Fly animation */
+.fly-clone { position: fixed; pointer-events: none; z-index: 300; font-size: 11px; font-weight: 700; border-radius: 3px; padding: 1px 5px; animation: fly-to-target 0.4s ease-in forwards; }
+@keyframes fly-to-target {
+  0%   { opacity: 1; transform: translate(0, 0) scale(1); }
+  60%  { opacity: 0.9; }
+  100% { opacity: 0; transform: translate(var(--fly-dx), var(--fly-dy)) scale(0.6); }
+}
+@keyframes me-pulse {
+  0%   { box-shadow: inset 0 0 0 2px var(--accent); }
+  100% { box-shadow: none; }
+}
+#my-edits-card.pulse { animation: me-pulse 0.35s ease-out; }
+
+/* Add word pinned row */
+.add-word-bar { display: flex; align-items: center; gap: 8px; padding: 5px 16px; background: var(--surface2); border-bottom: 1px solid var(--border2); flex-shrink: 0; }
+.add-word-bar input { font-family: inherit; font-size: 12px; padding: 2px 6px; border: 1px solid var(--border); border-radius: 3px; background: var(--input-bg); color: var(--text); outline: none; }
+.add-word-bar input:focus { border-color: var(--accent); }
+.add-word-bar input.invalid { border-color: #ea4335; }
+.add-word-bar .aw-word { font-family: ui-monospace, 'Cascadia Code', monospace; width: 120px; }
+.add-word-bar .aw-score { width: 55px; }
+.add-word-bar .aw-comment { flex: 1; }
+.add-word-bar .aw-hint { font-size: 11px; color: var(--faint); white-space: nowrap; }
+
+/* Trash / delete column */
+.word-table th.col-trash { width: 26px; padding: 0; }
+.word-table td.col-trash { width: 26px; padding: 0 3px; text-align: center; font-size: 14px; color: transparent; cursor: pointer; }
+.word-table tr:hover td.col-trash { color: var(--faint); }
+.word-table td.col-trash:hover { color: #e53935 !important; }
+
+/* Toast undo link */
+#toast .undo-link { margin-left: 10px; color: #90caf9; text-decoration: underline; cursor: pointer; }
 
 </style>
 </head>
@@ -400,6 +447,8 @@ html.dark-mode .screenshot-container img { filter: brightness(0.843) invert(1) h
   <div id="lists-panel">
     <h2>Output List</h2>
     <div id="merged-card" tabindex="0" role="option"></div>
+    <h2>Edits</h2>
+    <div id="my-edits-card" tabindex="0" role="option"></div>
     <h2>Input Lists <span id="list-count"></span></h2>
     <div id="lists-container"></div>
   </div>
@@ -517,6 +566,8 @@ const ROW_HEIGHT   = 24;
 const VS_BUFFER    = 60;
 // LS_PREFIX defined in <head> so the FOUC-prevention script can share it.
 const MERGED_ID    = '__merged__';
+const EDITS_ID  = '__edits__';
+const EDITS_ICON = `<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" class="list-icon-svg my-edits-icon" aria-hidden="true"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>`;
 const MERGED_ICON  = `<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" class="list-icon-svg merged-icon" aria-hidden="true"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>`;
 
 const BUILTIN_WORDLISTS = [
@@ -626,7 +677,7 @@ const state = {
   mergedScoring: DEFAULT_MERGED_SCORING.map(r => ({ ...r })),
 };
 
-const colWidths = { length: 55, word: 200, score: 90, source: 170 }; // persists across list switches
+const colWidths = { length: 55, word: 200, score: 90, source: 170, delete: 26 }; // persists across list switches
 
 // ─── Parsing ─────────────────────────────────────────────────────────────────
 
@@ -705,6 +756,7 @@ function persistMeta() {
     fetchFingerprint: l.fetchFingerprint || null,
     rescoreRules: l.rescoreRules || [],
     originalFilename: l.originalFilename || null,
+    ...(l.scoring ? { scoring: l.scoring.filter(r => !r._catchAll) } : {}),
   }))));
 }
 
@@ -807,8 +859,12 @@ async function init() {
   } else if (savedId && state.inputLists.some(l => l.id === savedId)) {
     state.selectedId = savedId;
   }
-  if (!state.selectedId && state.inputLists.length) state.selectedId = state.inputLists[0].id;
+  if (!state.selectedId && state.inputLists.length) {
+    const first = state.inputLists.find(l => l.id !== EDITS_ID) ?? state.inputLists[0];
+    state.selectedId = first.id;
+  }
 
+  ensureEdits();
   renderAll();
   const _overlay = document.getElementById('busy-overlay');
   if (_overlay) {
@@ -833,6 +889,53 @@ function defaultInputLists() {
     updateCatchAll(list);
     return list;
   });
+}
+
+// ─── My Edits helpers ─────────────────────────────────────────────────────────
+
+function getEditsList() {
+  return state.inputLists.find(l => l.id === EDITS_ID) ?? null;
+}
+
+function ensureEdits() {
+  const idx = state.inputLists.findIndex(l => l.id === EDITS_ID);
+  if (idx >= 0) {
+    const me = state.inputLists[idx];
+    if (!me.scoring) me.scoring = DEFAULT_MERGED_SCORING.map(r => ({ ...r }));
+    if (idx === 0) return;
+    const [removed] = state.inputLists.splice(idx, 1);
+    state.inputLists.unshift(removed);
+  } else {
+    const me = { id: EDITS_ID, name: 'My Edits', source: 'my-edits', url: null,
+                 enabled: true, rawEntries: [], lastUpdated: null, _loading: false,
+                 rescoreRules: [],
+                 scoring: DEFAULT_MERGED_SCORING.map(r => ({ ...r })) };
+    updateCatchAll(me);
+    state.inputLists.unshift(me);
+    persistMeta();
+  }
+}
+
+function entriesToText(entries) {
+  return entries.map(e => e.comment ? `${e.word};${e.score};${e.comment}` : `${e.word};${e.score}`).join('\n') + (entries.length ? '\n' : '');
+}
+
+async function persistEdits(me) {
+  await persistData(EDITS_ID, entriesToText(me.rawEntries));
+  persistMeta();
+}
+
+function downloadEdits() {
+  const me = getEditsList();
+  if (!me || !me.rawEntries.length) return;
+  const upper = (lsLoad('downloadCase') || 'lower') === 'upper';
+  const text = me.rawEntries.map(e => {
+    const w = upper ? e.word.toUpperCase() : e.word.toLowerCase();
+    return e.comment ? `${w};${e.score};${e.comment}` : `${w};${e.score}`;
+  }).join('\n') + '\n';
+  const name = me.name.replace(/\s+/g, '-').toLowerCase();
+  triggerDownload(text, `${name}.${getDownloadExt()}`);
+  showToast(`Downloaded ${me.rawEntries.length.toLocaleString()} entries`);
 }
 
 // ─── Stats ────────────────────────────────────────────────────────────────────
@@ -952,6 +1055,14 @@ class VirtualScroller {
     this.overrideMap = new Map();
     this._currentCols = [];
     this.showSource = false;
+    this.showDeleteCol = false;
+    this.editsId = null;
+    this.currentListName = '';
+    this._onCellEdit = null;  // (word, field, newValue) => void
+    this._onEditStart = null; // (word, field, tdEl) => void
+    this._onEditEnd = null;   // () => void
+    this._onDeleteRow = null; // (word) => void
+    this._editingCell = null;
 
     container.style.overflowY = 'auto';
 
@@ -981,6 +1092,34 @@ class VirtualScroller {
     container.appendChild(this.table);
     container.addEventListener('scroll', () => this._render(), { passive: true });
     new ResizeObserver(() => this._render()).observe(container);
+
+    this.table.addEventListener('click', e => {
+      if (this._editingCell) return;
+      const td = e.target.closest('td');
+      if (!td) return;
+      const tr = td.closest('tr[data-word]');
+      if (!tr) return;
+      const word = tr.dataset.word;
+      if (td.classList.contains('col-trash')) {
+        this._onDeleteRow?.(word);
+      } else if (this._onCellEdit && (td.classList.contains('score-cell') || td.classList.contains('comment-cell'))) {
+        this._openCellEdit(td, word, td.classList.contains('score-cell') ? 'score' : 'comment');
+      }
+    });
+
+    // Cell popovers
+    let _popTd = null;
+    this.table.addEventListener('mouseover', e => {
+      const td = e.target.closest('td');
+      if (td === _popTd) return;
+      _popTd = td;
+      if (td && (td.dataset.scoreRaw !== undefined || td.dataset.commentOvName !== undefined)) {
+        showCellPopover(td);
+      } else {
+        hideCellPopover();
+      }
+    });
+    this.table.addEventListener('mouseleave', () => { _popTd = null; hideCellPopover(); });
   }
 
   setEntries(allEntries, query, rescoreRules, overrideMap, wholeWord = false) {
@@ -1004,12 +1143,13 @@ class VirtualScroller {
     const cols = ['length', 'word', 'score'];
     cols.push('comment');
     if (this.showSource) cols.push('source');
+    if (this.showDeleteCol) cols.push('delete');
     return cols;
   }
 
   _buildHeader() {
-    const LABELS = { length: 'Len', word: 'Word', score: 'Score', comment: 'Comment', source: 'Source' };
-    const ALIGN  = { length: 'right', word: 'left', score: 'left', comment: 'left', source: 'left' };
+    const LABELS = { length: 'Len', word: 'Word', score: 'Score', comment: 'Comment', source: 'Source', delete: '' };
+    const ALIGN  = { length: 'right', word: 'left', score: 'left', comment: 'left', source: 'left', delete: 'center' };
     const cols = this._cols();
     this._currentCols = cols;
 
@@ -1032,9 +1172,9 @@ class VirtualScroller {
       const th = document.createElement('th');
       th.style.textAlign = ALIGN[key];
 
-      const isFillerComment = key === 'comment' && !this.hasComments;
+      const isDeleteCol = key === 'delete';
 
-      if (!isFillerComment) {
+      if (!isDeleteCol) {
         th.setAttribute('aria-sort', this.sortKey === key ? (this.sortDir === 'asc' ? 'ascending' : 'descending') : 'none');
         const labelSpan = document.createElement('span');
         labelSpan.textContent = LABELS[key];
@@ -1060,7 +1200,9 @@ class VirtualScroller {
         });
       }
 
-      if (!isLast && !isFillerComment) {
+      if (isDeleteCol) th.className = 'col-trash';
+
+      if (!isLast && !isDeleteCol) {
         const handle = document.createElement('div');
         handle.className = 'col-resize-handle';
         th.appendChild(handle);
@@ -1134,6 +1276,7 @@ class VirtualScroller {
   }
 
   _render() {
+    if (this._editingCell) return;
     const n = this.entries.length;
     const scrollTop = this.container.scrollTop;
     const viewH = this.container.clientHeight;
@@ -1151,14 +1294,17 @@ class VirtualScroller {
     const frag = document.createDocumentFragment();
     for (let i = start; i < end; i++) {
       const entry = this.entries[i];
-      const { word, score, comment, listName } = entry;
+      const { word, score, comment, listName: entryListName, listId } = entry;
+      const listName = entryListName || this.currentListName;
       const tier = scoreTier(score);
       const tr = document.createElement('tr');
       tr.style.height = ROW_HEIGHT + 'px';
+      tr.dataset.word = word;
 
       const wordHtml = this._highlight ? this._highlight(word) : word;
       let wordCell  = `<td title="${word}">${wordHtml}</td>`;
-      let innerScore = `<span class="score-badge" data-tier="${tier}">${score}</span>`;
+      let rescoredScore = score;
+      let wasRescored = false;
       let ignored = false;
 
       if (this.rescoreRules.length) {
@@ -1166,30 +1312,125 @@ class VirtualScroller {
         if (!r.kept) {
           ignored = true;
           tr.classList.add('entry-ignored');
-          wordCell   = `<td title="${word}"><span class="ignored-word">${wordHtml}</span></td>`;
-          innerScore = `<span class="score-badge ignored" data-tier="${tier}">${score}</span>`;
-        } else if (r.score !== score) {
-          innerScore = `<span class="score-orig">${score}</span><span class="score-arrow-indicator">→</span><span class="score-badge" data-tier="${scoreTier(r.score)}">${r.score}</span>`;
+          wordCell = `<td title="${word}"><span class="ignored-word">${wordHtml}</span></td>`;
+        } else {
+          rescoredScore = r.score;
+          wasRescored = r.score !== score;
         }
       }
 
       const ov = !ignored && this.overrideMap.get(word.toUpperCase());
-      if (ov) {
-        tr.classList.add('overridden-row');
-        tr.title = `Overridden by ${ov.listName} at ${ov.score}`;
+      const effectiveScore = ov ? ov.score : rescoredScore;
+      const effectiveComment = (ov && ov.comment) ? ov.comment : (comment || '');
+      const commentOverridden = !!(ov && ov.comment && ov.comment !== (comment || ''));
+
+      let innerScore;
+      if (ignored) {
+        innerScore = `<span class="score-badge ignored" data-tier="${tier}">${score}</span>`;
+      } else {
+        innerScore = `<span class="score-badge" data-tier="${scoreTier(effectiveScore)}">${effectiveScore}</span>`;
+        if (wasRescored || ov) innerScore += `<sup class="effective-asterisk">*</sup>`;
       }
+
+      let scoreAttrs = '';
+      if (!ignored && (wasRescored || ov)) {
+        scoreAttrs = ` data-score-raw="${score}" data-score-list-name="${esc(listName)}"`;
+        if (wasRescored) scoreAttrs += ` data-score-rescaled="${rescoredScore}"`;
+        if (ov) scoreAttrs += ` data-score-ov-name="${esc(ov.listName)}" data-score-ov-val="${ov.score}"`;
+      }
+      let commentAttrs = '';
+      if (commentOverridden) {
+        commentAttrs = ` data-comment-list-name="${esc(listName)}" data-comment-raw="${esc(comment || '')}" data-comment-ov-name="${esc(ov.listName)}" data-comment-ov-val="${esc(ov.comment)}"`;
+      }
+      const commentInner = esc(effectiveComment) + (commentOverridden ? '<sup class="effective-asterisk">*</sup>' : '');
+
       const lengthCell = `<td class="col-length">${word.length}</td>`;
-      const scoreCell = `<td>${innerScore}</td>`;
+      const scoreCell = `<td class="score-cell"${scoreAttrs}>${innerScore}</td>`;
+      const commentCell = `<td class="comment-cell"${commentAttrs}>${commentInner}</td>`;
+
+      const isMyEditsSource = this.editsId && listId === this.editsId;
+      const sourceCell = this.showSource
+        ? `<td class="comment-cell">${isMyEditsSource ? EDITS_ICON : esc(listName || '')}</td>`
+        : '';
 
       tr.innerHTML =
         lengthCell +
         wordCell +
         scoreCell +
-        `<td class="comment-cell">${comment || ''}</td>` +
-        (this.showSource ? `<td class="comment-cell">${esc(listName || '')}</td>` : '');
+        commentCell +
+        sourceCell +
+        (this.showDeleteCol ? `<td class="col-trash" title="Remove">🗑</td>` : '');
       frag.appendChild(tr);
     }
     this.tbody.insertBefore(frag, this.botRow);
+  }
+
+  _openCellEdit(td, word, field) {
+    const entry = this.allEntries.find(e => e.word.toUpperCase() === word.toUpperCase());
+    if (!entry) return;
+
+    const originalContent = td.innerHTML;
+    let currentVal;
+    if (field === 'score') {
+      const ov = this.overrideMap.get(word.toUpperCase());
+      if (ov) {
+        currentVal = String(ov.score);
+      } else if (this.rescoreRules.length) {
+        const r = rescoreEntry(entry, this.rescoreRules);
+        currentVal = r.kept ? String(r.score) : String(entry.score);
+      } else {
+        currentVal = String(entry.score);
+      }
+    } else {
+      const ov = this.overrideMap.get(word.toUpperCase());
+      currentVal = (ov && ov.comment) ? ov.comment : (entry.comment || '');
+    }
+
+    this._editingCell = td;
+    this._onEditStart?.(word, field, td);
+
+    const input = document.createElement('input');
+    input.className = 'cell-edit' + (field === 'score' ? ' score-edit' : '');
+    input.type = field === 'score' ? 'number' : 'text';
+    input.value = currentVal;
+    if (field === 'score') { input.min = '0'; input.max = '100'; }
+    td.innerHTML = '';
+    td.appendChild(input);
+    input.focus();
+    input.select();
+
+    let saved = false;
+    const save = () => {
+      if (saved) return;
+      saved = true;
+      this._editingCell = null;
+      const raw = input.value;
+      if (field === 'score') {
+        const parsed = parseInt(raw, 10);
+        if (!isNaN(parsed) && parsed >= 0 && parsed <= 100 && parsed !== parseInt(currentVal, 10)) {
+          this._onCellEdit?.(word, field, parsed, td);
+        }
+      } else {
+        if (raw !== currentVal) {
+          this._onCellEdit?.(word, field, raw, td);
+        }
+      }
+      if (td.isConnected) td.innerHTML = originalContent;
+      this._onEditEnd?.();
+    };
+    const cancel = () => {
+      if (saved) return;
+      saved = true;
+      this._editingCell = null;
+      if (td.isConnected) td.innerHTML = originalContent;
+      this._onEditEnd?.();
+    };
+
+    input.addEventListener('blur', save);
+    input.addEventListener('keydown', e => {
+      if (e.key === 'Enter') { e.preventDefault(); save(); }
+      if (e.key === 'Escape') { input.removeEventListener('blur', save); cancel(); }
+    });
   }
 }
 
@@ -1410,24 +1651,24 @@ function renderMergedCard(meta, selected) {
 
 function renderInputLists() {
   const container = document.getElementById('lists-container');
-  document.getElementById('list-count').textContent =
-    state.inputLists.length ? `(${state.inputLists.length})` : '';
+  const inputLists = state.inputLists.filter(l => l.id !== EDITS_ID);
+  document.getElementById('list-count').textContent = inputLists.length ? `(${inputLists.length})` : '';
 
   const addRow = `<div class="add-list-row" onclick="openDialog()"><span class="drag-handle" aria-hidden="true">≡</span><span class="add-list-icon">+</span>Add list</div>`;
 
-  if (!state.inputLists.length) {
+  if (!_sourceCountsCache) _sourceCountsCache = buildMergedList().sourceCounts;
+  const contribMap = new Map(_sourceCountsCache.map(s => [s.id, s.count]));
+  const totalMerged = _sourceCountsCache.reduce((sum, s) => sum + s.count, 0);
+
+  renderMergedCard(totalMerged ? `${totalMerged.toLocaleString()} entries` : 'No data', state.selectedId === MERGED_ID);
+  renderEditsCard();
+
+  if (!inputLists.length) {
     container.innerHTML = '<div class="no-lists">No lists yet</div>' + addRow;
-    renderMergedCard('No data', state.selectedId === MERGED_ID);
     return;
   }
 
-  if (!_sourceCountsCache) _sourceCountsCache = buildMergedList().sourceCounts;
-  const contribMap = new Map(_sourceCountsCache.map(s => [s.id, s.count]));
-
-  const totalMerged = _sourceCountsCache.reduce((sum, s) => sum + s.count, 0);
-  renderMergedCard(totalMerged ? `${totalMerged.toLocaleString()} entries` : 'No data', state.selectedId === MERGED_ID);
-
-  container.innerHTML = state.inputLists.map(list => {
+  container.innerHTML = inputLists.map(list => {
     const sel = list.id === state.selectedId;
     const hasData = list.rawEntries.length > 0;
     let meta;
@@ -1467,13 +1708,28 @@ function renderInputLists() {
   }).join('') + addRow;
 }
 
+function renderEditsCard() {
+  const card = document.getElementById('my-edits-card');
+  if (!card) return;
+  const me = getEditsList();
+  const sel = state.selectedId === EDITS_ID;
+  const hasData = me ? me.rawEntries.length > 0 : false;
+  const enabled = me?.enabled ?? true;
+  card.className = 'list-card' + (sel ? ' selected' : '') + (enabled ? '' : ' disabled');
+  card.dataset.id = EDITS_ID;
+  const meta = me ? (me.rawEntries.length ? `${me.rawEntries.length.toLocaleString()} entries` : 'No entries yet') : 'No entries yet';
+  const name = me?.name ?? 'My Edits';
+  const toggleTitle = enabled ? 'Enabled — click to disable' : 'Disabled — click to enable';
+  card.innerHTML = `<span class="drag-handle" aria-hidden="true">≡</span>${EDITS_ICON}<div class="card-info"><div class="card-name-row"><div class="card-name">${esc(name)}</div></div><div class="card-meta">${meta}</div></div><div class="card-actions"><label class="toggle" onclick="event.stopPropagation()" title="${toggleTitle}" aria-label="Toggle ${esc(name)}"><input type="checkbox"${enabled ? ' checked' : ''} onchange="toggleList('${EDITS_ID}',event)"><span class="toggle-slider"></span></label></div>`;
+}
+
 function refreshSourceCounts() {
   invalidateSourceCounts();
   invalidateStatsCache(MERGED_ID);
   _sourceCountsCache = buildMergedList().sourceCounts;
   const contribMap = new Map(_sourceCountsCache.map(s => [s.id, s.count]));
   for (const list of state.inputLists) {
-    if (!list.enabled || !list.rawEntries.length) continue;
+    if (list.id === EDITS_ID || !list.enabled || !list.rawEntries.length) continue;
     const meta = document.querySelector(`.list-card[data-id="${CSS.escape(list.id)}"] .card-meta`);
     if (!meta) continue;
     const used = contribMap.get(list.id) ?? 0;
@@ -1482,6 +1738,7 @@ function refreshSourceCounts() {
       ? `${used.toLocaleString()} entries used`
       : `${used.toLocaleString()} of ${total.toLocaleString()} entries used`;
   }
+  renderEditsCard();
 
   const totalMerged = _sourceCountsCache.reduce((sum, s) => sum + s.count, 0);
   renderMergedCard(totalMerged ? `${totalMerged.toLocaleString()} entries` : 'No data', state.selectedId === MERGED_ID);
@@ -1546,6 +1803,7 @@ function renderMergedDetail() {
       </div>
       <button class="primary" onclick="downloadMergedFromPanel()">Download</button>
     </div>
+    <div class="edit-info-note" id="edit-info-note"></div>
     ${statsHtml}
     <div id="merged-scoring-section" class="rescore-section">${buildMergedScoringSectionHTML()}</div>
     ${buildSearchBarHTML()}
@@ -1557,7 +1815,10 @@ function renderMergedDetail() {
   const host = document.getElementById('vs-host');
   scroller = new VirtualScroller(host);
   scroller.showSource = true;
+  scroller.editsId = EDITS_ID;
   scroller.setEntries(entries, state.searchQuery, [], new Map(), state.searchWholeWord);
+
+  attachExternalEditHandlers(scroller);
 }
 
 function downloadMergedFromPanel() {
@@ -1567,42 +1828,45 @@ function downloadMergedFromPanel() {
 
 // ─── Merged Scoring ───────────────────────────────────────────────────────────
 
-function updateMergedCatchAll() {
-  const rows = state.mergedScoring;
-
-  // Remove existing auto catch-all
-  const caIdx = rows.findIndex(r => r._catchAll);
-  if (caIdx !== -1) rows.splice(caIdx, 1);
-
-  // Find actual scores in the merged list not covered by any user row
-  const { entries } = buildMergedList();
+function updateScoringCatchAll(scoring, entries) {
+  const caIdx = scoring.findIndex(r => r._catchAll);
+  if (caIdx !== -1) scoring.splice(caIdx, 1);
   const actualScores = entries.length
     ? [...new Set(entries.map(e => e.score))].sort((a, b) => a - b)
     : [];
-
-  const uncovered = actualScores.filter(s => !rows.some(r => {
+  const uncovered = actualScores.filter(s => !scoring.some(r => {
     const intervals = parseRange(r.score);
     return intervals && matchesRange(s, intervals);
   }));
-
   if (uncovered.length > 0) {
-    rows.push({ score: scoresToRangeStr(uncovered), note: '', _catchAll: true });
+    scoring.push({ score: scoresToRangeStr(uncovered), note: '', _catchAll: true });
   }
 }
 
-function buildMergedScoringSectionHTML() {
-  const rows = state.mergedScoring;
-  const rulesHTML = rows.map((r, i) => {
-    const isCatchAll = !!r._catchAll;
+function updateMergedCatchAll() {
+  const { entries } = buildMergedList();
+  updateScoringCatchAll(state.mergedScoring, entries);
+}
+
+function buildScoringSectionHTML(scoring, { sectionId, saveFn, deleteFn, resetFn, showReset }) {
+  const rulesHTML = scoring.map((r, i) => {
     const fieldsHTML = `
       <input class="rule-in" value="${esc(r.score)}" placeholder="60-100"
         title="Score range: 60+, 50-59, 42, *, or comma-separated like 50-59,30"
-        oninput="onRuleInput(this)" onchange="saveMergedScoringField(${i},'score',this.value)">`;
-    return buildRuleRowHTML(i, isCatchAll, fieldsHTML, r.note, 'deleteMergedScoringRow');
+        oninput="onRuleInput(this)" onchange="${saveFn}(${i},'score',this.value)">`;
+    return buildRuleRowHTML(i, !!r._catchAll, fieldsHTML, r.note, deleteFn);
   }).join('');
+  return buildRuleSectionHTML({ label: 'Scoring', rulesId: `${sectionId}-scoring-rules`, rulesHTML, showReset, onResetFn: resetFn });
+}
 
-  const showReset = !mergedScoringMatchesDefaults();
-  return buildRuleSectionHTML({ label: 'Scoring', rulesId: 'merged-scoring-rules', rulesHTML, showReset, onResetFn: 'resetMergedScoring' });
+function buildMergedScoringSectionHTML() {
+  return buildScoringSectionHTML(state.mergedScoring, {
+    sectionId: 'merged',
+    saveFn: 'saveMergedScoringField',
+    deleteFn: 'deleteMergedScoringRow',
+    resetFn: 'resetMergedScoring',
+    showReset: !mergedScoringMatchesDefaults(),
+  });
 }
 
 function renderMergedScoring() {
@@ -1627,6 +1891,43 @@ function saveMergedScoringField(i, field, val) {
   renderMergedScoring();
 }
 
+// ─── Edits Scoring ────────────────────────────────────────────────────────────
+
+function buildEditsScoringSectionHTML(list) {
+  return buildScoringSectionHTML(list.scoring, {
+    sectionId: 'edits',
+    saveFn: 'saveEditsScoringField',
+    deleteFn: 'deleteEditsScoringRow',
+    resetFn: 'resetEditsScoring',
+    showReset: !scoringMatchesDefaults(list.scoring),
+  });
+}
+
+function renderEditsScoring() {
+  const el = document.getElementById('edits-scoring-section');
+  const me = getEditsList();
+  if (el && me) el.innerHTML = buildEditsScoringSectionHTML(me);
+}
+
+function deleteEditsScoringRow(i) {
+  const me = getEditsList();
+  if (!me) return;
+  me.scoring.splice(i, 1);
+  updateScoringCatchAll(me.scoring, me.rawEntries);
+  persistMeta();
+  renderEditsScoring();
+}
+
+function saveEditsScoringField(i, field, val) {
+  const me = getEditsList();
+  if (!me || !me.scoring[i]) return;
+  me.scoring[i][field] = val;
+  delete me.scoring[i]._catchAll;
+  updateScoringCatchAll(me.scoring, me.rawEntries);
+  persistMeta();
+  renderEditsScoring();
+}
+
 
 function buildSplitBtn(mainLabel, mainOnclick, menuItems, { primary = false, disabled = false, title = '' } = {}) {
   const dis = disabled ? ' disabled' : '';
@@ -1649,6 +1950,11 @@ function renderDetail(list) {
   if (!list) {
     panel.innerHTML = '<div class="no-selection"><p>No list selected</p><small>Select a list from the left panel</small></div>';
     scroller = null;
+    return;
+  }
+
+  if (list.id === EDITS_ID) {
+    renderEditsDetail(list);
     return;
   }
 
@@ -1695,6 +2001,7 @@ function renderDetail(list) {
       ${dlBtn}
       ${removeBtn}
     </div>
+    <div class="edit-info-note" id="edit-info-note"></div>
     ${statsHtml}
     <div id="rescore-section" class="rescore-section">${buildRescoreSectionHTML(list)}</div>
     ${buildSearchBarHTML()}
@@ -1705,7 +2012,13 @@ function renderDetail(list) {
 
   const host = document.getElementById('vs-host');
   scroller = new VirtualScroller(host);
+  scroller.currentListName = list.name;
   scroller.setEntries(list.rawEntries, state.searchQuery, list.rescoreRules, buildOverrideMap(list.id), state.searchWholeWord);
+
+  attachExternalEditHandlers(scroller, () => {
+    scroller.overrideMap = buildOverrideMap(list.id);
+    scroller._render();
+  });
 
   if (list.lastUpdated) {
     setDetailDate(list.lastUpdated);
@@ -1720,7 +2033,130 @@ function setDetailDate(ts) {
   el.title = new Date(ts).toLocaleString();
 }
 
+function renderEditsDetail(list) {
+  const panel = document.getElementById('detail-panel');
+  updateScoringCatchAll(list.scoring, list.rawEntries);
+  const stats = computeStats(list.id, list.rawEntries);
+  const statsHtml = buildStatsBarHTML(stats, 'No edits yet — click a score or comment in any list to start editing');
+
+  panel.innerHTML = `
+    <div class="detail-header">
+      <div class="detail-name-wrap">
+        <h2 onclick="startHeaderRename()" title="Click to rename">${esc(list.name)}</h2>
+        <span class="edit-hint detail-edit-hint" onclick="startHeaderRename()">✏️</span>
+      </div>
+      <button class="primary" onclick="openAddWordBar()">＋ Add word</button>
+      ${list.rawEntries.length ? `<button onclick="downloadEdits()">Download</button>` : ''}
+    </div>
+    ${statsHtml}
+    <div id="edits-scoring-section" class="rescore-section">${buildEditsScoringSectionHTML(list)}</div>
+    ${buildSearchBarHTML()}
+    <div id="add-word-bar-container"></div>
+    <div id="table-container">
+      <div id="vs-host"></div>
+    </div>
+  `;
+
+  const host = document.getElementById('vs-host');
+  scroller = new VirtualScroller(host);
+  scroller.showDeleteCol = true;
+  scroller.setEntries(list.rawEntries, state.searchQuery, [], new Map(), state.searchWholeWord);
+
+  scroller._onCellEdit = (word, field, newValue) => {
+    const entry = list.rawEntries.find(e => e.word.toUpperCase() === word.toUpperCase());
+    if (!entry) return;
+    entry[field] = newValue;
+    invalidateListCaches(EDITS_ID);
+    updateCatchAll(list);
+    persistEdits(list);
+    refreshSourceCounts();
+    scroller.setEntries(list.rawEntries, state.searchQuery, [], new Map(), state.searchWholeWord);
+  };
+
+  scroller._onDeleteRow = word => deleteFromEdits(word);
+}
+
 // ─── Actions ──────────────────────────────────────────────────────────────────
+
+function attachExternalEditHandlers(s, refreshFn) {
+  s._onCellEdit = (word, field, newValue, sourceTd) => {
+    upsertEdits(word, field, newValue);
+    if (field === 'score' && sourceTd) flyToMyEdits(sourceTd, newValue);
+    refreshFn?.();
+  };
+  s._onEditStart = () => showEditInfoNote();
+  s._onEditEnd   = () => hideEditInfoNote();
+}
+
+function upsertEdits(word, field, newValue) {
+  const me = getEditsList();
+  if (!me) return;
+  const upperWord = word.toUpperCase();
+  const existing = me.rawEntries.find(e => e.word.toUpperCase() === upperWord);
+  if (existing) {
+    existing[field] = newValue;
+  } else {
+    // Find original entry from current scroller for the other field's value
+    const orig = scroller?.allEntries?.find(e => e.word.toUpperCase() === upperWord);
+    const score   = field === 'score'   ? newValue : (orig?.score   ?? 50);
+    const comment = field === 'comment' ? newValue : (orig?.comment ?? '');
+    me.rawEntries.push({ word: word.toLowerCase(), score, comment });
+  }
+  invalidateListCaches(EDITS_ID);
+  updateCatchAll(me);
+  persistEdits(me);
+  renderEditsCard();
+  // Refresh merged or individual view if active
+  if (state.selectedId === MERGED_ID) {
+    clearTimeout(_refreshCountsTimer);
+    _refreshCountsTimer = setTimeout(refreshSourceCounts, 0);
+  } else {
+    refreshSourceCounts();
+  }
+}
+
+function showEditInfoNote() {
+  const note = document.getElementById('edit-info-note');
+  if (!note) return;
+  note.textContent = '';
+  note.innerHTML = `${EDITS_ICON} Edits are saved to My Edits`;
+  note.classList.add('visible');
+}
+
+function hideEditInfoNote() {
+  const note = document.getElementById('edit-info-note');
+  note?.classList.remove('visible');
+}
+
+function flyToMyEdits(sourceTd, score) {
+  const targetCard = document.getElementById('my-edits-card');
+  if (!targetCard || !sourceTd?.isConnected) return;
+
+  const srcRect  = sourceTd.getBoundingClientRect();
+  const dstRect  = targetCard.getBoundingClientRect();
+
+  const clone = document.createElement('span');
+  clone.className = 'fly-clone score-badge';
+  const tier = scoreTier(typeof score === 'number' ? score : parseInt(score, 10));
+  clone.dataset.tier = tier;
+  clone.textContent = score;
+  clone.style.left = srcRect.left + 'px';
+  clone.style.top  = srcRect.top  + 'px';
+  const dx = dstRect.left + dstRect.width  / 2 - (srcRect.left + srcRect.width  / 2);
+  const dy = dstRect.top  + dstRect.height / 2 - (srcRect.top  + srcRect.height / 2);
+  clone.style.setProperty('--fly-dx', dx + 'px');
+  clone.style.setProperty('--fly-dy', dy + 'px');
+  document.body.appendChild(clone);
+
+  // Pulse the card
+  targetCard.classList.remove('pulse');
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => targetCard.classList.add('pulse'));
+  });
+  setTimeout(() => targetCard.classList.remove('pulse'), 400);
+
+  clone.addEventListener('animationend', () => clone.remove(), { once: true });
+}
 
 function getSelected() {
   return state.inputLists.find(l => l.id === state.selectedId) || null;
@@ -1878,6 +2314,86 @@ function ingestFile(file, listId, nameOverride) {
 }
 
 
+// ─── My Edits: add word & delete ─────────────────────────────────────────────
+
+function openAddWordBar() {
+  const container = document.getElementById('add-word-bar-container');
+  if (!container || container.querySelector('.add-word-bar')) return;
+
+  const bar = document.createElement('div');
+  bar.className = 'add-word-bar';
+  bar.innerHTML = `
+    <input class="aw-word"    placeholder="WORD"    autocomplete="off" spellcheck="false">
+    <input class="aw-score"   placeholder="Score"   type="number" min="0" max="100">
+    <input class="aw-comment" placeholder="Comment (optional)">
+    <span class="aw-hint">Enter to save · Esc to cancel</span>`;
+  container.appendChild(bar);
+
+  const wordInput    = bar.querySelector('.aw-word');
+  const scoreInput   = bar.querySelector('.aw-score');
+  const commentInput = bar.querySelector('.aw-comment');
+  wordInput.focus();
+
+  function dismiss() { bar.remove(); }
+
+  function commit() {
+    const word = wordInput.value.trim().toUpperCase();
+    const score = parseInt(scoreInput.value.trim(), 10);
+    const comment = commentInput.value.trim();
+
+    wordInput.classList.toggle('invalid', !/^[A-Za-z]+$/.test(word));
+    scoreInput.classList.toggle('invalid', isNaN(score) || score < 0 || score > 100);
+    if (wordInput.classList.contains('invalid') || scoreInput.classList.contains('invalid')) return;
+
+    const me = getEditsList();
+    if (!me) return;
+
+    const existing = me.rawEntries.find(e => e.word.toUpperCase() === word);
+    if (existing) {
+      existing.score = score;
+      existing.comment = comment;
+      showToast(`Updated ${word}`);
+    } else {
+      me.rawEntries.push({ word: word.toLowerCase(), score, comment });
+      showToast(`Added ${word}`);
+    }
+
+    invalidateListCaches(EDITS_ID);
+    updateCatchAll(me);
+    persistEdits(me);
+    refreshSourceCounts();
+    renderEditsDetail(me);
+  }
+
+  bar.addEventListener('keydown', e => {
+    if (e.key === 'Enter') { e.preventDefault(); commit(); }
+    if (e.key === 'Escape') dismiss();
+  });
+}
+
+function deleteFromEdits(word) {
+  const me = getEditsList();
+  if (!me) return;
+  const idx = me.rawEntries.findIndex(e => e.word.toUpperCase() === word.toUpperCase());
+  if (idx === -1) return;
+
+  const [removed] = me.rawEntries.splice(idx, 1);
+  invalidateListCaches(EDITS_ID);
+  updateCatchAll(me);
+  persistEdits(me);
+  refreshSourceCounts();
+  scroller.setEntries(me.rawEntries, state.searchQuery, [], new Map(), state.searchWholeWord);
+
+  showUndoToast(`Removed ${removed.word.toUpperCase()}`, () => {
+    me.rawEntries.splice(idx, 0, removed);
+    invalidateListCaches(EDITS_ID);
+    updateCatchAll(me);
+    persistEdits(me);
+    refreshSourceCounts();
+    scroller.setEntries(me.rawEntries, state.searchQuery, [], new Map(), state.searchWholeWord);
+  });
+}
+
 async function removeList(id, event) {
   if (event) event.stopPropagation();
   const list = state.inputLists.find(l => l.id === id);
@@ -1898,7 +2414,7 @@ async function removeList(id, event) {
 function toggleList(id, event) {
   if (event) event.stopPropagation();
   const list = state.inputLists.find(l => l.id === id);
-  if (!list || !list.rawEntries.length) return;
+  if (!list || (!list.rawEntries.length && id !== EDITS_ID)) return;
   list.enabled = !list.enabled;
   invalidateSourceCounts();
   invalidateStatsCache(MERGED_ID);
@@ -2032,8 +2548,10 @@ function bindEvents() {
     scroller = null;
     await openDB();
     state.inputLists = defaultInputLists();
+    ensureEdits();
     persistMeta();
-    state.selectedId = state.inputLists[0]?.id ?? null;
+    const first = state.inputLists.find(l => l.id !== EDITS_ID) ?? state.inputLists[0];
+    state.selectedId = first?.id ?? null;
     renderAll();
     showToast('Reset complete');
   };
@@ -2164,6 +2682,11 @@ function bindEvents() {
   listsContainer.addEventListener('touchend', endTouchDrag);
   listsContainer.addEventListener('touchcancel', endTouchDrag);
 
+  // My Edits card
+  const myEditsCard = document.getElementById('my-edits-card');
+  myEditsCard.onclick = () => selectList(EDITS_ID);
+  myEditsCard.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); selectList(EDITS_ID); } };
+
   // F2 to rename selected list
   document.addEventListener('keydown', e => {
     if (e.key !== 'F2') return;
@@ -2206,6 +2729,47 @@ function handleDialogUpload(file) {
   selectList(id);
 }
 
+// ─── Cell popovers ────────────────────────────────────────────────────────────
+
+function showCellPopover(td) {
+  const pop = document.getElementById('cell-popover');
+  pop.innerHTML = buildCellPopoverHTML(td);
+  pop.removeAttribute('hidden');
+  const rect = td.getBoundingClientRect();
+  pop.style.top = (rect.bottom + 4) + 'px';
+  pop.style.left = rect.left + 'px';
+  requestAnimationFrame(() => {
+    const pw = pop.offsetWidth;
+    const left = parseFloat(pop.style.left);
+    if (left + pw > window.innerWidth - 8) pop.style.left = (window.innerWidth - 8 - pw) + 'px';
+  });
+}
+
+function hideCellPopover() {
+  document.getElementById('cell-popover')?.setAttribute('hidden', '');
+}
+
+function buildCellPopoverHTML(td) {
+  const { scoreRaw, scoreRescaled, scoreOvName, scoreOvVal, scoreListName,
+          commentRaw, commentOvName, commentOvVal, commentListName } = td.dataset;
+
+  let html = '';
+
+  if (scoreRaw !== undefined) {
+    const thisScore = scoreRescaled ? `${scoreRaw} → ${scoreRescaled}` : scoreRaw;
+    html += `<div><b>${esc(scoreListName)}:</b> ${thisScore}</div>`;
+    if (scoreOvName) html += `<div>Overridden by <b>${esc(scoreOvName)}:</b> ${scoreOvVal}</div>`;
+  }
+
+  if (commentOvName !== undefined) {
+    if (commentRaw) html += `<div><b>${esc(commentListName)}:</b> ${esc(commentRaw)}</div>`;
+    const verb = commentRaw ? 'Overridden by' : 'From';
+    html += `<div>${verb} <b>${esc(commentOvName)}:</b> ${esc(commentOvVal)}</div>`;
+  }
+
+  return html;
+}
+
 // ─── Utility ──────────────────────────────────────────────────────────────────
 
 function esc(s) {
@@ -2236,6 +2800,18 @@ function showToast(msg) {
   el.classList.add('show');
   clearTimeout(_toastTimer);
   _toastTimer = setTimeout(() => el.classList.remove('show'), 3500);
+}
+function showUndoToast(msg, onUndo) {
+  const el = document.getElementById('toast');
+  el.innerHTML = esc(msg) + `<span class="undo-link">Undo</span>`;
+  el.classList.add('show');
+  clearTimeout(_toastTimer);
+  _toastTimer = setTimeout(() => el.classList.remove('show'), 5000);
+  el.querySelector('.undo-link').onclick = e => {
+    e.stopPropagation();
+    dismissToast();
+    onUndo();
+  };
 }
 function dismissToast() {
   clearTimeout(_toastTimer);
@@ -2335,11 +2911,15 @@ function rulesMatchDefaults(list) {
   });
 }
 
-function mergedScoringMatchesDefaults() {
-  const userRows = state.mergedScoring.filter(r => !r._catchAll);
+function scoringMatchesDefaults(scoring) {
+  const userRows = scoring.filter(r => !r._catchAll);
   if (userRows.length !== DEFAULT_MERGED_SCORING.length) return false;
   return userRows.every((r, i) => r.score === DEFAULT_MERGED_SCORING[i].score &&
     (r.note || '') === (DEFAULT_MERGED_SCORING[i].note || ''));
+}
+
+function mergedScoringMatchesDefaults() {
+  return scoringMatchesDefaults(state.mergedScoring);
 }
 
 function resetMergedScoring() {
@@ -2347,6 +2927,16 @@ function resetMergedScoring() {
   updateMergedCatchAll();
   persistMergedScoring();
   renderMergedScoring();
+  showToast('Scoring reset to defaults');
+}
+
+function resetEditsScoring() {
+  const me = getEditsList();
+  if (!me) return;
+  me.scoring = DEFAULT_MERGED_SCORING.map(r => ({ ...r }));
+  updateScoringCatchAll(me.scoring, me.rawEntries);
+  persistMeta();
+  renderEditsScoring();
   showToast('Scoring reset to defaults');
 }
 
@@ -2396,12 +2986,18 @@ function startNoteEdit(wrapEl) {
   if (wrapEl.querySelector('.rule-note-input')) return;
   const i = parseInt(wrapEl.closest('.rule-row').dataset.i, 10);
   const isMerged = !!wrapEl.closest('#merged-scoring-section');
+  const isEdits  = !!wrapEl.closest('#edits-scoring-section');
 
   let currentNote, onSave;
   if (isMerged) {
     if (!state.mergedScoring[i]) return;
     currentNote = state.mergedScoring[i].note || '';
     onSave = note => saveMergedScoringField(i, 'note', note);
+  } else if (isEdits) {
+    const me = getEditsList();
+    if (!me?.scoring[i]) return;
+    currentNote = me.scoring[i].note || '';
+    onSave = note => saveEditsScoringField(i, 'note', note);
   } else {
     const list = getSelected();
     if (!list?.rescoreRules[i]) return;
@@ -2576,9 +3172,9 @@ function buildOverrideMap(listId) {
     if (list.id === listId) break;
     if (!list.enabled || !list.rawEntries.length) continue;
     const rescored = applyRescoring(list.rawEntries, list.rescoreRules);
-    for (const { word, score } of rescored) {
+    for (const { word, score, comment } of rescored) {
       const w = word.toUpperCase();
-      if (!map.has(w)) map.set(w, { listName: list.name, score });
+      if (!map.has(w)) map.set(w, { listName: list.name, score, comment: comment || '' });
     }
   }
   return map;
@@ -2595,7 +3191,7 @@ function buildMergedList() {
     for (const { word, score, comment } of rescored) {
       const key = word.toUpperCase();
       if (!merged.has(key)) {
-        merged.set(key, { word: word.toLowerCase(), score, comment: comment || '', listName: list.name });
+        merged.set(key, { word: word.toLowerCase(), score, comment: comment || '', listName: list.name, listId: list.id });
         count++;
       }
     }
@@ -2670,5 +3266,6 @@ document.addEventListener('click', () => document.querySelectorAll('.split-btn.o
   if (!_m.some(l => l.lastUpdated)) document.getElementById('busy-overlay').remove(); }
 init();
 </script>
+<div id="cell-popover" hidden></div>
 </body>
 </html>
