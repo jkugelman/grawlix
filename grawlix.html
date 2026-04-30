@@ -409,13 +409,16 @@ input.cell-edit.score-edit { font-family: ui-monospace, 'Cascadia Code', monospa
 }
 #edits-card.pulse { animation: edits-pulse 0.35s ease-out; }
 
-/* Add word pinned row */
-.add-word-bar { display: flex; align-items: center; gap: 8px; padding: 5px 16px; background: var(--surface2); border-bottom: 1px solid var(--border2); flex-shrink: 0; }
+/* Add word footer row */
+#add-row-footer { flex-shrink: 0; border-top: 1px solid var(--border2); }
+.add-row-trigger { display: flex; align-items: center; padding: 5px 16px; height: 29px; cursor: pointer; color: var(--faint); font-size: 12px; user-select: none; background: var(--surface); }
+.add-row-trigger:hover { background: var(--hover); color: var(--accent); }
+.add-word-bar { display: flex; align-items: center; gap: 8px; padding: 5px 16px; background: var(--surface2); }
 .add-word-bar input { font-family: inherit; font-size: 12px; padding: 2px 6px; border: 1px solid var(--border); border-radius: 3px; background: var(--input-bg); color: var(--text); outline: none; }
 .add-word-bar input:focus { border-color: var(--accent); }
 .add-word-bar input.invalid { border-color: #ea4335; }
 .add-word-bar .aw-word { font-family: ui-monospace, 'Cascadia Code', monospace; width: 120px; }
-.add-word-bar .aw-score { width: 55px; }
+.add-word-bar .aw-score { width: 60px; }
 .add-word-bar .aw-comment { flex: 1; }
 .add-word-bar .aw-hint { font-size: 11px; color: var(--faint); white-space: nowrap; }
 
@@ -1872,6 +1875,7 @@ function renderMergedDetail() {
     ${buildSearchBarHTML()}
     <div id="table-container">
       <div id="vs-host"></div>
+      <div id="add-row-footer"><div class="add-row-trigger" onclick="openAddWordBar()">＋ Add word…</div></div>
     </div>
   `;
 
@@ -2059,6 +2063,7 @@ function renderDetail(list) {
     ${buildSearchBarHTML()}
     <div id="table-container">
       <div id="vs-host"></div>
+      <div id="add-row-footer"><div class="add-row-trigger" onclick="openAddWordBar()">＋ Add word…</div></div>
     </div>
   `;
 
@@ -2097,7 +2102,6 @@ function renderEditsDetail(list) {
         <h2 onclick="startHeaderRename()" title="Click to rename">${esc(list.name)}</h2>
         <svg class="icon-pencil edit-hint detail-edit-hint" onclick="startHeaderRename()"><use href="#icon-edits"/></svg>
       </div>
-      <button class="primary" onclick="openAddWordBar()">＋ Add word</button>
       <button onclick="importToList(EDITS_ID)">Import file</button>
       <button onclick="downloadEdits()">Download</button>
       ${list.rawEntries.length ? `<button onclick="clearEdits()">Clear</button>` : ''}
@@ -2105,9 +2109,9 @@ function renderEditsDetail(list) {
     ${statsHtml}
     <div id="edits-scoring-section" class="rescore-section">${buildEditsScoringSectionHTML(list)}</div>
     ${buildSearchBarHTML()}
-    <div id="add-word-bar-container"></div>
     <div id="table-container">
       <div id="vs-host"></div>
+      <div id="add-row-footer"><div class="add-row-trigger" onclick="openAddWordBar()">＋ Add word…</div></div>
     </div>
   `;
 
@@ -2424,24 +2428,28 @@ function ingestFile(file, listId, nameOverride) {
 // ─── My Edits: add word & delete ─────────────────────────────────────────────
 
 function openAddWordBar() {
-  const container = document.getElementById('add-word-bar-container');
-  if (!container || container.querySelector('.add-word-bar')) return;
+  const footer = document.getElementById('add-row-footer');
+  if (!footer || footer.querySelector('.add-word-bar')) return;
 
+  footer.innerHTML = '';
   const bar = document.createElement('div');
   bar.className = 'add-word-bar';
   bar.innerHTML = `
-    <input class="aw-word"    placeholder="WORD"    autocomplete="off" spellcheck="false">
+    <input class="aw-word"    placeholder="Word"    autocomplete="off" spellcheck="false">
     <input class="aw-score"   placeholder="Score"   type="number" min="0" max="100">
     <input class="aw-comment" placeholder="Comment (optional)">
     <span class="aw-hint">Enter to save · Esc to cancel</span>`;
-  container.appendChild(bar);
+  footer.appendChild(bar);
 
   const wordInput    = bar.querySelector('.aw-word');
   const scoreInput   = bar.querySelector('.aw-score');
   const commentInput = bar.querySelector('.aw-comment');
   wordInput.focus();
 
-  function dismiss() { bar.remove(); }
+  function restoreTrigger() {
+    bar.remove();
+    footer.innerHTML = `<div class="add-row-trigger" onclick="openAddWordBar()">＋ Add word</div>`;
+  }
 
   function commit() {
     const word = wordInput.value.trim().toUpperCase();
@@ -2469,12 +2477,19 @@ function openAddWordBar() {
     updateCatchAll(me);
     persistEdits(me);
     refreshSourceCounts();
-    renderEditsDetail(me);
+
+    if (state.selectedId === EDITS_ID) {
+      renderEditsDetail(me);
+    } else {
+      flyToEdits(bar, score);
+      restoreTrigger();
+      renderEditsCard();
+    }
   }
 
   bar.addEventListener('keydown', e => {
     if (e.key === 'Enter') { e.preventDefault(); commit(); }
-    if (e.key === 'Escape') dismiss();
+    if (e.key === 'Escape') restoreTrigger();
   });
 }
 
