@@ -711,13 +711,13 @@ const BUILTIN_WORDLISTS = [
 // ─── State ────────────────────────────────────────────────────────────────────
 
 const DEFAULT_MERGED_SCORING = [
-  { score: '60', note: 'Great (colorful phrases, sayings, people, etc.)' },
-  { score: '50', note: 'Good (dictionary words, phrases)' },
-  { score: '40', note: 'Fine but watch crosses (proper names, abbreviations, prepositional phrases, unusual plurals)' },
-  { score: '30', note: 'Not good (plural names, crosswordese, contrived inflections)' },
-  { score: '20', note: 'Junk (partials, variant spellings, Roman numerals)' },
-  { score: '10', note: 'Offensive' },
-  { score: '0',  note: 'Gibberish' },
+  { input: '60', note: 'Great (colorful phrases, sayings, people, etc.)' },
+  { input: '50', note: 'Good (dictionary words, phrases)' },
+  { input: '40', note: 'Fine but watch crosses (proper names, abbreviations, prepositional phrases, unusual plurals)' },
+  { input: '30', note: 'Not good (plural names, crosswordese, contrived inflections)' },
+  { input: '20', note: 'Junk (partials, variant spellings, Roman numerals)' },
+  { input: '10', note: 'Offensive' },
+  { input: '0',  note: 'Gibberish' },
 ];
 
 const state = {
@@ -1666,33 +1666,41 @@ function buildRuleRowHTML(i, isCatchAll, fieldsHTML, note, onDeleteFn) {
     </div>`;
 }
 
-// ─── Rescoring section ────────────────────────────────────────────────────────
+// ─── Rescoring / Scoring section ─────────────────────────────────────────────
 
-function buildRescoreSectionHTML(list) {
-  if (!list) return '';
-  const rules = list.rescoreRules || [];
-
-  const rulesHTML = rules.length
-    ? rules.map((r, i) => {
-        const isCatchAll = !!r._catchAll;
-        const fieldsHTML = `
-          <input class="rule-in" value="${esc(r.input)}" placeholder="60-100"
-            title="Score range: 60+, 50-59, 42, *, or comma-separated like 50-59,30,1-10"
-            oninput="onRuleInput(this)" onchange="saveRuleField(${i},'input',this.value)">
+function buildRulesSectionHTML(rules, { label, rulesId, saveFn, deleteFn, resetFn, showReset, rescore = false }) {
+  let rulesHTML;
+  if (!rules.length && rescore) {
+    rulesHTML = '<div class="no-rules">No rules — words kept as-is</div>';
+  } else {
+    rulesHTML = rules.map((r, i) => {
+      const isCatchAll = !!r._catchAll;
+      let fieldsHTML = `<input class="rule-in" value="${esc(r.input)}" placeholder="60-100"
+            title="Score range: 60+, 50-59, 42, *, or comma-separated like 50-59,30${rescore ? ',1-10' : ''}"
+            oninput="onRuleInput(this)" onchange="${saveFn}(${i},'input',this.value)">`;
+      if (rescore) fieldsHTML += `
           <span class="rule-field-lbl">length</span><input class="rule-len" value="${esc(r.length||'')}" placeholder="any"
             title="Word length filter: 7, 7+, or 7-10 (blank = any length)"
-            oninput="onRuleInput(this)" onchange="saveRuleField(${i},'length',this.value)">
+            oninput="onRuleInput(this)" onchange="${saveFn}(${i},'length',this.value)">
           <span class="rule-arrow">→</span>
           <input class="rule-out" value="${esc(r.output)}" placeholder="unchanged"
             title="Output score, 'ignore', or blank for unchanged"
-            oninput="onRuleInput(this)" onchange="saveRuleField(${i},'output',this.value)">`;
-        return buildRuleRowHTML(i, isCatchAll, fieldsHTML, r.note, 'deleteRule');
-      }).join('')
-    : `<div class="no-rules">No rules — words kept as-is</div>`;
+            oninput="onRuleInput(this)" onchange="${saveFn}(${i},'output',this.value)">`;
+      return buildRuleRowHTML(i, isCatchAll, fieldsHTML, r.note, deleteFn);
+    }).join('');
+  }
+  return buildRuleSectionHTML({ label, rulesId, rulesHTML, showReset, onResetFn: resetFn });
+}
 
+function buildRescoreSectionHTML(list) {
+  if (!list) return '';
   const tmpl = getTemplate(list.id);
-  const showReset = !!(tmpl?.defaultRules && !rulesMatchDefaults(list));
-  return buildRuleSectionHTML({ label: 'Rescoring', rulesId: 'rescore-rules', rulesHTML, showReset, onResetFn: 'resetRescoreRules' });
+  return buildRulesSectionHTML(list.rescoreRules || [], {
+    label: 'Rescoring', rulesId: 'rescore-rules',
+    saveFn: 'saveRuleField', deleteFn: 'deleteRule', resetFn: 'resetRescoreRules',
+    showReset: !!(tmpl?.defaultRules && !rulesMatchDefaults(list)),
+    rescore: true,
+  });
 }
 
 function renderRescoreSection() {
@@ -1900,11 +1908,15 @@ function updateScoringCatchAll(scoring, entries) {
     ? [...new Set(entries.map(e => e.score))].sort((a, b) => a - b)
     : [];
   const uncovered = actualScores.filter(s => !scoring.some(r => {
-    const intervals = parseRange(r.score);
+    const intervals = parseRange(r.input);
     return intervals && matchesRange(s, intervals);
   }));
+
+  // Sort rows by score range descending (highest scores first)
+  scoring.sort((a, b) => getRuleMaxScore(b) - getRuleMaxScore(a));
+
   if (uncovered.length > 0) {
-    scoring.push({ score: scoresToRangeStr(uncovered), note: '', _catchAll: true });
+    scoring.push({ input: scoresToRangeStr(uncovered), note: '', _catchAll: true });
   }
 }
 
@@ -1913,23 +1925,10 @@ function updateMergedCatchAll() {
   updateScoringCatchAll(state.mergedScoring, entries);
 }
 
-function buildScoringSectionHTML(scoring, { sectionId, saveFn, deleteFn, resetFn, showReset }) {
-  const rulesHTML = scoring.map((r, i) => {
-    const fieldsHTML = `
-      <input class="rule-in" value="${esc(r.score)}" placeholder="60-100"
-        title="Score range: 60+, 50-59, 42, *, or comma-separated like 50-59,30"
-        oninput="onRuleInput(this)" onchange="${saveFn}(${i},'score',this.value)">`;
-    return buildRuleRowHTML(i, !!r._catchAll, fieldsHTML, r.note, deleteFn);
-  }).join('');
-  return buildRuleSectionHTML({ label: 'Scoring', rulesId: `${sectionId}-scoring-rules`, rulesHTML, showReset, onResetFn: resetFn });
-}
-
 function buildMergedScoringSectionHTML() {
-  return buildScoringSectionHTML(state.mergedScoring, {
-    sectionId: 'merged',
-    saveFn: 'saveMergedScoringField',
-    deleteFn: 'deleteMergedScoringRow',
-    resetFn: 'resetMergedScoring',
+  return buildRulesSectionHTML(state.mergedScoring, {
+    label: 'Scoring', rulesId: 'merged-scoring-rules',
+    saveFn: 'saveMergedScoringField', deleteFn: 'deleteMergedScoringRow', resetFn: 'resetMergedScoring',
     showReset: !mergedScoringMatchesDefaults(),
   });
 }
@@ -1959,11 +1958,9 @@ function saveMergedScoringField(i, field, val) {
 // ─── Edits Scoring ────────────────────────────────────────────────────────────
 
 function buildEditsScoringSectionHTML(list) {
-  return buildScoringSectionHTML(list.scoring, {
-    sectionId: 'edits',
-    saveFn: 'saveEditsScoringField',
-    deleteFn: 'deleteEditsScoringRow',
-    resetFn: 'resetEditsScoring',
+  return buildRulesSectionHTML(list.scoring, {
+    label: 'Scoring', rulesId: 'edits-scoring-rules',
+    saveFn: 'saveEditsScoringField', deleteFn: 'deleteEditsScoringRow', resetFn: 'resetEditsScoring',
     showReset: !scoringMatchesDefaults(list.scoring),
   });
 }
@@ -3074,7 +3071,7 @@ function rulesMatchDefaults(list) {
 function scoringMatchesDefaults(scoring) {
   const userRows = scoring.filter(r => !r._catchAll);
   if (userRows.length !== DEFAULT_MERGED_SCORING.length) return false;
-  return userRows.every((r, i) => r.score === DEFAULT_MERGED_SCORING[i].score &&
+  return userRows.every((r, i) => r.input === DEFAULT_MERGED_SCORING[i].input &&
     (r.note || '') === (DEFAULT_MERGED_SCORING[i].note || ''));
 }
 
