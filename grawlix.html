@@ -532,6 +532,13 @@ input.cell-edit.score-edit { font-family: ui-monospace, 'Cascadia Code', monospa
     </div>
   </div>
   <div class="settings-row">
+    <span class="settings-row-label">Display case</span>
+    <div class="seg-ctrl" id="display-case-ctrl">
+      <button class="seg-btn" data-case="lower">lower</button>
+      <button class="seg-btn" data-case="upper">UPPER</button>
+    </div>
+  </div>
+  <div class="settings-row">
     <div>
       <div class="settings-row-label">Reset all data</div>
       <div class="settings-row-sub">Delete all lists and word data</div>
@@ -858,6 +865,28 @@ function initDownloadCase() {
       ctrl.querySelectorAll('.seg-btn').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
       lsSave('downloadCase', btn.dataset.case);
+    };
+  });
+}
+
+// ─── Display case setting ─────────────────────────────────────────────────────
+
+function getDisplayCase() { return lsLoad('displayCase') || 'lower'; }
+
+function displayWord(word) {
+  return getDisplayCase() === 'upper' ? word.toUpperCase() : word.toLowerCase();
+}
+
+function initDisplayCase() {
+  const ctrl = document.getElementById('display-case-ctrl');
+  const saved = getDisplayCase();
+  ctrl.querySelectorAll('.seg-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.case === saved);
+    btn.onclick = () => {
+      ctrl.querySelectorAll('.seg-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      lsSave('displayCase', btn.dataset.case);
+      if (scroller) scroller.updateEntries(scroller.allEntries);
     };
   });
 }
@@ -1364,8 +1393,9 @@ class VirtualScroller {
       tr.style.height = ROW_HEIGHT + 'px';
       tr.dataset.word = word;
 
-      const wordHtml = this._highlight ? this._highlight(word) : word;
-      let wordCell  = `<td title="${word}">${wordHtml}</td>`;
+      const displayed = displayWord(word);
+      const wordHtml = this._highlight ? this._highlight(displayed) : displayed;
+      let wordCell  = `<td title="${displayed}">${wordHtml}</td>`;
       let rescoredScore = score;
       let wasRescored = false;
       let ignored = false;
@@ -1375,7 +1405,7 @@ class VirtualScroller {
         if (!r.kept) {
           ignored = true;
           tr.classList.add('entry-ignored');
-          wordCell = `<td title="${word}">${wordHtml}</td>`;
+          wordCell = `<td title="${displayed}">${wordHtml}</td>`;
         } else {
           rescoredScore = r.score;
           wasRescored = r.score !== score;
@@ -2469,10 +2499,10 @@ function openAddWordBar() {
     if (existing) {
       existing.score = score;
       existing.comment = comment;
-      showToast(`Updated ${word}`);
+      showToast(`Updated ${displayWord(word)}`);
     } else {
       me.rawEntries.push({ word: word.toLowerCase(), score, comment });
-      showToast(`Added ${word}`);
+      showToast(`Added ${displayWord(word)}`);
     }
 
     invalidateListCaches(EDITS_ID);
@@ -2508,7 +2538,7 @@ function deleteFromEdits(word) {
   refreshSourceCounts();
   scroller.setEntries(me.rawEntries, state.searchQuery, [], new Map(), state.searchWholeWord);
 
-  showUndoToast(`Removed ${removed.word.toUpperCase()}`, () => {
+  showUndoToast(`Removed ${displayWord(removed.word)}`, () => {
     me.rawEntries.splice(idx, 0, removed);
     invalidateListCaches(EDITS_ID);
     updateCatchAll(me);
@@ -3423,6 +3453,7 @@ function toggleSplitMenu(event) {
 
 initDarkMode();
 initDownloadCase();
+initDisplayCase();
 initDownloadExt();
 document.addEventListener('click', () => document.querySelectorAll('.split-btn.open').forEach(b => b.classList.remove('open')));
 // Hide the busy overlay immediately if no lists have data.
