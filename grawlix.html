@@ -334,7 +334,6 @@ a.get-file:hover { text-decoration: underline; }
 #tab-upload, #tab-url { display: none; }
 
 /* Empty states */
-.no-lists { padding: 20px; color: var(--faint); text-align: center; font-size: 13px; }
 .no-rules { font-size: 12px; color: var(--faint); font-style: italic; margin-bottom: 3px; }
 .stats-bar.stats-empty { color: var(--muted); font-size: 13px; }
 
@@ -490,9 +489,8 @@ input.cell-edit.score-edit { font-family: ui-monospace, 'Cascadia Code', monospa
   <div id="lists-panel">
     <h2>Output List</h2>
     <div id="merged-card" tabindex="0" role="option"></div>
-    <h2>Edits</h2>
-    <div id="my-edits-card" tabindex="0" role="option"></div>
     <h2>Input Lists <span id="list-count"></span></h2>
+    <div id="my-edits-card" tabindex="0" role="option"></div>
     <div id="lists-container"></div>
   </div>
 
@@ -1694,7 +1692,7 @@ function renderMergedCard(meta, selected) {
 function renderInputLists() {
   const container = document.getElementById('lists-container');
   const inputLists = state.inputLists.filter(l => l.id !== EDITS_ID);
-  document.getElementById('list-count').textContent = inputLists.length ? `(${inputLists.length})` : '';
+  document.getElementById('list-count').textContent = `(${state.inputLists.length})`;
 
   const addRow = `<div class="add-list-row" onclick="openDialog()"><span class="drag-handle" aria-hidden="true">≡</span><span class="add-list-icon">+</span>Add list</div>`;
 
@@ -1704,11 +1702,6 @@ function renderInputLists() {
 
   renderMergedCard(totalMerged ? `${totalMerged.toLocaleString()} entries` : 'No data', state.selectedId === MERGED_ID);
   renderEditsCard();
-
-  if (!inputLists.length) {
-    container.innerHTML = '<div class="no-lists">No lists yet</div>' + addRow;
-    return;
-  }
 
   container.innerHTML = inputLists.map(list => {
     const sel = list.id === state.selectedId;
@@ -2682,7 +2675,7 @@ function bindEvents() {
   let _touchDragId = null;
 
   const commitTouchReorder = toId => {
-    if (!toId || toId === _touchDragId) return;
+    if (!toId || toId === _touchDragId || toId === EDITS_ID) return;
     const fromIdx = state.inputLists.findIndex(l => l.id === _touchDragId);
     const toIdx   = state.inputLists.findIndex(l => l.id === toId);
     if (fromIdx === -1 || toIdx === -1) return;
@@ -2709,7 +2702,7 @@ function bindEvents() {
     const touch = e.touches[0];
     const overCard = document.elementFromPoint(touch.clientX, touch.clientY)?.closest('.list-card');
     listsContainer.querySelectorAll('.list-card.drag-over').forEach(c => c.classList.remove('drag-over'));
-    if (overCard && overCard.dataset.id !== _touchDragId) overCard.classList.add('drag-over');
+    if (overCard && overCard.dataset.id !== _touchDragId && overCard.dataset.id !== EDITS_ID) overCard.classList.add('drag-over');
   }, { passive: false });
 
   const endTouchDrag = () => {
