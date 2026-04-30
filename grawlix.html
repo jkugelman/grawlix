@@ -979,6 +979,18 @@ function downloadEdits() {
   showToast(`Downloaded ${me.rawEntries.length.toLocaleString()} entries`);
 }
 
+async function clearEdits() {
+  const me = getEditsList();
+  if (!me || !me.rawEntries.length) return;
+  if (!await showConfirm(`Clear all ${me.rawEntries.length.toLocaleString()} entries from "${esc(me.name)}"?`, { confirmText: 'Clear' })) return;
+  me.rawEntries = [];
+  invalidateListCaches(EDITS_ID);
+  updateCatchAll(me);
+  await persistEdits(me);
+  refreshSourceCounts();
+  renderEditsDetail(me);
+}
+
 // ─── Stats ────────────────────────────────────────────────────────────────────
 
 const _statsCache = new Map();
@@ -2081,7 +2093,9 @@ function renderEditsDetail(list) {
         <svg class="icon-pencil edit-hint detail-edit-hint" onclick="startHeaderRename()"><use href="#icon-edits"/></svg>
       </div>
       <button class="primary" onclick="openAddWordBar()">＋ Add word</button>
+      <button onclick="uploadToList(EDITS_ID)">Upload file</button>
       ${list.rawEntries.length ? `<button onclick="downloadEdits()">Download</button>` : ''}
+      ${list.rawEntries.length ? `<button onclick="clearEdits()">Clear</button>` : ''}
     </div>
     ${statsHtml}
     <div id="edits-scoring-section" class="rescore-section">${buildEditsScoringSectionHTML(list)}</div>
