@@ -1348,9 +1348,8 @@ class VirtualScroller {
       const scoreCell = `<td class="score-cell"${scoreAttrs}>${innerScore}</td>`;
       const commentCell = `<td class="comment-cell"${commentAttrs}>${commentInner}</td>`;
 
-      const isMyEditsSource = this.editsId && listId === this.editsId;
       const sourceCell = this.showSource
-        ? `<td class="comment-cell">${isMyEditsSource ? EDITS_ICON : esc(listName || '')}</td>`
+        ? `<td class="comment-cell">${esc(listName || '')}</td>`
         : '';
 
       tr.innerHTML =
