@@ -307,8 +307,11 @@ a.get-file:hover { text-decoration: underline; }
 .rule-note-pencil { font-size: 11px; color: var(--faint); line-height: 1; }
 .rule-row:hover .rule-note-wrap.has-note .rule-note-pencil { opacity: 1; }
 .rule-note-input { flex: 1; padding: 1px 4px; border: 1px solid var(--accent); border-radius: 3px; font-size: 12px; background: var(--input-bg); color: var(--text); outline: none; min-width: 0; }
-.rule-del, .rule-reset { width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; border: none; background: none; cursor: pointer; color: var(--faint); font-size: 15px; padding: 0; line-height: 1; border-radius: 3px; font-family: inherit; }
-.rule-del:hover { color: #e53935; background: var(--del-hover); }
+.rule-del, .rule-reset { width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; border: none; background: none; cursor: pointer; font-size: 15px; padding: 0; line-height: 1; border-radius: 3px; font-family: inherit; }
+.rule-del { color: transparent; }
+.rule-reset { color: var(--faint); }
+.rule-row:hover .rule-del { color: var(--faint); }
+.rule-del:hover { color: #e53935 !important; background: var(--del-hover); }
 .rule-reset:hover { color: var(--accent); background: var(--hover); }
 
 /* Header */
@@ -1591,7 +1594,7 @@ function buildRuleRowHTML(i, isCatchAll, fieldsHTML, note, onDeleteFn) {
         <span class="rule-note-text">${esc(note||'')}</span>
         <span class="edit-hint rule-note-pencil">✏️</span>
       </span>
-      ${isCatchAll ? '' : `<button class="rule-del" onclick="${onDeleteFn}(${i})" title="Remove row">×</button>`}
+      ${isCatchAll ? '' : `<button class="rule-del" onclick="${onDeleteFn}(${i})" title="Remove row">🗑</button>`}
     </div>`;
 }
 
