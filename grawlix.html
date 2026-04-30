@@ -618,6 +618,7 @@ const ROW_HEIGHT   = 24;
 const VS_BUFFER    = 60;
 // LS_PREFIX defined in <head> so the FOUC-prevention script can share it.
 const OUTPUT_ID    = '__output__';
+const OUTPUT_NAME  = 'All Merged';
 const EDITS_ID  = '__edits__';
 const EDITS_ICON = `<span class="list-icon-emoji" aria-hidden="true">✏️</span>`;
 const OUTPUT_ICON  = `<svg width="16" height="16" class="list-icon-svg output-icon" aria-hidden="true"><use href="#icon-output"/></svg>`;
@@ -1734,7 +1735,7 @@ function renderOutputCard(meta, selected) {
   const card = document.getElementById('output-card');
   if (!card) return;
   card.className = 'list-card' + (selected ? ' selected' : '');
-  card.innerHTML = `<span class="drag-handle" aria-hidden="true">≡</span>${OUTPUT_ICON}<div class="card-info"><div class="card-name-row"><div class="card-name">All Merged</div></div><div class="card-meta">${meta}</div></div>`;
+  card.innerHTML = `<span class="drag-handle" aria-hidden="true">≡</span>${OUTPUT_ICON}<div class="card-info"><div class="card-name-row"><div class="card-name">${OUTPUT_NAME}</div></div><div class="card-meta">${meta}</div></div>`;
 }
 
 function renderInputLists() {
@@ -1874,7 +1875,7 @@ function renderOutputDetail() {
   panel.innerHTML = `
     <div class="detail-header">
       <div class="detail-name-wrap">
-        <h2>All Merged</h2>
+        <h2>${OUTPUT_NAME}</h2>
       </div>
       <button class="primary" onclick="downloadOutputListFromPanel()">Download</button>
     </div>
@@ -2171,7 +2172,7 @@ function showEditInfoNote(td) {
     tip.id = 'edit-cell-tip';
     document.body.appendChild(tip);
   }
-  tip.innerHTML = `${EDITS_ICON} Edits are saved to My Edits`;
+  tip.innerHTML = `${EDITS_ICON} Edits are saved to ${esc(getEditsList().name)}`;
   tip.style.opacity = '0';
   requestAnimationFrame(() => {
     const input = td.querySelector('input.cell-edit');
@@ -2622,8 +2623,9 @@ function showMergeConflict(conflictCount) {
     const cancelBtn = document.getElementById('btn-merge-cancel');
     const xBtn      = dialog.querySelector('.dialog-close-btn');
 
+    const editsName = getEditsList().name;
     const noun = conflictCount === 1 ? 'word appears' : 'words appear';
-    msgEl.textContent = `${conflictCount.toLocaleString()} ${noun} in both My Edits and the imported file with different scores or comments. Which should take precedence?`;
+    msgEl.textContent = `${conflictCount.toLocaleString()} ${noun} in both ${editsName} and the imported file with different scores or comments. Which should take precedence?`;
 
     function finish(result) {
       dialog.removeEventListener('cancel', onCancel);
