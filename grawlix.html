@@ -903,16 +903,7 @@ async function init() {
   if (rawMs) { try { state.mergedScoring = JSON.parse(rawMs); } catch {} }
   else { lsSave('mergedScoring', JSON.stringify(state.mergedScoring.filter(r => !r._catchAll))); }
 
-  const savedId = lsLoad('selectedId');
-  if (savedId === MERGED_ID) {
-    state.selectedId = MERGED_ID;
-  } else if (savedId && state.inputLists.some(l => l.id === savedId)) {
-    state.selectedId = savedId;
-  }
-  if (!state.selectedId && state.inputLists.length) {
-    const first = state.inputLists.find(l => l.id !== EDITS_ID) ?? state.inputLists[0];
-    state.selectedId = first.id;
-  }
+  state.selectedId = MERGED_ID;
 
   ensureEdits();
   renderAll();
@@ -2227,7 +2218,7 @@ function getSelected() {
 
 function selectMergedList() {
   state.selectedId = MERGED_ID;
-  lsSave('selectedId', MERGED_ID);
+
   state.searchQuery = '';
   document.querySelectorAll('.list-card.selected').forEach(el => el.classList.remove('selected'));
   document.getElementById('merged-card')?.classList.add('selected');
@@ -2237,7 +2228,7 @@ function selectMergedList() {
 function selectList(id) {
   const prev = state.selectedId;
   state.selectedId = id;
-  lsSave('selectedId', id);
+
   state.searchQuery = '';
   document.getElementById('merged-card')?.classList.remove('selected');
   document.querySelector(`.list-card[data-id="${CSS.escape(prev)}"]`)?.classList.remove('selected');
@@ -2521,7 +2512,7 @@ async function removeList(id, event) {
   persistMeta();
   if (state.selectedId === id) {
     state.selectedId = null;
-    lsSave('selectedId', '');
+
     scroller = null;
   }
   renderAll();
