@@ -343,9 +343,8 @@ a.get-file:hover { text-decoration: underline; }
 
 /* Score display */
 .entry-ignored { opacity: 0.4; }
+.entry-ignored td, .entry-ignored td span { text-decoration: line-through; }
 .col-length { text-align: right; }
-.ignored-word { text-decoration: line-through; }
-.score-badge.ignored { text-decoration: line-through; }
 .effective-asterisk { color: #e53; font-size: 9px; vertical-align: super; margin-left: 2px; pointer-events: none; line-height: 0; }
 
 /* Cell popover */
@@ -1382,7 +1381,7 @@ class VirtualScroller {
         if (!r.kept) {
           ignored = true;
           tr.classList.add('entry-ignored');
-          wordCell = `<td title="${word}"><span class="ignored-word">${wordHtml}</span></td>`;
+          wordCell = `<td title="${word}">${wordHtml}</td>`;
         } else {
           rescoredScore = r.score;
           wasRescored = r.score !== score;
@@ -1397,7 +1396,7 @@ class VirtualScroller {
 
       let innerScore;
       if (ignored) {
-        innerScore = `<span class="score-badge ignored" data-tier="${tier}">${score}</span>`;
+        innerScore = `<span class="score-badge" data-tier="${tier}">${score}</span>`;
       } else {
         innerScore = `<span class="score-badge" data-tier="${scoreTier(effectiveScore)}">${effectiveScore}</span>`;
         if (wasRescored || scoreOv) innerScore += `<sup class="effective-asterisk">*</sup>`;
