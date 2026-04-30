@@ -252,9 +252,9 @@ dialog > p { margin-bottom: 4px; line-height: 1.5; padding-right: 24px; }
 .card-name-row { display: flex; align-items: center; gap: 5px; min-width: 0; }
 .update-dot { width: 7px; height: 7px; border-radius: 50%; background: #f59e0b; flex-shrink: 0; display: inline-block; }
 
-/* Upload zone */
-.upload-zone { border: 2px dashed var(--border); border-radius: 6px; padding: 24px 16px; text-align: center; color: var(--faint); cursor: pointer; transition: border-color 0.15s, color 0.15s; user-select: none; }
-.upload-zone:hover, .upload-zone.drag-over { border-color: var(--accent); color: var(--accent); }
+/* Import zone */
+.import-zone { border: 2px dashed var(--border); border-radius: 6px; padding: 24px 16px; text-align: center; color: var(--faint); cursor: pointer; transition: border-color 0.15s, color 0.15s; user-select: none; }
+.import-zone:hover, .import-zone.drag-over { border-color: var(--accent); color: var(--accent); }
 
 /* Dialog */
 dialog { width: 420px; border-radius: 10px; border: none; box-shadow: var(--shadow); padding: 22px; font-family: system-ui, sans-serif; background: var(--surface); color: var(--text); position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); max-height: 90vh; overflow-y: auto; }
@@ -331,7 +331,7 @@ a.get-file:hover { text-decoration: underline; }
 #list-count { font-weight: 400; color: var(--muted); }
 
 /* Tabs — hidden until activated by JS */
-#tab-upload, #tab-url { display: none; }
+#tab-import, #tab-url { display: none; }
 
 /* Empty states */
 .no-rules { font-size: 12px; color: var(--faint); font-style: italic; margin-bottom: 3px; }
@@ -356,17 +356,17 @@ a.get-file:hover { text-decoration: underline; }
 .form-field-gap { margin-top: 10px; }
 .dialog-divider { text-align: center; color: var(--muted); font-size: 12px; margin: 12px 0; }
 .subscription-note { background: var(--callout-bg); border: 1px solid var(--callout-border); border-radius: 5px; padding: 9px 12px; margin-bottom: 16px; font-size: 12px; color: var(--callout-fg); }
-.upload-zone.compact { padding: 16px; }
+.import-zone.compact { padding: 16px; }
 #guide-steps .known-list { margin-bottom: 12px; }
 
-/* Hidden file inputs (triggered programmatically by their upload zones) */
+/* Hidden file inputs (triggered programmatically by their import zones) */
 input[type="file"] { display: none; }
 
-/* Guide step upload zone spacing */
-.guide-step-body .upload-zone { margin-top: 8px; }
+/* Guide step import zone spacing */
+.guide-step-body .import-zone { margin-top: 8px; }
 
-/* Upload guide dialog */
-#upload-guide-dialog { width: 660px; }
+/* Import guide dialog */
+#import-guide-dialog { width: 660px; }
 .guide-steps { display: flex; flex-direction: column; gap: 16px; }
 .guide-step { display: flex; gap: 12px; align-items: flex-start; font-size: 13px; }
 .guide-step-num { flex-shrink: 0; width: 22px; height: 22px; border-radius: 50%; background: var(--accent); color: white; font-size: 12px; font-weight: 700; display: flex; align-items: center; justify-content: center; margin-top: 1px; }
@@ -543,7 +543,7 @@ input.cell-edit.score-edit { font-family: ui-monospace, 'Cascadia Code', monospa
   <h2 id="add-dialog-title">Add Wordlist</h2>
   <div class="tabs">
     <button class="tab-btn active" data-tab="builtin">Known Lists</button>
-    <button class="tab-btn" data-tab="upload">Upload File</button>
+    <button class="tab-btn" data-tab="import">Import File</button>
     <button class="tab-btn" data-tab="url">From URL</button>
   </div>
 
@@ -551,17 +551,17 @@ input.cell-edit.score-edit { font-family: ui-monospace, 'Cascadia Code', monospa
     <div id="builtin-list"></div>
   </div>
 
-  <div id="tab-upload">
-    <div class="upload-zone" id="drop-zone">
-      <span id="upload-zone-label">Drop file here or click to browse</span>
+  <div id="tab-import">
+    <div class="import-zone" id="drop-zone">
+      <span id="import-zone-label">Drop file here or click to browse</span>
       <input type="file" id="file-input" accept=".txt,.csv">
     </div>
     <div class="form-field form-field-gap">
       <label>Name</label>
-      <input type="text" id="upload-name">
+      <input type="text" id="import-name">
     </div>
     <div class="dialog-actions">
-      <button class="primary" id="btn-upload-file" disabled>Add</button>
+      <button class="primary" id="btn-import-file" disabled>Add</button>
     </div>
   </div>
 
@@ -582,7 +582,7 @@ input.cell-edit.score-edit { font-family: ui-monospace, 'Cascadia Code', monospa
 </dialog>
 
 
-<dialog id="upload-guide-dialog" aria-labelledby="guide-title">
+<dialog id="import-guide-dialog" aria-labelledby="guide-title">
   <button class="dialog-close-btn" aria-label="Close">✕</button>
   <h2 id="guide-title"></h2>
   <div id="guide-tabs"></div>
@@ -603,7 +603,7 @@ input.cell-edit.score-edit { font-family: ui-monospace, 'Cascadia Code', monospa
   <p id="merge-conflict-msg"></p>
   <div class="dialog-footer">
     <button id="btn-merge-cancel">Cancel</button>
-    <button id="btn-merge-use-file">Use Uploaded File</button>
+    <button id="btn-merge-use-file">Use Imported File</button>
     <button id="btn-merge-keep-edits" class="primary">Keep My Edits</button>
   </div>
 </dialog>
@@ -646,7 +646,7 @@ const BUILTIN_WORDLISTS = [
   {
     id: 'xwi',
     name: 'XWord Info',
-    source: 'upload',
+    source: 'import',
     url: null,
     sourcePage: 'https://www.xwordinfo.com/WordList',
     sourceNote: 'Download a <strong>.txt</strong> version.',
@@ -1750,8 +1750,8 @@ function renderInputLists() {
 
     const icon = getListIcon(list.id);
 
-    const toggleTitle = !hasData ? 'Click to upload' : list.enabled ? 'Enabled — click to disable' : 'Disabled — click to enable';
-    const toggleClick = hasData ? 'event.stopPropagation()' : `triggerUploadForList('${list.id}',event)`;
+    const toggleTitle = !hasData ? 'Click to import' : list.enabled ? 'Enabled — click to disable' : 'Disabled — click to enable';
+    const toggleClick = hasData ? 'event.stopPropagation()' : `triggerImportForList('${list.id}',event)`;
     return `<div class="list-card${sel ? ' selected' : ''}${list.enabled ? '' : ' disabled'}${hasData ? '' : ' no-data'}" data-id="${list.id}" draggable="true" onclick="selectList('${list.id}')" tabindex="0" role="option" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();selectList('${list.id}')}" >
       <span class="drag-handle" title="Drag to reorder" aria-label="Drag to reorder">≡</span>
       ${icon}
@@ -2024,11 +2024,11 @@ function renderDetail(list) {
 
   const stats = computeStats(list.id, list.rawEntries);
 
-  const statsHtml = buildStatsBarHTML(stats, 'No data loaded — use the Upload button to load this list');
+  const statsHtml = buildStatsBarHTML(stats, 'No data loaded — use the Import button to load this list');
 
   let actionBtn;
   const hasData = list.rawEntries.length > 0;
-  const label = hasData ? 'Update' : 'Upload';
+  const label = hasData ? 'Update' : 'Import';
   const tmpl = getTemplate(list.id);
   if (tmpl) {
     const dot = list._updateAvailable && !list._loading ? ` <span class="update-dot"></span>` : '';
@@ -2036,7 +2036,7 @@ function renderDetail(list) {
     const btnLabel = `${list._loading ? 'Updating…' : label}${dot}`;
     if (tmpl.url) {
       actionBtn = buildSplitBtn(btnLabel, `fetchList('${list.id}')`,
-        [['Manual upload…', `openManualGuide('${list.id}')`]],
+        [['Manual import…', `openManualGuide('${list.id}')`]],
         { primary: true, disabled: !!list._loading, title });
     } else {
       actionBtn = `<button class="primary"${title ? ` title="${title}"` : ''} onclick="openManualGuide('${list.id}')" ${list._loading ? 'disabled' : ''}>${btnLabel}</button>`;
@@ -2046,7 +2046,7 @@ function renderDetail(list) {
     const title = list._updateAvailable && !list._loading ? ' title="Update available"' : '';
     actionBtn = `<button class="primary"${title} onclick="fetchList('${list.id}')" ${list._loading ? 'disabled' : ''}>${list._loading ? 'Updating…' : '↻ Update'}${dot}</button>`;
   } else {
-    actionBtn = `<button class="primary" onclick="uploadToList('${list.id}')">${label}</button>`;
+    actionBtn = `<button class="primary" onclick="importToList('${list.id}')">${label}</button>`;
   }
 
   const removeBtn = `<button onclick="removeList('${list.id}')">Remove</button>`;
@@ -2110,7 +2110,7 @@ function renderEditsDetail(list) {
         <svg class="icon-pencil edit-hint detail-edit-hint" onclick="startHeaderRename()"><use href="#icon-edits"/></svg>
       </div>
       <button class="primary" onclick="openAddWordBar()">＋ Add word</button>
-      <button onclick="uploadToList(EDITS_ID)">Upload file</button>
+      <button onclick="importToList(EDITS_ID)">Import file</button>
       ${list.rawEntries.length ? `<button onclick="downloadEdits()">Download</button>` : ''}
       ${list.rawEntries.length ? `<button onclick="clearEdits()">Clear</button>` : ''}
     </div>
@@ -2328,14 +2328,14 @@ async function checkForUpdates() {
   }
 }
 
-function triggerUploadForList(id, event) {
+function triggerImportForList(id, event) {
   if (event) event.stopPropagation();
   if (!state.inputLists.find(l => l.id === id)) return;
   if (getTemplate(id)?.url) fetchList(id);
   else openManualGuide(id);
 }
 
-function uploadToList(id, event) {
+function importToList(id, event) {
   if (event) event.stopPropagation();
   const input = document.createElement('input');
   input.type = 'file';
@@ -2601,7 +2601,7 @@ function showMergeConflict(conflictCount) {
     const xBtn      = dialog.querySelector('.dialog-close-btn');
 
     const noun = conflictCount === 1 ? 'word appears' : 'words appear';
-    msgEl.textContent = `${conflictCount.toLocaleString()} ${noun} in both My Edits and the uploaded file with different scores or comments. Which should take precedence?`;
+    msgEl.textContent = `${conflictCount.toLocaleString()} ${noun} in both My Edits and the imported file with different scores or comments. Which should take precedence?`;
 
     function finish(result) {
       dialog.removeEventListener('cancel', onCancel);
@@ -2640,8 +2640,8 @@ function openDialog() {
     const sub = t.url
       ? 'Auto-fetch'
       : (t.sourcePage
-        ? `Manual upload &middot; <a class="get-file" href="${esc(t.sourcePage)}" target="_blank" rel="noopener">Get file 🔗</a>`
-        : 'Manual upload');
+        ? `Manual import &middot; <a class="get-file" href="${esc(t.sourcePage)}" target="_blank" rel="noopener">Get file 🔗</a>`
+        : 'Manual import');
     return `<div class="known-list">
       ${t.icon || ''}
       <div class="known-list-info">
@@ -2656,15 +2656,15 @@ function openDialog() {
 
   document.getElementById('url-input').value = '';
   document.getElementById('url-name').value = '';
-  document.getElementById('upload-name').value = '';
-  _pendingUploadFile = null;
-  document.getElementById('upload-zone-label').textContent = 'Drop file here or click to browse';
-  document.getElementById('btn-upload-file').disabled = true;
+  document.getElementById('import-name').value = '';
+  _pendingImportFile = null;
+  document.getElementById('import-zone-label').textContent = 'Drop file here or click to browse';
+  document.getElementById('btn-import-file').disabled = true;
 
   const allAdded = BUILTIN_WORDLISTS.every(t => state.inputLists.some(l => l.id === t.id));
-  const defaultTab = allAdded ? 'upload' : 'builtin';
+  const defaultTab = allAdded ? 'import' : 'builtin';
   document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.toggle('active', btn.dataset.tab === defaultTab));
-  ['builtin', 'upload', 'url'].forEach(tabId => {
+  ['builtin', 'import', 'url'].forEach(tabId => {
     document.getElementById('tab-' + tabId).style.display = tabId === defaultTab ? 'block' : 'none';
   });
 
@@ -2716,7 +2716,7 @@ function bindEvents() {
   };
 
   document.getElementById('btn-settings').onclick = () => document.getElementById('settings-dialog').showModal();
-  ['settings-dialog', 'add-dialog', 'upload-guide-dialog'].forEach(id => {
+  ['settings-dialog', 'add-dialog', 'import-guide-dialog'].forEach(id => {
     const d = document.getElementById(id);
     d.querySelector('.dialog-close-btn').onclick = () => d.close();
     d.addEventListener('click', e => { if (e.target === d) d.close(); });
@@ -2727,7 +2727,7 @@ function bindEvents() {
     btn.onclick = () => {
       document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
-      ['builtin','upload','url'].forEach(t => {
+      ['builtin','import','url'].forEach(t => {
         document.getElementById('tab-' + t).style.display = btn.dataset.tab === t ? 'block' : 'none';
       });
     };
@@ -2735,15 +2735,15 @@ function bindEvents() {
 
   // Drop zone
   bindDropZone(document.getElementById('drop-zone'), document.getElementById('file-input'), file => {
-    _pendingUploadFile = file;
-    document.getElementById('upload-zone-label').textContent = file.name;
-    const nameField = document.getElementById('upload-name');
+    _pendingImportFile = file;
+    document.getElementById('import-zone-label').textContent = file.name;
+    const nameField = document.getElementById('import-name');
     if (!nameField.value.trim()) nameField.value = nameFromPath(file.name);
-    document.getElementById('btn-upload-file').disabled = false;
+    document.getElementById('btn-import-file').disabled = false;
   });
-  document.getElementById('btn-upload-file').onclick = () => {
-    if (!document.getElementById('upload-name').value.trim()) { document.getElementById('upload-name').focus(); return; }
-    if (_pendingUploadFile) handleDialogUpload(_pendingUploadFile);
+  document.getElementById('btn-import-file').onclick = () => {
+    if (!document.getElementById('import-name').value.trim()) { document.getElementById('import-name').focus(); return; }
+    if (_pendingImportFile) handleDialogImport(_pendingImportFile);
   };
 
   // Drag-to-reorder
@@ -2873,16 +2873,16 @@ function bindEvents() {
   };
 }
 
-let _pendingUploadFile = null;
+let _pendingImportFile = null;
 
 function nameFromPath(str) {
   return str.split('/').pop().replace(/\.[^.]+$/, '');
 }
 
-function handleDialogUpload(file) {
+function handleDialogImport(file) {
   const id   = 'up_' + Date.now();
-  const name = document.getElementById('upload-name').value.trim();
-  addNewList({ id, name, source: 'upload', url: null, enabled: true });
+  const name = document.getElementById('import-name').value.trim();
+  addNewList({ id, name, source: 'import', url: null, enabled: true });
   document.getElementById('add-dialog').close();
   ingestFile(file, id, name);
   selectList(id);
@@ -2989,7 +2989,7 @@ function getListIcon(id) {
   return getTemplate(id)?.icon ?? '';
 }
 
-// ─── Upload Guide ─────────────────────────────────────────────────────────────
+// ─── Import Guide ─────────────────────────────────────────────────────────────
 
 function bindDropZone(zone, fileInput, onFile) {
   zone.onclick     = () => fileInput.click();
@@ -3006,10 +3006,10 @@ function bindDropZone(zone, fileInput, onFile) {
 
 function openManualGuide(listId) {
   const tmpl = getTemplate(listId);
-  const dialog = document.getElementById('upload-guide-dialog');
-  document.getElementById('guide-title').textContent = `${tmpl?.name ?? 'Wordlist'} — Upload Wordlist`;
+  const dialog = document.getElementById('import-guide-dialog');
+  document.getElementById('guide-title').textContent = `${tmpl?.name ?? 'Wordlist'} — Import Wordlist`;
 
-  if (!tmpl?.sourcePage) { uploadToList(listId); return; }
+  if (!tmpl?.sourcePage) { importToList(listId); return; }
 
   document.getElementById('guide-tabs').innerHTML = '';
   document.getElementById('guide-steps').innerHTML = buildManualHTML(tmpl);
@@ -3047,7 +3047,7 @@ function buildManualHTML(tmpl) {
       <div class="guide-step-num">3</div>
       <div class="guide-step-body">
         Come back here and drop the downloaded file:
-        <div class="upload-zone compact" id="guide-drop-zone">
+        <div class="import-zone compact" id="guide-drop-zone">
           Drop file here or click to browse
           <input type="file" id="guide-file-input" accept=".txt,.csv">
         </div>
