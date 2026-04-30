@@ -968,7 +968,7 @@ async function persistEdits(me) {
 
 function downloadEdits() {
   const me = getEditsList();
-  if (!me || !me.rawEntries.length) return;
+  if (!me) return;
   const upper = (lsLoad('downloadCase') || 'lower') === 'upper';
   const text = me.rawEntries.map(e => {
     const w = upper ? e.word.toUpperCase() : e.word.toLowerCase();
@@ -2099,7 +2099,7 @@ function renderEditsDetail(list) {
       </div>
       <button class="primary" onclick="openAddWordBar()">＋ Add word</button>
       <button onclick="importToList(EDITS_ID)">Import file</button>
-      ${list.rawEntries.length ? `<button onclick="downloadEdits()">Download</button>` : ''}
+      <button onclick="downloadEdits()">Download</button>
       ${list.rawEntries.length ? `<button onclick="clearEdits()">Clear</button>` : ''}
     </div>
     ${statsHtml}
