@@ -7,7 +7,6 @@
 <!-- Prevents FOUC: must run synchronously before first paint. -->
 <script>
   const LS_PREFIX = 'grawlix_';
-
   const _dm    = localStorage.getItem(LS_PREFIX + 'darkMode');
   const _dark  = _dm === 'dark' || (_dm !== 'light' && window.matchMedia('(prefers-color-scheme: dark)').matches);
   document.documentElement.classList.add(_dark ? 'dark-mode' : 'light-mode');
@@ -382,9 +381,9 @@ html.dark-mode .screenshot-container img { filter: brightness(0.843) invert(1) h
 #merged-card { flex-shrink: 0; user-select: none; }
 .merged-icon { color: var(--accent); }
 
-/* My Edits card */
-#my-edits-card { flex-shrink: 0; user-select: none; }
-.my-edits-icon { color: var(--muted); }
+/* Edits card */
+#edits-card { flex-shrink: 0; user-select: none; }
+.edits-icon { color: var(--muted); }
 
 /* Inline cell editing */
 .word-table td.score-cell,
@@ -405,11 +404,11 @@ input.cell-edit.score-edit { font-family: ui-monospace, 'Cascadia Code', monospa
   60%  { opacity: 0.9; }
   100% { opacity: 0; transform: translate(var(--fly-dx), var(--fly-dy)) scale(0.6); }
 }
-@keyframes me-pulse {
+@keyframes edits-pulse {
   0%   { box-shadow: inset 0 0 0 2px var(--accent); }
   100% { box-shadow: none; }
 }
-#my-edits-card.pulse { animation: me-pulse 0.35s ease-out; }
+#edits-card.pulse { animation: edits-pulse 0.35s ease-out; }
 
 /* Add word pinned row */
 .add-word-bar { display: flex; align-items: center; gap: 8px; padding: 5px 16px; background: var(--surface2); border-bottom: 1px solid var(--border2); flex-shrink: 0; }
@@ -491,7 +490,7 @@ input.cell-edit.score-edit { font-family: ui-monospace, 'Cascadia Code', monospa
     <h2>Output List</h2>
     <div id="merged-card" tabindex="0" role="option"></div>
     <h2>Input Lists <span id="list-count"></span></h2>
-    <div id="my-edits-card" tabindex="0" role="option"></div>
+    <div id="edits-card" tabindex="0" role="option"></div>
     <div id="lists-container"></div>
   </div>
 
@@ -619,7 +618,7 @@ const VS_BUFFER    = 60;
 // LS_PREFIX defined in <head> so the FOUC-prevention script can share it.
 const MERGED_ID    = '__merged__';
 const EDITS_ID  = '__edits__';
-const EDITS_ICON = `<svg width="16" height="16" class="list-icon-svg my-edits-icon" aria-hidden="true"><use href="#icon-edits"/></svg>`;
+const EDITS_ICON = `<svg width="16" height="16" class="list-icon-svg edits-icon" aria-hidden="true"><use href="#icon-edits"/></svg>`;
 const MERGED_ICON  = `<svg width="16" height="16" class="list-icon-svg merged-icon" aria-hidden="true"><use href="#icon-merged"/></svg>`;
 
 const BUILTIN_WORDLISTS = [
@@ -958,7 +957,7 @@ function ensureEdits() {
     const [removed] = state.inputLists.splice(idx, 1);
     state.inputLists.unshift(removed);
   } else {
-    const me = { id: EDITS_ID, name: 'My Edits', source: 'my-edits', url: null,
+    const me = { id: EDITS_ID, name: 'My Edits', source: 'edits', url: null,
                  enabled: true, rawEntries: [], lastUpdated: null, _loading: false,
                  rescoreRules: [],
                  scoring: DEFAULT_MERGED_SCORING.map(r => ({ ...r })) };
@@ -1774,7 +1773,7 @@ function renderInputLists() {
 }
 
 function renderEditsCard() {
-  const card = document.getElementById('my-edits-card');
+  const card = document.getElementById('edits-card');
   if (!card) return;
   const me = getEditsList();
   const sel = state.selectedId === EDITS_ID;
@@ -2148,7 +2147,7 @@ function renderEditsDetail(list) {
 function attachExternalEditHandlers(s, refreshFn) {
   s._onCellEdit = (word, field, newValue, sourceTd) => {
     upsertEdits(word, field, newValue);
-    if (field === 'score' && sourceTd) flyToMyEdits(sourceTd, newValue);
+    if (field === 'score' && sourceTd) flyToEdits(sourceTd, newValue);
     refreshFn?.();
   };
   s._onEditStart = () => showEditInfoNote();
@@ -2195,8 +2194,8 @@ function hideEditInfoNote() {
   note?.classList.remove('visible');
 }
 
-function flyToMyEdits(sourceTd, score) {
-  const targetCard = document.getElementById('my-edits-card');
+function flyToEdits(sourceTd, score) {
+  const targetCard = document.getElementById('edits-card');
   if (!targetCard || !sourceTd?.isConnected) return;
 
   const srcRect  = sourceTd.getBoundingClientRect();
@@ -2842,10 +2841,10 @@ function bindEvents() {
   listsContainer.addEventListener('touchend', endTouchDrag);
   listsContainer.addEventListener('touchcancel', endTouchDrag);
 
-  // My Edits card
-  const myEditsCard = document.getElementById('my-edits-card');
-  myEditsCard.onclick = () => selectList(EDITS_ID);
-  myEditsCard.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); selectList(EDITS_ID); } };
+  // Edits card
+  const editsCard = document.getElementById('edits-card');
+  editsCard.onclick = () => selectList(EDITS_ID);
+  editsCard.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); selectList(EDITS_ID); } };
 
   // F2 to rename selected list
   document.addEventListener('keydown', e => {
