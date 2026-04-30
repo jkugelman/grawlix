@@ -14,6 +14,7 @@
 </script>
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+[hidden] { display: none !important; }
 
 :root {
   --accent:      #7b6db8;
@@ -304,7 +305,7 @@ a.get-file:hover { text-decoration: underline; }
 .rule-note-text { flex: 0 1 auto; min-width: 0; font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.4; }
 .rule-note-text:empty::before { content: 'add note…'; font-style: italic; color: transparent; pointer-events: none; }
 .rule-row:hover .rule-note-text:empty::before { color: var(--faint); }
-.rule-note-pencil { font-size: 11px; color: var(--faint); line-height: 1; }
+.rule-note-pencil { font-size: 11px; color: var(--faint); }
 .rule-row:hover .rule-note-wrap.has-note .rule-note-pencil { opacity: 1; }
 .rule-note-input { flex: 1; padding: 1px 4px; border: 1px solid var(--accent); border-radius: 3px; font-size: 12px; background: var(--input-bg); color: var(--text); outline: none; min-width: 0; }
 .rule-del, .rule-reset { width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; border: none; background: none; cursor: pointer; font-size: 15px; padding: 0; line-height: 1; border-radius: 3px; font-family: inherit; }
@@ -420,9 +421,13 @@ input.cell-edit.score-edit { font-family: ui-monospace, 'Cascadia Code', monospa
 .add-word-bar .aw-comment { flex: 1; }
 .add-word-bar .aw-hint { font-size: 11px; color: var(--faint); white-space: nowrap; }
 
+/* Shared icons */
+.icon-trash  { width: 14px; height: 14px; display: inline-block; vertical-align: middle; }
+.icon-pencil { width: 1em; height: 1em; display: inline-block; vertical-align: middle; }
+
 /* Trash / delete column */
 .word-table th.col-trash { width: 26px; padding: 0; }
-.word-table td.col-trash { width: 26px; padding: 0 3px; text-align: center; font-size: 14px; color: transparent; cursor: pointer; }
+.word-table td.col-trash { width: 26px; padding: 0 3px; text-align: center; color: transparent; cursor: pointer; }
 .word-table tr:hover td.col-trash { color: var(--faint); }
 .word-table td.col-trash:hover { color: #e53935 !important; }
 
@@ -433,16 +438,51 @@ input.cell-edit.score-edit { font-family: ui-monospace, 'Cascadia Code', monospa
 </head>
 <body>
 
+<svg hidden>
+  <symbol id="icon-trash" viewBox="0 0 16 16" fill="currentColor">
+    <rect x="5" y="1" width="6" height="1.5" rx=".75"/>
+    <rect x="2" y="3" width="12" height="1.5" rx=".75"/>
+    <path d="M3.5 5.5h9l-.75 8.5a1 1 0 0 1-1 .9h-5.5a1 1 0 0 1-1-.9z"/>
+  </symbol>
+  <symbol id="icon-github" viewBox="0 0 16 16" fill="currentColor">
+    <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8z"/>
+  </symbol>
+  <symbol id="icon-settings" viewBox="0 0 24 24" fill="currentColor">
+    <path d="M12 15.5A3.5 3.5 0 0 1 8.5 12 3.5 3.5 0 0 1 12 8.5a3.5 3.5 0 0 1 3.5 3.5 3.5 3.5 0 0 1-3.5 3.5m7.43-2.92c.04-.34.07-.69.07-1.08s-.03-.74-.07-1.08l2.32-1.82c.21-.16.27-.46.13-.7l-2.2-3.81a.55.55 0 0 0-.68-.24l-2.74 1.1c-.57-.44-1.18-.8-1.86-1.07L14 2.42A.55.55 0 0 0 13.45 2h-4.4a.55.55 0 0 0-.54.42L8.14 5.09C7.46 5.36 6.85 5.72 6.28 6.16L3.54 5.06a.54.54 0 0 0-.68.24L.66 9.11a.54.54 0 0 0 .13.7l2.32 1.82c-.04.34-.07.69-.07 1.08s.03.74.07 1.08L.79 15.6a.54.54 0 0 0-.13.7l2.2 3.81c.14.24.43.32.68.24l2.74-1.1c.57.44 1.18.8 1.86 1.07l.37 2.67c.06.24.28.42.54.42h4.4c.26 0 .48-.18.54-.42l.37-2.67c.68-.27 1.29-.63 1.86-1.07l2.74 1.1c.25.08.54 0 .68-.24l2.2-3.81a.54.54 0 0 0-.13-.7l-2.32-1.81z"/>
+  </symbol>
+  <symbol id="icon-edits" viewBox="0 0 24 24" fill="currentColor">
+    <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/>
+  </symbol>
+  <symbol id="icon-merged" viewBox="0 0 24 24" fill="currentColor">
+    <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+  </symbol>
+  <symbol id="icon-jk" viewBox="0 0 16 16">
+    <rect width="16" height="16" fill="#d46a1a"/>
+    <text x="8" y="12" text-anchor="middle" fill="white" font-family="system-ui,sans-serif" font-size="8.5" font-weight="700">JK</text>
+  </symbol>
+  <symbol id="icon-pb" viewBox="0 0 16 16">
+    <rect width="16" height="16" fill="#0f9d58"/>
+    <text x="8" y="12" text-anchor="middle" fill="white" font-family="system-ui,sans-serif" font-size="8.5" font-weight="700">PB</text>
+  </symbol>
+  <symbol id="icon-search" viewBox="0 0 13 13">
+    <circle cx="5.5" cy="5.5" r="4" fill="none" stroke="currentColor" stroke-width="1.5"/>
+    <line x1="8.7" y1="8.7" x2="12" y2="12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+  </symbol>
+  <symbol id="icon-arrow" viewBox="0 0 8 5" fill="currentColor">
+    <path d="M0 0l4 5 4-5z"/>
+  </symbol>
+</svg>
+
 <header>
   <h1>Grawlix <span class="bubble">!@#$</span></h1>
   <div class="header-center">
     <span class="header-tagline">Use your words!</span>
     <span class="header-sep">&middot;</span>
-    <span class="header-byline">Made by John Kugelman <a href="https://github.com/jkugelman/crossword/tree/main/grawlix" target="_blank" rel="noopener" title="View on GitHub" class="header-github-link"><svg width="15" height="15" viewBox="0 0 16 16" fill="currentColor" aria-label="GitHub" role="img"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg></a></span>
+    <span class="header-byline">Made by John Kugelman <a href="https://github.com/jkugelman/crossword/tree/main/grawlix" target="_blank" rel="noopener" title="View on GitHub" class="header-github-link"><svg width="15" height="15" aria-label="GitHub" role="img"><use href="#icon-github"/></svg></a></span>
     <span class="header-sep">&middot;</span>
     <span class="header-feedback">Got feedback? <a href="mailto:john@kugelman.name">Email me</a></span>
   </div>
-  <button id="btn-settings" class="header-icon-btn" title="Settings"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 15.5A3.5 3.5 0 0 1 8.5 12 3.5 3.5 0 0 1 12 8.5a3.5 3.5 0 0 1 3.5 3.5 3.5 3.5 0 0 1-3.5 3.5m7.43-2.92c.04-.34.07-.69.07-1.08s-.03-.74-.07-1.08l2.32-1.82c.21-.16.27-.46.13-.7l-2.2-3.81a.55.55 0 0 0-.68-.24l-2.74 1.1c-.57-.44-1.18-.8-1.86-1.07L14 2.42A.55.55 0 0 0 13.45 2h-4.4a.55.55 0 0 0-.54.42L8.14 5.09C7.46 5.36 6.85 5.72 6.28 6.16L3.54 5.06a.54.54 0 0 0-.68.24L.66 9.11a.54.54 0 0 0 .13.7l2.32 1.82c-.04.34-.07.69-.07 1.08s.03.74.07 1.08L.79 15.6a.54.54 0 0 0-.13.7l2.2 3.81c.14.24.43.32.68.24l2.74-1.1c.57.44 1.18.8 1.86 1.07l.37 2.67c.06.24.28.42.54.42h4.4c.26 0 .48-.18.54-.42l.37-2.67c.68-.27 1.29-.63 1.86-1.07l2.74 1.1c.25.08.54 0 .68-.24l2.2-3.81a.54.54 0 0 0-.13-.7l-2.32-1.81z"/></svg></button>
+  <button id="btn-settings" class="header-icon-btn" title="Settings"><svg width="18" height="18" aria-hidden="true"><use href="#icon-settings"/></svg></button>
 </header>
 
 <main>
@@ -496,7 +536,7 @@ input.cell-edit.score-edit { font-family: ui-monospace, 'Cascadia Code', monospa
       <div class="settings-row-label">Reset all data</div>
       <div class="settings-row-sub">Delete all lists and word data</div>
     </div>
-    <button id="btn-reset" class="danger" title="Delete all lists and data">🗑 Reset</button>
+    <button id="btn-reset" class="danger" title="Delete all lists and data"><svg class="icon-trash"><use href="#icon-trash"/></svg> Reset</button>
   </div>
 </dialog>
 
@@ -570,8 +610,8 @@ const VS_BUFFER    = 60;
 // LS_PREFIX defined in <head> so the FOUC-prevention script can share it.
 const MERGED_ID    = '__merged__';
 const EDITS_ID  = '__edits__';
-const EDITS_ICON = `<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" class="list-icon-svg my-edits-icon" aria-hidden="true"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>`;
-const MERGED_ICON  = `<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" class="list-icon-svg merged-icon" aria-hidden="true"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>`;
+const EDITS_ICON = `<svg width="16" height="16" class="list-icon-svg my-edits-icon" aria-hidden="true"><use href="#icon-edits"/></svg>`;
+const MERGED_ICON  = `<svg width="16" height="16" class="list-icon-svg merged-icon" aria-hidden="true"><use href="#icon-merged"/></svg>`;
 
 const BUILTIN_WORDLISTS = [
   {
@@ -584,7 +624,7 @@ const BUILTIN_WORDLISTS = [
     screenshot: () => `<div class="screenshot-container">
       <img src="jkugelman-download-page.png" alt="John Kugelman wordlist on GitHub">
     </div>`,
-    icon: `<svg width="16" height="16" viewBox="0 0 16 16" class="list-icon-svg" aria-hidden="true"><rect width="16" height="16" fill="#d46a1a"/><text x="8" y="12" text-anchor="middle" fill="white" font-family="system-ui,sans-serif" font-size="8.5" font-weight="700">JK</text></svg>`,
+    icon: `<svg width="16" height="16" class="list-icon-svg" aria-hidden="true"><use href="#icon-jk"/></svg>`,
     defaultRules: [
       { input:'60', length:'', output:'', note:'Great (colorful phrases, sayings, people, etc.)' },
       { input:'50', length:'', output:'', note:'Good (dictionary words, phrases)' },
@@ -648,7 +688,7 @@ const BUILTIN_WORDLISTS = [
     url: 'peter-broda-wordlist__gridtext__scored__july-25-2023.txt',
     sourcePage: 'http://www.peterbroda.me/crosswords/wordlist/',
     sourceNote: 'Download the <strong>.txt</strong> version.',
-    icon: `<svg width="16" height="16" viewBox="0 0 16 16" class="list-icon-svg" aria-hidden="true"><rect width="16" height="16" fill="#0f9d58"/><text x="8" y="12" text-anchor="middle" fill="white" font-family="system-ui,sans-serif" font-size="8.5" font-weight="700">PB</text></svg>`,
+    icon: `<svg width="16" height="16" class="list-icon-svg" aria-hidden="true"><use href="#icon-pb"/></svg>`,
     screenshot: () => `<div class="screenshot-container">
       <img src="broda-download-page.png" alt="Peter Broda wordlist download page">
       <div class="annotation" style="left:21%;top:15%;width:21%;height:18%"></div>
@@ -1361,7 +1401,7 @@ class VirtualScroller {
         scoreCell +
         commentCell +
         sourceCell +
-        (this.showDeleteCol ? `<td class="col-trash" title="Remove">🗑</td>` : '');
+        (this.showDeleteCol ? `<td class="col-trash" title="Remove"><svg class="icon-trash"><use href="#icon-trash"/></svg></td>` : '');
       frag.appendChild(tr);
     }
     this.tbody.insertBefore(frag, this.botRow);
@@ -1592,9 +1632,9 @@ function buildRuleRowHTML(i, isCatchAll, fieldsHTML, note, onDeleteFn) {
       ${fieldsHTML}
       <span class="rule-note-wrap${note ? ' has-note' : ''}" onclick="startNoteEdit(this)" title="Click to edit">
         <span class="rule-note-text">${esc(note||'')}</span>
-        <span class="edit-hint rule-note-pencil">✏️</span>
+        <svg class="icon-pencil edit-hint rule-note-pencil"><use href="#icon-edits"/></svg>
       </span>
-      ${isCatchAll ? '' : `<button class="rule-del" onclick="${onDeleteFn}(${i})" title="Remove row">🗑</button>`}
+      ${isCatchAll ? '' : `<button class="rule-del" onclick="${onDeleteFn}(${i})" title="Remove row"><svg class="icon-trash"><use href="#icon-trash"/></svg></button>`}
     </div>`;
 }
 
@@ -1760,7 +1800,7 @@ function buildSearchBarHTML() {
       </div>
       <div class="search-row">
         <div class="search-input-wrap">
-          <svg width="13" height="13" viewBox="0 0 13 13" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="5.5" cy="5.5" r="4" stroke="currentColor" stroke-width="1.5"/><line x1="8.7" y1="8.7" x2="12" y2="12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+          <svg width="13" height="13"><use href="#icon-search"/></svg>
           <input type="text" id="search-input" placeholder="Search" value="${esc(state.searchQuery)}" oninput="onSearch(this.value)">
         </div>
         <label class="search-whole-word-label"><input type="checkbox" id="search-whole-word" onchange="onSearchWholeWord(this.checked)" ${state.searchWholeWord ? 'checked' : ''}> Match whole word</label>
@@ -1934,7 +1974,7 @@ function saveEditsScoringField(i, field, val) {
 function buildSplitBtn(mainLabel, mainOnclick, menuItems, { primary = false, disabled = false, title = '' } = {}) {
   const dis = disabled ? ' disabled' : '';
   const titleAttr = title ? ` title="${title}"` : '';
-  const arrow = `<svg width="8" height="5" viewBox="0 0 8 5" fill="currentColor"><path d="M0 0l4 5 4-5z"/></svg>`;
+  const arrow = `<svg width="8" height="5"><use href="#icon-arrow"/></svg>`;
   const items = menuItems.map(([lbl, fn]) => `<button onclick="${fn}">${lbl}</button>`).join('');
   return `<div class="split-btn${primary ? ' primary' : ''}">` +
     `<button class="split-btn-main"${titleAttr} onclick="${mainOnclick}"${dis}>${mainLabel}</button>` +
@@ -1996,7 +2036,7 @@ function renderDetail(list) {
     <div class="detail-header">
       <div class="detail-name-wrap">
         <h2 onclick="startHeaderRename()" title="Click to rename">${esc(list.name)}</h2>
-        <span class="edit-hint detail-edit-hint" onclick="startHeaderRename()">✏️</span>
+        <svg class="icon-pencil edit-hint detail-edit-hint" onclick="startHeaderRename()"><use href="#icon-edits"/></svg>
       </div>
       ${hasData && list.lastUpdated ? `<span class="detail-date"></span>` : ''}
       ${actionBtn}
@@ -2045,7 +2085,7 @@ function renderEditsDetail(list) {
     <div class="detail-header">
       <div class="detail-name-wrap">
         <h2 onclick="startHeaderRename()" title="Click to rename">${esc(list.name)}</h2>
-        <span class="edit-hint detail-edit-hint" onclick="startHeaderRename()">✏️</span>
+        <svg class="icon-pencil edit-hint detail-edit-hint" onclick="startHeaderRename()"><use href="#icon-edits"/></svg>
       </div>
       <button class="primary" onclick="openAddWordBar()">＋ Add word</button>
       ${list.rawEntries.length ? `<button onclick="downloadEdits()">Download</button>` : ''}
@@ -2400,7 +2440,7 @@ async function removeList(id, event) {
   if (event) event.stopPropagation();
   const list = state.inputLists.find(l => l.id === id);
   if (!list) return;
-  if (!await showConfirm(`Remove "${list.name}"?`, { confirmText: '🗑 Remove' })) return;
+  if (!await showConfirm(`Remove "${list.name}"?`, { confirmText: 'Remove' })) return;
   state.inputLists = state.inputLists.filter(l => l.id !== id);
   invalidateListCaches(id);
   await idbDel('data_' + id);
@@ -2981,7 +3021,7 @@ function saveRuleField(idx, field, value) {
 }
 
 function noteDisplayHTML(note) {
-  return `<span class="rule-note-text">${esc(note)}</span><span class="edit-hint rule-note-pencil">✏️</span>`;
+  return `<span class="rule-note-text">${esc(note)}</span><svg class="icon-pencil edit-hint rule-note-pencil"><use href="#icon-edits"/></svg>`;
 }
 
 function startNoteEdit(wrapEl) {
