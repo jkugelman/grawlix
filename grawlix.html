@@ -380,9 +380,6 @@ html.dark-mode .screenshot-container img { filter: brightness(0.843) invert(1) h
 #merged-card { flex-shrink: 0; user-select: none; }
 .merged-icon { color: var(--accent); }
 
-/* Edits card */
-#edits-card { flex-shrink: 0; user-select: none; }
-
 /* Inline cell editing */
 .word-table td.score-cell,
 .word-table td.comment-cell { cursor: pointer; }
@@ -489,7 +486,6 @@ input.cell-edit.score-edit { font-family: ui-monospace, 'Cascadia Code', monospa
     <h2>Output List</h2>
     <div id="merged-card" tabindex="0" role="option"></div>
     <h2>Input Lists <span id="list-count"></span></h2>
-    <div id="edits-card" tabindex="0" role="option"></div>
     <div id="lists-container"></div>
   </div>
 
@@ -964,24 +960,20 @@ function defaultInputLists() {
 // ─── My Edits helpers ─────────────────────────────────────────────────────────
 
 function getEditsList() {
-  return state.inputLists.find(l => l.id === EDITS_ID) ?? null;
+  return state.inputLists.find(l => l.id === EDITS_ID);
 }
 
 function ensureEdits() {
-  const idx = state.inputLists.findIndex(l => l.id === EDITS_ID);
-  if (idx >= 0) {
-    const me = state.inputLists[idx];
-    if (!me.scoring) me.scoring = DEFAULT_MERGED_SCORING.map(r => ({ ...r }));
-    if (idx === 0) return;
-    const [removed] = state.inputLists.splice(idx, 1);
-    state.inputLists.unshift(removed);
+  const edits = getEditsList();
+  if (edits) {
+    if (!edits.scoring) edits.scoring = DEFAULT_MERGED_SCORING.map(r => ({ ...r }));
   } else {
-    const me = { id: EDITS_ID, name: 'My Edits', source: 'edits', url: null,
-                 enabled: true, rawEntries: [], lastUpdated: null, _loading: false,
-                 rescoreRules: [],
-                 scoring: DEFAULT_MERGED_SCORING.map(r => ({ ...r })) };
-    updateCatchAll(me);
-    state.inputLists.unshift(me);
+    const newEdits = { id: EDITS_ID, name: 'My Edits', source: 'edits', url: null,
+                       enabled: true, rawEntries: [], lastUpdated: null, _loading: false,
+                       rescoreRules: [],
+                       scoring: DEFAULT_MERGED_SCORING.map(r => ({ ...r })) };
+    updateCatchAll(newEdits);
+    state.inputLists.unshift(newEdits);
     persistMeta();
   }
 }
@@ -990,34 +982,33 @@ function entriesToText(entries) {
   return entries.map(e => e.comment ? `${e.word};${e.score};${e.comment}` : `${e.word};${e.score}`).join('\n') + (entries.length ? '\n' : '');
 }
 
-async function persistEdits(me) {
-  await persistData(EDITS_ID, entriesToText(me.rawEntries));
+async function persistEdits(edits) {
+  await persistData(EDITS_ID, entriesToText(edits.rawEntries));
   persistMeta();
 }
 
 function downloadEdits() {
-  const me = getEditsList();
-  if (!me) return;
+  const edits = getEditsList();
   const upper = (lsLoad('downloadCase') || 'lower') === 'upper';
-  const text = me.rawEntries.map(e => {
+  const text = edits.rawEntries.map(e => {
     const w = upper ? e.word.toUpperCase() : e.word.toLowerCase();
     return e.comment ? `${w};${e.score};${e.comment}` : `${w};${e.score}`;
   }).join('\n') + '\n';
-  const name = me.name.replace(/\s+/g, '-').toLowerCase();
+  const name = edits.name.replace(/\s+/g, '-').toLowerCase();
   triggerDownload(text, `${name}.${getDownloadExt()}`);
-  showToast(`Downloaded ${me.rawEntries.length.toLocaleString()} entries`);
+  showToast(`Downloaded ${edits.rawEntries.length.toLocaleString()} entries`);
 }
 
 async function clearEdits() {
-  const me = getEditsList();
-  if (!me || !me.rawEntries.length) return;
-  if (!await showConfirm(`Clear all ${me.rawEntries.length.toLocaleString()} entries from "${esc(me.name)}"?`, { confirmText: 'Clear' })) return;
-  me.rawEntries = [];
+  const edits = getEditsList();
+  if (!edits.rawEntries.length) return;
+  if (!await showConfirm(`Clear all ${edits.rawEntries.length.toLocaleString()} entries from "${esc(edits.name)}"?`, { confirmText: 'Clear' })) return;
+  edits.rawEntries = [];
   invalidateListCaches(EDITS_ID);
-  updateCatchAll(me);
-  await persistEdits(me);
+  updateCatchAll(edits);
+  await persistEdits(edits);
   refreshSourceCounts();
-  renderEditsDetail(me);
+  renderEditsDetail(edits);
 }
 
 // ─── Stats ────────────────────────────────────────────────────────────────────
@@ -1749,7 +1740,6 @@ function renderMergedCard(meta, selected) {
 
 function renderInputLists() {
   const container = document.getElementById('lists-container');
-  const inputLists = state.inputLists.filter(l => l.id !== EDITS_ID);
   document.getElementById('list-count').textContent = `(${state.inputLists.length})`;
 
   const addRow = `<div class="add-list-row" onclick="openDialog()"><span class="drag-handle" aria-hidden="true">≡</span><span class="add-list-icon">＋</span>Add list</div>`;
@@ -1759,11 +1749,14 @@ function renderInputLists() {
   const totalMerged = _sourceCountsCache.reduce((sum, s) => sum + s.count, 0);
 
   renderMergedCard(totalMerged ? `${totalMerged.toLocaleString()} entries` : 'No data', state.selectedId === MERGED_ID);
-  renderEditsCard();
 
-  container.innerHTML = inputLists.map(list => {
+  container.innerHTML = state.inputLists.map(list => {
+    const isEdits = list.id === EDITS_ID;
     const sel = list.id === state.selectedId;
     const hasData = list.rawEntries.length > 0;
+
+    const icon = isEdits ? EDITS_ICON : getListIcon(list.id);
+
     let meta;
     if (!hasData) {
       meta = 'No data';
@@ -1777,11 +1770,10 @@ function renderInputLists() {
         : `${used.toLocaleString()} of ${total.toLocaleString()} entries used`;
     }
 
-    const icon = getListIcon(list.id);
-
-    const toggleTitle = !hasData ? 'Click to import' : list.enabled ? 'Enabled — click to disable' : 'Disabled — click to enable';
-    const toggleClick = hasData ? 'event.stopPropagation()' : `triggerImportForList('${list.id}',event)`;
-    return `<div class="list-card${sel ? ' selected' : ''}${list.enabled ? '' : ' disabled'}${hasData ? '' : ' no-data'}" data-id="${list.id}" draggable="true" onclick="selectList('${list.id}')" tabindex="0" role="option" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();selectList('${list.id}')}" >
+    const toggleEnabled = hasData || isEdits;
+    const toggleTitle = !toggleEnabled ? 'Click to import' : list.enabled ? 'Enabled — click to disable' : 'Disabled — click to enable';
+    const toggleClick = toggleEnabled ? 'event.stopPropagation()' : `triggerImportForList('${list.id}',event)`;
+    return `<div class="list-card${sel ? ' selected' : ''}${list.enabled ? '' : ' disabled'}${!hasData && !isEdits ? ' no-data' : ''}" data-id="${list.id}" draggable="true" onclick="selectList('${list.id}')" tabindex="0" role="option" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();selectList('${list.id}')}"${isEdits ? ' id="edits-card"' : ''}>
       <span class="drag-handle" title="Drag to reorder" aria-label="Drag to reorder">≡</span>
       ${icon}
       <div class="card-info">
@@ -1793,7 +1785,7 @@ function renderInputLists() {
       </div>
       <div class="card-actions">
         <label class="toggle" onclick="${toggleClick}" title="${toggleTitle}" aria-label="Toggle ${esc(list.name)}">
-          <input type="checkbox"${hasData && list.enabled ? ' checked' : ''}${hasData ? '' : ' disabled'} onchange="toggleList('${list.id}',event)">
+          <input type="checkbox"${toggleEnabled && list.enabled ? ' checked' : ''}${toggleEnabled ? '' : ' disabled'} onchange="toggleList('${list.id}',event)">
           <span class="toggle-slider"></span>
         </label>
       </div>
@@ -1801,20 +1793,6 @@ function renderInputLists() {
   }).join('') + addRow;
 }
 
-function renderEditsCard() {
-  const card = document.getElementById('edits-card');
-  if (!card) return;
-  const me = getEditsList();
-  const sel = state.selectedId === EDITS_ID;
-  const hasData = me ? me.rawEntries.length > 0 : false;
-  const enabled = me?.enabled ?? true;
-  card.className = 'list-card' + (sel ? ' selected' : '') + (enabled ? '' : ' disabled');
-  card.dataset.id = EDITS_ID;
-  const meta = me ? (me.rawEntries.length ? `${me.rawEntries.length.toLocaleString()} entries` : 'No entries yet') : 'No entries yet';
-  const name = me?.name ?? 'My Edits';
-  const toggleTitle = enabled ? 'Enabled — click to disable' : 'Disabled — click to enable';
-  card.innerHTML = `<span class="drag-handle" aria-hidden="true">≡</span>${EDITS_ICON}<div class="card-info"><div class="card-name-row"><div class="card-name">${esc(name)}</div></div><div class="card-meta">${meta}</div></div><div class="card-actions"><label class="toggle" onclick="event.stopPropagation()" title="${toggleTitle}" aria-label="Toggle ${esc(name)}"><input type="checkbox"${enabled ? ' checked' : ''} onchange="toggleList('${EDITS_ID}',event)"><span class="toggle-slider"></span></label></div>`;
-}
 
 function refreshSourceCounts() {
   invalidateSourceCounts();
@@ -1822,16 +1800,16 @@ function refreshSourceCounts() {
   _sourceCountsCache = buildMergedList().sourceCounts;
   const contribMap = new Map(_sourceCountsCache.map(s => [s.id, s.count]));
   for (const list of state.inputLists) {
-    if (list.id === EDITS_ID || !list.enabled || !list.rawEntries.length) continue;
-    const meta = document.querySelector(`.list-card[data-id="${CSS.escape(list.id)}"] .card-meta`);
-    if (!meta) continue;
-    const used = contribMap.get(list.id) ?? 0;
-    const total = list.rawEntries.length;
-    meta.textContent = used === total
-      ? `${used.toLocaleString()} entries used`
-      : `${used.toLocaleString()} of ${total.toLocaleString()} entries used`;
+    const metaEl = document.querySelector(`.list-card[data-id="${CSS.escape(list.id)}"] .card-meta`);
+    if (!metaEl) continue;
+    if (list.enabled && list.rawEntries.length) {
+      const used = contribMap.get(list.id) ?? 0;
+      const total = list.rawEntries.length;
+      metaEl.textContent = used === total
+        ? `${used.toLocaleString()} entries used`
+        : `${used.toLocaleString()} of ${total.toLocaleString()} entries used`;
+    }
   }
-  renderEditsCard();
 
   const totalMerged = _sourceCountsCache.reduce((sum, s) => sum + s.count, 0);
   renderMergedCard(totalMerged ? `${totalMerged.toLocaleString()} entries` : 'No data', state.selectedId === MERGED_ID);
@@ -1991,25 +1969,23 @@ function buildEditsScoringSectionHTML(list) {
 
 function renderEditsScoring() {
   const el = document.getElementById('edits-scoring-section');
-  const me = getEditsList();
-  if (el && me) el.innerHTML = buildEditsScoringSectionHTML(me);
+  if (el) el.innerHTML = buildEditsScoringSectionHTML(getEditsList());
 }
 
 function deleteEditsScoringRow(i) {
-  const me = getEditsList();
-  if (!me) return;
-  me.scoring.splice(i, 1);
-  updateScoringCatchAll(me.scoring, me.rawEntries);
+  const edits = getEditsList();
+  edits.scoring.splice(i, 1);
+  updateScoringCatchAll(edits.scoring, edits.rawEntries);
   persistMeta();
   renderEditsScoring();
 }
 
 function saveEditsScoringField(i, field, val) {
-  const me = getEditsList();
-  if (!me || !me.scoring[i]) return;
-  me.scoring[i][field] = val;
-  delete me.scoring[i]._catchAll;
-  updateScoringCatchAll(me.scoring, me.rawEntries);
+  const edits = getEditsList();
+  if (!edits.scoring[i]) return;
+  edits.scoring[i][field] = val;
+  delete edits.scoring[i]._catchAll;
+  updateScoringCatchAll(edits.scoring, edits.rawEntries);
   persistMeta();
   renderEditsScoring();
 }
@@ -2167,10 +2143,9 @@ function attachExternalEditHandlers(s, refreshFn) {
 }
 
 function upsertEdits(word, field, newValue) {
-  const me = getEditsList();
-  if (!me) return;
+  const edits = getEditsList();
   const upperWord = word.toUpperCase();
-  const existing = me.rawEntries.find(e => e.word.toUpperCase() === upperWord);
+  const existing = edits.rawEntries.find(e => e.word.toUpperCase() === upperWord);
   if (existing) {
     existing[field] = newValue;
   } else {
@@ -2178,12 +2153,11 @@ function upsertEdits(word, field, newValue) {
     const orig = scroller?.allEntries?.find(e => e.word.toUpperCase() === upperWord);
     const score   = field === 'score'   ? newValue : (orig?.score   ?? 50);
     const comment = field === 'comment' ? newValue : (orig?.comment ?? '');
-    me.rawEntries.push({ word: word.toLowerCase(), score, comment });
+    edits.rawEntries.push({ word: word.toLowerCase(), score, comment });
   }
   invalidateListCaches(EDITS_ID);
-  updateCatchAll(me);
-  persistEdits(me);
-  renderEditsCard();
+  updateCatchAll(edits);
+  persistEdits(edits);
   // Refresh merged or individual view if active
   if (state.selectedId === MERGED_ID) {
     clearTimeout(_refreshCountsTimer);
@@ -2501,30 +2475,28 @@ function openAddWordBar() {
     scoreInput.classList.toggle('invalid', isNaN(score) || score < 0 || score > 100);
     if (wordInput.classList.contains('invalid') || scoreInput.classList.contains('invalid')) return;
 
-    const me = getEditsList();
-    if (!me) return;
+    const edits = getEditsList();
 
-    const existing = me.rawEntries.find(e => e.word.toUpperCase() === word);
+    const existing = edits.rawEntries.find(e => e.word.toUpperCase() === word);
     if (existing) {
       existing.score = score;
       existing.comment = comment;
       showToast(`Updated ${displayWord(word)}`);
     } else {
-      me.rawEntries.push({ word: word.toLowerCase(), score, comment });
+      edits.rawEntries.push({ word: word.toLowerCase(), score, comment });
       showToast(`Added ${displayWord(word)}`);
     }
 
     invalidateListCaches(EDITS_ID);
-    updateCatchAll(me);
-    persistEdits(me);
+    updateCatchAll(edits);
+    persistEdits(edits);
     refreshSourceCounts();
 
     if (state.selectedId === EDITS_ID) {
-      renderEditsDetail(me);
+      renderEditsDetail(edits);
     } else {
       flyToEdits(bar, score);
       restoreTrigger();
-      renderEditsCard();
     }
   }
 
@@ -2535,25 +2507,24 @@ function openAddWordBar() {
 }
 
 function deleteFromEdits(word) {
-  const me = getEditsList();
-  if (!me) return;
-  const idx = me.rawEntries.findIndex(e => e.word.toUpperCase() === word.toUpperCase());
+  const edits = getEditsList();
+  const idx = edits.rawEntries.findIndex(e => e.word.toUpperCase() === word.toUpperCase());
   if (idx === -1) return;
 
-  const [removed] = me.rawEntries.splice(idx, 1);
+  const [removed] = edits.rawEntries.splice(idx, 1);
   invalidateListCaches(EDITS_ID);
-  updateCatchAll(me);
-  persistEdits(me);
+  updateCatchAll(edits);
+  persistEdits(edits);
   refreshSourceCounts();
-  scroller.setEntries(me.rawEntries, state.searchQuery, [], new Map(), state.searchWholeWord);
+  scroller.setEntries(edits.rawEntries, state.searchQuery, [], new Map(), state.searchWholeWord);
 
   showUndoToast(`Removed ${displayWord(removed.word)}`, () => {
-    me.rawEntries.splice(idx, 0, removed);
+    edits.rawEntries.splice(idx, 0, removed);
     invalidateListCaches(EDITS_ID);
-    updateCatchAll(me);
-    persistEdits(me);
+    updateCatchAll(edits);
+    persistEdits(edits);
     refreshSourceCounts();
-    scroller.setEntries(me.rawEntries, state.searchQuery, [], new Map(), state.searchWholeWord);
+    scroller.setEntries(edits.rawEntries, state.searchQuery, [], new Map(), state.searchWholeWord);
   });
 }
 
@@ -2753,8 +2724,7 @@ function bindEvents() {
     state.inputLists = defaultInputLists();
     ensureEdits();
     persistMeta();
-    const first = state.inputLists.find(l => l.id !== EDITS_ID) ?? state.inputLists[0];
-    state.selectedId = first?.id ?? null;
+    state.selectedId = MERGED_ID;
     renderAll();
     showToast('Reset complete');
   };
@@ -2843,7 +2813,7 @@ function bindEvents() {
   let _touchDragId = null;
 
   const commitTouchReorder = toId => {
-    if (!toId || toId === _touchDragId || toId === EDITS_ID) return;
+    if (!toId || toId === _touchDragId) return;
     const fromIdx = state.inputLists.findIndex(l => l.id === _touchDragId);
     const toIdx   = state.inputLists.findIndex(l => l.id === toId);
     if (fromIdx === -1 || toIdx === -1) return;
@@ -2870,7 +2840,7 @@ function bindEvents() {
     const touch = e.touches[0];
     const overCard = document.elementFromPoint(touch.clientX, touch.clientY)?.closest('.list-card');
     listsContainer.querySelectorAll('.list-card.drag-over').forEach(c => c.classList.remove('drag-over'));
-    if (overCard && overCard.dataset.id !== _touchDragId && overCard.dataset.id !== EDITS_ID) overCard.classList.add('drag-over');
+    if (overCard && overCard.dataset.id !== _touchDragId) overCard.classList.add('drag-over');
   }, { passive: false });
 
   const endTouchDrag = () => {
@@ -2884,11 +2854,6 @@ function bindEvents() {
   };
   listsContainer.addEventListener('touchend', endTouchDrag);
   listsContainer.addEventListener('touchcancel', endTouchDrag);
-
-  // Edits card
-  const editsCard = document.getElementById('edits-card');
-  editsCard.onclick = () => selectList(EDITS_ID);
-  editsCard.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); selectList(EDITS_ID); } };
 
   // F2 to rename selected list
   document.addEventListener('keydown', e => {
@@ -3134,10 +3099,9 @@ function resetMergedScoring() {
 }
 
 function resetEditsScoring() {
-  const me = getEditsList();
-  if (!me) return;
-  me.scoring = DEFAULT_MERGED_SCORING.map(r => ({ ...r }));
-  updateScoringCatchAll(me.scoring, me.rawEntries);
+  const edits = getEditsList();
+  edits.scoring = DEFAULT_MERGED_SCORING.map(r => ({ ...r }));
+  updateScoringCatchAll(edits.scoring, edits.rawEntries);
   persistMeta();
   renderEditsScoring();
   showToast('Scoring reset to defaults');
@@ -3197,9 +3161,9 @@ function startNoteEdit(wrapEl) {
     currentNote = state.mergedScoring[i].note || '';
     onSave = note => saveMergedScoringField(i, 'note', note);
   } else if (isEdits) {
-    const me = getEditsList();
-    if (!me?.scoring[i]) return;
-    currentNote = me.scoring[i].note || '';
+    const edits = getEditsList();
+    if (!edits.scoring[i]) return;
+    currentNote = edits.scoring[i].note || '';
     onSave = note => saveEditsScoringField(i, 'note', note);
   } else {
     const list = getSelected();
