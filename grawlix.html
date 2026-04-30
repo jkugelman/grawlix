@@ -1474,7 +1474,7 @@ class VirtualScroller {
     input.className = 'cell-edit' + (field === 'score' ? ' score-edit' : '');
     input.type = field === 'score' ? 'number' : 'text';
     input.value = currentVal;
-    if (field === 'score') { input.min = '0'; input.max = '100'; }
+    if (field === 'score') { input.min = '0'; }
     td.innerHTML = '';
     td.appendChild(input);
     input.focus();
@@ -1488,7 +1488,7 @@ class VirtualScroller {
       const raw = input.value;
       if (field === 'score') {
         const parsed = parseInt(raw, 10);
-        if (!isNaN(parsed) && parsed >= 0 && parsed <= 100 && parsed !== parseInt(currentVal, 10)) {
+        if (!isNaN(parsed) && parsed >= 0 && parsed !== parseInt(currentVal, 10)) {
           this._onCellEdit?.(word, field, parsed, td);
         }
       } else {
@@ -2459,7 +2459,7 @@ function openAddWordBar() {
   bar.className = 'add-word-bar';
   bar.innerHTML = `
     <input class="aw-word"    placeholder="Word"    autocomplete="off" spellcheck="false">
-    <input class="aw-score"   placeholder="Score"   type="number" min="0" max="100">
+    <input class="aw-score"   placeholder="Score"   type="number" min="0">
     <input class="aw-comment" placeholder="Comment (optional)">
     <span class="aw-hint">Enter to save · Esc to cancel</span>`;
   footer.appendChild(bar);
@@ -2480,7 +2480,7 @@ function openAddWordBar() {
     const comment = commentInput.value.trim();
 
     wordInput.classList.toggle('invalid', !/^[A-Za-z]+$/.test(word));
-    scoreInput.classList.toggle('invalid', isNaN(score) || score < 0 || score > 100);
+    scoreInput.classList.toggle('invalid', isNaN(score) || score < 0);
     if (wordInput.classList.contains('invalid') || scoreInput.classList.contains('invalid')) return;
 
     const edits = getEditsList();
