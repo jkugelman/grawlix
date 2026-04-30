@@ -427,6 +427,11 @@ input.cell-edit.score-edit { font-family: ui-monospace, 'Cascadia Code', monospa
 .word-table tr:hover td.col-trash { color: var(--faint); }
 .word-table td.col-trash:hover { color: #e53935 !important; }
 
+/* Inline edit-delete button inside source cell */
+.source-trash { color: transparent; cursor: pointer; margin-left: 4px; vertical-align: middle; }
+.word-table tr:hover .source-trash { color: var(--faint); }
+.source-trash:hover { color: #e53935 !important; }
+
 /* Toast undo link */
 #toast .undo-link { margin-left: 10px; color: #90caf9; text-decoration: underline; cursor: pointer; }
 
@@ -1173,7 +1178,7 @@ class VirtualScroller {
       const tr = td.closest('tr[data-word]');
       if (!tr) return;
       const word = tr.dataset.word;
-      if (td.classList.contains('col-trash')) {
+      if (td.classList.contains('col-trash') || e.target.closest('.source-trash')) {
         this._onDeleteRow?.(word);
       } else if (this._onCellEdit && (td.classList.contains('score-cell') || td.classList.contains('comment-cell'))) {
         this._openCellEdit(td, word, td.classList.contains('score-cell') ? 'score' : 'comment');
@@ -1430,9 +1435,13 @@ class VirtualScroller {
       const scoreCell = `<td class="score-cell"${scoreAttrs}>${innerScore}</td>`;
       const commentCell = `<td class="comment-cell"${commentAttrs}>${commentInner}</td>`;
 
-      const sourceCell = this.showSource
-        ? `<td class="comment-cell">${esc(listName || '')}</td>`
-        : '';
+      let sourceCell = '';
+      if (this.showSource) {
+        const editTrash = (this.showEditDeleteCol && listId === this.editsId)
+          ? `<span class="source-trash" title="Remove edit"><svg class="icon-trash"><use href="#icon-trash"/></svg></span>`
+          : '';
+        sourceCell = `<td class="comment-cell">${esc(listName || '')}${editTrash}</td>`;
+      }
 
       tr.innerHTML =
         lengthCell +
@@ -1887,12 +1896,16 @@ function renderOutputDetail() {
   createScroller();
   scroller.showSource = true;
   scroller.editsId = EDITS_ID;
+  scroller.showEditDeleteCol = true;
   scroller.setEntries(entries, state.searchQuery, [], new Map(), state.searchWholeWord);
 
-  attachExternalEditHandlers(scroller, () => {
+  const refreshOutputEntries = () => {
     const { entries } = buildOutputList();
     scroller.updateEntries(entries);
-  });
+  };
+  scroller._onDeleteRow = word => deleteFromEdits(word, refreshOutputEntries);
+
+  attachExternalEditHandlers(scroller, refreshOutputEntries);
 }
 
 function downloadOutputListFromPanel() {
@@ -2514,25 +2527,29 @@ function openAddWordBar() {
   });
 }
 
-function deleteFromEdits(word) {
+function deleteFromEdits(word, refreshFn) {
   const edits = getEditsList();
   const idx = edits.rawEntries.findIndex(e => e.word.toUpperCase() === word.toUpperCase());
   if (idx === -1) return;
+
+  const refresh = refreshFn ?? (() => {
+    scroller.setEntries(edits.rawEntries, state.searchQuery, [], new Map(), state.searchWholeWord);
+  });
 
   const [removed] = edits.rawEntries.splice(idx, 1);
   invalidateListCaches(EDITS_ID);
   updateCatchAll(edits);
   persistEdits(edits);
-  refreshSourceCounts();
-  scroller.setEntries(edits.rawEntries, state.searchQuery, [], new Map(), state.searchWholeWord);
+  refresh();
+  setTimeout(refreshSourceCounts, 0);
 
   showUndoToast(`Removed ${displayWord(removed.word)}`, () => {
     edits.rawEntries.splice(idx, 0, removed);
     invalidateListCaches(EDITS_ID);
     updateCatchAll(edits);
     persistEdits(edits);
-    refreshSourceCounts();
-    scroller.setEntries(edits.rawEntries, state.searchQuery, [], new Map(), state.searchWholeWord);
+    refresh();
+    setTimeout(refreshSourceCounts, 0);
   });
 }
 
