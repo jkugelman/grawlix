@@ -397,16 +397,17 @@ input.cell-edit.score-edit { font-family: ui-monospace, 'Cascadia Code', monospa
 
 /* Fly animation */
 .fly-clone { position: fixed; pointer-events: none; z-index: 300; font-size: 11px; font-weight: 700; border-radius: 3px; padding: 1px 5px; animation: fly-to-target 0.4s ease-in forwards; }
+.fly-badge { background: var(--accent); color: white; }
 @keyframes fly-to-target {
   0%   { opacity: 1; transform: translate(0, 0) scale(1); }
   60%  { opacity: 0.9; }
   100% { opacity: 0; transform: translate(var(--fly-dx), var(--fly-dy)) scale(0.6); }
 }
 @keyframes edits-pulse {
-  0%   { box-shadow: inset 0 0 0 2px var(--accent); }
-  100% { box-shadow: none; }
+  0%   { background: color-mix(in srgb, var(--accent) 35%, transparent); }
+  100% { background: transparent; }
 }
-#edits-card.pulse { animation: edits-pulse 0.35s ease-out; }
+#edits-card.pulse { animation: edits-pulse 1.4s ease-out; }
 
 /* Add word footer row */
 #add-row-footer { flex-shrink: 0; border-top: 1px solid var(--border2); }
@@ -1911,7 +1912,10 @@ function renderMergedDetail() {
   scroller.editsId = EDITS_ID;
   scroller.setEntries(entries, state.searchQuery, [], new Map(), state.searchWholeWord);
 
-  attachExternalEditHandlers(scroller);
+  attachExternalEditHandlers(scroller, () => {
+    const { entries } = buildMergedList();
+    scroller.updateEntries(entries);
+  });
 }
 
 function downloadMergedFromPanel() {
@@ -2155,7 +2159,7 @@ function renderEditsDetail(list) {
 function attachExternalEditHandlers(s, refreshFn) {
   s._onCellEdit = (word, field, newValue, sourceTd) => {
     upsertEdits(word, field, newValue);
-    if (field === 'score' && sourceTd) flyToEdits(sourceTd, newValue);
+    if (sourceTd) flyToEdits(sourceTd, field === 'score' ? newValue : '✎');
     refreshFn?.();
   };
   s._onEditStart = () => showEditInfoNote();
@@ -2202,7 +2206,17 @@ function hideEditInfoNote() {
   note?.classList.remove('visible');
 }
 
-function flyToEdits(sourceTd, score) {
+function pulseEditsCard() {
+  const targetCard = document.getElementById('edits-card');
+  if (!targetCard) return;
+  targetCard.classList.remove('pulse');
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => targetCard.classList.add('pulse'));
+  });
+  setTimeout(() => targetCard.classList.remove('pulse'), 1500);
+}
+
+function flyToEdits(sourceTd, value) {
   const targetCard = document.getElementById('edits-card');
   if (!targetCard || !sourceTd?.isConnected) return;
 
@@ -2210,10 +2224,14 @@ function flyToEdits(sourceTd, score) {
   const dstRect  = targetCard.getBoundingClientRect();
 
   const clone = document.createElement('span');
-  clone.className = 'fly-clone score-badge';
-  const tier = scoreTier(typeof score === 'number' ? score : parseInt(score, 10));
-  clone.dataset.tier = tier;
-  clone.textContent = score;
+  if (typeof value === 'number') {
+    clone.className = 'fly-clone score-badge';
+    clone.dataset.tier = scoreTier(value);
+    clone.textContent = value;
+  } else {
+    clone.className = 'fly-clone fly-badge';
+    clone.textContent = value;
+  }
   clone.style.left = srcRect.left + 'px';
   clone.style.top  = srcRect.top  + 'px';
   document.body.appendChild(clone);
@@ -2224,12 +2242,7 @@ function flyToEdits(sourceTd, score) {
   clone.style.setProperty('--fly-dx', dx + 'px');
   clone.style.setProperty('--fly-dy', dy + 'px');
 
-  // Pulse the card
-  targetCard.classList.remove('pulse');
-  requestAnimationFrame(() => {
-    requestAnimationFrame(() => targetCard.classList.add('pulse'));
-  });
-  setTimeout(() => targetCard.classList.remove('pulse'), 400);
+  pulseEditsCard();
 
   clone.addEventListener('animationend', () => clone.remove(), { once: true });
 }
