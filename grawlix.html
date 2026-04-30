@@ -1966,7 +1966,7 @@ function renderDetail(list) {
   const label = hasData ? 'Update' : 'Upload';
   const tmpl = getTemplate(list.id);
   if (tmpl) {
-    const dot = list._updateAvailable && !list._loading ? `<span class="update-dot"></span>` : '';
+    const dot = list._updateAvailable && !list._loading ? ` <span class="update-dot"></span>` : '';
     const title = list._updateAvailable && !list._loading ? 'Update available' : '';
     const btnLabel = `${list._loading ? 'Updating…' : label}${dot}`;
     if (tmpl.url) {
