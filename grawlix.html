@@ -377,8 +377,8 @@ html.dark-mode .screenshot-container img { filter: brightness(0.843) invert(1) h
 .annotation { position: absolute; border: 3px solid #e53935; border-radius: 50px; pointer-events: none; box-shadow: 0 0 6px rgba(229,57,53,0.4); }
 
 /* Merged wordlist card */
-#merged-card { flex-shrink: 0; user-select: none; }
-.merged-icon { color: var(--accent); }
+#output-card { flex-shrink: 0; user-select: none; }
+.output-icon { color: var(--accent); }
 
 /* Inline cell editing */
 .word-table td.score-cell,
@@ -448,7 +448,7 @@ input.cell-edit.score-edit { font-family: ui-monospace, 'Cascadia Code', monospa
     <path d="M12 15.5A3.5 3.5 0 0 1 8.5 12 3.5 3.5 0 0 1 12 8.5a3.5 3.5 0 0 1 3.5 3.5 3.5 3.5 0 0 1-3.5 3.5m7.43-2.92c.04-.34.07-.69.07-1.08s-.03-.74-.07-1.08l2.32-1.82c.21-.16.27-.46.13-.7l-2.2-3.81a.55.55 0 0 0-.68-.24l-2.74 1.1c-.57-.44-1.18-.8-1.86-1.07L14 2.42A.55.55 0 0 0 13.45 2h-4.4a.55.55 0 0 0-.54.42L8.14 5.09C7.46 5.36 6.85 5.72 6.28 6.16L3.54 5.06a.54.54 0 0 0-.68.24L.66 9.11a.54.54 0 0 0 .13.7l2.32 1.82c-.04.34-.07.69-.07 1.08s.03.74.07 1.08L.79 15.6a.54.54 0 0 0-.13.7l2.2 3.81c.14.24.43.32.68.24l2.74-1.1c.57.44 1.18.8 1.86 1.07l.37 2.67c.06.24.28.42.54.42h4.4c.26 0 .48-.18.54-.42l.37-2.67c.68-.27 1.29-.63 1.86-1.07l2.74 1.1c.25.08.54 0 .68-.24l2.2-3.81a.54.54 0 0 0-.13-.7l-2.32-1.81z"/>
   </symbol>
 
-  <symbol id="icon-merged" viewBox="0 0 24 24" fill="currentColor">
+  <symbol id="icon-output" viewBox="0 0 24 24" fill="currentColor">
     <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
   </symbol>
   <symbol id="icon-jk" viewBox="0 0 16 16">
@@ -484,7 +484,7 @@ input.cell-edit.score-edit { font-family: ui-monospace, 'Cascadia Code', monospa
   <div id="busy-overlay"><div class="busy-spinner"></div></div>
   <div id="lists-panel">
     <h2>Output List</h2>
-    <div id="merged-card" tabindex="0" role="option"></div>
+    <div id="output-card" tabindex="0" role="option"></div>
     <h2>Input Lists <span id="list-count"></span></h2>
     <div id="lists-container"></div>
   </div>
@@ -618,10 +618,10 @@ input.cell-edit.score-edit { font-family: ui-monospace, 'Cascadia Code', monospa
 const ROW_HEIGHT   = 24;
 const VS_BUFFER    = 60;
 // LS_PREFIX defined in <head> so the FOUC-prevention script can share it.
-const MERGED_ID    = '__merged__';
+const OUTPUT_ID    = '__output__';
 const EDITS_ID  = '__edits__';
 const EDITS_ICON = `<span class="list-icon-emoji" aria-hidden="true">✏️</span>`;
-const MERGED_ICON  = `<svg width="16" height="16" class="list-icon-svg merged-icon" aria-hidden="true"><use href="#icon-merged"/></svg>`;
+const OUTPUT_ICON  = `<svg width="16" height="16" class="list-icon-svg output-icon" aria-hidden="true"><use href="#icon-output"/></svg>`;
 
 const BUILTIN_WORDLISTS = [
   {
@@ -712,7 +712,7 @@ const BUILTIN_WORDLISTS = [
 
 // ─── State ────────────────────────────────────────────────────────────────────
 
-const DEFAULT_MERGED_SCORING = [
+const DEFAULT_OUTPUT_SCORING = [
   { input: '60', note: 'Great (colorful phrases, sayings, people, etc.)' },
   { input: '50', note: 'Good (dictionary words, phrases)' },
   { input: '40', note: 'Fine but watch crosses (proper names, abbreviations, prepositional phrases, unusual plurals)' },
@@ -727,7 +727,7 @@ const state = {
   selectedId: null,
   searchQuery: '',
   searchWholeWord: false,
-  mergedScoring: DEFAULT_MERGED_SCORING.map(r => ({ ...r })),
+  outputScoring: DEFAULT_OUTPUT_SCORING.map(r => ({ ...r })),
 };
 
 const colWidths = { length: 55, word: 200, score: 90, source: 170, delete: 26 }; // persists across list switches
@@ -813,8 +813,8 @@ function persistMeta() {
   }))));
 }
 
-function persistMergedScoring() {
-  lsSave('mergedScoring', JSON.stringify(state.mergedScoring.filter(r => !r._catchAll)));
+function persistOutputScoring() {
+  lsSave('outputScoring', JSON.stringify(state.outputScoring.filter(r => !r._catchAll)));
 }
 
 async function persistData(id, text) {
@@ -924,11 +924,11 @@ async function init() {
     persistMeta();
   }
 
-  const rawMs = lsLoad('mergedScoring');
-  if (rawMs) { try { state.mergedScoring = JSON.parse(rawMs); } catch {} }
-  else { lsSave('mergedScoring', JSON.stringify(state.mergedScoring.filter(r => !r._catchAll))); }
+  const rawMs = lsLoad('outputScoring');
+  if (rawMs) { try { state.outputScoring = JSON.parse(rawMs); } catch {} }
+  else { lsSave('outputScoring', JSON.stringify(state.outputScoring.filter(r => !r._catchAll))); }
 
-  state.selectedId = MERGED_ID;
+  state.selectedId = OUTPUT_ID;
 
   ensureEdits();
   renderAll();
@@ -966,12 +966,12 @@ function getEditsList() {
 function ensureEdits() {
   const edits = getEditsList();
   if (edits) {
-    if (!edits.scoring) edits.scoring = DEFAULT_MERGED_SCORING.map(r => ({ ...r }));
+    if (!edits.scoring) edits.scoring = DEFAULT_OUTPUT_SCORING.map(r => ({ ...r }));
   } else {
     const newEdits = { id: EDITS_ID, name: 'My Edits', source: 'edits', url: null,
                        enabled: true, rawEntries: [], lastUpdated: null, _loading: false,
                        rescoreRules: [],
-                       scoring: DEFAULT_MERGED_SCORING.map(r => ({ ...r })) };
+                       scoring: DEFAULT_OUTPUT_SCORING.map(r => ({ ...r })) };
     updateCatchAll(newEdits);
     state.inputLists.unshift(newEdits);
     persistMeta();
@@ -1021,7 +1021,7 @@ function invalidateSourceCounts() { _sourceCountsCache = null; }
 function invalidateListCaches(id) {
   invalidateStatsCache(id);
   invalidateSourceCounts();
-  invalidateStatsCache(MERGED_ID);
+  invalidateStatsCache(OUTPUT_ID);
 }
 
 function computeStats(listId, entries) {
@@ -1727,15 +1727,15 @@ let _refreshCountsTimer = null;
 
 function renderAll() {
   renderInputLists();
-  if (state.selectedId === MERGED_ID) renderMergedDetail();
+  if (state.selectedId === OUTPUT_ID) renderOutputDetail();
   else renderDetail(getSelected());
 }
 
-function renderMergedCard(meta, selected) {
-  const card = document.getElementById('merged-card');
+function renderOutputCard(meta, selected) {
+  const card = document.getElementById('output-card');
   if (!card) return;
   card.className = 'list-card' + (selected ? ' selected' : '');
-  card.innerHTML = `<span class="drag-handle" aria-hidden="true">≡</span>${MERGED_ICON}<div class="card-info"><div class="card-name-row"><div class="card-name">All Merged</div></div><div class="card-meta">${meta}</div></div>`;
+  card.innerHTML = `<span class="drag-handle" aria-hidden="true">≡</span>${OUTPUT_ICON}<div class="card-info"><div class="card-name-row"><div class="card-name">All Merged</div></div><div class="card-meta">${meta}</div></div>`;
 }
 
 function renderInputLists() {
@@ -1744,11 +1744,11 @@ function renderInputLists() {
 
   const addRow = `<div class="add-list-row" onclick="openDialog()"><span class="drag-handle" aria-hidden="true">≡</span><span class="add-list-icon">＋</span>Add list</div>`;
 
-  if (!_sourceCountsCache) _sourceCountsCache = buildMergedList().sourceCounts;
+  if (!_sourceCountsCache) _sourceCountsCache = buildOutputList().sourceCounts;
   const contribMap = new Map(_sourceCountsCache.map(s => [s.id, s.count]));
-  const totalMerged = _sourceCountsCache.reduce((sum, s) => sum + s.count, 0);
+  const totalOutput = _sourceCountsCache.reduce((sum, s) => sum + s.count, 0);
 
-  renderMergedCard(totalMerged ? `${totalMerged.toLocaleString()} entries` : 'No data', state.selectedId === MERGED_ID);
+  renderOutputCard(totalOutput ? `${totalOutput.toLocaleString()} entries` : 'No data', state.selectedId === OUTPUT_ID);
 
   container.innerHTML = state.inputLists.map(list => {
     const isEdits = list.id === EDITS_ID;
@@ -1796,8 +1796,8 @@ function renderInputLists() {
 
 function refreshSourceCounts() {
   invalidateSourceCounts();
-  invalidateStatsCache(MERGED_ID);
-  _sourceCountsCache = buildMergedList().sourceCounts;
+  invalidateStatsCache(OUTPUT_ID);
+  _sourceCountsCache = buildOutputList().sourceCounts;
   const contribMap = new Map(_sourceCountsCache.map(s => [s.id, s.count]));
   for (const list of state.inputLists) {
     const metaEl = document.querySelector(`.list-card[data-id="${CSS.escape(list.id)}"] .card-meta`);
@@ -1811,8 +1811,8 @@ function refreshSourceCounts() {
     }
   }
 
-  const totalMerged = _sourceCountsCache.reduce((sum, s) => sum + s.count, 0);
-  renderMergedCard(totalMerged ? `${totalMerged.toLocaleString()} entries` : 'No data', state.selectedId === MERGED_ID);
+  const totalOutput = _sourceCountsCache.reduce((sum, s) => sum + s.count, 0);
+  renderOutputCard(totalOutput ? `${totalOutput.toLocaleString()} entries` : 'No data', state.selectedId === OUTPUT_ID);
 }
 
 function buildSearchBarHTML() {
@@ -1861,14 +1861,14 @@ function createScroller() {
   return scroller;
 }
 
-function renderMergedDetail() {
+function renderOutputDetail() {
   const panel = document.getElementById('detail-panel');
   clearInterval(_dateTimer);
   _dateTimer = null;
 
-  updateMergedCatchAll();
-  const { entries } = buildMergedList();
-  const stats = computeStats(MERGED_ID, entries);
+  updateOutputCatchAll();
+  const { entries } = buildOutputList();
+  const stats = computeStats(OUTPUT_ID, entries);
 
   const statsHtml = buildStatsBarHTML(stats, 'No lists loaded — add and populate lists to see the merged result');
 
@@ -1877,11 +1877,11 @@ function renderMergedDetail() {
       <div class="detail-name-wrap">
         <h2>All Merged</h2>
       </div>
-      <button class="primary" onclick="downloadMergedFromPanel()">Download</button>
+      <button class="primary" onclick="downloadOutputListFromPanel()">Download</button>
     </div>
     <div class="edit-info-note" id="edit-info-note"></div>
     ${statsHtml}
-    <div id="merged-scoring-section" class="rescore-section">${buildMergedScoringSectionHTML()}</div>
+    <div id="output-scoring-section" class="rescore-section">${buildOutputScoringSectionHTML()}</div>
     ${buildTableContainerHTML()}
   `;
 
@@ -1891,17 +1891,17 @@ function renderMergedDetail() {
   scroller.setEntries(entries, state.searchQuery, [], new Map(), state.searchWholeWord);
 
   attachExternalEditHandlers(scroller, () => {
-    const { entries } = buildMergedList();
+    const { entries } = buildOutputList();
     scroller.updateEntries(entries);
   });
 }
 
-function downloadMergedFromPanel() {
-  const { entries } = buildMergedList();
-  downloadMerged(entries);
+function downloadOutputListFromPanel() {
+  const { entries } = buildOutputList();
+  downloadOutputList(entries);
 }
 
-// ─── Merged Scoring ───────────────────────────────────────────────────────────
+// ─── Output List Scoring ──────────────────────────────────────────────────────
 
 function updateScoringCatchAll(scoring, entries) {
   const caIdx = scoring.findIndex(r => r._catchAll);
@@ -1922,39 +1922,39 @@ function updateScoringCatchAll(scoring, entries) {
   }
 }
 
-function updateMergedCatchAll() {
-  const { entries } = buildMergedList();
-  updateScoringCatchAll(state.mergedScoring, entries);
+function updateOutputCatchAll() {
+  const { entries } = buildOutputList();
+  updateScoringCatchAll(state.outputScoring, entries);
 }
 
-function buildMergedScoringSectionHTML() {
-  return buildRulesSectionHTML(state.mergedScoring, {
-    label: 'Scoring', rulesId: 'merged-scoring-rules',
-    saveFn: 'saveMergedScoringField', deleteFn: 'deleteMergedScoringRow', resetFn: 'resetMergedScoring',
-    showReset: !mergedScoringMatchesDefaults(),
+function buildOutputScoringSectionHTML() {
+  return buildRulesSectionHTML(state.outputScoring, {
+    label: 'Scoring', rulesId: 'output-scoring-rules',
+    saveFn: 'saveOutputScoringField', deleteFn: 'deleteOutputScoringRow', resetFn: 'resetOutputScoring',
+    showReset: !outputScoringMatchesDefaults(),
   });
 }
 
-function renderMergedScoring() {
-  const el = document.getElementById('merged-scoring-section');
-  if (el) el.innerHTML = buildMergedScoringSectionHTML();
+function renderOutputScoring() {
+  const el = document.getElementById('output-scoring-section');
+  if (el) el.innerHTML = buildOutputScoringSectionHTML();
 }
 
 
-function deleteMergedScoringRow(i) {
-  state.mergedScoring.splice(i, 1);
-  updateMergedCatchAll();
-  persistMergedScoring();
-  renderMergedScoring();
+function deleteOutputScoringRow(i) {
+  state.outputScoring.splice(i, 1);
+  updateOutputCatchAll();
+  persistOutputScoring();
+  renderOutputScoring();
 }
 
-function saveMergedScoringField(i, field, val) {
-  if (!state.mergedScoring[i]) return;
-  state.mergedScoring[i][field] = val;
-  delete state.mergedScoring[i]._catchAll;
-  updateMergedCatchAll();
-  persistMergedScoring();
-  renderMergedScoring();
+function saveOutputScoringField(i, field, val) {
+  if (!state.outputScoring[i]) return;
+  state.outputScoring[i][field] = val;
+  delete state.outputScoring[i]._catchAll;
+  updateOutputCatchAll();
+  persistOutputScoring();
+  renderOutputScoring();
 }
 
 // ─── Edits Scoring ────────────────────────────────────────────────────────────
@@ -2159,7 +2159,7 @@ function upsertEdits(word, field, newValue) {
   updateCatchAll(edits);
   persistEdits(edits);
   // Refresh merged or individual view if active
-  if (state.selectedId === MERGED_ID) {
+  if (state.selectedId === OUTPUT_ID) {
     clearTimeout(_refreshCountsTimer);
     _refreshCountsTimer = setTimeout(refreshSourceCounts, 0);
   } else {
@@ -2225,13 +2225,13 @@ function getSelected() {
   return state.inputLists.find(l => l.id === state.selectedId) || null;
 }
 
-function selectMergedList() {
-  state.selectedId = MERGED_ID;
+function selectOutputList() {
+  state.selectedId = OUTPUT_ID;
 
   state.searchQuery = '';
   document.querySelectorAll('.list-card.selected').forEach(el => el.classList.remove('selected'));
-  document.getElementById('merged-card')?.classList.add('selected');
-  renderMergedDetail();
+  document.getElementById('output-card')?.classList.add('selected');
+  renderOutputDetail();
 }
 
 function selectList(id) {
@@ -2239,7 +2239,7 @@ function selectList(id) {
   state.selectedId = id;
 
   state.searchQuery = '';
-  document.getElementById('merged-card')?.classList.remove('selected');
+  document.getElementById('output-card')?.classList.remove('selected');
   document.querySelector(`.list-card[data-id="${CSS.escape(prev)}"]`)?.classList.remove('selected');
   document.querySelector(`.list-card[data-id="${CSS.escape(id)}"]`)?.classList.add('selected');
   renderDetail(getSelected());
@@ -2289,7 +2289,7 @@ async function fetchList(id, event) {
 
     renderInputLists();
     if (state.selectedId === id) renderDetail(list);
-    if (state.selectedId === MERGED_ID) renderMergedDetail();
+    if (state.selectedId === OUTPUT_ID) renderOutputDetail();
     showToast(`Loaded ${list.rawEntries.length.toLocaleString()} entries from ${list.name}`);
   } catch (err) {
     list._loading = false;
@@ -2399,7 +2399,7 @@ function ingestFile(file, listId, nameOverride) {
         if (scroller) scroller.updateEntries(list.rawEntries);
         else renderDetail(list);
       }
-      if (state.selectedId === MERGED_ID) renderMergedDetail();
+      if (state.selectedId === OUTPUT_ID) renderOutputDetail();
 
       const parts = [];
       if (newEntries.length) parts.push(`${newEntries.length.toLocaleString()} new`);
@@ -2423,7 +2423,7 @@ function ingestFile(file, listId, nameOverride) {
 
     renderInputLists();
     if (state.selectedId === listId) renderDetail(list);
-    if (state.selectedId === MERGED_ID) renderMergedDetail();
+    if (state.selectedId === OUTPUT_ID) renderOutputDetail();
     showToast(`Loaded ${list.rawEntries.length.toLocaleString()} entries`);
   };
   reader.readAsText(file);
@@ -2551,7 +2551,7 @@ function toggleList(id, event) {
   if (!list || (!list.rawEntries.length && id !== EDITS_ID)) return;
   list.enabled = !list.enabled;
   invalidateSourceCounts();
-  invalidateStatsCache(MERGED_ID);
+  invalidateStatsCache(OUTPUT_ID);
   persistMeta();
   renderInputLists();
 }
@@ -2561,7 +2561,7 @@ function addNewList(listDef) {
   updateCatchAll(list);
   state.inputLists.push(list);
   invalidateSourceCounts();
-  invalidateStatsCache(MERGED_ID);
+  invalidateStatsCache(OUTPUT_ID);
   persistMeta();
   renderInputLists();
 }
@@ -2701,9 +2701,9 @@ function addBuiltin(id) {
 // ─── Event wiring ─────────────────────────────────────────────────────────────
 
 function bindEvents() {
-  const mergedCard = document.getElementById('merged-card');
-  mergedCard.onclick = selectMergedList;
-  mergedCard.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); selectMergedList(); } };
+  const outputCard = document.getElementById('output-card');
+  outputCard.onclick = selectOutputList;
+  outputCard.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); selectOutputList(); } };
 
   document.getElementById('toast').onclick = dismissToast;
   document.getElementById('btn-reset').onclick = async () => {
@@ -2724,7 +2724,7 @@ function bindEvents() {
     state.inputLists = defaultInputLists();
     ensureEdits();
     persistMeta();
-    state.selectedId = MERGED_ID;
+    state.selectedId = OUTPUT_ID;
     renderAll();
     showToast('Reset complete');
   };
@@ -3081,26 +3081,26 @@ function rulesMatchDefaults(list) {
 
 function scoringMatchesDefaults(scoring) {
   const userRows = scoring.filter(r => !r._catchAll);
-  if (userRows.length !== DEFAULT_MERGED_SCORING.length) return false;
-  return userRows.every((r, i) => r.input === DEFAULT_MERGED_SCORING[i].input &&
-    (r.note || '') === (DEFAULT_MERGED_SCORING[i].note || ''));
+  if (userRows.length !== DEFAULT_OUTPUT_SCORING.length) return false;
+  return userRows.every((r, i) => r.input === DEFAULT_OUTPUT_SCORING[i].input &&
+    (r.note || '') === (DEFAULT_OUTPUT_SCORING[i].note || ''));
 }
 
-function mergedScoringMatchesDefaults() {
-  return scoringMatchesDefaults(state.mergedScoring);
+function outputScoringMatchesDefaults() {
+  return scoringMatchesDefaults(state.outputScoring);
 }
 
-function resetMergedScoring() {
-  state.mergedScoring = DEFAULT_MERGED_SCORING.map(r => ({ ...r }));
-  updateMergedCatchAll();
-  persistMergedScoring();
-  renderMergedScoring();
+function resetOutputScoring() {
+  state.outputScoring = DEFAULT_OUTPUT_SCORING.map(r => ({ ...r }));
+  updateOutputCatchAll();
+  persistOutputScoring();
+  renderOutputScoring();
   showToast('Scoring reset to defaults');
 }
 
 function resetEditsScoring() {
   const edits = getEditsList();
-  edits.scoring = DEFAULT_MERGED_SCORING.map(r => ({ ...r }));
+  edits.scoring = DEFAULT_OUTPUT_SCORING.map(r => ({ ...r }));
   updateScoringCatchAll(edits.scoring, edits.rawEntries);
   persistMeta();
   renderEditsScoring();
@@ -3152,14 +3152,14 @@ function noteDisplayHTML(note) {
 function startNoteEdit(wrapEl) {
   if (wrapEl.querySelector('.rule-note-input')) return;
   const i = parseInt(wrapEl.closest('.rule-row').dataset.i, 10);
-  const isMerged = !!wrapEl.closest('#merged-scoring-section');
+  const isOutput = !!wrapEl.closest('#output-scoring-section');
   const isEdits  = !!wrapEl.closest('#edits-scoring-section');
 
   let currentNote, onSave;
-  if (isMerged) {
-    if (!state.mergedScoring[i]) return;
-    currentNote = state.mergedScoring[i].note || '';
-    onSave = note => saveMergedScoringField(i, 'note', note);
+  if (isOutput) {
+    if (!state.outputScoring[i]) return;
+    currentNote = state.outputScoring[i].note || '';
+    onSave = note => saveOutputScoringField(i, 'note', note);
   } else if (isEdits) {
     const edits = getEditsList();
     if (!edits.scoring[i]) return;
@@ -3202,7 +3202,7 @@ function startNoteEdit(wrapEl) {
 }
 
 function onRuleInput(el) {
-  const container = el.closest('#rescore-rules, #merged-scoring-rules');
+  const container = el.closest('#rescore-rules, #output-scoring-rules');
   if (!container) return;
   container.querySelectorAll('.rule-in, .rule-len').forEach(inp => {
     const v = inp.value.trim();
@@ -3347,8 +3347,8 @@ function buildOverrideMap(listId) {
   return map;
 }
 
-function buildMergedList() {
-  const merged = new Map(); // UPPERCASE_KEY → {word, score}
+function buildOutputList() {
+  const outputMap = new Map(); // UPPERCASE_KEY → {word, score}
   const sourceCounts = [];
 
   for (const list of state.inputLists) {
@@ -3357,15 +3357,15 @@ function buildMergedList() {
     let count = 0;
     for (const { word, score, comment } of rescored) {
       const key = word.toUpperCase();
-      if (!merged.has(key)) {
-        merged.set(key, { word: word.toLowerCase(), score, comment: comment || '', listName: list.name, listId: list.id });
+      if (!outputMap.has(key)) {
+        outputMap.set(key, { word: word.toLowerCase(), score, comment: comment || '', listName: list.name, listId: list.id });
         count++;
       }
     }
     sourceCounts.push({ id: list.id, name: list.name, count });
   }
 
-  const entries = [...merged.values()]
+  const entries = [...outputMap.values()]
     .sort((a, b) => a.word.localeCompare(b.word));
 
   return { entries, sourceCounts };
@@ -3384,7 +3384,7 @@ function triggerDownload(text, filename) {
   URL.revokeObjectURL(url);
 }
 
-function downloadMerged(entries) {
+function downloadOutputList(entries) {
   const upper = (lsLoad('downloadCase') || 'lower') === 'upper';
   const text = entries.map(e => `${upper ? e.word.toUpperCase() : e.word};${e.score}`).join('\n') + '\n';
   triggerDownload(text, `Grawlix Wordlist.${getDownloadExt()}`);

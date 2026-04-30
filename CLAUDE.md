@@ -15,7 +15,7 @@ Sections within the `<script>` block are delimited by banner comments like:
 
 ## Data model
 
-`state` holds `inputLists` (the per-list data), `selectedId`, search state, and `mergedScoring` (tier labels for the merged view). Each list has metadata, `rawEntries` (parsed words), and `rescoreRules`.
+`state` holds `inputLists` (the per-list data), `selectedId`, search state, and `outputScoring` (tier labels for the output list view). Each list has metadata, `rawEntries` (parsed words), and `rescoreRules`.
 
 **Wordlist file format** — one entry per line:
 ```
@@ -36,7 +36,7 @@ WORD;SCORE;COMMENT
 
 **Override and rescore display** — When viewing an input list, score and comment cells always show the *effective* value (what actually appears in the merged output), not the raw value from that list. A red superscript asterisk (`*`) indicates the displayed value differs from what the list itself contains. An instant HTML popover (`#cell-popover`) explains why: the original score for rescored entries, or the overriding list's name for overrides. Both conditions can apply simultaneously. The overrideMap (built by `buildOverrideMap`) stores `{ listName, score, comment }` from the highest-priority list above the current one; a comment override only applies when that list has a non-empty comment. Editing an overridden cell pre-fills the input with the effective value (not the raw value) so the user is editing what actually matters — the result always lands in My Edits regardless.
 
-**Merged view** — `MERGED_ID = '__merged__'` selects a union of all enabled lists, deduped by word. The highest rescored value wins; losers are shown faded with a tooltip.
+**Output list** — `OUTPUT_ID = '__merged__'` selects a union of all enabled lists, deduped by word. The highest rescored value wins; losers are shown faded with a tooltip. Displayed as "All Merged" in the UI.
 
 **Score tiers** — `great` (≥60), `good` (≥50), `fair` (≥40), `meh` (≥30), `bad` (<30). Drive score badge colors via `data-tier` and `--score-{tier}-{bg,fg}` CSS vars.
 
@@ -58,4 +58,4 @@ All colors are CSS variables on `html.dark-mode` / `html.light-mode`. The naming
 - **No inline styles.** Prefer adding CSS to the `<style>` block over `style="..."` attributes on elements.
 - **Dark mode and light mode have equal weight.** Don't treat one as the default and the other as an override — both get first-class parallel treatment in the CSS.
 - **Avoid duplicating functionality.** Unify JS, HTML, and CSS when reasonable. Prefer a single abstraction over copy-pasted variants to keep the UI consistent and maintainable.
-- **"Download" means output only.** Use "download" exclusively for saving a processed wordlist from Grawlix to disk (`downloadMerged`, `downloadIndividualList`, etc.). Use "fetch" for getting a wordlist into Grawlix from a URL (`fetchList`), and "upload" for the user loading a file. Template properties that refer to a third-party source page use `sourcePage` / `sourceNote`.
+- **"Download" means output only.** Use "download" exclusively for saving a processed wordlist from Grawlix to disk (`downloadOutputList`, `downloadIndividualList`, etc.). Use "fetch" for getting a wordlist into Grawlix from a URL (`fetchList`), and "import" for the user loading a file. Template properties that refer to a third-party source page use `sourcePage` / `sourceNote`.
