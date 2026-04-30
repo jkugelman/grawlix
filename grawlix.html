@@ -996,13 +996,13 @@ function downloadEdits() {
   }).join('\n') + '\n';
   const name = edits.name.replace(/\s+/g, '-').toLowerCase();
   triggerDownload(text, `${name}.${getDownloadExt()}`);
-  showToast(`Downloaded ${edits.rawEntries.length.toLocaleString()} entries`);
+  showToast(`Downloaded ${pluralize(edits.rawEntries.length, 'entry', 'entries')}`);
 }
 
 async function clearEdits() {
   const edits = getEditsList();
   if (!edits.rawEntries.length) return;
-  if (!await showConfirm(`Clear all ${edits.rawEntries.length.toLocaleString()} entries from "${esc(edits.name)}"?`, { confirmText: 'Clear' })) return;
+  if (!await showConfirm(`Clear all ${pluralize(edits.rawEntries.length, 'entry', 'entries')} from "${esc(edits.name)}"?`, { confirmText: 'Clear' })) return;
   edits.rawEntries = [];
   invalidateListCaches(EDITS_ID);
   updateCatchAll(edits);
@@ -1748,7 +1748,7 @@ function renderInputLists() {
   const contribMap = new Map(_sourceCountsCache.map(s => [s.id, s.count]));
   const totalOutput = _sourceCountsCache.reduce((sum, s) => sum + s.count, 0);
 
-  renderOutputCard(totalOutput ? `${totalOutput.toLocaleString()} entries` : 'No data', state.selectedId === OUTPUT_ID);
+  renderOutputCard(totalOutput ? pluralize(totalOutput, 'entry', 'entries') : 'No data', state.selectedId === OUTPUT_ID);
 
   container.innerHTML = state.inputLists.map(list => {
     const isEdits = list.id === EDITS_ID;
@@ -1761,13 +1761,13 @@ function renderInputLists() {
     if (!hasData) {
       meta = 'No data';
     } else if (!list.enabled) {
-      meta = `${list.rawEntries.length.toLocaleString()} entries`;
+      meta = pluralize(list.rawEntries.length, 'entry', 'entries');
     } else {
       const used = contribMap.get(list.id) ?? 0;
       const total = list.rawEntries.length;
       meta = used === total
-        ? `${used.toLocaleString()} entries used`
-        : `${used.toLocaleString()} of ${total.toLocaleString()} entries used`;
+        ? `${pluralize(used, 'entry', 'entries')} used`
+        : `${used.toLocaleString()} of ${pluralize(total, 'entry', 'entries')} used`;
     }
 
     const toggleEnabled = hasData || isEdits;
@@ -1806,13 +1806,13 @@ function refreshSourceCounts() {
       const used = contribMap.get(list.id) ?? 0;
       const total = list.rawEntries.length;
       metaEl.textContent = used === total
-        ? `${used.toLocaleString()} entries used`
-        : `${used.toLocaleString()} of ${total.toLocaleString()} entries used`;
+        ? `${pluralize(used, 'entry', 'entries')} used`
+        : `${used.toLocaleString()} of ${pluralize(total, 'entry', 'entries')} used`;
     }
   }
 
   const totalOutput = _sourceCountsCache.reduce((sum, s) => sum + s.count, 0);
-  renderOutputCard(totalOutput ? `${totalOutput.toLocaleString()} entries` : 'No data', state.selectedId === OUTPUT_ID);
+  renderOutputCard(totalOutput ? pluralize(totalOutput, 'entry', 'entries') : 'No data', state.selectedId === OUTPUT_ID);
 }
 
 function buildSearchBarHTML() {
@@ -2298,7 +2298,7 @@ async function fetchList(id, event) {
     renderInputLists();
     if (state.selectedId === id) renderDetail(list);
     if (state.selectedId === OUTPUT_ID) renderOutputDetail();
-    showToast(`Loaded ${list.rawEntries.length.toLocaleString()} entries from ${list.name}`);
+    showToast(`Loaded ${pluralize(list.rawEntries.length, 'entry', 'entries')} from ${list.name}`);
   } catch (err) {
     list._loading = false;
     renderInputLists();
@@ -2432,7 +2432,7 @@ function ingestFile(file, listId, nameOverride) {
     renderInputLists();
     if (state.selectedId === listId) renderDetail(list);
     if (state.selectedId === OUTPUT_ID) renderOutputDetail();
-    showToast(`Loaded ${list.rawEntries.length.toLocaleString()} entries`);
+    showToast(`Loaded ${pluralize(list.rawEntries.length, 'entry', 'entries')}`);
   };
   reader.readAsText(file);
 }
@@ -2954,6 +2954,10 @@ function esc(s) {
   return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
+function pluralize(n, singular, plural = singular + 's') {
+  return `${n.toLocaleString()} ${n === 1 ? singular : plural}`;
+}
+
 function timeAgo(ts) {
   const s = Math.floor((Date.now() - ts) / 1000);
   if (s < 60)  return 'just now';
@@ -3397,7 +3401,7 @@ function downloadOutputList(entries) {
   const upper = (lsLoad('downloadCase') || 'lower') === 'upper';
   const text = entries.map(e => `${upper ? e.word.toUpperCase() : e.word};${e.score}`).join('\n') + '\n';
   triggerDownload(text, `Grawlix Wordlist.${getDownloadExt()}`);
-  showToast(`Downloaded ${entries.length.toLocaleString()} entries`);
+  showToast(`Downloaded ${pluralize(entries.length, 'entry', 'entries')}`);
 }
 
 function downloadIndividualList(id) {
@@ -3409,7 +3413,7 @@ function downloadIndividualList(id) {
     ? list.originalFilename.replace(/\.[^.]+$/, '')
     : list.name.replace(/\s+/g, '-').toLowerCase();
   triggerDownload(text, `${base}.${ext}`);
-  showToast(`Downloaded ${list.rawEntries.length.toLocaleString()} entries`);
+  showToast(`Downloaded ${pluralize(list.rawEntries.length, 'entry', 'entries')}`);
 }
 
 function downloadIndividualListRescored(id) {
@@ -3420,7 +3424,7 @@ function downloadIndividualListRescored(id) {
   const rescored = applyRescoring(list.rawEntries, list.rescoreRules);
   const text = rescored.map(e => `${upper ? e.word.toUpperCase() : e.word};${e.score}`).join('\n') + '\n';
   triggerDownload(text, `Grawlix ${list.name}.${ext}`);
-  showToast(`Downloaded ${rescored.length.toLocaleString()} entries`);
+  showToast(`Downloaded ${pluralize(rescored.length, 'entry', 'entries')}`);
 }
 
 function toggleSplitMenu(event) {
