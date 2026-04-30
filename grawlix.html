@@ -1725,7 +1725,7 @@ function renderInputLists() {
   const inputLists = state.inputLists.filter(l => l.id !== EDITS_ID);
   document.getElementById('list-count').textContent = `(${state.inputLists.length})`;
 
-  const addRow = `<div class="add-list-row" onclick="openDialog()"><span class="drag-handle" aria-hidden="true">≡</span><span class="add-list-icon">+</span>Add list</div>`;
+  const addRow = `<div class="add-list-row" onclick="openDialog()"><span class="drag-handle" aria-hidden="true">≡</span><span class="add-list-icon">＋</span>Add list</div>`;
 
   if (!_sourceCountsCache) _sourceCountsCache = buildMergedList().sourceCounts;
   const contribMap = new Map(_sourceCountsCache.map(s => [s.id, s.count]));
@@ -1851,6 +1851,11 @@ function buildStatsBarHTML(stats, emptyMsg) {
     </div>`;
 }
 
+function createScroller() {
+  scroller = new VirtualScroller(document.getElementById('vs-host'));
+  return scroller;
+}
+
 function renderMergedDetail() {
   const panel = document.getElementById('detail-panel');
   clearInterval(_dateTimer);
@@ -1872,15 +1877,10 @@ function renderMergedDetail() {
     <div class="edit-info-note" id="edit-info-note"></div>
     ${statsHtml}
     <div id="merged-scoring-section" class="rescore-section">${buildMergedScoringSectionHTML()}</div>
-    ${buildSearchBarHTML()}
-    <div id="table-container">
-      <div id="vs-host"></div>
-      <div id="add-row-footer"><div class="add-row-trigger" onclick="openAddWordBar()">＋ Add word…</div></div>
-    </div>
+    ${buildTableContainerHTML()}
   `;
 
-  const host = document.getElementById('vs-host');
-  scroller = new VirtualScroller(host);
+  createScroller();
   scroller.showSource = true;
   scroller.editsId = EDITS_ID;
   scroller.setEntries(entries, state.searchQuery, [], new Map(), state.searchWholeWord);
@@ -2060,15 +2060,10 @@ function renderDetail(list) {
     <div class="edit-info-note" id="edit-info-note"></div>
     ${statsHtml}
     <div id="rescore-section" class="rescore-section">${buildRescoreSectionHTML(list)}</div>
-    ${buildSearchBarHTML()}
-    <div id="table-container">
-      <div id="vs-host"></div>
-      <div id="add-row-footer"><div class="add-row-trigger" onclick="openAddWordBar()">＋ Add word…</div></div>
-    </div>
+    ${buildTableContainerHTML()}
   `;
 
-  const host = document.getElementById('vs-host');
-  scroller = new VirtualScroller(host);
+  createScroller();
   scroller.currentListName = list.name;
   scroller.setEntries(list.rawEntries, state.searchQuery, list.rescoreRules, buildOverrideMap(list.id), state.searchWholeWord);
 
@@ -2108,15 +2103,10 @@ function renderEditsDetail(list) {
     </div>
     ${statsHtml}
     <div id="edits-scoring-section" class="rescore-section">${buildEditsScoringSectionHTML(list)}</div>
-    ${buildSearchBarHTML()}
-    <div id="table-container">
-      <div id="vs-host"></div>
-      <div id="add-row-footer"><div class="add-row-trigger" onclick="openAddWordBar()">＋ Add word…</div></div>
-    </div>
+    ${buildTableContainerHTML()}
   `;
 
-  const host = document.getElementById('vs-host');
-  scroller = new VirtualScroller(host);
+  createScroller();
   scroller.showDeleteCol = true;
   scroller.setEntries(list.rawEntries, state.searchQuery, [], new Map(), state.searchWholeWord);
 
@@ -2200,11 +2190,13 @@ function flyToEdits(sourceTd, score) {
   clone.textContent = score;
   clone.style.left = srcRect.left + 'px';
   clone.style.top  = srcRect.top  + 'px';
-  const dx = dstRect.left + dstRect.width  / 2 - (srcRect.left + srcRect.width  / 2);
-  const dy = dstRect.top  + dstRect.height / 2 - (srcRect.top  + srcRect.height / 2);
+  document.body.appendChild(clone);
+
+  const cloneRect = clone.getBoundingClientRect();
+  const dx = dstRect.left + dstRect.width  / 2 - (cloneRect.left + cloneRect.width  / 2);
+  const dy = dstRect.top  + dstRect.height / 2 - (cloneRect.top  + cloneRect.height / 2);
   clone.style.setProperty('--fly-dx', dx + 'px');
   clone.style.setProperty('--fly-dy', dy + 'px');
-  document.body.appendChild(clone);
 
   // Pulse the card
   targetCard.classList.remove('pulse');
@@ -2427,6 +2419,16 @@ function ingestFile(file, listId, nameOverride) {
 
 // ─── My Edits: add word & delete ─────────────────────────────────────────────
 
+const ADD_WORD_TRIGGER_HTML = '<div class="add-row-trigger" onclick="openAddWordBar()">＋ Add word</div>';
+
+function buildTableContainerHTML() {
+  return `${buildSearchBarHTML()}
+    <div id="table-container">
+      <div id="vs-host"></div>
+      <div id="add-row-footer">${ADD_WORD_TRIGGER_HTML}</div>
+    </div>`;
+}
+
 function openAddWordBar() {
   const footer = document.getElementById('add-row-footer');
   if (!footer || footer.querySelector('.add-word-bar')) return;
@@ -2448,7 +2450,7 @@ function openAddWordBar() {
 
   function restoreTrigger() {
     bar.remove();
-    footer.innerHTML = `<div class="add-row-trigger" onclick="openAddWordBar()">＋ Add word</div>`;
+    footer.innerHTML = ADD_WORD_TRIGGER_HTML;
   }
 
   function commit() {
