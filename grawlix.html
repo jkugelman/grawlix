@@ -234,6 +234,8 @@ html.dark-mode .search-match-4 { background: #14532d; color: #d1fae5; }
 #settings-dialog { width: 340px; }
 #confirm-dialog { width: 320px; }
 #confirm-dialog p { margin-bottom: 4px; line-height: 1.5; }
+#merge-conflict-dialog { width: 380px; }
+#merge-conflict-dialog p { margin-bottom: 4px; line-height: 1.5; }
 .settings-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 13px 0; border-bottom: 1px solid var(--border2); }
 .settings-row:first-of-type { border-top: 1px solid var(--border2); margin-top: 4px; }
 .settings-row-label { font-size: 13px; font-weight: 600; }
@@ -595,6 +597,16 @@ input.cell-edit.score-edit { font-family: ui-monospace, 'Cascadia Code', monospa
   <div class="dialog-footer">
     <button id="btn-confirm-cancel">Cancel</button>
     <button id="btn-confirm-ok" class="danger"></button>
+  </div>
+</dialog>
+
+<dialog id="merge-conflict-dialog" aria-labelledby="merge-conflict-msg">
+  <button class="dialog-close-btn" aria-label="Close">✕</button>
+  <p id="merge-conflict-msg"></p>
+  <div class="dialog-footer">
+    <button id="btn-merge-cancel">Cancel</button>
+    <button id="btn-merge-use-file">Use Uploaded File</button>
+    <button id="btn-merge-keep-edits" class="primary">Keep My Edits</button>
   </div>
 </dialog>
 
@@ -1180,10 +1192,17 @@ class VirtualScroller {
     this.hasComments = allEntries.some(e => e.comment);
     this.rescoreRules = rescoreRules || [];
     this.overrideMap = overrideMap || new Map();
-    this.sortKey = null;
+    this.sortKey = 'word';
     this.sortDir = 'asc';
     this._buildHeader();
     this.filter(query, wholeWord);
+  }
+
+  updateEntries(allEntries) {
+    this.allEntries = allEntries;
+    this.hasComments = allEntries.some(e => e.comment);
+    this._buildHeader();
+    this._applyFilterAndSort(false);
   }
 
   setRescore(rules) {
@@ -2342,6 +2361,59 @@ function ingestFile(file, listId, nameOverride) {
       return;
     }
 
+    // My Edits: always combine instead of replace
+    if (listId === EDITS_ID && list.rawEntries.length > 0) {
+      const existingMap = new Map(list.rawEntries.map(e => [e.word.toUpperCase(), e]));
+      const newEntries = [], conflicts = [];
+      let unchanged = 0;
+
+      for (const entry of entries) {
+        const existing = existingMap.get(entry.word.toUpperCase());
+        if (!existing) {
+          newEntries.push(entry);
+        } else if (existing.score !== entry.score || existing.comment !== entry.comment) {
+          conflicts.push({ existing, incoming: entry });
+        } else {
+          unchanged++;
+        }
+      }
+
+      let conflictResolution = null;
+      if (conflicts.length > 0) {
+        conflictResolution = await showMergeConflict(conflicts.length);
+        if (conflictResolution === null) return; // cancelled
+
+        if (conflictResolution === 'file') {
+          for (const { existing, incoming } of conflicts) {
+            existing.score   = incoming.score;
+            existing.comment = incoming.comment;
+          }
+        }
+      }
+
+      list.rawEntries.push(...newEntries);
+      list.lastUpdated = Date.now();
+      invalidateListCaches(listId);
+      updateCatchAll(list);
+
+      await persistData(listId, entriesToText(list.rawEntries));
+      persistMeta();
+
+      renderInputLists();
+      if (state.selectedId === listId) {
+        if (scroller) scroller.updateEntries(list.rawEntries);
+        else renderDetail(list);
+      }
+      if (state.selectedId === MERGED_ID) renderMergedDetail();
+
+      const parts = [];
+      if (newEntries.length) parts.push(`${newEntries.length.toLocaleString()} new`);
+      if (conflicts.length) parts.push(`${conflicts.length.toLocaleString()} ${conflictResolution === 'file' ? 'updated from file' : 'conflicts kept'}`);
+      if (unchanged)        parts.push(`${unchanged.toLocaleString()} unchanged`);
+      showToast(parts.length ? `Merged — ${parts.join(', ')}` : 'File already merged — no changes');
+      return;
+    }
+
     const wasEmpty = !list.rawEntries.length;
     if (nameOverride) list.name = nameOverride;
     list.rawEntries = entries;
@@ -2514,6 +2586,46 @@ function showConfirm(message, { confirmText = 'OK', danger = true } = {}) {
     dialog.addEventListener('cancel', onCancel);
     dialog.addEventListener('click', onClickOutside);
     okBtn.addEventListener('click', onOk);
+    cancelBtn.addEventListener('click', onCancelClick);
+    if (xBtn) xBtn.addEventListener('click', onXClick);
+
+    dialog.showModal();
+  });
+}
+
+function showMergeConflict(conflictCount) {
+  return new Promise(resolve => {
+    const dialog    = document.getElementById('merge-conflict-dialog');
+    const msgEl     = document.getElementById('merge-conflict-msg');
+    const keepBtn   = document.getElementById('btn-merge-keep-edits');
+    const fileBtn   = document.getElementById('btn-merge-use-file');
+    const cancelBtn = document.getElementById('btn-merge-cancel');
+    const xBtn      = dialog.querySelector('.dialog-close-btn');
+
+    const noun = conflictCount === 1 ? 'word appears' : 'words appear';
+    msgEl.textContent = `${conflictCount.toLocaleString()} ${noun} in both My Edits and the uploaded file with different scores or comments. Which should take precedence?`;
+
+    function finish(result) {
+      dialog.removeEventListener('cancel', onCancel);
+      dialog.removeEventListener('click', onClickOutside);
+      keepBtn.removeEventListener('click', onKeep);
+      fileBtn.removeEventListener('click', onFile);
+      cancelBtn.removeEventListener('click', onCancelClick);
+      if (xBtn) xBtn.removeEventListener('click', onXClick);
+      dialog.close();
+      resolve(result);
+    }
+    function onKeep()          { finish('edits'); }
+    function onFile()          { finish('file');  }
+    function onCancelClick()   { finish(null);    }
+    function onCancel(e)       { e.preventDefault(); finish(null); }
+    function onXClick()        { finish(null);    }
+    function onClickOutside(e) { if (e.target === dialog) finish(null); }
+
+    dialog.addEventListener('cancel', onCancel);
+    dialog.addEventListener('click', onClickOutside);
+    keepBtn.addEventListener('click', onKeep);
+    fileBtn.addEventListener('click', onFile);
     cancelBtn.addEventListener('click', onCancelClick);
     if (xBtn) xBtn.addEventListener('click', onXClick);
 
