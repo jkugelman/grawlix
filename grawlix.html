@@ -388,9 +388,8 @@ html.dark-mode .screenshot-container img { filter: brightness(0.843) invert(1) h
 input.cell-edit { font-family: inherit; font-size: 12px; padding: 1px 4px; border: 1px solid var(--accent); border-radius: 3px; background: var(--input-bg); color: var(--text); outline: none; width: 100%; box-sizing: border-box; }
 input.cell-edit.score-edit { font-family: ui-monospace, 'Cascadia Code', monospace; width: 60px; }
 
-/* Informational note */
-.edit-info-note { height: 28px; display: flex; align-items: center; gap: 5px; padding: 0 18px; font-size: 12px; color: var(--muted); background: var(--surface2); border-bottom: 1px solid var(--border2); flex-shrink: 0; opacity: 0; visibility: hidden; transition: opacity 0.15s, visibility 0.15s; }
-.edit-info-note.visible { opacity: 1; visibility: visible; }
+/* Inline edit tip */
+#edit-cell-tip { position: fixed; font-size: 11px; color: var(--muted); background: var(--surface2); border: 1px solid var(--border2); border-radius: 4px; padding: 2px 7px; pointer-events: none; z-index: 400; opacity: 0; transition: opacity 0.15s; white-space: nowrap; }
 
 /* Fly animation */
 .fly-clone { position: fixed; pointer-events: none; z-index: 300; font-size: 11px; font-weight: 700; border-radius: 3px; padding: 1px 5px; animation: fly-to-target 0.4s ease-in forwards; }
@@ -1879,7 +1878,6 @@ function renderOutputDetail() {
       </div>
       <button class="primary" onclick="downloadOutputListFromPanel()">Download</button>
     </div>
-    <div class="edit-info-note" id="edit-info-note"></div>
     ${statsHtml}
     <div id="output-scoring-section" class="rescore-section">${buildOutputScoringSectionHTML()}</div>
     ${buildTableContainerHTML()}
@@ -2063,7 +2061,6 @@ function renderDetail(list) {
       ${dlBtn}
       ${removeBtn}
     </div>
-    <div class="edit-info-note" id="edit-info-note"></div>
     ${statsHtml}
     <div id="rescore-section" class="rescore-section">${buildRescoreSectionHTML(list)}</div>
     ${buildTableContainerHTML()}
@@ -2138,7 +2135,7 @@ function attachExternalEditHandlers(s, refreshFn) {
     if (sourceTd) flyToEdits(sourceTd, field === 'score' ? newValue : '✎');
     refreshFn?.();
   };
-  s._onEditStart = () => showEditInfoNote();
+  s._onEditStart = (word, field, td) => showEditInfoNote(td);
   s._onEditEnd   = () => hideEditInfoNote();
 }
 
@@ -2167,17 +2164,27 @@ function upsertEdits(word, field, newValue) {
   }
 }
 
-function showEditInfoNote() {
-  const note = document.getElementById('edit-info-note');
-  if (!note) return;
-  note.textContent = '';
-  note.innerHTML = `${EDITS_ICON} Edits are saved to My Edits`;
-  note.classList.add('visible');
+function showEditInfoNote(td) {
+  let tip = document.getElementById('edit-cell-tip');
+  if (!tip) {
+    tip = document.createElement('div');
+    tip.id = 'edit-cell-tip';
+    document.body.appendChild(tip);
+  }
+  tip.innerHTML = `${EDITS_ICON} Edits are saved to My Edits`;
+  tip.style.opacity = '0';
+  requestAnimationFrame(() => {
+    const input = td.querySelector('input.cell-edit');
+    const r = (input ?? td).getBoundingClientRect();
+    tip.style.top  = (r.bottom + 4) + 'px';
+    tip.style.left = r.left + 'px';
+    tip.style.opacity = '1';
+  });
 }
 
 function hideEditInfoNote() {
-  const note = document.getElementById('edit-info-note');
-  note?.classList.remove('visible');
+  const tip = document.getElementById('edit-cell-tip');
+  if (tip) tip.style.opacity = '0';
 }
 
 function pulseEditsCard() {
