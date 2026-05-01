@@ -189,8 +189,9 @@ html.dark-mode .search-match-4 { background: #14532d; color: #d1fae5; }
 .word-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
 .word-table th { position: sticky; top: 0; background: var(--surface2); padding: 7px 16px; font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; border-bottom: 2px solid var(--border2); z-index: 1; cursor: pointer; user-select: none; white-space: nowrap; overflow: hidden; }
 .word-table th:hover { background: var(--hover); }
-.word-table td { padding: 0 16px; font-family: ui-monospace, 'Cascadia Code', monospace; font-size: 13px; border-bottom: 1px solid var(--border3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.word-table td.comment-cell { font-family: inherit; font-size: 12px; color: var(--muted); }
+.word-table td { padding: 0 16px; font-size: 13px; border-bottom: 1px solid var(--border3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.word-table td.col-word, .word-table td.score-cell { font-family: ui-monospace, 'Cascadia Code', monospace; }
+.word-table td.comment-cell { font-size: 12px; }
 .word-table tr:hover td { background: var(--row-hover); }
 .vs-spacer td { padding: 0; border: none; }
 .score-badge { display: inline-block; padding: 1px 5px; border-radius: 3px; font-size: 11px; font-weight: 700; }
@@ -306,7 +307,7 @@ a.get-file:hover { text-decoration: underline; }
 .rule-arrow { color: var(--faint); font-size: 14px; width: 14px; text-align: center; flex-shrink: 0; }
 .rule-note-wrap { flex: 1; min-width: 0; display: flex; align-items: center; cursor: text; border-radius: 3px; padding: 2px 3px; gap: 3px; }
 .rule-note-wrap:hover { background: var(--surface); }
-.rule-note-text { flex: 0 1 auto; min-width: 0; font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.4; }
+.rule-note-text { flex: 0 1 auto; min-width: 0; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.4; }
 .rule-note-text:empty::before { content: 'add note…'; font-style: italic; color: transparent; pointer-events: none; }
 .rule-row:hover .rule-note-text:empty::before { color: var(--faint); }
 .rule-note-pencil { font-size: 11px; color: var(--faint); }
@@ -1342,7 +1343,7 @@ class VirtualScroller {
 
       const displayed = displayWord(word);
       const wordHtml = this._highlight ? this._highlight(displayed) : displayed;
-      let wordCell  = `<td title="${displayed}">${wordHtml}</td>`;
+      let wordCell  = `<td class="col-word" title="${displayed}">${wordHtml}</td>`;
       let rescoredScore = score;
       let wasRescored = false;
       let ignored = false;
@@ -1352,7 +1353,7 @@ class VirtualScroller {
         if (!r.kept) {
           ignored = true;
           tr.classList.add('entry-ignored');
-          wordCell = `<td title="${displayed}">${wordHtml}</td>`;
+          wordCell = `<td class="col-word" title="${displayed}">${wordHtml}</td>`;
         } else {
           rescoredScore = r.score;
           wasRescored = r.score !== score;
