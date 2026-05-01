@@ -1915,10 +1915,16 @@ function renderOutputScoring() {
 
 
 function deleteOutputScoringRow(i) {
-  state.outputScoring.splice(i, 1);
+  const [removed] = state.outputScoring.splice(i, 1);
   updateOutputCatchAll();
   persistOutputScoring();
   renderOutputScoring();
+  showUndoToast('Removed scoring row', () => {
+    state.outputScoring.push(removed);
+    updateOutputCatchAll();
+    persistOutputScoring();
+    renderOutputScoring();
+  });
 }
 
 function saveOutputScoringField(i, field, val) {
@@ -1947,10 +1953,16 @@ function renderEditsScoring() {
 
 function deleteEditsScoringRow(i) {
   const edits = getEditsList();
-  edits.scoring.splice(i, 1);
+  const [removed] = edits.scoring.splice(i, 1);
   updateScoringCatchAll(edits.scoring, edits.rawEntries);
   persistMeta();
   renderEditsScoring();
+  showUndoToast('Removed scoring row', () => {
+    edits.scoring.push(removed);
+    updateScoringCatchAll(edits.scoring, edits.rawEntries);
+    persistMeta();
+    renderEditsScoring();
+  });
 }
 
 function saveEditsScoringField(i, field, val) {
@@ -2957,14 +2969,14 @@ function showToast(msg) {
   el.textContent = msg;
   el.classList.add('show');
   clearTimeout(_toastTimer);
-  _toastTimer = setTimeout(() => el.classList.remove('show'), 3500);
+  _toastTimer = setTimeout(() => el.classList.remove('show'), 5000);
 }
 function showUndoToast(msg, onUndo) {
   const el = document.getElementById('toast');
   el.innerHTML = esc(msg) + `<span class="undo-link">Undo</span>`;
   el.classList.add('show');
   clearTimeout(_toastTimer);
-  _toastTimer = setTimeout(() => el.classList.remove('show'), 5000);
+  _toastTimer = setTimeout(() => el.classList.remove('show'), 10000);
   el.querySelector('.undo-link').onclick = e => {
     e.stopPropagation();
     dismissToast();
@@ -3063,12 +3075,20 @@ function resetRescoreRules() {
 function deleteRule(idx) {
   const list = getSelected();
   if (!list) return;
-  list.rescoreRules.splice(idx, 1);
+  const [removed] = list.rescoreRules.splice(idx, 1);
   updateCatchAll(list);
   persistMeta();
   renderRescoreSection();
   updateRescorePreview();
   refreshSourceCounts();
+  showUndoToast('Removed rescore rule', () => {
+    list.rescoreRules.push(removed);
+    updateCatchAll(list);
+    persistMeta();
+    renderRescoreSection();
+    updateRescorePreview();
+    refreshSourceCounts();
+  });
 }
 
 function saveRuleField(idx, field, value) {
