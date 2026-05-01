@@ -2004,14 +2004,14 @@ function renderDetail(list) {
         [['Import…', `importToList('${list.id}')`]],
         { primary: true, disabled: !!list._loading, title });
     } else {
-      actionBtn = `<button class="primary"${title ? ` title="${title}"` : ''} onclick="importToList('${list.id}')" ${list._loading ? 'disabled' : ''}>${btnLabel}</button>`;
+      actionBtn = `<button class="primary"${title ? ` title="${title}"` : ''} onclick="importToList('${list.id}')" ${list._loading ? 'disabled' : ''}>${list._loading ? 'Importing…' : 'Import'}${dot}</button>`;
     }
   } else if (list.url) {
     const dot = list._updateAvailable && !list._loading ? `<span class="update-dot"></span>` : '';
     const title = list._updateAvailable && !list._loading ? ' title="Update available"' : '';
-    actionBtn = `<button class="primary"${title} onclick="fetchList('${list.id}')" ${list._loading ? 'disabled' : ''}>${list._loading ? 'Updating…' : '↻ Update'}${dot}</button>`;
+    actionBtn = `<button class="primary"${title} onclick="fetchList('${list.id}')" ${list._loading ? 'disabled' : ''}>${list._loading ? 'Importing…' : 'Import'}${dot}</button>`;
   } else {
-    actionBtn = `<button class="primary" onclick="importToList('${list.id}')">${label}</button>`;
+    actionBtn = `<button class="primary" onclick="importToList('${list.id}')">Import</button>`;
   }
 
   const removeBtn = `<button onclick="removeList('${list.id}')">Remove</button>`;
