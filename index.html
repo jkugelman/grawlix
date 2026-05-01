@@ -243,9 +243,13 @@ html.dark-mode .search-match-4 { background: #14532d; color: #d1fae5; }
 .toggle input:checked + .toggle-slider::before { transform: translateX(12px); }
 
 
-/* Settings button */
-.header-icon-btn { background: none; border: none; color: rgba(255,255,255,0.8); font-size: 19px; padding: 4px 8px; border-radius: 4px; cursor: pointer; line-height: 1; font-family: inherit; }
-.header-icon-btn:hover { background: rgba(255,255,255,0.15); color: white; }
+/* Settings and help buttons */
+.header-icon-btn { background: none; border: none; color: white; font-size: 19px; padding: 4px 8px; border-radius: 4px; cursor: pointer; line-height: 1; font-family: inherit; }
+button.header-icon-btn:hover { background: none; color: rgba(255,255,255,0.65); }
+#btn-settings svg { position: relative; top: 1px; }
+#btn-help { width: 20px; height: 20px; padding: 0; border-radius: 50%; background: white; color: var(--accent); font-size: 12px; font-weight: 800; display: inline-flex; align-items: center; justify-content: center; }
+#btn-help:hover { background: rgba(255,255,255,0.65); }
+.help-dot:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 
 /* Settings dialog */
 #settings-dialog { width: 340px; }
@@ -472,6 +476,77 @@ input.cell-edit.score-edit { font-family: ui-monospace, 'Cascadia Code', monospa
 /* Toast undo link */
 #toast .undo-link { margin-left: 10px; color: #90caf9; text-decoration: underline; cursor: pointer; }
 
+/* ── Help modal ───────────────────────────────────────────────────────────────── */
+#help-dialog {
+  width: 760px; max-height: 88vh; padding: 0;
+  border: 1px solid var(--border); border-radius: 8px;
+  background: var(--bg); overflow: hidden; outline: none;
+}
+.help-modal { display: flex; flex-direction: column; height: 100%; }
+.help-slides { flex: 1; overflow: hidden; position: relative; }
+.help-slide { display: none; padding: 36px 44px 28px; }
+.help-slide.active { display: flex; flex-direction: column; gap: 16px; }
+.help-slide h2 { font-size: 20px; font-weight: 700; color: var(--text); margin: 0; }
+.help-slide p { font-size: 14px; line-height: 1.65; color: var(--text); margin: 0; }
+.help-slide p strong { color: var(--text); }
+.help-nav {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 20px; border-top: 1px solid var(--border);
+  background: var(--surface); flex-shrink: 0;
+}
+.help-prev, .help-next {
+  background: none; border: 1px solid var(--border); border-radius: 4px;
+  color: var(--text); font-size: 16px; padding: 5px 14px; cursor: pointer;
+}
+.help-prev:hover, .help-next:hover { background: var(--hover); }
+.help-prev:disabled, .help-next:disabled { opacity: 0.3; cursor: default; }
+.help-dots { display: flex; gap: 8px; }
+.help-dot { width: 8px; height: 8px; border-radius: 50%; border: none; background: var(--border); cursor: pointer; padding: 0; }
+.help-dot.active { background: var(--accent); }
+.help-demo { background: var(--surface2); border: 1px solid var(--border); border-radius: 6px; padding: 16px; margin-top: 4px; flex-shrink: 0; }
+.help-demo.flush { padding: 0; overflow: hidden; }
+.help-demo-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
+/* Slide 1 two-panel overview */
+.help-demo-panels { display: flex; }
+.help-demo-panel { flex: 1; padding: 12px 16px; }
+.help-demo-vbar { width: 1px; background: var(--border); flex-shrink: 0; }
+.help-mini-card { border: 1px solid var(--border); border-radius: 4px; overflow: hidden; background: var(--surface); }
+.help-mini-hdr { padding: 7px 12px; border-bottom: 1px solid var(--border2); display: flex; align-items: center; gap: 7px; font-size: 12px; }
+.help-mini-section { padding: 4px 12px 3px; font-size: 10px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; background: var(--surface2); border-bottom: 1px solid var(--border2); }
+.help-mini-row { padding: 5px 12px; display: flex; align-items: center; gap: 6px; font-size: 12px; border-bottom: 1px solid var(--border3); }
+.help-mini-row:last-child { border-bottom: none; }
+.help-mini-search-hdr { padding: 5px 10px; border-bottom: 1px solid var(--border2); display: flex; align-items: center; gap: 8px; font-size: 12px; }
+.help-mini-words { width: 100%; border-collapse: collapse; }
+.help-mini-words td { padding: 4px 10px; font-size: 12px; border-bottom: 1px solid var(--border3); }
+.help-mini-words tr:last-child td { border-bottom: none; }
+.help-demo-panel-label { margin-top: 8px; text-align: center; }
+/* Slide 3 score-edit demo table */
+#help-slide-2 .word-table td { padding: 6px 16px; }
+#help-slide-2 .word-table td:nth-child(2) { width: 130px; }
+#help-slide-2 .score-cell { cursor: default; }
+#help-slide-2 .comment-cell { color: var(--faint); }
+/* Slide 4 search demo table */
+#help-slide-3 .word-table td { padding: 4px 14px; }
+#help-slide-3 .word-table td:nth-child(2) { width: 80px; }
+/* Slide 1 mini card internals */
+.help-mini-hdr svg { color: var(--accent); flex-shrink: 0; }
+.help-mini-title { font-weight: 600; }
+.help-mini-search-icon { color: var(--muted); }
+.help-mini-search-placeholder { flex: 1; color: var(--faint); }
+.help-mini-search-min { color: var(--muted); font-size: 11px; white-space: nowrap; }
+.help-mini-words td:first-child { font-family: ui-monospace, 'Cascadia Code', monospace; }
+.help-mini-words td:last-child { text-align: right; color: var(--muted); }
+/* Slide 2 list-card demo overrides */
+#help-slide-1 .list-card { cursor: default; }
+#help-slide-1 .list-card:last-child { border-bottom: none; }
+#help-slide-1 .help-mini-section { padding: 4px 14px 3px; }
+#help-slide-1 .toggle { pointer-events: none; }
+/* Slide 5 download demo */
+.help-demo-dl { display: flex; flex-direction: column; gap: 12px; align-items: flex-start; }
+.help-demo-dl-opts { display: flex; flex-direction: column; gap: 8px; }
+.help-demo-dl-row { display: flex; align-items: center; gap: 10px; }
+.help-demo-dl-lbl { font-size: 12px; color: var(--muted); min-width: 55px; }
+
 </style>
 </head>
 <body>
@@ -486,7 +561,7 @@ input.cell-edit.score-edit { font-family: ui-monospace, 'Cascadia Code', monospa
     <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8z"/>
   </symbol>
   <symbol id="icon-settings" viewBox="0 0 24 24" fill="currentColor">
-    <path d="M12 15.5A3.5 3.5 0 0 1 8.5 12 3.5 3.5 0 0 1 12 8.5a3.5 3.5 0 0 1 3.5 3.5 3.5 3.5 0 0 1-3.5 3.5m7.43-2.92c.04-.34.07-.69.07-1.08s-.03-.74-.07-1.08l2.32-1.82c.21-.16.27-.46.13-.7l-2.2-3.81a.55.55 0 0 0-.68-.24l-2.74 1.1c-.57-.44-1.18-.8-1.86-1.07L14 2.42A.55.55 0 0 0 13.45 2h-4.4a.55.55 0 0 0-.54.42L8.14 5.09C7.46 5.36 6.85 5.72 6.28 6.16L3.54 5.06a.54.54 0 0 0-.68.24L.66 9.11a.54.54 0 0 0 .13.7l2.32 1.82c-.04.34-.07.69-.07 1.08s.03.74.07 1.08L.79 15.6a.54.54 0 0 0-.13.7l2.2 3.81c.14.24.43.32.68.24l2.74-1.1c.57.44 1.18.8 1.86 1.07l.37 2.67c.06.24.28.42.54.42h4.4c.26 0 .48-.18.54-.42l.37-2.67c.68-.27 1.29-.63 1.86-1.07l2.74 1.1c.25.08.54 0 .68-.24l2.2-3.81a.54.54 0 0 0-.13-.7l-2.32-1.81z"/>
+    <path fill-rule="evenodd" d="M11.078 2.25c-.917 0-1.699.663-1.85 1.567L9.05 4.889c-.02.12-.115.26-.297.348a7.493 7.493 0 0 0-.986.57c-.166.115-.334.126-.45.083L6.3 5.508a1.875 1.875 0 0 0-2.282.819l-.922 1.597a1.875 1.875 0 0 0 .432 2.385l.84.692c.095.078.17.229.154.43a7.598 7.598 0 0 0 0 1.139c.015.2-.059.352-.153.43l-.841.692a1.875 1.875 0 0 0-.432 2.385l.922 1.597a1.875 1.875 0 0 0 2.282.818l1.019-.382c.115-.043.283-.031.45.082.312.214.641.405.985.57.182.088.277.228.297.35l.178 1.071c.151.904.933 1.567 1.85 1.567h1.844c.916 0 1.699-.663 1.85-1.567l.178-1.072c.02-.12.114-.26.297-.349.344-.165.673-.356.985-.57.167-.114.335-.125.45-.082l1.02.382a1.875 1.875 0 0 0 2.28-.819l.923-1.597a1.875 1.875 0 0 0-.432-2.385l-.84-.692c-.095-.078-.17-.229-.154-.43a7.614 7.614 0 0 0 0-1.139c-.016-.2.059-.352.153-.43l.84-.692c.708-.582.891-1.59.433-2.385l-.922-1.597a1.875 1.875 0 0 0-2.282-.818l-1.02.382c-.114.043-.282.031-.449-.083a7.49 7.49 0 0 0-.985-.57c-.183-.087-.277-.227-.297-.348l-.179-1.072a1.875 1.875 0 0 0-1.85-1.567h-1.843ZM12 15.75a3.75 3.75 0 1 0 0-7.5 3.75 3.75 0 0 0 0 7.5Z" clip-rule="evenodd" />
   </symbol>
 
   <symbol id="icon-output" viewBox="0 0 24 24" fill="currentColor">
@@ -522,7 +597,8 @@ input.cell-edit.score-edit { font-family: ui-monospace, 'Cascadia Code', monospa
     <span class="header-sep">&middot;</span>
     <span class="header-feedback">Got feedback? <a href="mailto:john@kugelman.name">Email me</a></span>
   </div>
-  <button id="btn-settings" class="header-icon-btn" title="Settings"><svg width="18" height="18" aria-hidden="true"><use href="#icon-settings"/></svg></button>
+  <button id="btn-settings" class="header-icon-btn" title="Settings"><svg width="24" height="24" aria-hidden="true"><use href="#icon-settings"/></svg></button>
+  <button id="btn-help" class="header-icon-btn" title="Help" aria-label="Help">?</button>
 </header>
 
 <main>
@@ -664,6 +740,179 @@ input.cell-edit.score-edit { font-family: ui-monospace, 'Cascadia Code', monospa
     <div class="usd-pills" id="update-summary-pills"></div>
   </div>
   <div class="usd-scroll" id="update-summary-scroll"></div>
+</dialog>
+
+<dialog id="help-dialog" aria-label="Grawlix Help">
+  <button class="dialog-close-btn" aria-label="Close">✕</button>
+  <div class="help-modal">
+    <div class="help-slides">
+
+      <!-- Slide 1: What Is Grawlix? -->
+      <div class="help-slide active" id="help-slide-0">
+        <h2>What Is Grawlix?</h2>
+        <p>Grawlix is a wordlist manager for crossword constructors. It lets you pull in wordlists from multiple sources, clean them up, and merge them into a single master list you can load into your construction software.</p>
+        <p>It doubles as a search tool while you're building: filter entries by substring, score, and more to quickly find the best word for a tricky slot.</p>
+        <div class="help-demo flush">
+          <div class="help-demo-panels">
+            <div class="help-demo-panel">
+              <div class="help-mini-card">
+                <div class="help-mini-hdr">
+                  <svg width="13" height="13" aria-hidden="true"><use href="#icon-output"/></svg>
+                  <span class="help-mini-title">Output List</span>
+                </div>
+                <div class="help-mini-section">Input Lists</div>
+                <div class="help-mini-row">
+                  <span class="drag-handle" aria-hidden="true">≡</span>
+                  <span>List A</span>
+                </div>
+                <div class="help-mini-row">
+                  <span class="drag-handle" aria-hidden="true">≡</span>
+                  <span>List B</span>
+                </div>
+              </div>
+              <div class="help-demo-label help-demo-panel-label">Build your wordlist</div>
+            </div>
+            <div class="help-demo-vbar"></div>
+            <div class="help-demo-panel">
+              <div class="help-mini-card">
+                <div class="help-mini-search-hdr">
+                  <span class="help-mini-search-icon">🔍</span>
+                  <span class="help-mini-search-placeholder">Search...</span>
+                  <span class="help-mini-search-min">Min: 0</span>
+                </div>
+                <table class="help-mini-words">
+                  <tr><td>WORDPLAY</td><td>60</td></tr>
+                  <tr><td>CROSSWORD</td><td>60</td></tr>
+                  <tr><td>CROSSFIRE</td><td>50</td></tr>
+                </table>
+              </div>
+              <div class="help-demo-label help-demo-panel-label">Search while you construct</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Slide 2: Building Your Wordlist -->
+      <div class="help-slide" id="help-slide-1">
+        <h2>Building Your Wordlist</h2>
+        <p>Add wordlists from well-known sources with one click, or import your own files and URLs.</p>
+        <p>Lists <strong>merge in priority order</strong> — the higher a list sits, the more its scores count when the same word appears in multiple lists. Drag to reorder. Toggle lists on and off to experiment with different combinations.</p>
+        <div class="help-demo flush">
+          <div class="list-card">
+            <svg width="16" height="16" class="list-icon-svg output-icon" aria-hidden="true"><use href="#icon-output"/></svg>
+            <div class="card-info">
+              <div class="card-name-row"><div class="card-name">Output List</div></div>
+              <div class="card-meta">Merged from 2 sources</div>
+            </div>
+          </div>
+          <div class="help-mini-section">Input Lists</div>
+          <div class="list-card">
+            <span class="drag-handle">≡</span>
+            <div class="card-info">
+              <div class="card-name-row"><div class="card-name">John Kugelman</div></div>
+              <div class="card-meta">47,000 entries</div>
+            </div>
+            <div class="card-actions">
+              <label class="toggle"><input type="checkbox" checked><span class="toggle-slider"></span></label>
+            </div>
+          </div>
+          <div class="list-card disabled">
+            <span class="drag-handle">≡</span>
+            <div class="card-info">
+              <div class="card-name-row"><div class="card-name">Peter Broda</div></div>
+              <div class="card-meta">68,000 entries</div>
+            </div>
+            <div class="card-actions">
+              <label class="toggle"><input type="checkbox"><span class="toggle-slider"></span></label>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Slide 3: Making It Yours -->
+      <div class="help-slide" id="help-slide-2">
+        <h2>Making It Yours</h2>
+        <p>Different wordlists use different score scales. <strong>Rescore rules</strong> let you normalize them — map one score range to another so your output list has consistent scoring across all sources.</p>
+        <p><strong>My Edits</strong> is your personal override layer. Click any score or comment to change it. Add words that don't appear in any source list. My Edits always has the highest priority — your changes are never overwritten by a list update.</p>
+        <div class="help-demo flush">
+          <table class="word-table">
+            <tr class="demo-row">
+              <td class="col-word">WORDPLAY</td>
+              <td class="score-cell demo-score-cell">
+                <span class="score-badge" data-tier="fair">45</span>
+              </td>
+              <td class="comment-cell">—</td>
+            </tr>
+          </table>
+        </div>
+      </div>
+
+      <!-- Slide 4: Searching Your Wordlist -->
+      <div class="help-slide" id="help-slide-3">
+        <h2>Searching Your Wordlist</h2>
+        <p>Type in the search bar to instantly filter the wordlist. Matches are highlighted in color so you can see exactly where the term appears.</p>
+        <p>Set a minimum score to hide lower-quality entries. Toggle <strong>Whole word</strong> to match only complete words rather than substrings.</p>
+        <div class="help-demo flush">
+          <div class="search-bar">
+            <div class="search-row">
+              <div class="search-input-wrap">
+                <svg width="13" height="13" aria-hidden="true"><use href="#icon-search"/></svg>
+                <input id="help-search-input" type="text" placeholder="Search..." readonly>
+              </div>
+              <label class="score-min-label">Min score
+                <div class="score-min-wrap">
+                  <input id="help-score-min" type="number" value="0" readonly>
+                </div>
+              </label>
+            </div>
+          </div>
+          <table class="word-table">
+            <tbody id="help-word-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Slide 5: Downloading Your Wordlist -->
+      <div class="help-slide" id="help-slide-4">
+        <h2>Downloading Your Wordlist</h2>
+        <p>Download the merged <strong>Output List</strong> or any individual list. Choose lowercase or UPPERCASE, and .txt or .dict format — whatever your construction software expects.</p>
+        <p>Ingrid, Crosserville, Crossfire, and Crossword Compiler all accept the standard text format. Use lowercase .txt unless your software says otherwise.</p>
+        <div class="help-demo">
+          <div class="help-demo-dl">
+            <button class="primary" disabled>⬇ Download Output List</button>
+            <div class="help-demo-dl-opts">
+              <div class="help-demo-dl-row">
+                <span class="help-demo-dl-lbl">Case</span>
+                <div class="seg-ctrl">
+                  <button class="seg-btn active">lower</button>
+                  <button class="seg-btn">UPPER</button>
+                </div>
+              </div>
+              <div class="help-demo-dl-row">
+                <span class="help-demo-dl-lbl">Format</span>
+                <div class="seg-ctrl">
+                  <button class="seg-btn active">.txt</button>
+                  <button class="seg-btn">.dict</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- .help-slides -->
+    <div class="help-nav">
+      <button class="help-prev" aria-label="Previous">&#8592;</button>
+      <div class="help-dots">
+        <button class="help-dot active" aria-label="Slide 1 of 5"></button>
+        <button class="help-dot" aria-label="Slide 2 of 5"></button>
+        <button class="help-dot" aria-label="Slide 3 of 5"></button>
+        <button class="help-dot" aria-label="Slide 4 of 5"></button>
+        <button class="help-dot" aria-label="Slide 5 of 5"></button>
+      </div>
+      <button class="help-next" aria-label="Next">&#8594;</button>
+    </div>
+  </div><!-- .help-modal -->
 </dialog>
 
 <script>
@@ -3716,6 +3965,149 @@ function toggleSplitMenu(event) {
   document.querySelectorAll('.split-btn.open').forEach(b => b.classList.remove('open'));
   if (!isOpen) btn.classList.add('open');
 }
+
+// ─── Help Modal ───────────────────────────────────────────────────────────────
+
+const HelpModal = (() => {
+  const dialog = document.getElementById('help-dialog');
+  let currentSlide = 0;
+  const totalSlides = 5;
+  let demoTimers = [];
+
+  function open() { dialog.showModal(); goTo(0); dialog.querySelector('.help-next').focus(); }
+
+  function close() { dialog.close(); }
+
+  function goTo(index) {
+    stopDemo();
+    dialog.querySelectorAll('.help-slide').forEach((s, i) => s.classList.toggle('active', i === index));
+    dialog.querySelectorAll('.help-dot').forEach((d, i) => d.classList.toggle('active', i === index));
+    dialog.querySelector('.help-prev').disabled = index === 0;
+    dialog.querySelector('.help-next').disabled = index === totalSlides - 1;
+    currentSlide = index;
+    startDemo(index);
+  }
+
+  function next() { if (currentSlide < totalSlides - 1) goTo(currentSlide + 1); }
+  function prev() { if (currentSlide > 0) goTo(currentSlide - 1); }
+
+  function stopDemo() { demoTimers.forEach(clearTimeout); demoTimers = []; }
+
+  function after(ms, fn) { demoTimers.push(setTimeout(fn, ms)); }
+
+  function startDemo(index) {
+    if (index === 2) runScoreEditDemo();
+    if (index === 3) runSearchDemo();
+  }
+
+  function runScoreEditDemo() {
+    const slide = document.getElementById('help-slide-2');
+    const demoRow = slide.querySelector('.demo-row');
+    const scoreCell = slide.querySelector('.demo-score-cell');
+
+    scoreCell.innerHTML = '<span class="score-badge" data-tier="fair">45</span>';
+    demoRow.style.background = '';
+
+    after(1000, () => { demoRow.style.background = 'var(--row-hover)'; });
+    after(1500, () => {
+      scoreCell.innerHTML = '<input class="cell-edit score-edit" value="45" readonly>';
+      scoreCell.querySelector('input').style.borderColor = 'var(--accent)';
+    });
+    after(2000, () => { const inp = scoreCell.querySelector('input'); if (inp) inp.value = ''; });
+    after(2200, () => { const inp = scoreCell.querySelector('input'); if (inp) inp.value = '6'; });
+    after(2400, () => { const inp = scoreCell.querySelector('input'); if (inp) inp.value = '65'; });
+    after(2700, () => {
+      demoRow.style.background = '';
+      scoreCell.innerHTML = '<span class="score-badge" data-tier="great">65</span>';
+    });
+    after(5200, () => { runScoreEditDemo(); });
+  }
+
+  const SEARCH_WORDS = [
+    { word: 'WORDPLAY',  score: 60, tier: 'great', cross: false },
+    { word: 'CROSSWORD', score: 60, tier: 'great', cross: true  },
+    { word: 'PUZZLE',    score: 50, tier: 'good',  cross: false },
+    { word: 'THEME',     score: 50, tier: 'good',  cross: false },
+    { word: 'CROSSFIRE', score: 50, tier: 'good',  cross: true  },
+    { word: 'CROSSBOW',  score: 50, tier: 'good',  cross: true  },
+    { word: 'GRID',      score: 50, tier: 'good',  cross: false },
+    { word: 'CLUE',      score: 50, tier: 'good',  cross: false },
+    { word: 'CROSSLET',  score: 40, tier: 'fair',  cross: true  },
+    { word: 'RECROSS',   score: 30, tier: 'meh',   cross: true  },
+  ];
+
+  function wordHtml(word, highlight) {
+    if (!highlight) return word;
+    const idx = word.indexOf('CROSS');
+    if (idx === -1) return word;
+    return word.slice(0, idx) + '<mark class="search-match search-match-0">CROSS</mark>' + word.slice(idx + 5);
+  }
+
+  function buildSearchRows(tbody, query, minScore) {
+    const filter = query.toUpperCase();
+    tbody.innerHTML = '';
+    SEARCH_WORDS.forEach(({ word, score, tier }) => {
+      if (filter && !word.includes(filter)) return;
+      if (score < minScore) return;
+      const tr = document.createElement('tr');
+      tr.innerHTML =
+        `<td class="col-word">${wordHtml(word, filter === 'CROSS')}</td>` +
+        `<td class="score-cell"><span class="score-badge" data-tier="${tier}">${score}</span></td>`;
+      tbody.appendChild(tr);
+    });
+  }
+
+  function runSearchDemo() {
+    const slide = document.getElementById('help-slide-3');
+    const searchInput = slide.querySelector('#help-search-input');
+    const scoreMin = slide.querySelector('#help-score-min');
+    const tbody = slide.querySelector('#help-word-tbody');
+
+    searchInput.value = '';
+    searchInput.style.borderColor = '';
+    scoreMin.value = '0';
+    buildSearchRows(tbody, '', 0);
+
+    after(800,  () => { searchInput.style.borderColor = 'var(--accent)'; });
+    after(1200, () => { searchInput.value = 'C'; });
+    after(1450, () => { searchInput.value = 'CR'; });
+    after(1700, () => { searchInput.value = 'CRO'; });
+    after(1950, () => { searchInput.value = 'CROS'; });
+    after(2200, () => { searchInput.value = 'CROSS'; buildSearchRows(tbody, 'CROSS', 0); });
+    after(3800, () => { scoreMin.value = ''; });
+    after(4100, () => { scoreMin.value = '5'; });
+    after(4400, () => { scoreMin.value = '50'; buildSearchRows(tbody, 'CROSS', 50); });
+    after(5800, () => {
+      searchInput.value = '';
+      searchInput.style.borderColor = '';
+      scoreMin.value = '0';
+      buildSearchRows(tbody, '', 0);
+    });
+    after(6600, () => { runSearchDemo(); });
+  }
+
+  document.getElementById('btn-help').addEventListener('click', () => open());
+  document.addEventListener('keydown', e => {
+    if (e.key === '?' && !e.target.closest('input, textarea, [contenteditable]')) open();
+  });
+  dialog.querySelector('.dialog-close-btn').addEventListener('click', close);
+  dialog.addEventListener('click', e => { if (e.target === dialog) close(); });
+  dialog.addEventListener('keydown', e => {
+    if (e.key === 'ArrowRight' || e.key === 'ArrowDown') { e.preventDefault(); next(); }
+    else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') { e.preventDefault(); prev(); }
+    else if (e.key === 'Home') { e.preventDefault(); goTo(0); }
+    else if (e.key === 'End') { e.preventDefault(); goTo(totalSlides - 1); }
+  });
+  dialog.addEventListener('close', () => {
+    stopDemo();
+    document.getElementById('btn-help').focus();
+  });
+  dialog.querySelector('.help-prev').addEventListener('click', prev);
+  dialog.querySelector('.help-next').addEventListener('click', next);
+  dialog.querySelectorAll('.help-dot').forEach((dot, i) => dot.addEventListener('click', () => goTo(i)));
+
+  return { open, close, goTo };
+})();
 
 // ─── Boot ─────────────────────────────────────────────────────────────────────
 
