@@ -2906,9 +2906,12 @@ function buildCellPopoverHTML(td) {
   }
 
   if (commentOvName !== undefined) {
-    if (commentRaw) html += `<div><b>${esc(commentListName)}:</b> ${esc(commentRaw)}</div>`;
-    const verb = commentRaw ? 'Overridden by' : 'From';
-    html += `<div>${verb} <b>${esc(commentOvName)}:</b> ${esc(commentOvVal)}</div>`;
+    if (commentRaw) {
+      html += `<div><b>${esc(commentListName)}:</b> ${esc(commentRaw)}</div>`;
+      html += `<div>Overridden by <b>${esc(commentOvName)}:</b> ${esc(commentOvVal)}</div>`;
+    } else {
+      html += `<div>From <b>${esc(commentOvName)}</b></div>`;
+    }
   }
 
   return html;
