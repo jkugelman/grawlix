@@ -57,8 +57,19 @@ All colors are CSS variables on `html.dark-mode` / `html.light-mode`. The naming
 
 - **No inline styles.** Prefer adding CSS to the `<style>` block over `style="..."` attributes on elements.
 - **Dark mode and light mode have equal weight.** Don't treat one as the default and the other as an override — both get first-class parallel treatment in the CSS.
-- **Avoid duplicating functionality.** Unify JS, HTML, and CSS when reasonable. Prefer a single abstraction over copy-pasted variants to keep the UI consistent and maintainable.
 - **"Download" means output only.** Use "download" exclusively for saving a processed wordlist from Grawlix to disk (`downloadOutputList`, `downloadIndividualList`, etc.). Use "fetch" for getting a wordlist into Grawlix from a URL (`fetchList`), and "import" for the user loading a file. Template properties that refer to a third-party source page use `sourcePage` / `sourceNote`.
+
+## Component architecture
+
+The JS is organized into two patterns:
+
+**HTML builders** (`buildXxxHTML`) — pure functions that return HTML strings. Stateless. Used for repeated elements and sub-components inside template literals.
+
+**Lifecycle components** — own their DOM subtree, generate their own HTML, and wire their own events. Two forms:
+- *IIFE* (`const XxxComponent = (() => { ... })()`) — singletons: dialogs, panels, sidebars
+- *Class* (`class XxxComponent`) — multi-instance: scrollers, rule editors, word tables
+
+All builders live in the `// ─── Components ───` section. Nothing outside a component should reach into its DOM subtree.
 
 ## Understanding Grawlix
 

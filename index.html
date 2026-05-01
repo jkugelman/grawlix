@@ -478,14 +478,14 @@ input.cell-edit.score-edit { font-family: ui-monospace, 'Cascadia Code', monospa
 
 /* ── Help modal ───────────────────────────────────────────────────────────────── */
 #help-dialog {
-  width: 760px; max-height: 88vh; padding: 0;
+  width: 760px; height: 600px; max-height: 88vh; padding: 0;
   border: 1px solid var(--border); border-radius: 8px;
   background: var(--bg); overflow: hidden; outline: none;
 }
 .help-modal { display: flex; flex-direction: column; height: 100%; }
 .help-slides { flex: 1; overflow: hidden; position: relative; }
 .help-slide { display: none; padding: 36px 44px 28px; }
-.help-slide.active { display: flex; flex-direction: column; gap: 16px; }
+.help-slide.active { display: flex; flex-direction: column; gap: 16px; overflow-y: auto; }
 .help-slide h2 { font-size: 20px; font-weight: 700; color: var(--text); margin: 0; }
 .help-slide p { font-size: 14px; line-height: 1.65; color: var(--text); margin: 0; }
 .help-slide p strong { color: var(--text); }
@@ -508,18 +508,11 @@ input.cell-edit.score-edit { font-family: ui-monospace, 'Cascadia Code', monospa
 .help-demo-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
 /* Slide 1 two-panel overview */
 .help-demo-panels { display: flex; }
-.help-demo-panel { flex: 1; padding: 12px 16px; }
+.help-demo-panel { flex: 1; padding: 12px 16px; display: flex; flex-direction: column; gap: 10px; }
 .help-demo-vbar { width: 1px; background: var(--border); flex-shrink: 0; }
-.help-mini-card { border: 1px solid var(--border); border-radius: 4px; overflow: hidden; background: var(--surface); }
-.help-mini-hdr { padding: 7px 12px; border-bottom: 1px solid var(--border2); display: flex; align-items: center; gap: 7px; font-size: 12px; }
 .help-mini-section { padding: 4px 12px 3px; font-size: 10px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; background: var(--surface2); border-bottom: 1px solid var(--border2); }
-.help-mini-row { padding: 5px 12px; display: flex; align-items: center; gap: 6px; font-size: 12px; border-bottom: 1px solid var(--border3); }
-.help-mini-row:last-child { border-bottom: none; }
-.help-mini-search-hdr { padding: 5px 10px; border-bottom: 1px solid var(--border2); display: flex; align-items: center; gap: 8px; font-size: 12px; }
-.help-mini-words { width: 100%; border-collapse: collapse; }
-.help-mini-words td { padding: 4px 10px; font-size: 12px; border-bottom: 1px solid var(--border3); }
-.help-mini-words tr:last-child td { border-bottom: none; }
-.help-demo-panel-label { margin-top: 8px; text-align: center; }
+.help-demo-panel-content { border: 1px solid var(--border); border-radius: 4px; overflow: hidden; flex: 1; min-height: 0; }
+.help-demo-panel-label { text-align: center; flex-shrink: 0; }
 /* Slide 3 score-edit demo table */
 #help-slide-2 .word-table td { padding: 6px 16px; }
 #help-slide-2 .word-table td:nth-child(2) { width: 130px; }
@@ -528,19 +521,13 @@ input.cell-edit.score-edit { font-family: ui-monospace, 'Cascadia Code', monospa
 /* Slide 4 search demo table */
 #help-slide-3 .word-table td { padding: 4px 14px; }
 #help-slide-3 .word-table td:nth-child(2) { width: 80px; }
-/* Slide 1 mini card internals */
-.help-mini-hdr svg { color: var(--accent); flex-shrink: 0; }
-.help-mini-title { font-weight: 600; }
-.help-mini-search-icon { color: var(--muted); }
-.help-mini-search-placeholder { flex: 1; color: var(--faint); }
-.help-mini-search-min { color: var(--muted); font-size: 11px; white-space: nowrap; }
-.help-mini-words td:first-child { font-family: ui-monospace, 'Cascadia Code', monospace; }
-.help-mini-words td:last-child { text-align: right; color: var(--muted); }
-/* Slide 2 list-card demo overrides */
+/* Demo slides: non-interactive */
+#help-slide-0 .list-card,
+#help-slide-0 .search-bar,
+#help-slide-1 .list-card,
+#help-slide-3 .search-bar { pointer-events: none; }
 #help-slide-1 .list-card { cursor: default; }
 #help-slide-1 .list-card:last-child { border-bottom: none; }
-#help-slide-1 .help-mini-section { padding: 4px 14px 3px; }
-#help-slide-1 .toggle { pointer-events: none; }
 /* Slide 5 download demo */
 .help-demo-dl { display: flex; flex-direction: column; gap: 12px; align-items: flex-start; }
 .help-demo-dl-opts { display: flex; flex-direction: column; gap: 8px; }
@@ -625,32 +612,19 @@ input.cell-edit.score-edit { font-family: ui-monospace, 'Cascadia Code', monospa
   <h2 id="settings-dialog-title">Settings</h2>
   <div class="settings-row">
     <span class="settings-row-label">Dark mode</span>
-    <div class="seg-ctrl" id="dark-mode-seg">
-      <button class="seg-btn" data-val="auto">Auto</button>
-      <button class="seg-btn" data-val="light">☀ Light</button>
-      <button class="seg-btn" data-val="dark">☽ Dark</button>
-    </div>
+    <div id="dark-mode-seg"></div>
   </div>
   <div class="settings-row">
     <span class="settings-row-label">Download extension</span>
-    <div class="seg-ctrl" id="download-ext-ctrl">
-      <button class="seg-btn" data-ext="txt">.txt</button>
-      <button class="seg-btn" data-ext="dict">.dict</button>
-    </div>
+    <div id="download-ext-ctrl"></div>
   </div>
   <div class="settings-row">
     <span class="settings-row-label">Download case</span>
-    <div class="seg-ctrl" id="download-case-ctrl">
-      <button class="seg-btn" data-case="lower">lower</button>
-      <button class="seg-btn" data-case="upper">UPPER</button>
-    </div>
+    <div id="download-case-ctrl"></div>
   </div>
   <div class="settings-row">
     <span class="settings-row-label">Display case</span>
-    <div class="seg-ctrl" id="display-case-ctrl">
-      <button class="seg-btn" data-case="lower">lower</button>
-      <button class="seg-btn" data-case="upper">UPPER</button>
-    </div>
+    <div id="display-case-ctrl"></div>
   </div>
   <div class="settings-row">
     <div>
@@ -750,42 +724,17 @@ input.cell-edit.score-edit { font-family: ui-monospace, 'Cascadia Code', monospa
       <!-- Slide 1: What Is Grawlix? -->
       <div class="help-slide active" id="help-slide-0">
         <h2>What Is Grawlix?</h2>
-        <p>Grawlix is a wordlist manager for crossword constructors. It lets you pull in wordlists from multiple sources, clean them up, and merge them into a single master list you can load into your construction software.</p>
+        <p>Grawlix is a wordlist manager for crossword constructors. It lets you pull in wordlists from multiple sources, rescore them, and merge them into a single master list you can load into your construction software.</p>
         <p>It doubles as a search tool while you're building: filter entries by substring, score, and more to quickly find the best word for a tricky slot.</p>
         <div class="help-demo flush">
           <div class="help-demo-panels">
             <div class="help-demo-panel">
-              <div class="help-mini-card">
-                <div class="help-mini-hdr">
-                  <svg width="13" height="13" aria-hidden="true"><use href="#icon-output"/></svg>
-                  <span class="help-mini-title">Output List</span>
-                </div>
-                <div class="help-mini-section">Input Lists</div>
-                <div class="help-mini-row">
-                  <span class="drag-handle" aria-hidden="true">≡</span>
-                  <span>List A</span>
-                </div>
-                <div class="help-mini-row">
-                  <span class="drag-handle" aria-hidden="true">≡</span>
-                  <span>List B</span>
-                </div>
-              </div>
+              <div class="help-demo-panel-content" id="help-slide0-lists"></div>
               <div class="help-demo-label help-demo-panel-label">Build your wordlist</div>
             </div>
             <div class="help-demo-vbar"></div>
             <div class="help-demo-panel">
-              <div class="help-mini-card">
-                <div class="help-mini-search-hdr">
-                  <span class="help-mini-search-icon">🔍</span>
-                  <span class="help-mini-search-placeholder">Search...</span>
-                  <span class="help-mini-search-min">Min: 0</span>
-                </div>
-                <table class="help-mini-words">
-                  <tr><td>WORDPLAY</td><td>60</td></tr>
-                  <tr><td>CROSSWORD</td><td>60</td></tr>
-                  <tr><td>CROSSFIRE</td><td>50</td></tr>
-                </table>
-              </div>
+              <div class="help-demo-panel-content" id="help-slide0-search"></div>
               <div class="help-demo-label help-demo-panel-label">Search while you construct</div>
             </div>
           </div>
@@ -797,36 +746,7 @@ input.cell-edit.score-edit { font-family: ui-monospace, 'Cascadia Code', monospa
         <h2>Building Your Wordlist</h2>
         <p>Add wordlists from well-known sources with one click, or import your own files and URLs.</p>
         <p>Lists <strong>merge in priority order</strong> — the higher a list sits, the more its scores count when the same word appears in multiple lists. Drag to reorder. Toggle lists on and off to experiment with different combinations.</p>
-        <div class="help-demo flush">
-          <div class="list-card">
-            <svg width="16" height="16" class="list-icon-svg output-icon" aria-hidden="true"><use href="#icon-output"/></svg>
-            <div class="card-info">
-              <div class="card-name-row"><div class="card-name">Output List</div></div>
-              <div class="card-meta">Merged from 2 sources</div>
-            </div>
-          </div>
-          <div class="help-mini-section">Input Lists</div>
-          <div class="list-card">
-            <span class="drag-handle">≡</span>
-            <div class="card-info">
-              <div class="card-name-row"><div class="card-name">John Kugelman</div></div>
-              <div class="card-meta">47,000 entries</div>
-            </div>
-            <div class="card-actions">
-              <label class="toggle"><input type="checkbox" checked><span class="toggle-slider"></span></label>
-            </div>
-          </div>
-          <div class="list-card disabled">
-            <span class="drag-handle">≡</span>
-            <div class="card-info">
-              <div class="card-name-row"><div class="card-name">Peter Broda</div></div>
-              <div class="card-meta">68,000 entries</div>
-            </div>
-            <div class="card-actions">
-              <label class="toggle"><input type="checkbox"><span class="toggle-slider"></span></label>
-            </div>
-          </div>
-        </div>
+        <div class="help-demo flush" id="help-slide1-demo"></div>
       </div>
 
       <!-- Slide 3: Making It Yours -->
@@ -853,22 +773,8 @@ input.cell-edit.score-edit { font-family: ui-monospace, 'Cascadia Code', monospa
         <p>Type in the search bar to instantly filter the wordlist. Matches are highlighted in color so you can see exactly where the term appears.</p>
         <p>Set a minimum score to hide lower-quality entries. Toggle <strong>Whole word</strong> to match only complete words rather than substrings.</p>
         <div class="help-demo flush">
-          <div class="search-bar">
-            <div class="search-row">
-              <div class="search-input-wrap">
-                <svg width="13" height="13" aria-hidden="true"><use href="#icon-search"/></svg>
-                <input id="help-search-input" type="text" placeholder="Search..." readonly>
-              </div>
-              <label class="score-min-label">Min score
-                <div class="score-min-wrap">
-                  <input id="help-score-min" type="number" value="0" readonly>
-                </div>
-              </label>
-            </div>
-          </div>
-          <table class="word-table">
-            <tbody id="help-word-tbody"></tbody>
-          </table>
+          <div id="help-slide3-bar"></div>
+          <table class="word-table"><tbody id="help-word-tbody"></tbody></table>
         </div>
       </div>
 
@@ -883,17 +789,11 @@ input.cell-edit.score-edit { font-family: ui-monospace, 'Cascadia Code', monospa
             <div class="help-demo-dl-opts">
               <div class="help-demo-dl-row">
                 <span class="help-demo-dl-lbl">Case</span>
-                <div class="seg-ctrl">
-                  <button class="seg-btn active">lower</button>
-                  <button class="seg-btn">UPPER</button>
-                </div>
+                <div id="help-slide4-case-ctrl"></div>
               </div>
               <div class="help-demo-dl-row">
                 <span class="help-demo-dl-lbl">Format</span>
-                <div class="seg-ctrl">
-                  <button class="seg-btn active">.txt</button>
-                  <button class="seg-btn">.dict</button>
-                </div>
+                <div id="help-slide4-ext-ctrl"></div>
               </div>
             </div>
           </div>
@@ -990,6 +890,307 @@ const BUILTIN_WORDLISTS = [
     ],
   },
 ];
+
+// ─── Components ──────────────────────────────────────────────────────────────
+
+function buildScoreBadgeHTML(score) {
+  return `<span class="score-badge" data-tier="${scoreTier(score)}">${score}</span>`;
+}
+
+function buildToggleHTML(checked, disabled) {
+  return `<label class="toggle">
+    <input type="checkbox"${checked ? ' checked' : ''}${disabled ? ' disabled' : ''}>
+    <span class="toggle-slider"></span>
+  </label>`;
+}
+
+// options: array of { value, label }
+function buildSegCtrlHTML(id, options, activeValue) {
+  const buttons = options.map(({ value, label }) =>
+    `<button class="seg-btn${value === activeValue ? ' active' : ''}" data-val="${value}">${label}</button>`
+  ).join('');
+  return `<div class="seg-ctrl"${id ? ` id="${id}"` : ''}>${buttons}</div>`;
+}
+
+function buildStatItemHTML(label, value, title) {
+  return `<div class="stat"${title ? ` title="${title}"` : ''}>
+    <span class="stat-label">${label}</span>
+    <span class="stat-value">${value}</span>
+  </div>`;
+}
+
+// opts: { editable } — adds onclick rename handler and pencil hint
+function buildDetailHeaderHTML(nameHTML, buttons, { editable = false } = {}) {
+  const h2Attrs = editable ? ' onclick="startHeaderRename()" title="Click to rename"' : '';
+  const pencil  = editable
+    ? buildEditHintHTML('detail-edit-hint', 'startHeaderRename()')
+    : '';
+  return `<div class="detail-header">
+    <div class="detail-name-wrap">
+      <h2${h2Attrs}>${nameHTML}</h2>
+      ${pencil}
+    </div>
+    ${buttons.join('\n    ')}
+  </div>`;
+}
+
+// opts: { isOutput, enabled, selected, id, isEdits, hasData, hasUpdate, interactive }
+// interactive: true  → adds draggable, onclick, tabindex, role, onkeydown, toggle wiring
+// interactive: false → static display card (default — safe for demos)
+function buildListCardHTML(icon, name, meta, opts = {}) {
+  const {
+    isOutput    = false,
+    enabled     = true,
+    selected    = false,
+    id          = null,
+    isEdits     = false,
+    hasData     = true,
+    hasUpdate   = false,
+    interactive = false,
+  } = opts;
+
+  const classes = ['list-card'];
+  if (selected)                        classes.push('selected');
+  if (!enabled)                        classes.push('disabled');
+  if (!hasData && !isEdits && !isOutput) classes.push('no-data');
+
+  const dragHandle = buildDragHandleHTML(!isOutput);
+
+  const updateDot = hasUpdate
+    ? `<span class="update-dot" title="Update available" aria-label="Update available"></span>`
+    : '';
+
+  const cardInfo = `<div class="card-info">
+      <div class="card-name-row"><div class="card-name">${esc(name)}</div>${updateDot}</div>
+      <div class="card-meta">${meta}</div>
+    </div>`;
+
+  if (isOutput) {
+    return `<div class="${classes.join(' ')}">${dragHandle}${icon}${cardInfo}</div>`;
+  }
+
+  let wrapAttrs = '';
+  let cardActions;
+  if (interactive) {
+    const toggleEnabled = hasData || isEdits;
+    const toggleTitle = !toggleEnabled ? 'Click to import'
+      : enabled ? 'Enabled — click to disable' : 'Disabled — click to enable';
+    const toggleClick = toggleEnabled ? 'event.stopPropagation()' : `triggerImportForList('${id}',event)`;
+    const idAttr = isEdits ? ' id="edits-card"' : '';
+    wrapAttrs = ` data-id="${id}" draggable="true" onclick="selectList('${id}')" tabindex="0" role="option" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();selectList('${id}')}"${idAttr}`;
+    cardActions = `<div class="card-actions">
+      <label class="toggle" onclick="${toggleClick}" title="${toggleTitle}" aria-label="Toggle ${esc(name)}">
+        <input type="checkbox"${toggleEnabled && enabled ? ' checked' : ''}${toggleEnabled ? '' : ' disabled'} onchange="toggleList('${id}',event)">
+        <span class="toggle-slider"></span>
+      </label>
+    </div>`;
+  } else {
+    cardActions = `<div class="card-actions">${buildToggleHTML(enabled, !hasData && !isEdits)}</div>`;
+  }
+
+  return `<div class="${classes.join(' ')}"${wrapAttrs}>${dragHandle}${icon}${cardInfo}${cardActions}</div>`;
+}
+
+function buildSearchBarHTML(opts = {}) {
+  const {
+    idPrefix        = '',
+    readonly        = false,
+    showHints       = true,
+    searchQuery     = idPrefix ? '' : esc(state.searchQuery),
+    searchWholeWord = idPrefix ? false : (state.searchWholeWord || false),
+    minScore        = idPrefix ? null : state.minScore,
+  } = opts;
+  const pre = idPrefix ? `${idPrefix}-` : '';
+  const ro  = readonly ? ' readonly' : '';
+
+  const hintsHtml = showHints ? `
+      <div class="search-help">
+        <span><kbd>?</kbd> any letter</span>
+        <span><kbd>*</kbd> any number of letters</span>
+        <span><kbd>#</kbd> consonant</span>
+        <span><kbd>@</kbd> vowel</span>
+        <span><kbd>[jqxz]</kbd> any of these letters</span>
+        <span><kbd>[^jqxz]</kbd> none of these letters</span>
+        <span><kbd>[a-m]</kbd> letter range</span>
+        <span id="${pre}search-count"></span>
+      </div>` : '';
+
+  const inputHandlers = readonly ? '' : ` oninput="onSearch(this.value)"`;
+  const clearSearchBtn = readonly ? '' :
+    `<button class="clear-btn" id="${pre}search-clear" onclick="clearSearch()" title="Clear search" aria-label="Clear search" ${searchQuery ? '' : 'hidden'}><svg width="10" height="10"><use href="#icon-x"/></svg></button>`;
+  const wholeWordHandler = readonly ? '' : ` onchange="onSearchWholeWord(this.checked)"`;
+  const minScoreHandler  = readonly ? '' : ` oninput="onMinScore(this.value)"`;
+  const clearMinBtn = readonly ? '' :
+    `<button class="clear-btn" id="${pre}score-min-clear" onclick="clearMinScore()" title="Clear min score" aria-label="Clear min score" ${minScore !== null ? '' : 'hidden'}><svg width="10" height="10"><use href="#icon-x"/></svg></button>`;
+
+  return `<div class="search-bar">${hintsHtml}
+      <div class="search-row">
+        <div class="search-input-wrap">
+          <svg width="13" height="13"><use href="#icon-search"/></svg>
+          <input type="text" id="${pre}search-input" placeholder="Search" value="${searchQuery}"${ro}${inputHandlers}>
+          ${clearSearchBtn}
+        </div>
+        <label class="search-whole-word-label"><input type="checkbox" id="${pre}search-whole-word"${wholeWordHandler} ${searchWholeWord ? 'checked' : ''}${ro}> Whole word</label>
+        <label class="score-min-label">Min score <span class="score-min-wrap"><input type="number" id="${pre}score-min-input" min="0" value="${minScore ?? ''}"${ro}${minScoreHandler}>${clearMinBtn}</span></label>
+      </div>
+    </div>`;
+}
+
+function buildStatsBarHTML(stats, emptyMsg) {
+  if (!stats) return `<div class="stats-bar stats-empty">${emptyMsg}</div>`;
+  const bars = stats.buckets.map((b, i) => {
+    const h = stats.maxBucket ? Math.max(2, Math.round((b / stats.maxBucket) * 34)) : 2;
+    return `<div class="score-bar" style="height:${h}px" title="${i*10}–${i===10?'100':i*10+9}: ${b.toLocaleString()}"></div>`;
+  }).join('');
+  return `<div class="stats-bar">
+      ${buildStatItemHTML('Entries', stats.count.toLocaleString())}
+      ${buildStatItemHTML('Min', stats.min)}
+      ${buildStatItemHTML('Max', stats.max)}
+      <div class="stats-right">
+        ${buildStatItemHTML('Mean', stats.mean, 'Average score')}
+        ${buildStatItemHTML('Median', stats.median % 1 === 0 ? stats.median : stats.median.toFixed(1), '50th percentile')}
+        ${buildStatItemHTML('Mode', stats.mode, 'Most common score')}
+        <div class="score-dist" title="Score distribution by decile">${bars}</div>
+      </div>
+    </div>`;
+}
+
+// opts: { comment, highlight }
+// highlight: string — wraps matching substring in <mark class="search-match search-match-0">
+function buildWordRowHTML(word, score, { comment = '', highlight = '' } = {}) {
+  const displayed = displayWord(word);
+  let wordCell = displayed;
+  if (highlight) {
+    const dc = displayWord(highlight);
+    const idx = displayed.indexOf(dc);
+    if (idx !== -1)
+      wordCell = displayed.slice(0, idx)
+        + `<mark class="search-match search-match-0">${dc}</mark>`
+        + displayed.slice(idx + dc.length);
+  }
+  return `<tr>
+    <td class="col-word">${wordCell}</td>
+    <td class="score-cell">${buildScoreBadgeHTML(score)}</td>
+    ${comment ? `<td class="comment-cell">${esc(comment)}</td>` : ''}
+  </tr>`;
+}
+
+// lists: [{ icon, name, meta, enabled }]
+function buildListSidebarHTML(lists, outputMeta = 'Merged from 2 sources') {
+  return buildListCardHTML(OUTPUT_ICON, OUTPUT_NAME, outputMeta, { isOutput: true })
+    + `<div class="help-mini-section">Input Lists (${lists.length})</div>`
+    + lists.map(({ icon, name, meta, enabled = true }) =>
+        buildListCardHTML(icon, name, meta, { enabled })
+      ).join('');
+}
+
+function buildSplitBtn(mainLabel, mainOnclick, menuItems, { primary = false, disabled = false, title = '' } = {}) {
+  const dis = disabled ? ' disabled' : '';
+  const titleAttr = title ? ` title="${title}"` : '';
+  const arrow = `<svg width="8" height="5"><use href="#icon-arrow"/></svg>`;
+  const items = menuItems.map(([lbl, fn]) => `<button onclick="${fn}">${lbl}</button>`).join('');
+  return `<div class="split-btn${primary ? ' primary' : ''}">` +
+    `<button class="split-btn-main"${titleAttr} onclick="${mainOnclick}"${dis}>${mainLabel}</button>` +
+    `<button class="split-btn-arrow" onclick="toggleSplitMenu(event)" title="More options"${dis}>${arrow}</button>` +
+    `<div class="split-btn-menu">${items}</div>` +
+    `</div>`;
+}
+
+function buildRuleSectionHTML({ label, rulesId, rulesHTML, showReset, onResetFn }) {
+  return `
+    <div class="rescore-top">
+      <span class="rescore-lbl">${label}</span>
+      <button class="rule-reset${showReset ? '' : ' hidden'}" onclick="${onResetFn}()" title="Reset to defaults">↺</button>
+    </div>
+    <div id="${rulesId}">${rulesHTML}</div>
+  `;
+}
+
+function buildRuleRowHTML(i, isCatchAll, fieldsHTML, note, onDeleteFn) {
+  return `<div class="rule-row${isCatchAll ? ' rule-catchall' : ''}" data-i="${i}">
+      ${fieldsHTML}
+      <span class="rule-note-wrap${note ? ' has-note' : ''}" onclick="startNoteEdit(this)" title="Click to edit">
+        <span class="rule-note-text">${esc(note||'')}</span>
+        ${buildEditHintHTML('rule-note-pencil', 'startNoteEdit(this.parentElement)')}
+      </span>
+      ${isCatchAll ? '' : `<button class="rule-del" onclick="${onDeleteFn}(${i})" title="Remove row">${buildTrashIconHTML()}</button>`}
+    </div>`;
+}
+
+function buildRulesSectionHTML(rules, { label, rulesId, saveFn, deleteFn, resetFn, showReset, rescore = false }) {
+  let rulesHTML;
+  if (!rules.length && rescore) {
+    rulesHTML = '<div class="no-rules">No rules — words kept as-is</div>';
+  } else {
+    rulesHTML = rules.map((r, i) => {
+      const isCatchAll = !!r._catchAll;
+      let fieldsHTML = `<input class="rule-in" value="${esc(r.input)}"
+            title="Score range: 50, 50-59, or 50+"
+            oninput="onRuleInput(this)" onchange="${saveFn}(${i},'input',this.value)">`;
+      if (rescore) fieldsHTML += `
+          <span class="rule-field-lbl">length</span><input class="rule-len" value="${esc(r.length||'')}" placeholder="any"
+            title="Word length filter: 7, 7-10, or 7+ (blank = any length)"
+            oninput="onRuleInput(this)" onchange="${saveFn}(${i},'length',this.value)">
+          <span class="rule-arrow">→</span>
+          <input class="rule-out" value="${esc(r.output)}" placeholder="unchanged"
+            title="Output score, 'ignore', or blank for unchanged"
+            oninput="onRuleInput(this)" onchange="${saveFn}(${i},'output',this.value)">`;
+      return buildRuleRowHTML(i, isCatchAll, fieldsHTML, r.note, deleteFn);
+    }).join('');
+  }
+  return buildRuleSectionHTML({ label, rulesId, rulesHTML, showReset, onResetFn: resetFn });
+}
+
+function buildRescoreSectionHTML(list) {
+  if (!list) return '';
+  const tmpl = getTemplate(list.id);
+  return buildRulesSectionHTML(list.rescoreRules || [], {
+    label: 'Rescoring', rulesId: 'rescore-rules',
+    saveFn: 'saveRuleField', deleteFn: 'deleteRule', resetFn: 'resetRescoreRules',
+    showReset: !!(tmpl?.defaultRules && !rulesMatchDefaults(list)),
+    rescore: true,
+  });
+}
+
+function buildOutputScoringSectionHTML() {
+  return buildRulesSectionHTML(state.outputScoring, {
+    label: 'Scoring', rulesId: 'output-scoring-rules',
+    saveFn: 'saveOutputScoringField', deleteFn: 'deleteOutputScoringRow', resetFn: 'resetOutputScoring',
+    showReset: !outputScoringMatchesDefaults(),
+  });
+}
+
+function buildEditsScoringSectionHTML(list) {
+  return buildRulesSectionHTML(list.scoring, {
+    label: 'Scoring', rulesId: 'edits-scoring-rules',
+    saveFn: 'saveEditsScoringField', deleteFn: 'deleteEditsScoringRow', resetFn: 'resetEditsScoring',
+    showReset: !scoringMatchesDefaults(list.scoring),
+  });
+}
+
+function buildTableContainerHTML() {
+  return `${buildSearchBarHTML()}
+    <div id="table-container">
+      <div id="vs-host"></div>
+      <div id="add-row-footer">${ADD_WORD_TRIGGER_HTML}</div>
+    </div>`;
+}
+
+function buildEditHintHTML(extraClass, onclick) {
+  return `<span class="edit-hint${extraClass ? ' ' + extraClass : ''}" onclick="${onclick}" aria-hidden="true" title="Click to edit">✏️</span>`;
+}
+
+function buildTrashIconHTML() {
+  return `<svg class="icon-trash"><use href="#icon-trash"/></svg>`;
+}
+
+// interactive false → aria-hidden (output card, add-list row, demo cards)
+// interactive true  → title + aria-label (draggable input list cards)
+function buildDragHandleHTML(interactive = false) {
+  return interactive
+    ? `<span class="drag-handle" title="Drag to reorder" aria-label="Drag to reorder">≡</span>`
+    : `<span class="drag-handle" aria-hidden="true">≡</span>`;
+}
 
 // ─── State ────────────────────────────────────────────────────────────────────
 
@@ -1115,8 +1316,12 @@ function initDarkMode() {
   const saved = lsLoad('darkMode') || 'auto';
   applyDarkMode(saved);
   const seg = document.getElementById('dark-mode-seg');
+  seg.innerHTML = buildSegCtrlHTML(null, [
+    { value: 'auto',  label: 'Auto' },
+    { value: 'light', label: '☀ Light' },
+    { value: 'dark',  label: '☽ Dark' },
+  ], saved);
   seg.querySelectorAll('.seg-btn').forEach(btn => {
-    btn.classList.toggle('active', btn.dataset.val === saved);
     btn.onclick = () => {
       const val = btn.dataset.val;
       lsSave('darkMode', val);
@@ -1134,12 +1339,15 @@ function initDarkMode() {
 function initDownloadCase() {
   const ctrl = document.getElementById('download-case-ctrl');
   const saved = lsLoad('downloadCase') || 'lower';
+  ctrl.innerHTML = buildSegCtrlHTML(null, [
+    { value: 'lower', label: 'lower' },
+    { value: 'upper', label: 'UPPER' },
+  ], saved);
   ctrl.querySelectorAll('.seg-btn').forEach(btn => {
-    btn.classList.toggle('active', btn.dataset.case === saved);
     btn.onclick = () => {
       ctrl.querySelectorAll('.seg-btn').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
-      lsSave('downloadCase', btn.dataset.case);
+      lsSave('downloadCase', btn.dataset.val);
     };
   });
 }
@@ -1155,12 +1363,15 @@ function displayWord(word) {
 function initDisplayCase() {
   const ctrl = document.getElementById('display-case-ctrl');
   const saved = getDisplayCase();
+  ctrl.innerHTML = buildSegCtrlHTML(null, [
+    { value: 'lower', label: 'lower' },
+    { value: 'upper', label: 'UPPER' },
+  ], saved);
   ctrl.querySelectorAll('.seg-btn').forEach(btn => {
-    btn.classList.toggle('active', btn.dataset.case === saved);
     btn.onclick = () => {
       ctrl.querySelectorAll('.seg-btn').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
-      lsSave('displayCase', btn.dataset.case);
+      lsSave('displayCase', btn.dataset.val);
       if (scroller) scroller.updateEntries(scroller.allEntries);
     };
   });
@@ -1173,12 +1384,15 @@ function getDownloadExt() { return lsLoad('downloadExt') || 'txt'; }
 function initDownloadExt() {
   const ctrl = document.getElementById('download-ext-ctrl');
   const saved = lsLoad('downloadExt') || 'txt';
+  ctrl.innerHTML = buildSegCtrlHTML(null, [
+    { value: 'txt',  label: '.txt' },
+    { value: 'dict', label: '.dict' },
+  ], saved);
   ctrl.querySelectorAll('.seg-btn').forEach(btn => {
-    btn.classList.toggle('active', btn.dataset.ext === saved);
     btn.onclick = () => {
       ctrl.querySelectorAll('.seg-btn').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
-      lsSave('downloadExt', btn.dataset.ext);
+      lsSave('downloadExt', btn.dataset.val);
     };
   });
 }
@@ -1726,9 +1940,9 @@ class VirtualScroller {
 
       let innerScore;
       if (ignored) {
-        innerScore = `<span class="score-badge" data-tier="${tier}">${score}</span>`;
+        innerScore = buildScoreBadgeHTML(score);
       } else {
-        innerScore = `<span class="score-badge" data-tier="${scoreTier(effectiveScore)}">${effectiveScore}</span>`;
+        innerScore = buildScoreBadgeHTML(effectiveScore);
         if (wasRescored || scoreOv) innerScore += `<sup class="effective-asterisk">*</sup>`;
       }
 
@@ -1753,7 +1967,7 @@ class VirtualScroller {
         const rawIcon = listId === this.editsId ? EDITS_ICON : getListIcon(listId);
         const iconHtml = `<span class="source-icon">${rawIcon}</span>`;
         const editTrash = (this.showEditDeleteCol && listId === this.editsId)
-          ? `<span class="source-trash" title="Remove edit"><svg class="icon-trash"><use href="#icon-trash"/></svg></span>`
+          ? `<span class="source-trash" title="Remove edit">${buildTrashIconHTML()}</span>`
           : '';
         sourceCell = `<td class="comment-cell">${iconHtml}${esc(listName || '')}${editTrash}</td>`;
       }
@@ -1764,7 +1978,7 @@ class VirtualScroller {
         scoreCell +
         commentCell +
         sourceCell +
-        (this.showDeleteCol ? `<td class="col-trash" title="Remove"><svg class="icon-trash"><use href="#icon-trash"/></svg></td>` : '');
+        (this.showDeleteCol ? `<td class="col-trash" title="Remove">${buildTrashIconHTML()}</td>` : '');
       frag.appendChild(tr);
     }
     this.tbody.insertBefore(frag, this.botRow);
@@ -1899,10 +2113,9 @@ class UpdateSummaryScroller {
           scoreSpan.innerHTML =
             `<span class="usd-old-score">${row.oldScore}</span>` +
             `<span class="usd-arrow">→</span>` +
-            `<span class="score-badge" data-tier="${scoreTier(row.score)}">${row.score}</span>`;
+            buildScoreBadgeHTML(row.score);
         } else {
-          scoreSpan.innerHTML =
-            `<span class="score-badge" data-tier="${scoreTier(row.score)}">${row.score}</span>`;
+          scoreSpan.innerHTML = buildScoreBadgeHTML(row.score);
         }
         div.appendChild(scoreSpan);
       }
@@ -2052,65 +2265,7 @@ function rescoreEntry(entry, rules) {
   return { kept: true, score: entry.score };
 }
 
-// ─── Shared rule section helpers ─────────────────────────────────────────────
-
-function buildRuleSectionHTML({ label, rulesId, rulesHTML, showReset, onResetFn }) {
-  return `
-    <div class="rescore-top">
-      <span class="rescore-lbl">${label}</span>
-      <button class="rule-reset${showReset ? '' : ' hidden'}" onclick="${onResetFn}()" title="Reset to defaults">↺</button>
-    </div>
-    <div id="${rulesId}">${rulesHTML}</div>
-  `;
-}
-
-function buildRuleRowHTML(i, isCatchAll, fieldsHTML, note, onDeleteFn) {
-  return `<div class="rule-row${isCatchAll ? ' rule-catchall' : ''}" data-i="${i}">
-      ${fieldsHTML}
-      <span class="rule-note-wrap${note ? ' has-note' : ''}" onclick="startNoteEdit(this)" title="Click to edit">
-        <span class="rule-note-text">${esc(note||'')}</span>
-        <span class="edit-hint rule-note-pencil" aria-hidden="true">✏️</span>
-      </span>
-      ${isCatchAll ? '' : `<button class="rule-del" onclick="${onDeleteFn}(${i})" title="Remove row"><svg class="icon-trash"><use href="#icon-trash"/></svg></button>`}
-    </div>`;
-}
-
 // ─── Rescoring / Scoring section ─────────────────────────────────────────────
-
-function buildRulesSectionHTML(rules, { label, rulesId, saveFn, deleteFn, resetFn, showReset, rescore = false }) {
-  let rulesHTML;
-  if (!rules.length && rescore) {
-    rulesHTML = '<div class="no-rules">No rules — words kept as-is</div>';
-  } else {
-    rulesHTML = rules.map((r, i) => {
-      const isCatchAll = !!r._catchAll;
-      let fieldsHTML = `<input class="rule-in" value="${esc(r.input)}"
-            title="Score range: 50, 50-59, or 50+"
-            oninput="onRuleInput(this)" onchange="${saveFn}(${i},'input',this.value)">`;
-      if (rescore) fieldsHTML += `
-          <span class="rule-field-lbl">length</span><input class="rule-len" value="${esc(r.length||'')}" placeholder="any"
-            title="Word length filter: 7, 7-10, or 7+ (blank = any length)"
-            oninput="onRuleInput(this)" onchange="${saveFn}(${i},'length',this.value)">
-          <span class="rule-arrow">→</span>
-          <input class="rule-out" value="${esc(r.output)}" placeholder="unchanged"
-            title="Output score, 'ignore', or blank for unchanged"
-            oninput="onRuleInput(this)" onchange="${saveFn}(${i},'output',this.value)">`;
-      return buildRuleRowHTML(i, isCatchAll, fieldsHTML, r.note, deleteFn);
-    }).join('');
-  }
-  return buildRuleSectionHTML({ label, rulesId, rulesHTML, showReset, onResetFn: resetFn });
-}
-
-function buildRescoreSectionHTML(list) {
-  if (!list) return '';
-  const tmpl = getTemplate(list.id);
-  return buildRulesSectionHTML(list.rescoreRules || [], {
-    label: 'Rescoring', rulesId: 'rescore-rules',
-    saveFn: 'saveRuleField', deleteFn: 'deleteRule', resetFn: 'resetRescoreRules',
-    showReset: !!(tmpl?.defaultRules && !rulesMatchDefaults(list)),
-    rescore: true,
-  });
-}
 
 function renderRescoreSection() {
   const el = document.getElementById('rescore-section');
@@ -2132,15 +2287,18 @@ function renderAll() {
 function renderOutputCard(meta, selected) {
   const card = document.getElementById('output-card');
   if (!card) return;
-  card.className = 'list-card' + (selected ? ' selected' : '');
-  card.innerHTML = `<span class="drag-handle" aria-hidden="true">≡</span>${OUTPUT_ICON}<div class="card-info"><div class="card-name-row"><div class="card-name">${OUTPUT_NAME}</div></div><div class="card-meta">${meta}</div></div>`;
+  const t = document.createElement('template');
+  t.innerHTML = buildListCardHTML(OUTPUT_ICON, OUTPUT_NAME, meta, { isOutput: true, selected });
+  const el = t.content.firstElementChild;
+  card.className = el.className;
+  card.innerHTML = el.innerHTML;
 }
 
 function renderInputLists() {
   const container = document.getElementById('lists-container');
   document.getElementById('list-count').textContent = `(${state.inputLists.length})`;
 
-  const addRow = `<div class="add-list-row" onclick="openDialog()"><span class="drag-handle" aria-hidden="true">≡</span><span class="add-list-icon">＋</span>Add list</div>`;
+  const addRow = `<div class="add-list-row" onclick="openDialog()">${buildDragHandleHTML()}<span class="add-list-icon">＋</span>Add list</div>`;
 
   if (!_sourceCountsCache) _sourceCountsCache = buildOutputList().sourceCounts;
   const contribMap = new Map(_sourceCountsCache.map(s => [s.id, s.count]));
@@ -2150,9 +2308,7 @@ function renderInputLists() {
 
   container.innerHTML = state.inputLists.map(list => {
     const isEdits = list.id === EDITS_ID;
-    const sel = list.id === state.selectedId;
     const hasData = list.rawEntries.length > 0;
-
     const icon = isEdits ? EDITS_ICON : getListIcon(list.id);
 
     let meta;
@@ -2168,26 +2324,15 @@ function renderInputLists() {
         : `${used.toLocaleString()} of ${pluralize(total, 'entry', 'entries')} used`;
     }
 
-    const toggleEnabled = hasData || isEdits;
-    const toggleTitle = !toggleEnabled ? 'Click to import' : list.enabled ? 'Enabled — click to disable' : 'Disabled — click to enable';
-    const toggleClick = toggleEnabled ? 'event.stopPropagation()' : `triggerImportForList('${list.id}',event)`;
-    return `<div class="list-card${sel ? ' selected' : ''}${list.enabled ? '' : ' disabled'}${!hasData && !isEdits ? ' no-data' : ''}" data-id="${list.id}" draggable="true" onclick="selectList('${list.id}')" tabindex="0" role="option" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();selectList('${list.id}')}"${isEdits ? ' id="edits-card"' : ''}>
-      <span class="drag-handle" title="Drag to reorder" aria-label="Drag to reorder">≡</span>
-      ${icon}
-      <div class="card-info">
-        <div class="card-name-row">
-          <div class="card-name">${esc(list.name)}</div>
-          ${list._updateAvailable ? `<span class="update-dot" title="Update available" aria-label="Update available"></span>` : ''}
-        </div>
-        <div class="card-meta">${meta}</div>
-      </div>
-      <div class="card-actions">
-        <label class="toggle" onclick="${toggleClick}" title="${toggleTitle}" aria-label="Toggle ${esc(list.name)}">
-          <input type="checkbox"${toggleEnabled && list.enabled ? ' checked' : ''}${toggleEnabled ? '' : ' disabled'} onchange="toggleList('${list.id}',event)">
-          <span class="toggle-slider"></span>
-        </label>
-      </div>
-    </div>`;
+    return buildListCardHTML(icon, list.name, meta, {
+      selected:    list.id === state.selectedId,
+      enabled:     list.enabled,
+      id:          list.id,
+      isEdits,
+      hasData,
+      hasUpdate:   !!list._updateAvailable,
+      interactive: true,
+    });
   }).join('') + addRow;
 }
 
@@ -2213,49 +2358,6 @@ function refreshSourceCounts() {
   renderOutputCard(totalOutput ? pluralize(totalOutput, 'entry', 'entries') : 'No data', state.selectedId === OUTPUT_ID);
 }
 
-function buildSearchBarHTML() {
-  return `<div class="search-bar">
-      <div class="search-help">
-        <span><kbd>?</kbd> any letter</span>
-        <span><kbd>*</kbd> any number of letters</span>
-        <span><kbd>#</kbd> consonant</span>
-        <span><kbd>@</kbd> vowel</span>
-        <span><kbd>[jqxz]</kbd> any of these letters</span>
-        <span><kbd>[^jqxz]</kbd> none of these letters</span>
-        <span><kbd>[a-m]</kbd> letter range</span>
-        <span id="search-count"></span>
-      </div>
-      <div class="search-row">
-        <div class="search-input-wrap">
-          <svg width="13" height="13"><use href="#icon-search"/></svg>
-          <input type="text" id="search-input" placeholder="Search" value="${esc(state.searchQuery)}" oninput="onSearch(this.value)">
-          <button class="clear-btn" id="search-clear" onclick="clearSearch()" title="Clear search" aria-label="Clear search" ${state.searchQuery ? '' : 'hidden'}><svg width="10" height="10"><use href="#icon-x"/></svg></button>
-        </div>
-        <label class="search-whole-word-label"><input type="checkbox" id="search-whole-word" onchange="onSearchWholeWord(this.checked)" ${state.searchWholeWord ? 'checked' : ''}> Whole word</label>
-        <label class="score-min-label">Min score <span class="score-min-wrap"><input type="number" id="score-min-input" min="0" value="${state.minScore ?? ''}" oninput="onMinScore(this.value)"><button class="clear-btn" id="score-min-clear" onclick="clearMinScore()" title="Clear min score" aria-label="Clear min score" ${state.minScore !== null ? '' : 'hidden'}><svg width="10" height="10"><use href="#icon-x"/></svg></button></span></label>
-      </div>
-    </div>`;
-}
-
-function buildStatsBarHTML(stats, emptyMsg) {
-  if (!stats) return `<div class="stats-bar stats-empty">${emptyMsg}</div>`;
-  const bars = stats.buckets.map((b, i) => {
-    const h = stats.maxBucket ? Math.max(2, Math.round((b / stats.maxBucket) * 34)) : 2;
-    return `<div class="score-bar" style="height:${h}px" title="${i*10}–${i===10?'100':i*10+9}: ${b.toLocaleString()}"></div>`;
-  }).join('');
-  return `<div class="stats-bar">
-      <div class="stat"><span class="stat-label">Entries</span><span class="stat-value">${stats.count.toLocaleString()}</span></div>
-      <div class="stat"><span class="stat-label">Min</span><span class="stat-value">${stats.min}</span></div>
-      <div class="stat"><span class="stat-label">Max</span><span class="stat-value">${stats.max}</span></div>
-      <div class="stats-right">
-        <div class="stat" title="Average score"><span class="stat-label">Mean</span><span class="stat-value">${stats.mean}</span></div>
-        <div class="stat" title="50th percentile"><span class="stat-label">Median</span><span class="stat-value">${stats.median % 1 === 0 ? stats.median : stats.median.toFixed(1)}</span></div>
-        <div class="stat" title="Most common score"><span class="stat-label">Mode</span><span class="stat-value">${stats.mode}</span></div>
-        <div class="score-dist" title="Score distribution by decile">${bars}</div>
-      </div>
-    </div>`;
-}
-
 function createScroller() {
   scroller = new VirtualScroller(document.getElementById('vs-host'));
   return scroller;
@@ -2273,12 +2375,7 @@ function renderOutputDetail() {
   const statsHtml = buildStatsBarHTML(stats, 'No lists loaded — add and populate lists to see the merged result');
 
   panel.innerHTML = `
-    <div class="detail-header">
-      <div class="detail-name-wrap">
-        <h2>${OUTPUT_NAME}</h2>
-      </div>
-      <button class="primary" onclick="downloadOutputListFromPanel()">Download</button>
-    </div>
+    ${buildDetailHeaderHTML(OUTPUT_NAME, ['<button class="primary" onclick="downloadOutputListFromPanel()">Download</button>'])}
     ${statsHtml}
     <div id="output-scoring-section" class="rescore-section">${buildOutputScoringSectionHTML()}</div>
     ${buildTableContainerHTML()}
@@ -2330,14 +2427,6 @@ function updateOutputCatchAll() {
   updateScoringCatchAll(state.outputScoring, entries);
 }
 
-function buildOutputScoringSectionHTML() {
-  return buildRulesSectionHTML(state.outputScoring, {
-    label: 'Scoring', rulesId: 'output-scoring-rules',
-    saveFn: 'saveOutputScoringField', deleteFn: 'deleteOutputScoringRow', resetFn: 'resetOutputScoring',
-    showReset: !outputScoringMatchesDefaults(),
-  });
-}
-
 function renderOutputScoring() {
   const el = document.getElementById('output-scoring-section');
   if (el) el.innerHTML = buildOutputScoringSectionHTML();
@@ -2368,14 +2457,6 @@ function saveOutputScoringField(i, field, val) {
 
 // ─── Edits Scoring ────────────────────────────────────────────────────────────
 
-function buildEditsScoringSectionHTML(list) {
-  return buildRulesSectionHTML(list.scoring, {
-    label: 'Scoring', rulesId: 'edits-scoring-rules',
-    saveFn: 'saveEditsScoringField', deleteFn: 'deleteEditsScoringRow', resetFn: 'resetEditsScoring',
-    showReset: !scoringMatchesDefaults(list.scoring),
-  });
-}
-
 function renderEditsScoring() {
   const el = document.getElementById('edits-scoring-section');
   if (el) el.innerHTML = buildEditsScoringSectionHTML(getEditsList());
@@ -2405,18 +2486,6 @@ function saveEditsScoringField(i, field, val) {
   renderEditsScoring();
 }
 
-
-function buildSplitBtn(mainLabel, mainOnclick, menuItems, { primary = false, disabled = false, title = '' } = {}) {
-  const dis = disabled ? ' disabled' : '';
-  const titleAttr = title ? ` title="${title}"` : '';
-  const arrow = `<svg width="8" height="5"><use href="#icon-arrow"/></svg>`;
-  const items = menuItems.map(([lbl, fn]) => `<button onclick="${fn}">${lbl}</button>`).join('');
-  return `<div class="split-btn${primary ? ' primary' : ''}">` +
-    `<button class="split-btn-main"${titleAttr} onclick="${mainOnclick}"${dis}>${mainLabel}</button>` +
-    `<button class="split-btn-arrow" onclick="toggleSplitMenu(event)" title="More options"${dis}>${arrow}</button>` +
-    `<div class="split-btn-menu">${items}</div>` +
-    `</div>`;
-}
 
 function renderDetail(list) {
   const panel = document.getElementById('detail-panel');
@@ -2467,17 +2536,15 @@ function renderDetail(list) {
   const dlBtn = hasData ? buildSplitBtn('Download', `downloadIndividualListRescored('${list.id}')`,
     [['Download original', `downloadIndividualList('${list.id}')`]]) : '';
 
+  const detailButtons = [
+    ...(hasData && list.lastUpdated ? ['<span class="detail-date"></span>'] : []),
+    actionBtn,
+    ...(dlBtn ? [dlBtn] : []),
+    removeBtn,
+  ];
+
   panel.innerHTML = `
-    <div class="detail-header">
-      <div class="detail-name-wrap">
-        <h2 onclick="startHeaderRename()" title="Click to rename">${esc(list.name)}</h2>
-        <span class="edit-hint detail-edit-hint" onclick="startHeaderRename()" aria-hidden="true">✏️</span>
-      </div>
-      ${hasData && list.lastUpdated ? `<span class="detail-date"></span>` : ''}
-      ${actionBtn}
-      ${dlBtn}
-      ${removeBtn}
-    </div>
+    ${buildDetailHeaderHTML(esc(list.name), detailButtons, { editable: true })}
     ${statsHtml}
     <div id="rescore-section" class="rescore-section">${buildRescoreSectionHTML(list)}</div>
     ${buildTableContainerHTML()}
@@ -2511,16 +2578,14 @@ function renderEditsDetail(list) {
   const stats = computeStats(list.id, list.rawEntries);
   const statsHtml = buildStatsBarHTML(stats, 'No edits yet — click a score or comment in any list to start editing');
 
+  const editsButtons = [
+    `<button onclick="importToList(EDITS_ID)">Import file</button>`,
+    `<button onclick="downloadEdits()">Download</button>`,
+    ...(list.rawEntries.length ? [`<button onclick="clearEdits()">Clear</button>`] : []),
+  ];
+
   panel.innerHTML = `
-    <div class="detail-header">
-      <div class="detail-name-wrap">
-        <h2 onclick="startHeaderRename()" title="Click to rename">${esc(list.name)}</h2>
-        <span class="edit-hint detail-edit-hint" onclick="startHeaderRename()" aria-hidden="true">✏️</span>
-      </div>
-      <button onclick="importToList(EDITS_ID)">Import file</button>
-      <button onclick="downloadEdits()">Download</button>
-      ${list.rawEntries.length ? `<button onclick="clearEdits()">Clear</button>` : ''}
-    </div>
+    ${buildDetailHeaderHTML(esc(list.name), editsButtons, { editable: true })}
     ${statsHtml}
     <div id="edits-scoring-section" class="rescore-section">${buildEditsScoringSectionHTML(list)}</div>
     ${buildTableContainerHTML()}
@@ -2621,12 +2686,14 @@ function flyToEdits(sourceTd, value) {
   const srcRect  = sourceTd.getBoundingClientRect();
   const dstRect  = targetCard.getBoundingClientRect();
 
-  const clone = document.createElement('span');
+  let clone;
   if (typeof value === 'number') {
-    clone.className = 'fly-clone score-badge';
-    clone.dataset.tier = scoreTier(value);
-    clone.textContent = value;
+    const t = document.createElement('template');
+    t.innerHTML = buildScoreBadgeHTML(value);
+    clone = t.content.firstElementChild;
+    clone.classList.add('fly-clone');
   } else {
+    clone = document.createElement('span');
     clone.className = 'fly-clone fly-badge';
     clone.textContent = value;
   }
@@ -2944,14 +3011,6 @@ function ingestFile(file, listId, nameOverride) {
 // ─── My Edits: add word & delete ─────────────────────────────────────────────
 
 const ADD_WORD_TRIGGER_HTML = '<div class="add-row-trigger" onclick="openAddWordBar()">＋ Add word</div>';
-
-function buildTableContainerHTML() {
-  return `${buildSearchBarHTML()}
-    <div id="table-container">
-      <div id="vs-host"></div>
-      <div id="add-row-footer">${ADD_WORD_TRIGGER_HTML}</div>
-    </div>`;
-}
 
 function openAddWordBar() {
   const footer = document.getElementById('add-row-footer');
@@ -4005,7 +4064,7 @@ const HelpModal = (() => {
     const demoRow = slide.querySelector('.demo-row');
     const scoreCell = slide.querySelector('.demo-score-cell');
 
-    scoreCell.innerHTML = '<span class="score-badge" data-tier="fair">45</span>';
+    scoreCell.innerHTML = buildScoreBadgeHTML(45);
     demoRow.style.background = '';
 
     after(1000, () => { demoRow.style.background = 'var(--row-hover)'; });
@@ -4018,7 +4077,7 @@ const HelpModal = (() => {
     after(2400, () => { const inp = scoreCell.querySelector('input'); if (inp) inp.value = '65'; });
     after(2700, () => {
       demoRow.style.background = '';
-      scoreCell.innerHTML = '<span class="score-badge" data-tier="great">65</span>';
+      scoreCell.innerHTML = buildScoreBadgeHTML(65);
     });
     after(5200, () => { runScoreEditDemo(); });
   }
@@ -4046,13 +4105,13 @@ const HelpModal = (() => {
   function buildSearchRows(tbody, query, minScore) {
     const filter = query.toUpperCase();
     tbody.innerHTML = '';
-    SEARCH_WORDS.forEach(({ word, score, tier }) => {
+    SEARCH_WORDS.forEach(({ word, score }) => {
       if (filter && !word.includes(filter)) return;
       if (score < minScore) return;
       const tr = document.createElement('tr');
       tr.innerHTML =
         `<td class="col-word">${wordHtml(word, filter === 'CROSS')}</td>` +
-        `<td class="score-cell"><span class="score-badge" data-tier="${tier}">${score}</span></td>`;
+        `<td class="score-cell">${buildScoreBadgeHTML(score)}</td>`;
       tbody.appendChild(tr);
     });
   }
@@ -4060,7 +4119,7 @@ const HelpModal = (() => {
   function runSearchDemo() {
     const slide = document.getElementById('help-slide-3');
     const searchInput = slide.querySelector('#help-search-input');
-    const scoreMin = slide.querySelector('#help-score-min');
+    const scoreMin = slide.querySelector('#help-score-min-input');
     const tbody = slide.querySelector('#help-word-tbody');
 
     searchInput.value = '';
@@ -4085,6 +4144,42 @@ const HelpModal = (() => {
     });
     after(6600, () => { runSearchDemo(); });
   }
+
+  const DEMO_JK_ICON = `<svg width="16" height="16" class="list-icon-svg" aria-hidden="true"><use href="#icon-jk"/></svg>`;
+  const DEMO_PB_ICON = `<svg width="16" height="16" class="list-icon-svg" aria-hidden="true"><use href="#icon-pb"/></svg>`;
+
+  function initDemoSlides() {
+    // Slide 0: two-panel overview
+    document.getElementById('help-slide0-lists').innerHTML = buildListSidebarHTML([
+      { icon: DEMO_JK_ICON, name: 'John Kugelman', meta: '47,000 entries', enabled: true },
+      { icon: DEMO_PB_ICON, name: 'Peter Broda',   meta: '68,000 entries', enabled: true },
+    ]);
+    document.getElementById('help-slide0-search').innerHTML =
+      buildSearchBarHTML({ idPrefix: 'help0', readonly: true, showHints: false })
+      + `<table class="word-table"><tbody>`
+      + buildWordRowHTML('WORDPLAY',  60)
+      + buildWordRowHTML('CROSSWORD', 60)
+      + buildWordRowHTML('CROSSFIRE', 50)
+      + `</tbody></table>`;
+
+    // Slide 1: list sidebar with enabled JK and disabled PB
+    document.getElementById('help-slide1-demo').innerHTML = buildListSidebarHTML([
+      { icon: DEMO_JK_ICON, name: 'John Kugelman', meta: '47,000 entries', enabled: true },
+      { icon: DEMO_PB_ICON, name: 'Peter Broda',   meta: '68,000 entries', enabled: false },
+    ]);
+
+    // Slide 3: search bar (word rows are populated by runSearchDemo)
+    document.getElementById('help-slide3-bar').innerHTML =
+      buildSearchBarHTML({ idPrefix: 'help', readonly: true, showHints: false });
+
+    // Slide 5: download controls
+    document.getElementById('help-slide4-case-ctrl').innerHTML =
+      buildSegCtrlHTML(null, [{value:'lower',label:'lower'},{value:'upper',label:'UPPER'}], 'lower');
+    document.getElementById('help-slide4-ext-ctrl').innerHTML =
+      buildSegCtrlHTML(null, [{value:'txt',label:'.txt'},{value:'dict',label:'.dict'}], 'txt');
+  }
+
+  initDemoSlides();
 
   document.getElementById('btn-help').addEventListener('click', () => open());
   document.addEventListener('keydown', e => {
