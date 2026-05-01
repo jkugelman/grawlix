@@ -346,6 +346,10 @@ a.get-file:hover { text-decoration: underline; }
 .list-icon-img { width: 16px; height: 16px; border-radius: 3px; flex-shrink: 0; display: block; }
 .list-icon-svg { border-radius: 3px; flex-shrink: 0; }
 .list-icon-emoji { width: 16px; height: 16px; font-size: 13px; line-height: 16px; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.source-icon { display: inline-flex; align-items: center; vertical-align: middle; margin-right: 4px; min-width: 12px; }
+.source-icon .list-icon-svg { width: 12px; height: 12px; }
+.source-icon .list-icon-img { width: 12px; height: 12px; }
+.source-icon .list-icon-emoji { width: 12px; height: 12px; font-size: 10px; line-height: 12px; }
 
 /* Score display */
 .entry-ignored { opacity: 0.4; }
@@ -1392,10 +1396,12 @@ class VirtualScroller {
 
       let sourceCell = '';
       if (this.showSource) {
+        const rawIcon = listId === this.editsId ? EDITS_ICON : getListIcon(listId);
+        const iconHtml = `<span class="source-icon">${rawIcon}</span>`;
         const editTrash = (this.showEditDeleteCol && listId === this.editsId)
           ? `<span class="source-trash" title="Remove edit"><svg class="icon-trash"><use href="#icon-trash"/></svg></span>`
           : '';
-        sourceCell = `<td class="comment-cell">${esc(listName || '')}${editTrash}</td>`;
+        sourceCell = `<td class="comment-cell">${iconHtml}${esc(listName || '')}${editTrash}</td>`;
       }
 
       tr.innerHTML =
