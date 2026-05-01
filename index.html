@@ -168,12 +168,17 @@ button.danger:hover:not(:disabled) { background: #e74c3c; border-color: #c0392b;
 .search-bar { padding: 7px 14px 6px; background: var(--surface); border-bottom: 1px solid var(--border2); flex-shrink: 0; }
 .search-row { display: flex; align-items: center; gap: 10px; }
 .search-input-wrap { position: relative; flex: 1; display: flex; align-items: center; }
-.search-input-wrap svg { position: absolute; left: 9px; pointer-events: none; color: var(--muted); }
-.search-row input[type="text"] { width: 100%; padding: 5px 10px 5px 28px; border: 1px solid var(--border); border-radius: 4px; font-size: 13px; font-family: inherit; background: var(--input-bg); color: var(--text); }
+.search-input-wrap > svg { position: absolute; left: 9px; pointer-events: none; color: var(--muted); }
+.search-row input[type="text"] { width: 100%; padding: 5px 24px 5px 28px; border: 1px solid var(--border); border-radius: 4px; font-size: 13px; font-family: inherit; background: var(--input-bg); color: var(--text); }
 .search-row input[type="text"]:focus { outline: none; border-color: var(--accent); }
 .search-whole-word-label { display: flex; align-items: center; gap: 5px; font-size: 12px; color: var(--muted); white-space: nowrap; cursor: pointer; user-select: none; }
 .score-min-label { display: flex; align-items: center; gap: 5px; font-size: 12px; color: var(--muted); white-space: nowrap; margin-left: 8px; }
-.score-min-label input[type="number"] { width: 44px; padding: 4px 6px; border: 1px solid var(--border); border-radius: 4px; font-size: 13px; font-family: inherit; background: var(--input-bg); color: var(--text); appearance: textfield; -moz-appearance: textfield; }
+.clear-btn { background: none; border: none; padding: 2px 3px; cursor: pointer; color: var(--muted); display: flex; align-items: center; line-height: 1; border-radius: 3px; flex-shrink: 0; }
+.clear-btn:hover { color: var(--text); background: var(--hover); }
+.clear-btn[hidden] { display: none; }
+.search-input-wrap .clear-btn, .score-min-wrap .clear-btn { position: absolute; right: 4px; }
+.score-min-wrap { position: relative; display: inline-flex; align-items: center; }
+.score-min-label input[type="number"] { width: 56px; padding: 4px 20px 4px 6px; border: 1px solid var(--border); border-radius: 4px; font-size: 13px; font-family: inherit; background: var(--input-bg); color: var(--text); appearance: textfield; -moz-appearance: textfield; }
 .score-min-label input[type="number"]::-webkit-inner-spin-button,
 .score-min-label input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; }
 .score-min-label input[type="number"]:focus { outline: none; border-color: var(--accent); }
@@ -502,6 +507,10 @@ input.cell-edit.score-edit { font-family: ui-monospace, 'Cascadia Code', monospa
   <symbol id="icon-search" viewBox="0 0 13 13">
     <circle cx="5.5" cy="5.5" r="4" fill="none" stroke="currentColor" stroke-width="1.5"/>
     <line x1="8.7" y1="8.7" x2="12" y2="12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+  </symbol>
+  <symbol id="icon-x" viewBox="0 0 10 10">
+    <line x1="1" y1="1" x2="9" y2="9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+    <line x1="9" y1="1" x2="1" y2="9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
   </symbol>
   <symbol id="icon-arrow" viewBox="0 0 8 5" fill="currentColor">
     <path d="M0 0l4 5 4-5z"/>
@@ -1976,9 +1985,10 @@ function buildSearchBarHTML() {
         <div class="search-input-wrap">
           <svg width="13" height="13"><use href="#icon-search"/></svg>
           <input type="text" id="search-input" placeholder="Search" value="${esc(state.searchQuery)}" oninput="onSearch(this.value)">
+          <button class="clear-btn" id="search-clear" onclick="clearSearch()" title="Clear search" aria-label="Clear search" ${state.searchQuery ? '' : 'hidden'}><svg width="10" height="10"><use href="#icon-x"/></svg></button>
         </div>
         <label class="search-whole-word-label"><input type="checkbox" id="search-whole-word" onchange="onSearchWholeWord(this.checked)" ${state.searchWholeWord ? 'checked' : ''}> Match whole word</label>
-        <label class="score-min-label">Min score <input type="number" id="score-min-input" min="0" value="${state.minScore ?? ''}" oninput="onMinScore(this.value)"></label>
+        <label class="score-min-label">Min score <span class="score-min-wrap"><input type="number" id="score-min-input" min="0" value="${state.minScore ?? ''}" oninput="onMinScore(this.value)"><button class="clear-btn" id="score-min-clear" onclick="clearMinScore()" title="Clear min score" aria-label="Clear min score" ${state.minScore !== null ? '' : 'hidden'}><svg width="10" height="10"><use href="#icon-x"/></svg></button></span></label>
       </div>
     </div>`;
 }
@@ -2417,6 +2427,8 @@ function selectList(id) {
 
 function onSearch(query) {
   state.searchQuery = query;
+  const btn = document.getElementById('search-clear');
+  if (btn) btn.hidden = !query;
   if (scroller) scroller.filter(query, state.searchWholeWord, state.minScore);
 }
 
@@ -2430,7 +2442,21 @@ function onMinScore(value) {
   state.minScore = (ms === null || isNaN(ms) || ms < 0) ? null : ms;
   if (state.minScore !== null) lsSave('minScore', state.minScore);
   else lsDel('minScore');
+  const btn = document.getElementById('score-min-clear');
+  if (btn) btn.hidden = state.minScore === null;
   if (scroller) scroller.filter(state.searchQuery, state.searchWholeWord, state.minScore);
+}
+
+function clearSearch() {
+  const inp = document.getElementById('search-input');
+  if (inp) { inp.value = ''; inp.focus(); }
+  onSearch('');
+}
+
+function clearMinScore() {
+  const inp = document.getElementById('score-min-input');
+  if (inp) { inp.value = ''; inp.focus(); }
+  onMinScore('');
 }
 
 let _updateScroller = null;
