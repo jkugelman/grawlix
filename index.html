@@ -172,10 +172,15 @@ button.danger:hover:not(:disabled) { background: #e74c3c; border-color: #c0392b;
 .search-row input[type="text"] { width: 100%; padding: 5px 10px 5px 28px; border: 1px solid var(--border); border-radius: 4px; font-size: 13px; font-family: inherit; background: var(--input-bg); color: var(--text); }
 .search-row input[type="text"]:focus { outline: none; border-color: var(--accent); }
 .search-whole-word-label { display: flex; align-items: center; gap: 5px; font-size: 12px; color: var(--muted); white-space: nowrap; cursor: pointer; user-select: none; }
+.score-min-label { display: flex; align-items: center; gap: 5px; font-size: 12px; color: var(--muted); white-space: nowrap; margin-left: 8px; }
+.score-min-label input[type="number"] { width: 44px; padding: 4px 6px; border: 1px solid var(--border); border-radius: 4px; font-size: 13px; font-family: inherit; background: var(--input-bg); color: var(--text); appearance: textfield; -moz-appearance: textfield; }
+.score-min-label input[type="number"]::-webkit-inner-spin-button,
+.score-min-label input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; }
+.score-min-label input[type="number"]:focus { outline: none; border-color: var(--accent); }
 .search-help { margin-bottom: 5px; font-size: 11px; color: transparent; line-height: 1.6; display: flex; flex-wrap: wrap; gap: 0 14px; transition: color 0.15s; }
 .search-help kbd { font-family: ui-monospace, 'Cascadia Code', monospace; font-size: 11px; }
-.search-bar:focus-within .search-help { color: var(--faint); }
-.search-bar:focus-within .search-help kbd { color: var(--muted); }
+.search-bar:has(#search-input:focus) .search-help { color: var(--faint); }
+.search-bar:has(#search-input:focus) .search-help kbd { color: var(--muted); }
 mark.search-match { border-radius: 2px; padding: 0 1px; font-style: normal; }
 html.light-mode .search-match-0 { background: #ddd6fe; color: rgba(0,0,0,0.72); }
 html.light-mode .search-match-1 { background: #99f6e4; color: rgba(0,0,0,0.72); }
@@ -749,6 +754,7 @@ const state = {
   selectedId: null,
   searchQuery: '',
   searchWholeWord: false,
+  minScore: null,
   outputScoring: DEFAULT_OUTPUT_SCORING.map(r => ({ ...r })),
 };
 
@@ -949,6 +955,12 @@ async function init() {
   const rawMs = lsLoad('outputScoring');
   if (rawMs) { try { state.outputScoring = JSON.parse(rawMs); } catch {} }
   else { lsSave('outputScoring', JSON.stringify(state.outputScoring.filter(r => !r._catchAll))); }
+
+  const rawMinScore = lsLoad('minScore');
+  if (rawMinScore !== null) {
+    const ms = parseInt(rawMinScore, 10);
+    if (!isNaN(ms) && ms >= 0) state.minScore = ms;
+  }
 
   state.selectedId = OUTPUT_ID;
 
@@ -1158,6 +1170,7 @@ class VirtualScroller {
     this.sortKey = null;
     this.sortDir = 'asc';
     this._lastQuery = '';
+    this._minScore = null;
     this._highlight = null;
     this._colEls = {};
     this.rescoreRules = [];
@@ -1231,7 +1244,7 @@ class VirtualScroller {
     this.table.addEventListener('mouseleave', () => { _popTd = null; hideCellPopover(); });
   }
 
-  setEntries(allEntries, query, rescoreRules, overrideMap, wholeWord = false) {
+  setEntries(allEntries, query, rescoreRules, overrideMap, wholeWord = false, minScore = null) {
     this.allEntries = allEntries;
     this.hasComments = allEntries.some(e => e.comment);
     this.rescoreRules = rescoreRules || [];
@@ -1239,7 +1252,7 @@ class VirtualScroller {
     this.sortKey = 'word';
     this.sortDir = 'asc';
     this._buildHeader();
-    this.filter(query, wholeWord);
+    this.filter(query, wholeWord, minScore);
   }
 
   updateEntries(allEntries) {
@@ -1350,9 +1363,10 @@ class VirtualScroller {
     }
   }
 
-  filter(query, wholeWord = false) {
+  filter(query, wholeWord = false, minScore = null) {
     this._lastQuery = query || '';
     this._wholeWord = wholeWord;
+    this._minScore = minScore;
     this._applyFilterAndSort();
   }
 
@@ -1366,6 +1380,20 @@ class VirtualScroller {
       const { filterRe, highlight } = buildSearchPattern(q, this._wholeWord);
       this._highlight = highlight;
       entries = this.allEntries.filter(e => filterRe.test(e.word.toLowerCase()));
+    }
+
+    if (this._minScore !== null) {
+      const ms = this._minScore;
+      entries = entries.filter(e => {
+        if (this.rescoreRules.length) {
+          const r = rescoreEntry(e, this.rescoreRules);
+          if (!r.kept) return false;
+          const ov = this.overrideMap.get(e.word.toUpperCase());
+          return (ov ? ov.score : r.score) >= ms;
+        }
+        const ov = this.overrideMap.get(e.word.toUpperCase());
+        return (ov ? ov.score : e.score) >= ms;
+      });
     }
 
     if (this.sortKey) {
@@ -1387,7 +1415,7 @@ class VirtualScroller {
     this.entries = entries;
     if (resetScroll) this.container.scrollTop = 0;
     const countEl = document.getElementById('search-count');
-    if (countEl) countEl.textContent = q ? entries.length.toLocaleString() + (entries.length === 1 ? ' match' : ' matches') : '';
+    if (countEl) countEl.textContent = (q || this._minScore !== null) ? entries.length.toLocaleString() + (entries.length === 1 ? ' match' : ' matches') : '';
     this._render();
   }
 
@@ -1950,6 +1978,7 @@ function buildSearchBarHTML() {
           <input type="text" id="search-input" placeholder="Search" value="${esc(state.searchQuery)}" oninput="onSearch(this.value)">
         </div>
         <label class="search-whole-word-label"><input type="checkbox" id="search-whole-word" onchange="onSearchWholeWord(this.checked)" ${state.searchWholeWord ? 'checked' : ''}> Match whole word</label>
+        <label class="score-min-label">Min score <input type="number" id="score-min-input" min="0" value="${state.minScore ?? ''}" oninput="onMinScore(this.value)"></label>
       </div>
     </div>`;
 }
@@ -2005,7 +2034,7 @@ function renderOutputDetail() {
   scroller.showSource = true;
   scroller.editsId = EDITS_ID;
   scroller.showEditDeleteCol = true;
-  scroller.setEntries(entries, state.searchQuery, [], new Map(), state.searchWholeWord);
+  scroller.setEntries(entries, state.searchQuery, [], new Map(), state.searchWholeWord, state.minScore);
 
   const refreshOutputEntries = () => {
     const { entries } = buildOutputList();
@@ -2202,7 +2231,7 @@ function renderDetail(list) {
 
   createScroller();
   scroller.currentListName = list.name;
-  scroller.setEntries(list.rawEntries, state.searchQuery, list.rescoreRules, buildOverrideMap(list.id), state.searchWholeWord);
+  scroller.setEntries(list.rawEntries, state.searchQuery, list.rescoreRules, buildOverrideMap(list.id), state.searchWholeWord, state.minScore);
 
   attachExternalEditHandlers(scroller, () => {
     scroller.overrideMap = buildOverrideMap(list.id);
@@ -2245,7 +2274,7 @@ function renderEditsDetail(list) {
 
   createScroller();
   scroller.showDeleteCol = true;
-  scroller.setEntries(list.rawEntries, state.searchQuery, [], new Map(), state.searchWholeWord);
+  scroller.setEntries(list.rawEntries, state.searchQuery, [], new Map(), state.searchWholeWord, state.minScore);
 
   scroller._onCellEdit = (word, field, newValue) => {
     const entry = list.rawEntries.find(e => e.word.toUpperCase() === word.toUpperCase());
@@ -2255,7 +2284,7 @@ function renderEditsDetail(list) {
     updateCatchAll(list);
     persistEdits(list);
     refreshSourceCounts();
-    scroller.setEntries(list.rawEntries, state.searchQuery, [], new Map(), state.searchWholeWord);
+    scroller.setEntries(list.rawEntries, state.searchQuery, [], new Map(), state.searchWholeWord, state.minScore);
   };
 
   scroller._onDeleteRow = word => deleteFromEdits(word);
@@ -2388,12 +2417,20 @@ function selectList(id) {
 
 function onSearch(query) {
   state.searchQuery = query;
-  if (scroller) scroller.filter(query, state.searchWholeWord);
+  if (scroller) scroller.filter(query, state.searchWholeWord, state.minScore);
 }
 
 function onSearchWholeWord(checked) {
   state.searchWholeWord = checked;
-  if (scroller) scroller.filter(state.searchQuery, checked);
+  if (scroller) scroller.filter(state.searchQuery, checked, state.minScore);
+}
+
+function onMinScore(value) {
+  const ms = value.trim() === '' ? null : parseInt(value, 10);
+  state.minScore = (ms === null || isNaN(ms) || ms < 0) ? null : ms;
+  if (state.minScore !== null) lsSave('minScore', state.minScore);
+  else lsDel('minScore');
+  if (scroller) scroller.filter(state.searchQuery, state.searchWholeWord, state.minScore);
 }
 
 let _updateScroller = null;
@@ -2717,7 +2754,7 @@ function deleteFromEdits(word, refreshFn) {
   if (idx === -1) return;
 
   const refresh = refreshFn ?? (() => {
-    scroller.setEntries(edits.rawEntries, state.searchQuery, [], new Map(), state.searchWholeWord);
+    scroller.setEntries(edits.rawEntries, state.searchQuery, [], new Map(), state.searchWholeWord, state.minScore);
   });
 
   const [removed] = edits.rawEntries.splice(idx, 1);
@@ -2954,6 +2991,7 @@ function bindEvents() {
     state.inputLists = [];
     state.selectedId = null;
     state.searchQuery = '';
+    state.minScore = null;
     scroller = null;
     await openDB();
     state.inputLists = defaultInputLists();
