@@ -50,6 +50,9 @@ html.dark-mode {
   --score-meh-bg:   #6b3d00; --score-meh-fg:   #fddcaa;
   --score-bad-bg:   #6b1d1d; --score-bad-fg:   #fdd8d8;
   --callout-bg: #201d09; --callout-border: #3d3410; --callout-fg: #b09840;
+  --usd-added-bg:    #1a3d2a; --usd-added-fg:    #6ee89a;
+  --usd-removed-bg:  #3d1a1a; --usd-removed-fg:  #f07070;
+  --usd-rescored-bg: #2a2a2a; --usd-rescored-fg: #909090;
 }
 html.light-mode {
   --bg:        #f5f5f5;
@@ -76,6 +79,9 @@ html.light-mode {
   --score-meh-bg:   #fde9c8; --score-meh-fg:   #7a3d00;
   --score-bad-bg:   #f8d7da; --score-bad-fg:   #721c24;
   --callout-bg: #fff3cd; --callout-border: #ffc107; --callout-fg: #856404;
+  --usd-added-bg:    #e6f4ea; --usd-added-fg:    #2d7a3f;
+  --usd-removed-bg:  #fce8e6; --usd-removed-fg:  #b71c1c;
+  --usd-rescored-bg: #f0f0f0; --usd-rescored-fg: #666666;
 }
 
 body { font-family: system-ui, -apple-system, sans-serif; font-size: 14px; background: var(--bg); color: var(--text); height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
@@ -237,7 +243,7 @@ html.dark-mode .search-match-4 { background: #14532d; color: #d1fae5; }
 
 /* Settings dialog */
 #settings-dialog { width: 340px; }
-#confirm-dialog { width: 320px; }
+#confirm-dialog, #alert-dialog { width: 320px; }
 #merge-conflict-dialog { width: 380px; }
 dialog > p { margin-bottom: 4px; line-height: 1.5; padding-right: 24px; }
 .settings-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 13px 0; border-bottom: 1px solid var(--border2); }
@@ -281,6 +287,33 @@ dialog h2 { font-size: 16px; margin-bottom: 14px; padding-right: 24px; }
 .known-list-name { font-size: 13px; font-weight: 600; }
 .known-list-sub  { font-size: 11px; color: var(--muted); margin-top: 2px; }
 .dialog-footer { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--border2); display: flex; justify-content: flex-end; gap: 8px; }
+
+/* Update Summary dialog */
+#update-summary-dialog { width: 480px; overflow: hidden; padding: 0; max-height: min(560px, 85vh); }
+#update-summary-dialog[open] { display: flex; flex-direction: column; }
+.usd-header { padding: 18px 22px 14px; flex-shrink: 0; }
+.usd-header h2 { margin-bottom: 4px; padding-right: 24px; }
+.usd-count { font-size: 13px; color: var(--muted); margin-bottom: 10px; }
+.usd-pills { display: flex; gap: 6px; flex-wrap: wrap; }
+.usd-pill { padding: 2px 10px; border-radius: 12px; font-size: 12px; font-weight: 600; cursor: pointer; border: 1px solid transparent; background: none; font-family: inherit; transition: opacity 0.15s; }
+.usd-pill:hover { opacity: 0.75; }
+.usd-pill-added    { background: var(--usd-added-bg);    color: var(--usd-added-fg);    }
+.usd-pill-removed  { background: var(--usd-removed-bg);  color: var(--usd-removed-fg);  }
+.usd-pill-rescored { background: var(--usd-rescored-bg); color: var(--usd-rescored-fg); }
+.usd-scroll { flex: 1; min-height: 0; overflow-y: auto; border-top: 1px solid var(--border2); padding-bottom: 12px; }
+.usd-sizer { position: relative; }
+.usd-row { position: absolute; left: 0; right: 0; height: 24px; display: flex; align-items: center; }
+.usd-section-header { padding: 0 22px; color: var(--muted); font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; background: var(--surface2); border-bottom: 1px solid var(--border3); }
+.usd-word-row { padding: 0 22px 0 19px; border-left: 3px solid transparent; }
+.usd-word-row:hover { background: var(--row-hover); }
+.usd-word-col { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: monospace; font-size: 12px; }
+.usd-score-col { flex-shrink: 0; display: flex; align-items: center; gap: 4px; }
+.usd-added    { border-left-color: var(--usd-added-fg);    }
+.usd-removed  { border-left-color: var(--usd-removed-fg);  }
+.usd-rescored { border-left-color: var(--usd-rescored-fg); }
+.usd-removed .usd-word-col { text-decoration: line-through; color: var(--muted); }
+.usd-old-score { color: var(--muted); font-size: 12px; }
+.usd-arrow { color: var(--faint); font-size: 11px; }
 
 /* Toast */
 #toast { position: fixed; bottom: 18px; right: 18px; background: #333; color: white; padding: 9px 15px; border-radius: 6px; font-size: 13px; z-index: 1000; opacity: 0; transition: opacity 0.25s; max-width: 360px; pointer-events: none; }
@@ -588,6 +621,14 @@ input.cell-edit.score-edit { font-family: ui-monospace, 'Cascadia Code', monospa
   </div>
 </dialog>
 
+<dialog id="alert-dialog" aria-labelledby="alert-dialog-msg">
+  <button class="dialog-close-btn" aria-label="Close">✕</button>
+  <p id="alert-dialog-msg"></p>
+  <div class="dialog-footer">
+    <button id="btn-alert-ok" class="primary">OK</button>
+  </div>
+</dialog>
+
 <dialog id="merge-conflict-dialog" aria-labelledby="merge-conflict-msg">
   <button class="dialog-close-btn" aria-label="Close">✕</button>
   <p id="merge-conflict-msg"></p>
@@ -596,6 +637,16 @@ input.cell-edit.score-edit { font-family: ui-monospace, 'Cascadia Code', monospa
     <button id="btn-merge-use-file">Use Imported File</button>
     <button id="btn-merge-keep-edits" class="primary">Keep My Edits</button>
   </div>
+</dialog>
+
+<dialog id="update-summary-dialog" aria-labelledby="update-summary-title">
+  <button class="dialog-close-btn" aria-label="Close">✕</button>
+  <div class="usd-header">
+    <h2 id="update-summary-title"></h2>
+    <div class="usd-count" id="update-summary-count"></div>
+    <div class="usd-pills" id="update-summary-pills"></div>
+  </div>
+  <div class="usd-scroll" id="update-summary-scroll"></div>
 </dialog>
 
 <script>
@@ -1485,6 +1536,80 @@ class VirtualScroller {
   }
 }
 
+// ─── Update Summary Scroller ──────────────────────────────────────────────────
+
+class UpdateSummaryScroller {
+  constructor(container) {
+    this.container = container;
+    this.rows = [];
+
+    this.sizer = document.createElement('div');
+    this.sizer.className = 'usd-sizer';
+    container.appendChild(this.sizer);
+
+    container.addEventListener('scroll', () => this._render(), { passive: true });
+    new ResizeObserver(() => this._render()).observe(container);
+  }
+
+  setRows(rows) {
+    this.rows = rows;
+    this.sizer.style.height = (rows.length * ROW_HEIGHT) + 'px';
+    this.container.scrollTop = 0;
+    this._render();
+  }
+
+  scrollToIndex(i) {
+    this.container.scrollTop = i * ROW_HEIGHT;
+  }
+
+  _render() {
+    const n = this.rows.length;
+    const scrollTop = this.container.scrollTop;
+    const viewH = this.container.clientHeight;
+    const start = Math.max(0, Math.floor(scrollTop / ROW_HEIGHT) - VS_BUFFER);
+    const end   = Math.min(n, Math.ceil((scrollTop + viewH) / ROW_HEIGHT) + VS_BUFFER);
+
+    this.sizer.innerHTML = '';
+    const frag = document.createDocumentFragment();
+
+    for (let i = start; i < end; i++) {
+      const row = this.rows[i];
+      const div = document.createElement('div');
+      div.className = 'usd-row';
+      div.style.top = (i * ROW_HEIGHT) + 'px';
+
+      if (row.type === 'header') {
+        div.classList.add('usd-section-header');
+        div.textContent = row.label;
+      } else {
+        div.classList.add('usd-word-row', 'usd-' + row.kind);
+
+        const wordSpan = document.createElement('span');
+        wordSpan.className = 'usd-word-col';
+        wordSpan.textContent = displayWord(row.word);
+        div.appendChild(wordSpan);
+
+        const scoreSpan = document.createElement('span');
+        scoreSpan.className = 'usd-score-col';
+        if (row.kind === 'rescored') {
+          scoreSpan.innerHTML =
+            `<span class="usd-old-score">${row.oldScore}</span>` +
+            `<span class="usd-arrow">→</span>` +
+            `<span class="score-badge" data-tier="${scoreTier(row.score)}">${row.score}</span>`;
+        } else {
+          scoreSpan.innerHTML =
+            `<span class="score-badge" data-tier="${scoreTier(row.score)}">${row.score}</span>`;
+        }
+        div.appendChild(scoreSpan);
+      }
+
+      frag.appendChild(div);
+    }
+
+    this.sizer.appendChild(frag);
+  }
+}
+
 // ─── Rescoring ────────────────────────────────────────────────────────────────
 
 function parseRange(str) {
@@ -2249,6 +2374,97 @@ function onSearchWholeWord(checked) {
   if (scroller) scroller.filter(state.searchQuery, checked);
 }
 
+let _updateScroller = null;
+
+function openUpdateSummaryDialog(list, oldCount, added, removed, rescored) {
+  const dialog = document.getElementById('update-summary-dialog');
+  document.getElementById('update-summary-title').textContent = `${list.name} Updated`;
+  document.getElementById('update-summary-count').textContent =
+    `${oldCount.toLocaleString()} → ${list.rawEntries.length.toLocaleString()} entries`;
+
+  const rows = [];
+  const sectionIndices = {};
+
+  if (added.length) {
+    sectionIndices.added = rows.length;
+    rows.push({ type: 'header', label: `Added (${added.length.toLocaleString()})` });
+    for (const e of added) rows.push({ type: 'word', word: e.word, score: e.score, kind: 'added' });
+  }
+  if (removed.length) {
+    sectionIndices.removed = rows.length;
+    rows.push({ type: 'header', label: `Removed (${removed.length.toLocaleString()})` });
+    for (const e of removed) rows.push({ type: 'word', word: e.word, score: e.score, kind: 'removed' });
+  }
+  if (rescored.length) {
+    sectionIndices.rescored = rows.length;
+    rows.push({ type: 'header', label: `Rescored (${rescored.length.toLocaleString()})` });
+    for (const e of rescored) rows.push({ type: 'word', word: e.word, score: e.score, kind: 'rescored', oldScore: e.oldScore });
+  }
+
+  const pillsEl = document.getElementById('update-summary-pills');
+  pillsEl.innerHTML = '';
+  const pillDefs = [
+    { key: 'added',    label: `+${added.length.toLocaleString()}`,   cls: 'usd-pill-added'   },
+    { key: 'removed',  label: `−${removed.length.toLocaleString()}`,  cls: 'usd-pill-removed'  },
+    { key: 'rescored', label: `~${rescored.length.toLocaleString()}`, cls: 'usd-pill-rescored' },
+  ];
+  for (const { key, label, cls } of pillDefs) {
+    if (sectionIndices[key] == null) continue;
+    const btn = document.createElement('button');
+    btn.className = 'usd-pill ' + cls;
+    btn.textContent = label;
+    btn.onclick = () => _updateScroller.scrollToIndex(sectionIndices[key]);
+    pillsEl.appendChild(btn);
+  }
+
+  const scrollEl = document.getElementById('update-summary-scroll');
+  scrollEl.innerHTML = '';
+  _updateScroller = new UpdateSummaryScroller(scrollEl);
+  _updateScroller.setRows(rows);
+
+  dialog.showModal();
+}
+
+async function applyWordlistText(list, text, { fingerprint = null, originalFilename = null, nameOverride = null } = {}) {
+  const id = list.id;
+  const wasEmpty = !list.rawEntries.length;
+  const oldEntries = wasEmpty ? null : list.rawEntries;
+
+  if (nameOverride) list.name = nameOverride;
+  list.rawEntries = parseWordlist(text);
+  list.lastUpdated = Date.now();
+  if (fingerprint !== null) { list.fetchFingerprint = fingerprint; list._updateAvailable = false; }
+  if (originalFilename !== null) list.originalFilename = originalFilename;
+  if (wasEmpty) list.enabled = true;
+  invalidateListCaches(id);
+  updateCatchAll(list);
+
+  await persistData(id, text);
+  persistMeta();
+
+  renderInputLists();
+  if (state.selectedId === id) renderDetail(list);
+  if (state.selectedId === OUTPUT_ID) renderOutputDetail();
+
+  if (wasEmpty) {
+    showToast(`Loaded ${pluralize(list.rawEntries.length, 'entry', 'entries')} from ${list.name}`);
+  } else {
+    const oldMap = new Map(oldEntries.map(e => [e.word, e.score]));
+    const newMap = new Map(list.rawEntries.map(e => [e.word, e.score]));
+    const added   = list.rawEntries.filter(e => !oldMap.has(e.word)).sort((a, b) => a.word.localeCompare(b.word));
+    const removed = oldEntries.filter(e => !newMap.has(e.word)).sort((a, b) => a.word.localeCompare(b.word));
+    const rescored = oldEntries
+      .filter(e => newMap.has(e.word) && newMap.get(e.word) !== e.score)
+      .map(e => ({ word: e.word, oldScore: e.score, score: newMap.get(e.word) }))
+      .sort((a, b) => a.word.localeCompare(b.word));
+    if (!added.length && !removed.length && !rescored.length) {
+      showAlert(`${list.name} is already up to date — no changes.`);
+    } else {
+      openUpdateSummaryDialog(list, oldEntries.length, added, removed, rescored);
+    }
+  }
+}
+
 async function fetchList(id, event) {
   if (event) event.stopPropagation();
   const list = state.inputLists.find(l => l.id === id);
@@ -2267,24 +2483,9 @@ async function fetchList(id, event) {
     const resp = await fetch(list.url);
     if (!resp.ok) throw new Error(`HTTP ${resp.status} ${resp.statusText}`);
     const text = await resp.text();
-
-    const wasEmpty = !list.rawEntries.length;
-    list.rawEntries = parseWordlist(text);
-    list.lastUpdated = Date.now();
-    list.fetchFingerprint = resp.headers.get('etag') || resp.headers.get('last-modified') || resp.headers.get('content-length') || null;
-    list._updateAvailable = false;
+    const fingerprint = resp.headers.get('etag') || resp.headers.get('last-modified') || resp.headers.get('content-length') || null;
     list._loading = false;
-    if (wasEmpty) list.enabled = true;
-    invalidateListCaches(id);
-    updateCatchAll(list);
-
-    await persistData(id, text);
-    persistMeta();
-
-    renderInputLists();
-    if (state.selectedId === id) renderDetail(list);
-    if (state.selectedId === OUTPUT_ID) renderOutputDetail();
-    showToast(`Loaded ${pluralize(list.rawEntries.length, 'entry', 'entries')} from ${list.name}`);
+    await applyWordlistText(list, text, { fingerprint });
   } catch (err) {
     list._loading = false;
     renderInputLists();
@@ -2403,22 +2604,7 @@ function ingestFile(file, listId, nameOverride) {
       return;
     }
 
-    const wasEmpty = !list.rawEntries.length;
-    if (nameOverride) list.name = nameOverride;
-    list.rawEntries = entries;
-    list.lastUpdated = Date.now();
-    list.originalFilename = file.name;
-    if (wasEmpty) list.enabled = true;
-    invalidateListCaches(listId);
-    updateCatchAll(list);
-
-    await persistData(listId, text);
-    persistMeta();
-
-    renderInputLists();
-    if (state.selectedId === listId) renderDetail(list);
-    if (state.selectedId === OUTPUT_ID) renderOutputDetail();
-    showToast(`Loaded ${pluralize(list.rawEntries.length, 'entry', 'entries')}`);
+    await applyWordlistText(list, text, { originalFilename: file.name, nameOverride });
   };
   reader.readAsText(file);
 }
@@ -2604,6 +2790,35 @@ function showConfirm(message, { confirmText = 'OK', danger = true } = {}) {
   });
 }
 
+function showAlert(message) {
+  return new Promise(resolve => {
+    const dialog = document.getElementById('alert-dialog');
+    const msgEl  = document.getElementById('alert-dialog-msg');
+    const okBtn  = document.getElementById('btn-alert-ok');
+    const xBtn   = dialog.querySelector('.dialog-close-btn');
+
+    msgEl.textContent = message;
+
+    function finish() {
+      dialog.removeEventListener('cancel', onCancel);
+      dialog.removeEventListener('click', onClickOutside);
+      okBtn.removeEventListener('click', finish);
+      if (xBtn) xBtn.removeEventListener('click', finish);
+      dialog.close();
+      resolve();
+    }
+    function onCancel(e) { e.preventDefault(); finish(); }
+    function onClickOutside(e) { if (e.target === dialog) finish(); }
+
+    dialog.addEventListener('cancel', onCancel);
+    dialog.addEventListener('click', onClickOutside);
+    okBtn.addEventListener('click', finish);
+    if (xBtn) xBtn.addEventListener('click', finish);
+
+    dialog.showModal();
+  });
+}
+
 function showMergeConflict(conflictCount) {
   return new Promise(resolve => {
     const dialog    = document.getElementById('merge-conflict-dialog');
@@ -2725,7 +2940,7 @@ function bindEvents() {
   };
 
   document.getElementById('btn-settings').onclick = () => document.getElementById('settings-dialog').showModal();
-  ['settings-dialog', 'add-dialog'].forEach(id => {
+  ['settings-dialog', 'add-dialog', 'update-summary-dialog'].forEach(id => {
     const d = document.getElementById(id);
     d.querySelector('.dialog-close-btn').onclick = () => d.close();
     d.addEventListener('click', e => { if (e.target === d) d.close(); });
