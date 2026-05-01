@@ -427,6 +427,13 @@ input.cell-edit.score-edit { font-family: ui-monospace, 'Cascadia Code', monospa
   0%   { background: color-mix(in srgb, var(--accent) 35%, transparent); }
   100% { background: transparent; }
 }
+@keyframes shake {
+  0%, 100%  { transform: translateX( 0px); }
+  20%       { transform: translateX(-4px); }
+  60%       { transform: translateX( 4px); }
+  80%       { transform: translateX(-2px); }
+}
+.shake { animation: shake 0.3s ease; }
 #edits-card.pulse { animation: edits-pulse 1.4s ease-out; }
 
 /* Add word footer row */
@@ -756,7 +763,7 @@ function parseWordlist(text) {
     const semi = line.indexOf(';');
     if (semi === -1) continue;
     const word = line.slice(0, semi);
-    if (!word || !/^[A-Za-z]+$/.test(word)) continue;
+    if (!word || word.includes(';')) continue;
     const rest = line.slice(semi + 1);
     const semi2 = rest.indexOf(';');
     const score = parseInt(semi2 === -1 ? rest : rest.slice(0, semi2), 10);
@@ -1116,6 +1123,19 @@ function highlightSegments(word, hlRe) {
     pos = end;
   }
   return result + word.slice(pos);
+}
+
+// ─── Input helpers ────────────────────────────────────────────────────────────
+
+function blockSemicolon(e) {
+  if (!e.data?.includes(';')) return;
+  e.preventDefault();
+  const el = e.target;
+  el.classList.remove('shake');
+  void el.offsetWidth; // force reflow so re-triggering restarts the animation
+  el.classList.add('shake');
+  el.addEventListener('animationend', () => el.classList.remove('shake'), { once: true });
+  showToast('Semicolons are not allowed');
 }
 
 // ─── Virtual Scroller ─────────────────────────────────────────────────────────
@@ -1496,6 +1516,7 @@ class VirtualScroller {
     input.type = field === 'score' ? 'number' : 'text';
     input.value = currentVal;
     if (field === 'score') { input.min = '0'; }
+    if (field === 'comment') { input.addEventListener('beforeinput', blockSemicolon); }
     td.innerHTML = '';
     td.appendChild(input);
     input.focus();
@@ -2639,6 +2660,8 @@ function openAddWordBar() {
   const wordInput    = bar.querySelector('.aw-word');
   const scoreInput   = bar.querySelector('.aw-score');
   const commentInput = bar.querySelector('.aw-comment');
+  wordInput.addEventListener('beforeinput', blockSemicolon);
+  commentInput.addEventListener('beforeinput', blockSemicolon);
   wordInput.focus();
 
   function restoreTrigger() {
@@ -2651,9 +2674,10 @@ function openAddWordBar() {
     const score = parseInt(scoreInput.value.trim(), 10);
     const comment = commentInput.value.trim();
 
-    wordInput.classList.toggle('invalid', !/^[A-Za-z]+$/.test(word));
+    wordInput.classList.toggle('invalid', !word || word.includes(';'));
+    commentInput.classList.toggle('invalid', comment.includes(';'));
     scoreInput.classList.toggle('invalid', isNaN(score) || score < 0);
-    if (wordInput.classList.contains('invalid') || scoreInput.classList.contains('invalid')) return;
+    if (wordInput.classList.contains('invalid') || commentInput.classList.contains('invalid') || scoreInput.classList.contains('invalid')) return;
 
     const edits = getEditsList();
 
