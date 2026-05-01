@@ -1987,7 +1987,7 @@ function buildSearchBarHTML() {
           <input type="text" id="search-input" placeholder="Search" value="${esc(state.searchQuery)}" oninput="onSearch(this.value)">
           <button class="clear-btn" id="search-clear" onclick="clearSearch()" title="Clear search" aria-label="Clear search" ${state.searchQuery ? '' : 'hidden'}><svg width="10" height="10"><use href="#icon-x"/></svg></button>
         </div>
-        <label class="search-whole-word-label"><input type="checkbox" id="search-whole-word" onchange="onSearchWholeWord(this.checked)" ${state.searchWholeWord ? 'checked' : ''}> Match whole word</label>
+        <label class="search-whole-word-label"><input type="checkbox" id="search-whole-word" onchange="onSearchWholeWord(this.checked)" ${state.searchWholeWord ? 'checked' : ''}> Whole word</label>
         <label class="score-min-label">Min score <span class="score-min-wrap"><input type="number" id="score-min-input" min="0" value="${state.minScore ?? ''}" oninput="onMinScore(this.value)"><button class="clear-btn" id="score-min-clear" onclick="clearMinScore()" title="Clear min score" aria-label="Clear min score" ${state.minScore !== null ? '' : 'hidden'}><svg width="10" height="10"><use href="#icon-x"/></svg></button></span></label>
       </div>
     </div>`;
