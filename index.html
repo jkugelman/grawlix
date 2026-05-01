@@ -1037,9 +1037,10 @@ async function clearEdits() {
 
 const _statsCache = new Map();
 let _sourceCountsCache = null;
+let _outputListCache = null;
 
 function invalidateStatsCache(id) { _statsCache.delete(id); }
-function invalidateSourceCounts() { _sourceCountsCache = null; }
+function invalidateSourceCounts() { _sourceCountsCache = null; _outputListCache = null; }
 function invalidateListCaches(id) {
   invalidateStatsCache(id);
   invalidateSourceCounts();
@@ -3546,6 +3547,8 @@ function buildOverrideMap(listId) {
 }
 
 function buildOutputList() {
+  if (_outputListCache) return _outputListCache;
+
   const outputMap = new Map(); // UPPERCASE_KEY → {word, score}
   const sourceCounts = [];
 
@@ -3566,7 +3569,8 @@ function buildOutputList() {
   const entries = [...outputMap.values()]
     .sort((a, b) => a.word.localeCompare(b.word));
 
-  return { entries, sourceCounts };
+  _outputListCache = { entries, sourceCounts };
+  return _outputListCache;
 }
 
 
