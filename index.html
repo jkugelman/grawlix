@@ -1669,17 +1669,11 @@ class UpdateSummaryScroller {
 
 function parseRange(str) {
   str = (str || '').trim();
-  if (!str || str === '*') return [{ min: null, max: null }];
-  const parts = str.split(',').map(s => s.trim()).filter(Boolean);
-  if (!parts.length) return null;
-  const intervals = [];
-  for (const part of parts) {
-    const mPlus  = part.match(/^(\d+)\+$/);        if (mPlus)  { intervals.push({ min: +mPlus[1],  max: null });            continue; }
-    const mRange = part.match(/^(\d+)[-–](\d+)$/); if (mRange) { intervals.push({ min: +mRange[1], max: +mRange[2] });       continue; }
-    const mExact = part.match(/^(\d+)$/);           if (mExact) { intervals.push({ min: +mExact[1], max: +mExact[1] });       continue; }
-    return null;
-  }
-  return intervals.length ? intervals : null;
+  if (!str) return null;
+  const mPlus  = str.match(/^(\d+)\+$/);        if (mPlus)  return [{ min: +mPlus[1],  max: null }];
+  const mRange = str.match(/^(\d+)[-–](\d+)$/); if (mRange) return [{ min: +mRange[1], max: +mRange[2] }];
+  const mExact = str.match(/^(\d+)$/);          if (mExact) return [{ min: +mExact[1], max: +mExact[1] }];
+  return null;
 }
 
 function matchesRange(value, intervals) {
@@ -1692,19 +1686,8 @@ function matchesRange(value, intervals) {
 function scoresToRangeStr(scores) {
   if (!scores.length) return '';
   const sorted = [...scores].sort((a, b) => a - b);
-  // Build exact disjoint representation (compresses consecutive runs)
-  const ranges = [];
-  let start = sorted[0], end = sorted[0];
-  for (let i = 1; i < sorted.length; i++) {
-    if (sorted[i] === end + 1) { end = sorted[i]; }
-    else { ranges.push(start === end ? `${start}` : `${start}-${end}`); start = end = sorted[i]; }
-  }
-  ranges.push(start === end ? `${start}` : `${start}-${end}`);
-  const exact = ranges.join(',');
-  // Compare with a simple min-max span — pick whichever string is shorter
   const min = sorted[0], max = sorted[sorted.length - 1];
-  const span = min === max ? `${min}` : `${min}-${max}`;
-  return span.length <= exact.length ? span : exact;
+  return min === max ? `${min}` : `${min}-${max}`;
 }
 
 function getRuleMaxScore(rule) {
@@ -1721,6 +1704,7 @@ function getRuleMaxScore(rule) {
 function outputSortKey(rule) {
   const s = parseRuleOutput(rule.output);
   if (typeof s === 'number') return s;
+  if (s && typeof s === 'object') return s.max === null ? s.min : (s.min + s.max) / 2;
   if (s === 'ignore') return -1;
   return getRuleMaxScore(rule); // 'unchanged' sorts by input score
 }
@@ -1769,8 +1753,12 @@ function parseRuleOutput(str) {
   str = (str || '').trim().toLowerCase();
   if (!str || str === 'unchanged') return 'unchanged';
   if (str === 'ignore') return 'ignore';
-  const n = parseInt(str, 10);
-  return isNaN(n) ? null : n;
+  const mRange = str.match(/^(\d+)[-–](\d+)$/);
+  if (mRange) return { min: +mRange[1], max: +mRange[2] };
+  const mPlus  = str.match(/^(\d+)\+$/);
+  if (mPlus)  return { min: +mPlus[1], max: null };
+  const mExact = str.match(/^(\d+)$/);
+  return mExact ? +mExact[1] : null;
 }
 
 function compileRule(rule) {
@@ -1799,6 +1787,17 @@ function rescoreEntry(entry, rules) {
     if (s === null) continue;
     if (s === 'ignore') return { kept: false };
     if (s === 'unchanged') return { kept: true, score: entry.score };
+    if (s && typeof s === 'object') {
+      const iv = scoreIntervals[0];
+      if (iv.max === null && s.max === null) {
+        // Both N+: shift by the difference
+        return { kept: true, score: entry.score + (s.min - iv.min) };
+      }
+      // Bounded range: linearly scale; skip if shapes don't match or input is degenerate
+      if (iv.min === null || iv.max === null || s.max === null || iv.min === iv.max) continue;
+      const t = (entry.score - iv.min) / (iv.max - iv.min);
+      return { kept: true, score: Math.round(s.min + t * (s.max - s.min)) };
+    }
     return { kept: true, score: s }; // first matching rule wins
   }
   return { kept: true, score: entry.score };
@@ -1836,12 +1835,12 @@ function buildRulesSectionHTML(rules, { label, rulesId, saveFn, deleteFn, resetF
   } else {
     rulesHTML = rules.map((r, i) => {
       const isCatchAll = !!r._catchAll;
-      let fieldsHTML = `<input class="rule-in" value="${esc(r.input)}" placeholder="60-100"
-            title="Score range: 60+, 50-59, 42, *, or comma-separated like 50-59,30${rescore ? ',1-10' : ''}"
+      let fieldsHTML = `<input class="rule-in" value="${esc(r.input)}"
+            title="Score range: 50, 50-59, or 50+"
             oninput="onRuleInput(this)" onchange="${saveFn}(${i},'input',this.value)">`;
       if (rescore) fieldsHTML += `
           <span class="rule-field-lbl">length</span><input class="rule-len" value="${esc(r.length||'')}" placeholder="any"
-            title="Word length filter: 7, 7+, or 7-10 (blank = any length)"
+            title="Word length filter: 7, 7-10, or 7+ (blank = any length)"
             oninput="onRuleInput(this)" onchange="${saveFn}(${i},'length',this.value)">
           <span class="rule-arrow">→</span>
           <input class="rule-out" value="${esc(r.output)}" placeholder="unchanged"
@@ -3485,7 +3484,25 @@ function onRuleInput(el) {
   });
   container.querySelectorAll('.rule-out').forEach(inp => {
     const v = inp.value.trim();
-    inp.classList.toggle('invalid', v !== '' && parseRuleOutput(v) === null);
+    let invalid = v !== '' && parseRuleOutput(v) === null;
+    if (!invalid) {
+      const parsed = parseRuleOutput(v);
+      if (parsed && typeof parsed === 'object') {
+        const inEl = inp.closest('.rule-row')?.querySelector('.rule-in');
+        if (inEl) {
+          const inParsed = parseRange(inEl.value.trim());
+          const iv = inParsed?.[0];
+          if (parsed.max === null) {
+            // N+ output requires N+ input
+            if (!iv || iv.max !== null) invalid = true;
+          } else {
+            // Bounded range output requires bounded non-degenerate input range
+            if (!iv || iv.min === null || iv.max === null || iv.min === iv.max) invalid = true;
+          }
+        }
+      }
+    }
+    inp.classList.toggle('invalid', invalid);
   });
   if (container.id === 'rescore-rules') updateRescorePreview();
 }
