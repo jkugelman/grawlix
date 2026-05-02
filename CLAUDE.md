@@ -8,7 +8,7 @@ All code lives in a single file: `docs/index.html`. Read and edit only that file
 
 ## Architecture
 
-One HTML file: `<style>` block, HTML body with dialogs, then one big `<script>` block. No build step, no npm, no frameworks — plain HTML/CSS/JS that runs directly in the browser.
+One HTML file: `<style>` block, a minimal HTML body (app shell only — no dialog or overlay elements), then one big `<script>` block. No build step, no npm, no frameworks — plain HTML/CSS/JS that runs directly in the browser.
 
 Sections within the `<script>` block are delimited by banner comments like:
 ```
@@ -75,10 +75,12 @@ The JS is organized into two patterns:
 - *IIFE* (`const XxxComponent = (() => { ... })()`) — singletons: dialogs, panels, sidebars
 - *Class* (`class XxxComponent`) — multi-instance: scrollers, rule editors, word tables
 
+Every lifecycle component **creates its own DOM element** (`document.createElement(...)`) and appends it to the document at init time. Dialog and overlay elements are **never** baked into the static HTML body — if you're adding a dialog, create it in JS, not in HTML.
+
 All builders live in the `// ─── Components ───` section. Nothing outside a component should reach into its DOM subtree.
 
 ## Understanding Grawlix
 
-Before making changes to Grawlix, read the help modal in `docs/index.html` for a description of all user-facing features and the two main use cases. Search for `id="help-dialog"` to find it.
+Before making changes to Grawlix, read the help modal in `docs/index.html` for a description of all user-facing features and the two main use cases. The help dialog HTML lives inside the `HelpModal` IIFE — search for `const HelpModal` to find it.
 
 When you add or change a user-facing feature, update the relevant slide in the help modal to reflect it.

@@ -607,213 +607,10 @@ input.cell-edit.score-edit { font-family: ui-monospace, 'Cascadia Code', monospa
     <div id="lists-container"></div>
   </div>
 
-  <div id="detail-panel">
-    <div class="no-selection">
-      <p>No list selected</p>
-      <small>Select a list or click + Add List</small>
-    </div>
-  </div>
+  <div id="detail-panel"></div>
 </main>
 
 <div id="toast"></div>
-
-<dialog id="settings-dialog" aria-labelledby="settings-dialog-title">
-  <button class="dialog-close-btn" aria-label="Close">✕</button>
-  <h2 id="settings-dialog-title">Settings</h2>
-  <div class="settings-row">
-    <span class="settings-row-label">Dark mode</span>
-    <div id="dark-mode-seg"></div>
-  </div>
-  <div class="settings-row">
-    <span class="settings-row-label">Display case</span>
-    <div id="display-case-ctrl"></div>
-  </div>
-  <div class="settings-row">
-    <div>
-      <div class="settings-row-label">Reset all data</div>
-      <div class="settings-row-sub">Delete all lists and settings</div>
-    </div>
-    <button id="btn-reset" class="danger" title="Delete all lists and data"><svg class="icon-trash"><use href="#icon-trash"/></svg> Reset</button>
-  </div>
-</dialog>
-
-<dialog id="add-list-dialog" aria-labelledby="add-list-dialog-title">
-  <button class="dialog-close-btn" aria-label="Close">✕</button>
-  <h2 id="add-list-dialog-title">Add List</h2>
-  <div class="tabs">
-    <button class="tab-btn active" data-tab="builtin">Known Lists</button>
-    <button class="tab-btn" data-tab="import">Import File</button>
-    <button class="tab-btn" data-tab="url">From URL</button>
-  </div>
-
-  <div id="tab-builtin">
-    <div id="builtin-list"></div>
-  </div>
-
-  <div id="tab-import">
-    <div class="import-zone" id="drop-zone">
-      <span id="import-zone-label">Drop file here or click to browse</span>
-      <input type="file" id="file-input" accept=".txt,.csv">
-    </div>
-    <div class="form-field form-field-gap">
-      <label>Name</label>
-      <input type="text" id="import-name">
-    </div>
-    <div class="dialog-actions">
-      <button class="primary" id="btn-import-file" disabled>Add</button>
-    </div>
-  </div>
-
-  <div id="tab-url">
-    <div class="form-field">
-      <label>URL</label>
-      <input type="text" id="url-input" placeholder="https://...">
-    </div>
-    <div class="form-field">
-      <label>Name</label>
-      <input type="text" id="url-name">
-    </div>
-    <div class="dialog-actions">
-      <button class="primary" id="btn-fetch-url">Fetch</button>
-    </div>
-  </div>
-
-</dialog>
-
-
-<dialog id="confirm-dialog" aria-labelledby="confirm-dialog-msg">
-  <button class="dialog-close-btn" aria-label="Close">✕</button>
-  <p id="confirm-dialog-msg"></p>
-  <div class="dialog-footer">
-    <button id="btn-confirm-cancel" autofocus>Cancel</button>
-    <button id="btn-confirm-ok" class="danger"></button>
-  </div>
-</dialog>
-
-<dialog id="alert-dialog" aria-labelledby="alert-dialog-msg">
-  <button class="dialog-close-btn" aria-label="Close">✕</button>
-  <p id="alert-dialog-msg"></p>
-  <div class="dialog-footer">
-    <button id="btn-alert-ok" class="primary" autofocus>OK</button>
-  </div>
-</dialog>
-
-<dialog id="download-dialog" aria-labelledby="download-dialog-title">
-  <button class="dialog-close-btn" aria-label="Close">✕</button>
-  <h2 id="download-dialog-title">Download</h2>
-  <div class="form-field">
-    <label for="download-dialog-filename">Filename</label>
-    <input id="download-dialog-filename" type="text">
-  </div>
-  <div class="settings-row">
-    <span class="settings-row-label">Case</span>
-    <div id="download-dialog-case-ctrl"></div>
-  </div>
-  <div class="settings-row">
-    <span class="settings-row-label">Extension</span>
-    <div id="download-dialog-ext-ctrl"></div>
-  </div>
-  <div class="dialog-footer">
-    <button id="btn-download-dialog-cancel">Cancel</button>
-    <button id="btn-download-dialog-ok" class="primary">Download</button>
-  </div>
-</dialog>
-
-<dialog id="merge-conflict-dialog" aria-labelledby="merge-conflict-msg">
-  <button class="dialog-close-btn" aria-label="Close">✕</button>
-  <p id="merge-conflict-msg"></p>
-  <div class="dialog-footer">
-    <button id="btn-merge-cancel" autofocus>Cancel</button>
-    <button id="btn-merge-use-file">Use Imported File</button>
-    <button id="btn-merge-keep-edits" class="primary">Keep My Edits</button>
-  </div>
-</dialog>
-
-<dialog id="update-summary-dialog" aria-labelledby="update-summary-title">
-  <button class="dialog-close-btn" aria-label="Close">✕</button>
-  <div class="usd-header">
-    <h2 id="update-summary-title"></h2>
-    <div class="usd-count" id="update-summary-count"></div>
-    <div class="usd-pills" id="update-summary-pills"></div>
-  </div>
-  <div class="usd-scroll" id="update-summary-scroll"></div>
-</dialog>
-
-<dialog id="help-dialog" aria-label="Grawlix Help" tabindex="-1">
-  <button class="dialog-close-btn" aria-label="Close">✕</button>
-  <div class="help-modal">
-    <div class="help-slides">
-
-      <!-- Slide 1: What Is Grawlix? -->
-      <div class="help-slide active" id="help-slide-0">
-        <h2>What Is Grawlix?</h2>
-        <p>Grawlix is a wordlist manager for crossword constructors. It lets you pull in wordlists from multiple sources, rescore them, and merge them into a single master list you can load into your construction software.</p>
-        <p>It doubles as a search tool while you're building: filter entries by substring, score, and more to quickly find the best word for a tricky slot.</p>
-        <div class="help-demo flush">
-          <div class="help-demo-panels">
-            <div class="help-demo-panel">
-              <div class="help-demo-panel-content" id="help-slide0-lists"></div>
-              <div class="help-demo-label help-demo-panel-label">Build your wordlist</div>
-            </div>
-            <div class="help-demo-vbar"></div>
-            <div class="help-demo-panel">
-              <div class="help-demo-panel-content" id="help-slide0-search"></div>
-              <div class="help-demo-label help-demo-panel-label">Search while you construct</div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Slide 2: Building Your Wordlist -->
-      <div class="help-slide" id="help-slide-1">
-        <h2>Building Your Wordlist</h2>
-        <p>Add wordlists from well-known sources with one click, or import your own files and URLs.</p>
-        <p>Lists <strong>merge in priority order</strong> — the higher a list sits, the more its scores count when the same word appears in multiple lists. Drag to reorder. Toggle lists on and off to experiment with different combinations.</p>
-        <div class="help-demo flush" id="help-slide1-demo"></div>
-      </div>
-
-      <!-- Slide 3: Making It Yours -->
-      <div class="help-slide" id="help-slide-2">
-        <h2>Making It Yours</h2>
-        <p>Different wordlists use different score scales. <strong>Rescore rules</strong> let you normalize them — map one score range to another so your output list has consistent scoring across all sources.</p>
-        <p><strong class="help-edits-name">My Edits</strong> is your personal override layer. Click any score or comment to change it. Add words that don't appear in any source list. Your changes are never overwritten by a list update.</p>
-        <div class="help-demo flush">
-          <table class="word-table">
-            <tr class="demo-row">
-              <td class="col-word" id="help-slide2-word"></td>
-              <td class="score-cell demo-score-cell">
-                <span class="score-badge" data-tier="fair">40</span>
-              </td>
-              <td class="comment-cell">—</td>
-            </tr>
-          </table>
-        </div>
-      </div>
-
-      <!-- Slide 4: Searching Your Wordlist -->
-      <div class="help-slide" id="help-slide-3">
-        <h2>Searching Your Wordlist</h2>
-        <p>Type in the search bar to instantly filter the wordlist. Matches are highlighted in color so you can see exactly where the term appears.</p>
-        <p>Set a minimum score to hide lower-quality entries. Toggle <strong>Whole word</strong> to match only complete words rather than substrings.</p>
-        <div class="help-demo flush">
-          <div id="help-slide3-bar"></div>
-          <table class="word-table"><tbody id="help-word-tbody"></tbody></table>
-        </div>
-      </div>
-
-    </div><!-- .help-slides -->
-    <div class="help-nav">
-      <button class="help-prev" aria-label="Previous">&#8592;</button>
-      <div class="help-dots">
-        <button class="help-dot active" aria-label="Slide 1 of 4"></button>
-        <button class="help-dot" aria-label="Slide 2 of 4"></button>
-        <button class="help-dot" aria-label="Slide 3 of 4"></button>
-        <button class="help-dot" aria-label="Slide 4 of 4"></button>
-      </div>
-      <button class="help-next" aria-label="Next">&#8594;</button>
-    </div>
-  </div><!-- .help-modal -->
-</dialog>
 
 <script>
 'use strict';
@@ -1320,15 +1117,50 @@ function applyDarkMode(val) {
   document.documentElement.classList.toggle('light-mode', !dark);
 }
 
-function initDarkMode() {
-  const saved = lsLoad('darkMode') || 'auto';
-  applyDarkMode(saved);
-  const seg = document.getElementById('dark-mode-seg');
+// ─── Display case ─────────────────────────────────────────────────────────────
+
+function getDisplayCase() { return lsLoad('displayCase') || 'lower'; }
+
+function displayWord(word) {
+  return getDisplayCase() === 'upper' ? word.toUpperCase() : word.toLowerCase();
+}
+
+// ─── Settings dialog ──────────────────────────────────────────────────────────
+
+const SettingsDialog = (() => {
+  const el = document.createElement('dialog');
+  el.id = 'settings-dialog';
+  el.setAttribute('aria-labelledby', 'settings-dialog-title');
+  el.innerHTML = `
+    <button class="dialog-close-btn" aria-label="Close">✕</button>
+    <h2 id="settings-dialog-title">Settings</h2>
+    <div class="settings-row">
+      <span class="settings-row-label">Dark mode</span>
+      <div id="dark-mode-seg"></div>
+    </div>
+    <div class="settings-row">
+      <span class="settings-row-label">Display case</span>
+      <div id="display-case-ctrl"></div>
+    </div>
+    <div class="settings-row">
+      <div>
+        <div class="settings-row-label">Reset all data</div>
+        <div class="settings-row-sub">Delete all lists and settings</div>
+      </div>
+      <button id="btn-reset" class="danger" title="Delete all lists and data"><svg class="icon-trash"><use href="#icon-trash"/></svg> Reset</button>
+    </div>`;
+  document.body.appendChild(el);
+
+  const seg  = el.querySelector('#dark-mode-seg');
+  const ctrl = el.querySelector('#display-case-ctrl');
+
+  const darkSaved = lsLoad('darkMode') || 'auto';
+  applyDarkMode(darkSaved);
   seg.innerHTML = buildSegCtrlHTML(null, [
     { value: 'auto',  label: 'Auto' },
     { value: 'light', label: '☀ Light' },
     { value: 'dark',  label: '☽ Dark' },
-  ], saved);
+  ], darkSaved);
   seg.querySelectorAll('.seg-btn').forEach(btn => {
     btn.onclick = () => {
       const val = btn.dataset.val;
@@ -1340,23 +1172,12 @@ function initDarkMode() {
   window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
     if ((lsLoad('darkMode') || 'auto') === 'auto') applyDarkMode('auto');
   });
-}
 
-// ─── Display case setting ─────────────────────────────────────────────────────
-
-function getDisplayCase() { return lsLoad('displayCase') || 'lower'; }
-
-function displayWord(word) {
-  return getDisplayCase() === 'upper' ? word.toUpperCase() : word.toLowerCase();
-}
-
-function initDisplayCase() {
-  const ctrl = document.getElementById('display-case-ctrl');
-  const saved = getDisplayCase();
+  const caseSaved = getDisplayCase();
   ctrl.innerHTML = buildSegCtrlHTML(null, [
     { value: 'lower', label: 'lower' },
     { value: 'upper', label: 'UPPER' },
-  ], saved);
+  ], caseSaved);
   ctrl.querySelectorAll('.seg-btn').forEach(btn => {
     btn.onclick = () => {
       ctrl.querySelectorAll('.seg-btn').forEach(b => b.classList.remove('active'));
@@ -1365,7 +1186,31 @@ function initDisplayCase() {
       if (scroller) scroller.updateEntries(scroller.allEntries);
     };
   });
-}
+
+  el.querySelector('#btn-reset').onclick = async () => {
+    if (!await showConfirm('Delete all lists and settings? This cannot be undone.', { confirmText: 'Reset' })) return;
+    Object.keys(localStorage).filter(k => k.startsWith(LS_PREFIX)).forEach(k => localStorage.removeItem(k));
+    if (_db) { _db.close(); _db = null; }
+    await new Promise(resolve => {
+      const req = indexedDB.deleteDatabase(IDB_NAME);
+      req.onsuccess = resolve;
+      req.onerror   = resolve;
+      req.onblocked = resolve;
+    });
+    location.reload();
+  };
+
+  el.querySelector('.dialog-close-btn').onclick = () => el.close();
+  el.addEventListener('click', e => { if (e.target === el) el.close(); });
+
+  function open() {
+    const opener = document.activeElement;
+    el.addEventListener('close', () => opener?.focus(), { once: true });
+    el.showModal();
+  }
+
+  return { open };
+})();
 
 // ─── Init ─────────────────────────────────────────────────────────────────────
 
@@ -2276,7 +2121,7 @@ function renderInputLists() {
   const container = document.getElementById('lists-container');
   document.getElementById('list-count').textContent = `(${state.inputLists.length})`;
 
-  const addRow = `<div class="add-list-row" onclick="openDialog()">${buildDragHandleHTML()}<span class="add-list-icon">＋</span>Add list</div>`;
+  const addRow = `<div class="add-list-row" onclick="AddListDialog.open()">${buildDragHandleHTML()}<span class="add-list-icon">＋</span>Add list</div>`;
 
   if (!_sourceCountsCache) _sourceCountsCache = buildOutputList().sourceCounts;
   const contribMap = new Map(_sourceCountsCache.map(s => [s.id, s.count]));
@@ -2756,56 +2601,75 @@ function clearMinScore() {
 
 let _updateScroller = null;
 
-function openUpdateSummaryDialog(list, oldCount, added, removed, rescored) {
-  const dialog = document.getElementById('update-summary-dialog');
-  document.getElementById('update-summary-title').textContent = `${list.name} Updated`;
-  document.getElementById('update-summary-count').textContent =
-    `${oldCount.toLocaleString()} → ${list.rawEntries.length.toLocaleString()} entries`;
+const openUpdateSummaryDialog = (() => {
+  const el = document.createElement('dialog');
+  el.id = 'update-summary-dialog';
+  el.setAttribute('aria-labelledby', 'update-summary-title');
+  el.innerHTML = `
+    <button class="dialog-close-btn" aria-label="Close">✕</button>
+    <div class="usd-header">
+      <h2 id="update-summary-title"></h2>
+      <div class="usd-count" id="update-summary-count"></div>
+      <div class="usd-pills" id="update-summary-pills"></div>
+    </div>
+    <div class="usd-scroll" id="update-summary-scroll"></div>`;
+  document.body.appendChild(el);
+  const titleEl   = el.querySelector('#update-summary-title');
+  const countEl   = el.querySelector('#update-summary-count');
+  const pillsEl   = el.querySelector('#update-summary-pills');
+  const scrollEl  = el.querySelector('#update-summary-scroll');
+  const xBtn      = el.querySelector('.dialog-close-btn');
 
-  const rows = [];
-  const sectionIndices = {};
+  xBtn.onclick = () => el.close();
+  el.addEventListener('click', e => { if (e.target === el) el.close(); });
 
-  if (added.length) {
-    sectionIndices.added = rows.length;
-    rows.push({ type: 'header', label: `Added (${added.length.toLocaleString()})` });
-    for (const e of added) rows.push({ type: 'word', word: e.word, score: e.score, kind: 'added' });
-  }
-  if (removed.length) {
-    sectionIndices.removed = rows.length;
-    rows.push({ type: 'header', label: `Removed (${removed.length.toLocaleString()})` });
-    for (const e of removed) rows.push({ type: 'word', word: e.word, score: e.score, kind: 'removed' });
-  }
-  if (rescored.length) {
-    sectionIndices.rescored = rows.length;
-    rows.push({ type: 'header', label: `Rescored (${rescored.length.toLocaleString()})` });
-    for (const e of rescored) rows.push({ type: 'word', word: e.word, score: e.score, kind: 'rescored', oldScore: e.oldScore });
-  }
+  return function(list, oldCount, added, removed, rescored) {
+    titleEl.textContent = `${list.name} Updated`;
+    countEl.textContent = `${oldCount.toLocaleString()} → ${list.rawEntries.length.toLocaleString()} entries`;
 
-  const pillsEl = document.getElementById('update-summary-pills');
-  pillsEl.innerHTML = '';
-  const pillDefs = [
-    { key: 'added',    label: `+${added.length.toLocaleString()}`,   cls: 'usd-pill-added'   },
-    { key: 'removed',  label: `−${removed.length.toLocaleString()}`,  cls: 'usd-pill-removed'  },
-    { key: 'rescored', label: `~${rescored.length.toLocaleString()}`, cls: 'usd-pill-rescored' },
-  ];
-  for (const { key, label, cls } of pillDefs) {
-    if (sectionIndices[key] == null) continue;
-    const btn = document.createElement('button');
-    btn.className = 'usd-pill ' + cls;
-    btn.textContent = label;
-    btn.onclick = () => _updateScroller.scrollToIndex(sectionIndices[key]);
-    pillsEl.appendChild(btn);
-  }
+    const rows = [];
+    const sectionIndices = {};
 
-  const scrollEl = document.getElementById('update-summary-scroll');
-  scrollEl.innerHTML = '';
-  _updateScroller = new UpdateSummaryScroller(scrollEl);
-  _updateScroller.setRows(rows);
+    if (added.length) {
+      sectionIndices.added = rows.length;
+      rows.push({ type: 'header', label: `Added (${added.length.toLocaleString()})` });
+      for (const e of added) rows.push({ type: 'word', word: e.word, score: e.score, kind: 'added' });
+    }
+    if (removed.length) {
+      sectionIndices.removed = rows.length;
+      rows.push({ type: 'header', label: `Removed (${removed.length.toLocaleString()})` });
+      for (const e of removed) rows.push({ type: 'word', word: e.word, score: e.score, kind: 'removed' });
+    }
+    if (rescored.length) {
+      sectionIndices.rescored = rows.length;
+      rows.push({ type: 'header', label: `Rescored (${rescored.length.toLocaleString()})` });
+      for (const e of rescored) rows.push({ type: 'word', word: e.word, score: e.score, kind: 'rescored', oldScore: e.oldScore });
+    }
 
-  const opener = document.activeElement;
-  dialog.addEventListener('close', () => opener?.focus(), { once: true });
-  dialog.showModal();
-}
+    pillsEl.innerHTML = '';
+    const pillDefs = [
+      { key: 'added',    label: `+${added.length.toLocaleString()}`,   cls: 'usd-pill-added'   },
+      { key: 'removed',  label: `−${removed.length.toLocaleString()}`,  cls: 'usd-pill-removed'  },
+      { key: 'rescored', label: `~${rescored.length.toLocaleString()}`, cls: 'usd-pill-rescored' },
+    ];
+    for (const { key, label, cls } of pillDefs) {
+      if (sectionIndices[key] == null) continue;
+      const btn = document.createElement('button');
+      btn.className = 'usd-pill ' + cls;
+      btn.textContent = label;
+      btn.onclick = () => _updateScroller.scrollToIndex(sectionIndices[key]);
+      pillsEl.appendChild(btn);
+    }
+
+    scrollEl.innerHTML = '';
+    _updateScroller = new UpdateSummaryScroller(scrollEl);
+    _updateScroller.setRows(rows);
+
+    const opener = document.activeElement;
+    el.addEventListener('close', () => opener?.focus(), { once: true });
+    el.showModal();
+  };
+})();
 
 async function applyWordlistText(list, text, { fetchedSize = null, originalFilename = null, nameOverride = null } = {}) {
   const id = list.id;
@@ -3134,236 +2998,383 @@ function addNewList(listDef) {
 
 // ─── Confirm Dialog ───────────────────────────────────────────────────────────
 
-function showConfirm(message, { confirmText = 'OK', danger = true } = {}) {
-  return new Promise(resolve => {
-    const dialog  = document.getElementById('confirm-dialog');
-    const msgEl   = document.getElementById('confirm-dialog-msg');
-    const okBtn   = document.getElementById('btn-confirm-ok');
-    const cancelBtn = document.getElementById('btn-confirm-cancel');
-
-    msgEl.textContent = message;
-    okBtn.textContent = confirmText;
-    okBtn.className   = danger ? 'danger' : '';
-
-    const xBtn = dialog.querySelector('.dialog-close-btn');
-    const opener = document.activeElement;
-
-    function finish(result) {
-      dialog.removeEventListener('cancel', onCancel);
-      dialog.removeEventListener('click', onClickOutside);
-      okBtn.removeEventListener('click', onOk);
-      cancelBtn.removeEventListener('click', onCancelClick);
-      if (xBtn) xBtn.removeEventListener('click', onXClick);
-      dialog.close();
-      opener?.focus();
-      resolve(result);
-    }
-    function onOk()            { finish(true);  }
-    function onCancelClick()   { finish(false); }
-    function onCancel(e)       { e.preventDefault(); finish(false); }
-    function onXClick()        { finish(false); }
-    function onClickOutside(e) { if (e.target === dialog) finish(false); }
-
-    dialog.addEventListener('cancel', onCancel);
-    dialog.addEventListener('click', onClickOutside);
-    okBtn.addEventListener('click', onOk);
-    cancelBtn.addEventListener('click', onCancelClick);
-    if (xBtn) xBtn.addEventListener('click', onXClick);
-
-    dialog.showModal();
-  });
-}
-
-function showAlert(message) {
-  return new Promise(resolve => {
-    const dialog = document.getElementById('alert-dialog');
-    const msgEl  = document.getElementById('alert-dialog-msg');
-    const okBtn  = document.getElementById('btn-alert-ok');
-    const xBtn   = dialog.querySelector('.dialog-close-btn');
-    const opener = document.activeElement;
-
-    msgEl.textContent = message;
-
-    function finish() {
-      dialog.removeEventListener('cancel', onCancel);
-      dialog.removeEventListener('click', onClickOutside);
-      okBtn.removeEventListener('click', finish);
-      if (xBtn) xBtn.removeEventListener('click', finish);
-      dialog.close();
-      opener?.focus();
-      resolve();
-    }
-    function onCancel(e) { e.preventDefault(); finish(); }
-    function onClickOutside(e) { if (e.target === dialog) finish(); }
-
-    dialog.addEventListener('cancel', onCancel);
-    dialog.addEventListener('click', onClickOutside);
-    okBtn.addEventListener('click', finish);
-    if (xBtn) xBtn.addEventListener('click', finish);
-
-    dialog.showModal();
-  });
-}
-
-function showDownloadDialog(defaultStem, listId) {
-  return new Promise(resolve => {
-    const dialog     = document.getElementById('download-dialog');
-    const filenameEl = document.getElementById('download-dialog-filename');
-    const caseCtrl   = document.getElementById('download-dialog-case-ctrl');
-    const extCtrl    = document.getElementById('download-dialog-ext-ctrl');
-    const okBtn      = document.getElementById('btn-download-dialog-ok');
-    const cancelBtn  = document.getElementById('btn-download-dialog-cancel');
-    const xBtn       = dialog.querySelector('.dialog-close-btn');
-    const opener     = document.activeElement;
-
-    const list = state.inputLists.find(l => l.id === listId);
-    const savedCase = (list && list.downloadCase) || lsLoad('downloadCase_' + listId) || 'lower';
-    const savedExt  = (list && list.downloadExt)  || lsLoad('downloadExt_' + listId)  || 'txt';
-
-    filenameEl.value = '';
-    filenameEl.placeholder = defaultStem;
-    caseCtrl.innerHTML = buildSegCtrlHTML(null, [
-      { value: 'lower', label: 'lower' },
-      { value: 'upper', label: 'UPPER' },
-    ], savedCase);
-    extCtrl.innerHTML = buildSegCtrlHTML(null, [
-      { value: 'txt',  label: '.txt' },
-      { value: 'dict', label: '.dict' },
-    ], savedExt);
-
-    [caseCtrl, extCtrl].forEach(ctrl => {
-      ctrl.querySelectorAll('.seg-btn').forEach(btn => {
-        btn.onclick = () => {
-          ctrl.querySelectorAll('.seg-btn').forEach(b => b.classList.remove('active'));
-          btn.classList.add('active');
-        };
-      });
-    });
-
-    function getCase() { return caseCtrl.querySelector('.seg-btn.active')?.dataset.val || 'lower'; }
-    function getExt()  { return extCtrl.querySelector('.seg-btn.active')?.dataset.val  || 'txt'; }
-
-    function finish(result) {
-      dialog.removeEventListener('cancel', onCancel);
-      dialog.removeEventListener('click', onClickOutside);
-      okBtn.removeEventListener('click', onOk);
-      cancelBtn.removeEventListener('click', onCancelClick);
-      xBtn?.removeEventListener('click', onXClick);
-      dialog.close();
-      opener?.focus();
-      resolve(result);
-    }
-
-    function onOk() {
-      const caseMode = getCase();
-      const ext = getExt();
-      const target = state.inputLists.find(l => l.id === listId);
-      if (target) {
-        target.downloadCase = caseMode;
-        target.downloadExt  = ext;
-        persistMeta();
-      } else {
-        lsSave('downloadCase_' + listId, caseMode);
-        lsSave('downloadExt_' + listId, ext);
-      }
-      finish({ stem: filenameEl.value.trim() || defaultStem, ext, caseMode });
-    }
-    function onCancelClick()   { finish(null); }
-    function onCancel(e)       { e.preventDefault(); finish(null); }
-    function onXClick()        { finish(null); }
-    function onClickOutside(e) { if (e.target === dialog) finish(null); }
-
-    dialog.addEventListener('cancel', onCancel);
-    dialog.addEventListener('click', onClickOutside);
-    okBtn.addEventListener('click', onOk);
-    cancelBtn.addEventListener('click', onCancelClick);
-    xBtn?.addEventListener('click', onXClick);
-
-    dialog.showModal();
-  });
-}
-
-function showMergeConflict(conflictCount) {
-  return new Promise(resolve => {
-    const dialog    = document.getElementById('merge-conflict-dialog');
-    const msgEl     = document.getElementById('merge-conflict-msg');
-    const keepBtn   = document.getElementById('btn-merge-keep-edits');
-    const fileBtn   = document.getElementById('btn-merge-use-file');
-    const cancelBtn = document.getElementById('btn-merge-cancel');
-    const xBtn      = dialog.querySelector('.dialog-close-btn');
-    const opener    = document.activeElement;
-
-    const editsName = getEditsList().name;
-    const noun = conflictCount === 1 ? 'word appears' : 'words appear';
-    msgEl.textContent = `${conflictCount.toLocaleString()} ${noun} in both ${editsName} and the imported file with different scores or comments. Which should take precedence?`;
-
-    function finish(result) {
-      dialog.removeEventListener('cancel', onCancel);
-      dialog.removeEventListener('click', onClickOutside);
-      keepBtn.removeEventListener('click', onKeep);
-      fileBtn.removeEventListener('click', onFile);
-      cancelBtn.removeEventListener('click', onCancelClick);
-      if (xBtn) xBtn.removeEventListener('click', onXClick);
-      dialog.close();
-      opener?.focus();
-      resolve(result);
-    }
-    function onKeep()          { finish('edits'); }
-    function onFile()          { finish('file');  }
-    function onCancelClick()   { finish(null);    }
-    function onCancel(e)       { e.preventDefault(); finish(null); }
-    function onXClick()        { finish(null);    }
-    function onClickOutside(e) { if (e.target === dialog) finish(null); }
-
-    dialog.addEventListener('cancel', onCancel);
-    dialog.addEventListener('click', onClickOutside);
-    keepBtn.addEventListener('click', onKeep);
-    fileBtn.addEventListener('click', onFile);
-    cancelBtn.addEventListener('click', onCancelClick);
-    if (xBtn) xBtn.addEventListener('click', onXClick);
-
-    dialog.showModal();
-  });
-}
-
-// ─── Add Dialog ───────────────────────────────────────────────────────────────
-
-function openDialog() {
-  const builtinList = document.getElementById('builtin-list');
-  builtinList.innerHTML = BUILTIN_WORDLISTS.map(t => {
-    const exists = state.inputLists.some(l => l.id === t.id);
-    const sub = t.url ? 'Auto-fetch' : 'Manual import';
-    return `<div class="known-list">
-      ${t.icon || ''}
-      <div class="known-list-info">
-        <div class="known-list-name">${esc(t.name)}</div>
-        <div class="known-list-sub">${sub}</div>
-      </div>
-      <button class="${exists ? '' : 'primary'}" ${exists ? 'disabled' : ''} onclick="addBuiltin('${t.id}')">
-        ${exists ? 'Added' : '+ Add'}
-      </button>
+const showConfirm = (() => {
+  const el = document.createElement('dialog');
+  el.id = 'confirm-dialog';
+  el.setAttribute('aria-labelledby', 'confirm-dialog-msg');
+  el.innerHTML = `
+    <button class="dialog-close-btn" aria-label="Close">✕</button>
+    <p id="confirm-dialog-msg"></p>
+    <div class="dialog-footer">
+      <button id="btn-confirm-cancel" autofocus>Cancel</button>
+      <button id="btn-confirm-ok" class="danger"></button>
     </div>`;
-  }).join('');
+  document.body.appendChild(el);
+  const msgEl     = el.querySelector('#confirm-dialog-msg');
+  const okBtn     = el.querySelector('#btn-confirm-ok');
+  const cancelBtn = el.querySelector('#btn-confirm-cancel');
+  const xBtn      = el.querySelector('.dialog-close-btn');
 
-  document.getElementById('url-input').value = '';
-  document.getElementById('url-name').value = '';
-  document.getElementById('import-name').value = '';
-  _pendingImportFile = null;
-  document.getElementById('import-zone-label').textContent = 'Drop file here or click to browse';
-  document.getElementById('btn-import-file').disabled = true;
+  return function(message, { confirmText = 'OK', danger = true } = {}) {
+    return new Promise(resolve => {
+      msgEl.textContent = message;
+      okBtn.textContent = confirmText;
+      okBtn.className   = danger ? 'danger' : '';
+      const opener = document.activeElement;
 
-  const allAdded = BUILTIN_WORDLISTS.every(t => state.inputLists.some(l => l.id === t.id));
-  const defaultTab = allAdded ? 'import' : 'builtin';
-  document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.toggle('active', btn.dataset.tab === defaultTab));
-  ['builtin', 'import', 'url'].forEach(tabId => {
-    document.getElementById('tab-' + tabId).style.display = tabId === defaultTab ? 'block' : 'none';
+      function finish(result) {
+        el.removeEventListener('cancel', onCancel);
+        el.removeEventListener('click', onClickOutside);
+        okBtn.removeEventListener('click', onOk);
+        cancelBtn.removeEventListener('click', onCancelClick);
+        xBtn.removeEventListener('click', onXClick);
+        el.close();
+        opener?.focus();
+        resolve(result);
+      }
+      function onOk()            { finish(true);  }
+      function onCancelClick()   { finish(false); }
+      function onCancel(e)       { e.preventDefault(); finish(false); }
+      function onXClick()        { finish(false); }
+      function onClickOutside(e) { if (e.target === el) finish(false); }
+
+      el.addEventListener('cancel', onCancel);
+      el.addEventListener('click', onClickOutside);
+      okBtn.addEventListener('click', onOk);
+      cancelBtn.addEventListener('click', onCancelClick);
+      xBtn.addEventListener('click', onXClick);
+
+      el.showModal();
+    });
+  };
+})();
+
+const showAlert = (() => {
+  const el = document.createElement('dialog');
+  el.id = 'alert-dialog';
+  el.setAttribute('aria-labelledby', 'alert-dialog-msg');
+  el.innerHTML = `
+    <button class="dialog-close-btn" aria-label="Close">✕</button>
+    <p id="alert-dialog-msg"></p>
+    <div class="dialog-footer">
+      <button id="btn-alert-ok" class="primary" autofocus>OK</button>
+    </div>`;
+  document.body.appendChild(el);
+  const msgEl = el.querySelector('#alert-dialog-msg');
+  const okBtn = el.querySelector('#btn-alert-ok');
+  const xBtn  = el.querySelector('.dialog-close-btn');
+
+  return function(message) {
+    return new Promise(resolve => {
+      msgEl.textContent = message;
+      const opener = document.activeElement;
+
+      function finish() {
+        el.removeEventListener('cancel', onCancel);
+        el.removeEventListener('click', onClickOutside);
+        okBtn.removeEventListener('click', finish);
+        xBtn.removeEventListener('click', finish);
+        el.close();
+        opener?.focus();
+        resolve();
+      }
+      function onCancel(e) { e.preventDefault(); finish(); }
+      function onClickOutside(e) { if (e.target === el) finish(); }
+
+      el.addEventListener('cancel', onCancel);
+      el.addEventListener('click', onClickOutside);
+      okBtn.addEventListener('click', finish);
+      xBtn.addEventListener('click', finish);
+
+      el.showModal();
+    });
+  };
+})();
+
+const showDownloadDialog = (() => {
+  const el = document.createElement('dialog');
+  el.id = 'download-dialog';
+  el.setAttribute('aria-labelledby', 'download-dialog-title');
+  el.innerHTML = `
+    <button class="dialog-close-btn" aria-label="Close">✕</button>
+    <h2 id="download-dialog-title">Download</h2>
+    <div class="form-field">
+      <label for="download-dialog-filename">Filename</label>
+      <input id="download-dialog-filename" type="text">
+    </div>
+    <div class="settings-row">
+      <span class="settings-row-label">Case</span>
+      <div id="download-dialog-case-ctrl"></div>
+    </div>
+    <div class="settings-row">
+      <span class="settings-row-label">Extension</span>
+      <div id="download-dialog-ext-ctrl"></div>
+    </div>
+    <div class="dialog-footer">
+      <button id="btn-download-dialog-cancel">Cancel</button>
+      <button id="btn-download-dialog-ok" class="primary">Download</button>
+    </div>`;
+  document.body.appendChild(el);
+  const filenameEl = el.querySelector('#download-dialog-filename');
+  const caseCtrl   = el.querySelector('#download-dialog-case-ctrl');
+  const extCtrl    = el.querySelector('#download-dialog-ext-ctrl');
+  const okBtn      = el.querySelector('#btn-download-dialog-ok');
+  const cancelBtn  = el.querySelector('#btn-download-dialog-cancel');
+  const xBtn       = el.querySelector('.dialog-close-btn');
+
+  return function(defaultStem, listId) {
+    return new Promise(resolve => {
+      const opener = document.activeElement;
+      const list = state.inputLists.find(l => l.id === listId);
+      const savedCase = (list && list.downloadCase) || lsLoad('downloadCase_' + listId) || 'lower';
+      const savedExt  = (list && list.downloadExt)  || lsLoad('downloadExt_' + listId)  || 'txt';
+
+      filenameEl.value = '';
+      filenameEl.placeholder = defaultStem;
+      caseCtrl.innerHTML = buildSegCtrlHTML(null, [
+        { value: 'lower', label: 'lower' },
+        { value: 'upper', label: 'UPPER' },
+      ], savedCase);
+      extCtrl.innerHTML = buildSegCtrlHTML(null, [
+        { value: 'txt',  label: '.txt' },
+        { value: 'dict', label: '.dict' },
+      ], savedExt);
+
+      [caseCtrl, extCtrl].forEach(ctrl => {
+        ctrl.querySelectorAll('.seg-btn').forEach(btn => {
+          btn.onclick = () => {
+            ctrl.querySelectorAll('.seg-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+          };
+        });
+      });
+
+      function getCase() { return caseCtrl.querySelector('.seg-btn.active')?.dataset.val || 'lower'; }
+      function getExt()  { return extCtrl.querySelector('.seg-btn.active')?.dataset.val  || 'txt'; }
+
+      function finish(result) {
+        el.removeEventListener('cancel', onCancel);
+        el.removeEventListener('click', onClickOutside);
+        okBtn.removeEventListener('click', onOk);
+        cancelBtn.removeEventListener('click', onCancelClick);
+        xBtn.removeEventListener('click', onXClick);
+        el.close();
+        opener?.focus();
+        resolve(result);
+      }
+      function onOk() {
+        const caseMode = getCase();
+        const ext = getExt();
+        const target = state.inputLists.find(l => l.id === listId);
+        if (target) {
+          target.downloadCase = caseMode;
+          target.downloadExt  = ext;
+          persistMeta();
+        } else {
+          lsSave('downloadCase_' + listId, caseMode);
+          lsSave('downloadExt_' + listId, ext);
+        }
+        finish({ stem: filenameEl.value.trim() || defaultStem, ext, caseMode });
+      }
+      function onCancelClick()   { finish(null); }
+      function onCancel(e)       { e.preventDefault(); finish(null); }
+      function onXClick()        { finish(null); }
+      function onClickOutside(e) { if (e.target === el) finish(null); }
+
+      el.addEventListener('cancel', onCancel);
+      el.addEventListener('click', onClickOutside);
+      okBtn.addEventListener('click', onOk);
+      cancelBtn.addEventListener('click', onCancelClick);
+      xBtn.addEventListener('click', onXClick);
+
+      el.showModal();
+    });
+  };
+})();
+
+const showMergeConflict = (() => {
+  const el = document.createElement('dialog');
+  el.id = 'merge-conflict-dialog';
+  el.setAttribute('aria-labelledby', 'merge-conflict-msg');
+  el.innerHTML = `
+    <button class="dialog-close-btn" aria-label="Close">✕</button>
+    <p id="merge-conflict-msg"></p>
+    <div class="dialog-footer">
+      <button id="btn-merge-cancel" autofocus>Cancel</button>
+      <button id="btn-merge-use-file">Use Imported File</button>
+      <button id="btn-merge-keep-edits" class="primary">Keep My Edits</button>
+    </div>`;
+  document.body.appendChild(el);
+  const msgEl     = el.querySelector('#merge-conflict-msg');
+  const keepBtn   = el.querySelector('#btn-merge-keep-edits');
+  const fileBtn   = el.querySelector('#btn-merge-use-file');
+  const cancelBtn = el.querySelector('#btn-merge-cancel');
+  const xBtn      = el.querySelector('.dialog-close-btn');
+
+  return function(conflictCount) {
+    return new Promise(resolve => {
+      const opener = document.activeElement;
+      const editsName = getEditsList().name;
+      const noun = conflictCount === 1 ? 'word appears' : 'words appear';
+      msgEl.textContent = `${conflictCount.toLocaleString()} ${noun} in both ${editsName} and the imported file with different scores or comments. Which should take precedence?`;
+
+      function finish(result) {
+        el.removeEventListener('cancel', onCancel);
+        el.removeEventListener('click', onClickOutside);
+        keepBtn.removeEventListener('click', onKeep);
+        fileBtn.removeEventListener('click', onFile);
+        cancelBtn.removeEventListener('click', onCancelClick);
+        xBtn.removeEventListener('click', onXClick);
+        el.close();
+        opener?.focus();
+        resolve(result);
+      }
+      function onKeep()          { finish('edits'); }
+      function onFile()          { finish('file');  }
+      function onCancelClick()   { finish(null);    }
+      function onCancel(e)       { e.preventDefault(); finish(null); }
+      function onXClick()        { finish(null);    }
+      function onClickOutside(e) { if (e.target === el) finish(null); }
+
+      el.addEventListener('cancel', onCancel);
+      el.addEventListener('click', onClickOutside);
+      keepBtn.addEventListener('click', onKeep);
+      fileBtn.addEventListener('click', onFile);
+      cancelBtn.addEventListener('click', onCancelClick);
+      xBtn.addEventListener('click', onXClick);
+
+      el.showModal();
+    });
+  };
+})();
+
+// ─── Add list dialog ──────────────────────────────────────────────────────────
+
+const AddListDialog = (() => {
+  const el = document.createElement('dialog');
+  el.id = 'add-list-dialog';
+  el.setAttribute('aria-labelledby', 'add-list-dialog-title');
+  el.innerHTML = `
+    <button class="dialog-close-btn" aria-label="Close">✕</button>
+    <h2 id="add-list-dialog-title">Add List</h2>
+    <div class="tabs">
+      <button class="tab-btn active" data-tab="builtin">Known Lists</button>
+      <button class="tab-btn" data-tab="import">Import File</button>
+      <button class="tab-btn" data-tab="url">From URL</button>
+    </div>
+    <div id="tab-builtin">
+      <div id="builtin-list"></div>
+    </div>
+    <div id="tab-import">
+      <div class="import-zone" id="drop-zone">
+        <span id="import-zone-label">Drop file here or click to browse</span>
+        <input type="file" id="file-input" accept=".txt,.csv">
+      </div>
+      <div class="form-field form-field-gap">
+        <label>Name</label>
+        <input type="text" id="import-name">
+      </div>
+      <div class="dialog-actions">
+        <button class="primary" id="btn-import-file" disabled>Add</button>
+      </div>
+    </div>
+    <div id="tab-url">
+      <div class="form-field">
+        <label>URL</label>
+        <input type="text" id="url-input" placeholder="https://...">
+      </div>
+      <div class="form-field">
+        <label>Name</label>
+        <input type="text" id="url-name">
+      </div>
+      <div class="dialog-actions">
+        <button class="primary" id="btn-fetch-url">Fetch</button>
+      </div>
+    </div>`;
+  document.body.appendChild(el);
+
+  const builtinListEl = el.querySelector('#builtin-list');
+  const importLabel   = el.querySelector('#import-zone-label');
+  const importNameEl  = el.querySelector('#import-name');
+  const importBtn     = el.querySelector('#btn-import-file');
+  const urlInputEl    = el.querySelector('#url-input');
+  const urlNameEl     = el.querySelector('#url-name');
+  const tabBtns       = el.querySelectorAll('.tab-btn');
+
+  function showTab(tab) {
+    tabBtns.forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
+    ['builtin', 'import', 'url'].forEach(t => {
+      el.querySelector('#tab-' + t).style.display = t === tab ? 'block' : 'none';
+    });
+  }
+
+  el.querySelector('.dialog-close-btn').onclick = () => el.close();
+  el.addEventListener('click', e => { if (e.target === el) el.close(); });
+
+  tabBtns.forEach(btn => { btn.onclick = () => showTab(btn.dataset.tab); });
+
+  bindDropZone(el.querySelector('#drop-zone'), el.querySelector('#file-input'), file => {
+    _pendingImportFile = file;
+    importLabel.textContent = file.name;
+    if (!importNameEl.value.trim()) importNameEl.value = nameFromPath(file.name);
+    importBtn.disabled = false;
   });
 
-  const addListDialog = document.getElementById('add-list-dialog');
-  const opener = document.activeElement;
-  addListDialog.addEventListener('close', () => opener?.focus(), { once: true });
-  addListDialog.showModal();
-}
+  importBtn.onclick = () => {
+    if (!importNameEl.value.trim()) { importNameEl.focus(); return; }
+    if (_pendingImportFile) handleDialogImport(_pendingImportFile);
+  };
+
+  urlInputEl.addEventListener('blur', () => {
+    if (urlInputEl.value.trim() && !urlNameEl.value.trim())
+      urlNameEl.value = nameFromPath(urlInputEl.value.trim());
+  });
+
+  el.querySelector('#btn-fetch-url').onclick = async () => {
+    const url  = urlInputEl.value.trim();
+    const name = urlNameEl.value.trim();
+    if (!url)  { urlInputEl.focus(); return; }
+    if (!name) { urlNameEl.focus();  return; }
+    const id = 'url_' + Date.now();
+    addNewList({ id, name, source: 'url', url, enabled: true });
+    el.close();
+    await fetchList(id);
+    selectList(id);
+  };
+
+  function open() {
+    builtinListEl.innerHTML = BUILTIN_WORDLISTS.map(t => {
+      const exists = state.inputLists.some(l => l.id === t.id);
+      const sub = t.url ? 'Auto-fetch' : 'Manual import';
+      return `<div class="known-list">
+        ${t.icon || ''}
+        <div class="known-list-info">
+          <div class="known-list-name">${esc(t.name)}</div>
+          <div class="known-list-sub">${sub}</div>
+        </div>
+        <button class="${exists ? '' : 'primary'}" ${exists ? 'disabled' : ''} onclick="addBuiltin('${t.id}')">
+          ${exists ? 'Added' : '+ Add'}
+        </button>
+      </div>`;
+    }).join('');
+
+    urlInputEl.value   = '';
+    urlNameEl.value    = '';
+    importNameEl.value = '';
+    _pendingImportFile = null;
+    importLabel.textContent = 'Drop file here or click to browse';
+    importBtn.disabled = true;
+
+    const allAdded = BUILTIN_WORDLISTS.every(t => state.inputLists.some(l => l.id === t.id));
+    showTab(allAdded ? 'import' : 'builtin');
+
+    const opener = document.activeElement;
+    el.addEventListener('close', () => opener?.focus(), { once: true });
+    el.showModal();
+  }
+
+  return { open };
+})();
 
 function addBuiltin(id) {
   if (state.inputLists.some(l => l.id === id)) return;
@@ -3385,54 +3396,7 @@ function bindEvents() {
   outputCard.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); selectOutputList(); } };
 
   document.getElementById('toast').onclick = dismissToast;
-  document.getElementById('btn-reset').onclick = async () => {
-    if (!await showConfirm('Delete all lists and settings? This cannot be undone.', { confirmText: 'Reset' })) return;
-    Object.keys(localStorage).filter(k => k.startsWith(LS_PREFIX)).forEach(k => localStorage.removeItem(k));
-    if (_db) { _db.close(); _db = null; }
-    await new Promise(resolve => {
-      const req = indexedDB.deleteDatabase(IDB_NAME);
-      req.onsuccess = resolve;
-      req.onerror   = resolve;
-      req.onblocked = resolve;
-    });
-    location.reload();
-  };
-
-  document.getElementById('btn-settings').onclick = () => {
-    const d = document.getElementById('settings-dialog');
-    const opener = document.activeElement;
-    d.addEventListener('close', () => opener?.focus(), { once: true });
-    d.showModal();
-  };
-  ['settings-dialog', 'add-list-dialog', 'update-summary-dialog'].forEach(id => {
-    const d = document.getElementById(id);
-    d.querySelector('.dialog-close-btn').onclick = () => d.close();
-    d.addEventListener('click', e => { if (e.target === d) d.close(); });
-  });
-
-  // Tabs
-  document.querySelectorAll('.tab-btn').forEach(btn => {
-    btn.onclick = () => {
-      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-      ['builtin','import','url'].forEach(t => {
-        document.getElementById('tab-' + t).style.display = btn.dataset.tab === t ? 'block' : 'none';
-      });
-    };
-  });
-
-  // Drop zone
-  bindDropZone(document.getElementById('drop-zone'), document.getElementById('file-input'), file => {
-    _pendingImportFile = file;
-    document.getElementById('import-zone-label').textContent = file.name;
-    const nameField = document.getElementById('import-name');
-    if (!nameField.value.trim()) nameField.value = nameFromPath(file.name);
-    document.getElementById('btn-import-file').disabled = false;
-  });
-  document.getElementById('btn-import-file').onclick = () => {
-    if (!document.getElementById('import-name').value.trim()) { document.getElementById('import-name').focus(); return; }
-    if (_pendingImportFile) handleDialogImport(_pendingImportFile);
-  };
+  document.getElementById('btn-settings').onclick = () => SettingsDialog.open();
 
   // Drag-to-reorder
   let _dragId = null;
@@ -3537,23 +3501,6 @@ function bindEvents() {
     if (state.selectedId) { e.preventDefault(); startCardRename(state.selectedId); }
   });
 
-  // URL fetch
-  document.getElementById('url-input').addEventListener('blur', () => {
-    const url = document.getElementById('url-input').value.trim();
-    const nameField = document.getElementById('url-name');
-    if (url && !nameField.value.trim()) nameField.value = nameFromPath(url);
-  });
-  document.getElementById('btn-fetch-url').onclick = async () => {
-    const url  = document.getElementById('url-input').value.trim();
-    const name = document.getElementById('url-name').value.trim();
-    if (!url) { document.getElementById('url-input').focus(); return; }
-    if (!name) { document.getElementById('url-name').focus(); return; }
-    const id = 'url_' + Date.now();
-    addNewList({ id, name, source: 'url', url, enabled: true });
-    document.getElementById('add-list-dialog').close();
-    await fetchList(id);
-    selectList(id);
-  };
 }
 
 let _pendingImportFile = null;
@@ -3574,7 +3521,13 @@ function handleDialogImport(file) {
 // ─── Cell popovers ────────────────────────────────────────────────────────────
 
 function showCellPopover(td) {
-  const pop = document.getElementById('cell-popover');
+  let pop = document.getElementById('cell-popover');
+  if (!pop) {
+    pop = document.createElement('div');
+    pop.id = 'cell-popover';
+    pop.setAttribute('hidden', '');
+    document.body.appendChild(pop);
+  }
   pop.innerHTML = buildCellPopoverHTML(td);
   pop.removeAttribute('hidden');
   const rect = td.getBoundingClientRect();
@@ -4091,7 +4044,81 @@ function toggleSplitMenu(event) {
 // ─── Help Modal ───────────────────────────────────────────────────────────────
 
 const HelpModal = (() => {
-  const dialog = document.getElementById('help-dialog');
+  const dialog = document.createElement('dialog');
+  dialog.id = 'help-dialog';
+  dialog.setAttribute('aria-label', 'Grawlix Help');
+  dialog.tabIndex = -1;
+  dialog.innerHTML = `
+    <button class="dialog-close-btn" aria-label="Close">✕</button>
+    <div class="help-modal">
+      <div class="help-slides">
+
+        <div class="help-slide active" id="help-slide-0">
+          <h2>What Is Grawlix?</h2>
+          <p>Grawlix is a wordlist manager for crossword constructors. It lets you pull in wordlists from multiple sources, rescore them, and merge them into a single master list you can load into your construction software.</p>
+          <p>It doubles as a search tool while you're building: filter entries by substring, score, and more to quickly find the best word for a tricky slot.</p>
+          <div class="help-demo flush">
+            <div class="help-demo-panels">
+              <div class="help-demo-panel">
+                <div class="help-demo-panel-content" id="help-slide0-lists"></div>
+                <div class="help-demo-label help-demo-panel-label">Build your wordlist</div>
+              </div>
+              <div class="help-demo-vbar"></div>
+              <div class="help-demo-panel">
+                <div class="help-demo-panel-content" id="help-slide0-search"></div>
+                <div class="help-demo-label help-demo-panel-label">Search while you construct</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="help-slide" id="help-slide-1">
+          <h2>Building Your Wordlist</h2>
+          <p>Add wordlists from well-known sources with one click, or import your own files and URLs.</p>
+          <p>Lists <strong>merge in priority order</strong> — the higher a list sits, the more its scores count when the same word appears in multiple lists. Drag to reorder. Toggle lists on and off to experiment with different combinations.</p>
+          <div class="help-demo flush" id="help-slide1-demo"></div>
+        </div>
+
+        <div class="help-slide" id="help-slide-2">
+          <h2>Making It Yours</h2>
+          <p>Different wordlists use different score scales. <strong>Rescore rules</strong> let you normalize them — map one score range to another so your output list has consistent scoring across all sources.</p>
+          <p><strong class="help-edits-name">My Edits</strong> is your personal override layer. Click any score or comment to change it. Add words that don't appear in any source list. Your changes are never overwritten by a list update.</p>
+          <div class="help-demo flush">
+            <table class="word-table">
+              <tr class="demo-row">
+                <td class="col-word" id="help-slide2-word"></td>
+                <td class="score-cell demo-score-cell">
+                  <span class="score-badge" data-tier="fair">40</span>
+                </td>
+                <td class="comment-cell">—</td>
+              </tr>
+            </table>
+          </div>
+        </div>
+
+        <div class="help-slide" id="help-slide-3">
+          <h2>Searching Your Wordlist</h2>
+          <p>Type in the search bar to instantly filter the wordlist. Matches are highlighted in color so you can see exactly where the term appears.</p>
+          <p>Set a minimum score to hide lower-quality entries. Toggle <strong>Whole word</strong> to match only complete words rather than substrings.</p>
+          <div class="help-demo flush">
+            <div id="help-slide3-bar"></div>
+            <table class="word-table"><tbody id="help-word-tbody"></tbody></table>
+          </div>
+        </div>
+
+      </div>
+      <div class="help-nav">
+        <button class="help-prev" aria-label="Previous">&#8592;</button>
+        <div class="help-dots">
+          <button class="help-dot active" aria-label="Slide 1 of 4"></button>
+          <button class="help-dot" aria-label="Slide 2 of 4"></button>
+          <button class="help-dot" aria-label="Slide 3 of 4"></button>
+          <button class="help-dot" aria-label="Slide 4 of 4"></button>
+        </div>
+        <button class="help-next" aria-label="Next">&#8594;</button>
+      </div>
+    </div>`;
+  document.body.appendChild(dialog);
   let currentSlide = 0;
   const totalSlides = 4;
   let demoTimers = [];
@@ -4390,14 +4417,11 @@ const HelpModal = (() => {
 
 // ─── Boot ─────────────────────────────────────────────────────────────────────
 
-initDarkMode();
-initDisplayCase();
 document.addEventListener('click', () => document.querySelectorAll('.split-btn.open').forEach(b => b.classList.remove('open')));
 // Hide the busy overlay immediately if no lists have data.
 { let _m; try { _m = JSON.parse(lsLoad('meta') || '[]'); } catch { _m = []; }
   if (!_m.some(l => l.lastUpdated)) document.getElementById('busy-overlay').remove(); }
 init();
 </script>
-<div id="cell-popover" hidden></div>
 </body>
 </html>
