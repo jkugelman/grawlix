@@ -757,7 +757,7 @@ input.cell-edit.score-edit { font-family: ui-monospace, 'Cascadia Code', monospa
         <div class="help-demo flush">
           <table class="word-table">
             <tr class="demo-row">
-              <td class="col-word">WORDPLAY</td>
+              <td class="col-word" id="help-slide2-word"></td>
               <td class="score-cell demo-score-cell">
                 <span class="score-badge" data-tier="fair">45</span>
               </td>
@@ -1053,7 +1053,7 @@ function buildWordRowHTML(word, score, { comment = '', highlight = '' } = {}) {
 }
 
 // lists: [{ icon, name, meta, enabled }]
-function buildListSidebarHTML(lists, outputMeta = 'Merged from 2 sources') {
+function buildListSidebarHTML(lists, outputMeta = '47,000 entries') {
   return buildListCardHTML(OUTPUT_ICON, OUTPUT_NAME, outputMeta, { isOutput: true })
     + `<div class="help-mini-section">Input Lists (${lists.length})</div>`
     + lists.map(({ icon, name, meta, enabled = true }) =>
@@ -4090,10 +4090,12 @@ const HelpModal = (() => {
   ];
 
   function wordHtml(word, highlight) {
-    if (!highlight) return word;
-    const idx = word.indexOf('CROSS');
-    if (idx === -1) return word;
-    return word.slice(0, idx) + '<mark class="search-match search-match-0">CROSS</mark>' + word.slice(idx + 5);
+    const displayed = displayWord(word);
+    if (!highlight) return displayed;
+    const dc = displayWord(highlight);
+    const idx = displayed.indexOf(dc);
+    if (idx === -1) return displayed;
+    return displayed.slice(0, idx) + '<mark class="search-match search-match-0">' + dc + '</mark>' + displayed.slice(idx + dc.length);
   }
 
   function buildSearchRows(tbody, query, minScore) {
@@ -4104,7 +4106,7 @@ const HelpModal = (() => {
       if (score < minScore) return;
       const tr = document.createElement('tr');
       tr.innerHTML =
-        `<td class="col-word">${wordHtml(word, filter === 'CROSS')}</td>` +
+        `<td class="col-word">${wordHtml(word, filter)}</td>` +
         `<td class="score-cell">${buildScoreBadgeHTML(score)}</td>`;
       tbody.appendChild(tr);
     });
@@ -4122,11 +4124,11 @@ const HelpModal = (() => {
     buildSearchRows(tbody, '', 0);
 
     after(800,  () => { searchInput.style.borderColor = 'var(--accent)'; });
-    after(1200, () => { searchInput.value = 'C'; });
-    after(1450, () => { searchInput.value = 'CR'; });
-    after(1700, () => { searchInput.value = 'CRO'; });
-    after(1950, () => { searchInput.value = 'CROS'; });
-    after(2200, () => { searchInput.value = 'CROSS'; buildSearchRows(tbody, 'CROSS', 0); });
+    after(1200, () => { searchInput.value = displayWord('C');    buildSearchRows(tbody, 'C', 0); });
+    after(1450, () => { searchInput.value = displayWord('CR');   buildSearchRows(tbody, 'CR', 0); });
+    after(1700, () => { searchInput.value = displayWord('CRO');  buildSearchRows(tbody, 'CRO', 0); });
+    after(1950, () => { searchInput.value = displayWord('CROS'); buildSearchRows(tbody, 'CROS', 0); });
+    after(2200, () => { searchInput.value = displayWord('CROSS'); buildSearchRows(tbody, 'CROSS', 0); });
     after(3800, () => { scoreMin.value = ''; });
     after(4100, () => { scoreMin.value = '5'; });
     after(4400, () => { scoreMin.value = '50'; buildSearchRows(tbody, 'CROSS', 50); });
@@ -4155,6 +4157,9 @@ const HelpModal = (() => {
       + buildWordRowHTML('CROSSWORD', 60)
       + buildWordRowHTML('CROSSFIRE', 50)
       + `</tbody></table>`;
+
+    // Slide 2: Making It Yours — word cell
+    document.getElementById('help-slide2-word').textContent = displayWord('WORDPLAY');
 
     // Slide 1: list sidebar with enabled JK and disabled PB
     document.getElementById('help-slide1-demo').innerHTML = buildListSidebarHTML([
