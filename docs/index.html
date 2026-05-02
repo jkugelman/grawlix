@@ -635,9 +635,9 @@ input.cell-edit.score-edit { font-family: ui-monospace, 'Cascadia Code', monospa
   </div>
 </dialog>
 
-<dialog id="add-dialog" aria-labelledby="add-dialog-title">
+<dialog id="add-list-dialog" aria-labelledby="add-list-dialog-title">
   <button class="dialog-close-btn" aria-label="Close">✕</button>
-  <h2 id="add-dialog-title">Add Wordlist</h2>
+  <h2 id="add-list-dialog-title">Add List</h2>
   <div class="tabs">
     <button class="tab-btn active" data-tab="builtin">Known Lists</button>
     <button class="tab-btn" data-tab="import">Import File</button>
@@ -3297,10 +3297,10 @@ function openDialog() {
     document.getElementById('tab-' + tabId).style.display = tabId === defaultTab ? 'block' : 'none';
   });
 
-  const addDialog = document.getElementById('add-dialog');
+  const addListDialog = document.getElementById('add-list-dialog');
   const opener = document.activeElement;
-  addDialog.addEventListener('close', () => opener?.focus(), { once: true });
-  addDialog.showModal();
+  addListDialog.addEventListener('close', () => opener?.focus(), { once: true });
+  addListDialog.showModal();
 }
 
 function addBuiltin(id) {
@@ -3311,7 +3311,7 @@ function addBuiltin(id) {
     id: t.id, name: t.name, source: t.source, url: t.url || null, enabled: true,
     rescoreRules: t.defaultRules ? JSON.parse(JSON.stringify(t.defaultRules)) : [],
   });
-  document.getElementById('add-dialog').close();
+  document.getElementById('add-list-dialog').close();
   showToast(`Added ${t.name}`);
 }
 
@@ -3353,7 +3353,7 @@ function bindEvents() {
     d.addEventListener('close', () => opener?.focus(), { once: true });
     d.showModal();
   };
-  ['settings-dialog', 'add-dialog', 'update-summary-dialog'].forEach(id => {
+  ['settings-dialog', 'add-list-dialog', 'update-summary-dialog'].forEach(id => {
     const d = document.getElementById(id);
     d.querySelector('.dialog-close-btn').onclick = () => d.close();
     d.addEventListener('click', e => { if (e.target === d) d.close(); });
@@ -3499,7 +3499,7 @@ function bindEvents() {
     if (!name) { document.getElementById('url-name').focus(); return; }
     const id = 'url_' + Date.now();
     addNewList({ id, name, source: 'url', url, enabled: true });
-    document.getElementById('add-dialog').close();
+    document.getElementById('add-list-dialog').close();
     await fetchList(id);
     selectList(id);
   };
@@ -3515,7 +3515,7 @@ function handleDialogImport(file) {
   const id   = 'up_' + Date.now();
   const name = document.getElementById('import-name').value.trim();
   addNewList({ id, name, source: 'import', url: null, enabled: true });
-  document.getElementById('add-dialog').close();
+  document.getElementById('add-list-dialog').close();
   ingestFile(file, id, name);
   selectList(id);
 }
