@@ -2775,7 +2775,8 @@ async function fetchList(id, event) {
     list._loading = false;
     renderInputLists();
     if (state.selectedId === id) renderDetail(list);
-    showToast(`Fetch failed: ${err.message}`);
+    const detail = err.message === 'Failed to fetch' ? '' : `: ${err.message}`;
+    showToast(`Failed to fetch ${list.url}${detail}`);
   }
 }
 
