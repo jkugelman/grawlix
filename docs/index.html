@@ -753,7 +753,7 @@ input.cell-edit.score-edit { font-family: ui-monospace, 'Cascadia Code', monospa
       <div class="help-slide" id="help-slide-2">
         <h2>Making It Yours</h2>
         <p>Different wordlists use different score scales. <strong>Rescore rules</strong> let you normalize them — map one score range to another so your output list has consistent scoring across all sources.</p>
-        <p><strong>My Edits</strong> is your personal override layer. Click any score or comment to change it. Add words that don't appear in any source list. My Edits always has the highest priority — your changes are never overwritten by a list update.</p>
+        <p><strong class="help-edits-name">My Edits</strong> is your personal override layer. Click any score or comment to change it. Add words that don't appear in any source list. Your changes are never overwritten by a list update.</p>
         <div class="help-demo flush">
           <table class="word-table">
             <tr class="demo-row">
@@ -778,37 +778,14 @@ input.cell-edit.score-edit { font-family: ui-monospace, 'Cascadia Code', monospa
         </div>
       </div>
 
-      <!-- Slide 5: Downloading Your Wordlist -->
-      <div class="help-slide" id="help-slide-4">
-        <h2>Downloading Your Wordlist</h2>
-        <p>Download the merged <strong>Output List</strong> or any individual list. Choose lowercase or UPPERCASE, and .txt or .dict format — whatever your construction software expects.</p>
-        <p>Ingrid, Crosserville, Crossfire, and Crossword Compiler all accept the standard text format. Use lowercase .txt unless your software says otherwise.</p>
-        <div class="help-demo">
-          <div class="help-demo-dl">
-            <button class="primary" disabled>⬇ Download Output List</button>
-            <div class="help-demo-dl-opts">
-              <div class="help-demo-dl-row">
-                <span class="help-demo-dl-lbl">Case</span>
-                <div id="help-slide4-case-ctrl"></div>
-              </div>
-              <div class="help-demo-dl-row">
-                <span class="help-demo-dl-lbl">Format</span>
-                <div id="help-slide4-ext-ctrl"></div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
     </div><!-- .help-slides -->
     <div class="help-nav">
       <button class="help-prev" aria-label="Previous">&#8592;</button>
       <div class="help-dots">
-        <button class="help-dot active" aria-label="Slide 1 of 5"></button>
-        <button class="help-dot" aria-label="Slide 2 of 5"></button>
-        <button class="help-dot" aria-label="Slide 3 of 5"></button>
-        <button class="help-dot" aria-label="Slide 4 of 5"></button>
-        <button class="help-dot" aria-label="Slide 5 of 5"></button>
+        <button class="help-dot active" aria-label="Slide 1 of 4"></button>
+        <button class="help-dot" aria-label="Slide 2 of 4"></button>
+        <button class="help-dot" aria-label="Slide 3 of 4"></button>
+        <button class="help-dot" aria-label="Slide 4 of 4"></button>
       </div>
       <button class="help-next" aria-label="Next">&#8594;</button>
     </div>
@@ -4035,10 +4012,16 @@ function toggleSplitMenu(event) {
 const HelpModal = (() => {
   const dialog = document.getElementById('help-dialog');
   let currentSlide = 0;
-  const totalSlides = 5;
+  const totalSlides = 4;
   let demoTimers = [];
 
-  function open() { dialog.showModal(); goTo(0); dialog.focus(); }
+  function open() {
+    const editsName = getEditsList().name;
+    dialog.querySelectorAll('.help-edits-name').forEach(el => el.textContent = editsName);
+    dialog.showModal();
+    goTo(0);
+    dialog.focus();
+  }
 
   function close() { dialog.close(); }
 
@@ -4183,11 +4166,6 @@ const HelpModal = (() => {
     document.getElementById('help-slide3-bar').innerHTML =
       buildSearchBarHTML({ idPrefix: 'help', readonly: true, showHints: false });
 
-    // Slide 5: download controls
-    document.getElementById('help-slide4-case-ctrl').innerHTML =
-      buildSegCtrlHTML(null, [{value:'lower',label:'lower'},{value:'upper',label:'UPPER'}], 'lower');
-    document.getElementById('help-slide4-ext-ctrl').innerHTML =
-      buildSegCtrlHTML(null, [{value:'txt',label:'.txt'},{value:'dict',label:'.dict'}], 'txt');
   }
 
   initDemoSlides();
