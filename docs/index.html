@@ -1431,6 +1431,11 @@ async function init() {
   state.inputLists
     .filter(l => (l.url || getTemplate(l.id)?.url) && !l.rawEntries.length)
     .forEach(l => fetchList(l.id));
+
+  if (!lsLoad('visited')) {
+    lsSave('visited', '1');
+    HelpModal.open();
+  }
 }
 
 function defaultInputLists() {
