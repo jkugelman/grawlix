@@ -767,7 +767,7 @@ input.cell-edit.score-edit { font-family: ui-monospace, 'Cascadia Code', monospa
             <tr class="demo-row">
               <td class="col-word" id="help-slide2-word"></td>
               <td class="score-cell demo-score-cell">
-                <span class="score-badge" data-tier="fair">45</span>
+                <span class="score-badge" data-tier="fair">40</span>
               </td>
               <td class="comment-cell">—</td>
             </tr>
@@ -4124,7 +4124,7 @@ const HelpModal = (() => {
     const scoreCell = slide.querySelector('.demo-score-cell');
     const demoContainer = slide.querySelector('.help-demo');
 
-    scoreCell.innerHTML = buildScoreBadgeHTML(45);
+    scoreCell.innerHTML = buildScoreBadgeHTML(40);
     demoRow.style.background = '';
     demoContainer.querySelectorAll('.demo-caret, .demo-mouse').forEach(el => el.remove());
 
@@ -4148,17 +4148,17 @@ const HelpModal = (() => {
       clickDemoMouse(mouse);
     });
     after(1500, () => {
-      scoreCell.innerHTML = '<input class="cell-edit score-edit" value="45" readonly>';
+      scoreCell.innerHTML = '<input class="cell-edit score-edit" value="40" readonly>';
       const inp = scoreCell.querySelector('input');
       inp.style.borderColor = 'var(--accent)';
       showDemoCaret(caret, inp, demoContainer);
     });
     after(2000, () => { const inp = scoreCell.querySelector('input'); if (inp) { inp.value = ''; showDemoCaret(caret, inp, demoContainer); } });
     after(2200, () => { const inp = scoreCell.querySelector('input'); if (inp) { inp.value = '6'; showDemoCaret(caret, inp, demoContainer); } });
-    after(2400, () => { const inp = scoreCell.querySelector('input'); if (inp) { inp.value = '65'; showDemoCaret(caret, inp, demoContainer); } });
+    after(2400, () => { const inp = scoreCell.querySelector('input'); if (inp) { inp.value = '60'; showDemoCaret(caret, inp, demoContainer); } });
     after(2700, () => {
       demoRow.style.background = '';
-      scoreCell.innerHTML = buildScoreBadgeHTML(65);
+      scoreCell.innerHTML = buildScoreBadgeHTML(60);
       hideDemoCaret(caret);
       mouse.classList.remove('visible');
     });
