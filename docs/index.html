@@ -346,8 +346,9 @@ dialog h2 { font-size: 16px; margin-bottom: 14px; padding-right: 24px; }
 .usd-arrow { color: var(--faint); font-size: 11px; }
 
 /* Toast */
-#toast { position: fixed; bottom: 18px; right: 18px; background: #333; color: white; padding: 9px 15px; border-radius: 6px; font-size: 13px; z-index: 1000; opacity: 0; transition: opacity 0.25s; max-width: 360px; pointer-events: none; }
-#toast.show { opacity: 1; pointer-events: auto; cursor: pointer; }
+#toast-container { position: fixed; bottom: 18px; right: 18px; display: flex; flex-direction: column; gap: 8px; z-index: 1000; pointer-events: none; align-items: flex-end; }
+.toast { background: #333; color: white; padding: 9px 15px; border-radius: 6px; font-size: 13px; opacity: 0; transition: opacity 0.25s; max-width: 360px; pointer-events: none; }
+.toast.show { opacity: 1; pointer-events: auto; cursor: pointer; }
 
 a.get-file { font-size: 12px; color: var(--accent); text-decoration: none; white-space: nowrap; }
 a.get-file:hover { text-decoration: underline; }
@@ -494,7 +495,7 @@ input.cell-edit.score-edit { font-family: ui-monospace, 'Cascadia Code', monospa
 .source-trash:hover { color: #e53935 !important; }
 
 /* Toast undo link */
-#toast .undo-link { margin-left: 10px; color: #90caf9; text-decoration: underline; cursor: pointer; }
+.toast .undo-link { margin-left: 10px; color: #90caf9; text-decoration: underline; cursor: pointer; }
 
 /* ── Help modal ───────────────────────────────────────────────────────────────── */
 #help-dialog {
@@ -632,8 +633,6 @@ input.cell-edit.score-edit { font-family: ui-monospace, 'Cascadia Code', monospa
 
   <div id="detail-panel"></div>
 </main>
-
-<div id="toast"></div>
 
 <script>
 'use strict';
@@ -2761,7 +2760,6 @@ async function fetchList(id, event) {
   list._loading = true;
   renderInputLists();
   if (state.selectedId === id) renderDetail(list);
-  showToast(`Fetching ${list.name}…`);
 
   try {
     const resp = await fetch(list.url);
@@ -3448,7 +3446,7 @@ function bindEvents() {
   outputCard.onclick = selectOutputList;
   outputCard.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); selectOutputList(); } };
 
-  document.getElementById('toast').onclick = dismissToast;
+
   document.getElementById('btn-settings').onclick = () => SettingsDialog.open();
 
   // Drag-to-reorder
@@ -3647,30 +3645,42 @@ function timeAgo(ts) {
   return `${yr} year${yr === 1 ? '' : 's'} ago`;
 }
 
-let _toastTimer;
 let _updateCheckInterval;
+const _toastContainer = (() => {
+  const el = document.createElement('div');
+  el.id = 'toast-container';
+  document.body.appendChild(el);
+  return el;
+})();
 function showToast(msg) {
-  const el = document.getElementById('toast');
+  const el = document.createElement('div');
+  el.className = 'toast';
   el.textContent = msg;
+  el.onclick = () => _dismissToast(el);
+  _toastContainer.appendChild(el);
+  el.offsetWidth; // force reflow so opacity transition fires
   el.classList.add('show');
-  clearTimeout(_toastTimer);
-  _toastTimer = setTimeout(() => el.classList.remove('show'), 5000);
+  el._timer = setTimeout(() => _dismissToast(el), 5000);
 }
 function showUndoToast(msg, onUndo) {
-  const el = document.getElementById('toast');
+  const el = document.createElement('div');
+  el.className = 'toast';
   el.innerHTML = esc(msg) + `<span class="undo-link">Undo</span>`;
-  el.classList.add('show');
-  clearTimeout(_toastTimer);
-  _toastTimer = setTimeout(() => el.classList.remove('show'), 10000);
+  el.onclick = () => _dismissToast(el);
   el.querySelector('.undo-link').onclick = e => {
     e.stopPropagation();
-    dismissToast();
+    _dismissToast(el);
     onUndo();
   };
+  _toastContainer.appendChild(el);
+  el.offsetWidth; // force reflow so opacity transition fires
+  el.classList.add('show');
+  el._timer = setTimeout(() => _dismissToast(el), 10000);
 }
-function dismissToast() {
-  clearTimeout(_toastTimer);
-  document.getElementById('toast').classList.remove('show');
+function _dismissToast(el) {
+  clearTimeout(el._timer);
+  el.classList.remove('show');
+  el.addEventListener('transitionend', () => el.remove(), { once: true });
 }
 
 // ─── Template lookup ──────────────────────────────────────────────────────────
