@@ -1325,8 +1325,7 @@ async function persistEdits(edits) {
 
 async function downloadEdits() {
   const edits = getEditsList();
-  const defaultStem = edits.name.replace(/\s+/g, '-').toLowerCase();
-  const result = await showDownloadDialog(defaultStem, EDITS_ID);
+  const result = await showDownloadDialog(edits.name, EDITS_ID);
   if (!result) return;
   const { stem, ext, caseMode } = result;
   const upper = caseMode === 'upper';
