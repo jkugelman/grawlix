@@ -4129,6 +4129,7 @@ const HelpModal = (() => {
     after(1700, () => { searchInput.value = displayWord('CRO');  buildSearchRows(tbody, 'CRO', 0); });
     after(1950, () => { searchInput.value = displayWord('CROS'); buildSearchRows(tbody, 'CROS', 0); });
     after(2200, () => { searchInput.value = displayWord('CROSS'); buildSearchRows(tbody, 'CROSS', 0); });
+    after(3200, () => { searchInput.style.borderColor = ''; scoreMin.style.borderColor = 'var(--accent)'; });
     after(3800, () => { scoreMin.value = ''; });
     after(4100, () => { scoreMin.value = '5'; });
     after(4400, () => { scoreMin.value = '50'; buildSearchRows(tbody, 'CROSS', 50); });
@@ -4136,6 +4137,7 @@ const HelpModal = (() => {
       searchInput.value = '';
       searchInput.style.borderColor = '';
       scoreMin.value = '0';
+      scoreMin.style.borderColor = '';
       buildSearchRows(tbody, '', 0);
     });
     after(6600, () => { runSearchDemo(); });
