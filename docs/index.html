@@ -533,6 +533,14 @@ input.cell-edit.score-edit { font-family: ui-monospace, 'Cascadia Code', monospa
 .help-demo-dl-opts { display: flex; flex-direction: column; gap: 8px; }
 .help-demo-dl-row { display: flex; align-items: center; gap: 10px; }
 .help-demo-dl-lbl { font-size: 12px; color: var(--muted); min-width: 55px; }
+/* Demo overlays: fake text caret and mouse cursor */
+.demo-caret { position: absolute; width: 1.5px; height: 13px; background: var(--text); pointer-events: none; z-index: 5; animation: demo-caret-blink 1s step-end infinite; }
+@keyframes demo-caret-blink { 50% { opacity: 0; } }
+.demo-mouse { position: absolute; pointer-events: none; opacity: 0; z-index: 10; transition: left 0.35s ease-out, top 0.35s ease-out, opacity 0.2s; }
+.demo-mouse.visible { opacity: 1; }
+.demo-mouse svg { transition: transform 0.06s; }
+.demo-mouse.clicking svg { transform: scale(0.8); transform-origin: 0 0; }
+#help-slide-2 .help-demo, #help-slide-3 .help-demo { position: relative; }
 
 </style>
 </head>
@@ -4053,25 +4061,101 @@ const HelpModal = (() => {
     if (index === 3) runSearchDemo();
   }
 
+  const DEMO_CURSOR_SVG = `<svg viewBox="0 0 11 16" width="11" height="16" xmlns="http://www.w3.org/2000/svg"><path d="M0 0L0 13.5L3.5 10.5L6 15L8 14L5.5 9.5L9.5 9.5Z" fill="white" stroke="rgba(0,0,0,0.7)" stroke-width="1" stroke-linejoin="round"/></svg>`;
+
+  function makeDemoCaret(container) {
+    const el = document.createElement('span');
+    el.className = 'demo-caret';
+    el.style.opacity = '0';
+    el.style.animation = 'none';
+    container.appendChild(el);
+    return el;
+  }
+
+  function showDemoCaret(caretEl, inputEl, container) {
+    const cr = container.getBoundingClientRect();
+    const ir = inputEl.getBoundingClientRect();
+    const cs = getComputedStyle(inputEl);
+    const mirror = document.createElement('span');
+    mirror.style.cssText = `position:fixed;visibility:hidden;white-space:pre;font:${cs.font};letter-spacing:${cs.letterSpacing};padding:0`;
+    mirror.textContent = inputEl.value;
+    document.body.appendChild(mirror);
+    const textW = mirror.getBoundingClientRect().width;
+    mirror.remove();
+    caretEl.style.left = (ir.left - cr.left + parseFloat(cs.paddingLeft) + textW) + 'px';
+    caretEl.style.top  = (ir.top  - cr.top  + (ir.height - 13) / 2) + 'px';
+    caretEl.style.opacity = '';
+    caretEl.style.animation = '';
+  }
+
+  function hideDemoCaret(caretEl) {
+    caretEl.style.opacity = '0';
+    caretEl.style.animation = 'none';
+  }
+
+  function makeDemoMouse(container) {
+    const el = document.createElement('div');
+    el.className = 'demo-mouse';
+    el.innerHTML = DEMO_CURSOR_SVG;
+    container.appendChild(el);
+    return el;
+  }
+
+  function moveDemoMouse(mouseEl, targetEl, container, offX = 0, offY = 0) {
+    const cr = container.getBoundingClientRect();
+    const tr = targetEl.getBoundingClientRect();
+    mouseEl.style.left = (tr.left - cr.left + tr.width  / 2 + offX) + 'px';
+    mouseEl.style.top  = (tr.top  - cr.top  + tr.height / 2 + offY) + 'px';
+  }
+
+  function clickDemoMouse(mouseEl) {
+    mouseEl.classList.add('clicking');
+    after(100, () => mouseEl.classList.remove('clicking'));
+  }
+
   function runScoreEditDemo() {
     const slide = document.getElementById('help-slide-2');
     const demoRow = slide.querySelector('.demo-row');
     const scoreCell = slide.querySelector('.demo-score-cell');
+    const demoContainer = slide.querySelector('.help-demo');
 
     scoreCell.innerHTML = buildScoreBadgeHTML(45);
     demoRow.style.background = '';
+    demoContainer.querySelectorAll('.demo-caret, .demo-mouse').forEach(el => el.remove());
 
-    after(1000, () => { demoRow.style.background = 'var(--row-hover)'; });
+    const mouse = makeDemoMouse(demoContainer);
+    const caret = makeDemoCaret(demoContainer);
+
+    after(0, () => {
+      const sc = scoreCell.getBoundingClientRect();
+      const cr = demoContainer.getBoundingClientRect();
+      mouse.style.transition = 'none';
+      mouse.style.left = (sc.left - cr.left + sc.width / 2) + 'px';
+      mouse.style.top  = '-10px';
+    });
+    after(300, () => {
+      mouse.style.transition = 'left 0.4s ease-out, top 0.4s ease-out, opacity 0.25s';
+      mouse.classList.add('visible');
+      moveDemoMouse(mouse, scoreCell, demoContainer);
+    });
+    after(1000, () => {
+      demoRow.style.background = 'var(--row-hover)';
+      clickDemoMouse(mouse);
+    });
     after(1500, () => {
       scoreCell.innerHTML = '<input class="cell-edit score-edit" value="45" readonly>';
-      scoreCell.querySelector('input').style.borderColor = 'var(--accent)';
+      const inp = scoreCell.querySelector('input');
+      inp.style.borderColor = 'var(--accent)';
+      showDemoCaret(caret, inp, demoContainer);
     });
-    after(2000, () => { const inp = scoreCell.querySelector('input'); if (inp) inp.value = ''; });
-    after(2200, () => { const inp = scoreCell.querySelector('input'); if (inp) inp.value = '6'; });
-    after(2400, () => { const inp = scoreCell.querySelector('input'); if (inp) inp.value = '65'; });
+    after(2000, () => { const inp = scoreCell.querySelector('input'); if (inp) { inp.value = ''; showDemoCaret(caret, inp, demoContainer); } });
+    after(2200, () => { const inp = scoreCell.querySelector('input'); if (inp) { inp.value = '6'; showDemoCaret(caret, inp, demoContainer); } });
+    after(2400, () => { const inp = scoreCell.querySelector('input'); if (inp) { inp.value = '65'; showDemoCaret(caret, inp, demoContainer); } });
     after(2700, () => {
       demoRow.style.background = '';
       scoreCell.innerHTML = buildScoreBadgeHTML(65);
+      hideDemoCaret(caret);
+      mouse.classList.remove('visible');
     });
     after(5200, () => { runScoreEditDemo(); });
   }
@@ -4117,28 +4201,59 @@ const HelpModal = (() => {
     const searchInput = slide.querySelector('#help-search-input');
     const scoreMin = slide.querySelector('#help-score-min-input');
     const tbody = slide.querySelector('#help-word-tbody');
+    const demoContainer = slide.querySelector('.help-demo');
 
     searchInput.value = '';
     searchInput.style.borderColor = '';
     scoreMin.value = '0';
+    scoreMin.style.borderColor = '';
     buildSearchRows(tbody, '', 0);
+    demoContainer.querySelectorAll('.demo-caret, .demo-mouse').forEach(el => el.remove());
 
+    const mouse = makeDemoMouse(demoContainer);
+    const caret = makeDemoCaret(demoContainer);
+
+    after(0, () => {
+      const sr = searchInput.getBoundingClientRect();
+      const cr = demoContainer.getBoundingClientRect();
+      mouse.style.transition = 'none';
+      mouse.style.left = (sr.left - cr.left + sr.width / 2) + 'px';
+      mouse.style.top  = '-10px';
+    });
+    after(300, () => {
+      mouse.style.transition = 'left 0.4s ease-out, top 0.4s ease-out, opacity 0.25s';
+      mouse.classList.add('visible');
+      moveDemoMouse(mouse, searchInput, demoContainer);
+    });
+    after(700,  () => { clickDemoMouse(mouse); });
     after(800,  () => { searchInput.style.borderColor = 'var(--accent)'; });
-    after(1200, () => { searchInput.value = displayWord('C');    buildSearchRows(tbody, 'C', 0); });
-    after(1450, () => { searchInput.value = displayWord('CR');   buildSearchRows(tbody, 'CR', 0); });
-    after(1700, () => { searchInput.value = displayWord('CRO');  buildSearchRows(tbody, 'CRO', 0); });
-    after(1950, () => { searchInput.value = displayWord('CROS'); buildSearchRows(tbody, 'CROS', 0); });
-    after(2200, () => { searchInput.value = displayWord('CROSS'); buildSearchRows(tbody, 'CROSS', 0); });
-    after(3200, () => { searchInput.style.borderColor = ''; scoreMin.style.borderColor = 'var(--accent)'; });
-    after(3800, () => { scoreMin.value = ''; });
-    after(4100, () => { scoreMin.value = '5'; });
-    after(4400, () => { scoreMin.value = '50'; buildSearchRows(tbody, 'CROSS', 50); });
+    after(1200, () => { searchInput.value = displayWord('C');     buildSearchRows(tbody, 'C', 0);     showDemoCaret(caret, searchInput, demoContainer); });
+    after(1450, () => { searchInput.value = displayWord('CR');    buildSearchRows(tbody, 'CR', 0);    showDemoCaret(caret, searchInput, demoContainer); });
+    after(1700, () => { searchInput.value = displayWord('CRO');   buildSearchRows(tbody, 'CRO', 0);   showDemoCaret(caret, searchInput, demoContainer); });
+    after(1950, () => { searchInput.value = displayWord('CROS');  buildSearchRows(tbody, 'CROS', 0);  showDemoCaret(caret, searchInput, demoContainer); });
+    after(2200, () => { searchInput.value = displayWord('CROSS'); buildSearchRows(tbody, 'CROSS', 0); showDemoCaret(caret, searchInput, demoContainer); });
+    after(2400, () => {
+      mouse.style.transition = 'left 0.55s ease-out, top 0.55s ease-out, opacity 0.25s';
+      moveDemoMouse(mouse, scoreMin, demoContainer);
+    });
+    after(3200, () => {
+      searchInput.style.borderColor = '';
+      scoreMin.style.borderColor = 'var(--accent)';
+      hideDemoCaret(caret);
+      clickDemoMouse(mouse);
+      showDemoCaret(caret, scoreMin, demoContainer);
+    });
+    after(3800, () => { scoreMin.value = '';   showDemoCaret(caret, scoreMin, demoContainer); });
+    after(4100, () => { scoreMin.value = '5';  showDemoCaret(caret, scoreMin, demoContainer); });
+    after(4400, () => { scoreMin.value = '50'; buildSearchRows(tbody, 'CROSS', 50); showDemoCaret(caret, scoreMin, demoContainer); });
     after(5800, () => {
       searchInput.value = '';
       searchInput.style.borderColor = '';
       scoreMin.value = '0';
       scoreMin.style.borderColor = '';
       buildSearchRows(tbody, '', 0);
+      hideDemoCaret(caret);
+      mouse.classList.remove('visible');
     });
     after(6600, () => { runSearchDemo(); });
   }
