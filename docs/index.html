@@ -281,7 +281,7 @@ dialog > p { margin-bottom: 4px; line-height: 1.5; padding-right: 24px; }
 dialog { width: 420px; border-radius: 10px; border: none; box-shadow: var(--shadow); padding: 22px; font-family: system-ui, sans-serif; background: var(--surface); color: var(--text); position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); max-height: 90vh; overflow-y: auto; }
 dialog::backdrop { background: var(--backdrop); }
 dialog h2 { font-size: 16px; margin-bottom: 14px; padding-right: 24px; }
-.dialog-close-btn { position: absolute; top: 10px; right: 12px; background: none; border: none; font-size: 18px; line-height: 1; color: var(--muted); cursor: pointer; padding: 2px 6px; border-radius: 4px; }
+.dialog-close-btn { position: absolute; top: 10px; right: 12px; background: none; border: none; font-size: 18px; line-height: 1; color: var(--muted); cursor: pointer; padding: 2px 6px; border-radius: 4px; z-index: 1; }
 .dialog-close-btn:hover { background: var(--hover); color: var(--text); }
 .tabs { display: flex; border: 1px solid var(--border); border-radius: 5px; overflow: hidden; margin-bottom: 16px; }
 .tab-btn { flex: 1; border: none; border-radius: 0; padding: 7px; font-size: 12px; font-weight: 600; color: var(--muted); background: var(--btn-bg); cursor: pointer; }
