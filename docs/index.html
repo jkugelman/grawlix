@@ -1136,6 +1136,8 @@ function applyDarkMode(val) {
 
 function getDisplayCase() { return lsLoad('displayCase') || 'lower'; }
 
+function getDownloadComments() { return lsLoad('downloadComments') !== 'no'; }
+
 function displayWord(word) {
   return getDisplayCase() === 'upper' ? word.toUpperCase() : word.toLowerCase();
 }
@@ -1328,11 +1330,11 @@ async function downloadEdits() {
   const edits = getEditsList();
   const result = await showDownloadDialog(edits.name, EDITS_ID);
   if (!result) return;
-  const { stem, ext, caseMode } = result;
+  const { stem, ext, caseMode, comments } = result;
   const upper = caseMode === 'upper';
   const text = edits.rawEntries.map(e => {
     const w = upper ? e.word.toUpperCase() : e.word.toLowerCase();
-    return e.comment ? `${w};${e.score};${e.comment}` : `${w};${e.score}`;
+    return (comments && e.comment) ? `${w};${e.score};${e.comment}` : `${w};${e.score}`;
   }).join('\n') + '\n';
   triggerDownload(text, `${stem}.${ext}`);
   showToast(`Downloaded ${pluralize(edits.rawEntries.length, 'entry', 'entries')}`);
@@ -2237,9 +2239,12 @@ async function downloadOutputListFromPanel() {
   const { entries } = buildOutputList();
   const result = await showDownloadDialog('Grawlix Wordlist', OUTPUT_ID);
   if (!result) return;
-  const { stem, ext, caseMode } = result;
+  const { stem, ext, caseMode, comments } = result;
   const upper = caseMode === 'upper';
-  const text = entries.map(e => `${upper ? e.word.toUpperCase() : e.word};${e.score}`).join('\n') + '\n';
+  const text = entries.map(e => {
+    const w = upper ? e.word.toUpperCase() : e.word;
+    return (comments && e.comment) ? `${w};${e.score};${e.comment}` : `${w};${e.score}`;
+  }).join('\n') + '\n';
   triggerDownload(text, `${stem}.${ext}`);
   showToast(`Downloaded ${pluralize(entries.length, 'entry', 'entries')}`);
 }
@@ -3124,15 +3129,20 @@ const showDownloadDialog = (() => {
       <span class="settings-row-label">Extension</span>
       <div id="download-dialog-ext-ctrl"></div>
     </div>
+    <div class="settings-row">
+      <span class="settings-row-label">Comments</span>
+      <div id="download-dialog-comments-ctrl"></div>
+    </div>
     <div class="dialog-footer">
       <button id="btn-download-dialog-cancel">Cancel</button>
       <button id="btn-download-dialog-ok" class="primary">Download</button>
     </div>`;
   document.body.appendChild(el);
-  const filenameEl = el.querySelector('#download-dialog-filename');
-  const caseCtrl   = el.querySelector('#download-dialog-case-ctrl');
-  const extCtrl    = el.querySelector('#download-dialog-ext-ctrl');
-  const okBtn      = el.querySelector('#btn-download-dialog-ok');
+  const filenameEl  = el.querySelector('#download-dialog-filename');
+  const caseCtrl    = el.querySelector('#download-dialog-case-ctrl');
+  const extCtrl     = el.querySelector('#download-dialog-ext-ctrl');
+  const commentsCtrl = el.querySelector('#download-dialog-comments-ctrl');
+  const okBtn       = el.querySelector('#btn-download-dialog-ok');
   const cancelBtn  = el.querySelector('#btn-download-dialog-cancel');
   const xBtn       = el.querySelector('.dialog-close-btn');
 
@@ -3140,8 +3150,9 @@ const showDownloadDialog = (() => {
     return new Promise(resolve => {
       const opener = document.activeElement;
       const list = state.inputLists.find(l => l.id === listId);
-      const savedCase = (list && list.downloadCase) || lsLoad('downloadCase_' + listId) || 'lower';
-      const savedExt  = (list && list.downloadExt)  || lsLoad('downloadExt_' + listId)  || 'txt';
+      const savedCase     = (list && list.downloadCase) || lsLoad('downloadCase_' + listId) || 'lower';
+      const savedExt      = (list && list.downloadExt)  || lsLoad('downloadExt_' + listId)  || 'txt';
+      const savedComments = getDownloadComments() ? 'yes' : 'no';
 
       filenameEl.value = '';
       filenameEl.placeholder = defaultStem;
@@ -3153,8 +3164,12 @@ const showDownloadDialog = (() => {
         { value: 'txt',  label: '.txt' },
         { value: 'dict', label: '.dict' },
       ], savedExt);
+      commentsCtrl.innerHTML = buildSegCtrlHTML(null, [
+        { value: 'yes', label: 'Include' },
+        { value: 'no',  label: 'Exclude' },
+      ], savedComments);
 
-      [caseCtrl, extCtrl].forEach(ctrl => {
+      [caseCtrl, extCtrl, commentsCtrl].forEach(ctrl => {
         ctrl.querySelectorAll('.seg-btn').forEach(btn => {
           btn.onclick = () => {
             ctrl.querySelectorAll('.seg-btn').forEach(b => b.classList.remove('active'));
@@ -3163,8 +3178,9 @@ const showDownloadDialog = (() => {
         });
       });
 
-      function getCase() { return caseCtrl.querySelector('.seg-btn.active')?.dataset.val || 'lower'; }
-      function getExt()  { return extCtrl.querySelector('.seg-btn.active')?.dataset.val  || 'txt'; }
+      function getCase()     { return caseCtrl.querySelector('.seg-btn.active')?.dataset.val     || 'lower'; }
+      function getExt()      { return extCtrl.querySelector('.seg-btn.active')?.dataset.val       || 'txt'; }
+      function getComments() { return commentsCtrl.querySelector('.seg-btn.active')?.dataset.val  || 'yes'; }
 
       function finish(result) {
         el.removeEventListener('cancel', onCancel);
@@ -3178,7 +3194,8 @@ const showDownloadDialog = (() => {
       }
       function onOk() {
         const caseMode = getCase();
-        const ext = getExt();
+        const ext      = getExt();
+        const comments = getComments();
         const target = state.inputLists.find(l => l.id === listId);
         if (target) {
           target.downloadCase = caseMode;
@@ -3188,7 +3205,8 @@ const showDownloadDialog = (() => {
           lsSave('downloadCase_' + listId, caseMode);
           lsSave('downloadExt_' + listId, ext);
         }
-        finish({ stem: filenameEl.value.trim() || defaultStem, ext, caseMode });
+        lsSave('downloadComments', comments);
+        finish({ stem: filenameEl.value.trim() || defaultStem, ext, caseMode, comments: comments === 'yes' });
       }
       function onCancelClick()   { finish(null); }
       function onCancel(e)       { e.preventDefault(); finish(null); }
@@ -4026,7 +4044,10 @@ function downloadIndividualList(id) {
   const list = state.inputLists.find(l => l.id === id);
   if (!list || !list.rawEntries.length) return;
   const ext = list.downloadExt || 'txt';
-  const text = list.rawEntries.map(e => `${e.word};${e.score}`).join('\n') + '\n';
+  const withComments = getDownloadComments();
+  const text = list.rawEntries.map(e =>
+    (withComments && e.comment) ? `${e.word};${e.score};${e.comment}` : `${e.word};${e.score}`
+  ).join('\n') + '\n';
   const base = list.originalFilename
     ? list.originalFilename.replace(/\.[^.]+$/, '')
     : list.name.replace(/\s+/g, '-').toLowerCase();
@@ -4039,10 +4060,13 @@ async function downloadIndividualListRescored(id) {
   if (!list || !list.rawEntries.length) return;
   const result = await showDownloadDialog(`Grawlix ${list.name}`, id);
   if (!result) return;
-  const { stem, ext, caseMode } = result;
+  const { stem, ext, caseMode, comments } = result;
   const upper = caseMode === 'upper';
   const rescored = applyRescoring(list.rawEntries, list.rescoreRules);
-  const text = rescored.map(e => `${upper ? e.word.toUpperCase() : e.word};${e.score}`).join('\n') + '\n';
+  const text = rescored.map(e => {
+    const w = upper ? e.word.toUpperCase() : e.word;
+    return (comments && e.comment) ? `${w};${e.score};${e.comment}` : `${w};${e.score}`;
+  }).join('\n') + '\n';
   triggerDownload(text, `${stem}.${ext}`);
   showToast(`Downloaded ${pluralize(rescored.length, 'entry', 'entries')}`);
 }
