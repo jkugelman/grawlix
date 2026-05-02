@@ -194,7 +194,10 @@ html.dark-mode .search-match-1 { background: #065f46; color: #a7f3d0; }
 html.dark-mode .search-match-2 { background: #78350f; color: #fef3c7; }
 html.dark-mode .search-match-3 { background: #831843; color: #fce7f3; }
 html.dark-mode .search-match-4 { background: #14532d; color: #d1fae5; }
-#search-count { margin-left: auto; font-size: 11px; color: var(--faint); }
+.search-count-wrap { margin-left: auto; }
+#search-count { font-size: 11px; color: var(--faint); }
+.copy-btn { background: none; border: none; padding: 0; cursor: pointer; color: var(--faint); display: inline-flex; align-items: center; line-height: 1; vertical-align: middle; }
+.copy-btn:hover { color: var(--muted); }
 
 /* Virtual scroll table */
 #table-container { flex: 1; overflow: hidden; display: flex; flex-direction: column; background: var(--surface); }
@@ -599,6 +602,10 @@ input.cell-edit.score-edit { font-family: ui-monospace, 'Cascadia Code', monospa
   <symbol id="icon-arrow" viewBox="0 0 8 5" fill="currentColor">
     <path d="M0 0l4 5 4-5z"/>
   </symbol>
+  <symbol id="icon-clipboard" viewBox="0 0 16 16" fill="currentColor">
+    <path d="M4 1.5H3a2 2 0 0 0-2 2V14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V3.5a2 2 0 0 0-2-2h-1v1h1a1 1 0 0 1 1 1V14a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V3.5a1 1 0 0 1 1-1h1v-1z"/>
+    <path d="M9.5 1a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-.5.5h-3a.5.5 0 0 1-.5-.5v-1a.5.5 0 0 1 .5-.5h3zm-3-1A1.5 1.5 0 0 0 5 1.5v1A1.5 1.5 0 0 0 6.5 4h3A1.5 1.5 0 0 0 11 2.5v-1A1.5 1.5 0 0 0 9.5 0h-3z"/>
+  </symbol>
 </svg>
 
 <header>
@@ -825,7 +832,7 @@ function buildSearchBarHTML(opts = {}) {
         <span><kbd>[jqxz]</kbd> any of these letters</span>
         <span><kbd>[^jqxz]</kbd> none of these letters</span>
         <span><kbd>[a-m]</kbd> letter range</span>
-        <span id="${pre}search-count"></span>
+        <span class="search-count-wrap"><span id="${pre}search-count"></span>${readonly ? '' : ` <button class="copy-btn" id="${pre}search-copy" onclick="copyVisibleEntries()" title="Copy to clipboard" aria-label="Copy matches to clipboard" hidden><svg width="13" height="13" aria-hidden="true"><use href="#icon-clipboard"/></svg></button>`}</span>
       </div>` : '';
 
   const inputHandlers = readonly ? '' : ` oninput="onSearch(this.value)"`;
@@ -1337,6 +1344,17 @@ async function downloadWithDialog(defaultStem, listId, entries) {
   showToast(`Downloaded ${pluralize(entries.length, 'entry', 'entries')}`);
 }
 
+async function copyVisibleEntries() {
+  if (!scroller || !scroller.entries.length) return;
+  const text = entriesToDownloadText(scroller.entries, { upper: false, comments: getDownloadComments() });
+  try {
+    await navigator.clipboard.writeText(text);
+  } catch {
+    return;
+  }
+  showToast('Copied to clipboard');
+}
+
 async function persistEdits(edits) {
   await persistData(EDITS_ID, entriesToText(edits.rawEntries));
   persistMeta();
@@ -1729,7 +1747,10 @@ class VirtualScroller {
     this.entries = entries;
     if (resetScroll) this.container.scrollTop = 0;
     const countEl = document.getElementById('search-count');
-    if (countEl) countEl.textContent = (q || this._minScore !== null) ? entries.length.toLocaleString() + (entries.length === 1 ? ' match' : ' matches') : '';
+    const copyBtn = document.getElementById('search-copy');
+    const filtered = !!(q || this._minScore !== null);
+    if (countEl) countEl.textContent = filtered ? entries.length.toLocaleString() + (entries.length === 1 ? ' match' : ' matches') : '';
+    if (copyBtn) copyBtn.hidden = !filtered;
     this._render();
   }
 
