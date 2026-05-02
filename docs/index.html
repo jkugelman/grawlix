@@ -3127,10 +3127,15 @@ function toggleList(id, event) {
   const list = state.inputLists.find(l => l.id === id);
   if (!list || (!list.rawEntries.length && id !== EDITS_ID)) return;
   list.enabled = !list.enabled;
-  invalidateSourceCounts();
-  invalidateStatsCache(OUTPUT_ID);
   persistMeta();
   renderInputLists();
+  refreshSourceCounts();
+  if (state.selectedId === OUTPUT_ID && scroller) {
+    scroller.updateEntries(buildOutputList().entries);
+  } else if (scroller) {
+    scroller.overrideMap = buildOverrideMap(state.selectedId);
+    scroller._applyFilterAndSort(false);
+  }
 }
 
 function addNewList(listDef) {
