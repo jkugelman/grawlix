@@ -716,7 +716,7 @@ input.cell-edit.score-edit { font-family: ui-monospace, 'Cascadia Code', monospa
   <div class="usd-scroll" id="update-summary-scroll"></div>
 </dialog>
 
-<dialog id="help-dialog" aria-label="Grawlix Help">
+<dialog id="help-dialog" aria-label="Grawlix Help" tabindex="-1">
   <button class="dialog-close-btn" aria-label="Close">✕</button>
   <div class="help-modal">
     <div class="help-slides">
@@ -4038,7 +4038,7 @@ const HelpModal = (() => {
   const totalSlides = 5;
   let demoTimers = [];
 
-  function open() { dialog.showModal(); goTo(0); dialog.querySelector('.help-next').focus(); }
+  function open() { dialog.showModal(); goTo(0); dialog.focus(); }
 
   function close() { dialog.close(); }
 
@@ -4046,8 +4046,14 @@ const HelpModal = (() => {
     stopDemo();
     dialog.querySelectorAll('.help-slide').forEach((s, i) => s.classList.toggle('active', i === index));
     dialog.querySelectorAll('.help-dot').forEach((d, i) => d.classList.toggle('active', i === index));
-    dialog.querySelector('.help-prev').disabled = index === 0;
-    dialog.querySelector('.help-next').disabled = index === totalSlides - 1;
+    const prevBtn = dialog.querySelector('.help-prev');
+    const prevHadFocus = document.activeElement === prevBtn;
+    prevBtn.disabled = index === 0;
+    if (prevBtn.disabled && prevHadFocus) dialog.focus();
+    const nextBtn = dialog.querySelector('.help-next');
+    const nextHadFocus = document.activeElement === nextBtn;
+    nextBtn.disabled = index === totalSlides - 1;
+    if (nextBtn.disabled && nextHadFocus) dialog.focus();
     currentSlide = index;
     startDemo(index);
   }
