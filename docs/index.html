@@ -1321,6 +1321,21 @@ function entriesToText(entries) {
   return entries.map(e => e.comment ? `${e.word};${e.score};${e.comment}` : `${e.word};${e.score}`).join('\n') + (entries.length ? '\n' : '');
 }
 
+function entriesToDownloadText(entries, { upper, comments }) {
+  return entries.map(e => {
+    const w = upper ? e.word.toUpperCase() : e.word.toLowerCase();
+    return (comments && e.comment) ? `${w};${e.score};${e.comment}` : `${w};${e.score}`;
+  }).join('\n') + '\n';
+}
+
+async function downloadWithDialog(defaultStem, listId, entries) {
+  const result = await showDownloadDialog(defaultStem, listId);
+  if (!result) return;
+  const { stem, ext, caseMode, comments } = result;
+  triggerDownload(entriesToDownloadText(entries, { upper: caseMode === 'upper', comments }), `${stem}.${ext}`);
+  showToast(`Downloaded ${pluralize(entries.length, 'entry', 'entries')}`);
+}
+
 async function persistEdits(edits) {
   await persistData(EDITS_ID, entriesToText(edits.rawEntries));
   persistMeta();
@@ -1328,16 +1343,7 @@ async function persistEdits(edits) {
 
 async function downloadEdits() {
   const edits = getEditsList();
-  const result = await showDownloadDialog(edits.name, EDITS_ID);
-  if (!result) return;
-  const { stem, ext, caseMode, comments } = result;
-  const upper = caseMode === 'upper';
-  const text = edits.rawEntries.map(e => {
-    const w = upper ? e.word.toUpperCase() : e.word.toLowerCase();
-    return (comments && e.comment) ? `${w};${e.score};${e.comment}` : `${w};${e.score}`;
-  }).join('\n') + '\n';
-  triggerDownload(text, `${stem}.${ext}`);
-  showToast(`Downloaded ${pluralize(edits.rawEntries.length, 'entry', 'entries')}`);
+  await downloadWithDialog(edits.name, EDITS_ID, edits.rawEntries);
 }
 
 async function clearEdits() {
@@ -2237,16 +2243,7 @@ function renderOutputDetail() {
 
 async function downloadOutputListFromPanel() {
   const { entries } = buildOutputList();
-  const result = await showDownloadDialog('Grawlix Wordlist', OUTPUT_ID);
-  if (!result) return;
-  const { stem, ext, caseMode, comments } = result;
-  const upper = caseMode === 'upper';
-  const text = entries.map(e => {
-    const w = upper ? e.word.toUpperCase() : e.word;
-    return (comments && e.comment) ? `${w};${e.score};${e.comment}` : `${w};${e.score}`;
-  }).join('\n') + '\n';
-  triggerDownload(text, `${stem}.${ext}`);
-  showToast(`Downloaded ${pluralize(entries.length, 'entry', 'entries')}`);
+  await downloadWithDialog('Grawlix Wordlist', OUTPUT_ID, entries);
 }
 
 // ─── Output List Scoring ──────────────────────────────────────────────────────
@@ -2382,7 +2379,7 @@ function renderDetail(list) {
   const removeBtn = `<button onclick="removeList('${list.id}')">Remove</button>`;
 
   const dlBtn = hasData ? buildSplitBtn('Download', `downloadIndividualListRescored('${list.id}')`,
-    [['Download original', `downloadIndividualList('${list.id}')`]]) : '';
+    [['Download original', `downloadOriginalList('${list.id}')`]]) : '';
 
   const detailButtons = [
     ...(hasData && list.lastUpdated ? ['<span class="detail-date"></span>'] : []),
@@ -2749,8 +2746,9 @@ async function fetchList(id, event) {
     if (!resp.ok) throw new Error(`HTTP ${resp.status} ${resp.statusText}`);
     const text = await resp.text();
     const fetchedSize = resp.headers.get('content-length') || null;
+    const originalFilename = new URL(list.url).pathname.split('/').pop() || null;
     list._loading = false;
-    await applyWordlistText(list, text, { fetchedSize });
+    await applyWordlistText(list, text, { fetchedSize, originalFilename });
   } catch (err) {
     list._loading = false;
     renderInputLists();
@@ -4040,35 +4038,22 @@ function triggerDownload(text, filename) {
   URL.revokeObjectURL(url);
 }
 
-function downloadIndividualList(id) {
+function downloadOriginalList(id) {
   const list = state.inputLists.find(l => l.id === id);
   if (!list || !list.rawEntries.length) return;
-  const ext = list.downloadExt || 'txt';
   const withComments = getDownloadComments();
   const text = list.rawEntries.map(e =>
     (withComments && e.comment) ? `${e.word};${e.score};${e.comment}` : `${e.word};${e.score}`
   ).join('\n') + '\n';
-  const base = list.originalFilename
-    ? list.originalFilename.replace(/\.[^.]+$/, '')
-    : list.name.replace(/\s+/g, '-').toLowerCase();
-  triggerDownload(text, `${base}.${ext}`);
+  const filename = list.originalFilename || `${list.name}.txt`;
+  triggerDownload(text, filename);
   showToast(`Downloaded ${pluralize(list.rawEntries.length, 'entry', 'entries')}`);
 }
 
 async function downloadIndividualListRescored(id) {
   const list = state.inputLists.find(l => l.id === id);
   if (!list || !list.rawEntries.length) return;
-  const result = await showDownloadDialog(`Grawlix ${list.name}`, id);
-  if (!result) return;
-  const { stem, ext, caseMode, comments } = result;
-  const upper = caseMode === 'upper';
-  const rescored = applyRescoring(list.rawEntries, list.rescoreRules);
-  const text = rescored.map(e => {
-    const w = upper ? e.word.toUpperCase() : e.word;
-    return (comments && e.comment) ? `${w};${e.score};${e.comment}` : `${w};${e.score}`;
-  }).join('\n') + '\n';
-  triggerDownload(text, `${stem}.${ext}`);
-  showToast(`Downloaded ${pluralize(rescored.length, 'entry', 'entries')}`);
+  await downloadWithDialog(`Grawlix ${list.name}`, id, applyRescoring(list.rawEntries, list.rescoreRules));
 }
 
 function toggleSplitMenu(event) {
