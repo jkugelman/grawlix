@@ -637,7 +637,7 @@ input.cell-edit.score-edit { font-family: ui-monospace, 'Cascadia Code', monospa
   <div class="settings-row">
     <div>
       <div class="settings-row-label">Reset all data</div>
-      <div class="settings-row-sub">Delete all lists and word data</div>
+      <div class="settings-row-sub">Delete all lists and settings</div>
     </div>
     <button id="btn-reset" class="danger" title="Delete all lists and data"><svg class="icon-trash"><use href="#icon-trash"/></svg> Reset</button>
   </div>
@@ -3320,7 +3320,7 @@ function bindEvents() {
 
   document.getElementById('toast').onclick = dismissToast;
   document.getElementById('btn-reset').onclick = async () => {
-    if (!await showConfirm('Delete all lists and data? This cannot be undone.', { confirmText: 'Reset' })) return;
+    if (!await showConfirm('Delete all lists and settings? This cannot be undone.', { confirmText: 'Reset' })) return;
     Object.keys(localStorage).filter(k => k.startsWith(LS_PREFIX)).forEach(k => localStorage.removeItem(k));
     if (_db) { _db.close(); _db = null; }
     await new Promise(resolve => {
@@ -3329,18 +3329,7 @@ function bindEvents() {
       req.onerror   = resolve;
       req.onblocked = resolve;
     });
-    state.inputLists = [];
-    state.selectedId = null;
-    state.searchQuery = '';
-    state.minScore = null;
-    scroller = null;
-    await openDB();
-    state.inputLists = defaultInputLists();
-    ensureEdits();
-    persistMeta();
-    state.selectedId = OUTPUT_ID;
-    renderAll();
-    showToast('Reset complete');
+    location.reload();
   };
 
   document.getElementById('btn-settings').onclick = () => {
