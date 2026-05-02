@@ -1266,7 +1266,7 @@ function persistMeta() {
   lsSave('meta', JSON.stringify(state.inputLists.map(l => ({
     id: l.id, name: l.name, source: l.source, url: l.url || null,
     enabled: l.enabled, lastUpdated: l.lastUpdated || null,
-    fetchFingerprint: l.fetchFingerprint || null,
+    fetchedSize: l.fetchedSize || null,
     rescoreRules: l.rescoreRules || [],
     originalFilename: l.originalFilename || null,
     ...(l.scoring ? { scoring: l.scoring.filter(r => !r._catchAll) } : {}),
@@ -2800,7 +2800,7 @@ function openUpdateSummaryDialog(list, oldCount, added, removed, rescored) {
   dialog.showModal();
 }
 
-async function applyWordlistText(list, text, { fingerprint = null, originalFilename = null, nameOverride = null } = {}) {
+async function applyWordlistText(list, text, { fetchedSize = null, originalFilename = null, nameOverride = null } = {}) {
   const id = list.id;
   const wasEmpty = !list.rawEntries.length;
   const oldEntries = wasEmpty ? null : list.rawEntries;
@@ -2808,7 +2808,7 @@ async function applyWordlistText(list, text, { fingerprint = null, originalFilen
   if (nameOverride) list.name = nameOverride;
   list.rawEntries = parseWordlist(text);
   list.lastUpdated = Date.now();
-  if (fingerprint !== null) { list.fetchFingerprint = fingerprint; list._updateAvailable = false; }
+  if (fetchedSize !== null) { list.fetchedSize = fetchedSize; list._updateAvailable = false; }
   if (originalFilename !== null) list.originalFilename = originalFilename;
   if (wasEmpty) list.enabled = true;
   invalidateListCaches(id);
@@ -2858,9 +2858,9 @@ async function fetchList(id, event) {
     const resp = await fetch(list.url);
     if (!resp.ok) throw new Error(`HTTP ${resp.status} ${resp.statusText}`);
     const text = await resp.text();
-    const fingerprint = resp.headers.get('etag') || resp.headers.get('last-modified') || resp.headers.get('content-length') || null;
+    const fetchedSize = resp.headers.get('content-length') || null;
     list._loading = false;
-    await applyWordlistText(list, text, { fingerprint });
+    await applyWordlistText(list, text, { fetchedSize });
   } catch (err) {
     list._loading = false;
     renderInputLists();
@@ -2872,7 +2872,7 @@ async function fetchList(id, event) {
 const UPDATE_CHECK_INTERVAL = 60 * 60 * 1000; // 1 hour
 
 async function checkForUpdates() {
-  const candidates = state.inputLists.filter(l => l.url && l.rawEntries.length > 0 && l.fetchFingerprint);
+  const candidates = state.inputLists.filter(l => l.url && l.rawEntries.length > 0 && l.fetchedSize);
   if (!candidates.length) return;
 
   let anyChanged = false;
@@ -2880,8 +2880,8 @@ async function checkForUpdates() {
     try {
       const resp = await fetch(list.url, { method: 'HEAD' });
       if (!resp.ok) return;
-      const size = resp.headers.get('etag') || resp.headers.get('last-modified') || resp.headers.get('content-length');
-      if (size && size !== list.fetchFingerprint && !list._updateAvailable) {
+      const size = resp.headers.get('content-length');
+      if (size && size !== list.fetchedSize && !list._updateAvailable) {
         list._updateAvailable = true;
         anyChanged = true;
       }
