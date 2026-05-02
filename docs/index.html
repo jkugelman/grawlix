@@ -244,12 +244,26 @@ html.dark-mode .search-match-4 { background: #14532d; color: #d1fae5; }
 
 
 /* Settings and help buttons */
-.header-icon-btn { background: none; border: none; color: white; font-size: 19px; padding: 4px 8px; border-radius: 4px; cursor: pointer; line-height: 1; font-family: inherit; }
+.header-icon-btn { background: none; border: none; color: white; font-size: 19px; padding: 4px 8px; border-radius: 4px; cursor: pointer; line-height: 1; font-family: inherit; position: relative; display: inline-flex; align-items: center; justify-content: center; }
 button.header-icon-btn:hover { background: none; color: rgba(255,255,255,0.65); }
 #btn-settings svg { position: relative; top: 1px; }
-#btn-help { width: 20px; height: 20px; padding: 0; border-radius: 50%; background: white; color: var(--accent); font-size: 12px; font-weight: 800; display: inline-flex; align-items: center; justify-content: center; }
-#btn-help:hover { background: rgba(255,255,255,0.65); }
+#btn-help { width: 32px; height: 32px; padding: 0; border-radius: 4px; background: none; }
+.help-circle { width: 20px; height: 20px; border-radius: 50%; background: white; color: var(--accent); font-size: 12px; font-weight: 800; display: inline-flex; align-items: center; justify-content: center; }
+#btn-help:hover .help-circle { background: rgba(255,255,255,0.65); }
 .help-dot:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+
+/* Tooltips — add a .tooltip child to any position:relative element */
+.tooltip { position: absolute; top: calc(100% + 8px); left: 50%; transform: translateX(-50%); font-size: 14px; font-weight: 600; white-space: nowrap; padding: 7px 13px; border-radius: 8px; pointer-events: none; opacity: 0; z-index: 100; border: 1px solid; }
+:hover > .tooltip { opacity: 1; }
+.tooltip::before,
+.tooltip::after { content: ''; position: absolute; bottom: 100%; left: 50%; transform: translateX(-50%); display: block; width: 0; height: 0; border: 8px solid transparent; }
+.tooltip::after { bottom: calc(100% - 1px); }
+html.light-mode .tooltip { background: #fff; color: #060607; box-shadow: 0 2px 8px rgba(0,0,0,0.12); border-color: rgba(0,0,0,0.12); }
+html.light-mode .tooltip::before { border-bottom-color: rgba(0,0,0,0.12); }
+html.light-mode .tooltip::after { border-bottom-color: #fff; }
+html.dark-mode .tooltip { background: #111214; color: #dbdee1; box-shadow: 0 2px 8px rgba(0,0,0,0.4); border-color: rgba(255,255,255,0.1); }
+html.dark-mode .tooltip::before { border-bottom-color: rgba(255,255,255,0.1); }
+html.dark-mode .tooltip::after { border-bottom-color: #111214; }
 
 /* Settings dialog */
 #settings-dialog { width: 340px; }
@@ -594,8 +608,8 @@ input.cell-edit.score-edit { font-family: ui-monospace, 'Cascadia Code', monospa
     <span class="header-sep">&middot;</span>
     <span class="header-feedback">Got feedback? <a href="mailto:john@kugelman.name">Email me</a></span>
   </div>
-  <button id="btn-settings" class="header-icon-btn" title="Settings"><svg width="24" height="24" aria-hidden="true"><use href="#icon-settings"/></svg></button>
-  <button id="btn-help" class="header-icon-btn" title="Help" aria-label="Help">?</button>
+  <button id="btn-settings" class="header-icon-btn" aria-label="Settings"><svg width="24" height="24" aria-hidden="true"><use href="#icon-settings"/></svg><span class="tooltip" aria-hidden="true">Settings</span></button>
+  <button id="btn-help" class="header-icon-btn" aria-label="Help"><span class="help-circle">?</span><span class="tooltip" aria-hidden="true">Help</span></button>
 </header>
 
 <main>
