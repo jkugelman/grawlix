@@ -174,9 +174,10 @@ button.danger:hover:not(:disabled) { background: #e74c3c; border-color: #c0392b;
 .clear-btn[hidden] { display: none; }
 .search-input-wrap .clear-btn, .score-min-wrap .clear-btn { position: absolute; right: 4px; }
 .score-min-wrap { position: relative; display: inline-flex; align-items: center; }
-.score-min-label input[type="number"] { width: 56px; padding: 4px 20px 4px 6px; border: 1px solid var(--border); border-radius: 4px; font-size: 13px; font-family: inherit; background: var(--input-bg); color: var(--text); appearance: textfield; -moz-appearance: textfield; }
-.score-min-label input[type="number"]::-webkit-inner-spin-button,
-.score-min-label input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; }
+input[type="number"] { appearance: textfield; -moz-appearance: textfield; }
+.score-min-label input[type="number"] { width: 56px; padding: 4px 20px 4px 6px; border: 1px solid var(--border); border-radius: 4px; font-size: 13px; font-family: inherit; background: var(--input-bg); color: var(--text); }
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; }
 .score-min-label input[type="number"]:focus { outline: none; border-color: var(--accent); }
 .search-help { margin-bottom: 5px; font-size: 11px; color: transparent; line-height: 1.6; display: flex; flex-wrap: wrap; gap: 0 14px; transition: color 0.15s; }
 .search-help kbd { font-family: ui-monospace, 'Cascadia Code', monospace; font-size: 11px; }
