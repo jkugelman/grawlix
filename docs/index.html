@@ -1109,17 +1109,23 @@ function buildRulesSectionHTML(rules, { label, rulesId, saveFn, deleteFn, resetF
   } else {
     rulesHTML = rules.map((r, i) => {
       const isCatchAll = !!r._catchAll;
-      let fieldsHTML = `<input class="rule-in" value="${esc(r.input)}"
+      const inputInvalid = parseRange((r.input || '').trim()) === null;
+      let fieldsHTML = `<input class="rule-in${inputInvalid ? ' invalid' : ''}" value="${esc(r.input)}"
             title="Score range: 50, 50-59, or 50+"
             oninput="onRuleInput(this)" onchange="${saveFn}(${i},'input',this.value)">`;
-      if (rescore) fieldsHTML += `
-          <span class="rule-field-lbl">length</span><input class="rule-len" value="${esc(r.length||'')}" placeholder="any"
+      if (rescore) {
+        const lenVal = (r.length || '').trim();
+        const lenInvalid = lenVal !== '' && parseRange(lenVal) === null;
+        const outInvalid = isRuleOutputInvalid(r.input, r.output);
+        fieldsHTML += `
+          <span class="rule-field-lbl">length</span><input class="rule-len${lenInvalid ? ' invalid' : ''}" value="${esc(r.length||'')}" placeholder="any"
             title="Word length filter: 7, 7-10, or 7+ (blank = any length)"
             oninput="onRuleInput(this)" onchange="${saveFn}(${i},'length',this.value)">
           <span class="rule-arrow">→</span>
-          <input class="rule-out" value="${esc(r.output)}" placeholder="unchanged"
+          <input class="rule-out${outInvalid ? ' invalid' : ''}" value="${esc(r.output)}" placeholder="unchanged"
             title="Output score, 'ignore', or blank for unchanged"
             oninput="onRuleInput(this)" onchange="${saveFn}(${i},'output',this.value)">`;
+      }
       return buildRuleRowHTML(i, isCatchAll, fieldsHTML, r.note, deleteFn);
     }).join('');
   }
@@ -3712,6 +3718,8 @@ function deleteRule(idx) {
 function saveRuleField(idx, field, value) {
   const list = getSelected();
   if (!list || !list.rescoreRules[idx]) return;
+  if (field === 'length' && value.trim().toLowerCase() === 'any') value = '';
+  if (field === 'output' && value.trim().toLowerCase() === 'unchanged') value = '';
   list.rescoreRules[idx][field] = value;
   // User explicitly edited this rule — promote it from catch-all to regular rule
   delete list.rescoreRules[idx]._catchAll;
@@ -3778,35 +3786,45 @@ function startNoteEdit(wrapEl) {
   });
 }
 
-function onRuleInput(el) {
-  const container = el.closest('#rescore-rules, #output-scoring-rules');
+function isRuleOutputInvalid(inputVal, outputVal) {
+  const v = (outputVal || '').trim();
+  if (!v) return false;
+  const parsed = parseRuleOutput(v);
+  if (parsed === null) return true;
+  if (parsed && typeof parsed === 'object') {
+    const iv = parseRange((inputVal || '').trim())?.[0];
+    if (parsed.max === null) {
+      // N+ output requires N+ input
+      if (!iv || iv.max !== null) return true;
+    } else {
+      // Bounded range output requires bounded non-degenerate input range
+      if (!iv || iv.min === null || iv.max === null || iv.min === iv.max) return true;
+    }
+  }
+  return false;
+}
+
+function validateRulesContainer(container) {
   if (!container) return;
-  container.querySelectorAll('.rule-in, .rule-len').forEach(inp => {
+  container.querySelectorAll('.rule-in').forEach(inp => {
+    inp.classList.toggle('invalid', parseRange(inp.value.trim()) === null);
+  });
+  container.querySelectorAll('.rule-len').forEach(inp => {
     const v = inp.value.trim();
     inp.classList.toggle('invalid', v !== '' && parseRange(v) === null);
   });
   container.querySelectorAll('.rule-out').forEach(inp => {
-    const v = inp.value.trim();
-    let invalid = v !== '' && parseRuleOutput(v) === null;
-    if (!invalid) {
-      const parsed = parseRuleOutput(v);
-      if (parsed && typeof parsed === 'object') {
-        const inEl = inp.closest('.rule-row')?.querySelector('.rule-in');
-        if (inEl) {
-          const inParsed = parseRange(inEl.value.trim());
-          const iv = inParsed?.[0];
-          if (parsed.max === null) {
-            // N+ output requires N+ input
-            if (!iv || iv.max !== null) invalid = true;
-          } else {
-            // Bounded range output requires bounded non-degenerate input range
-            if (!iv || iv.min === null || iv.max === null || iv.min === iv.max) invalid = true;
-          }
-        }
-      }
-    }
-    inp.classList.toggle('invalid', invalid);
+    const inEl = inp.closest('.rule-row')?.querySelector('.rule-in');
+    inp.classList.toggle('invalid', isRuleOutputInvalid(inEl?.value, inp.value));
   });
+}
+
+function onRuleInput(el) {
+  if (el.classList.contains('rule-len') && el.value.trim().toLowerCase() === 'any') el.value = '';
+  if (el.classList.contains('rule-out') && el.value.trim().toLowerCase() === 'unchanged') el.value = '';
+  const container = el.closest('#rescore-rules, #output-scoring-rules, #edits-scoring-rules');
+  if (!container) return;
+  validateRulesContainer(container);
   if (container.id === 'rescore-rules') updateRescorePreview();
 }
 
