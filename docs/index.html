@@ -2361,7 +2361,7 @@ function renderDetail(list) {
     const btnLabel = `${list._loading ? 'Updating…' : label}${dot}`;
     if (tmpl.url) {
       actionBtn = buildSplitBtn(btnLabel, `fetchList('${list.id}')`,
-        [['Import…', `importToList('${list.id}')`]],
+        [['Import file…', `importToList('${list.id}')`]],
         { primary: true, disabled: !!list._loading, title });
     } else {
       actionBtn = `<button class="primary"${title ? ` title="${title}"` : ''} onclick="importToList('${list.id}')" ${list._loading ? 'disabled' : ''}>${list._loading ? 'Importing…' : 'Import'}${dot}</button>`;
