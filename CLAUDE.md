@@ -55,6 +55,10 @@ All colors are CSS variables on `html.dark-mode` / `html.light-mode`. The naming
 - `--accent`, `--accent-hover` — brand purple
 - `--score-{tier}-bg/fg` — score badge colors
 
+## Commit messages
+
+After completing changes that are ready to commit, always output a suggested commit message in conventional commit format (`feat:`, `fix:`, `refactor:`, `chore:`, etc.). Keep it concise. No parenthetical scope — just `fix:` not `fix(scope):`.
+
 ## Coding style
 
 - **No inline styles.** Prefer adding CSS to the `<style>` block over `style="..."` attributes on elements.
