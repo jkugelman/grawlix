@@ -254,6 +254,8 @@ button.header-icon-btn:hover { background: none; color: rgba(255,255,255,0.65); 
 /* Settings dialog */
 #settings-dialog { width: 340px; }
 #confirm-dialog, #alert-dialog { width: 320px; }
+#download-dialog { width: 340px; }
+#download-dialog .dialog-footer { margin-top: 0; padding-top: 30px; border-top: none; }
 #merge-conflict-dialog { width: 380px; }
 dialog > p { margin-bottom: 4px; line-height: 1.5; padding-right: 24px; }
 .settings-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 13px 0; border-bottom: 1px solid var(--border2); }
@@ -623,14 +625,6 @@ input.cell-edit.score-edit { font-family: ui-monospace, 'Cascadia Code', monospa
     <div id="dark-mode-seg"></div>
   </div>
   <div class="settings-row">
-    <span class="settings-row-label">Download extension</span>
-    <div id="download-ext-ctrl"></div>
-  </div>
-  <div class="settings-row">
-    <span class="settings-row-label">Download case</span>
-    <div id="download-case-ctrl"></div>
-  </div>
-  <div class="settings-row">
     <span class="settings-row-label">Display case</span>
     <div id="display-case-ctrl"></div>
   </div>
@@ -701,6 +695,27 @@ input.cell-edit.score-edit { font-family: ui-monospace, 'Cascadia Code', monospa
   <p id="alert-dialog-msg"></p>
   <div class="dialog-footer">
     <button id="btn-alert-ok" class="primary" autofocus>OK</button>
+  </div>
+</dialog>
+
+<dialog id="download-dialog" aria-labelledby="download-dialog-title">
+  <button class="dialog-close-btn" aria-label="Close">✕</button>
+  <h2 id="download-dialog-title">Download</h2>
+  <div class="form-field">
+    <label for="download-dialog-filename">Filename</label>
+    <input id="download-dialog-filename" type="text">
+  </div>
+  <div class="settings-row">
+    <span class="settings-row-label">Case</span>
+    <div id="download-dialog-case-ctrl"></div>
+  </div>
+  <div class="settings-row">
+    <span class="settings-row-label">Extension</span>
+    <div id="download-dialog-ext-ctrl"></div>
+  </div>
+  <div class="dialog-footer">
+    <button id="btn-download-dialog-cancel">Cancel</button>
+    <button id="btn-download-dialog-ok" class="primary">Download</button>
   </div>
 </dialog>
 
@@ -1284,6 +1299,8 @@ function persistMeta() {
     rescoreRules: l.rescoreRules || [],
     originalFilename: l.originalFilename || null,
     ...(l.scoring ? { scoring: l.scoring.filter(r => !r._catchAll) } : {}),
+    ...(l.downloadCase ? { downloadCase: l.downloadCase } : {}),
+    ...(l.downloadExt  ? { downloadExt:  l.downloadExt  } : {}),
   }))));
 }
 
@@ -1325,24 +1342,6 @@ function initDarkMode() {
   });
 }
 
-// ─── Download case setting ────────────────────────────────────────────────────
-
-function initDownloadCase() {
-  const ctrl = document.getElementById('download-case-ctrl');
-  const saved = lsLoad('downloadCase') || 'lower';
-  ctrl.innerHTML = buildSegCtrlHTML(null, [
-    { value: 'lower', label: 'lower' },
-    { value: 'upper', label: 'UPPER' },
-  ], saved);
-  ctrl.querySelectorAll('.seg-btn').forEach(btn => {
-    btn.onclick = () => {
-      ctrl.querySelectorAll('.seg-btn').forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-      lsSave('downloadCase', btn.dataset.val);
-    };
-  });
-}
-
 // ─── Display case setting ─────────────────────────────────────────────────────
 
 function getDisplayCase() { return lsLoad('displayCase') || 'lower'; }
@@ -1364,26 +1363,6 @@ function initDisplayCase() {
       btn.classList.add('active');
       lsSave('displayCase', btn.dataset.val);
       if (scroller) scroller.updateEntries(scroller.allEntries);
-    };
-  });
-}
-
-// ─── Download extension setting ───────────────────────────────────────────────
-
-function getDownloadExt() { return lsLoad('downloadExt') || 'txt'; }
-
-function initDownloadExt() {
-  const ctrl = document.getElementById('download-ext-ctrl');
-  const saved = lsLoad('downloadExt') || 'txt';
-  ctrl.innerHTML = buildSegCtrlHTML(null, [
-    { value: 'txt',  label: '.txt' },
-    { value: 'dict', label: '.dict' },
-  ], saved);
-  ctrl.querySelectorAll('.seg-btn').forEach(btn => {
-    btn.onclick = () => {
-      ctrl.querySelectorAll('.seg-btn').forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-      lsSave('downloadExt', btn.dataset.val);
     };
   });
 }
@@ -1485,15 +1464,18 @@ async function persistEdits(edits) {
   persistMeta();
 }
 
-function downloadEdits() {
+async function downloadEdits() {
   const edits = getEditsList();
-  const upper = (lsLoad('downloadCase') || 'lower') === 'upper';
+  const defaultStem = edits.name.replace(/\s+/g, '-').toLowerCase();
+  const result = await showDownloadDialog(defaultStem, EDITS_ID);
+  if (!result) return;
+  const { stem, ext, caseMode } = result;
+  const upper = caseMode === 'upper';
   const text = edits.rawEntries.map(e => {
     const w = upper ? e.word.toUpperCase() : e.word.toLowerCase();
     return e.comment ? `${w};${e.score};${e.comment}` : `${w};${e.score}`;
   }).join('\n') + '\n';
-  const name = edits.name.replace(/\s+/g, '-').toLowerCase();
-  triggerDownload(text, `${name}.${getDownloadExt()}`);
+  triggerDownload(text, `${stem}.${ext}`);
   showToast(`Downloaded ${pluralize(edits.rawEntries.length, 'entry', 'entries')}`);
 }
 
@@ -2392,9 +2374,15 @@ function renderOutputDetail() {
   attachExternalEditHandlers(scroller, refreshOutputEntries);
 }
 
-function downloadOutputListFromPanel() {
+async function downloadOutputListFromPanel() {
   const { entries } = buildOutputList();
-  downloadOutputList(entries);
+  const result = await showDownloadDialog('Grawlix Wordlist', OUTPUT_ID);
+  if (!result) return;
+  const { stem, ext, caseMode } = result;
+  const upper = caseMode === 'upper';
+  const text = entries.map(e => `${upper ? e.word.toUpperCase() : e.word};${e.score}`).join('\n') + '\n';
+  triggerDownload(text, `${stem}.${ext}`);
+  showToast(`Downloaded ${pluralize(entries.length, 'entry', 'entries')}`);
 }
 
 // ─── Output List Scoring ──────────────────────────────────────────────────────
@@ -2576,7 +2564,7 @@ function renderEditsDetail(list) {
 
   const editsButtons = [
     `<button onclick="importToList(EDITS_ID)">Import file</button>`,
-    `<button onclick="downloadEdits()">Download</button>`,
+    `<button class="primary" onclick="downloadEdits()">Download</button>`,
     ...(list.rawEntries.length ? [`<button onclick="clearEdits()">Clear</button>`] : []),
   ];
 
@@ -3212,6 +3200,84 @@ function showAlert(message) {
     dialog.addEventListener('click', onClickOutside);
     okBtn.addEventListener('click', finish);
     if (xBtn) xBtn.addEventListener('click', finish);
+
+    dialog.showModal();
+  });
+}
+
+function showDownloadDialog(defaultStem, listId) {
+  return new Promise(resolve => {
+    const dialog     = document.getElementById('download-dialog');
+    const filenameEl = document.getElementById('download-dialog-filename');
+    const caseCtrl   = document.getElementById('download-dialog-case-ctrl');
+    const extCtrl    = document.getElementById('download-dialog-ext-ctrl');
+    const okBtn      = document.getElementById('btn-download-dialog-ok');
+    const cancelBtn  = document.getElementById('btn-download-dialog-cancel');
+    const xBtn       = dialog.querySelector('.dialog-close-btn');
+    const opener     = document.activeElement;
+
+    const list = state.inputLists.find(l => l.id === listId);
+    const savedCase = (list && list.downloadCase) || lsLoad('downloadCase_' + listId) || 'lower';
+    const savedExt  = (list && list.downloadExt)  || lsLoad('downloadExt_' + listId)  || 'txt';
+
+    filenameEl.value = '';
+    filenameEl.placeholder = defaultStem;
+    caseCtrl.innerHTML = buildSegCtrlHTML(null, [
+      { value: 'lower', label: 'lower' },
+      { value: 'upper', label: 'UPPER' },
+    ], savedCase);
+    extCtrl.innerHTML = buildSegCtrlHTML(null, [
+      { value: 'txt',  label: '.txt' },
+      { value: 'dict', label: '.dict' },
+    ], savedExt);
+
+    [caseCtrl, extCtrl].forEach(ctrl => {
+      ctrl.querySelectorAll('.seg-btn').forEach(btn => {
+        btn.onclick = () => {
+          ctrl.querySelectorAll('.seg-btn').forEach(b => b.classList.remove('active'));
+          btn.classList.add('active');
+        };
+      });
+    });
+
+    function getCase() { return caseCtrl.querySelector('.seg-btn.active')?.dataset.val || 'lower'; }
+    function getExt()  { return extCtrl.querySelector('.seg-btn.active')?.dataset.val  || 'txt'; }
+
+    function finish(result) {
+      dialog.removeEventListener('cancel', onCancel);
+      dialog.removeEventListener('click', onClickOutside);
+      okBtn.removeEventListener('click', onOk);
+      cancelBtn.removeEventListener('click', onCancelClick);
+      xBtn?.removeEventListener('click', onXClick);
+      dialog.close();
+      opener?.focus();
+      resolve(result);
+    }
+
+    function onOk() {
+      const caseMode = getCase();
+      const ext = getExt();
+      const target = state.inputLists.find(l => l.id === listId);
+      if (target) {
+        target.downloadCase = caseMode;
+        target.downloadExt  = ext;
+        persistMeta();
+      } else {
+        lsSave('downloadCase_' + listId, caseMode);
+        lsSave('downloadExt_' + listId, ext);
+      }
+      finish({ stem: filenameEl.value.trim() || defaultStem, ext, caseMode });
+    }
+    function onCancelClick()   { finish(null); }
+    function onCancel(e)       { e.preventDefault(); finish(null); }
+    function onXClick()        { finish(null); }
+    function onClickOutside(e) { if (e.target === dialog) finish(null); }
+
+    dialog.addEventListener('cancel', onCancel);
+    dialog.addEventListener('click', onClickOutside);
+    okBtn.addEventListener('click', onOk);
+    cancelBtn.addEventListener('click', onCancelClick);
+    xBtn?.addEventListener('click', onXClick);
 
     dialog.showModal();
   });
@@ -3989,17 +4055,10 @@ function triggerDownload(text, filename) {
   URL.revokeObjectURL(url);
 }
 
-function downloadOutputList(entries) {
-  const upper = (lsLoad('downloadCase') || 'lower') === 'upper';
-  const text = entries.map(e => `${upper ? e.word.toUpperCase() : e.word};${e.score}`).join('\n') + '\n';
-  triggerDownload(text, `Grawlix Wordlist.${getDownloadExt()}`);
-  showToast(`Downloaded ${pluralize(entries.length, 'entry', 'entries')}`);
-}
-
 function downloadIndividualList(id) {
   const list = state.inputLists.find(l => l.id === id);
   if (!list || !list.rawEntries.length) return;
-  const ext = getDownloadExt();
+  const ext = list.downloadExt || 'txt';
   const text = list.rawEntries.map(e => `${e.word};${e.score}`).join('\n') + '\n';
   const base = list.originalFilename
     ? list.originalFilename.replace(/\.[^.]+$/, '')
@@ -4008,14 +4067,16 @@ function downloadIndividualList(id) {
   showToast(`Downloaded ${pluralize(list.rawEntries.length, 'entry', 'entries')}`);
 }
 
-function downloadIndividualListRescored(id) {
+async function downloadIndividualListRescored(id) {
   const list = state.inputLists.find(l => l.id === id);
   if (!list || !list.rawEntries.length) return;
-  const ext = getDownloadExt();
-  const upper = (lsLoad('downloadCase') || 'lower') === 'upper';
+  const result = await showDownloadDialog(`Grawlix ${list.name}`, id);
+  if (!result) return;
+  const { stem, ext, caseMode } = result;
+  const upper = caseMode === 'upper';
   const rescored = applyRescoring(list.rawEntries, list.rescoreRules);
   const text = rescored.map(e => `${upper ? e.word.toUpperCase() : e.word};${e.score}`).join('\n') + '\n';
-  triggerDownload(text, `Grawlix ${list.name}.${ext}`);
+  triggerDownload(text, `${stem}.${ext}`);
   showToast(`Downloaded ${pluralize(rescored.length, 'entry', 'entries')}`);
 }
 
@@ -4330,9 +4391,7 @@ const HelpModal = (() => {
 // ─── Boot ─────────────────────────────────────────────────────────────────────
 
 initDarkMode();
-initDownloadCase();
 initDisplayCase();
-initDownloadExt();
 document.addEventListener('click', () => document.querySelectorAll('.split-btn.open').forEach(b => b.classList.remove('open')));
 // Hide the busy overlay immediately if no lists have data.
 { let _m; try { _m = JSON.parse(lsLoad('meta') || '[]'); } catch { _m = []; }
