@@ -254,15 +254,15 @@ button.header-icon-btn:hover { background: none; color: rgba(255,255,255,0.65); 
 .help-dot:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 
 /* Tooltips — add a .tooltip child to any position:relative element */
-.tooltip { position: absolute; top: calc(100% + 8px); left: 50%; transform: translateX(-50%); font-size: 14px; font-weight: 600; white-space: nowrap; padding: 7px 13px; border-radius: 8px; pointer-events: none; opacity: 0; z-index: 100; border: 1px solid; }
+.tooltip { position: absolute; top: calc(100% + 8px); left: 50%; transform: translateX(-50%); font-size: 14px; font-weight: 600; white-space: nowrap; padding: 7px 13px; border-radius: 8px; pointer-events: none; opacity: 0; transition: opacity 0.15s ease; z-index: 100; border: 1px solid; }
 :hover > .tooltip { opacity: 1; }
 .tooltip::before,
 .tooltip::after { content: ''; position: absolute; bottom: 100%; left: 50%; transform: translateX(-50%); display: block; width: 0; height: 0; border: 8px solid transparent; }
 .tooltip::after { bottom: calc(100% - 1px); }
-html.light-mode .tooltip { background: #fff; color: #060607; box-shadow: 0 2px 8px rgba(0,0,0,0.12); border-color: rgba(0,0,0,0.12); }
+html.light-mode .tooltip { background: #fff; color: #060607; box-shadow: 0 4px 20px rgba(0,0,0,0.18); border-color: rgba(0,0,0,0.12); }
 html.light-mode .tooltip::before { border-bottom-color: rgba(0,0,0,0.12); }
 html.light-mode .tooltip::after { border-bottom-color: #fff; }
-html.dark-mode .tooltip { background: #111214; color: #dbdee1; box-shadow: 0 2px 8px rgba(0,0,0,0.4); border-color: rgba(255,255,255,0.1); }
+html.dark-mode .tooltip { background: #111214; color: #dbdee1; box-shadow: 0 4px 20px rgba(0,0,0,0.6); border-color: rgba(255,255,255,0.1); }
 html.dark-mode .tooltip::before { border-bottom-color: rgba(255,255,255,0.1); }
 html.dark-mode .tooltip::after { border-bottom-color: #111214; }
 
