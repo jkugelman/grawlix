@@ -319,8 +319,8 @@ dialog h2 { font-size: 16px; margin-bottom: 14px; padding-right: 24px; }
 .known-list-sub  { font-size: 11px; color: var(--muted); margin-top: 2px; }
 .dialog-footer { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--border2); display: flex; justify-content: flex-end; gap: 8px; }
 
-/* Configure list dialog */
-#configure-list-dialog { width: 420px; overflow: visible; }
+/* Configure / Add list dialog */
+#configure-list-dialog { width: 520px; overflow: visible; }
 .configure-section { margin-bottom: 18px; }
 .configure-section:last-child { margin-bottom: 0; }
 .configure-section-label { font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 8px; }
@@ -328,7 +328,26 @@ dialog h2 { font-size: 16px; margin-bottom: 14px; padding-right: 24px; }
 .configure-icon-name-row .configure-section-label { margin-bottom: 0; }
 .config-name-input { width: 100%; padding: 6px 8px; border: 1px solid var(--border); border-radius: 4px; font-size: 13px; font-family: inherit; background: var(--input-bg); color: var(--text); box-sizing: border-box; }
 .config-name-input:focus { outline: none; border-color: var(--accent); }
-.known-list.preset-active { background: var(--sel); }
+.config-name-input.invalid { border-color: #ea4335; background: var(--error-bg); }
+.publisher-chips { display: flex; gap: 6px; flex-wrap: wrap; }
+.publisher-chip { border: 1px solid var(--border); border-radius: 16px; padding: 4px 12px; font-size: 12px; font-weight: 600; background: var(--btn-bg); color: var(--muted); cursor: pointer; font-family: inherit; display: inline-flex; align-items: center; gap: 5px; line-height: 1; }
+.publisher-chip:hover:not(.active) { background: var(--hover); color: var(--text); }
+.publisher-chip.active { background: var(--accent); color: white; border-color: var(--accent); }
+.publisher-chip .list-icon-img,
+.publisher-chip .list-icon-initials,
+.publisher-chip .list-icon-emoji { width: 13px; height: 13px; }
+.rules-option-row { display: flex; align-items: center; gap: 8px; margin-top: 10px; }
+.rules-option-lbl { font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; flex-shrink: 0; }
+.rules-option-row select { flex: 1; padding: 5px 8px; border: 1px solid var(--border); border-radius: 4px; font-size: 12px; font-family: inherit; background: var(--input-bg); color: var(--text); cursor: pointer; }
+.rules-option-row select:focus { outline: none; border-color: var(--accent); }
+.rules-preview-wrap { margin-top: 10px; background: var(--surface2); border: 1px solid var(--border2); border-radius: 6px; padding: 8px 14px; max-height: 200px; overflow-y: auto; }
+.rules-preview-wrap .rescore-top { margin-bottom: 4px; }
+.source-radio-group { display: flex; flex-direction: column; gap: 7px; margin-bottom: 10px; }
+.source-radio-label { display: flex; align-items: center; gap: 7px; font-size: 13px; cursor: pointer; }
+.source-radio-label input[type="radio"] { margin: 0; cursor: pointer; }
+.source-meta { font-size: 11px; color: var(--muted); margin-top: 6px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.source-file-row { display: flex; align-items: center; gap: 8px; }
+.source-filename { font-size: 12px; font-family: ui-monospace, 'Cascadia Code', monospace; color: var(--text); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* Icon picker */
 .icon-picker-trigger { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; padding: 5px 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface2); user-select: none; }
@@ -453,9 +472,6 @@ a.get-file:hover { text-decoration: underline; }
 /* Lists panel */
 #list-count { font-weight: 400; color: var(--muted); }
 
-/* Tabs — hidden until activated by JS */
-#tab-import, #tab-url { display: none; }
-
 /* Empty states */
 .no-rules { font-size: 12px; color: var(--faint); font-style: italic; margin-bottom: 3px; }
 .stats-bar.stats-empty { color: var(--muted); font-size: 13px; }
@@ -481,6 +497,8 @@ a.get-file:hover { text-decoration: underline; }
 /* Dialog helpers */
 .dialog-actions { text-align: right; }
 .form-field-gap { margin-top: 10px; }
+.link-btn { background: none; border: none; color: var(--accent); cursor: pointer; font-size: inherit; font-family: inherit; padding: 0; text-decoration: underline; }
+.link-btn:hover { opacity: 0.8; }
 .dialog-divider { text-align: center; color: var(--muted); font-size: 12px; margin: 12px 0; }
 input[type="file"] { display: none; }
 .annotation { position: absolute; border: 3px solid #e53935; border-radius: 50px; pointer-events: none; box-shadow: 0 0 6px rgba(229,57,53,0.4); }
@@ -1026,45 +1044,50 @@ function buildRuleSectionHTML({ label, rulesId, rulesHTML, showReset, onResetFn 
   `;
 }
 
-function buildRuleRowHTML(i, isCatchAll, fieldsHTML, note, onDeleteFn) {
-  return `<div class="rule-row${isCatchAll ? ' rule-catchall' : ''}" data-i="${i}">
-      ${fieldsHTML}
-      <span class="rule-note-wrap${note ? ' has-note' : ''}" onclick="startNoteEdit(this)" title="Click to edit">
+function buildRuleRowHTML(i, isCatchAll, fieldsHTML, note, onDeleteFn, readOnly = false) {
+  const noteWrap = readOnly
+    ? `<span class="rule-note-wrap${note ? ' has-note' : ''}"><span class="rule-note-text">${esc(note||'')}</span></span>`
+    : `<span class="rule-note-wrap${note ? ' has-note' : ''}" onclick="startNoteEdit(this)" title="Click to edit">
         <span class="rule-note-text">${esc(note||'')}</span>
         ${buildEditHintHTML('rule-note-pencil', 'startNoteEdit(this.parentElement)')}
-      </span>
-      ${isCatchAll ? '' : `<button class="rule-del" onclick="${onDeleteFn}(${i})" title="Delete row">${buildTrashIconHTML()}</button>`}
+      </span>`;
+  const delBtn = (isCatchAll || readOnly) ? '' : `<button class="rule-del" onclick="${onDeleteFn}(${i})" title="Delete row">${buildTrashIconHTML()}</button>`;
+  return `<div class="rule-row${isCatchAll ? ' rule-catchall' : ''}" data-i="${i}">
+      ${fieldsHTML}
+      ${noteWrap}
+      ${delBtn}
     </div>`;
 }
 
-function buildRulesSectionHTML(rules, { label, rulesId, saveFn, deleteFn, resetFn, showReset, rescore = false }) {
+function buildRulesSectionHTML(rules, { label, rulesId, saveFn, deleteFn, resetFn, showReset, rescore = false, readOnly = false }) {
   let rulesHTML;
   if (!rules.length && rescore) {
     rulesHTML = '<div class="no-rules">No rules — words kept as-is</div>';
   } else {
     rulesHTML = rules.map((r, i) => {
       const isCatchAll = !!r._catchAll;
-      const inputInvalid = parseRange((r.input || '').trim()) === null;
+      const inputInvalid = !readOnly && parseRange((r.input || '').trim()) === null;
+      const disabled = readOnly ? ' disabled' : '';
+      const inputHandlers = readOnly ? '' : ` oninput="onRuleInput(this)" onchange="${saveFn}(${i},'input',this.value)"`;
       let fieldsHTML = `<input class="rule-in${inputInvalid ? ' invalid' : ''}" value="${esc(r.input)}"
-            title="Score range: 50, 50-59, or 50+"
-            oninput="onRuleInput(this)" onchange="${saveFn}(${i},'input',this.value)">`;
+            title="Score range: 50, 50-59, or 50+"${disabled}${inputHandlers}>`;
       if (rescore) {
         const lenVal = (r.length || '').trim();
-        const lenInvalid = lenVal !== '' && parseRange(lenVal) === null;
-        const outInvalid = isRuleOutputInvalid(r.input, r.output);
+        const lenInvalid = !readOnly && lenVal !== '' && parseRange(lenVal) === null;
+        const outInvalid = !readOnly && isRuleOutputInvalid(r.input, r.output);
+        const lenHandlers = readOnly ? '' : ` oninput="onRuleInput(this)" onchange="${saveFn}(${i},'length',this.value)"`;
+        const outHandlers = readOnly ? '' : ` oninput="onRuleInput(this)" onchange="${saveFn}(${i},'output',this.value)"`;
         fieldsHTML += `
           <span class="rule-field-lbl">length</span><input class="rule-len${lenInvalid ? ' invalid' : ''}" value="${esc(r.length||'')}" placeholder="any"
-            title="Word length filter: 7, 7-10, or 7+ (blank = any length)"
-            oninput="onRuleInput(this)" onchange="${saveFn}(${i},'length',this.value)">
+            title="Word length filter: 7, 7-10, or 7+ (blank = any length)"${disabled}${lenHandlers}>
           <span class="rule-arrow">→</span>
           <input class="rule-out${outInvalid ? ' invalid' : ''}" value="${esc(r.output)}" placeholder="unchanged"
-            title="Output score, 'ignore', or blank for unchanged"
-            oninput="onRuleInput(this)" onchange="${saveFn}(${i},'output',this.value)">`;
+            title="Output score, 'ignore', or blank for unchanged"${disabled}${outHandlers}>`;
       }
-      return buildRuleRowHTML(i, isCatchAll, fieldsHTML, r.note, deleteFn);
+      return buildRuleRowHTML(i, isCatchAll, fieldsHTML, r.note, deleteFn, readOnly);
     }).join('');
   }
-  return buildRuleSectionHTML({ label, rulesId, rulesHTML, showReset, onResetFn: resetFn });
+  return buildRuleSectionHTML({ label, rulesId, rulesHTML, showReset: readOnly ? false : showReset, onResetFn: resetFn });
 }
 
 function buildRescoreSectionHTML(list) {
@@ -2319,7 +2342,7 @@ function renderInputLists() {
   const container = document.getElementById('lists-container');
   document.getElementById('list-count').textContent = `(${state.inputLists.length})`;
 
-  const addRow = `<div class="add-list-row" onclick="AddListDialog.open()">${buildDragHandleHTML()}<span class="add-list-icon">＋</span>Add list</div>`;
+  const addRow = `<div class="add-list-row" onclick="ConfigureListDialog.openAdd()">${buildDragHandleHTML()}<span class="add-list-icon">＋</span>Add list</div>`;
 
   if (!_sourceCountsCache) _sourceCountsCache = buildOutputList().sourceCounts;
   const contribMap = new Map(_sourceCountsCache.map(s => [s.list, s.count]));
@@ -3452,154 +3475,22 @@ const showMergeConflict = (() => {
   };
 })();
 
-// ─── Add list dialog ──────────────────────────────────────────────────────────
-
-const AddListDialog = (() => {
-  const { el, body } = createDialog('add-list-dialog', { labelledby: 'add-list-dialog-title' });
-  body.innerHTML = `
-    <button class="dialog-close-btn" aria-label="Close">✕</button>
-    <h2 id="add-list-dialog-title">Add List</h2>
-    <div class="tabs">
-      <button class="tab-btn active" data-tab="builtin">Known Lists</button>
-      <button class="tab-btn" data-tab="import">Import File</button>
-      <button class="tab-btn" data-tab="url">From URL</button>
-    </div>
-    <div id="tab-builtin">
-      <div id="builtin-list"></div>
-    </div>
-    <div id="tab-import">
-      <div class="import-zone" id="drop-zone">
-        <span id="import-zone-label">Drop file here or click to browse</span>
-        <input type="file" id="file-input" accept=".txt,.csv">
-      </div>
-      <div class="form-field form-field-gap">
-        <label>Name</label>
-        <input type="text" id="import-name">
-      </div>
-      <div class="dialog-actions">
-        <button class="primary" id="btn-import-file" disabled>Add</button>
-      </div>
-    </div>
-    <div id="tab-url">
-      <div class="form-field">
-        <label>URL</label>
-        <input type="text" id="url-input" placeholder="https://...">
-      </div>
-      <div class="form-field">
-        <label>Name</label>
-        <input type="text" id="url-name">
-      </div>
-      <div class="dialog-actions">
-        <button class="primary" id="btn-fetch-url">Fetch</button>
-      </div>
-    </div>`;
-
-  const builtinListEl = el.querySelector('#builtin-list');
-  const importLabel   = el.querySelector('#import-zone-label');
-  const importNameEl  = el.querySelector('#import-name');
-  const importBtn     = el.querySelector('#btn-import-file');
-  const urlInputEl    = el.querySelector('#url-input');
-  const urlNameEl     = el.querySelector('#url-name');
-  const tabBtns       = el.querySelectorAll('.tab-btn');
-
-  function showTab(tab) {
-    tabBtns.forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
-    ['builtin', 'import', 'url'].forEach(t => {
-      el.querySelector('#tab-' + t).style.display = t === tab ? 'block' : 'none';
-    });
-  }
-
-  el.querySelector('.dialog-close-btn').onclick = () => el.close();
-  el.addEventListener('click', e => { if (e.target === el) el.close(); });
-
-  tabBtns.forEach(btn => { btn.onclick = () => showTab(btn.dataset.tab); });
-
-  builtinListEl.addEventListener('click', e => {
-    const btn = e.target.closest('button.primary');
-    if (!btn) return;
-    const row = btn.closest('.known-list');
-    if (row?._preset) addFromPreset(row._preset);
-  });
-
-  bindDropZone(el.querySelector('#drop-zone'), el.querySelector('#file-input'), file => {
-    _pendingImportFile = file;
-    importLabel.textContent = file.name;
-    if (!importNameEl.value.trim()) importNameEl.value = nameFromPath(file.name);
-    importBtn.disabled = false;
-  });
-
-  importBtn.onclick = () => {
-    if (!importNameEl.value.trim()) { importNameEl.focus(); return; }
-    if (_pendingImportFile) handleDialogImport(_pendingImportFile);
-  };
-
-  urlInputEl.addEventListener('blur', () => {
-    if (urlInputEl.value.trim() && !urlNameEl.value.trim())
-      urlNameEl.value = nameFromPath(urlInputEl.value.trim());
-  });
-
-  el.querySelector('#btn-fetch-url').onclick = async () => {
-    const url  = urlInputEl.value.trim();
-    const name = urlNameEl.value.trim();
-    if (!url)  { urlInputEl.focus(); return; }
-    if (!name) { urlNameEl.focus();  return; }
-    const list = addNewList({ dbKey: crypto.randomUUID(), icon: '', name, url, enabled: true });
-    el.close();
-    await fetchList(list);
-    selectList(list);
-  };
-
-  function open() {
-    builtinListEl.innerHTML = LIST_PRESETS.map(t => {
-      const sub = t.url ? 'Auto-fetch' : 'Manual import';
-      return `<div class="known-list">
-        ${t.icon || ''}
-        <div class="known-list-info">
-          <div class="known-list-name">${esc(t.name)}</div>
-          <div class="known-list-sub">${sub}</div>
-        </div>
-        <button class="primary">+ Add</button>
-      </div>`;
-    }).join('');
-
-    builtinListEl.querySelectorAll('.known-list').forEach((row, i) => {
-      row._preset = LIST_PRESETS[i];
-    });
-
-    urlInputEl.value   = '';
-    urlNameEl.value    = '';
-    importNameEl.value = '';
-    _pendingImportFile = null;
-    importLabel.textContent = 'Drop file here or click to browse';
-    importBtn.disabled = true;
-
-    showTab('builtin');
-
-    const opener = document.activeElement;
-    el.addEventListener('close', () => opener?.focus(), { once: true });
-    el.showModal();
-  }
-
-  return { open };
-})();
-
-function addFromPreset(preset) {
-  addNewList({
-    dbKey: crypto.randomUUID(), icon: preset.icon, presetId: preset.id,
-    name: preset.name, url: preset.url || null, enabled: true,
-    rescoreRules: preset.defaultRules ? JSON.parse(JSON.stringify(preset.defaultRules)) : [],
-  });
-  document.getElementById('add-list-dialog').close();
-  showToast(`Added ${buildListNameHTML(preset)}`);
-}
-
-// ─── Configure list dialog ────────────────────────────────────────────────────
+// ─── Configure / Add list dialog ─────────────────────────────────────────────
 
 const ConfigureListDialog = (() => {
   const { el, body } = createDialog('configure-list-dialog', { labelledby: 'configure-list-title' });
   body.innerHTML = `
     <button class="dialog-close-btn" aria-label="Close">✕</button>
-    <h2 id="configure-list-title">Configure List</h2>
+    <h2 id="configure-list-title"></h2>
+    <div class="configure-section">
+      <div class="configure-section-label">Publisher</div>
+      <div class="publisher-chips" id="publisher-chips"></div>
+      <div class="rules-option-row" id="rules-option-row" hidden>
+        <span class="rules-option-lbl">Rules</span>
+        <select id="rules-select"></select>
+      </div>
+      <div class="rules-preview-wrap" id="rules-preview-wrap" hidden></div>
+    </div>
     <div class="configure-section">
       <div class="configure-icon-name-row">
         <div class="configure-section-label">Icon</div>
@@ -3611,12 +3502,32 @@ const ConfigureListDialog = (() => {
       </div>
     </div>
     <div class="configure-section">
-      <div class="configure-section-label">Apply a preset</div>
-      <div id="config-preset-list"></div>
+      <div class="configure-section-label">Source</div>
+      <div class="source-radio-group">
+        <label class="source-radio-label"><input type="radio" name="cfg-source-type" value="url"> Auto-fetch URL</label>
+        <label class="source-radio-label"><input type="radio" name="cfg-source-type" value="file"> Imported file</label>
+      </div>
+      <div id="source-url-area">
+        ${buildUrlInputHTML('config-url-input', 'https://...')}
+        <div id="source-url-meta" class="source-meta" hidden></div>
+      </div>
+      <div id="source-file-area" hidden>
+        <div id="source-file-config-row" class="source-file-row" hidden>
+          <span id="source-filename" class="source-filename"></span>
+          <button id="btn-source-import">Import</button>
+        </div>
+        <div id="source-file-add-zone" hidden>
+          <div class="import-zone" id="cfg-drop-zone">
+            <span id="cfg-import-zone-label">Drop file here or click to browse</span>
+            <input type="file" id="cfg-file-input" accept=".txt,.csv">
+          </div>
+        </div>
+        <div id="source-file-meta" class="source-meta" hidden></div>
+      </div>
     </div>
-    <div class="configure-section">
-      <div class="configure-section-label">Auto-fetch URL</div>
-      ${buildUrlInputHTML('config-url-input', 'https://...')}
+    <div class="dialog-footer">
+      <button id="btn-cfg-cancel">Cancel</button>
+      <button class="primary" id="btn-cfg-save"></button>
     </div>`;
 
   // Popup lives inside the dialog so it's in the top layer with it
@@ -3639,33 +3550,57 @@ const ConfigureListDialog = (() => {
     </div>`;
   el.appendChild(pickerPopup);
 
-  let _configList  = null;
-  let _pickerOpen  = false;
-  let _urlDebounce = null;
-  let _nameDebounce = null;
+  // State
+  let _mode           = 'configure';
+  let _list           = null;
+  let _pickerOpen     = false;
+  let _selectedPreset = null;
+  let _pendingIcon    = '';
+  let _pendingName    = '';
+  let _rulesOption    = 'none';
+  let _sourceType     = 'url';
+  let _pendingFile    = null;
 
-  const iconPreview   = el.querySelector('#config-icon-preview');
-  const pickerTrigger = el.querySelector('#icon-picker-trigger');
-  const imgUrlInput   = el.querySelector('#icon-img-url-input');
-  const presetListEl  = el.querySelector('#config-preset-list');
-  const urlInput      = el.querySelector('#config-url-input');
-  const nameInput     = el.querySelector('#config-name-input');
+  // Elements
+  const titleEl          = el.querySelector('#configure-list-title');
+  const publisherChipsEl = el.querySelector('#publisher-chips');
+  const rulesOptionRow   = el.querySelector('#rules-option-row');
+  const rulesSelect      = el.querySelector('#rules-select');
+  const rulesPreviewWrap = el.querySelector('#rules-preview-wrap');
+  const iconPreview      = el.querySelector('#config-icon-preview');
+  const pickerTrigger    = el.querySelector('#icon-picker-trigger');
+  const imgUrlInput      = el.querySelector('#icon-img-url-input');
+  const nameInput        = el.querySelector('#config-name-input');
+  const sourceUrlArea    = el.querySelector('#source-url-area');
+  const sourceFileArea   = el.querySelector('#source-file-area');
+  const urlInput         = el.querySelector('#config-url-input');
+  const urlMetaEl        = el.querySelector('#source-url-meta');
+  const fileConfigRow    = el.querySelector('#source-file-config-row');
+  const fileAddZone      = el.querySelector('#source-file-add-zone');
+  const filenameEl       = el.querySelector('#source-filename');
+  const btnSourceImport  = el.querySelector('#btn-source-import');
+  const fileMetaEl       = el.querySelector('#source-file-meta');
+  const btnSave          = el.querySelector('#btn-cfg-save');
+  const importZoneLabel  = el.querySelector('#cfg-import-zone-label');
+  const radios           = el.querySelectorAll('input[name="cfg-source-type"]');
 
-  function setListIcon(icon) {
-    if (!_configList) return;
-    _configList.icon = icon;
-    iconPreview.innerHTML = icon || buildInitialsIconHTML(_configList.name, colorSeed(_configList));
-    persistMeta();
-    renderInputLists();
-    renderDetail(_configList);
+  // ── Icon picker ──────────────────────────────────────────────────────────────
+
+  function colorSeedObj() {
+    return _list || { url: urlInput.value.trim(), name: _pendingName };
+  }
+
+  function setBufferedIcon(icon) {
+    _pendingIcon = icon;
+    iconPreview.innerHTML = icon || buildInitialsIconHTML(_pendingName, colorSeed(colorSeedObj()));
   }
 
   function syncEmojiGrid() {
-    const emojiM = _configList.icon?.match(/<svg class="list-icon-emoji"[^>]*>[^<]*<text[^>]*>([^<]+)<\/text>/);
+    const emojiM = _pendingIcon?.match(/<svg class="list-icon-emoji"[^>]*>[^<]*<text[^>]*>([^<]+)<\/text>/);
     const cur = emojiM ? emojiM[1] : null;
     pickerPopup.querySelectorAll('.icon-emoji-btn').forEach(btn => {
       if (btn.hasAttribute('data-auto')) {
-        btn.classList.toggle('selected', !_configList.icon);
+        btn.classList.toggle('selected', !_pendingIcon);
       } else {
         btn.classList.toggle('selected', btn.dataset.emoji === cur);
       }
@@ -3675,22 +3610,19 @@ const ConfigureListDialog = (() => {
   function showPickerMode(mode) {
     pickerPopup.querySelectorAll('.icon-picker-tab').forEach(t => t.classList.toggle('active', t.dataset.mode === mode));
     pickerPopup.querySelectorAll('.icon-picker-pane').forEach(p => p.classList.toggle('active', p.dataset.pane === mode));
-    if (mode === 'emoji')   syncEmojiGrid();
-    if (mode === 'url') setTimeout(() => imgUrlInput.focus(), 30);
+    if (mode === 'emoji') syncEmojiGrid();
+    if (mode === 'url')   setTimeout(() => imgUrlInput.focus(), 30);
   }
 
   function openPicker() {
     _pickerOpen = true;
-    pickerPopup.querySelector('[data-auto]').innerHTML = buildInitialsIconHTML(_configList.name, colorSeed(_configList));
-
-    // Position popup below trigger, relative to dialog (its containing block due to transform)
+    pickerPopup.querySelector('[data-auto]').innerHTML = buildInitialsIconHTML(_pendingName, colorSeed(colorSeedObj()));
     const tr = pickerTrigger.getBoundingClientRect();
     const dr = el.getBoundingClientRect();
     pickerPopup.style.top  = (tr.bottom - dr.top + 4) + 'px';
     pickerPopup.style.left = (tr.left - dr.left) + 'px';
     pickerPopup.hidden = false;
-
-    const imgM = _configList.icon?.match(/^<img src="([^"]+)"/);
+    const imgM = _pendingIcon?.match(/^<img src="([^"]+)"/);
     if (imgM) { imgUrlInput.value = imgM[1]; showPickerMode('url'); }
     else      { imgUrlInput.value = ''; showPickerMode('emoji'); }
   }
@@ -3703,7 +3635,6 @@ const ConfigureListDialog = (() => {
   pickerTrigger.addEventListener('click',   () => { _pickerOpen ? closePicker() : openPicker(); });
   pickerTrigger.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); _pickerOpen ? closePicker() : openPicker(); } });
 
-  // Close picker on click outside popup (but inside dialog)
   el.addEventListener('mousedown', e => {
     if (!_pickerOpen) return;
     if (pickerPopup.contains(e.target) || pickerTrigger.contains(e.target)) return;
@@ -3718,11 +3649,10 @@ const ConfigureListDialog = (() => {
     const btn = e.target.closest('.icon-emoji-btn');
     if (!btn) return;
     if (btn.hasAttribute('data-auto')) {
-      setListIcon('');
+      setBufferedIcon('');
     } else {
       const emoji = btn.dataset.emoji;
-      const isSame = _configList.icon?.includes(`>${esc(emoji)}<`);
-      setListIcon(isSame ? '' : buildEmojiIconHTML(emoji));
+      setBufferedIcon(_pendingIcon?.includes(`>${esc(emoji)}<`) ? '' : buildEmojiIconHTML(emoji));
     }
     syncEmojiGrid();
     closePicker();
@@ -3730,104 +3660,271 @@ const ConfigureListDialog = (() => {
 
   imgUrlInput.addEventListener('input', () => {
     const url = imgUrlInput.value.trim();
-    setListIcon(url ? `<img src="${esc(url)}" class="list-icon-img" onerror="this.style.display='none'" alt="">` : '');
+    setBufferedIcon(url ? `<img src="${esc(url)}" class="list-icon-img" onerror="this.style.display='none'" alt="">` : '');
   });
 
-  urlInput.addEventListener('input', () => {
-    clearTimeout(_urlDebounce);
-    _urlDebounce = setTimeout(() => {
-      if (!_configList) return;
-      _configList.url = urlInput.value.trim() || null;
-      persistMeta();
-      renderDetail(_configList);
-    }, 400);
+  // ── Publisher chips ──────────────────────────────────────────────────────────
+
+  function renderPublisherChips() {
+    const chips = LIST_PRESETS.map(p => {
+      const icon = p.icon || buildInitialsIconHTML(p.name, colorSeed(p));
+      return `<button class="publisher-chip${_selectedPreset === p ? ' active' : ''}" data-preset-id="${p.id}">${icon}${esc(p.name)}</button>`;
+    });
+    chips.push(`<button class="publisher-chip${!_selectedPreset ? ' active' : ''}" data-preset-id="">Custom</button>`);
+    publisherChipsEl.innerHTML = chips.join('');
+  }
+
+  function selectPreset(preset) {
+    _selectedPreset = preset;
+    renderPublisherChips();
+    if (preset) {
+      if (_mode === 'add') {
+        _pendingName = preset.name;
+        nameInput.value = preset.name;
+        setBufferedIcon(preset.icon);
+        if (preset.url) {
+          _sourceType = 'url';
+          urlInput.value = preset.url;
+          updateSourceRadios();
+          updateSourceAreas();
+        }
+      }
+      _rulesOption = _mode === 'add' ? 'recommended' : 'none';
+    }
+    updateRulesOptionRow();
+    updateRulesPreview();
+  }
+
+  publisherChipsEl.addEventListener('click', e => {
+    const chip = e.target.closest('.publisher-chip');
+    if (!chip) return;
+    const preset = chip.dataset.presetId ? LIST_PRESETS.find(p => p.id === chip.dataset.presetId) : null;
+    selectPreset(preset);
   });
+
+  // ── Rules option ─────────────────────────────────────────────────────────────
+
+  function updateRulesOptionRow() {
+    if (!_selectedPreset) { rulesOptionRow.hidden = true; return; }
+    const opts = [{ value: 'recommended', label: 'Apply recommended rules' }];
+    if (_selectedPreset.defaultRules?.some(r => r.note))
+      opts.push({ value: 'levels', label: 'Apply scoring levels only' });
+    opts.push({ value: 'none', label: 'Do not change rules' });
+    rulesSelect.innerHTML = opts.map(o =>
+      `<option value="${o.value}"${_rulesOption === o.value ? ' selected' : ''}>${o.label}</option>`
+    ).join('');
+    rulesOptionRow.hidden = false;
+  }
+
+  function updateRulesPreview() {
+    if (!_selectedPreset || _rulesOption === 'none') { rulesPreviewWrap.hidden = true; return; }
+    const rules = _rulesOption === 'recommended' ? _selectedPreset.defaultRules : _selectedPreset.neutralRules;
+    rulesPreviewWrap.hidden = false;
+    rulesPreviewWrap.innerHTML = buildRulesSectionHTML(rules || [], {
+      label: 'Rules to apply', rulesId: 'preview-rules',
+      saveFn: '', deleteFn: '', resetFn: '',
+      showReset: false, rescore: true, readOnly: true,
+    });
+  }
+
+  rulesSelect.addEventListener('change', () => {
+    _rulesOption = rulesSelect.value;
+    updateRulesPreview();
+  });
+
+  // ── Name input ────────────────────────────────────────────────────────────────
 
   nameInput.addEventListener('input', () => {
-    if (!_configList) return;
-    clearTimeout(_nameDebounce);
-    const newName = nameInput.value.trim();
-    if (!newName || newName === _configList.name) return;
-    _configList.name = newName;
-    if (!_configList.icon) {
-      iconPreview.innerHTML = buildInitialsIconHTML(newName, colorSeed(_configList));
-      if (_pickerOpen) pickerPopup.querySelector('[data-auto]').innerHTML = buildInitialsIconHTML(newName, colorSeed(_configList));
+    _pendingName = nameInput.value;
+    if (!_pendingIcon) {
+      iconPreview.innerHTML = buildInitialsIconHTML(_pendingName, colorSeed(colorSeedObj()));
+      if (_pickerOpen) pickerPopup.querySelector('[data-auto]').innerHTML = buildInitialsIconHTML(_pendingName, colorSeed(colorSeedObj()));
     }
-    _nameDebounce = setTimeout(() => {
+  });
+
+  nameInput.addEventListener('focus', () => nameInput.classList.remove('invalid'));
+
+  // ── Source radios / areas ─────────────────────────────────────────────────────
+
+  function updateSourceRadios() {
+    radios.forEach(r => { r.checked = r.value === _sourceType; });
+  }
+
+  function updateSourceAreas() {
+    sourceUrlArea.hidden  = _sourceType !== 'url';
+    sourceFileArea.hidden = _sourceType !== 'file';
+  }
+
+  radios.forEach(radio => {
+    radio.addEventListener('change', () => {
+      _sourceType = radio.value;
+      updateSourceAreas();
+    });
+  });
+
+  function updateUrlMeta() {
+    if (_mode !== 'configure' || !_list?.lastUpdated || _sourceType !== 'url') {
+      urlMetaEl.hidden = true;
+      return;
+    }
+    urlMetaEl.hidden = false;
+    urlMetaEl.innerHTML = `<span>Last fetched: ${timeAgo(_list.lastUpdated)}</span>
+      <button class="link-btn" id="btn-fetch-now">Fetch now</button>`;
+    el.querySelector('#btn-fetch-now').onclick = () => {
+      _list.url = urlInput.value.trim() || null;
       persistMeta();
-      renderInputLists();
-      renderDetail(_configList);
-    }, 400);
+      fetchList(_list);
+    };
+  }
+
+  btnSourceImport.onclick = () => { if (_list) importToList(_list); };
+
+  bindDropZone(el.querySelector('#cfg-drop-zone'), el.querySelector('#cfg-file-input'), file => {
+    _pendingFile = file;
+    importZoneLabel.textContent = file.name;
+    if (!nameInput.value.trim()) {
+      _pendingName = nameFromPath(file.name);
+      nameInput.value = _pendingName;
+      if (!_pendingIcon) iconPreview.innerHTML = buildInitialsIconHTML(_pendingName, colorSeed(colorSeedObj()));
+    }
   });
 
-  presetListEl.addEventListener('click', async e => {
-    const btn = e.target.closest('button');
-    if (!btn || !_configList) return;
-    const row = btn.closest('.known-list');
-    if (!row?._preset) return;
-    const preset = row._preset;
+  // ── Save / Add ────────────────────────────────────────────────────────────────
 
-    _configList.icon     = preset.icon;
-    _configList.url      = preset.url || null;
-    _configList.presetId = preset.id;
-    iconPreview.innerHTML = preset.icon || buildInitialsIconHTML(_configList.name, colorSeed(_configList));
-    urlInput.value        = preset.url || '';
-    if (_pickerOpen) {
-      pickerPopup.querySelector('[data-auto]').innerHTML = buildInitialsIconHTML(_configList.name, colorSeed(_configList));
-      const imgM  = preset.icon?.match(/^<img src="([^"]+)"/);
-      if (imgM) { imgUrlInput.value = imgM[1]; showPickerMode('url'); }
-      else      { showPickerMode('emoji'); }
-    }
+  function computeRulesToApply() {
+    if (!_selectedPreset) return _mode === 'add' ? [] : null;
+    if (_rulesOption === 'recommended') return JSON.parse(JSON.stringify(_selectedPreset.defaultRules || []));
+    if (_rulesOption === 'levels')      return JSON.parse(JSON.stringify(_selectedPreset.neutralRules || []));
+    return _mode === 'add' ? [] : null;
+  }
 
-    if (preset.defaultRules?.length) {
-      const apply = await showConfirm(
-        `Also apply ${preset.name}'s default rescoring rules?`,
-        { confirmText: 'Apply rules', danger: false }
-      );
-      if (apply) {
-        _configList.rescoreRules = JSON.parse(JSON.stringify(preset.defaultRules));
-        updateCatchAll(_configList);
+  btnSave.onclick = () => {
+    const name = nameInput.value.trim();
+    if (!name) { nameInput.focus(); nameInput.classList.add('invalid'); return; }
+    const rules = computeRulesToApply();
+    const url   = _sourceType === 'url' ? urlInput.value.trim() || null : null;
+
+    if (_mode === 'add') {
+      const list = addNewList({
+        dbKey: crypto.randomUUID(), icon: _pendingIcon, name,
+        url, enabled: true,
+        ...(_selectedPreset ? { presetId: _selectedPreset.id } : {}),
+        rescoreRules: rules || [],
+      });
+      el.close();
+      if (_sourceType === 'url' && url) {
+        fetchList(list).then(() => selectList(list));
+      } else if (_sourceType === 'file' && _pendingFile) {
+        ingestFile(_pendingFile, list, name);
+        selectList(list);
+      } else {
+        selectList(list);
       }
+    } else {
+      _list.icon = _pendingIcon;
+      _list.name = name;
+      _list.url  = url;
+      if (_selectedPreset) { _list.presetId = _selectedPreset.id; } else { delete _list.presetId; }
+      if (rules !== null) { _list.rescoreRules = rules; updateCatchAll(_list); }
+      persistMeta();
+      invalidateListCaches(_list);
+      refreshSourceCounts();
+      renderInputLists();
+      renderDetail(_list);
+      el.close();
     }
+  };
 
-    persistMeta();
-    invalidateListCaches(_configList);
-    refreshSourceCounts();
-    renderInputLists();
-    renderDetail(_configList);
-    showToast(`Applied ${buildListNameHTML(preset)} preset`);
-  });
+  // ── Cancel / close ────────────────────────────────────────────────────────────
 
+  el.querySelector('#btn-cfg-cancel').onclick = () => el.close();
+  el.querySelector('.dialog-close-btn').onclick  = () => el.close();
+  el.addEventListener('click',  e => { if (e.target === el) el.close(); });
   el.addEventListener('cancel', e => { if (_pickerOpen) { e.preventDefault(); closePicker(); } });
-  el.querySelector('.dialog-close-btn').onclick = () => el.close();
-  el.addEventListener('click', e => { if (e.target === el) el.close(); });
-  el.addEventListener('close', () => { closePicker(); clearTimeout(_urlDebounce); clearTimeout(_nameDebounce); });
+  el.addEventListener('close',  () => closePicker());
+
+  // ── open (configure mode) ─────────────────────────────────────────────────────
 
   function open(list) {
-    if (el.open) { _configList = list; return; }
-    _configList  = list;
-    _pickerOpen  = false;
+    _mode           = 'configure';
+    _list           = list;
+    _pickerOpen     = false;
+    _selectedPreset = getPreset(list);
+    _pendingIcon    = list.icon || '';
+    _pendingName    = list.name || '';
+    _sourceType     = list.url ? 'url' : 'file';
+    _pendingFile    = null;
+    _rulesOption    = 'none';
+
+    titleEl.textContent = 'Configure List';
+    btnSave.textContent = 'Save';
     pickerPopup.hidden = true;
+    nameInput.classList.remove('invalid');
     iconPreview.innerHTML = list.icon || buildInitialsIconHTML(list.name, colorSeed(list));
-    presetListEl.innerHTML = LIST_PRESETS.map(p =>
-      `<div class="known-list${list.presetId === p.id ? ' preset-active' : ''}">
-        ${p.icon || buildInitialsIconHTML(p.name, colorSeed(p))}
-        <div class="known-list-info">
-          <div class="known-list-name">${esc(p.name)}</div>
-          <div class="known-list-sub">${p.url ? 'Auto-fetch' : 'Manual import'}</div>
-        </div>
-        <button${list.presetId === p.id && !presetWouldChange(list, p) ? ' disabled' : ''}>${list.presetId === p.id ? 'Reapply' : 'Apply'}</button>
-      </div>`
-    ).join('');
-    presetListEl.querySelectorAll('.known-list').forEach((row, i) => { row._preset = LIST_PRESETS[i]; });
-    urlInput.value = list.url || '';
     nameInput.value = list.name || '';
+    urlInput.value  = list.url  || '';
+
+    renderPublisherChips();
+    updateRulesOptionRow();
+    updateRulesPreview();
+    updateSourceRadios();
+    updateSourceAreas();
+    updateUrlMeta();
+
+    fileConfigRow.hidden = false;
+    fileAddZone.hidden   = true;
+    filenameEl.textContent = list.originalFilename || '—';
+    if (list.lastUpdated && !list.url) {
+      fileMetaEl.hidden = false;
+      fileMetaEl.textContent = `Last imported: ${timeAgo(list.lastUpdated)}`;
+    } else {
+      fileMetaEl.hidden = true;
+    }
+
     const opener = document.activeElement;
     el.addEventListener('close', () => opener?.focus(), { once: true });
     el.showModal();
   }
 
-  return { open };
+  // ── openAdd (add mode) ────────────────────────────────────────────────────────
+
+  function openAdd() {
+    _mode           = 'add';
+    _list           = null;
+    _pickerOpen     = false;
+    _selectedPreset = null;
+    _pendingIcon    = '';
+    _pendingName    = '';
+    _sourceType     = 'url';
+    _pendingFile    = null;
+    _rulesOption    = 'none';
+
+    titleEl.textContent = 'Add List';
+    btnSave.textContent = 'Add';
+    pickerPopup.hidden = true;
+    nameInput.classList.remove('invalid');
+    iconPreview.innerHTML = buildInitialsIconHTML('', colorSeed({ name: '' }));
+    nameInput.value = '';
+    urlInput.value  = '';
+    urlMetaEl.hidden = true;
+    importZoneLabel.textContent = 'Drop file here or click to browse';
+
+    renderPublisherChips();
+    updateRulesOptionRow();
+    updateRulesPreview();
+    updateSourceRadios();
+    updateSourceAreas();
+
+    fileConfigRow.hidden = true;
+    fileAddZone.hidden   = false;
+    fileMetaEl.hidden    = true;
+
+    const opener = document.activeElement;
+    el.addEventListener('close', () => opener?.focus(), { once: true });
+    el.showModal();
+  }
+
+  return { open, openAdd };
 })();
 
 // ─── Event wiring ─────────────────────────────────────────────────────────────
@@ -3979,18 +4076,8 @@ function bindEvents() {
 
 }
 
-let _pendingImportFile = null;
-
 function nameFromPath(str) {
   return str.split('/').pop().replace(/\.[^.]+$/, '');
-}
-
-function handleDialogImport(file) {
-  const name = document.getElementById('import-name').value.trim();
-  const list = addNewList({ dbKey: crypto.randomUUID(), icon: '', name, url: null, enabled: true });
-  document.getElementById('add-list-dialog').close();
-  ingestFile(file, list, name);
-  selectList(list);
 }
 
 // ─── Cell popovers ────────────────────────────────────────────────────────────
@@ -4111,18 +4198,6 @@ function _dismissToast(el) {
 
 function getPreset(list) {
   return list.presetId ? LIST_PRESETS.find(p => p.id === list.presetId) ?? null : null;
-}
-
-function presetWouldChange(list, preset) {
-  if (list.icon !== preset.icon) return true;
-  if ((list.url || null) !== (preset.url || null)) return true;
-  if (!preset.defaultRules?.length) return false;
-  const cur = list.rescoreRules.filter(r => !r._catchAll);
-  if (cur.length !== preset.defaultRules.length) return true;
-  return cur.some((r, i) => {
-    const d = preset.defaultRules[i];
-    return r.input !== d.input || r.length !== d.length || r.output !== d.output;
-  });
 }
 
 function applyPreset(list, presetId, { useNeutralRules = false } = {}) {
@@ -4608,7 +4683,7 @@ const HelpModal = (() => {
 
         <div class="help-slide" id="help-slide-1">
           <h2>Building Your Wordlist</h2>
-          <p>Add wordlists from well-known sources with one click, or import your own files and URLs. Use the ⋮ menu on any list to configure its icon, apply a preset, or change its fetch URL.</p>
+          <p>Click <strong>Add list</strong> to add from a known publisher, import a file, or set up a URL feed. Use the ⋮ menu on any list to configure its name, icon, publisher, source, or rescoring rules.</p>
           <p>Lists <strong>merge in priority order</strong> — the higher a list sits, the more its scores count when the same word appears in multiple lists. Drag to reorder. Toggle lists on and off to experiment with different combinations.</p>
           <div class="help-demo flush" id="help-slide1-demo"></div>
         </div>
