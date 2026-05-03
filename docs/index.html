@@ -1875,17 +1875,20 @@ class VirtualScroller {
     if (this.sortKey) {
       const key = this.sortKey;
       const dir = this.sortDir === 'asc' ? 1 : -1;
-      entries = [...entries].sort((a, b) => {
-        if (key === 'score' && this.rescoreRules.length) {
-          const ar = rescoreEntry(a, this.rescoreRules);
-          const br = rescoreEntry(b, this.rescoreRules);
-          return dir * ((ar.kept ? ar.score : -1) - (br.kept ? br.score : -1));
-        }
-        const av = key === 'length' ? a.word.length : (a[key] ?? '');
-        const bv = key === 'length' ? b.word.length : (b[key] ?? '');
-        if (typeof av === 'number' && typeof bv === 'number') return dir * (av - bv);
-        return dir * String(av).localeCompare(String(bv));
-      });
+      if (key === 'score' && (this.rescoreRules.length || this.overrideMap.size)) {
+        const scoreMap = new Map(entries.map(e => {
+          const d = this._entryDisplayState(e);
+          return [e, d.ignored ? -1 : d.effectiveScore];
+        }));
+        entries = [...entries].sort((a, b) => dir * (scoreMap.get(a) - scoreMap.get(b)));
+      } else {
+        entries = [...entries].sort((a, b) => {
+          const av = key === 'length' ? a.word.length : (a[key] ?? '');
+          const bv = key === 'length' ? b.word.length : (b[key] ?? '');
+          if (typeof av === 'number' && typeof bv === 'number') return dir * (av - bv);
+          return dir * String(av).localeCompare(String(bv));
+        });
+      }
     }
 
     this.entries = entries;
@@ -1896,6 +1899,25 @@ class VirtualScroller {
     if (countEl) countEl.textContent = filtered ? entries.length.toLocaleString() + (entries.length === 1 ? ' match' : ' matches') : '';
     if (copyBtn) copyBtn.hidden = !filtered;
     this._render();
+  }
+
+  _entryDisplayState(entry) {
+    let rescoredScore = entry.score;
+    let wasRescored = false;
+    let ignored = false;
+    if (this.rescoreRules.length) {
+      const r = rescoreEntry(entry, this.rescoreRules);
+      if (!r.kept) {
+        ignored = true;
+      } else {
+        rescoredScore = r.score;
+        wasRescored = r.score !== entry.score;
+      }
+    }
+    const ov = !ignored && this.overrideMap.get(entry.word.toUpperCase());
+    const effectiveScore = ov ? ov.score : rescoredScore;
+    const effectiveComment = (ov && ov.comment) ? ov.comment : (entry.comment || '');
+    return { ignored, rescoredScore, wasRescored, ov, effectiveScore, effectiveComment };
   }
 
   _render() {
@@ -1927,25 +1949,8 @@ class VirtualScroller {
       const displayed = displayWord(word);
       const wordHtml = this._highlight ? this._highlight(displayed) : displayed;
       let wordCell  = `<td class="col-word" title="${displayed}">${wordHtml}</td>`;
-      let rescoredScore = score;
-      let wasRescored = false;
-      let ignored = false;
-
-      if (this.rescoreRules.length) {
-        const r = rescoreEntry(entry, this.rescoreRules);
-        if (!r.kept) {
-          ignored = true;
-          tr.classList.add('entry-ignored');
-          wordCell = `<td class="col-word" title="${displayed}">${wordHtml}</td>`;
-        } else {
-          rescoredScore = r.score;
-          wasRescored = r.score !== score;
-        }
-      }
-
-      const ov = !ignored && this.overrideMap.get(word.toUpperCase());
-      const effectiveScore = ov ? ov.score : rescoredScore;
-      const effectiveComment = (ov && ov.comment) ? ov.comment : (comment || '');
+      const { ignored, rescoredScore, wasRescored, ov, effectiveScore, effectiveComment } = this._entryDisplayState(entry);
+      if (ignored) tr.classList.add('entry-ignored');
       const commentOverridden = !!(ov && ov.comment && ov.comment !== (comment || ''));
       const scoreOv = ov && ov.score !== rescoredScore;
 
