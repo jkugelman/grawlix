@@ -47,7 +47,7 @@ html.dark-mode {
   --score-bad-bg:   #6b1d1d; --score-bad-fg:   #fdd8d8;
   --callout-bg: #201d09; --callout-border: #3d3410; --callout-fg: #b09840;
   --usd-added-bg:    #1a3d2a; --usd-added-fg:    #6ee89a;
-  --usd-removed-bg:  #3d1a1a; --usd-removed-fg:  #f07070;
+  --usd-deleted-bg:  #3d1a1a; --usd-deleted-fg:  #f07070;
   --usd-rescored-bg: #2a2a2a; --usd-rescored-fg: #909090;
 }
 html.light-mode {
@@ -76,7 +76,7 @@ html.light-mode {
   --score-bad-bg:   #f8d7da; --score-bad-fg:   #721c24;
   --callout-bg: #fff3cd; --callout-border: #ffc107; --callout-fg: #856404;
   --usd-added-bg:    #e6f4ea; --usd-added-fg:    #2d7a3f;
-  --usd-removed-bg:  #fce8e6; --usd-removed-fg:  #b71c1c;
+  --usd-deleted-bg:  #fce8e6; --usd-deleted-fg:  #b71c1c;
   --usd-rescored-bg: #f0f0f0; --usd-rescored-fg: #666666;
 }
 
@@ -377,7 +377,7 @@ dialog h2 { font-size: 16px; margin-bottom: 14px; padding-right: 24px; }
 .usd-pill { padding: 2px 10px; border-radius: 12px; font-size: 12px; font-weight: 600; cursor: pointer; border: 1px solid transparent; background: none; font-family: inherit; transition: opacity 0.15s; }
 .usd-pill:hover { opacity: 0.75; }
 .usd-pill-added    { background: var(--usd-added-bg);    color: var(--usd-added-fg);    }
-.usd-pill-removed  { background: var(--usd-removed-bg);  color: var(--usd-removed-fg);  }
+.usd-pill-deleted  { background: var(--usd-deleted-bg);  color: var(--usd-deleted-fg);  }
 .usd-pill-rescored { background: var(--usd-rescored-bg); color: var(--usd-rescored-fg); }
 .usd-scroll { flex: 1; min-height: 0; overflow-y: auto; border-top: 1px solid var(--border2); padding-bottom: 12px; }
 .usd-sizer { position: relative; }
@@ -388,9 +388,9 @@ dialog h2 { font-size: 16px; margin-bottom: 14px; padding-right: 24px; }
 .usd-word-col { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: monospace; font-size: 12px; }
 .usd-score-col { flex-shrink: 0; display: flex; align-items: center; gap: 4px; }
 .usd-added    { border-left-color: var(--usd-added-fg);    }
-.usd-removed  { border-left-color: var(--usd-removed-fg);  }
+.usd-deleted  { border-left-color: var(--usd-deleted-fg);  }
 .usd-rescored { border-left-color: var(--usd-rescored-fg); }
-.usd-removed .usd-word-col { text-decoration: line-through; color: var(--muted); }
+.usd-deleted .usd-word-col { text-decoration: line-through; color: var(--muted); }
 .usd-old-score { color: var(--muted); font-size: 12px; }
 .usd-arrow { color: var(--faint); font-size: 11px; }
 
@@ -1028,7 +1028,7 @@ function buildRuleRowHTML(i, isCatchAll, fieldsHTML, note, onDeleteFn) {
         <span class="rule-note-text">${esc(note||'')}</span>
         ${buildEditHintHTML('rule-note-pencil', 'startNoteEdit(this.parentElement)')}
       </span>
-      ${isCatchAll ? '' : `<button class="rule-del" onclick="${onDeleteFn}(${i})" title="Remove row">${buildTrashIconHTML()}</button>`}
+      ${isCatchAll ? '' : `<button class="rule-del" onclick="${onDeleteFn}(${i})" title="Delete row">${buildTrashIconHTML()}</button>`}
     </div>`;
 }
 
@@ -1973,7 +1973,7 @@ class VirtualScroller {
       if (this.showSource) {
         const listLabel = listRef ? buildListNameHTML(listRef, { bold: false }) : esc(listName || '');
         const editTrash = (this.showEditDeleteCol && listRef === this.editsList)
-          ? `<span class="source-trash" title="Remove edit">${buildTrashIconHTML()}</span>`
+          ? `<span class="source-trash" title="Delete edit">${buildTrashIconHTML()}</span>`
           : '';
         sourceCell = `<td class="comment-cell col-source">${listLabel}${editTrash}</td>`;
       }
@@ -1984,7 +1984,7 @@ class VirtualScroller {
         scoreCell +
         commentCell +
         sourceCell +
-        (this.showDeleteCol ? `<td class="col-trash" title="Remove">${buildTrashIconHTML()}</td>` : '');
+        (this.showDeleteCol ? `<td class="col-trash" title="Delete">${buildTrashIconHTML()}</td>` : '');
       frag.appendChild(tr);
     }
     this.tbody.insertBefore(frag, this.botRow);
@@ -2445,12 +2445,12 @@ function renderOutputScoring() {
 
 
 function deleteOutputScoringRow(i) {
-  const [removed] = state.outputScoring.splice(i, 1);
+  const [deleted] = state.outputScoring.splice(i, 1);
   updateOutputCatchAll();
   persistOutputScoring();
   renderOutputScoring();
-  showUndoToast('Removed scoring row', () => {
-    state.outputScoring.push(removed);
+  showUndoToast('Deleted scoring row', () => {
+    state.outputScoring.push(deleted);
     updateOutputCatchAll();
     persistOutputScoring();
     renderOutputScoring();
@@ -2475,12 +2475,12 @@ function renderEditsScoring() {
 
 function deleteEditsScoringRow(i) {
   const edits = getEditsList();
-  const [removed] = edits.scoring.splice(i, 1);
+  const [deleted] = edits.scoring.splice(i, 1);
   updateScoringCatchAll(edits.scoring, edits.rawEntries);
   persistMeta();
   renderEditsScoring();
-  showUndoToast('Removed scoring row', () => {
-    edits.scoring.push(removed);
+  showUndoToast('Deleted scoring row', () => {
+    edits.scoring.push(deleted);
     updateScoringCatchAll(edits.scoring, edits.rawEntries);
     persistMeta();
     renderEditsScoring();
@@ -2541,7 +2541,7 @@ function renderDetail(list) {
 
   const moreMenu = buildMoreMenuHTML([
     ['Configure', 'configureCurrentList()'],
-    ['Remove',    'removeCurrentList()'],
+    ['Delete',    'deleteCurrentList()'],
   ]);
 
   const dlBtn = hasData ? buildSplitBtn('Download', `downloadCurrentListRescored()`,
@@ -2726,7 +2726,7 @@ function flyToEdits(sourceTd, value) {
 
 function fetchCurrentList(event)         { if (_detailList) fetchList(_detailList, event); }
 function importCurrentList(event)        { if (_detailList) importToList(_detailList, event); }
-function removeCurrentList(event)        { if (_detailList) removeList(_detailList, event); }
+function deleteCurrentList(event)        { if (_detailList) deleteList(_detailList, event); }
 function downloadCurrentListRescored()   { if (_detailList) downloadIndividualListRescored(_detailList); }
 function downloadCurrentListOriginal()   { if (_detailList) downloadOriginalList(_detailList); }
 function configureCurrentList()          { if (_detailList) ConfigureListDialog.open(_detailList); }
@@ -2815,7 +2815,7 @@ const openUpdateSummaryDialog = (() => {
   xBtn.onclick = () => el.close();
   el.addEventListener('click', e => { if (e.target === el) el.close(); });
 
-  return function(list, oldCount, added, removed, rescored) {
+  return function(list, oldCount, added, deleted, rescored) {
     titleEl.textContent = `${list.name} Updated`;
     countEl.textContent = `${oldCount.toLocaleString()} → ${list.rawEntries.length.toLocaleString()} entries`;
 
@@ -2827,10 +2827,10 @@ const openUpdateSummaryDialog = (() => {
       rows.push({ type: 'header', label: `Added (${added.length.toLocaleString()})` });
       for (const e of added) rows.push({ type: 'word', word: e.word, score: e.score, kind: 'added' });
     }
-    if (removed.length) {
-      sectionIndices.removed = rows.length;
-      rows.push({ type: 'header', label: `Removed (${removed.length.toLocaleString()})` });
-      for (const e of removed) rows.push({ type: 'word', word: e.word, score: e.score, kind: 'removed' });
+    if (deleted.length) {
+      sectionIndices.deleted = rows.length;
+      rows.push({ type: 'header', label: `Deleted (${deleted.length.toLocaleString()})` });
+      for (const e of deleted) rows.push({ type: 'word', word: e.word, score: e.score, kind: 'deleted' });
     }
     if (rescored.length) {
       sectionIndices.rescored = rows.length;
@@ -2841,7 +2841,7 @@ const openUpdateSummaryDialog = (() => {
     pillsEl.innerHTML = '';
     const pillDefs = [
       { key: 'added',    label: `+${added.length.toLocaleString()}`,   cls: 'usd-pill-added'   },
-      { key: 'removed',  label: `−${removed.length.toLocaleString()}`,  cls: 'usd-pill-removed'  },
+      { key: 'deleted',  label: `−${deleted.length.toLocaleString()}`,  cls: 'usd-pill-deleted'  },
       { key: 'rescored', label: `~${rescored.length.toLocaleString()}`, cls: 'usd-pill-rescored' },
     ];
     for (const { key, label, cls } of pillDefs) {
@@ -2891,15 +2891,15 @@ async function applyWordlistText(list, text, { fetchedSize = null, originalFilen
     const oldMap = new Map(oldEntries.map(e => [e.word, e.score]));
     const newMap = new Map(list.rawEntries.map(e => [e.word, e.score]));
     const added   = list.rawEntries.filter(e => !oldMap.has(e.word)).sort((a, b) => a.word.localeCompare(b.word));
-    const removed = oldEntries.filter(e => !newMap.has(e.word)).sort((a, b) => a.word.localeCompare(b.word));
+    const deleted = oldEntries.filter(e => !newMap.has(e.word)).sort((a, b) => a.word.localeCompare(b.word));
     const rescored = oldEntries
       .filter(e => newMap.has(e.word) && newMap.get(e.word) !== e.score)
       .map(e => ({ word: e.word, oldScore: e.score, score: newMap.get(e.word) }))
       .sort((a, b) => a.word.localeCompare(b.word));
-    if (!added.length && !removed.length && !rescored.length) {
+    if (!added.length && !deleted.length && !rescored.length) {
       showAlert(`${buildListNameHTML(list)} is already up to date — no changes.`);
     } else {
-      openUpdateSummaryDialog(list, oldEntries.length, added, removed, rescored);
+      openUpdateSummaryDialog(list, oldEntries.length, added, deleted, rescored);
     }
   }
 }
@@ -3124,15 +3124,15 @@ function deleteFromEdits(word, refreshFn) {
     scroller.setEntries(edits.rawEntries, state.searchQuery, [], new Map(), state.searchWholeWord, state.minScore);
   });
 
-  const [removed] = edits.rawEntries.splice(idx, 1);
+  const [deleted] = edits.rawEntries.splice(idx, 1);
   invalidateListCaches(edits);
   updateCatchAll(edits);
   persistEdits(edits);
   refresh();
   setTimeout(refreshSourceCounts, 0);
 
-  showUndoToast(`Removed ${esc(displayWord(removed.word))} from ${buildListNameHTML(edits)}`, () => {
-    edits.rawEntries.splice(idx, 0, removed);
+  showUndoToast(`Deleted ${esc(displayWord(deleted.word))} from ${buildListNameHTML(edits)}`, () => {
+    edits.rawEntries.splice(idx, 0, deleted);
     invalidateListCaches(edits);
     updateCatchAll(edits);
     persistEdits(edits);
@@ -3141,10 +3141,10 @@ function deleteFromEdits(word, refreshFn) {
   });
 }
 
-async function removeList(list, event) {
+async function deleteList(list, event) {
   if (event) event.stopPropagation();
   if (!list) return;
-  if (!await showConfirm('', { confirmText: 'Remove', html: `Remove ${buildListNameHTML(list)}?` })) return;
+  if (!await showConfirm('', { confirmText: 'Delete', html: `Delete ${buildListNameHTML(list)}?` })) return;
   state.inputLists = state.inputLists.filter(l => l !== list);
   invalidateListCaches(list);
   await idbDel('data_' + list.dbKey);
@@ -4213,14 +4213,14 @@ function resetRescoreRules() {
 function deleteRule(idx) {
   const list = getSelected();
   if (!list) return;
-  const [removed] = list.rescoreRules.splice(idx, 1);
+  const [deleted] = list.rescoreRules.splice(idx, 1);
   updateCatchAll(list);
   persistMeta();
   renderRescoreSection();
   updateRescorePreview();
   refreshSourceCounts();
-  showUndoToast('Removed rescore rule', () => {
-    list.rescoreRules.push(removed);
+  showUndoToast('Deleted rescore rule', () => {
+    list.rescoreRules.push(deleted);
     updateCatchAll(list);
     persistMeta();
     renderRescoreSection();
