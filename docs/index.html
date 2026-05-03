@@ -82,6 +82,13 @@ html.light-mode {
   --ok-fg: #2d7a3f; --warn-fg: #856404; --err-fg: #b71c1c;
 }
 
+html.dark-mode { scrollbar-color: var(--border) var(--bg); }
+html.light-mode { scrollbar-color: var(--border) var(--bg); }
+html.dark-mode ::-webkit-scrollbar { background: var(--bg); }
+html.dark-mode ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+html.light-mode ::-webkit-scrollbar { background: var(--bg); }
+html.light-mode ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
 body { font-family: system-ui, -apple-system, sans-serif; font-size: 14px; background: var(--bg); color: var(--text); height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
 
 header { background: var(--hdr-bg); color: white; padding: 10px 20px; display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; }
