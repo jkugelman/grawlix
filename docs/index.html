@@ -318,6 +318,54 @@ dialog h2 { font-size: 16px; margin-bottom: 14px; padding-right: 24px; }
 .known-list-sub  { font-size: 11px; color: var(--muted); margin-top: 2px; }
 .dialog-footer { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--border2); display: flex; justify-content: flex-end; gap: 8px; }
 
+/* Configure list dialog */
+#configure-list-dialog { width: 420px; overflow: visible; }
+.configure-section { margin-bottom: 18px; }
+.configure-section:last-child { margin-bottom: 0; }
+.configure-section-label { font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 8px; }
+.known-list.preset-active { border-color: var(--accent); }
+
+/* Icon picker */
+.icon-picker-trigger { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; padding: 5px 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface2); user-select: none; }
+.icon-picker-trigger:hover { background: var(--hover); }
+.icon-picker-trigger:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.icon-preview-box { width: 22px; height: 22px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+#icon-picker-popup { position: absolute; z-index: 10; width: 280px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface2); box-shadow: 0 4px 20px rgba(0,0,0,0.18); overflow: hidden; }
+.icon-picker-tabs { display: flex; border-bottom: 1px solid var(--border); }
+.icon-picker-tab { flex: 1; border: none; border-radius: 0; padding: 6px; font-size: 12px; font-weight: 600; color: var(--muted); background: var(--surface2); cursor: pointer; font-family: inherit; }
+.icon-picker-tab.active { color: var(--accent); background: var(--sel); }
+.icon-picker-tab:hover:not(.active) { background: var(--hover); }
+.icon-picker-pane { padding: 10px 12px; display: none; }
+.icon-picker-pane.active { display: block; }
+.icon-emoji-btn[data-auto] .list-icon-initials { width: 22px; height: 22px; font-size: 9px; border-radius: 4px; }
+.icon-emoji-grid { display: grid; grid-template-columns: repeat(8, 1fr); gap: 2px; }
+.icon-emoji-btn { background: none; border: 1px solid transparent; border-radius: 4px; font-size: 18px; line-height: 1; padding: 4px 2px; cursor: pointer; text-align: center; font-family: inherit; }
+.icon-emoji-btn:hover { background: var(--hover); border-color: var(--border); }
+.icon-emoji-btn.selected { background: var(--sel); border-color: var(--accent); }
+
+/* URL input component */
+.url-input-wrap { position: relative; display: flex; align-items: center; }
+.url-input-icon { position: absolute; left: 8px; color: var(--muted); pointer-events: none; flex-shrink: 0; }
+.url-input { width: 100%; padding: 6px 8px 6px 28px; border: 1px solid var(--border); border-radius: 4px; font-size: 13px; font-family: inherit; background: var(--input-bg); color: var(--text); box-sizing: border-box; }
+.url-input:focus { outline: none; border-color: var(--accent); }
+
+/* Initials icon */
+.list-icon-initials { width: 16px; height: 16px; border-radius: 3px; display: inline-flex; align-items: center; justify-content: center; font-size: 8px; font-weight: 700; color: #fff; line-height: 1; font-family: system-ui, sans-serif; flex-shrink: 0; vertical-align: middle; letter-spacing: -0.02em; }
+.ic-0  { background: #5C6BC0; }
+.ic-1  { background: #1E88E5; }
+.ic-2  { background: #00ACC1; }
+.ic-3  { background: #00897B; }
+.ic-4  { background: #43A047; }
+.ic-5  { background: #FB8C00; }
+.ic-6  { background: #E53935; }
+.ic-7  { background: #D81B60; }
+.ic-8  { background: #8E24AA; }
+.ic-9  { background: #5E35B1; }
+.ic-10 { background: #3949AB; }
+.ic-11 { background: #0277BD; }
+/* More menu (⋮ button in detail header) */
+.more-menu-btn { border-radius: 4px; font-size: 14px; line-height: 1; }
+
 /* Update Summary dialog */
 #update-summary-dialog { width: 480px; overflow: hidden; padding: 0; max-height: min(560px, 85vh); }
 #update-summary-dialog[open] { display: flex; flex-direction: column; }
@@ -408,10 +456,8 @@ a.get-file:hover { text-decoration: underline; }
 
 /* List icons */
 .list-icon-img { width: 16px; height: 16px; border-radius: 3px; flex-shrink: 0; display: block; }
-.list-icon-svg { border-radius: 3px; flex-shrink: 0; }
 .list-icon-emoji { width: 16px; height: 16px; font-size: 13px; line-height: 16px; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
 .source-icon { display: inline-flex; align-items: center; vertical-align: middle; margin-right: 4px; min-width: 12px; }
-.source-icon .list-icon-svg { width: 12px; height: 12px; }
 .source-icon .list-icon-img { width: 12px; height: 12px; }
 .source-icon .list-icon-emoji { width: 12px; height: 12px; font-size: 10px; line-height: 12px; }
 
@@ -433,7 +479,6 @@ input[type="file"] { display: none; }
 
 /* Output list card */
 #output-card { flex-shrink: 0; user-select: none; }
-.output-icon { color: var(--accent); }
 
 /* Inline cell editing */
 .word-table td.score-cell,
@@ -581,16 +626,8 @@ input.cell-edit.score-edit { font-family: ui-monospace, 'Cascadia Code', monospa
     <path fill-rule="evenodd" d="M11.078 2.25c-.917 0-1.699.663-1.85 1.567L9.05 4.889c-.02.12-.115.26-.297.348a7.493 7.493 0 0 0-.986.57c-.166.115-.334.126-.45.083L6.3 5.508a1.875 1.875 0 0 0-2.282.819l-.922 1.597a1.875 1.875 0 0 0 .432 2.385l.84.692c.095.078.17.229.154.43a7.598 7.598 0 0 0 0 1.139c.015.2-.059.352-.153.43l-.841.692a1.875 1.875 0 0 0-.432 2.385l.922 1.597a1.875 1.875 0 0 0 2.282.818l1.019-.382c.115-.043.283-.031.45.082.312.214.641.405.985.57.182.088.277.228.297.35l.178 1.071c.151.904.933 1.567 1.85 1.567h1.844c.916 0 1.699-.663 1.85-1.567l.178-1.072c.02-.12.114-.26.297-.349.344-.165.673-.356.985-.57.167-.114.335-.125.45-.082l1.02.382a1.875 1.875 0 0 0 2.28-.819l.923-1.597a1.875 1.875 0 0 0-.432-2.385l-.84-.692c-.095-.078-.17-.229-.154-.43a7.614 7.614 0 0 0 0-1.139c-.016-.2.059-.352.153-.43l.84-.692c.708-.582.891-1.59.433-2.385l-.922-1.597a1.875 1.875 0 0 0-2.282-.818l-1.02.382c-.114.043-.282.031-.449-.083a7.49 7.49 0 0 0-.985-.57c-.183-.087-.277-.227-.297-.348l-.179-1.072a1.875 1.875 0 0 0-1.85-1.567h-1.843ZM12 15.75a3.75 3.75 0 1 0 0-7.5 3.75 3.75 0 0 0 0 7.5Z" clip-rule="evenodd" />
   </symbol>
 
-  <symbol id="icon-output" viewBox="0 0 24 24" fill="currentColor">
-    <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
-  </symbol>
-  <symbol id="icon-jk" viewBox="0 0 16 16">
-    <rect width="16" height="16" fill="#d46a1a"/>
-    <text x="8" y="12" text-anchor="middle" fill="white" font-family="system-ui,sans-serif" font-size="8.5" font-weight="700">JK</text>
-  </symbol>
-  <symbol id="icon-pb" viewBox="0 0 16 16">
-    <rect width="16" height="16" fill="#0f9d58"/>
-    <text x="8" y="12" text-anchor="middle" fill="white" font-family="system-ui,sans-serif" font-size="8.5" font-weight="700">PB</text>
+  <symbol id="icon-globe" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M12 21a9.004 9.004 0 0 0 8.716-6.747M12 21a9.004 9.004 0 0 1-8.716-6.747M12 21c2.485 0 4.5-4.03 4.5-9S14.485 3 12 3m0 18c-2.485 0-4.5-4.03-4.5-9S9.515 3 12 3m0 0a8.997 8.997 0 0 1 7.843 4.582M12 3a8.997 8.997 0 0 0-7.843 4.582m15.686 0A11.953 11.953 0 0 1 12 10.5c-2.998 0-5.74-1.1-7.843-2.918m15.686 0A8.959 8.959 0 0 1 21 12c0 .778-.099 1.533-.284 2.253m0 0A17.919 17.919 0 0 1 12 16.5c-3.162 0-6.133-.815-8.716-2.247m0 0A9.015 9.015 0 0 1 3 12c0-1.605.42-3.113 1.157-4.418"/>
   </symbol>
   <symbol id="icon-search" viewBox="0 0 13 13">
     <circle cx="5.5" cy="5.5" r="4" fill="none" stroke="currentColor" stroke-width="1.5"/>
@@ -645,14 +682,30 @@ const VS_BUFFER    = 60;
 const OUTPUT_ID    = '__output__';
 const OUTPUT_NAME  = 'All Merged';
 const EDITS_ICON = `<span class="list-icon-emoji" aria-hidden="true">✏️</span>`;
-const OUTPUT_ICON  = `<svg width="16" height="16" class="list-icon-svg output-icon" aria-hidden="true"><use href="#icon-output"/></svg>`;
+const OUTPUT_ICON  = `<span class="list-icon-emoji" aria-hidden="true">⭐</span>`;
+
+const INITIALS_PALETTE = [
+  '#5C6BC0', '#1E88E5', '#00ACC1', '#00897B',
+  '#43A047', '#FB8C00', '#E53935', '#D81B60',
+  '#8E24AA', '#5E35B1', '#3949AB', '#0277BD',
+];
+
+const EMOJI_LIST = [
+       '🥇','🏅','💫','✨','🔥','💎','👑',
+  '🏆','🎯','🎲','🎪','🎭','🎨','🎵','🎬',
+  '🎮','📖','📝','✏️','🔑','💡','🔮','🧩',
+  '🦁','🐻','🦊','🐺','🦄','🐉','🦅','🦋',
+  '🌊','🌈','🌙','☀️','⚡','🍀','🌸','🌺',
+  '🚀','🛸','🧠','👾','🤖','👻','😎','🤓',
+  '❤️','💜','💙','💚','💛','🧡','🖤','🤍',
+];
 
 const LIST_PRESETS = [
   {
     id: 'jkugelman',
     name: 'John Kugelman',
     url: 'https://raw.githubusercontent.com/jkugelman/crossword/refs/heads/main/wordlists/jkugelman-wordlist.txt',
-    icon: `<svg width="16" height="16" class="list-icon-svg" aria-hidden="true"><use href="#icon-jk"/></svg>`,
+    icon: '',
     filenamePatterns: ['*jkugelman*'],
     defaultRules: [
       { input:'60', length:'', output:'', note:'Great (colorful phrases, sayings, people, etc.)' },
@@ -727,7 +780,7 @@ const LIST_PRESETS = [
     id: 'broda',
     name: 'Peter Broda',
     url: 'peter-broda-wordlist.txt',
-    icon: `<svg width="16" height="16" class="list-icon-svg" aria-hidden="true"><use href="#icon-pb"/></svg>`,
+    icon: '',
     filenamePatterns: ['*broda*', '*peter*broda*'],
     defaultRules: [
       { input:'80-100', length:'7+', output:'60'      },
@@ -937,6 +990,21 @@ function buildSplitBtn(mainLabel, mainOnclick, menuItems, { primary = false, dis
     `<button class="split-btn-main"${titleAttr} onclick="${mainOnclick}"${dis}>${mainLabel}</button>` +
     `<button class="split-btn-arrow" onclick="toggleSplitMenu(event)" title="More options"${dis}>${arrow}</button>` +
     `<div class="split-btn-menu">${items}</div>` +
+    `</div>`;
+}
+
+function buildMoreMenuHTML(menuItems) {
+  const items = menuItems.map(([lbl, fn]) => `<button onclick="${fn}">${lbl}</button>`).join('');
+  return `<div class="split-btn">` +
+    `<button class="split-btn-arrow more-menu-btn" onclick="toggleSplitMenu(event)" title="More options">⋮</button>` +
+    `<div class="split-btn-menu">${items}</div>` +
+    `</div>`;
+}
+
+function buildUrlInputHTML(id, placeholder) {
+  return `<div class="url-input-wrap">` +
+    `<svg class="url-input-icon" width="14" height="14" aria-hidden="true"><use href="#icon-globe"/></svg>` +
+    `<input class="url-input" id="${id}" type="url" placeholder="${placeholder}" spellcheck="false" autocomplete="off">` +
     `</div>`;
 }
 
@@ -2240,7 +2308,7 @@ function renderInputLists() {
   container.innerHTML = state.inputLists.map(list => {
     const isEdits = list.type === 'edits';
     const hasData = list.rawEntries.length > 0;
-    const icon = list.icon || '';
+    const icon = getListIcon(list);
 
     let meta;
     if (!hasData) {
@@ -2463,7 +2531,10 @@ function renderDetail(list) {
     actionBtn = `<button class="primary"${title ? ` title="${title}"` : ''} onclick="importCurrentList()" ${list._loading ? 'disabled' : ''}>${list._loading ? 'Importing…' : 'Import'}${dot}</button>`;
   }
 
-  const removeBtn = `<button onclick="removeCurrentList()">Remove</button>`;
+  const moreMenu = buildMoreMenuHTML([
+    ['Configure', 'configureCurrentList()'],
+    ['Remove',    'removeCurrentList()'],
+  ]);
 
   const dlBtn = hasData ? buildSplitBtn('Download', `downloadCurrentListRescored()`,
     [['Download original', `downloadCurrentListOriginal()`]]) : '';
@@ -2472,7 +2543,7 @@ function renderDetail(list) {
     ...(hasData && list.lastUpdated ? ['<span class="detail-date"></span>'] : []),
     actionBtn,
     ...(dlBtn ? [dlBtn] : []),
-    removeBtn,
+    moreMenu,
   ];
 
   panel.innerHTML = `
@@ -2650,6 +2721,7 @@ function importCurrentList(event)        { if (_detailList) importToList(_detail
 function removeCurrentList(event)        { if (_detailList) removeList(_detailList, event); }
 function downloadCurrentListRescored()   { if (_detailList) downloadIndividualListRescored(_detailList); }
 function downloadCurrentListOriginal()   { if (_detailList) downloadOriginalList(_detailList); }
+function configureCurrentList()          { if (_detailList) ConfigureListDialog.open(_detailList); }
 
 function getSelected() {
   return state.selected !== OUTPUT_ID ? state.selected : null;
@@ -2783,7 +2855,7 @@ const openUpdateSummaryDialog = (() => {
   };
 })();
 
-async function applyWordlistText(list, text, { fetchedSize = null, originalFilename = null, nameOverride = null, source = null } = {}) {
+async function applyWordlistText(list, text, { fetchedSize = null, originalFilename = null, nameOverride = null, source = null, clearUrl = false } = {}) {
   const dbKey = list.dbKey;
   const wasEmpty = !list.rawEntries.length;
   const oldEntries = wasEmpty ? null : list.rawEntries;
@@ -2793,6 +2865,7 @@ async function applyWordlistText(list, text, { fetchedSize = null, originalFilen
   list.lastUpdated = Date.now();
   if (fetchedSize !== null) { list.fetchedSize = fetchedSize; list._updateAvailable = false; }
   if (originalFilename !== null) list.originalFilename = originalFilename;
+  if (clearUrl) { list.url = null; list.fetchedSize = null; list._updateAvailable = false; }
   if (wasEmpty) list.enabled = true;
   invalidateListCaches(list);
   updateCatchAll(list);
@@ -2957,7 +3030,7 @@ function ingestFile(file, list, nameOverride) {
       return;
     }
 
-    await applyWordlistText(list, text, { originalFilename: file.name, nameOverride, source: file.name });
+    await applyWordlistText(list, text, { originalFilename: file.name, nameOverride, source: file.name, clearUrl: true });
   };
   reader.readAsText(file);
 }
@@ -3513,6 +3586,222 @@ function addFromPreset(preset) {
   showToast(`Added ${preset.name}`);
 }
 
+// ─── Configure list dialog ────────────────────────────────────────────────────
+
+const ConfigureListDialog = (() => {
+  const el = document.createElement('dialog');
+  el.id = 'configure-list-dialog';
+  el.setAttribute('aria-labelledby', 'configure-list-title');
+  el.innerHTML = `
+    <button class="dialog-close-btn" aria-label="Close">✕</button>
+    <h2 id="configure-list-title">Configure List</h2>
+    <div class="configure-section">
+      <div class="configure-section-label">Icon</div>
+      <div class="icon-picker-trigger" id="icon-picker-trigger" tabindex="0" role="button" aria-label="Change icon">
+        <div class="icon-preview-box" id="config-icon-preview"></div>
+      </div>
+    </div>
+    <div class="configure-section">
+      <div class="configure-section-label">Apply a preset</div>
+      <div id="config-preset-list"></div>
+    </div>
+    <div class="configure-section">
+      <div class="configure-section-label">Auto-fetch URL</div>
+      ${buildUrlInputHTML('config-url-input', 'https://...')}
+    </div>`;
+
+  // Popup lives inside the dialog so it's in the top layer with it
+  const pickerPopup = document.createElement('div');
+  pickerPopup.id = 'icon-picker-popup';
+  pickerPopup.hidden = true;
+  pickerPopup.innerHTML = `
+    <div class="icon-picker-tabs">
+      <button class="icon-picker-tab active" data-mode="emoji">Emoji</button>
+      <button class="icon-picker-tab" data-mode="url">URL</button>
+    </div>
+    <div class="icon-picker-pane active" data-pane="emoji">
+      <div class="icon-emoji-grid" id="icon-emoji-grid">
+        <button class="icon-emoji-btn" data-auto></button>
+        ${EMOJI_LIST.map(e => `<button class="icon-emoji-btn" data-emoji="${esc(e)}">${e}</button>`).join('')}
+      </div>
+    </div>
+    <div class="icon-picker-pane" data-pane="url">
+      ${buildUrlInputHTML('icon-img-url-input', 'https://example.com/icon.png')}
+    </div>`;
+  el.appendChild(pickerPopup);
+  document.body.appendChild(el);
+
+  let _configList  = null;
+  let _pickerOpen  = false;
+  let _urlDebounce = null;
+
+  const iconPreview   = el.querySelector('#config-icon-preview');
+  const pickerTrigger = el.querySelector('#icon-picker-trigger');
+  const imgUrlInput   = el.querySelector('#icon-img-url-input');
+  const presetListEl  = el.querySelector('#config-preset-list');
+  const urlInput      = el.querySelector('#config-url-input');
+
+  function setListIcon(icon) {
+    if (!_configList) return;
+    _configList.icon = icon;
+    iconPreview.innerHTML = icon || buildInitialsIconHTML(_configList.name, colorSeed(_configList));
+    persistMeta();
+    renderInputLists();
+    renderDetail(_configList);
+  }
+
+  function syncEmojiGrid() {
+    const emojiM = _configList.icon?.match(/<span class="list-icon-emoji"[^>]*>([^<]+)<\/span>/);
+    const cur = emojiM ? emojiM[1] : null;
+    pickerPopup.querySelectorAll('.icon-emoji-btn').forEach(btn => {
+      if (btn.hasAttribute('data-auto')) {
+        btn.classList.toggle('selected', !_configList.icon);
+      } else {
+        btn.classList.toggle('selected', btn.dataset.emoji === cur);
+      }
+    });
+  }
+
+  function showPickerMode(mode) {
+    pickerPopup.querySelectorAll('.icon-picker-tab').forEach(t => t.classList.toggle('active', t.dataset.mode === mode));
+    pickerPopup.querySelectorAll('.icon-picker-pane').forEach(p => p.classList.toggle('active', p.dataset.pane === mode));
+    if (mode === 'emoji')   syncEmojiGrid();
+    if (mode === 'url') setTimeout(() => imgUrlInput.focus(), 30);
+  }
+
+  function openPicker() {
+    _pickerOpen = true;
+    pickerPopup.querySelector('[data-auto]').innerHTML = buildInitialsIconHTML(_configList.name, colorSeed(_configList));
+
+    // Position popup below trigger, relative to dialog (its containing block due to transform)
+    const tr = pickerTrigger.getBoundingClientRect();
+    const dr = el.getBoundingClientRect();
+    pickerPopup.style.top  = (tr.bottom - dr.top + 4) + 'px';
+    pickerPopup.style.left = (tr.left - dr.left) + 'px';
+    pickerPopup.hidden = false;
+
+    const imgM = _configList.icon?.match(/^<img src="([^"]+)"/);
+    if (imgM) { imgUrlInput.value = imgM[1]; showPickerMode('url'); }
+    else      { imgUrlInput.value = ''; showPickerMode('emoji'); }
+  }
+
+  function closePicker() {
+    _pickerOpen = false;
+    pickerPopup.hidden = true;
+  }
+
+  pickerTrigger.addEventListener('click',   () => { _pickerOpen ? closePicker() : openPicker(); });
+  pickerTrigger.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); _pickerOpen ? closePicker() : openPicker(); } });
+
+  // Close picker on click outside popup (but inside dialog)
+  el.addEventListener('mousedown', e => {
+    if (!_pickerOpen) return;
+    if (pickerPopup.contains(e.target) || pickerTrigger.contains(e.target)) return;
+    closePicker();
+  });
+
+  pickerPopup.querySelectorAll('.icon-picker-tab').forEach(tab => {
+    tab.addEventListener('click', () => showPickerMode(tab.dataset.mode));
+  });
+
+  pickerPopup.querySelector('#icon-emoji-grid').addEventListener('click', e => {
+    const btn = e.target.closest('.icon-emoji-btn');
+    if (!btn) return;
+    if (btn.hasAttribute('data-auto')) {
+      setListIcon('');
+    } else {
+      const emoji = btn.dataset.emoji;
+      const isSame = _configList.icon?.includes(`>${esc(emoji)}<`);
+      setListIcon(isSame ? '' : `<span class="list-icon-emoji" aria-hidden="true">${esc(emoji)}</span>`);
+    }
+    syncEmojiGrid();
+    closePicker();
+  });
+
+  imgUrlInput.addEventListener('input', () => {
+    const url = imgUrlInput.value.trim();
+    setListIcon(url ? `<img src="${esc(url)}" class="list-icon-img" onerror="this.style.display='none'" alt="">` : '');
+  });
+
+  urlInput.addEventListener('input', () => {
+    clearTimeout(_urlDebounce);
+    _urlDebounce = setTimeout(() => {
+      if (!_configList) return;
+      _configList.url = urlInput.value.trim() || null;
+      persistMeta();
+      renderDetail(_configList);
+    }, 400);
+  });
+
+  presetListEl.addEventListener('click', async e => {
+    const btn = e.target.closest('button');
+    if (!btn || !_configList) return;
+    const row = btn.closest('.known-list');
+    if (!row?._preset) return;
+    const preset = row._preset;
+
+    _configList.icon     = preset.icon;
+    _configList.url      = preset.url || null;
+    _configList.presetId = preset.id;
+    iconPreview.innerHTML = preset.icon || buildInitialsIconHTML(_configList.name, colorSeed(_configList));
+    urlInput.value        = preset.url || '';
+    if (_pickerOpen) {
+      pickerPopup.querySelector('[data-auto]').innerHTML = buildInitialsIconHTML(_configList.name, colorSeed(_configList));
+      const imgM  = preset.icon?.match(/^<img src="([^"]+)"/);
+      if (imgM) { imgUrlInput.value = imgM[1]; showPickerMode('url'); }
+      else      { showPickerMode('emoji'); }
+    }
+
+    if (preset.defaultRules?.length) {
+      const apply = await showConfirm(
+        `Also apply ${preset.name}'s default rescoring rules?`,
+        { confirmText: 'Apply rules', danger: false }
+      );
+      if (apply) {
+        _configList.rescoreRules = JSON.parse(JSON.stringify(preset.defaultRules));
+        updateCatchAll(_configList);
+      }
+    }
+
+    persistMeta();
+    invalidateListCaches(_configList);
+    refreshSourceCounts();
+    renderInputLists();
+    renderDetail(_configList);
+    showToast(`Applied ${preset.name} preset`);
+  });
+
+  el.addEventListener('cancel', e => { if (_pickerOpen) { e.preventDefault(); closePicker(); } });
+  el.querySelector('.dialog-close-btn').onclick = () => el.close();
+  el.addEventListener('click', e => { if (e.target === el) el.close(); });
+  el.addEventListener('close', () => { closePicker(); clearTimeout(_urlDebounce); });
+
+  function open(list) {
+    if (el.open) { _configList = list; return; }
+    _configList  = list;
+    _pickerOpen  = false;
+    pickerPopup.hidden = true;
+    iconPreview.innerHTML = list.icon || buildInitialsIconHTML(list.name, colorSeed(list));
+    presetListEl.innerHTML = LIST_PRESETS.map(p =>
+      `<div class="known-list${list.presetId === p.id ? ' preset-active' : ''}">
+        ${p.icon || buildInitialsIconHTML(p.name, colorSeed(p))}
+        <div class="known-list-info">
+          <div class="known-list-name">${esc(p.name)}</div>
+          <div class="known-list-sub">${p.url ? 'Auto-fetch' : 'Manual import'}</div>
+        </div>
+        <button>${list.presetId === p.id ? 'Reapply' : 'Apply'}</button>
+      </div>`
+    ).join('');
+    presetListEl.querySelectorAll('.known-list').forEach((row, i) => { row._preset = LIST_PRESETS[i]; });
+    urlInput.value = list.url || '';
+    const opener = document.activeElement;
+    el.addEventListener('close', () => opener?.focus(), { once: true });
+    el.showModal();
+  }
+
+  return { open };
+})();
+
 // ─── Event wiring ─────────────────────────────────────────────────────────────
 
 function bindEvents() {
@@ -3796,10 +4085,43 @@ function getPreset(list) {
   return list.presetId ? LIST_PRESETS.find(p => p.id === list.presetId) ?? null : null;
 }
 
+function applyPreset(list, presetId, { useNeutralRules = false } = {}) {
+  const preset = LIST_PRESETS.find(p => p.id === presetId);
+  if (!preset) return;
+  list.icon = preset.icon;
+  list.url = preset.url || null;
+  list.presetId = preset.id;
+  const rules = useNeutralRules ? preset.neutralRules : preset.defaultRules;
+  list.rescoreRules = rules?.length ? JSON.parse(JSON.stringify(rules)) : [];
+  updateCatchAll(list);
+  persistMeta();
+}
+
 // ─── List icons ───────────────────────────────────────────────────────────────
 
+function nameToInitials(name) {
+  const words = name.trim().split(/\s+/).map(w => w.replace(/[^a-zA-Z0-9]/g, '')).filter(Boolean);
+  if (!words.length) return '?';
+  if (words.length === 1) return words[0].slice(0, 2).toUpperCase();
+  return (words[0][0] + words[words.length - 1][0]).toUpperCase();
+}
+
+function nameColorIndex(name) {
+  let h = 0;
+  for (let i = 0; i < name.length; i++) h = (Math.imul(31, h) + name.charCodeAt(i)) | 0;
+  return Math.abs(h) % INITIALS_PALETTE.length;
+}
+
+function buildInitialsIconHTML(name, colorSeed = name) {
+  return `<span class="list-icon-initials ic-${nameColorIndex(colorSeed)}" aria-hidden="true">${esc(nameToInitials(name))}</span>`;
+}
+
+function colorSeed(obj) {
+  return obj.url || obj.originalFilename || obj.dbKey || obj.name;
+}
+
 function getListIcon(list) {
-  return list.icon || '';
+  return list.icon || buildInitialsIconHTML(list.name, colorSeed(list));
 }
 
 // ─── Import Guide ─────────────────────────────────────────────────────────────
@@ -4240,7 +4562,7 @@ const HelpModal = (() => {
 
         <div class="help-slide" id="help-slide-1">
           <h2>Building Your Wordlist</h2>
-          <p>Add wordlists from well-known sources with one click, or import your own files and URLs.</p>
+          <p>Add wordlists from well-known sources with one click, or import your own files and URLs. Use the ⋮ menu on any list to configure its icon, apply a preset, or change its fetch URL.</p>
           <p>Lists <strong>merge in priority order</strong> — the higher a list sits, the more its scores count when the same word appears in multiple lists. Drag to reorder. Toggle lists on and off to experiment with different combinations.</p>
           <div class="help-demo flush" id="help-slide1-demo"></div>
         </div>
@@ -4524,8 +4846,8 @@ const HelpModal = (() => {
     after(6600, () => { runSearchDemo(); });
   }
 
-  const DEMO_JK_ICON = `<svg width="16" height="16" class="list-icon-svg" aria-hidden="true"><use href="#icon-jk"/></svg>`;
-  const DEMO_PB_ICON = `<svg width="16" height="16" class="list-icon-svg" aria-hidden="true"><use href="#icon-pb"/></svg>`;
+  const DEMO_JK_ICON = buildInitialsIconHTML('John Kugelman', colorSeed(LIST_PRESETS.find(p => p.id === 'jkugelman')));
+  const DEMO_PB_ICON = buildInitialsIconHTML('Peter Broda',   colorSeed(LIST_PRESETS.find(p => p.id === 'broda')));
 
   function initDemoSlides() {
     // Slide 0: two-panel overview

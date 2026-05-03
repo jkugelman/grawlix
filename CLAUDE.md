@@ -22,7 +22,8 @@ Sections within the `<script>` block are delimited by banner comments like:
 **List fields** — every input list carries:
 - `dbKey` — opaque `crypto.randomUUID()` string; used exclusively as the IndexedDB storage key. Never appears in HTML or UI code. `state.selected` stores the selected list object (or `OUTPUT_ID`) — not the dbKey.
 - `type` — `'edits'` for My Edits; absent for all regular input lists. Nothing uses a string constant like `EDITS_ID` anymore — check `list.type === 'edits'`.
-- `icon` — HTML string (inline SVG or emoji span), or `''`. Stored directly on the list; `getListIcon(list)` just returns `list.icon`.
+- `icon` — HTML string (`<img>` for a URL image, or emoji `<span>`), or `''`. Stored directly on the list. `getListIcon(list)` returns `list.icon` if set, otherwise auto-generates an initials icon via `buildInitialsIconHTML`. The color is derived by `colorSeed(obj)` = `obj.url || obj.originalFilename || obj.dbKey || obj.name` — same function works on both list objects and presets, ensuring preset-based lists look consistent for all users.
+- `originalFilename` — the filename last used to import or fetch data into this list (e.g. `'jkugelman-wordlist.txt'`). Set by both `importToList` and `fetchList`. Used as the default download filename and as a fallback color seed. Importing a file clears `list.url`; a list is either auto-fetch or file-based, not both.
 - `presetId` — optional weak reference to the preset last applied (`'xwi'`, `'jkugelman'`, etc.). Display/reset purposes only; never a behavioral gate.
 
 **Presets** (`LIST_PRESETS`) — the four known wordlists (JK, XWI, STWL, Broda) are config bundles, not identities. Each has `id`, `name`, `icon`, `url`, `filenamePatterns`, `defaultRules`, and `neutralRules`. `getPreset(list)` looks up by `list.presetId`. There is no function that checks whether a list's key matches a preset — `getTemplate` is gone.
