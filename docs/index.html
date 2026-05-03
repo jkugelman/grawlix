@@ -3144,7 +3144,7 @@ function deleteFromEdits(word, refreshFn) {
 async function removeList(list, event) {
   if (event) event.stopPropagation();
   if (!list) return;
-  if (!await showConfirm(`Remove "${list.name}"?`, { confirmText: 'Remove' })) return;
+  if (!await showConfirm('', { confirmText: 'Remove', html: `Remove ${buildListNameHTML(list)}?` })) return;
   state.inputLists = state.inputLists.filter(l => l !== list);
   invalidateListCaches(list);
   await idbDel('data_' + list.dbKey);
@@ -3201,9 +3201,9 @@ const showConfirm = (() => {
   const cancelBtn = el.querySelector('#btn-confirm-cancel');
   const xBtn      = el.querySelector('.dialog-close-btn');
 
-  return function(message, { confirmText = 'OK', danger = true } = {}) {
+  return function(message, { confirmText = 'OK', danger = true, html = null } = {}) {
     return new Promise(resolve => {
-      msgEl.textContent = message;
+      if (html != null) { msgEl.innerHTML = html; } else { msgEl.textContent = message; }
       okBtn.textContent = confirmText;
       okBtn.className   = danger ? 'danger' : '';
       const opener = document.activeElement;
