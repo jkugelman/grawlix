@@ -1477,8 +1477,8 @@ function entriesToDownloadText(entries, { upper, comments }) {
   }).join('\n') + '\n';
 }
 
-async function downloadWithDialog(defaultStem, list, entries) {
-  const result = await showDownloadDialog(defaultStem, list);
+async function downloadWithDialog(defaultStem, list, entries, title = 'Download') {
+  const result = await showDownloadDialog(defaultStem, list, title);
   if (!result) return;
   const { stem, ext, caseMode, comments } = result;
   triggerDownload(entriesToDownloadText(entries, { upper: caseMode === 'upper', comments }), `${stem}.${ext}`);
@@ -2411,7 +2411,7 @@ function renderOutputDetail() {
 
 async function downloadOutputListFromPanel() {
   const { entries } = buildOutputList();
-  await downloadWithDialog('Grawlix Wordlist', null, entries);
+  await downloadWithDialog('Grawlix Wordlist', null, entries, 'Download Merged List');
 }
 
 // ─── Output List Scoring ──────────────────────────────────────────────────────
@@ -2547,7 +2547,8 @@ function renderDetail(list) {
   ]);
 
   const dlBtn = hasData ? buildSplitBtn('Download', `downloadCurrentListRescored()`,
-    [['Download original', `downloadCurrentListOriginal()`]]) : '';
+    [['Download rescored list', `downloadCurrentListRescored()`],
+     ['Download original',      `downloadCurrentListOriginal()`]]) : '';
 
   const detailButtons = [
     ...(hasData && list.lastUpdated ? ['<span class="detail-date"></span>'] : []),
@@ -3298,6 +3299,7 @@ const showDownloadDialog = (() => {
       <button id="btn-download-dialog-cancel">Cancel</button>
       <button id="btn-download-dialog-ok" class="primary">Download</button>
     </div>`;
+  const titleEl     = el.querySelector('#download-dialog-title');
   const filenameEl  = el.querySelector('#download-dialog-filename');
   const caseCtrl    = el.querySelector('#download-dialog-case-ctrl');
   const extCtrl     = el.querySelector('#download-dialog-ext-ctrl');
@@ -3306,7 +3308,8 @@ const showDownloadDialog = (() => {
   const cancelBtn  = el.querySelector('#btn-download-dialog-cancel');
   const xBtn       = el.querySelector('.dialog-close-btn');
 
-  return function(defaultStem, list) {
+  return function(defaultStem, list, title = 'Download') {
+    titleEl.textContent = title;
     return new Promise(resolve => {
       const opener = document.activeElement;
       const storageKey = list ? list.dbKey : OUTPUT_ID;
@@ -4594,7 +4597,7 @@ function downloadOriginalList(list) {
 
 async function downloadIndividualListRescored(list) {
   if (!list || !list.rawEntries.length) return;
-  await downloadWithDialog(`Grawlix ${list.name}`, list, applyRescoring(list.rawEntries, list.rescoreRules));
+  await downloadWithDialog(`Grawlix ${list.name}`, list, applyRescoring(list.rawEntries, list.rescoreRules), 'Download Rescored List');
 }
 
 function toggleSplitMenu(event) {
