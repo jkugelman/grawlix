@@ -428,8 +428,6 @@ a.get-file:hover { text-decoration: underline; }
 /* ── Rescore section ──────────────────────────────────────────────────────── */
 .rescore-section { background: var(--surface2); border-bottom: 1px solid var(--border2); padding: 9px 18px; flex-shrink: 0; max-height: 240px; overflow-y: auto; }
 .rescore-top { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
-.rescore-top .rule-reset { margin-left: auto; }
-.hidden { visibility: hidden; }
 .rescore-lbl { font-size: 10px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
 .rule-row { display: flex; align-items: center; gap: 5px; margin-bottom: 3px; }
 .rule-in, .rule-len, .rule-out { padding: 2px 6px; border: 1px solid var(--border); border-radius: 3px; font-size: 12px; font-family: ui-monospace, 'Cascadia Code', monospace; text-align: center; background: var(--input-bg); color: var(--text); }
@@ -449,12 +447,9 @@ a.get-file:hover { text-decoration: underline; }
 .rule-note-pencil { font-size: 11px; color: var(--faint); }
 .rule-row:hover .rule-note-wrap.has-note .rule-note-pencil { opacity: 1; }
 .rule-note-input { flex: 1; padding: 1px 4px; border: 1px solid var(--accent); border-radius: 3px; font-size: 12px; background: var(--input-bg); color: var(--text); outline: none; min-width: 0; }
-.rule-del, .rule-reset { width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; border: none; background: none; cursor: pointer; font-size: 15px; padding: 0; line-height: 1; border-radius: 3px; font-family: inherit; }
-.rule-del { color: transparent; }
-.rule-reset { color: var(--faint); }
+.rule-del { width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; border: none; background: none; cursor: pointer; font-size: 15px; padding: 0; line-height: 1; border-radius: 3px; font-family: inherit; color: transparent; }
 .rule-row:hover .rule-del { color: var(--faint); }
 .rule-del:hover { color: #e53935 !important; background: var(--del-hover); }
-.rule-reset:hover { color: var(--accent); background: var(--hover); }
 
 /* Header */
 .header-controls { display: flex; gap: 12px; align-items: center; }
@@ -1081,21 +1076,17 @@ function buildRulesListHTML(rules, { rulesId, saveFn, deleteFn, rescore = false,
 
 function buildRescoreSectionHTML(list) {
   if (!list) return '';
-  const preset = getPreset(list);
-  const showReset = !!(preset?.defaultRules && !rulesMatchDefaults(list));
-  return `<div class="rescore-top"><span class="rescore-lbl">Rescoring</span><button class="rule-reset${showReset ? '' : ' hidden'}" onclick="resetRescoreRules()" title="Reset to defaults">↺</button></div>` +
+  return `<div class="rescore-top"><span class="rescore-lbl">Rescoring</span></div>` +
     buildRulesListHTML(list.rescoreRules || [], { rulesId: 'rescore-rules', saveFn: 'saveRuleField', deleteFn: 'deleteRule', rescore: true });
 }
 
 function buildOutputScoringSectionHTML() {
-  const showReset = !outputScoringMatchesDefaults();
-  return `<div class="rescore-top"><span class="rescore-lbl">Scoring</span><button class="rule-reset${showReset ? '' : ' hidden'}" onclick="resetOutputScoring()" title="Reset to defaults">↺</button></div>` +
+  return `<div class="rescore-top"><span class="rescore-lbl">Scoring</span></div>` +
     buildRulesListHTML(state.outputScoring, { rulesId: 'output-scoring-rules', saveFn: 'saveOutputScoringField', deleteFn: 'deleteOutputScoringRow' });
 }
 
 function buildEditsScoringSectionHTML(list) {
-  const showReset = !scoringMatchesDefaults(list.scoring);
-  return `<div class="rescore-top"><span class="rescore-lbl">Scoring</span><button class="rule-reset${showReset ? '' : ' hidden'}" onclick="resetEditsScoring()" title="Reset to defaults">↺</button></div>` +
+  return `<div class="rescore-top"><span class="rescore-lbl">Scoring</span></div>` +
     buildRulesListHTML(list.scoring, { rulesId: 'edits-scoring-rules', saveFn: 'saveEditsScoringField', deleteFn: 'deleteEditsScoringRow' });
 }
 
@@ -4246,60 +4237,6 @@ function bindDropZone(zone, fileInput, onFile) {
 
 
 // ─── Rescore rule management ──────────────────────────────────────────────────
-
-function rulesMatchDefaults(list) {
-  const preset = getPreset(list);
-  if (!preset?.defaultRules) return true;
-  const userRules = list.rescoreRules.filter(r => !r._catchAll);
-  if (userRules.length !== preset.defaultRules.length) return false;
-  return userRules.every((r, i) => {
-    const d = preset.defaultRules[i];
-    return r.input === d.input && (r.length || '') === (d.length || '') &&
-           r.output === d.output && (r.note || '') === (d.note || '');
-  });
-}
-
-function scoringMatchesDefaults(scoring) {
-  const userRows = scoring.filter(r => !r._catchAll);
-  if (userRows.length !== DEFAULT_OUTPUT_SCORING.length) return false;
-  return userRows.every((r, i) => r.input === DEFAULT_OUTPUT_SCORING[i].input &&
-    (r.note || '') === (DEFAULT_OUTPUT_SCORING[i].note || ''));
-}
-
-function outputScoringMatchesDefaults() {
-  return scoringMatchesDefaults(state.outputScoring);
-}
-
-function resetOutputScoring() {
-  state.outputScoring = DEFAULT_OUTPUT_SCORING.map(r => ({ ...r }));
-  updateOutputCatchAll();
-  persistOutputScoring();
-  renderOutputScoring();
-  showToast('Scoring reset to defaults');
-}
-
-function resetEditsScoring() {
-  const edits = getEditsList();
-  edits.scoring = DEFAULT_OUTPUT_SCORING.map(r => ({ ...r }));
-  updateScoringCatchAll(edits.scoring, edits.rawEntries);
-  persistMeta();
-  renderEditsScoring();
-  showToast('Scoring reset to defaults');
-}
-
-function resetRescoreRules() {
-  const list = getSelected();
-  if (!list) return;
-  const preset = getPreset(list);
-  if (!preset?.defaultRules) return;
-  list.rescoreRules = JSON.parse(JSON.stringify(preset.defaultRules));
-  updateCatchAll(list);
-  persistMeta();
-  renderRescoreSection();
-  updateRescorePreview();
-  refreshSourceCounts();
-  showToast('Rescoring rules reset to defaults');
-}
 
 function deleteRule(idx) {
   const list = getSelected();
