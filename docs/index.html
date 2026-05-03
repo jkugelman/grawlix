@@ -599,7 +599,7 @@ html.dark-mode #onboarding-banner {
 
 /* ── Help modal ───────────────────────────────────────────────────────────────── */
 #help-dialog {
-  width: 760px; height: 600px; max-height: 88vh; padding: 0;
+  width: 760px; height: 680px; max-height: 88vh; padding: 0;
   border: 1px solid var(--border); border-radius: 8px;
   background: var(--bg); overflow: hidden; outline: none;
 }
@@ -642,6 +642,10 @@ html.dark-mode #onboarding-banner {
 /* Slide 4 search demo table */
 #help-slide-3 .word-table td { padding: 4px 14px; }
 #help-slide-3 .word-table td:nth-child(2) { width: 80px; }
+/* Slide 4 wildcard reference */
+#help-slide-3 .help-wildcards { display: inline-grid; align-self: flex-start; grid-template-columns: auto auto; grid-template-rows: repeat(4, auto); grid-auto-flow: column; gap: 5px 28px; }
+#help-slide-3 .help-wildcards span { font-size: 11px; color: var(--text); display: flex; align-items: baseline; gap: 5px; }
+#help-slide-3 .help-wildcards kbd { font-family: ui-monospace, 'Cascadia Code', monospace; font-size: 11px; color: var(--muted); }
 /* Demo slides: non-interactive */
 #help-slide-0 .list-card,
 #help-slide-0 .search-bar,
@@ -913,6 +917,20 @@ function buildListCardHTML(icon, name, meta, opts = {}) {
   return `<div class="${classes.join(' ')}"${wrapAttrs}>${dragHandle}${icon}${cardInfo}${cardActions}</div>`;
 }
 
+const WILDCARD_HINTS = [
+  { key: '?',       desc: 'any letter' },
+  { key: '*',       desc: 'any number of letters' },
+  { key: '#',       desc: 'consonant' },
+  { key: '@',       desc: 'vowel' },
+  { key: '[jqxz]',  desc: 'any of these letters' },
+  { key: '[^jqxz]', desc: 'none of these letters' },
+  { key: '[a-m]',   desc: 'letter range' },
+];
+
+function buildWildcardSpansHTML() {
+  return WILDCARD_HINTS.map(({ key, desc }) => `<span><kbd>${key}</kbd> ${desc}</span>`).join('\n        ');
+}
+
 function buildSearchBarHTML(opts = {}) {
   const {
     idPrefix        = '',
@@ -927,13 +945,7 @@ function buildSearchBarHTML(opts = {}) {
 
   const hintsHtml = showHints ? `
       <div class="search-help">
-        <span><kbd>?</kbd> any letter</span>
-        <span><kbd>*</kbd> any number of letters</span>
-        <span><kbd>#</kbd> consonant</span>
-        <span><kbd>@</kbd> vowel</span>
-        <span><kbd>[jqxz]</kbd> any of these letters</span>
-        <span><kbd>[^jqxz]</kbd> none of these letters</span>
-        <span><kbd>[a-m]</kbd> letter range</span>
+        ${buildWildcardSpansHTML()}
         <span class="search-count-wrap"><span id="${pre}search-count"></span>${readonly ? '' : ` <button class="copy-btn" id="${pre}search-copy" onclick="copyVisibleEntries()" title="Copy to clipboard" aria-label="Copy matches to clipboard" hidden><svg width="13" height="13" aria-hidden="true"><use href="#icon-clipboard"/></svg></button>`}</span>
       </div>` : '';
 
@@ -4736,8 +4748,11 @@ const HelpModal = (() => {
 
         <div class="help-slide" id="help-slide-3">
           <h2>Searching Your Wordlist</h2>
-          <p>Type in the search bar to instantly filter the wordlist. Matches are highlighted in color so you can see exactly where the term appears.</p>
-          <p>Toggle <strong>Whole word</strong> to match only complete words rather than substrings. Set a <strong>Min score</strong> to hide lower-quality entries.</p>
+          <p>Type in the search bar to instantly filter the wordlist. Toggle <strong>Whole word</strong> to match only complete words rather than substrings. Set a <strong>Min score</strong> to hide lower-quality entries.</p>
+          <p>Use wildcards to match patterns:</p>
+          <div class="help-wildcards">
+            ${buildWildcardSpansHTML()}
+          </div>
           <div class="help-demo flush">
             <div id="help-slide3-bar"></div>
             <table class="word-table"><tbody id="help-word-tbody"></tbody></table>
