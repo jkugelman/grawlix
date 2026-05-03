@@ -324,6 +324,10 @@ dialog h2 { font-size: 16px; margin-bottom: 14px; padding-right: 24px; }
 .configure-section { margin-bottom: 18px; }
 .configure-section:last-child { margin-bottom: 0; }
 .configure-section-label { font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 8px; }
+.configure-icon-name-row { display: grid; grid-template-columns: auto 1fr; column-gap: 12px; row-gap: 8px; }
+.configure-icon-name-row .configure-section-label { margin-bottom: 0; }
+.config-name-input { width: 100%; padding: 6px 8px; border: 1px solid var(--border); border-radius: 4px; font-size: 13px; font-family: inherit; background: var(--input-bg); color: var(--text); box-sizing: border-box; }
+.config-name-input:focus { outline: none; border-color: var(--accent); }
 .known-list.preset-active { border-color: var(--accent); }
 
 /* Icon picker */
@@ -3597,9 +3601,13 @@ const ConfigureListDialog = (() => {
     <button class="dialog-close-btn" aria-label="Close">✕</button>
     <h2 id="configure-list-title">Configure List</h2>
     <div class="configure-section">
-      <div class="configure-section-label">Icon</div>
-      <div class="icon-picker-trigger" id="icon-picker-trigger" tabindex="0" role="button" aria-label="Change icon">
-        <div class="icon-preview-box" id="config-icon-preview"></div>
+      <div class="configure-icon-name-row">
+        <div class="configure-section-label">Icon</div>
+        <div class="configure-section-label">Name</div>
+        <div class="icon-picker-trigger" id="icon-picker-trigger" tabindex="0" role="button" aria-label="Change icon">
+          <div class="icon-preview-box" id="config-icon-preview"></div>
+        </div>
+        <input type="text" id="config-name-input" class="config-name-input" placeholder="List name" spellcheck="false" autocomplete="off">
       </div>
     </div>
     <div class="configure-section">
@@ -3634,12 +3642,14 @@ const ConfigureListDialog = (() => {
   let _configList  = null;
   let _pickerOpen  = false;
   let _urlDebounce = null;
+  let _nameDebounce = null;
 
   const iconPreview   = el.querySelector('#config-icon-preview');
   const pickerTrigger = el.querySelector('#icon-picker-trigger');
   const imgUrlInput   = el.querySelector('#icon-img-url-input');
   const presetListEl  = el.querySelector('#config-preset-list');
   const urlInput      = el.querySelector('#config-url-input');
+  const nameInput     = el.querySelector('#config-name-input');
 
   function setListIcon(icon) {
     if (!_configList) return;
@@ -3733,6 +3743,23 @@ const ConfigureListDialog = (() => {
     }, 400);
   });
 
+  nameInput.addEventListener('input', () => {
+    if (!_configList) return;
+    clearTimeout(_nameDebounce);
+    const newName = nameInput.value.trim();
+    if (!newName || newName === _configList.name) return;
+    _configList.name = newName;
+    if (!_configList.icon) {
+      iconPreview.innerHTML = buildInitialsIconHTML(newName, colorSeed(_configList));
+      if (_pickerOpen) pickerPopup.querySelector('[data-auto]').innerHTML = buildInitialsIconHTML(newName, colorSeed(_configList));
+    }
+    _nameDebounce = setTimeout(() => {
+      persistMeta();
+      renderInputLists();
+      renderDetail(_configList);
+    }, 400);
+  });
+
   presetListEl.addEventListener('click', async e => {
     const btn = e.target.closest('button');
     if (!btn || !_configList) return;
@@ -3774,7 +3801,7 @@ const ConfigureListDialog = (() => {
   el.addEventListener('cancel', e => { if (_pickerOpen) { e.preventDefault(); closePicker(); } });
   el.querySelector('.dialog-close-btn').onclick = () => el.close();
   el.addEventListener('click', e => { if (e.target === el) el.close(); });
-  el.addEventListener('close', () => { closePicker(); clearTimeout(_urlDebounce); });
+  el.addEventListener('close', () => { closePicker(); clearTimeout(_urlDebounce); clearTimeout(_nameDebounce); });
 
   function open(list) {
     if (el.open) { _configList = list; return; }
@@ -3794,6 +3821,7 @@ const ConfigureListDialog = (() => {
     ).join('');
     presetListEl.querySelectorAll('.known-list').forEach((row, i) => { row._preset = LIST_PRESETS[i]; });
     urlInput.value = list.url || '';
+    nameInput.value = list.name || '';
     const opener = document.activeElement;
     el.addEventListener('close', () => opener?.focus(), { once: true });
     el.showModal();
