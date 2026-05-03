@@ -49,6 +49,7 @@ html.dark-mode {
   --usd-added-bg:    #1a3d2a; --usd-added-fg:    #6ee89a;
   --usd-deleted-bg:  #3d1a1a; --usd-deleted-fg:  #f07070;
   --usd-rescored-bg: #2a2a2a; --usd-rescored-fg: #909090;
+  --ok-fg: #6ee89a; --warn-fg: #b09840; --err-fg: #f07070;
 }
 html.light-mode {
   --bg:        #f5f5f5;
@@ -78,6 +79,7 @@ html.light-mode {
   --usd-added-bg:    #e6f4ea; --usd-added-fg:    #2d7a3f;
   --usd-deleted-bg:  #fce8e6; --usd-deleted-fg:  #b71c1c;
   --usd-rescored-bg: #f0f0f0; --usd-rescored-fg: #666666;
+  --ok-fg: #2d7a3f; --warn-fg: #856404; --err-fg: #b71c1c;
 }
 
 body { font-family: system-ui, -apple-system, sans-serif; font-size: 14px; background: var(--bg); color: var(--text); height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
@@ -341,7 +343,17 @@ dialog h2 { font-size: 16px; margin-bottom: 14px; padding-right: 24px; }
 .rules-option-row select { padding: 5px 8px; border: 1px solid var(--border); border-radius: 4px; font-size: 12px; font-family: inherit; background: var(--input-bg); color: var(--text); cursor: pointer; }
 .rules-option-row select:focus { outline: none; border-color: var(--accent); }
 .rules-preview-wrap { margin-top: 10px; background: var(--surface2); border: 1px solid var(--border2); border-radius: 6px; padding: 8px 14px; }
+#url-check-icon { position: absolute; right: 8px; top: 50%; transform: translateY(-50%); font-size: 14px; line-height: 1; pointer-events: none; }
+#config-url-input { padding-right: 26px; }
 .source-meta { font-size: 11px; color: var(--muted); margin-top: 6px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+#source-url-meta { max-height: 0; opacity: 0; overflow: hidden; margin-top: 0; transition: max-height 0.2s ease, opacity 0.2s ease, margin-top 0.2s ease; }
+#source-url-meta.visible { max-height: 40px; opacity: 1; margin-top: 6px; }
+.url-check-warn    { color: var(--warn-fg); }
+.url-check-error   { color: var(--err-fg); }
+.url-check-ok-icon  { color: var(--ok-fg);  font-weight: 700; }
+.url-check-err-icon { color: var(--err-fg); font-weight: 700; }
+.url-check-spinner { width: 13px; height: 13px; border: 2px solid var(--border2); border-top-color: var(--accent); border-radius: 50%; animation: url-check-spin 0.6s linear infinite; }
+@keyframes url-check-spin { to { transform: rotate(360deg); } }
 
 /* Icon picker */
 .icon-picker-trigger { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; padding: 5px 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface2); user-select: none; }
@@ -1108,22 +1120,39 @@ const colWidths = { length: 55, word: 200, score: 90, source: 170, delete: 26 };
 
 // ─── Parsing ─────────────────────────────────────────────────────────────────
 
+function parseWordlistLine(line) {
+  if (!line) return null;
+  const semi = line.indexOf(';');
+  if (semi === -1) return null;
+  const word = line.slice(0, semi);
+  if (!word || word.includes(';')) return null;
+  const rest = line.slice(semi + 1);
+  const semi2 = rest.indexOf(';');
+  const score = parseInt(semi2 === -1 ? rest : rest.slice(0, semi2), 10);
+  if (isNaN(score)) return null;
+  const comment = semi2 === -1 ? '' : rest.slice(semi2 + 1).trim();
+  return { word, score, comment };
+}
+
 function parseWordlist(text) {
   const entries = [];
   for (const line of text.split('\n')) {
-    if (!line) continue;
-    const semi = line.indexOf(';');
-    if (semi === -1) continue;
-    const word = line.slice(0, semi);
-    if (!word || word.includes(';')) continue;
-    const rest = line.slice(semi + 1);
-    const semi2 = rest.indexOf(';');
-    const score = parseInt(semi2 === -1 ? rest : rest.slice(0, semi2), 10);
-    if (isNaN(score)) continue;
-    const comment = semi2 === -1 ? '' : rest.slice(semi2 + 1).trim();
-    entries.push({ word, score, comment });
+    const entry = parseWordlistLine(line);
+    if (entry) entries.push(entry);
   }
   return entries;
+}
+
+// Validates a chunk of wordlist text (e.g., from a Range GET).
+// Drops the last line (may be truncated at a Range boundary).
+// Lines without semicolons are skipped (comments/headers). Returns false if
+// there are no data lines, or any semicolon-containing line fails to parse.
+function validateWordlistChunk(text) {
+  const lines = text.split('\n').slice(0, -1).filter(l => l.length > 0);
+  if (!lines.length) return false;
+  const dataLines = lines.filter(l => l.includes(';'));
+  if (!dataLines.length) return false;
+  return dataLines.every(l => parseWordlistLine(l) !== null);
 }
 
 // ─── Storage ──────────────────────────────────────────────────────────────────
@@ -3439,8 +3468,12 @@ const ConfigureListDialog = (() => {
     </div>
     <div class="configure-section">
       <div class="configure-section-label">Source URL</div>
-      ${buildUrlInputHTML('config-url-input', 'Auto-fetch disabled')}
-      <div id="source-url-meta" class="source-meta" hidden></div>
+      <div class="url-input-wrap">
+        <svg class="url-input-icon" width="14" height="14" aria-hidden="true"><use href="#icon-globe"/></svg>
+        <input class="url-input" id="config-url-input" type="url" placeholder="Auto-update disabled" spellcheck="false" autocomplete="off">
+        <span id="url-check-icon" hidden></span>
+      </div>
+      <div id="source-url-meta" class="source-meta"></div>
     </div>
     <div class="configure-section" id="source-import-section" hidden>
       <div class="configure-section-label">Import</div>
@@ -3498,6 +3531,7 @@ const ConfigureListDialog = (() => {
   const imgUrlInput      = el.querySelector('#icon-img-url-input');
   const nameInput        = el.querySelector('#config-name-input');
   const urlInput         = el.querySelector('#config-url-input');
+  const urlCheckIcon     = el.querySelector('#url-check-icon');
   const urlMetaEl        = el.querySelector('#source-url-meta');
   const importSection    = el.querySelector('#source-import-section');
   const btnSave          = el.querySelector('#btn-cfg-save');
@@ -3678,20 +3712,94 @@ const ConfigureListDialog = (() => {
 
   // ── Source URL / file areas ───────────────────────────────────────────────────
 
-  function updateUrlMeta() {
-    if (_mode !== 'configure' || !_list?.lastUpdated || !_list?.url) {
-      urlMetaEl.hidden = true;
+
+  // ── URL guardrail check ───────────────────────────────────────────────────────
+
+  let _urlCheckTimer = null;
+  let _urlCheckAbort = null;
+
+  const HTTP_REASON = { 400:'Bad Request', 401:'Unauthorized', 403:'Forbidden', 404:'Not Found',
+    405:'Method Not Allowed', 410:'Gone', 429:'Too Many Requests', 500:'Internal Server Error',
+    502:'Bad Gateway', 503:'Service Unavailable', 504:'Gateway Timeout' };
+
+  async function checkUrl(url, signal) {
+    // Step 1: HEAD — reachability + content-length (needed for update checking)
+    let hasContentLength = false;
+    try {
+      const headResp = await fetch(url, { method: 'HEAD', signal });
+      if (!headResp.ok) {
+        const reason = headResp.statusText || HTTP_REASON[headResp.status] || '';
+        urlCheckIcon.innerHTML = '<span class="url-check-err-icon">✗</span>';
+        urlCheckIcon.hidden = false;
+        urlMetaEl.innerHTML = `<span class="url-check-error">Server returned ${headResp.status}${reason ? ' ' + esc(reason) : ''}</span>`;
+        urlMetaEl.classList.add('visible');
+        return;
+      }
+      hasContentLength = !!headResp.headers.get('content-length');
+    } catch (err) {
+      if (err.name === 'AbortError') return;
+      urlCheckIcon.textContent = '❌';
+      urlCheckIcon.hidden = false;
+      urlMetaEl.innerHTML = `<span class="url-check-error">Unreachable — possible CORS restriction</span>`;
+      urlMetaEl.classList.add('visible');
       return;
     }
-    urlMetaEl.hidden = false;
-    urlMetaEl.innerHTML = `<span>Last fetched: ${timeAgo(_list.lastUpdated)}</span>
-      <button class="link-btn" id="btn-fetch-now">Fetch now</button>`;
-    el.querySelector('#btn-fetch-now').onclick = () => {
-      _list.url = urlInput.value.trim() || null;
-      persistMeta();
-      fetchList(_list);
-    };
+
+    // Step 2: Range GET — fetch first 1 KB and validate content
+    let chunkText = '';
+    try {
+      const rangeResp = await fetch(url, { method: 'GET', headers: { 'Range': 'bytes=0-1023' }, signal });
+      if (rangeResp.body) {
+        const reader = rangeResp.body.getReader();
+        try {
+          const { value } = await reader.read();
+          if (value) chunkText = new TextDecoder().decode(value);
+        } finally {
+          reader.cancel();
+        }
+      }
+    } catch (err) {
+      if (err.name === 'AbortError') return;
+      urlCheckIcon.textContent = '⚠️';
+      urlCheckIcon.hidden = false;
+      urlMetaEl.innerHTML = `<span class="url-check-warn">Can't verify content</span>`;
+      urlMetaEl.classList.add('visible');
+      return;
+    }
+
+    if (!validateWordlistChunk(chunkText)) {
+      urlCheckIcon.textContent = '❌';
+      urlCheckIcon.hidden = false;
+      urlMetaEl.innerHTML = `<span class="url-check-error">Not a wordlist file</span>`;
+      urlMetaEl.classList.add('visible');
+      return;
+    }
+
+    if (hasContentLength) {
+      urlCheckIcon.innerHTML = '<span class="url-check-ok-icon">✓</span>';
+      urlCheckIcon.hidden = false;
+      urlMetaEl.classList.remove('visible');
+    } else {
+      urlCheckIcon.textContent = '⚠️';
+      urlCheckIcon.hidden = false;
+      urlMetaEl.innerHTML = `<span class="url-check-warn">Update checking unavailable (no content-length)</span>`;
+      urlMetaEl.classList.add('visible');
+    }
   }
+
+  urlInput.addEventListener('input', () => {
+    clearTimeout(_urlCheckTimer);
+    if (_urlCheckAbort) { _urlCheckAbort.abort(); _urlCheckAbort = null; }
+    const url = urlInput.value.trim();
+    if (!url) { urlCheckIcon.hidden = true; urlMetaEl.classList.remove('visible'); return; }
+    urlCheckIcon.innerHTML = '<div class="url-check-spinner"></div>';
+    urlCheckIcon.hidden = false;
+    urlMetaEl.classList.remove('visible');
+    _urlCheckTimer = setTimeout(() => {
+      _urlCheckAbort = new AbortController();
+      checkUrl(url, _urlCheckAbort.signal);
+    }, 600);
+  });
 
   bindDropZone(el.querySelector('#cfg-drop-zone'), el.querySelector('#cfg-file-input'), file => {
     _pendingFile = file;
@@ -3755,7 +3863,11 @@ const ConfigureListDialog = (() => {
   el.querySelector('.dialog-close-btn').onclick  = () => el.close();
   el.addEventListener('click',  e => { if (e.target === el) el.close(); });
   el.addEventListener('cancel', e => { if (_pickerOpen) { e.preventDefault(); closePicker(); } });
-  el.addEventListener('close',  () => closePicker());
+  el.addEventListener('close',  () => {
+    closePicker();
+    clearTimeout(_urlCheckTimer);
+    if (_urlCheckAbort) { _urlCheckAbort.abort(); _urlCheckAbort = null; }
+  });
 
   // ── open (configure mode) ─────────────────────────────────────────────────────
 
@@ -3781,7 +3893,16 @@ const ConfigureListDialog = (() => {
     renderPublisherChips();
     updateRulesOptionRow();
     updateRulesPreview();
-    updateUrlMeta();
+    if (list.url) {
+      urlCheckIcon.innerHTML = '<div class="url-check-spinner"></div>';
+      urlCheckIcon.hidden = false;
+      urlMetaEl.classList.remove('visible');
+      _urlCheckAbort = new AbortController();
+      checkUrl(list.url, _urlCheckAbort.signal);
+    } else {
+      urlCheckIcon.hidden = true;
+      urlMetaEl.classList.remove('visible');
+    }
     importSection.hidden = true;
 
     const opener = document.activeElement;
@@ -3809,7 +3930,8 @@ const ConfigureListDialog = (() => {
     iconPreview.innerHTML = buildInitialsIconHTML('', colorSeed({ name: '' }));
     nameInput.value = '';
     urlInput.value  = '';
-    urlMetaEl.hidden = true;
+    urlCheckIcon.hidden = true;
+    urlMetaEl.classList.remove('visible');
     importZoneLabel.textContent = 'Drop file here or click to browse';
 
     renderPublisherChips();
