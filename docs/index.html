@@ -347,7 +347,7 @@ dialog h2 { font-size: 16px; margin-bottom: 14px; padding-right: 24px; }
 
 /* Toast */
 #toast-container { position: fixed; bottom: 18px; right: 18px; display: flex; flex-direction: column; gap: 8px; z-index: 1000; pointer-events: none; align-items: flex-end; }
-.toast { background: #333; color: white; padding: 9px 15px; border-radius: 6px; font-size: 13px; opacity: 0; transition: opacity 0.25s; max-width: 360px; pointer-events: none; }
+.toast { background: #333; color: white; padding: 9px 15px; border-radius: 6px; font-size: 13px; opacity: 0; transition: opacity 0.25s; max-width: 360px; overflow-wrap: break-word; pointer-events: none; }
 .toast.show { opacity: 1; pointer-events: auto; cursor: pointer; }
 
 a.get-file { font-size: 12px; color: var(--accent); text-decoration: none; white-space: nowrap; }
@@ -2780,7 +2780,7 @@ const openUpdateSummaryDialog = (() => {
   };
 })();
 
-async function applyWordlistText(list, text, { fetchedSize = null, originalFilename = null, nameOverride = null } = {}) {
+async function applyWordlistText(list, text, { fetchedSize = null, originalFilename = null, nameOverride = null, source = null } = {}) {
   const dbKey = list.dbKey;
   const wasEmpty = !list.rawEntries.length;
   const oldEntries = wasEmpty ? null : list.rawEntries;
@@ -2802,7 +2802,7 @@ async function applyWordlistText(list, text, { fetchedSize = null, originalFilen
   if (state.selected === OUTPUT_ID) renderOutputDetail();
 
   if (wasEmpty) {
-    showToast(`Loaded ${pluralize(list.rawEntries.length, 'entry', 'entries')} from ${list.name}`);
+    showToast(`Loaded ${pluralize(list.rawEntries.length, 'entry', 'entries')} from ${source}`);
   } else {
     const oldMap = new Map(oldEntries.map(e => [e.word, e.score]));
     const newMap = new Map(list.rawEntries.map(e => [e.word, e.score]));
@@ -2835,7 +2835,7 @@ async function fetchList(list, event) {
     const fetchedSize = resp.headers.get('content-length') || null;
     const originalFilename = new URL(list.url).pathname.split('/').pop() || null;
     list._loading = false;
-    await applyWordlistText(list, text, { fetchedSize, originalFilename });
+    await applyWordlistText(list, text, { fetchedSize, originalFilename, source: list.url });
   } catch (err) {
     list._loading = false;
     renderInputLists();
@@ -2954,7 +2954,7 @@ function ingestFile(file, list, nameOverride) {
       return;
     }
 
-    await applyWordlistText(list, text, { originalFilename: file.name, nameOverride });
+    await applyWordlistText(list, text, { originalFilename: file.name, nameOverride, source: file.name });
   };
   reader.readAsText(file);
 }
