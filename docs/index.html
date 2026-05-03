@@ -764,6 +764,7 @@ const EMOJI_LIST = [
 const LIST_PRESETS = [
   {
     id: 'jkugelman',
+    popularity: 4,
     name: 'John Kugelman',
     url: 'https://raw.githubusercontent.com/jkugelman/crossword/refs/heads/main/wordlists/jkugelman-wordlist.txt',
     icon: '',
@@ -779,6 +780,7 @@ const LIST_PRESETS = [
   },
   {
     id: 'xwi',
+    popularity: 2,
     name: 'XWord Info',
     url: null,
     icon: `<img src="https://www.xwordinfo.com/favicon.ico" class="list-icon-img" onerror="this.style.display='none'" alt="">`,
@@ -795,6 +797,7 @@ const LIST_PRESETS = [
   },
   {
     id: 'stwl',
+    popularity: 1,
     name: 'Spread the Word(list)',
     url: 'https://grawlix.wtf/spreadthewordlist.txt',
     icon: `<img src="https://www.spreadthewordlist.com/favicon.ico" class="list-icon-img" onerror="this.style.display='none'" alt="">`,
@@ -809,6 +812,7 @@ const LIST_PRESETS = [
   },
   {
     id: 'broda',
+    popularity: 3,
     name: 'Peter Broda',
     url: 'https://grawlix.wtf/peter-broda-wordlist.txt',
     icon: '',
@@ -3709,7 +3713,7 @@ const ConfigureListDialog = (() => {
   // ── Publisher chips ──────────────────────────────────────────────────────────
 
   function renderPublisherChips() {
-    const chips = LIST_PRESETS.map(p => {
+    const chips = [...LIST_PRESETS].sort((a, b) => a.popularity - b.popularity).map(p => {
       const icon = p.icon || buildInitialsIconHTML(p.name, colorSeed(p));
       return `<button class="publisher-chip${_selectedPreset === p ? ' active' : ''}" data-preset-id="${p.id}">${icon}${esc(p.name)}</button>`;
     });
