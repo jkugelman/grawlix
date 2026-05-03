@@ -1430,6 +1430,7 @@ async function init() {
   if (!lsLoad('visited')) {
     lsSave('visited', '1');
     HelpModal.open();
+    OnboardingBanner.show();
   } else if (!lsLoad('onboarded')) {
     OnboardingBanner.show();
   }
@@ -5031,7 +5032,6 @@ const HelpModal = (() => {
   dialog.addEventListener('close', () => {
     stopDemo();
     document.getElementById('btn-help').focus();
-    if (!lsLoad('onboarded')) OnboardingBanner.show();
   });
   dialog.querySelector('.help-prev').addEventListener('click', prev);
   dialog.querySelector('.help-next').addEventListener('click', next);
