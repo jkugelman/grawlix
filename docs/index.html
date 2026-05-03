@@ -86,10 +86,9 @@ body { font-family: system-ui, -apple-system, sans-serif; font-size: 14px; backg
 
 header { background: var(--hdr-bg); color: white; padding: 10px 20px; display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; }
 header h1 { font-size: 17px; font-weight: 600; letter-spacing: -0.01em; }
-.header-center { flex: 1; display: flex; justify-content: center; align-items: center; gap: 7px; font-size: 14px; }
-.header-tagline { font-style: italic; opacity: 0.75; }
+.header-center { flex: 1; display: flex; justify-content: center; align-items: center; gap: 7px; font-size: 14px; opacity: 0.75; }
+.header-tagline { font-style: italic; }
 .header-sep { opacity: 0.35; }
-.header-byline, .header-feedback { opacity: 0.65; white-space: nowrap; }
 .header-feedback a { color: white; text-decoration: none; border-bottom: 1px solid rgba(255,255,255,0.35); transition: opacity 0.15s; }
 .header-feedback a:hover { opacity: 1; border-bottom-color: white; }
 .bubble { display: inline-flex; align-items: center; background: white; color: var(--accent); border-radius: 8px; padding: 1px 7px 2px; font-size: 15px; font-weight: 800; position: relative; margin-left: 9px; line-height: 1.5; vertical-align: middle; }
@@ -694,9 +693,11 @@ input.cell-edit.score-edit { font-family: ui-monospace, 'Cascadia Code', monospa
   <div class="header-center">
     <span class="header-tagline">Use your words!</span>
     <span class="header-sep">&middot;</span>
-    <span class="header-byline">Made by John Kugelman <a href="https://github.com/jkugelman/crossword/tree/main/grawlix" target="_blank" rel="noopener" title="View on GitHub" class="header-github-link"><svg width="15" height="15" aria-label="GitHub" role="img"><use href="#icon-github"/></svg></a></span>
+    <span class="header-byline">Made with ♥ by John Kugelman</span>
     <span class="header-sep">&middot;</span>
     <span class="header-feedback">Got feedback? <a href="mailto:john@kugelman.name">Email me</a></span>
+    <span class="header-sep">&middot;</span>
+    <span class="header-badges"><a href="https://github.com/jkugelman/crossword/tree/main/grawlix" target="_blank" rel="noopener" title="View on GitHub" class="header-github-link"><svg width="15" height="15" aria-label="GitHub" role="img"><use href="#icon-github"/></svg></a></span>
   </div>
   <button id="btn-settings" class="header-icon-btn" aria-label="Settings"><svg width="24" height="24" aria-hidden="true"><use href="#icon-settings"/></svg><span class="tooltip" aria-hidden="true">Settings</span></button>
   <button id="btn-help" class="header-icon-btn" aria-label="Help"><span class="help-circle">?</span><span class="tooltip" aria-hidden="true">Help</span></button>
