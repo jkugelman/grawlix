@@ -275,7 +275,7 @@ html.dark-mode .tooltip::after { border-bottom-color: #111214; }
 #download-dialog { width: 340px; }
 #download-dialog .dialog-footer { margin-top: 0; padding-top: 30px; border-top: none; }
 #merge-conflict-dialog { width: 380px; }
-dialog > p { margin-bottom: 4px; line-height: 1.5; padding-right: 24px; }
+.dialog-body > p { margin-bottom: 4px; line-height: 1.5; padding-right: 24px; }
 .settings-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 13px 0; border-bottom: 1px solid var(--border2); }
 .settings-row:first-of-type { border-top: 1px solid var(--border2); margin-top: 4px; }
 .settings-row-label { font-size: 13px; font-weight: 600; }
@@ -298,7 +298,8 @@ dialog > p { margin-bottom: 4px; line-height: 1.5; padding-right: 24px; }
 .import-zone:hover, .import-zone.drag-over { border-color: var(--accent); color: var(--accent); }
 
 /* Dialog */
-dialog { width: 420px; border-radius: 10px; border: none; box-shadow: var(--shadow); padding: 22px; font-family: system-ui, sans-serif; background: var(--surface); color: var(--text); position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); max-height: 90vh; overflow-y: auto; }
+dialog { width: 420px; border-radius: 10px; border: none; box-shadow: var(--shadow); font-family: system-ui, sans-serif; background: var(--surface); color: var(--text); position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); max-height: 90vh; overflow-y: auto; }
+.dialog-body { padding: 22px; }
 dialog::backdrop { background: var(--backdrop); }
 dialog h2 { font-size: 16px; margin-bottom: 14px; padding-right: 24px; }
 .dialog-close-btn { position: absolute; top: 10px; right: 12px; background: none; border: none; font-size: 18px; line-height: 1; color: var(--muted); cursor: pointer; padding: 2px 6px; border-radius: 4px; z-index: 1; }
@@ -1256,13 +1257,23 @@ function displayWord(word) {
   return getDisplayCase() === 'upper' ? word.toUpperCase() : word.toLowerCase();
 }
 
+function createDialog(id, { labelledby, label } = {}) {
+  const el = document.createElement('dialog');
+  el.id = id;
+  if (labelledby) el.setAttribute('aria-labelledby', labelledby);
+  if (label)      el.setAttribute('aria-label', label);
+  const body = document.createElement('div');
+  body.className = 'dialog-body';
+  el.appendChild(body);
+  document.body.appendChild(el);
+  return { el, body };
+}
+
 // ─── Settings dialog ──────────────────────────────────────────────────────────
 
 const SettingsDialog = (() => {
-  const el = document.createElement('dialog');
-  el.id = 'settings-dialog';
-  el.setAttribute('aria-labelledby', 'settings-dialog-title');
-  el.innerHTML = `
+  const { el, body } = createDialog('settings-dialog', { labelledby: 'settings-dialog-title' });
+  body.innerHTML = `
     <button class="dialog-close-btn" aria-label="Close">✕</button>
     <h2 id="settings-dialog-title">Settings</h2>
     <div class="settings-row">
@@ -1280,7 +1291,6 @@ const SettingsDialog = (() => {
       </div>
       <button id="btn-reset" class="danger" title="Delete all lists and data"><svg class="icon-trash"><use href="#icon-trash"/></svg> Reset</button>
     </div>`;
-  document.body.appendChild(el);
 
   const seg  = el.querySelector('#dark-mode-seg');
   const ctrl = el.querySelector('#display-case-ctrl');
@@ -2797,6 +2807,7 @@ const openUpdateSummaryDialog = (() => {
   const el = document.createElement('dialog');
   el.id = 'update-summary-dialog';
   el.setAttribute('aria-labelledby', 'update-summary-title');
+  document.body.appendChild(el);
   el.innerHTML = `
     <button class="dialog-close-btn" aria-label="Close">✕</button>
     <div class="usd-header">
@@ -2805,7 +2816,6 @@ const openUpdateSummaryDialog = (() => {
       <div class="usd-pills" id="update-summary-pills"></div>
     </div>
     <div class="usd-scroll" id="update-summary-scroll"></div>`;
-  document.body.appendChild(el);
   const titleEl   = el.querySelector('#update-summary-title');
   const countEl   = el.querySelector('#update-summary-count');
   const pillsEl   = el.querySelector('#update-summary-pills');
@@ -3185,17 +3195,14 @@ function addNewList(listDef) {
 // ─── Confirm Dialog ───────────────────────────────────────────────────────────
 
 const showConfirm = (() => {
-  const el = document.createElement('dialog');
-  el.id = 'confirm-dialog';
-  el.setAttribute('aria-labelledby', 'confirm-dialog-msg');
-  el.innerHTML = `
+  const { el, body } = createDialog('confirm-dialog', { labelledby: 'confirm-dialog-msg' });
+  body.innerHTML = `
     <button class="dialog-close-btn" aria-label="Close">✕</button>
     <p id="confirm-dialog-msg"></p>
     <div class="dialog-footer">
       <button id="btn-confirm-cancel" autofocus>Cancel</button>
       <button id="btn-confirm-ok" class="danger"></button>
     </div>`;
-  document.body.appendChild(el);
   const msgEl     = el.querySelector('#confirm-dialog-msg');
   const okBtn     = el.querySelector('#btn-confirm-ok');
   const cancelBtn = el.querySelector('#btn-confirm-cancel');
@@ -3236,16 +3243,13 @@ const showConfirm = (() => {
 })();
 
 const showAlert = (() => {
-  const el = document.createElement('dialog');
-  el.id = 'alert-dialog';
-  el.setAttribute('aria-labelledby', 'alert-dialog-msg');
-  el.innerHTML = `
+  const { el, body } = createDialog('alert-dialog', { labelledby: 'alert-dialog-msg' });
+  body.innerHTML = `
     <button class="dialog-close-btn" aria-label="Close">✕</button>
     <p id="alert-dialog-msg"></p>
     <div class="dialog-footer">
       <button id="btn-alert-ok" class="primary" autofocus>OK</button>
     </div>`;
-  document.body.appendChild(el);
   const msgEl = el.querySelector('#alert-dialog-msg');
   const okBtn = el.querySelector('#btn-alert-ok');
   const xBtn  = el.querySelector('.dialog-close-btn');
@@ -3278,10 +3282,8 @@ const showAlert = (() => {
 })();
 
 const showDownloadDialog = (() => {
-  const el = document.createElement('dialog');
-  el.id = 'download-dialog';
-  el.setAttribute('aria-labelledby', 'download-dialog-title');
-  el.innerHTML = `
+  const { el, body } = createDialog('download-dialog', { labelledby: 'download-dialog-title' });
+  body.innerHTML = `
     <button class="dialog-close-btn" aria-label="Close">✕</button>
     <h2 id="download-dialog-title">Download</h2>
     <div class="form-field">
@@ -3304,7 +3306,6 @@ const showDownloadDialog = (() => {
       <button id="btn-download-dialog-cancel">Cancel</button>
       <button id="btn-download-dialog-ok" class="primary">Download</button>
     </div>`;
-  document.body.appendChild(el);
   const filenameEl  = el.querySelector('#download-dialog-filename');
   const caseCtrl    = el.querySelector('#download-dialog-case-ctrl');
   const extCtrl     = el.querySelector('#download-dialog-ext-ctrl');
@@ -3395,10 +3396,8 @@ const showDownloadDialog = (() => {
 })();
 
 const showMergeConflict = (() => {
-  const el = document.createElement('dialog');
-  el.id = 'merge-conflict-dialog';
-  el.setAttribute('aria-labelledby', 'merge-conflict-msg');
-  el.innerHTML = `
+  const { el, body } = createDialog('merge-conflict-dialog', { labelledby: 'merge-conflict-msg' });
+  body.innerHTML = `
     <button class="dialog-close-btn" aria-label="Close">✕</button>
     <p id="merge-conflict-msg"></p>
     <div class="dialog-footer">
@@ -3406,7 +3405,6 @@ const showMergeConflict = (() => {
       <button id="btn-merge-use-file">Use Imported File</button>
       <button id="btn-merge-keep-edits" class="primary">Keep My Edits</button>
     </div>`;
-  document.body.appendChild(el);
   const msgEl     = el.querySelector('#merge-conflict-msg');
   const keepBtn   = el.querySelector('#btn-merge-keep-edits');
   const fileBtn   = el.querySelector('#btn-merge-use-file');
@@ -3453,10 +3451,8 @@ const showMergeConflict = (() => {
 // ─── Add list dialog ──────────────────────────────────────────────────────────
 
 const AddListDialog = (() => {
-  const el = document.createElement('dialog');
-  el.id = 'add-list-dialog';
-  el.setAttribute('aria-labelledby', 'add-list-dialog-title');
-  el.innerHTML = `
+  const { el, body } = createDialog('add-list-dialog', { labelledby: 'add-list-dialog-title' });
+  body.innerHTML = `
     <button class="dialog-close-btn" aria-label="Close">✕</button>
     <h2 id="add-list-dialog-title">Add List</h2>
     <div class="tabs">
@@ -3493,7 +3489,6 @@ const AddListDialog = (() => {
         <button class="primary" id="btn-fetch-url">Fetch</button>
       </div>
     </div>`;
-  document.body.appendChild(el);
 
   const builtinListEl = el.querySelector('#builtin-list');
   const importLabel   = el.querySelector('#import-zone-label');
@@ -3597,10 +3592,8 @@ function addFromPreset(preset) {
 // ─── Configure list dialog ────────────────────────────────────────────────────
 
 const ConfigureListDialog = (() => {
-  const el = document.createElement('dialog');
-  el.id = 'configure-list-dialog';
-  el.setAttribute('aria-labelledby', 'configure-list-title');
-  el.innerHTML = `
+  const { el, body } = createDialog('configure-list-dialog', { labelledby: 'configure-list-title' });
+  body.innerHTML = `
     <button class="dialog-close-btn" aria-label="Close">✕</button>
     <h2 id="configure-list-title">Configure List</h2>
     <div class="configure-section">
@@ -3637,7 +3630,6 @@ const ConfigureListDialog = (() => {
       ${buildUrlInputHTML('icon-img-url-input', 'https://example.com/icon.png')}
     </div>`;
   el.appendChild(pickerPopup);
-  document.body.appendChild(el);
 
   let _configList  = null;
   let _pickerOpen  = false;
