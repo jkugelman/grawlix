@@ -644,18 +644,26 @@ const VS_BUFFER    = 60;
 // LS_PREFIX defined in <head> so the FOUC-prevention script can share it.
 const OUTPUT_ID    = '__output__';
 const OUTPUT_NAME  = 'All Merged';
-const EDITS_ID  = '__edits__';
 const EDITS_ICON = `<span class="list-icon-emoji" aria-hidden="true">✏️</span>`;
 const OUTPUT_ICON  = `<svg width="16" height="16" class="list-icon-svg output-icon" aria-hidden="true"><use href="#icon-output"/></svg>`;
 
-const BUILTIN_WORDLISTS = [
+const LIST_PRESETS = [
   {
     id: 'jkugelman',
     name: 'John Kugelman',
-    source: 'builtin-download',
     url: 'https://raw.githubusercontent.com/jkugelman/crossword/refs/heads/main/wordlists/jkugelman-wordlist.txt',
     icon: `<svg width="16" height="16" class="list-icon-svg" aria-hidden="true"><use href="#icon-jk"/></svg>`,
+    filenamePatterns: ['*jkugelman*'],
     defaultRules: [
+      { input:'60', length:'', output:'', note:'Great (colorful phrases, sayings, people, etc.)' },
+      { input:'50', length:'', output:'', note:'Good (dictionary words, phrases)' },
+      { input:'40', length:'', output:'', note:'Fine but watch crosses (proper names, abbreviations, prepositional phrases, unusual plurals)' },
+      { input:'30', length:'', output:'', note:'Not good (plural names, crosswordese, contrived inflections)' },
+      { input:'20', length:'', output:'', note:'Junk (partials, variant spellings, Roman numerals)' },
+      { input:'10', length:'', output:'', note:'Offensive' },
+      { input:'0',  length:'', output:'', note:'Gibberish' },
+    ],
+    neutralRules: [
       { input:'60', length:'', output:'', note:'Great (colorful phrases, sayings, people, etc.)' },
       { input:'50', length:'', output:'', note:'Good (dictionary words, phrases)' },
       { input:'40', length:'', output:'', note:'Fine but watch crosses (proper names, abbreviations, prepositional phrases, unusual plurals)' },
@@ -668,9 +676,9 @@ const BUILTIN_WORDLISTS = [
   {
     id: 'xwi',
     name: 'XWord Info',
-    source: 'import',
     url: null,
     icon: `<img src="https://www.xwordinfo.com/favicon.ico" class="list-icon-img" onerror="this.style.display='none'" alt="">`,
+    filenamePatterns: ['*xword*info*', '*xwi*'],
     defaultRules: [
       { input:'60', length:'', output:'',   note:'Entries considered "assets" to a puzzle' },
       { input:'50', length:'', output:'',   note:'Fine entries' },
@@ -681,13 +689,23 @@ const BUILTIN_WORDLISTS = [
       { input:'10', length:'', output:'20', note:'' },
       { input:'5',  length:'', output:'20', note:'Entries that Will Shortz or other editors have identified as "puzzle-killers"' },
     ],
+    neutralRules: [
+      { input:'60', length:'', output:'', note:'Entries considered "assets" to a puzzle' },
+      { input:'50', length:'', output:'', note:'Fine entries' },
+      { input:'30', length:'', output:'', note:'' },
+      { input:'25', length:'', output:'', note:'Partials, odd abbreviations, very esoteric names, short Roman numerals, etc.' },
+      { input:'20', length:'', output:'', note:'Five-letter entries that would be hard to defend as fine' },
+      { input:'15', length:'', output:'', note:'Random Roman numerals that are longer than three letters' },
+      { input:'10', length:'', output:'', note:'' },
+      { input:'5',  length:'', output:'', note:'Entries that Will Shortz or other editors have identified as "puzzle-killers"' },
+    ],
   },
   {
     id: 'stwl',
     name: 'Spread the Word(list)',
-    source: 'builtin-download',
     url: 'spreadthewordlist.txt',
     icon: `<img src="https://www.spreadthewordlist.com/favicon.ico" class="list-icon-img" onerror="this.style.display='none'" alt="">`,
+    filenamePatterns: ['*spreadthewordlist*', '*stwl*'],
     defaultRules: [
       { input:'50', length:'', output:'50', note:'Clean' },
       { input:'40', length:'', output:'30', note:'Dubious'},
@@ -696,17 +714,26 @@ const BUILTIN_WORDLISTS = [
       { input:'20', length:'', output:'0',  note:'Dubious++'},
       { input:'10', length:'', output:'0',  note:'Dubious+++'},
     ],
+    neutralRules: [
+      { input:'50', length:'', output:'', note:'Clean' },
+      { input:'40', length:'', output:'', note:'Dubious'},
+      { input:'30', length:'', output:'', note:'Dubious+'},
+      { input:'0',  length:'', output:'', note:'Offensive'},
+      { input:'20', length:'', output:'', note:'Dubious++'},
+      { input:'10', length:'', output:'', note:'Dubious+++'},
+    ],
   },
   {
     id: 'broda',
     name: 'Peter Broda',
-    source: 'builtin-download',
     url: 'peter-broda-wordlist.txt',
     icon: `<svg width="16" height="16" class="list-icon-svg" aria-hidden="true"><use href="#icon-pb"/></svg>`,
+    filenamePatterns: ['*broda*', '*peter*broda*'],
     defaultRules: [
       { input:'80-100', length:'7+', output:'60'      },
       { input:'0-100',  length:'',   output:'ignore' },
     ],
+    neutralRules: [],
   },
 ];
 
@@ -753,15 +780,14 @@ function buildDetailHeaderHTML(nameHTML, buttons, { editable = false } = {}) {
   </div>`;
 }
 
-// opts: { isOutput, enabled, selected, id, isEdits, hasData, hasUpdate, interactive }
-// interactive: true  → adds draggable, onclick, tabindex, role, onkeydown, toggle wiring
+// opts: { isOutput, enabled, selected, isEdits, hasData, hasUpdate, interactive }
+// interactive: true  → adds draggable, tabindex, role, data-list marker for event delegation
 // interactive: false → static display card (default — safe for demos)
 function buildListCardHTML(icon, name, meta, opts = {}) {
   const {
     isOutput    = false,
     enabled     = true,
     selected    = false,
-    id          = null,
     isEdits     = false,
     hasData     = true,
     hasUpdate   = false,
@@ -794,12 +820,11 @@ function buildListCardHTML(icon, name, meta, opts = {}) {
     const toggleEnabled = hasData || isEdits;
     const toggleTitle = !toggleEnabled ? 'Click to import'
       : enabled ? 'Enabled — click to disable' : 'Disabled — click to enable';
-    const toggleClick = toggleEnabled ? 'event.stopPropagation()' : `triggerImportForList('${id}',event)`;
     const idAttr = isEdits ? ' id="edits-card"' : '';
-    wrapAttrs = ` data-id="${id}" draggable="true" onclick="selectList('${id}')" tabindex="0" role="option" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();selectList('${id}')}"${idAttr}`;
+    wrapAttrs = ` data-list draggable="true" tabindex="0" role="option"${idAttr}`;
     cardActions = `<div class="card-actions">
-      <label class="toggle" onclick="${toggleClick}" title="${toggleTitle}" aria-label="Toggle ${esc(name)}">
-        <input type="checkbox"${toggleEnabled && enabled ? ' checked' : ''}${toggleEnabled ? '' : ' disabled'} onchange="toggleList('${id}',event)">
+      <label class="toggle" title="${toggleTitle}" aria-label="Toggle ${esc(name)}">
+        <input type="checkbox"${toggleEnabled && enabled ? ' checked' : ''}${toggleEnabled ? '' : ' disabled'}>
         <span class="toggle-slider"></span>
       </label>
     </div>`;
@@ -968,11 +993,11 @@ function buildRulesSectionHTML(rules, { label, rulesId, saveFn, deleteFn, resetF
 
 function buildRescoreSectionHTML(list) {
   if (!list) return '';
-  const tmpl = getTemplate(list.id);
+  const preset = getPreset(list);
   return buildRulesSectionHTML(list.rescoreRules || [], {
     label: 'Rescoring', rulesId: 'rescore-rules',
     saveFn: 'saveRuleField', deleteFn: 'deleteRule', resetFn: 'resetRescoreRules',
-    showReset: !!(tmpl?.defaultRules && !rulesMatchDefaults(list)),
+    showReset: !!(preset?.defaultRules && !rulesMatchDefaults(list)),
     rescore: true,
   });
 }
@@ -1030,8 +1055,8 @@ const DEFAULT_OUTPUT_SCORING = [
 ];
 
 const state = {
-  inputLists: [],       // [{id, name, source, url, enabled, rawEntries, lastUpdated, _loading}]
-  selectedId: null,
+  inputLists: [],       // [{type?, dbKey, icon, presetId?, name, url, enabled, rawEntries, lastUpdated, _loading, rescoreRules}]
+  selected: null,       // OUTPUT_ID | list object | null
   searchQuery: '',
   searchWholeWord: false,
   minScore: null,
@@ -1112,7 +1137,11 @@ function idbDel(key) {
 
 function persistMeta() {
   lsSave('meta', JSON.stringify(state.inputLists.map(l => ({
-    id: l.id, name: l.name, source: l.source, url: l.url || null,
+    ...(l.type     ? { type: l.type }         : {}),
+    dbKey:           l.dbKey,
+    icon:            l.icon || '',
+    ...(l.presetId ? { presetId: l.presetId } : {}),
+    name: l.name, url: l.url || null,
     enabled: l.enabled, lastUpdated: l.lastUpdated || null,
     fetchedSize: l.fetchedSize || null,
     rescoreRules: l.rescoreRules || [],
@@ -1127,8 +1156,8 @@ function persistOutputScoring() {
   lsSave('outputScoring', JSON.stringify(state.outputScoring.filter(r => !r._catchAll)));
 }
 
-async function persistData(id, text) {
-  await idbPut('data_' + id, text);
+async function persistData(dbKey, text) {
+  await idbPut('data_' + dbKey, text);
 }
 
 // ─── Dark mode ────────────────────────────────────────────────────────────────
@@ -1246,10 +1275,24 @@ async function init() {
     try {
       const meta = JSON.parse(raw);
       state.inputLists = await Promise.all(meta.map(async m => {
-        const text = await idbGet('data_' + m.id);
-        const list = { ...m, rawEntries: text ? parseWordlist(text) : [], _loading: false,
-                       rescoreRules: (m.rescoreRules || []).map(r => ({ length: '', ...r })),
-                       originalFilename: m.originalFilename || null };
+        const dbKey = m.dbKey || crypto.randomUUID();
+        const text = await idbGet('data_' + dbKey) ?? await idbGet('data_' + m.id);
+        const list = {
+          ...(m.type     ? { type: m.type }         : {}),
+          dbKey,
+          icon:            m.icon || '',
+          ...(m.presetId ? { presetId: m.presetId } : {}),
+          name: m.name, url: m.url || null,
+          enabled: m.enabled, lastUpdated: m.lastUpdated || null,
+          fetchedSize: m.fetchedSize || null,
+          rescoreRules: (m.rescoreRules || []).map(r => ({ length: '', ...r })),
+          originalFilename: m.originalFilename || null,
+          ...(m.scoring      ? { scoring: m.scoring }           : {}),
+          ...(m.downloadCase ? { downloadCase: m.downloadCase } : {}),
+          ...(m.downloadExt  ? { downloadExt:  m.downloadExt  } : {}),
+          rawEntries: text ? parseWordlist(text) : [],
+          _loading: false,
+        };
         updateCatchAll(list);
         return list;
       }));
@@ -1269,7 +1312,7 @@ async function init() {
     if (!isNaN(ms) && ms >= 0) state.minScore = ms;
   }
 
-  state.selectedId = OUTPUT_ID;
+  state.selected = OUTPUT_ID;
 
   ensureEdits();
   renderAll();
@@ -1283,8 +1326,8 @@ async function init() {
   _updateCheckInterval = setInterval(checkForUpdates, UPDATE_CHECK_INTERVAL);
 
   state.inputLists
-    .filter(l => (l.url || getTemplate(l.id)?.url) && !l.rawEntries.length)
-    .forEach(l => fetchList(l.id));
+    .filter(l => l.url && !l.rawEntries.length)
+    .forEach(l => fetchList(l));
 
   if (!lsLoad('visited')) {
     lsSave('visited', '1');
@@ -1293,9 +1336,17 @@ async function init() {
 }
 
 function defaultInputLists() {
-  return BUILTIN_WORDLISTS.map(t => {
+  return LIST_PRESETS.map(t => {
     const list = {
-      ...t, enabled: true, rawEntries: [], lastUpdated: null, _loading: false,
+      dbKey: crypto.randomUUID(),
+      icon: t.icon,
+      presetId: t.id,
+      name: t.name,
+      url: t.url || null,
+      enabled: true,
+      rawEntries: [],
+      lastUpdated: null,
+      _loading: false,
       rescoreRules: t.defaultRules ? JSON.parse(JSON.stringify(t.defaultRules)) : [],
     };
     updateCatchAll(list);
@@ -1306,18 +1357,28 @@ function defaultInputLists() {
 // ─── My Edits helpers ─────────────────────────────────────────────────────────
 
 function getEditsList() {
-  return state.inputLists.find(l => l.id === EDITS_ID);
+  return state.inputLists.find(l => l.type === 'edits');
 }
 
 function ensureEdits() {
   const edits = getEditsList();
   if (edits) {
     if (!edits.scoring) edits.scoring = DEFAULT_OUTPUT_SCORING.map(r => ({ ...r }));
+    if (!edits.icon) edits.icon = EDITS_ICON;
   } else {
-    const newEdits = { id: EDITS_ID, name: 'My Edits', source: 'edits', url: null,
-                       enabled: true, rawEntries: [], lastUpdated: null, _loading: false,
-                       rescoreRules: [],
-                       scoring: DEFAULT_OUTPUT_SCORING.map(r => ({ ...r })) };
+    const newEdits = {
+      type: 'edits',
+      dbKey: crypto.randomUUID(),
+      icon: EDITS_ICON,
+      name: 'My Edits',
+      url: null,
+      enabled: true,
+      rawEntries: [],
+      lastUpdated: null,
+      _loading: false,
+      rescoreRules: [],
+      scoring: DEFAULT_OUTPUT_SCORING.map(r => ({ ...r })),
+    };
     updateCatchAll(newEdits);
     state.inputLists.unshift(newEdits);
     persistMeta();
@@ -1335,8 +1396,8 @@ function entriesToDownloadText(entries, { upper, comments }) {
   }).join('\n') + '\n';
 }
 
-async function downloadWithDialog(defaultStem, listId, entries) {
-  const result = await showDownloadDialog(defaultStem, listId);
+async function downloadWithDialog(defaultStem, list, entries) {
+  const result = await showDownloadDialog(defaultStem, list);
   if (!result) return;
   const { stem, ext, caseMode, comments } = result;
   triggerDownload(entriesToDownloadText(entries, { upper: caseMode === 'upper', comments }), `${stem}.${ext}`);
@@ -1355,13 +1416,13 @@ async function copyVisibleEntries() {
 }
 
 async function persistEdits(edits) {
-  await persistData(EDITS_ID, entriesToText(edits.rawEntries));
+  await persistData(edits.dbKey, entriesToText(edits.rawEntries));
   persistMeta();
 }
 
 async function downloadEdits() {
   const edits = getEditsList();
-  await downloadWithDialog(edits.name, EDITS_ID, edits.rawEntries);
+  await downloadWithDialog(edits.name, edits, edits.rawEntries);
 }
 
 async function clearEdits() {
@@ -1369,7 +1430,7 @@ async function clearEdits() {
   if (!edits.rawEntries.length) return;
   if (!await showConfirm(`Clear all ${pluralize(edits.rawEntries.length, 'entry', 'entries')} from "${esc(edits.name)}"?`, { confirmText: 'Clear' })) return;
   edits.rawEntries = [];
-  invalidateListCaches(EDITS_ID);
+  invalidateListCaches(edits);
   updateCatchAll(edits);
   await persistEdits(edits);
   refreshSourceCounts();
@@ -1378,21 +1439,22 @@ async function clearEdits() {
 
 // ─── Stats ────────────────────────────────────────────────────────────────────
 
-const _statsCache = new Map();
+const _statsCache = new WeakMap();
+const _outputStatsKey = {};
 let _sourceCountsCache = null;
 let _outputListCache = null;
 
-function invalidateStatsCache(id) { _statsCache.delete(id); }
+function invalidateStatsCache(key) { _statsCache.delete(key); }
 function invalidateSourceCounts() { _sourceCountsCache = null; _outputListCache = null; }
-function invalidateListCaches(id) {
-  invalidateStatsCache(id);
+function invalidateListCaches(list) {
+  invalidateStatsCache(list);
   invalidateSourceCounts();
-  invalidateStatsCache(OUTPUT_ID);
+  invalidateStatsCache(_outputStatsKey);
 }
 
-function computeStats(listId, entries) {
-  if (_statsCache.has(listId)) return _statsCache.get(listId);
-  if (!entries.length) { _statsCache.set(listId, null); return null; }
+function computeStats(key, entries) {
+  if (_statsCache.has(key)) return _statsCache.get(key);
+  if (!entries.length) { _statsCache.set(key, null); return null; }
   let min = Infinity, max = -Infinity;
   const buckets = new Array(11).fill(0);
   const freq = {};
@@ -1413,7 +1475,7 @@ function computeStats(listId, entries) {
   }
   const mean = Math.round(scores.reduce((a, b) => a + b, 0) / scores.length);
   const result = { count: entries.length, min, max, mean, median, mode, buckets, maxBucket: Math.max(...buckets) };
-  _statsCache.set(listId, result);
+  _statsCache.set(key, result);
   return result;
 }
 
@@ -1509,7 +1571,7 @@ class VirtualScroller {
     this._currentCols = [];
     this.showSource = false;
     this.showDeleteCol = false;
-    this.editsId = null;
+    this.editsList = null;
     this.currentListName = '';
     this._onCellEdit = null;  // (word, field, newValue) => void
     this._onEditStart = null; // (word, field, tdEl) => void
@@ -1772,7 +1834,7 @@ class VirtualScroller {
     const frag = document.createDocumentFragment();
     for (let i = start; i < end; i++) {
       const entry = this.entries[i];
-      const { word, score, comment, listName: entryListName, listId } = entry;
+      const { word, score, comment, listName: entryListName, listRef, listIcon = '' } = entry;
       const listName = entryListName || this.currentListName;
       const tier = scoreTier(score);
       const tr = document.createElement('tr');
@@ -1830,9 +1892,9 @@ class VirtualScroller {
 
       let sourceCell = '';
       if (this.showSource) {
-        const rawIcon = listId === this.editsId ? EDITS_ICON : getListIcon(listId);
+        const rawIcon = listIcon;
         const iconHtml = `<span class="source-icon">${rawIcon}</span>`;
-        const editTrash = (this.showEditDeleteCol && listId === this.editsId)
+        const editTrash = (this.showEditDeleteCol && listRef === this.editsList)
           ? `<span class="source-trash" title="Remove edit">${buildTrashIconHTML()}</span>`
           : '';
         sourceCell = `<td class="comment-cell">${iconHtml}${esc(listName || '')}${editTrash}</td>`;
@@ -2141,12 +2203,13 @@ function renderRescoreSection() {
 // ─── Rendering ────────────────────────────────────────────────────────────────
 
 let scroller = null;
+let _detailList = null;
 let _dateTimer = null;
 let _refreshCountsTimer = null;
 
 function renderAll() {
   renderInputLists();
-  if (state.selectedId === OUTPUT_ID) renderOutputDetail();
+  if (state.selected === OUTPUT_ID) renderOutputDetail();
   else renderDetail(getSelected());
 }
 
@@ -2167,15 +2230,15 @@ function renderInputLists() {
   const addRow = `<div class="add-list-row" onclick="AddListDialog.open()">${buildDragHandleHTML()}<span class="add-list-icon">＋</span>Add list</div>`;
 
   if (!_sourceCountsCache) _sourceCountsCache = buildOutputList().sourceCounts;
-  const contribMap = new Map(_sourceCountsCache.map(s => [s.id, s.count]));
+  const contribMap = new Map(_sourceCountsCache.map(s => [s.list, s.count]));
   const totalOutput = _sourceCountsCache.reduce((sum, s) => sum + s.count, 0);
 
-  renderOutputCard(totalOutput ? pluralize(totalOutput, 'entry', 'entries') : 'No data', state.selectedId === OUTPUT_ID);
+  renderOutputCard(totalOutput ? pluralize(totalOutput, 'entry', 'entries') : 'No data', state.selected === OUTPUT_ID);
 
   container.innerHTML = state.inputLists.map(list => {
-    const isEdits = list.id === EDITS_ID;
+    const isEdits = list.type === 'edits';
     const hasData = list.rawEntries.length > 0;
-    const icon = isEdits ? EDITS_ICON : getListIcon(list.id);
+    const icon = list.icon || '';
 
     let meta;
     if (!hasData) {
@@ -2183,7 +2246,7 @@ function renderInputLists() {
     } else if (!list.enabled) {
       meta = pluralize(list.rawEntries.length, 'entry', 'entries');
     } else {
-      const used = contribMap.get(list.id) ?? 0;
+      const used = contribMap.get(list) ?? 0;
       const total = list.rawEntries.length;
       meta = used === total
         ? `${pluralize(used, 'entry', 'entries')} used`
@@ -2191,37 +2254,41 @@ function renderInputLists() {
     }
 
     return buildListCardHTML(icon, list.name, meta, {
-      selected:    list.id === state.selectedId,
+      selected:    state.selected === list,
       enabled:     list.enabled,
-      id:          list.id,
       isEdits,
       hasData,
       hasUpdate:   !!list._updateAvailable,
       interactive: true,
     });
   }).join('') + addRow;
+
+  // Attach _list to each card for event delegation
+  const cards = container.querySelectorAll('.list-card[data-list]');
+  state.inputLists.forEach((list, i) => { if (cards[i]) cards[i]._list = list; });
 }
 
 
 function refreshSourceCounts() {
   invalidateSourceCounts();
-  invalidateStatsCache(OUTPUT_ID);
+  invalidateStatsCache(_outputStatsKey);
   _sourceCountsCache = buildOutputList().sourceCounts;
-  const contribMap = new Map(_sourceCountsCache.map(s => [s.id, s.count]));
-  for (const list of state.inputLists) {
-    const metaEl = document.querySelector(`.list-card[data-id="${CSS.escape(list.id)}"] .card-meta`);
+  const contribMap = new Map(_sourceCountsCache.map(s => [s.list, s.count]));
+  const container = document.getElementById('lists-container');
+  for (const card of container?.querySelectorAll('.list-card[data-list]') ?? []) {
+    const list = card._list;
+    if (!list || !list.enabled || !list.rawEntries.length) continue;
+    const metaEl = card.querySelector('.card-meta');
     if (!metaEl) continue;
-    if (list.enabled && list.rawEntries.length) {
-      const used = contribMap.get(list.id) ?? 0;
-      const total = list.rawEntries.length;
-      metaEl.textContent = used === total
-        ? `${pluralize(used, 'entry', 'entries')} used`
-        : `${used.toLocaleString()} of ${pluralize(total, 'entry', 'entries')} used`;
-    }
+    const used = contribMap.get(list) ?? 0;
+    const total = list.rawEntries.length;
+    metaEl.textContent = used === total
+      ? `${pluralize(used, 'entry', 'entries')} used`
+      : `${used.toLocaleString()} of ${pluralize(total, 'entry', 'entries')} used`;
   }
 
   const totalOutput = _sourceCountsCache.reduce((sum, s) => sum + s.count, 0);
-  renderOutputCard(totalOutput ? pluralize(totalOutput, 'entry', 'entries') : 'No data', state.selectedId === OUTPUT_ID);
+  renderOutputCard(totalOutput ? pluralize(totalOutput, 'entry', 'entries') : 'No data', state.selected === OUTPUT_ID);
 }
 
 function createScroller() {
@@ -2236,7 +2303,7 @@ function renderOutputDetail() {
 
   updateOutputCatchAll();
   const { entries } = buildOutputList();
-  const stats = computeStats(OUTPUT_ID, entries);
+  const stats = computeStats(_outputStatsKey, entries);
 
   const statsHtml = buildStatsBarHTML(stats, 'No lists loaded — add and populate lists to see the merged result');
 
@@ -2249,7 +2316,7 @@ function renderOutputDetail() {
 
   createScroller();
   scroller.showSource = true;
-  scroller.editsId = EDITS_ID;
+  scroller.editsList = getEditsList() ?? null;
   scroller.showEditDeleteCol = true;
   scroller.setEntries(entries, state.searchQuery, [], new Map(), state.searchWholeWord, state.minScore);
 
@@ -2264,7 +2331,7 @@ function renderOutputDetail() {
 
 async function downloadOutputListFromPanel() {
   const { entries } = buildOutputList();
-  await downloadWithDialog('Grawlix Wordlist', OUTPUT_ID, entries);
+  await downloadWithDialog('Grawlix Wordlist', null, entries);
 }
 
 // ─── Output List Scoring ──────────────────────────────────────────────────────
@@ -2365,42 +2432,36 @@ function renderDetail(list) {
     return;
   }
 
-  if (list.id === EDITS_ID) {
+  if (list.type === 'edits') {
     renderEditsDetail(list);
     return;
   }
 
-  const stats = computeStats(list.id, list.rawEntries);
+  _detailList = list;
+
+  const stats = computeStats(list, list.rawEntries);
 
   const statsHtml = buildStatsBarHTML(stats, 'No data loaded — use the Import button to load this list');
 
-  let actionBtn;
   const hasData = list.rawEntries.length > 0;
   const label = hasData ? 'Update' : 'Import';
-  const tmpl = getTemplate(list.id);
-  if (tmpl) {
-    const dot = list._updateAvailable && !list._loading ? ` <span class="update-dot"></span>` : '';
-    const title = list._updateAvailable && !list._loading ? 'Update available' : '';
+  const dot = list._updateAvailable && !list._loading ? ` <span class="update-dot"></span>` : '';
+  const title = list._updateAvailable && !list._loading ? 'Update available' : '';
+
+  let actionBtn;
+  if (list.url) {
     const btnLabel = `${list._loading ? 'Updating…' : label}${dot}`;
-    if (tmpl.url) {
-      actionBtn = buildSplitBtn(btnLabel, `fetchList('${list.id}')`,
-        [['Import file…', `importToList('${list.id}')`]],
-        { primary: true, disabled: !!list._loading, title });
-    } else {
-      actionBtn = `<button class="primary"${title ? ` title="${title}"` : ''} onclick="importToList('${list.id}')" ${list._loading ? 'disabled' : ''}>${list._loading ? 'Importing…' : 'Import'}${dot}</button>`;
-    }
-  } else if (list.url) {
-    const dot = list._updateAvailable && !list._loading ? `<span class="update-dot"></span>` : '';
-    const title = list._updateAvailable && !list._loading ? ' title="Update available"' : '';
-    actionBtn = `<button class="primary"${title} onclick="fetchList('${list.id}')" ${list._loading ? 'disabled' : ''}>${list._loading ? 'Importing…' : 'Import'}${dot}</button>`;
+    actionBtn = buildSplitBtn(btnLabel, `fetchCurrentList()`,
+      [['Import file…', `importCurrentList()`]],
+      { primary: true, disabled: !!list._loading, title });
   } else {
-    actionBtn = `<button class="primary" onclick="importToList('${list.id}')">Import</button>`;
+    actionBtn = `<button class="primary"${title ? ` title="${title}"` : ''} onclick="importCurrentList()" ${list._loading ? 'disabled' : ''}>${list._loading ? 'Importing…' : 'Import'}${dot}</button>`;
   }
 
-  const removeBtn = `<button onclick="removeList('${list.id}')">Remove</button>`;
+  const removeBtn = `<button onclick="removeCurrentList()">Remove</button>`;
 
-  const dlBtn = hasData ? buildSplitBtn('Download', `downloadIndividualListRescored('${list.id}')`,
-    [['Download original', `downloadOriginalList('${list.id}')`]]) : '';
+  const dlBtn = hasData ? buildSplitBtn('Download', `downloadCurrentListRescored()`,
+    [['Download original', `downloadCurrentListOriginal()`]]) : '';
 
   const detailButtons = [
     ...(hasData && list.lastUpdated ? ['<span class="detail-date"></span>'] : []),
@@ -2418,10 +2479,10 @@ function renderDetail(list) {
 
   createScroller();
   scroller.currentListName = list.name;
-  scroller.setEntries(list.rawEntries, state.searchQuery, list.rescoreRules, buildOverrideMap(list.id), state.searchWholeWord, state.minScore);
+  scroller.setEntries(list.rawEntries, state.searchQuery, list.rescoreRules, buildOverrideMap(list), state.searchWholeWord, state.minScore);
 
   attachExternalEditHandlers(scroller, () => {
-    scroller.overrideMap = buildOverrideMap(list.id);
+    scroller.overrideMap = buildOverrideMap(list);
     scroller._render();
   });
 
@@ -2440,12 +2501,13 @@ function setDetailDate(ts) {
 
 function renderEditsDetail(list) {
   const panel = document.getElementById('detail-panel');
+  _detailList = list;
   updateScoringCatchAll(list.scoring, list.rawEntries);
-  const stats = computeStats(list.id, list.rawEntries);
+  const stats = computeStats(list, list.rawEntries);
   const statsHtml = buildStatsBarHTML(stats, 'No edits yet — click a score or comment in any list to start editing');
 
   const editsButtons = [
-    `<button onclick="importToList(EDITS_ID)">Import file</button>`,
+    `<button onclick="importCurrentList()">Import file</button>`,
     `<button class="primary" onclick="downloadEdits()">Download</button>`,
     ...(list.rawEntries.length ? [`<button onclick="clearEdits()">Clear</button>`] : []),
   ];
@@ -2465,7 +2527,7 @@ function renderEditsDetail(list) {
     const entry = list.rawEntries.find(e => e.word.toUpperCase() === word.toUpperCase());
     if (!entry) return;
     entry[field] = newValue;
-    invalidateListCaches(EDITS_ID);
+    invalidateListCaches(list);
     updateCatchAll(list);
     persistEdits(list);
     refreshSourceCounts();
@@ -2500,11 +2562,11 @@ function upsertEdits(word, field, newValue) {
     const comment = field === 'comment' ? newValue : (orig?.comment ?? '');
     edits.rawEntries.push({ word: word.toLowerCase(), score, comment });
   }
-  invalidateListCaches(EDITS_ID);
+  invalidateListCaches(edits);
   updateCatchAll(edits);
   persistEdits(edits);
   // Refresh output or individual view if active
-  if (state.selectedId === OUTPUT_ID) {
+  if (state.selected === OUTPUT_ID) {
     clearTimeout(_refreshCountsTimer);
     _refreshCountsTimer = setTimeout(refreshSourceCounts, 0);
   } else {
@@ -2578,28 +2640,36 @@ function flyToEdits(sourceTd, value) {
   clone.addEventListener('animationend', () => clone.remove(), { once: true });
 }
 
+function fetchCurrentList(event)         { if (_detailList) fetchList(_detailList, event); }
+function importCurrentList(event)        { if (_detailList) importToList(_detailList, event); }
+function removeCurrentList(event)        { if (_detailList) removeList(_detailList, event); }
+function downloadCurrentListRescored()   { if (_detailList) downloadIndividualListRescored(_detailList); }
+function downloadCurrentListOriginal()   { if (_detailList) downloadOriginalList(_detailList); }
+
 function getSelected() {
-  return state.inputLists.find(l => l.id === state.selectedId) || null;
+  return state.selected !== OUTPUT_ID ? state.selected : null;
 }
 
 function selectOutputList() {
-  state.selectedId = OUTPUT_ID;
+  state.selected = OUTPUT_ID;
 
   state.searchQuery = '';
-  document.querySelectorAll('.list-card.selected').forEach(el => el.classList.remove('selected'));
   document.getElementById('output-card')?.classList.add('selected');
+  const container = document.getElementById('lists-container');
+  container?.querySelectorAll('.list-card').forEach(card => card.classList.remove('selected'));
   renderOutputDetail();
 }
 
-function selectList(id) {
-  const prev = state.selectedId;
-  state.selectedId = id;
+function selectList(list) {
+  state.selected = list;
 
   state.searchQuery = '';
   document.getElementById('output-card')?.classList.remove('selected');
-  document.querySelector(`.list-card[data-id="${CSS.escape(prev)}"]`)?.classList.remove('selected');
-  document.querySelector(`.list-card[data-id="${CSS.escape(id)}"]`)?.classList.add('selected');
-  renderDetail(getSelected());
+  const container = document.getElementById('lists-container');
+  container?.querySelectorAll('.list-card').forEach(card => {
+    card.classList.toggle('selected', card._list === list);
+  });
+  renderDetail(list);
 }
 
 function onSearch(query) {
@@ -2709,7 +2779,7 @@ const openUpdateSummaryDialog = (() => {
 })();
 
 async function applyWordlistText(list, text, { fetchedSize = null, originalFilename = null, nameOverride = null } = {}) {
-  const id = list.id;
+  const dbKey = list.dbKey;
   const wasEmpty = !list.rawEntries.length;
   const oldEntries = wasEmpty ? null : list.rawEntries;
 
@@ -2719,15 +2789,15 @@ async function applyWordlistText(list, text, { fetchedSize = null, originalFilen
   if (fetchedSize !== null) { list.fetchedSize = fetchedSize; list._updateAvailable = false; }
   if (originalFilename !== null) list.originalFilename = originalFilename;
   if (wasEmpty) list.enabled = true;
-  invalidateListCaches(id);
+  invalidateListCaches(list);
   updateCatchAll(list);
 
-  await persistData(id, text);
+  await persistData(dbKey, text);
   persistMeta();
 
   renderInputLists();
-  if (state.selectedId === id) renderDetail(list);
-  if (state.selectedId === OUTPUT_ID) renderOutputDetail();
+  if (state.selected === list) renderDetail(list);
+  if (state.selected === OUTPUT_ID) renderOutputDetail();
 
   if (wasEmpty) {
     showToast(`Loaded ${pluralize(list.rawEntries.length, 'entry', 'entries')} from ${list.name}`);
@@ -2748,18 +2818,13 @@ async function applyWordlistText(list, text, { fetchedSize = null, originalFilen
   }
 }
 
-async function fetchList(id, event) {
+async function fetchList(list, event) {
   if (event) event.stopPropagation();
-  const list = state.inputLists.find(l => l.id === id);
-  if (list && !list.url) {
-    const tmpl = getTemplate(id);
-    if (tmpl?.url) { list.url = tmpl.url; persistMeta(); }
-  }
   if (!list || !list.url || list._loading) return;
 
   list._loading = true;
   renderInputLists();
-  if (state.selectedId === id) renderDetail(list);
+  if (state.selected === list) renderDetail(list);
 
   try {
     const resp = await fetch(list.url);
@@ -2772,7 +2837,7 @@ async function fetchList(id, event) {
   } catch (err) {
     list._loading = false;
     renderInputLists();
-    if (state.selectedId === id) renderDetail(list);
+    if (state.selected === list) renderDetail(list);
     const detail = err.message === 'Failed to fetch' ? '' : `: ${err.message}`;
     showToast(`Failed to fetch ${list.url}${detail}`);
   }
@@ -2804,29 +2869,28 @@ async function checkForUpdates() {
   }
 }
 
-function triggerImportForList(id, event) {
+function triggerImportForList(list, event) {
   if (event) event.stopPropagation();
-  if (!state.inputLists.find(l => l.id === id)) return;
-  if (getTemplate(id)?.url) fetchList(id);
-  else importToList(id);
+  if (!list) return;
+  if (list.url) fetchList(list, event);
+  else importToList(list);
 }
 
-function importToList(id, event) {
+function importToList(list, event) {
   if (event) event.stopPropagation();
   const input = document.createElement('input');
   input.type = 'file';
   input.accept = '.txt,.csv';
-  input.onchange = () => { if (input.files[0]) ingestFile(input.files[0], id); };
+  input.onchange = () => { if (input.files[0]) ingestFile(input.files[0], list); };
   input.click();
 }
 
-function ingestFile(file, listId, nameOverride) {
+function ingestFile(file, list, nameOverride) {
   const reader = new FileReader();
   reader.onerror = () => showToast('Error reading file');
   reader.onabort = () => showToast('File read cancelled');
   reader.onload = async e => {
     const text = e.target.result;
-    const list = state.inputLists.find(l => l.id === listId);
     if (!list) return;
 
     const entries = parseWordlist(text);
@@ -2836,7 +2900,7 @@ function ingestFile(file, listId, nameOverride) {
     }
 
     // My Edits: always combine instead of replace
-    if (listId === EDITS_ID && list.rawEntries.length > 0) {
+    if (list.type === 'edits' && list.rawEntries.length > 0) {
       const existingMap = new Map(list.rawEntries.map(e => [e.word.toUpperCase(), e]));
       const newEntries = [], conflicts = [];
       let unchanged = 0;
@@ -2867,18 +2931,18 @@ function ingestFile(file, listId, nameOverride) {
 
       list.rawEntries.push(...newEntries);
       list.lastUpdated = Date.now();
-      invalidateListCaches(listId);
+      invalidateListCaches(list);
       updateCatchAll(list);
 
-      await persistData(listId, entriesToText(list.rawEntries));
+      await persistData(list.dbKey, entriesToText(list.rawEntries));
       persistMeta();
 
       renderInputLists();
-      if (state.selectedId === listId) {
+      if (state.selected === list) {
         if (scroller) scroller.updateEntries(list.rawEntries);
         else renderDetail(list);
       }
-      if (state.selectedId === OUTPUT_ID) renderOutputDetail();
+      if (state.selected === OUTPUT_ID) renderOutputDetail();
 
       const parts = [];
       if (newEntries.length) parts.push(`${newEntries.length.toLocaleString()} new`);
@@ -2946,12 +3010,12 @@ function openAddWordBar() {
       showToast(`Added ${displayWord(word)}`);
     }
 
-    invalidateListCaches(EDITS_ID);
+    invalidateListCaches(edits);
     updateCatchAll(edits);
     persistEdits(edits);
     refreshSourceCounts();
 
-    if (state.selectedId === EDITS_ID) {
+    if (state.selected === edits) {
       renderEditsDetail(edits);
     } else {
       flyToEdits(bar, score);
@@ -2975,7 +3039,7 @@ function deleteFromEdits(word, refreshFn) {
   });
 
   const [removed] = edits.rawEntries.splice(idx, 1);
-  invalidateListCaches(EDITS_ID);
+  invalidateListCaches(edits);
   updateCatchAll(edits);
   persistEdits(edits);
   refresh();
@@ -2983,7 +3047,7 @@ function deleteFromEdits(word, refreshFn) {
 
   showUndoToast(`Removed ${displayWord(removed.word)}`, () => {
     edits.rawEntries.splice(idx, 0, removed);
-    invalidateListCaches(EDITS_ID);
+    invalidateListCaches(edits);
     updateCatchAll(edits);
     persistEdits(edits);
     refresh();
@@ -2991,35 +3055,32 @@ function deleteFromEdits(word, refreshFn) {
   });
 }
 
-async function removeList(id, event) {
+async function removeList(list, event) {
   if (event) event.stopPropagation();
-  const list = state.inputLists.find(l => l.id === id);
   if (!list) return;
   if (!await showConfirm(`Remove "${list.name}"?`, { confirmText: 'Remove' })) return;
-  state.inputLists = state.inputLists.filter(l => l.id !== id);
-  invalidateListCaches(id);
-  await idbDel('data_' + id);
+  state.inputLists = state.inputLists.filter(l => l !== list);
+  invalidateListCaches(list);
+  await idbDel('data_' + list.dbKey);
   persistMeta();
-  if (state.selectedId === id) {
-    state.selectedId = null;
-
+  if (state.selected === list) {
+    state.selected = null;
     scroller = null;
   }
   renderAll();
 }
 
-function toggleList(id, event) {
+function toggleList(list, event) {
   if (event) event.stopPropagation();
-  const list = state.inputLists.find(l => l.id === id);
-  if (!list || (!list.rawEntries.length && id !== EDITS_ID)) return;
+  if (!list || (!list.rawEntries.length && list.type !== 'edits')) return;
   list.enabled = !list.enabled;
   persistMeta();
   renderInputLists();
   refreshSourceCounts();
-  if (state.selectedId === OUTPUT_ID && scroller) {
+  if (state.selected === OUTPUT_ID && scroller) {
     scroller.updateEntries(buildOutputList().entries);
   } else if (scroller) {
-    scroller.overrideMap = buildOverrideMap(state.selectedId);
+    scroller.overrideMap = buildOverrideMap(getSelected());
     scroller._applyFilterAndSort(false);
   }
 }
@@ -3029,9 +3090,10 @@ function addNewList(listDef) {
   updateCatchAll(list);
   state.inputLists.push(list);
   invalidateSourceCounts();
-  invalidateStatsCache(OUTPUT_ID);
+  invalidateStatsCache(_outputStatsKey);
   persistMeta();
   renderInputLists();
+  return list;
 }
 
 // ─── Confirm Dialog ───────────────────────────────────────────────────────────
@@ -3165,12 +3227,12 @@ const showDownloadDialog = (() => {
   const cancelBtn  = el.querySelector('#btn-download-dialog-cancel');
   const xBtn       = el.querySelector('.dialog-close-btn');
 
-  return function(defaultStem, listId) {
+  return function(defaultStem, list) {
     return new Promise(resolve => {
       const opener = document.activeElement;
-      const list = state.inputLists.find(l => l.id === listId);
-      const savedCase     = (list && list.downloadCase) || lsLoad('downloadCase_' + listId) || 'lower';
-      const savedExt      = (list && list.downloadExt)  || lsLoad('downloadExt_' + listId)  || 'txt';
+      const storageKey = list ? list.dbKey : OUTPUT_ID;
+      const savedCase     = (list?.downloadCase) || lsLoad('downloadCase_' + storageKey) || 'lower';
+      const savedExt      = (list?.downloadExt)  || lsLoad('downloadExt_' + storageKey)  || 'txt';
       const savedComments = getDownloadComments() ? 'yes' : 'no';
 
       filenameEl.value = '';
@@ -3215,14 +3277,13 @@ const showDownloadDialog = (() => {
         const caseMode = getCase();
         const ext      = getExt();
         const comments = getComments();
-        const target = state.inputLists.find(l => l.id === listId);
-        if (target) {
-          target.downloadCase = caseMode;
-          target.downloadExt  = ext;
+        if (list) {
+          list.downloadCase = caseMode;
+          list.downloadExt  = ext;
           persistMeta();
         } else {
-          lsSave('downloadCase_' + listId, caseMode);
-          lsSave('downloadExt_' + listId, ext);
+          lsSave('downloadCase_' + OUTPUT_ID, caseMode);
+          lsSave('downloadExt_' + OUTPUT_ID, ext);
         }
         lsSave('downloadComments', comments);
         finish({ stem: filenameEl.value.trim() || defaultStem, ext, caseMode, comments: comments === 'yes' });
@@ -3364,6 +3425,13 @@ const AddListDialog = (() => {
 
   tabBtns.forEach(btn => { btn.onclick = () => showTab(btn.dataset.tab); });
 
+  builtinListEl.addEventListener('click', e => {
+    const btn = e.target.closest('button.primary');
+    if (!btn) return;
+    const row = btn.closest('.known-list');
+    if (row?._preset) addFromPreset(row._preset);
+  });
+
   bindDropZone(el.querySelector('#drop-zone'), el.querySelector('#file-input'), file => {
     _pendingImportFile = file;
     importLabel.textContent = file.name;
@@ -3386,16 +3454,14 @@ const AddListDialog = (() => {
     const name = urlNameEl.value.trim();
     if (!url)  { urlInputEl.focus(); return; }
     if (!name) { urlNameEl.focus();  return; }
-    const id = 'url_' + Date.now();
-    addNewList({ id, name, source: 'url', url, enabled: true });
+    const list = addNewList({ dbKey: crypto.randomUUID(), icon: '', name, url, enabled: true });
     el.close();
-    await fetchList(id);
-    selectList(id);
+    await fetchList(list);
+    selectList(list);
   };
 
   function open() {
-    builtinListEl.innerHTML = BUILTIN_WORDLISTS.map(t => {
-      const exists = state.inputLists.some(l => l.id === t.id);
+    builtinListEl.innerHTML = LIST_PRESETS.map(t => {
       const sub = t.url ? 'Auto-fetch' : 'Manual import';
       return `<div class="known-list">
         ${t.icon || ''}
@@ -3403,11 +3469,13 @@ const AddListDialog = (() => {
           <div class="known-list-name">${esc(t.name)}</div>
           <div class="known-list-sub">${sub}</div>
         </div>
-        <button class="${exists ? '' : 'primary'}" ${exists ? 'disabled' : ''} onclick="addBuiltin('${t.id}')">
-          ${exists ? 'Added' : '+ Add'}
-        </button>
+        <button class="primary">+ Add</button>
       </div>`;
     }).join('');
+
+    builtinListEl.querySelectorAll('.known-list').forEach((row, i) => {
+      row._preset = LIST_PRESETS[i];
+    });
 
     urlInputEl.value   = '';
     urlNameEl.value    = '';
@@ -3416,8 +3484,7 @@ const AddListDialog = (() => {
     importLabel.textContent = 'Drop file here or click to browse';
     importBtn.disabled = true;
 
-    const allAdded = BUILTIN_WORDLISTS.every(t => state.inputLists.some(l => l.id === t.id));
-    showTab(allAdded ? 'import' : 'builtin');
+    showTab('builtin');
 
     const opener = document.activeElement;
     el.addEventListener('close', () => opener?.focus(), { once: true });
@@ -3427,16 +3494,14 @@ const AddListDialog = (() => {
   return { open };
 })();
 
-function addBuiltin(id) {
-  if (state.inputLists.some(l => l.id === id)) return;
-  const t = BUILTIN_WORDLISTS.find(t => t.id === id);
-  if (!t) return;
+function addFromPreset(preset) {
   addNewList({
-    id: t.id, name: t.name, source: t.source, url: t.url || null, enabled: true,
-    rescoreRules: t.defaultRules ? JSON.parse(JSON.stringify(t.defaultRules)) : [],
+    dbKey: crypto.randomUUID(), icon: preset.icon, presetId: preset.id,
+    name: preset.name, url: preset.url || null, enabled: true,
+    rescoreRules: preset.defaultRules ? JSON.parse(JSON.stringify(preset.defaultRules)) : [],
   });
   document.getElementById('add-list-dialog').close();
-  showToast(`Added ${t.name}`);
+  showToast(`Added ${preset.name}`);
 }
 
 // ─── Event wiring ─────────────────────────────────────────────────────────────
@@ -3449,30 +3514,63 @@ function bindEvents() {
 
   document.getElementById('btn-settings').onclick = () => SettingsDialog.open();
 
-  // Drag-to-reorder
-  let _dragId = null;
+  // Delegated click/keydown/change for input list cards
   const listsContainer = document.getElementById('lists-container');
 
+  listsContainer.addEventListener('click', e => {
+    const toggleLabel = e.target.closest('label.toggle');
+    if (toggleLabel) {
+      const card = toggleLabel.closest('.list-card[data-list]');
+      if (card?._list && !card._list.rawEntries.length && card._list.type !== 'edits') {
+        e.stopPropagation();
+        triggerImportForList(card._list, e);
+      }
+      return;
+    }
+    const card = e.target.closest('.list-card[data-list]');
+    if (!card?._list) return;
+    selectList(card._list);
+  });
+
+  listsContainer.addEventListener('keydown', e => {
+    if (e.key !== 'Enter' && e.key !== ' ') return;
+    const card = e.target.closest('.list-card[data-list]');
+    if (!card?._list) return;
+    e.preventDefault();
+    selectList(card._list);
+  });
+
+  listsContainer.addEventListener('change', e => {
+    const toggle = e.target.closest('.toggle input[type="checkbox"]');
+    if (!toggle) return;
+    const card = toggle.closest('.list-card[data-list]');
+    if (!card?._list) return;
+    toggleList(card._list, e);
+  });
+
+  // Drag-to-reorder
+  let _dragList = null;
+
   listsContainer.addEventListener('dragstart', e => {
-    const card = e.target.closest('.list-card');
-    if (!card) return;
-    _dragId = card.dataset.id;
+    const card = e.target.closest('.list-card[data-list]');
+    if (!card?._list) return;
+    _dragList = card._list;
     e.dataTransfer.effectAllowed = 'move';
-    e.dataTransfer.setData('text/plain', _dragId);
+    e.dataTransfer.setData('text/plain', '');
     setTimeout(() => card.classList.add('dragging'), 0);
   });
 
   listsContainer.addEventListener('dragend', () => {
     document.querySelectorAll('.list-card.dragging, .list-card.drag-over')
       .forEach(el => el.classList.remove('dragging', 'drag-over'));
-    _dragId = null;
+    _dragList = null;
   });
 
   listsContainer.addEventListener('dragover', e => {
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
-    const card = e.target.closest('.list-card');
-    if (!card || card.dataset.id === _dragId) return;
+    const card = e.target.closest('.list-card[data-list]');
+    if (!card || card._list === _dragList) return;
     document.querySelectorAll('.list-card.drag-over').forEach(el => el.classList.remove('drag-over'));
     card.classList.add('drag-over');
   });
@@ -3484,11 +3582,11 @@ function bindEvents() {
 
   listsContainer.addEventListener('drop', e => {
     e.preventDefault();
-    const card = e.target.closest('.list-card');
-    const toId = card?.dataset.id;
-    if (!_dragId || !toId || _dragId === toId) return;
-    const fromIdx = state.inputLists.findIndex(l => l.id === _dragId);
-    const toIdx   = state.inputLists.findIndex(l => l.id === toId);
+    const card = e.target.closest('.list-card[data-list]');
+    const toList = card?._list;
+    if (!_dragList || !toList || _dragList === toList) return;
+    const fromIdx = state.inputLists.indexOf(_dragList);
+    const toIdx   = state.inputLists.indexOf(toList);
     if (fromIdx === -1 || toIdx === -1) return;
     const [item] = state.inputLists.splice(fromIdx, 1);
     state.inputLists.splice(toIdx, 0, item);
@@ -3499,12 +3597,12 @@ function bindEvents() {
   });
 
   // Touch drag-to-reorder (for mobile/touch screens)
-  let _touchDragId = null;
+  let _touchDragList = null;
 
-  const commitTouchReorder = toId => {
-    if (!toId || toId === _touchDragId) return;
-    const fromIdx = state.inputLists.findIndex(l => l.id === _touchDragId);
-    const toIdx   = state.inputLists.findIndex(l => l.id === toId);
+  const commitTouchReorder = toList => {
+    if (!toList || toList === _touchDragList) return;
+    const fromIdx = state.inputLists.indexOf(_touchDragList);
+    const toIdx   = state.inputLists.indexOf(toList);
     if (fromIdx === -1 || toIdx === -1) return;
     const [item] = state.inputLists.splice(fromIdx, 1);
     state.inputLists.splice(toIdx, 0, item);
@@ -3516,30 +3614,30 @@ function bindEvents() {
 
   listsContainer.addEventListener('touchstart', e => {
     if (!e.target.closest('.drag-handle')) return;
-    const card = e.target.closest('.list-card');
-    if (!card) return;
+    const card = e.target.closest('.list-card[data-list]');
+    if (!card?._list) return;
     e.preventDefault();
-    _touchDragId = card.dataset.id;
+    _touchDragList = card._list;
     card.classList.add('dragging');
   }, { passive: false });
 
   listsContainer.addEventListener('touchmove', e => {
-    if (!_touchDragId) return;
+    if (!_touchDragList) return;
     e.preventDefault();
     const touch = e.touches[0];
-    const overCard = document.elementFromPoint(touch.clientX, touch.clientY)?.closest('.list-card');
+    const overCard = document.elementFromPoint(touch.clientX, touch.clientY)?.closest('.list-card[data-list]');
     listsContainer.querySelectorAll('.list-card.drag-over').forEach(c => c.classList.remove('drag-over'));
-    if (overCard && overCard.dataset.id !== _touchDragId) overCard.classList.add('drag-over');
+    if (overCard && overCard._list !== _touchDragList) overCard.classList.add('drag-over');
   }, { passive: false });
 
   const endTouchDrag = () => {
-    if (!_touchDragId) return;
+    if (!_touchDragList) return;
     const overCard = listsContainer.querySelector('.list-card.drag-over');
-    const toId = overCard?.dataset.id;
+    const toList = overCard?._list;
     listsContainer.querySelectorAll('.list-card.dragging, .list-card.drag-over')
       .forEach(el => el.classList.remove('dragging', 'drag-over'));
-    commitTouchReorder(toId);
-    _touchDragId = null;
+    commitTouchReorder(toList);
+    _touchDragList = null;
   };
   listsContainer.addEventListener('touchend', endTouchDrag);
   listsContainer.addEventListener('touchcancel', endTouchDrag);
@@ -3549,7 +3647,7 @@ function bindEvents() {
     if (e.key !== 'F2') return;
     const active = document.activeElement;
     if (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA') return;
-    if (state.selectedId) { e.preventDefault(); startCardRename(state.selectedId); }
+    if (state.selected && state.selected !== OUTPUT_ID) { e.preventDefault(); startCardRename(state.selected); }
   });
 
 }
@@ -3561,12 +3659,11 @@ function nameFromPath(str) {
 }
 
 function handleDialogImport(file) {
-  const id   = 'up_' + Date.now();
   const name = document.getElementById('import-name').value.trim();
-  addNewList({ id, name, source: 'import', url: null, enabled: true });
+  const list = addNewList({ dbKey: crypto.randomUUID(), icon: '', name, url: null, enabled: true });
   document.getElementById('add-list-dialog').close();
-  ingestFile(file, id, name);
-  selectList(id);
+  ingestFile(file, list, name);
+  selectList(list);
 }
 
 // ─── Cell popovers ────────────────────────────────────────────────────────────
@@ -3683,16 +3780,16 @@ function _dismissToast(el) {
   el.addEventListener('transitionend', () => el.remove(), { once: true });
 }
 
-// ─── Template lookup ──────────────────────────────────────────────────────────
+// ─── Preset lookup ────────────────────────────────────────────────────────────
 
-function getTemplate(id) {
-  return BUILTIN_WORDLISTS.find(t => t.id === id) ?? null;
+function getPreset(list) {
+  return list.presetId ? LIST_PRESETS.find(p => p.id === list.presetId) ?? null : null;
 }
 
 // ─── List icons ───────────────────────────────────────────────────────────────
 
-function getListIcon(id) {
-  return getTemplate(id)?.icon ?? '';
+function getListIcon(list) {
+  return list.icon || '';
 }
 
 // ─── Import Guide ─────────────────────────────────────────────────────────────
@@ -3714,12 +3811,12 @@ function bindDropZone(zone, fileInput, onFile) {
 // ─── Rescore rule management ──────────────────────────────────────────────────
 
 function rulesMatchDefaults(list) {
-  const tmpl = getTemplate(list.id);
-  if (!tmpl?.defaultRules) return true;
+  const preset = getPreset(list);
+  if (!preset?.defaultRules) return true;
   const userRules = list.rescoreRules.filter(r => !r._catchAll);
-  if (userRules.length !== tmpl.defaultRules.length) return false;
+  if (userRules.length !== preset.defaultRules.length) return false;
   return userRules.every((r, i) => {
-    const d = tmpl.defaultRules[i];
+    const d = preset.defaultRules[i];
     return r.input === d.input && (r.length || '') === (d.length || '') &&
            r.output === d.output && (r.note || '') === (d.note || '');
   });
@@ -3756,9 +3853,9 @@ function resetEditsScoring() {
 function resetRescoreRules() {
   const list = getSelected();
   if (!list) return;
-  const tmpl = getTemplate(list.id);
-  if (!tmpl?.defaultRules) return;
-  list.rescoreRules = JSON.parse(JSON.stringify(tmpl.defaultRules));
+  const preset = getPreset(list);
+  if (!preset?.defaultRules) return;
+  list.rescoreRules = JSON.parse(JSON.stringify(preset.defaultRules));
   updateCatchAll(list);
   persistMeta();
   renderRescoreSection();
@@ -3937,6 +4034,12 @@ function startHeaderRename() {
   const h2 = document.querySelector('.detail-header h2');
   if (!h2 || h2.querySelector('input')) return;
 
+  const container = document.getElementById('lists-container');
+  const findCardNameEl = () => {
+    const card = [...container.querySelectorAll('.list-card[data-list]')].find(c => c._list === list);
+    return card?.querySelector('.card-name') ?? null;
+  };
+
   const input = document.createElement('input');
   input.className = 'name-edit-input';
   input.value = list.name;
@@ -3952,30 +4055,29 @@ function startHeaderRename() {
       if (newName !== originalName) {
         list.name = newName;
         persistMeta();
-        const cardNameEl = document.querySelector(`.list-card[data-id="${CSS.escape(list.id)}"] .card-name`);
+        const cardNameEl = findCardNameEl();
         if (cardNameEl) cardNameEl.textContent = newName;
       }
     },
     onCancel() {
       h2.textContent = originalName;
-      const cardNameEl = document.querySelector(`.list-card[data-id="${CSS.escape(list.id)}"] .card-name`);
+      const cardNameEl = findCardNameEl();
       if (cardNameEl && !cardNameEl.querySelector('input')) cardNameEl.textContent = originalName;
     },
     onInput(val) {
-      const cardNameEl = document.querySelector(`.list-card[data-id="${CSS.escape(list.id)}"] .card-name`);
+      const cardNameEl = findCardNameEl();
       if (cardNameEl && !cardNameEl.querySelector('input')) cardNameEl.textContent = val;
     },
   });
 }
 
-function startCardRename(id) {
-  const card = document.querySelector(`.list-card[data-id="${CSS.escape(id)}"]`);
+function startCardRename(list) {
+  if (!list) return;
+  const container = document.getElementById('lists-container');
+  const card = [...container.querySelectorAll('.list-card[data-list]')].find(c => c._list === list);
   if (!card) return;
   const nameEl = card.querySelector('.card-name');
   if (!nameEl || nameEl.querySelector('input')) return;
-
-  const list = state.inputLists.find(l => l.id === id);
-  if (!list) return;
 
   const input = document.createElement('input');
   input.className = 'card-name-edit';
@@ -3994,7 +4096,7 @@ function startCardRename(id) {
         list.name = newName;
         persistMeta();
         nameEl.textContent = newName;
-        if (state.selectedId === id) {
+        if (state.selected === list) {
           const h2 = document.querySelector('.detail-header h2');
           if (h2 && !h2.querySelector('input')) h2.textContent = newName;
         }
@@ -4017,15 +4119,15 @@ function startCardRename(id) {
 // ─── Merge & Download ─────────────────────────────────────────────────────────
 
 // List order determines merge priority: higher-priority lists appear earlier in state.inputLists; the loop breaks at the target list's position.
-function buildOverrideMap(listId) {
+function buildOverrideMap(list) {
   const map = new Map();
-  for (const list of state.inputLists) {
-    if (list.id === listId) break;
-    if (!list.enabled || !list.rawEntries.length) continue;
-    const rescored = applyRescoring(list.rawEntries, list.rescoreRules);
+  for (const l of state.inputLists) {
+    if (l === list) break;
+    if (!l.enabled || !l.rawEntries.length) continue;
+    const rescored = applyRescoring(l.rawEntries, l.rescoreRules);
     for (const { word, score, comment } of rescored) {
       const w = word.toUpperCase();
-      if (!map.has(w)) map.set(w, { listName: list.name, score, comment: comment || '' });
+      if (!map.has(w)) map.set(w, { listName: l.name, score, comment: comment || '' });
     }
   }
   return map;
@@ -4044,11 +4146,11 @@ function buildOutputList() {
     for (const { word, score, comment } of rescored) {
       const key = word.toUpperCase();
       if (!outputMap.has(key)) {
-        outputMap.set(key, { word: word.toLowerCase(), score, comment: comment || '', listName: list.name, listId: list.id });
+        outputMap.set(key, { word: word.toLowerCase(), score, comment: comment || '', listName: list.name, listRef: list, listIcon: list.icon || '' });
         count++;
       }
     }
-    sourceCounts.push({ id: list.id, name: list.name, count });
+    sourceCounts.push({ list, count });
   }
 
   const entries = [...outputMap.values()]
@@ -4071,8 +4173,7 @@ function triggerDownload(text, filename) {
   URL.revokeObjectURL(url);
 }
 
-function downloadOriginalList(id) {
-  const list = state.inputLists.find(l => l.id === id);
+function downloadOriginalList(list) {
   if (!list || !list.rawEntries.length) return;
   const withComments = getDownloadComments();
   const text = list.rawEntries.map(e =>
@@ -4083,10 +4184,9 @@ function downloadOriginalList(id) {
   showToast(`Downloaded ${pluralize(list.rawEntries.length, 'entry', 'entries')}`);
 }
 
-async function downloadIndividualListRescored(id) {
-  const list = state.inputLists.find(l => l.id === id);
+async function downloadIndividualListRescored(list) {
   if (!list || !list.rawEntries.length) return;
-  await downloadWithDialog(`Grawlix ${list.name}`, id, applyRescoring(list.rawEntries, list.rescoreRules));
+  await downloadWithDialog(`Grawlix ${list.name}`, list, applyRescoring(list.rawEntries, list.rescoreRules));
 }
 
 function toggleSplitMenu(event) {

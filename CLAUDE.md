@@ -17,7 +17,15 @@ Sections within the `<script>` block are delimited by banner comments like:
 
 ## Data model
 
-`state` holds `inputLists` (the per-list data), `selectedId`, search state, and `outputScoring` (tier labels for the output list view). Each list has metadata, `rawEntries` (parsed words), and `rescoreRules`.
+`state` holds `inputLists` (the per-list data), `selected`, search state, and `outputScoring` (tier labels for the output list view). Each list has metadata, `rawEntries` (parsed words), and `rescoreRules`.
+
+**List fields** — every input list carries:
+- `dbKey` — opaque `crypto.randomUUID()` string; used exclusively as the IndexedDB storage key. Never appears in HTML or UI code. `state.selected` stores the selected list object (or `OUTPUT_ID`) — not the dbKey.
+- `type` — `'edits'` for My Edits; absent for all regular input lists. Nothing uses a string constant like `EDITS_ID` anymore — check `list.type === 'edits'`.
+- `icon` — HTML string (inline SVG or emoji span), or `''`. Stored directly on the list; `getListIcon(list)` just returns `list.icon`.
+- `presetId` — optional weak reference to the preset last applied (`'xwi'`, `'jkugelman'`, etc.). Display/reset purposes only; never a behavioral gate.
+
+**Presets** (`LIST_PRESETS`) — the four known wordlists (JK, XWI, STWL, Broda) are config bundles, not identities. Each has `id`, `name`, `icon`, `url`, `filenamePatterns`, `defaultRules`, and `neutralRules`. `getPreset(list)` looks up by `list.presetId`. There is no function that checks whether a list's key matches a preset — `getTemplate` is gone.
 
 **Wordlist file format** — one entry per line:
 ```
@@ -30,21 +38,23 @@ WORD;SCORE;COMMENT
 ## Persistence
 
 - **localStorage** (prefix `grawlix_`): list metadata and settings. `persistMeta()` saves all list metadata.
-- **IndexedDB**: raw wordlist text per list. Lists can be hundreds of thousands of words, too large for localStorage. `persistData(id, text)` saves one list's text.
+- **IndexedDB**: raw wordlist text per list. Lists can be hundreds of thousands of words, too large for localStorage. `persistData(list, text)` saves one list's text, keyed by `list.dbKey`.
 
 ## Key concepts
 
-**My Edits** — `EDITS_ID = '__edits__'` is a special list created automatically on first boot. It has no rescore rules (scores pass through as-is). Clicking a score or comment cell in any view opens an inline editor; saving upserts the entry into My Edits. From the My Edits view the user can also add new words and delete entries (with undo). It is reorderable like any other list (position determines merge priority). The UI enforces: not deletable, always enabled.
+**My Edits** — a special list created automatically on first boot, identified by `list.type === 'edits'`. It has no rescore rules (scores pass through as-is). Clicking a score or comment cell in any view opens an inline editor; saving upserts the entry into My Edits. From the My Edits view the user can also add new words and delete entries (with undo). It is reorderable like any other list (position determines merge priority). The UI enforces: not deletable, always enabled.
 
 **Override and rescore display** — When viewing an input list, score and comment cells always show the *effective* value (what actually appears in the merged output), not the raw value from that list. A red superscript asterisk (`*`) indicates the displayed value differs from what the list itself contains. An instant HTML popover (`#cell-popover`) explains why: the original score for rescored entries, or the overriding list's name for overrides. Both conditions can apply simultaneously. The overrideMap (built by `buildOverrideMap`) stores `{ listName, score, comment }` from the highest-priority list above the current one; a comment override only applies when that list has a non-empty comment. Editing an overridden cell pre-fills the input with the effective value (not the raw value) so the user is editing what actually matters — the result always lands in My Edits regardless.
 
-**Output list** — `OUTPUT_ID = '__merged__'` selects a union of all enabled lists, deduped by word. The highest rescored value wins; losers are shown faded with a tooltip. Displayed as "All Merged" in the UI.
+**Output list** — `OUTPUT_ID = '__output__'` selects a union of all enabled lists, deduped by word. The highest rescored value wins; losers are shown faded with a tooltip. Displayed as "All Merged" in the UI.
 
 **Score tiers** — `great` (≥60), `good` (≥50), `fair` (≥40), `meh` (≥30), `bad` (<30). Drive score badge colors via `data-tier` and `--score-{tier}-{bg,fg}` CSS vars.
 
 **Search syntax** — `?` (any letter), `#` (consonant), `@` (vowel), `*` (any substring), `[abc]` (character class). Whole-word toggle anchors the pattern.
 
 **Virtual scroller** — `VirtualScroller` renders only visible rows. Row height is fixed.
+
+**Event delegation** — list card interactions (click, keydown, change, drag) use delegated listeners on `#lists-container`. At render time, `renderInputLists()` sets `card._list = list` on each `.list-card[data-list]` DOM element. Handlers retrieve the list via `e.target.closest('.list-card[data-list]')._list`. No list ID or `dbKey` appears in HTML attributes.
 
 ## CSS custom properties
 
