@@ -569,6 +569,22 @@ input.cell-edit.score-edit { font-family: ui-monospace, 'Cascadia Code', monospa
 /* Toast undo link */
 .toast .undo-link { margin-left: 10px; color: #90caf9; text-decoration: underline; cursor: pointer; }
 
+/* ── Onboarding banner ────────────────────────────────────────────────────────── */
+#onboarding-banner {
+  margin: 6px 10px 2px;
+  padding: 11px 13px;
+  background: color-mix(in srgb, var(--accent) 7%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--border));
+  border-radius: 6px;
+  font-size: 13px;
+  position: relative;
+}
+#onboarding-banner p { margin: 0 18px 10px 0; line-height: 1.5; color: var(--text); }
+#onboarding-banner button { font-size: 12px; }
+#onboarding-banner button.primary { padding: 4px 10px; }
+#onboarding-banner .dialog-close-btn { font-size: 12px; top: 7px; right: 8px; }
+.onboarding-banner-actions { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+
 /* ── Help modal ───────────────────────────────────────────────────────────────── */
 #help-dialog {
   width: 760px; height: 600px; max-height: 88vh; padding: 0;
@@ -1413,6 +1429,8 @@ async function init() {
   if (!lsLoad('visited')) {
     lsSave('visited', '1');
     HelpModal.open();
+  } else if (!lsLoad('onboarded')) {
+    OnboardingBanner.show();
   }
 }
 
@@ -5012,12 +5030,64 @@ const HelpModal = (() => {
   dialog.addEventListener('close', () => {
     stopDemo();
     document.getElementById('btn-help').focus();
+    if (!lsLoad('onboarded')) OnboardingBanner.show();
   });
   dialog.querySelector('.help-prev').addEventListener('click', prev);
   dialog.querySelector('.help-next').addEventListener('click', next);
   dialog.querySelectorAll('.help-dot').forEach((dot, i) => dot.addEventListener('click', () => goTo(i)));
 
   return { open, close, goTo };
+})();
+
+// ─── Onboarding Banner ────────────────────────────────────────────────────────
+
+const OnboardingBanner = (() => {
+  const banner = document.createElement('div');
+  banner.id = 'onboarding-banner';
+  banner.hidden = true;
+  banner.innerHTML = `
+    <button class="dialog-close-btn" aria-label="Dismiss">✕</button>
+    <p>Some popular wordlists are set up with suggested scoring rules.</p>
+    <div class="onboarding-banner-actions">
+      <button class="link-btn">Start with a blank slate instead</button>
+      <button class="primary">Looks good ✓</button>
+    </div>`;
+
+  function show() {
+    if (!banner.isConnected) {
+      const listsContainer = document.getElementById('lists-container');
+      listsContainer.parentNode.insertBefore(banner, listsContainer);
+    }
+    banner.hidden = false;
+  }
+
+  function dismiss() {
+    banner.hidden = true;
+    lsSave('onboarded', '1');
+  }
+
+  async function goBlank() {
+    const toRemove = state.inputLists.filter(l => l.type !== 'edits');
+    state.inputLists = state.inputLists.filter(l => l.type === 'edits');
+    toRemove.forEach(l => invalidateListCaches(l));
+    if (state.selected !== OUTPUT_ID && toRemove.includes(state.selected)) {
+      state.selected = OUTPUT_ID;
+    }
+    state.outputScoring = [];
+    persistOutputScoring();
+    const edits = getEditsList();
+    if (edits) edits.scoring = [];
+    persistMeta();
+    await Promise.all(toRemove.map(l => idbDel('data_' + l.dbKey)));
+    renderAll();
+    dismiss();
+  }
+
+  banner.querySelector('.primary').addEventListener('click', dismiss);
+  banner.querySelector('.dialog-close-btn').addEventListener('click', dismiss);
+  banner.querySelector('.link-btn').addEventListener('click', goBlank);
+
+  return { show, dismiss };
 })();
 
 // ─── Boot ─────────────────────────────────────────────────────────────────────
