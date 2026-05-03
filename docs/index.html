@@ -3540,6 +3540,7 @@ function bindEvents() {
 
   listsContainer.addEventListener('keydown', e => {
     if (e.key !== 'Enter' && e.key !== ' ') return;
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
     const card = e.target.closest('.list-card[data-list]');
     if (!card?._list) return;
     e.preventDefault();
