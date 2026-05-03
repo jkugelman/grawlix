@@ -110,7 +110,7 @@ main { display: flex; flex: 1; overflow: hidden; position: relative; }
 .add-list-row:hover { background: var(--hover); color: var(--accent); }
 .add-list-icon { font-size: 15px; line-height: 1; width: 16px; text-align: center; flex-shrink: 0; }
 
-/* List card / Merged card */
+/* List card */
 .list-card { padding: 10px 14px; border-bottom: 1px solid var(--border3); cursor: pointer; display: flex; align-items: center; gap: 9px; transition: background 0.1s; }
 .list-card:hover { background: var(--hover); }
 .list-card.selected { background: var(--sel); border-left: 3px solid var(--accent); padding-left: 11px; }
@@ -431,7 +431,7 @@ a.get-file:hover { text-decoration: underline; }
 input[type="file"] { display: none; }
 .annotation { position: absolute; border: 3px solid #e53935; border-radius: 50px; pointer-events: none; box-shadow: 0 0 6px rgba(229,57,53,0.4); }
 
-/* Merged wordlist card */
+/* Output list card */
 #output-card { flex-shrink: 0; user-select: none; }
 .output-icon { color: var(--accent); }
 
@@ -2503,7 +2503,7 @@ function upsertEdits(word, field, newValue) {
   invalidateListCaches(EDITS_ID);
   updateCatchAll(edits);
   persistEdits(edits);
-  // Refresh merged or individual view if active
+  // Refresh output or individual view if active
   if (state.selectedId === OUTPUT_ID) {
     clearTimeout(_refreshCountsTimer);
     _refreshCountsTimer = setTimeout(refreshSourceCounts, 0);
