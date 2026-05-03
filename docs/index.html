@@ -1661,6 +1661,7 @@ class VirtualScroller {
     this._onEditEnd = null;   // () => void
     this._onDeleteRow = null; // (word) => void
     this._editingCell = null;
+    this._sortScores = null;
 
     container.style.overflowY = 'auto';
 
@@ -1720,13 +1721,14 @@ class VirtualScroller {
     this.table.addEventListener('mouseleave', () => { _popTd = null; hideCellPopover(); });
   }
 
-  setEntries(allEntries, query, rescoreRules, overrideMap, wholeWord = false, minScore = null) {
+  setEntries(allEntries, query, rescoreRules, overrideMap, wholeWord = false, minScore = null, rescoredEntries = null) {
     this.allEntries = allEntries;
     this.hasComments = allEntries.some(e => e.comment);
     this.rescoreRules = rescoreRules || [];
     this.overrideMap = overrideMap || new Map();
     this.sortKey = 'word';
     this.sortDir = 'asc';
+    this._buildSortScores(rescoredEntries);
     this._buildHeader();
     this.filter(query, wholeWord, minScore);
   }
@@ -1734,12 +1736,14 @@ class VirtualScroller {
   updateEntries(allEntries) {
     this.allEntries = allEntries;
     this.hasComments = allEntries.some(e => e.comment);
+    this._sortScores = null;
     this._buildHeader();
     this._applyFilterAndSort(false);
   }
 
   setRescore(rules) {
     this.rescoreRules = rules || [];
+    this._sortScores = null;
     this._buildHeader();
     this._applyFilterAndSort(false);
   }
@@ -1876,11 +1880,8 @@ class VirtualScroller {
       const key = this.sortKey;
       const dir = this.sortDir === 'asc' ? 1 : -1;
       if (key === 'score' && (this.rescoreRules.length || this.overrideMap.size)) {
-        const scoreMap = new Map(entries.map(e => {
-          const d = this._entryDisplayState(e);
-          return [e, d.ignored ? -1 : d.effectiveScore];
-        }));
-        entries = [...entries].sort((a, b) => dir * (scoreMap.get(a) - scoreMap.get(b)));
+        if (!this._sortScores) this._buildSortScores(null);
+        entries = [...entries].sort((a, b) => dir * (this._sortScores.get(a) - this._sortScores.get(b)));
       } else {
         entries = [...entries].sort((a, b) => {
           const av = key === 'length' ? a.word.length : (a[key] ?? '');
@@ -1901,12 +1902,40 @@ class VirtualScroller {
     this._render();
   }
 
-  _entryDisplayState(entry) {
+  _buildSortScores(rescoredEntries) {
+    if (!this.rescoreRules.length && !this.overrideMap.size) { this._sortScores = null; return; }
+    const map = new Map();
+    const hasOverrides = this.overrideMap.size > 0;
+    if (rescoredEntries) {
+      const rescoreMap = new Map();
+      for (const e of rescoredEntries) rescoreMap.set(e.word, e.score);
+      for (const e of this.allEntries) {
+        const ov = hasOverrides && this.overrideMap.get(e.word.toUpperCase());
+        map.set(e, ov ? ov.score : (rescoreMap.get(e.word) ?? -1));
+      }
+    } else {
+      const rescoreCache = new Map();
+      for (const e of this.allEntries) {
+        const d = this._entryDisplayState(e, rescoreCache);
+        map.set(e, d.ignored ? -1 : d.effectiveScore);
+      }
+    }
+    this._sortScores = map;
+  }
+
+  _entryDisplayState(entry, rescoreCache) {
     let rescoredScore = entry.score;
     let wasRescored = false;
     let ignored = false;
     if (this.rescoreRules.length) {
-      const r = rescoreEntry(entry, this.rescoreRules);
+      const cacheKey = rescoreCache !== undefined ? `${entry.score}:${entry.word.length}` : null;
+      let r;
+      if (cacheKey !== null) {
+        r = rescoreCache.get(cacheKey);
+        if (r === undefined) { r = rescoreEntry(entry, this.rescoreRules); rescoreCache.set(cacheKey, r); }
+      } else {
+        r = rescoreEntry(entry, this.rescoreRules);
+      }
       if (!r.kept) {
         ignored = true;
       } else {
@@ -2577,10 +2606,11 @@ function renderDetail(list) {
 
   createScroller();
   scroller.currentListName = list.name;
-  scroller.setEntries(list.rawEntries, state.searchQuery, list.rescoreRules, buildOverrideMap(list), state.searchWholeWord, state.minScore);
+  scroller.setEntries(list.rawEntries, state.searchQuery, list.rescoreRules, buildOverrideMap(list), state.searchWholeWord, state.minScore, getRescoredEntries(list));
 
   attachExternalEditHandlers(scroller, () => {
     scroller.overrideMap = buildOverrideMap(list);
+    scroller._sortScores = null;
     scroller._render();
   });
 
@@ -3181,6 +3211,7 @@ function toggleList(list, event) {
     scroller.updateEntries(buildOutputList().entries);
   } else if (scroller) {
     scroller.overrideMap = buildOverrideMap(getSelected());
+    scroller._sortScores = null;
     scroller._applyFilterAndSort(false);
   }
 }
