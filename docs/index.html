@@ -341,12 +341,7 @@ dialog h2 { font-size: 16px; margin-bottom: 14px; padding-right: 24px; }
 .rules-option-row select { flex: 1; padding: 5px 8px; border: 1px solid var(--border); border-radius: 4px; font-size: 12px; font-family: inherit; background: var(--input-bg); color: var(--text); cursor: pointer; }
 .rules-option-row select:focus { outline: none; border-color: var(--accent); }
 .rules-preview-wrap { margin-top: 10px; background: var(--surface2); border: 1px solid var(--border2); border-radius: 6px; padding: 8px 14px; }
-.source-radio-group { display: flex; flex-direction: column; gap: 7px; margin-bottom: 10px; }
-.source-radio-label { display: flex; align-items: center; gap: 7px; font-size: 13px; cursor: pointer; }
-.source-radio-label input[type="radio"] { margin: 0; cursor: pointer; }
 .source-meta { font-size: 11px; color: var(--muted); margin-top: 6px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.source-file-row { display: flex; align-items: center; gap: 8px; }
-.source-filename { font-size: 12px; font-family: ui-monospace, 'Cascadia Code', monospace; color: var(--text); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* Icon picker */
 .icon-picker-trigger { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; padding: 5px 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface2); user-select: none; }
@@ -3048,7 +3043,7 @@ function ingestFile(file, list, nameOverride) {
       return;
     }
 
-    await applyWordlistText(list, text, { originalFilename: file.name, nameOverride, source: file.name, clearUrl: true });
+    await applyWordlistText(list, text, { originalFilename: file.name, nameOverride, source: file.name });
   };
   reader.readAsText(file);
 }
@@ -3475,27 +3470,17 @@ const ConfigureListDialog = (() => {
       </div>
     </div>
     <div class="configure-section">
-      <div class="configure-section-label">Source</div>
-      <div class="source-radio-group">
-        <label class="source-radio-label"><input type="radio" name="cfg-source-type" value="url"> Auto-fetch URL</label>
-        <label class="source-radio-label"><input type="radio" name="cfg-source-type" value="file"> Imported file</label>
-      </div>
-      <div id="source-url-area">
-        ${buildUrlInputHTML('config-url-input', 'https://...')}
-        <div id="source-url-meta" class="source-meta" hidden></div>
-      </div>
-      <div id="source-file-area" hidden>
-        <div id="source-file-config-row" class="source-file-row" hidden>
-          <span id="source-filename" class="source-filename"></span>
-          <button id="btn-source-import">Import</button>
+      <div class="configure-section-label">Source URL</div>
+      ${buildUrlInputHTML('config-url-input', 'Auto-fetch disabled')}
+      <div id="source-url-meta" class="source-meta" hidden></div>
+    </div>
+    <div class="configure-section" id="source-import-section" hidden>
+      <div class="configure-section-label">Import</div>
+      <div id="source-file-add-zone">
+        <div class="import-zone" id="cfg-drop-zone">
+          <span id="cfg-import-zone-label">Drop file here or click to browse</span>
+          <input type="file" id="cfg-file-input" accept=".txt,.csv">
         </div>
-        <div id="source-file-add-zone" hidden>
-          <div class="import-zone" id="cfg-drop-zone">
-            <span id="cfg-import-zone-label">Drop file here or click to browse</span>
-            <input type="file" id="cfg-file-input" accept=".txt,.csv">
-          </div>
-        </div>
-        <div id="source-file-meta" class="source-meta" hidden></div>
       </div>
     </div>
     <div class="dialog-footer">
@@ -3531,7 +3516,6 @@ const ConfigureListDialog = (() => {
   let _pendingIcon    = '';
   let _pendingName    = '';
   let _rulesOption    = 'none';
-  let _sourceType     = 'url';
   let _pendingFile    = null;
 
   // Elements
@@ -3544,18 +3528,11 @@ const ConfigureListDialog = (() => {
   const pickerTrigger    = el.querySelector('#icon-picker-trigger');
   const imgUrlInput      = el.querySelector('#icon-img-url-input');
   const nameInput        = el.querySelector('#config-name-input');
-  const sourceUrlArea    = el.querySelector('#source-url-area');
-  const sourceFileArea   = el.querySelector('#source-file-area');
   const urlInput         = el.querySelector('#config-url-input');
   const urlMetaEl        = el.querySelector('#source-url-meta');
-  const fileConfigRow    = el.querySelector('#source-file-config-row');
-  const fileAddZone      = el.querySelector('#source-file-add-zone');
-  const filenameEl       = el.querySelector('#source-filename');
-  const btnSourceImport  = el.querySelector('#btn-source-import');
-  const fileMetaEl       = el.querySelector('#source-file-meta');
+  const importSection    = el.querySelector('#source-import-section');
   const btnSave          = el.querySelector('#btn-cfg-save');
   const importZoneLabel  = el.querySelector('#cfg-import-zone-label');
-  const radios           = el.querySelectorAll('input[name="cfg-source-type"]');
 
   // ── Icon picker ──────────────────────────────────────────────────────────────
 
@@ -3656,10 +3633,7 @@ const ConfigureListDialog = (() => {
         nameInput.value = preset.name;
         setBufferedIcon(preset.icon);
         if (preset.url) {
-          _sourceType = 'url';
           urlInput.value = preset.url;
-          updateSourceRadios();
-          updateSourceAreas();
         }
       }
       _rulesOption = _mode === 'add' ? 'recommended' : 'none';
@@ -3719,26 +3693,10 @@ const ConfigureListDialog = (() => {
 
   nameInput.addEventListener('focus', () => nameInput.classList.remove('invalid'));
 
-  // ── Source radios / areas ─────────────────────────────────────────────────────
-
-  function updateSourceRadios() {
-    radios.forEach(r => { r.checked = r.value === _sourceType; });
-  }
-
-  function updateSourceAreas() {
-    sourceUrlArea.hidden  = _sourceType !== 'url';
-    sourceFileArea.hidden = _sourceType !== 'file';
-  }
-
-  radios.forEach(radio => {
-    radio.addEventListener('change', () => {
-      _sourceType = radio.value;
-      updateSourceAreas();
-    });
-  });
+  // ── Source URL / file areas ───────────────────────────────────────────────────
 
   function updateUrlMeta() {
-    if (_mode !== 'configure' || !_list?.lastUpdated || _sourceType !== 'url') {
+    if (_mode !== 'configure' || !_list?.lastUpdated || !_list?.url) {
       urlMetaEl.hidden = true;
       return;
     }
@@ -3751,8 +3709,6 @@ const ConfigureListDialog = (() => {
       fetchList(_list);
     };
   }
-
-  btnSourceImport.onclick = () => { if (_list) importToList(_list); };
 
   bindDropZone(el.querySelector('#cfg-drop-zone'), el.querySelector('#cfg-file-input'), file => {
     _pendingFile = file;
@@ -3777,7 +3733,7 @@ const ConfigureListDialog = (() => {
     const name = nameInput.value.trim();
     if (!name) { nameInput.focus(); nameInput.classList.add('invalid'); return; }
     const rules = computeRulesToApply();
-    const url   = _sourceType === 'url' ? urlInput.value.trim() || null : null;
+    const url   = urlInput.value.trim() || null;
 
     if (_mode === 'add') {
       const list = addNewList({
@@ -3787,9 +3743,9 @@ const ConfigureListDialog = (() => {
         rescoreRules: rules || [],
       });
       el.close();
-      if (_sourceType === 'url' && url) {
+      if (url) {
         fetchList(list).then(() => selectList(list));
-      } else if (_sourceType === 'file' && _pendingFile) {
+      } else if (_pendingFile) {
         ingestFile(_pendingFile, list, name);
         selectList(list);
       } else {
@@ -3827,7 +3783,6 @@ const ConfigureListDialog = (() => {
     _selectedPreset = getPreset(list);
     _pendingIcon    = list.icon || '';
     _pendingName    = list.name || '';
-    _sourceType     = list.url ? 'url' : 'file';
     _pendingFile    = null;
     _rulesOption    = 'none';
 
@@ -3842,19 +3797,8 @@ const ConfigureListDialog = (() => {
     renderPublisherChips();
     updateRulesOptionRow();
     updateRulesPreview();
-    updateSourceRadios();
-    updateSourceAreas();
     updateUrlMeta();
-
-    fileConfigRow.hidden = false;
-    fileAddZone.hidden   = true;
-    filenameEl.textContent = list.originalFilename || '—';
-    if (list.lastUpdated && !list.url) {
-      fileMetaEl.hidden = false;
-      fileMetaEl.textContent = `Last imported: ${timeAgo(list.lastUpdated)}`;
-    } else {
-      fileMetaEl.hidden = true;
-    }
+    importSection.hidden = true;
 
     const opener = document.activeElement;
     el.addEventListener('close', () => opener?.focus(), { once: true });
@@ -3870,7 +3814,6 @@ const ConfigureListDialog = (() => {
     _selectedPreset = null;
     _pendingIcon    = '';
     _pendingName    = '';
-    _sourceType     = 'url';
     _pendingFile    = null;
     _rulesOption    = 'none';
 
@@ -3887,12 +3830,8 @@ const ConfigureListDialog = (() => {
     renderPublisherChips();
     updateRulesOptionRow();
     updateRulesPreview();
-    updateSourceRadios();
-    updateSourceAreas();
 
-    fileConfigRow.hidden = true;
-    fileAddZone.hidden   = false;
-    fileMetaEl.hidden    = true;
+    importSection.hidden = false;
 
     const opener = document.activeElement;
     el.addEventListener('close', () => opener?.focus(), { once: true });
