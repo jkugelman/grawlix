@@ -3481,6 +3481,7 @@ const ConfigureListDialog = (() => {
   let _list           = null;
   let _pickerOpen     = false;
   let _selectedPreset = null;
+  let _originalPreset = null;
   let _pendingIcon    = '';
   let _pendingName    = '';
   let _rulesOption    = 'none';
@@ -3622,14 +3623,26 @@ const ConfigureListDialog = (() => {
   function updateRulesOptionRow() {
     if (!_selectedPreset) { rulesOptionRow.hidden = true; return; }
     const isAdd = _mode === 'add';
-    const opts = [{ value: 'recommended', label: isAdd ? 'Use recommended rules' : 'Apply recommended rules' }];
+    const publisherUnchanged = !isAdd && _selectedPreset?.id === _originalPreset?.id;
+    const recommendedIsNoop  = publisherUnchanged && rulesMatchDefaultRules(_list, _selectedPreset);
+    const opts = [{ value: 'recommended', label: isAdd ? 'Use recommended rules' : publisherUnchanged ? 'Reapply recommended rules' : 'Apply recommended rules', disabled: recommendedIsNoop }];
     if (_selectedPreset.defaultRules?.some(r => r.note))
-      opts.push({ value: 'levels', label: isAdd ? 'Use scoring levels only' : 'Apply scoring levels only' });
+      opts.push({ value: 'levels', label: isAdd ? 'Use scoring levels only' : publisherUnchanged ? 'Reapply scoring levels only' : 'Apply scoring levels only' });
     opts.push({ value: 'none', label: isAdd ? 'None' : 'Do not change rules' });
     rulesSelect.innerHTML = opts.map(o =>
-      `<option value="${o.value}"${_rulesOption === o.value ? ' selected' : ''}>${o.label}</option>`
+      `<option value="${o.value}"${_rulesOption === o.value ? ' selected' : ''}${o.disabled ? ' disabled' : ''}>${o.label}</option>`
     ).join('');
     rulesOptionRow.hidden = false;
+  }
+
+  function rulesMatchDefaultRules(list, preset) {
+    const presetRules = preset?.defaultRules || [];
+    const listRules   = (list?.rescoreRules || []).filter(r => !r._catchAll);
+    if (listRules.length !== presetRules.length) return false;
+    return listRules.every((r, i) => {
+      const p = presetRules[i];
+      return r.input === p.input && r.length === p.length && r.output === p.output && (r.note ?? '') === (p.note ?? '');
+    });
   }
 
   function updateRulesPreview() {
@@ -3751,6 +3764,7 @@ const ConfigureListDialog = (() => {
     _list           = list;
     _pickerOpen     = false;
     _selectedPreset = getPreset(list);
+    _originalPreset = _selectedPreset;
     _pendingIcon    = list.icon || '';
     _pendingName    = list.name || '';
     _pendingFile    = null;
@@ -3782,6 +3796,7 @@ const ConfigureListDialog = (() => {
     _list           = null;
     _pickerOpen     = false;
     _selectedPreset = null;
+    _originalPreset = null;
     _pendingIcon    = '';
     _pendingName    = '';
     _pendingFile    = null;
