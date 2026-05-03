@@ -340,8 +340,7 @@ dialog h2 { font-size: 16px; margin-bottom: 14px; padding-right: 24px; }
 .rules-option-lbl { font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; flex-shrink: 0; }
 .rules-option-row select { flex: 1; padding: 5px 8px; border: 1px solid var(--border); border-radius: 4px; font-size: 12px; font-family: inherit; background: var(--input-bg); color: var(--text); cursor: pointer; }
 .rules-option-row select:focus { outline: none; border-color: var(--accent); }
-.rules-preview-wrap { margin-top: 10px; background: var(--surface2); border: 1px solid var(--border2); border-radius: 6px; padding: 8px 14px; max-height: 200px; overflow-y: auto; }
-.rules-preview-wrap .rescore-top { margin-bottom: 4px; }
+.rules-preview-wrap { margin-top: 10px; background: var(--surface2); border: 1px solid var(--border2); border-radius: 6px; padding: 8px 14px; }
 .source-radio-group { display: flex; flex-direction: column; gap: 7px; margin-bottom: 10px; }
 .source-radio-label { display: flex; align-items: center; gap: 7px; font-size: 13px; cursor: pointer; }
 .source-radio-label input[type="radio"] { margin: 0; cursor: pointer; }
@@ -1034,16 +1033,6 @@ function buildUrlInputHTML(id, placeholder) {
     `</div>`;
 }
 
-function buildRuleSectionHTML({ label, rulesId, rulesHTML, showReset, onResetFn }) {
-  return `
-    <div class="rescore-top">
-      <span class="rescore-lbl">${label}</span>
-      <button class="rule-reset${showReset ? '' : ' hidden'}" onclick="${onResetFn}()" title="Reset to defaults">↺</button>
-    </div>
-    <div id="${rulesId}">${rulesHTML}</div>
-  `;
-}
-
 function buildRuleRowHTML(i, isCatchAll, fieldsHTML, note, onDeleteFn, readOnly = false) {
   const noteWrap = readOnly
     ? `<span class="rule-note-wrap${note ? ' has-note' : ''}"><span class="rule-note-text">${esc(note||'')}</span></span>`
@@ -1059,7 +1048,7 @@ function buildRuleRowHTML(i, isCatchAll, fieldsHTML, note, onDeleteFn, readOnly 
     </div>`;
 }
 
-function buildRulesSectionHTML(rules, { label, rulesId, saveFn, deleteFn, resetFn, showReset, rescore = false, readOnly = false }) {
+function buildRulesListHTML(rules, { rulesId, saveFn, deleteFn, rescore = false, readOnly = false }) {
   let rulesHTML;
   if (!rules.length && rescore) {
     rulesHTML = '<div class="no-rules">No rules — words kept as-is</div>';
@@ -1087,34 +1076,27 @@ function buildRulesSectionHTML(rules, { label, rulesId, saveFn, deleteFn, resetF
       return buildRuleRowHTML(i, isCatchAll, fieldsHTML, r.note, deleteFn, readOnly);
     }).join('');
   }
-  return buildRuleSectionHTML({ label, rulesId, rulesHTML, showReset: readOnly ? false : showReset, onResetFn: resetFn });
+  return `<div id="${rulesId}">${rulesHTML}</div>`;
 }
 
 function buildRescoreSectionHTML(list) {
   if (!list) return '';
   const preset = getPreset(list);
-  return buildRulesSectionHTML(list.rescoreRules || [], {
-    label: 'Rescoring', rulesId: 'rescore-rules',
-    saveFn: 'saveRuleField', deleteFn: 'deleteRule', resetFn: 'resetRescoreRules',
-    showReset: !!(preset?.defaultRules && !rulesMatchDefaults(list)),
-    rescore: true,
-  });
+  const showReset = !!(preset?.defaultRules && !rulesMatchDefaults(list));
+  return `<div class="rescore-top"><span class="rescore-lbl">Rescoring</span><button class="rule-reset${showReset ? '' : ' hidden'}" onclick="resetRescoreRules()" title="Reset to defaults">↺</button></div>` +
+    buildRulesListHTML(list.rescoreRules || [], { rulesId: 'rescore-rules', saveFn: 'saveRuleField', deleteFn: 'deleteRule', rescore: true });
 }
 
 function buildOutputScoringSectionHTML() {
-  return buildRulesSectionHTML(state.outputScoring, {
-    label: 'Scoring', rulesId: 'output-scoring-rules',
-    saveFn: 'saveOutputScoringField', deleteFn: 'deleteOutputScoringRow', resetFn: 'resetOutputScoring',
-    showReset: !outputScoringMatchesDefaults(),
-  });
+  const showReset = !outputScoringMatchesDefaults();
+  return `<div class="rescore-top"><span class="rescore-lbl">Scoring</span><button class="rule-reset${showReset ? '' : ' hidden'}" onclick="resetOutputScoring()" title="Reset to defaults">↺</button></div>` +
+    buildRulesListHTML(state.outputScoring, { rulesId: 'output-scoring-rules', saveFn: 'saveOutputScoringField', deleteFn: 'deleteOutputScoringRow' });
 }
 
 function buildEditsScoringSectionHTML(list) {
-  return buildRulesSectionHTML(list.scoring, {
-    label: 'Scoring', rulesId: 'edits-scoring-rules',
-    saveFn: 'saveEditsScoringField', deleteFn: 'deleteEditsScoringRow', resetFn: 'resetEditsScoring',
-    showReset: !scoringMatchesDefaults(list.scoring),
-  });
+  const showReset = !scoringMatchesDefaults(list.scoring);
+  return `<div class="rescore-top"><span class="rescore-lbl">Scoring</span><button class="rule-reset${showReset ? '' : ' hidden'}" onclick="resetEditsScoring()" title="Reset to defaults">↺</button></div>` +
+    buildRulesListHTML(list.scoring, { rulesId: 'edits-scoring-rules', saveFn: 'saveEditsScoringField', deleteFn: 'deleteEditsScoringRow' });
 }
 
 function buildTableContainerHTML() {
@@ -3486,7 +3468,7 @@ const ConfigureListDialog = (() => {
       <div class="configure-section-label">Publisher</div>
       <div class="publisher-chips" id="publisher-chips"></div>
       <div class="rules-option-row" id="rules-option-row" hidden>
-        <span class="rules-option-lbl">Rules</span>
+        <span class="rules-option-lbl">Scoring</span>
         <select id="rules-select"></select>
       </div>
       <div class="rules-preview-wrap" id="rules-preview-wrap" hidden></div>
@@ -3706,10 +3688,11 @@ const ConfigureListDialog = (() => {
 
   function updateRulesOptionRow() {
     if (!_selectedPreset) { rulesOptionRow.hidden = true; return; }
-    const opts = [{ value: 'recommended', label: 'Apply recommended rules' }];
+    const isAdd = _mode === 'add';
+    const opts = [{ value: 'recommended', label: isAdd ? 'Use recommended rules' : 'Apply recommended rules' }];
     if (_selectedPreset.defaultRules?.some(r => r.note))
-      opts.push({ value: 'levels', label: 'Apply scoring levels only' });
-    opts.push({ value: 'none', label: 'Do not change rules' });
+      opts.push({ value: 'levels', label: isAdd ? 'Use scoring levels only' : 'Apply scoring levels only' });
+    opts.push({ value: 'none', label: isAdd ? 'None' : 'Do not change rules' });
     rulesSelect.innerHTML = opts.map(o =>
       `<option value="${o.value}"${_rulesOption === o.value ? ' selected' : ''}>${o.label}</option>`
     ).join('');
@@ -3720,10 +3703,11 @@ const ConfigureListDialog = (() => {
     if (!_selectedPreset || _rulesOption === 'none') { rulesPreviewWrap.hidden = true; return; }
     const rules = _rulesOption === 'recommended' ? _selectedPreset.defaultRules : _selectedPreset.neutralRules;
     rulesPreviewWrap.hidden = false;
-    rulesPreviewWrap.innerHTML = buildRulesSectionHTML(rules || [], {
-      label: 'Rules to apply', rulesId: 'preview-rules',
-      saveFn: '', deleteFn: '', resetFn: '',
-      showReset: false, rescore: true, readOnly: true,
+    rulesPreviewWrap.innerHTML = buildRulesListHTML(rules || [], {
+      rulesId: 'preview-rules',
+      saveFn: '', deleteFn: '',
+      rescore: _rulesOption === 'recommended',
+      readOnly: true,
     });
   }
 
