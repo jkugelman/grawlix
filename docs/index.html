@@ -2443,18 +2443,21 @@ function renderDetail(list) {
 
   const stats = computeStats(list, list.rawEntries);
 
-  const statsHtml = buildStatsBarHTML(stats, 'No data loaded — use the Import button to load this list');
-
   const hasData = list.rawEntries.length > 0;
-  const label = hasData ? 'Update' : 'Import';
+  const emptyMsg = list.url ? 'No data loaded — use the Fetch button to load this list'
+                            : 'No data loaded — use the Import button to load this list';
+  const statsHtml = buildStatsBarHTML(stats, emptyMsg);
+
+  const label = hasData ? 'Update' : (list.url ? 'Fetch' : 'Import');
   const dot = list._updateAvailable && !list._loading ? ` <span class="update-dot"></span>` : '';
   const title = list._updateAvailable && !list._loading ? 'Update available' : '';
 
   let actionBtn;
   if (list.url) {
-    const btnLabel = `${list._loading ? 'Updating…' : label}${dot}`;
+    const loadingLabel = hasData ? 'Updating…' : 'Fetching…';
+    const btnLabel = `${list._loading ? loadingLabel : label}${dot}`;
     actionBtn = buildSplitBtn(btnLabel, `fetchCurrentList()`,
-      [['Import file…', `importCurrentList()`]],
+      [['Import', `importCurrentList()`]],
       { primary: true, disabled: !!list._loading, title });
   } else {
     actionBtn = `<button class="primary"${title ? ` title="${title}"` : ''} onclick="importCurrentList()" ${list._loading ? 'disabled' : ''}>${list._loading ? 'Importing…' : 'Import'}${dot}</button>`;
@@ -2509,7 +2512,7 @@ function renderEditsDetail(list) {
   const statsHtml = buildStatsBarHTML(stats, 'No edits yet — click a score or comment in any list to start editing');
 
   const editsButtons = [
-    `<button onclick="importCurrentList()">Import file</button>`,
+    `<button onclick="importCurrentList()">Import</button>`,
     `<button class="primary" onclick="downloadEdits()">Download</button>`,
     ...(list.rawEntries.length ? [`<button onclick="clearEdits()">Clear</button>`] : []),
   ];
