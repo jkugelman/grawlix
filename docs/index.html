@@ -328,7 +328,7 @@ dialog h2 { font-size: 16px; margin-bottom: 14px; padding-right: 24px; }
 .configure-icon-name-row .configure-section-label { margin-bottom: 0; }
 .config-name-input { width: 100%; padding: 6px 8px; border: 1px solid var(--border); border-radius: 4px; font-size: 13px; font-family: inherit; background: var(--input-bg); color: var(--text); box-sizing: border-box; }
 .config-name-input:focus { outline: none; border-color: var(--accent); }
-.known-list.preset-active { border-color: var(--accent); }
+.known-list.preset-active { background: var(--sel); }
 
 /* Icon picker */
 .icon-picker-trigger { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; padding: 5px 10px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface2); user-select: none; }
@@ -3816,7 +3816,7 @@ const ConfigureListDialog = (() => {
           <div class="known-list-name">${esc(p.name)}</div>
           <div class="known-list-sub">${p.url ? 'Auto-fetch' : 'Manual import'}</div>
         </div>
-        <button>${list.presetId === p.id ? 'Reapply' : 'Apply'}</button>
+        <button${list.presetId === p.id && !presetWouldChange(list, p) ? ' disabled' : ''}>${list.presetId === p.id ? 'Reapply' : 'Apply'}</button>
       </div>`
     ).join('');
     presetListEl.querySelectorAll('.known-list').forEach((row, i) => { row._preset = LIST_PRESETS[i]; });
@@ -4111,6 +4111,18 @@ function _dismissToast(el) {
 
 function getPreset(list) {
   return list.presetId ? LIST_PRESETS.find(p => p.id === list.presetId) ?? null : null;
+}
+
+function presetWouldChange(list, preset) {
+  if (list.icon !== preset.icon) return true;
+  if ((list.url || null) !== (preset.url || null)) return true;
+  if (!preset.defaultRules?.length) return false;
+  const cur = list.rescoreRules.filter(r => !r._catchAll);
+  if (cur.length !== preset.defaultRules.length) return true;
+  return cur.some((r, i) => {
+    const d = preset.defaultRules[i];
+    return r.input !== d.input || r.length !== d.length || r.output !== d.output;
+  });
 }
 
 function applyPreset(list, presetId, { useNeutralRules = false } = {}) {
