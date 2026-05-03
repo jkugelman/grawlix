@@ -3725,6 +3725,24 @@ const ConfigureListDialog = (() => {
     405:'Method Not Allowed', 410:'Gone', 429:'Too Many Requests', 500:'Internal Server Error',
     502:'Bad Gateway', 503:'Service Unavailable', 504:'Gateway Timeout' };
 
+  function setUrlCheckError(msg) {
+    urlCheckIcon.innerHTML = '<span class="url-check-err-icon">✗</span>';
+    urlCheckIcon.hidden = false;
+    urlMetaEl.innerHTML = `<span class="url-check-error">${msg}</span>`;
+    urlMetaEl.classList.add('visible');
+  }
+  function setUrlCheckWarn(msg) {
+    urlCheckIcon.textContent = '⚠️';
+    urlCheckIcon.hidden = false;
+    urlMetaEl.innerHTML = `<span class="url-check-warn">${msg}</span>`;
+    urlMetaEl.classList.add('visible');
+  }
+  function setUrlCheckOk() {
+    urlCheckIcon.innerHTML = '<span class="url-check-ok-icon">✓</span>';
+    urlCheckIcon.hidden = false;
+    urlMetaEl.classList.remove('visible');
+  }
+
   async function checkUrl(url, signal) {
     // Step 1: HEAD — reachability + content-length (needed for update checking)
     let hasContentLength = false;
@@ -3732,19 +3750,13 @@ const ConfigureListDialog = (() => {
       const headResp = await fetch(url, { method: 'HEAD', signal });
       if (!headResp.ok) {
         const reason = headResp.statusText || HTTP_REASON[headResp.status] || '';
-        urlCheckIcon.innerHTML = '<span class="url-check-err-icon">✗</span>';
-        urlCheckIcon.hidden = false;
-        urlMetaEl.innerHTML = `<span class="url-check-error">Server returned ${headResp.status}${reason ? ' ' + esc(reason) : ''}</span>`;
-        urlMetaEl.classList.add('visible');
+        setUrlCheckError(`Server returned ${headResp.status}${reason ? ' ' + esc(reason) : ''}`);
         return;
       }
       hasContentLength = !!headResp.headers.get('content-length');
     } catch (err) {
       if (err.name === 'AbortError') return;
-      urlCheckIcon.innerHTML = '<span class="url-check-err-icon">✗</span>';
-      urlCheckIcon.hidden = false;
-      urlMetaEl.innerHTML = `<span class="url-check-error">Unreachable — possible CORS restriction</span>`;
-      urlMetaEl.classList.add('visible');
+      setUrlCheckError('Unreachable — possible CORS restriction');
       return;
     }
 
@@ -3763,30 +3775,19 @@ const ConfigureListDialog = (() => {
       }
     } catch (err) {
       if (err.name === 'AbortError') return;
-      urlCheckIcon.textContent = '⚠️';
-      urlCheckIcon.hidden = false;
-      urlMetaEl.innerHTML = `<span class="url-check-warn">Can't verify content</span>`;
-      urlMetaEl.classList.add('visible');
+      setUrlCheckWarn("Can't verify content");
       return;
     }
 
     if (!validateWordlistChunk(chunkText)) {
-      urlCheckIcon.innerHTML = '<span class="url-check-err-icon">✗</span>';
-      urlCheckIcon.hidden = false;
-      urlMetaEl.innerHTML = `<span class="url-check-error">Not a wordlist file</span>`;
-      urlMetaEl.classList.add('visible');
+      setUrlCheckError('Not a wordlist file');
       return;
     }
 
     if (hasContentLength) {
-      urlCheckIcon.innerHTML = '<span class="url-check-ok-icon">✓</span>';
-      urlCheckIcon.hidden = false;
-      urlMetaEl.classList.remove('visible');
+      setUrlCheckOk();
     } else {
-      urlCheckIcon.textContent = '⚠️';
-      urlCheckIcon.hidden = false;
-      urlMetaEl.innerHTML = `<span class="url-check-warn">Update checking unavailable (no content-length)</span>`;
-      urlMetaEl.classList.add('visible');
+      setUrlCheckWarn('Update checking unavailable (no content-length)');
     }
   }
 
