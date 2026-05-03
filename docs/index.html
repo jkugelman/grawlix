@@ -3050,7 +3050,7 @@ function deleteFromEdits(word, refreshFn) {
   refresh();
   setTimeout(refreshSourceCounts, 0);
 
-  showUndoToast(`Removed ${displayWord(removed.word)}`, () => {
+  showUndoToast(`Removed ${displayWord(removed.word)} from ${edits.name}`, () => {
     edits.rawEntries.splice(idx, 0, removed);
     invalidateListCaches(edits);
     updateCatchAll(edits);
