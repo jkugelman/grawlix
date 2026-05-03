@@ -22,7 +22,7 @@ Sections within the `<script>` block are delimited by banner comments like:
 **List fields** — every input list carries:
 - `dbKey` — opaque `crypto.randomUUID()` string; used exclusively as the IndexedDB storage key. Never appears in HTML or UI code. `state.selected` stores the selected list object (or `OUTPUT_ID`) — not the dbKey.
 - `type` — `'edits'` for My Edits; absent for all regular input lists. Nothing uses a string constant like `EDITS_ID` anymore — check `list.type === 'edits'`.
-- `icon` — HTML string (`<img>` for a URL image, or emoji `<span>`), or `''`. Stored directly on the list. `getListIcon(list)` returns `list.icon` if set, otherwise auto-generates an initials icon via `buildInitialsIconHTML`. The color is derived by `colorSeed(obj)` = `obj.url || obj.originalFilename || obj.dbKey || obj.name` — same function works on both list objects and presets, ensuring preset-based lists look consistent for all users.
+- `icon` — HTML string (one of three SVG formats), or `''`. `buildInitialsIconHTML` returns a colored SVG rect with initials text; `buildEmojiIconHTML` returns an SVG with an emoji `<text>` node; preset image icons are `<img class="list-icon-img">` tags. Stored directly on the list. `getListIcon(list)` returns `list.icon` if set, otherwise auto-generates an initials icon. The color is derived by `colorSeed(obj)` = `obj.url || obj.originalFilename || obj.dbKey || obj.name` — same function works on both list objects and presets, ensuring preset-based lists look consistent for all users.
 - `originalFilename` — the filename last used to import or fetch data into this list (e.g. `'jkugelman-wordlist.txt'`). Set by both `importToList` and `fetchList`. Used as the default download filename and as a fallback color seed. Importing a file clears `list.url`; a list is either auto-fetch or file-based, not both.
 - `presetId` — optional weak reference to the preset last applied (`'xwi'`, `'jkugelman'`, etc.). Display/reset purposes only; never a behavioral gate.
 
@@ -40,6 +40,8 @@ WORD;SCORE;COMMENT
 
 - **localStorage** (prefix `grawlix_`): list metadata and settings. `persistMeta()` saves all list metadata.
 - **IndexedDB**: raw wordlist text per list. Lists can be hundreds of thousands of words, too large for localStorage. `persistData(list, text)` saves one list's text, keyed by `list.dbKey`.
+
+**Reset localStorage when needed during development.** Stale localStorage from a previous session can mask bugs — the app loads old serialized data and ignores code changes to field formats or defaults. Reset via Settings → Reset all data whenever you change: the format of a stored field (e.g. `icon` HTML format), default values set only on first boot (e.g. `EDITS_ICON`), or the shape of the stored metadata object.
 
 ## Key concepts
 

@@ -337,7 +337,7 @@ dialog h2 { font-size: 16px; margin-bottom: 14px; padding-right: 24px; }
 .icon-picker-tab:hover:not(.active) { background: var(--hover); }
 .icon-picker-pane { padding: 10px 12px; display: none; }
 .icon-picker-pane.active { display: block; }
-.icon-emoji-btn[data-auto] .list-icon-initials { width: 22px; height: 22px; font-size: 9px; border-radius: 4px; }
+.icon-emoji-btn[data-auto] .list-icon-initials { width: 22px; height: 22px; }
 .icon-emoji-grid { display: grid; grid-template-columns: repeat(8, 1fr); gap: 2px; }
 .icon-emoji-btn { background: none; border: 1px solid transparent; border-radius: 4px; font-size: 18px; line-height: 1; padding: 4px 2px; cursor: pointer; text-align: center; font-family: inherit; }
 .icon-emoji-btn:hover { background: var(--hover); border-color: var(--border); }
@@ -350,19 +350,20 @@ dialog h2 { font-size: 16px; margin-bottom: 14px; padding-right: 24px; }
 .url-input:focus { outline: none; border-color: var(--accent); }
 
 /* Initials icon */
-.list-icon-initials { width: 16px; height: 16px; border-radius: 3px; display: inline-flex; align-items: center; justify-content: center; font-size: 8px; font-weight: 700; color: #fff; line-height: 1; font-family: system-ui, sans-serif; flex-shrink: 0; vertical-align: middle; letter-spacing: -0.02em; }
-.ic-0  { background: #5C6BC0; }
-.ic-1  { background: #1E88E5; }
-.ic-2  { background: #00ACC1; }
-.ic-3  { background: #00897B; }
-.ic-4  { background: #43A047; }
-.ic-5  { background: #FB8C00; }
-.ic-6  { background: #E53935; }
-.ic-7  { background: #D81B60; }
-.ic-8  { background: #8E24AA; }
-.ic-9  { background: #5E35B1; }
-.ic-10 { background: #3949AB; }
-.ic-11 { background: #0277BD; }
+.list-icon-initials { width: 16px; height: 16px; flex-shrink: 0; vertical-align: middle; }
+.list-icon-initials text { fill: white; }
+.ic-0  { fill: #5C6BC0; }
+.ic-1  { fill: #1E88E5; }
+.ic-2  { fill: #00ACC1; }
+.ic-3  { fill: #00897B; }
+.ic-4  { fill: #43A047; }
+.ic-5  { fill: #FB8C00; }
+.ic-6  { fill: #E53935; }
+.ic-7  { fill: #D81B60; }
+.ic-8  { fill: #8E24AA; }
+.ic-9  { fill: #5E35B1; }
+.ic-10 { fill: #3949AB; }
+.ic-11 { fill: #0277BD; }
 /* More menu (⋮ button in detail header) */
 .more-menu-btn { border-radius: 4px; font-size: 14px; line-height: 1; }
 
@@ -455,11 +456,13 @@ a.get-file:hover { text-decoration: underline; }
 .stats-bar.stats-empty { color: var(--muted); font-size: 13px; }
 
 /* List icons */
-.list-icon-img { width: 16px; height: 16px; border-radius: 3px; flex-shrink: 0; display: block; }
-.list-icon-emoji { width: 16px; height: 16px; font-size: 13px; line-height: 16px; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
-.source-icon { display: inline-flex; align-items: center; vertical-align: middle; margin-right: 4px; min-width: 12px; }
-.source-icon .list-icon-img { width: 12px; height: 12px; }
-.source-icon .list-icon-emoji { width: 12px; height: 12px; font-size: 10px; line-height: 12px; }
+.list-icon-img { width: 16px; height: 16px; border-radius: 3px; flex-shrink: 0; display: inline-block; vertical-align: middle; }
+.list-icon-emoji { width: 16px; height: 16px; flex-shrink: 0; vertical-align: middle; }
+/* List name icon: inline icon preceding a list name in toasts, alerts, help text, and source column */
+.list-name-icon { display: inline; }
+.list-name-icon .list-icon-img,
+.list-name-icon .list-icon-initials,
+.list-name-icon .list-icon-emoji { width: 1em; height: 1em; vertical-align: -0.1em; }
 
 /* Score display */
 .entry-ignored { opacity: 0.4; }
@@ -681,8 +684,8 @@ const VS_BUFFER    = 60;
 // LS_PREFIX defined in <head> so the FOUC-prevention script can share it.
 const OUTPUT_ID    = '__output__';
 const OUTPUT_NAME  = 'All Merged';
-const EDITS_ICON = `<span class="list-icon-emoji" aria-hidden="true">✏️</span>`;
-const OUTPUT_ICON  = `<span class="list-icon-emoji" aria-hidden="true">⭐</span>`;
+const EDITS_ICON  = buildEmojiIconHTML('✏️');
+const OUTPUT_ICON  = buildEmojiIconHTML('⭐');
 
 const INITIALS_PALETTE = [
   '#5C6BC0', '#1E88E5', '#00ACC1', '#00897B',
@@ -1108,6 +1111,12 @@ function buildDragHandleHTML(interactive = false) {
   return interactive
     ? `<span class="drag-handle" title="Drag to reorder" aria-label="Drag to reorder">≡</span>`
     : `<span class="drag-handle" aria-hidden="true">≡</span>`;
+}
+
+function buildListNameHTML(list, { bold = true } = {}) {
+  const icon = getListIcon(list);
+  const name = bold ? `<strong>${esc(list.name)}</strong>` : esc(list.name);
+  return `<span class="list-name-icon">${icon}</span> ${name}`;
 }
 
 // ─── State ────────────────────────────────────────────────────────────────────
@@ -1904,7 +1913,7 @@ class VirtualScroller {
     const frag = document.createDocumentFragment();
     for (let i = start; i < end; i++) {
       const entry = this.entries[i];
-      const { word, score, comment, listName: entryListName, listRef, listIcon = '' } = entry;
+      const { word, score, comment, listName: entryListName, listRef } = entry;
       const listName = entryListName || this.currentListName;
       const tier = scoreTier(score);
       const tr = document.createElement('tr');
@@ -1962,12 +1971,11 @@ class VirtualScroller {
 
       let sourceCell = '';
       if (this.showSource) {
-        const rawIcon = listIcon;
-        const iconHtml = `<span class="source-icon">${rawIcon}</span>`;
+        const listLabel = listRef ? buildListNameHTML(listRef, { bold: false }) : esc(listName || '');
         const editTrash = (this.showEditDeleteCol && listRef === this.editsList)
           ? `<span class="source-trash" title="Remove edit">${buildTrashIconHTML()}</span>`
           : '';
-        sourceCell = `<td class="comment-cell">${iconHtml}${esc(listName || '')}${editTrash}</td>`;
+        sourceCell = `<td class="comment-cell col-source">${listLabel}${editTrash}</td>`;
       }
 
       tr.innerHTML =
@@ -2657,7 +2665,7 @@ function showEditInfoNote(td) {
     tip.id = 'edit-cell-tip';
     document.body.appendChild(tip);
   }
-  tip.innerHTML = `${EDITS_ICON} Edits are saved to ${esc(getEditsList().name)}`;
+  tip.innerHTML = `Edits are saved to ${buildListNameHTML(getEditsList())}`;
   tip.style.opacity = '0';
   requestAnimationFrame(() => {
     const input = td.querySelector('input.cell-edit');
@@ -2878,7 +2886,7 @@ async function applyWordlistText(list, text, { fetchedSize = null, originalFilen
   if (state.selected === OUTPUT_ID) renderOutputDetail();
 
   if (wasEmpty) {
-    showToast(`Loaded ${pluralize(list.rawEntries.length, 'entry', 'entries')} from ${source}`);
+    showToast(`Loaded ${pluralize(list.rawEntries.length, 'entry', 'entries')} from ${esc(source)}`);
   } else {
     const oldMap = new Map(oldEntries.map(e => [e.word, e.score]));
     const newMap = new Map(list.rawEntries.map(e => [e.word, e.score]));
@@ -2889,7 +2897,7 @@ async function applyWordlistText(list, text, { fetchedSize = null, originalFilen
       .map(e => ({ word: e.word, oldScore: e.score, score: newMap.get(e.word) }))
       .sort((a, b) => a.word.localeCompare(b.word));
     if (!added.length && !removed.length && !rescored.length) {
-      showAlert(`${list.name} is already up to date — no changes.`);
+      showAlert(`${buildListNameHTML(list)} is already up to date — no changes.`);
     } else {
       openUpdateSummaryDialog(list, oldEntries.length, added, removed, rescored);
     }
@@ -2917,7 +2925,7 @@ async function fetchList(list, event) {
     renderInputLists();
     if (state.selected === list) renderDetail(list);
     const detail = err.message === 'Failed to fetch' ? '' : `: ${err.message}`;
-    showToast(`Failed to fetch ${list.url}${detail}`);
+    showToast(`Failed to fetch ${esc(list.url)}${esc(detail)}`);
   }
 }
 
@@ -3123,7 +3131,7 @@ function deleteFromEdits(word, refreshFn) {
   refresh();
   setTimeout(refreshSourceCounts, 0);
 
-  showUndoToast(`Removed ${displayWord(removed.word)} from ${edits.name}`, () => {
+  showUndoToast(`Removed ${esc(displayWord(removed.word))} from ${buildListNameHTML(edits)}`, () => {
     edits.rawEntries.splice(idx, 0, removed);
     invalidateListCaches(edits);
     updateCatchAll(edits);
@@ -3244,7 +3252,7 @@ const showAlert = (() => {
 
   return function(message) {
     return new Promise(resolve => {
-      msgEl.textContent = message;
+      msgEl.innerHTML = message;
       const opener = document.activeElement;
 
       function finish() {
@@ -3583,7 +3591,7 @@ function addFromPreset(preset) {
     rescoreRules: preset.defaultRules ? JSON.parse(JSON.stringify(preset.defaultRules)) : [],
   });
   document.getElementById('add-list-dialog').close();
-  showToast(`Added ${preset.name}`);
+  showToast(`Added ${buildListNameHTML(preset)}`);
 }
 
 // ─── Configure list dialog ────────────────────────────────────────────────────
@@ -3651,7 +3659,7 @@ const ConfigureListDialog = (() => {
   }
 
   function syncEmojiGrid() {
-    const emojiM = _configList.icon?.match(/<span class="list-icon-emoji"[^>]*>([^<]+)<\/span>/);
+    const emojiM = _configList.icon?.match(/<svg class="list-icon-emoji"[^>]*>[^<]*<text[^>]*>([^<]+)<\/text>/);
     const cur = emojiM ? emojiM[1] : null;
     pickerPopup.querySelectorAll('.icon-emoji-btn').forEach(btn => {
       if (btn.hasAttribute('data-auto')) {
@@ -3712,7 +3720,7 @@ const ConfigureListDialog = (() => {
     } else {
       const emoji = btn.dataset.emoji;
       const isSame = _configList.icon?.includes(`>${esc(emoji)}<`);
-      setListIcon(isSame ? '' : `<span class="list-icon-emoji" aria-hidden="true">${esc(emoji)}</span>`);
+      setListIcon(isSame ? '' : buildEmojiIconHTML(emoji));
     }
     syncEmojiGrid();
     closePicker();
@@ -3768,7 +3776,7 @@ const ConfigureListDialog = (() => {
     refreshSourceCounts();
     renderInputLists();
     renderDetail(_configList);
-    showToast(`Applied ${preset.name} preset`);
+    showToast(`Applied ${buildListNameHTML(preset)} preset`);
   });
 
   el.addEventListener('cancel', e => { if (_pickerOpen) { e.preventDefault(); closePicker(); } });
@@ -4051,7 +4059,7 @@ const _toastContainer = (() => {
 function showToast(msg) {
   const el = document.createElement('div');
   el.className = 'toast';
-  el.textContent = msg;
+  el.innerHTML = msg;
   el.onclick = () => _dismissToast(el);
   _toastContainer.appendChild(el);
   el.offsetWidth; // force reflow so opacity transition fires
@@ -4061,7 +4069,7 @@ function showToast(msg) {
 function showUndoToast(msg, onUndo) {
   const el = document.createElement('div');
   el.className = 'toast';
-  el.innerHTML = esc(msg) + `<span class="undo-link">Undo</span>`;
+  el.innerHTML = msg + `<span class="undo-link">Undo</span>`;
   el.onclick = () => _dismissToast(el);
   el.querySelector('.undo-link').onclick = e => {
     e.stopPropagation();
@@ -4113,7 +4121,13 @@ function nameColorIndex(name) {
 }
 
 function buildInitialsIconHTML(name, colorSeed = name) {
-  return `<span class="list-icon-initials ic-${nameColorIndex(colorSeed)}" aria-hidden="true">${esc(nameToInitials(name))}</span>`;
+  const initials = esc(nameToInitials(name));
+  const ci = nameColorIndex(colorSeed);
+  return `<svg class="list-icon-initials ic-${ci}" viewBox="0 0 16 16" aria-hidden="true"><rect width="16" height="16" rx="3"/><text x="8" y="8" text-anchor="middle" dominant-baseline="central" font-family="system-ui,sans-serif" font-weight="700" font-size="8" letter-spacing="-0.02em">${initials}</text></svg>`;
+}
+
+function buildEmojiIconHTML(emoji) {
+  return `<svg class="list-icon-emoji" viewBox="0 0 16 16" aria-hidden="true"><text x="8" y="8" text-anchor="middle" dominant-baseline="central" font-size="13">${esc(emoji)}</text></svg>`;
 }
 
 function colorSeed(obj) {
@@ -4478,7 +4492,7 @@ function buildOutputList() {
     for (const { word, score, comment } of rescored) {
       const key = word.toUpperCase();
       if (!outputMap.has(key)) {
-        outputMap.set(key, { word: word.toLowerCase(), score, comment: comment || '', listName: list.name, listRef: list, listIcon: list.icon || '' });
+        outputMap.set(key, { word: word.toLowerCase(), score, comment: comment || '', listName: list.name, listRef: list });
         count++;
       }
     }
@@ -4612,8 +4626,8 @@ const HelpModal = (() => {
   let demoTimers = [];
 
   function open() {
-    const editsName = getEditsList().name;
-    dialog.querySelectorAll('.help-edits-name').forEach(el => el.textContent = editsName);
+    const editsHTML = buildListNameHTML(getEditsList(), { bold: false });
+    dialog.querySelectorAll('.help-edits-name').forEach(el => el.innerHTML = editsHTML);
     dialog.showModal();
     goTo(0);
     dialog.focus();
