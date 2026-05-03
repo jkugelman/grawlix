@@ -1525,9 +1525,11 @@ const _outputStatsKey = {};
 let _sourceCountsCache = null;
 let _outputListCache = null;
 
+function invalidateRescoredCache(list) { list._rescored = null; }
 function invalidateStatsCache(key) { _statsCache.delete(key); }
 function invalidateSourceCounts() { _sourceCountsCache = null; _outputListCache = null; }
 function invalidateListCaches(list) {
+  invalidateRescoredCache(list);
   invalidateStatsCache(list);
   invalidateSourceCounts();
   invalidateStatsCache(_outputStatsKey);
@@ -2243,6 +2245,10 @@ function applyRescoring(entries, rules) {
     if (!r.kept) return [];
     return [r.score !== e.score ? { ...e, score: r.score } : e];
   });
+}
+
+function getRescoredEntries(list) {
+  return list._rescored ??= applyRescoring(list.rawEntries, list.rescoreRules);
 }
 
 function rescoreEntry(entry, rules) {
@@ -4284,6 +4290,7 @@ function deleteRule(idx) {
   persistMeta();
   renderRescoreSection();
   updateRescorePreview();
+  invalidateRescoredCache(list);
   refreshSourceCounts();
   showUndoToast('Deleted rescore rule', () => {
     list.rescoreRules.push(deleted);
@@ -4291,6 +4298,7 @@ function deleteRule(idx) {
     persistMeta();
     renderRescoreSection();
     updateRescorePreview();
+    invalidateRescoredCache(list);
     refreshSourceCounts();
   });
 }
@@ -4307,6 +4315,7 @@ function saveRuleField(idx, field, value) {
   persistMeta();
   renderRescoreSection();
   updateRescorePreview();
+  invalidateRescoredCache(list);
   refreshSourceCounts();
 }
 
@@ -4536,8 +4545,7 @@ function buildOverrideMap(list) {
   for (const l of state.inputLists) {
     if (l === list) break;
     if (!l.enabled || !l.rawEntries.length) continue;
-    const rescored = applyRescoring(l.rawEntries, l.rescoreRules);
-    for (const { word, score, comment } of rescored) {
+    for (const { word, score, comment } of getRescoredEntries(l)) {
       const w = word.toUpperCase();
       if (!map.has(w)) map.set(w, { listName: l.name, score, comment: comment || '' });
     }
@@ -4553,9 +4561,8 @@ function buildOutputList() {
 
   for (const list of state.inputLists) {
     if (!list.enabled || !list.rawEntries.length) continue;
-    const rescored = applyRescoring(list.rawEntries, list.rescoreRules);
     let count = 0;
-    for (const { word, score, comment } of rescored) {
+    for (const { word, score, comment } of getRescoredEntries(list)) {
       const key = word.toUpperCase();
       if (!outputMap.has(key)) {
         outputMap.set(key, { word: word.toLowerCase(), score, comment: comment || '', listName: list.name, listRef: list });
