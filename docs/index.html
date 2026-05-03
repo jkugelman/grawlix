@@ -721,17 +721,7 @@ const LIST_PRESETS = [
     name: 'John Kugelman',
     url: 'https://raw.githubusercontent.com/jkugelman/crossword/refs/heads/main/wordlists/jkugelman-wordlist.txt',
     icon: '',
-    filenamePatterns: ['*jkugelman*'],
     defaultRules: [
-      { input:'60', length:'', output:'', note:'Great (colorful phrases, sayings, people, etc.)' },
-      { input:'50', length:'', output:'', note:'Good (dictionary words, phrases)' },
-      { input:'40', length:'', output:'', note:'Fine but watch crosses (proper names, abbreviations, prepositional phrases, unusual plurals)' },
-      { input:'30', length:'', output:'', note:'Not good (plural names, crosswordese, contrived inflections)' },
-      { input:'20', length:'', output:'', note:'Junk (partials, variant spellings, Roman numerals)' },
-      { input:'10', length:'', output:'', note:'Offensive' },
-      { input:'0',  length:'', output:'', note:'Gibberish' },
-    ],
-    neutralRules: [
       { input:'60', length:'', output:'', note:'Great (colorful phrases, sayings, people, etc.)' },
       { input:'50', length:'', output:'', note:'Good (dictionary words, phrases)' },
       { input:'40', length:'', output:'', note:'Fine but watch crosses (proper names, abbreviations, prepositional phrases, unusual plurals)' },
@@ -746,7 +736,6 @@ const LIST_PRESETS = [
     name: 'XWord Info',
     url: null,
     icon: `<img src="https://www.xwordinfo.com/favicon.ico" class="list-icon-img" onerror="this.style.display='none'" alt="">`,
-    filenamePatterns: ['*xword*info*', '*xwi*'],
     defaultRules: [
       { input:'60', length:'', output:'',   note:'Entries considered "assets" to a puzzle' },
       { input:'50', length:'', output:'',   note:'Fine entries' },
@@ -757,23 +746,12 @@ const LIST_PRESETS = [
       { input:'10', length:'', output:'20', note:'' },
       { input:'5',  length:'', output:'20', note:'Entries that Will Shortz or other editors have identified as "puzzle-killers"' },
     ],
-    neutralRules: [
-      { input:'60', length:'', output:'', note:'Entries considered "assets" to a puzzle' },
-      { input:'50', length:'', output:'', note:'Fine entries' },
-      { input:'30', length:'', output:'', note:'' },
-      { input:'25', length:'', output:'', note:'Partials, odd abbreviations, very esoteric names, short Roman numerals, etc.' },
-      { input:'20', length:'', output:'', note:'Five-letter entries that would be hard to defend as fine' },
-      { input:'15', length:'', output:'', note:'Random Roman numerals that are longer than three letters' },
-      { input:'10', length:'', output:'', note:'' },
-      { input:'5',  length:'', output:'', note:'Entries that Will Shortz or other editors have identified as "puzzle-killers"' },
-    ],
   },
   {
     id: 'stwl',
     name: 'Spread the Word(list)',
     url: 'https://grawlix.wtf/spreadthewordlist.txt',
     icon: `<img src="https://www.spreadthewordlist.com/favicon.ico" class="list-icon-img" onerror="this.style.display='none'" alt="">`,
-    filenamePatterns: ['*spreadthewordlist*', '*stwl*'],
     defaultRules: [
       { input:'50', length:'', output:'50', note:'Clean' },
       { input:'40', length:'', output:'30', note:'Dubious'},
@@ -782,26 +760,16 @@ const LIST_PRESETS = [
       { input:'20', length:'', output:'0',  note:'Dubious++'},
       { input:'10', length:'', output:'0',  note:'Dubious+++'},
     ],
-    neutralRules: [
-      { input:'50', length:'', output:'', note:'Clean' },
-      { input:'40', length:'', output:'', note:'Dubious'},
-      { input:'30', length:'', output:'', note:'Dubious+'},
-      { input:'0',  length:'', output:'', note:'Offensive'},
-      { input:'20', length:'', output:'', note:'Dubious++'},
-      { input:'10', length:'', output:'', note:'Dubious+++'},
-    ],
   },
   {
     id: 'broda',
     name: 'Peter Broda',
     url: 'https://grawlix.wtf/peter-broda-wordlist.txt',
     icon: '',
-    filenamePatterns: ['*broda*', '*peter*broda*'],
     defaultRules: [
       { input:'80-100', length:'7+', output:'60'      },
       { input:'0-100',  length:'',   output:'ignore' },
     ],
-    neutralRules: [],
   },
 ];
 
@@ -3666,7 +3634,9 @@ const ConfigureListDialog = (() => {
 
   function updateRulesPreview() {
     if (!_selectedPreset || _rulesOption === 'none') { rulesPreviewWrap.hidden = true; return; }
-    const rules = _rulesOption === 'recommended' ? _selectedPreset.defaultRules : _selectedPreset.neutralRules;
+    const rules = _rulesOption === 'levels'
+      ? _selectedPreset.defaultRules.map(r => ({ ...r, length: '', output: '' }))
+      : _selectedPreset.defaultRules;
     rulesPreviewWrap.hidden = false;
     rulesPreviewWrap.innerHTML = buildRulesListHTML(rules || [], {
       rulesId: 'preview-rules',
@@ -3725,7 +3695,7 @@ const ConfigureListDialog = (() => {
   function computeRulesToApply() {
     if (!_selectedPreset) return _mode === 'add' ? [] : null;
     if (_rulesOption === 'recommended') return JSON.parse(JSON.stringify(_selectedPreset.defaultRules || []));
-    if (_rulesOption === 'levels')      return JSON.parse(JSON.stringify(_selectedPreset.neutralRules || []));
+    if (_rulesOption === 'levels')      return _selectedPreset.defaultRules.map(r => ({ ...r, output: '' }));
     return _mode === 'add' ? [] : null;
   }
 
@@ -4112,18 +4082,6 @@ function _dismissToast(el) {
 
 function getPreset(list) {
   return list.presetId ? LIST_PRESETS.find(p => p.id === list.presetId) ?? null : null;
-}
-
-function applyPreset(list, presetId, { useNeutralRules = false } = {}) {
-  const preset = LIST_PRESETS.find(p => p.id === presetId);
-  if (!preset) return;
-  list.icon = preset.icon;
-  list.url = preset.url || null;
-  list.presetId = preset.id;
-  const rules = useNeutralRules ? preset.neutralRules : preset.defaultRules;
-  list.rescoreRules = rules?.length ? JSON.parse(JSON.stringify(rules)) : [];
-  updateCatchAll(list);
-  persistMeta();
 }
 
 // ─── List icons ───────────────────────────────────────────────────────────────
