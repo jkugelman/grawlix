@@ -4282,24 +4282,23 @@ function bindDropZone(zone, fileInput, onFile) {
 
 // ─── Rescore rule management ──────────────────────────────────────────────────
 
-function deleteRule(idx) {
-  const list = getSelected();
-  if (!list) return;
-  const [deleted] = list.rescoreRules.splice(idx, 1);
+function afterRuleChange(list) {
   updateCatchAll(list);
   persistMeta();
   renderRescoreSection();
   updateRescorePreview();
   invalidateRescoredCache(list);
   refreshSourceCounts();
+}
+
+function deleteRule(idx) {
+  const list = getSelected();
+  if (!list) return;
+  const [deleted] = list.rescoreRules.splice(idx, 1);
+  afterRuleChange(list);
   showUndoToast('Deleted rescore rule', () => {
     list.rescoreRules.push(deleted);
-    updateCatchAll(list);
-    persistMeta();
-    renderRescoreSection();
-    updateRescorePreview();
-    invalidateRescoredCache(list);
-    refreshSourceCounts();
+    afterRuleChange(list);
   });
 }
 
@@ -4311,12 +4310,7 @@ function saveRuleField(idx, field, value) {
   list.rescoreRules[idx][field] = value;
   // User explicitly edited this rule — promote it from catch-all to regular rule
   delete list.rescoreRules[idx]._catchAll;
-  updateCatchAll(list);
-  persistMeta();
-  renderRescoreSection();
-  updateRescorePreview();
-  invalidateRescoredCache(list);
-  refreshSourceCounts();
+  afterRuleChange(list);
 }
 
 function noteDisplayHTML(note) {
@@ -4605,7 +4599,7 @@ function downloadOriginalList(list) {
 
 async function downloadIndividualListRescored(list) {
   if (!list || !list.rawEntries.length) return;
-  await downloadWithDialog(`Grawlix ${list.name}`, list, applyRescoring(list.rawEntries, list.rescoreRules), 'Download Rescored List');
+  await downloadWithDialog(`Grawlix ${list.name}`, list, getRescoredEntries(list), 'Download Rescored List');
 }
 
 function toggleSplitMenu(event) {
