@@ -1149,6 +1149,7 @@ function persistMeta() {
     ...(l.scoring ? { scoring: l.scoring.filter(r => !r._catchAll) } : {}),
     ...(l.downloadCase ? { downloadCase: l.downloadCase } : {}),
     ...(l.downloadExt  ? { downloadExt:  l.downloadExt  } : {}),
+    ...(l.downloadStem ? { downloadStem: l.downloadStem } : {}),
   }))));
 }
 
@@ -1290,6 +1291,7 @@ async function init() {
           ...(m.scoring      ? { scoring: m.scoring }           : {}),
           ...(m.downloadCase ? { downloadCase: m.downloadCase } : {}),
           ...(m.downloadExt  ? { downloadExt:  m.downloadExt  } : {}),
+          ...(m.downloadStem ? { downloadStem: m.downloadStem } : {}),
           rawEntries: text ? parseWordlist(text) : [],
           _loading: false,
         };
@@ -3233,9 +3235,10 @@ const showDownloadDialog = (() => {
       const storageKey = list ? list.dbKey : OUTPUT_ID;
       const savedCase     = (list?.downloadCase) || lsLoad('downloadCase_' + storageKey) || 'lower';
       const savedExt      = (list?.downloadExt)  || lsLoad('downloadExt_' + storageKey)  || 'txt';
+      const savedStem     = (list?.downloadStem) || lsLoad('downloadStem_' + storageKey) || '';
       const savedComments = getDownloadComments() ? 'yes' : 'no';
 
-      filenameEl.value = '';
+      filenameEl.value = savedStem;
       filenameEl.placeholder = defaultStem;
       caseCtrl.innerHTML = buildSegCtrlHTML(null, [
         { value: 'lower', label: 'lower' },
@@ -3277,16 +3280,19 @@ const showDownloadDialog = (() => {
         const caseMode = getCase();
         const ext      = getExt();
         const comments = getComments();
+        const stem = filenameEl.value.trim();
         if (list) {
           list.downloadCase = caseMode;
           list.downloadExt  = ext;
+          if (stem) list.downloadStem = stem; else delete list.downloadStem;
           persistMeta();
         } else {
           lsSave('downloadCase_' + OUTPUT_ID, caseMode);
           lsSave('downloadExt_' + OUTPUT_ID, ext);
+          if (stem) lsSave('downloadStem_' + OUTPUT_ID, stem); else lsDel('downloadStem_' + OUTPUT_ID);
         }
         lsSave('downloadComments', comments);
-        finish({ stem: filenameEl.value.trim() || defaultStem, ext, caseMode, comments: comments === 'yes' });
+        finish({ stem: stem || defaultStem, ext, caseMode, comments: comments === 'yes' });
       }
       function onCancelClick()   { finish(null); }
       function onCancel(e)       { e.preventDefault(); finish(null); }
