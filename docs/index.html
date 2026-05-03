@@ -569,11 +569,17 @@ input.cell-edit.score-edit { font-family: ui-monospace, 'Cascadia Code', monospa
 .toast .undo-link { margin-left: 10px; color: #90caf9; text-decoration: underline; cursor: pointer; }
 
 /* ── Onboarding banner ────────────────────────────────────────────────────────── */
+html.light-mode #onboarding-banner {
+  background: color-mix(in srgb, var(--accent) 7%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--border));
+}
+html.dark-mode #onboarding-banner {
+  background: color-mix(in srgb, var(--accent) 15%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--accent) 40%, var(--border));
+}
 #onboarding-banner {
   margin: 6px 10px 2px;
   padding: 11px 13px;
-  background: color-mix(in srgb, var(--accent) 7%, var(--surface));
-  border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--border));
   border-radius: 6px;
   font-size: 13px;
   position: relative;
