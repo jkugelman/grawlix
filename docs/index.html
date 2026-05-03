@@ -3741,7 +3741,7 @@ const ConfigureListDialog = (() => {
       hasContentLength = !!headResp.headers.get('content-length');
     } catch (err) {
       if (err.name === 'AbortError') return;
-      urlCheckIcon.textContent = '❌';
+      urlCheckIcon.innerHTML = '<span class="url-check-err-icon">✗</span>';
       urlCheckIcon.hidden = false;
       urlMetaEl.innerHTML = `<span class="url-check-error">Unreachable — possible CORS restriction</span>`;
       urlMetaEl.classList.add('visible');
@@ -3771,7 +3771,7 @@ const ConfigureListDialog = (() => {
     }
 
     if (!validateWordlistChunk(chunkText)) {
-      urlCheckIcon.textContent = '❌';
+      urlCheckIcon.innerHTML = '<span class="url-check-err-icon">✗</span>';
       urlCheckIcon.hidden = false;
       urlMetaEl.innerHTML = `<span class="url-check-error">Not a wordlist file</span>`;
       urlMetaEl.classList.add('visible');
