@@ -3671,7 +3671,7 @@ const ConfigureListDialog = (() => {
     rulesPreviewWrap.innerHTML = buildRulesListHTML(rules || [], {
       rulesId: 'preview-rules',
       saveFn: '', deleteFn: '',
-      rescore: _rulesOption === 'recommended',
+      rescore: true,
       readOnly: true,
     });
   }
