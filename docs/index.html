@@ -120,9 +120,9 @@ main { display: flex; flex: 1; overflow: hidden; position: relative; }
 .card-actions { display: flex; gap: 5px; align-items: center; flex-shrink: 0; }
 
 /* Buttons */
-button { font-size: 13px; padding: 5px 11px; border-radius: 4px; border: 1px solid var(--border); background: var(--btn-bg); color: var(--text); cursor: pointer; font-family: inherit; }
+button { font-size: 13px; padding: 7px 11px; border-radius: 4px; border: 1px solid var(--border); background: var(--btn-bg); color: var(--text); cursor: pointer; font-family: inherit; line-height: 1; display: inline-flex; align-items: center; justify-content: center; }
 button:hover:not(:disabled) { background: var(--hover); }
-button.primary { background: var(--accent); color: white; border-color: var(--accent); display: inline-flex; align-items: center; justify-content: center; gap: 5px; }
+button.primary { background: var(--accent); color: white; border-color: var(--accent); gap: 5px; }
 button.primary:hover:not(:disabled) { background: var(--accent-hover); }
 button:disabled { opacity: 0.45; cursor: not-allowed; }
 button.danger { background: #c0392b; color: white; border-color: #922b21; }
@@ -365,7 +365,7 @@ dialog h2 { font-size: 16px; margin-bottom: 14px; padding-right: 24px; }
 .ic-10 { fill: #3949AB; }
 .ic-11 { fill: #0277BD; }
 /* More menu (⋮ button in detail header) */
-.more-menu-btn { border-radius: 4px; font-size: 14px; line-height: 1; }
+.more-menu-btn { padding-left: 8px; padding-right: 8px; }
 
 /* Update Summary dialog */
 #update-summary-dialog { width: 480px; overflow: hidden; padding: 0; max-height: min(560px, 85vh); }
@@ -999,7 +999,7 @@ function buildSplitBtn(mainLabel, mainOnclick, menuItems, { primary = false, dis
 function buildMoreMenuHTML(menuItems) {
   const items = menuItems.map(([lbl, fn]) => `<button onclick="${fn}">${lbl}</button>`).join('');
   return `<div class="split-btn">` +
-    `<button class="split-btn-arrow more-menu-btn" onclick="toggleSplitMenu(event)" title="More options">⋮</button>` +
+    `<button class="more-menu-btn" onclick="toggleSplitMenu(event)" title="More options">⋮</button>` +
     `<div class="split-btn-menu">${items}</div>` +
     `</div>`;
 }
