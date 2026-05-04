@@ -761,7 +761,7 @@ const EMOJI_LIST = [
   '❤️','💜','💙','💚','💛','🧡','🖤','🤍',
 ];
 
-const LIST_PRESETS = [
+const LIST_PUBLISHERS = [
   {
     id: 'jkugelman',
     popularity: 4,
@@ -1154,7 +1154,7 @@ const DEFAULT_OUTPUT_SCORING = [
 ];
 
 const state = {
-  inputLists: [],       // [{type?, dbKey, icon, presetId?, name, url, enabled, rawEntries, lastUpdated, _loading, rescoreRules}]
+  inputLists: [],       // [{type?, dbKey, icon, publisherId?, name, url, enabled, rawEntries, lastUpdated, _loading, rescoreRules}]
   selected: null,       // OUTPUT_ID | list object | null
   searchQuery: '',
   searchWholeWord: false,
@@ -1256,7 +1256,7 @@ function persistMeta() {
     ...(l.type     ? { type: l.type }         : {}),
     dbKey:           l.dbKey,
     icon:            l.icon || '',
-    ...(l.presetId ? { presetId: l.presetId } : {}),
+    ...(l.publisherId ? { publisherId: l.publisherId } : {}),
     name: l.name, url: l.url || null,
     enabled: l.enabled, lastUpdated: l.lastUpdated || null,
     fetchedSize: l.fetchedSize || null,
@@ -1407,7 +1407,7 @@ async function init() {
           ...(m.type     ? { type: m.type }         : {}),
           dbKey,
           icon:            m.icon || '',
-          ...(m.presetId ? { presetId: m.presetId } : {}),
+          ...(m.publisherId ? { publisherId: m.publisherId } : {}),
           name: m.name, url: m.url || null,
           enabled: m.enabled, lastUpdated: m.lastUpdated || null,
           fetchedSize: m.fetchedSize || null,
@@ -1466,11 +1466,11 @@ async function init() {
 }
 
 function defaultInputLists() {
-  return LIST_PRESETS.map(t => {
+  return LIST_PUBLISHERS.map(t => {
     const list = {
       dbKey: crypto.randomUUID(),
       icon: t.icon,
-      presetId: t.id,
+      publisherId: t.id,
       name: t.name,
       url: t.url || null,
       enabled: true,
@@ -3607,8 +3607,8 @@ const ConfigureListDialog = (() => {
   let _mode           = 'configure';
   let _list           = null;
   let _pickerOpen     = false;
-  let _selectedPreset = null;
-  let _originalPreset = null;
+  let _selectedPublisher = null;
+  let _originalPublisher = null;
   let _pendingIcon    = '';
   let _pendingName    = '';
   let _rulesOption    = 'none';
@@ -3713,24 +3713,24 @@ const ConfigureListDialog = (() => {
   // ── Publisher chips ──────────────────────────────────────────────────────────
 
   function renderPublisherChips() {
-    const chips = [...LIST_PRESETS].sort((a, b) => a.popularity - b.popularity).map(p => {
+    const chips = [...LIST_PUBLISHERS].sort((a, b) => a.popularity - b.popularity).map(p => {
       const icon = p.icon || buildInitialsIconHTML(p.name, colorSeed(p));
-      return `<button class="publisher-chip${_selectedPreset === p ? ' active' : ''}" data-preset-id="${p.id}">${icon}${esc(p.name)}</button>`;
+      return `<button class="publisher-chip${_selectedPublisher === p ? ' active' : ''}" data-publisher-id="${p.id}">${icon}${esc(p.name)}</button>`;
     });
-    chips.push(`<button class="publisher-chip${!_selectedPreset ? ' active' : ''}" data-preset-id="">Custom</button>`);
+    chips.push(`<button class="publisher-chip${!_selectedPublisher ? ' active' : ''}" data-publisher-id="">Custom</button>`);
     publisherChipsEl.innerHTML = chips.join('');
   }
 
-  function selectPreset(preset) {
-    _selectedPreset = preset;
+  function selectPublisher(publisher) {
+    _selectedPublisher = publisher;
     renderPublisherChips();
-    if (preset) {
+    if (publisher) {
       if (_mode === 'add') {
-        _pendingName = preset.name;
-        nameInput.value = preset.name;
-        setBufferedIcon(preset.icon);
-        if (preset.url) {
-          urlInput.value = preset.url;
+        _pendingName = publisher.name;
+        nameInput.value = publisher.name;
+        setBufferedIcon(publisher.icon);
+        if (publisher.url) {
+          urlInput.value = publisher.url;
         }
       }
       _rulesOption = _mode === 'add' ? 'recommended' : 'none';
@@ -3742,19 +3742,19 @@ const ConfigureListDialog = (() => {
   publisherChipsEl.addEventListener('click', e => {
     const chip = e.target.closest('.publisher-chip');
     if (!chip) return;
-    const preset = chip.dataset.presetId ? LIST_PRESETS.find(p => p.id === chip.dataset.presetId) : null;
-    selectPreset(preset);
+    const publisher = chip.dataset.publisherId ? LIST_PUBLISHERS.find(p => p.id === chip.dataset.publisherId) : null;
+    selectPublisher(publisher);
   });
 
   // ── Rules option ─────────────────────────────────────────────────────────────
 
   function updateRulesOptionRow() {
-    if (!_selectedPreset) { rulesOptionRow.hidden = true; return; }
+    if (!_selectedPublisher) { rulesOptionRow.hidden = true; return; }
     const isAdd = _mode === 'add';
-    const publisherUnchanged = !isAdd && _selectedPreset?.id === _originalPreset?.id;
-    const recommendedIsNoop  = publisherUnchanged && rulesMatchDefaultRules(_list, _selectedPreset);
+    const publisherUnchanged = !isAdd && _selectedPublisher?.id === _originalPublisher?.id;
+    const recommendedIsNoop  = publisherUnchanged && rulesMatchDefaultRules(_list, _selectedPublisher);
     const opts = [{ value: 'recommended', label: isAdd ? 'Use recommended rules' : publisherUnchanged ? 'Reapply recommended rules' : 'Apply recommended rules', disabled: recommendedIsNoop }];
-    if (_selectedPreset.defaultRules?.some(r => r.note))
+    if (_selectedPublisher.defaultRules?.some(r => r.note))
       opts.push({ value: 'levels', label: isAdd ? 'Use scoring levels only' : publisherUnchanged ? 'Reapply scoring levels only' : 'Apply scoring levels only' });
     opts.push({ value: 'none', label: isAdd ? 'None' : 'Do not change rules' });
     rulesSelect.innerHTML = opts.map(o =>
@@ -3763,21 +3763,21 @@ const ConfigureListDialog = (() => {
     rulesOptionRow.hidden = false;
   }
 
-  function rulesMatchDefaultRules(list, preset) {
-    const presetRules = preset?.defaultRules || [];
-    const listRules   = (list?.rescoreRules || []).filter(r => !r._catchAll);
-    if (listRules.length !== presetRules.length) return false;
+  function rulesMatchDefaultRules(list, publisher) {
+    const publisherRules = publisher?.defaultRules || [];
+    const listRules      = (list?.rescoreRules || []).filter(r => !r._catchAll);
+    if (listRules.length !== publisherRules.length) return false;
     return listRules.every((r, i) => {
-      const p = presetRules[i];
+      const p = publisherRules[i];
       return r.input === p.input && r.length === p.length && r.output === p.output && (r.note ?? '') === (p.note ?? '');
     });
   }
 
   function updateRulesPreview() {
-    if (!_selectedPreset || _rulesOption === 'none') { rulesPreviewWrap.hidden = true; return; }
+    if (!_selectedPublisher || _rulesOption === 'none') { rulesPreviewWrap.hidden = true; return; }
     const rules = _rulesOption === 'levels'
-      ? _selectedPreset.defaultRules.map(r => ({ ...r, length: '', output: '' }))
-      : _selectedPreset.defaultRules;
+      ? _selectedPublisher.defaultRules.map(r => ({ ...r, length: '', output: '' }))
+      : _selectedPublisher.defaultRules;
     rulesPreviewWrap.hidden = false;
     rulesPreviewWrap.innerHTML = buildRulesListHTML(rules || [], {
       rulesId: 'preview-rules',
@@ -3909,9 +3909,9 @@ const ConfigureListDialog = (() => {
   // ── Save / Add ────────────────────────────────────────────────────────────────
 
   function computeRulesToApply() {
-    if (!_selectedPreset) return _mode === 'add' ? [] : null;
-    if (_rulesOption === 'recommended') return JSON.parse(JSON.stringify(_selectedPreset.defaultRules || []));
-    if (_rulesOption === 'levels')      return _selectedPreset.defaultRules.map(r => ({ ...r, output: '' }));
+    if (!_selectedPublisher) return _mode === 'add' ? [] : null;
+    if (_rulesOption === 'recommended') return JSON.parse(JSON.stringify(_selectedPublisher.defaultRules || []));
+    if (_rulesOption === 'levels')      return _selectedPublisher.defaultRules.map(r => ({ ...r, output: '' }));
     return _mode === 'add' ? [] : null;
   }
 
@@ -3925,7 +3925,7 @@ const ConfigureListDialog = (() => {
       const list = addNewList({
         dbKey: crypto.randomUUID(), icon: _pendingIcon, name,
         url, enabled: true,
-        ...(_selectedPreset ? { presetId: _selectedPreset.id } : {}),
+        ...(_selectedPublisher ? { publisherId: _selectedPublisher.id } : {}),
         rescoreRules: rules || [],
       });
       el.close();
@@ -3941,7 +3941,7 @@ const ConfigureListDialog = (() => {
       _list.icon = _pendingIcon;
       _list.name = name;
       _list.url  = url;
-      if (_selectedPreset) { _list.presetId = _selectedPreset.id; } else { delete _list.presetId; }
+      if (_selectedPublisher) { _list.publisherId = _selectedPublisher.id; } else { delete _list.publisherId; }
       if (rules !== null) { _list.rescoreRules = rules; updateCatchAll(_list); }
       persistMeta();
       invalidateListCaches(_list);
@@ -3970,8 +3970,8 @@ const ConfigureListDialog = (() => {
     _mode           = 'configure';
     _list           = list;
     _pickerOpen     = false;
-    _selectedPreset = getPreset(list);
-    _originalPreset = _selectedPreset;
+    _selectedPublisher = getPublisher(list);
+    _originalPublisher = _selectedPublisher;
     _pendingIcon    = list.icon || '';
     _pendingName    = list.name || '';
     _pendingFile    = null;
@@ -4011,8 +4011,8 @@ const ConfigureListDialog = (() => {
     _mode           = 'add';
     _list           = null;
     _pickerOpen     = false;
-    _selectedPreset = null;
-    _originalPreset = null;
+    _selectedPublisher = null;
+    _originalPublisher = null;
     _pendingIcon    = '';
     _pendingName    = '';
     _pendingFile    = null;
@@ -4310,10 +4310,10 @@ function _dismissToast(el) {
   el.addEventListener('transitionend', () => el.remove(), { once: true });
 }
 
-// ─── Preset lookup ────────────────────────────────────────────────────────────
+// ─── Publisher lookup ─────────────────────────────────────────────────────────
 
-function getPreset(list) {
-  return list.presetId ? LIST_PRESETS.find(p => p.id === list.presetId) ?? null : null;
+function getPublisher(list) {
+  return list.publisherId ? LIST_PUBLISHERS.find(p => p.id === list.publisherId) ?? null : null;
 }
 
 // ─── List icons ───────────────────────────────────────────────────────────────
@@ -5015,8 +5015,8 @@ const HelpModal = (() => {
     after(6600, () => { runSearchDemo(); });
   }
 
-  const DEMO_JK_ICON = buildInitialsIconHTML('John Kugelman', colorSeed(LIST_PRESETS.find(p => p.id === 'jkugelman')));
-  const DEMO_PB_ICON = buildInitialsIconHTML('Peter Broda',   colorSeed(LIST_PRESETS.find(p => p.id === 'broda')));
+  const DEMO_JK_ICON = buildInitialsIconHTML('John Kugelman', colorSeed(LIST_PUBLISHERS.find(p => p.id === 'jkugelman')));
+  const DEMO_PB_ICON = buildInitialsIconHTML('Peter Broda',   colorSeed(LIST_PUBLISHERS.find(p => p.id === 'broda')));
 
   function initDemoSlides() {
     // Slide 0: two-panel overview

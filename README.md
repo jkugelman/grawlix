@@ -14,7 +14,7 @@ It also doubles as a search tool while you're constructing: filter by substring,
 
 ## Features
 
-**Built-in presets** for four popular wordlists — one-click setup with sensible default rescore rules:
+**Known publishers** for four popular wordlists — one-click setup with sensible default rescore rules:
 - [John Kugelman](https://github.com/jkugelman/crossword)
 - [XWord Info](https://www.xwordinfo.com/WordList)
 - [Spread the Word(list)](https://www.spreadthewordlist.com)
@@ -34,7 +34,7 @@ It also doubles as a search tool while you're constructing: filter by substring,
 
 Just visit **[grawlix.wtf](https://grawlix.wtf)**. No account, no install. All data stays in your browser (localStorage + IndexedDB).
 
-To add a preset wordlist: click **Add list** and pick from the built-in options. To use your own file: click **Add list → Import file**.
+To add a wordlist from a known publisher: click **Add list** and pick from the built-in options. To use your own file: click **Add list → Import file**.
 
 ## Contributing
 
