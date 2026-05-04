@@ -3753,9 +3753,10 @@ const ConfigureListDialog = (() => {
     const isAdd = _mode === 'add';
     const publisherUnchanged = !isAdd && _selectedPublisher?.id === _originalPublisher?.id;
     const recommendedIsNoop  = publisherUnchanged && rulesMatchDefaultRules(_list, _selectedPublisher);
-    const opts = [{ value: 'recommended', label: isAdd ? 'Use recommended rules' : publisherUnchanged ? 'Reapply recommended rules' : 'Apply recommended rules', disabled: recommendedIsNoop }];
+    const applyVerb = isAdd ? 'Use' : publisherUnchanged ? 'Reapply' : 'Apply';
+    const opts = [{ value: 'recommended', label: `${applyVerb} recommended rules`, disabled: recommendedIsNoop }];
     if (_selectedPublisher.defaultRules?.some(r => r.note))
-      opts.push({ value: 'levels', label: isAdd ? 'Use scoring levels only' : publisherUnchanged ? 'Reapply scoring levels only' : 'Apply scoring levels only' });
+      opts.push({ value: 'levels', label: `${applyVerb} scoring levels only` });
     opts.push({ value: 'none', label: isAdd ? 'None' : 'Do not change rules' });
     rulesSelect.innerHTML = opts.map(o =>
       `<option value="${o.value}"${_rulesOption === o.value ? ' selected' : ''}${o.disabled ? ' disabled' : ''}>${o.label}</option>`
