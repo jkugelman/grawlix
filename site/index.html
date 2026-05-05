@@ -1342,6 +1342,7 @@ function enableDismissClicks(el) {
 
 function showDialog(el, onClose = null) {
   const opener = document.activeElement;
+  el.returnValue = '';
   el.addEventListener('close', () => {
     opener?.focus();
     onClose?.();
@@ -3329,12 +3330,14 @@ function addNewList(listDef) {
 const showConfirm = (() => {
   const { el, body } = createDialog('confirm-dialog', { labelledby: 'confirm-dialog-msg' });
   body.innerHTML = `
-    <button class="dialog-close-btn" aria-label="Close">✕</button>
-    <p class="dialog-msg" id="confirm-dialog-msg"></p>
-    <div class="dialog-footer">
-      <button id="btn-confirm-cancel" class="dialog-cancel-btn">Cancel</button>
-      <button id="btn-confirm-ok" class="danger"></button>
-    </div>`;
+    <button type="button" class="dialog-close-btn" aria-label="Close">✕</button>
+    <form method="dialog">
+      <p class="dialog-msg" id="confirm-dialog-msg"></p>
+      <div class="dialog-footer">
+        <button type="button" id="btn-confirm-cancel" class="dialog-cancel-btn">Cancel</button>
+        <button id="btn-confirm-ok" value="ok"></button>
+      </div>
+    </form>`;
   const msgEl     = el.querySelector('#confirm-dialog-msg');
   const okBtn     = el.querySelector('#btn-confirm-ok');
   const cancelBtn = el.querySelector('#btn-confirm-cancel');
@@ -3345,11 +3348,7 @@ const showConfirm = (() => {
       okBtn.textContent     = confirmText;
       cancelBtn.textContent = cancelText;
       okBtn.className       = danger ? 'danger' : '';
-
-      let result = false;
-      okBtn.onclick = () => { result = true; el.close(); };
-
-      showDialog(el, () => resolve(result));
+      showDialog(el, () => resolve(el.returnValue === 'ok'));
     });
   };
 })();
@@ -3357,18 +3356,18 @@ const showConfirm = (() => {
 const showAlert = (() => {
   const { el, body } = createDialog('alert-dialog', { labelledby: 'alert-dialog-msg' });
   body.innerHTML = `
-    <button class="dialog-close-btn" aria-label="Close">✕</button>
-    <p class="dialog-msg" id="alert-dialog-msg"></p>
-    <div class="dialog-footer">
-      <button id="btn-alert-ok" class="primary" autofocus>OK</button>
-    </div>`;
+    <button type="button" class="dialog-close-btn" aria-label="Close">✕</button>
+    <form method="dialog">
+      <p class="dialog-msg" id="alert-dialog-msg"></p>
+      <div class="dialog-footer">
+        <button class="primary" autofocus>OK</button>
+      </div>
+    </form>`;
   const msgEl = el.querySelector('#alert-dialog-msg');
-  const okBtn = el.querySelector('#btn-alert-ok');
 
   return function(message) {
     return new Promise(resolve => {
       msgEl.innerHTML = message;
-      okBtn.onclick = () => el.close();
       showDialog(el, resolve);
     });
   };
@@ -3377,36 +3376,37 @@ const showAlert = (() => {
 const showDownloadDialog = (() => {
   const { el, body } = createDialog('download-dialog', { labelledby: 'download-dialog-title' });
   body.innerHTML = `
-    <button class="dialog-close-btn" aria-label="Close">✕</button>
-    <h2 id="download-dialog-title">Download</h2>
-    <div class="form-field">
-      <label for="download-dialog-filename">Filename</label>
-      <div class="filename-combo">
-        <input id="download-dialog-filename" type="text" autofocus>
-        <select id="download-dialog-ext" aria-label="File extension">
-          <option value="txt">.txt</option>
-          <option value="dict">.dict</option>
-        </select>
+    <button type="button" class="dialog-close-btn" aria-label="Close">✕</button>
+    <form method="dialog">
+      <h2 id="download-dialog-title">Download</h2>
+      <div class="form-field">
+        <label for="download-dialog-filename">Filename</label>
+        <div class="filename-combo">
+          <input id="download-dialog-filename" type="text" autofocus>
+          <select id="download-dialog-ext" aria-label="File extension">
+            <option value="txt">.txt</option>
+            <option value="dict">.dict</option>
+          </select>
+        </div>
       </div>
-    </div>
-    <div class="settings-row">
-      <span class="settings-row-label">Case</span>
-      <div id="download-dialog-case-ctrl"></div>
-    </div>
-    <div class="settings-row">
-      <span class="settings-row-label">Comments</span>
-      <div id="download-dialog-comments-ctrl"></div>
-    </div>
-    <div class="dialog-footer">
-      <button id="btn-download-dialog-cancel" class="dialog-cancel-btn">Cancel</button>
-      <button id="btn-download-dialog-ok" class="primary">Download</button>
-    </div>`;
-  const titleEl     = el.querySelector('#download-dialog-title');
-  const filenameEl  = el.querySelector('#download-dialog-filename');
-  const caseCtrl    = el.querySelector('#download-dialog-case-ctrl');
-  const extSelect   = el.querySelector('#download-dialog-ext');
+      <div class="settings-row">
+        <span class="settings-row-label">Case</span>
+        <div id="download-dialog-case-ctrl"></div>
+      </div>
+      <div class="settings-row">
+        <span class="settings-row-label">Comments</span>
+        <div id="download-dialog-comments-ctrl"></div>
+      </div>
+      <div class="dialog-footer">
+        <button type="button" class="dialog-cancel-btn">Cancel</button>
+        <button class="primary" value="ok">Download</button>
+      </div>
+    </form>`;
+  const titleEl      = el.querySelector('#download-dialog-title');
+  const filenameEl   = el.querySelector('#download-dialog-filename');
+  const caseCtrl     = el.querySelector('#download-dialog-case-ctrl');
+  const extSelect    = el.querySelector('#download-dialog-ext');
   const commentsCtrl = el.querySelector('#download-dialog-comments-ctrl');
-  const okBtn       = el.querySelector('#btn-download-dialog-ok');
 
   return function(defaultStem, list, title = 'Download') {
     titleEl.textContent = title;
@@ -3438,16 +3438,12 @@ const showDownloadDialog = (() => {
         });
       });
 
-      function getCase()     { return caseCtrl.querySelector('.seg-btn.active')?.dataset.val     || 'lower'; }
-      function getExt()      { return extSelect.value; }
-      function getComments() { return commentsCtrl.querySelector('.seg-btn.active')?.dataset.val  || 'yes'; }
-
-      let result = null;
-      okBtn.onclick = () => {
-        const caseMode = getCase();
-        const ext      = getExt();
-        const comments = getComments();
-        const stem = filenameEl.value.trim();
+      showDialog(el, () => {
+        if (el.returnValue !== 'ok') return resolve(null);
+        const caseMode = caseCtrl.querySelector('.seg-btn.active')?.dataset.val     || 'lower';
+        const comments = commentsCtrl.querySelector('.seg-btn.active')?.dataset.val || 'yes';
+        const ext      = extSelect.value;
+        const stem     = filenameEl.value.trim();
         if (list) {
           list.downloadCase = caseMode;
           list.downloadExt  = ext;
@@ -3457,11 +3453,8 @@ const showDownloadDialog = (() => {
           writeMergedSettings({ downloadCase: caseMode, downloadExt: ext, ...(stem ? { downloadStem: stem } : {}) });
         }
         lsSave('downloadComments', comments);
-        result = { stem: stem || defaultStem, ext, caseMode, comments: comments === 'yes' };
-        el.close();
-      };
-
-      showDialog(el, () => resolve(result));
+        resolve({ stem: stem || defaultStem, ext, caseMode, comments: comments === 'yes' });
+      });
     });
   };
 })();
@@ -3469,28 +3462,23 @@ const showDownloadDialog = (() => {
 const showMergeConflict = (() => {
   const { el, body } = createDialog('merge-conflict-dialog', { labelledby: 'merge-conflict-msg' });
   body.innerHTML = `
-    <button class="dialog-close-btn" aria-label="Close">✕</button>
-    <p class="dialog-msg" id="merge-conflict-msg"></p>
-    <div class="dialog-footer">
-      <button id="btn-merge-cancel" class="dialog-cancel-btn" autofocus>Cancel</button>
-      <button id="btn-merge-use-file">Use Imported File</button>
-      <button id="btn-merge-keep-edits" class="primary">Keep My Edits</button>
-    </div>`;
-  const msgEl   = el.querySelector('#merge-conflict-msg');
-  const keepBtn = el.querySelector('#btn-merge-keep-edits');
-  const fileBtn = el.querySelector('#btn-merge-use-file');
+    <button type="button" class="dialog-close-btn" aria-label="Close">✕</button>
+    <form method="dialog">
+      <p class="dialog-msg" id="merge-conflict-msg"></p>
+      <div class="dialog-footer">
+        <button type="button" class="dialog-cancel-btn" autofocus>Cancel</button>
+        <button value="file">Use Imported File</button>
+        <button class="primary" value="edits">Keep My Edits</button>
+      </div>
+    </form>`;
+  const msgEl = el.querySelector('#merge-conflict-msg');
 
   return function(conflictCount) {
     return new Promise(resolve => {
       const editsName = getEditsList().name;
       const noun = conflictCount === 1 ? 'word appears' : 'words appear';
       msgEl.textContent = `${conflictCount.toLocaleString()} ${noun} in both ${editsName} and the imported file with different scores or comments. Which should take precedence?`;
-
-      let result = null;
-      keepBtn.onclick = () => { result = 'edits'; el.close(); };
-      fileBtn.onclick = () => { result = 'file';  el.close(); };
-
-      showDialog(el, () => resolve(result));
+      showDialog(el, () => resolve(el.returnValue || null));
     });
   };
 })();
