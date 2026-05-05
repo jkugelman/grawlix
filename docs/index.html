@@ -320,9 +320,14 @@ dialog h2 { font-size: 16px; margin-bottom: 14px; padding-right: 24px; }
 .tab-btn.active { background: var(--sel); color: var(--accent); }
 .tab-btn:hover:not(.active) { background: var(--hover); }
 .form-field { margin-bottom: 10px; }
-.form-field label { display: block; font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+.form-field label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px; }
 .form-field input { width: 100%; padding: 7px 10px; border: 1px solid var(--border); border-radius: 4px; font-size: 13px; font-family: inherit; background: var(--input-bg); color: var(--text); }
 .form-field input:focus { outline: none; border-color: var(--accent); }
+.filename-combo { display: flex; align-items: stretch; }
+.filename-combo input { flex: 1; min-width: 0; border-top-right-radius: 0; border-bottom-right-radius: 0; }
+.filename-combo select { border: 1px solid var(--border); border-left: none; border-radius: 0 4px 4px 0; background: var(--input-bg); padding: 0 6px 0 8px; font-size: 13px; font-family: inherit; color: var(--text); cursor: pointer; }
+.filename-combo select:focus { outline: none; border-color: var(--accent); border-left: none; }
+.filename-combo:has(select:focus) input { border-right-color: var(--accent); }
 .known-list { display: flex; align-items: center; justify-content: space-between; gap: 9px; padding: 9px 12px; border: 1px solid var(--border2); border-radius: 6px; margin-bottom: 7px; }
 .known-list-info { flex: 1; }
 .known-list-name { font-size: 13px; font-weight: 600; }
@@ -3375,15 +3380,17 @@ const showDownloadDialog = (() => {
     <h2 id="download-dialog-title">Download</h2>
     <div class="form-field">
       <label for="download-dialog-filename">Filename</label>
-      <input id="download-dialog-filename" type="text">
+      <div class="filename-combo">
+        <input id="download-dialog-filename" type="text">
+        <select id="download-dialog-ext" aria-label="File extension">
+          <option value="txt">.txt</option>
+          <option value="dict">.dict</option>
+        </select>
+      </div>
     </div>
     <div class="settings-row">
       <span class="settings-row-label">Case</span>
       <div id="download-dialog-case-ctrl"></div>
-    </div>
-    <div class="settings-row">
-      <span class="settings-row-label">Extension</span>
-      <div id="download-dialog-ext-ctrl"></div>
     </div>
     <div class="settings-row">
       <span class="settings-row-label">Comments</span>
@@ -3396,7 +3403,7 @@ const showDownloadDialog = (() => {
   const titleEl     = el.querySelector('#download-dialog-title');
   const filenameEl  = el.querySelector('#download-dialog-filename');
   const caseCtrl    = el.querySelector('#download-dialog-case-ctrl');
-  const extCtrl     = el.querySelector('#download-dialog-ext-ctrl');
+  const extSelect   = el.querySelector('#download-dialog-ext');
   const commentsCtrl = el.querySelector('#download-dialog-comments-ctrl');
   const okBtn       = el.querySelector('#btn-download-dialog-ok');
   const cancelBtn  = el.querySelector('#btn-download-dialog-cancel');
@@ -3414,20 +3421,17 @@ const showDownloadDialog = (() => {
 
       filenameEl.value = savedStem;
       filenameEl.placeholder = defaultStem;
+      extSelect.value = savedExt;
       caseCtrl.innerHTML = buildSegCtrlHTML(null, [
         { value: 'lower', label: 'lower' },
         { value: 'upper', label: 'UPPER' },
       ], savedCase);
-      extCtrl.innerHTML = buildSegCtrlHTML(null, [
-        { value: 'txt',  label: '.txt' },
-        { value: 'dict', label: '.dict' },
-      ], savedExt);
       commentsCtrl.innerHTML = buildSegCtrlHTML(null, [
         { value: 'yes', label: 'Include' },
         { value: 'no',  label: 'Exclude' },
       ], savedComments);
 
-      [caseCtrl, extCtrl, commentsCtrl].forEach(ctrl => {
+      [caseCtrl, commentsCtrl].forEach(ctrl => {
         ctrl.querySelectorAll('.seg-btn').forEach(btn => {
           btn.onclick = () => {
             ctrl.querySelectorAll('.seg-btn').forEach(b => b.classList.remove('active'));
@@ -3437,7 +3441,7 @@ const showDownloadDialog = (() => {
       });
 
       function getCase()     { return caseCtrl.querySelector('.seg-btn.active')?.dataset.val     || 'lower'; }
-      function getExt()      { return extCtrl.querySelector('.seg-btn.active')?.dataset.val       || 'txt'; }
+      function getExt()      { return extSelect.value; }
       function getComments() { return commentsCtrl.querySelector('.seg-btn.active')?.dataset.val  || 'yes'; }
 
       function finish(result) {
