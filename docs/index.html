@@ -966,11 +966,11 @@ function buildSearchBarHTML(opts = {}) {
       <div class="search-row">
         <div class="search-input-wrap">
           <svg width="13" height="13"><use href="#icon-search"/></svg>
-          <input type="text" id="${pre}search-input" placeholder="Search" value="${searchQuery}"${ro}${inputHandlers}>
+          <input type="text" id="${pre}search-input" placeholder="Search" value="${searchQuery}"${ro}${inputHandlers}${readonly ? '' : ' title="Search (Alt+S)"'}>
           ${clearSearchBtn}
         </div>
-        <label class="search-whole-word-label"><input type="checkbox" id="${pre}search-whole-word"${wholeWordHandler} ${searchWholeWord ? 'checked' : ''}${ro}> Whole word</label>
-        <label class="score-min-label">Min score <span class="score-min-wrap"><input type="number" id="${pre}score-min-input" min="0" value="${minScore ?? ''}"${ro}${minScoreHandler}>${clearMinBtn}</span></label>
+        <label class="search-whole-word-label"${readonly ? '' : ' title="Whole word (Alt+W)"'}><input type="checkbox" id="${pre}search-whole-word"${wholeWordHandler} ${searchWholeWord ? 'checked' : ''}${ro}> Whole word</label>
+        <label class="score-min-label"${readonly ? '' : ' title="Min score (Alt+M)"'}>Min score <span class="score-min-wrap"><input type="number" id="${pre}score-min-input" min="0" value="${minScore ?? ''}"${ro}${minScoreHandler}>${clearMinBtn}</span></label>
       </div>
     </div>`;
 }
@@ -4186,12 +4186,30 @@ function bindEvents() {
   listsContainer.addEventListener('touchend', endTouchDrag);
   listsContainer.addEventListener('touchcancel', endTouchDrag);
 
-  // Global keyboard shortcuts (F2 to rename selected list)
+  // Global keyboard shortcuts
   document.addEventListener('keydown', e => {
-    if (e.key !== 'F2') return;
     const active = document.activeElement;
-    if (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA') return;
-    if (state.selected && state.selected !== OUTPUT_ID) { e.preventDefault(); startCardRename(state.selected); }
+    const inField = active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.isContentEditable);
+
+    if (e.key === 'F2') {
+      if (inField) return;
+      if (state.selected && state.selected !== OUTPUT_ID) { e.preventDefault(); startCardRename(state.selected); }
+      return;
+    }
+
+    if (e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey) {
+      const k = e.key.toLowerCase();
+      if (k === 's') {
+        const el = document.getElementById('search-input');
+        if (el) { e.preventDefault(); el.focus(); el.select(); }
+      } else if (k === 'w') {
+        const el = document.getElementById('search-whole-word');
+        if (el) { e.preventDefault(); el.checked = !el.checked; onSearchWholeWord(el.checked); }
+      } else if (k === 'm') {
+        const el = document.getElementById('score-min-input');
+        if (el) { e.preventDefault(); el.focus(); el.select(); }
+      }
+    }
   });
 
 }
