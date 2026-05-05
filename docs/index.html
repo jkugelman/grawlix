@@ -4048,14 +4048,14 @@ const ConfigureListDialog = (() => {
 // ─── Event wiring ─────────────────────────────────────────────────────────────
 
 function bindEvents() {
+  // Header chrome
+  document.querySelector('.header-logo-link').href = location.pathname;
+  document.getElementById('btn-settings').onclick = () => SettingsDialog.open();
+
+  // Output card
   const outputCard = document.getElementById('output-card');
   outputCard.onclick = selectOutputList;
   outputCard.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); selectOutputList(); } };
-
-
-  document.getElementById('btn-settings').onclick = () => SettingsDialog.open();
-
-  document.querySelector('.header-logo-link').href = location.pathname;
 
   // Delegated click/keydown/change for input list cards
   const listsContainer = document.getElementById('lists-container');
@@ -4092,7 +4092,7 @@ function bindEvents() {
     toggleList(card._list, e);
   });
 
-  // Drag-to-reorder
+  // Mouse drag-to-reorder
   let _dragList = null;
 
   listsContainer.addEventListener('dragstart', e => {
@@ -4140,7 +4140,7 @@ function bindEvents() {
     _refreshCountsTimer = setTimeout(refreshSourceCounts, 0);
   });
 
-  // Touch drag-to-reorder (for mobile/touch screens)
+  // Touch drag-to-reorder (mobile/touch screens)
   let _touchDragList = null;
 
   const commitTouchReorder = toList => {
@@ -4186,7 +4186,7 @@ function bindEvents() {
   listsContainer.addEventListener('touchend', endTouchDrag);
   listsContainer.addEventListener('touchcancel', endTouchDrag);
 
-  // F2 to rename selected list
+  // Global keyboard shortcuts (F2 to rename selected list)
   document.addEventListener('keydown', e => {
     if (e.key !== 'F2') return;
     const active = document.activeElement;
