@@ -342,9 +342,7 @@ dialog h2 { font-size: 16px; margin-bottom: 14px; padding-right: 24px; }
 .publisher-chip { border: 1px solid var(--border); border-radius: 16px; padding: 4px 12px; font-size: 12px; font-weight: 600; background: var(--btn-bg); color: var(--muted); cursor: pointer; font-family: inherit; display: inline-flex; align-items: center; gap: 5px; line-height: 1; }
 .publisher-chip:hover:not(.active) { background: var(--hover); color: var(--text); }
 .publisher-chip.active { background: var(--accent); color: white; border-color: var(--accent); }
-.publisher-chip .list-icon-img,
-.publisher-chip .list-icon-initials,
-.publisher-chip .list-icon-emoji { width: 13px; height: 13px; }
+.publisher-chip .list-icon { width: 13px; height: 13px; }
 .rules-option-row { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
 .rules-option-lbl { font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
 .rules-option-row select { padding: 5px 8px; border: 1px solid var(--border); border-radius: 4px; font-size: 12px; font-family: inherit; background: var(--input-bg); color: var(--text); cursor: pointer; }
@@ -387,7 +385,6 @@ dialog h2 { font-size: 16px; margin-bottom: 14px; padding-right: 24px; }
 .url-input:focus { outline: none; border-color: var(--accent); }
 
 /* Initials icon */
-.list-icon-initials { width: 16px; height: 16px; flex-shrink: 0; vertical-align: middle; }
 .list-icon-initials text { fill: white; }
 .ic-0  { fill: #5C6BC0; }
 .ic-1  { fill: #1E88E5; }
@@ -485,13 +482,11 @@ a.get-file:hover { text-decoration: underline; }
 .stats-bar.stats-empty { color: var(--muted); font-size: 13px; }
 
 /* List icons */
-.list-icon-img { width: 16px; height: 16px; border-radius: 3px; flex-shrink: 0; display: inline-block; vertical-align: middle; }
-.list-icon-emoji { width: 16px; height: 16px; flex-shrink: 0; vertical-align: middle; }
+.list-icon { width: 16px; height: 16px; flex-shrink: 0; vertical-align: middle; }
+.list-icon-img { border-radius: 3px; display: inline-block; }
 /* List name icon: inline icon preceding a list name in toasts, alerts, help text, and source column */
 .list-name-icon { display: inline; }
-.list-name-icon .list-icon-img,
-.list-name-icon .list-icon-initials,
-.list-name-icon .list-icon-emoji { width: 1em; height: 1em; vertical-align: -0.1em; }
+.list-name-icon .list-icon { width: 1em; height: 1em; vertical-align: -0.1em; }
 
 /* Score display */
 .entry-ignored { opacity: 0.4; }
@@ -513,6 +508,7 @@ input[type="file"] { display: none; }
 
 /* Output list card */
 #output-card { flex-shrink: 0; user-select: none; }
+#output-card .list-icon { width: 22px; height: 22px; margin: 0 -3px; }
 
 /* Inline cell editing */
 .word-table td.score-cell,
@@ -724,9 +720,9 @@ html.dark-mode #onboarding-banner {
 <main>
   <div id="busy-overlay"><div class="busy-spinner"></div></div>
   <div id="lists-panel">
-    <h2>Output List</h2>
+    <h2>Merged</h2>
     <div id="output-card" tabindex="0" role="option"></div>
-    <h2>Input Lists <span id="list-count"></span></h2>
+    <h2>Sources <span id="list-count"></span></h2>
     <div id="lists-container"></div>
   </div>
 
@@ -742,7 +738,7 @@ const ROW_HEIGHT   = 24;
 const VS_BUFFER    = 60;
 // LS_PREFIX defined in <head> so the FOUC-prevention script can share it.
 const OUTPUT_ID    = '__output__';
-const OUTPUT_NAME  = 'All Merged';
+const OUTPUT_NAME  = 'Master List';
 const EDITS_ICON  = buildEmojiIconHTML('✏️');
 const OUTPUT_ICON  = buildEmojiIconHTML('⭐');
 
@@ -784,7 +780,7 @@ const LIST_PUBLISHERS = [
     popularity: 2,
     name: 'XWord Info',
     url: null,
-    icon: `<img src="https://www.xwordinfo.com/favicon.ico" class="list-icon-img" onerror="this.style.display='none'" alt="">`,
+    icon: `<img src="https://www.xwordinfo.com/favicon.ico" class="list-icon list-icon-img" onerror="this.style.display='none'" alt="">`,
     defaultRules: [
       { input:'60', length:'', output:'',   note:'Entries considered "assets" to a puzzle' },
       { input:'50', length:'', output:'',   note:'Fine entries' },
@@ -801,7 +797,7 @@ const LIST_PUBLISHERS = [
     popularity: 1,
     name: 'Spread the Word(list)',
     url: 'https://grawlix.wtf/spreadthewordlist.txt',
-    icon: `<img src="https://www.spreadthewordlist.com/favicon.ico" class="list-icon-img" onerror="this.style.display='none'" alt="">`,
+    icon: `<img src="https://www.spreadthewordlist.com/favicon.ico" class="list-icon list-icon-img" onerror="this.style.display='none'" alt="">`,
     defaultRules: [
       { input:'50', length:'', output:'50', note:'Clean' },
       { input:'40', length:'', output:'30', note:'Dubious'},
@@ -1017,7 +1013,7 @@ function buildWordRowHTML(word, score, { comment = '', highlight = '' } = {}) {
 // lists: [{ icon, name, meta, enabled }]
 function buildListSidebarHTML(lists, outputMeta = '47,000 entries') {
   return buildListCardHTML(OUTPUT_ICON, OUTPUT_NAME, outputMeta, { isOutput: true })
-    + `<div class="help-mini-section">Input Lists (${lists.length})</div>`
+    + `<div class="help-mini-section">Sources (${lists.length})</div>`
     + lists.map(({ icon, name, meta, enabled = true }) =>
         buildListCardHTML(icon, name, meta, { enabled })
       ).join('');
@@ -3644,7 +3640,7 @@ const ConfigureListDialog = (() => {
   }
 
   function syncEmojiGrid() {
-    const emojiM = _pendingIcon?.match(/<svg class="list-icon-emoji"[^>]*>[^<]*<text[^>]*>([^<]+)<\/text>/);
+    const emojiM = _pendingIcon?.match(/<svg class="[^"]*list-icon-emoji[^"]*"[^>]*>[^<]*<text[^>]*>([^<]+)<\/text>/);
     const cur = emojiM ? emojiM[1] : null;
     pickerPopup.querySelectorAll('.icon-emoji-btn').forEach(btn => {
       if (btn.hasAttribute('data-auto')) {
@@ -3708,7 +3704,7 @@ const ConfigureListDialog = (() => {
 
   imgUrlInput.addEventListener('input', () => {
     const url = imgUrlInput.value.trim();
-    setBufferedIcon(url ? `<img src="${esc(url)}" class="list-icon-img" onerror="this.style.display='none'" alt="">` : '');
+    setBufferedIcon(url ? `<img src="${esc(url)}" class="list-icon list-icon-img" onerror="this.style.display='none'" alt="">` : '');
   });
 
   // ── Publisher chips ──────────────────────────────────────────────────────────
@@ -4356,11 +4352,11 @@ function nameColorIndex(name) {
 function buildInitialsIconHTML(name, colorSeed = name) {
   const initials = esc(nameToInitials(name));
   const ci = nameColorIndex(colorSeed);
-  return `<svg class="list-icon-initials ic-${ci}" viewBox="0 0 16 16" aria-hidden="true"><rect width="16" height="16" rx="3"/><text x="8" y="8" text-anchor="middle" dominant-baseline="central" font-family="system-ui,sans-serif" font-weight="700" font-size="8" letter-spacing="-0.02em">${initials}</text></svg>`;
+  return `<svg class="list-icon list-icon-initials ic-${ci}" viewBox="0 0 16 16" aria-hidden="true"><rect width="16" height="16" rx="3"/><text x="8" y="8" text-anchor="middle" dominant-baseline="central" font-family="system-ui,sans-serif" font-weight="700" font-size="8" letter-spacing="-0.02em">${initials}</text></svg>`;
 }
 
 function buildEmojiIconHTML(emoji) {
-  return `<svg class="list-icon-emoji" viewBox="0 0 16 16" aria-hidden="true"><text x="8" y="8" text-anchor="middle" dominant-baseline="central" font-size="13">${esc(emoji)}</text></svg>`;
+  return `<svg class="list-icon list-icon-emoji" viewBox="0 0 16 16" aria-hidden="true"><text x="8" y="8" text-anchor="middle" dominant-baseline="central" font-size="13">${esc(emoji)}</text></svg>`;
 }
 
 function colorSeed(obj) {
@@ -4757,7 +4753,7 @@ const HelpModal = (() => {
 
         <div class="help-slide" id="help-slide-2">
           <h2>Making It Yours</h2>
-          <p>Different wordlists use different score scales. <strong>Rescoring rules</strong> let you normalize them — map one score range to another so your output list has consistent scoring across all sources.</p>
+          <p>Different wordlists use different score scales. <strong>Rescoring rules</strong> let you normalize them — map one score range to another so your merged list has consistent scoring across all sources.</p>
           <p><strong class="help-edits-name">My Edits</strong> is your personal override layer. Click any score or comment to change it. Add words that don't appear in any source list. Your changes are never overwritten by a list update.</p>
           <div class="help-demo flush">
             <table class="word-table">
