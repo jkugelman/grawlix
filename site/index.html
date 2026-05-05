@@ -1334,8 +1334,10 @@ function displayWord(word) {
   return getDisplayCase() === 'upper' ? word.toUpperCase() : word.toLowerCase();
 }
 
-function enableBackdropClose(el) {
-  el.addEventListener('click', e => { if (e.target === el) el.close(); });
+function enableDismissClicks(el) {
+  el.addEventListener('click', e => {
+    if (e.target === el || e.target.closest('.dialog-close-btn, .dialog-cancel-btn')) el.close();
+  });
 }
 
 function showDialog(el, onClose = null) {
@@ -1356,7 +1358,7 @@ function createDialog(id, { labelledby, label } = {}) {
   el.id = id;
   if (labelledby) el.setAttribute('aria-labelledby', labelledby);
   if (label)      el.setAttribute('aria-label', label);
-  enableBackdropClose(el);
+  enableDismissClicks(el);
   const body = document.createElement('div');
   body.className = 'dialog-body';
   el.appendChild(body);
@@ -1428,8 +1430,6 @@ const SettingsDialog = (() => {
     await resetAllData();
     location.reload();
   };
-
-  el.querySelector('.dialog-close-btn').onclick = () => el.close();
 
   function open() {
     showDialog(el);
@@ -2959,10 +2959,8 @@ const openUpdateSummaryDialog = (() => {
   const countEl   = el.querySelector('#update-summary-count');
   const pillsEl   = el.querySelector('#update-summary-pills');
   const scrollEl  = el.querySelector('#update-summary-scroll');
-  const xBtn      = el.querySelector('.dialog-close-btn');
 
-  xBtn.onclick = () => el.close();
-  enableBackdropClose(el);
+  enableDismissClicks(el);
 
   return function(list, oldCount, added, deleted, rescored) {
     titleEl.textContent = `${list.name} Updated`;
@@ -3334,13 +3332,12 @@ const showConfirm = (() => {
     <button class="dialog-close-btn" aria-label="Close">✕</button>
     <p class="dialog-msg" id="confirm-dialog-msg"></p>
     <div class="dialog-footer">
-      <button id="btn-confirm-cancel">Cancel</button>
+      <button id="btn-confirm-cancel" class="dialog-cancel-btn">Cancel</button>
       <button id="btn-confirm-ok" class="danger"></button>
     </div>`;
   const msgEl     = el.querySelector('#confirm-dialog-msg');
   const okBtn     = el.querySelector('#btn-confirm-ok');
   const cancelBtn = el.querySelector('#btn-confirm-cancel');
-  const xBtn      = el.querySelector('.dialog-close-btn');
 
   return function(message, { confirmText = 'OK', cancelText = 'Cancel', danger = true, html = null } = {}) {
     return new Promise(resolve => {
@@ -3350,9 +3347,7 @@ const showConfirm = (() => {
       okBtn.className       = danger ? 'danger' : '';
 
       let result = false;
-      okBtn.onclick     = () => { result = true; el.close(); };
-      cancelBtn.onclick = () => el.close();
-      xBtn.onclick      = () => el.close();
+      okBtn.onclick = () => { result = true; el.close(); };
 
       showDialog(el, () => resolve(result));
     });
@@ -3369,13 +3364,11 @@ const showAlert = (() => {
     </div>`;
   const msgEl = el.querySelector('#alert-dialog-msg');
   const okBtn = el.querySelector('#btn-alert-ok');
-  const xBtn  = el.querySelector('.dialog-close-btn');
 
   return function(message) {
     return new Promise(resolve => {
       msgEl.innerHTML = message;
       okBtn.onclick = () => el.close();
-      xBtn.onclick  = () => el.close();
       showDialog(el, resolve);
     });
   };
@@ -3405,7 +3398,7 @@ const showDownloadDialog = (() => {
       <div id="download-dialog-comments-ctrl"></div>
     </div>
     <div class="dialog-footer">
-      <button id="btn-download-dialog-cancel">Cancel</button>
+      <button id="btn-download-dialog-cancel" class="dialog-cancel-btn">Cancel</button>
       <button id="btn-download-dialog-ok" class="primary">Download</button>
     </div>`;
   const titleEl     = el.querySelector('#download-dialog-title');
@@ -3414,8 +3407,6 @@ const showDownloadDialog = (() => {
   const extSelect   = el.querySelector('#download-dialog-ext');
   const commentsCtrl = el.querySelector('#download-dialog-comments-ctrl');
   const okBtn       = el.querySelector('#btn-download-dialog-ok');
-  const cancelBtn  = el.querySelector('#btn-download-dialog-cancel');
-  const xBtn       = el.querySelector('.dialog-close-btn');
 
   return function(defaultStem, list, title = 'Download') {
     titleEl.textContent = title;
@@ -3469,8 +3460,6 @@ const showDownloadDialog = (() => {
         result = { stem: stem || defaultStem, ext, caseMode, comments: comments === 'yes' };
         el.close();
       };
-      cancelBtn.onclick = () => el.close();
-      xBtn.onclick      = () => el.close();
 
       showDialog(el, () => resolve(result));
     });
@@ -3483,15 +3472,13 @@ const showMergeConflict = (() => {
     <button class="dialog-close-btn" aria-label="Close">✕</button>
     <p class="dialog-msg" id="merge-conflict-msg"></p>
     <div class="dialog-footer">
-      <button id="btn-merge-cancel" autofocus>Cancel</button>
+      <button id="btn-merge-cancel" class="dialog-cancel-btn" autofocus>Cancel</button>
       <button id="btn-merge-use-file">Use Imported File</button>
       <button id="btn-merge-keep-edits" class="primary">Keep My Edits</button>
     </div>`;
-  const msgEl     = el.querySelector('#merge-conflict-msg');
-  const keepBtn   = el.querySelector('#btn-merge-keep-edits');
-  const fileBtn   = el.querySelector('#btn-merge-use-file');
-  const cancelBtn = el.querySelector('#btn-merge-cancel');
-  const xBtn      = el.querySelector('.dialog-close-btn');
+  const msgEl   = el.querySelector('#merge-conflict-msg');
+  const keepBtn = el.querySelector('#btn-merge-keep-edits');
+  const fileBtn = el.querySelector('#btn-merge-use-file');
 
   return function(conflictCount) {
     return new Promise(resolve => {
@@ -3500,10 +3487,8 @@ const showMergeConflict = (() => {
       msgEl.textContent = `${conflictCount.toLocaleString()} ${noun} in both ${editsName} and the imported file with different scores or comments. Which should take precedence?`;
 
       let result = null;
-      keepBtn.onclick   = () => { result = 'edits'; el.close(); };
-      fileBtn.onclick   = () => { result = 'file';  el.close(); };
-      cancelBtn.onclick = () => el.close();
-      xBtn.onclick      = () => el.close();
+      keepBtn.onclick = () => { result = 'edits'; el.close(); };
+      fileBtn.onclick = () => { result = 'file';  el.close(); };
 
       showDialog(el, () => resolve(result));
     });
@@ -3555,7 +3540,7 @@ const ConfigureListDialog = (() => {
       </div>
     </div>
     <div class="dialog-footer">
-      <button id="btn-cfg-cancel">Cancel</button>
+      <button id="btn-cfg-cancel" class="dialog-cancel-btn">Cancel</button>
       <button class="primary" id="btn-cfg-save"></button>
     </div>`;
 
@@ -3930,8 +3915,6 @@ const ConfigureListDialog = (() => {
 
   // ── Cancel / close ────────────────────────────────────────────────────────────
 
-  el.querySelector('#btn-cfg-cancel').onclick = () => el.close();
-  el.querySelector('.dialog-close-btn').onclick  = () => el.close();
   el.addEventListener('cancel', e => { if (_pickerOpen) { e.preventDefault(); closePicker(); } });
   el.addEventListener('close',  () => {
     closePicker();
@@ -4381,8 +4364,6 @@ const ImportGuideDialog = (() => {
     const importBtn = el.querySelector('.guide-import-btn');
     importBtn.disabled = true;
 
-    el.querySelector('.dialog-close-btn').onclick = () => el.close();
-    el.querySelector('.guide-cancel-btn').onclick = () => el.close();
     importBtn.onclick = () => {
       if (!_pendingFile) return;
       el.close();
@@ -4408,7 +4389,7 @@ const ImportGuideDialog = (() => {
       </div>`;
     const footer = `
       <div class="dialog-footer">
-        <button class="guide-cancel-btn">Cancel</button>
+        <button class="dialog-cancel-btn">Cancel</button>
         <button class="primary guide-import-btn">Import</button>
       </div>`;
 
@@ -4783,7 +4764,7 @@ const HelpModal = (() => {
   const dialog = document.createElement('dialog');
   dialog.id = 'help-dialog';
   dialog.setAttribute('aria-label', 'Grawlix Help');
-  enableBackdropClose(dialog);
+  enableDismissClicks(dialog);
   dialog.innerHTML = `
     <button class="dialog-close-btn" aria-label="Close">✕</button>
     <div class="help-modal">
@@ -5134,7 +5115,6 @@ const HelpModal = (() => {
   document.addEventListener('keydown', e => {
     if (e.key === '?' && !e.target.closest('input, textarea, [contenteditable]')) open();
   });
-  dialog.querySelector('.dialog-close-btn').addEventListener('click', close);
   dialog.addEventListener('keydown', e => {
     if (e.key === 'ArrowRight' || e.key === 'ArrowDown') { e.preventDefault(); next(); }
     else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') { e.preventDefault(); prev(); }
