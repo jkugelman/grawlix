@@ -16,6 +16,8 @@ Inspiration for the mining tools: [Wordlisted](https://aaronson.org/wordlisted/)
 
 **Workshop — daily driver.** The merged wordlist lives here. The default view is the wordlist itself — stats bar, search box, virtual-scrolled word table — the same shape as today's Master List view, relocated. A tool gallery on the side offers stronger queries: anagrams, regex, beheadments, etc. Used for both **filling** (looking up words and noting score corrections while you work a grid) and **theme generation** (mining the wordlist for ideas).
 
+**Default landing.** On boot — including first run — the user lands directly in the Workshop. The four publisher lists fetch automatically in the background, so the Workshop has data to query right away and a new user can start doing wordlist tricks immediately without thinking about list management. The Library is discovered when the user wants to customize: import a custom wordlist into My Edits, set up XWI for subscribers, reorder priorities, etc.
+
 **Why the split.** Setup and active work compete for screen real estate when bundled together. Each gets its own focused UI. The split also resolves an asymmetry in the previous plan: the Master List used to live in the Library sidebar alongside Sources, even though it isn't a source. With the merged wordlist now living entirely in the Workshop, the Library sidebar is uniform — just Sources.
 
 **The merged wordlist has no separate name in the UI.** You switch to the Workshop, you're looking at it. The "Master List" label disappears from user-facing copy; internally the code still computes a merged result.
@@ -151,7 +153,6 @@ Every individual word in any result — regardless of format — must be accessi
 ## Open questions
 
 - **Mode switcher placement:** Exact location in the header TBD once we see it in the layout.
-- **Default mode on first run / empty state:** Lean toward defaulting to the Library so the user lands on the pre-installed wordlists and the "Some popular wordlists have been set up" welcome notification. After they dismiss it ("Sounds good"), a soft nudge could point toward the Workshop — but don't push too hard, since common first-session follow-up tasks are still Library-side: importing a custom wordlist into My Edits, setting up XWI for subscribers. Steady-state behavior (after first run) can use last-used mode. Exact nudge UI TBD.
 - **OneLook integration:** What does their API look like, and what arrangement does XWordInfo have with them?
 - **Phonetics & thesaurus data:** How are the CMU dict and Roget XML bundled or fetched? Static assets, CDN, or runtime fetch?
 
