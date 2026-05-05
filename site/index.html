@@ -1334,11 +1334,29 @@ function displayWord(word) {
   return getDisplayCase() === 'upper' ? word.toUpperCase() : word.toLowerCase();
 }
 
+function enableBackdropClose(el) {
+  el.addEventListener('click', e => { if (e.target === el) el.close(); });
+}
+
+function showDialog(el, onClose = null) {
+  const opener = document.activeElement;
+  el.addEventListener('close', () => {
+    opener?.focus();
+    onClose?.();
+  }, { once: true });
+  el.showModal();
+  if (!el.querySelector('[autofocus]')) {
+    el.tabIndex = -1;
+    el.focus();
+  }
+}
+
 function createDialog(id, { labelledby, label } = {}) {
   const el = document.createElement('dialog');
   el.id = id;
   if (labelledby) el.setAttribute('aria-labelledby', labelledby);
   if (label)      el.setAttribute('aria-label', label);
+  enableBackdropClose(el);
   const body = document.createElement('div');
   body.className = 'dialog-body';
   el.appendChild(body);
@@ -1412,12 +1430,9 @@ const SettingsDialog = (() => {
   };
 
   el.querySelector('.dialog-close-btn').onclick = () => el.close();
-  el.addEventListener('click', e => { if (e.target === el) el.close(); });
 
   function open() {
-    const opener = document.activeElement;
-    el.addEventListener('close', () => opener?.focus(), { once: true });
-    el.showModal();
+    showDialog(el);
   }
 
   return { open };
@@ -2947,7 +2962,7 @@ const openUpdateSummaryDialog = (() => {
   const xBtn      = el.querySelector('.dialog-close-btn');
 
   xBtn.onclick = () => el.close();
-  el.addEventListener('click', e => { if (e.target === el) el.close(); });
+  enableBackdropClose(el);
 
   return function(list, oldCount, added, deleted, rescored) {
     titleEl.textContent = `${list.name} Updated`;
@@ -2991,9 +3006,7 @@ const openUpdateSummaryDialog = (() => {
     _updateScroller = new UpdateSummaryScroller(scrollEl);
     _updateScroller.setRows(rows);
 
-    const opener = document.activeElement;
-    el.addEventListener('close', () => opener?.focus(), { once: true });
-    el.showModal();
+    showDialog(el);
   };
 })();
 
@@ -3317,7 +3330,6 @@ function addNewList(listDef) {
 
 const showConfirm = (() => {
   const { el, body } = createDialog('confirm-dialog', { labelledby: 'confirm-dialog-msg' });
-  el.tabIndex = -1;
   body.innerHTML = `
     <button class="dialog-close-btn" aria-label="Close">✕</button>
     <p class="dialog-msg" id="confirm-dialog-msg"></p>
@@ -3336,32 +3348,13 @@ const showConfirm = (() => {
       okBtn.textContent     = confirmText;
       cancelBtn.textContent = cancelText;
       okBtn.className       = danger ? 'danger' : '';
-      const opener = document.activeElement;
 
-      function finish(result) {
-        el.removeEventListener('cancel', onCancel);
-        el.removeEventListener('click', onClickOutside);
-        okBtn.removeEventListener('click', onOk);
-        cancelBtn.removeEventListener('click', onCancelClick);
-        xBtn.removeEventListener('click', onXClick);
-        el.close();
-        opener?.focus();
-        resolve(result);
-      }
-      function onOk()            { finish(true);  }
-      function onCancelClick()   { finish(false); }
-      function onCancel(e)       { e.preventDefault(); finish(false); }
-      function onXClick()        { finish(false); }
-      function onClickOutside(e) { if (e.target === el) finish(false); }
+      let result = false;
+      okBtn.onclick     = () => { result = true; el.close(); };
+      cancelBtn.onclick = () => el.close();
+      xBtn.onclick      = () => el.close();
 
-      el.addEventListener('cancel', onCancel);
-      el.addEventListener('click', onClickOutside);
-      okBtn.addEventListener('click', onOk);
-      cancelBtn.addEventListener('click', onCancelClick);
-      xBtn.addEventListener('click', onXClick);
-
-      el.showModal();
-      el.focus();
+      showDialog(el, () => resolve(result));
     });
   };
 })();
@@ -3381,26 +3374,9 @@ const showAlert = (() => {
   return function(message) {
     return new Promise(resolve => {
       msgEl.innerHTML = message;
-      const opener = document.activeElement;
-
-      function finish() {
-        el.removeEventListener('cancel', onCancel);
-        el.removeEventListener('click', onClickOutside);
-        okBtn.removeEventListener('click', finish);
-        xBtn.removeEventListener('click', finish);
-        el.close();
-        opener?.focus();
-        resolve();
-      }
-      function onCancel(e) { e.preventDefault(); finish(); }
-      function onClickOutside(e) { if (e.target === el) finish(); }
-
-      el.addEventListener('cancel', onCancel);
-      el.addEventListener('click', onClickOutside);
-      okBtn.addEventListener('click', finish);
-      xBtn.addEventListener('click', finish);
-
-      el.showModal();
+      okBtn.onclick = () => el.close();
+      xBtn.onclick  = () => el.close();
+      showDialog(el, resolve);
     });
   };
 })();
@@ -3413,7 +3389,7 @@ const showDownloadDialog = (() => {
     <div class="form-field">
       <label for="download-dialog-filename">Filename</label>
       <div class="filename-combo">
-        <input id="download-dialog-filename" type="text">
+        <input id="download-dialog-filename" type="text" autofocus>
         <select id="download-dialog-ext" aria-label="File extension">
           <option value="txt">.txt</option>
           <option value="dict">.dict</option>
@@ -3444,7 +3420,6 @@ const showDownloadDialog = (() => {
   return function(defaultStem, list, title = 'Download') {
     titleEl.textContent = title;
     return new Promise(resolve => {
-      const opener = document.activeElement;
       const settings = list || readMergedSettings();
       const savedCase     = settings.downloadCase || 'lower';
       const savedExt      = settings.downloadExt  || 'txt';
@@ -3476,17 +3451,8 @@ const showDownloadDialog = (() => {
       function getExt()      { return extSelect.value; }
       function getComments() { return commentsCtrl.querySelector('.seg-btn.active')?.dataset.val  || 'yes'; }
 
-      function finish(result) {
-        el.removeEventListener('cancel', onCancel);
-        el.removeEventListener('click', onClickOutside);
-        okBtn.removeEventListener('click', onOk);
-        cancelBtn.removeEventListener('click', onCancelClick);
-        xBtn.removeEventListener('click', onXClick);
-        el.close();
-        opener?.focus();
-        resolve(result);
-      }
-      function onOk() {
+      let result = null;
+      okBtn.onclick = () => {
         const caseMode = getCase();
         const ext      = getExt();
         const comments = getComments();
@@ -3500,20 +3466,13 @@ const showDownloadDialog = (() => {
           writeMergedSettings({ downloadCase: caseMode, downloadExt: ext, ...(stem ? { downloadStem: stem } : {}) });
         }
         lsSave('downloadComments', comments);
-        finish({ stem: stem || defaultStem, ext, caseMode, comments: comments === 'yes' });
-      }
-      function onCancelClick()   { finish(null); }
-      function onCancel(e)       { e.preventDefault(); finish(null); }
-      function onXClick()        { finish(null); }
-      function onClickOutside(e) { if (e.target === el) finish(null); }
+        result = { stem: stem || defaultStem, ext, caseMode, comments: comments === 'yes' };
+        el.close();
+      };
+      cancelBtn.onclick = () => el.close();
+      xBtn.onclick      = () => el.close();
 
-      el.addEventListener('cancel', onCancel);
-      el.addEventListener('click', onClickOutside);
-      okBtn.addEventListener('click', onOk);
-      cancelBtn.addEventListener('click', onCancelClick);
-      xBtn.addEventListener('click', onXClick);
-
-      el.showModal();
+      showDialog(el, () => resolve(result));
     });
   };
 })();
@@ -3536,37 +3495,17 @@ const showMergeConflict = (() => {
 
   return function(conflictCount) {
     return new Promise(resolve => {
-      const opener = document.activeElement;
       const editsName = getEditsList().name;
       const noun = conflictCount === 1 ? 'word appears' : 'words appear';
       msgEl.textContent = `${conflictCount.toLocaleString()} ${noun} in both ${editsName} and the imported file with different scores or comments. Which should take precedence?`;
 
-      function finish(result) {
-        el.removeEventListener('cancel', onCancel);
-        el.removeEventListener('click', onClickOutside);
-        keepBtn.removeEventListener('click', onKeep);
-        fileBtn.removeEventListener('click', onFile);
-        cancelBtn.removeEventListener('click', onCancelClick);
-        xBtn.removeEventListener('click', onXClick);
-        el.close();
-        opener?.focus();
-        resolve(result);
-      }
-      function onKeep()          { finish('edits'); }
-      function onFile()          { finish('file');  }
-      function onCancelClick()   { finish(null);    }
-      function onCancel(e)       { e.preventDefault(); finish(null); }
-      function onXClick()        { finish(null);    }
-      function onClickOutside(e) { if (e.target === el) finish(null); }
+      let result = null;
+      keepBtn.onclick   = () => { result = 'edits'; el.close(); };
+      fileBtn.onclick   = () => { result = 'file';  el.close(); };
+      cancelBtn.onclick = () => el.close();
+      xBtn.onclick      = () => el.close();
 
-      el.addEventListener('cancel', onCancel);
-      el.addEventListener('click', onClickOutside);
-      keepBtn.addEventListener('click', onKeep);
-      fileBtn.addEventListener('click', onFile);
-      cancelBtn.addEventListener('click', onCancelClick);
-      xBtn.addEventListener('click', onXClick);
-
-      el.showModal();
+      showDialog(el, () => resolve(result));
     });
   };
 })();
@@ -3594,7 +3533,7 @@ const ConfigureListDialog = (() => {
         <div class="icon-picker-trigger" id="icon-picker-trigger" tabindex="0" role="button" aria-label="Change icon">
           <div class="icon-preview-box" id="config-icon-preview"></div>
         </div>
-        <input type="text" id="config-name-input" class="config-name-input" placeholder="List name" spellcheck="false" autocomplete="off">
+        <input type="text" id="config-name-input" class="config-name-input" placeholder="List name" spellcheck="false" autocomplete="off" autofocus>
       </div>
     </div>
     <div class="configure-section">
@@ -3993,7 +3932,6 @@ const ConfigureListDialog = (() => {
 
   el.querySelector('#btn-cfg-cancel').onclick = () => el.close();
   el.querySelector('.dialog-close-btn').onclick  = () => el.close();
-  el.addEventListener('click',  e => { if (e.target === el) el.close(); });
   el.addEventListener('cancel', e => { if (_pickerOpen) { e.preventDefault(); closePicker(); } });
   el.addEventListener('close',  () => {
     closePicker();
@@ -4037,9 +3975,7 @@ const ConfigureListDialog = (() => {
     }
     importSection.hidden = true;
 
-    const opener = document.activeElement;
-    el.addEventListener('close', () => opener?.focus(), { once: true });
-    el.showModal();
+    showDialog(el);
   }
 
   // ── openAdd (add mode) ────────────────────────────────────────────────────────
@@ -4072,9 +4008,7 @@ const ConfigureListDialog = (() => {
 
     importSection.hidden = false;
 
-    const opener = document.activeElement;
-    el.addEventListener('close', () => opener?.focus(), { once: true });
-    el.showModal();
+    showDialog(el);
   }
 
   return { open, openAdd };
@@ -4435,8 +4369,6 @@ function bindDropZone(zone, fileInput, onFile) {
 const ImportGuideDialog = (() => {
   const { el, body } = createDialog('import-guide-dialog', { labelledby: 'guide-title' });
 
-  el.addEventListener('click', e => { if (e.target === el) el.close(); });
-
   let _list = null;
   let _pendingFile = null;
 
@@ -4464,9 +4396,7 @@ const ImportGuideDialog = (() => {
       importBtn.disabled = false;
     });
 
-    const opener = document.activeElement;
-    el.addEventListener('close', () => opener?.focus(), { once: true });
-    el.showModal();
+    showDialog(el);
   }
 
   function buildContentHTML(list) {
@@ -4853,7 +4783,7 @@ const HelpModal = (() => {
   const dialog = document.createElement('dialog');
   dialog.id = 'help-dialog';
   dialog.setAttribute('aria-label', 'Grawlix Help');
-  dialog.tabIndex = -1;
+  enableBackdropClose(dialog);
   dialog.innerHTML = `
     <button class="dialog-close-btn" aria-label="Close">✕</button>
     <div class="help-modal">
@@ -4935,9 +4865,8 @@ const HelpModal = (() => {
   function open() {
     const editsHTML = buildListNameHTML(getEditsList(), { bold: false });
     dialog.querySelectorAll('.help-edits-name').forEach(el => el.innerHTML = editsHTML);
-    dialog.showModal();
+    showDialog(dialog);
     goTo(0);
-    dialog.focus();
   }
 
   function close() { dialog.close(); }
@@ -5206,17 +5135,13 @@ const HelpModal = (() => {
     if (e.key === '?' && !e.target.closest('input, textarea, [contenteditable]')) open();
   });
   dialog.querySelector('.dialog-close-btn').addEventListener('click', close);
-  dialog.addEventListener('click', e => { if (e.target === dialog) close(); });
   dialog.addEventListener('keydown', e => {
     if (e.key === 'ArrowRight' || e.key === 'ArrowDown') { e.preventDefault(); next(); }
     else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') { e.preventDefault(); prev(); }
     else if (e.key === 'Home') { e.preventDefault(); goTo(0); }
     else if (e.key === 'End') { e.preventDefault(); goTo(totalSlides - 1); }
   });
-  dialog.addEventListener('close', () => {
-    stopDemo();
-    document.getElementById('btn-help').focus();
-  });
+  dialog.addEventListener('close', stopDemo);
   dialog.querySelector('.help-prev').addEventListener('click', prev);
   dialog.querySelector('.help-next').addEventListener('click', next);
   dialog.querySelectorAll('.help-dot').forEach((dot, i) => dot.addEventListener('click', () => goTo(i)));

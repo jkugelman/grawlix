@@ -94,6 +94,8 @@ Every lifecycle component **creates its own DOM element** (`document.createEleme
 
 All builders live in the `// ─── Components ───` section. Nothing outside a component should reach into its DOM subtree.
 
+**Dialog helpers** — `createDialog(id, opts)` returns `{el, body}` and wires backdrop click-to-close. `showDialog(el, onClose?)` opens the dialog: captures the opener for refocus-on-close, runs an optional close callback, and falls back to focusing the dialog body itself when no descendant has `autofocus`. So: put `autofocus` on the primary input/button if there is one — otherwise the helper handles initial focus. Don't manually wire backdrop close, `tabIndex=-1`, or post-`showModal` `.focus()` calls. Promise-returning dialogs (Confirm, Alert, Download, MergeConflict) use the pattern `let result = …; btn.onclick = () => { result = …; el.close(); }; showDialog(el, () => resolve(result))` — no per-call listener bookkeeping.
+
 ## Understanding Grawlix
 
 Before making changes to Grawlix, read the help modal in `site/index.html` for a description of all user-facing features and the two main use cases. The help dialog HTML lives inside the `HelpModal` IIFE — search for `const HelpModal` to find it.
