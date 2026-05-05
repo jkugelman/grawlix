@@ -284,7 +284,7 @@ html.dark-mode .tooltip::after { border-bottom-color: #111214; }
 #download-dialog { width: 340px; }
 #download-dialog .dialog-footer { margin-top: 0; padding-top: 30px; border-top: none; }
 #merge-conflict-dialog { width: 380px; }
-.dialog-body > p { margin-bottom: 4px; line-height: 1.5; padding-right: 24px; }
+.dialog-msg { margin-bottom: 4px; line-height: 1.5; padding-right: 24px; }
 .settings-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 13px 0; border-bottom: 1px solid var(--border2); }
 .settings-row:first-of-type { border-top: 1px solid var(--border2); margin-top: 4px; }
 .settings-row-label { font-size: 13px; font-weight: 600; }
@@ -305,6 +305,7 @@ html.dark-mode .tooltip::after { border-bottom-color: #111214; }
 /* Import zone */
 .import-zone { border: 2px dashed var(--border); border-radius: 6px; padding: 24px 16px; text-align: center; color: var(--faint); cursor: pointer; transition: border-color 0.15s, color 0.15s; user-select: none; }
 .import-zone:hover, .import-zone.drag-over { border-color: var(--accent); color: var(--accent); }
+.import-zone.compact { padding: 14px; font-size: 13px; }
 
 /* Dialog */
 dialog { width: 420px; border-radius: 10px; border: none; box-shadow: var(--shadow); font-family: system-ui, sans-serif; background: var(--surface); color: var(--text); position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); max-height: 90vh; overflow-y: auto; }
@@ -327,6 +328,18 @@ dialog h2 { font-size: 16px; margin-bottom: 14px; padding-right: 24px; }
 .known-list-name { font-size: 13px; font-weight: 600; }
 .known-list-sub  { font-size: 11px; color: var(--muted); margin-top: 2px; }
 .dialog-footer { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--border2); display: flex; justify-content: flex-end; gap: 8px; }
+
+/* Import guide dialog */
+#import-guide-dialog { width: 480px; }
+.guide-intro { margin: 0 0 14px 0; font-size: 13px; color: var(--text); line-height: 1.5; }
+.subscription-note { background: var(--callout-bg); border: 1px solid var(--callout-border); border-radius: 5px; padding: 9px 12px; margin-bottom: 16px; font-size: 12px; color: var(--callout-fg); }
+.guide-steps { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 14px; counter-reset: guide-step; }
+.guide-step { display: flex; gap: 12px; align-items: flex-start; font-size: 13px; line-height: 1.5; counter-increment: guide-step; }
+.guide-step::before { content: counter(guide-step); flex-shrink: 0; width: 22px; height: 22px; border-radius: 50%; background: var(--accent); color: white; font-size: 12px; font-weight: 700; display: flex; align-items: center; justify-content: center; margin-top: 1px; }
+.guide-step-body { flex: 1; min-width: 0; }
+.guide-step-body .import-zone { margin-top: 8px; }
+.guide-step-body a { color: var(--accent); text-decoration: none; word-break: break-all; }
+.guide-step-body a:hover { text-decoration: underline; }
 
 /* Configure / Add list dialog */
 #configure-list-dialog { width: 520px; overflow: visible; }
@@ -780,6 +793,9 @@ const LIST_PUBLISHERS = [
     popularity: 2,
     name: 'XWord Info',
     url: null,
+    sourcePage: 'https://www.xwordinfo.com/WordList',
+    sourceNote: 'Sign in and download the <strong>plain-text (.txt)</strong> version.',
+    subscriptionNote: 'XWord Info\'s wordlist requires a paid subscription.',
     icon: `<img src="https://www.xwordinfo.com/favicon.ico" class="list-icon list-icon-img" onerror="this.style.display='none'" alt="">`,
     defaultRules: [
       { input:'60', length:'', output:'',   note:'Entries considered "assets" to a puzzle' },
@@ -3048,11 +3064,7 @@ function triggerImportForList(list, event) {
 
 function importToList(list, event) {
   if (event) event.stopPropagation();
-  const input = document.createElement('input');
-  input.type = 'file';
-  input.accept = '.txt,.csv';
-  input.onchange = () => { if (input.files[0]) ingestFile(input.files[0], list); };
-  input.click();
+  ImportGuideDialog.open(list);
 }
 
 function ingestFile(file, list, nameOverride) {
@@ -3273,7 +3285,7 @@ const showConfirm = (() => {
   const { el, body } = createDialog('confirm-dialog', { labelledby: 'confirm-dialog-msg' });
   body.innerHTML = `
     <button class="dialog-close-btn" aria-label="Close">✕</button>
-    <p id="confirm-dialog-msg"></p>
+    <p class="dialog-msg" id="confirm-dialog-msg"></p>
     <div class="dialog-footer">
       <button id="btn-confirm-cancel" autofocus>Cancel</button>
       <button id="btn-confirm-ok" class="danger"></button>
@@ -3321,7 +3333,7 @@ const showAlert = (() => {
   const { el, body } = createDialog('alert-dialog', { labelledby: 'alert-dialog-msg' });
   body.innerHTML = `
     <button class="dialog-close-btn" aria-label="Close">✕</button>
-    <p id="alert-dialog-msg"></p>
+    <p class="dialog-msg" id="alert-dialog-msg"></p>
     <div class="dialog-footer">
       <button id="btn-alert-ok" class="primary" autofocus>OK</button>
     </div>`;
@@ -3476,7 +3488,7 @@ const showMergeConflict = (() => {
   const { el, body } = createDialog('merge-conflict-dialog', { labelledby: 'merge-conflict-msg' });
   body.innerHTML = `
     <button class="dialog-close-btn" aria-label="Close">✕</button>
-    <p id="merge-conflict-msg"></p>
+    <p class="dialog-msg" id="merge-conflict-msg"></p>
     <div class="dialog-footer">
       <button id="btn-merge-cancel" autofocus>Cancel</button>
       <button id="btn-merge-use-file">Use Imported File</button>
@@ -4375,6 +4387,90 @@ function bindDropZone(zone, fileInput, onFile) {
   };
   fileInput.onchange = () => { if (fileInput.files[0]) onFile(fileInput.files[0]); };
 }
+
+const ImportGuideDialog = (() => {
+  const { el, body } = createDialog('import-guide-dialog', { labelledby: 'guide-title' });
+
+  el.addEventListener('click', e => { if (e.target === el) el.close(); });
+
+  let _list = null;
+  let _pendingFile = null;
+
+  function open(list) {
+    _list = list;
+    _pendingFile = null;
+    body.innerHTML = buildContentHTML(list);
+
+    const zoneLabel = el.querySelector('.guide-zone-label');
+    const importBtn = el.querySelector('.guide-import-btn');
+    importBtn.disabled = true;
+
+    el.querySelector('.dialog-close-btn').onclick = () => el.close();
+    el.querySelector('.guide-cancel-btn').onclick = () => el.close();
+    importBtn.onclick = () => {
+      if (!_pendingFile) return;
+      el.close();
+      ingestFile(_pendingFile, _list);
+      selectList(_list);
+    };
+
+    bindDropZone(el.querySelector('.guide-drop-zone'), el.querySelector('.guide-file-input'), file => {
+      _pendingFile = file;
+      zoneLabel.textContent = file.name;
+      importBtn.disabled = false;
+    });
+
+    const opener = document.activeElement;
+    el.addEventListener('close', () => opener?.focus(), { once: true });
+    el.showModal();
+  }
+
+  function buildContentHTML(list) {
+    const publisher = getPublisher(list);
+    const dropZone = `
+      <div class="import-zone compact guide-drop-zone">
+        <span class="guide-zone-label">Drop file here or click to browse</span>
+        <input type="file" class="guide-file-input" accept=".txt,.csv">
+      </div>`;
+    const footer = `
+      <div class="dialog-footer">
+        <button class="guide-cancel-btn">Cancel</button>
+        <button class="primary guide-import-btn">Import</button>
+      </div>`;
+
+    if (!publisher?.sourcePage) {
+      return `
+        <button class="dialog-close-btn" aria-label="Close">✕</button>
+        <h2 id="guide-title">Import ${esc(list.name)}</h2>
+        <p class="guide-intro">Import a wordlist file from your computer. Grawlix will load its words and scores into this list.</p>
+        ${dropZone}
+        ${footer}`;
+    }
+
+    const subNote = publisher.subscriptionNote
+      ? `<div class="subscription-note"><strong>Note:</strong> ${esc(publisher.subscriptionNote)}</div>`
+      : '';
+    // sourceNote is trusted HTML hardcoded in LIST_PUBLISHERS, never user input.
+    return `
+      <button class="dialog-close-btn" aria-label="Close">✕</button>
+      <h2 id="guide-title">Import ${esc(publisher.name)}</h2>
+      <p class="guide-intro">This wordlist isn't auto-fetched — you'll need to download it yourself, then drop the file back here.</p>
+      ${subNote}
+      <ol class="guide-steps">
+        <li class="guide-step"><div class="guide-step-body">
+          Open the wordlist page: <a href="${esc(publisher.sourcePage)}" target="_blank" rel="noopener">${esc(publisher.sourcePage)} 🔗</a>
+        </div></li>
+        <li class="guide-step"><div class="guide-step-body">${publisher.sourceNote || 'Download the wordlist file.'}</div></li>
+        <li class="guide-step"><div class="guide-step-body">
+          Drop the downloaded file below, or click to browse:
+          ${dropZone}
+        </div></li>
+      </ol>
+      ${footer}`;
+  }
+
+  return { open };
+})();
 
 
 // ─── Rescore rule management ──────────────────────────────────────────────────
