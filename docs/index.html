@@ -2702,7 +2702,7 @@ function renderEditsDetail(list) {
   ];
 
   panel.innerHTML = `
-    ${buildDetailHeaderHTML(esc(list.name), editsButtons, { editable: true })}
+    ${buildDetailHeaderHTML(esc(list.name), editsButtons)}
     ${statsHtml}
     <div id="edits-scoring-section" class="rescore-section">${buildEditsScoringSectionHTML(list)}</div>
     ${buildTableContainerHTML()}
@@ -4199,7 +4199,7 @@ function bindEvents() {
 
     if (e.key === 'F2') {
       if (inField) return;
-      if (state.selected && state.selected !== MERGED_ID) { e.preventDefault(); startCardRename(state.selected); }
+      if (state.selected && state.selected !== MERGED_ID && state.selected.type !== 'edits') { e.preventDefault(); startCardRename(state.selected); }
       return;
     }
 
