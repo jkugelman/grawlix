@@ -93,6 +93,7 @@ body { font-family: system-ui, -apple-system, sans-serif; font-size: 14px; backg
 
 header { background: var(--hdr-bg); color: white; padding: 10px 20px; display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; }
 header h1 { font-size: 17px; font-weight: 600; letter-spacing: -0.01em; }
+.header-logo-link { color: inherit; text-decoration: none; }
 .header-center { flex: 1; display: flex; justify-content: center; align-items: center; gap: 7px; font-size: 14px; opacity: 0.75; }
 .header-tagline { font-style: italic; }
 .header-sep { opacity: 0.35; }
@@ -706,7 +707,7 @@ html.dark-mode #onboarding-banner {
 </svg>
 
 <header>
-  <h1>Grawlix <span class="bubble">!@#$</span></h1>
+  <h1><a class="header-logo-link">Grawlix <span class="bubble">!@#$</span></a></h1>
   <div class="header-center">
     <span class="header-tagline">Use your words!</span>
     <span class="header-sep">&middot;</span>
@@ -4053,6 +4054,8 @@ function bindEvents() {
 
 
   document.getElementById('btn-settings').onclick = () => SettingsDialog.open();
+
+  document.querySelector('.header-logo-link').href = location.pathname;
 
   // Delegated click/keydown/change for input list cards
   const listsContainer = document.getElementById('lists-container');
