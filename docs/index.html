@@ -2389,6 +2389,16 @@ function renderMergedCard(meta, selected) {
   card.innerHTML = el.innerHTML;
 }
 
+function listCardMeta(list, contribMap) {
+  const total = list.rawEntries.length;
+  if (!total) return 'No data';
+  if (!list.enabled) return pluralize(total, 'entry', 'entries');
+  const used = contribMap.get(list) ?? 0;
+  return used === total
+    ? `${pluralize(used, 'entry', 'entries')} used`
+    : `${used.toLocaleString()} of ${pluralize(total, 'entry', 'entries')} used`;
+}
+
 function renderSources() {
   const container = document.getElementById('lists-container');
   document.getElementById('list-count').textContent = `(${state.sources.length})`;
@@ -2405,19 +2415,7 @@ function renderSources() {
     const isEdits = list.type === 'edits';
     const hasData = list.rawEntries.length > 0;
     const icon = getListIcon(list);
-
-    let meta;
-    if (!hasData) {
-      meta = 'No data';
-    } else if (!list.enabled) {
-      meta = pluralize(list.rawEntries.length, 'entry', 'entries');
-    } else {
-      const used = contribMap.get(list) ?? 0;
-      const total = list.rawEntries.length;
-      meta = used === total
-        ? `${pluralize(used, 'entry', 'entries')} used`
-        : `${used.toLocaleString()} of ${pluralize(total, 'entry', 'entries')} used`;
-    }
+    const meta = listCardMeta(list, contribMap);
 
     return buildListCardHTML(icon, list.name, meta, {
       selected:    state.selected === list,
@@ -2443,14 +2441,10 @@ function refreshSourceCounts() {
   const container = document.getElementById('lists-container');
   for (const card of container?.querySelectorAll('.list-card[data-list]') ?? []) {
     const list = card._list;
-    if (!list || !list.enabled || !list.rawEntries.length) continue;
+    if (!list) continue;
     const metaEl = card.querySelector('.card-meta');
     if (!metaEl) continue;
-    const used = contribMap.get(list) ?? 0;
-    const total = list.rawEntries.length;
-    metaEl.textContent = used === total
-      ? `${pluralize(used, 'entry', 'entries')} used`
-      : `${used.toLocaleString()} of ${pluralize(total, 'entry', 'entries')} used`;
+    metaEl.textContent = listCardMeta(list, contribMap);
   }
 
   const totalMerged = _sourceCountsCache.reduce((sum, s) => sum + s.count, 0);
