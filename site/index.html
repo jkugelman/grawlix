@@ -757,7 +757,7 @@ const VS_BUFFER    = 60;
 // LS_PREFIX defined in <head> so the FOUC-prevention script can share it.
 const MERGED_ID    = '__merged__';
 const MERGED_NAME  = 'Master List';
-const EDITS_ICON  = buildEmojiIconHTML('✏️');
+const EDITS_ICON   = { type: 'emoji', value: '✏️' };
 const MERGED_ICON  = buildEmojiIconHTML('⭐');
 
 const INITIALS_PALETTE = [
@@ -782,7 +782,7 @@ const LIST_PUBLISHERS = [
     popularity: 4,
     name: 'John Kugelman',
     url: 'https://raw.githubusercontent.com/jkugelman/crossword/refs/heads/main/wordlists/jkugelman-wordlist.txt',
-    icon: '',
+    icon: null,
     defaultRules: [
       { input:'60', length:'', output:'', note:'Great (colorful phrases, sayings, people, etc.)' },
       { input:'50', length:'', output:'', note:'Good (dictionary words, phrases)' },
@@ -801,7 +801,7 @@ const LIST_PUBLISHERS = [
     sourcePage: 'https://www.xwordinfo.com/WordList',
     sourceNote: 'Sign in and download the <strong>plain-text (.txt)</strong> version.',
     subscriptionNote: 'XWord Info\'s wordlist requires a paid subscription.',
-    icon: `<img src="https://www.xwordinfo.com/favicon.ico" class="list-icon list-icon-img" onerror="this.style.display='none'" alt="">`,
+    icon: { type: 'img', url: 'https://www.xwordinfo.com/favicon.ico' },
     defaultRules: [
       { input:'60', length:'', output:'',   note:'Entries considered "assets" to a puzzle' },
       { input:'50', length:'', output:'',   note:'Fine entries' },
@@ -818,7 +818,7 @@ const LIST_PUBLISHERS = [
     popularity: 1,
     name: 'Spread the Word(list)',
     url: 'https://grawlix.wtf/spreadthewordlist.txt',
-    icon: `<img src="https://www.spreadthewordlist.com/favicon.ico" class="list-icon list-icon-img" onerror="this.style.display='none'" alt="">`,
+    icon: { type: 'img', url: 'https://www.spreadthewordlist.com/favicon.ico' },
     defaultRules: [
       { input:'50', length:'', output:'50', note:'Clean' },
       { input:'40', length:'', output:'30', note:'Dubious'},
@@ -833,7 +833,7 @@ const LIST_PUBLISHERS = [
     popularity: 3,
     name: 'Peter Broda',
     url: 'https://grawlix.wtf/peter-broda-wordlist.txt',
-    icon: '',
+    icon: null,
     defaultRules: [
       { input:'80-100', length:'7+', output:'60'      },
       { input:'0-100',  length:'',   output:'ignore' },
@@ -1273,7 +1273,7 @@ function persistMeta() {
   lsSave('meta', JSON.stringify(state.sources.map(l => ({
     ...(l.type     ? { type: l.type }         : {}),
     dbKey:           l.dbKey,
-    icon:            l.icon || '',
+    ...(l.icon     ? { icon: l.icon }         : {}),
     ...(l.publisherId ? { publisherId: l.publisherId } : {}),
     name: l.name, url: l.url || null,
     enabled: l.enabled, lastUpdated: l.lastUpdated || null,
@@ -1424,7 +1424,7 @@ async function init() {
         const list = {
           ...(m.type     ? { type: m.type }         : {}),
           dbKey,
-          icon:            m.icon || '',
+          icon:            m.icon || null,
           ...(m.publisherId ? { publisherId: m.publisherId } : {}),
           name: m.name, url: m.url || null,
           enabled: m.enabled, lastUpdated: m.lastUpdated || null,
@@ -1487,7 +1487,7 @@ function defaultSources() {
   return LIST_PUBLISHERS.map(t => {
     const list = {
       dbKey: crypto.randomUUID(),
-      icon: t.icon,
+      icon: t.icon ? { ...t.icon } : null,
       publisherId: t.id,
       name: t.name,
       url: t.url || null,
@@ -3616,7 +3616,7 @@ const ConfigureListDialog = (() => {
   let _pickerOpen     = false;
   let _selectedPublisher = null;
   let _originalPublisher = null;
-  let _pendingIcon    = '';
+  let _pendingIcon    = null;
   let _pendingName    = '';
   let _rulesOption    = 'none';
   let _pendingFile    = null;
@@ -3646,12 +3646,11 @@ const ConfigureListDialog = (() => {
 
   function setBufferedIcon(icon) {
     _pendingIcon = icon;
-    iconPreview.innerHTML = icon || buildInitialsIconHTML(_pendingName, colorSeed(colorSeedObj()));
+    iconPreview.innerHTML = buildIconHTML(icon, _pendingName, colorSeed(colorSeedObj()));
   }
 
   function syncEmojiGrid() {
-    const emojiM = _pendingIcon?.match(/<svg class="[^"]*list-icon-emoji[^"]*"[^>]*>[^<]*<text[^>]*>([^<]+)<\/text>/);
-    const cur = emojiM ? emojiM[1] : null;
+    const cur = _pendingIcon?.type === 'emoji' ? _pendingIcon.value : null;
     pickerPopup.querySelectorAll('.icon-emoji-btn').forEach(btn => {
       if (btn.hasAttribute('data-auto')) {
         btn.classList.toggle('selected', !_pendingIcon);
@@ -3676,9 +3675,8 @@ const ConfigureListDialog = (() => {
     pickerPopup.style.top  = (tr.bottom - dr.top + 4) + 'px';
     pickerPopup.style.left = (tr.left - dr.left) + 'px';
     pickerPopup.hidden = false;
-    const imgM = _pendingIcon?.match(/^<img src="([^"]+)"/);
-    if (imgM) { imgUrlInput.value = imgM[1]; showPickerMode('url'); }
-    else      { imgUrlInput.value = ''; showPickerMode('emoji'); }
+    if (_pendingIcon?.type === 'img') { imgUrlInput.value = _pendingIcon.url; showPickerMode('url'); }
+    else                              { imgUrlInput.value = '';                showPickerMode('emoji'); }
   }
 
   function closePicker() {
@@ -3703,10 +3701,11 @@ const ConfigureListDialog = (() => {
     const btn = e.target.closest('.icon-emoji-btn');
     if (!btn) return;
     if (btn.hasAttribute('data-auto')) {
-      setBufferedIcon('');
+      setBufferedIcon(null);
     } else {
       const emoji = btn.dataset.emoji;
-      setBufferedIcon(_pendingIcon?.includes(`>${esc(emoji)}<`) ? '' : buildEmojiIconHTML(emoji));
+      const same = _pendingIcon?.type === 'emoji' && _pendingIcon.value === emoji;
+      setBufferedIcon(same ? null : { type: 'emoji', value: emoji });
     }
     syncEmojiGrid();
     closePicker();
@@ -3714,14 +3713,14 @@ const ConfigureListDialog = (() => {
 
   imgUrlInput.addEventListener('input', () => {
     const url = imgUrlInput.value.trim();
-    setBufferedIcon(url ? `<img src="${esc(url)}" class="list-icon list-icon-img" onerror="this.style.display='none'" alt="">` : '');
+    setBufferedIcon(url ? { type: 'img', url } : null);
   });
 
   // ── Publisher chips ──────────────────────────────────────────────────────────
 
   function renderPublisherChips() {
     const chips = [...LIST_PUBLISHERS].sort((a, b) => a.popularity - b.popularity).map(p => {
-      const icon = p.icon || buildInitialsIconHTML(p.name, colorSeed(p));
+      const icon = buildIconHTML(p.icon, p.name, colorSeed(p));
       return `<button class="publisher-chip${_selectedPublisher === p ? ' active' : ''}" data-publisher-id="${p.id}">${icon}${esc(p.name)}</button>`;
     });
     chips.push(`<button class="publisher-chip${!_selectedPublisher ? ' active' : ''}" data-publisher-id="">Custom</button>`);
@@ -3735,7 +3734,7 @@ const ConfigureListDialog = (() => {
       if (_mode === 'add') {
         _pendingName = publisher.name;
         nameInput.value = publisher.name;
-        setBufferedIcon(publisher.icon);
+        setBufferedIcon(publisher.icon ? { ...publisher.icon } : null);
         if (publisher.url) {
           urlInput.value = publisher.url;
         }
@@ -3980,7 +3979,7 @@ const ConfigureListDialog = (() => {
     _pickerOpen     = false;
     _selectedPublisher = getPublisher(list);
     _originalPublisher = _selectedPublisher;
-    _pendingIcon    = list.icon || '';
+    _pendingIcon    = list.icon || null;
     _pendingName    = list.name || '';
     _pendingFile    = null;
     _rulesOption    = 'none';
@@ -3989,7 +3988,7 @@ const ConfigureListDialog = (() => {
     btnSave.textContent = 'Save';
     pickerPopup.hidden = true;
     nameInput.classList.remove('invalid');
-    iconPreview.innerHTML = list.icon || buildInitialsIconHTML(list.name, colorSeed(list));
+    iconPreview.innerHTML = buildIconHTML(list.icon, list.name, colorSeed(list));
     nameInput.value = list.name || '';
     urlInput.value  = list.url  || '';
 
@@ -4021,7 +4020,7 @@ const ConfigureListDialog = (() => {
     _pickerOpen     = false;
     _selectedPublisher = null;
     _originalPublisher = null;
-    _pendingIcon    = '';
+    _pendingIcon    = null;
     _pendingName    = '';
     _pendingFile    = null;
     _rulesOption    = 'none';
@@ -4369,12 +4368,23 @@ function buildEmojiIconHTML(emoji) {
   return `<svg class="list-icon list-icon-emoji" viewBox="0 0 16 16" aria-hidden="true"><text x="8" y="8" text-anchor="middle" dominant-baseline="central" font-size="13">${esc(emoji)}</text></svg>`;
 }
 
+function buildImgIconHTML(url) {
+  return `<img src="${esc(url)}" class="list-icon list-icon-img" onerror="this.style.display='none'" alt="">`;
+}
+
+// descriptor: null | { type: 'emoji', value } | { type: 'img', url }
+function buildIconHTML(descriptor, name, seed) {
+  if (descriptor?.type === 'emoji') return buildEmojiIconHTML(descriptor.value);
+  if (descriptor?.type === 'img')   return buildImgIconHTML(descriptor.url);
+  return buildInitialsIconHTML(name, seed);
+}
+
 function colorSeed(obj) {
   return obj.url || obj.originalFilename || obj.dbKey || obj.name;
 }
 
 function getListIcon(list) {
-  return list.icon || buildInitialsIconHTML(list.name, colorSeed(list));
+  return buildIconHTML(list.icon, list.name, colorSeed(list));
 }
 
 // ─── Import Guide ─────────────────────────────────────────────────────────────
