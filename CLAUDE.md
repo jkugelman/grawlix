@@ -100,6 +100,8 @@ All builders live in the `// ─── Components ───` section. Nothing ou
 
 ## Understanding Grawlix
 
-Before making changes to Grawlix, read the help modal in `site/index.html` for a description of all user-facing features and the two main use cases. The help dialog HTML lives inside the `HelpModal` IIFE — search for `const HelpModal` to find it.
+Before making changes to Grawlix, read the help modal in `site/index.html` for a description of all user-facing features. Grawlix today serves two activities: building a unified wordlist (curation, rescoring, merging, downloading) and using it as a construction aid (search/filter while filling a grid). The help dialog HTML lives inside the `HelpModal` IIFE — search for `const HelpModal` to find it.
 
 When you add or change a user-facing feature, update the relevant slide in the help modal to reflect it.
+
+Forward-looking design docs live in `docs/`: Workshop, URL routing, help/tour redesign, storage migration, CI testing, and a Wordlisted feature reference. Read the relevant plan before making changes that touch its area — current code is the product as it exists today; plans describe where it's going.

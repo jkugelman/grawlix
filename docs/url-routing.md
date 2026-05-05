@@ -9,7 +9,7 @@ The URL is the serialized answer to "where are you and what are you looking at."
 ## Scope
 
 **In scope (URL-addressable):**
-- Workshop default view: search query and whole-word toggle
+- Workshop default view: search query, whole-word toggle, and minimum-score filter
 - Workshop tools: selected tool and tool inputs
 - Help modal (welcome tour)
 - Reference manual
@@ -32,6 +32,7 @@ The hash contains a path-like prefix followed by query parameters:
 ```
 /#/                           → Workshop, default view (no search, no tool)
 /#/?q=CAT&w=1                 → Workshop, search "CAT", whole word
+/#/?min=40                    → Workshop, default view, minimum score 40
 /#/?tool=anagram&w=LINDSEY    → Workshop, anagram tool, input LINDSEY
 /#/tour                       → Welcome tour open over current view
 /#/help                       → Reference manual open over current view
@@ -56,8 +57,8 @@ On page load:
 
 1. Parse the URL hash into a route + params.
 2. Restore base app state from localStorage and IndexedDB as today (lists, rules, selected list, settings).
-3. Apply the URL on top: select the right mode/view/tool, populate search inputs, open dialogs.
-4. Persist any state the URL just changed (e.g. selected mode) so a subsequent reload without a URL hash lands the user in the same place.
+3. Apply the URL on top: select the right view and tool, populate search inputs, open dialogs.
+4. Persist any state the URL just set so a subsequent reload without a URL hash lands the user in the same place.
 
 **URL wins over localStorage** on conflict. If a piece of state is represented in both and they disagree, the URL is canonical for the loaded session and localStorage is updated to match.
 
@@ -79,7 +80,7 @@ Grawlix search syntax includes `?`, `#`, `@`, `*`, `[`, `]`. Several of these ar
 
 ## Workshop participation (deferred details)
 
-The Workshop URL shape (`/#/workshop?tool=<id>&<tool-specific-params>`) is sketched here, but the per-tool param schemas are owned by the Workshop plan and finalized as each tool lands. Each tool gets:
+The Workshop URL shape (`/#/?tool=<id>&<tool-specific-params>`) is sketched here, but the per-tool param schemas are owned by the Workshop plan and finalized as each tool lands. Each tool gets:
 
 - A stable URL ID (slug).
 - A serialization function: tool inputs → query params.

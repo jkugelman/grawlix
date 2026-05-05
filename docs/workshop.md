@@ -1,4 +1,4 @@
-# Phase 2: Workshop
+# Workshop
 
 ## What this is
 
@@ -32,7 +32,7 @@ Inspiration for the mining tools: [Wordlisted](https://aaronson.org/wordlisted/)
 
 The app uses the History API to keep URLs in sync with navigation state, so any view can be bookmarked, shared, or reached via browser back/forward.
 
-The Workshop participates fully. The active mode (`workshop`), the selected tool, and the tool's current inputs are all reflected in the URL. A user can share a link to a specific anagram search or wildcard result and the recipient lands in exactly that state. Browser back/forward navigate through tool history — including through the chain stack when refining results, so the back button peels off one refinement step at a time.
+The Workshop is the only routable surface — its search query, filter state, selected tool, and tool inputs are all reflected in the URL. A user can share a link to a specific anagram search or wildcard result and the recipient lands in exactly that state. Browser back/forward navigate through tool history — including through the chain stack when refining results, so the back button peels off one refinement step at a time. See `url-routing.md` for the schema.
 
 ## Tool gallery UI
 
