@@ -506,9 +506,9 @@ a.get-file:hover { text-decoration: underline; }
 input[type="file"] { display: none; }
 .annotation { position: absolute; border: 3px solid #e53935; border-radius: 50px; pointer-events: none; box-shadow: 0 0 6px rgba(229,57,53,0.4); }
 
-/* Output list card */
-#output-card { flex-shrink: 0; user-select: none; }
-#output-card .list-icon { width: 22px; height: 22px; margin: 0 -3px; }
+/* Merged list card */
+#merged-card { flex-shrink: 0; user-select: none; }
+#merged-card .list-icon { width: 22px; height: 22px; margin: 0 -3px; }
 
 /* Inline cell editing */
 .word-table td.score-cell,
@@ -721,7 +721,7 @@ html.dark-mode #onboarding-banner {
   <div id="busy-overlay"><div class="busy-spinner"></div></div>
   <div id="lists-panel">
     <h2>Merged</h2>
-    <div id="output-card" tabindex="0" role="option"></div>
+    <div id="merged-card" tabindex="0" role="option"></div>
     <h2>Sources <span id="list-count"></span></h2>
     <div id="lists-container"></div>
   </div>
@@ -737,10 +737,10 @@ html.dark-mode #onboarding-banner {
 const ROW_HEIGHT   = 24;
 const VS_BUFFER    = 60;
 // LS_PREFIX defined in <head> so the FOUC-prevention script can share it.
-const OUTPUT_ID    = '__output__';
-const OUTPUT_NAME  = 'Master List';
+const MERGED_ID    = '__merged__';
+const MERGED_NAME  = 'Master List';
 const EDITS_ICON  = buildEmojiIconHTML('✏️');
-const OUTPUT_ICON  = buildEmojiIconHTML('⭐');
+const MERGED_ICON  = buildEmojiIconHTML('⭐');
 
 const INITIALS_PALETTE = [
   '#5C6BC0', '#1E88E5', '#00ACC1', '#00897B',
@@ -863,12 +863,12 @@ function buildDetailHeaderHTML(nameHTML, buttons, { editable = false } = {}) {
   </div>`;
 }
 
-// opts: { isOutput, enabled, selected, isEdits, hasData, hasUpdate, interactive }
+// opts: { isMerged, enabled, selected, isEdits, hasData, hasUpdate, interactive }
 // interactive: true  → adds draggable, tabindex, role, data-list marker for event delegation
 // interactive: false → static display card (default — safe for demos)
 function buildListCardHTML(icon, name, meta, opts = {}) {
   const {
-    isOutput    = false,
+    isMerged    = false,
     enabled     = true,
     selected    = false,
     isEdits     = false,
@@ -880,9 +880,9 @@ function buildListCardHTML(icon, name, meta, opts = {}) {
   const classes = ['list-card'];
   if (selected)                        classes.push('selected');
   if (!enabled)                        classes.push('disabled');
-  if (!hasData && !isEdits && !isOutput) classes.push('no-data');
+  if (!hasData && !isEdits && !isMerged) classes.push('no-data');
 
-  const dragHandle = buildDragHandleHTML(!isOutput);
+  const dragHandle = buildDragHandleHTML(!isMerged);
 
   const updateDot = hasUpdate
     ? `<span class="update-dot" title="Update available" aria-label="Update available"></span>`
@@ -893,7 +893,7 @@ function buildListCardHTML(icon, name, meta, opts = {}) {
       <div class="card-meta">${meta}</div>
     </div>`;
 
-  if (isOutput) {
+  if (isMerged) {
     return `<div class="${classes.join(' ')}">${dragHandle}${icon}${cardInfo}</div>`;
   }
 
@@ -1011,8 +1011,8 @@ function buildWordRowHTML(word, score, { comment = '', highlight = '' } = {}) {
 }
 
 // lists: [{ icon, name, meta, enabled }]
-function buildListSidebarHTML(lists, outputMeta = '47,000 entries') {
-  return buildListCardHTML(OUTPUT_ICON, OUTPUT_NAME, outputMeta, { isOutput: true })
+function buildListSidebarHTML(lists, mergedMeta = '47,000 entries') {
+  return buildListCardHTML(MERGED_ICON, MERGED_NAME, mergedMeta, { isMerged: true })
     + `<div class="help-mini-section">Sources (${lists.length})</div>`
     + lists.map(({ icon, name, meta, enabled = true }) =>
         buildListCardHTML(icon, name, meta, { enabled })
@@ -1124,8 +1124,8 @@ function buildTrashIconHTML() {
   return `<svg class="icon-trash"><use href="#icon-trash"/></svg>`;
 }
 
-// interactive false → aria-hidden (output card, add-list row, demo cards)
-// interactive true  → title + aria-label (draggable input list cards)
+// interactive false → aria-hidden (merged card, add-list row, demo cards)
+// interactive true  → title + aria-label (draggable source cards)
 function buildDragHandleHTML(interactive = false) {
   return interactive
     ? `<span class="drag-handle" title="Drag to reorder" aria-label="Drag to reorder">≡</span>`
@@ -1151,8 +1151,8 @@ const DEFAULT_OUTPUT_SCORING = [
 ];
 
 const state = {
-  inputLists: [],       // [{type?, dbKey, icon, publisherId?, name, url, enabled, rawEntries, lastUpdated, _loading, rescoreRules}]
-  selected: null,       // OUTPUT_ID | list object | null
+  sources: [],          // [{type?, dbKey, icon, publisherId?, name, url, enabled, rawEntries, lastUpdated, _loading, rescoreRules}]
+  selected: null,       // MERGED_ID | list object | null
   searchQuery: '',
   searchWholeWord: false,
   minScore: null,
@@ -1249,7 +1249,7 @@ function idbDel(key) {
 }
 
 function persistMeta() {
-  lsSave('meta', JSON.stringify(state.inputLists.map(l => ({
+  lsSave('meta', JSON.stringify(state.sources.map(l => ({
     ...(l.type     ? { type: l.type }         : {}),
     dbKey:           l.dbKey,
     icon:            l.icon || '',
@@ -1397,7 +1397,7 @@ async function init() {
   if (raw) {
     try {
       const meta = JSON.parse(raw);
-      state.inputLists = await Promise.all(meta.map(async m => {
+      state.sources = await Promise.all(meta.map(async m => {
         const dbKey = m.dbKey || crypto.randomUUID();
         const text = await idbGet('data_' + dbKey) ?? await idbGet('data_' + m.id);
         const list = {
@@ -1420,9 +1420,9 @@ async function init() {
         updateCatchAll(list);
         return list;
       }));
-    } catch { state.inputLists = defaultInputLists(); }
+    } catch { state.sources = defaultSources(); }
   } else {
-    state.inputLists = defaultInputLists();
+    state.sources = defaultSources();
     persistMeta();
   }
 
@@ -1436,7 +1436,7 @@ async function init() {
     if (!isNaN(ms) && ms >= 0) state.minScore = ms;
   }
 
-  state.selected = OUTPUT_ID;
+  state.selected = MERGED_ID;
 
   ensureEdits();
   renderAll();
@@ -1449,7 +1449,7 @@ async function init() {
   checkForUpdates();
   _updateCheckInterval = setInterval(checkForUpdates, UPDATE_CHECK_INTERVAL);
 
-  state.inputLists
+  state.sources
     .filter(l => l.url && !l.rawEntries.length)
     .forEach(l => fetchList(l));
 
@@ -1462,7 +1462,7 @@ async function init() {
   }
 }
 
-function defaultInputLists() {
+function defaultSources() {
   return LIST_PUBLISHERS.map(t => {
     const list = {
       dbKey: crypto.randomUUID(),
@@ -1484,7 +1484,7 @@ function defaultInputLists() {
 // ─── My Edits helpers ─────────────────────────────────────────────────────────
 
 function getEditsList() {
-  return state.inputLists.find(l => l.type === 'edits');
+  return state.sources.find(l => l.type === 'edits');
 }
 
 function ensureEdits() {
@@ -1507,7 +1507,7 @@ function ensureEdits() {
       scoring: DEFAULT_OUTPUT_SCORING.map(r => ({ ...r })),
     };
     updateCatchAll(newEdits);
-    state.inputLists.unshift(newEdits);
+    state.sources.unshift(newEdits);
     persistMeta();
   }
 }
@@ -1567,18 +1567,18 @@ async function clearEdits() {
 // ─── Stats ────────────────────────────────────────────────────────────────────
 
 const _statsCache = new WeakMap();
-const _outputStatsKey = {};
+const _mergedStatsKey = {};
 let _sourceCountsCache = null;
-let _outputListCache = null;
+let _mergedListCache = null;
 
 function invalidateRescoredCache(list) { list._rescored = null; }
 function invalidateStatsCache(key) { _statsCache.delete(key); }
-function invalidateSourceCounts() { _sourceCountsCache = null; _outputListCache = null; }
+function invalidateSourceCounts() { _sourceCountsCache = null; _mergedListCache = null; }
 function invalidateListCaches(list) {
   invalidateRescoredCache(list);
   invalidateStatsCache(list);
   invalidateSourceCounts();
-  invalidateStatsCache(_outputStatsKey);
+  invalidateStatsCache(_mergedStatsKey);
 }
 
 function computeStats(key, entries) {
@@ -2374,34 +2374,34 @@ let _dateTimer = null;
 let _refreshCountsTimer = null;
 
 function renderAll() {
-  renderInputLists();
-  if (state.selected === OUTPUT_ID) renderOutputDetail();
+  renderSources();
+  if (state.selected === MERGED_ID) renderMergedDetail();
   else renderDetail(getSelected());
 }
 
-function renderOutputCard(meta, selected) {
-  const card = document.getElementById('output-card');
+function renderMergedCard(meta, selected) {
+  const card = document.getElementById('merged-card');
   if (!card) return;
   const t = document.createElement('template');
-  t.innerHTML = buildListCardHTML(OUTPUT_ICON, OUTPUT_NAME, meta, { isOutput: true, selected });
+  t.innerHTML = buildListCardHTML(MERGED_ICON, MERGED_NAME, meta, { isMerged: true, selected });
   const el = t.content.firstElementChild;
   card.className = el.className;
   card.innerHTML = el.innerHTML;
 }
 
-function renderInputLists() {
+function renderSources() {
   const container = document.getElementById('lists-container');
-  document.getElementById('list-count').textContent = `(${state.inputLists.length})`;
+  document.getElementById('list-count').textContent = `(${state.sources.length})`;
 
   const addRow = `<div class="add-list-row" onclick="ConfigureListDialog.openAdd()">${buildDragHandleHTML()}<span class="add-list-icon">＋</span>Add list</div>`;
 
-  if (!_sourceCountsCache) _sourceCountsCache = buildOutputList().sourceCounts;
+  if (!_sourceCountsCache) _sourceCountsCache = buildMergedList().sourceCounts;
   const contribMap = new Map(_sourceCountsCache.map(s => [s.list, s.count]));
-  const totalOutput = _sourceCountsCache.reduce((sum, s) => sum + s.count, 0);
+  const totalMerged = _sourceCountsCache.reduce((sum, s) => sum + s.count, 0);
 
-  renderOutputCard(totalOutput ? pluralize(totalOutput, 'entry', 'entries') : 'No data', state.selected === OUTPUT_ID);
+  renderMergedCard(totalMerged ? pluralize(totalMerged, 'entry', 'entries') : 'No data', state.selected === MERGED_ID);
 
-  container.innerHTML = state.inputLists.map(list => {
+  container.innerHTML = state.sources.map(list => {
     const isEdits = list.type === 'edits';
     const hasData = list.rawEntries.length > 0;
     const icon = getListIcon(list);
@@ -2431,14 +2431,14 @@ function renderInputLists() {
 
   // Attach _list to each card for event delegation
   const cards = container.querySelectorAll('.list-card[data-list]');
-  state.inputLists.forEach((list, i) => { if (cards[i]) cards[i]._list = list; });
+  state.sources.forEach((list, i) => { if (cards[i]) cards[i]._list = list; });
 }
 
 
 function refreshSourceCounts() {
   invalidateSourceCounts();
-  invalidateStatsCache(_outputStatsKey);
-  _sourceCountsCache = buildOutputList().sourceCounts;
+  invalidateStatsCache(_mergedStatsKey);
+  _sourceCountsCache = buildMergedList().sourceCounts;
   const contribMap = new Map(_sourceCountsCache.map(s => [s.list, s.count]));
   const container = document.getElementById('lists-container');
   for (const card of container?.querySelectorAll('.list-card[data-list]') ?? []) {
@@ -2453,8 +2453,8 @@ function refreshSourceCounts() {
       : `${used.toLocaleString()} of ${pluralize(total, 'entry', 'entries')} used`;
   }
 
-  const totalOutput = _sourceCountsCache.reduce((sum, s) => sum + s.count, 0);
-  renderOutputCard(totalOutput ? pluralize(totalOutput, 'entry', 'entries') : 'No data', state.selected === OUTPUT_ID);
+  const totalMerged = _sourceCountsCache.reduce((sum, s) => sum + s.count, 0);
+  renderMergedCard(totalMerged ? pluralize(totalMerged, 'entry', 'entries') : 'No data', state.selected === MERGED_ID);
 }
 
 function createScroller() {
@@ -2462,19 +2462,19 @@ function createScroller() {
   return scroller;
 }
 
-function renderOutputDetail() {
+function renderMergedDetail() {
   const panel = document.getElementById('detail-panel');
   clearInterval(_dateTimer);
   _dateTimer = null;
 
   updateOutputCatchAll();
-  const { entries } = buildOutputList();
-  const stats = computeStats(_outputStatsKey, entries);
+  const { entries } = buildMergedList();
+  const stats = computeStats(_mergedStatsKey, entries);
 
   const statsHtml = buildStatsBarHTML(stats, 'No lists loaded — add and populate lists to see the merged result');
 
   panel.innerHTML = `
-    ${buildDetailHeaderHTML(OUTPUT_NAME, ['<button class="primary" onclick="downloadOutputListFromPanel()">Download</button>'])}
+    ${buildDetailHeaderHTML(MERGED_NAME, ['<button class="primary" onclick="downloadMergedListFromPanel()">Download</button>'])}
     ${statsHtml}
     <div id="output-scoring-section" class="rescore-section">${buildOutputScoringSectionHTML()}</div>
     ${buildTableContainerHTML()}
@@ -2487,7 +2487,7 @@ function renderOutputDetail() {
   scroller.setEntries(entries, state.searchQuery, [], new Map(), state.searchWholeWord, state.minScore);
 
   const refreshOutputEntries = () => {
-    const { entries } = buildOutputList();
+    const { entries } = buildMergedList();
     scroller.updateEntries(entries);
   };
   scroller._onDeleteRow = word => deleteFromEdits(word, refreshOutputEntries);
@@ -2495,8 +2495,8 @@ function renderOutputDetail() {
   attachExternalEditHandlers(scroller, refreshOutputEntries);
 }
 
-async function downloadOutputListFromPanel() {
-  const { entries } = buildOutputList();
+async function downloadMergedListFromPanel() {
+  const { entries } = buildMergedList();
   await downloadWithDialog('Grawlix Wordlist', null, entries, 'Download Merged List');
 }
 
@@ -2522,7 +2522,7 @@ function updateScoringCatchAll(scoring, entries) {
 }
 
 function updateOutputCatchAll() {
-  const { entries } = buildOutputList();
+  const { entries } = buildMergedList();
   updateScoringCatchAll(state.outputScoring, entries);
 }
 
@@ -2739,8 +2739,8 @@ function upsertEdits(word, field, newValue) {
   invalidateListCaches(edits);
   updateCatchAll(edits);
   persistEdits(edits);
-  // Refresh output or individual view if active
-  if (state.selected === OUTPUT_ID) {
+  // Refresh merged or individual view if active
+  if (state.selected === MERGED_ID) {
     clearTimeout(_refreshCountsTimer);
     _refreshCountsTimer = setTimeout(refreshSourceCounts, 0);
   } else {
@@ -2822,24 +2822,24 @@ function downloadCurrentListOriginal()   { if (_detailList) downloadOriginalList
 function configureCurrentList()          { if (_detailList) ConfigureListDialog.open(_detailList); }
 
 function getSelected() {
-  return state.selected !== OUTPUT_ID ? state.selected : null;
+  return state.selected !== MERGED_ID ? state.selected : null;
 }
 
-function selectOutputList() {
-  state.selected = OUTPUT_ID;
+function selectMergedList() {
+  state.selected = MERGED_ID;
 
   state.searchQuery = '';
-  document.getElementById('output-card')?.classList.add('selected');
+  document.getElementById('merged-card')?.classList.add('selected');
   const container = document.getElementById('lists-container');
   container?.querySelectorAll('.list-card').forEach(card => card.classList.remove('selected'));
-  renderOutputDetail();
+  renderMergedDetail();
 }
 
 function selectList(list) {
   state.selected = list;
 
   state.searchQuery = '';
-  document.getElementById('output-card')?.classList.remove('selected');
+  document.getElementById('merged-card')?.classList.remove('selected');
   const container = document.getElementById('lists-container');
   container?.querySelectorAll('.list-card').forEach(card => {
     card.classList.toggle('selected', card._list === list);
@@ -2971,9 +2971,9 @@ async function applyWordlistText(list, text, { fetchedSize = null, originalFilen
   await persistData(dbKey, text);
   persistMeta();
 
-  renderInputLists();
+  renderSources();
   if (state.selected === list) renderDetail(list);
-  if (state.selected === OUTPUT_ID) renderOutputDetail();
+  if (state.selected === MERGED_ID) renderMergedDetail();
 
   if (wasEmpty) {
     showToast(`Loaded ${pluralize(list.rawEntries.length, 'entry', 'entries')} from ${esc(source)}`);
@@ -2999,7 +2999,7 @@ async function fetchList(list, event) {
   if (!list || !list.url || list._loading) return;
 
   list._loading = true;
-  renderInputLists();
+  renderSources();
   if (state.selected === list) renderDetail(list);
 
   try {
@@ -3012,7 +3012,7 @@ async function fetchList(list, event) {
     await applyWordlistText(list, text, { fetchedSize, originalFilename, source: list.url });
   } catch (err) {
     list._loading = false;
-    renderInputLists();
+    renderSources();
     if (state.selected === list) renderDetail(list);
     const detail = err.message === 'Failed to fetch' ? '' : `: ${err.message}`;
     showToast(`Failed to fetch ${esc(list.url)}${esc(detail)}`);
@@ -3022,7 +3022,7 @@ async function fetchList(list, event) {
 const UPDATE_CHECK_INTERVAL = 60 * 60 * 1000; // 1 hour
 
 async function checkForUpdates() {
-  const candidates = state.inputLists.filter(l => l.url && l.rawEntries.length > 0 && l.fetchedSize);
+  const candidates = state.sources.filter(l => l.url && l.rawEntries.length > 0 && l.fetchedSize);
   if (!candidates.length) return;
 
   let anyChanged = false;
@@ -3039,7 +3039,7 @@ async function checkForUpdates() {
   }));
 
   if (anyChanged) {
-    renderInputLists();
+    renderSources();
     const selected = getSelected();
     if (selected?.url && selected._updateAvailable) renderDetail(selected);
   }
@@ -3113,12 +3113,12 @@ function ingestFile(file, list, nameOverride) {
       await persistData(list.dbKey, entriesToText(list.rawEntries));
       persistMeta();
 
-      renderInputLists();
+      renderSources();
       if (state.selected === list) {
         if (scroller) scroller.updateEntries(list.rawEntries);
         else renderDetail(list);
       }
-      if (state.selected === OUTPUT_ID) renderOutputDetail();
+      if (state.selected === MERGED_ID) renderMergedDetail();
 
       const parts = [];
       if (newEntries.length) parts.push(`${newEntries.length.toLocaleString()} new`);
@@ -3235,7 +3235,7 @@ async function deleteList(list, event) {
   if (event) event.stopPropagation();
   if (!list) return;
   if (!await showConfirm('', { confirmText: 'Delete', html: `Delete ${buildListNameHTML(list)}?` })) return;
-  state.inputLists = state.inputLists.filter(l => l !== list);
+  state.sources = state.sources.filter(l => l !== list);
   invalidateListCaches(list);
   await idbDel('data_' + list.dbKey);
   persistMeta();
@@ -3251,10 +3251,10 @@ function toggleList(list, event) {
   if (!list || (!list.rawEntries.length && list.type !== 'edits')) return;
   list.enabled = !list.enabled;
   persistMeta();
-  renderInputLists();
+  renderSources();
   refreshSourceCounts();
-  if (state.selected === OUTPUT_ID && scroller) {
-    scroller.updateEntries(buildOutputList().entries);
+  if (state.selected === MERGED_ID && scroller) {
+    scroller.updateEntries(buildMergedList().entries);
   } else if (scroller) {
     scroller.overrideMap = buildOverrideMap(getSelected());
     scroller._sortScores = null;
@@ -3265,11 +3265,11 @@ function toggleList(list, event) {
 function addNewList(listDef) {
   const list = { rescoreRules: [], ...listDef, rawEntries: [], lastUpdated: null, _loading: false };
   updateCatchAll(list);
-  state.inputLists.push(list);
+  state.sources.push(list);
   invalidateSourceCounts();
-  invalidateStatsCache(_outputStatsKey);
+  invalidateStatsCache(_mergedStatsKey);
   persistMeta();
-  renderInputLists();
+  renderSources();
   return list;
 }
 
@@ -3400,7 +3400,7 @@ const showDownloadDialog = (() => {
     titleEl.textContent = title;
     return new Promise(resolve => {
       const opener = document.activeElement;
-      const storageKey = list ? list.dbKey : OUTPUT_ID;
+      const storageKey = list ? list.dbKey : MERGED_ID;
       const savedCase     = (list?.downloadCase) || lsLoad('downloadCase_' + storageKey) || 'lower';
       const savedExt      = (list?.downloadExt)  || lsLoad('downloadExt_' + storageKey)  || 'txt';
       const savedStem     = (list?.downloadStem) || lsLoad('downloadStem_' + storageKey) || '';
@@ -3455,9 +3455,9 @@ const showDownloadDialog = (() => {
           if (stem) list.downloadStem = stem; else delete list.downloadStem;
           persistMeta();
         } else {
-          lsSave('downloadCase_' + OUTPUT_ID, caseMode);
-          lsSave('downloadExt_' + OUTPUT_ID, ext);
-          if (stem) lsSave('downloadStem_' + OUTPUT_ID, stem); else lsDel('downloadStem_' + OUTPUT_ID);
+          lsSave('downloadCase_' + MERGED_ID, caseMode);
+          lsSave('downloadExt_' + MERGED_ID, ext);
+          if (stem) lsSave('downloadStem_' + MERGED_ID, stem); else lsDel('downloadStem_' + MERGED_ID);
         }
         lsSave('downloadComments', comments);
         finish({ stem: stem || defaultStem, ext, caseMode, comments: comments === 'yes' });
@@ -3944,7 +3944,7 @@ const ConfigureListDialog = (() => {
       persistMeta();
       invalidateListCaches(_list);
       refreshSourceCounts();
-      renderInputLists();
+      renderSources();
       renderDetail(_list);
       el.close();
     }
@@ -4049,11 +4049,11 @@ function bindEvents() {
   document.getElementById('btn-settings').onclick = () => SettingsDialog.open();
 
   // Output card
-  const outputCard = document.getElementById('output-card');
-  outputCard.onclick = selectOutputList;
-  outputCard.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); selectOutputList(); } };
+  const mergedCard = document.getElementById('merged-card');
+  mergedCard.onclick = selectMergedList;
+  mergedCard.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); selectMergedList(); } };
 
-  // Delegated click/keydown/change for input list cards
+  // Delegated click/keydown/change for source cards
   const listsContainer = document.getElementById('lists-container');
 
   listsContainer.addEventListener('click', e => {
@@ -4125,13 +4125,13 @@ function bindEvents() {
     const card = e.target.closest('.list-card[data-list]');
     const toList = card?._list;
     if (!_dragList || !toList || _dragList === toList) return;
-    const fromIdx = state.inputLists.indexOf(_dragList);
-    const toIdx   = state.inputLists.indexOf(toList);
+    const fromIdx = state.sources.indexOf(_dragList);
+    const toIdx   = state.sources.indexOf(toList);
     if (fromIdx === -1 || toIdx === -1) return;
-    const [item] = state.inputLists.splice(fromIdx, 1);
-    state.inputLists.splice(toIdx, 0, item);
+    const [item] = state.sources.splice(fromIdx, 1);
+    state.sources.splice(toIdx, 0, item);
     persistMeta();
-    renderInputLists();
+    renderSources();
     clearTimeout(_refreshCountsTimer);
     _refreshCountsTimer = setTimeout(refreshSourceCounts, 0);
   });
@@ -4141,13 +4141,13 @@ function bindEvents() {
 
   const commitTouchReorder = toList => {
     if (!toList || toList === _touchDragList) return;
-    const fromIdx = state.inputLists.indexOf(_touchDragList);
-    const toIdx   = state.inputLists.indexOf(toList);
+    const fromIdx = state.sources.indexOf(_touchDragList);
+    const toIdx   = state.sources.indexOf(toList);
     if (fromIdx === -1 || toIdx === -1) return;
-    const [item] = state.inputLists.splice(fromIdx, 1);
-    state.inputLists.splice(toIdx, 0, item);
+    const [item] = state.sources.splice(fromIdx, 1);
+    state.sources.splice(toIdx, 0, item);
     persistMeta();
-    renderInputLists();
+    renderSources();
     clearTimeout(_refreshCountsTimer);
     _refreshCountsTimer = setTimeout(refreshSourceCounts, 0);
   };
@@ -4189,7 +4189,7 @@ function bindEvents() {
 
     if (e.key === 'F2') {
       if (inField) return;
-      if (state.selected && state.selected !== OUTPUT_ID) { e.preventDefault(); startCardRename(state.selected); }
+      if (state.selected && state.selected !== MERGED_ID) { e.preventDefault(); startCardRename(state.selected); }
       return;
     }
 
@@ -4636,10 +4636,10 @@ function startCardRename(list) {
 
 // ─── Merge & Download ─────────────────────────────────────────────────────────
 
-// List order determines merge priority: higher-priority lists appear earlier in state.inputLists; the loop breaks at the target list's position.
+// List order determines merge priority: higher-priority lists appear earlier in state.sources; the loop breaks at the target list's position.
 function buildOverrideMap(list) {
   const map = new Map();
-  for (const l of state.inputLists) {
+  for (const l of state.sources) {
     if (l === list) break;
     if (!l.enabled || !l.rawEntries.length) continue;
     for (const { word, score, comment } of getRescoredEntries(l)) {
@@ -4650,30 +4650,30 @@ function buildOverrideMap(list) {
   return map;
 }
 
-function buildOutputList() {
-  if (_outputListCache) return _outputListCache;
+function buildMergedList() {
+  if (_mergedListCache) return _mergedListCache;
 
-  const outputMap = new Map(); // UPPERCASE_KEY → {word, score}
+  const mergedMap = new Map(); // UPPERCASE_KEY → {word, score}
   const sourceCounts = [];
 
-  for (const list of state.inputLists) {
+  for (const list of state.sources) {
     if (!list.enabled || !list.rawEntries.length) continue;
     let count = 0;
     for (const { word, score, comment } of getRescoredEntries(list)) {
       const key = word.toUpperCase();
-      if (!outputMap.has(key)) {
-        outputMap.set(key, { word: word.toLowerCase(), score, comment: comment || '', listName: list.name, listRef: list });
+      if (!mergedMap.has(key)) {
+        mergedMap.set(key, { word: word.toLowerCase(), score, comment: comment || '', listName: list.name, listRef: list });
         count++;
       }
     }
     sourceCounts.push({ list, count });
   }
 
-  const entries = [...outputMap.values()]
+  const entries = [...mergedMap.values()]
     .sort((a, b) => a.word.localeCompare(b.word));
 
-  _outputListCache = { entries, sourceCounts };
-  return _outputListCache;
+  _mergedListCache = { entries, sourceCounts };
+  return _mergedListCache;
 }
 
 
@@ -5118,11 +5118,11 @@ const OnboardingBanner = (() => {
   }
 
   async function goBlank() {
-    const toRemove = state.inputLists.filter(l => l.type !== 'edits');
-    state.inputLists = state.inputLists.filter(l => l.type === 'edits');
+    const toRemove = state.sources.filter(l => l.type !== 'edits');
+    state.sources = state.sources.filter(l => l.type === 'edits');
     toRemove.forEach(l => invalidateListCaches(l));
-    if (state.selected !== OUTPUT_ID && toRemove.includes(state.selected)) {
-      state.selected = OUTPUT_ID;
+    if (state.selected !== MERGED_ID && toRemove.includes(state.selected)) {
+      state.selected = MERGED_ID;
     }
     state.outputScoring = [];
     persistOutputScoring();
