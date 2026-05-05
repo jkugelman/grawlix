@@ -4,7 +4,7 @@
 
 Grawlix is a browser-based wordlist manager for crossword constructors. Wordlists in the wild are each scored on their own arbitrary scales, making it hard to combine them. Grawlix solves this with per-list rescoring rules that map everything to a common scale, then merges the results into a single unified view. It ships with curated default rules for four popular wordlists so most users get a good experience out of the box, with full customization available for those who want it.
 
-All code lives in a single file: `docs/index.html`. Read and edit only that file.
+All code lives in a single file: `site/index.html`. Read and edit only that file.
 
 ## Architecture
 
@@ -94,6 +94,6 @@ All builders live in the `// ─── Components ───` section. Nothing ou
 
 ## Understanding Grawlix
 
-Before making changes to Grawlix, read the help modal in `docs/index.html` for a description of all user-facing features and the two main use cases. The help dialog HTML lives inside the `HelpModal` IIFE — search for `const HelpModal` to find it.
+Before making changes to Grawlix, read the help modal in `site/index.html` for a description of all user-facing features and the two main use cases. The help dialog HTML lives inside the `HelpModal` IIFE — search for `const HelpModal` to find it.
 
 When you add or change a user-facing feature, update the relevant slide in the help modal to reflect it.

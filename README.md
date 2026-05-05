@@ -38,6 +38,6 @@ To add a wordlist from a known publisher: click **Add list** and pick from the b
 
 ## Contributing
 
-All code lives in a single file: [`docs/index.html`](docs/index.html). No build step, no npm, no frameworks — plain HTML/CSS/JS that runs directly in the browser. Open it locally in any browser and you're developing.
+All code lives in a single file: [`site/index.html`](site/index.html). No build step, no npm, no frameworks — plain HTML/CSS/JS that runs directly in the browser. Open it locally in any browser and you're developing.
 
 See [CLAUDE.md](CLAUDE.md) for architecture notes and coding conventions.

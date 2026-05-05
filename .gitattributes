@@ -1,2 +1,2 @@
 # Leave wordlist line endings unmodified.
-docs/*.txt -text
+site/*.txt -text
