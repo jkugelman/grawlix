@@ -43,3 +43,15 @@ Be especially conservative with the *shape* of nested objects (rescore rules, ic
 ## When you pick this up later
 
 Regenerate the specifics fresh. Ask for: (1) the migration runner and its position in `init()`, (2) a template for `migrateVNtoVN+1`, and (3) the squash policy (which version cutoff drops to reset).
+
+**Start documenting versions at the same moment.** Pre-launch the version number is just a wipe trigger and history doesn't matter, but once migrations exist you need to know what each version meant — both to write the right migrate function and to know when a version is old enough to drop. Add a comment block above `SCHEMA_VERSION` listing each bump with its date and what changed:
+
+```js
+// Schema version history:
+//   v1: initial
+//   v2 (2026-05-05): icons stored as descriptor objects instead of HTML
+//   v3 (2026-05-05): merged-list download settings collapsed into mergedSettings
+const SCHEMA_VERSION = 3;
+```
+
+Don't encode the date *in* the version number (e.g. `20260505`) — comparison gets ugly, two bumps in one day collide, and you still need a comment table to record what changed.
