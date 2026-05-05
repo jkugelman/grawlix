@@ -309,6 +309,7 @@ html.dark-mode .tooltip::after { border-bottom-color: #111214; }
 
 /* Dialog */
 dialog { width: 420px; border-radius: 10px; border: none; box-shadow: var(--shadow); font-family: system-ui, sans-serif; background: var(--surface); color: var(--text); position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); max-height: 90vh; overflow-y: auto; }
+dialog:focus { outline: none; }
 .dialog-body { padding: 22px; }
 dialog::backdrop { background: var(--backdrop); }
 dialog h2 { font-size: 16px; margin-bottom: 14px; padding-right: 24px; }
@@ -1228,10 +1229,25 @@ function lsSave(key, value) {
 function lsLoad(key) { return localStorage.getItem(LS_PREFIX + key); }
 function lsDel(key)  { localStorage.removeItem(LS_PREFIX + key); }
 
+// Bump when the shape of stored data (localStorage `meta`, IDB entries) changes
+// in a way that older code can't read. Mismatch on load triggers a reset prompt.
+const SCHEMA_VERSION = 2;
+
 // IndexedDB for large word list data (localStorage has ~5MB limit)
 const IDB_NAME  = 'grawlix';
 const IDB_STORE = 'data';
 let _db = null;
+
+async function resetAllData() {
+  Object.keys(localStorage).filter(k => k.startsWith(LS_PREFIX)).forEach(k => localStorage.removeItem(k));
+  if (_db) { _db.close(); _db = null; }
+  await new Promise(resolve => {
+    const req = indexedDB.deleteDatabase(IDB_NAME);
+    req.onsuccess = resolve;
+    req.onerror   = resolve;
+    req.onblocked = resolve;
+  });
+}
 
 function openDB() {
   return new Promise((resolve, reject) => {
@@ -1386,14 +1402,7 @@ const SettingsDialog = (() => {
 
   el.querySelector('#btn-reset').onclick = async () => {
     if (!await showConfirm('Reset all lists and settings? This cannot be undone.', { confirmText: 'Reset' })) return;
-    Object.keys(localStorage).filter(k => k.startsWith(LS_PREFIX)).forEach(k => localStorage.removeItem(k));
-    if (_db) { _db.close(); _db = null; }
-    await new Promise(resolve => {
-      const req = indexedDB.deleteDatabase(IDB_NAME);
-      req.onsuccess = resolve;
-      req.onerror   = resolve;
-      req.onblocked = resolve;
-    });
+    await resetAllData();
     location.reload();
   };
 
@@ -1412,6 +1421,21 @@ const SettingsDialog = (() => {
 // ─── Init ─────────────────────────────────────────────────────────────────────
 
 async function init() {
+  const storedSchema = parseInt(lsLoad('schemaVersion'), 10);
+  const hasOldData   = lsLoad('meta') !== null;
+  if (hasOldData && storedSchema !== SCHEMA_VERSION) {
+    const reset = await showConfirm(
+      `Grawlix's data format has changed since your last visit. The site may not work correctly until reset.`,
+      { confirmText: 'Reset', cancelText: 'I\'ll take my chances' }
+    );
+    if (reset) {
+      await resetAllData();
+      lsSave('schemaVersion', String(SCHEMA_VERSION));
+    }
+  } else if (!hasOldData) {
+    lsSave('schemaVersion', String(SCHEMA_VERSION));
+  }
+
   await openDB();
 
   const raw = lsLoad('meta');
@@ -3288,11 +3312,12 @@ function addNewList(listDef) {
 
 const showConfirm = (() => {
   const { el, body } = createDialog('confirm-dialog', { labelledby: 'confirm-dialog-msg' });
+  el.tabIndex = -1;
   body.innerHTML = `
     <button class="dialog-close-btn" aria-label="Close">✕</button>
     <p class="dialog-msg" id="confirm-dialog-msg"></p>
     <div class="dialog-footer">
-      <button id="btn-confirm-cancel" autofocus>Cancel</button>
+      <button id="btn-confirm-cancel">Cancel</button>
       <button id="btn-confirm-ok" class="danger"></button>
     </div>`;
   const msgEl     = el.querySelector('#confirm-dialog-msg');
@@ -3300,11 +3325,12 @@ const showConfirm = (() => {
   const cancelBtn = el.querySelector('#btn-confirm-cancel');
   const xBtn      = el.querySelector('.dialog-close-btn');
 
-  return function(message, { confirmText = 'OK', danger = true, html = null } = {}) {
+  return function(message, { confirmText = 'OK', cancelText = 'Cancel', danger = true, html = null } = {}) {
     return new Promise(resolve => {
       if (html != null) { msgEl.innerHTML = html; } else { msgEl.textContent = message; }
-      okBtn.textContent = confirmText;
-      okBtn.className   = danger ? 'danger' : '';
+      okBtn.textContent     = confirmText;
+      cancelBtn.textContent = cancelText;
+      okBtn.className       = danger ? 'danger' : '';
       const opener = document.activeElement;
 
       function finish(result) {
@@ -3330,6 +3356,7 @@ const showConfirm = (() => {
       xBtn.addEventListener('click', onXClick);
 
       el.showModal();
+      el.focus();
     });
   };
 })();

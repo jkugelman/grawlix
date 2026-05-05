@@ -41,7 +41,9 @@ WORD;SCORE;COMMENT
 - **localStorage** (prefix `grawlix_`): list metadata and settings. `persistMeta()` saves all list metadata.
 - **IndexedDB**: raw wordlist text per list. Lists can be hundreds of thousands of words, too large for localStorage. `persistData(list, text)` saves one list's text, keyed by `list.dbKey`.
 
-**Reset localStorage when needed during development.** Stale localStorage from a previous session can mask bugs — the app loads old serialized data and ignores code changes to field formats or defaults. Reset via Settings → Reset all data whenever you change: the format of a stored field (e.g. `icon` HTML format), default values set only on first boot (e.g. `EDITS_ICON`), or the shape of the stored metadata object.
+**Never store generated code (HTML, SVG markup) in localStorage or IndexedDB — store the parameters and render at read time.** Otherwise users with stale data continue to render with the old code shape after you change the renderer.
+
+**Bump `SCHEMA_VERSION` when you change the shape of stored data.** Any change to `meta`'s field formats, the descriptor objects it contains, default values set only on first boot, or the IDB entry shape requires a bump. On load, a mismatch between the stored version and `SCHEMA_VERSION` prompts the user to reset their local data; without the bump, they'll silently load incompatible data and the app will misbehave.
 
 ## Key concepts
 
