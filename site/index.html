@@ -1292,9 +1292,9 @@ function idbDel(key) {
 
 function persistMeta() {
   lsSave('meta', JSON.stringify(state.sources.map(l => ({
-    ...(l.type     ? { type: l.type }         : {}),
-    dbKey:           l.dbKey,
-    ...(l.icon     ? { icon: l.icon }         : {}),
+    ...(l.type ? { type: l.type } : {}),
+    dbKey: l.dbKey,
+    ...(l.icon ? { icon: l.icon } : {}),
     ...(l.publisherId ? { publisherId: l.publisherId } : {}),
     name: l.name, url: l.url || null,
     enabled: l.enabled, lastUpdated: l.lastUpdated || null,
