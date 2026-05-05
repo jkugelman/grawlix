@@ -1231,7 +1231,12 @@ function lsDel(key)  { localStorage.removeItem(LS_PREFIX + key); }
 
 // Bump when the shape of stored data (localStorage `meta`, IDB entries) changes
 // in a way that older code can't read. Mismatch on load triggers a reset prompt.
-const SCHEMA_VERSION = 2;
+const SCHEMA_VERSION = 3;
+
+function readMergedSettings() {
+  try { return JSON.parse(lsLoad('mergedSettings')) || {}; } catch { return {}; }
+}
+function writeMergedSettings(s) { lsSave('mergedSettings', JSON.stringify(s)); }
 
 // IndexedDB for large word list data (localStorage has ~5MB limit)
 const IDB_NAME  = 'grawlix';
@@ -3440,10 +3445,10 @@ const showDownloadDialog = (() => {
     titleEl.textContent = title;
     return new Promise(resolve => {
       const opener = document.activeElement;
-      const storageKey = list ? list.dbKey : MERGED_ID;
-      const savedCase     = (list?.downloadCase) || lsLoad('downloadCase_' + storageKey) || 'lower';
-      const savedExt      = (list?.downloadExt)  || lsLoad('downloadExt_' + storageKey)  || 'txt';
-      const savedStem     = (list?.downloadStem) || lsLoad('downloadStem_' + storageKey) || '';
+      const settings = list || readMergedSettings();
+      const savedCase     = settings.downloadCase || 'lower';
+      const savedExt      = settings.downloadExt  || 'txt';
+      const savedStem     = settings.downloadStem || '';
       const savedComments = getDownloadComments() ? 'yes' : 'no';
 
       filenameEl.value = savedStem;
@@ -3492,9 +3497,7 @@ const showDownloadDialog = (() => {
           if (stem) list.downloadStem = stem; else delete list.downloadStem;
           persistMeta();
         } else {
-          lsSave('downloadCase_' + MERGED_ID, caseMode);
-          lsSave('downloadExt_' + MERGED_ID, ext);
-          if (stem) lsSave('downloadStem_' + MERGED_ID, stem); else lsDel('downloadStem_' + MERGED_ID);
+          writeMergedSettings({ downloadCase: caseMode, downloadExt: ext, ...(stem ? { downloadStem: stem } : {}) });
         }
         lsSave('downloadComments', comments);
         finish({ stem: stem || defaultStem, ext, caseMode, comments: comments === 'yes' });
