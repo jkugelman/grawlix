@@ -10,7 +10,7 @@ The URL is the serialized answer to "what's in your tool stack."
 
 **In scope (URL-addressable):**
 - Tool stack: ordered list of tools and their inputs (see `tools.md`)
-- Result-view filter: minimum-score
+- Result-view filter: min-score today; potentially max-score, length, score-tier in the future — see open questions
 
 **Out of scope (no URL representation):**
 - Dialogs — Welcome tour, reference manual, settings, Manage sources, Sync & backup. These are transient UI state. Open them how you opened them; close them when you're done. No deep link, no history entry. KISS.
@@ -22,38 +22,46 @@ The URL is the serialized answer to "what's in your tool stack."
 
 ## URL schema
 
-Hash-based routing. GitHub Pages has no server-side routing, so deep paths would 404 on direct load. Hash routing is the standard escape hatch and keeps the structure path-like.
+Real query string on the canonical site URL — no hash. Grawlix is a single-page app with no actual page navigation, and paths in the URL would suggest sections that don't exist. GitHub Pages serves `index.html` regardless of query string, so deep-loading any URL works without server-side routing.
 
-The hash is a **pseudo-path** — the tool stack rendered as ordered path segments, with result-view filters in a trailing query string:
+The tool stack is encoded as ordered query parameters, one per tool row. Tools with input use `key=value`; tools without input use a bare key (no `=`):
 
 ```
-/#/                                        → empty stack (just the permanent Search, empty)
-/#/search/CAT                              → permanent Search "CAT"
-/#/anagram/LINDSEY                         → Anagram, then permanent Search (empty)
-/#/search/CAT/anagram/LINDSEY              → Search "CAT" → Anagram → permanent Search (empty)
-/#/anagram/LINDSEY/search/DOG              → Anagram → permanent Search "DOG"
-/#/anagram/LINDSEY/palindromes             → Anagram → Palindromes (no input) → permanent Search (empty)
-/#/anagram/LINDSEY?min=40                  → Anagram with min-score 40 on results
+https://grawlix.wtf/                                  → empty stack (just the permanent Search, empty)
+https://grawlix.wtf/?search=CAT                       → permanent Search "CAT"
+https://grawlix.wtf/?anagram=LINDSEY                  → Anagram, then permanent Search (empty)
+https://grawlix.wtf/?search=CAT&anagram=LINDSEY       → Search "CAT" → Anagram → permanent Search (empty)
+https://grawlix.wtf/?anagram=LINDSEY&search=DOG       → Anagram → permanent Search "DOG"
+https://grawlix.wtf/?anagram=LINDSEY&palindromes      → Anagram → Palindromes (no input) → permanent Search (empty)
+https://grawlix.wtf/?anagram=LINDSEY&min=40           → Anagram, min-score 40 (today; see open questions)
 ```
 
-Path segments come in tool/input pairs. Tools that take no input (Palindromes, Anagram families, etc.) occupy a single segment; the parser knows each tool's arity from the tool registry.
+**Order is significant.** Parameter order is pipeline order — `?search=CAT&anagram=LINDSEY` runs Search before Anagram; the reverse runs them the other way. This breaks the common reader expectation that query strings are unordered, but the URL is mostly machine-generated and read back by Grawlix. Users who notice aren't going to care.
 
-The URL encodes the **actual stack content**, not the rendered UI. The permanent Search row is just the last row of the stack — when its input is empty, no `search/...` segment appears at all (empty Search is a no-op pipeline step). The UI invariant — "always render a Search row at the bottom" — is a presentation rule that runs after parsing: if the parsed stack doesn't end in a Search, the UI appends an empty one for display. This keeps URLs minimal for the 95% case (`/#/anagram/LINDSEY` doesn't carry a redundant trailing `/search/`) and avoids two encodings for "the permanent search."
+**Repeated keys are fine.** Two regex filters become two `regex=` entries: `?regex=A.*Z&regex=.*ED`. Their relative order is preserved like everything else.
+
+**Tools without inputs** (Palindromes, Anagram families, etc.) appear as a bare key with no `=` at all: `?palindromes`. Technically valid query syntax — most parsers, URLSearchParams included, treat it as an empty-value entry, which is what we want.
+
+**Empty Search is a no-op pipeline step**, so it doesn't appear in the URL. The UI invariant "always render a Search row at the bottom" is a presentation rule applied after parsing: if the parsed stack doesn't end in a Search, the UI appends an empty one for display. The URL stays minimal for the 95% case (`?anagram=LINDSEY` doesn't carry a redundant trailing `&search=`).
 
 Each tool gets:
 
-- A stable URL ID (slug) — lowercase, hyphenated (`anagram`, `beheadment`, `phrase-parsing`).
-- A declared arity (number of inputs).
-- A serialization function: tool inputs → URL segment(s).
-- A deserialization function: URL segment(s) → tool inputs.
+- A stable URL key (slug) — lowercase, hyphenated (`anagram`, `beheadment`, `phrase-parsing`).
+- A declared shape — has-input or no-input.
+- A serialization function: tool inputs → URL value.
+- A deserialization function: URL value → tool inputs.
 
-All values pass through `encodeURIComponent` — Grawlix search syntax includes `?`, `#`, `@`, `*`, `[`, `]`, several of which are reserved in URLs (`#` in particular conflicts with the hash delimiter; `/` is a path separator).
+All values pass through `encodeURIComponent`. Grawlix search syntax includes `?`, `#`, `@`, `*`, `[`, `]`, `&` — several of which are reserved in URLs and need encoding.
 
-Multi-input tool encoding (regex with min-length, anagram with bank letters, etc.) is bikeshed-deferred to `tools.md` when the first such tool lands. Likely shape: a segment-internal delimiter or named subkeys.
+Multi-input tools (regex with min-length, anagram with bank letters, etc.) use a value-internal delimiter (likely `:` or `|`) — bikeshed-deferred to `tools.md` when the first such tool lands.
+
+## Parsing
+
+`URLSearchParams` (a built-in browser parser for `?k=v&k=v` strings) handles most of this — it preserves insertion order and tolerates bare keys, returning them with an empty value. The one wrinkle is that it normalizes `?palindromes` and `?palindromes=` to the same thing, but we don't need to distinguish them: a no-input tool is a no-input tool either way. If a future case needs the distinction, parsing `location.search` manually is straightforward — it's just a string after the `?`.
 
 ## Always replace
 
-Only `replaceState` is used. Every change to the tool stack — adding a row, editing an input, removing a row, adjusting min-score — replaces the URL in place. No history entries are pushed; the browser's back button does what it would do on any single-page site (navigate away from Grawlix), not navigate within the stack.
+Only `replaceState` is used. Every change to the tool stack — adding a row, editing an input, removing a row, adjusting filters — replaces the URL in place. No history entries are pushed; the browser's back button does what it would do on any single-page site (navigate away from Grawlix), not navigate within the stack.
 
 The visible tool rows are the user's history. Removing a row is the explicit undo; a back button would be redundant or actively confusing ("did I lose my whole stack?"). Stack edits debounce ~250ms so the URL bar doesn't flicker per keystroke.
 
@@ -61,43 +69,48 @@ The visible tool rows are the user's history. Removing a row is the explicit und
 
 On page load:
 
-1. Parse the hash path into an ordered list of `(toolId, inputs)` pairs, plus the trailing query into filters.
+1. Parse `location.search` into an ordered list of `(toolKey, value)` pairs.
 2. Restore base app state from localStorage and IndexedDB as today (lists, rules, selected list, settings).
 3. Apply the URL on top: build the rows, populate inputs, append an empty Search row if the parsed stack doesn't end in one (UI invariant), run the pipeline.
 
-`/#/` (and the bare site URL) lands the user with just the permanent empty Search row — the same as today's default landing.
+A bare site URL with no query string lands the user with just the permanent empty Search row — the same as today's default landing.
 
-If the URL references a tool ID that no longer exists, drop that segment-pair and surface a brief toast: *"That link references a tool that's no longer available."* The rest of the stack still renders. See **Stale links** below.
+If the URL references a tool key that no longer exists, drop that entry and surface a brief toast: *"That link references a tool that's no longer available."* The rest of the stack still renders. See **Stale links** below.
+
+Because we only use `replaceState`, there's nothing to listen for at runtime — pasting a different Grawlix URL into the address bar triggers a normal page reload and runs the load path again. No `popstate` handler needed.
 
 ## Stale links & tool aliases
 
 Once a URL schema is public, removing things in it is a breaking change. The rule:
 
 - **Don't remove tools.** If a tool is superseded, keep it as a thin alias that redirects to the new tool, or keep it indefinitely.
-- **Don't rename tool IDs.** If a tool's display name changes, the URL ID stays.
-- **If a rename or removal is unavoidable**, register the old ID in an alias table that maps to the new ID (or to a sensible fallback) and `replaceState` the URL to the canonical form on load.
+- **Don't rename tool keys.** If a tool's display name changes, the URL key stays.
+- **If a rename or removal is unavoidable**, register the old key in an alias table that maps to the new key (or to a sensible fallback) and `replaceState` the URL to the canonical form on load.
 
 ## Implementation sketch
 
 A single `Router` IIFE in the `// ─── Components ───` section, owning:
 
-- **Parse:** `parseHash() → { stack, filter }` reading `location.hash`. Walks path segments, consuming `arity + 1` segments per tool from a tool registry.
-- **Serialize:** `buildHash({ stack, filter }) → string` producing the canonical hash form. Drops a trailing empty Search row.
-- **Replace:** `navigate({ stack, filter })` wrapping `history.replaceState`. Debounced ~250ms for input-tweak callers; instant for structural changes (row added/removed).
-- **Listen:** a `hashchange` handler for the rare case of a user pasting a different deep link into the URL bar without reloading. Routes through the same code path as initial load.
+- **Parse:** `parseURL() → stack` reading `location.search`. Walks parameters in order, looks each up in the tool registry, builds tool rows.
+- **Serialize:** `buildQuery(stack) → string` producing the canonical query form. Drops a trailing empty Search row. Joins with `&`, uses bare-key form for no-input tools.
+- **Replace:** `navigate(stack)` wrapping `history.replaceState(null, '', '?' + query)` — or `'/'` for an empty stack, to drop the trailing `?` entirely. Debounced ~250ms for input-tweak callers; instant for structural changes (row added/removed).
 
-Existing state-mutation entry points (adding a row, editing a row's input, removing a row, changing min-score) call into the Router after updating their own state.
+Existing state-mutation entry points (adding a row, editing a row's input, removing a row) call into the Router after updating their own state.
 
-The Router lives alongside `state` — it is *not* a replacement. State remains the source of truth for app behavior; the URL is a serialized projection of the tool stack and result filter.
+The Router lives alongside `state` — it is *not* a replacement. State remains the source of truth for app behavior; the URL is a serialized projection of the tool stack.
 
 ## Phasing
 
-1. **Router skeleton + Search row.** Stand up the Router IIFE, parse/serialize/navigate, hashchange handler. Wire the pre-populated Search row's pattern and whole-word toggle, plus the min-score filter. Validate round-trip and debounce.
+1. **Router skeleton + Search row.** Stand up the Router IIFE, parse/serialize/navigate. Wire the pre-populated Search row's pattern and whole-word toggle. Validate round-trip and debounce.
 2. **Stack growth.** Adding/removing rows from the gallery touches the Router. Each tool implements its serialize/deserialize as it lands.
 
 Phase 1 is small and self-contained — a good first commit, independent of any further tool gallery work.
 
 ## Open questions
 
+- **Result-view filters as pipeline steps vs. separate controls.** Today min-score is a control on the result table, not a row in the tool stack. The same shape would extend naturally to a small family — max-score, length filter, score-tier filter. The URL question is where these sit. Two options:
+  - **(a) Promote filters to stack rows.** A "Min score" tool you add like any other, with future siblings ("Max score", "Length", "Score tier"). Most internally consistent — filters become tools, no special cases anywhere, the URL has one uniform shape. Trades ease-of-use at the UI level (was a top-bar slider, now a row to add) for flexibility (multiple instances allowed, positioned anywhere in the pipeline, mix freely with transforms).
+  - **(b) Keep filters as top-level controls.** Pin them last in the URL by convention (`?anagram=LINDSEY&min=40`). Simpler everyday UI. URL gets one small special-case rule about ordering. Fine.
+  - The tradeoff is ease-of-use (b) vs flexibility (a). Defer the call until more filter ideas pile up and we can see whether the family is big enough to deserve its own surface.
 - **Refresh during typing.** If the URL is `replaceState`d on a debounce and the user refreshes mid-debounce, they get the pre-debounce URL. Acceptable — at most they lose the last ~250ms of typing.
-- **Multi-input encoding.** Tools with multiple inputs (regex with min-length, anagram with bank letters) need a segment-internal delimiter or named subkeys. Deferred to the first such tool — owned by `tools.md`.
+- **Multi-input encoding.** Tools with multiple inputs (regex with min-length, anagram with bank letters) need a value-internal delimiter or named subkeys. Deferred to the first such tool — owned by `tools.md`.

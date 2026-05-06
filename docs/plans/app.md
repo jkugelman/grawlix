@@ -58,7 +58,7 @@ Once both this restructure and `tools.md` are mature, the modal will be redesign
 
 The app uses the History API (`replaceState` only) to keep the URL in sync with the tool stack, so any stack configuration can be bookmarked or shared.
 
-The tool stack is the URL-addressable surface, encoded as a pseudo-path: `/#/anagram/LINDSEY/search/DOG?min=40` reads as "Anagram LINDSEY, then Search DOG, with min-score 40 on results." Dialogs (Manage sources, Sync & backup, Welcome tour, reference manual, settings) are *not* URL-addressable; they're transient UI state. The selected source from the dropdown is local-only — links don't pretend the recipient has the same lists loaded. The browser back button doesn't navigate within the stack; the visible row stack is the user's history, with the X on each row as the explicit undo. See `url-routing.md` for the full schema.
+The tool stack is the URL-addressable surface, encoded as the query string: `?anagram=LINDSEY&search=DOG&min=40` reads as "Anagram LINDSEY, then Search DOG, with min-score 40 on results." Dialogs (Manage sources, Sync & backup, Welcome tour, reference manual, settings) are *not* URL-addressable; they're transient UI state. The selected source from the dropdown is local-only — links don't pretend the recipient has the same lists loaded. The browser back button doesn't navigate within the stack; the visible row stack is the user's history, with the X on each row as the explicit undo. See `url-routing.md` for the full schema.
 
 ---
 
