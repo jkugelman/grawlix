@@ -51,7 +51,7 @@ WORD;SCORE;COMMENT
 
 **Override and rescore display** — When viewing a source, score and comment cells always show the *effective* value (what actually appears in the merged output), not the raw value from that list. A red superscript asterisk (`*`) indicates the displayed value differs from what the list itself contains. An instant HTML popover (`#cell-popover`) explains why: the original score for rescored entries, or the overriding list's name for overrides. Both conditions can apply simultaneously. The overrideMap (built by `buildOverrideMap`) stores `{ listName, score, comment }` from the highest-priority list above the current one; a comment override only applies when that list has a non-empty comment. Editing an overridden cell pre-fills the input with the effective value (not the raw value) so the user is editing what actually matters — the result always lands in My Edits regardless.
 
-**Merged list** — `MERGED_ID = '__merged__'` selects a union of all enabled sources, deduped by word. The highest rescored value wins; losers are shown faded with a tooltip. Displayed as "Master List" under the "Merged" section header in the UI.
+**Merged list** — `MERGED_ID = '__merged__'` selects a union of all enabled sources, deduped by word. The highest rescored value wins; losers are shown faded with a tooltip. Displayed as `All` (the value of `MERGED_NAME`) at the top of the source dropdown in the left rail's Wordlist section.
 
 **Score tiers** — `great` (≥60), `good` (≥50), `fair` (≥40), `meh` (≥30), `bad` (<30). Drive score badge colors via `data-tier` and `--score-{tier}-{bg,fg}` CSS vars.
 

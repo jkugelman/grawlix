@@ -10,7 +10,7 @@ Inspiration: [Wordlisted](https://aaronson.org/wordlisted/) by Adam Aaronson. Se
 
 ## Tool gallery UI
 
-The main pane shows the Master List by default: stats, search bar (with the existing wildcard syntax), and the virtual-scrolled table. This is the most common operation; it's always available without selecting anything from the gallery.
+The main pane shows `All` (the merged result of every enabled source) by default: stats, search bar (with the existing wildcard syntax), and the virtual-scrolled table. This is the most common operation; it's always available without selecting anything from the gallery.
 
 The **tool gallery** runs as a left panel — not a dropdown. Each tool gets a small card:
 
@@ -24,11 +24,11 @@ The **tool gallery** runs as a left panel — not a dropdown. Each tool gets a s
 
 Cards are grouped by category (Anagrams & letter banks, Letter patterns, Pairs, Oddities, etc.). The user can scan descriptions and examples without clicking anything first — the opposite of Wordlisted's dropdown.
 
-A filter/search input at the top of the panel lets power users find tools by name or keyword.
+A filter/search input at the top of the panel lets power users find tools by name or keyword. **Alt+T** focuses it.
 
 Selecting a tool reveals its input fields in a strip between the gallery and the results area. Results replace the wordlist view in the main pane. Clearing the tool returns to the wordlist view. The gallery panel is collapsible once you've settled on a tool.
 
-**Scores come along.** Results show scores from the Master List. This is Grawlix's superpower over Wordlisted — a user can see at a glance that their anagram is a 70 vs. a 30, and can click a result to add it to My Edits.
+**Scores come along.** Results show scores from `All` (the merged wordlist). This is Grawlix's superpower over Wordlisted — a user can see at a glance that their anagram is a 70 vs. a 30, and can click a result to add it to My Edits.
 
 ---
 

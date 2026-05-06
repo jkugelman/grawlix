@@ -106,7 +106,7 @@ Keep it short. The user asking "what does installing do?" is on the fence — a 
 Sync lives in a dedicated **Sync & backup dialog**, opened by clicking the sync indicator in the header — a small status dot (green / spinner / red on error) paired with a "Last backup: Nd ago" nag that turns warning-colored when the gap exceeds the threshold. The dialog contains:
 
 - Status of each tier (last backup, file linked, cloud connected) at a glance.
-- Manual backup buttons for the Master List and My Edits — the Tier 1 entry point. Clicking either bumps "Last backup" forward.
+- Manual backup buttons for `All` (the merged wordlist) and My Edits — the Tier 1 entry point. Clicking either bumps "Last backup" forward.
 - Connect/disconnect per cloud provider.
 - The disk-sync section, gated behind PWA install when not yet eligible.
 - Choose what to sync: the merged list, My Edits, or both (per target).
