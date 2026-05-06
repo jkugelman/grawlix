@@ -18,7 +18,7 @@ The mining side of the app — the tool gallery and its growing catalog of searc
 
 **Sync indicator.** Sits in the rail just below the source dropdown. Shows "Last backup: Nd ago" with age-based color (neutral / warn / stale). Hidden until there's a backup to report — `sync.md` covers easing the user toward a first backup. Clicking opens **Sync & backup**.
 
-**Main pane.** The wordlist view: stats bar, search box (with the existing wildcard syntax), virtual-scrolled table. By default this shows `All` — the merged result of every enabled source with rescore rules applied. Picking a different source from the dropdown swaps in that source's view; picking a tool from the gallery (see `tools.md`) swaps in that tool's results.
+**Main pane.** Stats bar, **tool stack**, virtual-scrolled results table. The stack is owned by `tools.md` — each tool the user has added becomes a row above the table; the table shows the output of the bottom row. The stack reads from whichever source is selected in the left-rail dropdown (`All` by default — the merged result of every enabled source with rescore rules applied). On first boot the stack is pre-populated with a single Search row, so the everyday "type and look" use case is one keystroke away. Search is just a tool; the user can remove it, reorder it, or stack other tools above or below it.
 
 **Tool gallery.** Lower portion of the left rail, below the source dropdown and sync indicator. Browsable cards of mining tools. Owned by `tools.md`; the app shell just provides the slot.
 
@@ -56,9 +56,9 @@ Once both this restructure and `tools.md` are mature, the modal will be redesign
 
 ## URL state
 
-The app uses the History API to keep URLs in sync with navigation state, so any view can be bookmarked, shared, or reached via browser back/forward.
+The app uses the History API (`replaceState` only) to keep the URL in sync with the tool stack, so any stack configuration can be bookmarked or shared.
 
-The main pane is the URL-addressable surface — search query, filter state, selected source (when not the default `All`), selected tool, tool inputs are all reflected in the URL. Manage sources and Sync & backup are *not* URL-addressable; they're configuration dialogs, not shareable views. See `url-routing.md` for the full schema.
+The tool stack is the URL-addressable surface — each row's tool ID and inputs, plus the min-score result filter, are reflected in the URL. Dialogs (Manage sources, Sync & backup, Welcome tour, reference manual, settings) are *not* URL-addressable; they're transient UI state. The selected source from the dropdown is local-only — links don't pretend the recipient has the same lists loaded. The browser back button doesn't navigate within the stack; the visible row stack is the user's history, with the X on each row as the explicit undo. See `url-routing.md` for the full schema.
 
 ---
 

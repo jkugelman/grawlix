@@ -2,24 +2,21 @@
 
 ## What this is
 
-Use the History API to keep the URL in sync with app state. Any view that's worth bookmarking or sharing — the main view with a search applied, a tool with its inputs, the help modal, the reference manual — becomes a URL. Browser back/forward navigates between those views naturally.
+Use the History API (`replaceState` only) to keep the URL in sync with the tool stack. A user pasting a Grawlix link into a chat reproduces what the sender was looking at: same tools, same inputs, same order. Refreshing the page lands you back where you were.
 
-The URL is the serialized answer to "where are you and what are you looking at."
+The URL is the serialized answer to "what's in your tool stack."
 
 ## Scope
 
 **In scope (URL-addressable):**
-- Main view: search query, whole-word toggle, and minimum-score filter
-- Tool gallery: selected tool and tool inputs
-- Help modal (welcome tour)
-- Reference manual
-- Settings dialog
+- Tool stack: ordered list of tools and their inputs (see `tools.md`)
+- Result-view filter: minimum-score
 
 **Out of scope (no URL representation):**
-- The Manage sources and Sync & backup dialogs. These are configuration surfaces — local-state setup work, not shareable views.
-- Individual list views — neither publisher lists nor user-imported lists. Lists are local state; sharing a link to "STWL with this filter" implies the recipient has STWL loaded, and the moment we encode a list selection in the URL we're either silently degrading on the recipient's end or pretending we're not.
-- My Edits — same reasoning. Local-only state.
-- Confirmation dialogs and transient popovers (cell popovers, list-card menus, etc.). These are overlays, not views.
+- Dialogs — Welcome tour, reference manual, settings, Manage sources, Sync & backup. These are transient UI state. Open them how you opened them; close them when you're done. No deep link, no history entry. KISS.
+- Selected source from the left-rail dropdown. Sharing a link to "Anagram of LINDSEY in STWL" implies the recipient has STWL loaded; we don't pretend otherwise. The stack always reads from the recipient's currently-selected source (default `All`).
+- My Edits, individual list views, Manage sources state — local-only.
+- Confirmation dialogs and transient popovers (cell popovers, list-card menus, etc.).
 - Scroll position within a result table.
 - Edit-in-progress state (open inline editors).
 
@@ -27,42 +24,41 @@ The URL is the serialized answer to "where are you and what are you looking at."
 
 Hash-based routing. GitHub Pages has no server-side routing, so deep paths would 404 on direct load. Hash routing is the standard escape hatch and keeps the structure path-like.
 
-The hash contains a path-like prefix followed by query parameters:
+The hash carries the tool stack and result-view filter as query parameters:
 
 ```
-/#/                           → default view (no search, no tool)
-/#/?q=CAT&w=1                 → search "CAT", whole word
-/#/?min=40                    → default view, minimum score 40
-/#/?tool=anagram&w=LINDSEY    → anagram tool, input LINDSEY
-/#/tour                       → Welcome tour open over current view
-/#/help                       → Reference manual open over current view
-/#/help?section=search-syntax → Reference manual, scrolled to a section
-/#/settings                   → Settings dialog open over current view
+/#/                                        → empty stack, no filter (rare — see Load behavior)
+/#/?stack=search:CAT                       → one Search row, pattern CAT
+/#/?stack=search:CAT|anagram:LINDSEY       → Search then Anagram
+/#/?stack=anagram:LINDSEY|beheadment       → Anagram then Beheadment (no input)
+/#/?stack=search:CAT&min=40                → Search row, min-score filter on results
 ```
 
-The default view has no path prefix because it's the only routable surface — Manage sources and Sync & backup are dialogs reached from the header, not URL-addressable views.
+Per-tool input encoding inside `stack=` is owned by `tools.md` and finalized as each tool lands. Each tool gets:
 
-Dialog routes (`/help`, `/manual`, `/settings`) are layered: closing the dialog reverts to whatever the URL was before it opened, not to the root. Implementation-wise, opening a dialog `pushState`s a new entry; closing it calls `history.back()` if the current entry is the dialog, otherwise just removes the dialog parameter via `replaceState`.
+- A stable URL ID (slug) — lowercase, hyphenated (`anagram`, `beheadment`, `phrase-parsing`).
+- A serialization function: tool inputs → URL fragment.
+- A deserialization function: URL fragment → tool inputs.
 
-## Push vs. replace
+The pipe-delimited form sketched above is one option; a numbered-keys form (`?t1=search&q1=CAT&t2=anagram&q2=LINDSEY`) is another. Decision deferred to the first tool implementation. Either way, all values pass through `encodeURIComponent` — Grawlix search syntax includes `?`, `#`, `@`, `*`, `[`, `]`, several of which are reserved in URLs (`#` in particular conflicts with the hash delimiter).
 
-- **`pushState`** when the user makes a navigational choice: picking a different tool, opening a dialog, refining a tool result chain (each step is its own history entry — back peels off one refinement at a time, matching the stack-based model in `tools.md`).
-- **`replaceState`** when the user is tweaking inputs within the current view: typing in the search box, editing tool inputs, toggling whole-word. Debounced ~250ms so the URL bar doesn't flicker per keystroke.
+## Always replace
 
-The litmus test: if a reasonable user would expect the back button to return them to the previous state, push. If they'd expect back to skip past the tweak entirely, replace.
+Only `replaceState` is used. Every change to the tool stack — adding a row, editing an input, removing a row, adjusting min-score — replaces the URL in place. No history entries are pushed; the browser's back button does what it would do on any single-page site (navigate away from Grawlix), not navigate within the stack.
+
+The visible tool rows are the user's history. Removing a row is the explicit undo; a back button would be redundant or actively confusing ("did I lose my whole stack?"). Stack edits debounce ~250ms so the URL bar doesn't flicker per keystroke.
 
 ## Load behavior
 
 On page load:
 
-1. Parse the URL hash into a route + params.
+1. Parse the hash into stack-config + filter.
 2. Restore base app state from localStorage and IndexedDB as today (lists, rules, selected list, settings).
-3. Apply the URL on top: select the right view and tool, populate search inputs, open dialogs.
-4. Persist any state the URL just set so a subsequent reload without a URL hash lands the user in the same place.
+3. Apply the URL on top: build the rows, populate inputs, run the pipeline.
 
-**URL wins over localStorage** on conflict. If a piece of state is represented in both and they disagree, the URL is canonical for the loaded session and localStorage is updated to match.
+If the URL has no `stack` param, the app falls back to the default landing — one pre-populated Search row (see `tools.md`). A truly empty `/#/` only happens when the user has explicitly removed the default Search row.
 
-If the URL references something that no longer exists (a removed tool, an unknown route), fall back to the closest sensible default and toast a brief message: *"That link references something that's no longer available."* See **Stale links** below.
+If the URL references a tool that no longer exists (a removed tool, an unknown ID), drop that row and surface a brief toast: *"That link references a tool that's no longer available."* The rest of the stack still renders. See **Stale links** below.
 
 ## Stale links & tool aliases
 
@@ -72,47 +68,27 @@ Once a URL schema is public, removing things in it is a breaking change. The rul
 - **Don't rename tool IDs.** If a tool's display name changes, the URL ID stays.
 - **If a rename or removal is unavoidable**, register the old ID in an alias table that maps to the new ID (or to a sensible fallback) and `replaceState` the URL to the canonical form on load.
 
-Tool IDs in URLs should be stable, lowercase, hyphenated slugs (`anagram`, `beheadment`, `phrase-parsing`) — not display names.
-
-## Search query encoding
-
-Grawlix search syntax includes `?`, `#`, `@`, `*`, `[`, `]`. Several of these are reserved in URLs — `#` in particular conflicts with the hash delimiter. Use `encodeURIComponent` for all parameter values; on parse, decode once. Standard, no special handling needed. Worth a passing test: a search containing `#` round-trips through the URL correctly.
-
-## Tool participation (deferred details)
-
-The tool URL shape (`/#/?tool=<id>&<tool-specific-params>`) is sketched here, but the per-tool param schemas are owned by `tools.md` and finalized as each tool lands. Each tool gets:
-
-- A stable URL ID (slug).
-- A serialization function: tool inputs → query params.
-- A deserialization function: query params → tool inputs.
-
-Result chaining (`tools.md` "Brainstorming" section) interacts with routing: each refinement step pushes a history entry so back peels off one step. Exact URL representation of a chain (probably a sequence of `?step1=...&step2=...` or a single encoded blob) is a tools-design question, not a routing-infrastructure question.
-
 ## Implementation sketch
 
 A single `Router` IIFE in the `// ─── Components ───` section, owning:
 
-- **Parse:** `parseHash() → { route, params }` reading `location.hash`.
-- **Serialize:** `buildHash({ route, params }) → string` producing the canonical hash form.
-- **Push/replace:** `navigate(route, params, { replace })` wrapping `history.pushState` / `replaceState`.
-- **Listen:** a `popstate` handler that re-applies the URL to app state without itself calling push/replace.
-- **Subscribe:** a small pub/sub so views can react to route changes (e.g. the gallery receiving "tool changed to anagram").
+- **Parse:** `parseHash() → { stack, filter }` reading `location.hash`.
+- **Serialize:** `buildHash({ stack, filter }) → string` producing the canonical hash form.
+- **Replace:** `navigate({ stack, filter })` wrapping `history.replaceState`. Debounced ~250ms for input-tweak callers; instant for structural changes (row added/removed).
+- **Listen:** a `hashchange` handler for the rare case of a user pasting a different deep link into the URL bar without reloading. Routes through the same code path as initial load.
 
-Existing state-mutation entry points (search input handler, tool switch, dialog open/close) call into the Router instead of (or in addition to) updating their own local state. The `popstate` handler routes through the same code paths so initial-load and back/forward share one codepath.
+Existing state-mutation entry points (adding a row, editing a row's input, removing a row, changing min-score) call into the Router after updating their own state.
 
-The Router lives alongside `state` — it is *not* a replacement for `state`. State remains the source of truth for app behavior; the URL is a serialized projection of the navigable subset of state.
+The Router lives alongside `state` — it is *not* a replacement. State remains the source of truth for app behavior; the URL is a serialized projection of the tool stack and result filter.
 
 ## Phasing
 
-1. **Router skeleton + main search.** Stand up the Router IIFE, parse/serialize/navigate, `popstate` handler. Wire just the search query and whole-word toggle on the default view. Validate the round-trip and the debounce behavior.
-2. **Dialogs.** Help, manual, settings. Layered routes, back-button-closes behavior.
-3. **Tool gallery.** Per-tool serialization as each tool lands.
-4. **Tool result chains.** Once chaining UI exists, push per refinement step.
+1. **Router skeleton + Search row.** Stand up the Router IIFE, parse/serialize/navigate, hashchange handler. Wire the pre-populated Search row's pattern and whole-word toggle, plus the min-score filter. Validate round-trip and debounce.
+2. **Stack growth.** Adding/removing rows from the gallery touches the Router. Each tool implements its serialize/deserialize as it lands.
 
 Phase 1 is small and self-contained — a good first commit, independent of any further tool gallery work.
 
 ## Open questions
 
-- **URL changes from popstate vs. user-initiated:** the Router needs to distinguish "URL changed because the user clicked back" from "URL changed because the user typed in the search box" to avoid feedback loops. A simple flag during programmatic navigation should suffice; verify on implementation.
-- **Refresh during typing:** if the URL is `replaceState`d on a debounce and the user refreshes mid-debounce, they get the pre-debounce URL. Acceptable — at most they lose the last ~250ms of typing. Worth confirming nobody expects otherwise.
-- **Dialog-over-main-view URLs:** opening Help while in `/#/?tool=anagram&w=LINDSEY` should produce something like `/#/?tool=anagram&w=LINDSEY&dialog=help` (dialog as a layered query param) rather than replacing the route. Concrete encoding TBD when we wire dialogs.
+- **Refresh during typing.** If the URL is `replaceState`d on a debounce and the user refreshes mid-debounce, they get the pre-debounce URL. Acceptable — at most they lose the last ~250ms of typing.
+- **Stack encoding format.** Pipe-delimited (`stack=search:CAT|anagram:LINDSEY`) vs. numbered keys (`t1=search&q1=CAT&t2=anagram&q2=LINDSEY`). Decision deferred to the first tool implementation; readability of shared links is the deciding factor.

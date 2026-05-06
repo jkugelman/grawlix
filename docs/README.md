@@ -12,9 +12,9 @@ This directory holds two kinds of documentation:
 ## Plans
 
 - [plans/app.md](plans/app.md) — top-level UI shape: header, source picker, main pane, Manage sources and Sync & backup dialogs. Restructure phasing.
-- [plans/tools.md](plans/tools.md) — tool gallery (anagram, regex, beheadments…) and the broader mining roadmap. Wordlisted parity, Grawlix originals, future integrations.
+- [plans/tools.md](plans/tools.md) — row-stack tool composition, the gallery (anagram, regex, beheadments…), and the broader mining roadmap. Wordlisted parity, Grawlix originals, future integrations.
 - [plans/sync.md](plans/sync.md) — three-tier persistence for the merged `All` view + My Edits (backup nag, disk file link, cloud sync). Sync & backup dialog.
-- [plans/url-routing.md](plans/url-routing.md) — hash-based deep linking. What's URL-addressable and what isn't.
+- [plans/url-routing.md](plans/url-routing.md) — hash-based linking for the tool stack.
 - [plans/help.md](plans/help.md) — split the help modal into a welcome tour and a separate reference manual.
 - [plans/migration.md](plans/migration.md) — when to graduate from destructive schema-version resets to layered migrations.
 - [plans/ci-testing.md](plans/ci-testing.md) — small Playwright smoke suite, deferred until first real user.

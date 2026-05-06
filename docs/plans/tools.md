@@ -8,11 +8,30 @@ Inspiration: [Wordlisted](https://aaronson.org/wordlisted/) by Adam Aaronson. Se
 
 ---
 
-## Tool gallery UI
+## Tool stack & gallery UI
 
-The main pane shows `All` (the merged result of every enabled source) by default: stats, search bar (with the existing wildcard syntax), and the virtual-scrolled table. This is the most common operation; it's always available without selecting anything from the gallery.
+The main pane is a **tool stack** above a virtual-scrolled results table. Each tool the user has added gets one row in the stack:
 
-The **tool gallery** runs as a left panel — not a dropdown. Each tool gets a small card:
+```
+┌─────────────────────────────────────────────────┐
+│ Search       pattern: CAT                  [✕]  │
+│   then  Anagram     LINDSEY                [✕]  │
+│   then  Beheadment                         [✕]  │
+└─────────────────────────────────────────────────┘
+[ results table here ]
+```
+
+Each row carries the tool's name, its input fields (if any), and an X to remove. Row order is pipeline order — each row's output feeds the next. The first row reads from whichever source is selected in the left rail dropdown (`All` by default); subsequent rows transform the previous row's results. The results table shows the output of the bottom row. A small `then` prefix on rows 2+ makes the sequencing explicit; row 1 has no prefix.
+
+**Search is a tool like any other.** No privileged position. `Search → Anagram` anagrams only the matches of a pattern; `Anagram → Search` filters anagram results. To keep the everyday "type and look" use case ergonomic, the app pre-populates a Search row on boot — the user can remove it, reorder it, or stack tools above it like any other row. That's a UX default, not an architectural privilege.
+
+**Tools without inputs** (Palindromes, Anagram families, etc.) still get a row carrying the tool name and an X — no input fields. Composes cleanly: `Search → Palindromes` lists palindromes within the search results.
+
+**Reordering.** Order matters in a pipeline. v1 keeps it simple — remove and re-add to change order. Drag handles aren't worth the design surface until usage shows we need them.
+
+**Empty stack** falls back to a bare results table on the current source. Clicking any gallery card appends a new row at the bottom of the stack.
+
+The **tool gallery** is a persistent left-rail panel — not a dropdown, not a dialog. Each tool gets a small card:
 
 ```
 ┌──────────────────────────────────┐
@@ -26,8 +45,6 @@ Cards are grouped by category (Anagrams & letter banks, Letter patterns, Pairs, 
 
 A filter/search input at the top of the panel lets power users find tools by name or keyword. **Alt+T** focuses it.
 
-Selecting a tool reveals its input fields in a strip between the gallery and the results area. Results replace the wordlist view in the main pane. Clearing the tool returns to the wordlist view. The gallery panel is collapsible once you've settled on a tool.
-
 **Scores come along.** Results show scores from `All` (the merged wordlist). This is Grawlix's superpower over Wordlisted — a user can see at a glance that their anagram is a 70 vs. a 30, and can click a result to add it to My Edits.
 
 ---
@@ -36,9 +53,9 @@ Selecting a tool reveals its input fields in a strip between the gallery and the
 
 The app-shell work in `app.md` is a prerequisite — the gallery panel slot and the main-pane swap-in behavior come from there.
 
-### Phase 1 — Core tools
+### Phase 1 — Stack mechanism + core tools
 
-Implement the highest-value tools first — the ones constructors reach for most often. Likely: Regex, Anagram, Beheadments, Curtailments, Palindromes, Semordnilaps. (Plain wildcard search already lives in the wordlist view, so it doesn't need a gallery card.) This phase proves the end-to-end flow: pick tool → enter input → see scored results → edit a result.
+Stand up the row-stack mechanism with Search as the first tool (it's the default-populated row, so it's the natural first implementation). Then add the highest-value transforms — likely Regex, Anagram, Beheadments, Curtailments, Palindromes, Semordnilaps. This phase proves the end-to-end flow: empty stack → pre-populated Search row → add transform from gallery → chain another row → edit a result.
 
 ### Phase 2 — Fill out the tool set
 
@@ -127,15 +144,11 @@ Every individual word in any result — regardless of format — must be accessi
 
 ## Brainstorming
 
-### Result chaining
+### Structured vs. unstructured output
 
-The mental model is Unix piping: each tool takes the previous tool's output as its input. Normal tool selection resets and starts fresh. A **"Refine search"** affordance (exact UI TBD) switches into chaining mode, where the next tool operates on the current results instead of replacing them.
+The visible row stack raises the bar here: when a user *sees* `Anagram of LINDSEY → then Beheadment` written out, they expect Beheadment to operate on each anagram word — not on text lines. The unstructured version is harder to defend than it was when chaining was an invisible "refine" mode.
 
-**Navigation:** Stack-based. You can pop the last step (think breadcrumbs or a browser's back button) or clear the whole chain. No reordering — order matters in a pipeline.
-
-**Discoverability:** All tools stay visible and available at all times. Low-friction undo is what makes that safe — you can't really get lost if the back button is right there.
-
-**Unsettled: structured vs. unstructured output.** Two directions in tension:
+Two directions in tension:
 - *Unstructured (Unix-style):* Word pairs are just text lines like `SLING -> LING`. Filter tools (wildcard, regex) are universal — they grep against whatever text is present, so a wildcard search on pair results matches against both words simultaneously. Simple, no type system needed.
 - *Structured:* Tools declare typed outputs (word-list, word-pairs, word-groups). Transform tools (anagram, beheadment) operate on individual words, not on `SLING -> LING` as a string. More powerful but requires a type system and some notion of "extract words from this output before passing to next tool."
 
