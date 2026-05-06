@@ -22,7 +22,7 @@ Lead with the pain: popular wordlists use incompatible scoring scales. Make this
 Add lists, apply rescore rules to normalize them, merge. This absorbs what are currently two slides ("Building Your Wordlist" and "Making It Yours"). Keep it brief — the rescore and My Edits concepts don't need deep treatment here, just enough to convey the idea. Animated demo appropriate.
 
 **Slide 3 — The Payoff**  
-Download the merged list. This is the end goal of the wordlist-management use case. Dedicated slide, not mixed with search. Animated demo appropriate.
+Download your wordlist (or sync it — see `sync.md`). This is the end goal of the wordlist-management use case. Dedicated slide, not mixed with search. Animated demo appropriate. Default output is two files (merged sources + My Edits separately) to fit constructor workflow; the slide should convey *getting your data out* without dwelling on file-format details.
 
 **Slide 4 — Searching**  
 Search as a construction aid: filter by substring, score, patterns. Revert to the pre-wildcard version of this slide — short description plus the animated demo (the coolest demo so far). No wildcard reference table here; that belongs in the reference. This slide is a placeholder for a future cluster of slides covering more advanced wordlist manipulation (anagrams, beheadments, reversals, etc.) — keep it humble and open-ended.
@@ -43,7 +43,7 @@ A manual for returning users who know the app and need to look something up. Ope
 **Tone:** Informative, not persuasive. Prose over flash.
 
 #### Sections (figure out as we build)
-At minimum: search syntax and wildcards. Other candidates: rescore rules, My Edits, priority/merge behavior, download formats.
+At minimum: search syntax and wildcards. Other candidates: rescore rules, My Edits, priority/merge behavior, download/sync (see `sync.md`).
 
 **Includes a "Take the quick tour →" link** near the top.
 

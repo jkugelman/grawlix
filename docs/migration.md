@@ -50,7 +50,7 @@ Regenerate the specifics fresh. Ask for: (1) the migration runner and its positi
 // Schema version history:
 //   v1: initial
 //   v2 (2026-05-05): icons stored as descriptor objects instead of HTML
-//   v3 (2026-05-05): merged-list download settings collapsed into mergedSettings
+//   v3 (2026-05-05): sync target metadata added to per-list config
 const SCHEMA_VERSION = 3;
 ```
 

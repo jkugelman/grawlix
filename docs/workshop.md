@@ -12,7 +12,7 @@ Inspiration for the mining tools: [Wordlisted](https://aaronson.org/wordlisted/)
 
 ## The split
 
-**Library — setup.** Manage your Sources: add and remove lists, configure rescore rules, edit individual list contents, manage My Edits, import/export. Visited occasionally — mostly during onboarding and when adjusting your toolkit.
+**Library — setup.** Manage your Sources: add and remove lists, configure rescore rules, edit individual list contents, manage My Edits, import/export individual lists. Sync and backup configuration also lives here (see `sync.md`). Visited occasionally — mostly during onboarding and when adjusting your toolkit.
 
 **Workshop — daily driver.** The merged wordlist lives here. The default view is the wordlist itself — stats bar, search box, virtual-scrolled word table — the same shape as today's Master List view, relocated. A tool gallery on the side offers stronger queries: anagrams, regex, beheadments, etc. Used for both **filling** (looking up words and noting score corrections while you work a grid) and **theme generation** (mining the wordlist for ideas).
 
