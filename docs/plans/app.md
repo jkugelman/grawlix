@@ -18,7 +18,7 @@ The mining side of the app — the tool gallery and its growing catalog of searc
 
 **Sync indicator.** Sits in the rail just below the source dropdown. Shows "Last backup: Nd ago" with age-based color (neutral / warn / stale). Hidden until there's a backup to report — `sync.md` covers easing the user toward a first backup. Clicking opens **Sync & backup**.
 
-**Main pane.** Stats bar, **tool stack**, virtual-scrolled results table. The stack is owned by `tools.md` — each tool the user has added becomes a row above the table; the table shows the output of the bottom row. The stack reads from whichever source is selected in the left-rail dropdown (`All` by default — the merged result of every enabled source with rescore rules applied). On first boot the stack is pre-populated with a single Search row, so the everyday "type and look" use case is one keystroke away. Search is just a tool; the user can remove it, reorder it, or stack other tools above or below it.
+**Main pane.** Stats bar, **tool stack**, virtual-scrolled results table. The stack is owned by `tools.md` — each tool the user has added becomes a row above the table; the table shows the output of the bottom row. The stack reads from whichever source is selected in the left-rail dropdown (`All` by default — the merged result of every enabled source with rescore rules applied). The bottom row of the stack is always a Search row — permanent, no X, with a stable Alt-S keyboard shortcut — so the everyday "type and look" use case is immediate. Search is also in the gallery as an addable tool, so a user can prepend a Search row above a transform when they want to pre-filter the input.
 
 **Tool gallery.** Lower portion of the left rail, below the source dropdown and sync indicator. Browsable cards of mining tools. Owned by `tools.md`; the app shell just provides the slot.
 
@@ -58,7 +58,7 @@ Once both this restructure and `tools.md` are mature, the modal will be redesign
 
 The app uses the History API (`replaceState` only) to keep the URL in sync with the tool stack, so any stack configuration can be bookmarked or shared.
 
-The tool stack is the URL-addressable surface — each row's tool ID and inputs, plus the min-score result filter, are reflected in the URL. Dialogs (Manage sources, Sync & backup, Welcome tour, reference manual, settings) are *not* URL-addressable; they're transient UI state. The selected source from the dropdown is local-only — links don't pretend the recipient has the same lists loaded. The browser back button doesn't navigate within the stack; the visible row stack is the user's history, with the X on each row as the explicit undo. See `url-routing.md` for the full schema.
+The tool stack is the URL-addressable surface, encoded as a pseudo-path: `/#/anagram/LINDSEY/search/DOG?min=40` reads as "Anagram LINDSEY, then Search DOG, with min-score 40 on results." Dialogs (Manage sources, Sync & backup, Welcome tour, reference manual, settings) are *not* URL-addressable; they're transient UI state. The selected source from the dropdown is local-only — links don't pretend the recipient has the same lists loaded. The browser back button doesn't navigate within the stack; the visible row stack is the user's history, with the X on each row as the explicit undo. See `url-routing.md` for the full schema.
 
 ---
 

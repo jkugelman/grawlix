@@ -24,23 +24,32 @@ The URL is the serialized answer to "what's in your tool stack."
 
 Hash-based routing. GitHub Pages has no server-side routing, so deep paths would 404 on direct load. Hash routing is the standard escape hatch and keeps the structure path-like.
 
-The hash carries the tool stack and result-view filter as query parameters:
+The hash is a **pseudo-path** — the tool stack rendered as ordered path segments, with result-view filters in a trailing query string:
 
 ```
-/#/                                        → empty stack, no filter (rare — see Load behavior)
-/#/?stack=search:CAT                       → one Search row, pattern CAT
-/#/?stack=search:CAT|anagram:LINDSEY       → Search then Anagram
-/#/?stack=anagram:LINDSEY|beheadment       → Anagram then Beheadment (no input)
-/#/?stack=search:CAT&min=40                → Search row, min-score filter on results
+/#/                                        → empty stack (just the permanent Search, empty)
+/#/search/CAT                              → permanent Search "CAT"
+/#/anagram/LINDSEY                         → Anagram, then permanent Search (empty)
+/#/search/CAT/anagram/LINDSEY              → Search "CAT" → Anagram → permanent Search (empty)
+/#/anagram/LINDSEY/search/DOG              → Anagram → permanent Search "DOG"
+/#/anagram/LINDSEY/palindromes             → Anagram → Palindromes (no input) → permanent Search (empty)
+/#/anagram/LINDSEY?min=40                  → Anagram with min-score 40 on results
 ```
 
-Per-tool input encoding inside `stack=` is owned by `tools.md` and finalized as each tool lands. Each tool gets:
+Path segments come in tool/input pairs. Tools that take no input (Palindromes, Anagram families, etc.) occupy a single segment; the parser knows each tool's arity from the tool registry.
+
+The URL encodes the **actual stack content**, not the rendered UI. The permanent Search row is just the last row of the stack — when its input is empty, no `search/...` segment appears at all (empty Search is a no-op pipeline step). The UI invariant — "always render a Search row at the bottom" — is a presentation rule that runs after parsing: if the parsed stack doesn't end in a Search, the UI appends an empty one for display. This keeps URLs minimal for the 95% case (`/#/anagram/LINDSEY` doesn't carry a redundant trailing `/search/`) and avoids two encodings for "the permanent search."
+
+Each tool gets:
 
 - A stable URL ID (slug) — lowercase, hyphenated (`anagram`, `beheadment`, `phrase-parsing`).
-- A serialization function: tool inputs → URL fragment.
-- A deserialization function: URL fragment → tool inputs.
+- A declared arity (number of inputs).
+- A serialization function: tool inputs → URL segment(s).
+- A deserialization function: URL segment(s) → tool inputs.
 
-The pipe-delimited form sketched above is one option; a numbered-keys form (`?t1=search&q1=CAT&t2=anagram&q2=LINDSEY`) is another. Decision deferred to the first tool implementation. Either way, all values pass through `encodeURIComponent` — Grawlix search syntax includes `?`, `#`, `@`, `*`, `[`, `]`, several of which are reserved in URLs (`#` in particular conflicts with the hash delimiter).
+All values pass through `encodeURIComponent` — Grawlix search syntax includes `?`, `#`, `@`, `*`, `[`, `]`, several of which are reserved in URLs (`#` in particular conflicts with the hash delimiter; `/` is a path separator).
+
+Multi-input tool encoding (regex with min-length, anagram with bank letters, etc.) is bikeshed-deferred to `tools.md` when the first such tool lands. Likely shape: a segment-internal delimiter or named subkeys.
 
 ## Always replace
 
@@ -52,13 +61,13 @@ The visible tool rows are the user's history. Removing a row is the explicit und
 
 On page load:
 
-1. Parse the hash into stack-config + filter.
+1. Parse the hash path into an ordered list of `(toolId, inputs)` pairs, plus the trailing query into filters.
 2. Restore base app state from localStorage and IndexedDB as today (lists, rules, selected list, settings).
-3. Apply the URL on top: build the rows, populate inputs, run the pipeline.
+3. Apply the URL on top: build the rows, populate inputs, append an empty Search row if the parsed stack doesn't end in one (UI invariant), run the pipeline.
 
-If the URL has no `stack` param, the app falls back to the default landing — one pre-populated Search row (see `tools.md`). A truly empty `/#/` only happens when the user has explicitly removed the default Search row.
+`/#/` (and the bare site URL) lands the user with just the permanent empty Search row — the same as today's default landing.
 
-If the URL references a tool that no longer exists (a removed tool, an unknown ID), drop that row and surface a brief toast: *"That link references a tool that's no longer available."* The rest of the stack still renders. See **Stale links** below.
+If the URL references a tool ID that no longer exists, drop that segment-pair and surface a brief toast: *"That link references a tool that's no longer available."* The rest of the stack still renders. See **Stale links** below.
 
 ## Stale links & tool aliases
 
@@ -72,8 +81,8 @@ Once a URL schema is public, removing things in it is a breaking change. The rul
 
 A single `Router` IIFE in the `// ─── Components ───` section, owning:
 
-- **Parse:** `parseHash() → { stack, filter }` reading `location.hash`.
-- **Serialize:** `buildHash({ stack, filter }) → string` producing the canonical hash form.
+- **Parse:** `parseHash() → { stack, filter }` reading `location.hash`. Walks path segments, consuming `arity + 1` segments per tool from a tool registry.
+- **Serialize:** `buildHash({ stack, filter }) → string` producing the canonical hash form. Drops a trailing empty Search row.
 - **Replace:** `navigate({ stack, filter })` wrapping `history.replaceState`. Debounced ~250ms for input-tweak callers; instant for structural changes (row added/removed).
 - **Listen:** a `hashchange` handler for the rare case of a user pasting a different deep link into the URL bar without reloading. Routes through the same code path as initial load.
 
@@ -91,4 +100,4 @@ Phase 1 is small and self-contained — a good first commit, independent of any 
 ## Open questions
 
 - **Refresh during typing.** If the URL is `replaceState`d on a debounce and the user refreshes mid-debounce, they get the pre-debounce URL. Acceptable — at most they lose the last ~250ms of typing.
-- **Stack encoding format.** Pipe-delimited (`stack=search:CAT|anagram:LINDSEY`) vs. numbered keys (`t1=search&q1=CAT&t2=anagram&q2=LINDSEY`). Decision deferred to the first tool implementation; readability of shared links is the deciding factor.
+- **Multi-input encoding.** Tools with multiple inputs (regex with min-length, anagram with bank letters) need a segment-internal delimiter or named subkeys. Deferred to the first such tool — owned by `tools.md`.

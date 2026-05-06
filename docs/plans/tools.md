@@ -16,20 +16,22 @@ The main pane is a **tool stack** above a virtual-scrolled results table. Each t
 ┌─────────────────────────────────────────────────┐
 │ Search       pattern: CAT                  [✕]  │
 │   then  Anagram     LINDSEY                [✕]  │
-│   then  Beheadment                         [✕]  │
+│   then  Search      pattern: DOG                │
 └─────────────────────────────────────────────────┘
 [ results table here ]
 ```
 
 Each row carries the tool's name, its input fields (if any), and an X to remove. Row order is pipeline order — each row's output feeds the next. The first row reads from whichever source is selected in the left rail dropdown (`All` by default); subsequent rows transform the previous row's results. The results table shows the output of the bottom row. A small `then` prefix on rows 2+ makes the sequencing explicit; row 1 has no prefix.
 
-**Search is a tool like any other.** No privileged position. `Search → Anagram` anagrams only the matches of a pattern; `Anagram → Search` filters anagram results. To keep the everyday "type and look" use case ergonomic, the app pre-populates a Search row on boot — the user can remove it, reorder it, or stack tools above it like any other row. That's a UX default, not an architectural privilege.
+**The bottom row is always a Search row** — permanent, no X, can't be removed or reordered. This makes the everyday "type and look" use case immediate (just type) and gives Search a stable keyboard target (**Alt-S** focuses it). Search is also in the gallery as an addable tool, so a user can prepend a Search row above a transform: `Search → Anagram → [permanent Search]` pre-filters the input, transforms, and filters the output. Two Search rows aren't redundant when there's a transform between them.
+
+The permanent bottom Search is the only difference from "any other tool." Adding tools above it works exactly like adding any other row.
 
 **Tools without inputs** (Palindromes, Anagram families, etc.) still get a row carrying the tool name and an X — no input fields. Composes cleanly: `Search → Palindromes` lists palindromes within the search results.
 
 **Reordering.** Order matters in a pipeline. v1 keeps it simple — remove and re-add to change order. Drag handles aren't worth the design surface until usage shows we need them.
 
-**Empty stack** falls back to a bare results table on the current source. Clicking any gallery card appends a new row at the bottom of the stack.
+**Empty stack** is just the permanent Search row alone (no `then` prefix, empty input). Clicking any gallery card appends a new row above the permanent Search.
 
 The **tool gallery** is a persistent left-rail panel — not a dropdown, not a dialog. Each tool gets a small card:
 
