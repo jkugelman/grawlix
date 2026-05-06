@@ -51,6 +51,20 @@ A filter/search input at the top of the panel lets power users find tools by nam
 
 ---
 
+## Downloading results
+
+A download affordance near the results table saves the current output to disk — whatever the bottom row of the stack produces. For the empty stack (just the permanent Search row), that's "the filtered list" — the merged `All` view restricted to the current pattern. For a longer stack (`Anagram LINDSEY → Search DOG`) it's the full pipeline output. The button is always present; what it produces just follows the stack.
+
+The everyday case is filling — narrow `All` with a pattern, then save the matches as a working set.
+
+Default filename describes the stack: `grawlix-search-DOG.txt`, `grawlix-anagram-LINDSEY-search-DOG.txt`. Same encoding as the URL pseudo-path (see `url-routing.md`), so the file is self-describing and re-running the same stack later won't overwrite the prior snapshot.
+
+Format follows the tool's natural output shape — for plain word lists, the standard `WORD;SCORE[;COMMENT]` used elsewhere. Pair / group outputs need their own format design; deferred until those tools land. See *Output formats* below.
+
+This is a third "give me a file" path alongside the two in `app.md` (All/My Edits via Sync & backup, individual source via Manage sources). It's distinct because the file isn't a backup or a source export — it's a snapshot of the current view, usually filtered or transformed. Implementation lands with Phase 3 (`Download from tool results`).
+
+---
+
 ## Phases
 
 The app-shell work in `app.md` is a prerequisite — the gallery panel slot and the main-pane swap-in behavior come from there.
