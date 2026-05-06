@@ -104,4 +104,4 @@ Before making changes to Grawlix, read the help modal in `site/index.html` for a
 
 When you add or change a user-facing feature, update the relevant slide in the help modal to reflect it.
 
-Forward-looking design docs live in `docs/`: Workshop, URL routing, help/tour redesign, storage migration, CI testing, and a Wordlisted feature reference. Read the relevant plan before making changes that touch its area — current code is the product as it exists today; plans describe where it's going.
+Forward-looking design docs live in `docs/` — see [`docs/README.md`](docs/README.md) for the index. Read the relevant plan before making changes that touch its area, or when brainstorming UI shape or feature placement (adjacent docs may share screen real estate or constrain the answer). Current code is the product as it exists today; plans describe where it's going.
