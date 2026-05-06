@@ -4,7 +4,7 @@
 
 Grawlix's mining side: anagrams, regex, beheadments, curtailments, and a long tail of letter/sound/meaning tricks for both **filling** (looking up words and noting score corrections while you work a grid) and **theme generation** (mining the wordlist for ideas). Tools live in the gallery panel on the left of the main app shell — see `app.md` for the shell.
 
-Inspiration: [Wordlisted](https://aaronson.org/wordlisted/) by Adam Aaronson. See `wordlisted.md` for a full breakdown of its search modes and how they work. Grawlix will cover similar ground and add its own tools.
+Inspiration: [Wordlisted](https://aaronson.org/wordlisted/) by Adam Aaronson. See `../wordlisted.md` for a full breakdown of its search modes and how they work. Grawlix will cover similar ground and add its own tools.
 
 ---
 
@@ -42,7 +42,7 @@ Implement the highest-value tools first — the ones constructors reach for most
 
 ### Phase 2 — Fill out the tool set
 
-Work through the remaining Wordlisted-parity tools and any Grawlix-original tools. Prioritize by usefulness to constructors. The `wordlisted.md` reference is the implementation guide for each tool's logic.
+Work through the remaining Wordlisted-parity tools and any Grawlix-original tools. Prioritize by usefulness to constructors. The `../wordlisted.md` reference is the implementation guide for each tool's logic.
 
 ### Phase 3 — Polish and integration
 
