@@ -1,60 +1,18 @@
-# Workshop
+# Tools (gallery & mining)
 
 ## What this is
 
-The main UI for Grawlix. The Workshop *is* the app — what you see when you open grawlix.wtf. A header, a tool gallery on the side, and the wordlist view as the main pane. There is no separate "setup mode" — sources and sync each get a dedicated dialog reachable from the header.
+Grawlix's mining side: anagrams, regex, beheadments, curtailments, and a long tail of letter/sound/meaning tricks for both **filling** (looking up words and noting score corrections while you work a grid) and **theme generation** (mining the wordlist for ideas). Tools live in the gallery panel on the left of the main app shell — see `app.md` for the shell.
 
-Inspiration for the mining tools: [Wordlisted](https://aaronson.org/wordlisted/) by Adam Aaronson. See `wordlisted.md` for a full breakdown of its search modes and how they work. Grawlix will cover similar ground and add its own tools.
-
----
-
-## The shape
-
-**Header.** Title, a **source dropdown** (defaults to Master List), a **sync indicator** with a "Last backup: Nd ago" nag, theme toggle, help. Two doors into setup, one each: the dropdown's footer entry opens **Manage sources**; the sync indicator opens **Sync & backup**. Nothing else in the header is per-source.
-
-**Source dropdown.** Pure picker. Lists every source — Master List, then the four publisher lists, then My Edits, then any user-imported lists — with a single footer entry: `⚙ Manage sources…`. Clicking a source switches the main pane to show that source. No drag handles, no enable toggles, no add-list affordance — those all live one click deeper in Manage sources.
-
-**Main pane.** The wordlist view: stats bar, search box (with the existing wildcard syntax), virtual-scrolled table. By default this shows the Master List — the merged result of all enabled sources with rescore rules applied. Picking a different source from the dropdown swaps in that source's view; picking a tool from the gallery swaps in that tool's results.
-
-**Tool gallery.** Left panel, collapsible. Browsable cards of mining tools — anagram, regex, beheadments, etc. — described and exemplified in place. See "Tool gallery UI" below.
-
-**Editing happens here.** Inline cell editing — the same click-to-edit-into-My-Edits flow as today — works in every wordlist view: Master List, individual sources, tool results. Edits always land in My Edits regardless of where they're made.
-
-**Default landing.** On boot — including first run — the user lands in the Workshop with the Master List selected. The four publisher lists fetch automatically in the background, so the Workshop has data to query right away and a new user can start doing wordlist tricks immediately without thinking about list management. Manage sources is discovered when the user wants to customize: import a custom wordlist into My Edits, set up XWI for subscribers, reorder priorities, etc.
+Inspiration: [Wordlisted](https://aaronson.org/wordlisted/) by Adam Aaronson. See `wordlisted.md` for a full breakdown of its search modes and how they work. Grawlix will cover similar ground and add its own tools.
 
 ---
-
-## Sources & setup
-
-Two dialogs cover everything that was previously its own setup mode:
-
-**Manage sources** — opened from the source dropdown footer. Two-pane layout: a left rail listing every source with drag handle (reorder = merge priority), enable checkbox, and name; a right pane showing the focused source's stats, action buttons (download, refetch, more), and rescore rule editor. New lists are added here too, via a `+ Add list…` entry at the bottom of the left rail. My Edits has no rules section (scores pass through).
-
-**Sync & backup** — opened from the header sync indicator. See `sync.md` for the full design. Key affordances: prominent "Download Master List" and "Download My Edits" buttons (Tier 1 manual backup), per-cloud-provider connect/disconnect (Tier 3), disk-sync section gated on PWA install (Tier 2), recent activity log.
-
-The two dialogs answer different questions and stay distinct:
-- *Manage sources* — what lists do I have, in what order, with what rules.
-- *Sync & backup* — how is my data being preserved across time and devices.
-
-**Two paths to "give me a file":**
-- Master List or My Edits → Sync & backup dialog (it's a backup, not just a save — clicking the download bumps the "Last backup" timestamp forward).
-- Any individual source → Manage sources dialog → that source's Download button (it's an export of one rescored source). Rare; doesn't warrant header chrome.
-
----
-
-## URL state
-
-The app uses the History API to keep URLs in sync with navigation state, so any view can be bookmarked, shared, or reached via browser back/forward.
-
-The main pane is the URL-addressable surface — search query, filter state, selected source (when not Master List), selected tool, tool inputs are all reflected in the URL. A user can share a link to a specific anagram search or wildcard result and the recipient lands in exactly that state. Browser back/forward navigate through tool history — including through the chain stack when refining results, so the back button peels off one refinement step at a time.
-
-Manage sources and Sync & backup are *not* URL-addressable — they're configuration dialogs, not shareable views. See `url-routing.md` for the full schema.
 
 ## Tool gallery UI
 
 The main pane shows the Master List by default: stats, search bar (with the existing wildcard syntax), and the virtual-scrolled table. This is the most common operation; it's always available without selecting anything from the gallery.
 
-A **tool gallery** runs as a left panel — not a dropdown. Each tool gets a small card:
+The **tool gallery** runs as a left panel — not a dropdown. Each tool gets a small card:
 
 ```
 ┌──────────────────────────────────┐
@@ -76,28 +34,19 @@ Selecting a tool reveals its input fields in a strip between the gallery and the
 
 ## Phases
 
-### Phase 1 — Restructure
+The app-shell work in `app.md` is a prerequisite — the gallery panel slot and the main-pane swap-in behavior come from there.
 
-Transform the current two-column layout into the new Workshop shape. The visible result: the app looks like the new design and behaves identically to today's, with no tools in the gallery yet.
-
-- Extract `getMergedWords()` (materializing the full merged output) and a `MiningIndex` (word-existence set, sorted-letter map, etc.). Small, additive, doesn't touch existing behavior. Land first.
-- Build the **source dropdown** in the header.
-- Build the **Manage sources dialog**, absorbing today's Sources sidebar + detail pane (minus the word table). Drag-to-reorder, enable toggles, per-source stats and action buttons, rescore rule editor, add-list flow.
-- Build the **Sync & backup dialog** scaffolding with manual download buttons (Tier 1). Header sync indicator with backup-age nag. Tier 2/3 implementation is owned by `sync.md`.
-- Promote the wordlist view (today's Master List detail) to the main app page.
-- Stand up the **tool gallery panel** as a left rail — empty for now, structure only.
-
-### Phase 2 — Tool gallery + core tools
+### Phase 1 — Core tools
 
 Implement the highest-value tools first — the ones constructors reach for most often. Likely: Regex, Anagram, Beheadments, Curtailments, Palindromes, Semordnilaps. (Plain wildcard search already lives in the wordlist view, so it doesn't need a gallery card.) This phase proves the end-to-end flow: pick tool → enter input → see scored results → edit a result.
 
-### Phase 3 — Fill out the tool set
+### Phase 2 — Fill out the tool set
 
 Work through the remaining Wordlisted-parity tools and any Grawlix-original tools. Prioritize by usefulness to constructors. The `wordlisted.md` reference is the implementation guide for each tool's logic.
 
-### Phase 4 — Polish and integration
+### Phase 3 — Polish and integration
 
-Download from tool results, pinned/favorite tools, any Grawlix-original tools that didn't land in Phase 3, general UX refinement.
+Download from tool results, pinned/favorite tools, any Grawlix-original tools that didn't land in Phase 2, general UX refinement.
 
 ---
 
@@ -149,7 +98,7 @@ A crossword pattern-matching tool whose key differentiator over regex is a **var
 
 ## Help documentation
 
-The help redesign (see `help.md`) will happen after the tool gallery is built — Workshop tool docs are not needed before then. During development, treat this document as the living record.
+The help redesign (see `help.md`) will happen after the tool gallery is built — tool docs are not needed before then. During development, treat this document as the living record.
 
 **As each tool group ships:** add a note below summarizing what it does and anything a user would need to know that isn't obvious from the tool card itself. These notes become the raw material for the reference guide section and the welcome tour slide.
 

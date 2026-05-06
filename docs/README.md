@@ -2,7 +2,8 @@
 
 Forward-looking design docs for Grawlix. Each plan describes where its area is going; current code is still the product as it exists today.
 
-- [workshop.md](workshop.md) — UI for daily wordlist work: tool gallery (anagram, regex, beheadments…) and the merged-wordlist view. Source picker and Manage sources dialog.
+- [app.md](app.md) — top-level UI shape: header, source picker, main pane, Manage sources and Sync & backup dialogs. Restructure phasing.
+- [tools.md](tools.md) — tool gallery (anagram, regex, beheadments…) and the broader mining roadmap. Wordlisted parity, Grawlix originals, future integrations.
 - [sync.md](sync.md) — three-tier persistence for Master List + My Edits (backup nag, disk file link, cloud sync). Sync & backup dialog.
 - [url-routing.md](url-routing.md) — hash-based deep linking. What's URL-addressable and what isn't.
 - [help.md](help.md) — split the help modal into a welcome tour and a separate reference manual.

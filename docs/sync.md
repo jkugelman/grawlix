@@ -113,7 +113,7 @@ Sync lives in a dedicated **Sync & backup dialog**, opened by clicking the sync 
 - Recent activity log — last sync, last conflict, last error.
 - Recent conflicts list, if any same-field conflicts have been auto-resolved.
 
-The dialog is distinct from **Manage sources** (see `workshop.md`): that one answers "what lists do I have, in what order, with what rules"; this one answers "how is my data being preserved across time and devices."
+The dialog is distinct from **Manage sources** (see `app.md`): that one answers "what lists do I have, in what order, with what rules"; this one answers "how is my data being preserved across time and devices."
 
 ---
 
