@@ -2,29 +2,43 @@
 
 ## What this is
 
-A second top-level mode for Grawlix. The **Library** is for setup — adding lists, configuring rescore rules, importing wordlists, curating Sources. The **Workshop** is the daily driver for everything else: querying the merged wordlist, filling grids, mining for themes.
-
-The two modes are named as rooms you inhabit for different purposes. The mode switcher reads **Library | Workshop**.
+The main UI for Grawlix. The Workshop *is* the app — what you see when you open grawlix.wtf. A header, a tool gallery on the side, and the wordlist view as the main pane. There is no separate "setup mode" — sources and sync each get a dedicated dialog reachable from the header.
 
 Inspiration for the mining tools: [Wordlisted](https://aaronson.org/wordlisted/) by Adam Aaronson. See `wordlisted.md` for a full breakdown of its search modes and how they work. Grawlix will cover similar ground and add its own tools.
 
 ---
 
-## The split
+## The shape
 
-**Library — setup.** Manage your Sources: add and remove lists, configure rescore rules, edit individual list contents, manage My Edits, import/export individual lists. Sync and backup configuration also lives here (see `sync.md`). Visited occasionally — mostly during onboarding and when adjusting your toolkit.
+**Header.** Title, a **source dropdown** (defaults to Master List), a **sync indicator** with a "Last backup: Nd ago" nag, theme toggle, help. Two doors into setup, one each: the dropdown's footer entry opens **Manage sources**; the sync indicator opens **Sync & backup**. Nothing else in the header is per-source.
 
-**Workshop — daily driver.** The merged wordlist lives here. The default view is the wordlist itself — stats bar, search box, virtual-scrolled word table — the same shape as today's Master List view, relocated. A tool gallery on the side offers stronger queries: anagrams, regex, beheadments, etc. Used for both **filling** (looking up words and noting score corrections while you work a grid) and **theme generation** (mining the wordlist for ideas).
+**Source dropdown.** Pure picker. Lists every source — Master List, then the four publisher lists, then My Edits, then any user-imported lists — with a single footer entry: `⚙ Manage sources…`. Clicking a source switches the main pane to show that source. No drag handles, no enable toggles, no add-list affordance — those all live one click deeper in Manage sources.
 
-**Default landing.** On boot — including first run — the user lands directly in the Workshop. The four publisher lists fetch automatically in the background, so the Workshop has data to query right away and a new user can start doing wordlist tricks immediately without thinking about list management. The Library is discovered when the user wants to customize: import a custom wordlist into My Edits, set up XWI for subscribers, reorder priorities, etc.
+**Main pane.** The wordlist view: stats bar, search box (with the existing wildcard syntax), virtual-scrolled table. By default this shows the Master List — the merged result of all enabled sources with rescore rules applied. Picking a different source from the dropdown swaps in that source's view; picking a tool from the gallery swaps in that tool's results.
 
-**Why the split.** Setup and active work compete for screen real estate when bundled together. Each gets its own focused UI. The split also resolves an asymmetry in the previous plan: the Master List used to live in the Library sidebar alongside Sources, even though it isn't a source. With the merged wordlist now living entirely in the Workshop, the Library sidebar is uniform — just Sources.
+**Tool gallery.** Left panel, collapsible. Browsable cards of mining tools — anagram, regex, beheadments, etc. — described and exemplified in place. See "Tool gallery UI" below.
 
-**The merged wordlist has no separate name in the UI.** You switch to the Workshop, you're looking at it. The "Master List" label disappears from user-facing copy; internally the code still computes a merged result.
+**Editing happens here.** Inline cell editing — the same click-to-edit-into-My-Edits flow as today — works in every wordlist view: Master List, individual sources, tool results. Edits always land in My Edits regardless of where they're made.
 
-**Editing during filling happens in the Workshop.** When you spot a mis-scored word while working a grid, you click to edit it directly from the Workshop's wordlist view. Inline editing is the same as everywhere else — the result lands in My Edits regardless of where the edit happened.
+**Default landing.** On boot — including first run — the user lands in the Workshop with the Master List selected. The four publisher lists fetch automatically in the background, so the Workshop has data to query right away and a new user can start doing wordlist tricks immediately without thinking about list management. Manage sources is discovered when the user wants to customize: import a custom wordlist into My Edits, set up XWI for subscribers, reorder priorities, etc.
 
-**Individual Source views in the Library still support search and inline editing.** Useful when you specifically want to curate one list's contents. Not the common path.
+---
+
+## Sources & setup
+
+Two dialogs cover everything that was previously its own setup mode:
+
+**Manage sources** — opened from the source dropdown footer. Two-pane layout: a left rail listing every source with drag handle (reorder = merge priority), enable checkbox, and name; a right pane showing the focused source's stats, action buttons (download, refetch, more), and rescore rule editor. New lists are added here too, via a `+ Add list…` entry at the bottom of the left rail. My Edits has no rules section (scores pass through).
+
+**Sync & backup** — opened from the header sync indicator. See `sync.md` for the full design. Key affordances: prominent "Download Master List" and "Download My Edits" buttons (Tier 1 manual backup), per-cloud-provider connect/disconnect (Tier 3), disk-sync section gated on PWA install (Tier 2), recent activity log.
+
+The two dialogs answer different questions and stay distinct:
+- *Manage sources* — what lists do I have, in what order, with what rules.
+- *Sync & backup* — how is my data being preserved across time and devices.
+
+**Two paths to "give me a file":**
+- Master List or My Edits → Sync & backup dialog (it's a backup, not just a save — clicking the download bumps the "Last backup" timestamp forward).
+- Any individual source → Manage sources dialog → that source's Download button (it's an export of one rescored source). Rare; doesn't warrant header chrome.
 
 ---
 
@@ -32,11 +46,13 @@ Inspiration for the mining tools: [Wordlisted](https://aaronson.org/wordlisted/)
 
 The app uses the History API to keep URLs in sync with navigation state, so any view can be bookmarked, shared, or reached via browser back/forward.
 
-The Workshop is the only routable surface — its search query, filter state, selected tool, and tool inputs are all reflected in the URL. A user can share a link to a specific anagram search or wildcard result and the recipient lands in exactly that state. Browser back/forward navigate through tool history — including through the chain stack when refining results, so the back button peels off one refinement step at a time. See `url-routing.md` for the schema.
+The main pane is the URL-addressable surface — search query, filter state, selected source (when not Master List), selected tool, tool inputs are all reflected in the URL. A user can share a link to a specific anagram search or wildcard result and the recipient lands in exactly that state. Browser back/forward navigate through tool history — including through the chain stack when refining results, so the back button peels off one refinement step at a time.
+
+Manage sources and Sync & backup are *not* URL-addressable — they're configuration dialogs, not shareable views. See `url-routing.md` for the full schema.
 
 ## Tool gallery UI
 
-The Workshop's main pane shows the merged wordlist by default: stats, search bar (with the existing wildcard syntax), and the virtual-scrolled table. This is the most common operation; it's always available without selecting anything from the gallery.
+The main pane shows the Master List by default: stats, search bar (with the existing wildcard syntax), and the virtual-scrolled table. This is the most common operation; it's always available without selecting anything from the gallery.
 
 A **tool gallery** runs as a left panel — not a dropdown. Each tool gets a small card:
 
@@ -52,25 +68,28 @@ Cards are grouped by category (Anagrams & letter banks, Letter patterns, Pairs, 
 
 A filter/search input at the top of the panel lets power users find tools by name or keyword.
 
-Selecting a tool reveals its input fields in a strip between the gallery and the results area. Results replace the default wordlist view in the main pane. Clearing the tool returns to the default view. The gallery panel is collapsible once you've settled on a tool.
+Selecting a tool reveals its input fields in a strip between the gallery and the results area. Results replace the wordlist view in the main pane. Clearing the tool returns to the wordlist view. The gallery panel is collapsible once you've settled on a tool.
 
-**Scores come along.** Results show scores from the merged wordlist. This is Grawlix's superpower over Wordlisted — a user can see at a glance that their anagram is a 70 vs. a 30, and can click a result to add it to My Edits.
+**Scores come along.** Results show scores from the Master List. This is Grawlix's superpower over Wordlisted — a user can see at a glance that their anagram is a 70 vs. a 30, and can click a result to add it to My Edits.
 
 ---
 
 ## Phases
 
-### Phase 1 — Foundation
+### Phase 1 — Restructure
 
-Stand up the mode skeleton: the switcher, the Workshop layout (gallery panel + main pane), and the underlying data layer (materializing the merged word list into a flat array and building fast-lookup indexes).
+Transform the current two-column layout into the new Workshop shape. The visible result: the app looks like the new design and behaves identically to today's, with no tools in the gallery yet.
 
-The Workshop's default view is essentially today's Master List detail view, relocated. The main UI lift in Phase 1 is the mode shell and gallery panel rather than the wordlist view itself.
-
-**Architecture prep goes here, as the first commit.** Extracting `getMergedWords()` (materializing the full merged output) and a `MiningIndex` (word-existence set, sorted-letter map, etc.) is small, additive, and doesn't touch any existing behavior. Doing it first keeps subsequent feature commits clean.
+- Extract `getMergedWords()` (materializing the full merged output) and a `MiningIndex` (word-existence set, sorted-letter map, etc.). Small, additive, doesn't touch existing behavior. Land first.
+- Build the **source dropdown** in the header.
+- Build the **Manage sources dialog**, absorbing today's Sources sidebar + detail pane (minus the word table). Drag-to-reorder, enable toggles, per-source stats and action buttons, rescore rule editor, add-list flow.
+- Build the **Sync & backup dialog** scaffolding with manual download buttons (Tier 1). Header sync indicator with backup-age nag. Tier 2/3 implementation is owned by `sync.md`.
+- Promote the wordlist view (today's Master List detail) to the main app page.
+- Stand up the **tool gallery panel** as a left rail — empty for now, structure only.
 
 ### Phase 2 — Tool gallery + core tools
 
-Build the tool gallery UI as a real, browsable panel. Implement the highest-value tools first — the ones constructors reach for most often. Likely: Regex, Anagram, Beheadments, Curtailments, Palindromes, Semordnilaps. (Plain wildcard search already lives in the default wordlist view, so it doesn't need a gallery card.) This phase proves the end-to-end flow: pick tool → enter input → see scored results → edit a result.
+Implement the highest-value tools first — the ones constructors reach for most often. Likely: Regex, Anagram, Beheadments, Curtailments, Palindromes, Semordnilaps. (Plain wildcard search already lives in the wordlist view, so it doesn't need a gallery card.) This phase proves the end-to-end flow: pick tool → enter input → see scored results → edit a result.
 
 ### Phase 3 — Fill out the tool set
 
@@ -78,7 +97,7 @@ Work through the remaining Wordlisted-parity tools and any Grawlix-original tool
 
 ### Phase 4 — Polish and integration
 
-Download from tool results, pinned/favorite tools, any Grawlix-original tools that didn't land in Phase 3, general UX refinement. (Min-score filtering already comes along with the wordlist view that moves into the Workshop in Phase 1.)
+Download from tool results, pinned/favorite tools, any Grawlix-original tools that didn't land in Phase 3, general UX refinement.
 
 ---
 
@@ -130,11 +149,11 @@ A crossword pattern-matching tool whose key differentiator over regex is a **var
 
 ## Help documentation
 
-The help redesign (see `help-redesign.md`) will happen after the Workshop is built — Workshop docs are not needed before then. During development, treat this document as the living record.
+The help redesign (see `help.md`) will happen after the tool gallery is built — Workshop tool docs are not needed before then. During development, treat this document as the living record.
 
 **As each tool group ships:** add a note below summarizing what it does and anything a user would need to know that isn't obvious from the tool card itself. These notes become the raw material for the reference guide section and the welcome tour slide.
 
-**When the Workshop is complete:** the welcome tour gains one or more slides after the current Slide 4 (Searching), and the reference guide gains a Workshop section. `help-redesign.md` already anticipates this expansion.
+**When the tool gallery is complete:** the welcome tour gains one or more slides after the current Slide 4 (Searching), and the reference guide gains a tool-gallery section. `help.md` already anticipates this expansion.
 
 ### Running help notes
 
@@ -152,7 +171,6 @@ Every individual word in any result — regardless of format — must be accessi
 
 ## Open questions
 
-- **Mode switcher placement:** Exact location in the header TBD once we see it in the layout.
 - **OneLook integration:** What does their API look like, and what arrangement does XWordInfo have with them?
 - **Phonetics & thesaurus data:** How are the CMU dict and Roget XML bundled or fetched? Static assets, CDN, or runtime fetch?
 

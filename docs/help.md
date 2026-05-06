@@ -51,8 +51,8 @@ At minimum: search syntax and wildcards. Other candidates: rescore rules, My Edi
 
 ## Future growth
 
-A second top-level mode is planned: the **Workshop**, for active wordlist use — searching, filling, and theme/idea generation (anagrams, beheadments, curtailments, word splits, reversals, regex operations — Wordlisted-style features and Grawlix originals). See `workshop.md` for the full plan.
+A **tool gallery** is planned for active wordlist use — searching, filling, and theme/idea generation (anagrams, beheadments, curtailments, word splits, reversals, regex operations — Wordlisted-style features and Grawlix originals). See `workshop.md` for the full plan.
 
-When the Workshop ships it becomes the primary mode and the Library becomes secondary (setup only). The tour needs **structural rework**, not just additions: lead with what users do daily — the Workshop — and frame the Library as the place you visit when you want to customize. The current 4-slide structure (Problem → Solution → Payoff → Searching) is Library-centric and should be treated as a placeholder. Slide 1's scoring-incompatibility framing may still earn its keep, but the rest needs reworking around the mode split.
+When the gallery ships, the tour needs **structural rework**, not just additions: lead with what users do daily — querying the merged wordlist and mining for ideas — and frame source/rule setup as the thing you do once and revisit occasionally. The current 4-slide structure (Problem → Solution → Payoff → Searching) is setup-centric and should be treated as a placeholder. Slide 1's scoring-incompatibility framing may still earn its keep, but the rest needs reworking around the new shape.
 
-The reference guide also gains a Workshop section. No help content for these features needs to be built in advance.
+The reference guide also gains a tool-gallery section. No help content for these features needs to be built in advance.

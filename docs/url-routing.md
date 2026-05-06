@@ -16,7 +16,7 @@ The URL is the serialized answer to "where are you and what are you looking at."
 - Settings dialog
 
 **Out of scope (no URL representation):**
-- The Library mode itself, and any view inside it. Library views are local-state setup work (Sources, individual list contents, My Edits) — not shareable. The mode switcher between Library and Workshop is UI state, not URL state.
+- The Manage sources and Sync & backup dialogs. These are configuration surfaces — local-state setup work, not shareable views.
 - Individual list views — neither publisher lists nor user-imported lists. Lists are local state; sharing a link to "STWL with this filter" implies the recipient has STWL loaded, and the moment we encode a list selection in the URL we're either silently degrading on the recipient's end or pretending we're not.
 - My Edits — same reasoning. Local-only state.
 - Confirmation dialogs and transient popovers (cell popovers, list-card menus, etc.). These are overlays, not views.
@@ -40,7 +40,7 @@ The hash contains a path-like prefix followed by query parameters:
 /#/settings                   → Settings dialog open over current view
 ```
 
-The Workshop is the default landing surface; there's no `/workshop` prefix because there's nothing else routable to disambiguate from. The Library is reachable only via the in-app mode switcher.
+The Workshop's default view has no path prefix because it's the only routable surface — Manage sources and Sync & backup are dialogs reached from the header, not URL-addressable views.
 
 Dialog routes (`/help`, `/manual`, `/settings`) are layered: closing the dialog reverts to whatever the URL was before it opened, not to the root. Implementation-wise, opening a dialog `pushState`s a new entry; closing it calls `history.back()` if the current entry is the dialog, otherwise just removes the dialog parameter via `replaceState`.
 

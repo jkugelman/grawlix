@@ -103,15 +103,17 @@ Keep it short. The user asking "what does installing do?" is on the fence — a 
 
 ## UI surfaces
 
-Sync settings live in the Library (the setup-oriented mode — see `workshop.md`). A "Sync & backup" panel:
+Sync lives in a dedicated **Sync & backup dialog**, opened by clicking the sync indicator in the header — a small status dot (green / spinner / red on error) paired with a "Last backup: Nd ago" nag that turns warning-colored when the gap exceeds the threshold. The dialog contains:
 
 - Status of each tier (last backup, file linked, cloud connected) at a glance.
-- Connect/disconnect per provider.
+- Manual backup buttons for the Master List and My Edits — the Tier 1 entry point. Clicking either bumps "Last backup" forward.
+- Connect/disconnect per cloud provider.
+- The disk-sync section, gated behind PWA install when not yet eligible.
 - Choose what to sync: the merged list, My Edits, or both (per target).
 - Recent activity log — last sync, last conflict, last error.
 - Recent conflicts list, if any same-field conflicts have been auto-resolved.
 
-Status indication elsewhere: a small sync indicator in the header (green dot / spinner / red on error), and the "Last backup: 14 days ago" nag when applicable.
+The dialog is distinct from **Manage sources** (see `workshop.md`): that one answers "what lists do I have, in what order, with what rules"; this one answers "how is my data being preserved across time and devices."
 
 ---
 
