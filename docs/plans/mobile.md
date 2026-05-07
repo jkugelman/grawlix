@@ -34,7 +34,7 @@ This isn't "responsive fallback" or polite degradation — it's a primary use ca
 
 To answer in the dedicated mobile design session:
 
-- **Feature scope.** Does mobile carry everything from desktop, or a stripped-down set? Possible cuts: rescore rule editing, rule-heavy curation flows, multi-list reordering. Possible essentials: search, single-tool mining, lookups, basic My Edits viewing, maybe quick add-to-My-Edits.
+- **Feature scope.** Does mobile carry everything from desktop, or a stripped-down set? Possible cuts: rescore rule editing, rule-heavy curation flows, multi-wordlist reordering. Possible essentials: search, single-tool mining, lookups, basic My Edits viewing, maybe quick add-to-My-Edits.
 - **Tool gallery presentation.** With no rail, how does the user pick a tool? Top-of-page menu, bottom drawer, tap-to-open category strip, full-screen tool picker overlay, ...? The Category-picker decision on desktop doesn't transfer cleanly.
 - **Entry point layout.** What does a mobile user see on first load? Tool picker plus search are probably the two main things, but their relative prominence and layout is open. Hero input with a tool-picker button next to it? Tool picker overlay first, then input?
 - **Lookups on mobile.** The subway/Discord scenario probably wants definitions, Wikipedia, NYT crossword history more than letter-pattern wordplay. Should the mobile entry point bias toward lookup-style features? Or does lookup live as one tool category alongside the others?
@@ -46,7 +46,7 @@ To answer in the dedicated mobile design session:
 
 ## Anti-features
 
-Mobile inherits the project-level non-features from [`app.md`](../designs/app.md) (no mining-state persistence, no cross-list comparison, etc.). One mobile-specific addition: **no separate tablet design** — tablets fall on one side or the other of the responsive breakpoint, per "Settled" above.
+Mobile inherits the project-level non-features from [`app.md`](../designs/app.md) (no mining-state persistence, no cross-wordlist comparison, etc.). One mobile-specific addition: **no separate tablet design** — tablets fall on one side or the other of the responsive breakpoint, per "Settled" above.
 
 ---
 

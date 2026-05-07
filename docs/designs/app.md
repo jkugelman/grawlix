@@ -35,7 +35,7 @@ Things explicitly *not* built, so the design doesn't drift back to them:
 
 - **No persistence of in-progress mining state** beyond what the URL encodes.
   No "save my exploration" feature, no session restore.
-- **No cross-list comparison.** "Words in JK but not XWI" set-difference
+- **No cross-wordlist comparison.** "Words in JK but not XWI" set-difference
   views are not a real workflow.
 - **No scratchpad / working set.** My Edits is the only persistence concept.
 - **No multi-pattern search.** Serial single queries are fine.
@@ -63,7 +63,7 @@ because it's prepended on first boot, then publishers, then user-imported).
 Each entry is just an icon and a name — no entry counts. Footer entry
 `⚙ Manage wordlists…` opens **Manage wordlists**. **Alt+L** opens the dropdown
 and focuses the currently-selected entry. No drag handles, enable toggles, or
-add-list affordance here — those live one click deeper in Manage wordlists.
+add-wordlist affordance here — those live one click deeper in Manage wordlists.
 
 **Sync indicator.** Sits below the wordlist dropdown. Shows "Last backup: Nd
 ago" with age-based color (neutral / warn / stale). Clicking opens **Sync
@@ -74,7 +74,7 @@ design that will eventually populate it).
 **Main pane.** Stats bar, then the wordlist table. The space between is
 where the tool stack will land per [`plans/tools.md`](../plans/tools.md); today the table sits
 directly under the stats. The stats bar always renders, even for empty
-lists — zero entries, dashes for min/max/etc., flat histogram baseline.
+wordlists — zero entries, dashes for min/max/etc., flat histogram baseline.
 Uniformity over an "empty placeholder" treatment.
 
 The table is **always visible**, even at idle with no search active. The
@@ -90,16 +90,16 @@ wordlist view (merged All, individual wordlists, future tool results). Edits
 always land in My Edits regardless of where they're made.
 
 **Default landing.** On boot — including first run — the user lands on
-`All`. The four publisher lists fetch automatically in the background, so
+`All`. The four publisher wordlists fetch automatically in the background, so
 the app has data to query right away and a new user can start doing
-wordlist tricks immediately without thinking about list management.
+wordlist tricks immediately without thinking about wordlist management.
 
 ## Wordlists & setup
 
 Two dialogs cover all setup. They answer different questions and stay
 distinct:
 
-- *Manage wordlists* — what lists do I have, in what order, with what rules.
+- *Manage wordlists* — what wordlists do I have, in what order, with what rules.
 - *Sync & backup* — how is my data being preserved across time and devices.
 
 ### Manage wordlists
@@ -107,15 +107,15 @@ distinct:
 Opened from the wordlist dropdown footer. Two-pane layout.
 
 The **left rail** lists every wordlist with drag handle (reorder = merge
-priority), enable checkbox, and name. New lists are added via a
-`+ Add list…` entry at the bottom.
+priority), enable checkbox, and name. New wordlists are added via a
+`+ Add wordlist…` entry at the bottom.
 
 The **right pane** is the action row, the stats bar with histogram, and a
 rule editor — no name/icon header (the focused wordlist is identified by the
 highlighted card in the rail). Action buttons always justify right; the
 date label sits next to the primary action.
 
-Every list has a rule editor for parity:
+Every wordlist has a rule editor for parity:
 - Regular wordlists get **rescoring** rules (their dialect → unified scale).
 - My Edits gets **scoring** rules (the user's tier labels for the unified
   scale).
@@ -123,17 +123,17 @@ Every list has a rule editor for parity:
 The action row is also unified — date slot, primary action, Download, more
 menu. Only the contents differ:
 - Wordlists: primary Update/Fetch, Download split (rescored / original),
-  ⋮ Configure list / Delete list.
+  ⋮ Configure wordlist / Delete wordlist.
 - My Edits: Import (primary when empty, plain when populated), Download
   (primary when populated, hidden when empty), ⋮ Clear (when populated).
 
 **Renaming** happens on the rail card — F2 with the card focused opens an
-inline editor. Configure list (in a wordlist's ⋮ menu) is the secondary path.
+inline editor. Configure wordlist (in a wordlist's ⋮ menu) is the secondary path.
 No Rename in the kebab menu — the F2 affordance is enough.
 
 **Rescoring lives entirely inside Manage wordlists**; it doesn't appear on
 the main screen. Rules are detail config, typically set once when adding a
-list and rarely revisited; they don't earn persistent real estate next to
+wordlist and rarely revisited; they don't earn persistent real estate next to
 the wordlist view.
 
 **Scoring rules** (My Edits' tier labels) are the user's single notion of
@@ -142,7 +142,7 @@ The merged All view shows them as a read/write legend above its table for
 convenience, but the canonical edit surface is My Edits in Manage wordlists.
 
 **Onboarding banner.** First-run users get a small notice in the Manage
-wordlists rail, above the list: *"Some popular wordlists have been
+wordlists rail, above the wordlists: *"Some popular wordlists have been
 set up with suggested scoring rules,"* with "Sounds good" to dismiss and
 "No thanks" to wipe the pre-loaded publishers. Lives only inside Manage
 wordlists — there's no auto-popup on the main view. Users who never open
@@ -166,10 +166,10 @@ gated on PWA install (Tier 2), recent activity log.
   button (it's an export of one rescored wordlist). Rare; doesn't warrant
   header chrome.
 
-### Open: fold "Configure list" into Manage wordlists
+### Open: fold "Configure wordlist" into Manage wordlists
 
-Today, a wordlist's kebab menu's "Configure list" opens a separate
-`ConfigureListDialog` for icon, name, URL, publisher, and rule application
+Today, a wordlist's kebab menu's "Configure wordlist" opens a separate
+`ConfigureWordlistDialog` for icon, name, URL, publisher, and rule application
 — a second drill-down on top of a configuration page. That doesn't make
 sense; Manage wordlists is already where you configure things. The right
 pane should expose those fields directly (or in a collapsible "advanced"
@@ -211,7 +211,7 @@ The plan: the tool stack will be encoded as the query string
 configuration can be bookmarked or shared. Dialogs (Manage wordlists, Sync
 & backup, settings, help) are *not* URL-addressable; they're transient UI
 state. The selected wordlist from the dropdown is local-only — links don't
-pretend the recipient has the same lists loaded.
+pretend the recipient has the same wordlists loaded.
 
 This is **not yet wired** — there's no tool stack to encode. Lands with
 [`plans/tools.md`](../plans/tools.md). See [`plans/url-routing.md`](../plans/url-routing.md) for the schema.

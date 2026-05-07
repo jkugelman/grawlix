@@ -15,11 +15,11 @@ Two driving concerns:
 
 Two files, not one.
 
-**The merged list.** All enabled lists *except* My Edits, merged with the user's rescore rules applied. Grawlix is the sole writer; external tools read it. One direction out.
+**The merged wordlist.** All enabled wordlists *except* My Edits, merged with the user's rescore rules applied. Grawlix is the sole writer; external tools read it. One direction out.
 
 **My Edits.** Just the user's own edits, in the same `WORD;SCORE;COMMENT` format. Bidirectional: external tools can write to it (Ingrid's pencil-list convention), Grawlix re-imports the changes.
 
-**Why the split.** Crossword best practice is "never edit a published wordlist directly" — your customizations live in a separate file so you can update the underlying lists freely without losing them. The two-file model bakes this into Grawlix's defaults. A user loading both files into Ingrid (with My Edits marked as the edit list) gets the same workflow as if they'd been editing in Ingrid all along, with Grawlix as a richer curation surface upstream.
+**Why the split.** Crossword best practice is "never edit a published wordlist directly" — your customizations live in a separate file so you can update the underlying wordlists freely without losing them. The two-file model bakes this into Grawlix's defaults. A user loading both files into Ingrid (with My Edits marked as the edit list) gets the same workflow as if they'd been editing in Ingrid all along, with Grawlix as a richer curation surface upstream.
 
 **Single-file output remains an opt-in.** For one-off uses — sharing a wordlist, submitting to a competition — the user can still download or sync a single merged file that includes My Edits. Default is two files; power users can switch.
 
@@ -37,7 +37,7 @@ Universal — works in every browser, no setup, no permissions. The *floor* that
 
 ### Tier 2 — Local file link (PWA-gated)
 
-A persistent link between Grawlix and a file on the user's hard drive, via the browser's File System Access API. Bidirectional for My Edits; one-way out for the merged list. **Chromium-only**, and **gated behind installing Grawlix as a PWA** — without installation, the browser resets file permissions every session, which makes "your sync stopped" the silent default. Installed PWAs get persistent permissions and the experience just works.
+A persistent link between Grawlix and a file on the user's hard drive, via the browser's File System Access API. Bidirectional for My Edits; one-way out for the merged wordlist. **Chromium-only**, and **gated behind installing Grawlix as a PWA** — without installation, the browser resets file permissions every session, which makes "your sync stopped" the silent default. Installed PWAs get persistent permissions and the experience just works.
 
 A user visiting grawlix.wtf in a normal browser tab does not see disk sync as an option. To unlock it, install Grawlix. See "PWA installation" below for how that's surfaced.
 
@@ -109,11 +109,11 @@ Sync lives in a dedicated **Sync & backup dialog**, opened by clicking the sync 
 - Manual backup buttons for `All` (the merged wordlist) and My Edits — the Tier 1 entry point. Clicking either bumps "Last backup" forward.
 - Connect/disconnect per cloud provider.
 - The disk-sync section, gated behind PWA install when not yet eligible.
-- Choose what to sync: the merged list, My Edits, or both (per target).
+- Choose what to sync: the merged wordlist, My Edits, or both (per target).
 - Recent activity log — last sync, last conflict, last error.
 - Recent conflicts list, if any same-field conflicts have been auto-resolved.
 
-The dialog is distinct from **Manage wordlists** (see `../designs/app.md`): that one answers "what lists do I have, in what order, with what rules"; this one answers "how is my data being preserved across time and devices."
+The dialog is distinct from **Manage wordlists** (see `../designs/app.md`): that one answers "what wordlists do I have, in what order, with what rules"; this one answers "how is my data being preserved across time and devices."
 
 ---
 

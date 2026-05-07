@@ -2,7 +2,7 @@
 
 **Live site:** https://grawlix.wtf (hosted via GitHub Pages)
 
-Grawlix is a browser-based wordlist manager for crossword constructors. Wordlists in the wild are each scored on their own arbitrary scales, making it hard to combine them. Grawlix solves this with per-list rescoring rules that map everything to a common scale, then merges the results into a single unified view. It ships with curated default rules for four popular wordlists so most users get a good experience out of the box, with full customization available for those who want it.
+Grawlix is a browser-based wordlist manager for crossword constructors. Wordlists in the wild are each scored on their own arbitrary scales, making it hard to combine them. Grawlix solves this with per-wordlist rescoring rules that map everything to a common scale, then merges the results into a single unified view. It ships with curated default rules for four popular wordlists so most users get a good experience out of the box, with full customization available for those who want it.
 
 All code lives in a single file: `site/index.html`. Read and edit only that file.
 
@@ -17,16 +17,16 @@ Sections within the `<script>` block are delimited by banner comments like:
 
 ## Data model
 
-`state` holds `sources` (the per-list data), `selected`, and search state. Each list has metadata, `rawEntries` (parsed words), and `rescoreRules`. My Edits additionally has a `scoring` field — tier labels for the unified score scale, used everywhere scores are displayed (the merged All view shows them as a legend).
+`state` holds `sources` (the per-wordlist data), `selected`, and search state. Each wordlist has metadata, `rawEntries` (parsed words), and `rescoreRules`. My Edits additionally has a `scoring` field — tier labels for the unified score scale, used everywhere scores are displayed (the merged All view shows them as a legend).
 
-**List fields** — every source carries:
-- `dbKey` — opaque `crypto.randomUUID()` string; used exclusively as the IndexedDB storage key. Never appears in HTML or UI code. `state.selected` stores the selected list object (or `MERGED_ID`) — not the dbKey.
-- `type` — `'edits'` for My Edits; absent for all regular sources. Nothing uses a string constant like `EDITS_ID` anymore — check `list.type === 'edits'`.
-- `icon` — a descriptor object (or `null` for auto-generated initials). Two shapes: `{ type: 'emoji', value: '✏️' }` or `{ type: 'img', url: 'https://…' }`. **Never store generated HTML** — render at display time via `buildIconHTML(descriptor, name, seed)`, which dispatches to `buildEmojiIconHTML`, `buildImgIconHTML`, or `buildInitialsIconHTML`. `getListIcon(list)` is the standard call site. The color seed is derived by `colorSeed(obj)` = `obj.url || obj.originalFilename || obj.dbKey || obj.name` — same function works on both list objects and publishers, ensuring publisher-based lists look consistent for all users.
-- `originalFilename` — the filename last used to import or fetch data into this list (e.g. `'jkugelman-wordlist.txt'`). Set by both `importToList` and `fetchList`. Used as the default download filename and as a fallback color seed. Importing a file clears `list.url`; a list is either auto-fetch or file-based, not both.
+**Wordlist fields** — every source carries:
+- `dbKey` — opaque `crypto.randomUUID()` string; used exclusively as the IndexedDB storage key. Never appears in HTML or UI code. `state.selected` stores the selected wordlist object (or `MERGED_ID`) — not the dbKey.
+- `type` — `'edits'` for My Edits; absent for all regular sources. Nothing uses a string constant like `EDITS_ID` anymore — check `wordlist.type === 'edits'`.
+- `icon` — a descriptor object (or `null` for auto-generated initials). Two shapes: `{ type: 'emoji', value: '✏️' }` or `{ type: 'img', url: 'https://…' }`. **Never store generated HTML** — render at display time via `buildIconHTML(descriptor, name, seed)`, which dispatches to `buildEmojiIconHTML`, `buildImgIconHTML`, or `buildInitialsIconHTML`. `getWordlistIcon(wordlist)` is the standard call site. The color seed is derived by `colorSeed(obj)` = `obj.url || obj.originalFilename || obj.dbKey || obj.name` — same function works on both wordlist objects and publishers, ensuring publisher-based wordlists look consistent for all users.
+- `originalFilename` — the filename last used to import or fetch data into this wordlist (e.g. `'jkugelman-wordlist.txt'`). Set by both `importToWordlist` and `fetchWordlist`. Used as the default download filename and as a fallback color seed. Importing a file clears `wordlist.url`; a wordlist is either auto-fetch or file-based, not both.
 - `publisherId` — optional weak reference to the publisher last applied (`'xwi'`, `'jkugelman'`, etc.). Display/reset purposes only; never a behavioral gate.
 
-**Publishers** (`LIST_PUBLISHERS`) — the four known wordlists (JK, XWI, STWL, Broda) are config bundles, not identities. Each has `id`, `name`, `icon`, `url`, `filenamePatterns`, `defaultRules`, and `neutralRules`. `getPublisher(list)` looks up by `list.publisherId`. There is no function that checks whether a list's key matches a publisher — `getTemplate` is gone.
+**Publishers** (`WORDLIST_PUBLISHERS`) — the four known wordlists (JK, XWI, STWL, Broda) are config bundles, not identities. Each has `id`, `name`, `icon`, `url`, `filenamePatterns`, `defaultRules`, and `neutralRules`. `getPublisher(wordlist)` looks up by `wordlist.publisherId`. There is no function that checks whether a wordlist's key matches a publisher — `getTemplate` is gone.
 
 **Wordlist file format** — one entry per line:
 ```
@@ -40,8 +40,8 @@ WORD;SCORE;COMMENT
 
 ## Persistence
 
-- **localStorage** (prefix `grawlix_`): list metadata and settings. `persistMeta()` saves all list metadata.
-- **IndexedDB**: raw wordlist text per list. Lists can be hundreds of thousands of words, too large for localStorage. `persistData(list, text)` saves one list's text, keyed by `list.dbKey`.
+- **localStorage** (prefix `grawlix_`): wordlist metadata and settings. `persistMeta()` saves all wordlist metadata.
+- **IndexedDB**: raw wordlist text per wordlist. Wordlists can be hundreds of thousands of words, too large for localStorage. `persistData(wordlist, text)` saves one wordlist's text, keyed by `wordlist.dbKey`.
 
 **Never store generated code (HTML, SVG markup) in localStorage or IndexedDB — store the parameters and render at read time.** Otherwise users with stale data continue to render with the old code shape after you change the renderer.
 
@@ -49,11 +49,11 @@ WORD;SCORE;COMMENT
 
 ## Key concepts
 
-**My Edits** — a special list created automatically on first boot, identified by `list.type === 'edits'`. It has no rescore rules (scores pass through as-is) but does carry the user's `scoring` (tier labels). Clicking a score or comment cell in any view opens an inline editor; saving upserts the entry into My Edits. From the My Edits view the user can also add new words and delete entries (with undo). It is reorderable like any other list (position determines merge priority). The UI enforces: not deletable, always enabled.
+**My Edits** — a special wordlist created automatically on first boot, identified by `wordlist.type === 'edits'`. It has no rescore rules (scores pass through as-is) but does carry the user's `scoring` (tier labels). Clicking a score or comment cell in any view opens an inline editor; saving upserts the entry into My Edits. From the My Edits view the user can also add new words and delete entries (with undo). It is reorderable like any other wordlist (position determines merge priority). The UI enforces: not deletable, always enabled.
 
-**Override and rescore display** — When viewing a wordlist, score and comment cells always show the *effective* value (what actually appears in the merged output), not the raw value from that list. A red superscript asterisk (`*`) indicates the displayed value differs from what the list itself contains. An instant HTML popover (`#cell-popover`) explains why: the original score for rescored entries, or the overriding list's name for overrides. Both conditions can apply simultaneously. The overrideMap (built by `buildOverrideMap`) stores `{ listName, score, comment }` from the highest-priority list above the current one; a comment override only applies when that list has a non-empty comment. Editing an overridden cell pre-fills the input with the effective value (not the raw value) so the user is editing what actually matters — the result always lands in My Edits regardless.
+**Override and rescore display** — When viewing a wordlist, score and comment cells always show the *effective* value (what actually appears in the merged output), not the raw value from that wordlist. A red superscript asterisk (`*`) indicates the displayed value differs from what the wordlist itself contains. An instant HTML popover (`#cell-popover`) explains why: the original score for rescored entries, or the overriding wordlist's name for overrides. Both conditions can apply simultaneously. The overrideMap (built by `buildOverrideMap`) stores `{ wordlistName, score, comment }` from the highest-priority wordlist above the current one; a comment override only applies when that wordlist has a non-empty comment. Editing an overridden cell pre-fills the input with the effective value (not the raw value) so the user is editing what actually matters — the result always lands in My Edits regardless.
 
-**Merged list** — `MERGED_ID = '__merged__'` selects a union of all enabled sources, deduped by word. The highest rescored value wins; losers are shown faded with a tooltip. Displayed as `All` (the value of `MERGED_NAME`) at the top of the wordlist dropdown in the left rail's Wordlist section.
+**Merged wordlist** — `MERGED_ID = '__merged__'` selects a union of all enabled sources, deduped by word. The highest rescored value wins; losers are shown faded with a tooltip. Displayed as `All` (the value of `MERGED_NAME`) at the top of the wordlist dropdown in the left rail's Wordlist section.
 
 **Score tiers** — `great` (≥60), `good` (≥50), `fair` (≥40), `meh` (≥30), `bad` (<30). Drive score badge colors via `data-tier` and `--score-{tier}-{bg,fg}` CSS vars.
 
@@ -61,7 +61,7 @@ WORD;SCORE;COMMENT
 
 **Virtual scroller** — `VirtualScroller` renders only visible rows. Row height is fixed.
 
-**Event delegation** — list card interactions (click, keydown, change, drag) use delegated listeners on the Manage wordlists rail (`#ms-rail-list`). At render time, the rail sets `card._list = list` on each `.list-card[data-list]` DOM element. Handlers retrieve the list via `e.target.closest('.list-card[data-list]')._list`. No list ID or `dbKey` appears in HTML attributes.
+**Event delegation** — wordlist card interactions (click, keydown, change, drag) use delegated listeners on the Manage wordlists rail (`#ms-rail-wordlist`). At render time, the rail sets `card._wordlist = wordlist` on each `.wordlist-card[data-wordlist]` DOM element. Handlers retrieve the wordlist via `e.target.closest('.wordlist-card[data-wordlist]')._wordlist`. No wordlist ID or `dbKey` appears in HTML attributes.
 
 ## CSS custom properties
 
@@ -80,7 +80,7 @@ After completing changes that are ready to commit, always output a suggested com
 
 - **No inline styles.** Prefer adding CSS to the `<style>` block over `style="..."` attributes on elements.
 - **Dark mode and light mode have equal weight.** Don't treat one as the default and the other as an override — both get first-class parallel treatment in the CSS.
-- **"Download" means output only.** Use "download" exclusively for saving a processed wordlist from Grawlix to disk (`downloadMergedListFromPanel`, `downloadIndividualList`, etc.). Use "fetch" for getting a wordlist into Grawlix from a URL (`fetchList`), and "import" for the user loading a file. Template properties that refer to a third-party source page use `sourcePage` / `sourceNote`.
+- **"Download" means output only.** Use "download" exclusively for saving a processed wordlist from Grawlix to disk (`downloadMergedWordlistFromPanel`, `downloadIndividualWordlist`, etc.). Use "fetch" for getting a wordlist into Grawlix from a URL (`fetchWordlist`), and "import" for the user loading a file. Template properties that refer to a third-party source page use `sourcePage` / `sourceNote`.
 
 ## Component architecture
 

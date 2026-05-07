@@ -50,7 +50,7 @@ Regenerate the specifics fresh. Ask for: (1) the migration runner and its positi
 // Schema version history:
 //   v1: initial
 //   v2 (YYYY-MM-DD): icons stored as descriptor objects instead of HTML
-//   v3 (YYYY-MM-DD): sync target metadata added to per-list config
+//   v3 (YYYY-MM-DD): sync target metadata added to per-wordlist config
 const SCHEMA_VERSION = 3;
 ```
 

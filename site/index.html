@@ -110,15 +110,15 @@ main { display: flex; flex: 1; overflow: hidden; position: relative; }
 .busy-spinner { width: 36px; height: 36px; border: 3px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: busy-spin 0.7s linear infinite; }
 @keyframes busy-spin { to { transform: rotate(360deg); } }
 
-/* Add list row (used inside the Manage Sources rail) */
-.add-list-row { padding: 9px 14px; cursor: pointer; color: var(--faint); font-size: 13px; display: flex; align-items: center; gap: 9px; transition: background 0.1s, color 0.1s; user-select: none; }
-.add-list-row:hover { background: var(--hover); color: var(--accent); }
-.add-list-icon { font-size: 15px; line-height: 1; width: 16px; text-align: center; flex-shrink: 0; }
+/* Add wordlist row (used inside the Manage Sources rail) */
+.add-wordlist-row { padding: 9px 14px; cursor: pointer; color: var(--faint); font-size: 13px; display: flex; align-items: center; gap: 9px; transition: background 0.1s, color 0.1s; user-select: none; }
+.add-wordlist-row:hover { background: var(--hover); color: var(--accent); }
+.add-wordlist-icon { font-size: 15px; line-height: 1; width: 16px; text-align: center; flex-shrink: 0; }
 
-/* List card */
-.list-card { padding: 10px 14px; border-bottom: 1px solid var(--border3); cursor: pointer; display: flex; align-items: center; gap: 9px; transition: background 0.1s; }
-.list-card:hover { background: var(--hover); }
-.list-card.selected { background: var(--sel); border-left: 3px solid var(--accent); padding-left: 11px; }
+/* Wordlist card */
+.wordlist-card { padding: 10px 14px; border-bottom: 1px solid var(--border3); cursor: pointer; display: flex; align-items: center; gap: 9px; transition: background 0.1s; }
+.wordlist-card:hover { background: var(--hover); }
+.wordlist-card.selected { background: var(--sel); border-left: 3px solid var(--accent); padding-left: 11px; }
 .card-info { flex: 1; min-width: 0; }
 .card-name { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 13px; }
 .card-meta { color: var(--muted); font-size: 11px; margin-top: 2px; display: flex; align-items: center; gap: 5px; }
@@ -228,9 +228,9 @@ html.dark-mode .search-match-4 { background: #14532d; color: #d1fae5; }
 .drag-handle { color: var(--faint); cursor: grab; font-size: 13px; flex-shrink: 0; padding: 0 1px; user-select: none; }
 .drag-handle:hover { color: var(--muted); }
 .drag-handle[aria-hidden] { visibility: hidden; }
-.list-card[draggable]:active .drag-handle { cursor: grabbing; }
-.list-card.dragging { opacity: 0.4; }
-.list-card.drag-over { background: var(--sel) !important; box-shadow: inset 0 0 0 2px var(--accent); }
+.wordlist-card[draggable]:active .drag-handle { cursor: grabbing; }
+.wordlist-card.dragging { opacity: 0.4; }
+.wordlist-card.drag-over { background: var(--sel) !important; box-shadow: inset 0 0 0 2px var(--accent); }
 
 /* Toggle switch */
 .toggle { position: relative; display: inline-block; width: 28px; height: 16px; flex-shrink: 0; cursor: pointer; }
@@ -275,12 +275,12 @@ html.dark-mode .tooltip::after { border-bottom-color: #111214; }
 .settings-row-label { font-size: 13px; font-weight: 600; }
 .settings-row-sub { font-size: 12px; color: var(--muted); margin-top: 2px; }
 
-/* Disabled list */
-.list-card.disabled .card-info { opacity: 0.45; }
+/* Disabled wordlist */
+.wordlist-card.disabled .card-info { opacity: 0.45; }
 
-/* No-data list */
-.list-card.no-data .toggle { opacity: 0.35; }
-.list-card.no-data .toggle input { pointer-events: none; }
+/* No-data wordlist */
+.wordlist-card.no-data .toggle { opacity: 0.35; }
+.wordlist-card.no-data .toggle input { pointer-events: none; }
 
 
 /* Status dot */
@@ -314,10 +314,10 @@ dialog h2 { font-size: 16px; margin-bottom: 14px; padding-right: 24px; }
 .filename-combo select { border: 1px solid var(--border); border-left: none; border-radius: 0 4px 4px 0; background: var(--input-bg); padding: 0 6px 0 8px; font-size: 13px; font-family: inherit; color: var(--text); cursor: pointer; }
 .filename-combo select:focus { outline: none; border-color: var(--accent); border-left: none; }
 .filename-combo:has(select:focus) input { border-right-color: var(--accent); }
-.known-list { display: flex; align-items: center; justify-content: space-between; gap: 9px; padding: 9px 12px; border: 1px solid var(--border2); border-radius: 6px; margin-bottom: 7px; }
-.known-list-info { flex: 1; }
-.known-list-name { font-size: 13px; font-weight: 600; }
-.known-list-sub  { font-size: 11px; color: var(--muted); margin-top: 2px; }
+.known-wordlist { display: flex; align-items: center; justify-content: space-between; gap: 9px; padding: 9px 12px; border: 1px solid var(--border2); border-radius: 6px; margin-bottom: 7px; }
+.known-wordlist-info { flex: 1; }
+.known-wordlist-name { font-size: 13px; font-weight: 600; }
+.known-wordlist-sub  { font-size: 11px; color: var(--muted); margin-top: 2px; }
 .dialog-footer { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--border2); display: flex; justify-content: flex-end; gap: 8px; }
 
 /* Import guide dialog */
@@ -332,8 +332,8 @@ dialog h2 { font-size: 16px; margin-bottom: 14px; padding-right: 24px; }
 .guide-step-body a { color: var(--accent); text-decoration: none; word-break: break-all; }
 .guide-step-body a:hover { text-decoration: underline; }
 
-/* Configure / Add list dialog */
-#configure-list-dialog { width: 520px; overflow: visible; }
+/* Configure / Add wordlist dialog */
+#configure-wordlist-dialog { width: 520px; overflow: visible; }
 .configure-section { margin-bottom: 18px; }
 .configure-section:last-child { margin-bottom: 0; }
 .configure-section-label { font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 8px; }
@@ -346,7 +346,7 @@ dialog h2 { font-size: 16px; margin-bottom: 14px; padding-right: 24px; }
 .publisher-chip { border: 1px solid var(--border); border-radius: 16px; padding: 4px 12px; font-size: 12px; font-weight: 600; background: var(--btn-bg); color: var(--muted); cursor: pointer; font-family: inherit; display: inline-flex; align-items: center; gap: 5px; line-height: 1; }
 .publisher-chip:hover:not(.active) { background: var(--hover); color: var(--text); }
 .publisher-chip.active { background: var(--accent); color: white; border-color: var(--accent); }
-.publisher-chip .list-icon { width: 13px; height: 13px; }
+.publisher-chip .wordlist-icon { width: 13px; height: 13px; }
 .rules-option-row { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
 .rules-option-lbl { font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
 .rules-option-row select { padding: 5px 8px; border: 1px solid var(--border); border-radius: 4px; font-size: 12px; font-family: inherit; background: var(--input-bg); color: var(--text); cursor: pointer; }
@@ -376,7 +376,7 @@ dialog h2 { font-size: 16px; margin-bottom: 14px; padding-right: 24px; }
 .icon-picker-tab:hover:not(.active) { background: var(--hover); }
 .icon-picker-pane { padding: 10px 12px; display: none; }
 .icon-picker-pane.active { display: block; }
-.icon-emoji-btn[data-auto] .list-icon-initials { width: 22px; height: 22px; }
+.icon-emoji-btn[data-auto] .wordlist-icon-initials { width: 22px; height: 22px; }
 .icon-emoji-grid { display: grid; grid-template-columns: repeat(8, 1fr); gap: 2px; }
 .icon-emoji-btn { background: none; border: 1px solid transparent; border-radius: 4px; font-size: 18px; line-height: 1; padding: 4px 2px; cursor: pointer; text-align: center; font-family: inherit; }
 .icon-emoji-btn:hover { background: var(--hover); border-color: var(--border); }
@@ -389,7 +389,7 @@ dialog h2 { font-size: 16px; margin-bottom: 14px; padding-right: 24px; }
 .url-input:focus { outline: none; border-color: var(--accent); }
 
 /* Initials icon */
-.list-icon-initials text { fill: white; }
+.wordlist-icon-initials text { fill: white; }
 .ic-0  { fill: #5C6BC0; }
 .ic-1  { fill: #1E88E5; }
 .ic-2  { fill: #00ACC1; }
@@ -506,7 +506,7 @@ a.get-file:hover { text-decoration: underline; }
 .source-dropdown-btn:hover { background: var(--hover); border-color: var(--accent); }
 .source-dropdown-btn[aria-expanded="true"] { background: var(--sel); border-color: var(--accent); }
 .source-dropdown-icon { display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; flex-shrink: 0; }
-.source-dropdown-icon .list-icon { width: 18px; height: 18px; }
+.source-dropdown-icon .wordlist-icon { width: 18px; height: 18px; }
 .source-dropdown-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1; min-width: 0; }
 .source-dropdown-caret { color: var(--muted); flex-shrink: 0; }
 
@@ -533,7 +533,7 @@ a.get-file:hover { text-decoration: underline; }
 #source-dropdown-menu .dropdown-item.selected { background: var(--sel); }
 #source-dropdown-menu .dropdown-item.selected::after { content: '✓'; margin-left: auto; color: var(--accent); font-weight: 700; }
 #source-dropdown-menu .dropdown-item.disabled { opacity: 0.45; }
-#source-dropdown-menu .dropdown-item .list-icon { width: 16px; height: 16px; flex-shrink: 0; }
+#source-dropdown-menu .dropdown-item .wordlist-icon { width: 16px; height: 16px; flex-shrink: 0; }
 #source-dropdown-menu .dropdown-divider {
   height: 1px; background: var(--border2);
   margin: 6px 0;
@@ -665,8 +665,8 @@ a.get-file:hover { text-decoration: underline; }
   background: var(--surface2);
   flex-shrink: 0;
 }
-.ms-rail-list { flex: 1; overflow-y: auto; padding: 4px 0; }
-.ms-rail .add-list-row { padding: 9px 14px; }
+.ms-rail-wordlist { flex: 1; overflow-y: auto; padding: 4px 0; }
+.ms-rail .add-wordlist-row { padding: 9px 14px; }
 .ms-pane {
   flex: 1; min-width: 0;
   display: flex; flex-direction: column;
@@ -756,12 +756,12 @@ html.dark-mode .ms-onboarding {
 .no-rules { font-size: 12px; color: var(--faint); font-style: italic; margin-bottom: 3px; }
 .stats-bar.stats-empty .stat-value { color: var(--faint); }
 
-/* List icons */
-.list-icon { width: 16px; height: 16px; flex-shrink: 0; vertical-align: middle; }
-.list-icon-img { border-radius: 3px; display: inline-block; }
-/* List name icon: inline icon preceding a list name in toasts, alerts, help text, and source column */
-.list-name-icon { display: inline; }
-.list-name-icon .list-icon { width: 1em; height: 1em; vertical-align: -0.1em; }
+/* Wordlist icons */
+.wordlist-icon { width: 16px; height: 16px; flex-shrink: 0; vertical-align: middle; }
+.wordlist-icon-img { border-radius: 3px; display: inline-block; }
+/* Wordlist name icon: inline icon preceding a wordlist name in toasts, alerts, help text, and source column */
+.wordlist-name-icon { display: inline; }
+.wordlist-name-icon .wordlist-icon { width: 1em; height: 1em; vertical-align: -0.1em; }
 
 /* Score display */
 .entry-ignored { opacity: 0.4; }
@@ -880,13 +880,13 @@ input.cell-edit.score-edit { font-family: ui-monospace, 'Cascadia Code', monospa
 #help-slide-3 .help-wildcards span { font-size: 11px; color: var(--text); display: flex; align-items: baseline; gap: 5px; }
 #help-slide-3 .help-wildcards kbd { font-family: ui-monospace, 'Cascadia Code', monospace; font-size: 11px; color: var(--muted); }
 /* Demo slides: non-interactive */
-#help-slide-0 .list-card,
+#help-slide-0 .wordlist-card,
 #help-slide-0 .search-bar,
-#help-slide-1 .list-card,
+#help-slide-1 .wordlist-card,
 #help-slide-3 .search-bar,
 #help-slide-3 .word-table tr { pointer-events: none; }
-#help-slide-1 .list-card { cursor: default; }
-#help-slide-1 .list-card:last-child { border-bottom: none; }
+#help-slide-1 .wordlist-card { cursor: default; }
+#help-slide-1 .wordlist-card:last-child { border-bottom: none; }
 /* Slide 5 download demo */
 .help-demo-dl { display: flex; flex-direction: column; gap: 12px; align-items: flex-start; }
 .help-demo-dl-opts { display: flex; flex-direction: column; gap: 8px; }
@@ -1052,7 +1052,7 @@ const EMOJI_LIST = [
   '❤️','💜','💙','💚','💛','🧡','🖤','🤍',
 ];
 
-const LIST_PUBLISHERS = [
+const WORDLIST_PUBLISHERS = [
   {
     id: 'jkugelman',
     popularity: 4,
@@ -1146,9 +1146,9 @@ function buildStatItemHTML(label, value, title) {
 }
 
 // opts: { isMerged, enabled, selected, isEdits, hasData, hasUpdate, interactive }
-// interactive: true  → adds draggable, tabindex, role, data-list marker for event delegation
+// interactive: true  → adds draggable, tabindex, role, data-wordlist marker for event delegation
 // interactive: false → static display card (default — safe for demos)
-function buildListCardHTML(icon, name, meta, opts = {}) {
+function buildWordlistCardHTML(icon, name, meta, opts = {}) {
   const {
     isMerged    = false,
     enabled     = true,
@@ -1159,7 +1159,7 @@ function buildListCardHTML(icon, name, meta, opts = {}) {
     interactive = false,
   } = opts;
 
-  const classes = ['list-card'];
+  const classes = ['wordlist-card'];
   if (selected)                        classes.push('selected');
   if (!enabled)                        classes.push('disabled');
   if (!hasData && !isEdits && !isMerged) classes.push('no-data');
@@ -1185,7 +1185,7 @@ function buildListCardHTML(icon, name, meta, opts = {}) {
     const toggleEnabled = hasData || isEdits;
     const toggleTitle = !toggleEnabled ? 'Click to import'
       : enabled ? 'Enabled — click to disable' : 'Disabled — click to enable';
-    wrapAttrs = ` data-list draggable="true" tabindex="0" role="option"`;
+    wrapAttrs = ` data-wordlist draggable="true" tabindex="0" role="option"`;
     cardActions = `<div class="card-actions">
       <label class="toggle" title="${toggleTitle}" aria-label="Toggle ${esc(name)}">
         <input type="checkbox"${toggleEnabled && enabled ? ' checked' : ''}${toggleEnabled ? '' : ' disabled'}>
@@ -1293,12 +1293,12 @@ function buildWordRowHTML(word, score, { comment = '', highlight = '' } = {}) {
   </tr>`;
 }
 
-// lists: [{ icon, name, meta, enabled }]
-function buildListSidebarHTML(lists, mergedMeta = '47,000 entries') {
-  return buildListCardHTML(MERGED_ICON, MERGED_NAME, mergedMeta, { isMerged: true })
-    + `<div class="help-mini-section">Wordlists (${lists.length})</div>`
-    + lists.map(({ icon, name, meta, enabled = true }) =>
-        buildListCardHTML(icon, name, meta, { enabled })
+// wordlists: [{ icon, name, meta, enabled }]
+function buildWordlistSidebarHTML(wordlists, mergedMeta = '47,000 entries') {
+  return buildWordlistCardHTML(MERGED_ICON, MERGED_NAME, mergedMeta, { isMerged: true })
+    + `<div class="help-mini-section">Wordlists (${wordlists.length})</div>`
+    + wordlists.map(({ icon, name, meta, enabled = true }) =>
+        buildWordlistCardHTML(icon, name, meta, { enabled })
       ).join('');
 }
 
@@ -1375,10 +1375,10 @@ function buildRulesListHTML(rules, { rulesId, saveFn, deleteFn, rescore = false,
   return `<div id="${rulesId}">${rulesHTML}</div>`;
 }
 
-function buildRescoreSectionHTML(list) {
-  if (!list) return '';
+function buildRescoreSectionHTML(wordlist) {
+  if (!wordlist) return '';
   return `<div class="rescore-top"><span class="rescore-lbl">Rescoring</span></div>` +
-    buildRulesListHTML(list.rescoreRules || [], { rulesId: 'rescore-rules', saveFn: 'saveRuleField', deleteFn: 'deleteRule', rescore: true });
+    buildRulesListHTML(wordlist.rescoreRules || [], { rulesId: 'rescore-rules', saveFn: 'saveRuleField', deleteFn: 'deleteRule', rescore: true });
 }
 
 // Scoring (tier labels) lives on My Edits' `scoring` field. Rendered both as a
@@ -1386,8 +1386,8 @@ function buildRescoreSectionHTML(list) {
 // Sources right pane. Catch-all is recomputed against the merged entries on
 // every render so it reflects all scores in the user's data.
 function buildScoringSectionHTML() {
-  const edits = getEditsList();
-  if (edits) updateScoringCatchAll(edits.scoring, buildMergedList().entries);
+  const edits = getEditsWordlist();
+  if (edits) updateScoringCatchAll(edits.scoring, buildMergedWordlist().entries);
   return `<div class="rescore-top"><span class="rescore-lbl">Scoring</span></div>` +
     buildRulesListHTML(edits?.scoring || [], { rulesId: 'scoring-rules', saveFn: 'saveScoringField', deleteFn: 'deleteScoringRow' });
 }
@@ -1408,7 +1408,7 @@ function buildTrashIconHTML() {
   return `<svg class="icon-trash"><use href="#icon-trash"/></svg>`;
 }
 
-// interactive false → aria-hidden (merged card, add-list row, demo cards)
+// interactive false → aria-hidden (merged card, add-wordlist row, demo cards)
 // interactive true  → title + aria-label (draggable source cards)
 function buildDragHandleHTML(interactive = false) {
   return interactive
@@ -1416,10 +1416,10 @@ function buildDragHandleHTML(interactive = false) {
     : `<span class="drag-handle" aria-hidden="true">≡</span>`;
 }
 
-function buildListNameHTML(list, { bold = true } = {}) {
-  const icon = getListIcon(list);
-  const name = bold ? `<strong>${esc(list.name)}</strong>` : esc(list.name);
-  return `<span class="list-name-icon">${icon}</span> ${name}`;
+function buildWordlistNameHTML(wordlist, { bold = true } = {}) {
+  const icon = getWordlistIcon(wordlist);
+  const name = bold ? `<strong>${esc(wordlist.name)}</strong>` : esc(wordlist.name);
+  return `<span class="wordlist-name-icon">${icon}</span> ${name}`;
 }
 
 // ─── State ────────────────────────────────────────────────────────────────────
@@ -1438,13 +1438,13 @@ const DEFAULT_SCORING = [
 
 const state = {
   sources: [],          // [{type?, dbKey, icon, publisherId?, name, url, enabled, rawEntries, lastUpdated, _loading, rescoreRules}]
-  selected: null,       // MERGED_ID | list object | null
+  selected: null,       // MERGED_ID | wordlist object | null
   searchQuery: '',
   searchWholeWord: false,
   scoreRange: '',
 };
 
-const colWidths = { length: 55, word: 200, score: 90, source: 170, delete: 26 }; // persists across list switches
+const colWidths = { length: 55, word: 200, score: 90, source: 170, delete: 26 }; // persists across wordlist switches
 
 // ─── Parsing ─────────────────────────────────────────────────────────────────
 
@@ -1502,7 +1502,7 @@ function readMergedSettings() {
 }
 function writeMergedSettings(s) { lsSave('mergedSettings', JSON.stringify(s)); }
 
-// IndexedDB for large word list data (localStorage has ~5MB limit)
+// IndexedDB for large wordlist data (localStorage has ~5MB limit)
 const IDB_NAME  = 'grawlix';
 const IDB_STORE = 'data';
 let _db = null;
@@ -1645,9 +1645,9 @@ const SettingsDialog = (() => {
     <div class="settings-row">
       <div>
         <div class="settings-row-label">Reset all data</div>
-        <div class="settings-row-sub">Reset all lists and settings</div>
+        <div class="settings-row-sub">Reset all wordlists and settings</div>
       </div>
-      <button id="btn-reset" class="danger" title="Reset all lists and data"><svg class="icon-trash"><use href="#icon-trash"/></svg> Reset</button>
+      <button id="btn-reset" class="danger" title="Reset all wordlists and data"><svg class="icon-trash"><use href="#icon-trash"/></svg> Reset</button>
     </div>`;
 
   const seg  = el.querySelector('#dark-mode-seg');
@@ -1687,7 +1687,7 @@ const SettingsDialog = (() => {
   });
 
   el.querySelector('#btn-reset').onclick = async () => {
-    if (!await showConfirm('Reset all lists and settings? This cannot be undone.', { confirmText: 'Reset' })) return;
+    if (!await showConfirm('Reset all wordlists and settings? This cannot be undone.', { confirmText: 'Reset' })) return;
     await resetAllData();
     location.reload();
   };
@@ -1723,8 +1723,8 @@ const ManageSourcesDialog = (() => {
             <button class="primary" data-onboard-action="dismiss">Sounds good</button>
           </div>
         </div>
-        <div class="ms-rail-list" id="ms-rail-list"></div>
-        <div class="add-list-row" id="ms-add-list">${buildDragHandleHTML()}<span class="add-list-icon">＋</span>Add list</div>
+        <div class="ms-rail-wordlist" id="ms-rail-wordlist"></div>
+        <div class="add-wordlist-row" id="ms-add-wordlist">${buildDragHandleHTML()}<span class="add-wordlist-icon">＋</span>Add wordlist</div>
       </aside>
       <section class="ms-pane" id="ms-pane"></section>
     </div>`;
@@ -1744,11 +1744,11 @@ const ManageSourcesDialog = (() => {
   async function onboardingGoBlank() {
     const toRemove = state.sources.filter(l => l.type !== 'edits');
     state.sources = state.sources.filter(l => l.type === 'edits');
-    toRemove.forEach(l => invalidateListCaches(l));
+    toRemove.forEach(l => invalidateWordlistCaches(l));
     if (state.selected !== MERGED_ID && toRemove.includes(state.selected)) {
       state.selected = MERGED_ID;
     }
-    const edits = getEditsList();
+    const edits = getEditsWordlist();
     if (edits) edits.scoring = [];
     persistMeta();
     await Promise.all(toRemove.map(l => idbDel('data_' + l.dbKey)));
@@ -1762,100 +1762,100 @@ const ManageSourcesDialog = (() => {
     else if (action === 'blank') onboardingGoBlank();
   });
 
-  const railList = el.querySelector('#ms-rail-list');
+  const railWordlist = el.querySelector('#ms-rail-wordlist');
   const pane     = el.querySelector('#ms-pane');
-  const addBtn   = el.querySelector('#ms-add-list');
+  const addBtn   = el.querySelector('#ms-add-wordlist');
 
-  let _focusedList = null;
+  let _focusedWordlist = null;
   let _dateTimer   = null;
 
   // ── Rendering ─────────────────────────────────────────────────────────────────
 
   function renderRail() {
-    if (!_sourceCountsCache) _sourceCountsCache = buildMergedList().sourceCounts;
-    const contribMap = new Map(_sourceCountsCache.map(s => [s.list, s.count]));
+    if (!_sourceCountsCache) _sourceCountsCache = buildMergedWordlist().sourceCounts;
+    const contribMap = new Map(_sourceCountsCache.map(s => [s.wordlist, s.count]));
 
-    railList.innerHTML = state.sources.map(list => {
-      const isEdits = list.type === 'edits';
-      const hasData = list.rawEntries.length > 0;
-      const icon = getListIcon(list);
-      const meta = listCardMeta(list, contribMap);
-      return buildListCardHTML(icon, list.name, meta, {
-        selected:    _focusedList === list,
-        enabled:     list.enabled,
+    railWordlist.innerHTML = state.sources.map(wordlist => {
+      const isEdits = wordlist.type === 'edits';
+      const hasData = wordlist.rawEntries.length > 0;
+      const icon = getWordlistIcon(wordlist);
+      const meta = wordlistCardMeta(wordlist, contribMap);
+      return buildWordlistCardHTML(icon, wordlist.name, meta, {
+        selected:    _focusedWordlist === wordlist,
+        enabled:     wordlist.enabled,
         isEdits,
         hasData,
-        hasUpdate:   !!list._updateAvailable,
+        hasUpdate:   !!wordlist._updateAvailable,
         interactive: true,
       });
     }).join('');
 
-    const cards = railList.querySelectorAll('.list-card[data-list]');
-    state.sources.forEach((list, i) => { if (cards[i]) cards[i]._list = list; });
+    const cards = railWordlist.querySelectorAll('.wordlist-card[data-wordlist]');
+    state.sources.forEach((wordlist, i) => { if (cards[i]) cards[i]._wordlist = wordlist; });
   }
 
   function renderPane() {
     if (_dateTimer) { clearInterval(_dateTimer); _dateTimer = null; }
-    if (!_focusedList) {
+    if (!_focusedWordlist) {
       pane.innerHTML = '<div class="ms-pane-empty">Select a wordlist to configure</div>';
       return;
     }
-    const list = _focusedList;
-    const isEdits = list.type === 'edits';
-    const hasData = list.rawEntries.length > 0;
+    const wordlist = _focusedWordlist;
+    const isEdits = wordlist.type === 'edits';
+    const hasData = wordlist.rawEntries.length > 0;
 
-    const stats = computeStats(list, list.rawEntries);
+    const stats = computeStats(wordlist, wordlist.rawEntries);
 
-    // Action row shape is unified across all lists: date slot, primary action,
+    // Action row shape is unified across all wordlists: date slot, primary action,
     // Download, more menu. Only the contents differ — sources have Update/Fetch
     // and a rescored/original Download split; My Edits has Import and a plain
     // Download (no rescoring), and Clear stands in for Delete in the more menu.
     let actionBtn, dlBtn, moreMenu;
     if (isEdits) {
       // Primary slot: Download when there's something to export, otherwise Import.
-      actionBtn = `<button class="${hasData ? '' : 'primary'}" onclick="ManageSourcesDialog.action('import')" ${list._loading ? 'disabled' : ''}>${list._loading ? 'Importing…' : 'Import'}</button>`;
+      actionBtn = `<button class="${hasData ? '' : 'primary'}" onclick="ManageSourcesDialog.action('import')" ${wordlist._loading ? 'disabled' : ''}>${wordlist._loading ? 'Importing…' : 'Import'}</button>`;
       dlBtn = hasData ? `<button class="primary" onclick="ManageSourcesDialog.action('download')">Download</button>` : '';
       // Rename is the F2 affordance on the rail card; not duplicated here.
       moreMenu = hasData ? buildMoreMenuHTML([
         ['Clear', `ManageSourcesDialog.action('clear')`],
       ]) : '';
     } else {
-      const dot = list._updateAvailable && !list._loading ? ` <span class="update-dot"></span>` : '';
-      const updateTitle = list._updateAvailable && !list._loading ? 'Update available' : '';
-      const label = hasData ? 'Update' : (list.url ? 'Fetch' : 'Import');
+      const dot = wordlist._updateAvailable && !wordlist._loading ? ` <span class="update-dot"></span>` : '';
+      const updateTitle = wordlist._updateAvailable && !wordlist._loading ? 'Update available' : '';
+      const label = hasData ? 'Update' : (wordlist.url ? 'Fetch' : 'Import');
 
-      if (list.url) {
+      if (wordlist.url) {
         const loadingLabel = hasData ? 'Updating…' : 'Fetching…';
-        const btnLabel = `${list._loading ? loadingLabel : label}${dot}`;
+        const btnLabel = `${wordlist._loading ? loadingLabel : label}${dot}`;
         actionBtn = buildSplitBtn(btnLabel, `ManageSourcesDialog.action('fetch')`,
           [['Import', `ManageSourcesDialog.action('import')`]],
-          { primary: true, disabled: !!list._loading, title: updateTitle });
+          { primary: true, disabled: !!wordlist._loading, title: updateTitle });
       } else {
-        actionBtn = `<button class="primary"${updateTitle ? ` title="${updateTitle}"` : ''} onclick="ManageSourcesDialog.action('import')" ${list._loading ? 'disabled' : ''}>${list._loading ? 'Importing…' : 'Import'}${dot}</button>`;
+        actionBtn = `<button class="primary"${updateTitle ? ` title="${updateTitle}"` : ''} onclick="ManageSourcesDialog.action('import')" ${wordlist._loading ? 'disabled' : ''}>${wordlist._loading ? 'Importing…' : 'Import'}${dot}</button>`;
       }
 
       dlBtn = hasData ? buildSplitBtn('Download', `ManageSourcesDialog.action('downloadRescored')`,
-        [['Download rescored list', `ManageSourcesDialog.action('downloadRescored')`],
+        [['Download rescored wordlist', `ManageSourcesDialog.action('downloadRescored')`],
          ['Download original',      `ManageSourcesDialog.action('downloadOriginal')`]]) : '';
 
       // Rename is the F2 affordance on the rail card; Configure also lets you
       // rename. Not duplicated here.
       moreMenu = buildMoreMenuHTML([
-        ['Configure list', `ManageSourcesDialog.action('configure')`],
-        ['Delete list',    `ManageSourcesDialog.action('delete')`],
+        ['Configure wordlist', `ManageSourcesDialog.action('configure')`],
+        ['Delete wordlist',    `ManageSourcesDialog.action('delete')`],
       ]);
     }
 
-    const dateSlot = (hasData && list.lastUpdated) ? '<span class="detail-date"></span>' : '';
+    const dateSlot = (hasData && wordlist.lastUpdated) ? '<span class="detail-date"></span>' : '';
     const actionsHTML = [dateSlot, actionBtn, dlBtn, moreMenu].filter(Boolean).join('\n');
 
     // My Edits gets a scoring rules editor (tier labels). Every other source
     // gets a rescoring rules editor. Same shape, different rule semantics.
     const rulesHTML = isEdits
       ? `<div class="ms-pane-rescore" id="ms-scoring-section">${buildScoringSectionHTML()}</div>`
-      : `<div class="ms-pane-rescore" id="ms-rescore-section">${buildRescoreSectionHTML(list)}</div>`;
+      : `<div class="ms-pane-rescore" id="ms-rescore-section">${buildRescoreSectionHTML(wordlist)}</div>`;
 
-    // No icon/name in the top bar — the focused list is already highlighted in
+    // No icon/name in the top bar — the focused wordlist is already highlighted in
     // the rail. The bar carries actions only. Rename happens in-place on the
     // rail card via the more menu.
     pane.innerHTML = `
@@ -1865,12 +1865,12 @@ const ManageSourcesDialog = (() => {
       <div class="ms-pane-stats">${buildStatsBarHTML(stats)}</div>
       ${rulesHTML}`;
 
-    if (hasData && list.lastUpdated) {
+    if (hasData && wordlist.lastUpdated) {
       const setDate = () => {
         const dEl = pane.querySelector('.detail-date');
         if (!dEl) return;
-        dEl.textContent = `Last updated ${timeAgo(list.lastUpdated)}`;
-        dEl.title = new Date(list.lastUpdated).toLocaleString();
+        dEl.textContent = `Last updated ${timeAgo(wordlist.lastUpdated)}`;
+        dEl.title = new Date(wordlist.lastUpdated).toLocaleString();
       };
       setDate();
       _dateTimer = setInterval(setDate, 60_000);
@@ -1879,15 +1879,15 @@ const ManageSourcesDialog = (() => {
 
   function refresh() {
     if (!el.open) return;
-    if (_focusedList && !state.sources.includes(_focusedList)) {
-      _focusedList = state.sources[0] ?? null;
+    if (_focusedWordlist && !state.sources.includes(_focusedWordlist)) {
+      _focusedWordlist = state.sources[0] ?? null;
     }
     renderRail();
     renderPane();
   }
 
-  function focus(list) {
-    _focusedList = list;
+  function focus(wordlist) {
+    _focusedWordlist = wordlist;
     renderRail();
     renderPane();
   }
@@ -1895,13 +1895,13 @@ const ManageSourcesDialog = (() => {
   // ── Actions (called from inline onclick handlers in pane HTML) ───────────────
 
   const ACTIONS = {
-    fetch:            () => fetchList(_focusedList),
-    import:           () => importToList(_focusedList),
-    delete:           async () => { await deleteList(_focusedList); },
-    configure:        () => ConfigureListDialog.open(_focusedList),
+    fetch:            () => fetchWordlist(_focusedWordlist),
+    import:           () => importToWordlist(_focusedWordlist),
+    delete:           async () => { await deleteWordlist(_focusedWordlist); },
+    configure:        () => ConfigureWordlistDialog.open(_focusedWordlist),
     download:         () => downloadEdits(),
-    downloadRescored: () => downloadIndividualListRescored(_focusedList),
-    downloadOriginal: () => downloadOriginalList(_focusedList),
+    downloadRescored: () => downloadIndividualWordlistRescored(_focusedWordlist),
+    downloadOriginal: () => downloadOriginalWordlist(_focusedWordlist),
     clear:            () => clearEdits(),
   };
 
@@ -1910,13 +1910,13 @@ const ManageSourcesDialog = (() => {
     if (fn) fn();
   }
 
-  function startRailRename(list) {
-    if (!list) return;
-    // Find the rail card for this list and put an input over its name.
-    const card = [...railList.querySelectorAll('.list-card[data-list]')].find(c => c._list === list);
+  function startRailRename(wordlist) {
+    if (!wordlist) return;
+    // Find the rail card for this wordlist and put an input over its name.
+    const card = [...railWordlist.querySelectorAll('.wordlist-card[data-wordlist]')].find(c => c._wordlist === wordlist);
     const nameEl = card?.querySelector('.card-name');
     if (!nameEl || nameEl.querySelector('input')) return;
-    const originalName = list.name;
+    const originalName = wordlist.name;
     nameEl.textContent = '';
     const input = document.createElement('input');
     input.className = 'card-name-edit';
@@ -1928,9 +1928,9 @@ const ManageSourcesDialog = (() => {
     startInlineRename(input, originalName, {
       onCommit(newName) {
         if (newName !== originalName) {
-          list.name = newName;
+          wordlist.name = newName;
           persistMeta();
-          if (state.selected === list) SourceDropdown.renderTrigger();
+          if (state.selected === wordlist) SourceDropdown.renderTrigger();
         }
         nameEl.textContent = newName;
       },
@@ -1942,76 +1942,76 @@ const ManageSourcesDialog = (() => {
 
   // ── Rail event delegation ─────────────────────────────────────────────────────
 
-  railList.addEventListener('click', e => {
+  railWordlist.addEventListener('click', e => {
     const toggleLabel = e.target.closest('label.toggle');
     if (toggleLabel) {
-      const card = toggleLabel.closest('.list-card[data-list]');
-      if (card?._list && !card._list.rawEntries.length && card._list.type !== 'edits') {
+      const card = toggleLabel.closest('.wordlist-card[data-wordlist]');
+      if (card?._wordlist && !card._wordlist.rawEntries.length && card._wordlist.type !== 'edits') {
         e.stopPropagation();
-        triggerImportForList(card._list, e);
+        triggerImportForWordlist(card._wordlist, e);
       }
       return;
     }
-    const card = e.target.closest('.list-card[data-list]');
-    if (!card?._list) return;
-    focus(card._list);
+    const card = e.target.closest('.wordlist-card[data-wordlist]');
+    if (!card?._wordlist) return;
+    focus(card._wordlist);
   });
 
-  railList.addEventListener('keydown', e => {
+  railWordlist.addEventListener('keydown', e => {
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
-    const card = e.target.closest('.list-card[data-list]');
-    if (!card?._list) return;
+    const card = e.target.closest('.wordlist-card[data-wordlist]');
+    if (!card?._wordlist) return;
     if (e.key === 'Enter' || e.key === ' ') {
       e.preventDefault();
-      focus(card._list);
+      focus(card._wordlist);
     } else if (e.key === 'F2') {
       e.preventDefault();
-      startRailRename(card._list);
+      startRailRename(card._wordlist);
     }
   });
 
-  railList.addEventListener('change', e => {
+  railWordlist.addEventListener('change', e => {
     const toggle = e.target.closest('.toggle input[type="checkbox"]');
     if (!toggle) return;
-    const card = toggle.closest('.list-card[data-list]');
-    if (!card?._list) return;
-    toggleList(card._list, e);
+    const card = toggle.closest('.wordlist-card[data-wordlist]');
+    if (!card?._wordlist) return;
+    toggleWordlist(card._wordlist, e);
   });
 
   // Drag-to-reorder (mouse)
-  let _dragList = null;
-  railList.addEventListener('dragstart', e => {
-    const card = e.target.closest('.list-card[data-list]');
-    if (!card?._list) return;
-    _dragList = card._list;
+  let _dragWordlist = null;
+  railWordlist.addEventListener('dragstart', e => {
+    const card = e.target.closest('.wordlist-card[data-wordlist]');
+    if (!card?._wordlist) return;
+    _dragWordlist = card._wordlist;
     e.dataTransfer.effectAllowed = 'move';
     e.dataTransfer.setData('text/plain', '');
     setTimeout(() => card.classList.add('dragging'), 0);
   });
-  railList.addEventListener('dragend', () => {
-    railList.querySelectorAll('.list-card.dragging, .list-card.drag-over')
+  railWordlist.addEventListener('dragend', () => {
+    railWordlist.querySelectorAll('.wordlist-card.dragging, .wordlist-card.drag-over')
       .forEach(c => c.classList.remove('dragging', 'drag-over'));
-    _dragList = null;
+    _dragWordlist = null;
   });
-  railList.addEventListener('dragover', e => {
+  railWordlist.addEventListener('dragover', e => {
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
-    const card = e.target.closest('.list-card[data-list]');
-    if (!card || card._list === _dragList) return;
-    railList.querySelectorAll('.list-card.drag-over').forEach(c => c.classList.remove('drag-over'));
+    const card = e.target.closest('.wordlist-card[data-wordlist]');
+    if (!card || card._wordlist === _dragWordlist) return;
+    railWordlist.querySelectorAll('.wordlist-card.drag-over').forEach(c => c.classList.remove('drag-over'));
     card.classList.add('drag-over');
   });
-  railList.addEventListener('dragleave', e => {
-    const card = e.target.closest('.list-card');
+  railWordlist.addEventListener('dragleave', e => {
+    const card = e.target.closest('.wordlist-card');
     if (card && !card.contains(e.relatedTarget)) card.classList.remove('drag-over');
   });
-  railList.addEventListener('drop', e => {
+  railWordlist.addEventListener('drop', e => {
     e.preventDefault();
-    const card = e.target.closest('.list-card[data-list]');
-    const toList = card?._list;
-    if (!_dragList || !toList || _dragList === toList) return;
-    const fromIdx = state.sources.indexOf(_dragList);
-    const toIdx   = state.sources.indexOf(toList);
+    const card = e.target.closest('.wordlist-card[data-wordlist]');
+    const toWordlist = card?._wordlist;
+    if (!_dragWordlist || !toWordlist || _dragWordlist === toWordlist) return;
+    const fromIdx = state.sources.indexOf(_dragWordlist);
+    const toIdx   = state.sources.indexOf(toWordlist);
     if (fromIdx === -1 || toIdx === -1) return;
     const [item] = state.sources.splice(fromIdx, 1);
     state.sources.splice(toIdx, 0, item);
@@ -2022,9 +2022,9 @@ const ManageSourcesDialog = (() => {
     else renderDetail(getSelected());
   });
 
-  // ── + Add list ────────────────────────────────────────────────────────────────
+  // ── + Add wordlist ────────────────────────────────────────────────────────────────
 
-  addBtn.addEventListener('click', () => ConfigureListDialog.openAdd());
+  addBtn.addEventListener('click', () => ConfigureWordlistDialog.openAdd());
 
   // ── Open / close ──────────────────────────────────────────────────────────────
 
@@ -2032,21 +2032,21 @@ const ManageSourcesDialog = (() => {
     if (_dateTimer) { clearInterval(_dateTimer); _dateTimer = null; }
   });
 
-  function open(list = null) {
-    _focusedList = list ?? (state.selected !== MERGED_ID ? state.selected : null) ?? state.sources[0] ?? null;
+  function open(wordlist = null) {
+    _focusedWordlist = wordlist ?? (state.selected !== MERGED_ID ? state.selected : null) ?? state.sources[0] ?? null;
     showOnboardingIfNeeded();
     renderRail();
     renderPane();
     showDialog(el);
   }
 
-  function getFocusedList() { return _focusedList; }
+  function getFocusedWordlist() { return _focusedWordlist; }
 
-  // Re-render only the rescore rule editor for the focused list, in place — used
+  // Re-render only the rescore rule editor for the focused wordlist, in place — used
   // by afterRuleChange so the user's pending edit doesn't blow away the whole pane.
   function refreshRescoreSection() {
     const section = el.querySelector('#ms-rescore-section');
-    if (section) section.innerHTML = buildRescoreSectionHTML(_focusedList);
+    if (section) section.innerHTML = buildRescoreSectionHTML(_focusedWordlist);
   }
 
   // Counterpart for the scoring (tier-label) editor on My Edits.
@@ -2058,16 +2058,16 @@ const ManageSourcesDialog = (() => {
   // Update the "X used" meta text on each rail card in place. Avoids rebuilding
   // the whole rail (which would lose drag/hover state mid-interaction).
   function updateRailMeta(contribMap) {
-    for (const card of railList.querySelectorAll('.list-card[data-list]')) {
-      const list = card._list;
-      if (!list) continue;
+    for (const card of railWordlist.querySelectorAll('.wordlist-card[data-wordlist]')) {
+      const wordlist = card._wordlist;
+      if (!wordlist) continue;
       const metaEl = card.querySelector('.card-meta');
-      if (metaEl) metaEl.textContent = listCardMeta(list, contribMap);
+      if (metaEl) metaEl.textContent = wordlistCardMeta(wordlist, contribMap);
     }
   }
 
   return {
-    open, refresh, focus, action, getFocusedList,
+    open, refresh, focus, action, getFocusedWordlist,
     refreshRescoreSection, refreshScoringSection, updateRailMeta,
     isOpen: () => el.open,
   };
@@ -2112,9 +2112,9 @@ const SourceDropdown = (() => {
       iconSlot.innerHTML = MERGED_ICON;
       nameSlot.textContent = MERGED_NAME;
     } else {
-      const list = state.selected;
-      iconSlot.innerHTML = list ? getListIcon(list) : '';
-      nameSlot.textContent = list ? list.name : '';
+      const wordlist = state.selected;
+      iconSlot.innerHTML = wordlist ? getWordlistIcon(wordlist) : '';
+      nameSlot.textContent = wordlist ? wordlist.name : '';
     }
   }
 
@@ -2128,17 +2128,17 @@ const SourceDropdown = (() => {
     const parts = [];
     parts.push(`<div class="dropdown-item${isMerged() ? ' selected' : ''}" data-target="merged" role="menuitem" tabindex="0">${MERGED_ICON}<span>${MERGED_NAME}</span></div>`);
     parts.push(`<div class="dropdown-divider"></div>`);
-    state.sources.forEach(list => {
-      const sel = !isMerged() && state.selected === list;
-      parts.push(`<div class="dropdown-item${sel ? ' selected' : ''}${list.enabled ? '' : ' disabled'}" data-list role="menuitem" tabindex="0">${getListIcon(list)}<span>${esc(list.name)}</span></div>`);
+    state.sources.forEach(wordlist => {
+      const sel = !isMerged() && state.selected === wordlist;
+      parts.push(`<div class="dropdown-item${sel ? ' selected' : ''}${wordlist.enabled ? '' : ' disabled'}" data-wordlist role="menuitem" tabindex="0">${getWordlistIcon(wordlist)}<span>${esc(wordlist.name)}</span></div>`);
     });
     parts.push(`<div class="dropdown-divider"></div>`);
     parts.push(`<button class="dropdown-footer" data-action="manage" type="button">⚙ Manage wordlists…</button>`);
 
     menu.innerHTML = parts.join('');
 
-    const listEls = [...menu.querySelectorAll('.dropdown-item[data-list]')];
-    state.sources.forEach((list, i) => { if (listEls[i]) listEls[i]._list = list; });
+    const wordlistEls = [...menu.querySelectorAll('.dropdown-item[data-wordlist]')];
+    state.sources.forEach((wordlist, i) => { if (wordlistEls[i]) wordlistEls[i]._wordlist = wordlist; });
   }
 
   function position() {
@@ -2179,9 +2179,9 @@ const SourceDropdown = (() => {
     const item = e.target.closest('.dropdown-item');
     if (item) {
       if (item.dataset.target === 'merged') {
-        selectMergedList();
-      } else if (item._list) {
-        selectList(item._list);
+        selectMergedWordlist();
+      } else if (item._wordlist) {
+        selectWordlist(item._wordlist);
       }
       close();
       return;
@@ -2269,7 +2269,7 @@ async function init() {
       state.sources = await Promise.all(meta.map(async m => {
         const dbKey = m.dbKey || crypto.randomUUID();
         const text = await idbGet('data_' + dbKey) ?? await idbGet('data_' + m.id);
-        const list = {
+        const wordlist = {
           ...(m.type     ? { type: m.type }         : {}),
           dbKey,
           icon:            m.icon || null,
@@ -2286,8 +2286,8 @@ async function init() {
           rawEntries: text ? parseWordlist(text) : [],
           _loading: false,
         };
-        updateCatchAll(list);
-        return list;
+        updateCatchAll(wordlist);
+        return wordlist;
       }));
     } catch { state.sources = defaultSources(); }
   } else {
@@ -2315,7 +2315,7 @@ async function init() {
 
   state.sources
     .filter(l => l.url && !l.rawEntries.length)
-    .forEach(l => fetchList(l));
+    .forEach(l => fetchWordlist(l));
 
   if (!lsLoad('visited')) {
     lsSave('visited', '1');
@@ -2326,8 +2326,8 @@ async function init() {
 }
 
 function defaultSources() {
-  return LIST_PUBLISHERS.map(t => {
-    const list = {
+  return WORDLIST_PUBLISHERS.map(t => {
+    const wordlist = {
       dbKey: crypto.randomUUID(),
       icon: t.icon ? { ...t.icon } : null,
       publisherId: t.id,
@@ -2339,19 +2339,19 @@ function defaultSources() {
       _loading: false,
       rescoreRules: t.defaultRules ? JSON.parse(JSON.stringify(t.defaultRules)) : [],
     };
-    updateCatchAll(list);
-    return list;
+    updateCatchAll(wordlist);
+    return wordlist;
   });
 }
 
 // ─── My Edits helpers ─────────────────────────────────────────────────────────
 
-function getEditsList() {
+function getEditsWordlist() {
   return state.sources.find(l => l.type === 'edits');
 }
 
 function ensureEdits() {
-  const edits = getEditsList();
+  const edits = getEditsWordlist();
   if (edits) {
     if (!edits.scoring) edits.scoring = DEFAULT_SCORING.map(r => ({ ...r }));
     if (!edits.icon) edits.icon = EDITS_ICON;
@@ -2386,8 +2386,8 @@ function entriesToDownloadText(entries, { upper, comments }) {
   }).join('\n') + '\n';
 }
 
-async function downloadWithDialog(defaultStem, list, entries, title = 'Download') {
-  const result = await showDownloadDialog(defaultStem, list, title);
+async function downloadWithDialog(defaultStem, wordlist, entries, title = 'Download') {
+  const result = await showDownloadDialog(defaultStem, wordlist, title);
   if (!result) return;
   const { stem, ext, caseMode, comments } = result;
   triggerDownload(entriesToDownloadText(entries, { upper: caseMode === 'upper', comments }), `${stem}.${ext}`);
@@ -2411,16 +2411,16 @@ async function persistEdits(edits) {
 }
 
 async function downloadEdits() {
-  const edits = getEditsList();
+  const edits = getEditsWordlist();
   await downloadWithDialog(edits.name, edits, edits.rawEntries);
 }
 
 async function clearEdits() {
-  const edits = getEditsList();
+  const edits = getEditsWordlist();
   if (!edits.rawEntries.length) return;
   if (!await showConfirm(`Clear all ${pluralize(edits.rawEntries.length, 'entry', 'entries')} from "${esc(edits.name)}"?`, { confirmText: 'Clear' })) return;
   edits.rawEntries = [];
-  invalidateListCaches(edits);
+  invalidateWordlistCaches(edits);
   updateCatchAll(edits);
   await persistEdits(edits);
   refreshSourceCounts();
@@ -2432,14 +2432,14 @@ async function clearEdits() {
 const _statsCache = new WeakMap();
 const _mergedStatsKey = {};
 let _sourceCountsCache = null;
-let _mergedListCache = null;
+let _mergedWordlistCache = null;
 
-function invalidateRescoredCache(list) { list._rescored = null; }
+function invalidateRescoredCache(wordlist) { wordlist._rescored = null; }
 function invalidateStatsCache(key) { _statsCache.delete(key); }
-function invalidateSourceCounts() { _sourceCountsCache = null; _mergedListCache = null; }
-function invalidateListCaches(list) {
-  invalidateRescoredCache(list);
-  invalidateStatsCache(list);
+function invalidateSourceCounts() { _sourceCountsCache = null; _mergedWordlistCache = null; }
+function invalidateWordlistCaches(wordlist) {
+  invalidateRescoredCache(wordlist);
+  invalidateStatsCache(wordlist);
   invalidateSourceCounts();
   invalidateStatsCache(_mergedStatsKey);
 }
@@ -2569,8 +2569,8 @@ class VirtualScroller {
     this._currentCols = [];
     this.showSource = false;
     this.showDeleteCol = false;
-    this.editsList = null;
-    this.currentListName = '';
+    this.editsWordlist = null;
+    this.currentWordlistName = '';
     this._onCellEdit = null;  // (word, field, newValue) => void
     this._onEditStart = null; // (word, field, tdEl) => void
     this._onEditEnd = null;   // () => void
@@ -2883,8 +2883,8 @@ class VirtualScroller {
     const frag = document.createDocumentFragment();
     for (let i = start; i < end; i++) {
       const entry = this.entries[i];
-      const { word, score, comment, listName: entryListName, listRef } = entry;
-      const listName = entryListName || this.currentListName;
+      const { word, score, comment, wordlistName: entryWordlistName, wordlistRef } = entry;
+      const wordlistName = entryWordlistName || this.currentWordlistName;
       const tier = scoreTier(score);
       const tr = document.createElement('tr');
       tr.style.height = ROW_HEIGHT + 'px';
@@ -2908,13 +2908,13 @@ class VirtualScroller {
 
       let scoreAttrs = '';
       if (!ignored && (wasRescored || scoreOv)) {
-        scoreAttrs = ` data-score-raw="${score}" data-score-list-name="${esc(listName)}"`;
+        scoreAttrs = ` data-score-raw="${score}" data-score-wordlist-name="${esc(wordlistName)}"`;
         if (wasRescored) scoreAttrs += ` data-score-rescaled="${rescoredScore}"`;
-        if (scoreOv) scoreAttrs += ` data-score-ov-name="${esc(ov.listName)}" data-score-ov-val="${ov.score}"`;
+        if (scoreOv) scoreAttrs += ` data-score-ov-name="${esc(ov.wordlistName)}" data-score-ov-val="${ov.score}"`;
       }
       let commentAttrs = '';
       if (commentOverridden) {
-        commentAttrs = ` data-comment-list-name="${esc(listName)}" data-comment-raw="${esc(comment || '')}" data-comment-ov-name="${esc(ov.listName)}" data-comment-ov-val="${esc(ov.comment)}"`;
+        commentAttrs = ` data-comment-wordlist-name="${esc(wordlistName)}" data-comment-raw="${esc(comment || '')}" data-comment-ov-name="${esc(ov.wordlistName)}" data-comment-ov-val="${esc(ov.comment)}"`;
       }
       const commentInner = esc(effectiveComment) + (commentOverridden ? '<sup class="effective-asterisk">*</sup>' : '');
 
@@ -2924,11 +2924,11 @@ class VirtualScroller {
 
       let sourceCell = '';
       if (this.showSource) {
-        const listLabel = listRef ? buildListNameHTML(listRef, { bold: false }) : esc(listName || '');
-        const editTrash = (this.showEditDeleteCol && listRef === this.editsList)
+        const wordlistLabel = wordlistRef ? buildWordlistNameHTML(wordlistRef, { bold: false }) : esc(wordlistName || '');
+        const editTrash = (this.showEditDeleteCol && wordlistRef === this.editsWordlist)
           ? `<span class="source-trash" title="Delete edit">${buildTrashIconHTML()}</span>`
           : '';
-        sourceCell = `<td class="comment-cell col-source">${listLabel}${editTrash}</td>`;
+        sourceCell = `<td class="comment-cell col-source">${wordlistLabel}${editTrash}</td>`;
       }
 
       tr.innerHTML =
@@ -3135,8 +3135,8 @@ function rulesSig(rules) {
 }
 
 // Any score not matched by a user rule is collected into a read-only catch-all row so the UI always shows complete coverage.
-function updateCatchAll(list) {
-  const rules = list.rescoreRules;
+function updateCatchAll(wordlist) {
+  const rules = wordlist.rescoreRules;
   const before = rulesSig(rules);
 
   // Remove existing auto catch-all
@@ -3154,8 +3154,8 @@ function updateCatchAll(list) {
   });
 
   // Find actual scores in the data not covered by any length-filter-free rule
-  const actualScores = list.rawEntries && list.rawEntries.length
-    ? [...new Set(list.rawEntries.map(e => e.score))].sort((a, b) => a - b)
+  const actualScores = wordlist.rawEntries && wordlist.rawEntries.length
+    ? [...new Set(wordlist.rawEntries.map(e => e.score))].sort((a, b) => a - b)
     : [];
   const uncovered = actualScores.filter(s => !rules.some(r => {
     if (r.length && r.length.trim()) return false;
@@ -3196,8 +3196,8 @@ function applyRescoring(entries, rules) {
   });
 }
 
-function getRescoredEntries(list) {
-  return list._rescored ??= applyRescoring(list.rawEntries, list.rescoreRules);
+function getRescoredEntries(wordlist) {
+  return wordlist._rescored ??= applyRescoring(wordlist.rawEntries, wordlist.rescoreRules);
 }
 
 function rescoreEntry(entry, rules) {
@@ -3238,7 +3238,7 @@ function renderRescoreSection() {
 // ─── Rendering ────────────────────────────────────────────────────────────────
 
 let scroller = null;
-let _detailList = null;
+let _detailWordlist = null;
 let _dateTimer = null;
 let _refreshCountsTimer = null;
 
@@ -3249,11 +3249,11 @@ function renderAll() {
   else renderDetail(getSelected());
 }
 
-function listCardMeta(list, contribMap) {
-  const total = list.rawEntries.length;
+function wordlistCardMeta(wordlist, contribMap) {
+  const total = wordlist.rawEntries.length;
   if (!total) return 'No data';
-  if (!list.enabled) return pluralize(total, 'entry', 'entries');
-  const used = contribMap.get(list) ?? 0;
+  if (!wordlist.enabled) return pluralize(total, 'entry', 'entries');
+  const used = contribMap.get(wordlist) ?? 0;
   return used === total
     ? `${pluralize(used, 'entry', 'entries')} used`
     : `${used.toLocaleString()} of ${pluralize(total, 'entry', 'entries')} used`;
@@ -3263,7 +3263,7 @@ function listCardMeta(list, contribMap) {
 // repaint anything that displays per-source state (the source dropdown trigger
 // when its name/icon may have changed, and the Manage Sources dialog if open).
 function renderSources() {
-  if (!_sourceCountsCache) _sourceCountsCache = buildMergedList().sourceCounts;
+  if (!_sourceCountsCache) _sourceCountsCache = buildMergedWordlist().sourceCounts;
   SourceDropdown?.renderTrigger();
   ManageSourcesDialog?.refresh();
 }
@@ -3272,8 +3272,8 @@ function renderSources() {
 function refreshSourceCounts() {
   invalidateSourceCounts();
   invalidateStatsCache(_mergedStatsKey);
-  _sourceCountsCache = buildMergedList().sourceCounts;
-  const contribMap = new Map(_sourceCountsCache.map(s => [s.list, s.count]));
+  _sourceCountsCache = buildMergedWordlist().sourceCounts;
+  const contribMap = new Map(_sourceCountsCache.map(s => [s.wordlist, s.count]));
   ManageSourcesDialog.updateRailMeta(contribMap);
   // Scoring catch-all depends on merged entries — repaint legend after any edit.
   renderScoringSection();
@@ -3288,9 +3288,9 @@ function renderMergedDetail() {
   const panel = document.getElementById('detail-panel');
   clearInterval(_dateTimer);
   _dateTimer = null;
-  _detailList = null;
+  _detailWordlist = null;
 
-  const { entries } = buildMergedList();
+  const { entries } = buildMergedWordlist();
   const stats = computeStats(_mergedStatsKey, entries);
 
   const statsHtml = buildStatsBarHTML(stats);
@@ -3303,12 +3303,12 @@ function renderMergedDetail() {
 
   createScroller();
   scroller.showSource = true;
-  scroller.editsList = getEditsList() ?? null;
+  scroller.editsWordlist = getEditsWordlist() ?? null;
   scroller.showEditDeleteCol = true;
   scroller.setEntries(entries, state.searchQuery, [], new Map(), state.searchWholeWord, state.scoreRange);
 
   const refreshOutputEntries = () => {
-    const { entries } = buildMergedList();
+    const { entries } = buildMergedWordlist();
     scroller.updateEntries(entries);
   };
   scroller._onDeleteRow = word => deleteFromEdits(word, refreshOutputEntries);
@@ -3316,9 +3316,9 @@ function renderMergedDetail() {
   attachExternalEditHandlers(scroller, refreshOutputEntries);
 }
 
-async function downloadMergedListFromPanel() {
-  const { entries } = buildMergedList();
-  await downloadWithDialog('Grawlix Wordlist', null, entries, 'Download Merged List');
+async function downloadMergedWordlistFromPanel() {
+  const { entries } = buildMergedWordlist();
+  await downloadWithDialog('Grawlix Wordlist', null, entries, 'Download Merged Wordlist');
 }
 
 // ─── Scoring (tier labels) ────────────────────────────────────────────────────
@@ -3352,7 +3352,7 @@ function renderScoringSection() {
 }
 
 function deleteScoringRow(i) {
-  const edits = getEditsList();
+  const edits = getEditsWordlist();
   if (!edits) return;
   const [deleted] = edits.scoring.splice(i, 1);
   persistMeta();
@@ -3365,7 +3365,7 @@ function deleteScoringRow(i) {
 }
 
 function saveScoringField(i, field, val) {
-  const edits = getEditsList();
+  const edits = getEditsWordlist();
   if (!edits?.scoring[i]) return;
   edits.scoring[i][field] = val;
   delete edits.scoring[i]._catchAll;
@@ -3374,26 +3374,26 @@ function saveScoringField(i, field, val) {
 }
 
 
-function renderDetail(list) {
+function renderDetail(wordlist) {
   const panel = document.getElementById('detail-panel');
 
   clearInterval(_dateTimer);
   _dateTimer = null;
 
-  if (!list) {
-    panel.innerHTML = '<div class="no-selection"><p>No list selected</p><small>Pick a list from the Wordlist dropdown</small></div>';
+  if (!wordlist) {
+    panel.innerHTML = '<div class="no-selection"><p>No wordlist selected</p><small>Pick a wordlist from the Wordlist dropdown</small></div>';
     scroller = null;
     return;
   }
 
-  if (list.type === 'edits') {
-    renderEditsDetail(list);
+  if (wordlist.type === 'edits') {
+    renderEditsDetail(wordlist);
     return;
   }
 
-  _detailList = list;
+  _detailWordlist = wordlist;
 
-  const stats = computeStats(list, list.rawEntries);
+  const stats = computeStats(wordlist, wordlist.rawEntries);
   const statsHtml = buildStatsBarHTML(stats);
 
   panel.innerHTML = `
@@ -3402,20 +3402,20 @@ function renderDetail(list) {
   `;
 
   createScroller();
-  scroller.currentListName = list.name;
-  scroller.setEntries(list.rawEntries, state.searchQuery, list.rescoreRules, buildOverrideMap(list), state.searchWholeWord, state.scoreRange, getRescoredEntries(list));
+  scroller.currentWordlistName = wordlist.name;
+  scroller.setEntries(wordlist.rawEntries, state.searchQuery, wordlist.rescoreRules, buildOverrideMap(wordlist), state.searchWholeWord, state.scoreRange, getRescoredEntries(wordlist));
 
   attachExternalEditHandlers(scroller, () => {
-    scroller.overrideMap = buildOverrideMap(list);
+    scroller.overrideMap = buildOverrideMap(wordlist);
     scroller._sortScores = null;
     scroller._render();
   });
 }
 
-function renderEditsDetail(list) {
+function renderEditsDetail(wordlist) {
   const panel = document.getElementById('detail-panel');
-  _detailList = list;
-  const stats = computeStats(list, list.rawEntries);
+  _detailWordlist = wordlist;
+  const stats = computeStats(wordlist, wordlist.rawEntries);
   const statsHtml = buildStatsBarHTML(stats);
 
   panel.innerHTML = `
@@ -3426,17 +3426,17 @@ function renderEditsDetail(list) {
 
   createScroller();
   scroller.showDeleteCol = true;
-  scroller.setEntries(list.rawEntries, state.searchQuery, [], new Map(), state.searchWholeWord, state.scoreRange);
+  scroller.setEntries(wordlist.rawEntries, state.searchQuery, [], new Map(), state.searchWholeWord, state.scoreRange);
 
   scroller._onCellEdit = (word, field, newValue) => {
-    const entry = list.rawEntries.find(e => e.word.toUpperCase() === word.toUpperCase());
+    const entry = wordlist.rawEntries.find(e => e.word.toUpperCase() === word.toUpperCase());
     if (!entry) return;
     entry[field] = newValue;
-    invalidateListCaches(list);
-    updateCatchAll(list);
-    persistEdits(list);
+    invalidateWordlistCaches(wordlist);
+    updateCatchAll(wordlist);
+    persistEdits(wordlist);
     refreshSourceCounts();
-    scroller.setEntries(list.rawEntries, state.searchQuery, [], new Map(), state.searchWholeWord, state.scoreRange);
+    scroller.setEntries(wordlist.rawEntries, state.searchQuery, [], new Map(), state.searchWholeWord, state.scoreRange);
   };
 
   scroller._onDeleteRow = word => deleteFromEdits(word);
@@ -3454,7 +3454,7 @@ function attachExternalEditHandlers(s, refreshFn) {
 }
 
 function upsertEdits(word, field, newValue) {
-  const edits = getEditsList();
+  const edits = getEditsWordlist();
   const upperWord = word.toUpperCase();
   const existing = edits.rawEntries.find(e => e.word.toUpperCase() === upperWord);
   if (existing) {
@@ -3466,7 +3466,7 @@ function upsertEdits(word, field, newValue) {
     const comment = field === 'comment' ? newValue : (orig?.comment ?? '');
     edits.rawEntries.push({ word: word.toLowerCase(), score, comment });
   }
-  invalidateListCaches(edits);
+  invalidateWordlistCaches(edits);
   updateCatchAll(edits);
   persistEdits(edits);
   // Refresh merged or individual view if active
@@ -3485,7 +3485,7 @@ function showEditInfoNote(td) {
     tip.id = 'edit-cell-tip';
     document.body.appendChild(tip);
   }
-  tip.innerHTML = `Edits are saved to ${buildListNameHTML(getEditsList())}`;
+  tip.innerHTML = `Edits are saved to ${buildWordlistNameHTML(getEditsWordlist())}`;
   tip.style.opacity = '0';
   requestAnimationFrame(() => {
     const input = td.querySelector('input.cell-edit');
@@ -3505,18 +3505,18 @@ function getSelected() {
   return state.selected !== MERGED_ID ? state.selected : null;
 }
 
-function selectMergedList() {
+function selectMergedWordlist() {
   state.selected = MERGED_ID;
   state.searchQuery = '';
   SourceDropdown?.renderTrigger();
   renderMergedDetail();
 }
 
-function selectList(list) {
-  state.selected = list;
+function selectWordlist(wordlist) {
+  state.selected = wordlist;
   state.searchQuery = '';
   SourceDropdown?.renderTrigger();
-  renderDetail(list);
+  renderDetail(wordlist);
 }
 
 function onSearch(query) {
@@ -3579,9 +3579,9 @@ const openUpdateSummaryDialog = (() => {
 
   enableDismissClicks(el);
 
-  return function(list, oldCount, added, deleted, rescored) {
-    titleEl.textContent = `${list.name} Updated`;
-    countEl.textContent = `${oldCount.toLocaleString()} → ${list.rawEntries.length.toLocaleString()} entries`;
+  return function(wordlist, oldCount, added, deleted, rescored) {
+    titleEl.textContent = `${wordlist.name} Updated`;
+    countEl.textContent = `${oldCount.toLocaleString()} → ${wordlist.rawEntries.length.toLocaleString()} entries`;
 
     const rows = [];
     const sectionIndices = {};
@@ -3625,69 +3625,69 @@ const openUpdateSummaryDialog = (() => {
   };
 })();
 
-async function applyWordlistText(list, text, { fetchedSize = null, originalFilename = null, nameOverride = null, source = null, clearUrl = false } = {}) {
-  const dbKey = list.dbKey;
-  const wasEmpty = !list.rawEntries.length;
-  const oldEntries = wasEmpty ? null : list.rawEntries;
+async function applyWordlistText(wordlist, text, { fetchedSize = null, originalFilename = null, nameOverride = null, source = null, clearUrl = false } = {}) {
+  const dbKey = wordlist.dbKey;
+  const wasEmpty = !wordlist.rawEntries.length;
+  const oldEntries = wasEmpty ? null : wordlist.rawEntries;
 
-  if (nameOverride) list.name = nameOverride;
-  list.rawEntries = parseWordlist(text);
-  list.lastUpdated = Date.now();
-  if (fetchedSize !== null) { list.fetchedSize = fetchedSize; list._updateAvailable = false; }
-  if (originalFilename !== null) list.originalFilename = originalFilename;
-  if (clearUrl) { list.url = null; list.fetchedSize = null; list._updateAvailable = false; }
-  if (wasEmpty) list.enabled = true;
-  invalidateListCaches(list);
-  updateCatchAll(list);
+  if (nameOverride) wordlist.name = nameOverride;
+  wordlist.rawEntries = parseWordlist(text);
+  wordlist.lastUpdated = Date.now();
+  if (fetchedSize !== null) { wordlist.fetchedSize = fetchedSize; wordlist._updateAvailable = false; }
+  if (originalFilename !== null) wordlist.originalFilename = originalFilename;
+  if (clearUrl) { wordlist.url = null; wordlist.fetchedSize = null; wordlist._updateAvailable = false; }
+  if (wasEmpty) wordlist.enabled = true;
+  invalidateWordlistCaches(wordlist);
+  updateCatchAll(wordlist);
 
   await persistData(dbKey, text);
   persistMeta();
 
   renderSources();
-  if (state.selected === list) renderDetail(list);
+  if (state.selected === wordlist) renderDetail(wordlist);
   if (state.selected === MERGED_ID) renderMergedDetail();
 
   if (wasEmpty) {
-    showToast(`Loaded ${pluralize(list.rawEntries.length, 'entry', 'entries')} from ${esc(source)}`);
+    showToast(`Loaded ${pluralize(wordlist.rawEntries.length, 'entry', 'entries')} from ${esc(source)}`);
   } else {
     const oldMap = new Map(oldEntries.map(e => [e.word, e.score]));
-    const newMap = new Map(list.rawEntries.map(e => [e.word, e.score]));
-    const added   = list.rawEntries.filter(e => !oldMap.has(e.word)).sort((a, b) => a.word.localeCompare(b.word));
+    const newMap = new Map(wordlist.rawEntries.map(e => [e.word, e.score]));
+    const added   = wordlist.rawEntries.filter(e => !oldMap.has(e.word)).sort((a, b) => a.word.localeCompare(b.word));
     const deleted = oldEntries.filter(e => !newMap.has(e.word)).sort((a, b) => a.word.localeCompare(b.word));
     const rescored = oldEntries
       .filter(e => newMap.has(e.word) && newMap.get(e.word) !== e.score)
       .map(e => ({ word: e.word, oldScore: e.score, score: newMap.get(e.word) }))
       .sort((a, b) => a.word.localeCompare(b.word));
     if (!added.length && !deleted.length && !rescored.length) {
-      showAlert(`${buildListNameHTML(list)} is already up to date — no changes.`);
+      showAlert(`${buildWordlistNameHTML(wordlist)} is already up to date — no changes.`);
     } else {
-      openUpdateSummaryDialog(list, oldEntries.length, added, deleted, rescored);
+      openUpdateSummaryDialog(wordlist, oldEntries.length, added, deleted, rescored);
     }
   }
 }
 
-async function fetchList(list, event) {
+async function fetchWordlist(wordlist, event) {
   if (event) event.stopPropagation();
-  if (!list || !list.url || list._loading) return;
+  if (!wordlist || !wordlist.url || wordlist._loading) return;
 
-  list._loading = true;
+  wordlist._loading = true;
   renderSources();
-  if (state.selected === list) renderDetail(list);
+  if (state.selected === wordlist) renderDetail(wordlist);
 
   try {
-    const resp = await fetch(list.url);
+    const resp = await fetch(wordlist.url);
     if (!resp.ok) throw new Error(`HTTP ${resp.status} ${resp.statusText}`);
     const text = await resp.text();
     const fetchedSize = resp.headers.get('content-length') || null;
-    const originalFilename = new URL(list.url).pathname.split('/').pop() || null;
-    list._loading = false;
-    await applyWordlistText(list, text, { fetchedSize, originalFilename, source: list.url });
+    const originalFilename = new URL(wordlist.url).pathname.split('/').pop() || null;
+    wordlist._loading = false;
+    await applyWordlistText(wordlist, text, { fetchedSize, originalFilename, source: wordlist.url });
   } catch (err) {
-    list._loading = false;
+    wordlist._loading = false;
     renderSources();
-    if (state.selected === list) renderDetail(list);
+    if (state.selected === wordlist) renderDetail(wordlist);
     const detail = err.message === 'Failed to fetch' ? '' : `: ${err.message}`;
-    showToast(`Failed to fetch ${esc(list.url)}${esc(detail)}`);
+    showToast(`Failed to fetch ${esc(wordlist.url)}${esc(detail)}`);
   }
 }
 
@@ -3698,13 +3698,13 @@ async function checkForUpdates() {
   if (!candidates.length) return;
 
   let anyChanged = false;
-  await Promise.all(candidates.map(async list => {
+  await Promise.all(candidates.map(async wordlist => {
     try {
-      const resp = await fetch(list.url, { method: 'HEAD' });
+      const resp = await fetch(wordlist.url, { method: 'HEAD' });
       if (!resp.ok) return;
       const size = resp.headers.get('content-length');
-      if (size && size !== list.fetchedSize && !list._updateAvailable) {
-        list._updateAvailable = true;
+      if (size && size !== wordlist.fetchedSize && !wordlist._updateAvailable) {
+        wordlist._updateAvailable = true;
         anyChanged = true;
       }
     } catch { /* offline or network error — silently ignore */ }
@@ -3717,25 +3717,25 @@ async function checkForUpdates() {
   }
 }
 
-function triggerImportForList(list, event) {
+function triggerImportForWordlist(wordlist, event) {
   if (event) event.stopPropagation();
-  if (!list) return;
-  if (list.url) fetchList(list, event);
-  else importToList(list);
+  if (!wordlist) return;
+  if (wordlist.url) fetchWordlist(wordlist, event);
+  else importToWordlist(wordlist);
 }
 
-function importToList(list, event) {
+function importToWordlist(wordlist, event) {
   if (event) event.stopPropagation();
-  ImportGuideDialog.open(list);
+  ImportGuideDialog.open(wordlist);
 }
 
-function ingestFile(file, list, nameOverride) {
+function ingestFile(file, wordlist, nameOverride) {
   const reader = new FileReader();
   reader.onerror = () => showToast('Error reading file');
   reader.onabort = () => showToast('File read cancelled');
   reader.onload = async e => {
     const text = e.target.result;
-    if (!list) return;
+    if (!wordlist) return;
 
     const entries = parseWordlist(text);
     if (!entries.length && text.trim()) {
@@ -3744,8 +3744,8 @@ function ingestFile(file, list, nameOverride) {
     }
 
     // My Edits: always combine instead of replace
-    if (list.type === 'edits' && list.rawEntries.length > 0) {
-      const existingMap = new Map(list.rawEntries.map(e => [e.word.toUpperCase(), e]));
+    if (wordlist.type === 'edits' && wordlist.rawEntries.length > 0) {
+      const existingMap = new Map(wordlist.rawEntries.map(e => [e.word.toUpperCase(), e]));
       const newEntries = [], conflicts = [];
       let unchanged = 0;
 
@@ -3773,18 +3773,18 @@ function ingestFile(file, list, nameOverride) {
         }
       }
 
-      list.rawEntries.push(...newEntries);
-      list.lastUpdated = Date.now();
-      invalidateListCaches(list);
-      updateCatchAll(list);
+      wordlist.rawEntries.push(...newEntries);
+      wordlist.lastUpdated = Date.now();
+      invalidateWordlistCaches(wordlist);
+      updateCatchAll(wordlist);
 
-      await persistData(list.dbKey, entriesToText(list.rawEntries));
+      await persistData(wordlist.dbKey, entriesToText(wordlist.rawEntries));
       persistMeta();
 
       renderSources();
-      if (state.selected === list) {
-        if (scroller) scroller.updateEntries(list.rawEntries);
-        else renderDetail(list);
+      if (state.selected === wordlist) {
+        if (scroller) scroller.updateEntries(wordlist.rawEntries);
+        else renderDetail(wordlist);
       }
       if (state.selected === MERGED_ID) renderMergedDetail();
 
@@ -3796,7 +3796,7 @@ function ingestFile(file, list, nameOverride) {
       return;
     }
 
-    await applyWordlistText(list, text, { originalFilename: file.name, nameOverride, source: file.name });
+    await applyWordlistText(wordlist, text, { originalFilename: file.name, nameOverride, source: file.name });
   };
   reader.readAsText(file);
 }
@@ -3842,7 +3842,7 @@ function openAddWordBar() {
     scoreInput.classList.toggle('invalid', isNaN(score) || score < 0);
     if (wordInput.classList.contains('invalid') || commentInput.classList.contains('invalid') || scoreInput.classList.contains('invalid')) return;
 
-    const edits = getEditsList();
+    const edits = getEditsWordlist();
 
     const existing = edits.rawEntries.find(e => e.word.toUpperCase() === word);
     if (existing) {
@@ -3854,7 +3854,7 @@ function openAddWordBar() {
       showToast(`Added ${displayWord(word)}`);
     }
 
-    invalidateListCaches(edits);
+    invalidateWordlistCaches(edits);
     updateCatchAll(edits);
     persistEdits(edits);
     refreshSourceCounts();
@@ -3873,7 +3873,7 @@ function openAddWordBar() {
 }
 
 function deleteFromEdits(word, refreshFn) {
-  const edits = getEditsList();
+  const edits = getEditsWordlist();
   const idx = edits.rawEntries.findIndex(e => e.word.toUpperCase() === word.toUpperCase());
   if (idx === -1) return;
 
@@ -3882,15 +3882,15 @@ function deleteFromEdits(word, refreshFn) {
   });
 
   const [deleted] = edits.rawEntries.splice(idx, 1);
-  invalidateListCaches(edits);
+  invalidateWordlistCaches(edits);
   updateCatchAll(edits);
   persistEdits(edits);
   refresh();
   setTimeout(refreshSourceCounts, 0);
 
-  showUndoToast(`Deleted ${esc(displayWord(deleted.word))} from ${buildListNameHTML(edits)}`, () => {
+  showUndoToast(`Deleted ${esc(displayWord(deleted.word))} from ${buildWordlistNameHTML(edits)}`, () => {
     edits.rawEntries.splice(idx, 0, deleted);
-    invalidateListCaches(edits);
+    invalidateWordlistCaches(edits);
     updateCatchAll(edits);
     persistEdits(edits);
     refresh();
@@ -3898,30 +3898,30 @@ function deleteFromEdits(word, refreshFn) {
   });
 }
 
-async function deleteList(list, event) {
+async function deleteWordlist(wordlist, event) {
   if (event) event.stopPropagation();
-  if (!list) return;
-  if (!await showConfirm('', { confirmText: 'Delete', html: `Delete ${buildListNameHTML(list)}?` })) return;
-  state.sources = state.sources.filter(l => l !== list);
-  invalidateListCaches(list);
-  await idbDel('data_' + list.dbKey);
+  if (!wordlist) return;
+  if (!await showConfirm('', { confirmText: 'Delete', html: `Delete ${buildWordlistNameHTML(wordlist)}?` })) return;
+  state.sources = state.sources.filter(l => l !== wordlist);
+  invalidateWordlistCaches(wordlist);
+  await idbDel('data_' + wordlist.dbKey);
   persistMeta();
-  if (state.selected === list) {
+  if (state.selected === wordlist) {
     state.selected = MERGED_ID;
     scroller = null;
   }
   renderAll();
 }
 
-function toggleList(list, event) {
+function toggleWordlist(wordlist, event) {
   if (event) event.stopPropagation();
-  if (!list || (!list.rawEntries.length && list.type !== 'edits')) return;
-  list.enabled = !list.enabled;
+  if (!wordlist || (!wordlist.rawEntries.length && wordlist.type !== 'edits')) return;
+  wordlist.enabled = !wordlist.enabled;
   persistMeta();
   renderSources();
   refreshSourceCounts();
   if (state.selected === MERGED_ID && scroller) {
-    scroller.updateEntries(buildMergedList().entries);
+    scroller.updateEntries(buildMergedWordlist().entries);
   } else if (scroller) {
     scroller.overrideMap = buildOverrideMap(getSelected());
     scroller._sortScores = null;
@@ -3929,15 +3929,15 @@ function toggleList(list, event) {
   }
 }
 
-function addNewList(listDef) {
-  const list = { rescoreRules: [], ...listDef, rawEntries: [], lastUpdated: null, _loading: false };
-  updateCatchAll(list);
-  state.sources.push(list);
+function addNewWordlist(wordlistDef) {
+  const wordlist = { rescoreRules: [], ...wordlistDef, rawEntries: [], lastUpdated: null, _loading: false };
+  updateCatchAll(wordlist);
+  state.sources.push(wordlist);
   invalidateSourceCounts();
   invalidateStatsCache(_mergedStatsKey);
   persistMeta();
   renderSources();
-  return list;
+  return wordlist;
 }
 
 // ─── Confirm Dialog ───────────────────────────────────────────────────────────
@@ -4023,10 +4023,10 @@ const showDownloadDialog = (() => {
   const extSelect    = el.querySelector('#download-dialog-ext');
   const commentsCtrl = el.querySelector('#download-dialog-comments-ctrl');
 
-  return function(defaultStem, list, title = 'Download') {
+  return function(defaultStem, wordlist, title = 'Download') {
     titleEl.textContent = title;
     return new Promise(resolve => {
-      const settings = list || readMergedSettings();
+      const settings = wordlist || readMergedSettings();
       const savedCase     = settings.downloadCase || 'lower';
       const savedExt      = settings.downloadExt  || 'txt';
       const savedStem     = settings.downloadStem || '';
@@ -4059,10 +4059,10 @@ const showDownloadDialog = (() => {
         const comments = commentsCtrl.querySelector('.seg-btn.active')?.dataset.val || 'yes';
         const ext      = extSelect.value;
         const stem     = filenameEl.value.trim();
-        if (list) {
-          list.downloadCase = caseMode;
-          list.downloadExt  = ext;
-          if (stem) list.downloadStem = stem; else delete list.downloadStem;
+        if (wordlist) {
+          wordlist.downloadCase = caseMode;
+          wordlist.downloadExt  = ext;
+          if (stem) wordlist.downloadStem = stem; else delete wordlist.downloadStem;
           persistMeta();
         } else {
           writeMergedSettings({ downloadCase: caseMode, downloadExt: ext, ...(stem ? { downloadStem: stem } : {}) });
@@ -4090,7 +4090,7 @@ const showMergeConflict = (() => {
 
   return function(conflictCount) {
     return new Promise(resolve => {
-      const editsName = getEditsList().name;
+      const editsName = getEditsWordlist().name;
       const noun = conflictCount === 1 ? 'word appears' : 'words appear';
       msgEl.textContent = `${conflictCount.toLocaleString()} ${noun} in both ${editsName} and the imported file with different scores or comments. Which should take precedence?`;
       showDialog(el, () => resolve(el.returnValue || null));
@@ -4098,13 +4098,13 @@ const showMergeConflict = (() => {
   };
 })();
 
-// ─── Configure / Add list dialog ─────────────────────────────────────────────
+// ─── Configure / Add wordlist dialog ─────────────────────────────────────────────
 
-const ConfigureListDialog = (() => {
-  const { el, body } = createDialog('configure-list-dialog', { labelledby: 'configure-list-title' });
+const ConfigureWordlistDialog = (() => {
+  const { el, body } = createDialog('configure-wordlist-dialog', { labelledby: 'configure-wordlist-title' });
   body.innerHTML = `
     <button class="dialog-close-btn" aria-label="Close">✕</button>
-    <h2 id="configure-list-title"></h2>
+    <h2 id="configure-wordlist-title"></h2>
     <div class="configure-section">
       <div class="configure-section-label">Publisher</div>
       <div class="publisher-chips" id="publisher-chips"></div>
@@ -4121,7 +4121,7 @@ const ConfigureListDialog = (() => {
         <div class="icon-picker-trigger" id="icon-picker-trigger" tabindex="0" role="button" aria-label="Change icon">
           <div class="icon-preview-box" id="config-icon-preview"></div>
         </div>
-        <input type="text" id="config-name-input" class="config-name-input" placeholder="List name" spellcheck="false" autocomplete="off" autofocus>
+        <input type="text" id="config-name-input" class="config-name-input" placeholder="Wordlist name" spellcheck="false" autocomplete="off" autofocus>
       </div>
     </div>
     <div class="configure-section">
@@ -4169,7 +4169,7 @@ const ConfigureListDialog = (() => {
 
   // State
   let _mode           = 'configure';
-  let _list           = null;
+  let _wordlist           = null;
   let _pickerOpen     = false;
   let _selectedPublisher = null;
   let _originalPublisher = null;
@@ -4179,7 +4179,7 @@ const ConfigureListDialog = (() => {
   let _pendingFile    = null;
 
   // Elements
-  const titleEl          = el.querySelector('#configure-list-title');
+  const titleEl          = el.querySelector('#configure-wordlist-title');
   const publisherChipsEl = el.querySelector('#publisher-chips');
   const rulesOptionRow   = el.querySelector('#rules-option-row');
   const rulesSelect      = el.querySelector('#rules-select');
@@ -4198,7 +4198,7 @@ const ConfigureListDialog = (() => {
   // ── Icon picker ──────────────────────────────────────────────────────────────
 
   function colorSeedObj() {
-    return _list || { url: urlInput.value.trim(), name: _pendingName };
+    return _wordlist || { url: urlInput.value.trim(), name: _pendingName };
   }
 
   function setBufferedIcon(icon) {
@@ -4276,7 +4276,7 @@ const ConfigureListDialog = (() => {
   // ── Publisher chips ──────────────────────────────────────────────────────────
 
   function renderPublisherChips() {
-    const chips = [...LIST_PUBLISHERS].sort((a, b) => a.popularity - b.popularity).map(p => {
+    const chips = [...WORDLIST_PUBLISHERS].sort((a, b) => a.popularity - b.popularity).map(p => {
       const icon = buildIconHTML(p.icon, p.name, colorSeed(p));
       return `<button class="publisher-chip${_selectedPublisher === p ? ' active' : ''}" data-publisher-id="${p.id}">${icon}${esc(p.name)}</button>`;
     });
@@ -4305,7 +4305,7 @@ const ConfigureListDialog = (() => {
   publisherChipsEl.addEventListener('click', e => {
     const chip = e.target.closest('.publisher-chip');
     if (!chip) return;
-    const publisher = chip.dataset.publisherId ? LIST_PUBLISHERS.find(p => p.id === chip.dataset.publisherId) : null;
+    const publisher = chip.dataset.publisherId ? WORDLIST_PUBLISHERS.find(p => p.id === chip.dataset.publisherId) : null;
     selectPublisher(publisher);
   });
 
@@ -4315,7 +4315,7 @@ const ConfigureListDialog = (() => {
     if (!_selectedPublisher) { rulesOptionRow.hidden = true; return; }
     const isAdd = _mode === 'add';
     const publisherUnchanged = !isAdd && _selectedPublisher?.id === _originalPublisher?.id;
-    const recommendedIsNoop  = publisherUnchanged && rulesMatchDefaultRules(_list, _selectedPublisher);
+    const recommendedIsNoop  = publisherUnchanged && rulesMatchDefaultRules(_wordlist, _selectedPublisher);
     const applyVerb = isAdd ? 'Use' : publisherUnchanged ? 'Reapply' : 'Apply';
     const opts = [{ value: 'recommended', label: `${applyVerb} recommended rules`, disabled: recommendedIsNoop }];
     if (_selectedPublisher.defaultRules?.some(r => r.note))
@@ -4327,11 +4327,11 @@ const ConfigureListDialog = (() => {
     rulesOptionRow.hidden = false;
   }
 
-  function rulesMatchDefaultRules(list, publisher) {
+  function rulesMatchDefaultRules(wordlist, publisher) {
     const publisherRules = publisher?.defaultRules || [];
-    const listRules      = (list?.rescoreRules || []).filter(r => !r._catchAll);
-    if (listRules.length !== publisherRules.length) return false;
-    return listRules.every((r, i) => {
+    const wordlistRules      = (wordlist?.rescoreRules || []).filter(r => !r._catchAll);
+    if (wordlistRules.length !== publisherRules.length) return false;
+    return wordlistRules.every((r, i) => {
       const p = publisherRules[i];
       return r.input === p.input && r.length === p.length && r.output === p.output && (r.note ?? '') === (p.note ?? '');
     });
@@ -4486,33 +4486,33 @@ const ConfigureListDialog = (() => {
     const url   = urlInput.value.trim() || null;
 
     if (_mode === 'add') {
-      const list = addNewList({
+      const wordlist = addNewWordlist({
         dbKey: crypto.randomUUID(), icon: _pendingIcon, name,
         url, enabled: true,
         ...(_selectedPublisher ? { publisherId: _selectedPublisher.id } : {}),
         rescoreRules: rules || [],
       });
       el.close();
-      if (ManageSourcesDialog.isOpen()) ManageSourcesDialog.focus(list);
+      if (ManageSourcesDialog.isOpen()) ManageSourcesDialog.focus(wordlist);
       if (url) {
-        fetchList(list).then(() => selectList(list));
+        fetchWordlist(wordlist).then(() => selectWordlist(wordlist));
       } else if (_pendingFile) {
-        ingestFile(_pendingFile, list, name);
-        selectList(list);
+        ingestFile(_pendingFile, wordlist, name);
+        selectWordlist(wordlist);
       } else {
-        selectList(list);
+        selectWordlist(wordlist);
       }
     } else {
-      _list.icon = _pendingIcon;
-      _list.name = name;
-      _list.url  = url;
-      if (_selectedPublisher) { _list.publisherId = _selectedPublisher.id; } else { delete _list.publisherId; }
-      if (rules !== null) { _list.rescoreRules = rules; updateCatchAll(_list); }
+      _wordlist.icon = _pendingIcon;
+      _wordlist.name = name;
+      _wordlist.url  = url;
+      if (_selectedPublisher) { _wordlist.publisherId = _selectedPublisher.id; } else { delete _wordlist.publisherId; }
+      if (rules !== null) { _wordlist.rescoreRules = rules; updateCatchAll(_wordlist); }
       persistMeta();
-      invalidateListCaches(_list);
+      invalidateWordlistCaches(_wordlist);
       refreshSourceCounts();
       renderSources();
-      if (state.selected === _list) renderDetail(_list);
+      if (state.selected === _wordlist) renderDetail(_wordlist);
       else if (state.selected === MERGED_ID) renderMergedDetail();
       el.close();
     }
@@ -4529,34 +4529,34 @@ const ConfigureListDialog = (() => {
 
   // ── open (configure mode) ─────────────────────────────────────────────────────
 
-  function open(list) {
+  function open(wordlist) {
     _mode           = 'configure';
-    _list           = list;
+    _wordlist           = wordlist;
     _pickerOpen     = false;
-    _selectedPublisher = getPublisher(list);
+    _selectedPublisher = getPublisher(wordlist);
     _originalPublisher = _selectedPublisher;
-    _pendingIcon    = list.icon || null;
-    _pendingName    = list.name || '';
+    _pendingIcon    = wordlist.icon || null;
+    _pendingName    = wordlist.name || '';
     _pendingFile    = null;
     _rulesOption    = 'none';
 
-    titleEl.textContent = 'Configure List';
+    titleEl.textContent = 'Configure Wordlist';
     btnSave.textContent = 'Save';
     pickerPopup.hidden = true;
     nameInput.classList.remove('invalid');
-    iconPreview.innerHTML = buildIconHTML(list.icon, list.name, colorSeed(list));
-    nameInput.value = list.name || '';
-    urlInput.value  = list.url  || '';
+    iconPreview.innerHTML = buildIconHTML(wordlist.icon, wordlist.name, colorSeed(wordlist));
+    nameInput.value = wordlist.name || '';
+    urlInput.value  = wordlist.url  || '';
 
     renderPublisherChips();
     updateRulesOptionRow();
     updateRulesPreview();
-    if (list.url) {
+    if (wordlist.url) {
       urlCheckIcon.innerHTML = '<div class="url-check-spinner"></div>';
       urlCheckIcon.hidden = false;
       urlMetaEl.classList.remove('visible');
       _urlCheckAbort = new AbortController();
-      checkUrl(list.url, _urlCheckAbort.signal);
+      checkUrl(wordlist.url, _urlCheckAbort.signal);
     } else {
       urlCheckIcon.hidden = true;
       urlMetaEl.classList.remove('visible');
@@ -4570,7 +4570,7 @@ const ConfigureListDialog = (() => {
 
   function openAdd() {
     _mode           = 'add';
-    _list           = null;
+    _wordlist           = null;
     _pickerOpen     = false;
     _selectedPublisher = null;
     _originalPublisher = null;
@@ -4579,7 +4579,7 @@ const ConfigureListDialog = (() => {
     _pendingFile    = null;
     _rulesOption    = 'none';
 
-    titleEl.textContent = 'Add List';
+    titleEl.textContent = 'Add Wordlist';
     btnSave.textContent = 'Add';
     pickerPopup.hidden = true;
     nameInput.classList.remove('invalid');
@@ -4664,20 +4664,20 @@ function hideCellPopover() {
 }
 
 function buildCellPopoverHTML(td) {
-  const { scoreRaw, scoreRescaled, scoreOvName, scoreOvVal, scoreListName,
-          commentRaw, commentOvName, commentOvVal, commentListName } = td.dataset;
+  const { scoreRaw, scoreRescaled, scoreOvName, scoreOvVal, scoreWordlistName,
+          commentRaw, commentOvName, commentOvVal, commentWordlistName } = td.dataset;
 
   let html = '';
 
   if (scoreRaw !== undefined) {
     const thisScore = scoreRescaled ? `${scoreRaw} → ${scoreRescaled}` : scoreRaw;
-    html += `<div><b>${esc(scoreListName)}:</b> ${thisScore}</div>`;
+    html += `<div><b>${esc(scoreWordlistName)}:</b> ${thisScore}</div>`;
     if (scoreOvName) html += `<div>Overridden by <b>${esc(scoreOvName)}:</b> ${scoreOvVal}</div>`;
   }
 
   if (commentOvName !== undefined) {
     if (commentRaw) {
-      html += `<div><b>${esc(commentListName)}:</b> ${esc(commentRaw)}</div>`;
+      html += `<div><b>${esc(commentWordlistName)}:</b> ${esc(commentRaw)}</div>`;
       html += `<div>Overridden by <b>${esc(commentOvName)}:</b> ${esc(commentOvVal)}</div>`;
     } else {
       html += `<div>From <b>${esc(commentOvName)}</b></div>`;
@@ -4753,11 +4753,11 @@ function _dismissToast(el) {
 
 // ─── Publisher lookup ─────────────────────────────────────────────────────────
 
-function getPublisher(list) {
-  return list.publisherId ? LIST_PUBLISHERS.find(p => p.id === list.publisherId) ?? null : null;
+function getPublisher(wordlist) {
+  return wordlist.publisherId ? WORDLIST_PUBLISHERS.find(p => p.id === wordlist.publisherId) ?? null : null;
 }
 
-// ─── List icons ───────────────────────────────────────────────────────────────
+// ─── Wordlist icons ───────────────────────────────────────────────────────────────
 
 function nameToInitials(name) {
   const words = name.trim().split(/\s+/).map(w => w.replace(/[^a-zA-Z0-9]/g, '')).filter(Boolean);
@@ -4775,15 +4775,15 @@ function nameColorIndex(name) {
 function buildInitialsIconHTML(name, colorSeed = name) {
   const initials = esc(nameToInitials(name));
   const ci = nameColorIndex(colorSeed);
-  return `<svg class="list-icon list-icon-initials ic-${ci}" viewBox="0 0 16 16" aria-hidden="true"><rect width="16" height="16" rx="3"/><text x="8" y="8" text-anchor="middle" dominant-baseline="central" font-family="system-ui,sans-serif" font-weight="700" font-size="8" letter-spacing="-0.02em">${initials}</text></svg>`;
+  return `<svg class="wordlist-icon wordlist-icon-initials ic-${ci}" viewBox="0 0 16 16" aria-hidden="true"><rect width="16" height="16" rx="3"/><text x="8" y="8" text-anchor="middle" dominant-baseline="central" font-family="system-ui,sans-serif" font-weight="700" font-size="8" letter-spacing="-0.02em">${initials}</text></svg>`;
 }
 
 function buildEmojiIconHTML(emoji) {
-  return `<svg class="list-icon list-icon-emoji" viewBox="0 0 16 16" aria-hidden="true"><text x="8" y="8" text-anchor="middle" dominant-baseline="central" font-size="13">${esc(emoji)}</text></svg>`;
+  return `<svg class="wordlist-icon wordlist-icon-emoji" viewBox="0 0 16 16" aria-hidden="true"><text x="8" y="8" text-anchor="middle" dominant-baseline="central" font-size="13">${esc(emoji)}</text></svg>`;
 }
 
 function buildImgIconHTML(url) {
-  return `<img src="${esc(url)}" class="list-icon list-icon-img" onerror="this.style.display='none'" alt="">`;
+  return `<img src="${esc(url)}" class="wordlist-icon wordlist-icon-img" onerror="this.style.display='none'" alt="">`;
 }
 
 // descriptor: null | { type: 'emoji', value } | { type: 'img', url }
@@ -4797,8 +4797,8 @@ function colorSeed(obj) {
   return obj.url || obj.originalFilename || obj.dbKey || obj.name;
 }
 
-function getListIcon(list) {
-  return buildIconHTML(list.icon, list.name, colorSeed(list));
+function getWordlistIcon(wordlist) {
+  return buildIconHTML(wordlist.icon, wordlist.name, colorSeed(wordlist));
 }
 
 // ─── Import Guide ─────────────────────────────────────────────────────────────
@@ -4819,13 +4819,13 @@ function bindDropZone(zone, fileInput, onFile) {
 const ImportGuideDialog = (() => {
   const { el, body } = createDialog('import-guide-dialog', { labelledby: 'guide-title' });
 
-  let _list = null;
+  let _wordlist = null;
   let _pendingFile = null;
 
-  function open(list) {
-    _list = list;
+  function open(wordlist) {
+    _wordlist = wordlist;
     _pendingFile = null;
-    body.innerHTML = buildContentHTML(list);
+    body.innerHTML = buildContentHTML(wordlist);
 
     const zoneLabel = el.querySelector('.guide-zone-label');
     const importBtn = el.querySelector('.guide-import-btn');
@@ -4834,8 +4834,8 @@ const ImportGuideDialog = (() => {
     importBtn.onclick = () => {
       if (!_pendingFile) return;
       el.close();
-      ingestFile(_pendingFile, _list);
-      selectList(_list);
+      ingestFile(_pendingFile, _wordlist);
+      selectWordlist(_wordlist);
     };
 
     bindDropZone(el.querySelector('.guide-drop-zone'), el.querySelector('.guide-file-input'), file => {
@@ -4847,8 +4847,8 @@ const ImportGuideDialog = (() => {
     showDialog(el);
   }
 
-  function buildContentHTML(list) {
-    const publisher = getPublisher(list);
+  function buildContentHTML(wordlist) {
+    const publisher = getPublisher(wordlist);
     const dropZone = `
       <div class="import-zone compact guide-drop-zone">
         <span class="guide-zone-label">Drop file here or click to browse</span>
@@ -4863,8 +4863,8 @@ const ImportGuideDialog = (() => {
     if (!publisher?.sourcePage) {
       return `
         <button class="dialog-close-btn" aria-label="Close">✕</button>
-        <h2 id="guide-title">Import ${esc(list.name)}</h2>
-        <p class="guide-intro">Import a wordlist file from your computer. Grawlix will load its words and scores into this list.</p>
+        <h2 id="guide-title">Import ${esc(wordlist.name)}</h2>
+        <p class="guide-intro">Import a wordlist file from your computer. Grawlix will load its words and scores into this wordlist.</p>
         ${dropZone}
         ${footer}`;
     }
@@ -4872,7 +4872,7 @@ const ImportGuideDialog = (() => {
     const subNote = publisher.subscriptionNote
       ? `<div class="subscription-note"><strong>Note:</strong> ${esc(publisher.subscriptionNote)}</div>`
       : '';
-    // sourceNote is trusted HTML hardcoded in LIST_PUBLISHERS, never user input.
+    // sourceNote is trusted HTML hardcoded in WORDLIST_PUBLISHERS, never user input.
     return `
       <button class="dialog-close-btn" aria-label="Close">✕</button>
       <h2 id="guide-title">Import ${esc(publisher.name)}</h2>
@@ -4897,43 +4897,43 @@ const ImportGuideDialog = (() => {
 
 // ─── Rescore rule management ──────────────────────────────────────────────────
 
-function afterRuleChange(list) {
-  updateCatchAll(list);
+function afterRuleChange(wordlist) {
+  updateCatchAll(wordlist);
   persistMeta();
   renderRescoreSection();
   updateRescorePreview();
-  invalidateRescoredCache(list);
+  invalidateRescoredCache(wordlist);
   refreshSourceCounts();
 }
 
 // Per-source rescore rules now live in the Manage Sources right pane only.
-// These handlers target the focused list there, falling back to the main-pane
+// These handlers target the focused wordlist there, falling back to the main-pane
 // selection only if the dialog isn't open (defensive — there should be no other
 // callers).
-function getRescoreContextList() {
-  return ManageSourcesDialog?.getFocusedList?.() ?? getSelected();
+function getRescoreContextWordlist() {
+  return ManageSourcesDialog?.getFocusedWordlist?.() ?? getSelected();
 }
 
 function deleteRule(idx) {
-  const list = getRescoreContextList();
-  if (!list) return;
-  const [deleted] = list.rescoreRules.splice(idx, 1);
-  afterRuleChange(list);
+  const wordlist = getRescoreContextWordlist();
+  if (!wordlist) return;
+  const [deleted] = wordlist.rescoreRules.splice(idx, 1);
+  afterRuleChange(wordlist);
   showUndoToast('Deleted rescore rule', () => {
-    list.rescoreRules.push(deleted);
-    afterRuleChange(list);
+    wordlist.rescoreRules.push(deleted);
+    afterRuleChange(wordlist);
   });
 }
 
 function saveRuleField(idx, field, value) {
-  const list = getRescoreContextList();
-  if (!list || !list.rescoreRules[idx]) return;
+  const wordlist = getRescoreContextWordlist();
+  if (!wordlist || !wordlist.rescoreRules[idx]) return;
   if (field === 'length' && value.trim().toLowerCase() === 'any') value = '';
   if (field === 'output' && value.trim().toLowerCase() === 'unchanged') value = '';
-  list.rescoreRules[idx][field] = value;
+  wordlist.rescoreRules[idx][field] = value;
   // User explicitly edited this rule — promote it from catch-all to regular rule
-  delete list.rescoreRules[idx]._catchAll;
-  afterRuleChange(list);
+  delete wordlist.rescoreRules[idx]._catchAll;
+  afterRuleChange(wordlist);
 }
 
 function noteDisplayHTML(note) {
@@ -4947,14 +4947,14 @@ function startNoteEdit(wrapEl) {
 
   let currentNote, onSave;
   if (isScoring) {
-    const edits = getEditsList();
+    const edits = getEditsWordlist();
     if (!edits?.scoring[i]) return;
     currentNote = edits.scoring[i].note || '';
     onSave = note => saveScoringField(i, 'note', note);
   } else {
-    const list = getRescoreContextList();
-    if (!list?.rescoreRules[i]) return;
-    currentNote = list.rescoreRules[i].note || '';
+    const wordlist = getRescoreContextWordlist();
+    if (!wordlist?.rescoreRules[i]) return;
+    currentNote = wordlist.rescoreRules[i].note || '';
     onSave = note => saveRuleField(i, 'note', note);
   }
 
@@ -5031,10 +5031,10 @@ function onRuleInput(el) {
 
 function updateRescorePreview() {
   if (!scroller) return;
-  // Live preview only makes sense when the rules being typed belong to the list
+  // Live preview only makes sense when the rules being typed belong to the wordlist
   // the main-pane scroller is showing. From inside Manage Sources the focused
-  // list usually differs from the main-pane selection, so skip.
-  if (ManageSourcesDialog.isOpen() && ManageSourcesDialog.getFocusedList() !== getSelected()) return;
+  // wordlist usually differs from the main-pane selection, so skip.
+  if (ManageSourcesDialog.isOpen() && ManageSourcesDialog.getFocusedWordlist() !== getSelected()) return;
   const rules = Array.from(document.querySelectorAll('#rescore-rules .rule-row')).map(row => ({
     input:  row.querySelector('.rule-in')?.value  || '',
     length: row.querySelector('.rule-len')?.value || '',
@@ -5067,44 +5067,44 @@ function startInlineRename(inputEl, originalName, { onCommit, onCancel, onInput 
 
 // ─── Merge & Download ─────────────────────────────────────────────────────────
 
-// List order determines merge priority: higher-priority lists appear earlier in state.sources; the loop breaks at the target list's position.
-function buildOverrideMap(list) {
+// Wordlist order determines merge priority: higher-priority wordlists appear earlier in state.sources; the loop breaks at the target wordlist's position.
+function buildOverrideMap(wordlist) {
   const map = new Map();
   for (const l of state.sources) {
-    if (l === list) break;
+    if (l === wordlist) break;
     if (!l.enabled || !l.rawEntries.length) continue;
     for (const { word, score, comment } of getRescoredEntries(l)) {
       const w = word.toUpperCase();
-      if (!map.has(w)) map.set(w, { listName: l.name, score, comment: comment || '' });
+      if (!map.has(w)) map.set(w, { wordlistName: l.name, score, comment: comment || '' });
     }
   }
   return map;
 }
 
-function buildMergedList() {
-  if (_mergedListCache) return _mergedListCache;
+function buildMergedWordlist() {
+  if (_mergedWordlistCache) return _mergedWordlistCache;
 
   const mergedMap = new Map(); // UPPERCASE_KEY → {word, score}
   const sourceCounts = [];
 
-  for (const list of state.sources) {
-    if (!list.enabled || !list.rawEntries.length) continue;
+  for (const wordlist of state.sources) {
+    if (!wordlist.enabled || !wordlist.rawEntries.length) continue;
     let count = 0;
-    for (const { word, score, comment } of getRescoredEntries(list)) {
+    for (const { word, score, comment } of getRescoredEntries(wordlist)) {
       const key = word.toUpperCase();
       if (!mergedMap.has(key)) {
-        mergedMap.set(key, { word: word.toLowerCase(), score, comment: comment || '', listName: list.name, listRef: list });
+        mergedMap.set(key, { word: word.toLowerCase(), score, comment: comment || '', wordlistName: wordlist.name, wordlistRef: wordlist });
         count++;
       }
     }
-    sourceCounts.push({ list, count });
+    sourceCounts.push({ wordlist, count });
   }
 
   const entries = [...mergedMap.values()]
     .sort((a, b) => a.word.localeCompare(b.word));
 
-  _mergedListCache = { entries, sourceCounts };
-  return _mergedListCache;
+  _mergedWordlistCache = { entries, sourceCounts };
+  return _mergedWordlistCache;
 }
 
 
@@ -5120,20 +5120,20 @@ function triggerDownload(text, filename) {
   URL.revokeObjectURL(url);
 }
 
-function downloadOriginalList(list) {
-  if (!list || !list.rawEntries.length) return;
+function downloadOriginalWordlist(wordlist) {
+  if (!wordlist || !wordlist.rawEntries.length) return;
   const withComments = getDownloadComments();
-  const text = list.rawEntries.map(e =>
+  const text = wordlist.rawEntries.map(e =>
     (withComments && e.comment) ? `${e.word};${e.score};${e.comment}` : `${e.word};${e.score}`
   ).join('\n') + '\n';
-  const filename = list.originalFilename || `${list.name}.txt`;
+  const filename = wordlist.originalFilename || `${wordlist.name}.txt`;
   triggerDownload(text, filename);
-  showToast(`Downloaded ${pluralize(list.rawEntries.length, 'entry', 'entries')}`);
+  showToast(`Downloaded ${pluralize(wordlist.rawEntries.length, 'entry', 'entries')}`);
 }
 
-async function downloadIndividualListRescored(list) {
-  if (!list || !list.rawEntries.length) return;
-  await downloadWithDialog(`Grawlix ${list.name}`, list, getRescoredEntries(list), 'Download Rescored List');
+async function downloadIndividualWordlistRescored(wordlist) {
+  if (!wordlist || !wordlist.rawEntries.length) return;
+  await downloadWithDialog(`Grawlix ${wordlist.name}`, wordlist, getRescoredEntries(wordlist), 'Download Rescored Wordlist');
 }
 
 function toggleSplitMenu(event) {
@@ -5158,12 +5158,12 @@ const HelpModal = (() => {
 
         <div class="help-slide active" id="help-slide-0">
           <h2>What Is Grawlix?</h2>
-          <p>Grawlix is a wordlist manager for crossword constructors. It lets you pull in wordlists from multiple sources, rescore them, and merge them into a single master list you can load into your construction software.</p>
+          <p>Grawlix is a wordlist manager for crossword constructors. It lets you pull in wordlists from multiple sources, rescore them, and merge them into a single master wordlist you can load into your construction software.</p>
           <p>It doubles as a search tool while you're building: filter entries by substring, score, and more to quickly find the best word for a tricky slot.</p>
           <div class="help-demo flush">
             <div class="help-demo-panels">
               <div class="help-demo-panel">
-                <div class="help-demo-panel-content" id="help-slide0-lists"></div>
+                <div class="help-demo-panel-content" id="help-slide0-wordlists"></div>
                 <div class="help-demo-label help-demo-panel-label">Build your wordlist</div>
               </div>
               <div class="help-demo-vbar"></div>
@@ -5177,15 +5177,15 @@ const HelpModal = (() => {
 
         <div class="help-slide" id="help-slide-1">
           <h2>Building Your Wordlist</h2>
-          <p>Click <strong>Add list</strong> to add from a known publisher, import a file, or set up a URL feed. Use the ⋮ menu on any list to configure its name, icon, publisher, URL, or rescoring rules.</p>
-          <p>Lists <strong>merge in priority order</strong> — the higher a list sits, the more its scores count when the same word appears in multiple lists. Drag to reorder. Toggle lists on and off to experiment with different combinations.</p>
+          <p>Click <strong>Add wordlist</strong> to add from a known publisher, import a file, or set up a URL feed. Use the ⋮ menu on any wordlist to configure its name, icon, publisher, URL, or rescoring rules.</p>
+          <p>Wordlists <strong>merge in priority order</strong> — the higher a wordlist sits, the more its scores count when the same word appears in multiple wordlists. Drag to reorder. Toggle wordlists on and off to experiment with different combinations.</p>
           <div class="help-demo flush" id="help-slide1-demo"></div>
         </div>
 
         <div class="help-slide" id="help-slide-2">
           <h2>Making It Yours</h2>
-          <p>Different wordlists use different score scales. <strong>Rescoring rules</strong> let you normalize them — map one score range to another so your merged list has consistent scoring across all wordlists.</p>
-          <p><strong class="help-edits-name">My Edits</strong> is your personal override layer. Click any score or comment to change it. Add words that don't appear in any wordlist. Your changes are never overwritten by a list update.</p>
+          <p>Different wordlists use different score scales. <strong>Rescoring rules</strong> let you normalize them — map one score range to another so your merged wordlist has consistent scoring across all wordlists.</p>
+          <p><strong class="help-edits-name">My Edits</strong> is your personal override layer. Click any score or comment to change it. Add words that don't appear in any wordlist. Your changes are never overwritten by a wordlist update.</p>
           <div class="help-demo flush">
             <table class="word-table">
               <tr class="demo-row">
@@ -5230,7 +5230,7 @@ const HelpModal = (() => {
   let demoTimers = [];
 
   function open() {
-    const editsHTML = buildListNameHTML(getEditsList(), { bold: false });
+    const editsHTML = buildWordlistNameHTML(getEditsWordlist(), { bold: false });
     dialog.querySelectorAll('.help-edits-name').forEach(el => el.innerHTML = editsHTML);
     showDialog(dialog);
     goTo(0);
@@ -5464,12 +5464,12 @@ const HelpModal = (() => {
     after(6600, () => { runSearchDemo(); });
   }
 
-  const DEMO_JK_ICON = buildInitialsIconHTML('John Kugelman', colorSeed(LIST_PUBLISHERS.find(p => p.id === 'jkugelman')));
-  const DEMO_PB_ICON = buildInitialsIconHTML('Peter Broda',   colorSeed(LIST_PUBLISHERS.find(p => p.id === 'broda')));
+  const DEMO_JK_ICON = buildInitialsIconHTML('John Kugelman', colorSeed(WORDLIST_PUBLISHERS.find(p => p.id === 'jkugelman')));
+  const DEMO_PB_ICON = buildInitialsIconHTML('Peter Broda',   colorSeed(WORDLIST_PUBLISHERS.find(p => p.id === 'broda')));
 
   function initDemoSlides() {
     // Slide 0: two-panel overview
-    document.getElementById('help-slide0-lists').innerHTML = buildListSidebarHTML([
+    document.getElementById('help-slide0-wordlists').innerHTML = buildWordlistSidebarHTML([
       { icon: DEMO_JK_ICON, name: 'John Kugelman', meta: '47,000 entries', enabled: true },
       { icon: DEMO_PB_ICON, name: 'Peter Broda',   meta: '68,000 entries', enabled: true },
     ]);
@@ -5484,8 +5484,8 @@ const HelpModal = (() => {
     // Slide 2: Making It Yours — word cell
     document.getElementById('help-slide2-word').textContent = displayWord('WORDPLAY');
 
-    // Slide 1: list sidebar with enabled JK and disabled PB
-    document.getElementById('help-slide1-demo').innerHTML = buildListSidebarHTML([
+    // Slide 1: wordlist sidebar with enabled JK and disabled PB
+    document.getElementById('help-slide1-demo').innerHTML = buildWordlistSidebarHTML([
       { icon: DEMO_JK_ICON, name: 'John Kugelman', meta: '47,000 entries', enabled: true },
       { icon: DEMO_PB_ICON, name: 'Peter Broda',   meta: '68,000 entries', enabled: false },
     ]);
@@ -5519,7 +5519,7 @@ const HelpModal = (() => {
 // ─── Boot ─────────────────────────────────────────────────────────────────────
 
 document.addEventListener('click', () => document.querySelectorAll('.split-btn.open').forEach(b => b.classList.remove('open')));
-// Hide the busy overlay immediately if no lists have data.
+// Hide the busy overlay immediately if no wordlists have data.
 { let _m; try { _m = JSON.parse(lsLoad('meta') || '[]'); } catch { _m = []; }
   if (!_m.some(l => l.lastUpdated)) document.getElementById('busy-overlay').remove(); }
 init();

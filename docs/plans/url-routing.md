@@ -15,8 +15,8 @@ The URL is the serialized answer to "what's in your tool stack."
 **Out of scope (no URL representation):**
 - Dialogs — Welcome tour, reference manual, settings, Manage wordlists, Sync & backup. These are transient UI state. Open them how you opened them; close them when you're done. No deep link, no history entry. KISS.
 - Selected wordlist from the left-rail dropdown. Sharing a link to "Anagram of LINDSEY in STWL" implies the recipient has STWL loaded; we don't pretend otherwise. The stack always reads from the recipient's currently-selected wordlist (default `All`).
-- My Edits, individual list views, Manage wordlists state — local-only.
-- Confirmation dialogs and transient popovers (cell popovers, list-card menus, etc.).
+- My Edits, individual wordlist views, Manage wordlists state — local-only.
+- Confirmation dialogs and transient popovers (cell popovers, wordlist-card menus, etc.).
 - Scroll position within a result table.
 - Edit-in-progress state (open inline editors).
 
@@ -70,7 +70,7 @@ The visible tool rows are the user's history. Removing a row is the explicit und
 On page load:
 
 1. Parse `location.search` into an ordered list of `(toolKey, value)` pairs.
-2. Restore base app state from localStorage and IndexedDB as today (lists, rules, selected list, settings).
+2. Restore base app state from localStorage and IndexedDB as today (wordlists, rules, selected wordlist, settings).
 3. Apply the URL on top: build the rows, populate inputs, append an empty Search row if the parsed stack doesn't end in one (UI invariant), run the pipeline.
 
 A bare site URL with no query string lands the user with just the permanent empty Search row — the same as today's default landing.

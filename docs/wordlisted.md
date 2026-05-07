@@ -157,4 +157,4 @@ Words whose letters are already in alphabetical order. Example: FORTY.
 Finds words valid for the NYT Spelling Bee: must contain the center letter, use only letters from the center + outer set, and be at least 4 letters long.
 
 ### Everything
-Returns every word in the wordlist. Useful for sorting or exporting the full list.
+Returns every word in the wordlist. Useful for sorting or exporting the full wordlist.

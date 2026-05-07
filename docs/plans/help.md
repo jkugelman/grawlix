@@ -19,7 +19,7 @@ A quick, persuasive tour for first-time users. Not comprehensive — its job is 
 Lead with the pain: popular wordlists use incompatible scoring scales. Make this concrete and visual — show the four known publishers side by side with their actual score ranges, ideally with real example entries pulled from the files themselves. The user should immediately recognize the problem if they've ever tried combining wordlists.
 
 **Slide 2 — The Solution**  
-Add lists, apply rescore rules to normalize them, merge. This absorbs what are currently two slides ("Building Your Wordlist" and "Making It Yours"). Keep it brief — the rescore and My Edits concepts don't need deep treatment here, just enough to convey the idea. Animated demo appropriate.
+Add wordlists, apply rescore rules to normalize them, merge. This absorbs what are currently two slides ("Building Your Wordlist" and "Making It Yours"). Keep it brief — the rescore and My Edits concepts don't need deep treatment here, just enough to convey the idea. Animated demo appropriate.
 
 **Slide 3 — The Payoff**  
 Download your wordlist (or sync it — see `sync.md`). This is the end goal of the wordlist-management use case. Dedicated slide, not mixed with search. Animated demo appropriate. Default output is two files (merged wordlists + My Edits separately) to fit constructor workflow; the slide should convey *getting your data out* without dwelling on file-format details.
