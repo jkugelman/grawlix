@@ -104,9 +104,9 @@ Before making changes to Grawlix, read the help modal in `site/index.html` for a
 
 When you add or change a user-facing feature, update the relevant slide in the help modal to reflect it.
 
-Documentation lives in `docs/`, split into two kinds:
+Documentation lives in `docs/`:
 
-- **Forward-looking plans in `docs/plans/`.** Speculative, future-tense, describe where a feature is going.
-- **Feature records and reference material at the top of `docs/`.** Present-tense, describe what exists. Once a plan ships, the `distill-design-doc` skill rewrites it as a record and moves it up.
+- **`docs/plans/`** — forward-looking design docs for work that hasn't shipped. Speculative, future-tense.
+- **Top level of `docs/`** — present-tense documentation of what's implemented. Once a plan ships, the `distill-design-doc` skill rewrites it as a record and moves it up.
 
 See [`docs/README.md`](docs/README.md) for the index. Read the relevant plan before making changes that touch its area, or when brainstorming UI shape or feature placement (adjacent docs may share screen real estate or constrain the answer).

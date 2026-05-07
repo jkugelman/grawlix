@@ -10,7 +10,7 @@ The URL is the serialized answer to "what's in your tool stack."
 
 **In scope (URL-addressable):**
 - Tool stack: ordered list of tools and their inputs (see `tools.md`)
-- Result-view filter: min-score today; potentially max-score, length, score-tier in the future — see open questions
+- Result-view filters: `min=` today; future siblings like `max=`, `length=`, `tier=` slot in the same way
 
 **Out of scope (no URL representation):**
 - Dialogs — Welcome tour, reference manual, settings, Manage sources, Sync & backup. These are transient UI state. Open them how you opened them; close them when you're done. No deep link, no history entry. KISS.
@@ -33,7 +33,7 @@ https://grawlix.wtf/?anagram=LINDSEY                  → Anagram, then permanen
 https://grawlix.wtf/?search=CAT&anagram=LINDSEY       → Search "CAT" → Anagram → permanent Search (empty)
 https://grawlix.wtf/?anagram=LINDSEY&search=DOG       → Anagram → permanent Search "DOG"
 https://grawlix.wtf/?anagram=LINDSEY&palindromes      → Anagram → Palindromes (no input) → permanent Search (empty)
-https://grawlix.wtf/?anagram=LINDSEY&min=40           → Anagram, min-score 40 (today; see open questions)
+https://grawlix.wtf/?anagram=LINDSEY&min=40           → Anagram, with min-score 40 applied to results
 ```
 
 **Order is significant.** Parameter order is pipeline order — `?search=CAT&anagram=LINDSEY` runs Search before Anagram; the reverse runs them the other way. This breaks the common reader expectation that query strings are unordered, but the URL is mostly machine-generated and read back by Grawlix. Users who notice aren't going to care.
@@ -106,11 +106,11 @@ The Router lives alongside `state` — it is *not* a replacement. State remains 
 
 Phase 1 is small and self-contained — a good first commit, independent of any further tool gallery work.
 
+## Filters in the URL
+
+Result-view filters (`min=`, future `max=`, `length=`, `tier=`) live in the URL as ordinary named params alongside tool keys. They aren't pipeline rows — they apply to the bottom row's output regardless of position — so there's no special-case ordering rule. They serialize, parse, and round-trip the same way any other URL param does.
+
 ## Open questions
 
-- **Result-view filters as pipeline steps vs. separate controls.** Today min-score is a control on the result table, not a row in the tool stack. The same shape would extend naturally to a small family — max-score, length filter, score-tier filter. The URL question is where these sit. Two options:
-  - **(a) Promote filters to stack rows.** A "Min score" tool you add like any other, with future siblings ("Max score", "Length", "Score tier"). Most internally consistent — filters become tools, no special cases anywhere, the URL has one uniform shape. Trades ease-of-use at the UI level (was a top-bar slider, now a row to add) for flexibility (multiple instances allowed, positioned anywhere in the pipeline, mix freely with transforms).
-  - **(b) Keep filters as top-level controls.** Pin them last in the URL by convention (`?anagram=LINDSEY&min=40`). Simpler everyday UI. URL gets one small special-case rule about ordering. Fine.
-  - The tradeoff is ease-of-use (b) vs flexibility (a). Defer the call until more filter ideas pile up and we can see whether the family is big enough to deserve its own surface.
 - **Refresh during typing.** If the URL is `replaceState`d on a debounce and the user refreshes mid-debounce, they get the pre-debounce URL. Acceptable — at most they lose the last ~250ms of typing.
 - **Multi-input encoding.** Tools with multiple inputs (regex with min-length, anagram with bank letters) need a value-internal delimiter or named subkeys. Deferred to the first such tool — owned by `tools.md`.

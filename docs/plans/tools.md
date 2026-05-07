@@ -20,8 +20,7 @@ The main pane is a **tool stack** above a virtual-scrolled results table. Each t
 
 ```
 ┌─────────────────────────────────────────────────┐
-│ Search       pattern: CAT                  [✕]  │
-│   then  Anagram     LINDSEY                [✕]  │
+│ Anagram      LINDSEY                       [✕]  │
 │   then  Search      pattern: DOG                │
 └─────────────────────────────────────────────────┘
 [ results table here ]
@@ -64,18 +63,14 @@ The user can scan descriptions and examples without clicking anything first — 
 
 **Every tool has a unique icon.** Aids scanning, learnability, and gives the gallery visual personality. Icons appear on cards in the rail and at the front of stack rows.
 
-**Two ways to use a card.**
+**Card click behavior.** Each card has two click targets:
 
-- *Click the card surface* → "use this tool." Replaces the user stack with just this tool. Stack becomes `[ThisTool, permSearch]`. The 98%-case gesture.
-- *Click the "+" badge on the card's right edge* → "add this tool to my pipeline." Appends to the bottom of the user stack, just above the permanent Search. Stack becomes `[...existing, ThisTool, permSearch]`. The 2%-case chaining gesture.
+- *Click the card surface* → "use this tool." Replaces the user stack with just this tool. Stack becomes `[ThisTool, permSearch]`. The 98%-case gesture. **Destructive when a multi-tool stack exists** — clears it down to just this tool. No confirm dialog; at most an undo toast. The 2%-case user knows to use `+`, and accidental loss is recoverable by rebuilding (live re-execution makes that fast).
+- *Click the "+" badge on the card's right edge* → "add this tool to my pipeline." Appends to the bottom of the user stack, just above the permanent Search. Stack becomes `[...existing, ThisTool, permSearch]`. The 2%-case chaining gesture. The `+` is **hover-revealed** — vertically centered on the right edge of the card, no visual presence at rest. Discoverability cost is accepted: chaining is a 2% feature, and the people who want it are the ones likely to mouse-explore. Position matches the dominant convention for hover-revealed secondary actions on row/tile UI (Spotify track rows, Apple Music, VS Code file-explorer hover actions, Linear issue rows). Tooltip: "Add to stack."
 
-The "+" is **hover-revealed** — vertically centered on the right edge of the card, no visual presence at rest. Discoverability cost is accepted: chaining is a 2% feature, and the people who want it are the ones likely to mouse-explore. Position matches the dominant convention for hover-revealed secondary actions on row/tile UI (Spotify track rows, Apple Music, VS Code file-explorer hover actions, Linear issue rows). Tooltip on the `+` itself: "Add to stack."
-
-**Pipeline order = click order = top-to-bottom.** First card clicked is first in the pipeline. To pre-filter an existing tool's input, the user starts over (clear, then click Search, then `+` the new tool). No prepend gesture.
+Pipeline order is click order, top-to-bottom. First card clicked is first in the pipeline. To pre-filter an existing tool's input, the user starts over (clear, then click Search, then `+` the new tool). No prepend gesture.
 
 **Active-card highlighting.** Cards whose tools appear in the user stack are visually marked active in the gallery. Communicates "these are the tools currently in your pipeline."
-
-**Card-surface click is destructive when a multi-tool stack exists** — clears the existing user stack down to just this tool. No confirm dialog. At most an undo toast. The 2%-case user knows to use `+`, and accidental loss is recoverable by rebuilding (live re-execution makes that fast).
 
 **X on the last user-tool row** collapses the stack to `[permSearch]` (the empty-stack state). Same state as never having clicked a tool. The hypothetical alternative — "always one tool active, X disabled on the last row" — was rejected as a footgun.
 
@@ -119,13 +114,11 @@ Download from tool results, pinned/favorite tools, any Grawlix-original tools th
 
 ## Grawlix-original tools
 
-Wordlisted parity is a floor, not a ceiling. This list will grow as construction needs surface — don't treat it as comprehensive.
+Wordlisted parity is a floor, not a ceiling. The candidates below are drawn from recurring construction workflows and all go beyond what Wordlisted offers. The list will grow as construction needs surface — don't treat it as comprehensive.
 
-Early candidates, drawn from recurring construction workflows:
-
-- **Phrase parsing** — parse a run-together entry into all possible word splittings (MOUNTAINGOAT → "MOUNTAIN GOAT"). Every constructor cares about this; Wordlisted has nothing like it. The naive approach produces a lot of junk (bad word breaks), so it needs design work before it's a good tool — scoring, frequency filtering, or some other noise reduction. Treat as a separate design conversation.
+- **Phrase parsing** — parse a run-together entry into all possible word splittings (MOUNTAINGOAT → "MOUNTAIN GOAT"). Every constructor cares about this. The naive approach produces a lot of junk (bad word breaks), so it needs design work before it's a good tool — scoring, frequency filtering, or some other noise reduction. Treat as a separate design conversation.
 - **Nested words** — find words where a valid inner word is inserted inside a valid outer word: MARI(JUAN)A. Both the outer shell and the inserted word must be real words. Stricter and more crossword-specific than Wordlisted's Kangaroo/Sandwich/Joey modes.
-- **Letter incrementing** — find word pairs where N letters each shift by one step in the alphabet (A→B, E→F, etc.). A very common crossword theme mechanism, nothing like it in Wordlisted.
+- **Letter incrementing** — find word pairs where N letters each shift by one step in the alphabet (A→B, E→F, etc.). A very common crossword theme mechanism.
 - **Anagram families** — show all mutual anagram groups in your wordlist (every cluster of 2+ words that are anagrams of each other), rather than finding anagrams of a given input word. Mining for theme material.
 - **Phrase-level alterations** — apply beheadments, curtailments, reversals, etc. to multi-word phrase parses of entries, not just the raw letter string. Wordlisted operates only on the run-together string.
 
@@ -142,9 +135,7 @@ Roget's Thesaurus (available as structured XML) enables meaning-based searches: 
 ## Related tools & future integrations
 
 ### OneLook / Datamuse (onelook.com, datamuse.com/api)
-OneLook indexes an enormous dataset of words and phrases from across the internet — Wikipedia, all major dictionaries, phrase dictionaries, idiom databases, proper nouns, and more. Far broader than any single wordlist.
-
-**Scale:** 16,965,772 entries across 805 dictionaries. Wikipedia, all major dictionaries, phrase dictionaries, idiom databases, proper nouns, and more.
+OneLook indexes an enormous dataset of words and phrases — Wikipedia, all major dictionaries, phrase dictionaries, idiom databases, proper nouns, and more. **Scale:** 16,965,772 entries across 805 dictionaries. Far broader than any single wordlist.
 
 **The integration path is their `/api/words?` endpoint** (parameters: `sp=` for spelling pattern, `ml=` for means-like). This appears to be the Datamuse API or very closely related — Datamuse is explicitly designed for programmatic access, no key required.
 
@@ -167,13 +158,9 @@ A crossword pattern-matching tool whose key differentiator over regex is a **var
 
 The help redesign (see `help.md`) will happen after the tool gallery is built — tool docs are not needed before then. During development, treat this document as the living record.
 
-**As each tool group ships:** add a note below summarizing what it does and anything a user would need to know that isn't obvious from the tool card itself. These notes become the raw material for the reference guide section and the welcome tour slide.
+**As each tool group ships:** add a note here summarizing what it does and anything a user would need to know that isn't obvious from the tool card itself. These notes become the raw material for the reference guide section and the welcome tour slide.
 
 **When the tool gallery is complete:** the welcome tour gains one or more slides after the current Slide 4 (Searching), and the reference guide gains a tool-gallery section. `help.md` already anticipates this expansion.
-
-### Running help notes
-
-*(Add notes here as tools are implemented.)*
 
 ---
 
@@ -195,17 +182,8 @@ Default-loose is probably right for v1; promote to column-specific only if usage
 
 - **OneLook integration:** What does their API look like, and what arrangement does XWordInfo have with them?
 - **Phonetics & thesaurus data:** How are the CMU dict and Roget XML bundled or fetched? Static assets, CDN, or runtime fetch?
+- **Structured vs. unstructured output for chaining.** Distinct from the *display* question above — this is about how outputs are typed when one tool feeds the next. The visible row stack raises the bar: when a user *sees* `Anagram of LINDSEY → then Beheadment` written out, they expect Beheadment to operate on each anagram word, not on text lines. The unstructured version is harder to defend than it was when chaining was an invisible "refine" mode. Two directions in tension:
+  - *Unstructured (Unix-style):* Word pairs are just text lines like `SLING -> LING`. Filter tools (wildcard, regex) are universal — they grep against whatever text is present, so a wildcard search on pair results matches against both words simultaneously. Simple, no type system needed.
+  - *Structured:* Tools declare typed outputs (word-list, word-pairs, word-groups). Transform tools (anagram, beheadment) operate on individual words, not on `SLING -> LING` as a string. More powerful but requires a type system and some notion of "extract words from this output before passing to next tool."
 
----
-
-## Brainstorming
-
-### Structured vs. unstructured output
-
-The visible row stack raises the bar here: when a user *sees* `Anagram of LINDSEY → then Beheadment` written out, they expect Beheadment to operate on each anagram word — not on text lines. The unstructured version is harder to defend than it was when chaining was an invisible "refine" mode.
-
-Two directions in tension:
-- *Unstructured (Unix-style):* Word pairs are just text lines like `SLING -> LING`. Filter tools (wildcard, regex) are universal — they grep against whatever text is present, so a wildcard search on pair results matches against both words simultaneously. Simple, no type system needed.
-- *Structured:* Tools declare typed outputs (word-list, word-pairs, word-groups). Transform tools (anagram, beheadment) operate on individual words, not on `SLING -> LING` as a string. More powerful but requires a type system and some notion of "extract words from this output before passing to next tool."
-
-Filter tools are probably universal either way. The question is really about transform tools chained onto pair/group outputs.
+  Filter tools are probably universal either way. The question is really about transform tools chained onto pair/group outputs.

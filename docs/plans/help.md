@@ -45,14 +45,12 @@ A manual for returning users who know the app and need to look something up. Ope
 #### Sections (figure out as we build)
 At minimum: search syntax and wildcards. Other candidates: rescore rules, My Edits, priority/merge behavior, download/sync (see `sync.md`).
 
-**Includes a "Take the quick tour →" link** near the top.
-
 ---
 
 ## Future growth
 
 A **tool gallery** is planned for active wordlist use — searching, filling, and theme/idea generation (anagrams, beheadments, curtailments, word splits, reversals, regex operations — Wordlisted-style features and Grawlix originals). See `tools.md` for the full plan.
 
-When the gallery ships, the tour needs **structural rework**, not just additions: lead with what users do daily — querying the merged wordlist and mining for ideas — and frame source/rule setup as the thing you do once and revisit occasionally. The current 4-slide structure (Problem → Solution → Payoff → Searching) is setup-centric and should be treated as a placeholder. Slide 1's scoring-incompatibility framing may still earn its keep, but the rest needs reworking around the new shape.
+When the gallery ships, the tour needs **structural rework**, not just additions. The current 4-slide structure (Problem → Solution → Payoff → Searching) is setup-centric; the new shape should lead with what users do daily — querying the merged wordlist and mining for ideas — and frame source/rule setup as the thing you do once and revisit occasionally. Slide 1's scoring-incompatibility framing may still earn its keep; the rest needs reworking.
 
 The reference guide also gains a tool-gallery section. No help content for these features needs to be built in advance.

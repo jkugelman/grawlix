@@ -8,7 +8,7 @@ Click a word → surface info about it from external sources (definitions, Wikip
 
 ## Why lookups matter
 
-**Differentially valuable for constructors using grid software without built-in lookup** — Crossfire and Crossword Compiler. Ingrid has Google integration, Crosserville has clue lookup, so those populations get lookup elsewhere. Grawlix-side lookups close the gap for the rest.
+Lookups are the gap-filler for the populations described in [`app.md`](app.md)'s "workspace and sidekick" framing — specifically constructors whose grid software lacks built-in lookup (Crossfire, Crossword Compiler). Ingrid has Google integration, Crosserville has clue lookup; those users already get lookup elsewhere.
 
 Beyond the grid-software gap, lookups serve Grawlix's own mining/research workflows: while filling or theme-generating, "what is this entry?" is a real question that comes up — and the **mobile theme-research-on-the-go scenario** (subway, Discord; see [`mobile.md`](mobile.md)) probably wants definitions and Wikipedia more than letter-pattern wordplay. Lookups may need more prominence on mobile than desktop.
 
@@ -39,11 +39,12 @@ To answer in the dedicated design session:
   - *Dedicated route / page* — full-screen lookup view; loses the in-context nature.
 - **Source roster for v1.** Which sources ship first?
 - **Trigger interaction.** Click a word, hover, dedicated affordance per row, keyboard shortcut on selection? The interaction model needs to coexist with inline cell editing — clicking a score or comment cell is already taken.
-- **Mobile.** Should mobile bias more strongly toward lookup-style features at the entry point? See [`mobile.md`](mobile.md) open questions.
 - **Latency / offline.** Lookups are network-dependent. What does Grawlix show for offline / slow / failed lookup? Where does loading state live?
+
+Mobile prominence is owned by [`mobile.md`](mobile.md) — it decides whether the mobile entry point biases toward lookup-style features.
 
 ---
 
 ## Phasing
 
-Owns its own design session, then its own implementation phase. Not a prerequisite for any current desktop work, and current desktop work is not a prerequisite for it. Mobile design lands first — partly because the mobile entry-point question depends on whether lookups are central or peripheral on the small screen.
+Owns its own design session, then its own implementation phase. Not a prerequisite for any current desktop work, and current desktop work is not a prerequisite for it. Mobile design lands first, since the entry-point question for mobile shapes how prominent lookups need to be there.

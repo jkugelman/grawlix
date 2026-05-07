@@ -123,7 +123,7 @@ Apply a regex replacement (first match, not global). Example: pattern `^..(.*)$`
 
 ---
 
-## Huh, neat
+## Curiosities
 
 ### Palindromes
 Words that read the same forwards and backwards. Example: RACECAR.

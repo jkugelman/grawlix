@@ -103,7 +103,7 @@ Keep it short. The user asking "what does installing do?" is on the fence — a 
 
 ## UI surfaces
 
-Sync lives in a dedicated **Sync & backup dialog**, opened by clicking the sync indicator in the header — a small status dot (green / spinner / red on error) paired with a "Last backup: Nd ago" nag that turns warning-colored when the gap exceeds the threshold. The dialog contains:
+Sync lives in a dedicated **Sync & backup dialog**, opened by clicking the sync indicator in the left rail — a small status dot (green / spinner / red on error) paired with a "Last backup: Nd ago" nag that turns warning-colored when the gap exceeds the threshold. The dialog contains:
 
 - Status of each tier (last backup, file linked, cloud connected) at a glance.
 - Manual backup buttons for `All` (the merged wordlist) and My Edits — the Tier 1 entry point. Clicking either bumps "Last backup" forward.
@@ -126,9 +126,14 @@ The dialog is distinct from **Manage sources** (see `app.md`): that one answers 
 
 ---
 
+## Multi-target convergence
+
+If a user has Tier 2 (disk) and Tier 3 (Dropbox) both syncing My Edits, the two targets need to stay in sync with each other, not just with the local copy. The likely shape is per-target last-synced snapshots with pairwise merge on every sync event — same conflict-resolution rules as the multi-device case, applied across targets instead of devices. Needs to be worked out before sync ships, since shipping a single-target version and bolting on multi-target later risks state-shape changes that break existing users.
+
+---
+
 ## Open questions
 
-- **Multiple sync targets pointing at the same logical file.** If a user has Tier 2 (disk) and Tier 3 (Dropbox) both syncing My Edits, they need to converge. Probably per-target last-synced snapshots with pairwise merge on every sync event. Worth working out before this ships.
 - **Auto-download cadence default.** Off entirely (manual nag only)? Daily? Per-session-with-changes? Probably configurable, but what's the default?
 - **GitHub as a Tier 3 option.** Power users would love it (free version history, diffs, PRs against your own wordlist). Defer past v1.
 - **Encryption at rest.** Cloud providers see plaintext wordlists. For most users this is fine — wordlists aren't sensitive. Optional client-side encryption is a future possibility but adds significant complexity for marginal benefit.

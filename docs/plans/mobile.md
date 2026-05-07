@@ -19,9 +19,8 @@ This isn't "responsive fallback" or polite degradation — it's a primary use ca
 ## Settled
 
 - **Mobile support will be built**, not declined.
-- **Wordlisted-shape on mobile** — empty canvas at idle, hero input near the top, results scroll below. No persistent left rail (it doesn't fit on a phone), no tool stack metaphor (chaining is already a 2% feature on desktop and effectively absent on mobile).
+- **Wordlisted-shape on mobile** — empty canvas at idle, hero input near the top, results scroll below. No persistent left rail (it doesn't fit on a phone), no tool stack metaphor — single tool at a time, with chaining likely cut entirely (confirm at design time).
 - **Different shape from desktop is acceptable.** The desktop's always-visible-table principle does not transfer — mobile lands the user on a hero input with no results until they engage, which is conceptually different from desktop.
-- **Stacking probably goes away on mobile** — single tool only. Confirm at design time.
 - **Tool picker + search are likely the two primary affordances** at the entry point, though their layout is open.
 - **No separate tablet design.** Tablets are handled by a width-based responsive breakpoint (~900px or wherever the desktop rail starts feeling cramped):
   - ≥ breakpoint → desktop layout
@@ -41,18 +40,13 @@ To answer in the dedicated mobile design session:
 - **Lookups on mobile.** The subway/Discord scenario probably wants definitions, Wikipedia, NYT crossword history more than letter-pattern wordplay. Should the mobile entry point bias toward lookup-style features? Or does lookup live as one tool category alongside the others?
 - **My Edits / curation on mobile.** Is editing scores and comments part of the mobile use case, or strictly read-only mining? Filling-side rescoring on desktop is a sidekick gesture; on mobile, the surrounding context (filling at a desk) usually doesn't apply.
 - **Source dropdown on mobile.** No rail means no obvious place for the Wordlist section's source dropdown + sync indicator. Header? In-page section? Hidden behind a settings affordance since most users won't switch sources often?
-- **Manage sources / Sync & backup dialogs on mobile.** Today these are desktop modals. On mobile they'd presumably go full-screen — at which point they're effectively routes. Worth revisiting "Setup as routes" specifically for mobile (see `app.md` and the brainstorm "Parked ideas").
-- **Width breakpoint number.** Mechanical, decide at build time when the layouts are visible side by side.
+- **Manage sources / Sync & backup dialogs on mobile.** Today these are desktop modals. On mobile they'd presumably go full-screen — at which point they're effectively routes. Worth revisiting "Setup as routes" specifically for mobile — see [`app.md`](app.md) "Held on deck: setup as routes."
 
 ---
 
 ## Anti-features
 
-These are explicitly *not* mobile concerns based on what we've already settled:
-
-- **Separate tablet design** — no.
-- **State persistence for in-progress mining** — no, on desktop or mobile.
-- **Cross-list comparison** — no, on either platform.
+Mobile inherits the project-level non-features from [`app.md`](app.md) (no mining-state persistence, no cross-list comparison, etc.). One mobile-specific addition: **no separate tablet design** — tablets fall on one side or the other of the responsive breakpoint, per "Settled" above.
 
 ---
 
