@@ -8,6 +8,12 @@ Inspiration: [Wordlisted](https://aaronson.org/wordlisted/) by Adam Aaronson. Se
 
 ---
 
+## Goal
+
+The tool gallery is where Grawlix's [project goal](../../README.md#goals) — democratize wordlist manipulation — does most of its work. Constructors who program can write Python to anagram, behead, phonetic-substitute, semantic-filter, etc. against their wordlists. The gallery's job is to put those moves in non-programmers' hands. Useful filter when evaluating a candidate tool: *would a programmer reach for this often enough to write a script?* If yes, it probably belongs.
+
+---
+
 ## Tool stack & gallery UI
 
 The main pane is a **tool stack** above a virtual-scrolled results table. Each tool the user has added gets one row in the stack:

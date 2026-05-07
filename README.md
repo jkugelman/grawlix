@@ -12,6 +12,10 @@ Grawlix lets you pull in wordlists from multiple sources, normalize their scores
 
 It also doubles as a search tool while you're constructing: filter by substring, pattern, score, and more to quickly find the best word for a tricky slot.
 
+## Goals
+
+**Democratize wordlist manipulation.** Constructors who program can write Python to mine their wordlists for theme material, surface unusual letter patterns, generate phonetic substitutions, and so on. Constructors who don't program get to use whatever tools someone else has built. [Wordlisted](https://aaronson.org/wordlisted/) made a big stride toward closing that gap by putting fancy tools in the hands of non-programmers; Grawlix continues the work — with a broader tool set, scored results, and rescoring on top.
+
 ## Features
 
 **Known publishers** for four popular wordlists — one-click setup with sensible default rescore rules:
