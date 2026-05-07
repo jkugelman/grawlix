@@ -12,7 +12,8 @@ manual; for now it's a Markdown file.
 **Header.** Title, settings, help.
 
 **Left rail.** Two labelled sections:
-- **Wordlist** — the wordlist picker (dropdown) and the sync indicator.
+- **Wordlist** — the wordlist picker (dropdown), the wordlist settings button,
+  and the sync indicator.
 - **Tools** — the tool gallery.
 
 **Main pane.** Stats bar plus the wordlist table. The table is always
@@ -24,11 +25,12 @@ The wordlist dropdown sits at the top of the left rail.
 
 - The first entry is **All** — the merged result of every enabled wordlist
   with rescore rules applied.
-- Below it: every individual wordlist in the order shown in Manage
-  wordlists. My Edits sits at the top (created automatically on first boot).
-- The footer entry **⚙ Manage wordlists…** opens the Manage wordlists
-  dialog.
+- Below it: every individual wordlist in the order shown in the Wordlists
+  dialog. My Edits sits at the top (created automatically on first boot).
 - Keyboard: **Alt+L** opens the dropdown and focuses the current selection.
+
+The icon button to the right of the dropdown opens the **Wordlists** dialog
+(see below).
 
 On launch — including first run — you land on **All**. The four publisher
 wordlists fetch automatically in the background, so you can start searching
@@ -68,7 +70,7 @@ From the My Edits view you can:
 My Edits also carries your **scoring rules** — your tier labels for the
 unified score scale (e.g. "60 = great, 50 = good, …"). The merged All view
 shows them as a read/write legend above the table; the canonical edit
-surface is My Edits in Manage wordlists.
+surface is My Edits in the Wordlists dialog.
 
 ## Score tiers
 
@@ -76,9 +78,10 @@ Defaults: **great** (≥60), **good** (≥50), **fair** (≥40), **meh**
 (≥30), **bad** (<30). Score badges color by tier. Customize tier labels
 via My Edits' scoring rules.
 
-## Manage wordlists
+## Wordlists
 
-Two-pane dialog opened from the wordlist dropdown's footer.
+Two-pane dialog opened from the wordlist settings button (the icon to the
+right of the wordlist dropdown).
 
 **Left rail** lists every wordlist with a drag handle (reorder = merge
 priority), an enable checkbox, and the wordlist's name. New wordlists are
@@ -102,10 +105,10 @@ word-length filter) to an output score — or `ignore` to drop the entry.
 First matching rule wins; a catch-all is auto-appended. My Edits has no
 rescore rules; its scores pass through.
 
-**Onboarding banner.** First-run users see a notice in the Manage wordlists
-rail explaining that the popular wordlists have been pre-loaded with
-suggested rules. *Sounds good* dismisses; *No thanks* wipes the pre-loaded
-publishers.
+**Onboarding banner.** First-run users see a notice in the Wordlists
+dialog's rail explaining that the popular wordlists have been pre-loaded
+with suggested rules. *Sounds good* dismisses; *No thanks* wipes the
+pre-loaded publishers.
 
 ## Sync & backup
 
@@ -116,7 +119,7 @@ until there's a backup to report.
 Two paths to "give me a file":
 - Backing up **All** or **My Edits** → Sync & backup dialog.
 - Exporting an **individual wordlist** → that wordlist's Download button in
-  Manage wordlists.
+  the Wordlists dialog.
 
 ## Help
 

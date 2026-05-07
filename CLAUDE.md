@@ -36,7 +36,7 @@ WORD;SCORE;COMMENT
 
 **Rescore rules** (per source) map an input score range + optional word-length filter to an output score (or `'ignore'` to drop the entry). First matching rule wins; a catch-all is auto-appended. My Edits has no rescore rules — its scores pass through unchanged.
 
-**Scoring rules** (My Edits' `scoring` field) are the user's tier labels for the unified score scale: a single source of truth for what each score range means to them. Edited from My Edits' Manage wordlists right pane; surfaced as a read/write legend on the merged All view too. The catch-all auto-row reflects scores present in the merged view that aren't covered by any rule.
+**Scoring rules** (My Edits' `scoring` field) are the user's tier labels for the unified score scale: a single source of truth for what each score range means to them. Edited from My Edits' right pane in the Wordlists dialog; surfaced as a read/write legend on the merged All view too. The catch-all auto-row reflects scores present in the merged view that aren't covered by any rule.
 
 ## Persistence
 
@@ -61,7 +61,7 @@ WORD;SCORE;COMMENT
 
 **Virtual scroller** — `VirtualScroller` renders only visible rows. Row height is fixed.
 
-**Event delegation** — wordlist card interactions (click, keydown, change, drag) use delegated listeners on the Manage wordlists rail (`#ms-rail-wordlist`). At render time, the rail sets `card._wordlist = wordlist` on each `.wordlist-card[data-wordlist]` DOM element. Handlers retrieve the wordlist via `e.target.closest('.wordlist-card[data-wordlist]')._wordlist`. No wordlist ID or `dbKey` appears in HTML attributes.
+**Event delegation** — wordlist card interactions (click, keydown, change, drag) use delegated listeners on the Wordlists dialog's rail (`#wld-rail-wordlist`). At render time, the rail sets `card._wordlist = wordlist` on each `.wordlist-card[data-wordlist]` DOM element. Handlers retrieve the wordlist via `e.target.closest('.wordlist-card[data-wordlist]')._wordlist`. No wordlist ID or `dbKey` appears in HTML attributes.
 
 ## CSS custom properties
 

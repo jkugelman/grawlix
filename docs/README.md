@@ -13,12 +13,11 @@
 ## Top level
 
 - [design.md](design.md) — UI shape and architecture: header, left rail
-  with wordlist picker and tool-gallery slot, main pane, Manage wordlists
-  dialog (full), Sync & backup dialog (stub), URL state plan, open
-  questions.
+  with wordlist picker and tool-gallery slot, main pane, Wordlists dialog
+  (full), Sync & backup dialog (stub), URL state plan, open questions.
 - [manual.md](manual.md) — user-facing manual: the app shell, choosing a
-  wordlist, search syntax, inline editing, My Edits, score tiers, Manage
-  wordlists, Sync & backup, file format.
+  wordlist, search syntax, inline editing, My Edits, score tiers, the
+  Wordlists dialog, Sync & backup, file format.
 - [wordlisted.md](wordlisted.md) — reference catalogue of Wordlisted's
   search modes. External-system documentation rather than a Grawlix
   feature record; lives here as the source material for the tool gallery

@@ -63,7 +63,10 @@ same thing. Not collapsible.
 
 **Wordlist dropdown** is a *pure picker*. Each entry is icon + name only —
 no entry counts. No drag handles, enable toggles, or add-wordlist
-affordance; those live one click deeper in Manage wordlists.
+affordance; those live one click deeper in the Wordlists dialog. The
+dialog is opened by the icon-only **wordlist settings** button to the
+right of the dropdown — pulled out of the dropdown's footer so the
+manage entry point is always visible without expanding the picker.
 
 **Sync indicator** is hidden until there's a backup to report. Today
 that's always — Sync & backup is a stub (see [`plans/sync.md`](plans/sync.md)
@@ -95,12 +98,12 @@ directly under the stats.
 Two dialogs cover all setup. They answer different questions and stay
 distinct:
 
-- **Manage wordlists** — what wordlists do I have, in what order, with
-  what rules.
+- **Wordlists** — what wordlists do I have, in what order, with what
+  rules.
 - **Sync & backup** — how is my data being preserved across time and
   devices.
 
-### Manage wordlists
+### Wordlists
 
 Two-pane layout (rail + action row + stats + rule editor).
 
@@ -120,18 +123,19 @@ menu. Only the contents differ per wordlist type.
 Configure wordlist (in a wordlist's ⋮ menu) is the secondary path. No
 Rename in the kebab menu — the F2 affordance is enough.
 
-**Rescoring lives entirely inside Manage wordlists**; it doesn't appear on
-the main screen. Rules are detail config, typically set once when adding a
-wordlist and rarely revisited; they don't earn persistent real estate next
-to the wordlist view.
+**Rescoring lives entirely inside the Wordlists dialog**; it doesn't
+appear on the main screen. Rules are detail config, typically set once
+when adding a wordlist and rarely revisited; they don't earn persistent
+real estate next to the wordlist view.
 
 **Scoring rules** (My Edits' tier labels) are the user's single notion of
 what each score range means — there is no separate "output" tier system.
 The merged All view shows them as a read/write legend above its table for
-convenience, but the canonical edit surface is My Edits in Manage wordlists.
+convenience, but the canonical edit surface is My Edits in the Wordlists
+dialog.
 
-**Onboarding banner** lives only inside Manage wordlists — there's no
-auto-popup on the main view. Users who never open Manage wordlists never
+**Onboarding banner** lives only inside the Wordlists dialog — there's
+no auto-popup on the main view. Users who never open the dialog never
 see it; the defaults are sensible enough that this is fine.
 
 ### Sync & backup
@@ -146,7 +150,7 @@ gated on PWA install (Tier 2), recent activity log.
 - **All** or **My Edits** → Sync & backup dialog (it's a backup, not just
   a save — clicking the download will bump the "Last backup" timestamp
   once Tier 1 lands).
-- **Any individual wordlist** → Manage wordlists dialog → that wordlist's
+- **Any individual wordlist** → Wordlists dialog → that wordlist's
   Download button (it's an export of one rescored wordlist). Rare;
   doesn't warrant header chrome.
 
@@ -162,8 +166,8 @@ UI and is out of date with the current shell — a redesign is planned in
 
 The plan: the tool stack will be encoded as the query string
 (`?anagram=LINDSEY&search=DOG&score=40+`) using `replaceState`, so any
-stack configuration can be bookmarked or shared. Dialogs (Manage
-wordlists, Sync & backup, settings, help) are *not* URL-addressable;
+stack configuration can be bookmarked or shared. Dialogs (Wordlists,
+Sync & backup, settings, help) are *not* URL-addressable;
 they're transient UI state. The selected wordlist from the dropdown is
 local-only — links don't pretend the recipient has the same wordlists
 loaded.
@@ -174,12 +178,12 @@ This is **not yet wired** — there's no tool stack to encode. Lands with
 
 ## Open questions
 
-### Fold "Configure wordlist" into Manage wordlists
+### Fold "Configure wordlist" into the Wordlists dialog
 
 Today, a wordlist's kebab menu's "Configure wordlist" opens a separate
 `ConfigureWordlistDialog` for icon, name, URL, publisher, and rule
 application — a second drill-down on top of a configuration page. That
-doesn't make sense; Manage wordlists is already where you configure
+doesn't make sense; the Wordlists dialog is already where you configure
 things. The right pane should expose those fields directly (or in a
 collapsible "advanced" block) so there's no nested dialog.
 

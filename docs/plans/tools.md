@@ -90,7 +90,7 @@ Default filename describes the stack: `grawlix-search-DOG.txt`, `grawlix-anagram
 
 Format follows the tool's natural output shape — for plain word lists, the standard `WORD;SCORE[;COMMENT]` used elsewhere. Pair / group outputs need their own format design; deferred until those tools land. See *Output formats* below.
 
-This is a third "give me a file" path alongside the two existing ones (All/My Edits via Sync & backup, individual wordlist via Manage wordlists). It's distinct because the file isn't a backup or a wordlist export — it's a snapshot of the current view, usually filtered or transformed. Implementation lands with Phase 3 (`Download from tool results`).
+This is a third "give me a file" path alongside the two existing ones (All/My Edits via Sync & backup, individual wordlist via the Wordlists dialog). It's distinct because the file isn't a backup or a wordlist export — it's a snapshot of the current view, usually filtered or transformed. Implementation lands with Phase 3 (`Download from tool results`).
 
 ---
 
