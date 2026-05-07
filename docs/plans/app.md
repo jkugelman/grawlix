@@ -62,6 +62,8 @@ Two dialogs cover all setup:
 
 **Manage sources** — opened from the source dropdown footer. Two-pane layout: a left rail listing every source with drag handle (reorder = merge priority), enable checkbox, and name; a right pane showing the focused source's stats, action buttons (download, refetch, more), and rescore rule editor. New lists are added here too, via a `+ Add list…` entry at the bottom of the left rail. My Edits has no rules section (scores pass through).
 
+Rescoring lives entirely inside Manage sources — it doesn't appear on the main screen. Rules are detail config, typically set once when adding a list and rarely revisited; they don't earn persistent real estate next to the wordlist view.
+
 **Sync & backup** — opened from the left-rail sync indicator. See `sync.md` for the full design. Key affordances: prominent "Download All" and "Download My Edits" buttons (Tier 1 manual backup), per-cloud-provider connect/disconnect (Tier 3), disk-sync section gated on PWA install (Tier 2), recent activity log.
 
 The two dialogs answer different questions and stay distinct:
