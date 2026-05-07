@@ -30,7 +30,7 @@ The main pane is a **tool stack** above a virtual-scrolled results table. Each t
 
 **Live result filtering**, by contrast, is normal use. Getting a thousand anagrams and live-filtering them down to ones containing a substring is everyday, not a power gesture. The permanent bottom Search row exists for exactly this — it's the result filter for whatever tool is active above it.
 
-Each row carries the tool's name, its input fields (if any), and an X to remove. Row order is pipeline order — each row's output feeds the next. The first row reads from whichever source is selected in the left rail dropdown (`All` by default); subsequent rows transform the previous row's results. The results table shows the output of the bottom row. A small `then` prefix on rows 2+ makes the sequencing explicit; row 1 has no prefix.
+Each row carries the tool's name, its input fields (if any), and an X to remove. Row order is pipeline order — each row's output feeds the next. The first row reads from whichever wordlist is selected in the left rail dropdown (`All` by default); subsequent rows transform the previous row's results. The results table shows the output of the bottom row. A small `then` prefix on rows 2+ makes the sequencing explicit; row 1 has no prefix.
 
 **The bottom row is always a Search row** — permanent, no X, can't be removed or reordered. This makes the everyday "type and look" use case immediate (just type) and gives Search a stable keyboard target (**Alt-S** focuses it). Search is also in the gallery as an addable tool, so a user can prepend a Search row above a transform: `Search → Anagram → [permanent Search]` pre-filters the input, transforms, and filters the output. Two Search rows aren't redundant when there's a transform between them.
 
@@ -90,7 +90,7 @@ Default filename describes the stack: `grawlix-search-DOG.txt`, `grawlix-anagram
 
 Format follows the tool's natural output shape — for plain word lists, the standard `WORD;SCORE[;COMMENT]` used elsewhere. Pair / group outputs need their own format design; deferred until those tools land. See *Output formats* below.
 
-This is a third "give me a file" path alongside the two in `../designs/app.md` (All/My Edits via Sync & backup, individual source via Manage sources). It's distinct because the file isn't a backup or a source export — it's a snapshot of the current view, usually filtered or transformed. Implementation lands with Phase 3 (`Download from tool results`).
+This is a third "give me a file" path alongside the two in `../designs/app.md` (All/My Edits via Sync & backup, individual wordlist via Manage wordlists). It's distinct because the file isn't a backup or a wordlist export — it's a snapshot of the current view, usually filtered or transformed. Implementation lands with Phase 3 (`Download from tool results`).
 
 ---
 

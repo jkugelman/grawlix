@@ -39,8 +39,8 @@ To answer in the dedicated mobile design session:
 - **Entry point layout.** What does a mobile user see on first load? Tool picker plus search are probably the two main things, but their relative prominence and layout is open. Hero input with a tool-picker button next to it? Tool picker overlay first, then input?
 - **Lookups on mobile.** The subway/Discord scenario probably wants definitions, Wikipedia, NYT crossword history more than letter-pattern wordplay. Should the mobile entry point bias toward lookup-style features? Or does lookup live as one tool category alongside the others?
 - **My Edits / curation on mobile.** Is editing scores and comments part of the mobile use case, or strictly read-only mining? Filling-side rescoring on desktop is a sidekick gesture; on mobile, the surrounding context (filling at a desk) usually doesn't apply.
-- **Source dropdown on mobile.** No rail means no obvious place for the Wordlist section's source dropdown + sync indicator. Header? In-page section? Hidden behind a settings affordance since most users won't switch sources often?
-- **Manage sources / Sync & backup dialogs on mobile.** Today these are desktop modals. On mobile they'd presumably go full-screen — at which point they're effectively routes. Worth revisiting "Setup as routes" specifically for mobile — see [`app.md`](../designs/app.md) "Open: setup as routes."
+- **Wordlist dropdown on mobile.** No rail means no obvious place for the Wordlist section's dropdown + sync indicator. Header? In-page section? Hidden behind a settings affordance since most users won't switch wordlists often?
+- **Manage wordlists / Sync & backup dialogs on mobile.** Today these are desktop modals. On mobile they'd presumably go full-screen — at which point they're effectively routes. Worth revisiting "Setup as routes" specifically for mobile — see [`app.md`](../designs/app.md) "Open: setup as routes."
 
 ---
 
@@ -52,4 +52,4 @@ Mobile inherits the project-level non-features from [`app.md`](../designs/app.md
 
 ## Phasing
 
-Mobile will be its own design session, then its own implementation phase. It's not a prerequisite for any current desktop work, and current desktop work is not a prerequisite for it — they can proceed in parallel once the desktop shell is far enough along to lock in the shared model (sources, rescore rules, My Edits, persistence). Touch-accommodation audit on the desktop layout happens between desktop polish and mobile build.
+Mobile will be its own design session, then its own implementation phase. It's not a prerequisite for any current desktop work, and current desktop work is not a prerequisite for it — they can proceed in parallel once the desktop shell is far enough along to lock in the shared model (wordlists, rescore rules, My Edits, persistence). Touch-accommodation audit on the desktop layout happens between desktop polish and mobile build.

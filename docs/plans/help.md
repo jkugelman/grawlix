@@ -22,7 +22,7 @@ Lead with the pain: popular wordlists use incompatible scoring scales. Make this
 Add lists, apply rescore rules to normalize them, merge. This absorbs what are currently two slides ("Building Your Wordlist" and "Making It Yours"). Keep it brief — the rescore and My Edits concepts don't need deep treatment here, just enough to convey the idea. Animated demo appropriate.
 
 **Slide 3 — The Payoff**  
-Download your wordlist (or sync it — see `sync.md`). This is the end goal of the wordlist-management use case. Dedicated slide, not mixed with search. Animated demo appropriate. Default output is two files (merged sources + My Edits separately) to fit constructor workflow; the slide should convey *getting your data out* without dwelling on file-format details.
+Download your wordlist (or sync it — see `sync.md`). This is the end goal of the wordlist-management use case. Dedicated slide, not mixed with search. Animated demo appropriate. Default output is two files (merged wordlists + My Edits separately) to fit constructor workflow; the slide should convey *getting your data out* without dwelling on file-format details.
 
 **Slide 4 — Searching**  
 Search as a construction aid: filter by substring, score, patterns. Revert to the pre-wildcard version of this slide — short description plus the animated demo (the coolest demo so far). No wildcard reference table here; that belongs in the reference. This slide is a placeholder for a future cluster of slides covering more advanced wordlist manipulation (anagrams, beheadments, reversals, etc.) — keep it humble and open-ended.
@@ -51,6 +51,6 @@ At minimum: search syntax and wildcards. Other candidates: rescore rules, My Edi
 
 A **tool gallery** is planned for active wordlist use — searching, filling, and theme/idea generation (anagrams, beheadments, curtailments, word splits, reversals, regex operations — Wordlisted-style features and Grawlix originals). See `tools.md` for the full plan.
 
-When the gallery ships, the tour needs **structural rework**, not just additions. The current 4-slide structure (Problem → Solution → Payoff → Searching) is setup-centric; the new shape should lead with what users do daily — querying the merged wordlist and mining for ideas — and frame source/rule setup as the thing you do once and revisit occasionally. Slide 1's scoring-incompatibility framing may still earn its keep; the rest needs reworking.
+When the gallery ships, the tour needs **structural rework**, not just additions. The current 4-slide structure (Problem → Solution → Payoff → Searching) is setup-centric; the new shape should lead with what users do daily — querying the merged wordlist and mining for ideas — and frame wordlist/rule setup as the thing you do once and revisit occasionally. Slide 1's scoring-incompatibility framing may still earn its keep; the rest needs reworking.
 
 The reference guide also gains a tool-gallery section. No help content for these features needs to be built in advance.

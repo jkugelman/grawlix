@@ -36,7 +36,7 @@ WORD;SCORE;COMMENT
 
 **Rescore rules** (per source) map an input score range + optional word-length filter to an output score (or `'ignore'` to drop the entry). First matching rule wins; a catch-all is auto-appended. My Edits has no rescore rules — its scores pass through unchanged.
 
-**Scoring rules** (My Edits' `scoring` field) are the user's tier labels for the unified score scale: a single source of truth for what each score range means to them. Edited from My Edits' Manage Sources right pane; surfaced as a read/write legend on the merged All view too. The catch-all auto-row reflects scores present in the merged view that aren't covered by any rule.
+**Scoring rules** (My Edits' `scoring` field) are the user's tier labels for the unified score scale: a single source of truth for what each score range means to them. Edited from My Edits' Manage wordlists right pane; surfaced as a read/write legend on the merged All view too. The catch-all auto-row reflects scores present in the merged view that aren't covered by any rule.
 
 ## Persistence
 
@@ -51,9 +51,9 @@ WORD;SCORE;COMMENT
 
 **My Edits** — a special list created automatically on first boot, identified by `list.type === 'edits'`. It has no rescore rules (scores pass through as-is) but does carry the user's `scoring` (tier labels). Clicking a score or comment cell in any view opens an inline editor; saving upserts the entry into My Edits. From the My Edits view the user can also add new words and delete entries (with undo). It is reorderable like any other list (position determines merge priority). The UI enforces: not deletable, always enabled.
 
-**Override and rescore display** — When viewing a source, score and comment cells always show the *effective* value (what actually appears in the merged output), not the raw value from that list. A red superscript asterisk (`*`) indicates the displayed value differs from what the list itself contains. An instant HTML popover (`#cell-popover`) explains why: the original score for rescored entries, or the overriding list's name for overrides. Both conditions can apply simultaneously. The overrideMap (built by `buildOverrideMap`) stores `{ listName, score, comment }` from the highest-priority list above the current one; a comment override only applies when that list has a non-empty comment. Editing an overridden cell pre-fills the input with the effective value (not the raw value) so the user is editing what actually matters — the result always lands in My Edits regardless.
+**Override and rescore display** — When viewing a wordlist, score and comment cells always show the *effective* value (what actually appears in the merged output), not the raw value from that list. A red superscript asterisk (`*`) indicates the displayed value differs from what the list itself contains. An instant HTML popover (`#cell-popover`) explains why: the original score for rescored entries, or the overriding list's name for overrides. Both conditions can apply simultaneously. The overrideMap (built by `buildOverrideMap`) stores `{ listName, score, comment }` from the highest-priority list above the current one; a comment override only applies when that list has a non-empty comment. Editing an overridden cell pre-fills the input with the effective value (not the raw value) so the user is editing what actually matters — the result always lands in My Edits regardless.
 
-**Merged list** — `MERGED_ID = '__merged__'` selects a union of all enabled sources, deduped by word. The highest rescored value wins; losers are shown faded with a tooltip. Displayed as `All` (the value of `MERGED_NAME`) at the top of the source dropdown in the left rail's Wordlist section.
+**Merged list** — `MERGED_ID = '__merged__'` selects a union of all enabled sources, deduped by word. The highest rescored value wins; losers are shown faded with a tooltip. Displayed as `All` (the value of `MERGED_NAME`) at the top of the wordlist dropdown in the left rail's Wordlist section.
 
 **Score tiers** — `great` (≥60), `good` (≥50), `fair` (≥40), `meh` (≥30), `bad` (<30). Drive score badge colors via `data-tier` and `--score-{tier}-{bg,fg}` CSS vars.
 
@@ -61,7 +61,7 @@ WORD;SCORE;COMMENT
 
 **Virtual scroller** — `VirtualScroller` renders only visible rows. Row height is fixed.
 
-**Event delegation** — list card interactions (click, keydown, change, drag) use delegated listeners on the Manage Sources rail (`#ms-rail-list`). At render time, the rail sets `card._list = list` on each `.list-card[data-list]` DOM element. Handlers retrieve the list via `e.target.closest('.list-card[data-list]')._list`. No list ID or `dbKey` appears in HTML attributes.
+**Event delegation** — list card interactions (click, keydown, change, drag) use delegated listeners on the Manage wordlists rail (`#ms-rail-list`). At render time, the rail sets `card._list = list` on each `.list-card[data-list]` DOM element. Handlers retrieve the list via `e.target.closest('.list-card[data-list]')._list`. No list ID or `dbKey` appears in HTML attributes.
 
 ## CSS custom properties
 

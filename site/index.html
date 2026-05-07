@@ -1296,7 +1296,7 @@ function buildWordRowHTML(word, score, { comment = '', highlight = '' } = {}) {
 // lists: [{ icon, name, meta, enabled }]
 function buildListSidebarHTML(lists, mergedMeta = '47,000 entries') {
   return buildListCardHTML(MERGED_ICON, MERGED_NAME, mergedMeta, { isMerged: true })
-    + `<div class="help-mini-section">Sources (${lists.length})</div>`
+    + `<div class="help-mini-section">Wordlists (${lists.length})</div>`
     + lists.map(({ icon, name, meta, enabled = true }) =>
         buildListCardHTML(icon, name, meta, { enabled })
       ).join('');
@@ -1710,7 +1710,7 @@ const ManageSourcesDialog = (() => {
   enableDismissClicks(el);
   el.innerHTML = `
     <div class="ms-header">
-      <h2 id="manage-sources-title">Manage sources</h2>
+      <h2 id="manage-sources-title">Manage wordlists</h2>
       <button class="dialog-close-btn" aria-label="Close">✕</button>
     </div>
     <div class="ms-body">
@@ -1797,7 +1797,7 @@ const ManageSourcesDialog = (() => {
   function renderPane() {
     if (_dateTimer) { clearInterval(_dateTimer); _dateTimer = null; }
     if (!_focusedList) {
-      pane.innerHTML = '<div class="ms-pane-empty">Select a source to configure</div>';
+      pane.innerHTML = '<div class="ms-pane-empty">Select a wordlist to configure</div>';
       return;
     }
     const list = _focusedList;
@@ -2133,7 +2133,7 @@ const SourceDropdown = (() => {
       parts.push(`<div class="dropdown-item${sel ? ' selected' : ''}${list.enabled ? '' : ' disabled'}" data-list role="menuitem" tabindex="0">${getListIcon(list)}<span>${esc(list.name)}</span></div>`);
     });
     parts.push(`<div class="dropdown-divider"></div>`);
-    parts.push(`<button class="dropdown-footer" data-action="manage" type="button">⚙ Manage sources…</button>`);
+    parts.push(`<button class="dropdown-footer" data-action="manage" type="button">⚙ Manage wordlists…</button>`);
 
     menu.innerHTML = parts.join('');
 
@@ -2672,7 +2672,7 @@ class VirtualScroller {
   }
 
   _buildHeader() {
-    const LABELS = { length: 'Len', word: 'Word', score: 'Score', comment: 'Comment', source: 'Source', delete: '' };
+    const LABELS = { length: 'Len', word: 'Word', score: 'Score', comment: 'Comment', source: 'Wordlist', delete: '' };
     const ALIGN  = { length: 'right', word: 'left', score: 'left', comment: 'left', source: 'left', delete: 'center' };
     const cols = this._cols();
     this._currentCols = cols;
@@ -3381,7 +3381,7 @@ function renderDetail(list) {
   _dateTimer = null;
 
   if (!list) {
-    panel.innerHTML = '<div class="no-selection"><p>No list selected</p><small>Pick a list from the source dropdown</small></div>';
+    panel.innerHTML = '<div class="no-selection"><p>No list selected</p><small>Pick a list from the Wordlist dropdown</small></div>';
     scroller = null;
     return;
   }
@@ -5177,15 +5177,15 @@ const HelpModal = (() => {
 
         <div class="help-slide" id="help-slide-1">
           <h2>Building Your Wordlist</h2>
-          <p>Click <strong>Add list</strong> to add from a known publisher, import a file, or set up a URL feed. Use the ⋮ menu on any list to configure its name, icon, publisher, source, or rescoring rules.</p>
+          <p>Click <strong>Add list</strong> to add from a known publisher, import a file, or set up a URL feed. Use the ⋮ menu on any list to configure its name, icon, publisher, URL, or rescoring rules.</p>
           <p>Lists <strong>merge in priority order</strong> — the higher a list sits, the more its scores count when the same word appears in multiple lists. Drag to reorder. Toggle lists on and off to experiment with different combinations.</p>
           <div class="help-demo flush" id="help-slide1-demo"></div>
         </div>
 
         <div class="help-slide" id="help-slide-2">
           <h2>Making It Yours</h2>
-          <p>Different wordlists use different score scales. <strong>Rescoring rules</strong> let you normalize them — map one score range to another so your merged list has consistent scoring across all sources.</p>
-          <p><strong class="help-edits-name">My Edits</strong> is your personal override layer. Click any score or comment to change it. Add words that don't appear in any source list. Your changes are never overwritten by a list update.</p>
+          <p>Different wordlists use different score scales. <strong>Rescoring rules</strong> let you normalize them — map one score range to another so your merged list has consistent scoring across all wordlists.</p>
+          <p><strong class="help-edits-name">My Edits</strong> is your personal override layer. Click any score or comment to change it. Add words that don't appear in any wordlist. Your changes are never overwritten by a list update.</p>
           <div class="help-demo flush">
             <table class="word-table">
               <tr class="demo-row">

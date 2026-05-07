@@ -13,9 +13,9 @@ The URL is the serialized answer to "what's in your tool stack."
 - Result-view filters: `score=` today (range syntax: `40`, `40-49`, `50+`); future siblings like `length=`, `tier=` slot in the same way
 
 **Out of scope (no URL representation):**
-- Dialogs — Welcome tour, reference manual, settings, Manage sources, Sync & backup. These are transient UI state. Open them how you opened them; close them when you're done. No deep link, no history entry. KISS.
-- Selected source from the left-rail dropdown. Sharing a link to "Anagram of LINDSEY in STWL" implies the recipient has STWL loaded; we don't pretend otherwise. The stack always reads from the recipient's currently-selected source (default `All`).
-- My Edits, individual list views, Manage sources state — local-only.
+- Dialogs — Welcome tour, reference manual, settings, Manage wordlists, Sync & backup. These are transient UI state. Open them how you opened them; close them when you're done. No deep link, no history entry. KISS.
+- Selected wordlist from the left-rail dropdown. Sharing a link to "Anagram of LINDSEY in STWL" implies the recipient has STWL loaded; we don't pretend otherwise. The stack always reads from the recipient's currently-selected wordlist (default `All`).
+- My Edits, individual list views, Manage wordlists state — local-only.
 - Confirmation dialogs and transient popovers (cell popovers, list-card menus, etc.).
 - Scroll position within a result table.
 - Edit-in-progress state (open inline editors).

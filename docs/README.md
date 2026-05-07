@@ -10,7 +10,7 @@
 
 ## Designs
 
-- [designs/app.md](designs/app.md) — top-level UI shape: header, left rail with source picker and tool-gallery slot, main pane, Manage sources dialog (full), Sync & backup dialog (stub).
+- [designs/app.md](designs/app.md) — top-level UI shape: header, left rail with wordlist picker and tool-gallery slot, main pane, Manage wordlists dialog (full), Sync & backup dialog (stub).
 
 ## Plans
 
