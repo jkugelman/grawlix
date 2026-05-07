@@ -60,15 +60,31 @@ The table is **always visible**, even at idle with no search or tool active. The
 
 Two dialogs cover all setup:
 
-**Manage sources** — opened from the source dropdown footer. Two-pane layout: a left rail listing every source with drag handle (reorder = merge priority), enable checkbox, and name; a right pane showing the focused source's stats, action buttons (download, refetch, more), and rescore rule editor. New lists are added here too, via a `+ Add list…` entry at the bottom of the left rail. My Edits has no rules section (scores pass through).
+**Manage sources** — opened from the source dropdown footer. Two-pane layout. The left rail lists every source with drag handle (reorder = merge priority), enable checkbox, and name; new lists are added via a `+ Add list…` entry at the bottom. The right pane is just the action row, the stats bar with histogram, and a rule editor — no name/icon header (the focused source is identified by the highlighted card in the rail). Action buttons always justify right; the date label sits next to the primary action, not pushed to the opposite end.
+
+Every list has a rule editor for parity: regular sources get *rescoring* rules (their dialect → unified scale); My Edits gets *scoring* rules (the user's tier labels for the unified scale). The action row is also unified — date slot, primary action, Download, more menu. Only the contents differ:
+- Sources: primary Update/Fetch, Download split (rescored / original), ⋮ Configure list / Delete list.
+- My Edits: Import (primary when empty, plain when populated), Download (primary when populated, hidden when empty), ⋮ Clear (when populated).
+
+Renaming a list happens **on the rail card** — F2 with the card focused opens an inline editor. Configure list (in sources' ⋮ menu) is the secondary path. There's no Rename in the kebab menu — the F2 affordance is enough.
+
+The stats bar always renders, even for empty lists: zero entries, dashes for min/max/etc., flat histogram baseline. Uniformity over an "empty placeholder" treatment.
 
 Rescoring lives entirely inside Manage sources — it doesn't appear on the main screen. Rules are detail config, typically set once when adding a list and rarely revisited; they don't earn persistent real estate next to the wordlist view.
+
+Scoring rules (My Edits' tier labels) are the user's single notion of what each score range means — there is no separate "output" tier system. The merged All view shows them as a read/write legend above its table for convenience, but the canonical edit surface is My Edits in Manage sources.
+
+**Onboarding banner** — first-run users get a small notice in the Manage sources rail (above the source list): *"Some popular wordlists have been set up with suggested scoring rules,"* with "Sounds good" to dismiss and "No thanks" to wipe the pre-loaded publishers. Lives only inside Manage sources — there's no auto-popup on the main view. Users who never open Manage sources never see it; the defaults are sensible enough that this is fine.
 
 **Sync & backup** — opened from the left-rail sync indicator. See `sync.md` for the full design. Key affordances: prominent "Download All" and "Download My Edits" buttons (Tier 1 manual backup), per-cloud-provider connect/disconnect (Tier 3), disk-sync section gated on PWA install (Tier 2), recent activity log.
 
 The two dialogs answer different questions and stay distinct:
 - *Manage sources* — what lists do I have, in what order, with what rules.
 - *Sync & backup* — how is my data being preserved across time and devices.
+
+### Todo: fold "Configure list" into Manage sources
+
+Today, the kebab menu's "Configure list" opens a separate `ConfigureListDialog` for icon, name, URL, publisher, and rule application — a second drill-down on top of a configuration page. That doesn't make sense; Manage sources is already where you configure things. The right pane should expose those fields directly (or in a collapsible "advanced" block) so there's no nested dialog. Not tackling this now.
 
 ### Held on deck: setup as routes
 

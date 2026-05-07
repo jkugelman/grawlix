@@ -110,11 +110,7 @@ main { display: flex; flex: 1; overflow: hidden; position: relative; }
 .busy-spinner { width: 36px; height: 36px; border: 3px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: busy-spin 0.7s linear infinite; }
 @keyframes busy-spin { to { transform: rotate(360deg); } }
 
-/* Lists panel */
-#lists-panel { width: 320px; background: var(--surface); border-right: 1px solid var(--border); display: flex; flex-direction: column; overflow: hidden; flex-shrink: 0; }
-#lists-panel h2 { padding: 10px 14px; font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; border-bottom: 1px solid var(--border2); }
-#lists-container { flex: 1; overflow-y: auto; }
-/* #add-list-area removed — replaced by inline .add-list-row */
+/* Add list row (used inside the Manage Sources rail) */
 .add-list-row { padding: 9px 14px; cursor: pointer; color: var(--faint); font-size: 13px; display: flex; align-items: center; gap: 9px; transition: background 0.1s, color 0.1s; user-select: none; }
 .add-list-row:hover { background: var(--hover); color: var(--accent); }
 .add-list-icon { font-size: 15px; line-height: 1; width: 16px; text-align: center; flex-shrink: 0; }
@@ -149,16 +145,11 @@ button.danger:hover:not(:disabled) { background: #e74c3c; border-color: #c0392b;
 .split-btn.open .split-btn-menu { display: block; }
 .split-btn-menu button { display: block; width: 100%; text-align: left; border: none; background: none; border-radius: 0; padding: 6px 13px; color: var(--text); }
 
-/* Detail panel */
-#detail-panel { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+#detail-panel { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-width: 0; min-height: 0; }
 
 .no-selection { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; color: var(--faint); background: var(--bg); }
 .no-selection p { font-size: 15px; margin-bottom: 6px; }
 .no-selection small { font-size: 13px; }
-
-.detail-header { background: var(--surface); padding: 12px 18px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
-.detail-header h2 { font-size: 15px; font-weight: 600; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: text; }
-.detail-source { font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 220px; }
 
 /* Stats bar */
 .stats-bar { background: var(--surface2); border-bottom: 1px solid var(--border2); padding: 10px 18px; display: flex; align-items: center; gap: 22px; flex-shrink: 0; }
@@ -229,13 +220,9 @@ html.dark-mode .search-match-4 { background: #14532d; color: #d1fae5; }
 .col-resize-handle { position: absolute; right: 0; top: 0; bottom: 0; width: 5px; cursor: col-resize; z-index: 2; }
 .col-resize-handle:hover, .col-resize-handle.active { background: rgba(123, 109, 184, 0.35); background: color-mix(in srgb, var(--accent) 35%, transparent); }
 
-/* Inline name editing */
-.detail-name-wrap { display: flex; align-items: center; gap: 6px; flex: 1; min-width: 0; overflow: hidden; }
+/* Inline name editing (used inside Manage Sources right pane) */
 .detail-date { font-size: 11px; color: var(--muted); white-space: nowrap; }
 .edit-hint { opacity: 0; flex-shrink: 0; cursor: pointer; user-select: none; transition: opacity 0.15s; }
-.detail-edit-hint { font-size: 13px; }
-.detail-name-wrap:hover .detail-edit-hint { opacity: 0.85; }
-.detail-name-wrap:has(input) .detail-edit-hint { display: none; }
 .name-edit-input { font-family: inherit; width: 100%; padding: 1px 5px; border: 1px solid var(--accent); border-radius: 3px; background: var(--input-bg); color: var(--text); font-size: 15px; font-weight: 600; outline: none; }
 .card-name-edit { font-family: inherit; width: 100%; padding: 0 3px; border: 1px solid var(--accent); border-radius: 3px; background: var(--input-bg); color: var(--text); font-size: 13px; font-weight: 600; outline: none; }
 
@@ -486,6 +473,280 @@ a.get-file:hover { text-decoration: underline; }
 .header-github-link { display: inline-flex; vertical-align: middle; margin-left: 4px; opacity: 0.75; color: white; text-decoration: none; border-bottom: none; }
 .header-github-link:hover { opacity: 1; }
 
+/* Left-rail section headers */
+.rail-section-header {
+  padding: 10px 14px 6px;
+  font-size: 11px; font-weight: 700;
+  color: var(--muted);
+  text-transform: uppercase; letter-spacing: 0.06em;
+  flex-shrink: 0;
+}
+.rail-section-header + * { margin-top: 0; }
+.rail-nav + .rail-section-header,
+.gallery-body + .rail-section-header { margin-top: 14px; }
+
+/* Left-rail nav block (source dropdown + sync indicator) */
+.rail-nav {
+  display: flex; flex-direction: column; gap: 6px;
+  padding: 4px 10px 8px;
+  flex-shrink: 0;
+}
+
+/* Source dropdown trigger (left rail) */
+.source-dropdown-btn {
+  display: flex; align-items: center; gap: 8px;
+  width: 100%;
+  padding: 7px 10px 7px 8px;
+  background: var(--surface2);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-family: inherit; font-size: 13px; font-weight: 600;
+  cursor: pointer; line-height: 1;
+  text-align: left;
+}
+.source-dropdown-btn:hover { background: var(--hover); border-color: var(--accent); }
+.source-dropdown-btn[aria-expanded="true"] { background: var(--sel); border-color: var(--accent); }
+.source-dropdown-icon { display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; flex-shrink: 0; }
+.source-dropdown-icon .list-icon { width: 18px; height: 18px; }
+.source-dropdown-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1; min-width: 0; }
+.source-dropdown-caret { color: var(--muted); flex-shrink: 0; }
+
+#source-dropdown-menu {
+  position: fixed;
+  min-width: 280px; max-width: 360px;
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: var(--shadow);
+  padding: 6px 0;
+  z-index: 500;
+  overflow-y: auto; max-height: 60vh;
+}
+#source-dropdown-menu .dropdown-item {
+  display: flex; align-items: center; gap: 9px;
+  padding: 7px 14px;
+  cursor: pointer;
+  font-size: 13px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+#source-dropdown-menu .dropdown-item:hover { background: var(--hover); }
+#source-dropdown-menu .dropdown-item.selected { background: var(--sel); }
+#source-dropdown-menu .dropdown-item.selected::after { content: '✓'; margin-left: auto; color: var(--accent); font-weight: 700; }
+#source-dropdown-menu .dropdown-item.disabled { opacity: 0.45; }
+#source-dropdown-menu .dropdown-item .list-icon { width: 16px; height: 16px; flex-shrink: 0; }
+#source-dropdown-menu .dropdown-divider {
+  height: 1px; background: var(--border2);
+  margin: 6px 0;
+}
+#source-dropdown-menu .dropdown-footer {
+  display: flex; align-items: center; gap: 9px;
+  width: 100%;
+  padding: 9px 14px;
+  background: none; border: none;
+  text-align: left;
+  font-family: inherit; font-size: 13px; color: var(--text);
+  cursor: pointer;
+}
+#source-dropdown-menu .dropdown-footer:hover { background: var(--hover); }
+
+/* Sync indicator (left rail) */
+.sync-indicator-btn {
+  display: flex; align-items: center; gap: 7px;
+  width: 100%;
+  padding: 6px 10px;
+  background: var(--surface2);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-family: inherit; font-size: 12px; font-weight: 500;
+  cursor: pointer; line-height: 1;
+  text-align: left;
+}
+.sync-indicator-btn:hover { background: var(--hover); border-color: var(--accent); }
+.sync-indicator-btn.sync-warn  { color: var(--warn-fg); border-color: color-mix(in srgb, var(--warn-fg) 45%, var(--border)); }
+.sync-indicator-btn.sync-stale { color: var(--err-fg);  border-color: color-mix(in srgb, var(--err-fg)  55%, var(--border)); }
+.sync-indicator-icon { font-size: 14px; line-height: 1; }
+.sync-indicator-label { white-space: nowrap; }
+
+/* Tool gallery (left rail) */
+#tool-gallery {
+  width: 280px;
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  display: flex; flex-direction: column;
+  overflow: hidden; flex-shrink: 0;
+}
+.gallery-header {
+  padding: 4px 10px 8px;
+  flex-shrink: 0;
+}
+.gallery-search-wrap {
+  position: relative; display: flex; align-items: center;
+}
+.gallery-search-wrap > svg {
+  position: absolute; left: 8px; pointer-events: none; color: var(--muted);
+}
+.gallery-search-wrap input {
+  width: 100%;
+  padding: 5px 8px 5px 26px;
+  border: 1px solid var(--border); border-radius: 4px;
+  background: var(--input-bg); color: var(--text);
+  font-size: 12px; font-family: inherit;
+}
+.gallery-search-wrap input:disabled { opacity: 0.55; cursor: not-allowed; }
+.gallery-body {
+  flex: 1; overflow-y: auto;
+  padding: 10px 10px 16px;
+  display: flex; flex-direction: column; gap: 10px;
+}
+.gallery-section-label {
+  font-size: 10px; font-weight: 700;
+  color: var(--muted);
+  text-transform: uppercase; letter-spacing: 0.06em;
+  padding: 0 4px;
+}
+.gallery-empty {
+  border: 1px dashed var(--border);
+  border-radius: 6px;
+  padding: 18px 14px;
+  text-align: center;
+  color: var(--muted);
+}
+.gallery-empty p { font-size: 13px; font-weight: 600; color: var(--text); margin-bottom: 4px; }
+.gallery-empty small { font-size: 11px; line-height: 1.5; display: block; }
+
+/* Tool gallery cards (placeholder mockup) */
+.gallery-card {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 9px 12px;
+  background: var(--surface2);
+  cursor: not-allowed;
+  user-select: none;
+  opacity: 0.92;
+}
+.gallery-card:hover { background: var(--hover); border-color: var(--accent); }
+.gallery-card-name { font-size: 13px; font-weight: 600; color: var(--text); }
+.gallery-card-desc { font-size: 11px; color: var(--muted); margin-top: 2px; }
+.gallery-card-example {
+  font-family: ui-monospace, 'Cascadia Code', monospace;
+  font-size: 11px;
+  color: var(--faint);
+  margin-top: 5px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.gallery-section-label + .gallery-card { margin-top: 0; }
+.gallery-card + .gallery-section-label { margin-top: 6px; }
+
+/* Manage sources dialog */
+#manage-sources-dialog {
+  width: 880px; max-width: 95vw;
+  height: 640px; max-height: 88vh;
+  padding: 0;
+}
+/* Scoped to [open] so the default dialog `display: none` still hides it when closed. */
+#manage-sources-dialog[open] { display: flex; flex-direction: column; }
+#manage-sources-dialog .ms-header {
+  padding: 14px 22px 10px;
+  border-bottom: 1px solid var(--border2);
+  flex-shrink: 0;
+  position: relative;
+}
+#manage-sources-dialog .ms-header h2 { margin: 0; padding-right: 24px; font-size: 16px; }
+#manage-sources-dialog .dialog-close-btn { top: 12px; right: 14px; }
+#manage-sources-dialog .ms-body {
+  flex: 1; min-height: 0;
+  display: flex; overflow: hidden;
+}
+.ms-rail {
+  width: 280px;
+  border-right: 1px solid var(--border2);
+  display: flex; flex-direction: column;
+  background: var(--surface2);
+  flex-shrink: 0;
+}
+.ms-rail-list { flex: 1; overflow-y: auto; padding: 4px 0; }
+.ms-rail .add-list-row { padding: 9px 14px; }
+.ms-pane {
+  flex: 1; min-width: 0;
+  display: flex; flex-direction: column;
+  overflow-y: auto;
+}
+.ms-pane-empty {
+  flex: 1; display: flex; align-items: center; justify-content: center;
+  color: var(--faint); font-size: 14px; padding: 30px;
+}
+.ms-pane-header {
+  display: flex; align-items: center;
+  padding: 12px 22px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.ms-pane-actions {
+  display: flex; align-items: center; gap: 6px;
+  flex: 1; min-width: 0;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+.ms-pane-stats { padding: 0 8px; flex-shrink: 0; }
+.ms-pane-stats .stats-bar { background: transparent; border: none; padding: 12px 14px; }
+.ms-pane-rescore {
+  border-top: 1px solid var(--border2);
+  padding: 14px 22px 22px;
+}
+.ms-pane-rescore-empty {
+  font-size: 12px; color: var(--muted);
+  padding: 6px 2px;
+}
+
+/* Onboarding banner inside Manage Sources rail */
+.ms-onboarding {
+  margin: 8px 8px 4px;
+  padding: 10px 11px;
+  border-radius: 6px;
+  font-size: 12px;
+  position: relative;
+  flex-shrink: 0;
+}
+html.light-mode .ms-onboarding {
+  background: color-mix(in srgb, var(--accent) 7%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--border));
+}
+html.dark-mode .ms-onboarding {
+  background: color-mix(in srgb, var(--accent) 15%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--accent) 40%, var(--border));
+}
+.ms-onboarding p { margin: 0 22px 9px 0; line-height: 1.45; color: var(--text); }
+.ms-onboarding button { font-size: 11px; }
+.ms-onboarding button.primary { padding: 4px 9px; }
+.ms-onboarding .dialog-close-btn { font-size: 12px; top: 6px; right: 6px; padding: 1px 5px; }
+.ms-onboarding-actions { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.ms-onboarding .link-btn { font-size: 11px; }
+
+/* Sync & backup dialog stub */
+#sync-backup-dialog { width: 560px; }
+.dialog-stub-msg {
+  background: var(--surface2);
+  border: 1px dashed var(--border);
+  border-radius: 6px;
+  padding: 16px;
+  font-size: 13px;
+  color: var(--muted);
+  line-height: 1.55;
+}
+.dialog-stub-msg p { margin-bottom: 8px; }
+.dialog-stub-msg p:last-child { margin-bottom: 0; }
+.dialog-stub-msg code {
+  font-family: ui-monospace, 'Cascadia Code', monospace;
+  font-size: 12px;
+  background: var(--surface);
+  padding: 1px 5px;
+  border-radius: 3px;
+  color: var(--text);
+}
+
 /* Segmented control */
 .seg-ctrl { display: flex; border: 1px solid var(--border); border-radius: 4px; overflow: hidden; }
 .seg-btn { border: none; border-radius: 0; padding: 4px 10px; font-size: 12px; font-weight: 600; color: var(--muted); background: var(--btn-bg); cursor: pointer; font-family: inherit; }
@@ -493,12 +754,9 @@ a.get-file:hover { text-decoration: underline; }
 .seg-btn.active { background: var(--sel); color: var(--accent); }
 .seg-btn:hover:not(.active) { background: var(--hover); }
 
-/* Lists panel */
-#list-count { font-weight: 400; color: var(--muted); }
-
 /* Empty states */
 .no-rules { font-size: 12px; color: var(--faint); font-style: italic; margin-bottom: 3px; }
-.stats-bar.stats-empty { color: var(--muted); font-size: 13px; }
+.stats-bar.stats-empty .stat-value { color: var(--faint); }
 
 /* List icons */
 .list-icon { width: 16px; height: 16px; flex-shrink: 0; vertical-align: middle; }
@@ -525,10 +783,6 @@ a.get-file:hover { text-decoration: underline; }
 input[type="file"] { display: none; }
 .annotation { position: absolute; border: 3px solid #e53935; border-radius: 50px; pointer-events: none; box-shadow: 0 0 6px rgba(229,57,53,0.4); }
 
-/* Merged list card */
-#merged-card { flex-shrink: 0; user-select: none; }
-#merged-card .list-icon { width: 26px; height: 26px; margin: 0 -5px; }
-
 /* Inline cell editing */
 .word-table td.score-cell,
 .word-table td.comment-cell { cursor: pointer; }
@@ -540,18 +794,6 @@ input.cell-edit.score-edit { font-family: ui-monospace, 'Cascadia Code', monospa
 /* Inline edit tip */
 #edit-cell-tip { position: fixed; font-size: 11px; color: var(--muted); background: var(--surface2); border: 1px solid var(--border2); border-radius: 4px; padding: 2px 7px; pointer-events: none; z-index: 400; opacity: 0; transition: opacity 0.15s; white-space: nowrap; }
 
-/* Fly animation */
-.fly-clone { position: fixed; pointer-events: none; z-index: 300; font-size: 11px; font-weight: 700; border-radius: 3px; padding: 1px 5px; animation: fly-to-target 0.4s ease-in forwards; }
-.fly-badge { background: var(--accent); color: white; }
-@keyframes fly-to-target {
-  0%   { opacity: 1; transform: translate(0, 0) scale(1); }
-  60%  { opacity: 0.9; }
-  100% { opacity: 0; transform: translate(var(--fly-dx), var(--fly-dy)) scale(0.6); }
-}
-@keyframes edits-pulse {
-  0%   { background: color-mix(in srgb, var(--accent) 35%, transparent); }
-  100% { background: transparent; }
-}
 @keyframes shake {
   0%, 100%  { transform: translateX( 0px); }
   20%       { transform: translateX(-4px); }
@@ -559,7 +801,6 @@ input.cell-edit.score-edit { font-family: ui-monospace, 'Cascadia Code', monospa
   80%       { transform: translateX(-2px); }
 }
 .shake { animation: shake 0.3s ease; }
-#edits-card.pulse { animation: edits-pulse 1.4s ease-out; }
 
 /* Add word footer row */
 #add-row-footer { flex-shrink: 0; border-top: 1px solid var(--border2); }
@@ -590,28 +831,6 @@ input.cell-edit.score-edit { font-family: ui-monospace, 'Cascadia Code', monospa
 
 /* Toast undo link */
 .toast .undo-link { margin-left: 10px; color: #90caf9; text-decoration: underline; cursor: pointer; }
-
-/* ── Onboarding banner ────────────────────────────────────────────────────────── */
-html.light-mode #onboarding-banner {
-  background: color-mix(in srgb, var(--accent) 7%, var(--surface));
-  border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--border));
-}
-html.dark-mode #onboarding-banner {
-  background: color-mix(in srgb, var(--accent) 15%, var(--surface));
-  border: 1px solid color-mix(in srgb, var(--accent) 40%, var(--border));
-}
-#onboarding-banner {
-  margin: 6px 10px 2px;
-  padding: 11px 13px;
-  border-radius: 6px;
-  font-size: 13px;
-  position: relative;
-}
-#onboarding-banner p { margin: 0 18px 10px 0; line-height: 1.5; color: var(--text); }
-#onboarding-banner button { font-size: 12px; }
-#onboarding-banner button.primary { padding: 4px 10px; }
-#onboarding-banner .dialog-close-btn { font-size: 12px; top: 7px; right: 8px; }
-.onboarding-banner-actions { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 
 /* ── Help modal ───────────────────────────────────────────────────────────────── */
 #help-dialog {
@@ -738,12 +957,70 @@ html.dark-mode #onboarding-banner {
 
 <main>
   <div id="busy-overlay"><div class="busy-spinner"></div></div>
-  <div id="lists-panel">
-    <h2>Merged</h2>
-    <div id="merged-card" tabindex="0" role="option"></div>
-    <h2>Sources <span id="list-count"></span></h2>
-    <div id="lists-container"></div>
-  </div>
+  <aside id="tool-gallery" aria-label="Tool gallery">
+    <h2 class="rail-section-header">Wordlist</h2>
+    <div class="rail-nav">
+      <button id="source-dropdown-btn" class="source-dropdown-btn" aria-haspopup="menu" aria-expanded="false" title="Wordlist (Alt+L)">
+        <span class="source-dropdown-icon"></span>
+        <span class="source-dropdown-name">All</span>
+        <svg class="source-dropdown-caret" width="8" height="5" aria-hidden="true"><use href="#icon-arrow"/></svg>
+      </button>
+      <button id="sync-indicator-btn" class="sync-indicator-btn" aria-label="Sync &amp; backup" hidden>
+        <span class="sync-indicator-icon" aria-hidden="true">⏱</span>
+        <span class="sync-indicator-label"></span>
+      </button>
+    </div>
+    <h2 class="rail-section-header">Tools</h2>
+    <div class="gallery-header">
+      <div class="gallery-search-wrap">
+        <svg width="13" height="13" aria-hidden="true"><use href="#icon-search"/></svg>
+        <input id="gallery-search" type="text" placeholder="Search tools…" title="Search tools (Alt+T)" disabled>
+      </div>
+    </div>
+    <div class="gallery-body">
+      <!-- Placeholder cards: visual mockup of the tool gallery, not yet wired. -->
+      <div class="gallery-section-label">Anagrams &amp; letter banks</div>
+      <div class="gallery-card">
+        <div class="gallery-card-name">Anagram</div>
+        <div class="gallery-card-desc">Same letters, rearranged</div>
+        <div class="gallery-card-example">LINDSEY → SNIDELY</div>
+      </div>
+      <div class="gallery-card">
+        <div class="gallery-card-name">Subanagram</div>
+        <div class="gallery-card-desc">Words made from any subset of letters</div>
+        <div class="gallery-card-example">PARENTAL → PLANE, RENT, …</div>
+      </div>
+
+      <div class="gallery-section-label">Letter patterns</div>
+      <div class="gallery-card">
+        <div class="gallery-card-name">Regex</div>
+        <div class="gallery-card-desc">Match by regular expression</div>
+        <div class="gallery-card-example">^un.*ed$</div>
+      </div>
+      <div class="gallery-card">
+        <div class="gallery-card-name">Palindrome</div>
+        <div class="gallery-card-desc">Reads the same forwards and back</div>
+        <div class="gallery-card-example">RACECAR · KAYAK</div>
+      </div>
+
+      <div class="gallery-section-label">Pairs</div>
+      <div class="gallery-card">
+        <div class="gallery-card-name">Beheadments</div>
+        <div class="gallery-card-desc">Drop the first letter to get a new word</div>
+        <div class="gallery-card-example">SLING → LING</div>
+      </div>
+      <div class="gallery-card">
+        <div class="gallery-card-name">Curtailments</div>
+        <div class="gallery-card-desc">Drop the last letter to get a new word</div>
+        <div class="gallery-card-example">CARTS → CART</div>
+      </div>
+      <div class="gallery-card">
+        <div class="gallery-card-name">Semordnilaps</div>
+        <div class="gallery-card-desc">Reverse to get a different word</div>
+        <div class="gallery-card-example">STRESSED → DESSERTS</div>
+      </div>
+    </div>
+  </aside>
 
   <div id="detail-panel"></div>
 </main>
@@ -757,7 +1034,7 @@ const ROW_HEIGHT   = 24;
 const VS_BUFFER    = 60;
 // LS_PREFIX defined in <head> so the FOUC-prevention script can share it.
 const MERGED_ID    = '__merged__';
-const MERGED_NAME  = 'Master List';
+const MERGED_NAME  = 'All';
 const EDITS_ICON   = { type: 'emoji', value: '✏️' };
 const MERGED_ICON  = buildEmojiIconHTML('⭐');
 
@@ -787,7 +1064,7 @@ const LIST_PUBLISHERS = [
     defaultRules: [
       { input:'60', length:'', output:'', note:'Great (colorful phrases, sayings, people, etc.)' },
       { input:'50', length:'', output:'', note:'Good (dictionary words, phrases)' },
-      { input:'40', length:'', output:'', note:'Fine but watch crosses (proper names, abbreviations, prepositional phrases, unusual plurals)' },
+      { input:'40', length:'', output:'', note:'Fine but watch crosses (proper names, abbreviations, prepositional phrases)' },
       { input:'30', length:'', output:'', note:'Not good (plural names, crosswordese, contrived inflections)' },
       { input:'20', length:'', output:'', note:'Junk (partials, variant spellings, Roman numerals)' },
       { input:'10', length:'', output:'', note:'Offensive' },
@@ -870,21 +1147,6 @@ function buildStatItemHTML(label, value, title) {
   </div>`;
 }
 
-// opts: { editable } — adds onclick rename handler and pencil hint
-function buildDetailHeaderHTML(nameHTML, buttons, { editable = false } = {}) {
-  const h2Attrs = editable ? ' onclick="startHeaderRename()" title="Click to rename"' : '';
-  const pencil  = editable
-    ? buildEditHintHTML('detail-edit-hint', 'startHeaderRename()')
-    : '';
-  return `<div class="detail-header">
-    <div class="detail-name-wrap">
-      <h2${h2Attrs}>${nameHTML}</h2>
-      ${pencil}
-    </div>
-    ${buttons.join('\n    ')}
-  </div>`;
-}
-
 // opts: { isMerged, enabled, selected, isEdits, hasData, hasUpdate, interactive }
 // interactive: true  → adds draggable, tabindex, role, data-list marker for event delegation
 // interactive: false → static display card (default — safe for demos)
@@ -925,8 +1187,7 @@ function buildListCardHTML(icon, name, meta, opts = {}) {
     const toggleEnabled = hasData || isEdits;
     const toggleTitle = !toggleEnabled ? 'Click to import'
       : enabled ? 'Enabled — click to disable' : 'Disabled — click to enable';
-    const idAttr = isEdits ? ' id="edits-card"' : '';
-    wrapAttrs = ` data-list draggable="true" tabindex="0" role="option"${idAttr}`;
+    wrapAttrs = ` data-list draggable="true" tabindex="0" role="option"`;
     cardActions = `<div class="card-actions">
       <label class="toggle" title="${toggleTitle}" aria-label="Toggle ${esc(name)}">
         <input type="checkbox"${toggleEnabled && enabled ? ' checked' : ''}${toggleEnabled ? '' : ' disabled'}>
@@ -993,20 +1254,22 @@ function buildSearchBarHTML(opts = {}) {
     </div>`;
 }
 
-function buildStatsBarHTML(stats, emptyMsg) {
-  if (!stats) return `<div class="stats-bar stats-empty">${emptyMsg}</div>`;
+function buildStatsBarHTML(stats) {
+  const isEmpty = !stats.count;
+  const dash = '—';
+  const fmt = v => isEmpty ? dash : v;
   const bars = stats.buckets.map((b, i) => {
     const h = stats.maxBucket ? Math.max(2, Math.round((b / stats.maxBucket) * 34)) : 2;
     return `<div class="score-bar" style="height:${h}px" title="${i*10}–${i===10?'100':i*10+9}: ${b.toLocaleString()}"></div>`;
   }).join('');
-  return `<div class="stats-bar">
+  return `<div class="stats-bar${isEmpty ? ' stats-empty' : ''}">
       ${buildStatItemHTML('Entries', stats.count.toLocaleString())}
-      ${buildStatItemHTML('Min', stats.min)}
-      ${buildStatItemHTML('Max', stats.max)}
+      ${buildStatItemHTML('Min', fmt(stats.min))}
+      ${buildStatItemHTML('Max', fmt(stats.max))}
       <div class="stats-right">
-        ${buildStatItemHTML('Mean', stats.mean, 'Average score')}
-        ${buildStatItemHTML('Median', stats.median % 1 === 0 ? stats.median : stats.median.toFixed(1), '50th percentile')}
-        ${buildStatItemHTML('Mode', stats.mode, 'Most common score')}
+        ${buildStatItemHTML('Mean', fmt(stats.mean), 'Average score')}
+        ${buildStatItemHTML('Median', fmt(stats.median % 1 === 0 ? stats.median : stats.median.toFixed(1)), '50th percentile')}
+        ${buildStatItemHTML('Mode', fmt(stats.mode), 'Most common score')}
         <div class="score-dist" title="Score distribution by decile">${bars}</div>
       </div>
     </div>`;
@@ -1120,14 +1383,15 @@ function buildRescoreSectionHTML(list) {
     buildRulesListHTML(list.rescoreRules || [], { rulesId: 'rescore-rules', saveFn: 'saveRuleField', deleteFn: 'deleteRule', rescore: true });
 }
 
-function buildOutputScoringSectionHTML() {
+// Scoring (tier labels) lives on My Edits' `scoring` field. Rendered both as a
+// legend on the merged All view and as the rule editor on My Edits' Manage
+// Sources right pane. Catch-all is recomputed against the merged entries on
+// every render so it reflects all scores in the user's data.
+function buildScoringSectionHTML() {
+  const edits = getEditsList();
+  if (edits) updateScoringCatchAll(edits.scoring, buildMergedList().entries);
   return `<div class="rescore-top"><span class="rescore-lbl">Scoring</span></div>` +
-    buildRulesListHTML(state.outputScoring, { rulesId: 'output-scoring-rules', saveFn: 'saveOutputScoringField', deleteFn: 'deleteOutputScoringRow' });
-}
-
-function buildEditsScoringSectionHTML(list) {
-  return `<div class="rescore-top"><span class="rescore-lbl">Scoring</span></div>` +
-    buildRulesListHTML(list.scoring, { rulesId: 'edits-scoring-rules', saveFn: 'saveEditsScoringField', deleteFn: 'deleteEditsScoringRow' });
+    buildRulesListHTML(edits?.scoring || [], { rulesId: 'scoring-rules', saveFn: 'saveScoringField', deleteFn: 'deleteScoringRow' });
 }
 
 function buildTableContainerHTML() {
@@ -1162,10 +1426,12 @@ function buildListNameHTML(list, { bold = true } = {}) {
 
 // ─── State ────────────────────────────────────────────────────────────────────
 
-const DEFAULT_OUTPUT_SCORING = [
+// Default tier labels. Lives on My Edits' `scoring` field; shown both there and
+// as a legend on the merged All view.
+const DEFAULT_SCORING = [
   { input: '60', note: 'Great (colorful phrases, sayings, people, etc.)' },
   { input: '50', note: 'Good (dictionary words, phrases)' },
-  { input: '40', note: 'Fine but watch crosses (proper names, abbreviations, prepositional phrases, unusual plurals)' },
+  { input: '40', note: 'Fine but watch crosses (proper names, abbreviations, prepositional phrases)' },
   { input: '30', note: 'Not good (plural names, crosswordese, contrived inflections)' },
   { input: '20', note: 'Junk (partials, variant spellings, Roman numerals)' },
   { input: '10', note: 'Offensive' },
@@ -1178,7 +1444,6 @@ const state = {
   searchQuery: '',
   searchWholeWord: false,
   minScore: null,
-  outputScoring: DEFAULT_OUTPUT_SCORING.map(r => ({ ...r })),
 };
 
 const colWidths = { length: 55, word: 200, score: 90, source: 170, delete: 26 }; // persists across list switches
@@ -1231,7 +1496,8 @@ function lsDel(key)  { localStorage.removeItem(LS_PREFIX + key); }
 
 // Bump when the shape of stored data (localStorage `meta`, IDB entries) changes
 // in a way that older code can't read. Mismatch on load triggers a reset prompt.
-const SCHEMA_VERSION = 3;
+//   v4 — drop state.outputScoring; tier labels live exclusively on My Edits' `scoring`.
+const SCHEMA_VERSION = 4;
 
 function readMergedSettings() {
   try { return JSON.parse(lsLoad('mergedSettings')) || {}; } catch { return {}; }
@@ -1306,10 +1572,6 @@ function persistMeta() {
     ...(l.downloadExt  ? { downloadExt:  l.downloadExt  } : {}),
     ...(l.downloadStem ? { downloadStem: l.downloadStem } : {}),
   }))));
-}
-
-function persistOutputScoring() {
-  lsSave('outputScoring', JSON.stringify(state.outputScoring.filter(r => !r._catchAll)));
 }
 
 async function persistData(dbKey, text) {
@@ -1439,6 +1701,549 @@ const SettingsDialog = (() => {
   return { open };
 })();
 
+// ─── Manage sources dialog ────────────────────────────────────────────────────
+
+const ManageSourcesDialog = (() => {
+  // Replace the body wrapper with a flex layout — this dialog needs full control
+  // over its inner structure, not the standard 22px-padded body.
+  const el = document.createElement('dialog');
+  el.id = 'manage-sources-dialog';
+  el.setAttribute('aria-labelledby', 'manage-sources-title');
+  enableDismissClicks(el);
+  el.innerHTML = `
+    <div class="ms-header">
+      <h2 id="manage-sources-title">Manage sources</h2>
+      <button class="dialog-close-btn" aria-label="Close">✕</button>
+    </div>
+    <div class="ms-body">
+      <aside class="ms-rail">
+        <div class="ms-onboarding" id="ms-onboarding" hidden>
+          <button class="dialog-close-btn" aria-label="Dismiss" data-onboard-action="dismiss">✕</button>
+          <p>Some popular wordlists have been set up with suggested scoring rules.</p>
+          <div class="ms-onboarding-actions">
+            <button class="link-btn" data-onboard-action="blank">No thanks, remove them</button>
+            <button class="primary" data-onboard-action="dismiss">Sounds good</button>
+          </div>
+        </div>
+        <div class="ms-rail-list" id="ms-rail-list"></div>
+        <div class="add-list-row" id="ms-add-list">${buildDragHandleHTML()}<span class="add-list-icon">＋</span>Add list</div>
+      </aside>
+      <section class="ms-pane" id="ms-pane"></section>
+    </div>`;
+  document.body.appendChild(el);
+
+  const onboarding = el.querySelector('#ms-onboarding');
+
+  function showOnboardingIfNeeded() {
+    onboarding.hidden = !!lsLoad('onboarded');
+  }
+
+  function dismissOnboarding() {
+    onboarding.hidden = true;
+    lsSave('onboarded', '1');
+  }
+
+  async function onboardingGoBlank() {
+    const toRemove = state.sources.filter(l => l.type !== 'edits');
+    state.sources = state.sources.filter(l => l.type === 'edits');
+    toRemove.forEach(l => invalidateListCaches(l));
+    if (state.selected !== MERGED_ID && toRemove.includes(state.selected)) {
+      state.selected = MERGED_ID;
+    }
+    const edits = getEditsList();
+    if (edits) edits.scoring = [];
+    persistMeta();
+    await Promise.all(toRemove.map(l => idbDel('data_' + l.dbKey)));
+    renderAll();
+    dismissOnboarding();
+  }
+
+  onboarding.addEventListener('click', e => {
+    const action = e.target.closest('[data-onboard-action]')?.dataset.onboardAction;
+    if (action === 'dismiss') dismissOnboarding();
+    else if (action === 'blank') onboardingGoBlank();
+  });
+
+  const railList = el.querySelector('#ms-rail-list');
+  const pane     = el.querySelector('#ms-pane');
+  const addBtn   = el.querySelector('#ms-add-list');
+
+  let _focusedList = null;
+  let _dateTimer   = null;
+
+  // ── Rendering ─────────────────────────────────────────────────────────────────
+
+  function renderRail() {
+    if (!_sourceCountsCache) _sourceCountsCache = buildMergedList().sourceCounts;
+    const contribMap = new Map(_sourceCountsCache.map(s => [s.list, s.count]));
+
+    railList.innerHTML = state.sources.map(list => {
+      const isEdits = list.type === 'edits';
+      const hasData = list.rawEntries.length > 0;
+      const icon = getListIcon(list);
+      const meta = listCardMeta(list, contribMap);
+      return buildListCardHTML(icon, list.name, meta, {
+        selected:    _focusedList === list,
+        enabled:     list.enabled,
+        isEdits,
+        hasData,
+        hasUpdate:   !!list._updateAvailable,
+        interactive: true,
+      });
+    }).join('');
+
+    const cards = railList.querySelectorAll('.list-card[data-list]');
+    state.sources.forEach((list, i) => { if (cards[i]) cards[i]._list = list; });
+  }
+
+  function renderPane() {
+    if (_dateTimer) { clearInterval(_dateTimer); _dateTimer = null; }
+    if (!_focusedList) {
+      pane.innerHTML = '<div class="ms-pane-empty">Select a source to configure</div>';
+      return;
+    }
+    const list = _focusedList;
+    const isEdits = list.type === 'edits';
+    const hasData = list.rawEntries.length > 0;
+
+    const stats = computeStats(list, list.rawEntries);
+
+    // Action row shape is unified across all lists: date slot, primary action,
+    // Download, more menu. Only the contents differ — sources have Update/Fetch
+    // and a rescored/original Download split; My Edits has Import and a plain
+    // Download (no rescoring), and Clear stands in for Delete in the more menu.
+    let actionBtn, dlBtn, moreMenu;
+    if (isEdits) {
+      // Primary slot: Download when there's something to export, otherwise Import.
+      actionBtn = `<button class="${hasData ? '' : 'primary'}" onclick="ManageSourcesDialog.action('import')" ${list._loading ? 'disabled' : ''}>${list._loading ? 'Importing…' : 'Import'}</button>`;
+      dlBtn = hasData ? `<button class="primary" onclick="ManageSourcesDialog.action('download')">Download</button>` : '';
+      // Rename is the F2 affordance on the rail card; not duplicated here.
+      moreMenu = hasData ? buildMoreMenuHTML([
+        ['Clear', `ManageSourcesDialog.action('clear')`],
+      ]) : '';
+    } else {
+      const dot = list._updateAvailable && !list._loading ? ` <span class="update-dot"></span>` : '';
+      const updateTitle = list._updateAvailable && !list._loading ? 'Update available' : '';
+      const label = hasData ? 'Update' : (list.url ? 'Fetch' : 'Import');
+
+      if (list.url) {
+        const loadingLabel = hasData ? 'Updating…' : 'Fetching…';
+        const btnLabel = `${list._loading ? loadingLabel : label}${dot}`;
+        actionBtn = buildSplitBtn(btnLabel, `ManageSourcesDialog.action('fetch')`,
+          [['Import', `ManageSourcesDialog.action('import')`]],
+          { primary: true, disabled: !!list._loading, title: updateTitle });
+      } else {
+        actionBtn = `<button class="primary"${updateTitle ? ` title="${updateTitle}"` : ''} onclick="ManageSourcesDialog.action('import')" ${list._loading ? 'disabled' : ''}>${list._loading ? 'Importing…' : 'Import'}${dot}</button>`;
+      }
+
+      dlBtn = hasData ? buildSplitBtn('Download', `ManageSourcesDialog.action('downloadRescored')`,
+        [['Download rescored list', `ManageSourcesDialog.action('downloadRescored')`],
+         ['Download original',      `ManageSourcesDialog.action('downloadOriginal')`]]) : '';
+
+      // Rename is the F2 affordance on the rail card; Configure also lets you
+      // rename. Not duplicated here.
+      moreMenu = buildMoreMenuHTML([
+        ['Configure list', `ManageSourcesDialog.action('configure')`],
+        ['Delete list',    `ManageSourcesDialog.action('delete')`],
+      ]);
+    }
+
+    const dateSlot = (hasData && list.lastUpdated) ? '<span class="detail-date"></span>' : '';
+    const actionsHTML = [dateSlot, actionBtn, dlBtn, moreMenu].filter(Boolean).join('\n');
+
+    // My Edits gets a scoring rules editor (tier labels). Every other source
+    // gets a rescoring rules editor. Same shape, different rule semantics.
+    const rulesHTML = isEdits
+      ? `<div class="ms-pane-rescore" id="ms-scoring-section">${buildScoringSectionHTML()}</div>`
+      : `<div class="ms-pane-rescore" id="ms-rescore-section">${buildRescoreSectionHTML(list)}</div>`;
+
+    // No icon/name in the top bar — the focused list is already highlighted in
+    // the rail. The bar carries actions only. Rename happens in-place on the
+    // rail card via the more menu.
+    pane.innerHTML = `
+      <div class="ms-pane-header">
+        <div class="ms-pane-actions">${actionsHTML}</div>
+      </div>
+      <div class="ms-pane-stats">${buildStatsBarHTML(stats)}</div>
+      ${rulesHTML}`;
+
+    if (hasData && list.lastUpdated) {
+      const setDate = () => {
+        const dEl = pane.querySelector('.detail-date');
+        if (!dEl) return;
+        dEl.textContent = `Last updated ${timeAgo(list.lastUpdated)}`;
+        dEl.title = new Date(list.lastUpdated).toLocaleString();
+      };
+      setDate();
+      _dateTimer = setInterval(setDate, 60_000);
+    }
+  }
+
+  function refresh() {
+    if (!el.open) return;
+    if (_focusedList && !state.sources.includes(_focusedList)) {
+      _focusedList = state.sources[0] ?? null;
+    }
+    renderRail();
+    renderPane();
+  }
+
+  function focus(list) {
+    _focusedList = list;
+    renderRail();
+    renderPane();
+  }
+
+  // ── Actions (called from inline onclick handlers in pane HTML) ───────────────
+
+  const ACTIONS = {
+    fetch:            () => fetchList(_focusedList),
+    import:           () => importToList(_focusedList),
+    delete:           async () => { await deleteList(_focusedList); },
+    configure:        () => ConfigureListDialog.open(_focusedList),
+    download:         () => downloadEdits(),
+    downloadRescored: () => downloadIndividualListRescored(_focusedList),
+    downloadOriginal: () => downloadOriginalList(_focusedList),
+    clear:            () => clearEdits(),
+  };
+
+  function action(name) {
+    const fn = ACTIONS[name];
+    if (fn) fn();
+  }
+
+  function startRailRename(list) {
+    if (!list) return;
+    // Find the rail card for this list and put an input over its name.
+    const card = [...railList.querySelectorAll('.list-card[data-list]')].find(c => c._list === list);
+    const nameEl = card?.querySelector('.card-name');
+    if (!nameEl || nameEl.querySelector('input')) return;
+    const originalName = list.name;
+    nameEl.textContent = '';
+    const input = document.createElement('input');
+    input.className = 'card-name-edit';
+    input.value = originalName;
+    nameEl.appendChild(input);
+    input.focus();
+    input.select();
+    input.onclick = e => e.stopPropagation();
+    startInlineRename(input, originalName, {
+      onCommit(newName) {
+        if (newName !== originalName) {
+          list.name = newName;
+          persistMeta();
+          if (state.selected === list) SourceDropdown.renderTrigger();
+        }
+        nameEl.textContent = newName;
+      },
+      onCancel() {
+        nameEl.textContent = originalName;
+      },
+    });
+  }
+
+  // ── Rail event delegation ─────────────────────────────────────────────────────
+
+  railList.addEventListener('click', e => {
+    const toggleLabel = e.target.closest('label.toggle');
+    if (toggleLabel) {
+      const card = toggleLabel.closest('.list-card[data-list]');
+      if (card?._list && !card._list.rawEntries.length && card._list.type !== 'edits') {
+        e.stopPropagation();
+        triggerImportForList(card._list, e);
+      }
+      return;
+    }
+    const card = e.target.closest('.list-card[data-list]');
+    if (!card?._list) return;
+    focus(card._list);
+  });
+
+  railList.addEventListener('keydown', e => {
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+    const card = e.target.closest('.list-card[data-list]');
+    if (!card?._list) return;
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      focus(card._list);
+    } else if (e.key === 'F2') {
+      e.preventDefault();
+      startRailRename(card._list);
+    }
+  });
+
+  railList.addEventListener('change', e => {
+    const toggle = e.target.closest('.toggle input[type="checkbox"]');
+    if (!toggle) return;
+    const card = toggle.closest('.list-card[data-list]');
+    if (!card?._list) return;
+    toggleList(card._list, e);
+  });
+
+  // Drag-to-reorder (mouse)
+  let _dragList = null;
+  railList.addEventListener('dragstart', e => {
+    const card = e.target.closest('.list-card[data-list]');
+    if (!card?._list) return;
+    _dragList = card._list;
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', '');
+    setTimeout(() => card.classList.add('dragging'), 0);
+  });
+  railList.addEventListener('dragend', () => {
+    railList.querySelectorAll('.list-card.dragging, .list-card.drag-over')
+      .forEach(c => c.classList.remove('dragging', 'drag-over'));
+    _dragList = null;
+  });
+  railList.addEventListener('dragover', e => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    const card = e.target.closest('.list-card[data-list]');
+    if (!card || card._list === _dragList) return;
+    railList.querySelectorAll('.list-card.drag-over').forEach(c => c.classList.remove('drag-over'));
+    card.classList.add('drag-over');
+  });
+  railList.addEventListener('dragleave', e => {
+    const card = e.target.closest('.list-card');
+    if (card && !card.contains(e.relatedTarget)) card.classList.remove('drag-over');
+  });
+  railList.addEventListener('drop', e => {
+    e.preventDefault();
+    const card = e.target.closest('.list-card[data-list]');
+    const toList = card?._list;
+    if (!_dragList || !toList || _dragList === toList) return;
+    const fromIdx = state.sources.indexOf(_dragList);
+    const toIdx   = state.sources.indexOf(toList);
+    if (fromIdx === -1 || toIdx === -1) return;
+    const [item] = state.sources.splice(fromIdx, 1);
+    state.sources.splice(toIdx, 0, item);
+    persistMeta();
+    invalidateSourceCounts();
+    refresh();
+    if (state.selected === MERGED_ID) renderMergedDetail();
+    else renderDetail(getSelected());
+  });
+
+  // ── + Add list ────────────────────────────────────────────────────────────────
+
+  addBtn.addEventListener('click', () => ConfigureListDialog.openAdd());
+
+  // ── Open / close ──────────────────────────────────────────────────────────────
+
+  el.addEventListener('close', () => {
+    if (_dateTimer) { clearInterval(_dateTimer); _dateTimer = null; }
+  });
+
+  function open(list = null) {
+    _focusedList = list ?? (state.selected !== MERGED_ID ? state.selected : null) ?? state.sources[0] ?? null;
+    showOnboardingIfNeeded();
+    renderRail();
+    renderPane();
+    showDialog(el);
+  }
+
+  function getFocusedList() { return _focusedList; }
+
+  // Re-render only the rescore rule editor for the focused list, in place — used
+  // by afterRuleChange so the user's pending edit doesn't blow away the whole pane.
+  function refreshRescoreSection() {
+    const section = el.querySelector('#ms-rescore-section');
+    if (section) section.innerHTML = buildRescoreSectionHTML(_focusedList);
+  }
+
+  // Counterpart for the scoring (tier-label) editor on My Edits.
+  function refreshScoringSection() {
+    const section = el.querySelector('#ms-scoring-section');
+    if (section) section.innerHTML = buildScoringSectionHTML();
+  }
+
+  // Update the "X used" meta text on each rail card in place. Avoids rebuilding
+  // the whole rail (which would lose drag/hover state mid-interaction).
+  function updateRailMeta(contribMap) {
+    for (const card of railList.querySelectorAll('.list-card[data-list]')) {
+      const list = card._list;
+      if (!list) continue;
+      const metaEl = card.querySelector('.card-meta');
+      if (metaEl) metaEl.textContent = listCardMeta(list, contribMap);
+    }
+  }
+
+  return {
+    open, refresh, focus, action, getFocusedList,
+    refreshRescoreSection, refreshScoringSection, updateRailMeta,
+    isOpen: () => el.open,
+  };
+})();
+
+// ─── Sync & backup dialog (stub) ──────────────────────────────────────────────
+
+const SyncBackupDialog = (() => {
+  const { el, body } = createDialog('sync-backup-dialog', { labelledby: 'sync-backup-title' });
+  body.innerHTML = `
+    <button class="dialog-close-btn" aria-label="Close">✕</button>
+    <h2 id="sync-backup-title">Sync &amp; backup</h2>
+    <div class="dialog-stub-msg">
+      <p><strong>Stub.</strong> Three-tier persistence (see <code>docs/plans/sync.md</code>) lands here.</p>
+      <p>Tier 1: prominent <em>Download All</em> and <em>Download My Edits</em> buttons. Tier 2: disk-sync section gated on PWA install. Tier 3: per-cloud-provider connect/disconnect. Recent activity log at the bottom.</p>
+      <p>Clicking a Tier 1 download bumps the "Last backup" timestamp shown in the header indicator.</p>
+    </div>
+    <div class="dialog-footer">
+      <button class="dialog-cancel-btn">Close</button>
+    </div>`;
+  function open() { showDialog(el); }
+  return { open };
+})();
+
+// ─── Source dropdown (header) ─────────────────────────────────────────────────
+
+const SourceDropdown = (() => {
+  const trigger    = document.getElementById('source-dropdown-btn');
+  const iconSlot   = trigger.querySelector('.source-dropdown-icon');
+  const nameSlot   = trigger.querySelector('.source-dropdown-name');
+
+  const menu = document.createElement('div');
+  menu.id = 'source-dropdown-menu';
+  menu.setAttribute('role', 'menu');
+  menu.hidden = true;
+  document.body.appendChild(menu);
+
+  function isMerged() { return state.selected === MERGED_ID; }
+
+  function renderTrigger() {
+    if (isMerged()) {
+      iconSlot.innerHTML = MERGED_ICON;
+      nameSlot.textContent = MERGED_NAME;
+    } else {
+      const list = state.selected;
+      iconSlot.innerHTML = list ? getListIcon(list) : '';
+      nameSlot.textContent = list ? list.name : '';
+    }
+  }
+
+  function buildMenuItem(iconHTML, name, { selected = false, meta = '' } = {}) {
+    const sel = selected ? ' selected' : '';
+    const metaHTML = meta ? `<span class="dropdown-item-meta">${esc(meta)}</span>` : '';
+    return `<div class="dropdown-item${sel}" role="menuitem" tabindex="0">${iconHTML}<span>${esc(name)}</span>${metaHTML}</div>`;
+  }
+
+  function renderMenu() {
+    const parts = [];
+    parts.push(`<div class="dropdown-item${isMerged() ? ' selected' : ''}" data-target="merged" role="menuitem" tabindex="0">${MERGED_ICON}<span>${MERGED_NAME}</span></div>`);
+    parts.push(`<div class="dropdown-divider"></div>`);
+    state.sources.forEach(list => {
+      const sel = !isMerged() && state.selected === list;
+      parts.push(`<div class="dropdown-item${sel ? ' selected' : ''}${list.enabled ? '' : ' disabled'}" data-list role="menuitem" tabindex="0">${getListIcon(list)}<span>${esc(list.name)}</span></div>`);
+    });
+    parts.push(`<div class="dropdown-divider"></div>`);
+    parts.push(`<button class="dropdown-footer" data-action="manage" type="button">⚙ Manage sources…</button>`);
+
+    menu.innerHTML = parts.join('');
+
+    const listEls = [...menu.querySelectorAll('.dropdown-item[data-list]')];
+    state.sources.forEach((list, i) => { if (listEls[i]) listEls[i]._list = list; });
+  }
+
+  function position() {
+    const r = trigger.getBoundingClientRect();
+    menu.style.left = r.left + 'px';
+    menu.style.top  = (r.bottom + 6) + 'px';
+    menu.style.minWidth = Math.max(r.width, 280) + 'px';
+  }
+
+  function open() {
+    renderMenu();
+    position();
+    menu.hidden = false;
+    trigger.setAttribute('aria-expanded', 'true');
+  }
+
+  function close() {
+    menu.hidden = true;
+    trigger.setAttribute('aria-expanded', 'false');
+  }
+
+  trigger.addEventListener('click', e => {
+    e.stopPropagation();
+    menu.hidden ? open() : close();
+  });
+
+  document.addEventListener('click', e => {
+    if (menu.hidden) return;
+    if (menu.contains(e.target) || trigger.contains(e.target)) return;
+    close();
+  });
+
+  document.addEventListener('keydown', e => {
+    if (!menu.hidden && e.key === 'Escape') { e.preventDefault(); close(); trigger.focus(); }
+  });
+
+  menu.addEventListener('click', e => {
+    const item = e.target.closest('.dropdown-item');
+    if (item) {
+      if (item.dataset.target === 'merged') {
+        selectMergedList();
+      } else if (item._list) {
+        selectList(item._list);
+      }
+      close();
+      return;
+    }
+    if (e.target.closest('[data-action="manage"]')) {
+      close();
+      ManageSourcesDialog.open();
+    }
+  });
+
+  menu.addEventListener('keydown', e => {
+    if (e.key !== 'Enter' && e.key !== ' ') return;
+    const item = e.target.closest('.dropdown-item');
+    if (!item) return;
+    e.preventDefault();
+    item.click();
+  });
+
+  window.addEventListener('resize', () => { if (!menu.hidden) position(); });
+
+  // Open the menu and move keyboard focus into it (selected item if any, else first).
+  function openWithFocus() {
+    open();
+    const sel = menu.querySelector('.dropdown-item.selected') ?? menu.querySelector('.dropdown-item');
+    sel?.focus();
+  }
+
+  return { renderTrigger, open, close, openWithFocus };
+})();
+
+// ─── Sync indicator (left rail) ──────────────────────────────────────────────
+
+const SyncIndicator = (() => {
+  const btn = document.getElementById('sync-indicator-btn');
+  const iconSlot  = btn.querySelector('.sync-indicator-icon');
+  const labelSlot = btn.querySelector('.sync-indicator-label');
+
+  function render() {
+    const ts = parseInt(lsLoad('lastBackup'), 10);
+    btn.classList.remove('sync-warn', 'sync-stale');
+    if (!ts || isNaN(ts)) {
+      btn.hidden = true;
+      return;
+    }
+    btn.hidden = false;
+    const ageDays = Math.floor((Date.now() - ts) / 86_400_000);
+    const stale   = ageDays >= 14;
+    const warn    = !stale && ageDays >= 7;
+    iconSlot.textContent = stale ? '⚠' : (warn ? '⏱' : '✓');
+    labelSlot.textContent = `Last backup ${timeAgo(ts)}`;
+    if (stale) btn.classList.add('sync-stale');
+    else if (warn) btn.classList.add('sync-warn');
+    btn.title = `Last backup: ${new Date(ts).toLocaleString()}`;
+  }
+
+  btn.addEventListener('click', () => SyncBackupDialog.open());
+
+  return { render };
+})();
+
 // ─── Init ─────────────────────────────────────────────────────────────────────
 
 async function init() {
@@ -1492,10 +2297,6 @@ async function init() {
     persistMeta();
   }
 
-  const rawMs = lsLoad('outputScoring');
-  if (rawMs) { try { state.outputScoring = JSON.parse(rawMs); } catch {} }
-  else { lsSave('outputScoring', JSON.stringify(state.outputScoring.filter(r => !r._catchAll))); }
-
   const rawMinScore = lsLoad('minScore');
   if (rawMinScore !== null) {
     const ms = parseInt(rawMinScore, 10);
@@ -1522,10 +2323,9 @@ async function init() {
   if (!lsLoad('visited')) {
     lsSave('visited', '1');
     HelpModal.open();
-    OnboardingBanner.show();
-  } else if (!lsLoad('onboarded')) {
-    OnboardingBanner.show();
   }
+  // The "popular wordlists pre-loaded" banner now lives inside Manage Sources;
+  // it shows there until the user dismisses it (lsLoad('onboarded')).
 }
 
 function defaultSources() {
@@ -1556,7 +2356,7 @@ function getEditsList() {
 function ensureEdits() {
   const edits = getEditsList();
   if (edits) {
-    if (!edits.scoring) edits.scoring = DEFAULT_OUTPUT_SCORING.map(r => ({ ...r }));
+    if (!edits.scoring) edits.scoring = DEFAULT_SCORING.map(r => ({ ...r }));
     if (!edits.icon) edits.icon = EDITS_ICON;
   } else {
     const newEdits = {
@@ -1570,7 +2370,7 @@ function ensureEdits() {
       lastUpdated: null,
       _loading: false,
       rescoreRules: [],
-      scoring: DEFAULT_OUTPUT_SCORING.map(r => ({ ...r })),
+      scoring: DEFAULT_SCORING.map(r => ({ ...r })),
     };
     updateCatchAll(newEdits);
     state.sources.unshift(newEdits);
@@ -1649,7 +2449,13 @@ function invalidateListCaches(list) {
 
 function computeStats(key, entries) {
   if (_statsCache.has(key)) return _statsCache.get(key);
-  if (!entries.length) { _statsCache.set(key, null); return null; }
+  // Empty state: return an all-zero shape so buildStatsBarHTML can render the
+  // bar with dashes and a flat histogram baseline (uniformity with non-empty).
+  if (!entries.length) {
+    const empty = { count: 0, min: 0, max: 0, mean: 0, median: 0, mode: 0, buckets: new Array(11).fill(0), maxBucket: 0 };
+    _statsCache.set(key, empty);
+    return empty;
+  }
   let min = Infinity, max = -Infinity;
   const buckets = new Array(11).fill(0);
   const freq = {};
@@ -2428,8 +3234,8 @@ function rescoreEntry(entry, rules) {
 // ─── Rescoring / Scoring section ─────────────────────────────────────────────
 
 function renderRescoreSection() {
-  const el = document.getElementById('rescore-section');
-  if (el) el.innerHTML = buildRescoreSectionHTML(getSelected());
+  // Per-source rescoring lives only inside the Manage Sources right pane now.
+  ManageSourcesDialog.refreshRescoreSection();
 }
 
 // ─── Rendering ────────────────────────────────────────────────────────────────
@@ -2441,18 +3247,9 @@ let _refreshCountsTimer = null;
 
 function renderAll() {
   renderSources();
+  SyncIndicator?.render();
   if (state.selected === MERGED_ID) renderMergedDetail();
   else renderDetail(getSelected());
-}
-
-function renderMergedCard(meta, selected) {
-  const card = document.getElementById('merged-card');
-  if (!card) return;
-  const t = document.createElement('template');
-  t.innerHTML = buildListCardHTML(MERGED_ICON, MERGED_NAME, meta, { isMerged: true, selected });
-  const el = t.content.firstElementChild;
-  card.className = el.className;
-  card.innerHTML = el.innerHTML;
 }
 
 function listCardMeta(list, contribMap) {
@@ -2465,37 +3262,13 @@ function listCardMeta(list, contribMap) {
     : `${used.toLocaleString()} of ${pluralize(total, 'entry', 'entries')} used`;
 }
 
+// Centralized "sources changed in some way" hook: refresh derived caches and
+// repaint anything that displays per-source state (the source dropdown trigger
+// when its name/icon may have changed, and the Manage Sources dialog if open).
 function renderSources() {
-  const container = document.getElementById('lists-container');
-  document.getElementById('list-count').textContent = `(${state.sources.length})`;
-
-  const addRow = `<div class="add-list-row" onclick="ConfigureListDialog.openAdd()">${buildDragHandleHTML()}<span class="add-list-icon">＋</span>Add list</div>`;
-
   if (!_sourceCountsCache) _sourceCountsCache = buildMergedList().sourceCounts;
-  const contribMap = new Map(_sourceCountsCache.map(s => [s.list, s.count]));
-  const totalMerged = _sourceCountsCache.reduce((sum, s) => sum + s.count, 0);
-
-  renderMergedCard(totalMerged ? pluralize(totalMerged, 'entry', 'entries') : 'No data', state.selected === MERGED_ID);
-
-  container.innerHTML = state.sources.map(list => {
-    const isEdits = list.type === 'edits';
-    const hasData = list.rawEntries.length > 0;
-    const icon = getListIcon(list);
-    const meta = listCardMeta(list, contribMap);
-
-    return buildListCardHTML(icon, list.name, meta, {
-      selected:    state.selected === list,
-      enabled:     list.enabled,
-      isEdits,
-      hasData,
-      hasUpdate:   !!list._updateAvailable,
-      interactive: true,
-    });
-  }).join('') + addRow;
-
-  // Attach _list to each card for event delegation
-  const cards = container.querySelectorAll('.list-card[data-list]');
-  state.sources.forEach((list, i) => { if (cards[i]) cards[i]._list = list; });
+  SourceDropdown?.renderTrigger();
+  ManageSourcesDialog?.refresh();
 }
 
 
@@ -2504,17 +3277,9 @@ function refreshSourceCounts() {
   invalidateStatsCache(_mergedStatsKey);
   _sourceCountsCache = buildMergedList().sourceCounts;
   const contribMap = new Map(_sourceCountsCache.map(s => [s.list, s.count]));
-  const container = document.getElementById('lists-container');
-  for (const card of container?.querySelectorAll('.list-card[data-list]') ?? []) {
-    const list = card._list;
-    if (!list) continue;
-    const metaEl = card.querySelector('.card-meta');
-    if (!metaEl) continue;
-    metaEl.textContent = listCardMeta(list, contribMap);
-  }
-
-  const totalMerged = _sourceCountsCache.reduce((sum, s) => sum + s.count, 0);
-  renderMergedCard(totalMerged ? pluralize(totalMerged, 'entry', 'entries') : 'No data', state.selected === MERGED_ID);
+  ManageSourcesDialog.updateRailMeta(contribMap);
+  // Scoring catch-all depends on merged entries — repaint legend after any edit.
+  renderScoringSection();
 }
 
 function createScroller() {
@@ -2526,17 +3291,16 @@ function renderMergedDetail() {
   const panel = document.getElementById('detail-panel');
   clearInterval(_dateTimer);
   _dateTimer = null;
+  _detailList = null;
 
-  updateOutputCatchAll();
   const { entries } = buildMergedList();
   const stats = computeStats(_mergedStatsKey, entries);
 
-  const statsHtml = buildStatsBarHTML(stats, 'No lists loaded — add and populate lists to see the merged result');
+  const statsHtml = buildStatsBarHTML(stats);
 
   panel.innerHTML = `
-    ${buildDetailHeaderHTML(MERGED_NAME, ['<button class="primary" onclick="downloadMergedListFromPanel()">Download</button>'])}
     ${statsHtml}
-    <div id="output-scoring-section" class="rescore-section">${buildOutputScoringSectionHTML()}</div>
+    <div id="scoring-section" class="rescore-section">${buildScoringSectionHTML()}</div>
     ${buildTableContainerHTML()}
   `;
 
@@ -2560,7 +3324,7 @@ async function downloadMergedListFromPanel() {
   await downloadWithDialog('Grawlix Wordlist', null, entries, 'Download Merged List');
 }
 
-// ─── Output List Scoring ──────────────────────────────────────────────────────
+// ─── Scoring (tier labels) ────────────────────────────────────────────────────
 
 function updateScoringCatchAll(scoring, entries) {
   const caIdx = scoring.findIndex(r => r._catchAll);
@@ -2581,68 +3345,35 @@ function updateScoringCatchAll(scoring, entries) {
   }
 }
 
-function updateOutputCatchAll() {
-  const { entries } = buildMergedList();
-  updateScoringCatchAll(state.outputScoring, entries);
+// Re-render every scoring section currently mounted: the legend on the All view
+// and the editor in Manage Sources' My Edits pane share the same data, so an
+// edit in either has to repaint both.
+function renderScoringSection() {
+  const main = document.getElementById('scoring-section');
+  if (main) main.innerHTML = buildScoringSectionHTML();
+  ManageSourcesDialog.refreshScoringSection();
 }
 
-function renderOutputScoring() {
-  const el = document.getElementById('output-scoring-section');
-  if (el) el.innerHTML = buildOutputScoringSectionHTML();
-}
-
-
-function deleteOutputScoringRow(i) {
-  const [deleted] = state.outputScoring.splice(i, 1);
-  updateOutputCatchAll();
-  persistOutputScoring();
-  renderOutputScoring();
-  showUndoToast('Deleted scoring row', () => {
-    state.outputScoring.push(deleted);
-    updateOutputCatchAll();
-    persistOutputScoring();
-    renderOutputScoring();
-  });
-}
-
-function saveOutputScoringField(i, field, val) {
-  if (!state.outputScoring[i]) return;
-  state.outputScoring[i][field] = val;
-  delete state.outputScoring[i]._catchAll;
-  updateOutputCatchAll();
-  persistOutputScoring();
-  renderOutputScoring();
-}
-
-// ─── Edits Scoring ────────────────────────────────────────────────────────────
-
-function renderEditsScoring() {
-  const el = document.getElementById('edits-scoring-section');
-  if (el) el.innerHTML = buildEditsScoringSectionHTML(getEditsList());
-}
-
-function deleteEditsScoringRow(i) {
+function deleteScoringRow(i) {
   const edits = getEditsList();
+  if (!edits) return;
   const [deleted] = edits.scoring.splice(i, 1);
-  updateScoringCatchAll(edits.scoring, edits.rawEntries);
   persistMeta();
-  renderEditsScoring();
+  renderScoringSection();
   showUndoToast('Deleted scoring row', () => {
     edits.scoring.push(deleted);
-    updateScoringCatchAll(edits.scoring, edits.rawEntries);
     persistMeta();
-    renderEditsScoring();
+    renderScoringSection();
   });
 }
 
-function saveEditsScoringField(i, field, val) {
+function saveScoringField(i, field, val) {
   const edits = getEditsList();
-  if (!edits.scoring[i]) return;
+  if (!edits?.scoring[i]) return;
   edits.scoring[i][field] = val;
   delete edits.scoring[i]._catchAll;
-  updateScoringCatchAll(edits.scoring, edits.rawEntries);
   persistMeta();
-  renderEditsScoring();
+  renderScoringSection();
 }
 
 
@@ -2653,7 +3384,7 @@ function renderDetail(list) {
   _dateTimer = null;
 
   if (!list) {
-    panel.innerHTML = '<div class="no-selection"><p>No list selected</p><small>Select a list from the left panel</small></div>';
+    panel.innerHTML = '<div class="no-selection"><p>No list selected</p><small>Pick a list from the source dropdown</small></div>';
     scroller = null;
     return;
   }
@@ -2666,47 +3397,10 @@ function renderDetail(list) {
   _detailList = list;
 
   const stats = computeStats(list, list.rawEntries);
-
-  const hasData = list.rawEntries.length > 0;
-  const emptyMsg = list.url ? 'No data loaded — use the Fetch button to load this list'
-                            : 'No data loaded — use the Import button to load this list';
-  const statsHtml = buildStatsBarHTML(stats, emptyMsg);
-
-  const label = hasData ? 'Update' : (list.url ? 'Fetch' : 'Import');
-  const dot = list._updateAvailable && !list._loading ? ` <span class="update-dot"></span>` : '';
-  const title = list._updateAvailable && !list._loading ? 'Update available' : '';
-
-  let actionBtn;
-  if (list.url) {
-    const loadingLabel = hasData ? 'Updating…' : 'Fetching…';
-    const btnLabel = `${list._loading ? loadingLabel : label}${dot}`;
-    actionBtn = buildSplitBtn(btnLabel, `fetchCurrentList()`,
-      [['Import', `importCurrentList()`]],
-      { primary: true, disabled: !!list._loading, title });
-  } else {
-    actionBtn = `<button class="primary"${title ? ` title="${title}"` : ''} onclick="importCurrentList()" ${list._loading ? 'disabled' : ''}>${list._loading ? 'Importing…' : 'Import'}${dot}</button>`;
-  }
-
-  const moreMenu = buildMoreMenuHTML([
-    ['Configure list', 'configureCurrentList()'],
-    ['Delete list',    'deleteCurrentList()'],
-  ]);
-
-  const dlBtn = hasData ? buildSplitBtn('Download', `downloadCurrentListRescored()`,
-    [['Download rescored list', `downloadCurrentListRescored()`],
-     ['Download original',      `downloadCurrentListOriginal()`]]) : '';
-
-  const detailButtons = [
-    ...(hasData && list.lastUpdated ? ['<span class="detail-date"></span>'] : []),
-    actionBtn,
-    ...(dlBtn ? [dlBtn] : []),
-    moreMenu,
-  ];
+  const statsHtml = buildStatsBarHTML(stats);
 
   panel.innerHTML = `
-    ${buildDetailHeaderHTML(esc(list.name), detailButtons, { editable: true })}
     ${statsHtml}
-    <div id="rescore-section" class="rescore-section">${buildRescoreSectionHTML(list)}</div>
     ${buildTableContainerHTML()}
   `;
 
@@ -2719,37 +3413,17 @@ function renderDetail(list) {
     scroller._sortScores = null;
     scroller._render();
   });
-
-  if (list.lastUpdated) {
-    setDetailDate(list.lastUpdated);
-    _dateTimer = setInterval(() => setDetailDate(list.lastUpdated), 60_000);
-  }
-}
-
-function setDetailDate(ts) {
-  const el = document.querySelector('.detail-date');
-  if (!el) return;
-  el.textContent = `Last updated ${timeAgo(ts)}`;
-  el.title = new Date(ts).toLocaleString();
 }
 
 function renderEditsDetail(list) {
   const panel = document.getElementById('detail-panel');
   _detailList = list;
-  updateScoringCatchAll(list.scoring, list.rawEntries);
   const stats = computeStats(list, list.rawEntries);
-  const statsHtml = buildStatsBarHTML(stats, 'No edits yet — click a score or comment in any list to start editing');
-
-  const editsButtons = [
-    `<button onclick="importCurrentList()">Import</button>`,
-    `<button class="primary" onclick="downloadEdits()">Download</button>`,
-    ...(list.rawEntries.length ? [`<button onclick="clearEdits()">Clear</button>`] : []),
-  ];
+  const statsHtml = buildStatsBarHTML(stats);
 
   panel.innerHTML = `
-    ${buildDetailHeaderHTML(esc(list.name), editsButtons)}
     ${statsHtml}
-    <div id="edits-scoring-section" class="rescore-section">${buildEditsScoringSectionHTML(list)}</div>
+    <div id="scoring-section" class="rescore-section">${buildScoringSectionHTML()}</div>
     ${buildTableContainerHTML()}
   `;
 
@@ -2774,9 +3448,8 @@ function renderEditsDetail(list) {
 // ─── Actions ──────────────────────────────────────────────────────────────────
 
 function attachExternalEditHandlers(s, refreshFn) {
-  s._onCellEdit = (word, field, newValue, sourceTd) => {
+  s._onCellEdit = (word, field, newValue) => {
     upsertEdits(word, field, newValue);
-    if (sourceTd) flyToEdits(sourceTd, field === 'score' ? newValue : '✎');
     refreshFn?.();
   };
   s._onEditStart = (word, field, td) => showEditInfoNote(td);
@@ -2831,79 +3504,21 @@ function hideEditInfoNote() {
   if (tip) tip.style.opacity = '0';
 }
 
-function pulseEditsCard() {
-  const targetCard = document.getElementById('edits-card');
-  if (!targetCard) return;
-  targetCard.classList.remove('pulse');
-  requestAnimationFrame(() => {
-    requestAnimationFrame(() => targetCard.classList.add('pulse'));
-  });
-  setTimeout(() => targetCard.classList.remove('pulse'), 1500);
-}
-
-function flyToEdits(sourceTd, value) {
-  const targetCard = document.getElementById('edits-card');
-  if (!targetCard || !sourceTd?.isConnected) return;
-
-  const srcRect  = sourceTd.getBoundingClientRect();
-  const dstRect  = targetCard.getBoundingClientRect();
-
-  let clone;
-  if (typeof value === 'number') {
-    const t = document.createElement('template');
-    t.innerHTML = buildScoreBadgeHTML(value);
-    clone = t.content.firstElementChild;
-    clone.classList.add('fly-clone');
-  } else {
-    clone = document.createElement('span');
-    clone.className = 'fly-clone fly-badge';
-    clone.textContent = value;
-  }
-  clone.style.left = srcRect.left + 'px';
-  clone.style.top  = srcRect.top  + 'px';
-  document.body.appendChild(clone);
-
-  const cloneRect = clone.getBoundingClientRect();
-  const dx = dstRect.left + dstRect.width  / 2 - (cloneRect.left + cloneRect.width  / 2);
-  const dy = dstRect.top  + dstRect.height / 2 - (cloneRect.top  + cloneRect.height / 2);
-  clone.style.setProperty('--fly-dx', dx + 'px');
-  clone.style.setProperty('--fly-dy', dy + 'px');
-
-  pulseEditsCard();
-
-  clone.addEventListener('animationend', () => clone.remove(), { once: true });
-}
-
-function fetchCurrentList(event)         { if (_detailList) fetchList(_detailList, event); }
-function importCurrentList(event)        { if (_detailList) importToList(_detailList, event); }
-function deleteCurrentList(event)        { if (_detailList) deleteList(_detailList, event); }
-function downloadCurrentListRescored()   { if (_detailList) downloadIndividualListRescored(_detailList); }
-function downloadCurrentListOriginal()   { if (_detailList) downloadOriginalList(_detailList); }
-function configureCurrentList()          { if (_detailList) ConfigureListDialog.open(_detailList); }
-
 function getSelected() {
   return state.selected !== MERGED_ID ? state.selected : null;
 }
 
 function selectMergedList() {
   state.selected = MERGED_ID;
-
   state.searchQuery = '';
-  document.getElementById('merged-card')?.classList.add('selected');
-  const container = document.getElementById('lists-container');
-  container?.querySelectorAll('.list-card').forEach(card => card.classList.remove('selected'));
+  SourceDropdown?.renderTrigger();
   renderMergedDetail();
 }
 
 function selectList(list) {
   state.selected = list;
-
   state.searchQuery = '';
-  document.getElementById('merged-card')?.classList.remove('selected');
-  const container = document.getElementById('lists-container');
-  container?.querySelectorAll('.list-card').forEach(card => {
-    card.classList.toggle('selected', card._list === list);
-  });
+  SourceDropdown?.renderTrigger();
   renderDetail(list);
 }
 
@@ -3246,7 +3861,6 @@ function openAddWordBar() {
     if (state.selected === edits) {
       renderEditsDetail(edits);
     } else {
-      flyToEdits(bar, score);
       restoreTrigger();
     }
   }
@@ -3292,7 +3906,7 @@ async function deleteList(list, event) {
   await idbDel('data_' + list.dbKey);
   persistMeta();
   if (state.selected === list) {
-    state.selected = null;
+    state.selected = MERGED_ID;
     scroller = null;
   }
   renderAll();
@@ -3878,6 +4492,7 @@ const ConfigureListDialog = (() => {
         rescoreRules: rules || [],
       });
       el.close();
+      if (ManageSourcesDialog.isOpen()) ManageSourcesDialog.focus(list);
       if (url) {
         fetchList(list).then(() => selectList(list));
       } else if (_pendingFile) {
@@ -3896,7 +4511,8 @@ const ConfigureListDialog = (() => {
       invalidateListCaches(_list);
       refreshSourceCounts();
       renderSources();
-      renderDetail(_list);
+      if (state.selected === _list) renderDetail(_list);
+      else if (state.selected === MERGED_ID) renderMergedDetail();
       el.close();
     }
   };
@@ -3992,151 +4608,8 @@ function bindEvents() {
   document.querySelector('.header-logo-link').href = location.pathname;
   document.getElementById('btn-settings').onclick = () => SettingsDialog.open();
 
-  // Output card
-  const mergedCard = document.getElementById('merged-card');
-  mergedCard.onclick = selectMergedList;
-  mergedCard.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); selectMergedList(); } };
-
-  // Delegated click/keydown/change for source cards
-  const listsContainer = document.getElementById('lists-container');
-
-  listsContainer.addEventListener('click', e => {
-    const toggleLabel = e.target.closest('label.toggle');
-    if (toggleLabel) {
-      const card = toggleLabel.closest('.list-card[data-list]');
-      if (card?._list && !card._list.rawEntries.length && card._list.type !== 'edits') {
-        e.stopPropagation();
-        triggerImportForList(card._list, e);
-      }
-      return;
-    }
-    const card = e.target.closest('.list-card[data-list]');
-    if (!card?._list) return;
-    selectList(card._list);
-  });
-
-  listsContainer.addEventListener('keydown', e => {
-    if (e.key !== 'Enter' && e.key !== ' ') return;
-    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
-    const card = e.target.closest('.list-card[data-list]');
-    if (!card?._list) return;
-    e.preventDefault();
-    selectList(card._list);
-  });
-
-  listsContainer.addEventListener('change', e => {
-    const toggle = e.target.closest('.toggle input[type="checkbox"]');
-    if (!toggle) return;
-    const card = toggle.closest('.list-card[data-list]');
-    if (!card?._list) return;
-    toggleList(card._list, e);
-  });
-
-  // Mouse drag-to-reorder
-  let _dragList = null;
-
-  listsContainer.addEventListener('dragstart', e => {
-    const card = e.target.closest('.list-card[data-list]');
-    if (!card?._list) return;
-    _dragList = card._list;
-    e.dataTransfer.effectAllowed = 'move';
-    e.dataTransfer.setData('text/plain', '');
-    setTimeout(() => card.classList.add('dragging'), 0);
-  });
-
-  listsContainer.addEventListener('dragend', () => {
-    document.querySelectorAll('.list-card.dragging, .list-card.drag-over')
-      .forEach(el => el.classList.remove('dragging', 'drag-over'));
-    _dragList = null;
-  });
-
-  listsContainer.addEventListener('dragover', e => {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = 'move';
-    const card = e.target.closest('.list-card[data-list]');
-    if (!card || card._list === _dragList) return;
-    document.querySelectorAll('.list-card.drag-over').forEach(el => el.classList.remove('drag-over'));
-    card.classList.add('drag-over');
-  });
-
-  listsContainer.addEventListener('dragleave', e => {
-    const card = e.target.closest('.list-card');
-    if (card && !card.contains(e.relatedTarget)) card.classList.remove('drag-over');
-  });
-
-  listsContainer.addEventListener('drop', e => {
-    e.preventDefault();
-    const card = e.target.closest('.list-card[data-list]');
-    const toList = card?._list;
-    if (!_dragList || !toList || _dragList === toList) return;
-    const fromIdx = state.sources.indexOf(_dragList);
-    const toIdx   = state.sources.indexOf(toList);
-    if (fromIdx === -1 || toIdx === -1) return;
-    const [item] = state.sources.splice(fromIdx, 1);
-    state.sources.splice(toIdx, 0, item);
-    persistMeta();
-    renderSources();
-    clearTimeout(_refreshCountsTimer);
-    _refreshCountsTimer = setTimeout(refreshSourceCounts, 0);
-  });
-
-  // Touch drag-to-reorder (mobile/touch screens)
-  let _touchDragList = null;
-
-  const commitTouchReorder = toList => {
-    if (!toList || toList === _touchDragList) return;
-    const fromIdx = state.sources.indexOf(_touchDragList);
-    const toIdx   = state.sources.indexOf(toList);
-    if (fromIdx === -1 || toIdx === -1) return;
-    const [item] = state.sources.splice(fromIdx, 1);
-    state.sources.splice(toIdx, 0, item);
-    persistMeta();
-    renderSources();
-    clearTimeout(_refreshCountsTimer);
-    _refreshCountsTimer = setTimeout(refreshSourceCounts, 0);
-  };
-
-  listsContainer.addEventListener('touchstart', e => {
-    if (!e.target.closest('.drag-handle')) return;
-    const card = e.target.closest('.list-card[data-list]');
-    if (!card?._list) return;
-    e.preventDefault();
-    _touchDragList = card._list;
-    card.classList.add('dragging');
-  }, { passive: false });
-
-  listsContainer.addEventListener('touchmove', e => {
-    if (!_touchDragList) return;
-    e.preventDefault();
-    const touch = e.touches[0];
-    const overCard = document.elementFromPoint(touch.clientX, touch.clientY)?.closest('.list-card[data-list]');
-    listsContainer.querySelectorAll('.list-card.drag-over').forEach(c => c.classList.remove('drag-over'));
-    if (overCard && overCard._list !== _touchDragList) overCard.classList.add('drag-over');
-  }, { passive: false });
-
-  const endTouchDrag = () => {
-    if (!_touchDragList) return;
-    const overCard = listsContainer.querySelector('.list-card.drag-over');
-    const toList = overCard?._list;
-    listsContainer.querySelectorAll('.list-card.dragging, .list-card.drag-over')
-      .forEach(el => el.classList.remove('dragging', 'drag-over'));
-    commitTouchReorder(toList);
-    _touchDragList = null;
-  };
-  listsContainer.addEventListener('touchend', endTouchDrag);
-  listsContainer.addEventListener('touchcancel', endTouchDrag);
-
   // Global keyboard shortcuts
   document.addEventListener('keydown', e => {
-    const active = document.activeElement;
-    const inField = active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.isContentEditable);
-
-    if (e.key === 'F2') {
-      if (inField) return;
-      if (state.selected && state.selected !== MERGED_ID && state.selected.type !== 'edits') { e.preventDefault(); startCardRename(state.selected); }
-      return;
-    }
-
     if (e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey) {
       const k = e.key.toLowerCase();
       if (k === 's') {
@@ -4145,13 +4618,18 @@ function bindEvents() {
       } else if (k === 'w') {
         const el = document.getElementById('search-whole-word');
         if (el) { e.preventDefault(); el.checked = !el.checked; onSearchWholeWord(el.checked); }
+      } else if (k === 'l') {
+        e.preventDefault();
+        SourceDropdown.openWithFocus();
+      } else if (k === 't') {
+        const el = document.getElementById('gallery-search');
+        if (el) { e.preventDefault(); el.focus(); el.select(); }
       } else if (k === 'm') {
         const el = document.getElementById('score-min-input');
         if (el) { e.preventDefault(); el.focus(); el.select(); }
       }
     }
   });
-
 }
 
 function nameFromPath(str) {
@@ -4427,8 +4905,16 @@ function afterRuleChange(list) {
   refreshSourceCounts();
 }
 
+// Per-source rescore rules now live in the Manage Sources right pane only.
+// These handlers target the focused list there, falling back to the main-pane
+// selection only if the dialog isn't open (defensive — there should be no other
+// callers).
+function getRescoreContextList() {
+  return ManageSourcesDialog?.getFocusedList?.() ?? getSelected();
+}
+
 function deleteRule(idx) {
-  const list = getSelected();
+  const list = getRescoreContextList();
   if (!list) return;
   const [deleted] = list.rescoreRules.splice(idx, 1);
   afterRuleChange(list);
@@ -4439,7 +4925,7 @@ function deleteRule(idx) {
 }
 
 function saveRuleField(idx, field, value) {
-  const list = getSelected();
+  const list = getRescoreContextList();
   if (!list || !list.rescoreRules[idx]) return;
   if (field === 'length' && value.trim().toLowerCase() === 'any') value = '';
   if (field === 'output' && value.trim().toLowerCase() === 'unchanged') value = '';
@@ -4456,21 +4942,16 @@ function noteDisplayHTML(note) {
 function startNoteEdit(wrapEl) {
   if (wrapEl.querySelector('.rule-note-input')) return;
   const i = parseInt(wrapEl.closest('.rule-row').dataset.i, 10);
-  const isOutput = !!wrapEl.closest('#output-scoring-section');
-  const isEdits  = !!wrapEl.closest('#edits-scoring-section');
+  const isScoring = !!wrapEl.closest('#scoring-rules');
 
   let currentNote, onSave;
-  if (isOutput) {
-    if (!state.outputScoring[i]) return;
-    currentNote = state.outputScoring[i].note || '';
-    onSave = note => saveOutputScoringField(i, 'note', note);
-  } else if (isEdits) {
+  if (isScoring) {
     const edits = getEditsList();
-    if (!edits.scoring[i]) return;
+    if (!edits?.scoring[i]) return;
     currentNote = edits.scoring[i].note || '';
-    onSave = note => saveEditsScoringField(i, 'note', note);
+    onSave = note => saveScoringField(i, 'note', note);
   } else {
-    const list = getSelected();
+    const list = getRescoreContextList();
     if (!list?.rescoreRules[i]) return;
     currentNote = list.rescoreRules[i].note || '';
     onSave = note => saveRuleField(i, 'note', note);
@@ -4541,7 +5022,7 @@ function validateRulesContainer(container) {
 function onRuleInput(el) {
   if (el.classList.contains('rule-len') && el.value.trim().toLowerCase() === 'any') el.value = '';
   if (el.classList.contains('rule-out') && el.value.trim().toLowerCase() === 'unchanged') el.value = '';
-  const container = el.closest('#rescore-rules, #output-scoring-rules, #edits-scoring-rules');
+  const container = el.closest('#rescore-rules, #scoring-rules');
   if (!container) return;
   validateRulesContainer(container);
   if (container.id === 'rescore-rules') updateRescorePreview();
@@ -4549,6 +5030,10 @@ function onRuleInput(el) {
 
 function updateRescorePreview() {
   if (!scroller) return;
+  // Live preview only makes sense when the rules being typed belong to the list
+  // the main-pane scroller is showing. From inside Manage Sources the focused
+  // list usually differs from the main-pane selection, so skip.
+  if (ManageSourcesDialog.isOpen() && ManageSourcesDialog.getFocusedList() !== getSelected()) return;
   const rules = Array.from(document.querySelectorAll('#rescore-rules .rule-row')).map(row => ({
     input:  row.querySelector('.rule-in')?.value  || '',
     length: row.querySelector('.rule-len')?.value || '',
@@ -4577,94 +5062,6 @@ function startInlineRename(inputEl, originalName, { onCommit, onCancel, onInput 
     if (e.key === 'Enter') { e.preventDefault(); commit(); }
     if (e.key === 'Escape') { inputEl.onblur = null; cancel(); }
   };
-}
-
-function startHeaderRename() {
-  const list = getSelected();
-  if (!list) return;
-  const h2 = document.querySelector('.detail-header h2');
-  if (!h2 || h2.querySelector('input')) return;
-
-  const container = document.getElementById('lists-container');
-  const findCardNameEl = () => {
-    const card = [...container.querySelectorAll('.list-card[data-list]')].find(c => c._list === list);
-    return card?.querySelector('.card-name') ?? null;
-  };
-
-  const input = document.createElement('input');
-  input.className = 'name-edit-input';
-  input.value = list.name;
-
-  const originalName = list.name;
-  h2.textContent = '';
-  h2.appendChild(input);
-  input.select();
-
-  startInlineRename(input, originalName, {
-    onCommit(newName) {
-      h2.textContent = newName;
-      if (newName !== originalName) {
-        list.name = newName;
-        persistMeta();
-        const cardNameEl = findCardNameEl();
-        if (cardNameEl) cardNameEl.textContent = newName;
-      }
-    },
-    onCancel() {
-      h2.textContent = originalName;
-      const cardNameEl = findCardNameEl();
-      if (cardNameEl && !cardNameEl.querySelector('input')) cardNameEl.textContent = originalName;
-    },
-    onInput(val) {
-      const cardNameEl = findCardNameEl();
-      if (cardNameEl && !cardNameEl.querySelector('input')) cardNameEl.textContent = val;
-    },
-  });
-}
-
-function startCardRename(list) {
-  if (!list) return;
-  const container = document.getElementById('lists-container');
-  const card = [...container.querySelectorAll('.list-card[data-list]')].find(c => c._list === list);
-  if (!card) return;
-  const nameEl = card.querySelector('.card-name');
-  if (!nameEl || nameEl.querySelector('input')) return;
-
-  const input = document.createElement('input');
-  input.className = 'card-name-edit';
-  input.value = list.name;
-
-  const originalName = list.name;
-  nameEl.textContent = '';
-  nameEl.appendChild(input);
-  input.focus();
-  input.select();
-  input.onclick = e => e.stopPropagation();
-
-  startInlineRename(input, originalName, {
-    onCommit(newName) {
-      if (newName !== originalName) {
-        list.name = newName;
-        persistMeta();
-        nameEl.textContent = newName;
-        if (state.selected === list) {
-          const h2 = document.querySelector('.detail-header h2');
-          if (h2 && !h2.querySelector('input')) h2.textContent = newName;
-        }
-      } else {
-        nameEl.textContent = originalName;
-      }
-    },
-    onCancel() {
-      nameEl.textContent = originalName;
-      const h2 = document.querySelector('.detail-header h2');
-      if (h2 && !h2.querySelector('input')) h2.textContent = originalName;
-    },
-    onInput(val) {
-      const h2 = document.querySelector('.detail-header h2');
-      if (h2 && !h2.querySelector('input')) h2.textContent = val;
-    },
-  });
 }
 
 // ─── Merge & Download ─────────────────────────────────────────────────────────
@@ -5115,57 +5512,6 @@ const HelpModal = (() => {
   dialog.querySelectorAll('.help-dot').forEach((dot, i) => dot.addEventListener('click', () => goTo(i)));
 
   return { open, close, goTo };
-})();
-
-// ─── Onboarding Banner ────────────────────────────────────────────────────────
-
-const OnboardingBanner = (() => {
-  const banner = document.createElement('div');
-  banner.id = 'onboarding-banner';
-  banner.hidden = true;
-  banner.innerHTML = `
-    <button class="dialog-close-btn" aria-label="Dismiss">✕</button>
-    <p>Some popular wordlists have been set up with suggested scoring rules.</p>
-    <div class="onboarding-banner-actions">
-      <button class="link-btn">Start with a blank slate instead</button>
-      <button class="primary">Sounds good</button>
-    </div>`;
-
-  function show() {
-    if (!banner.isConnected) {
-      const listsContainer = document.getElementById('lists-container');
-      listsContainer.parentNode.insertBefore(banner, listsContainer);
-    }
-    banner.hidden = false;
-  }
-
-  function dismiss() {
-    banner.hidden = true;
-    lsSave('onboarded', '1');
-  }
-
-  async function goBlank() {
-    const toRemove = state.sources.filter(l => l.type !== 'edits');
-    state.sources = state.sources.filter(l => l.type === 'edits');
-    toRemove.forEach(l => invalidateListCaches(l));
-    if (state.selected !== MERGED_ID && toRemove.includes(state.selected)) {
-      state.selected = MERGED_ID;
-    }
-    state.outputScoring = [];
-    persistOutputScoring();
-    const edits = getEditsList();
-    if (edits) edits.scoring = [];
-    persistMeta();
-    await Promise.all(toRemove.map(l => idbDel('data_' + l.dbKey)));
-    renderAll();
-    dismiss();
-  }
-
-  banner.querySelector('.primary').addEventListener('click', dismiss);
-  banner.querySelector('.dialog-close-btn').addEventListener('click', dismiss);
-  banner.querySelector('.link-btn').addEventListener('click', goBlank);
-
-  return { show, dismiss };
 })();
 
 // ─── Boot ─────────────────────────────────────────────────────────────────────
