@@ -2,7 +2,7 @@
 
 The app shell that hosts everything: header, left rail, main pane, and the
 two setup dialogs. The mining side — the tool gallery and the row-stack
-that fills the main pane — is owned separately by [`plans/tools.md`](plans/tools.md);
+that fills the main pane — is owned separately by [`plans/tools.md`](../plans/tools.md);
 this document describes the shell.
 
 ## Workspace and sidekick
@@ -21,13 +21,13 @@ mode for free as long as load is fast and chrome isn't loud — sidekick is
 just "brief use, leave."
 
 Lookup features (definitions, NYT crossword history, semantic search; see
-[`plans/lookup.md`](plans/lookup.md)) are differentially valuable to constructors using grid
+[`plans/lookup.md`](../plans/lookup.md)) are differentially valuable to constructors using grid
 software without built-in lookup. Crossfire and Crossword Compiler are the
 populations that benefit most; Ingrid has Google integration and Crosserville
 has clue lookup, so those populations need Grawlix-side lookup less.
 
 Mobile is a third mode — theme research on the go (subway, Discord) — and
-gets its own design; see [`plans/mobile.md`](plans/mobile.md).
+gets its own design; see [`plans/mobile.md`](../plans/mobile.md).
 
 ### Non-features
 
@@ -51,7 +51,7 @@ per-source navigation, no sync state, no source picker.
 
 **Left rail.** Fixed-width column with two labelled sections: a **Wordlist**
 section at the top (source dropdown + sync indicator — the two doors into
-setup), and a **Tools** section below (the tool gallery, owned by [`plans/tools.md`](plans/tools.md)).
+setup), and a **Tools** section below (the tool gallery, owned by [`plans/tools.md`](../plans/tools.md)).
 Labels because the two sections answer unrelated questions ("what am I
 looking at" vs. "what can I do with it"); a divider alone would suggest
 they're variants of the same thing. Not collapsible.
@@ -68,11 +68,11 @@ add-list affordance here — those live one click deeper in Manage sources.
 **Sync indicator.** Sits below the source dropdown. Shows "Last backup: Nd
 ago" with age-based color (neutral / warn / stale). Clicking opens **Sync
 & backup**. Hidden until there's a backup to report — currently always
-hidden because Sync & backup is a stub (see [`plans/sync.md`](plans/sync.md) for the full
+hidden because Sync & backup is a stub (see [`plans/sync.md`](../plans/sync.md) for the full
 design that will eventually populate it).
 
 **Main pane.** Stats bar, then the wordlist table. The space between is
-where the tool stack will land per [`plans/tools.md`](plans/tools.md); today the table sits
+where the tool stack will land per [`plans/tools.md`](../plans/tools.md); today the table sits
 directly under the stats. The stats bar always renders, even for empty
 lists — zero entries, dashes for min/max/etc., flat histogram baseline.
 Uniformity over an "empty placeholder" treatment.
@@ -152,7 +152,7 @@ is fine.
 ### Sync & backup
 
 Opened from the left-rail sync indicator. **Today this is a stub** — the
-dialog opens with placeholder text. Full design lives in [`plans/sync.md`](plans/sync.md):
+dialog opens with placeholder text. Full design lives in [`plans/sync.md`](../plans/sync.md):
 prominent "Download All" and "Download My Edits" buttons (Tier 1 manual
 backup), per-cloud-provider connect/disconnect (Tier 3), disk-sync section
 gated on PWA install (Tier 2), recent activity log.
@@ -202,7 +202,7 @@ as too heavy-handed.*
 Reachable from the header `?` button and the `?` keyboard shortcut. First-
 run users get it auto-opened. Slide content describes the pre-restructure
 UI and is out of date with the current shell — a redesign is planned in
-[`plans/help.md`](plans/help.md), to land once [`plans/tools.md`](plans/tools.md) settles.
+[`plans/help.md`](../plans/help.md), to land once [`plans/tools.md`](../plans/tools.md) settles.
 
 ## URL state
 
@@ -214,4 +214,4 @@ state. The selected source from the dropdown is local-only — links don't
 pretend the recipient has the same lists loaded.
 
 This is **not yet wired** — there's no tool stack to encode. Lands with
-[`plans/tools.md`](plans/tools.md). See [`plans/url-routing.md`](plans/url-routing.md) for the schema.
+[`plans/tools.md`](../plans/tools.md). See [`plans/url-routing.md`](../plans/url-routing.md) for the schema.

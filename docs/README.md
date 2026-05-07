@@ -1,12 +1,16 @@
 # Grawlix docs
 
-- **Top level** — present-tense documentation of what's implemented, plus the occasional reference catalogue that doesn't fit anywhere else.
-- **[`plans/`](plans/)** — forward-looking design docs for work that hasn't shipped. When a plan ships, the `distill-design-doc` skill rewrites it as a feature record and moves it up.
+- **Top level** — the index plus reference catalogues that don't fit elsewhere.
+- **[`designs/`](designs/)** — present-tense documentation of what's implemented. When a plan ships, the `distill-design-doc` skill rewrites it as a feature record and moves it here.
+- **[`plans/`](plans/)** — forward-looking design docs for work that hasn't shipped. Speculative, future-tense.
 
 ## Top level
 
-- [app.md](app.md) — top-level UI shape: header, left rail with source picker and tool-gallery slot, main pane, Manage sources dialog (full), Sync & backup dialog (stub).
 - [wordlisted.md](wordlisted.md) — reference catalogue of Wordlisted's search modes. External-system documentation rather than a Grawlix feature record; lives here as the source material for the tool gallery roadmap.
+
+## Designs
+
+- [designs/app.md](designs/app.md) — top-level UI shape: header, left rail with source picker and tool-gallery slot, main pane, Manage sources dialog (full), Sync & backup dialog (stub).
 
 ## Plans
 
