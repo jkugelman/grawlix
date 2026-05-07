@@ -5,11 +5,11 @@
 
 ## Top level
 
+- [app.md](app.md) — top-level UI shape: header, left rail with source picker and tool-gallery slot, main pane, Manage sources dialog (full), Sync & backup dialog (stub).
 - [wordlisted.md](wordlisted.md) — reference catalogue of Wordlisted's search modes. External-system documentation rather than a Grawlix feature record; lives here as the source material for the tool gallery roadmap.
 
 ## Plans
 
-- [plans/app.md](plans/app.md) — top-level UI shape: header, left rail with source picker and tool gallery, main pane, Manage sources and Sync & backup dialogs.
 - [plans/tools.md](plans/tools.md) — the tool stack mechanism, the gallery panel, Wordlisted-parity and Grawlix-original tools, OneLook/Datamuse/Umiaq integration notes.
 - [plans/url-routing.md](plans/url-routing.md) — query-string serialization of the tool stack and result-view filters; alias/rename policy for stable links.
 - [plans/sync.md](plans/sync.md) — three-tier persistence for the merged `All` view + My Edits (backup nag, disk file link, cloud sync). Sync & backup dialog.

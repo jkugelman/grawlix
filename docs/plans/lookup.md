@@ -8,7 +8,7 @@ Click a word → surface info about it from external sources (definitions, Wikip
 
 ## Why lookups matter
 
-Lookups are the gap-filler for the populations described in [`app.md`](app.md)'s "workspace and sidekick" framing — specifically constructors whose grid software lacks built-in lookup (Crossfire, Crossword Compiler). Ingrid has Google integration, Crosserville has clue lookup; those users already get lookup elsewhere.
+Lookups are the gap-filler for the populations described in [`app.md`](../app.md)'s "workspace and sidekick" framing — specifically constructors whose grid software lacks built-in lookup (Crossfire, Crossword Compiler). Ingrid has Google integration, Crosserville has clue lookup; those users already get lookup elsewhere.
 
 Beyond the grid-software gap, lookups serve Grawlix's own mining/research workflows: while filling or theme-generating, "what is this entry?" is a real question that comes up — and the **mobile theme-research-on-the-go scenario** (subway, Discord; see [`mobile.md`](mobile.md)) probably wants definitions and Wikipedia more than letter-pattern wordplay. Lookups may need more prominence on mobile than desktop.
 
@@ -32,7 +32,7 @@ Beyond the grid-software gap, lookups serve Grawlix's own mining/research workfl
 
 To answer in the dedicated design session:
 
-- **Where does the lookup result live?** Each option has a different relationship to the always-visible-table decision in [`app.md`](app.md):
+- **Where does the lookup result live?** Each option has a different relationship to the always-visible-table decision in [`app.md`](../app.md):
   - *Popover next to the word* — keeps the table dominant; ephemeral; closes on click-elsewhere.
   - *Side panel that persists as you click around* — takes pixels from the table but supports rapid scanning across multiple entries.
   - *New column in the table* — probably too dense.
