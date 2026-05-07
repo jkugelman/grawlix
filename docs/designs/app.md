@@ -207,7 +207,7 @@ UI and is out of date with the current shell — a redesign is planned in
 ## URL state
 
 The plan: the tool stack will be encoded as the query string
-(`?anagram=LINDSEY&search=DOG&min=40`) using `replaceState`, so any stack
+(`?anagram=LINDSEY&search=DOG&score=40+`) using `replaceState`, so any stack
 configuration can be bookmarked or shared. Dialogs (Manage sources, Sync
 & backup, settings, help) are *not* URL-addressable; they're transient UI
 state. The selected source from the dropdown is local-only — links don't

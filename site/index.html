@@ -168,17 +168,15 @@ button.danger:hover:not(:disabled) { background: #e74c3c; border-color: #c0392b;
 .search-row input[type="text"] { width: 100%; padding: 5px 24px 5px 28px; border: 1px solid var(--border); border-radius: 4px; font-size: 13px; font-family: inherit; background: var(--input-bg); color: var(--text); }
 .search-row input[type="text"]:focus { outline: none; border-color: var(--accent); }
 .search-whole-word-label { display: flex; align-items: center; gap: 5px; font-size: 12px; color: var(--muted); white-space: nowrap; cursor: pointer; user-select: none; }
-.score-min-label { display: flex; align-items: center; gap: 5px; font-size: 12px; color: var(--muted); white-space: nowrap; margin-left: 8px; }
+.score-range-label { display: flex; align-items: center; gap: 5px; font-size: 12px; color: var(--muted); white-space: nowrap; margin-left: 8px; }
 .clear-btn { background: none; border: none; padding: 2px 3px; cursor: pointer; color: var(--muted); display: flex; align-items: center; line-height: 1; border-radius: 3px; flex-shrink: 0; }
 .clear-btn:hover { color: var(--text); background: var(--hover); }
 .clear-btn[hidden] { display: none; }
-.search-input-wrap .clear-btn, .score-min-wrap .clear-btn { position: absolute; right: 4px; }
-.score-min-wrap { position: relative; display: inline-flex; align-items: center; }
-input[type="number"] { appearance: textfield; -moz-appearance: textfield; }
-.score-min-label input[type="number"] { width: 56px; padding: 4px 20px 4px 6px; border: 1px solid var(--border); border-radius: 4px; font-size: 13px; font-family: inherit; background: var(--input-bg); color: var(--text); }
-input[type="number"]::-webkit-inner-spin-button,
-input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; }
-.score-min-label input[type="number"]:focus { outline: none; border-color: var(--accent); }
+.search-input-wrap .clear-btn, .score-range-wrap .clear-btn { position: absolute; right: 4px; }
+.score-range-wrap { position: relative; display: inline-flex; align-items: center; }
+.score-range-label input[type="text"] { width: 72px; padding: 4px 20px 4px 6px; border: 1px solid var(--border); border-radius: 4px; font-size: 13px; font-family: inherit; background: var(--input-bg); color: var(--text); }
+.score-range-label input[type="text"]:focus { outline: none; border-color: var(--accent); }
+.score-range-label input.invalid { border-color: #ea4335; background: var(--error-bg); }
 .search-help { margin-bottom: 5px; font-size: 11px; color: transparent; line-height: 1.6; display: flex; flex-wrap: wrap; gap: 0 14px; transition: color 0.15s; }
 .search-help kbd { font-family: ui-monospace, 'Cascadia Code', monospace; font-size: 11px; }
 .search-bar:has(#search-input:focus) .search-help { color: var(--faint); }
@@ -1222,7 +1220,7 @@ function buildSearchBarHTML(opts = {}) {
     showHints       = true,
     searchQuery     = idPrefix ? '' : esc(state.searchQuery),
     searchWholeWord = idPrefix ? false : (state.searchWholeWord || false),
-    minScore        = idPrefix ? null : state.minScore,
+    scoreRange      = idPrefix ? '' : (state.scoreRange || ''),
   } = opts;
   const pre = idPrefix ? `${idPrefix}-` : '';
   const ro  = readonly ? ' readonly' : '';
@@ -1237,9 +1235,9 @@ function buildSearchBarHTML(opts = {}) {
   const clearSearchBtn = readonly ? '' :
     `<button class="clear-btn" id="${pre}search-clear" onclick="clearSearch()" title="Clear search" aria-label="Clear search" ${searchQuery ? '' : 'hidden'}><svg width="10" height="10"><use href="#icon-x"/></svg></button>`;
   const wholeWordHandler = readonly ? '' : ` onchange="onSearchWholeWord(this.checked)"`;
-  const minScoreHandler  = readonly ? '' : ` oninput="onMinScore(this.value)"`;
-  const clearMinBtn = readonly ? '' :
-    `<button class="clear-btn" id="${pre}score-min-clear" onclick="clearMinScore()" title="Clear min score" aria-label="Clear min score" ${minScore !== null ? '' : 'hidden'}><svg width="10" height="10"><use href="#icon-x"/></svg></button>`;
+  const scoreRangeHandler = readonly ? '' : ` oninput="onScoreRange(this.value)"`;
+  const clearScoreBtn = readonly ? '' :
+    `<button class="clear-btn" id="${pre}score-range-clear" onclick="clearScoreRange()" title="Clear score" aria-label="Clear score" ${scoreRange ? '' : 'hidden'}><svg width="10" height="10"><use href="#icon-x"/></svg></button>`;
 
   return `<div class="search-bar">${hintsHtml}
       <div class="search-row">
@@ -1249,7 +1247,7 @@ function buildSearchBarHTML(opts = {}) {
           ${clearSearchBtn}
         </div>
         <label class="search-whole-word-label"${readonly ? '' : ' title="Whole word (Alt+W)"'}><input type="checkbox" id="${pre}search-whole-word"${wholeWordHandler} ${searchWholeWord ? 'checked' : ''}${ro}> Whole word</label>
-        <label class="score-min-label"${readonly ? '' : ' title="Min score (Alt+M)"'}>Min score <span class="score-min-wrap"><input type="number" id="${pre}score-min-input" min="0" value="${minScore ?? ''}"${ro}${minScoreHandler}>${clearMinBtn}</span></label>
+        <label class="score-range-label" title="Score: 50, 50-59, or 50+${readonly ? '' : ' (Alt+C)'}">Score <span class="score-range-wrap"><input type="text" id="${pre}score-range-input" value="${esc(scoreRange)}"${ro}${scoreRangeHandler}>${clearScoreBtn}</span></label>
       </div>
     </div>`;
 }
@@ -1443,7 +1441,7 @@ const state = {
   selected: null,       // MERGED_ID | list object | null
   searchQuery: '',
   searchWholeWord: false,
-  minScore: null,
+  scoreRange: '',
 };
 
 const colWidths = { length: 55, word: 200, score: 90, source: 170, delete: 26 }; // persists across list switches
@@ -2297,10 +2295,9 @@ async function init() {
     persistMeta();
   }
 
-  const rawMinScore = lsLoad('minScore');
-  if (rawMinScore !== null) {
-    const ms = parseInt(rawMinScore, 10);
-    if (!isNaN(ms) && ms >= 0) state.minScore = ms;
+  const rawScoreRange = lsLoad('scoreRange');
+  if (rawScoreRange !== null && parseRange(rawScoreRange.trim()) !== null) {
+    state.scoreRange = rawScoreRange.trim();
   }
 
   state.selected = MERGED_ID;
@@ -2564,7 +2561,7 @@ class VirtualScroller {
     this.sortKey = null;
     this.sortDir = 'asc';
     this._lastQuery = '';
-    this._minScore = null;
+    this._scoreIntervals = null;
     this._highlight = null;
     this._colEls = {};
     this.rescoreRules = [];
@@ -2639,7 +2636,7 @@ class VirtualScroller {
     this.table.addEventListener('mouseleave', () => { _popTd = null; hideCellPopover(); });
   }
 
-  setEntries(allEntries, query, rescoreRules, overrideMap, wholeWord = false, minScore = null, rescoredEntries = null) {
+  setEntries(allEntries, query, rescoreRules, overrideMap, wholeWord = false, scoreRange = '', rescoredEntries = null) {
     this.allEntries = allEntries;
     this.hasComments = allEntries.some(e => e.comment);
     this.rescoreRules = rescoreRules || [];
@@ -2648,7 +2645,7 @@ class VirtualScroller {
     this.sortDir = 'asc';
     this._buildSortScores(rescoredEntries);
     this._buildHeader();
-    this.filter(query, wholeWord, minScore);
+    this.filter(query, wholeWord, scoreRange);
   }
 
   updateEntries(allEntries) {
@@ -2761,10 +2758,10 @@ class VirtualScroller {
     }
   }
 
-  filter(query, wholeWord = false, minScore = null) {
+  filter(query, wholeWord = false, scoreRange = '') {
     this._lastQuery = query || '';
     this._wholeWord = wholeWord;
-    this._minScore = minScore;
+    this._scoreIntervals = scoreRange ? parseRange(scoreRange) : null;
     this._applyFilterAndSort();
   }
 
@@ -2780,17 +2777,17 @@ class VirtualScroller {
       entries = this.allEntries.filter(e => filterRe.test(e.word.toLowerCase()));
     }
 
-    if (this._minScore !== null) {
-      const ms = this._minScore;
+    if (this._scoreIntervals) {
+      const intervals = this._scoreIntervals;
       entries = entries.filter(e => {
         if (this.rescoreRules.length) {
           const r = rescoreEntry(e, this.rescoreRules);
           if (!r.kept) return false;
           const ov = this.overrideMap.get(e.word.toUpperCase());
-          return (ov ? ov.score : r.score) >= ms;
+          return matchesRange(ov ? ov.score : r.score, intervals);
         }
         const ov = this.overrideMap.get(e.word.toUpperCase());
-        return (ov ? ov.score : e.score) >= ms;
+        return matchesRange(ov ? ov.score : e.score, intervals);
       });
     }
 
@@ -2814,7 +2811,7 @@ class VirtualScroller {
     if (resetScroll) this.container.scrollTop = 0;
     const countEl = document.getElementById('search-count');
     const copyBtn = document.getElementById('search-copy');
-    const filtered = !!(q || this._minScore !== null);
+    const filtered = !!(q || this._scoreIntervals);
     if (countEl) countEl.textContent = filtered ? entries.length.toLocaleString() + (entries.length === 1 ? ' match' : ' matches') : '';
     if (copyBtn) copyBtn.hidden = !filtered;
     this._render();
@@ -3308,7 +3305,7 @@ function renderMergedDetail() {
   scroller.showSource = true;
   scroller.editsList = getEditsList() ?? null;
   scroller.showEditDeleteCol = true;
-  scroller.setEntries(entries, state.searchQuery, [], new Map(), state.searchWholeWord, state.minScore);
+  scroller.setEntries(entries, state.searchQuery, [], new Map(), state.searchWholeWord, state.scoreRange);
 
   const refreshOutputEntries = () => {
     const { entries } = buildMergedList();
@@ -3406,7 +3403,7 @@ function renderDetail(list) {
 
   createScroller();
   scroller.currentListName = list.name;
-  scroller.setEntries(list.rawEntries, state.searchQuery, list.rescoreRules, buildOverrideMap(list), state.searchWholeWord, state.minScore, getRescoredEntries(list));
+  scroller.setEntries(list.rawEntries, state.searchQuery, list.rescoreRules, buildOverrideMap(list), state.searchWholeWord, state.scoreRange, getRescoredEntries(list));
 
   attachExternalEditHandlers(scroller, () => {
     scroller.overrideMap = buildOverrideMap(list);
@@ -3429,7 +3426,7 @@ function renderEditsDetail(list) {
 
   createScroller();
   scroller.showDeleteCol = true;
-  scroller.setEntries(list.rawEntries, state.searchQuery, [], new Map(), state.searchWholeWord, state.minScore);
+  scroller.setEntries(list.rawEntries, state.searchQuery, [], new Map(), state.searchWholeWord, state.scoreRange);
 
   scroller._onCellEdit = (word, field, newValue) => {
     const entry = list.rawEntries.find(e => e.word.toUpperCase() === word.toUpperCase());
@@ -3439,7 +3436,7 @@ function renderEditsDetail(list) {
     updateCatchAll(list);
     persistEdits(list);
     refreshSourceCounts();
-    scroller.setEntries(list.rawEntries, state.searchQuery, [], new Map(), state.searchWholeWord, state.minScore);
+    scroller.setEntries(list.rawEntries, state.searchQuery, [], new Map(), state.searchWholeWord, state.scoreRange);
   };
 
   scroller._onDeleteRow = word => deleteFromEdits(word);
@@ -3526,22 +3523,26 @@ function onSearch(query) {
   state.searchQuery = query;
   const btn = document.getElementById('search-clear');
   if (btn) btn.hidden = !query;
-  if (scroller) scroller.filter(query, state.searchWholeWord, state.minScore);
+  if (scroller) scroller.filter(query, state.searchWholeWord, state.scoreRange);
 }
 
 function onSearchWholeWord(checked) {
   state.searchWholeWord = checked;
-  if (scroller) scroller.filter(state.searchQuery, checked, state.minScore);
+  if (scroller) scroller.filter(state.searchQuery, checked, state.scoreRange);
 }
 
-function onMinScore(value) {
-  const ms = value.trim() === '' ? null : parseInt(value, 10);
-  state.minScore = (ms === null || isNaN(ms) || ms < 0) ? null : ms;
-  if (state.minScore !== null) lsSave('minScore', state.minScore);
-  else lsDel('minScore');
-  const btn = document.getElementById('score-min-clear');
-  if (btn) btn.hidden = state.minScore === null;
-  if (scroller) scroller.filter(state.searchQuery, state.searchWholeWord, state.minScore);
+function onScoreRange(value) {
+  const trimmed = (value || '').trim();
+  const intervals = trimmed === '' ? null : parseRange(trimmed);
+  const inp = document.getElementById('score-range-input');
+  if (inp) inp.classList.toggle('invalid', trimmed !== '' && intervals === null);
+
+  state.scoreRange = (trimmed && intervals) ? trimmed : '';
+  if (state.scoreRange) lsSave('scoreRange', state.scoreRange);
+  else lsDel('scoreRange');
+  const btn = document.getElementById('score-range-clear');
+  if (btn) btn.hidden = trimmed === '';
+  if (scroller) scroller.filter(state.searchQuery, state.searchWholeWord, state.scoreRange);
 }
 
 function clearSearch() {
@@ -3550,10 +3551,10 @@ function clearSearch() {
   onSearch('');
 }
 
-function clearMinScore() {
-  const inp = document.getElementById('score-min-input');
-  if (inp) { inp.value = ''; inp.focus(); }
-  onMinScore('');
+function clearScoreRange() {
+  const inp = document.getElementById('score-range-input');
+  if (inp) { inp.value = ''; inp.classList.remove('invalid'); inp.focus(); }
+  onScoreRange('');
 }
 
 let _updateScroller = null;
@@ -3877,7 +3878,7 @@ function deleteFromEdits(word, refreshFn) {
   if (idx === -1) return;
 
   const refresh = refreshFn ?? (() => {
-    scroller.setEntries(edits.rawEntries, state.searchQuery, [], new Map(), state.searchWholeWord, state.minScore);
+    scroller.setEntries(edits.rawEntries, state.searchQuery, [], new Map(), state.searchWholeWord, state.scoreRange);
   });
 
   const [deleted] = edits.rawEntries.splice(idx, 1);
@@ -4624,8 +4625,8 @@ function bindEvents() {
       } else if (k === 't') {
         const el = document.getElementById('gallery-search');
         if (el) { e.preventDefault(); el.focus(); el.select(); }
-      } else if (k === 'm') {
-        const el = document.getElementById('score-min-input');
+      } else if (k === 'c') {
+        const el = document.getElementById('score-range-input');
         if (el) { e.preventDefault(); el.focus(); el.select(); }
       }
     }
@@ -5200,7 +5201,7 @@ const HelpModal = (() => {
 
         <div class="help-slide" id="help-slide-3">
           <h2>Searching Your Wordlist</h2>
-          <p>Type in the search bar to instantly filter the wordlist. Toggle <strong>Whole word</strong> to match only complete words rather than substrings. Set a <strong>Min score</strong> to hide lower-quality entries.</p>
+          <p>Type in the search bar to instantly filter the wordlist. Toggle <strong>Whole word</strong> to match only complete words rather than substrings. Set a <strong>Score</strong> range — <code>50</code>, <code>50-59</code>, or <code>50+</code> — to focus on the entries you want.</p>
           <p>Use wildcards to match patterns:</p>
           <div class="help-wildcards">
             ${buildWildcardSpansHTML()}
@@ -5386,12 +5387,13 @@ const HelpModal = (() => {
     return displayed.slice(0, idx) + '<mark class="search-match search-match-0">' + dc + '</mark>' + displayed.slice(idx + dc.length);
   }
 
-  function buildSearchRows(tbody, query, minScore) {
+  function buildSearchRows(tbody, query, scoreRange) {
     const filter = query.toUpperCase();
+    const intervals = scoreRange ? parseRange(scoreRange) : null;
     tbody.innerHTML = '';
     SEARCH_WORDS.forEach(({ word, score }) => {
       if (filter && !word.includes(filter)) return;
-      if (score < minScore) return;
+      if (intervals && !matchesRange(score, intervals)) return;
       const tr = document.createElement('tr');
       tr.innerHTML =
         `<td class="col-word">${wordHtml(word, filter)}</td>` +
@@ -5403,15 +5405,15 @@ const HelpModal = (() => {
   function runSearchDemo() {
     const slide = document.getElementById('help-slide-3');
     const searchInput = slide.querySelector('#help-search-input');
-    const scoreMin = slide.querySelector('#help-score-min-input');
+    const scoreInput = slide.querySelector('#help-score-range-input');
     const tbody = slide.querySelector('#help-word-tbody');
     const demoContainer = slide.querySelector('.help-demo');
 
     searchInput.value = '';
     searchInput.style.borderColor = '';
-    scoreMin.value = '0';
-    scoreMin.style.borderColor = '';
-    buildSearchRows(tbody, '', 0);
+    scoreInput.value = '';
+    scoreInput.style.borderColor = '';
+    buildSearchRows(tbody, '', '');
     demoContainer.querySelectorAll('.demo-caret, .demo-mouse').forEach(el => el.remove());
 
     const mouse = makeDemoMouse(demoContainer);
@@ -5431,31 +5433,31 @@ const HelpModal = (() => {
     });
     after(700,  () => { clickDemoMouse(mouse); });
     after(800,  () => { searchInput.style.borderColor = 'var(--accent)'; });
-    after(1200, () => { searchInput.value = displayWord('C');     buildSearchRows(tbody, 'C', 0);     showDemoCaret(caret, searchInput, demoContainer); });
-    after(1450, () => { searchInput.value = displayWord('CR');    buildSearchRows(tbody, 'CR', 0);    showDemoCaret(caret, searchInput, demoContainer); });
-    after(1700, () => { searchInput.value = displayWord('CRO');   buildSearchRows(tbody, 'CRO', 0);   showDemoCaret(caret, searchInput, demoContainer); });
-    after(1950, () => { searchInput.value = displayWord('CROS');  buildSearchRows(tbody, 'CROS', 0);  showDemoCaret(caret, searchInput, demoContainer); });
-    after(2200, () => { searchInput.value = displayWord('CROSS'); buildSearchRows(tbody, 'CROSS', 0); showDemoCaret(caret, searchInput, demoContainer); });
+    after(1200, () => { searchInput.value = displayWord('C');     buildSearchRows(tbody, 'C', '');     showDemoCaret(caret, searchInput, demoContainer); });
+    after(1450, () => { searchInput.value = displayWord('CR');    buildSearchRows(tbody, 'CR', '');    showDemoCaret(caret, searchInput, demoContainer); });
+    after(1700, () => { searchInput.value = displayWord('CRO');   buildSearchRows(tbody, 'CRO', '');   showDemoCaret(caret, searchInput, demoContainer); });
+    after(1950, () => { searchInput.value = displayWord('CROS');  buildSearchRows(tbody, 'CROS', '');  showDemoCaret(caret, searchInput, demoContainer); });
+    after(2200, () => { searchInput.value = displayWord('CROSS'); buildSearchRows(tbody, 'CROSS', ''); showDemoCaret(caret, searchInput, demoContainer); });
     after(2400, () => {
       mouse.style.transition = 'left 0.55s ease-out, top 0.55s ease-out, opacity 0.25s';
-      moveDemoMouse(mouse, scoreMin, demoContainer);
+      moveDemoMouse(mouse, scoreInput, demoContainer);
     });
     after(3200, () => {
       searchInput.style.borderColor = '';
-      scoreMin.style.borderColor = 'var(--accent)';
+      scoreInput.style.borderColor = 'var(--accent)';
       hideDemoCaret(caret);
       clickDemoMouse(mouse);
-      showDemoCaret(caret, scoreMin, demoContainer);
+      showDemoCaret(caret, scoreInput, demoContainer);
     });
-    after(3800, () => { scoreMin.value = '';   showDemoCaret(caret, scoreMin, demoContainer); });
-    after(4100, () => { scoreMin.value = '5';  showDemoCaret(caret, scoreMin, demoContainer); });
-    after(4400, () => { scoreMin.value = '50'; buildSearchRows(tbody, 'CROSS', 50); showDemoCaret(caret, scoreMin, demoContainer); });
+    after(3800, () => { scoreInput.value = '5';   showDemoCaret(caret, scoreInput, demoContainer); });
+    after(4100, () => { scoreInput.value = '50';  buildSearchRows(tbody, 'CROSS', '50');  showDemoCaret(caret, scoreInput, demoContainer); });
+    after(4400, () => { scoreInput.value = '50+'; buildSearchRows(tbody, 'CROSS', '50+'); showDemoCaret(caret, scoreInput, demoContainer); });
     after(5800, () => {
       searchInput.value = '';
       searchInput.style.borderColor = '';
-      scoreMin.value = '0';
-      scoreMin.style.borderColor = '';
-      buildSearchRows(tbody, '', 0);
+      scoreInput.value = '';
+      scoreInput.style.borderColor = '';
+      buildSearchRows(tbody, '', '');
       hideDemoCaret(caret);
       mouse.classList.remove('visible');
     });

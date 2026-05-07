@@ -10,7 +10,7 @@ The URL is the serialized answer to "what's in your tool stack."
 
 **In scope (URL-addressable):**
 - Tool stack: ordered list of tools and their inputs (see `tools.md`)
-- Result-view filters: `min=` today; future siblings like `max=`, `length=`, `tier=` slot in the same way
+- Result-view filters: `score=` today (range syntax: `40`, `40-49`, `50+`); future siblings like `length=`, `tier=` slot in the same way
 
 **Out of scope (no URL representation):**
 - Dialogs — Welcome tour, reference manual, settings, Manage sources, Sync & backup. These are transient UI state. Open them how you opened them; close them when you're done. No deep link, no history entry. KISS.
@@ -33,7 +33,7 @@ https://grawlix.wtf/?anagram=LINDSEY                  → Anagram, then permanen
 https://grawlix.wtf/?search=CAT&anagram=LINDSEY       → Search "CAT" → Anagram → permanent Search (empty)
 https://grawlix.wtf/?anagram=LINDSEY&search=DOG       → Anagram → permanent Search "DOG"
 https://grawlix.wtf/?anagram=LINDSEY&palindromes      → Anagram → Palindromes (no input) → permanent Search (empty)
-https://grawlix.wtf/?anagram=LINDSEY&min=40           → Anagram, with min-score 40 applied to results
+https://grawlix.wtf/?anagram=LINDSEY&score=40+        → Anagram, with score range 40+ applied to results
 ```
 
 **Order is significant.** Parameter order is pipeline order — `?search=CAT&anagram=LINDSEY` runs Search before Anagram; the reverse runs them the other way. This breaks the common reader expectation that query strings are unordered, but the URL is mostly machine-generated and read back by Grawlix. Users who notice aren't going to care.
@@ -108,7 +108,7 @@ Phase 1 is small and self-contained — a good first commit, independent of any 
 
 ## Filters in the URL
 
-Result-view filters (`min=`, future `max=`, `length=`, `tier=`) live in the URL as ordinary named params alongside tool keys. They aren't pipeline rows — they apply to the bottom row's output regardless of position — so there's no special-case ordering rule. They serialize, parse, and round-trip the same way any other URL param does.
+Result-view filters (`score=`, future `length=`, `tier=`) live in the URL as ordinary named params alongside tool keys. They aren't pipeline rows — they apply to the bottom row's output regardless of position — so there's no special-case ordering rule. They serialize, parse, and round-trip the same way any other URL param does.
 
 ## Open questions
 
