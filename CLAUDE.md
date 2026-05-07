@@ -108,8 +108,9 @@ When you add or change a user-facing feature, update the relevant slide in the h
 
 Documentation lives in `docs/`:
 
-- **`docs/plans/`** — forward-looking design docs for work that hasn't shipped. Speculative, future-tense.
-- **`docs/designs/`** — present-tense documentation of what's implemented. Once a plan ships, the `distill-design-doc` skill rewrites it as a record and moves it here.
+- **`docs/design.md`** — present-tense design documentation: UI shape, architecture, and the *whys* behind them. Single home for distilled design content.
+- **`docs/manual.md`** — user-facing manual. Plain Markdown today; eventually will become an in-app manual.
+- **`docs/plans/`** — forward-looking design docs for work that hasn't shipped. Speculative, future-tense. Once a plan ships, the `distill-design-doc` skill folds it into `design.md` and/or `manual.md`.
 - **Top level of `docs/`** — the index plus reference catalogues that don't fit elsewhere.
 
-See [`docs/README.md`](docs/README.md) for the index. Read the relevant plan or design before making changes that touch its area, or when brainstorming UI shape or feature placement (adjacent docs may share screen real estate or constrain the answer).
+See [`docs/README.md`](docs/README.md) for the index. Read the relevant plan or the design doc before making changes that touch its area, or when brainstorming UI shape or feature placement (adjacent content may share screen real estate or constrain the answer).

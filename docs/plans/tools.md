@@ -2,7 +2,7 @@
 
 ## What this is
 
-Grawlix's mining side: anagrams, regex, beheadments, curtailments, and a long tail of letter/sound/meaning tricks for both **filling** (looking up words and noting score corrections while you work a grid) and **theme generation** (mining the wordlist for ideas). Tools live in the gallery panel on the left of the main app shell — see `../designs/app.md` for the shell.
+Grawlix's mining side: anagrams, regex, beheadments, curtailments, and a long tail of letter/sound/meaning tricks for both **filling** (looking up words and noting score corrections while you work a grid) and **theme generation** (mining the wordlist for ideas). Tools live in the gallery panel on the left of the main app shell.
 
 Inspiration: [Wordlisted](https://aaronson.org/wordlisted/) by Adam Aaronson. See `../wordlisted.md` for a full breakdown of its search modes and how they work. Grawlix will cover similar ground and add its own tools.
 
@@ -90,13 +90,13 @@ Default filename describes the stack: `grawlix-search-DOG.txt`, `grawlix-anagram
 
 Format follows the tool's natural output shape — for plain word lists, the standard `WORD;SCORE[;COMMENT]` used elsewhere. Pair / group outputs need their own format design; deferred until those tools land. See *Output formats* below.
 
-This is a third "give me a file" path alongside the two in `../designs/app.md` (All/My Edits via Sync & backup, individual wordlist via Manage wordlists). It's distinct because the file isn't a backup or a wordlist export — it's a snapshot of the current view, usually filtered or transformed. Implementation lands with Phase 3 (`Download from tool results`).
+This is a third "give me a file" path alongside the two existing ones (All/My Edits via Sync & backup, individual wordlist via Manage wordlists). It's distinct because the file isn't a backup or a wordlist export — it's a snapshot of the current view, usually filtered or transformed. Implementation lands with Phase 3 (`Download from tool results`).
 
 ---
 
 ## Phases
 
-The app-shell work in `../designs/app.md` is a prerequisite — the gallery panel slot and the main-pane swap-in behavior come from there.
+The app-shell work is a prerequisite — the gallery panel slot and the main-pane swap-in behavior come from there.
 
 ### Phase 1 — Stack mechanism + core tools
 

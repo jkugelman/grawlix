@@ -40,13 +40,13 @@ To answer in the dedicated mobile design session:
 - **Lookups on mobile.** The subway/Discord scenario probably wants definitions, Wikipedia, NYT crossword history more than letter-pattern wordplay. Should the mobile entry point bias toward lookup-style features? Or does lookup live as one tool category alongside the others?
 - **My Edits / curation on mobile.** Is editing scores and comments part of the mobile use case, or strictly read-only mining? Filling-side rescoring on desktop is a sidekick gesture; on mobile, the surrounding context (filling at a desk) usually doesn't apply.
 - **Wordlist dropdown on mobile.** No rail means no obvious place for the Wordlist section's dropdown + sync indicator. Header? In-page section? Hidden behind a settings affordance since most users won't switch wordlists often?
-- **Manage wordlists / Sync & backup dialogs on mobile.** Today these are desktop modals. On mobile they'd presumably go full-screen — at which point they're effectively routes. Worth revisiting "Setup as routes" specifically for mobile — see [`app.md`](../designs/app.md) "Open: setup as routes."
+- **Manage wordlists / Sync & backup dialogs on mobile.** Today these are desktop modals. On mobile they'd presumably go full-screen — at which point they're effectively routes. Worth revisiting "Setup as routes" specifically for mobile.
 
 ---
 
 ## Anti-features
 
-Mobile inherits the project-level non-features from [`app.md`](../designs/app.md) (no mining-state persistence, no cross-wordlist comparison, etc.). One mobile-specific addition: **no separate tablet design** — tablets fall on one side or the other of the responsive breakpoint, per "Settled" above.
+Mobile inherits the project-level non-features (no mining-state persistence, no cross-wordlist comparison, etc.). One mobile-specific addition: **no separate tablet design** — tablets fall on one side or the other of the responsive breakpoint, per "Settled" above.
 
 ---
 
