@@ -27,6 +27,10 @@ The main pane is a **tool stack** above a virtual-scrolled results table. Each t
 [ results table here ]
 ```
 
+**Single tool vs. chaining.** Most sessions use one tool at a time — fire up Anagram, type input, scan results. Chaining transforms (Anagram → Beheadments, Search → Anagram pre-filter) is rare; programmer-constructors who want pipelines tend to write Python instead. The stack design optimizes for the single-tool 98% case while keeping chaining as a discoverable but unobtrusive 2% gesture. Two affordances on each gallery card make this work — see "Tool gallery" below.
+
+**Live result filtering**, by contrast, is normal use. Getting a thousand anagrams and live-filtering them down to ones containing a substring is everyday, not a power gesture. The permanent bottom Search row exists for exactly this — it's the result filter for whatever tool is active above it.
+
 Each row carries the tool's name, its input fields (if any), and an X to remove. Row order is pipeline order — each row's output feeds the next. The first row reads from whichever source is selected in the left rail dropdown (`All` by default); subsequent rows transform the previous row's results. The results table shows the output of the bottom row. A small `then` prefix on rows 2+ makes the sequencing explicit; row 1 has no prefix.
 
 **The bottom row is always a Search row** — permanent, no X, can't be removed or reordered. This makes the everyday "type and look" use case immediate (just type) and gives Search a stable keyboard target (**Alt-S** focuses it). Search is also in the gallery as an addable tool, so a user can prepend a Search row above a transform: `Search → Anagram → [permanent Search]` pre-filters the input, transforms, and filters the output. Two Search rows aren't redundant when there's a transform between them.
@@ -35,9 +39,9 @@ The permanent bottom Search is the only difference from "any other tool." Adding
 
 **Tools without inputs** (Palindromes, Anagram families, etc.) still get a row carrying the tool name and an X — no input fields. Composes cleanly: `Search → Palindromes` lists palindromes within the search results.
 
-**Reordering.** Order matters in a pipeline. v1 keeps it simple — remove and re-add to change order. Drag handles aren't worth the design surface until usage shows we need them.
+**Reordering.** Order matters in a pipeline. To change order, the user removes rows (X) and re-adds them. Drag handles are deliberately not provided — chaining is a 2%-case gesture and reordering is rarer still; the design surface isn't worth the touch/keyboard-accessibility complexity.
 
-**Empty stack** is just the permanent Search row alone (no `then` prefix, empty input). Clicking any gallery card appends a new row above the permanent Search.
+**Empty stack** is just the permanent Search row alone (no `then` prefix, empty input). Picking a tool from the gallery (see below) sets it as the active tool above the Search row.
 
 The **tool gallery** is a persistent left-rail panel — not a dropdown, not a dialog. Each tool gets a small card:
 
@@ -49,9 +53,33 @@ The **tool gallery** is a persistent left-rail panel — not a dropdown, not a d
 └──────────────────────────────────┘
 ```
 
-Cards are grouped by category (Anagrams & letter banks, Letter patterns, Pairs, Oddities, etc.). The user can scan descriptions and examples without clicking anything first — the opposite of Wordlisted's dropdown.
+**Category picker.** A fixed category menu sits at the top of the rail (Anagrams & letter banks, Letter patterns, Pairs, Oddities, etc.). Clicking a category swaps the cards displayed below; the menu itself never moves. This gives spatial stability (categories live in the same place every time), keeps cards visible while working, and devotes the full rail width to tools. Matches the user's settle-into-a-tool-set pattern — a constructor with a theme idea picks the relevant category once and stays there for the session.
 
-A filter/search input at the top of the panel lets power users find tools by name or keyword. **Alt+T** focuses it.
+*Alternatives evaluated:*
+- *Inline accordion* (rejected) — categories collapsed; clicking a header expands cards in place, pushing other categories down. Items shifting position under the cursor as sections open/close fights spatial recall and muscle memory; the user dislikes accordions for exactly this reason.
+- *Card list* (viable fallback if Category picker's category-click step feels unnecessarily mediated) — plain vertical scroll of all tool cards with a pinned filter input at the top. Most conservative option; scrolling required past viewport but not painful.
+- *Icon strip* (viable fallback if Category picker's rail width feels costly in use) — VS Code activity-bar style: a thin (~50px) strip of category icons at rest; clicking one slides out a side panel with that category's cards. Wins on main-pane width (most pixels back to the table). Loses on interaction count (two-step to reach a tool) and on panel-open state — either auto-closes (lose context) or stays open and eats the saved width.
+
+The user can scan descriptions and examples without clicking anything first — the opposite of Wordlisted's dropdown.
+
+**Every tool has a unique icon.** Aids scanning, learnability, and gives the gallery visual personality. Icons appear on cards in the rail and at the front of stack rows.
+
+**Two ways to use a card.**
+
+- *Click the card surface* → "use this tool." Replaces the user stack with just this tool. Stack becomes `[ThisTool, permSearch]`. The 98%-case gesture.
+- *Click the "+" badge on the card's right edge* → "add this tool to my pipeline." Appends to the bottom of the user stack, just above the permanent Search. Stack becomes `[...existing, ThisTool, permSearch]`. The 2%-case chaining gesture.
+
+The "+" is **hover-revealed** — vertically centered on the right edge of the card, no visual presence at rest. Discoverability cost is accepted: chaining is a 2% feature, and the people who want it are the ones likely to mouse-explore. Position matches the dominant convention for hover-revealed secondary actions on row/tile UI (Spotify track rows, Apple Music, VS Code file-explorer hover actions, Linear issue rows). Tooltip on the `+` itself: "Add to stack."
+
+**Pipeline order = click order = top-to-bottom.** First card clicked is first in the pipeline. To pre-filter an existing tool's input, the user starts over (clear, then click Search, then `+` the new tool). No prepend gesture.
+
+**Active-card highlighting.** Cards whose tools appear in the user stack are visually marked active in the gallery. Communicates "these are the tools currently in your pipeline."
+
+**Card-surface click is destructive when a multi-tool stack exists** — clears the existing user stack down to just this tool. No confirm dialog. At most an undo toast. The 2%-case user knows to use `+`, and accidental loss is recoverable by rebuilding (live re-execution makes that fast).
+
+**X on the last user-tool row** collapses the stack to `[permSearch]` (the empty-stack state). Same state as never having clicked a tool. The hypothetical alternative — "always one tool active, X disabled on the last row" — was rejected as a footgun.
+
+A filter/search input at the top of the panel lets users find tools by name or keyword across categories. **Alt+T** focuses it.
 
 **Scores come along.** Results show scores from `All` (the merged wordlist). This is Grawlix's superpower over Wordlisted — a user can see at a glance that their anagram is a 70 vs. a 30, and can click a result to add it to My Edits.
 
@@ -153,7 +181,13 @@ The help redesign (see `help.md`) will happen after the tool gallery is built �
 
 Tools are not required to share a uniform output format. Different tools will produce different result layouts — plain word lists, word pairs (with an arrow or similar), groups of related words per input entry, highlighted letter patterns within words, results with or without scores, etc. The UI should accommodate each tool's natural output shape rather than forcing everything into a single table paradigm. This is a deliberate departure from Wordlisted, which is limited to operations that fit its one output model.
 
-Every individual word in any result — regardless of format — must be accessible for inline editing (the same click-to-edit flow as everywhere else in Grawlix). In a pairs result, that means both words are separately editable.
+Every individual word in any result — regardless of format — must be accessible for inline editing (the same click-to-edit flow as everywhere else in Grawlix). In a pairs result, that means both words are separately editable. Scores from `All` must come along regardless of output shape — every word displayed gets its score badge.
+
+**Permanent Search row on non-flat output.** When the active tool produces pairs or groups, what does typing in the bottom Search row filter against? Two options to weigh when the first such tool lands:
+- *Loose match* — show the row if any word in it matches. Simplest, matches Wordlisted's behavior, no extra UI.
+- *Column-specific* — separate inputs per column, or syntax like `right:un*`. More powerful (e.g., "show beheadments where the result starts with un-") but heavier.
+
+Default-loose is probably right for v1; promote to column-specific only if usage shows the loose form isn't enough.
 
 ---
 
