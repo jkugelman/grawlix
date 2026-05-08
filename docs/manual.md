@@ -72,7 +72,7 @@ Action buttons differ per wordlist:
 
 **Rescoring rules** map a wordlist's input score range (and optional word-length filter) to an output score — or `ignore` to drop the entry. First matching rule wins; a catch-all is auto-appended. My Edits has no rescore rules; its scores pass through.
 
-**Onboarding banner.** First-run users see a notice in the Wordlists dialog's rail explaining that the popular wordlists have been pre-loaded with suggested rules. *Sounds good* dismisses; *No thanks* wipes the pre-loaded publishers.
+**Onboarding banner.** First-run users see a short 3-page sequence in the Wordlists dialog's rail: a welcome confirming the pre-loaded popular wordlists, then optional prompts to import a personal wordlist into My Edits and to import an XWI subscriber file. Each prompt has a *Skip*; the ✕ ends the whole flow.
 
 ## Sync & backup
 

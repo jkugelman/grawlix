@@ -62,6 +62,8 @@ The action row is also unified — date slot, primary action, Download, more men
 
 **Onboarding banner** lives only inside the Wordlists dialog — there's no auto-popup on the main view. Users who never open the dialog never see it; the defaults are sensible enough that this is fine.
 
+The banner is a 3-page sequence (welcome, personal-wordlist import into My Edits, XWI subscriber import) that exists to *surface features users might not know are there*, not to provide parallel import paths — pages 2 and 3 route through the same `ingestFile` plumbing as the canonical import flows. Page 3 is gated on the XWI wordlist still being present and unpopulated, so it drops out when irrelevant rather than asking a question that has no answer.
+
 ### Sync & backup
 
 Today this is a stub. Full design lives in [`plans/sync.md`](plans/sync.md): prominent "Download All" and "Download My Edits" buttons (Tier 1 manual backup), per-cloud-provider connect/disconnect (Tier 3), disk-sync section gated on PWA install (Tier 2), recent activity log.

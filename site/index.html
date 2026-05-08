@@ -716,6 +716,27 @@ html.dark-mode .wld-onboarding {
 .wld-onboarding .dialog-close-btn { font-size: 12px; top: 6px; right: 6px; padding: 1px 5px; }
 .wld-onboarding-actions { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
 .wld-onboarding .link-btn { font-size: 11px; }
+.wld-onboarding-dots { display: flex; justify-content: center; gap: 5px; margin-top: 8px; }
+.wld-onboarding-dots span {
+  position: relative;
+  width: 6px; height: 6px; border-radius: 50%;
+  background: color-mix(in srgb, var(--accent) 25%, transparent);
+}
+.wld-onboarding-dots span.active {
+  background: var(--accent);
+}
+.wld-onboarding-dots span.skipped {
+  background: transparent;
+  outline: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
+}
+.wld-onboarding-dots span.skipped::before {
+  content: '';
+  position: absolute;
+  top: 50%; left: -2px; right: -2px;
+  height: 1px;
+  background: color-mix(in srgb, var(--accent) 55%, transparent);
+  transform: translateY(-50%) rotate(-45deg);
+}
 
 /* Sync & backup dialog stub */
 #sync-backup-dialog { width: 560px; }
@@ -1875,14 +1896,8 @@ const WordlistsDialog = (() => {
     </div>
     <div class="wld-body">
       <aside class="wld-rail">
-        <div class="wld-onboarding" id="wld-onboarding" hidden>
-          <button class="dialog-close-btn" aria-label="Dismiss" data-onboard-action="dismiss">✕</button>
-          <p>Some popular wordlists have been set up with suggested scoring rules.</p>
-          <div class="wld-onboarding-actions">
-            <button class="link-btn" data-onboard-action="blank">No thanks, remove them</button>
-            <button class="primary" data-onboard-action="dismiss">Sounds good</button>
-          </div>
-        </div>
+        <div class="wld-onboarding" id="wld-onboarding" hidden></div>
+        <input type="file" id="wld-onboarding-file" accept=".txt,.dict" hidden>
         <div class="wld-rail-wordlist" id="wld-rail-wordlist"></div>
         <div class="add-wordlist-row" id="wld-add-wordlist">${buildDragHandleHTML()}<span class="add-wordlist-icon">＋</span>Add wordlist</div>
       </aside>
@@ -1891,14 +1906,91 @@ const WordlistsDialog = (() => {
   document.body.appendChild(el);
 
   const onboarding = el.querySelector('#wld-onboarding');
+  const onboardingFile = el.querySelector('#wld-onboarding-file');
+  let _onboardingPage = lsLoad('onboarded')
+    ? null
+    : (parseInt(lsLoad('onboardingPage'), 10) || 1);
 
-  function showOnboardingIfNeeded() {
-    onboarding.hidden = !!lsLoad('onboarded');
+  function setOnboardingPage(page) {
+    _onboardingPage = page;
+    if (page === null) lsDel('onboardingPage');
+    else               lsSave('onboardingPage', String(page));
   }
 
-  function dismissOnboarding() {
+  function getXwiWordlist() {
+    return state.sources.find(l => l.publisherId === 'xwi');
+  }
+
+  function buildOnboardingPageHTML(page) {
+    const xwi = getXwiWordlist();
+    const visiblePages = [1, 2];
+    if (xwi && xwi.rawEntries.length === 0) visiblePages.push(3);
+    const dots = visiblePages.map(n =>
+      `<span${n === page ? ' class="active"' : ''}></span>`).join('');
+    const dotsHTML = `<div class="wld-onboarding-dots">${dots}</div>`;
+
+    if (page === 1) {
+      return `
+        <button class="dialog-close-btn" aria-label="Dismiss" data-onboard-action="dismiss">✕</button>
+        <p>Some popular wordlists have been set up with suggested scoring rules.</p>
+        <div class="wld-onboarding-actions">
+          <button class="link-btn" data-onboard-action="blank">No thanks, remove them</button>
+          <button class="primary" data-onboard-action="next">Sounds good</button>
+        </div>
+        ${dotsHTML}`;
+    }
+    if (page === 2) {
+      return `
+        <button class="dialog-close-btn" aria-label="Dismiss" data-onboard-action="dismiss">✕</button>
+        <p>Got a personal wordlist? Import it into ${esc(getEditsWordlist()?.name ?? 'My Edits')}.</p>
+        <div class="wld-onboarding-actions">
+          <button class="link-btn" data-onboard-action="next">Skip</button>
+          <button class="primary" data-onboard-action="pick-file">Choose file…</button>
+        </div>
+        ${dotsHTML}`;
+    }
+    // page 3 — XWI
+    return `
+      <button class="dialog-close-btn" aria-label="Dismiss" data-onboard-action="dismiss">✕</button>
+      <p>XWord Info subscriber? Import your XWI wordlist.</p>
+      <div class="wld-onboarding-actions">
+        <button class="link-btn" data-onboard-action="next">Skip</button>
+        <button class="primary" data-onboard-action="pick-file">Choose file…</button>
+      </div>
+      ${dotsHTML}`;
+  }
+
+  function renderOnboarding() {
+    if (_onboardingPage === null) { onboarding.hidden = true; return; }
+
+    // Auto-advance: relevant wordlist already populated.
+    if (_onboardingPage === 2 && (getEditsWordlist()?.rawEntries.length ?? 0) > 0) {
+      setOnboardingPage(3);
+    }
+    // Page 3 requires XWI to exist and be unpopulated; otherwise end onboarding.
+    if (_onboardingPage === 3) {
+      const xwi = getXwiWordlist();
+      if (!xwi || xwi.rawEntries.length > 0) {
+        finishOnboarding();
+        return;
+      }
+    }
+
+    onboarding.hidden = false;
+    onboarding.innerHTML = buildOnboardingPageHTML(_onboardingPage);
+  }
+
+  function finishOnboarding() {
+    setOnboardingPage(null);
     onboarding.hidden = true;
     lsSave('onboarded', '1');
+  }
+
+  function advanceOnboarding() {
+    if (_onboardingPage === 1)      setOnboardingPage(2);
+    else if (_onboardingPage === 2) setOnboardingPage(3);
+    else                            { finishOnboarding(); return; }
+    renderOnboarding();
   }
 
   async function onboardingGoBlank() {
@@ -1916,13 +2008,30 @@ const WordlistsDialog = (() => {
     persistMeta();
     await Promise.all(toRemove.map(l => idbDel('data_' + l.dbKey)));
     renderAll();
-    dismissOnboarding();
+    advanceOnboarding();
+  }
+
+  function pickOnboardingFile() {
+    const targetPage = _onboardingPage;
+    onboardingFile.value = '';
+    onboardingFile.onchange = () => {
+      const file = onboardingFile.files[0];
+      if (!file) return;
+      const target = targetPage === 2 ? getEditsWordlist() : getXwiWordlist();
+      if (!target) { advanceOnboarding(); return; }
+      ingestFile(file, target);
+      // ingestFile triggers renderAll → refresh → renderOnboarding,
+      // which auto-advances once the import lands.
+    };
+    onboardingFile.click();
   }
 
   onboarding.addEventListener('click', e => {
     const action = e.target.closest('[data-onboard-action]')?.dataset.onboardAction;
-    if (action === 'dismiss') dismissOnboarding();
-    else if (action === 'blank') onboardingGoBlank();
+    if (action === 'dismiss')        finishOnboarding();
+    else if (action === 'next')      advanceOnboarding();
+    else if (action === 'blank')     onboardingGoBlank();
+    else if (action === 'pick-file') pickOnboardingFile();
   });
 
   const railWordlist = el.querySelector('#wld-rail-wordlist');
@@ -2042,6 +2151,7 @@ const WordlistsDialog = (() => {
     if (_focusedWordlist && !state.sources.includes(_focusedWordlist)) {
       _focusedWordlist = state.sources[0] ?? null;
     }
+    renderOnboarding();
     renderRail();
     renderPane();
   }
@@ -2183,7 +2293,7 @@ const WordlistsDialog = (() => {
 
   function open(wordlist = null) {
     _focusedWordlist = wordlist ?? (state.selected !== MERGED_ID ? state.selected : null) ?? state.sources[0] ?? null;
-    showOnboardingIfNeeded();
+    renderOnboarding();
     renderRail();
     renderPane();
     showDialog(el);
@@ -4397,7 +4507,7 @@ const ConfigureWordlistDialog = (() => {
       <div id="source-file-add-zone">
         <div class="import-zone" id="cfg-drop-zone">
           <span id="cfg-import-zone-label">Drop file here or click to browse</span>
-          <input type="file" id="cfg-file-input" accept=".txt,.csv">
+          <input type="file" id="cfg-file-input" accept=".txt,.dict">
         </div>
       </div>
     </div>
@@ -5102,7 +5212,7 @@ const ImportGuideDialog = (() => {
     const dropZone = `
       <div class="import-zone compact guide-drop-zone">
         <span class="guide-zone-label">Drop file here or click to browse</span>
-        <input type="file" class="guide-file-input" accept=".txt,.csv">
+        <input type="file" class="guide-file-input" accept=".txt,.dict">
       </div>`;
     const footer = `
       <div class="dialog-footer">
