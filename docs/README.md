@@ -14,10 +14,10 @@
 
 - [design.md](design.md) — UI shape and architecture: header, left rail
   with wordlist picker and tool-gallery slot, main pane, Wordlists dialog
-  (full), Sync & backup dialog (stub), URL state plan, open questions.
+  (full), Sync & backup dialog (stub), URL state, open questions.
 - [manual.md](manual.md) — user-facing manual: the app shell, choosing a
   wordlist, search syntax, inline editing, My Edits, score tiers, the
-  Wordlists dialog, Sync & backup, file format.
+  Wordlists dialog, Sync & backup, sharing & links, file format.
 - [wordlisted.md](wordlisted.md) — reference catalogue of Wordlisted's
   search modes. External-system documentation rather than a Grawlix
   feature record; lives here as the source material for the tool gallery
@@ -30,7 +30,8 @@
   integration notes.
 - [plans/url-routing.md](plans/url-routing.md) — query-string serialization
   of the tool stack and result-view filters; alias/rename policy for stable
-  links.
+  links. Foundation shipped (search/whole-word/score); tool-stack encoding
+  pending.
 - [plans/sync.md](plans/sync.md) — three-tier persistence for the merged
   `All` view + My Edits (backup nag, disk file link, cloud sync). Sync &
   backup dialog.

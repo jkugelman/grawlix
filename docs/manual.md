@@ -126,6 +126,16 @@ Two paths to "give me a file":
 Reachable from the header `?` button or the `?` keyboard shortcut.
 First-run users see it auto-opened.
 
+## Sharing & links
+
+Your search pattern, whole-word toggle, and score filter are reflected
+in the URL. Refreshing the page keeps your state. Pasting the URL into
+a chat or saving it as a bookmark reproduces what you were looking at.
+
+The link carries your search and filters, not your wordlists — the
+recipient sees their own default selection (`All`) over their own
+loaded wordlists.
+
 ## Wordlist file format
 
 One entry per line:

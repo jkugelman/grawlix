@@ -149,17 +149,47 @@ UI and is out of date with the current shell — a redesign is planned in
 
 ## URL state
 
-The plan: the tool stack will be encoded as the query string
-(`?anagram=LINDSEY&search=DOG&score=40+`) using `replaceState`, so any
-stack configuration can be bookmarked or shared. Dialogs (Wordlists,
-Sync & backup, settings, help) are *not* URL-addressable;
-they're transient UI state. The selected wordlist from the dropdown is
-local-only — links don't pretend the recipient has the same wordlists
-loaded.
+The query string mirrors the current search pattern (`search=`),
+whole-word toggle (bare key `whole-word`), and score filter (`score=`).
+All three round-trip: pasting a Grawlix link into a chat reproduces
+what the sender was looking at, and refreshing the page lands you back
+where you were.
 
-This is **not yet wired** — there's no tool stack to encode. Lands with
-[`plans/tools.md`](plans/tools.md). See
-[`plans/url-routing.md`](plans/url-routing.md) for the schema.
+A small `Router` IIFE owns parse, serialize, and `history.replaceState`.
+Key shape choices:
+
+- **Real query string, no hash.** Grawlix is a single-page app; paths
+  in the URL would suggest sections that don't exist. GitHub Pages
+  serves `index.html` regardless of query string, so any URL deep-loads
+  without server-side routing.
+- **`replaceState` only.** Stack edits never push a history entry; the
+  back button leaves Grawlix instead of navigating within. The visible
+  UI is the user's history — clearing the search is the explicit undo.
+  A back button would be redundant or actively confusing ("did I lose
+  my whole stack?").
+- **URL wins over localStorage.** The score filter loads from
+  localStorage and the URL overlays it on init. Search pattern and
+  whole-word have no localStorage backing — they live entirely in the
+  URL during a session.
+- **Empty values drop out.** An empty search isn't `search=`; it's
+  absent. The URL stays minimal in the 95% case (`/` for the bare app).
+- **Debounced ~250ms** for typing callers (search, score). Structural
+  toggles (whole-word, clear) replace instantly. The URL bar doesn't
+  flicker per keystroke.
+
+Out of scope for the URL — these are local-only:
+- **Dialogs** (Welcome, help, settings, Wordlists, Sync & backup) —
+  transient UI state. Open them how you opened them; close them when
+  you're done.
+- **Selected wordlist** from the rail dropdown. Sharing a link to
+  "anagram of LINDSEY in STWL" implies the recipient has STWL loaded;
+  we don't pretend otherwise. The recipient sees their own selection
+  (default `All`).
+- Scroll position, edit-in-progress state, transient popovers.
+
+The schema extends as the tool stack lands. Pending design — tool-key
+registry, multi-input encoding, alias policy for renames — lives in
+[`plans/url-routing.md`](plans/url-routing.md).
 
 ## Open questions
 
