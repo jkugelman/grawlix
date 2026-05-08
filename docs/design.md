@@ -127,7 +127,7 @@ The patch is structured around three observations:
 - For ADD and UPDATE, edits becomes the contributor for `word` in every override map below it; for the merged cache, an existing entry's `wordlist` reference is reassigned (with source-count adjustments) or a new entry is bisect-inserted into the sorted `entries` array.
 - For DELETE, walk down from edits's position to find the next enabled wordlist with `word` (using a lazily-built `wordlist._rescoredMap`). Override maps for positions ≤ next contributor's position drop the entry; positions below adopt next's value. The merged entry is reassigned to next, or removed if no contributor remains.
 
-`_mergedWordlistCache` keeps a `byWord` Map alongside `entries`; both share the same entry objects, so patching via `byWord` is visible in `entries`. The merged-view refresh checks `entries === scroller.allEntries` to decide whether to refilter/resort the same array or fall back to `updateEntries` (when a full rebuild produced a new array). `refreshDerivedDisplays()` is the post-patch counterpart to `refreshSourceCounts()` — it repaints the rail meta and scoring legend without invalidating any caches.
+`_mergedWordlistCache` keeps a `byWord` Map alongside `entries`; both share the same entry objects, so patching via `byWord` is visible in `entries`. The merged-view refresh chooses between in-place refilter and full rebuild depending on whether the patch reused the entries array. `refreshDerivedDisplays()` is the post-patch counterpart to `refreshSourceCounts()` — it repaints the rail meta and scoring legend without invalidating any caches.
 
 ### Reactivity
 
@@ -137,8 +137,7 @@ A pure-reactive design — one big `merged$ = computed(() => buildMerged(sources
 
 **The signals primitive** is hand-rolled at ~50 lines (no external dependency, preserves "no build step, no npm"):
 
-- `signal(initial)` returns `{ get, peek, set, bump }`. `get` subscribes the running effect; `peek` reads without subscribing; `set` notifies subscribers when the value changes (`Object.is`); `bump` notifies even when the reference is unchanged (for in-place mutations of arrays/maps).
-- `effect(fn)` runs `fn` immediately and re-runs it whenever any signal it read via `.get()` changes.
+- The API is the standard `get`/`set`/`effect` shape, plus two additions for the in-place-mutation case: `peek` reads without subscribing (used by the `state` proxy's getters so incidental reads inside effects don't accidentally subscribe), and `bump` notifies even when the reference is unchanged (for array/map mutations like reordering `sources`).
 - No automatic dependency cleanup on re-runs — effects accumulate subscriptions. Acceptable for grawlix's small, stable graph.
 - No `computed` primitive. The imperative caches play that role.
 
