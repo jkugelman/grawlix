@@ -21,3 +21,4 @@
 - [plans/help.md](plans/help.md) — separate the welcome tour from a returning-user reference manual; tour rework when the tool gallery lands.
 - [plans/migration.md](plans/migration.md) — when to graduate from destructive schema-version resets to layered migrations.
 - [plans/ci-testing.md](plans/ci-testing.md) — small Playwright smoke suite, deferred until first real user.
+- [plans/per-row-reactivity.md](plans/per-row-reactivity.md) — push the hybrid reactivity all the way through: vendored signals library, observable cache collections, per-row reactive scroller. Architectural cleanup, not a perf fix.

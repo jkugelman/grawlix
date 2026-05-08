@@ -129,9 +129,37 @@ The patch is structured around three observations:
 
 `_mergedWordlistCache` keeps a `byWord` Map alongside `entries`; both share the same entry objects, so patching via `byWord` is visible in `entries`. The merged-view refresh checks `entries === scroller.allEntries` to decide whether to refilter/resort the same array or fall back to `updateEntries` (when a full rebuild produced a new array). `refreshDerivedDisplays()` is the post-patch counterpart to `refreshSourceCounts()` — it repaints the rail meta and scoring legend without invalidating any caches.
 
+### Reactivity
+
+Structural state and the view layer are reactive (signals + effects); the perf-critical caches above stay imperative. The split mirrors what production signal frameworks (Solid, Svelte 5, Preact signals) do internally.
+
+A pure-reactive design — one big `merged$ = computed(() => buildMerged(sources$))` — re-derives the whole 1M-entry merged wordlist on every My Edits keystroke. The hybrid model keeps reactivity for the 90% of state where it doesn't fight performance, and leaves the cache layer alone where it earns its keep. Pushing further — replacing imperative caches with observable collections and the virtual scroller with per-row reactive components — is a possible future rewrite; see [`plans/per-row-reactivity.md`](plans/per-row-reactivity.md).
+
+**The signals primitive** is hand-rolled at ~50 lines (no external dependency, preserves "no build step, no npm"):
+
+- `signal(initial)` returns `{ get, peek, set, bump }`. `get` subscribes the running effect; `peek` reads without subscribing; `set` notifies subscribers when the value changes (`Object.is`); `bump` notifies even when the reference is unchanged (for in-place mutations of arrays/maps).
+- `effect(fn)` runs `fn` immediately and re-runs it whenever any signal it read via `.get()` changes.
+- No automatic dependency cleanup on re-runs — effects accumulate subscriptions. Acceptable for grawlix's small, stable graph.
+- No `computed` primitive. The imperative caches play that role.
+
+**What's reactive:**
+
+- Top-level state: `selected$`, `searchQuery$`, `searchWholeWord$`, `scoreRange$`, `sources$` — backed by a `state` proxy whose getters use `peek` (so incidental reads don't accidentally subscribe inside effects).
+- Per-wordlist display fields: `name$`, `icon$`, `url$`, `publisherId$`, `enabled$`, `rescoreRules$`. Each wordlist exposes both the signal (`wl.name$`) and a peek getter / set setter on the plain field (`wl.name`). `wrapWordlist(wl)` installs them at every wordlist-creation site.
+- `cacheVersion$` — the bridge between layers. Bumped by helpers that change cache-affecting state; the render effect subscribes.
+
+**The two effects:**
+
+- **Render effect** reads `selected$` and `cacheVersion$`. On selection change it does a full panel re-render (fresh scroller). On cache-only change for the same selection it refreshes derived state in place (`refreshSourceCounts` + `scroller.updateEntries` for merged, or a scroller cache-ref refresh for a regular wordlist) — the in-place update protocol described above, triggered automatically.
+- **Cosmetic effect** subscribes to every wordlist's `name$`/`icon$`/`url$`/`publisherId$`. Any cosmetic change re-renders the rail/dropdown/dialog and visible scroller rows without touching the merged cache. (Cache entries hold wordlist refs and read names live, so renames don't invalidate anything.)
+
+`enabled$` and `rescoreRules$` are signal-backed for symmetry, but no effect subscribes directly — they're cache-affecting, so the helper that flips them invalidates caches and bumps `cacheVersion$`. The render effect picks it up that way.
+
+**The patch path skips reactivity.** `patchCachesForEditsChange` doesn't bump `cacheVersion$`; the My Edits hot path mutates caches in place and calls `refreshDerivedDisplays` + scroller re-filter directly. Routing through the render effect would call `refreshSourceCounts`, which invalidates and rebuilds the merged cache — defeating the patch. This is the one explicit exception to the rule "any cache mutation bumps `cacheVersion$`".
+
 ### Mutation helpers
 
-Every state mutation goes through a helper that bundles the right invalidation, persistence, and repaint. Call sites read like statements of intent:
+Every state mutation goes through a helper that bundles the right invalidation, persistence, and (where needed) `cacheVersion$` bump. Call sites read like statements of intent:
 
 ```js
 setWordlistName(wl, newName);
@@ -140,36 +168,14 @@ setWordlistRescoreRules(wl, rules);
 reorderSources(fromIdx, toIdx);
 ```
 
-The helpers come in two repaint shapes:
+Helper bodies come in two shapes:
 
-- **`repaintVisibleRows()`** — for cosmetic changes (name, icon, url, publisher). Caches stay valid; only the sidebar/dialog and visible row data attributes need refreshing.
-- **`repaintAfterCacheChange()`** — for structural changes (enabled, rescore rules, source order). Triggers `refreshSourceCounts` (which invalidates and rebuilds merged + override maps) and refreshes the scroller's cache references.
+- **Cosmetic** (name, icon, url, publisher) — set the signal, persist. The cosmetic effect re-renders.
+- **Cache-affecting** (enabled, rescore rules, source order) — set the signal (or mutate in place + `sources$.bump()` for the array), persist, call `repaintAfterCacheChange()` which bumps `cacheVersion$`. The render effect's cache branch invalidates and rebuilds derived state.
 
-`batchUpdate(fn)` coalesces multiple mutations into a single repaint — used by the configure dialog where a save can change up to five fields at once. Pending repaints are tracked at module scope; `cache` subsumes `visible` if both are queued.
+The alternative — sprinkling `invalidateX()` and `repaintY()` calls at every mutation site — concentrates the discipline of "what does changing X require?" at every caller. The helper-plus-effects shape concentrates that discipline in one place per field, and "forget to repaint" stops being a category of bug because the effect handles dispatch as long as the right signal got bumped.
 
-Encapsulating mutations addresses two recurring problems in the previous scattered style: duplication (the same persist-and-repaint dance copy-pasted across call sites) and the discipline of remembering the right invalidation sequence per field. With helpers, "what does changing X require?" lives in exactly one place per field. The pattern is also a stepping stone toward signal-based reactivity — see the future direction below.
-
-### Future direction: hybrid reactivity
-
-Cache invalidation is fundamentally imperative today — helpers centralize it but they don't *eliminate* it. The bug-resistant alternative is **reactivity**: caches recompute automatically from declared dependencies, and "forget to invalidate" becomes an unreachable program.
-
-A typical signal-based reactive system looks like:
-
-```js
-const sources$ = signal([...]);
-const merged$ = computed(() => buildMerged(sources$.get()));
-effect(() => renderMerged(merged$.get()));
-```
-
-Mutating `sources$` automatically invalidates `merged$` and re-runs the effect. The dependency graph is implicit in the read traces; no manual `invalidateX` calls.
-
-The catch for grawlix is that **pure reactivity recomputes whole derivations**. With a 1M-entry merged cache, a single My Edits keystroke would re-derive the whole thing — exactly the work the in-place patches we built avoid. Two shapes are viable; one isn't:
-
-- **Coarse reactivity (rejected).** One `merged$` computed; any change re-derives. Sluggish on large merges — back to where we started before the patches.
-- **Fine-grained reactivity.** Treat `merged` as a reactive Map where individual key updates are observed independently (Solid stores, MobX-style). The patch logic moves into per-key mutators on the reactive Map but the bookkeeping is the same; you still walk priority order, adjust source counts, etc. Builds a reactive collection primitive of ~100-200 lines on top.
-- **Hybrid (likely path).** Reactivity for structural state — `state.sources` ordering, `state.selected`, search query, score range. Imperative caches for the perf-critical bits — `_mergedWordlistCache`, `_overrideMap`, `patchCachesForEditsChange`. Reactivity buys correctness for the 90% of state where it doesn't fight performance; the cache layer stays manual where it earns its keep. This is what production frameworks (Solid, Svelte 5, Preact signals) effectively are.
-
-The mutation helpers are a stepping stone toward this — they already encapsulate "mutate + invalidate + repaint" the way a signal setter does. Migrating to reactivity would mean rewriting the helpers as signal sets and letting computeds replace explicit invalidation, while the in-place patch helpers stay roughly as-is on the imperative side.
+`batchUpdate(fn)` coalesces a multi-field save (the configure-wordlist dialog can change up to five fields at once) into one effect run per subscriber. Signal writes inside a batch queue their subscribers in `_batchedEffects`; any `repaintAfterCacheChange` calls inside set a deferred bump flag. At the end of the batch the bump fires and the queued effects each run once.
 
 ## Open questions
 

@@ -1117,6 +1117,61 @@ const WORDLIST_PUBLISHERS = [
   },
 ];
 
+// ─── Signals ──────────────────────────────────────────────────────────────────
+//
+// Hand-rolled minimal signals primitive. Reactivity for the structural state
+// and view layer; the perf-critical caches (merged, override, stats) stay
+// imperative and bump `cacheVersion$` to notify subscribers. ~50 lines, no
+// external dependency — keeps grawlix's "no build step, no npm" property.
+//
+// Scope notes:
+//   - No automatic dependency cleanup on re-runs (effects accumulate subs).
+//     Fine for grawlix's small, stable graph.
+//   - No batching primitive in the lib — `batchUpdate` already coalesces at
+//     the call-site level.
+//   - No async support; not needed.
+
+let _currentEffect = null;
+// While `_batchedEffects` is non-null, signal writes queue subscribers here
+// instead of running them; the batch owner drains and runs each effect once.
+// Coalesces multi-field updates (e.g. the configure-wordlist dialog save) so
+// each effect sees a coherent post-batch state and runs once, not N times.
+let _batchedEffects = null;
+
+function _fireSubs(subs) {
+  if (_batchedEffects) {
+    for (const s of subs) _batchedEffects.add(s);
+  } else {
+    [...subs].forEach(s => s());
+  }
+}
+
+function signal(initial) {
+  let value = initial;
+  const subs = new Set();
+  return {
+    get() { if (_currentEffect) subs.add(_currentEffect); return value; },
+    peek() { return value; },          // non-subscribing read
+    set(v) {
+      if (Object.is(v, value)) return;
+      value = v;
+      _fireSubs(subs);
+    },
+    // For mutable values (arrays, maps): force notify even when ref is unchanged.
+    bump() { _fireSubs(subs); },
+  };
+}
+
+function effect(fn) {
+  const run = () => {
+    const prev = _currentEffect;
+    _currentEffect = run;
+    try { fn(); } finally { _currentEffect = prev; }
+  };
+  run();
+  return run;
+}
+
 // ─── Components ──────────────────────────────────────────────────────────────
 
 function buildScoreBadgeHTML(score) {
@@ -1481,13 +1536,65 @@ const DEFAULT_SCORING = [
   { input: '0',  note: 'Gibberish' },
 ];
 
+// Top-level state lives in signals; the `state` object is a backward-compat
+// proxy so existing reads/writes (`state.selected = …`) still work and pick up
+// signal-driven reactivity automatically.
+//
+// `sources$` holds the array of wordlists (`[{type?, dbKey, icon, publisherId?,
+// name, url, enabled, rawEntries, lastUpdated, _loading, rescoreRules}]`).
+// Reorder/add/remove call `sources$.bump()` after splicing — signal equality
+// is by reference, so plain mutation needs an explicit bump.
+const sources$         = signal([]);
+const selected$        = signal(null);  // MERGED_ID | wordlist object | null
+const searchQuery$     = signal('');
+const searchWholeWord$ = signal(false);
+const scoreRange$      = signal('');
+
+// `cacheVersion$` is bumped whenever the imperative caches change (full
+// invalidation or in-place patch). The render effect subscribes to it so
+// cache-impacting changes trigger a repaint without manual dispatch.
+const cacheVersion$ = signal(0);
+function bumpCacheVersion() { cacheVersion$.set(cacheVersion$.peek() + 1); }
+
+// Reads through `state.*` are non-subscribing (peek). Effects that need to
+// re-run on changes read the underlying signal explicitly with `.get()`.
+// This keeps the imperative call sites unchanged while preventing accidental
+// over-subscription from incidental `state.sources` reads inside effects.
 const state = {
-  sources: [],          // [{type?, dbKey, icon, publisherId?, name, url, enabled, rawEntries, lastUpdated, _loading, rescoreRules}]
-  selected: null,       // MERGED_ID | wordlist object | null
-  searchQuery: '',
-  searchWholeWord: false,
-  scoreRange: '',
+  get sources()         { return sources$.peek(); },
+  set sources(v)        { sources$.set(v); },
+  get selected()        { return selected$.peek(); },
+  set selected(v)       { selected$.set(v); },
+  get searchQuery()     { return searchQuery$.peek(); },
+  set searchQuery(v)    { searchQuery$.set(v); },
+  get searchWholeWord() { return searchWholeWord$.peek(); },
+  set searchWholeWord(v){ searchWholeWord$.set(v); },
+  get scoreRange()      { return scoreRange$.peek(); },
+  set scoreRange(v)     { scoreRange$.set(v); },
 };
+
+// Per-wordlist display fields are signal-backed: each wordlist exposes both
+// `wl.name`/`wl.icon`/etc. (peek getter, .set setter) and `wl.name$`/`wl.icon$`
+// for explicit subscriptions. The cosmetic effect subscribes to name/icon/url/
+// publisher across all wordlists; cache-affecting fields (enabled, rescoreRules)
+// route through `cacheVersion$` because changing them invalidates derived data.
+const REACTIVE_WORDLIST_FIELDS = ['name', 'icon', 'url', 'publisherId', 'enabled', 'rescoreRules'];
+
+function wrapWordlist(wl) {
+  if (wl.name$) return wl;  // already wrapped
+  for (const field of REACTIVE_WORDLIST_FIELDS) {
+    const sig = signal(wl[field]);
+    delete wl[field];
+    Object.defineProperty(wl, field + '$', { value: sig });
+    Object.defineProperty(wl, field, {
+      get() { return sig.peek(); },
+      set(v) { sig.set(v); },
+      enumerable: true,
+      configurable: false,
+    });
+  }
+  return wl;
+}
 
 const colWidths = { length: 55, word: 200, score: 90, source: 170, delete: 26 }; // persists across wordlist switches
 
@@ -2301,11 +2408,11 @@ async function init() {
       state.sources = await Promise.all(meta.map(async m => {
         const dbKey = m.dbKey || crypto.randomUUID();
         const text = await idbGet('data_' + dbKey) ?? await idbGet('data_' + m.id);
-        const wordlist = {
+        const wordlist = wrapWordlist({
           ...(m.type     ? { type: m.type }         : {}),
           dbKey,
           icon:            m.icon || null,
-          ...(m.publisherId ? { publisherId: m.publisherId } : {}),
+          publisherId:     m.publisherId || null,
           name: m.name, url: m.url || null,
           enabled: m.enabled, lastUpdated: m.lastUpdated || null,
           fetchedSize: m.fetchedSize || null,
@@ -2317,7 +2424,7 @@ async function init() {
           ...(m.downloadStem ? { downloadStem: m.downloadStem } : {}),
           rawEntries: text ? parseWordlist(text) : [],
           _loading: false,
-        };
+        });
         updateCatchAll(wordlist);
         return wordlist;
       }));
@@ -2362,7 +2469,7 @@ async function init() {
 
 function defaultSources() {
   return WORDLIST_PUBLISHERS.map(t => {
-    const wordlist = {
+    const wordlist = wrapWordlist({
       dbKey: crypto.randomUUID(),
       icon: t.icon ? { ...t.icon } : null,
       publisherId: t.id,
@@ -2373,7 +2480,7 @@ function defaultSources() {
       lastUpdated: null,
       _loading: false,
       rescoreRules: t.defaultRules ? JSON.parse(JSON.stringify(t.defaultRules)) : [],
-    };
+    });
     updateCatchAll(wordlist);
     return wordlist;
   });
@@ -2391,7 +2498,7 @@ function ensureEdits() {
     if (!edits.scoring) edits.scoring = DEFAULT_SCORING.map(r => ({ ...r }));
     if (!edits.icon) edits.icon = EDITS_ICON;
   } else {
-    const newEdits = {
+    const newEdits = wrapWordlist({
       type: 'edits',
       dbKey: crypto.randomUUID(),
       icon: EDITS_ICON,
@@ -2403,9 +2510,10 @@ function ensureEdits() {
       _loading: false,
       rescoreRules: [],
       scoring: DEFAULT_SCORING.map(r => ({ ...r })),
-    };
+    });
     updateCatchAll(newEdits);
     state.sources.unshift(newEdits);
+    sources$.bump();
     persistMeta();
   }
 }
@@ -3279,11 +3387,87 @@ let scroller = null;
 let _detailWordlist = null;
 let _dateTimer = null;
 
+// The render dispatcher is two effects:
+//   - render effect — reads `selected$` and `cacheVersion$`, dispatches the
+//     panel render (full render on selection change, in-place scroller
+//     update on cache-only change)
+//   - cosmetic effect — subscribes to per-wordlist `name$`/`icon$`/`url$`/
+//     `publisherId$` signals across all sources; cosmetic field changes
+//     re-render the rail/dropdown/dialog and visible scroller rows without
+//     touching the merged cache
+// Helpers that want to repaint after a cache change bump `cacheVersion$` via
+// `repaintAfterCacheChange`. Cosmetic field setters just write the signal —
+// the cosmetic effect notices and repaints.
+//
+// `renderAll()` is the entry point: first call wires up the effects (the
+// render effect's first run does the initial paint); subsequent calls bump
+// `cacheVersion$` and let the effect dispatch.
+let _renderedSelection;            // sentinel: undefined ≠ any signal value
+let _renderEffectActive = false;
+let _cosmeticEffectFirstRun = true;
+
+function setupRenderEffect() {
+  if (_renderEffectActive) return;
+  _renderEffectActive = true;
+  effect(() => {
+    const sel = selected$.get();
+    cacheVersion$.get();             // subscribe to cache-change bumps
+
+    if (sel !== _renderedSelection) {
+      _renderedSelection = sel;
+      renderSources();
+      SyncIndicator?.render();
+      if (sel === MERGED_ID) renderMergedDetail();
+      else renderDetail(sel);
+      return;
+    }
+
+    // Cache change for the current selection — refresh derived state in
+    // place rather than rebuilding the panel and the scroller.
+    renderSources();
+    refreshSourceCounts();
+    if (!scroller) return;
+    if (sel === MERGED_ID) {
+      const { entries } = buildMergedWordlist();
+      if (entries === scroller.allEntries) {
+        // In-place patch: same array, entry objects mutated. Refilter only.
+        scroller._sortScores = null;
+        scroller._applyFilterAndSort(false);
+      } else {
+        scroller.updateEntries(entries);
+      }
+    } else if (sel) {
+      scroller.rescoreRules = sel.rescoreRules || [];
+      scroller.overrideMap = buildOverrideMap(sel);
+      scroller._sortScores = null;
+      scroller._applyFilterAndSort(false);
+    }
+  });
+
+  // Cosmetic effect: re-renders rail/dropdown and visible scroller rows when
+  // any wordlist's name/icon/url/publisher changes. Cache-affecting fields
+  // (enabled, rescoreRules) route through `cacheVersion$` instead since
+  // changing them invalidates derived state.
+  effect(() => {
+    const sources = sources$.get();
+    for (const wl of sources) {
+      wl.name$.get();
+      wl.icon$.get();
+      wl.url$.get();
+      wl.publisherId$.get();
+    }
+    if (_cosmeticEffectFirstRun) {
+      _cosmeticEffectFirstRun = false;
+      return;            // render effect's first run already painted everything
+    }
+    renderSources();
+    if (scroller) scroller._render();
+  });
+}
+
 function renderAll() {
-  renderSources();
-  SyncIndicator?.render();
-  if (state.selected === MERGED_ID) renderMergedDetail();
-  else renderDetail(getSelected());
+  if (!_renderEffectActive) setupRenderEffect();
+  else bumpCacheVersion();
 }
 
 function wordlistCardMeta(wordlist, contribMap) {
@@ -3547,17 +3731,13 @@ function getSelected() {
 }
 
 function selectMergedWordlist() {
-  state.selected = MERGED_ID;
   state.searchQuery = '';
-  SourceDropdown?.renderTrigger();
-  renderMergedDetail();
+  state.selected = MERGED_ID;       // signal set → render effect dispatches
 }
 
 function selectWordlist(wordlist) {
-  state.selected = wordlist;
   state.searchQuery = '';
-  SourceDropdown?.renderTrigger();
-  renderDetail(wordlist);
+  state.selected = wordlist;        // signal set → render effect dispatches
 }
 
 function onSearch(query) {
@@ -3951,8 +4131,10 @@ async function deleteWordlist(wordlist, event) {
   if (event) event.stopPropagation();
   if (!wordlist) return;
   if (!await showConfirm('', { confirmText: 'Delete', html: `Delete ${buildWordlistNameHTML(wordlist)}?` })) return;
-  state.sources = state.sources.filter(l => l !== wordlist);
+  // Invalidate first so any reactive subscribers re-rendering on the
+  // `state.sources` change below don't read a stale merged cache.
   invalidateWordlistCaches(wordlist);
+  state.sources = state.sources.filter(l => l !== wordlist);
   await idbDel('data_' + wordlist.dbKey);
   persistMeta();
   if (state.selected === wordlist) {
@@ -3969,13 +4151,13 @@ function toggleWordlist(wordlist, event) {
 }
 
 function addNewWordlist(wordlistDef) {
-  const wordlist = { rescoreRules: [], ...wordlistDef, rawEntries: [], lastUpdated: null, _loading: false };
+  const wordlist = wrapWordlist({ rescoreRules: [], ...wordlistDef, rawEntries: [], lastUpdated: null, _loading: false });
   updateCatchAll(wordlist);
   state.sources.push(wordlist);
   invalidateSourceCounts();
   invalidateStatsCache(_mergedStatsKey);
   persistMeta();
-  renderSources();
+  sources$.bump();              // notify cosmetic effect with fresh caches
   return wordlist;
 }
 
@@ -5329,81 +5511,71 @@ function toggleSplitMenu(event) {
 
 // ─── Mutation helpers ─────────────────────────────────────────────────────────
 //
-// State mutations bundled with the right invalidation/persistence/repaint, so
-// call sites don't have to remember the sequence. Two repaint shapes:
-//   - repaintVisibleRows: cosmetic changes (caches still valid; refresh DOM only)
-//   - repaintAfterCacheChange: cache contents changed (refresh + repaint scroller)
-// `batchUpdate(fn)` coalesces multiple mutations into a single repaint.
+// State mutations bundled with the right invalidation/persistence/cache bump,
+// so call sites don't have to remember the sequence. Cosmetic changes write
+// the signal and persist; the cosmetic effect handles repaint. Cache-affecting
+// changes also call `repaintAfterCacheChange()` to bump `cacheVersion$` and
+// let the render effect dispatch the right scroller update.
+// `batchUpdate(fn)` coalesces multiple mutations: signal writes queue their
+// subscribers, and a single deferred `cacheVersion$` bump fires once at the
+// end of the batch.
 
 let _batchDepth = 0;
-let _batchPending = null; // 'visible' | 'cache' (cache subsumes visible)
+let _cacheBumpPending = false;
 
 function batchUpdate(fn) {
+  const owner = _batchedEffects === null;
+  if (owner) _batchedEffects = new Set();
   _batchDepth++;
   try { fn(); }
   finally {
     _batchDepth--;
-    if (_batchDepth === 0 && _batchPending) {
-      const pending = _batchPending;
-      _batchPending = null;
-      if (pending === 'cache') repaintAfterCacheChange();
-      else repaintVisibleRows();
+    if (_batchDepth === 0 && _cacheBumpPending) {
+      _cacheBumpPending = false;
+      bumpCacheVersion();
+    }
+    if (owner) {
+      const queued = _batchedEffects;
+      _batchedEffects = null;
+      [...queued].forEach(s => s());
     }
   }
 }
 
-function repaintVisibleRows() {
-  if (_batchDepth > 0) {
-    if (_batchPending !== 'cache') _batchPending = 'visible';
-    return;
-  }
-  renderSources();
-  if (scroller) scroller._render();
-}
-
 function repaintAfterCacheChange() {
-  if (_batchDepth > 0) { _batchPending = 'cache'; return; }
-  renderSources();
-  refreshSourceCounts();
-  if (!scroller) return;
-  if (state.selected === MERGED_ID) {
-    scroller.updateEntries(buildMergedWordlist().entries);
-  } else if (state.selected) {
-    scroller.rescoreRules = state.selected.rescoreRules || [];
-    scroller.overrideMap = buildOverrideMap(state.selected);
-    scroller._sortScores = null;
-    scroller._applyFilterAndSort(false);
-  }
+  if (_batchDepth > 0) { _cacheBumpPending = true; return; }
+  bumpCacheVersion();
 }
 
+// Cosmetic setters: write the signal and persist. The cosmetic effect
+// re-renders the rail/dropdown/dialog and visible scroller rows; no explicit
+// repaint call needed.
 function setWordlistName(wordlist, name) {
   if (wordlist.name === name) return;
   wordlist.name = name;
   persistMeta();
-  repaintVisibleRows();
 }
 
 function setWordlistIcon(wordlist, icon) {
   wordlist.icon = icon;
   persistMeta();
-  repaintVisibleRows();
 }
 
 function setWordlistUrl(wordlist, url) {
   if ((wordlist.url ?? null) === (url ?? null)) return;
   wordlist.url = url;
   persistMeta();
-  repaintVisibleRows();
 }
 
 function setWordlistPublisher(wordlist, publisherId) {
-  if ((wordlist.publisherId ?? null) === (publisherId ?? null)) return;
-  if (publisherId) wordlist.publisherId = publisherId;
-  else delete wordlist.publisherId;
+  const newVal = publisherId || null;
+  if ((wordlist.publisherId ?? null) === newVal) return;
+  wordlist.publisherId = newVal;
   persistMeta();
-  repaintVisibleRows();
 }
 
+// Cache-affecting setters: bump cacheVersion$ so the render effect refreshes
+// derived state (merged cache, override maps, scroller).
 function setWordlistEnabled(wordlist, enabled) {
   if (wordlist.enabled === enabled) return;
   wordlist.enabled = enabled;
@@ -5432,6 +5604,9 @@ function reorderSources(fromIdx, toIdx) {
   const [item] = state.sources.splice(fromIdx, 1);
   state.sources.splice(toIdx, 0, item);
   persistMeta();
+  // The cache effect already covers the order change (refreshSourceCounts
+  // rebuilds derived caches from state.sources). No separate sources$ bump
+  // is needed — repaintAfterCacheChange routes through the render effect.
   repaintAfterCacheChange();
 }
 
