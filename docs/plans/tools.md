@@ -186,4 +186,4 @@ Default-loose is probably right for v1; promote to column-specific only if usage
   - *Unstructured (Unix-style):* Word pairs are just text lines like `SLING -> LING`. Filter tools (wildcard, regex) are universal — they grep against whatever text is present, so a wildcard search on pair results matches against both words simultaneously. Simple, no type system needed.
   - *Structured:* Tools declare typed outputs (word-list, word-pairs, word-groups). Transform tools (anagram, beheadment) operate on individual words, not on `SLING -> LING` as a string. More powerful but requires a type system and some notion of "extract words from this output before passing to next tool."
 
-  Filter tools are probably universal either way. The question is really about transform tools chained onto pair/group outputs.
+Filter tools are probably universal either way. The question is really about transform tools chained onto pair/group outputs.
