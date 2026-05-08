@@ -5211,15 +5211,15 @@ function buildCellPopoverHTML(td) {
   let html = '';
 
   if (scoreRaw !== undefined) {
-    const thisScore = scoreRescaled ? `${scoreRaw} → ${scoreRescaled}` : scoreRaw;
+    const thisScore = scoreRescaled ? `${scoreRaw} rescored to ${scoreRescaled}` : scoreRaw;
     html += `<div><b>${esc(scoreWordlistName)}:</b> ${thisScore}</div>`;
-    if (scoreOvName) html += `<div>Overridden by <b>${esc(scoreOvName)}:</b> ${scoreOvVal}</div>`;
+    if (scoreOvName) html += `<div><b>${esc(scoreOvName)}:</b> ${scoreOvVal} takes precedence</div>`;
   }
 
   if (commentOvName !== undefined) {
     if (commentRaw) {
       html += `<div><b>${esc(commentWordlistName)}:</b> ${esc(commentRaw)}</div>`;
-      html += `<div>Overridden by <b>${esc(commentOvName)}:</b> ${esc(commentOvVal)}</div>`;
+      html += `<div><b>${esc(commentOvName)}:</b> ${esc(commentOvVal)} takes precedence</div>`;
     } else {
       html += `<div>From <b>${esc(commentOvName)}</b></div>`;
     }
