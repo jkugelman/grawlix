@@ -2,6 +2,7 @@
 
 - **[`design.md`](design.md)** — present-tense design documentation: UI shape, architecture, and the *whys* behind them. Single home for distilled design content; plans get folded in here as they ship.
 - **[`manual.md`](manual.md)** — user-facing manual. Plain Markdown today; eventually will become an in-app manual.
+- **[`style.md`](style.md)** — coding-style conventions: CSS, JS, Markdown, terminology, commit messages.
 - **[`plans/`](plans/)** — forward-looking design docs for work that hasn't shipped. Speculative, future-tense.
 - **Other top-level files** — reference catalogues that don't fit elsewhere.
 
@@ -9,6 +10,7 @@
 
 - [design.md](design.md) — UI shape and architecture: header, left rail with wordlist picker and tool-gallery slot, main pane, Wordlists dialog (full), Sync & backup dialog (stub), URL state, open questions.
 - [manual.md](manual.md) — user-facing manual: the app shell, choosing a wordlist, search syntax, inline editing, My Edits, score tiers, the Wordlists dialog, Sync & backup, sharing & links, file format.
+- [style.md](style.md) — coding-style conventions: CSS single-line rule and exceptions, JS formatting, Markdown unwrapping, naming, terminology, commit-message format.
 - [wordlisted.md](wordlisted.md) — reference catalogue of Wordlisted's search modes. External-system documentation rather than a Grawlix feature record; lives here as the source material for the tool gallery roadmap.
 
 ## Plans
