@@ -2463,7 +2463,7 @@ async function init() {
   }
   bindEvents();
   checkForUpdates();
-  _updateCheckInterval = setInterval(checkForUpdates, UPDATE_CHECK_INTERVAL);
+  setInterval(checkForUpdates, UPDATE_CHECK_INTERVAL);
 
   state.sources
     .filter(l => l.url && !l.rawEntries.length)
@@ -2724,7 +2724,6 @@ class VirtualScroller {
     this._colEls = {};
     this.rescoreRules = [];
     this.overrideMap = new Map();
-    this._currentCols = [];
     this.showSource = false;
     this.showDeleteCol = false;
     this.editsWordlist = null;
@@ -2833,7 +2832,6 @@ class VirtualScroller {
     const LABELS = { length: 'Len', word: 'Word', score: 'Score', comment: 'Comment', source: 'Source', delete: '' };
     const ALIGN  = { length: 'right', word: 'left', score: 'left', comment: 'left', source: 'left', delete: 'center' };
     const cols = this._cols();
-    this._currentCols = cols;
 
     this.topRow.firstElementChild.colSpan = cols.length;
     this.botRow.firstElementChild.colSpan = cols.length;
@@ -3395,7 +3393,6 @@ function renderRescoreSection() {
 // ─── Rendering ────────────────────────────────────────────────────────────────
 
 let scroller = null;
-let _detailWordlist = null;
 let _dateTimer = null;
 
 // The render dispatcher is two effects:
@@ -3547,7 +3544,6 @@ function renderMergedDetail() {
   const panel = document.getElementById('detail-panel');
   clearInterval(_dateTimer);
   _dateTimer = null;
-  _detailWordlist = null;
 
   const { entries } = buildMergedWordlist();
   const stats = computeStats(_mergedStatsKey, entries);
@@ -3645,8 +3641,6 @@ function renderDetail(wordlist) {
     return;
   }
 
-  _detailWordlist = wordlist;
-
   const stats = computeStats(wordlist, wordlist.rawEntries);
   const statsHtml = buildStatsBarHTML(stats);
 
@@ -3669,7 +3663,6 @@ function renderDetail(wordlist) {
 
 function renderEditsDetail(wordlist) {
   const panel = document.getElementById('detail-panel');
-  _detailWordlist = wordlist;
   const stats = computeStats(wordlist, wordlist.rawEntries);
   const statsHtml = buildStatsBarHTML(stats);
 
@@ -4960,7 +4953,6 @@ function timeAgo(ts) {
   return `${yr} year${yr === 1 ? '' : 's'} ago`;
 }
 
-let _updateCheckInterval;
 const _toastContainer = (() => {
   const el = document.createElement('div');
   el.id = 'toast-container';
