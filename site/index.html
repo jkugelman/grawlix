@@ -799,10 +799,11 @@ input.cell-edit.score-edit { font-family: ui-monospace, 'Cascadia Code', monospa
 .add-row-trigger { display: flex; align-items: center; padding: 5px 16px; height: 29px; cursor: pointer; color: var(--text); font-size: 12px; user-select: none; background: var(--surface2); border-top: 1px solid var(--border3); }
 .add-row-trigger:hover { background: var(--hover); color: var(--accent); }
 .add-word-bar { display: flex; align-items: center; gap: 8px; padding: 5px 16px; background: var(--surface2); }
+.add-word-bar:focus { outline: none; }
 .add-word-bar input { font-family: inherit; font-size: 12px; padding: 2px 6px; border: 1px solid var(--border); border-radius: 3px; background: var(--input-bg); color: var(--text); outline: none; }
 .add-word-bar input:focus { border-color: var(--accent); }
 .add-word-bar input.invalid { border-color: #ea4335; }
-.add-word-bar .aw-word { font-family: ui-monospace, 'Cascadia Code', monospace; width: 120px; }
+.add-word-bar .aw-word { width: 120px; }
 .add-word-bar .aw-score { width: 60px; }
 .add-word-bar .aw-comment { flex: 1; }
 .add-word-bar .aw-hint { font-size: 11px; color: var(--faint); white-space: nowrap; }
@@ -4066,6 +4067,7 @@ function openAddWordBar() {
   footer.innerHTML = '';
   const bar = document.createElement('div');
   bar.className = 'add-word-bar';
+  bar.tabIndex = -1;
   bar.innerHTML = `
     <input class="aw-word"    placeholder="Word"    autocomplete="off" spellcheck="false">
     <input class="aw-score"   placeholder="Score"   type="number" min="0">
@@ -4080,10 +4082,17 @@ function openAddWordBar() {
   commentInput.addEventListener('beforeinput', blockSemicolon);
   wordInput.focus();
 
+  const allEmpty = () => !wordInput.value.trim() && !scoreInput.value.trim() && !commentInput.value.trim();
+
   function restoreTrigger() {
     bar.remove();
     footer.innerHTML = ADD_WORD_TRIGGER_HTML;
   }
+
+  bar.addEventListener('focusout', e => {
+    if (e.relatedTarget && bar.contains(e.relatedTarget)) return;
+    if (allEmpty()) restoreTrigger();
+  });
 
   function commit() {
     const word = wordInput.value.trim().toUpperCase();
