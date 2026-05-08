@@ -1422,6 +1422,51 @@ function buildWordlistNameHTML(wordlist, { bold = true } = {}) {
   return `<span class="wordlist-name-icon">${icon}</span> ${name}`;
 }
 
+// ─── Router ───────────────────────────────────────────────────────────────────
+// Keeps location.search in sync with the tool stack via history.replaceState.
+// Today's stack: the permanent Search row (pattern + whole-word) and the score
+// filter. See docs/plans/url-routing.md for the schema and rationale.
+const Router = (() => {
+  let _navTimer = null;
+
+  function buildQuery() {
+    const parts = [];
+    if (state.searchQuery)     parts.push('search=' + encodeURIComponent(state.searchQuery));
+    if (state.searchWholeWord) parts.push('whole-word');
+    if (state.scoreRange)      parts.push('score=' + encodeURIComponent(state.scoreRange));
+    return parts.join('&');
+  }
+
+  function _replace() {
+    _navTimer = null;
+    const query  = buildQuery();
+    const target = query ? location.pathname + '?' + query : location.pathname;
+    if (location.pathname + location.search !== target) {
+      history.replaceState(null, '', target);
+    }
+  }
+
+  // Debounce input-tweak callers (typing) so the URL bar doesn't flicker per
+  // keystroke; structural toggles (whole-word, clear) replace instantly.
+  function navigate({ debounce = false } = {}) {
+    if (_navTimer) { clearTimeout(_navTimer); _navTimer = null; }
+    if (debounce) _navTimer = setTimeout(_replace, 250);
+    else          _replace();
+  }
+
+  function applyURL() {
+    const params = new URLSearchParams(location.search);
+    state.searchQuery     = params.get('search') || '';
+    state.searchWholeWord = params.has('whole-word');
+    if (params.has('score')) {
+      const v = params.get('score') || '';
+      state.scoreRange = parseRange(v) ? v : '';
+    }
+  }
+
+  return { navigate, applyURL };
+})();
+
 // ─── State ────────────────────────────────────────────────────────────────────
 
 // Default tier labels. Lives on My Edits' `scoring` field; shown both there and
@@ -2297,6 +2342,9 @@ async function init() {
   if (rawScoreRange !== null && parseRange(rawScoreRange.trim()) !== null) {
     state.scoreRange = rawScoreRange.trim();
   }
+
+  // URL wins over localStorage for shared/deep-linked state.
+  Router.applyURL();
 
   state.selected = MERGED_ID;
 
@@ -3522,11 +3570,13 @@ function onSearch(query) {
   const btn = document.getElementById('search-clear');
   if (btn) btn.hidden = !query;
   if (scroller) scroller.filter(query, state.searchWholeWord, state.scoreRange);
+  Router.navigate({ debounce: true });
 }
 
 function onSearchWholeWord(checked) {
   state.searchWholeWord = checked;
   if (scroller) scroller.filter(state.searchQuery, checked, state.scoreRange);
+  Router.navigate();
 }
 
 function onScoreRange(value) {
@@ -3541,6 +3591,7 @@ function onScoreRange(value) {
   const btn = document.getElementById('score-range-clear');
   if (btn) btn.hidden = trimmed === '';
   if (scroller) scroller.filter(state.searchQuery, state.searchWholeWord, state.scoreRange);
+  Router.navigate({ debounce: true });
 }
 
 function clearSearch() {
