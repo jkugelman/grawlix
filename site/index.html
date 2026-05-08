@@ -2467,7 +2467,7 @@ async function init() {
 
   state.sources
     .filter(l => l.url && !l.rawEntries.length)
-    .forEach(l => fetchWordlist(l));
+    .forEach(l => fetchWordlist(l, null, { silent: true }));
 
   if (!lsLoad('visited')) {
     lsSave('visited', '1');
@@ -3869,7 +3869,7 @@ const openUpdateSummaryDialog = (() => {
   };
 })();
 
-async function applyWordlistText(wordlist, text, { fetchedSize = null, originalFilename = null, nameOverride = null, source = null, clearUrl = false } = {}) {
+async function applyWordlistText(wordlist, text, { fetchedSize = null, originalFilename = null, nameOverride = null, source = null, clearUrl = false, silent = false } = {}) {
   const dbKey = wordlist.dbKey;
   const wasEmpty = !wordlist.rawEntries.length;
   const oldEntries = wasEmpty ? null : wordlist.rawEntries;
@@ -3898,7 +3898,7 @@ async function applyWordlistText(wordlist, text, { fetchedSize = null, originalF
   // current selection. Nothing else to repaint here.
 
   if (wasEmpty) {
-    showToast(`Loaded ${pluralize(wordlist.rawEntries.length, 'entry', 'entries')} from ${esc(source)}`);
+    if (!silent) showToast(`Loaded ${pluralize(wordlist.rawEntries.length, 'entry', 'entries')} from ${esc(source)}`);
   } else {
     const oldMap = new Map(oldEntries.map(e => [e.word, e.score]));
     const newMap = new Map(wordlist.rawEntries.map(e => [e.word, e.score]));
@@ -3916,7 +3916,7 @@ async function applyWordlistText(wordlist, text, { fetchedSize = null, originalF
   }
 }
 
-async function fetchWordlist(wordlist, event) {
+async function fetchWordlist(wordlist, event, { silent = false } = {}) {
   if (event) event.stopPropagation();
   if (!wordlist || !wordlist.url || wordlist._loading) return;
 
@@ -3931,7 +3931,7 @@ async function fetchWordlist(wordlist, event) {
     const fetchedSize = resp.headers.get('content-length') || null;
     const originalFilename = new URL(wordlist.url).pathname.split('/').pop() || null;
     wordlist._loading = false;
-    await applyWordlistText(wordlist, text, { fetchedSize, originalFilename, source: wordlist.url });
+    await applyWordlistText(wordlist, text, { fetchedSize, originalFilename, source: wordlist.url, silent });
   } catch (err) {
     wordlist._loading = false;
     renderSources();
