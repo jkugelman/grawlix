@@ -1942,7 +1942,7 @@ const WordlistsDialog = (() => {
     if (page === 2) {
       return `
         <button class="dialog-close-btn" aria-label="Dismiss" data-onboard-action="dismiss">✕</button>
-        <p>Got a personal wordlist? Import it into ${esc(getEditsWordlist()?.name ?? 'My Edits')}.</p>
+        <p>Got a personal wordlist? Import it into ${buildWordlistNameHTML(getEditsWordlist())}.</p>
         <div class="wld-onboarding-actions">
           <button class="link-btn" data-onboard-action="next">Skip</button>
           <button class="primary" data-onboard-action="pick-file">Choose file…</button>
@@ -1952,7 +1952,7 @@ const WordlistsDialog = (() => {
     // page 3 — XWI
     return `
       <button class="dialog-close-btn" aria-label="Dismiss" data-onboard-action="dismiss">✕</button>
-      <p>XWord Info subscriber? Import your XWI wordlist.</p>
+      <p>XWord Info subscriber? Import your ${buildWordlistNameHTML(getXwiWordlist())} wordlist.</p>
       <div class="wld-onboarding-actions">
         <button class="link-btn" data-onboard-action="next">Skip</button>
         <button class="primary" data-onboard-action="pick-file">Choose file…</button>
