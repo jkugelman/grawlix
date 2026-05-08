@@ -1149,7 +1149,7 @@ function buildStatsBarHTML(stats, entries, layout) {
     return `<div class="score-bar" data-tier="${s.tier}" data-lo="${s.lo}" data-hi="${s.hi}" style="height:${barH(c)}px" title="${title}"></div>`;
   }).join('');
 
-  const distTitle = 'Score distribution • Click or drag to filter';
+  const distTitle = 'Score distribution • Click to filter';
 
   return `<div class="stats-bar${isEmpty ? ' stats-empty' : ''}">
       ${buildStatItemHTML('Entries', stats.count.toLocaleString())}
