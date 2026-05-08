@@ -1140,12 +1140,12 @@ function buildStatsBarHTML(stats, entries, layout) {
   const scale = Math.max(ignored, ...counts, 1);
   const barH = c => c === 0 ? 0 : Math.max(2, Math.round((c / scale) * 34));
 
-  const ignoredTitle = ignored > 0 ? ` title="Ignored: ${ignored.toLocaleString()}"` : '';
+  const ignoredTitle = ignored > 0 ? ` title="${pluralize(ignored, 'entry', 'entries')} ignored"` : '';
   const ignoredBar = `<div class="score-bar score-bar-ignored" style="height:${barH(ignored)}px"${ignoredTitle}></div>`;
 
   const bars = layout.slots.map((s, i) => {
     const c = counts[i];
-    const title = `${s.label}: ${c.toLocaleString()} • Click to filter`;
+    const title = `${pluralize(c, 'entry', 'entries')} scored ${s.label} • Click to filter`;
     const { bg } = scoreColor((s.lo + s.hi) / 2);
     return `<div class="score-bar" data-lo="${s.lo}" data-hi="${s.hi}" style="--score-bg:${bg}; height:${barH(c)}px" title="${title}"></div>`;
   }).join('');
