@@ -111,7 +111,7 @@ main { display: flex; flex: 1; overflow: hidden; position: relative; }
 @keyframes busy-spin { to { transform: rotate(360deg); } }
 
 /* Add wordlist row (used inside the Wordlists dialog's rail) */
-.add-wordlist-row { padding: 9px 14px; cursor: pointer; color: var(--faint); font-size: 13px; display: flex; align-items: center; gap: 9px; transition: background 0.1s, color 0.1s; user-select: none; }
+.add-wordlist-row { padding: 9px 14px; cursor: pointer; color: var(--text); font-size: 13px; display: flex; align-items: center; gap: 9px; transition: background 0.1s, color 0.1s; user-select: none; background: var(--surface); border-top: 1px solid var(--border3); }
 .add-wordlist-row:hover { background: var(--hover); color: var(--accent); }
 .add-wordlist-icon { font-size: 15px; line-height: 1; width: 16px; text-align: center; flex-shrink: 0; }
 
@@ -796,7 +796,7 @@ input.cell-edit.score-edit { font-family: ui-monospace, 'Cascadia Code', monospa
 
 /* Add word footer row */
 #add-row-footer { flex-shrink: 0; border-top: 1px solid var(--border2); }
-.add-row-trigger { display: flex; align-items: center; padding: 5px 16px; height: 29px; cursor: pointer; color: var(--faint); font-size: 12px; user-select: none; background: var(--surface); }
+.add-row-trigger { display: flex; align-items: center; padding: 5px 16px; height: 29px; cursor: pointer; color: var(--text); font-size: 12px; user-select: none; background: var(--surface2); border-top: 1px solid var(--border3); }
 .add-row-trigger:hover { background: var(--hover); color: var(--accent); }
 .add-word-bar { display: flex; align-items: center; gap: 8px; padding: 5px 16px; background: var(--surface2); }
 .add-word-bar input { font-family: inherit; font-size: 12px; padding: 2px 6px; border: 1px solid var(--border); border-radius: 3px; background: var(--input-bg); color: var(--text); outline: none; }
