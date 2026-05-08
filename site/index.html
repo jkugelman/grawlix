@@ -156,9 +156,20 @@ button.danger:hover:not(:disabled) { background: #e74c3c; border-color: #c0392b;
 .stat { display: flex; flex-direction: column; gap: 2px; }
 .stat-label { font-size: 10px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
 .stat-value { font-size: 15px; font-weight: 700; line-height: 1; }
-.score-dist { display: flex; gap: 3px; align-items: flex-end; height: 36px; }
+.score-dist { display: flex; gap: 3px; align-items: flex-end; height: 36px; position: relative; cursor: pointer; user-select: none; touch-action: none; }
 .stats-right { display: flex; align-items: center; gap: 22px; margin-left: auto; }
-.score-bar { width: 7px; background: var(--accent); border-radius: 2px 2px 0 0; min-height: 2px; }
+.score-bar { width: 7px; background: var(--accent); border-radius: 2px 2px 0 0; position: relative; z-index: 1; }
+.score-bar[data-tier="great"] { background: var(--score-great-bg); }
+.score-bar[data-tier="good"]  { background: var(--score-good-bg); }
+.score-bar[data-tier="fair"]  { background: var(--score-fair-bg); }
+.score-bar[data-tier="meh"]   { background: var(--score-meh-bg); }
+.score-bar[data-tier="bad"]   { background: var(--score-bad-bg); }
+.score-bar.score-bar-ignored { background: var(--faint); margin-right: 5px; cursor: default; }
+.score-dist-rect { position: absolute; top: -2px; bottom: -2px; background: var(--accent); opacity: 0.18; border-radius: 4px; pointer-events: none; z-index: 0; transition: left 0.1s ease, width 0.1s ease; }
+.score-dist-rect[hidden] { display: none; }
+html.light-mode .score-bar[data-tier] { filter: saturate(1.5) brightness(0.95); }
+html.light-mode .score-bar.score-bar-ignored { filter: none; }
+html.light-mode .score-dist-rect { opacity: 0.22; }
 
 /* Search */
 .search-bar { padding: 7px 14px 6px; background: var(--surface); border-bottom: 1px solid var(--border2); flex-shrink: 0; }
@@ -1121,14 +1132,26 @@ function buildSearchBarHTML(opts = {}) {
     </div>`;
 }
 
-function buildStatsBarHTML(stats) {
+function buildStatsBarHTML(stats, entries, layout) {
   const isEmpty = !stats.count;
   const dash = '—';
   const fmt = v => isEmpty ? dash : v;
-  const bars = stats.buckets.map((b, i) => {
-    const h = stats.maxBucket ? Math.max(2, Math.round((b / stats.maxBucket) * 34)) : 2;
-    return `<div class="score-bar" style="height:${h}px" title="${i*10}–${i===10?'100':i*10+9}: ${b.toLocaleString()}"></div>`;
+  const ignored = stats.ignoredCount || 0;
+  const counts = bucketCounts(entries || [], layout);
+  const scale = Math.max(ignored, ...counts, 1);
+  const barH = c => c === 0 ? 0 : Math.max(2, Math.round((c / scale) * 34));
+
+  const ignoredTitle = ignored > 0 ? ` title="Ignored: ${ignored.toLocaleString()}"` : '';
+  const ignoredBar = `<div class="score-bar score-bar-ignored" style="height:${barH(ignored)}px"${ignoredTitle}></div>`;
+
+  const bars = layout.slots.map((s, i) => {
+    const c = counts[i];
+    const title = `${s.label}: ${c.toLocaleString()} • Click to filter`;
+    return `<div class="score-bar" data-tier="${s.tier}" data-lo="${s.lo}" data-hi="${s.hi}" style="height:${barH(c)}px" title="${title}"></div>`;
   }).join('');
+
+  const distTitle = 'Score distribution • Click or drag to filter';
+
   return `<div class="stats-bar${isEmpty ? ' stats-empty' : ''}">
       ${buildStatItemHTML('Entries', stats.count.toLocaleString())}
       ${buildStatItemHTML('Min', fmt(stats.min))}
@@ -1137,7 +1160,7 @@ function buildStatsBarHTML(stats) {
         ${buildStatItemHTML('Mean', fmt(stats.mean), 'Average score')}
         ${buildStatItemHTML('Median', fmt(stats.median % 1 === 0 ? stats.median : stats.median.toFixed(1)), '50th percentile')}
         ${buildStatItemHTML('Mode', fmt(stats.mode), 'Most common score')}
-        <div class="score-dist" title="Score distribution by decile">${bars}</div>
+        <div class="score-dist" title="${distTitle}" onpointerdown="onHistogramPointerDown(event)">${ignoredBar}${bars}<div class="score-dist-rect" hidden></div></div>
       </div>
     </div>`;
 }
@@ -1868,7 +1891,7 @@ const WordlistsDialog = (() => {
     const isEdits = wordlist.type === 'edits';
     const hasData = wordlist.rawEntries.length > 0;
 
-    const stats = computeStats(wordlist, wordlist.rawEntries);
+    const { stats, entries: histEntries } = statsForWordlist(wordlist);
 
     // Action row shape is unified across all wordlists: date slot, primary action,
     // Download, more menu. Only the contents differ — sources have Update/Fetch
@@ -1926,8 +1949,9 @@ const WordlistsDialog = (() => {
       <div class="wld-pane-header">
         <div class="wld-pane-actions">${actionsHTML}</div>
       </div>
-      <div class="wld-pane-stats">${buildStatsBarHTML(stats)}</div>
+      <div class="wld-pane-stats">${buildStatsBarHTML(stats, histEntries, getHistogramLayout())}</div>
       ${rulesHTML}`;
+    repositionAllScoreDistRects();
 
     if (hasData && wordlist.lastUpdated) {
       const setDate = () => {
@@ -2497,11 +2521,12 @@ const _mergedStatsKey = {};
 let _sourceCountsCache = null;
 let _mergedWordlistCache = null;
 
-function invalidateRescoredCache(wordlist) { wordlist._rescored = null; wordlist._rescoredMap = null; }
+function invalidateRescoredCache(wordlist) { wordlist._rescored = null; wordlist._rescoredMap = null; invalidateHistogramLayout(); }
 function invalidateStatsCache(key) { _statsCache.delete(key); }
 function invalidateSourceCounts() {
   _sourceCountsCache = null;
   _mergedWordlistCache = null;
+  invalidateHistogramLayout();
   for (const l of state.sources) l._overrideMap = null;
 }
 function invalidateWordlistCaches(wordlist) {
@@ -2511,23 +2536,21 @@ function invalidateWordlistCaches(wordlist) {
   invalidateStatsCache(_mergedStatsKey);
 }
 
-function computeStats(key, entries) {
+function computeStats(key, entries, ignoredCount = 0) {
   if (_statsCache.has(key)) return _statsCache.get(key);
   // Empty state: return an all-zero shape so buildStatsBarHTML can render the
-  // bar with dashes and a flat histogram baseline (uniformity with non-empty).
+  // bar with dashes and an empty distribution.
   if (!entries.length) {
-    const empty = { count: 0, min: 0, max: 0, mean: 0, median: 0, mode: 0, buckets: new Array(11).fill(0), maxBucket: 0 };
+    const empty = { count: 0, min: 0, max: 0, mean: 0, median: 0, mode: 0, distinctScores: [], ignoredCount };
     _statsCache.set(key, empty);
     return empty;
   }
   let min = Infinity, max = -Infinity;
-  const buckets = new Array(11).fill(0);
   const freq = {};
   const scores = [];
   for (const { score } of entries) {
     if (score < min) min = score;
     if (score > max) max = score;
-    buckets[Math.min(10, Math.max(0, Math.floor(score / 10)))]++;
     scores.push(score);
     freq[score] = (freq[score] || 0) + 1;
   }
@@ -2539,9 +2562,100 @@ function computeStats(key, entries) {
     if (c > modeCount) { modeCount = c; mode = +s; }
   }
   const mean = Math.round(scores.reduce((a, b) => a + b, 0) / scores.length);
-  const result = { count: entries.length, min, max, mean, median, mode, buckets, maxBucket: Math.max(...buckets) };
+  const distinctScores = Object.keys(freq).map(Number).sort((a, b) => a - b);
+  const result = { count: entries.length, min, max, mean, median, mode, distinctScores, ignoredCount };
   _statsCache.set(key, result);
   return result;
+}
+
+function statsForWordlist(wordlist) {
+  const isEdits = wordlist.type === 'edits';
+  const entries = isEdits ? wordlist.rawEntries : getRescoredEntries(wordlist);
+  const ignoredCount = isEdits ? 0 : wordlist.rawEntries.length - entries.length;
+  return { stats: computeStats(wordlist, entries, ignoredCount), entries };
+}
+
+// ─── Histogram layout ─────────────────────────────────────────────────────────
+
+const HIST_DISCRETE_THRESHOLD = 12;
+const HIST_BINNED_BUCKETS = 11;
+
+let _layoutCache = null;
+function invalidateHistogramLayout() { _layoutCache = null; }
+
+function getHistogramLayout() {
+  if (_layoutCache) return _layoutCache;
+  const distinct = new Set();
+  let min = Infinity, max = -Infinity;
+  for (const wl of state.sources) {
+    for (const { score } of getRescoredEntries(wl)) {
+      distinct.add(score);
+      if (score < min) min = score;
+      if (score > max) max = score;
+    }
+  }
+  if (!distinct.size) {
+    _layoutCache = { mode: 'binned', slots: defaultDecileSlots() };
+    return _layoutCache;
+  }
+  const distinctScores = [...distinct].sort((a, b) => a - b);
+  if (distinctScores.length <= HIST_DISCRETE_THRESHOLD) {
+    _layoutCache = {
+      mode: 'discrete',
+      slots: distinctScores.map(s => ({ score: s, lo: s, hi: s, label: String(s), tier: scoreTier(s) })),
+    };
+    return _layoutCache;
+  }
+  const N = HIST_BINNED_BUCKETS;
+  const bucketSize = Math.max(1, Math.ceil((max - min + 1) / N));
+  const slots = [];
+  for (let i = 0; i < N; i++) {
+    const lo = min + i * bucketSize;
+    if (lo > max) break;
+    const hi = Math.min(max, lo + bucketSize - 1);
+    slots.push({ lo, hi, label: lo === hi ? String(lo) : `${lo}–${hi}`, tier: scoreTier(Math.round((lo + hi) / 2)) });
+  }
+  _layoutCache = { mode: 'binned', slots };
+  return _layoutCache;
+}
+
+function defaultDecileSlots() {
+  const slots = [];
+  for (let i = 0; i < 11; i++) {
+    const lo = i * 10;
+    const hi = i === 10 ? 100 : i * 10 + 9;
+    slots.push({ lo, hi, label: lo === hi ? String(lo) : `${lo}–${hi}`, tier: scoreTier(Math.round((lo + hi) / 2)) });
+  }
+  return slots;
+}
+
+function bucketCounts(entries, layout) {
+  const counts = layout.slots.map(() => 0);
+  if (layout.mode === 'discrete') {
+    const idxByScore = new Map(layout.slots.map((s, i) => [s.score, i]));
+    for (const { score } of entries) {
+      const idx = idxByScore.get(score);
+      if (idx !== undefined) counts[idx]++;
+    }
+  } else if (layout.slots.length) {
+    const min0 = layout.slots[0].lo;
+    const bs = layout.slots[0].hi - layout.slots[0].lo + 1;
+    const last = layout.slots.length - 1;
+    for (const { score } of entries) {
+      const idx = Math.min(last, Math.max(0, Math.floor((score - min0) / bs)));
+      counts[idx]++;
+    }
+  }
+  return counts;
+}
+
+function slotIntersectsRange(lo, hi, intervals) {
+  for (const { min, max } of intervals) {
+    const m = max === null ? Infinity : max;
+    const n = min === null ? -Infinity : min;
+    if (lo <= m && hi >= n) return true;
+  }
+  return false;
 }
 
 // ─── Search ───────────────────────────────────────────────────────────────────
@@ -3449,6 +3563,16 @@ function refreshMergedScroller() {
   }
 }
 
+function mountDetailPanel(panel, stats, entries, middleHTML = '') {
+  panel.innerHTML = `
+    ${buildStatsBarHTML(stats, entries, getHistogramLayout())}
+    ${middleHTML}
+    ${buildTableContainerHTML()}
+  `;
+  repositionAllScoreDistRects();
+  createScroller();
+}
+
 function renderMergedDetail() {
   const panel = document.getElementById('detail-panel');
   clearInterval(_dateTimer);
@@ -3456,16 +3580,9 @@ function renderMergedDetail() {
 
   const { entries } = buildMergedWordlist();
   const stats = computeStats(_mergedStatsKey, entries);
+  mountDetailPanel(panel, stats, entries,
+    `<div id="scoring-section" class="rescore-section">${buildScoringSectionHTML()}</div>`);
 
-  const statsHtml = buildStatsBarHTML(stats);
-
-  panel.innerHTML = `
-    ${statsHtml}
-    <div id="scoring-section" class="rescore-section">${buildScoringSectionHTML()}</div>
-    ${buildTableContainerHTML()}
-  `;
-
-  createScroller();
   scroller.showSource = true;
   scroller.editsWordlist = getEditsWordlist() ?? null;
   scroller.showEditDeleteCol = true;
@@ -3550,15 +3667,9 @@ function renderDetail(wordlist) {
     return;
   }
 
-  const stats = computeStats(wordlist, wordlist.rawEntries);
-  const statsHtml = buildStatsBarHTML(stats);
+  const { stats, entries: histEntries } = statsForWordlist(wordlist);
+  mountDetailPanel(panel, stats, histEntries);
 
-  panel.innerHTML = `
-    ${statsHtml}
-    ${buildTableContainerHTML()}
-  `;
-
-  createScroller();
   scroller.currentWordlist = wordlist;
   scroller.setEntries(wordlist.rawEntries, state.searchQuery, wordlist.rescoreRules, buildOverrideMap(wordlist), state.searchWholeWord, state.scoreRange);
 
@@ -3572,16 +3683,10 @@ function renderDetail(wordlist) {
 
 function renderEditsDetail(wordlist) {
   const panel = document.getElementById('detail-panel');
-  const stats = computeStats(wordlist, wordlist.rawEntries);
-  const statsHtml = buildStatsBarHTML(stats);
+  const { stats, entries: histEntries } = statsForWordlist(wordlist);
+  mountDetailPanel(panel, stats, histEntries,
+    `<div id="scoring-section" class="rescore-section">${buildScoringSectionHTML()}</div>`);
 
-  panel.innerHTML = `
-    ${statsHtml}
-    <div id="scoring-section" class="rescore-section">${buildScoringSectionHTML()}</div>
-    ${buildTableContainerHTML()}
-  `;
-
-  createScroller();
   scroller.showDeleteCol = true;
   scroller.setEntries(wordlist.rawEntries, state.searchQuery, [], new Map(), state.searchWholeWord, state.scoreRange);
 
@@ -3695,6 +3800,7 @@ function onScoreRange(value) {
   const btn = document.getElementById('score-range-clear');
   if (btn) btn.hidden = trimmed === '';
   if (scroller) scroller.filter(state.searchQuery, state.searchWholeWord, state.scoreRange);
+  repositionAllScoreDistRects();
   Router.navigate({ debounce: true });
 }
 
@@ -3708,6 +3814,103 @@ function clearScoreRange() {
   const inp = document.getElementById('score-range-input');
   if (inp) { inp.value = ''; inp.classList.remove('invalid'); inp.focus(); }
   onScoreRange('');
+}
+
+// ─── Histogram pointer interaction ───────────────────────────────────────────
+
+let _histDrag = null;
+
+function rangeStrFromBounds(lo, hi, layout) {
+  if (lo === hi) return String(lo);
+  const max = layout.slots.length ? layout.slots[layout.slots.length - 1].hi : null;
+  if (max != null && hi >= max) return `${lo}+`;
+  return `${lo}-${hi}`;
+}
+
+// Returns null when the cursor sits before the first regular bar (the ignored-bar zone).
+function _slotAt(distEl, clientX) {
+  const bars = distEl.querySelectorAll('.score-bar:not(.score-bar-ignored)');
+  if (!bars.length) return null;
+  const x = clientX - distEl.getBoundingClientRect().left;
+  const first = bars[0];
+  const stride = bars.length >= 2 ? (bars[1].offsetLeft - first.offsetLeft) : (first.offsetWidth + 3);
+  if (x < first.offsetLeft) return null;
+  let idx = Math.floor((x - first.offsetLeft) / stride);
+  if (idx >= bars.length) idx = bars.length - 1;
+  const bar = bars[idx];
+  return { idx, lo: +bar.dataset.lo, hi: +bar.dataset.hi };
+}
+
+function onHistogramPointerDown(event) {
+  if (event.button !== 0 && event.pointerType === 'mouse') return;
+  const dist = event.currentTarget;
+  const slot = _slotAt(dist, event.clientX);
+  if (!slot) return;
+  event.preventDefault();
+  dist.setPointerCapture?.(event.pointerId);
+  _histDrag = {
+    pointerId: event.pointerId,
+    distEl: dist,
+    startLo: slot.lo, startHi: slot.hi,
+    curLo: slot.lo, curHi: slot.hi,
+    moved: false,
+  };
+  // No rect update here — wait for first pointermove so a click-to-clear doesn't flash a one-bar preview.
+}
+
+function _onHistogramPointerMove(event) {
+  if (!_histDrag || event.pointerId !== _histDrag.pointerId) return;
+  const slot = _slotAt(_histDrag.distEl, event.clientX);
+  if (!slot) return;
+  if (slot.lo === _histDrag.curLo && slot.hi === _histDrag.curHi) return;
+  _histDrag.curLo = slot.lo;
+  _histDrag.curHi = slot.hi;
+  if (slot.lo !== _histDrag.startLo || slot.hi !== _histDrag.startHi) _histDrag.moved = true;
+  const rangeLo = Math.min(_histDrag.startLo, slot.lo);
+  const rangeHi = Math.max(_histDrag.startHi, slot.hi);
+  positionScoreDistRect(_histDrag.distEl, [{ min: rangeLo, max: rangeHi }]);
+}
+
+function _onHistogramPointerUp(event) {
+  if (!_histDrag || event.pointerId !== _histDrag.pointerId) return;
+  const ds = _histDrag;
+  _histDrag = null;
+  let next;
+  if (!ds.moved && state.scoreRange) {
+    next = '';
+  } else {
+    const layout = getHistogramLayout();
+    next = rangeStrFromBounds(Math.min(ds.startLo, ds.curLo), Math.max(ds.startHi, ds.curHi), layout);
+  }
+  document.querySelectorAll('#score-range-input').forEach(inp => { inp.value = next; });
+  onScoreRange(next);
+}
+
+document.addEventListener('pointermove', _onHistogramPointerMove);
+document.addEventListener('pointerup', _onHistogramPointerUp);
+document.addEventListener('pointercancel', () => { _histDrag = null; repositionAllScoreDistRects(); });
+
+// Pass `intervals` to override the live filter (used during drag preview).
+function positionScoreDistRect(distEl, intervals = undefined) {
+  const rect = distEl.querySelector('.score-dist-rect');
+  if (!rect) return;
+  if (intervals === undefined) {
+    intervals = state.scoreRange ? parseRange(state.scoreRange) : null;
+  }
+  if (!intervals) { rect.hidden = true; return; }
+  const bars = [...distEl.querySelectorAll('.score-bar:not(.score-bar-ignored)')];
+  const matching = bars.filter(b => slotIntersectsRange(+b.dataset.lo, +b.dataset.hi, intervals));
+  if (!matching.length) { rect.hidden = true; return; }
+  const first = matching[0], last = matching[matching.length - 1];
+  const left = first.offsetLeft - 2;
+  const right = last.offsetLeft + last.offsetWidth + 2;
+  rect.hidden = false;
+  rect.style.left = `${left}px`;
+  rect.style.width = `${right - left}px`;
+}
+
+function repositionAllScoreDistRects() {
+  document.querySelectorAll('.score-dist').forEach(d => positionScoreDistRect(d));
 }
 
 let _updateScroller = null;
@@ -5376,12 +5579,17 @@ function refreshDerivedDisplays() {
   const statsBar = document.querySelector('#detail-panel .stats-bar');
   if (!statsBar) return;
   const sel = state.selected;
-  const stats = sel === MERGED_ID
-    ? computeStats(_mergedStatsKey, buildMergedWordlist().entries)
-    : sel
-      ? computeStats(sel, sel.rawEntries)
-      : null;
-  if (stats) statsBar.outerHTML = buildStatsBarHTML(stats);
+  let stats, entries;
+  if (sel === MERGED_ID) {
+    entries = buildMergedWordlist().entries;
+    stats = computeStats(_mergedStatsKey, entries);
+  } else if (sel) {
+    ({ stats, entries } = statsForWordlist(sel));
+  } else {
+    return;
+  }
+  statsBar.outerHTML = buildStatsBarHTML(stats, entries, getHistogramLayout());
+  repositionAllScoreDistRects();
 }
 
 function buildMergedWordlist() {
@@ -5529,10 +5737,12 @@ function setWordlistRescoreRules(wordlist, rules) {
 }
 
 // For rescore-rule mutations done in place (splice/push). Caller has already
-// mutated wordlist.rescoreRules; this clears derived caches and repaints.
+// mutated wordlist.rescoreRules; this clears derived caches and repaints. Stats
+// and merged caches must clear too, since histograms now show rescored entries
+// and the histogram layout depends on the union of every source's rescored set.
 function applyRescoreRulesChange(wordlist) {
   updateCatchAll(wordlist);
-  invalidateRescoredCache(wordlist);
+  invalidateWordlistCaches(wordlist);
   persistMeta();
   repaintAfterCacheChange();
 }
@@ -5607,7 +5817,7 @@ const HelpModal = (() => {
 
         <div class="help-slide" id="help-slide-3">
           <h2>Searching Your Wordlist</h2>
-          <p>Type in the search bar to instantly filter the wordlist. Toggle <strong>Whole word</strong> to match only complete words rather than substrings. Set a <strong>Score</strong> range — <code>50</code>, <code>50-59</code>, or <code>50+</code> — to focus on the entries you want.</p>
+          <p>Type in the search bar to instantly filter the wordlist. Toggle <strong>Whole word</strong> to match only complete words rather than substrings. Set a <strong>Score</strong> range — <code>50</code>, <code>50-59</code>, or <code>50+</code> — to focus on the entries you want, or click or drag across the histogram above to filter to a score range.</p>
           <p>Use wildcards to match patterns:</p>
           <div class="help-wildcards">
             ${buildWildcardSpansHTML()}
