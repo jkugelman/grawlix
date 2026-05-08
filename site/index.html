@@ -1972,14 +1972,7 @@ const WordlistsDialog = (() => {
     input.onclick = e => e.stopPropagation();
     startInlineRename(input, originalName, {
       onCommit(newName) {
-        if (newName !== originalName) {
-          wordlist.name = newName;
-          persistMeta();
-          // Caches hold wordlist refs and read .name live; just re-render visible UI.
-          if (state.selected === wordlist) SourceDropdown.renderTrigger();
-          if (state.selected === MERGED_ID) renderMergedDetail();
-          else if (state.selected) renderDetail(state.selected);
-        }
+        setWordlistName(wordlist, newName);
         nameEl.textContent = newName;
       },
       onCancel() {
@@ -2060,14 +2053,7 @@ const WordlistsDialog = (() => {
     if (!_dragWordlist || !toWordlist || _dragWordlist === toWordlist) return;
     const fromIdx = state.sources.indexOf(_dragWordlist);
     const toIdx   = state.sources.indexOf(toWordlist);
-    if (fromIdx === -1 || toIdx === -1) return;
-    const [item] = state.sources.splice(fromIdx, 1);
-    state.sources.splice(toIdx, 0, item);
-    persistMeta();
-    invalidateSourceCounts();
-    refresh();
-    if (state.selected === MERGED_ID) renderMergedDetail();
-    else renderDetail(getSelected());
+    reorderSources(fromIdx, toIdx);
   });
 
   // ── + Add wordlist ────────────────────────────────────────────────────────────────
@@ -3979,17 +3965,7 @@ async function deleteWordlist(wordlist, event) {
 function toggleWordlist(wordlist, event) {
   if (event) event.stopPropagation();
   if (!wordlist || (!wordlist.rawEntries.length && wordlist.type !== 'edits')) return;
-  wordlist.enabled = !wordlist.enabled;
-  persistMeta();
-  renderSources();
-  refreshSourceCounts();
-  if (state.selected === MERGED_ID && scroller) {
-    scroller.updateEntries(buildMergedWordlist().entries);
-  } else if (scroller) {
-    scroller.overrideMap = buildOverrideMap(getSelected());
-    scroller._sortScores = null;
-    scroller._applyFilterAndSort(false);
-  }
+  setWordlistEnabled(wordlist, !wordlist.enabled);
 }
 
 function addNewWordlist(wordlistDef) {
@@ -4563,21 +4539,13 @@ const ConfigureWordlistDialog = (() => {
         ingestFile(_pendingFile, wordlist, name);
       }
     } else {
-      _wordlist.icon = _pendingIcon;
-      _wordlist.name = name;
-      _wordlist.url  = url;
-      if (_selectedPublisher) { _wordlist.publisherId = _selectedPublisher.id; } else { delete _wordlist.publisherId; }
-      const rulesChanged = rules !== null;
-      if (rulesChanged) { _wordlist.rescoreRules = rules; updateCatchAll(_wordlist); }
-      persistMeta();
-      // Only rules change downstream caches; name/icon/url/publisherId are read live.
-      if (rulesChanged) {
-        invalidateWordlistCaches(_wordlist);
-        refreshSourceCounts();
-      }
-      renderSources();
-      if (state.selected === _wordlist) renderDetail(_wordlist);
-      else if (state.selected === MERGED_ID) renderMergedDetail();
+      batchUpdate(() => {
+        setWordlistName(_wordlist, name);
+        setWordlistIcon(_wordlist, _pendingIcon);
+        setWordlistUrl(_wordlist, url);
+        setWordlistPublisher(_wordlist, _selectedPublisher?.id ?? null);
+        if (rules !== null) setWordlistRescoreRules(_wordlist, rules);
+      });
       el.close();
     }
   };
@@ -4961,12 +4929,11 @@ const ImportGuideDialog = (() => {
 // ─── Rescore rule management ──────────────────────────────────────────────────
 
 function afterRuleChange(wordlist) {
-  updateCatchAll(wordlist);
-  persistMeta();
+  applyRescoreRulesChange(wordlist);
+  // Dialog-only: refresh the rule editor and the live preview while the
+  // Wordlists dialog is open. No-ops when the dialog isn't mounted.
   renderRescoreSection();
   updateRescorePreview();
-  invalidateRescoredCache(wordlist);
-  refreshSourceCounts();
 }
 
 // Per-source rescore rules now live in the Wordlists dialog right pane only.
@@ -5358,6 +5325,114 @@ function toggleSplitMenu(event) {
   const isOpen = btn.classList.contains('open');
   document.querySelectorAll('.split-btn.open').forEach(b => b.classList.remove('open'));
   if (!isOpen) btn.classList.add('open');
+}
+
+// ─── Mutation helpers ─────────────────────────────────────────────────────────
+//
+// State mutations bundled with the right invalidation/persistence/repaint, so
+// call sites don't have to remember the sequence. Two repaint shapes:
+//   - repaintVisibleRows: cosmetic changes (caches still valid; refresh DOM only)
+//   - repaintAfterCacheChange: cache contents changed (refresh + repaint scroller)
+// `batchUpdate(fn)` coalesces multiple mutations into a single repaint.
+
+let _batchDepth = 0;
+let _batchPending = null; // 'visible' | 'cache' (cache subsumes visible)
+
+function batchUpdate(fn) {
+  _batchDepth++;
+  try { fn(); }
+  finally {
+    _batchDepth--;
+    if (_batchDepth === 0 && _batchPending) {
+      const pending = _batchPending;
+      _batchPending = null;
+      if (pending === 'cache') repaintAfterCacheChange();
+      else repaintVisibleRows();
+    }
+  }
+}
+
+function repaintVisibleRows() {
+  if (_batchDepth > 0) {
+    if (_batchPending !== 'cache') _batchPending = 'visible';
+    return;
+  }
+  renderSources();
+  if (scroller) scroller._render();
+}
+
+function repaintAfterCacheChange() {
+  if (_batchDepth > 0) { _batchPending = 'cache'; return; }
+  renderSources();
+  refreshSourceCounts();
+  if (!scroller) return;
+  if (state.selected === MERGED_ID) {
+    scroller.updateEntries(buildMergedWordlist().entries);
+  } else if (state.selected) {
+    scroller.rescoreRules = state.selected.rescoreRules || [];
+    scroller.overrideMap = buildOverrideMap(state.selected);
+    scroller._sortScores = null;
+    scroller._applyFilterAndSort(false);
+  }
+}
+
+function setWordlistName(wordlist, name) {
+  if (wordlist.name === name) return;
+  wordlist.name = name;
+  persistMeta();
+  repaintVisibleRows();
+}
+
+function setWordlistIcon(wordlist, icon) {
+  wordlist.icon = icon;
+  persistMeta();
+  repaintVisibleRows();
+}
+
+function setWordlistUrl(wordlist, url) {
+  if ((wordlist.url ?? null) === (url ?? null)) return;
+  wordlist.url = url;
+  persistMeta();
+  repaintVisibleRows();
+}
+
+function setWordlistPublisher(wordlist, publisherId) {
+  if ((wordlist.publisherId ?? null) === (publisherId ?? null)) return;
+  if (publisherId) wordlist.publisherId = publisherId;
+  else delete wordlist.publisherId;
+  persistMeta();
+  repaintVisibleRows();
+}
+
+function setWordlistEnabled(wordlist, enabled) {
+  if (wordlist.enabled === enabled) return;
+  wordlist.enabled = enabled;
+  persistMeta();
+  repaintAfterCacheChange();
+}
+
+function setWordlistRescoreRules(wordlist, rules) {
+  wordlist.rescoreRules = rules;
+  applyRescoreRulesChange(wordlist);
+}
+
+// For rescore-rule mutations done in place (splice/push). Caller has already
+// mutated wordlist.rescoreRules; this clears derived caches and repaints.
+function applyRescoreRulesChange(wordlist) {
+  updateCatchAll(wordlist);
+  invalidateRescoredCache(wordlist);
+  persistMeta();
+  repaintAfterCacheChange();
+}
+
+function reorderSources(fromIdx, toIdx) {
+  if (fromIdx === toIdx ||
+      fromIdx < 0 || toIdx < 0 ||
+      fromIdx >= state.sources.length || toIdx >= state.sources.length) return;
+  const [item] = state.sources.splice(fromIdx, 1);
+  state.sources.splice(toIdx, 0, item);
+  persistMeta();
+  repaintAfterCacheChange();
 }
 
 // ─── Help Modal ───────────────────────────────────────────────────────────────

@@ -129,6 +129,48 @@ The patch is structured around three observations:
 
 `_mergedWordlistCache` keeps a `byWord` Map alongside `entries`; both share the same entry objects, so patching via `byWord` is visible in `entries`. The merged-view refresh checks `entries === scroller.allEntries` to decide whether to refilter/resort the same array or fall back to `updateEntries` (when a full rebuild produced a new array). `refreshDerivedDisplays()` is the post-patch counterpart to `refreshSourceCounts()` — it repaints the rail meta and scoring legend without invalidating any caches.
 
+### Mutation helpers
+
+Every state mutation goes through a helper that bundles the right invalidation, persistence, and repaint. Call sites read like statements of intent:
+
+```js
+setWordlistName(wl, newName);
+setWordlistEnabled(wl, !wl.enabled);
+setWordlistRescoreRules(wl, rules);
+reorderSources(fromIdx, toIdx);
+```
+
+The helpers come in two repaint shapes:
+
+- **`repaintVisibleRows()`** — for cosmetic changes (name, icon, url, publisher). Caches stay valid; only the sidebar/dialog and visible row data attributes need refreshing.
+- **`repaintAfterCacheChange()`** — for structural changes (enabled, rescore rules, source order). Triggers `refreshSourceCounts` (which invalidates and rebuilds merged + override maps) and refreshes the scroller's cache references.
+
+`batchUpdate(fn)` coalesces multiple mutations into a single repaint — used by the configure dialog where a save can change up to five fields at once. Pending repaints are tracked at module scope; `cache` subsumes `visible` if both are queued.
+
+Encapsulating mutations addresses two recurring problems in the previous scattered style: duplication (the same persist-and-repaint dance copy-pasted across call sites) and the discipline of remembering the right invalidation sequence per field. With helpers, "what does changing X require?" lives in exactly one place per field. The pattern is also a stepping stone toward signal-based reactivity — see the future direction below.
+
+### Future direction: hybrid reactivity
+
+Cache invalidation is fundamentally imperative today — helpers centralize it but they don't *eliminate* it. The bug-resistant alternative is **reactivity**: caches recompute automatically from declared dependencies, and "forget to invalidate" becomes an unreachable program.
+
+A typical signal-based reactive system looks like:
+
+```js
+const sources$ = signal([...]);
+const merged$ = computed(() => buildMerged(sources$.get()));
+effect(() => renderMerged(merged$.get()));
+```
+
+Mutating `sources$` automatically invalidates `merged$` and re-runs the effect. The dependency graph is implicit in the read traces; no manual `invalidateX` calls.
+
+The catch for grawlix is that **pure reactivity recomputes whole derivations**. With a 1M-entry merged cache, a single My Edits keystroke would re-derive the whole thing — exactly the work the in-place patches we built avoid. Two shapes are viable; one isn't:
+
+- **Coarse reactivity (rejected).** One `merged$` computed; any change re-derives. Sluggish on large merges — back to where we started before the patches.
+- **Fine-grained reactivity.** Treat `merged` as a reactive Map where individual key updates are observed independently (Solid stores, MobX-style). The patch logic moves into per-key mutators on the reactive Map but the bookkeeping is the same; you still walk priority order, adjust source counts, etc. Builds a reactive collection primitive of ~100-200 lines on top.
+- **Hybrid (likely path).** Reactivity for structural state — `state.sources` ordering, `state.selected`, search query, score range. Imperative caches for the perf-critical bits — `_mergedWordlistCache`, `_overrideMap`, `patchCachesForEditsChange`. Reactivity buys correctness for the 90% of state where it doesn't fight performance; the cache layer stays manual where it earns its keep. This is what production frameworks (Solid, Svelte 5, Preact signals) effectively are.
+
+The mutation helpers are a stepping stone toward this — they already encapsulate "mutate + invalidate + repaint" the way a signal setter does. Migrating to reactivity would mean rewriting the helpers as signal sets and letting computeds replace explicit invalidation, while the in-place patch helpers stay roughly as-is on the imperative side.
+
 ## Open questions
 
 ### Fold "Configure wordlist" into the Wordlists dialog
