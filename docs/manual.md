@@ -56,6 +56,10 @@ My Edits also carries your **scoring rules** — your tier labels for the unifie
 
 Defaults: **great** (≥60), **good** (≥50), **fair** (≥40), **meh** (≥30), **bad** (<30). Score badges color by tier. Customize tier labels via My Edits' scoring rules.
 
+## Score histogram
+
+The stats bar shows a histogram of the wordlist's score distribution. Click on it to filter the table to a score range.
+
 ## Wordlists
 
 Two-pane dialog opened from the wordlist settings button (the icon to the right of the wordlist dropdown).
