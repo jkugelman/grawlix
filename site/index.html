@@ -495,6 +495,8 @@ a.get-file:hover { text-decoration: underline; }
 }
 .source-dropdown-btn:hover { background: var(--hover); border-color: var(--accent); }
 .source-dropdown-btn[aria-expanded="true"] { background: var(--sel); border-color: var(--accent); }
+.source-dropdown-btn.disabled .source-dropdown-icon,
+.source-dropdown-btn.disabled .source-dropdown-name { opacity: 0.45; }
 .source-dropdown-icon { display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; flex-shrink: 0; }
 .source-dropdown-icon .wordlist-icon { width: 18px; height: 18px; }
 .source-dropdown-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1; min-width: 0; }
@@ -1200,24 +1202,23 @@ function buildStatItemHTML(label, value, title) {
   </div>`;
 }
 
-// opts: { isMerged, enabled, selected, isEdits, hasData, hasUpdate, interactive }
+// opts: { isMerged, enabled, populated, selected, hasUpdate, interactive }
 // interactive: true  → adds draggable, tabindex, role, data-wordlist marker for event delegation
 // interactive: false → static display card (default — safe for demos)
 function buildWordlistCardHTML(icon, name, meta, opts = {}) {
   const {
     isMerged    = false,
     enabled     = true,
+    populated   = true,
     selected    = false,
-    isEdits     = false,
-    hasData     = true,
     hasUpdate   = false,
     interactive = false,
   } = opts;
 
   const classes = ['wordlist-card'];
-  if (selected)                        classes.push('selected');
-  if (!enabled)                        classes.push('disabled');
-  if (!hasData && !isEdits && !isMerged) classes.push('no-data');
+  if (selected)             classes.push('selected');
+  if (!enabled)             classes.push('disabled');
+  if (!populated && !isMerged) classes.push('no-data');
 
   const dragHandle = buildDragHandleHTML(!isMerged);
 
@@ -1237,18 +1238,17 @@ function buildWordlistCardHTML(icon, name, meta, opts = {}) {
   let wrapAttrs = '';
   let cardActions;
   if (interactive) {
-    const toggleEnabled = hasData || isEdits;
-    const toggleTitle = !toggleEnabled ? 'Click to import'
+    const toggleTitle = !populated ? 'Click to import'
       : enabled ? 'Enabled — click to disable' : 'Disabled — click to enable';
     wrapAttrs = ` data-wordlist draggable="true" tabindex="0" role="option"`;
     cardActions = `<div class="card-actions">
       <label class="toggle" title="${toggleTitle}" aria-label="Toggle ${esc(name)}">
-        <input type="checkbox"${toggleEnabled && enabled ? ' checked' : ''}${toggleEnabled ? '' : ' disabled'}>
+        <input type="checkbox"${populated && enabled ? ' checked' : ''}${populated ? '' : ' disabled'}>
         <span class="toggle-slider"></span>
       </label>
     </div>`;
   } else {
-    cardActions = `<div class="card-actions">${buildToggleHTML(enabled, !hasData && !isEdits)}</div>`;
+    cardActions = `<div class="card-actions">${buildToggleHTML(enabled, !populated)}</div>`;
   }
 
   return `<div class="${classes.join(' ')}"${wrapAttrs}>${dragHandle}${icon}${cardInfo}${cardActions}</div>`;
@@ -1720,7 +1720,7 @@ function _persistMetaNow() {
     ...(l.icon ? { icon: l.icon } : {}),
     ...(l.publisherId ? { publisherId: l.publisherId } : {}),
     name: l.name, url: l.url || null,
-    enabled: l.enabled, lastUpdated: l.lastUpdated || null,
+    enabled: l.enabled, populated: l.populated, lastUpdated: l.lastUpdated || null,
     fetchedSize: l.fetchedSize || null,
     rescoreRules: l.rescoreRules || [],
     originalFilename: l.originalFilename || null,
@@ -1938,15 +1938,12 @@ const WordlistsDialog = (() => {
     const contribMap = new Map(_sourceCountsCache.map(s => [s.wordlist, s.count]));
 
     railWordlist.innerHTML = state.sources.map(wordlist => {
-      const isEdits = wordlist.type === 'edits';
-      const hasData = wordlist.rawEntries.length > 0;
       const icon = getWordlistIcon(wordlist);
       const meta = wordlistCardMeta(wordlist, contribMap);
       return buildWordlistCardHTML(icon, wordlist.name, meta, {
         selected:    _focusedWordlist === wordlist,
         enabled:     wordlist.enabled,
-        isEdits,
-        hasData,
+        populated:   wordlist.populated,
         hasUpdate:   !!wordlist._updateAvailable,
         interactive: true,
       });
@@ -2104,7 +2101,7 @@ const WordlistsDialog = (() => {
     const toggleLabel = e.target.closest('label.toggle');
     if (toggleLabel) {
       const card = toggleLabel.closest('.wordlist-card[data-wordlist]');
-      if (card?._wordlist && !card._wordlist.rawEntries.length && card._wordlist.type !== 'edits') {
+      if (card?._wordlist && !card._wordlist.populated) {
         e.stopPropagation();
         triggerImportForWordlist(card._wordlist, e);
       }
@@ -2262,10 +2259,12 @@ const SourceDropdown = (() => {
     if (isMerged()) {
       iconSlot.innerHTML = MERGED_ICON;
       nameSlot.textContent = MERGED_NAME;
+      trigger.classList.remove('disabled');
     } else {
       const wordlist = state.selected;
       iconSlot.innerHTML = wordlist ? getWordlistIcon(wordlist) : '';
       nameSlot.textContent = wordlist ? wordlist.name : '';
+      trigger.classList.toggle('disabled', !!wordlist && !wordlist.enabled);
     }
   }
 
@@ -2424,7 +2423,9 @@ async function init() {
           icon:            m.icon || null,
           publisherId:     m.publisherId || null,
           name: m.name, url: m.url || null,
-          enabled: m.enabled, lastUpdated: m.lastUpdated || null,
+          enabled: !!m.enabled,
+          populated: !!(m.populated || m.type === 'edits' || text || m.lastUpdated),
+          lastUpdated: m.lastUpdated || null,
           fetchedSize: m.fetchedSize || null,
           rescoreRules: (m.rescoreRules || []).map(r => ({ length: '', ...r })),
           originalFilename: m.originalFilename || null,
@@ -2466,7 +2467,7 @@ async function init() {
   setInterval(checkForUpdates, UPDATE_CHECK_INTERVAL);
 
   state.sources
-    .filter(l => l.url && !l.rawEntries.length)
+    .filter(l => l.url && !l.populated)
     .forEach(l => fetchWordlist(l, null, { silent: true }));
 
   if (!lsLoad('visited')) {
@@ -2485,7 +2486,8 @@ function defaultSources() {
       publisherId: t.id,
       name: t.name,
       url: t.url || null,
-      enabled: true,
+      enabled: false,
+      populated: false,
       rawEntries: [],
       lastUpdated: null,
       _loading: false,
@@ -2515,6 +2517,7 @@ function ensureEdits() {
       name: 'My Edits',
       url: null,
       enabled: true,
+      populated: true,
       rawEntries: [],
       lastUpdated: null,
       _loading: false,
@@ -3884,7 +3887,7 @@ async function applyWordlistText(wordlist, text, { fetchedSize = null, originalF
     wordlist.lastUpdated = Date.now();
     if (fetchedSize !== null) { wordlist.fetchedSize = fetchedSize; wordlist._updateAvailable = false; }
     if (originalFilename !== null) wordlist.originalFilename = originalFilename;
-    if (wasEmpty) wordlist.enabled = true;
+    if (!wordlist.populated) { wordlist.populated = true; wordlist.enabled = true; }
     updateCatchAll(wordlist);
     if (nameOverride) wordlist.name = nameOverride;
     if (clearUrl) { wordlist.url = null; wordlist.fetchedSize = null; wordlist._updateAvailable = false; }
@@ -4172,7 +4175,7 @@ async function deleteWordlist(wordlist, event) {
 
 function toggleWordlist(wordlist, event) {
   if (event) event.stopPropagation();
-  if (!wordlist || (!wordlist.rawEntries.length && wordlist.type !== 'edits')) return;
+  if (!wordlist || !wordlist.populated) return;
   setWordlistEnabled(wordlist, !wordlist.enabled);
 }
 
@@ -4735,7 +4738,7 @@ const ConfigureWordlistDialog = (() => {
     if (_mode === 'add') {
       const wordlist = addNewWordlist({
         dbKey: crypto.randomUUID(), icon: _pendingIcon, name,
-        url, enabled: true,
+        url, enabled: false, populated: false,
         ...(_selectedPublisher ? { publisherId: _selectedPublisher.id } : {}),
         rescoreRules: rules || [],
       });
@@ -5311,7 +5314,7 @@ function buildOverrideMap(wordlist) {
   const map = new Map();
   for (const l of state.sources) {
     if (l === wordlist) break;
-    if (!l.enabled || !l.rawEntries.length) continue;
+    if (!l.enabled) continue;
     for (const { word, score, comment } of getRescoredEntries(l)) {
       const w = word.toUpperCase();
       if (!map.has(w)) map.set(w, { wordlist: l, score, comment: comment || '' });
@@ -5379,7 +5382,7 @@ function patchCachesForEditsChange(word, newEditsEntry) {
     let nextIdx = -1;
     for (let i = editsIdx + 1; i < state.sources.length; i++) {
       const l = state.sources[i];
-      if (!l.enabled || !l.rawEntries.length) continue;
+      if (!l.enabled) continue;
       if (getRescoredMap(l).has(word)) { nextIdx = i; break; }
     }
 
@@ -5474,7 +5477,7 @@ function buildMergedWordlist() {
   const sourceCounts = [];
 
   for (const wordlist of state.sources) {
-    if (!wordlist.enabled || !wordlist.rawEntries.length) continue;
+    if (!wordlist.enabled) continue;
     let count = 0;
     for (const { word, score, comment } of getRescoredEntries(wordlist)) {
       const key = word.toUpperCase();
