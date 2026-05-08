@@ -447,13 +447,19 @@ a.get-file:hover { text-decoration: underline; }
 .rule-note-wrap { flex: 1; min-width: 0; display: flex; align-items: center; cursor: text; border-radius: 3px; padding: 2px 3px; gap: 3px; }
 .rule-note-wrap:hover { background: var(--surface); }
 .rule-note-text { flex: 0 1 auto; min-width: 0; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.4; }
-.rule-note-text:empty::before { content: 'add note…'; font-style: italic; color: transparent; pointer-events: none; }
-.rule-row:hover .rule-note-text:empty::before { color: var(--faint); }
+.rule-note-text:empty::before { content: 'add note…'; font-style: italic; color: var(--faint); pointer-events: none; }
+@media (hover: hover) {
+  .rule-note-text:empty::before { color: transparent; }
+  .rule-row:hover .rule-note-text:empty::before { color: var(--faint); }
+}
 .rule-note-pencil { font-size: 11px; color: var(--faint); }
 .rule-row:hover .rule-note-wrap.has-note .rule-note-pencil { opacity: 1; }
 .rule-note-input { flex: 1; padding: 1px 4px; border: 1px solid var(--accent); border-radius: 3px; font-size: 12px; background: var(--input-bg); color: var(--text); outline: none; min-width: 0; }
-.rule-del { width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; border: none; background: none; cursor: pointer; font-size: 15px; padding: 0; line-height: 1; border-radius: 3px; font-family: inherit; color: transparent; }
-.rule-row:hover .rule-del { color: var(--faint); }
+.rule-del { width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; border: none; background: none; cursor: pointer; font-size: 15px; padding: 0; line-height: 1; border-radius: 3px; font-family: inherit; color: var(--faint); }
+@media (hover: hover) {
+  .rule-del { color: transparent; }
+  .rule-row:hover .rule-del { color: var(--faint); }
+}
 .rule-del:hover { color: #e53935 !important; background: var(--del-hover); }
 
 /* Read-only scoring legend (main detail panel) */
@@ -646,13 +652,19 @@ input.cell-edit.score-edit { font-family: ui-monospace, 'Cascadia Code', monospa
 
 /* Trash / delete column */
 .word-table th.col-trash { width: 26px; padding: 0; }
-.word-table td.col-trash { width: 26px; padding: 0 3px; text-align: center; color: transparent; cursor: pointer; }
-.word-table tr:hover td.col-trash { color: var(--faint); }
+.word-table td.col-trash { width: 26px; padding: 0 3px; text-align: center; color: var(--faint); cursor: pointer; }
+@media (hover: hover) {
+  .word-table td.col-trash { color: transparent; }
+  .word-table tr:hover td.col-trash { color: var(--faint); }
+}
 .word-table td.col-trash:hover { color: #e53935 !important; }
 
 /* Inline edit-delete button inside source cell */
-.source-trash { color: transparent; cursor: pointer; margin-left: 4px; vertical-align: middle; }
-.word-table tr:hover .source-trash { color: var(--faint); }
+.source-trash { color: var(--faint); cursor: pointer; margin-left: 4px; vertical-align: middle; }
+@media (hover: hover) {
+  .source-trash { color: transparent; }
+  .word-table tr:hover .source-trash { color: var(--faint); }
+}
 .source-trash:hover { color: #e53935 !important; }
 
 /* Toast undo link */
