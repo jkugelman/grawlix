@@ -158,15 +158,15 @@ button.danger:hover:not(:disabled) { background: #e74c3c; border-color: #c0392b;
 .stat { display: flex; flex-direction: column; gap: 2px; }
 .stat-label { font-size: 10px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
 .stat-value { font-size: 15px; font-weight: 700; line-height: 1; }
-.score-dist { display: flex; gap: 3px; align-items: flex-end; height: 36px; position: relative; cursor: pointer; user-select: none; touch-action: none; }
+.histogram { display: flex; gap: 3px; align-items: flex-end; height: 36px; position: relative; cursor: pointer; user-select: none; touch-action: none; }
 .stats-right { display: flex; align-items: center; gap: 22px; margin-left: auto; }
-.score-bar { width: 7px; background: var(--accent); border-radius: 2px 2px 0 0; position: relative; z-index: 1; transition: background-color 0.2s ease; }
-.score-bar.score-bar-ignored { background: var(--faint); margin-right: 5px; cursor: default; }
-.score-dist:hover .score-bar:not(.score-bar-ignored) { background: var(--score-bg, var(--accent)); }
-.score-dist-rect { position: absolute; top: -2px; bottom: -2px; background: var(--accent); opacity: 0.18; border-radius: 4px; pointer-events: none; z-index: 0; transition: left 0.05s ease, width 0.05s ease; }
-.score-dist-rect[hidden] { display: none; }
-html.light-mode .score-dist:hover .score-bar:not(.score-bar-ignored) { filter: saturate(1.5) brightness(0.95); }
-html.light-mode .score-dist-rect { opacity: 0.22; }
+.histogram-bar { width: 7px; background: var(--accent); border-radius: 2px 2px 0 0; position: relative; z-index: 1; transition: background-color 0.2s ease; }
+.histogram-bar.histogram-bar-ignored { background: var(--faint); margin-right: 5px; cursor: default; }
+.histogram:hover .histogram-bar:not(.histogram-bar-ignored) { background: var(--score-bg, var(--accent)); }
+.histogram-rect { position: absolute; top: -2px; bottom: -2px; background: var(--accent); opacity: 0.18; border-radius: 4px; pointer-events: none; z-index: 0; transition: left 0.05s ease, width 0.05s ease; }
+.histogram-rect[hidden] { display: none; }
+html.light-mode .histogram:hover .histogram-bar:not(.histogram-bar-ignored) { filter: saturate(1.5) brightness(0.95); }
+html.light-mode .histogram-rect { opacity: 0.22; }
 
 /* Search */
 .search-bar { padding: 7px 14px 6px; background: var(--surface); border-bottom: 1px solid var(--border2); flex-shrink: 0; }
@@ -1141,16 +1141,16 @@ function buildStatsBarHTML(stats, entries, layout) {
   const barH = c => c === 0 ? 0 : Math.max(2, Math.round((c / scale) * 34));
 
   const ignoredTitle = ignored > 0 ? ` title="${pluralize(ignored, 'entry', 'entries')} ignored"` : '';
-  const ignoredBar = `<div class="score-bar score-bar-ignored" style="height:${barH(ignored)}px"${ignoredTitle}></div>`;
+  const ignoredBar = `<div class="histogram-bar histogram-bar-ignored" style="height:${barH(ignored)}px"${ignoredTitle}></div>`;
 
   const bars = layout.slots.map((s, i) => {
     const c = counts[i];
     const title = `${pluralize(c, 'entry', 'entries')} scored ${s.label} • Click to filter`;
     const { bg } = scoreColor((s.lo + s.hi) / 2);
-    return `<div class="score-bar" data-lo="${s.lo}" data-hi="${s.hi}" style="--score-bg:${bg}; height:${barH(c)}px" title="${title}"></div>`;
+    return `<div class="histogram-bar" data-lo="${s.lo}" data-hi="${s.hi}" style="--score-bg:${bg}; height:${barH(c)}px" title="${title}"></div>`;
   }).join('');
 
-  const distTitle = 'Score distribution • Click to filter';
+  const histTitle = 'Histogram • Click to filter';
 
   return `<div class="stats-bar${isEmpty ? ' stats-empty' : ''}">
       ${buildStatItemHTML('Entries', stats.count.toLocaleString())}
@@ -1160,7 +1160,7 @@ function buildStatsBarHTML(stats, entries, layout) {
         ${buildStatItemHTML('Mean', fmt(stats.mean), 'Average score')}
         ${buildStatItemHTML('Median', fmt(stats.median % 1 === 0 ? stats.median : stats.median.toFixed(1)), '50th percentile')}
         ${buildStatItemHTML('Mode', fmt(stats.mode), 'Most common score')}
-        <div class="score-dist" title="${distTitle}" onpointerdown="onHistogramPointerDown(event)">${ignoredBar}${bars}<div class="score-dist-rect" hidden></div></div>
+        <div class="histogram" title="${histTitle}" onpointerdown="onHistogramPointerDown(event)">${ignoredBar}${bars}<div class="histogram-rect" hidden></div></div>
       </div>
     </div>`;
 }
@@ -1983,7 +1983,7 @@ const WordlistsDialog = (() => {
       </div>
       <div class="wld-pane-stats">${buildStatsBarHTML(stats, histEntries, getHistogramLayout())}</div>
       ${rulesHTML}`;
-    repositionAllScoreDistRects();
+    repositionAllHistogramRects();
 
     if (hasData && wordlist.lastUpdated) {
       const setDate = () => {
@@ -2694,7 +2694,7 @@ function invalidateWordlistCaches(wordlist) {
 function computeStats(key, entries, ignoredCount = 0) {
   if (_statsCache.has(key)) return _statsCache.get(key);
   // Empty state: return an all-zero shape so buildStatsBarHTML can render the
-  // bar with dashes and an empty distribution.
+  // bar with dashes and an empty histogram.
   if (!entries.length) {
     const empty = { count: 0, min: 0, max: 0, mean: 0, median: 0, mode: 0, distinctScores: [], ignoredCount };
     _statsCache.set(key, empty);
@@ -3747,7 +3747,7 @@ function mountDetailPanel(panel, stats, entries, middleHTML = '') {
     ${middleHTML}
     ${buildTableContainerHTML()}
   `;
-  repositionAllScoreDistRects();
+  repositionAllHistogramRects();
   createScroller();
 }
 
@@ -3979,7 +3979,7 @@ function onScoreRange(value) {
   const btn = document.getElementById('score-range-clear');
   if (btn) btn.hidden = trimmed === '';
   if (scroller) scroller.filter(state.searchQuery, state.searchWholeWord, state.scoreRange);
-  repositionAllScoreDistRects();
+  repositionAllHistogramRects();
   Router.navigate({ debounce: true });
 }
 
@@ -4007,10 +4007,10 @@ function rangeStrFromBounds(lo, hi, layout) {
 }
 
 // Returns null when the cursor sits before the first regular bar (the ignored-bar zone).
-function _slotAt(distEl, clientX) {
-  const bars = distEl.querySelectorAll('.score-bar:not(.score-bar-ignored)');
+function _slotAt(histEl, clientX) {
+  const bars = histEl.querySelectorAll('.histogram-bar:not(.histogram-bar-ignored)');
   if (!bars.length) return null;
-  const x = clientX - distEl.getBoundingClientRect().left;
+  const x = clientX - histEl.getBoundingClientRect().left;
   const first = bars[0];
   const stride = bars.length >= 2 ? (bars[1].offsetLeft - first.offsetLeft) : (first.offsetWidth + 3);
   if (x < first.offsetLeft) return null;
@@ -4022,14 +4022,14 @@ function _slotAt(distEl, clientX) {
 
 function onHistogramPointerDown(event) {
   if (event.button !== 0 && event.pointerType === 'mouse') return;
-  const dist = event.currentTarget;
-  const slot = _slotAt(dist, event.clientX);
+  const hist = event.currentTarget;
+  const slot = _slotAt(hist, event.clientX);
   if (!slot) return;
   event.preventDefault();
-  dist.setPointerCapture?.(event.pointerId);
+  hist.setPointerCapture?.(event.pointerId);
   _histDrag = {
     pointerId: event.pointerId,
-    distEl: dist,
+    histEl: hist,
     startLo: slot.lo, startHi: slot.hi,
     curLo: slot.lo, curHi: slot.hi,
     moved: false,
@@ -4039,7 +4039,7 @@ function onHistogramPointerDown(event) {
 
 function _onHistogramPointerMove(event) {
   if (!_histDrag || event.pointerId !== _histDrag.pointerId) return;
-  const slot = _slotAt(_histDrag.distEl, event.clientX);
+  const slot = _slotAt(_histDrag.histEl, event.clientX);
   if (!slot) return;
   if (slot.lo === _histDrag.curLo && slot.hi === _histDrag.curHi) return;
   _histDrag.curLo = slot.lo;
@@ -4047,7 +4047,7 @@ function _onHistogramPointerMove(event) {
   if (slot.lo !== _histDrag.startLo || slot.hi !== _histDrag.startHi) _histDrag.moved = true;
   const rangeLo = Math.min(_histDrag.startLo, slot.lo);
   const rangeHi = Math.max(_histDrag.startHi, slot.hi);
-  positionScoreDistRect(_histDrag.distEl, [{ min: rangeLo, max: rangeHi }]);
+  positionHistogramRect(_histDrag.histEl, [{ min: rangeLo, max: rangeHi }]);
 }
 
 function _onHistogramPointerUp(event) {
@@ -4069,17 +4069,17 @@ function _onHistogramPointerUp(event) {
 
 document.addEventListener('pointermove', _onHistogramPointerMove);
 document.addEventListener('pointerup', _onHistogramPointerUp);
-document.addEventListener('pointercancel', () => { _histDrag = null; repositionAllScoreDistRects(); });
+document.addEventListener('pointercancel', () => { _histDrag = null; repositionAllHistogramRects(); });
 
 // Pass `intervals` to override the live filter (used during drag preview).
-function positionScoreDistRect(distEl, intervals = undefined) {
-  const rect = distEl.querySelector('.score-dist-rect');
+function positionHistogramRect(histEl, intervals = undefined) {
+  const rect = histEl.querySelector('.histogram-rect');
   if (!rect) return;
   if (intervals === undefined) {
     intervals = state.scoreRange ? parseRange(state.scoreRange) : null;
   }
   if (!intervals) { rect.hidden = true; return; }
-  const bars = [...distEl.querySelectorAll('.score-bar:not(.score-bar-ignored)')];
+  const bars = [...histEl.querySelectorAll('.histogram-bar:not(.histogram-bar-ignored)')];
   const matching = bars.filter(b => slotIntersectsRange(+b.dataset.lo, +b.dataset.hi, intervals));
   if (!matching.length) { rect.hidden = true; return; }
   const first = matching[0], last = matching[matching.length - 1];
@@ -4090,8 +4090,8 @@ function positionScoreDistRect(distEl, intervals = undefined) {
   rect.style.width = `${right - left}px`;
 }
 
-function repositionAllScoreDistRects() {
-  document.querySelectorAll('.score-dist').forEach(d => positionScoreDistRect(d));
+function repositionAllHistogramRects() {
+  document.querySelectorAll('.histogram').forEach(h => positionHistogramRect(h));
 }
 
 let _updateScroller = null;
@@ -5770,7 +5770,7 @@ function refreshDerivedDisplays() {
     return;
   }
   statsBar.outerHTML = buildStatsBarHTML(stats, entries, getHistogramLayout());
-  repositionAllScoreDistRects();
+  repositionAllHistogramRects();
 }
 
 function buildMergedWordlist() {

@@ -58,7 +58,7 @@ Defaults: **great** (≥60), **good** (≥50), **fair** (≥40), **meh** (≥30)
 
 ## Score histogram
 
-The stats bar shows a histogram of the wordlist's score distribution. Click on it to filter the table to a score range.
+The stats bar shows a histogram of the wordlist's scores. Click on it to filter the table to a score range.
 
 ## Wordlists
 
