@@ -213,7 +213,7 @@ html.dark-mode .search-match-4 { background: #14532d; color: #d1fae5; }
 .word-table td.comment-cell { font-size: 12px; }
 .word-table tr:hover td { background: var(--row-hover); }
 .vs-spacer td { padding: 0; border: none; }
-.score-badge { display: inline-block; padding: 1px 5px; border-radius: 3px; font-size: 11px; font-weight: 700; background: var(--score-bg); color: var(--score-fg); }
+.score-badge { display: inline-block; padding: 1px 5px; border-radius: 3px; font-size: 11px; font-weight: 700; font-family: ui-monospace, 'Cascadia Code', monospace; background: var(--score-bg); color: var(--score-fg); }
 .sort-arrow { font-size: 9px; opacity: 0.7; }
 .col-resize-handle { position: absolute; right: 0; top: 0; bottom: 0; width: 5px; cursor: col-resize; z-index: 2; }
 .col-resize-handle:hover, .col-resize-handle.active { background: rgba(123, 109, 184, 0.35); background: color-mix(in srgb, var(--accent) 35%, transparent); }
@@ -452,6 +452,13 @@ a.get-file:hover { text-decoration: underline; }
 .rule-del { width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; border: none; background: none; cursor: pointer; font-size: 15px; padding: 0; line-height: 1; border-radius: 3px; font-family: inherit; color: transparent; }
 .rule-row:hover .rule-del { color: var(--faint); }
 .rule-del:hover { color: #e53935 !important; background: var(--del-hover); }
+
+/* Read-only scoring legend (main detail panel) */
+.legend-rows { display: flex; flex-direction: column; gap: 3px; }
+.legend-row { display: flex; align-items: center; gap: 8px; min-height: 18px; }
+.legend-row .score-badge { flex: 0 0 auto; min-width: 28px; text-align: center; }
+.legend-note { font-size: 12px; color: var(--text); flex: 1; min-width: 0; line-height: 1.4; }
+.legend-note.empty { color: var(--faint); font-style: italic; }
 
 /* Header */
 .header-controls { display: flex; gap: 12px; align-items: center; }
@@ -1263,15 +1270,47 @@ function buildRescoreSectionHTML(wordlist) {
     buildRulesListHTML(wordlist.rescoreRules || [], { rulesId: 'rescore-rules', saveFn: 'saveRuleField', deleteFn: 'deleteRule', rescore: true });
 }
 
-// Scoring (tier labels) lives on My Edits' `scoring` field. Rendered both as a
-// legend on the merged All view and as the rule editor on My Edits' right pane
-// in the Wordlists dialog. Catch-all is recomputed against the merged entries
-// on every render so it reflects all scores in the user's data.
+// Scoring (tier labels) lives on My Edits' `scoring` field. The editor in the
+// Wordlists dialog uses this; the main detail panel shows a read-only legend
+// via `buildScoringLegendHTML`. Catch-all is recomputed against merged entries
+// on each render so it reflects whatever scores are currently in the data.
 function buildScoringSectionHTML() {
   const edits = getEditsWordlist();
   if (edits) updateScoringCatchAll(edits.scoring, buildMergedWordlist().entries);
   return `<div class="rescore-top"><span class="rescore-lbl">Scoring</span></div>` +
     buildRulesListHTML(edits?.scoring || [], { rulesId: 'scoring-rules', saveFn: 'saveScoringField', deleteFn: 'deleteScoringRow' });
+}
+
+function buildScoringLegendHTML() {
+  const edits = getEditsWordlist();
+  if (edits) updateScoringCatchAll(edits.scoring, buildMergedWordlist().entries);
+  const rules = edits?.scoring || [];
+  const rowsHTML = rules.map(r => {
+    const isCatchAll = !!r._catchAll;
+    const noteHTML = r.note
+      ? `<span class="legend-note">${esc(r.note)}</span>`
+      : `<span class="legend-note empty">${isCatchAll ? '(other scores)' : ''}</span>`;
+    return `<div class="legend-row${isCatchAll ? ' rule-catchall' : ''}">
+        ${buildScoreRangeBadgeHTML(r)}
+        ${noteHTML}
+      </div>`;
+  }).join('');
+  return `<div class="rescore-top"><span class="rescore-lbl">Scoring</span></div>
+      <div class="legend-rows">${rowsHTML}</div>`;
+}
+
+// Pick a representative score for a rule's input range to drive the gradient:
+// midpoint for closed ranges, lower bound for open-ended (`60+`).
+function buildScoreRangeBadgeHTML(rule) {
+  const text = (rule.input || '').trim();
+  const intervals = parseRange(text);
+  let representative = 0;
+  if (intervals && intervals.length) {
+    const { min, max } = intervals[0];
+    representative = max === null ? min : (min + max) / 2;
+  }
+  const { bg, fg } = scoreColor(representative);
+  return `<span class="score-badge" style="--score-bg:${bg}; --score-fg:${fg}">${esc(text)}</span>`;
 }
 
 function buildTableContainerHTML() {
@@ -3716,7 +3755,7 @@ function renderMergedDetail() {
   const { entries } = buildMergedWordlist();
   const stats = computeStats(_mergedStatsKey, entries);
   mountDetailPanel(panel, stats, entries,
-    `<div id="scoring-section" class="rescore-section">${buildScoringSectionHTML()}</div>`);
+    `<div id="scoring-legend" class="rescore-section">${buildScoringLegendHTML()}</div>`);
 
   scroller.showSource = true;
   scroller.editsWordlist = getEditsWordlist() ?? null;
@@ -3753,12 +3792,12 @@ function updateScoringCatchAll(scoring, entries) {
   }
 }
 
-// Re-render every scoring section currently mounted: the legend on the All view
-// and the editor in the Wordlists dialog's My Edits pane share the same data,
-// so an edit in either has to repaint both.
-function renderScoringSection() {
-  const main = document.getElementById('scoring-section');
-  if (main) main.innerHTML = buildScoringSectionHTML();
+// Re-render every place the scoring rules are shown: the read-only legend on
+// the main detail panel and the editor in the Wordlists dialog's My Edits pane
+// share the same data, so an edit in the dialog has to repaint both.
+function renderScoringRules() {
+  const main = document.getElementById('scoring-legend');
+  if (main) main.innerHTML = buildScoringLegendHTML();
   WordlistsDialog.refreshScoringSection();
 }
 
@@ -3767,11 +3806,11 @@ function deleteScoringRow(i) {
   if (!edits) return;
   const [deleted] = edits.scoring.splice(i, 1);
   persistMeta();
-  renderScoringSection();
+  renderScoringRules();
   showUndoToast('Deleted scoring row', () => {
     edits.scoring.push(deleted);
     persistMeta();
-    renderScoringSection();
+    renderScoringRules();
   });
 }
 
@@ -3781,7 +3820,7 @@ function saveScoringField(i, field, val) {
   edits.scoring[i][field] = val;
   delete edits.scoring[i]._catchAll;
   persistMeta();
-  renderScoringSection();
+  renderScoringRules();
 }
 
 
@@ -3803,7 +3842,8 @@ function renderDetail(wordlist) {
   }
 
   const { stats, entries: histEntries } = statsForWordlist(wordlist);
-  mountDetailPanel(panel, stats, histEntries);
+  mountDetailPanel(panel, stats, histEntries,
+    `<div id="scoring-legend" class="rescore-section">${buildScoringLegendHTML()}</div>`);
 
   scroller.currentWordlist = wordlist;
   scroller.setEntries(wordlist.rawEntries, state.searchQuery, wordlist.rescoreRules, buildOverrideMap(wordlist), state.searchWholeWord, state.scoreRange);
@@ -3820,7 +3860,7 @@ function renderEditsDetail(wordlist) {
   const panel = document.getElementById('detail-panel');
   const { stats, entries: histEntries } = statsForWordlist(wordlist);
   mountDetailPanel(panel, stats, histEntries,
-    `<div id="scoring-section" class="rescore-section">${buildScoringSectionHTML()}</div>`);
+    `<div id="scoring-legend" class="rescore-section">${buildScoringLegendHTML()}</div>`);
 
   scroller.showDeleteCol = true;
   scroller.setEntries(wordlist.rawEntries, state.searchQuery, [], new Map(), state.searchWholeWord, state.scoreRange);
@@ -5711,7 +5751,7 @@ function refreshDerivedDisplays() {
     const contribMap = new Map(_sourceCountsCache.map(s => [s.wordlist, s.count]));
     WordlistsDialog.updateRailMeta(contribMap);
   }
-  renderScoringSection();
+  renderScoringRules();
 
   const statsBar = document.querySelector('#detail-panel .stats-bar');
   if (!statsBar) return;

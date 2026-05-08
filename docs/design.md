@@ -60,7 +60,7 @@ The action row is also unified — date slot, primary action, Download, more men
 
 **Rescoring lives entirely inside the Wordlists dialog**; it doesn't appear on the main screen. Rules are detail config, typically set once when adding a wordlist and rarely revisited; they don't earn persistent real estate next to the wordlist view.
 
-**Scoring rules** (My Edits' tier labels) are the user's single notion of what each score range means — there is no separate "output" tier system. The merged All view shows them as a read/write legend above its table for convenience, but the canonical edit surface is My Edits in the Wordlists dialog.
+**Scoring rules** (My Edits' tier labels) are the user's single notion of what each score range means — there is no separate "output" tier system. Every wordlist view shows them as a read-only legend above its table — score-badges paired with tier labels — so users always have the meaning of a score in front of them. Editing happens only in the Wordlists dialog (My Edits' right pane), keeping the main view a steady reference rather than a config surface.
 
 **Onboarding banner** lives only inside the Wordlists dialog — there's no auto-popup on the main view. Users who never open the dialog never see it; the defaults are sensible enough that this is fine.
 

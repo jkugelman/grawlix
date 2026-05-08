@@ -50,7 +50,7 @@ From the My Edits view you can:
 - Delete entries (with undo).
 - Edit any score or comment.
 
-My Edits also carries your **scoring rules** — your tier labels for the unified score scale (e.g. "60 = great, 50 = good, …"). The merged All view shows them as a read/write legend above the table; the canonical edit surface is My Edits in the Wordlists dialog.
+My Edits also carries your **scoring rules** — your tier labels for the unified score scale (e.g. "60 = great, 50 = good, …"). Every wordlist view shows them as a read-only legend above the table; the canonical edit surface is My Edits in the Wordlists dialog.
 
 ## Score tiers
 
