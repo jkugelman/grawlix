@@ -4544,12 +4544,9 @@ const ConfigureWordlistDialog = (() => {
       el.close();
       if (WordlistsDialog.isOpen()) WordlistsDialog.focus(wordlist);
       if (url) {
-        fetchWordlist(wordlist).then(() => selectWordlist(wordlist));
+        fetchWordlist(wordlist);
       } else if (_pendingFile) {
         ingestFile(_pendingFile, wordlist, name);
-        selectWordlist(wordlist);
-      } else {
-        selectWordlist(wordlist);
       }
     } else {
       _wordlist.icon = _pendingIcon;
@@ -4884,7 +4881,6 @@ const ImportGuideDialog = (() => {
       if (!_pendingFile) return;
       el.close();
       ingestFile(_pendingFile, _wordlist);
-      selectWordlist(_wordlist);
     };
 
     bindDropZone(el.querySelector('.guide-drop-zone'), el.querySelector('.guide-file-input'), file => {
