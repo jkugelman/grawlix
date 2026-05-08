@@ -34,21 +34,6 @@ Grawlix-side lookup less.
 Mobile is a third mode — theme research on the go (subway, Discord) — and
 gets its own design; see [`plans/mobile.md`](plans/mobile.md).
 
-## Non-features
-
-Things explicitly *not* built, so the design doesn't drift back to them:
-
-- **No persistence of in-progress mining state** beyond what the URL encodes.
-  No "save my exploration" feature, no session restore.
-- **No cross-wordlist comparison.** "Words in JK but not XWI" set-difference
-  views are not a real workflow.
-- **No scratchpad / working set.** My Edits is the only persistence concept.
-- **No multi-pattern search.** Serial single queries are fine.
-- **No recent-searches strip.** Search history is not preserved or surfaced.
-- **No two-stack comparison UI.** Editing in place on the existing input
-  (e.g., toggle Anagram between LINDSEY and LINDSEYS) handles it via live
-  re-execution.
-
 ## The shell
 
 **Header** is brand chrome only. No per-wordlist navigation, sync state,
@@ -208,3 +193,18 @@ safety); back button does default browser behavior (navigates back to the
 wordlist); header stays a fixture with no dynamic content (no breadcrumbs).
 *"Routes for everything" — including confirms — was considered and dropped
 as too heavy-handed.*
+
+## Non-features
+
+Things explicitly *not* built, so the design doesn't drift back to them:
+
+- **No persistence of in-progress mining state** beyond what the URL encodes.
+  No "save my exploration" feature, no session restore.
+- **No cross-wordlist comparison.** "Words in JK but not XWI" set-difference
+  views are not a real workflow.
+- **No scratchpad / working set.** My Edits is the only persistence concept.
+- **No multi-pattern search.** Serial single queries are fine.
+- **No recent-searches strip.** Search history is not preserved or surfaced.
+- **No two-stack comparison UI.** Editing in place on the existing input
+  (e.g., toggle Anagram between LINDSEY and LINDSEYS) handles it via live
+  re-execution.
