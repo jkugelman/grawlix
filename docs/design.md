@@ -143,16 +143,22 @@ A pure-reactive design — one big `merged$ = computed(() => buildMerged(sources
 
 **What's reactive:**
 
-- Top-level state: `selected$`, `searchQuery$`, `searchWholeWord$`, `scoreRange$`, `sources$` — backed by a `state` proxy whose getters use `peek` (so incidental reads don't accidentally subscribe inside effects).
-- Per-wordlist display fields: `name$`, `icon$`, `url$`, `publisherId$`, `enabled$`, `rescoreRules$`. Each wordlist exposes both the signal (`wl.name$`) and a peek getter / set setter on the plain field (`wl.name`). `wrapWordlist(wl)` installs them at every wordlist-creation site.
+- `sources$` — the wordlist array. The cosmetic effect subscribes; reorder/add/remove call `sources$.bump()` after splicing.
+- `selected$` — the selected wordlist (or `MERGED_ID`). The render effect subscribes.
+- Per-wordlist cosmetic fields: `name$`, `icon$`, `url$`, `publisherId$`. Each wordlist exposes both the signal (`wl.name$`) and a peek getter / set setter on the plain field (`wl.name`). `wrapWordlist(wl)` installs them at every wordlist-creation site.
 - `cacheVersion$` — the bridge between layers. Bumped by helpers that change cache-affecting state; the render effect subscribes.
+
+`state.searchQuery`, `state.searchWholeWord`, and `state.scoreRange` are plain properties. Search is dispatched imperatively from the input handlers (which call `scroller.filter()` directly); no effect needs to react.
+
+Per-wordlist field categories beyond the cosmetic four:
+
+- **Cache-affecting** (`enabled`, `rescoreRules`, `rawEntries`) — plain properties. Mutate via the helper (`setWordlistEnabled`, etc.) so the helper invalidates the right caches and bumps `cacheVersion$`. Never assign directly — there's no signal to fire and the caches will silently go stale.
+- **Transient** (`_loading`, `_updateAvailable`, `lastUpdated`, `fetchedSize`, `_rescored`, `_rescoredMap`, `_overrideMap`, `originalFilename`) — plain properties. Set directly. Anything that displays them updates as a side effect of the surrounding flow (e.g. `applyWordlistText` ends with the render effect dispatching panel updates because it batched a `repaintAfterCacheChange`).
 
 **The two effects:**
 
-- **Render effect** reads `selected$` and `cacheVersion$`. On selection change it does a full panel re-render (fresh scroller). On cache-only change for the same selection it refreshes derived state in place (`refreshSourceCounts` + `scroller.updateEntries` for merged, or a scroller cache-ref refresh for a regular wordlist) — the in-place update protocol described above, triggered automatically.
-- **Cosmetic effect** subscribes to every wordlist's `name$`/`icon$`/`url$`/`publisherId$`. Any cosmetic change re-renders the rail/dropdown/dialog and visible scroller rows without touching the merged cache. (Cache entries hold wordlist refs and read names live, so renames don't invalidate anything.)
-
-`enabled$` and `rescoreRules$` are signal-backed for symmetry, but no effect subscribes directly — they're cache-affecting, so the helper that flips them invalidates caches and bumps `cacheVersion$`. The render effect picks it up that way.
+- **Render effect** reads `selected$` and `cacheVersion$`. On selection change it does a full panel re-render (fresh scroller). On cache-only change for the same selection it refreshes derived state in place: `refreshSourceCounts` rebuilds caches, `renderSources` repaints the rail/dropdown/dialog with fresh meta, `refreshDerivedDisplays` updates the scoring legend and the main-panel stats bar, then the active scroller is updated (the merged scroller via `refreshMergedScroller`, which shares its array-identity protocol with the patch path; a regular wordlist's scroller via in-place rebind of `rescoreRules`/`overrideMap` plus an identity check on `rawEntries` for the fetch/import case).
+- **Cosmetic effect** reads `sources$` and every wordlist's `name$`/`icon$`/`url$`/`publisherId$`. Any cosmetic change re-renders the rail/dropdown/dialog and (when the merged scroller is the active view, since it has a per-row source column) the visible scroller rows. No cache touched — cache entries hold wordlist refs and read names live.
 
 **The patch path skips reactivity.** `patchCachesForEditsChange` doesn't bump `cacheVersion$`; the My Edits hot path mutates caches in place and calls `refreshDerivedDisplays` + scroller re-filter directly. Routing through the render effect would call `refreshSourceCounts`, which invalidates and rebuilds the merged cache — defeating the patch. This is the one explicit exception to the rule "any cache mutation bumps `cacheVersion$`".
 
@@ -170,11 +176,11 @@ reorderSources(fromIdx, toIdx);
 Helper bodies come in two shapes:
 
 - **Cosmetic** (name, icon, url, publisher) — set the signal, persist. The cosmetic effect re-renders.
-- **Cache-affecting** (enabled, rescore rules, source order) — set the signal (or mutate in place + `sources$.bump()` for the array), persist, call `repaintAfterCacheChange()` which bumps `cacheVersion$`. The render effect's cache branch invalidates and rebuilds derived state.
+- **Cache-affecting** (enabled, rescore rules, source order) — set the field, persist, call `repaintAfterCacheChange()` which bumps `cacheVersion$`. The render effect's cache branch invalidates and rebuilds derived state.
 
 The alternative — sprinkling `invalidateX()` and `repaintY()` calls at every mutation site — concentrates the discipline of "what does changing X require?" at every caller. The helper-plus-effects shape concentrates that discipline in one place per field, and "forget to repaint" stops being a category of bug because the effect handles dispatch as long as the right signal got bumped.
 
-`batchUpdate(fn)` coalesces a multi-field save (the configure-wordlist dialog can change up to five fields at once) into one effect run per subscriber. Signal writes inside a batch queue their subscribers in `_batchedEffects`; any `repaintAfterCacheChange` calls inside set a deferred bump flag. At the end of the batch the bump fires and the queued effects each run once.
+`batchUpdate(fn)` coalesces a multi-field save (the configure-wordlist dialog can change up to five fields at once, and `applyWordlistText` batches its prelude similarly) into one effect run per subscriber. Signal writes inside a batch queue their subscribers in `_batchedEffects`; any `repaintAfterCacheChange` calls inside set a deferred bump flag, and `persistMeta()` calls set a deferred persist flag. At the end of the batch persistence runs once, the cache bump fires once, and the queued effects each run once.
 
 ## Open questions
 
