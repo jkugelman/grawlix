@@ -40,11 +40,12 @@ html.dark-mode {
   --del-hover: #361818;
   --shadow:    0 8px 40px rgba(0,0,0,0.5);
   --backdrop:  rgba(0,0,0,0.5);
-  --score-0-bg: #6b1d1d; --score-0-fg: #fdd8d8;
-  --score-1-bg: #6b3d00; --score-1-fg: #fddcaa;
-  --score-2-bg: #615b0d; --score-2-fg: #fef7c0;
-  --score-3-bg: #2a6b42; --score-3-fg: #d4f9e5;
-  --score-4-bg: #1e4a8f; --score-4-fg: #cce4ff;
+  --score-0-bg: #3a0f0f; --score-0-fg: #e8a8a8;
+  --score-1-bg: #6b1d1d; --score-1-fg: #fdd8d8;
+  --score-2-bg: #6b3d00; --score-2-fg: #fddcaa;
+  --score-3-bg: #615b0d; --score-3-fg: #fef7c0;
+  --score-4-bg: #2a6b42; --score-4-fg: #d4f9e5;
+  --score-5-bg: #1e4a8f; --score-5-fg: #cce4ff;
   --callout-bg: #201d09; --callout-border: #3d3410; --callout-fg: #b09840;
   --usd-added-bg:    #1a3d2a; --usd-added-fg:    #6ee89a;
   --usd-deleted-bg:  #3d1a1a; --usd-deleted-fg:  #f07070;
@@ -70,11 +71,12 @@ html.light-mode {
   --del-hover: #fdecea;
   --shadow:    0 8px 40px rgba(0,0,0,0.18);
   --backdrop:  rgba(0,0,0,0.3);
-  --score-0-bg: #f8d7da; --score-0-fg: #721c24;
-  --score-1-bg: #fde9c8; --score-1-fg: #7a3d00;
-  --score-2-bg: #fff3cd; --score-2-fg: #856404;
-  --score-3-bg: #d4edda; --score-3-fg: #155724;
-  --score-4-bg: #cce5ff; --score-4-fg: #004085;
+  --score-0-bg: #e8b3b6; --score-0-fg: #4a0d12;
+  --score-1-bg: #f8d7da; --score-1-fg: #721c24;
+  --score-2-bg: #fde9c8; --score-2-fg: #7a3d00;
+  --score-3-bg: #fff3cd; --score-3-fg: #856404;
+  --score-4-bg: #d4edda; --score-4-fg: #155724;
+  --score-5-bg: #cce5ff; --score-5-fg: #004085;
   --callout-bg: #fff3cd; --callout-border: #ffc107; --callout-fg: #856404;
   --usd-added-bg:    #e6f4ea; --usd-added-fg:    #2d7a3f;
   --usd-deleted-bg:  #fce8e6; --usd-deleted-fg:  #b71c1c;
@@ -2870,19 +2872,20 @@ function blockSemicolon(e) {
 
 // ─── Virtual Scroller ─────────────────────────────────────────────────────────
 
-// Gradient stops at hand-picked t positions. Five distinct colors (0=red →
-// 4=blue) with color 0 repeated at t=0 and t=1/3 to create a flat plateau
-// across the bottom third of the score range. The remaining stops are evenly
-// spaced from t=1/2 through t=1 so that on the canonical 0–60 default scale,
-// scores 30/40/50/60 land directly on stops (orange/yellow/green/blue) and
-// scores 0–20 all read as solid red.
+// Gradient stops at hand-picked t positions. Six distinct colors (0=dark red
+// → 5=blue) with color 0 duplicated across t=0 and t=1/6 to create a small
+// "deep" plateau at the very bottom (10/0 read solidly darker than 20), and
+// color 1 anchored at t=1/3 so 20 is still pure red. The remaining stops are
+// evenly spaced from t=1/2 through t=1 so that on the canonical 0–60 default
+// scale, scores 30/40/50/60 land directly on stops (orange/yellow/green/blue).
 const SCORE_COLOR_STOPS = [
   { t: 0,   bg: '--score-0-bg', fg: '--score-0-fg' },
-  { t: 1/3, bg: '--score-0-bg', fg: '--score-0-fg' },
-  { t: 1/2, bg: '--score-1-bg', fg: '--score-1-fg' },
-  { t: 2/3, bg: '--score-2-bg', fg: '--score-2-fg' },
-  { t: 5/6, bg: '--score-3-bg', fg: '--score-3-fg' },
-  { t: 1,   bg: '--score-4-bg', fg: '--score-4-fg' },
+  { t: 1/6, bg: '--score-0-bg', fg: '--score-0-fg' },
+  { t: 1/3, bg: '--score-1-bg', fg: '--score-1-fg' },
+  { t: 1/2, bg: '--score-2-bg', fg: '--score-2-fg' },
+  { t: 2/3, bg: '--score-3-bg', fg: '--score-3-fg' },
+  { t: 5/6, bg: '--score-4-bg', fg: '--score-4-fg' },
+  { t: 1,   bg: '--score-5-bg', fg: '--score-5-fg' },
 ];
 
 // Map a score to interpolated bg/fg colors based on the current min/max from
@@ -5984,7 +5987,7 @@ const HelpModal = (() => {
               <tr class="demo-row">
                 <td class="col-word" id="help-slide2-word"></td>
                 <td class="score-cell demo-score-cell">
-                  <span class="score-badge" style="--score-bg: var(--score-2-bg); --score-fg: var(--score-2-fg)">40</span>
+                  <span class="score-badge" style="--score-bg: var(--score-3-bg); --score-fg: var(--score-3-fg)">40</span>
                 </td>
                 <td class="comment-cell">—</td>
               </tr>
@@ -6117,7 +6120,7 @@ const HelpModal = (() => {
     const scoreCell = slide.querySelector('.demo-score-cell');
     const demoContainer = slide.querySelector('.help-demo');
 
-    scoreCell.innerHTML = `<span class="score-badge" style="--score-bg: var(--score-2-bg); --score-fg: var(--score-2-fg)">40</span>`;
+    scoreCell.innerHTML = `<span class="score-badge" style="--score-bg: var(--score-3-bg); --score-fg: var(--score-3-fg)">40</span>`;
     demoRow.style.background = '';
     demoContainer.querySelectorAll('.demo-caret, .demo-mouse').forEach(el => el.remove());
 
@@ -6151,7 +6154,7 @@ const HelpModal = (() => {
     after(2400, () => { const inp = scoreCell.querySelector('input'); if (inp) { inp.value = '60'; showDemoCaret(caret, inp, demoContainer); } });
     after(2700, () => {
       demoRow.style.background = '';
-      scoreCell.innerHTML = `<span class="score-badge" style="--score-bg: var(--score-4-bg); --score-fg: var(--score-4-fg)">60</span>`;
+      scoreCell.innerHTML = `<span class="score-badge" style="--score-bg: var(--score-5-bg); --score-fg: var(--score-5-fg)">60</span>`;
       hideDemoCaret(caret);
       mouse.classList.remove('visible');
     });
