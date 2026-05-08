@@ -40,11 +40,11 @@ html.dark-mode {
   --del-hover: #361818;
   --shadow:    0 8px 40px rgba(0,0,0,0.5);
   --backdrop:  rgba(0,0,0,0.5);
-  --score-great-bg: #1e4a8f; --score-great-fg: #cce4ff;
-  --score-good-bg:  #2a6b42; --score-good-fg:  #d4f9e5;
-  --score-fair-bg:  #615b0d; --score-fair-fg:  #fef7c0;
-  --score-meh-bg:   #6b3d00; --score-meh-fg:   #fddcaa;
-  --score-bad-bg:   #6b1d1d; --score-bad-fg:   #fdd8d8;
+  --score-0-bg: #6b1d1d; --score-0-fg: #fdd8d8;
+  --score-1-bg: #6b3d00; --score-1-fg: #fddcaa;
+  --score-2-bg: #615b0d; --score-2-fg: #fef7c0;
+  --score-3-bg: #2a6b42; --score-3-fg: #d4f9e5;
+  --score-4-bg: #1e4a8f; --score-4-fg: #cce4ff;
   --callout-bg: #201d09; --callout-border: #3d3410; --callout-fg: #b09840;
   --usd-added-bg:    #1a3d2a; --usd-added-fg:    #6ee89a;
   --usd-deleted-bg:  #3d1a1a; --usd-deleted-fg:  #f07070;
@@ -70,11 +70,11 @@ html.light-mode {
   --del-hover: #fdecea;
   --shadow:    0 8px 40px rgba(0,0,0,0.18);
   --backdrop:  rgba(0,0,0,0.3);
-  --score-great-bg: #cce5ff; --score-great-fg: #004085;
-  --score-good-bg:  #d4edda; --score-good-fg:  #155724;
-  --score-fair-bg:  #fff3cd; --score-fair-fg:  #856404;
-  --score-meh-bg:   #fde9c8; --score-meh-fg:   #7a3d00;
-  --score-bad-bg:   #f8d7da; --score-bad-fg:   #721c24;
+  --score-0-bg: #f8d7da; --score-0-fg: #721c24;
+  --score-1-bg: #fde9c8; --score-1-fg: #7a3d00;
+  --score-2-bg: #fff3cd; --score-2-fg: #856404;
+  --score-3-bg: #d4edda; --score-3-fg: #155724;
+  --score-4-bg: #cce5ff; --score-4-fg: #004085;
   --callout-bg: #fff3cd; --callout-border: #ffc107; --callout-fg: #856404;
   --usd-added-bg:    #e6f4ea; --usd-added-fg:    #2d7a3f;
   --usd-deleted-bg:  #fce8e6; --usd-deleted-fg:  #b71c1c;
@@ -158,17 +158,11 @@ button.danger:hover:not(:disabled) { background: #e74c3c; border-color: #c0392b;
 .stat-value { font-size: 15px; font-weight: 700; line-height: 1; }
 .score-dist { display: flex; gap: 3px; align-items: flex-end; height: 36px; position: relative; cursor: pointer; user-select: none; touch-action: none; }
 .stats-right { display: flex; align-items: center; gap: 22px; margin-left: auto; }
-.score-bar { width: 7px; background: var(--accent); border-radius: 2px 2px 0 0; position: relative; z-index: 1; }
-.score-bar[data-tier="great"] { background: var(--score-great-bg); }
-.score-bar[data-tier="good"]  { background: var(--score-good-bg); }
-.score-bar[data-tier="fair"]  { background: var(--score-fair-bg); }
-.score-bar[data-tier="meh"]   { background: var(--score-meh-bg); }
-.score-bar[data-tier="bad"]   { background: var(--score-bad-bg); }
+.score-bar { width: 7px; background: var(--score-bg, var(--accent)); border-radius: 2px 2px 0 0; position: relative; z-index: 1; }
 .score-bar.score-bar-ignored { background: var(--faint); margin-right: 5px; cursor: default; }
 .score-dist-rect { position: absolute; top: -2px; bottom: -2px; background: var(--accent); opacity: 0.18; border-radius: 4px; pointer-events: none; z-index: 0; transition: left 0.05s ease, width 0.05s ease; }
 .score-dist-rect[hidden] { display: none; }
-html.light-mode .score-bar[data-tier] { filter: saturate(1.5) brightness(0.95); }
-html.light-mode .score-bar.score-bar-ignored { filter: none; }
+html.light-mode .score-bar:not(.score-bar-ignored) { filter: saturate(1.5) brightness(0.95); }
 html.light-mode .score-dist-rect { opacity: 0.22; }
 
 /* Search */
@@ -219,12 +213,7 @@ html.dark-mode .search-match-4 { background: #14532d; color: #d1fae5; }
 .word-table td.comment-cell { font-size: 12px; }
 .word-table tr:hover td { background: var(--row-hover); }
 .vs-spacer td { padding: 0; border: none; }
-.score-badge { display: inline-block; padding: 1px 5px; border-radius: 3px; font-size: 11px; font-weight: 700; }
-.score-badge[data-tier="great"] { background: var(--score-great-bg); color: var(--score-great-fg); }
-.score-badge[data-tier="good"]  { background: var(--score-good-bg);  color: var(--score-good-fg);  }
-.score-badge[data-tier="fair"]  { background: var(--score-fair-bg);  color: var(--score-fair-fg);  }
-.score-badge[data-tier="meh"]   { background: var(--score-meh-bg);   color: var(--score-meh-fg);   }
-.score-badge[data-tier="bad"]   { background: var(--score-bad-bg);   color: var(--score-bad-fg);   }
+.score-badge { display: inline-block; padding: 1px 5px; border-radius: 3px; font-size: 11px; font-weight: 700; background: var(--score-bg); color: var(--score-fg); }
 .sort-arrow { font-size: 9px; opacity: 0.7; }
 .col-resize-handle { position: absolute; right: 0; top: 0; bottom: 0; width: 5px; cursor: col-resize; z-index: 2; }
 .col-resize-handle:hover, .col-resize-handle.active { background: rgba(123, 109, 184, 0.35); background: color-mix(in srgb, var(--accent) 35%, transparent); }
@@ -1001,7 +990,8 @@ function effect(fn) {
 // ─── Components ──────────────────────────────────────────────────────────────
 
 function buildScoreBadgeHTML(score) {
-  return `<span class="score-badge" data-tier="${scoreTier(score)}">${score}</span>`;
+  const { bg, fg } = scoreColor(score);
+  return `<span class="score-badge" style="--score-bg:${bg}; --score-fg:${fg}">${score}</span>`;
 }
 
 function buildToggleHTML(checked, disabled) {
@@ -1146,7 +1136,8 @@ function buildStatsBarHTML(stats, entries, layout) {
   const bars = layout.slots.map((s, i) => {
     const c = counts[i];
     const title = `${s.label}: ${c.toLocaleString()} • Click to filter`;
-    return `<div class="score-bar" data-tier="${s.tier}" data-lo="${s.lo}" data-hi="${s.hi}" style="height:${barH(c)}px" title="${title}"></div>`;
+    const { bg } = scoreColor((s.lo + s.hi) / 2);
+    return `<div class="score-bar" data-lo="${s.lo}" data-hi="${s.hi}" style="--score-bg:${bg}; height:${barH(c)}px" title="${title}"></div>`;
   }).join('');
 
   const distTitle = 'Score distribution • Click to filter';
@@ -2717,14 +2708,17 @@ function getHistogramLayout() {
     }
   }
   if (!distinct.size) {
-    _layoutCache = { mode: 'binned', slots: defaultDecileSlots() };
-    return _layoutCache;
+    // No data → empty layout. Don't cache: as soon as data arrives, the next
+    // call should recompute. (Caching here would also burn the cache if
+    // anything calls into the layout before sources finish loading.)
+    return { mode: 'empty', slots: [], min: null, max: null };
   }
   const distinctScores = [...distinct].sort((a, b) => a - b);
   if (distinctScores.length <= HIST_DISCRETE_THRESHOLD) {
     _layoutCache = {
       mode: 'discrete',
-      slots: distinctScores.map(s => ({ score: s, lo: s, hi: s, label: String(s), tier: scoreTier(s) })),
+      slots: distinctScores.map(s => ({ score: s, lo: s, hi: s, label: String(s) })),
+      min, max,
     };
     return _layoutCache;
   }
@@ -2735,20 +2729,10 @@ function getHistogramLayout() {
     const lo = min + i * bucketSize;
     if (lo > max) break;
     const hi = Math.min(max, lo + bucketSize - 1);
-    slots.push({ lo, hi, label: lo === hi ? String(lo) : `${lo}–${hi}`, tier: scoreTier(Math.round((lo + hi) / 2)) });
+    slots.push({ lo, hi, label: lo === hi ? String(lo) : `${lo}–${hi}` });
   }
-  _layoutCache = { mode: 'binned', slots };
+  _layoutCache = { mode: 'binned', slots, min, max };
   return _layoutCache;
-}
-
-function defaultDecileSlots() {
-  const slots = [];
-  for (let i = 0; i < 11; i++) {
-    const lo = i * 10;
-    const hi = i === 10 ? 100 : i * 10 + 9;
-    slots.push({ lo, hi, label: lo === hi ? String(lo) : `${lo}–${hi}`, tier: scoreTier(Math.round((lo + hi) / 2)) });
-  }
-  return slots;
 }
 
 function bucketCounts(entries, layout) {
@@ -2847,12 +2831,42 @@ function blockSemicolon(e) {
 
 // ─── Virtual Scroller ─────────────────────────────────────────────────────────
 
-function scoreTier(s) {
-  if (s >= 60) return 'great';
-  if (s >= 50) return 'good';
-  if (s >= 40) return 'fair';
-  if (s >= 30) return 'meh';
-  return 'bad';
+// Gradient stops at hand-picked t positions. Five distinct colors (0=red →
+// 4=blue) with color 0 repeated at t=0 and t=1/3 to create a flat plateau
+// across the bottom third of the score range. The remaining stops are evenly
+// spaced from t=1/2 through t=1 so that on the canonical 0–60 default scale,
+// scores 30/40/50/60 land directly on stops (orange/yellow/green/blue) and
+// scores 0–20 all read as solid red.
+const SCORE_COLOR_STOPS = [
+  { t: 0,   bg: '--score-0-bg', fg: '--score-0-fg' },
+  { t: 1/3, bg: '--score-0-bg', fg: '--score-0-fg' },
+  { t: 1/2, bg: '--score-1-bg', fg: '--score-1-fg' },
+  { t: 2/3, bg: '--score-2-bg', fg: '--score-2-fg' },
+  { t: 5/6, bg: '--score-3-bg', fg: '--score-3-fg' },
+  { t: 1,   bg: '--score-4-bg', fg: '--score-4-fg' },
+];
+
+// Map a score to interpolated bg/fg colors based on the current min/max from
+// the histogram layout. Out-of-range scores clamp to the nearest endpoint.
+// When no data has been loaded, falls back to the middle stop (the gradient
+// is meaningless without a range — don't fabricate one).
+function scoreColor(score) {
+  const { min, max } = getHistogramLayout();
+  if (min == null || max == null || max <= min) {
+    const s = SCORE_COLOR_STOPS[Math.floor(SCORE_COLOR_STOPS.length / 2)];
+    return { bg: `var(${s.bg})`, fg: `var(${s.fg})` };
+  }
+  const t = Math.max(0, Math.min(1, (score - min) / (max - min)));
+  let i = 0;
+  while (i < SCORE_COLOR_STOPS.length - 1 && SCORE_COLOR_STOPS[i + 1].t < t) i++;
+  const lo = SCORE_COLOR_STOPS[i];
+  const hi = SCORE_COLOR_STOPS[i + 1];
+  const localT = (t - lo.t) / (hi.t - lo.t);
+  const pct = (localT * 100).toFixed(1);
+  return {
+    bg: `color-mix(in lch, var(${lo.bg}), var(${hi.bg}) ${pct}%)`,
+    fg: `color-mix(in lch, var(${lo.fg}), var(${hi.fg}) ${pct}%)`,
+  };
 }
 
 class VirtualScroller {
@@ -3177,7 +3191,6 @@ class VirtualScroller {
       const { word, score, comment, wordlist: entryWordlist } = entry;
       const rowWordlist = entryWordlist || this.currentWordlist;
       const rowWordlistName = rowWordlist?.name ?? '';
-      const tier = scoreTier(score);
       const tr = document.createElement('tr');
       tr.style.height = ROW_HEIGHT + 'px';
       tr.dataset.word = word;
@@ -5931,7 +5944,7 @@ const HelpModal = (() => {
               <tr class="demo-row">
                 <td class="col-word" id="help-slide2-word"></td>
                 <td class="score-cell demo-score-cell">
-                  <span class="score-badge" data-tier="fair">40</span>
+                  <span class="score-badge" style="--score-bg: var(--score-2-bg); --score-fg: var(--score-2-fg)">40</span>
                 </td>
                 <td class="comment-cell">—</td>
               </tr>
@@ -6064,7 +6077,7 @@ const HelpModal = (() => {
     const scoreCell = slide.querySelector('.demo-score-cell');
     const demoContainer = slide.querySelector('.help-demo');
 
-    scoreCell.innerHTML = buildScoreBadgeHTML(40);
+    scoreCell.innerHTML = `<span class="score-badge" style="--score-bg: var(--score-2-bg); --score-fg: var(--score-2-fg)">40</span>`;
     demoRow.style.background = '';
     demoContainer.querySelectorAll('.demo-caret, .demo-mouse').forEach(el => el.remove());
 
@@ -6098,7 +6111,7 @@ const HelpModal = (() => {
     after(2400, () => { const inp = scoreCell.querySelector('input'); if (inp) { inp.value = '60'; showDemoCaret(caret, inp, demoContainer); } });
     after(2700, () => {
       demoRow.style.background = '';
-      scoreCell.innerHTML = buildScoreBadgeHTML(60);
+      scoreCell.innerHTML = `<span class="score-badge" style="--score-bg: var(--score-4-bg); --score-fg: var(--score-4-fg)">60</span>`;
       hideDemoCaret(caret);
       mouse.classList.remove('visible');
     });
@@ -6106,16 +6119,16 @@ const HelpModal = (() => {
   }
 
   const SEARCH_WORDS = [
-    { word: 'WORDPLAY',  score: 60, tier: 'great', cross: false },
-    { word: 'CROSSWORD', score: 60, tier: 'great', cross: true  },
-    { word: 'PUZZLE',    score: 50, tier: 'good',  cross: false },
-    { word: 'THEME',     score: 50, tier: 'good',  cross: false },
-    { word: 'CROSSFIRE', score: 50, tier: 'good',  cross: true  },
-    { word: 'CROSSBOW',  score: 50, tier: 'good',  cross: true  },
-    { word: 'GRID',      score: 50, tier: 'good',  cross: false },
-    { word: 'CLUE',      score: 50, tier: 'good',  cross: false },
-    { word: 'CROSSLET',  score: 40, tier: 'fair',  cross: true  },
-    { word: 'RECROSS',   score: 30, tier: 'meh',   cross: true  },
+    { word: 'WORDPLAY',  score: 60, cross: false },
+    { word: 'CROSSWORD', score: 60, cross: true  },
+    { word: 'PUZZLE',    score: 50, cross: false },
+    { word: 'THEME',     score: 50, cross: false },
+    { word: 'CROSSFIRE', score: 50, cross: true  },
+    { word: 'CROSSBOW',  score: 50, cross: true  },
+    { word: 'GRID',      score: 50, cross: false },
+    { word: 'CLUE',      score: 50, cross: false },
+    { word: 'CROSSLET',  score: 40, cross: true  },
+    { word: 'RECROSS',   score: 30, cross: true  },
   ];
 
   function wordHtml(word, highlight) {
