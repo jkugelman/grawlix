@@ -94,6 +94,41 @@ Out of scope for the URL — these are local-only:
 
 The schema extends as the tool stack lands. Pending design — tool-key registry, multi-input encoding, alias policy for renames — lives in [`plans/url-routing.md`](plans/url-routing.md).
 
+## Caches
+
+Wordlists can be hundreds of thousands of entries. Several caches keep wordlist switching, score editing, and merging snappy. They live either on the wordlist object (`wordlist._foo`) or as module-level variables, and they all derive their values from `state.sources` plus per-wordlist `rawEntries` and `rescoreRules`.
+
+| Cache | Scope | Derived from | Cleared by |
+|---|---|---|---|
+| `wordlist._rescored` | per-wordlist | own `rawEntries` + `rescoreRules` | `invalidateRescoredCache(wordlist)` |
+| `wordlist._rescoredMap` | per-wordlist | `_rescored` (UPPERCASE word → entry, for fast lookup) | `invalidateRescoredCache(wordlist)` |
+| `wordlist._overrideMap` | per-wordlist | every higher-priority enabled wordlist's `_rescored` | `invalidateSourceCounts()` (clears all) |
+| `_mergedWordlistCache` | module | every enabled wordlist's `_rescored` (entries + `byWord` map) | `invalidateSourceCounts()` |
+| `_sourceCountsCache` | module | aliases `_mergedWordlistCache.sourceCounts` | `invalidateSourceCounts()` |
+| `_statsCache` (WeakMap) | module, keyed by wordlist or `_mergedStatsKey` | a wordlist's `rawEntries` (or merged entries) | `invalidateStatsCache(key)` |
+
+Three composite helpers cover the common change patterns:
+
+- **`invalidateWordlistCaches(wordlist)`** — when a wordlist's `rawEntries` change. Clears its `_rescored`, its stats cache, merged stats, the merged caches, and every wordlist's `_overrideMap`.
+- **`invalidateSourceCounts()`** — narrower. Used when source ordering, enabled flags, names, or any `_rescored` change but `rawEntries` did not. Clears merged caches and every `_overrideMap`.
+- **`refreshSourceCounts()`** — invalidate then re-warm `_sourceCountsCache` (it's read by the rail meta on every dialog refresh).
+
+Override maps are invalidated globally rather than per-affected-list because tracking dependencies (which lists sit below the changed one) isn't worth the complexity. Lazy rebuild on next access keeps the unaffected views free; only what's actually rendered pays the cost. The `_mergedWordlistCache` follows the same pattern.
+
+**Read live, don't snapshot.** Cache entries hold a `wordlist` reference rather than copying out display fields like `name`. Render-time code reads `entry.wordlist.name` so renames propagate without cache invalidation. The virtual scroller follows the same convention — `currentWordlist` is a ref, not a name string.
+
+**Hot path: switching wordlists.** First switch builds `_rescored` (lazy) and `_overrideMap` (lazy); subsequent switches are near-free. The virtual scroller's `_sortScores` Map is built only on demand — clicking the Score header to sort triggers it. Switching never builds it.
+
+**Hot path: editing My Edits.** Score and comment edits, new-word adds, and deletes all flow through `patchCachesForEditsChange(word, newEditsEntry)`. It mutates the affected `_overrideMap` entries and the matching slot in `_mergedWordlistCache.byWord` instead of triggering a full rebuild. No `buildMergedWordlist` walks across all sources per keystroke.
+
+The patch is structured around three observations:
+
+- If a higher-priority wordlist also has `word` (`buildOverrideMap(edits).has(word)`), edits is overshadowed and never appears in any cache — nothing to patch.
+- For ADD and UPDATE, edits becomes the contributor for `word` in every override map below it; for the merged cache, an existing entry's `wordlist` reference is reassigned (with source-count adjustments) or a new entry is bisect-inserted into the sorted `entries` array.
+- For DELETE, walk down from edits's position to find the next enabled wordlist with `word` (using a lazily-built `wordlist._rescoredMap`). Override maps for positions ≤ next contributor's position drop the entry; positions below adopt next's value. The merged entry is reassigned to next, or removed if no contributor remains.
+
+`_mergedWordlistCache` keeps a `byWord` Map alongside `entries`; both share the same entry objects, so patching via `byWord` is visible in `entries`. The merged-view refresh checks `entries === scroller.allEntries` to decide whether to refilter/resort the same array or fall back to `updateEntries` (when a full rebuild produced a new array). `refreshDerivedDisplays()` is the post-patch counterpart to `refreshSourceCounts()` — it repaints the rail meta and scoring legend without invalidating any caches.
+
 ## Open questions
 
 ### Fold "Configure wordlist" into the Wordlists dialog

@@ -1975,7 +1975,10 @@ const WordlistsDialog = (() => {
         if (newName !== originalName) {
           wordlist.name = newName;
           persistMeta();
+          // Caches hold wordlist refs and read .name live; just re-render visible UI.
           if (state.selected === wordlist) SourceDropdown.renderTrigger();
+          if (state.selected === MERGED_ID) renderMergedDetail();
+          else if (state.selected) renderDetail(state.selected);
         }
         nameEl.textContent = newName;
       },
@@ -2480,9 +2483,13 @@ const _mergedStatsKey = {};
 let _sourceCountsCache = null;
 let _mergedWordlistCache = null;
 
-function invalidateRescoredCache(wordlist) { wordlist._rescored = null; }
+function invalidateRescoredCache(wordlist) { wordlist._rescored = null; wordlist._rescoredMap = null; }
 function invalidateStatsCache(key) { _statsCache.delete(key); }
-function invalidateSourceCounts() { _sourceCountsCache = null; _mergedWordlistCache = null; }
+function invalidateSourceCounts() {
+  _sourceCountsCache = null;
+  _mergedWordlistCache = null;
+  for (const l of state.sources) l._overrideMap = null;
+}
 function invalidateWordlistCaches(wordlist) {
   invalidateRescoredCache(wordlist);
   invalidateStatsCache(wordlist);
@@ -2616,7 +2623,7 @@ class VirtualScroller {
     this.showSource = false;
     this.showDeleteCol = false;
     this.editsWordlist = null;
-    this.currentWordlistName = '';
+    this.currentWordlist = null;
     this._onCellEdit = null;  // (word, field, newValue) => void
     this._onEditStart = null; // (word, field, tdEl) => void
     this._onEditEnd = null;   // () => void
@@ -2682,14 +2689,14 @@ class VirtualScroller {
     this.table.addEventListener('mouseleave', () => { _popTd = null; hideCellPopover(); });
   }
 
-  setEntries(allEntries, query, rescoreRules, overrideMap, wholeWord = false, scoreRange = '', rescoredEntries = null) {
+  setEntries(allEntries, query, rescoreRules, overrideMap, wholeWord = false, scoreRange = '') {
     this.allEntries = allEntries;
     this.hasComments = allEntries.some(e => e.comment);
     this.rescoreRules = rescoreRules || [];
     this.overrideMap = overrideMap || new Map();
     this.sortKey = 'word';
     this.sortDir = 'asc';
-    this._buildSortScores(rescoredEntries);
+    this._sortScores = null;
     this._buildHeader();
     this.filter(query, wholeWord, scoreRange);
   }
@@ -2841,7 +2848,7 @@ class VirtualScroller {
       const key = this.sortKey;
       const dir = this.sortDir === 'asc' ? 1 : -1;
       if (key === 'score' && (this.rescoreRules.length || this.overrideMap.size)) {
-        if (!this._sortScores) this._buildSortScores(null);
+        if (!this._sortScores) this._buildSortScores();
         entries = [...entries].sort((a, b) => dir * (this._sortScores.get(a) - this._sortScores.get(b)));
       } else {
         entries = [...entries].sort((a, b) => {
@@ -2863,23 +2870,13 @@ class VirtualScroller {
     this._render();
   }
 
-  _buildSortScores(rescoredEntries) {
+  _buildSortScores() {
     if (!this.rescoreRules.length && !this.overrideMap.size) { this._sortScores = null; return; }
     const map = new Map();
-    const hasOverrides = this.overrideMap.size > 0;
-    if (rescoredEntries) {
-      const rescoreMap = new Map();
-      for (const e of rescoredEntries) rescoreMap.set(e.word, e.score);
-      for (const e of this.allEntries) {
-        const ov = hasOverrides && this.overrideMap.get(e.word.toUpperCase());
-        map.set(e, ov ? ov.score : (rescoreMap.get(e.word) ?? -1));
-      }
-    } else {
-      const rescoreCache = new Map();
-      for (const e of this.allEntries) {
-        const d = this._entryDisplayState(e, rescoreCache);
-        map.set(e, d.ignored ? -1 : d.effectiveScore);
-      }
+    const rescoreCache = new Map();
+    for (const e of this.allEntries) {
+      const d = this._entryDisplayState(e, rescoreCache);
+      map.set(e, d.ignored ? -1 : d.effectiveScore);
     }
     this._sortScores = map;
   }
@@ -2929,8 +2926,9 @@ class VirtualScroller {
     const frag = document.createDocumentFragment();
     for (let i = start; i < end; i++) {
       const entry = this.entries[i];
-      const { word, score, comment, wordlistName: entryWordlistName, wordlistRef } = entry;
-      const wordlistName = entryWordlistName || this.currentWordlistName;
+      const { word, score, comment, wordlist: entryWordlist } = entry;
+      const rowWordlist = entryWordlist || this.currentWordlist;
+      const rowWordlistName = rowWordlist?.name ?? '';
       const tier = scoreTier(score);
       const tr = document.createElement('tr');
       tr.style.height = ROW_HEIGHT + 'px';
@@ -2954,13 +2952,13 @@ class VirtualScroller {
 
       let scoreAttrs = '';
       if (!ignored && (wasRescored || scoreOv)) {
-        scoreAttrs = ` data-score-raw="${score}" data-score-wordlist-name="${esc(wordlistName)}"`;
+        scoreAttrs = ` data-score-raw="${score}" data-score-wordlist-name="${esc(rowWordlistName)}"`;
         if (wasRescored) scoreAttrs += ` data-score-rescaled="${rescoredScore}"`;
-        if (scoreOv) scoreAttrs += ` data-score-ov-name="${esc(ov.wordlistName)}" data-score-ov-val="${ov.score}"`;
+        if (scoreOv) scoreAttrs += ` data-score-ov-name="${esc(ov.wordlist.name)}" data-score-ov-val="${ov.score}"`;
       }
       let commentAttrs = '';
       if (commentOverridden) {
-        commentAttrs = ` data-comment-wordlist-name="${esc(wordlistName)}" data-comment-raw="${esc(comment || '')}" data-comment-ov-name="${esc(ov.wordlistName)}" data-comment-ov-val="${esc(ov.comment)}"`;
+        commentAttrs = ` data-comment-wordlist-name="${esc(rowWordlistName)}" data-comment-raw="${esc(comment || '')}" data-comment-ov-name="${esc(ov.wordlist.name)}" data-comment-ov-val="${esc(ov.comment)}"`;
       }
       const commentInner = esc(effectiveComment) + (commentOverridden ? '<sup class="effective-asterisk">*</sup>' : '');
 
@@ -2970,8 +2968,8 @@ class VirtualScroller {
 
       let sourceCell = '';
       if (this.showSource) {
-        const wordlistLabel = wordlistRef ? buildWordlistNameHTML(wordlistRef, { bold: false }) : esc(wordlistName || '');
-        const editTrash = (this.showEditDeleteCol && wordlistRef === this.editsWordlist)
+        const wordlistLabel = rowWordlist ? buildWordlistNameHTML(rowWordlist, { bold: false }) : '';
+        const editTrash = (this.showEditDeleteCol && rowWordlist === this.editsWordlist)
           ? `<span class="source-trash" title="Delete edit">${buildTrashIconHTML()}</span>`
           : '';
         sourceCell = `<td class="comment-cell col-source">${wordlistLabel}${editTrash}</td>`;
@@ -3246,6 +3244,14 @@ function getRescoredEntries(wordlist) {
   return wordlist._rescored ??= applyRescoring(wordlist.rawEntries, wordlist.rescoreRules);
 }
 
+function getRescoredMap(wordlist) {
+  if (wordlist._rescoredMap) return wordlist._rescoredMap;
+  const map = new Map();
+  for (const e of getRescoredEntries(wordlist)) map.set(e.word.toUpperCase(), e);
+  wordlist._rescoredMap = map;
+  return map;
+}
+
 function rescoreEntry(entry, rules) {
   for (const rule of rules) {
     const scoreIntervals = rule._scoreIntervals !== undefined ? rule._scoreIntervals : parseRange(rule.input);
@@ -3286,7 +3292,6 @@ function renderRescoreSection() {
 let scroller = null;
 let _detailWordlist = null;
 let _dateTimer = null;
-let _refreshCountsTimer = null;
 
 function renderAll() {
   renderSources();
@@ -3355,7 +3360,13 @@ function renderMergedDetail() {
 
   const refreshOutputEntries = () => {
     const { entries } = buildMergedWordlist();
-    scroller.updateEntries(entries);
+    if (entries === scroller.allEntries) {
+      // In-place patch: same array, entry objects mutated. Refilter/resort only.
+      scroller._sortScores = null;
+      scroller._applyFilterAndSort(false);
+    } else {
+      scroller.updateEntries(entries);
+    }
   };
   scroller._onDeleteRow = word => deleteFromEdits(word, refreshOutputEntries);
 
@@ -3448,13 +3459,14 @@ function renderDetail(wordlist) {
   `;
 
   createScroller();
-  scroller.currentWordlistName = wordlist.name;
-  scroller.setEntries(wordlist.rawEntries, state.searchQuery, wordlist.rescoreRules, buildOverrideMap(wordlist), state.searchWholeWord, state.scoreRange, getRescoredEntries(wordlist));
+  scroller.currentWordlist = wordlist;
+  scroller.setEntries(wordlist.rawEntries, state.searchQuery, wordlist.rescoreRules, buildOverrideMap(wordlist), state.searchWholeWord, state.scoreRange);
 
   attachExternalEditHandlers(scroller, () => {
     scroller.overrideMap = buildOverrideMap(wordlist);
     scroller._sortScores = null;
-    scroller._render();
+    // Refilter — a score override change can move the entry in/out of the score-range filter.
+    scroller._applyFilterAndSort(false);
   });
 }
 
@@ -3478,11 +3490,12 @@ function renderEditsDetail(wordlist) {
     const entry = wordlist.rawEntries.find(e => e.word.toUpperCase() === word.toUpperCase());
     if (!entry) return;
     entry[field] = newValue;
-    invalidateWordlistCaches(wordlist);
+    patchCachesForEditsChange(word.toUpperCase(), entry);
     updateCatchAll(wordlist);
     persistEdits(wordlist);
-    refreshSourceCounts();
-    scroller.setEntries(wordlist.rawEntries, state.searchQuery, [], new Map(), state.searchWholeWord, state.scoreRange);
+    refreshDerivedDisplays();
+    scroller._sortScores = null;
+    scroller._applyFilterAndSort(false);
   };
 
   scroller._onDeleteRow = word => deleteFromEdits(word);
@@ -3503,25 +3516,21 @@ function upsertEdits(word, field, newValue) {
   const edits = getEditsWordlist();
   const upperWord = word.toUpperCase();
   const existing = edits.rawEntries.find(e => e.word.toUpperCase() === upperWord);
+  let entry;
   if (existing) {
     existing[field] = newValue;
+    entry = existing;
   } else {
-    // Find original entry from current scroller for the other field's value
     const orig = scroller?.allEntries?.find(e => e.word.toUpperCase() === upperWord);
     const score   = field === 'score'   ? newValue : (orig?.score   ?? 50);
     const comment = field === 'comment' ? newValue : (orig?.comment ?? '');
-    edits.rawEntries.push({ word: word.toLowerCase(), score, comment });
+    entry = { word: word.toLowerCase(), score, comment };
+    edits.rawEntries.push(entry);
   }
-  invalidateWordlistCaches(edits);
+  patchCachesForEditsChange(upperWord, entry);
   updateCatchAll(edits);
   persistEdits(edits);
-  // Refresh merged or individual view if active
-  if (state.selected === MERGED_ID) {
-    clearTimeout(_refreshCountsTimer);
-    _refreshCountsTimer = setTimeout(refreshSourceCounts, 0);
-  } else {
-    refreshSourceCounts();
-  }
+  refreshDerivedDisplays();
 }
 
 function showEditInfoNote(td) {
@@ -3894,25 +3903,28 @@ function openAddWordBar() {
     const edits = getEditsWordlist();
 
     const existing = edits.rawEntries.find(e => e.word.toUpperCase() === word);
+    let entry;
     if (existing) {
       existing.score = score;
       existing.comment = comment;
+      entry = existing;
       showToast(`Updated ${displayWord(word)}`);
     } else {
-      edits.rawEntries.push({ word: word.toLowerCase(), score, comment });
+      entry = { word: word.toLowerCase(), score, comment };
+      edits.rawEntries.push(entry);
       showToast(`Added ${displayWord(word)}`);
     }
 
-    invalidateWordlistCaches(edits);
+    patchCachesForEditsChange(word, entry);
     updateCatchAll(edits);
     persistEdits(edits);
-    refreshSourceCounts();
+    refreshDerivedDisplays();
 
-    if (state.selected === edits) {
-      renderEditsDetail(edits);
-    } else {
-      restoreTrigger();
+    if (state.selected === edits && scroller) {
+      scroller._sortScores = null;
+      scroller._applyFilterAndSort(false);
     }
+    restoreTrigger();
   }
 
   bar.addEventListener('keydown', e => {
@@ -3926,24 +3938,26 @@ function deleteFromEdits(word, refreshFn) {
   const idx = edits.rawEntries.findIndex(e => e.word.toUpperCase() === word.toUpperCase());
   if (idx === -1) return;
 
+  const upperWord = word.toUpperCase();
   const refresh = refreshFn ?? (() => {
-    scroller.setEntries(edits.rawEntries, state.searchQuery, [], new Map(), state.searchWholeWord, state.scoreRange);
+    scroller._sortScores = null;
+    scroller._applyFilterAndSort(false);
   });
 
   const [deleted] = edits.rawEntries.splice(idx, 1);
-  invalidateWordlistCaches(edits);
+  patchCachesForEditsChange(upperWord, null);
   updateCatchAll(edits);
   persistEdits(edits);
   refresh();
-  setTimeout(refreshSourceCounts, 0);
+  refreshDerivedDisplays();
 
   showUndoToast(`Deleted ${esc(displayWord(deleted.word))} from ${buildWordlistNameHTML(edits)}`, () => {
     edits.rawEntries.splice(idx, 0, deleted);
-    invalidateWordlistCaches(edits);
+    patchCachesForEditsChange(upperWord, deleted);
     updateCatchAll(edits);
     persistEdits(edits);
     refresh();
-    setTimeout(refreshSourceCounts, 0);
+    refreshDerivedDisplays();
   });
 }
 
@@ -4553,10 +4567,14 @@ const ConfigureWordlistDialog = (() => {
       _wordlist.name = name;
       _wordlist.url  = url;
       if (_selectedPublisher) { _wordlist.publisherId = _selectedPublisher.id; } else { delete _wordlist.publisherId; }
-      if (rules !== null) { _wordlist.rescoreRules = rules; updateCatchAll(_wordlist); }
+      const rulesChanged = rules !== null;
+      if (rulesChanged) { _wordlist.rescoreRules = rules; updateCatchAll(_wordlist); }
       persistMeta();
-      invalidateWordlistCaches(_wordlist);
-      refreshSourceCounts();
+      // Only rules change downstream caches; name/icon/url/publisherId are read live.
+      if (rulesChanged) {
+        invalidateWordlistCaches(_wordlist);
+        refreshSourceCounts();
+      }
       renderSources();
       if (state.selected === _wordlist) renderDetail(_wordlist);
       else if (state.selected === MERGED_ID) renderMergedDetail();
@@ -5113,17 +5131,169 @@ function startInlineRename(inputEl, originalName, { onCommit, onCancel, onInput 
 // ─── Merge & Download ─────────────────────────────────────────────────────────
 
 // Wordlist order determines merge priority: higher-priority wordlists appear earlier in state.sources; the loop breaks at the target wordlist's position.
+// Cached on `wordlist._overrideMap` and invalidated by `invalidateSourceCounts` whenever any source's content, ordering, enabled flag, or rescore rules change.
 function buildOverrideMap(wordlist) {
+  if (wordlist._overrideMap) return wordlist._overrideMap;
   const map = new Map();
   for (const l of state.sources) {
     if (l === wordlist) break;
     if (!l.enabled || !l.rawEntries.length) continue;
     for (const { word, score, comment } of getRescoredEntries(l)) {
       const w = word.toUpperCase();
-      if (!map.has(w)) map.set(w, { wordlistName: l.name, score, comment: comment || '' });
+      if (!map.has(w)) map.set(w, { wordlist: l, score, comment: comment || '' });
     }
   }
+  wordlist._overrideMap = map;
   return map;
+}
+
+// In-place cache patch for a single My Edits change to `word`.
+//   newEditsEntry  → ADD or UPDATE (entry now in edits.rawEntries)
+//   null           → DELETE (entry just removed from edits.rawEntries)
+// Caller has already mutated edits.rawEntries.
+function patchCachesForEditsChange(word, newEditsEntry) {
+  const edits = getEditsWordlist();
+  if (!edits) return;
+
+  // edits's own derived caches are now stale; lazy rebuild on next access.
+  invalidateRescoredCache(edits);
+  _statsCache.delete(edits);
+  _statsCache.delete(_mergedStatsKey);
+
+  // If edits is disabled or a higher-priority wordlist already has `word`,
+  // edits never contributed for `word` — caches don't reference it.
+  if (!edits.enabled) return;
+  if (buildOverrideMap(edits).has(word)) return;
+
+  const editsIdx = state.sources.indexOf(edits);
+  const cache = _mergedWordlistCache;
+
+  if (newEditsEntry) {
+    // ADD or UPDATE: edits is now the contributor for `word` from editsIdx down.
+    const ovEntry = { wordlist: edits, score: newEditsEntry.score, comment: newEditsEntry.comment || '' };
+    for (let i = editsIdx + 1; i < state.sources.length; i++) {
+      const m = state.sources[i]._overrideMap;
+      if (m) m.set(word, ovEntry);
+    }
+    if (cache) {
+      const existing = cache.byWord.get(word);
+      if (existing) {
+        // UPDATE, or ADD that took over from a below-edits contributor.
+        if (existing.wordlist !== edits) {
+          adjustSourceCount(cache, existing.wordlist, -1);
+          adjustSourceCount(cache, edits, 1);
+          existing.wordlist = edits;
+        }
+        existing.score = newEditsEntry.score;
+        existing.comment = newEditsEntry.comment || '';
+      } else {
+        // ADD: brand-new word, no other wordlist has it.
+        const merged = {
+          word: newEditsEntry.word,
+          score: newEditsEntry.score,
+          comment: newEditsEntry.comment || '',
+          wordlist: edits,
+        };
+        cache.byWord.set(word, merged);
+        insertSortedByWord(cache.entries, merged);
+        adjustSourceCount(cache, edits, 1);
+      }
+    }
+  } else {
+    // DELETE: edits was the contributor (no higher-priority list has `word`).
+    // Walk down to find the next enabled wordlist with `word`.
+    let nextIdx = -1;
+    for (let i = editsIdx + 1; i < state.sources.length; i++) {
+      const l = state.sources[i];
+      if (!l.enabled || !l.rawEntries.length) continue;
+      if (getRescoredMap(l).has(word)) { nextIdx = i; break; }
+    }
+
+    // Override maps for L below edits: at L_pos > nextIdx, next wins; at L_pos ≤ nextIdx, no contributor in range → delete.
+    if (nextIdx === -1) {
+      for (let i = editsIdx + 1; i < state.sources.length; i++) {
+        const m = state.sources[i]._overrideMap;
+        if (m) m.delete(word);
+      }
+    } else {
+      const nextList = state.sources[nextIdx];
+      const nextRaw = getRescoredMap(nextList).get(word);
+      const ovEntry = { wordlist: nextList, score: nextRaw.score, comment: nextRaw.comment || '' };
+      for (let i = editsIdx + 1; i < state.sources.length; i++) {
+        const m = state.sources[i]._overrideMap;
+        if (!m) continue;
+        if (i <= nextIdx) m.delete(word);
+        else m.set(word, ovEntry);
+      }
+    }
+
+    if (cache) {
+      const existing = cache.byWord.get(word);
+      if (existing) {
+        adjustSourceCount(cache, edits, -1);
+        if (nextIdx === -1) {
+          cache.byWord.delete(word);
+          const idx = cache.entries.indexOf(existing);
+          if (idx !== -1) cache.entries.splice(idx, 1);
+        } else {
+          const nextList = state.sources[nextIdx];
+          const nextEntry = getRescoredMap(nextList).get(word);
+          adjustSourceCount(cache, nextList, 1);
+          existing.wordlist = nextList;
+          existing.score = nextEntry.score;
+          existing.comment = nextEntry.comment || '';
+        }
+      }
+    }
+  }
+}
+
+function adjustSourceCount(cache, wordlist, delta) {
+  const i = cache.sourceCounts.findIndex(s => s.wordlist === wordlist);
+  if (i >= 0) {
+    cache.sourceCounts[i].count += delta;
+    // Mirror buildMergedWordlist's filter: drop wordlists that are now empty.
+    if (cache.sourceCounts[i].count <= 0 && wordlist.rawEntries.length === 0) {
+      cache.sourceCounts.splice(i, 1);
+    }
+  } else if (delta > 0) {
+    cache.sourceCounts.push({ wordlist, count: delta });
+  }
+}
+
+function insertSortedByWord(entries, entry) {
+  let lo = 0, hi = entries.length;
+  while (lo < hi) {
+    const mid = (lo + hi) >>> 1;
+    if (entries[mid].word.localeCompare(entry.word) < 0) lo = mid + 1;
+    else hi = mid;
+  }
+  entries.splice(lo, 0, entry);
+}
+
+// Display-side refresh after an in-place cache patch: repaint the rail meta
+// (contribution counts), the scoring legend, and the visible stats bar when it
+// depends on edited content. Counterpart to refreshSourceCounts without the
+// invalidate-and-rebuild.
+function refreshDerivedDisplays() {
+  if (_sourceCountsCache) {
+    const contribMap = new Map(_sourceCountsCache.map(s => [s.wordlist, s.count]));
+    WordlistsDialog.updateRailMeta(contribMap);
+  }
+  renderScoringSection();
+
+  // Stats bar: My Edits view (raw entries changed) and merged view (merged contents
+  // changed) both depend on edited content; regular wordlist views show their own
+  // raw stats which My Edits changes don't affect.
+  const isMerged = state.selected === MERGED_ID;
+  const isEditsSelected = !isMerged && state.selected?.type === 'edits';
+  if (!isMerged && !isEditsSelected) return;
+  const statsBar = document.querySelector('#detail-panel .stats-bar');
+  if (!statsBar) return;
+  const stats = isMerged
+    ? computeStats(_mergedStatsKey, buildMergedWordlist().entries)
+    : computeStats(state.selected, state.selected.rawEntries);
+  statsBar.outerHTML = buildStatsBarHTML(stats);
 }
 
 function buildMergedWordlist() {
@@ -5138,7 +5308,7 @@ function buildMergedWordlist() {
     for (const { word, score, comment } of getRescoredEntries(wordlist)) {
       const key = word.toUpperCase();
       if (!mergedMap.has(key)) {
-        mergedMap.set(key, { word: word.toLowerCase(), score, comment: comment || '', wordlistName: wordlist.name, wordlistRef: wordlist });
+        mergedMap.set(key, { word: word.toLowerCase(), score, comment: comment || '', wordlist });
         count++;
       }
     }
@@ -5148,7 +5318,8 @@ function buildMergedWordlist() {
   const entries = [...mergedMap.values()]
     .sort((a, b) => a.word.localeCompare(b.word));
 
-  _mergedWordlistCache = { entries, sourceCounts };
+  // byWord shares object identity with entries — patching via byWord updates entries.
+  _mergedWordlistCache = { entries, sourceCounts, byWord: mergedMap };
   return _mergedWordlistCache;
 }
 
