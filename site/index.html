@@ -774,8 +774,10 @@ html.dark-mode .wld-onboarding {
 /* Wordlist icons */
 .wordlist-icon { width: 16px; height: 16px; flex-shrink: 0; vertical-align: middle; }
 .wordlist-icon-img { border-radius: 3px; display: inline-block; }
-/* Wordlist name icon: inline icon preceding a wordlist name in toasts, alerts, help text, and source column */
-.wordlist-name-icon { display: inline; }
+/* Wordlist name icon: inline icon preceding a wordlist name in toasts, alerts, help text, and source column.
+   `nowrap` plus the trailing space inside the span (see buildWordlistNameHTML) glues the icon to the first
+   word of the name — moving that space outside the span would let the icon orphan at a line end. */
+.wordlist-name-icon { display: inline; white-space: nowrap; }
 .wordlist-name-icon .wordlist-icon { width: 1em; height: 1em; vertical-align: -0.1em; }
 
 /* Score display */
@@ -1496,7 +1498,10 @@ function buildDragHandleHTML(interactive = false) {
 function buildWordlistNameHTML(wordlist, { bold = true } = {}) {
   const icon = getWordlistIcon(wordlist);
   const name = bold ? `<strong>${esc(wordlist.name)}</strong>` : esc(wordlist.name);
-  return `<span class="wordlist-name-icon">${icon}</span> ${name}`;
+  // The trailing space inside the span is load-bearing: combined with `white-space: nowrap` on
+  // .wordlist-name-icon, it keeps the icon glued to the first word of the name. Move it outside
+  // the span and the icon can orphan at a line end.
+  return `<span class="wordlist-name-icon">${icon} </span>${name}`;
 }
 
 // ─── Router ───────────────────────────────────────────────────────────────────
