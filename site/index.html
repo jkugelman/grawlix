@@ -497,7 +497,6 @@ a.get-file:hover { text-decoration: underline; }
 #source-dropdown-menu .dropdown-item { display: flex; align-items: center; gap: 9px; padding: 7px 14px; cursor: pointer; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 #source-dropdown-menu .dropdown-item:hover { background: var(--hover); }
 #source-dropdown-menu .dropdown-item.selected { background: var(--sel); }
-#source-dropdown-menu .dropdown-item.selected::after { content: '✓'; margin-left: auto; color: var(--accent); font-weight: 700; }
 #source-dropdown-menu .dropdown-item.disabled { opacity: 0.45; }
 #source-dropdown-menu .dropdown-item .wordlist-icon { width: 16px; height: 16px; flex-shrink: 0; }
 #source-dropdown-menu .dropdown-divider { height: 1px; background: var(--border2); margin: 6px 0; }
@@ -781,7 +780,7 @@ input.cell-edit.score-edit { font-family: ui-monospace, 'Cascadia Code', monospa
     <h2 class="rail-section-header">Wordlist</h2>
     <div class="rail-nav">
       <div class="source-dropdown-row">
-        <button id="source-dropdown-btn" class="source-dropdown-btn" aria-haspopup="menu" aria-expanded="false" title="Wordlist (Alt+L)">
+        <button id="source-dropdown-btn" class="source-dropdown-btn" aria-haspopup="listbox" aria-controls="source-dropdown-menu" aria-expanded="false" title="Wordlist (Alt+L)">
           <span class="source-dropdown-icon"></span>
           <span class="source-dropdown-name">All</span>
           <svg class="source-dropdown-caret" width="8" height="5" aria-hidden="true"><use href="#icon-arrow"/></svg>
@@ -2179,11 +2178,37 @@ const SourceDropdown = (() => {
 
   const menu = document.createElement('div');
   menu.id = 'source-dropdown-menu';
-  menu.setAttribute('role', 'menu');
+  menu.setAttribute('role', 'listbox');
+  menu.setAttribute('aria-label', 'Wordlists');
   menu.hidden = true;
   document.body.appendChild(menu);
 
   function isMerged() { return state.selected === MERGED_ID; }
+
+  // Keyboard nav helpers: roving tabindex + type-ahead.
+  let typeahead = '';
+  let typeaheadTimer = 0;
+  // Snapshot of state.selected at open() time, so Escape can revert
+  // arrow-key live-selections to the value from before the listbox opened.
+  let initialSelection = null;
+  function options() { return [...menu.querySelectorAll('.dropdown-item')]; }
+  function focusItem(item) {
+    if (!item) return;
+    menu.querySelectorAll('.dropdown-item[tabindex="0"]').forEach(el => el.setAttribute('tabindex', '-1'));
+    item.setAttribute('tabindex', '0');
+    item.focus();
+  }
+  // Apply selection (state + ARIA + visual) and focus the option.
+  function liveSelect(item) {
+    if (item.dataset.target === 'merged') selectMergedWordlist();
+    else if (item._wordlist) selectWordlist(item._wordlist);
+    options().forEach(el => {
+      const isThis = el === item;
+      el.classList.toggle('selected', isThis);
+      el.setAttribute('aria-selected', String(isThis));
+    });
+    focusItem(item);
+  }
 
   function renderTrigger() {
     if (isMerged()) {
@@ -2198,25 +2223,28 @@ const SourceDropdown = (() => {
     }
   }
 
-  function buildMenuItem(iconHTML, name, { selected = false, meta = '' } = {}) {
-    const sel = selected ? ' selected' : '';
-    const metaHTML = meta ? `<span class="dropdown-item-meta">${esc(meta)}</span>` : '';
-    return `<div class="dropdown-item${sel}" role="menuitem" tabindex="0">${iconHTML}<span>${esc(name)}</span>${metaHTML}</div>`;
-  }
-
   function renderMenu() {
+    // Roving tabindex: only the selected option is in the tab sequence; arrow
+    // keys move focus among the others. `role="presentation"` on the divider
+    // because listbox children must be options or groups (not separators).
     const parts = [];
-    parts.push(`<div class="dropdown-item${isMerged() ? ' selected' : ''}" data-target="merged" role="menuitem" tabindex="0">${MERGED_ICON}<span>${MERGED_NAME}</span></div>`);
-    parts.push(`<div class="dropdown-divider"></div>`);
+    const mergedSel = isMerged();
+    parts.push(`<div class="dropdown-item${mergedSel ? ' selected' : ''}" data-target="merged" role="option" tabindex="${mergedSel ? '0' : '-1'}" aria-selected="${mergedSel}">${MERGED_ICON}<span>${MERGED_NAME}</span></div>`);
+    parts.push(`<div class="dropdown-divider" role="presentation"></div>`);
     state.sources.forEach(wordlist => {
-      const sel = !isMerged() && state.selected === wordlist;
-      parts.push(`<div class="dropdown-item${sel ? ' selected' : ''}${wordlist.enabled ? '' : ' disabled'}" data-wordlist role="menuitem" tabindex="0">${getWordlistIcon(wordlist)}<span>${esc(wordlist.name)}</span></div>`);
+      const sel = !mergedSel && state.selected === wordlist;
+      parts.push(`<div class="dropdown-item${sel ? ' selected' : ''}${wordlist.enabled ? '' : ' disabled'}" data-wordlist role="option" tabindex="${sel ? '0' : '-1'}" aria-selected="${sel}">${getWordlistIcon(wordlist)}<span>${esc(wordlist.name)}</span></div>`);
     });
 
     menu.innerHTML = parts.join('');
 
     const wordlistEls = [...menu.querySelectorAll('.dropdown-item[data-wordlist]')];
     state.sources.forEach((wordlist, i) => { if (wordlistEls[i]) wordlistEls[i]._wordlist = wordlist; });
+
+    // Fallback: nothing was selected — make the first option focusable.
+    if (!menu.querySelector('.dropdown-item[tabindex="0"]')) {
+      menu.querySelector('.dropdown-item')?.setAttribute('tabindex', '0');
+    }
   }
 
   function position() {
@@ -2227,6 +2255,7 @@ const SourceDropdown = (() => {
   }
 
   function open() {
+    initialSelection = state.selected;
     renderMenu();
     position();
     menu.hidden = false;
@@ -2234,13 +2263,76 @@ const SourceDropdown = (() => {
   }
 
   function close() {
+    initialSelection = null;
     menu.hidden = true;
     trigger.setAttribute('aria-expanded', 'false');
+  }
+
+  // Restore selection to what it was when the listbox opened (Escape behavior).
+  function cancelAndClose() {
+    if (initialSelection !== null && state.selected !== initialSelection) {
+      if (initialSelection === MERGED_ID) selectMergedWordlist();
+      else selectWordlist(initialSelection);
+    }
+    close();
   }
 
   trigger.addEventListener('click', e => {
     e.stopPropagation();
     menu.hidden ? open() : close();
+  });
+
+  // Step selection through [merged, ...sources] like a native <select>:
+  // clamp at both ends, no wrap-around.
+  function stepSelection(delta) {
+    const items = [MERGED_ID, ...state.sources];
+    let idx = 0;
+    if (!isMerged()) {
+      const i = state.sources.indexOf(state.selected);
+      idx = i >= 0 ? i + 1 : 0;
+    }
+    const nextIdx = Math.max(0, Math.min(items.length - 1, idx + delta));
+    if (nextIdx === idx) return;
+    const next = items[nextIdx];
+    if (next === MERGED_ID) selectMergedWordlist();
+    else selectWordlist(next);
+  }
+
+  trigger.addEventListener('keydown', e => {
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      // Closed: cycle the selection in place, like a native <select>.
+      // Open: move focus into the listbox.
+      if (menu.hidden) stepSelection(e.key === 'ArrowDown' ? 1 : -1);
+      else focusItem(menu.querySelector('.dropdown-item[tabindex="0"]') ?? menu.querySelector('.dropdown-item'));
+    } else if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      if (menu.hidden) openWithFocus();
+      else focusItem(menu.querySelector('.dropdown-item[tabindex="0"]') ?? menu.querySelector('.dropdown-item'));
+    } else if (menu.hidden && e.key.length === 1 && /\S/.test(e.key) && !e.ctrlKey && !e.metaKey && !e.altKey) {
+      // Type-ahead while closed: jump to the next option whose name starts
+      // with the typed prefix, like a native <select>.
+      e.preventDefault();
+      clearTimeout(typeaheadTimer);
+      typeahead += e.key.toLowerCase();
+      typeaheadTimer = setTimeout(() => { typeahead = ''; }, 500);
+
+      const items = [MERGED_ID, ...state.sources];
+      let idx = 0;
+      if (!isMerged()) {
+        const i = state.sources.indexOf(state.selected);
+        idx = i >= 0 ? i + 1 : 0;
+      }
+      for (let i = 1; i <= items.length; i++) {
+        const j = (idx + i) % items.length;
+        const name = items[j] === MERGED_ID ? MERGED_NAME : items[j].name;
+        if (name.toLowerCase().startsWith(typeahead)) {
+          if (items[j] === MERGED_ID) selectMergedWordlist();
+          else selectWordlist(items[j]);
+          return;
+        }
+      }
+    }
   });
 
   document.addEventListener('click', e => {
@@ -2250,28 +2342,59 @@ const SourceDropdown = (() => {
   });
 
   document.addEventListener('keydown', e => {
-    if (!menu.hidden && e.key === 'Escape') { e.preventDefault(); close(); trigger.focus(); }
+    if (!menu.hidden && e.key === 'Escape') { e.preventDefault(); cancelAndClose(); trigger.focus(); }
   });
 
   menu.addEventListener('click', e => {
     const item = e.target.closest('.dropdown-item');
-    if (item) {
-      if (item.dataset.target === 'merged') {
-        selectMergedWordlist();
-      } else if (item._wordlist) {
-        selectWordlist(item._wordlist);
-      }
-      close();
-      return;
-    }
+    if (!item) return;
+    liveSelect(item);
+    close();
+    trigger.focus();
   });
 
   menu.addEventListener('keydown', e => {
-    if (e.key !== 'Enter' && e.key !== ' ') return;
-    const item = e.target.closest('.dropdown-item');
-    if (!item) return;
-    e.preventDefault();
-    item.click();
+    const list = options();
+    if (list.length === 0) return;
+    const current = e.target.closest('.dropdown-item');
+    const idx = list.indexOf(current);
+
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      const nextIdx = idx >= 0 ? Math.min(idx + 1, list.length - 1) : 0;
+      if (nextIdx !== idx) liveSelect(list[nextIdx]);
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      const nextIdx = idx > 0 ? idx - 1 : 0;
+      if (nextIdx !== idx) liveSelect(list[nextIdx]);
+    } else if (e.key === 'Home') {
+      e.preventDefault();
+      liveSelect(list[0]);
+    } else if (e.key === 'End') {
+      e.preventDefault();
+      liveSelect(list[list.length - 1]);
+    } else if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      // Selection is already committed via arrow nav; just close.
+      close();
+      trigger.focus();
+    } else if (e.key === 'Tab') {
+      // Tab leaves the listbox — close (selection already committed) and let
+      // focus move naturally.
+      close();
+    } else if (e.key.length === 1 && /\S/.test(e.key) && !e.ctrlKey && !e.metaKey && !e.altKey) {
+      // Type-ahead: jump to the next option whose name starts with the typed
+      // prefix and live-select it.
+      clearTimeout(typeaheadTimer);
+      typeahead += e.key.toLowerCase();
+      typeaheadTimer = setTimeout(() => { typeahead = ''; }, 500);
+      const start = idx >= 0 ? idx : -1;
+      for (let i = 1; i <= list.length; i++) {
+        const j = (start + i + list.length) % list.length;
+        const text = (list[j].textContent ?? '').trim().toLowerCase();
+        if (text.startsWith(typeahead)) { e.preventDefault(); liveSelect(list[j]); break; }
+      }
+    }
   });
 
   window.addEventListener('resize', () => { if (!menu.hidden) position(); });
@@ -2279,8 +2402,7 @@ const SourceDropdown = (() => {
   // Open the menu and move keyboard focus into it (selected item if any, else first).
   function openWithFocus() {
     open();
-    const sel = menu.querySelector('.dropdown-item.selected') ?? menu.querySelector('.dropdown-item');
-    sel?.focus();
+    focusItem(menu.querySelector('.dropdown-item[tabindex="0"]') ?? menu.querySelector('.dropdown-item'));
   }
 
   return { renderTrigger, open, close, openWithFocus };
