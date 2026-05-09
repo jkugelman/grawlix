@@ -255,28 +255,38 @@ Sort axes vary by output kind:
 - **Pairs:** Min score, Max score, Score (from), Score (to), Min length, Max length, Alphabetical.
 - **Groups:** Min, Max, Count, Alphabetical.
 
+### Pseudo-column alignment
+
+Each row internally divides into fixed sub-slots — for words: `[length] [word] [score]`; for pairs: `[length] [word] [score]  relation  [length] [word] [score]`. Slots stay at consistent positions across rows, so the eye reads down them as if they were columns even though there are no headers. The alignment itself is the announcement of what's where. Email clients do exactly this — sender, subject, and date are sub-slots in each card-row; no header row is needed because the visual structure already teaches you where everything lives.
+
+**Width decisions: per-result-set max with a cap.** Slot widths are derived from the longest value across the full result set when the tool runs, then stay fixed during scroll. (Picking widths from the *visible* rows would jitter under virtual scrolling.) Each slot is capped — e.g. ~20 chars for the word slot — and longer values truncate with an ellipsis and show full text in a tooltip. One outlier doesn't blow out the layout for every other row.
+
+Groups are the partial exception. Atom counts vary per row, so atoms don't fully cross-row align — they flow across the line separated by bullets. The leading `(N)` count slot does align across rows, giving the eye an anchor; within a row, atoms pack tightly with consistent internal `length word score` shape.
+
 ### Words view
 
 A list of word atoms, default sort by Score descending.
 
 ```
-Sort: Score ↓                    1,247 words
+Sort: Score ↓                       1,247 words
 
-7  TABLESPOON 60
-9  ASTROLOGY  50
-7  HEADBAND   50
+ 7  TABLESPOON  60
+ 9  ASTROLOGY   50
+ 7  HEADBAND    50
 …
 ```
 
 ### Pairs view
 
-A list of `atom relation atom` rows. The relation glyph (`→`, `·`, `⊃`, etc., from `output.relation`) renders between two word atoms. Default sort is Min score for transform and symmetric pairs — the worse word caps pair quality.
+A list of `atom relation atom` rows. The relation glyph (`→`, `·`, `⊃`, etc., from `output.relation`) renders between two word atoms in its own pseudo-column, so arrows line up vertically across all rows. Default sort is Min score for transform and symmetric pairs — the worse word caps pair quality.
 
 ```
-Sort: Min score ↓                321 pairs
+Sort: Min score ↓                                     321 pairs
 
-5 SLING 50 → 4 LING 30
-5 TRAIN 60 → 4 RAIN 40
+ 5  SLING         50  →   4  LING            30
+ 5  TRAIN         60  →   4  RAIN            40
+ 6  SCREAM        50  →   5  CREAM           60
+12  BIBLIOGRAPHY  40  →  11  BIBLIOGRAPHIES  50
 …
 ```
 
@@ -289,14 +299,15 @@ Wordlisted's stacked-pairs display (two scores rendered as `40/50`) keeps column
 A list of bullet-separated atoms with a count prefix. Default sort is Max — the anagram-families case is "find a great word that has anagrams I haven't noticed," which max surfaces and min hides.
 
 ```
-Sort: Max ↓                      89 families
+Sort: Max ↓                                                89 families
 
-(3)  4 CARE 50  ·  4 RACE 40  ·  4 ACRE 30
-(2)  6 STRESSED 60  ·  8 DESSERTS 40
+(3)   4 CARE 50  ·  4 RACE 40  ·  4 ACRE 30
+(2)   8 STRESSED 60  ·  8 DESSERTS 40
+(5)   5 ALERT 60  ·  5 ALTER 50  ·  5 LATER 60  ·  5 RATEL 20  ·  5 TALER 10
 …
 ```
 
-Count is a per-row property; leading `(N)` keeps it visible without dedicated chrome. Min and Max are sort axes, not displayed as numbers — derivable from the row, and showing them next to the atoms would be redundant.
+Count is a per-row property; leading `(N)` keeps it visible without dedicated chrome. Min and Max are sort axes, not displayed as numbers — derivable from the row, and showing them next to the atoms would be redundant. When a group is too wide to fit on one line, atoms wrap to the next line indented under the first atom (not under the count) so it reads as continuation.
 
 ### What this gives up vs. a table
 
