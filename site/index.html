@@ -2777,14 +2777,11 @@ function invalidateWordlistCaches(wordlist) {
   invalidateStatsCache(_mergedStatsKey);
 }
 
-function computeStats(key, entries, ignoredCount = 0) {
-  if (_statsCache.has(key)) return _statsCache.get(key);
+function computeStatsRaw(entries, ignoredCount = 0) {
   // Empty state: return an all-zero shape so buildStatsBarHTML can render the
   // bar with dashes and an empty histogram.
   if (!entries.length) {
-    const empty = { count: 0, min: 0, max: 0, mean: 0, median: 0, mode: 0, distinctScores: [], ignoredCount };
-    _statsCache.set(key, empty);
-    return empty;
+    return { count: 0, min: 0, max: 0, mean: 0, median: 0, mode: 0, distinctScores: [], ignoredCount };
   }
   let min = Infinity, max = -Infinity;
   const freq = {};
@@ -2804,7 +2801,12 @@ function computeStats(key, entries, ignoredCount = 0) {
   }
   const mean = Math.round(scores.reduce((a, b) => a + b, 0) / scores.length);
   const distinctScores = Object.keys(freq).map(Number).sort((a, b) => a - b);
-  const result = { count: entries.length, min, max, mean, median, mode, distinctScores, ignoredCount };
+  return { count: entries.length, min, max, mean, median, mode, distinctScores, ignoredCount };
+}
+
+function computeStats(key, entries, ignoredCount = 0) {
+  if (_statsCache.has(key)) return _statsCache.get(key);
+  const result = computeStatsRaw(entries, ignoredCount);
   _statsCache.set(key, result);
   return result;
 }
@@ -2946,9 +2948,6 @@ function highlightSegments(word, hlRe) {
 
 // ─── Tool stack ───────────────────────────────────────────────────────────────
 // Chrome-only mockup: rows render but don't yet transform the wordlist.
-//
-// TODO: stats bar should reflect the post-filter / post-tool entry set (count,
-// min/max, histogram). Today the stats bar always reflects the source wordlist.
 
 // Single source of truth for tool metadata. The gallery, the tool stack rows, the help tour,
 // and any future surface that names a tool all read from here. Adding a new tool means adding
@@ -3489,6 +3488,7 @@ class VirtualScroller {
     this._onEditStart = null; // (word, field, tdEl) => void
     this._onEditEnd = null;   // () => void
     this._onDeleteRow = null; // (word) => void
+    this.onFilterChange = null; // () => void  — fires after every filter pass
     this._editingCell = null;
     this._sortScores = null;
 
@@ -3723,6 +3723,24 @@ class VirtualScroller {
     this.entries = entries;
     if (resetScroll) this.container.scrollTop = 0;
     this._render();
+    this.onFilterChange?.();
+  }
+
+  // Walks the post-filter entries, applies rescore + override per entry, and
+  // returns a synthetic { score } list of entries that survived rescore plus
+  // a count of those dropped. The synthetic list is what buildStatsBarHTML
+  // and computeStatsRaw need to recompute the stats bar against the currently
+  // visible (filter-aware) set.
+  _filteredStatsViewEntries() {
+    const cache = new Map();
+    const effective = [];
+    let ignoredCount = 0;
+    for (const e of this.entries) {
+      const d = this._entryDisplayState(e, cache);
+      if (d.ignored) ignoredCount++;
+      else effective.push({ score: d.effectiveScore });
+    }
+    return { entries: effective, ignoredCount };
   }
 
   _buildSortScores() {
@@ -4301,7 +4319,22 @@ function mountDetailPanel(panel, stats, entries, middleHTML = '') {
   ToolStack.refreshGalleryActive();
   repositionAllHistogramRects();
   createScroller();
+  scroller.onFilterChange = () => refreshStatsBarFromScroller(panel);
   attachSearchHelpPopup();
+}
+
+// Recomputes the stats bar from the scroller's currently-visible entries.
+// Called by the scroller's onFilterChange callback so search/score-range
+// filtering, edits, and any other filter-affecting change keep the count,
+// min/max/mean/median/mode, and histogram in sync with what's on screen.
+function refreshStatsBarFromScroller(panel) {
+  if (!scroller) return;
+  const statsBar = panel.querySelector('.stats-bar');
+  if (!statsBar) return;
+  const { entries, ignoredCount } = scroller._filteredStatsViewEntries();
+  const stats = computeStatsRaw(entries, ignoredCount);
+  statsBar.outerHTML = buildStatsBarHTML(stats, entries, getHistogramLayout());
+  repositionAllHistogramRects();
 }
 
 // mountDetailPanel rebuilds the search-input on every render — the prior
@@ -6311,8 +6344,11 @@ function insertSortedByWord(entries, entry) {
   entries.splice(lo, 0, entry);
 }
 
-// Display-side refresh: repaint the Wordlists-dialog rail meta, the scoring
-// legend, and the main detail panel's stats bar to match current data.
+// Display-side refresh: repaint the Wordlists-dialog rail meta and the
+// scoring legend to match current data. The main detail panel's stats bar
+// is repainted via the scroller's onFilterChange callback — every caller
+// of refreshDerivedDisplays also runs a scroller filter pass, so the bar
+// stays in sync without needing to be touched here.
 // Used by both the render effect's cache branch (after refreshSourceCounts)
 // and the patch path (which mutates caches in place without bumping).
 function refreshDerivedDisplays() {
@@ -6321,21 +6357,6 @@ function refreshDerivedDisplays() {
     WordlistsDialog.updateRailMeta(contribMap);
   }
   renderScoringRules();
-
-  const statsBar = document.querySelector('#detail-panel .stats-bar');
-  if (!statsBar) return;
-  const sel = state.selected;
-  let stats, entries;
-  if (sel === MERGED_ID) {
-    entries = buildMergedWordlist().entries;
-    stats = computeStats(_mergedStatsKey, entries);
-  } else if (sel) {
-    ({ stats, entries } = statsForWordlist(sel));
-  } else {
-    return;
-  }
-  statsBar.outerHTML = buildStatsBarHTML(stats, entries, getHistogramLayout());
-  repositionAllHistogramRects();
 }
 
 function buildMergedWordlist() {

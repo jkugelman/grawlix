@@ -74,7 +74,7 @@ All colors are CSS variables on `html.dark-mode` / `html.light-mode`. The naming
 
 ## Commit messages
 
-After completing changes that are ready to commit, always output a suggested commit message in conventional commit format (`feat:`, `fix:`, `refactor:`, `chore:`, etc.). Keep it concise. No parenthetical scope — just `fix:` not `fix(scope):`.
+After completing changes that are ready to commit, always output a suggested commit message in conventional commit format (`feat:`, `fix:`, `refactor:`, `chore:`, etc.). No parenthetical scope — just `fix:` not `fix(scope):`. Include a body unless the commit is trivial.
 
 ## Coding style
 
