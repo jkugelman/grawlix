@@ -636,6 +636,12 @@ html.dark-mode .wld-onboarding { background: color-mix(in srgb, var(--accent) 15
 /* Cell popover */
 #cell-popover { position: fixed; background: var(--surface2); border: 1px solid var(--border); border-radius: 6px; padding: 8px 12px; font-size: 12px; line-height: 1.6; max-width: 300px; z-index: 9999; box-shadow: 0 4px 16px rgba(0,0,0,0.18); pointer-events: none; }
 
+/* Popup help */
+.popup-help { position: fixed; z-index: 9999; background: var(--surface2); border: 1px solid var(--border); border-radius: 6px; padding: 7px 12px; font-size: 11px; color: var(--muted); line-height: 1.6; display: inline-grid; grid-template-columns: auto auto; grid-template-rows: repeat(4, auto); grid-auto-flow: column; gap: 2px 22px; box-shadow: 0 4px 12px rgba(0,0,0,0.18); pointer-events: none; opacity: 0; transition: opacity 0.15s; }
+.popup-help.open { opacity: 1; }
+.popup-help span { display: flex; align-items: baseline; gap: 5px; }
+.popup-help kbd { font-family: ui-monospace, 'Cascadia Code', monospace; font-size: 11px; color: var(--text); }
+
 /* Dialog helpers */
 .dialog-actions { text-align: right; }
 .form-field-gap { margin-top: 10px; }
@@ -1075,18 +1081,15 @@ function buildWordlistCardHTML(icon, name, meta, opts = {}) {
   return `<div class="${classes.join(' ')}"${wrapAttrs}>${dragHandle}${icon}${cardInfo}${cardActions}</div>`;
 }
 
-const WILDCARD_HINTS = [
-  { key: '?',       desc: 'any letter' },
-  { key: '*',       desc: 'any number of letters' },
-  { key: '#',       desc: 'consonant' },
-  { key: '@',       desc: 'vowel' },
-  { key: '[jqxz]',  desc: 'any of these letters' },
-  { key: '[^jqxz]', desc: 'none of these letters' },
-  { key: '[a-m]',   desc: 'letter range' },
-];
-
 function buildWildcardSpansHTML() {
-  return WILDCARD_HINTS.map(({ key, desc }) => `<span><kbd>${key}</kbd> ${desc}</span>`).join('\n        ');
+  return `
+        <span><kbd>?</kbd> any letter</span>
+        <span><kbd>*</kbd> any number of letters</span>
+        <span><kbd>#</kbd> consonant</span>
+        <span><kbd>@</kbd> vowel</span>
+        <span><kbd>[jqxz]</kbd> any of these letters</span>
+        <span><kbd>[^jqxz]</kbd> none of these letters</span>
+        <span><kbd>[a-m]</kbd> letter range</span>`;
 }
 
 function buildSearchBarHTML(opts = {}) {
@@ -1119,6 +1122,61 @@ function buildSearchBarHTML(opts = {}) {
         <label class="score-range-label" title="Score: 50, 50-59, or 50+${readonly ? '' : ' (Alt+C)'}">Score <span class="score-range-wrap"><input type="text" id="${pre}score-range-input" value="${esc(scoreRange)}"${ro}${scoreRangeHandler}>${clearScoreBtn}</span></label>
       </div>
     </div>`;
+}
+
+// pointer-events: none in CSS — clicks pass through, can't blur the anchor.
+class PopupHelp {
+  constructor(anchor, contentHTML, opts = {}) {
+    this.anchor = anchor;
+    this.placement = opts.placement || 'below';
+    this.offset = opts.offset ?? 6;
+
+    this.el = document.createElement('div');
+    this.el.className = 'popup-help';
+    this.el.innerHTML = contentHTML;
+    document.body.appendChild(this.el);
+
+    this._onFocus = () => this.show();
+    this._onBlur  = () => this.hide();
+    this._reflow  = () => { if (this._open) this._position(); };
+    anchor.addEventListener('focus', this._onFocus);
+    anchor.addEventListener('blur',  this._onBlur);
+    window.addEventListener('resize', this._reflow);
+    window.addEventListener('scroll', this._reflow, true);
+
+    if (anchor === document.activeElement) this.show();
+  }
+
+  show() {
+    this._open = true;
+    this._position();
+    this.el.classList.add('open');
+  }
+
+  hide() {
+    this._open = false;
+    this.el.classList.remove('open');
+  }
+
+  _position() {
+    const aRect = this.anchor.getBoundingClientRect();
+    const eRect = this.el.getBoundingClientRect();
+    const top = this.placement === 'above'
+      ? aRect.top - eRect.height - this.offset
+      : aRect.bottom + this.offset;
+    const maxLeft = window.innerWidth - eRect.width - 8;
+    const left = Math.max(8, Math.min(aRect.left, maxLeft));
+    this.el.style.top  = top  + 'px';
+    this.el.style.left = left + 'px';
+  }
+
+  destroy() {
+    this.anchor.removeEventListener('focus', this._onFocus);
+    this.anchor.removeEventListener('blur',  this._onBlur);
+    window.removeEventListener('resize', this._reflow);
+    window.removeEventListener('scroll', this._reflow, true);
+    this.el.remove();
+  }
 }
 
 function buildStatsBarHTML(stats, entries, layout) {
@@ -4188,6 +4246,17 @@ function mountDetailPanel(panel, stats, entries, middleHTML = '') {
   ToolStack.refreshGalleryActive();
   repositionAllHistogramRects();
   createScroller();
+  attachSearchHelpPopup();
+}
+
+// mountDetailPanel rebuilds the search-input on every render — the prior
+// popup's anchor reference is dead, so destroy before rebinding.
+let _searchHelpPopup = null;
+function attachSearchHelpPopup() {
+  _searchHelpPopup?.destroy();
+  _searchHelpPopup = null;
+  const input = document.getElementById('search-input');
+  if (input) _searchHelpPopup = new PopupHelp(input, buildWildcardSpansHTML());
 }
 
 function renderMergedDetail() {
@@ -6441,8 +6510,7 @@ const HelpModal = (() => {
           <h2>Searching Your Wordlist</h2>
           <p>Type in the search bar to instantly filter the wordlist. Toggle <strong>Whole word</strong> to match only complete words rather than substrings. Set a <strong>Score</strong> range — <code>50</code>, <code>50-59</code>, or <code>50+</code> — to focus on the entries you want, or click or drag across the histogram above to filter to a score range.</p>
           <p>Use wildcards to match patterns:</p>
-          <div class="help-wildcards">
-            ${buildWildcardSpansHTML()}
+          <div class="help-wildcards">${buildWildcardSpansHTML()}
           </div>
           <div class="help-demo flush">
             <div id="help-slide3-bar"></div>
