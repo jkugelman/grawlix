@@ -459,6 +459,16 @@ a.get-file:hover { text-decoration: underline; }
 .legend-note { font-size: 12px; color: var(--text); flex: 1; min-width: 0; line-height: 1.4; }
 .legend-note.empty { color: var(--faint); font-style: italic; }
 
+/* ── Collapsible section ─────────────────────────────────────────────────── */
+/* Chevron is absolute-positioned so the label lines up with whatever lives in `.collapsible-content` below. */
+.collapsible-toggle { position: relative; display: block; width: 100%; padding: 0; margin: 0 0 6px; background: none; border: none; font: inherit; color: inherit; cursor: pointer; text-align: left; }
+.collapsible-toggle:focus-visible { outline: 1px solid var(--accent); outline-offset: 2px; border-radius: 3px; }
+.collapsible-chevron { position: absolute; right: 100%; top: 50%; margin-right: 2px; transform: translateY(-50%); font-size: 14px; color: var(--muted); line-height: 1; transition: transform 0.15s; }
+.collapsible-toggle:hover .collapsible-chevron { color: var(--text); }
+.collapsible.collapsed > .collapsible-toggle { margin-bottom: 0; }
+.collapsible.collapsed > .collapsible-toggle .collapsible-chevron { transform: translateY(-50%) rotate(-90deg); }
+.collapsible.collapsed > .collapsible-content { display: none; }
+
 /* Header */
 .header-controls { display: flex; gap: 12px; align-items: center; }
 .header-github-link { display: inline-flex; vertical-align: middle; margin-left: 4px; opacity: 0.75; color: white; text-decoration: none; border-bottom: none; }
@@ -1331,11 +1341,11 @@ function buildScoringSectionHTML() {
     buildRulesListHTML(edits?.scoring || [], { rulesId: 'scoring-rules', saveFn: 'saveScoringField', deleteFn: 'deleteScoringRow' });
 }
 
-function buildScoringLegendHTML() {
+function buildScoringLegendRowsHTML() {
   const edits = getEditsWordlist();
   if (edits) updateScoringCatchAll(edits.scoring, buildMergedWordlist().entries);
   const rules = edits?.scoring || [];
-  const rowsHTML = rules.map(r => {
+  return rules.map(r => {
     const isCatchAll = !!r._catchAll;
     const noteHTML = r.note
       ? `<span class="legend-note">${esc(r.note)}</span>`
@@ -1345,9 +1355,22 @@ function buildScoringLegendHTML() {
         ${noteHTML}
       </div>`;
   }).join('');
-  return `<div class="rescore-top"><span class="rescore-lbl">Scoring</span></div>
-      <div class="legend-rows">${rowsHTML}</div>`;
 }
+
+function buildScoringLegendSectionHTML() {
+  return Collapsible.buildHTML({
+    id: 'scoring-legend',
+    className: 'rescore-section',
+    collapsed: lsLoad('scoringLegendCollapsed') === '1',
+    labelHTML: '<span class="rescore-lbl">Scoring</span>',
+    contentHTML: `<div class="legend-rows">${buildScoringLegendRowsHTML()}</div>`,
+  });
+}
+
+document.addEventListener('collapsible:toggle', e => {
+  if (e.target.id !== 'scoring-legend') return;
+  lsSave('scoringLegendCollapsed', e.detail.collapsed ? '1' : '0');
+});
 
 // Pick a representative score for a rule's input range to drive the gradient:
 // midpoint for closed ranges, lower bound for open-ended (`60+`).
@@ -1401,6 +1424,35 @@ function buildWordlistNameHTML(wordlist, { bold = true } = {}) {
 function buildToolLabelHTML({ icon, name }) {
   return `<span class="tool-label"><span class="tool-row-icon">${icon}</span> <span class="tool-row-name">${esc(name)}</span></span>`;
 }
+
+const Collapsible = (() => {
+  function buildHTML({ id = '', className = '', labelHTML, contentHTML, collapsed = false }) {
+    const cls = ['collapsible', className, collapsed && 'collapsed'].filter(Boolean).join(' ');
+    const idAttr = id ? ` id="${id}"` : '';
+    return `<div${idAttr} class="${cls}">
+        <button type="button" class="collapsible-toggle" aria-expanded="${!collapsed}">
+          <span class="collapsible-chevron" aria-hidden="true">▾</span>
+          ${labelHTML}
+        </button>
+        <div class="collapsible-content">${contentHTML}</div>
+      </div>`;
+  }
+
+  // Caller wires persistence (localStorage, signal, etc.) by listening for
+  // `collapsible:toggle` on the wrapper or any ancestor.
+  document.addEventListener('click', e => {
+    const toggle = e.target.closest('.collapsible-toggle');
+    if (!toggle) return;
+    const wrapper = toggle.closest('.collapsible');
+    if (!wrapper) return;
+    const collapsed = !wrapper.classList.contains('collapsed');
+    wrapper.classList.toggle('collapsed', collapsed);
+    toggle.setAttribute('aria-expanded', String(!collapsed));
+    wrapper.dispatchEvent(new CustomEvent('collapsible:toggle', { detail: { collapsed }, bubbles: true }));
+  });
+
+  return { buildHTML };
+})();
 
 // ─── Router ───────────────────────────────────────────────────────────────────
 // Keeps location.search in sync with the tool stack via history.replaceState.
@@ -4354,7 +4406,7 @@ function renderMergedDetail() {
   const { entries } = buildMergedWordlist();
   const stats = computeStats(_mergedStatsKey, entries);
   mountDetailPanel(panel, stats, entries,
-    `<div id="scoring-legend" class="rescore-section">${buildScoringLegendHTML()}</div>`);
+    buildScoringLegendSectionHTML());
 
   scroller.showSource = true;
   scroller.editsWordlist = getEditsWordlist() ?? null;
@@ -4393,10 +4445,11 @@ function updateScoringCatchAll(scoring, entries) {
 
 // Re-render every place the scoring rules are shown: the read-only legend on
 // the main detail panel and the editor in the Wordlists dialog's My Edits pane
-// share the same data, so an edit in the dialog has to repaint both.
+// share the same data, so an edit in the dialog has to repaint both. Swap
+// only the rows so the wrapper's collapsed state survives.
 function renderScoringRules() {
-  const main = document.getElementById('scoring-legend');
-  if (main) main.innerHTML = buildScoringLegendHTML();
+  const rows = document.querySelector('#scoring-legend .legend-rows');
+  if (rows) rows.innerHTML = buildScoringLegendRowsHTML();
   WordlistsDialog.refreshScoringSection();
 }
 
@@ -4442,7 +4495,7 @@ function renderDetail(wordlist) {
 
   const { stats, entries: histEntries } = statsForWordlist(wordlist);
   mountDetailPanel(panel, stats, histEntries,
-    `<div id="scoring-legend" class="rescore-section">${buildScoringLegendHTML()}</div>`);
+    buildScoringLegendSectionHTML());
 
   scroller.currentWordlist = wordlist;
   scroller.setEntries(wordlist.rawEntries, state.searchQuery, wordlist.rescoreRules, buildOverrideMap(wordlist), state.searchWholeWord, state.scoreRange);
@@ -4459,7 +4512,7 @@ function renderEditsDetail(wordlist) {
   const panel = document.getElementById('detail-panel');
   const { stats, entries: histEntries } = statsForWordlist(wordlist);
   mountDetailPanel(panel, stats, histEntries,
-    `<div id="scoring-legend" class="rescore-section">${buildScoringLegendHTML()}</div>`);
+    buildScoringLegendSectionHTML());
 
   scroller.showDeleteCol = true;
   scroller.setEntries(wordlist.rawEntries, state.searchQuery, [], new Map(), state.searchWholeWord, state.scoreRange);
