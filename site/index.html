@@ -248,13 +248,12 @@ button.header-icon-btn:hover { background: none; color: rgba(255,255,255,0.65); 
 #settings-dialog { width: 340px; }
 #confirm-dialog, #alert-dialog { width: 320px; }
 #download-dialog { width: 340px; }
-#download-dialog .dialog-footer { margin-top: 0; padding-top: 30px; border-top: none; }
 #merge-conflict-dialog { width: 380px; }
 .dialog-msg { margin-bottom: 4px; line-height: 1.5; padding-right: 24px; }
-.settings-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 13px 0; border-bottom: 1px solid var(--border2); }
-.settings-row:first-of-type { border-top: 1px solid var(--border2); margin-top: 4px; }
-.settings-row-label { font-size: 13px; font-weight: 600; }
-.settings-row-sub { font-size: 12px; color: var(--muted); margin-top: 2px; }
+.dialog-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 22px; }
+.dialog-row:last-child { margin-bottom: 0; }
+.dialog-row-label { font-size: 13px; font-weight: 600; }
+.dialog-row-sub { font-size: 12px; color: var(--muted); margin-top: 2px; }
 
 /* Disabled wordlist */
 .wordlist-card.disabled .card-info { opacity: 0.45; }
@@ -286,7 +285,7 @@ dialog h2 { font-size: 16px; margin-bottom: 14px; padding-right: 24px; }
 .tab-btn + .tab-btn { border-left: 1px solid var(--border); }
 .tab-btn.active { background: var(--sel); color: var(--accent); }
 .tab-btn:hover:not(.active) { background: var(--hover); }
-.form-field { margin-bottom: 10px; }
+.form-field { margin-bottom: 22px; }
 .form-field label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px; }
 .form-field input { width: 100%; padding: 7px 10px; border: 1px solid var(--border); border-radius: 4px; font-size: 13px; font-family: inherit; background: var(--input-bg); color: var(--text); }
 .form-field input:focus { outline: none; border-color: var(--accent); }
@@ -1762,18 +1761,18 @@ const SettingsDialog = (() => {
   body.innerHTML = `
     <button class="dialog-close-btn" aria-label="Close">✕</button>
     <h2 id="settings-dialog-title">Settings</h2>
-    <div class="settings-row">
-      <span class="settings-row-label">Dark mode</span>
+    <div class="dialog-row">
+      <span class="dialog-row-label">Dark mode</span>
       <div id="dark-mode-seg"></div>
     </div>
-    <div class="settings-row">
-      <span class="settings-row-label">Display case</span>
+    <div class="dialog-row">
+      <span class="dialog-row-label">Display case</span>
       <div id="display-case-ctrl"></div>
     </div>
-    <div class="settings-row">
+    <div class="dialog-row">
       <div>
-        <div class="settings-row-label">Reset all data</div>
-        <div class="settings-row-sub">Reset all wordlists and settings</div>
+        <div class="dialog-row-label">Reset all data</div>
+        <div class="dialog-row-sub">Reset all wordlists and settings</div>
       </div>
       <button id="btn-reset" class="danger" title="Reset all wordlists and data"><svg class="icon-trash"><use href="#icon-trash"/></svg> Reset</button>
     </div>`;
@@ -5148,12 +5147,12 @@ const showDownloadDialog = (() => {
           </select>
         </div>
       </div>
-      <div class="settings-row">
-        <span class="settings-row-label">Case</span>
+      <div class="dialog-row">
+        <span class="dialog-row-label">Case</span>
         <div id="download-dialog-case-ctrl"></div>
       </div>
-      <div class="settings-row">
-        <span class="settings-row-label">Comments</span>
+      <div class="dialog-row">
+        <span class="dialog-row-label">Comments</span>
         <div id="download-dialog-comments-ctrl"></div>
       </div>
       <div class="dialog-footer">
