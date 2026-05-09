@@ -1128,7 +1128,7 @@ function buildSearchBarHTML(opts = {}) {
 class PopupHelp {
   constructor(anchor, contentHTML, opts = {}) {
     this.anchor = anchor;
-    this.placement = opts.placement || 'below';
+    this.placement = opts.placement || 'above';
     this.offset = opts.offset ?? 6;
 
     this.el = document.createElement('div');
