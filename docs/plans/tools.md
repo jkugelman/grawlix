@@ -14,7 +14,7 @@ Chrome is shipped: the left-rail gallery (every card carrying its tool's icon), 
 
 ## Pipeline behavior (unshipped)
 
-The first row reads from the wordlist selected in the left-rail dropdown (`All` by default). Each subsequent row transforms the previous row's output. The results table shows the bottom row's output. Click order in the gallery determines pipeline order, top-to-bottom. To pre-filter an existing tool's input, the user starts over (clear, then click Search, then `+` the new tool); no prepend gesture.
+The first row reads from the wordlist selected in the left-rail dropdown (`All` by default). Each subsequent row transforms the previous row's output. The results list shows the bottom row's output. Click order in the gallery determines pipeline order, top-to-bottom. To pre-filter an existing tool's input, the user starts over (clear, then click Search, then `+` the new tool); no prepend gesture.
 
 **Live result filtering** is the everyday case — fire up Anagram, type LINDSEY, scroll the thousand results, type a substring in the bottom search row to live-filter down. The search bar functions as the result filter for whatever's above it.
 
@@ -24,7 +24,7 @@ The first row reads from the wordlist selected in the left-rail dropdown (`All` 
 
 **Scores come along.** Results show scores from `All` (the merged wordlist). This is Grawlix's superpower over Wordlisted — a user can see at a glance that their anagram is a 70 vs. a 30, and can click a result to add it to My Edits.
 
-**Score range filters the displayed output, not the pipeline.** The histogram-driven score control sits below the table and applies after the bottom row produces results. It's not a stack row, doesn't get its own row per Search, and isn't expressible per-tool — one filter, applied once, on what's about to render. For pair and group output, it filters on the same min(score) axis the row's score column already shows. (Pre-pipeline score filtering — "anagrams of LINDSEY drawn only from score-50+ words" — would be a separate `score_filter(min, max)` tool. Not in the catalog yet; surface if the workflow appears.)
+**Score range filters the displayed output, not the pipeline.** The histogram-driven score control sits below the list and applies after the bottom row produces results. It's not a stack row, doesn't get its own row per Search, and isn't expressible per-tool — one filter, applied once, on what's about to render. For pair and group output, it filters on min(score) — the row qualifies if its worst-scoring atom falls in range. (Pre-pipeline score filtering — "anagrams of LINDSEY drawn only from score-50+ words" — would be a separate `score_filter(min, max)` tool. Not in the catalog yet; surface if the workflow appears.)
 
 ---
 
@@ -44,7 +44,7 @@ The first row reads from the wordlist selected in the left-rail dropdown (`All` 
 
 ## Downloading results
 
-A download affordance near the results table saves the current output to disk — whatever the bottom row of the stack produces. For the empty stack (just the search bar), that's "the filtered list" — the merged `All` view restricted to the current pattern. For a longer stack (`Anagram LINDSEY → Search DOG`) it's the full pipeline output. The button is always present; what it produces just follows the stack.
+A download affordance near the results list saves the current output to disk — whatever the bottom row of the stack produces. For the empty stack (just the search bar), that's "the filtered list" — the merged `All` view restricted to the current pattern. For a longer stack (`Anagram LINDSEY → Search DOG`) it's the full pipeline output. The button is always present; what it produces just follows the stack.
 
 The everyday case is filling — narrow `All` with a pattern, then save the matches as a working set.
 
@@ -85,7 +85,7 @@ A tool is an object. Static fields describe it to the gallery; the `run` functio
   output: {
     kind: 'pairs',                  // 'words' | 'pairs' | 'groups'
     relation: 'transform',          // 'transform' | 'symmetric' | 'contains' | null
-    labels: ['from', 'to'],         // names the parts; used in column headers, tooltips, JSON
+    labels: ['from', 'to'],         // names the parts; used in sort axis labels, tooltips, JSON
     chainProjection: 'to',          // when chained downstream, which part(s) to pass
     annotations: [],                // declared per-item annotations beyond highlights
   },
@@ -135,7 +135,7 @@ Chains transmit `string[]`; the projection is metadata; the *display* layer sees
 Two annotation flavors ride with each item:
 
 - **Highlights** — character-range markings rendered visually inside a word. Each tool emits `{ kind, range }` records keyed by part name (`{ a: [...], b: [...] }` for pairs, `[...]` for words). The renderer dispatches on `kind` against a small global registry — `'kept'`, `'removed'`, `'inserted'`, `'shifted'`, `'matched'`, `'group:0'`, `'group:1'`, etc. — each with its own CSS rule. Tools don't pick colors; new tools either reuse existing kinds or extend the registry by adding a (kind, CSS rule) pair.
-- **Numeric / string annotations** — declared in `output.annotations: [{ key, label, display }]`. The renderer reads the declaration, knows whether to render the value as a badge column, tooltip, or inline text. Use cases: phrase_parsing's parse-quality score, almost_anagram's edit distance, letter_changes' actual `n`.
+- **Numeric / string annotations** — declared in `output.annotations: [{ key, label, display }]`. The renderer reads the declaration, knows whether to render the value as a small inline badge near the atom, a hover tooltip, or popover detail. Use cases: phrase_parsing's parse-quality score, almost_anagram's edit distance, letter_changes' actual `n`.
 
 Both annotation flavors are display-only — chain projection drops them. A downstream tool sees only the projected `string[]`.
 
@@ -233,55 +233,83 @@ Roget's Thesaurus (available as structured XML) enables meaning-based searches: 
 
 ## Display
 
-Tools are not required to share a uniform output format. The renderer dispatches on `output.kind` (and `output.relation` for pairs/groups), so each tool's result lands in a layout that matches its shape. This is a deliberate departure from Wordlisted, which is limited to operations that fit one output model.
+Output is a single-column **list**, not a table. Every output kind — words, pairs, groups — renders one item per row in a list; what varies is what's *inside* each row. No column headers, no per-row column alignment beyond the atoms themselves. This follows the pattern modern productivity apps (Linear, Notion's list view, Things, virtually every mobile app) have settled on: the list is calm content; controls live in a toolbar above it.
 
-The base unit of display is the **word atom** — a word rendered with its score badge inline: `TABLESPOON 60`. Every word in any output is shown this way. Clicking a word atom in any view opens a popover anchored to it that edits the word's score and comment and shows which wordlist sourced the displayed score; edit commits land in My Edits regardless of the active wordlist. The popover is the universal editing mechanism across all output kinds — no separate Score, Comment, or Source columns at rest, and no per-cell click-to-edit gymnastics.
+The base unit of display is the **word atom** — a word rendered with its length and score inline: `7 TABLESPOON 60`. Length leads (a familiar crossword convention: "a 7 starting with T…"); the trailing number is the score badge, colored by tier. Every word in any output is shown as an atom. Clicking an atom opens a popover anchored to it that edits the word's score and comment and shows which wordlist sourced the displayed score; edit commits land in My Edits regardless of the active wordlist.
 
-Comments and source leaving the at-rest table is a deliberate move. Comments were write-mostly in practice — users add notes in My Edits but rarely scan them — so the column was paying for an interaction that didn't happen. Source matters mostly when investigating an unexpected score or deciding which wordlists to enable, neither of which is an everyday scanning task. Both are one click away when actually wanted.
+The popover is the universal editing mechanism across all output kinds. Comments and source leaving the at-rest list is a deliberate move — comments are write-mostly in practice and source matters only for investigation, so neither earns scanning real estate. Both are one click away when actually wanted.
 
-The combined-cell pattern is also what keeps the column count down across output shapes. Wordlisted shoves two scores into one column rendered as `40/50` — column count stays low but you have to mentally compute mins, which kills legibility. The atom approach is *visually* compact AND *cognitively* clear because the score belongs to the word; they're one thing to read.
+### Toolbar
+
+A thin bar above the list owns the controls the spreadsheet model used to bury in column headers:
+
+```
+Sort: Score ↓                    1,247 results
+```
+
+The current sort axis shows as a label so the user reads it without clicking. Clicking opens a small menu of axes; direction toggles inline. Result count sits at the right edge. Filter inputs (the existing search bar, the score-range histogram) keep their existing positions — the toolbar handles sort, the search bar and histogram handle filter, all clustered visually.
+
+Sort axes vary by output kind:
+
+- **Words:** Score, Length, Alphabetical.
+- **Pairs:** Min score, Max score, Score (from), Score (to), Min length, Max length, Alphabetical.
+- **Groups:** Min, Max, Count, Alphabetical.
 
 ### Words view
 
-Single column of word atoms, default sort by score-descending.
+A list of word atoms, default sort by Score descending.
 
 ```
-Word·Score ↓
-TABLESPOON 60
-ASTROLOGY  50
+Sort: Score ↓                    1,247 words
+
+7  TABLESPOON 60
+9  ASTROLOGY  50
+7  HEADBAND   50
 …
 ```
 
 ### Pairs view
 
-The relation glyph (`→`, `·`, `⊃`, etc., from `output.relation`) renders between two word atoms in a single column. Min and Max are separate sortable columns:
+A list of `atom relation atom` rows. The relation glyph (`→`, `·`, `⊃`, etc., from `output.relation`) renders between two word atoms. Default sort is Min score for transform and symmetric pairs — the worse word caps pair quality.
 
 ```
-From → To                   Min ↓  Max
-SLING 50 → LING 30          30     50
-TRAIN 60 → RAIN 40          40     60
+Sort: Min score ↓                321 pairs
+
+5 SLING 50 → 4 LING 30
+5 TRAIN 60 → 4 RAIN 40
 …
 ```
 
-Default sort is Min for transform and symmetric pairs (the worse word caps pair quality). Click `Max` to flip — useful for hunting "great word with a beheadment in the wordlist." Two badges per row in different tier colors (e.g. green 50 next to red 30) is informative, not chaotic — you read pair-with-tier-mismatch at a glance. The score-color vocabulary is already learned across the rest of the app.
+Two score badges per row in different tier colors (e.g. green 50 next to red 30) is informative, not chaotic — pair-with-tier-mismatch reads at a glance. The score-color vocabulary is already learned across the rest of the app.
+
+Wordlisted's stacked-pairs display (two scores rendered as `40/50`) keeps column count down at the cost of legibility — you have to mentally compute mins. The atom approach is *visually* compact AND *cognitively* clear because the score belongs to the word; they're one thing to read.
 
 ### Groups view
 
-A wrapped list of word atoms in a single column with bullet separators, plus Min, Max, and Count columns. Default sort is Max — the anagram-families case is "find a great word that has anagrams I haven't noticed," which max surfaces and min hides.
+A list of bullet-separated atoms with a count prefix. Default sort is Max — the anagram-families case is "find a great word that has anagrams I haven't noticed," which max surfaces and min hides.
 
 ```
-Words                              Min  Max ↓  Count
-CARE 50 · RACE 40 · ACRE 30        30   50     3
+Sort: Max ↓                      89 families
+
+(3)  4 CARE 50  ·  4 RACE 40  ·  4 ACRE 30
+(2)  6 STRESSED 60  ·  8 DESSERTS 40
 …
 ```
 
-### Sort axis on combined-cell columns
+Count is a per-row property; leading `(N)` keeps it visible without dedicated chrome. Min and Max are sort axes, not displayed as numbers — derivable from the row, and showing them next to the atoms would be redundant.
 
-The combined Word·Score column carries multiple sort axes (alphabetical, score-descending, score-ascending). MVP: click-to-cycle through them; the header label updates to show the active axis. Header dropdowns or modal toggles are alternatives worth exploring once usage tells us whether cycling is enough.
+### What this gives up vs. a table
+
+Two real losses worth being honest about:
+
+- **2D reading.** A table lets you sort by one axis and visually scan another (sort by Min, eyeball Max). The list model can't — switching axes is a sort-control click. In practice users sort by their primary axis and scroll; switching is rare.
+- **Click-to-sort headers.** A spreadsheet convention; widely learned but not universal. Linear/Notion/Things demonstrate users adapt fast to a separate sort control.
+
+What's gained: visual calm at rest scales to its conclusion, mobile design comes nearly for free (lists scale to narrow widths; tables don't), bigger friendlier fonts become natural, and the at-rest UI stays one column wide regardless of output kind. Nothing is in the chrome just to tabulate.
 
 ### Permanent Search row on non-flat output
 
-When the active tool produces pairs or groups, the bottom Search row's filter input matches loosely against the rendered text — same string the user sees, all atoms in a row visible as one filter target. Default-loose is right for v1; promote to column-specific syntax (`right:un*`) only if usage shows the loose form isn't enough.
+When the active tool produces pairs or groups, the bottom Search row's filter input matches loosely against the rendered text — same string the user sees, all atoms in a row visible as one filter target. Default-loose is right for v1; promote to side-specific syntax (`right:un*`) only if usage shows the loose form isn't enough.
 
 ---
 
@@ -308,7 +336,7 @@ Builtin views are shared across calls. Custom JS tools can ask for them too but 
 - **`run` is async by default.** Synchronous tools just `return`; async tools `await`. The runtime always treats the call as a promise.
 - **Stack/param changes debounce ~250ms** before re-running the pipeline (matches the existing URL debounce).
 - **In-flight runs cancel when superseded.** The `ctx` argument carries a cancellation signal (`ctx.signal`, `AbortSignal`-style); long-running tools should periodically check it. Network-bound tools pass it directly to `fetch`.
-- **Spinners appear on tool rows whose run takes longer than ~100ms.** Below the threshold, no UI flicker; above, the row badges with a progress indicator and the result table grays out.
+- **Spinners appear on tool rows whose run takes longer than ~100ms.** Below the threshold, no UI flicker; above, the row badges with a progress indicator and the result list grays out.
 
 ### Workers and result caching: deferred
 
