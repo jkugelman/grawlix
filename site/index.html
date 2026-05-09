@@ -839,55 +839,7 @@ input.cell-edit.score-edit { font-family: ui-monospace, 'Cascadia Code', monospa
         <input id="gallery-search" type="text" placeholder="Search tools…" title="Search tools (Alt+T)" disabled>
       </div>
     </div>
-    <div class="gallery-body">
-      <div class="gallery-section-label">Anagrams &amp; letter banks</div>
-      <div class="gallery-card" data-tool="anagram">
-        <div class="gallery-card-name">Anagram</div>
-        <div class="gallery-card-desc">Same letters, rearranged</div>
-        <div class="gallery-card-example">LINDSEY → SNIDELY</div>
-        <button class="gallery-card-add" type="button" aria-label="Add Anagram to stack" title="Add to stack">+</button>
-      </div>
-      <div class="gallery-card" data-tool="subanagram">
-        <div class="gallery-card-name">Subanagram</div>
-        <div class="gallery-card-desc">Words made from any subset of letters</div>
-        <div class="gallery-card-example">PARENTAL → PLANE, RENT, …</div>
-        <button class="gallery-card-add" type="button" aria-label="Add Subanagram to stack" title="Add to stack">+</button>
-      </div>
-
-      <div class="gallery-section-label">Letter patterns</div>
-      <div class="gallery-card" data-tool="regex">
-        <div class="gallery-card-name">Regex</div>
-        <div class="gallery-card-desc">Match by regular expression</div>
-        <div class="gallery-card-example">^un.*ed$</div>
-        <button class="gallery-card-add" type="button" aria-label="Add Regex to stack" title="Add to stack">+</button>
-      </div>
-      <div class="gallery-card" data-tool="palindrome">
-        <div class="gallery-card-name">Palindrome</div>
-        <div class="gallery-card-desc">Reads the same forwards and back</div>
-        <div class="gallery-card-example">RACECAR · KAYAK</div>
-        <button class="gallery-card-add" type="button" aria-label="Add Palindrome to stack" title="Add to stack">+</button>
-      </div>
-
-      <div class="gallery-section-label">Pairs</div>
-      <div class="gallery-card" data-tool="beheadments">
-        <div class="gallery-card-name">Beheadments</div>
-        <div class="gallery-card-desc">Drop the first letter to get a new word</div>
-        <div class="gallery-card-example">SLING → LING</div>
-        <button class="gallery-card-add" type="button" aria-label="Add Beheadments to stack" title="Add to stack">+</button>
-      </div>
-      <div class="gallery-card" data-tool="curtailments">
-        <div class="gallery-card-name">Curtailments</div>
-        <div class="gallery-card-desc">Drop the last letter to get a new word</div>
-        <div class="gallery-card-example">CARTS → CART</div>
-        <button class="gallery-card-add" type="button" aria-label="Add Curtailments to stack" title="Add to stack">+</button>
-      </div>
-      <div class="gallery-card" data-tool="semordnilaps">
-        <div class="gallery-card-name">Semordnilaps</div>
-        <div class="gallery-card-desc">Reverse to get a different word</div>
-        <div class="gallery-card-example">STRESSED → DESSERTS</div>
-        <button class="gallery-card-add" type="button" aria-label="Add Semordnilaps to stack" title="Add to stack">+</button>
-      </div>
-    </div>
+    <div class="gallery-body"></div>
   </aside>
 
   <div id="detail-panel"></div>
@@ -2897,14 +2849,65 @@ function highlightSegments(word, hlRe) {
 // TODO: stats bar should reflect the post-filter / post-tool entry set (count,
 // min/max, histogram). Today the stats bar always reflects the source wordlist.
 
+// Single source of truth for tool metadata. The gallery, the tool stack rows, the help tour,
+// and any future surface that names a tool all read from here. Adding a new tool means adding
+// one entry; everything that lists tools picks it up automatically.
+const TOOL_CATEGORIES = [
+  { id: 'anagrams', label: 'Anagrams & letter banks' },
+  { id: 'patterns', label: 'Letter patterns' },
+  { id: 'pairs',    label: 'Pairs' },
+];
+
 const TOOLS = {
-  anagram:      { name: 'Anagram',      icon: '🔤', params: [{ key: 'word',    label: 'word'    }],                                 output: 'single' },
-  subanagram:   { name: 'Subanagram',   icon: '🔡', params: [{ key: 'letters', label: 'letters' }],                                 output: 'single' },
-  regex:        { name: 'Regex',        icon: '🪄', params: [{ key: 'pattern', label: 'pattern' }],                                 output: 'single', polymorphic: true },
-  palindrome:   { name: 'Palindrome',   icon: '🔄', params: [],                                                                     output: 'single' },
-  beheadments:  { name: 'Beheadments',  icon: '🪓', params: [],                                                                     output: 'pair'   },
-  curtailments: { name: 'Curtailments', icon: '✂️', params: [],                                                                     output: 'pair'   },
-  semordnilaps: { name: 'Semordnilaps', icon: '↔️', params: [],                                                                     output: 'pair'   },
+  anagram: {
+    name: 'Anagram', icon: '🔤', category: 'anagrams',
+    desc: 'Same letters, rearranged',
+    example: 'LINDSEY → SNIDELY',
+    params: [{ key: 'word', label: 'word' }],
+    output: 'single',
+  },
+  subanagram: {
+    name: 'Subanagram', icon: '🔡', category: 'anagrams',
+    desc: 'Words made from any subset of letters',
+    example: 'PARENTAL → PLANE, RENT, …',
+    params: [{ key: 'letters', label: 'letters' }],
+    output: 'single',
+  },
+  regex: {
+    name: 'Regex', icon: '🪄', category: 'patterns',
+    desc: 'Match by regular expression',
+    example: '^un.*ed$',
+    params: [{ key: 'pattern', label: 'pattern' }],
+    output: 'single', polymorphic: true,
+  },
+  palindrome: {
+    name: 'Palindrome', icon: '🔄', category: 'patterns',
+    desc: 'Reads the same forwards and back',
+    example: 'RACECAR · KAYAK',
+    params: [],
+    output: 'single',
+  },
+  beheadments: {
+    name: 'Beheadments', icon: '🪓', category: 'pairs',
+    desc: 'Drop the first letter to get a new word',
+    example: 'SLING → LING',
+    params: [],
+    output: 'pair',
+  },
+  curtailments: {
+    name: 'Curtailments', icon: '✂️', category: 'pairs',
+    desc: 'Drop the last letter to get a new word',
+    example: 'CARTS → CART',
+    params: [],
+    output: 'pair',
+  },
+  semordnilaps: {
+    name: 'Semordnilaps', icon: '↔️', category: 'pairs',
+    desc: 'Reverse to get a different word',
+    example: 'STRESSED → DESSERTS',
+    params: [],
+    output: 'pair',
+  },
 };
 
 const ToolStack = (() => {
@@ -2967,6 +2970,28 @@ const ToolStack = (() => {
       </div>
       <div class="tool-row-remove-placeholder"></div>
     </div>`;
+  }
+
+  function buildGalleryCardHTML(toolKey, tool) {
+    return `<div class="gallery-card" data-tool="${esc(toolKey)}">
+      <div class="gallery-card-name">${buildToolLabelHTML(tool)}</div>
+      <div class="gallery-card-desc">${esc(tool.desc)}</div>
+      <div class="gallery-card-example">${esc(tool.example)}</div>
+      <button class="gallery-card-add" type="button" aria-label="Add ${esc(tool.name)} to stack" title="Add to stack">+</button>
+    </div>`;
+  }
+
+  function buildGalleryHTML() {
+    const byCategory = new Map(TOOL_CATEGORIES.map(c => [c.id, []]));
+    Object.entries(TOOLS).forEach(([key, tool]) => {
+      byCategory.get(tool.category)?.push([key, tool]);
+    });
+    return TOOL_CATEGORIES.map(cat => {
+      const cards = byCategory.get(cat.id) || [];
+      if (!cards.length) return '';
+      return `<div class="gallery-section-label">${esc(cat.label)}</div>` +
+             cards.map(([key, tool]) => buildGalleryCardHTML(key, tool)).join('');
+    }).join('');
   }
 
   // Used by mountDetailPanel for the initial render. Mutations after that go
@@ -3224,6 +3249,7 @@ const ToolStack = (() => {
 
   function init() {
     const galleryBody = document.querySelector('.gallery-body');
+    if (galleryBody) galleryBody.innerHTML = buildGalleryHTML();
     galleryBody?.addEventListener('click', (e) => {
       const card = e.target.closest('.gallery-card[data-tool]');
       if (!card) return;

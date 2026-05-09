@@ -8,7 +8,7 @@ The gallery is where Grawlix's [project goal](../../README.md#goals) — democra
 
 ## Status
 
-Chrome is shipped: the left-rail gallery, the main-pane tool stack, hover previews, animations. See [`design.md` § Tool gallery & stack](../design.md#tool-gallery--stack) for the shape and rationale. Everything below this section is forward-looking — tool execution, the catalog, chaining policies, output formats, and downstream features.
+Chrome is shipped: the left-rail gallery (every card carrying its tool's icon), the main-pane tool stack, hover previews, animations. The data shape is also in place — a single `TOOLS` catalog (`name`, `icon`, `category`, `desc`, `example`, `params`, `output`) drives both the gallery and the stack rows, so adding a new tool is one record. Icons today are emoji; switching to custom SVG would mean changing only the `icon` field per entry. See [`design.md` § Tool gallery & stack](../design.md#tool-gallery--stack) for the shape and rationale. Everything below this section is forward-looking — tool execution, the rest of the tool list, chaining policies, output formats, and downstream features.
 
 ---
 
@@ -37,8 +37,6 @@ The first row reads from the wordlist selected in the left-rail dropdown (`All` 
 - *Icon strip* (viable fallback) — VS Code activity-bar style: a thin (~50px) strip of category icons at rest; clicking one slides out a side panel with that category's cards. Wins on main-pane width. Loses on interaction count (two-step to reach a tool) and on panel-open state.
 
 **Gallery search input.** A filter/search input at the top of the panel lets users find tools by name or keyword across categories. **Alt+T** focuses it. The DOM is in place but disabled.
-
-**Per-tool icons.** Every tool gets a unique icon — aids scanning, learnability, gives the gallery visual personality. Today they're emoji placeholders (one per shipped card); long-term may switch to custom SVG. See [`../../TODO.md`](../../TODO.md).
 
 ---
 
