@@ -6,6 +6,8 @@ Grawlix is a browser-based wordlist manager for crossword constructors. Wordlist
 
 All code lives in a single file: `site/index.html`. Read and edit only that file.
 
+`TODO.md` at the repo root is the user's personal scratchpad — never edit it. Reading it is fine but do not touch it.
+
 ## Architecture
 
 One HTML file: `<style>` block, a minimal HTML body (app shell only — no dialog or overlay elements), then one big `<script>` block. No build step, no npm, no frameworks — plain HTML/CSS/JS that runs directly in the browser.
@@ -54,10 +56,6 @@ WORD;SCORE;COMMENT
 **Override and rescore display** — When viewing a wordlist, score and comment cells always show the *effective* value (what actually appears in the merged output), not the raw value from that wordlist. A red superscript asterisk (`*`) indicates the displayed value differs from what the wordlist itself contains. An instant HTML popover (`#cell-popover`) explains why: the original score for rescored entries, or the overriding wordlist's name for overrides. Both conditions can apply simultaneously. The overrideMap (built by `buildOverrideMap`) stores `{ wordlistName, score, comment }` from the highest-priority wordlist above the current one; a comment override only applies when that wordlist has a non-empty comment. Editing an overridden cell pre-fills the input with the effective value (not the raw value) so the user is editing what actually matters — the result always lands in My Edits regardless.
 
 **Merged wordlist** — `MERGED_ID = '__merged__'` selects a union of all enabled sources, deduped by word. The highest rescored value wins; losers are shown faded with a tooltip. Displayed as `All` (the value of `MERGED_NAME`) at the top of the wordlist dropdown in the left rail's Wordlist section.
-
-**Score tiers** — `great` (≥60), `good` (≥50), `fair` (≥40), `meh` (≥30), `bad` (<30). Drive score badge colors via `data-tier` and `--score-{tier}-{bg,fg}` CSS vars.
-
-**Search syntax** — `?` (any letter), `#` (consonant), `@` (vowel), `*` (any substring), `[abc]` (character class). Whole-word toggle anchors the pattern.
 
 **Virtual scroller** — `VirtualScroller` renders only visible rows. Row height is fixed.
 
