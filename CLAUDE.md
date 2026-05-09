@@ -78,6 +78,7 @@ After completing changes that are ready to commit, always output a suggested com
 
 ## Coding style
 
+- **Default to writing no comments.** Well-named identifiers and short functions do the work; self-explanatory code doesn't need commentary. Comment the **why**, not the **what** — a reader can see *what* the code does, but *why* vanishes silently and is expensive to reconstruct. The exception is when the *what* itself is hard to reconstruct.
 - **No inline styles.** Prefer adding CSS to the `<style>` block over `style="..."` attributes on elements.
 - **Dark mode and light mode have equal weight.** Don't treat one as the default and the other as an override — both get first-class parallel treatment in the CSS.
 - **"Download" means output only.** Use "download" exclusively for saving a processed wordlist from Grawlix to disk (`downloadMergedWordlistFromPanel`, `downloadIndividualWordlist`, etc.). Use "fetch" for getting a wordlist into Grawlix from a URL (`fetchWordlist`), and "import" for the user loading a file. Template properties that refer to a third-party source page use `sourcePage` / `sourceNote`.
