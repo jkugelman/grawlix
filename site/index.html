@@ -553,8 +553,9 @@ body.tools-empty .gallery-card-add { display: none; }
 }
 .tool-row.doomed { max-height: 0; padding-top: 0; padding-bottom: 0; border-bottom: none; opacity: 0; pointer-events: none; }
 .tool-row-body { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; min-width: 0; }
-.tool-row-icon { font-size: 16px; line-height: 1; width: 20px; height: 20px; display: inline-flex; align-items: center; justify-content: center; color: var(--muted); flex-shrink: 0; }
-.tool-row-name { font-size: 13px; font-weight: 600; color: var(--text); }
+.tool-label { white-space: nowrap; }
+.tool-row-icon { font-size: 16px; line-height: 1; width: 20px; height: 20px; display: inline-flex; align-items: center; justify-content: center; color: var(--muted); flex-shrink: 0; vertical-align: middle; }
+.tool-row-name { font-size: 13px; font-weight: 600; color: var(--text); vertical-align: middle; }
 .tool-toggle { font-size: 12px; color: var(--muted); }
 .tool-toggle-link { color: var(--accent); text-decoration: underline; cursor: pointer; font-weight: 600; }
 .tool-toggle-link:hover { color: var(--accent-hover, var(--accent)); }
@@ -1156,8 +1157,7 @@ function buildSearchBarHTML(opts = {}) {
     `<button class="clear-btn" id="${pre}score-range-clear" onclick="clearScoreRange()" title="Clear score" aria-label="Clear score" ${scoreRange ? '' : 'hidden'}><svg width="10" height="10"><use href="#icon-x"/></svg></button>`;
 
   return `<div class="search-bar">
-      <span class="tool-row-icon"><svg width="16" height="16" aria-hidden="true"><use href="#icon-search"/></svg></span>
-      <span class="tool-row-name">Search</span>
+      ${buildToolLabelHTML({ icon: '<svg width="16" height="16" aria-hidden="true"><use href="#icon-search"/></svg>', name: 'Search' })}
       <div class="search-row">
         <div class="search-input-wrap">
           <input type="text" id="${pre}search-input" placeholder="pattern" value="${searchQuery}"${ro}${inputHandlers}${readonly ? '' : ' title="Search (Alt+S)"'}>
@@ -1385,6 +1385,12 @@ function buildWordlistNameHTML(wordlist, { bold = true } = {}) {
   // .wordlist-name-icon, it keeps the icon glued to the first word of the name. Move it outside
   // the span and the icon can orphan at a line end.
   return `<span class="wordlist-name-icon">${icon} </span>${name}`;
+}
+
+// Inline icon + name pair used by tool rows, the search bar, the help tour, etc.
+// `icon` is raw HTML (emoji string or <svg>); `name` is plain text.
+function buildToolLabelHTML({ icon, name }) {
+  return `<span class="tool-label"><span class="tool-row-icon">${icon}</span> <span class="tool-row-name">${esc(name)}</span></span>`;
 }
 
 // ─── Router ───────────────────────────────────────────────────────────────────
@@ -2934,8 +2940,7 @@ const ToolStack = (() => {
     const cls = ['tool-row', opts.doomed && 'doomed'].filter(Boolean).join(' ');
     return `<div class="${cls}">
       <div class="tool-row-body">
-        <span class="tool-row-icon">${tool.icon}</span>
-        <span class="tool-row-name">${esc(tool.name)}</span>
+        ${buildToolLabelHTML(tool)}
         ${toggleHTML}
         ${paramsHTML(tool, idx, row.params)}
       </div>
@@ -2956,8 +2961,7 @@ const ToolStack = (() => {
 
     return `<div class="tool-row ghost" data-ghost-tool="${esc(toolKey)}">
       <div class="tool-row-body">
-        <span class="tool-row-icon">${tool.icon}</span>
-        <span class="tool-row-name">${esc(tool.name)}</span>
+        ${buildToolLabelHTML(tool)}
         ${toggleHTML}
         ${paramsHTML(tool, -1, null, { disabled: true })}
       </div>
