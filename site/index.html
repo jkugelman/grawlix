@@ -1405,13 +1405,29 @@ function buildToolLabelHTML({ icon, name }) {
 
 // ─── Router ───────────────────────────────────────────────────────────────────
 // Keeps location.search in sync with the tool stack via history.replaceState.
-// Today's stack: the permanent Search row (pattern + whole-word) and the score
-// filter. See docs/plans/url-routing.md for the schema and rationale.
+// Encoded: each user-added tool row in pipeline order, then the permanent
+// Search row (search/whole-word/score). See docs/design.md § URL state.
 const Router = (() => {
   let _navTimer = null;
 
   function buildQuery() {
     const parts = [];
+    // Tool stack rows in pipeline order. Single-param tools today; multi-input
+    // encoding is deferred. Empty values are kept (`anagram=`) so a row the
+    // user has added but not filled in survives reload.
+    for (const row of ToolStack.getStack()) {
+      const tool = TOOLS[row.tool];
+      if (!tool) continue;
+      const slug = encodeURIComponent(row.tool);
+      if (tool.params.length === 0) {
+        parts.push(slug);
+      } else {
+        const value = row.params[tool.params[0].key] || '';
+        parts.push(slug + '=' + encodeURIComponent(value));
+      }
+    }
+    // Permanent Search row last. Empty Search drops out — the UI re-adds an
+    // empty Search bar at the bottom regardless, so the URL stays minimal.
     if (state.searchQuery)     parts.push('search=' + encodeURIComponent(state.searchQuery));
     if (state.searchWholeWord) parts.push('whole-word');
     if (state.scoreRange)      parts.push('score=' + encodeURIComponent(state.scoreRange));
@@ -1428,7 +1444,8 @@ const Router = (() => {
   }
 
   // Debounce input-tweak callers (typing) so the URL bar doesn't flicker per
-  // keystroke; structural toggles (whole-word, clear) replace instantly.
+  // keystroke; structural toggles (whole-word, add/remove tool, clear) replace
+  // instantly.
   function navigate({ debounce = false } = {}) {
     if (_navTimer) { clearTimeout(_navTimer); _navTimer = null; }
     if (debounce) _navTimer = setTimeout(_replace, 250);
@@ -1437,11 +1454,37 @@ const Router = (() => {
 
   function applyURL() {
     const params = new URLSearchParams(location.search);
-    state.searchQuery     = params.get('search') || '';
-    state.searchWholeWord = params.has('whole-word');
-    if (params.has('score')) {
-      const v = params.get('score') || '';
-      state.scoreRange = parseRange(v) ? v : '';
+    const stack = [];
+    let searchValue = '';
+    let wholeWord = false;
+    let scoreValue = null;
+    let droppedUnknown = false;
+    // The UI today supports only one Search row (permanent, at the bottom), so
+    // any `search=` we encounter is treated as that row — a chained Search
+    // earlier in the pipeline collapses into the permanent one. Last value
+    // wins.
+    for (const [key, value] of params) {
+      if (key === 'whole-word') { wholeWord = true; continue; }
+      if (key === 'score')      { scoreValue = value || ''; continue; }
+      if (key === 'search')     { searchValue = value || ''; continue; }
+      const tool = TOOLS[key];
+      if (!tool) { droppedUnknown = true; continue; }
+      const row = { tool: key, params: {}, col: 'to' };
+      if (tool.params.length > 0) {
+        row.params[tool.params[0].key] = value || '';
+      }
+      stack.push(row);
+    }
+    state.searchQuery     = searchValue;
+    state.searchWholeWord = wholeWord;
+    if (scoreValue !== null) {
+      state.scoreRange = parseRange(scoreValue) ? scoreValue : '';
+    }
+    ToolStack.setStack(stack);
+    if (droppedUnknown) {
+      // Defer: showToast appends to the toast container which may not be in
+      // the DOM yet during initial load.
+      setTimeout(() => showToast("That link references a tool that's no longer available."), 0);
     }
   }
 
@@ -3232,6 +3275,7 @@ const ToolStack = (() => {
       }
     });
     refreshGalleryActive();
+    Router.navigate();
   }
 
   function replace(toolKey) {
@@ -3269,6 +3313,7 @@ const ToolStack = (() => {
       }
     });
     refreshGalleryActive();
+    Router.navigate();
   }
 
   function removeAt(idx) {
@@ -3292,6 +3337,7 @@ const ToolStack = (() => {
       });
     });
     refreshGalleryActive();
+    Router.navigate();
   }
 
   function toggleColAt(idx) {
@@ -3349,13 +3395,22 @@ const ToolStack = (() => {
       if (!input) return;
       const idx = parseInt(input.dataset.row, 10);
       const key = input.dataset.key;
-      if (stack[idx]) stack[idx].params[key] = input.value;
+      if (stack[idx]) {
+        stack[idx].params[key] = input.value;
+        Router.navigate({ debounce: true });
+      }
     });
 
     refreshGalleryActive();
   }
 
-  return { buildHTML, refreshGalleryActive, init };
+  // setStack replaces the internal stack without animation or URL roundtrip —
+  // used by Router.applyURL on init. The next mountDetailPanel call (in
+  // renderAll) renders the rows; init() attaches handlers afterwards.
+  function setStack(newStack) { stack = Array.isArray(newStack) ? newStack : []; }
+  function getStack() { return stack; }
+
+  return { buildHTML, refreshGalleryActive, init, getStack, setStack };
 })();
 
 // ─── Input helpers ────────────────────────────────────────────────────────────

@@ -15,8 +15,7 @@
 
 ## Plans
 
-- [plans/tools.md](plans/tools.md) — tool execution and catalog (Wordlisted-parity + Grawlix originals), chaining policies, output formats, OneLook/Datamuse/Umiaq integration notes. Gallery and stack chrome are shipped — see [`design.md` § Tool gallery & stack](design.md#tool-gallery--stack).
-- [plans/url-routing.md](plans/url-routing.md) — query-string serialization of the tool stack and result-view filters; alias/rename policy for stable links. Foundation shipped (search/whole-word/score); tool-stack encoding pending.
+- [plans/tools.md](plans/tools.md) — tool execution and catalog (Wordlisted-parity + Grawlix originals), chaining policies, output formats, OneLook/Datamuse/Umiaq integration notes. Gallery, stack chrome, and URL encoding are shipped — see [`design.md` § Tool gallery & stack](design.md#tool-gallery--stack) and [`design.md` § URL state](design.md#url-state).
 - [plans/sync.md](plans/sync.md) — three-tier persistence for the merged `All` view + My Edits (backup nag, disk file link, cloud sync). Sync & backup dialog.
 - [plans/mobile.md](plans/mobile.md) — mobile/responsive design. Mostly open questions; covers what's settled and defers the rest to its own design session.
 - [plans/lookup.md](plans/lookup.md) — click-a-word lookup features (definitions, Wikipedia, NYT history, semantic search). Near-term value for users on grid software without built-in lookup.

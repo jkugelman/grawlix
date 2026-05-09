@@ -46,7 +46,7 @@ A download affordance near the results table saves the current output to disk �
 
 The everyday case is filling — narrow `All` with a pattern, then save the matches as a working set.
 
-Default filename describes the stack: `grawlix-search-DOG.txt`, `grawlix-anagram-LINDSEY-search-DOG.txt`. Same tool keys as the URL query string (see `url-routing.md`), so the file is self-describing and re-running the same stack later won't overwrite the prior snapshot.
+Default filename describes the stack: `grawlix-search-DOG.txt`, `grawlix-anagram-LINDSEY-search-DOG.txt`. Same tool keys as the URL query string (see [`../design.md` § URL state](../design.md#url-state)), so the file is self-describing and re-running the same stack later won't overwrite the prior snapshot.
 
 Format follows the tool's natural output shape — for plain word lists, the standard `WORD;SCORE[;COMMENT]` used elsewhere. Pair / group outputs need their own format design; deferred until those tools land. See *Output formats* below.
 

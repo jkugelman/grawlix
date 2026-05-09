@@ -109,22 +109,52 @@ Reachable from the header `?` button and the `?` keyboard shortcut. First-run us
 
 ## URL state
 
-The query string mirrors the current search pattern (`search=`), whole-word toggle (bare key `whole-word`), and score filter (`score=`). All three round-trip: pasting a Grawlix link into a chat reproduces what the sender was looking at, and refreshing the page lands you back where you were.
+The query string mirrors the user's active pipeline: each tool stack row in pipeline order, then the permanent Search bar's pattern (`search=`), whole-word toggle (bare key `whole-word`), and score filter (`score=`). Pasting a Grawlix link into a chat reproduces what the sender was looking at; refreshing the page lands you back where you were.
 
-A small `Router` IIFE owns parse, serialize, and `history.replaceState`. Key shape choices:
+A small `Router` IIFE owns parse, serialize, and `history.replaceState`.
+
+### Tool stack encoding
+
+Each user-added tool row gets one query parameter, in pipeline order:
+
+- **With input:** `slug=value`. The slug is the tool's catalog key (lowercase: `anagram`, `subanagram`, `regex`, …). All values pass through `encodeURIComponent` — Grawlix's pattern syntax (`?`, `#`, `@`, `*`, `[`, `]`, `&`) overlaps with URL reserved characters and needs encoding.
+- **Without input:** bare key, no `=` (`?palindrome`). `URLSearchParams` treats it as an empty-value entry, which round-trips.
+- **Order is significant.** Parameter order is pipeline order — `?search=CAT&anagram=LINDSEY` runs Search before Anagram; the reverse runs them the other way. This breaks the convention that query strings are unordered, but the URL is mostly machine-generated and read back by Grawlix.
+- **Repeated keys are fine.** Two regex rows become two `regex=` entries; their relative order is preserved.
+- **Empty tool inputs are kept** (`?anagram=`) so a row the user added but hasn't filled in survives reload.
+- **Empty Search drops out.** The UI invariant "always render a Search bar at the bottom" is applied after parsing — if the parsed pipeline doesn't end in a Search, the UI appends an empty one. The URL stays minimal in the 95% case (`?anagram=LINDSEY` doesn't carry a redundant trailing `&search=`).
+- **Unknown tool keys are dropped** with a toast: *"That link references a tool that's no longer available."* The rest of the stack still renders.
+
+### Stable links: don't rename, don't remove
+
+Once URL keys are public, removing or renaming them breaks shared links. The rule:
+
+- **Don't remove tools.** A superseded tool stays as a thin alias to its replacement, or stays indefinitely.
+- **Don't rename tool keys.** If a tool's display name changes, its URL key stays.
+- **If a rename or removal is unavoidable**, register the old key in an alias table that maps to the new key (or to a sensible fallback) and `replaceState` to the canonical form on load.
+
+No aliases exist today — this is forward-looking guidance for when the catalog churns.
+
+### Router policies
 
 - **Real query string, no hash.** Grawlix is a single-page app; paths in the URL would suggest sections that don't exist. GitHub Pages serves `index.html` regardless of query string, so any URL deep-loads without server-side routing.
-- **`replaceState` only.** Stack edits never push a history entry; the back button leaves Grawlix instead of navigating within. The visible UI is the user's history — clearing the search is the explicit undo. A back button would be redundant or actively confusing ("did I lose my whole stack?").
-- **URL wins over localStorage.** The score filter loads from localStorage and the URL overlays it on init. Search pattern and whole-word have no localStorage backing — they live entirely in the URL during a session.
-- **Empty values drop out.** An empty search isn't `search=`; it's absent. The URL stays minimal in the 95% case (`/` for the bare app).
-- **Debounced ~250ms** for typing callers (search, score). Structural toggles (whole-word, clear) replace instantly. The URL bar doesn't flicker per keystroke.
+- **`replaceState` only.** Stack edits never push a history entry; the back button leaves Grawlix instead of navigating within. The visible UI is the user's history — clearing the search or popping a tool row is the explicit undo. A back button would be redundant or actively confusing ("did I lose my whole stack?").
+- **URL wins over localStorage.** The score filter loads from localStorage and the URL overlays it on init. Search pattern, whole-word, and tool stack have no localStorage backing — they live entirely in the URL during a session.
+- **Debounced ~250ms** for typing callers (search input, score input, tool-row inputs). Structural toggles (whole-word, add/remove tool, clear) replace instantly. The URL bar doesn't flicker per keystroke.
 
-Out of scope for the URL — these are local-only:
+### Out of scope for the URL
+
+These are local-only:
+
 - **Dialogs** (Welcome, help, settings, Wordlists, Sync & backup) — transient UI state. Open them how you opened them; close them when you're done.
 - **Selected wordlist** from the rail dropdown. Sharing a link to "anagram of LINDSEY in STWL" implies the recipient has STWL loaded; we don't pretend otherwise. The recipient sees their own selection (default `All`).
 - Scroll position, edit-in-progress state, transient popovers.
 
-The schema extends as the tool stack lands. Pending design — tool-key registry, multi-input encoding, alias policy for renames — lives in [`plans/url-routing.md`](plans/url-routing.md).
+### Open questions
+
+- **Multi-input encoding.** Tools with multiple inputs (regex with min-length, anagram with bank letters) need a value-internal delimiter or named subkeys. Deferred to the first such tool — encoding choice will land alongside it.
+- **Whole-word per Search row.** Today `whole-word` is a bare top-level key, fine for the single permanent Search row. If the stack ever holds two Search rows, it doesn't compose — the eventual fix is the multi-input encoding above (likely `search=CAT:w`). Revisit when chaining a Search above a transform becomes possible.
+- **Chained Search row.** The URL schema allows `?search=CAT&anagram=LINDSEY` (Search before Anagram), but the UI only has the permanent Search bar at the bottom. Today's parser collapses any `search=` into the permanent bar; chained Search becomes meaningful only when the UI gains a way to add a Search row earlier in the stack.
 
 ## Caches
 

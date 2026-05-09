@@ -92,9 +92,9 @@ Reachable from the header `?` button or the `?` keyboard shortcut. First-run use
 
 ## Sharing & links
 
-Your search pattern, whole-word toggle, and score filter are reflected in the URL. Refreshing the page keeps your state. Pasting the URL into a chat or saving it as a bookmark reproduces what you were looking at.
+Your tool stack — every tool you've added and its inputs, in pipeline order — plus the search pattern, whole-word toggle, and score filter all ride along in the URL. Refreshing the page keeps your state, and pasting the URL into a chat or saving it as a bookmark reproduces what you were looking at.
 
-The link carries your search and filters, not your wordlists — the recipient sees their own default selection (`All`) over their own loaded wordlists.
+The link carries your tools and filters, not your wordlists — the recipient sees their own default selection (`All`) over their own loaded wordlists.
 
 ## Wordlist file format
 
