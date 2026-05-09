@@ -35,7 +35,7 @@ Mobile is a third mode — theme research on the go (subway, Discord) — and ge
 
 **Default landing on `All`.** Including first run. The four publisher wordlists fetch automatically in the background, so the app has data to query right away and a new user can start doing wordlist tricks immediately without thinking about wordlist management.
 
-The space between the stats bar and the table is where the tool stack will land per [`plans/tools.md`](plans/tools.md); today the table sits directly under the stats.
+Between the scoring legend and the search bar sits the **tool stack** when populated — see *Tool gallery & stack* below. The stack is hidden when empty so pre-tool-use Grawlix looks unchanged.
 
 ## Wordlists & setup
 
@@ -74,6 +74,32 @@ Today this is a stub. Full design lives in [`plans/sync.md`](plans/sync.md): pro
 
 - **All** or **My Edits** → Sync & backup dialog (it's a backup, not just a save — clicking the download will bump the "Last backup" timestamp once Tier 1 lands).
 - **Any individual wordlist** → Wordlists dialog → that wordlist's Download button (it's an export of one rescored wordlist). Rare; doesn't warrant header chrome.
+
+## Tool gallery & stack
+
+Tools live in two places: a persistent gallery in the left rail's **Tools** section, and a **tool stack** in the main pane between the scoring legend and the search bar. The gallery is browseable; the stack is the user's current pipeline. Today the chrome is shipped — gallery cards click and chain, the stack renders rows with parameter inputs, hover previews and animations work — but tools don't yet transform anything. The catalog, chaining policies, and result rendering are still planned in [`plans/tools.md`](plans/tools.md).
+
+**Two click targets per gallery card.** The card body replaces the stack with that tool — the 98%-case gesture. The `+` badge on the right edge appends the tool to the end of the stack — the 2%-case "chain" gesture. The `+` is hover-revealed (no visual presence at rest) and hidden entirely when the stack is empty: chain has no referent without existing tools, so the unfamiliar affordance shouldn't appear before there's something to chain to.
+
+**Stack hidden when empty.** No user-added tools = no `#tool-stack` element in the DOM. The functional search bar below sits in its usual position. The stack appears only when the user adds the first tool.
+
+**Search bar styled as the bottom row of the stack.** Same row layout (icon + bold name + params), same background, abuts the stack with no gap. An earlier mockup had a chrome "permanent Search" row inside the stack itself; that produced two visible search inputs (one chrome, one functional). Dropping the chrome row and restyling the functional bar to match the stack gives a single search input with visual continuity. The whole-word toggle and score-range live in the same row.
+
+**Hover previews show what the click will do — but only when the click is visually surprising.** The rules:
+
+- *Chain hover (`+` button)*: a ghost row appended at the end of the stack. Always shown; the `+` is unfamiliar and the ghost teaches what it does.
+- *Replace hover (card body), 2+ tools in stack*: doomed rows collapse to zero height; ghost slides in. Communicates "this click will destroy multiple rows."
+- *Replace hover, 0 or 1 tools in stack*: no preview. The click is simple enough to leave bare; previewing would add clutter.
+
+Ghost rows carry an accent tint and a subtle shimmer (sweeping accent gradient via an `::after` pseudo-element). `prefers-reduced-motion` disables the shimmer.
+
+**One animation primitive: `animateHeight(mutate)`.** Capture the stack's current rendered height, run the mutation, measure the new natural height, transition between them via an explicit `height` style. Per-row `max-height` transitions were tried first and produced jiggle when multiple rows animated in opposite directions (one collapsing, one growing); container-level animation is one coherent move regardless of how many rows changed underneath.
+
+**Doomed rows collapse rather than fade in place.** An earlier version held doomed rows at full height (opacity 0) with the ghost as an absolute-positioned overlay — no height changes during preview, no jiggle, but the fixed-height stack with the ghost floating in it left an empty gap that looked bad. Collapsing doomed rows lets the table move up smoothly into the freed space; `animateHeight` ensures the move is one continuous direction.
+
+**Ghost-promote in place on commit.** When a click commits a hovered ghost, the *same* DOM element loses its `.ghost` class and gains real-row content (via `innerHTML` swap of the inner body). CSS transitions on opacity/color/background handle the visual shift naturally. Replacing the node with a fresh element would lose the in-progress transition state and produce a flash. A 24×24 placeholder div in the ghost's right slot matches the X button's footprint so the row's height is identical between ghost and real states.
+
+**`+`-button camouflage gotcha.** The global `button:hover:not(:disabled)` rule (specificity 0,2,1) overrides naive `.gallery-card-add:hover` (0,2,0), giving the add button the card's hovered background and making it visually invisible against the card. The hover rule is scoped as `.gallery-card .gallery-card-add:hover` (specificity 0,3,0) to win on specificity without `!important`.
 
 ## Help modal
 

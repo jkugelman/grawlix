@@ -1,88 +1,50 @@
 # Tools (gallery & mining)
 
-## What this is
+Grawlix's mining side: anagrams, regex, beheadments, curtailments, and a long tail of letter/sound/meaning tricks for both **filling** (looking up words and noting score corrections while you work a grid) and **theme generation** (mining the wordlist for ideas).
 
-Grawlix's mining side: anagrams, regex, beheadments, curtailments, and a long tail of letter/sound/meaning tricks for both **filling** (looking up words and noting score corrections while you work a grid) and **theme generation** (mining the wordlist for ideas). Tools live in the gallery panel on the left of the main app shell.
+Inspiration: [Wordlisted](https://aaronson.org/wordlisted/) by Adam Aaronson. See [`../wordlisted.md`](../wordlisted.md) for a full breakdown of its search modes. Grawlix will cover similar ground and add its own tools.
 
-Inspiration: [Wordlisted](https://aaronson.org/wordlisted/) by Adam Aaronson. See `../wordlisted.md` for a full breakdown of its search modes and how they work. Grawlix will cover similar ground and add its own tools.
+The gallery is where Grawlix's [project goal](../../README.md#goals) — democratize wordlist manipulation — does most of its work. Constructors who program can write Python to anagram, behead, phonetic-substitute, semantic-filter against their wordlists. The gallery's job is to put those moves in non-programmers' hands. Filter when evaluating a candidate tool: *would a programmer reach for this often enough to write a script?* If yes, it probably belongs.
 
----
+## Status
 
-## Goal
-
-The tool gallery is where Grawlix's [project goal](../../README.md#goals) — democratize wordlist manipulation — does most of its work. Constructors who program can write Python to anagram, behead, phonetic-substitute, semantic-filter, etc. against their wordlists. The gallery's job is to put those moves in non-programmers' hands. Useful filter when evaluating a candidate tool: *would a programmer reach for this often enough to write a script?* If yes, it probably belongs.
+Chrome is shipped: the left-rail gallery, the main-pane tool stack, hover previews, animations. See [`design.md` § Tool gallery & stack](../design.md#tool-gallery--stack) for the shape and rationale. Everything below this section is forward-looking — tool execution, the catalog, chaining policies, output formats, and downstream features.
 
 ---
 
-## Tool stack & gallery UI
+## Pipeline behavior (unshipped)
 
-The main pane is a **tool stack** above a virtual-scrolled results table. Each tool the user has added gets one row in the stack:
+The first row reads from the wordlist selected in the left-rail dropdown (`All` by default). Each subsequent row transforms the previous row's output. The results table shows the bottom row's output. Click order in the gallery determines pipeline order, top-to-bottom. To pre-filter an existing tool's input, the user starts over (clear, then click Search, then `+` the new tool); no prepend gesture.
 
-```
-┌─────────────────────────────────────────────────┐
-│ Anagram      LINDSEY                       [✕]  │
-│   then  Search      pattern: DOG                │
-└─────────────────────────────────────────────────┘
-[ results table here ]
-```
-
-**Single tool vs. chaining.** Most sessions use one tool at a time — fire up Anagram, type input, scan results. Chaining transforms (Anagram → Beheadments, Search → Anagram pre-filter) is rare; programmer-constructors who want pipelines tend to write Python instead. The stack design optimizes for the single-tool 98% case while keeping chaining as a discoverable but unobtrusive 2% gesture. Two affordances on each gallery card make this work — see "Tool gallery" below.
-
-**Live result filtering**, by contrast, is normal use. Getting a thousand anagrams and live-filtering them down to ones containing a substring is everyday, not a power gesture. The permanent bottom Search row exists for exactly this — it's the result filter for whatever tool is active above it.
-
-Each row carries the tool's name, its input fields (if any), and an X to remove. Row order is pipeline order — each row's output feeds the next. The first row reads from whichever wordlist is selected in the left rail dropdown (`All` by default); subsequent rows transform the previous row's results. The results table shows the output of the bottom row. A small `then` prefix on rows 2+ makes the sequencing explicit; row 1 has no prefix.
-
-**The bottom row is always a Search row** — permanent, no X, can't be removed or reordered. This makes the everyday "type and look" use case immediate (just type) and gives Search a stable keyboard target (**Alt-S** focuses it). Search is also in the gallery as an addable tool, so a user can prepend a Search row above a transform: `Search → Anagram → [permanent Search]` pre-filters the input, transforms, and filters the output. Two Search rows aren't redundant when there's a transform between them.
-
-The permanent bottom Search is the only difference from "any other tool." Adding tools above it works exactly like adding any other row.
-
-**Tools without inputs** (Palindromes, Anagram families, etc.) still get a row carrying the tool name and an X — no input fields. Composes cleanly: `Search → Palindromes` lists palindromes within the search results.
+**Live result filtering** is the everyday case — fire up Anagram, type LINDSEY, scroll the thousand results, type a substring in the bottom search row to live-filter down. The search bar functions as the result filter for whatever's above it.
 
 **Reordering.** Order matters in a pipeline. To change order, the user removes rows (X) and re-adds them. Drag handles are deliberately not provided — chaining is a 2%-case gesture and reordering is rarer still; the design surface isn't worth the touch/keyboard-accessibility complexity.
 
-**Empty stack** is just the permanent Search row alone (no `then` prefix, empty input). Picking a tool from the gallery (see below) sets it as the active tool above the Search row.
-
-The **tool gallery** is a persistent left-rail panel — not a dropdown, not a dialog. Each tool gets a small card:
-
-```
-┌──────────────────────────────────┐
-│ Anagram                          │
-│ Same letters, rearranged         │
-│ LINDSEY → SNIDELY                │
-└──────────────────────────────────┘
-```
-
-**Category picker.** A fixed category menu sits at the top of the rail (Anagrams & letter banks, Letter patterns, Pairs, Oddities, etc.). Clicking a category swaps the cards displayed below; the menu itself never moves. This gives spatial stability (categories live in the same place every time), keeps cards visible while working, and devotes the full rail width to tools. Matches the user's settle-into-a-tool-set pattern — a constructor with a theme idea picks the relevant category once and stays there for the session.
-
-*Alternatives evaluated:*
-- *Inline accordion* (rejected) — categories collapsed; clicking a header expands cards in place, pushing other categories down. Items shifting position under the cursor as sections open/close fights spatial recall and muscle memory; the user dislikes accordions for exactly this reason.
-- *Card list* (viable fallback if Category picker's category-click step feels unnecessarily mediated) — plain vertical scroll of all tool cards with a pinned filter input at the top. Most conservative option; scrolling required past viewport but not painful.
-- *Icon strip* (viable fallback if Category picker's rail width feels costly in use) — VS Code activity-bar style: a thin (~50px) strip of category icons at rest; clicking one slides out a side panel with that category's cards. Wins on main-pane width (most pixels back to the table). Loses on interaction count (two-step to reach a tool) and on panel-open state — either auto-closes (lose context) or stays open and eats the saved width.
-
-The user can scan descriptions and examples without clicking anything first — the opposite of Wordlisted's dropdown.
-
-**Every tool has a unique icon.** Aids scanning, learnability, and gives the gallery visual personality. Icons appear on cards in the rail and at the front of stack rows.
-
-**Card click behavior.** Each card has two click targets:
-
-- *Click the card surface* → "use this tool." Replaces the user stack with just this tool. Stack becomes `[ThisTool, permSearch]`. The 98%-case gesture. **Destructive when a multi-tool stack exists** — clears it down to just this tool. No confirm dialog; at most an undo toast. The 2%-case user knows to use `+`, and accidental loss is recoverable by rebuilding (live re-execution makes that fast).
-- *Click the "+" badge on the card's right edge* → "add this tool to my pipeline." Appends to the bottom of the user stack, just above the permanent Search. Stack becomes `[...existing, ThisTool, permSearch]`. The 2%-case chaining gesture. The `+` is **hover-revealed** — vertically centered on the right edge of the card, no visual presence at rest. Discoverability cost is accepted: chaining is a 2% feature, and the people who want it are the ones likely to mouse-explore. Position matches the dominant convention for hover-revealed secondary actions on row/tile UI (Spotify track rows, Apple Music, VS Code file-explorer hover actions, Linear issue rows). Tooltip: "Add to stack."
-
-Pipeline order is click order, top-to-bottom. First card clicked is first in the pipeline. To pre-filter an existing tool's input, the user starts over (clear, then click Search, then `+` the new tool). No prepend gesture.
-
-**Active-card highlighting.** Cards whose tools appear in the user stack are visually marked active in the gallery. Communicates "these are the tools currently in your pipeline."
-
-**X on the last user-tool row** collapses the stack to `[permSearch]` (the empty-stack state). Same state as never having clicked a tool. The hypothetical alternative — "always one tool active, X disabled on the last row" — was rejected as a footgun.
-
-A filter/search input at the top of the panel lets users find tools by name or keyword across categories. **Alt+T** focuses it.
+**Tools without inputs** (Palindromes, Anagram families, etc.) still get a row carrying the tool name and an X — no input fields. Composes cleanly: `Search → Palindromes` lists palindromes within the search results.
 
 **Scores come along.** Results show scores from `All` (the merged wordlist). This is Grawlix's superpower over Wordlisted — a user can see at a glance that their anagram is a 70 vs. a 30, and can click a result to add it to My Edits.
 
 ---
 
+## Gallery — unshipped pieces
+
+**Category picker.** A fixed category menu at the top of the rail (Anagrams & letter banks, Letter patterns, Pairs, Oddities, etc.). Clicking a category swaps the cards displayed below; the menu itself never moves. Spatial stability — categories live in the same place every time, cards stay visible while working, and the rail's full width goes to tools. Matches the user's settle-into-a-tool-set pattern: a constructor with a theme idea picks the relevant category once and stays there.
+
+*Alternatives evaluated:*
+
+- *Inline accordion* (rejected) — categories collapsed; clicking a header expands cards in place, pushing others down. Items shifting under the cursor as sections open/close fights spatial recall and muscle memory.
+- *Card list* (viable fallback) — plain vertical scroll of all tool cards with a pinned filter input at the top. Most conservative option; scrolling past viewport required but not painful.
+- *Icon strip* (viable fallback) — VS Code activity-bar style: a thin (~50px) strip of category icons at rest; clicking one slides out a side panel with that category's cards. Wins on main-pane width. Loses on interaction count (two-step to reach a tool) and on panel-open state.
+
+**Gallery search input.** A filter/search input at the top of the panel lets users find tools by name or keyword across categories. **Alt+T** focuses it. The DOM is in place but disabled.
+
+**Per-tool icons.** Every tool gets a unique icon — aids scanning, learnability, gives the gallery visual personality. Today they're emoji placeholders (one per shipped card); long-term may switch to custom SVG. See [`../../TODO.md`](../../TODO.md).
+
+---
+
 ## Downloading results
 
-A download affordance near the results table saves the current output to disk — whatever the bottom row of the stack produces. For the empty stack (just the permanent Search row), that's "the filtered list" — the merged `All` view restricted to the current pattern. For a longer stack (`Anagram LINDSEY → Search DOG`) it's the full pipeline output. The button is always present; what it produces just follows the stack.
+A download affordance near the results table saves the current output to disk — whatever the bottom row of the stack produces. For the empty stack (just the search bar), that's "the filtered list" — the merged `All` view restricted to the current pattern. For a longer stack (`Anagram LINDSEY → Search DOG`) it's the full pipeline output. The button is always present; what it produces just follows the stack.
 
 The everyday case is filling — narrow `All` with a pattern, then save the matches as a working set.
 
@@ -90,25 +52,7 @@ Default filename describes the stack: `grawlix-search-DOG.txt`, `grawlix-anagram
 
 Format follows the tool's natural output shape — for plain word lists, the standard `WORD;SCORE[;COMMENT]` used elsewhere. Pair / group outputs need their own format design; deferred until those tools land. See *Output formats* below.
 
-This is a third "give me a file" path alongside the two existing ones (All/My Edits via Sync & backup, individual wordlist via the Wordlists dialog). It's distinct because the file isn't a backup or a wordlist export — it's a snapshot of the current view, usually filtered or transformed. Implementation lands with Phase 3 (`Download from tool results`).
-
----
-
-## Phases
-
-The app-shell work is a prerequisite — the gallery panel slot and the main-pane swap-in behavior come from there.
-
-### Phase 1 — Stack mechanism + core tools
-
-Stand up the row-stack mechanism with Search as the first tool (it's the default-populated row, so it's the natural first implementation). Then add the highest-value transforms — likely Regex, Anagram, Beheadments, Curtailments, Palindromes, Semordnilaps. This phase proves the end-to-end flow: empty stack → pre-populated Search row → add transform from gallery → chain another row → edit a result.
-
-### Phase 2 — Fill out the tool set
-
-Work through the remaining Wordlisted-parity tools and any Grawlix-original tools. Prioritize by usefulness to constructors. The `../wordlisted.md` reference is the implementation guide for each tool's logic.
-
-### Phase 3 — Polish and integration
-
-Download from tool results, pinned/favorite tools, any Grawlix-original tools that didn't land in Phase 2, general UX refinement.
+This is a third "give me a file" path alongside the two existing ones (All/My Edits via Sync & backup, individual wordlist via the Wordlists dialog). It's distinct because the file isn't a backup or a wordlist export — it's a snapshot of the current view, usually filtered or transformed.
 
 ---
 
@@ -161,6 +105,81 @@ The help redesign (see `help.md`) will happen after the tool gallery is built �
 **As each tool group ships:** add a note here summarizing what it does and anything a user would need to know that isn't obvious from the tool card itself. These notes become the raw material for the reference guide section and the welcome tour slide.
 
 **When the tool gallery is complete:** the welcome tour gains one or more slides after the current Slide 4 (Searching), and the reference guide gains a tool-gallery section. `help.md` already anticipates this expansion.
+
+---
+
+## Tool shapes (catalog)
+
+Notation: `tool(params) :: input → output`, in Rust types as a strawman.
+
+Output shape is one of `Vec<String>` (single — phrase parsing's space-separated multi-word strings count here), `Vec<(String, String)>` (pair), or `Vec<Vec<String>>` (group).
+
+**Input is always `Vec<String>`.** Walking the catalog turns up nothing that wants a richer input type. Tools differ in how they consume it (iterate-and-filter per row, full-set membership check, whole-vec aggregation), but the type contract is uniform.
+
+### Pattern matching
+- `search(pattern: String)                          :: Vec<String> → Vec<String>`
+- `regex(pattern: String)                           :: Vec<String> → Vec<String>`
+
+### Anagrams & letter banks
+- `anagram(word: String)                            :: Vec<String> → Vec<String>`
+- `made_from(letters: String)                       :: Vec<String> → Vec<String>`
+- `hidden_anagram(word: String)                     :: Vec<String> → Vec<String>`
+- `almost_anagram(word: String, n: u32)             :: Vec<String> → Vec<String>`
+- `letter_bank(word: String)                        :: Vec<String> → Vec<String>`
+- `required(letters: String)                        :: Vec<String> → Vec<String>`
+- `limited(letters: String)                         :: Vec<String> → Vec<String>`
+
+### Letter patterns
+- `kangaroo(word: String)                           :: Vec<String> → Vec<String>`
+- `joey(word: String)                               :: Vec<String> → Vec<String>`
+- `sandwich(word: String)                           :: Vec<String> → Vec<String>`
+- `dead_center(word: String)                        :: Vec<String> → Vec<String>`
+- `letter_changes(word: String, n: u32)             :: Vec<String> → Vec<String>`
+- `consonantcy(word: String)                        :: Vec<String> → Vec<String>`
+- `vowelcy(word: String)                            :: Vec<String> → Vec<String>`
+- `cryptogram(word: String)                         :: Vec<String> → Vec<String>`
+
+### Pair transforms
+- `replace_one(find: String, with: String)          :: Vec<String> → Vec<(String, String)>`
+- `replace_all(find: String, with: String)          :: Vec<String> → Vec<(String, String)>`
+- `replace_anything(with: String)                   :: Vec<String> → Vec<(String, String)>`
+- `add_remove_one(s: String)                        :: Vec<String> → Vec<(String, String)>`
+- `add_remove_all(s: String)                        :: Vec<String> → Vec<(String, String)>`
+- `add_prefix(s: String)                            :: Vec<String> → Vec<(String, String)>`
+- `add_suffix(s: String)                            :: Vec<String> → Vec<(String, String)>`
+- `anagram_with(word: String)                       :: Vec<String> → Vec<(String, String)>`
+- `beheadments()                                    :: Vec<String> → Vec<(String, String)>`
+- `curtailments()                                   :: Vec<String> → Vec<(String, String)>`
+- `side_splitting()                                 :: Vec<String> → Vec<(String, String)>`
+- `letter_swap(a: String, b: String)                :: Vec<String> → Vec<(String, String)>`
+- `regex_replacement(pattern: String, with: String) :: Vec<String> → Vec<(String, String)>`
+
+### Curiosities (no params)
+- `palindromes()                                    :: Vec<String> → Vec<String>`
+- `semordnilaps()                                   :: Vec<String> → Vec<(String, String)>`
+- `isograms()                                       :: Vec<String> → Vec<String>`
+- `supervocalics()                                  :: Vec<String> → Vec<String>`
+- `monovocs()                                       :: Vec<String> → Vec<String>`
+- `repeaters()                                      :: Vec<String> → Vec<String>`
+- `neckouts()                                       :: Vec<String> → Vec<String>`
+- `alphabetical()                                   :: Vec<String> → Vec<String>`
+
+### Misc
+- `spelling_bee(center: char, outer: String)        :: Vec<String> → Vec<String>`
+- `everything()                                     :: Vec<String> → Vec<String>`
+
+### Grawlix-original
+- `phrase_parsing()                                 :: Vec<String> → Vec<String>` — strings are space-separated multi-word phrases
+- `nested_words()                                   :: Vec<String> → Vec<(String, String)>` — `(formed, inner)`; output shape TBD
+- `letter_incrementing(n: u32)                      :: Vec<String> → Vec<(String, String)>`
+- `anagram_families()                               :: Vec<String> → Vec<Vec<String>>`
+- *Phrase-level alterations* — probably a flag on the existing pair transforms (operate on phrase parses rather than the run-together string), not its own tool.
+
+### What this means
+
+- **No input type system needed.** Every tool reads `Vec<String>`. Chaining row K → row K+1 only ever has to fix an *output* mismatch, which reduces to "how do we flatten row K's output to `Vec<String>` for row K+1?" One policy per output shape (pair → flatten to union? right column? left column? both columns interleaved?), not a generalized type system.
+- **Filter tools (search, regex) are the polymorphic exception.** They want to filter pairs and groups *as displayed* rather than after flattening — that's the "loose match against rendered text" in Output formats below. Implementation-wise, that means the filter tools take an extra dispatch on output shape rather than a uniform `Vec<String>` input.
+- **The 2% chaining case is a small policy table, not a type system.** Three output shapes × one possible input shape = at most three flatten policies to define.
 
 ---
 

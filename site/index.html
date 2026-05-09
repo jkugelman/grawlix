@@ -168,12 +168,11 @@ button.danger:hover:not(:disabled) { background: #e74c3c; border-color: #c0392b;
 html.light-mode .histogram:hover .histogram-bar:not(.histogram-bar-ignored) { filter: saturate(1.5) brightness(0.95); }
 html.light-mode .histogram-rect { opacity: 0.22; }
 
-/* Search */
-.search-bar { padding: 7px 14px 6px; background: var(--surface); border-bottom: 1px solid var(--border2); flex-shrink: 0; }
-.search-row { display: flex; align-items: center; gap: 10px; }
+/* Search bar — styled as the bottom "filter" row of the tool stack. */
+.search-bar { padding: 8px 14px; background: var(--surface); border-bottom: 1px solid var(--border2); flex-shrink: 0; display: flex; align-items: center; gap: 12px; }
+.search-row { display: flex; align-items: center; gap: 10px; flex: 1; }
 .search-input-wrap { position: relative; flex: 1; display: flex; align-items: center; }
-.search-input-wrap > svg { position: absolute; left: 9px; pointer-events: none; color: var(--muted); }
-.search-row input[type="text"] { width: 100%; padding: 5px 24px 5px 28px; border: 1px solid var(--border); border-radius: 4px; font-size: 13px; font-family: inherit; background: var(--input-bg); color: var(--text); }
+.search-row input[type="text"] { width: 100%; padding: 5px 24px 5px 8px; border: 1px solid var(--border); border-radius: 4px; font-size: 13px; font-family: ui-monospace, 'Cascadia Code', monospace; background: var(--input-bg); color: var(--text); }
 .search-row input[type="text"]:focus { outline: none; border-color: var(--accent); }
 .search-whole-word-label { display: flex; align-items: center; gap: 5px; font-size: 12px; color: var(--muted); white-space: nowrap; cursor: pointer; user-select: none; }
 .score-range-label { display: flex; align-items: center; gap: 5px; font-size: 12px; color: var(--muted); white-space: nowrap; margin-left: 8px; }
@@ -182,13 +181,9 @@ html.light-mode .histogram-rect { opacity: 0.22; }
 .clear-btn[hidden] { display: none; }
 .search-input-wrap .clear-btn, .score-range-wrap .clear-btn { position: absolute; right: 4px; }
 .score-range-wrap { position: relative; display: inline-flex; align-items: center; }
-.score-range-label input[type="text"] { width: 72px; padding: 4px 20px 4px 6px; border: 1px solid var(--border); border-radius: 4px; font-size: 13px; font-family: inherit; background: var(--input-bg); color: var(--text); }
+.score-range-label input[type="text"] { width: 72px; padding: 4px 20px 4px 6px; border: 1px solid var(--border); border-radius: 4px; font-size: 13px; font-family: ui-monospace, 'Cascadia Code', monospace; background: var(--input-bg); color: var(--text); }
 .score-range-label input[type="text"]:focus { outline: none; border-color: var(--accent); }
 .score-range-label input.invalid { border-color: #ea4335; background: var(--error-bg); }
-.search-help { margin-bottom: 5px; font-size: 11px; color: transparent; line-height: 1.6; display: flex; flex-wrap: wrap; gap: 0 14px; transition: color 0.15s; }
-.search-help kbd { font-family: ui-monospace, 'Cascadia Code', monospace; font-size: 11px; }
-.search-bar:has(#search-input:focus) .search-help { color: var(--faint); }
-.search-bar:has(#search-input:focus) .search-help kbd { color: var(--muted); }
 mark.search-match { border-radius: 2px; padding: 0 1px; font-style: normal; }
 html.light-mode .search-match-0 { background: #ddd6fe; color: rgba(0,0,0,0.72); }
 html.light-mode .search-match-1 { background: #99f6e4; color: rgba(0,0,0,0.72); }
@@ -200,10 +195,6 @@ html.dark-mode .search-match-1 { background: #065f46; color: #a7f3d0; }
 html.dark-mode .search-match-2 { background: #78350f; color: #fef3c7; }
 html.dark-mode .search-match-3 { background: #831843; color: #fce7f3; }
 html.dark-mode .search-match-4 { background: #14532d; color: #d1fae5; }
-.search-count-wrap { margin-left: auto; }
-#search-count { font-size: 11px; color: var(--faint); }
-.copy-btn { background: none; border: none; padding: 0; cursor: pointer; color: var(--faint); display: inline-flex; align-items: center; line-height: 1; vertical-align: middle; }
-.copy-btn:hover { color: var(--muted); }
 
 /* Virtual scroll table */
 #table-container { flex: 1; overflow: hidden; display: flex; flex-direction: column; background: var(--surface); }
@@ -527,14 +518,53 @@ a.get-file:hover { text-decoration: underline; }
 .gallery-empty p { font-size: 13px; font-weight: 600; color: var(--text); margin-bottom: 4px; }
 .gallery-empty small { font-size: 11px; line-height: 1.5; display: block; }
 
-/* Tool gallery cards (placeholder mockup) */
-.gallery-card { border: 1px solid var(--border); border-radius: 6px; padding: 9px 12px; background: var(--surface2); cursor: not-allowed; user-select: none; opacity: 0.92; }
+/* Tool gallery cards */
+.gallery-card { position: relative; border: 1px solid var(--border); border-radius: 6px; padding: 9px 32px 9px 12px; background: var(--surface2); cursor: pointer; user-select: none; transition: background 0.1s, border-color 0.1s, box-shadow 0.1s; }
 .gallery-card:hover { background: var(--hover); border-color: var(--accent); }
+.gallery-card.active { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
 .gallery-card-name { font-size: 13px; font-weight: 600; color: var(--text); }
 .gallery-card-desc { font-size: 11px; color: var(--muted); margin-top: 2px; }
 .gallery-card-example { font-family: ui-monospace, 'Cascadia Code', monospace; font-size: 11px; color: var(--faint); margin-top: 5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .gallery-section-label + .gallery-card { margin-top: 0; }
 .gallery-card + .gallery-section-label { margin-top: 6px; }
+.gallery-card-add { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); width: 22px; height: 22px; border-radius: 50%; background: var(--accent); color: #fff; border: none; cursor: pointer; font-size: 14px; font-weight: 600; line-height: 1; padding: 0; display: flex; align-items: center; justify-content: center; opacity: 0; transition: background 0.1s; }
+.gallery-card:hover .gallery-card-add { opacity: 1; }
+.gallery-card-add:focus-visible { opacity: 1; }
+/* Descendant selector bumps specificity to (0,3,0) so the global
+   `button:hover:not(:disabled)` rule (specificity 0,2,1) doesn't override
+   our hover background and camouflage the button against the card. */
+.gallery-card .gallery-card-add:hover { background: var(--accent-hover, var(--accent)); }
+body.tools-empty .gallery-card { padding-right: 12px; }
+body.tools-empty .gallery-card-add { display: none; }
+
+#tool-stack { background: var(--surface); border-bottom: 1px solid var(--border2); flex-shrink: 0; overflow: hidden; }
+.tool-row { display: grid; grid-template-columns: 1fr 32px; align-items: center; padding: 8px 14px; border-bottom: 1px solid var(--border2); gap: 10px; overflow: hidden; transition: opacity 0.2s ease, background 0.15s ease; }
+.tool-row:last-child { border-bottom: none; }
+.tool-row.ghost { position: relative; pointer-events: none; background: color-mix(in srgb, var(--accent) 7%, transparent); opacity: 0.85; }
+.tool-row.ghost .tool-row-icon, .tool-row.ghost .tool-row-name { color: var(--accent); }
+.tool-row.ghost > * { position: relative; z-index: 1; }
+.tool-row.ghost::after { content: ''; position: absolute; inset: 0; z-index: 0; background: linear-gradient(90deg, transparent 25%, color-mix(in srgb, var(--accent) 20%, transparent) 50%, transparent 75%); transform: translateX(-100%); animation: ghost-shimmer 2.4s linear infinite; }
+@keyframes ghost-shimmer {
+  0%   { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tool-row.ghost::after { animation: none; }
+}
+.tool-row.doomed { max-height: 0; padding-top: 0; padding-bottom: 0; border-bottom: none; opacity: 0; pointer-events: none; }
+.tool-row-body { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; min-width: 0; }
+.tool-row-icon { font-size: 16px; line-height: 1; width: 20px; height: 20px; display: inline-flex; align-items: center; justify-content: center; color: var(--muted); flex-shrink: 0; }
+.tool-row-name { font-size: 13px; font-weight: 600; color: var(--text); }
+.tool-toggle { font-size: 12px; color: var(--muted); }
+.tool-toggle-link { color: var(--accent); text-decoration: underline; cursor: pointer; font-weight: 600; }
+.tool-toggle-link:hover { color: var(--accent-hover, var(--accent)); }
+.tool-row-params { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.tool-row-param { display: flex; align-items: center; gap: 4px; font-size: 12px; color: var(--muted); }
+.tool-row-param input { background: var(--input-bg); border: 1px solid var(--border); border-radius: 4px; padding: 4px 8px; font-size: 12px; color: var(--text); width: 110px; font-family: ui-monospace, 'Cascadia Code', monospace; }
+.tool-row-param input:focus { outline: none; border-color: var(--accent); }
+.tool-row-remove { background: none; border: none; color: var(--faint); cursor: pointer; padding: 4px; border-radius: 4px; line-height: 1; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; }
+.tool-row-remove:hover { color: var(--text); background: var(--hover); }
+.tool-row-remove-placeholder { width: 24px; height: 24px; }
 
 /* Wordlists dialog */
 #wordlists-dialog { width: 880px; max-width: 95vw; height: 640px; max-height: 88vh; padding: 0; }
@@ -761,10 +791,6 @@ input.cell-edit.score-edit { font-family: ui-monospace, 'Cascadia Code', monospa
   <symbol id="icon-arrow" viewBox="0 0 8 5" fill="currentColor">
     <path d="M0 0l4 5 4-5z"/>
   </symbol>
-  <symbol id="icon-clipboard" viewBox="0 0 16 16" fill="currentColor">
-    <path d="M4 1.5H3a2 2 0 0 0-2 2V14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V3.5a2 2 0 0 0-2-2h-1v1h1a1 1 0 0 1 1 1V14a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V3.5a1 1 0 0 1 1-1h1v-1z"/>
-    <path d="M9.5 1a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-.5.5h-3a.5.5 0 0 1-.5-.5v-1a.5.5 0 0 1 .5-.5h3zm-3-1A1.5 1.5 0 0 0 5 1.5v1A1.5 1.5 0 0 0 6.5 4h3A1.5 1.5 0 0 0 11 2.5v-1A1.5 1.5 0 0 0 9.5 0h-3z"/>
-  </symbol>
   <symbol id="icon-adjustments" viewBox="0 0 24 24" fill="currentColor">
     <path d="M18.75 12.75h1.5a.75.75 0 0 0 0-1.5h-1.5a.75.75 0 0 0 0 1.5ZM12 6a.75.75 0 0 1 .75-.75h7.5a.75.75 0 0 1 0 1.5h-7.5A.75.75 0 0 1 12 6ZM12 18a.75.75 0 0 1 .75-.75h7.5a.75.75 0 0 1 0 1.5h-7.5A.75.75 0 0 1 12 18ZM3.75 6.75h1.5a.75.75 0 1 0 0-1.5h-1.5a.75.75 0 0 0 0 1.5ZM5.25 18.75h-1.5a.75.75 0 0 1 0-1.5h1.5a.75.75 0 0 1 0 1.5ZM3 12a.75.75 0 0 1 .75-.75h7.5a.75.75 0 0 1 0 1.5h-7.5A.75.75 0 0 1 3 12ZM9 3.75a2.25 2.25 0 1 0 0 4.5 2.25 2.25 0 0 0 0-4.5ZM12.75 12a2.25 2.25 0 1 1 4.5 0 2.25 2.25 0 0 1-4.5 0ZM9 15.75a2.25 2.25 0 1 0 0 4.5 2.25 2.25 0 0 0 0-4.5Z"/>
   </symbol>
@@ -813,46 +839,52 @@ input.cell-edit.score-edit { font-family: ui-monospace, 'Cascadia Code', monospa
       </div>
     </div>
     <div class="gallery-body">
-      <!-- Placeholder cards: visual mockup of the tool gallery, not yet wired. -->
       <div class="gallery-section-label">Anagrams &amp; letter banks</div>
-      <div class="gallery-card">
+      <div class="gallery-card" data-tool="anagram">
         <div class="gallery-card-name">Anagram</div>
         <div class="gallery-card-desc">Same letters, rearranged</div>
         <div class="gallery-card-example">LINDSEY → SNIDELY</div>
+        <button class="gallery-card-add" type="button" aria-label="Add Anagram to stack" title="Add to stack">+</button>
       </div>
-      <div class="gallery-card">
+      <div class="gallery-card" data-tool="subanagram">
         <div class="gallery-card-name">Subanagram</div>
         <div class="gallery-card-desc">Words made from any subset of letters</div>
         <div class="gallery-card-example">PARENTAL → PLANE, RENT, …</div>
+        <button class="gallery-card-add" type="button" aria-label="Add Subanagram to stack" title="Add to stack">+</button>
       </div>
 
       <div class="gallery-section-label">Letter patterns</div>
-      <div class="gallery-card">
+      <div class="gallery-card" data-tool="regex">
         <div class="gallery-card-name">Regex</div>
         <div class="gallery-card-desc">Match by regular expression</div>
         <div class="gallery-card-example">^un.*ed$</div>
+        <button class="gallery-card-add" type="button" aria-label="Add Regex to stack" title="Add to stack">+</button>
       </div>
-      <div class="gallery-card">
+      <div class="gallery-card" data-tool="palindrome">
         <div class="gallery-card-name">Palindrome</div>
         <div class="gallery-card-desc">Reads the same forwards and back</div>
         <div class="gallery-card-example">RACECAR · KAYAK</div>
+        <button class="gallery-card-add" type="button" aria-label="Add Palindrome to stack" title="Add to stack">+</button>
       </div>
 
       <div class="gallery-section-label">Pairs</div>
-      <div class="gallery-card">
+      <div class="gallery-card" data-tool="beheadments">
         <div class="gallery-card-name">Beheadments</div>
         <div class="gallery-card-desc">Drop the first letter to get a new word</div>
         <div class="gallery-card-example">SLING → LING</div>
+        <button class="gallery-card-add" type="button" aria-label="Add Beheadments to stack" title="Add to stack">+</button>
       </div>
-      <div class="gallery-card">
+      <div class="gallery-card" data-tool="curtailments">
         <div class="gallery-card-name">Curtailments</div>
         <div class="gallery-card-desc">Drop the last letter to get a new word</div>
         <div class="gallery-card-example">CARTS → CART</div>
+        <button class="gallery-card-add" type="button" aria-label="Add Curtailments to stack" title="Add to stack">+</button>
       </div>
-      <div class="gallery-card">
+      <div class="gallery-card" data-tool="semordnilaps">
         <div class="gallery-card-name">Semordnilaps</div>
         <div class="gallery-card-desc">Reverse to get a different word</div>
         <div class="gallery-card-example">STRESSED → DESSERTS</div>
+        <button class="gallery-card-add" type="button" aria-label="Add Semordnilaps to stack" title="Add to stack">+</button>
       </div>
     </div>
   </aside>
@@ -1108,19 +1140,12 @@ function buildSearchBarHTML(opts = {}) {
   const {
     idPrefix        = '',
     readonly        = false,
-    showHints       = true,
     searchQuery     = idPrefix ? '' : esc(state.searchQuery),
     searchWholeWord = idPrefix ? false : (state.searchWholeWord || false),
     scoreRange      = idPrefix ? '' : (state.scoreRange || ''),
   } = opts;
   const pre = idPrefix ? `${idPrefix}-` : '';
   const ro  = readonly ? ' readonly' : '';
-
-  const hintsHtml = showHints ? `
-      <div class="search-help">
-        ${buildWildcardSpansHTML()}
-        <span class="search-count-wrap"><span id="${pre}search-count"></span>${readonly ? '' : ` <button class="copy-btn" id="${pre}search-copy" onclick="copyVisibleEntries()" title="Copy to clipboard" aria-label="Copy matches to clipboard" hidden><svg width="13" height="13" aria-hidden="true"><use href="#icon-clipboard"/></svg></button>`}</span>
-      </div>` : '';
 
   const inputHandlers = readonly ? '' : ` oninput="onSearch(this.value)"`;
   const clearSearchBtn = readonly ? '' :
@@ -1130,11 +1155,12 @@ function buildSearchBarHTML(opts = {}) {
   const clearScoreBtn = readonly ? '' :
     `<button class="clear-btn" id="${pre}score-range-clear" onclick="clearScoreRange()" title="Clear score" aria-label="Clear score" ${scoreRange ? '' : 'hidden'}><svg width="10" height="10"><use href="#icon-x"/></svg></button>`;
 
-  return `<div class="search-bar">${hintsHtml}
+  return `<div class="search-bar">
+      <span class="tool-row-icon"><svg width="16" height="16" aria-hidden="true"><use href="#icon-search"/></svg></span>
+      <span class="tool-row-name">Search</span>
       <div class="search-row">
         <div class="search-input-wrap">
-          <svg width="13" height="13"><use href="#icon-search"/></svg>
-          <input type="text" id="${pre}search-input" placeholder="Search" value="${searchQuery}"${ro}${inputHandlers}${readonly ? '' : ' title="Search (Alt+S)"'}>
+          <input type="text" id="${pre}search-input" placeholder="pattern" value="${searchQuery}"${ro}${inputHandlers}${readonly ? '' : ' title="Search (Alt+S)"'}>
           ${clearSearchBtn}
         </div>
         <label class="search-whole-word-label"${readonly ? '' : ' title="Whole word (Alt+W)"'}><input type="checkbox" id="${pre}search-whole-word"${wholeWordHandler} ${searchWholeWord ? 'checked' : ''}${ro}> Whole word</label>
@@ -2647,17 +2673,6 @@ async function downloadWithDialog(defaultStem, wordlist, entries, title = 'Downl
   showToast(`Downloaded ${pluralize(entries.length, 'entry', 'entries')}`);
 }
 
-async function copyVisibleEntries() {
-  if (!scroller || !scroller.entries.length) return;
-  const text = entriesToDownloadText(scroller.entries, { upper: false, comments: getDownloadComments() });
-  try {
-    await navigator.clipboard.writeText(text);
-  } catch {
-    return;
-  }
-  showToast('Copied to clipboard');
-}
-
 async function persistEdits(edits) {
   await persistData(edits.dbKey, entriesToText(edits.rawEntries));
   persistMeta();
@@ -2869,6 +2884,391 @@ function highlightSegments(word, hlRe) {
   }
   return result + word.slice(pos);
 }
+
+// ─── Tool stack ───────────────────────────────────────────────────────────────
+// Chrome-only mockup: rows render but don't yet transform the wordlist.
+//
+// TODO: stats bar should reflect the post-filter / post-tool entry set (count,
+// min/max, histogram). Today the stats bar always reflects the source wordlist.
+
+const TOOLS = {
+  anagram:      { name: 'Anagram',      icon: '🔤', params: [{ key: 'word',    label: 'word'    }],                                 output: 'single' },
+  subanagram:   { name: 'Subanagram',   icon: '🔡', params: [{ key: 'letters', label: 'letters' }],                                 output: 'single' },
+  regex:        { name: 'Regex',        icon: '🪄', params: [{ key: 'pattern', label: 'pattern' }],                                 output: 'single', polymorphic: true },
+  palindrome:   { name: 'Palindrome',   icon: '🔄', params: [],                                                                     output: 'single' },
+  beheadments:  { name: 'Beheadments',  icon: '🪓', params: [],                                                                     output: 'pair'   },
+  curtailments: { name: 'Curtailments', icon: '✂️', params: [],                                                                     output: 'pair'   },
+  semordnilaps: { name: 'Semordnilaps', icon: '↔️', params: [],                                                                     output: 'pair'   },
+};
+
+const ToolStack = (() => {
+  // [{ tool: 'anagram', params: { word: 'LINDSEY' }, col: 'to' }, ...]
+  let stack = [];
+  // { mode: 'replace' | 'chain', tool: 'anagram' } | null
+  let preview = null;
+
+  function paramsHTML(tool, idx, valuesByKey, opts = {}) {
+    if (!tool.params.length) return '';
+    const single = tool.params.length === 1;
+    const inputs = tool.params.map(p => {
+      const labelHTML = single ? '' : `<label>${esc(p.label)}:</label>`;
+      const valueAttr = opts.disabled ? '' : ` value="${esc(valuesByKey?.[p.key] || '')}" data-row="${idx}" data-key="${p.key}"`;
+      const dis = opts.disabled ? ' disabled' : '';
+      return `<span class="tool-row-param">${labelHTML}<input type="text" placeholder="${esc(p.label)}"${valueAttr}${dis}></span>`;
+    }).join('');
+    return `<span class="tool-row-params">${inputs}</span>`;
+  }
+
+  function buildRowHTML(idx, row, opts = {}) {
+    const tool = TOOLS[row.tool];
+    if (!tool) return '';
+    const prev = idx === 0 ? null : stack[idx - 1];
+    const prevPair = prev && TOOLS[prev.tool]?.output === 'pair';
+    const showToggle = prevPair && !tool.polymorphic;
+    const altCol = row.col === 'to' ? 'from' : 'to';
+
+    const toggleHTML = showToggle
+      ? `<span class="tool-toggle">on <span class="tool-toggle-link" data-toggle="${idx}" title="Click to use ${altCol}">${row.col}</span></span>`
+      : '';
+
+    const cls = ['tool-row', opts.doomed && 'doomed'].filter(Boolean).join(' ');
+    return `<div class="${cls}">
+      <div class="tool-row-body">
+        <span class="tool-row-icon">${tool.icon}</span>
+        <span class="tool-row-name">${esc(tool.name)}</span>
+        ${toggleHTML}
+        ${paramsHTML(tool, idx, row.params)}
+      </div>
+      <button type="button" class="tool-row-remove" data-remove="${idx}" title="Remove" aria-label="Remove ${esc(tool.name)}"><svg width="10" height="10"><use href="#icon-x"/></svg></button>
+    </div>`;
+  }
+
+  function buildGhostRowHTML(toolKey, mode, opts = {}) {
+    const tool = TOOLS[toolKey];
+    if (!tool) return '';
+    const prev = (mode === 'chain' && stack.length > 0) ? stack[stack.length - 1] : null;
+    const prevPair = prev && TOOLS[prev.tool]?.output === 'pair';
+    const showToggle = prevPair && !tool.polymorphic;
+
+    const toggleHTML = showToggle
+      ? `<span class="tool-toggle">on <span class="tool-toggle-link">to</span></span>`
+      : '';
+
+    return `<div class="tool-row ghost" data-ghost-tool="${esc(toolKey)}">
+      <div class="tool-row-body">
+        <span class="tool-row-icon">${tool.icon}</span>
+        <span class="tool-row-name">${esc(tool.name)}</span>
+        ${toggleHTML}
+        ${paramsHTML(tool, -1, null, { disabled: true })}
+      </div>
+      <div class="tool-row-remove-placeholder"></div>
+    </div>`;
+  }
+
+  // Used by mountDetailPanel for the initial render. Mutations after that go
+  // through direct DOM manipulation in add/replace/removeAt so insertions and
+  // deletions can animate.
+  function buildHTML() {
+    if (!stack.length && !preview) return '';
+    let rows = '';
+    if (preview?.mode === 'replace') {
+      rows += stack.map((row, idx) => buildRowHTML(idx, row, { doomed: true })).join('');
+      rows += buildGhostRowHTML(preview.tool, 'replace');
+    } else if (preview?.mode === 'chain') {
+      rows += stack.map((row, idx) => buildRowHTML(idx, row)).join('');
+      rows += buildGhostRowHTML(preview.tool, 'chain');
+    } else {
+      rows += stack.map((row, idx) => buildRowHTML(idx, row)).join('');
+    }
+    return `<div id="tool-stack">${rows}</div>`;
+  }
+
+  function stackEl() { return document.getElementById('tool-stack'); }
+  function panelEl() { return document.getElementById('detail-panel'); }
+
+  function ensureStackEl() {
+    let e = stackEl();
+    if (e) return e;
+    const p = panelEl();
+    if (!p) return null;
+    e = document.createElement('div');
+    e.id = 'tool-stack';
+    const searchBar = p.querySelector('.search-bar');
+    const tableContainer = p.querySelector('#table-container');
+    const anchor = searchBar || tableContainer;
+    if (anchor) p.insertBefore(e, anchor);
+    else p.appendChild(e);
+    return e;
+  }
+
+  function userRowEls() {
+    const e = stackEl();
+    if (!e) return [];
+    return Array.from(e.querySelectorAll('.tool-row:not(.ghost)'));
+  }
+
+  function ghostEl() {
+    return stackEl()?.querySelector('.tool-row.ghost') ?? null;
+  }
+
+  // Per-row max-height transitions were tried first and produced jiggle when
+  // multiple rows animated in opposite directions; container-level animation
+  // is one coherent move regardless of how many rows changed.
+  function animateHeight(mutate) {
+    const before = stackEl();
+    let oldHeight = 0;
+    if (before) {
+      oldHeight = before.getBoundingClientRect().height;
+      // Pin to current rendered height in case a previous animation is mid-flight.
+      before.style.transition = 'none';
+      before.style.height = oldHeight + 'px';
+      before.offsetHeight;
+    }
+
+    mutate();
+
+    const after = stackEl();
+    if (!after) return;
+
+    // Measure natural new height by clearing the explicit value briefly.
+    after.style.transition = 'none';
+    after.style.height = '';
+    after.offsetHeight;
+    let newHeight = after.getBoundingClientRect().height;
+
+    const willBeEmpty = !stack.length && !ghostEl() && !userRowEls().length;
+    if (willBeEmpty) newHeight = 0;
+
+    if (oldHeight === newHeight) {
+      after.style.transition = '';
+      if (willBeEmpty) after.remove();
+      return;
+    }
+
+    after.style.height = oldHeight + 'px';
+    after.offsetHeight;
+    after.style.transition = 'height 0.22s ease';
+    requestAnimationFrame(() => { after.style.height = newHeight + 'px'; });
+
+    let done = false;
+    const finish = () => {
+      if (done) return; done = true;
+      after.removeEventListener('transitionend', onEnd);
+      if (after.isConnected) {
+        after.style.height = '';
+        after.style.transition = '';
+        if (!stack.length && !ghostEl() && !userRowEls().length) after.remove();
+      }
+    };
+    const onEnd = (e) => { if (e.propertyName === 'height') finish(); };
+    after.addEventListener('transitionend', onEnd);
+    setTimeout(finish, 360);
+  }
+
+  function refreshGalleryActive() {
+    const active = new Set(stack.map(r => r.tool));
+    document.querySelectorAll('.gallery-card[data-tool]').forEach(card => {
+      card.classList.toggle('active', active.has(card.dataset.tool));
+    });
+    document.body.classList.toggle('tools-empty', stack.length === 0);
+  }
+
+  // Same DOM element, so class-based transitions (opacity, color, background)
+  // handle the visual shift smoothly instead of replacing the node and losing
+  // any in-progress transition state.
+  function promoteGhost(idx) {
+    const ghost = ghostEl();
+    if (!ghost) return;
+    ghost.classList.remove('ghost');
+    delete ghost.dataset.ghostTool;
+    const tmp = document.createElement('div');
+    tmp.innerHTML = buildRowHTML(idx, stack[idx]);
+    ghost.innerHTML = tmp.firstElementChild.innerHTML;
+  }
+
+  function setPreview(mode, tool) {
+    // Replace previews are only useful when 2+ tools are at risk — they
+    // communicate "you're about to wipe several rows." For 0 or 1 tools, the
+    // primary click is simple enough to leave un-previewed. Chain mode (via
+    // the + button) always previews because the + affordance is unfamiliar
+    // and the ghost shows what it does.
+    const isUselessReplace = mode === 'replace' && stack.length < 2;
+    if (isUselessReplace) {
+      clearPreview();
+      return;
+    }
+    if (preview?.mode === mode && preview?.tool === tool) return;
+    preview = { mode, tool };
+
+    animateHeight(() => {
+      const e = ensureStackEl();
+      if (!e) return;
+      userRowEls().forEach(r => r.classList.toggle('doomed', mode === 'replace'));
+      const old = ghostEl();
+      if (old) old.remove();
+      const tmp = document.createElement('div');
+      tmp.innerHTML = buildGhostRowHTML(tool, mode);
+      e.appendChild(tmp.firstElementChild);
+    });
+  }
+
+  function clearPreview() {
+    if (!preview) return;
+    preview = null;
+    animateHeight(() => {
+      const e = stackEl();
+      if (!e) return;
+      e.querySelectorAll('.tool-row.doomed').forEach(r => r.classList.remove('doomed'));
+      const ghost = ghostEl();
+      if (ghost) ghost.remove();
+    });
+  }
+
+  function add(toolKey) {
+    if (!TOOLS[toolKey]) return;
+    preview = null;
+    const idx = stack.length;
+    stack.push({ tool: toolKey, params: {}, col: 'to' });
+
+    animateHeight(() => {
+      const e = ensureStackEl();
+      if (!e) return;
+      e.querySelectorAll('.tool-row.doomed').forEach(r => r.classList.remove('doomed'));
+      const ghost = ghostEl();
+      if (ghost && ghost.dataset.ghostTool === toolKey) {
+        promoteGhost(idx);
+      } else {
+        if (ghost) ghost.remove();
+        const tmp = document.createElement('div');
+        tmp.innerHTML = buildRowHTML(idx, stack[idx]);
+        e.appendChild(tmp.firstElementChild);
+      }
+    });
+    refreshGalleryActive();
+  }
+
+  function replace(toolKey) {
+    if (!TOOLS[toolKey]) return;
+    // Self-replace = no-op (still drop any preview that's lingering).
+    if (stack.length === 1 && stack[0].tool === toolKey) {
+      preview = null;
+      animateHeight(() => {
+        const e = stackEl();
+        if (!e) return;
+        e.querySelectorAll('.tool-row.doomed').forEach(r => r.classList.remove('doomed'));
+        const ghost = ghostEl();
+        if (ghost) ghost.remove();
+      });
+      return;
+    }
+    preview = null;
+    stack = [{ tool: toolKey, params: {}, col: 'to' }];
+
+    animateHeight(() => {
+      const e = ensureStackEl();
+      if (!e) return;
+      const ghost = ghostEl();
+      if (ghost && ghost.dataset.ghostTool === toolKey) {
+        // Doomed rows have already collapsed to zero height — removing them
+        // is invisible.
+        userRowEls().forEach(r => r.remove());
+        promoteGhost(0);
+      } else {
+        if (ghost) ghost.remove();
+        userRowEls().forEach(r => r.remove());
+        const tmp = document.createElement('div');
+        tmp.innerHTML = buildRowHTML(0, stack[0]);
+        e.appendChild(tmp.firstElementChild);
+      }
+    });
+    refreshGalleryActive();
+  }
+
+  function removeAt(idx) {
+    if (idx < 0 || idx >= stack.length) return;
+    stack.splice(idx, 1);
+    preview = null;
+
+    animateHeight(() => {
+      const e = stackEl();
+      if (!e) return;
+      e.querySelectorAll('.tool-row.doomed').forEach(r => r.classList.remove('doomed'));
+      const ghost = ghostEl();
+      if (ghost) ghost.remove();
+      // Rebuild rows from current stack so indices and toggle visibility
+      // reflect the new positions.
+      userRowEls().forEach(r => r.remove());
+      stack.forEach((row, i) => {
+        const tmp = document.createElement('div');
+        tmp.innerHTML = buildRowHTML(i, row);
+        e.appendChild(tmp.firstElementChild);
+      });
+    });
+    refreshGalleryActive();
+  }
+
+  function toggleColAt(idx) {
+    if (!stack[idx]) return;
+    stack[idx].col = stack[idx].col === 'to' ? 'from' : 'to';
+    const rowEl = userRowEls()[idx];
+    const toggle = rowEl?.querySelector('.tool-toggle-link');
+    if (toggle) {
+      toggle.textContent = stack[idx].col;
+      toggle.setAttribute('title', `Click to use ${stack[idx].col === 'to' ? 'from' : 'to'}`);
+    }
+  }
+
+  function init() {
+    const galleryBody = document.querySelector('.gallery-body');
+    galleryBody?.addEventListener('click', (e) => {
+      const card = e.target.closest('.gallery-card[data-tool]');
+      if (!card) return;
+      const toolKey = card.dataset.tool;
+      if (!TOOLS[toolKey]) return;
+      if (e.target.closest('.gallery-card-add')) {
+        add(toolKey);
+      } else {
+        replace(toolKey);
+      }
+    });
+
+    document.querySelectorAll('.gallery-card[data-tool]').forEach(card => {
+      const toolKey = card.dataset.tool;
+      const addBtn = card.querySelector('.gallery-card-add');
+      card.addEventListener('mouseenter', () => setPreview('replace', toolKey));
+      card.addEventListener('mouseleave', () => clearPreview());
+      if (addBtn) {
+        addBtn.addEventListener('mouseenter', () => setPreview('chain', toolKey));
+        addBtn.addEventListener('mouseleave', () => setPreview('replace', toolKey));
+      }
+    });
+
+    const p = panelEl();
+    p?.addEventListener('click', (e) => {
+      const removeBtn = e.target.closest('.tool-row-remove[data-remove]');
+      if (removeBtn) {
+        removeAt(parseInt(removeBtn.dataset.remove, 10));
+        return;
+      }
+      const toggle = e.target.closest('.tool-toggle-link[data-toggle]');
+      if (toggle) {
+        toggleColAt(parseInt(toggle.dataset.toggle, 10));
+        return;
+      }
+    });
+    p?.addEventListener('input', (e) => {
+      const input = e.target.closest('input[data-row]');
+      if (!input) return;
+      const idx = parseInt(input.dataset.row, 10);
+      const key = input.dataset.key;
+      if (stack[idx]) stack[idx].params[key] = input.value;
+    });
+
+    refreshGalleryActive();
+  }
+
+  return { buildHTML, refreshGalleryActive, init };
+})();
 
 // ─── Input helpers ────────────────────────────────────────────────────────────
 
@@ -3179,11 +3579,6 @@ class VirtualScroller {
 
     this.entries = entries;
     if (resetScroll) this.container.scrollTop = 0;
-    const countEl = document.getElementById('search-count');
-    const copyBtn = document.getElementById('search-copy');
-    const filtered = !!(q || this._scoreIntervals);
-    if (countEl) countEl.textContent = filtered ? entries.length.toLocaleString() + (entries.length === 1 ? ' match' : ' matches') : '';
-    if (copyBtn) copyBtn.hidden = !filtered;
     this._render();
   }
 
@@ -3757,8 +4152,10 @@ function mountDetailPanel(panel, stats, entries, middleHTML = '') {
   panel.innerHTML = `
     ${buildStatsBarHTML(stats, entries, getHistogramLayout())}
     ${middleHTML}
+    ${ToolStack.buildHTML()}
     ${buildTableContainerHTML()}
   `;
+  ToolStack.refreshGalleryActive();
   repositionAllHistogramRects();
   createScroller();
 }
@@ -5162,6 +5559,8 @@ function bindEvents() {
   document.querySelector('.header-logo-link').href = location.pathname;
   document.getElementById('btn-settings').onclick = () => SettingsDialog.open();
 
+  ToolStack.init();
+
   // Global keyboard shortcuts
   document.addEventListener('keydown', e => {
     if (e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey) {
@@ -6283,7 +6682,7 @@ const HelpModal = (() => {
       { icon: DEMO_PB_ICON, name: 'Peter Broda',   meta: '68,000 entries', enabled: true },
     ]);
     document.getElementById('help-slide0-search').innerHTML =
-      buildSearchBarHTML({ idPrefix: 'help0', readonly: true, showHints: false })
+      buildSearchBarHTML({ idPrefix: 'help0', readonly: true })
       + `<table class="word-table"><tbody>`
       + buildWordRowHTML('WORDPLAY',  60)
       + buildWordRowHTML('CROSSWORD', 60)
@@ -6301,7 +6700,7 @@ const HelpModal = (() => {
 
     // Slide 3: search bar (word rows are populated by runSearchDemo)
     document.getElementById('help-slide3-bar').innerHTML =
-      buildSearchBarHTML({ idPrefix: 'help', readonly: true, showHints: false });
+      buildSearchBarHTML({ idPrefix: 'help', readonly: true });
 
   }
 
