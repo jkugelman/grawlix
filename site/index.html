@@ -304,10 +304,7 @@ html.dark-mode .search-match-4 { background: #14532d; color: #d1fae5; }
 /* Atom popover (click-driven; replaces the old hover #cell-popover and
    inline cell-edit). Universal editor: source line + score + comment + delete. */
 #atom-popover { position: fixed; z-index: 600; background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 6px 24px rgba(0,0,0,0.2); padding: 12px 14px; font-size: 12px; color: var(--text); min-width: 280px; max-width: 360px; }
-.atom-pop-title { display: flex; align-items: baseline; gap: 8px; font-family: var(--font-mono); margin-bottom: 8px; padding-bottom: 8px; border-bottom: 1px solid var(--border3); }
-.atom-pop-title .atom-pop-len { color: var(--muted); font-size: 12px; }
-.atom-pop-title .atom-pop-word { font-weight: 700; font-size: 14px; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-.atom-pop-source { color: var(--muted); margin-bottom: 10px; line-height: 1.5; }
+.atom-pop-source { color: var(--muted); margin-bottom: 10px; padding-right: 22px; line-height: 1.5; }
 .atom-pop-source div + div { margin-top: 2px; }
 .atom-pop-source b { color: var(--text); font-weight: 600; }
 .atom-pop-fields { display: grid; grid-template-columns: auto 1fr; gap: 8px 10px; align-items: center; }
@@ -316,7 +313,9 @@ html.dark-mode .search-match-4 { background: #14532d; color: #d1fae5; }
 .atom-pop-fields input:focus { border-color: var(--accent); }
 .atom-pop-fields input.score-input { font-family: var(--font-mono); max-width: 90px; }
 .atom-pop-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding-top: 10px; border-top: 1px solid var(--border3); margin-top: 10px; }
-.atom-pop-saves { color: var(--muted); font-size: 11px; }
+/* Phantom border + vertical padding match the .atom-pop-delete button's box,
+   so the foot's height is the same whether the button is present or not. */
+.atom-pop-saves { color: var(--muted); font-size: 11px; padding: 3px 0; border: 1px solid transparent; }
 .atom-pop-delete { background: none; border: 1px solid var(--border); border-radius: 4px; padding: 3px 10px; font: inherit; font-size: 11px; color: #e53935; cursor: pointer; }
 .atom-pop-delete:hover { background: rgba(229, 57, 53, 0.1); border-color: #e53935; }
 
@@ -3881,6 +3880,9 @@ const AtomPopover = (() => {
     el = document.createElement('div');
     el.id = 'atom-popover';
     el.setAttribute('hidden', '');
+    el.addEventListener('click', e => {
+      if (e.target.closest('.dialog-close-btn')) close();
+    });
     document.body.appendChild(el);
     return el;
   }
@@ -3932,12 +3934,8 @@ const AtomPopover = (() => {
     window.addEventListener('resize', close);
   }
 
-  function renderHTML(entry, scroller) {
-    const d = scroller._entryDisplayState(entry);
-    const displayed = displayWord(entry.word);
+  function renderSourceLinesHTML(entry, scroller, d) {
     const rowWordlist = entry.wordlist || scroller.currentWordlist;
-    const editsWordlist = scroller.editsWordlist || getEditsWordlist();
-
     let sourceLines = '';
     if (rowWordlist) {
       const label = buildWordlistNameHTML(rowWordlist, { bold: false });
@@ -3949,32 +3947,72 @@ const AtomPopover = (() => {
       sourceLines += `<div>${ovLabel}: <b>${d.ov.score}</b> takes precedence</div>`;
     }
     if (d.ignored) sourceLines += `<div><i>Ignored by rescore rules</i></div>`;
+    return sourceLines;
+  }
 
+  function renderFooterHTML(entry, scroller) {
+    const rowWordlist = entry.wordlist || scroller.currentWordlist;
+    const editsWordlist = scroller.editsWordlist || getEditsWordlist();
     const rowIsEdits = rowWordlist === editsWordlist;
     const showDelete = scroller.showDeleteCol || (scroller.showEditDeleteCol && rowIsEdits);
-    const deleteBtn = showDelete ? `<button class="atom-pop-delete" type="button">Delete</button>` : '';
-
+    const deleteBtn = showDelete ? `<button class="atom-pop-delete" type="button">Delete edit</button>` : '';
     const editsName = editsWordlist ? buildWordlistNameHTML(editsWordlist, { bold: false }) : 'My Edits';
     const isEditsView = scroller.currentWordlist === editsWordlist;
     const savesNote = isEditsView ? `Editing ${editsName}` : `Saves to ${editsName}`;
+    return `<span class="atom-pop-saves">${savesNote}</span>${deleteBtn}`;
+  }
 
+  function renderHTML(entry, scroller) {
+    const d = scroller._entryDisplayState(entry);
     const scoreVal = d.ignored ? entry.score : d.effectiveScore;
     return `
-      <div class="atom-pop-title">
-        <span class="atom-pop-len">${entry.word.length}</span>
-        <span class="atom-pop-word">${esc(displayed)}</span>
-      </div>
-      <div class="atom-pop-source">${sourceLines}</div>
+      <button class="dialog-close-btn" type="button" aria-label="Close">✕</button>
+      <div class="atom-pop-source">${renderSourceLinesHTML(entry, scroller, d)}</div>
       <div class="atom-pop-fields">
         <label for="atom-pop-score">Score</label>
         <input id="atom-pop-score" class="score-input" type="number" min="0" value="${scoreVal}">
         <label for="atom-pop-comment">Comment</label>
         <input id="atom-pop-comment" class="comment-input" type="text" value="${esc(d.effectiveComment)}">
       </div>
-      <div class="atom-pop-foot">
-        <span class="atom-pop-saves">${savesNote}</span>
-        ${deleteBtn}
-      </div>`;
+      <div class="atom-pop-foot">${renderFooterHTML(entry, scroller)}</div>`;
+  }
+
+  // Re-render after an edit/delete commits so the popover reflects the new
+  // state. If the entry has been fully removed from the underlying data (e.g.
+  // deleting a word that only My Edits had, or any delete from the My Edits
+  // view), there's nothing left to show — close.
+  //
+  // `resetInputs: true` re-renders everything (including the score/comment
+  // inputs) — used after Delete, where the underlying values change. The
+  // default leaves the inputs alone so an edit-commit (e.g. tabbing from
+  // score to comment) preserves focus and the just-typed value.
+  function refresh({ resetInputs = false } = {}) {
+    if (!isOpen()) return;
+    if (!activeScroller.allEntries.includes(activeEntry)) { close(); return; }
+    if (resetInputs) {
+      el.innerHTML = renderHTML(activeEntry, activeScroller);
+      wireFields();
+      return;
+    }
+    const d = activeScroller._entryDisplayState(activeEntry);
+    const sourceEl = el.querySelector('.atom-pop-source');
+    const footEl = el.querySelector('.atom-pop-foot');
+    if (sourceEl) sourceEl.innerHTML = renderSourceLinesHTML(activeEntry, activeScroller, d);
+    if (footEl) {
+      footEl.innerHTML = renderFooterHTML(activeEntry, activeScroller);
+      wireDeleteButton();
+    }
+  }
+
+  function wireDeleteButton() {
+    const deleteBtn = el.querySelector('.atom-pop-delete');
+    if (!deleteBtn) return;
+    const scroller = activeScroller;
+    const word = activeEntry.word;
+    deleteBtn.addEventListener('click', () => {
+      scroller._onDeleteRow?.(word);
+      refresh({ resetInputs: true });
+    });
   }
 
   function wireFields() {
@@ -3984,11 +4022,13 @@ const AtomPopover = (() => {
 
     const scoreInp = popover.querySelector('.score-input');
     if (scoreInp) {
-      const initial = scoreInp.value;
+      let initial = scoreInp.value;
       const commit = () => {
         const parsed = parseInt(scoreInp.value, 10);
         if (!isNaN(parsed) && parsed >= 0 && String(parsed) !== initial) {
           scroller._onCellEdit?.(word, 'score', parsed);
+          initial = String(parsed);
+          refresh();
         }
       };
       scoreInp.addEventListener('blur', commit);
@@ -4000,11 +4040,13 @@ const AtomPopover = (() => {
 
     const commentInp = popover.querySelector('.comment-input');
     if (commentInp) {
-      const initial = commentInp.value;
+      let initial = commentInp.value;
       commentInp.addEventListener('beforeinput', blockSemicolon);
       const commit = () => {
         if (commentInp.value !== initial) {
           scroller._onCellEdit?.(word, 'comment', commentInp.value);
+          initial = commentInp.value;
+          refresh();
         }
       };
       commentInp.addEventListener('blur', commit);
@@ -4014,14 +4056,7 @@ const AtomPopover = (() => {
       });
     }
 
-    const deleteBtn = popover.querySelector('.atom-pop-delete');
-    if (deleteBtn) {
-      deleteBtn.addEventListener('click', () => {
-        const fn = scroller._onDeleteRow;
-        close();
-        fn?.(word);
-      });
-    }
+    wireDeleteButton();
   }
 
   function position(rowEl) {
