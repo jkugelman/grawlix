@@ -285,7 +285,9 @@ html.dark-mode .search-match-4 { background: #14532d; color: #d1fae5; }
 
 /* Comment + source columns appear when the card has room and no pair-output
    tool is active. Source is meaningful only on the merged All view (single
-   wordlists' source is constant per row). */
+   wordlists' source is constant per row). The two columns drop staggered as
+   the viewport narrows: source goes first (it eats ~22ch of fixed-ish width),
+   leaving the more informative comment column for as long as possible. */
 @media (min-width: 760px) {
   body:not(.tools-multi-word) .word-row,
   body:not(.tools-multi-word) .word-headers {
@@ -293,6 +295,8 @@ html.dark-mode .search-match-4 { background: #14532d; color: #d1fae5; }
   }
   body:not(.tools-multi-word) .word-row .atom-comment,
   body:not(.tools-multi-word) .word-headers .col-comment { display: block; }
+}
+@media (min-width: 960px) {
   body.merged-view:not(.tools-multi-word) .word-row,
   body.merged-view:not(.tools-multi-word) .word-headers {
     grid-template-columns: var(--count-w, 2ch) var(--word-w, 12ch) var(--len-w, 3ch) var(--score-w, calc(5ch + 12px)) minmax(0, 1fr) minmax(0, var(--source-max, 22ch));
