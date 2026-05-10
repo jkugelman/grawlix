@@ -1246,12 +1246,16 @@ class PopupHelp {
   }
 }
 
-function buildStatsBarHTML(stats, entries, layout) {
+// `stats` drives the numeric readouts (count/min/max/mean/median/mode); `hist`
+// ({ entries, ignoredCount }) drives the histogram bars. Splitting them lets
+// the score-range filter shrink the numbers without making bars outside the
+// selection vanish — those bars stay sourced from the pre-score-range set.
+function buildStatsBarHTML(stats, hist, layout) {
   const isEmpty = !stats.count;
   const dash = '—';
   const fmt = v => isEmpty ? dash : v;
-  const ignored = stats.ignoredCount || 0;
-  const counts = bucketCounts(entries || [], layout);
+  const ignored = hist.ignoredCount || 0;
+  const counts = bucketCounts(hist.entries || [], layout);
   const scale = Math.max(ignored, ...counts, 1);
   const barH = c => c === 0 ? 0 : Math.max(2, Math.round((c / scale) * 34));
 
@@ -2151,7 +2155,7 @@ const WordlistsDialog = (() => {
       <div class="wld-pane-header">
         <div class="wld-pane-actions">${actionsHTML}</div>
       </div>
-      <div class="wld-pane-stats">${buildStatsBarHTML(stats, histEntries, getHistogramLayout())}</div>
+      <div class="wld-pane-stats">${buildStatsBarHTML(stats, { entries: histEntries, ignoredCount: stats.ignoredCount }, getHistogramLayout())}</div>
       ${rulesHTML}`;
     repositionAllHistogramRects();
 
@@ -3649,6 +3653,8 @@ class VirtualScroller {
       entries = this.allEntries.filter(e => filterRe.test(e.word.toLowerCase()));
     }
 
+    this._entriesPreScoreRange = entries;
+
     if (this._scoreIntervals) {
       const intervals = this._scoreIntervals;
       entries = entries.filter(e => {
@@ -3726,10 +3732,22 @@ class VirtualScroller {
   // and computeStatsRaw need to recompute the stats bar against the currently
   // visible (filter-aware) set.
   _filteredStatsViewEntries() {
+    return this._statsViewEntriesFrom(this.entries);
+  }
+
+  // Same shape as _filteredStatsViewEntries, but walks the pre-score-range
+  // set so the histogram keeps showing the full distribution while the score
+  // range is shown via the rect overlay. Without this, bars outside the
+  // selection collapse to zero and "disappear."
+  _histogramViewEntries() {
+    return this._statsViewEntriesFrom(this._entriesPreScoreRange || this.entries);
+  }
+
+  _statsViewEntriesFrom(source) {
     const cache = new Map();
     const effective = [];
     let ignoredCount = 0;
-    for (const e of this.entries) {
+    for (const e of source) {
       const d = this._entryDisplayState(e, cache);
       if (d.ignored) ignoredCount++;
       else effective.push({ score: d.effectiveScore });
@@ -4421,7 +4439,7 @@ function refreshMergedScroller() {
 function mountDetailPanel(panel, stats, entries) {
   panel.innerHTML = `
     <div class="sticky-stack">
-      ${buildStatsBarHTML(stats, entries, getHistogramLayout())}
+      ${buildStatsBarHTML(stats, { entries, ignoredCount: stats.ignoredCount }, getHistogramLayout())}
       ${ToolStack.buildHTML()}
       ${buildSearchBarHTML()}
       ${buildWordHeadersHTML()}
@@ -4445,7 +4463,8 @@ function refreshStatsBarFromScroller(panel) {
   if (!statsBar) return;
   const { entries, ignoredCount } = scroller._filteredStatsViewEntries();
   const stats = computeStatsRaw(entries, ignoredCount);
-  statsBar.outerHTML = buildStatsBarHTML(stats, entries, getHistogramLayout());
+  const hist = scroller._histogramViewEntries();
+  statsBar.outerHTML = buildStatsBarHTML(stats, hist, getHistogramLayout());
   repositionAllHistogramRects();
 }
 
