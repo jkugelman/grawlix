@@ -1,10 +1,15 @@
 # Shell shape
 
-Restructure Grawlix's at-rest shell — the chrome around the word list — from full-bleed desktop-app shape into a centered, page-scrollable, content-shaped layout. Header full-bleed at top; everything below sits in a max-width card with side margins; the chrome above the word list is a sticky stack only ~2 rows tall; the word list itself fills the remaining viewport with a single page scrollbar driving everything.
+Restructure Grawlix's at-rest shell — the chrome around the word list — from full-bleed desktop-app shape into a centered, page-scrollable, content-shaped layout. Header full-bleed at top; everything below sits in a max-width card with side margins; the word list fills the remaining viewport with a single page scrollbar driving everything.
+
+Two flavors of "what sits above the word list" are documented:
+
+- **Option 1 — non-compact (primary).** Wordlist picker, tool gallery, and full stats bar all live above the sticky region, scrolling away with the page. Sticky region is just stack + search. The plan to implement.
+- **Option 2 — compact (alternative).** Wordlist picker and tools popover trigger live as typographic headings on a slimmed stats bar; tool gallery hides behind the "Tools ▾" heading; the entire chrome above the word list compresses to a sticky two-row stack. Documented because we worked out the details; revisit if the non-compact version doesn't pull its weight.
 
 ## Status
 
-Not implemented. A CSS-only mockup lives in `site/index.html` under `<html class="shape-a">`; remove the class to revert, or delete the `Shape A mockup` block at the end of the `<style>` section. The mockup demonstrates layout and feel — the real implementation requires markup changes, JS changes to the virtual scroller, and real popover wiring (see *Real implementation* below).
+Not implemented. A CSS-only mockup of the *compact* option (Option 2) lives in `site/index.html` under `<html class="shape-a">`; toggle off by removing the class or deleting the `Shape A mockup` block at the end of the `<style>` section. The mockup demonstrates layout and feel for Option 2; Option 1 doesn't have a mockup yet but shares most of the structural moves (centered card, page scroll, sticky stack + search, window-scroll-aware virtual scroller).
 
 ## Motivation
 
@@ -13,83 +18,129 @@ The current desktop layout is full-bleed: fixed header, fixed left rail with the
 Two pressures push toward a different shape:
 
 - **The empty default-view problem.** Tool gallery output (when it lands) will eventually use that horizontal space, but at idle and during search it sits empty. Bounded width plus centered column makes the empty space *intentional* — the side margins read as "this is a content page" rather than "the app didn't fill the window."
-- **Mobile convergence.** [`plans/mobile.md`](mobile.md) commits to mobile support, with a Wordlisted-shape vertical flow (no rail, hero input, results scroll below). Shape A converges desktop and mobile onto the same vertical model — one DOM, one design, two widths. The mobile design session that's still pending becomes a much shorter walk.
+- **Mobile convergence.** [`plans/mobile.md`](mobile.md) commits to mobile support, with a Wordlisted-shape vertical flow (no rail, hero input, results scroll below). Both options below converge desktop and mobile onto the same vertical model — one DOM, one design, two widths.
 
-## The shape
+## Common shape (both options)
+
+These structural decisions apply equally to either option:
+
+- **Page scrolls; the chrome above the sticky region scrolls away with the page.** Not a fixed-height app shell. Once the user scrolls into the word list region, the sticky region anchors and the word list takes over.
+- **Centered max-width card with side margins** (~1000px target). Page background (`--bg`) shows through the side margins so the bounded width feels intentional. Card uses `--surface` and has a 12px border-radius on all four corners.
+- **Full-bleed header, brand-only, sticky at top.** No wordlist picker, no global nav, no controls migrated up — raised explicitly during the design conversation and rejected.
+- **Tool stack + search bar are sticky.** The working surface stays reachable while scrolling the word list.
+- **One scrollbar.** The page scrollbar drives everything; the virtual scroller becomes window-scroll-aware (currently listens to `#vs-host`'s own scroll). Eliminates the two-scroll-container hack and the hidden-scrollbar workaround.
+- **No persistent rail.** The rail's content disperses to other slots; specifics differ between the two options.
+
+## Option 1 — non-compact (primary)
+
+Wordlist picker, tool gallery, and full stats bar all live above the sticky region, scrolling away with the page as the user scrolls into the word list.
 
 ```
 ┌─ Header (full-bleed, sticky) ────────────────────────────────┐
 │                                                               │
 └───────────────────────────────────────────────────────────────┘
         ┌─────────────────────────────────────────────┐
-        │ All ▾   Tools ▾           Entries  ▁▂▃▅▆▇   │ sticky
+        │  All ▾   ⚙                                  │
         │                                             │
-        │ [tool stack rows, when populated]           │ sticky
+        │  Tools                                      │
+        │  [card] [card] [card] [card]                │
+        │  [card] [card] [card] [card]                │
         │                                             │
-        │ 🔍  Search   …                              │ sticky
+        │  Entries  Min  Max     Mean  Median  Mode   │
+        │  ▁▂▃▅▆▇▆▅▃▂▁                                │
         │                                             │
-        │ 1. CARE   4   50                            │
-        │ 2. CARED  5   60                            │
-        │ ...                                         │
+        │  [tool stack rows, when populated]          │ sticky
+        │  🔍  Search   …                             │ sticky
+        │                                             │
+        │  1. CARE   4   50                           │
+        │  2. CARED  5   60                           │
+        │  ...                                        │
         └─────────────────────────────────────────────┘
 ```
 
-Header stays full-bleed and sticky. Everything below sits in a centered max-width card (~1000px) with side margins; the page background shows through to differentiate page from card. The card contains, top to bottom: stats bar (with picker + tools triggers as headings on the left, Entries and histogram on the right), tool stack (when populated), search bar, word list. Stats + stack + search are sticky; the word list fills the remaining viewport.
+**Wordlist picker** as a slim row at the top of the card: `All ▾` as a typographic heading on the left, settings gear (`⚙`) next to it. The picker scrolls away with the page; switching wordlists mid-scroll isn't a real workflow. Sync indicator joins this row when sync ships and the indicator becomes visible.
 
-## Settled
+**Tool gallery** as a top section in the card. Cards laid out as a responsive grid (~180px wide each). Category picker (planned in [`plans/tools.md`](tools.md)) sits above as a chip strip — categories on top, cards for the active category in the grid below. Gallery search input stays where it is in the catalog. Gallery scrolls away with the page.
 
-**Page scrolls; chrome above the sticky block scrolls away with the page.** Not a fixed-height app shell. Once the user scrolls into the word list region, the sticky block (stats + stack + search) anchors at the top and the word list takes over.
+**Stats bar stays as-is** — Entries, Min, Max anchored left; Mean, Median, Mode, Histogram anchored right via `.stats-right { margin-left: auto }`. No slimming. Stats bar scrolls away too.
 
-**Centered max-width card with side margins.** ~1000px target; the page background (`--bg`) shows through the side margins to make the bounded width feel intentional. The card uses `--surface` and has a 12px border-radius on all four corners.
+**Tool stack and search bar are sticky.** Stack appears only when populated (per [`design.md` § Tool gallery & stack](../design.md#tool-gallery--stack)). Search bar is the only mandatory sticky row.
 
-**Wordlist picker and tools popover trigger live in the stats bar, as headings — not chips.** They render as bold typographic headings (`All ▾`, `Tools ▾`). Treating them as headings rather than as chips reinforces the scoping relationship — the stats describe whichever wordlist is named, and tools sits as a sibling heading-affordance. An earlier mockup used pill chips; that read as "two more controls competing for attention" rather than "the heading for this row." The heading form won.
+**Scoring legend** stays as a visible read/write strip above the search bar (its current position), or moves to a popover — decide during implementation.
 
-**Stats bar slimmed to Entries + histogram only.** Min, Max, Mean, Median, Mode are dropped from view. The histogram conveys distribution at a glance; the numerical triplet was fluff that looked nice when there was empty space to fill. Entries stays because exact count is genuinely useful and a histogram doesn't communicate it. Entries and histogram both anchor to the right side of the bar.
+**Discoverability** is preserved — gallery is always visible on entry; new users see categorized tool cards by scrolling to the top.
 
-**Search bar's "Search" label aligns with tool-stack rows above.** No affordance sits to the left of the Search icon-and-label in the search bar — the alignment between the search bar's "Search" label and the tool-stack rows' tool-name labels is structural and worth preserving. The tools popover trigger lives in the stats bar above for this reason; an earlier mockup placed it on the search bar's left edge and it broke the alignment.
+## Option 2 — compact (alternative)
 
-**Tool gallery becomes a popover (or dialog), opened by the "Tools ▾" heading.** No always-visible gallery. The original justification for the gallery was discoverability over Wordlisted's flat dropdown; that's preserved by making the popover visual and categorized — not flat. Discoverability moves from "always visible in the rail" to "one click away, then visual cards by category." The "Tools ▾" heading itself is the discovery surface for users who don't yet know tools exist.
+Push everything into a sticky two-row chrome stack: stats + search, plus the tool stack between them when populated. Wordlist picker and tools popover trigger live as typographic headings on the stats bar; tool gallery hides behind the "Tools ▾" trigger; stats bar slims to Entries + histogram only.
 
-**Scoring legend is hidden from the at-rest view.** Becomes a popover surfaced on demand — exact trigger TBD (see *Open questions*). The legend doesn't earn permanent vertical real estate; it's reference content users want occasionally, not constantly.
+```
+┌─ Header (full-bleed, sticky) ────────────────────────────────┐
+│                                                               │
+└───────────────────────────────────────────────────────────────┘
+        ┌─────────────────────────────────────────────┐
+        │  All ▾   Tools ▾          Entries  ▁▂▃▅▆▇   │ sticky
+        │                                             │
+        │  [tool stack rows, when populated]          │ sticky
+        │                                             │
+        │  🔍  Search   …                             │ sticky
+        │                                             │
+        │  1. CARE   4   50                           │
+        │  2. CARED  5   60                           │
+        │  ...                                        │
+        └─────────────────────────────────────────────┘
+```
 
-**Sticky chrome is two rows tall** (stats row + search row), plus the tool stack between them when populated. Header sits above all three as the page header proper. Total chrome ~186px when stack is empty, ~266px when populated.
+**Wordlist picker and tools popover trigger live on the stats bar, as headings — not chips.** Bold typographic headings (`All ▾`, `Tools ▾`) on the left. Treating them as headings rather than as chips reinforces the scoping relationship: the stats describe whichever wordlist is named, and tools sits as a sibling heading-affordance. An earlier sketch used pill chips; that read as "two more controls competing for attention" rather than "the heading for this row."
 
-**One scrollbar.** The page scrollbar drives everything: the chrome scrolls away, the sticky block anchors, the word list scrolls. The mockup fakes this by hiding the word list's inner scrollbar (the word list still has its own internal scroll, just routed via cursor position); the real implementation makes the virtual scroller window-scroll-aware so there's genuinely one scroll container.
+**Stats bar slimmed to Entries + histogram only.** Min, Max, Mean, Median, Mode dropped. The histogram conveys distribution at a glance; the numerical triplet was fluff that looked nice when there was empty space to fill. Entries stays because exact count is genuinely useful and a histogram doesn't communicate it. Both anchor right.
 
-**Header chrome stays minimal.** Brand only — no wordlist picker, no global nav, no controls migrated up. Decision was raised explicitly during the design conversation and rejected.
+**Tool gallery becomes a popover** opened by the "Tools ▾" heading. Discoverability moves from "always visible" to "one click away, then visual cards by category." The heading itself signals tools exist.
 
-## Tradeoffs accepted
+**Scoring legend hides to a popover.** Trigger surface TBD — could be a "Scores ▾" third heading on the stats bar, could be a hover affordance on the histogram.
 
-- **Discoverability for tools moves one click away.** The gallery isn't always visible. Mitigated by: the "Tools ▾" heading itself signals tools exist; the popover can be visual and categorized; new users find it via the heading or the help modal.
-- **Five numerical stats removed from view.** Min, Max, Mean, Median, Mode all hidden. The histogram conveys distribution; users who want exact numbers reach them via a hover tooltip, a dedicated stats popover, or the Wordlists dialog (decision deferred).
-- **Mockup has two scroll containers; real fix is JS.** Page-scroll above, word-list-internal below. The cursor's position routes the wheel to one or the other. Hidden inner scrollbar fakes the single-scrollbar feel for the mockup. Real fix is the window-scroll-aware virtual scroller.
-- **Sticky-stacking with variable tool stack height needs a markup change.** The mockup hardcodes the stack at 80px; multi-row stacks will overlap with the search bar. Real fix wraps stack + search in a single sticky container so the inner stack height stops mattering.
+**Sticky chrome is two rows tall** (stats row + search row), plus the tool stack between them when populated. Header sits above all three.
+
+**Search bar's "Search" label aligns with tool-stack rows above.** No affordance sits to the left of the Search icon-and-label — the alignment between the search bar's "Search" and the tool-stack rows' tool-name labels is structural and worth preserving. The tools heading lives in the stats bar above for this reason; an earlier sketch placed it on the search bar's left edge and broke the alignment.
+
+**Tradeoffs accepted in this option:**
+
+- *Discoverability for tools moves one click away.* The gallery isn't always visible. Mitigated by the "Tools ▾" heading itself signaling tools exist; the popover is visual and categorized; new users find it via the heading or the help modal.
+- *Five numerical stats removed from view.* Users who want exact numbers reach them via a hover tooltip, a dedicated stats popover, or the Wordlists dialog (decision deferred).
 
 ## Open questions
 
-- **Wordlist settings (⚙) placement.** Today's gear icon next to the picker opens the Wordlists dialog. In the heading-style picker, where does it go? Two candidates: (a) a "Manage wordlists…" item at the bottom of the picker dropdown, (b) a small icon button next to the "All ▾" heading on the stats bar.
-- **Sync indicator placement.** Today below the wordlist picker in the rail, hidden until backup state is reportable per [`plans/sync.md`](sync.md). Once visible, where does it land? Header? Inside the picker popover? A separate slot on the stats bar?
+**Apply to both options:**
+
+- **Wordlist settings (⚙) placement.** Today's gear icon next to the picker opens the Wordlists dialog. In Option 1 it sits next to the picker on the slim top row — natural fit. In Option 2 the heading-style picker doesn't naturally carry a gear; either (a) a "Manage wordlists…" item at the bottom of the picker dropdown, or (b) a small icon button next to the heading.
+- **Sync indicator placement.** Today below the wordlist picker in the rail, hidden until backup state is reportable per [`plans/sync.md`](sync.md). Once visible, where does it land? In Option 1 it joins the slim top row. In Option 2: header? Picker popover? A separate slot on the stats bar?
 - **Onboarding banner.** Currently in the Wordlists dialog rail; the dialog itself isn't affected and the banner stays there. Mention only because the rail's disappearance from the main view is the trigger to confirm.
-- **Tools popover shape.** [`plans/tools.md`](tools.md) plans a category picker for the gallery (categories on the side, cards in a grid). The popover is the natural home for that picker. Layout details — popover vs full dialog, anchored vs centered, dimensions — TBD when the popover lands.
+- **Mobile responsive transitions.** Both options converge with mobile, but the specifics (where things go when narrow; how Tools opens at phone width; whether Option 1's grid collapses to a single column or a horizontal-scroll strip) are deferred to the mobile design session.
+- **Help modal coverage.** Currently describes the pre-restructure UI; already out of date per [`plans/help.md`](help.md). Either shape makes the gap larger. The help redesign waits for [`plans/tools.md`](tools.md) to settle.
+
+**Specific to Option 1:**
+
+- **Scoring legend treatment.** Stays visible above search bar (current position), or moves to a popover? Visible is the conservative choice; popover frees a row. Decide during implementation.
+
+**Specific to Option 2:**
+
 - **Score legend popover trigger.** Where does the user click to surface it? Hovering a score badge gets a quick read. A dedicated "Scores ▾" heading on the stats bar (third sibling next to "All ▾" and "Tools ▾") is one option; an info affordance on the histogram is another.
-- **Mobile.** Shape A converges with mobile, but the responsive transitions (where the headings go when the stats bar can't hold them; where the histogram goes when narrow; how Tools opens at phone width) are deferred to the mobile design session.
-- **Help modal coverage.** Currently describes the pre-restructure UI; already out of date per [`plans/help.md`](help.md). The shape A shift makes the gap larger. The help redesign waits for [`plans/tools.md`](tools.md) to settle, but the help slides will need to cover the popover-driven tool discovery story.
+- **Tools popover layout.** [`plans/tools.md`](tools.md) plans a category picker (categories on the side, cards in a grid). The popover is the natural home. Anchored vs centered, dimensions, gallery search input placement — all TBD when the popover lands.
 
-## Real implementation
+## Real implementation (Option 1)
 
-Ship in phases. The mockup is an early-validation layer; real implementation replaces it.
+Ship in phases.
 
-1. **Markup restructure.** Wrap stack + search in a single sticky container so the variable-tool-stack-height issue dissolves into "one sticky element of natural height." Move the wordlist picker DOM out of the (now-defunct) tool-gallery aside into the stats bar. Add a tools popover trigger element to the stats bar.
-2. **Window-scroll-aware virtual scroller.** Today the scroller listens to `#vs-host`'s own scroll. Switch it to listening to `window` scroll and computing its viewport from its on-screen offset. ~12 lines of code; eliminates the two-scroll-container hack and the hidden-scrollbar workaround.
-3. **Real popovers.** Tools popover (with category picker per [`plans/tools.md`](tools.md)). Picker popover (or reuse the existing dropdown). Settings-gear placement (one of the open-question candidates above).
-4. **Score legend popover.** Decide trigger surface; build the popover.
-5. **Touch-up.** Light/dark mode shadow tuning so the centered card feels lifted in light mode. Onboarding banner integration. Help modal coverage waits for the bigger help rework.
+1. **Markup restructure.** Wrap stack + search in a single sticky container so the variable-tool-stack-height issue dissolves into "one sticky element of natural height." Move the wordlist picker DOM out of the (now-defunct) tool-gallery aside into a slim row at the top of the card. The tool gallery's existing `aside#tool-gallery` becomes a top section of the card (its `display: flex` rail layout flips to block; cards lay out as a grid; `.gallery-body` becomes the grid container). Stats bar stays where it is.
+2. **Window-scroll-aware virtual scroller.** Today the scroller listens to `#vs-host`'s own scroll. Switch it to listening to `window` scroll and computing its viewport from its on-screen offset. ~12 lines of code; eliminates the two-scroll-container hack.
+3. **Light/dark mode shadow tuning.** The centered card may need a subtle shadow in light mode to feel lifted; dark mode usually needs none. Decide during implementation.
+4. **Onboarding banner.** Confirm it stays in the Wordlists dialog (no main-view banner needed).
+5. **Help modal coverage.** Update slides for the new shell shape, or wait for the bigger help rework — see [`plans/help.md`](help.md).
 
-Mobile responsive collapse happens in the mobile design session (see [`plans/mobile.md`](mobile.md)), not as part of this work — but the desktop shape is chosen with mobile convergence in mind.
+If Option 1 doesn't pull its weight after dogfooding (e.g. the gallery + stats above the sticky region feels like wasted real estate, or scrolling past them every session feels like friction), revisit Option 2.
 
 ## Non-goals
 
-- **No rail comeback in disguise.** The rail's content (wordlist picker, tools gallery) is dispersed across the stats bar and a popover. There's no "collapsible side panel" interim and no plan to add one.
-- **No always-visible scoring legend.** The legend is reference content; permanent real estate isn't worth it.
+- **No rail comeback in disguise.** The rail's content is dispersed elsewhere in either option. There's no "collapsible side panel" interim and no plan to add one.
 - **No header chrome additions.** Header stays brand-only.
-- **No two-scrollbar interim.** The window-scroll-aware virtual scroller is part of the real implementation, not a follow-up — shipping shape A with two scroll containers (the mockup's state) isn't a stopping point.
+- **No two-scrollbar interim.** The window-scroll-aware virtual scroller is part of the real implementation, not a follow-up — shipping with two scroll containers (the mockup's state) isn't a stopping point.
