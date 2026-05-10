@@ -20,6 +20,8 @@
   --accent:      #7b6db8;
   --accent-hover:#6558a0;
   --hdr-bg:      var(--accent);
+  --font-sans:   system-ui, -apple-system, sans-serif;
+  --font-mono:   ui-monospace, 'Cascadia Code', monospace;
 }
 html.dark-mode {
   --bg:        #1e1e1e;
@@ -91,7 +93,7 @@ html.dark-mode ::-webkit-scrollbar-thumb { background: var(--border); border-rad
 html.light-mode ::-webkit-scrollbar { background: var(--bg); }
 html.light-mode ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
 
-body { font-family: system-ui, -apple-system, sans-serif; font-size: 14px; background: var(--bg); color: var(--text); height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+body { font-family: var(--font-sans); font-size: 14px; background: var(--bg); color: var(--text); height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
 
 header { background: var(--hdr-bg); color: white; padding: 10px 20px; display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; }
 header h1 { font-size: 17px; font-weight: 600; letter-spacing: -0.01em; }
@@ -168,22 +170,27 @@ button.danger:hover:not(:disabled) { background: #e74c3c; border-color: #c0392b;
 html.light-mode .histogram:hover .histogram-bar:not(.histogram-bar-ignored) { filter: saturate(1.5) brightness(0.95); }
 html.light-mode .histogram-rect { opacity: 0.22; }
 
-/* Search bar — styled as the bottom "filter" row of the tool stack. */
+/* Search bar — styled as the bottom "filter" row of the tool stack, also hosts
+   the sort control on the right edge (filter + view-config in one row). */
 .search-bar { padding: 8px 14px; background: var(--surface); border-bottom: 1px solid var(--border2); flex-shrink: 0; display: flex; align-items: center; gap: 12px; }
-.search-row { display: flex; align-items: center; gap: 10px; flex: 1; }
-.search-input-wrap { position: relative; flex: 1; display: flex; align-items: center; }
-.search-row input[type="text"] { width: 100%; padding: 5px 24px 5px 8px; border: 1px solid var(--border); border-radius: 4px; font-size: 13px; font-family: ui-monospace, 'Cascadia Code', monospace; background: var(--input-bg); color: var(--text); }
-.search-row input[type="text"]:focus { outline: none; border-color: var(--accent); }
+.search-input-wrap { position: relative; display: flex; align-items: center; flex: 0 0 240px; }
+.search-input-wrap input[type="text"] { width: 100%; padding: 5px 24px 5px 8px; border: 1px solid var(--border); border-radius: 4px; font-size: 13px; font-family: var(--font-mono); background: var(--input-bg); color: var(--text); }
+.search-input-wrap input[type="text"]:focus { outline: none; border-color: var(--accent); }
 .search-whole-word-label { display: flex; align-items: center; gap: 5px; font-size: 12px; color: var(--muted); white-space: nowrap; cursor: pointer; user-select: none; }
-.score-range-label { display: flex; align-items: center; gap: 5px; font-size: 12px; color: var(--muted); white-space: nowrap; margin-left: 8px; }
+.score-range-label { display: flex; align-items: center; gap: 5px; font-size: 12px; color: var(--muted); white-space: nowrap; margin-left: auto; }
 .clear-btn { background: none; border: none; padding: 2px 3px; cursor: pointer; color: var(--muted); display: flex; align-items: center; line-height: 1; border-radius: 3px; flex-shrink: 0; }
 .clear-btn:hover { color: var(--text); background: var(--hover); }
 .clear-btn[hidden] { display: none; }
 .search-input-wrap .clear-btn, .score-range-wrap .clear-btn { position: absolute; right: 4px; }
 .score-range-wrap { position: relative; display: inline-flex; align-items: center; }
-.score-range-label input[type="text"] { width: 72px; padding: 4px 20px 4px 6px; border: 1px solid var(--border); border-radius: 4px; font-size: 13px; font-family: ui-monospace, 'Cascadia Code', monospace; background: var(--input-bg); color: var(--text); }
+.score-range-label input[type="text"] { width: 72px; padding: 4px 20px 4px 6px; border: 1px solid var(--border); border-radius: 4px; font-size: 13px; font-family: var(--font-mono); background: var(--input-bg); color: var(--text); }
 .score-range-label input[type="text"]:focus { outline: none; border-color: var(--accent); }
 .score-range-label input.invalid { border-color: #ea4335; background: var(--error-bg); }
+.search-bar-sort { font-size: 12px; color: var(--muted); }
+.search-bar-sort .sort-axis-select { appearance: none; -webkit-appearance: none; border: none; background: transparent; padding: 2px 14px 2px 3px; border-radius: 4px; font: inherit; font-size: 12px; color: var(--text); cursor: pointer; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 5'%3E%3Cpath fill='%238a8a8a' d='M0 0l4 5 4-5z'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 3px center; background-size: 8px 5px; }
+.search-bar-sort .sort-axis-select:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.search-bar-sort .sort-dir-btn { background: transparent; border: none; padding: 3px 7px; border-radius: 4px; font: inherit; font-size: 13px; color: var(--text); cursor: pointer; line-height: 1; }
+.search-bar-sort .sort-dir-btn:hover { background: var(--hover); }
 mark.search-match { border-radius: 2px; padding: 0 1px; font-style: normal; }
 html.light-mode .search-match-0 { background: #ddd6fe; color: rgba(0,0,0,0.72); }
 html.light-mode .search-match-1 { background: #99f6e4; color: rgba(0,0,0,0.72); }
@@ -196,21 +203,63 @@ html.dark-mode .search-match-2 { background: #78350f; color: #fef3c7; }
 html.dark-mode .search-match-3 { background: #831843; color: #fce7f3; }
 html.dark-mode .search-match-4 { background: #14532d; color: #d1fae5; }
 
-/* Virtual scroll table */
-#table-container { flex: 1; overflow: hidden; display: flex; flex-direction: column; background: var(--surface); }
-#vs-host { flex: 1; min-height: 0; }
+/* Word list (the at-rest results display). Replaces the legacy table with a
+   single-column list of word atoms; pseudo-column alignment via grid. The
+   .word-table rules remain because the help modal still renders demo tables. */
+#word-list-panel { flex: 1; overflow: hidden; display: flex; flex-direction: column; background: var(--surface); }
+#vs-host { flex: 1; min-height: 0; overflow-y: auto; position: relative; }
+.word-list-rows { position: relative; }
+.word-row {
+  position: absolute; left: 0; right: 0;
+  display: grid;
+  grid-template-columns: var(--count-w, 2ch) var(--word-w, 12ch) var(--len-w, 2ch) var(--score-w, 4ch);
+  align-items: center;
+  column-gap: 14px;
+  padding: 0 16px;
+  height: var(--row-height, 24px);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  white-space: nowrap;
+}
+.word-row.active { background: color-mix(in srgb, var(--accent) 12%, transparent); }
+.word-row .atom-count { text-align: right; color: var(--faint); font-family: var(--font-sans); font-size: 12px; }
+.word-row .atom-word { overflow: hidden; text-overflow: ellipsis; min-width: 0; cursor: pointer; }
+.word-row .atom-len { text-align: right; color: var(--muted); font-family: var(--font-sans); font-size: 12px; }
+.word-row .atom-score { cursor: pointer; justify-self: end; }
+.word-row.entry-ignored { opacity: 0.4; }
+.word-row.entry-ignored .atom-count,
+.word-row.entry-ignored .atom-word,
+.word-row.entry-ignored .atom-len,
+.word-row.entry-ignored .atom-score { text-decoration: line-through; }
+
+/* Atom popover (click-driven; replaces the old hover #cell-popover and
+   inline cell-edit). Universal editor: source line + score + comment + delete. */
+#atom-popover { position: fixed; z-index: 600; background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 6px 24px rgba(0,0,0,0.2); padding: 12px 14px; font-size: 12px; color: var(--text); min-width: 280px; max-width: 360px; }
+.atom-pop-title { display: flex; align-items: baseline; gap: 8px; font-family: var(--font-mono); margin-bottom: 8px; padding-bottom: 8px; border-bottom: 1px solid var(--border3); }
+.atom-pop-title .atom-pop-len { color: var(--muted); font-size: 12px; }
+.atom-pop-title .atom-pop-word { font-weight: 700; font-size: 14px; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.atom-pop-source { color: var(--muted); margin-bottom: 10px; line-height: 1.5; }
+.atom-pop-source div + div { margin-top: 2px; }
+.atom-pop-source b { color: var(--text); font-weight: 600; }
+.atom-pop-fields { display: grid; grid-template-columns: auto 1fr; gap: 8px 10px; align-items: center; }
+.atom-pop-fields label { font-size: 11px; color: var(--muted); }
+.atom-pop-fields input { font: inherit; font-size: 12px; padding: 4px 7px; border: 1px solid var(--border); border-radius: 3px; background: var(--input-bg); color: var(--text); outline: none; width: 100%; box-sizing: border-box; }
+.atom-pop-fields input:focus { border-color: var(--accent); }
+.atom-pop-fields input.score-input { font-family: var(--font-mono); max-width: 90px; }
+.atom-pop-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding-top: 10px; border-top: 1px solid var(--border3); margin-top: 10px; }
+.atom-pop-saves { color: var(--muted); font-size: 11px; }
+.atom-pop-delete { background: none; border: 1px solid var(--border); border-radius: 4px; padding: 3px 10px; font: inherit; font-size: 11px; color: #e53935; cursor: pointer; }
+.atom-pop-delete:hover { background: rgba(229, 57, 53, 0.1); border-color: #e53935; }
+
+/* Help modal demos still use these — kept distinct from .word-list above. */
 .word-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
 .word-table th { position: sticky; top: 0; background: var(--surface2); padding: 7px 16px; font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; border-bottom: 2px solid var(--border2); z-index: 1; cursor: pointer; user-select: none; white-space: nowrap; overflow: hidden; }
 .word-table th:hover { background: var(--hover); }
 .word-table td { padding: 0 16px; font-size: 13px; border-bottom: 1px solid var(--border3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.word-table td.col-word, .word-table td.score-cell { font-family: ui-monospace, 'Cascadia Code', monospace; }
+.word-table td.col-word, .word-table td.score-cell { font-family: var(--font-mono); }
 .word-table td.comment-cell { font-size: 12px; }
 .word-table tr:hover td { background: var(--row-hover); }
-.vs-spacer td { padding: 0; border: none; }
-.score-badge { display: inline-block; padding: 1px 5px; border-radius: 3px; font-size: 11px; font-weight: 700; font-family: ui-monospace, 'Cascadia Code', monospace; background: var(--score-bg); color: var(--score-fg); }
-.sort-arrow { font-size: 9px; opacity: 0.7; }
-.col-resize-handle { position: absolute; right: 0; top: 0; bottom: 0; width: 5px; cursor: col-resize; z-index: 2; }
-.col-resize-handle:hover, .col-resize-handle.active { background: rgba(123, 109, 184, 0.35); background: color-mix(in srgb, var(--accent) 35%, transparent); }
+.score-badge { display: inline-block; padding: 1px 5px; border-radius: 3px; font-size: 11px; font-weight: 700; font-family: var(--font-mono); background: var(--score-bg); color: var(--score-fg); }
 
 /* Inline name editing (used inside the Wordlists dialog's right pane) */
 .detail-date { font-size: 11px; color: var(--muted); white-space: nowrap; }
@@ -273,7 +322,7 @@ button.header-icon-btn:hover { background: none; color: rgba(255,255,255,0.65); 
 .import-zone.compact { padding: 14px; font-size: 13px; }
 
 /* Dialog */
-dialog { width: 420px; border-radius: 10px; border: none; box-shadow: var(--shadow); font-family: system-ui, sans-serif; background: var(--surface); color: var(--text); position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); max-height: 90vh; overflow-y: auto; }
+dialog { width: 420px; border-radius: 10px; border: none; box-shadow: var(--shadow); font-family: var(--font-sans); background: var(--surface); color: var(--text); position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); max-height: 90vh; overflow-y: auto; }
 dialog:focus { outline: none; }
 .dialog-body { padding: 22px; }
 dialog::backdrop { background: var(--backdrop); }
@@ -403,7 +452,7 @@ dialog h2 { font-size: 16px; margin-bottom: 14px; padding-right: 24px; }
 .usd-section-header { padding: 0 22px; color: var(--muted); font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; background: var(--surface2); border-bottom: 1px solid var(--border3); }
 .usd-word-row { padding: 0 22px 0 19px; border-left: 3px solid transparent; }
 .usd-word-row:hover { background: var(--row-hover); }
-.usd-word-col { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: monospace; font-size: 12px; }
+.usd-word-col { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--font-mono); font-size: 12px; }
 .usd-score-col { flex-shrink: 0; display: flex; align-items: center; gap: 4px; }
 .usd-added    { border-left-color: var(--usd-added-fg);    }
 .usd-deleted  { border-left-color: var(--usd-deleted-fg);  }
@@ -422,10 +471,15 @@ a.get-file:hover { text-decoration: underline; }
 
 /* ── Rescore section ──────────────────────────────────────────────────────── */
 .rescore-section { background: var(--surface2); border-bottom: 1px solid var(--border2); padding: 9px 18px; flex-shrink: 0; max-height: 240px; overflow-y: auto; }
+/* Visual breathing room above the tool/search row group, painted in their own
+   surface color so it reads as top-padding on that section. Whichever element
+   sits directly below the scoring legend gets the extra space. */
+#scoring-legend + #tool-stack { padding-top: 12px; }
+#scoring-legend + .search-bar { padding-top: 20px; }
 .rescore-top { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
 .rescore-lbl { font-size: 10px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
 .rule-row { display: flex; align-items: center; gap: 5px; margin-bottom: 3px; }
-.rule-in, .rule-len, .rule-out { padding: 2px 6px; border: 1px solid var(--border); border-radius: 3px; font-size: 12px; font-family: ui-monospace, 'Cascadia Code', monospace; text-align: center; background: var(--input-bg); color: var(--text); }
+.rule-in, .rule-len, .rule-out { padding: 2px 6px; border: 1px solid var(--border); border-radius: 3px; font-size: 12px; font-family: var(--font-mono); text-align: center; background: var(--input-bg); color: var(--text); }
 .rule-in  { width: 80px; }
 .rule-len { width: 60px; }
 .rule-out { width: 80px; }
@@ -533,7 +587,7 @@ a.get-file:hover { text-decoration: underline; }
 .gallery-card.active { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
 .gallery-card-name { font-size: 13px; font-weight: 600; color: var(--text); }
 .gallery-card-desc { font-size: 11px; color: var(--muted); margin-top: 2px; }
-.gallery-card-example { font-family: ui-monospace, 'Cascadia Code', monospace; font-size: 11px; color: var(--faint); margin-top: 5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.gallery-card-example { font-family: var(--font-mono); font-size: 11px; color: var(--faint); margin-top: 5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .gallery-section-label + .gallery-card { margin-top: 0; }
 .gallery-card + .gallery-section-label { margin-top: 6px; }
 .gallery-card-add { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); width: 22px; height: 22px; border-radius: 50%; background: var(--accent); color: #fff; border: none; cursor: pointer; font-size: 14px; font-weight: 600; line-height: 1; padding: 0; display: flex; align-items: center; justify-content: center; opacity: 0; transition: background 0.1s; }
@@ -546,7 +600,7 @@ a.get-file:hover { text-decoration: underline; }
 body.tools-empty .gallery-card { padding-right: 12px; }
 body.tools-empty .gallery-card-add { display: none; }
 
-#tool-stack { background: var(--surface); border-bottom: 1px solid var(--border2); flex-shrink: 0; overflow: hidden; }
+#tool-stack { background: var(--surface); flex-shrink: 0; overflow: hidden; }
 .tool-row { display: grid; grid-template-columns: 1fr 32px; align-items: center; padding: 8px 14px; border-bottom: 1px solid var(--border2); gap: 10px; overflow: hidden; transition: opacity 0.2s ease, background 0.15s ease; }
 .tool-row:last-child { border-bottom: none; }
 .tool-row.ghost { position: relative; pointer-events: none; background: color-mix(in srgb, var(--accent) 7%, transparent); opacity: 0.85; }
@@ -570,7 +624,7 @@ body.tools-empty .gallery-card-add { display: none; }
 .tool-toggle-link:hover { color: var(--accent-hover, var(--accent)); }
 .tool-row-params { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
 .tool-row-param { display: flex; align-items: center; gap: 4px; font-size: 12px; color: var(--muted); }
-.tool-row-param input { background: var(--input-bg); border: 1px solid var(--border); border-radius: 4px; padding: 4px 8px; font-size: 12px; color: var(--text); width: 110px; font-family: ui-monospace, 'Cascadia Code', monospace; }
+.tool-row-param input { background: var(--input-bg); border: 1px solid var(--border); border-radius: 4px; padding: 4px 8px; font-size: 12px; color: var(--text); width: 110px; font-family: var(--font-mono); }
 .tool-row-param input:focus { outline: none; border-color: var(--accent); }
 .tool-row-remove { background: none; border: none; color: var(--faint); cursor: pointer; padding: 4px; border-radius: 4px; line-height: 1; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; }
 .tool-row-remove:hover { color: var(--text); background: var(--hover); }
@@ -617,7 +671,7 @@ html.dark-mode .wld-onboarding { background: color-mix(in srgb, var(--accent) 15
 .dialog-stub-msg { background: var(--surface2); border: 1px dashed var(--border); border-radius: 6px; padding: 16px; font-size: 13px; color: var(--muted); line-height: 1.55; }
 .dialog-stub-msg p { margin-bottom: 8px; }
 .dialog-stub-msg p:last-child { margin-bottom: 0; }
-.dialog-stub-msg code { font-family: ui-monospace, 'Cascadia Code', monospace; font-size: 12px; background: var(--surface); padding: 1px 5px; border-radius: 3px; color: var(--text); }
+.dialog-stub-msg code { font-family: var(--font-mono); font-size: 12px; background: var(--surface); padding: 1px 5px; border-radius: 3px; color: var(--text); }
 
 /* Segmented control */
 .seg-ctrl { display: flex; border: 1px solid var(--border); border-radius: 4px; overflow: hidden; }
@@ -637,19 +691,13 @@ html.dark-mode .wld-onboarding { background: color-mix(in srgb, var(--accent) 15
 .wordlist-name-icon .wordlist-icon { width: 1em; height: 1em; vertical-align: -0.1em; }
 
 /* Score display */
-.entry-ignored { opacity: 0.4; }
-.entry-ignored td, .entry-ignored td span { text-decoration: line-through; }
-.col-length { text-align: right; }
 .effective-asterisk { color: #e53; font-size: 9px; vertical-align: super; margin-left: 2px; pointer-events: none; line-height: 0; }
-
-/* Cell popover */
-#cell-popover { position: fixed; background: var(--surface2); border: 1px solid var(--border); border-radius: 6px; padding: 8px 12px; font-size: 12px; line-height: 1.6; max-width: 300px; z-index: 9999; box-shadow: 0 4px 16px rgba(0,0,0,0.18); pointer-events: none; }
 
 /* Popup help */
 .popup-help { position: fixed; z-index: 9999; background: var(--surface2); border: 1px solid var(--border); border-radius: 6px; padding: 7px 12px; font-size: 11px; color: var(--muted); line-height: 1.6; display: inline-grid; grid-template-columns: auto auto; grid-template-rows: repeat(4, auto); grid-auto-flow: column; gap: 2px 22px; box-shadow: 0 4px 12px rgba(0,0,0,0.18); pointer-events: none; opacity: 0; transition: opacity 0.15s; }
 .popup-help.open { opacity: 1; }
 .popup-help span { display: flex; align-items: baseline; gap: 5px; }
-.popup-help kbd { font-family: ui-monospace, 'Cascadia Code', monospace; font-size: 11px; color: var(--text); }
+.popup-help kbd { font-family: var(--font-mono); font-size: 11px; color: var(--text); }
 
 /* Dialog helpers */
 .dialog-actions { text-align: right; }
@@ -660,16 +708,13 @@ html.dark-mode .wld-onboarding { background: color-mix(in srgb, var(--accent) 15
 input[type="file"] { display: none; }
 .annotation { position: absolute; border: 3px solid #e53935; border-radius: 50px; pointer-events: none; box-shadow: 0 0 6px rgba(229,57,53,0.4); }
 
-/* Inline cell editing */
+/* Help-modal cell-edit demo (slide 2). The live list uses #atom-popover instead. */
 .word-table td.score-cell,
 .word-table td.comment-cell { cursor: pointer; }
 .word-table td.score-cell:hover,
 .word-table td.comment-cell:hover { background: color-mix(in srgb, var(--accent) 8%, var(--row-hover)); }
 input.cell-edit { font-family: inherit; font-size: 12px; padding: 1px 4px; border: 1px solid var(--accent); border-radius: 3px; background: var(--input-bg); color: var(--text); outline: none; width: 100%; box-sizing: border-box; }
-input.cell-edit.score-edit { font-family: ui-monospace, 'Cascadia Code', monospace; width: 60px; }
-
-/* Inline edit tip */
-#edit-cell-tip { position: fixed; font-size: 11px; color: var(--muted); background: var(--surface2); border: 1px solid var(--border2); border-radius: 4px; padding: 2px 7px; pointer-events: none; z-index: 400; opacity: 0; transition: opacity 0.15s; white-space: nowrap; }
+input.cell-edit.score-edit { font-family: var(--font-mono); width: 60px; }
 
 @keyframes shake {
   0%, 100%  { transform: translateX( 0px); }
@@ -695,23 +740,6 @@ input.cell-edit.score-edit { font-family: ui-monospace, 'Cascadia Code', monospa
 
 /* Shared icons */
 .icon-trash  { width: 14px; height: 14px; display: inline-block; vertical-align: middle; }
-
-/* Trash / delete column */
-.word-table th.col-trash { width: 26px; padding: 0; }
-.word-table td.col-trash { width: 26px; padding: 0 3px; text-align: center; color: var(--faint); cursor: pointer; }
-@media (hover: hover) {
-  .word-table td.col-trash { color: transparent; }
-  .word-table tr:hover td.col-trash { color: var(--faint); }
-}
-.word-table td.col-trash:hover { color: #e53935 !important; }
-
-/* Inline edit-delete button inside source cell */
-.source-trash { color: var(--faint); cursor: pointer; margin-left: 4px; vertical-align: middle; }
-@media (hover: hover) {
-  .source-trash { color: transparent; }
-  .word-table tr:hover .source-trash { color: var(--faint); }
-}
-.source-trash:hover { color: #e53935 !important; }
 
 /* Toast undo link */
 .toast .undo-link { margin-left: 10px; color: #90caf9; text-decoration: underline; cursor: pointer; }
@@ -753,7 +781,7 @@ input.cell-edit.score-edit { font-family: ui-monospace, 'Cascadia Code', monospa
 /* Slide 4 wildcard reference */
 #help-slide-3 .help-wildcards { display: inline-grid; align-self: flex-start; grid-template-columns: auto auto; grid-template-rows: repeat(4, auto); grid-auto-flow: column; gap: 5px 28px; }
 #help-slide-3 .help-wildcards span { font-size: 11px; color: var(--text); display: flex; align-items: baseline; gap: 5px; }
-#help-slide-3 .help-wildcards kbd { font-family: ui-monospace, 'Cascadia Code', monospace; font-size: 11px; color: var(--muted); }
+#help-slide-3 .help-wildcards kbd { font-family: var(--font-mono); font-size: 11px; color: var(--muted); }
 /* Demo slides: non-interactive */
 #help-slide-0 .wordlist-card,
 #help-slide-0 .search-bar,
@@ -1120,16 +1148,17 @@ function buildSearchBarHTML(opts = {}) {
   const clearScoreBtn = readonly ? '' :
     `<button class="clear-btn" id="${pre}score-range-clear" onclick="clearScoreRange()" title="Clear score" aria-label="Clear score" ${scoreRange ? '' : 'hidden'}><svg width="10" height="10"><use href="#icon-x"/></svg></button>`;
 
+  const sortPlaceholder = readonly ? '' : `<span id="search-bar-sort" class="search-bar-sort"></span>`;
+
   return `<div class="search-bar">
       ${buildToolLabelHTML({ icon: '<svg width="16" height="16" aria-hidden="true"><use href="#icon-search"/></svg>', name: 'Search' })}
-      <div class="search-row">
-        <div class="search-input-wrap">
-          <input type="text" id="${pre}search-input" placeholder="pattern" value="${searchQuery}"${ro}${inputHandlers}${readonly ? '' : ' title="Search (Alt+S)"'}>
-          ${clearSearchBtn}
-        </div>
-        <label class="search-whole-word-label"${readonly ? '' : ' title="Whole word (Alt+W)"'}><input type="checkbox" id="${pre}search-whole-word"${wholeWordHandler} ${searchWholeWord ? 'checked' : ''}${ro}> Whole word</label>
-        <label class="score-range-label" title="Score: 50, 50-59, or 50+${readonly ? '' : ' (Alt+C)'}">Score <span class="score-range-wrap"><input type="text" id="${pre}score-range-input" value="${esc(scoreRange)}"${ro}${scoreRangeHandler}>${clearScoreBtn}</span></label>
+      <div class="search-input-wrap">
+        <input type="text" id="${pre}search-input" placeholder="pattern" value="${searchQuery}"${ro}${inputHandlers}${readonly ? '' : ' title="Search (Alt+S)"'}>
+        ${clearSearchBtn}
       </div>
+      <label class="search-whole-word-label"${readonly ? '' : ' title="Whole word (Alt+W)"'}><input type="checkbox" id="${pre}search-whole-word"${wholeWordHandler} ${searchWholeWord ? 'checked' : ''}${ro}> Whole word</label>
+      <label class="score-range-label" title="Score: 50, 50-59, or 50+${readonly ? '' : ' (Alt+C)'}">Score <span class="score-range-wrap"><input type="text" id="${pre}score-range-input" value="${esc(scoreRange)}"${ro}${scoreRangeHandler}>${clearScoreBtn}</span></label>
+      ${sortPlaceholder}
     </div>`;
 }
 
@@ -1386,9 +1415,9 @@ function buildScoreRangeBadgeHTML(rule) {
   return `<span class="score-badge" style="--score-bg:${bg}; --score-fg:${fg}">${esc(text)}</span>`;
 }
 
-function buildTableContainerHTML() {
+function buildWordListPanelHTML() {
   return `${buildSearchBarHTML()}
-    <div id="table-container">
+    <div id="word-list-panel">
       <div id="vs-host"></div>
       <div id="add-row-footer">${ADD_WORD_TRIGGER_HTML}</div>
     </div>`;
@@ -1617,8 +1646,6 @@ function wrapWordlist(wl) {
   }
   return wl;
 }
-
-const colWidths = { length: 55, word: 200, score: 90, source: 170, delete: 26 }; // persists across wordlist switches
 
 // ─── Parsing ─────────────────────────────────────────────────────────────────
 
@@ -3174,8 +3201,8 @@ const ToolStack = (() => {
     e = document.createElement('div');
     e.id = 'tool-stack';
     const searchBar = p.querySelector('.search-bar');
-    const tableContainer = p.querySelector('#table-container');
-    const anchor = searchBar || tableContainer;
+    const wordListPanel = p.querySelector('#word-list-panel');
+    const anchor = searchBar || wordListPanel;
     if (anchor) p.insertBefore(e, anchor);
     else p.appendChild(e);
     return e;
@@ -3517,216 +3544,123 @@ function scoreColor(score) {
   };
 }
 
+const SORT_AXES = {
+  word:   { label: 'Word' },
+  length: { label: 'Length' },
+  score:  { label: 'Score' },
+};
+const WORD_SLOT_CAP = 20;
+
 class VirtualScroller {
   constructor(container) {
     this.container = container;
+    this.toolbar = document.getElementById('search-bar-sort');
     this.allEntries = [];
     this.entries = [];
-    this.hasComments = false;
-    this.sortKey = null;
+    this.sortKey = 'word';
     this.sortDir = 'asc';
     this._lastQuery = '';
+    this._wholeWord = false;
     this._scoreIntervals = null;
     this._highlight = null;
-    this._colEls = {};
     this.rescoreRules = [];
     this.overrideMap = new Map();
     this.showSource = false;
     this.showDeleteCol = false;
+    this.showEditDeleteCol = false;
     this.editsWordlist = null;
     this.currentWordlist = null;
-    this._onCellEdit = null;  // (word, field, newValue) => void
-    this._onEditStart = null; // (word, field, tdEl) => void
-    this._onEditEnd = null;   // () => void
-    this._onDeleteRow = null; // (word) => void
-    this.onFilterChange = null; // () => void  — fires after every filter pass
-    this._editingCell = null;
+    this._onCellEdit = null;
+    this._onDeleteRow = null;
+    this.onFilterChange = null;
     this._sortScores = null;
 
     container.style.overflowY = 'auto';
+    container.style.position = 'relative';
 
-    this.table = document.createElement('table');
-    this.table.className = 'word-table';
+    this.sizer = document.createElement('div');
+    this.sizer.className = 'word-list-rows';
+    container.innerHTML = '';
+    container.appendChild(this.sizer);
 
-    this.colgroup = document.createElement('colgroup');
-    this.table.appendChild(this.colgroup);
-
-    const thead = document.createElement('thead');
-    this.theadRow = document.createElement('tr');
-    thead.appendChild(this.theadRow);
-    this.table.appendChild(thead);
-
-    this.tbody = document.createElement('tbody');
-    this.table.appendChild(this.tbody);
-
-    this.topRow = document.createElement('tr');
-    this.topRow.className = 'vs-spacer';
-    this.topRow.innerHTML = '<td colspan="2"></td>';
-    this.botRow = document.createElement('tr');
-    this.botRow.className = 'vs-spacer';
-    this.botRow.innerHTML = '<td colspan="2"></td>';
-    this.tbody.appendChild(this.topRow);
-    this.tbody.appendChild(this.botRow);
-
-    container.appendChild(this.table);
-    container.addEventListener('scroll', () => this._render(), { passive: true });
+    container.addEventListener('scroll', () => {
+      this._render();
+      AtomPopover.close();
+    }, { passive: true });
     new ResizeObserver(() => this._render()).observe(container);
 
-    this.table.addEventListener('click', e => {
-      if (this._editingCell) return;
-      const td = e.target.closest('td');
-      if (!td) return;
-      const tr = td.closest('tr[data-word]');
-      if (!tr) return;
-      const word = tr.dataset.word;
-      if (td.classList.contains('col-trash') || e.target.closest('.source-trash')) {
-        this._onDeleteRow?.(word);
-      } else if (this._onCellEdit && (td.classList.contains('score-cell') || td.classList.contains('comment-cell'))) {
-        this._openCellEdit(td, word, td.classList.contains('score-cell') ? 'score' : 'comment');
-      }
+    this.sizer.addEventListener('click', e => {
+      const target = e.target.closest('.atom-word, .atom-score');
+      if (!target) return;
+      const row = target.closest('.word-row');
+      if (!row) return;
+      const i = parseInt(row.dataset.idx, 10);
+      const entry = this.entries[i];
+      if (!entry) return;
+      AtomPopover.open(entry, row, this, target);
     });
 
-    // Cell popovers
-    let _popTd = null;
-    this.table.addEventListener('mouseover', e => {
-      const td = e.target.closest('td');
-      if (td === _popTd) return;
-      _popTd = td;
-      if (td && (td.dataset.scoreRaw !== undefined || td.dataset.commentOvName !== undefined)) {
-        showCellPopover(td);
-      } else {
-        hideCellPopover();
-      }
-    });
-    this.table.addEventListener('mouseleave', () => { _popTd = null; hideCellPopover(); });
+    this._buildToolbar();
   }
 
   setEntries(allEntries, query, rescoreRules, overrideMap, wholeWord = false, scoreRange = '') {
+    AtomPopover.close();
     this.allEntries = allEntries;
-    this.hasComments = allEntries.some(e => e.comment);
     this.rescoreRules = rescoreRules || [];
     this.overrideMap = overrideMap || new Map();
     this.sortKey = 'word';
     this.sortDir = 'asc';
     this._sortScores = null;
-    this._buildHeader();
+    this._buildToolbar();
     this.filter(query, wholeWord, scoreRange);
   }
 
   updateEntries(allEntries) {
+    AtomPopover.close();
     this.allEntries = allEntries;
-    this.hasComments = allEntries.some(e => e.comment);
     this._sortScores = null;
-    this._buildHeader();
     this._applyFilterAndSort(false);
   }
 
   setRescore(rules) {
+    AtomPopover.close();
     this.rescoreRules = rules || [];
     this._sortScores = null;
-    this._buildHeader();
     this._applyFilterAndSort(false);
   }
 
-  _cols() {
-    const cols = ['length', 'word', 'score'];
-    cols.push('comment');
-    if (this.showSource) cols.push('source');
-    if (this.showDeleteCol) cols.push('delete');
-    return cols;
-  }
-
-  _buildHeader() {
-    const LABELS = { length: 'Len', word: 'Word', score: 'Score', comment: 'Comment', source: 'Source', delete: '' };
-    const ALIGN  = { length: 'right', word: 'left', score: 'left', comment: 'left', source: 'left', delete: 'center' };
-    const cols = this._cols();
-
-    this.topRow.firstElementChild.colSpan = cols.length;
-    this.botRow.firstElementChild.colSpan = cols.length;
-
-    this.colgroup.innerHTML = '';
-    this._colEls = {};
-    for (const key of cols) {
-      const col = document.createElement('col');
-      if (colWidths[key] != null) col.style.width = colWidths[key] + 'px';
-      this.colgroup.appendChild(col);
-      this._colEls[key] = col;
-    }
-
-    this.theadRow.innerHTML = '';
-    for (let i = 0; i < cols.length; i++) {
-      const key = cols[i];
-      const isLast = i === cols.length - 1;
-      const th = document.createElement('th');
-      th.style.textAlign = ALIGN[key];
-
-      const isDeleteCol = key === 'delete';
-
-      if (!isDeleteCol) {
-        th.setAttribute('aria-sort', this.sortKey === key ? (this.sortDir === 'asc' ? 'ascending' : 'descending') : 'none');
-        const labelSpan = document.createElement('span');
-        labelSpan.textContent = LABELS[key];
-        th.appendChild(labelSpan);
-
-        if (this.sortKey === key) {
-          const arrow = document.createElement('span');
-          arrow.className = 'sort-arrow';
-          arrow.textContent = this.sortDir === 'asc' ? ' ▲' : ' ▼';
-          th.appendChild(arrow);
-        }
-
-        th.addEventListener('click', e => {
-          if (e.target.classList.contains('col-resize-handle')) return;
-          if (this.sortKey === key) {
-            this.sortDir = this.sortDir === 'asc' ? 'desc' : 'asc';
-          } else {
-            this.sortKey = key;
-            this.sortDir = (key === 'score') ? 'desc' : 'asc';
-          }
-          this._buildHeader();
-          this._applyFilterAndSort();
-        });
-      }
-
-      if (isDeleteCol) th.className = 'col-trash';
-
-      if (!isLast && !isDeleteCol) {
-        const handle = document.createElement('div');
-        handle.className = 'col-resize-handle';
-        th.appendChild(handle);
-
-        handle.addEventListener('pointerdown', e => {
-          e.preventDefault();
-          e.stopPropagation();
-          const colEl = this._colEls[key];
-          const startX = e.clientX;
-          const startW = th.offsetWidth;
-          handle.classList.add('active');
-          handle.setPointerCapture(e.pointerId);
-          const onMove = mv => {
-            const w = Math.max(50, startW + mv.clientX - startX);
-            colEl.style.width = w + 'px';
-            colWidths[key] = w;
-          };
-          const onUp = () => {
-            handle.classList.remove('active');
-            handle.removeEventListener('pointermove', onMove);
-            handle.removeEventListener('pointerup', onUp);
-          };
-          handle.addEventListener('pointermove', onMove);
-          handle.addEventListener('pointerup', onUp);
-        });
-      }
-
-      this.theadRow.appendChild(th);
-    }
-  }
-
   filter(query, wholeWord = false, scoreRange = '') {
+    AtomPopover.close();
     this._lastQuery = query || '';
     this._wholeWord = wholeWord;
     this._scoreIntervals = scoreRange ? parseRange(scoreRange) : null;
     this._applyFilterAndSort();
+  }
+
+  _buildToolbar() {
+    if (!this.toolbar) return;
+    const arrow = this.sortDir === 'asc' ? '↑' : '↓';
+    const options = Object.entries(SORT_AXES)
+      .map(([key, { label }]) => `<option value="${key}"${key === this.sortKey ? ' selected' : ''}>${label}</option>`)
+      .join('');
+    this.toolbar.innerHTML = `
+      Sort by
+      <select class="sort-axis-select">${options}</select>
+      <button class="sort-dir-btn" type="button" title="Toggle direction" aria-label="Toggle direction">${arrow}</button>`;
+    this.toolbar.querySelector('.sort-axis-select').addEventListener('change', e => {
+      const key = e.target.value;
+      if (this.sortKey !== key) {
+        this.sortKey = key;
+        this.sortDir = (key === 'score') ? 'desc' : 'asc';
+        this._buildToolbar();
+        this._applyFilterAndSort(false);
+      }
+    });
+    this.toolbar.querySelector('.sort-dir-btn').addEventListener('click', () => {
+      this.sortDir = this.sortDir === 'asc' ? 'desc' : 'asc';
+      this._buildToolbar();
+      this._applyFilterAndSort(false);
+    });
   }
 
   _applyFilterAndSort(resetScroll = true) {
@@ -3772,9 +3706,33 @@ class VirtualScroller {
     }
 
     this.entries = entries;
+    this._computeSlotWidths();
     if (resetScroll) this.container.scrollTop = 0;
     this._render();
     this.onFilterChange?.();
+  }
+
+  // Slot widths derived from the longest values across the full result set, then
+  // fixed during scroll. Capping the word slot at WORD_SLOT_CAP keeps one outlier
+  // from blowing out layout for every other row; longer words truncate with an
+  // ellipsis (full text in the row's title attribute).
+  _computeSlotWidths() {
+    const n = this.entries.length;
+    const countDigits = n > 0 ? String(n).length : 1;
+    let maxLen = 0, maxLenDigits = 1, maxScoreDigits = 1;
+    for (const e of this.entries) {
+      if (e.word.length > maxLen) maxLen = e.word.length;
+      const d = String(e.word.length).length;
+      if (d > maxLenDigits) maxLenDigits = d;
+      const sd = String(e.score).length;
+      if (sd > maxScoreDigits) maxScoreDigits = sd;
+    }
+    const wordChars = Math.min(maxLen, WORD_SLOT_CAP);
+    this.sizer.style.setProperty('--count-w', `${countDigits + 1}ch`);
+    this.sizer.style.setProperty('--len-w', `${maxLenDigits}ch`);
+    this.sizer.style.setProperty('--word-w', wordChars > 0 ? `${wordChars}ch` : '0');
+    // +12px covers the score badge's 5px-each-side padding plus a bit of safety.
+    this.sizer.style.setProperty('--score-w', `calc(${maxScoreDigits}ch + 12px)`);
   }
 
   // Walks the post-filter entries, applies rescore + override per entry, and
@@ -3832,7 +3790,6 @@ class VirtualScroller {
   }
 
   _render() {
-    if (this._editingCell) return;
     const n = this.entries.length;
     const scrollTop = this.container.scrollTop;
     const viewH = this.container.clientHeight;
@@ -3840,145 +3797,234 @@ class VirtualScroller {
     const start = Math.max(0, Math.floor(scrollTop / ROW_HEIGHT) - VS_BUFFER);
     const end   = Math.min(n, Math.ceil((scrollTop + viewH) / ROW_HEIGHT) + VS_BUFFER);
 
-    this.topRow.firstElementChild.style.height = (start * ROW_HEIGHT) + 'px';
-    this.botRow.firstElementChild.style.height = ((n - end) * ROW_HEIGHT) + 'px';
+    this.sizer.style.height = (n * ROW_HEIGHT) + 'px';
+    while (this.sizer.firstChild) this.sizer.removeChild(this.sizer.firstChild);
 
-    while (this.topRow.nextSibling !== this.botRow) {
-      this.tbody.removeChild(this.topRow.nextSibling);
-    }
-
+    const activeWord = AtomPopover.activeWord(this);
+    let nextActiveRow = null;
     const frag = document.createDocumentFragment();
     for (let i = start; i < end; i++) {
       const entry = this.entries[i];
-      const { word, score, comment, wordlist: entryWordlist } = entry;
-      const rowWordlist = entryWordlist || this.currentWordlist;
-      const rowWordlistName = rowWordlist?.name ?? '';
-      const tr = document.createElement('tr');
-      tr.style.height = ROW_HEIGHT + 'px';
-      tr.dataset.word = word;
-
+      const { word, score } = entry;
       const displayed = displayWord(word);
       const wordHtml = this._highlight ? this._highlight(displayed) : displayed;
-      let wordCell  = `<td class="col-word" title="${displayed}">${wordHtml}</td>`;
-      const { ignored, rescoredScore, wasRescored, ov, effectiveScore, effectiveComment } = this._entryDisplayState(entry);
-      if (ignored) tr.classList.add('entry-ignored');
-      const commentOverridden = !!(ov && ov.comment && ov.comment !== (comment || ''));
+      const { ignored, rescoredScore, wasRescored, ov, effectiveScore } = this._entryDisplayState(entry);
       const scoreOv = ov && ov.score !== rescoredScore;
 
-      let innerScore;
-      if (ignored) {
-        innerScore = buildScoreBadgeHTML(score);
-      } else {
-        innerScore = buildScoreBadgeHTML(effectiveScore);
-        if (wasRescored || scoreOv) innerScore += `<sup class="effective-asterisk">*</sup>`;
-      }
+      const displayScore = ignored ? score : effectiveScore;
+      let scoreInner = buildScoreBadgeHTML(displayScore);
+      if (!ignored && (wasRescored || scoreOv)) scoreInner += `<sup class="effective-asterisk">*</sup>`;
 
-      let scoreAttrs = '';
-      if (!ignored && (wasRescored || scoreOv)) {
-        scoreAttrs = ` data-score-raw="${score}" data-score-wordlist-name="${esc(rowWordlistName)}"`;
-        if (wasRescored) scoreAttrs += ` data-score-rescaled="${rescoredScore}"`;
-        if (scoreOv) scoreAttrs += ` data-score-ov-name="${esc(ov.wordlist.name)}" data-score-ov-val="${ov.score}"`;
-      }
-      let commentAttrs = '';
-      if (commentOverridden) {
-        commentAttrs = ` data-comment-wordlist-name="${esc(rowWordlistName)}" data-comment-raw="${esc(comment || '')}" data-comment-ov-name="${esc(ov.wordlist.name)}" data-comment-ov-val="${esc(ov.comment)}"`;
-      }
-      const commentInner = esc(effectiveComment) + (commentOverridden ? '<sup class="effective-asterisk">*</sup>' : '');
-
-      const lengthCell = `<td class="col-length">${word.length}</td>`;
-      const scoreCell = `<td class="score-cell"${scoreAttrs}>${innerScore}</td>`;
-      const commentCell = `<td class="comment-cell"${commentAttrs}>${commentInner}</td>`;
-
-      let sourceCell = '';
-      if (this.showSource) {
-        const wordlistLabel = rowWordlist ? buildWordlistNameHTML(rowWordlist, { bold: false }) : '';
-        const editTrash = (this.showEditDeleteCol && rowWordlist === this.editsWordlist)
-          ? `<span class="source-trash" title="Delete edit">${buildTrashIconHTML()}</span>`
-          : '';
-        sourceCell = `<td class="comment-cell col-source">${wordlistLabel}${editTrash}</td>`;
-      }
-
-      tr.innerHTML =
-        lengthCell +
-        wordCell +
-        scoreCell +
-        commentCell +
-        sourceCell +
-        (this.showDeleteCol ? `<td class="col-trash" title="Delete">${buildTrashIconHTML()}</td>` : '');
-      frag.appendChild(tr);
+      const row = document.createElement('div');
+      let cls = 'word-row';
+      if (ignored) cls += ' entry-ignored';
+      if (activeWord && word === activeWord) { cls += ' active'; nextActiveRow = row; }
+      row.className = cls;
+      row.dataset.word = word;
+      row.dataset.idx = i;
+      row.style.top = (i * ROW_HEIGHT) + 'px';
+      if (displayed.length > WORD_SLOT_CAP) row.title = displayed;
+      row.innerHTML =
+        `<span class="atom-count">${i + 1}.</span>` +
+        `<span class="atom-word">${wordHtml}</span>` +
+        `<span class="atom-len">${word.length}</span>` +
+        `<span class="atom-score">${scoreInner}</span>`;
+      frag.appendChild(row);
     }
-    this.tbody.insertBefore(frag, this.botRow);
-  }
-
-  _openCellEdit(td, word, field) {
-    const entry = this.allEntries.find(e => e.word.toUpperCase() === word.toUpperCase());
-    if (!entry) return;
-
-    const originalContent = td.innerHTML;
-    let currentVal;
-    if (field === 'score') {
-      const ov = this.overrideMap.get(word.toUpperCase());
-      if (ov) {
-        currentVal = String(ov.score);
-      } else if (this.rescoreRules.length) {
-        const r = rescoreEntry(entry, this.rescoreRules);
-        currentVal = r.kept ? String(r.score) : String(entry.score);
-      } else {
-        currentVal = String(entry.score);
-      }
-    } else {
-      const ov = this.overrideMap.get(word.toUpperCase());
-      currentVal = (ov && ov.comment) ? ov.comment : (entry.comment || '');
-    }
-
-    this._editingCell = td;
-    this._onEditStart?.(word, field, td);
-
-    const input = document.createElement('input');
-    input.className = 'cell-edit' + (field === 'score' ? ' score-edit' : '');
-    input.type = field === 'score' ? 'number' : 'text';
-    input.value = currentVal;
-    if (field === 'score') { input.min = '0'; }
-    if (field === 'comment') { input.addEventListener('beforeinput', blockSemicolon); }
-    td.innerHTML = '';
-    td.appendChild(input);
-    input.focus();
-    input.select();
-
-    let saved = false;
-    const save = () => {
-      if (saved) return;
-      saved = true;
-      this._editingCell = null;
-      const raw = input.value;
-      if (field === 'score') {
-        const parsed = parseInt(raw, 10);
-        if (!isNaN(parsed) && parsed >= 0 && parsed !== parseInt(currentVal, 10)) {
-          this._onCellEdit?.(word, field, parsed, td);
-        }
-      } else {
-        if (raw !== currentVal) {
-          this._onCellEdit?.(word, field, raw, td);
-        }
-      }
-      if (td.isConnected) td.innerHTML = originalContent;
-      this._onEditEnd?.();
-    };
-    const cancel = () => {
-      if (saved) return;
-      saved = true;
-      this._editingCell = null;
-      if (td.isConnected) td.innerHTML = originalContent;
-      this._onEditEnd?.();
-    };
-
-    input.addEventListener('blur', save);
-    input.addEventListener('keydown', e => {
-      if (e.key === 'Enter') { e.preventDefault(); save(); }
-      if (e.key === 'Escape') { input.removeEventListener('blur', save); cancel(); }
-    });
+    this.sizer.appendChild(frag);
+    if (nextActiveRow) AtomPopover.rebindRow(nextActiveRow);
   }
 }
+
+// ─── Atom popover ─────────────────────────────────────────────────────────────
+// Click-driven editor anchored to the clicked word atom. Universal editing
+// surface: shows source wordlist + rescore/override info, edits score + comment,
+// and (on My Edits-sourced rows) deletes. Edits route through the scroller's
+// _onCellEdit (which lands them in My Edits regardless of the active wordlist).
+
+const AtomPopover = (() => {
+  let el = null;
+  let activeRow = null;
+  let activeEntry = null;
+  let activeScroller = null;
+
+  function ensureElement() {
+    if (el) return el;
+    el = document.createElement('div');
+    el.id = 'atom-popover';
+    el.setAttribute('hidden', '');
+    document.body.appendChild(el);
+    return el;
+  }
+
+  function isOpen() { return el && !el.hasAttribute('hidden'); }
+
+  function close() {
+    if (!el || el.hasAttribute('hidden')) return;
+    el.setAttribute('hidden', '');
+    if (activeRow) activeRow.classList.remove('active');
+    activeRow = null;
+    activeEntry = null;
+    activeScroller = null;
+    document.removeEventListener('mousedown', onDocMouseDown, true);
+    document.removeEventListener('keydown', onKeydown, true);
+    window.removeEventListener('resize', close);
+  }
+
+  function onDocMouseDown(e) {
+    if (!isOpen()) return;
+    if (el.contains(e.target)) return;
+    if (activeRow && activeRow.contains(e.target)) return;
+    close();
+  }
+
+  function onKeydown(e) {
+    if (e.key === 'Escape') { e.preventDefault(); close(); }
+  }
+
+  function open(entry, rowEl, scroller, anchorEl) {
+    const popover = ensureElement();
+    if (activeRow) activeRow.classList.remove('active');
+    activeEntry = entry;
+    activeRow = rowEl;
+    activeScroller = scroller;
+    rowEl.classList.add('active');
+
+    popover.innerHTML = renderHTML(entry, scroller);
+    popover.removeAttribute('hidden');
+    position(anchorEl ?? rowEl);
+    wireFields();
+    popover.querySelector('.score-input')?.focus();
+    popover.querySelector('.score-input')?.select();
+
+    document.addEventListener('mousedown', onDocMouseDown, true);
+    document.addEventListener('keydown', onKeydown, true);
+    window.addEventListener('resize', close);
+  }
+
+  function renderHTML(entry, scroller) {
+    const d = scroller._entryDisplayState(entry);
+    const displayed = displayWord(entry.word);
+    const rowWordlist = entry.wordlist || scroller.currentWordlist;
+    const editsWordlist = scroller.editsWordlist || getEditsWordlist();
+
+    let sourceLines = '';
+    if (rowWordlist) {
+      const label = buildWordlistNameHTML(rowWordlist, { bold: false });
+      const rescNote = d.wasRescored ? ` <span class="rescore-note">(${entry.score} rescored to ${d.rescoredScore})</span>` : '';
+      sourceLines += `<div>${label}: <b>${d.ignored ? entry.score : d.rescoredScore}</b>${rescNote}</div>`;
+    }
+    if (d.ov) {
+      const ovLabel = buildWordlistNameHTML(d.ov.wordlist, { bold: false });
+      sourceLines += `<div>${ovLabel}: <b>${d.ov.score}</b> takes precedence</div>`;
+    }
+    if (d.ignored) sourceLines += `<div><i>Ignored by rescore rules</i></div>`;
+
+    const rowIsEdits = rowWordlist === editsWordlist;
+    const showDelete = scroller.showDeleteCol || (scroller.showEditDeleteCol && rowIsEdits);
+    const deleteBtn = showDelete ? `<button class="atom-pop-delete" type="button">Delete</button>` : '';
+
+    const editsName = editsWordlist ? buildWordlistNameHTML(editsWordlist, { bold: false }) : 'My Edits';
+    const isEditsView = scroller.currentWordlist === editsWordlist;
+    const savesNote = isEditsView ? `Editing ${editsName}` : `Saves to ${editsName}`;
+
+    const scoreVal = d.ignored ? entry.score : d.effectiveScore;
+    return `
+      <div class="atom-pop-title">
+        <span class="atom-pop-len">${entry.word.length}</span>
+        <span class="atom-pop-word">${esc(displayed)}</span>
+      </div>
+      <div class="atom-pop-source">${sourceLines}</div>
+      <div class="atom-pop-fields">
+        <label for="atom-pop-score">Score</label>
+        <input id="atom-pop-score" class="score-input" type="number" min="0" value="${scoreVal}">
+        <label for="atom-pop-comment">Comment</label>
+        <input id="atom-pop-comment" class="comment-input" type="text" value="${esc(d.effectiveComment)}">
+      </div>
+      <div class="atom-pop-foot">
+        <span class="atom-pop-saves">${savesNote}</span>
+        ${deleteBtn}
+      </div>`;
+  }
+
+  function wireFields() {
+    const popover = el;
+    const scroller = activeScroller;
+    const word = activeEntry.word;
+
+    const scoreInp = popover.querySelector('.score-input');
+    if (scoreInp) {
+      const initial = scoreInp.value;
+      const commit = () => {
+        const parsed = parseInt(scoreInp.value, 10);
+        if (!isNaN(parsed) && parsed >= 0 && String(parsed) !== initial) {
+          scroller._onCellEdit?.(word, 'score', parsed);
+        }
+      };
+      scoreInp.addEventListener('blur', commit);
+      scoreInp.addEventListener('keydown', e => {
+        if (e.key === 'Enter') { e.preventDefault(); commit(); close(); }
+        if (e.key === 'Escape') { e.preventDefault(); scoreInp.value = initial; close(); }
+      });
+    }
+
+    const commentInp = popover.querySelector('.comment-input');
+    if (commentInp) {
+      const initial = commentInp.value;
+      commentInp.addEventListener('beforeinput', blockSemicolon);
+      const commit = () => {
+        if (commentInp.value !== initial) {
+          scroller._onCellEdit?.(word, 'comment', commentInp.value);
+        }
+      };
+      commentInp.addEventListener('blur', commit);
+      commentInp.addEventListener('keydown', e => {
+        if (e.key === 'Enter') { e.preventDefault(); commit(); close(); }
+        if (e.key === 'Escape') { e.preventDefault(); commentInp.value = initial; close(); }
+      });
+    }
+
+    const deleteBtn = popover.querySelector('.atom-pop-delete');
+    if (deleteBtn) {
+      deleteBtn.addEventListener('click', () => {
+        const fn = scroller._onDeleteRow;
+        close();
+        fn?.(word);
+      });
+    }
+  }
+
+  function position(rowEl) {
+    const r = rowEl.getBoundingClientRect();
+    el.style.top = (r.bottom + 4) + 'px';
+    el.style.left = r.left + 'px';
+    requestAnimationFrame(() => {
+      const pw = el.offsetWidth, ph = el.offsetHeight;
+      let left = r.left;
+      if (left + pw > window.innerWidth - 8) left = window.innerWidth - 8 - pw;
+      if (left < 8) left = 8;
+      let top = r.bottom + 4;
+      if (top + ph > window.innerHeight - 8) top = Math.max(8, r.top - ph - 4);
+      el.style.top = top + 'px';
+      el.style.left = left + 'px';
+    });
+  }
+
+  function activeWord(scroller) {
+    if (!isOpen()) return null;
+    if (scroller && activeScroller !== scroller) return null;
+    return activeEntry ? activeEntry.word : null;
+  }
+
+  function rebindRow(rowEl) {
+    if (!isOpen()) return;
+    if (activeRow) activeRow.classList.remove('active');
+    activeRow = rowEl;
+    rowEl.classList.add('active');
+  }
+
+  return { open, close, isOpen, activeWord, rebindRow };
+})();
 
 // ─── Update Summary Scroller ──────────────────────────────────────────────────
 
@@ -4293,7 +4339,6 @@ function setupRenderEffect() {
       return;            // render effect's first run already painted everything
     }
     renderSources();
-    if (scroller?.showSource) scroller._render();
   });
 }
 
@@ -4339,6 +4384,7 @@ function refreshSourceCounts() {
 }
 
 function createScroller() {
+  AtomPopover.close();
   scroller = new VirtualScroller(document.getElementById('vs-host'));
   return scroller;
 }
@@ -4365,7 +4411,7 @@ function mountDetailPanel(panel, stats, entries, middleHTML = '') {
     ${buildStatsBarHTML(stats, entries, getHistogramLayout())}
     ${middleHTML}
     ${ToolStack.buildHTML()}
-    ${buildTableContainerHTML()}
+    ${buildWordListPanelHTML()}
   `;
   ToolStack.refreshGalleryActive();
   repositionAllHistogramRects();
@@ -4539,8 +4585,6 @@ function attachExternalEditHandlers(s, refreshFn) {
     upsertEdits(word, field, newValue);
     refreshFn?.();
   };
-  s._onEditStart = (word, field, td) => showEditInfoNote(td);
-  s._onEditEnd   = () => hideEditInfoNote();
 }
 
 function upsertEdits(word, field, newValue) {
@@ -4562,29 +4606,6 @@ function upsertEdits(word, field, newValue) {
   updateCatchAll(edits);
   persistEdits(edits);
   refreshDerivedDisplays();
-}
-
-function showEditInfoNote(td) {
-  let tip = document.getElementById('edit-cell-tip');
-  if (!tip) {
-    tip = document.createElement('div');
-    tip.id = 'edit-cell-tip';
-    document.body.appendChild(tip);
-  }
-  tip.innerHTML = `Edits are saved to ${buildWordlistNameHTML(getEditsWordlist())}`;
-  tip.style.opacity = '0';
-  requestAnimationFrame(() => {
-    const input = td.querySelector('input.cell-edit');
-    const r = (input ?? td).getBoundingClientRect();
-    tip.style.top  = (r.bottom + 4) + 'px';
-    tip.style.left = r.left + 'px';
-    tip.style.opacity = '1';
-  });
-}
-
-function hideEditInfoNote() {
-  const tip = document.getElementById('edit-cell-tip');
-  if (tip) tip.style.opacity = '0';
 }
 
 function getSelected() {
@@ -5826,56 +5847,6 @@ function bindEvents() {
 
 function nameFromPath(str) {
   return str.split('/').pop().replace(/\.[^.]+$/, '');
-}
-
-// ─── Cell popovers ────────────────────────────────────────────────────────────
-
-function showCellPopover(td) {
-  let pop = document.getElementById('cell-popover');
-  if (!pop) {
-    pop = document.createElement('div');
-    pop.id = 'cell-popover';
-    pop.setAttribute('hidden', '');
-    document.body.appendChild(pop);
-  }
-  pop.innerHTML = buildCellPopoverHTML(td);
-  pop.removeAttribute('hidden');
-  const rect = td.getBoundingClientRect();
-  pop.style.top = (rect.bottom + 4) + 'px';
-  pop.style.left = rect.left + 'px';
-  requestAnimationFrame(() => {
-    const pw = pop.offsetWidth;
-    const left = parseFloat(pop.style.left);
-    if (left + pw > window.innerWidth - 8) pop.style.left = (window.innerWidth - 8 - pw) + 'px';
-  });
-}
-
-function hideCellPopover() {
-  document.getElementById('cell-popover')?.setAttribute('hidden', '');
-}
-
-function buildCellPopoverHTML(td) {
-  const { scoreRaw, scoreRescaled, scoreOvName, scoreOvVal, scoreWordlistName,
-          commentRaw, commentOvName, commentOvVal, commentWordlistName } = td.dataset;
-
-  let html = '';
-
-  if (scoreRaw !== undefined) {
-    const thisScore = scoreRescaled ? `${scoreRaw} rescored to ${scoreRescaled}` : scoreRaw;
-    html += `<div><b>${esc(scoreWordlistName)}:</b> ${thisScore}</div>`;
-    if (scoreOvName) html += `<div><b>${esc(scoreOvName)}:</b> ${scoreOvVal} takes precedence</div>`;
-  }
-
-  if (commentOvName !== undefined) {
-    if (commentRaw) {
-      html += `<div><b>${esc(commentWordlistName)}:</b> ${esc(commentRaw)}</div>`;
-      html += `<div><b>${esc(commentOvName)}:</b> ${esc(commentOvVal)} takes precedence</div>`;
-    } else {
-      html += `<div>From <b>${esc(commentOvName)}</b></div>`;
-    }
-  }
-
-  return html;
 }
 
 // ─── Utility ──────────────────────────────────────────────────────────────────

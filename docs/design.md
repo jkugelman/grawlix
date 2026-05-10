@@ -77,7 +77,7 @@ Today this is a stub. Full design lives in [`plans/sync.md`](plans/sync.md): pro
 
 ## Tool gallery & stack
 
-Tools live in two places: a persistent gallery in the left rail's **Tools** section, and a **tool stack** in the main pane between the scoring legend and the search bar. The gallery is browseable; the stack is the user's current pipeline. Today the chrome is shipped — gallery cards click and chain, the stack renders rows with parameter inputs, hover previews and animations work — but tools don't yet transform anything. The full tool list, chaining policies, and result rendering are still planned in [`plans/tools.md`](plans/tools.md).
+Tools live in two places: a persistent gallery in the left rail's **Tools** section, and a **tool stack** in the main pane between the scoring legend and the search bar. The gallery is browseable; the stack is the user's current pipeline. Today the chrome is shipped — gallery cards click and chain, the stack renders rows with parameter inputs, hover previews and animations work — but tools don't yet transform anything. The full tool list and chaining policies are still planned in [`plans/tools.md`](plans/tools.md). The word-list display where tool output will eventually render shipped already (see § Word list).
 
 **Single catalog drives every surface.** Each tool is one record in `TOOLS` (`name`, `icon`, `category`, `desc`, `example`, `params`, `output`); section ordering for the gallery comes from a parallel `TOOL_CATEGORIES` list. Gallery cards, stack-row labels, and the search bar's `Search` label all render the inline icon-and-name pair through the shared `buildToolLabelHTML` helper. Adding a tool means adding one entry — every surface that names tools picks it up — and the helper guarantees the icon-and-name pair looks identical wherever it appears.
 
@@ -85,7 +85,7 @@ Tools live in two places: a persistent gallery in the left rail's **Tools** sect
 
 **Stack hidden when empty.** No user-added tools = no `#tool-stack` element in the DOM. The functional search bar below sits in its usual position. The stack appears only when the user adds the first tool.
 
-**Search bar styled as the bottom row of the stack.** Same row layout (icon + bold name + params), same background, abuts the stack with no gap. An earlier mockup had a chrome "permanent Search" row inside the stack itself; that produced two visible search inputs (one chrome, one functional). Dropping the chrome row and restyling the functional bar to match the stack gives a single search input with visual continuity. The whole-word toggle and score-range live in the same row.
+**Search bar styled as the bottom row of the stack.** Same row layout (icon + bold name + params), same background, abuts the stack with no gap. An earlier mockup had a chrome "permanent Search" row inside the stack itself; that produced two visible search inputs (one chrome, one functional). Dropping the chrome row and restyling the functional bar to match the stack gives a single search input with visual continuity. The whole-word toggle, score-range filter, and the word-list sort control all live in the same row — filter on the left, view-config (sort) on the right; see § Word list for the sort cluster's shape.
 
 **Hover previews show what the click will do — but only when the click is visually surprising.** The rules:
 
@@ -102,6 +102,42 @@ Ghost rows carry an accent tint and a subtle shimmer (sweeping accent gradient v
 **Ghost-promote in place on commit.** When a click commits a hovered ghost, the *same* DOM element loses its `.ghost` class and gains real-row content (via `innerHTML` swap of the inner body). CSS transitions on opacity/color/background handle the visual shift naturally. Replacing the node with a fresh element would lose the in-progress transition state and produce a flash. A 24×24 placeholder div in the ghost's right slot matches the X button's footprint so the row's height is identical between ghost and real states.
 
 **`+`-button camouflage gotcha.** The global `button:hover:not(:disabled)` rule (specificity 0,2,1) overrides naive `.gallery-card-add:hover` (0,2,0), giving the add button the card's hovered background and making it visually invisible against the card. The hover rule is scoped as `.gallery-card .gallery-card-add:hover` (specificity 0,3,0) to win on specificity without `!important`.
+
+## Word list
+
+The at-rest results display below the search bar. Renders the active wordlist (or merged `All` view) as one row per entry — same view whether idle or filtered. Replaces the earlier spreadsheet-style table (sticky resizable headers, per-cell inline edit, hover info popover); the list reads at lower density and routes editing through one explicit gesture.
+
+**Single column of word atoms, no table.** Each row carries the same shape: a numbered position, the word, its length, and a score badge. Pseudo-column alignment via CSS Grid puts each piece in a fixed sub-slot so the eye reads down them as if they were columns. No header row, no resizable columns, no per-row chrome at rest. The list is calm content; controls live in the search bar above.
+
+This is the pattern modern productivity apps (Linear, Notion, Things, virtually every mobile app) have settled on. Two real losses vs. a table, judged worth it:
+- **2D reading.** A table lets you sort by one axis and visually scan another (sort by Min, eyeball Max). The list can't — switching axes is a sort-control click. In practice users sort by their primary axis and scroll; switching is rare.
+- **Click-to-sort headers.** A spreadsheet convention; widely learned but not universal. The separate sort control is fast to learn.
+
+What's gained: visual calm at rest, narrow widths come nearly for free (lists scale; tables don't), bigger friendlier fonts become natural, and the at-rest UI stays one column wide. Nothing is in the chrome just to tabulate.
+
+**Word atom: `1. CARE 4 50`** — count, word, length, score-badge. Length is to the right of word ([Wordlisted](https://aaronson.org/wordlisted/)'s layout), freeing the leftmost column for the count. The count makes scanning a long list legible and lets a user keep their place when slowly reading through. Count and length use the sans-serif font; word and score-badge use monospace so columns of letters and digits visually align.
+
+**Pseudo-column alignment, fixed widths from data.** Each row is its own grid container with `grid-template-columns: var(--count-w) var(--word-w) var(--len-w) var(--score-w)`. The four CSS variables are computed once per filter/sort pass from the entire result set: count digits, max word length (capped at 20 chars; longer words truncate with ellipsis + tooltip), max length-number digits, max score digits. They stay fixed across scroll. Picking widths from the visible rows would jitter under virtual scrolling; one outlier row would also blow out the layout for everyone else. Each row is independently grid-laid-out (because rows are absolute-positioned for virtual scrolling), so the variables must be uniform — `max-content` tracks would size per-row and break cross-row alignment.
+
+**Score badges right-aligned within their column.** `justify-self: end` on the score atom pushes each badge to the right edge of the (uniform) score track; numbers' right digits line up across rows. The score column width is `calc(maxScoreDigits ch + 12px)` — the 12px covers the badge's 5px-each-side padding plus a small safety margin.
+
+**No hover state, no row separators.** The pseudo-column alignment carries the row structure on its own — borders would be redundant noise at 24px row height. Hover highlight was rejected because the entire row reads as one unit (you don't aim for a sub-element) and at high row density the highlight flashes as the eye drags down. The popover-active row gets an accent tint (`color-mix(in srgb, var(--accent) 12%, transparent)`) so the user can tell which row the popover belongs to; that's the only background state.
+
+**Click targets are the word and score atoms only.** `cursor: pointer` and the click handler both gate on `.atom-word` or `.atom-score`. The count and length are read-only display; the row as a whole is not interactive. Cursor on the whole row would imply otherwise.
+
+**Search highlight** marks pattern matches in the word slot via `<mark>` spans, colored per capture group. Ellipsis truncation respects the markup.
+
+**Sort control inside the search bar.** "Sort by [Word ▾] [↑]" sits at the right edge of the search bar, after the score-range filter. An earlier draft had a dedicated thin toolbar above the list; that was replaced because the search bar's right-hand space was empty (the search input was flex-stretching to fill it) and consolidating saved a row of vertical space without crowding. Filter (search/whole-word/score) on the left, view-config (sort) on the right; same row.
+
+The sort axis is a native `<select>` with `appearance: none` and a chevron painted via background-image — quiet inline text rather than bordered chrome. Direction is a borderless `↑`/`↓` button next to it. No persistent border or background; the controls flow inline with natural HTML whitespace between them. Sort axes for the words view: Word, Length, Score. Default Word ascending; Score defaults to descending when first selected.
+
+**Click an atom → AtomPopover.** A click-driven popover anchored to the clicked atom (word or score). Content: a header line repeating the atom for context, a source block (which wordlist sourced the score, with rescore/override info or "Ignored by rescore rules"), score and comment text inputs, a "Saves to My Edits" footer, and a Delete button when the row is sourced from My Edits. Edits commit via Enter (commit + close) or blur (commit, popover stays open so you can tab to the next field); Escape reverts and closes. Click-outside, scroll, resize, search/filter/sort changes, and panel re-mount all close it.
+
+The popover replaces both the previous in-cell `<input>` swap (score/comment edits) and the hover-only info tooltip (which explained rescoring and overrides). Comments and source moved off the at-rest list — comments are write-mostly in practice, and source matters only for investigation. Both are one click away in the popover when wanted.
+
+**Re-render across edits keeps the popover open.** Edits flow through `_onCellEdit`, which routes to `upsertEdits` (non-Edits views) or directly mutates `rawEntries` (My Edits view), then triggers `_applyFilterAndSort(false)`. The scroller re-renders rows but doesn't close the popover, so chained edits (score → tab → comment) work. After re-render, the row matching the popover's active word gets `.active` reapplied via `AtomPopover.rebindRow`.
+
+**Virtual scrolling.** Rows are absolute-positioned inside a height-sized `.word-list-rows` container; the scroller materializes only rows in the current viewport ± a buffer. Each row's `top` is `i * ROW_HEIGHT`. Cleaner than the previous `<table>` with top/bottom spacer rows.
 
 ## Help modal
 

@@ -8,7 +8,7 @@ The gallery is where Grawlix's [project goal](../../README.md#goals) — democra
 
 ## Status
 
-Chrome is shipped: the left-rail gallery (every card carrying its tool's icon), the main-pane tool stack, hover previews, animations. The current `TOOLS` catalog drives both the gallery and the stack rows, so adding a card today is one record. Icons are emoji; switching to custom SVG would mean changing only the `icon` field per entry. See [`design.md` § Tool gallery & stack](../design.md#tool-gallery--stack) for the chrome's shape and rationale. Everything below is forward-looking — the plugin/API model, tool execution, the rest of the catalog, chaining policies, output formats, and downstream features.
+Chrome is shipped: the left-rail gallery (every card carrying its tool's icon), the main-pane tool stack, hover previews, animations. The current `TOOLS` catalog drives both the gallery and the stack rows, so adding a card today is one record. Icons are emoji; switching to custom SVG would mean changing only the `icon` field per entry. The word-list display where tool output renders also shipped — atoms, sort, click-to-edit popover. See [`design.md` § Tool gallery & stack](../design.md#tool-gallery--stack) and [`design.md` § Word list](../design.md#word-list) for those parts' shape and rationale. Everything below is forward-looking — the plugin/API model, tool execution, the rest of the catalog, chaining policies, pair/group output formats, and downstream features.
 
 ---
 
@@ -231,57 +231,18 @@ Roget's Thesaurus (available as structured XML) enables meaning-based searches: 
 
 ---
 
-## Display
+## Display (pair / group output kinds)
 
-Output is a single-column **list**, not a table. Every output kind — words, pairs, groups — renders one item per row in a list; what varies is what's *inside* each row. No column headers, no per-row column alignment beyond the atoms themselves. This follows the pattern modern productivity apps (Linear, Notion's list view, Things, virtually every mobile app) have settled on: the list is calm content; controls live in a toolbar above it.
+The shipped Words display is documented in [`../design.md` § Word list](../design.md#word-list). Pair and group output kinds — beheadments, anagram families, etc. — extend the same list-of-atoms model below; no tools that produce them are wired up yet, so the rendering is sketched here.
 
-The base unit of display is the **word atom** — a word rendered with its length and score inline: `7 TABLESPOON 60`. Length leads (a familiar crossword convention: "a 7 starting with T…"); the trailing number is the score badge, colored by tier. Every word in any output is shown as an atom. Clicking an atom opens a popover anchored to it that edits the word's score and comment and shows which wordlist sourced the displayed score; edit commits land in My Edits regardless of the active wordlist.
-
-The popover is the universal editing mechanism across all output kinds. Comments and source leaving the at-rest list is a deliberate move — comments are write-mostly in practice and source matters only for investigation, so neither earns scanning real estate. Both are one click away when actually wanted.
-
-### Toolbar
-
-A thin bar above the list owns the controls the spreadsheet model used to bury in column headers:
-
-```
-Sort: Score ↓                    1,247 results
-```
-
-The current sort axis shows as a label so the user reads it without clicking. Clicking opens a small menu of axes; direction toggles inline. Result count sits at the right edge. Filter inputs (the existing search bar, the score-range histogram) keep their existing positions — the toolbar handles sort, the search bar and histogram handle filter, all clustered visually.
-
-Sort axes vary by output kind:
-
-- **Words:** Score, Length, Alphabetical.
-- **Pairs:** Min score, Max score, Score (from), Score (to), Min length, Max length, Alphabetical.
-- **Groups:** Min, Max, Count, Alphabetical.
-
-### Pseudo-column alignment
-
-Each row internally divides into fixed sub-slots — for words: `[length] [word] [score]`; for pairs: `[length] [word] [score]  relation  [length] [word] [score]`. Slots stay at consistent positions across rows, so the eye reads down them as if they were columns even though there are no headers. The alignment itself is the announcement of what's where. Email clients do exactly this — sender, subject, and date are sub-slots in each card-row; no header row is needed because the visual structure already teaches you where everything lives.
-
-**Width decisions: per-result-set max with a cap.** Slot widths are derived from the longest value across the full result set when the tool runs, then stay fixed during scroll. (Picking widths from the *visible* rows would jitter under virtual scrolling.) Each slot is capped — e.g. ~20 chars for the word slot — and longer values truncate with an ellipsis and show full text in a tooltip. One outlier doesn't blow out the layout for every other row.
-
-Groups are the partial exception. Atom counts vary per row, so atoms don't fully cross-row align — they flow across the line separated by bullets. The leading `(N)` count slot does align across rows, giving the eye an anchor; within a row, atoms pack tightly with consistent internal `length word score` shape.
-
-### Words view
-
-A list of word atoms, default sort by Score descending.
-
-```
-Sort: Score ↓                       1,247 words
-
- 7  TABLESPOON  60
- 9  ASTROLOGY   50
- 7  HEADBAND    50
-…
-```
+The rule that carries over: every word in any output is shown as a [word atom](../design.md#word-list) (`1. CARE 4 50`); the AtomPopover is the universal editor regardless of output kind; comments and source live in the popover, not the at-rest row.
 
 ### Pairs view
 
 A list of `atom relation atom` rows. The relation glyph (`→`, `·`, `⊃`, etc., from `output.relation`) renders between two word atoms in its own pseudo-column, so arrows line up vertically across all rows. Default sort is Min score for transform and symmetric pairs — the worse word caps pair quality.
 
 ```
-Sort: Min score ↓                                     321 pairs
+Sort by Min score ↓                                   321 pairs
 
  5  SLING         50  →   4  LING            30
  5  TRAIN         60  →   4  RAIN            40
@@ -299,7 +260,7 @@ Wordlisted's stacked-pairs display (two scores rendered as `40/50`) keeps column
 A list of bullet-separated atoms with a count prefix. Default sort is Max — the anagram-families case is "find a great word that has anagrams I haven't noticed," which max surfaces and min hides.
 
 ```
-Sort: Max ↓                                                89 families
+Sort by Max ↓                                              89 families
 
 (3)   4 CARE 50  ·  4 RACE 40  ·  4 ACRE 30
 (2)   8 STRESSED 60  ·  8 DESSERTS 40
@@ -309,14 +270,12 @@ Sort: Max ↓                                                89 families
 
 Count is a per-row property; leading `(N)` keeps it visible without dedicated chrome. Min and Max are sort axes, not displayed as numbers — derivable from the row, and showing them next to the atoms would be redundant. When a group is too wide to fit on one line, atoms wrap to the next line indented under the first atom (not under the count) so it reads as continuation.
 
-### What this gives up vs. a table
+Groups are the partial exception to strict pseudo-column alignment. Atom counts vary per row, so atoms don't fully cross-row align — they flow across the line separated by bullets. The leading `(N)` count slot does align across rows, giving the eye an anchor; within a row, atoms pack tightly with consistent internal `length word score` shape.
 
-Two real losses worth being honest about:
+### Sort axes per output kind
 
-- **2D reading.** A table lets you sort by one axis and visually scan another (sort by Min, eyeball Max). The list model can't — switching axes is a sort-control click. In practice users sort by their primary axis and scroll; switching is rare.
-- **Click-to-sort headers.** A spreadsheet convention; widely learned but not universal. Linear/Notion/Things demonstrate users adapt fast to a separate sort control.
-
-What's gained: visual calm at rest scales to its conclusion, mobile design comes nearly for free (lists scale to narrow widths; tables don't), bigger friendlier fonts become natural, and the at-rest UI stays one column wide regardless of output kind. Nothing is in the chrome just to tabulate.
+- **Pairs:** Min score, Max score, Score (from), Score (to), Min length, Max length, Alphabetical.
+- **Groups:** Min, Max, Count, Alphabetical.
 
 ### Permanent Search row on non-flat output
 

@@ -12,7 +12,7 @@ This is the user-facing manual. Eventually it'll be turned into an in-app manual
 - **Wordlist** — the wordlist picker (dropdown), the wordlist settings button, and the sync indicator.
 - **Tools** — the tool gallery.
 
-**Main pane.** Stats bar plus the wordlist table. The table is always visible — idle and search views are the same view, just filtered.
+**Main pane.** Stats bar, scoring legend, search bar, and the word list. The list is always visible — idle and search views are the same view, just filtered.
 
 ## Choosing a wordlist
 
@@ -35,11 +35,21 @@ On launch — including first run — you land on **All**. The four publisher wo
 - `[abc]` — character class
 - Whole-word toggle anchors the pattern.
 
-## Inline editing
+## Word list
 
-Click any score or comment cell — in any wordlist view — to edit it inline. Edits always land in My Edits, regardless of which wordlist is open.
+The list below the search bar shows every word in the current wordlist (or merged `All` view), one row per entry, in your current sort order. Each row reads as `1. CARE 4 50` — count, word, length, score badge. Click on a word or score to edit it (see *Editing words*).
 
-When the value you see differs from what the wordlist itself contains (because it's been rescored, or another wordlist overrides it), a small red asterisk (`*`) marks the cell. Hover for an explanation: the original score for rescored entries, or the overriding wordlist's name for overrides.
+**Sort.** "Sort by [Word ▾] [↑]" at the right edge of the search bar. Axes: Word (alphabetical), Length, Score. Click the arrow to toggle direction. Default is Word ascending.
+
+## Editing words
+
+Click any word or score in the list to open an editor popover. The popover shows which wordlist sourced the score (with any rescoring or override explanation) and lets you edit the score and comment. Edits always land in My Edits, regardless of which wordlist is open.
+
+Press Enter to save and close, or Tab to chain edits between score and comment. Escape reverts. Clicking outside, scrolling, or changing the search closes the popover.
+
+When the score you see differs from what the wordlist itself contains (because it's been rescored, or another wordlist overrides it), a small red asterisk (`*`) marks the badge. The popover spells out exactly what's going on.
+
+For words sourced from My Edits, the popover also has a Delete button (with undo via toast).
 
 ## My Edits
 
