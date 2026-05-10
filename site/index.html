@@ -196,8 +196,12 @@ html.light-mode .histogram:hover .histogram-bar:not(.histogram-bar-ignored) { fi
 html.light-mode .histogram-rect { opacity: 0.22; }
 
 /* Search bar — styled as the bottom "filter" row of the tool stack, also hosts
-   the sort control on the right edge (filter + view-config in one row). */
-.search-bar { padding: 8px 14px; background: var(--surface2); border-bottom: 1px solid var(--border2); display: flex; align-items: center; gap: 12px; }
+   the sort control on the right edge (filter + view-config in one row).
+   position: relative establishes a positioning context for .tool-stack-cursor:
+   the cursor is parented here (not in #tool-stack) so its caret can extend
+   above and below the stack/search-bar boundary without being clipped by
+   #tool-stack's overflow: hidden. */
+.search-bar { padding: 8px 14px; background: var(--surface2); border-bottom: 1px solid var(--border2); display: flex; align-items: center; gap: 12px; position: relative; }
 .search-input-wrap { position: relative; display: flex; align-items: center; flex: 0 0 240px; }
 .search-input-wrap input[type="text"],
 .tool-row-param input { background: var(--input-bg); color: var(--text); border: 1px solid var(--border); border-radius: 4px; font-size: 13px; font-family: var(--font-mono); padding: 5px 8px; }
@@ -646,21 +650,43 @@ a.get-file:hover { text-decoration: underline; }
 body.tools-empty .gallery-card { padding-right: 12px; }
 body.tools-empty .gallery-card-add { display: none; }
 
-#tool-stack { background: var(--surface2); overflow: hidden; }
-.tool-row { display: grid; grid-template-columns: 1fr 32px; align-items: center; padding: 8px 14px; border-bottom: 1px solid var(--border2); gap: 10px; overflow: hidden; transition: opacity 0.2s ease, background 0.15s ease; }
+#tool-stack { background: var(--surface2); overflow: hidden; position: relative; }
+/* Tool rows and the search bar share min-height so a row with no params
+   doesn't shrink below the height of an input-bearing row, and the search
+   bar (visually the bottom row of the stack) lines up with them. */
+.tool-row, .search-bar { min-height: 42px; }
+.tool-row { position: relative; display: grid; grid-template-columns: 1fr 32px; align-items: center; padding: 8px 14px; border-bottom: 1px solid var(--border2); gap: 10px; overflow: hidden; transition: opacity 0.2s ease, background 0.15s ease; }
 .tool-row:last-child { border-bottom: none; }
-.tool-row.ghost { position: relative; pointer-events: none; background: color-mix(in srgb, var(--accent) 7%, transparent); opacity: 0.85; }
-.tool-row.ghost .tool-row-icon, .tool-row.ghost .tool-row-name { color: var(--accent); }
-.tool-row.ghost > * { position: relative; z-index: 1; }
-.tool-row.ghost::after { content: ''; position: absolute; inset: 0; z-index: 0; background: linear-gradient(90deg, transparent 25%, color-mix(in srgb, var(--accent) 20%, transparent) 50%, transparent 75%); transform: translateX(-100%); animation: ghost-shimmer 2.4s linear infinite; }
-@keyframes ghost-shimmer {
-  0%   { transform: translateX(-100%); }
-  100% { transform: translateX(100%); }
+/* "doomed" marks rows that the hovered gallery card will remove on click —
+   diagonal stripe overlay (neutral, text-tinted) plus a slight dim, in place,
+   no collapse. The ::after layer paints on top of the row's content (including
+   input backgrounds) so the stripe pattern reads as a continuous wash across
+   the row, not just a backdrop behind the inputs. The stripe layer is always
+   present (opacity 0 by default) and the children always have an opacity
+   transition, so toggling .doomed fades the dim and stripes in/out instead
+   of snapping. */
+.tool-row > * { transition: opacity 0.15s ease; }
+.tool-row::after { content: ''; position: absolute; inset: 0; background: repeating-linear-gradient(-45deg, transparent 0 5px, color-mix(in srgb, var(--text) 2%, transparent) 5px 10px); pointer-events: none; opacity: 0; transition: opacity 0.15s ease; }
+.tool-row.doomed > * { opacity: 0.4; }
+.tool-row.doomed::after { opacity: 1; }
+.tool-row.flash { animation: tool-row-flash 0.7s ease-out; }
+@keyframes tool-row-flash {
+  0%   { background: color-mix(in srgb, var(--accent) 28%, transparent); }
+  100% { background: transparent; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .tool-row.ghost::after { animation: none; }
+  .tool-row.flash { animation: none; }
 }
-.tool-row.doomed { max-height: 0; padding-top: 0; padding-bottom: 0; border-bottom: none; opacity: 0; pointer-events: none; }
+/* Insertion cursor — shown while hovering a gallery card to indicate
+   where the new tool will land. Drawn as a right-pointing caret + line
+   ( >─── ) so it reads as "insert here" rather than just "this position."
+   Parented in .search-bar (not #tool-stack) so the caret can extend both
+   above and below the stack/search-bar boundary without being clipped
+   by #tool-stack's overflow: hidden. The line itself sits at top: -1px,
+   straddling the boundary — the visual seam between the last tool row
+   and the search bar. */
+.tool-stack-cursor { position: absolute; top: -1px; left: 10px; right: 10px; height: 2px; background: var(--accent); pointer-events: none; box-shadow: 0 0 6px color-mix(in srgb, var(--accent) 55%, transparent); }
+.tool-stack-cursor::before { content: ''; position: absolute; left: 0; top: 50%; width: 0; height: 0; transform: translateY(-50%); border-style: solid; border-width: 4px 0 4px 7px; border-color: transparent transparent transparent var(--accent); }
 .tool-row-body { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; min-width: 0; }
 .tool-label { white-space: nowrap; }
 .tool-row-icon { font-size: 16px; line-height: 1; width: 20px; height: 20px; display: inline-flex; align-items: center; justify-content: center; color: var(--muted); flex-shrink: 0; vertical-align: middle; }
@@ -3047,22 +3073,18 @@ const TOOLS = {
 const ToolStack = (() => {
   // [{ tool: 'anagram', params: { word: 'LINDSEY' }, col: 'to' }, ...]
   let stack = [];
-  // { mode: 'replace' | 'chain', tool: 'anagram' } | null
-  let preview = null;
 
-  function paramsHTML(tool, idx, valuesByKey, opts = {}) {
+  function paramsHTML(tool, idx, valuesByKey) {
     if (!tool.params.length) return '';
     const single = tool.params.length === 1;
     const inputs = tool.params.map(p => {
       const labelHTML = single ? '' : `<label>${esc(p.label)}:</label>`;
-      const valueAttr = opts.disabled ? '' : ` value="${esc(valuesByKey?.[p.key] || '')}" data-row="${idx}" data-key="${p.key}"`;
-      const dis = opts.disabled ? ' disabled' : '';
-      return `<span class="tool-row-param">${labelHTML}<input type="text" placeholder="${esc(p.label)}"${valueAttr}${dis}></span>`;
+      return `<span class="tool-row-param">${labelHTML}<input type="text" placeholder="${esc(p.label)}" value="${esc(valuesByKey?.[p.key] || '')}" data-row="${idx}" data-key="${p.key}"></span>`;
     }).join('');
     return `<span class="tool-row-params">${inputs}</span>`;
   }
 
-  function buildRowHTML(idx, row, opts = {}) {
+  function buildRowHTML(idx, row) {
     const tool = TOOLS[row.tool];
     if (!tool) return '';
     const prev = idx === 0 ? null : stack[idx - 1];
@@ -3074,35 +3096,13 @@ const ToolStack = (() => {
       ? `<span class="tool-toggle">on <span class="tool-toggle-link" data-toggle="${idx}" title="Click to use ${altCol}">${row.col}</span></span>`
       : '';
 
-    const cls = ['tool-row', opts.doomed && 'doomed'].filter(Boolean).join(' ');
-    return `<div class="${cls}">
+    return `<div class="tool-row">
       <div class="tool-row-body">
         ${buildToolLabelHTML(tool)}
         ${toggleHTML}
         ${paramsHTML(tool, idx, row.params)}
       </div>
       <button type="button" class="tool-row-remove" data-remove="${idx}" title="Remove" aria-label="Remove ${esc(tool.name)}"><svg width="10" height="10"><use href="#icon-x"/></svg></button>
-    </div>`;
-  }
-
-  function buildGhostRowHTML(toolKey, mode, opts = {}) {
-    const tool = TOOLS[toolKey];
-    if (!tool) return '';
-    const prev = (mode === 'chain' && stack.length > 0) ? stack[stack.length - 1] : null;
-    const prevPair = prev && TOOLS[prev.tool]?.output === 'pair';
-    const showToggle = prevPair && !tool.polymorphic;
-
-    const toggleHTML = showToggle
-      ? `<span class="tool-toggle">on <span class="tool-toggle-link">to</span></span>`
-      : '';
-
-    return `<div class="tool-row ghost" data-ghost-tool="${esc(toolKey)}">
-      <div class="tool-row-body">
-        ${buildToolLabelHTML(tool)}
-        ${toggleHTML}
-        ${paramsHTML(tool, -1, null, { disabled: true })}
-      </div>
-      <div class="tool-row-remove-placeholder"></div>
     </div>`;
   }
 
@@ -3130,19 +3130,12 @@ const ToolStack = (() => {
 
   // Used by mountDetailPanel for the initial render. Mutations after that go
   // through direct DOM manipulation in add/replace/removeAt so insertions and
-  // deletions can animate.
+  // deletions can animate. Preview state is purely transient and lives only
+  // in the DOM (.doomed class + .tool-stack-cursor element), so it's not
+  // serialized here.
   function buildHTML() {
-    if (!stack.length && !preview) return '';
-    let rows = '';
-    if (preview?.mode === 'replace') {
-      rows += stack.map((row, idx) => buildRowHTML(idx, row, { doomed: true })).join('');
-      rows += buildGhostRowHTML(preview.tool, 'replace');
-    } else if (preview?.mode === 'chain') {
-      rows += stack.map((row, idx) => buildRowHTML(idx, row)).join('');
-      rows += buildGhostRowHTML(preview.tool, 'chain');
-    } else {
-      rows += stack.map((row, idx) => buildRowHTML(idx, row)).join('');
-    }
+    if (!stack.length) return '';
+    const rows = stack.map((row, idx) => buildRowHTML(idx, row)).join('');
     return `<div id="tool-stack">${rows}</div>`;
   }
 
@@ -3166,24 +3159,70 @@ const ToolStack = (() => {
     return e;
   }
 
-  function userRowEls() {
+  function rowEls() {
     const e = stackEl();
     if (!e) return [];
-    return Array.from(e.querySelectorAll('.tool-row:not(.ghost)'));
-  }
-
-  function ghostEl() {
-    return stackEl()?.querySelector('.tool-row.ghost') ?? null;
+    return Array.from(e.querySelectorAll('.tool-row'));
   }
 
   function focusRowInput(idx) {
-    userRowEls()[idx]?.querySelector('.tool-row-param input')?.focus();
+    // preventScroll: true is critical here. add()/replace() snap #tool-stack's
+    // height down to the pre-mutation value before animating it back up, so
+    // at the moment of focus the new row's input sits in #tool-stack's
+    // clipped overflow region. focus() walks up the ancestor chain looking
+    // for any non-visible overflow (hidden counts) and scrolls it to reveal
+    // the focused element — so the browser sets #tool-stack.scrollTop to
+    // push the new row into view, which scrolls the existing rows out the
+    // top. Then as the height transition grows the container, scrollTop's
+    // legal max shrinks each frame and the browser auto-clamps it back
+    // toward 0, so the previously-scrolled-out top row slides back in from
+    // above. The visual reads as "the top tool slid in" even though no
+    // page-level scrolling ever happened. preventScroll skips the initial
+    // scroll, so scrollTop stays 0 and the height transition simply reveals
+    // the new row at the bottom. Only inputs trigger this; rows for tools
+    // with no params (Palindrome, Beheadments, etc.) animate cleanly even
+    // without preventScroll because there's nothing to focus.
+    rowEls()[idx]?.querySelector('.tool-row-param input')?.focus({ preventScroll: true });
+  }
+
+  function ensureRowInView(idx) {
+    // Restores the "scroll into view if offscreen" half of focus()'s default
+    // behavior that preventScroll above suppresses, but delayed until the
+    // height transition settles. By then #tool-stack is at full height and
+    // the new row isn't in its clipped overflow region anymore — so
+    // scrollIntoView walks past #tool-stack without touching its scrollTop
+    // and only scrolls outer ancestors (i.e. the page) if needed.
+    // 'block: nearest' is a no-op when the row is already visible, which is
+    // the common case since the tool stack is in a sticky region near the
+    // top of the viewport.
+    setTimeout(() => {
+      rowEls()[idx]?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    }, 240);
+  }
+
+  function flashRow(idx) {
+    const row = rowEls()[idx];
+    if (!row) return;
+    // Reflow trick re-triggers the animation when the same row is re-clicked
+    // (self-replace) before a previous flash has finished.
+    row.classList.remove('flash');
+    void row.offsetWidth;
+    row.classList.add('flash');
   }
 
   // Per-row max-height transitions were tried first and produced jiggle when
   // multiple rows animated in opposite directions; container-level animation
   // is one coherent move regardless of how many rows changed.
+  let _pendingFinish = null;
   function animateHeight(mutate) {
+    // Cancel any in-flight cleanup so a stale finish() can't clear the inline
+    // height/transition we're about to set, snapping the new animation.
+    if (_pendingFinish) {
+      _pendingFinish.after.removeEventListener('transitionend', _pendingFinish.onEnd);
+      clearTimeout(_pendingFinish.timer);
+      _pendingFinish = null;
+    }
+
     const before = stackEl();
     let oldHeight = 0;
     if (before) {
@@ -3205,7 +3244,7 @@ const ToolStack = (() => {
     after.offsetHeight;
     let newHeight = after.getBoundingClientRect().height;
 
-    const willBeEmpty = !stack.length && !ghostEl() && !userRowEls().length;
+    const willBeEmpty = !stack.length && !rowEls().length;
     if (willBeEmpty) newHeight = 0;
 
     if (oldHeight === newHeight) {
@@ -3223,15 +3262,17 @@ const ToolStack = (() => {
     const finish = () => {
       if (done) return; done = true;
       after.removeEventListener('transitionend', onEnd);
+      _pendingFinish = null;
       if (after.isConnected) {
         after.style.height = '';
         after.style.transition = '';
-        if (!stack.length && !ghostEl() && !userRowEls().length) after.remove();
+        if (!stack.length && !rowEls().length) after.remove();
       }
     };
     const onEnd = (e) => { if (e.propertyName === 'height') finish(); };
     after.addEventListener('transitionend', onEnd);
-    setTimeout(finish, 360);
+    const timer = setTimeout(finish, 360);
+    _pendingFinish = { after, onEnd, timer };
   }
 
   function refreshGalleryActive() {
@@ -3244,60 +3285,41 @@ const ToolStack = (() => {
     document.body.classList.toggle('tools-multi-word', lastTool?.output === 'pair');
   }
 
-  // Same DOM element, so class-based transitions (opacity, color, background)
-  // handle the visual shift smoothly instead of replacing the node and losing
-  // any in-progress transition state.
-  function promoteGhost(idx) {
-    const ghost = ghostEl();
-    if (!ghost) return;
-    ghost.classList.remove('ghost');
-    delete ghost.dataset.ghostTool;
-    const tmp = document.createElement('div');
-    tmp.innerHTML = buildRowHTML(idx, stack[idx]);
-    ghost.innerHTML = tmp.firstElementChild.innerHTML;
-  }
+  function searchBarEl() { return panelEl()?.querySelector('.search-bar'); }
+  function removeCursor() { document.querySelector('.tool-stack-cursor')?.remove(); }
 
-  function setPreview(mode, tool) {
-    // Replace previews are only useful when 2+ tools are at risk — they
-    // communicate "you're about to wipe several rows." For 0 or 1 tools, the
-    // primary click is simple enough to leave un-previewed. Chain mode (via
-    // the + button) always previews because the + affordance is unfamiliar
-    // and the ghost shows what it does.
-    const isUselessReplace = mode === 'replace' && stack.length < 2;
-    if (isUselessReplace) {
-      clearPreview();
-      return;
+  // Hovering a gallery card previews the click outcome via:
+  //   - .doomed on every existing row in replace mode (in-place dim, no
+  //     collapse — keeps stack height stable so rapid scrubbing across the
+  //     gallery never jitters).
+  //   - .tool-stack-cursor at the boundary between #tool-stack and
+  //     .search-bar in both modes (parented in .search-bar so the caret can
+  //     extend across that boundary unclipped). Absolutely positioned so
+  //     it adds zero vertical space.
+  // No preview when stack is empty: the click is unambiguous (just adds the
+  // tool) and there's nothing to dim.
+  function setPreview(mode) {
+    if (stack.length === 0) return;
+    const e = stackEl();
+    if (e) {
+      const isReplace = mode === 'replace';
+      e.querySelectorAll('.tool-row').forEach(r => r.classList.toggle('doomed', isReplace));
     }
-    if (preview?.mode === mode && preview?.tool === tool) return;
-    preview = { mode, tool };
-
-    animateHeight(() => {
-      const e = ensureStackEl();
-      if (!e) return;
-      userRowEls().forEach(r => r.classList.toggle('doomed', mode === 'replace'));
-      const old = ghostEl();
-      if (old) old.remove();
-      const tmp = document.createElement('div');
-      tmp.innerHTML = buildGhostRowHTML(tool, mode);
-      e.appendChild(tmp.firstElementChild);
-    });
+    const sbar = searchBarEl();
+    if (sbar && !sbar.querySelector('.tool-stack-cursor')) {
+      const cursor = document.createElement('div');
+      cursor.className = 'tool-stack-cursor';
+      sbar.appendChild(cursor);
+    }
   }
 
   function clearPreview() {
-    if (!preview) return;
-    preview = null;
-    animateHeight(() => {
-      const e = stackEl();
-      if (!e) return;
-      e.querySelectorAll('.tool-row.doomed').forEach(r => r.classList.remove('doomed'));
-      const ghost = ghostEl();
-      if (ghost) ghost.remove();
-    });
+    stackEl()?.querySelectorAll('.tool-row.doomed').forEach(r => r.classList.remove('doomed'));
+    removeCursor();
   }
 
   function add(toolKey) {
     if (!TOOLS[toolKey]) return;
-    preview = null;
     const idx = stack.length;
     stack.push({ tool: toolKey, params: {}, col: 'to' });
 
@@ -3305,57 +3327,42 @@ const ToolStack = (() => {
       const e = ensureStackEl();
       if (!e) return;
       e.querySelectorAll('.tool-row.doomed').forEach(r => r.classList.remove('doomed'));
-      const ghost = ghostEl();
-      if (ghost && ghost.dataset.ghostTool === toolKey) {
-        promoteGhost(idx);
-      } else {
-        if (ghost) ghost.remove();
-        const tmp = document.createElement('div');
-        tmp.innerHTML = buildRowHTML(idx, stack[idx]);
-        e.appendChild(tmp.firstElementChild);
-      }
+      removeCursor();
+      const tmp = document.createElement('div');
+      tmp.innerHTML = buildRowHTML(idx, stack[idx]);
+      e.appendChild(tmp.firstElementChild);
     });
     focusRowInput(idx);
+    ensureRowInView(idx);
+    flashRow(idx);
     refreshGalleryActive();
     Router.navigate();
   }
 
   function replace(toolKey) {
     if (!TOOLS[toolKey]) return;
-    // Self-replace = no-op (still drop any preview that's lingering).
+    // Self-replace = no-op (still drop any preview state in place).
     if (stack.length === 1 && stack[0].tool === toolKey) {
-      preview = null;
-      animateHeight(() => {
-        const e = stackEl();
-        if (!e) return;
-        e.querySelectorAll('.tool-row.doomed').forEach(r => r.classList.remove('doomed'));
-        const ghost = ghostEl();
-        if (ghost) ghost.remove();
-      });
+      clearPreview();
       focusRowInput(0);
+      ensureRowInView(0);
+      flashRow(0);
       return;
     }
-    preview = null;
     stack = [{ tool: toolKey, params: {}, col: 'to' }];
 
     animateHeight(() => {
       const e = ensureStackEl();
       if (!e) return;
-      const ghost = ghostEl();
-      if (ghost && ghost.dataset.ghostTool === toolKey) {
-        // Doomed rows have already collapsed to zero height — removing them
-        // is invisible.
-        userRowEls().forEach(r => r.remove());
-        promoteGhost(0);
-      } else {
-        if (ghost) ghost.remove();
-        userRowEls().forEach(r => r.remove());
-        const tmp = document.createElement('div');
-        tmp.innerHTML = buildRowHTML(0, stack[0]);
-        e.appendChild(tmp.firstElementChild);
-      }
+      removeCursor();
+      e.querySelectorAll('.tool-row').forEach(r => r.remove());
+      const tmp = document.createElement('div');
+      tmp.innerHTML = buildRowHTML(0, stack[0]);
+      e.appendChild(tmp.firstElementChild);
     });
     focusRowInput(0);
+    ensureRowInView(0);
+    flashRow(0);
     refreshGalleryActive();
     Router.navigate();
   }
@@ -3363,17 +3370,14 @@ const ToolStack = (() => {
   function removeAt(idx) {
     if (idx < 0 || idx >= stack.length) return;
     stack.splice(idx, 1);
-    preview = null;
 
     animateHeight(() => {
       const e = stackEl();
       if (!e) return;
-      e.querySelectorAll('.tool-row.doomed').forEach(r => r.classList.remove('doomed'));
-      const ghost = ghostEl();
-      if (ghost) ghost.remove();
+      removeCursor();
       // Rebuild rows from current stack so indices and toggle visibility
       // reflect the new positions.
-      userRowEls().forEach(r => r.remove());
+      e.querySelectorAll('.tool-row').forEach(r => r.remove());
       stack.forEach((row, i) => {
         const tmp = document.createElement('div');
         tmp.innerHTML = buildRowHTML(i, row);
@@ -3387,7 +3391,7 @@ const ToolStack = (() => {
   function toggleColAt(idx) {
     if (!stack[idx]) return;
     stack[idx].col = stack[idx].col === 'to' ? 'from' : 'to';
-    const rowEl = userRowEls()[idx];
+    const rowEl = rowEls()[idx];
     const toggle = rowEl?.querySelector('.tool-toggle-link');
     if (toggle) {
       toggle.textContent = stack[idx].col;
@@ -3411,13 +3415,12 @@ const ToolStack = (() => {
     });
 
     document.querySelectorAll('.gallery-card[data-tool]').forEach(card => {
-      const toolKey = card.dataset.tool;
       const addBtn = card.querySelector('.gallery-card-add');
-      card.addEventListener('mouseenter', () => setPreview('replace', toolKey));
+      card.addEventListener('mouseenter', () => setPreview('replace'));
       card.addEventListener('mouseleave', () => clearPreview());
       if (addBtn) {
-        addBtn.addEventListener('mouseenter', () => setPreview('chain', toolKey));
-        addBtn.addEventListener('mouseleave', () => setPreview('replace', toolKey));
+        addBtn.addEventListener('mouseenter', () => setPreview('chain'));
+        addBtn.addEventListener('mouseleave', () => setPreview('replace'));
       }
     });
 
