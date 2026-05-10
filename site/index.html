@@ -1826,10 +1826,23 @@ async function persistData(dbKey, text) {
 
 // ─── Dark mode ────────────────────────────────────────────────────────────────
 
+const DARK_MODE_CYCLE = ['auto', 'light', 'dark'];
+const DARK_MODE_LABELS = { auto: 'Auto', light: 'Light', dark: 'Dark' };
+
 function applyDarkMode(val) {
   const dark = val === 'dark' || (val !== 'light' && window.matchMedia('(prefers-color-scheme: dark)').matches);
   document.documentElement.classList.toggle('dark-mode', dark);
   document.documentElement.classList.toggle('light-mode', !dark);
+}
+
+function cycleDarkMode() {
+  const current = lsLoad('darkMode') || 'auto';
+  const next = DARK_MODE_CYCLE[(DARK_MODE_CYCLE.indexOf(current) + 1) % DARK_MODE_CYCLE.length];
+  lsSave('darkMode', next);
+  applyDarkMode(next);
+  const seg = document.getElementById('dark-mode-seg');
+  if (seg) seg.querySelectorAll('.seg-btn').forEach(b => b.classList.toggle('active', b.dataset.val === next));
+  showToast(`Dark mode: ${DARK_MODE_LABELS[next]}`);
 }
 
 // ─── Display case ─────────────────────────────────────────────────────────────
@@ -5872,6 +5885,9 @@ function bindEvents() {
       } else if (k === 'c') {
         const el = document.getElementById('score-range-input');
         if (el) { e.preventDefault(); el.focus(); el.select(); }
+      } else if (k === 'd') {
+        e.preventDefault();
+        cycleDarkMode();
       }
     }
   });
