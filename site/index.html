@@ -185,10 +185,12 @@ button.danger:hover:not(:disabled) { background: #e74c3c; border-color: #c0392b;
 .stat { display: flex; flex-direction: column; gap: 2px; }
 .stat-label { font-size: 10px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
 .stat-value { font-size: 15px; font-weight: 700; line-height: 1; }
-.histogram { display: flex; gap: 3px; align-items: flex-end; height: 36px; position: relative; cursor: pointer; user-select: none; touch-action: none; }
+.histogram { display: flex; gap: 3px; align-items: stretch; height: 36px; position: relative; cursor: pointer; user-select: none; touch-action: none; }
 .stats-right { display: flex; align-items: center; gap: 22px; margin-left: auto; }
+.histogram-col { width: 7px; display: flex; align-items: flex-end; }
+.histogram-col-ignored { margin-right: 5px; cursor: default; }
 .histogram-bar { width: 7px; background: var(--accent); border-radius: 2px 2px 0 0; position: relative; z-index: 1; transition: background-color 0.2s ease; }
-.histogram-bar.histogram-bar-ignored { background: var(--faint); margin-right: 5px; cursor: default; }
+.histogram-bar.histogram-bar-ignored { background: var(--faint); }
 .histogram:hover .histogram-bar:not(.histogram-bar-ignored) { background: var(--score-bg, var(--accent)); }
 .histogram-rect { position: absolute; top: -2px; bottom: -2px; background: var(--accent); opacity: 0.18; border-radius: 4px; pointer-events: none; z-index: 0; transition: left 0.05s ease, width 0.05s ease; }
 .histogram-rect[hidden] { display: none; }
@@ -1295,13 +1297,13 @@ function buildStatsBarHTML(stats, hist, layout) {
   const barH = c => c === 0 ? 0 : Math.max(2, Math.round((c / scale) * 34));
 
   const ignoredTitle = ignored > 0 ? ` title="${pluralize(ignored, 'entry', 'entries')} ignored"` : '';
-  const ignoredBar = `<div class="histogram-bar histogram-bar-ignored" style="height:${barH(ignored)}px"${ignoredTitle}></div>`;
+  const ignoredBar = `<div class="histogram-col histogram-col-ignored"${ignoredTitle}><div class="histogram-bar histogram-bar-ignored" style="height:${barH(ignored)}px"></div></div>`;
 
   const bars = layout.slots.map((s, i) => {
     const c = counts[i];
     const title = `${pluralize(c, 'entry', 'entries')} scored ${s.label} • Click to filter`;
     const { bg } = scoreColor((s.lo + s.hi) / 2);
-    return `<div class="histogram-bar" data-lo="${s.lo}" data-hi="${s.hi}" style="--score-bg:${bg}; height:${barH(c)}px" title="${title}"></div>`;
+    return `<div class="histogram-col" title="${title}"><div class="histogram-bar" data-lo="${s.lo}" data-hi="${s.hi}" style="--score-bg:${bg}; height:${barH(c)}px"></div></div>`;
   }).join('');
 
   const histTitle = 'Histogram • Click to filter';
@@ -4675,15 +4677,15 @@ function rangeStrFromBounds(lo, hi, layout) {
 
 // Returns null when the cursor sits before the first regular bar (the ignored-bar zone).
 function _slotAt(histEl, clientX) {
-  const bars = histEl.querySelectorAll('.histogram-bar:not(.histogram-bar-ignored)');
-  if (!bars.length) return null;
+  const cols = histEl.querySelectorAll('.histogram-col:not(.histogram-col-ignored)');
+  if (!cols.length) return null;
   const x = clientX - histEl.getBoundingClientRect().left;
-  const first = bars[0];
-  const stride = bars.length >= 2 ? (bars[1].offsetLeft - first.offsetLeft) : (first.offsetWidth + 3);
+  const first = cols[0];
+  const stride = cols.length >= 2 ? (cols[1].offsetLeft - first.offsetLeft) : (first.offsetWidth + 3);
   if (x < first.offsetLeft) return null;
   let idx = Math.floor((x - first.offsetLeft) / stride);
-  if (idx >= bars.length) idx = bars.length - 1;
-  const bar = bars[idx];
+  if (idx >= cols.length) idx = cols.length - 1;
+  const bar = cols[idx].querySelector('.histogram-bar');
   return { idx, lo: +bar.dataset.lo, hi: +bar.dataset.hi };
 }
 
@@ -4746,8 +4748,11 @@ function positionHistogramRect(histEl, intervals = undefined) {
     intervals = state.scoreRange ? parseRange(state.scoreRange) : null;
   }
   if (!intervals) { rect.hidden = true; return; }
-  const bars = [...histEl.querySelectorAll('.histogram-bar:not(.histogram-bar-ignored)')];
-  const matching = bars.filter(b => slotIntersectsRange(+b.dataset.lo, +b.dataset.hi, intervals));
+  const cols = [...histEl.querySelectorAll('.histogram-col:not(.histogram-col-ignored)')];
+  const matching = cols.filter(c => {
+    const bar = c.querySelector('.histogram-bar');
+    return slotIntersectsRange(+bar.dataset.lo, +bar.dataset.hi, intervals);
+  });
   if (!matching.length) { rect.hidden = true; return; }
   const first = matching[0], last = matching[matching.length - 1];
   const left = first.offsetLeft - 2;
