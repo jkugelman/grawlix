@@ -523,13 +523,6 @@ a.get-file:hover { text-decoration: underline; }
 }
 .rule-del:hover { color: #e53935 !important; background: var(--del-hover); }
 
-/* Read-only scoring legend (main detail panel) */
-.legend-rows { display: flex; flex-direction: column; gap: 3px; }
-.legend-row { display: flex; align-items: center; gap: 8px; min-height: 18px; }
-.legend-row .score-badge { flex: 0 0 auto; min-width: 28px; text-align: center; }
-.legend-note { font-size: 12px; color: var(--text); flex: 1; min-width: 0; line-height: 1.4; }
-.legend-note.empty { color: var(--faint); font-style: italic; }
-
 /* ── Collapsible section ─────────────────────────────────────────────────── */
 /* Chevron is absolute-positioned so the label lines up with whatever lives in `.collapsible-content` below. */
 .collapsible-toggle { position: relative; display: block; width: 100%; padding: 0; margin: 0 0 6px; background: none; border: none; font: inherit; color: inherit; cursor: pointer; text-align: left; }
@@ -1352,59 +1345,15 @@ function buildRescoreSectionHTML(wordlist) {
 }
 
 // Scoring (tier labels) lives on My Edits' `scoring` field. The editor in the
-// Wordlists dialog uses this; the main detail panel shows a read-only legend
-// via `buildScoringLegendHTML`. Catch-all is recomputed against merged entries
-// on each render so it reflects whatever scores are currently in the data.
+// Wordlists dialog uses this; the main detail panel surfaces tier labels via
+// hover tooltips on each score atom (see makeTierLookup). Catch-all is
+// recomputed against merged entries on each render so it reflects whatever
+// scores are currently in the data.
 function buildScoringSectionHTML() {
   const edits = getEditsWordlist();
   if (edits) updateScoringCatchAll(edits.scoring, buildMergedWordlist().entries);
   return `<div class="rescore-top"><span class="rescore-lbl">Scoring</span></div>` +
     buildRulesListHTML(edits?.scoring || [], { rulesId: 'scoring-rules', saveFn: 'saveScoringField', deleteFn: 'deleteScoringRow' });
-}
-
-function buildScoringLegendRowsHTML() {
-  const edits = getEditsWordlist();
-  if (edits) updateScoringCatchAll(edits.scoring, buildMergedWordlist().entries);
-  const rules = edits?.scoring || [];
-  return rules.map(r => {
-    const isCatchAll = !!r._catchAll;
-    const noteHTML = r.note
-      ? `<span class="legend-note">${esc(r.note)}</span>`
-      : `<span class="legend-note empty">${isCatchAll ? '(other scores)' : ''}</span>`;
-    return `<div class="legend-row${isCatchAll ? ' rule-catchall' : ''}">
-        ${buildScoreRangeBadgeHTML(r)}
-        ${noteHTML}
-      </div>`;
-  }).join('');
-}
-
-function buildScoringLegendSectionHTML() {
-  return Collapsible.buildHTML({
-    id: 'scoring-legend',
-    className: 'rescore-section',
-    collapsed: lsLoad('scoringLegendCollapsed') === '1',
-    labelHTML: '<span class="rescore-lbl">Scoring</span>',
-    contentHTML: `<div class="legend-rows">${buildScoringLegendRowsHTML()}</div>`,
-  });
-}
-
-document.addEventListener('collapsible:toggle', e => {
-  if (e.target.id !== 'scoring-legend') return;
-  lsSave('scoringLegendCollapsed', e.detail.collapsed ? '1' : '0');
-});
-
-// Pick a representative score for a rule's input range to drive the gradient:
-// midpoint for closed ranges, lower bound for open-ended (`60+`).
-function buildScoreRangeBadgeHTML(rule) {
-  const text = (rule.input || '').trim();
-  const intervals = parseRange(text);
-  let representative = 0;
-  if (intervals && intervals.length) {
-    const { min, max } = intervals[0];
-    representative = max === null ? min : (min + max) / 2;
-  }
-  const { bg, fg } = scoreColor(representative);
-  return `<span class="score-badge" style="--score-bg:${bg}; --score-fg:${fg}">${esc(text)}</span>`;
 }
 
 function buildWordListPanelHTML() {
@@ -3754,6 +3703,7 @@ class VirtualScroller {
     while (this.sizer.firstChild) this.sizer.removeChild(this.sizer.firstChild);
 
     const activeWord = AtomPopover.activeWord(this);
+    const tierFor = makeTierLookup();
     let nextActiveRow = null;
     const frag = document.createDocumentFragment();
     for (let i = start; i < end; i++) {
@@ -3768,6 +3718,9 @@ class VirtualScroller {
       let scoreInner = buildScoreBadgeHTML(displayScore);
       if (!ignored && (wasRescored || scoreOv)) scoreInner += `<sup class="effective-asterisk">*</sup>`;
 
+      const tierLabel = ignored ? '' : tierFor(displayScore);
+      const scoreTitle = tierLabel ? ` title="${esc(tierLabel)}"` : '';
+
       const row = document.createElement('div');
       let cls = 'word-row';
       if (ignored) cls += ' entry-ignored';
@@ -3781,7 +3734,7 @@ class VirtualScroller {
         `<span class="atom-count">${i + 1}.</span>` +
         `<span class="atom-word">${wordHtml}</span>` +
         `<span class="atom-len">${word.length}</span>` +
-        `<span class="atom-score">${scoreInner}</span>`;
+        `<span class="atom-score"${scoreTitle}>${scoreInner}</span>`;
       frag.appendChild(row);
     }
     this.sizer.appendChild(frag);
@@ -4365,9 +4318,8 @@ function refreshMergedScroller() {
   }
 }
 
-function mountDetailPanel(panel, stats, entries, middleHTML = '') {
+function mountDetailPanel(panel, stats, entries) {
   panel.innerHTML = `
-    ${middleHTML}
     <div class="sticky-stack">
       ${buildStatsBarHTML(stats, entries, getHistogramLayout())}
       ${ToolStack.buildHTML()}
@@ -4413,8 +4365,7 @@ function renderMergedDetail() {
 
   const { entries } = buildMergedWordlist();
   const stats = computeStats(_mergedStatsKey, entries);
-  mountDetailPanel(panel, stats, entries,
-    buildScoringLegendSectionHTML());
+  mountDetailPanel(panel, stats, entries);
 
   scroller.showSource = true;
   scroller.editsWordlist = getEditsWordlist() ?? null;
@@ -4431,6 +4382,21 @@ async function downloadMergedWordlistFromPanel() {
 }
 
 // ─── Scoring (tier labels) ────────────────────────────────────────────────────
+
+// Returns a `score → tier label` function. Specific rules win over the
+// catch-all by iteration order (updateScoringCatchAll appends the catch-all
+// last). Empty notes (including the catch-all's) collapse to '' so callers can
+// skip the tooltip entirely.
+function makeTierLookup() {
+  const edits = getEditsWordlist();
+  const rules = (edits?.scoring || [])
+    .map(r => ({ note: r.note || '', intervals: parseRange(r.input) }))
+    .filter(r => r.intervals);
+  return score => {
+    for (const r of rules) if (matchesRange(score, r.intervals)) return r.note;
+    return '';
+  };
+}
 
 function updateScoringCatchAll(scoring, entries) {
   const caIdx = scoring.findIndex(r => r._catchAll);
@@ -4451,14 +4417,13 @@ function updateScoringCatchAll(scoring, entries) {
   }
 }
 
-// Re-render every place the scoring rules are shown: the read-only legend on
-// the main detail panel and the editor in the Wordlists dialog's My Edits pane
-// share the same data, so an edit in the dialog has to repaint both. Swap
-// only the rows so the wrapper's collapsed state survives.
+// Repaint the editor in the Wordlists dialog's My Edits pane and refresh the
+// score-atom tooltips on the main panel. The scroller's rendered rows carry
+// the tier label as a `title=`; rules changes don't affect data so a cheap
+// re-render of the visible rows is enough.
 function renderScoringRules() {
-  const rows = document.querySelector('#scoring-legend .legend-rows');
-  if (rows) rows.innerHTML = buildScoringLegendRowsHTML();
   WordlistsDialog.refreshScoringSection();
+  scroller?._render?.();
 }
 
 function deleteScoringRow(i) {
@@ -4502,8 +4467,7 @@ function renderDetail(wordlist) {
   }
 
   const { stats, entries: histEntries } = statsForWordlist(wordlist);
-  mountDetailPanel(panel, stats, histEntries,
-    buildScoringLegendSectionHTML());
+  mountDetailPanel(panel, stats, histEntries);
 
   scroller.currentWordlist = wordlist;
   scroller.setEntries(wordlist.rawEntries, state.searchQuery, wordlist.rescoreRules, buildOverrideMap(wordlist), state.searchWholeWord, state.scoreRange);
@@ -4519,8 +4483,7 @@ function renderDetail(wordlist) {
 function renderEditsDetail(wordlist) {
   const panel = document.getElementById('detail-panel');
   const { stats, entries: histEntries } = statsForWordlist(wordlist);
-  mountDetailPanel(panel, stats, histEntries,
-    buildScoringLegendSectionHTML());
+  mountDetailPanel(panel, stats, histEntries);
 
   scroller.showDeleteCol = true;
   scroller.setEntries(wordlist.rawEntries, state.searchQuery, [], new Map(), state.searchWholeWord, state.scoreRange);

@@ -13,7 +13,6 @@ This is the user-facing manual. Eventually it'll be turned into an in-app manual
 The card, top to bottom:
 - **Slim top row.** Wordlist picker, with the ⚙ button to its right that opens the Wordlists dialog.
 - **Tool gallery.** Cards laid out as a responsive grid.
-- **Scoring legend** (only on the merged `All` view).
 - **Sticky region** that anchors just below the header as you scroll into the word list:
   - Stats bar with histogram (click the histogram to filter by score range).
   - Tool stack — only when you've added tools.
@@ -66,7 +65,7 @@ From the My Edits view you can:
 - Delete entries (with undo).
 - Edit any score or comment.
 
-My Edits also carries your **scoring rules** — your tier labels for the unified score scale (e.g. "60 = great, 50 = good, …"). Every wordlist view shows them as a read-only legend above the table; the canonical edit surface is My Edits in the Wordlists dialog.
+My Edits also carries your **scoring rules** — your tier labels for the unified score scale (e.g. "60 = great, 50 = good, …"). Hover any score in the word list to see its tier label; the canonical edit surface is My Edits in the Wordlists dialog.
 
 ## Score tiers
 
