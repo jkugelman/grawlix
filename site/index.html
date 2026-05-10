@@ -24,6 +24,7 @@
   --font-mono:   ui-monospace, 'Cascadia Code', monospace;
 }
 html.dark-mode {
+  color-scheme: dark;
   --bg:        #1e1e1e;
   --surface:   #282828;
   --surface2:  #232323;
@@ -56,6 +57,7 @@ html.dark-mode {
   --ok-fg: #6ee89a; --warn-fg: #b09840; --err-fg: #f07070;
 }
 html.light-mode {
+  color-scheme: light;
   --bg:        #f5f5f5;
   --surface:   #ffffff;
   --surface2:  #fafafa;
@@ -87,13 +89,6 @@ html.light-mode {
   --usd-rescored-bg: #f0f0f0; --usd-rescored-fg: #666666;
   --ok-fg: #2d7a3f; --warn-fg: #856404; --err-fg: #b71c1c;
 }
-
-html.dark-mode { scrollbar-color: var(--border) var(--bg); }
-html.light-mode { scrollbar-color: var(--border) var(--bg); }
-html.dark-mode ::-webkit-scrollbar { background: var(--bg); }
-html.dark-mode ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
-html.light-mode ::-webkit-scrollbar { background: var(--bg); }
-html.light-mode ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
 
 body { font-family: var(--font-sans); font-size: 14px; background: var(--bg); color: var(--text); }
 
