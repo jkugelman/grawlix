@@ -7,10 +7,6 @@ Two flavors of "what sits above the word list" are documented:
 - **Option 1 — non-compact (primary).** Wordlist picker, tool gallery, and full stats bar all live above the sticky region, scrolling away with the page. Sticky region is just stack + search. The plan to implement.
 - **Option 2 — compact (alternative).** Wordlist picker and tools popover trigger live as typographic headings on a slimmed stats bar; tool gallery hides behind the "Tools ▾" heading; the entire chrome above the word list compresses to a sticky two-row stack. Documented because we worked out the details; revisit if the non-compact version doesn't pull its weight.
 
-## Status
-
-Not implemented. A CSS-only mockup of the *compact* option (Option 2) lives in `site/index.html` under `<html class="shape-a">`; toggle off by removing the class or deleting the `Shape A mockup` block at the end of the `<style>` section. The mockup demonstrates layout and feel for Option 2; Option 1 doesn't have a mockup yet but shares most of the structural moves (centered card, page scroll, sticky stack + search, window-scroll-aware virtual scroller).
-
 ## Motivation
 
 The current desktop layout is full-bleed: fixed header, fixed left rail with the wordlist picker + tool gallery, main pane filling the rest of the viewport. The word list inside the main pane was once a wide spreadsheet-style table; today it's a narrow single-column atom list (one row per entry, ~24px tall, intentionally narrow — see [`design.md` § Word list](../design.md#word-list)). The shell didn't follow the word list's slimming. The result on the default view is an expanse of empty horizontal space to the right of the list — a UI that reads as "developer tool" rather than "thing I open to research a theme."
