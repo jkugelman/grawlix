@@ -19,14 +19,15 @@ Design and manual:
 - [`docs/wordlisted.md`](docs/wordlisted.md) — reference catalogue of Wordlisted's search modes; source material for the tool gallery.
 
 Plans (forward-looking, not yet shipped):
-- [`docs/plans/tools.md`](docs/plans/tools.md) — tool execution/catalog, chaining, pair/group output, OneLook/Datamuse/Umiaq. Gallery + stack are shipped (see `design.md`).
-- [`docs/plans/sync.md`](docs/plans/sync.md) — three-tier persistence (backup nag, disk file, cloud sync) for All + My Edits.
-- [`docs/plans/mobile.md`](docs/plans/mobile.md) — mobile/responsive design.
-- [`docs/plans/lookup.md`](docs/plans/lookup.md) — click-a-word lookup (definitions, Wikipedia, NYT history, semantic search).
-- [`docs/plans/help.md`](docs/plans/help.md) — separating welcome tour from returning-user reference manual.
-- [`docs/plans/migration.md`](docs/plans/migration.md) — when to graduate from schema-version resets to layered migrations.
 - [`docs/plans/ci-testing.md`](docs/plans/ci-testing.md) — Playwright smoke suite (deferred).
+- [`docs/plans/help.md`](docs/plans/help.md) — separating welcome tour from returning-user reference manual.
+- [`docs/plans/lookup.md`](docs/plans/lookup.md) — click-a-word lookup (definitions, Wikipedia, NYT history, semantic search).
+- [`docs/plans/migration.md`](docs/plans/migration.md) — when to graduate from schema-version resets to layered migrations.
+- [`docs/plans/mobile.md`](docs/plans/mobile.md) — mobile/responsive design.
 - [`docs/plans/per-row-reactivity.md`](docs/plans/per-row-reactivity.md) — push hybrid reactivity to a per-row reactive scroller.
+- [`docs/plans/shell-shape.md`](docs/plans/shell-shape.md) — restructure the shell into a centered, page-scrollable card; picker + tools as headings on the stats bar, gallery becomes a popover. Mockup in `site/index.html` under `class="shape-a"`.
+- [`docs/plans/sync.md`](docs/plans/sync.md) — three-tier persistence (backup nag, disk file, cloud sync) for All + My Edits.
+- [`docs/plans/tools.md`](docs/plans/tools.md) — tool execution/catalog, chaining, pair/group output, OneLook/Datamuse/Umiaq. Gallery + stack are shipped (see `design.md`).
 
 When a plan ships, run the `distill-design-doc` skill to fold it into `design.md` and/or `manual.md`. Help-modal copy lives in `site/index.html` inside the `HelpModal` IIFE — search for `const HelpModal`. Update the relevant slide when shipping user-facing changes.
 
