@@ -27,7 +27,6 @@ Plans (forward-looking, not yet shipped):
 - [`docs/plans/migration.md`](docs/plans/migration.md) — when to graduate from schema-version resets to layered migrations.
 - [`docs/plans/mobile.md`](docs/plans/mobile.md) — mobile/responsive design.
 - [`docs/plans/per-row-reactivity.md`](docs/plans/per-row-reactivity.md) — push hybrid reactivity to a per-row reactive scroller.
-- [`docs/plans/shell-shape.md`](docs/plans/shell-shape.md) — parked compact alternative shape (picker/tools as headings on the stats bar; tool gallery behind a popover). The shipped shape lives in `design.md` § The shell.
 - [`docs/plans/sync.md`](docs/plans/sync.md) — three-tier persistence (backup nag, disk file, cloud sync) for All + My Edits.
 - [`docs/plans/tools.md`](docs/plans/tools.md) — tool execution/catalog, chaining, pair/group output, OneLook/Datamuse/Umiaq. Gallery + stack are shipped (see `design.md`).
 
