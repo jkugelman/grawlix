@@ -76,13 +76,29 @@ No line length limit.
 
 ## Terminology
 
-The choice of word matters and is enforced consistently.
+Terminology is enforced consistently across UI, code, and docs.
+
+### Wordlist, entry, wordlist entry — the data model
+
+These four terms get tangled because everyday usage overloads them. The definitions are pinned, and everything in code, UI, and docs follows from these.
+
+- **Wordlist** — a file (or in-memory equivalent) listing crossword fill candidates with metadata. Format: `ENTRY;SCORE[;COMMENT]`, one per line. The canonical noun for a data source — JK's wordlist, XWordInfo's wordlist, the user's My Edits, the merged All view. *Wordlist* is the crossword-community standard and is never renamed, even though the contents aren't strictly "words" (many entries are multi-word phrases). Code: `wordlist` everywhere — variable names, CSS (`.wordlist-card`), file/function names (`fetchWordlist`, `buildWordlistNameHTML`).
+- **Entry** — the string itself. Just `CROSSWORD`, or `ICE CREAM`, or whatever fills the grid. The user thinks of "the entry CROSSWORD" colloquially; the data model agrees. The string field inside a wordlist-entry record is named `entry` (so `wlEntry.entry` is the string). UI strings: "Add entry", "Sort by Entry", "Edit entry", "Entry length filter". Sort key: `'entry'`. CSS: `.atom-entry`, `.col-entry`, `.entry-row`.
+- **Wordlist entry** (`wlEntry`) — a single record within a wordlist: `{ entry, score, comment }`. The record carries the entry-string plus its metadata. Variable name when a record is in scope: `wlEntry` (singular) or just `e` for tight closures. The plural is *entries* (`rawEntries`, `allEntries`) — context disambiguates from string-entries.
+- **Word** (the English noun) — reserved for places where we literally mean an English word, not the data concept. Allowed: the "Whole word" search toggle (familiar text-editor convention), the page tagline "Use your words!", tool descriptions like "drop the first letter to get a new word", the `getInitials` helper that splits a publisher name on whitespace. Forbidden in record-data contexts.
+
+The mental model: a *wordlist* contains *wordlist entries*; each wordlist entry's primary value is its *entry* string. "Entry" lives at two granularities (just the string, vs. the whole record) — the qualifier *wordlist* disambiguates when both are in play in the same scope.
+
+### Entries table
+
+The at-rest results display below the search bar. "Table" is loose: it's a div-based virtual scroller with grid pseudo-columns, not a real `<table>`. CSS: `.entry-row`, `.entry-headers`, `#entries-table-panel`, `.entries-table-rows`. (The help modal's demo `.entries-table` is a real `<table>` — distinct context.) See [`design.md` § Entries table](design.md#entries-table).
+
+### Other conventions
 
 - **Download** — output only. Saving from Grawlix to disk (`downloadMergedWordlistFromPanel`, `downloadIndividualWordlist`).
 - **Fetch** — pulling a wordlist into Grawlix from a URL (`fetchWordlist`).
 - **Import** — the user loading a file from disk into Grawlix.
 - **Source page** — third-party page that hosts a wordlist; the property is `sourcePage` / `sourceNote`.
-- **Wordlist** is the canonical noun, both in UI strings and in code identifiers. Older "source"/"list" naming was retired across the codebase.
 
 ## Commit messages
 

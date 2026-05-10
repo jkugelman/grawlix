@@ -15,7 +15,7 @@ All code lives in a single file: `site/index.html`. Don't bother searching for o
 For any feature work, redesign, brainstorming, or structural change — **not** targeted bug fixes or small tweaks — open the docs that touch the area before proposing or implementing. Adjacent docs may share screen real estate or constrain the answer; treat the topical index below as a checklist, not a suggestion.
 
 Design and manual:
-- [`docs/design.md`](docs/design.md) — present-tense design + whys: shell, Wordlists dialog, tool gallery & stack, word list, URL state, caches & reactivity, non-features.
+- [`docs/design.md`](docs/design.md) — present-tense design + whys: shell, Wordlists dialog, tool gallery & stack, entries table, URL state, caches & reactivity, non-features.
 - [`docs/manual.md`](docs/manual.md) — user-facing manual. Update when shipping user-facing changes.
 - [`docs/style.md`](docs/style.md) — coding-style conventions: CSS, JS, Markdown, terminology, commit messages. Read before formatting changes.
 - [`docs/wordlisted.md`](docs/wordlisted.md) — reference catalogue of Wordlisted's search modes; source material for the tool gallery.
@@ -43,7 +43,9 @@ Sections within the `<script>` block are delimited by banner comments like:
 
 ## Data model
 
-`state` holds `sources` (the per-wordlist data), `selected`, and search state. Each wordlist has metadata, `rawEntries` (parsed words), and `rescoreRules`. My Edits additionally has a `scoring` field — tier labels for the unified score scale, used everywhere scores are displayed (the merged All view shows them as a legend).
+`state` holds `sources` (the per-wordlist data), `selected`, and search state. Each wordlist has metadata, `rawEntries` (parsed wordlist-entry records, shape `{ entry, score, comment }`), and `rescoreRules`. My Edits additionally has a `scoring` field — tier labels for the unified score scale, used everywhere scores are displayed (the merged All view shows them as a legend).
+
+**Terminology** — *wordlist* (data source), *wordlist entry* (`wlEntry`, the `{ entry, score, comment }` record), *entry* (the string field — `wlEntry.entry`), *word* (reserved for literal English, e.g. "Whole word" search). Full glossary in [`docs/style.md`](docs/style.md#terminology).
 
 **Wordlist fields** — every source carries:
 - `dbKey` — opaque `crypto.randomUUID()` string; used exclusively as the IndexedDB storage key. Never appears in HTML or UI code. `state.selected` stores the selected wordlist object (or `MERGED_ID`) — not the dbKey.
@@ -56,18 +58,18 @@ Sections within the `<script>` block are delimited by banner comments like:
 
 **Wordlist file format** — one entry per line:
 ```
-WORD;SCORE
-WORD;SCORE;COMMENT
+ENTRY;SCORE
+ENTRY;SCORE;COMMENT
 ```
 
-**Rescore rules** (per source) map an input score range + optional word-length filter to an output score (or `'ignore'` to drop the entry). First matching rule wins; a catch-all is auto-appended. My Edits has no rescore rules — its scores pass through unchanged.
+**Rescore rules** (per source) map an input score range + optional entry-length filter to an output score (or `'ignore'` to drop the entry). First matching rule wins; a catch-all is auto-appended. My Edits has no rescore rules — its scores pass through unchanged.
 
 **Scoring rules** (My Edits' `scoring` field) are the user's tier labels for the unified score scale: a single source of truth for what each score range means to them. Edited from My Edits' right pane in the Wordlists dialog; surfaced as a read/write legend on the merged All view too. The catch-all auto-row reflects scores present in the merged view that aren't covered by any rule.
 
 ## Persistence
 
 - **localStorage** (prefix `grawlix_`): wordlist metadata and settings. `persistMeta()` saves all wordlist metadata.
-- **IndexedDB**: raw wordlist text per wordlist. Wordlists can be hundreds of thousands of words, too large for localStorage. `persistData(wordlist, text)` saves one wordlist's text, keyed by `wordlist.dbKey`.
+- **IndexedDB**: raw wordlist text per wordlist. Wordlists can be hundreds of thousands of entries, too large for localStorage. `persistData(wordlist, text)` saves one wordlist's text, keyed by `wordlist.dbKey`.
 
 **Never store generated code (HTML, SVG markup) in localStorage or IndexedDB — store the parameters and render at read time.** Otherwise users with stale data continue to render with the old code shape after you change the renderer.
 
@@ -75,11 +77,11 @@ WORD;SCORE;COMMENT
 
 ## Key concepts
 
-**My Edits** — a special wordlist created automatically on first boot, identified by `wordlist.type === 'edits'`. It has no rescore rules (scores pass through as-is) but does carry the user's `scoring` (tier labels). Clicking a score or comment cell in any view opens an inline editor; saving upserts the entry into My Edits. From the My Edits view the user can also add new words and delete entries (with undo). It is reorderable like any other wordlist (position determines merge priority). The UI enforces: not deletable, always enabled.
+**My Edits** — a special wordlist created automatically on first boot, identified by `wordlist.type === 'edits'`. It has no rescore rules (scores pass through as-is) but does carry the user's `scoring` (tier labels). Clicking a score or comment cell in any view opens an inline editor; saving upserts the entry into My Edits. From the My Edits view the user can also add new entries and delete entries (with undo). It is reorderable like any other wordlist (position determines merge priority). The UI enforces: not deletable, always enabled.
 
 **Override and rescore display** — When viewing a wordlist, score and comment cells always show the *effective* value (what actually appears in the merged output), not the raw value from that wordlist. A red superscript asterisk (`*`) indicates the displayed value differs from what the wordlist itself contains. An instant HTML popover (`#cell-popover`) explains why: the original score for rescored entries, or the overriding wordlist's name for overrides. Both conditions can apply simultaneously. The overrideMap (built by `buildOverrideMap`) stores `{ wordlistName, score, comment }` from the highest-priority wordlist above the current one; a comment override only applies when that wordlist has a non-empty comment. Editing an overridden cell pre-fills the input with the effective value (not the raw value) so the user is editing what actually matters — the result always lands in My Edits regardless.
 
-**Merged wordlist** — `MERGED_ID = '__merged__'` selects a union of all enabled sources, deduped by word. The highest rescored value wins; losers are shown faded with a tooltip. Displayed as `All` (the value of `MERGED_NAME`) at the top of the wordlist dropdown in the left rail's Wordlist section.
+**Merged wordlist** — `MERGED_ID = '__merged__'` selects a union of all enabled sources, deduped by entry. The highest rescored value wins; losers are shown faded with a tooltip. Displayed as `All` (the value of `MERGED_NAME`) at the top of the wordlist dropdown in the left rail's Wordlist section.
 
 **Virtual scroller** — `VirtualScroller` renders only visible rows. Row height is fixed.
 
@@ -113,7 +115,7 @@ The JS is organized into two patterns:
 
 **Lifecycle components** — own their DOM subtree, generate their own HTML, and wire their own events. Two forms:
 - *IIFE* (`const XxxComponent = (() => { ... })()`) — singletons: dialogs, panels, sidebars
-- *Class* (`class XxxComponent`) — multi-instance: scrollers, rule editors, word tables
+- *Class* (`class XxxComponent`) — multi-instance: scrollers, rule editors, entry tables
 
 Every lifecycle component **creates its own DOM element** (`document.createElement(...)`) and appends it to the document at init time. Dialog and overlay elements are **never** baked into the static HTML body — if you're adding a dialog, create it in JS, not in HTML.
 

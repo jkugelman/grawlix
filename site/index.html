@@ -237,21 +237,22 @@ html.dark-mode .search-match-2 { background: #78350f; color: #fef3c7; }
 html.dark-mode .search-match-3 { background: #831843; color: #fce7f3; }
 html.dark-mode .search-match-4 { background: #14532d; color: #d1fae5; }
 
-/* Word list (the at-rest results display). Replaces the legacy table with a
-   single-column list of word atoms; pseudo-column alignment via grid. The
-   .word-table rules remain because the help modal still renders demo tables. */
-#word-list-panel { background: var(--surface); }
+/* Entries table (the at-rest results display). Uses a single-column list of
+   word atoms with pseudo-column alignment via grid — div-based rather than a
+   real <table>. The .entries-table rules below cover help-modal demos that
+   still render real tables. */
+#entries-table-panel { background: var(--surface); }
 #vs-host { position: relative; }
-.word-list-rows { position: relative; }
-.word-row, .word-headers {
+.entries-table-rows { position: relative; }
+.entry-row, .entry-headers {
   display: grid;
-  grid-template-columns: var(--count-w, 2ch) var(--word-w, 12ch) var(--len-w, 3ch) var(--score-w, calc(5ch + 12px));
+  grid-template-columns: var(--count-w, 2ch) var(--entry-w, 12ch) var(--len-w, 3ch) var(--score-w, calc(5ch + 12px));
   align-items: center;
   column-gap: 14px;
   padding: 0 16px;
   white-space: nowrap;
 }
-.word-row {
+.entry-row {
   position: absolute; left: 0; right: 0;
   height: var(--row-height, 24px);
   font-family: var(--font-mono);
@@ -261,7 +262,7 @@ html.dark-mode .search-match-4 { background: #14532d; color: #d1fae5; }
    sticky-stack so they ride along with stats/tools/search on scroll. The
    slot-width vars are computed in pixels (see _computeSlotWidths) so the
    header's sans font and the row's mono font produce identical track widths. */
-.word-headers {
+.entry-headers {
   padding-top: 5px; padding-bottom: 5px;
   font-family: var(--font-sans);
   font-size: 12px;
@@ -269,26 +270,26 @@ html.dark-mode .search-match-4 { background: #14532d; color: #d1fae5; }
   user-select: none;
   border-top: 1px solid var(--border3);
 }
-.word-headers > * { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
-.word-headers .col-len { text-align: right; }
-.word-headers .col-score { justify-self: end; }
-.word-headers .col-comment, .word-headers .col-source { display: none; }
-.word-row:hover { background: var(--row-hover); }
-.word-row.active { background: color-mix(in srgb, var(--accent) 12%, transparent); }
-.word-row .atom-count { text-align: right; color: var(--faint); font-family: var(--font-sans); font-size: 12px; }
-.word-row .atom-word { overflow: hidden; text-overflow: ellipsis; min-width: 0; cursor: pointer; }
-.word-row .atom-len { text-align: right; font-family: var(--font-sans); font-size: 12px; }
-.word-row .atom-score { cursor: pointer; justify-self: end; }
-.word-row .atom-comment { overflow: hidden; text-overflow: ellipsis; min-width: 0; font-family: var(--font-sans); font-size: 12px; cursor: pointer; align-self: stretch; line-height: var(--row-height, 24px); }
-.word-row .atom-source  { overflow: hidden; text-overflow: ellipsis; min-width: 0; font-family: var(--font-sans); font-size: 12px; align-self: stretch; line-height: var(--row-height, 24px); }
-.word-row .atom-comment, .word-row .atom-source { display: none; }
-.word-row.entry-ignored { opacity: 0.4; }
-.word-row.entry-ignored .atom-count,
-.word-row.entry-ignored .atom-word,
-.word-row.entry-ignored .atom-len,
-.word-row.entry-ignored .atom-score,
-.word-row.entry-ignored .atom-comment,
-.word-row.entry-ignored .atom-source { text-decoration: line-through; }
+.entry-headers > * { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.entry-headers .col-len { text-align: right; }
+.entry-headers .col-score { justify-self: end; }
+.entry-headers .col-comment, .entry-headers .col-source { display: none; }
+.entry-row:hover { background: var(--row-hover); }
+.entry-row.active { background: color-mix(in srgb, var(--accent) 12%, transparent); }
+.entry-row .atom-count { text-align: right; color: var(--faint); font-family: var(--font-sans); font-size: 12px; }
+.entry-row .atom-entry { overflow: hidden; text-overflow: ellipsis; min-width: 0; cursor: pointer; }
+.entry-row .atom-len { text-align: right; font-family: var(--font-sans); font-size: 12px; }
+.entry-row .atom-score { cursor: pointer; justify-self: end; }
+.entry-row .atom-comment { overflow: hidden; text-overflow: ellipsis; min-width: 0; font-family: var(--font-sans); font-size: 12px; cursor: pointer; align-self: stretch; line-height: var(--row-height, 24px); }
+.entry-row .atom-source  { overflow: hidden; text-overflow: ellipsis; min-width: 0; font-family: var(--font-sans); font-size: 12px; align-self: stretch; line-height: var(--row-height, 24px); }
+.entry-row .atom-comment, .entry-row .atom-source { display: none; }
+.entry-row.entry-ignored { opacity: 0.4; }
+.entry-row.entry-ignored .atom-count,
+.entry-row.entry-ignored .atom-entry,
+.entry-row.entry-ignored .atom-len,
+.entry-row.entry-ignored .atom-score,
+.entry-row.entry-ignored .atom-comment,
+.entry-row.entry-ignored .atom-source { text-decoration: line-through; }
 
 /* Comment + source columns appear when the card has room and no pair-output
    tool is active. Source is meaningful only on the merged All view (single
@@ -296,20 +297,20 @@ html.dark-mode .search-match-4 { background: #14532d; color: #d1fae5; }
    the viewport narrows: source goes first (it eats ~22ch of fixed-ish width),
    leaving the more informative comment column for as long as possible. */
 @media (min-width: 760px) {
-  body:not(.tools-multi-word) .word-row,
-  body:not(.tools-multi-word) .word-headers {
-    grid-template-columns: var(--count-w, 2ch) var(--word-w, 12ch) var(--len-w, 3ch) var(--score-w, calc(5ch + 12px)) minmax(0, 1fr);
+  body:not(.tools-multi-word) .entry-row,
+  body:not(.tools-multi-word) .entry-headers {
+    grid-template-columns: var(--count-w, 2ch) var(--entry-w, 12ch) var(--len-w, 3ch) var(--score-w, calc(5ch + 12px)) minmax(0, 1fr);
   }
-  body:not(.tools-multi-word) .word-row .atom-comment,
-  body:not(.tools-multi-word) .word-headers .col-comment { display: block; }
+  body:not(.tools-multi-word) .entry-row .atom-comment,
+  body:not(.tools-multi-word) .entry-headers .col-comment { display: block; }
 }
 @media (min-width: 960px) {
-  body.merged-view:not(.tools-multi-word) .word-row,
-  body.merged-view:not(.tools-multi-word) .word-headers {
-    grid-template-columns: var(--count-w, 2ch) var(--word-w, 12ch) var(--len-w, 3ch) var(--score-w, calc(5ch + 12px)) minmax(0, 1fr) minmax(0, var(--source-max, 22ch));
+  body.merged-view:not(.tools-multi-word) .entry-row,
+  body.merged-view:not(.tools-multi-word) .entry-headers {
+    grid-template-columns: var(--count-w, 2ch) var(--entry-w, 12ch) var(--len-w, 3ch) var(--score-w, calc(5ch + 12px)) minmax(0, 1fr) minmax(0, var(--source-max, 22ch));
   }
-  body.merged-view:not(.tools-multi-word) .word-row .atom-source,
-  body.merged-view:not(.tools-multi-word) .word-headers .col-source { display: block; }
+  body.merged-view:not(.tools-multi-word) .entry-row .atom-source,
+  body.merged-view:not(.tools-multi-word) .entry-headers .col-source { display: block; }
 }
 
 /* Atom popover (click-driven; replaces the old hover #cell-popover and
@@ -330,14 +331,14 @@ html.dark-mode .search-match-4 { background: #14532d; color: #d1fae5; }
 .atom-pop-delete { background: none; border: 1px solid var(--border); border-radius: 4px; padding: 3px 10px; font: inherit; font-size: 11px; color: #e53935; cursor: pointer; }
 .atom-pop-delete:hover { background: rgba(229, 57, 53, 0.1); border-color: #e53935; }
 
-/* Help modal demos still use these — kept distinct from .word-list above. */
-.word-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
-.word-table th { position: sticky; top: 0; background: var(--surface2); padding: 7px 16px; font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; border-bottom: 2px solid var(--border2); z-index: 1; cursor: pointer; user-select: none; white-space: nowrap; overflow: hidden; }
-.word-table th:hover { background: var(--hover); }
-.word-table td { padding: 0 16px; font-size: 13px; border-bottom: 1px solid var(--border3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.word-table td.col-word, .word-table td.score-cell { font-family: var(--font-mono); }
-.word-table td.comment-cell { font-size: 12px; }
-.word-table tr:hover td { background: var(--row-hover); }
+/* Help modal demos still use these — kept distinct from the live entries table above. */
+.entries-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+.entries-table th { position: sticky; top: 0; background: var(--surface2); padding: 7px 16px; font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; border-bottom: 2px solid var(--border2); z-index: 1; cursor: pointer; user-select: none; white-space: nowrap; overflow: hidden; }
+.entries-table th:hover { background: var(--hover); }
+.entries-table td { padding: 0 16px; font-size: 13px; border-bottom: 1px solid var(--border3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.entries-table td.col-entry, .entries-table td.score-cell { font-family: var(--font-mono); }
+.entries-table td.comment-cell { font-size: 12px; }
+.entries-table tr:hover td { background: var(--row-hover); }
 .score-badge { display: inline-block; padding: 1px 5px; border-radius: 3px; font-size: 11px; font-weight: 700; font-family: var(--font-mono); background: var(--score-bg); color: var(--score-fg); }
 
 /* Inline name editing (used inside the Wordlists dialog's right pane) */
@@ -529,14 +530,14 @@ dialog h2 { font-size: 16px; margin-bottom: 14px; padding-right: 24px; }
 .usd-sizer { position: relative; }
 .usd-row { position: absolute; left: 0; right: 0; height: 24px; display: flex; align-items: center; }
 .usd-section-header { padding: 0 22px; color: var(--muted); font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; background: var(--surface2); border-bottom: 1px solid var(--border3); }
-.usd-word-row { padding: 0 22px 0 19px; border-left: 3px solid transparent; }
-.usd-word-row:hover { background: var(--row-hover); }
-.usd-word-col { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--font-mono); font-size: 12px; }
+.usd-entry-row { padding: 0 22px 0 19px; border-left: 3px solid transparent; }
+.usd-entry-row:hover { background: var(--row-hover); }
+.usd-entry-col { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--font-mono); font-size: 12px; }
 .usd-score-col { flex-shrink: 0; display: flex; align-items: center; gap: 4px; }
 .usd-added    { border-left-color: var(--usd-added-fg);    }
 .usd-deleted  { border-left-color: var(--usd-deleted-fg);  }
 .usd-rescored { border-left-color: var(--usd-rescored-fg); }
-.usd-deleted .usd-word-col { text-decoration: line-through; color: var(--muted); }
+.usd-deleted .usd-entry-col { text-decoration: line-through; color: var(--muted); }
 .usd-old-score { color: var(--muted); font-size: 12px; }
 .usd-arrow { color: var(--faint); font-size: 11px; }
 
@@ -778,10 +779,10 @@ input[type="file"] { display: none; }
 .annotation { position: absolute; border: 3px solid #e53935; border-radius: 50px; pointer-events: none; box-shadow: 0 0 6px rgba(229,57,53,0.4); }
 
 /* Help-modal cell-edit demo (slide 2). The live list uses #atom-popover instead. */
-.word-table td.score-cell,
-.word-table td.comment-cell { cursor: pointer; }
-.word-table td.score-cell:hover,
-.word-table td.comment-cell:hover { background: color-mix(in srgb, var(--accent) 8%, var(--row-hover)); }
+.entries-table td.score-cell,
+.entries-table td.comment-cell { cursor: pointer; }
+.entries-table td.score-cell:hover,
+.entries-table td.comment-cell:hover { background: color-mix(in srgb, var(--accent) 8%, var(--row-hover)); }
 input.cell-edit { font-family: inherit; font-size: 12px; padding: 1px 4px; border: 1px solid var(--accent); border-radius: 3px; background: var(--input-bg); color: var(--text); outline: none; width: 100%; box-sizing: border-box; }
 input.cell-edit.score-edit { font-family: var(--font-mono); width: 60px; }
 
@@ -793,19 +794,19 @@ input.cell-edit.score-edit { font-family: var(--font-mono); width: 60px; }
 }
 .shake { animation: shake 0.3s ease; }
 
-/* Add word footer row */
+/* Add entry footer row */
 #add-row-footer { flex-shrink: 0; border-top: 1px solid var(--border2); }
 .add-row-trigger { display: flex; align-items: center; padding: 5px 16px; height: 29px; cursor: pointer; color: var(--text); font-size: 12px; user-select: none; background: var(--surface2); border-top: 1px solid var(--border3); }
 .add-row-trigger:hover { background: var(--hover); color: var(--accent); }
-.add-word-bar { display: flex; align-items: center; gap: 8px; padding: 5px 16px; background: var(--surface2); }
-.add-word-bar:focus { outline: none; }
-.add-word-bar input { font-family: inherit; font-size: 12px; padding: 2px 6px; border: 1px solid var(--border); border-radius: 3px; background: var(--input-bg); color: var(--text); outline: none; }
-.add-word-bar input:focus { border-color: var(--accent); }
-.add-word-bar input.invalid { border-color: #ea4335; }
-.add-word-bar .aw-word { width: 120px; }
-.add-word-bar .aw-score { width: 60px; }
-.add-word-bar .aw-comment { flex: 1; }
-.add-word-bar .aw-hint { font-size: 11px; color: var(--faint); white-space: nowrap; }
+.add-entry-bar { display: flex; align-items: center; gap: 8px; padding: 5px 16px; background: var(--surface2); }
+.add-entry-bar:focus { outline: none; }
+.add-entry-bar input { font-family: inherit; font-size: 12px; padding: 2px 6px; border: 1px solid var(--border); border-radius: 3px; background: var(--input-bg); color: var(--text); outline: none; }
+.add-entry-bar input:focus { border-color: var(--accent); }
+.add-entry-bar input.invalid { border-color: #ea4335; }
+.add-entry-bar .ae-entry { width: 120px; }
+.add-entry-bar .ae-score { width: 60px; }
+.add-entry-bar .ae-comment { flex: 1; }
+.add-entry-bar .ae-hint { font-size: 11px; color: var(--faint); white-space: nowrap; }
 
 /* Shared icons */
 .icon-trash  { width: 14px; height: 14px; display: inline-block; vertical-align: middle; }
@@ -840,13 +841,13 @@ input.cell-edit.score-edit { font-family: var(--font-mono); width: 60px; }
 .help-demo-panel-content { border: 1px solid var(--border); border-radius: 4px; overflow: hidden; flex: 1; min-height: 0; }
 .help-demo-panel-label { text-align: center; flex-shrink: 0; }
 /* Slide 3 score-edit demo table */
-#help-slide-2 .word-table td { padding: 6px 16px; }
-#help-slide-2 .word-table td:nth-child(2) { width: 130px; }
+#help-slide-2 .entries-table td { padding: 6px 16px; }
+#help-slide-2 .entries-table td:nth-child(2) { width: 130px; }
 #help-slide-2 .score-cell { cursor: default; }
 #help-slide-2 .comment-cell { color: var(--faint); }
 /* Slide 4 search demo table */
-#help-slide-3 .word-table td { padding: 4px 14px; }
-#help-slide-3 .word-table td:nth-child(2) { width: 80px; }
+#help-slide-3 .entries-table td { padding: 4px 14px; }
+#help-slide-3 .entries-table td:nth-child(2) { width: 80px; }
 /* Slide 4 wildcard reference */
 #help-slide-3 .help-wildcards { display: inline-grid; align-self: flex-start; grid-template-columns: auto auto; grid-template-rows: repeat(4, auto); grid-auto-flow: column; gap: 5px 28px; }
 #help-slide-3 .help-wildcards span { font-size: 11px; color: var(--text); display: flex; align-items: baseline; gap: 5px; }
@@ -856,7 +857,7 @@ input.cell-edit.score-edit { font-family: var(--font-mono); width: 60px; }
 #help-slide-0 .search-bar,
 #help-slide-1 .wordlist-card,
 #help-slide-3 .search-bar,
-#help-slide-3 .word-table tr { pointer-events: none; }
+#help-slide-3 .entries-table tr { pointer-events: none; }
 #help-slide-1 .wordlist-card { cursor: default; }
 #help-slide-1 .wordlist-card:last-child { border-bottom: none; }
 /* Slide 5 download demo */
@@ -1328,19 +1329,19 @@ function buildStatsBarHTML(stats, hist, layout) {
 
 // opts: { comment, highlight }
 // highlight: string — wraps matching substring in <mark class="search-match search-match-0">
-function buildWordRowHTML(word, score, { comment = '', highlight = '' } = {}) {
-  const displayed = displayWord(word);
-  let wordCell = displayed;
+function buildEntryRowHTML(entry, score, { comment = '', highlight = '' } = {}) {
+  const displayed = displayEntry(entry);
+  let entryCell = displayed;
   if (highlight) {
-    const dc = displayWord(highlight);
+    const dc = displayEntry(highlight);
     const idx = displayed.indexOf(dc);
     if (idx !== -1)
-      wordCell = displayed.slice(0, idx)
+      entryCell = displayed.slice(0, idx)
         + `<mark class="search-match search-match-0">${dc}</mark>`
         + displayed.slice(idx + dc.length);
   }
   return `<tr>
-    <td class="col-word">${wordCell}</td>
+    <td class="col-entry">${entryCell}</td>
     <td class="score-cell">${buildScoreBadgeHTML(score)}</td>
     ${comment ? `<td class="comment-cell">${esc(comment)}</td>` : ''}
   </tr>`;
@@ -1400,7 +1401,7 @@ function buildRuleRowHTML(i, isCatchAll, fieldsHTML, note, onDeleteFn, readOnly 
 function buildRulesListHTML(rules, { rulesId, saveFn, deleteFn, rescore = false, readOnly = false }) {
   let rulesHTML;
   if (!rules.length && rescore) {
-    rulesHTML = '<div class="no-rules">No rules — words kept as-is</div>';
+    rulesHTML = '<div class="no-rules">No rules — entries kept as-is</div>';
   } else {
     rulesHTML = rules.map((r, i) => {
       const isCatchAll = !!r._catchAll;
@@ -1417,7 +1418,7 @@ function buildRulesListHTML(rules, { rulesId, saveFn, deleteFn, rescore = false,
         const outHandlers = readOnly ? '' : ` oninput="onRuleInput(this)" onchange="${saveFn}(${i},'output',this.value)"`;
         fieldsHTML += `
           <span class="rule-field-lbl">length</span><input class="rule-len${lenInvalid ? ' invalid' : ''}" value="${esc(r.length||'')}" placeholder="any"
-            title="Word length filter: 7, 7-10, or 7+ (blank = any length)"${disabled}${lenHandlers}>
+            title="Entry length filter: 7, 7-10, or 7+ (blank = any length)"${disabled}${lenHandlers}>
           <span class="rule-arrow">→</span>
           <input class="rule-out${outInvalid ? ' invalid' : ''}" value="${esc(r.output)}" placeholder="unchanged"
             title="Output score, 'ignore', or blank for unchanged"${disabled}${outHandlers}>`;
@@ -1446,17 +1447,17 @@ function buildScoringSectionHTML() {
     buildRulesListHTML(edits?.scoring || [], { rulesId: 'scoring-rules', saveFn: 'saveScoringField', deleteFn: 'deleteScoringRow' });
 }
 
-function buildWordListPanelHTML() {
-  return `<div id="word-list-panel">
+function buildEntriesTablePanelHTML() {
+  return `<div id="entries-table-panel">
       <div id="vs-host"></div>
-      <div id="add-row-footer">${ADD_WORD_TRIGGER_HTML}</div>
+      <div id="add-row-footer">${ADD_ENTRY_TRIGGER_HTML}</div>
     </div>`;
 }
 
-function buildWordHeadersHTML() {
-  return `<div class="word-headers" aria-hidden="true">
+function buildEntryHeadersHTML() {
+  return `<div class="entry-headers" aria-hidden="true">
     <span></span>
-    <span class="col-word">Word</span>
+    <span class="col-entry">Entry</span>
     <span class="col-len">Len</span>
     <span class="col-score">Score</span>
     <span class="col-comment">Comment</span>
@@ -1694,21 +1695,21 @@ function parseWordlistLine(line) {
   if (!line) return null;
   const semi = line.indexOf(';');
   if (semi === -1) return null;
-  const word = line.slice(0, semi);
-  if (!word || word.includes(';')) return null;
+  const entry = line.slice(0, semi);
+  if (!entry || entry.includes(';')) return null;
   const rest = line.slice(semi + 1);
   const semi2 = rest.indexOf(';');
   const score = parseInt(semi2 === -1 ? rest : rest.slice(0, semi2), 10);
   if (isNaN(score)) return null;
   const comment = semi2 === -1 ? '' : rest.slice(semi2 + 1).trim();
-  return { word, score, comment };
+  return { entry, score, comment };
 }
 
 function parseWordlist(text) {
   const entries = [];
   for (const line of text.split('\n')) {
-    const entry = parseWordlistLine(line);
-    if (entry) entries.push(entry);
+    const wlEntry = parseWordlistLine(line);
+    if (wlEntry) entries.push(wlEntry);
   }
   return entries;
 }
@@ -1837,8 +1838,8 @@ function getDisplayCase() { return lsLoad('displayCase') || 'lower'; }
 
 function getDownloadComments() { return lsLoad('downloadComments') !== 'no'; }
 
-function displayWord(word) {
-  return getDisplayCase() === 'upper' ? word.toUpperCase() : word.toLowerCase();
+function displayEntry(entry) {
+  return getDisplayCase() === 'upper' ? entry.toUpperCase() : entry.toLowerCase();
 }
 
 function enableDismissClicks(el) {
@@ -2784,12 +2785,12 @@ function ensureEdits() {
 }
 
 function entriesToText(entries) {
-  return entries.map(e => e.comment ? `${e.word};${e.score};${e.comment}` : `${e.word};${e.score}`).join('\n') + (entries.length ? '\n' : '');
+  return entries.map(e => e.comment ? `${e.entry};${e.score};${e.comment}` : `${e.entry};${e.score}`).join('\n') + (entries.length ? '\n' : '');
 }
 
 function entriesToDownloadText(entries, { upper, comments }) {
   return entries.map(e => {
-    const w = upper ? e.word.toUpperCase() : e.word.toLowerCase();
+    const w = upper ? e.entry.toUpperCase() : e.entry.toLowerCase();
     return (comments && e.comment) ? `${w};${e.score};${e.comment}` : `${w};${e.score}`;
   }).join('\n') + '\n';
 }
@@ -3003,17 +3004,17 @@ function buildSearchPattern(query, wholeWord = false) {
   };
 }
 
-function highlightSegments(word, hlRe) {
-  const m = hlRe.exec(word);
-  if (!m?.indices) return word;
+function highlightSegments(entry, hlRe) {
+  const m = hlRe.exec(entry);
+  if (!m?.indices) return entry;
   let result = '', pos = 0, colorIdx = 0;
   for (let g = 1; g < m.indices.length; g++) {
     if (!m.indices[g]) continue;
     const [start, end] = m.indices[g];
-    result += word.slice(pos, start) + markSpan(word.slice(start, end), colorIdx++);
+    result += entry.slice(pos, start) + markSpan(entry.slice(start, end), colorIdx++);
     pos = end;
   }
-  return result + word.slice(pos);
+  return result + entry.slice(pos);
 }
 
 // ─── Tool stack ───────────────────────────────────────────────────────────────
@@ -3033,7 +3034,7 @@ const TOOLS = {
     name: 'Anagram', icon: '🔤', category: 'anagrams',
     desc: 'Same letters, rearranged',
     example: 'LINDSEY → SNIDELY',
-    params: [{ key: 'word', label: 'word' }],
+    params: [{ key: 'entry', label: 'entry' }],
     output: 'single',
   },
   subanagram: {
@@ -3081,7 +3082,7 @@ const TOOLS = {
 };
 
 const ToolStack = (() => {
-  // [{ tool: 'anagram', params: { word: 'LINDSEY' }, col: 'to' }, ...]
+  // [{ tool: 'anagram', params: { entry: 'LINDSEY' }, col: 'to' }, ...]
   let stack = [];
 
   function paramsHTML(tool, idx, valuesByKey) {
@@ -3159,10 +3160,10 @@ const ToolStack = (() => {
     e = document.createElement('div');
     e.id = 'tool-stack';
     // Inserts into the .sticky-stack ahead of the search bar when present;
-    // falls back to the word-list panel's parent on the empty-panel path.
+    // falls back to the entries-table panel's parent on the empty-panel path.
     const searchBar = p.querySelector('.search-bar');
-    const wordListPanel = p.querySelector('#word-list-panel');
-    const anchor = searchBar || wordListPanel;
+    const entriesPanel = p.querySelector('#entries-table-panel');
+    const anchor = searchBar || entriesPanel;
     if (anchor) anchor.parentNode.insertBefore(e, anchor);
     else p.appendChild(e);
     return e;
@@ -3423,11 +3424,11 @@ function scoreColor(score) {
 }
 
 const SORT_AXES = {
-  word:   { label: 'Word' },
+  entry:  { label: 'Entry' },
   length: { label: 'Length' },
   score:  { label: 'Score' },
 };
-const WORD_SLOT_CAP = 20;
+const ENTRY_SLOT_CAP = 20;
 
 // Width of one `0` glyph in the row's mono 13px font, in CSS pixels. Cached
 // after first measurement; the row's font and size are fixed so the value
@@ -3452,7 +3453,7 @@ class VirtualScroller {
     this.toolbar = document.getElementById('search-bar-sort');
     this.allEntries = [];
     this.entries = [];
-    this.sortKey = 'word';
+    this.sortKey = 'entry';
     this.sortDir = 'asc';
     this._lastQuery = '';
     this._wholeWord = false;
@@ -3471,7 +3472,7 @@ class VirtualScroller {
     this._sortScores = null;
 
     this.sizer = document.createElement('div');
-    this.sizer.className = 'word-list-rows';
+    this.sizer.className = 'entries-table-rows';
     container.innerHTML = '';
     container.appendChild(this.sizer);
 
@@ -3489,17 +3490,17 @@ class VirtualScroller {
     this._resizeObserver.observe(container);
 
     this.sizer.addEventListener('click', e => {
-      const target = e.target.closest('.atom-word, .atom-score, .atom-comment');
+      const target = e.target.closest('.atom-entry, .atom-score, .atom-comment');
       if (!target) return;
-      const row = target.closest('.word-row');
+      const row = target.closest('.entry-row');
       if (!row) return;
       const i = parseInt(row.dataset.idx, 10);
-      const entry = this.entries[i];
-      if (!entry) return;
+      const wlEntry = this.entries[i];
+      if (!wlEntry) return;
       const field = target.classList.contains('atom-score') ? 'score'
                   : target.classList.contains('atom-comment') ? 'comment'
                   : null;
-      AtomPopover.open(entry, row, this, target, field);
+      AtomPopover.open(wlEntry, row, this, target, field);
     });
 
     this._buildToolbar();
@@ -3510,7 +3511,7 @@ class VirtualScroller {
     this.allEntries = allEntries;
     this.rescoreRules = rescoreRules || [];
     this.overrideMap = overrideMap || new Map();
-    this.sortKey = 'word';
+    this.sortKey = 'entry';
     this.sortDir = 'asc';
     this._sortScores = null;
     this._buildToolbar();
@@ -3574,7 +3575,7 @@ class VirtualScroller {
     } else {
       const { filterRe, highlight } = buildSearchPattern(q, this._wholeWord);
       this._highlight = highlight;
-      entries = this.allEntries.filter(e => filterRe.test(e.word.toLowerCase()));
+      entries = this.allEntries.filter(e => filterRe.test(e.entry.toLowerCase()));
     }
 
     this._entriesPreScoreRange = entries;
@@ -3585,10 +3586,10 @@ class VirtualScroller {
         if (this.rescoreRules.length) {
           const r = rescoreEntry(e, this.rescoreRules);
           if (!r.kept) return false;
-          const ov = this.overrideMap.get(e.word.toUpperCase());
+          const ov = this.overrideMap.get(e.entry.toUpperCase());
           return matchesRange(ov ? ov.score : r.score, intervals);
         }
-        const ov = this.overrideMap.get(e.word.toUpperCase());
+        const ov = this.overrideMap.get(e.entry.toUpperCase());
         return matchesRange(ov ? ov.score : e.score, intervals);
       });
     }
@@ -3601,8 +3602,8 @@ class VirtualScroller {
         entries = [...entries].sort((a, b) => dir * (this._sortScores.get(a) - this._sortScores.get(b)));
       } else {
         entries = [...entries].sort((a, b) => {
-          const av = key === 'length' ? a.word.length : (a[key] ?? '');
-          const bv = key === 'length' ? b.word.length : (b[key] ?? '');
+          const av = key === 'length' ? a.entry.length : (a[key] ?? '');
+          const bv = key === 'length' ? b.entry.length : (b[key] ?? '');
           if (typeof av === 'number' && typeof bv === 'number') return dir * (av - bv);
           return dir * String(av).localeCompare(String(bv));
         });
@@ -3616,35 +3617,35 @@ class VirtualScroller {
   }
 
   // Slot widths derived from the longest values across the full result set, then
-  // fixed during scroll. Capping the word slot at WORD_SLOT_CAP keeps one outlier
-  // from blowing out layout for every other row; longer words truncate with an
+  // fixed during scroll. Capping the entry slot at ENTRY_SLOT_CAP keeps one outlier
+  // from blowing out layout for every other row; longer entries truncate with an
   // ellipsis (full text in the row's title attribute). Min widths floor each
-  // track to its column-header label so the sticky headers fit ("Word", "Len",
+  // track to its column-header label so the sticky headers fit ("Entry", "Len",
   // "Score"). Widths are emitted in pixels (measured against the row's mono
   // 13px font) instead of `ch` so they resolve identically in the header's
   // sans font and the row's mono font — different fonts have different `ch`
   // sizes, which would make column tracks misalign. Vars are written to
-  // #detail-panel so both .word-row and the .word-headers (which lives in
+  // #detail-panel so both .entry-row and the .entry-headers (which lives in
   // .sticky-stack, a sibling of the scroller's host) inherit the same values.
   _computeSlotWidths() {
     const n = this.entries.length;
     const countDigits = n > 0 ? String(n).length : 1;
     let maxLen = 0, maxLenDigits = 1, maxScoreDigits = 1;
     for (const e of this.entries) {
-      if (e.word.length > maxLen) maxLen = e.word.length;
-      const d = String(e.word.length).length;
+      if (e.entry.length > maxLen) maxLen = e.entry.length;
+      const d = String(e.entry.length).length;
       if (d > maxLenDigits) maxLenDigits = d;
       const sd = String(e.score).length;
       if (sd > maxScoreDigits) maxScoreDigits = sd;
     }
-    const wordChars = Math.max(Math.min(maxLen, WORD_SLOT_CAP), 4);
+    const entryChars = Math.max(Math.min(maxLen, ENTRY_SLOT_CAP), 4);
     const lenChars = Math.max(maxLenDigits, 3);
     const scoreChars = Math.max(maxScoreDigits, 5);
     const ch = measureMonoChPx();
     const target = this.container.closest('#detail-panel') || this.sizer;
     target.style.setProperty('--count-w', `${(countDigits + 1) * ch}px`);
     target.style.setProperty('--len-w', `${lenChars * ch}px`);
-    target.style.setProperty('--word-w', `${wordChars * ch}px`);
+    target.style.setProperty('--entry-w', `${entryChars * ch}px`);
     // +12px covers the score badge's 5px-each-side padding plus a bit of safety.
     target.style.setProperty('--score-w', `${scoreChars * ch + 12}px`);
     target.style.setProperty('--source-max', `${22 * ch}px`);
@@ -3690,29 +3691,29 @@ class VirtualScroller {
     this._sortScores = map;
   }
 
-  _entryDisplayState(entry, rescoreCache) {
-    let rescoredScore = entry.score;
+  _entryDisplayState(wlEntry, rescoreCache) {
+    let rescoredScore = wlEntry.score;
     let wasRescored = false;
     let ignored = false;
     if (this.rescoreRules.length) {
-      const cacheKey = rescoreCache !== undefined ? `${entry.score}:${entry.word.length}` : null;
+      const cacheKey = rescoreCache !== undefined ? `${wlEntry.score}:${wlEntry.entry.length}` : null;
       let r;
       if (cacheKey !== null) {
         r = rescoreCache.get(cacheKey);
-        if (r === undefined) { r = rescoreEntry(entry, this.rescoreRules); rescoreCache.set(cacheKey, r); }
+        if (r === undefined) { r = rescoreEntry(wlEntry, this.rescoreRules); rescoreCache.set(cacheKey, r); }
       } else {
-        r = rescoreEntry(entry, this.rescoreRules);
+        r = rescoreEntry(wlEntry, this.rescoreRules);
       }
       if (!r.kept) {
         ignored = true;
       } else {
         rescoredScore = r.score;
-        wasRescored = r.score !== entry.score;
+        wasRescored = r.score !== wlEntry.score;
       }
     }
-    const ov = !ignored && this.overrideMap.get(entry.word.toUpperCase());
+    const ov = !ignored && this.overrideMap.get(wlEntry.entry.toUpperCase());
     const effectiveScore = ov ? ov.score : rescoredScore;
-    const effectiveComment = (ov && ov.comment) ? ov.comment : (entry.comment || '');
+    const effectiveComment = (ov && ov.comment) ? ov.comment : (wlEntry.comment || '');
     return { ignored, rescoredScore, wasRescored, ov, effectiveScore, effectiveComment };
   }
 
@@ -3733,16 +3734,16 @@ class VirtualScroller {
 
     while (this.sizer.firstChild) this.sizer.removeChild(this.sizer.firstChild);
 
-    const activeWord = AtomPopover.activeWord(this);
+    const activeEntry = AtomPopover.activeEntry(this);
     const tierFor = makeTierLookup();
     let nextActiveRow = null;
     const frag = document.createDocumentFragment();
     for (let i = start; i < end; i++) {
-      const entry = this.entries[i];
-      const { word, score } = entry;
-      const displayed = displayWord(word);
-      const wordHtml = this._highlight ? this._highlight(displayed) : displayed;
-      const { ignored, rescoredScore, wasRescored, ov, effectiveScore, effectiveComment } = this._entryDisplayState(entry);
+      const wlEntry = this.entries[i];
+      const { entry, score } = wlEntry;
+      const displayed = displayEntry(entry);
+      const entryHtml = this._highlight ? this._highlight(displayed) : displayed;
+      const { ignored, rescoredScore, wasRescored, ov, effectiveScore, effectiveComment } = this._entryDisplayState(wlEntry);
       const scoreOv = ov && ov.score !== rescoredScore;
 
       const displayScore = ignored ? score : effectiveScore;
@@ -3752,24 +3753,24 @@ class VirtualScroller {
       const tierLabel = ignored ? '' : tierFor(displayScore);
       const scoreTitle = tierLabel ? ` title="${esc(tierLabel)}"` : '';
 
-      const commentText = ignored ? (entry.comment || '') : effectiveComment;
-      const sourceWl = ov?.wordlist || entry.wordlist;
+      const commentText = ignored ? (wlEntry.comment || '') : effectiveComment;
+      const sourceWl = ov?.wordlist || wlEntry.wordlist;
       const sourceHTML = sourceWl ? buildWordlistNameHTML(sourceWl, { bold: false }) : '';
       const sourceTitle = sourceWl ? ` title="${esc(sourceWl.name)}"` : '';
 
       const row = document.createElement('div');
-      let cls = 'word-row';
+      let cls = 'entry-row';
       if (ignored) cls += ' entry-ignored';
-      if (activeWord && word === activeWord) { cls += ' active'; nextActiveRow = row; }
+      if (activeEntry && entry === activeEntry) { cls += ' active'; nextActiveRow = row; }
       row.className = cls;
-      row.dataset.word = word;
+      row.dataset.entry = entry;
       row.dataset.idx = i;
       row.style.top = (i * ROW_HEIGHT) + 'px';
-      if (displayed.length > WORD_SLOT_CAP) row.title = displayed;
+      if (displayed.length > ENTRY_SLOT_CAP) row.title = displayed;
       row.innerHTML =
         `<span class="atom-count">${i + 1}.</span>` +
-        `<span class="atom-word">${wordHtml}</span>` +
-        `<span class="atom-len">${word.length}</span>` +
+        `<span class="atom-entry">${entryHtml}</span>` +
+        `<span class="atom-len">${entry.length}</span>` +
         `<span class="atom-score"${scoreTitle}>${scoreInner}</span>` +
         `<span class="atom-comment"${commentText ? ` title="${esc(commentText)}"` : ''}>${esc(commentText)}</span>` +
         `<span class="atom-source"${sourceTitle}>${sourceHTML}</span>`;
@@ -3795,7 +3796,7 @@ class VirtualScroller {
 const AtomPopover = (() => {
   let el = null;
   let activeRow = null;
-  let activeEntry = null;
+  let activeWlEntry = null;
   let activeScroller = null;
 
   function ensureElement() {
@@ -3817,7 +3818,7 @@ const AtomPopover = (() => {
     el.setAttribute('hidden', '');
     if (activeRow) activeRow.classList.remove('active');
     activeRow = null;
-    activeEntry = null;
+    activeWlEntry = null;
     activeScroller = null;
     document.removeEventListener('mousedown', onDocMouseDown, true);
     document.removeEventListener('keydown', onKeydown, true);
@@ -3835,15 +3836,15 @@ const AtomPopover = (() => {
     if (e.key === 'Escape') { e.preventDefault(); close(); }
   }
 
-  function open(entry, rowEl, scroller, anchorEl, focusField = 'score') {
+  function open(wlEntry, rowEl, scroller, anchorEl, focusField = 'score') {
     const popover = ensureElement();
     if (activeRow) activeRow.classList.remove('active');
-    activeEntry = entry;
+    activeWlEntry = wlEntry;
     activeRow = rowEl;
     activeScroller = scroller;
     rowEl.classList.add('active');
 
-    popover.innerHTML = renderHTML(entry, scroller);
+    popover.innerHTML = renderHTML(wlEntry, scroller);
     popover.removeAttribute('hidden');
     position(anchorEl ?? rowEl);
     wireFields();
@@ -3857,13 +3858,13 @@ const AtomPopover = (() => {
     window.addEventListener('resize', close);
   }
 
-  function renderSourceLinesHTML(entry, scroller, d) {
-    const rowWordlist = entry.wordlist || scroller.currentWordlist;
+  function renderSourceLinesHTML(wlEntry, scroller, d) {
+    const rowWordlist = wlEntry.wordlist || scroller.currentWordlist;
     let sourceLines = '';
     if (rowWordlist) {
       const label = buildWordlistNameHTML(rowWordlist, { bold: false });
-      const rescNote = d.wasRescored ? ` <span class="rescore-note">(${entry.score} rescored to ${d.rescoredScore})</span>` : '';
-      sourceLines += `<div>${label}: <b>${d.ignored ? entry.score : d.rescoredScore}</b>${rescNote}</div>`;
+      const rescNote = d.wasRescored ? ` <span class="rescore-note">(${wlEntry.score} rescored to ${d.rescoredScore})</span>` : '';
+      sourceLines += `<div>${label}: <b>${d.ignored ? wlEntry.score : d.rescoredScore}</b>${rescNote}</div>`;
     }
     if (d.ov) {
       const ovLabel = buildWordlistNameHTML(d.ov.wordlist, { bold: false });
@@ -3873,8 +3874,8 @@ const AtomPopover = (() => {
     return sourceLines;
   }
 
-  function renderFooterHTML(entry, scroller) {
-    const rowWordlist = entry.wordlist || scroller.currentWordlist;
+  function renderFooterHTML(wlEntry, scroller) {
+    const rowWordlist = wlEntry.wordlist || scroller.currentWordlist;
     const editsWordlist = scroller.editsWordlist || getEditsWordlist();
     const rowIsEdits = rowWordlist === editsWordlist;
     const showDelete = scroller.showDeleteCol || (scroller.showEditDeleteCol && rowIsEdits);
@@ -3885,24 +3886,24 @@ const AtomPopover = (() => {
     return `<span class="atom-pop-saves">${savesNote}</span>${deleteBtn}`;
   }
 
-  function renderHTML(entry, scroller) {
-    const d = scroller._entryDisplayState(entry);
-    const scoreVal = d.ignored ? entry.score : d.effectiveScore;
+  function renderHTML(wlEntry, scroller) {
+    const d = scroller._entryDisplayState(wlEntry);
+    const scoreVal = d.ignored ? wlEntry.score : d.effectiveScore;
     return `
       <button class="dialog-close-btn" type="button" aria-label="Close">✕</button>
-      <div class="atom-pop-source">${renderSourceLinesHTML(entry, scroller, d)}</div>
+      <div class="atom-pop-source">${renderSourceLinesHTML(wlEntry, scroller, d)}</div>
       <div class="atom-pop-fields">
         <label for="atom-pop-score">Score</label>
         <input id="atom-pop-score" class="score-input" type="number" min="0" value="${scoreVal}">
         <label for="atom-pop-comment">Comment</label>
         <input id="atom-pop-comment" class="comment-input" type="text" value="${esc(d.effectiveComment)}">
       </div>
-      <div class="atom-pop-foot">${renderFooterHTML(entry, scroller)}</div>`;
+      <div class="atom-pop-foot">${renderFooterHTML(wlEntry, scroller)}</div>`;
   }
 
   // Re-render after an edit/delete commits so the popover reflects the new
   // state. If the entry has been fully removed from the underlying data (e.g.
-  // deleting a word that only My Edits had, or any delete from the My Edits
+  // deleting an entry that only My Edits had, or any delete from the My Edits
   // view), there's nothing left to show — close.
   //
   // `resetInputs: true` re-renders everything (including the score/comment
@@ -3911,18 +3912,18 @@ const AtomPopover = (() => {
   // score to comment) preserves focus and the just-typed value.
   function refresh({ resetInputs = false } = {}) {
     if (!isOpen()) return;
-    if (!activeScroller.allEntries.includes(activeEntry)) { close(); return; }
+    if (!activeScroller.allEntries.includes(activeWlEntry)) { close(); return; }
     if (resetInputs) {
-      el.innerHTML = renderHTML(activeEntry, activeScroller);
+      el.innerHTML = renderHTML(activeWlEntry, activeScroller);
       wireFields();
       return;
     }
-    const d = activeScroller._entryDisplayState(activeEntry);
+    const d = activeScroller._entryDisplayState(activeWlEntry);
     const sourceEl = el.querySelector('.atom-pop-source');
     const footEl = el.querySelector('.atom-pop-foot');
-    if (sourceEl) sourceEl.innerHTML = renderSourceLinesHTML(activeEntry, activeScroller, d);
+    if (sourceEl) sourceEl.innerHTML = renderSourceLinesHTML(activeWlEntry, activeScroller, d);
     if (footEl) {
-      footEl.innerHTML = renderFooterHTML(activeEntry, activeScroller);
+      footEl.innerHTML = renderFooterHTML(activeWlEntry, activeScroller);
       wireDeleteButton();
     }
   }
@@ -3931,9 +3932,9 @@ const AtomPopover = (() => {
     const deleteBtn = el.querySelector('.atom-pop-delete');
     if (!deleteBtn) return;
     const scroller = activeScroller;
-    const word = activeEntry.word;
+    const entry = activeWlEntry.entry;
     deleteBtn.addEventListener('click', () => {
-      scroller._onDeleteRow?.(word);
+      scroller._onDeleteRow?.(entry);
       refresh({ resetInputs: true });
     });
   }
@@ -3941,7 +3942,7 @@ const AtomPopover = (() => {
   function wireFields() {
     const popover = el;
     const scroller = activeScroller;
-    const word = activeEntry.word;
+    const entry = activeWlEntry.entry;
 
     const scoreInp = popover.querySelector('.score-input');
     if (scoreInp) {
@@ -3949,7 +3950,7 @@ const AtomPopover = (() => {
       const commit = () => {
         const parsed = parseInt(scoreInp.value, 10);
         if (!isNaN(parsed) && parsed >= 0 && String(parsed) !== initial) {
-          scroller._onCellEdit?.(word, 'score', parsed);
+          scroller._onCellEdit?.(entry, 'score', parsed);
           initial = String(parsed);
           refresh();
         }
@@ -3967,7 +3968,7 @@ const AtomPopover = (() => {
       commentInp.addEventListener('beforeinput', blockSemicolon);
       const commit = () => {
         if (commentInp.value !== initial) {
-          scroller._onCellEdit?.(word, 'comment', commentInp.value);
+          scroller._onCellEdit?.(entry, 'comment', commentInp.value);
           initial = commentInp.value;
           refresh();
         }
@@ -3998,10 +3999,10 @@ const AtomPopover = (() => {
     });
   }
 
-  function activeWord(scroller) {
+  function activeEntry(scroller) {
     if (!isOpen()) return null;
     if (scroller && activeScroller !== scroller) return null;
-    return activeEntry ? activeEntry.word : null;
+    return activeWlEntry ? activeWlEntry.entry : null;
   }
 
   function rebindRow(rowEl) {
@@ -4011,7 +4012,7 @@ const AtomPopover = (() => {
     rowEl.classList.add('active');
   }
 
-  return { open, close, isOpen, activeWord, rebindRow };
+  return { open, close, isOpen, activeEntry, rebindRow };
 })();
 
 // ─── Update Summary Scroller ──────────────────────────────────────────────────
@@ -4060,12 +4061,12 @@ class UpdateSummaryScroller {
         div.classList.add('usd-section-header');
         div.textContent = row.label;
       } else {
-        div.classList.add('usd-word-row', 'usd-' + row.kind);
+        div.classList.add('usd-entry-row', 'usd-' + row.kind);
 
-        const wordSpan = document.createElement('span');
-        wordSpan.className = 'usd-word-col';
-        wordSpan.textContent = displayWord(row.word);
-        div.appendChild(wordSpan);
+        const entrySpan = document.createElement('span');
+        entrySpan.className = 'usd-entry-col';
+        entrySpan.textContent = displayEntry(row.entry);
+        div.appendChild(entrySpan);
 
         const scoreSpan = document.createElement('span');
         scoreSpan.className = 'usd-score-col';
@@ -4204,37 +4205,37 @@ function getRescoredEntries(wordlist) {
 function getRescoredMap(wordlist) {
   if (wordlist._rescoredMap) return wordlist._rescoredMap;
   const map = new Map();
-  for (const e of getRescoredEntries(wordlist)) map.set(e.word.toUpperCase(), e);
+  for (const e of getRescoredEntries(wordlist)) map.set(e.entry.toUpperCase(), e);
   wordlist._rescoredMap = map;
   return map;
 }
 
-function rescoreEntry(entry, rules) {
+function rescoreEntry(wlEntry, rules) {
   for (const rule of rules) {
     const scoreIntervals = rule._scoreIntervals !== undefined ? rule._scoreIntervals : parseRange(rule.input);
-    if (!scoreIntervals || !matchesRange(entry.score, scoreIntervals)) continue;
+    if (!scoreIntervals || !matchesRange(wlEntry.score, scoreIntervals)) continue;
     if (rule.length && rule.length.trim()) {
       const lenIntervals = rule._lenIntervals !== undefined ? rule._lenIntervals : parseRange(rule.length);
-      if (!lenIntervals || !matchesRange(entry.word.length, lenIntervals)) continue;
+      if (!lenIntervals || !matchesRange(wlEntry.entry.length, lenIntervals)) continue;
     }
     const s = rule._output !== undefined ? rule._output : parseRuleOutput(rule.output);
     if (s === null) continue;
     if (s === 'ignore') return { kept: false };
-    if (s === 'unchanged') return { kept: true, score: entry.score };
+    if (s === 'unchanged') return { kept: true, score: wlEntry.score };
     if (s && typeof s === 'object') {
       const iv = scoreIntervals[0];
       if (iv.max === null && s.max === null) {
         // Both N+: shift by the difference
-        return { kept: true, score: entry.score + (s.min - iv.min) };
+        return { kept: true, score: wlEntry.score + (s.min - iv.min) };
       }
       // Bounded range: linearly scale; skip if shapes don't match or input is degenerate
       if (iv.min === null || iv.max === null || s.max === null || iv.min === iv.max) continue;
-      const t = (entry.score - iv.min) / (iv.max - iv.min);
+      const t = (wlEntry.score - iv.min) / (iv.max - iv.min);
       return { kept: true, score: Math.round(s.min + t * (s.max - s.min)) };
     }
     return { kept: true, score: s }; // first matching rule wins
   }
-  return { kept: true, score: entry.score };
+  return { kept: true, score: wlEntry.score };
 }
 
 // ─── Rescoring / Scoring section ─────────────────────────────────────────────
@@ -4402,9 +4403,9 @@ function mountDetailPanel(panel, stats, entries) {
       ${buildStatsBarHTML(stats, { entries, ignoredCount: stats.ignoredCount }, getHistogramLayout())}
       ${ToolStack.buildHTML()}
       ${buildSearchBarHTML()}
-      ${buildWordHeadersHTML()}
+      ${buildEntryHeadersHTML()}
     </div>
-    ${buildWordListPanelHTML()}
+    ${buildEntriesTablePanelHTML()}
   `;
   ToolStack.refreshGalleryActive();
   repositionAllHistogramRects();
@@ -4452,7 +4453,7 @@ function renderMergedDetail() {
   scroller.showEditDeleteCol = true;
   scroller.setEntries(entries, state.searchQuery, [], new Map(), state.searchWholeWord, state.scoreRange);
 
-  scroller._onDeleteRow = word => deleteFromEdits(word, refreshMergedScroller);
+  scroller._onDeleteRow = entry => deleteFromEdits(entry, refreshMergedScroller);
   attachExternalEditHandlers(scroller, refreshMergedScroller);
 }
 
@@ -4568,11 +4569,11 @@ function renderEditsDetail(wordlist) {
   scroller.showDeleteCol = true;
   scroller.setEntries(wordlist.rawEntries, state.searchQuery, [], new Map(), state.searchWholeWord, state.scoreRange);
 
-  scroller._onCellEdit = (word, field, newValue) => {
-    const entry = wordlist.rawEntries.find(e => e.word.toUpperCase() === word.toUpperCase());
-    if (!entry) return;
-    entry[field] = newValue;
-    patchCachesForEditsChange(word.toUpperCase(), entry);
+  scroller._onCellEdit = (entry, field, newValue) => {
+    const wlEntry = wordlist.rawEntries.find(e => e.entry.toUpperCase() === entry.toUpperCase());
+    if (!wlEntry) return;
+    wlEntry[field] = newValue;
+    patchCachesForEditsChange(entry.toUpperCase(), wlEntry);
     updateCatchAll(wordlist);
     persistEdits(wordlist);
     refreshDerivedDisplays();
@@ -4580,34 +4581,34 @@ function renderEditsDetail(wordlist) {
     scroller._applyFilterAndSort(false);
   };
 
-  scroller._onDeleteRow = word => deleteFromEdits(word);
+  scroller._onDeleteRow = entry => deleteFromEdits(entry);
 }
 
 // ─── Actions ──────────────────────────────────────────────────────────────────
 
 function attachExternalEditHandlers(s, refreshFn) {
-  s._onCellEdit = (word, field, newValue) => {
-    upsertEdits(word, field, newValue);
+  s._onCellEdit = (entry, field, newValue) => {
+    upsertEdits(entry, field, newValue);
     refreshFn?.();
   };
 }
 
-function upsertEdits(word, field, newValue) {
+function upsertEdits(entry, field, newValue) {
   const edits = getEditsWordlist();
-  const upperWord = word.toUpperCase();
-  const existing = edits.rawEntries.find(e => e.word.toUpperCase() === upperWord);
-  let entry;
+  const upperEntry = entry.toUpperCase();
+  const existing = edits.rawEntries.find(e => e.entry.toUpperCase() === upperEntry);
+  let wlEntry;
   if (existing) {
     existing[field] = newValue;
-    entry = existing;
+    wlEntry = existing;
   } else {
-    const orig = scroller?.allEntries?.find(e => e.word.toUpperCase() === upperWord);
+    const orig = scroller?.allEntries?.find(e => e.entry.toUpperCase() === upperEntry);
     const score   = field === 'score'   ? newValue : (orig?.score   ?? 50);
     const comment = field === 'comment' ? newValue : (orig?.comment ?? '');
-    entry = { word: word.toLowerCase(), score, comment };
-    edits.rawEntries.push(entry);
+    wlEntry = { entry: entry.toLowerCase(), score, comment };
+    edits.rawEntries.push(wlEntry);
   }
-  patchCachesForEditsChange(upperWord, entry);
+  patchCachesForEditsChange(upperEntry, wlEntry);
   updateCatchAll(edits);
   persistEdits(edits);
   refreshDerivedDisplays();
@@ -4826,17 +4827,17 @@ const openUpdateSummaryDialog = (() => {
     if (added.length) {
       sectionIndices.added = rows.length;
       rows.push({ type: 'header', label: `Added (${added.length.toLocaleString()})` });
-      for (const e of added) rows.push({ type: 'word', word: e.word, score: e.score, kind: 'added' });
+      for (const e of added) rows.push({ type: 'entry', entry: e.entry, score: e.score, kind: 'added' });
     }
     if (deleted.length) {
       sectionIndices.deleted = rows.length;
       rows.push({ type: 'header', label: `Deleted (${deleted.length.toLocaleString()})` });
-      for (const e of deleted) rows.push({ type: 'word', word: e.word, score: e.score, kind: 'deleted' });
+      for (const e of deleted) rows.push({ type: 'entry', entry: e.entry, score: e.score, kind: 'deleted' });
     }
     if (rescored.length) {
       sectionIndices.rescored = rows.length;
       rows.push({ type: 'header', label: `Rescored (${rescored.length.toLocaleString()})` });
-      for (const e of rescored) rows.push({ type: 'word', word: e.word, score: e.score, kind: 'rescored', oldScore: e.oldScore });
+      for (const e of rescored) rows.push({ type: 'entry', entry: e.entry, score: e.score, kind: 'rescored', oldScore: e.oldScore });
     }
 
     pillsEl.innerHTML = '';
@@ -4893,14 +4894,14 @@ async function applyWordlistText(wordlist, text, { fetchedSize = null, originalF
   if (wasEmpty) {
     if (!silent) showToast(`Loaded ${pluralize(wordlist.rawEntries.length, 'entry', 'entries')} from ${esc(source)}`);
   } else {
-    const oldMap = new Map(oldEntries.map(e => [e.word, e.score]));
-    const newMap = new Map(wordlist.rawEntries.map(e => [e.word, e.score]));
-    const added   = wordlist.rawEntries.filter(e => !oldMap.has(e.word)).sort((a, b) => a.word.localeCompare(b.word));
-    const deleted = oldEntries.filter(e => !newMap.has(e.word)).sort((a, b) => a.word.localeCompare(b.word));
+    const oldMap = new Map(oldEntries.map(e => [e.entry, e.score]));
+    const newMap = new Map(wordlist.rawEntries.map(e => [e.entry, e.score]));
+    const added   = wordlist.rawEntries.filter(e => !oldMap.has(e.entry)).sort((a, b) => a.entry.localeCompare(b.entry));
+    const deleted = oldEntries.filter(e => !newMap.has(e.entry)).sort((a, b) => a.entry.localeCompare(b.entry));
     const rescored = oldEntries
-      .filter(e => newMap.has(e.word) && newMap.get(e.word) !== e.score)
-      .map(e => ({ word: e.word, oldScore: e.score, score: newMap.get(e.word) }))
-      .sort((a, b) => a.word.localeCompare(b.word));
+      .filter(e => newMap.has(e.entry) && newMap.get(e.entry) !== e.score)
+      .map(e => ({ entry: e.entry, oldScore: e.score, score: newMap.get(e.entry) }))
+      .sort((a, b) => a.entry.localeCompare(b.entry));
     if (!added.length && !deleted.length && !rescored.length) {
       showAlert(`${buildWordlistNameHTML(wordlist)} is already up to date — no changes.`);
     } else {
@@ -4988,16 +4989,16 @@ function ingestFile(file, wordlist, nameOverride) {
 
     // My Edits: always combine instead of replace
     if (wordlist.type === 'edits' && wordlist.rawEntries.length > 0) {
-      const existingMap = new Map(wordlist.rawEntries.map(e => [e.word.toUpperCase(), e]));
+      const existingMap = new Map(wordlist.rawEntries.map(e => [e.entry.toUpperCase(), e]));
       const newEntries = [], conflicts = [];
       let unchanged = 0;
 
-      for (const entry of entries) {
-        const existing = existingMap.get(entry.word.toUpperCase());
+      for (const wlEntry of entries) {
+        const existing = existingMap.get(wlEntry.entry.toUpperCase());
         if (!existing) {
-          newEntries.push(entry);
-        } else if (existing.score !== entry.score || existing.comment !== entry.comment) {
-          conflicts.push({ existing, incoming: entry });
+          newEntries.push(wlEntry);
+        } else if (existing.score !== wlEntry.score || existing.comment !== wlEntry.comment) {
+          conflicts.push({ existing, incoming: wlEntry });
         } else {
           unchanged++;
         }
@@ -5045,37 +5046,37 @@ function ingestFile(file, wordlist, nameOverride) {
 }
 
 
-// ─── My Edits: add word & delete ─────────────────────────────────────────────
+// ─── My Edits: add entry & delete ────────────────────────────────────────────
 
-const ADD_WORD_TRIGGER_HTML = '<div class="add-row-trigger" onclick="openAddWordBar()">＋ Add word</div>';
+const ADD_ENTRY_TRIGGER_HTML = '<div class="add-row-trigger" onclick="openAddEntryBar()">＋ Add entry</div>';
 
-function openAddWordBar() {
+function openAddEntryBar() {
   const footer = document.getElementById('add-row-footer');
-  if (!footer || footer.querySelector('.add-word-bar')) return;
+  if (!footer || footer.querySelector('.add-entry-bar')) return;
 
   footer.innerHTML = '';
   const bar = document.createElement('div');
-  bar.className = 'add-word-bar';
+  bar.className = 'add-entry-bar';
   bar.tabIndex = -1;
   bar.innerHTML = `
-    <input class="aw-word"    placeholder="Word"    autocomplete="off" spellcheck="false">
-    <input class="aw-score"   placeholder="Score"   type="number" min="0">
-    <input class="aw-comment" placeholder="Comment (optional)">
-    <span class="aw-hint">Enter to save · Esc to cancel</span>`;
+    <input class="ae-entry"    placeholder="Entry"   autocomplete="off" spellcheck="false">
+    <input class="ae-score"   placeholder="Score"   type="number" min="0">
+    <input class="ae-comment" placeholder="Comment (optional)">
+    <span class="ae-hint">Enter to save · Esc to cancel</span>`;
   footer.appendChild(bar);
 
-  const wordInput    = bar.querySelector('.aw-word');
-  const scoreInput   = bar.querySelector('.aw-score');
-  const commentInput = bar.querySelector('.aw-comment');
-  wordInput.addEventListener('beforeinput', blockSemicolon);
+  const entryInput    = bar.querySelector('.ae-entry');
+  const scoreInput   = bar.querySelector('.ae-score');
+  const commentInput = bar.querySelector('.ae-comment');
+  entryInput.addEventListener('beforeinput', blockSemicolon);
   commentInput.addEventListener('beforeinput', blockSemicolon);
-  wordInput.focus();
+  entryInput.focus();
 
-  const allEmpty = () => !wordInput.value.trim() && !scoreInput.value.trim() && !commentInput.value.trim();
+  const allEmpty = () => !entryInput.value.trim() && !scoreInput.value.trim() && !commentInput.value.trim();
 
   function restoreTrigger() {
     bar.remove();
-    footer.innerHTML = ADD_WORD_TRIGGER_HTML;
+    footer.innerHTML = ADD_ENTRY_TRIGGER_HTML;
   }
 
   bar.addEventListener('focusout', e => {
@@ -5084,31 +5085,31 @@ function openAddWordBar() {
   });
 
   function commit() {
-    const word = wordInput.value.trim().toUpperCase();
+    const entry = entryInput.value.trim().toUpperCase();
     const score = parseInt(scoreInput.value.trim(), 10);
     const comment = commentInput.value.trim();
 
-    wordInput.classList.toggle('invalid', !word || word.includes(';'));
+    entryInput.classList.toggle('invalid', !entry || entry.includes(';'));
     commentInput.classList.toggle('invalid', comment.includes(';'));
     scoreInput.classList.toggle('invalid', isNaN(score) || score < 0);
-    if (wordInput.classList.contains('invalid') || commentInput.classList.contains('invalid') || scoreInput.classList.contains('invalid')) return;
+    if (entryInput.classList.contains('invalid') || commentInput.classList.contains('invalid') || scoreInput.classList.contains('invalid')) return;
 
     const edits = getEditsWordlist();
 
-    const existing = edits.rawEntries.find(e => e.word.toUpperCase() === word);
-    let entry;
+    const existing = edits.rawEntries.find(e => e.entry.toUpperCase() === entry);
+    let wlEntry;
     if (existing) {
       existing.score = score;
       existing.comment = comment;
-      entry = existing;
-      showToast(`Updated ${displayWord(word)}`);
+      wlEntry = existing;
+      showToast(`Updated ${displayEntry(entry)}`);
     } else {
-      entry = { word: word.toLowerCase(), score, comment };
-      edits.rawEntries.push(entry);
-      showToast(`Added ${displayWord(word)}`);
+      wlEntry = { entry: entry.toLowerCase(), score, comment };
+      edits.rawEntries.push(wlEntry);
+      showToast(`Added ${displayEntry(entry)}`);
     }
 
-    patchCachesForEditsChange(word, entry);
+    patchCachesForEditsChange(entry, wlEntry);
     updateCatchAll(edits);
     persistEdits(edits);
     refreshDerivedDisplays();
@@ -5126,27 +5127,27 @@ function openAddWordBar() {
   });
 }
 
-function deleteFromEdits(word, refreshFn) {
+function deleteFromEdits(entry, refreshFn) {
   const edits = getEditsWordlist();
-  const idx = edits.rawEntries.findIndex(e => e.word.toUpperCase() === word.toUpperCase());
+  const idx = edits.rawEntries.findIndex(e => e.entry.toUpperCase() === entry.toUpperCase());
   if (idx === -1) return;
 
-  const upperWord = word.toUpperCase();
+  const upperEntry = entry.toUpperCase();
   const refresh = refreshFn ?? (() => {
     scroller._sortScores = null;
     scroller._applyFilterAndSort(false);
   });
 
   const [deleted] = edits.rawEntries.splice(idx, 1);
-  patchCachesForEditsChange(upperWord, null);
+  patchCachesForEditsChange(upperEntry, null);
   updateCatchAll(edits);
   persistEdits(edits);
   refresh();
   refreshDerivedDisplays();
 
-  showUndoToast(`Deleted ${esc(displayWord(deleted.word))} from ${buildWordlistNameHTML(edits)}`, () => {
+  showUndoToast(`Deleted ${esc(displayEntry(deleted.entry))} from ${buildWordlistNameHTML(edits)}`, () => {
     edits.rawEntries.splice(idx, 0, deleted);
-    patchCachesForEditsChange(upperWord, deleted);
+    patchCachesForEditsChange(upperEntry, deleted);
     updateCatchAll(edits);
     persistEdits(edits);
     refresh();
@@ -5339,7 +5340,7 @@ const showMergeConflict = (() => {
   return function(conflictCount) {
     return new Promise(resolve => {
       const editsName = getEditsWordlist().name;
-      const noun = conflictCount === 1 ? 'word appears' : 'words appear';
+      const noun = conflictCount === 1 ? 'entry appears' : 'entries appear';
       msgEl.textContent = `${conflictCount.toLocaleString()} ${noun} in both ${editsName} and the imported file with different scores or comments. Which should take precedence?`;
       showDialog(el, () => resolve(el.returnValue || null));
     });
@@ -6265,20 +6266,20 @@ function buildOverrideMap(wordlist) {
   for (const l of state.sources) {
     if (l === wordlist) break;
     if (!l.enabled) continue;
-    for (const { word, score, comment } of getRescoredEntries(l)) {
-      const w = word.toUpperCase();
-      if (!map.has(w)) map.set(w, { wordlist: l, score, comment: comment || '' });
+    for (const { entry, score, comment } of getRescoredEntries(l)) {
+      const k = entry.toUpperCase();
+      if (!map.has(k)) map.set(k, { wordlist: l, score, comment: comment || '' });
     }
   }
   wordlist._overrideMap = map;
   return map;
 }
 
-// In-place cache patch for a single My Edits change to `word`.
-//   newEditsEntry  → ADD or UPDATE (entry now in edits.rawEntries)
-//   null           → DELETE (entry just removed from edits.rawEntries)
+// In-place cache patch for a single My Edits change to `entry`.
+//   newEditsWlEntry → ADD or UPDATE (record now in edits.rawEntries)
+//   null            → DELETE (record just removed from edits.rawEntries)
 // Caller has already mutated edits.rawEntries.
-function patchCachesForEditsChange(word, newEditsEntry) {
+function patchCachesForEditsChange(entry, newEditsWlEntry) {
   const edits = getEditsWordlist();
   if (!edits) return;
 
@@ -6287,23 +6288,23 @@ function patchCachesForEditsChange(word, newEditsEntry) {
   _statsCache.delete(edits);
   _statsCache.delete(_mergedStatsKey);
 
-  // If edits is disabled or a higher-priority wordlist already has `word`,
-  // edits never contributed for `word` — caches don't reference it.
+  // If edits is disabled or a higher-priority wordlist already has `entry`,
+  // edits never contributed for `entry` — caches don't reference it.
   if (!edits.enabled) return;
-  if (buildOverrideMap(edits).has(word)) return;
+  if (buildOverrideMap(edits).has(entry)) return;
 
   const editsIdx = state.sources.indexOf(edits);
   const cache = _mergedWordlistCache;
 
-  if (newEditsEntry) {
-    // ADD or UPDATE: edits is now the contributor for `word` from editsIdx down.
-    const ovEntry = { wordlist: edits, score: newEditsEntry.score, comment: newEditsEntry.comment || '' };
+  if (newEditsWlEntry) {
+    // ADD or UPDATE: edits is now the contributor for `entry` from editsIdx down.
+    const ovEntry = { wordlist: edits, score: newEditsWlEntry.score, comment: newEditsWlEntry.comment || '' };
     for (let i = editsIdx + 1; i < state.sources.length; i++) {
       const m = state.sources[i]._overrideMap;
-      if (m) m.set(word, ovEntry);
+      if (m) m.set(entry, ovEntry);
     }
     if (cache) {
-      const existing = cache.byWord.get(word);
+      const existing = cache.byEntry.get(entry);
       if (existing) {
         // UPDATE, or ADD that took over from a below-edits contributor.
         if (existing.wordlist !== edits) {
@@ -6311,60 +6312,60 @@ function patchCachesForEditsChange(word, newEditsEntry) {
           adjustSourceCount(cache, edits, 1);
           existing.wordlist = edits;
         }
-        existing.score = newEditsEntry.score;
-        existing.comment = newEditsEntry.comment || '';
+        existing.score = newEditsWlEntry.score;
+        existing.comment = newEditsWlEntry.comment || '';
       } else {
-        // ADD: brand-new word, no other wordlist has it.
+        // ADD: brand-new entry, no other wordlist has it.
         const merged = {
-          word: newEditsEntry.word,
-          score: newEditsEntry.score,
-          comment: newEditsEntry.comment || '',
+          entry: newEditsWlEntry.entry,
+          score: newEditsWlEntry.score,
+          comment: newEditsWlEntry.comment || '',
           wordlist: edits,
         };
-        cache.byWord.set(word, merged);
-        insertSortedByWord(cache.entries, merged);
+        cache.byEntry.set(entry, merged);
+        insertSortedByEntry(cache.entries, merged);
         adjustSourceCount(cache, edits, 1);
       }
     }
   } else {
-    // DELETE: edits was the contributor (no higher-priority list has `word`).
-    // Walk down to find the next enabled wordlist with `word`.
+    // DELETE: edits was the contributor (no higher-priority list has `entry`).
+    // Walk down to find the next enabled wordlist with `entry`.
     let nextIdx = -1;
     for (let i = editsIdx + 1; i < state.sources.length; i++) {
       const l = state.sources[i];
       if (!l.enabled) continue;
-      if (getRescoredMap(l).has(word)) { nextIdx = i; break; }
+      if (getRescoredMap(l).has(entry)) { nextIdx = i; break; }
     }
 
     // Override maps for L below edits: at L_pos > nextIdx, next wins; at L_pos ≤ nextIdx, no contributor in range → delete.
     if (nextIdx === -1) {
       for (let i = editsIdx + 1; i < state.sources.length; i++) {
         const m = state.sources[i]._overrideMap;
-        if (m) m.delete(word);
+        if (m) m.delete(entry);
       }
     } else {
       const nextList = state.sources[nextIdx];
-      const nextRaw = getRescoredMap(nextList).get(word);
+      const nextRaw = getRescoredMap(nextList).get(entry);
       const ovEntry = { wordlist: nextList, score: nextRaw.score, comment: nextRaw.comment || '' };
       for (let i = editsIdx + 1; i < state.sources.length; i++) {
         const m = state.sources[i]._overrideMap;
         if (!m) continue;
-        if (i <= nextIdx) m.delete(word);
-        else m.set(word, ovEntry);
+        if (i <= nextIdx) m.delete(entry);
+        else m.set(entry, ovEntry);
       }
     }
 
     if (cache) {
-      const existing = cache.byWord.get(word);
+      const existing = cache.byEntry.get(entry);
       if (existing) {
         adjustSourceCount(cache, edits, -1);
         if (nextIdx === -1) {
-          cache.byWord.delete(word);
+          cache.byEntry.delete(entry);
           const idx = cache.entries.indexOf(existing);
           if (idx !== -1) cache.entries.splice(idx, 1);
         } else {
           const nextList = state.sources[nextIdx];
-          const nextEntry = getRescoredMap(nextList).get(word);
+          const nextEntry = getRescoredMap(nextList).get(entry);
           adjustSourceCount(cache, nextList, 1);
           existing.wordlist = nextList;
           existing.score = nextEntry.score;
@@ -6388,14 +6389,14 @@ function adjustSourceCount(cache, wordlist, delta) {
   }
 }
 
-function insertSortedByWord(entries, entry) {
+function insertSortedByEntry(entries, wlEntry) {
   let lo = 0, hi = entries.length;
   while (lo < hi) {
     const mid = (lo + hi) >>> 1;
-    if (entries[mid].word.localeCompare(entry.word) < 0) lo = mid + 1;
+    if (entries[mid].entry.localeCompare(wlEntry.entry) < 0) lo = mid + 1;
     else hi = mid;
   }
-  entries.splice(lo, 0, entry);
+  entries.splice(lo, 0, wlEntry);
 }
 
 // Display-side refresh: repaint the Wordlists-dialog rail meta and the
@@ -6416,16 +6417,16 @@ function refreshDerivedDisplays() {
 function buildMergedWordlist() {
   if (_mergedWordlistCache) return _mergedWordlistCache;
 
-  const mergedMap = new Map(); // UPPERCASE_KEY → {word, score}
+  const mergedMap = new Map(); // UPPERCASE_KEY → wordlistEntry
   const sourceCounts = [];
 
   for (const wordlist of state.sources) {
     if (!wordlist.enabled) continue;
     let count = 0;
-    for (const { word, score, comment } of getRescoredEntries(wordlist)) {
-      const key = word.toUpperCase();
+    for (const { entry, score, comment } of getRescoredEntries(wordlist)) {
+      const key = entry.toUpperCase();
       if (!mergedMap.has(key)) {
-        mergedMap.set(key, { word: word.toLowerCase(), score, comment: comment || '', wordlist });
+        mergedMap.set(key, { entry: entry.toLowerCase(), score, comment: comment || '', wordlist });
         count++;
       }
     }
@@ -6433,10 +6434,10 @@ function buildMergedWordlist() {
   }
 
   const entries = [...mergedMap.values()]
-    .sort((a, b) => a.word.localeCompare(b.word));
+    .sort((a, b) => a.entry.localeCompare(b.entry));
 
-  // byWord shares object identity with entries — patching via byWord updates entries.
-  _mergedWordlistCache = { entries, sourceCounts, byWord: mergedMap };
+  // byEntry shares object identity with entries — patching via byEntry updates entries.
+  _mergedWordlistCache = { entries, sourceCounts, byEntry: mergedMap };
   return _mergedWordlistCache;
 }
 
@@ -6457,7 +6458,7 @@ function downloadOriginalWordlist(wordlist) {
   if (!wordlist || !wordlist.rawEntries.length) return;
   const withComments = getDownloadComments();
   const text = wordlist.rawEntries.map(e =>
-    (withComments && e.comment) ? `${e.word};${e.score};${e.comment}` : `${e.word};${e.score}`
+    (withComments && e.comment) ? `${e.entry};${e.score};${e.comment}` : `${e.entry};${e.score}`
   ).join('\n') + '\n';
   const filename = wordlist.originalFilename || `${wordlist.name}.txt`;
   triggerDownload(text, filename);
@@ -6622,11 +6623,11 @@ const HelpModal = (() => {
         <div class="help-slide" id="help-slide-2">
           <h2>Making It Yours</h2>
           <p>Different wordlists use different score scales. <strong>Rescoring rules</strong> let you normalize them — map one score range to another so your merged wordlist has consistent scoring across all wordlists.</p>
-          <p><strong class="help-edits-name">My Edits</strong> is your personal override layer. Click any score or comment to change it. Add words that don't appear in any wordlist. Your changes are never overwritten by a wordlist update.</p>
+          <p><strong class="help-edits-name">My Edits</strong> is your personal override layer. Click any score or comment to change it. Add entries that don't appear in any wordlist. Your changes are never overwritten by a wordlist update.</p>
           <div class="help-demo flush">
-            <table class="word-table">
+            <table class="entries-table">
               <tr class="demo-row">
-                <td class="col-word" id="help-slide2-word"></td>
+                <td class="col-entry" id="help-slide2-entry"></td>
                 <td class="score-cell demo-score-cell">
                   <span class="score-badge" style="--score-bg: var(--score-3-bg); --score-fg: var(--score-3-fg)">40</span>
                 </td>
@@ -6644,7 +6645,7 @@ const HelpModal = (() => {
           </div>
           <div class="help-demo flush">
             <div id="help-slide3-bar"></div>
-            <table class="word-table"><tbody id="help-word-tbody"></tbody></table>
+            <table class="entries-table"><tbody id="help-entries-tbody"></tbody></table>
           </div>
         </div>
 
@@ -6801,23 +6802,23 @@ const HelpModal = (() => {
     after(5200, () => { runScoreEditDemo(); });
   }
 
-  const SEARCH_WORDS = [
-    { word: 'WORDPLAY',  score: 60, cross: false },
-    { word: 'CROSSWORD', score: 60, cross: true  },
-    { word: 'PUZZLE',    score: 50, cross: false },
-    { word: 'THEME',     score: 50, cross: false },
-    { word: 'CROSSFIRE', score: 50, cross: true  },
-    { word: 'CROSSBOW',  score: 50, cross: true  },
-    { word: 'GRID',      score: 50, cross: false },
-    { word: 'CLUE',      score: 50, cross: false },
-    { word: 'CROSSLET',  score: 40, cross: true  },
-    { word: 'RECROSS',   score: 30, cross: true  },
+  const SEARCH_ENTRIES = [
+    { entry: 'WORDPLAY',  score: 60, cross: false },
+    { entry: 'CROSSWORD', score: 60, cross: true  },
+    { entry: 'PUZZLE',    score: 50, cross: false },
+    { entry: 'THEME',     score: 50, cross: false },
+    { entry: 'CROSSFIRE', score: 50, cross: true  },
+    { entry: 'CROSSBOW',  score: 50, cross: true  },
+    { entry: 'GRID',      score: 50, cross: false },
+    { entry: 'CLUE',      score: 50, cross: false },
+    { entry: 'CROSSLET',  score: 40, cross: true  },
+    { entry: 'RECROSS',   score: 30, cross: true  },
   ];
 
-  function wordHtml(word, highlight) {
-    const displayed = displayWord(word);
+  function entryHtml(entry, highlight) {
+    const displayed = displayEntry(entry);
     if (!highlight) return displayed;
-    const dc = displayWord(highlight);
+    const dc = displayEntry(highlight);
     const idx = displayed.indexOf(dc);
     if (idx === -1) return displayed;
     return displayed.slice(0, idx) + '<mark class="search-match search-match-0">' + dc + '</mark>' + displayed.slice(idx + dc.length);
@@ -6827,12 +6828,12 @@ const HelpModal = (() => {
     const filter = query.toUpperCase();
     const intervals = scoreRange ? parseRange(scoreRange) : null;
     tbody.innerHTML = '';
-    SEARCH_WORDS.forEach(({ word, score }) => {
-      if (filter && !word.includes(filter)) return;
+    SEARCH_ENTRIES.forEach(({ entry, score }) => {
+      if (filter && !entry.includes(filter)) return;
       if (intervals && !matchesRange(score, intervals)) return;
       const tr = document.createElement('tr');
       tr.innerHTML =
-        `<td class="col-word">${wordHtml(word, filter)}</td>` +
+        `<td class="col-entry">${entryHtml(entry, filter)}</td>` +
         `<td class="score-cell">${buildScoreBadgeHTML(score)}</td>`;
       tbody.appendChild(tr);
     });
@@ -6842,7 +6843,7 @@ const HelpModal = (() => {
     const slide = document.getElementById('help-slide-3');
     const searchInput = slide.querySelector('#help-search-input');
     const scoreInput = slide.querySelector('#help-score-range-input');
-    const tbody = slide.querySelector('#help-word-tbody');
+    const tbody = slide.querySelector('#help-entries-tbody');
     const demoContainer = slide.querySelector('.help-demo');
 
     searchInput.value = '';
@@ -6869,11 +6870,11 @@ const HelpModal = (() => {
     });
     after(700,  () => { clickDemoMouse(mouse); });
     after(800,  () => { searchInput.style.borderColor = 'var(--accent)'; });
-    after(1200, () => { searchInput.value = displayWord('C');     buildSearchRows(tbody, 'C', '');     showDemoCaret(caret, searchInput, demoContainer); });
-    after(1450, () => { searchInput.value = displayWord('CR');    buildSearchRows(tbody, 'CR', '');    showDemoCaret(caret, searchInput, demoContainer); });
-    after(1700, () => { searchInput.value = displayWord('CRO');   buildSearchRows(tbody, 'CRO', '');   showDemoCaret(caret, searchInput, demoContainer); });
-    after(1950, () => { searchInput.value = displayWord('CROS');  buildSearchRows(tbody, 'CROS', '');  showDemoCaret(caret, searchInput, demoContainer); });
-    after(2200, () => { searchInput.value = displayWord('CROSS'); buildSearchRows(tbody, 'CROSS', ''); showDemoCaret(caret, searchInput, demoContainer); });
+    after(1200, () => { searchInput.value = displayEntry('C');     buildSearchRows(tbody, 'C', '');     showDemoCaret(caret, searchInput, demoContainer); });
+    after(1450, () => { searchInput.value = displayEntry('CR');    buildSearchRows(tbody, 'CR', '');    showDemoCaret(caret, searchInput, demoContainer); });
+    after(1700, () => { searchInput.value = displayEntry('CRO');   buildSearchRows(tbody, 'CRO', '');   showDemoCaret(caret, searchInput, demoContainer); });
+    after(1950, () => { searchInput.value = displayEntry('CROS');  buildSearchRows(tbody, 'CROS', '');  showDemoCaret(caret, searchInput, demoContainer); });
+    after(2200, () => { searchInput.value = displayEntry('CROSS'); buildSearchRows(tbody, 'CROSS', ''); showDemoCaret(caret, searchInput, demoContainer); });
     after(2400, () => {
       mouse.style.transition = 'left 0.55s ease-out, top 0.55s ease-out, opacity 0.25s';
       moveDemoMouse(mouse, scoreInput, demoContainer);
@@ -6911,14 +6912,14 @@ const HelpModal = (() => {
     ]);
     document.getElementById('help-slide0-search').innerHTML =
       buildSearchBarHTML({ idPrefix: 'help0', readonly: true })
-      + `<table class="word-table"><tbody>`
-      + buildWordRowHTML('WORDPLAY',  60)
-      + buildWordRowHTML('CROSSWORD', 60)
-      + buildWordRowHTML('CROSSFIRE', 50)
+      + `<table class="entries-table"><tbody>`
+      + buildEntryRowHTML('WORDPLAY',  60)
+      + buildEntryRowHTML('CROSSWORD', 60)
+      + buildEntryRowHTML('CROSSFIRE', 50)
       + `</tbody></table>`;
 
-    // Slide 2: Making It Yours — word cell
-    document.getElementById('help-slide2-word').textContent = displayWord('WORDPLAY');
+    // Slide 2: Making It Yours — entry cell
+    document.getElementById('help-slide2-entry').textContent = displayEntry('WORDPLAY');
 
     // Slide 1: wordlist sidebar with enabled JK and disabled PB
     document.getElementById('help-slide1-demo').innerHTML = buildWordlistSidebarHTML([
@@ -6926,7 +6927,7 @@ const HelpModal = (() => {
       { icon: DEMO_PB_ICON, name: 'Peter Broda',   meta: '68,000 entries', enabled: false },
     ]);
 
-    // Slide 3: search bar (word rows are populated by runSearchDemo)
+    // Slide 3: search bar (entry rows are populated by runSearchDemo)
     document.getElementById('help-slide3-bar').innerHTML =
       buildSearchBarHTML({ idPrefix: 'help', readonly: true });
 

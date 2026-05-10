@@ -8,7 +8,7 @@ The gallery is where Grawlix's [project goal](../../README.md#goals) — democra
 
 ## Status
 
-Chrome is shipped: the left-rail gallery (every card carrying its tool's icon), the main-pane tool stack, hover previews, animations. The current `TOOLS` catalog drives both the gallery and the stack rows, so adding a card today is one record. Icons are emoji; switching to custom SVG would mean changing only the `icon` field per entry. The word-list display where tool output renders also shipped — atoms, sort, click-to-edit popover. See [`design.md` § Tool gallery & stack](../design.md#tool-gallery--stack) and [`design.md` § Word list](../design.md#word-list) for those parts' shape and rationale. Everything below is forward-looking — the plugin/API model, tool execution, the rest of the catalog, chaining policies, pair/group output formats, and downstream features.
+Chrome is shipped: the left-rail gallery (every card carrying its tool's icon), the main-pane tool stack, hover previews, animations. The current `TOOLS` catalog drives both the gallery and the stack rows, so adding a card today is one record. Icons are emoji; switching to custom SVG would mean changing only the `icon` field per entry. The entries-table display where tool output renders also shipped — atoms, sort, click-to-edit popover. See [`design.md` § Tool gallery & stack](../design.md#tool-gallery--stack) and [`design.md` § Entries table](../design.md#entries-table) for those parts' shape and rationale. Everything below is forward-looking — the plugin/API model, tool execution, the rest of the catalog, chaining policies, pair/group output formats, and downstream features.
 
 ---
 
@@ -50,7 +50,7 @@ The everyday case is filling — narrow `All` with a pattern, then save the matc
 
 Default filename describes the stack: `grawlix-search-DOG.txt`, `grawlix-anagram-LINDSEY-search-DOG.txt`. Same tool keys as the URL query string (see [`../design.md` § URL state](../design.md#url-state)), so the file is self-describing and re-running the same stack later won't overwrite the prior snapshot.
 
-Format follows the tool's natural output shape — for plain word lists, the standard `WORD;SCORE[;COMMENT]` used elsewhere. Pair and group outputs need their own format design (`FROM\tTO\tMIN_SCORE` is the obvious shape for pairs); deferred until those tools land.
+Format follows the tool's natural output shape — for plain entry lists, the standard `ENTRY;SCORE[;COMMENT]` used elsewhere. Pair and group outputs need their own format design (`FROM\tTO\tMIN_SCORE` is the obvious shape for pairs); deferred until those tools land.
 
 This is a third "give me a file" path alongside the two existing ones (All/My Edits via Sync & backup, individual wordlist via the Wordlists dialog). It's distinct because the file isn't a backup or a wordlist export — it's a snapshot of the current view, usually filtered or transformed.
 
@@ -233,9 +233,9 @@ Roget's Thesaurus (available as structured XML) enables meaning-based searches: 
 
 ## Display (pair / group output kinds)
 
-The shipped Words display is documented in [`../design.md` § Word list](../design.md#word-list). Pair and group output kinds — beheadments, anagram families, etc. — extend the same list-of-atoms model below; no tools that produce them are wired up yet, so the rendering is sketched here.
+The shipped entries-table display is documented in [`../design.md` § Entries table](../design.md#entries-table). Pair and group output kinds — beheadments, anagram families, etc. — extend the same list-of-atoms model below; no tools that produce them are wired up yet, so the rendering is sketched here.
 
-The rule that carries over: every word in any output is shown as a [word atom](../design.md#word-list) (`1. CARE 4 50`); the AtomPopover is the universal editor regardless of output kind; comments and source live in the popover, not the at-rest row.
+The rule that carries over: every word in any output is shown as a [word atom](../design.md#entries-table) (`1. CARE 4 50`); the AtomPopover is the universal editor regardless of output kind; comments and source live in the popover, not the at-rest row.
 
 ### Pairs view
 

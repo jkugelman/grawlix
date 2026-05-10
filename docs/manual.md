@@ -13,11 +13,11 @@ This is the user-facing manual. Eventually it'll be turned into an in-app manual
 The card, top to bottom:
 - **Slim top row.** Wordlist picker, with the ⚙ button to its right that opens the Wordlists dialog.
 - **Tool gallery.** Cards laid out as a responsive grid.
-- **Sticky region** that anchors just below the header as you scroll into the word list:
+- **Sticky region** that anchors just below the header as you scroll into the entries table:
   - Stats bar with histogram (click the histogram to filter by score range).
   - Tool stack — only when you've added tools.
   - Search bar.
-- **Word list.** Always visible — idle and search views are the same view, just filtered.
+- **Entries table.** Always visible — idle and search views are the same view, just filtered.
 
 ## Choosing a wordlist
 
@@ -40,32 +40,32 @@ On launch — including first run — you land on **All**. The four publisher wo
 - `[abc]` — character class
 - Whole-word toggle anchors the pattern.
 
-## Word list
+## Entries table
 
-The list below the search bar shows every word in the current wordlist (or merged `All` view), one row per entry, in your current sort order. Each row reads as `1. CARE 4 50` — count, word, length, score badge. Click on a word or score to edit it (see *Editing words*).
+The table below the search bar shows every entry in the current wordlist (or merged `All` view), one row per entry, in your current sort order. Each row reads as `1. CARE 4 50` — count, entry, length, score badge. Click on the entry or score to edit it (see *Editing entries*).
 
-**Sort.** "Sort by [Word ▾] [↑]" at the right edge of the search bar. Axes: Word (alphabetical), Length, Score. Click the arrow to toggle direction. Default is Word ascending.
+**Sort.** "Sort by [Entry ▾] [↑]" at the right edge of the search bar. Axes: Entry (alphabetical by word), Length, Score. Click the arrow to toggle direction. Default is Entry ascending.
 
-## Editing words
+## Editing entries
 
-Click any word or score in the list to open an editor popover. The popover shows which wordlist sourced the score (with any rescoring or override explanation) and lets you edit the score and comment. Edits always land in My Edits, regardless of which wordlist is open.
+Click any entry or score in a row to open an editor popover. The popover shows which wordlist sourced the score (with any rescoring or override explanation) and lets you edit the score and comment. Edits always land in My Edits, regardless of which wordlist is open.
 
 Press Enter to save and close, or Tab to chain edits between score and comment. Escape reverts. Clicking outside, scrolling, or changing the search closes the popover.
 
 When the score you see differs from what the wordlist itself contains (because it's been rescored, or another wordlist overrides it), a small red asterisk (`*`) marks the badge. The popover spells out exactly what's going on.
 
-For words sourced from My Edits, the popover also has a Delete button (with undo via toast).
+For entries sourced from My Edits, the popover also has a Delete button (with undo via toast).
 
 ## My Edits
 
 A special wordlist created automatically on first boot. Its scores pass through unchanged (no rescoring). It's always enabled and can't be deleted, but can be reordered like any other wordlist (position determines merge priority on ties).
 
 From the My Edits view you can:
-- Add new words.
+- Add new entries.
 - Delete entries (with undo).
 - Edit any score or comment.
 
-My Edits also carries your **scoring rules** — your tier labels for the unified score scale (e.g. "60 = great, 50 = good, …"). Hover any score in the word list to see its tier label; the canonical edit surface is My Edits in the Wordlists dialog.
+My Edits also carries your **scoring rules** — your tier labels for the unified score scale (e.g. "60 = great, 50 = good, …"). Hover any score in the entries table to see its tier label; the canonical edit surface is My Edits in the Wordlists dialog.
 
 ## Score tiers
 
@@ -89,7 +89,7 @@ Action buttons differ per wordlist:
 
 **Renaming.** Focus a wordlist card and press **F2** to rename inline.
 
-**Rescoring rules** map a wordlist's input score range (and optional word-length filter) to an output score — or `ignore` to drop the entry. First matching rule wins; a catch-all is auto-appended. My Edits has no rescore rules; its scores pass through.
+**Rescoring rules** map a wordlist's input score range (and optional entry-length filter) to an output score — or `ignore` to drop the entry. First matching rule wins; a catch-all is auto-appended. My Edits has no rescore rules; its scores pass through.
 
 **Onboarding banner.** First-run users see a short 3-page sequence in the Wordlists dialog's rail: a welcome confirming the pre-loaded popular wordlists, then optional prompts to import a personal wordlist into My Edits and to import an XWI subscriber file. Each prompt has a *Skip*; the ✕ ends the whole flow.
 
@@ -108,6 +108,6 @@ The link carries your tools and filters, not your wordlists — the recipient se
 One entry per line:
 
 ```
-WORD;SCORE
-WORD;SCORE;COMMENT
+ENTRY;SCORE
+ENTRY;SCORE;COMMENT
 ```

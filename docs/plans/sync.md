@@ -17,7 +17,7 @@ Two files, not one.
 
 **The merged wordlist.** All enabled wordlists *except* My Edits, merged with the user's rescore rules applied. Grawlix is the sole writer; external tools read it. One direction out.
 
-**My Edits.** Just the user's own edits, in the same `WORD;SCORE;COMMENT` format. Bidirectional: external tools can write to it (Ingrid's pencil-list convention), Grawlix re-imports the changes.
+**My Edits.** Just the user's own edits, in the same `ENTRY;SCORE;COMMENT` format. Bidirectional: external tools can write to it (Ingrid's pencil-list convention), Grawlix re-imports the changes.
 
 **Why the split.** Crossword best practice is "never edit a published wordlist directly" — your customizations live in a separate file so you can update the underlying wordlists freely without losing them. The two-file model bakes this into Grawlix's defaults. A user loading both files into Ingrid (with My Edits marked as the edit list) gets the same workflow as if they'd been editing in Ingrid all along, with Grawlix as a richer curation surface upstream.
 
@@ -54,8 +54,8 @@ Provider priorities for v1: **Dropbox first** (lowest friction to ship). **Googl
 Multi-device sync needs a merge story. The user-facing behavior:
 
 - **Different words → both apply.** Editing different entries on two devices never conflicts.
-- **Same word, different fields → both apply.** Score on laptop, comment on desktop: both land. Score and comment merge independently.
-- **Same word, same field → sync-order wins.** Whoever syncs last writes their value. Acceptable because true conflicts are rare for single-user, async cross-device editing.
+- **Same entry, different fields → both apply.** Score on laptop, comment on desktop: both land. Score and comment merge independently.
+- **Same entry, same field → sync-order wins.** Whoever syncs last writes their value. Acceptable because true conflicts are rare for single-user, async cross-device editing.
 - **Deletes** are tombstones, kept until all sync targets have seen them, then cleaned up.
 - **External tools writing to My Edits** (e.g. Ingrid) look identical to a remote sync — the diff against the last-synced state is the change set.
 - **Recent conflicts are reviewable.** The Sync panel shows auto-resolved same-field conflicts so the user can undo if the wrong side won. Quiet on the happy path.
