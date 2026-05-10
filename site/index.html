@@ -27,6 +27,7 @@ html.dark-mode {
   --bg:        #1e1e1e;
   --surface:   #282828;
   --surface2:  #232323;
+  --surface3:  #1c1c1c;
   --border:    #525252;
   --border2:   #3e3e3e;
   --border3:   #3a3a3a;
@@ -58,6 +59,7 @@ html.light-mode {
   --bg:        #f5f5f5;
   --surface:   #ffffff;
   --surface2:  #fafafa;
+  --surface3:  #efefef;
   --border:    #dddddd;
   --border2:   #eeeeee;
   --border3:   #f0f0f0;
@@ -170,14 +172,15 @@ button.danger:hover:not(:disabled) { background: #e74c3c; border-color: #c0392b;
 .no-selection small { font-size: 13px; }
 
 /* Stats bar */
-.stats-bar { background: var(--surface2); border-bottom: 1px solid var(--border2); padding: 10px 18px; display: flex; align-items: center; gap: 22px; }
+.stats-bar { border-bottom: 1px solid var(--border3); padding: 10px 18px; display: flex; align-items: center; gap: 22px; }
+.sticky-stack .stats-bar { background: var(--surface3); }
 
 /* Stats bar + tool stack + search bar share a sticky region just below the
    brand header. Variable tool-stack height resolves to one sticky element of
-   natural height. Internal borders drop because the surface2→surface bg
-   change between stats and tool-stack already reads as a visual break. */
-.sticky-stack { position: sticky; top: var(--sticky-top, 52px); z-index: 50; background: var(--surface); border-bottom: 1px solid var(--border2); }
-.sticky-stack .stats-bar,
+   natural height. Three bands by recession depth: stats on surface3 (most
+   recessed — it's the summary marquee), tools/search/column-headers on
+   surface2, and the data plane below is surface (content, brightest). */
+.sticky-stack { position: sticky; top: var(--sticky-top, 52px); z-index: 50; background: var(--surface2); border-bottom: 1px solid var(--border2); }
 .sticky-stack .search-bar { border-bottom: none; }
 .stat { display: flex; flex-direction: column; gap: 2px; }
 .stat-label { font-size: 10px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
@@ -194,7 +197,7 @@ html.light-mode .histogram-rect { opacity: 0.22; }
 
 /* Search bar — styled as the bottom "filter" row of the tool stack, also hosts
    the sort control on the right edge (filter + view-config in one row). */
-.search-bar { padding: 8px 14px; background: var(--surface); border-bottom: 1px solid var(--border2); display: flex; align-items: center; gap: 12px; }
+.search-bar { padding: 8px 14px; background: var(--surface2); border-bottom: 1px solid var(--border2); display: flex; align-items: center; gap: 12px; }
 .search-input-wrap { position: relative; display: flex; align-items: center; flex: 0 0 240px; }
 .search-input-wrap input[type="text"] { width: 100%; padding: 5px 24px 5px 8px; border: 1px solid var(--border); border-radius: 4px; font-size: 13px; font-family: var(--font-mono); background: var(--input-bg); color: var(--text); }
 .search-input-wrap input[type="text"]:focus { outline: none; border-color: var(--accent); }
@@ -636,7 +639,7 @@ a.get-file:hover { text-decoration: underline; }
 body.tools-empty .gallery-card { padding-right: 12px; }
 body.tools-empty .gallery-card-add { display: none; }
 
-#tool-stack { background: var(--surface); overflow: hidden; }
+#tool-stack { background: var(--surface2); overflow: hidden; }
 .tool-row { display: grid; grid-template-columns: 1fr 32px; align-items: center; padding: 8px 14px; border-bottom: 1px solid var(--border2); gap: 10px; overflow: hidden; transition: opacity 0.2s ease, background 0.15s ease; }
 .tool-row:last-child { border-bottom: none; }
 .tool-row.ghost { position: relative; pointer-events: none; background: color-mix(in srgb, var(--accent) 7%, transparent); opacity: 0.85; }
@@ -682,7 +685,7 @@ body.tools-empty .gallery-card-add { display: none; }
 .wld-pane-header { display: flex; align-items: center; padding: 12px 22px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
 .wld-pane-actions { display: flex; align-items: center; gap: 6px; flex: 1; min-width: 0; flex-wrap: wrap; justify-content: flex-end; }
 .wld-pane-stats { padding: 0 8px; flex-shrink: 0; }
-.wld-pane-stats .stats-bar { background: transparent; border: none; padding: 12px 14px; }
+.wld-pane-stats .stats-bar { border: none; padding: 12px 14px; }
 .wld-pane-rescore { border-top: 1px solid var(--border2); padding: 14px 22px 22px; }
 .wld-pane-rescore-empty { font-size: 12px; color: var(--muted); padding: 6px 2px; }
 
