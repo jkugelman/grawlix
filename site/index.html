@@ -231,18 +231,36 @@ html.dark-mode .search-match-4 { background: #14532d; color: #d1fae5; }
 #word-list-panel { background: var(--surface); }
 #vs-host { position: relative; }
 .word-list-rows { position: relative; }
-.word-row {
-  position: absolute; left: 0; right: 0;
+.word-row, .word-headers {
   display: grid;
-  grid-template-columns: var(--count-w, 2ch) var(--word-w, 12ch) var(--len-w, 2ch) var(--score-w, 4ch);
+  grid-template-columns: var(--count-w, 2ch) var(--word-w, 12ch) var(--len-w, 3ch) var(--score-w, calc(5ch + 12px));
   align-items: center;
   column-gap: 14px;
   padding: 0 16px;
+  white-space: nowrap;
+}
+.word-row {
+  position: absolute; left: 0; right: 0;
   height: var(--row-height, 24px);
   font-family: var(--font-mono);
   font-size: 13px;
-  white-space: nowrap;
 }
+/* Plain, unclickable column labels above the rows. Sit at the bottom of the
+   sticky-stack so they ride along with stats/tools/search on scroll. The
+   slot-width vars are computed in pixels (see _computeSlotWidths) so the
+   header's sans font and the row's mono font produce identical track widths. */
+.word-headers {
+  padding-top: 5px; padding-bottom: 5px;
+  font-family: var(--font-sans);
+  font-size: 12px;
+  color: var(--muted);
+  user-select: none;
+  border-top: 1px solid var(--border3);
+}
+.word-headers > * { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.word-headers .col-len { text-align: right; }
+.word-headers .col-score { justify-self: end; }
+.word-headers .col-comment, .word-headers .col-source { display: none; }
 .word-row.active { background: color-mix(in srgb, var(--accent) 12%, transparent); }
 .word-row .atom-count { text-align: right; color: var(--faint); font-family: var(--font-sans); font-size: 12px; }
 .word-row .atom-word { overflow: hidden; text-overflow: ellipsis; min-width: 0; cursor: pointer; }
@@ -263,14 +281,18 @@ html.dark-mode .search-match-4 { background: #14532d; color: #d1fae5; }
    tool is active. Source is meaningful only on the merged All view (single
    wordlists' source is constant per row). */
 @media (min-width: 760px) {
-  body:not(.tools-multi-word) .word-row {
-    grid-template-columns: var(--count-w, 2ch) var(--word-w, 12ch) var(--len-w, 2ch) var(--score-w, 4ch) minmax(0, 1fr);
+  body:not(.tools-multi-word) .word-row,
+  body:not(.tools-multi-word) .word-headers {
+    grid-template-columns: var(--count-w, 2ch) var(--word-w, 12ch) var(--len-w, 3ch) var(--score-w, calc(5ch + 12px)) minmax(0, 1fr);
   }
-  body:not(.tools-multi-word) .word-row .atom-comment { display: block; }
-  body.merged-view:not(.tools-multi-word) .word-row {
-    grid-template-columns: var(--count-w, 2ch) var(--word-w, 12ch) var(--len-w, 2ch) var(--score-w, 4ch) minmax(0, 1fr) minmax(0, 22ch);
+  body:not(.tools-multi-word) .word-row .atom-comment,
+  body:not(.tools-multi-word) .word-headers .col-comment { display: block; }
+  body.merged-view:not(.tools-multi-word) .word-row,
+  body.merged-view:not(.tools-multi-word) .word-headers {
+    grid-template-columns: var(--count-w, 2ch) var(--word-w, 12ch) var(--len-w, 3ch) var(--score-w, calc(5ch + 12px)) minmax(0, 1fr) minmax(0, var(--source-max, 22ch));
   }
-  body.merged-view:not(.tools-multi-word) .word-row .atom-source { display: block; }
+  body.merged-view:not(.tools-multi-word) .word-row .atom-source,
+  body.merged-view:not(.tools-multi-word) .word-headers .col-source { display: block; }
 }
 
 /* Atom popover (click-driven; replaces the old hover #cell-popover and
@@ -1380,6 +1402,17 @@ function buildWordListPanelHTML() {
       <div id="vs-host"></div>
       <div id="add-row-footer">${ADD_WORD_TRIGGER_HTML}</div>
     </div>`;
+}
+
+function buildWordHeadersHTML() {
+  return `<div class="word-headers" aria-hidden="true">
+    <span></span>
+    <span class="col-word">Word</span>
+    <span class="col-len">Len</span>
+    <span class="col-score">Score</span>
+    <span class="col-comment">Comment</span>
+    <span class="col-source">Source</span>
+  </div>`;
 }
 
 function buildEditHintHTML(extraClass, onclick) {
@@ -3465,6 +3498,23 @@ const SORT_AXES = {
 };
 const WORD_SLOT_CAP = 20;
 
+// Width of one `0` glyph in the row's mono 13px font, in CSS pixels. Cached
+// after first measurement; the row's font and size are fixed so the value
+// doesn't drift. Used by VirtualScroller._computeSlotWidths to emit slot
+// widths in px (rather than `ch`) so the header's sans font sees the same
+// track widths as the row's mono font.
+let _monoChPx = null;
+function measureMonoChPx() {
+  if (_monoChPx !== null) return _monoChPx;
+  const probe = document.createElement('span');
+  probe.style.cssText = 'position:absolute;visibility:hidden;font-family:var(--font-mono);font-size:13px;white-space:pre;';
+  probe.textContent = '0'.repeat(100);
+  document.body.appendChild(probe);
+  _monoChPx = probe.getBoundingClientRect().width / 100;
+  probe.remove();
+  return _monoChPx;
+}
+
 class VirtualScroller {
   constructor(container) {
     this.container = container;
@@ -3635,7 +3685,14 @@ class VirtualScroller {
   // Slot widths derived from the longest values across the full result set, then
   // fixed during scroll. Capping the word slot at WORD_SLOT_CAP keeps one outlier
   // from blowing out layout for every other row; longer words truncate with an
-  // ellipsis (full text in the row's title attribute).
+  // ellipsis (full text in the row's title attribute). Min widths floor each
+  // track to its column-header label so the sticky headers fit ("Word", "Len",
+  // "Score"). Widths are emitted in pixels (measured against the row's mono
+  // 13px font) instead of `ch` so they resolve identically in the header's
+  // sans font and the row's mono font — different fonts have different `ch`
+  // sizes, which would make column tracks misalign. Vars are written to
+  // #detail-panel so both .word-row and the .word-headers (which lives in
+  // .sticky-stack, a sibling of the scroller's host) inherit the same values.
   _computeSlotWidths() {
     const n = this.entries.length;
     const countDigits = n > 0 ? String(n).length : 1;
@@ -3647,12 +3704,17 @@ class VirtualScroller {
       const sd = String(e.score).length;
       if (sd > maxScoreDigits) maxScoreDigits = sd;
     }
-    const wordChars = Math.min(maxLen, WORD_SLOT_CAP);
-    this.sizer.style.setProperty('--count-w', `${countDigits + 1}ch`);
-    this.sizer.style.setProperty('--len-w', `${maxLenDigits}ch`);
-    this.sizer.style.setProperty('--word-w', wordChars > 0 ? `${wordChars}ch` : '0');
+    const wordChars = Math.max(Math.min(maxLen, WORD_SLOT_CAP), 4);
+    const lenChars = Math.max(maxLenDigits, 3);
+    const scoreChars = Math.max(maxScoreDigits, 5);
+    const ch = measureMonoChPx();
+    const target = this.container.closest('#detail-panel') || this.sizer;
+    target.style.setProperty('--count-w', `${(countDigits + 1) * ch}px`);
+    target.style.setProperty('--len-w', `${lenChars * ch}px`);
+    target.style.setProperty('--word-w', `${wordChars * ch}px`);
     // +12px covers the score badge's 5px-each-side padding plus a bit of safety.
-    this.sizer.style.setProperty('--score-w', `calc(${maxScoreDigits}ch + 12px)`);
+    target.style.setProperty('--score-w', `${scoreChars * ch + 12}px`);
+    target.style.setProperty('--source-max', `${22 * ch}px`);
   }
 
   // Walks the post-filter entries, applies rescore + override per entry, and
@@ -4359,6 +4421,7 @@ function mountDetailPanel(panel, stats, entries) {
       ${buildStatsBarHTML(stats, entries, getHistogramLayout())}
       ${ToolStack.buildHTML()}
       ${buildSearchBarHTML()}
+      ${buildWordHeadersHTML()}
     </div>
     ${buildWordListPanelHTML()}
   `;
