@@ -8,6 +8,28 @@ All code lives in a single file: `site/index.html`. Read and edit only that file
 
 `TODO.md` at the repo root is the user's personal scratchpad — never edit it. Reading it is fine but do not touch it.
 
+## Before non-trivial work: read the relevant docs
+
+For any feature work, redesign, brainstorming, or structural change — **not** targeted bug fixes or small tweaks — open the docs that touch the area before proposing or implementing. Adjacent docs may share screen real estate or constrain the answer; treat the topical index below as a checklist, not a suggestion.
+
+Design and manual:
+- [`docs/design.md`](docs/design.md) — present-tense design: header, left rail, main pane, Wordlists dialog, URL state, open questions.
+- [`docs/manual.md`](docs/manual.md) — user-facing manual. Update when shipping user-facing changes.
+- [`docs/style.md`](docs/style.md) — coding-style conventions: CSS, JS, Markdown, terminology, commit messages. Read before formatting changes.
+- [`docs/wordlisted.md`](docs/wordlisted.md) — reference catalogue of Wordlisted's search modes; source material for the tool gallery.
+
+Plans (forward-looking, not yet shipped):
+- [`docs/plans/tools.md`](docs/plans/tools.md) — tool execution/catalog, chaining, pair/group output, OneLook/Datamuse/Umiaq. Gallery + stack are shipped (see `design.md`).
+- [`docs/plans/sync.md`](docs/plans/sync.md) — three-tier persistence (backup nag, disk file, cloud sync) for All + My Edits.
+- [`docs/plans/mobile.md`](docs/plans/mobile.md) — mobile/responsive design.
+- [`docs/plans/lookup.md`](docs/plans/lookup.md) — click-a-word lookup (definitions, Wikipedia, NYT history, semantic search).
+- [`docs/plans/help.md`](docs/plans/help.md) — separating welcome tour from returning-user reference manual.
+- [`docs/plans/migration.md`](docs/plans/migration.md) — when to graduate from schema-version resets to layered migrations.
+- [`docs/plans/ci-testing.md`](docs/plans/ci-testing.md) — Playwright smoke suite (deferred).
+- [`docs/plans/per-row-reactivity.md`](docs/plans/per-row-reactivity.md) — push hybrid reactivity to a per-row reactive scroller.
+
+When a plan ships, run the `distill-design-doc` skill to fold it into `design.md` and/or `manual.md`. Help-modal copy lives in `site/index.html` inside the `HelpModal` IIFE — search for `const HelpModal`. Update the relevant slide when shipping user-facing changes.
+
 ## Architecture
 
 One HTML file: `<style>` block, a minimal HTML body (app shell only — no dialog or overlay elements), then one big `<script>` block. No build step, no npm, no frameworks — plain HTML/CSS/JS that runs directly in the browser.
@@ -101,15 +123,4 @@ All builders live in the `// ─── Components ───` section. Nothing ou
 
 ## Understanding Grawlix
 
-Before making changes to Grawlix, read the help modal in `site/index.html` for a description of all user-facing features. Grawlix today serves two activities: building a unified wordlist (curation, rescoring, merging, downloading) and using it as a construction aid (search/filter while filling a grid). The help dialog HTML lives inside the `HelpModal` IIFE — search for `const HelpModal` to find it.
-
-When you add or change a user-facing feature, update the relevant slide in the help modal to reflect it.
-
-Documentation lives in `docs/`:
-
-- **`docs/design.md`** — present-tense design documentation: UI shape, architecture, and the *whys* behind them. Single home for distilled design content.
-- **`docs/manual.md`** — user-facing manual. Plain Markdown today; eventually will become an in-app manual.
-- **`docs/plans/`** — forward-looking design docs for work that hasn't shipped. Speculative, future-tense. Once a plan ships, the `distill-design-doc` skill folds it into `design.md` and/or `manual.md`.
-- **Top level of `docs/`** — the index plus reference catalogues that don't fit elsewhere.
-
-See [`docs/README.md`](docs/README.md) for the index. Read the relevant plan or the design doc before making changes that touch its area, or when brainstorming UI shape or feature placement (adjacent content may share screen real estate or constrain the answer).
+Grawlix today serves two activities: building a unified wordlist (curation, rescoring, merging, downloading) and using it as a construction aid (search/filter while filling a grid). For a description of all user-facing features, read the help modal in `site/index.html` (inside the `HelpModal` IIFE).

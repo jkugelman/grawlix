@@ -58,9 +58,9 @@ When deciding what stays: prefer descriptions of **shape** (architecture, contra
 4. **Edit the destination files.** Read `docs/manual.md` and `docs/design.md` first; identify where the new content fits (existing section to extend, or new section to add). Match the existing tone and structure of each file rather than dropping in a self-contained block.
 5. **Retire or trim the plan doc.** If the plan is fully shipped, `git rm docs/plans/X.md`. If partial, edit it down to just the unshipped pieces and label the split clearly.
 6. **Update cross-references.** `grep -rn 'plans/X.md'` across `docs/`, `CLAUDE.md`, and `site/index.html`. Fix:
-   - **`docs/README.md`** — remove the bullet from the *Plans* section if the plan is fully retired; keep it if partial.
+   - **`CLAUDE.md`** — the doc index lives in the *Before non-trivial work* section. Remove the bullet if the plan is fully retired; update the one-liner if partial.
    - **Sibling `docs/plans/*.md` files** — references to the retired plan should now point at `../design.md` (or the relevant section anchor) and/or `../manual.md`.
-   - **CLAUDE.md and other top-level docs** — usually unaffected, but check.
+   - **Other top-level docs** — usually unaffected, but check.
 7. **Confirm before overwriting.** Show the user (1) a short read of what the doc currently says vs. what shipped, (2) the proposed edits to `manual.md` and `design.md` in full, (3) what happens to the plan doc (delete vs. trim), (4) the cross-reference touch list. Wait for approval. Distillation removes content; reversible only via git.
 
 ## When not to distill
