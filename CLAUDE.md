@@ -15,7 +15,7 @@ All code lives in a single file: `site/index.html`. Don't bother searching for o
 For any feature work, redesign, brainstorming, or structural change — **not** targeted bug fixes or small tweaks — open the docs that touch the area before proposing or implementing. Adjacent docs may share screen real estate or constrain the answer; treat the topical index below as a checklist, not a suggestion.
 
 Design and manual:
-- [`docs/design.md`](docs/design.md) — present-tense design: header, left rail, main pane, Wordlists dialog, URL state, open questions.
+- [`docs/design.md`](docs/design.md) — present-tense design + whys: shell, Wordlists dialog, tool gallery & stack, word list, URL state, caches & reactivity, non-features.
 - [`docs/manual.md`](docs/manual.md) — user-facing manual. Update when shipping user-facing changes.
 - [`docs/style.md`](docs/style.md) — coding-style conventions: CSS, JS, Markdown, terminology, commit messages. Read before formatting changes.
 - [`docs/wordlisted.md`](docs/wordlisted.md) — reference catalogue of Wordlisted's search modes; source material for the tool gallery.
