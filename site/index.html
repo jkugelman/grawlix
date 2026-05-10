@@ -246,13 +246,32 @@ html.dark-mode .search-match-4 { background: #14532d; color: #d1fae5; }
 .word-row.active { background: color-mix(in srgb, var(--accent) 12%, transparent); }
 .word-row .atom-count { text-align: right; color: var(--faint); font-family: var(--font-sans); font-size: 12px; }
 .word-row .atom-word { overflow: hidden; text-overflow: ellipsis; min-width: 0; cursor: pointer; }
-.word-row .atom-len { text-align: right; color: var(--muted); font-family: var(--font-sans); font-size: 12px; }
+.word-row .atom-len { text-align: right; font-family: var(--font-sans); font-size: 12px; }
 .word-row .atom-score { cursor: pointer; justify-self: end; }
+.word-row .atom-comment { overflow: hidden; text-overflow: ellipsis; min-width: 0; font-family: var(--font-sans); font-size: 12px; cursor: pointer; align-self: stretch; line-height: var(--row-height, 24px); }
+.word-row .atom-source  { overflow: hidden; text-overflow: ellipsis; min-width: 0; font-family: var(--font-sans); font-size: 12px; align-self: stretch; line-height: var(--row-height, 24px); }
+.word-row .atom-comment, .word-row .atom-source { display: none; }
 .word-row.entry-ignored { opacity: 0.4; }
 .word-row.entry-ignored .atom-count,
 .word-row.entry-ignored .atom-word,
 .word-row.entry-ignored .atom-len,
-.word-row.entry-ignored .atom-score { text-decoration: line-through; }
+.word-row.entry-ignored .atom-score,
+.word-row.entry-ignored .atom-comment,
+.word-row.entry-ignored .atom-source { text-decoration: line-through; }
+
+/* Comment + source columns appear when the card has room and no pair-output
+   tool is active. Source is meaningful only on the merged All view (single
+   wordlists' source is constant per row). */
+@media (min-width: 760px) {
+  body:not(.tools-multi-word) .word-row {
+    grid-template-columns: var(--count-w, 2ch) var(--word-w, 12ch) var(--len-w, 2ch) var(--score-w, 4ch) minmax(0, 1fr);
+  }
+  body:not(.tools-multi-word) .word-row .atom-comment { display: block; }
+  body.merged-view:not(.tools-multi-word) .word-row {
+    grid-template-columns: var(--count-w, 2ch) var(--word-w, 12ch) var(--len-w, 2ch) var(--score-w, 4ch) minmax(0, 1fr) minmax(0, 22ch);
+  }
+  body.merged-view:not(.tools-multi-word) .word-row .atom-source { display: block; }
+}
 
 /* Atom popover (click-driven; replaces the old hover #cell-popover and
    inline cell-edit). Universal editor: source line + score + comment + delete. */
@@ -3171,6 +3190,8 @@ const ToolStack = (() => {
       card.classList.toggle('active', active.has(card.dataset.tool));
     });
     document.body.classList.toggle('tools-empty', stack.length === 0);
+    const lastTool = stack.length > 0 ? TOOLS[stack[stack.length - 1].tool] : null;
+    document.body.classList.toggle('tools-multi-word', lastTool?.output === 'pair');
   }
 
   // Same DOM element, so class-based transitions (opacity, color, background)
@@ -3487,14 +3508,17 @@ class VirtualScroller {
     this._resizeObserver.observe(container);
 
     this.sizer.addEventListener('click', e => {
-      const target = e.target.closest('.atom-word, .atom-score');
+      const target = e.target.closest('.atom-word, .atom-score, .atom-comment');
       if (!target) return;
       const row = target.closest('.word-row');
       if (!row) return;
       const i = parseInt(row.dataset.idx, 10);
       const entry = this.entries[i];
       if (!entry) return;
-      AtomPopover.open(entry, row, this, target);
+      const field = target.classList.contains('atom-score') ? 'score'
+                  : target.classList.contains('atom-comment') ? 'comment'
+                  : null;
+      AtomPopover.open(entry, row, this, target, field);
     });
 
     this._buildToolbar();
@@ -3711,7 +3735,7 @@ class VirtualScroller {
       const { word, score } = entry;
       const displayed = displayWord(word);
       const wordHtml = this._highlight ? this._highlight(displayed) : displayed;
-      const { ignored, rescoredScore, wasRescored, ov, effectiveScore } = this._entryDisplayState(entry);
+      const { ignored, rescoredScore, wasRescored, ov, effectiveScore, effectiveComment } = this._entryDisplayState(entry);
       const scoreOv = ov && ov.score !== rescoredScore;
 
       const displayScore = ignored ? score : effectiveScore;
@@ -3720,6 +3744,11 @@ class VirtualScroller {
 
       const tierLabel = ignored ? '' : tierFor(displayScore);
       const scoreTitle = tierLabel ? ` title="${esc(tierLabel)}"` : '';
+
+      const commentText = ignored ? (entry.comment || '') : effectiveComment;
+      const sourceWl = ov?.wordlist || entry.wordlist;
+      const sourceHTML = sourceWl ? buildWordlistNameHTML(sourceWl, { bold: false }) : '';
+      const sourceTitle = sourceWl ? ` title="${esc(sourceWl.name)}"` : '';
 
       const row = document.createElement('div');
       let cls = 'word-row';
@@ -3734,7 +3763,9 @@ class VirtualScroller {
         `<span class="atom-count">${i + 1}.</span>` +
         `<span class="atom-word">${wordHtml}</span>` +
         `<span class="atom-len">${word.length}</span>` +
-        `<span class="atom-score"${scoreTitle}>${scoreInner}</span>`;
+        `<span class="atom-score"${scoreTitle}>${scoreInner}</span>` +
+        `<span class="atom-comment"${commentText ? ` title="${esc(commentText)}"` : ''}>${esc(commentText)}</span>` +
+        `<span class="atom-source"${sourceTitle}>${sourceHTML}</span>`;
       frag.appendChild(row);
     }
     this.sizer.appendChild(frag);
@@ -3794,7 +3825,7 @@ const AtomPopover = (() => {
     if (e.key === 'Escape') { e.preventDefault(); close(); }
   }
 
-  function open(entry, rowEl, scroller, anchorEl) {
+  function open(entry, rowEl, scroller, anchorEl, focusField = 'score') {
     const popover = ensureElement();
     if (activeRow) activeRow.classList.remove('active');
     activeEntry = entry;
@@ -3806,8 +3837,10 @@ const AtomPopover = (() => {
     popover.removeAttribute('hidden');
     position(anchorEl ?? rowEl);
     wireFields();
-    popover.querySelector('.score-input')?.focus();
-    popover.querySelector('.score-input')?.select();
+    const focusSel = focusField === 'comment' ? '.comment-input' : '.score-input';
+    const input = popover.querySelector(focusSel);
+    input?.focus();
+    if (focusField !== null) input?.select();
 
     document.addEventListener('mousedown', onDocMouseDown, true);
     document.addEventListener('keydown', onKeydown, true);
@@ -4201,6 +4234,7 @@ function setupRenderEffect() {
 
     if (sel !== _renderedSelection) {
       _renderedSelection = sel;
+      document.body.classList.toggle('merged-view', sel === MERGED_ID);
       renderSources();
       if (sel === MERGED_ID) renderMergedDetail();
       else renderDetail(sel);
@@ -4250,6 +4284,7 @@ function setupRenderEffect() {
       return;            // render effect's first run already painted everything
     }
     renderSources();
+    if (state.selected === MERGED_ID && scroller) scroller._render();
   });
 }
 
