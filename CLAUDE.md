@@ -8,6 +8,8 @@ All code lives in a single file: `site/index.html`. Don't bother searching for o
 
 `TODO.md` at the repo root is the user's personal scratchpad — never edit it. Reading it is fine but do not touch it.
 
+**Don't smoke-test by running `python -m http.server`.** It's a static HTML file with no build step or templating; serving it locally only verifies that the filesystem can read it, which is theatre. For real verification, syntax-check inline JS with `node ~/.claude/scripts/check-syntax.js site/index.html`, read the diff carefully, and say "I can't visually verify" when that's the truth — visual inspection requires the user's browser. A future Playwright suite is planned in [`docs/plans/ci-testing.md`](docs/plans/ci-testing.md).
+
 ## Before non-trivial work: read the relevant docs
 
 For any feature work, redesign, brainstorming, or structural change — **not** targeted bug fixes or small tweaks — open the docs that touch the area before proposing or implementing. Adjacent docs may share screen real estate or constrain the answer; treat the topical index below as a checklist, not a suggestion.
@@ -25,7 +27,7 @@ Plans (forward-looking, not yet shipped):
 - [`docs/plans/migration.md`](docs/plans/migration.md) — when to graduate from schema-version resets to layered migrations.
 - [`docs/plans/mobile.md`](docs/plans/mobile.md) — mobile/responsive design.
 - [`docs/plans/per-row-reactivity.md`](docs/plans/per-row-reactivity.md) — push hybrid reactivity to a per-row reactive scroller.
-- [`docs/plans/shell-shape.md`](docs/plans/shell-shape.md) — restructure the shell into a centered, page-scrollable card; picker + tools as headings on the stats bar, gallery becomes a popover. Mockup in `site/index.html` under `class="shape-a"`.
+- [`docs/plans/shell-shape.md`](docs/plans/shell-shape.md) — parked compact alternative shape (picker/tools as headings on the stats bar; tool gallery behind a popover). The shipped shape lives in `design.md` § The shell.
 - [`docs/plans/sync.md`](docs/plans/sync.md) — three-tier persistence (backup nag, disk file, cloud sync) for All + My Edits.
 - [`docs/plans/tools.md`](docs/plans/tools.md) — tool execution/catalog, chaining, pair/group output, OneLook/Datamuse/Umiaq. Gallery + stack are shipped (see `design.md`).
 

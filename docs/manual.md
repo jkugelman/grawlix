@@ -6,13 +6,19 @@ This is the user-facing manual. Eventually it'll be turned into an in-app manual
 
 ## The app shell
 
-**Header.** Title, settings, help.
+**Header.** Title, settings, help. Sticks at top while you scroll.
 
-**Left rail.** Two labelled sections:
-- **Wordlist** — the wordlist picker (dropdown), the wordlist settings button, and the sync indicator.
-- **Tools** — the tool gallery.
+**Centered card.** Below the header, the rest of the app sits in a centered card with side margins. The page itself scrolls — there's only one scrollbar.
 
-**Main pane.** Stats bar, scoring legend, search bar, and the word list. The list is always visible — idle and search views are the same view, just filtered.
+The card, top to bottom:
+- **Slim top row.** Wordlist picker, with the ⚙ button to its right that opens the Wordlists dialog.
+- **Tool gallery.** Cards laid out as a responsive grid.
+- **Scoring legend** (only on the merged `All` view).
+- **Sticky region** that anchors just below the header as you scroll into the word list:
+  - Stats bar with histogram (click the histogram to filter by score range).
+  - Tool stack — only when you've added tools.
+  - Search bar.
+- **Word list.** Always visible — idle and search views are the same view, just filtered.
 
 ## Choosing a wordlist
 
@@ -87,14 +93,6 @@ Action buttons differ per wordlist:
 **Rescoring rules** map a wordlist's input score range (and optional word-length filter) to an output score — or `ignore` to drop the entry. First matching rule wins; a catch-all is auto-appended. My Edits has no rescore rules; its scores pass through.
 
 **Onboarding banner.** First-run users see a short 3-page sequence in the Wordlists dialog's rail: a welcome confirming the pre-loaded popular wordlists, then optional prompts to import a personal wordlist into My Edits and to import an XWI subscriber file. Each prompt has a *Skip*; the ✕ ends the whole flow.
-
-## Sync & backup
-
-Opened from the sync indicator below the wordlist dropdown. Today this is a stub — the dialog opens with placeholder text. The indicator is hidden until there's a backup to report.
-
-Two paths to "give me a file":
-- Backing up **All** or **My Edits** → Sync & backup dialog.
-- Exporting an **individual wordlist** → that wordlist's Download button in the Wordlists dialog.
 
 ## Help
 

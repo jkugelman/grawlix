@@ -93,9 +93,11 @@ html.dark-mode ::-webkit-scrollbar-thumb { background: var(--border); border-rad
 html.light-mode ::-webkit-scrollbar { background: var(--bg); }
 html.light-mode ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
 
-body { font-family: var(--font-sans); font-size: 14px; background: var(--bg); color: var(--text); height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+body { font-family: var(--font-sans); font-size: 14px; background: var(--bg); color: var(--text); }
 
-header { background: var(--hdr-bg); color: white; padding: 10px 20px; display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; }
+/* Sticky brand header. Card chrome scrolls past it; only the search/stack
+   inside the card sticks below it (see .sticky-stack). */
+header { background: var(--hdr-bg); color: white; padding: 10px 20px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 100; }
 header h1 { font-size: 17px; font-weight: 600; letter-spacing: -0.01em; }
 .header-logo-link { color: inherit; text-decoration: none; }
 .header-center { flex: 1; display: flex; justify-content: center; align-items: center; gap: 7px; font-size: 14px; opacity: 0.75; }
@@ -106,10 +108,22 @@ header h1 { font-size: 17px; font-weight: 600; letter-spacing: -0.01em; }
 .bubble { display: inline-flex; align-items: center; background: white; color: var(--accent); border-radius: 8px; padding: 1px 7px 2px; font-size: 15px; font-weight: 800; position: relative; margin-left: 9px; line-height: 1.5; vertical-align: middle; }
 .bubble::before { content: ''; position: absolute; left: -15px; top: 50%; transform: translateY(-50%); border: 9px solid transparent; border-right-color: white; }
 
-main { display: flex; flex: 1; overflow: hidden; position: relative; }
+main { padding: 0 24px; }
 
-/* Busy overlay */
-#busy-overlay { position: absolute; inset: 0; z-index: 200; background: var(--bg); display: flex; align-items: center; justify-content: center; transition: opacity 0.2s; }
+/* Centered card. Page background shows through the side margins so the
+   bounded width feels intentional rather than under-filled. `overflow: clip`
+   (not `hidden`) keeps rounded corners while letting the in-card sticky
+   stack escape to the viewport — `overflow: hidden` would trap it. */
+#card { max-width: 1000px; margin: 24px auto 48px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; overflow: clip; }
+html.light-mode #card { box-shadow: 0 1px 3px rgba(0,0,0,0.06), 0 8px 24px rgba(0,0,0,0.05); }
+html.dark-mode #card  { box-shadow: 0 1px 3px rgba(0,0,0,0.25); }
+
+/* Slim top row: wordlist picker + settings gear. */
+#card-top-row { display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-bottom: 1px solid var(--border3); }
+#card-top-row .source-dropdown-row { flex: 1; min-width: 0; max-width: 360px; }
+
+/* Busy overlay covers the viewport regardless of card position. */
+#busy-overlay { position: fixed; inset: 0; z-index: 200; background: var(--bg); display: flex; align-items: center; justify-content: center; transition: opacity 0.2s; }
 #busy-overlay.done { opacity: 0; pointer-events: none; }
 .busy-spinner { width: 36px; height: 36px; border: 3px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: busy-spin 0.7s linear infinite; }
 @keyframes busy-spin { to { transform: rotate(360deg); } }
@@ -149,14 +163,22 @@ button.danger:hover:not(:disabled) { background: #e74c3c; border-color: #c0392b;
 .split-btn.open .split-btn-menu { display: block; }
 .split-btn-menu button { display: block; width: 100%; text-align: left; border: none; background: none; border-radius: 0; padding: 6px 13px; color: var(--text); }
 
-#detail-panel { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-width: 0; min-height: 0; }
+#detail-panel { display: flex; flex-direction: column; min-width: 0; }
 
 .no-selection { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; color: var(--faint); background: var(--bg); }
 .no-selection p { font-size: 15px; margin-bottom: 6px; }
 .no-selection small { font-size: 13px; }
 
 /* Stats bar */
-.stats-bar { background: var(--surface2); border-bottom: 1px solid var(--border2); padding: 10px 18px; display: flex; align-items: center; gap: 22px; flex-shrink: 0; }
+.stats-bar { background: var(--surface2); border-bottom: 1px solid var(--border2); padding: 10px 18px; display: flex; align-items: center; gap: 22px; }
+
+/* Stats bar + tool stack + search bar share a sticky region just below the
+   brand header. Variable tool-stack height resolves to one sticky element of
+   natural height. Internal borders drop because the surface2→surface bg
+   change between stats and tool-stack already reads as a visual break. */
+.sticky-stack { position: sticky; top: var(--sticky-top, 52px); z-index: 50; background: var(--surface); border-bottom: 1px solid var(--border2); }
+.sticky-stack .stats-bar,
+.sticky-stack .search-bar { border-bottom: none; }
 .stat { display: flex; flex-direction: column; gap: 2px; }
 .stat-label { font-size: 10px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
 .stat-value { font-size: 15px; font-weight: 700; line-height: 1; }
@@ -172,7 +194,7 @@ html.light-mode .histogram-rect { opacity: 0.22; }
 
 /* Search bar — styled as the bottom "filter" row of the tool stack, also hosts
    the sort control on the right edge (filter + view-config in one row). */
-.search-bar { padding: 8px 14px; background: var(--surface); border-bottom: 1px solid var(--border2); flex-shrink: 0; display: flex; align-items: center; gap: 12px; }
+.search-bar { padding: 8px 14px; background: var(--surface); border-bottom: 1px solid var(--border2); display: flex; align-items: center; gap: 12px; }
 .search-input-wrap { position: relative; display: flex; align-items: center; flex: 0 0 240px; }
 .search-input-wrap input[type="text"] { width: 100%; padding: 5px 24px 5px 8px; border: 1px solid var(--border); border-radius: 4px; font-size: 13px; font-family: var(--font-mono); background: var(--input-bg); color: var(--text); }
 .search-input-wrap input[type="text"]:focus { outline: none; border-color: var(--accent); }
@@ -206,8 +228,8 @@ html.dark-mode .search-match-4 { background: #14532d; color: #d1fae5; }
 /* Word list (the at-rest results display). Replaces the legacy table with a
    single-column list of word atoms; pseudo-column alignment via grid. The
    .word-table rules remain because the help modal still renders demo tables. */
-#word-list-panel { flex: 1; overflow: hidden; display: flex; flex-direction: column; background: var(--surface); }
-#vs-host { flex: 1; min-height: 0; overflow-y: auto; position: relative; }
+#word-list-panel { background: var(--surface); }
+#vs-host { position: relative; }
 .word-list-rows { position: relative; }
 .word-row {
   position: absolute; left: 0; right: 0;
@@ -471,11 +493,6 @@ a.get-file:hover { text-decoration: underline; }
 
 /* ── Rescore section ──────────────────────────────────────────────────────── */
 .rescore-section { background: var(--surface2); border-bottom: 1px solid var(--border2); padding: 9px 18px; flex-shrink: 0; max-height: 240px; overflow-y: auto; }
-/* Visual breathing room above the tool/search row group, painted in their own
-   surface color so it reads as top-padding on that section. Whichever element
-   sits directly below the scoring legend gets the extra space. */
-#scoring-legend + #tool-stack { padding-top: 12px; }
-#scoring-legend + .search-bar { padding-top: 20px; }
 .rescore-top { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
 .rescore-lbl { font-size: 10px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
 .rule-row { display: flex; align-items: center; gap: 5px; margin-bottom: 3px; }
@@ -528,16 +545,7 @@ a.get-file:hover { text-decoration: underline; }
 .header-github-link { display: inline-flex; vertical-align: middle; margin-left: 4px; opacity: 0.75; color: white; text-decoration: none; border-bottom: none; }
 .header-github-link:hover { opacity: 1; }
 
-/* Left-rail section headers */
-.rail-section-header { padding: 10px 14px 6px; font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; flex-shrink: 0; }
-.rail-section-header + * { margin-top: 0; }
-.rail-nav + .rail-section-header,
-.gallery-body + .rail-section-header { margin-top: 14px; }
-
-/* Left-rail nav block (source dropdown + sync indicator) */
-.rail-nav { display: flex; flex-direction: column; gap: 6px; padding: 4px 10px 8px; flex-shrink: 0; }
-
-/* Source dropdown trigger (left rail) */
+/* Source dropdown trigger (slim top row of the card) */
 .source-dropdown-row { display: flex; align-items: stretch; gap: 6px; }
 .source-dropdown-btn { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; padding: 7px 10px 7px 8px; background: var(--surface2); color: var(--text); border: 1px solid var(--border); border-radius: 6px; font-family: inherit; font-size: 13px; font-weight: 600; cursor: pointer; line-height: 1; text-align: left; }
 .source-dropdown-btn:hover { background: var(--hover); border-color: var(--accent); }
@@ -560,24 +568,18 @@ a.get-file:hover { text-decoration: underline; }
 #source-dropdown-menu .dropdown-item .wordlist-icon { width: 16px; height: 16px; flex-shrink: 0; }
 #source-dropdown-menu .dropdown-divider { height: 1px; background: var(--border2); margin: 6px 0; }
 
-/* Sync indicator (left rail) */
-.sync-indicator-btn { display: flex; align-items: center; gap: 7px; width: 100%; padding: 6px 10px; background: var(--surface2); color: var(--text); border: 1px solid var(--border); border-radius: 6px; font-family: inherit; font-size: 12px; font-weight: 500; cursor: pointer; line-height: 1; text-align: left; }
-.sync-indicator-btn:hover { background: var(--hover); border-color: var(--accent); }
-.sync-indicator-btn.sync-warn  { color: var(--warn-fg); border-color: color-mix(in srgb, var(--warn-fg) 45%, var(--border)); }
-.sync-indicator-btn.sync-stale { color: var(--err-fg);  border-color: color-mix(in srgb, var(--err-fg)  55%, var(--border)); }
-.sync-indicator-icon { font-size: 14px; line-height: 1; }
-.sync-indicator-label { white-space: nowrap; }
-
-/* Tool gallery (left rail) */
-#tool-gallery { width: 280px; background: var(--surface); border-right: 1px solid var(--border); display: flex; flex-direction: column; overflow: hidden; flex-shrink: 0; }
-.gallery-header { padding: 4px 10px 8px; flex-shrink: 0; }
-.gallery-search-wrap { position: relative; display: flex; align-items: center; }
+/* Tool gallery — top section of the card, cards laid out as a responsive grid. */
+#tool-gallery { padding: 14px 16px 18px; border-bottom: 1px solid var(--border3); }
+.gallery-header { display: flex; align-items: center; gap: 14px; margin-bottom: 12px; }
+.gallery-title { font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; flex-shrink: 0; }
+.gallery-search-wrap { position: relative; display: flex; align-items: center; flex: 0 0 220px; margin-left: auto; }
 .gallery-search-wrap > svg { position: absolute; left: 8px; pointer-events: none; color: var(--muted); }
 .gallery-search-wrap input { width: 100%; padding: 5px 8px 5px 26px; border: 1px solid var(--border); border-radius: 4px; background: var(--input-bg); color: var(--text); font-size: 12px; font-family: inherit; }
 .gallery-search-wrap input:disabled { cursor: not-allowed; }
-.gallery-body { flex: 1; overflow-y: auto; padding: 10px 10px 16px; display: flex; flex-direction: column; gap: 10px; }
-.gallery-section-label { font-size: 10px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; padding: 0 4px; }
-.gallery-empty { border: 1px dashed var(--border); border-radius: 6px; padding: 18px 14px; text-align: center; color: var(--muted); }
+.gallery-body { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 10px; }
+.gallery-section-label { grid-column: 1 / -1; font-size: 10px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; padding: 0 2px; margin-top: 4px; }
+.gallery-section-label:first-child { margin-top: 0; }
+.gallery-empty { grid-column: 1 / -1; border: 1px dashed var(--border); border-radius: 6px; padding: 18px 14px; text-align: center; color: var(--muted); }
 .gallery-empty p { font-size: 13px; font-weight: 600; color: var(--text); margin-bottom: 4px; }
 .gallery-empty small { font-size: 11px; line-height: 1.5; display: block; }
 
@@ -600,7 +602,7 @@ a.get-file:hover { text-decoration: underline; }
 body.tools-empty .gallery-card { padding-right: 12px; }
 body.tools-empty .gallery-card-add { display: none; }
 
-#tool-stack { background: var(--surface); flex-shrink: 0; overflow: hidden; }
+#tool-stack { background: var(--surface); overflow: hidden; }
 .tool-row { display: grid; grid-template-columns: 1fr 32px; align-items: center; padding: 8px 14px; border-bottom: 1px solid var(--border2); gap: 10px; overflow: hidden; transition: opacity 0.2s ease, background 0.15s ease; }
 .tool-row:last-child { border-bottom: none; }
 .tool-row.ghost { position: relative; pointer-events: none; background: color-mix(in srgb, var(--accent) 7%, transparent); opacity: 0.85; }
@@ -665,13 +667,6 @@ html.dark-mode .wld-onboarding { background: color-mix(in srgb, var(--accent) 15
 .wld-onboarding-dots span.active { background: var(--accent); }
 .wld-onboarding-dots span.skipped { background: transparent; outline: 1px solid color-mix(in srgb, var(--accent) 30%, transparent); }
 .wld-onboarding-dots span.skipped::before { content: ''; position: absolute; top: 50%; left: -2px; right: -2px; height: 1px; background: color-mix(in srgb, var(--accent) 55%, transparent); transform: translateY(-50%) rotate(-45deg); }
-
-/* Sync & backup dialog stub */
-#sync-backup-dialog { width: 560px; }
-.dialog-stub-msg { background: var(--surface2); border: 1px dashed var(--border); border-radius: 6px; padding: 16px; font-size: 13px; color: var(--muted); line-height: 1.55; }
-.dialog-stub-msg p { margin-bottom: 8px; }
-.dialog-stub-msg p:last-child { margin-bottom: 0; }
-.dialog-stub-msg code { font-family: var(--font-mono); font-size: 12px; background: var(--surface); padding: 1px 5px; border-radius: 3px; color: var(--text); }
 
 /* Segmented control */
 .seg-ctrl { display: flex; border: 1px solid var(--border); border-radius: 4px; overflow: hidden; }
@@ -857,9 +852,8 @@ input.cell-edit.score-edit { font-family: var(--font-mono); width: 60px; }
 
 <main>
   <div id="busy-overlay"><div class="busy-spinner"></div></div>
-  <aside id="tool-gallery" aria-label="Tool gallery">
-    <h2 class="rail-section-header">Wordlist</h2>
-    <div class="rail-nav">
+  <div id="card">
+    <div id="card-top-row">
       <div class="source-dropdown-row">
         <button id="source-dropdown-btn" class="source-dropdown-btn" aria-haspopup="listbox" aria-controls="source-dropdown-menu" aria-expanded="false" title="Wordlist (Alt+L)">
           <span class="source-dropdown-icon"></span>
@@ -870,22 +864,20 @@ input.cell-edit.score-edit { font-family: var(--font-mono); width: 60px; }
           <svg width="18" height="18" aria-hidden="true"><use href="#icon-adjustments"/></svg>
         </button>
       </div>
-      <button id="sync-indicator-btn" class="sync-indicator-btn" aria-label="Sync &amp; backup" hidden>
-        <span class="sync-indicator-icon" aria-hidden="true">⏱</span>
-        <span class="sync-indicator-label"></span>
-      </button>
     </div>
-    <h2 class="rail-section-header">Tools</h2>
-    <div class="gallery-header">
-      <div class="gallery-search-wrap">
-        <svg width="13" height="13" aria-hidden="true"><use href="#icon-search"/></svg>
-        <input id="gallery-search" type="text" placeholder="Search tools…" title="Search tools (Alt+T)" disabled>
+    <section id="tool-gallery" aria-label="Tool gallery">
+      <div class="gallery-header">
+        <h2 class="gallery-title">Tools</h2>
+        <div class="gallery-search-wrap">
+          <svg width="13" height="13" aria-hidden="true"><use href="#icon-search"/></svg>
+          <input id="gallery-search" type="text" placeholder="Search tools…" title="Search tools (Alt+T)" disabled>
+        </div>
       </div>
-    </div>
-    <div class="gallery-body"></div>
-  </aside>
+      <div class="gallery-body"></div>
+    </section>
 
-  <div id="detail-panel"></div>
+    <div id="detail-panel"></div>
+  </div>
 </main>
 
 <script>
@@ -1416,8 +1408,7 @@ function buildScoreRangeBadgeHTML(rule) {
 }
 
 function buildWordListPanelHTML() {
-  return `${buildSearchBarHTML()}
-    <div id="word-list-panel">
+  return `<div id="word-list-panel">
       <div id="vs-host"></div>
       <div id="add-row-footer">${ADD_WORD_TRIGGER_HTML}</div>
     </div>`;
@@ -2358,25 +2349,6 @@ const WordlistsDialog = (() => {
   };
 })();
 
-// ─── Sync & backup dialog (stub) ──────────────────────────────────────────────
-
-const SyncBackupDialog = (() => {
-  const { el, body } = createDialog('sync-backup-dialog', { labelledby: 'sync-backup-title' });
-  body.innerHTML = `
-    <button class="dialog-close-btn" aria-label="Close">✕</button>
-    <h2 id="sync-backup-title">Sync &amp; backup</h2>
-    <div class="dialog-stub-msg">
-      <p><strong>Stub.</strong> Three-tier persistence (see <code>docs/plans/sync.md</code>) lands here.</p>
-      <p>Tier 1: prominent <em>Download All</em> and <em>Download My Edits</em> buttons. Tier 2: disk-sync section gated on PWA install. Tier 3: per-cloud-provider connect/disconnect. Recent activity log at the bottom.</p>
-      <p>Clicking a Tier 1 download bumps the "Last backup" timestamp shown in the header indicator.</p>
-    </div>
-    <div class="dialog-footer">
-      <button class="dialog-cancel-btn">Close</button>
-    </div>`;
-  function open() { showDialog(el); }
-  return { open };
-})();
-
 // ─── Source dropdown (header) ─────────────────────────────────────────────────
 
 const SourceDropdown = (() => {
@@ -2619,36 +2591,6 @@ const SourceDropdown = (() => {
 document.getElementById('wordlist-settings-btn').addEventListener('click', () => {
   WordlistsDialog.open();
 });
-
-// ─── Sync indicator (left rail) ──────────────────────────────────────────────
-
-const SyncIndicator = (() => {
-  const btn = document.getElementById('sync-indicator-btn');
-  const iconSlot  = btn.querySelector('.sync-indicator-icon');
-  const labelSlot = btn.querySelector('.sync-indicator-label');
-
-  function render() {
-    const ts = parseInt(lsLoad('lastBackup'), 10);
-    btn.classList.remove('sync-warn', 'sync-stale');
-    if (!ts || isNaN(ts)) {
-      btn.hidden = true;
-      return;
-    }
-    btn.hidden = false;
-    const ageDays = Math.floor((Date.now() - ts) / 86_400_000);
-    const stale   = ageDays >= 14;
-    const warn    = !stale && ageDays >= 7;
-    iconSlot.textContent = stale ? '⚠' : (warn ? '⏱' : '✓');
-    labelSlot.textContent = `Last backup ${timeAgo(ts)}`;
-    if (stale) btn.classList.add('sync-stale');
-    else if (warn) btn.classList.add('sync-warn');
-    btn.title = `Last backup: ${new Date(ts).toLocaleString()}`;
-  }
-
-  btn.addEventListener('click', () => SyncBackupDialog.open());
-
-  return { render };
-})();
 
 // ─── Init ─────────────────────────────────────────────────────────────────────
 
@@ -3200,10 +3142,12 @@ const ToolStack = (() => {
     if (!p) return null;
     e = document.createElement('div');
     e.id = 'tool-stack';
+    // Inserts into the .sticky-stack ahead of the search bar when present;
+    // falls back to the word-list panel's parent on the empty-panel path.
     const searchBar = p.querySelector('.search-bar');
     const wordListPanel = p.querySelector('#word-list-panel');
     const anchor = searchBar || wordListPanel;
-    if (anchor) p.insertBefore(e, anchor);
+    if (anchor) anchor.parentNode.insertBefore(e, anchor);
     else p.appendChild(e);
     return e;
   }
@@ -3575,19 +3519,23 @@ class VirtualScroller {
     this.onFilterChange = null;
     this._sortScores = null;
 
-    container.style.overflowY = 'auto';
-    container.style.position = 'relative';
-
     this.sizer = document.createElement('div');
     this.sizer.className = 'word-list-rows';
     container.innerHTML = '';
     container.appendChild(this.sizer);
 
-    container.addEventListener('scroll', () => {
+    // Window-driven: the page scroll is the only scroll container. The host
+    // sizer has its natural full height (entries × ROW_HEIGHT) and we slice
+    // a window of rows out of it based on getBoundingClientRect().
+    this._onWinScroll = () => {
       this._render();
       AtomPopover.close();
-    }, { passive: true });
-    new ResizeObserver(() => this._render()).observe(container);
+    };
+    this._onWinResize = () => this._render();
+    window.addEventListener('scroll', this._onWinScroll, { passive: true });
+    window.addEventListener('resize', this._onWinResize);
+    this._resizeObserver = new ResizeObserver(() => this._render());
+    this._resizeObserver.observe(container);
 
     this.sizer.addEventListener('click', e => {
       const target = e.target.closest('.atom-word, .atom-score');
@@ -3619,14 +3567,14 @@ class VirtualScroller {
     AtomPopover.close();
     this.allEntries = allEntries;
     this._sortScores = null;
-    this._applyFilterAndSort(false);
+    this._applyFilterAndSort();
   }
 
   setRescore(rules) {
     AtomPopover.close();
     this.rescoreRules = rules || [];
     this._sortScores = null;
-    this._applyFilterAndSort(false);
+    this._applyFilterAndSort();
   }
 
   filter(query, wholeWord = false, scoreRange = '') {
@@ -3653,17 +3601,17 @@ class VirtualScroller {
         this.sortKey = key;
         this.sortDir = (key === 'score') ? 'desc' : 'asc';
         this._buildToolbar();
-        this._applyFilterAndSort(false);
+        this._applyFilterAndSort();
       }
     });
     this.toolbar.querySelector('.sort-dir-btn').addEventListener('click', () => {
       this.sortDir = this.sortDir === 'asc' ? 'desc' : 'asc';
       this._buildToolbar();
-      this._applyFilterAndSort(false);
+      this._applyFilterAndSort();
     });
   }
 
-  _applyFilterAndSort(resetScroll = true) {
+  _applyFilterAndSort() {
     const q = this._lastQuery.toLowerCase();
     let entries;
     if (!q) {
@@ -3707,7 +3655,6 @@ class VirtualScroller {
 
     this.entries = entries;
     this._computeSlotWidths();
-    if (resetScroll) this.container.scrollTop = 0;
     this._render();
     this.onFilterChange?.();
   }
@@ -3791,13 +3738,19 @@ class VirtualScroller {
 
   _render() {
     const n = this.entries.length;
-    const scrollTop = this.container.scrollTop;
-    const viewH = this.container.clientHeight;
-
-    const start = Math.max(0, Math.floor(scrollTop / ROW_HEIGHT) - VS_BUFFER);
-    const end   = Math.min(n, Math.ceil((scrollTop + viewH) / ROW_HEIGHT) + VS_BUFFER);
-
     this.sizer.style.height = (n * ROW_HEIGHT) + 'px';
+
+    // Visible slice in container coords. rect.top is the host's offset from
+    // the viewport top — negative when the user has scrolled past the host's
+    // start, positive when the host is still below the fold.
+    const rect = this.container.getBoundingClientRect();
+    const viewH = window.innerHeight;
+    const visTop = Math.max(0, -rect.top);
+    const visBottom = Math.max(0, Math.min(rect.height, viewH - rect.top));
+
+    const start = Math.max(0, Math.floor(visTop / ROW_HEIGHT) - VS_BUFFER);
+    const end   = Math.min(n, Math.ceil(visBottom / ROW_HEIGHT) + VS_BUFFER);
+
     while (this.sizer.firstChild) this.sizer.removeChild(this.sizer.firstChild);
 
     const activeWord = AtomPopover.activeWord(this);
@@ -3833,6 +3786,12 @@ class VirtualScroller {
     }
     this.sizer.appendChild(frag);
     if (nextActiveRow) AtomPopover.rebindRow(nextActiveRow);
+  }
+
+  destroy() {
+    window.removeEventListener('scroll', this._onWinScroll);
+    window.removeEventListener('resize', this._onWinResize);
+    this._resizeObserver.disconnect();
   }
 }
 
@@ -4290,7 +4249,6 @@ function setupRenderEffect() {
     if (sel !== _renderedSelection) {
       _renderedSelection = sel;
       renderSources();
-      SyncIndicator?.render();
       if (sel === MERGED_ID) renderMergedDetail();
       else renderDetail(sel);
       return;
@@ -4385,6 +4343,7 @@ function refreshSourceCounts() {
 
 function createScroller() {
   AtomPopover.close();
+  scroller?.destroy();
   scroller = new VirtualScroller(document.getElementById('vs-host'));
   return scroller;
 }
@@ -4408,9 +4367,12 @@ function refreshMergedScroller() {
 
 function mountDetailPanel(panel, stats, entries, middleHTML = '') {
   panel.innerHTML = `
-    ${buildStatsBarHTML(stats, entries, getHistogramLayout())}
     ${middleHTML}
-    ${ToolStack.buildHTML()}
+    <div class="sticky-stack">
+      ${buildStatsBarHTML(stats, entries, getHistogramLayout())}
+      ${ToolStack.buildHTML()}
+      ${buildSearchBarHTML()}
+    </div>
     ${buildWordListPanelHTML()}
   `;
   ToolStack.refreshGalleryActive();
@@ -6927,6 +6889,17 @@ document.addEventListener('click', () => document.querySelectorAll('.split-btn.o
 // Hide the busy overlay immediately if no wordlists have data.
 { let _m; try { _m = JSON.parse(lsLoad('meta') || '[]'); } catch { _m = []; }
   if (!_m.some(l => l.lastUpdated)) document.getElementById('busy-overlay').remove(); }
+
+// --sticky-top tracks the brand header's height so the in-card sticky
+// stack (search + tool rows) anchors directly under it. ResizeObserver
+// keeps it accurate across viewport-width changes that wrap header text.
+{
+  const header = document.querySelector('header');
+  const setStickyTop = () => document.documentElement.style.setProperty('--sticky-top', header.offsetHeight + 'px');
+  setStickyTop();
+  new ResizeObserver(setStickyTop).observe(header);
+}
+
 init();
 </script>
 </body>

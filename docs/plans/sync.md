@@ -103,7 +103,7 @@ Keep it short. The user asking "what does installing do?" is on the fence — a 
 
 ## UI surfaces
 
-Sync lives in a dedicated **Sync & backup dialog**, opened by clicking the sync indicator in the left rail — a small status dot (green / spinner / red on error) paired with a "Last backup: Nd ago" nag that turns warning-colored when the gap exceeds the threshold. The dialog contains:
+Sync lives in a dedicated **Sync & backup dialog**, opened by clicking a sync indicator — a small status dot (green / spinner / red on error) paired with a "Last backup: Nd ago" nag that turns warning-colored when the gap exceeds the threshold. The indicator's placement in the shell is TBD when sync ships; the previous left-rail slot is gone (see [`../design.md` § The shell](../design.md#the-shell)) and a new home will be picked alongside the rest of the sync UI. The dialog contains:
 
 - Status of each tier (last backup, file linked, cloud connected) at a glance.
 - Manual backup buttons for `All` (the merged wordlist) and My Edits — the Tier 1 entry point. Clicking either bumps "Last backup" forward.

@@ -19,13 +19,17 @@ Mobile is a third mode — theme research on the go (subway, Discord) — and ge
 
 ## The shell
 
-**Header** is brand chrome only. No per-wordlist navigation, sync state, or wordlist picker; the rail handles those.
+**Centered card on a page-scrollable canvas.** The brand header is full-bleed and sticks at top; everything below sits in a max-width (~1000px) card with side margins so the page-background gutters read as intentional. The page itself scrolls — there's no fixed-height app shell. As the user scrolls into the word list, a sticky region (stats bar → tool stack → search bar) anchors just below the brand header. Driven by one window scrollbar.
 
-**Left rail** has two *labelled* sections — **Wordlist** at the top (the picker + sync indicator, the two doors into setup) and **Tools** below (owned by [`plans/tools.md`](plans/tools.md)). Labels because the two sections answer unrelated questions ("what am I looking at" vs. "what can I do with it"); a divider alone would suggest they're variants of the same thing. Not collapsible.
+The shape replaced an earlier full-bleed, fixed-left-rail layout that left a developer-tool-shaped expanse of empty horizontal space to the right of the (intentionally narrow, single-column atom) word list. Bounded width plus centered column makes that empty space *intentional* — the side margins read as "this is a content page" rather than "the app didn't fill the window." The new shape also converges desktop and mobile onto one DOM, one design, two widths (see [`plans/mobile.md`](plans/mobile.md)). A compact alternative shape — picker and tools popover trigger live as headings on a slimmed stats bar, gallery hides behind the heading — was worked out and parked; see [`plans/shell-shape.md`](plans/shell-shape.md). Revisit if the current shape doesn't pull its weight.
+
+**Header is brand chrome only.** No per-wordlist navigation, sync state, or wordlist picker. Migrating any controls into the header was raised explicitly during the design conversation and rejected — the header stays a fixture.
+
+**Slim top row** at the top of the card holds the wordlist picker and the wordlist-settings (⚙) button. No section labels — the row's role is self-evident.
+
+**Tool gallery** sits as a top section of the card, below the slim picker row. Cards lay out as a responsive grid (~180px min). Discoverability is preserved — the gallery is always visible on entry — at the cost of being scrolled past every session. Tool catalog and chaining are owned by [`plans/tools.md`](plans/tools.md).
 
 **Wordlist dropdown** is a *pure picker*. Each entry is icon + name only — no entry counts. No drag handles, enable toggles, or add-wordlist affordance; those live one click deeper in the Wordlists dialog. The dialog is opened by the icon-only **wordlist settings** button to the right of the dropdown — pulled out of the dropdown's footer so the manage entry point is always visible without expanding the picker.
-
-**Sync indicator** is hidden until there's a backup to report. Today that's always — Sync & backup is a stub (see [`plans/sync.md`](plans/sync.md) for the design that will eventually populate it).
 
 **Stats bar always renders, even for empty wordlists** — zero entries, dashes for min/max/etc., flat histogram baseline. Uniformity over an "empty placeholder" treatment.
 
@@ -35,7 +39,15 @@ Mobile is a third mode — theme research on the go (subway, Discord) — and ge
 
 **Default landing on `All`.** Including first run. The four publisher wordlists fetch automatically in the background, so the app has data to query right away and a new user can start doing wordlist tricks immediately without thinking about wordlist management.
 
-Between the scoring legend and the search bar sits the **tool stack** when populated — see *Tool gallery & stack* below. The stack is hidden when empty so pre-tool-use Grawlix looks unchanged.
+**Sticky region: stats bar → tool stack (when populated) → search bar.** Stats joins the sticky region because the histogram is a clickable filter affordance — keeping it reachable while scrolling the word list is worth the extra row of sticky chrome. The scoring legend, when present, sits *above* the sticky region; putting it inside pushes the search bar lower in the viewport without earning the real estate. The tool stack is hidden when empty so pre-tool-use Grawlix looks unchanged — see *Tool gallery & stack* below.
+
+**No persistent rail, no collapsible side panel.** The previous left rail held the wordlist picker, sync indicator, and tool gallery. Its content dispersed: picker to the slim top row, tool gallery to a top section of the card, sync indicator deleted (it'll be reintroduced when sync ships — see [`plans/sync.md`](plans/sync.md)). A "collapsible side panel" interim was considered and rejected as a rail comeback in disguise.
+
+**Mechanics worth knowing:**
+
+- The card uses `overflow: clip`, not `overflow: hidden`. The latter establishes a scrolling block container that breaks `position: sticky` for descendants, trapping the sticky region inside the card. `overflow: clip` rounds the corners without that side effect.
+- `--sticky-top` is a CSS custom property holding the brand header's `offsetHeight`; the sticky region's `top` reads from it. A `ResizeObserver` on the header keeps the value accurate across viewport-width changes that wrap header text.
+- The virtual scroller is **window-scroll-aware**: it listens to `window.scroll`/`resize`, computes its visible slice from the host's `getBoundingClientRect()`, and slices a window of rows out of a full-height sizer (`entries × ROW_HEIGHT`). One scrollbar (the page's) drives everything; the previous two-scrollbar arrangement (page + inner host) was rejected explicitly.
 
 ## Wordlists & setup
 
@@ -77,7 +89,7 @@ Today this is a stub. Full design lives in [`plans/sync.md`](plans/sync.md): pro
 
 ## Tool gallery & stack
 
-Tools live in two places: a persistent gallery in the left rail's **Tools** section, and a **tool stack** in the main pane between the scoring legend and the search bar. The gallery is browseable; the stack is the user's current pipeline. Today the chrome is shipped — gallery cards click and chain, the stack renders rows with parameter inputs, hover previews and animations work — but tools don't yet transform anything. The full tool list and chaining policies are still planned in [`plans/tools.md`](plans/tools.md). The word-list display where tool output will eventually render shipped already (see § Word list).
+Tools live in two places: a persistent **gallery** as a top section of the card, and a **tool stack** inside the sticky region just below the brand header. The gallery is browseable; the stack is the user's current pipeline. Today the chrome is shipped — gallery cards click and chain, the stack renders rows with parameter inputs, hover previews and animations work — but tools don't yet transform anything. The full tool list and chaining policies are still planned in [`plans/tools.md`](plans/tools.md). The word-list display where tool output will eventually render shipped already (see § Word list).
 
 **Single catalog drives every surface.** Each tool is one record in `TOOLS` (`name`, `icon`, `category`, `desc`, `example`, `params`, `output`); section ordering for the gallery comes from a parallel `TOOL_CATEGORIES` list. Gallery cards, stack-row labels, and the search bar's `Search` label all render the inline icon-and-name pair through the shared `buildToolLabelHTML` helper. Adding a tool means adding one entry — every surface that names tools picks it up — and the helper guarantees the icon-and-name pair looks identical wherever it appears.
 
