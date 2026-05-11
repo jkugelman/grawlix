@@ -92,19 +92,16 @@ html.light-mode {
 
 body { font-family: var(--font-sans); font-size: 14px; background: var(--bg); color: var(--text); }
 
-/* Sticky brand header — single row: wordmark on the left, top-level nav
-   (Workshop / Library) in the center, utility icons on the right. The
-   personal-text subtitle (see .header-subtitle below) sits immediately
-   beneath the header and scrolls away with the page; only the brand row
-   stays pinned. */
-header { background: var(--hdr-bg); color: white; padding: 6px 20px; display: flex; align-items: center; justify-content: space-between; gap: 24px; min-height: 44px; position: sticky; top: 0; z-index: 100; }
+/* Sticky brand header. Two stacked rows: row 1 has the wordmark on the left,
+   top-level nav (Workshop / Library) in the center, and utility icons on the
+   right; row 2 is the personal-text subtitle strip on a darkened-purple band
+   spanning full width below. Card chrome scrolls past it; only the
+   search/stack inside the card sticks below it (see .sticky-stack). */
+header { background: var(--hdr-bg); color: white; padding: 6px 20px 0; display: flex; flex-direction: column; position: sticky; top: 0; z-index: 100; }
+.header-row-main { display: flex; align-items: center; justify-content: space-between; gap: 24px; min-height: 44px; }
 header h1 { font-size: 19px; font-weight: 600; letter-spacing: -0.01em; line-height: 1.1; flex-shrink: 1; min-width: 0; }
 .header-logo-link { color: inherit; text-decoration: none; }
-
-/* Non-sticky subtitle band below the header. Carries the project's personal
-   text (tagline, byline, contact, GitHub) on a darkened-purple band that
-   continues the header's color identity but scrolls with the page. */
-.header-subtitle { background: color-mix(in srgb, var(--hdr-bg) 75%, black); color: rgba(255, 255, 255, 0.85); font-size: 12px; display: flex; align-items: center; justify-content: center; gap: 7px; line-height: 1.2; flex-wrap: wrap; padding: 7px 20px; }
+.header-subtitle { background: color-mix(in srgb, var(--hdr-bg) 75%, black); color: rgba(255, 255, 255, 0.85); font-size: 12px; display: flex; align-items: center; justify-content: center; gap: 7px; line-height: 1.2; flex-wrap: wrap; padding: 7px 20px; margin: 6px -20px 0; }
 .header-tagline { font-style: italic; }
 .header-sep { opacity: 0.5; }
 .header-feedback a { color: white; text-decoration: none; border-bottom: 1px solid rgba(255,255,255,0.35); transition: opacity 0.15s; }
@@ -929,31 +926,33 @@ input.cell-edit.score-edit { font-family: var(--font-mono); width: 60px; }
 </svg>
 
 <header>
-  <h1><a class="header-logo-link">Grawlix <span class="bubble">!@#$</span></a></h1>
-  <nav class="header-nav" aria-label="Sections">
-    <button type="button" class="header-nav-item active" title="Workshop (inert mockup)" aria-current="page">
-      <svg width="18" height="18" aria-hidden="true"><use href="#icon-wrench"/></svg>
-      Workshop
-    </button>
-    <button type="button" class="header-nav-item" title="Library (inert mockup)">
-      <svg width="18" height="18" aria-hidden="true"><use href="#icon-book-open"/></svg>
-      Library
-    </button>
-  </nav>
-  <div class="header-utility">
-    <button id="btn-settings" class="header-icon-btn" aria-label="Settings" title="Settings"><svg width="24" height="24" aria-hidden="true"><use href="#icon-settings"/></svg></button>
-    <button id="btn-help" class="header-icon-btn" aria-label="Help" title="Help"><span class="help-circle">?</span></button>
+  <div class="header-row-main">
+    <h1><a class="header-logo-link">Grawlix <span class="bubble">!@#$</span></a></h1>
+    <nav class="header-nav" aria-label="Sections">
+      <button type="button" class="header-nav-item active" title="Workshop (inert mockup)" aria-current="page">
+        <svg width="18" height="18" aria-hidden="true"><use href="#icon-wrench"/></svg>
+        Workshop
+      </button>
+      <button type="button" class="header-nav-item" title="Library (inert mockup)">
+        <svg width="18" height="18" aria-hidden="true"><use href="#icon-book-open"/></svg>
+        Library
+      </button>
+    </nav>
+    <div class="header-utility">
+      <button id="btn-settings" class="header-icon-btn" aria-label="Settings" title="Settings"><svg width="24" height="24" aria-hidden="true"><use href="#icon-settings"/></svg></button>
+      <button id="btn-help" class="header-icon-btn" aria-label="Help" title="Help"><span class="help-circle">?</span></button>
+    </div>
+  </div>
+  <div class="header-subtitle">
+    <span class="header-tagline">Use your words!</span>
+    <span class="header-sep">&middot;</span>
+    <span class="header-byline">Made with ♥ by John Kugelman</span>
+    <span class="header-sep">&middot;</span>
+    <span class="header-feedback">Got feedback? <a href="mailto:john@kugelman.name?subject=Grawlix">Email me</a></span>
+    <span class="header-sep">&middot;</span>
+    <a href="https://github.com/jkugelman/grawlix" target="_blank" rel="noopener" title="View on GitHub" class="header-github-link"><svg width="15" height="15" aria-label="GitHub" role="img"><use href="#icon-github"/></svg></a>
   </div>
 </header>
-<div class="header-subtitle">
-  <span class="header-tagline">Use your words!</span>
-  <span class="header-sep">&middot;</span>
-  <span class="header-byline">Made with ♥ by John Kugelman</span>
-  <span class="header-sep">&middot;</span>
-  <span class="header-feedback">Got feedback? <a href="mailto:john@kugelman.name?subject=Grawlix">Email me</a></span>
-  <span class="header-sep">&middot;</span>
-  <a href="https://github.com/jkugelman/grawlix" target="_blank" rel="noopener" title="View on GitHub" class="header-github-link"><svg width="15" height="15" aria-label="GitHub" role="img"><use href="#icon-github"/></svg></a>
-</div>
 
 <main>
   <div id="busy-overlay"><div class="busy-spinner"></div></div>
