@@ -23,7 +23,7 @@ Mobile is a third mode — theme research on the go (subway, Discord) — and ge
 
 The shape replaced an earlier full-bleed, fixed-left-rail layout that left a developer-tool-shaped expanse of empty horizontal space to the right of the (intentionally narrow, single-column atom) entries table. Bounded width plus centered column makes that empty space *intentional* — the side margins read as "this is a content page" rather than "the app didn't fill the window." The new shape also converges desktop and mobile onto one DOM, one design, two widths (see [`plans/mobile.md`](plans/mobile.md)).
 
-**Header is brand chrome only.** No per-wordlist navigation, sync state, or wordlist picker. Migrating any controls into the header was raised explicitly during the design conversation and rejected — the header stays a fixture.
+**Header is brand chrome plus top-level navigation.** Wordmark on the left, Workshop / Library nav in the center, settings/help on the right. A non-sticky personal-text subtitle on a darkened-purple band sits immediately below the header and scrolls with the page. Per-wordlist state, sync indicators, and wordlist pickers stay out — those would tie the header to ephemeral state. Top-level navigation is structural, not transient, which is why it earns header real estate. See [`plans/library-workshop.md`](plans/library-workshop.md) for the design; the nav buttons ship inert and become live as follow-up work.
 
 **Slim top row** at the top of the card holds the wordlist picker and the wordlist-settings (⚙) button. No section labels — the row's role is self-evident.
 
