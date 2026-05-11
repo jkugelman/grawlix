@@ -91,7 +91,7 @@ The mental model: a *wordlist* contains *wordlist entries*; each wordlist entry'
 
 ### Entries table
 
-The at-rest results display below the search bar. "Table" is loose: it's a div-based virtual scroller with grid pseudo-columns, not a real `<table>`. CSS: `.entry-row`, `.entry-headers`, `#entries-table-panel`, `.entries-table-rows`. (The help modal's demo `.entries-table` is a real `<table>` — distinct context.) See [`design.md` § Entries table](design.md#entries-table).
+The at-rest results display below the search bar. "Table" is loose: it's a div-based virtual scroller with grid pseudo-columns, not a real `<table>`. CSS: `.entry-row`, `.entry-headers`, `#entries-table-panel`, `.entries-table-rows`. See [`design.md` § Entries table](design.md#entries-table).
 
 ### Other conventions
 

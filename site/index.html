@@ -261,8 +261,7 @@ html.dark-mode .search-match-4 { background: #14532d; color: #d1fae5; }
 
 /* Entries table (the at-rest results display). Uses a single-column list of
    word atoms with pseudo-column alignment via grid — div-based rather than a
-   real <table>. The .entries-table rules below cover help-modal demos that
-   still render real tables. */
+   real <table>. */
 #entries-table-panel { background: var(--surface); }
 #vs-host { position: relative; }
 .entries-table-rows { position: relative; }
@@ -335,8 +334,7 @@ html.dark-mode .search-match-4 { background: #14532d; color: #d1fae5; }
   body.merged-view:not(.tools-multi-word) .entry-headers .col-source { display: block; }
 }
 
-/* Atom popover (click-driven; replaces the old hover #cell-popover and
-   inline cell-edit). Universal editor: source line + score + comment + delete. */
+/* Atom popover (click-driven). Universal editor: source line + score + comment + delete. */
 #atom-popover { position: fixed; z-index: 600; background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 6px 24px rgba(0,0,0,0.2); padding: 12px 14px; font-size: 12px; color: var(--text); min-width: 280px; max-width: 360px; }
 .atom-pop-source { color: var(--muted); margin-bottom: 10px; padding-right: 22px; line-height: 1.5; }
 .atom-pop-source div + div { margin-top: 2px; }
@@ -353,14 +351,6 @@ html.dark-mode .search-match-4 { background: #14532d; color: #d1fae5; }
 .atom-pop-delete { background: none; border: 1px solid var(--border); border-radius: 4px; padding: 3px 10px; font: inherit; font-size: 11px; color: #e53935; cursor: pointer; }
 .atom-pop-delete:hover { background: rgba(229, 57, 53, 0.1); border-color: #e53935; }
 
-/* Help modal demos still use these — kept distinct from the live entries table above. */
-.entries-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
-.entries-table th { position: sticky; top: 0; background: var(--surface2); padding: 7px 16px; font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; border-bottom: 2px solid var(--border2); z-index: 1; cursor: pointer; user-select: none; white-space: nowrap; overflow: hidden; }
-.entries-table th:hover { background: var(--hover); }
-.entries-table td { padding: 0 16px; font-size: 13px; border-bottom: 1px solid var(--border3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.entries-table td.col-entry, .entries-table td.score-cell { font-family: var(--font-mono); }
-.entries-table td.comment-cell { font-size: 12px; }
-.entries-table tr:hover td { background: var(--row-hover); }
 .score-badge { display: inline-block; padding: 1px 5px; border-radius: 3px; font-size: 11px; font-weight: 700; font-family: var(--font-mono); background: var(--score-bg); color: var(--score-fg); }
 
 /* Inline name editing (used inside the Library view's right pane) */
@@ -390,10 +380,9 @@ html.dark-mode .search-match-4 { background: #14532d; color: #d1fae5; }
 .header-icon-btn { background: none; border: none; color: white; font-size: 19px; padding: 4px 8px; border-radius: 4px; cursor: pointer; line-height: 1; font-family: inherit; display: inline-flex; align-items: center; justify-content: center; }
 button.header-icon-btn:hover { background: none; color: rgba(255,255,255,0.65); }
 #btn-settings svg { position: relative; top: 1px; }
-#btn-help { width: 32px; height: 32px; padding: 0; border-radius: 4px; background: none; }
+#btn-help { width: 32px; height: 32px; padding: 0; border-radius: 4px; background: none; cursor: not-allowed; }
+#btn-help:disabled { opacity: 1; }
 .help-circle { width: 20px; height: 20px; border-radius: 50%; background: white; color: var(--accent); font-size: 12px; font-weight: 800; display: inline-flex; align-items: center; justify-content: center; }
-#btn-help:hover .help-circle { background: rgba(255,255,255,0.65); }
-.help-dot:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 
 /* Settings dialog */
 #settings-dialog { width: 340px; }
@@ -795,14 +784,6 @@ html.dark-mode .wld-onboarding { background: color-mix(in srgb, var(--accent) 15
 input[type="file"] { display: none; }
 .annotation { position: absolute; border: 3px solid #e53935; border-radius: 50px; pointer-events: none; box-shadow: 0 0 6px rgba(229,57,53,0.4); }
 
-/* Help-modal cell-edit demo (slide 2). The live list uses #atom-popover instead. */
-.entries-table td.score-cell,
-.entries-table td.comment-cell { cursor: pointer; }
-.entries-table td.score-cell:hover,
-.entries-table td.comment-cell:hover { background: color-mix(in srgb, var(--accent) 8%, var(--row-hover)); }
-input.cell-edit { font-family: inherit; font-size: 12px; padding: 1px 4px; border: 1px solid var(--accent); border-radius: 3px; background: var(--input-bg); color: var(--text); outline: none; width: 100%; box-sizing: border-box; }
-input.cell-edit.score-edit { font-family: var(--font-mono); width: 60px; }
-
 @keyframes shake {
   0%, 100%  { transform: translateX( 0px); }
   20%       { transform: translateX(-4px); }
@@ -830,66 +811,6 @@ input.cell-edit.score-edit { font-family: var(--font-mono); width: 60px; }
 
 /* Toast undo link */
 .toast .undo-link { margin-left: 10px; color: #90caf9; text-decoration: underline; cursor: pointer; }
-
-/* ── Help modal ───────────────────────────────────────────────────────────────── */
-#help-dialog { width: 760px; height: 680px; max-height: 88vh; padding: 0; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); overflow: hidden; outline: none; }
-.help-modal { display: flex; flex-direction: column; height: 100%; }
-.help-slides { flex: 1; overflow: hidden; position: relative; }
-.help-slide { display: none; padding: 36px 44px 28px; }
-.help-slide.active { display: flex; flex-direction: column; gap: 16px; overflow-y: auto; }
-.help-slide h2 { font-size: 20px; font-weight: 700; color: var(--text); margin: 0; }
-.help-slide p { font-size: 14px; line-height: 1.65; color: var(--text); margin: 0; }
-.help-slide p strong { color: var(--text); }
-.help-nav { display: flex; align-items: center; justify-content: space-between; padding: 14px 20px; border-top: 1px solid var(--border); background: var(--surface); flex-shrink: 0; }
-.help-prev, .help-next { background: none; border: 1px solid var(--border); border-radius: 4px; color: var(--text); font-size: 16px; padding: 5px 14px; cursor: pointer; }
-.help-prev:hover, .help-next:hover { background: var(--hover); }
-.help-prev:disabled, .help-next:disabled { opacity: 0.3; cursor: default; }
-.help-dots { display: flex; gap: 8px; }
-.help-dot { width: 8px; height: 8px; border-radius: 50%; border: none; background: var(--border); cursor: pointer; padding: 0; }
-.help-dot.active { background: var(--accent); }
-.help-demo { background: var(--surface2); border: 1px solid var(--border); border-radius: 6px; padding: 16px; margin-top: 4px; flex-shrink: 0; }
-.help-demo.flush { padding: 0; overflow: hidden; }
-.help-demo-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
-/* Slide 1 two-panel overview */
-.help-demo-panels { display: flex; }
-.help-demo-panel { flex: 1; padding: 12px 16px; display: flex; flex-direction: column; gap: 10px; }
-.help-demo-vbar { width: 1px; background: var(--border); flex-shrink: 0; }
-.help-mini-section { padding: 4px 12px 3px; font-size: 10px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; background: var(--surface2); border-bottom: 1px solid var(--border2); }
-.help-demo-panel-content { border: 1px solid var(--border); border-radius: 4px; overflow: hidden; flex: 1; min-height: 0; }
-.help-demo-panel-label { text-align: center; flex-shrink: 0; }
-/* Slide 3 score-edit demo table */
-#help-slide-2 .entries-table td { padding: 6px 16px; }
-#help-slide-2 .entries-table td:nth-child(2) { width: 130px; }
-#help-slide-2 .score-cell { cursor: default; }
-#help-slide-2 .comment-cell { color: var(--faint); }
-/* Slide 4 search demo table */
-#help-slide-3 .entries-table td { padding: 4px 14px; }
-#help-slide-3 .entries-table td:nth-child(2) { width: 80px; }
-/* Slide 4 wildcard reference */
-#help-slide-3 .help-wildcards { display: inline-grid; align-self: flex-start; grid-template-columns: auto auto; grid-template-rows: repeat(4, auto); grid-auto-flow: column; gap: 5px 28px; }
-#help-slide-3 .help-wildcards span { font-size: 11px; color: var(--text); display: flex; align-items: baseline; gap: 5px; }
-#help-slide-3 .help-wildcards kbd { font-family: var(--font-mono); font-size: 11px; color: var(--muted); }
-/* Demo slides: non-interactive */
-#help-slide-0 .wordlist-card,
-#help-slide-0 .search-bar,
-#help-slide-1 .wordlist-card,
-#help-slide-3 .search-bar,
-#help-slide-3 .entries-table tr { pointer-events: none; }
-#help-slide-1 .wordlist-card { cursor: default; }
-#help-slide-1 .wordlist-card:last-child { border-bottom: none; }
-/* Slide 5 download demo */
-.help-demo-dl { display: flex; flex-direction: column; gap: 12px; align-items: flex-start; }
-.help-demo-dl-opts { display: flex; flex-direction: column; gap: 8px; }
-.help-demo-dl-row { display: flex; align-items: center; gap: 10px; }
-.help-demo-dl-lbl { font-size: 12px; color: var(--muted); min-width: 55px; }
-/* Demo overlays: fake text caret and mouse cursor */
-.demo-caret { position: absolute; width: 1.5px; height: 13px; background: var(--text); pointer-events: none; z-index: 5; animation: demo-caret-blink 1s step-end infinite; }
-@keyframes demo-caret-blink { 50% { opacity: 0; } }
-.demo-mouse { position: absolute; pointer-events: none; opacity: 0; z-index: 10; transition: left 0.35s ease-out, top 0.35s ease-out, opacity 0.2s; }
-.demo-mouse.visible { opacity: 1; }
-.demo-mouse svg { transition: transform 0.06s; }
-.demo-mouse.clicking svg { transform: scale(0.8); transform-origin: 0 0; }
-#help-slide-2 .help-demo, #help-slide-3 .help-demo { position: relative; }
 
 </style>
 </head>
@@ -945,7 +866,7 @@ input.cell-edit.score-edit { font-family: var(--font-mono); width: 60px; }
     </nav>
     <div class="header-utility">
       <button id="btn-settings" class="header-icon-btn" aria-label="Settings" title="Settings"><svg width="24" height="24" aria-hidden="true"><use href="#icon-settings"/></svg></button>
-      <button id="btn-help" class="header-icon-btn" aria-label="Help" title="Help"><span class="help-circle">?</span></button>
+      <button id="btn-help" class="header-icon-btn" aria-label="Help (coming soon)" title="Help (coming soon)" disabled><span class="help-circle">?</span></button>
     </div>
   </div>
   <div class="header-subtitle">
@@ -1154,13 +1075,6 @@ function buildScoreBadgeHTML(score) {
   return `<span class="score-badge" style="--score-bg:${bg}; --score-fg:${fg}">${score}</span>`;
 }
 
-function buildToggleHTML(checked, disabled) {
-  return `<label class="toggle">
-    <input type="checkbox"${checked ? ' checked' : ''}${disabled ? ' disabled' : ''}>
-    <span class="toggle-slider"></span>
-  </label>`;
-}
-
 // options: array of { value, label }
 function buildSegCtrlHTML(id, options, activeValue) {
   const buttons = options.map(({ value, label }) =>
@@ -1176,25 +1090,21 @@ function buildStatItemHTML(label, value, title) {
   </div>`;
 }
 
-// opts: { isMerged, enabled, populated, selected, hasUpdate, interactive }
-// interactive: true  → adds draggable, tabindex, role, data-wordlist marker for event delegation
-// interactive: false → static display card (default — safe for demos)
+// opts: { enabled, populated, selected, hasUpdate }
 function buildWordlistCardHTML(icon, name, meta, opts = {}) {
   const {
-    isMerged    = false,
-    enabled     = true,
-    populated   = true,
-    selected    = false,
-    hasUpdate   = false,
-    interactive = false,
+    enabled   = true,
+    populated = true,
+    selected  = false,
+    hasUpdate = false,
   } = opts;
 
   const classes = ['wordlist-card'];
-  if (selected)             classes.push('selected');
-  if (!enabled)             classes.push('disabled');
-  if (!populated && !isMerged) classes.push('no-data');
+  if (selected)   classes.push('selected');
+  if (!enabled)   classes.push('disabled');
+  if (!populated) classes.push('no-data');
 
-  const dragHandle = buildDragHandleHTML(!isMerged);
+  const dragHandle = buildDragHandleHTML();
 
   const updateDot = hasUpdate
     ? `<span class="update-dot" title="Update available" aria-label="Update available"></span>`
@@ -1205,27 +1115,16 @@ function buildWordlistCardHTML(icon, name, meta, opts = {}) {
       <div class="card-meta">${meta}</div>
     </div>`;
 
-  if (isMerged) {
-    return `<div class="${classes.join(' ')}">${dragHandle}${icon}${cardInfo}</div>`;
-  }
+  const toggleTitle = !populated ? 'Click to import'
+    : enabled ? 'Enabled — click to disable' : 'Disabled — click to enable';
+  const cardActions = `<div class="card-actions">
+    <label class="toggle" title="${toggleTitle}" aria-label="Toggle ${esc(name)}">
+      <input type="checkbox"${populated && enabled ? ' checked' : ''}${populated ? '' : ' disabled'}>
+      <span class="toggle-slider"></span>
+    </label>
+  </div>`;
 
-  let wrapAttrs = '';
-  let cardActions;
-  if (interactive) {
-    const toggleTitle = !populated ? 'Click to import'
-      : enabled ? 'Enabled — click to disable' : 'Disabled — click to enable';
-    wrapAttrs = ` data-wordlist draggable="true" tabindex="0" role="option"`;
-    cardActions = `<div class="card-actions">
-      <label class="toggle" title="${toggleTitle}" aria-label="Toggle ${esc(name)}">
-        <input type="checkbox"${populated && enabled ? ' checked' : ''}${populated ? '' : ' disabled'}>
-        <span class="toggle-slider"></span>
-      </label>
-    </div>`;
-  } else {
-    cardActions = `<div class="card-actions">${buildToggleHTML(enabled, !populated)}</div>`;
-  }
-
-  return `<div class="${classes.join(' ')}"${wrapAttrs}>${dragHandle}${icon}${cardInfo}${cardActions}</div>`;
+  return `<div class="${classes.join(' ')}" data-wordlist draggable="true" tabindex="0" role="option">${dragHandle}${icon}${cardInfo}${cardActions}</div>`;
 }
 
 function buildWildcardSpansHTML() {
@@ -1239,36 +1138,20 @@ function buildWildcardSpansHTML() {
         <span><kbd>[a-m]</kbd> letter range</span>`;
 }
 
-function buildSearchBarHTML(opts = {}) {
-  const {
-    idPrefix        = '',
-    readonly        = false,
-    searchQuery     = idPrefix ? '' : esc(state.searchQuery),
-    searchWholeWord = idPrefix ? false : (state.searchWholeWord || false),
-    scoreRange      = idPrefix ? '' : (state.scoreRange || ''),
-  } = opts;
-  const pre = idPrefix ? `${idPrefix}-` : '';
-  const ro  = readonly ? ' readonly' : '';
-
-  const inputHandlers = readonly ? '' : ` oninput="onSearch(this.value)"`;
-  const clearSearchBtn = readonly ? '' :
-    `<button class="clear-btn" id="${pre}search-clear" onclick="clearSearch()" title="Clear search" aria-label="Clear search" ${searchQuery ? '' : 'hidden'}><svg width="10" height="10"><use href="#icon-x"/></svg></button>`;
-  const wholeWordHandler = readonly ? '' : ` onchange="onSearchWholeWord(this.checked)"`;
-  const scoreRangeHandler = readonly ? '' : ` oninput="onScoreRange(this.value)"`;
-  const clearScoreBtn = readonly ? '' :
-    `<button class="clear-btn" id="${pre}score-range-clear" onclick="clearScoreRange()" title="Clear score" aria-label="Clear score" ${scoreRange ? '' : 'hidden'}><svg width="10" height="10"><use href="#icon-x"/></svg></button>`;
-
-  const sortPlaceholder = readonly ? '' : `<span id="search-bar-sort" class="search-bar-sort"></span>`;
+function buildSearchBarHTML() {
+  const searchQuery     = esc(state.searchQuery);
+  const searchWholeWord = state.searchWholeWord || false;
+  const scoreRange      = state.scoreRange || '';
 
   return `<div class="search-bar">
       ${buildToolLabelHTML({ icon: '<svg width="16" height="16" aria-hidden="true"><use href="#icon-search"/></svg>', name: 'Search' })}
       <div class="search-input-wrap">
-        <input type="text" id="${pre}search-input" placeholder="pattern" value="${searchQuery}"${ro}${inputHandlers}${readonly ? '' : ' title="Search (Alt+S)"'}>
-        ${clearSearchBtn}
+        <input type="text" id="search-input" placeholder="pattern" value="${searchQuery}" oninput="onSearch(this.value)" title="Search (Alt+S)">
+        <button class="clear-btn" id="search-clear" onclick="clearSearch()" title="Clear search" aria-label="Clear search" ${searchQuery ? '' : 'hidden'}><svg width="10" height="10"><use href="#icon-x"/></svg></button>
       </div>
-      <label class="search-whole-word-label"${readonly ? '' : ' title="Whole word (Alt+W)"'}><input type="checkbox" id="${pre}search-whole-word"${wholeWordHandler} ${searchWholeWord ? 'checked' : ''}${ro}> Whole word</label>
-      <label class="score-range-label" title="Score: 50, 50-59, or 50+${readonly ? '' : ' (Alt+C)'}">Score <span class="score-range-wrap"><input type="text" id="${pre}score-range-input" value="${esc(scoreRange)}"${ro}${scoreRangeHandler}>${clearScoreBtn}</span></label>
-      ${sortPlaceholder}
+      <label class="search-whole-word-label" title="Whole word (Alt+W)"><input type="checkbox" id="search-whole-word" onchange="onSearchWholeWord(this.checked)" ${searchWholeWord ? 'checked' : ''}> Whole word</label>
+      <label class="score-range-label" title="Score: 50, 50-59, or 50+ (Alt+C)">Score <span class="score-range-wrap"><input type="text" id="score-range-input" value="${esc(scoreRange)}" oninput="onScoreRange(this.value)"><button class="clear-btn" id="score-range-clear" onclick="clearScoreRange()" title="Clear score" aria-label="Clear score" ${scoreRange ? '' : 'hidden'}><svg width="10" height="10"><use href="#icon-x"/></svg></button></span></label>
+      <span id="search-bar-sort" class="search-bar-sort"></span>
     </div>`;
 }
 
@@ -1368,35 +1251,6 @@ function buildStatsBarHTML(stats, hist, layout) {
         <div class="histogram${hoveredClass}" title="${histTitle}" onpointerdown="onHistogramPointerDown(event)">${ignoredBar}${bars}<div class="histogram-rect" hidden></div></div>
       </div>
     </div>`;
-}
-
-// opts: { comment, highlight }
-// highlight: string — wraps matching substring in <mark class="search-match search-match-0">
-function buildEntryRowHTML(entry, score, { comment = '', highlight = '' } = {}) {
-  const displayed = displayEntry(entry);
-  let entryCell = displayed;
-  if (highlight) {
-    const dc = displayEntry(highlight);
-    const idx = displayed.indexOf(dc);
-    if (idx !== -1)
-      entryCell = displayed.slice(0, idx)
-        + `<mark class="search-match search-match-0">${dc}</mark>`
-        + displayed.slice(idx + dc.length);
-  }
-  return `<tr>
-    <td class="col-entry">${entryCell}</td>
-    <td class="score-cell">${buildScoreBadgeHTML(score)}</td>
-    ${comment ? `<td class="comment-cell">${esc(comment)}</td>` : ''}
-  </tr>`;
-}
-
-// wordlists: [{ icon, name, meta, enabled }]
-function buildWordlistSidebarHTML(wordlists, mergedMeta = '47,000 entries') {
-  return buildWordlistCardHTML(MERGED_ICON, MERGED_NAME, mergedMeta, { isMerged: true })
-    + `<div class="help-mini-section">Wordlists (${wordlists.length})</div>`
-    + wordlists.map(({ icon, name, meta, enabled = true }) =>
-        buildWordlistCardHTML(icon, name, meta, { enabled })
-      ).join('');
 }
 
 function buildSplitBtn(mainLabel, mainOnclick, menuItems, { primary = false, disabled = false, title = '' } = {}) {
@@ -1516,12 +1370,8 @@ function buildTrashIconHTML() {
   return `<svg class="icon-trash"><use href="#icon-trash"/></svg>`;
 }
 
-// interactive false → aria-hidden (merged card, add-wordlist row, demo cards)
-// interactive true  → title + aria-label (draggable source cards)
-function buildDragHandleHTML(interactive = false) {
-  return interactive
-    ? `<span class="drag-handle" title="Drag to reorder" aria-label="Drag to reorder">≡</span>`
-    : `<span class="drag-handle" aria-hidden="true">≡</span>`;
+function buildDragHandleHTML() {
+  return `<span class="drag-handle" title="Drag to reorder" aria-label="Drag to reorder">≡</span>`;
 }
 
 function buildWordlistNameHTML(wordlist, { bold = true } = {}) {
@@ -1533,7 +1383,7 @@ function buildWordlistNameHTML(wordlist, { bold = true } = {}) {
   return `<span class="wordlist-name-icon">${icon} </span>${name}`;
 }
 
-// Inline icon + name pair used by tool rows, the search bar, the help tour, etc.
+// Inline icon + name pair used by tool rows, the search bar, etc.
 // `icon` is raw HTML (emoji string or <svg>); `name` is plain text.
 function buildToolLabelHTML({ icon, name }) {
   return `<span class="tool-label"><span class="tool-row-icon">${icon}</span> <span class="tool-row-name">${esc(name)}</span></span>`;
@@ -2226,11 +2076,10 @@ const LibraryView = (() => {
       const icon = getWordlistIcon(wordlist);
       const meta = wordlistCardMeta(wordlist, contribMap);
       return buildWordlistCardHTML(icon, wordlist.name, meta, {
-        selected:    _focusedWordlist === wordlist,
-        enabled:     wordlist.enabled,
-        populated:   wordlist.populated,
-        hasUpdate:   !!wordlist._updateAvailable,
-        interactive: true,
+        selected:  _focusedWordlist === wordlist,
+        enabled:   wordlist.enabled,
+        populated: wordlist.populated,
+        hasUpdate: !!wordlist._updateAvailable,
       });
     }).join('');
 
@@ -2869,10 +2718,6 @@ async function init() {
     .filter(l => l.url && !l.populated)
     .forEach(l => fetchWordlist(l, null, { silent: true }));
 
-  if (!lsLoad('visited')) {
-    lsSave('visited', '1');
-    HelpModal.open();
-  }
   // The "popular wordlists pre-loaded" banner lives inside the Library view's
   // rail; it shows there until the user dismisses it (lsLoad('onboarded')).
 }
@@ -3166,9 +3011,9 @@ function highlightSegments(entry, hlRe) {
 // ─── Tool stack ───────────────────────────────────────────────────────────────
 // Chrome-only mockup: rows render but don't yet transform the wordlist.
 
-// Single source of truth for tool metadata. The gallery, the tool stack rows, the help tour,
-// and any future surface that names a tool all read from here. Adding a new tool means adding
-// one entry; everything that lists tools picks it up automatically.
+// Single source of truth for tool metadata. The gallery, the tool stack rows, and any future
+// surface that names a tool all read from here. Adding a new tool means adding one entry;
+// everything that lists tools picks it up automatically.
 const TOOL_CATEGORIES = [
   { id: 'anagrams', label: 'Anagrams & letter banks' },
   { id: 'patterns', label: 'Letter patterns' },
@@ -6756,377 +6601,6 @@ function reorderSources(fromIdx, toIdx) {
   // is needed — repaintAfterCacheChange routes through the render effect.
   repaintAfterCacheChange();
 }
-
-// ─── Help Modal ───────────────────────────────────────────────────────────────
-
-const HelpModal = (() => {
-  const dialog = document.createElement('dialog');
-  dialog.id = 'help-dialog';
-  dialog.setAttribute('aria-label', 'Grawlix Help');
-  enableDismissClicks(dialog);
-  dialog.innerHTML = `
-    <button class="dialog-close-btn" aria-label="Close">✕</button>
-    <div class="help-modal">
-      <div class="help-slides">
-
-        <div class="help-slide active" id="help-slide-0">
-          <h2>What Is Grawlix?</h2>
-          <p>Grawlix is a wordlist manager for crossword constructors. It lets you pull in wordlists from multiple sources, rescore them, and merge them into a single master wordlist you can load into your construction software.</p>
-          <p>It doubles as a search tool while you're building: filter entries by substring, score, and more to quickly find the best word for a tricky slot.</p>
-          <div class="help-demo flush">
-            <div class="help-demo-panels">
-              <div class="help-demo-panel">
-                <div class="help-demo-panel-content" id="help-slide0-wordlists"></div>
-                <div class="help-demo-label help-demo-panel-label">Build your wordlist</div>
-              </div>
-              <div class="help-demo-vbar"></div>
-              <div class="help-demo-panel">
-                <div class="help-demo-panel-content" id="help-slide0-search"></div>
-                <div class="help-demo-label help-demo-panel-label">Search while you construct</div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div class="help-slide" id="help-slide-1">
-          <h2>Building Your Wordlist</h2>
-          <p>Click <strong>Add wordlist</strong> to add from a known publisher, import a file, or set up a URL feed. Use the ⋮ menu on any wordlist to configure its name, icon, publisher, URL, or rescoring rules.</p>
-          <p>Wordlists <strong>merge in priority order</strong> — the higher a wordlist sits, the more its scores count when the same word appears in multiple wordlists. Drag to reorder. Toggle wordlists on and off to experiment with different combinations.</p>
-          <div class="help-demo flush" id="help-slide1-demo"></div>
-        </div>
-
-        <div class="help-slide" id="help-slide-2">
-          <h2>Making It Yours</h2>
-          <p>Different wordlists use different score scales. <strong>Rescoring rules</strong> let you normalize them — map one score range to another so your merged wordlist has consistent scoring across all wordlists.</p>
-          <p><strong class="help-edits-name">My Edits</strong> is your personal override layer. Click any score or comment to change it. Add entries that don't appear in any wordlist. Your changes are never overwritten by a wordlist update.</p>
-          <div class="help-demo flush">
-            <table class="entries-table">
-              <tr class="demo-row">
-                <td class="col-entry" id="help-slide2-entry"></td>
-                <td class="score-cell demo-score-cell">
-                  <span class="score-badge" style="--score-bg: var(--score-3-bg); --score-fg: var(--score-3-fg)">40</span>
-                </td>
-                <td class="comment-cell">—</td>
-              </tr>
-            </table>
-          </div>
-        </div>
-
-        <div class="help-slide" id="help-slide-3">
-          <h2>Searching Your Wordlist</h2>
-          <p>Type in the search bar to instantly filter the wordlist. Toggle <strong>Whole word</strong> to match only complete words rather than substrings. Set a <strong>Score</strong> range — <code>50</code>, <code>50-59</code>, or <code>50+</code> — to focus on the entries you want, or click or drag across the histogram above to filter to a score range.</p>
-          <p>Use wildcards to match patterns:</p>
-          <div class="help-wildcards">${buildWildcardSpansHTML()}
-          </div>
-          <div class="help-demo flush">
-            <div id="help-slide3-bar"></div>
-            <table class="entries-table"><tbody id="help-entries-tbody"></tbody></table>
-          </div>
-        </div>
-
-      </div>
-      <div class="help-nav">
-        <button class="help-prev" aria-label="Previous">&#8592;</button>
-        <div class="help-dots">
-          <button class="help-dot active" aria-label="Slide 1 of 4"></button>
-          <button class="help-dot" aria-label="Slide 2 of 4"></button>
-          <button class="help-dot" aria-label="Slide 3 of 4"></button>
-          <button class="help-dot" aria-label="Slide 4 of 4"></button>
-        </div>
-        <button class="help-next" aria-label="Next">&#8594;</button>
-      </div>
-    </div>`;
-  document.body.appendChild(dialog);
-  let currentSlide = 0;
-  const totalSlides = 4;
-  let demoTimers = [];
-
-  function open() {
-    const editsHTML = buildWordlistNameHTML(getEditsWordlist(), { bold: false });
-    dialog.querySelectorAll('.help-edits-name').forEach(el => el.innerHTML = editsHTML);
-    showDialog(dialog);
-    goTo(0);
-  }
-
-  function close() { dialog.close(); }
-
-  function goTo(index) {
-    stopDemo();
-    dialog.querySelectorAll('.help-slide').forEach((s, i) => s.classList.toggle('active', i === index));
-    dialog.querySelectorAll('.help-dot').forEach((d, i) => d.classList.toggle('active', i === index));
-    const prevBtn = dialog.querySelector('.help-prev');
-    const prevHadFocus = document.activeElement === prevBtn;
-    prevBtn.disabled = index === 0;
-    if (prevBtn.disabled && prevHadFocus) dialog.focus();
-    const nextBtn = dialog.querySelector('.help-next');
-    const nextHadFocus = document.activeElement === nextBtn;
-    nextBtn.disabled = index === totalSlides - 1;
-    if (nextBtn.disabled && nextHadFocus) dialog.focus();
-    currentSlide = index;
-    startDemo(index);
-  }
-
-  function next() { if (currentSlide < totalSlides - 1) goTo(currentSlide + 1); }
-  function prev() { if (currentSlide > 0) goTo(currentSlide - 1); }
-
-  function stopDemo() { demoTimers.forEach(clearTimeout); demoTimers = []; }
-
-  function after(ms, fn) { demoTimers.push(setTimeout(fn, ms)); }
-
-  function startDemo(index) {
-    if (index === 2) runScoreEditDemo();
-    if (index === 3) runSearchDemo();
-  }
-
-  const DEMO_CURSOR_SVG = `<svg viewBox="0 0 11 16" width="11" height="16" xmlns="http://www.w3.org/2000/svg"><path d="M0 0L0 13.5L3.5 10.5L6 15L8 14L5.5 9.5L9.5 9.5Z" fill="white" stroke="rgba(0,0,0,0.7)" stroke-width="1" stroke-linejoin="round"/></svg>`;
-
-  function makeDemoCaret(container) {
-    const el = document.createElement('span');
-    el.className = 'demo-caret';
-    el.style.opacity = '0';
-    el.style.animation = 'none';
-    container.appendChild(el);
-    return el;
-  }
-
-  function showDemoCaret(caretEl, inputEl, container) {
-    const cr = container.getBoundingClientRect();
-    const ir = inputEl.getBoundingClientRect();
-    const cs = getComputedStyle(inputEl);
-    const mirror = document.createElement('span');
-    mirror.style.cssText = `position:fixed;visibility:hidden;white-space:pre;font:${cs.font};letter-spacing:${cs.letterSpacing};padding:0`;
-    mirror.textContent = inputEl.value;
-    document.body.appendChild(mirror);
-    const textW = mirror.getBoundingClientRect().width;
-    mirror.remove();
-    caretEl.style.left = (ir.left - cr.left + parseFloat(cs.paddingLeft) + textW) + 'px';
-    caretEl.style.top  = (ir.top  - cr.top  + (ir.height - 13) / 2) + 'px';
-    caretEl.style.opacity = '';
-    caretEl.style.animation = '';
-  }
-
-  function hideDemoCaret(caretEl) {
-    caretEl.style.opacity = '0';
-    caretEl.style.animation = 'none';
-  }
-
-  function makeDemoMouse(container) {
-    const el = document.createElement('div');
-    el.className = 'demo-mouse';
-    el.innerHTML = DEMO_CURSOR_SVG;
-    container.appendChild(el);
-    return el;
-  }
-
-  function moveDemoMouse(mouseEl, targetEl, container, offX = 0, offY = 0) {
-    const cr = container.getBoundingClientRect();
-    const tr = targetEl.getBoundingClientRect();
-    mouseEl.style.left = (tr.left - cr.left + tr.width  / 2 + offX) + 'px';
-    mouseEl.style.top  = (tr.top  - cr.top  + tr.height / 2 + offY) + 'px';
-  }
-
-  function clickDemoMouse(mouseEl) {
-    mouseEl.classList.add('clicking');
-    after(100, () => mouseEl.classList.remove('clicking'));
-  }
-
-  function runScoreEditDemo() {
-    const slide = document.getElementById('help-slide-2');
-    const demoRow = slide.querySelector('.demo-row');
-    const scoreCell = slide.querySelector('.demo-score-cell');
-    const demoContainer = slide.querySelector('.help-demo');
-
-    scoreCell.innerHTML = `<span class="score-badge" style="--score-bg: var(--score-3-bg); --score-fg: var(--score-3-fg)">40</span>`;
-    demoRow.style.background = '';
-    demoContainer.querySelectorAll('.demo-caret, .demo-mouse').forEach(el => el.remove());
-
-    const mouse = makeDemoMouse(demoContainer);
-    const caret = makeDemoCaret(demoContainer);
-
-    after(0, () => {
-      const sc = scoreCell.getBoundingClientRect();
-      const cr = demoContainer.getBoundingClientRect();
-      mouse.style.transition = 'none';
-      mouse.style.left = (sc.left - cr.left + sc.width / 2) + 'px';
-      mouse.style.top  = '-10px';
-    });
-    after(300, () => {
-      mouse.style.transition = 'left 0.4s ease-out, top 0.4s ease-out, opacity 0.25s';
-      mouse.classList.add('visible');
-      moveDemoMouse(mouse, scoreCell, demoContainer);
-    });
-    after(1000, () => {
-      demoRow.style.background = 'var(--row-hover)';
-      clickDemoMouse(mouse);
-    });
-    after(1500, () => {
-      scoreCell.innerHTML = '<input class="cell-edit score-edit" value="40" readonly>';
-      const inp = scoreCell.querySelector('input');
-      inp.style.borderColor = 'var(--accent)';
-      showDemoCaret(caret, inp, demoContainer);
-    });
-    after(2000, () => { const inp = scoreCell.querySelector('input'); if (inp) { inp.value = ''; showDemoCaret(caret, inp, demoContainer); } });
-    after(2200, () => { const inp = scoreCell.querySelector('input'); if (inp) { inp.value = '6'; showDemoCaret(caret, inp, demoContainer); } });
-    after(2400, () => { const inp = scoreCell.querySelector('input'); if (inp) { inp.value = '60'; showDemoCaret(caret, inp, demoContainer); } });
-    after(2700, () => {
-      demoRow.style.background = '';
-      scoreCell.innerHTML = `<span class="score-badge" style="--score-bg: var(--score-5-bg); --score-fg: var(--score-5-fg)">60</span>`;
-      hideDemoCaret(caret);
-      mouse.classList.remove('visible');
-    });
-    after(5200, () => { runScoreEditDemo(); });
-  }
-
-  const SEARCH_ENTRIES = [
-    { entry: 'WORDPLAY',  score: 60, cross: false },
-    { entry: 'CROSSWORD', score: 60, cross: true  },
-    { entry: 'PUZZLE',    score: 50, cross: false },
-    { entry: 'THEME',     score: 50, cross: false },
-    { entry: 'CROSSFIRE', score: 50, cross: true  },
-    { entry: 'CROSSBOW',  score: 50, cross: true  },
-    { entry: 'GRID',      score: 50, cross: false },
-    { entry: 'CLUE',      score: 50, cross: false },
-    { entry: 'CROSSLET',  score: 40, cross: true  },
-    { entry: 'RECROSS',   score: 30, cross: true  },
-  ];
-
-  function entryHtml(entry, highlight) {
-    const displayed = displayEntry(entry);
-    if (!highlight) return displayed;
-    const dc = displayEntry(highlight);
-    const idx = displayed.indexOf(dc);
-    if (idx === -1) return displayed;
-    return displayed.slice(0, idx) + '<mark class="search-match search-match-0">' + dc + '</mark>' + displayed.slice(idx + dc.length);
-  }
-
-  function buildSearchRows(tbody, query, scoreRange) {
-    const filter = query.toUpperCase();
-    const intervals = scoreRange ? parseRange(scoreRange) : null;
-    tbody.innerHTML = '';
-    SEARCH_ENTRIES.forEach(({ entry, score }) => {
-      if (filter && !entry.includes(filter)) return;
-      if (intervals && !matchesRange(score, intervals)) return;
-      const tr = document.createElement('tr');
-      tr.innerHTML =
-        `<td class="col-entry">${entryHtml(entry, filter)}</td>` +
-        `<td class="score-cell">${buildScoreBadgeHTML(score)}</td>`;
-      tbody.appendChild(tr);
-    });
-  }
-
-  function runSearchDemo() {
-    const slide = document.getElementById('help-slide-3');
-    const searchInput = slide.querySelector('#help-search-input');
-    const scoreInput = slide.querySelector('#help-score-range-input');
-    const tbody = slide.querySelector('#help-entries-tbody');
-    const demoContainer = slide.querySelector('.help-demo');
-
-    searchInput.value = '';
-    searchInput.style.borderColor = '';
-    scoreInput.value = '';
-    scoreInput.style.borderColor = '';
-    buildSearchRows(tbody, '', '');
-    demoContainer.querySelectorAll('.demo-caret, .demo-mouse').forEach(el => el.remove());
-
-    const mouse = makeDemoMouse(demoContainer);
-    const caret = makeDemoCaret(demoContainer);
-
-    after(0, () => {
-      const sr = searchInput.getBoundingClientRect();
-      const cr = demoContainer.getBoundingClientRect();
-      mouse.style.transition = 'none';
-      mouse.style.left = (sr.left - cr.left + sr.width / 2) + 'px';
-      mouse.style.top  = '-10px';
-    });
-    after(300, () => {
-      mouse.style.transition = 'left 0.4s ease-out, top 0.4s ease-out, opacity 0.25s';
-      mouse.classList.add('visible');
-      moveDemoMouse(mouse, searchInput, demoContainer);
-    });
-    after(700,  () => { clickDemoMouse(mouse); });
-    after(800,  () => { searchInput.style.borderColor = 'var(--accent)'; });
-    after(1200, () => { searchInput.value = displayEntry('C');     buildSearchRows(tbody, 'C', '');     showDemoCaret(caret, searchInput, demoContainer); });
-    after(1450, () => { searchInput.value = displayEntry('CR');    buildSearchRows(tbody, 'CR', '');    showDemoCaret(caret, searchInput, demoContainer); });
-    after(1700, () => { searchInput.value = displayEntry('CRO');   buildSearchRows(tbody, 'CRO', '');   showDemoCaret(caret, searchInput, demoContainer); });
-    after(1950, () => { searchInput.value = displayEntry('CROS');  buildSearchRows(tbody, 'CROS', '');  showDemoCaret(caret, searchInput, demoContainer); });
-    after(2200, () => { searchInput.value = displayEntry('CROSS'); buildSearchRows(tbody, 'CROSS', ''); showDemoCaret(caret, searchInput, demoContainer); });
-    after(2400, () => {
-      mouse.style.transition = 'left 0.55s ease-out, top 0.55s ease-out, opacity 0.25s';
-      moveDemoMouse(mouse, scoreInput, demoContainer);
-    });
-    after(3200, () => {
-      searchInput.style.borderColor = '';
-      scoreInput.style.borderColor = 'var(--accent)';
-      hideDemoCaret(caret);
-      clickDemoMouse(mouse);
-      showDemoCaret(caret, scoreInput, demoContainer);
-    });
-    after(3800, () => { scoreInput.value = '5';   showDemoCaret(caret, scoreInput, demoContainer); });
-    after(4100, () => { scoreInput.value = '50';  buildSearchRows(tbody, 'CROSS', '50');  showDemoCaret(caret, scoreInput, demoContainer); });
-    after(4400, () => { scoreInput.value = '50+'; buildSearchRows(tbody, 'CROSS', '50+'); showDemoCaret(caret, scoreInput, demoContainer); });
-    after(5800, () => {
-      searchInput.value = '';
-      searchInput.style.borderColor = '';
-      scoreInput.value = '';
-      scoreInput.style.borderColor = '';
-      buildSearchRows(tbody, '', '');
-      hideDemoCaret(caret);
-      mouse.classList.remove('visible');
-    });
-    after(6600, () => { runSearchDemo(); });
-  }
-
-  const DEMO_JK_ICON = buildInitialsIconHTML('John Kugelman', colorSeed(WORDLIST_PUBLISHERS.find(p => p.id === 'jkugelman')));
-  const DEMO_PB_ICON = buildInitialsIconHTML('Peter Broda',   colorSeed(WORDLIST_PUBLISHERS.find(p => p.id === 'broda')));
-
-  function initDemoSlides() {
-    // Slide 0: two-panel overview
-    document.getElementById('help-slide0-wordlists').innerHTML = buildWordlistSidebarHTML([
-      { icon: DEMO_JK_ICON, name: 'John Kugelman', meta: '47,000 entries', enabled: true },
-      { icon: DEMO_PB_ICON, name: 'Peter Broda',   meta: '68,000 entries', enabled: true },
-    ]);
-    document.getElementById('help-slide0-search').innerHTML =
-      buildSearchBarHTML({ idPrefix: 'help0', readonly: true })
-      + `<table class="entries-table"><tbody>`
-      + buildEntryRowHTML('WORDPLAY',  60)
-      + buildEntryRowHTML('CROSSWORD', 60)
-      + buildEntryRowHTML('CROSSFIRE', 50)
-      + `</tbody></table>`;
-
-    // Slide 2: Making It Yours — entry cell
-    document.getElementById('help-slide2-entry').textContent = displayEntry('WORDPLAY');
-
-    // Slide 1: wordlist sidebar with enabled JK and disabled PB
-    document.getElementById('help-slide1-demo').innerHTML = buildWordlistSidebarHTML([
-      { icon: DEMO_JK_ICON, name: 'John Kugelman', meta: '47,000 entries', enabled: true },
-      { icon: DEMO_PB_ICON, name: 'Peter Broda',   meta: '68,000 entries', enabled: false },
-    ]);
-
-    // Slide 3: search bar (entry rows are populated by runSearchDemo)
-    document.getElementById('help-slide3-bar').innerHTML =
-      buildSearchBarHTML({ idPrefix: 'help', readonly: true });
-
-  }
-
-  initDemoSlides();
-
-  document.getElementById('btn-help').addEventListener('click', () => open());
-  document.addEventListener('keydown', e => {
-    if (e.key === '?' && !e.target.closest('input, textarea, [contenteditable]')) open();
-  });
-  dialog.addEventListener('keydown', e => {
-    if (e.key === 'ArrowRight' || e.key === 'ArrowDown') { e.preventDefault(); next(); }
-    else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') { e.preventDefault(); prev(); }
-    else if (e.key === 'Home') { e.preventDefault(); goTo(0); }
-    else if (e.key === 'End') { e.preventDefault(); goTo(totalSlides - 1); }
-  });
-  dialog.addEventListener('close', stopDemo);
-  dialog.querySelector('.help-prev').addEventListener('click', prev);
-  dialog.querySelector('.help-next').addEventListener('click', next);
-  dialog.querySelectorAll('.help-dot').forEach((dot, i) => dot.addEventListener('click', () => goTo(i)));
-
-  return { open, close, goTo };
-})();
 
 // ─── Boot ─────────────────────────────────────────────────────────────────────
 

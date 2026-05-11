@@ -31,7 +31,7 @@ Plans (forward-looking, not yet shipped):
 - [`docs/plans/sync.md`](docs/plans/sync.md) — three-tier persistence (backup nag, disk file, cloud sync) for All + My Edits.
 - [`docs/plans/tools.md`](docs/plans/tools.md) — tool execution/catalog, chaining, pair/group output, OneLook/Datamuse/Umiaq. Gallery + stack are shipped (see `design.md`).
 
-When a plan ships, run the `distill-design-doc` skill to fold it into `design.md` and/or `manual.md`. Help-modal copy lives in `site/index.html` inside the `HelpModal` IIFE — search for `const HelpModal`. Update the relevant slide when shipping user-facing changes.
+When a plan ships, run the `distill-design-doc` skill to fold it into `design.md` and/or `manual.md`. (There used to be an in-app welcome tour with copy that needed updating per shipped feature; it was removed pending a redesign — see [`docs/plans/help.md`](docs/plans/help.md). The header `?` button is a deactivated placeholder until that lands.)
 
 ## Architecture
 
@@ -130,4 +130,4 @@ All builders live in the `// ─── Components ───` section. Nothing ou
 
 ## Understanding Grawlix
 
-Grawlix today serves two activities: building a unified wordlist (curation, rescoring, merging, downloading) and using it as a construction aid (search/filter while filling a grid). For a description of all user-facing features, read the help modal in `site/index.html` (inside the `HelpModal` IIFE).
+Grawlix today serves two activities: building a unified wordlist (curation, rescoring, merging, downloading) and using it as a construction aid (search/filter while filling a grid). For a description of all user-facing features, read [`docs/manual.md`](docs/manual.md).

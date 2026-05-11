@@ -159,9 +159,9 @@ The popover replaces both the previous in-cell `<input>` swap (score/comment edi
 
 **Virtual scrolling.** Rows are absolute-positioned inside a height-sized `.entries-table-rows` container; the scroller materializes only rows in the current viewport ± a buffer. Each row's `top` is `i * ROW_HEIGHT`. Cleaner than the previous real `<table>` with top/bottom spacer rows.
 
-## Help modal
+## Help
 
-Reachable from the header `?` button and the `?` keyboard shortcut. First-run users get it auto-opened. Slide content describes the pre-restructure UI and is out of date with the current shell — a redesign is planned in [`plans/help.md`](plans/help.md), to land once [`plans/tools.md`](plans/tools.md) settles.
+The header `?` button is a deactivated placeholder — present so the slot doesn't disappear, but with a `not-allowed` cursor and no behavior. The previous slide-based welcome tour was removed because it described the pre-restructure UI and was high-maintenance for a userbase that doesn't yet exist. A replacement is planned in [`plans/help.md`](plans/help.md), to land once [`plans/tools.md`](plans/tools.md) settles.
 
 ## URL state
 
@@ -227,7 +227,7 @@ No aliases exist today — this is forward-looking guidance for when the catalog
 
 These are local-only:
 
-- **Dialogs** (Welcome, help, settings, Wordlists, Sync & backup) — transient UI state. Open them how you opened them; close them when you're done.
+- **Dialogs** (settings, Wordlists, Sync & backup) — transient UI state. Open them how you opened them; close them when you're done.
 - **Selected wordlist** from the rail dropdown. Sharing a link to "anagram of LINDSEY in STWL" implies the recipient has STWL loaded; we don't pretend otherwise. The recipient sees their own selection (default `All`).
 - Scroll position, edit-in-progress state, transient popovers.
 

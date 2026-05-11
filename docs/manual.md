@@ -6,7 +6,7 @@ This is the user-facing manual. Eventually it'll be turned into an in-app manual
 
 ## The app shell
 
-**Header.** Title, top-level nav (**Workshop** / **Library**), settings, help. Sticks at top while you scroll.
+**Header.** Title, top-level nav (**Workshop** / **Library**), settings. (A `?` placeholder sits where help will live; it's currently inert.) Sticks at top while you scroll.
 
 **Two views.** *Workshop* (default) is the construction-aid surface — tool gallery, stack, entries table. *Library* manages your wordlists (the rail of wordlists, rescore and scoring rules). Click either nav item in the header to switch.
 
