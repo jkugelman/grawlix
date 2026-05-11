@@ -169,7 +169,7 @@ html.dark-mode #library-view  { box-shadow: 0 1px 3px rgba(0,0,0,0.25); }
 /* Buttons */
 button { font-size: 13px; padding: 7px 11px; border-radius: 4px; border: 1px solid var(--border); background: var(--btn-bg); color: var(--text); cursor: pointer; font-family: inherit; line-height: 1; display: inline-flex; align-items: center; justify-content: center; }
 button:hover:not(:disabled) { background: var(--hover); }
-button.primary { background: var(--accent); color: white; border-color: var(--accent); gap: 5px; }
+button.primary { background: var(--accent); color: white; border-color: var(--accent); }
 button.primary:hover:not(:disabled) { background: var(--accent-hover); }
 button:disabled { opacity: 0.45; cursor: not-allowed; }
 button.danger { background: #c0392b; color: white; border-color: #922b21; }
@@ -2209,7 +2209,7 @@ const LibraryView = (() => {
         ['Clear', `LibraryView.action('clear')`],
       ]) : '';
     } else {
-      const dot = wordlist._updateAvailable && !wordlist._loading ? ` <span class="update-dot"></span>` : '';
+      const dot = wordlist._updateAvailable && !wordlist._loading ? `&nbsp;<span class="update-dot"></span>` : '';
       const updateTitle = wordlist._updateAvailable && !wordlist._loading ? 'Update available' : '';
       const label = hasData ? 'Update' : (wordlist.url ? 'Fetch' : 'Import');
 
