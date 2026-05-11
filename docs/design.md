@@ -165,9 +165,23 @@ Reachable from the header `?` button and the `?` keyboard shortcut. First-run us
 
 ## URL state
 
-The query string mirrors the user's active pipeline: each tool stack row in pipeline order, then the permanent Search bar's pattern (`search=`), whole-word toggle (bare key `whole-word`), and score filter (`score=`). Pasting a Grawlix link into a chat reproduces what the sender was looking at; refreshing the page lands you back where you were.
+The URL captures two things: which top-level view is active, and (for Workshop) the user's active pipeline — each tool stack row in pipeline order, then the permanent Search bar's pattern (`search=`), whole-word toggle (bare key `whole-word`), and score filter (`score=`). Pasting a Grawlix link into a chat reproduces what the sender was looking at; refreshing the page lands you back where you were.
 
-A small `Router` IIFE owns parse, serialize, and `history.replaceState`.
+A small `Router` IIFE owns parse, serialize, and `history.replaceState`. `MainView` owns the view registry; the Router treats route names opaquely, so adding a new top-level view is one entry in `VIEWS` plus a matching nav button.
+
+### View routes
+
+Hash routes name the active view:
+
+- bare URL → default view (Workshop), no query.
+- `#/workshop?…` → Workshop with pipeline state.
+- `#/library` → Library.
+
+The default view gets the bare-URL form when its query is empty so the most-shared case stays short — `grawlix.wtf` and `grawlix.wtf/?anagram=CAT` are the 95% URLs. The query string only applies to Workshop today (the pipeline is Workshop's state), so making it implicitly Workshop's matches what users expect when they share a `?anagram=…` link. Non-default views always carry their route explicitly, even with no query: `#/library` is unambiguous about destination, where a bare URL claiming to be Library would compete with the default-view convention. Treating Workshop and Library as URL-symmetric was considered (`#/workshop` always present) but rejected — it adds 11 characters to every shared link to honor a peer-ness principle that's about UI treatment, not URL surface.
+
+Workshop's query state survives view switches in memory. Clicking Library from `#/workshop?anagram=CAT` puts the URL at `#/library` while the in-memory pipeline stays put; clicking Workshop again restores `#/workshop?anagram=CAT`. The URL is what the user sees, not what the app is storing.
+
+Unknown route names (`#/wat`) fall through to the default view; the query that came with them is dropped, on the assumption it was intended for a view that has since been renamed or removed.
 
 ### Tool stack encoding
 
@@ -193,7 +207,7 @@ No aliases exist today — this is forward-looking guidance for when the catalog
 
 ### Router policies
 
-- **Real query string, no hash.** Grawlix is a single-page app; paths in the URL would suggest sections that don't exist. GitHub Pages serves `index.html` regardless of query string, so any URL deep-loads without server-side routing.
+- **Hash routes for views, query string for Workshop's state.** Hash routes (`#/library`) name top-level views without needing server-side path handling on GitHub Pages — `index.html` is served regardless of hash or query. Real paths (`/library`) would require the GitHub Pages 404-redirect SPA trick; the hash dodges it entirely. The earlier "no hash" policy held when there was a single view and the URL was state-only; with peers, the alternative was a `?view=library` parameter, which couples view identity to query state and gives Library a URL longer than Workshop's bare form for no compositional gain.
 - **`replaceState` only.** Stack edits never push a history entry; the back button leaves Grawlix instead of navigating within. The visible UI is the user's history — clearing the search or popping a tool row is the explicit undo. A back button would be redundant or actively confusing ("did I lose my whole stack?").
 - **URL wins over localStorage.** The score filter loads from localStorage and the URL overlays it on init. Search pattern, whole-word, and tool stack have no localStorage backing — they live entirely in the URL during a session.
 - **Debounced ~250ms** for typing callers (search input, score input, tool-row inputs). Structural toggles (whole-word, add/remove tool, clear) replace instantly. The URL bar doesn't flicker per keystroke.
@@ -306,11 +320,11 @@ The alternative — sprinkling `invalidateX()` and `repaintY()` calls at every m
 
 Today, a wordlist's kebab menu's "Configure wordlist" opens a separate `ConfigureWordlistDialog` for icon, name, URL, publisher, and rule application — a second drill-down on top of a configuration page. That doesn't make sense; the Library view is already where you configure things. The right pane should expose those fields directly (or in a collapsible "advanced" block) so there's no nested dialog.
 
-### URL state for top-level views
+### Routes for Sync & backup, Settings, Help?
 
-Library is now a top-level view (peer of Workshop), but the active view doesn't yet appear in the URL. Planned — see [`plans/library-workshop.md`](plans/library-workshop.md). Sync & backup remains a dialog; whether it should also graduate to a route is open. Confirms/alerts/downloads stay as dialogs regardless; those really are transient.
+Top-level views (Workshop, Library) are routed; setup-style dialogs (Sync & backup, Settings, Help) aren't. Confirms/alerts/downloads stay as dialogs regardless — those really are transient.
 
-Arguments in favor of routes for setup: setup screens are *places* users spend real time, URL-addressable means deep-linkable and reload-safe, mobile and desktop converge in shape since dialogs go full-screen on phone anyway. Currently sticking with dialogs because they match the existing codebase idiom and the rest of the shell.
+Arguments in favor of routes for setup: setup screens are *places* users spend real time, URL-addressable means deep-linkable and reload-safe, mobile and desktop converge in shape since dialogs go full-screen on phone anyway. Currently sticking with dialogs because they match the existing codebase idiom.
 
 Worth revisiting if the dialog-as-workspace feel becomes a friction point — particularly when the mobile design lands, since the modal-ness is cost without payoff on phones. Notes for that revisit: bookmark/share-setup-state is unlikely (so deep-linking isn't a strong driver, just reload-safety); back button does default browser behavior (navigates back to the wordlist); header stays a fixture with no dynamic content (no breadcrumbs). *"Routes for everything" — including confirms — was considered and dropped as too heavy-handed.*
 

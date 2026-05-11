@@ -1569,9 +1569,17 @@ const Collapsible = (() => {
 })();
 
 // ─── Router ───────────────────────────────────────────────────────────────────
-// Keeps location.search in sync with the tool stack via history.replaceState.
-// Encoded: each user-added tool row in pipeline order, then the permanent
-// Search row (search/whole-word/score). See docs/design.md § URL state.
+// Keeps the URL in sync with the active view and the tool stack via
+// history.replaceState. URL shape:
+//   bare URL              → default view, no query
+//   #/<view>              → named view, no query
+//   #/<view>?<query>      → named view with query state
+// The default view (Workshop today) gets the bare-URL form when its query is
+// empty, so the most-shared case stays short. MainView owns the view registry;
+// Router treats view names opaquely.
+//
+// Query encoding: each user-added tool row in pipeline order, then the
+// permanent Search row (search/whole-word/score). See docs/design.md § URL state.
 const Router = (() => {
   let _navTimer = null;
 
@@ -1599,11 +1607,25 @@ const Router = (() => {
     return parts.join('&');
   }
 
+  function buildHash() {
+    const view = MainView.getCurrent();
+    const def  = MainView.getDefault();
+    // Query state belongs to the active view. Today the pipeline is Workshop's
+    // (default view) and no other view has URL-bound state — so when we're on
+    // Library, the URL is route-only and the pipeline lives in memory until
+    // the user switches back. When another view gains URL state, give it its
+    // own builder (e.g. per-view query-builders registered with MainView).
+    const query = view === def ? buildQuery() : '';
+    // Default view + empty query is the bare-URL form; everything else carries
+    // an explicit route so the URL is unambiguous.
+    if (view === def && !query) return '';
+    return '#/' + view + (query ? '?' + query : '');
+  }
+
   function _replace() {
     _navTimer = null;
-    const query  = buildQuery();
-    const target = query ? location.pathname + '?' + query : location.pathname;
-    if (location.pathname + location.search !== target) {
+    const target = location.pathname + buildHash();
+    if (location.pathname + location.hash !== target) {
       history.replaceState(null, '', target);
     }
   }
@@ -1617,8 +1639,25 @@ const Router = (() => {
     else          _replace();
   }
 
+  // Returns the view to activate. State (tool stack, search, score range) is
+  // applied as a side effect.
   function applyURL() {
-    const params = new URLSearchParams(location.search);
+    let view = MainView.getDefault();
+    let queryString = '';
+    const hash = location.hash;
+    if (hash.startsWith('#/')) {
+      const rest  = hash.slice(2);
+      const qIdx  = rest.indexOf('?');
+      const route = qIdx >= 0 ? rest.slice(0, qIdx) : rest;
+      if (MainView.hasView(route)) {
+        view = route;
+        queryString = qIdx >= 0 ? rest.slice(qIdx + 1) : '';
+      }
+      // Unknown route → fall through to default view; drop the query (it was
+      // most likely intended for a view that has been renamed or removed).
+    }
+
+    const params = new URLSearchParams(queryString);
     const stack = [];
     let searchValue = '';
     let wholeWord = false;
@@ -1651,6 +1690,7 @@ const Router = (() => {
       // the DOM yet during initial load.
       setTimeout(() => showToast("That link references a tool that's no longer available."), 0);
     }
+    return view;
   }
 
   return { navigate, applyURL };
@@ -2699,10 +2739,17 @@ const SourceDropdown = (() => {
 // and updates the brand-bar nav state.
 
 const MainView = (() => {
+  // Adding a new top-level view: register it here and add a matching
+  // `.header-nav-item[data-view="…"]` button. The Router picks up the route
+  // automatically — see docs/design.md § URL state.
   const VIEWS = { workshop: WorkshopView, library: LibraryView };
+  const DEFAULT_VIEW = 'workshop';
   const navButtons = document.querySelectorAll('.header-nav-item[data-view]');
+  let _current = DEFAULT_VIEW;
 
   function activate(view) {
+    if (!VIEWS[view]) view = DEFAULT_VIEW;
+    _current = view;
     for (const [name, ctrl] of Object.entries(VIEWS)) {
       if (name === view) ctrl.show();
       else               ctrl.hide();
@@ -2713,19 +2760,23 @@ const MainView = (() => {
       if (match) btn.setAttribute('aria-current', 'page');
       else       btn.removeAttribute('aria-current');
     }
+    Router.navigate();
   }
 
   for (const btn of navButtons) {
     btn.addEventListener('click', () => activate(btn.dataset.view));
   }
 
-  // Workshop is the default landing — see docs/plans/library-workshop.md.
-  // The HTML body matches this initial state to avoid flicker; we re-assert
-  // here so JS is the source of truth (e.g. once URL state lands and may
-  // override the default).
-  activate('workshop');
+  // The HTML body's initial state matches DEFAULT_VIEW (Workshop visible,
+  // Library hidden). init() calls activate() with the URL-derived view after
+  // Router.applyURL() so the JS is the source of truth from that point on.
 
-  return { activate };
+  return {
+    activate,
+    getCurrent: () => _current,
+    getDefault: () => DEFAULT_VIEW,
+    hasView: name => Object.hasOwn(VIEWS, name),
+  };
 })();
 
 // ─── Init ─────────────────────────────────────────────────────────────────────
@@ -2789,11 +2840,12 @@ async function init() {
   }
 
   // URL wins over localStorage for shared/deep-linked state.
-  Router.applyURL();
+  const initialView = Router.applyURL();
 
   state.selected = MERGED_ID;
 
   ensureEdits();
+  MainView.activate(initialView);
   renderAll();
   const _overlay = document.getElementById('busy-overlay');
   if (_overlay) {
