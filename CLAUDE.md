@@ -15,7 +15,7 @@ All code lives in a single file: `site/index.html`. Don't bother searching for o
 For any feature work, redesign, brainstorming, or structural change — **not** targeted bug fixes or small tweaks — open the docs that touch the area before proposing or implementing. Adjacent docs may share screen real estate or constrain the answer; treat the topical index below as a checklist, not a suggestion.
 
 Design and manual:
-- [`docs/design.md`](docs/design.md) — present-tense design + whys: shell, Wordlists dialog, tool gallery & stack, entries table, URL state, caches & reactivity, non-features.
+- [`docs/design.md`](docs/design.md) — present-tense design + whys: shell, Workshop / Library views, tool gallery & stack, entries table, URL state, caches & reactivity, non-features.
 - [`docs/manual.md`](docs/manual.md) — user-facing manual. Update when shipping user-facing changes.
 - [`docs/style.md`](docs/style.md) — coding-style conventions: CSS, JS, Markdown, terminology, commit messages. Read before formatting changes.
 - [`docs/wordlisted.md`](docs/wordlisted.md) — reference catalogue of Wordlisted's search modes; source material for the tool gallery.
@@ -23,7 +23,7 @@ Design and manual:
 Plans (forward-looking, not yet shipped):
 - [`docs/plans/ci-testing.md`](docs/plans/ci-testing.md) — Playwright smoke suite (deferred).
 - [`docs/plans/help.md`](docs/plans/help.md) — separating welcome tour from returning-user reference manual.
-- [`docs/plans/library-workshop.md`](docs/plans/library-workshop.md) — top-level Workshop / Library nav in the brand header.
+- [`docs/plans/library-workshop.md`](docs/plans/library-workshop.md) — URL state for the Workshop/Library top-level nav (remaining work; shipped portions in `design.md`).
 - [`docs/plans/lookup.md`](docs/plans/lookup.md) — click-a-word lookup (definitions, Wikipedia, NYT history, semantic search).
 - [`docs/plans/migration.md`](docs/plans/migration.md) — when to graduate from schema-version resets to layered migrations.
 - [`docs/plans/mobile.md`](docs/plans/mobile.md) — mobile/responsive design.
@@ -65,7 +65,7 @@ ENTRY;SCORE;COMMENT
 
 **Rescore rules** (per source) map an input score range + optional entry-length filter to an output score (or `'ignore'` to drop the entry). First matching rule wins; a catch-all is auto-appended. My Edits has no rescore rules — its scores pass through unchanged.
 
-**Scoring rules** (My Edits' `scoring` field) are the user's tier labels for the unified score scale: a single source of truth for what each score range means to them. Edited from My Edits' right pane in the Wordlists dialog; surfaced as a read/write legend on the merged All view too. The catch-all auto-row reflects scores present in the merged view that aren't covered by any rule.
+**Scoring rules** (My Edits' `scoring` field) are the user's tier labels for the unified score scale: a single source of truth for what each score range means to them. Edited from My Edits' right pane in the Library view; surfaced as a read/write legend on the merged All view too. The catch-all auto-row reflects scores present in the merged view that aren't covered by any rule.
 
 ## Persistence
 
@@ -86,7 +86,7 @@ ENTRY;SCORE;COMMENT
 
 **Virtual scroller** — `VirtualScroller` renders only visible rows. Row height is fixed.
 
-**Event delegation** — wordlist card interactions (click, keydown, change, drag) use delegated listeners on the Wordlists dialog's rail (`#wld-rail-wordlist`). At render time, the rail sets `card._wordlist = wordlist` on each `.wordlist-card[data-wordlist]` DOM element. Handlers retrieve the wordlist via `e.target.closest('.wordlist-card[data-wordlist]')._wordlist`. No wordlist ID or `dbKey` appears in HTML attributes.
+**Event delegation** — wordlist card interactions (click, keydown, change, drag) use delegated listeners on the Library view's rail (`#wld-rail-wordlist`). At render time, the rail sets `card._wordlist = wordlist` on each `.wordlist-card[data-wordlist]` DOM element. Handlers retrieve the wordlist via `e.target.closest('.wordlist-card[data-wordlist]')._wordlist`. No wordlist ID or `dbKey` appears in HTML attributes.
 
 ## CSS custom properties
 

@@ -23,13 +23,19 @@ Mobile is a third mode — theme research on the go (subway, Discord) — and ge
 
 The shape replaced an earlier full-bleed, fixed-left-rail layout that left a developer-tool-shaped expanse of empty horizontal space to the right of the (intentionally narrow, single-column atom) entries table. Bounded width plus centered column makes that empty space *intentional* — the side margins read as "this is a content page" rather than "the app didn't fill the window." The new shape also converges desktop and mobile onto one DOM, one design, two widths (see [`plans/mobile.md`](plans/mobile.md)).
 
-**Header is brand chrome plus top-level navigation.** Wordmark on the left, Workshop / Library nav in the center, settings/help on the right. A non-sticky personal-text subtitle on a darkened-purple band sits immediately below the header and scrolls with the page. Per-wordlist state, sync indicators, and wordlist pickers stay out — those would tie the header to ephemeral state. Top-level navigation is structural, not transient, which is why it earns header real estate. See [`plans/library-workshop.md`](plans/library-workshop.md) for the design; the nav buttons ship inert and become live as follow-up work.
+**Header is brand chrome plus top-level navigation.** Wordmark on the left, Workshop / Library nav in the center, settings/help on the right. A personal-text subtitle (tagline, byline, contact, GitHub) on a darkened-purple band sits immediately below the row. Per-wordlist state, sync indicators, and wordlist pickers stay out — those would tie the header to ephemeral state. The earlier "brand chrome only" rule excluded all controls; top-level navigation is the carve-out because it's structural, not transient (GitHub, Linear, and Stripe all put their primary nav in the brand bar without it reading as control clutter). The personal text used to occupy the brand-bar center but lost that slot to nav; demoting it to a subtitle row keeps the tone — "this is the project's voice" — without making it compete for the eye-magnet center.
 
-**Slim top row** at the top of the card holds the wordlist picker and the wordlist-settings (⚙) button. No section labels — the row's role is self-evident.
+*Alternative considered:* sticky footer at the bottom of the viewport for the personal text, with the brand bar staying a single row of wordmark + nav + utility. Rejected because the in-chrome subtitle keeps the personal text continuous with brand identity, while a footer would tax every screen with chrome that mostly says nothing once a user has read it. Worth revisiting if the chrome ever feels too tall.
 
-**Tool gallery** sits as a top section of the card, below the slim picker row. Cards lay out as a responsive grid (~180px min). Discoverability is preserved — the gallery is always visible on entry — at the cost of being scrolled past every session. Tool catalog and chaining are owned by [`plans/tools.md`](plans/tools.md).
+**Two top-level views, Workshop and Library, are peers.** Workshop is the construction-aid surface (tools, stack, entries table). Library is wordlist management (rail, focused-wordlist details, rescore/scoring rules). They share the centered-card chrome and live as sibling sections in `<main>`. Either is shown by toggling the other's `hidden` attribute; the active view is reflected by `.active` + `aria-current="page"` on its nav button. Workshop is the default landing on every boot, including first run — publisher wordlists auto-fetch in the background so someone who shows up to look words up doesn't have to think about wordlist management. Library is discovered when a user wants to customize.
 
-**Wordlist dropdown** is a *pure picker*. Each entry is icon + name only — no entry counts. No drag handles, enable toggles, or add-wordlist affordance; those live one click deeper in the Wordlists dialog. The dialog is opened by the icon-only **wordlist settings** button to the right of the dropdown — pulled out of the dropdown's footer so the manage entry point is always visible without expanding the picker.
+Library used to live behind a ⚙ button in Workshop's slim top row as a *Wordlists dialog*, on the premise that setup was occasional config you wouldn't return to. Community signal reset that premise: rescoring and curating wordlists is a return-to activity, which warrants peer real estate.
+
+**Slim top row** (Workshop only) at the top of the card holds the wordlist picker. No section labels — the row's role is self-evident.
+
+**Tool gallery** sits as a top section of the Workshop card, below the slim picker row. Cards lay out as a responsive grid (~180px min). Discoverability is preserved — the gallery is always visible on entry — at the cost of being scrolled past every session. Tool catalog and chaining are owned by [`plans/tools.md`](plans/tools.md).
+
+**Wordlist dropdown** is a *pure picker*. Each entry is icon + name only — no entry counts. No drag handles, enable toggles, or add-wordlist affordance; those live in the Library view. The Library is reached via the brand-bar nav, not from within the picker.
 
 **Stats bar always renders, even for empty wordlists** — zero entries, dashes for min/max/etc., flat histogram baseline. Uniformity over an "empty placeholder" treatment.
 
@@ -51,12 +57,12 @@ The shape replaced an earlier full-bleed, fixed-left-rail layout that left a dev
 
 ## Wordlists & setup
 
-Two dialogs cover all setup. They answer different questions and stay distinct:
+Setup splits across two surfaces that answer different questions and stay distinct:
 
-- **Wordlists** — what wordlists do I have, in what order, with what rules.
-- **Sync & backup** — how is my data being preserved across time and devices.
+- **Library** — what wordlists do I have, in what order, with what rules. A top-level view (peer of Workshop) reached via the brand-bar nav.
+- **Sync & backup** — how is my data being preserved across time and devices. A dialog.
 
-### Wordlists
+### Library
 
 Two-pane layout (rail + action row + stats + rule editor).
 
@@ -70,11 +76,11 @@ The action row is also unified — date slot, primary action, Download, more men
 
 **Renaming** happens on the rail card via F2 with the card focused. Configure wordlist (in a wordlist's ⋮ menu) is the secondary path. No Rename in the kebab menu — the F2 affordance is enough.
 
-**Rescoring lives entirely inside the Wordlists dialog**; it doesn't appear on the main screen. Rules are detail config, typically set once when adding a wordlist and rarely revisited; they don't earn persistent real estate next to the wordlist view.
+**Rescoring lives entirely inside the Library view**; it doesn't appear on the Workshop entries table. Rules are detail config, typically set once when adding a wordlist and rarely revisited; they don't earn persistent real estate next to the wordlist view.
 
-**Scoring rules** (My Edits' tier labels) are the user's single notion of what each score range means — there is no separate "output" tier system. Tier labels surface on the main view as a hover tooltip on each score atom in the entries table — point at a score, see what tier the user has called it. The earlier always-visible legend block above the table was dropped because it earned a row of vertical real estate the user paid for on every scroll, even though the lookup ("what does 50 mean again?") is a once-in-a-while need. Editing happens only in the Wordlists dialog (My Edits' right pane), keeping the main view a steady reference rather than a config surface.
+**Scoring rules** (My Edits' tier labels) are the user's single notion of what each score range means — there is no separate "output" tier system. Tier labels surface on Workshop's entries table as a hover tooltip on each score atom — point at a score, see what tier the user has called it. The earlier always-visible legend block above the table was dropped because it earned a row of vertical real estate the user paid for on every scroll, even though the lookup ("what does 50 mean again?") is a once-in-a-while need. Editing happens only in the Library view (My Edits' right pane), keeping Workshop a steady reference rather than a config surface.
 
-**Onboarding banner** lives only inside the Wordlists dialog — there's no auto-popup on the main view. Users who never open the dialog never see it; the defaults are sensible enough that this is fine.
+**Onboarding banner** lives only inside the Library view's rail — there's no auto-popup on Workshop. Users who never visit Library never see it; the defaults are sensible enough that this is fine.
 
 The banner is a 3-page sequence (welcome, personal-wordlist import into My Edits, XWI subscriber import) that exists to *surface features users might not know are there*, not to provide parallel import paths — pages 2 and 3 route through the same `ingestFile` plumbing as the canonical import flows. Page 3 is gated on the XWI wordlist still being present and unpopulated, so it drops out when irrelevant rather than asking a question that has no answer.
 
@@ -85,7 +91,7 @@ Today this is a stub. Full design lives in [`plans/sync.md`](plans/sync.md): pro
 ### Two paths to "give me a file"
 
 - **All** or **My Edits** → Sync & backup dialog (it's a backup, not just a save — clicking the download will bump the "Last backup" timestamp once Tier 1 lands).
-- **Any individual wordlist** → Wordlists dialog → that wordlist's Download button (it's an export of one rescored wordlist). Rare; doesn't warrant header chrome.
+- **Any individual wordlist** → Library view → that wordlist's Download button (it's an export of one rescored wordlist). Rare; doesn't warrant header chrome.
 
 ## Tool gallery & stack
 
@@ -294,13 +300,13 @@ The alternative — sprinkling `invalidateX()` and `repaintY()` calls at every m
 
 ## Open questions
 
-### Fold "Configure wordlist" into the Wordlists dialog
+### Fold "Configure wordlist" into the Library view
 
-Today, a wordlist's kebab menu's "Configure wordlist" opens a separate `ConfigureWordlistDialog` for icon, name, URL, publisher, and rule application — a second drill-down on top of a configuration page. That doesn't make sense; the Wordlists dialog is already where you configure things. The right pane should expose those fields directly (or in a collapsible "advanced" block) so there's no nested dialog.
+Today, a wordlist's kebab menu's "Configure wordlist" opens a separate `ConfigureWordlistDialog` for icon, name, URL, publisher, and rule application — a second drill-down on top of a configuration page. That doesn't make sense; the Library view is already where you configure things. The right pane should expose those fields directly (or in a collapsible "advanced" block) so there's no nested dialog.
 
-### Setup as routes
+### URL state for top-level views
 
-Considered and not currently chosen: making setup screens into full-page routes — `#/wordlists` and `#/sync` — instead of modal dialogs. Confirms/alerts/downloads stay as dialogs regardless; those really are transient.
+Library is now a top-level view (peer of Workshop), but the active view doesn't yet appear in the URL. Planned — see [`plans/library-workshop.md`](plans/library-workshop.md). Sync & backup remains a dialog; whether it should also graduate to a route is open. Confirms/alerts/downloads stay as dialogs regardless; those really are transient.
 
 Arguments in favor of routes for setup: setup screens are *places* users spend real time, URL-addressable means deep-linkable and reload-safe, mobile and desktop converge in shape since dialogs go full-screen on phone anyway. Currently sticking with dialogs because they match the existing codebase idiom and the rest of the shell.
 

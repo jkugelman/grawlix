@@ -122,15 +122,21 @@ button.header-nav-item:hover:not(:disabled) { opacity: 1; background: var(--hdr-
 
 main { padding: 0 24px; }
 
-/* Centered card. Page background shows through the side margins so the
-   bounded width feels intentional rather than under-filled. `overflow: clip`
-   (not `hidden`) keeps rounded corners while letting the in-card sticky
-   stack escape to the viewport — `overflow: hidden` would trap it. */
-#card { max-width: 1000px; margin: 24px auto 48px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; overflow: clip; }
-html.light-mode #card { box-shadow: 0 1px 3px rgba(0,0,0,0.06), 0 8px 24px rgba(0,0,0,0.05); }
-html.dark-mode #card  { box-shadow: 0 1px 3px rgba(0,0,0,0.25); }
+/* Centered card chrome — shared by Workshop (#card) and Library (#library-view),
+   the two top-level views. Page background shows through the side margins so
+   the bounded width feels intentional rather than under-filled. `overflow: clip`
+   (not `hidden`) keeps rounded corners while letting the in-card sticky stack
+   escape to the viewport — `overflow: hidden` would trap it. View-specific
+   sizing (e.g. Library's fixed height for rail/pane overflow) lives with each
+   view's section below. */
+#card,
+#library-view { max-width: 1000px; margin: 24px auto 48px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; overflow: clip; }
+html.light-mode #card,
+html.light-mode #library-view { box-shadow: 0 1px 3px rgba(0,0,0,0.06), 0 8px 24px rgba(0,0,0,0.05); }
+html.dark-mode #card,
+html.dark-mode #library-view  { box-shadow: 0 1px 3px rgba(0,0,0,0.25); }
 
-/* Slim top row: wordlist picker + settings gear. */
+/* Slim top row: wordlist picker. */
 #card-top-row { display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-bottom: 1px solid var(--border3); }
 #card-top-row .source-dropdown-row { flex: 1; min-width: 0; max-width: 360px; }
 
@@ -140,7 +146,7 @@ html.dark-mode #card  { box-shadow: 0 1px 3px rgba(0,0,0,0.25); }
 .busy-spinner { width: 36px; height: 36px; border: 3px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: busy-spin 0.7s linear infinite; }
 @keyframes busy-spin { to { transform: rotate(360deg); } }
 
-/* Add wordlist row (used inside the Wordlists dialog's rail) */
+/* Add wordlist row (used inside the Library view's rail) */
 .add-wordlist-row { padding: 9px 14px; cursor: pointer; color: var(--text); font-size: 13px; display: flex; align-items: center; gap: 9px; transition: background 0.1s, color 0.1s; user-select: none; background: var(--surface); border-top: 1px solid var(--border3); }
 .add-wordlist-row:hover { background: var(--hover); color: var(--accent); }
 .add-wordlist-icon { font-size: 15px; line-height: 1; width: 16px; text-align: center; flex-shrink: 0; }
@@ -351,7 +357,7 @@ html.dark-mode .search-match-4 { background: #14532d; color: #d1fae5; }
 .entries-table tr:hover td { background: var(--row-hover); }
 .score-badge { display: inline-block; padding: 1px 5px; border-radius: 3px; font-size: 11px; font-weight: 700; font-family: var(--font-mono); background: var(--score-bg); color: var(--score-fg); }
 
-/* Inline name editing (used inside the Wordlists dialog's right pane) */
+/* Inline name editing (used inside the Library view's right pane) */
 .detail-date { font-size: 11px; color: var(--muted); white-space: nowrap; }
 .edit-hint { opacity: 0; flex-shrink: 0; cursor: pointer; user-select: none; transition: opacity 0.15s; }
 .name-edit-input { font-family: inherit; width: 100%; padding: 1px 5px; border: 1px solid var(--accent); border-radius: 3px; background: var(--input-bg); color: var(--text); font-size: 15px; font-weight: 600; outline: none; }
@@ -618,8 +624,6 @@ a.get-file:hover { text-decoration: underline; }
 .source-dropdown-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1; min-width: 0; }
 .source-dropdown-caret { color: var(--muted); flex-shrink: 0; }
 
-.wordlist-settings-btn { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; width: 32px; padding: 0; background: var(--surface2); color: var(--text); border: 1px solid var(--border); border-radius: 6px; cursor: pointer; }
-.wordlist-settings-btn:hover { background: var(--hover); border-color: var(--accent); color: var(--accent); }
 
 #source-dropdown-menu { position: fixed; min-width: 280px; max-width: 360px; background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: 8px; box-shadow: var(--shadow); padding: 6px 0; z-index: 500; overflow-y: auto; max-height: 60vh; }
 #source-dropdown-menu .dropdown-item { display: flex; align-items: center; gap: 9px; padding: 7px 14px; cursor: pointer; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -717,14 +721,11 @@ body.tools-empty .gallery-card-add { display: none; }
 .tool-row-remove:hover { color: var(--text); background: var(--hover); }
 .tool-row-remove-placeholder { width: 24px; height: 24px; }
 
-/* Wordlists dialog */
-#wordlists-dialog { width: 880px; max-width: 95vw; height: 640px; max-height: 88vh; padding: 0; }
-/* Scoped to [open] so the default dialog `display: none` still hides it when closed. */
-#wordlists-dialog[open] { display: flex; flex-direction: column; }
-#wordlists-dialog .wld-header { padding: 14px 22px 10px; border-bottom: 1px solid var(--border2); flex-shrink: 0; position: relative; }
-#wordlists-dialog .wld-header h2 { margin: 0; padding-right: 24px; font-size: 16px; }
-#wordlists-dialog .dialog-close-btn { top: 12px; right: 14px; }
-#wordlists-dialog .wld-body { flex: 1; min-height: 0; display: flex; overflow: hidden; }
+/* Library view — top-level page (peer of Workshop). Shared card chrome lives
+   above with #card; Library adds a fixed height so its rail and pane can have
+   independent overflow scrolling, with min-height as a short-viewport floor. */
+#library-view { height: calc(100vh - 160px); min-height: 480px; }
+.wld-body { height: 100%; display: flex; overflow: hidden; }
 .wld-rail { width: 280px; border-right: 1px solid var(--border2); display: flex; flex-direction: column; background: var(--surface2); flex-shrink: 0; }
 .wld-rail-wordlist { flex: 1; overflow-y: auto; padding: 4px 0; }
 .wld-rail .add-wordlist-row { padding: 9px 14px; }
@@ -737,7 +738,7 @@ body.tools-empty .gallery-card-add { display: none; }
 .wld-pane-rescore { border-top: 1px solid var(--border2); padding: 14px 22px 22px; }
 .wld-pane-rescore-empty { font-size: 12px; color: var(--muted); padding: 6px 2px; }
 
-/* Onboarding banner inside the Wordlists dialog's rail */
+/* Onboarding banner inside the Library view's rail */
 .wld-onboarding { margin: 8px 8px 4px; padding: 10px 11px; border-radius: 6px; font-size: 12px; position: relative; flex-shrink: 0; }
 html.light-mode .wld-onboarding { background: color-mix(in srgb, var(--accent) 7%, var(--surface)); border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--border)); }
 html.dark-mode .wld-onboarding { background: color-mix(in srgb, var(--accent) 15%, var(--surface)); border: 1px solid color-mix(in srgb, var(--accent) 40%, var(--border)); }
@@ -915,10 +916,7 @@ input.cell-edit.score-edit { font-family: var(--font-mono); width: 60px; }
   <symbol id="icon-arrow" viewBox="0 0 8 5" fill="currentColor">
     <path d="M0 0l4 5 4-5z"/>
   </symbol>
-  <symbol id="icon-adjustments" viewBox="0 0 24 24" fill="currentColor">
-    <path d="M18.75 12.75h1.5a.75.75 0 0 0 0-1.5h-1.5a.75.75 0 0 0 0 1.5ZM12 6a.75.75 0 0 1 .75-.75h7.5a.75.75 0 0 1 0 1.5h-7.5A.75.75 0 0 1 12 6ZM12 18a.75.75 0 0 1 .75-.75h7.5a.75.75 0 0 1 0 1.5h-7.5A.75.75 0 0 1 12 18ZM3.75 6.75h1.5a.75.75 0 1 0 0-1.5h-1.5a.75.75 0 0 0 0 1.5ZM5.25 18.75h-1.5a.75.75 0 0 1 0-1.5h1.5a.75.75 0 0 1 0 1.5ZM3 12a.75.75 0 0 1 .75-.75h7.5a.75.75 0 0 1 0 1.5h-7.5A.75.75 0 0 1 3 12ZM9 3.75a2.25 2.25 0 1 0 0 4.5 2.25 2.25 0 0 0 0-4.5ZM12.75 12a2.25 2.25 0 1 1 4.5 0 2.25 2.25 0 0 1-4.5 0ZM9 15.75a2.25 2.25 0 1 0 0 4.5 2.25 2.25 0 0 0 0-4.5Z"/>
-  </symbol>
-  <symbol id="icon-book-open" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+<symbol id="icon-book-open" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
     <path d="M12 6.042A8.967 8.967 0 0 0 6 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 0 1 6 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 0 1 6-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0 0 18 18a8.967 8.967 0 0 0-6 2.292m0-14.25v14.25"/>
   </symbol>
   <symbol id="icon-wrench" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
@@ -930,11 +928,11 @@ input.cell-edit.score-edit { font-family: var(--font-mono); width: 60px; }
   <div class="header-row-main">
     <h1><a class="header-logo-link">Grawlix <span class="bubble">!@#$</span></a></h1>
     <nav class="header-nav" aria-label="Sections">
-      <button type="button" class="header-nav-item active" title="Workshop (inert mockup)" aria-current="page">
+      <button type="button" class="header-nav-item active" data-view="workshop" aria-current="page">
         <svg width="18" height="18" aria-hidden="true"><use href="#icon-wrench"/></svg>
         Workshop
       </button>
-      <button type="button" class="header-nav-item" title="Library (inert mockup)">
+      <button type="button" class="header-nav-item" data-view="library">
         <svg width="18" height="18" aria-hidden="true"><use href="#icon-book-open"/></svg>
         Library
       </button>
@@ -965,9 +963,6 @@ input.cell-edit.score-edit { font-family: var(--font-mono); width: 60px; }
           <span class="source-dropdown-name">All</span>
           <svg class="source-dropdown-caret" width="8" height="5" aria-hidden="true"><use href="#icon-arrow"/></svg>
         </button>
-        <button id="wordlist-settings-btn" class="wordlist-settings-btn" type="button" aria-label="Wordlist settings" title="Wordlist settings">
-          <svg width="18" height="18" aria-hidden="true"><use href="#icon-adjustments"/></svg>
-        </button>
       </div>
     </div>
     <section id="tool-gallery" aria-label="Tool gallery">
@@ -983,6 +978,18 @@ input.cell-edit.score-edit { font-family: var(--font-mono); width: 60px; }
 
     <div id="detail-panel"></div>
   </div>
+
+  <section id="library-view" hidden>
+    <div class="wld-body">
+      <aside class="wld-rail">
+        <div class="wld-onboarding" id="wld-onboarding" hidden></div>
+        <input type="file" id="wld-onboarding-file" accept=".txt,.dict" hidden>
+        <div class="wld-rail-wordlist" id="wld-rail-wordlist"></div>
+        <div class="add-wordlist-row" id="wld-add-wordlist"><span class="drag-handle" aria-hidden="true">≡</span><span class="add-wordlist-icon">＋</span>Add wordlist</div>
+      </aside>
+      <section class="wld-pane" id="wld-pane"></section>
+    </div>
+  </section>
 </main>
 
 <script>
@@ -1466,7 +1473,7 @@ function buildRescoreSectionHTML(wordlist) {
 }
 
 // Scoring (tier labels) lives on My Edits' `scoring` field. The editor in the
-// Wordlists dialog uses this; the main detail panel surfaces tier labels via
+// Library view uses this; the main detail panel surfaces tier labels via
 // hover tooltips on each score atom (see makeTierLookup). Catch-all is
 // recomputed against merged entries on each render so it reflects whatever
 // scores are currently in the data.
@@ -1990,30 +1997,27 @@ const SettingsDialog = (() => {
   return { open };
 })();
 
-// ─── Wordlists dialog ────────────────────────────────────────────────────────
+// ─── Workshop view ────────────────────────────────────────────────────────────
+// Top-level page (peer of Library in the brand-bar nav). Hosts the tool gallery,
+// stack, and entries table — the construction-aid surface. Most of Workshop's
+// content is rendered by other modules (ToolStack, the render effect, the
+// scroller); this controller just owns the show/hide lifecycle so MainView can
+// treat both views uniformly.
 
-const WordlistsDialog = (() => {
-  // Replace the body wrapper with a flex layout — this dialog needs full control
-  // over its inner structure, not the standard 22px-padded body.
-  const el = document.createElement('dialog');
-  el.id = 'wordlists-dialog';
-  el.setAttribute('aria-labelledby', 'wordlists-dialog-title');
-  enableDismissClicks(el);
-  el.innerHTML = `
-    <div class="wld-header">
-      <h2 id="wordlists-dialog-title">Wordlists</h2>
-      <button class="dialog-close-btn" aria-label="Close">✕</button>
-    </div>
-    <div class="wld-body">
-      <aside class="wld-rail">
-        <div class="wld-onboarding" id="wld-onboarding" hidden></div>
-        <input type="file" id="wld-onboarding-file" accept=".txt,.dict" hidden>
-        <div class="wld-rail-wordlist" id="wld-rail-wordlist"></div>
-        <div class="add-wordlist-row" id="wld-add-wordlist">${buildDragHandleHTML()}<span class="add-wordlist-icon">＋</span>Add wordlist</div>
-      </aside>
-      <section class="wld-pane" id="wld-pane"></section>
-    </div>`;
-  document.body.appendChild(el);
+const WorkshopView = (() => {
+  const el = document.getElementById('card');
+  function show() { el.hidden = false; }
+  function hide() { el.hidden = true; }
+  function isVisible() { return !el.hidden; }
+  return { show, hide, isVisible };
+})();
+
+// ─── Library view ─────────────────────────────────────────────────────────────
+// Top-level page (peer of Workshop in the brand-bar nav). Hosts the rail of
+// wordlists and the focused-wordlist details pane.
+
+const LibraryView = (() => {
+  const el = document.getElementById('library-view');
 
   const onboarding = el.querySelector('#wld-onboarding');
   const onboardingFile = el.querySelector('#wld-onboarding-file');
@@ -2192,11 +2196,11 @@ const WordlistsDialog = (() => {
     let actionBtn, dlBtn, moreMenu;
     if (isEdits) {
       // Primary slot: Download when there's something to export, otherwise Import.
-      actionBtn = `<button class="${hasData ? '' : 'primary'}" onclick="WordlistsDialog.action('import')" ${wordlist._loading ? 'disabled' : ''}>${wordlist._loading ? 'Importing…' : 'Import'}</button>`;
-      dlBtn = hasData ? `<button class="primary" onclick="WordlistsDialog.action('download')">Download</button>` : '';
+      actionBtn = `<button class="${hasData ? '' : 'primary'}" onclick="LibraryView.action('import')" ${wordlist._loading ? 'disabled' : ''}>${wordlist._loading ? 'Importing…' : 'Import'}</button>`;
+      dlBtn = hasData ? `<button class="primary" onclick="LibraryView.action('download')">Download</button>` : '';
       // Rename is the F2 affordance on the rail card; not duplicated here.
       moreMenu = hasData ? buildMoreMenuHTML([
-        ['Clear', `WordlistsDialog.action('clear')`],
+        ['Clear', `LibraryView.action('clear')`],
       ]) : '';
     } else {
       const dot = wordlist._updateAvailable && !wordlist._loading ? ` <span class="update-dot"></span>` : '';
@@ -2206,22 +2210,22 @@ const WordlistsDialog = (() => {
       if (wordlist.url) {
         const loadingLabel = hasData ? 'Updating…' : 'Fetching…';
         const btnLabel = `${wordlist._loading ? loadingLabel : label}${dot}`;
-        actionBtn = buildSplitBtn(btnLabel, `WordlistsDialog.action('fetch')`,
-          [['Import', `WordlistsDialog.action('import')`]],
+        actionBtn = buildSplitBtn(btnLabel, `LibraryView.action('fetch')`,
+          [['Import', `LibraryView.action('import')`]],
           { primary: true, disabled: !!wordlist._loading, title: updateTitle });
       } else {
-        actionBtn = `<button class="primary"${updateTitle ? ` title="${updateTitle}"` : ''} onclick="WordlistsDialog.action('import')" ${wordlist._loading ? 'disabled' : ''}>${wordlist._loading ? 'Importing…' : 'Import'}${dot}</button>`;
+        actionBtn = `<button class="primary"${updateTitle ? ` title="${updateTitle}"` : ''} onclick="LibraryView.action('import')" ${wordlist._loading ? 'disabled' : ''}>${wordlist._loading ? 'Importing…' : 'Import'}${dot}</button>`;
       }
 
-      dlBtn = hasData ? buildSplitBtn('Download', `WordlistsDialog.action('downloadRescored')`,
-        [['Download rescored wordlist', `WordlistsDialog.action('downloadRescored')`],
-         ['Download original',      `WordlistsDialog.action('downloadOriginal')`]]) : '';
+      dlBtn = hasData ? buildSplitBtn('Download', `LibraryView.action('downloadRescored')`,
+        [['Download rescored wordlist', `LibraryView.action('downloadRescored')`],
+         ['Download original',      `LibraryView.action('downloadOriginal')`]]) : '';
 
       // Rename is the F2 affordance on the rail card; Configure also lets you
       // rename. Not duplicated here.
       moreMenu = buildMoreMenuHTML([
-        ['Configure wordlist', `WordlistsDialog.action('configure')`],
-        ['Delete wordlist',    `WordlistsDialog.action('delete')`],
+        ['Configure wordlist', `LibraryView.action('configure')`],
+        ['Delete wordlist',    `LibraryView.action('delete')`],
       ]);
     }
 
@@ -2258,7 +2262,7 @@ const WordlistsDialog = (() => {
   }
 
   function refresh() {
-    if (!el.open) return;
+    if (el.hidden) return;
     if (_focusedWordlist && !state.sources.includes(_focusedWordlist)) {
       _focusedWordlist = state.sources[0] ?? null;
     }
@@ -2396,18 +2400,19 @@ const WordlistsDialog = (() => {
 
   addBtn.addEventListener('click', () => ConfigureWordlistDialog.openAdd());
 
-  // ── Open / close ──────────────────────────────────────────────────────────────
+  // ── Show / hide ───────────────────────────────────────────────────────────────
 
-  el.addEventListener('close', () => {
-    if (_dateTimer) { clearInterval(_dateTimer); _dateTimer = null; }
-  });
-
-  function open(wordlist = null) {
-    _focusedWordlist = wordlist ?? (state.selected !== MERGED_ID ? state.selected : null) ?? state.sources[0] ?? null;
+  function show(wordlist = null) {
+    _focusedWordlist = wordlist ?? _focusedWordlist ?? (state.selected !== MERGED_ID ? state.selected : null) ?? state.sources[0] ?? null;
+    el.hidden = false;
     renderOnboarding();
     renderRail();
     renderPane();
-    showDialog(el);
+  }
+
+  function hide() {
+    if (_dateTimer) { clearInterval(_dateTimer); _dateTimer = null; }
+    el.hidden = true;
   }
 
   function getFocusedWordlist() { return _focusedWordlist; }
@@ -2437,9 +2442,9 @@ const WordlistsDialog = (() => {
   }
 
   return {
-    open, refresh, focus, action, getFocusedWordlist,
+    show, hide, refresh, focus, action, getFocusedWordlist,
     refreshRescoreSection, refreshScoringSection, updateRailMeta,
-    isOpen: () => el.open,
+    isVisible: () => !el.hidden,
   };
 })();
 
@@ -2682,9 +2687,40 @@ const SourceDropdown = (() => {
   return { renderTrigger, open, close, openWithFocus };
 })();
 
-document.getElementById('wordlist-settings-btn').addEventListener('click', () => {
-  WordlistsDialog.open();
-});
+// ─── Main view nav (Workshop / Library) ──────────────────────────────────────
+// Switches the active top-level page. Treats Workshop and Library as peers —
+// each owns its own show/hide lifecycle; this just routes the choice to them
+// and updates the brand-bar nav state.
+
+const MainView = (() => {
+  const VIEWS = { workshop: WorkshopView, library: LibraryView };
+  const navButtons = document.querySelectorAll('.header-nav-item[data-view]');
+
+  function activate(view) {
+    for (const [name, ctrl] of Object.entries(VIEWS)) {
+      if (name === view) ctrl.show();
+      else               ctrl.hide();
+    }
+    for (const btn of navButtons) {
+      const match = btn.dataset.view === view;
+      btn.classList.toggle('active', match);
+      if (match) btn.setAttribute('aria-current', 'page');
+      else       btn.removeAttribute('aria-current');
+    }
+  }
+
+  for (const btn of navButtons) {
+    btn.addEventListener('click', () => activate(btn.dataset.view));
+  }
+
+  // Workshop is the default landing — see docs/plans/library-workshop.md.
+  // The HTML body matches this initial state to avoid flicker; we re-assert
+  // here so JS is the source of truth (e.g. once URL state lands and may
+  // override the default).
+  activate('workshop');
+
+  return { activate };
+})();
 
 // ─── Init ─────────────────────────────────────────────────────────────────────
 
@@ -2770,8 +2806,8 @@ async function init() {
     lsSave('visited', '1');
     HelpModal.open();
   }
-  // The "popular wordlists pre-loaded" banner now lives inside the Wordlists dialog;
-  // it shows there until the user dismisses it (lsLoad('onboarded')).
+  // The "popular wordlists pre-loaded" banner lives inside the Library view's
+  // rail; it shows there until the user dismisses it (lsLoad('onboarded')).
 }
 
 function defaultSources() {
@@ -4284,8 +4320,8 @@ function rescoreEntry(wlEntry, rules) {
 // ─── Rescoring / Scoring section ─────────────────────────────────────────────
 
 function renderRescoreSection() {
-  // Per-source rescoring lives only inside the Wordlists dialog right pane now.
-  WordlistsDialog.refreshRescoreSection();
+  // Per-source rescoring lives only inside the Library view's right pane now.
+  LibraryView.refreshRescoreSection();
 }
 
 // ─── Rendering ────────────────────────────────────────────────────────────────
@@ -4392,7 +4428,7 @@ function wordlistCardMeta(wordlist, contribMap) {
 
 // Centralized "sources changed in some way" hook: repaint anything that
 // displays per-source state (source dropdown trigger when name/icon may
-// have changed, the Wordlists dialog rail/pane).
+// have changed, the Library view's rail/pane).
 //
 // Reads `_sourceCountsCache` for "X used" meta — populated lazily here when
 // missing, so cosmetic-effect callers don't crash if a cache-affecting helper
@@ -4402,7 +4438,7 @@ function wordlistCardMeta(wordlist, contribMap) {
 function renderSources() {
   if (!_sourceCountsCache) _sourceCountsCache = buildMergedWordlist().sourceCounts;
   SourceDropdown?.renderTrigger();
-  WordlistsDialog?.refresh();
+  LibraryView?.refresh();
 }
 
 
@@ -4541,12 +4577,12 @@ function updateScoringCatchAll(scoring, entries) {
   }
 }
 
-// Repaint the editor in the Wordlists dialog's My Edits pane and refresh the
+// Repaint the editor in the Library view's My Edits pane and refresh the
 // score-atom tooltips on the main panel. The scroller's rendered rows carry
 // the tier label as a `title=`; rules changes don't affect data so a cheap
 // re-render of the visible rows is enough.
 function renderScoringRules() {
-  WordlistsDialog.refreshScoringSection();
+  LibraryView.refreshScoringSection();
   scroller?._render?.();
 }
 
@@ -4930,8 +4966,8 @@ async function applyWordlistText(wordlist, text, { fetchedSize = null, originalF
   });
 
   await persistData(dbKey, text);
-  // The render effect drained inside batchUpdate already updated the rail,
-  // dropdown, dialog, scoring legend, stats bar, and active scroller for the
+  // The render effect drained inside batchUpdate already updated the Library
+  // rail, dropdown, scoring legend, stats bar, and active scroller for the
   // current selection. Nothing else to repaint here.
 
   if (wasEmpty) {
@@ -5785,7 +5821,7 @@ const ConfigureWordlistDialog = (() => {
         rescoreRules: rules || [],
       });
       el.close();
-      if (WordlistsDialog.isOpen()) WordlistsDialog.focus(wordlist);
+      if (LibraryView.isVisible()) LibraryView.focus(wordlist);
       if (url) {
         fetchWordlist(wordlist);
       } else if (_pendingFile) {
@@ -6137,18 +6173,18 @@ const ImportGuideDialog = (() => {
 
 function afterRuleChange(wordlist) {
   applyRescoreRulesChange(wordlist);
-  // Dialog-only: refresh the rule editor and the live preview while the
-  // Wordlists dialog is open. No-ops when the dialog isn't mounted.
+  // Library-only: refresh the rule editor and the live preview while the
+  // Library view is visible. No-ops when it isn't.
   renderRescoreSection();
   updateRescorePreview();
 }
 
-// Per-source rescore rules now live in the Wordlists dialog right pane only.
-// These handlers target the focused wordlist there, falling back to the main-pane
-// selection only if the dialog isn't open (defensive — there should be no other
-// callers).
+// Per-source rescore rules live in the Library view's right pane only. These
+// handlers target the focused wordlist there, falling back to the main-pane
+// selection only if Library isn't visible (defensive — there should be no
+// other callers).
 function getRescoreContextWordlist() {
-  return WordlistsDialog?.getFocusedWordlist?.() ?? getSelected();
+  return LibraryView?.getFocusedWordlist?.() ?? getSelected();
 }
 
 function deleteRule(idx) {
@@ -6269,9 +6305,9 @@ function onRuleInput(el) {
 function updateRescorePreview() {
   if (!scroller) return;
   // Live preview only makes sense when the rules being typed belong to the wordlist
-  // the main-pane scroller is showing. From inside the Wordlists dialog the
-  // focused wordlist usually differs from the main-pane selection, so skip.
-  if (WordlistsDialog.isOpen() && WordlistsDialog.getFocusedWordlist() !== getSelected()) return;
+  // the main-pane scroller is showing. In the Library view the focused wordlist
+  // usually differs from the main-pane selection, so skip.
+  if (LibraryView.isVisible() && LibraryView.getFocusedWordlist() !== getSelected()) return;
   const rules = Array.from(document.querySelectorAll('#rescore-rules .rule-row')).map(row => ({
     input:  row.querySelector('.rule-in')?.value  || '',
     length: row.querySelector('.rule-len')?.value || '',
@@ -6455,7 +6491,7 @@ function insertSortedByEntry(entries, wlEntry) {
 function refreshDerivedDisplays() {
   if (_sourceCountsCache) {
     const contribMap = new Map(_sourceCountsCache.map(s => [s.wordlist, s.count]));
-    WordlistsDialog.updateRailMeta(contribMap);
+    LibraryView.updateRailMeta(contribMap);
   }
   renderScoringRules();
 }

@@ -6,12 +6,14 @@ This is the user-facing manual. Eventually it'll be turned into an in-app manual
 
 ## The app shell
 
-**Header.** Title, settings, help. Sticks at top while you scroll.
+**Header.** Title, top-level nav (**Workshop** / **Library**), settings, help. Sticks at top while you scroll.
 
-**Centered card.** Below the header, the rest of the app sits in a centered card with side margins. The page itself scrolls — there's only one scrollbar.
+**Two views.** *Workshop* (default) is the construction-aid surface — tool gallery, stack, entries table. *Library* manages your wordlists (the rail of wordlists, rescore and scoring rules). Click either nav item in the header to switch.
 
-The card, top to bottom:
-- **Slim top row.** Wordlist picker, with the ⚙ button to its right that opens the Wordlists dialog.
+**Centered card.** Below the header, the active view sits in a centered card with side margins. The page itself scrolls — there's only one scrollbar.
+
+Workshop's card, top to bottom:
+- **Slim top row.** Wordlist picker.
 - **Tool gallery.** Cards laid out as a responsive grid.
 - **Sticky region** that anchors just below the header as you scroll into the entries table:
   - Stats bar with histogram (click the histogram to filter by score range).
@@ -24,12 +26,12 @@ The card, top to bottom:
 The wordlist dropdown sits at the top of the left rail.
 
 - The first entry is **All** — the merged result of every enabled wordlist with rescore rules applied.
-- Below it: every individual wordlist in the order shown in the Wordlists dialog. My Edits sits at the top (created automatically on first boot).
+- Below it: every individual wordlist in the order shown in the Library view. My Edits sits at the top (created automatically on first boot).
 - Keyboard: **Alt+L** opens the dropdown and focuses the current selection.
 
-The icon button to the right of the dropdown opens the **Wordlists** dialog (see below).
+To manage wordlists (reorder, enable/disable, add, configure rules), switch to the **Library** view via the brand-bar nav.
 
-On launch — including first run — you land on **All**. The four publisher wordlists fetch automatically in the background, so you can start searching immediately without thinking about wordlist management.
+On launch — including first run — you land on Workshop with **All** selected. The four publisher wordlists fetch automatically in the background, so you can start searching immediately without thinking about wordlist management.
 
 ## Search syntax
 
@@ -65,7 +67,7 @@ From the My Edits view you can:
 - Delete entries (with undo).
 - Edit any score or comment.
 
-My Edits also carries your **scoring rules** — your tier labels for the unified score scale (e.g. "60 = great, 50 = good, …"). Hover any score in the entries table to see its tier label; the canonical edit surface is My Edits in the Wordlists dialog.
+My Edits also carries your **scoring rules** — your tier labels for the unified score scale (e.g. "60 = great, 50 = good, …"). Hover any score in the entries table to see its tier label; the canonical edit surface is My Edits in the Library view.
 
 ## Score tiers
 
@@ -75,9 +77,9 @@ Defaults: **great** (≥60), **good** (≥50), **fair** (≥40), **meh** (≥30)
 
 The stats bar shows a histogram of the wordlist's scores. Click on it to filter the table to a score range.
 
-## Wordlists
+## Library
 
-Two-pane dialog opened from the wordlist settings button (the icon to the right of the wordlist dropdown).
+Top-level view (one of two; the other is Workshop). Reached via the **Library** button in the brand-bar nav. Two-pane layout.
 
 **Left rail** lists every wordlist with a drag handle (reorder = merge priority), an enable checkbox, and the wordlist's name. New wordlists are added via the **+ Add wordlist…** entry at the bottom.
 
@@ -91,7 +93,7 @@ Action buttons differ per wordlist:
 
 **Rescoring rules** map a wordlist's input score range (and optional entry-length filter) to an output score — or `ignore` to drop the entry. First matching rule wins; a catch-all is auto-appended. My Edits has no rescore rules; its scores pass through.
 
-**Onboarding banner.** First-run users see a short 3-page sequence in the Wordlists dialog's rail: a welcome confirming the pre-loaded popular wordlists, then optional prompts to import a personal wordlist into My Edits and to import an XWI subscriber file. Each prompt has a *Skip*; the ✕ ends the whole flow.
+**Onboarding banner.** First-run users see a short 3-page sequence in the Library view's rail: a welcome confirming the pre-loaded popular wordlists, then optional prompts to import a personal wordlist into My Edits and to import an XWI subscriber file. Each prompt has a *Skip*; the ✕ ends the whole flow. (You won't see it until you visit Library.)
 
 ## Help
 
