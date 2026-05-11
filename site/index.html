@@ -1429,7 +1429,9 @@ const Collapsible = (() => {
 // Router treats view names opaquely.
 //
 // Query encoding: each user-added tool row in pipeline order, then the
-// permanent Search row (search/whole-word/score). See docs/design.md § URL state.
+// permanent Search row (search/whole-word). See docs/design.md § URL state.
+// The score filter is intentionally *not* in the URL — it's per-user
+// (scores aren't portable across wordlist setups) and lives in localStorage.
 const Router = (() => {
   let _navTimer = null;
 
@@ -1453,7 +1455,6 @@ const Router = (() => {
     // empty Search bar at the bottom regardless, so the URL stays minimal.
     if (state.searchQuery)     parts.push('search=' + encodeURIComponent(state.searchQuery));
     if (state.searchWholeWord) parts.push('whole-word');
-    if (state.scoreRange)      parts.push('score=' + encodeURIComponent(state.scoreRange));
     // Sort axis/direction. Each key drops out when it matches its default,
     // so the common case (entry asc) is silent. `sort-dir` may appear alone
     // (e.g. entry desc) — parsing treats absent `sort` as the default axis.
@@ -1494,8 +1495,9 @@ const Router = (() => {
     else          _replace();
   }
 
-  // Returns the view to activate. State (tool stack, search, score range) is
-  // applied as a side effect.
+  // Returns the view to activate. State (tool stack, search) is applied as a
+  // side effect. The score filter is loaded from localStorage in init() and
+  // doesn't participate in URL routing.
   function applyURL() {
     let view = MainView.getDefault();
     let queryString = '';
@@ -1516,7 +1518,6 @@ const Router = (() => {
     const stack = [];
     let searchValue = '';
     let wholeWord = false;
-    let scoreValue = null;
     let sortKey = null;
     let sortDir = null;
     let droppedUnknown = false;
@@ -1526,7 +1527,6 @@ const Router = (() => {
     // wins.
     for (const [key, value] of params) {
       if (key === 'whole-word') { wholeWord = true; continue; }
-      if (key === 'score')      { scoreValue = value || ''; continue; }
       if (key === 'search')     { searchValue = value || ''; continue; }
       if (key === 'sort')       { if (SORT_AXES[value]) sortKey = value; continue; }
       if (key === 'sort-dir')   { if (value === 'asc' || value === 'desc') sortDir = value; continue; }
@@ -1540,9 +1540,6 @@ const Router = (() => {
     }
     state.searchQuery     = searchValue;
     state.searchWholeWord = wholeWord;
-    if (scoreValue !== null) {
-      state.scoreRange = parseRange(scoreValue) ? scoreValue : '';
-    }
     state.sortKey = sortKey || DEFAULT_SORT_KEY;
     state.sortDir = sortDir || defaultSortDir(state.sortKey);
     ToolStack.setStack(stack);
@@ -2696,6 +2693,13 @@ async function init() {
   } else {
     state.sources = defaultSources();
     persistMeta();
+  }
+
+  // Score filter persists across visits — see docs/design.md § Out of scope
+  // for the URL. Validate the stored value; drop silently if corrupt.
+  const storedScoreRange = lsLoad('scoreRange');
+  if (storedScoreRange !== null && parseRange(storedScoreRange.trim()) !== null) {
+    state.scoreRange = storedScoreRange.trim();
   }
 
   const initialView = Router.applyURL();
@@ -4668,11 +4672,12 @@ function onScoreRange(value) {
   if (inp) inp.classList.toggle('invalid', trimmed !== '' && intervals === null);
 
   state.scoreRange = (trimmed && intervals) ? trimmed : '';
+  if (state.scoreRange) lsSave('scoreRange', state.scoreRange);
+  else                  lsDel('scoreRange');
   const btn = document.getElementById('score-range-clear');
   if (btn) btn.hidden = trimmed === '';
   if (scroller) scroller.filter(state.searchQuery, state.searchWholeWord, state.scoreRange);
   repositionAllHistogramRects();
-  Router.navigate({ debounce: true });
 }
 
 function clearSearch() {

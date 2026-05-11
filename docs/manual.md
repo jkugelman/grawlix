@@ -75,7 +75,7 @@ Defaults: **great** (≥60), **good** (≥50), **fair** (≥40), **meh** (≥30)
 
 ## Score histogram
 
-The stats bar shows a histogram of the wordlist's scores. Click on it to filter the table to a score range.
+The stats bar shows a histogram of the wordlist's scores. Click on it to filter the table to a score range. The filter is remembered across visits.
 
 ## Library
 
@@ -101,9 +101,9 @@ Reachable from the header `?` button or the `?` keyboard shortcut. First-run use
 
 ## Sharing & links
 
-Your tool stack — every tool you've added and its inputs, in pipeline order — plus the search pattern, whole-word toggle, and score filter all ride along in the URL. Refreshing the page keeps your state, and pasting the URL into a chat or saving it as a bookmark reproduces what you were looking at.
+Your tool stack — every tool you've added and its inputs, in pipeline order — plus the search pattern, whole-word toggle, and sort all ride along in the URL. Refreshing the page keeps your state, and pasting the URL into a chat or saving it as a bookmark reproduces what you were looking at.
 
-The link carries your tools and filters, not your wordlists — the recipient sees their own default selection (`All`) over their own loaded wordlists.
+The link carries your tools and search settings, not your wordlists or your score filter. Wordlists you've loaded stay local — the recipient sees their own default selection (`All`) over their own loaded wordlists. The score filter is omitted on purpose: a `60` on your scale isn't a `60` on theirs, so the number wouldn't translate. Your filter is remembered across your visits instead.
 
 ## Wordlist file format
 

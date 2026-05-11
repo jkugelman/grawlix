@@ -165,7 +165,7 @@ The header `?` button is a deactivated placeholder — present so the slot doesn
 
 ## URL state
 
-The URL captures two things: which top-level view is active, and (for Workshop) the user's active pipeline — each tool stack row in pipeline order, then the permanent Search bar's pattern (`search=`), whole-word toggle (bare key `whole-word`), score filter (`score=`), and the entries-table sort (`sort=`, `sort-dir=`). Pasting a Grawlix link into a chat reproduces what the sender was looking at; refreshing the page lands you back where you were.
+The URL captures two things: which top-level view is active, and (for Workshop) the user's active pipeline — each tool stack row in pipeline order, then the permanent Search bar's pattern (`search=`), whole-word toggle (bare key `whole-word`), and the entries-table sort (`sort=`, `sort-dir=`). Pasting a Grawlix link into a chat reproduces what the sender was looking at; refreshing the page lands you back where you were. The score filter is the deliberate exception — see *Out of scope for the URL* below.
 
 A small `Router` IIFE owns parse, serialize, and `history.replaceState`. `MainView` owns the view registry; the Router treats route names opaquely, so adding a new top-level view is one entry in `VIEWS` plus a matching nav button.
 
@@ -220,13 +220,16 @@ No aliases exist today — this is forward-looking guidance for when the catalog
 
 - **Hash routes for views, query string for Workshop's state.** Hash routes (`#/library`) name top-level views without needing server-side path handling on GitHub Pages — `index.html` is served regardless of hash or query. Real paths (`/library`) would require the GitHub Pages 404-redirect SPA trick; the hash dodges it entirely. The earlier "no hash" policy held when there was a single view and the URL was state-only; with peers, the alternative was a `?view=library` parameter, which couples view identity to query state and gives Library a URL longer than Workshop's bare form for no compositional gain.
 - **`replaceState` only.** Stack edits never push a history entry; the back button leaves Grawlix instead of navigating within. The visible UI is the user's history — clearing the search or popping a tool row is the explicit undo. A back button would be redundant or actively confusing ("did I lose my whole stack?").
-- **URL is the only backing store.** Search pattern, whole-word, score filter, sort, and tool stack live entirely in the URL during a session — no localStorage shadow. A user who wants their setup back next visit shares the link with themselves; the URL bar is the bookmark.
+- **URL for shareable state, localStorage for personal state.** Search pattern, whole-word, sort, and tool stack live entirely in the URL during a session — no localStorage shadow. They describe *what the sender is looking at*, which composes meaningfully on the recipient's setup. The score filter is the lone exception: it's stored in localStorage instead, because scores aren't portable across users and the filter is a standing preference. Rationale in *Out of scope for the URL* below.
 - **Debounced ~250ms** for typing callers (search input, score input, tool-row inputs). Structural toggles (whole-word, sort axis/direction, add/remove tool, clear) replace instantly. The URL bar doesn't flicker per keystroke.
 
 ### Out of scope for the URL
 
 These are local-only:
 
+- **Score filter.** Stored in localStorage, not the URL. Two reasons, and the history matters because the filter has bounced between URL-bound and unbacked before — this is the written-down version so the question doesn't get re-relitigated.
+  1. **Scores aren't portable across users.** What counts as `60` depends on which wordlists you have loaded and how you've rescored them. There is no universal scale — even the "common" tier labels (great / good / fair / …) are themselves per-user via My Edits' scoring. A shared `score=60` filter would apply the sender's number to the recipient's scale and produce nonsense. The other URL params don't have this problem: a search pattern, a whole-word toggle, a sort axis, and a tool stack all mean the same thing on any setup.
+  2. **It's a standing preference, not a query.** The dominant use is "filter the low-scoring junk out so I'm not wading through it" — that's a setting the user wants in place every visit, not something they re-enter each load. URL-bound state resets to empty on a fresh visit (no link to apply); localStorage carries it forward.
 - **Dialogs** (settings, Wordlists, Sync & backup) — transient UI state. Open them how you opened them; close them when you're done.
 - **Selected wordlist** from the rail dropdown. Sharing a link to "anagram of LINDSEY in STWL" implies the recipient has STWL loaded; we don't pretend otherwise. The recipient sees their own selection (default `All`).
 - Scroll position, edit-in-progress state, transient popovers.
