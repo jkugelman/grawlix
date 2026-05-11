@@ -91,14 +91,15 @@ html.light-mode {
   --ok-fg: #2d7a3f; --warn-fg: #856404; --err-fg: #b71c1c;
 }
 
-body { font-family: var(--font-sans); font-size: 14px; background: var(--bg); color: var(--text); }
+body { font-family: var(--font-sans); font-size: 14px; background: var(--bg); color: var(--text); height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
 
-/* Sticky brand header. Two stacked rows: row 1 has the wordmark on the left,
+/* Brand header. Two stacked rows: row 1 has the wordmark on the left,
    top-level nav (Workshop / Library) in the center, and utility icons on the
    right; row 2 is the personal-text subtitle strip on a darkened-purple band
-   spanning full width below. Card chrome scrolls past it; only the
-   search/stack inside the card sticks below it (see .sticky-stack). */
-header { background: var(--hdr-bg); color: white; padding: 6px 20px 0; display: flex; flex-direction: column; position: sticky; top: 0; z-index: 100; }
+   spanning full width below. Sits outside the scrolling <main> so it's
+   always visible at full viewport width; card chrome scrolls past the
+   in-card sticky search/stack (see .sticky-stack). */
+header { background: var(--hdr-bg); color: white; padding: 6px 20px 0; display: flex; flex-direction: column; position: relative; z-index: 100; flex-shrink: 0; }
 .header-row-main { display: flex; align-items: center; justify-content: space-between; gap: 24px; min-height: 44px; }
 header h1 { font-size: 19px; font-weight: 600; letter-spacing: -0.01em; line-height: 1.1; flex-shrink: 1; min-width: 0; }
 .header-logo-link { color: inherit; text-decoration: none; }
@@ -120,7 +121,12 @@ button.header-nav-item:hover:not(:disabled) { opacity: 1; background: var(--hdr-
 .bubble { display: inline-flex; align-items: center; background: white; color: var(--accent); border-radius: 8px; padding: 1px 7px 2px; font-size: 15px; font-weight: 800; position: relative; margin-left: 9px; line-height: 1.5; vertical-align: middle; }
 .bubble::before { content: ''; position: absolute; left: -15px; top: 50%; transform: translateY(-50%); border: 9px solid transparent; border-right-color: white; }
 
-main { padding: 0 24px; }
+/* The single scroll container for the whole app. Sits below the fixed
+   brand header inside a viewport-height flex body. `scrollbar-gutter:
+   stable` reserves the scrollbar's space whether or not it's needed, so
+   switching between Workshop (tall, scrolls) and Library (short, doesn't)
+   doesn't shift the centered cards or anything else horizontally. */
+main { padding: 0 24px; flex: 1; min-height: 0; overflow-y: auto; scrollbar-gutter: stable; }
 
 /* Centered card chrome — shared by Workshop (#card) and Library (#library-view),
    the two top-level views. Page background shows through the side margins so
@@ -196,7 +202,7 @@ button.danger:hover:not(:disabled) { background: #e74c3c; border-color: #c0392b;
    natural height. Three bands by recession depth: stats on surface3 (most
    recessed — it's the summary marquee), tools/search/column-headers on
    surface2, and the data plane below is surface (content, brightest). */
-.sticky-stack { position: sticky; top: var(--sticky-top, 52px); z-index: 50; background: var(--surface2); border-bottom: 1px solid var(--border2); }
+.sticky-stack { position: sticky; top: 0; z-index: 50; background: var(--surface2); border-bottom: 1px solid var(--border2); }
 .sticky-stack .search-bar { border-bottom: none; }
 .stat { display: flex; flex-direction: column; gap: 2px; }
 .stat-label { font-size: 10px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
@@ -3555,15 +3561,16 @@ class VirtualScroller {
     container.innerHTML = '';
     container.appendChild(this.sizer);
 
-    // Window-driven: the page scroll is the only scroll container. The host
-    // sizer has its natural full height (entries × ROW_HEIGHT) and we slice
-    // a window of rows out of it based on getBoundingClientRect().
+    // The host sizer has its natural full height (entries × ROW_HEIGHT) and
+    // we slice a window of rows out of it based on getBoundingClientRect().
+    // Capture mode catches scroll events from any ancestor — the app's scroll
+    // container is <main>, not the window, and scroll events don't bubble.
     this._onWinScroll = () => {
       this._render();
       AtomPopover.close();
     };
     this._onWinResize = () => this._render();
-    window.addEventListener('scroll', this._onWinScroll, { passive: true });
+    window.addEventListener('scroll', this._onWinScroll, { capture: true, passive: true });
     window.addEventListener('resize', this._onWinResize);
     this._resizeObserver = new ResizeObserver(() => this._render());
     this._resizeObserver.observe(container);
@@ -3860,7 +3867,7 @@ class VirtualScroller {
   }
 
   destroy() {
-    window.removeEventListener('scroll', this._onWinScroll);
+    window.removeEventListener('scroll', this._onWinScroll, { capture: true });
     window.removeEventListener('resize', this._onWinResize);
     this._resizeObserver.disconnect();
   }
@@ -7041,16 +7048,6 @@ document.addEventListener('click', () => document.querySelectorAll('.split-btn.o
 // Hide the busy overlay immediately if no wordlists have data.
 { let _m; try { _m = JSON.parse(lsLoad('meta') || '[]'); } catch { _m = []; }
   if (!_m.some(l => l.lastUpdated)) document.getElementById('busy-overlay').remove(); }
-
-// --sticky-top tracks the brand header's height so the in-card sticky
-// stack (search + tool rows) anchors directly under it. ResizeObserver
-// keeps it accurate across viewport-width changes that wrap header text.
-{
-  const header = document.querySelector('header');
-  const setStickyTop = () => document.documentElement.style.setProperty('--sticky-top', header.offsetHeight + 'px');
-  setStickyTop();
-  new ResizeObserver(setStickyTop).observe(header);
-}
 
 init();
 </script>

@@ -19,7 +19,9 @@ Mobile is a third mode — theme research on the go (subway, Discord) — and ge
 
 ## The shell
 
-**Centered card on a page-scrollable canvas.** The brand header is full-bleed and sticks at top; everything below sits in a max-width (~1000px) card with side margins so the page-background gutters read as intentional. The page itself scrolls — there's no fixed-height app shell. As the user scrolls into the entries table, a sticky region (stats bar → tool stack → search bar) anchors just below the brand header. Driven by one window scrollbar.
+**Centered card in a viewport-height app shell.** The brand header is full-bleed and pinned at the top of the viewport; a single `<main>` element below it is the scroll container for everything else. Inside `<main>`, content sits in a max-width (~1000px) card with side margins so the page-background gutters read as intentional. As the user scrolls into the entries table, a sticky region (stats bar → tool stack → search bar) anchors at the top of `<main>` — visually directly under the brand header, since the header is outside the scroller. One scrollbar, scoped to `<main>`.
+
+`<main>` uses `scrollbar-gutter: stable` to reserve the scrollbar's gutter whether or not the content overflows. Without that, the Library view (short, no scrollbar) and the Workshop view (tall, scrollbar) would lay out at different inner widths and the centered card would jump horizontally on every view switch. The previous arrangement put the scroll on the document, which had the same shift problem plus made the header narrower than the viewport while the scrollbar was present.
 
 The shape replaced an earlier full-bleed, fixed-left-rail layout that left a developer-tool-shaped expanse of empty horizontal space to the right of the (intentionally narrow, single-column atom) entries table. Bounded width plus centered column makes that empty space *intentional* — the side margins read as "this is a content page" rather than "the app didn't fill the window." The new shape also converges desktop and mobile onto one DOM, one design, two widths (see [`plans/mobile.md`](plans/mobile.md)).
 
@@ -52,8 +54,8 @@ Library used to live behind a ⚙ button in Workshop's slim top row as a *Wordli
 **Mechanics worth knowing:**
 
 - The card uses `overflow: clip`, not `overflow: hidden`. The latter establishes a scrolling block container that breaks `position: sticky` for descendants, trapping the sticky region inside the card. `overflow: clip` rounds the corners without that side effect.
-- `--sticky-top` is a CSS custom property holding the brand header's `offsetHeight`; the sticky region's `top` reads from it. A `ResizeObserver` on the header keeps the value accurate across viewport-width changes that wrap header text.
-- The virtual scroller is **window-scroll-aware**: it listens to `window.scroll`/`resize`, computes its visible slice from the host's `getBoundingClientRect()`, and slices a window of rows out of a full-height sizer (`entries × ROW_HEIGHT`). One scrollbar (the page's) drives everything; the previous two-scrollbar arrangement (page + inner host) was rejected explicitly.
+- The sticky region anchors at `top: 0` of `<main>`. Because the brand header lives outside `<main>` and the scroller's top edge is flush with the header's bottom, "top of the scroll container" *is* "directly under the brand header" — no offset variable required. Earlier the scroll was on the document, which forced a `--sticky-top` custom property tracking the header's `offsetHeight`; moving scroll into `<main>` retired that machinery.
+- The virtual scroller listens for `scroll` events in **capture mode** on `window`, computes its visible slice from the host's `getBoundingClientRect()` against `window.innerHeight`, and slices a window of rows out of a full-height sizer (`entries × ROW_HEIGHT`). Capture is required because scroll events don't bubble, and the actual scroller is `<main>` — a non-capturing window listener wouldn't see them. The math itself is viewport-relative and works whether the scroller is `<main>` or the document. The earlier two-scrollbar arrangement (page + inner host) was rejected explicitly; today's single scrollbar on `<main>` keeps that win.
 
 ## Wordlists & setup
 
