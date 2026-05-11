@@ -2849,12 +2849,6 @@ async function init() {
     persistMeta();
   }
 
-  const rawScoreRange = lsLoad('scoreRange');
-  if (rawScoreRange !== null && parseRange(rawScoreRange.trim()) !== null) {
-    state.scoreRange = rawScoreRange.trim();
-  }
-
-  // URL wins over localStorage for shared/deep-linked state.
   const initialView = Router.applyURL();
 
   state.selected = MERGED_ID;
@@ -4829,8 +4823,6 @@ function onScoreRange(value) {
   if (inp) inp.classList.toggle('invalid', trimmed !== '' && intervals === null);
 
   state.scoreRange = (trimmed && intervals) ? trimmed : '';
-  if (state.scoreRange) lsSave('scoreRange', state.scoreRange);
-  else lsDel('scoreRange');
   const btn = document.getElementById('score-range-clear');
   if (btn) btn.hidden = trimmed === '';
   if (scroller) scroller.filter(state.searchQuery, state.searchWholeWord, state.scoreRange);
