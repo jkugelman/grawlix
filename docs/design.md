@@ -165,7 +165,7 @@ Reachable from the header `?` button and the `?` keyboard shortcut. First-run us
 
 ## URL state
 
-The URL captures two things: which top-level view is active, and (for Workshop) the user's active pipeline — each tool stack row in pipeline order, then the permanent Search bar's pattern (`search=`), whole-word toggle (bare key `whole-word`), and score filter (`score=`). Pasting a Grawlix link into a chat reproduces what the sender was looking at; refreshing the page lands you back where you were.
+The URL captures two things: which top-level view is active, and (for Workshop) the user's active pipeline — each tool stack row in pipeline order, then the permanent Search bar's pattern (`search=`), whole-word toggle (bare key `whole-word`), score filter (`score=`), and the entries-table sort (`sort=`, `sort-dir=`). Pasting a Grawlix link into a chat reproduces what the sender was looking at; refreshing the page lands you back where you were.
 
 A small `Router` IIFE owns parse, serialize, and `history.replaceState`. `MainView` owns the view registry; the Router treats route names opaquely, so adding a new top-level view is one entry in `VIEWS` plus a matching nav button.
 
@@ -195,6 +195,17 @@ Each user-added tool row gets one query parameter, in pipeline order:
 - **Empty Search drops out.** The UI invariant "always render a Search bar at the bottom" is applied after parsing — if the parsed pipeline doesn't end in a Search, the UI appends an empty one. The URL stays minimal in the 95% case (`?anagram=LINDSEY` doesn't carry a redundant trailing `&search=`).
 - **Unknown tool keys are dropped** with a toast: *"That link references a tool that's no longer available."* The rest of the stack still renders.
 
+### Sort encoding
+
+Two keys carry the entries-table sort:
+
+- `sort=<axis>` — `entry`, `length`, or `score`. Dropped when the axis is the default (`entry`).
+- `sort-dir=<asc|desc>` — dropped when the direction matches the axis's default. `entry` and `length` default to ascending; `score` defaults to descending (picking Score is "what are the best entries?", which reads top-down).
+
+The two-key form keeps each piece independently minimizable, so the common cases stay quiet — `entry asc` is silent, `score desc` is just `sort=score`, `score asc` is `sort=score&sort-dir=asc`. `sort-dir` can appear without `sort` (e.g. `entry desc` becomes `sort-dir=desc`); the parser treats an absent `sort` as the default axis.
+
+Unknown values for either key are dropped without a toast (no churn risk — the axes are a closed set, unlike the tool catalog). Sort persists across wordlist switches inside a session: it's a view-config preference of the user, not of the focused wordlist.
+
 ### Stable links: don't rename, don't remove
 
 Once URL keys are public, removing or renaming them breaks shared links. The rule:
@@ -209,8 +220,8 @@ No aliases exist today — this is forward-looking guidance for when the catalog
 
 - **Hash routes for views, query string for Workshop's state.** Hash routes (`#/library`) name top-level views without needing server-side path handling on GitHub Pages — `index.html` is served regardless of hash or query. Real paths (`/library`) would require the GitHub Pages 404-redirect SPA trick; the hash dodges it entirely. The earlier "no hash" policy held when there was a single view and the URL was state-only; with peers, the alternative was a `?view=library` parameter, which couples view identity to query state and gives Library a URL longer than Workshop's bare form for no compositional gain.
 - **`replaceState` only.** Stack edits never push a history entry; the back button leaves Grawlix instead of navigating within. The visible UI is the user's history — clearing the search or popping a tool row is the explicit undo. A back button would be redundant or actively confusing ("did I lose my whole stack?").
-- **URL wins over localStorage.** The score filter loads from localStorage and the URL overlays it on init. Search pattern, whole-word, and tool stack have no localStorage backing — they live entirely in the URL during a session.
-- **Debounced ~250ms** for typing callers (search input, score input, tool-row inputs). Structural toggles (whole-word, add/remove tool, clear) replace instantly. The URL bar doesn't flicker per keystroke.
+- **URL wins over localStorage.** The score filter loads from localStorage and the URL overlays it on init. Search pattern, whole-word, sort, and tool stack have no localStorage backing — they live entirely in the URL during a session.
+- **Debounced ~250ms** for typing callers (search input, score input, tool-row inputs). Structural toggles (whole-word, sort axis/direction, add/remove tool, clear) replace instantly. The URL bar doesn't flicker per keystroke.
 
 ### Out of scope for the URL
 

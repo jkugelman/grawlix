@@ -1604,6 +1604,11 @@ const Router = (() => {
     if (state.searchQuery)     parts.push('search=' + encodeURIComponent(state.searchQuery));
     if (state.searchWholeWord) parts.push('whole-word');
     if (state.scoreRange)      parts.push('score=' + encodeURIComponent(state.scoreRange));
+    // Sort axis/direction. Each key drops out when it matches its default,
+    // so the common case (entry asc) is silent. `sort-dir` may appear alone
+    // (e.g. entry desc) — parsing treats absent `sort` as the default axis.
+    if (state.sortKey !== DEFAULT_SORT_KEY)             parts.push('sort=' + state.sortKey);
+    if (state.sortDir !== defaultSortDir(state.sortKey)) parts.push('sort-dir=' + state.sortDir);
     return parts.join('&');
   }
 
@@ -1662,6 +1667,8 @@ const Router = (() => {
     let searchValue = '';
     let wholeWord = false;
     let scoreValue = null;
+    let sortKey = null;
+    let sortDir = null;
     let droppedUnknown = false;
     // The UI today supports only one Search row (permanent, at the bottom), so
     // any `search=` we encounter is treated as that row — a chained Search
@@ -1671,6 +1678,8 @@ const Router = (() => {
       if (key === 'whole-word') { wholeWord = true; continue; }
       if (key === 'score')      { scoreValue = value || ''; continue; }
       if (key === 'search')     { searchValue = value || ''; continue; }
+      if (key === 'sort')       { if (SORT_AXES[value]) sortKey = value; continue; }
+      if (key === 'sort-dir')   { if (value === 'asc' || value === 'desc') sortDir = value; continue; }
       const tool = TOOLS[key];
       if (!tool) { droppedUnknown = true; continue; }
       const row = { tool: key, params: {}, col: 'to' };
@@ -1684,6 +1693,8 @@ const Router = (() => {
     if (scoreValue !== null) {
       state.scoreRange = parseRange(scoreValue) ? scoreValue : '';
     }
+    state.sortKey = sortKey || DEFAULT_SORT_KEY;
+    state.sortDir = sortDir || defaultSortDir(state.sortKey);
     ToolStack.setStack(stack);
     if (droppedUnknown) {
       // Defer: showToast appends to the toast container which may not be in
@@ -1743,6 +1754,10 @@ const state = {
   searchQuery: '',
   searchWholeWord: false,
   scoreRange: '',
+  // Sort defaults match DEFAULT_SORT_KEY / defaultSortDir below; literals here
+  // because those consts are defined later in the file.
+  sortKey: 'entry',
+  sortDir: 'asc',
 };
 
 // Per-wordlist cosmetic fields are signal-backed: each wordlist exposes both
@@ -3576,6 +3591,11 @@ const SORT_AXES = {
   length: { label: 'Length' },
   score:  { label: 'Score' },
 };
+const DEFAULT_SORT_KEY = 'entry';
+// Score sorts default to descending (high → low) — picking Score asks "what are
+// the best entries?", which reads top-down. Alphabetical and length sorts
+// default ascending.
+function defaultSortDir(key) { return key === 'score' ? 'desc' : 'asc'; }
 const ENTRY_SLOT_CAP = 20;
 
 // Width of one `0` glyph in the row's mono 13px font, in CSS pixels. Cached
@@ -3601,8 +3621,8 @@ class VirtualScroller {
     this.toolbar = document.getElementById('search-bar-sort');
     this.allEntries = [];
     this.entries = [];
-    this.sortKey = 'entry';
-    this.sortDir = 'asc';
+    this.sortKey = state.sortKey;
+    this.sortDir = state.sortDir;
     this._lastQuery = '';
     this._wholeWord = false;
     this._scoreIntervals = null;
@@ -3660,8 +3680,8 @@ class VirtualScroller {
     this.allEntries = allEntries;
     this.rescoreRules = rescoreRules || [];
     this.overrideMap = overrideMap || new Map();
-    this.sortKey = 'entry';
-    this.sortDir = 'asc';
+    // Sort persists across wordlist switches via `state.sortKey/sortDir` (the
+    // scroller field was already seeded from state in the constructor).
     this._sortScores = null;
     this._buildToolbar();
     this.filter(query, wholeWord, scoreRange);
@@ -3703,15 +3723,20 @@ class VirtualScroller {
       const key = e.target.value;
       if (this.sortKey !== key) {
         this.sortKey = key;
-        this.sortDir = (key === 'score') ? 'desc' : 'asc';
+        this.sortDir = defaultSortDir(key);
+        state.sortKey = this.sortKey;
+        state.sortDir = this.sortDir;
         this._buildToolbar();
         this._applyFilterAndSort();
+        Router.navigate();
       }
     });
     this.toolbar.querySelector('.sort-dir-btn').addEventListener('click', () => {
       this.sortDir = this.sortDir === 'asc' ? 'desc' : 'asc';
+      state.sortDir = this.sortDir;
       this._buildToolbar();
       this._applyFilterAndSort();
+      Router.navigate();
     });
   }
 
