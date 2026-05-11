@@ -3344,13 +3344,24 @@ const ToolStack = (() => {
   //     collapse — keeps stack height stable so rapid scrubbing across the
   //     gallery never jitters).
   //   - .tool-stack-cursor at the boundary between #tool-stack and
-  //     .search-bar in both modes (parented in .search-bar so the caret can
-  //     extend across that boundary unclipped). Absolutely positioned so
-  //     it adds zero vertical space.
-  // No preview when stack is empty: the click is unambiguous (just adds the
-  // tool) and there's nothing to dim.
+  //     .search-bar (parented in .search-bar so the caret can extend across
+  //     that boundary unclipped). Absolutely positioned so it adds zero
+  //     vertical space.
+  // The preview is reserved for the cases where the click outcome is
+  // visually surprising:
+  //   - Empty stack + replace: click just adds the tool, nothing to dim.
+  //   - Single tool + replace: a one-for-one swap is unambiguous; dimming
+  //     the lone row and showing a caret is more clutter than guidance.
+  //   - Chain (the `+` button): always preview — `+` is an unfamiliar
+  //     affordance and the caret teaches what it does.
+  //   - Multi-tool stack + replace: doom every row so the user sees the
+  //     click will wipe out more than one row.
   function setPreview(mode) {
     if (stack.length === 0) return;
+    if (mode === 'replace' && stack.length === 1) {
+      clearPreview();
+      return;
+    }
     const e = stackEl();
     if (e) {
       const isReplace = mode === 'replace';
