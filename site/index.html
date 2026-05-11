@@ -3766,11 +3766,17 @@ class VirtualScroller {
   // #detail-panel so both .entry-row and the .entry-headers (which lives in
   // .sticky-stack, a sibling of the scroller's host) inherit the same values.
   _computeSlotWidths() {
-    const n = this.entries.length;
-    const countDigits = n > 0 ? String(n).length : 1;
+    // Count and entry slot widths track the unfiltered wordlist so columns
+    // don't shift sideways when a search or score filter cuts the visible
+    // set down. Len/score slots stay tied to the filtered view since their
+    // widths are tiny and effectively constant in practice.
+    const total = this.allEntries.length;
+    const countDigits = total > 0 ? String(total).length : 1;
     let maxLen = 0, maxLenDigits = 1, maxScoreDigits = 1;
-    for (const e of this.entries) {
+    for (const e of this.allEntries) {
       if (e.entry.length > maxLen) maxLen = e.entry.length;
+    }
+    for (const e of this.entries) {
       const d = String(e.entry.length).length;
       if (d > maxLenDigits) maxLenDigits = d;
       const sd = String(e.score).length;
