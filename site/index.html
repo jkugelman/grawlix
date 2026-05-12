@@ -248,11 +248,12 @@ html.light-mode .histogram-readonly.is-hovered .histogram-bar:not(.histogram-bar
    above and below the stack/search-bar boundary without being clipped by
    #tool-stack's overflow: hidden.
    flex-wrap: wrap lets the bar reflow organically whenever its contents
-   don't fit, at any viewport — no phone-sized breakpoint. The input keeps
-   a fixed 240px basis (its implicit min-width), so when space runs short
-   the bar wraps to a second row rather than smushing the input narrower. */
+   don't fit, at any viewport — no phone-sized breakpoint. The input has
+   a 240px basis (the wrap algorithm's threshold and the effective min, so
+   the bar wraps when 240 doesn't fit rather than smushing the input
+   narrower) and grows up to a 360px cap when there's slack on its row. */
 .search-bar { padding: 8px 14px; background: var(--surface2); border-bottom: 1px solid var(--border2); display: flex; flex-wrap: wrap; align-items: center; gap: 12px; position: relative; }
-.search-input-wrap { position: relative; display: flex; align-items: center; flex: 0 0 240px; }
+.search-input-wrap { position: relative; display: flex; align-items: center; flex: 1 1 240px; max-width: 360px; }
 .search-input-wrap input[type="text"],
 .tool-row-param input { background: var(--input-bg); color: var(--text); border: 1px solid var(--border); border-radius: 4px; font-size: 13px; font-family: var(--font-mono); padding: 5px 8px; }
 .tool-row-param input { cursor: not-allowed; }
