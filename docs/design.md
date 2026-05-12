@@ -269,9 +269,11 @@ Wordlists can be hundreds of thousands of entries. Several caches keep wordlist 
 | `wordlist._rescored` | per-wordlist | own `rawEntries` + `rescoreRules` | `invalidateRescoredCache(wordlist)` |
 | `wordlist._rescoredMap` | per-wordlist | `_rescored` (UPPERCASE word → entry, for fast lookup) | `invalidateRescoredCache(wordlist)` |
 | `wordlist._overrideMap` | per-wordlist | every higher-priority enabled wordlist's `_rescored` | `invalidateSourceCounts()` (clears all) |
-| `_mergedWordlistCache` | module | every enabled wordlist's `_rescored` (entries + `byWord` map) | `invalidateSourceCounts()` |
+| `_mergedWordlistCache` | module | every enabled wordlist's `_rescored` (entries + `byEntry` map) | `invalidateSourceCounts()` |
 | `_sourceCountsCache` | module | aliases `_mergedWordlistCache.sourceCounts` | `invalidateSourceCounts()` |
 | `_statsCache` (WeakMap) | module, keyed by wordlist or `_mergedStatsKey` | a wordlist's `rawEntries` (or merged entries) | `invalidateStatsCache(key)` |
+| `_layoutCache` | module | every enabled wordlist's score distribution (via `_rescored`) | `invalidateHistogramLayout()` (called from `invalidateRescoredCache`) |
+| `_libraryColumnWidthsCache` | module, versioned by `cacheVersion$` | every source's `rawEntries` + the merged set | next `cacheVersion$` bump |
 
 Three composite helpers cover the common change patterns:
 
@@ -285,15 +287,23 @@ Override maps are invalidated globally rather than per-affected-list because tra
 
 **Hot path: switching wordlists.** First switch builds `_rescored` (lazy) and `_overrideMap` (lazy); subsequent switches are near-free. The virtual scroller's `_sortScores` Map is built only on demand — clicking the Score header to sort triggers it. Switching never builds it.
 
-**Hot path: editing My Edits.** Score and comment edits, new-word adds, and deletes all flow through `patchCachesForEditsChange(word, newEditsEntry)`. It mutates the affected `_overrideMap` entries and the matching slot in `_mergedWordlistCache.byWord` instead of triggering a full rebuild. No `buildMergedWordlist` walks across all sources per keystroke.
+**Hot path: editing My Edits.** Score and comment edits, new-entry adds, and deletes all flow through `patchCachesForEditsChange(entry, newEditsWlEntry)`. It mutates the affected `_overrideMap` entries and the matching slot in `_mergedWordlistCache.byEntry` instead of triggering a full rebuild. No `buildMergedWordlist` walks across all sources per keystroke.
 
 The patch is structured around three observations:
 
-- If a higher-priority wordlist also has `word` (`buildOverrideMap(edits).has(word)`), edits is overshadowed and never appears in any cache — nothing to patch.
-- For ADD and UPDATE, edits becomes the contributor for `word` in every override map below it; for the merged cache, an existing entry's `wordlist` reference is reassigned (with source-count adjustments) or a new entry is bisect-inserted into the sorted `entries` array.
-- For DELETE, walk down from edits's position to find the next enabled wordlist with `word` (using a lazily-built `wordlist._rescoredMap`). Override maps for positions ≤ next contributor's position drop the entry; positions below adopt next's value. The merged entry is reassigned to next, or removed if no contributor remains.
+- If a higher-priority wordlist also has `entry` (`buildOverrideMap(edits).has(entry)`), edits is overshadowed and never appears in any cache — nothing to patch.
+- For ADD and UPDATE, edits becomes the contributor for `entry` in every override map below it; for the merged cache, an existing entry's `wordlist` reference is reassigned (with source-count adjustments) or a new entry is bisect-inserted into the sorted `entries` array.
+- For DELETE, walk down from edits's position to find the next enabled wordlist with `entry` (using a lazily-built `wordlist._rescoredMap`). Override maps for positions ≤ next contributor's position drop the entry; positions below adopt next's value. The merged entry is reassigned to next, or removed if no contributor remains.
 
-`_mergedWordlistCache` keeps a `byWord` Map alongside `entries`; both share the same entry objects, so patching via `byWord` is visible in `entries`. The merged-view refresh chooses between in-place refilter and full rebuild depending on whether the patch reused the entries array. `refreshDerivedDisplays()` is the post-patch counterpart to `refreshSourceCounts()` — it repaints the rail meta and the scroller's score-atom tier tooltips without invalidating any caches.
+`_mergedWordlistCache` keeps a `byEntry` Map alongside `entries`; both share the same wlEntry objects, so patching via `byEntry` is visible in `entries`. The merged-view refresh chooses between in-place refilter and full rebuild depending on whether the patch reused the entries array. `refreshDerivedDisplays()` is the post-patch counterpart to `refreshSourceCounts()` — it repaints the rail meta and the scroller's score-atom tier tooltips without invalidating any caches.
+
+**Hot path: typing in search.** Per-keystroke filtering is sized to avoid the two costs that dominate large wordlists — lowercasing the entry and re-sorting the filtered result. The caches involved are scroller-internal (not in the table above): they belong to the active `WorkshopEntriesScroller` / `LibraryEntriesScroller` instance and end with the scroller's life.
+
+- Every `wlEntry` carries a precomputed `entryLower` field, assigned at parse and at every mutation path. Filters read `.entryLower` directly — no per-keystroke `.toLowerCase()` allocation across hundreds of thousands of entries. Already-lowercase entries (merged-map entries, My Edits-edited entries) reuse the same string reference, so the cost is one property slot, not a fresh string.
+- The Workshop scroller keeps `_sortedSource` — `allEntries` sorted by the current `sortKey`/`sortDir`. `.filter()` preserves order, so the filter result is already sorted and the post-filter sort drops out. When sorting by score, `_sortedSource` reads from `_sortScores` (the lazy `wlEntry → effective score` Map, built on demand the first time score-axis sort runs).
+- The Library scroller splits work two ways. `_baseRows` holds the unfiltered row data — `_buildRows()` walks `rawEntries` and applies `rescoreEntry`, and that result is rebuilt only on `setWordlist` / `setMode` / `setRescorePreview`. `_sortedBaseRows` is its sorted view, rebuilt on sort change. `setQuery` runs neither — it just refilters the cached sorted source.
+
+The invalidation contract for the sort caches is the same trap as the patch path's: anything that mutates entry scores in place must clear them. `_invalidateSortCache()` (Workshop) and `_invalidateRowsCache()` (Library) cover the in-class setters; `refreshWorkshopMergedScroller` and `deleteFromEdits` call `_invalidateSortCache()` directly after patching the merged cache. A new touchpoint that mutates scores on shared entries needs the same call.
 
 ### Reactivity
 
