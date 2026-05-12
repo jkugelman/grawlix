@@ -2730,7 +2730,13 @@ const MainView = (() => {
   }
 
   for (const btn of navButtons) {
-    btn.addEventListener('click', () => activate(btn.dataset.view));
+    btn.addEventListener('click', () => {
+      const view = btn.dataset.view;
+      // Re-clicking the active nav scrolls back to the top — a common
+      // affordance and an easy way to bail out of a long scroll.
+      if (view === _current) scrollEl.scrollTo({ top: 0, behavior: 'smooth' });
+      else                   activate(view);
+    });
   }
 
   // The HTML body's initial state matches DEFAULT_VIEW (Workshop visible,
