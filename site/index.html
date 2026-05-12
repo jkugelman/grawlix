@@ -3819,10 +3819,10 @@ class WorkshopEntriesScroller extends BaseVirtualScroller {
         if (this.rescoreRules.length) {
           const r = rescoreEntry(e, this.rescoreRules);
           if (!r.kept) return false;
-          const ov = this.overrideMap.get(e.entry.toUpperCase());
+          const ov = this.overrideMap.get(e.entryLower);
           return matchesRange(ov ? ov.score : r.score, intervals);
         }
-        const ov = this.overrideMap.get(e.entry.toUpperCase());
+        const ov = this.overrideMap.get(e.entryLower);
         return matchesRange(ov ? ov.score : e.score, intervals);
       });
     }
@@ -3969,7 +3969,7 @@ class WorkshopEntriesScroller extends BaseVirtualScroller {
         wasRescored = r.score !== wlEntry.score;
       }
     }
-    const ov = !ignored && this.overrideMap.get(wlEntry.entry.toUpperCase());
+    const ov = !ignored && this.overrideMap.get(wlEntry.entryLower);
     const effectiveScore = ov ? ov.score : rescoredScore;
     const effectiveComment = (ov && ov.comment) ? ov.comment : (wlEntry.comment || '');
     return { ignored, rescoredScore, wasRescored, ov, effectiveScore, effectiveComment };
@@ -4722,7 +4722,7 @@ function getRescoredEntries(wordlist) {
 function getRescoredMap(wordlist) {
   if (wordlist._rescoredMap) return wordlist._rescoredMap;
   const map = new Map();
-  for (const e of getRescoredEntries(wordlist)) map.set(e.entry.toUpperCase(), e);
+  for (const e of getRescoredEntries(wordlist)) map.set(e.entryLower, e);
   wordlist._rescoredMap = map;
   return map;
 }
@@ -5055,21 +5055,20 @@ function attachExternalEditHandlers(s, refreshFn) {
 
 function upsertEdits(entry, field, newValue) {
   const edits = getEditsWordlist();
-  const upperEntry = entry.toUpperCase();
-  const existing = edits.rawEntries.find(e => e.entry.toUpperCase() === upperEntry);
+  const entryLow = entry.toLowerCase();
+  const existing = edits.rawEntries.find(e => e.entryLower === entryLow);
   let wlEntry;
   if (existing) {
     existing[field] = newValue;
     wlEntry = existing;
   } else {
-    const orig = workshopScroller?.allEntries?.find(e => e.entry.toUpperCase() === upperEntry);
+    const orig = workshopScroller?.allEntries?.find(e => e.entryLower === entryLow);
     const score   = field === 'score'   ? newValue : (orig?.score   ?? 50);
     const comment = field === 'comment' ? newValue : (orig?.comment ?? '');
-    const entryLow = entry.toLowerCase();
     wlEntry = { entry: entryLow, entryLower: entryLow, score, comment };
     edits.rawEntries.push(wlEntry);
   }
-  patchCachesForEditsChange(upperEntry, wlEntry);
+  patchCachesForEditsChange(entryLow, wlEntry);
   updateCatchAll(edits);
   persistEdits(edits);
   refreshDerivedDisplays();
@@ -5393,12 +5392,12 @@ function ingestFile(file, wordlist, nameOverride) {
 
     // My Edits: always combine instead of replace
     if (wordlist.type === 'edits' && wordlist.rawEntries.length > 0) {
-      const existingMap = new Map(wordlist.rawEntries.map(e => [e.entry.toUpperCase(), e]));
+      const existingMap = new Map(wordlist.rawEntries.map(e => [e.entryLower, e]));
       const newEntries = [], conflicts = [];
       let unchanged = 0;
 
       for (const wlEntry of entries) {
-        const existing = existingMap.get(wlEntry.entry.toUpperCase());
+        const existing = existingMap.get(wlEntry.entryLower);
         if (!existing) {
           newEntries.push(wlEntry);
         } else if (existing.score !== wlEntry.score || existing.comment !== wlEntry.comment) {
@@ -5485,7 +5484,7 @@ function openAddEntryBar() {
   });
 
   function commit() {
-    const entry = entryInput.value.trim().toUpperCase();
+    const entry = entryInput.value.trim().toLowerCase();
     const score = parseInt(scoreInput.value.trim(), 10);
     const comment = commentInput.value.trim();
 
@@ -5496,7 +5495,7 @@ function openAddEntryBar() {
 
     const edits = getEditsWordlist();
 
-    const existing = edits.rawEntries.find(e => e.entry.toUpperCase() === entry);
+    const existing = edits.rawEntries.find(e => e.entryLower === entry);
     let wlEntry;
     if (existing) {
       existing.score = score;
@@ -5504,8 +5503,7 @@ function openAddEntryBar() {
       wlEntry = existing;
       showToast(`Updated ${displayEntry(entry)}`);
     } else {
-      const entryLow = entry.toLowerCase();
-      wlEntry = { entry: entryLow, entryLower: entryLow, score, comment };
+      wlEntry = { entry, entryLower: entry, score, comment };
       edits.rawEntries.push(wlEntry);
       showToast(`Added ${displayEntry(entry)}`);
     }
@@ -5526,17 +5524,17 @@ function openAddEntryBar() {
 
 function deleteFromEdits(entry, refreshFn) {
   const edits = getEditsWordlist();
-  const idx = edits.rawEntries.findIndex(e => e.entry.toUpperCase() === entry.toUpperCase());
+  const entryLow = entry.toLowerCase();
+  const idx = edits.rawEntries.findIndex(e => e.entryLower === entryLow);
   if (idx === -1) return;
 
-  const upperEntry = entry.toUpperCase();
   const refresh = refreshFn ?? (() => {
     workshopScroller._invalidateSortCache();
     workshopScroller._applyFilterAndSort(false);
   });
 
   const [deleted] = edits.rawEntries.splice(idx, 1);
-  patchCachesForEditsChange(upperEntry, null);
+  patchCachesForEditsChange(entryLow, null);
   updateCatchAll(edits);
   persistEdits(edits);
   refresh();
@@ -5544,7 +5542,7 @@ function deleteFromEdits(entry, refreshFn) {
 
   showUndoToast(`Deleted ${esc(displayEntry(deleted.entry))} from ${buildWordlistNameHTML(edits)}`, () => {
     edits.rawEntries.splice(idx, 0, deleted);
-    patchCachesForEditsChange(upperEntry, deleted);
+    patchCachesForEditsChange(entryLow, deleted);
     updateCatchAll(edits);
     persistEdits(edits);
     refresh();
@@ -6658,9 +6656,8 @@ function buildOverrideMap(wordlist) {
   for (const l of state.sources) {
     if (l === wordlist) break;
     if (!l.enabled) continue;
-    for (const { entry, score, comment } of getRescoredEntries(l)) {
-      const k = entry.toUpperCase();
-      if (!map.has(k)) map.set(k, { wordlist: l, score, comment: comment || '' });
+    for (const { entryLower, score, comment } of getRescoredEntries(l)) {
+      if (!map.has(entryLower)) map.set(entryLower, { wordlist: l, score, comment: comment || '' });
     }
   }
   wordlist._overrideMap = map;
@@ -6810,17 +6807,15 @@ function refreshDerivedDisplays() {
 function buildMergedWordlist() {
   if (_mergedWordlistCache) return _mergedWordlistCache;
 
-  const mergedMap = new Map(); // UPPERCASE_KEY → wordlistEntry
+  const mergedMap = new Map(); // entryLower → wordlistEntry
   const sourceCounts = [];
 
   for (const wordlist of state.sources) {
     if (!wordlist.enabled) continue;
     let count = 0;
-    for (const { entry, score, comment } of getRescoredEntries(wordlist)) {
-      const key = entry.toUpperCase();
-      if (!mergedMap.has(key)) {
-        const entryLow = entry.toLowerCase();
-        mergedMap.set(key, { entry: entryLow, entryLower: entryLow, score, comment: comment || '', wordlist });
+    for (const { entryLower, score, comment } of getRescoredEntries(wordlist)) {
+      if (!mergedMap.has(entryLower)) {
+        mergedMap.set(entryLower, { entry: entryLower, entryLower, score, comment: comment || '', wordlist });
         count++;
       }
     }

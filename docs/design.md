@@ -267,7 +267,7 @@ Wordlists can be hundreds of thousands of entries. Several caches keep wordlist 
 | Cache | Scope | Derived from | Cleared by |
 |---|---|---|---|
 | `wordlist._rescored` | per-wordlist | own `rawEntries` + `rescoreRules` | `invalidateRescoredCache(wordlist)` |
-| `wordlist._rescoredMap` | per-wordlist | `_rescored` (UPPERCASE word → entry, for fast lookup) | `invalidateRescoredCache(wordlist)` |
+| `wordlist._rescoredMap` | per-wordlist | `_rescored` (`entryLower` → wlEntry, for fast lookup) | `invalidateRescoredCache(wordlist)` |
 | `wordlist._overrideMap` | per-wordlist | every higher-priority enabled wordlist's `_rescored` | `invalidateSourceCounts()` (clears all) |
 | `_mergedWordlistCache` | module | every enabled wordlist's `_rescored` (entries + `byEntry` map) | `invalidateSourceCounts()` |
 | `_sourceCountsCache` | module | aliases `_mergedWordlistCache.sourceCounts` | `invalidateSourceCounts()` |
@@ -285,6 +285,8 @@ Override maps are invalidated globally rather than per-affected-list because tra
 
 **Read live, don't snapshot.** Cache entries hold a `wordlist` reference rather than copying out display fields like `name`. Render-time code reads `entry.wordlist.name` so renames propagate without cache invalidation. The virtual scroller follows the same convention — `currentWordlist` is a ref, not a name string.
 
+**Lowercase keys throughout.** `_rescoredMap`, `_overrideMap`, and `_mergedWordlistCache.byEntry` are all keyed by `entryLower`. The key is the same string object as the wlEntry's `entryLower` field — Map keys share storage with the value's lowercase form, so construction allocates no extra strings and lookups never need a per-call `.toLowerCase()`. Anything that lookups against these caches (e.g. `patchCachesForEditsChange(entry, ...)`) takes its `entry` parameter in lowercase form.
+
 **Hot path: switching wordlists.** First switch builds `_rescored` (lazy) and `_overrideMap` (lazy); subsequent switches are near-free. The virtual scroller's `_sortScores` Map is built only on demand — clicking the Score header to sort triggers it. Switching never builds it.
 
 **Hot path: editing My Edits.** Score and comment edits, new-entry adds, and deletes all flow through `patchCachesForEditsChange(entry, newEditsWlEntry)`. It mutates the affected `_overrideMap` entries and the matching slot in `_mergedWordlistCache.byEntry` instead of triggering a full rebuild. No `buildMergedWordlist` walks across all sources per keystroke.
@@ -299,7 +301,7 @@ The patch is structured around three observations:
 
 **Hot path: typing in search.** Per-keystroke filtering is sized to avoid the two costs that dominate large wordlists — lowercasing the entry and re-sorting the filtered result. The caches involved are scroller-internal (not in the table above): they belong to the active `WorkshopEntriesScroller` / `LibraryEntriesScroller` instance and end with the scroller's life.
 
-- Every `wlEntry` carries a precomputed `entryLower` field, assigned at parse and at every mutation path. Filters read `.entryLower` directly — no per-keystroke `.toLowerCase()` allocation across hundreds of thousands of entries. Already-lowercase entries (merged-map entries, My Edits-edited entries) reuse the same string reference, so the cost is one property slot, not a fresh string.
+- Every `wlEntry` carries a precomputed `entryLower` field, assigned at parse and at every mutation path. Filters read `.entryLower` directly — no per-keystroke `.toLowerCase()` allocation across hundreds of thousands of entries. For merged-map entries and My Edits-edited entries, `entry` and `entryLower` are assigned from one variable, so both fields point at the same string object and the field costs one property slot, not a fresh allocation. For source wordlists with uppercase entries (e.g. Broda), the lowercase form is a fresh string allocated once at parse.
 - The Workshop scroller keeps `_sortedSource` — `allEntries` sorted by the current `sortKey`/`sortDir`. `.filter()` preserves order, so the filter result is already sorted and the post-filter sort drops out. When sorting by score, `_sortedSource` reads from `_sortScores` (the lazy `wlEntry → effective score` Map, built on demand the first time score-axis sort runs).
 - The Library scroller splits work two ways. `_baseRows` holds the unfiltered row data — `_buildRows()` walks `rawEntries` and applies `rescoreEntry`, and that result is rebuilt only on `setWordlist` / `setMode` / `setRescorePreview`. `_sortedBaseRows` is its sorted view, rebuilt on sort change. `setQuery` runs neither — it just refilters the cached sorted source.
 
