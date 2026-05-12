@@ -205,6 +205,10 @@ button.danger:hover:not(:disabled) { background: #e74c3c; border-color: #c0392b;
 
 /* Stats bar */
 .stats-bar { border-bottom: 1px solid var(--border3); padding: 10px 18px; display: flex; align-items: center; gap: 22px; background: var(--surface3); }
+/* Toggled by refreshStatsBarOverflow when the bar's natural content width
+   exceeds its actual width. Hides Mean/Median/Mode (the histogram stays,
+   since it carries the distribution at a glance). */
+.stats-overflow .stats-right .stat { display: none; }
 
 /* The stats bar's surface3 is the "most recessed" band — it's the summary
    marquee for whatever wordlist (or merged view) is in focus, and the
@@ -437,10 +441,6 @@ html.dark-mode .search-match-4 { background: #14532d; color: #d1fae5; }
    remains in the cell's title attribute for hover/long-press. */
 @media (max-width: 759px) {
   .detail-date-prefix { display: none; }
-  /* Stats bar runs out of room — mean/median/mode are the least essential
-     readouts (the histogram conveys the distribution at a glance), so drop
-     them and keep Entries/Min/Max alongside the histogram. */
-  .stats-right .stat { display: none; }
   /* Reclaim the gutters: the bordered card frame is decorative breathing
      room on desktop, but pure waste on a phone where every pixel matters.
      Drop the main padding, all borders, corner radius, bottom margin, and
@@ -4889,6 +4889,26 @@ function refreshWorkshopStatsBarFromScroller() {
   const hist = workshopScroller._histogramViewEntries();
   statsBar.outerHTML = buildStatsBarHTML(stats, hist, getHistogramLayout());
   repositionAllHistogramRects();
+}
+
+// Hide the stats bar's right-side stats (Mean · Median · Mode) when the
+// bar's content would overflow. Driven by actual overflow rather than a
+// hardcoded breakpoint, so the Library bar reacts to its own width (after
+// the wordlist rail takes its slice) rather than the whole window's.
+// Strip the class first so scrollWidth reflects the natural content width.
+function refreshStatsBarOverflow() {
+  for (const bar of document.querySelectorAll('.stats-bar')) {
+    bar.classList.remove('stats-overflow');
+    if (bar.scrollWidth > bar.clientWidth) bar.classList.add('stats-overflow');
+  }
+}
+// RO fires on viewport/pane resize; MO fires when a bar is added or swapped
+// (innerHTML / outerHTML). Both parents exist in the static body, so
+// attaching at module load is safe.
+for (const id of ['workshop-stats', 'wld-pane']) {
+  const parent = document.getElementById(id);
+  new ResizeObserver(refreshStatsBarOverflow).observe(parent);
+  new MutationObserver(refreshStatsBarOverflow).observe(parent, { childList: true });
 }
 
 // mountWorkshopPanel rebuilds the search-input on every render — the prior
