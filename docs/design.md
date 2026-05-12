@@ -141,8 +141,6 @@ What's gained: visual calm at rest, narrow widths come nearly for free (lists sc
 
 **Score badges right-aligned within their column.** `justify-self: end` on the score atom pushes each badge to the right edge of the (uniform) score track; numbers' right digits line up across rows. The score column width is `calc(maxScoreDigits ch + 12px)` — the 12px covers the badge's 5px-each-side padding plus a small safety margin.
 
-**No hover state, no row separators.** The pseudo-column alignment carries the row structure on its own — borders would be redundant noise at 24px row height. Hover highlight was rejected because the entire row reads as one unit (you don't aim for a sub-element) and at high row density the highlight flashes as the eye drags down. The popover-active row gets an accent tint (`color-mix(in srgb, var(--accent) 12%, transparent)`) so the user can tell which row the popover belongs to; that's the only background state.
-
 **Click targets are the entry and score atoms only.** `cursor: pointer` and the click handler both gate on `.atom-entry` or `.atom-score`. The count and length are read-only display; the row as a whole is not interactive. Cursor on the whole row would imply otherwise.
 
 **Search highlight** marks pattern matches in the entry slot via `<mark>` spans, colored per capture group. Ellipsis truncation respects the markup.
@@ -329,10 +327,6 @@ The alternative — sprinkling `invalidateX()` and `repaintY()` calls at every m
 `batchUpdate(fn)` coalesces a multi-field save (the configure-wordlist dialog can change up to five fields at once, and `applyWordlistText` batches its prelude similarly) into one effect run per subscriber. Signal writes inside a batch queue their subscribers in `_batchedEffects`; any `repaintAfterCacheChange` calls inside set a deferred bump flag, and `persistMeta()` calls set a deferred persist flag. At the end of the batch persistence runs once, the cache bump fires once, and the queued effects each run once.
 
 ## Open questions
-
-### Fold "Configure wordlist" into the Library view
-
-Today, a wordlist's kebab menu's "Configure wordlist" opens a separate `ConfigureWordlistDialog` for icon, name, URL, publisher, and rule application — a second drill-down on top of a configuration page. That doesn't make sense; the Library view is already where you configure things. The right pane should expose those fields directly (or in a collapsible "advanced" block) so there's no nested dialog.
 
 ### Routes for Sync & backup, Settings, Help?
 
