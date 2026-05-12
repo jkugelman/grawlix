@@ -1201,18 +1201,18 @@ function buildWildcardSpansHTML() {
 }
 
 function buildSearchBarHTML() {
-  const searchQuery     = esc(state.searchQuery);
-  const searchWholeWord = state.searchWholeWord || false;
-  const scoreRange      = state.scoreRange || '';
+  const searchQuery     = esc(WorkshopView.searchQuery);
+  const searchWholeWord = WorkshopView.searchWholeWord;
+  const scoreRange      = WorkshopView.scoreRange;
 
   return `<div class="search-bar">
       ${buildToolLabelHTML({ icon: '<svg width="16" height="16" aria-hidden="true"><use href="#icon-search"/></svg>', name: 'Search' })}
       <div class="search-input-wrap">
-        <input type="text" id="search-input" placeholder="pattern" value="${searchQuery}" oninput="onSearch(this.value)" title="Search (Alt+S)">
-        <button class="clear-btn" id="search-clear" onclick="clearSearch()" title="Clear search" aria-label="Clear search" ${searchQuery ? '' : 'hidden'}><svg width="10" height="10"><use href="#icon-x"/></svg></button>
+        <input type="text" id="search-input" placeholder="pattern" value="${searchQuery}" oninput="WorkshopView.onSearch(this.value)" title="Search (Alt+S)">
+        <button class="clear-btn" id="search-clear" onclick="WorkshopView.clearSearch()" title="Clear search" aria-label="Clear search" ${searchQuery ? '' : 'hidden'}><svg width="10" height="10"><use href="#icon-x"/></svg></button>
       </div>
-      <label class="search-whole-word-label" title="Whole word (Alt+W)"><input type="checkbox" id="search-whole-word" onchange="onSearchWholeWord(this.checked)" ${searchWholeWord ? 'checked' : ''}> Whole word</label>
-      <label class="score-range-label" title="Score: 50, 50-59, or 50+ (Alt+C)">Score <span class="score-range-wrap"><input type="text" id="score-range-input" value="${esc(scoreRange)}" oninput="onScoreRange(this.value)"><button class="clear-btn" id="score-range-clear" onclick="clearScoreRange()" title="Clear score" aria-label="Clear score" ${scoreRange ? '' : 'hidden'}><svg width="10" height="10"><use href="#icon-x"/></svg></button></span></label>
+      <label class="search-whole-word-label" title="Whole word (Alt+W)"><input type="checkbox" id="search-whole-word" onchange="WorkshopView.onSearchWholeWord(this.checked)" ${searchWholeWord ? 'checked' : ''}> Whole word</label>
+      <label class="score-range-label" title="Score: 50, 50-59, or 50+ (Alt+C)">Score <span class="score-range-wrap"><input type="text" id="score-range-input" value="${esc(scoreRange)}" oninput="WorkshopView.onScoreRange(this.value)"><button class="clear-btn" id="score-range-clear" onclick="WorkshopView.clearScoreRange()" title="Clear score" aria-label="Clear score" ${scoreRange ? '' : 'hidden'}><svg width="10" height="10"><use href="#icon-x"/></svg></button></span></label>
       <span id="search-bar-sort" class="search-bar-sort"></span>
     </div>`;
 }
@@ -1522,13 +1522,13 @@ const Router = (() => {
     }
     // Permanent Search row last. Empty Search drops out — the UI re-adds an
     // empty Search bar at the bottom regardless, so the URL stays minimal.
-    if (state.searchQuery)     parts.push('search=' + encodeURIComponent(state.searchQuery));
-    if (state.searchWholeWord) parts.push('whole-word');
+    if (WorkshopView.searchQuery)     parts.push('search=' + encodeURIComponent(WorkshopView.searchQuery));
+    if (WorkshopView.searchWholeWord) parts.push('whole-word');
     // Sort axis/direction. Each key drops out when it matches its default,
     // so the common case (entry asc) is silent. `sort-dir` may appear alone
     // (e.g. entry desc) — parsing treats absent `sort` as the default axis.
-    if (state.sortKey !== DEFAULT_SORT_KEY)             parts.push('sort=' + state.sortKey);
-    if (state.sortDir !== defaultSortDir(state.sortKey)) parts.push('sort-dir=' + state.sortDir);
+    if (WorkshopView.sortKey !== DEFAULT_SORT_KEY)             parts.push('sort=' + WorkshopView.sortKey);
+    if (WorkshopView.sortDir !== defaultSortDir(WorkshopView.sortKey)) parts.push('sort-dir=' + WorkshopView.sortDir);
     return parts.join('&');
   }
 
@@ -1607,10 +1607,7 @@ const Router = (() => {
       }
       stack.push(row);
     }
-    state.searchQuery     = searchValue;
-    state.searchWholeWord = wholeWord;
-    state.sortKey = sortKey || DEFAULT_SORT_KEY;
-    state.sortDir = sortDir || defaultSortDir(state.sortKey);
+    WorkshopView.applyURLState({ searchQuery: searchValue, searchWholeWord: wholeWord, sortKey, sortDir });
     ToolStack.setStack(stack);
     if (droppedUnknown) {
       // Defer: showToast appends to the toast container which may not be in
@@ -1637,16 +1634,12 @@ const DEFAULT_SCORING = [
   { input: '0',  note: 'Gibberish' },
 ];
 
-// Top-level state. The one signal-backed reactive field drives the cosmetic
-// effect; the rest are plain properties used imperatively.
-//
-//   `sources$`  — array of wordlists. The cosmetic effect subscribes; reorder/
-//                 add/remove call `sources$.bump()` after splicing (signal
-//                 equality is by reference, so plain mutation needs a bump).
-//
-// Search/score-range state is plain on `state` — there's no subscriber for
-// it; the search bar is updated imperatively by the input handlers. (If a
-// future view wants to react to query changes, lift them back to signals.)
+// Top-level state. `sources$` is the array of wordlists, signal-backed so
+// the cosmetic effect can subscribe; reorder/add/remove call `sources$.bump()`
+// after splicing (signal equality is by reference, so plain mutation needs a
+// bump). Per-view UI state (search/sort/score-range, focused wordlist, display
+// mode) lives inside each view's IIFE — WorkshopView and LibraryView — not
+// here.
 const sources$  = signal([]);
 
 // `cacheVersion$` is bumped whenever the imperative caches change (full
@@ -1662,13 +1655,6 @@ function bumpCacheVersion() { cacheVersion$.set(cacheVersion$.peek() + 1); }
 const state = {
   get sources()  { return sources$.peek(); },
   set sources(v) { sources$.set(v); },
-  searchQuery: '',
-  searchWholeWord: false,
-  scoreRange: '',
-  // Sort defaults match DEFAULT_SORT_KEY / defaultSortDir below; literals here
-  // because those consts are defined later in the file.
-  sortKey: 'entry',
-  sortDir: 'asc',
 };
 
 // Per-wordlist cosmetic fields are signal-backed: each wordlist exposes both
@@ -1952,7 +1938,7 @@ const SettingsDialog = (() => {
       ctrl.querySelectorAll('.seg-btn').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
       lsSave('displayCase', btn.dataset.val);
-      if (scroller) scroller.updateEntries(scroller.allEntries);
+      if (workshopScroller) workshopScroller.updateEntries(workshopScroller.allEntries);
     };
   });
 
@@ -1971,13 +1957,24 @@ const SettingsDialog = (() => {
 
 // ─── Workshop view ────────────────────────────────────────────────────────────
 // Top-level page (peer of Library in the brand-bar nav). Hosts the tool gallery,
-// stack, and entries table — the construction-aid surface. Most of Workshop's
-// content is rendered by other modules (ToolStack, the render effect, the
-// scroller); this controller just owns the show/hide lifecycle so MainView can
-// treat both views uniformly.
+// stack, and entries table — the construction-aid surface. Owns the show/hide
+// lifecycle plus the search / whole-word / score-range / sort state and its
+// handlers, mirroring LibraryView's shape (self-contained module, no shared
+// state object between the two views).
 
 const WorkshopView = (() => {
   const el = document.getElementById('workshop-view');
+
+  // View-private state. Read externally via the getters in the returned
+  // object; written either through the handlers below or through
+  // `applyURLState` (Router) / `restoreScoreRange` (boot). The sort state
+  // is mutated by WorkshopEntriesScroller's toolbar via `setSort`.
+  let _searchQuery     = '';
+  let _searchWholeWord = false;
+  let _scoreRange      = '';
+  let _sortKey         = 'entry';
+  let _sortDir         = 'asc';
+
   function show() {
     el.hidden = false;
     // Histogram rect positioning reads live offsetLeft/offsetWidth, which are
@@ -1987,7 +1984,76 @@ const WorkshopView = (() => {
   }
   function hide() { el.hidden = true; }
   function isVisible() { return !el.hidden; }
-  return { show, hide, isVisible };
+
+  // Search / sort / score-range handlers — wired from the inline oninput /
+  // onclick attributes that buildSearchBarHTML emits, plus the Alt+W
+  // keyboard shortcut and the histogram drag-up commit.
+  function onSearch(query) {
+    _searchQuery = query;
+    const btn = document.getElementById('search-clear');
+    if (btn) btn.hidden = !query;
+    workshopScroller?.filter(query, _searchWholeWord, _scoreRange);
+    Router.navigate({ debounce: true });
+  }
+  function onSearchWholeWord(checked) {
+    _searchWholeWord = checked;
+    workshopScroller?.filter(_searchQuery, checked, _scoreRange);
+    Router.navigate();
+  }
+  function onScoreRange(value) {
+    const trimmed = (value || '').trim();
+    const intervals = trimmed === '' ? null : parseRange(trimmed);
+    const inp = document.getElementById('score-range-input');
+    if (inp) inp.classList.toggle('invalid', trimmed !== '' && intervals === null);
+    _scoreRange = (trimmed && intervals) ? trimmed : '';
+    if (_scoreRange) lsSave('scoreRange', _scoreRange);
+    else             lsDel('scoreRange');
+    const btn = document.getElementById('score-range-clear');
+    if (btn) btn.hidden = trimmed === '';
+    workshopScroller?.filter(_searchQuery, _searchWholeWord, _scoreRange);
+    repositionAllHistogramRects();
+  }
+  function clearSearch() {
+    const inp = document.getElementById('search-input');
+    if (inp) { inp.value = ''; inp.focus(); }
+    onSearch('');
+  }
+  function clearScoreRange() {
+    const inp = document.getElementById('score-range-input');
+    if (inp) { inp.value = ''; inp.classList.remove('invalid'); inp.focus(); }
+    onScoreRange('');
+  }
+
+  // Sort state is mutated by WorkshopEntriesScroller's toolbar when the user
+  // picks a new axis or flips the direction. No filter call here — the
+  // scroller re-applies sort itself; this just keeps the canonical state.
+  function setSort(key, dir) { _sortKey = key; _sortDir = dir; }
+
+  // Bulk-apply URL state at boot. Router parses the query string then hands
+  // us a clean object; this is the only path that writes everything at once
+  // without firing handler side effects.
+  function applyURLState({ searchQuery, searchWholeWord, sortKey, sortDir }) {
+    _searchQuery     = searchQuery || '';
+    _searchWholeWord = !!searchWholeWord;
+    _sortKey         = sortKey || DEFAULT_SORT_KEY;
+    _sortDir         = sortDir || defaultSortDir(_sortKey);
+  }
+
+  // Score-range is the lone state field that's localStorage-backed (it's a
+  // standing preference, not a shared URL parameter — see design.md § Out of
+  // scope for the URL). Boot restores the validated value via this setter.
+  function restoreScoreRange(v) { _scoreRange = v; }
+
+  return {
+    show, hide, isVisible,
+    onSearch, onSearchWholeWord, onScoreRange, clearSearch, clearScoreRange,
+    setSort, applyURLState, restoreScoreRange,
+    get searchQuery()     { return _searchQuery;     },
+    get searchWholeWord() { return _searchWholeWord; },
+    get scoreRange()      { return _scoreRange;      },
+    get sortKey()         { return _sortKey;         },
+    get sortDir()         { return _sortDir;         },
+  };
 })();
 
 // ─── Library view ─────────────────────────────────────────────────────────────
@@ -2723,7 +2789,7 @@ async function init() {
   // for the URL. Validate the stored value; drop silently if corrupt.
   const storedScoreRange = lsLoad('scoreRange');
   if (storedScoreRange !== null && parseRange(storedScoreRange.trim()) !== null) {
-    state.scoreRange = storedScoreRange.trim();
+    WorkshopView.restoreScoreRange(storedScoreRange.trim());
   }
 
   const initialView = Router.applyURL();
@@ -3535,8 +3601,8 @@ class WorkshopEntriesScroller extends BaseVirtualScroller {
     this.toolbar = document.getElementById('search-bar-sort');
     this.allEntries = [];
     this.entries = [];
-    this.sortKey = state.sortKey;
-    this.sortDir = state.sortDir;
+    this.sortKey = WorkshopView.sortKey;
+    this.sortDir = WorkshopView.sortDir;
     this._lastQuery = '';
     this._wholeWord = false;
     this._scoreIntervals = null;
@@ -3582,8 +3648,8 @@ class WorkshopEntriesScroller extends BaseVirtualScroller {
     this.allEntries = allEntries;
     this.rescoreRules = rescoreRules || [];
     this.overrideMap = overrideMap || new Map();
-    // Sort persists across wordlist switches via `state.sortKey/sortDir` (the
-    // scroller field was already seeded from state in the constructor).
+    // Sort persists across wordlist switches via `WorkshopView.sortKey/sortDir`
+    // (the scroller field was already seeded from there in the constructor).
     this._sortScores = null;
     this._buildToolbar();
     this.filter(query, wholeWord, scoreRange);
@@ -3626,8 +3692,7 @@ class WorkshopEntriesScroller extends BaseVirtualScroller {
       if (this.sortKey !== key) {
         this.sortKey = key;
         this.sortDir = defaultSortDir(key);
-        state.sortKey = this.sortKey;
-        state.sortDir = this.sortDir;
+        WorkshopView.setSort(this.sortKey, this.sortDir);
         this._buildToolbar();
         this._applyFilterAndSort();
         Router.navigate();
@@ -3635,7 +3700,7 @@ class WorkshopEntriesScroller extends BaseVirtualScroller {
     });
     this.toolbar.querySelector('.sort-dir-btn').addEventListener('click', () => {
       this.sortDir = this.sortDir === 'asc' ? 'desc' : 'asc';
-      state.sortDir = this.sortDir;
+      WorkshopView.setSort(this.sortKey, this.sortDir);
       this._buildToolbar();
       this._applyFilterAndSort();
       Router.navigate();
@@ -4554,8 +4619,7 @@ function renderRescoreSection() {
 
 // ─── Rendering ────────────────────────────────────────────────────────────────
 
-let scroller = null;
-let _dateTimer = null;
+let workshopScroller = null;
 
 // The render dispatcher is two effects:
 //   - render effect — reads `cacheVersion$`, dispatches the panel render
@@ -4595,7 +4659,7 @@ function setupRenderEffect() {
     refreshSourceCounts();        // rebuild caches before any UI reads them
     renderSources();              // list/dialog with fresh meta
     refreshDerivedDisplays();     // scoring legend + main-panel stats bar
-    if (scroller) refreshWorkshopMergedScroller();
+    if (workshopScroller) refreshWorkshopMergedScroller();
   });
 
   // Cosmetic effect: re-renders the Library list and the merged scroller's
@@ -4615,7 +4679,7 @@ function setupRenderEffect() {
       return;            // render effect's first run already painted everything
     }
     renderSources();
-    if (scroller) scroller._render();
+    if (workshopScroller) workshopScroller._render();
   });
 }
 
@@ -4661,9 +4725,9 @@ function refreshSourceCounts() {
 
 function createScroller() {
   AtomPopover.close();
-  scroller?.destroy();
-  scroller = new WorkshopEntriesScroller(document.getElementById('vs-host'));
-  return scroller;
+  workshopScroller?.destroy();
+  workshopScroller = new WorkshopEntriesScroller(document.getElementById('vs-host'));
+  return workshopScroller;
 }
 
 // Refresh the merged scroller against the current `_mergedWordlistCache`.
@@ -4673,13 +4737,13 @@ function createScroller() {
 // branch and by the merged view's edit/delete handlers (which take the patch
 // path explicitly).
 function refreshWorkshopMergedScroller() {
-  if (!scroller) return;
+  if (!workshopScroller) return;
   const { entries } = buildMergedWordlist();
-  if (entries === scroller.allEntries) {
-    scroller._sortScores = null;
-    scroller._applyFilterAndSort(false);
+  if (entries === workshopScroller.allEntries) {
+    workshopScroller._sortScores = null;
+    workshopScroller._applyFilterAndSort(false);
   } else {
-    scroller.updateEntries(entries);
+    workshopScroller.updateEntries(entries);
   }
 }
 
@@ -4696,7 +4760,7 @@ function mountWorkshopPanel(panel, stats, entries) {
   ToolStack.refreshGalleryActive();
   repositionAllHistogramRects();
   createScroller();
-  scroller.onFilterChange = () => refreshWorkshopStatsBarFromScroller(panel);
+  workshopScroller.onFilterChange = () => refreshWorkshopStatsBarFromScroller(panel);
   attachSearchHelpPopup();
 }
 
@@ -4705,12 +4769,12 @@ function mountWorkshopPanel(panel, stats, entries) {
 // filtering, edits, and any other filter-affecting change keep the count,
 // min/max/mean/median/mode, and histogram in sync with what's on screen.
 function refreshWorkshopStatsBarFromScroller(panel) {
-  if (!scroller) return;
+  if (!workshopScroller) return;
   const statsBar = panel.querySelector('.stats-bar');
   if (!statsBar) return;
-  const { entries, ignoredCount } = scroller._filteredStatsViewEntries();
+  const { entries, ignoredCount } = workshopScroller._filteredStatsViewEntries();
   const stats = computeStatsRaw(entries, ignoredCount);
-  const hist = scroller._histogramViewEntries();
+  const hist = workshopScroller._histogramViewEntries();
   statsBar.outerHTML = buildStatsBarHTML(stats, hist, getHistogramLayout());
   repositionAllHistogramRects();
 }
@@ -4727,20 +4791,17 @@ function attachSearchHelpPopup() {
 
 function renderWorkshopMergedDetail() {
   const panel = document.getElementById('detail-panel');
-  clearInterval(_dateTimer);
-  _dateTimer = null;
-
   const { entries } = buildMergedWordlist();
   const stats = computeStats(_mergedStatsKey, entries);
   mountWorkshopPanel(panel, stats, entries);
 
-  scroller.showSource = true;
-  scroller.editsWordlist = getEditsWordlist() ?? null;
-  scroller.showEditDeleteCol = true;
-  scroller.setEntries(entries, state.searchQuery, [], new Map(), state.searchWholeWord, state.scoreRange);
+  workshopScroller.showSource = true;
+  workshopScroller.editsWordlist = getEditsWordlist() ?? null;
+  workshopScroller.showEditDeleteCol = true;
+  workshopScroller.setEntries(entries, WorkshopView.searchQuery, [], new Map(), WorkshopView.searchWholeWord, WorkshopView.scoreRange);
 
-  scroller._onDeleteRow = entry => deleteFromEdits(entry, refreshWorkshopMergedScroller);
-  attachExternalEditHandlers(scroller, refreshWorkshopMergedScroller);
+  workshopScroller._onDeleteRow = entry => deleteFromEdits(entry, refreshWorkshopMergedScroller);
+  attachExternalEditHandlers(workshopScroller, refreshWorkshopMergedScroller);
 }
 
 async function downloadMergedWordlistFromPanel() {
@@ -4790,7 +4851,7 @@ function updateScoringCatchAll(scoring, entries) {
 // re-render of the visible rows is enough.
 function renderScoringRules() {
   LibraryView.refreshScoringSection();
-  scroller?._render?.();
+  workshopScroller?._render?.();
 }
 
 function deleteScoringRow(i) {
@@ -4834,7 +4895,7 @@ function upsertEdits(entry, field, newValue) {
     existing[field] = newValue;
     wlEntry = existing;
   } else {
-    const orig = scroller?.allEntries?.find(e => e.entry.toUpperCase() === upperEntry);
+    const orig = workshopScroller?.allEntries?.find(e => e.entry.toUpperCase() === upperEntry);
     const score   = field === 'score'   ? newValue : (orig?.score   ?? 50);
     const comment = field === 'comment' ? newValue : (orig?.comment ?? '');
     wlEntry = { entry: entry.toLowerCase(), score, comment };
@@ -4844,47 +4905,6 @@ function upsertEdits(entry, field, newValue) {
   updateCatchAll(edits);
   persistEdits(edits);
   refreshDerivedDisplays();
-}
-
-function onSearch(query) {
-  state.searchQuery = query;
-  const btn = document.getElementById('search-clear');
-  if (btn) btn.hidden = !query;
-  if (scroller) scroller.filter(query, state.searchWholeWord, state.scoreRange);
-  Router.navigate({ debounce: true });
-}
-
-function onSearchWholeWord(checked) {
-  state.searchWholeWord = checked;
-  if (scroller) scroller.filter(state.searchQuery, checked, state.scoreRange);
-  Router.navigate();
-}
-
-function onScoreRange(value) {
-  const trimmed = (value || '').trim();
-  const intervals = trimmed === '' ? null : parseRange(trimmed);
-  const inp = document.getElementById('score-range-input');
-  if (inp) inp.classList.toggle('invalid', trimmed !== '' && intervals === null);
-
-  state.scoreRange = (trimmed && intervals) ? trimmed : '';
-  if (state.scoreRange) lsSave('scoreRange', state.scoreRange);
-  else                  lsDel('scoreRange');
-  const btn = document.getElementById('score-range-clear');
-  if (btn) btn.hidden = trimmed === '';
-  if (scroller) scroller.filter(state.searchQuery, state.searchWholeWord, state.scoreRange);
-  repositionAllHistogramRects();
-}
-
-function clearSearch() {
-  const inp = document.getElementById('search-input');
-  if (inp) { inp.value = ''; inp.focus(); }
-  onSearch('');
-}
-
-function clearScoreRange() {
-  const inp = document.getElementById('score-range-input');
-  if (inp) { inp.value = ''; inp.classList.remove('invalid'); inp.focus(); }
-  onScoreRange('');
 }
 
 // ─── Histogram pointer interaction ───────────────────────────────────────────
@@ -4948,15 +4968,15 @@ function _onHistogramPointerUp(event) {
   _histDrag = null;
   const layout = getHistogramLayout();
   let next;
-  if (!ds.moved && state.scoreRange) {
-    const intervals = parseRange(state.scoreRange);
+  if (!ds.moved && WorkshopView.scoreRange) {
+    const intervals = parseRange(WorkshopView.scoreRange);
     const insideSelection = intervals && matchesRange(ds.startLo, intervals) && matchesRange(ds.startHi, intervals);
     next = insideSelection ? '' : rangeStrFromBounds(ds.startLo, ds.startHi, layout);
   } else {
     next = rangeStrFromBounds(Math.min(ds.startLo, ds.curLo), Math.max(ds.startHi, ds.curHi), layout);
   }
   document.querySelectorAll('#score-range-input').forEach(inp => { inp.value = next; });
-  onScoreRange(next);
+  WorkshopView.onScoreRange(next);
 }
 
 document.addEventListener('pointermove', _onHistogramPointerMove);
@@ -4990,7 +5010,7 @@ function positionHistogramRect(histEl, intervals = undefined) {
   const rect = histEl.querySelector('.histogram-rect');
   if (!rect) return;
   if (intervals === undefined) {
-    intervals = state.scoreRange ? parseRange(state.scoreRange) : null;
+    intervals = WorkshopView.scoreRange ? parseRange(WorkshopView.scoreRange) : null;
   }
   if (!intervals) { rect.hidden = true; return; }
   const cols = [...histEl.querySelectorAll('.histogram-col:not(.histogram-col-ignored)')];
@@ -5342,8 +5362,8 @@ function deleteFromEdits(entry, refreshFn) {
 
   const upperEntry = entry.toUpperCase();
   const refresh = refreshFn ?? (() => {
-    scroller._sortScores = null;
-    scroller._applyFilterAndSort(false);
+    workshopScroller._sortScores = null;
+    workshopScroller._applyFilterAndSort(false);
   });
 
   const [deleted] = edits.rawEntries.splice(idx, 1);
@@ -6066,7 +6086,7 @@ function bindEvents() {
         if (el) { e.preventDefault(); el.focus(); el.select(); }
       } else if (k === 'w') {
         const el = document.getElementById('search-whole-word');
-        if (el) { e.preventDefault(); el.checked = !el.checked; onSearchWholeWord(el.checked); }
+        if (el) { e.preventDefault(); el.checked = !el.checked; WorkshopView.onSearchWholeWord(el.checked); }
       } else if (k === 't') {
         const el = document.getElementById('gallery-search');
         if (el) { e.preventDefault(); el.focus(); el.select(); }
