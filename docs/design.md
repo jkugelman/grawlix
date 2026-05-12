@@ -33,11 +33,9 @@ The shape replaced an earlier full-bleed, fixed-left-rail layout that left a dev
 
 Library used to live behind a ⚙ button in Workshop's slim top row as a *Wordlists dialog*, on the premise that setup was occasional config you wouldn't return to. Community signal reset that premise: rescoring and curating wordlists is a return-to activity, which warrants peer real estate.
 
-**Slim top row** (Workshop only) at the top of the card holds the wordlist picker. No section labels — the row's role is self-evident.
+**Tool gallery** sits as a top section of the Workshop card. Cards lay out as a responsive grid (~180px min). Discoverability is preserved — the gallery is always visible on entry — at the cost of being scrolled past every session. Tool catalog and chaining are owned by [`plans/tools.md`](plans/tools.md).
 
-**Tool gallery** sits as a top section of the Workshop card, below the slim picker row. Cards lay out as a responsive grid (~180px min). Discoverability is preserved — the gallery is always visible on entry — at the cost of being scrolled past every session. Tool catalog and chaining are owned by [`plans/tools.md`](plans/tools.md).
-
-**Wordlist dropdown** is a *pure picker*. Each entry is icon + name only — no entry counts. No drag handles, enable toggles, or add-wordlist affordance; those live in the Library view. The Library is reached via the brand-bar nav, not from within the picker.
+**Workshop is always-merged.** No per-wordlist scope; the entries table shows the merged `All` view exclusively. A wordlist picker used to sit in a slim top row above the gallery, but it was removed: there's no Workshop activity meaningfully scoped to a single source (no one wants "anagrams in STWL only"), and the picker only stuck around because per-source viewing had nowhere else to live. With per-source inspection now in the Library, the picker no longer earned its slot.
 
 **Stats bar always renders, even for empty wordlists** — zero entries, dashes for min/max/etc., flat histogram baseline. Uniformity over an "empty placeholder" treatment.
 
@@ -66,25 +64,47 @@ Setup splits across two surfaces that answer different questions and stay distin
 
 ### Library
 
-Two-pane layout (rail + action row + stats + rule editor).
+Two-pane layout that's responsive: wordlist list above the focused-wordlist panel on mobile, side-by-side at ≥ 760px (list as a left rail, panel filling the rest). The list itself groups into two labeled sections — **Merged** (the All card at the top) and **Sources** (every reorderable wordlist below). My Edits sits first inside Sources by default but is reorderable like any other.
 
-The right pane has no name/icon header — the focused wordlist is identified by the highlighted card in the rail. Action buttons always justify right; the date label sits next to the primary action.
+The focused-wordlist panel has no name/icon header — the focused wordlist is identified by the highlighted card in the list. The action row always justifies the date label and primary action right; the Rescored/Original toggle sits left of them when present.
 
-Every wordlist has a rule editor for parity:
-- Regular wordlists get **rescoring** rules (their dialect → unified scale).
-- My Edits gets **scoring** rules (the user's tier labels for the unified scale).
+**Three panel shapes** with one common skeleton (action row → stats + histogram → rules editor → search bar → entries view):
 
-The action row is also unified — date slot, primary action, Download, more menu. Only the contents differ per wordlist type.
+- **Sources** carry rescoring rules and the Rescored/Original toggle.
+- **My Edits** has no rules editor at all — its scores pass through unchanged and its scoring rules moved to All.
+- **All** carries the scoring (tier-label) rules editor in place of rescoring.
 
-**Renaming** happens on the rail card via F2 with the card focused. Configure wordlist (in a wordlist's ⋮ menu) is the secondary path. No Rename in the kebab menu — the F2 affordance is enough.
+**The Rescored/Original toggle** is a coupled mode: flipping it switches stats, histogram, entries view, and what Download produces in lockstep. WYSIWYG — what you see is what you'd save. A split-button Download (rescored / original) was the prior shape; collapsing it into a single Download button governed by the toggle makes the toggle's flip the gesture that picks which version to export, and earns the toggle its visible chrome. Hidden on My Edits (no rules to apply) and All (the merged view has no coherent "original" version).
+
+**The Library entries view** is a monospace, text-file-flavored counterpart to the Workshop entries table, sized for "rule tuning": tweak a rescore rule, see its effect in the rows immediately below. Inline `input → output` annotations appear only on rows where the rule actually changed something; ignored rows render the input score with the whole row struck through. Switching to Original mode strips all of that. The view is read-only — editing routes through Workshop's AtomPopover, where users already know to find it. Column widths are computed once across every source + the merged set and cached against `cacheVersion$`, so the entry and score columns stay stable as the user navigates between wordlists or flips the toggle.
+
+**Identity contrast** between the two entries displays is deliberate:
+
+| | Workshop entries table | Library entries view |
+|---|---|---|
+| Font | mixed (mono entries, sans-serif chrome) | monospace throughout |
+| Row chrome | row separators, score badges, count column | whitespace-aligned columns, no separators, no badges |
+| Click behavior | atom click → AtomPopover edit | read-only |
+| Tools | full gallery + stack | none |
+| Filter | search + score-range + sort | search + sort (no score-range) |
+| Source attribution | per-row source column on All | n/a |
+| Rescore annotation | red `*` + popover detail | inline `→` |
+
+The two views answer different questions about the same data — Workshop asks "what entries are available to me right now?" (merged, rescored, override-resolved), Library asks "what does this source contain and how does it get transformed?" — so they should look meaningfully different.
+
+**The Library histogram is display-only.** No cursor:pointer, no hover-revealed score gradient, no click-to-filter. Score-range filtering belongs to Workshop alone — Library inspects, doesn't query. Workshop's score filter is a Workshop-side, localStorage-persisted standing preference; the two views' filter scopes don't interact.
 
 **Rescoring lives entirely inside the Library view**; it doesn't appear on the Workshop entries table. Rules are detail config, typically set once when adding a wordlist and rarely revisited; they don't earn persistent real estate next to the wordlist view.
 
-**Scoring rules** (My Edits' tier labels) are the user's single notion of what each score range means — there is no separate "output" tier system. Tier labels surface on Workshop's entries table as a hover tooltip on each score atom — point at a score, see what tier the user has called it. The earlier always-visible legend block above the table was dropped because it earned a row of vertical real estate the user paid for on every scroll, even though the lookup ("what does 50 mean again?") is a once-in-a-while need. Editing happens only in the Library view (My Edits' right pane), keeping Workshop a steady reference rather than a config surface.
+**Scoring rules** are the user's single notion of what each score range means — there is no separate "output" tier system. Tier labels surface on Workshop's entries table as a hover tooltip on each score atom — point at a score, see what tier the user has called it. The earlier always-visible legend block above the table was dropped because it earned a row of vertical real estate the user paid for on every scroll, even though the lookup ("what does 50 mean again?") is a once-in-a-while need. The editor lives on All's panel because the rules describe the merged scale, not My Edits' contents — even though the data still anchors on `myEdits.scoring` (implementation detail; the UI surfaces the editor where it makes sense).
 
-**Onboarding banner** lives only inside the Library view's rail — there's no auto-popup on Workshop. Users who never visit Library never see it; the defaults are sensible enough that this is fine.
+**Renaming** happens on the wordlist card via F2 with the card focused. Configure wordlist (in a wordlist's ⋮ menu) is the secondary path. No Rename in the kebab menu — the F2 affordance is enough.
+
+**Onboarding banner** lives at the top of the wordlist list — there's no auto-popup on Workshop. Users who never visit Library never see it; the defaults are sensible enough that this is fine.
 
 The banner is a 3-page sequence (welcome, personal-wordlist import into My Edits, XWI subscriber import) that exists to *surface features users might not know are there*, not to provide parallel import paths — pages 2 and 3 route through the same `ingestFile` plumbing as the canonical import flows. Page 3 is gated on the XWI wordlist still being present and unpopulated, so it drops out when irrelevant rather than asking a question that has no answer.
+
+**`All` returned to the Library** when source-only scoping was relaxed. It's just the synthesized wordlist and belongs in the list of wordlists; the merged-wordlist download lives here too rather than in Sync & backup (which conflated *one-time download* with *backup workflow*).
 
 ### Sync & backup
 
@@ -92,8 +112,8 @@ Today this is a stub. Full design lives in [`plans/sync.md`](plans/sync.md): pro
 
 ### Two paths to "give me a file"
 
-- **All** or **My Edits** → Sync & backup dialog (it's a backup, not just a save — clicking the download will bump the "Last backup" timestamp once Tier 1 lands).
-- **Any individual wordlist** → Library view → that wordlist's Download button (it's an export of one rescored wordlist). Rare; doesn't warrant header chrome.
+- **Any wordlist's `Download` button in the Library** — produces that wordlist's file. For sources, the Rescored/Original toggle decides which version. For All, it produces the merged wordlist file.
+- **Sync & backup dialog** — Tier 1 manual backup for the whole setup. Same file output as Library's All Download, but the workflow is "make a backup" rather than "give me this file"; once Tier 1 lands, using it bumps the "Last backup" timestamp.
 
 ## Tool gallery & stack
 
@@ -156,6 +176,8 @@ The popover replaces both the previous in-cell `<input>` swap (score/comment edi
 **Re-render across edits keeps the popover open.** Edits flow through `_onCellEdit`, which routes to `upsertEdits` (non-Edits views) or directly mutates `rawEntries` (My Edits view), then triggers `_applyFilterAndSort(false)`. The scroller re-renders rows but doesn't close the popover, so chained edits (score → tab → comment) work. After re-render, the row matching the popover's active entry gets `.active` reapplied via `AtomPopover.rebindRow`.
 
 **Virtual scrolling.** Rows are absolute-positioned inside a height-sized `.entries-table-rows` container; the scroller materializes only rows in the current viewport ± a buffer. Each row's `top` is `i * ROW_HEIGHT`. Cleaner than the previous real `<table>` with top/bottom spacer rows.
+
+**Two scrollers, one base class.** `BaseVirtualScroller` owns the shared mechanics — sizer DOM, capture-mode window scroll listener, ResizeObserver, the visible-range math, destroy. `WorkshopEntriesScroller` extends it with the atom-grid render, AtomPopover binding, click-to-edit wiring, and the sort toolbar. `LibraryEntriesScroller` extends it with the monospace render, mode-aware `→` annotations, and live rescore-rule preview. The two scrollers diverge in everything the user sees — they share only the act of "render a window of rows into a sizer as the user scrolls."
 
 ## Help
 
@@ -228,8 +250,8 @@ These are local-only:
 - **Score filter.** Stored in localStorage, not the URL. Two reasons, and the history matters because the filter has bounced between URL-bound and unbacked before — this is the written-down version so the question doesn't get re-relitigated.
   1. **Scores aren't portable across users.** What counts as `60` depends on which wordlists you have loaded and how you've rescored them. There is no universal scale — even the "common" tier labels (great / good / fair / …) are themselves per-user via My Edits' scoring. A shared `score=60` filter would apply the sender's number to the recipient's scale and produce nonsense. The other URL params don't have this problem: a search pattern, a whole-word toggle, a sort axis, and a tool stack all mean the same thing on any setup.
   2. **It's a standing preference, not a query.** The dominant use is "filter the low-scoring junk out so I'm not wading through it" — that's a setting the user wants in place every visit, not something they re-enter each load. URL-bound state resets to empty on a fresh visit (no link to apply); localStorage carries it forward.
-- **Dialogs** (settings, Wordlists, Sync & backup) — transient UI state. Open them how you opened them; close them when you're done.
-- **Selected wordlist** from the rail dropdown. Sharing a link to "anagram of LINDSEY in STWL" implies the recipient has STWL loaded; we don't pretend otherwise. The recipient sees their own selection (default `All`).
+- **Dialogs** (settings, Sync & backup) — transient UI state. Open them how you opened them; close them when you're done.
+- **Library's focused wordlist** and its display mode — Library is wordlist-management workspace, not something a link should pre-position the recipient into.
 - Scroll position, edit-in-progress state, transient popovers.
 
 ### Open questions
@@ -288,11 +310,10 @@ A pure-reactive design — one big `merged$ = computed(() => buildMerged(sources
 **What's reactive:**
 
 - `sources$` — the wordlist array. The cosmetic effect subscribes; reorder/add/remove call `sources$.bump()` after splicing.
-- `selected$` — the selected wordlist (or `MERGED_ID`). The render effect subscribes.
 - Per-wordlist cosmetic fields: `name$`, `icon$`, `url$`, `publisherId$`. Each wordlist exposes both the signal (`wl.name$`) and a peek getter / set setter on the plain field (`wl.name`). `wrapWordlist(wl)` installs them at every wordlist-creation site.
 - `cacheVersion$` — the bridge between layers. Bumped by helpers that change cache-affecting state; the render effect subscribes.
 
-`state.searchQuery`, `state.searchWholeWord`, and `state.scoreRange` are plain properties. Search is dispatched imperatively from the input handlers (which call `scroller.filter()` directly); no effect needs to react.
+Search, sort, score-range, and the Library's focused wordlist + display mode aren't on the global `state` object — they live inside `WorkshopView`'s and `LibraryView`'s closures. Each view is a self-contained module owning its own UI state; the input handlers it exposes update the closure variables and call the relevant scroller directly. No effect needs to react.
 
 Per-wordlist field categories beyond the cosmetic four:
 
@@ -301,8 +322,8 @@ Per-wordlist field categories beyond the cosmetic four:
 
 **The two effects:**
 
-- **Render effect** reads `selected$` and `cacheVersion$`. On selection change it does a full panel re-render (fresh scroller). On cache-only change for the same selection it refreshes derived state in place: `refreshSourceCounts` rebuilds caches, `renderSources` repaints the rail/dropdown/dialog with fresh meta, `refreshDerivedDisplays` updates the scroller's score-atom tier tooltips and the main-panel stats bar, then the active scroller is updated (the merged scroller via `refreshMergedScroller`, which shares its array-identity protocol with the patch path; a regular wordlist's scroller via in-place rebind of `rescoreRules`/`overrideMap` plus an identity check on `rawEntries` for the fetch/import case).
-- **Cosmetic effect** reads `sources$` and every wordlist's `name$`/`icon$`/`url$`/`publisherId$`. Any cosmetic change re-renders the rail/dropdown/dialog and (when the merged scroller is the active view, since it has a per-row source column) the visible scroller rows. No cache touched — cache entries hold wordlist refs and read names live.
+- **Render effect** reads `cacheVersion$`. First run does the initial Workshop paint (always merged — there's no selection). Subsequent cache bumps refresh derived state in place: `refreshSourceCounts` rebuilds caches, `renderSources` repaints the Library list with fresh meta, `refreshDerivedDisplays` updates the scroller's score-atom tier tooltips and the main-panel stats bar, then the Workshop merged scroller is updated via `refreshWorkshopMergedScroller` (which shares its array-identity protocol with the patch path).
+- **Cosmetic effect** reads `sources$` and every wordlist's `name$`/`icon$`/`url$`/`publisherId$`. Any cosmetic change re-renders the Library list and (since the merged scroller has a per-row source column) the visible Workshop scroller rows. No cache touched — cache entries hold wordlist refs and read names live.
 
 **The patch path skips reactivity.** `patchCachesForEditsChange` doesn't bump `cacheVersion$`; the My Edits hot path mutates caches in place and calls `refreshDerivedDisplays` + scroller re-filter directly. Routing through the render effect would call `refreshSourceCounts`, which invalidates and rebuilds the merged cache — defeating the patch. This is the one explicit exception to the rule "any cache mutation bumps `cacheVersion$`".
 
@@ -335,6 +356,14 @@ Top-level views (Workshop, Library) are routed; setup-style dialogs (Sync & back
 Arguments in favor of routes for setup: setup screens are *places* users spend real time, URL-addressable means deep-linkable and reload-safe, mobile and desktop converge in shape since dialogs go full-screen on phone anyway. Currently sticking with dialogs because they match the existing codebase idiom.
 
 Worth revisiting if the dialog-as-workspace feel becomes a friction point — particularly when the mobile design lands, since the modal-ness is cost without payoff on phones. Notes for that revisit: bookmark/share-setup-state is unlikely (so deep-linking isn't a strong driver, just reload-safety); back button does default browser behavior (navigates back to the wordlist); header stays a fixture with no dynamic content (no breadcrumbs). *"Routes for everything" — including confirms — was considered and dropped as too heavy-handed.*
+
+### Workshop result-export
+
+A copy-to-clipboard + save-as-file affordance for *query results* (anagrams, regex hits) on the Workshop entries table. Distinct from any wordlist download — query results are not wordlists. Parked for now; placement (sort cluster vs. table-region header vs. separate button) deferred.
+
+### Library on mobile
+
+Today the responsive layout stacks the wordlist list above the panel on phones, and the typical wordlist count (~6) makes the scroll-past-the-list cost tolerable. If users with many wordlists make the list noisy on phone, a dropdown or other compaction would land here.
 
 ## Non-features
 

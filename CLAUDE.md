@@ -23,7 +23,6 @@ Design and manual:
 Plans (forward-looking, not yet shipped):
 - [`docs/plans/ci-testing.md`](docs/plans/ci-testing.md) — Playwright smoke suite (deferred).
 - [`docs/plans/help.md`](docs/plans/help.md) — separating welcome tour from returning-user reference manual.
-- [`docs/plans/library-workshop.md`](docs/plans/library-workshop.md) — finishing the Library/Workshop split: drop Workshop's wordlist picker, bring All back to Library, new Library entries view (lightly columnar monotype, Rescored/Original toggle), identity contrast.
 - [`docs/plans/lookup.md`](docs/plans/lookup.md) — click-a-word lookup (definitions, Wikipedia, NYT history, semantic search).
 - [`docs/plans/migration.md`](docs/plans/migration.md) — when to graduate from schema-version resets to layered migrations.
 - [`docs/plans/mobile.md`](docs/plans/mobile.md) — mobile/responsive design.

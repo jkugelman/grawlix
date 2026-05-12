@@ -8,30 +8,17 @@ This is the user-facing manual. Eventually it'll be turned into an in-app manual
 
 **Header.** Title, top-level nav (**Workshop** / **Library**), settings. (A `?` placeholder sits where help will live; it's currently inert.) Sticks at top while you scroll.
 
-**Two views.** *Workshop* (default) is the construction-aid surface — tool gallery, stack, entries table. *Library* manages your wordlists (the rail of wordlists, rescore and scoring rules). Click either nav item in the header to switch.
+**Two views.** *Workshop* (default) is the construction-aid surface — tool gallery, stack, entries table — always showing your merged wordlist. *Library* manages your wordlists (the list, rescoring rules, scoring rules, downloads, per-source inspection). Click either nav item in the header to switch.
 
 **Centered card.** Below the header, the active view sits in a centered card with side margins. The page itself scrolls — there's only one scrollbar.
 
 Workshop's card, top to bottom:
-- **Slim top row.** Wordlist picker.
 - **Tool gallery.** Cards laid out as a responsive grid.
 - **Sticky region** that anchors just below the header as you scroll into the entries table:
   - Stats bar with histogram (click the histogram to filter by score range).
   - Tool stack — only when you've added tools.
   - Search bar.
-- **Entries table.** Always visible — idle and search views are the same view, just filtered.
-
-## Choosing a wordlist
-
-The wordlist dropdown sits at the top of the left rail.
-
-- The first entry is **All** — the merged result of every enabled wordlist with rescore rules applied.
-- Below it: every individual wordlist in the order shown in the Library view. My Edits sits at the top (created automatically on first boot).
-- Keyboard: **Alt+L** opens the dropdown and focuses the current selection.
-
-To manage wordlists (reorder, enable/disable, add, configure rules), switch to the **Library** view via the brand-bar nav.
-
-On launch — including first run — you land on Workshop with **All** selected. The four publisher wordlists fetch automatically in the background, so you can start searching immediately without thinking about wordlist management.
+- **Entries table.** The merged `All` view, always visible — idle and search views are the same view, just filtered.
 
 ## Search syntax
 
@@ -44,13 +31,15 @@ On launch — including first run — you land on Workshop with **All** selected
 
 ## Entries table
 
-The table below the search bar shows every entry in the current wordlist (or merged `All` view), one row per entry, in your current sort order. Each row reads as `1. CARE 4 50` — count, entry, length, score badge. Click on the entry or score to edit it (see *Editing entries*).
+The entries table below the search bar shows every entry in the merged `All` view, one row per entry, in your current sort order. Each row reads as `1. CARE 4 50` — count, entry, length, score badge. Click on the entry or score to edit it (see *Editing entries*).
 
 **Sort.** "Sort by [Entry ▾] [↑]" at the right edge of the search bar. Axes: Entry (alphabetical by word), Length, Score. Click the arrow to toggle direction. Default is Entry ascending.
 
+**Score histogram.** The stats bar shows a histogram of the merged wordlist's scores. Click on a bar (or drag across several) to filter the table to a score range. The filter is remembered across visits.
+
 ## Editing entries
 
-Click any entry or score in a row to open an editor popover. The popover shows which wordlist sourced the score (with any rescoring or override explanation) and lets you edit the score and comment. Edits always land in My Edits, regardless of which wordlist is open.
+Click any entry or score in a row to open an editor popover. The popover shows which wordlist sourced the score (with any rescoring or override explanation) and lets you edit the score and comment. Edits always land in My Edits, regardless of which wordlist sourced the row.
 
 Press Enter to save and close, or Tab to chain edits between score and comment. Escape reverts. Clicking outside, scrolling, or changing the search closes the popover.
 
@@ -58,52 +47,58 @@ When the score you see differs from what the wordlist itself contains (because i
 
 For entries sourced from My Edits, the popover also has a Delete button (with undo via toast).
 
+The `+ Add entry` footer at the bottom of the table lets you create new entries that don't yet exist in any wordlist — they land in My Edits.
+
 ## My Edits
 
-A special wordlist created automatically on first boot. Its scores pass through unchanged (no rescoring). It's always enabled and can't be deleted, but can be reordered like any other wordlist (position determines merge priority on ties).
+A special wordlist created automatically on first boot. Its scores pass through unchanged (no rescoring rules). It's always enabled and can't be deleted, but can be reordered like any other wordlist in the Library (position determines merge priority on ties).
 
-From the My Edits view you can:
-- Add new entries.
-- Delete entries (with undo).
-- Edit any score or comment.
-
-My Edits also carries your **scoring rules** — your tier labels for the unified score scale (e.g. "60 = great, 50 = good, …"). Hover any score in the entries table to see its tier label; the canonical edit surface is My Edits in the Library view.
+From My Edits' panel in the Library you can Import a personal wordlist (replacing the current contents), Download what you've got, or Clear it.
 
 ## Score tiers
 
-Defaults: **great** (≥60), **good** (≥50), **fair** (≥40), **meh** (≥30), **bad** (<30). Score badges color by tier. Customize tier labels via My Edits' scoring rules.
-
-## Score histogram
-
-The stats bar shows a histogram of the wordlist's scores. Click on it to filter the table to a score range. The filter is remembered across visits.
+Defaults: **great** (≥60), **good** (≥50), **fair** (≥40), **meh** (≥30), **bad** (<30). Score badges color by tier. Hover any score in the Workshop entries table to see its tier label. Customize the tier labels via **All**'s scoring rules in the Library (see *Library*).
 
 ## Library
 
-Top-level view (one of two; the other is Workshop). Reached via the **Library** button in the brand-bar nav. Two-pane layout.
+Top-level view (one of two; the other is Workshop). Reached via the **Library** button in the brand-bar nav.
 
-**Left rail** lists every wordlist with a drag handle (reorder = merge priority), an enable checkbox, and the wordlist's name. New wordlists are added via the **+ Add wordlist…** entry at the bottom.
+**Layout.** Responsive — wordlist list on top of the focused-wordlist panel on phones; left-rail-and-panel side-by-side at ≥ 760px. The list groups into two sections: **Merged** (the `All` card at the top) and **Sources** (every wordlist below, with My Edits first by default). New wordlists are added via the **+ Add wordlist…** entry at the bottom.
 
-**Right pane** is the action row, the stats bar with histogram, and the rule editor.
+Each wordlist card carries a drag handle (reorder = merge priority), an enable checkbox, and the wordlist's name. The `All` card has neither drag handle nor toggle — it's always present and isn't reorderable.
 
-Action buttons differ per wordlist:
-- **Regular wordlists** — Update/Fetch primary action, Download split (rescored or original), and a ⋮ menu with Configure wordlist / Delete wordlist.
-- **My Edits** — Import (primary when empty, plain when populated), Download (primary when populated, hidden when empty), and a ⋮ menu with Clear (when populated).
+**Right pane.** Each card's panel has the same shape: an action row, a stats bar with histogram, a rules editor, a search bar (on populated wordlists), and an entries view below it. The histogram is display-only in the Library — no click-to-filter.
+
+**Action buttons differ per wordlist:**
+- **Sources** — Update/Fetch primary action, a Rescored/Original toggle (when rules exist), Download, and a ⋮ menu with Configure wordlist / Delete wordlist.
+- **My Edits** — Import (primary when empty, plain otherwise), Download (primary when populated, hidden when empty), Clear in the ⋮ menu.
+- **All** — Download. No toggle (merged has no "original" version), no ⋮ menu.
+
+**Rescored/Original toggle.** A segmented control on a source's action row. It governs *every* rescore-affected surface on the panel together: stats bar, histogram, the entries view's annotations, and what Download produces. **Rescored** is the default — what the source actually contributes to All. **Original** strips rescoring and shows the file as imported. The toggle is hidden when no rescore rules exist.
+
+**Rescoring rules** (on sources) map a wordlist's input score range — and optional entry-length filter — to an output score, or `ignore` to drop the entry. First matching rule wins; a catch-all is auto-appended.
+
+**Scoring rules** (on `All`) are your tier labels for the merged score scale ("60 = great, 50 = good, …"). The Workshop entries table reads these for the hover-tooltip on each score atom.
+
+**Entries view.** Each populated wordlist's panel includes a virtual-scrolled, monospace, text-file-flavored entries list below its rules editor. In Rescored mode, an inline arrow shows what each rule changed — e.g. `BAGEL  45 → 50  tasty`; rows dropped by an `ignore` rule are struck through with their input score. Untouched rows show their input score plain. Switching to Original mode strips the arrows and strikethrough — you see the wordlist as the file contains it. The Library entries view is read-only; editing routes through the Workshop entries table's popover.
+
+**Search bar** (above the entries view). Full pattern syntax, whole-word toggle, and sort controls (Entry / Length / Score). No score-range filter — the Library is for inspecting a wordlist, not querying it.
 
 **Renaming.** Focus a wordlist card and press **F2** to rename inline.
 
-**Rescoring rules** map a wordlist's input score range (and optional entry-length filter) to an output score — or `ignore` to drop the entry. First matching rule wins; a catch-all is auto-appended. My Edits has no rescore rules; its scores pass through.
+**Downloads.** Each wordlist (and All) has its own Download button. On sources, the Rescored/Original toggle decides whether you get the file as imported or as rescored.
 
-**Onboarding banner.** First-run users see a short 3-page sequence in the Library view's rail: a welcome confirming the pre-loaded popular wordlists, then optional prompts to import a personal wordlist into My Edits and to import an XWI subscriber file. Each prompt has a *Skip*; the ✕ ends the whole flow. (You won't see it until you visit Library.)
+**Onboarding banner.** First-run users see a short 3-page sequence at the top of the wordlist list: a welcome confirming the pre-loaded popular wordlists, then optional prompts to import a personal wordlist into My Edits and to import an XWI subscriber file. Each prompt has a *Skip*; the ✕ ends the whole flow. (You won't see it until you visit Library.)
 
 ## Help
 
-Reachable from the header `?` button or the `?` keyboard shortcut. First-run users see it auto-opened.
+The header `?` button is a placeholder — it's inert today. A help surface is planned.
 
 ## Sharing & links
 
 Your tool stack — every tool you've added and its inputs, in pipeline order — plus the search pattern, whole-word toggle, and sort all ride along in the URL. Refreshing the page keeps your state, and pasting the URL into a chat or saving it as a bookmark reproduces what you were looking at.
 
-The link carries your tools and search settings, not your wordlists or your score filter. Wordlists you've loaded stay local — the recipient sees their own default selection (`All`) over their own loaded wordlists. The score filter is omitted on purpose: a `60` on your scale isn't a `60` on theirs, so the number wouldn't translate. Your filter is remembered across your visits instead.
+The link carries your tools and search settings, not your wordlists or your score filter. Wordlists you've loaded stay local. The score filter is omitted on purpose: a `60` on your scale isn't a `60` on theirs, so the number wouldn't translate. Your filter is remembered across your visits instead.
 
 ## Wordlist file format
 
