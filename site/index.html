@@ -1232,10 +1232,8 @@ function buildWordlistCardHTML(icon, name, meta, opts = {}) {
   return `<div class="${classes.join(' ')}" data-wordlist draggable="true" tabindex="0" role="option">${dragHandle}${icon}${cardInfo}${cardActions}</div>`;
 }
 
-// The All card sits at the top of the Library's wordlist list. Structurally it
-// mirrors a regular wordlist card (icon + name + meta on the left, footprint
-// for chrome on the right) so the row of cards lines up, but it has no drag
-// handle, no enable toggle, and isn't reorderable.
+// Like a regular wordlist card but with no drag handle, no enable toggle, and
+// not reorderable.
 function buildMergedCardHTML(selected) {
   const meta = pluralize(buildMergedWordlist().entries.length, 'entry', 'entries');
   const cls = ['wordlist-card', 'wld-merged-card'];
@@ -1469,11 +1467,8 @@ function buildRescoreSectionHTML(wordlist) {
     buildRulesListHTML(wordlist.rescoreRules || [], { rulesId: 'rescore-rules', saveFn: 'saveRuleField', deleteFn: 'deleteRule', rescore: true });
 }
 
-// Scoring (tier labels) lives on My Edits' `scoring` field. The editor in the
-// Library view uses this; the main detail panel surfaces tier labels via
-// hover tooltips on each score atom (see makeTierLookup). Catch-all is
-// recomputed against merged entries on each render so it reflects whatever
-// scores are currently in the data.
+// Catch-all row is recomputed from merged entries each render so it reflects
+// whatever scores are currently in the data.
 function buildScoringSectionHTML() {
   const edits = getEditsWordlist();
   if (edits) updateScoringCatchAll(edits.scoring, buildMergedWordlist().entries);
@@ -1609,8 +1604,6 @@ const Router = (() => {
     // the user switches back. When another view gains URL state, give it its
     // own builder (e.g. per-view query-builders registered with MainView).
     const query = view === def ? buildQuery() : '';
-    // Default view + empty query is the bare-URL form; everything else carries
-    // an explicit route so the URL is unambiguous.
     if (view === def && !query) return '';
     return '#/' + view + (query ? '?' + query : '');
   }
@@ -2476,8 +2469,7 @@ const LibraryView = (() => {
     _entriesScroller = null;
   }
 
-  // Replace just the stats bar (and its histogram) in place — used by the
-  // mode toggle, which doesn't need to rebuild the whole pane.
+  // In-place stats bar refresh for the mode toggle (whole-pane rebuild not needed).
   function refreshStatsBar() {
     if (!_focusedWordlist || _focusedWordlist === MERGED_ID) return;
     const wordlist = _focusedWordlist;
@@ -2591,7 +2583,6 @@ const LibraryView = (() => {
 
   function startCardRename(wordlist) {
     if (!wordlist) return;
-    // Find the wordlist card for this wordlist and put an input over its name.
     const card = [...listBody.querySelectorAll('.wordlist-card[data-wordlist]')].find(c => c._wordlist === wordlist);
     const nameEl = card?.querySelector('.card-name');
     if (!nameEl || nameEl.querySelector('input')) return;
@@ -2723,8 +2714,7 @@ const LibraryView = (() => {
 
   function getFocusedWordlist() { return _focusedWordlist; }
 
-  // Re-render only the rescore rule editor for the focused wordlist, in place — used
-  // by afterRuleChange so the user's pending edit doesn't blow away the whole pane.
+  // In-place so a pending edit isn't wiped out mid-keystroke.
   function refreshRescoreSection() {
     const section = el.querySelector('#wld-rescore-section');
     if (section) section.innerHTML = buildRescoreSectionHTML(_focusedWordlist);
@@ -2919,9 +2909,6 @@ async function init() {
   state.sources
     .filter(l => l.url && !l.populated)
     .forEach(l => fetchWordlist(l, null, { silent: true }));
-
-  // The "popular wordlists pre-loaded" banner lives inside the Library view's
-  // wordlist list; it shows there until the user dismisses it (lsLoad('onboarded')).
 }
 
 function defaultSources() {
@@ -3213,9 +3200,6 @@ function highlightSegments(entry, hlRe) {
 // ─── Tool stack ───────────────────────────────────────────────────────────────
 // Chrome-only mockup: rows render but don't yet transform the wordlist.
 
-// Single source of truth for tool metadata. The gallery, the tool stack rows, and any future
-// surface that names a tool all read from here. Adding a new tool means adding one entry;
-// everything that lists tools picks it up automatically.
 const TOOL_CATEGORIES = [
   { id: 'anagrams', label: 'Anagrams & letter banks' },
   { id: 'patterns', label: 'Letter patterns' },
@@ -3487,8 +3471,6 @@ const ToolStack = (() => {
     const e = stackEl();
     if (e) {
       removeCursor();
-      // Rebuild rows from current stack so indices and toggle visibility
-      // reflect the new positions.
       e.querySelectorAll('.tool-row').forEach(r => r.remove());
       stack.forEach((row, i) => {
         const tmp = document.createElement('div');
@@ -3588,12 +3570,8 @@ function blockSemicolon(e) {
 
 // ─── Virtual Scroller ─────────────────────────────────────────────────────────
 
-// Gradient stops at hand-picked t positions. Six distinct colors (0=dark red
-// → 5=blue) with color 0 duplicated across t=0 and t=1/6 to create a small
-// "deep" plateau at the very bottom (10/0 read solidly darker than 20), and
-// color 1 anchored at t=1/3 so 20 is still pure red. The remaining stops are
-// evenly spaced from t=1/2 through t=1 so that on the canonical 0–60 default
-// scale, scores 30/40/50/60 land directly on stops (orange/yellow/green/blue).
+// t positions are hand-picked so that on the canonical 0–60 scale, scores
+// 30/40/50/60 land directly on stops (orange/yellow/green/blue).
 const SCORE_COLOR_STOPS = [
   { t: 0,   bg: '--score-0-bg', fg: '--score-0-fg' },
   { t: 1/6, bg: '--score-0-bg', fg: '--score-0-fg' },
@@ -3604,10 +3582,8 @@ const SCORE_COLOR_STOPS = [
   { t: 1,   bg: '--score-5-bg', fg: '--score-5-fg' },
 ];
 
-// Map a score to interpolated bg/fg colors based on the current min/max from
-// the histogram layout. Out-of-range scores clamp to the nearest endpoint.
-// When no data has been loaded, falls back to the middle stop (the gradient
-// is meaningless without a range — don't fabricate one).
+// Out-of-range scores clamp to the nearest endpoint. With no data loaded,
+// falls back to the middle stop (a gradient is meaningless without a range).
 function scoreColor(score) {
   const { min, max } = getHistogramLayout();
   if (min == null || max == null || max <= min) {
@@ -3633,17 +3609,12 @@ const SORT_AXES = {
   score:  { label: 'Score' },
 };
 const DEFAULT_SORT_KEY = 'entry';
-// Score sorts default to descending (high → low) — picking Score asks "what are
-// the best entries?", which reads top-down. Alphabetical and length sorts
-// default ascending.
+// Score sorts descending — top-down reads as "best first". Others ascending.
 function defaultSortDir(key) { return key === 'score' ? 'desc' : 'asc'; }
 const ENTRY_SLOT_CAP = 20;
 
-// Width of one `0` glyph in the row's mono 13px font, in CSS pixels. Cached
-// after first measurement; the row's font and size are fixed so the value
-// doesn't drift. Used by WorkshopEntriesScroller._computeSlotWidths to emit slot
-// widths in px (rather than `ch`) so the header's sans font sees the same
-// track widths as the row's mono font.
+// Cached glyph width — row font/size is fixed. Slots use px (not `ch`) so the
+// header's sans font and the row's mono font see the same track widths.
 let _monoChPx = null;
 function measureMonoChPx() {
   if (_monoChPx !== null) return _monoChPx;
@@ -3656,9 +3627,6 @@ function measureMonoChPx() {
   return _monoChPx;
 }
 
-// Shared infrastructure for both view-specific scrollers (Workshop and
-// Library). The host sizer has its natural full height (items × ROW_HEIGHT)
-// and the subclass slices a window of rows out of it based on host.rect.
 // Capture-mode scroll listener catches events from any ancestor — the app's
 // scroll container is <main>, not the window, and scroll events don't bubble.
 class BaseVirtualScroller {
