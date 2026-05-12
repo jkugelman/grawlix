@@ -132,9 +132,8 @@ main { padding: 0 24px; flex: 1; min-height: 0; overflow-y: auto; scrollbar-gutt
    the two top-level views. Page background shows through the side margins so
    the bounded width feels intentional rather than under-filled. `overflow: clip`
    (not `hidden`) keeps rounded corners while letting the in-card sticky stack
-   escape to the viewport — `overflow: hidden` would trap it. View-specific
-   sizing (e.g. Library's fixed height for rail/pane overflow) lives with each
-   view's section below. */
+   escape to the viewport — `overflow: hidden` would trap it. Both views flow
+   in the page scroll. */
 #card,
 #library-view { max-width: 1000px; margin: 24px auto 48px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; overflow: clip; }
 html.light-mode #card,
@@ -152,8 +151,8 @@ html.dark-mode #library-view  { box-shadow: 0 1px 3px rgba(0,0,0,0.25); }
 .busy-spinner { width: 36px; height: 36px; border: 3px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: busy-spin 0.7s linear infinite; }
 @keyframes busy-spin { to { transform: rotate(360deg); } }
 
-/* Add wordlist row (used inside the Library view's rail) */
-.add-wordlist-row { padding: 9px 14px; cursor: pointer; color: var(--text); font-size: 13px; display: flex; align-items: center; gap: 9px; transition: background 0.1s, color 0.1s; user-select: none; background: var(--surface); border-top: 1px solid var(--border3); }
+/* Add wordlist row (at the bottom of the Library's wordlist list) */
+.add-wordlist-row { padding: 9px 14px; cursor: pointer; color: var(--text); font-size: 13px; display: flex; align-items: center; gap: 9px; transition: background 0.1s, color 0.1s; user-select: none; background: var(--surface); }
 .add-wordlist-row:hover { background: var(--hover); color: var(--accent); }
 .add-wordlist-icon { font-size: 15px; line-height: 1; width: 16px; text-align: center; flex-shrink: 0; }
 
@@ -165,6 +164,9 @@ html.dark-mode #library-view  { box-shadow: 0 1px 3px rgba(0,0,0,0.25); }
 .card-name { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 13px; }
 .card-meta { color: var(--muted); font-size: 11px; margin-top: 2px; display: flex; align-items: center; gap: 5px; }
 .card-actions { display: flex; gap: 5px; align-items: center; flex-shrink: 0; }
+/* The All card has no toggle; the spacer reserves the same footprint so its
+   icon/name/meta line up with the rest of the cards. */
+.wld-merged-card-spacer { width: 28px; height: 16px; flex-shrink: 0; }
 
 /* Buttons */
 button { font-size: 13px; padding: 7px 11px; border-radius: 4px; border: 1px solid var(--border); background: var(--btn-bg); color: var(--text); cursor: pointer; font-family: inherit; line-height: 1; display: inline-flex; align-items: center; justify-content: center; }
@@ -278,6 +280,7 @@ html.dark-mode .search-match-4 { background: #14532d; color: #d1fae5; }
   height: var(--row-height, 24px);
   font-family: var(--font-mono);
   font-size: 13px;
+  box-shadow: inset 0 -1px 0 var(--border3);
 }
 /* Plain, unclickable column labels above the rows. Sit at the bottom of the
    sticky-stack so they ride along with stats/tools/search on scroll. The
@@ -717,24 +720,43 @@ body.tools-empty .gallery-card-add { display: none; }
 .tool-row-remove-placeholder { width: 24px; height: 24px; }
 
 /* Library view — top-level page (peer of Workshop). Shared card chrome lives
-   above with #card; Library adds a fixed height so its rail and pane can have
-   independent overflow scrolling, with min-height as a short-viewport floor. */
-#library-view { height: calc(100vh - 160px); min-height: 480px; }
-.wld-body { height: 100%; display: flex; overflow: hidden; }
-.wld-rail { width: 280px; border-right: 1px solid var(--border2); display: flex; flex-direction: column; background: var(--surface2); flex-shrink: 0; }
-.wld-rail-wordlist { flex: 1; overflow-y: auto; padding: 4px 0; }
-.wld-rail .add-wordlist-row { padding: 9px 14px; }
-.wld-pane { flex: 1; min-width: 0; display: flex; flex-direction: column; overflow-y: auto; }
-.wld-pane-empty { flex: 1; display: flex; align-items: center; justify-content: center; color: var(--faint); font-size: 14px; padding: 30px; }
-.wld-pane-header { display: flex; align-items: center; padding: 12px 22px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+   above with #card. Responsive layout: wordlist list on top on mobile,
+   list alongside the pane on desktop. Both flow in the page scroll. */
+.wld-list { background: var(--surface2); border-bottom: 1px solid var(--border2); }
+.wld-list-body { padding: 4px 0 0; }
+.wld-list .add-wordlist-row { padding: 9px 14px; }
+.wld-list-section-header {
+  padding: 8px 14px 4px;
+  font-size: 10px; font-weight: 700;
+  color: var(--muted);
+  text-transform: uppercase; letter-spacing: 0.06em;
+  user-select: none;
+  border-bottom: 1px solid var(--border3);
+}
+.wld-pane { display: flex; flex-direction: column; }
+.wld-pane-empty { display: flex; align-items: center; justify-content: center; color: var(--faint); font-size: 14px; padding: 60px 30px; }
+.wld-pane-header { display: flex; align-items: center; padding: 12px 22px; border-bottom: 1px solid var(--border); }
 .wld-pane-actions { display: flex; align-items: center; gap: 6px; flex: 1; min-width: 0; flex-wrap: wrap; justify-content: flex-end; }
-.wld-pane-stats { padding: 0 8px; flex-shrink: 0; }
+.wld-pane-stats { padding: 0 8px; }
 .wld-pane-stats .stats-bar { border: none; padding: 12px 14px; }
 .wld-pane-rescore { border-top: 1px solid var(--border2); padding: 14px 22px 22px; }
 .wld-pane-rescore-empty { font-size: 12px; color: var(--muted); padding: 6px 2px; }
 
-/* Onboarding banner inside the Library view's rail */
-.wld-onboarding { margin: 8px 8px 4px; padding: 10px 11px; border-radius: 6px; font-size: 12px; position: relative; flex-shrink: 0; }
+/* Desktop: list on the left, pane on the right. `align-items: stretch`
+   (flex default) lets the surface2 list extend to match the pane's height
+   instead of stopping at its content. */
+@media (min-width: 760px) {
+  .wld-body { display: flex; }
+  .wld-list {
+    width: 280px; flex-shrink: 0;
+    border-bottom: none;
+    border-right: 1px solid var(--border2);
+  }
+  .wld-pane { flex: 1; min-width: 0; }
+}
+
+/* Onboarding banner at the top of the Library view's wordlist list */
+.wld-onboarding { margin: 8px 8px 4px; padding: 10px 11px; border-radius: 6px; font-size: 12px; position: relative; }
 html.light-mode .wld-onboarding { background: color-mix(in srgb, var(--accent) 7%, var(--surface)); border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--border)); }
 html.dark-mode .wld-onboarding { background: color-mix(in srgb, var(--accent) 15%, var(--surface)); border: 1px solid color-mix(in srgb, var(--accent) 40%, var(--border)); }
 .wld-onboarding p { margin: 0 22px 9px 0; line-height: 1.45; color: var(--text); }
@@ -908,10 +930,10 @@ input[type="file"] { display: none; }
 
   <section id="library-view" hidden>
     <div class="wld-body">
-      <aside class="wld-rail">
+      <aside class="wld-list">
         <div class="wld-onboarding" id="wld-onboarding" hidden></div>
         <input type="file" id="wld-onboarding-file" accept=".txt,.dict" hidden>
-        <div class="wld-rail-wordlist" id="wld-rail-wordlist"></div>
+        <div class="wld-list-body" id="wld-list-body"></div>
         <div class="add-wordlist-row" id="wld-add-wordlist"><span class="drag-handle" aria-hidden="true">≡</span><span class="add-wordlist-icon">＋</span>Add wordlist</div>
       </aside>
       <section class="wld-pane" id="wld-pane"></section>
@@ -1125,6 +1147,25 @@ function buildWordlistCardHTML(icon, name, meta, opts = {}) {
   </div>`;
 
   return `<div class="${classes.join(' ')}" data-wordlist draggable="true" tabindex="0" role="option">${dragHandle}${icon}${cardInfo}${cardActions}</div>`;
+}
+
+// The All card sits at the top of the Library's wordlist list. Structurally it
+// mirrors a regular wordlist card (icon + name + meta on the left, footprint
+// for chrome on the right) so the row of cards lines up, but it has no drag
+// handle, no enable toggle, and isn't reorderable.
+function buildMergedCardHTML(selected) {
+  const meta = pluralize(buildMergedWordlist().entries.length, 'entry', 'entries');
+  const cls = ['wordlist-card', 'wld-merged-card'];
+  if (selected) cls.push('selected');
+  return `<div class="${cls.join(' ')}" data-merged tabindex="0" role="option">
+    <span class="drag-handle" aria-hidden="true">≡</span>
+    ${MERGED_ICON}
+    <div class="card-info">
+      <div class="card-name-row"><div class="card-name">${MERGED_NAME}</div></div>
+      <div class="card-meta">${esc(meta)}</div>
+    </div>
+    <span class="wld-merged-card-spacer" aria-hidden="true"></span>
+  </div>`;
 }
 
 function buildWildcardSpansHTML() {
@@ -1914,15 +1955,21 @@ const SettingsDialog = (() => {
 
 const WorkshopView = (() => {
   const el = document.getElementById('card');
-  function show() { el.hidden = false; }
+  function show() {
+    el.hidden = false;
+    // Histogram rect positioning reads live offsetLeft/offsetWidth, which are
+    // 0 while the card is hidden. Any rect write during hidden corrupts the
+    // saved position; reposition now that the bars have real dimensions.
+    repositionAllHistogramRects();
+  }
   function hide() { el.hidden = true; }
   function isVisible() { return !el.hidden; }
   return { show, hide, isVisible };
 })();
 
 // ─── Library view ─────────────────────────────────────────────────────────────
-// Top-level page (peer of Workshop in the brand-bar nav). Hosts the rail of
-// wordlists and the focused-wordlist details pane.
+// Top-level page (peer of Workshop in the brand-bar nav). Hosts the wordlist
+// list and the focused-wordlist details pane.
 
 const LibraryView = (() => {
   const el = document.getElementById('library-view');
@@ -2056,7 +2103,7 @@ const LibraryView = (() => {
     else if (action === 'pick-file') pickOnboardingFile();
   });
 
-  const railWordlist = el.querySelector('#wld-rail-wordlist');
+  const listBody = el.querySelector('#wld-list-body');
   const pane     = el.querySelector('#wld-pane');
   const addBtn   = el.querySelector('#wld-add-wordlist');
 
@@ -2065,11 +2112,12 @@ const LibraryView = (() => {
 
   // ── Rendering ─────────────────────────────────────────────────────────────────
 
-  function renderRail() {
+  function renderList() {
     if (!_sourceCountsCache) _sourceCountsCache = buildMergedWordlist().sourceCounts;
     const contribMap = new Map(_sourceCountsCache.map(s => [s.wordlist, s.count]));
 
-    railWordlist.innerHTML = state.sources.map(wordlist => {
+    const mergedCard = buildMergedCardHTML(_focusedWordlist === MERGED_ID);
+    const sourceCards = state.sources.map(wordlist => {
       const icon = getWordlistIcon(wordlist);
       const meta = wordlistCardMeta(wordlist, contribMap);
       return buildWordlistCardHTML(icon, wordlist.name, meta, {
@@ -2078,9 +2126,15 @@ const LibraryView = (() => {
         populated: wordlist.populated,
         hasUpdate: !!wordlist._updateAvailable,
       });
-    }).join('');
+    });
+    listBody.innerHTML = [
+      `<div class="wld-list-section-header">Merged</div>`,
+      mergedCard,
+      `<div class="wld-list-section-header">Sources</div>`,
+      ...sourceCards,
+    ].join('');
 
-    const cards = railWordlist.querySelectorAll('.wordlist-card[data-wordlist]');
+    const cards = listBody.querySelectorAll('.wordlist-card[data-wordlist]');
     state.sources.forEach((wordlist, i) => { if (cards[i]) cards[i]._wordlist = wordlist; });
   }
 
@@ -2088,6 +2142,10 @@ const LibraryView = (() => {
     if (_dateTimer) { clearInterval(_dateTimer); _dateTimer = null; }
     if (!_focusedWordlist) {
       pane.innerHTML = '<div class="wld-pane-empty">Select a wordlist to configure</div>';
+      return;
+    }
+    if (_focusedWordlist === MERGED_ID) {
+      renderMergedPane();
       return;
     }
     const wordlist = _focusedWordlist;
@@ -2105,7 +2163,7 @@ const LibraryView = (() => {
       // Primary slot: Download when there's something to export, otherwise Import.
       actionBtn = `<button class="${hasData ? '' : 'primary'}" onclick="LibraryView.action('import')" ${wordlist._loading ? 'disabled' : ''}>${wordlist._loading ? 'Importing…' : 'Import'}</button>`;
       dlBtn = hasData ? `<button class="primary" onclick="LibraryView.action('download')">Download</button>` : '';
-      // Rename is the F2 affordance on the rail card; not duplicated here.
+      // Rename is the F2 affordance on the wordlist card; not duplicated here.
       moreMenu = hasData ? buildMoreMenuHTML([
         ['Clear', `LibraryView.action('clear')`],
       ]) : '';
@@ -2128,7 +2186,7 @@ const LibraryView = (() => {
         [['Download rescored wordlist', `LibraryView.action('downloadRescored')`],
          ['Download original',      `LibraryView.action('downloadOriginal')`]]) : '';
 
-      // Rename is the F2 affordance on the rail card; Configure also lets you
+      // Rename is the F2 affordance on the wordlist card; Configure also lets you
       // rename. Not duplicated here.
       moreMenu = buildMoreMenuHTML([
         ['Configure wordlist', `LibraryView.action('configure')`],
@@ -2139,15 +2197,16 @@ const LibraryView = (() => {
     const dateSlot = (hasData && wordlist.lastUpdated) ? '<span class="detail-date"></span>' : '';
     const actionsHTML = [dateSlot, actionBtn, dlBtn, moreMenu].filter(Boolean).join('\n');
 
-    // My Edits gets a scoring rules editor (tier labels). Every other source
-    // gets a rescoring rules editor. Same shape, different rule semantics.
+    // Regular sources get a rescoring rules editor. My Edits has no rules
+    // editor: its scores pass through unchanged, and its tier-label scoring
+    // rules live on the All panel since they describe the merged scale.
     const rulesHTML = isEdits
-      ? `<div class="wld-pane-rescore" id="wld-scoring-section">${buildScoringSectionHTML()}</div>`
+      ? ''
       : `<div class="wld-pane-rescore" id="wld-rescore-section">${buildRescoreSectionHTML(wordlist)}</div>`;
 
     // No icon/name in the top bar — the focused wordlist is already highlighted in
-    // the rail. The bar carries actions only. Rename happens in-place on the
-    // rail card via the more menu.
+    // the list. The bar carries actions only. Rename happens in-place on the
+    // wordlist card via the more menu.
     pane.innerHTML = `
       <div class="wld-pane-header">
         <div class="wld-pane-actions">${actionsHTML}</div>
@@ -2168,19 +2227,37 @@ const LibraryView = (() => {
     }
   }
 
+  // The All panel: a single Download button, merged stats + histogram, and
+  // the scoring (tier-label) rules editor. Scoring rules conceptually
+  // describe the merged scale, so they live here even though the data is
+  // stored on My Edits.
+  function renderMergedPane() {
+    const { entries } = buildMergedWordlist();
+    const stats = computeStats(_mergedStatsKey, entries);
+    const dlBtn = entries.length ? `<button class="primary" onclick="LibraryView.action('downloadMerged')">Download</button>` : '';
+
+    pane.innerHTML = `
+      <div class="wld-pane-header">
+        <div class="wld-pane-actions">${dlBtn}</div>
+      </div>
+      <div class="wld-pane-stats">${buildStatsBarHTML(stats, { entries, ignoredCount: 0 }, getHistogramLayout())}</div>
+      <div class="wld-pane-rescore" id="wld-scoring-section">${buildScoringSectionHTML()}</div>`;
+    repositionAllHistogramRects();
+  }
+
   function refresh() {
     if (el.hidden) return;
-    if (_focusedWordlist && !state.sources.includes(_focusedWordlist)) {
-      _focusedWordlist = state.sources[0] ?? null;
+    if (_focusedWordlist && _focusedWordlist !== MERGED_ID && !state.sources.includes(_focusedWordlist)) {
+      _focusedWordlist = MERGED_ID;
     }
     renderOnboarding();
-    renderRail();
+    renderList();
     renderPane();
   }
 
-  function focus(wordlist) {
-    _focusedWordlist = wordlist;
-    renderRail();
+  function focus(target) {
+    _focusedWordlist = target;
+    renderList();
     renderPane();
   }
 
@@ -2194,6 +2271,7 @@ const LibraryView = (() => {
     download:         () => downloadEdits(),
     downloadRescored: () => downloadIndividualWordlistRescored(_focusedWordlist),
     downloadOriginal: () => downloadOriginalWordlist(_focusedWordlist),
+    downloadMerged:   () => downloadMergedWordlistFromPanel(),
     clear:            () => clearEdits(),
   };
 
@@ -2202,10 +2280,10 @@ const LibraryView = (() => {
     if (fn) fn();
   }
 
-  function startRailRename(wordlist) {
+  function startCardRename(wordlist) {
     if (!wordlist) return;
-    // Find the rail card for this wordlist and put an input over its name.
-    const card = [...railWordlist.querySelectorAll('.wordlist-card[data-wordlist]')].find(c => c._wordlist === wordlist);
+    // Find the wordlist card for this wordlist and put an input over its name.
+    const card = [...listBody.querySelectorAll('.wordlist-card[data-wordlist]')].find(c => c._wordlist === wordlist);
     const nameEl = card?.querySelector('.card-name');
     if (!nameEl || nameEl.querySelector('input')) return;
     const originalName = wordlist.name;
@@ -2228,9 +2306,13 @@ const LibraryView = (() => {
     });
   }
 
-  // ── Rail event delegation ─────────────────────────────────────────────────────
+  // ── List event delegation ─────────────────────────────────────────────────────
 
-  railWordlist.addEventListener('click', e => {
+  listBody.addEventListener('click', e => {
+    if (e.target.closest('.wordlist-card[data-merged]')) {
+      focus(MERGED_ID);
+      return;
+    }
     const toggleLabel = e.target.closest('label.toggle');
     if (toggleLabel) {
       const card = toggleLabel.closest('.wordlist-card[data-wordlist]');
@@ -2245,8 +2327,15 @@ const LibraryView = (() => {
     focus(card._wordlist);
   });
 
-  railWordlist.addEventListener('keydown', e => {
+  listBody.addEventListener('keydown', e => {
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+    if (e.target.closest('.wordlist-card[data-merged]')) {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        focus(MERGED_ID);
+      }
+      return;
+    }
     const card = e.target.closest('.wordlist-card[data-wordlist]');
     if (!card?._wordlist) return;
     if (e.key === 'Enter' || e.key === ' ') {
@@ -2254,11 +2343,11 @@ const LibraryView = (() => {
       focus(card._wordlist);
     } else if (e.key === 'F2') {
       e.preventDefault();
-      startRailRename(card._wordlist);
+      startCardRename(card._wordlist);
     }
   });
 
-  railWordlist.addEventListener('change', e => {
+  listBody.addEventListener('change', e => {
     const toggle = e.target.closest('.toggle input[type="checkbox"]');
     if (!toggle) return;
     const card = toggle.closest('.wordlist-card[data-wordlist]');
@@ -2268,7 +2357,7 @@ const LibraryView = (() => {
 
   // Drag-to-reorder (mouse)
   let _dragWordlist = null;
-  railWordlist.addEventListener('dragstart', e => {
+  listBody.addEventListener('dragstart', e => {
     const card = e.target.closest('.wordlist-card[data-wordlist]');
     if (!card?._wordlist) return;
     _dragWordlist = card._wordlist;
@@ -2276,24 +2365,24 @@ const LibraryView = (() => {
     e.dataTransfer.setData('text/plain', '');
     setTimeout(() => card.classList.add('dragging'), 0);
   });
-  railWordlist.addEventListener('dragend', () => {
-    railWordlist.querySelectorAll('.wordlist-card.dragging, .wordlist-card.drag-over')
+  listBody.addEventListener('dragend', () => {
+    listBody.querySelectorAll('.wordlist-card.dragging, .wordlist-card.drag-over')
       .forEach(c => c.classList.remove('dragging', 'drag-over'));
     _dragWordlist = null;
   });
-  railWordlist.addEventListener('dragover', e => {
+  listBody.addEventListener('dragover', e => {
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
     const card = e.target.closest('.wordlist-card[data-wordlist]');
     if (!card || card._wordlist === _dragWordlist) return;
-    railWordlist.querySelectorAll('.wordlist-card.drag-over').forEach(c => c.classList.remove('drag-over'));
+    listBody.querySelectorAll('.wordlist-card.drag-over').forEach(c => c.classList.remove('drag-over'));
     card.classList.add('drag-over');
   });
-  railWordlist.addEventListener('dragleave', e => {
+  listBody.addEventListener('dragleave', e => {
     const card = e.target.closest('.wordlist-card');
     if (card && !card.contains(e.relatedTarget)) card.classList.remove('drag-over');
   });
-  railWordlist.addEventListener('drop', e => {
+  listBody.addEventListener('drop', e => {
     e.preventDefault();
     const card = e.target.closest('.wordlist-card[data-wordlist]');
     const toWordlist = card?._wordlist;
@@ -2309,11 +2398,11 @@ const LibraryView = (() => {
 
   // ── Show / hide ───────────────────────────────────────────────────────────────
 
-  function show(wordlist = null) {
-    _focusedWordlist = wordlist ?? _focusedWordlist ?? (state.selected !== MERGED_ID ? state.selected : null) ?? state.sources[0] ?? null;
+  function show(target = null) {
+    _focusedWordlist = target ?? _focusedWordlist ?? MERGED_ID;
     el.hidden = false;
     renderOnboarding();
-    renderRail();
+    renderList();
     renderPane();
   }
 
@@ -2337,20 +2426,22 @@ const LibraryView = (() => {
     if (section) section.innerHTML = buildScoringSectionHTML();
   }
 
-  // Update the "X used" meta text on each rail card in place. Avoids rebuilding
-  // the whole rail (which would lose drag/hover state mid-interaction).
-  function updateRailMeta(contribMap) {
-    for (const card of railWordlist.querySelectorAll('.wordlist-card[data-wordlist]')) {
+  // Update the "X used" meta text on each wordlist card in place. Avoids rebuilding
+  // the whole list (which would lose drag/hover state mid-interaction).
+  function updateListMeta(contribMap) {
+    for (const card of listBody.querySelectorAll('.wordlist-card[data-wordlist]')) {
       const wordlist = card._wordlist;
       if (!wordlist) continue;
       const metaEl = card.querySelector('.card-meta');
       if (metaEl) metaEl.textContent = wordlistCardMeta(wordlist, contribMap);
     }
+    const mergedMetaEl = listBody.querySelector('.wld-merged-card .card-meta');
+    if (mergedMetaEl) mergedMetaEl.textContent = pluralize(buildMergedWordlist().entries.length, 'entry', 'entries');
   }
 
   return {
     show, hide, refresh, focus, action, getFocusedWordlist,
-    refreshRescoreSection, refreshScoringSection, updateRailMeta,
+    refreshRescoreSection, refreshScoringSection, updateListMeta,
     isVisible: () => !el.hidden,
   };
 })();
@@ -2723,7 +2814,7 @@ async function init() {
     .forEach(l => fetchWordlist(l, null, { silent: true }));
 
   // The "popular wordlists pre-loaded" banner lives inside the Library view's
-  // rail; it shows there until the user dismisses it (lsLoad('onboarded')).
+  // wordlist list; it shows there until the user dismisses it (lsLoad('onboarded')).
 }
 
 function defaultSources() {
@@ -4279,7 +4370,7 @@ let _dateTimer = null;
 //     update on cache-only change)
 //   - cosmetic effect — subscribes to per-wordlist `name$`/`icon$`/`url$`/
 //     `publisherId$` signals across all sources; cosmetic field changes
-//     re-render the rail/dropdown/dialog and visible scroller rows without
+//     re-render the list/dropdown/dialog and visible scroller rows without
 //     touching the merged cache
 // Helpers that want to repaint after a cache change bump `cacheVersion$` via
 // `repaintAfterCacheChange`. Cosmetic field setters just write the signal —
@@ -4311,7 +4402,7 @@ function setupRenderEffect() {
     // Cache change for the current selection — refresh derived state in
     // place rather than rebuilding the panel and the scroller.
     refreshSourceCounts();        // rebuild caches before any UI reads them
-    renderSources();              // rail/dropdown/dialog with fresh meta
+    renderSources();              // list/dropdown/dialog with fresh meta
     refreshDerivedDisplays();     // scoring legend + main-panel stats bar
     if (!scroller) return;
     if (sel === MERGED_ID) {
@@ -4329,7 +4420,7 @@ function setupRenderEffect() {
     }
   });
 
-  // Cosmetic effect: re-renders rail/dropdown when any wordlist's name/icon/
+  // Cosmetic effect: re-renders list/dropdown when any wordlist's name/icon/
   // url/publisher changes. Cache-affecting fields (enabled, rescoreRules)
   // route through `cacheVersion$` instead since changing them invalidates
   // derived state.
@@ -4372,7 +4463,7 @@ function wordlistCardMeta(wordlist, contribMap) {
 
 // Centralized "sources changed in some way" hook: repaint anything that
 // displays per-source state (source dropdown trigger when name/icon may
-// have changed, the Library view's rail/pane).
+// have changed, the Library view's list/pane).
 //
 // Reads `_sourceCountsCache` for "X used" meta — populated lazily here when
 // missing, so cosmetic-effect callers don't crash if a cache-affecting helper
@@ -4813,7 +4904,10 @@ function positionHistogramRect(histEl, intervals = undefined) {
 }
 
 function repositionAllHistogramRects() {
-  document.querySelectorAll('.histogram').forEach(h => positionHistogramRect(h));
+  // The score-range selection rect is a Workshop concept (the filter belongs
+  // to the entries table). Library histograms render the same chrome but
+  // never paint a selection — scope the query to #card so they stay clean.
+  document.querySelectorAll('#card .histogram').forEach(h => positionHistogramRect(h));
   syncHistogramHover();
 }
 
@@ -4910,7 +5004,7 @@ async function applyWordlistText(wordlist, text, { fetchedSize = null, originalF
 
   await persistData(dbKey, text);
   // The render effect drained inside batchUpdate already updated the Library
-  // rail, dropdown, scoring legend, stats bar, and active scroller for the
+  // list, dropdown, scoring legend, stats bar, and active scroller for the
   // current selection. Nothing else to repaint here.
 
   if (wasEmpty) {
@@ -6125,9 +6219,11 @@ function afterRuleChange(wordlist) {
 // Per-source rescore rules live in the Library view's right pane only. These
 // handlers target the focused wordlist there, falling back to the main-pane
 // selection only if Library isn't visible (defensive — there should be no
-// other callers).
+// other callers). When All is focused, there's no per-source rescore context.
 function getRescoreContextWordlist() {
-  return LibraryView?.getFocusedWordlist?.() ?? getSelected();
+  const focused = LibraryView?.getFocusedWordlist?.();
+  if (focused && focused !== MERGED_ID) return focused;
+  return getSelected();
 }
 
 function deleteRule(idx) {
@@ -6424,7 +6520,7 @@ function insertSortedByEntry(entries, wlEntry) {
   entries.splice(lo, 0, wlEntry);
 }
 
-// Display-side refresh: repaint the Wordlists-dialog rail meta and the
+// Display-side refresh: repaint the Library list's "X used" meta and the
 // scoring legend to match current data. The main detail panel's stats bar
 // is repainted via the scroller's onFilterChange callback — every caller
 // of refreshDerivedDisplays also runs a scroller filter pass, so the bar
@@ -6434,7 +6530,7 @@ function insertSortedByEntry(entries, wlEntry) {
 function refreshDerivedDisplays() {
   if (_sourceCountsCache) {
     const contribMap = new Map(_sourceCountsCache.map(s => [s.wordlist, s.count]));
-    LibraryView.updateRailMeta(contribMap);
+    LibraryView.updateListMeta(contribMap);
   }
   renderScoringRules();
 }
@@ -6543,7 +6639,7 @@ function repaintAfterCacheChange() {
 }
 
 // Cosmetic setters: write the signal and persist. The cosmetic effect
-// re-renders the rail/dropdown/dialog and visible scroller rows; no explicit
+// re-renders the list/dropdown/dialog and visible scroller rows; no explicit
 // repaint call needed.
 function setWordlistName(wordlist, name) {
   if (wordlist.name === name) return;
