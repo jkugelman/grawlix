@@ -439,6 +439,10 @@ html.dark-mode .search-match-4 { background: #14532d; color: #d1fae5; }
   main { padding: 0; scrollbar-gutter: auto; }
   #workshop-view,
   #library-view { margin-bottom: 0; border: none; border-radius: 0; box-shadow: none !important; }
+  /* The 240px desktop search input dominates the row on a phone (the bar's
+     other controls already exceed mobile width), so trim it to a narrower
+     fixed width that no longer hogs visual weight. */
+  .search-input-wrap { flex: 0 0 140px; }
 }
 .edit-hint { opacity: 0; flex-shrink: 0; cursor: pointer; user-select: none; transition: opacity 0.15s; }
 .name-edit-input { font-family: inherit; width: 100%; padding: 1px 5px; border: 1px solid var(--accent); border-radius: 3px; background: var(--input-bg); color: var(--text); font-size: 15px; font-weight: 600; outline: none; }
