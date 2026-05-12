@@ -241,26 +241,23 @@ html.light-mode .histogram-rect { opacity: 0.22; }
 .histogram-readonly.is-hovered .histogram-bar:not(.histogram-bar-ignored) { background: var(--accent); }
 html.light-mode .histogram-readonly.is-hovered .histogram-bar:not(.histogram-bar-ignored) { filter: none; }
 
-/* Search bar — styled as the bottom "filter" row of the tool stack, also hosts
-   the sort control on the right edge (filter + view-config in one row).
-   position: relative establishes a positioning context for .tool-stack-cursor:
-   the cursor is parented here (not in #tool-stack) so its caret can extend
-   above and below the stack/search-bar boundary without being clipped by
-   #tool-stack's overflow: hidden.
-   flex-wrap: wrap lets the bar reflow organically whenever its contents
-   don't fit, at any viewport — no phone-sized breakpoint. The input has
-   a 240px basis (the wrap algorithm's threshold and the effective min, so
-   the bar wraps when 240 doesn't fit rather than smushing the input
-   narrower) and grows up to a 360px cap when there's slack on its row. */
+/* Search bar — bottom "filter" row of the tool stack. position: relative is
+   the positioning context for .tool-stack-cursor (parented here so its caret
+   can span the stack/search-bar boundary). flex-wrap: wrap lets the bar
+   reflow whenever it overflows, at any viewport. */
 .search-bar { padding: 8px 14px; background: var(--surface2); border-bottom: 1px solid var(--border2); display: flex; flex-wrap: wrap; align-items: center; gap: 12px; position: relative; }
-.search-input-wrap { position: relative; display: flex; align-items: center; flex: 1 1 240px; max-width: 360px; }
+/* The input flexes between 160 and 360px; basis 240 is the wrap threshold.
+   .search-input-row keeps the input and "Whole word" glued together — they
+   stretch and shrink as one unit, never splitting across rows. */
+.search-input-row { display: flex; align-items: center; gap: 12px; min-width: 0; flex: 1 1 auto; }
+.search-input-wrap { position: relative; display: flex; align-items: center; flex: 1 1 240px; min-width: 160px; max-width: 360px; }
 .search-input-wrap input[type="text"],
 .tool-row-param input { background: var(--input-bg); color: var(--text); border: 1px solid var(--border); border-radius: 4px; font-size: 13px; font-family: var(--font-mono); padding: 5px 8px; }
 .tool-row-param input { cursor: not-allowed; }
 .search-input-wrap input[type="text"]:focus,
 .tool-row-param input:focus { outline: none; border-color: var(--accent); }
 .search-input-wrap input[type="text"] { width: 100%; padding-right: 24px; }
-.search-whole-word-label { display: flex; align-items: center; gap: 5px; font-size: 12px; color: var(--muted); white-space: nowrap; cursor: pointer; user-select: none; }
+.search-whole-word-label { display: flex; align-items: center; gap: 5px; font-size: 12px; color: var(--muted); white-space: nowrap; cursor: pointer; user-select: none; flex-shrink: 0; }
 .score-range-label { display: flex; align-items: center; gap: 5px; font-size: 12px; color: var(--muted); white-space: nowrap; }
 /* The bar is split into two groups: .search-items (Search · input · Whole
    word) and .search-bar-end (Score · Sort on Workshop, just Sort on Library).
@@ -1273,11 +1270,13 @@ function buildSearchBarHTML() {
   return `<div class="search-bar">
       <div class="search-items">
         ${buildToolLabelHTML({ icon: '<svg width="16" height="16" aria-hidden="true"><use href="#icon-search"/></svg>', name: 'Search' })}
-        <div class="search-input-wrap">
-          <input type="text" id="search-input" placeholder="pattern" value="${searchQuery}" oninput="WorkshopView.onSearch(this.value)" title="Search (Alt+S)">
-          <button class="clear-btn" id="search-clear" onclick="WorkshopView.clearSearch()" title="Clear search" aria-label="Clear search" ${searchQuery ? '' : 'hidden'}><svg width="10" height="10"><use href="#icon-x"/></svg></button>
+        <div class="search-input-row">
+          <div class="search-input-wrap">
+            <input type="text" id="search-input" placeholder="pattern" value="${searchQuery}" oninput="WorkshopView.onSearch(this.value)" title="Search (Alt+S)">
+            <button class="clear-btn" id="search-clear" onclick="WorkshopView.clearSearch()" title="Clear search" aria-label="Clear search" ${searchQuery ? '' : 'hidden'}><svg width="10" height="10"><use href="#icon-x"/></svg></button>
+          </div>
+          <label class="search-whole-word-label" title="Whole word (Alt+W)"><input type="checkbox" id="search-whole-word" onchange="WorkshopView.onSearchWholeWord(this.checked)" ${searchWholeWord ? 'checked' : ''}> Whole word</label>
         </div>
-        <label class="search-whole-word-label" title="Whole word (Alt+W)"><input type="checkbox" id="search-whole-word" onchange="WorkshopView.onSearchWholeWord(this.checked)" ${searchWholeWord ? 'checked' : ''}> Whole word</label>
       </div>
       <div class="search-bar-end">
         <label class="score-range-label" title="Score: 50, 50-59, or 50+ (Alt+C)">Score <span class="score-range-wrap"><input type="text" id="score-range-input" value="${esc(scoreRange)}" oninput="WorkshopView.onScoreRange(this.value)"><button class="clear-btn" id="score-range-clear" onclick="WorkshopView.clearScoreRange()" title="Clear score" aria-label="Clear score" ${scoreRange ? '' : 'hidden'}><svg width="10" height="10"><use href="#icon-x"/></svg></button></span></label>
@@ -2289,11 +2288,13 @@ const LibraryView = (() => {
     return `<div class="search-bar lib-search-bar">
       <div class="search-items">
         ${buildToolLabelHTML({ icon: '<svg width="16" height="16" aria-hidden="true"><use href="#icon-search"/></svg>', name: 'Search' })}
-        <div class="search-input-wrap">
-          <input type="text" id="lib-search-input" placeholder="pattern" value="${q}" oninput="LibraryView.onSearch(this.value)">
-          <button class="clear-btn" id="lib-search-clear" onclick="LibraryView.clearSearch()" title="Clear search" aria-label="Clear search" ${_searchQuery ? '' : 'hidden'}><svg width="10" height="10"><use href="#icon-x"/></svg></button>
+        <div class="search-input-row">
+          <div class="search-input-wrap">
+            <input type="text" id="lib-search-input" placeholder="pattern" value="${q}" oninput="LibraryView.onSearch(this.value)">
+            <button class="clear-btn" id="lib-search-clear" onclick="LibraryView.clearSearch()" title="Clear search" aria-label="Clear search" ${_searchQuery ? '' : 'hidden'}><svg width="10" height="10"><use href="#icon-x"/></svg></button>
+          </div>
+          <label class="search-whole-word-label" title="Whole word"><input type="checkbox" id="lib-search-whole-word" onchange="LibraryView.onWholeWord(this.checked)" ${_searchWholeWord ? 'checked' : ''}> Whole word</label>
         </div>
-        <label class="search-whole-word-label" title="Whole word"><input type="checkbox" id="lib-search-whole-word" onchange="LibraryView.onWholeWord(this.checked)" ${_searchWholeWord ? 'checked' : ''}> Whole word</label>
       </div>
       <div class="search-bar-end">
         <div class="search-bar-sort">${buildSortControlsHTML()}</div>
