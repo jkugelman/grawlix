@@ -1758,7 +1758,7 @@ function parseWordlistLine(line) {
   const score = parseInt(semi2 === -1 ? rest : rest.slice(0, semi2), 10);
   if (isNaN(score)) return null;
   const comment = semi2 === -1 ? '' : rest.slice(semi2 + 1).trim();
-  return { entry, score, comment };
+  return { entry, entryLower: entry.toLowerCase(), score, comment };
 }
 
 function parseWordlist(text) {
@@ -3696,6 +3696,13 @@ class WorkshopEntriesScroller extends BaseVirtualScroller {
     this._onDeleteRow = null;
     this.onFilterChange = null;
     this._sortScores = null;
+    // Sorted view of allEntries cached across keystrokes. Filter preserves
+    // order, so a sorted source means the filter result is already sorted —
+    // no per-keystroke re-sort needed. Invalidated when allEntries, rescore
+    // rules, or override map change (anything that affects sort).
+    this._sortedSource = null;
+    this._sortedSourceKey = null;
+    this._sortedSourceDir = null;
 
     this.sizer.addEventListener('click', e => {
       const target = e.target.closest('.atom-entry, .atom-score, .atom-comment');
@@ -3728,7 +3735,7 @@ class WorkshopEntriesScroller extends BaseVirtualScroller {
     this.overrideMap = overrideMap || new Map();
     // Sort persists across wordlist switches via `WorkshopView.sortKey/sortDir`
     // (the scroller field was already seeded from there in the constructor).
-    this._sortScores = null;
+    this._invalidateSortCache();
     this._buildToolbar();
     this.filter(query, wholeWord, scoreRange);
   }
@@ -3736,15 +3743,20 @@ class WorkshopEntriesScroller extends BaseVirtualScroller {
   updateEntries(allEntries) {
     AtomPopover.close();
     this.allEntries = allEntries;
-    this._sortScores = null;
+    this._invalidateSortCache();
     this._applyFilterAndSort();
   }
 
   setRescore(rules) {
     AtomPopover.close();
     this.rescoreRules = rules || [];
-    this._sortScores = null;
+    this._invalidateSortCache();
     this._applyFilterAndSort();
+  }
+
+  _invalidateSortCache() {
+    this._sortScores = null;
+    this._sortedSource = null;
   }
 
   filter(query, wholeWord = false, scoreRange = '') {
@@ -3786,15 +3798,17 @@ class WorkshopEntriesScroller extends BaseVirtualScroller {
   }
 
   _applyFilterAndSort() {
+    const source = this._getSortedSource();
+
     const q = this._lastQuery.toLowerCase();
     let entries;
     if (!q) {
       this._highlight = null;
-      entries = this.allEntries;
+      entries = source;
     } else {
       const { filterRe, highlight } = buildSearchPattern(q, this._wholeWord);
       this._highlight = highlight;
-      entries = this.allEntries.filter(e => filterRe.test(e.entry.toLowerCase()));
+      entries = source.filter(e => filterRe.test(e.entryLower));
     }
 
     this._entriesPreScoreRange = entries;
@@ -3813,14 +3827,33 @@ class WorkshopEntriesScroller extends BaseVirtualScroller {
       });
     }
 
-    if (this.sortKey) {
+    this.entries = entries;
+    this._computeSlotWidths();
+    this._render();
+    this.onFilterChange?.();
+  }
+
+  // Returns allEntries sorted by current sortKey/sortDir, cached across
+  // keystrokes. `.filter()` preserves order, so callers can filter the
+  // result and skip a per-keystroke re-sort.
+  _getSortedSource() {
+    if (this._sortedSource
+        && this._sortedSourceKey === this.sortKey
+        && this._sortedSourceDir === this.sortDir) {
+      return this._sortedSource;
+    }
+
+    let sorted;
+    if (!this.sortKey) {
+      sorted = this.allEntries;
+    } else {
       const key = this.sortKey;
       const dir = this.sortDir === 'asc' ? 1 : -1;
       if (key === 'score' && (this.rescoreRules.length || this.overrideMap.size)) {
         if (!this._sortScores) this._buildSortScores();
-        entries = [...entries].sort((a, b) => dir * (this._sortScores.get(a) - this._sortScores.get(b)));
+        sorted = [...this.allEntries].sort((a, b) => dir * (this._sortScores.get(a) - this._sortScores.get(b)));
       } else {
-        entries = [...entries].sort((a, b) => {
+        sorted = [...this.allEntries].sort((a, b) => {
           const av = key === 'length' ? a.entry.length : (a[key] ?? '');
           const bv = key === 'length' ? b.entry.length : (b[key] ?? '');
           if (typeof av === 'number' && typeof bv === 'number') return dir * (av - bv);
@@ -3829,10 +3862,10 @@ class WorkshopEntriesScroller extends BaseVirtualScroller {
       }
     }
 
-    this.entries = entries;
-    this._computeSlotWidths();
-    this._render();
-    this.onFilterChange?.();
+    this._sortedSource = sorted;
+    this._sortedSourceKey = this.sortKey;
+    this._sortedSourceDir = this.sortDir;
+    return sorted;
   }
 
   // Slot widths derived from the longest values across the full result set, then
@@ -4062,18 +4095,28 @@ class LibraryEntriesScroller extends BaseVirtualScroller {
     this.allRows = [];
     this.rows = [];
     this._highlight = null;
+    // Row-rescore output cached across keystrokes — only the search query is
+    // changing as the user types, and rows don't depend on the query. Sorted
+    // view is similarly memoized so `.filter()` preserves order and the
+    // post-filter sort can be skipped on every keystroke.
+    this._baseRows = null;
+    this._sortedBaseRows = null;
+    this._sortedBaseRowsKey = null;
+    this._sortedBaseRowsDir = null;
     this._applyFilterAndSort();
   }
 
   // wordlist = null => merged-all view. Otherwise the focused source wordlist.
   setWordlist(wordlist) {
     this.wordlist = wordlist;
+    this._invalidateRowsCache();
     this._applyFilterAndSort();
   }
 
   setMode(mode) {
     if (this.mode === mode) return;
     this.mode = mode;
+    this._invalidateRowsCache();
     this._applyFilterAndSort();
   }
 
@@ -4082,6 +4125,7 @@ class LibraryEntriesScroller extends BaseVirtualScroller {
   // the next renderPane, which rebuilds the scroller from committed rules.
   setRescorePreview(rules) {
     this._previewRules = rules;
+    this._invalidateRowsCache();
     this._applyFilterAndSort();
   }
 
@@ -4097,6 +4141,11 @@ class LibraryEntriesScroller extends BaseVirtualScroller {
     this._applyFilterAndSort();
   }
 
+  _invalidateRowsCache() {
+    this._baseRows = null;
+    this._sortedBaseRows = null;
+  }
+
   // Produce the unfiltered row data. For source wordlists, walks rawEntries
   // and (in rescored mode) applies rescoreEntry to get the transformation.
   // Three states per row: unchanged (input only), rescored (input → output),
@@ -4107,6 +4156,7 @@ class LibraryEntriesScroller extends BaseVirtualScroller {
       const { entries } = buildMergedWordlist();
       return entries.map(e => ({
         entry: e.entry,
+        entryLower: e.entryLower,
         len: e.entry.length,
         inputScore: e.score,
         outputScore: e.score,
@@ -4129,6 +4179,7 @@ class LibraryEntriesScroller extends BaseVirtualScroller {
       }
       return {
         entry: wlE.entry,
+        entryLower: wlE.entryLower,
         len: wlE.entry.length,
         inputScore: wlE.score,
         outputScore,
@@ -4139,22 +4190,19 @@ class LibraryEntriesScroller extends BaseVirtualScroller {
     });
   }
 
-  _applyFilterAndSort() {
-    let rows = this._buildRows();
-    this.allRows = rows;
-
-    const q = this.query.toLowerCase();
-    if (q) {
-      const { filterRe, highlight } = buildSearchPattern(q, this.wholeWord);
-      this._highlight = highlight;
-      rows = rows.filter(r => filterRe.test(r.entry.toLowerCase()));
-    } else {
-      this._highlight = null;
+  _getSortedBaseRows() {
+    if (this._sortedBaseRows
+        && this._sortedBaseRowsKey === this.sortKey
+        && this._sortedBaseRowsDir === this.sortDir) {
+      return this._sortedBaseRows;
     }
-
+    if (!this._baseRows) {
+      this._baseRows = this._buildRows();
+      this.allRows = this._baseRows;
+    }
     const dir = this.sortDir === 'asc' ? 1 : -1;
     const key = this.sortKey;
-    rows = [...rows].sort((a, b) => {
+    const sorted = [...this._baseRows].sort((a, b) => {
       if (key === 'score') {
         // Ignored rows have no meaningful score; sink them to the bottom in
         // both directions rather than letting them anchor either extreme.
@@ -4166,6 +4214,25 @@ class LibraryEntriesScroller extends BaseVirtualScroller {
       if (typeof av === 'number' && typeof bv === 'number') return dir * (av - bv);
       return dir * String(av).localeCompare(String(bv));
     });
+    this._sortedBaseRows = sorted;
+    this._sortedBaseRowsKey = this.sortKey;
+    this._sortedBaseRowsDir = this.sortDir;
+    return sorted;
+  }
+
+  _applyFilterAndSort() {
+    const source = this._getSortedBaseRows();
+
+    const q = this.query.toLowerCase();
+    let rows;
+    if (q) {
+      const { filterRe, highlight } = buildSearchPattern(q, this.wholeWord);
+      this._highlight = highlight;
+      rows = source.filter(r => filterRe.test(r.entryLower));
+    } else {
+      this._highlight = null;
+      rows = source;
+    }
 
     this.rows = rows;
     this._computeSlotWidths();
@@ -4819,7 +4886,7 @@ function refreshWorkshopMergedScroller() {
   if (!workshopScroller) return;
   const { entries } = buildMergedWordlist();
   if (entries === workshopScroller.allEntries) {
-    workshopScroller._sortScores = null;
+    workshopScroller._invalidateSortCache();
     workshopScroller._applyFilterAndSort(false);
   } else {
     workshopScroller.updateEntries(entries);
@@ -4998,7 +5065,8 @@ function upsertEdits(entry, field, newValue) {
     const orig = workshopScroller?.allEntries?.find(e => e.entry.toUpperCase() === upperEntry);
     const score   = field === 'score'   ? newValue : (orig?.score   ?? 50);
     const comment = field === 'comment' ? newValue : (orig?.comment ?? '');
-    wlEntry = { entry: entry.toLowerCase(), score, comment };
+    const entryLow = entry.toLowerCase();
+    wlEntry = { entry: entryLow, entryLower: entryLow, score, comment };
     edits.rawEntries.push(wlEntry);
   }
   patchCachesForEditsChange(upperEntry, wlEntry);
@@ -5436,7 +5504,8 @@ function openAddEntryBar() {
       wlEntry = existing;
       showToast(`Updated ${displayEntry(entry)}`);
     } else {
-      wlEntry = { entry: entry.toLowerCase(), score, comment };
+      const entryLow = entry.toLowerCase();
+      wlEntry = { entry: entryLow, entryLower: entryLow, score, comment };
       edits.rawEntries.push(wlEntry);
       showToast(`Added ${displayEntry(entry)}`);
     }
@@ -5462,7 +5531,7 @@ function deleteFromEdits(entry, refreshFn) {
 
   const upperEntry = entry.toUpperCase();
   const refresh = refreshFn ?? (() => {
-    workshopScroller._sortScores = null;
+    workshopScroller._invalidateSortCache();
     workshopScroller._applyFilterAndSort(false);
   });
 
@@ -6641,6 +6710,7 @@ function patchCachesForEditsChange(entry, newEditsWlEntry) {
         // ADD: brand-new entry, no other wordlist has it.
         const merged = {
           entry: newEditsWlEntry.entry,
+          entryLower: newEditsWlEntry.entryLower,
           score: newEditsWlEntry.score,
           comment: newEditsWlEntry.comment || '',
           wordlist: edits,
@@ -6749,7 +6819,8 @@ function buildMergedWordlist() {
     for (const { entry, score, comment } of getRescoredEntries(wordlist)) {
       const key = entry.toUpperCase();
       if (!mergedMap.has(key)) {
-        mergedMap.set(key, { entry: entry.toLowerCase(), score, comment: comment || '', wordlist });
+        const entryLow = entry.toLowerCase();
+        mergedMap.set(key, { entry: entryLow, entryLower: entryLow, score, comment: comment || '', wordlist });
         count++;
       }
     }
