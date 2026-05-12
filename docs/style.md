@@ -32,7 +32,7 @@ These are anchors for grepping and for orientation; keep them stable.
 
 ## Comments
 
-**Default to writing no comments.** Well-named identifiers and short functions do the work; self-explanatory code doesn't need commentary.
+**Don't over-comment.** Well-named identifiers and short functions do the work; self-explanatory code doesn't need commentary.
 
 Comment the **why**, not the **what** — a reader can see *what* the code does, but *why* (hidden constraints, invariants, workarounds, alternatives tried and rejected) vanishes silently and is expensive to reconstruct. The exception is when the *what* itself is hard to reconstruct: shape annotations on state vars, non-obvious sequencing, data flow that would otherwise require digging through other files to follow.
 
