@@ -228,7 +228,7 @@ html.light-mode .histogram-rect { opacity: 0.22; }
 .search-bar { padding: 8px 14px; background: var(--surface2); border-bottom: 1px solid var(--border2); display: flex; align-items: center; gap: 12px; position: relative; }
 .search-input-wrap { position: relative; display: flex; align-items: center; flex: 0 0 240px; }
 .search-input-wrap input[type="text"],
-.tool-row-param input { background: var(--input-bg); color: var(--text); border: 1px solid var(--border); border-radius: 4px; font-size: 13px; font-family: var(--font-mono); padding: 5px 8px; }
+.tool-row-param input { background: var(--input-bg); color: var(--text); border: 1px solid var(--border); border-radius: 4px; font-size: 13px; font-family: var(--font-mono); padding: 5px 8px; cursor: not-allowed; }
 .search-input-wrap input[type="text"]:focus,
 .tool-row-param input:focus { outline: none; border-color: var(--accent); }
 .search-input-wrap input[type="text"] { width: 100%; padding-right: 24px; }
@@ -667,7 +667,7 @@ body.tools-empty .gallery-card-add { display: none; }
    doesn't shrink below the height of an input-bearing row, and the search
    bar (visually the bottom row of the stack) lines up with them. */
 .tool-row, .search-bar { min-height: 42px; }
-.tool-row { position: relative; display: grid; grid-template-columns: 1fr 32px; align-items: center; padding: 8px 14px; border-bottom: 1px solid var(--border2); gap: 10px; overflow: hidden; }
+.tool-row { position: relative; display: grid; grid-template-columns: 1fr 32px; align-items: center; padding: 8px 14px; border-bottom: 1px solid var(--border2); gap: 10px; overflow: hidden; cursor: not-allowed; }
 .tool-row:last-child { border-bottom: none; }
 /* "doomed" marks rows that the hovered gallery card will remove on click —
    diagonal stripe overlay (neutral, text-tinted) plus a slight dim, in place,
