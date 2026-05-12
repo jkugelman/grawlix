@@ -192,14 +192,18 @@ button.danger:hover:not(:disabled) { background: #e74c3c; border-color: #c0392b;
 .no-selection small { font-size: 13px; }
 
 /* Stats bar */
-.stats-bar { border-bottom: 1px solid var(--border3); padding: 10px 18px; display: flex; align-items: center; gap: 22px; }
-.sticky-stack .stats-bar { background: var(--surface3); }
+.stats-bar { border-bottom: 1px solid var(--border3); padding: 10px 18px; display: flex; align-items: center; gap: 22px; background: var(--surface3); }
 
-/* Stats bar + tool stack + search bar share a sticky region just below the
+/* The stats bar's surface3 is the "most recessed" band — it's the summary
+   marquee for whatever wordlist (or merged view) is in focus, and the
+   recessed shade carries that identity in both the Workshop's sticky stack
+   and the Library pane.
+
+   Stats bar + tool stack + search bar share a sticky region just below the
    brand header. Variable tool-stack height resolves to one sticky element of
    natural height. Three bands by recession depth: stats on surface3 (most
-   recessed — it's the summary marquee), tools/search/column-headers on
-   surface2, and the data plane below is surface (content, brightest). */
+   recessed), tools/search/column-headers on surface2, and the data plane
+   below is surface (content, brightest). */
 .sticky-stack { position: sticky; top: 0; z-index: 50; background: var(--surface2); border-bottom: 1px solid var(--border2); }
 .sticky-stack .search-bar { border-bottom: none; }
 .stat { display: flex; flex-direction: column; gap: 2px; }
@@ -767,7 +771,6 @@ body.tools-empty .gallery-card-add { display: none; }
 /* When the toggle isn't present (My Edits, All, or no rules), push the
    first action item to the right edge instead. */
 .wld-pane-actions > :first-child:not(.seg-ctrl) { margin-left: auto; }
-.wld-pane-stats { padding: 0 8px; }
 .wld-pane-stats .stats-bar { border: none; padding: 12px 14px; }
 .wld-pane-rescore { border-top: 1px solid var(--border2); padding: 14px 22px 22px; }
 .wld-pane-rescore-empty { font-size: 12px; color: var(--muted); padding: 6px 2px; }
