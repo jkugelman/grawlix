@@ -428,6 +428,10 @@ html.dark-mode .search-match-4 { background: #14532d; color: #d1fae5; }
    remains in the cell's title attribute for hover/long-press. */
 @media (max-width: 759px) {
   .detail-date-prefix { display: none; }
+  /* Stats bar runs out of room — mean/median/mode are the least essential
+     readouts (the histogram conveys the distribution at a glance), so drop
+     them and keep Entries/Min/Max alongside the histogram. */
+  .stats-right .stat { display: none; }
 }
 .edit-hint { opacity: 0; flex-shrink: 0; cursor: pointer; user-select: none; transition: opacity 0.15s; }
 .name-edit-input { font-family: inherit; width: 100%; padding: 1px 5px; border: 1px solid var(--accent); border-radius: 3px; background: var(--input-bg); color: var(--text); font-size: 15px; font-weight: 600; outline: none; }
