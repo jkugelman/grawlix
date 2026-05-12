@@ -417,10 +417,7 @@ html.dark-mode .search-match-4 { background: #14532d; color: #d1fae5; }
 
 /* Atom popover (click-driven). Universal editor: source line + score + comment + delete. */
 #atom-popover { position: fixed; z-index: 600; background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 6px 24px rgba(0,0,0,0.2); padding: 12px 14px; font-size: 12px; color: var(--text); min-width: 280px; max-width: 360px; }
-.atom-pop-source { color: var(--muted); margin-bottom: 10px; padding-right: 22px; line-height: 1.5; }
-.atom-pop-source div + div { margin-top: 2px; }
-.atom-pop-source b { color: var(--text); font-weight: 600; }
-.atom-pop-fields { display: grid; grid-template-columns: auto 1fr; gap: 8px 10px; align-items: center; }
+.atom-pop-fields { display: grid; grid-template-columns: auto 1fr; gap: 8px 10px; align-items: center; padding-right: 22px; }
 .atom-pop-fields label { font-size: 11px; color: var(--muted); }
 .atom-pop-fields input { font: inherit; font-size: 12px; padding: 4px 7px; border: 1px solid var(--border); border-radius: 3px; background: var(--input-bg); color: var(--text); outline: none; width: 100%; box-sizing: border-box; }
 .atom-pop-fields input:focus { border-color: var(--accent); }
@@ -4375,22 +4372,6 @@ const AtomPopover = (() => {
     window.addEventListener('resize', close);
   }
 
-  function renderSourceLinesHTML(wlEntry, scroller, d) {
-    const rowWordlist = wlEntry.wordlist || scroller.currentWordlist;
-    let sourceLines = '';
-    if (rowWordlist) {
-      const label = buildWordlistNameHTML(rowWordlist, { bold: false });
-      const rescNote = d.wasRescored ? ` <span class="rescore-note">(${wlEntry.score} rescored to ${d.rescoredScore})</span>` : '';
-      sourceLines += `<div>${label}: <b>${d.ignored ? wlEntry.score : d.rescoredScore}</b>${rescNote}</div>`;
-    }
-    if (d.ov) {
-      const ovLabel = buildWordlistNameHTML(d.ov.wordlist, { bold: false });
-      sourceLines += `<div>${ovLabel}: <b>${d.ov.score}</b> takes precedence</div>`;
-    }
-    if (d.ignored) sourceLines += `<div><i>Ignored by rescore rules</i></div>`;
-    return sourceLines;
-  }
-
   function renderFooterHTML(wlEntry, scroller) {
     const rowWordlist = wlEntry.wordlist || scroller.currentWordlist;
     const editsWordlist = scroller.editsWordlist || getEditsWordlist();
@@ -4408,7 +4389,6 @@ const AtomPopover = (() => {
     const scoreVal = d.ignored ? wlEntry.score : d.effectiveScore;
     return `
       <button class="dialog-close-btn" type="button" aria-label="Close">✕</button>
-      <div class="atom-pop-source">${renderSourceLinesHTML(wlEntry, scroller, d)}</div>
       <div class="atom-pop-fields">
         <label for="atom-pop-score">Score</label>
         <input id="atom-pop-score" class="score-input" type="number" min="0" value="${scoreVal}">
@@ -4435,10 +4415,7 @@ const AtomPopover = (() => {
       wireFields();
       return;
     }
-    const d = activeScroller._entryDisplayState(activeWlEntry);
-    const sourceEl = el.querySelector('.atom-pop-source');
     const footEl = el.querySelector('.atom-pop-foot');
-    if (sourceEl) sourceEl.innerHTML = renderSourceLinesHTML(activeWlEntry, activeScroller, d);
     if (footEl) {
       footEl.innerHTML = renderFooterHTML(activeWlEntry, activeScroller);
       wireDeleteButton();
