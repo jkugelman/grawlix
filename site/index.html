@@ -432,6 +432,13 @@ html.dark-mode .search-match-4 { background: #14532d; color: #d1fae5; }
      readouts (the histogram conveys the distribution at a glance), so drop
      them and keep Entries/Min/Max alongside the histogram. */
   .stats-right .stat { display: none; }
+  /* Reclaim the gutters: the bordered card frame is decorative breathing
+     room on desktop, but pure waste on a phone where every pixel matters.
+     Drop the main padding, all borders, corner radius, bottom margin, and
+     box-shadow so the views run flush to all four edges. */
+  main { padding: 0; scrollbar-gutter: auto; }
+  #workshop-view,
+  #library-view { margin-bottom: 0; border: none; border-radius: 0; box-shadow: none !important; }
 }
 .edit-hint { opacity: 0; flex-shrink: 0; cursor: pointer; user-select: none; transition: opacity 0.15s; }
 .name-edit-input { font-family: inherit; width: 100%; padding: 1px 5px; border: 1px solid var(--accent); border-radius: 3px; background: var(--input-bg); color: var(--text); font-size: 15px; font-weight: 600; outline: none; }
