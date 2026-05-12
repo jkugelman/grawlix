@@ -128,22 +128,22 @@ button.header-nav-item:hover:not(:disabled) { opacity: 1; background: var(--hdr-
    doesn't shift the centered cards or anything else horizontally. */
 main { padding: 0 24px; flex: 1; min-height: 0; overflow-y: auto; scrollbar-gutter: stable; }
 
-/* Centered card chrome — shared by Workshop (#card) and Library (#library-view),
+/* Centered card chrome — shared by Workshop (#workshop-view) and Library (#library-view),
    the two top-level views. Page background shows through the side margins so
    the bounded width feels intentional rather than under-filled. `overflow: clip`
    (not `hidden`) keeps rounded corners while letting the in-card sticky stack
    escape to the viewport — `overflow: hidden` would trap it. Both views flow
    in the page scroll. */
-#card,
+#workshop-view,
 #library-view { max-width: 1000px; margin: 24px auto 48px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; overflow: clip; }
-html.light-mode #card,
+html.light-mode #workshop-view,
 html.light-mode #library-view { box-shadow: 0 1px 3px rgba(0,0,0,0.06), 0 8px 24px rgba(0,0,0,0.05); }
-html.dark-mode #card,
+html.dark-mode #workshop-view,
 html.dark-mode #library-view  { box-shadow: 0 1px 3px rgba(0,0,0,0.25); }
 
 /* Slim top row: wordlist picker. */
-#card-top-row { display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-bottom: 1px solid var(--border3); }
-#card-top-row .source-dropdown-row { flex: 1; min-width: 0; max-width: 360px; }
+#workshop-top-row { display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-bottom: 1px solid var(--border3); }
+#workshop-top-row .source-dropdown-row { flex: 1; min-width: 0; max-width: 360px; }
 
 /* Busy overlay covers the viewport regardless of card position. */
 #busy-overlay { position: fixed; inset: 0; z-index: 200; background: var(--bg); display: flex; align-items: center; justify-content: center; transition: opacity 0.2s; }
@@ -220,6 +220,11 @@ button.danger:hover:not(:disabled) { background: #e74c3c; border-color: #c0392b;
 .histogram-rect[hidden] { display: none; }
 html.light-mode .histogram.is-hovered .histogram-bar:not(.histogram-bar-ignored) { filter: saturate(1.5) brightness(0.95); }
 html.light-mode .histogram-rect { opacity: 0.22; }
+/* Readonly variant (Library): no click-to-filter, no hover-revealed gradient. */
+.histogram-readonly,
+.histogram-readonly .histogram-col:not(.histogram-col-ignored) { cursor: default; }
+.histogram-readonly.is-hovered .histogram-bar:not(.histogram-bar-ignored) { background: var(--accent); }
+html.light-mode .histogram-readonly.is-hovered .histogram-bar:not(.histogram-bar-ignored) { filter: none; }
 
 /* Search bar — styled as the bottom "filter" row of the tool stack, also hosts
    the sort control on the right edge (filter + view-config in one row).
@@ -336,6 +341,50 @@ html.dark-mode .search-match-4 { background: #14532d; color: #d1fae5; }
   body.merged-view:not(.tools-multi-word) .entry-row .atom-source,
   body.merged-view:not(.tools-multi-word) .entry-headers .col-source { display: block; }
 }
+
+/* Library entries view — text-flavored, read-only counterpart to the Workshop
+   entries table. Shares the virtual-scroller mechanics but renders a monospace,
+   whitespace-aligned layout so it reads like a source file. Inline `→`
+   annotations show how rescore rules transform each entry. */
+.lib-entries-panel { padding: 6px 0 14px; position: relative; background: var(--surface); }
+.lib-entries-host { position: relative; }
+.lib-entries-rows { position: relative; }
+.lib-entry-row, .lib-entry-headers {
+  display: grid;
+  grid-template-columns: var(--lib-entry-w, 14ch) var(--lib-score-w, 9ch) minmax(0, 1fr);
+  column-gap: 14px;
+  padding: 0 22px;
+  white-space: nowrap;
+}
+.lib-entry-row {
+  position: absolute; left: 0; right: 0;
+  height: var(--row-height, 24px);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  color: var(--text);
+  align-items: center;
+}
+.lib-entry-headers {
+  font-family: var(--font-sans);
+  font-size: 12px;
+  color: var(--muted);
+  padding-top: 4px; padding-bottom: 4px;
+  border-bottom: 1px solid var(--border3);
+  user-select: none;
+}
+.lib-entry-headers > * { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.lib-entry-row .lib-atom-entry { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.lib-entry-row .lib-atom-comment { color: var(--muted); overflow: hidden; text-overflow: ellipsis; min-width: 0; font-size: 12px; }
+.lib-entry-row .lib-atom-arrow { color: var(--faint); padding: 0 2px; }
+.lib-entry-row .lib-atom-out { color: var(--accent); font-weight: 600; }
+.lib-entry-row.lib-ignored { opacity: 0.55; }
+.lib-entry-row.lib-ignored .lib-atom-entry,
+.lib-entry-row.lib-ignored .lib-atom-score,
+.lib-entry-row.lib-ignored .lib-atom-comment { text-decoration: line-through; }
+.lib-entries-empty { padding: 28px 22px; color: var(--faint); font-size: 13px; font-style: italic; }
+/* Sort cluster sits at the right edge of the Library search bar — the bar
+   has no score-range filter to push it there for us. */
+.lib-search-bar-sort { margin-left: auto; }
 
 /* Atom popover (click-driven). Universal editor: source line + score + comment + delete. */
 #atom-popover { position: fixed; z-index: 600; background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 6px 24px rgba(0,0,0,0.2); padding: 12px 14px; font-size: 12px; color: var(--text); min-width: 280px; max-width: 360px; }
@@ -720,7 +769,7 @@ body.tools-empty .gallery-card-add { display: none; }
 .tool-row-remove-placeholder { width: 24px; height: 24px; }
 
 /* Library view — top-level page (peer of Workshop). Shared card chrome lives
-   above with #card. Responsive layout: wordlist list on top on mobile,
+   above with #workshop-view. Responsive layout: wordlist list on top on mobile,
    list alongside the pane on desktop. Both flow in the page scroll. */
 .wld-list { background: var(--surface2); border-bottom: 1px solid var(--border2); }
 .wld-list-body { padding: 4px 0 0; }
@@ -736,7 +785,13 @@ body.tools-empty .gallery-card-add { display: none; }
 .wld-pane { display: flex; flex-direction: column; }
 .wld-pane-empty { display: flex; align-items: center; justify-content: center; color: var(--faint); font-size: 14px; padding: 60px 30px; }
 .wld-pane-header { display: flex; align-items: center; padding: 12px 22px; border-bottom: 1px solid var(--border); }
-.wld-pane-actions { display: flex; align-items: center; gap: 6px; flex: 1; min-width: 0; flex-wrap: wrap; justify-content: flex-end; }
+.wld-pane-actions { display: flex; align-items: center; gap: 6px; flex: 1; min-width: 0; flex-wrap: wrap; }
+/* Rescored/Original toggle sits left-aligned; the buttons that follow get
+   pushed to the right edge via this auto margin. */
+.wld-pane-actions > .seg-ctrl { margin-right: auto; }
+/* When the toggle isn't present (My Edits, All, or no rules), push the
+   first action item to the right edge instead. */
+.wld-pane-actions > :first-child:not(.seg-ctrl) { margin-left: auto; }
 .wld-pane-stats { padding: 0 8px; }
 .wld-pane-stats .stats-bar { border: none; padding: 12px 14px; }
 .wld-pane-rescore { border-top: 1px solid var(--border2); padding: 14px 22px 22px; }
@@ -904,8 +959,8 @@ input[type="file"] { display: none; }
 
 <main>
   <div id="busy-overlay"><div class="busy-spinner"></div></div>
-  <div id="card">
-    <div id="card-top-row">
+  <div id="workshop-view">
+    <div id="workshop-top-row">
       <div class="source-dropdown-row">
         <button id="source-dropdown-btn" class="source-dropdown-btn" aria-haspopup="listbox" aria-controls="source-dropdown-menu" aria-expanded="false" title="Wordlist (Alt+L)">
           <span class="source-dropdown-icon"></span>
@@ -1255,7 +1310,11 @@ class PopupHelp {
 // ({ entries, ignoredCount }) drives the histogram bars. Splitting them lets
 // the score-range filter shrink the numbers without making bars outside the
 // selection vanish — those bars stay sourced from the pre-score-range set.
-function buildStatsBarHTML(stats, hist, layout) {
+// `opts.readOnly` suppresses the click-to-filter behavior — used by Library
+// histograms, which display the distribution but don't participate in
+// score-range filtering.
+function buildStatsBarHTML(stats, hist, layout, opts = {}) {
+  const { readOnly = false } = opts;
   const isEmpty = !stats.count;
   const dash = '—';
   const fmt = v => isEmpty ? dash : v;
@@ -1267,19 +1326,22 @@ function buildStatsBarHTML(stats, hist, layout) {
   const ignoredTitle = ignored > 0 ? ` title="${pluralize(ignored, 'entry', 'entries')} ignored"` : '';
   const ignoredBar = `<div class="histogram-col histogram-col-ignored"${ignoredTitle}><div class="histogram-bar histogram-bar-ignored" style="height:${barH(ignored)}px"></div></div>`;
 
+  const filterHint = readOnly ? '' : ' • Click to filter';
   const bars = layout.slots.map((s, i) => {
     const c = counts[i];
-    const title = `${pluralize(c, 'entry', 'entries')} scored ${s.label} • Click to filter`;
+    const title = `${pluralize(c, 'entry', 'entries')} scored ${s.label}${filterHint}`;
     const { bg } = scoreColor((s.lo + s.hi) / 2);
     return `<div class="histogram-col" title="${title}"><div class="histogram-bar" data-lo="${s.lo}" data-hi="${s.hi}" style="--score-bg:${bg}; height:${barH(c)}px"></div></div>`;
   }).join('');
 
-  const histTitle = 'Histogram • Click to filter';
+  const histTitle = readOnly ? 'Histogram' : 'Histogram • Click to filter';
   // If a histogram in the doc is currently hovered, the user's cursor is
   // inside one of these bbox regions — overwhelmingly the same one we're
   // about to replace. Bake .is-hovered into the new HTML so the fresh bars
   // are born colored (no class change after insertion = no transition replay).
   const hoveredClass = document.querySelector('.histogram.is-hovered') ? ' is-hovered' : '';
+  const readOnlyClass = readOnly ? ' histogram-readonly' : '';
+  const pointerHandler = readOnly ? '' : ' onpointerdown="onHistogramPointerDown(event)"';
 
   return `<div class="stats-bar${isEmpty ? ' stats-empty' : ''}">
       ${buildStatItemHTML('Entries', stats.count.toLocaleString())}
@@ -1289,7 +1351,7 @@ function buildStatsBarHTML(stats, hist, layout) {
         ${buildStatItemHTML('Mean', fmt(stats.mean), 'Average score')}
         ${buildStatItemHTML('Median', fmt(stats.median % 1 === 0 ? stats.median : stats.median.toFixed(1)), '50th percentile')}
         ${buildStatItemHTML('Mode', fmt(stats.mode), 'Most common score')}
-        <div class="histogram${hoveredClass}" title="${histTitle}" onpointerdown="onHistogramPointerDown(event)">${ignoredBar}${bars}<div class="histogram-rect" hidden></div></div>
+        <div class="histogram${hoveredClass}${readOnlyClass}" title="${histTitle}"${pointerHandler}>${ignoredBar}${bars}<div class="histogram-rect" hidden></div></div>
       </div>
     </div>`;
 }
@@ -1954,7 +2016,7 @@ const SettingsDialog = (() => {
 // treat both views uniformly.
 
 const WorkshopView = (() => {
-  const el = document.getElementById('card');
+  const el = document.getElementById('workshop-view');
   function show() {
     el.hidden = false;
     // Histogram rect positioning reads live offsetLeft/offsetWidth, which are
@@ -2110,6 +2172,52 @@ const LibraryView = (() => {
   let _focusedWordlist = null;
   let _dateTimer   = null;
 
+  // Library-only view state — never persisted, never URL-routed. Survives
+  // across wordlist switches inside a session so the user's last search
+  // and sort stick around while they explore.
+  let _displayMode      = 'rescored';  // 'rescored' | 'original'
+  let _searchQuery      = '';
+  let _searchWholeWord  = false;
+  let _sortKey          = 'entry';
+  let _sortDir          = 'asc';
+  let _entriesScroller  = null;
+
+  // ── HTML builders for pane internals ────────────────────────────────────────
+
+  function buildModeToggleHTML() {
+    return `<div class="seg-ctrl" role="group" aria-label="Display mode">
+      <button type="button" class="seg-btn${_displayMode === 'rescored' ? ' active' : ''}" data-mode="rescored" onclick="LibraryView.setMode('rescored')">Rescored</button>
+      <button type="button" class="seg-btn${_displayMode === 'original' ? ' active' : ''}" data-mode="original" onclick="LibraryView.setMode('original')">Original</button>
+    </div>`;
+  }
+
+  function buildSearchBarHTML() {
+    const q = esc(_searchQuery);
+    return `<div class="search-bar lib-search-bar">
+      ${buildToolLabelHTML({ icon: '<svg width="16" height="16" aria-hidden="true"><use href="#icon-search"/></svg>', name: 'Search' })}
+      <div class="search-input-wrap">
+        <input type="text" id="lib-search-input" placeholder="pattern" value="${q}" oninput="LibraryView.onSearch(this.value)">
+        <button class="clear-btn" id="lib-search-clear" onclick="LibraryView.clearSearch()" title="Clear search" aria-label="Clear search" ${_searchQuery ? '' : 'hidden'}><svg width="10" height="10"><use href="#icon-x"/></svg></button>
+      </div>
+      <label class="search-whole-word-label" title="Whole word"><input type="checkbox" id="lib-search-whole-word" onchange="LibraryView.onWholeWord(this.checked)" ${_searchWholeWord ? 'checked' : ''}> Whole word</label>
+      <div class="search-bar-sort lib-search-bar-sort">${buildSortControlsHTML()}</div>
+    </div>`;
+  }
+
+  function buildSortControlsHTML() {
+    const arrow = _sortDir === 'asc' ? '↑' : '↓';
+    const options = Object.entries(SORT_AXES)
+      .map(([key, { label }]) => `<option value="${key}"${key === _sortKey ? ' selected' : ''}>${esc(label)}</option>`)
+      .join('');
+    return `Sort by
+      <select class="sort-axis-select" onchange="LibraryView.onSortAxis(this.value)">${options}</select>
+      <button class="sort-dir-btn" type="button" title="Toggle direction" aria-label="Toggle direction" onclick="LibraryView.toggleSortDir()">${arrow}</button>`;
+  }
+
+  function buildEntriesPanelHTML() {
+    return `<div class="lib-entries-panel"><div class="lib-entries-host" id="lib-entries-host"></div></div>`;
+  }
+
   // ── Rendering ─────────────────────────────────────────────────────────────────
 
   function renderList() {
@@ -2140,6 +2248,8 @@ const LibraryView = (() => {
 
   function renderPane() {
     if (_dateTimer) { clearInterval(_dateTimer); _dateTimer = null; }
+    destroyScroller();
+
     if (!_focusedWordlist) {
       pane.innerHTML = '<div class="wld-pane-empty">Select a wordlist to configure</div>';
       return;
@@ -2151,19 +2261,24 @@ const LibraryView = (() => {
     const wordlist = _focusedWordlist;
     const isEdits = wordlist.type === 'edits';
     const hasData = wordlist.rawEntries.length > 0;
+    const hasRules = !isEdits && (wordlist.rescoreRules?.length ?? 0) > 0;
 
-    const { stats, entries: histEntries } = statsForWordlist(wordlist);
+    // Stats source depends on display mode: rescored mode applies rules and
+    // drops ignored entries; original mode shows the raw scores. My Edits has
+    // no rules so its mode is fixed to rescored (which equals original).
+    const useOriginal = !isEdits && _displayMode === 'original';
+    const sourceEntries = useOriginal ? wordlist.rawEntries : getRescoredEntries(wordlist);
+    const ignoredCount = useOriginal ? 0 : wordlist.rawEntries.length - sourceEntries.length;
+    const stats = computeStatsRaw(sourceEntries, ignoredCount);
 
-    // Action row shape is unified across all wordlists: date slot, primary action,
-    // Download, more menu. Only the contents differ — sources have Update/Fetch
-    // and a rescored/original Download split; My Edits has Import and a plain
-    // Download (no rescoring), and Clear stands in for Delete in the more menu.
+    // Action row shape is unified across all wordlists: date slot, primary
+    // action, optional mode toggle (sources only), Download, more menu. The
+    // toggle governs stats, histogram, entries view, and what Download
+    // produces — a single coupled "what version am I working with" knob.
     let actionBtn, dlBtn, moreMenu;
     if (isEdits) {
-      // Primary slot: Download when there's something to export, otherwise Import.
       actionBtn = `<button class="${hasData ? '' : 'primary'}" onclick="LibraryView.action('import')" ${wordlist._loading ? 'disabled' : ''}>${wordlist._loading ? 'Importing…' : 'Import'}</button>`;
       dlBtn = hasData ? `<button class="primary" onclick="LibraryView.action('download')">Download</button>` : '';
-      // Rename is the F2 affordance on the wordlist card; not duplicated here.
       moreMenu = hasData ? buildMoreMenuHTML([
         ['Clear', `LibraryView.action('clear')`],
       ]) : '';
@@ -2182,38 +2297,34 @@ const LibraryView = (() => {
         actionBtn = `<button class="primary"${updateTitle ? ` title="${updateTitle}"` : ''} onclick="LibraryView.action('import')" ${wordlist._loading ? 'disabled' : ''}>${wordlist._loading ? 'Importing…' : 'Import'}${dot}</button>`;
       }
 
-      dlBtn = hasData ? buildSplitBtn('Download', `LibraryView.action('downloadRescored')`,
-        [['Download rescored wordlist', `LibraryView.action('downloadRescored')`],
-         ['Download original',      `LibraryView.action('downloadOriginal')`]]) : '';
+      dlBtn = hasData ? `<button class="primary" onclick="LibraryView.action('download')">Download</button>` : '';
 
-      // Rename is the F2 affordance on the wordlist card; Configure also lets you
-      // rename. Not duplicated here.
       moreMenu = buildMoreMenuHTML([
         ['Configure wordlist', `LibraryView.action('configure')`],
         ['Delete wordlist',    `LibraryView.action('delete')`],
       ]);
     }
 
+    // Mode toggle: only meaningful when there are rules to apply.
+    const toggleHTML = (!isEdits && hasData && hasRules) ? buildModeToggleHTML() : '';
     const dateSlot = (hasData && wordlist.lastUpdated) ? '<span class="detail-date"></span>' : '';
-    const actionsHTML = [dateSlot, actionBtn, dlBtn, moreMenu].filter(Boolean).join('\n');
+    // Toggle on the left (when present); date + buttons on the right.
+    const actionsHTML = [toggleHTML, dateSlot, actionBtn, dlBtn, moreMenu].filter(Boolean).join('\n');
 
-    // Regular sources get a rescoring rules editor. My Edits has no rules
-    // editor: its scores pass through unchanged, and its tier-label scoring
-    // rules live on the All panel since they describe the merged scale.
     const rulesHTML = isEdits
       ? ''
       : `<div class="wld-pane-rescore" id="wld-rescore-section">${buildRescoreSectionHTML(wordlist)}</div>`;
 
-    // No icon/name in the top bar — the focused wordlist is already highlighted in
-    // the list. The bar carries actions only. Rename happens in-place on the
-    // wordlist card via the more menu.
     pane.innerHTML = `
       <div class="wld-pane-header">
         <div class="wld-pane-actions">${actionsHTML}</div>
       </div>
-      <div class="wld-pane-stats">${buildStatsBarHTML(stats, { entries: histEntries, ignoredCount: stats.ignoredCount }, getHistogramLayout())}</div>
-      ${rulesHTML}`;
-    repositionAllHistogramRects();
+      <div class="wld-pane-stats">${buildStatsBarHTML(stats, { entries: sourceEntries, ignoredCount }, getHistogramLayout(), { readOnly: true })}</div>
+      ${rulesHTML}
+      ${hasData ? buildSearchBarHTML() : ''}
+      ${hasData ? buildEntriesPanelHTML() : ''}`;
+
+    if (hasData) buildScrollerInPane(wordlist);
 
     if (hasData && wordlist.lastUpdated) {
       const setDate = () => {
@@ -2227,22 +2338,58 @@ const LibraryView = (() => {
     }
   }
 
-  // The All panel: a single Download button, merged stats + histogram, and
-  // the scoring (tier-label) rules editor. Scoring rules conceptually
-  // describe the merged scale, so they live here even though the data is
-  // stored on My Edits.
+  // The All panel: a single Download button, merged stats + histogram, the
+  // scoring (tier-label) rules editor, and a search-filtered view of the
+  // merged entries. No Rescored/Original toggle — the merged view is the
+  // synthesis of already-rescored sources; "Original" has no referent here.
   function renderMergedPane() {
     const { entries } = buildMergedWordlist();
     const stats = computeStats(_mergedStatsKey, entries);
-    const dlBtn = entries.length ? `<button class="primary" onclick="LibraryView.action('downloadMerged')">Download</button>` : '';
+    const hasData = entries.length > 0;
+    const dlBtn = hasData ? `<button class="primary" onclick="LibraryView.action('download')">Download</button>` : '';
 
     pane.innerHTML = `
       <div class="wld-pane-header">
         <div class="wld-pane-actions">${dlBtn}</div>
       </div>
-      <div class="wld-pane-stats">${buildStatsBarHTML(stats, { entries, ignoredCount: 0 }, getHistogramLayout())}</div>
-      <div class="wld-pane-rescore" id="wld-scoring-section">${buildScoringSectionHTML()}</div>`;
-    repositionAllHistogramRects();
+      <div class="wld-pane-stats">${buildStatsBarHTML(stats, { entries, ignoredCount: 0 }, getHistogramLayout(), { readOnly: true })}</div>
+      <div class="wld-pane-rescore" id="wld-scoring-section">${buildScoringSectionHTML()}</div>
+      ${hasData ? buildSearchBarHTML() : ''}
+      ${hasData ? buildEntriesPanelHTML() : ''}`;
+
+    if (hasData) buildScrollerInPane(null);
+  }
+
+  function buildScrollerInPane(wordlist) {
+    const host = pane.querySelector('#lib-entries-host');
+    if (!host) return;
+    _entriesScroller = new LibraryEntriesScroller(host, {
+      wordlist,
+      mode: _displayMode,
+      query: _searchQuery,
+      wholeWord: _searchWholeWord,
+      sortKey: _sortKey,
+      sortDir: _sortDir,
+    });
+  }
+
+  function destroyScroller() {
+    _entriesScroller?.destroy();
+    _entriesScroller = null;
+  }
+
+  // Replace just the stats bar (and its histogram) in place — used by the
+  // mode toggle, which doesn't need to rebuild the whole pane.
+  function refreshStatsBar() {
+    if (!_focusedWordlist || _focusedWordlist === MERGED_ID) return;
+    const wordlist = _focusedWordlist;
+    const isEdits = wordlist.type === 'edits';
+    const useOriginal = !isEdits && _displayMode === 'original';
+    const sourceEntries = useOriginal ? wordlist.rawEntries : getRescoredEntries(wordlist);
+    const ignoredCount = useOriginal ? 0 : wordlist.rawEntries.length - sourceEntries.length;
+    const stats = computeStatsRaw(sourceEntries, ignoredCount);
+    const statsBar = pane.querySelector('.stats-bar');
+    if (statsBar) statsBar.outerHTML = buildStatsBarHTML(stats, { entries: sourceEntries, ignoredCount }, getHistogramLayout(), { readOnly: true });
   }
 
   function refresh() {
@@ -2264,20 +2411,84 @@ const LibraryView = (() => {
   // ── Actions (called from inline onclick handlers in pane HTML) ───────────────
 
   const ACTIONS = {
-    fetch:            () => fetchWordlist(_focusedWordlist),
-    import:           () => importToWordlist(_focusedWordlist),
-    delete:           async () => { await deleteWordlist(_focusedWordlist); },
-    configure:        () => ConfigureWordlistDialog.open(_focusedWordlist),
-    download:         () => downloadEdits(),
-    downloadRescored: () => downloadIndividualWordlistRescored(_focusedWordlist),
-    downloadOriginal: () => downloadOriginalWordlist(_focusedWordlist),
-    downloadMerged:   () => downloadMergedWordlistFromPanel(),
-    clear:            () => clearEdits(),
+    fetch:     () => fetchWordlist(_focusedWordlist),
+    import:    () => importToWordlist(_focusedWordlist),
+    delete:    async () => { await deleteWordlist(_focusedWordlist); },
+    configure: () => ConfigureWordlistDialog.open(_focusedWordlist),
+    clear:     () => clearEdits(),
+    // Single Download: routes by focused wordlist + display mode. The
+    // Rescored/Original toggle decides which version a source produces.
+    download:  () => {
+      if (_focusedWordlist === MERGED_ID) return downloadMergedWordlistFromPanel();
+      if (_focusedWordlist?.type === 'edits') return downloadEdits();
+      return _displayMode === 'original'
+        ? downloadOriginalWordlist(_focusedWordlist)
+        : downloadIndividualWordlistRescored(_focusedWordlist);
+    },
   };
 
   function action(name) {
     const fn = ACTIONS[name];
     if (fn) fn();
+  }
+
+  // ── Search / sort / mode handlers (inline onclick/oninput → here) ────────────
+
+  function setMode(mode) {
+    if (mode !== 'rescored' && mode !== 'original') return;
+    if (_displayMode === mode) return;
+    _displayMode = mode;
+    pane.querySelectorAll('.seg-ctrl .seg-btn').forEach(b => {
+      b.classList.toggle('active', b.dataset.mode === mode);
+    });
+    refreshStatsBar();
+    _entriesScroller?.setMode(mode);
+  }
+
+  function onSearch(value) {
+    _searchQuery = value || '';
+    const clear = pane.querySelector('#lib-search-clear');
+    if (clear) clear.hidden = !_searchQuery;
+    _entriesScroller?.setQuery(_searchQuery, _searchWholeWord);
+  }
+
+  function clearSearch() {
+    const input = pane.querySelector('#lib-search-input');
+    if (input) input.value = '';
+    onSearch('');
+    input?.focus();
+  }
+
+  function onWholeWord(checked) {
+    _searchWholeWord = !!checked;
+    _entriesScroller?.setQuery(_searchQuery, _searchWholeWord);
+  }
+
+  function onSortAxis(key) {
+    if (!SORT_AXES[key] || _sortKey === key) return;
+    _sortKey = key;
+    _sortDir = defaultSortDir(key);
+    refreshSortControls();
+    _entriesScroller?.setSort(_sortKey, _sortDir);
+  }
+
+  function toggleSortDir() {
+    _sortDir = _sortDir === 'asc' ? 'desc' : 'asc';
+    refreshSortControls();
+    _entriesScroller?.setSort(_sortKey, _sortDir);
+  }
+
+  function refreshSortControls() {
+    const slot = pane.querySelector('.lib-search-bar-sort');
+    if (slot) slot.innerHTML = buildSortControlsHTML();
+  }
+
+  // Called from updateRescorePreview as the user types in the rules editor.
+  // Applies uncommitted rules to the entries view so rule tuning is live.
+  function previewRescoreRules(rules) {
+    if (!_entriesScroller) return;
+    if (_focusedWordlist === MERGED_ID || _focusedWordlist?.type === 'edits') return;
+    _entriesScroller.setRescorePreview(rules);
   }
 
   function startCardRename(wordlist) {
@@ -2408,6 +2619,7 @@ const LibraryView = (() => {
 
   function hide() {
     if (_dateTimer) { clearInterval(_dateTimer); _dateTimer = null; }
+    destroyScroller();
     el.hidden = true;
   }
 
@@ -2443,6 +2655,8 @@ const LibraryView = (() => {
     show, hide, refresh, focus, action, getFocusedWordlist,
     refreshRescoreSection, refreshScoringSection, updateListMeta,
     isVisible: () => !el.hidden,
+    setMode, onSearch, clearSearch, onWholeWord, onSortAxis, toggleSortDir,
+    previewRescoreRules,
   };
 })();
 
@@ -3225,7 +3439,7 @@ const ToolStack = (() => {
     }).join('');
   }
 
-  // Used by mountDetailPanel for the initial render. Mutations after that go
+  // Used by mountWorkshopPanel for the initial render. Mutations after that go
   // through direct DOM manipulation in add/replace/removeAt. Preview state is
   // purely transient and lives only in the DOM (.doomed class +
   // .tool-stack-cursor element), so it's not serialized here.
@@ -3458,7 +3672,7 @@ const ToolStack = (() => {
   }
 
   // setStack replaces the internal stack without animation or URL roundtrip —
-  // used by Router.applyURL on init. The next mountDetailPanel call (in
+  // used by Router.applyURL on init. The next mountWorkshopPanel call (in
   // renderAll) renders the rows; init() attaches handlers afterwards.
   function setStack(newStack) { stack = Array.isArray(newStack) ? newStack : []; }
   function getStack() { return stack; }
@@ -3534,7 +3748,7 @@ const ENTRY_SLOT_CAP = 20;
 
 // Width of one `0` glyph in the row's mono 13px font, in CSS pixels. Cached
 // after first measurement; the row's font and size are fixed so the value
-// doesn't drift. Used by VirtualScroller._computeSlotWidths to emit slot
+// doesn't drift. Used by WorkshopEntriesScroller._computeSlotWidths to emit slot
 // widths in px (rather than `ch`) so the header's sans font sees the same
 // track widths as the row's mono font.
 let _monoChPx = null;
@@ -3549,9 +3763,58 @@ function measureMonoChPx() {
   return _monoChPx;
 }
 
-class VirtualScroller {
-  constructor(container) {
-    this.container = container;
+// Shared infrastructure for both view-specific scrollers (Workshop and
+// Library). The host sizer has its natural full height (items × ROW_HEIGHT)
+// and the subclass slices a window of rows out of it based on host.rect.
+// Capture-mode scroll listener catches events from any ancestor — the app's
+// scroll container is <main>, not the window, and scroll events don't bubble.
+class BaseVirtualScroller {
+  constructor(host, sizerClassName) {
+    this.host = host;
+    this.sizer = document.createElement('div');
+    this.sizer.className = sizerClassName;
+    host.innerHTML = '';
+    host.appendChild(this.sizer);
+
+    this._onWinScroll = () => this._onScroll();
+    this._onWinResize = () => this._render();
+    window.addEventListener('scroll', this._onWinScroll, { capture: true, passive: true });
+    window.addEventListener('resize', this._onWinResize);
+    this._resizeObserver = new ResizeObserver(() => this._render());
+    this._resizeObserver.observe(host);
+  }
+
+  // Subclasses can override to react to scroll (e.g., close any open popover).
+  _onScroll() { this._render(); }
+
+  // Visible item-index range [start, end) for a list of `itemCount` rows. Same
+  // viewport-relative math whether the scroll container is <main> or document.
+  _visibleRange(itemCount) {
+    const rect = this.host.getBoundingClientRect();
+    const viewH = window.innerHeight;
+    const visTop = Math.max(0, -rect.top);
+    const visBottom = Math.max(0, Math.min(rect.height, viewH - rect.top));
+    const start = Math.max(0, Math.floor(visTop / ROW_HEIGHT) - VS_BUFFER);
+    const end   = Math.min(itemCount, Math.ceil(visBottom / ROW_HEIGHT) + VS_BUFFER);
+    return { start, end };
+  }
+
+  _clearSizer() {
+    while (this.sizer.firstChild) this.sizer.removeChild(this.sizer.firstChild);
+  }
+
+  destroy() {
+    window.removeEventListener('scroll', this._onWinScroll, { capture: true });
+    window.removeEventListener('resize', this._onWinResize);
+    this._resizeObserver.disconnect();
+  }
+
+  _render() { throw new Error('subclass must implement _render'); }
+}
+
+class WorkshopEntriesScroller extends BaseVirtualScroller {
+  constructor(host) {
+    super(host, 'entries-table-rows');
     this.toolbar = document.getElementById('search-bar-sort');
     this.allEntries = [];
     this.entries = [];
@@ -3573,25 +3836,6 @@ class VirtualScroller {
     this.onFilterChange = null;
     this._sortScores = null;
 
-    this.sizer = document.createElement('div');
-    this.sizer.className = 'entries-table-rows';
-    container.innerHTML = '';
-    container.appendChild(this.sizer);
-
-    // The host sizer has its natural full height (entries × ROW_HEIGHT) and
-    // we slice a window of rows out of it based on getBoundingClientRect().
-    // Capture mode catches scroll events from any ancestor — the app's scroll
-    // container is <main>, not the window, and scroll events don't bubble.
-    this._onWinScroll = () => {
-      this._render();
-      AtomPopover.close();
-    };
-    this._onWinResize = () => this._render();
-    window.addEventListener('scroll', this._onWinScroll, { capture: true, passive: true });
-    window.addEventListener('resize', this._onWinResize);
-    this._resizeObserver = new ResizeObserver(() => this._render());
-    this._resizeObserver.observe(container);
-
     this.sizer.addEventListener('click', e => {
       const target = e.target.closest('.atom-entry, .atom-score, .atom-comment');
       if (!target) return;
@@ -3607,6 +3851,13 @@ class VirtualScroller {
     });
 
     this._buildToolbar();
+  }
+
+  // Scroll closes the click-driven AtomPopover so it doesn't anchor to a row
+  // that's scrolling out from under it.
+  _onScroll() {
+    this._render();
+    AtomPopover.close();
   }
 
   setEntries(allEntries, query, rescoreRules, overrideMap, wholeWord = false, scoreRange = '') {
@@ -3756,7 +4007,7 @@ class VirtualScroller {
     const lenChars = Math.max(maxLenDigits, 3);
     const scoreChars = Math.max(maxScoreDigits, 5);
     const ch = measureMonoChPx();
-    const target = this.container.closest('#detail-panel') || this.sizer;
+    const target = this.host.closest('#detail-panel') || this.sizer;
     target.style.setProperty('--count-w', `${(countDigits + 1) * ch}px`);
     target.style.setProperty('--len-w', `${lenChars * ch}px`);
     target.style.setProperty('--entry-w', `${entryChars * ch}px`);
@@ -3838,15 +4089,8 @@ class VirtualScroller {
     // Visible slice in container coords. rect.top is the host's offset from
     // the viewport top — negative when the user has scrolled past the host's
     // start, positive when the host is still below the fold.
-    const rect = this.container.getBoundingClientRect();
-    const viewH = window.innerHeight;
-    const visTop = Math.max(0, -rect.top);
-    const visBottom = Math.max(0, Math.min(rect.height, viewH - rect.top));
-
-    const start = Math.max(0, Math.floor(visTop / ROW_HEIGHT) - VS_BUFFER);
-    const end   = Math.min(n, Math.ceil(visBottom / ROW_HEIGHT) + VS_BUFFER);
-
-    while (this.sizer.firstChild) this.sizer.removeChild(this.sizer.firstChild);
+    const { start, end } = this._visibleRange(n);
+    this._clearSizer();
 
     const activeEntry = AtomPopover.activeEntry(this);
     const tierFor = makeTierLookup();
@@ -3893,11 +4137,243 @@ class VirtualScroller {
     this.sizer.appendChild(frag);
     if (nextActiveRow) AtomPopover.rebindRow(nextActiveRow);
   }
+}
+
+// Library column-width cache. Computed once across every source's data and
+// every rescore rule's effect, so the entry and score columns stay the same
+// width as the user navigates between wordlists. Invalidated whenever caches
+// bump (rescore rules, source order, imports, etc.).
+let _libraryColumnWidthsCache = null;
+let _libraryColumnWidthsCacheVersion = -1;
+
+function libraryEntryColumnWidths() {
+  const cv = cacheVersion$.peek();
+  if (_libraryColumnWidthsCache && _libraryColumnWidthsCacheVersion === cv) {
+    return _libraryColumnWidthsCache;
+  }
+  let maxEntryLen = 0;
+  let maxScoreChars = 0;
+  for (const wl of state.sources) {
+    const rules = wl.rescoreRules || [];
+    for (const wlE of wl.rawEntries) {
+      if (wlE.entry.length > maxEntryLen) maxEntryLen = wlE.entry.length;
+      const inLen = String(wlE.score).length;
+      let scoreChars = inLen;
+      if (rules.length) {
+        const r = rescoreEntry(wlE, rules);
+        // Ignored rows render just the input score (struck through via CSS),
+        // so they don't expand the score column.
+        if (r.kept && r.score !== wlE.score) scoreChars = inLen + 3 + String(r.score).length;
+      }
+      if (scoreChars > maxScoreChars) maxScoreChars = scoreChars;
+    }
+  }
+  // Also consider the merged All view, in case it carries entries (or scores)
+  // wider than any single source after override resolution.
+  const merged = buildMergedWordlist().entries;
+  for (const wlE of merged) {
+    if (wlE.entry.length > maxEntryLen) maxEntryLen = wlE.entry.length;
+    const inLen = String(wlE.score).length;
+    if (inLen > maxScoreChars) maxScoreChars = inLen;
+  }
+  _libraryColumnWidthsCache = {
+    entryChars: Math.max(Math.min(maxEntryLen, ENTRY_SLOT_CAP), 4),
+    scoreChars: Math.max(maxScoreChars, 5),
+  };
+  _libraryColumnWidthsCacheVersion = cv;
+  return _libraryColumnWidthsCache;
+}
+
+// Library entries scroller — read-only counterpart to WorkshopEntriesScroller,
+// used in the Library view to show a wordlist's contents alongside its
+// rescore-rules editor. Renders monospace text-flavored rows with inline `→`
+// annotations rather than the Workshop's atom-grid layout, and has no click-
+// to-edit / popover / override-resolution machinery. Shares scrolling
+// mechanics via BaseVirtualScroller.
+class LibraryEntriesScroller extends BaseVirtualScroller {
+  constructor(host, opts = {}) {
+    super(host, 'lib-entries-rows');
+    this.wordlist = opts.wordlist ?? null;         // null = merged All view
+    this.mode = opts.mode ?? 'rescored';           // 'rescored' | 'original'
+    this.sortKey = opts.sortKey ?? 'entry';
+    this.sortDir = opts.sortDir ?? 'asc';
+    this.query = opts.query ?? '';
+    this.wholeWord = !!opts.wholeWord;
+    this.allRows = [];
+    this.rows = [];
+    this._highlight = null;
+    this._applyFilterAndSort();
+  }
+
+  // wordlist = null => merged-all view. Otherwise the focused source wordlist.
+  setWordlist(wordlist) {
+    this.wordlist = wordlist;
+    this._applyFilterAndSort();
+  }
+
+  setMode(mode) {
+    if (this.mode === mode) return;
+    this.mode = mode;
+    this._applyFilterAndSort();
+  }
+
+  // Live rescore preview as the user types in the rules editor — rules come
+  // straight from the DOM, not from the (uncommitted) wordlist. Cleared by
+  // the next renderPane, which rebuilds the scroller from committed rules.
+  setRescorePreview(rules) {
+    this._previewRules = rules;
+    this._applyFilterAndSort();
+  }
+
+  setQuery(query, wholeWord) {
+    this.query = query || '';
+    this.wholeWord = !!wholeWord;
+    this._applyFilterAndSort();
+  }
+
+  setSort(key, dir) {
+    this.sortKey = key;
+    this.sortDir = dir;
+    this._applyFilterAndSort();
+  }
+
+  // Produce the unfiltered row data. For source wordlists, walks rawEntries
+  // and (in rescored mode) applies rescoreEntry to get the transformation.
+  // Three states per row: unchanged (input only), rescored (input → output),
+  // ignored (input → ✕).
+  _buildRows() {
+    const wl = this.wordlist;
+    if (!wl) {
+      const { entries } = buildMergedWordlist();
+      return entries.map(e => ({
+        entry: e.entry,
+        len: e.entry.length,
+        inputScore: e.score,
+        outputScore: e.score,
+        rescored: false,
+        ignored: false,
+        comment: e.comment || '',
+      }));
+    }
+    const rules = this._previewRules ?? wl.rescoreRules ?? [];
+    const annotate = this.mode === 'rescored' && rules.length > 0;
+    return wl.rawEntries.map(wlE => {
+      let outputScore = wlE.score;
+      let rescored = false;
+      let ignored = false;
+      if (annotate) {
+        const r = rescoreEntry(wlE, rules);
+        if (!r.kept) ignored = true;
+        else if (r.score !== wlE.score) { outputScore = r.score; rescored = true; }
+        else outputScore = r.score;
+      }
+      return {
+        entry: wlE.entry,
+        len: wlE.entry.length,
+        inputScore: wlE.score,
+        outputScore,
+        rescored,
+        ignored,
+        comment: wlE.comment || '',
+      };
+    });
+  }
+
+  _applyFilterAndSort() {
+    let rows = this._buildRows();
+    this.allRows = rows;
+
+    const q = this.query.toLowerCase();
+    if (q) {
+      const { filterRe, highlight } = buildSearchPattern(q, this.wholeWord);
+      this._highlight = highlight;
+      rows = rows.filter(r => filterRe.test(r.entry.toLowerCase()));
+    } else {
+      this._highlight = null;
+    }
+
+    const dir = this.sortDir === 'asc' ? 1 : -1;
+    const key = this.sortKey;
+    rows = [...rows].sort((a, b) => {
+      if (key === 'score') {
+        // Ignored rows have no meaningful score; sink them to the bottom in
+        // both directions rather than letting them anchor either extreme.
+        if (a.ignored !== b.ignored) return a.ignored ? 1 : -1;
+        return dir * (a.outputScore - b.outputScore);
+      }
+      const av = key === 'length' ? a.len : a.entry;
+      const bv = key === 'length' ? b.len : b.entry;
+      if (typeof av === 'number' && typeof bv === 'number') return dir * (av - bv);
+      return dir * String(av).localeCompare(String(bv));
+    });
+
+    this.rows = rows;
+    this._computeSlotWidths();
+    this._render();
+  }
+
+  // Column widths come from the global cache (computed across every source +
+  // merged), so they stay stable as the user navigates between wordlists or
+  // flips Rescored/Original. The score slot is sized for the widest variant —
+  // `input → output` or `input → ✕` — which means Original mode has some slack
+  // on the right; that's the cost of stability.
+  _computeSlotWidths() {
+    const { entryChars, scoreChars } = libraryEntryColumnWidths();
+    const ch = measureMonoChPx();
+    this.host.style.setProperty('--lib-entry-w', `${entryChars * ch}px`);
+    this.host.style.setProperty('--lib-score-w', `${scoreChars * ch}px`);
+  }
+
+  _render() {
+    const n = this.rows.length;
+    this.sizer.style.height = (n * ROW_HEIGHT) + 'px';
+
+    // Empty-state placeholder when a search has filtered everything out.
+    let emptyEl = this.host.querySelector('.lib-entries-empty');
+    if (n === 0 && this.allRows.length > 0) {
+      if (!emptyEl) {
+        emptyEl = document.createElement('div');
+        emptyEl.className = 'lib-entries-empty';
+        emptyEl.textContent = 'No entries match the search.';
+        this.host.appendChild(emptyEl);
+      }
+    } else if (emptyEl) {
+      emptyEl.remove();
+    }
+
+    const { start, end } = this._visibleRange(n);
+    this._clearSizer();
+
+    const frag = document.createDocumentFragment();
+    for (let i = start; i < end; i++) {
+      const r = this.rows[i];
+      const entryHtml = this._highlight ? this._highlight(r.entry) : esc(r.entry);
+
+      // Ignored rows show the input score struck through (CSS via .lib-ignored);
+      // no `→ ✕` annotation needed.
+      const showArrow = this.mode === 'rescored' && r.rescored && !r.ignored;
+      const scoreHTML = showArrow
+        ? `${r.inputScore}<span class="lib-atom-arrow">→</span><span class="lib-atom-out">${r.outputScore}</span>`
+        : String(r.inputScore);
+
+      const row = document.createElement('div');
+      let cls = 'lib-entry-row';
+      if (r.ignored) cls += ' lib-ignored';
+      row.className = cls;
+      row.style.top = (i * ROW_HEIGHT) + 'px';
+      if (r.entry.length > ENTRY_SLOT_CAP) row.title = r.entry;
+      row.innerHTML =
+        `<span class="lib-atom-entry">${entryHtml}</span>` +
+        `<span class="lib-atom-score">${scoreHTML}</span>` +
+        `<span class="lib-atom-comment"${r.comment ? ` title="${esc(r.comment)}"` : ''}>${esc(r.comment)}</span>`;
+      frag.appendChild(row);
+    }
+    this.sizer.appendChild(frag);
+  }
 
   destroy() {
-    window.removeEventListener('scroll', this._onWinScroll, { capture: true });
-    window.removeEventListener('resize', this._onWinResize);
-    this._resizeObserver.disconnect();
+    super.destroy();
+    this.host.innerHTML = '';
   }
 }
 
@@ -4394,8 +4870,8 @@ function setupRenderEffect() {
       _renderedSelection = sel;
       document.body.classList.toggle('merged-view', sel === MERGED_ID);
       renderSources();
-      if (sel === MERGED_ID) renderMergedDetail();
-      else renderDetail(sel);
+      if (sel === MERGED_ID) renderWorkshopMergedDetail();
+      else renderWorkshopDetail(sel);
       return;
     }
 
@@ -4406,7 +4882,7 @@ function setupRenderEffect() {
     refreshDerivedDisplays();     // scoring legend + main-panel stats bar
     if (!scroller) return;
     if (sel === MERGED_ID) {
-      refreshMergedScroller();
+      refreshWorkshopMergedScroller();
     } else if (sel) {
       scroller.rescoreRules = sel.rescoreRules || [];
       scroller.overrideMap = buildOverrideMap(sel);
@@ -4490,7 +4966,7 @@ function refreshSourceCounts() {
 function createScroller() {
   AtomPopover.close();
   scroller?.destroy();
-  scroller = new VirtualScroller(document.getElementById('vs-host'));
+  scroller = new WorkshopEntriesScroller(document.getElementById('vs-host'));
   return scroller;
 }
 
@@ -4500,7 +4976,7 @@ function createScroller() {
 // new entries; replace via `updateEntries`. Used by the render effect's cache
 // branch and by the merged view's edit/delete handlers (which take the patch
 // path explicitly).
-function refreshMergedScroller() {
+function refreshWorkshopMergedScroller() {
   if (!scroller) return;
   const { entries } = buildMergedWordlist();
   if (entries === scroller.allEntries) {
@@ -4511,7 +4987,7 @@ function refreshMergedScroller() {
   }
 }
 
-function mountDetailPanel(panel, stats, entries) {
+function mountWorkshopPanel(panel, stats, entries) {
   panel.innerHTML = `
     <div class="sticky-stack">
       ${buildStatsBarHTML(stats, { entries, ignoredCount: stats.ignoredCount }, getHistogramLayout())}
@@ -4524,7 +5000,7 @@ function mountDetailPanel(panel, stats, entries) {
   ToolStack.refreshGalleryActive();
   repositionAllHistogramRects();
   createScroller();
-  scroller.onFilterChange = () => refreshStatsBarFromScroller(panel);
+  scroller.onFilterChange = () => refreshWorkshopStatsBarFromScroller(panel);
   attachSearchHelpPopup();
 }
 
@@ -4532,7 +5008,7 @@ function mountDetailPanel(panel, stats, entries) {
 // Called by the scroller's onFilterChange callback so search/score-range
 // filtering, edits, and any other filter-affecting change keep the count,
 // min/max/mean/median/mode, and histogram in sync with what's on screen.
-function refreshStatsBarFromScroller(panel) {
+function refreshWorkshopStatsBarFromScroller(panel) {
   if (!scroller) return;
   const statsBar = panel.querySelector('.stats-bar');
   if (!statsBar) return;
@@ -4543,7 +5019,7 @@ function refreshStatsBarFromScroller(panel) {
   repositionAllHistogramRects();
 }
 
-// mountDetailPanel rebuilds the search-input on every render — the prior
+// mountWorkshopPanel rebuilds the search-input on every render — the prior
 // popup's anchor reference is dead, so destroy before rebinding.
 let _searchHelpPopup = null;
 function attachSearchHelpPopup() {
@@ -4553,22 +5029,22 @@ function attachSearchHelpPopup() {
   if (input) _searchHelpPopup = new PopupHelp(input, buildWildcardSpansHTML());
 }
 
-function renderMergedDetail() {
+function renderWorkshopMergedDetail() {
   const panel = document.getElementById('detail-panel');
   clearInterval(_dateTimer);
   _dateTimer = null;
 
   const { entries } = buildMergedWordlist();
   const stats = computeStats(_mergedStatsKey, entries);
-  mountDetailPanel(panel, stats, entries);
+  mountWorkshopPanel(panel, stats, entries);
 
   scroller.showSource = true;
   scroller.editsWordlist = getEditsWordlist() ?? null;
   scroller.showEditDeleteCol = true;
   scroller.setEntries(entries, state.searchQuery, [], new Map(), state.searchWholeWord, state.scoreRange);
 
-  scroller._onDeleteRow = entry => deleteFromEdits(entry, refreshMergedScroller);
-  attachExternalEditHandlers(scroller, refreshMergedScroller);
+  scroller._onDeleteRow = entry => deleteFromEdits(entry, refreshWorkshopMergedScroller);
+  attachExternalEditHandlers(scroller, refreshWorkshopMergedScroller);
 }
 
 async function downloadMergedWordlistFromPanel() {
@@ -4644,7 +5120,7 @@ function saveScoringField(i, field, val) {
 }
 
 
-function renderDetail(wordlist) {
+function renderWorkshopDetail(wordlist) {
   const panel = document.getElementById('detail-panel');
 
   clearInterval(_dateTimer);
@@ -4657,12 +5133,12 @@ function renderDetail(wordlist) {
   }
 
   if (wordlist.type === 'edits') {
-    renderEditsDetail(wordlist);
+    renderWorkshopEditsDetail(wordlist);
     return;
   }
 
   const { stats, entries: histEntries } = statsForWordlist(wordlist);
-  mountDetailPanel(panel, stats, histEntries);
+  mountWorkshopPanel(panel, stats, histEntries);
 
   scroller.currentWordlist = wordlist;
   scroller.setEntries(wordlist.rawEntries, state.searchQuery, wordlist.rescoreRules, buildOverrideMap(wordlist), state.searchWholeWord, state.scoreRange);
@@ -4675,10 +5151,10 @@ function renderDetail(wordlist) {
   });
 }
 
-function renderEditsDetail(wordlist) {
+function renderWorkshopEditsDetail(wordlist) {
   const panel = document.getElementById('detail-panel');
   const { stats, entries: histEntries } = statsForWordlist(wordlist);
-  mountDetailPanel(panel, stats, histEntries);
+  mountWorkshopPanel(panel, stats, histEntries);
 
   scroller.showDeleteCol = true;
   scroller.setEntries(wordlist.rawEntries, state.searchQuery, [], new Map(), state.searchWholeWord, state.scoreRange);
@@ -4906,8 +5382,8 @@ function positionHistogramRect(histEl, intervals = undefined) {
 function repositionAllHistogramRects() {
   // The score-range selection rect is a Workshop concept (the filter belongs
   // to the entries table). Library histograms render the same chrome but
-  // never paint a selection — scope the query to #card so they stay clean.
-  document.querySelectorAll('#card .histogram').forEach(h => positionHistogramRect(h));
+  // never paint a selection — scope the query to #workshop-view so they stay clean.
+  document.querySelectorAll('#workshop-view .histogram').forEach(h => positionHistogramRect(h));
   syncHistogramHover();
 }
 
@@ -5032,7 +5508,7 @@ async function fetchWordlist(wordlist, event, { silent = false } = {}) {
 
   wordlist._loading = true;
   renderSources();
-  if (state.selected === wordlist) renderDetail(wordlist);
+  if (state.selected === wordlist) renderWorkshopDetail(wordlist);
 
   try {
     const resp = await fetch(wordlist.url);
@@ -5045,7 +5521,7 @@ async function fetchWordlist(wordlist, event, { silent = false } = {}) {
   } catch (err) {
     wordlist._loading = false;
     renderSources();
-    if (state.selected === wordlist) renderDetail(wordlist);
+    if (state.selected === wordlist) renderWorkshopDetail(wordlist);
     const detail = err.message === 'Failed to fetch' ? '' : `: ${err.message}`;
     showToast(`Failed to fetch ${esc(wordlist.url)}${esc(detail)}`);
   }
@@ -5073,7 +5549,7 @@ async function checkForUpdates() {
   if (anyChanged) {
     renderSources();
     const selected = getSelected();
-    if (selected?.url && selected._updateAvailable) renderDetail(selected);
+    if (selected?.url && selected._updateAvailable) renderWorkshopDetail(selected);
   }
 }
 
@@ -5144,9 +5620,9 @@ function ingestFile(file, wordlist, nameOverride) {
       renderSources();
       if (state.selected === wordlist) {
         if (scroller) scroller.updateEntries(wordlist.rawEntries);
-        else renderDetail(wordlist);
+        else renderWorkshopDetail(wordlist);
       }
-      if (state.selected === MERGED_ID) renderMergedDetail();
+      if (state.selected === MERGED_ID) renderWorkshopMergedDetail();
 
       const parts = [];
       if (newEntries.length) parts.push(`${newEntries.length.toLocaleString()} new`);
@@ -6342,17 +6818,20 @@ function onRuleInput(el) {
 }
 
 function updateRescorePreview() {
-  if (!scroller) return;
-  // Live preview only makes sense when the rules being typed belong to the wordlist
-  // the main-pane scroller is showing. In the Library view the focused wordlist
-  // usually differs from the main-pane selection, so skip.
-  if (LibraryView.isVisible() && LibraryView.getFocusedWordlist() !== getSelected()) return;
   const rules = Array.from(document.querySelectorAll('#rescore-rules .rule-row')).map(row => ({
     input:  row.querySelector('.rule-in')?.value  || '',
     length: row.querySelector('.rule-len')?.value || '',
     output: row.querySelector('.rule-out')?.value || '',
   }));
-  scroller.setRescore(rules);
+  // Library entries view: the rules editor lives inside the focused wordlist's
+  // pane, so its uncommitted rules always apply to what the entries view is
+  // rendering. No conditional needed.
+  LibraryView.previewRescoreRules(rules);
+  // Workshop entries table: preview only when its main-pane scroller is
+  // showing the same wordlist whose rules are being edited.
+  if (scroller && LibraryView.getFocusedWordlist() === getSelected()) {
+    scroller.setRescore(rules);
+  }
 }
 
 // ─── Rename ───────────────────────────────────────────────────────────────────
