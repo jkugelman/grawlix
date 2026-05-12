@@ -23,6 +23,11 @@
   --hdr-bg-dark: color-mix(in srgb, var(--hdr-bg) 75%, black);
   --font-sans:   system-ui, -apple-system, sans-serif;
   --font-mono:   ui-monospace, 'Cascadia Code', monospace;
+  /* Stats-bar natural height: 36px histogram + 10px×2 padding + 1px border.
+     Used as the sticky top-offset for whatever pins immediately below it
+     (Workshop's sticky-stack, Library's search bar). Stable as long as the
+     histogram height is fixed. */
+  --stats-bar-h: 57px;
 }
 html.dark-mode {
   color-scheme: dark;
@@ -213,11 +218,8 @@ button.danger:hover:not(:disabled) { background: #e74c3c; border-color: #c0392b;
    stats on surface3 (most recessed), tools/search/column-headers on
    surface2, and the data plane below is surface (content, brightest). */
 #workshop-stats { position: sticky; top: 0; z-index: 51; }
-/* Clearance for the sticky-stack below the sticky stats band: stats-bar
-   natural height = 36px histogram + 10px×2 padding + 1px border = 57px.
-   Stable so long as the histogram height is fixed. */
 .sticky-stack { position: sticky; top: 0; z-index: 50; background: var(--surface2); border-bottom: 1px solid var(--border2); }
-#workshop-view .sticky-stack { top: 57px; }
+#workshop-view .sticky-stack { top: var(--stats-bar-h); }
 .sticky-stack .search-bar { border-bottom: none; }
 .stat { display: flex; flex-direction: column; gap: 2px; }
 .stat-label { font-size: 10px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
@@ -787,9 +789,19 @@ body.tools-empty .gallery-card-add { display: none; }
 .wld-pane-rescore { border-bottom: 1px solid var(--border2); padding: 14px 22px; }
 .wld-pane-rescore-empty { font-size: 12px; color: var(--muted); padding: 6px 2px; }
 
+/* Library sticky pinning. Stats bar pins at the top of <main>; the search
+   bar pins immediately below it. The action header and rescore/scoring
+   section between them stay in flow and scroll under the stats bar. */
+.wld-pane > .stats-bar { position: sticky; top: 0; z-index: 51; }
+.lib-search-bar       { position: sticky; top: var(--stats-bar-h); z-index: 50; }
+
 /* Desktop: list on the left, pane on the right. `align-items: stretch`
    (flex default) lets the surface2 list extend to match the pane's height
-   instead of stopping at its content. */
+   instead of stopping at its content. The inner .wld-list-sticky wrapper
+   is what actually sticks — pinning the outer .wld-list directly would
+   fail because its stretched height equals its containing block, leaving
+   no room for sticky to travel. The outer keeps its surface2 background
+   so the rail visual stays continuous behind the pinned content. */
 @media (min-width: 760px) {
   .wld-body { display: flex; }
   .wld-list {
@@ -797,6 +809,7 @@ body.tools-empty .gallery-card-add { display: none; }
     border-bottom: none;
     border-right: 1px solid var(--border2);
   }
+  .wld-list-sticky { position: sticky; top: 0; }
   .wld-pane { flex: 1; min-width: 0; }
 }
 
@@ -968,10 +981,12 @@ input[type="file"] { display: none; }
   <section id="library-view" hidden>
     <div class="wld-body">
       <aside class="wld-list">
-        <div class="wld-onboarding" id="wld-onboarding" hidden></div>
-        <input type="file" id="wld-onboarding-file" accept=".txt,.dict" hidden>
-        <div class="wld-list-body" id="wld-list-body"></div>
-        <div class="add-wordlist-row" id="wld-add-wordlist"><span class="drag-handle" aria-hidden="true">≡</span><span class="add-wordlist-icon">＋</span>Add wordlist</div>
+        <div class="wld-list-sticky">
+          <div class="wld-onboarding" id="wld-onboarding" hidden></div>
+          <input type="file" id="wld-onboarding-file" accept=".txt,.dict" hidden>
+          <div class="wld-list-body" id="wld-list-body"></div>
+          <div class="add-wordlist-row" id="wld-add-wordlist"><span class="drag-handle" aria-hidden="true">≡</span><span class="add-wordlist-icon">＋</span>Add wordlist</div>
+        </div>
       </aside>
       <section class="wld-pane" id="wld-pane"></section>
     </div>
