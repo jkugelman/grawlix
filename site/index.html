@@ -2699,10 +2699,18 @@ const MainView = (() => {
   const VIEWS = { workshop: WorkshopView, library: LibraryView };
   const DEFAULT_VIEW = 'workshop';
   const navButtons = document.querySelectorAll('.header-nav-item[data-view]');
+  const scrollEl = document.querySelector('main');
   let _current = DEFAULT_VIEW;
+  // Per-view scroll positions. Both views share the same <main> scroll
+  // container (body has overflow:hidden, main has overflow-y:auto), so
+  // toggling `hidden` would otherwise clamp scrollTop to whichever view is
+  // shorter and lose the user's place when they tab back.
+  const _scrollByView = Object.create(null);
 
   function activate(view) {
     if (!VIEWS[view]) view = DEFAULT_VIEW;
+    const changed = view !== _current;
+    if (changed) _scrollByView[_current] = scrollEl.scrollTop;
     _current = view;
     for (const [name, ctrl] of Object.entries(VIEWS)) {
       if (name === view) ctrl.show();
@@ -2714,6 +2722,10 @@ const MainView = (() => {
       if (match) btn.setAttribute('aria-current', 'page');
       else       btn.removeAttribute('aria-current');
     }
+    // Restore after show() so the new view's content has been laid out and
+    // <main> is tall enough to accept the saved scrollTop. Skip on the
+    // initial activate so a URL-driven jump (if any) isn't clobbered.
+    if (changed) scrollEl.scrollTop = _scrollByView[view] ?? 0;
     Router.navigate();
   }
 
