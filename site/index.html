@@ -147,7 +147,7 @@ main { padding: 0 24px; flex: 1; min-height: 0; overflow-y: auto; scrollbar-gutt
    escape to the viewport — `overflow: hidden` would trap it. Both views flow
    in the page scroll. */
 #workshop-view,
-#library-view { max-width: 1000px; margin: 24px auto 48px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; overflow: clip; }
+#library-view { max-width: 1000px; margin: 0 auto 48px; background: var(--surface); border: 1px solid var(--border); border-top: none; border-radius: 0 0 12px 12px; overflow: clip; }
 html.light-mode #workshop-view,
 html.light-mode #library-view { box-shadow: 0 1px 3px rgba(0,0,0,0.06), 0 8px 24px rgba(0,0,0,0.05); }
 html.dark-mode #workshop-view,
