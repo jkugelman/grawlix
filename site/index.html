@@ -111,11 +111,20 @@ header h1 { font-size: 19px; font-weight: 600; letter-spacing: -0.01em; line-hei
 
 /* Top-level nav (Library / Workshop) — center of the brand bar. */
 .header-nav { display: flex; align-items: center; gap: 2px; flex-shrink: 0; }
-.header-nav-item { display: inline-flex; align-items: center; gap: 7px; padding: 8px 14px; border: none; background: none; color: white; font-family: inherit; font-size: 15px; font-weight: 500; cursor: pointer; border-radius: 4px; opacity: 0.55; transition: opacity 0.15s, background 0.15s; position: relative; line-height: 1; }
+/* `--pad-r` ties padding-right and the active-tab underline's right inset
+   together — bumping it for the update-dot variant keeps the underline flush
+   with the label instead of running past it into the padding zone. */
+.header-nav-item { --pad-r: 14px; display: inline-flex; align-items: center; gap: 7px; padding: 8px var(--pad-r) 8px 14px; border: none; background: none; color: white; font-family: inherit; font-size: 15px; font-weight: 500; cursor: pointer; border-radius: 4px; opacity: 0.55; transition: opacity 0.15s, background 0.15s; position: relative; line-height: 1; }
 button.header-nav-item:hover:not(:disabled) { opacity: 1; background: var(--hdr-bg-dark); color: white; }
 .header-nav-item.active { opacity: 1; }
-.header-nav-item.active::after { content: ''; position: absolute; left: 14px; right: 14px; bottom: 1px; height: 2px; background: white; border-radius: 1px; }
+.header-nav-item.active::after { content: ''; position: absolute; left: 14px; right: var(--pad-r); bottom: 1px; height: 2px; background: white; border-radius: 1px; }
 .header-nav-item svg { flex-shrink: 0; }
+/* Per-wordlist update bubble, hoisted to the Library tab. Pinned absolutely in
+   the right-padding zone — past the underline's reach, so it never reads as
+   "underlined". Widening `--pad-r` reserves the room without crowding the
+   label and keeps the underline aligned with the label edge. */
+.header-nav-item .update-dot { position: absolute; top: 50%; right: 5px; transform: translateY(-50%); }
+.header-nav-item:has(> .update-dot) { --pad-r: 19px; }
 
 .header-utility { display: flex; align-items: center; gap: 2px; flex-shrink: 0; }
 .bubble { display: inline-flex; align-items: center; background: white; color: var(--accent); border-radius: 8px; padding: 1px 7px 2px; font-size: 15px; font-weight: 800; position: relative; margin-left: 9px; line-height: 1.5; vertical-align: middle; }
@@ -2739,6 +2748,23 @@ const MainView = (() => {
     });
   }
 
+  // Toggle a per-view update indicator on the nav button — the same green
+  // dot the Library uses on individual wordlist cards, bubbled up so the
+  // user sees there's something to look at without opening the view.
+  function setUpdateIndicator(view, has, title = 'Updates available') {
+    const btn = [...navButtons].find(b => b.dataset.view === view);
+    if (!btn) return;
+    let dot = btn.querySelector(':scope > .update-dot');
+    if (has && !dot) {
+      dot = document.createElement('span');
+      dot.className = 'update-dot';
+      dot.title = title;
+      btn.appendChild(dot);
+    } else if (!has && dot) {
+      dot.remove();
+    }
+  }
+
   // The HTML body's initial state matches DEFAULT_VIEW (Workshop visible,
   // Library hidden). init() calls activate() with the URL-derived view after
   // Router.applyURL() so the JS is the source of truth from that point on.
@@ -2748,6 +2774,7 @@ const MainView = (() => {
     getCurrent: () => _current,
     getDefault: () => DEFAULT_VIEW,
     hasView: name => Object.hasOwn(VIEWS, name),
+    setUpdateIndicator,
   };
 })();
 
@@ -4731,6 +4758,7 @@ function wordlistCardMeta(wordlist, contribMap) {
 function renderSources() {
   if (!_sourceCountsCache) _sourceCountsCache = buildMergedWordlist().sourceCounts;
   LibraryView?.refresh();
+  MainView?.setUpdateIndicator('library', state.sources.some(w => w._updateAvailable));
 }
 
 
