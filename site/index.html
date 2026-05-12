@@ -203,15 +203,21 @@ button.danger:hover:not(:disabled) { background: #e74c3c; border-color: #c0392b;
 
 /* The stats bar's surface3 is the "most recessed" band — it's the summary
    marquee for whatever wordlist (or merged view) is in focus, and the
-   recessed shade carries that identity in both the Workshop's sticky stack
+   recessed shade carries that identity in both the Workshop's stats header
    and the Library pane.
 
-   Stats bar + tool stack + search bar share a sticky region just below the
-   brand header. Variable tool-stack height resolves to one sticky element of
-   natural height. Three bands by recession depth: stats on surface3 (most
-   recessed), tools/search/column-headers on surface2, and the data plane
-   below is surface (content, brightest). */
+   In the Workshop the stats bar is hoisted to the very top of #workshop-view
+   (above the tool gallery) as its own sticky band; the tool stack + search
+   bar + column headers form a second sticky band that pins just under it as
+   the user scrolls into the entries table. Three bands by recession depth:
+   stats on surface3 (most recessed), tools/search/column-headers on
+   surface2, and the data plane below is surface (content, brightest). */
+#workshop-stats { position: sticky; top: 0; z-index: 51; }
+/* Clearance for the sticky-stack below the sticky stats band: stats-bar
+   natural height = 36px histogram + 10px×2 padding + 1px border = 57px.
+   Stable so long as the histogram height is fixed. */
 .sticky-stack { position: sticky; top: 0; z-index: 50; background: var(--surface2); border-bottom: 1px solid var(--border2); }
+#workshop-view .sticky-stack { top: 57px; }
 .sticky-stack .search-bar { border-bottom: none; }
 .stat { display: flex; flex-direction: column; gap: 2px; }
 .stat-label { font-size: 10px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
@@ -778,8 +784,7 @@ body.tools-empty .gallery-card-add { display: none; }
 /* When the toggle isn't present (My Edits, All, or no rules), push the
    first action item to the right edge instead. */
 .wld-pane-actions > :first-child:not(.seg-ctrl) { margin-left: auto; }
-.wld-pane-stats .stats-bar { border: none; padding: 12px 14px; }
-.wld-pane-rescore { background: var(--surface2); border-top: 1px solid var(--border2); border-bottom: 1px solid var(--border2); padding: 14px 22px; }
+.wld-pane-rescore { border-bottom: 1px solid var(--border2); padding: 14px 22px; }
 .wld-pane-rescore-empty { font-size: 12px; color: var(--muted); padding: 6px 2px; }
 
 /* Desktop: list on the left, pane on the right. `align-items: stretch`
@@ -945,6 +950,7 @@ input[type="file"] { display: none; }
 <main>
   <div id="busy-overlay"><div class="busy-spinner"></div></div>
   <div id="workshop-view">
+    <div id="workshop-stats"></div>
     <section id="tool-gallery" aria-label="Tool gallery">
       <div class="gallery-header">
         <h2 class="gallery-title">Tools</h2>
@@ -2350,10 +2356,10 @@ const LibraryView = (() => {
       : `<div class="wld-pane-rescore" id="wld-rescore-section">${buildRescoreSectionHTML(wordlist)}</div>`;
 
     pane.innerHTML = `
+      ${buildStatsBarHTML(stats, { entries: sourceEntries, ignoredCount }, getHistogramLayout(), { readOnly: true })}
       <div class="wld-pane-header">
         <div class="wld-pane-actions">${actionsHTML}</div>
       </div>
-      <div class="wld-pane-stats">${buildStatsBarHTML(stats, { entries: sourceEntries, ignoredCount }, getHistogramLayout(), { readOnly: true })}</div>
       ${rulesHTML}
       ${hasData ? buildSearchBarHTML() : ''}
       ${hasData ? buildEntriesPanelHTML() : ''}`;
@@ -2383,10 +2389,10 @@ const LibraryView = (() => {
     const dlBtn = hasData ? `<button class="primary" onclick="LibraryView.action('download')">Download</button>` : '';
 
     pane.innerHTML = `
+      ${buildStatsBarHTML(stats, { entries, ignoredCount: 0 }, getHistogramLayout(), { readOnly: true })}
       <div class="wld-pane-header">
         <div class="wld-pane-actions">${dlBtn}</div>
       </div>
-      <div class="wld-pane-stats">${buildStatsBarHTML(stats, { entries, ignoredCount: 0 }, getHistogramLayout(), { readOnly: true })}</div>
       <div class="wld-pane-rescore" id="wld-scoring-section">${buildScoringSectionHTML()}</div>
       ${hasData ? buildSearchBarHTML() : ''}
       ${hasData ? buildEntriesPanelHTML() : ''}`;
@@ -4795,9 +4801,10 @@ function refreshWorkshopMergedScroller() {
 }
 
 function mountWorkshopPanel(panel, stats, entries) {
+  document.getElementById('workshop-stats').innerHTML =
+    buildStatsBarHTML(stats, { entries, ignoredCount: stats.ignoredCount }, getHistogramLayout());
   panel.innerHTML = `
     <div class="sticky-stack">
-      ${buildStatsBarHTML(stats, { entries, ignoredCount: stats.ignoredCount }, getHistogramLayout())}
       ${ToolStack.buildHTML()}
       ${buildSearchBarHTML()}
       ${buildEntryHeadersHTML()}
@@ -4807,7 +4814,7 @@ function mountWorkshopPanel(panel, stats, entries) {
   ToolStack.refreshGalleryActive();
   repositionAllHistogramRects();
   createScroller();
-  workshopScroller.onFilterChange = () => refreshWorkshopStatsBarFromScroller(panel);
+  workshopScroller.onFilterChange = refreshWorkshopStatsBarFromScroller;
   attachSearchHelpPopup();
 }
 
@@ -4815,9 +4822,9 @@ function mountWorkshopPanel(panel, stats, entries) {
 // Called by the scroller's onFilterChange callback so search/score-range
 // filtering, edits, and any other filter-affecting change keep the count,
 // min/max/mean/median/mode, and histogram in sync with what's on screen.
-function refreshWorkshopStatsBarFromScroller(panel) {
+function refreshWorkshopStatsBarFromScroller() {
   if (!workshopScroller) return;
-  const statsBar = panel.querySelector('.stats-bar');
+  const statsBar = document.querySelector('#workshop-stats .stats-bar');
   if (!statsBar) return;
   const { entries, ignoredCount } = workshopScroller._filteredStatsViewEntries();
   const stats = computeStatsRaw(entries, ignoredCount);
