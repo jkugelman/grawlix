@@ -246,8 +246,12 @@ html.light-mode .histogram-readonly.is-hovered .histogram-bar:not(.histogram-bar
    position: relative establishes a positioning context for .tool-stack-cursor:
    the cursor is parented here (not in #tool-stack) so its caret can extend
    above and below the stack/search-bar boundary without being clipped by
-   #tool-stack's overflow: hidden. */
-.search-bar { padding: 8px 14px; background: var(--surface2); border-bottom: 1px solid var(--border2); display: flex; align-items: center; gap: 12px; position: relative; }
+   #tool-stack's overflow: hidden.
+   flex-wrap: wrap lets the bar reflow organically whenever its contents
+   don't fit, at any viewport — no phone-sized breakpoint. The input keeps
+   a fixed 240px basis (its implicit min-width), so when space runs short
+   the bar wraps to a second row rather than smushing the input narrower. */
+.search-bar { padding: 8px 14px; background: var(--surface2); border-bottom: 1px solid var(--border2); display: flex; flex-wrap: wrap; align-items: center; gap: 12px; position: relative; }
 .search-input-wrap { position: relative; display: flex; align-items: center; flex: 0 0 240px; }
 .search-input-wrap input[type="text"],
 .tool-row-param input { background: var(--input-bg); color: var(--text); border: 1px solid var(--border); border-radius: 4px; font-size: 13px; font-family: var(--font-mono); padding: 5px 8px; }
@@ -256,7 +260,13 @@ html.light-mode .histogram-readonly.is-hovered .histogram-bar:not(.histogram-bar
 .tool-row-param input:focus { outline: none; border-color: var(--accent); }
 .search-input-wrap input[type="text"] { width: 100%; padding-right: 24px; }
 .search-whole-word-label { display: flex; align-items: center; gap: 5px; font-size: 12px; color: var(--muted); white-space: nowrap; cursor: pointer; user-select: none; }
-.score-range-label { display: flex; align-items: center; gap: 5px; font-size: 12px; color: var(--muted); white-space: nowrap; margin-left: auto; }
+.score-range-label { display: flex; align-items: center; gap: 5px; font-size: 12px; color: var(--muted); white-space: nowrap; }
+/* Score + sort are grouped so they ride together when the bar wraps to a
+   second row on mobile — see the @media (max-width: 759px) block for the
+   wrap-enable rules. On desktop, margin-left: auto just pushes the pair
+   to the right end of the bar (the role the score-range label used to
+   carry on its own). */
+.search-bar-end { display: flex; align-items: center; gap: 12px; margin-left: auto; }
 .clear-btn { background: none; border: none; padding: 2px 3px; cursor: pointer; color: var(--muted); display: flex; align-items: center; line-height: 1; border-radius: 3px; flex-shrink: 0; }
 .clear-btn:hover { color: var(--text); background: var(--hover); }
 .clear-btn[hidden] { display: none; }
@@ -265,7 +275,7 @@ html.light-mode .histogram-readonly.is-hovered .histogram-bar:not(.histogram-bar
 .score-range-label input[type="text"] { width: 72px; padding: 4px 20px 4px 6px; border: 1px solid var(--border); border-radius: 4px; font-size: 13px; font-family: var(--font-mono); background: var(--input-bg); color: var(--text); }
 .score-range-label input[type="text"]:focus { outline: none; border-color: var(--accent); }
 .score-range-label input.invalid { border-color: #ea4335; background: var(--error-bg); }
-.search-bar-sort { font-size: 12px; color: var(--muted); }
+.search-bar-sort { font-size: 12px; color: var(--muted); white-space: nowrap; flex-shrink: 0; }
 .search-bar-sort .sort-axis-select { appearance: none; -webkit-appearance: none; border: none; background: transparent; padding: 2px 14px 2px 3px; border-radius: 4px; font: inherit; font-size: 12px; color: var(--text); cursor: pointer; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 5'%3E%3Cpath fill='%238a8a8a' d='M0 0l4 5 4-5z'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 3px center; background-size: 8px 5px; }
 .search-bar-sort .sort-axis-select:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 .search-bar-sort .sort-dir-btn { background: transparent; border: none; padding: 3px 7px; border-radius: 4px; font: inherit; font-size: 13px; color: var(--text); cursor: pointer; line-height: 1; }
@@ -439,10 +449,6 @@ html.dark-mode .search-match-4 { background: #14532d; color: #d1fae5; }
   main { padding: 0; scrollbar-gutter: auto; }
   #workshop-view,
   #library-view { margin-bottom: 0; border: none; border-radius: 0; box-shadow: none !important; }
-  /* The 240px desktop search input dominates the row on a phone (the bar's
-     other controls already exceed mobile width), so trim it to a narrower
-     fixed width that no longer hogs visual weight. */
-  .search-input-wrap { flex: 0 0 140px; }
 }
 .edit-hint { opacity: 0; flex-shrink: 0; cursor: pointer; user-select: none; transition: opacity 0.15s; }
 .name-edit-input { font-family: inherit; width: 100%; padding: 1px 5px; border: 1px solid var(--accent); border-radius: 3px; background: var(--input-bg); color: var(--text); font-size: 15px; font-weight: 600; outline: none; }
@@ -1269,8 +1275,10 @@ function buildSearchBarHTML() {
         <button class="clear-btn" id="search-clear" onclick="WorkshopView.clearSearch()" title="Clear search" aria-label="Clear search" ${searchQuery ? '' : 'hidden'}><svg width="10" height="10"><use href="#icon-x"/></svg></button>
       </div>
       <label class="search-whole-word-label" title="Whole word (Alt+W)"><input type="checkbox" id="search-whole-word" onchange="WorkshopView.onSearchWholeWord(this.checked)" ${searchWholeWord ? 'checked' : ''}> Whole word</label>
-      <label class="score-range-label" title="Score: 50, 50-59, or 50+ (Alt+C)">Score <span class="score-range-wrap"><input type="text" id="score-range-input" value="${esc(scoreRange)}" oninput="WorkshopView.onScoreRange(this.value)"><button class="clear-btn" id="score-range-clear" onclick="WorkshopView.clearScoreRange()" title="Clear score" aria-label="Clear score" ${scoreRange ? '' : 'hidden'}><svg width="10" height="10"><use href="#icon-x"/></svg></button></span></label>
-      <span id="search-bar-sort" class="search-bar-sort"></span>
+      <div class="search-bar-end">
+        <label class="score-range-label" title="Score: 50, 50-59, or 50+ (Alt+C)">Score <span class="score-range-wrap"><input type="text" id="score-range-input" value="${esc(scoreRange)}" oninput="WorkshopView.onScoreRange(this.value)"><button class="clear-btn" id="score-range-clear" onclick="WorkshopView.clearScoreRange()" title="Clear score" aria-label="Clear score" ${scoreRange ? '' : 'hidden'}><svg width="10" height="10"><use href="#icon-x"/></svg></button></span></label>
+        <span id="search-bar-sort" class="search-bar-sort"></span>
+      </div>
     </div>`;
 }
 
