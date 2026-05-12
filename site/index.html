@@ -809,7 +809,11 @@ body.tools-empty .gallery-card-add { display: none; }
     border-bottom: none;
     border-right: 1px solid var(--border2);
   }
-  .wld-list-sticky { position: sticky; top: 0; }
+  /* Cap the pinned rail at the visible portion of <main> (approximated as
+     viewport minus the ~80px brand header, with a little headroom) and let
+     it scroll internally when there are more wordlists than fit. Without
+     this, overflow cards become unreachable while the rail is pinned. */
+  .wld-list-sticky { position: sticky; top: 0; max-height: calc(100vh - 90px); overflow-y: auto; }
   .wld-pane { flex: 1; min-width: 0; }
 }
 
