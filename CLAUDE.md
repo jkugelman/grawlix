@@ -28,6 +28,7 @@ Plans (forward-looking, not yet shipped):
 - [`docs/plans/mobile.md`](docs/plans/mobile.md) — mobile/responsive design.
 - [`docs/plans/per-row-reactivity.md`](docs/plans/per-row-reactivity.md) — push hybrid reactivity to a per-row reactive scroller.
 - [`docs/plans/sync.md`](docs/plans/sync.md) — three-tier persistence (backup nag, disk file, cloud sync) for All + My Edits.
+- [`docs/plans/tier-alignment.md`](docs/plans/tier-alignment.md) — catch-all as the misalignment signal, tier labels move to All, dirty-flag propagation of dev rule updates, severity-keyed bubbles.
 - [`docs/plans/tools.md`](docs/plans/tools.md) — tool execution/catalog, chaining, pair/group output, OneLook/Datamuse/Umiaq. Gallery + stack are shipped (see `design.md`).
 
 When a plan ships, run the `distill-design-doc` skill to fold it into `design.md` and/or `manual.md`. (There used to be an in-app welcome tour with copy that needed updating per shipped feature; it was removed pending a redesign — see [`docs/plans/help.md`](docs/plans/help.md). The header `?` button is a deactivated placeholder until that lands.)
