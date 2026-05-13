@@ -99,7 +99,7 @@ The two views answer different questions about the same data — Workshop asks "
 
 **Scoring rules** are the user's single notion of what each score range means — there is no separate "output" tier system. Tier labels surface on Workshop's entries table as a hover tooltip on each score atom — point at a score, see what tier the user has called it. The earlier always-visible legend block above the table was dropped because it earned a row of vertical real estate the user paid for on every scroll, even though the lookup ("what does 50 mean again?") is a once-in-a-while need. The editor lives on All's panel because the rules describe the merged scale; the data anchors on top-level `state.scoring` for the same reason. See § *Rescore rules & tier alignment* below.
 
-**Renaming** happens on the wordlist card via F2 with the card focused. Configure wordlist (in a wordlist's ⋮ menu) is the secondary path. No Rename in the kebab menu — the F2 affordance is enough.
+**Renaming** happens on the wordlist card via F2 with the card focused. Configure (in a wordlist's ⋮ menu) is the secondary path. No Rename in the kebab menu — the F2 affordance is enough.
 
 **Onboarding banner** lives at the top of the wordlist list — there's no auto-popup on Workshop. Users who never visit Library never see it; the defaults are sensible enough that this is fine.
 

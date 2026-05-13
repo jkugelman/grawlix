@@ -72,7 +72,7 @@ Each wordlist card carries a drag handle (reorder = merge priority), an enable c
 **Right pane.** Each card's panel has the same shape: an action row, a stats bar with histogram, a rules editor, a search bar (on populated wordlists), and an entries view below it. The histogram is display-only in the Library — no click-to-filter.
 
 **Action buttons differ per wordlist:**
-- **Sources** — Update/Fetch primary action, the Rescored/Original toggle (when rules exist), Download, and a ⋮ menu with Configure wordlist / Delete wordlist.
+- **Sources** — Update/Fetch primary action, the Rescored/Original toggle (when rules exist), Download, and a ⋮ menu with Configure / Delete.
 - **My Edits** — Import (primary when empty, plain otherwise), the Rescored/Original toggle (when rules exist), Download (primary when populated, hidden when empty), Clear in the ⋮ menu.
 - **All** — Download. No toggle (merged has no "original" version), no ⋮ menu.
 
