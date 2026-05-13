@@ -1,8 +1,25 @@
 # Testing
 
-A small Playwright smoke suite covers the user-visible behaviors that are hardest to verify by hand — features whose surface depends on a particular *data shape* (specific score distributions, simultaneous warning states, edits that flip a dirty flag, etc.). Visual / layout regressions stay manual.
+A Playwright smoke suite covers user-visible behaviors whose breakage would survive a manual play-through — silent data corruption, cross-feature regressions, browser-specific quirks. Visual and layout regressions stay manual.
 
-The suite is intentionally small. End-to-end smoke catches the bugs that matter for a single-file vanilla-JS app — subtle cross-feature breakage like "editing a score while a filter is active corrupts the override map" — and a handful of tests on the catastrophic paths gets roughly 80% of the value for 20% of the cost. CI is a passive monitor, not a gate.
+End-to-end smoke is the right shape for a single-file vanilla-JS app: subtle cross-feature breakage like "editing a score while a filter is active corrupts the override map" is exactly what it catches. Targeted tests at the seams beat comprehensive coverage. CI is a passive monitor, not a gate.
+
+## What earns a test
+
+The suite covers what manual testing structurally misses. Manual already catches visual layout, copy, feel, mobile, and anything obvious within the feature you're actively using — so those don't need automation. Automation pays off for:
+
+- **Silent data corruption.** UI looks fine, underlying state is wrong (the override-map-during-filter case is the archetype).
+- **Cross-feature regressions.** Touching A breaks B; you'd only notice next time you used B.
+- **Cross-browser quirks.** You only run one browser locally; the suite runs three.
+- **Async/timing races.** Flakes that surface intermittently under parallelism.
+
+**Add a test when** the behavior has cross-cutting reach (override map, cache invalidation, persistence boundaries), the bug would survive a five-minute manual play-through, or the behavior sits at a seam where plausible future refactors could re-break it.
+
+**Skip when** the change is purely visual, localized to code with no neighbors that affect it, or experimental code about to be rewritten.
+
+**Regression budget — not automatic.** When a bug is fixed, ask: seam, or typo in bounded code? Seam earns a test; typo doesn't. Pre-launch refactor-heavy phase makes "every bug gets a test" the wrong default — it locks the codebase against changes that need to happen.
+
+**AI-coded caveat.** AI writes and updates tests cheaply, so the suite can grow without much keystroke tax. The subtler cost: AI biases toward "make the test pass," which means a broken assertion gets adjusted instead of investigated. Write assertions where adjusting them is obviously suspicious — see *Strategy* below.
 
 ## Strategy
 
@@ -10,7 +27,9 @@ The suite is intentionally small. End-to-end smoke catches the bugs that matter 
 
 1. Build preconditions via `window.__grawlixTest` — a tiny API exposed by `site/index.html` that wraps real internal helpers (`addNewWordlist`, `applyWordlistText`, `setWordlistRescoreRules`). It's a fixture builder, not a backdoor — the data flows through the same plumbing the UI uses.
 2. Drive user actions through the real DOM (click cards, type into rule inputs, click reset buttons).
-3. Assert against the DOM — the rendered bubbles, banners, badges, and badges-on-badges that the user sees.
+3. Assert against the DOM by default — the rendered bubbles, banners, badges, and badges-on-badges that the user sees. Fall back to state snapshots via `__grawlixTest.getWordlist()` when the DOM doesn't reasonably expose the thing being asserted (e.g. "which wordlist sourced this entry" lives in `rawEntries`, not visible markup). Never assert something the user can't observe — no private `_isBuggy` hooks.
+
+**Assertions describe user-meaningful outcomes** ("BAGEL has score 50"), not implementation details ("rule[3].output equals 50"). Implementation-level assertions break on harmless refactors, produce noise instead of signal, and are easy to "fix" by adjusting them to match the new code — silently watering down what the suite guarantees.
 
 **Publisher fetches are stubbed.** The three auto-fetching publisher wordlists (JK, STWL, Broda) hit `raw.githubusercontent.com` and `grawlix.wtf` on boot. Tests intercept via `page.route()` and return empty bodies by default; tests that need a publisher populated pass their own body. See [`tests/helpers.js`](../tests/helpers.js).
 
@@ -119,5 +138,6 @@ GitHub Actions runs the suite on push to `main` only — no PR gating. Failed ru
 ## When a test breaks
 
 - **Intentional behavior change**: update the test in the same commit. Don't leave a stale test sitting in `.skip()`.
+- **Assertion no longer matches but the contract didn't change**: rewrite the assertion at a user-visible level, don't just nudge numbers. Over-specified assertions break on harmless refactors and are at risk of being silently watered down to make the suite green.
 - **Flake**: don't paper over with `waitForTimeout` — fix the root cause (an assertion that races a render, a missing `await`, an unstubbed network call).
 - **More trouble than it's worth**: delete it. A smoke suite is allowed to shrink.
