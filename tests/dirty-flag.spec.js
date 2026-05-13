@@ -65,11 +65,16 @@ test('clicking reset restores defaults and clears the dirty flag', async ({ page
   await expect(confirmDialog).toBeVisible();
   await confirmDialog.locator('#btn-confirm-ok').click();
 
-  // Rules back to JK's 7-rule defaults, button gone.
+  // Wait for the post-reset render before reading state — the dialog click
+  // hands off async work (await showConfirm → mutate rules → repaint), and
+  // a synchronous read of getWordlist would race that completion. The reset
+  // button disappearing is the DOM signal that dirty has flipped back.
+  await expect(page.locator('.rule-reset-btn')).toHaveCount(0);
+
+  // Rules back to JK's 7-rule defaults.
   const wl = await page.evaluate(() => window.__grawlixTest.getWordlist('John Kugelman'));
   expect(wl.dirty).toBe(false);
   expect(wl.rescoreRules.map(r => r.input).sort()).toEqual(['0', '10', '20', '30', '40', '50', '60']);
-  await expect(page.locator('.rule-reset-btn')).toHaveCount(0);
 });
 
 test('cancel on reset keeps customizations intact', async ({ page }) => {

@@ -43,10 +43,13 @@ npx playwright install-deps chromium    # first time only, may need sudo
 npm test                         # all tests, headless — what CI runs
 npm test -- tests/smoke.spec.js  # one file
 npm test -- -g "auto-seed"       # one test by name (grep)
+CI=1 npm test                    # reproduce CI conditions (1 worker, 2 retries)
 npm run test:headed              # opens a real browser window
 npm run test:ui                  # interactive runner with time-travel
 npm run test:report              # serve the HTML report from the last run
 ```
+
+`CI=1` is worth knowing: local runs default to parallel workers, but CI uses one worker, which surfaces timing races (e.g. a click handler that hands off async work that the next assertion reads too early). If a test passes locally but fails in CI, run with `CI=1` first.
 
 `npm run test:report` serves on `localhost:9323`; open it in your browser to inspect failures with screenshots, traces, and step-by-step playback. **This is the easiest way to debug from WSL** — failed-test artifacts are recorded automatically (`trace: retain-on-failure`).
 
