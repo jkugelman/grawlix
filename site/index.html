@@ -7262,9 +7262,9 @@ window.__grawlixTest = {
   // Add a populated custom wordlist (no publisherId). Entries are auto-named
   // WORD001, WORD002, … one per score. Goes through applyWordlistText so the
   // auto-seed path is exercised on import.
-  async addCustomWordlist({ name, scores, comments = [], enabled = true } = {}) {
+  async addCustomWordlist({ name, scores, entries, comments = [], enabled = true } = {}) {
     const text = scores.map((s, i) => {
-      const entry = `WORD${String(i + 1).padStart(3, '0')}`;
+      const entry = entries?.[i] ?? `WORD${String(i + 1).padStart(3, '0')}`;
       const comment = comments[i];
       return comment ? `${entry};${s};${comment}` : `${entry};${s}`;
     }).join('\n');
@@ -7298,6 +7298,28 @@ window.__grawlixTest = {
     const wl = this._lookup(name);
     wl._updateAvailable = !!value;
     renderSources();
+  },
+
+  // Reorder state.sources so `name` lands at `beforeName`'s position (and
+  // `beforeName` shifts down). Routes through `reorderSources` so caches
+  // invalidate the same way a drag does.
+  moveBefore(name, beforeName) {
+    const fromIdx = state.sources.findIndex(w => w.name === name);
+    const toIdx   = state.sources.findIndex(w => w.name === beforeName);
+    if (fromIdx < 0) throw new Error(`No wordlist named "${name}"`);
+    if (toIdx   < 0) throw new Error(`No wordlist named "${beforeName}"`);
+    reorderSources(fromIdx, toIdx);
+  },
+
+  // Read-only snapshot of the merged All view for a single entry. The
+  // sourcing wordlist is user-observable via the row's popover, but the
+  // `.atom-source` column is hidden by default in the Workshop entries
+  // table (only displayed when a multi-word tool is on the stack). Exposing
+  // it here lets merge-correctness tests assert without driving the popover.
+  getMergedEntry(entry) {
+    const m = buildMergedWordlist().byEntry.get(entry.toLowerCase());
+    if (!m) return null;
+    return { entry: m.entry, score: m.score, comment: m.comment, wordlist: m.wordlist.name };
   },
 
   // Read-only snapshot for assertions. Returns the fields the smoke suite

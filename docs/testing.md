@@ -93,9 +93,11 @@ Exposed unconditionally in `site/index.html` (see the *Test API* section near th
 
 | Function | What it does |
 |---|---|
-| `addCustomWordlist({name, scores, comments?, enabled?})` | Add a populated custom wordlist (no `publisherId`). Goes through `applyWordlistText`, so the auto-seed path fires. |
+| `addCustomWordlist({name, scores, entries?, comments?, enabled?})` | Add a populated custom wordlist (no `publisherId`). Goes through `applyWordlistText`, so the auto-seed path fires. Pass `entries` to specify entry names (parallel to `scores`); defaults to auto-named `WORD001`, `WORD002`, … |
 | `setRescoreRules(name, rules)` | Replace a wordlist's rescore rules via `setWordlistRescoreRules`. Rules shape: `{input, length, output, note?}`. |
 | `setUpdateAvailable(name, value)` | Toggle the transient `_updateAvailable` flag and repaint. Used to put info + warning severities on the same wordlist. |
+| `moveBefore(name, beforeName)` | Reorder `state.sources` so `name` lands at `beforeName`'s position. Routes through `reorderSources` so caches invalidate the same way a drag does. |
+| `getMergedEntry(entry)` | Read-only snapshot of the merged `All` view for a single entry: `{score, comment, wordlist}`. The sourcing wordlist is observable via the row's popover, but `.atom-source` is hidden in the default Workshop layout. |
 | `getWordlist(name)` | Read-only snapshot of the fields tests care about (`rescoreRules`, `uncovered`, `dirty`, `updateAvailable`, etc.). |
 
 Adding a function is fine; renaming or repurposing an existing one means updating every test that uses it.

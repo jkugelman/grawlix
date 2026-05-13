@@ -35,7 +35,9 @@ test('test API is exposed on window', async ({ page }) => {
   expect(apiShape).toEqual([
     '_lookup',
     'addCustomWordlist',
+    'getMergedEntry',
     'getWordlist',
+    'moveBefore',
     'setRescoreRules',
     'setUpdateAvailable',
   ]);
