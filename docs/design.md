@@ -298,6 +298,7 @@ Wordlists can be hundreds of thousands of entries. Several caches keep wordlist 
 |---|---|---|---|
 | `wordlist._rescored` | per-wordlist | own `rawEntries` + `rescoreRules` | `invalidateRescoredCache(wordlist)` |
 | `wordlist._rescoredMap` | per-wordlist | `_rescored` (`entryLower` → wlEntry, for fast lookup) | `invalidateRescoredCache(wordlist)` |
+| `wordlist._actualScores` | per-wordlist | own `rawEntries` (sorted distinct raw scores; feeds `_uncovered`) | `invalidateActualScoresCache(wordlist)` |
 | `wordlist._overrideMap` | per-wordlist | every higher-priority enabled wordlist's `_rescored` | `invalidateSourceCounts()` (clears all) |
 | `_mergedWordlistCache` | module | every enabled wordlist's `_rescored` (entries + `byEntry` map) | `invalidateSourceCounts()` |
 | `_sourceCountsCache` | module | aliases `_mergedWordlistCache.sourceCounts` | `invalidateSourceCounts()` |
@@ -318,6 +319,8 @@ Override maps are invalidated globally rather than per-affected-list because tra
 **Lowercase keys throughout.** `_rescoredMap`, `_overrideMap`, and `_mergedWordlistCache.byEntry` are all keyed by `entryLower`. The key is the same string object as the wlEntry's `entryLower` field — Map keys share storage with the value's lowercase form, so construction allocates no extra strings and lookups never need a per-call `.toLowerCase()`. Anything that lookups against these caches (e.g. `patchCachesForEditsChange(entry, ...)`) takes its `entry` parameter in lowercase form.
 
 **Hot path: switching wordlists.** First switch builds `_rescored` (lazy) and `_overrideMap` (lazy); subsequent switches are near-free.
+
+**Hot path: editing rescore rules.** Commits go through `applyRescoreRulesChange(wordlist)`, which clears `_rescored` so the merged view picks up the new mapping. The set of distinct raw scores in the data — needed to compute `_uncovered` — does not depend on rules, so it lives on `wordlist._actualScores` and survives rule edits. The keystroke preview path also compiles rules once before handing them to the Library entries scroller, so the per-row `rescoreEntry` walk reads compiled intervals instead of re-parsing strings; for Broda-sized wordlists (~500K entries) that's millions of regex calls saved per keystroke.
 
 **Hot path: editing My Edits.** Score and comment edits, new-entry adds, and deletes all flow through `patchCachesForEditsChange(entry, newEditsWlEntry)`. It mutates the affected `_overrideMap` entries and the matching slot in `_mergedWordlistCache.byEntry` instead of triggering a full rebuild. No `buildMergedWordlist` walks across all sources per keystroke.
 

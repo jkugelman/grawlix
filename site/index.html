@@ -3141,6 +3141,7 @@ async function clearEdits() {
   if (!await showConfirm(`Clear all ${pluralize(edits.rawEntries.length, 'entry', 'entries')} from "${esc(edits.name)}"?`, { confirmText: 'Clear' })) return;
   batchUpdate(() => {
     edits.rawEntries = [];
+    invalidateActualScoresCache(edits);
     invalidateWordlistCaches(edits);
     recomputeUncovered(edits);
     repaintAfterCacheChange();
@@ -4808,15 +4809,25 @@ function recomputeUncovered(wordlist) {
   });
   rules.forEach(compileRule);
 
-  const actualScores = wordlist.rawEntries && wordlist.rawEntries.length
-    ? [...new Set(wordlist.rawEntries.map(e => e.score))].sort((a, b) => a - b)
-    : [];
+  const actualScores = getActualScores(wordlist);
   wordlist._uncovered = actualScores.filter(s => !rules.some(r => {
     if (r.length && r.length.trim()) return false;
-    const intervals = parseRange(r.input);
-    return intervals && matchesRange(s, intervals);
+    return r._scoreIntervals && matchesRange(s, r._scoreIntervals);
   }));
 }
+
+// Sorted distinct raw scores for a wordlist. Depends only on rawEntries, so
+// it survives rule edits — invalidated only when entries change. For Broda-
+// sized wordlists (~500K entries) this scan would otherwise run on every
+// rule keystroke commit.
+function getActualScores(wordlist) {
+  if (wordlist._actualScores) return wordlist._actualScores;
+  const entries = wordlist.rawEntries;
+  if (!entries || !entries.length) return wordlist._actualScores = [];
+  return wordlist._actualScores = [...new Set(entries.map(e => e.score))].sort((a, b) => a - b);
+}
+
+function invalidateActualScoresCache(wordlist) { wordlist._actualScores = null; }
 
 function parseRuleOutput(str) {
   str = (str || '').trim().toLowerCase();
@@ -5446,6 +5457,7 @@ async function applyWordlistText(wordlist, text, { fetchedSize = null, originalF
   batchUpdate(() => {
     invalidateWordlistCaches(wordlist);
     wordlist.rawEntries = parseWordlist(text);
+    invalidateActualScoresCache(wordlist);
     wordlist.lastUpdated = Date.now();
     if (fetchedSize !== null) { wordlist.fetchedSize = fetchedSize; wordlist._updateAvailable = false; }
     if (originalFilename !== null) wordlist.originalFilename = originalFilename;
@@ -5586,6 +5598,7 @@ function ingestFile(file, wordlist, nameOverride) {
       }
 
       wordlist.rawEntries.push(...newEntries);
+      invalidateActualScoresCache(wordlist);
       wordlist.lastUpdated = Date.now();
       invalidateWordlistCaches(wordlist);
       recomputeUncovered(wordlist);
@@ -6806,6 +6819,11 @@ function updateRescorePreview() {
     length: row.querySelector('.rule-len')?.value || '',
     output: row.querySelector('.rule-out')?.value || '',
   }));
+  // Compile once so the scroller's per-row rescoreEntry walks compiled
+  // intervals instead of re-running parseRange/parseRuleOutput per rule per
+  // entry. For Broda-sized wordlists that's millions of regex calls per
+  // keystroke saved.
+  rules.forEach(compileRule);
   // The rules editor lives inside the Library's focused-wordlist pane, so
   // its uncommitted rules always apply to what that pane's entries view is
   // rendering. Workshop's merged view picks up the change on commit (via
@@ -6862,6 +6880,7 @@ function patchCachesForEditsChange(entry, newEditsWlEntry) {
   if (!edits) return;
 
   // edits's own derived caches are now stale; lazy rebuild on next access.
+  invalidateActualScoresCache(edits);
   invalidateRescoredCache(edits);
   _statsCache.delete(edits);
   _statsCache.delete(_mergedStatsKey);
