@@ -121,13 +121,13 @@ button.header-nav-item:hover:not(:disabled) { opacity: 1; background: var(--hdr-
 .header-nav-item.active { opacity: 1; }
 .header-nav-item.active::after { content: ''; position: absolute; left: 14px; right: 14px; bottom: 1px; height: 2px; background: white; border-radius: 1px; }
 .header-nav-item svg { flex-shrink: 0; }
-/* Per-wordlist update bubble, hoisted to the Library tab. Pinned absolutely
+/* Per-wordlist severity bubble, hoisted to the Library tab. Pinned absolutely
    outside layout so its appearance doesn't shift sibling nav items, and far
    enough right that the active-tab underline (`::after { right: 14px }`)
    doesn't reach under it. The brand bar has comfortable spacing between the
    nav and the utility cluster, so floating the dot past the button edge is
    safe. */
-.header-nav-item .update-dot { position: absolute; top: 50%; right: 0; transform: translateY(-50%); }
+.header-nav-item .severity-bubble { position: absolute; top: 50%; right: 0; transform: translateY(-50%); }
 
 .header-utility { display: flex; align-items: center; gap: 2px; flex-shrink: 0; }
 .bubble { display: inline-flex; align-items: center; background: white; color: var(--accent); border-radius: 8px; padding: 1px 7px 2px; font-size: 15px; font-weight: 800; position: relative; margin-left: 9px; line-height: 1.5; vertical-align: middle; }
@@ -494,9 +494,15 @@ button.header-icon-btn:hover { background: none; color: rgba(255,255,255,0.65); 
 .wordlist-card.no-data .toggle input { pointer-events: none; }
 
 
-/* Status dot */
+/* Severity bubble. A small colored dot indicating per-wordlist state. The
+   primitive only knows about severity; callers map their causes (update
+   available, misalignment, etc.) to a severity. Higher severities take
+   priority when bubbles propagate up to the Library nav tab.
+   See buildSeverityBubbleHTML / maxSeverity in the JS. */
 .card-name-row { display: flex; align-items: center; gap: 5px; min-width: 0; }
-.update-dot { width: 7px; height: 7px; border-radius: 50%; background: #7add9e; flex-shrink: 0; display: inline-block; }
+.severity-bubble { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; display: inline-block; }
+.severity-bubble[data-severity="info"]    { background: #7add9e; }
+.severity-bubble[data-severity="warning"] { background: #e8a040; }
 
 /* Import zone */
 .import-zone { border: 2px dashed var(--border); border-radius: 6px; padding: 24px 16px; text-align: center; color: var(--faint); cursor: pointer; transition: border-color 0.15s, color 0.15s; user-select: none; }
@@ -1192,13 +1198,36 @@ function buildStatItemHTML(label, value, title) {
   </div>`;
 }
 
-// opts: { enabled, populated, selected, hasUpdate }
+// Severity bubble: a small colored dot keyed by severity. The primitive only
+// knows about severity; callers map their causes (update available,
+// misalignment, …) to a severity. Higher severities take priority when
+// bubbles propagate up to a parent surface (see maxSeverity).
+const SEVERITY_PRIORITY = { info: 1, warning: 2 };
+
+function buildSeverityBubbleHTML(severity, title = '') {
+  if (!severity) return '';
+  const titleAttr = title ? ` title="${esc(title)}" aria-label="${esc(title)}"` : '';
+  return `<span class="severity-bubble" data-severity="${severity}"${titleAttr}></span>`;
+}
+
+function maxSeverity(...severities) {
+  let max = null;
+  let maxPri = 0;
+  for (const s of severities) {
+    const p = SEVERITY_PRIORITY[s] ?? 0;
+    if (p > maxPri) { max = s; maxPri = p; }
+  }
+  return max;
+}
+
+// opts: { enabled, populated, selected, severity, severityTitle }
 function buildWordlistCardHTML(icon, name, meta, opts = {}) {
   const {
-    enabled   = true,
-    populated = true,
-    selected  = false,
-    hasUpdate = false,
+    enabled       = true,
+    populated     = true,
+    selected      = false,
+    severity      = null,
+    severityTitle = '',
   } = opts;
 
   const classes = ['wordlist-card'];
@@ -1208,12 +1237,10 @@ function buildWordlistCardHTML(icon, name, meta, opts = {}) {
 
   const dragHandle = buildDragHandleHTML();
 
-  const updateDot = hasUpdate
-    ? `<span class="update-dot" title="Update available" aria-label="Update available"></span>`
-    : '';
+  const bubble = buildSeverityBubbleHTML(severity, severityTitle);
 
   const cardInfo = `<div class="card-info">
-      <div class="card-name-row"><div class="card-name">${esc(name)}</div>${updateDot}</div>
+      <div class="card-name-row"><div class="card-name">${esc(name)}</div>${bubble}</div>
       <div class="card-meta">${meta}</div>
     </div>`;
 
@@ -2316,11 +2343,13 @@ const LibraryView = (() => {
     const sourceCards = state.sources.map(wordlist => {
       const icon = getWordlistIcon(wordlist);
       const meta = wordlistCardMeta(wordlist, contribMap);
+      const hasUpdate = !!wordlist._updateAvailable;
       return buildWordlistCardHTML(icon, wordlist.name, meta, {
-        selected:  _focusedWordlist === wordlist,
-        enabled:   wordlist.enabled,
-        populated: wordlist.populated,
-        hasUpdate: !!wordlist._updateAvailable,
+        selected:      _focusedWordlist === wordlist,
+        enabled:       wordlist.enabled,
+        populated:     wordlist.populated,
+        severity:      hasUpdate ? 'info' : null,
+        severityTitle: hasUpdate ? 'Update available' : '',
       });
     });
     listBody.innerHTML = [
@@ -2371,8 +2400,9 @@ const LibraryView = (() => {
         ['Clear', `LibraryView.action('clear')`],
       ]) : '';
     } else {
-      const dot = wordlist._updateAvailable && !wordlist._loading ? `&nbsp;<span class="update-dot"></span>` : '';
-      const updateTitle = wordlist._updateAvailable && !wordlist._loading ? 'Update available' : '';
+      const showBubble = wordlist._updateAvailable && !wordlist._loading;
+      const dot = showBubble ? `&nbsp;${buildSeverityBubbleHTML('info')}` : '';
+      const updateTitle = showBubble ? 'Update available' : '';
       const label = hasData ? 'Update' : (wordlist.url ? 'Fetch' : 'Import');
 
       if (wordlist.url) {
@@ -2797,20 +2827,25 @@ const MainView = (() => {
     });
   }
 
-  // Toggle a per-view update indicator on the nav button — the same green
-  // dot the Library uses on individual wordlist cards, bubbled up so the
-  // user sees there's something to look at without opening the view.
-  function setUpdateIndicator(view, has, title = 'Updates available') {
+  // Toggle a per-view severity bubble on the nav button — the same dot the
+  // Library uses on individual wordlist cards, bubbled up so the user sees
+  // there's something to look at without opening the view. Callers decide
+  // the severity by reducing the underlying causes (e.g. via maxSeverity).
+  function setSeverityBubble(view, severity, title = '') {
     const btn = [...navButtons].find(b => b.dataset.view === view);
     if (!btn) return;
-    let dot = btn.querySelector(':scope > .update-dot');
-    if (has && !dot) {
-      dot = document.createElement('span');
-      dot.className = 'update-dot';
-      dot.title = title;
-      btn.appendChild(dot);
-    } else if (!has && dot) {
-      dot.remove();
+    let bubble = btn.querySelector(':scope > .severity-bubble');
+    if (severity) {
+      if (!bubble) {
+        bubble = document.createElement('span');
+        bubble.className = 'severity-bubble';
+        btn.appendChild(bubble);
+      }
+      bubble.dataset.severity = severity;
+      if (title) bubble.title = title;
+      else bubble.removeAttribute('title');
+    } else if (bubble) {
+      bubble.remove();
     }
   }
 
@@ -2823,7 +2858,7 @@ const MainView = (() => {
     getCurrent: () => _current,
     getDefault: () => DEFAULT_VIEW,
     hasView: name => Object.hasOwn(VIEWS, name),
-    setUpdateIndicator,
+    setSeverityBubble,
   };
 })();
 
@@ -4832,7 +4867,8 @@ function wordlistCardMeta(wordlist, contribMap) {
 function renderSources() {
   if (!_sourceCountsCache) _sourceCountsCache = buildMergedWordlist().sourceCounts;
   LibraryView?.refresh();
-  MainView?.setUpdateIndicator('library', state.sources.some(w => w._updateAvailable));
+  const hasUpdate = state.sources.some(w => w._updateAvailable);
+  MainView?.setSeverityBubble('library', hasUpdate ? 'info' : null, hasUpdate ? 'Updates available' : '');
 }
 
 
