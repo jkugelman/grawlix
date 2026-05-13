@@ -1515,7 +1515,7 @@ function buildRulesListHTML(rules, { rulesId, saveFn, deleteFn, addFn = '', rese
     }).join('');
   }
   const addBtn = (!readOnly && addFn) ? `<button class="rule-add-btn" onclick="${addFn}()">+ Add rule</button>` : '';
-  const resetBtn = (!readOnly && resetFn && dirty) ? `<button class="rule-reset-btn" onclick="${resetFn}()">Reset to current defaults</button>` : '';
+  const resetBtn = (!readOnly && resetFn && dirty) ? `<button class="rule-reset-btn" onclick="${resetFn}()">Reset to defaults</button>` : '';
   const actionsRow = (addBtn || resetBtn) ? `<div class="rule-actions">${addBtn}${resetBtn}</div>` : '';
   return `${banner}<div id="${rulesId}">${rulesHTML}</div>${actionsRow}`;
 }
@@ -1808,7 +1808,7 @@ const state = {
   scoring: [],
   // True when state.scoring has been customized away from DEFAULT_SCORING.
   // Drives `propagateDefaults` at boot (pristine users silently pick up dev
-  // updates) and the "Reset to current defaults" button visibility.
+  // updates) and the "Reset to defaults" button visibility.
   scoringDirty: false,
   // Transient: merged-output scores not covered by any tier label.
   // Recomputed by recomputeScoringUncovered; drives the Unhandled-scores
@@ -4746,11 +4746,11 @@ function updateScoringDirty() {
 }
 
 // For any rule set with defaults, if persisted rules differ but `dirty` is
-// false, silently overwrite with current defaults. At boot this picks up
-// dev-shipped updates for users who haven't customized; within a session it
-// keeps My Edits' inert defaults in lockstep with state.scoring when the
-// user edits tier labels. Scoring runs first because My Edits' defaults
-// derive from state.scoring (via getMyEditsDefaultRules).
+// false, silently overwrite with defaults. At boot this picks up dev-shipped
+// updates for users who haven't customized; within a session it keeps My
+// Edits' inert defaults in lockstep with state.scoring when the user edits
+// tier labels. Scoring runs first because My Edits' defaults derive from
+// state.scoring (via getMyEditsDefaultRules).
 // See docs/design.md § Rescore rules & tier alignment.
 function propagateDefaults() {
   if (!scoringRulesEqual(state.scoring, DEFAULT_SCORING) && !state.scoringDirty) {
@@ -5213,7 +5213,7 @@ function applyScoringChange() {
 }
 
 async function resetScoringRules() {
-  if (!await showConfirm('Replace your tier labels with the current defaults? Your customizations will be lost.', { confirmText: 'Reset' })) return;
+  if (!await showConfirm('Replace your tier labels with the defaults? Your customizations will be lost.', { confirmText: 'Reset' })) return;
   state.scoring = DEFAULT_SCORING.map(r => ({ ...r }));
   applyScoringChange();
 }
@@ -6716,7 +6716,7 @@ async function resetRescoreRules() {
   if (!wordlist) return;
   const defaults = getWordlistDefaultRules(wordlist);
   if (defaults === null) return;
-  if (!await showConfirm('Replace your rescore rules with the current defaults? Your customizations will be lost.', { confirmText: 'Reset' })) return;
+  if (!await showConfirm('Replace your rescore rules with the defaults? Your customizations will be lost.', { confirmText: 'Reset' })) return;
   wordlist.rescoreRules = defaults.map(r => ({ ...r }));
   afterRuleChange(wordlist);
 }

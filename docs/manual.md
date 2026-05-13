@@ -92,7 +92,7 @@ Custom wordlists with up to 10 distinct scores get auto-seeded with one inert ru
 
 The highest-severity bubble across all wordlists propagates up to the **Library** tab in the brand bar.
 
-**Reset to current defaults.** A button appears in the rules editor (rescore on sources/My Edits, scoring on All) when you've customized the rules away from their shipped defaults. Clicking it restores the defaults, with a confirmation first. Visible only inside the editor and only when there's something to undo.
+**Reset to defaults.** A button appears in the rules editor (rescore on sources/My Edits, scoring on All) when you've customized the rules away from their shipped defaults. Clicking it restores the defaults, with a confirmation first. Visible only inside the editor and only when there's something to undo.
 
 **Entries view.** Each populated wordlist's panel includes a virtual-scrolled, monospace, text-file-flavored entries list below its rules editor. In Rescored mode, an inline arrow shows what each rule changed — e.g. `BAGEL  45 → 50  tasty`; rows dropped by an `ignore` rule are struck through with their input score. Untouched rows show their input score plain. Switching to Original mode strips the arrows and strikethrough — you see the wordlist as the file contains it. The Library entries view is read-only; editing routes through the Workshop entries table's popover.
 

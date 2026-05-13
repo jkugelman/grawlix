@@ -1,10 +1,10 @@
 // Dirty-flag behaviors — see docs/design.md § Rescore rules & tier alignment.
 //
 // Covers the round-trip between pristine and customized rule sets, and the
-// confirm-protected "Reset to current defaults" button that restores the
-// pristine state. Uses the JK publisher's defaults as the canonical baseline
-// because it's the only publisher whose URL auto-fetches with a stable
-// 7-rule shape that's easy to assert against.
+// confirm-protected "Reset to defaults" button that restores the pristine
+// state. Uses the JK publisher's defaults as the canonical baseline because
+// it's the only publisher whose URL auto-fetches with a stable 7-rule shape
+// that's easy to assert against.
 
 const { test, expect } = require('@playwright/test');
 const { stubPublisherFetches, gotoApp, openLibrary, focusWordlist } = require('./helpers');
