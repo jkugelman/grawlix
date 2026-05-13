@@ -344,13 +344,6 @@ html.dark-mode .search-match-4 { background: #14532d; color: #d1fae5; }
 .entry-row .atom-comment { overflow: hidden; text-overflow: ellipsis; min-width: 0; font-family: var(--font-sans); font-size: 12px; cursor: pointer; align-self: stretch; line-height: var(--row-height, 24px); }
 .entry-row .atom-source  { overflow: hidden; text-overflow: ellipsis; min-width: 0; font-family: var(--font-sans); font-size: 12px; align-self: stretch; line-height: var(--row-height, 24px); }
 .entry-row .atom-comment, .entry-row .atom-source { display: none; }
-.entry-row.entry-ignored { opacity: 0.4; }
-.entry-row.entry-ignored .atom-count,
-.entry-row.entry-ignored .atom-entry,
-.entry-row.entry-ignored .atom-len,
-.entry-row.entry-ignored .atom-score,
-.entry-row.entry-ignored .atom-comment,
-.entry-row.entry-ignored .atom-source { text-decoration: line-through; }
 
 /* Comment + source columns appear when the card has room and no pair-output
    tool is active. Source is meaningful only on the merged All view (single
@@ -892,9 +885,6 @@ html.dark-mode .wld-onboarding { background: color-mix(in srgb, var(--accent) 15
 .wordlist-icon-img { border-radius: 3px; display: inline-block; }
 .wordlist-name-icon { display: inline; white-space: nowrap; }
 .wordlist-name-icon .wordlist-icon { width: 1em; height: 1em; vertical-align: -0.1em; }
-
-/* Score display */
-.effective-asterisk { color: #e53; font-size: 9px; vertical-align: super; margin-left: 2px; pointer-events: none; line-height: 0; }
 
 /* Popup help */
 .popup-help { position: fixed; z-index: 9999; background: var(--surface2); border: 1px solid var(--border); border-radius: 6px; padding: 7px 12px; font-size: 11px; color: var(--muted); line-height: 1.6; display: inline-grid; grid-template-columns: auto auto; grid-template-rows: repeat(4, auto); grid-auto-flow: column; gap: 2px 22px; box-shadow: 0 4px 12px rgba(0,0,0,0.18); pointer-events: none; opacity: 0; transition: opacity 0.15s; }
@@ -3824,8 +3814,6 @@ class WorkshopEntriesScroller extends BaseVirtualScroller {
     this._wholeWord = false;
     this._scoreIntervals = null;
     this._highlight = null;
-    this.rescoreRules = [];
-    this.overrideMap = new Map();
     this.showSource = false;
     this.showDeleteCol = false;
     this.showEditDeleteCol = false;
@@ -3834,11 +3822,9 @@ class WorkshopEntriesScroller extends BaseVirtualScroller {
     this._onCellEdit = null;
     this._onDeleteRow = null;
     this.onFilterChange = null;
-    this._sortScores = null;
     // Sorted view of allEntries cached across keystrokes. Filter preserves
     // order, so a sorted source means the filter result is already sorted —
-    // no per-keystroke re-sort needed. Invalidated when allEntries, rescore
-    // rules, or override map change (anything that affects sort).
+    // no per-keystroke re-sort needed. Invalidated when allEntries change.
     this._sortedSource = null;
     this._sortedSourceKey = null;
     this._sortedSourceDir = null;
@@ -3867,11 +3853,9 @@ class WorkshopEntriesScroller extends BaseVirtualScroller {
     AtomPopover.close();
   }
 
-  setEntries(allEntries, query, rescoreRules, overrideMap, wholeWord = false, scoreRange = '') {
+  setEntries(allEntries, query, wholeWord = false, scoreRange = '') {
     AtomPopover.close();
     this.allEntries = allEntries;
-    this.rescoreRules = rescoreRules || [];
-    this.overrideMap = overrideMap || new Map();
     // Sort persists across wordlist switches via `WorkshopView.sortKey/sortDir`
     // (the scroller field was already seeded from there in the constructor).
     this._invalidateSortCache();
@@ -3886,15 +3870,7 @@ class WorkshopEntriesScroller extends BaseVirtualScroller {
     this._applyFilterAndSort();
   }
 
-  setRescore(rules) {
-    AtomPopover.close();
-    this.rescoreRules = rules || [];
-    this._invalidateSortCache();
-    this._applyFilterAndSort();
-  }
-
   _invalidateSortCache() {
-    this._sortScores = null;
     this._sortedSource = null;
   }
 
@@ -3954,16 +3930,7 @@ class WorkshopEntriesScroller extends BaseVirtualScroller {
 
     if (this._scoreIntervals) {
       const intervals = this._scoreIntervals;
-      entries = entries.filter(e => {
-        if (this.rescoreRules.length) {
-          const r = rescoreEntry(e, this.rescoreRules);
-          if (!r.kept) return false;
-          const ov = this.overrideMap.get(e.entryLower);
-          return matchesRange(ov ? ov.score : r.score, intervals);
-        }
-        const ov = this.overrideMap.get(e.entryLower);
-        return matchesRange(ov ? ov.score : e.score, intervals);
-      });
+      entries = entries.filter(e => matchesRange(e.score, intervals));
     }
 
     this.entries = entries;
@@ -3988,17 +3955,12 @@ class WorkshopEntriesScroller extends BaseVirtualScroller {
     } else {
       const key = this.sortKey;
       const dir = this.sortDir === 'asc' ? 1 : -1;
-      if (key === 'score' && (this.rescoreRules.length || this.overrideMap.size)) {
-        if (!this._sortScores) this._buildSortScores();
-        sorted = [...this.allEntries].sort((a, b) => dir * (this._sortScores.get(a) - this._sortScores.get(b)));
-      } else {
-        sorted = [...this.allEntries].sort((a, b) => {
-          const av = key === 'length' ? a.entry.length : (a[key] ?? '');
-          const bv = key === 'length' ? b.entry.length : (b[key] ?? '');
-          if (typeof av === 'number' && typeof bv === 'number') return dir * (av - bv);
-          return dir * String(av).localeCompare(String(bv));
-        });
-      }
+      sorted = [...this.allEntries].sort((a, b) => {
+        const av = key === 'length' ? a.entry.length : (a[key] ?? '');
+        const bv = key === 'length' ? b.entry.length : (b[key] ?? '');
+        if (typeof av === 'number' && typeof bv === 'number') return dir * (av - bv);
+        return dir * String(av).localeCompare(String(bv));
+      });
     }
 
     this._sortedSource = sorted;
@@ -4048,70 +4010,17 @@ class WorkshopEntriesScroller extends BaseVirtualScroller {
     target.style.setProperty('--source-max', `${22 * ch}px`);
   }
 
-  // Walks the post-filter entries, applies rescore + override per entry, and
-  // returns a synthetic { score } list of entries that survived rescore plus
-  // a count of those dropped. The synthetic list is what buildStatsBarHTML
-  // and computeStatsRaw need to recompute the stats bar against the currently
-  // visible (filter-aware) set.
+  // Post-filter entries drive the stats bar so count, min/max/mean/median/mode
+  // track what's actually on screen.
   _filteredStatsViewEntries() {
-    return this._statsViewEntriesFrom(this.entries);
+    return this.entries;
   }
 
-  // Same shape as _filteredStatsViewEntries, but walks the pre-score-range
-  // set so the histogram keeps showing the full distribution while the score
-  // range is shown via the rect overlay. Without this, bars outside the
-  // selection collapse to zero and "disappear."
+  // The histogram walks the pre-score-range set so bars outside the score
+  // selection stay visible (the selection is shown via the rect overlay) rather
+  // than collapsing to zero.
   _histogramViewEntries() {
-    return this._statsViewEntriesFrom(this._entriesPreScoreRange || this.entries);
-  }
-
-  _statsViewEntriesFrom(source) {
-    const cache = new Map();
-    const effective = [];
-    let ignoredCount = 0;
-    for (const e of source) {
-      const d = this._entryDisplayState(e, cache);
-      if (d.ignored) ignoredCount++;
-      else effective.push({ score: d.effectiveScore });
-    }
-    return { entries: effective, ignoredCount };
-  }
-
-  _buildSortScores() {
-    if (!this.rescoreRules.length && !this.overrideMap.size) { this._sortScores = null; return; }
-    const map = new Map();
-    const rescoreCache = new Map();
-    for (const e of this.allEntries) {
-      const d = this._entryDisplayState(e, rescoreCache);
-      map.set(e, d.ignored ? -1 : d.effectiveScore);
-    }
-    this._sortScores = map;
-  }
-
-  _entryDisplayState(wlEntry, rescoreCache) {
-    let rescoredScore = wlEntry.score;
-    let wasRescored = false;
-    let ignored = false;
-    if (this.rescoreRules.length) {
-      const cacheKey = rescoreCache !== undefined ? `${wlEntry.score}:${wlEntry.entry.length}` : null;
-      let r;
-      if (cacheKey !== null) {
-        r = rescoreCache.get(cacheKey);
-        if (r === undefined) { r = rescoreEntry(wlEntry, this.rescoreRules); rescoreCache.set(cacheKey, r); }
-      } else {
-        r = rescoreEntry(wlEntry, this.rescoreRules);
-      }
-      if (!r.kept) {
-        ignored = true;
-      } else {
-        rescoredScore = r.score;
-        wasRescored = r.score !== wlEntry.score;
-      }
-    }
-    const ov = !ignored && this.overrideMap.get(wlEntry.entryLower);
-    const effectiveScore = ov ? ov.score : rescoredScore;
-    const effectiveComment = (ov && ov.comment) ? ov.comment : (wlEntry.comment || '');
-    return { ignored, rescoredScore, wasRescored, ov, effectiveScore, effectiveComment };
+    return this._entriesPreScoreRange || this.entries;
   }
 
   _render() {
@@ -4133,24 +4042,18 @@ class WorkshopEntriesScroller extends BaseVirtualScroller {
       const { entry, score } = wlEntry;
       const displayed = displayEntry(entry);
       const entryHtml = this._highlight ? this._highlight(displayed) : displayed;
-      const { ignored, rescoredScore, wasRescored, ov, effectiveScore, effectiveComment } = this._entryDisplayState(wlEntry);
-      const scoreOv = ov && ov.score !== rescoredScore;
 
-      const displayScore = ignored ? score : effectiveScore;
-      let scoreInner = buildScoreBadgeHTML(displayScore);
-      if (!ignored && (wasRescored || scoreOv)) scoreInner += `<sup class="effective-asterisk">*</sup>`;
-
-      const tierLabel = ignored ? '' : tierFor(displayScore);
+      const scoreInner = buildScoreBadgeHTML(score);
+      const tierLabel = tierFor(score);
       const scoreTitle = tierLabel ? ` title="${esc(tierLabel)}"` : '';
 
-      const commentText = ignored ? (wlEntry.comment || '') : effectiveComment;
-      const sourceWl = ov?.wordlist || wlEntry.wordlist;
+      const commentText = wlEntry.comment || '';
+      const sourceWl = wlEntry.wordlist;
       const sourceHTML = sourceWl ? buildWordlistNameHTML(sourceWl, { bold: false }) : '';
       const sourceTitle = sourceWl ? ` title="${esc(sourceWl.name)}"` : '';
 
       const row = document.createElement('div');
       let cls = 'entry-row';
-      if (ignored) cls += ' entry-ignored';
       if (activeEntry && entry === activeEntry) { cls += ' active'; nextActiveRow = row; }
       row.className = cls;
       row.dataset.entry = entry;
@@ -4527,15 +4430,13 @@ const AtomPopover = (() => {
   }
 
   function renderHTML(wlEntry, scroller) {
-    const d = scroller._entryDisplayState(wlEntry);
-    const scoreVal = d.ignored ? wlEntry.score : d.effectiveScore;
     return `
       <button class="dialog-close-btn" type="button" aria-label="Close">✕</button>
       <div class="atom-pop-fields">
         <label for="atom-pop-score">Score</label>
-        <input id="atom-pop-score" class="score-input" type="number" min="0" value="${scoreVal}">
+        <input id="atom-pop-score" class="score-input" type="number" min="0" value="${wlEntry.score}">
         <label for="atom-pop-comment">Comment</label>
-        <input id="atom-pop-comment" class="comment-input" type="text" value="${esc(d.effectiveComment)}">
+        <input id="atom-pop-comment" class="comment-input" type="text" value="${esc(wlEntry.comment || '')}">
       </div>
       <div class="atom-pop-foot">${renderFooterHTML(wlEntry, scroller)}</div>`;
   }
@@ -5138,9 +5039,9 @@ function refreshWorkshopStatsBarFromScroller() {
   if (!workshopScroller) return;
   const statsBar = document.querySelector('#workshop-stats .stats-bar');
   if (!statsBar) return;
-  const { entries, ignoredCount } = workshopScroller._filteredStatsViewEntries();
-  const stats = computeStatsRaw(entries, ignoredCount);
-  const hist = workshopScroller._histogramViewEntries();
+  const entries = workshopScroller._filteredStatsViewEntries();
+  const stats = computeStatsRaw(entries);
+  const hist = { entries: workshopScroller._histogramViewEntries(), ignoredCount: 0 };
   statsBar.outerHTML = buildStatsBarHTML(stats, hist, getHistogramLayout());
   repositionAllHistogramRects();
 }
@@ -5184,7 +5085,7 @@ function renderWorkshopMergedDetail() {
   workshopScroller.showSource = true;
   workshopScroller.editsWordlist = getEditsWordlist() ?? null;
   workshopScroller.showEditDeleteCol = true;
-  workshopScroller.setEntries(entries, WorkshopView.searchQuery, [], new Map(), WorkshopView.searchWholeWord, WorkshopView.scoreRange);
+  workshopScroller.setEntries(entries, WorkshopView.searchQuery, WorkshopView.searchWholeWord, WorkshopView.scoreRange);
 
   workshopScroller._onDeleteRow = entry => deleteFromEdits(entry, refreshWorkshopMergedScroller);
   attachExternalEditHandlers(workshopScroller, refreshWorkshopMergedScroller);
