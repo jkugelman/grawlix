@@ -1031,7 +1031,6 @@ input[type="file"] { display: none; }
       <aside class="wld-list">
         <div class="wld-list-sticky">
           <div class="wld-onboarding" id="wld-onboarding" hidden></div>
-          <input type="file" id="wld-onboarding-file" accept=".txt,.dict" hidden>
           <div class="wld-list-body" id="wld-list-body"></div>
           <div class="add-wordlist-row" id="wld-add-wordlist"><span class="drag-handle" aria-hidden="true">≡</span><span class="add-wordlist-icon">＋</span>Add wordlist</div>
         </div>
@@ -2247,7 +2246,6 @@ const LibraryView = (() => {
   const el = document.getElementById('library-view');
 
   const onboarding = el.querySelector('#wld-onboarding');
-  const onboardingFile = el.querySelector('#wld-onboarding-file');
   let _onboardingPage = lsLoad('onboarded')
     ? null
     : (parseInt(lsLoad('onboardingPage'), 10) || 1);
@@ -2286,7 +2284,7 @@ const LibraryView = (() => {
         <p>Got a personal wordlist? Import it into ${buildWordlistNameHTML(getEditsWordlist())}.</p>
         <div class="wld-onboarding-actions">
           <button class="link-btn" data-onboard-action="next">Skip</button>
-          <button class="primary" data-onboard-action="pick-file">Choose file…</button>
+          <button class="primary" data-onboard-action="import">Import…</button>
         </div>
         ${dotsHTML}`;
     }
@@ -2296,7 +2294,7 @@ const LibraryView = (() => {
       <p>XWord Info subscriber? Import your ${buildWordlistNameHTML(getXwiWordlist())} wordlist.</p>
       <div class="wld-onboarding-actions">
         <button class="link-btn" data-onboard-action="next">Skip</button>
-        <button class="primary" data-onboard-action="pick-file">Choose file…</button>
+        <button class="primary" data-onboard-action="import">Import…</button>
       </div>
       ${dotsHTML}`;
   }
@@ -2353,27 +2351,20 @@ const LibraryView = (() => {
     advanceOnboarding();
   }
 
-  function pickOnboardingFile() {
-    const targetPage = _onboardingPage;
-    onboardingFile.value = '';
-    onboardingFile.onchange = () => {
-      const file = onboardingFile.files[0];
-      if (!file) return;
-      const target = targetPage === 2 ? getEditsWordlist() : getXwiWordlist();
-      if (!target) { advanceOnboarding(); return; }
-      ingestFile(file, target);
-      // ingestFile triggers renderAll → refresh → renderOnboarding,
-      // which auto-advances once the import lands.
-    };
-    onboardingFile.click();
+  function openOnboardingImport() {
+    const target = _onboardingPage === 2 ? getEditsWordlist() : getXwiWordlist();
+    if (!target) { advanceOnboarding(); return; }
+    ImportGuideDialog.open(target);
+    // A successful import inside the dialog calls ingestFile, which triggers
+    // renderAll → renderOnboarding, auto-advancing once the import lands.
   }
 
   onboarding.addEventListener('click', e => {
     const action = e.target.closest('[data-onboard-action]')?.dataset.onboardAction;
-    if (action === 'dismiss')        finishOnboarding();
-    else if (action === 'next')      advanceOnboarding();
-    else if (action === 'blank')     onboardingGoBlank();
-    else if (action === 'pick-file') pickOnboardingFile();
+    if (action === 'dismiss')     finishOnboarding();
+    else if (action === 'next')   advanceOnboarding();
+    else if (action === 'blank')  onboardingGoBlank();
+    else if (action === 'import') openOnboardingImport();
   });
 
   const listBody = el.querySelector('#wld-list-body');
