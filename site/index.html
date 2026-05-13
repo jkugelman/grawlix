@@ -7251,6 +7251,79 @@ function reorderSources(fromIdx, toIdx) {
   repaintAfterCacheChange();
 }
 
+// ─── Test API ─────────────────────────────────────────────────────────────────
+// Exposed on `window.__grawlixTest` for the Playwright smoke suite. Routes
+// through real internal codepaths (applyWordlistText, setWordlistRescoreRules)
+// so tests exercise the same plumbing the UI does. The surface is small and
+// stable — adding to it is fine; renaming or repurposing existing helpers
+// breaks the tests that depend on them.
+
+window.__grawlixTest = {
+  // Add a populated custom wordlist (no publisherId). Entries are auto-named
+  // WORD001, WORD002, … one per score. Goes through applyWordlistText so the
+  // auto-seed path is exercised on import.
+  async addCustomWordlist({ name, scores, comments = [], enabled = true } = {}) {
+    const text = scores.map((s, i) => {
+      const entry = `WORD${String(i + 1).padStart(3, '0')}`;
+      const comment = comments[i];
+      return comment ? `${entry};${s};${comment}` : `${entry};${s}`;
+    }).join('\n');
+    const wordlist = addNewWordlist({
+      dbKey: crypto.randomUUID(),
+      icon: null,
+      publisherId: null,
+      name,
+      url: null,
+      enabled,
+      populated: false,
+    });
+    await applyWordlistText(wordlist, text, {
+      originalFilename: `${name}.txt`,
+      source: name,
+      silent: true,
+    });
+    return wordlist.dbKey;
+  },
+
+  // Replace a wordlist's rescore rules via the proper helper. Rules are the
+  // editor's shape: { input, length, output, note? }.
+  setRescoreRules(name, rules) {
+    const wl = this._lookup(name);
+    setWordlistRescoreRules(wl, rules);
+  },
+
+  // Toggle the transient `_updateAvailable` flag and repaint. Used by the
+  // severity-priority test to put info + warning on the same wordlist.
+  setUpdateAvailable(name, value) {
+    const wl = this._lookup(name);
+    wl._updateAvailable = !!value;
+    renderSources();
+  },
+
+  // Read-only snapshot for assertions. Returns the fields the smoke suite
+  // looks at; not a full wordlist dump.
+  getWordlist(name) {
+    const wl = state.sources.find(w => w.name === name);
+    if (!wl) return null;
+    return {
+      name: wl.name,
+      publisherId: wl.publisherId,
+      enabled: wl.enabled,
+      populated: wl.populated,
+      rescoreRules: wl.rescoreRules.map(r => ({ input: r.input, length: r.length || '', output: r.output })),
+      uncovered: [...(wl._uncovered || [])],
+      dirty: !!wl.dirty,
+      updateAvailable: !!wl._updateAvailable,
+    };
+  },
+
+  _lookup(name) {
+    const wl = state.sources.find(w => w.name === name);
+    if (!wl) throw new Error(`No wordlist named "${name}"`);
+    return wl;
+  },
+};
+
 // ─── Boot ─────────────────────────────────────────────────────────────────────
 
 document.addEventListener('click', () => document.querySelectorAll('.split-btn.open').forEach(b => b.classList.remove('open')));

@@ -45,3 +45,7 @@ To add a wordlist from a known publisher: click **Add list** and pick from the b
 All code lives in a single file: [`site/index.html`](site/index.html). No build step, no npm, no frameworks — plain HTML/CSS/JS that runs directly in the browser. Open it locally in any browser and you're developing.
 
 See [CLAUDE.md](CLAUDE.md) for architecture notes and coding conventions.
+
+## Tests
+
+A small Playwright smoke suite runs on push to `main`. Setup, strategy, and a command cheat sheet are in [`docs/testing.md`](docs/testing.md).
