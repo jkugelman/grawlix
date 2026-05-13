@@ -1231,6 +1231,29 @@ function maxSeverity(...severities) {
   return max;
 }
 
+// Severity for a regular wordlist's card: a catch-all on its rescore rules
+// (raw scores not ruled on) takes priority over the update-available info.
+function wordlistSeverity(wordlist) {
+  if (wordlist.rescoreRules?.some(r => r._catchAll)) return 'warning';
+  if (wordlist._updateAvailable) return 'info';
+  return null;
+}
+
+// Severity for the All card: a catch-all on `state.scoring` means there are
+// merged output scores not covered by any tier label.
+function allSeverity() {
+  return state.scoring.some(r => r._catchAll) ? 'warning' : null;
+}
+
+// Tooltip for a severity bubble. Causes (catch-all, update available) all
+// roll up to the same severity → title mapping; that's the right level of
+// detail for an at-a-glance tooltip.
+function severityTitle(severity) {
+  if (severity === 'warning') return 'Unhandled scores';
+  if (severity === 'info')    return 'Update available';
+  return '';
+}
+
 // opts: { enabled, populated, selected, severity, severityTitle }
 function buildWordlistCardHTML(icon, name, meta, opts = {}) {
   const {
@@ -1269,15 +1292,16 @@ function buildWordlistCardHTML(icon, name, meta, opts = {}) {
 
 // Like a regular wordlist card but with no drag handle, no enable toggle, and
 // not reorderable.
-function buildMergedCardHTML(selected) {
+function buildMergedCardHTML(selected, severity = null) {
   const meta = pluralize(buildMergedWordlist().entries.length, 'entry', 'entries');
   const cls = ['wordlist-card', 'wld-merged-card'];
   if (selected) cls.push('selected');
+  const bubble = buildSeverityBubbleHTML(severity, severityTitle(severity));
   return `<div class="${cls.join(' ')}" data-merged tabindex="0" role="option">
     <span class="drag-handle" aria-hidden="true">≡</span>
     ${MERGED_ICON}
     <div class="card-info">
-      <div class="card-name-row"><div class="card-name">${MERGED_NAME}</div></div>
+      <div class="card-name-row"><div class="card-name">${MERGED_NAME}</div>${bubble}</div>
       <div class="card-meta">${esc(meta)}</div>
     </div>
     <span class="wld-merged-card-spacer" aria-hidden="true"></span>
@@ -2390,17 +2414,17 @@ const LibraryView = (() => {
     if (!_sourceCountsCache) _sourceCountsCache = buildMergedWordlist().sourceCounts;
     const contribMap = new Map(_sourceCountsCache.map(s => [s.wordlist, s.count]));
 
-    const mergedCard = buildMergedCardHTML(_focusedWordlist === MERGED_ID);
+    const mergedCard = buildMergedCardHTML(_focusedWordlist === MERGED_ID, allSeverity());
     const sourceCards = state.sources.map(wordlist => {
       const icon = getWordlistIcon(wordlist);
       const meta = wordlistCardMeta(wordlist, contribMap);
-      const hasUpdate = !!wordlist._updateAvailable;
+      const severity = wordlistSeverity(wordlist);
       return buildWordlistCardHTML(icon, wordlist.name, meta, {
         selected:      _focusedWordlist === wordlist,
         enabled:       wordlist.enabled,
         populated:     wordlist.populated,
-        severity:      hasUpdate ? 'info' : null,
-        severityTitle: hasUpdate ? 'Update available' : '',
+        severity,
+        severityTitle: severityTitle(severity),
       });
     });
     listBody.innerHTML = [
@@ -4946,9 +4970,12 @@ function wordlistCardMeta(wordlist, contribMap) {
 // lazy path is only hit when no cache rebuild is in flight.
 function renderSources() {
   if (!_sourceCountsCache) _sourceCountsCache = buildMergedWordlist().sourceCounts;
+  // Recompute the All catch-all here so the cards' severity bubbles read
+  // fresh data. (renderScoringRules also recomputes — idempotent.)
+  updateScoringCatchAll(state.scoring, buildMergedWordlist().entries);
   LibraryView?.refresh();
-  const hasUpdate = state.sources.some(w => w._updateAvailable);
-  MainView?.setSeverityBubble('library', hasUpdate ? 'info' : null, hasUpdate ? 'Updates available' : '');
+  const severity = maxSeverity(...state.sources.map(wordlistSeverity), allSeverity());
+  MainView?.setSeverityBubble('library', severity, severityTitle(severity));
 }
 
 
@@ -5107,10 +5134,32 @@ function updateScoringCatchAll(scoring, entries) {
 // Repaint the editor in the Library view's All pane and refresh the
 // score-atom tooltips on the main panel. The scroller's rendered rows carry
 // the tier label as a `title=`; rules changes don't affect data so a cheap
-// re-render of the visible rows is enough.
+// re-render of the visible rows is enough. Also refreshes the misalignment
+// bubbles on the All card and the Library nav tab (state.scoring's catch-all
+// status drives both).
 function renderScoringRules() {
+  updateScoringCatchAll(state.scoring, buildMergedWordlist().entries);
   LibraryView.refreshScoringSection();
   workshopScroller?._render?.();
+  refreshLibrarySeverityBubbles();
+}
+
+// Update every Library-rail card bubble + the nav-tab bubble in place. Used
+// after non-cacheVersion-bumping changes (scoring edits, My Edits upserts
+// patched through patchCachesForEditsChange) that affect what severities
+// should be visible. Idempotent — safe to call after renderSources too.
+function refreshLibrarySeverityBubbles() {
+  const setRowBubble = (row, severity) => {
+    if (!row) return;
+    row.querySelector('.severity-bubble')?.remove();
+    if (severity) row.insertAdjacentHTML('beforeend', buildSeverityBubbleHTML(severity, severityTitle(severity)));
+  };
+  for (const card of document.querySelectorAll('.wordlist-card[data-wordlist]')) {
+    setRowBubble(card.querySelector('.card-name-row'), wordlistSeverity(card._wordlist));
+  }
+  setRowBubble(document.querySelector('.wld-merged-card .card-name-row'), allSeverity());
+  const navSev = maxSeverity(...state.sources.map(wordlistSeverity), allSeverity());
+  MainView?.setSeverityBubble('library', navSev, severityTitle(navSev));
 }
 
 function deleteScoringRow(i) {
