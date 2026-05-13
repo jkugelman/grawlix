@@ -4766,6 +4766,23 @@ function rulesSig(rules) {
   return rules.map(r => `${r.input}|${r.length}|${r.output}|${r._catchAll ? 1 : 0}`).join(';');
 }
 
+// On fetch/import of a custom wordlist (no publisherId) with empty rescore
+// rules and ≤10 distinct scores, seed one inert row per distinct score —
+// blank output, so scores pass through unchanged. Lays the source's scale
+// out as concrete rows next to All's tier scale; the user can fill in
+// output mappings if they want to translate into the unified scale.
+// See docs/plans/tier-alignment.md § Auto-seeding rescore rules on import.
+const AUTO_SEED_SCORE_LIMIT = 10;
+
+function maybeAutoSeedRescoreRules(wordlist) {
+  if (wordlist.publisherId) return;
+  if (wordlist.rescoreRules?.some(r => !r._catchAll)) return;
+  const scores = [...new Set(wordlist.rawEntries.map(e => e.score))];
+  if (!scores.length || scores.length > AUTO_SEED_SCORE_LIMIT) return;
+  scores.sort((a, b) => a - b);
+  wordlist.rescoreRules = scores.map(s => ({ input: String(s), length: '', output: '', note: '' }));
+}
+
 // Any score not matched by a user rule is collected into a read-only catch-all row so the UI always shows complete coverage.
 function updateCatchAll(wordlist) {
   const rules = wordlist.rescoreRules;
@@ -5431,6 +5448,7 @@ async function applyWordlistText(wordlist, text, { fetchedSize = null, originalF
     if (fetchedSize !== null) { wordlist.fetchedSize = fetchedSize; wordlist._updateAvailable = false; }
     if (originalFilename !== null) wordlist.originalFilename = originalFilename;
     if (!wordlist.populated) { wordlist.populated = true; wordlist.enabled = true; }
+    maybeAutoSeedRescoreRules(wordlist);
     updateCatchAll(wordlist);
     if (nameOverride) wordlist.name = nameOverride;
     if (clearUrl) { wordlist.url = null; wordlist.fetchedSize = null; wordlist._updateAvailable = false; }
