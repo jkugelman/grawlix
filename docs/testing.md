@@ -2,7 +2,7 @@
 
 A small Playwright smoke suite covers the user-visible behaviors that are hardest to verify by hand — features whose surface depends on a particular *data shape* (specific score distributions, simultaneous warning states, edits that flip a dirty flag, etc.). Visual / layout regressions stay manual.
 
-Background and policy live in [`plans/ci-testing.md`](plans/ci-testing.md). This doc is the day-to-day handbook.
+The suite is intentionally small. End-to-end smoke catches the bugs that matter for a single-file vanilla-JS app — subtle cross-feature breakage like "editing a score while a filter is active corrupts the override map" — and a handful of tests on the catastrophic paths gets roughly 80% of the value for 20% of the cost. CI is a passive monitor, not a gate.
 
 ## Strategy
 
@@ -16,9 +16,19 @@ Background and policy live in [`plans/ci-testing.md`](plans/ci-testing.md). This
 
 **Fresh browser context per test.** Playwright's default. Each test gets clean localStorage + IndexedDB, so test order doesn't matter and no teardown is needed.
 
-**One browser today.** Chromium only. WebKit and Firefox are easy to flip on in `playwright.config.js` if the multi-browser signal earns its keep.
+**One browser today.** Chromium only. Playwright supports Chromium, WebKit, and Firefox out of the box, and turning all three on roughly triples runtime (~30s → ~90s) — cheap enough that the cross-browser signal would be worth it if a Chrome-only API ever sneaked in. The reason it's off is just that the multi-browser signal hasn't earned the maintenance yet for a solo project. Flip them on in `playwright.config.js` if/when it does.
 
-**No screenshot diffing, no unit tests, no PR gating.** All three intentional — see [`plans/ci-testing.md`](plans/ci-testing.md).
+## What stays manual
+
+**Visual / layout bugs.** Screenshot diffing (compare each test's rendered PNG against a saved baseline) catches "the icon moved 5px" bugs but is brittle: antialiasing noise, constant baseline updates on every UI tweak, cross-browser font rendering differences. Not worth the maintenance burden for a solo project. Substitute: open the site on Safari, Firefox, and a phone before any release.
+
+**Real mobile Safari.** Playwright's WebKit is a Linux build that approximates Safari but isn't it. iOS-specific bugs only surface on actual devices.
+
+## Out of scope
+
+- **Unit tests.** No meaningful seams — logic is wired to DOM and persistence. Unit testing would mean either testing trivial pure helpers (low value) or rebuilding the DOM/IDB environment in jsdom (high cost, divergence risk).
+- **PR gating / branch protection.** CI runs on push to `main` only. For a solo pre-launch project, automation is a regression *signal*, not a release gate.
+- **Coverage metrics.** Smoke is the target, not comprehensive coverage. A coverage number would invite chasing it rather than chasing the bugs.
 
 ## First-time setup
 

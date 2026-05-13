@@ -8,7 +8,7 @@ All code lives in a single file: `site/index.html`. Don't bother searching for o
 
 `TODO.md` at the repo root is the user's personal scratchpad — never edit it. Reading it is fine but do not touch it.
 
-**Don't smoke-test by running `python -m http.server`.** It's a static HTML file with no build step or templating; serving it locally only verifies that the filesystem can read it, which is theatre. For real verification, syntax-check inline JS with `node ~/.claude/scripts/check-syntax.js site/index.html`, read the diff carefully, and say "I can't visually verify" when that's the truth — visual inspection requires the user's browser. A future Playwright suite is planned in [`docs/plans/ci-testing.md`](docs/plans/ci-testing.md).
+**Don't smoke-test by running `python -m http.server`.** It's a static HTML file with no build step or templating; serving it locally only verifies that the filesystem can read it, which is theatre. For real verification, syntax-check inline JS with `node ~/.claude/scripts/check-syntax.js site/index.html`, read the diff carefully, and say "I can't visually verify" when that's the truth — visual inspection requires the user's browser. The Playwright smoke suite covers some user-visible behaviors automatically; run `npm test` to verify. See [`docs/testing.md`](docs/testing.md) for what's covered and what isn't.
 
 ## Before non-trivial work: read the relevant docs
 
@@ -18,10 +18,10 @@ Design and manual:
 - [`docs/design.md`](docs/design.md) — present-tense design + whys: shell, Workshop / Library views, tool gallery & stack, entries table, URL state, caches & reactivity, non-features.
 - [`docs/manual.md`](docs/manual.md) — user-facing manual. Update when shipping user-facing changes.
 - [`docs/style.md`](docs/style.md) — coding-style conventions: CSS, JS, Markdown, terminology, commit messages. Read before formatting changes.
+- [`docs/testing.md`](docs/testing.md) — Playwright smoke suite handbook + strategy. Read before adding/modifying tests.
 - [`docs/wordlisted.md`](docs/wordlisted.md) — reference catalogue of Wordlisted's search modes; source material for the tool gallery.
 
 Plans (forward-looking, not yet shipped):
-- [`docs/plans/ci-testing.md`](docs/plans/ci-testing.md) — Playwright smoke suite (deferred).
 - [`docs/plans/help.md`](docs/plans/help.md) — separating welcome tour from returning-user reference manual.
 - [`docs/plans/lookup.md`](docs/plans/lookup.md) — click-a-word lookup (definitions, Wikipedia, NYT history, semantic search).
 - [`docs/plans/migration.md`](docs/plans/migration.md) — when to graduate from schema-version resets to layered migrations.
