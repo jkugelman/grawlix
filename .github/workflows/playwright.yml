@@ -26,22 +26,20 @@ jobs:
 
       - run: npm ci
 
-      # Cache Playwright browser binaries keyed on the installed Playwright
-      # version — the version is the only thing that determines browser ABI.
-      - name: Cache Playwright browsers
-        id: pw-cache
-        uses: actions/cache@v5
+      # Cache Playwright browser binaries. Key on package-lock (Playwright
+      # version → browser ABI) AND playwright.config.js (the browser list
+      # lives there, so adding/removing a project should cache-bust).
+      - uses: actions/cache@v5
         with:
           path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+          key: playwright-${{ runner.os }}-${{ hashFiles('package-lock.json', 'playwright.config.js') }}
 
-      - name: Install browsers
-        if: steps.pw-cache.outputs.cache-hit != 'true'
+      # Always run install — it's idempotent (skips already-cached binaries,
+      # ~5s on cache hit) and self-healing if the cache key ever lies about
+      # what's actually in the cache. System deps aren't cached and always
+      # need apt-get, so --with-deps stays on every run.
+      - name: Install Playwright browsers + system deps
         run: npx playwright install --with-deps
-
-      - name: Install system deps (cache hit)
-        if: steps.pw-cache.outputs.cache-hit == 'true'
-        run: npx playwright install-deps
 
       - name: Run tests
         run: npm test
