@@ -4849,7 +4849,7 @@ function updateScoringDirty() {
 // keeps My Edits' inert defaults in lockstep with state.scoring when the
 // user edits tier labels. Scoring runs first because My Edits' defaults
 // derive from state.scoring (via getMyEditsDefaultRules).
-// See docs/plans/tier-alignment.md § Default-rule propagation.
+// See docs/design.md § Rescore rules & tier alignment.
 function propagateDefaults() {
   if (!scoringRulesEqual(state.scoring, DEFAULT_SCORING) && !state.scoringDirty) {
     state.scoring = DEFAULT_SCORING.map(r => ({ ...r }));
@@ -4877,7 +4877,7 @@ function propagateDefaults() {
 // blank output, so scores pass through unchanged. Lays the source's scale
 // out as concrete rows next to All's tier scale; the user can fill in
 // output mappings if they want to translate into the unified scale.
-// See docs/plans/tier-alignment.md § Auto-seeding rescore rules on import.
+// See docs/design.md § Rescore rules & tier alignment.
 const AUTO_SEED_SCORE_LIMIT = 10;
 
 function maybeAutoSeedRescoreRules(wordlist) {
