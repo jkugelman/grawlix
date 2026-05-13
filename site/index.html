@@ -2868,13 +2868,13 @@ const MainView = (() => {
   // shorter and lose the user's place when they tab back.
   const _scrollByView = Object.create(null);
 
-  function activate(view) {
+  function activate(view, target = null) {
     if (!VIEWS[view]) view = DEFAULT_VIEW;
     const changed = view !== _current;
     if (changed) _scrollByView[_current] = scrollEl.scrollTop;
     _current = view;
     for (const [name, ctrl] of Object.entries(VIEWS)) {
-      if (name === view) ctrl.show();
+      if (name === view) ctrl.show(target);
       else               ctrl.hide();
     }
     for (const btn of navButtons) {
@@ -2890,13 +2890,33 @@ const MainView = (() => {
     Router.navigate();
   }
 
+  // When the user clicks Library via the nav tab, prefer focusing whichever
+  // card has the most severe bubble — that's almost certainly what they came
+  // to look at. Higher severity wins; ties break by rail order (All first,
+  // then sources in priority order). Returns null if nothing is bubbled.
+  function pickBubbledWordlist() {
+    let best = null;
+    let bestPri = 0;
+    const consider = (target, severity) => {
+      const p = SEVERITY_PRIORITY[severity] ?? 0;
+      if (p > bestPri) { best = target; bestPri = p; }
+    };
+    const allSev = allSeverity();
+    if (allSev) consider(MERGED_ID, allSev);
+    for (const wordlist of state.sources) {
+      const sev = wordlistSeverity(wordlist);
+      if (sev) consider(wordlist, sev);
+    }
+    return best;
+  }
+
   for (const btn of navButtons) {
     btn.addEventListener('click', () => {
       const view = btn.dataset.view;
       // Re-clicking the active nav scrolls back to the top — a common
       // affordance and an easy way to bail out of a long scroll.
       if (view === _current) scrollEl.scrollTo({ top: 0, behavior: 'smooth' });
-      else                   activate(view);
+      else                   activate(view, view === 'library' ? pickBubbledWordlist() : null);
     });
   }
 
