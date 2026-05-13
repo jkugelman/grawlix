@@ -689,10 +689,9 @@ a.get-file:hover { text-decoration: underline; }
 }
 .rule-del:hover { color: #e53935 !important; background: var(--del-hover); }
 
-/* Informational banner above a rules list when the catch-all is non-empty —
-   purely informational, listing the uncovered scores. Step 4 surfaces this
-   as a `warning` severity bubble on the wordlist card; today it only
-   replaces the old confusing catch-all row. */
+/* Informational banner above a rules list when there are uncovered scores —
+   purely informational, listing them. Same warning palette as the severity
+   bubble it pairs with on the wordlist card. */
 .rule-banner { display: flex; align-items: center; gap: 6px; padding: 4px 8px; margin-bottom: 6px; background: var(--callout-bg); border: 1px solid var(--callout-border); color: var(--callout-fg); border-radius: 3px; font-size: 12px; }
 .rule-banner-icon { flex-shrink: 0; }
 .rule-banner-body { flex: 1; min-width: 0; }
@@ -1233,23 +1232,23 @@ function maxSeverity(...severities) {
   return max;
 }
 
-// Severity for a regular wordlist's card: a catch-all on its rescore rules
-// (raw scores not ruled on) takes priority over the update-available info.
+// Severity for a regular wordlist's card: uncovered raw scores (rule
+// coverage gap) take priority over the update-available info.
 function wordlistSeverity(wordlist) {
-  if (wordlist.rescoreRules?.some(r => r._catchAll)) return 'warning';
+  if (wordlist._uncovered?.length) return 'warning';
   if (wordlist._updateAvailable) return 'info';
   return null;
 }
 
-// Severity for the All card: a catch-all on `state.scoring` means there are
-// merged output scores not covered by any tier label.
+// Severity for the All card: merged output scores not covered by any tier
+// label on `state.scoring`.
 function allSeverity() {
-  return state.scoring.some(r => r._catchAll) ? 'warning' : null;
+  return state._scoringUncovered.length ? 'warning' : null;
 }
 
-// Tooltip for a severity bubble. Causes (catch-all, update available) all
-// roll up to the same severity → title mapping; that's the right level of
-// detail for an at-a-glance tooltip.
+// Tooltip for a severity bubble. Causes (uncovered scores, update available)
+// all roll up to the same severity → title mapping; that's the right level
+// of detail for an at-a-glance tooltip.
 function severityTitle(severity) {
   if (severity === 'warning') return 'Unhandled scores';
   if (severity === 'info')    return 'Update available';
@@ -1498,21 +1497,19 @@ function buildRuleBannerHTML(scores) {
     </div>`;
 }
 
-function buildRulesListHTML(rules, { rulesId, saveFn, deleteFn, addFn = '', resetFn = '', dirty = false, rescore = false, readOnly = false }) {
-  // The catch-all row is separated out: it surfaces as an informational
-  // banner above the list (not as an editable row), and a `+ Add rule`
-  // button below replaces what was its dual-purpose authoring affordance.
-  const catchAll = rules.find(r => r._catchAll);
-  const userRules = rules.filter(r => !r._catchAll);
-  const banner = (!readOnly && catchAll && catchAll._catchAll?.length)
-    ? buildRuleBannerHTML(catchAll._catchAll)
+function buildRulesListHTML(rules, { rulesId, saveFn, deleteFn, addFn = '', resetFn = '', uncovered = [], dirty = false, rescore = false, readOnly = false }) {
+  // Uncovered scores surface as a banner above the list; rule authoring goes
+  // through the `+ Add rule` button below. The two split off what used to be
+  // a single dual-purpose row in the editor.
+  const banner = (!readOnly && uncovered.length)
+    ? buildRuleBannerHTML(uncovered)
     : '';
 
   let rulesHTML;
-  if (!userRules.length && rescore) {
+  if (!rules.length && rescore) {
     rulesHTML = '<div class="no-rules">No rules — entries kept as-is</div>';
   } else {
-    rulesHTML = userRules.map((r, i) => {
+    rulesHTML = rules.map((r, i) => {
       const inputInvalid = !readOnly && parseRange((r.input || '').trim()) === null;
       const disabled = readOnly ? ' disabled' : '';
       const inputHandlers = readOnly ? '' : ` oninput="onRuleInput(this)" onchange="${saveFn}(${i},'input',this.value)"`;
@@ -1545,28 +1542,30 @@ function buildRescoreSectionHTML(wordlist) {
   const hasDefaults = getWordlistDefaultRules(wordlist) !== null;
   return `<div class="rescore-top"><span class="rescore-lbl">Rescoring</span></div>` +
     buildRulesListHTML(wordlist.rescoreRules || [], {
-      rulesId: 'rescore-rules',
-      saveFn:  'saveRuleField',
-      deleteFn: 'deleteRule',
-      addFn:   'addRule',
-      resetFn: hasDefaults ? 'resetRescoreRules' : '',
-      dirty:   !!wordlist.dirty,
-      rescore: true,
+      rulesId:   'rescore-rules',
+      saveFn:    'saveRuleField',
+      deleteFn:  'deleteRule',
+      addFn:     'addRule',
+      resetFn:   hasDefaults ? 'resetRescoreRules' : '',
+      uncovered: wordlist._uncovered || [],
+      dirty:     !!wordlist.dirty,
+      rescore:   true,
     });
 }
 
-// Catch-all row is recomputed from merged entries each render so it reflects
-// whatever scores are currently in the data.
+// Uncovered scores are recomputed from merged entries each render so they
+// reflect whatever's currently in the data.
 function buildScoringSectionHTML() {
-  updateScoringCatchAll(state.scoring, buildMergedWordlist().entries);
+  recomputeScoringUncovered(buildMergedWordlist().entries);
   return `<div class="rescore-top"><span class="rescore-lbl">Scoring</span></div>` +
     buildRulesListHTML(state.scoring, {
-      rulesId:  'scoring-rules',
-      saveFn:   'saveScoringField',
-      deleteFn: 'deleteScoringRow',
-      addFn:    'addScoringRow',
-      resetFn:  'resetScoringRules',
-      dirty:    state.scoringDirty,
+      rulesId:   'scoring-rules',
+      saveFn:    'saveScoringField',
+      deleteFn:  'deleteScoringRow',
+      addFn:     'addScoringRow',
+      resetFn:   'resetScoringRules',
+      uncovered: state._scoringUncovered,
+      dirty:     state.scoringDirty,
     });
 }
 
@@ -1783,9 +1782,7 @@ const Router = (() => {
 // "these scores are recognized." Lets a fresh user edit a tier-covered score
 // without tripping the misalignment bubble; the rule already covers it.
 function getMyEditsDefaultRules() {
-  return state.scoring
-    .filter(r => !r._catchAll)
-    .map(r => ({ input: r.input, length: '', output: '', note: r.note || '' }));
+  return state.scoring.map(r => ({ input: r.input, length: '', output: '', note: r.note || '' }));
 }
 
 // Default tier labels for the unified score scale. Stored on `state.scoring`
@@ -1830,6 +1827,10 @@ const state = {
   // Drives `propagateDefaults` at boot (pristine users silently pick up dev
   // updates) and the "Reset to current defaults" button visibility.
   scoringDirty: false,
+  // Transient: merged-output scores not covered by any tier label.
+  // Recomputed by recomputeScoringUncovered; drives the Unhandled-scores
+  // banner on All's pane and the warning bubble on the All card.
+  _scoringUncovered: [],
 };
 
 // Per-wordlist cosmetic fields are signal-backed: each wordlist exposes both
@@ -1984,7 +1985,7 @@ function _persistMetaNow() {
     name: l.name, url: l.url || null,
     enabled: l.enabled, populated: l.populated, lastUpdated: l.lastUpdated || null,
     fetchedSize: l.fetchedSize || null,
-    rescoreRules: (l.rescoreRules || []).filter(r => !r._catchAll),
+    rescoreRules: l.rescoreRules || [],
     ...(l.dirty ? { dirty: true } : {}),
     originalFilename: l.originalFilename || null,
     ...(l.downloadCase ? { downloadCase: l.downloadCase } : {}),
@@ -1994,7 +1995,7 @@ function _persistMetaNow() {
 }
 
 function persistScoring() {
-  lsSave('scoring', JSON.stringify(state.scoring.filter(r => !r._catchAll)));
+  lsSave('scoring', JSON.stringify(state.scoring));
   lsSave('scoringDirty', state.scoringDirty ? '1' : '0');
 }
 
@@ -2343,7 +2344,7 @@ const LibraryView = (() => {
     state.sources = [edits];
     state.scoring = [];
     edits.rescoreRules = [];
-    updateCatchAll(edits);
+    recomputeUncovered(edits);
     persistMeta();
     persistScoring();
     await Promise.all(toRemove.map(l => idbDel('data_' + l.dbKey)));
@@ -2996,7 +2997,7 @@ async function init() {
           rawEntries: text ? parseWordlist(text) : [],
           _loading: false,
         });
-        updateCatchAll(wordlist);
+        recomputeUncovered(wordlist);
         return wordlist;
       }));
     } catch { state.sources = defaultSources(); }
@@ -3048,7 +3049,7 @@ function defaultSources() {
       _loading: false,
       rescoreRules: t.defaultRules ? JSON.parse(JSON.stringify(t.defaultRules)) : [],
     });
-    updateCatchAll(wordlist);
+    recomputeUncovered(wordlist);
     return wordlist;
   });
 }
@@ -3077,7 +3078,7 @@ function ensureEdits() {
       _loading: false,
       rescoreRules: getMyEditsDefaultRules(),
     });
-    updateCatchAll(newEdits);
+    recomputeUncovered(newEdits);
     state.sources.unshift(newEdits);
     sources$.bump();
     persistMeta();
@@ -3138,7 +3139,7 @@ async function clearEdits() {
   batchUpdate(() => {
     edits.rawEntries = [];
     invalidateWordlistCaches(edits);
-    updateCatchAll(edits);
+    recomputeUncovered(edits);
     repaintAfterCacheChange();
   });
   await persistEdits(edits);
@@ -4783,15 +4784,11 @@ function outputSortKey(rule) {
   return getRuleMaxScore(rule); // 'unchanged' sorts by input score
 }
 
-function rulesSig(rules) {
-  return rules.map(r => `${r.input}|${r.length}|${r.output}|${r._catchAll ? 1 : 0}`).join(';');
-}
-
-// Equality for rule arrays, ignoring catch-all rows. Drives the dirty flag
-// and the boot-time silent propagation of dev-shipped default updates.
+// Equality for rule arrays. Drives the dirty flag and the boot-time silent
+// propagation of dev-shipped default updates.
 function rescoreRulesEqual(a, b) {
-  const au = (a || []).filter(r => !r._catchAll);
-  const bu = (b || []).filter(r => !r._catchAll);
+  const au = a || [];
+  const bu = b || [];
   if (au.length !== bu.length) return false;
   return au.every((r, i) => {
     const o = bu[i];
@@ -4803,8 +4800,8 @@ function rescoreRulesEqual(a, b) {
 }
 
 function scoringRulesEqual(a, b) {
-  const au = (a || []).filter(r => !r._catchAll);
-  const bu = (b || []).filter(r => !r._catchAll);
+  const au = a || [];
+  const bu = b || [];
   if (au.length !== bu.length) return false;
   return au.every((r, i) => {
     const o = bu[i];
@@ -4851,7 +4848,7 @@ function propagateDefaults() {
     if (defaults === null) continue;
     if (!rescoreRulesEqual(wordlist.rescoreRules, defaults) && !wordlist.dirty) {
       wordlist.rescoreRules = defaults.map(r => ({ ...r }));
-      updateCatchAll(wordlist);
+      recomputeUncovered(wordlist);
       invalidateWordlistCaches(wordlist);
       metaTouched = true;
     }
@@ -4872,23 +4869,21 @@ const AUTO_SEED_SCORE_LIMIT = 10;
 
 function maybeAutoSeedRescoreRules(wordlist) {
   if (wordlist.publisherId) return;
-  if (wordlist.rescoreRules?.some(r => !r._catchAll)) return;
+  if (wordlist.rescoreRules?.length) return;
   const scores = [...new Set(wordlist.rawEntries.map(e => e.score))];
   if (!scores.length || scores.length > AUTO_SEED_SCORE_LIMIT) return;
   scores.sort((a, b) => a - b);
   wordlist.rescoreRules = scores.map(s => ({ input: String(s), length: '', output: '', note: '' }));
 }
 
-// Any score not matched by a user rule is collected into a read-only catch-all row so the UI always shows complete coverage.
-function updateCatchAll(wordlist) {
+// Sort the wordlist's rescore rules into editor display order and recompute
+// `wordlist._uncovered` — the list of raw scores in the data not covered by
+// any length-filter-free rule. The Unhandled-scores banner in the editor and
+// the warning severity bubble on the card both key off this field.
+function recomputeUncovered(wordlist) {
   const rules = wordlist.rescoreRules;
-  const before = rulesSig(rules);
 
-  // Remove existing auto catch-all
-  const caIdx = rules.findIndex(r => r._catchAll);
-  if (caIdx !== -1) rules.splice(caIdx, 1);
-
-  // Sort user rules: primary = output score descending, then input score, then length
+  // Sort: primary = output score descending, then input score, then length.
   rules.sort((a, b) => {
     const ao = outputSortKey(a), bo = outputSortKey(b);
     if (ao !== bo) return bo - ao;
@@ -4897,25 +4892,16 @@ function updateCatchAll(wordlist) {
     const aL = !!(a.length && a.length.trim()), bL = !!(b.length && b.length.trim());
     return (aL ? 0 : 1) - (bL ? 0 : 1);
   });
+  rules.forEach(compileRule);
 
-  // Find actual scores in the data not covered by any length-filter-free rule
   const actualScores = wordlist.rawEntries && wordlist.rawEntries.length
     ? [...new Set(wordlist.rawEntries.map(e => e.score))].sort((a, b) => a - b)
     : [];
-  const uncovered = actualScores.filter(s => !rules.some(r => {
+  wordlist._uncovered = actualScores.filter(s => !rules.some(r => {
     if (r.length && r.length.trim()) return false;
     const intervals = parseRange(r.input);
     return intervals && matchesRange(s, intervals);
   }));
-
-  if (uncovered.length > 0) {
-    // _catchAll stores the actual uncovered scores (not a range string), so the
-    // rules-editor banner can list them faithfully. `input` is kept as a range
-    // for any consumer that still reads it, but the row isn't rendered.
-    rules.push({ input: scoresToRangeStr(uncovered), length: '', output: '', _catchAll: uncovered.slice() });
-  }
-  rules.forEach(compileRule);
-  return rulesSig(rules) !== before;
 }
 
 function parseRuleOutput(str) {
@@ -5083,9 +5069,9 @@ function wordlistCardMeta(wordlist, contribMap) {
 // lazy path is only hit when no cache rebuild is in flight.
 function renderSources() {
   if (!_sourceCountsCache) _sourceCountsCache = buildMergedWordlist().sourceCounts;
-  // Recompute the All catch-all here so the cards' severity bubbles read
+  // Refresh state._scoringUncovered so the All card's severity bubble reads
   // fresh data. (renderScoringRules also recomputes — idempotent.)
-  updateScoringCatchAll(state.scoring, buildMergedWordlist().entries);
+  recomputeScoringUncovered(buildMergedWordlist().entries);
   LibraryView?.refresh();
   const severity = maxSeverity(...state.sources.map(wordlistSeverity), allSeverity());
   MainView?.setSeverityBubble('library', severity, severityTitle(severity));
@@ -5211,10 +5197,8 @@ async function downloadMergedWordlistFromPanel() {
 
 // ─── Scoring (tier labels) ────────────────────────────────────────────────────
 
-// Returns a `score → tier label` function. Specific rules win over the
-// catch-all by iteration order (updateScoringCatchAll appends the catch-all
-// last). Empty notes (including the catch-all's) collapse to '' so callers can
-// skip the tooltip entirely.
+// Returns a `score → tier label` function. First matching rule wins; an
+// empty note collapses to '' so callers can skip the tooltip entirely.
 function makeTierLookup() {
   const rules = state.scoring
     .map(r => ({ note: r.note || '', intervals: parseRange(r.input) }))
@@ -5225,33 +5209,30 @@ function makeTierLookup() {
   };
 }
 
-function updateScoringCatchAll(scoring, entries) {
-  const caIdx = scoring.findIndex(r => r._catchAll);
-  if (caIdx !== -1) scoring.splice(caIdx, 1);
+// Sort state.scoring into editor display order and recompute
+// `state._scoringUncovered` — the list of merged-output scores not covered
+// by any tier label. Counterpart to recomputeUncovered for the tier scale.
+function recomputeScoringUncovered(entries) {
+  // Sort rows by score range descending (highest scores first).
+  state.scoring.sort((a, b) => getRuleMaxScore(b) - getRuleMaxScore(a));
+
   const actualScores = entries.length
     ? [...new Set(entries.map(e => e.score))].sort((a, b) => a - b)
     : [];
-  const uncovered = actualScores.filter(s => !scoring.some(r => {
+  state._scoringUncovered = actualScores.filter(s => !state.scoring.some(r => {
     const intervals = parseRange(r.input);
     return intervals && matchesRange(s, intervals);
   }));
-
-  // Sort rows by score range descending (highest scores first)
-  scoring.sort((a, b) => getRuleMaxScore(b) - getRuleMaxScore(a));
-
-  if (uncovered.length > 0) {
-    scoring.push({ input: scoresToRangeStr(uncovered), note: '', _catchAll: uncovered.slice() });
-  }
 }
 
 // Repaint the editor in the Library view's All pane and refresh the
 // score-atom tooltips on the main panel. The scroller's rendered rows carry
 // the tier label as a `title=`; rules changes don't affect data so a cheap
 // re-render of the visible rows is enough. Also refreshes the misalignment
-// bubbles on the All card and the Library nav tab (state.scoring's catch-all
-// status drives both).
+// bubbles on the All card and the Library nav tab (state._scoringUncovered
+// drives both).
 function renderScoringRules() {
-  updateScoringCatchAll(state.scoring, buildMergedWordlist().entries);
+  recomputeScoringUncovered(buildMergedWordlist().entries);
   LibraryView.refreshScoringSection();
   workshopScroller?._render?.();
   refreshLibrarySeverityBubbles();
@@ -5338,7 +5319,7 @@ function upsertEdits(entry, field, newValue) {
     edits.rawEntries.push(wlEntry);
   }
   patchCachesForEditsChange(entryLow, wlEntry);
-  updateCatchAll(edits);
+  recomputeUncovered(edits);
   persistEdits(edits);
   refreshDerivedDisplays();
 }
@@ -5556,7 +5537,7 @@ async function applyWordlistText(wordlist, text, { fetchedSize = null, originalF
     if (originalFilename !== null) wordlist.originalFilename = originalFilename;
     if (!wordlist.populated) { wordlist.populated = true; wordlist.enabled = true; }
     maybeAutoSeedRescoreRules(wordlist);
-    updateCatchAll(wordlist);
+    recomputeUncovered(wordlist);
     if (nameOverride) wordlist.name = nameOverride;
     if (clearUrl) { wordlist.url = null; wordlist.fetchedSize = null; wordlist._updateAvailable = false; }
     persistMeta();
@@ -5693,7 +5674,7 @@ function ingestFile(file, wordlist, nameOverride) {
       wordlist.rawEntries.push(...newEntries);
       wordlist.lastUpdated = Date.now();
       invalidateWordlistCaches(wordlist);
-      updateCatchAll(wordlist);
+      recomputeUncovered(wordlist);
 
       await persistData(wordlist.dbKey, entriesToText(wordlist.rawEntries));
       persistMeta();
@@ -5779,7 +5760,7 @@ function openAddEntryBar() {
     }
 
     patchCachesForEditsChange(entry, wlEntry);
-    updateCatchAll(edits);
+    recomputeUncovered(edits);
     persistEdits(edits);
     refreshDerivedDisplays();
     refreshWorkshopMergedScroller();
@@ -5805,7 +5786,7 @@ function deleteFromEdits(entry, refreshFn) {
 
   const [deleted] = edits.rawEntries.splice(idx, 1);
   patchCachesForEditsChange(entryLow, null);
-  updateCatchAll(edits);
+  recomputeUncovered(edits);
   persistEdits(edits);
   refresh();
   refreshDerivedDisplays();
@@ -5813,7 +5794,7 @@ function deleteFromEdits(entry, refreshFn) {
   showUndoToast(`Deleted ${esc(displayEntry(deleted.entry))} from ${buildWordlistNameHTML(edits)}`, () => {
     edits.rawEntries.splice(idx, 0, deleted);
     patchCachesForEditsChange(entryLow, deleted);
-    updateCatchAll(edits);
+    recomputeUncovered(edits);
     persistEdits(edits);
     refresh();
     refreshDerivedDisplays();
@@ -5841,7 +5822,7 @@ function toggleWordlist(wordlist, event) {
 
 function addNewWordlist(wordlistDef) {
   const wordlist = wrapWordlist({ rescoreRules: [], ...wordlistDef, rawEntries: [], lastUpdated: null, _loading: false });
-  updateCatchAll(wordlist);
+  recomputeUncovered(wordlist);
   state.sources.push(wordlist);
   invalidateSourceCounts();
   invalidateStatsCache(_mergedStatsKey);
@@ -6239,7 +6220,7 @@ const ConfigureWordlistDialog = (() => {
 
   function rulesMatchDefaultRules(wordlist, publisher) {
     const publisherRules = publisher?.defaultRules || [];
-    const wordlistRules      = (wordlist?.rescoreRules || []).filter(r => !r._catchAll);
+    const wordlistRules  = wordlist?.rescoreRules || [];
     if (wordlistRules.length !== publisherRules.length) return false;
     return wordlistRules.every((r, i) => {
       const p = publisherRules[i];
@@ -6797,8 +6778,8 @@ function addRule() {
   if (!wordlist) return;
   wordlist.rescoreRules.push({ input: '', length: '', output: '', note: '' });
   afterRuleChange(wordlist);
-  // Focus the new rule's input — updateCatchAll reorders the array, so find
-  // by the first row whose input is empty after the re-render.
+  // Focus the new rule's input — recomputeUncovered reorders the array, so
+  // find the first row whose input is empty after the re-render.
   const inp = [...document.querySelectorAll('#rescore-rules .rule-row .rule-in')].find(i => !i.value);
   inp?.focus();
 }
@@ -7250,7 +7231,7 @@ function setWordlistRescoreRules(wordlist, rules) {
 // and merged caches must clear too, since histograms now show rescored entries
 // and the histogram layout depends on the union of every source's rescored set.
 function applyRescoreRulesChange(wordlist) {
-  updateCatchAll(wordlist);
+  recomputeUncovered(wordlist);
   updateWordlistDirty(wordlist);
   invalidateWordlistCaches(wordlist);
   persistMeta();

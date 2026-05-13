@@ -43,7 +43,7 @@ Sections within the `<script>` block are delimited by banner comments like:
 
 ## Data model
 
-`state` holds `sources` (the per-wordlist data), `selected`, and search state. Each wordlist has metadata, `rawEntries` (parsed wordlist-entry records, shape `{ entry, score, comment }`), and `rescoreRules`. My Edits additionally has a `scoring` field — tier labels for the unified score scale, used everywhere scores are displayed (the merged All view shows them as a legend).
+`state` holds `sources` (the per-wordlist data), `scoring` (tier labels for the unified score scale, used everywhere scores are displayed — the merged All view shows them as a legend), `scoringDirty` (true when tier labels diverge from `DEFAULT_SCORING`), and search state. Each wordlist has metadata, `rawEntries` (parsed wordlist-entry records, shape `{ entry, score, comment }`), `rescoreRules`, and a `dirty` flag against its publisher's `defaultRules` (or `getMyEditsDefaultRules()` for My Edits). Transient `wordlist._uncovered` / `state._scoringUncovered` carry the list of scores not covered by any rule — see *Rescore rules & tier alignment* in `docs/design.md`.
 
 **Terminology** — *wordlist* (data source), *wordlist entry* (`wlEntry`, the `{ entry, score, comment }` record), *entry* (the string field — `wlEntry.entry`), *word* (reserved for literal English, e.g. "Whole word" search). Full glossary in [`docs/style.md`](docs/style.md#terminology).
 
@@ -62,9 +62,9 @@ ENTRY;SCORE
 ENTRY;SCORE;COMMENT
 ```
 
-**Rescore rules** (per source) map an input score range + optional entry-length filter to an output score (or `'ignore'` to drop the entry). First matching rule wins; a catch-all is auto-appended. My Edits has no rescore rules — its scores pass through unchanged.
+**Rescore rules** (every wordlist, including My Edits) map an input score range + optional entry-length filter to an output score (or `'ignore'` to drop the entry). First matching rule wins. Raw scores not matched by any length-filter-free rule are collected into `wordlist._uncovered` — a transient list that drives the Unhandled-scores banner in the editor and the warning-severity bubble on the wordlist's card.
 
-**Scoring rules** (My Edits' `scoring` field) are the user's tier labels for the unified score scale: a single source of truth for what each score range means to them. Edited from My Edits' right pane in the Library view; surfaced as a read/write legend on the merged All view too. The catch-all auto-row reflects scores present in the merged view that aren't covered by any rule.
+**Scoring rules** (`state.scoring`) are the user's tier labels for the unified score scale: single source of truth for what each score range means. Edited from All's right pane in the Library view. Same uncovered-scores pattern (`state._scoringUncovered`) flags merged output scores that no tier label covers.
 
 ## Persistence
 
@@ -79,7 +79,7 @@ ENTRY;SCORE;COMMENT
 
 ## Key concepts
 
-**My Edits** — a special wordlist created automatically on first boot, identified by `wordlist.type === 'edits'`. It has no rescore rules (scores pass through as-is) but does carry the user's `scoring` (tier labels). Clicking a score or comment cell in any view opens an inline editor; saving upserts the entry into My Edits. From the My Edits view the user can also add new entries and delete entries (with undo). It is reorderable like any other wordlist (position determines merge priority). The UI enforces: not deletable, always enabled.
+**My Edits** — a special wordlist created automatically on first boot, identified by `wordlist.type === 'edits'`. Carries rescore rules like any other wordlist; ships with inert defaults derived from `state.scoring` (via `getMyEditsDefaultRules`) so a fresh-install tier-covered edit doesn't trip the misalignment bubble. Clicking a score or comment cell in any view opens an inline editor; saving upserts the entry into My Edits. From the My Edits view the user can also add new entries and delete entries (with undo). It is reorderable like any other wordlist (position determines merge priority). The UI enforces: not deletable, always enabled.
 
 **Override and rescore display** — When viewing a wordlist, score and comment cells always show the *effective* value (what actually appears in the merged output), not the raw value from that wordlist. A red superscript asterisk (`*`) indicates the displayed value differs from what the wordlist itself contains. An instant HTML popover (`#cell-popover`) explains why: the original score for rescored entries, or the overriding wordlist's name for overrides. Both conditions can apply simultaneously. The overrideMap (built by `buildOverrideMap`) stores `{ wordlistName, score, comment }` from the highest-priority wordlist above the current one; a comment override only applies when that wordlist has a non-empty comment. Editing an overridden cell pre-fills the input with the effective value (not the raw value) so the user is editing what actually matters — the result always lands in My Edits regardless.
 
