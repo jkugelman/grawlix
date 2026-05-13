@@ -1,11 +1,9 @@
 const { defineConfig, devices } = require('@playwright/test');
 
-// Single project (Chromium) for now. WebKit and Firefox are easy to add but
-// out of scope until the multi-browser signal earns its keep.
-//
-// Tests run against a static server hosting site/. The ?test=1 isn't used —
-// __grawlixTest is exposed unconditionally on window (see Test API section at
-// the bottom of site/index.html).
+// Three projects: Chromium, Firefox, WebKit. Each runs the full suite.
+// Tests run against a static server hosting site/. __grawlixTest is exposed
+// unconditionally on window (see Test API section at the bottom of
+// site/index.html).
 module.exports = defineConfig({
   testDir: './tests',
   fullyParallel: true,
@@ -19,7 +17,9 @@ module.exports = defineConfig({
     screenshot: 'only-on-failure',
   },
   projects: [
-    { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
+    { name: 'chromium', use: { ...devices['Desktop Chrome']  } },
+    { name: 'firefox',  use: { ...devices['Desktop Firefox'] } },
+    { name: 'webkit',   use: { ...devices['Desktop Safari']  } },
   ],
   webServer: {
     command: 'python3 -m http.server 4173 --directory site --bind 127.0.0.1',

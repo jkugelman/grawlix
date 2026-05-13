@@ -34,14 +34,15 @@ async function stubPublisherFetches(page, bodies = {}) {
 }
 
 // Navigate to the app with the given route. Defaults to the bare URL
-// (Workshop). Awaits the busy overlay disappearing so callers can interact
-// immediately.
+// (Workshop). Polls until init() has finished opening the IndexedDB so
+// callers can immediately call test-API functions that persist data.
 async function gotoApp(page, route = '/') {
   await page.goto(route);
-  // The busy overlay covers the page during init() and is removed on the
-  // post-fade transitionend. Waiting for it to be detached is the cleanest
-  // ready-signal we have.
-  await expect(page.locator('#busy-overlay')).toHaveCount(0, { timeout: 5000 });
+  // Don't wait on the busy overlay — it's removed synchronously by the boot
+  // scaffolding when localStorage is empty, before init() even runs. _db
+  // going non-null is the actual signal that init()'s `await openDB()` has
+  // resolved (Chromium wins this race incidentally; Firefox doesn't).
+  await expect.poll(async () => page.evaluate(() => _db !== null), { timeout: 5000 }).toBe(true);
 }
 
 // Switch to the Library view via the brand-bar nav button.

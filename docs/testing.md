@@ -16,7 +16,7 @@ The suite is intentionally small. End-to-end smoke catches the bugs that matter 
 
 **Fresh browser context per test.** Playwright's default. Each test gets clean localStorage + IndexedDB, so test order doesn't matter and no teardown is needed.
 
-**One browser today.** Chromium only. Playwright supports Chromium, WebKit, and Firefox out of the box, and turning all three on roughly triples runtime (~30s → ~90s) — cheap enough that the cross-browser signal would be worth it if a Chrome-only API ever sneaked in. The reason it's off is just that the multi-browser signal hasn't earned the maintenance yet for a solo project. Flip them on in `playwright.config.js` if/when it does.
+**Three browsers.** Chromium, Firefox, and WebKit. The full suite runs against all three on every push. Cross-browser catches the rare Chrome-only API leak; on a smoke suite the maintenance is cheap because tests target user-visible behavior, not browser-specific quirks. Run one browser at a time during local iteration: `npm test -- --project=chromium`.
 
 ## What stays manual
 
@@ -43,20 +43,21 @@ Then:
 
 ```sh
 npm install
-npx playwright install chromium
-npx playwright install-deps chromium    # first time only, may need sudo
+npx playwright install
+sudo npx playwright install-deps   # first time only — installs OS-level browser deps
 ```
 
 ## Cheat sheet
 
 ```sh
-npm test                         # all tests, headless — what CI runs
-npm test -- tests/smoke.spec.js  # one file
-npm test -- -g "auto-seed"       # one test by name (grep)
-CI=1 npm test                    # reproduce CI conditions (1 worker, 2 retries)
-npm run test:headed              # opens a real browser window
-npm run test:ui                  # interactive runner with time-travel
-npm run test:report              # serve the HTML report from the last run
+npm test                              # all browsers, headless — what CI runs
+npm test -- --project=chromium        # one browser (fast)
+npm test -- tests/smoke.spec.js       # one file
+npm test -- -g "auto-seed"            # one test by name (grep)
+CI=1 npm test                         # reproduce CI conditions (1 worker, 2 retries)
+npm run test:headed                   # opens a real browser window
+npm run test:ui                       # interactive runner with time-travel
+npm run test:report                   # serve the HTML report from the last run
 ```
 
 `CI=1` is worth knowing: local runs default to parallel workers, but CI uses one worker, which surfaces timing races (e.g. a click handler that hands off async work that the next assertion reads too early). If a test passes locally but fails in CI, run with `CI=1` first.
