@@ -697,8 +697,11 @@ a.get-file:hover { text-decoration: underline; }
 .rule-banner-icon { flex-shrink: 0; }
 .rule-banner-body { flex: 1; min-width: 0; }
 
-.rule-add-btn { margin-top: 6px; padding: 2px 10px; border: 1px dashed var(--border); background: transparent; color: var(--muted); border-radius: 3px; font-size: 12px; cursor: pointer; font-family: inherit; }
+.rule-actions { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 6px; }
+.rule-add-btn { padding: 2px 10px; border: 1px dashed var(--border); background: transparent; color: var(--muted); border-radius: 3px; font-size: 12px; cursor: pointer; font-family: inherit; }
 .rule-add-btn:hover { color: var(--text); border-color: var(--accent); }
+.rule-reset-btn { padding: 2px 10px; border: 1px solid var(--border); background: transparent; color: var(--muted); border-radius: 3px; font-size: 12px; cursor: pointer; font-family: inherit; }
+.rule-reset-btn:hover { color: var(--text); border-color: var(--accent); }
 
 /* ── Collapsible section ─────────────────────────────────────────────────── */
 /* Chevron is absolute-positioned so the label lines up with whatever lives in `.collapsible-content` below. */
@@ -1496,7 +1499,7 @@ function buildRuleBannerHTML(scores) {
     </div>`;
 }
 
-function buildRulesListHTML(rules, { rulesId, saveFn, deleteFn, addFn = '', rescore = false, readOnly = false }) {
+function buildRulesListHTML(rules, { rulesId, saveFn, deleteFn, addFn = '', resetFn = '', dirty = false, rescore = false, readOnly = false }) {
   // The catch-all row is separated out: it surfaces as an informational
   // banner above the list (not as an editable row), and a `+ Add rule`
   // button below replaces what was its dual-purpose authoring affordance.
@@ -1533,13 +1536,24 @@ function buildRulesListHTML(rules, { rulesId, saveFn, deleteFn, addFn = '', resc
     }).join('');
   }
   const addBtn = (!readOnly && addFn) ? `<button class="rule-add-btn" onclick="${addFn}()">+ Add rule</button>` : '';
-  return `${banner}<div id="${rulesId}">${rulesHTML}</div>${addBtn}`;
+  const resetBtn = (!readOnly && resetFn && dirty) ? `<button class="rule-reset-btn" onclick="${resetFn}()">Reset to current defaults</button>` : '';
+  const actionsRow = (addBtn || resetBtn) ? `<div class="rule-actions">${addBtn}${resetBtn}</div>` : '';
+  return `${banner}<div id="${rulesId}">${rulesHTML}</div>${actionsRow}`;
 }
 
 function buildRescoreSectionHTML(wordlist) {
   if (!wordlist) return '';
+  const hasDefaults = getWordlistDefaultRules(wordlist) !== null;
   return `<div class="rescore-top"><span class="rescore-lbl">Rescoring</span></div>` +
-    buildRulesListHTML(wordlist.rescoreRules || [], { rulesId: 'rescore-rules', saveFn: 'saveRuleField', deleteFn: 'deleteRule', addFn: 'addRule', rescore: true });
+    buildRulesListHTML(wordlist.rescoreRules || [], {
+      rulesId: 'rescore-rules',
+      saveFn:  'saveRuleField',
+      deleteFn: 'deleteRule',
+      addFn:   'addRule',
+      resetFn: hasDefaults ? 'resetRescoreRules' : '',
+      dirty:   !!wordlist.dirty,
+      rescore: true,
+    });
 }
 
 // Catch-all row is recomputed from merged entries each render so it reflects
@@ -1547,7 +1561,14 @@ function buildRescoreSectionHTML(wordlist) {
 function buildScoringSectionHTML() {
   updateScoringCatchAll(state.scoring, buildMergedWordlist().entries);
   return `<div class="rescore-top"><span class="rescore-lbl">Scoring</span></div>` +
-    buildRulesListHTML(state.scoring, { rulesId: 'scoring-rules', saveFn: 'saveScoringField', deleteFn: 'deleteScoringRow', addFn: 'addScoringRow' });
+    buildRulesListHTML(state.scoring, {
+      rulesId:  'scoring-rules',
+      saveFn:   'saveScoringField',
+      deleteFn: 'deleteScoringRow',
+      addFn:    'addScoringRow',
+      resetFn:  'resetScoringRules',
+      dirty:    state.scoringDirty,
+    });
 }
 
 function buildEntriesTablePanelHTML() {
@@ -1806,6 +1827,10 @@ const state = {
   // everywhere scores get a tooltip. No signal — mutators call
   // `persistScoring()` and `renderScoringRules()` explicitly.
   scoring: [],
+  // True when state.scoring has been customized away from DEFAULT_SCORING.
+  // Drives `propagateDefaults` at boot (pristine users silently pick up dev
+  // updates) and the "Reset to current defaults" button visibility.
+  scoringDirty: false,
 };
 
 // Per-wordlist cosmetic fields are signal-backed: each wordlist exposes both
@@ -1960,6 +1985,7 @@ function _persistMetaNow() {
     enabled: l.enabled, populated: l.populated, lastUpdated: l.lastUpdated || null,
     fetchedSize: l.fetchedSize || null,
     rescoreRules: (l.rescoreRules || []).filter(r => !r._catchAll),
+    ...(l.dirty ? { dirty: true } : {}),
     originalFilename: l.originalFilename || null,
     ...(l.downloadCase ? { downloadCase: l.downloadCase } : {}),
     ...(l.downloadExt  ? { downloadExt:  l.downloadExt  } : {}),
@@ -1969,6 +1995,7 @@ function _persistMetaNow() {
 
 function persistScoring() {
   lsSave('scoring', JSON.stringify(state.scoring.filter(r => !r._catchAll)));
+  lsSave('scoringDirty', state.scoringDirty ? '1' : '0');
 }
 
 async function persistData(dbKey, text) {
@@ -2971,6 +2998,7 @@ async function init() {
           lastUpdated: m.lastUpdated || null,
           fetchedSize: m.fetchedSize || null,
           rescoreRules: (m.rescoreRules || []).map(r => ({ length: '', ...r })),
+          dirty: !!m.dirty,
           originalFilename: m.originalFilename || null,
           ...(m.downloadCase ? { downloadCase: m.downloadCase } : {}),
           ...(m.downloadExt  ? { downloadExt:  m.downloadExt  } : {}),
@@ -2998,6 +3026,7 @@ async function init() {
 
   ensureScoring();
   ensureEdits();
+  propagateDefaults();
   MainView.activate(initialView);
   renderAll();
   const _overlay = document.getElementById('busy-overlay');
@@ -3073,11 +3102,13 @@ function ensureScoring() {
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed)) {
         state.scoring = parsed;
+        state.scoringDirty = lsLoad('scoringDirty') === '1';
         return;
       }
     } catch {}
   }
   state.scoring = DEFAULT_SCORING.map(r => ({ ...r }));
+  state.scoringDirty = false;
   persistScoring();
 }
 
@@ -4766,6 +4797,81 @@ function rulesSig(rules) {
   return rules.map(r => `${r.input}|${r.length}|${r.output}|${r._catchAll ? 1 : 0}`).join(';');
 }
 
+// Equality for rule arrays, ignoring catch-all rows. Drives the dirty flag
+// and the boot-time silent propagation of dev-shipped default updates.
+function rescoreRulesEqual(a, b) {
+  const au = (a || []).filter(r => !r._catchAll);
+  const bu = (b || []).filter(r => !r._catchAll);
+  if (au.length !== bu.length) return false;
+  return au.every((r, i) => {
+    const o = bu[i];
+    return r.input === o.input
+      && (r.length || '') === (o.length || '')
+      && (r.output || '') === (o.output || '')
+      && (r.note   || '') === (o.note   || '');
+  });
+}
+
+function scoringRulesEqual(a, b) {
+  const au = (a || []).filter(r => !r._catchAll);
+  const bu = (b || []).filter(r => !r._catchAll);
+  if (au.length !== bu.length) return false;
+  return au.every((r, i) => {
+    const o = bu[i];
+    return r.input === o.input && (r.note || '') === (o.note || '');
+  });
+}
+
+// The current "default rescore rules" for a wordlist that has them. Returns
+// null for custom wordlists with no canonical baseline (no publisher, not
+// My Edits). dirty/propagation logic short-circuits on null.
+function getWordlistDefaultRules(wordlist) {
+  if (wordlist.type === 'edits') return getMyEditsDefaultRules();
+  const publisher = getPublisher(wordlist);
+  return publisher?.defaultRules ?? null;
+}
+
+// Recompute the dirty flag after a rule mutation. Custom wordlists (no
+// defaults) keep `dirty` undefined and don't participate in propagation.
+function updateWordlistDirty(wordlist) {
+  const defaults = getWordlistDefaultRules(wordlist);
+  if (defaults === null) return;
+  wordlist.dirty = !rescoreRulesEqual(wordlist.rescoreRules, defaults);
+}
+
+function updateScoringDirty() {
+  state.scoringDirty = !scoringRulesEqual(state.scoring, DEFAULT_SCORING);
+}
+
+// For any rule set with defaults, if persisted rules differ but `dirty` is
+// false, silently overwrite with current defaults. At boot this picks up
+// dev-shipped updates for users who haven't customized; within a session it
+// keeps My Edits' inert defaults in lockstep with state.scoring when the
+// user edits tier labels. Scoring runs first because My Edits' defaults
+// derive from state.scoring (via getMyEditsDefaultRules).
+// See docs/plans/tier-alignment.md § Default-rule propagation.
+function propagateDefaults() {
+  if (!scoringRulesEqual(state.scoring, DEFAULT_SCORING) && !state.scoringDirty) {
+    state.scoring = DEFAULT_SCORING.map(r => ({ ...r }));
+    persistScoring();
+  }
+  let metaTouched = false;
+  for (const wordlist of state.sources) {
+    const defaults = getWordlistDefaultRules(wordlist);
+    if (defaults === null) continue;
+    if (!rescoreRulesEqual(wordlist.rescoreRules, defaults) && !wordlist.dirty) {
+      wordlist.rescoreRules = defaults.map(r => ({ ...r }));
+      updateCatchAll(wordlist);
+      invalidateWordlistCaches(wordlist);
+      metaTouched = true;
+    }
+  }
+  if (metaTouched) {
+    persistMeta();
+    repaintAfterCacheChange();
+  }
+}
+
 // On fetch/import of a custom wordlist (no publisherId) with empty rescore
 // rules and ≤10 distinct scores, seed one inert row per distinct score —
 // blank output, so scores pass through unchanged. Lays the source's scale
@@ -5181,28 +5287,39 @@ function refreshLibrarySeverityBubbles() {
 
 function deleteScoringRow(i) {
   const [deleted] = state.scoring.splice(i, 1);
-  persistScoring();
-  renderScoringRules();
+  applyScoringChange();
   showUndoToast('Deleted scoring row', () => {
     state.scoring.push(deleted);
-    persistScoring();
-    renderScoringRules();
+    applyScoringChange();
   });
 }
 
 function saveScoringField(i, field, val) {
   if (!state.scoring[i]) return;
   state.scoring[i][field] = val;
-  persistScoring();
-  renderScoringRules();
+  applyScoringChange();
 }
 
 function addScoringRow() {
   state.scoring.push({ input: '', note: '' });
-  persistScoring();
-  renderScoringRules();
+  applyScoringChange();
   const inp = [...document.querySelectorAll('#scoring-rules .rule-row .rule-in')].find(i => !i.value);
   inp?.focus();
+}
+
+// Shared tail for scoring mutations: update the dirty flag, persist, keep
+// My Edits' inert defaults in lockstep with the new tier scale, and render.
+function applyScoringChange() {
+  updateScoringDirty();
+  persistScoring();
+  propagateDefaults();
+  renderScoringRules();
+}
+
+async function resetScoringRules() {
+  if (!await showConfirm('Replace your tier labels with the current defaults? Your customizations will be lost.', { confirmText: 'Reset' })) return;
+  state.scoring = DEFAULT_SCORING.map(r => ({ ...r }));
+  applyScoringChange();
 }
 
 
@@ -6696,6 +6813,16 @@ function addRule() {
   inp?.focus();
 }
 
+async function resetRescoreRules() {
+  const wordlist = getRescoreContextWordlist();
+  if (!wordlist) return;
+  const defaults = getWordlistDefaultRules(wordlist);
+  if (defaults === null) return;
+  if (!await showConfirm('Replace your rescore rules with the current defaults? Your customizations will be lost.', { confirmText: 'Reset' })) return;
+  wordlist.rescoreRules = defaults.map(r => ({ ...r }));
+  afterRuleChange(wordlist);
+}
+
 function noteDisplayHTML(note) {
   return `<span class="rule-note-text">${esc(note)}</span><span class="edit-hint rule-note-pencil" aria-hidden="true">✏️</span>`;
 }
@@ -7107,6 +7234,10 @@ function setWordlistPublisher(wordlist, publisherId) {
   const newVal = publisherId || null;
   if ((wordlist.publisherId ?? null) === newVal) return;
   wordlist.publisherId = newVal;
+  // Defaults changed with the publisher — recompute dirty against the new
+  // publisher's defaultRules (whether or not the caller is also updating
+  // the rules in the same batchUpdate).
+  updateWordlistDirty(wordlist);
   persistMeta();
 }
 
@@ -7130,6 +7261,7 @@ function setWordlistRescoreRules(wordlist, rules) {
 // and the histogram layout depends on the union of every source's rescored set.
 function applyRescoreRulesChange(wordlist) {
   updateCatchAll(wordlist);
+  updateWordlistDirty(wordlist);
   invalidateWordlistCaches(wordlist);
   persistMeta();
   repaintAfterCacheChange();
