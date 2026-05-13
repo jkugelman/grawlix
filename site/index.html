@@ -1521,10 +1521,9 @@ function buildRescoreSectionHTML(wordlist) {
 // Catch-all row is recomputed from merged entries each render so it reflects
 // whatever scores are currently in the data.
 function buildScoringSectionHTML() {
-  const edits = getEditsWordlist();
-  if (edits) updateScoringCatchAll(edits.scoring, buildMergedWordlist().entries);
+  updateScoringCatchAll(state.scoring, buildMergedWordlist().entries);
   return `<div class="rescore-top"><span class="rescore-lbl">Scoring</span></div>` +
-    buildRulesListHTML(edits?.scoring || [], { rulesId: 'scoring-rules', saveFn: 'saveScoringField', deleteFn: 'deleteScoringRow', addFn: 'addScoringRow' });
+    buildRulesListHTML(state.scoring, { rulesId: 'scoring-rules', saveFn: 'saveScoringField', deleteFn: 'deleteScoringRow', addFn: 'addScoringRow' });
 }
 
 function buildEntriesTablePanelHTML() {
@@ -1734,8 +1733,19 @@ const Router = (() => {
 
 // ─── State ────────────────────────────────────────────────────────────────────
 
-// Default tier labels. Lives on My Edits' `scoring` field; shown both there and
-// as a legend on the merged All view.
+// My Edits' default rescore rules mirror All's tier scale (state.scoring):
+// one inert row per tier, carrying the tier's score and note. Inert because
+// My Edits' scores are already in the unified scale — the rules just declare
+// "these scores are recognized." Lets a fresh user edit a tier-covered score
+// without tripping the misalignment bubble; the rule already covers it.
+function getMyEditsDefaultRules() {
+  return state.scoring
+    .filter(r => !r._catchAll)
+    .map(r => ({ input: r.input, length: '', output: '', note: r.note || '' }));
+}
+
+// Default tier labels for the unified score scale. Stored on `state.scoring`
+// and surfaced as a read/write legend on the merged All view.
 const DEFAULT_SCORING = [
   { input: '60', note: 'Great (colorful phrases, sayings, people, etc.)' },
   { input: '50', note: 'Good (dictionary words, phrases)' },
@@ -1767,6 +1777,11 @@ function bumpCacheVersion() { cacheVersion$.set(cacheVersion$.peek() + 1); }
 const state = {
   get sources()  { return sources$.peek(); },
   set sources(v) { sources$.set(v); },
+  // Tier labels for the unified score scale. Single source of truth for what
+  // each score range means to the user; edited from All's pane and used
+  // everywhere scores get a tooltip. No signal — mutators call
+  // `persistScoring()` and `renderScoringRules()` explicitly.
+  scoring: [],
 };
 
 // Per-wordlist cosmetic fields are signal-backed: each wordlist exposes both
@@ -1845,7 +1860,9 @@ function lsDel(key)  { localStorage.removeItem(LS_PREFIX + key); }
 // Bump when the shape of stored data (localStorage `meta`, IDB entries) changes
 // in a way that older code can't read. Mismatch on load triggers a reset prompt.
 //   v4 — drop state.outputScoring; tier labels live exclusively on My Edits' `scoring`.
-const SCHEMA_VERSION = 4;
+//   v5 — tier labels move off My Edits to top-level `state.scoring` (its own
+//        localStorage key); My Edits gains a normal rescoreRules editor.
+const SCHEMA_VERSION = 5;
 
 function readMergedSettings() {
   try { return JSON.parse(lsLoad('mergedSettings')) || {}; } catch { return {}; }
@@ -1920,11 +1937,14 @@ function _persistMetaNow() {
     fetchedSize: l.fetchedSize || null,
     rescoreRules: (l.rescoreRules || []).filter(r => !r._catchAll),
     originalFilename: l.originalFilename || null,
-    ...(l.scoring ? { scoring: l.scoring.filter(r => !r._catchAll) } : {}),
     ...(l.downloadCase ? { downloadCase: l.downloadCase } : {}),
     ...(l.downloadExt  ? { downloadExt:  l.downloadExt  } : {}),
     ...(l.downloadStem ? { downloadStem: l.downloadStem } : {}),
   }))));
+}
+
+function persistScoring() {
+  lsSave('scoring', JSON.stringify(state.scoring.filter(r => !r._catchAll)));
 }
 
 async function persistData(dbKey, text) {
@@ -2264,15 +2284,19 @@ const LibraryView = (() => {
   }
 
   async function onboardingGoBlank() {
-    const toRemove = state.sources.filter(l => l.type !== 'edits');
-    // Invalidate first so the cosmetic effect that fires on the
-    // `state.sources = …` assignment doesn't read a stale merged cache that
-    // still references the wordlists we're removing.
-    toRemove.forEach(l => invalidateWordlistCaches(l));
-    state.sources = state.sources.filter(l => l.type === 'edits');
+    // Invalidate every wordlist's caches first so the cosmetic effect that
+    // fires on the `state.sources = …` assignment doesn't read a stale
+    // merged cache (whether the wordlist is being removed or just having its
+    // rules cleared).
+    state.sources.forEach(l => invalidateWordlistCaches(l));
     const edits = getEditsWordlist();
-    if (edits) edits.scoring = [];
+    const toRemove = state.sources.filter(l => l !== edits);
+    state.sources = [edits];
+    state.scoring = [];
+    edits.rescoreRules = [];
+    updateCatchAll(edits);
     persistMeta();
+    persistScoring();
     await Promise.all(toRemove.map(l => idbDel('data_' + l.dbKey)));
     renderAll();
     advanceOnboarding();
@@ -2405,12 +2429,11 @@ const LibraryView = (() => {
     const wordlist = _focusedWordlist;
     const isEdits = wordlist.type === 'edits';
     const hasData = wordlist.rawEntries.length > 0;
-    const hasRules = !isEdits && (wordlist.rescoreRules?.length ?? 0) > 0;
+    const hasRules = (wordlist.rescoreRules?.length ?? 0) > 0;
 
     // Stats source depends on display mode: rescored mode applies rules and
-    // drops ignored entries; original mode shows the raw scores. My Edits has
-    // no rules so its mode is fixed to rescored (which equals original).
-    const useOriginal = !isEdits && _displayMode === 'original';
+    // drops ignored entries; original mode shows the raw scores.
+    const useOriginal = _displayMode === 'original';
     const sourceEntries = useOriginal ? wordlist.rawEntries : getRescoredEntries(wordlist);
     const ignoredCount = useOriginal ? 0 : wordlist.rawEntries.length - sourceEntries.length;
     const stats = computeStatsRaw(sourceEntries, ignoredCount);
@@ -2451,14 +2474,12 @@ const LibraryView = (() => {
     }
 
     // Mode toggle: only meaningful when there are rules to apply.
-    const toggleHTML = (!isEdits && hasData && hasRules) ? buildModeToggleHTML() : '';
+    const toggleHTML = (hasData && hasRules) ? buildModeToggleHTML() : '';
     const dateSlot = (hasData && wordlist.lastUpdated) ? '<span class="detail-date"></span>' : '';
     // Toggle on the left (when present); date + buttons on the right.
     const actionsHTML = [toggleHTML, dateSlot, actionBtn, dlBtn, moreMenu].filter(Boolean).join('\n');
 
-    const rulesHTML = isEdits
-      ? ''
-      : `<div class="wld-pane-rescore" id="wld-rescore-section">${buildRescoreSectionHTML(wordlist)}</div>`;
+    const rulesHTML = `<div class="wld-pane-rescore" id="wld-rescore-section">${buildRescoreSectionHTML(wordlist)}</div>`;
 
     pane.innerHTML = `
       ${buildStatsBarHTML(stats, { entries: sourceEntries, ignoredCount }, getHistogramLayout(), { readOnly: true })}
@@ -2527,8 +2548,7 @@ const LibraryView = (() => {
   function refreshStatsBar() {
     if (!_focusedWordlist || _focusedWordlist === MERGED_ID) return;
     const wordlist = _focusedWordlist;
-    const isEdits = wordlist.type === 'edits';
-    const useOriginal = !isEdits && _displayMode === 'original';
+    const useOriginal = _displayMode === 'original';
     const sourceEntries = useOriginal ? wordlist.rawEntries : getRescoredEntries(wordlist);
     const ignoredCount = useOriginal ? 0 : wordlist.rawEntries.length - sourceEntries.length;
     const stats = computeStatsRaw(sourceEntries, ignoredCount);
@@ -2631,7 +2651,7 @@ const LibraryView = (() => {
   // Applies uncommitted rules to the entries view so rule tuning is live.
   function previewRescoreRules(rules) {
     if (!_entriesScroller) return;
-    if (_focusedWordlist === MERGED_ID || _focusedWordlist?.type === 'edits') return;
+    if (_focusedWordlist === MERGED_ID) return;
     _entriesScroller.setRescorePreview(rules);
   }
 
@@ -2774,7 +2794,7 @@ const LibraryView = (() => {
     if (section) section.innerHTML = buildRescoreSectionHTML(_focusedWordlist);
   }
 
-  // Counterpart for the scoring (tier-label) editor on My Edits.
+  // Counterpart for the scoring (tier-label) editor on All.
   function refreshScoringSection() {
     const section = el.querySelector('#wld-scoring-section');
     if (section) section.innerHTML = buildScoringSectionHTML();
@@ -2928,7 +2948,6 @@ async function init() {
           fetchedSize: m.fetchedSize || null,
           rescoreRules: (m.rescoreRules || []).map(r => ({ length: '', ...r })),
           originalFilename: m.originalFilename || null,
-          ...(m.scoring      ? { scoring: m.scoring }           : {}),
           ...(m.downloadCase ? { downloadCase: m.downloadCase } : {}),
           ...(m.downloadExt  ? { downloadExt:  m.downloadExt  } : {}),
           ...(m.downloadStem ? { downloadStem: m.downloadStem } : {}),
@@ -2953,6 +2972,7 @@ async function init() {
 
   const initialView = Router.applyURL();
 
+  ensureScoring();
   ensureEdits();
   MainView.activate(initialView);
   renderAll();
@@ -2999,7 +3019,6 @@ function getEditsWordlist() {
 function ensureEdits() {
   const edits = getEditsWordlist();
   if (edits) {
-    if (!edits.scoring) edits.scoring = DEFAULT_SCORING.map(r => ({ ...r }));
     if (!edits.icon) edits.icon = EDITS_ICON;
   } else {
     const newEdits = wrapWordlist({
@@ -3013,14 +3032,29 @@ function ensureEdits() {
       rawEntries: [],
       lastUpdated: null,
       _loading: false,
-      rescoreRules: [],
-      scoring: DEFAULT_SCORING.map(r => ({ ...r })),
+      rescoreRules: getMyEditsDefaultRules(),
     });
     updateCatchAll(newEdits);
     state.sources.unshift(newEdits);
     sources$.bump();
     persistMeta();
   }
+}
+
+// Load tier labels from storage, or seed defaults on first boot.
+function ensureScoring() {
+  const raw = lsLoad('scoring');
+  if (raw) {
+    try {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        state.scoring = parsed;
+        return;
+      }
+    } catch {}
+  }
+  state.scoring = DEFAULT_SCORING.map(r => ({ ...r }));
+  persistScoring();
 }
 
 function entriesToText(entries) {
@@ -5042,8 +5076,7 @@ async function downloadMergedWordlistFromPanel() {
 // last). Empty notes (including the catch-all's) collapse to '' so callers can
 // skip the tooltip entirely.
 function makeTierLookup() {
-  const edits = getEditsWordlist();
-  const rules = (edits?.scoring || [])
+  const rules = state.scoring
     .map(r => ({ note: r.note || '', intervals: parseRange(r.input) }))
     .filter(r => r.intervals);
   return score => {
@@ -5071,7 +5104,7 @@ function updateScoringCatchAll(scoring, entries) {
   }
 }
 
-// Repaint the editor in the Library view's My Edits pane and refresh the
+// Repaint the editor in the Library view's All pane and refresh the
 // score-atom tooltips on the main panel. The scroller's rendered rows carry
 // the tier label as a `title=`; rules changes don't affect data so a cheap
 // re-render of the visible rows is enough.
@@ -5081,31 +5114,26 @@ function renderScoringRules() {
 }
 
 function deleteScoringRow(i) {
-  const edits = getEditsWordlist();
-  if (!edits) return;
-  const [deleted] = edits.scoring.splice(i, 1);
-  persistMeta();
+  const [deleted] = state.scoring.splice(i, 1);
+  persistScoring();
   renderScoringRules();
   showUndoToast('Deleted scoring row', () => {
-    edits.scoring.push(deleted);
-    persistMeta();
+    state.scoring.push(deleted);
+    persistScoring();
     renderScoringRules();
   });
 }
 
 function saveScoringField(i, field, val) {
-  const edits = getEditsWordlist();
-  if (!edits?.scoring[i]) return;
-  edits.scoring[i][field] = val;
-  persistMeta();
+  if (!state.scoring[i]) return;
+  state.scoring[i][field] = val;
+  persistScoring();
   renderScoringRules();
 }
 
 function addScoringRow() {
-  const edits = getEditsWordlist();
-  if (!edits) return;
-  edits.scoring.push({ input: '', note: '' });
-  persistMeta();
+  state.scoring.push({ input: '', note: '' });
+  persistScoring();
   renderScoringRules();
   const inp = [...document.querySelectorAll('#scoring-rules .rule-row .rule-in')].find(i => !i.value);
   inp?.focus();
@@ -6612,9 +6640,8 @@ function startNoteEdit(wrapEl) {
 
   let currentNote, onSave;
   if (isScoring) {
-    const edits = getEditsWordlist();
-    if (!edits?.scoring[i]) return;
-    currentNote = edits.scoring[i].note || '';
+    if (!state.scoring[i]) return;
+    currentNote = state.scoring[i].note || '';
     onSave = note => saveScoringField(i, 'note', note);
   } else {
     const wordlist = getRescoreContextWordlist();

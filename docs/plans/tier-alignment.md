@@ -56,15 +56,17 @@ My Edits does *not* auto-seed in the same way, because it ships with default res
 
 ## My Edits' default rules
 
-My Edits ships with default rescore rules matching JK's tier scale: inert rows (blank outputs) at the same score values as the JK publisher's `defaultRules`, with the same educational notes ("Great", "Good", "Fine but watch crosses", etc.).
+My Edits ships with default rescore rules mirroring All's tier scale: one inert row per `state.scoring` tier, carrying that tier's score and note. Inert (blank output) because My Edits' scores are already in the unified scale — the rules just declare "these scores are recognized."
 
-Why. Without default rules, the first edit to any score in My Edits produces a `_catchAll` row (since no rule covers the raw score) and an immediate warning bubble. That's hostile onboarding — the user makes one legitimate edit and gets flagged. Shipping with JK-style defaults means a fresh-install edit to any JK-tier score lands on an existing rule and produces no warning.
+Why. Without default rules, the first edit to any score in My Edits produces a `_catchAll` row (since no rule covers the raw score) and an immediate warning bubble. That's hostile onboarding — the user makes one legitimate edit and gets flagged. Mirroring All's tiers means a fresh-install edit to any tier-covered score lands on an existing rule and produces no warning.
 
-The defaults are **inert** (blank outputs), so they don't transform imported scores — they just provide tier semantics for recognized values. A user importing non-JK-scaled data into My Edits sees the imported scores in the catch-all row (warning bubble), and can either rescore them into the JK scale, add tier labels on All for the foreign scores, or replace the rules entirely. This is surfacing, not imposing.
+Why All's tiers and not, say, JK's: My Edits is the user's own data, and the unified scale is the user's chosen contract for what scores mean. Tying My Edits' defaults to that contract (rather than to one particular publisher's `defaultRules`) keeps the two in lockstep — if the user adds a tier on All for score `45`, My Edits' defaults gain a `45` row too, so a future `45` edit doesn't trip a warning.
+
+The defaults are **inert**, so they don't transform anything — they just provide tier semantics for recognized values. A user importing data with foreign scores into My Edits sees those scores in the catch-all row (warning bubble), and can either rescore them into the tier scale, add tier labels on All for the foreign scores, or replace the rules entirely. Surfacing, not imposing.
 
 Auto-seed on import doesn't fire for My Edits in practice (its rules aren't empty), but the condition is the same as for any wordlist; the catch-all warning is the appropriate signal for "you imported data outside the recognized scale."
 
-Dirty-flag mechanics apply normally — My Edits has a `dirty` flag tracked against its defaults; the per-ruleset reset button appears in its rules editor when `dirty == true`.
+Dirty-flag mechanics apply normally — My Edits has a `dirty` flag tracked against its defaults (current `getMyEditsDefaultRules()` output); the per-ruleset reset button appears in its rules editor when `dirty == true`.
 
 ---
 
