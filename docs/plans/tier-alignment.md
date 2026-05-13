@@ -50,7 +50,21 @@ Why. Discoverability — the user sees the source's score scale laid out as conc
 
 Not seeded for known publishers (their `defaultRules` cover the translation correctly) or wordlists that already have user rules.
 
-My Edits gets the same treatment under (B). Its `rescoreRules` starts empty; the first import seeds rows. (Today's `ensureEdits()` bootstraps My Edits with `DEFAULT_SCORING` on the `scoring` field — once `scoring` moves to All, that bootstrap goes with it.)
+My Edits does *not* auto-seed in the same way, because it ships with default rescore rules — see next section.
+
+---
+
+## My Edits' default rules
+
+My Edits ships with default rescore rules matching JK's tier scale: inert rows (blank outputs) at the same score values as the JK publisher's `defaultRules`, with the same educational notes ("Great", "Good", "Fine but watch crosses", etc.).
+
+Why. Without default rules, the first edit to any score in My Edits produces a `_catchAll` row (since no rule covers the raw score) and an immediate warning bubble. That's hostile onboarding — the user makes one legitimate edit and gets flagged. Shipping with JK-style defaults means a fresh-install edit to any JK-tier score lands on an existing rule and produces no warning.
+
+The defaults are **inert** (blank outputs), so they don't transform imported scores — they just provide tier semantics for recognized values. A user importing non-JK-scaled data into My Edits sees the imported scores in the catch-all row (warning bubble), and can either rescore them into the JK scale, add tier labels on All for the foreign scores, or replace the rules entirely. This is surfacing, not imposing.
+
+Auto-seed on import doesn't fire for My Edits in practice (its rules aren't empty), but the condition is the same as for any wordlist; the catch-all warning is the appropriate signal for "you imported data outside the recognized scale."
+
+Dirty-flag mechanics apply normally — My Edits has a `dirty` flag tracked against its defaults; the per-ruleset reset button appears in its rules editor when `dirty == true`.
 
 ---
 
