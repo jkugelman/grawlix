@@ -689,6 +689,17 @@ a.get-file:hover { text-decoration: underline; }
 }
 .rule-del:hover { color: #e53935 !important; background: var(--del-hover); }
 
+/* Informational banner above a rules list when the catch-all is non-empty —
+   purely informational, listing the uncovered scores. Step 4 surfaces this
+   as a `warning` severity bubble on the wordlist card; today it only
+   replaces the old confusing catch-all row. */
+.rule-banner { display: flex; align-items: center; gap: 6px; padding: 4px 8px; margin-bottom: 6px; background: var(--callout-bg); border: 1px solid var(--callout-border); color: var(--callout-fg); border-radius: 3px; font-size: 12px; }
+.rule-banner-icon { flex-shrink: 0; }
+.rule-banner-body { flex: 1; min-width: 0; }
+
+.rule-add-btn { margin-top: 6px; padding: 2px 10px; border: 1px dashed var(--border); background: transparent; color: var(--muted); border-radius: 3px; font-size: 12px; cursor: pointer; font-family: inherit; }
+.rule-add-btn:hover { color: var(--text); border-color: var(--accent); }
+
 /* ── Collapsible section ─────────────────────────────────────────────────── */
 /* Chevron is absolute-positioned so the label lines up with whatever lives in `.collapsible-content` below. */
 .collapsible-toggle { position: relative; display: block; width: 100%; padding: 0; margin: 0 0 6px; background: none; border: none; font: inherit; color: inherit; cursor: pointer; text-align: left; }
@@ -1439,28 +1450,43 @@ function buildUrlInputHTML(id, placeholder) {
     `</div>`;
 }
 
-function buildRuleRowHTML(i, isCatchAll, fieldsHTML, note, onDeleteFn, readOnly = false) {
+function buildRuleRowHTML(i, fieldsHTML, note, onDeleteFn, readOnly = false) {
   const noteWrap = readOnly
     ? `<span class="rule-note-wrap${note ? ' has-note' : ''}"><span class="rule-note-text">${esc(note||'')}</span></span>`
     : `<span class="rule-note-wrap${note ? ' has-note' : ''}" onclick="startNoteEdit(this)" title="Click to edit">
         <span class="rule-note-text">${esc(note||'')}</span>
         ${buildEditHintHTML('rule-note-pencil', 'startNoteEdit(this.parentElement)')}
       </span>`;
-  const delBtn = (isCatchAll || readOnly) ? '' : `<button class="rule-del" onclick="${onDeleteFn}(${i})" title="Delete row">${buildTrashIconHTML()}</button>`;
-  return `<div class="rule-row${isCatchAll ? ' rule-catchall' : ''}" data-i="${i}">
+  const delBtn = readOnly ? '' : `<button class="rule-del" onclick="${onDeleteFn}(${i})" title="Delete row">${buildTrashIconHTML()}</button>`;
+  return `<div class="rule-row" data-i="${i}">
       ${fieldsHTML}
       ${noteWrap}
       ${delBtn}
     </div>`;
 }
 
-function buildRulesListHTML(rules, { rulesId, saveFn, deleteFn, rescore = false, readOnly = false }) {
+function buildRuleBannerHTML(scores) {
+  return `<div class="rule-banner" role="status">
+      <span class="rule-banner-icon" aria-hidden="true">⚠️</span>
+      <span class="rule-banner-body">Unhandled ${plural(scores.length, 'score')}: ${esc(scoresToGroupedList(scores))}</span>
+    </div>`;
+}
+
+function buildRulesListHTML(rules, { rulesId, saveFn, deleteFn, addFn = '', rescore = false, readOnly = false }) {
+  // The catch-all row is separated out: it surfaces as an informational
+  // banner above the list (not as an editable row), and a `+ Add rule`
+  // button below replaces what was its dual-purpose authoring affordance.
+  const catchAll = rules.find(r => r._catchAll);
+  const userRules = rules.filter(r => !r._catchAll);
+  const banner = (!readOnly && catchAll && catchAll._catchAll?.length)
+    ? buildRuleBannerHTML(catchAll._catchAll)
+    : '';
+
   let rulesHTML;
-  if (!rules.length && rescore) {
+  if (!userRules.length && rescore) {
     rulesHTML = '<div class="no-rules">No rules — entries kept as-is</div>';
   } else {
-    rulesHTML = rules.map((r, i) => {
-      const isCatchAll = !!r._catchAll;
+    rulesHTML = userRules.map((r, i) => {
       const inputInvalid = !readOnly && parseRange((r.input || '').trim()) === null;
       const disabled = readOnly ? ' disabled' : '';
       const inputHandlers = readOnly ? '' : ` oninput="onRuleInput(this)" onchange="${saveFn}(${i},'input',this.value)"`;
@@ -1479,16 +1505,17 @@ function buildRulesListHTML(rules, { rulesId, saveFn, deleteFn, rescore = false,
           <input class="rule-out${outInvalid ? ' invalid' : ''}" value="${esc(r.output)}" placeholder="unchanged"
             title="Output score, 'ignore', or blank for unchanged"${disabled}${outHandlers}>`;
       }
-      return buildRuleRowHTML(i, isCatchAll, fieldsHTML, r.note, deleteFn, readOnly);
+      return buildRuleRowHTML(i, fieldsHTML, r.note, deleteFn, readOnly);
     }).join('');
   }
-  return `<div id="${rulesId}">${rulesHTML}</div>`;
+  const addBtn = (!readOnly && addFn) ? `<button class="rule-add-btn" onclick="${addFn}()">+ Add rule</button>` : '';
+  return `${banner}<div id="${rulesId}">${rulesHTML}</div>${addBtn}`;
 }
 
 function buildRescoreSectionHTML(wordlist) {
   if (!wordlist) return '';
   return `<div class="rescore-top"><span class="rescore-lbl">Rescoring</span></div>` +
-    buildRulesListHTML(wordlist.rescoreRules || [], { rulesId: 'rescore-rules', saveFn: 'saveRuleField', deleteFn: 'deleteRule', rescore: true });
+    buildRulesListHTML(wordlist.rescoreRules || [], { rulesId: 'rescore-rules', saveFn: 'saveRuleField', deleteFn: 'deleteRule', addFn: 'addRule', rescore: true });
 }
 
 // Catch-all row is recomputed from merged entries each render so it reflects
@@ -1497,7 +1524,7 @@ function buildScoringSectionHTML() {
   const edits = getEditsWordlist();
   if (edits) updateScoringCatchAll(edits.scoring, buildMergedWordlist().entries);
   return `<div class="rescore-top"><span class="rescore-lbl">Scoring</span></div>` +
-    buildRulesListHTML(edits?.scoring || [], { rulesId: 'scoring-rules', saveFn: 'saveScoringField', deleteFn: 'deleteScoringRow' });
+    buildRulesListHTML(edits?.scoring || [], { rulesId: 'scoring-rules', saveFn: 'saveScoringField', deleteFn: 'deleteScoringRow', addFn: 'addScoringRow' });
 }
 
 function buildEntriesTablePanelHTML() {
@@ -1891,7 +1918,7 @@ function _persistMetaNow() {
     name: l.name, url: l.url || null,
     enabled: l.enabled, populated: l.populated, lastUpdated: l.lastUpdated || null,
     fetchedSize: l.fetchedSize || null,
-    rescoreRules: l.rescoreRules || [],
+    rescoreRules: (l.rescoreRules || []).filter(r => !r._catchAll),
     originalFilename: l.originalFilename || null,
     ...(l.scoring ? { scoring: l.scoring.filter(r => !r._catchAll) } : {}),
     ...(l.downloadCase ? { downloadCase: l.downloadCase } : {}),
@@ -4642,6 +4669,22 @@ function scoresToRangeStr(scores) {
   return min === max ? `${min}` : `${min}-${max}`;
 }
 
+// Format a list of integer scores, collapsing runs of consecutive scores
+// into ranges: [25, 45, 46, 47, 48, 49, 75] → "25, 45-49, 75".
+function scoresToGroupedList(scores) {
+  if (!scores.length) return '';
+  const sorted = [...scores].sort((a, b) => a - b);
+  const groups = [];
+  let start = sorted[0], end = sorted[0];
+  const flush = () => groups.push(start === end ? `${start}` : `${start}-${end}`);
+  for (let i = 1; i < sorted.length; i++) {
+    if (sorted[i] === end + 1) end = sorted[i];
+    else { flush(); start = end = sorted[i]; }
+  }
+  flush();
+  return groups.join(', ');
+}
+
 function getRuleMaxScore(rule) {
   const intervals = parseRange(rule.input);
   if (!intervals) return -1;
@@ -4695,7 +4738,10 @@ function updateCatchAll(wordlist) {
   }));
 
   if (uncovered.length > 0) {
-    rules.push({ input: scoresToRangeStr(uncovered), length: '', output: '', _catchAll: true });
+    // _catchAll stores the actual uncovered scores (not a range string), so the
+    // rules-editor banner can list them faithfully. `input` is kept as a range
+    // for any consumer that still reads it, but the row isn't rendered.
+    rules.push({ input: scoresToRangeStr(uncovered), length: '', output: '', _catchAll: uncovered.slice() });
   }
   rules.forEach(compileRule);
   return rulesSig(rules) !== before;
@@ -5021,7 +5067,7 @@ function updateScoringCatchAll(scoring, entries) {
   scoring.sort((a, b) => getRuleMaxScore(b) - getRuleMaxScore(a));
 
   if (uncovered.length > 0) {
-    scoring.push({ input: scoresToRangeStr(uncovered), note: '', _catchAll: true });
+    scoring.push({ input: scoresToRangeStr(uncovered), note: '', _catchAll: uncovered.slice() });
   }
 }
 
@@ -5051,9 +5097,18 @@ function saveScoringField(i, field, val) {
   const edits = getEditsWordlist();
   if (!edits?.scoring[i]) return;
   edits.scoring[i][field] = val;
-  delete edits.scoring[i]._catchAll;
   persistMeta();
   renderScoringRules();
+}
+
+function addScoringRow() {
+  const edits = getEditsWordlist();
+  if (!edits) return;
+  edits.scoring.push({ input: '', note: '' });
+  persistMeta();
+  renderScoringRules();
+  const inp = [...document.querySelectorAll('#scoring-rules .rule-row .rule-in')].find(i => !i.value);
+  inp?.focus();
 }
 
 
@@ -6292,8 +6347,14 @@ function esc(s) {
   return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
-function pluralize(n, singular, plural = singular + 's') {
-  return `${n.toLocaleString()} ${n === 1 ? singular : plural}`;
+function pluralize(n, singular, pluralForm = singular + 's') {
+  return `${n.toLocaleString()} ${plural(n, singular, pluralForm)}`;
+}
+
+// Just the inflected noun, no count. For when the count appears elsewhere in
+// the sentence (or not at all): `Unhandled ${plural(scores.length, 'score')}`.
+function plural(n, singular, pluralForm = singular + 's') {
+  return n === 1 ? singular : pluralForm;
 }
 
 function timeAgo(ts) {
@@ -6526,9 +6587,18 @@ function saveRuleField(idx, field, value) {
   if (field === 'length' && value.trim().toLowerCase() === 'any') value = '';
   if (field === 'output' && value.trim().toLowerCase() === 'unchanged') value = '';
   wordlist.rescoreRules[idx][field] = value;
-  // User explicitly edited this rule — promote it from catch-all to regular rule
-  delete wordlist.rescoreRules[idx]._catchAll;
   afterRuleChange(wordlist);
+}
+
+function addRule() {
+  const wordlist = getRescoreContextWordlist();
+  if (!wordlist) return;
+  wordlist.rescoreRules.push({ input: '', length: '', output: '', note: '' });
+  afterRuleChange(wordlist);
+  // Focus the new rule's input — updateCatchAll reorders the array, so find
+  // by the first row whose input is empty after the re-render.
+  const inp = [...document.querySelectorAll('#rescore-rules .rule-row .rule-in')].find(i => !i.value);
+  inp?.focus();
 }
 
 function noteDisplayHTML(note) {
