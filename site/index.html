@@ -7332,6 +7332,7 @@ window.__grawlixTest = {
       publisherId: wl.publisherId,
       enabled: wl.enabled,
       populated: wl.populated,
+      entries: wl.rawEntries.map(e => ({ entry: e.entry, score: e.score, comment: e.comment || '' })),
       rescoreRules: wl.rescoreRules.map(r => ({ input: r.input, length: r.length || '', output: r.output })),
       uncovered: [...(wl._uncovered || [])],
       dirty: !!wl.dirty,

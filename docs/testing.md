@@ -98,7 +98,7 @@ Exposed unconditionally in `site/index.html` (see the *Test API* section near th
 | `setUpdateAvailable(name, value)` | Toggle the transient `_updateAvailable` flag and repaint. Used to put info + warning severities on the same wordlist. |
 | `moveBefore(name, beforeName)` | Reorder `state.sources` so `name` lands at `beforeName`'s position. Routes through `reorderSources` so caches invalidate the same way a drag does. |
 | `getMergedEntry(entry)` | Read-only snapshot of the merged `All` view for a single entry: `{score, comment, wordlist}`. The sourcing wordlist is observable via the row's popover, but `.atom-source` is hidden in the default Workshop layout. |
-| `getWordlist(name)` | Read-only snapshot of the fields tests care about (`rescoreRules`, `uncovered`, `dirty`, `updateAvailable`, etc.). |
+| `getWordlist(name)` | Read-only snapshot of the fields tests care about (`entries`, `rescoreRules`, `uncovered`, `dirty`, `updateAvailable`, etc.). |
 
 Adding a function is fine; renaming or repurposing an existing one means updating every test that uses it.
 
