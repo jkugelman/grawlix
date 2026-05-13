@@ -83,7 +83,7 @@ ENTRY;SCORE;COMMENT
 
 **Override and rescore display** — When viewing a wordlist, score and comment cells always show the *effective* value (what actually appears in the merged output), not the raw value from that wordlist. A red superscript asterisk (`*`) indicates the displayed value differs from what the wordlist itself contains. An instant HTML popover (`#cell-popover`) explains why: the original score for rescored entries, or the overriding wordlist's name for overrides. Both conditions can apply simultaneously. The overrideMap (built by `buildOverrideMap`) stores `{ wordlistName, score, comment }` from the highest-priority wordlist above the current one; a comment override only applies when that wordlist has a non-empty comment. Editing an overridden cell pre-fills the input with the effective value (not the raw value) so the user is editing what actually matters — the result always lands in My Edits regardless.
 
-**Merged wordlist** — `MERGED_ID = '__merged__'` selects a union of all enabled sources, deduped by entry. The highest rescored value wins; losers are shown faded with a tooltip. Displayed as `All` (the value of `MERGED_NAME`) at the top of the wordlist dropdown in the left rail's Wordlist section.
+**Merged wordlist** — `MERGED_ID = '__merged__'` selects a union of all enabled sources, deduped by entry. The highest rescored value wins; losers are shown faded with a tooltip. Displayed as `All` (the value of `MERGED_NAME`) at the top of the wordlist card list in the left rail's Wordlist section.
 
 **Virtual scroller** — `VirtualScroller` renders only visible rows. Row height is fixed.
 
