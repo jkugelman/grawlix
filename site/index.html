@@ -34,7 +34,6 @@ html.dark-mode {
   --bg:        #1e1e1e;
   --surface:   #282828;
   --surface2:  #232323;
-  --surface3:  #1c1c1c;
   --border:    #525252;
   --border2:   #3e3e3e;
   --border3:   #3a3a3a;
@@ -67,7 +66,6 @@ html.light-mode {
   --bg:        #f5f5f5;
   --surface:   #ffffff;
   --surface2:  #fafafa;
-  --surface3:  #efefef;
   --border:    #dddddd;
   --border2:   #eeeeee;
   --border3:   #f0f0f0;
@@ -204,23 +202,18 @@ button.danger:hover:not(:disabled) { background: #e74c3c; border-color: #c0392b;
 .no-selection small { font-size: 13px; }
 
 /* Stats bar */
-.stats-bar { border-bottom: 1px solid var(--border3); padding: 10px 18px; display: flex; align-items: center; gap: 22px; background: var(--surface3); }
+.stats-bar { border-bottom: 1px solid var(--border3); padding: 10px 18px; display: flex; align-items: center; gap: 22px; background: var(--surface2); }
 /* Toggled by refreshStatsBarOverflow when the bar's natural content width
    exceeds its actual width. Hides Mean/Median/Mode (the histogram stays,
    since it carries the distribution at a glance). */
 .stats-overflow .stats-right .stat { display: none; }
 
-/* The stats bar's surface3 is the "most recessed" band — it's the summary
-   marquee for whatever wordlist (or merged view) is in focus, and the
-   recessed shade carries that identity in both the Workshop's stats header
-   and the Library pane.
-
-   In the Workshop the stats bar is hoisted to the very top of #workshop-view
+/* In the Workshop the stats bar is hoisted to the very top of #workshop-view
    (above the tool gallery) as its own sticky band; the tool stack + search
    bar + column headers form a second sticky band that pins just under it as
-   the user scrolls into the entries table. Three bands by recession depth:
-   stats on surface3 (most recessed), tools/search/column-headers on
-   surface2, and the data plane below is surface (content, brightest). */
+   the user scrolls into the entries table. Two bands by recession depth:
+   stats + tools/search/column-headers on surface2 (chrome), and the data
+   plane below is surface (content, brightest). */
 #workshop-stats { position: sticky; top: 0; z-index: 51; }
 .sticky-stack { position: sticky; top: 0; z-index: 50; background: var(--surface2); border-bottom: 1px solid var(--border2); }
 #workshop-view .sticky-stack { top: var(--stats-bar-h); }
