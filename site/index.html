@@ -1923,7 +1923,7 @@ const IDB_NAME  = 'grawlix';
 const IDB_STORE = 'data';
 let _db = null;
 
-async function resetAllData() {
+async function resetAllDataAndReload() {
   Object.keys(localStorage).filter(k => k.startsWith(LS_PREFIX)).forEach(k => localStorage.removeItem(k));
   if (_db) { _db.close(); _db = null; }
   await new Promise(resolve => {
@@ -1932,6 +1932,7 @@ async function resetAllData() {
     req.onerror   = resolve;
     req.onblocked = resolve;
   });
+  location.reload();
 }
 
 function openDB() {
@@ -2127,8 +2128,7 @@ const SettingsDialog = (() => {
 
   el.querySelector('#btn-reset').onclick = async () => {
     if (!await showConfirm('Reset all wordlists and settings? This cannot be undone.', { confirmText: 'Reset' })) return;
-    await resetAllData();
-    location.reload();
+    await resetAllDataAndReload();
   };
 
   function open() {
@@ -2971,8 +2971,7 @@ async function init() {
       { confirmText: 'Reset', cancelText: 'I\'ll take my chances' }
     );
     if (reset) {
-      await resetAllData();
-      lsSave('schemaVersion', String(SCHEMA_VERSION));
+      await resetAllDataAndReload();
     }
   } else if (!hasOldData) {
     lsSave('schemaVersion', String(SCHEMA_VERSION));
