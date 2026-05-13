@@ -54,7 +54,7 @@ No line length limit.
 - `@keyframes` blocks — nested structure can't be compacted.
 - `@media` query wrappers — the wrapper stays multi-line; rules inside are still single-line.
 
-**No inline `style="..."` attributes** — add CSS to the `<style>` block instead.
+**No inline `style="..."` attributes** - add CSS to the `<style>` block instead. One exception: passing per-instance computed values (CSS custom properties for theming, pixel dimensions for sizing) into a class whose stylesheet rule reads them. The rule and any static declarations live in the `<style>` block; the inline attribute carries only the varying values. Use this for color-tinted atoms (`style="--score-bg:${bg}; --score-fg:${fg}"` on a `.score-badge`) and measured-out elements (histogram bar heights). Don't use it as a shortcut for declarations that could just be a class.
 
 **Dark mode and light mode get equal weight.** Both palettes are first-class. Don't treat one as the default and the other as an override.
 
