@@ -8,29 +8,23 @@ The gallery is where Grawlix's [project goal](../../README.md#goals) — democra
 
 ## Status
 
-Chrome is shipped: the left-rail gallery (every card carrying its tool's icon), the main-pane tool stack, hover previews, animations. The current `TOOLS` catalog drives both the gallery and the stack rows, so adding a card today is one record. Icons are emoji; switching to custom SVG would mean changing only the `icon` field per entry. The entries-table display where tool output renders also shipped — atoms, sort, click-to-edit popover. See [`design.md` § Tool gallery & stack](../design.md#tool-gallery--stack) and [`design.md` § Entries table](../design.md#entries-table) for those parts' shape and rationale. Everything below is forward-looking — the plugin/API model, tool execution, the rest of the catalog, chaining policies, pair/group output formats, and downstream features.
+The chrome, the pipeline runtime, and two tools (Anagram, Semordnilaps) are shipped — see [`../design.md` § Tool gallery & stack](../design.md#tool-gallery--stack) for the executor, runtime normalization, pair-row display, and per-kind sort. The rest of this doc covers what's still planned: the catalog of tools that have records but no `run` yet, the indexed-view runtime that several anagram-family tools need, groups output kind, gallery polish (category picker, search), result download, async/cancellation UX for network-bound tools, and the OneLook / Datamuse / Umiaq integrations.
 
 ---
 
-## Pipeline behavior (unshipped)
+## Pipeline behavior — remaining pieces
 
-The first row reads from the wordlist selected in the left-rail dropdown (`All` by default). Each subsequent row transforms the previous row's output. The results list shows the bottom row's output. Click order in the gallery determines pipeline order, top-to-bottom. To pre-filter an existing tool's input, the user starts over (clear, then click Search, then `+` the new tool); no prepend gesture.
+The everyday composition story (live search filtering on the last tool's output, scores coming along from `All`, score-range filtering on the rendered output) is shipped. Two pieces still wait:
 
-**Live result filtering** is the everyday case — fire up Anagram, type LINDSEY, scroll the thousand results, type a substring in the bottom search row to live-filter down. The search bar functions as the result filter for whatever's above it.
+**Reordering.** Order matters in a pipeline. The intended gesture is "remove (X) and re-add" — drag handles aren't planned, because chaining is a 2%-case gesture and reordering is rarer still; the design surface isn't worth the touch/keyboard-accessibility complexity. Today the stack supports add/replace/remove but not in-place reorder. Unblocks once a chained workflow surfaces that wants it.
 
-**Reordering.** Order matters in a pipeline. To change order, the user removes rows (X) and re-adds them. Drag handles are deliberately not provided — chaining is a 2%-case gesture and reordering is rarer still; the design surface isn't worth the touch/keyboard-accessibility complexity.
-
-**Tools without inputs** (Palindromes, Anagram families, etc.) still get a row carrying the tool name and an X — no input fields. Composes cleanly: `Search → Palindromes` lists palindromes within the search results.
-
-**Scores come along.** Results show scores from `All` (the merged wordlist). This is Grawlix's superpower over Wordlisted — a user can see at a glance that their anagram is a 70 vs. a 30, and can click a result to add it to My Edits.
-
-**Score range filters the displayed output, not the pipeline.** The histogram-driven score control sits below the list and applies after the bottom row produces results. It's not a stack row, doesn't get its own row per Search, and isn't expressible per-tool — one filter, applied once, on what's about to render. For pair and group output, it filters on min(score) — the row qualifies if its worst-scoring atom falls in range. (Pre-pipeline score filtering — "anagrams of LINDSEY drawn only from score-50+ words" — would be a separate `score_filter(min, max)` tool. Not in the catalog yet; surface if the workflow appears.)
+**Pre-pipeline score filtering.** "Anagrams of LINDSEY drawn only from score-50+ words" would be a separate `score_filter(min, max)` tool that takes the merged wordlist and trims it to a range before downstream tools see it. Not in the catalog yet; surface if the workflow appears.
 
 ---
 
 ## Gallery — unshipped pieces
 
-**Category picker.** A fixed category menu at the top of the rail (Anagrams & letter banks, Letter patterns, Pairs, Oddities, etc.). Clicking a category swaps the cards displayed below; the menu itself never moves. Spatial stability — categories live in the same place every time, cards stay visible while working, and the rail's full width goes to tools. Matches the user's settle-into-a-tool-set pattern: a constructor with a theme idea picks the relevant category once and stays there.
+**Category picker.** A fixed category menu at the top of the gallery (Anagrams & letter banks, Letter patterns, Pairs, Oddities, etc.). Clicking a category swaps the cards displayed below; the menu itself never moves. Spatial stability — categories live in the same place every time, cards stay visible while working, and the gallery's full width goes to tools. Matches the user's settle-into-a-tool-set pattern: a constructor with a theme idea picks the relevant category once and stays there.
 
 *Alternatives evaluated:*
 
@@ -50,120 +44,72 @@ The everyday case is filling — narrow `All` with a pattern, then save the matc
 
 Default filename describes the stack: `grawlix-search-DOG.txt`, `grawlix-anagram-LINDSEY-search-DOG.txt`. Same tool keys as the URL query string (see [`../design.md` § URL state](../design.md#url-state)), so the file is self-describing and re-running the same stack later won't overwrite the prior snapshot.
 
-Format follows the tool's natural output shape — for plain entry lists, the standard `ENTRY;SCORE[;COMMENT]` used elsewhere. Pair and group outputs need their own format design (`FROM\tTO\tMIN_SCORE` is the obvious shape for pairs); deferred until those tools land.
+Format follows the tool's natural output shape — for plain entry lists, the standard `ENTRY;SCORE[;COMMENT]` used elsewhere. Pair and group outputs need their own format design (`FROM\tTO\tMIN_SCORE` is the obvious shape for pairs); deferred until those tools land in the user's workflow.
 
 This is a third "give me a file" path alongside the two existing ones (All/My Edits via Sync & backup, individual wordlist via the Library view). It's distinct because the file isn't a backup or a wordlist export — it's a snapshot of the current view, usually filtered or transformed.
 
 ---
 
-## Plugin model
+## Tool API extensions
 
-Tools are a data-driven plugin system. Every tool — builtin or user-authored — is one record with the same shape. The gallery, stack, URL serializer, and result renderer dispatch on declared fields; no tool needs special-case code paths. Adding a tool is adding one record. Custom JS tools (see *Open questions*) are the same record persisted to localStorage and merged into the catalog at boot.
+The basic catalog record shape (`name`, `icon`, `category`, `desc`, `example`, `params`, `output`, optional `run`) plus the pipeline executor are shipped. Several extensions are planned for tool families that don't fit the simple shape yet.
 
-Why data-driven: the catalog is open-ended (already 30+ planned, with phonetics and thesaurus families pending), and the construction-aid genre is exploratory — users will surface tools we haven't predicted. Special-casing in the gallery is a tax on growth.
+### Indexed input views (the `requires` mechanism)
 
-A DSL or IDL for the schema is overkill at this scale. A plain JS object literal expresses everything; runtime validation at the dispatch boundary covers what static types would.
+The wordlist arrives as a wlEntry array by default. Several tools want indexed views built lazily by the runtime:
 
-## Tool API
+- `input.set` — `Set<entryNorm>` for O(1) membership checks (kangaroo, joey, sandwich, nested_words, beheadments).
+- `input.byLetterBank` — `Map<sortedLetters, wlEntry[]>` keyed by sorted-letters; instant anagram lookup (anagram, anagram_with, anagram_families, made_from).
+- `input.byLength` — `Map<number, wlEntry[]>` for length-bucketed iteration.
 
-A tool is an object. Static fields describe it to the gallery; the `run` function does the work.
+A tool declares what it wants in `requires: ['set', 'byLetterBank']`; the runtime ensures those views are built before `run` is called and reuses them across calls as long as the input set doesn't change. Cache invalidation reuses the existing `cacheVersion$` machinery.
 
-```js
-{
-  // Identity
-  slug: 'beheadments',
-  name: 'Beheadments',
-  icon: '✂',
-  category: 'pairs',
-  desc: 'Pairs where one word is formed by removing the first letter of the other.',
-  example: 'SLING → LING',
+This is the keystroke-perf path for anagram and friends — today's anagram does the work per-keystroke (`sortLetters(entryNorm)` across every entry), which is fine for a single tool but compounds badly. The shared view becomes worth the runtime once a second letter-bank tool lands.
 
-  // Params — one stack-row input per entry; built-in renderer dispatches on type
-  params: [],
+New views land as new tools demand them. Don't predict.
 
-  // Output declaration
-  output: {
-    kind: 'pairs',                  // 'words' | 'pairs' | 'groups'
-    relation: 'transform',          // 'transform' | 'symmetric' | 'contains' | null
-    labels: ['from', 'to'],         // names the parts; used in sort axis labels, tooltips, JSON
-    chainProjection: 'to',          // when chained downstream, which part(s) to pass
-    annotations: [],                // declared per-item annotations beyond highlights
-  },
+Builtin views are shared across calls. Custom JS tools can ask for them too but can't author their own — keeps the cache key simple (input identity + view name).
 
-  // Indexed input views requested (built lazily by the runtime; see Performance)
-  requires: [],                     // e.g. ['set', 'byLetterBank']
+### Async, cancellation, spinners
 
-  // Computation
-  async run(input, params, ctx) {
-    return input.list.flatMap(w => /* … */)
-      .map(([a, b]) => ({ a, b, highlights: { b: [{ kind: 'kept', range: [0, b.length] }] } }));
-  }
-}
-```
+- **`run` should be async-by-default.** Synchronous tools `return`; async tools `await`. The runtime always treats the call as a promise. Today's executor calls `run` synchronously — fine for builtin letter-pushing tools, breaks for network-bound tools (OneLook).
+- **In-flight runs cancel when superseded.** The `ctx` argument (not yet plumbed) carries an `AbortSignal`-style cancellation token. Long-running tools should check it periodically; network-bound tools pass it directly to `fetch`.
+- **Spinners on slow rows.** Tool rows whose run exceeds ~100ms should badge with a progress indicator; the result list grays out. Below the threshold, no UI flicker.
 
-### Output kinds
+### Highlights and annotations
 
-Three kinds cover the catalog:
-
-- **`words`** — `[{ word, highlights?, ...annotations }]`. Single-word results: search, anagram, palindromes, etc. Phrase-parsing results are space-separated multi-word strings inside a single `word`; the spaces are an internal detail of that string.
-- **`pairs`** — `[{ a, b, highlights?, ...annotations }]`. Two-word results: beheadments, replace_all, kangaroo and joey, etc. `output.labels` names what `a` and `b` mean.
-- **`groups`** — `[{ items: string[], highlights?, ...annotations }]`. N-word results: anagram_families. Display deferred (see *Display*).
-
-### Relations
-
-`output.relation` tells the renderer how to display a pair (or group):
-
-- `'transform'` — `FROM → TO` with arrow. Beheadments, replace, add_prefix, letter_swap.
-- `'symmetric'` — `A · B` or `A ↔ B` with no inherent direction. Semordnilaps, anagram_with.
-- `'contains'` — `OUTER ⊃ INNER` or similar containment glyph. Nested_words.
-- `null` — no relation glyph; just adjacent words.
-
-The renderer maps relation to glyph; tools don't pick characters themselves, so display stays consistent across all tools sharing a relation.
-
-### Chain projection
-
-When tool K feeds tool K+1, K's output projects to a `string[]` for K+1 to consume. Declared in metadata, not in code:
-
-- `words`: implicitly the word strings.
-- `pairs`: `'a'`, `'b'`, or `'both'` (default `'both'` = union of both columns, deduped).
-- `groups`: `'all'` (flatten and dedupe) or `'first'` (the first item of each group).
-
-Chains transmit `string[]`; the projection is metadata; the *display* layer sees the full annotated structure. Two contracts, no type system. Most tools have a "the interesting result" side — beheadments and curtailments project `'to'`; nested_words projects `'outer'`. The catalog declares what's right per tool. (This closes the structured-vs-unstructured chaining tension that earlier drafts of this doc wrestled with.)
-
-### Annotations
-
-Two annotation flavors ride with each item:
+Two display flavors planned to ride with each item:
 
 - **Highlights** — character-range markings rendered visually inside a word. Each tool emits `{ kind, range }` records keyed by part name (`{ a: [...], b: [...] }` for pairs, `[...]` for words). The renderer dispatches on `kind` against a small global registry — `'kept'`, `'removed'`, `'inserted'`, `'shifted'`, `'matched'`, `'group:0'`, `'group:1'`, etc. — each with its own CSS rule. Tools don't pick colors; new tools either reuse existing kinds or extend the registry by adding a (kind, CSS rule) pair.
 - **Numeric / string annotations** — declared in `output.annotations: [{ key, label, display }]`. The renderer reads the declaration, knows whether to render the value as a small inline badge near the atom, a hover tooltip, or popover detail. Use cases: phrase_parsing's parse-quality score, almost_anagram's edit distance, letter_changes' actual `n`.
 
-Both annotation flavors are display-only — chain projection drops them. A downstream tool sees only the projected `string[]`.
+Both annotation flavors are display-only — chain projection drops them. A downstream tool sees only the projected wlEntry list.
 
 ### Escape hatches
 
-Params cover input. The default renderer dispatches on each entry's `type` — `string` → text input, `bool` → checkbox/toggle, `int` → number, `enum` → dropdown, `char` → single-letter input. Multi-field tools just declare multiple params; nothing custom needed. Search's whole-word toggle is a `bool` param, not an escape hatch; the existing in-input toggle styling is a CSS choice the default renderer can apply.
+Params are covered by the default renderer dispatch (`type: 'string'` → text input, `'bool'` → checkbox, `'int'` → number, `'enum'` → dropdown, `'char'` → single-letter input). Multi-field tools just declare multiple params; nothing custom needed. Search's whole-word toggle is a `bool` param, not an escape hatch.
 
 Output is covered by kind / relation / highlights / annotations. Phrase parsing returns plain strings that happen to contain spaces; the default `words` renderer displays them normally. Fancier word-break treatment (dot separators, per-word color) would fit the highlight system as `'word:n'` kinds — still no custom render needed.
 
-No current-catalog tool needs an escape hatch. Two optional fields are declared as a safety valve for hypothetical futures — an interactive per-row widget, a non-textual visualization, an input that genuinely doesn't fit the param-type system (hex-grid letter picker, visual region selector):
+No current-catalog tool needs an escape hatch. Two optional fields stay in the spec as a safety valve for hypothetical futures — an interactive per-row widget, a non-textual visualization, an input that genuinely doesn't fit the param-type system (hex-grid letter picker, visual region selector):
 
 - `renderItem(item, ctx)` — custom result-cell HTML for one item.
 - `renderParams(params, onChange)` — custom stack-row params UI.
 
-Both default to the standard renderers. Add a real motivating case to this doc before adding either to a tool — if every concrete tool fits the schema, the schema is doing its job.
+Both default to the standard renderers. Add a real motivating case before adding either to a tool — if every concrete tool fits the schema, the schema is doing its job.
 
 ---
 
 ## Catalog
 
-Each entry: `slug(params)` — output kind, plus relation/projection for non-`words` and any notable highlights or annotations. Specifics are negotiable; this captures intent.
+Each entry: `slug(params)` — output kind, plus relation/projection for non-`words` and any notable highlights or annotations. Specifics are negotiable; this captures intent. Shipped tools (Anagram, Semordnilaps) are marked ✓.
 
 ### Pattern matching
 - `search(pattern, wholeWord)` — words. Highlights: `matched` per non-wildcard region, colored by region index.
 - `regex(pattern)` — words. Highlights: `group:n` per capture group.
 
 ### Anagrams & letter banks
-- `anagram(word)` — words.
+- `anagram(word)` ✓ — words.
 - `made_from(letters)` — words.
 - `hidden_anagram(word)` — words. Highlights: `matched` over the hidden-anagram span.
 - `almost_anagram(word, n)` — words. Annotation: `editDistance`.
@@ -198,7 +144,7 @@ Each entry: `slug(params)` — output kind, plus relation/projection for non-`wo
 
 ### Curiosities
 - `palindromes()` — words.
-- `semordnilaps()` — pair / symmetric · projects `both`.
+- `semordnilaps()` ✓ — pair / symmetric · projects `both`.
 - `isograms()` — words.
 - `supervocalics()` — words. Highlights: `matched` on each vowel.
 - `monovocs()` — words. Highlights: `matched` on the lone vowel.
@@ -231,33 +177,9 @@ Roget's Thesaurus (available as structured XML) enables meaning-based searches: 
 
 ---
 
-## Display (pair / group output kinds)
+## Groups view
 
-The shipped entries-table display is documented in [`../design.md` § Entries table](../design.md#entries-table). Pair and group output kinds — beheadments, anagram families, etc. — extend the same list-of-atoms model below; no tools that produce them are wired up yet, so the rendering is sketched here.
-
-The rule that carries over: every word in any output is shown as a [word atom](../design.md#entries-table) (`1. CARE 4 50`); the AtomPopover is the universal editor regardless of output kind; comments and source live in the popover, not the at-rest row.
-
-### Pairs view
-
-A list of `atom relation atom` rows. The relation glyph (`→`, `·`, `⊃`, etc., from `output.relation`) renders between two word atoms in its own pseudo-column, so arrows line up vertically across all rows. Default sort is Min score for transform and symmetric pairs — the worse word caps pair quality.
-
-```
-Sort by Min score ↓                                   321 pairs
-
- 5  SLING         50  →   4  LING            30
- 5  TRAIN         60  →   4  RAIN            40
- 6  SCREAM        50  →   5  CREAM           60
-12  BIBLIOGRAPHY  40  →  11  BIBLIOGRAPHIES  50
-…
-```
-
-Two score badges per row in different tier colors (e.g. green 50 next to red 30) is informative, not chaotic — pair-with-tier-mismatch reads at a glance. The score-color vocabulary is already learned across the rest of the app.
-
-Wordlisted's stacked-pairs display (two scores rendered as `40/50`) keeps column count down at the cost of legibility — you have to mentally compute mins. The atom approach is *visually* compact AND *cognitively* clear because the score belongs to the word; they're one thing to read.
-
-### Groups view
-
-A list of bullet-separated atoms with a count prefix. Default sort is Max — the anagram-families case is "find a great word that has anagrams I haven't noticed," which max surfaces and min hides.
+Pair display is shipped (see [`../design.md` § Pair-row display](../design.md#pair-row-display)). Groups output — N-word clusters from `anagram_families` and similar — extends the same atom model but flows across the line:
 
 ```
 Sort by Max ↓                                              89 families
@@ -268,47 +190,17 @@ Sort by Max ↓                                              89 families
 …
 ```
 
-Count is a per-row property; leading `(N)` keeps it visible without dedicated chrome. Min and Max are sort axes, not displayed as numbers — derivable from the row, and showing them next to the atoms would be redundant. When a group is too wide to fit on one line, atoms wrap to the next line indented under the first atom (not under the count) so it reads as continuation.
+A list of bullet-separated atoms with a count prefix. Default sort is Max — the anagram-families case is "find a great word that has anagrams I haven't noticed," which max surfaces and min hides. Count is a per-row property; leading `(N)` keeps it visible without dedicated chrome. Min and Max are sort axes, not displayed as numbers — derivable from the row, and showing them next to the atoms would be redundant. When a group is too wide to fit on one line, atoms wrap to the next line indented under the first atom (not under the count) so it reads as continuation.
 
 Groups are the partial exception to strict pseudo-column alignment. Atom counts vary per row, so atoms don't fully cross-row align — they flow across the line separated by bullets. The leading `(N)` count slot does align across rows, giving the eye an anchor; within a row, atoms pack tightly with consistent internal `length word score` shape.
 
-### Sort axes per output kind
+**Sort axes for groups:** Min, Max, Count, Alphabetical.
 
-- **Pairs:** Min score, Max score, Score (from), Score (to), Min length, Max length, Alphabetical.
-- **Groups:** Min, Max, Count, Alphabetical.
-
-### Permanent Search row on non-flat output
-
-When the active tool produces pairs or groups, the bottom Search row's filter input matches loosely against the rendered text — same string the user sees, all atoms in a row visible as one filter target. Default-loose is right for v1; promote to side-specific syntax (`right:un*`) only if usage shows the loose form isn't enough.
+**Search on group rows** matches loosely against the rendered text — same string the user sees, all atoms in a row visible as one filter target. Default-loose is right for v1; promote to side-specific syntax (`right:un*`) only if usage shows the loose form isn't enough.
 
 ---
 
-## Performance
-
-Two facets: making tool runs fast, and keeping the UI snappy regardless of how slow a tool is.
-
-### Tool-side: input shapes
-
-The wordlist input arrives as `string[]` by default (`input.list`) plus indexed views built lazily by the runtime:
-
-- `input.set` — `Set<string>` for O(1) membership checks (kangaroo, joey, sandwich, nested_words).
-- `input.byLetterBank` — `Map<string, string[]>` keyed by sorted letters; instant anagram lookup (anagram, anagram_with, anagram_families).
-- `input.byLength` — `Map<number, string[]>` for length-bucketed iteration.
-
-A tool declares what it wants in `requires: ['set', 'byLetterBank']`; the runtime ensures those views are built before `run` is called and reuses them across calls as long as the input set doesn't change. Cache invalidation reuses the existing `cacheVersion$` machinery.
-
-New views land as new tools demand them. Don't predict.
-
-Builtin views are shared across calls. Custom JS tools can ask for them too but can't author their own — keeps the cache key simple (input identity + view name).
-
-### UI-side: snappiness
-
-- **`run` is async by default.** Synchronous tools just `return`; async tools `await`. The runtime always treats the call as a promise.
-- **Stack/param changes debounce ~250ms** before re-running the pipeline. Cheap synchronous tools could rerun per keystroke without trouble, but async/network-bound tools (OneLook, Datamuse) need a quiet window to avoid firing a request per character.
-- **In-flight runs cancel when superseded.** The `ctx` argument carries a cancellation signal (`ctx.signal`, `AbortSignal`-style); long-running tools should periodically check it. Network-bound tools pass it directly to `fetch`.
-- **Spinners appear on tool rows whose run takes longer than ~100ms.** Below the threshold, no UI flicker; above, the row badges with a progress indicator and the result list grays out.
-
-### Workers and result caching: deferred
+## Workers and result caching: deferred
 
 Web workers are the right answer eventually for custom JS tools — bad code shouldn't freeze the UI — but they cost in setup (no build step makes worker bundling awkward) and in data transfer (200K-word inputs serialize to several MB per run). Builtin tools run in tens of ms on the main thread; even O(n²) tools complete in well under a second on realistic wordlists. Defer until custom tools are real and profiling shows blocking is a problem.
 

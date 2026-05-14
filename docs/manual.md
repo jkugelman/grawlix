@@ -29,6 +29,22 @@ Workshop's card, top to bottom:
 - `[abc]` — character class
 - Whole-word toggle anchors the pattern.
 
+## Tools
+
+Tools transform your merged wordlist. They live in the **tool gallery** at the top of the Workshop card. Click a card body to replace the stack with that tool; click the `+` badge on the right edge of a card to append it to the existing stack.
+
+A populated stack feeds left-to-right: the first tool reads from `All`, each subsequent tool reads the previous tool's output, and the entries table below shows the bottom row's results. The search bar at the bottom filters whatever the last tool produced — type LINDSEY into Anagram, then type a substring in the search bar to live-narrow the anagram list.
+
+**Anagram** takes a word and returns every entry in your wordlist with the same letters. **Semordnilaps** takes no input — it scans the wordlist for pairs of words that are reverses of each other (STRESSED ↔ DESSERTS, LIVED ↔ DEVIL). The rest of the gallery is wired up but doesn't transform anything yet — their cards exist so the full catalog stays visible while the tools land.
+
+**Pair output.** Tools like Semordnilaps produce two entries per row instead of one. Each row reads `count · len entry score · · · len entry score` — two atoms flanking a relation glyph (the dot for symmetric pairs; other relations get their own glyphs as those tools land). Click either side to edit that side's score. Search matches either side. The score-range filter applies to the lower of the two scores — a pair drops out when its worse-scoring atom falls outside the range. The stats bar reports `Pairs` count and aggregates min/max/mean over every word on either side of every visible pair.
+
+**Sort.** Axes depend on the current output kind. Words mode: Entry / Length / Score. Pair mode: Min score / Max score / Length / Alphabetical. When the primary axis ties — say, three pairs all with min-score 50 — tiebreakers surface the most interesting entry first: longer over shorter, higher-scoring over lower, with alphabetical as the final stable fallback. Flipping asc/desc reverses only the primary axis; tiebreakers keep their direction. That keeps short low-scoring entries from floating to the top of a tied bucket on `score asc`.
+
+Defaults are per-kind. Words lands on Entry asc. Pair tools land on Min score desc (the worst-scoring side caps pair quality; best-worst-case pairs first matches "what's worth fishing out"). Picking an explicit axis survives kind flips as long as the axis is still valid; picking `score` on words and then adding a pair tool snaps to `min-score` because `score` isn't a pair-mode axis.
+
+**Sharing the stack.** The URL captures your tool stack and inputs — pasting a Grawlix link reproduces what you were looking at. See *Sharing & links*.
+
 ## Entries table
 
 The entries table below the search bar shows every entry in the merged `All` view, one row per entry, in your current sort order. Each row reads as `1. CARE 4 50` — count, entry, length, score badge. Click on the entry or score to edit it (see *Editing entries*).

@@ -146,9 +146,9 @@ Propagation is silent — no toast. Rule updates only ever *add* coverage; they 
 
 ## Tool gallery & stack
 
-Tools live in two places: a persistent **gallery** as a top section of the card, and a **tool stack** inside the sticky region just below the brand header. The gallery is browseable; the stack is the user's current pipeline. Today the chrome is shipped — gallery cards click and chain, the stack renders rows with parameter inputs, hover previews and animations work — but tools don't yet transform anything. The full tool list and chaining policies are still planned in [`plans/tools.md`](plans/tools.md). The entries-table display where tool output will eventually render shipped already (see § Entries table).
+Tools live in two places: a persistent **gallery** as a top section of the card, and a **tool stack** inside the sticky region just below the brand header. The gallery is browseable; the stack is the user's current pipeline. The chrome and the pipeline runtime are shipped; two tools (Anagram, Semordnilaps) actually transform their input today, the rest of the catalog renders rows but doesn't yet produce results. The remainder of the catalog and chaining extensions are tracked in [`plans/tools.md`](plans/tools.md). Tool output lands in the entries table (§ Entries table) — words rows for word output, pair rows for pair output.
 
-**Single catalog drives every surface.** Each tool is one record in `TOOLS` (`name`, `icon`, `category`, `desc`, `example`, `params`, `output`); section ordering for the gallery comes from a parallel `TOOL_CATEGORIES` list. Gallery cards, stack-row labels, and the search bar's `Search` label all render the inline icon-and-name pair through the shared `buildToolLabelHTML` helper. Adding a tool means adding one entry — every surface that names tools picks it up — and the helper guarantees the icon-and-name pair looks identical wherever it appears.
+**Single catalog drives every surface.** Each tool is one record in `TOOLS` (`name`, `icon`, `category`, `desc`, `example`, `params`, `output`, optional `run`); section ordering for the gallery comes from a parallel `TOOL_CATEGORIES` list. Gallery cards, stack-row labels, and the search bar's `Search` label all render the inline icon-and-name pair through the shared `buildToolLabelHTML` helper. Adding a tool means adding one entry — every surface that names tools picks it up — and the helper guarantees the icon-and-name pair looks identical wherever it appears.
 
 **Two click targets per gallery card.** The card body replaces the stack with that tool — the 98%-case gesture. The `+` badge on the right edge appends the tool to the end of the stack — the 2%-case "chain" gesture. The `+` is hover-revealed (no visual presence at rest) and hidden entirely when the stack is empty: chain has no referent without existing tools, so the unfamiliar affordance shouldn't appear before there's something to chain to.
 
@@ -171,6 +171,47 @@ Ghost rows carry an accent tint and a subtle shimmer (sweeping accent gradient v
 **Ghost-promote in place on commit.** When a click commits a hovered ghost, the *same* DOM element loses its `.ghost` class and gains real-row content (via `innerHTML` swap of the inner body). CSS transitions on opacity/color/background handle the visual shift naturally. Replacing the node with a fresh element would lose the in-progress transition state and produce a flash. A 24×24 placeholder div in the ghost's right slot matches the X button's footprint so the row's height is identical between ghost and real states.
 
 **`+`-button camouflage gotcha.** The global `button:hover:not(:disabled)` rule (specificity 0,2,1) overrides naive `.gallery-card-add:hover` (0,2,0), giving the add button the card's hovered background and making it visually invisible against the card. The hover rule is scoped as `.gallery-card .gallery-card-add:hover` (specificity 0,3,0) to win on specificity without `!important`.
+
+### Pipeline execution
+
+A tool's `run(input, params)` does the work. `run` is optional — tools without one are transparent placeholders in the pipeline. Their row renders, the URL serializes them, but the executor passes them over. Chrome-only catalog entries stay shipped until their run arrives, which keeps the gallery's catalog visible during incremental rollout.
+
+`executePipeline(mergedEntries, stack)` walks stack rows in order. For each row whose tool has a `run`, it normalizes the params and calls `tool.run(items, normalizedParams)`. The return is `{kind, items}`: `kind` is `'words'` (a wlEntry array) or `'pairs'` (`{a, b}[]`); groups output is still planned. When a pair-output tool is followed by a word-input tool, the executor projects the pair list down to a wlEntry array via the producer's `chainProjection` (`'a'` / `'b'` / `'both'`); the consumer row's `col` toggle can override per row.
+
+**Runtime normalization.** Every wlEntry carries a precomputed `entryNorm` field — lowercase + whitespace-stripped — alongside `entryLower`. Tools compare against `entryNorm` and never re-normalize. Param strings get the same treatment at the executor boundary, so a tool's `run` receives canonical inputs on both sides without per-call ceremony. For wordlists with uppercase-letter-only entries (the common case), `entryNorm` shares string identity with `entryLower` — no extra allocation.
+
+**Identity preservation for the patch path.** When the stack contains no run-bearing tools (or only no-op ones), `executePipeline` returns the merged cache's entries array unchanged. The scroller compares array identity to decide whether to take the patch path (in-place edits to scores via My Edits keep the open popover) or the full refresh path. Once a transforming tool is in the stack, the pipeline produces a fresh array per call and the patch optimization is bypassed; chained popover edits in anagram or pair view close the popover on commit, which is acceptable for the niche.
+
+**Pair output declarations.** A pair-producing tool declares `output: 'pairs'`, a `relation` (`'transform'` / `'symmetric'` / `'contains'`), `labels` naming the two sides, and a `chainProjection` for downstream. The renderer maps `relation` to a glyph (→ / · / ⊃) — tools don't pick characters themselves so display stays consistent across all tools sharing a relation. Pair-producing tools that share an `a`-or-`b` identity (semordnilaps' b is uniquely reverse(a); beheadments' b is a-minus-first-letter) emit each pair once via a canonical ordering — for semordnilaps, smaller `entryNorm` becomes `a`.
+
+### Pair-row display
+
+Pair rows render `count len entry score · len entry score` with the relation glyph in its own pseudo-column between the two sides. Both sides reuse the same `--len-w` / `--entry-w` / `--score-w` CSS variables, so length and score columns align across pair rows even when the two sides differ in length.
+
+**`justify-content: start` is load-bearing.** CSS Grid's default `normal` behaves as `stretch` on grid containers, which expands `auto` tracks to fill leftover space. Without explicit `start`, the central relation track balloons, pushing the b-side cluster to the right edge of the row. The fix replaces the implicit stretch with explicit start, parking leftover space at the row's right edge and leaving the pair naturally bunched against the a-side.
+
+**Kind-aware headers.** Two header divs always live in the DOM — the words-mode `count entry len score [comment] [source]` row and the pair-mode `count len entry score · len entry score` row. The `tools-multi-word` body class (toggled by `ToolStack.refreshGalleryActive` when the last tool's output is `'pairs'`) decides which is visible. Mounting both up-front means kind flips via add/remove only need to toggle a class, not remount the chrome.
+
+**Filter and aggregate semantics for pairs.**
+
+- **Search** matches either side's `entryLower` against the pattern.
+- **Score-range filter** uses `min(a.score, b.score)` — the row qualifies if its worst-scoring atom falls in range.
+- **Stats bar** labels the count as `Pairs` instead of `Entries`. Min/max/mean/median/mode aggregate over flattened atoms (every wlEntry on either side of every visible pair), so a 60/40 pair contributes both 60 and 40 to the histogram and the average.
+
+**Pair-side click resolution.** Each pair atom carries `data-side="a"` or `data-side="b"`. The scroller's click handler reads the side and opens the AtomPopover anchored to that specific wlEntry — clicking STRESSED in a DESSERTS · STRESSED pair edits STRESSED's score, not DESSERTS's.
+
+### Sort axes per kind, with tiebreakers
+
+Each output kind exposes its own axis set:
+
+- **Words:** Entry, Length, Score.
+- **Pairs:** Min score, Max score, Length, Alphabetical (by a-side).
+
+Each axis carries `{label, primary, tiebreakers}` where `primary` is the value projection and `tiebreakers` is a fixed-direction chain. Flipping the user-level direction (asc/desc) reverses only the primary; tiebreakers keep their declared direction. Without a multi-column tiebreaker pass, sorting by score asc would let short low-scoring junk float to the top of a tied bucket — the tiebreakers ensure the most interesting entry surfaces first within ties (longer > shorter, higher score > lower), with alphabetical asc as the final stable fallback.
+
+Defaults are kind-specific: words defaults to `entry asc`, pairs to `min-score desc` (worst-side caps pair quality; surfacing best-worst-case pairs first matches "what's worth fishing out"). The URL drops `sort=` when the current axis matches the kind default, so a pair URL stays minimal (`?semordnilaps`) until the user picks something other than min-score-desc. Stack-driven kind changes snap the sort axis to the new default only when the prior axis was the *old* kind's default — an explicit user pick survives the kind flip as long as the axis is still valid (e.g. `length` stays through both kinds; `score` snaps to `min-score` because `score` is words-only).
+
+`currentOutputKind(stack)` (the last run-bearing tool's output, or `'words'` for an empty stack) is what the Router and scroller both consult. It treats no-run rows as transparent, matching the executor's semantics.
 
 ## Entries table
 
@@ -248,12 +289,12 @@ Each user-added tool row gets one query parameter, in pipeline order:
 
 Two keys carry the entries-table sort:
 
-- `sort=<axis>` — `entry`, `length`, or `score`. Dropped when the axis is the default (`entry`).
-- `sort-dir=<asc|desc>` — dropped when the direction matches the axis's default. `entry` and `length` default to ascending; `score` defaults to descending (picking Score is "what are the best entries?", which reads top-down).
+- `sort=<axis>` — depends on the active output kind. Words: `entry`, `length`, `score`. Pairs: `min-score`, `max-score`, `length`, `entry`. Dropped when the axis matches the kind's default (`entry` for words, `min-score` for pairs).
+- `sort-dir=<asc|desc>` — dropped when the direction matches the axis's default. `entry` and `length` default to ascending; `score` / `min-score` / `max-score` default to descending (picking a score axis is "what are the best entries / best worst-case pairs?", which reads top-down).
 
-The two-key form keeps each piece independently minimizable, so the common cases stay quiet — `entry asc` is silent, `score desc` is just `sort=score`, `score asc` is `sort=score&sort-dir=asc`. `sort-dir` can appear without `sort` (e.g. `entry desc` becomes `sort-dir=desc`); the parser treats an absent `sort` as the default axis.
+The two-key form keeps each piece independently minimizable, so the common cases stay quiet — words `entry asc` is silent, pairs `min-score desc` is silent, `score desc` is just `sort=score`, `score asc` is `sort=score&sort-dir=asc`. `sort-dir` can appear without `sort` (e.g. words `entry desc` becomes `sort-dir=desc`); the parser treats an absent `sort` as the kind default.
 
-Unknown values for either key are dropped without a toast (no churn risk — the axes are a closed set, unlike the tool catalog). Sort persists across wordlist switches inside a session: it's a view-config preference of the user, not of the focused wordlist.
+Unknown values for either key are dropped without a toast (no churn risk — the axes are a closed set per kind, unlike the tool catalog). The parser accepts any axis valid in either kind; the scroller snaps to a per-kind default if the parsed axis isn't valid for the rendered kind. Sort persists across wordlist switches inside a session: it's a view-config preference of the user, not of the focused wordlist.
 
 ### Stable links: don't rename, don't remove
 
