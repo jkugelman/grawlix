@@ -109,8 +109,9 @@ header h1 { font-size: 19px; font-weight: 600; letter-spacing: -0.01em; line-hei
 .header-subtitle { background: var(--hdr-bg-dark); color: rgba(255, 255, 255, 0.85); font-size: 12px; display: flex; align-items: center; justify-content: center; gap: 7px; line-height: 1.2; flex-wrap: wrap; padding: 7px 20px; margin: 6px -20px 0; }
 .header-tagline { font-style: italic; }
 .header-sep { opacity: 0.5; }
-.header-feedback a { color: white; text-decoration: none; border-bottom: 1px solid rgba(255,255,255,0.35); transition: opacity 0.15s; }
-.header-feedback a:hover { opacity: 1; border-bottom-color: white; }
+.header-byline-mobile { display: none; }
+.header-subtitle a { color: inherit; text-decoration: none; border-bottom: 1px solid rgba(255,255,255,0.35); transition: border-color 0.15s; }
+.header-subtitle a:hover { border-bottom-color: white; }
 
 /* Top-level nav (Library / Workshop) — center of the brand bar. */
 .header-nav { display: flex; align-items: center; gap: 2px; flex-shrink: 0; }
@@ -424,6 +425,10 @@ html.dark-mode .search-match-4 { background: #14532d; color: #d1fae5; }
    remains in the cell's title attribute for hover/long-press. */
 @media (max-width: 759px) {
   .detail-date-prefix { display: none; }
+  .header-byline-desktop,
+  .header-sep-feedback,
+  .header-feedback { display: none; }
+  .header-byline-mobile { display: inline; }
   /* Reclaim the gutters: the bordered card frame is decorative breathing
      room on desktop, but pure waste on a phone where every pixel matters.
      Drop the main padding, all borders, corner radius, bottom margin, and
@@ -982,8 +987,9 @@ input[type="file"] { display: none; }
   <div class="header-subtitle">
     <span class="header-tagline">Use your words!</span>
     <span class="header-sep">&middot;</span>
-    <span class="header-byline">Made with ♥ by John Kugelman</span>
-    <span class="header-sep">&middot;</span>
+    <span class="header-byline header-byline-desktop">Made with ♥ by John Kugelman</span>
+    <span class="header-byline header-byline-mobile">Made with ♥ by <a href="mailto:john@kugelman.name?subject=Grawlix">John Kugelman</a></span>
+    <span class="header-sep header-sep-feedback">&middot;</span>
     <span class="header-feedback">Got feedback? <a href="mailto:john@kugelman.name?subject=Grawlix">Email me</a></span>
     <span class="header-sep">&middot;</span>
     <a href="https://github.com/jkugelman/grawlix" target="_blank" rel="noopener" title="View on GitHub" class="header-github-link"><svg width="15" height="15" aria-label="GitHub" role="img"><use href="#icon-github"/></svg></a>
