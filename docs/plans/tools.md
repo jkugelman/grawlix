@@ -304,7 +304,7 @@ Builtin views are shared across calls. Custom JS tools can ask for them too but 
 ### UI-side: snappiness
 
 - **`run` is async by default.** Synchronous tools just `return`; async tools `await`. The runtime always treats the call as a promise.
-- **Stack/param changes debounce ~250ms** before re-running the pipeline (matches the existing URL debounce).
+- **Stack/param changes debounce ~250ms** before re-running the pipeline. Cheap synchronous tools could rerun per keystroke without trouble, but async/network-bound tools (OneLook, Datamuse) need a quiet window to avoid firing a request per character.
 - **In-flight runs cancel when superseded.** The `ctx` argument carries a cancellation signal (`ctx.signal`, `AbortSignal`-style); long-running tools should periodically check it. Network-bound tools pass it directly to `fetch`.
 - **Spinners appear on tool rows whose run takes longer than ~100ms.** Below the threshold, no UI flicker; above, the row badges with a progress indicator and the result list grays out.
 

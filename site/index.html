@@ -1650,8 +1650,6 @@ const Collapsible = (() => {
 // The score filter is intentionally *not* in the URL — it's per-user
 // (scores aren't portable across wordlist setups) and lives in localStorage.
 const Router = (() => {
-  let _navTimer = null;
-
   function buildQuery() {
     const parts = [];
     // Tool stack rows in pipeline order. Single-param tools today; multi-input
@@ -1693,21 +1691,11 @@ const Router = (() => {
     return '#/' + view + (query ? '?' + query : '');
   }
 
-  function _replace() {
-    _navTimer = null;
+  function navigate() {
     const target = location.pathname + buildHash();
     if (location.pathname + location.hash !== target) {
       history.replaceState(null, '', target);
     }
-  }
-
-  // Debounce input-tweak callers (typing) so the URL bar doesn't flicker per
-  // keystroke; structural toggles (whole-word, add/remove tool, clear) replace
-  // instantly.
-  function navigate({ debounce = false } = {}) {
-    if (_navTimer) { clearTimeout(_navTimer); _navTimer = null; }
-    if (debounce) _navTimer = setTimeout(_replace, 250);
-    else          _replace();
   }
 
   // Returns the view to activate. State (tool stack, search) is applied as a
@@ -2191,7 +2179,7 @@ const WorkshopView = (() => {
     const btn = document.getElementById('search-clear');
     if (btn) btn.hidden = !query;
     workshopScroller?.filter(query, _searchWholeWord, _scoreRange);
-    Router.navigate({ debounce: true });
+    Router.navigate();
   }
   function onSearchWholeWord(checked) {
     _searchWholeWord = checked;
@@ -3792,11 +3780,8 @@ const ToolStack = (() => {
       const key = input.dataset.key;
       if (stack[idx]) {
         stack[idx].params[key] = input.value;
-        // Refresh the scroller on every keystroke — pipeline runs eagerly so
-        // typing feels live. URL update stays debounced to avoid history-bar
-        // flicker per keystroke.
         refreshWorkshopMergedScroller();
-        Router.navigate({ debounce: true });
+        Router.navigate();
       }
     });
 
