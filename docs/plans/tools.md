@@ -88,9 +88,37 @@ Builtin views are shared across calls. Custom JS tools can ask for them too but 
 **Cooperative multitasking is the documented path** for keeping the main thread responsive during tool runs. Tools become async, hot loops yield periodically, and in-flight runs cancel when superseded. This shape lets live-as-you-type updates stay snappy regardless of total tool work — the browser gets a frame to render between chunks, so keystrokes never feel sluggish even when a tool takes hundreds of ms total. Workers were considered and rejected (see *Workers: rejected* below).
 
 - **`run` becomes async-by-default.** Synchronous tools still `return`; async tools `await`. The runtime always treats the call as a promise. Today's executor calls `run` synchronously — the call site needs to be promised before any of this can land.
-- **Tools yield inside hot loops.** Every ~1K iterations (a chunk that fits comfortably in one ~16ms frame on realistic hardware), the tool calls `await ctx.yield()` — a shim that prefers `scheduler.yield()` where available and falls back to `await new Promise(r => setTimeout(r, 0))`. The browser drains pending input events and paints between chunks; keystroke latency stays low independent of total run time.
+- **Tools yield by time, not iteration count.** Track elapsed since last yield and yield when it crosses ~5–8ms (about half a frame). Iteration-count chunking blows out the overhead budget on fast inner loops: 1K iterations of ~1μs work yields every ~1ms, so a 500K-entry filter would pay hundreds of ms in pure yield overhead alone. Ad-hoc loops gate the time check behind a cheap bitmask (`(i & 1023) === 0`) so `performance.now()` doesn't run every iteration; the helpers below handle this internally. The yield itself is `await ctx.yield()` — a shim that prefers `scheduler.yield()` where available and falls back to `await new Promise(r => setTimeout(r, 0))`. The browser drains pending input events and paints between chunks; keystroke latency stays low independent of total run time.
 - **In-flight runs cancel when superseded.** The `ctx` argument (not yet plumbed) carries an `aborted` flag, AbortSignal-style. Tools observe it at every yield point — a superseded run sees `aborted` on its next chunk boundary, returns immediately, and its result is discarded. Network-bound tools pass `ctx.signal` directly to `fetch`.
 - **Spinners on slow rows.** Tool rows whose run exceeds ~100ms badge with a progress indicator; the result list grays out. Below the threshold, no UI flicker.
+
+**Ergonomic helpers on `ctx`.** Tool authors don't write the yield bookkeeping manually. The runtime exposes chunked-iteration helpers that own time-tracking, yielding, and abort propagation:
+
+- `ctx.filter(input, predicate)` — chunked filter.
+- `ctx.forEach(input, fn)` — chunked iteration where the body pushes onto an accumulator the tool owns. Covers pair-emit shapes that aren't a pure filter.
+- `ctx.yield()` — manual yield for ad-hoc loops that don't fit `filter` or `forEach`.
+- `ctx.aborted` / `ctx.signal` — raw abort check and AbortSignal for `fetch`.
+
+Helpers throw an `AbortError` (DOMException, web-standard name) at a yield boundary when `ctx.aborted` flips; the executor catches and discards. Throwing instead of returning a sentinel lets tool bodies chain multiple helper calls without per-call bail-out plumbing — an aborted run unwinds naturally.
+
+Under this API the catalog reads compactly:
+
+```js
+// Anagram — one line
+return ctx.filter(input, e => sortLetters(e.entryNorm) === target);
+
+// Behead — one helper call inside the iteration body
+const byNorm = new Map(input.map(e => [e.entryNorm, e]));
+const out = [];
+await ctx.forEach(input, e => {
+  if (e.entryNorm.length < 2) return;
+  const match = byNorm.get(e.entryNorm.slice(1));
+  if (match) out.push({ a: e, b: match, highlights: { a: [{ kind: 'removed', start: 0, end: 1 }] } });
+});
+return out;
+```
+
+The inline `new Map(input.map(...))` build is unyielded — fine at its one-time ~30ms cost today, eventually subsumed by the indexed-views runtime (see *Indexed input views* above) that builds shared structures once at the executor boundary and hands them in via `input.set` / `input.byLetterBank` / etc.
 
 The cooperative model relies on tool-author discipline — a hot loop that never yields freezes the UI. Built-in tools are under our control, so this is a code-review concern, the same as missing cancellation checks. Custom JS tools (see *Open questions* below) are held to the same convention; if a user-authored tool ignores it, the consequence is locking up the author's own browser, which is their problem to manage. No CPU sandbox is needed.
 
