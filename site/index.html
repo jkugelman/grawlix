@@ -1969,6 +1969,13 @@ function idbDel(key) {
   });
 }
 
+// Opaque IDB key. Avoids crypto.randomUUID because WebKit gates it on
+// secure contexts, which breaks local-network mobile testing over HTTP.
+function newDbKey() {
+  const hex = (n) => Array.from({ length: n }, () => Math.floor(Math.random() * 16).toString(16)).join('');
+  return `${hex(8)}-${hex(4)}-${hex(4)}-${hex(4)}-${hex(12)}`;
+}
+
 function persistMeta() {
   if (_batchDepth > 0) { _persistPending = true; return; }
   _persistMetaNow();
@@ -2994,7 +3001,7 @@ async function init() {
     try {
       const meta = JSON.parse(raw);
       state.sources = await Promise.all(meta.map(async m => {
-        const dbKey = m.dbKey || crypto.randomUUID();
+        const dbKey = m.dbKey || newDbKey();
         const text = await idbGet('data_' + dbKey) ?? await idbGet('data_' + m.id);
         const wordlist = wrapWordlist({
           ...(m.type     ? { type: m.type }         : {}),
@@ -3055,7 +3062,7 @@ async function init() {
 function defaultSources() {
   return WORDLIST_PUBLISHERS.map(t => {
     const wordlist = wrapWordlist({
-      dbKey: crypto.randomUUID(),
+      dbKey: newDbKey(),
       icon: t.icon ? { ...t.icon } : null,
       publisherId: t.id,
       name: t.name,
@@ -3085,7 +3092,7 @@ function ensureEdits() {
   } else {
     const newEdits = wrapWordlist({
       type: 'edits',
-      dbKey: crypto.randomUUID(),
+      dbKey: newDbKey(),
       icon: EDITS_ICON,
       name: 'My Edits',
       url: null,
@@ -6333,7 +6340,7 @@ const ConfigureWordlistDialog = (() => {
 
     if (_mode === 'add') {
       const wordlist = addNewWordlist({
-        dbKey: crypto.randomUUID(), icon: _pendingIcon, name,
+        dbKey: newDbKey(), icon: _pendingIcon, name,
         url, enabled: false, populated: false,
         ...(_selectedPublisher ? { publisherId: _selectedPublisher.id } : {}),
         rescoreRules: rules || [],
@@ -7230,7 +7237,7 @@ window.__grawlixTest = {
       return comment ? `${entry};${s};${comment}` : `${entry};${s}`;
     }).join('\n');
     const wordlist = addNewWordlist({
-      dbKey: crypto.randomUUID(),
+      dbKey: newDbKey(),
       icon: null,
       publisherId: null,
       name,
