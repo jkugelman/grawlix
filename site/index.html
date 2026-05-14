@@ -3468,22 +3468,22 @@ const TOOLS = {
     params: [],
     output: 'words',
   },
-  beheadments: {
-    name: 'Beheadments', icon: '🪓', category: 'pairs',
+  behead: {
+    name: 'Behead', icon: '🪓', category: 'pairs',
     desc: 'Drop the first letter to get a new word',
     example: 'SLING → LING',
     params: [],
     output: 'pairs', relation: 'transform', labels: ['from', 'to'], chainProjection: 'to',
   },
-  curtailments: {
-    name: 'Curtailments', icon: '✂️', category: 'pairs',
+  curtail: {
+    name: 'Curtail', icon: '✂️', category: 'pairs',
     desc: 'Drop the last letter to get a new word',
     example: 'CARTS → CART',
     params: [],
     output: 'pairs', relation: 'transform', labels: ['from', 'to'], chainProjection: 'to',
   },
-  semordnilaps: {
-    name: 'Semordnilaps', icon: '↔️', category: 'pairs',
+  semordnilap: {
+    name: 'Semordnilap', icon: '↔️', category: 'pairs',
     desc: 'Reverse to get a different word',
     example: 'STRESSED → DESSERTS',
     params: [],
@@ -3991,7 +3991,7 @@ const SORT_AXES_BY_KIND = {
     entry: {
       label: 'Alphabetical',
       primary: p => p.a.entry,
-      // Semordnilaps has a 1:1 a→b mapping so no real ties; pair tools where
+      // Semordnilap has a 1:1 a→b mapping so no real ties; pair tools where
       // the same `a` maps to multiple `b`s (anagram_with, replace_anything)
       // benefit from b.entry asc keeping the output deterministic.
       tiebreakers: [

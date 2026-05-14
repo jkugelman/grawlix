@@ -133,13 +133,13 @@ test('pipeline output preserves wlEntry refs (popover opens, source/score intact
   await expect(page.locator('#atom-pop-score')).toHaveValue('50');
 });
 
-// ─── Pair output (semordnilaps) ─────────────────────────────────────────────
+// ─── Pair output (semordnilap) ──────────────────────────────────────────────
 //
 // Pair-mode rows render two atoms flanking a relation glyph and behave
 // differently along every axis the words view does — sort axes swap to
 // min/max-score, search matches either side, score-range filters on min,
 // stats says "N pairs". These tests pin those differences so they don't
-// regress when more pair tools land. Semordnilaps' canonical-direction dedup
+// regress when more pair tools land. Semordnilap's canonical-direction dedup
 // (smaller entryNorm on the `a` side) is also asserted here since it's the
 // only producing tool wired up today.
 
@@ -156,10 +156,10 @@ async function addSemordnilapFixture(page) {
   }));
 }
 
-test('semordnilaps renders dedup\'d pairs in min-score-desc order', async ({ page }) => {
+test('semordnilap renders dedup\'d pairs in min-score-desc order', async ({ page }) => {
   await gotoApp(page);
   await addSemordnilapFixture(page);
-  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'semordnilaps' }]));
+  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'semordnilap' }]));
 
   const visible = await page.evaluate(() => window.__grawlixTest.getVisibleEntries());
   expect(visible).toEqual([
@@ -169,12 +169,12 @@ test('semordnilaps renders dedup\'d pairs in min-score-desc order', async ({ pag
   ]);
 });
 
-test('semordnilaps excludes palindromes', async ({ page }) => {
+test('semordnilap excludes palindromes', async ({ page }) => {
   await gotoApp(page);
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
     name: 'PalindromeOnly', entries: ['RACECAR', 'KAYAK', 'LEVEL'], scores: [50, 50, 50],
   }));
-  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'semordnilaps' }]));
+  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'semordnilap' }]));
 
   const visible = await page.evaluate(() => window.__grawlixTest.getVisibleEntries());
   expect(visible).toEqual([]);
@@ -183,7 +183,7 @@ test('semordnilaps excludes palindromes', async ({ page }) => {
 test('pair-mode search filters when either side matches', async ({ page }) => {
   await gotoApp(page);
   await addSemordnilapFixture(page);
-  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'semordnilaps' }]));
+  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'semordnilap' }]));
 
   await page.locator('#search-input').fill('esser');
   // 'esser' lives only inside DESSERTS — the pair surfaces because the b-side
@@ -195,7 +195,7 @@ test('pair-mode search filters when either side matches', async ({ page }) => {
 test('pair-mode search highlights matched substrings on the matching side', async ({ page }) => {
   await gotoApp(page);
   await addSemordnilapFixture(page);
-  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'semordnilaps' }]));
+  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'semordnilap' }]));
 
   // `desserts` contains 'esser'; `stressed` does not. The matched side gets
   // `<mark>` spans; the non-matching side is unmarked.
@@ -208,7 +208,7 @@ test('pair-mode search highlights matched substrings on the matching side', asyn
 test('pair-mode score range filters on min(score)', async ({ page }) => {
   await gotoApp(page);
   await addSemordnilapFixture(page);
-  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'semordnilaps' }]));
+  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'semordnilap' }]));
 
   // 50+ leaves only DEVIL/LIVED (min 70). DESSERTS/STRESSED (min 40) and
   // LOOPS/SPOOL (min 20) drop out — even though STRESSED is 60, the rule is
@@ -221,7 +221,7 @@ test('pair-mode score range filters on min(score)', async ({ page }) => {
 test('stats bar labels count "Pairs" in pair mode and reverts to "Entries"', async ({ page }) => {
   await gotoApp(page);
   await addSemordnilapFixture(page);
-  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'semordnilaps' }]));
+  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'semordnilap' }]));
 
   // Three pairs visible — the label is the user-facing test of "this view
   // counts rows, not flattened atoms."
@@ -236,7 +236,7 @@ test('stats bar labels count "Pairs" in pair mode and reverts to "Entries"', asy
 test('clicking an atom in a pair row opens the popover for that side', async ({ page }) => {
   await gotoApp(page);
   await addSemordnilapFixture(page);
-  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'semordnilaps' }]));
+  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'semordnilap' }]));
 
   // Click STRESSED specifically (the b-side of the second row). The popover's
   // score input must show STRESSED's score (60), not DESSERTS's (40) — that's
@@ -306,7 +306,7 @@ test('pairs: min-score desc tiebreaks by length desc, then a.entry asc', async (
     entries: ['PALINDROMES', 'SEMORDNILAP', 'ABUT', 'TUBA', 'ADOS', 'SODA', 'AGES', 'SEGA'],
     scores:  [50, 50, 50, 50, 50, 50, 50, 50],
   }));
-  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'semordnilaps' }]));
+  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'semordnilap' }]));
 
   const visible = await page.evaluate(() => window.__grawlixTest.getVisibleEntries());
   expect(visible).toEqual([
@@ -320,7 +320,7 @@ test('pairs: min-score desc tiebreaks by length desc, then a.entry asc', async (
 test('pair-mode sort axis swap: min-score → max-score reorders rows', async ({ page }) => {
   await gotoApp(page);
   await addSemordnilapFixture(page);
-  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'semordnilaps' }]));
+  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'semordnilap' }]));
 
   // Switch sort axis to Max score. STRESSED=60 has the highest max in any
   // pair, beating LIVED=80 — wait, no: max(70,80)=80 for DEVIL/LIVED beats

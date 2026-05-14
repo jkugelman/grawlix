@@ -8,7 +8,7 @@ The gallery is where Grawlix's [project goal](../../README.md#goals) — democra
 
 ## Status
 
-The chrome, the pipeline runtime, and two tools (Anagram, Semordnilaps) are shipped — see [`../design.md` § Tool gallery & stack](../design.md#tool-gallery--stack) for the executor, runtime normalization, pair-row display, and per-kind sort. The rest of this doc covers what's still planned: the catalog of tools that have records but no `run` yet, the indexed-view runtime that several anagram-family tools need, groups output kind, gallery polish (category picker, search), result download, async/cancellation UX for network-bound tools, and the OneLook / Datamuse / Umiaq integrations.
+The chrome, the pipeline runtime, and two tools (Anagram, Semordnilap) are shipped — see [`../design.md` § Tool gallery & stack](../design.md#tool-gallery--stack) for the executor, runtime normalization, pair-row display, and per-kind sort. The rest of this doc covers what's still planned: the catalog of tools that have records but no `run` yet, the indexed-view runtime that several anagram-family tools need, groups output kind, gallery polish (category picker, search), result download, async/cancellation UX for network-bound tools, and the OneLook / Datamuse / Umiaq integrations.
 
 ---
 
@@ -58,7 +58,7 @@ The basic catalog record shape (`name`, `icon`, `category`, `desc`, `example`, `
 
 The wordlist arrives as a wlEntry array by default. Several tools want indexed views built lazily by the runtime:
 
-- `input.set` — `Set<entryNorm>` for O(1) membership checks (kangaroo, joey, sandwich, nested_words, beheadments).
+- `input.set` — `Set<entryNorm>` for O(1) membership checks (kangaroo, joey, sandwich, nested_words, behead).
 - `input.byLetterBank` — `Map<sortedLetters, wlEntry[]>` keyed by sorted-letters; instant anagram lookup (anagram, anagram_with, anagram_families, made_from).
 - `input.byLength` — `Map<number, wlEntry[]>` for length-bucketed iteration.
 
@@ -102,7 +102,7 @@ Both default to the standard renderers. Add a real motivating case before adding
 
 ## Catalog
 
-Each entry: `slug(params)` — output kind, plus relation/projection for non-`words` and any notable highlights or annotations. Specifics are negotiable; this captures intent. Shipped tools (Anagram, Semordnilaps) are marked ✓.
+Each entry: `slug(params)` — output kind, plus relation/projection for non-`words` and any notable highlights or annotations. Specifics are negotiable; this captures intent. Shipped tools (Anagram, Semordnilap) are marked ✓.
 
 ### Pattern matching
 - `search(pattern, wholeWord)` — words. Highlights: `matched` per non-wildcard region, colored by region index.
@@ -136,15 +136,15 @@ Each entry: `slug(params)` — output kind, plus relation/projection for non-`wo
 - `add_prefix(s)` — pair / transform · projects `to`. Highlight: `inserted` on the prefix.
 - `add_suffix(s)` — pair / transform · projects `to`. Highlight: `inserted` on the suffix.
 - `anagram_with(word)` — pair / symmetric · projects `both`.
-- `beheadments()` — pair / transform · projects `to`. Highlight: `removed` on `from[0]`.
-- `curtailments()` — pair / transform · projects `to`. Highlight: `removed` on `from[-1]`.
+- `behead()` — pair / transform · projects `to`. Highlight: `removed` on `from[0]`.
+- `curtail()` — pair / transform · projects `to`. Highlight: `removed` on `from[-1]`.
 - `side_splitting()` — TBD; either pair / contains (full word + split form) or words with a custom `renderItem`. Decide when the tool lands.
 - `letter_swap(a, b)` — pair / transform · projects `to`. Highlight: `shifted` on swapped positions.
 - `regex_replacement(pattern, with)` — pair / transform · projects `to`. Highlights for the matched and replaced regions.
 
 ### Curiosities
 - `palindromes()` — words.
-- `semordnilaps()` ✓ — pair / symmetric · projects `both`.
+- `semordnilap()` ✓ — pair / symmetric · projects `both`.
 - `isograms()` — words.
 - `supervocalics()` — words. Highlights: `matched` on each vowel.
 - `monovocs()` — words. Highlights: `matched` on the lone vowel.
@@ -251,4 +251,4 @@ The help redesign (see `help.md`) will happen after the tool gallery is built �
 - **Phonetics & thesaurus data bundling.** CMU dict and Roget XML — static assets, CDN, or runtime fetch?
 - **Multi-input URL encoding.** Tools with multiple inputs (regex with min-length, anagram with bank letters) need a value-internal delimiter or named subkeys. Deferred to the first such tool — encoding choice will land alongside it. (Mirrored in [`../design.md` § URL state](../design.md#url-state).)
 - **Whole-word per Search row.** `whole-word` is a bare top-level key today, fine for the single permanent Search row. If the stack ever holds two Search rows, the eventual fix is the multi-input encoding above (likely `search=CAT:w`). Revisit when chaining a Search above a transform becomes possible.
-- **Tool-level column customization for pair (and group) output.** Pair rows render `count len entry score · len entry score` uniformly today, but some tools have redundant columns — semordnilaps always has equal-length sides, so showing length twice is noise. The minimal fix is a per-tool flag like `equalLength: true` (or more generally, a list of suppressed columns). The maximal version is letting each tool declare its full column schema (names, projections, alignment) and the renderer becomes a pure consumer — closer to a real spreadsheet abstraction. Punt until a second tool hits the same wall and the right shape is obvious; one example isn't enough to design against.
+- **Tool-level column customization for pair (and group) output.** Pair rows render `count len entry score · len entry score` uniformly today, but some tools have redundant columns — semordnilap always has equal-length sides, so showing length twice is noise. The minimal fix is a per-tool flag like `equalLength: true` (or more generally, a list of suppressed columns). The maximal version is letting each tool declare its full column schema (names, projections, alignment) and the renderer becomes a pure consumer — closer to a real spreadsheet abstraction. Punt until a second tool hits the same wall and the right shape is obvious; one example isn't enough to design against.
