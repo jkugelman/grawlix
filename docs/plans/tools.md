@@ -72,9 +72,14 @@ Builtin views are shared across calls. Custom JS tools can ask for them too but 
 
 ### Async, cancellation, spinners
 
-- **`run` should be async-by-default.** Synchronous tools `return`; async tools `await`. The runtime always treats the call as a promise. Today's executor calls `run` synchronously — fine for builtin letter-pushing tools, breaks for network-bound tools (OneLook).
-- **In-flight runs cancel when superseded.** The `ctx` argument (not yet plumbed) carries an `AbortSignal`-style cancellation token. Long-running tools should check it periodically; network-bound tools pass it directly to `fetch`.
-- **Spinners on slow rows.** Tool rows whose run exceeds ~100ms should badge with a progress indicator; the result list grays out. Below the threshold, no UI flicker.
+**Cooperative multitasking is the documented path** for keeping the main thread responsive during tool runs. Tools become async, hot loops yield periodically, and in-flight runs cancel when superseded. This shape lets live-as-you-type updates stay snappy regardless of total tool work — the browser gets a frame to render between chunks, so keystrokes never feel sluggish even when a tool takes hundreds of ms total. Workers were considered and rejected (see *Workers: rejected* below).
+
+- **`run` becomes async-by-default.** Synchronous tools still `return`; async tools `await`. The runtime always treats the call as a promise. Today's executor calls `run` synchronously — the call site needs to be promised before any of this can land.
+- **Tools yield inside hot loops.** Every ~1K iterations (a chunk that fits comfortably in one ~16ms frame on realistic hardware), the tool calls `await ctx.yield()` — a shim that prefers `scheduler.yield()` where available and falls back to `await new Promise(r => setTimeout(r, 0))`. The browser drains pending input events and paints between chunks; keystroke latency stays low independent of total run time.
+- **In-flight runs cancel when superseded.** The `ctx` argument (not yet plumbed) carries an `aborted` flag, AbortSignal-style. Tools observe it at every yield point — a superseded run sees `aborted` on its next chunk boundary, returns immediately, and its result is discarded. Network-bound tools pass `ctx.signal` directly to `fetch`.
+- **Spinners on slow rows.** Tool rows whose run exceeds ~100ms badge with a progress indicator; the result list grays out. Below the threshold, no UI flicker.
+
+The cooperative model relies on tool-author discipline — a hot loop that never yields freezes the UI. Built-in tools are under our control, so this is a code-review concern, the same as missing cancellation checks. Custom JS tools (see *Open questions* below) are held to the same convention; if a user-authored tool ignores it, the consequence is locking up the author's own browser, which is their problem to manage. No CPU sandbox is needed.
 
 ### Annotations
 
@@ -199,9 +204,17 @@ Groups are the partial exception to strict pseudo-column alignment. Atom counts 
 
 ---
 
-## Workers and result caching: deferred
+## Workers: rejected
 
-Web workers are the right answer eventually for custom JS tools — bad code shouldn't freeze the UI — but they cost in setup (no build step makes worker bundling awkward) and in data transfer (200K-word inputs serialize to several MB per run). Builtin tools run in tens of ms on the main thread; even O(n²) tools complete in well under a second on realistic wordlists. Defer until custom tools are real and profiling shows blocking is a problem.
+Web workers were considered for moving tool execution off the main thread and rejected. Cooperative yielding (see *Async, cancellation, spinners* above) covers what workers would have bought, without their cost.
+
+- **Cooperative yielding already secures UI responsiveness.** Tools yield inside hot loops; the browser drains input and paints between chunks; keystroke latency stays low independent of total run time. The thing workers would offer over today's main-thread compute — main thread stays free during work — is the thing yielding already delivers.
+- **No untrusted code to sandbox.** Custom JS tools (see *Open questions* below) are user-authored and run in the user's own browser. The blast radius of a misbehaving custom tool is one tab on its author's own machine. Users writing tools are guided to the same yield-and-cancel discipline as built-ins; if they ignore it, they only lock up themselves. There's no second party to protect, so no CPU sandbox is warranted.
+- **Cost is significant.** No build step makes worker bundling awkward, and the naïve "copy 500K entries every keystroke" shape serializes ~25 MB through structured clone (~150–300ms each direction at typical throughput) — likely slower than the main-thread compute it would replace. The viable shape — worker holds the wordlist, main thread sends only queries — pulls a state-sync protocol into the entire mutation surface (My Edits patches mirrored worker-side, source/rescore-rule changes re-shipped). Meaningful complexity for a marginal gain over what yielding already provides.
+
+Revisit only if a built-in tool surfaces whose work fundamentally can't fit the cooperative budget — bulk preprocessing where chunked yields can't hide enough latency to keep results from feeling delayed. None of the current or near-term catalog qualifies.
+
+## Result caching: deferred
 
 Tool-result memoization is plausible — input identity is tracked by `cacheVersion$`, and tool params are known — but premature without profiling. The data-shape views above are the load-bearing optimization; per-call result caches are a layer above that.
 
