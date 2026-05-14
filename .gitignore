@@ -1,6 +1,7 @@
 CLAUDE.local.md
 TODO.md
 settings.local.json
+.claude/skills/mobile-server/
 
 # Playwright
 node_modules/
