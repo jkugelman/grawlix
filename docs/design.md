@@ -6,7 +6,7 @@ This is the singular home for distilled design content. As plans ship, the `dist
 
 ## Workspace and sidekick
 
-Constructors use Grawlix on desktop in two modes that share one UI:
+Constructors use Grawlix in two modes that share one UI:
 
 - **Workspace** — typical during theme generation. The user lives in Grawlix: plays with tools, searches and filters the wordlist, grooms My Edits. Sessions are longer; exploration is open-ended.
 - **Sidekick** — typical while filling a grid in another tool (Crossfire, Ingrid, Crossword Compiler, Crosserville). The user pops over to look something up, rescore an entry, type a comment, and goes back to filling.
@@ -15,7 +15,7 @@ Neither mode is primary. The workspace-leaning design accommodates sidekick mode
 
 Lookup features (definitions, NYT crossword history, semantic search; see [`plans/lookup.md`](plans/lookup.md)) are differentially valuable to constructors using grid software without built-in lookup. Crossfire and Crossword Compiler are the populations that benefit most; Ingrid has Google integration and Crosserville has clue lookup, so those populations need Grawlix-side lookup less.
 
-Mobile is a third mode — theme research on the go (subway, Discord) — and gets its own design; see [`plans/mobile.md`](plans/mobile.md).
+Mobile is a third mode — theme research on the go (subway, Discord), where a constructor wants to act on an idea before it evaporates. It runs the same UI as desktop, responsively narrowed; see § *The shell* for the convergence rationale.
 
 ## The shell
 
@@ -23,8 +23,7 @@ Mobile is a third mode — theme research on the go (subway, Discord) — and ge
 
 `<main>` uses `scrollbar-gutter: stable` to reserve the scrollbar's gutter whether or not the content overflows. Without that, the Library view (short, no scrollbar) and the Workshop view (tall, scrollbar) would lay out at different inner widths and the centered card would jump horizontally on every view switch. The previous arrangement put the scroll on the document, which had the same shift problem plus made the header narrower than the viewport while the scrollbar was present.
 
-The shape replaced an earlier full-bleed, fixed-left-rail layout that left a developer-tool-shaped expanse of empty horizontal space to the right of the (intentionally narrow, single-column atom) entries table. Bounded width plus centered column makes that empty space *intentional* — the side margins read as "this is a content page" rather than "the app didn't fill the window." The new shape also converges desktop and mobile onto one DOM, one design, two widths (see [`plans/mobile.md`](plans/mobile.md)).
-
+The shape replaced an earlier full-bleed, fixed-left-rail layout that left a developer-tool-shaped expanse of empty horizontal space to the right of the (intentionally narrow, single-column atom) entries table. Bounded width plus centered column makes that empty space *intentional* — the side margins read as "this is a content page" rather than "the app didn't fill the window."
 **Header is brand chrome plus top-level navigation.** Wordmark on the left, Workshop / Library nav in the center, settings/help on the right. A personal-text subtitle (tagline, byline, contact, GitHub) on a darkened-purple band sits immediately below the row. Per-wordlist state, sync indicators, and wordlist pickers stay out — those would tie the header to ephemeral state. The earlier "brand chrome only" rule excluded all controls; top-level navigation is the carve-out because it's structural, not transient (GitHub, Linear, and Stripe all put their primary nav in the brand bar without it reading as control clutter). The personal text used to occupy the brand-bar center but lost that slot to nav; demoting it to a subtitle row keeps the tone — "this is the project's voice" — without making it compete for the eye-magnet center.
 
 *Alternative considered:* sticky footer at the bottom of the viewport for the personal text, with the brand bar staying a single row of wordmark + nav + utility. Rejected because the in-chrome subtitle keeps the personal text continuous with brand identity, while a footer would tax every screen with chrome that mostly says nothing once a user has read it. Worth revisiting if the chrome ever feels too tall.
@@ -64,7 +63,7 @@ Setup splits across two surfaces that answer different questions and stay distin
 
 ### Library
 
-Two-pane layout that's responsive: wordlist list above the focused-wordlist panel on mobile, side-by-side at ≥ 760px (list as a left rail, panel filling the rest). The list itself groups into two labeled sections — **Merged** (the All card at the top) and **Sources** (every reorderable wordlist below). My Edits sits first inside Sources by default but is reorderable like any other.
+Two-pane layout: list as a left rail beside the focused-wordlist panel when the viewport is wide enough, stacking above it on narrow viewports. The list itself groups into two labeled sections — **Merged** (the All card at the top) and **Sources** (every reorderable wordlist below). My Edits sits first inside Sources by default but is reorderable like any other.
 
 The focused-wordlist panel has no name/icon header — the focused wordlist is identified by the highlighted card in the list. The action row always justifies the date label and primary action right; the Rescored/Original toggle sits left of them when present.
 
@@ -398,17 +397,13 @@ The alternative — sprinkling `invalidateX()` and `repaintY()` calls at every m
 
 Top-level views (Workshop, Library) are routed; setup-style dialogs (Sync & backup, Settings, Help) aren't. Confirms/alerts/downloads stay as dialogs regardless — those really are transient.
 
-Arguments in favor of routes for setup: setup screens are *places* users spend real time, URL-addressable means deep-linkable and reload-safe, mobile and desktop converge in shape since dialogs go full-screen on phone anyway. Currently sticking with dialogs because they match the existing codebase idiom.
+Arguments in favor of routes for setup: setup screens are *places* users spend real time, URL-addressable means deep-linkable and reload-safe, narrow viewports turn modals into full-screen routes anyway. Currently sticking with dialogs because they match the existing codebase idiom.
 
-Worth revisiting if the dialog-as-workspace feel becomes a friction point — particularly when the mobile design lands, since the modal-ness is cost without payoff on phones. Notes for that revisit: bookmark/share-setup-state is unlikely (so deep-linking isn't a strong driver, just reload-safety); back button does default browser behavior (navigates back to the wordlist); header stays a fixture with no dynamic content (no breadcrumbs). *"Routes for everything" — including confirms — was considered and dropped as too heavy-handed.*
+Worth revisiting if the dialog-as-workspace feel becomes a friction point — particularly at narrow viewport widths, where a full-screen modal is essentially a route in disguise. Notes for that revisit: bookmark/share-setup-state is unlikely (so deep-linking isn't a strong driver, just reload-safety); back button does default browser behavior (navigates back to the wordlist); header stays a fixture with no dynamic content (no breadcrumbs). *"Routes for everything" — including confirms — was considered and dropped as too heavy-handed.*
 
 ### Workshop result-export
 
 A copy-to-clipboard + save-as-file affordance for *query results* (anagrams, regex hits) on the Workshop entries table. Distinct from any wordlist download — query results are not wordlists. Parked for now; placement (sort cluster vs. table-region header vs. separate button) deferred.
-
-### Library on mobile
-
-Today the responsive layout stacks the wordlist list above the panel on phones, and the typical wordlist count (~6) makes the scroll-past-the-list cost tolerable. If users with many wordlists make the list noisy on phone, a dropdown or other compaction would land here.
 
 ## Non-features
 

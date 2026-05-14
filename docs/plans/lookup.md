@@ -10,7 +10,7 @@ Click a word → surface info about it from external sources (definitions, Wikip
 
 Lookups are the gap-filler for the populations described in the "Workspace and sidekick" framing — specifically constructors whose grid software lacks built-in lookup (Crossfire, Crossword Compiler). Ingrid has Google integration, Crosserville has clue lookup; those users already get lookup elsewhere.
 
-Beyond the grid-software gap, lookups serve Grawlix's own mining/research workflows: while filling or theme-generating, "what is this entry?" is a real question that comes up — and the **mobile theme-research-on-the-go scenario** (subway, Discord; see [`mobile.md`](mobile.md)) probably wants definitions and Wikipedia more than letter-pattern wordplay. Lookups may need more prominence on mobile than desktop.
+Beyond the grid-software gap, lookups serve Grawlix's own mining/research workflows: while filling or theme-generating, "what is this entry?" is a real question that comes up — and the **theme-research-on-the-go scenario** (subway, Discord) probably wants definitions and Wikipedia more than letter-pattern wordplay.
 
 ---
 
@@ -41,10 +41,8 @@ To answer in the dedicated design session:
 - **Trigger interaction.** Click a word, hover, dedicated affordance per row, keyboard shortcut on selection? The interaction model needs to coexist with inline cell editing — clicking a score or comment cell is already taken.
 - **Latency / offline.** Lookups are network-dependent. What does Grawlix show for offline / slow / failed lookup? Where does loading state live?
 
-Mobile prominence is owned by [`mobile.md`](mobile.md) — it decides whether the mobile entry point biases toward lookup-style features.
-
 ---
 
 ## Phasing
 
-Owns its own design session, then its own implementation phase. Not a prerequisite for any current desktop work, and current desktop work is not a prerequisite for it. Mobile design lands first, since the entry-point question for mobile shapes how prominent lookups need to be there.
+Owns its own design session, then its own implementation phase. Not a prerequisite for any current work, and current work is not a prerequisite for it.

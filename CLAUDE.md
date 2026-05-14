@@ -25,7 +25,6 @@ Plans (forward-looking, not yet shipped):
 - [`docs/plans/help.md`](docs/plans/help.md) — separating welcome tour from returning-user reference manual.
 - [`docs/plans/lookup.md`](docs/plans/lookup.md) — click-a-word lookup (definitions, Wikipedia, NYT history, semantic search).
 - [`docs/plans/migration.md`](docs/plans/migration.md) — when to graduate from schema-version resets to layered migrations.
-- [`docs/plans/mobile.md`](docs/plans/mobile.md) — mobile/responsive design.
 - [`docs/plans/puz-to-pdf.md`](docs/plans/puz-to-pdf.md) — feasibility sketch for in-browser .PUZ → printable PDF rendering.
 - [`docs/plans/sync.md`](docs/plans/sync.md) — three-tier persistence (backup nag, disk file, cloud sync) for All + My Edits.
 - [`docs/plans/tools.md`](docs/plans/tools.md) — tool execution/catalog, chaining, pair/group output, OneLook/Datamuse/Umiaq. Gallery + stack are shipped (see `design.md`).

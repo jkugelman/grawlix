@@ -122,7 +122,7 @@ The dialog is distinct from the **Wordlists** dialog: that one answers "what wor
 - **Token revoked.** User changed cloud password, manually disconnected, etc. Grawlix shows a reconnect prompt; local state is preserved.
 - **Provider unreachable.** Transient: retry with backoff. Persistent: surface error, keep editing locally, sync when service returns.
 - **External tool truncates the file.** Diff shows mass deletion. Treat as a high-confidence anomaly: prompt before applying.
-- **Browser support gaps.** Firefox and Safari users see Tier 2 hidden — Tier 1 and Tier 3 still available. Mobile/iOS limited to Tier 1 and Tier 3 (no FSA, no good PWA install UX).
+- **Browser support gaps.** Firefox and Safari users see Tier 2 hidden — Tier 1 and Tier 3 still available. iOS Safari limited to Tier 1 and Tier 3 (no FSA, no good PWA install UX).
 
 ---
 
