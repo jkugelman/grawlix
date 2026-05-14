@@ -381,6 +381,28 @@ html.dark-mode .search-match-4 { background: #14532d; color: #d1fae5; }
 body.tools-multi-word .entry-headers:not(.pair-headers) { display: none; }
 body:not(.tools-multi-word) .entry-headers.pair-headers { display: none; }
 
+/* Mobile: pair rows stack (A row 1, B row 2) since side-by-side overflows
+   phone widths. Relation glyph trails row 1 so it reads as "A → row below".
+   Stride doubling lives in WorkshopEntriesScroller._rowStride. */
+@media (max-width: 599px) {
+  .entry-row.pair-row {
+    grid-template-columns:
+      var(--count-w, 2ch)
+      var(--len-w, 3ch) var(--entry-w, 12ch) var(--score-w, calc(5ch + 12px))
+      var(--relation-w, 28px);
+    grid-template-rows: var(--row-height, 24px) var(--row-height, 24px);
+    height: calc(2 * var(--row-height, 24px));
+  }
+  .entry-row.pair-row .atom-count    { grid-row: 1; grid-column: 1; }
+  .entry-row.pair-row .atom-relation { grid-row: 1; grid-column: 5; }
+  .entry-row.pair-row [data-side="a"] { grid-row: 1; }
+  .entry-row.pair-row [data-side="b"] { grid-row: 2; }
+  .entry-row.pair-row .atom-len[data-side]   { grid-column: 2; }
+  .entry-row.pair-row .atom-entry[data-side] { grid-column: 3; }
+  .entry-row.pair-row .atom-score[data-side] { grid-column: 4; }
+  .entry-headers.pair-headers { display: none; }
+}
+
 /* Comment + source columns appear when the card has room and no pair-output
    tool is active. Source is meaningful only on the merged All view (single
    wordlists' source is constant per row). The two columns drop staggered as
@@ -4334,15 +4356,21 @@ class BaseVirtualScroller {
   // Subclasses can override to react to scroll (e.g., close any open popover).
   _onScroll() { this._render(); }
 
+  // Per-item vertical stride. Subclasses with variable-height row kinds
+  // (pair-stacked on mobile) override this; the value flips on viewport
+  // crossings because the base's resize handler re-renders on resize.
+  _rowStride() { return ROW_HEIGHT; }
+
   // Visible item-index range [start, end) for a list of `itemCount` rows. Same
   // viewport-relative math whether the scroll container is <main> or document.
   _visibleRange(itemCount) {
+    const stride = this._rowStride();
     const rect = this.host.getBoundingClientRect();
     const viewH = window.innerHeight;
     const visTop = Math.max(0, -rect.top);
     const visBottom = Math.max(0, Math.min(rect.height, viewH - rect.top));
-    const start = Math.max(0, Math.floor(visTop / ROW_HEIGHT) - VS_BUFFER);
-    const end   = Math.min(itemCount, Math.ceil(visBottom / ROW_HEIGHT) + VS_BUFFER);
+    const start = Math.max(0, Math.floor(visTop / stride) - VS_BUFFER);
+    const end   = Math.min(itemCount, Math.ceil(visBottom / stride) + VS_BUFFER);
     return { start, end };
   }
 
@@ -4636,9 +4664,19 @@ class WorkshopEntriesScroller extends BaseVirtualScroller {
     return this.kind === 'pairs' ? flattenPairs(base) : base;
   }
 
+  // Pair rows stack vertically on phone-width viewports (see the mobile media
+  // query on .entry-row.pair-row), so each pair occupies 2× the normal row
+  // stride. Word rows are always 1×.
+  _rowStride() {
+    return this.kind === 'pairs' && window.matchMedia('(max-width: 599px)').matches
+      ? 2 * ROW_HEIGHT
+      : ROW_HEIGHT;
+  }
+
   _render() {
     const n = this.entries.length;
-    this.sizer.style.height = (n * ROW_HEIGHT) + 'px';
+    const stride = this._rowStride();
+    this.sizer.style.height = (n * stride) + 'px';
 
     const { start, end } = this._visibleRange(n);
     this._clearSizer();
@@ -4652,6 +4690,7 @@ class WorkshopEntriesScroller extends BaseVirtualScroller {
       const row = this.kind === 'pairs'
         ? this._renderPairRow(item, i, tierFor, activeEntry)
         : this._renderWordRow(item, i, tierFor, activeEntry);
+      row.style.top = (i * stride) + 'px';
       if (row.classList.contains('active')) nextActiveRow = row;
       frag.appendChild(row);
     }
@@ -4679,7 +4718,6 @@ class WorkshopEntriesScroller extends BaseVirtualScroller {
     row.className = cls;
     row.dataset.entry = entry;
     row.dataset.idx = i;
-    row.style.top = (i * ROW_HEIGHT) + 'px';
     if (displayed.length > ENTRY_SLOT_CAP) row.title = displayed;
     row.innerHTML =
       `<span class="atom-count">${i + 1}.</span>` +
@@ -4699,7 +4737,6 @@ class WorkshopEntriesScroller extends BaseVirtualScroller {
     if (activeEntry && (pair.a.entry === activeEntry || pair.b.entry === activeEntry)) cls += ' active';
     row.className = cls;
     row.dataset.idx = i;
-    row.style.top = (i * ROW_HEIGHT) + 'px';
     row.innerHTML =
       `<span class="atom-count">${i + 1}.</span>` +
       this._renderPairSideHTML(pair.a, 'a', tierFor, pair.highlights?.a) +
