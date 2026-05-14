@@ -338,6 +338,39 @@ html.dark-mode .search-match-4 { background: #14532d; color: #d1fae5; }
 .entry-row .atom-source  { overflow: hidden; text-overflow: ellipsis; min-width: 0; font-family: var(--font-sans); font-size: 12px; align-self: stretch; line-height: var(--row-height, 24px); }
 .entry-row .atom-comment, .entry-row .atom-source { display: none; }
 
+/* Pair rows: a leading row count, then two atom triples (length / entry /
+   score) flanking a relation glyph. Both score badges right-align within
+   their score-w track so digits line up down each side of the table.
+   `justify-content: start` is load-bearing — the default `normal` on a grid
+   container behaves as `stretch`, which expands `auto` tracks to fill
+   leftover space. Without this, the central relation track would balloon and
+   push the b-side cluster to the right edge of the row instead of letting
+   the pair sit naturally bunched against the a-side. */
+.entry-row.pair-row {
+  grid-template-columns:
+    var(--count-w, 2ch)
+    var(--len-w, 3ch) var(--entry-w, 12ch) var(--score-w, calc(5ch + 12px))
+    auto
+    var(--len-w, 3ch) var(--entry-w, 12ch) var(--score-w, calc(5ch + 12px));
+  justify-content: start;
+}
+.entry-row.pair-row .atom-relation { color: var(--faint); font-family: var(--font-sans); font-size: 14px; padding: 0 6px; user-select: none; }
+.entry-row.pair-row .atom-entry { justify-self: start; }
+.entry-row.pair-row .atom-score { justify-self: end; }
+/* Pair-mode column headers mirror the row layout — count, then len/entry/score
+   on each side around the relation glyph. The words-mode header div is hidden
+   in pair mode (and vice versa) so the two never overlap. */
+.entry-headers.pair-headers {
+  grid-template-columns:
+    var(--count-w, 2ch)
+    var(--len-w, 3ch) var(--entry-w, 12ch) var(--score-w, calc(5ch + 12px))
+    auto
+    var(--len-w, 3ch) var(--entry-w, 12ch) var(--score-w, calc(5ch + 12px));
+  justify-content: start;
+}
+body.tools-multi-word .entry-headers:not(.pair-headers) { display: none; }
+body:not(.tools-multi-word) .entry-headers.pair-headers { display: none; }
+
 /* Comment + source columns appear when the card has room and no pair-output
    tool is active. Source is meaningful only on the merged All view (single
    wordlists' source is constant per row). The two columns drop staggered as
@@ -1398,8 +1431,11 @@ class PopupHelp {
 // histograms, which display the distribution but don't participate in
 // score-range filtering.
 function buildStatsBarHTML(stats, hist, layout, opts = {}) {
-  const { readOnly = false } = opts;
-  const isEmpty = !stats.count;
+  // countLabel/countValue let pair output show "Pairs: 42" instead of the
+  // default "Entries: 84" — the stats aggregates run over flattened atoms,
+  // but the count is per-row.
+  const { readOnly = false, countLabel = 'Entries', countValue = stats.count } = opts;
+  const isEmpty = !countValue;
   const dash = '—';
   const fmt = v => isEmpty ? dash : v;
   const ignored = hist.ignoredCount || 0;
@@ -1428,7 +1464,7 @@ function buildStatsBarHTML(stats, hist, layout, opts = {}) {
   const pointerHandler = readOnly ? '' : ' onpointerdown="onHistogramPointerDown(event)"';
 
   return `<div class="stats-bar${isEmpty ? ' stats-empty' : ''}">
-      ${buildStatItemHTML('Entries', stats.count.toLocaleString())}
+      ${buildStatItemHTML(countLabel, countValue.toLocaleString())}
       ${buildStatItemHTML('Min', fmt(stats.min))}
       ${buildStatItemHTML('Max', fmt(stats.max))}
       <div class="stats-right">
@@ -1568,15 +1604,31 @@ function buildEntriesTablePanelHTML() {
     </div>`;
 }
 
+// Both headers always live in the DOM; the body's `tools-multi-word` class
+// (toggled by ToolStack.refreshGalleryActive when the last tool's output kind
+// changes) decides which one is visible. Rendering both up-front means kind
+// flips via add/remove on the stack only need to flip a class, not remount
+// the chrome — `refreshWorkshopMergedScroller` already runs on those flips
+// but it stops at the scroller, not the surrounding panel.
 function buildEntryHeadersHTML() {
   return `<div class="entry-headers" aria-hidden="true">
-    <span></span>
-    <span class="col-entry">Entry</span>
-    <span class="col-len">Len</span>
-    <span class="col-score">Score</span>
-    <span class="col-comment">Comment</span>
-    <span class="col-source">Source</span>
-  </div>`;
+      <span></span>
+      <span class="col-entry">Entry</span>
+      <span class="col-len">Len</span>
+      <span class="col-score">Score</span>
+      <span class="col-comment">Comment</span>
+      <span class="col-source">Source</span>
+    </div>
+    <div class="entry-headers pair-headers" aria-hidden="true">
+      <span></span>
+      <span class="col-len">Len</span>
+      <span class="col-entry">Entry</span>
+      <span class="col-score">Score</span>
+      <span></span>
+      <span class="col-len">Len</span>
+      <span class="col-entry">Entry</span>
+      <span class="col-score">Score</span>
+    </div>`;
 }
 
 function buildEditHintHTML(extraClass, onclick) {
@@ -1670,10 +1722,13 @@ const Router = (() => {
     // empty Search bar at the bottom regardless, so the URL stays minimal.
     if (WorkshopView.searchQuery)     parts.push('search=' + encodeURIComponent(WorkshopView.searchQuery));
     if (WorkshopView.searchWholeWord) parts.push('whole-word');
-    // Sort axis/direction. Each key drops out when it matches its default,
-    // so the common case (entry asc) is silent. `sort-dir` may appear alone
-    // (e.g. entry desc) — parsing treats absent `sort` as the default axis.
-    if (WorkshopView.sortKey !== DEFAULT_SORT_KEY)             parts.push('sort=' + WorkshopView.sortKey);
+    // Sort axis/direction. Each key drops out when it matches the default for
+    // the current output kind, so the common case (entry asc on words,
+    // min-score desc on pairs) stays silent. `sort-dir` may appear alone
+    // (e.g. entry desc) — parsing treats absent `sort` as the kind default.
+    const kind = currentOutputKind(ToolStack.getStack());
+    const defaultAxis = DEFAULT_SORT_KEY_BY_KIND[kind];
+    if (WorkshopView.sortKey !== defaultAxis)                  parts.push('sort=' + WorkshopView.sortKey);
     if (WorkshopView.sortDir !== defaultSortDir(WorkshopView.sortKey)) parts.push('sort-dir=' + WorkshopView.sortDir);
     return parts.join('&');
   }
@@ -1731,7 +1786,7 @@ const Router = (() => {
     for (const [key, value] of params) {
       if (key === 'whole-word') { wholeWord = true; continue; }
       if (key === 'search')     { searchValue = value || ''; continue; }
-      if (key === 'sort')       { if (SORT_AXES[value]) sortKey = value; continue; }
+      if (key === 'sort')       { if (isValidSortAxis(value)) sortKey = value; continue; }
       if (key === 'sort-dir')   { if (value === 'asc' || value === 'desc') sortDir = value; continue; }
       const tool = TOOLS[key];
       if (!tool) { droppedUnknown = true; continue; }
@@ -1741,8 +1796,11 @@ const Router = (() => {
       }
       stack.push(row);
     }
-    WorkshopView.applyURLState({ searchQuery: searchValue, searchWholeWord: wholeWord, sortKey, sortDir });
+    // Stack is set first so applyURLState can derive the current output kind
+    // when picking the sort default (a pair URL with no explicit sort= should
+    // pick min-score, not the words default entry).
     ToolStack.setStack(stack);
+    WorkshopView.applyURLState({ searchQuery: searchValue, searchWholeWord: wholeWord, sortKey, sortDir });
     if (droppedUnknown) {
       // Defer: showToast appends to the toast container which may not be in
       // the DOM yet during initial load.
@@ -2221,7 +2279,8 @@ const WorkshopView = (() => {
   function applyURLState({ searchQuery, searchWholeWord, sortKey, sortDir }) {
     _searchQuery     = searchQuery || '';
     _searchWholeWord = !!searchWholeWord;
-    _sortKey         = sortKey || DEFAULT_SORT_KEY;
+    const kind = currentOutputKind(ToolStack.getStack());
+    _sortKey         = sortKey || DEFAULT_SORT_KEY_BY_KIND[kind];
     _sortDir         = sortDir || defaultSortDir(_sortKey);
   }
 
@@ -2418,7 +2477,7 @@ const LibraryView = (() => {
 
   function buildSortControlsHTML() {
     const arrow = _sortDir === 'asc' ? '↑' : '↓';
-    const options = Object.entries(SORT_AXES)
+    const options = Object.entries(sortAxesFor('words'))
       .map(([key, { label }]) => `<option value="${key}"${key === _sortKey ? ' selected' : ''}>${esc(label)}</option>`)
       .join('');
     return `Sort by
@@ -2675,7 +2734,7 @@ const LibraryView = (() => {
   }
 
   function onSortAxis(key) {
-    if (!SORT_AXES[key] || _sortKey === key) return;
+    if (!sortAxesFor('words')[key] || _sortKey === key) return;
     _sortKey = key;
     _sortDir = defaultSortDir(key);
     refreshSortControls();
@@ -3429,8 +3488,29 @@ const TOOLS = {
     example: 'STRESSED → DESSERTS',
     params: [],
     output: 'pairs', relation: 'symmetric', labels: ['a', 'b'], chainProjection: 'both',
+    run(input) {
+      // Each pair is emitted once in canonical order (lexicographically smaller
+      // entryNorm on the `a` side). Palindromes are skipped — reversing them
+      // yields the same word, not a different one.
+      const byNorm = new Map(input.map(e => [e.entryNorm, e]));
+      const out = [];
+      for (const e of input) {
+        const reversed = reverseString(e.entryNorm);
+        if (reversed === e.entryNorm) continue;
+        if (e.entryNorm >= reversed) continue;
+        const match = byNorm.get(reversed);
+        if (match) out.push({ a: e, b: match });
+      }
+      return out;
+    },
   },
 };
+
+function reverseString(s) {
+  let out = '';
+  for (let i = s.length - 1; i >= 0; i--) out += s[i];
+  return out;
+}
 
 // Sort the letters of an already-canonical string. Tools that need letter-bank
 // equivalence call this on `entryNorm` (and on user-supplied params, which the
@@ -3845,14 +3925,119 @@ function scoreColor(score) {
   };
 }
 
-const SORT_AXES = {
-  entry:  { label: 'Entry' },
-  length: { label: 'Length' },
-  score:  { label: 'Score' },
+// Sort axes per output kind. Each axis declares its primary projection and a
+// fixed-direction tiebreaker chain — when the primary ties, fall to whichever
+// direction surfaces the most interesting entries first (longer > shorter,
+// higher score > lower), with alphabetical asc as the final stable
+// tiebreaker. Flipping the user-level sort direction (asc/desc) reverses only
+// the primary axis; tiebreakers keep their declared direction, so "score
+// asc" still shows the longest among the lowest-scoring entries first
+// instead of letting short junk float to the top of the tied bucket.
+const SORT_AXES_BY_KIND = {
+  words: {
+    entry: {
+      label: 'Entry',
+      primary: e => e.entry,
+      // Defensive — the merged view dedupes by entryLower so ties shouldn't
+      // happen here, but length desc + score desc keeps "more interesting"
+      // duplicates first if a pre-merge scope ever lands.
+      tiebreakers: [
+        { project: e => e.entry.length, dir: 'desc' },
+        { project: e => e.score,        dir: 'desc' },
+      ],
+    },
+    length: {
+      label: 'Length',
+      primary: e => e.entry.length,
+      tiebreakers: [
+        { project: e => e.score, dir: 'desc' },
+        { project: e => e.entry, dir: 'asc'  },
+      ],
+    },
+    score: {
+      label: 'Score',
+      primary: e => e.score,
+      tiebreakers: [
+        { project: e => e.entry.length, dir: 'desc' },
+        { project: e => e.entry,        dir: 'asc'  },
+      ],
+    },
+  },
+  pairs: {
+    'min-score': {
+      label: 'Min score',
+      primary: p => Math.min(p.a.score, p.b.score),
+      tiebreakers: [
+        { project: p => p.a.entry.length, dir: 'desc' },
+        { project: p => p.a.entry,        dir: 'asc'  },
+      ],
+    },
+    'max-score': {
+      label: 'Max score',
+      primary: p => Math.max(p.a.score, p.b.score),
+      tiebreakers: [
+        { project: p => p.a.entry.length, dir: 'desc' },
+        { project: p => p.a.entry,        dir: 'asc'  },
+      ],
+    },
+    length: {
+      label: 'Length',
+      primary: p => p.a.entry.length,
+      tiebreakers: [
+        { project: p => Math.min(p.a.score, p.b.score), dir: 'desc' },
+        { project: p => p.a.entry,                       dir: 'asc'  },
+      ],
+    },
+    entry: {
+      label: 'Alphabetical',
+      primary: p => p.a.entry,
+      // Semordnilaps has a 1:1 a→b mapping so no real ties; pair tools where
+      // the same `a` maps to multiple `b`s (anagram_with, replace_anything)
+      // benefit from b.entry asc keeping the output deterministic.
+      tiebreakers: [
+        { project: p => p.b.entry, dir: 'asc' },
+      ],
+    },
+  },
 };
-const DEFAULT_SORT_KEY = 'entry';
-// Score sorts descending — top-down reads as "best first". Others ascending.
-function defaultSortDir(key) { return key === 'score' ? 'desc' : 'asc'; }
+const DEFAULT_SORT_KEY_BY_KIND = { words: 'entry', pairs: 'min-score' };
+const DEFAULT_SORT_KEY = DEFAULT_SORT_KEY_BY_KIND.words;
+function sortAxesFor(kind) { return SORT_AXES_BY_KIND[kind] || SORT_AXES_BY_KIND.words; }
+function isValidSortAxis(key) { return key in SORT_AXES_BY_KIND.words || key in SORT_AXES_BY_KIND.pairs; }
+// Score axes sort descending — top-down reads as "best first". Others ascending.
+function defaultSortDir(key) {
+  return (key === 'score' || key === 'min-score' || key === 'max-score') ? 'desc' : 'asc';
+}
+
+// Compare two items along an axis, falling through tiebreakers when the
+// primary projection is equal. Primary direction is the user's pick;
+// tiebreakers keep their declared direction regardless.
+function compareItems(a, b, axis, primaryDir) {
+  const primCmp = compareValues(axis.primary(a), axis.primary(b)) * (primaryDir === 'asc' ? 1 : -1);
+  if (primCmp !== 0) return primCmp;
+  for (const tb of axis.tiebreakers) {
+    const cmp = compareValues(tb.project(a), tb.project(b)) * (tb.dir === 'asc' ? 1 : -1);
+    if (cmp !== 0) return cmp;
+  }
+  return 0;
+}
+
+function compareValues(a, b) {
+  if (typeof a === 'number' && typeof b === 'number') return a - b;
+  return String(a).localeCompare(String(b));
+}
+
+// Output kind that the current stack produces — used by the Router to pick
+// the right default sort axis (so URLs stay quiet when sort matches the
+// per-kind default). The last tool with a `run` decides the kind; no-run rows
+// are transparent, mirroring the executor's semantics.
+function currentOutputKind(stack) {
+  for (let i = stack.length - 1; i >= 0; i--) {
+    const tool = TOOLS[stack[i].tool];
+    if (tool?.run) return tool.output;
+  }
+  return 'words';
+}
 const ENTRY_SLOT_CAP = 20;
 
 // Cached glyph width — row font/size is fixed. Slots use px (not `ch`) so the
@@ -3919,6 +4104,10 @@ class WorkshopEntriesScroller extends BaseVirtualScroller {
   constructor(host) {
     super(host, 'entries-table-rows');
     this.toolbar = document.getElementById('search-bar-sort');
+    // `allEntries` / `entries` hold either wlEntry[] (when `kind === 'words'`)
+    // or `{a, b}[]` (when `kind === 'pairs'`). The names persist for v1; if a
+    // third kind lands they'll be worth renaming to `allItems` / `items`.
+    this.kind = 'words';
     this.allEntries = [];
     this.entries = [];
     this.sortKey = WorkshopView.sortKey;
@@ -3948,8 +4137,15 @@ class WorkshopEntriesScroller extends BaseVirtualScroller {
       const row = target.closest('.entry-row');
       if (!row) return;
       const i = parseInt(row.dataset.idx, 10);
-      const wlEntry = this.entries[i];
-      if (!wlEntry) return;
+      const item = this.entries[i];
+      if (!item) return;
+      let wlEntry;
+      if (this.kind === 'pairs') {
+        const side = target.dataset.side || target.closest('[data-side]')?.dataset.side;
+        wlEntry = side === 'b' ? item.b : item.a;
+      } else {
+        wlEntry = item;
+      }
       const field = target.classList.contains('atom-score') ? 'score'
                   : target.classList.contains('atom-comment') ? 'comment'
                   : null;
@@ -3970,21 +4166,48 @@ class WorkshopEntriesScroller extends BaseVirtualScroller {
     AtomPopover.close();
   }
 
-  setEntries(allEntries, query, wholeWord = false, scoreRange = '') {
+  // kind defaults to the current value so callers that only update the items
+  // (e.g. display-case re-render) don't need to know what's loaded. When kind
+  // does change, snapKindSort makes sure the current sort axis is valid for
+  // the new kind — if not, it falls back to the kind default (asymmetric
+  // axes like 'score' belong to words, 'min-score' to pairs).
+  setEntries(allEntries, query, wholeWord = false, scoreRange = '', kind = this.kind) {
     AtomPopover.close();
+    this._setKind(kind);
     this.allEntries = allEntries;
-    // Sort persists across wordlist switches via `WorkshopView.sortKey/sortDir`
-    // (the scroller field was already seeded from there in the constructor).
     this._invalidateSortCache();
     this._buildToolbar();
     this.filter(query, wholeWord, scoreRange);
   }
 
-  updateEntries(allEntries) {
+  updateEntries(allEntries, kind = this.kind) {
     AtomPopover.close();
+    const kindChanged = this._setKind(kind);
     this.allEntries = allEntries;
     this._invalidateSortCache();
+    if (kindChanged) this._buildToolbar();
     this._applyFilterAndSort();
+  }
+
+  _setKind(kind) {
+    const oldKind = this.kind;
+    const changed = kind !== oldKind;
+    this.kind = kind;
+    const axes = sortAxesFor(kind);
+    // Snap to the new kind's default in two cases: (1) the current axis isn't
+    // valid for the new kind ('score' on pairs, 'min-score' on words), or (2)
+    // kind changed and the current axis was the *old* kind's default — i.e.
+    // the user hadn't explicitly picked it, so the new kind's default is the
+    // right thing to use. An explicit pick (e.g. user chose 'length' on
+    // words, or 'max-score' on pairs) survives the kind flip as long as it's
+    // still a valid axis for the new kind.
+    const wasOldDefault = changed && this.sortKey === DEFAULT_SORT_KEY_BY_KIND[oldKind];
+    if (!(this.sortKey in axes) || wasOldDefault) {
+      this.sortKey = DEFAULT_SORT_KEY_BY_KIND[kind];
+      this.sortDir = defaultSortDir(this.sortKey);
+      WorkshopView.setSort(this.sortKey, this.sortDir);
+    }
+    return changed;
   }
 
   _invalidateSortCache() {
@@ -4002,7 +4225,7 @@ class WorkshopEntriesScroller extends BaseVirtualScroller {
   _buildToolbar() {
     if (!this.toolbar) return;
     const arrow = this.sortDir === 'asc' ? '↑' : '↓';
-    const options = Object.entries(SORT_AXES)
+    const options = Object.entries(sortAxesFor(this.kind))
       .map(([key, { label }]) => `<option value="${key}"${key === this.sortKey ? ' selected' : ''}>${label}</option>`)
       .join('');
     this.toolbar.innerHTML = `
@@ -4040,14 +4263,24 @@ class WorkshopEntriesScroller extends BaseVirtualScroller {
     } else {
       const { filterRe, highlight } = buildSearchPattern(q, this._wholeWord);
       this._highlight = highlight;
-      entries = source.filter(e => filterRe.test(e.entryLower));
+      // Pair filter: a row qualifies if either side matches. Highlights on
+      // pair rows is a Phase 2 polish — for now `_highlight` only renders on
+      // words; pair atom HTML doesn't run the highlight function.
+      entries = this.kind === 'pairs'
+        ? source.filter(p => filterRe.test(p.a.entryLower) || filterRe.test(p.b.entryLower))
+        : source.filter(e => filterRe.test(e.entryLower));
     }
 
     this._entriesPreScoreRange = entries;
 
     if (this._scoreIntervals) {
       const intervals = this._scoreIntervals;
-      entries = entries.filter(e => matchesRange(e.score, intervals));
+      // For pairs, filter on min(score) — a row qualifies if its worse-scoring
+      // atom falls in range. Matches plan-doc § "Score range filters the
+      // displayed output, not the pipeline".
+      entries = this.kind === 'pairs'
+        ? entries.filter(p => matchesRange(Math.min(p.a.score, p.b.score), intervals))
+        : entries.filter(e => matchesRange(e.score, intervals));
     }
 
     this.entries = entries;
@@ -4070,14 +4303,9 @@ class WorkshopEntriesScroller extends BaseVirtualScroller {
     if (!this.sortKey) {
       sorted = this.allEntries;
     } else {
-      const key = this.sortKey;
-      const dir = this.sortDir === 'asc' ? 1 : -1;
-      sorted = [...this.allEntries].sort((a, b) => {
-        const av = key === 'length' ? a.entry.length : (a[key] ?? '');
-        const bv = key === 'length' ? b.entry.length : (b[key] ?? '');
-        if (typeof av === 'number' && typeof bv === 'number') return dir * (av - bv);
-        return dir * String(av).localeCompare(String(bv));
-      });
+      const axis = sortAxesFor(this.kind)[this.sortKey];
+      const dir = this.sortDir;
+      sorted = [...this.allEntries].sort((a, b) => compareItems(a, b, axis, dir));
     }
 
     this._sortedSource = sorted;
@@ -4101,18 +4329,28 @@ class WorkshopEntriesScroller extends BaseVirtualScroller {
     // Count and entry slot widths track the unfiltered wordlist so columns
     // don't shift sideways when a search or score filter cuts the visible
     // set down. Len/score slots stay tied to the filtered view since their
-    // widths are tiny and effectively constant in practice.
+    // widths are tiny and effectively constant in practice. Pair rows
+    // measure both sides' lengths and scores against the same tracks — they
+    // appear twice per row but share width vars so the eye reads down them.
     const total = this.allEntries.length;
     const countDigits = total > 0 ? String(total).length : 1;
     let maxLen = 0, maxLenDigits = 1, maxScoreDigits = 1;
-    for (const e of this.allEntries) {
-      if (e.entry.length > maxLen) maxLen = e.entry.length;
+    for (const item of this.allEntries) {
+      if (this.kind === 'pairs') {
+        if (item.a.entry.length > maxLen) maxLen = item.a.entry.length;
+        if (item.b.entry.length > maxLen) maxLen = item.b.entry.length;
+      } else if (item.entry.length > maxLen) {
+        maxLen = item.entry.length;
+      }
     }
-    for (const e of this.entries) {
-      const d = String(e.entry.length).length;
-      if (d > maxLenDigits) maxLenDigits = d;
-      const sd = String(e.score).length;
-      if (sd > maxScoreDigits) maxScoreDigits = sd;
+    for (const item of this.entries) {
+      const sides = this.kind === 'pairs' ? [item.a, item.b] : [item];
+      for (const side of sides) {
+        const d = String(side.entry.length).length;
+        if (d > maxLenDigits) maxLenDigits = d;
+        const sd = String(side.score).length;
+        if (sd > maxScoreDigits) maxScoreDigits = sd;
+      }
     }
     const entryChars = Math.max(Math.min(maxLen, ENTRY_SLOT_CAP), 4);
     const lenChars = Math.max(maxLenDigits, 3);
@@ -4127,68 +4365,131 @@ class WorkshopEntriesScroller extends BaseVirtualScroller {
     target.style.setProperty('--source-max', `${22 * ch}px`);
   }
 
-  // Post-filter entries drive the stats bar so count, min/max/mean/median/mode
-  // track what's actually on screen.
+  // Post-filter entries drive the stats bar. For pairs, flatten to atoms so
+  // count goes per-word and min/max/mean/median/mode read over participating
+  // words. The count label is overridden to "N pairs" in the bar HTML —
+  // these flattened atoms feed the histogram and aggregates, not the count.
   _filteredStatsViewEntries() {
-    return this.entries;
+    return this.kind === 'pairs' ? flattenPairs(this.entries) : this.entries;
   }
 
-  // The histogram walks the pre-score-range set so bars outside the score
-  // selection stay visible (the selection is shown via the rect overlay) rather
-  // than collapsing to zero.
   _histogramViewEntries() {
-    return this._entriesPreScoreRange || this.entries;
+    const base = this._entriesPreScoreRange || this.entries;
+    return this.kind === 'pairs' ? flattenPairs(base) : base;
   }
 
   _render() {
     const n = this.entries.length;
     this.sizer.style.height = (n * ROW_HEIGHT) + 'px';
 
-    // Visible slice in container coords. rect.top is the host's offset from
-    // the viewport top — negative when the user has scrolled past the host's
-    // start, positive when the host is still below the fold.
     const { start, end } = this._visibleRange(n);
     this._clearSizer();
 
-    const activeEntry = AtomPopover.activeEntry(this);
     const tierFor = makeTierLookup();
+    const activeEntry = AtomPopover.activeEntry(this);
     let nextActiveRow = null;
     const frag = document.createDocumentFragment();
     for (let i = start; i < end; i++) {
-      const wlEntry = this.entries[i];
-      const { entry, score } = wlEntry;
-      const displayed = displayEntry(entry);
-      const entryHtml = this._highlight ? this._highlight(displayed) : displayed;
-
-      const scoreInner = buildScoreBadgeHTML(score);
-      const tierLabel = tierFor(score);
-      const scoreTitle = tierLabel ? ` title="${esc(tierLabel)}"` : '';
-
-      const commentText = wlEntry.comment || '';
-      const sourceWl = wlEntry.wordlist;
-      const sourceHTML = sourceWl ? buildWordlistNameHTML(sourceWl, { bold: false }) : '';
-      const sourceTitle = sourceWl ? ` title="${esc(sourceWl.name)}"` : '';
-
-      const row = document.createElement('div');
-      let cls = 'entry-row';
-      if (activeEntry && entry === activeEntry) { cls += ' active'; nextActiveRow = row; }
-      row.className = cls;
-      row.dataset.entry = entry;
-      row.dataset.idx = i;
-      row.style.top = (i * ROW_HEIGHT) + 'px';
-      if (displayed.length > ENTRY_SLOT_CAP) row.title = displayed;
-      row.innerHTML =
-        `<span class="atom-count">${i + 1}.</span>` +
-        `<span class="atom-entry">${entryHtml}</span>` +
-        `<span class="atom-len">${entry.length}</span>` +
-        `<span class="atom-score"${scoreTitle}>${scoreInner}</span>` +
-        `<span class="atom-comment"${commentText ? ` title="${esc(commentText)}"` : ''}>${esc(commentText)}</span>` +
-        `<span class="atom-source"${sourceTitle}>${sourceHTML}</span>`;
+      const item = this.entries[i];
+      const row = this.kind === 'pairs'
+        ? this._renderPairRow(item, i, tierFor, activeEntry)
+        : this._renderWordRow(item, i, tierFor, activeEntry);
+      if (row.classList.contains('active')) nextActiveRow = row;
       frag.appendChild(row);
     }
     this.sizer.appendChild(frag);
     if (nextActiveRow) AtomPopover.rebindRow(nextActiveRow);
   }
+
+  _renderWordRow(wlEntry, i, tierFor, activeEntry) {
+    const { entry, score } = wlEntry;
+    const displayed = displayEntry(entry);
+    const entryHtml = this._highlight ? this._highlight(displayed) : displayed;
+
+    const scoreInner = buildScoreBadgeHTML(score);
+    const tierLabel = tierFor(score);
+    const scoreTitle = tierLabel ? ` title="${esc(tierLabel)}"` : '';
+
+    const commentText = wlEntry.comment || '';
+    const sourceWl = wlEntry.wordlist;
+    const sourceHTML = sourceWl ? buildWordlistNameHTML(sourceWl, { bold: false }) : '';
+    const sourceTitle = sourceWl ? ` title="${esc(sourceWl.name)}"` : '';
+
+    const row = document.createElement('div');
+    let cls = 'entry-row';
+    if (activeEntry && entry === activeEntry) cls += ' active';
+    row.className = cls;
+    row.dataset.entry = entry;
+    row.dataset.idx = i;
+    row.style.top = (i * ROW_HEIGHT) + 'px';
+    if (displayed.length > ENTRY_SLOT_CAP) row.title = displayed;
+    row.innerHTML =
+      `<span class="atom-count">${i + 1}.</span>` +
+      `<span class="atom-entry">${entryHtml}</span>` +
+      `<span class="atom-len">${entry.length}</span>` +
+      `<span class="atom-score"${scoreTitle}>${scoreInner}</span>` +
+      `<span class="atom-comment"${commentText ? ` title="${esc(commentText)}"` : ''}>${esc(commentText)}</span>` +
+      `<span class="atom-source"${sourceTitle}>${sourceHTML}</span>`;
+    return row;
+  }
+
+  _renderPairRow(pair, i, tierFor, activeEntry) {
+    const relation = this._currentRelation();
+    const row = document.createElement('div');
+    let cls = 'entry-row pair-row';
+    // Active row when either side is the popover's anchor.
+    if (activeEntry && (pair.a.entry === activeEntry || pair.b.entry === activeEntry)) cls += ' active';
+    row.className = cls;
+    row.dataset.idx = i;
+    row.style.top = (i * ROW_HEIGHT) + 'px';
+    row.innerHTML =
+      `<span class="atom-count">${i + 1}.</span>` +
+      this._renderPairSideHTML(pair.a, 'a', tierFor) +
+      `<span class="atom-relation" aria-hidden="true">${relation}</span>` +
+      this._renderPairSideHTML(pair.b, 'b', tierFor);
+    return row;
+  }
+
+  _renderPairSideHTML(wlEntry, side, tierFor) {
+    const { entry, score } = wlEntry;
+    const displayed = displayEntry(entry);
+    const scoreInner = buildScoreBadgeHTML(score);
+    const tierLabel = tierFor(score);
+    const scoreTitle = tierLabel ? ` title="${esc(tierLabel)}"` : '';
+    const truncTitle = displayed.length > ENTRY_SLOT_CAP ? ` title="${esc(displayed)}"` : '';
+    return `<span class="atom-len" data-side="${side}">${entry.length}</span>` +
+           `<span class="atom-entry" data-side="${side}"${truncTitle}>${displayed}</span>` +
+           `<span class="atom-score" data-side="${side}"${scoreTitle}>${scoreInner}</span>`;
+  }
+
+  // Relation glyph for the active stack's last pair-producing tool. Falls
+  // back to a thin dot for unknown relations — the producing tool always sets
+  // one, this is just defensive.
+  _currentRelation() {
+    const stack = ToolStack.getStack();
+    for (let i = stack.length - 1; i >= 0; i--) {
+      const tool = TOOLS[stack[i].tool];
+      if (tool?.output === 'pairs' && tool.run) {
+        return PAIR_RELATION_GLYPHS[tool.relation] || '·';
+      }
+    }
+    return '·';
+  }
+}
+
+const PAIR_RELATION_GLYPHS = {
+  transform: '→',
+  symmetric: '·',
+  contains:  '⊃',
+};
+
+// Flatten a pair list to its constituent wlEntry atoms in row order
+// (a-then-b per row). Used for stats / histogram aggregation. Does not
+// dedupe — the same word can legitimately appear in multiple pairs.
+function flattenPairs(pairs) {
+  const out = [];
+  for (const p of pairs) { out.push(p.a); out.push(p.b); }
+  return out;
 }
 
 // Library column-width cache. Computed once across every source's data and
@@ -5144,18 +5445,19 @@ function createScroller() {
 function refreshWorkshopMergedScroller() {
   if (!workshopScroller) return;
   const merged = buildMergedWordlist().entries;
-  const { items } = executePipeline(merged, ToolStack.getStack());
-  if (items === workshopScroller.allEntries) {
+  const { kind, items } = executePipeline(merged, ToolStack.getStack());
+  if (items === workshopScroller.allEntries && kind === workshopScroller.kind) {
     workshopScroller._invalidateSortCache();
     workshopScroller._applyFilterAndSort(false);
   } else {
-    workshopScroller.updateEntries(items);
+    workshopScroller.updateEntries(items, kind);
   }
 }
 
-function mountWorkshopPanel(panel, stats, entries) {
+function mountWorkshopPanel(panel, stats, entries, opts = {}) {
+  const statsOpts = opts.kind === 'pairs' ? { countLabel: 'Pairs', countValue: opts.itemCount } : {};
   document.getElementById('workshop-stats').innerHTML =
-    buildStatsBarHTML(stats, { entries, ignoredCount: stats.ignoredCount }, getHistogramLayout());
+    buildStatsBarHTML(stats, { entries, ignoredCount: stats.ignoredCount }, getHistogramLayout(), statsOpts);
   panel.innerHTML = `
     <div class="sticky-stack">
       ${ToolStack.buildHTML()}
@@ -5182,7 +5484,12 @@ function refreshWorkshopStatsBarFromScroller() {
   const entries = workshopScroller._filteredStatsViewEntries();
   const stats = computeStatsRaw(entries);
   const hist = { entries: workshopScroller._histogramViewEntries(), ignoredCount: 0 };
-  statsBar.outerHTML = buildStatsBarHTML(stats, hist, getHistogramLayout());
+  // _filteredStatsViewEntries flattens pairs to atoms, so stats.count counts
+  // atoms; for the bar's count we want pairs. Pass the row count explicitly.
+  const statsOpts = workshopScroller.kind === 'pairs'
+    ? { countLabel: 'Pairs', countValue: workshopScroller.entries.length }
+    : {};
+  statsBar.outerHTML = buildStatsBarHTML(stats, hist, getHistogramLayout(), statsOpts);
   repositionAllHistogramRects();
 }
 
@@ -5219,17 +5526,22 @@ function attachSearchHelpPopup() {
 function renderWorkshopMergedDetail() {
   const panel = document.getElementById('detail-panel');
   const merged = buildMergedWordlist().entries;
-  const { items } = executePipeline(merged, ToolStack.getStack());
+  const { kind, items } = executePipeline(merged, ToolStack.getStack());
   // Stats hit the merged cache when no tool transformed the entries; otherwise
   // the initial placeholder is computed raw — the scroller's onFilterChange
-  // refresh kicks in immediately after setEntries and replaces it anyway.
-  const stats = items === merged ? computeStats(_mergedStatsKey, items) : computeStatsRaw(items);
-  mountWorkshopPanel(panel, stats, items);
+  // refresh kicks in immediately after setEntries and replaces it anyway. For
+  // pairs, flatten to atoms for the stats aggregates; the count label switches
+  // to "N pairs" in mountWorkshopPanel.
+  const statsSource = kind === 'pairs' ? flattenPairs(items) : items;
+  const stats = (kind === 'words' && items === merged)
+    ? computeStats(_mergedStatsKey, statsSource)
+    : computeStatsRaw(statsSource);
+  mountWorkshopPanel(panel, stats, statsSource, { kind, itemCount: items.length });
 
   workshopScroller.showSource = true;
   workshopScroller.editsWordlist = getEditsWordlist() ?? null;
   workshopScroller.showEditDeleteCol = true;
-  workshopScroller.setEntries(items, WorkshopView.searchQuery, WorkshopView.searchWholeWord, WorkshopView.scoreRange);
+  workshopScroller.setEntries(items, WorkshopView.searchQuery, WorkshopView.searchWholeWord, WorkshopView.scoreRange, kind);
 
   workshopScroller._onDeleteRow = entry => deleteFromEdits(entry, refreshWorkshopMergedScroller);
   attachExternalEditHandlers(workshopScroller, refreshWorkshopMergedScroller);
@@ -7387,12 +7699,19 @@ window.__grawlixTest = {
   },
 
   // Visible Workshop scroller rows as user-meaningful strings. For 'words'
-  // output, returns the entry string per row. For 'pairs' output (Phase 2),
-  // returns `{a, b}` per row. Reads from the live DOM so assertions describe
-  // what's actually rendered.
+  // output, returns the entry string per row. For 'pairs' output, returns
+  // `{a, b}` per row. Reads from the live DOM so assertions describe what's
+  // actually rendered.
   getVisibleEntries() {
     const rows = document.querySelectorAll('#vs-host .entry-row');
-    return [...rows].map(r => r.querySelector('.atom-entry')?.textContent || '');
+    return [...rows].map(r => {
+      if (r.classList.contains('pair-row')) {
+        const a = r.querySelector('.atom-entry[data-side="a"]')?.textContent || '';
+        const b = r.querySelector('.atom-entry[data-side="b"]')?.textContent || '';
+        return { a, b };
+      }
+      return r.querySelector('.atom-entry')?.textContent || '';
+    });
   },
 
   // Read-only snapshot for assertions. Returns the fields the smoke suite
