@@ -190,6 +190,10 @@ Pair rows render `count len entry score · len entry score` with the relation gl
 
 **`justify-content: start` is load-bearing.** CSS Grid's default `normal` behaves as `stretch` on grid containers, which expands `auto` tracks to fill leftover space. Without explicit `start`, the central relation track balloons, pushing the b-side cluster to the right edge of the row. The fix replaces the implicit stretch with explicit start, parking leftover space at the row's right edge and leaving the pair naturally bunched against the a-side.
 
+**Fixed-width relation track.** The relation column uses `var(--relation-w, 28px)`, not `auto`. Each grid container sizes its tracks independently, so `auto` measured the row's relation span (glyph + 12px padding ≈ 18–26px) and the header's empty `<span>` (0px) at different widths, drifting the b-side header labels left of the b-side row atoms. Pinning to 28px fits any single-char relation glyph plus its side-padding and keeps headers aligned with rows.
+
+**`.atom-entry` stays default-stretched.** Pair-row atoms inherit the default `justify-self: stretch` from the grid item rules so they fill the entry-w track, letting `text-overflow: ellipsis` clip long entries. An explicit `justify-self: start` was tried as defensive cement for left-alignment but shrank the atom to content width, defeating the truncation and spilling long entries into the score column. The default `text-align: start` inside a stretched atom already produces the left-aligned text, so the override added bugs without adding behavior.
+
 **Kind-aware headers.** Two header divs always live in the DOM — the words-mode `count entry len score [comment] [source]` row and the pair-mode `count len entry score · len entry score` row. The `tools-multi-word` body class (toggled by `ToolStack.refreshGalleryActive` when the last tool's output is `'pairs'`) decides which is visible. Mounting both up-front means kind flips via add/remove only need to toggle a class, not remount the chrome.
 
 **Filter and aggregate semantics for pairs.**
@@ -212,6 +216,16 @@ Each axis carries `{label, primary, tiebreakers}` where `primary` is the value p
 Defaults are kind-specific: words defaults to `entry asc`, pairs to `min-score desc` (worst-side caps pair quality; surfacing best-worst-case pairs first matches "what's worth fishing out"). The URL drops `sort=` when the current axis matches the kind default, so a pair URL stays minimal (`?semordnilap`) until the user picks something other than min-score-desc. Stack-driven kind changes snap the sort axis to the new default only when the prior axis was the *old* kind's default — an explicit user pick survives the kind flip as long as the axis is still valid (e.g. `length` stays through both kinds; `score` snaps to `min-score` because `score` is words-only).
 
 `currentOutputKind(stack)` (the last run-bearing tool's output, or `'words'` for an empty stack) is what the Router and scroller both consult. It treats no-run rows as transparent, matching the executor's semantics.
+
+### Highlights pipeline
+
+Search hits and tool-emitted highlights share one renderer. `buildSearchPattern` exposes a `searchRanges(text)` function that returns `[{ start, end, kind: 'search:N' }]` records, one per matched non-wildcard segment (the `N` cycles through five color slots). Tools that want to mark characters inside a pair atom — Behead's struck-through first letter, Curtail's last letter, future `inserted`/`shifted`/`kept` kinds — emit `{ kind, start, end }` ranges on the corresponding side of each pair item (`highlights: { a: [...], b: [...] }`). `renderHighlightedText(text, ranges)` walks the merged-and-sorted range list once, emitting `<mark class="search-match search-match-N">` for `search:N` kinds and `<span class="hl-<kind>">` for tool kinds.
+
+Tool ranges precede search ranges in the merged list so they win ties on shared starts (the more informative annotation — "this is the letter the pair dropped" — beats the search highlight when both apply to the same character). Overlap is resolved by skipping later ranges entirely; for the patterns these tools produce (search matches inside a multi-character substring, tool highlights on a single character at one end), strict overlap is rare and the simple precedence rule keeps the renderer linear.
+
+The kind registry is open-ended — adding a new tool highlight kind is one (kind name, CSS rule) pair. `removed` is the only tool-emitted kind shipped today (line-through + 0.5 opacity); future kinds (`kept`, `inserted`, `shifted`, `matched`, `group:N`) land as tools start producing them.
+
+Both `WorkshopEntriesScroller` and `LibraryEntriesScroller` route through the same `renderHighlightedText`. Library doesn't emit tool highlights, so it passes only the search ranges.
 
 ## Entries table
 

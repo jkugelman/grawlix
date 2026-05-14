@@ -76,14 +76,13 @@ Builtin views are shared across calls. Custom JS tools can ask for them too but 
 - **In-flight runs cancel when superseded.** The `ctx` argument (not yet plumbed) carries an `AbortSignal`-style cancellation token. Long-running tools should check it periodically; network-bound tools pass it directly to `fetch`.
 - **Spinners on slow rows.** Tool rows whose run exceeds ~100ms should badge with a progress indicator; the result list grays out. Below the threshold, no UI flicker.
 
-### Highlights and annotations
+### Annotations
 
-Two display flavors planned to ride with each item:
+Numeric / string annotations declared in `output.annotations: [{ key, label, display }]`. The renderer reads the declaration, knows whether to render the value as a small inline badge near the atom, a hover tooltip, or popover detail. Use cases: phrase_parsing's parse-quality score, almost_anagram's edit distance, letter_changes' actual `n`.
 
-- **Highlights** — character-range markings rendered visually inside a word. Each tool emits `{ kind, range }` records keyed by part name (`{ a: [...], b: [...] }` for pairs, `[...]` for words). The renderer dispatches on `kind` against a small global registry — `'kept'`, `'removed'`, `'inserted'`, `'shifted'`, `'matched'`, `'group:0'`, `'group:1'`, etc. — each with its own CSS rule. Tools don't pick colors; new tools either reuse existing kinds or extend the registry by adding a (kind, CSS rule) pair.
-- **Numeric / string annotations** — declared in `output.annotations: [{ key, label, display }]`. The renderer reads the declaration, knows whether to render the value as a small inline badge near the atom, a hover tooltip, or popover detail. Use cases: phrase_parsing's parse-quality score, almost_anagram's edit distance, letter_changes' actual `n`.
+Annotations are display-only — chain projection drops them. A downstream tool sees only the projected wlEntry list.
 
-Both annotation flavors are display-only — chain projection drops them. A downstream tool sees only the projected wlEntry list.
+(The highlights system — character-range markings inside an atom — shipped with Behead and Curtail; see [`../design.md` § Highlights pipeline](../design.md#highlights-pipeline). New highlight kinds extend the same `{ kind, start, end }` shape.)
 
 ### Escape hatches
 
