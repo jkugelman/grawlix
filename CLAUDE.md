@@ -10,6 +10,8 @@ All code lives in a single file: `site/index.html`. Don't bother searching for o
 
 **Don't smoke-test by running `python -m http.server`.** It's a static HTML file with no build step or templating; serving it locally only verifies that the filesystem can read it, which is theatre. For real verification, syntax-check inline JS with `node ~/.claude/scripts/check-syntax.js site/index.html`, read the diff carefully, and say "I can't visually verify" when that's the truth — visual inspection requires the user's browser. The Playwright smoke suite covers some user-visible behaviors automatically; run `npm test` to verify. See [`docs/testing.md`](docs/testing.md) for what's covered and what isn't.
 
+**For visual / layout bugs, ask for dev-tools output before theorizing.** When the user reports a CSS or rendering problem (wrong gap, wrong width, element in wrong place), don't reason from the source about what the computed values "should" be — write a console snippet that reads the actual `getBoundingClientRect()`, `getComputedStyle()`, and CSS custom properties from the live page, and ask the user to paste the result. Guessing at sub-pixel math against an imagined DOM wastes turns and tends to be wrong.
+
 ## Before non-trivial work: read the relevant docs
 
 For any feature work, redesign, brainstorming, or structural change — **not** targeted bug fixes or small tweaks — open the docs that touch the area before proposing or implementing. Adjacent docs may share screen real estate or constrain the answer; treat the topical index below as a checklist, not a suggestion.
