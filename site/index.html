@@ -3545,7 +3545,7 @@ const TOOLS = {
   curtail: {
     name: 'Curtail', icon: '✂️', category: 'pairs',
     desc: 'Drop the last letter to get a new word',
-    example: 'CARTS → CART',
+    example: 'PARTY → PART',
     params: [],
     output: 'pairs', relation: 'transform', labels: ['from', 'to'], chainProjection: 'to',
     async run(input, params, ctx) {
@@ -3553,6 +3553,8 @@ const TOOLS = {
       const out = [];
       await ctx.forEach(input, e => {
         if (e.entryNorm.length < 2) return;
+        // Skip plural → singular: source ending in `s` but not `ss`.
+        if (e.entryNorm.endsWith('s') && !e.entryNorm.endsWith('ss')) return;
         const match = byNorm.get(e.entryNorm.slice(0, -1));
         if (match) out.push({
           a: e,

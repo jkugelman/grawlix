@@ -355,14 +355,12 @@ test('pair-mode sort axis swap: min-score → max-score reorders rows', async ({
 // per-side highlight emission.
 
 async function addBeheadCurtailFixture(page) {
-  // Each pair: SLING/LING (behead), CARTS/CART (curtail), DOG (no pair),
-  // plus extras for downstream filters. Behead pairs by `from`'s a-side
-  // being one letter longer than b-side (from = SLING, to = LING). Curtail
-  // is the same operation on the other end (from = CARTS, to = CART).
+  // Each pair: SLING/LING (behead), PARTY/PART (curtail), DOG (no pair),
+  // plus extras for downstream filters.
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
     name: 'BeheadCurtailTest',
-    entries: ['SLING', 'LING', 'CARTS', 'CART', 'BREAD', 'READ', 'DOG'],
-    scores:  [   50,    40,     60,    55,     45,    50,    40],
+    entries: ['SLING', 'LING', 'PARTY', 'PART', 'BREAD', 'READ', 'DOG'],
+    scores:  [   50,    40,     60,      55,     45,      50,     40],
   }));
 }
 
@@ -371,8 +369,6 @@ test('behead pairs a-side with a-minus-first-letter b-side', async ({ page }) =>
   await addBeheadCurtailFixture(page);
   await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'behead' }]));
 
-  // BREAD → READ (min 45), SLING → LING (min 40). CART(S) → CART is curtail,
-  // not behead — beheading CARTS gives ARTS which isn't in the wordlist.
   const visible = await page.evaluate(() => window.__grawlixTest.getVisibleEntries());
   expect(visible).toEqual([
     { a: 'bread', b: 'read' },
@@ -385,11 +381,9 @@ test('curtail pairs a-side with a-minus-last-letter b-side', async ({ page }) =>
   await addBeheadCurtailFixture(page);
   await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'curtail' }]));
 
-  // CARTS → CART (min 55). Other candidates: curtailing SLING gives SLIN
-  // (not in wordlist), BREAD gives BREA (not in wordlist).
   const visible = await page.evaluate(() => window.__grawlixTest.getVisibleEntries());
   expect(visible).toEqual([
-    { a: 'carts', b: 'cart' },
+    { a: 'party', b: 'part' },
   ]);
 });
 
@@ -432,7 +426,7 @@ test('curtail marks the dropped last letter with the removed highlight', async (
   await addBeheadCurtailFixture(page);
   await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'curtail' }]));
 
-  const cartsRow = page.locator('.pair-row', { hasText: 'carts' });
-  await expect(cartsRow.locator('.atom-entry[data-side="a"] .hl-removed')).toHaveText('s');
-  await expect(cartsRow.locator('.atom-entry[data-side="b"] .hl-removed')).toHaveCount(0);
+  const partyRow = page.locator('.pair-row', { hasText: 'party' });
+  await expect(partyRow.locator('.atom-entry[data-side="a"] .hl-removed')).toHaveText('y');
+  await expect(partyRow.locator('.atom-entry[data-side="b"] .hl-removed')).toHaveCount(0);
 });
