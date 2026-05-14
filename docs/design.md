@@ -227,6 +227,8 @@ The kind registry is open-ended — adding a new tool highlight kind is one (kin
 
 Both `WorkshopEntriesScroller` and `LibraryEntriesScroller` route through the same `renderHighlightedText`. Library doesn't emit tool highlights, so it passes only the search ranges.
 
+**Range positions are in display coordinates, not entryNorm.** A tool emitting a highlight should index into `wlEntry.entry` (which has the same length as the rendered `displayed` string), not `wlEntry.entryNorm`. For ASCII-letter-only entries the two coincide; for multi-word entries they diverge — `RUN AMOK`'s entry is 8 chars but its entryNorm is `runamok` (7 chars, no space). Curtail's "strike through the last letter" range is `[entry.length - 1, entry.length]` because the user perceives the last letter as the last visible character of `RUN AMOK`, which is `K` at index 7 — not `entryNorm`'s last char at index 6 (which would land on the space). The tool's matching logic still runs against entryNorm; only the rendered range is in entry-space.
+
 ## Entries table
 
 The at-rest results display below the search bar. Renders the active wordlist (or merged `All` view) as one row per entry — same view whether idle or filtered. "Table" is meant loosely: rows are absolute-positioned divs in a virtual scroller, not a real `<table>`. Pseudo-column alignment via CSS Grid puts each atom in a fixed sub-slot so the eye reads down them as if they were columns. The label evolved with the feature — first a real spreadsheet-style table (sticky resizable headers, per-cell inline edit, hover info popover), then "word list" when that was pared down to a single column of atoms, now "entries table" again as columns, headers, and sorting grew back.

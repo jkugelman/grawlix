@@ -10,6 +10,19 @@ The gallery is where Grawlix's [project goal](../../README.md#goals) — democra
 
 The chrome, the pipeline runtime, and four tools (Anagram, Semordnilap, Behead, Curtail) are shipped — see [`../design.md` § Tool gallery & stack](../design.md#tool-gallery--stack) for the executor, runtime normalization, pair-row display, per-kind sort, and the highlights pipeline. The `removed` highlight kind (struck-through, used by Behead and Curtail) is wired up; other highlight kinds (kept/inserted/shifted/group:N) land as tools start emitting them. The rest of this doc covers what's still planned: the catalog of tools that have records but no `run` yet, the indexed-view runtime that several anagram-family tools need, groups output kind, gallery polish (category picker, search), result download, async/cancellation UX for network-bound tools, and the OneLook / Datamuse / Umiaq integrations.
 
+## Sequencing — runtime support before the family
+
+When the next tool needs runtime support that doesn't exist yet, land the runtime first, then the tool. Specifically: tools that want a shared indexed view (see *Indexed input views* below) should wait until the view runtime is in place, because building the index inline inside each `run` re-pays the cost on every keystroke.
+
+Concretely:
+
+- **Letter-bank family** (`subanagram`, `made_from`, `anagram_with`, `anagram_families`) — wait for `byLetterBank` shared view. Anagram already pays the cost per-keystroke for one tool; a second letter-bank tool without the shared view doubles it. Land the view alongside the first new family member.
+- **Membership family** (`kangaroo`, `joey`, `sandwich`, `nested_words`) — wait for `input.set` shared view. Behead/curtail build a Map per call which is fine for a 200K wordlist, but a chained `behead → sandwich` repeats the build twice per keystroke. Same gate.
+- **Network-bound tools** (OneLook, Datamuse) — wait for cooperative-yielding `ctx`, async `run` plumbing, and the spinner UX. A synchronous network call inside today's executor would freeze the UI on every keystroke.
+- **Phonetics / thesaurus families** — wait for the bundled data dependency. Until CMU dict and Roget XML are available at runtime, the tools can't run.
+
+For tools that fit the current runtime as-is (`palindromes`, `isograms`, `supervocalics`, etc. — purely letter-pattern checks over `entryNorm`), no gate; just add the `run` and ship.
+
 ---
 
 ## Pipeline behavior — remaining pieces
