@@ -10,6 +10,107 @@ The gallery is where Grawlix's [project goal](../../README.md#goals) — democra
 
 The chrome, the pipeline runtime, the cooperative-yielding `ctx` API (with `forEach` / `filter` / `yield` helpers, supersession, and slow-row spinners), and four tools (Anagram, Semordnilap, Behead, Curtail) are shipped — see [`../design.md` § Tool gallery & stack](../design.md#tool-gallery--stack) for the executor, runtime normalization, pair-row display, per-kind sort, the highlights pipeline, and the cooperative runtime. The `removed` highlight kind (struck-through, used by Behead and Curtail) is wired up; other highlight kinds (kept/inserted/shifted/group:N) land as tools start emitting them. The rest of this doc covers what's still planned: the catalog of tools that have records but no `run` yet, the indexed-view runtime that several anagram-family tools need, groups output kind, gallery polish (category picker, search), result download, and the OneLook / Datamuse / Umiaq integrations.
 
+---
+
+## Output reframe — three kinds, chain rows
+
+Today's executor and renderer split tool output into three kinds — `words` (1-atom rows), `pair` (2-atom rows with a relation glyph), `group` (N-atom cluster rows). The planned reframe collapses those into a single **chain-row** shape: every row is a sequence of atoms representing one entry's journey through the pipeline. Row width is determined by the stack's static shape (not by per-row content), so the virtual scroller keeps fixed row heights and the user gets a uniform mental model for what each column means. The motivating example is `behead → behead → behead`, where today's renderer only shows the bottom-most beheaded entry; under the reframe the row shows `RELEARNING → ELEARNING → LEARNING → EARNING` and the chain is self-explaining.
+
+### Three kinds
+
+**Filter.** Keeps or drops input entries without mutating them. Sub-categories (property checks, pattern matches, self-membership checks against the wordlist) collapse to one mechanism: discard rows. Examples: search, regex, palindromes, isograms, made_from, kangaroo, joey, sandwich, supervocalics, hidden_anagram, almost_anagram.
+
+**Transform.** Produces a new entry from each input entry; the output must also exist in the wordlist, and becomes the next step's input. Examples: behead, curtail, replace_*, letter_swap, add_prefix, regex_replacement, letter_incrementing. The current "pair" tools (semordnilap, nested_words) move here — see *Bidirectional emission and symmetric unification* below.
+
+**Group.** Partitions input entries into clusters of size ≥ 2. The only current example is `anagram_families`. The cluster is the row.
+
+### Static row width
+
+A row is a sequence of *atoms*; each atom is a snapshot of an entry at a point in the pipeline. The width is fixed by the stack — every row in a given stack has the same number of atoms.
+
+The rule, applied left-to-right across the stack:
+
+- The row starts with one atom: the wordlist entry the row originates from. This atom is "bare" (no highlights).
+- A **transform** appends a new bare atom carrying its output entry.
+- A **highlight-producing filter** writes its highlights onto the most-recent atom if that atom is bare. If the most-recent atom already carries highlights, the filter appends a new atom (same entry, its own highlights).
+- A **non-highlight filter** doesn't touch the atom count.
+
+Examples:
+
+| Stack | Atoms | Reasoning |
+|---|---|---|
+| `[]` | 1 | originator only |
+| `palindromes` | 1 | non-highlight filter |
+| `search(?A?)` | 1 | search highlights the bare originator |
+| `palindromes → search(?A?)` | 1 | same; palindromes doesn't add |
+| `kangaroo → regex` | 2 | kangaroo claims atom 0; regex appends atom 1 |
+| `behead` | 2 | originator + bare behead-output |
+| `behead × 3` | 4 | originator + three transforms |
+| `behead → search(?A?)` | 2 | originator + behead-output (search highlights the post-behead atom) |
+| `kangaroo → behead → search(?A?)` | 2 | kangaroo claims atom 0; behead adds atom 1; search highlights atom 1 |
+| `kangaroo → search(?A?) → behead` | 3 | kangaroo claims atom 0; search appends atom 1; behead appends atom 2 |
+
+Whether a tool produces highlights is a static property of its catalog record (already declared via `output.highlights`).
+
+Per-filter highlights are not accumulated across atoms; each atom carries only the highlights of the tool that wrote to it. Successive filter atoms read as "this entry, viewed under filter X's lens."
+
+### Bidirectional emission and symmetric unification
+
+Transforms emit one row per directed `(input, output)` pair. Semordnilap iterates the wordlist and emits a row whenever the reverse is also an entry — naturally producing both `STRESSED → DESSERTS` and `DESSERTS → STRESSED` without special handling. The tool author writes the dumb bidirectional emit.
+
+The renderer then applies a **symmetric unification pass**: row-pairs that are reverses of each other (same atoms in reverse order, equal counts and scores) collapse into a single row whose relation glyph becomes `↔`. The bidirectional arrow falls out of the unification — it's the natural glyph for "two unidirectional rows pointing at each other." With no downstream transform, semordnilap-alone shows one row per pair, with `↔`. With a downstream transform (`semordnilap → behead`), the two directions diverge — `STRESSED → DESSERTS → ESSERTS` is no longer the mirror of `DESSERTS → STRESSED → TRESSED`, so they stay as separate rows with `→` glyphs.
+
+The author doesn't decide whether to dedupe; the renderer does, based on whether the rows actually mirror each other after the full pipeline runs.
+
+### Group tools compose via flatten / run / unflatten
+
+Group tools come first in the stack. Anything chained after a group tool runs over each group as a mini-wordlist:
+
+1. Flatten the group's members into a temporary wordlist.
+2. Run the sub-pipeline (rest of the stack) over it.
+3. Unflatten the group from whatever survives or is produced.
+4. Drop groups whose member count falls under the threshold (default 2).
+
+The chained tool never has to know it's running inside a group tool — it sees a wordlist, returns rows, the system re-groups. Examples:
+
+- `anagram_families → search(*A*)`: each family filtered to A-containing members; small families drop out.
+- `anagram_families → behead`: each family member becomes a 2-atom behead chain; the group row contains N such siblings.
+- `anagram_families → palindromes`: rare-but-valid; sparse output, but the model handles it.
+
+Each sibling within a group row carries the sub-pipeline's static atom count, separated by bullets. Groups stay group-shaped after the sub-pipeline runs — the grouping information isn't lost the way pure flattening would lose it.
+
+### Rendering constraints
+
+Row height is fixed within a (stack, viewport) — the virtual scroller's requirement. Wrapping is never content-driven; a long entry doesn't force its row to wrap onto a second line.
+
+When row content doesn't fit the viewport, the content overflows horizontally with scroll inside the row container. The virtual scroller still paginates vertically; only the row's own horizontal layer scrolls. Group rows on narrow viewports (phones) are the typical case where this kicks in.
+
+The current pair-row two-line phone affordance — where a single pair splits onto two lines on narrow viewports — is retired by this model. Chains stay single-line; horizontal scroll handles overflow.
+
+### Catalog impact
+
+- `output.kind: 'words' | 'pair' | 'group'` → `kind: 'filter' | 'transform' | 'group'`.
+- Filters carry `producesHighlights: boolean` (or the renderer infers it from `output.highlights`, which is already declared).
+- Transforms drop `projection` and `relation` — the chain model derives both. Relation glyph is `→` by default, becoming `↔` after symmetric unification.
+- `anagram_with` is cut — `anagram(LINDSEY) → search(pattern)` does the same job and no longer needs its own tool.
+- `anagram` survives as sugar (a filter), even though it's technically `anagram_families` restricted to the cluster matching the input word's letter signature. The direct form is what users reach for.
+- `phrase_parsing` becomes a transform (`HOTTOTROT → HOT TO TROT`), so the original-vs-parsed atom pair is visible in the row.
+- Existing pair-tool catalog annotations (`pair / transform · projects 'to'`, `pair / symmetric · projects 'both'`) go away. Treat them as superseded wherever this section conflicts with the *Catalog* section below; the catalog will be re-annotated as part of the pivot.
+
+### Implementation pivot
+
+What changes:
+
+1. **Catalog field cleanup.** Replace `output.kind` with `kind`. Drop `projection` and `relation` from transforms. Add `producesHighlights` to filters if not derivable from `output.highlights`.
+2. **Executor adjustment.** Each filter either passes the prior chain forward unchanged (no highlights, or current atom is bare and the filter claims it) or appends a new atom (with its own highlights). Each transform appends. Group tools wrap the sub-pipeline that runs over each group.
+3. **Renderer rewrite.** Chain-row component renders N atoms with relation glyphs, replacing the words/pair renderers. Group renderer wraps chain-row groups. Horizontal-scroll container for wide rows on narrow viewports. Two-line mobile pair affordance retired.
+4. **Symmetric unification pass.** Post-executor, pre-render: collapse mirror row-pairs into single `↔` rows.
+5. **Sort axes generalized.** Today's per-kind axes (Words: Entry/Length/Score; Pair: Min/Max/Length/Alphabetical) collapse into chain-aware axes that read min/max/etc. over all atoms in the row. Group axes (Min/Max/Count/Alphabetical) stay.
+
+The cooperative `ctx` API, supersession, indexed-input-view requirements, and downloading-results plumbing are untouched — the reframe is concentrated in the catalog, the renderer, and the post-executor unification pass.
+
+---
+
 ## Sequencing — runtime support before the family
 
 When the next tool needs runtime support that doesn't exist yet, land the runtime first, then the tool. Specifically: tools that want a shared indexed view (see *Indexed input views* below) should wait until the view runtime is in place, because building the index inline inside each `run` re-pays the cost on every keystroke.
