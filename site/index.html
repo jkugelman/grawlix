@@ -436,6 +436,10 @@ html.dark-mode .search-match-4 { background: #14532d; color: #d1fae5; }
   main { padding: 0; scrollbar-gutter: auto; }
   #workshop-view,
   #library-view { margin-bottom: 0; border: none; border-radius: 0; box-shadow: none !important; }
+  /* iOS Safari auto-zooms into focused inputs smaller than 16px, which fires
+     a resize event that closes the popover one frame after it opens. Bump to
+     16px on mobile so focus doesn't trigger the zoom. */
+  .atom-pop-fields input { font-size: 16px; }
 }
 .edit-hint { opacity: 0; flex-shrink: 0; cursor: pointer; user-select: none; transition: opacity 0.15s; }
 .name-edit-input { font-family: inherit; width: 100%; padding: 1px 5px; border: 1px solid var(--accent); border-radius: 3px; background: var(--input-bg); color: var(--text); font-size: 15px; font-weight: 600; outline: none; }
