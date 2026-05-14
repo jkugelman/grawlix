@@ -1952,10 +1952,8 @@ function parseWordlist(text) {
   return entries;
 }
 
-// Validates a chunk of wordlist text (e.g., from a Range GET).
-// Drops the last line (may be truncated at a Range boundary).
-// Lines without semicolons are skipped (comments/headers). Returns false if
-// there are no data lines, or any semicolon-containing line fails to parse.
+// Validates a chunk from a Range GET. Drops the last line (may be truncated
+// at the Range boundary); skips semicolon-less lines as comments/headers.
 function validateWordlistChunk(text) {
   const lines = text.split('\n').slice(0, -1).filter(l => l.length > 0);
   if (!lines.length) return false;
@@ -3553,7 +3551,7 @@ const TOOLS = {
       const out = [];
       await ctx.forEach(input, e => {
         if (e.entryNorm.length < 2) return;
-        // Skip plural → singular: source ending in `s` but not `ss`.
+        // Skip plural → singular.
         if (e.entryNorm.endsWith('s') && !e.entryNorm.endsWith('ss')) return;
         const match = byNorm.get(e.entryNorm.slice(0, -1));
         if (match) out.push({
@@ -3661,14 +3659,10 @@ async function executePipeline(mergedEntries, stack, ctx, onRowStart, onRowEnd) 
 }
 
 // ─── Pipeline runtime ─────────────────────────────────────────────────────────
-// The runtime wraps `executePipeline` with three pieces that the user-visible
-// pipeline depends on: supersession (a new run aborts the in-flight one),
-// cooperative yielding (a `ctx.yield()` shim a tool can call inside a hot loop
-// to let the browser paint), and a per-row spinner that lights up only when a
-// row's run exceeds ~100ms. Today's tools are all synchronous and complete in
-// a single tick, so abort never observes them mid-run and the spinner never
-// fires — the machinery is in place against the moment a network-bound or
-// genuinely long tool lands.
+// The runtime wraps `executePipeline` with three pieces: supersession (a new
+// run aborts the in-flight one), cooperative yielding (tools call
+// `await ctx.forEach`/`filter` so the runtime yields between chunks), and a
+// per-row spinner that lights up only when a row's run exceeds ~100ms.
 
 const SLOW_TOOL_THRESHOLD_MS = 100;
 // Yield budget — when an in-helper loop has consumed this much CPU since its
@@ -4231,9 +4225,8 @@ const SORT_AXES_BY_KIND = {
     entry: {
       label: 'Alphabetical',
       primary: p => p.a.entry,
-      // Semordnilap has a 1:1 a→b mapping so no real ties; pair tools where
-      // the same `a` maps to multiple `b`s (anagram_with, replace_anything)
-      // benefit from b.entry asc keeping the output deterministic.
+      // Semordnilap has a 1:1 a→b mapping so no real ties today; tiebreaker
+      // exists for future pair tools where one `a` maps to many `b`s.
       tiebreakers: [
         { project: p => p.b.entry, dir: 'asc' },
       ],
@@ -4559,12 +4552,8 @@ class WorkshopEntriesScroller extends BaseVirtualScroller {
   // fixed during scroll. Capping the entry slot at ENTRY_SLOT_CAP keeps one outlier
   // from blowing out layout for every other row; longer entries truncate with an
   // ellipsis (full text in the row's title attribute). Min widths floor each
-  // track to its column-header label so the sticky headers fit ("Entry", "Len",
-  // "Score"). Widths are emitted in pixels (measured against the row's mono
-  // 13px font) instead of `ch` so they resolve identically in the header's
-  // sans font and the row's mono font — different fonts have different `ch`
-  // sizes, which would make column tracks misalign. Vars are written to
-  // #detail-panel so both .entry-row and the .entry-headers (which lives in
+  // track to its column-header label so the sticky headers fit. Vars are written
+  // to #detail-panel so both .entry-row and the .entry-headers (which lives in
   // .sticky-stack, a sibling of the scroller's host) inherit the same values.
   _computeSlotWidths() {
     // Count and entry slot widths track the unfiltered wordlist so columns
