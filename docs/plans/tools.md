@@ -8,7 +8,7 @@ The gallery is where Grawlix's [project goal](../../README.md#goals) — democra
 
 ## Status
 
-The chrome, the pipeline runtime, and four tools (Anagram, Semordnilap, Behead, Curtail) are shipped — see [`../design.md` § Tool gallery & stack](../design.md#tool-gallery--stack) for the executor, runtime normalization, pair-row display, per-kind sort, and the highlights pipeline. The `removed` highlight kind (struck-through, used by Behead and Curtail) is wired up; other highlight kinds (kept/inserted/shifted/group:N) land as tools start emitting them. The rest of this doc covers what's still planned: the catalog of tools that have records but no `run` yet, the indexed-view runtime that several anagram-family tools need, groups output kind, gallery polish (category picker, search), result download, async/cancellation UX for network-bound tools, and the OneLook / Datamuse / Umiaq integrations.
+The chrome, the pipeline runtime, the cooperative-yielding `ctx` API (with `forEach` / `filter` / `yield` helpers, supersession, and slow-row spinners), and four tools (Anagram, Semordnilap, Behead, Curtail) are shipped — see [`../design.md` § Tool gallery & stack](../design.md#tool-gallery--stack) for the executor, runtime normalization, pair-row display, per-kind sort, the highlights pipeline, and the cooperative runtime. The `removed` highlight kind (struck-through, used by Behead and Curtail) is wired up; other highlight kinds (kept/inserted/shifted/group:N) land as tools start emitting them. The rest of this doc covers what's still planned: the catalog of tools that have records but no `run` yet, the indexed-view runtime that several anagram-family tools need, groups output kind, gallery polish (category picker, search), result download, and the OneLook / Datamuse / Umiaq integrations.
 
 ## Sequencing — runtime support before the family
 
@@ -18,7 +18,7 @@ Concretely:
 
 - **Letter-bank family** (`subanagram`, `made_from`, `anagram_with`, `anagram_families`) — wait for `byLetterBank` shared view. Anagram already pays the cost per-keystroke for one tool; a second letter-bank tool without the shared view doubles it. Land the view alongside the first new family member.
 - **Membership family** (`kangaroo`, `joey`, `sandwich`, `nested_words`) — wait for `input.set` shared view. Behead/curtail build a Map per call which is fine for a 200K wordlist, but a chained `behead → sandwich` repeats the build twice per keystroke. Same gate.
-- **Network-bound tools** (OneLook, Datamuse) — wait for cooperative-yielding `ctx`, async `run` plumbing, and the spinner UX. A synchronous network call inside today's executor would freeze the UI on every keystroke.
+- **Network-bound tools** (OneLook, Datamuse) — runtime is ready (`ctx.signal` passes to `fetch`, supersession handles in-flight cancellation, spinner covers the latency). Land when the integration surface is designed.
 - **Phonetics / thesaurus families** — wait for the bundled data dependency. Until CMU dict and Roget XML are available at runtime, the tools can't run.
 
 For tools that fit the current runtime as-is (`palindromes`, `isograms`, `supervocalics`, etc. — purely letter-pattern checks over `entryNorm`), no gate; just add the `run` and ship.
@@ -85,29 +85,15 @@ Builtin views are shared across calls. Custom JS tools can ask for them too but 
 
 ### Async, cancellation, spinners
 
-**Cooperative multitasking is the documented path** for keeping the main thread responsive during tool runs. Tools become async, hot loops yield periodically, and in-flight runs cancel when superseded. This shape lets live-as-you-type updates stay snappy regardless of total tool work — the browser gets a frame to render between chunks, so keystrokes never feel sluggish even when a tool takes hundreds of ms total. Workers were considered and rejected (see *Workers: rejected* below).
+The async runtime — `ctx` API with `forEach` / `filter` / `yield`, AbortSignal-based supersession, slow-row spinners — shipped with the first four tools. See [`../design.md` § Cooperative runtime](../design.md#cooperative-runtime--supersession-yield-spinners) for the present-tense description; the rest of this section is guidance for tool authors and the rationale behind the design choices that informed the shipped shape.
 
-- **`run` becomes async-by-default.** Synchronous tools still `return`; async tools `await`. The runtime always treats the call as a promise. Today's executor calls `run` synchronously — the call site needs to be promised before any of this can land.
-- **Tools yield by time, not iteration count.** Track elapsed since last yield and yield when it crosses ~5–8ms (about half a frame). Iteration-count chunking blows out the overhead budget on fast inner loops: 1K iterations of ~1μs work yields every ~1ms, so a 500K-entry filter would pay hundreds of ms in pure yield overhead alone. Ad-hoc loops gate the time check behind a cheap bitmask (`(i & 1023) === 0`) so `performance.now()` doesn't run every iteration; the helpers below handle this internally. The yield itself is `await ctx.yield()` — a shim that prefers `scheduler.yield()` where available and falls back to `await new Promise(r => setTimeout(r, 0))`. The browser drains pending input events and paints between chunks; keystroke latency stays low independent of total run time.
-- **In-flight runs cancel when superseded.** The `ctx` argument (not yet plumbed) carries an `aborted` flag, AbortSignal-style. Tools observe it at every yield point — a superseded run sees `aborted` on its next chunk boundary, returns immediately, and its result is discarded. Network-bound tools pass `ctx.signal` directly to `fetch`.
-- **Spinners on slow rows.** Tool rows whose run exceeds ~100ms badge with a progress indicator; the result list grays out. Below the threshold, no UI flicker.
-
-**Ergonomic helpers on `ctx`.** Tool authors don't write the yield bookkeeping manually. The runtime exposes chunked-iteration helpers that own time-tracking, yielding, and abort propagation:
-
-- `ctx.filter(input, predicate)` — chunked filter.
-- `ctx.forEach(input, fn)` — chunked iteration where the body pushes onto an accumulator the tool owns. Covers pair-emit shapes that aren't a pure filter.
-- `ctx.yield()` — manual yield for ad-hoc loops that don't fit `filter` or `forEach`.
-- `ctx.aborted` / `ctx.signal` — raw abort check and AbortSignal for `fetch`.
-
-Helpers throw an `AbortError` (DOMException, web-standard name) at a yield boundary when `ctx.aborted` flips; the executor catches and discards. Throwing instead of returning a sentinel lets tool bodies chain multiple helper calls without per-call bail-out plumbing — an aborted run unwinds naturally.
-
-Under this API the catalog reads compactly:
+**Tool-author quick start.** Most tools fit one of these shapes:
 
 ```js
-// Anagram — one line
+// Filter — single helper call
 return ctx.filter(input, e => sortLetters(e.entryNorm) === target);
 
-// Behead — one helper call inside the iteration body
+// Pair emit — helper handles yields, body pushes onto an accumulator
 const byNorm = new Map(input.map(e => [e.entryNorm, e]));
 const out = [];
 await ctx.forEach(input, e => {
@@ -118,9 +104,9 @@ await ctx.forEach(input, e => {
 return out;
 ```
 
-The inline `new Map(input.map(...))` build is unyielded — fine at its one-time ~30ms cost today, eventually subsumed by the indexed-views runtime (see *Indexed input views* above) that builds shared structures once at the executor boundary and hands them in via `input.set` / `input.byLetterBank` / etc.
+The inline `new Map(input.map(...))` build is unyielded — fine at its one-time ~30ms cost today, eventually subsumed by the indexed-views runtime (see *Indexed input views* above) that builds shared structures once at the executor boundary and hands them in via `input.set` / `input.byLetterBank` / etc. For ad-hoc loops that don't fit `forEach` / `filter` (a nested loop, an early-exit), call `await ctx.yield()` periodically; the helpers do this internally.
 
-The cooperative model relies on tool-author discipline — a hot loop that never yields freezes the UI. Built-in tools are under our control, so this is a code-review concern, the same as missing cancellation checks. Custom JS tools (see *Open questions* below) are held to the same convention; if a user-authored tool ignores it, the consequence is locking up the author's own browser, which is their problem to manage. No CPU sandbox is needed.
+**Cooperative discipline.** A hot loop that never yields freezes the UI. Built-in tools are under our control, so this is a code-review concern, the same as missing cancellation checks. Custom JS tools (see *Open questions* below) are held to the same convention; if a user-authored tool ignores it, the consequence is locking up the author's own browser, which is their problem to manage. No CPU sandbox is needed. Workers were considered and rejected (see *Workers: rejected* below).
 
 ### Annotations
 
@@ -247,13 +233,7 @@ Groups are the partial exception to strict pseudo-column alignment. Atom counts 
 
 ## Workers: rejected
 
-Web workers were considered for moving tool execution off the main thread and rejected. Cooperative yielding (see *Async, cancellation, spinners* above) covers what workers would have bought, without their cost.
-
-- **Cooperative yielding already secures UI responsiveness.** Tools yield inside hot loops; the browser drains input and paints between chunks; keystroke latency stays low independent of total run time. The thing workers would offer over today's main-thread compute — main thread stays free during work — is the thing yielding already delivers.
-- **No untrusted code to sandbox.** Custom JS tools (see *Open questions* below) are user-authored and run in the user's own browser. The blast radius of a misbehaving custom tool is one tab on its author's own machine. Users writing tools are guided to the same yield-and-cancel discipline as built-ins; if they ignore it, they only lock up themselves. There's no second party to protect, so no CPU sandbox is warranted.
-- **Cost is significant.** No build step makes worker bundling awkward, and the naïve "copy 500K entries every keystroke" shape serializes ~25 MB through structured clone (~150–300ms each direction at typical throughput) — likely slower than the main-thread compute it would replace. The viable shape — worker holds the wordlist, main thread sends only queries — pulls a state-sync protocol into the entire mutation surface (My Edits patches mirrored worker-side, source/rescore-rule changes re-shipped). Meaningful complexity for a marginal gain over what yielding already provides.
-
-Revisit only if a built-in tool surfaces whose work fundamentally can't fit the cooperative budget — bulk preprocessing where chunked yields can't hide enough latency to keep results from feeling delayed. None of the current or near-term catalog qualifies.
+Web workers were evaluated for moving tool execution off the main thread and rejected — cooperative yielding covers the same ground without the cost. See [`../design.md` § Cooperative runtime](../design.md#cooperative-runtime--supersession-yield-spinners) for the rationale. Revisit only if a built-in tool surfaces whose work fundamentally can't fit the cooperative budget; none of the current or near-term catalog qualifies.
 
 ## Result caching: deferred
 

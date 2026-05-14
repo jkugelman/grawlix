@@ -39,6 +39,7 @@ test('test API is exposed on window', async ({ page }) => {
     'getVisibleEntries',
     'getWordlist',
     'moveBefore',
+    'pipelineIdle',
     'setRescoreRules',
     'setStack',
     'setUpdateAvailable',

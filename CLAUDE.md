@@ -27,7 +27,7 @@ Plans (forward-looking, not yet shipped):
 - [`docs/plans/migration.md`](docs/plans/migration.md) — when to graduate from schema-version resets to layered migrations.
 - [`docs/plans/puz-to-pdf.md`](docs/plans/puz-to-pdf.md) — feasibility sketch for in-browser .PUZ → printable PDF rendering.
 - [`docs/plans/sync.md`](docs/plans/sync.md) — three-tier persistence (backup nag, disk file, cloud sync) for All + My Edits.
-- [`docs/plans/tools.md`](docs/plans/tools.md) — remainder of the catalog, indexed-view runtime, async/cancellation/spinners, annotations, groups output, gallery polish (category picker, search), result download, OneLook/Datamuse/Umiaq. Pipeline runtime + pair output + per-kind sort + highlights pipeline shipped (see `design.md`).
+- [`docs/plans/tools.md`](docs/plans/tools.md) — remainder of the catalog, indexed-view runtime, annotations, groups output, gallery polish (category picker, search), result download, OneLook/Datamuse/Umiaq. Pipeline runtime + cooperative `ctx` API + pair output + per-kind sort + highlights pipeline shipped (see `design.md`).
 
 When a plan ships, run the `distill-design-doc` skill to fold it into `design.md` and/or `manual.md`. (There used to be an in-app welcome tour with copy that needed updating per shipped feature; it was removed pending a redesign — see [`docs/plans/help.md`](docs/plans/help.md). The header `?` button is a deactivated placeholder until that lands.)
 

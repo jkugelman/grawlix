@@ -300,6 +300,10 @@ html.dark-mode .search-match-4 { background: #14532d; color: #d1fae5; }
    word atoms with pseudo-column alignment via grid — div-based rather than a
    real <table>. */
 #entries-table-panel { background: var(--surface); }
+/* Faded "the results you see are stale, a new run is in flight" treatment —
+   the runtime adds this whenever any tool row has crossed the slow threshold.
+   Clears the moment the run completes (or aborts) and the row class drops. */
+#entries-table-panel.pipeline-running { opacity: 0.55; transition: opacity 0.15s ease; }
 #vs-host { position: relative; }
 .entries-table-rows { position: relative; }
 .entry-row, .entry-headers {
@@ -809,6 +813,18 @@ body.tools-empty .gallery-card-add { display: none; }
 }
 @media (prefers-reduced-motion: reduce) {
   .tool-row.flash { animation: none; }
+}
+/* "Slow" — the runtime adds this class when a row's run exceeds
+   SLOW_TOOL_THRESHOLD_MS (~100ms). The remove button is replaced visually by a
+   small spinner near the row's leading edge; the entries panel below gets
+   `.pipeline-running` (defined further down) which fades the results so the
+   user sees the work is in flight rather than thinking nothing happened. */
+.tool-row-spinner { position: absolute; right: 14px; top: 50%; transform: translateY(-50%); width: 14px; height: 14px; border-radius: 50%; border: 2px solid color-mix(in srgb, var(--muted) 35%, transparent); border-top-color: var(--accent); animation: tool-row-spin 0.8s linear infinite; pointer-events: none; opacity: 0; }
+.tool-row.tool-row-slow .tool-row-spinner { opacity: 1; }
+.tool-row.tool-row-slow .tool-row-remove { opacity: 0; }
+@keyframes tool-row-spin { to { transform: translateY(-50%) rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .tool-row-spinner { animation: none; }
 }
 /* Insertion cursor — shown while hovering a gallery card to indicate
    where the new tool will land. Drawn as a right-pointing caret + line
@@ -3457,6 +3473,13 @@ function renderHighlightedText(text, ranges) {
 // function lands. Output kinds: 'words' (wlEntry[]) and 'pairs' ({a, b}[]).
 // Pair-output tools also declare `relation`, `labels`, and `chainProjection`
 // for downstream rendering and chain projection.
+//
+// `run(input, params, ctx)` may be sync (returns items) or async (returns a
+// promise — the executor awaits either way). `ctx` carries `signal`, `aborted`,
+// and `yield()` for cooperative multitasking; today's tools are short enough
+// to ignore it, but a tool whose hot loop is too long to fit in a frame can
+// `await ctx.yield()` to let the browser paint between chunks. The yield also
+// throws on abort, so a superseded run unwinds at its next yield point.
 
 const TOOL_CATEGORIES = [
   { id: 'anagrams', label: 'Anagrams & letter banks' },
@@ -3471,10 +3494,10 @@ const TOOLS = {
     example: 'LINDSEY → SNIDELY',
     params: [{ key: 'entry', label: 'entry' }],
     output: 'words',
-    run(input, params) {
+    async run(input, params, ctx) {
       const target = sortLetters(params.entry);
       if (!target) return input;
-      return input.filter(e => sortLetters(e.entryNorm) === target);
+      return ctx.filter(input, e => sortLetters(e.entryNorm) === target);
     },
   },
   subanagram: {
@@ -3504,18 +3527,18 @@ const TOOLS = {
     example: 'SLING → LING',
     params: [],
     output: 'pairs', relation: 'transform', labels: ['from', 'to'], chainProjection: 'to',
-    run(input) {
+    async run(input, params, ctx) {
       const byNorm = new Map(input.map(e => [e.entryNorm, e]));
       const out = [];
-      for (const e of input) {
-        if (e.entryNorm.length < 2) continue;
+      await ctx.forEach(input, e => {
+        if (e.entryNorm.length < 2) return;
         const match = byNorm.get(e.entryNorm.slice(1));
         if (match) out.push({
           a: e,
           b: match,
           highlights: { a: [{ kind: 'removed', start: 0, end: 1 }] },
         });
-      }
+      });
       return out;
     },
   },
@@ -3525,11 +3548,11 @@ const TOOLS = {
     example: 'CARTS → CART',
     params: [],
     output: 'pairs', relation: 'transform', labels: ['from', 'to'], chainProjection: 'to',
-    run(input) {
+    async run(input, params, ctx) {
       const byNorm = new Map(input.map(e => [e.entryNorm, e]));
       const out = [];
-      for (const e of input) {
-        if (e.entryNorm.length < 2) continue;
+      await ctx.forEach(input, e => {
+        if (e.entryNorm.length < 2) return;
         const match = byNorm.get(e.entryNorm.slice(0, -1));
         if (match) out.push({
           a: e,
@@ -3541,7 +3564,7 @@ const TOOLS = {
           // of the word, which is what curtail conceptually removed.
           highlights: { a: [{ kind: 'removed', start: e.entry.length - 1, end: e.entry.length }] },
         });
-      }
+      });
       return out;
     },
   },
@@ -3551,19 +3574,19 @@ const TOOLS = {
     example: 'STRESSED → DESSERTS',
     params: [],
     output: 'pairs', relation: 'symmetric', labels: ['a', 'b'], chainProjection: 'both',
-    run(input) {
+    async run(input, params, ctx) {
       // Each pair is emitted once in canonical order (lexicographically smaller
       // entryNorm on the `a` side). Palindromes are skipped — reversing them
       // yields the same word, not a different one.
       const byNorm = new Map(input.map(e => [e.entryNorm, e]));
       const out = [];
-      for (const e of input) {
+      await ctx.forEach(input, e => {
         const reversed = reverseString(e.entryNorm);
-        if (reversed === e.entryNorm) continue;
-        if (e.entryNorm >= reversed) continue;
+        if (reversed === e.entryNorm) return;
+        if (e.entryNorm >= reversed) return;
         const match = byNorm.get(reversed);
         if (match) out.push({ a: e, b: match });
-      }
+      });
       return out;
     },
   },
@@ -3603,23 +3626,174 @@ function normalizeParams(params) {
 // tool is followed by a word-input tool, items are projected to wlEntry[]
 // using the consumer row's `col` override (the on-to/on-from toggle), or
 // falling back to the producer's `chainProjection`.
-function executePipeline(mergedEntries, stack) {
+//
+// `run` is awaited (synchronous returns work too — `await syncValue` is just a
+// microtask). `ctx` carries the abort signal and the `yield()` shim; the
+// executor itself checks abort at every row boundary so even sync tools
+// participate in supersession. Per-row callbacks (`onRowStart`, `onRowEnd`)
+// drive the spinner UX from outside.
+async function executePipeline(mergedEntries, stack, ctx, onRowStart, onRowEnd) {
   let kind = 'words';
   let items = mergedEntries;
   let prevTool = null;
-  for (const row of stack) {
+  for (let i = 0; i < stack.length; i++) {
+    const row = stack[i];
     const tool = TOOLS[row.tool];
     if (!tool?.run) continue;             // no-run rows are transparent: items + kind survive
+    throwIfAborted(ctx?.signal);
     if (kind === 'pairs') {
       const projection = row.col || prevTool?.chainProjection || 'both';
       items = projectPairs(items, projection);
       kind = 'words';
     }
-    items = tool.run(items, normalizeParams(row.params));
+    onRowStart?.(i);
+    try {
+      items = await tool.run(items, normalizeParams(row.params), ctx);
+    } finally {
+      onRowEnd?.(i);
+    }
     kind = tool.output;
     prevTool = tool;
   }
   return { kind, items };
+}
+
+// ─── Pipeline runtime ─────────────────────────────────────────────────────────
+// The runtime wraps `executePipeline` with three pieces that the user-visible
+// pipeline depends on: supersession (a new run aborts the in-flight one),
+// cooperative yielding (a `ctx.yield()` shim a tool can call inside a hot loop
+// to let the browser paint), and a per-row spinner that lights up only when a
+// row's run exceeds ~100ms. Today's tools are all synchronous and complete in
+// a single tick, so abort never observes them mid-run and the spinner never
+// fires — the machinery is in place against the moment a network-bound or
+// genuinely long tool lands.
+
+const SLOW_TOOL_THRESHOLD_MS = 100;
+// Yield budget — when an in-helper loop has consumed this much CPU since its
+// last yield, it gives the browser a turn. ~6ms is roughly half a 60Hz frame,
+// leaving the other half for input handling and paint. Iteration-count chunking
+// blows up at small body sizes: 1K iterations of ~1μs work yields every ~1ms,
+// burning hundreds of ms of pure yield overhead on a 500K filter. Time-based
+// chunking keeps yield count proportional to wall-clock cost.
+const YIELD_INTERVAL_MS = 6;
+// Bitmask gate on i — `(i & YIELD_CHECK_MASK) === 0` is a single AND, far
+// cheaper than calling performance.now() every iteration. 1023 means we check
+// elapsed time once per 1024 iterations.
+const YIELD_CHECK_MASK = 1023;
+
+// scheduler.yield is the modern primitive (Chrome 129+); the setTimeout fallback
+// is universal and lands the browser back on the macrotask queue, which is what
+// we want — input events and paints get a turn before the tool resumes.
+const _yieldImpl = (typeof scheduler !== 'undefined' && typeof scheduler.yield === 'function')
+  ? () => scheduler.yield()
+  : () => new Promise(r => setTimeout(r, 0));
+
+function throwIfAborted(signal) {
+  if (signal?.aborted) throw signal.reason ?? new DOMException('Aborted', 'AbortError');
+}
+
+// `ctx` is the tool-author API. Most tools use the chunked helpers (`filter`,
+// `forEach`) rather than the raw `yield`/`aborted` — the helpers own the
+// time-tracking and bitmask-gated `performance.now()` so a tool body reads as
+// a plain predicate or iteration. Abort propagates as a thrown DOMException
+// at the next yield boundary, so the tool body itself never needs to check.
+function makeCtx(signal) {
+  const yieldOnce = async () => {
+    await _yieldImpl();
+    throwIfAborted(signal);
+  };
+  async function forEach(input, fn) {
+    let lastYield = performance.now();
+    for (let i = 0; i < input.length; i++) {
+      fn(input[i], i);
+      if ((i & YIELD_CHECK_MASK) === 0 && performance.now() - lastYield >= YIELD_INTERVAL_MS) {
+        await yieldOnce();
+        lastYield = performance.now();
+      }
+    }
+  }
+  async function filter(input, predicate) {
+    const out = [];
+    await forEach(input, (e, i) => { if (predicate(e, i)) out.push(e); });
+    return out;
+  }
+  return {
+    signal,
+    get aborted() { return signal.aborted; },
+    yield: yieldOnce,
+    forEach,
+    filter,
+  };
+}
+
+// Single-flight controller — every runPipeline call aborts the previous one's
+// signal before starting its own run. In-flight tools observe the abort at
+// their next `ctx.yield()` (or at the executor's per-row check, for sync tools)
+// and bail out; the aborted run's resolved value is discarded by its caller.
+let _pipelineController = null;
+let _pipelineRunning = 0;
+const _pipelineIdleWaiters = [];
+
+// Resolves the next time no pipeline run is in flight. Used by the test bridge
+// to await async runs triggered by keystroke / setStack before reading the DOM.
+function pipelineIdle() {
+  if (_pipelineRunning === 0) return Promise.resolve();
+  return new Promise(r => _pipelineIdleWaiters.push(r));
+}
+
+// Run the current stack against `mergedEntries`. Returns `{ kind, items }` on
+// completion, or `{ aborted: true }` if a newer call superseded this one.
+// Callers drop their result on `aborted` rather than touching the scroller —
+// the superseding caller will produce the next update.
+async function runPipeline(mergedEntries, stack) {
+  _pipelineController?.abort();
+  const ac = new AbortController();
+  _pipelineController = ac;
+  _pipelineRunning++;
+
+  const rowTimers = new Map();
+  const slowRows = new Set();
+  const onRowStart = (i) => {
+    const t = setTimeout(() => {
+      slowRows.add(i);
+      _markRowSlow(i);
+    }, SLOW_TOOL_THRESHOLD_MS);
+    rowTimers.set(i, t);
+  };
+  const onRowEnd = (i) => {
+    clearTimeout(rowTimers.get(i));
+    rowTimers.delete(i);
+    if (slowRows.delete(i)) _unmarkRowSlow(i);
+  };
+
+  const ctx = makeCtx(ac.signal);
+  try {
+    const result = await executePipeline(mergedEntries, stack, ctx, onRowStart, onRowEnd);
+    return { ...result, aborted: false };
+  } catch (e) {
+    if (ac.signal.aborted) return { aborted: true };
+    throw e;
+  } finally {
+    rowTimers.forEach(clearTimeout);
+    slowRows.forEach(_unmarkRowSlow);
+    if (_pipelineController === ac) _pipelineController = null;
+    _pipelineRunning--;
+    if (_pipelineRunning === 0) {
+      const waiters = _pipelineIdleWaiters.splice(0);
+      waiters.forEach(fn => fn());
+    }
+  }
+}
+
+function _markRowSlow(i) {
+  document.querySelectorAll('#tool-stack .tool-row')[i]?.classList.add('tool-row-slow');
+  document.getElementById('entries-table-panel')?.classList.add('pipeline-running');
+}
+function _unmarkRowSlow(i) {
+  document.querySelectorAll('#tool-stack .tool-row')[i]?.classList.remove('tool-row-slow');
+  if (!document.querySelector('#tool-stack .tool-row-slow')) {
+    document.getElementById('entries-table-panel')?.classList.remove('pipeline-running');
+  }
 }
 
 // Project a pair list down to a flat wlEntry list for a downstream word tool.
@@ -3671,6 +3845,7 @@ const ToolStack = (() => {
         ${paramsHTML(tool, idx, row.params)}
       </div>
       <button type="button" class="tool-row-remove" data-remove="${idx}" title="Remove" aria-label="Remove ${esc(tool.name)}"><svg width="10" height="10"><use href="#icon-x"/></svg></button>
+      <span class="tool-row-spinner" aria-hidden="true"></span>
     </div>`;
   }
 
@@ -5513,10 +5688,15 @@ function createScroller() {
 // and the scroller takes the full `updateEntries` path; chained edits
 // against a tool-filtered view will close the open popover, which is
 // acceptable for v1.
-function refreshWorkshopMergedScroller() {
+//
+// Async because the pipeline is async; the runtime supersedes any in-flight
+// run, so an aborted result is dropped and the next call wins.
+async function refreshWorkshopMergedScroller() {
   if (!workshopScroller) return;
   const merged = buildMergedWordlist().entries;
-  const { kind, items } = executePipeline(merged, ToolStack.getStack());
+  const result = await runPipeline(merged, ToolStack.getStack());
+  if (result.aborted || !workshopScroller) return;
+  const { kind, items } = result;
   if (items === workshopScroller.allEntries && kind === workshopScroller.kind) {
     workshopScroller._invalidateSortCache();
     workshopScroller._applyFilterAndSort(false);
@@ -5594,10 +5774,12 @@ function attachSearchHelpPopup() {
   if (input) _searchHelpPopup = new PopupHelp(input, buildWildcardSpansHTML());
 }
 
-function renderWorkshopMergedDetail() {
+async function renderWorkshopMergedDetail() {
   const panel = document.getElementById('detail-panel');
   const merged = buildMergedWordlist().entries;
-  const { kind, items } = executePipeline(merged, ToolStack.getStack());
+  const result = await runPipeline(merged, ToolStack.getStack());
+  if (result.aborted) return;
+  const { kind, items } = result;
   // Stats hit the merged cache when no tool transformed the entries; otherwise
   // the initial placeholder is computed raw — the scroller's onFilterChange
   // refresh kicks in immediately after setEntries and replaces it anyway. For
@@ -7763,17 +7945,25 @@ window.__grawlixTest = {
   // through the same path the URL parser uses (`ToolStack.setStack` +
   // `renderWorkshopMergedDetail`), so tests exercise the executor with the
   // same plumbing the user does. Pass an array of `{tool, params, col}`.
-  setStack(stack) {
+  // Returns the render promise — tests `await` it before reading the DOM.
+  async setStack(stack) {
     ToolStack.setStack(stack.map(r => ({ tool: r.tool, params: r.params || {}, col: r.col || 'to' })));
-    renderWorkshopMergedDetail();
+    const p = renderWorkshopMergedDetail();
     ToolStack.refreshGalleryActive();
+    await p;
   },
+
+  // Resolves when no pipeline run is in flight. Tests use this after keystroke
+  // interactions (which fire-and-forget the refresh) before reading the DOM.
+  pipelineIdle() { return pipelineIdle(); },
 
   // Visible Workshop scroller rows as user-meaningful strings. For 'words'
   // output, returns the entry string per row. For 'pairs' output, returns
   // `{a, b}` per row. Reads from the live DOM so assertions describe what's
-  // actually rendered.
-  getVisibleEntries() {
+  // actually rendered. Awaits pipelineIdle so an in-flight async refresh
+  // (e.g., triggered by a keystroke just before this call) finishes first.
+  async getVisibleEntries() {
+    await pipelineIdle();
     const rows = document.querySelectorAll('#vs-host .entry-row');
     return [...rows].map(r => {
       if (r.classList.contains('pair-row')) {
