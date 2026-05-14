@@ -3876,9 +3876,13 @@ class WorkshopEntriesScroller extends BaseVirtualScroller {
   }
 
   // Scroll closes the click-driven AtomPopover so it doesn't anchor to a row
-  // that's scrolling out from under it.
+  // that's scrolling out from under it — but only when the popover isn't the
+  // focus owner. On iOS, focusing the popover's input scroll-into-views it
+  // above the soft keyboard, which fires this handler; closing then would
+  // tear down the popover one frame after open.
   _onScroll() {
     this._render();
+    if (AtomPopover.containsFocus()) return;
     AtomPopover.close();
   }
 
@@ -4410,7 +4414,16 @@ const AtomPopover = (() => {
     activeScroller = null;
     document.removeEventListener('mousedown', onDocMouseDown, true);
     document.removeEventListener('keydown', onKeydown, true);
-    window.removeEventListener('resize', close);
+    window.removeEventListener('resize', onWinResize);
+  }
+
+  function onWinResize() {
+    if (containsFocus()) return;
+    close();
+  }
+
+  function containsFocus() {
+    return isOpen() && el.contains(document.activeElement);
   }
 
   function onDocMouseDown(e) {
@@ -4443,7 +4456,7 @@ const AtomPopover = (() => {
 
     document.addEventListener('mousedown', onDocMouseDown, true);
     document.addEventListener('keydown', onKeydown, true);
-    window.addEventListener('resize', close);
+    window.addEventListener('resize', onWinResize);
   }
 
   function renderFooterHTML(wlEntry, scroller) {
@@ -4578,7 +4591,7 @@ const AtomPopover = (() => {
     rowEl.classList.add('active');
   }
 
-  return { open, close, isOpen, activeEntry, rebindRow };
+  return { open, close, isOpen, containsFocus, activeEntry, rebindRow };
 })();
 
 // ─── Update Summary Scroller ──────────────────────────────────────────────────
