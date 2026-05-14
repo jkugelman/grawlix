@@ -36,9 +36,11 @@ test('test API is exposed on window', async ({ page }) => {
     '_lookup',
     'addCustomWordlist',
     'getMergedEntry',
+    'getVisibleEntries',
     'getWordlist',
     'moveBefore',
     'setRescoreRules',
+    'setStack',
     'setUpdateAvailable',
   ]);
 });

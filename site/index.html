@@ -251,7 +251,6 @@ html.light-mode .histogram-readonly.is-hovered .histogram-bar:not(.histogram-bar
 .search-input-wrap { position: relative; display: flex; align-items: center; flex: 1 1 240px; min-width: 160px; max-width: 360px; }
 .search-input-wrap input[type="text"],
 .tool-row-param input { background: var(--input-bg); color: var(--text); border: 1px solid var(--border); border-radius: 4px; font-size: 13px; font-family: var(--font-mono); padding: 5px 8px; }
-.tool-row-param input { cursor: not-allowed; }
 .search-input-wrap input[type="text"]:focus,
 .tool-row-param input:focus { outline: none; border-color: var(--accent); }
 .search-input-wrap input[type="text"] { width: 100%; padding-right: 24px; }
@@ -751,7 +750,7 @@ body.tools-empty .gallery-card-add { display: none; }
    doesn't shrink below the height of an input-bearing row, and the search
    bar (visually the bottom row of the stack) lines up with them. */
 .tool-row, .search-bar { min-height: 42px; }
-.tool-row { position: relative; display: grid; grid-template-columns: 1fr 32px; align-items: center; padding: 8px 14px; border-bottom: 1px solid var(--border2); gap: 10px; overflow: hidden; cursor: not-allowed; }
+.tool-row { position: relative; display: grid; grid-template-columns: 1fr 32px; align-items: center; padding: 8px 14px; border-bottom: 1px solid var(--border2); gap: 10px; overflow: hidden; }
 .tool-row:last-child { border-bottom: none; }
 /* "doomed" marks rows that the hovered gallery card will remove on click —
    diagonal stripe overlay (neutral, text-tinted) plus a slight dim, in place,
@@ -1866,7 +1865,18 @@ function parseWordlistLine(line) {
   const score = parseInt(semi2 === -1 ? rest : rest.slice(0, semi2), 10);
   if (isNaN(score)) return null;
   const comment = semi2 === -1 ? '' : rest.slice(semi2 + 1).trim();
-  return { entry, entryLower: entry.toLowerCase(), score, comment };
+  const entryLower = entry.toLowerCase();
+  return { entry, entryLower, entryNorm: stripWhitespace(entryLower), score, comment };
+}
+
+// Canonical form fed to tool runners — lowercase + whitespace-stripped, with
+// punctuation/digits left intact. The runtime stamps this on every wlEntry at
+// creation time so tools can compare against `.entryNorm` without re-normalizing
+// per call. Returns the input string identity when there's no whitespace to
+// strip, so the common case (uppercase-letters-only wordlists) shares storage
+// with `entryLower`.
+function stripWhitespace(s) {
+  return /\s/.test(s) ? s.replace(/\s+/g, '') : s;
 }
 
 function parseWordlist(text) {
@@ -3363,7 +3373,13 @@ function highlightSegments(entry, hlRe) {
 }
 
 // ─── Tool stack ───────────────────────────────────────────────────────────────
-// Chrome-only mockup: rows render but don't yet transform the wordlist.
+// Tools are catalog records ({ name, icon, category, desc, example, params,
+// output, run? }). A tool without a `run` is transparent in the pipeline — its
+// row still renders, the URL still serializes it, but `executePipeline` skips
+// over it. That lets the catalog list a tool in the gallery before its run
+// function lands. Output kinds: 'words' (wlEntry[]) and 'pairs' ({a, b}[]).
+// Pair-output tools also declare `relation`, `labels`, and `chainProjection`
+// for downstream rendering and chain projection.
 
 const TOOL_CATEGORIES = [
   { id: 'anagrams', label: 'Anagrams & letter banks' },
@@ -3377,51 +3393,119 @@ const TOOLS = {
     desc: 'Same letters, rearranged',
     example: 'LINDSEY → SNIDELY',
     params: [{ key: 'entry', label: 'entry' }],
-    output: 'single',
+    output: 'words',
+    run(input, params) {
+      const target = sortLetters(params.entry);
+      if (!target) return input;
+      return input.filter(e => sortLetters(e.entryNorm) === target);
+    },
   },
   subanagram: {
     name: 'Subanagram', icon: '🔡', category: 'anagrams',
     desc: 'Words made from any subset of letters',
     example: 'PARENTAL → PLANE, RENT, …',
     params: [{ key: 'letters', label: 'letters' }],
-    output: 'single',
+    output: 'words',
   },
   regex: {
     name: 'Regex', icon: '🪄', category: 'patterns',
     desc: 'Match by regular expression',
     example: '^un.*ed$',
     params: [{ key: 'pattern', label: 'pattern' }],
-    output: 'single', polymorphic: true,
+    output: 'words', polymorphic: true,
   },
   palindrome: {
     name: 'Palindrome', icon: '🔄', category: 'patterns',
     desc: 'Reads the same forwards and back',
     example: 'RACECAR · KAYAK',
     params: [],
-    output: 'single',
+    output: 'words',
   },
   beheadments: {
     name: 'Beheadments', icon: '🪓', category: 'pairs',
     desc: 'Drop the first letter to get a new word',
     example: 'SLING → LING',
     params: [],
-    output: 'pair',
+    output: 'pairs', relation: 'transform', labels: ['from', 'to'], chainProjection: 'to',
   },
   curtailments: {
     name: 'Curtailments', icon: '✂️', category: 'pairs',
     desc: 'Drop the last letter to get a new word',
     example: 'CARTS → CART',
     params: [],
-    output: 'pair',
+    output: 'pairs', relation: 'transform', labels: ['from', 'to'], chainProjection: 'to',
   },
   semordnilaps: {
     name: 'Semordnilaps', icon: '↔️', category: 'pairs',
     desc: 'Reverse to get a different word',
     example: 'STRESSED → DESSERTS',
     params: [],
-    output: 'pair',
+    output: 'pairs', relation: 'symmetric', labels: ['a', 'b'], chainProjection: 'both',
   },
 };
+
+// Sort the letters of an already-canonical string. Tools that need letter-bank
+// equivalence call this on `entryNorm` (and on user-supplied params, which the
+// runtime normalizes the same way before passing in). Non-letters survive and
+// participate in the comparison — for letter-only wordlists they're a no-op,
+// for the rare punctuation-bearing entry they make the match stricter.
+function sortLetters(s) {
+  if (!s) return '';
+  return s.split('').sort().join('');
+}
+
+// Normalize tool param strings the same way wlEntry.entryNorm is normalized:
+// lowercase + whitespace-stripped. Empty strings stay empty. The pipeline
+// executor runs this on every param before handing the params object to a
+// tool's `run`, so tools never re-normalize.
+function normalizeParams(params) {
+  const out = {};
+  for (const [k, v] of Object.entries(params || {})) {
+    out[k] = typeof v === 'string' ? stripWhitespace(v.toLowerCase()) : v;
+  }
+  return out;
+}
+
+// Run the tool stack against the merged wordlist's entries, returning
+// `{ kind, items }`. `kind` is 'words' (items: wlEntry[]) or 'pairs'
+// (items: {a, b}[]). Tools without a `run` are passed over. When a pair-output
+// tool is followed by a word-input tool, items are projected to wlEntry[]
+// using the consumer row's `col` override (the on-to/on-from toggle), or
+// falling back to the producer's `chainProjection`.
+function executePipeline(mergedEntries, stack) {
+  let kind = 'words';
+  let items = mergedEntries;
+  let prevTool = null;
+  for (const row of stack) {
+    const tool = TOOLS[row.tool];
+    if (!tool?.run) continue;             // no-run rows are transparent: items + kind survive
+    if (kind === 'pairs') {
+      const projection = row.col || prevTool?.chainProjection || 'both';
+      items = projectPairs(items, projection);
+      kind = 'words';
+    }
+    items = tool.run(items, normalizeParams(row.params));
+    kind = tool.output;
+    prevTool = tool;
+  }
+  return { kind, items };
+}
+
+// Project a pair list down to a flat wlEntry list for a downstream word tool.
+// 'a'/'from' → the first side, 'b'/'to' → the second side, 'both' → flatten
+// and dedupe by wlEntry identity (Set on the ref, not the entry string —
+// pair tools return wlEntry refs from the same input list, so identity works).
+function projectPairs(pairs, projection) {
+  if (projection === 'a' || projection === 'from') return pairs.map(p => p.a);
+  if (projection === 'b' || projection === 'to')   return pairs.map(p => p.b);
+  const seen = new Set();
+  const out = [];
+  for (const p of pairs) {
+    if (!seen.has(p.a)) { seen.add(p.a); out.push(p.a); }
+    if (!seen.has(p.b)) { seen.add(p.b); out.push(p.b); }
+  }
+  return out;
+}
 
 const ToolStack = (() => {
   // [{ tool: 'anagram', params: { entry: 'LINDSEY' }, col: 'to' }, ...]
@@ -3441,7 +3525,7 @@ const ToolStack = (() => {
     const tool = TOOLS[row.tool];
     if (!tool) return '';
     const prev = idx === 0 ? null : stack[idx - 1];
-    const prevPair = prev && TOOLS[prev.tool]?.output === 'pair';
+    const prevPair = prev && TOOLS[prev.tool]?.output === 'pairs';
     const showToggle = prevPair && !tool.polymorphic;
     const altCol = row.col === 'to' ? 'from' : 'to';
 
@@ -3538,7 +3622,7 @@ const ToolStack = (() => {
     });
     document.body.classList.toggle('tools-empty', stack.length === 0);
     const lastTool = stack.length > 0 ? TOOLS[stack[stack.length - 1].tool] : null;
-    document.body.classList.toggle('tools-multi-word', lastTool?.output === 'pair');
+    document.body.classList.toggle('tools-multi-word', lastTool?.output === 'pairs');
   }
 
   function searchBarEl() { return panelEl()?.querySelector('.search-bar'); }
@@ -3601,6 +3685,7 @@ const ToolStack = (() => {
     focusRowInput(idx);
     flashRow(idx);
     refreshGalleryActive();
+    refreshWorkshopMergedScroller();
     Router.navigate();
   }
 
@@ -3626,6 +3711,7 @@ const ToolStack = (() => {
     focusRowInput(0);
     flashRow(0);
     refreshGalleryActive();
+    refreshWorkshopMergedScroller();
     Router.navigate();
   }
 
@@ -3645,6 +3731,7 @@ const ToolStack = (() => {
       if (!stack.length) e.remove();
     }
     refreshGalleryActive();
+    refreshWorkshopMergedScroller();
     Router.navigate();
   }
 
@@ -3657,6 +3744,7 @@ const ToolStack = (() => {
       toggle.textContent = stack[idx].col;
       toggle.setAttribute('title', `Click to use ${stack[idx].col === 'to' ? 'from' : 'to'}`);
     }
+    refreshWorkshopMergedScroller();
   }
 
   function init() {
@@ -3704,6 +3792,10 @@ const ToolStack = (() => {
       const key = input.dataset.key;
       if (stack[idx]) {
         stack[idx].params[key] = input.value;
+        // Refresh the scroller on every keystroke — pipeline runs eagerly so
+        // typing feels live. URL update stays debounced to avoid history-bar
+        // flicker per keystroke.
+        refreshWorkshopMergedScroller();
         Router.navigate({ debounce: true });
       }
     });
@@ -5055,20 +5147,24 @@ function createScroller() {
   return workshopScroller;
 }
 
-// Refresh the merged scroller against the current `_mergedWordlistCache`.
-// Two paths: same array reference → entry objects were mutated in place by the
-// patch path, so just refilter/resort. Different array → full rebuild produced
-// new entries; replace via `updateEntries`. Used by the render effect's cache
-// branch and by the merged view's edit/delete handlers (which take the patch
-// path explicitly).
+// Refresh the merged scroller against the current `_mergedWordlistCache` and
+// the active tool stack. With no tools (or only no-op tools) in the stack,
+// `executePipeline` returns the merged cache's `entries` array unchanged —
+// identity is preserved, so the patch-path optimization survives (merged
+// cache patched in place, scroller refilters without closing the popover).
+// With a transforming tool in the stack, the pipeline produces a fresh array
+// and the scroller takes the full `updateEntries` path; chained edits
+// against a tool-filtered view will close the open popover, which is
+// acceptable for v1.
 function refreshWorkshopMergedScroller() {
   if (!workshopScroller) return;
-  const { entries } = buildMergedWordlist();
-  if (entries === workshopScroller.allEntries) {
+  const merged = buildMergedWordlist().entries;
+  const { items } = executePipeline(merged, ToolStack.getStack());
+  if (items === workshopScroller.allEntries) {
     workshopScroller._invalidateSortCache();
     workshopScroller._applyFilterAndSort(false);
   } else {
-    workshopScroller.updateEntries(entries);
+    workshopScroller.updateEntries(items);
   }
 }
 
@@ -5137,14 +5233,18 @@ function attachSearchHelpPopup() {
 
 function renderWorkshopMergedDetail() {
   const panel = document.getElementById('detail-panel');
-  const { entries } = buildMergedWordlist();
-  const stats = computeStats(_mergedStatsKey, entries);
-  mountWorkshopPanel(panel, stats, entries);
+  const merged = buildMergedWordlist().entries;
+  const { items } = executePipeline(merged, ToolStack.getStack());
+  // Stats hit the merged cache when no tool transformed the entries; otherwise
+  // the initial placeholder is computed raw — the scroller's onFilterChange
+  // refresh kicks in immediately after setEntries and replaces it anyway.
+  const stats = items === merged ? computeStats(_mergedStatsKey, items) : computeStatsRaw(items);
+  mountWorkshopPanel(panel, stats, items);
 
   workshopScroller.showSource = true;
   workshopScroller.editsWordlist = getEditsWordlist() ?? null;
   workshopScroller.showEditDeleteCol = true;
-  workshopScroller.setEntries(entries, WorkshopView.searchQuery, WorkshopView.searchWholeWord, WorkshopView.scoreRange);
+  workshopScroller.setEntries(items, WorkshopView.searchQuery, WorkshopView.searchWholeWord, WorkshopView.scoreRange);
 
   workshopScroller._onDeleteRow = entry => deleteFromEdits(entry, refreshWorkshopMergedScroller);
   attachExternalEditHandlers(workshopScroller, refreshWorkshopMergedScroller);
@@ -5275,7 +5375,7 @@ function upsertEdits(entry, field, newValue) {
     const orig = workshopScroller?.allEntries?.find(e => e.entryLower === entryLow);
     const score   = field === 'score'   ? newValue : (orig?.score   ?? 50);
     const comment = field === 'comment' ? newValue : (orig?.comment ?? '');
-    wlEntry = { entry: entryLow, entryLower: entryLow, score, comment };
+    wlEntry = { entry: entryLow, entryLower: entryLow, entryNorm: stripWhitespace(entryLow), score, comment };
     edits.rawEntries.push(wlEntry);
   }
   patchCachesForEditsChange(entryLow, wlEntry);
@@ -5716,7 +5816,7 @@ function openAddEntryBar() {
       wlEntry = existing;
       showToast(`Updated ${displayEntry(entry)}`);
     } else {
-      wlEntry = { entry, entryLower: entry, score, comment };
+      wlEntry = { entry, entryLower: entry, entryNorm: stripWhitespace(entry), score, comment };
       edits.rawEntries.push(wlEntry);
       showToast(`Added ${displayEntry(entry)}`);
     }
@@ -6951,6 +7051,7 @@ function patchCachesForEditsChange(entry, newEditsWlEntry) {
         const merged = {
           entry: newEditsWlEntry.entry,
           entryLower: newEditsWlEntry.entryLower,
+          entryNorm: newEditsWlEntry.entryNorm,
           score: newEditsWlEntry.score,
           comment: newEditsWlEntry.comment || '',
           wordlist: edits,
@@ -7058,7 +7159,7 @@ function buildMergedWordlist() {
     let count = 0;
     for (const { entryLower, score, comment } of getRescoredEntries(wordlist)) {
       if (!mergedMap.has(entryLower)) {
-        mergedMap.set(entryLower, { entry: entryLower, entryLower, score, comment: comment || '', wordlist });
+        mergedMap.set(entryLower, { entry: entryLower, entryLower, entryNorm: stripWhitespace(entryLower), score, comment: comment || '', wordlist });
         count++;
       }
     }
@@ -7288,6 +7389,25 @@ window.__grawlixTest = {
     const m = buildMergedWordlist().byEntry.get(entry.toLowerCase());
     if (!m) return null;
     return { entry: m.entry, score: m.score, comment: m.comment, wordlist: m.wordlist.name };
+  },
+
+  // Set the Workshop tool stack directly, bypassing gallery clicks. Routes
+  // through the same path the URL parser uses (`ToolStack.setStack` +
+  // `renderWorkshopMergedDetail`), so tests exercise the executor with the
+  // same plumbing the user does. Pass an array of `{tool, params, col}`.
+  setStack(stack) {
+    ToolStack.setStack(stack.map(r => ({ tool: r.tool, params: r.params || {}, col: r.col || 'to' })));
+    renderWorkshopMergedDetail();
+    ToolStack.refreshGalleryActive();
+  },
+
+  // Visible Workshop scroller rows as user-meaningful strings. For 'words'
+  // output, returns the entry string per row. For 'pairs' output (Phase 2),
+  // returns `{a, b}` per row. Reads from the live DOM so assertions describe
+  // what's actually rendered.
+  getVisibleEntries() {
+    const rows = document.querySelectorAll('#vs-host .entry-row');
+    return [...rows].map(r => r.querySelector('.atom-entry')?.textContent || '');
   },
 
   // Read-only snapshot for assertions. Returns the fields the smoke suite
