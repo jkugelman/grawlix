@@ -335,7 +335,11 @@ html.dark-mode .search-match-4 { background: #14532d; color: #d1fae5; }
 }
 .entry-headers > * { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 .entry-headers .col-len { text-align: right; }
-.entry-headers .col-score { justify-self: end; }
+/* Track hugs the badge, so the "Score" label is ~6px wider than the track.
+   Left-align so it sits at the badge's left edge (matches the badge x-position)
+   and override overflow:hidden so the extra ~6px spills harmlessly past the
+   track right edge into the column-gap. */
+.entry-headers .col-score { justify-self: start; overflow: visible; }
 .entry-headers .col-comment, .entry-headers .col-source { display: none; }
 .entry-row:hover { background: var(--row-hover); }
 .entry-row.active { background: color-mix(in srgb, var(--accent) 12%, transparent); }
@@ -4287,6 +4291,28 @@ function measureMonoChPx() {
   return _monoChPx;
 }
 
+// Score badges use mono 11px + 5px-each-side padding — sizing the score track
+// from the row's 13px ch would overshoot by ~4px per digit plus extra padding,
+// leaving slack inside the track. Probe the actual badge once so the track
+// hugs the badge and the entry→badge gap is just the column-gap.
+let _badgeChPx = null, _badgePadPx = null;
+function badgeWidthPx(chars) {
+  if (_badgeChPx === null) {
+    const probe = document.createElement('span');
+    probe.className = 'score-badge';
+    probe.style.cssText = 'position:absolute;visibility:hidden;';
+    probe.textContent = '0';
+    document.body.appendChild(probe);
+    const w1 = probe.getBoundingClientRect().width;
+    probe.textContent = '0000000000';
+    const w10 = probe.getBoundingClientRect().width;
+    probe.remove();
+    _badgeChPx = (w10 - w1) / 9;
+    _badgePadPx = w1 - _badgeChPx;
+  }
+  return Math.max(chars, 1) * _badgeChPx + _badgePadPx;
+}
+
 // Capture-mode scroll listener catches events from any ancestor — the app's
 // scroll container is <main>, not the window, and scroll events don't bubble.
 class BaseVirtualScroller {
@@ -4584,14 +4610,16 @@ class WorkshopEntriesScroller extends BaseVirtualScroller {
     }
     const entryChars = Math.max(Math.min(maxLen, ENTRY_SLOT_CAP), 4);
     const lenChars = Math.max(maxLenDigits, 3);
-    const scoreChars = Math.max(maxScoreDigits, 5);
     const ch = measureMonoChPx();
     const target = this.host.closest('#detail-panel') || this.sizer;
     target.style.setProperty('--count-w', `${(countDigits + 1) * ch}px`);
     target.style.setProperty('--len-w', `${lenChars * ch}px`);
     target.style.setProperty('--entry-w', `${entryChars * ch}px`);
-    // +12px covers the score badge's 5px-each-side padding plus a bit of safety.
-    target.style.setProperty('--score-w', `${scoreChars * ch + 12}px`);
+    // Score track hugs the badge so the entry→badge visible gap is just the
+    // column-gap (no internal slack). The "Score" header is ~6px wider than
+    // a 2-digit badge — it's left-aligned and allowed to spill past the track
+    // right edge into the (otherwise empty) column-gap. See `.col-score` CSS.
+    target.style.setProperty('--score-w', `${badgeWidthPx(maxScoreDigits)}px`);
     target.style.setProperty('--source-max', `${22 * ch}px`);
   }
 
