@@ -192,6 +192,19 @@ test('pair-mode search filters when either side matches', async ({ page }) => {
   expect(visible).toEqual([{ a: 'desserts', b: 'stressed' }]);
 });
 
+test('pair-mode search highlights matched substrings on the matching side', async ({ page }) => {
+  await gotoApp(page);
+  await addSemordnilapFixture(page);
+  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'semordnilaps' }]));
+
+  // `desserts` contains 'esser'; `stressed` does not. The matched side gets
+  // `<mark>` spans; the non-matching side is unmarked.
+  await page.locator('#search-input').fill('esser');
+  const aRow = page.locator('.pair-row').first();
+  await expect(aRow.locator('.atom-entry[data-side="a"] mark')).toContainText('esser');
+  await expect(aRow.locator('.atom-entry[data-side="b"] mark')).toHaveCount(0);
+});
+
 test('pair-mode score range filters on min(score)', async ({ page }) => {
   await gotoApp(page);
   await addSemordnilapFixture(page);

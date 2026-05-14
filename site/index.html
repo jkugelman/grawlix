@@ -4263,9 +4263,10 @@ class WorkshopEntriesScroller extends BaseVirtualScroller {
     } else {
       const { filterRe, highlight } = buildSearchPattern(q, this._wholeWord);
       this._highlight = highlight;
-      // Pair filter: a row qualifies if either side matches. Highlights on
-      // pair rows is a Phase 2 polish — for now `_highlight` only renders on
-      // words; pair atom HTML doesn't run the highlight function.
+      // Pair filter: a row qualifies if either side matches. Highlights apply
+      // to whichever side(s) contain matches — the highlight function returns
+      // the input unchanged when nothing matches, so a row where only one
+      // side hit lights up just that side.
       entries = this.kind === 'pairs'
         ? source.filter(p => filterRe.test(p.a.entryLower) || filterRe.test(p.b.entryLower))
         : source.filter(e => filterRe.test(e.entryLower));
@@ -4453,12 +4454,13 @@ class WorkshopEntriesScroller extends BaseVirtualScroller {
   _renderPairSideHTML(wlEntry, side, tierFor) {
     const { entry, score } = wlEntry;
     const displayed = displayEntry(entry);
+    const entryHtml = this._highlight ? this._highlight(displayed) : displayed;
     const scoreInner = buildScoreBadgeHTML(score);
     const tierLabel = tierFor(score);
     const scoreTitle = tierLabel ? ` title="${esc(tierLabel)}"` : '';
     const truncTitle = displayed.length > ENTRY_SLOT_CAP ? ` title="${esc(displayed)}"` : '';
     return `<span class="atom-len" data-side="${side}">${entry.length}</span>` +
-           `<span class="atom-entry" data-side="${side}"${truncTitle}>${displayed}</span>` +
+           `<span class="atom-entry" data-side="${side}"${truncTitle}>${entryHtml}</span>` +
            `<span class="atom-score" data-side="${side}"${scoreTitle}>${scoreInner}</span>`;
   }
 
