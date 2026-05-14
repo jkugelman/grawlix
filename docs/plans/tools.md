@@ -8,7 +8,7 @@ The gallery is where Grawlix's [project goal](../../README.md#goals) — democra
 
 ## Status
 
-The chrome, the pipeline runtime, and two tools (Anagram, Semordnilap) are shipped — see [`../design.md` § Tool gallery & stack](../design.md#tool-gallery--stack) for the executor, runtime normalization, pair-row display, and per-kind sort. The rest of this doc covers what's still planned: the catalog of tools that have records but no `run` yet, the indexed-view runtime that several anagram-family tools need, groups output kind, gallery polish (category picker, search), result download, async/cancellation UX for network-bound tools, and the OneLook / Datamuse / Umiaq integrations.
+The chrome, the pipeline runtime, and four tools (Anagram, Semordnilap, Behead, Curtail) are shipped — see [`../design.md` § Tool gallery & stack](../design.md#tool-gallery--stack) for the executor, runtime normalization, pair-row display, per-kind sort, and the highlights pipeline. The `removed` highlight kind (struck-through, used by Behead and Curtail) is wired up; other highlight kinds (kept/inserted/shifted/group:N) land as tools start emitting them. The rest of this doc covers what's still planned: the catalog of tools that have records but no `run` yet, the indexed-view runtime that several anagram-family tools need, groups output kind, gallery polish (category picker, search), result download, async/cancellation UX for network-bound tools, and the OneLook / Datamuse / Umiaq integrations.
 
 ---
 
@@ -136,8 +136,8 @@ Each entry: `slug(params)` — output kind, plus relation/projection for non-`wo
 - `add_prefix(s)` — pair / transform · projects `to`. Highlight: `inserted` on the prefix.
 - `add_suffix(s)` — pair / transform · projects `to`. Highlight: `inserted` on the suffix.
 - `anagram_with(word)` — pair / symmetric · projects `both`.
-- `behead()` — pair / transform · projects `to`. Highlight: `removed` on `from[0]`.
-- `curtail()` — pair / transform · projects `to`. Highlight: `removed` on `from[-1]`.
+- `behead()` ✓ — pair / transform · projects `to`. Highlight: `removed` on `from[0]`.
+- `curtail()` ✓ — pair / transform · projects `to`. Highlight: `removed` on `from[-1]`.
 - `side_splitting()` — TBD; either pair / contains (full word + split form) or words with a custom `renderItem`. Decide when the tool lands.
 - `letter_swap(a, b)` — pair / transform · projects `to`. Highlight: `shifted` on swapped positions.
 - `regex_replacement(pattern, with)` — pair / transform · projects `to`. Highlights for the matched and replaced regions.

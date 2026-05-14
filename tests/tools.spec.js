@@ -344,3 +344,95 @@ test('pair-mode sort axis swap: min-score → max-score reorders rows', async ({
   const after = await page.evaluate(() => window.__grawlixTest.getVisibleEntries());
   expect(after[0]).toEqual({ a: 'evil', b: 'live' });                  // max 99 (top)
 });
+
+// ─── Behead, Curtail, and the removed-letter highlight ──────────────────────
+//
+// Transform pair tools that drop one letter to get from a to b. Each emits a
+// `removed` highlight on the a-side at the position of the dropped character;
+// the renderer wraps that range in `<span class="hl-removed">`, the CSS gives
+// it the line-through + fade treatment. These tests pin both the matching
+// logic (pair found = both sides in the wordlist after the drop) and the
+// per-side highlight emission.
+
+async function addBeheadCurtailFixture(page) {
+  // Each pair: SLING/LING (behead), CARTS/CART (curtail), DOG (no pair),
+  // plus extras for downstream filters. Behead pairs by `from`'s a-side
+  // being one letter longer than b-side (from = SLING, to = LING). Curtail
+  // is the same operation on the other end (from = CARTS, to = CART).
+  await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
+    name: 'BeheadCurtailTest',
+    entries: ['SLING', 'LING', 'CARTS', 'CART', 'BREAD', 'READ', 'DOG'],
+    scores:  [   50,    40,     60,    55,     45,    50,    40],
+  }));
+}
+
+test('behead pairs a-side with a-minus-first-letter b-side', async ({ page }) => {
+  await gotoApp(page);
+  await addBeheadCurtailFixture(page);
+  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'behead' }]));
+
+  // BREAD → READ (min 45), SLING → LING (min 40). CART(S) → CART is curtail,
+  // not behead — beheading CARTS gives ARTS which isn't in the wordlist.
+  const visible = await page.evaluate(() => window.__grawlixTest.getVisibleEntries());
+  expect(visible).toEqual([
+    { a: 'bread', b: 'read' },
+    { a: 'sling', b: 'ling' },
+  ]);
+});
+
+test('curtail pairs a-side with a-minus-last-letter b-side', async ({ page }) => {
+  await gotoApp(page);
+  await addBeheadCurtailFixture(page);
+  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'curtail' }]));
+
+  // CARTS → CART (min 55). Other candidates: curtailing SLING gives SLIN
+  // (not in wordlist), BREAD gives BREA (not in wordlist).
+  const visible = await page.evaluate(() => window.__grawlixTest.getVisibleEntries());
+  expect(visible).toEqual([
+    { a: 'carts', b: 'cart' },
+  ]);
+});
+
+test('behead marks the dropped first letter with the removed highlight', async ({ page }) => {
+  await gotoApp(page);
+  await addBeheadCurtailFixture(page);
+  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'behead' }]));
+
+  // A-side: `<span class="hl-removed">` wraps the first character. B-side:
+  // no removed highlight (nothing was dropped from b — it's the result).
+  const slingRow = page.locator('.pair-row', { hasText: 'sling' });
+  await expect(slingRow.locator('.atom-entry[data-side="a"] .hl-removed')).toHaveText('s');
+  await expect(slingRow.locator('.atom-entry[data-side="b"] .hl-removed')).toHaveCount(0);
+});
+
+test('pair atoms truncate long entries with ellipsis + full-text title', async ({ page }) => {
+  await gotoApp(page);
+  // The a-side entry is way over the 20-char ENTRY_SLOT_CAP; its match (a
+  // minus first letter) is too. The atom must clip to its track via CSS
+  // ellipsis rather than spilling into the score column — and the full text
+  // must live in a `title` attribute so the user can hover to see it.
+  await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
+    name: 'LongPair',
+    entries: ['SHEJUSTSAYINGWHATWEVEALLBEENTHINKING', 'HEJUSTSAYINGWHATWEVEALLBEENTHINKING'],
+    scores:  [60, 60],
+  }));
+  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'behead' }]));
+
+  const aAtom = page.locator('.pair-row .atom-entry[data-side="a"]').first();
+  await expect(aAtom).toHaveAttribute('title', 'shejustsayingwhatweveallbeenthinking');
+  // The track must clamp the atom — its rendered width should be far less
+  // than the natural text width. Tested via offsetWidth < scrollWidth, the
+  // standard signal that CSS truncation kicked in.
+  const truncated = await aAtom.evaluate(el => el.scrollWidth > el.offsetWidth);
+  expect(truncated).toBe(true);
+});
+
+test('curtail marks the dropped last letter with the removed highlight', async ({ page }) => {
+  await gotoApp(page);
+  await addBeheadCurtailFixture(page);
+  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'curtail' }]));
+
+  const cartsRow = page.locator('.pair-row', { hasText: 'carts' });
+  await expect(cartsRow.locator('.atom-entry[data-side="a"] .hl-removed')).toHaveText('s');
+  await expect(cartsRow.locator('.atom-entry[data-side="b"] .hl-removed')).toHaveCount(0);
+});

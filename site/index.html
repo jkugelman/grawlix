@@ -280,6 +280,11 @@ html.light-mode .histogram-readonly.is-hovered .histogram-bar:not(.histogram-bar
 .search-bar-sort .sort-dir-btn { background: transparent; border: none; padding: 3px 7px; border-radius: 4px; font: inherit; font-size: 13px; color: var(--text); cursor: pointer; line-height: 1; }
 .search-bar-sort .sort-dir-btn:hover { background: var(--hover); }
 mark.search-match { border-radius: 2px; padding: 0 1px; font-style: normal; }
+/* Tool highlight kinds. `removed` marks the character a pair-transform tool
+   dropped to get from the a-side to the b-side — strike-through plus a touch
+   of opacity reads as "this part was taken away." More kinds (kept, inserted,
+   shifted, matched, group:N) land as future tools start emitting them. */
+.entry-row .hl-removed { text-decoration: line-through; opacity: 0.5; }
 html.light-mode .search-match-0 { background: #ddd6fe; color: rgba(0,0,0,0.72); }
 html.light-mode .search-match-1 { background: #99f6e4; color: rgba(0,0,0,0.72); }
 html.light-mode .search-match-2 { background: #fde68a; color: rgba(0,0,0,0.72); }
@@ -346,28 +351,25 @@ html.dark-mode .search-match-4 { background: #14532d; color: #d1fae5; }
    leftover space. Without this, the central relation track would balloon and
    push the b-side cluster to the right edge of the row instead of letting
    the pair sit naturally bunched against the a-side. */
-.entry-row.pair-row {
-  grid-template-columns:
-    var(--count-w, 2ch)
-    var(--len-w, 3ch) var(--entry-w, 12ch) var(--score-w, calc(5ch + 12px))
-    auto
-    var(--len-w, 3ch) var(--entry-w, 12ch) var(--score-w, calc(5ch + 12px));
-  justify-content: start;
-}
-.entry-row.pair-row .atom-relation { color: var(--faint); font-family: var(--font-sans); font-size: 14px; padding: 0 6px; user-select: none; }
-.entry-row.pair-row .atom-entry { justify-self: start; }
-.entry-row.pair-row .atom-score { justify-self: end; }
-/* Pair-mode column headers mirror the row layout — count, then len/entry/score
-   on each side around the relation glyph. The words-mode header div is hidden
-   in pair mode (and vice versa) so the two never overlap. */
+.entry-row.pair-row,
 .entry-headers.pair-headers {
   grid-template-columns:
     var(--count-w, 2ch)
     var(--len-w, 3ch) var(--entry-w, 12ch) var(--score-w, calc(5ch + 12px))
-    auto
+    var(--relation-w, 28px)
     var(--len-w, 3ch) var(--entry-w, 12ch) var(--score-w, calc(5ch + 12px));
   justify-content: start;
 }
+/* Fixed-width relation track — `auto` would size to the row's relation glyph
+   in row instances and to the empty `<span>` in the header instance, drifting
+   them apart by the glyph's width. 28px fits "·" / "→" / "⊃" with their 12px
+   of side-padding and leaves the b-side cluster pinned to the same column
+   start across rows and headers. */
+.entry-row.pair-row .atom-relation { color: var(--faint); font-family: var(--font-sans); font-size: 14px; padding: 0 6px; user-select: none; justify-self: center; }
+.entry-row.pair-row .atom-score { justify-self: end; }
+/* Pair-mode column headers mirror the row layout — count, then len/entry/score
+   on each side around the relation gap. The words-mode header div is hidden
+   in pair mode (and vice versa) so the two never overlap. */
 body.tools-multi-word .entry-headers:not(.pair-headers) { display: none; }
 body:not(.tools-multi-word) .entry-headers.pair-headers { display: none; }
 
@@ -3372,10 +3374,6 @@ function slotIntersectsRange(lo, hi, intervals) {
 const CONSONANTS = 'bcdfghjklmnpqrstvwxyz';
 const VOWELS = 'aeiou';
 
-function markSpan(text, colorIdx) {
-  return `<mark class="search-match search-match-${colorIdx % 5}">${text}</mark>`;
-}
-
 function segmentToPat(str) {
   let pat = '';
   for (let i = 0; i < str.length; i++) {
@@ -3400,23 +3398,55 @@ function buildSearchPattern(query, wholeWord = false) {
   const segPats = segs.map(segmentToPat);
   const hlParts = segPats.map(p => p ? '(' + p + ')' : '');
   const joined  = segPats.join('.*');
+  const hlRe = new RegExp(hlParts.join('.*'), 'id');
   return {
     filterRe: new RegExp(wholeWord ? '^' + joined + '$' : joined),
-    highlight: w => highlightSegments(w, new RegExp(hlParts.join('.*'), 'id')),
+    // Returns search-hit ranges (one per non-wildcard segment that matched)
+    // in the same `{ start, end, kind }` shape that tools emit. Lets the
+    // renderer merge search and tool highlights in one pass.
+    searchRanges: text => searchRangesFor(text, hlRe),
   };
 }
 
-function highlightSegments(entry, hlRe) {
-  const m = hlRe.exec(entry);
-  if (!m?.indices) return entry;
-  let result = '', pos = 0, colorIdx = 0;
+function searchRangesFor(text, hlRe) {
+  const m = hlRe.exec(text);
+  if (!m?.indices) return [];
+  const ranges = [];
+  let colorIdx = 0;
   for (let g = 1; g < m.indices.length; g++) {
     if (!m.indices[g]) continue;
     const [start, end] = m.indices[g];
-    result += entry.slice(pos, start) + markSpan(entry.slice(start, end), colorIdx++);
-    pos = end;
+    ranges.push({ start, end, kind: `search:${colorIdx % 5}` });
+    colorIdx++;
   }
-  return result + entry.slice(pos);
+  return ranges;
+}
+
+// Render a string with a set of highlight ranges. Each range is
+// `{ start, end, kind }`; search hits use `search:N` (rendered as `<mark>`),
+// tool-emitted highlights use one of the kinds in the registry below
+// (rendered as `<span class="hl-<kind>">`). Overlapping ranges are resolved
+// by skipping later ranges entirely — simple and predictable; the visual
+// loss is bounded to the rare case where a tool highlight overlaps a search
+// match exactly. Entries are inserted unescaped to match the rest of the
+// app's "trust the wordlist file" assumption.
+function renderHighlightedText(text, ranges) {
+  if (!ranges || !ranges.length) return text;
+  const sorted = [...ranges].sort((a, b) => a.start - b.start);
+  let result = '';
+  let pos = 0;
+  for (const r of sorted) {
+    if (r.start < pos || r.end <= r.start) continue;
+    result += text.slice(pos, r.start);
+    const content = text.slice(r.start, r.end);
+    if (r.kind.startsWith('search:')) {
+      result += `<mark class="search-match search-match-${r.kind.slice(7)}">${content}</mark>`;
+    } else {
+      result += `<span class="hl-${r.kind}">${content}</span>`;
+    }
+    pos = r.end;
+  }
+  return result + text.slice(pos);
 }
 
 // ─── Tool stack ───────────────────────────────────────────────────────────────
@@ -3474,6 +3504,20 @@ const TOOLS = {
     example: 'SLING → LING',
     params: [],
     output: 'pairs', relation: 'transform', labels: ['from', 'to'], chainProjection: 'to',
+    run(input) {
+      const byNorm = new Map(input.map(e => [e.entryNorm, e]));
+      const out = [];
+      for (const e of input) {
+        if (e.entryNorm.length < 2) continue;
+        const match = byNorm.get(e.entryNorm.slice(1));
+        if (match) out.push({
+          a: e,
+          b: match,
+          highlights: { a: [{ kind: 'removed', start: 0, end: 1 }] },
+        });
+      }
+      return out;
+    },
   },
   curtail: {
     name: 'Curtail', icon: '✂️', category: 'pairs',
@@ -3481,6 +3525,25 @@ const TOOLS = {
     example: 'CARTS → CART',
     params: [],
     output: 'pairs', relation: 'transform', labels: ['from', 'to'], chainProjection: 'to',
+    run(input) {
+      const byNorm = new Map(input.map(e => [e.entryNorm, e]));
+      const out = [];
+      for (const e of input) {
+        if (e.entryNorm.length < 2) continue;
+        const match = byNorm.get(e.entryNorm.slice(0, -1));
+        if (match) out.push({
+          a: e,
+          b: match,
+          // Highlight position is on the *display* form (entry.length - 1).
+          // For ASCII-letter-only entries this equals entryNorm.length - 1;
+          // for multi-word entries the display string is longer than
+          // entryNorm but the last char of entry is still the last letter
+          // of the word, which is what curtail conceptually removed.
+          highlights: { a: [{ kind: 'removed', start: e.entry.length - 1, end: e.entry.length }] },
+        });
+      }
+      return out;
+    },
   },
   semordnilap: {
     name: 'Semordnilap', icon: '↔️', category: 'pairs',
@@ -4115,7 +4178,7 @@ class WorkshopEntriesScroller extends BaseVirtualScroller {
     this._lastQuery = '';
     this._wholeWord = false;
     this._scoreIntervals = null;
-    this._highlight = null;
+    this._searchRanges = null;
     this.showSource = false;
     this.showDeleteCol = false;
     this.showEditDeleteCol = false;
@@ -4258,15 +4321,15 @@ class WorkshopEntriesScroller extends BaseVirtualScroller {
     const q = this._lastQuery.toLowerCase();
     let entries;
     if (!q) {
-      this._highlight = null;
+      this._searchRanges = null;
       entries = source;
     } else {
-      const { filterRe, highlight } = buildSearchPattern(q, this._wholeWord);
-      this._highlight = highlight;
+      const { filterRe, searchRanges } = buildSearchPattern(q, this._wholeWord);
+      this._searchRanges = searchRanges;
       // Pair filter: a row qualifies if either side matches. Highlights apply
-      // to whichever side(s) contain matches — the highlight function returns
-      // the input unchanged when nothing matches, so a row where only one
-      // side hit lights up just that side.
+      // to whichever side(s) contain matches — `searchRanges` returns an empty
+      // list when nothing matches, so a row where only one side hit lights up
+      // just that side.
       entries = this.kind === 'pairs'
         ? source.filter(p => filterRe.test(p.a.entryLower) || filterRe.test(p.b.entryLower))
         : source.filter(e => filterRe.test(e.entryLower));
@@ -4405,7 +4468,7 @@ class WorkshopEntriesScroller extends BaseVirtualScroller {
   _renderWordRow(wlEntry, i, tierFor, activeEntry) {
     const { entry, score } = wlEntry;
     const displayed = displayEntry(entry);
-    const entryHtml = this._highlight ? this._highlight(displayed) : displayed;
+    const entryHtml = renderHighlightedText(displayed, this._searchRanges?.(displayed) || []);
 
     const scoreInner = buildScoreBadgeHTML(score);
     const tierLabel = tierFor(score);
@@ -4445,16 +4508,22 @@ class WorkshopEntriesScroller extends BaseVirtualScroller {
     row.style.top = (i * ROW_HEIGHT) + 'px';
     row.innerHTML =
       `<span class="atom-count">${i + 1}.</span>` +
-      this._renderPairSideHTML(pair.a, 'a', tierFor) +
+      this._renderPairSideHTML(pair.a, 'a', tierFor, pair.highlights?.a) +
       `<span class="atom-relation" aria-hidden="true">${relation}</span>` +
-      this._renderPairSideHTML(pair.b, 'b', tierFor);
+      this._renderPairSideHTML(pair.b, 'b', tierFor, pair.highlights?.b);
     return row;
   }
 
-  _renderPairSideHTML(wlEntry, side, tierFor) {
+  _renderPairSideHTML(wlEntry, side, tierFor, toolHighlights) {
     const { entry, score } = wlEntry;
     const displayed = displayEntry(entry);
-    const entryHtml = this._highlight ? this._highlight(displayed) : displayed;
+    // Tool highlights first in the merged list so they win order ties on
+    // shared starts; renderHighlightedText skips later overlapping ranges,
+    // so when a search hit happens to start at the same position as a tool
+    // highlight, the tool's annotation (more informative — explains why the
+    // pair exists) is the one that renders.
+    const ranges = [...(toolHighlights || []), ...(this._searchRanges?.(displayed) || [])];
+    const entryHtml = renderHighlightedText(displayed, ranges);
     const scoreInner = buildScoreBadgeHTML(score);
     const tierLabel = tierFor(score);
     const scoreTitle = tierLabel ? ` title="${esc(tierLabel)}"` : '';
@@ -4556,7 +4625,7 @@ class LibraryEntriesScroller extends BaseVirtualScroller {
     this.wholeWord = !!opts.wholeWord;
     this.allRows = [];
     this.rows = [];
-    this._highlight = null;
+    this._searchRanges = null;
     // Row-rescore output cached across keystrokes — only the search query is
     // changing as the user types, and rows don't depend on the query. Sorted
     // view is similarly memoized so `.filter()` preserves order and the
@@ -4688,11 +4757,11 @@ class LibraryEntriesScroller extends BaseVirtualScroller {
     const q = this.query.toLowerCase();
     let rows;
     if (q) {
-      const { filterRe, highlight } = buildSearchPattern(q, this.wholeWord);
-      this._highlight = highlight;
+      const { filterRe, searchRanges } = buildSearchPattern(q, this.wholeWord);
+      this._searchRanges = searchRanges;
       rows = source.filter(r => filterRe.test(r.entryLower));
     } else {
-      this._highlight = null;
+      this._searchRanges = null;
       rows = source;
     }
 
@@ -4736,7 +4805,7 @@ class LibraryEntriesScroller extends BaseVirtualScroller {
     const frag = document.createDocumentFragment();
     for (let i = start; i < end; i++) {
       const r = this.rows[i];
-      const entryHtml = this._highlight ? this._highlight(r.entry) : esc(r.entry);
+      const entryHtml = renderHighlightedText(r.entry, this._searchRanges?.(r.entry) || []);
 
       // Ignored rows show the input score struck through (CSS via .lib-ignored);
       // no `→ ✕` annotation needed.
