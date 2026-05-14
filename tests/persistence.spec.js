@@ -87,3 +87,51 @@ test('URL search/sort/whole-word state applies on boot and updates as the UI cha
   await page.locator('.sort-axis-select').selectOption('score');
   await expect.poll(async () => page.evaluate(() => location.hash)).toContain('sort=score');
 });
+
+test('SCHEMA_VERSION reset prompt does not re-arm itself after the user clicks Reset', async ({ page }) => {
+  // Boot once so init() seeds a current `meta` + `schemaVersion` in storage.
+  await gotoApp(page);
+  await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
+    name: 'Stale', scores: [50],
+  }));
+
+  // Simulate the user upgrading to a build whose SCHEMA_VERSION has bumped
+  // since their last visit: rewrite the stored version to look outdated,
+  // then reload so init() reruns and hits the format-changed branch.
+  await page.evaluate(() => localStorage.setItem('grawlix_schemaVersion', '0'));
+  await page.reload();
+
+  // The format-changed prompt fires on boot.
+  const confirmDialog = page.locator('#confirm-dialog');
+  await expect(confirmDialog).toBeVisible();
+
+  // Click Reset → resetAllDataAndReload() wipes storage and reloads.
+  // Wait for the second navigation's `load` event before asserting against
+  // the fresh page's DOM.
+  const loadPromise = page.waitForEvent('load');
+  await confirmDialog.locator('#btn-confirm-ok').click();
+  await loadPromise;
+
+  // Regression: location.reload() is asynchronous — JS keeps running until
+  // the navigation actually fires. If anything in init() runs after the
+  // reload call (e.g. persistMeta() in the defaultSources path), `meta`
+  // ends up back in localStorage while `schemaVersion` does not, and the
+  // next boot re-fires the format-changed prompt. With the fix in place,
+  // resetAllDataAndReload() parks the caller until the navigation lands,
+  // so nothing downstream can re-arm the warning.
+  //
+  // Browser-timing caveat: Chromium and WebKit both defer the reload long
+  // enough that init() reaches persistMeta(), so this test fails clearly
+  // on those two without the fix — exactly the WebKit-on-iOS bug that
+  // prompted the regression. Firefox's reload pre-empts the continuation
+  // and the test passes there with or without the fix; that's fine for a
+  // sentinel covered by two of three browsers.
+  await expect(confirmDialog).toBeHidden();
+
+  // Sanity: the post-reset init() wrote schemaVersion. (Without the fix,
+  // init() races location.reload() and may write `meta` back to localStorage
+  // too, but it never re-saves schemaVersion — that's what re-arms the
+  // warning on the next boot.)
+  const schemaVersion = await page.evaluate(() => localStorage.getItem('grawlix_schemaVersion'));
+  expect(schemaVersion).not.toBeNull();
+});

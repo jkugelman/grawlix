@@ -1916,6 +1916,11 @@ async function resetAllDataAndReload() {
     req.onblocked = resolve;
   });
   location.reload();
+  // location.reload() is asynchronous — JS keeps running until the navigation
+  // actually fires. Block the caller so it can't re-persist the state we just
+  // wiped (init() in particular would write a fresh `meta` back to localStorage
+  // and leave the SCHEMA_VERSION warning re-armed for the next load).
+  await new Promise(() => {});
 }
 
 function openDB() {
