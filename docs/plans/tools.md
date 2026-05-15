@@ -6,11 +6,7 @@ Inspiration: [Wordlisted](https://aaronson.org/wordlisted/) by Adam Aaronson. Se
 
 The gallery is where Grawlix's [project goal](../../README.md#goals) — democratize wordlist manipulation — does most of its work. Constructors who program can write Python to anagram, behead, phonetic-substitute, semantic-filter against their wordlists. The gallery's job is to put those moves in non-programmers' hands. Filter when evaluating a candidate tool: *would a programmer reach for this often enough to write a script?* If yes, it probably belongs.
 
-## Status
-
-The output reframe is shipped: the chain-row data model, the per-row tool API (`run(entry, prepared, wordlist)` with the optional once-per-run `prepare` hook), the executor, symmetric unification, the always-stacked renderer, and per-atom-count sort. Five tools have working logic — Anagram, Semordnilap, Behead, Curtail, and Search. Search is itself a pipeline filter tool: a permanent final row driven by the search bar, plus a gallery card a user can chain mid-stack. See [`../design.md` § Tool gallery & stack](../design.md#tool-gallery--stack) for the chain-row model, the cooperative runtime, unification, and the highlights pipeline.
-
-The rest of this doc is what's still planned: the catalog of tools that have records but no `run` yet, the indexed-view runtime several anagram-family tools need, groups output, gallery polish (category picker, search), result download, and the OneLook / Datamuse / Umiaq integrations.
+This doc tracks what's still planned for the gallery: the rest of the tool catalog (records without a `run` yet), the indexed-view runtime several anagram-family tools need, groups output, gallery polish (category picker, search), result download, and the OneLook / Datamuse / Umiaq integrations. The pipeline that runs it all — the chain-row model, the per-row tool API, the executor — is built; see [`../design.md` § Tool gallery & stack](../design.md#tool-gallery--stack).
 
 ---
 
@@ -31,7 +27,7 @@ For tools that fit the runtime as-is (`palindromes`, `isograms`, `supervocalics`
 
 ## Pipeline behavior — remaining pieces
 
-The everyday composition story is shipped: tools chain, Search is the permanent final filter, scores come along from `All`, and the score-range control filters the rendered output.
+Two pieces of pipeline behavior aren't built yet.
 
 **Reordering.** Order matters in a pipeline. The intended gesture is "remove (X) and re-add" — drag handles aren't planned, because chaining is a 2%-case gesture and reordering is rarer still; the design surface isn't worth the touch/keyboard-accessibility complexity. Today the stack supports add/replace/remove but not in-place reorder. Unblocks once a chained workflow surfaces that wants it.
 
@@ -73,7 +69,7 @@ The catalog record shape (`name`, `icon`, `category`, `desc`, `example`, `params
 
 ### Indexed views on `wordlist`
 
-The `wordlist` argument to `run` exposes indexed-view properties that tools query for O(1) lookups. `wordlist.byEntry` — a `Map<entry, wlEntry>` keyed by the lowercased entry — ships today on the merged-wordlist cache; membership checks (kangaroo, joey, sandwich, nested_words) and beheading/curtailing lookups use it. Two more are planned, landing as the first tool that needs each one does:
+The `wordlist` argument to `run` exposes indexed-view properties for O(1) lookups. `wordlist.byEntry` (a `Map<entry, wlEntry>` keyed by the lowercased entry) already exists; membership checks (kangaroo, joey, sandwich, nested_words) and beheading/curtailing lookups use it. Two more are planned, landing as the first tool that needs each does:
 
 - `wordlist.byLetterBank` — `Map<sortedLetters, wlEntry[]>` keyed by sorted-letters. Instant anagram lookup (anagram, made_from, anagram_families).
 - `wordlist.byLength` — `Map<number, wlEntry[]>` for length-bucketed iteration.
@@ -88,9 +84,7 @@ New views land as new tools demand them. Don't predict.
 
 ### Async tools
 
-The executor and its cooperative runtime are shipped — see [`../design.md` § Cooperative runtime](../design.md#cooperative-runtime--supersession-and-yielding). Tools' `run` is synchronous; the executor owns the per-row loop, yielding, and abort.
-
-**Async / network tools** (OneLook, Datamuse — future) will reintroduce a `signal` argument explicitly: `run(entry, prepared, wordlist, signal)`. The `signal` flows into `fetch` for cancellation. No `ctx` bag; just the one extra argument when it earns its keep. Workers stay rejected — cooperative yielding covers the cost without worker bundling and structured-clone overhead (see `../design.md`).
+Tools' `run` is synchronous. Async / network tools (OneLook, Datamuse — future) will take a `signal` argument explicitly: `run(entry, prepared, wordlist, signal)`, the `signal` flowing into `fetch` for cancellation — one extra argument when it earns its keep. Workers stay rejected; cooperative yielding covers the cost (see [`../design.md` § Cooperative runtime](../design.md#cooperative-runtime--supersession-and-yielding)).
 
 ### Annotations
 
@@ -115,14 +109,12 @@ Both default to the standard renderers. Add a real motivating case before adding
 
 ## Catalog
 
-Each entry: `slug(params)` — `kind`, then highlight kinds (`in:` for input-side, `out:` for output-side) and any annotations. Specifics are negotiable; this captures intent. Shipped tools (Anagram, Search, Semordnilap, Behead, Curtail) are marked ✓.
+Each entry: `slug(params)` — `kind`, then highlight kinds (`in:` for input-side, `out:` for output-side) and any annotations. Specifics are negotiable; this captures intent. Tools already built (Anagram, Search, Semordnilap, Behead, Curtail) are omitted.
 
 ### Pattern matching
-- `search(query, wholeWord)` ✓ — filter · in: `matched` per non-wildcard region, colored by region index.
 - `regex(pattern)` — filter · in: `group:n` per capture group.
 
 ### Anagrams & letter banks
-- `anagram(word)` ✓ — filter.
 - `made_from(letters)` — filter.
 - `hidden_anagram(word)` — filter · in: `matched` over the hidden-anagram span.
 - `almost_anagram(word, n)` — filter · annotation: `editDistance`.
@@ -148,15 +140,12 @@ Each entry: `slug(params)` — `kind`, then highlight kinds (`in:` for input-sid
 - `add_remove_all(s)` — transform · same logic across all matches.
 - `add_prefix(s)` — transform · out: `inserted` on the prefix.
 - `add_suffix(s)` — transform · out: `inserted` on the suffix.
-- `behead()` ✓ — transform · in: `removed` on the first letter.
-- `curtail()` ✓ — transform · in: `removed` on the last letter.
 - `side_splitting()` — TBD; transform synthesizing the split form, or filter with a custom renderer. Decide when the tool lands.
 - `letter_swap(a, b)` — transform · in & out: `shifted` on swapped positions.
 - `regex_replacement(pattern, with)` — transform · in: `removed` on the match · out: `inserted` on the replacement.
 
 ### Curiosities
 - `palindromes()` — filter.
-- `semordnilap()` ✓ — transform · bidirectional emit; unification gives `↔`.
 - `isograms()` — filter.
 - `supervocalics()` — filter · in: `matched` on each vowel.
 - `monovocs()` — filter · in: `matched` on the lone vowel.
@@ -213,10 +202,6 @@ Groups are the partial exception to strict pseudo-column alignment. Atom counts 
 **Search on group rows** matches loosely against the rendered text — same string the user sees, all atoms in a row visible as one filter target. Default-loose is right for v1; promote to side-specific syntax (`right:un*`) only if usage shows the loose form isn't enough.
 
 ---
-
-## Workers: rejected
-
-Web workers were evaluated for moving tool execution off the main thread and rejected — cooperative yielding covers the same ground without the cost. See [`../design.md` § Cooperative runtime](../design.md#cooperative-runtime--supersession-and-yielding) for the rationale. Revisit only if a built-in tool surfaces whose work fundamentally can't fit the cooperative budget; none of the current or near-term catalog qualifies.
 
 ## Result caching: deferred
 
