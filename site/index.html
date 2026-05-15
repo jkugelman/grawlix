@@ -2196,16 +2196,19 @@ const WorkshopView = (() => {
   // Search / sort / score-range handlers — wired from the inline oninput /
   // onclick attributes that buildSearchBarHTML emits, plus the Alt+W
   // keyboard shortcut and the histogram drag-up commit.
+  // Search is the permanent final pipeline tool (synthesized in
+  // effectivePipelineStack), so changing the query or whole-word re-runs the
+  // pipeline. Score range stays a scroller-side view filter.
   function onSearch(query) {
     _searchQuery = query;
     const btn = document.getElementById('search-clear');
     if (btn) btn.hidden = !query;
-    workshopScroller?.filter(query, _searchWholeWord, _scoreRange);
+    refreshWorkshopMergedScroller();
     Router.navigate();
   }
   function onSearchWholeWord(checked) {
     _searchWholeWord = checked;
-    workshopScroller?.filter(_searchQuery, checked, _scoreRange);
+    refreshWorkshopMergedScroller();
     Router.navigate();
   }
   function onScoreRange(value) {
@@ -2218,7 +2221,7 @@ const WorkshopView = (() => {
     else             lsDel('scoreRange');
     const btn = document.getElementById('score-range-clear');
     if (btn) btn.hidden = trimmed === '';
-    workshopScroller?.filter(_searchQuery, _searchWholeWord, _scoreRange);
+    workshopScroller?.filter(_scoreRange);
     repositionAllHistogramRects();
   }
   function clearSearch() {
@@ -3423,9 +3426,14 @@ function renderHighlightedText(text, ranges) {
 // `inputHighlights` / `outputHighlights` are static booleans the unification
 // model reads to derive atom count; transforms also carry a relation `glyph`.
 //
-// `run(entry, params, wordlist)` is a per-row pure function — the system owns
-// the outer loop, cooperative yielding, abort, atom construction, and chain
-// bookkeeping. Filters return `null`/`false` (drop), `true` (keep), or a
+// An optional `prepare(params, wordlist)` runs once per pipeline run; its
+// return value is handed to `run` in place of `params` (so a tool can compile
+// a regex or pre-sort letters once instead of per row). Tools without a
+// `prepare` get the normalized params object as before.
+//
+// `run(entry, prepared, wordlist)` is a per-row pure function — the system
+// owns the outer loop, cooperative yielding, abort, atom construction, and
+// chain bookkeeping. Filters return `null`/`false` (drop), `true` (keep), or a
 // `Range[]` (keep + highlights). Transforms return `TransformOutput[]`, each
 // `{ entry, inputHighlights?, outputHighlights? }` where `entry` is a string
 // or `[string, score]` for a tool-synthesized entry not in the wordlist.
@@ -3443,8 +3451,8 @@ const TOOLS = {
     example: 'LINDSEY → SNIDELY',
     params: [{ key: 'entry', label: 'entry' }],
     kind: 'filter', inputHighlights: false, outputHighlights: false,
-    run(entry, params, wordlist) {
-      const target = sortLetters(params.entry);
+    prepare(params) { return sortLetters(params.entry); },
+    run(entry, target, wordlist) {
       if (!target) return true;
       return sortLetters(entry) === target;
     },
@@ -3455,6 +3463,27 @@ const TOOLS = {
     example: 'PARENTAL → PLANE, RENT, …',
     params: [{ key: 'letters', label: 'letters' }],
     kind: 'transform', inputHighlights: false, outputHighlights: false, glyph: '→',
+  },
+  search: {
+    name: 'Search', icon: '🔍', category: 'patterns',
+    desc: 'Match entries by text, with wildcards',
+    example: 'un*ed · c?t',
+    params: [{ key: 'query', label: 'search' }],
+    kind: 'filter', inputHighlights: true, outputHighlights: false,
+    // Compiled once per run. `whole-word` rides in the params object (the
+    // permanent search bar supplies it); a gallery-added Search row is
+    // substring-only. Returns null for an empty query so `run` keeps all.
+    prepare(params) {
+      const query = (params.query || '').trim();
+      if (!query) return null;
+      return buildSearchPattern(query, !!params['whole-word']);
+    },
+    run(entry, pattern, wordlist) {
+      if (!pattern) return true;
+      if (!pattern.filterRe.test(entry)) return null;
+      const ranges = pattern.searchRanges(entry);
+      return ranges.length ? ranges : true;
+    },
   },
   regex: {
     name: 'Regex', icon: '🪄', category: 'patterns',
@@ -3589,15 +3618,20 @@ async function executePipeline(mergedWordlist, stack, signal) {
     if (!tool?.run) continue;
     throwIfAborted(signal);
     const params = normalizeParams(stackRow.params);
+    const prepared = tool.prepare ? tool.prepare(params, mergedWordlist) : params;
     const next = [];
     let lastYield = performance.now();
     for (let i = 0; i < rows.length; i++) {
       const row = rows[i];
       const tail = row.atoms[row.atoms.length - 1];
-      const result = tool.run(tail.wlEntry.entry, params, mergedWordlist);
+      const result = tool.run(tail.wlEntry.entry, prepared, mergedWordlist);
       if (tool.kind === 'filter') {
         if (result) {
-          if (Array.isArray(result)) tail.highlights = result;
+          // Merge, not overwrite — a later filter on the same tail (two
+          // search rows) shouldn't drop the earlier one's highlights.
+          if (Array.isArray(result)) {
+            tail.highlights = tail.highlights ? [...tail.highlights, ...result] : result;
+          }
           next.push(row);
         }
       } else {
@@ -3638,6 +3672,13 @@ async function executePipeline(mergedWordlist, stack, signal) {
 // directions the survivor is the one whose entry chain sorts lexicographically
 // smaller — picked explicitly, so it's deterministic no matter which order the
 // executor emitted the pair in.
+//
+// Highlights merge through the collapse: each direction may have been
+// annotated on its own tail (a Search row after semordnilap matches a
+// different word per direction), so the survivor absorbs the dropped row's
+// highlights at mirrored atom indices — the same word, so char offsets carry
+// over directly. That's what turns two one-sided hits into a row highlighted
+// on both atoms.
 function unifyMirrorRows(rows) {
   const seen = new Map();   // entry-chain key → { row, index } of its slot in `out`
   const out = [];
@@ -3653,7 +3694,16 @@ function unifyMirrorRows(rows) {
         if (mScores.every((s, i) => s === rScores[i])) {
           // Mirror pair: keep whichever direction's chain sorts smaller.
           const survivor = fwd < rev ? row : mirror.row;
-          for (let i = 1; i < survivor.atoms.length; i++) survivor.atoms[i].glyph = '↔';
+          const dropped  = fwd < rev ? mirror.row : row;
+          const n = survivor.atoms.length;
+          for (let i = 0; i < n; i++) {
+            const droppedHl = dropped.atoms[n - 1 - i].highlights;
+            if (droppedHl) {
+              const a = survivor.atoms[i];
+              a.highlights = a.highlights ? [...a.highlights, ...droppedHl] : droppedHl;
+            }
+            if (i > 0) survivor.atoms[i].glyph = '↔';
+          }
           out[mirror.index] = survivor;
           continue;
         }
@@ -4283,10 +4333,7 @@ class WorkshopEntriesScroller extends BaseVirtualScroller {
     this.entries = [];
     this.sortKey = WorkshopView.sortKey;
     this.sortDir = WorkshopView.sortDir;
-    this._lastQuery = '';
-    this._wholeWord = false;
     this._scoreIntervals = null;
-    this._searchRanges = null;
     this.showSource = false;
     this.showDeleteCol = false;
     this.showEditDeleteCol = false;
@@ -4336,13 +4383,14 @@ class WorkshopEntriesScroller extends BaseVirtualScroller {
 
   // atomCount defaults to the current value so callers that only update the
   // rows (e.g. display-case re-render) don't need to know the pipeline shape.
-  setEntries(allEntries, query, wholeWord = false, scoreRange = '', atomCount = this.atomCount) {
+  // Search is a pipeline tool now; the scroller only filters by score range.
+  setEntries(allEntries, scoreRange = '', atomCount = this.atomCount) {
     AtomPopover.close();
     this._setAtomCount(atomCount);
     this.allEntries = allEntries;
     this._invalidateSortCache();
     this._buildToolbar();
-    this.filter(query, wholeWord, scoreRange);
+    this.filter(scoreRange);
   }
 
   updateEntries(allEntries, atomCount = this.atomCount) {
@@ -4381,10 +4429,8 @@ class WorkshopEntriesScroller extends BaseVirtualScroller {
     this._sortedSource = null;
   }
 
-  filter(query, wholeWord = false, scoreRange = '') {
+  filter(scoreRange = '') {
     AtomPopover.close();
-    this._lastQuery = query || '';
-    this._wholeWord = wholeWord;
     this._scoreIntervals = scoreRange ? parseRange(scoreRange) : null;
     this._applyFilterAndSort();
   }
@@ -4421,27 +4467,15 @@ class WorkshopEntriesScroller extends BaseVirtualScroller {
 
   _applyFilterAndSort() {
     const source = this._getSortedSource();
+    this._entriesPreScoreRange = source;
 
-    const q = this._lastQuery.toLowerCase();
-    let entries;
-    if (!q) {
-      this._searchRanges = null;
-      entries = source;
-    } else {
-      const { filterRe, searchRanges } = buildSearchPattern(q, this._wholeWord);
-      this._searchRanges = searchRanges;
-      // A chain row qualifies if the last atom (the bottom tool's output)
-      // matches — search filters on the pipeline's output, as it always has.
-      entries = source.filter(r => filterRe.test(rowLastEntry(r).entry));
-    }
-
-    this._entriesPreScoreRange = entries;
-
+    let entries = source;
     if (this._scoreIntervals) {
       const intervals = this._scoreIntervals;
       // Score range filters on the row's minimum atom score — a row qualifies
-      // if its worst-scoring atom falls in range.
-      entries = entries.filter(r => matchesRange(rowMinScore(r), intervals));
+      // if its worst-scoring atom falls in range. (Search is a pipeline tool
+      // now; it filters upstream, before the scroller ever sees these rows.)
+      entries = source.filter(r => matchesRange(rowMinScore(r), intervals));
     }
 
     this.entries = entries;
@@ -4569,10 +4603,9 @@ class WorkshopEntriesScroller extends BaseVirtualScroller {
       const { entry, score } = wlEntry;
       if (activeEntry && entry === activeEntry) isActive = true;
       const displayed = displayEntry(entry);
-      // Tool highlights first so they win order ties on shared starts (the
-      // tool's annotation explains why the row exists); search hits second.
-      const ranges = [...(highlights || []), ...(this._searchRanges?.(displayed) || [])];
-      const entryHtml = renderHighlightedText(displayed, ranges);
+      // Every highlight — tool annotations and search hits alike — is baked
+      // into the atom by the pipeline (search is a tool); just render them.
+      const entryHtml = renderHighlightedText(displayed, highlights || []);
       const glyphHTML = glyph ? `<span class="atom-glyph">${glyph} </span>` : '';
       const scoreInner = buildScoreBadgeHTML(score);
       const tierLabel = tierFor(score);
@@ -5559,9 +5592,20 @@ function createScroller() {
 //
 // Async because the pipeline is async; the runtime supersedes any in-flight
 // run, so an aborted result is dropped and the next call wins.
+// The executed pipeline is the user's stack plus a permanent final Search
+// tool driven by the search bar. The bar isn't a ToolStack row — it's
+// synthesized here — but a user can also add their own Search rows from the
+// gallery anywhere in the stack.
+function effectivePipelineStack() {
+  return [
+    ...ToolStack.getStack(),
+    { tool: 'search', params: { query: WorkshopView.searchQuery, 'whole-word': WorkshopView.searchWholeWord } },
+  ];
+}
+
 async function refreshWorkshopMergedScroller() {
   if (!workshopScroller) return;
-  const result = await runPipeline(buildMergedWordlist(), ToolStack.getStack());
+  const result = await runPipeline(buildMergedWordlist(), effectivePipelineStack());
   if (result.aborted || !workshopScroller) return;
   workshopScroller.updateEntries(result.rows, result.atomCount);
 }
@@ -5635,17 +5679,16 @@ function attachSearchHelpPopup() {
 async function renderWorkshopMergedDetail() {
   const panel = document.getElementById('detail-panel');
   const merged = buildMergedWordlist();
-  const stack = ToolStack.getStack();
-  const result = await runPipeline(merged, stack);
+  const result = await runPipeline(merged, effectivePipelineStack());
   if (result.aborted) return;
   const { rows, atomCount } = result;
-  // No-tools fast path: with no run-having tool the result is the merged All
-  // view 1:1, so the cached merged stats apply. Otherwise compute raw — the
-  // scroller's onFilterChange refresh replaces this initial bar immediately
-  // after setEntries anyway. Stats aggregate over every atom of every row.
-  const noTools = !stack.some(r => TOOLS[r.tool]?.run);
-  const statsSource = noTools ? merged.entries : flattenAtoms(rows);
-  const stats = noTools
+  // Passthrough fast path: no run-having user tool and an empty search query
+  // means the result is the merged All view 1:1, so the cached merged stats
+  // apply. Otherwise compute raw — the scroller's onFilterChange refresh
+  // replaces this initial bar immediately. Stats aggregate over every atom.
+  const passthrough = !ToolStack.getStack().some(r => TOOLS[r.tool]?.run) && !WorkshopView.searchQuery;
+  const statsSource = passthrough ? merged.entries : flattenAtoms(rows);
+  const stats = passthrough
     ? computeStats(_mergedStatsKey, statsSource)
     : computeStatsRaw(statsSource);
   mountWorkshopPanel(panel, stats, statsSource, rows.length);
@@ -5653,7 +5696,7 @@ async function renderWorkshopMergedDetail() {
   workshopScroller.showSource = true;
   workshopScroller.editsWordlist = getEditsWordlist() ?? null;
   workshopScroller.showEditDeleteCol = true;
-  workshopScroller.setEntries(rows, WorkshopView.searchQuery, WorkshopView.searchWholeWord, WorkshopView.scoreRange, atomCount);
+  workshopScroller.setEntries(rows, WorkshopView.scoreRange, atomCount);
 
   workshopScroller._onDeleteRow = entry => deleteFromEdits(entry, refreshWorkshopMergedScroller);
   attachExternalEditHandlers(workshopScroller, refreshWorkshopMergedScroller);

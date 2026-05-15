@@ -208,30 +208,64 @@ test('semordnilap excludes palindromes', async ({ page }) => {
   expect(visible).toEqual([]);
 });
 
-test('search filters chain rows on the last atom', async ({ page }) => {
+// ─── Search as a pipeline tool ──────────────────────────────────────────────
+//
+// Search is a filter tool — a permanent final row driven by the search bar,
+// and also addable from the gallery. Because it runs *before* unifyMirrorRows,
+// the two directions of a semordnilap pair are searched independently: when
+// both survive, unification merges their highlights into one ↔ row; when only
+// one survives, the row degrades to a directed →.
+
+test('both directions surviving search merge into one ↔ row, highlighted on each atom', async ({ page }) => {
   await gotoApp(page);
   await addSemordnilapFixture(page);
   await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'semordnilap' }]));
 
-  // 'tress' lives in STRESSED, the last atom of the DESSERTS↔STRESSED chain.
-  // Search filters on the bottom tool's output — the last atom — so the row
-  // surfaces.
+  // 'ss' is in both DESSERTS and STRESSED, so semordnilap's two directed rows
+  // both pass search; unification collapses them and merges the per-direction
+  // highlights — the surviving row is highlighted on *both* atoms and keeps ↔.
+  await page.locator('#search-input').fill('ss');
+  const visible = await page.evaluate(() => window.__grawlixTest.getVisibleEntries());
+  expect(visible).toEqual([['desserts', 'stressed']]);
+
+  const row = page.locator('.entry-row', { hasText: 'desserts' });
+  await expect(row.locator('.atom', { hasText: 'desserts' }).locator('mark')).toContainText('ss');
+  await expect(row.locator('.atom', { hasText: 'stressed' }).locator('mark')).toContainText('ss');
+  await expect(row.locator('.atom').nth(1).locator('.atom-glyph')).toContainText('↔');
+});
+
+test('a one-sided search query degrades a unified row to a directed →', async ({ page }) => {
+  await gotoApp(page);
+  await addSemordnilapFixture(page);
+  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'semordnilap' }]));
+
+  // 'tress' is only in STRESSED. Search kills the DESSERTS→STRESSED... no —
+  // it kills whichever direction's tail doesn't match: STRESSED→DESSERTS goes
+  // (tail 'desserts' has no 'tress'), DESSERTS→STRESSED survives. With its
+  // mirror gone there's nothing to unify, so the row stays a directed →.
   await page.locator('#search-input').fill('tress');
   const visible = await page.evaluate(() => window.__grawlixTest.getVisibleEntries());
   expect(visible).toEqual([['desserts', 'stressed']]);
-});
 
-test('search highlights matched substrings on the atom that contains them', async ({ page }) => {
-  await gotoApp(page);
-  await addSemordnilapFixture(page);
-  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'semordnilap' }]));
-
-  // `stressed` contains 'tress'; `desserts` does not. Highlights render on
-  // whichever atom holds the match.
-  await page.locator('#search-input').fill('tress');
-  const row = page.locator('.entry-row', { hasText: 'stressed' });
+  const row = page.locator('.entry-row', { hasText: 'desserts' });
+  await expect(row.locator('.atom').nth(1).locator('.atom-glyph')).toContainText('→');
   await expect(row.locator('.atom', { hasText: 'stressed' }).locator('mark')).toContainText('tress');
   await expect(row.locator('.atom', { hasText: 'desserts' }).locator('mark')).toHaveCount(0);
+});
+
+test('Search is a gallery tool and can be chained into the stack', async ({ page }) => {
+  await gotoApp(page);
+  await addAnagramFixture(page);
+
+  // Click the Search gallery card — it's a tool like any other.
+  await page.locator('.gallery-card[data-tool="search"]').click();
+  const input = page.locator('.tool-row input[data-key="query"]');
+  await expect(input).toBeFocused();
+  await input.fill('cat');
+
+  // The mid-stack Search row filters; the permanent (empty) Search is a no-op.
+  const visible = await page.evaluate(() => window.__grawlixTest.getVisibleEntries());
+  expect(visible).toEqual(['cat']);
 });
 
 test('score range filters chain rows on the row minimum', async ({ page }) => {
