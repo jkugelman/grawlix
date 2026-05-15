@@ -178,11 +178,11 @@ A tool's `run(input, params, ctx)` does the work. `run` is optional — tools wi
 
 `executePipeline(mergedEntries, stack, ctx, onRowStart, onRowEnd)` walks stack rows in order. `run` is async-by-default — sync tools `return` items, async tools `await` the `ctx` helpers, the executor awaits either way. For each row whose tool has a `run`, the executor normalizes the params and calls `tool.run(items, normalizedParams, ctx)`. The return is `{kind, items}`: `kind` is `'words'` (a wlEntry array) or `'pairs'` (`{a, b}[]`); groups output is still planned. When a pair-output tool is followed by a word-input tool, the executor projects the pair list down to a wlEntry array via the producer's `chainProjection` (`'a'` / `'b'` / `'both'`); the consumer row's `col` toggle can override per row.
 
-**Runtime normalization.** Every wlEntry carries a precomputed `entryNorm` field — lowercase + whitespace-stripped — alongside `entryLower`. Tools compare against `entryNorm` and never re-normalize. Param strings get the same treatment at the executor boundary, so a tool's `run` receives canonical inputs on both sides without per-call ceremony. For wordlists with uppercase-letter-only entries (the common case), `entryNorm` shares string identity with `entryLower` — no extra allocation.
+**Runtime normalization.** Every wlEntry carries a single `entry` field, stamped lowercased at parse time. Tools compare against `.entry` directly. Param strings get a slightly stricter treatment at the executor boundary — lowercase plus whitespace-stripped — so a user typing `L I N D S E Y` and `LINDSEY` both produce the same canonical input. Entries themselves keep their whitespace because synthesized outputs (e.g., `phrase_parsing`'s `HOT TO TROT`) need to preserve the spaces they introduce; real wordlists store letter-only entries so the rule almost never sees a difference. The original-case form of the imported file isn't preserved on wlEntries — see [`plans/tools.md`](plans/tools.md) for the rationale and the "Download original" path (raw IDB blob, byte-for-byte).
 
 **Identity preservation for the patch path.** When the stack contains no run-bearing tools (or only no-op ones), `executePipeline` returns the merged cache's entries array unchanged. The scroller compares array identity to decide whether to take the patch path (in-place edits to scores via My Edits keep the open popover) or the full refresh path. Once a transforming tool is in the stack, the pipeline produces a fresh array per call and the patch optimization is bypassed; chained popover edits in anagram or pair view close the popover on commit, which is acceptable for the niche.
 
-**Pair output declarations.** A pair-producing tool declares `output: 'pairs'`, a `relation` (`'transform'` / `'symmetric'` / `'contains'`), `labels` naming the two sides, and a `chainProjection` for downstream. The renderer maps `relation` to a glyph (→ / · / ⊃) — tools don't pick characters themselves so display stays consistent across all tools sharing a relation. Pair-producing tools that share an `a`-or-`b` identity (semordnilap's b is uniquely reverse(a); behead's b is a-minus-first-letter) emit each pair once via a canonical ordering — for semordnilap, smaller `entryNorm` becomes `a`.
+**Pair output declarations.** A pair-producing tool declares `output: 'pairs'`, a `relation` (`'transform'` / `'symmetric'` / `'contains'`), `labels` naming the two sides, and a `chainProjection` for downstream. The renderer maps `relation` to a glyph (→ / · / ⊃) — tools don't pick characters themselves so display stays consistent across all tools sharing a relation. Pair-producing tools that share an `a`-or-`b` identity (semordnilap's b is uniquely reverse(a); behead's b is a-minus-first-letter) emit each pair once via a canonical ordering — for semordnilap, smaller `entry` becomes `a`.
 
 ### Cooperative runtime — supersession, yield, spinners
 
@@ -214,7 +214,7 @@ Pair rows render `count len entry score · len entry score` with the relation gl
 
 **Filter and aggregate semantics for pairs.**
 
-- **Search** matches either side's `entryLower` against the pattern.
+- **Search** matches either side's `entry` against the pattern (entries are lowercased at parse, so the lowercased pattern matches directly).
 - **Score-range filter** uses `min(a.score, b.score)` — the row qualifies if its worst-scoring atom falls in range.
 - **Stats bar** labels the count as `Pairs` instead of `Entries`. Min/max/mean/median/mode aggregate over flattened atoms (every wlEntry on either side of every visible pair), so a 60/40 pair contributes both 60 and 40 to the histogram and the average.
 
@@ -243,7 +243,7 @@ The kind registry is open-ended — adding a new tool highlight kind is one (kin
 
 Both `WorkshopEntriesScroller` and `LibraryEntriesScroller` route through the same `renderHighlightedText`. Library doesn't emit tool highlights, so it passes only the search ranges.
 
-**Range positions are in display coordinates, not entryNorm.** A tool emitting a highlight should index into `wlEntry.entry` (which has the same length as the rendered `displayed` string), not `wlEntry.entryNorm`. For ASCII-letter-only entries the two coincide; for multi-word entries they diverge — `RUN AMOK`'s entry is 8 chars but its entryNorm is `runamok` (7 chars, no space). Curtail's "strike through the last letter" range is `[entry.length - 1, entry.length]` because the user perceives the last letter as the last visible character of `RUN AMOK`, which is `K` at index 7 — not `entryNorm`'s last char at index 6 (which would land on the space). The tool's matching logic still runs against entryNorm; only the rendered range is in entry-space.
+**Range positions are in entry coordinates.** A tool emitting a highlight indexes into `wlEntry.entry` directly. Since `entry` is the lowercased form (no whitespace strip) and the renderer's `displayEntry()` only changes case, `entry.length` always equals the rendered string's length — display-coordinates and entry-coordinates coincide. Curtail's "strike through the last letter" range is `[entry.length - 1, entry.length]`, marking the last character of whatever the user sees.
 
 ## Entries table
 
@@ -369,7 +369,7 @@ Wordlists can be hundreds of thousands of entries. Several caches keep wordlist 
 | Cache | Scope | Derived from | Cleared by |
 |---|---|---|---|
 | `wordlist._rescored` | per-wordlist | own `rawEntries` + `rescoreRules` | `invalidateRescoredCache(wordlist)` |
-| `wordlist._rescoredMap` | per-wordlist | `_rescored` (`entryLower` → wlEntry, for fast lookup) | `invalidateRescoredCache(wordlist)` |
+| `wordlist._rescoredMap` | per-wordlist | `_rescored` (`entry` → wlEntry, for fast lookup) | `invalidateRescoredCache(wordlist)` |
 | `wordlist._actualScores` | per-wordlist | own `rawEntries` (sorted distinct raw scores; feeds `_uncovered`) | `invalidateActualScoresCache(wordlist)` |
 | `wordlist._overrideMap` | per-wordlist | every higher-priority enabled wordlist's `_rescored` | `invalidateSourceCounts()` (clears all) |
 | `_mergedWordlistCache` | module | every enabled wordlist's `_rescored` (entries + `byEntry` map) | `invalidateSourceCounts()` |
@@ -388,7 +388,7 @@ Override maps are invalidated globally rather than per-affected-list because tra
 
 **Read live, don't snapshot.** Cache entries hold a `wordlist` reference rather than copying out display fields like `name`. Render-time code reads `entry.wordlist.name` so renames propagate without cache invalidation. The virtual scroller follows the same convention — `currentWordlist` is a ref, not a name string.
 
-**Lowercase keys throughout.** `_rescoredMap`, `_overrideMap`, and `_mergedWordlistCache.byEntry` are all keyed by `entryLower`. The key is the same string object as the wlEntry's `entryLower` field — Map keys share storage with the value's lowercase form, so construction allocates no extra strings and lookups never need a per-call `.toLowerCase()`. Anything that lookups against these caches (e.g. `patchCachesForEditsChange(entry, ...)`) takes its `entry` parameter in lowercase form.
+**Lowercase keys throughout.** `_rescoredMap`, `_overrideMap`, and `_mergedWordlistCache.byEntry` are all keyed by `wlEntry.entry`, which is lowercased at parse. Map keys share storage with the wlEntry's `entry` field, so construction allocates no extra strings and lookups never need a per-call `.toLowerCase()`. Anything that looks up against these caches (e.g. `patchCachesForEditsChange(entry, ...)`) takes its `entry` parameter already-lowercased.
 
 **Hot path: switching wordlists.** First switch builds `_rescored` (lazy) and `_overrideMap` (lazy); subsequent switches are near-free.
 
@@ -406,7 +406,7 @@ The patch is structured around three observations:
 
 **Hot path: typing in search.** Per-keystroke filtering is sized to avoid the two costs that dominate large wordlists — lowercasing the entry and re-sorting the filtered result. The caches involved are scroller-internal (not in the table above): they belong to the active `WorkshopEntriesScroller` / `LibraryEntriesScroller` instance and end with the scroller's life.
 
-- Every `wlEntry` carries a precomputed `entryLower` field, assigned at parse and at every mutation path. Filters read `.entryLower` directly — no per-keystroke `.toLowerCase()` allocation across hundreds of thousands of entries. For merged-map entries and My Edits-edited entries, `entry` and `entryLower` are assigned from one variable, so both fields point at the same string object and the field costs one property slot, not a fresh allocation. For source wordlists with uppercase entries (e.g. Broda), the lowercase form is a fresh string allocated once at parse.
+- Every `wlEntry` carries a single `entry` field, lowercased at parse and at every mutation path. Filters read `.entry` directly — no per-keystroke `.toLowerCase()` allocation across hundreds of thousands of entries. For source wordlists with uppercase entries (e.g. Broda), the lowercase form is allocated once at parse; the original-case file content is preserved separately as a raw blob in IndexedDB for "Download original" but isn't stored on the wlEntry. Merged-map entries and My Edits-edited entries share the same `entry` field with no duplication.
 - The Workshop scroller keeps `_sortedSource` — `allEntries` sorted by the current `sortKey`/`sortDir`. `.filter()` preserves order, so the filter result is already sorted and the post-filter sort drops out.
 - The Library scroller splits work two ways. `_baseRows` holds the unfiltered row data — `_buildRows()` walks `rawEntries` and applies `rescoreEntry`, and that result is rebuilt only on `setWordlist` / `setMode` / `setRescorePreview`. `_sortedBaseRows` is its sorted view, rebuilt on sort change. `setQuery` runs neither — it just refilters the cached sorted source.
 

@@ -2,8 +2,8 @@
 // docs/plans/tools.md.
 //
 // These tests cover Phase 1: the anagram tool runs against the merged wordlist
-// and feeds the Workshop entries table. The pipeline executor, the entryNorm
-// runtime normalization, and the chain of wirings (stack mutations → scroller
+// and feeds the Workshop entries table. The pipeline executor, the lowercased-
+// `entry` normalization, and the chain of wirings (stack mutations → scroller
 // refresh, param keystroke → scroller refresh, URL → stack on boot) all sit
 // downstream of the merged-view path, so the same regressions that would
 // silently break merge tests would break these.
@@ -64,25 +64,12 @@ test('anagram + search compose (search filters tool output)', async ({ page }) =
   expect(visible).toEqual(['snidely']);
 });
 
-test('anagram matches across whitespace and case in entries', async ({ page }) => {
-  await gotoApp(page);
-  // RUN AMOK and MURK ANO share the same letter bank as RUNAMOK after the
-  // runtime strips whitespace (and lowercases) on every wlEntry's entryNorm.
-  await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
-    name: 'Whitespace', entries: ['RUN AMOK', 'MURK ANO', 'MOURNAK', 'CAT'], scores: [50, 50, 50, 50],
-  }));
-  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'anagram', params: { entry: 'RUNAMOK' } }]));
-
-  const visible = await page.evaluate(() => window.__grawlixTest.getVisibleEntries());
-  expect(visible.sort()).toEqual(['mournak', 'murk ano', 'run amok']);
-});
-
-test('anagram param strips whitespace before sorting letters', async ({ page }) => {
+test('anagram param is case-insensitive', async ({ page }) => {
   await gotoApp(page);
   await addAnagramFixture(page);
-  // Typing LIND SEY with a space is the same query as LINDSEY — the runtime
-  // normalizes the param identically to wlEntry.entryNorm.
-  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'anagram', params: { entry: 'LIND SEY' } }]));
+  // The runtime lowercases the param identically to wlEntry.entry,
+  // so typing in any case produces the same query.
+  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'anagram', params: { entry: 'LindSey' } }]));
 
   const visible = await page.evaluate(() => window.__grawlixTest.getVisibleEntries());
   expect(visible.sort()).toEqual(['lindsey', 'snidely']);
@@ -140,7 +127,7 @@ test('pipeline output preserves wlEntry refs (popover opens, source/score intact
 // min/max-score, search matches either side, score-range filters on min,
 // stats says "N pairs". These tests pin those differences so they don't
 // regress when more pair tools land. Semordnilap's canonical-direction dedup
-// (smaller entryNorm on the `a` side) is also asserted here since it's the
+// (smaller `entry` on the `a` side) is also asserted here since it's the
 // only producing tool wired up today.
 
 async function addSemordnilapFixture(page) {
@@ -187,7 +174,7 @@ test('pair-mode search filters when either side matches', async ({ page }) => {
 
   await page.locator('#search-input').fill('esser');
   // 'esser' lives only inside DESSERTS — the pair surfaces because the b-side
-  // (in a-then-b canonical order, the bigger entryNorm) matches.
+  // (in a-then-b canonical order, the bigger `entry`) matches.
   const visible = await page.evaluate(() => window.__grawlixTest.getVisibleEntries());
   expect(visible).toEqual([{ a: 'desserts', b: 'stressed' }]);
 });

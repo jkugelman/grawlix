@@ -42,9 +42,9 @@ test('a custom wordlist survives a page reload with its entries and rules intact
   const wl = await page.evaluate(() => window.__grawlixTest.getWordlist('Persist'));
   expect(wl.populated).toBe(true);
   expect(wl.entries).toEqual([
-    { entry: 'AARDVARK', score: 10, comment: '' },
-    { entry: 'BAGEL',    score: 50, comment: '' },
-    { entry: 'CARROT',   score: 90, comment: '' },
+    { entry: 'aardvark', score: 10, comment: '' },
+    { entry: 'bagel',    score: 50, comment: '' },
+    { entry: 'carrot',   score: 90, comment: '' },
   ]);
 
   // Rules came back intact — including the length filter, which lives in

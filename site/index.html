@@ -1948,25 +1948,14 @@ function parseWordlistLine(line) {
   if (!line) return null;
   const semi = line.indexOf(';');
   if (semi === -1) return null;
-  const entry = line.slice(0, semi);
+  const entry = line.slice(0, semi).toLowerCase();
   if (!entry || entry.includes(';')) return null;
   const rest = line.slice(semi + 1);
   const semi2 = rest.indexOf(';');
   const score = parseInt(semi2 === -1 ? rest : rest.slice(0, semi2), 10);
   if (isNaN(score)) return null;
   const comment = semi2 === -1 ? '' : rest.slice(semi2 + 1).trim();
-  const entryLower = entry.toLowerCase();
-  return { entry, entryLower, entryNorm: stripWhitespace(entryLower), score, comment };
-}
-
-// Canonical form fed to tool runners — lowercase + whitespace-stripped, with
-// punctuation/digits left intact. The runtime stamps this on every wlEntry at
-// creation time so tools can compare against `.entryNorm` without re-normalizing
-// per call. Returns the input string identity when there's no whitespace to
-// strip, so the common case (uppercase-letters-only wordlists) shares storage
-// with `entryLower`.
-function stripWhitespace(s) {
-  return /\s/.test(s) ? s.replace(/\s+/g, '') : s;
+  return { entry, score, comment };
 }
 
 function parseWordlist(text) {
@@ -3521,7 +3510,7 @@ const TOOLS = {
     async run(input, params, ctx) {
       const target = sortLetters(params.entry);
       if (!target) return input;
-      return ctx.filter(input, e => sortLetters(e.entryNorm) === target);
+      return ctx.filter(input, e => sortLetters(e.entry) === target);
     },
   },
   subanagram: {
@@ -3552,11 +3541,11 @@ const TOOLS = {
     params: [],
     output: 'pairs', relation: 'transform', labels: ['from', 'to'], chainProjection: 'to',
     async run(input, params, ctx) {
-      const byNorm = new Map(input.map(e => [e.entryNorm, e]));
+      const byEntry = new Map(input.map(e => [e.entry, e]));
       const out = [];
       await ctx.forEach(input, e => {
-        if (e.entryNorm.length < 2) return;
-        const match = byNorm.get(e.entryNorm.slice(1));
+        if (e.entry.length < 2) return;
+        const match = byEntry.get(e.entry.slice(1));
         if (match) out.push({
           a: e,
           b: match,
@@ -3573,21 +3562,16 @@ const TOOLS = {
     params: [],
     output: 'pairs', relation: 'transform', labels: ['from', 'to'], chainProjection: 'to',
     async run(input, params, ctx) {
-      const byNorm = new Map(input.map(e => [e.entryNorm, e]));
+      const byEntry = new Map(input.map(e => [e.entry, e]));
       const out = [];
       await ctx.forEach(input, e => {
-        if (e.entryNorm.length < 2) return;
+        if (e.entry.length < 2) return;
         // Skip plural → singular.
-        if (e.entryNorm.endsWith('s') && !e.entryNorm.endsWith('ss')) return;
-        const match = byNorm.get(e.entryNorm.slice(0, -1));
+        if (e.entry.endsWith('s') && !e.entry.endsWith('ss')) return;
+        const match = byEntry.get(e.entry.slice(0, -1));
         if (match) out.push({
           a: e,
           b: match,
-          // Highlight position is on the *display* form (entry.length - 1).
-          // For ASCII-letter-only entries this equals entryNorm.length - 1;
-          // for multi-word entries the display string is longer than
-          // entryNorm but the last char of entry is still the last letter
-          // of the word, which is what curtail conceptually removed.
           highlights: { a: [{ kind: 'removed', start: e.entry.length - 1, end: e.entry.length }] },
         });
       });
@@ -3602,15 +3586,15 @@ const TOOLS = {
     output: 'pairs', relation: 'symmetric', labels: ['a', 'b'], chainProjection: 'both',
     async run(input, params, ctx) {
       // Each pair is emitted once in canonical order (lexicographically smaller
-      // entryNorm on the `a` side). Palindromes are skipped — reversing them
+      // entry on the `a` side). Palindromes are skipped — reversing them
       // yields the same word, not a different one.
-      const byNorm = new Map(input.map(e => [e.entryNorm, e]));
+      const byEntry = new Map(input.map(e => [e.entry, e]));
       const out = [];
       await ctx.forEach(input, e => {
-        const reversed = reverseString(e.entryNorm);
-        if (reversed === e.entryNorm) return;
-        if (e.entryNorm >= reversed) return;
-        const match = byNorm.get(reversed);
+        const reversed = reverseString(e.entry);
+        if (reversed === e.entry) return;
+        if (e.entry >= reversed) return;
+        const match = byEntry.get(reversed);
         if (match) out.push({ a: e, b: match });
       });
       return out;
@@ -3625,7 +3609,7 @@ function reverseString(s) {
 }
 
 // Sort the letters of an already-canonical string. Tools that need letter-bank
-// equivalence call this on `entryNorm` (and on user-supplied params, which the
+// equivalence call this on `entry` (and on user-supplied params, which the
 // runtime normalizes the same way before passing in). Non-letters survive and
 // participate in the comparison — for letter-only wordlists they're a no-op,
 // for the rare punctuation-bearing entry they make the match stricter.
@@ -3634,14 +3618,13 @@ function sortLetters(s) {
   return s.split('').sort().join('');
 }
 
-// Normalize tool param strings the same way wlEntry.entryNorm is normalized:
-// lowercase + whitespace-stripped. Empty strings stay empty. The pipeline
-// executor runs this on every param before handing the params object to a
-// tool's `run`, so tools never re-normalize.
+// Normalize tool param strings: lowercase only. Same rule as wlEntry.entry —
+// the executor runs this on every param before handing to `run`, so tools see
+// canonical-lowercase input on both sides without per-call ceremony.
 function normalizeParams(params) {
   const out = {};
   for (const [k, v] of Object.entries(params || {})) {
-    out[k] = typeof v === 'string' ? stripWhitespace(v.toLowerCase()) : v;
+    out[k] = typeof v === 'string' ? v.toLowerCase() : v;
   }
   return out;
 }
@@ -4198,7 +4181,7 @@ const SORT_AXES_BY_KIND = {
     entry: {
       label: 'Entry',
       primary: e => e.entry,
-      // Defensive — the merged view dedupes by entryLower so ties shouldn't
+      // Defensive — the merged view dedupes by entry so ties shouldn't
       // happen here, but length desc + score desc keeps "more interesting"
       // duplicates first if a pre-merge scope ever lands.
       tiebreakers: [
@@ -4555,8 +4538,8 @@ class WorkshopEntriesScroller extends BaseVirtualScroller {
       // list when nothing matches, so a row where only one side hit lights up
       // just that side.
       entries = this.kind === 'pairs'
-        ? source.filter(p => filterRe.test(p.a.entryLower) || filterRe.test(p.b.entryLower))
-        : source.filter(e => filterRe.test(e.entryLower));
+        ? source.filter(p => filterRe.test(p.a.entry) || filterRe.test(p.b.entry))
+        : source.filter(e => filterRe.test(e.entry));
     }
 
     this._entriesPreScoreRange = entries;
@@ -4918,7 +4901,6 @@ class LibraryEntriesScroller extends BaseVirtualScroller {
       const { entries } = buildMergedWordlist();
       return entries.map(e => ({
         entry: e.entry,
-        entryLower: e.entryLower,
         len: e.entry.length,
         inputScore: e.score,
         outputScore: e.score,
@@ -4941,7 +4923,6 @@ class LibraryEntriesScroller extends BaseVirtualScroller {
       }
       return {
         entry: wlE.entry,
-        entryLower: wlE.entryLower,
         len: wlE.entry.length,
         inputScore: wlE.score,
         outputScore,
@@ -4990,7 +4971,7 @@ class LibraryEntriesScroller extends BaseVirtualScroller {
     if (q) {
       const { filterRe, searchRanges } = buildSearchPattern(q, this.wholeWord);
       this._searchRanges = searchRanges;
-      rows = source.filter(r => filterRe.test(r.entryLower));
+      rows = source.filter(r => filterRe.test(r.entry));
     } else {
       this._searchRanges = null;
       rows = source;
@@ -5577,7 +5558,7 @@ function getRescoredEntries(wordlist) {
 function getRescoredMap(wordlist) {
   if (wordlist._rescoredMap) return wordlist._rescoredMap;
   const map = new Map();
-  for (const e of getRescoredEntries(wordlist)) map.set(e.entryLower, e);
+  for (const e of getRescoredEntries(wordlist)) map.set(e.entry, e);
   wordlist._rescoredMap = map;
   return map;
 }
@@ -5972,16 +5953,16 @@ function attachExternalEditHandlers(s, refreshFn) {
 function upsertEdits(entry, field, newValue) {
   const edits = getEditsWordlist();
   const entryLow = entry.toLowerCase();
-  const existing = edits.rawEntries.find(e => e.entryLower === entryLow);
+  const existing = edits.rawEntries.find(e => e.entry === entryLow);
   let wlEntry;
   if (existing) {
     existing[field] = newValue;
     wlEntry = existing;
   } else {
-    const orig = workshopScroller?.allEntries?.find(e => e.entryLower === entryLow);
+    const orig = workshopScroller?.allEntries?.find(e => e.entry === entryLow);
     const score   = field === 'score'   ? newValue : (orig?.score   ?? 50);
     const comment = field === 'comment' ? newValue : (orig?.comment ?? '');
-    wlEntry = { entry: entryLow, entryLower: entryLow, entryNorm: stripWhitespace(entryLow), score, comment };
+    wlEntry = { entry: entryLow, score, comment };
     edits.rawEntries.push(wlEntry);
   }
   patchCachesForEditsChange(entryLow, wlEntry);
@@ -6310,12 +6291,12 @@ function ingestFile(file, wordlist, nameOverride) {
 
     // My Edits: always combine instead of replace
     if (wordlist.type === 'edits' && wordlist.rawEntries.length > 0) {
-      const existingMap = new Map(wordlist.rawEntries.map(e => [e.entryLower, e]));
+      const existingMap = new Map(wordlist.rawEntries.map(e => [e.entry, e]));
       const newEntries = [], conflicts = [];
       let unchanged = 0;
 
       for (const wlEntry of entries) {
-        const existing = existingMap.get(wlEntry.entryLower);
+        const existing = existingMap.get(wlEntry.entry);
         if (!existing) {
           newEntries.push(wlEntry);
         } else if (existing.score !== wlEntry.score || existing.comment !== wlEntry.comment) {
@@ -6414,7 +6395,7 @@ function openAddEntryBar() {
 
     const edits = getEditsWordlist();
 
-    const existing = edits.rawEntries.find(e => e.entryLower === entry);
+    const existing = edits.rawEntries.find(e => e.entry === entry);
     let wlEntry;
     if (existing) {
       existing.score = score;
@@ -6422,7 +6403,7 @@ function openAddEntryBar() {
       wlEntry = existing;
       showToast(`Updated ${displayEntry(entry)}`);
     } else {
-      wlEntry = { entry, entryLower: entry, entryNorm: stripWhitespace(entry), score, comment };
+      wlEntry = { entry, score, comment };
       edits.rawEntries.push(wlEntry);
       showToast(`Added ${displayEntry(entry)}`);
     }
@@ -6444,7 +6425,7 @@ function openAddEntryBar() {
 function deleteFromEdits(entry, refreshFn) {
   const edits = getEditsWordlist();
   const entryLow = entry.toLowerCase();
-  const idx = edits.rawEntries.findIndex(e => e.entryLower === entryLow);
+  const idx = edits.rawEntries.findIndex(e => e.entry === entryLow);
   if (idx === -1) return;
 
   const refresh = refreshFn ?? (() => {
@@ -7604,8 +7585,8 @@ function buildOverrideMap(wordlist) {
   for (const l of state.sources) {
     if (l === wordlist) break;
     if (!l.enabled) continue;
-    for (const { entryLower, score, comment } of getRescoredEntries(l)) {
-      if (!map.has(entryLower)) map.set(entryLower, { wordlist: l, score, comment: comment || '' });
+    for (const { entry, score, comment } of getRescoredEntries(l)) {
+      if (!map.has(entry)) map.set(entry, { wordlist: l, score, comment: comment || '' });
     }
   }
   wordlist._overrideMap = map;
@@ -7656,8 +7637,6 @@ function patchCachesForEditsChange(entry, newEditsWlEntry) {
         // ADD: brand-new entry, no other wordlist has it.
         const merged = {
           entry: newEditsWlEntry.entry,
-          entryLower: newEditsWlEntry.entryLower,
-          entryNorm: newEditsWlEntry.entryNorm,
           score: newEditsWlEntry.score,
           comment: newEditsWlEntry.comment || '',
           wordlist: edits,
@@ -7757,15 +7736,15 @@ function refreshDerivedDisplays() {
 function buildMergedWordlist() {
   if (_mergedWordlistCache) return _mergedWordlistCache;
 
-  const mergedMap = new Map(); // entryLower → wordlistEntry
+  const mergedMap = new Map(); // entry → wordlistEntry
   const sourceCounts = [];
 
   for (const wordlist of state.sources) {
     if (!wordlist.enabled) continue;
     let count = 0;
-    for (const { entryLower, score, comment } of getRescoredEntries(wordlist)) {
-      if (!mergedMap.has(entryLower)) {
-        mergedMap.set(entryLower, { entry: entryLower, entryLower, entryNorm: stripWhitespace(entryLower), score, comment: comment || '', wordlist });
+    for (const { entry, score, comment } of getRescoredEntries(wordlist)) {
+      if (!mergedMap.has(entry)) {
+        mergedMap.set(entry, { entry, score, comment: comment || '', wordlist });
         count++;
       }
     }
@@ -7793,12 +7772,18 @@ function triggerDownload(text, filename) {
   URL.revokeObjectURL(url);
 }
 
-function downloadOriginalWordlist(wordlist) {
+async function downloadOriginalWordlist(wordlist) {
   if (!wordlist || !wordlist.rawEntries.length) return;
-  const withComments = getDownloadComments();
-  const text = wordlist.rawEntries.map(e =>
-    (withComments && e.comment) ? `${e.entry};${e.score};${e.comment}` : `${e.entry};${e.score}`
-  ).join('\n') + '\n';
+  // The imported file text is stashed verbatim in IndexedDB at
+  // `data_<dbKey>`. Serving it byte-for-byte preserves the user's original
+  // casing, whitespace, comment formatting, and line endings — none of which
+  // survive a reconstruction from parsed wlEntries (entries are stored
+  // lowercased internally; the original-case form isn't kept).
+  const text = await idbGet('data_' + wordlist.dbKey);
+  if (!text) {
+    showToast('Original file not available');
+    return;
+  }
   const filename = wordlist.originalFilename || `${wordlist.name}.txt`;
   triggerDownload(text, filename);
   showToast(`Downloaded ${pluralize(wordlist.rawEntries.length, 'entry', 'entries')}`);
