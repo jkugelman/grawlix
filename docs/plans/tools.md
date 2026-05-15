@@ -197,6 +197,8 @@ A list of bullet-separated atoms with a count prefix. Default sort is Max — th
 
 Groups are the partial exception to strict pseudo-column alignment. Atom counts vary per row, so atoms don't fully cross-row align — they flow across the line separated by bullets. The leading `(N)` count slot does align across rows, giving the eye an anchor; within a row, atoms pack tightly with consistent internal `length word score` shape.
 
+**No Comment / Source columns on group rows.** Chain rows (one- and multi-atom) carry per-atom Comment and Source columns, reactively shown when the viewport has room (see [`../design.md` § Chain-row display](../design.md#chain-row-display)). Group rows can't: those columns live in the `entry / len / score` pseudo-column grid, and group rows flow horizontally across the line rather than stacking into it. Per-atom comment/source on a group row would have to ride inside each bullet-separated atom — a denser, different layout problem that lands with the group-output design pass, not for free off the chain-row grid.
+
 **Sort axes for groups:** Min, Max, Count, Alphabetical.
 
 **Search on group rows** matches loosely against the rendered text — same string the user sees, all atoms in a row visible as one filter target. Default-loose is right for v1; promote to side-specific syntax (`right:un*`) only if usage shows the loose form isn't enough.

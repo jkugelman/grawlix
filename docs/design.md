@@ -87,7 +87,7 @@ My Edits' remaining distinction is just that the user's manual score/comment edi
 | Click behavior | atom click → AtomPopover edit | read-only |
 | Tools | full gallery + stack | none |
 | Filter | search + score-range + sort | search + sort (no score-range) |
-| Source attribution | per-row source column on All | n/a |
+| Source attribution | per-atom source column on All | n/a |
 | Rescore annotation | red `*` + popover detail | inline `→` |
 
 The two views answer different questions about the same data — Workshop asks "what entries are available to me right now?" (merged, rescored, override-resolved), Library asks "what does this source contain and how does it get transformed?" — so they should look meaningfully different.
@@ -225,7 +225,7 @@ Because search is a pipeline tool running *before* unification, this composes: s
 
 Atoms render top-to-bottom on every viewport — there is no side-by-side layout at any width. The entries table is one CSS Grid per row with `grid-auto-rows`; each atom occupies one grid line (`count`, then `entry` / `len` / `score`), and atoms past the first wrap onto their own line while staying column-aligned with the atom above via shared `--entry-w` / `--len-w` / `--score-w` variables. The relation glyph prefixes every non-originator atom's entry. Row stride is atom count × row height; the virtual scroller reads the static atom count for its stride math, and the row's own height is content-driven by the grid.
 
-Comment and Source columns appear only on the 1-atom view (an empty stack or a pure filter) and only when the viewport has room — once a transform stacks the rows, `#detail-panel` gains `.multi-atom` and those columns drop. Headers stay constant: the Entry / Length / Score labels describe what each *line* contains, not the row, so one header set serves every chain shape.
+Comment and Source columns appear on every chain shape — a one-atom row and a stacked multi-atom row alike — when the viewport has room, dropping staggered as it narrows (source first at <960px, then comment at <760px). They render per-atom: each atom line carries its own comment and source, so a chain row reads top-to-bottom as where every word in the journey comes from. A synthetic atom — built from a tool's `[string, score]` output, sourced from no wordlist — gets blank cells. The columns are pure CSS media-query gating with no JS atom-count branch: the renderer always emits the cells, and the multi-atom rows have the horizontal room because each atom line carries only `entry / len / score`. Headers stay constant: the Entry / Length / Score labels describe what each *line* contains, not the row, so one header set serves every chain shape.
 
 ### Sort axes per atom count
 
@@ -276,7 +276,7 @@ The sort axis is a native `<select>` with `appearance: none` and a chevron paint
 
 **Click an atom → AtomPopover.** A click-driven popover anchored to the clicked atom (word or score). Content: a header line repeating the atom for context, a source block (which wordlist sourced the score, with rescore/override info or "Ignored by rescore rules"), score and comment text inputs, a "Saves to My Edits" footer, and a Delete button when the row is sourced from My Edits. Edits commit via Enter (commit + close) or blur (commit, popover stays open so you can tab to the next field); Escape reverts and closes. Click-outside, scroll, resize, search/filter/sort changes, and panel re-mount all close it.
 
-Score/comment edits and the rescore/override explanation all live in the popover — not as in-cell `<input>` swaps and not in a hover-only tooltip. Comments and source stay off the at-rest list (comments are write-mostly in practice; source matters only for investigation) and are one click away in the popover when wanted.
+Score/comment edits and the rescore/override explanation all live in the popover — not as in-cell `<input>` swaps and not in a hover-only tooltip. The Comment and Source columns *display* that data on the at-rest list when the viewport is wide enough (see § Chain-row display); editing still routes through the popover — clicking a comment cell opens it focused on the comment field. On narrow viewports the columns drop and the popover is the only path to both.
 
 **Re-render across edits keeps the popover open.** Edits flow through `_onCellEdit`, which routes to `upsertEdits` (non-Edits views) or directly mutates `rawEntries` (My Edits view), then triggers `_applyFilterAndSort(false)`. The scroller re-renders rows but doesn't close the popover, so chained edits (score → tab → comment) work. After re-render, the row matching the popover's active entry gets `.active` reapplied via `AtomPopover.rebindRow`.
 
@@ -443,7 +443,7 @@ Per-wordlist field categories beyond the cosmetic four:
 **The two effects:**
 
 - **Render effect** reads `cacheVersion$`. First run does the initial Workshop paint (always merged — there's no selection). Subsequent cache bumps refresh derived state in place: `refreshSourceCounts` rebuilds caches, `renderSources` repaints the Library list with fresh meta, `refreshDerivedDisplays` updates the scroller's score-atom tier tooltips and the main-panel stats bar, then the Workshop merged scroller is updated via `refreshWorkshopMergedScroller` (which shares its array-identity protocol with the patch path).
-- **Cosmetic effect** reads `sources$` and every wordlist's `name$`/`icon$`/`url$`/`publisherId$`. Any cosmetic change re-renders the Library list and (since the merged scroller has a per-row source column) the visible Workshop scroller rows. No cache touched — cache entries hold wordlist refs and read names live.
+- **Cosmetic effect** reads `sources$` and every wordlist's `name$`/`icon$`/`url$`/`publisherId$`. Any cosmetic change re-renders the Library list and (since the merged scroller has a per-atom source column) the visible Workshop scroller rows. No cache touched — cache entries hold wordlist refs and read names live.
 
 **The patch path skips reactivity.** `patchCachesForEditsChange` doesn't bump `cacheVersion$`; the My Edits hot path mutates caches in place and calls `refreshDerivedDisplays` + scroller re-filter directly. Routing through the render effect would call `refreshSourceCounts`, which invalidates and rebuilds the merged cache — defeating the patch. This is the one explicit exception to the rule "any cache mutation bumps `cacheVersion$`".
 

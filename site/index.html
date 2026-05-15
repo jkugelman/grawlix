@@ -357,27 +357,23 @@ html.dark-mode .search-match-4 { background: #14532d; color: #d1fae5; }
 .atom-glyph { color: var(--faint); user-select: none; }
 .entry-row .atom-comment, .entry-row .atom-source { display: none; }
 
-/* Comment + source columns appear only on the 1-atom view (empty stack or a
-   pure filter) and only when the viewport has room. Once a transform joins
-   the stack the rows stack into multiple atoms and these columns drop — the
-   panel gets `.multi-atom`. Source is meaningful only on the merged All view.
-   The two columns drop staggered as the viewport narrows: source goes first
-   (it eats ~22ch), leaving the more informative comment column longer. */
+/* Comment + source columns appear on every chain shape — a one-atom row and a
+   stacked multi-atom row alike — when the viewport has room. They render
+   per-atom: each atom line carries its own comment and source, so a chain row
+   reads top-to-bottom as where every word in the journey comes from. The two
+   columns drop staggered as the viewport narrows: source goes first (it eats
+   ~22ch), leaving the more informative comment column longer. */
 @media (min-width: 760px) {
-  #detail-panel:not(.multi-atom) .entry-row,
-  #detail-panel:not(.multi-atom) .entry-headers {
+  .entry-row, .entry-headers {
     grid-template-columns: var(--count-w, 2ch) var(--entry-w, 12ch) var(--len-w, 3ch) var(--score-w, calc(5ch + 12px)) minmax(0, 1fr);
   }
-  #detail-panel:not(.multi-atom) .entry-row .atom-comment,
-  #detail-panel:not(.multi-atom) .entry-headers .col-comment { display: block; }
+  .entry-row .atom-comment, .entry-headers .col-comment { display: block; }
 }
 @media (min-width: 960px) {
-  #detail-panel:not(.multi-atom) .entry-row,
-  #detail-panel:not(.multi-atom) .entry-headers {
+  .entry-row, .entry-headers {
     grid-template-columns: var(--count-w, 2ch) var(--entry-w, 12ch) var(--len-w, 3ch) var(--score-w, calc(5ch + 12px)) minmax(0, 1fr) minmax(0, var(--source-max, 22ch));
   }
-  #detail-panel:not(.multi-atom) .entry-row .atom-source,
-  #detail-panel:not(.multi-atom) .entry-headers .col-source { display: block; }
+  .entry-row .atom-source, .entry-headers .col-source { display: block; }
 }
 
 /* Library entries view — text-flavored, read-only counterpart to the Workshop
@@ -1590,8 +1586,8 @@ function buildEntriesTablePanelHTML() {
 
 // One header set for every chain shape — the Entry / Length / Score columns
 // describe what each atom *line* contains, not the row as a whole, so they
-// stay constant whether a row has one atom or many. Comment / Source only
-// surface on the 1-atom view (gated by `#detail-panel.multi-atom` in CSS).
+// stay constant whether a row has one atom or many. Comment / Source surface
+// on every chain shape when the viewport has room (gated by media query).
 function buildEntryHeadersHTML() {
   return `<div class="entry-headers entry-headers-font" aria-hidden="true">
       <span></span>
@@ -4404,8 +4400,7 @@ class WorkshopEntriesScroller extends BaseVirtualScroller {
   // when the prior axis isn't valid for the new tier, or when the count
   // changed tiers and the prior axis was the *old* tier's default (so the
   // user hadn't explicitly picked it). An explicit pick that's still valid
-  // survives. Also toggles `.multi-atom` on the panel — comment/source
-  // columns show only on the 1-atom view.
+  // survives.
   _setAtomCount(atomCount) {
     const old = this.atomCount;
     const changed = atomCount !== old;
@@ -4419,7 +4414,6 @@ class WorkshopEntriesScroller extends BaseVirtualScroller {
       this.sortDir = defaultSortDir(this.sortKey);
       WorkshopView.setSort(this.sortKey, this.sortDir);
     }
-    this.host.closest('#detail-panel')?.classList.toggle('multi-atom', atomCount > 1);
     return changed;
   }
 
@@ -4614,17 +4608,16 @@ class WorkshopEntriesScroller extends BaseVirtualScroller {
         `<span class="atom-entry"${truncTitle}>${glyphHTML}${entryHtml}</span>` +
         `<span class="atom-len">${entry.length}</span>` +
         `<span class="atom-score"${scoreTitle}>${scoreInner}</span>`;
-      // Comment + source columns exist only on the 1-atom view (CSS gates
-      // their visibility further by viewport width).
-      if (this.atomCount === 1) {
-        const commentText = wlEntry.comment || '';
-        const sourceWl = wlEntry.wordlist;
-        const sourceHTML = sourceWl ? buildWordlistNameHTML(sourceWl, { bold: false }) : '';
-        const sourceTitle = sourceWl ? ` title="${esc(sourceWl.name)}"` : '';
-        cells +=
-          `<span class="atom-comment"${commentText ? ` title="${esc(commentText)}"` : ''}>${esc(commentText)}</span>` +
-          `<span class="atom-source"${sourceTitle}>${sourceHTML}</span>`;
-      }
+      // Comment + source cells render on every atom; CSS gates their column
+      // visibility by viewport width. A synthetic atom (no sourcing wordlist)
+      // gets empty cells.
+      const commentText = wlEntry.comment || '';
+      const sourceWl = wlEntry.wordlist;
+      const sourceHTML = sourceWl ? buildWordlistNameHTML(sourceWl, { bold: false }) : '';
+      const sourceTitle = sourceWl ? ` title="${esc(sourceWl.name)}"` : '';
+      cells +=
+        `<span class="atom-comment"${commentText ? ` title="${esc(commentText)}"` : ''}>${esc(commentText)}</span>` +
+        `<span class="atom-source"${sourceTitle}>${sourceHTML}</span>`;
       html += `<span class="atom" data-atom="${ai}">${cells}</span>`;
     });
 
@@ -7836,10 +7829,10 @@ window.__grawlixTest = {
   },
 
   // Read-only snapshot of the merged All view for a single entry. The
-  // sourcing wordlist is user-observable via the row's popover, but the
-  // `.atom-source` column is hidden by default in the Workshop entries
-  // table (only displayed when a multi-word tool is on the stack). Exposing
-  // it here lets merge-correctness tests assert without driving the popover.
+  // sourcing wordlist is user-observable via the row's popover and via the
+  // `.atom-source` column, but that column is hidden below a 960px viewport.
+  // Exposing it here lets merge-correctness tests assert regardless of
+  // viewport width and without driving the popover.
   getMergedEntry(entry) {
     const m = buildMergedWordlist().byEntry.get(entry.toLowerCase());
     if (!m) return null;
