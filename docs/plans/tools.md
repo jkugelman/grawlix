@@ -10,7 +10,7 @@ The gallery is where Grawlix's [project goal](../../README.md#goals) — democra
 
 The chrome, the pipeline runtime, the cooperative-yielding `ctx` API (with `forEach` / `filter` / `yield` helpers, supersession, and slow-row spinners), and four tools (Anagram, Semordnilap, Behead, Curtail) are shipped — see [`../design.md` § Tool gallery & stack](../design.md#tool-gallery--stack) for the executor, runtime normalization, pair-row display, per-kind sort, the highlights pipeline, and the cooperative runtime. The `removed` highlight kind (struck-through, used by Behead and Curtail) is wired up; other highlight kinds (kept/inserted/shifted/group:N) land as tools start emitting them.
 
-The **output reframe** below is settled but not yet implemented. It pivots the tool API and rendering model — chain rows, per-row pure-function `run`, atom counts statically derived from the catalog — and lands across commits 0.5, 1, and 2. Commit 0 (drop `anagram_with`) is done. After the reframe ships, the rest of this doc covers what's still planned beyond it: the catalog of tools that have records but no `run` yet, the indexed-view runtime that several anagram-family tools need, groups output, gallery polish (category picker, search), result download, and the OneLook / Datamuse / Umiaq integrations.
+The **output reframe** below is settled but not yet implemented. It pivots the tool API and rendering model — chain rows, per-row pure-function `run`, atom counts statically derived from the catalog — and lands across two commits. After the reframe ships, the rest of this doc covers what's still planned beyond it: the catalog of tools that have records but no `run` yet, the indexed-view runtime that several anagram-family tools need, groups output, gallery polish (category picker, search), result download, and the OneLook / Datamuse / Umiaq integrations.
 
 ---
 
@@ -63,7 +63,7 @@ type TransformOutput = {
 }
 ```
 
-`entry` is the lowercased entry text (post-commit-0.5 field model — see *Field-model simplification* below). `params` is the normalized params object. `wordlist` is the merged-scope wordlist, with lazy indexed-view properties (`byEntry`, `byLetterBank`, etc. — see *Indexed views* in the next section).
+`entry` is the lowercased entry text (see [`../design.md` § Runtime normalization](../design.md#pipeline-execution)). `params` is the normalized params object. `wordlist` is the merged-scope wordlist, with lazy indexed-view properties (`byEntry`, `byLetterBank`, etc. — see *Indexed views* in the next section).
 
 A filter's `inputHighlights` and `outputHighlights` are positional labels for the same entry (filters don't change the entry); the choice matters under the unification model below, but the visible result of declaring one vs the other is identical. Pick the one that reads more naturally for the filter; never declare both.
 
@@ -202,24 +202,8 @@ Stats bar count label is always "N entries" regardless of atom count. The unit i
 
 Slow-pipeline indicator is one global signal (table dim and/or single spinner icon) whenever a pipeline run is in flight. Threshold (100ms) applies to the **whole run total**, not per-step. Today's per-tool spinner badge on the slow stack row is dropped — long pipelines of fast tools that individually clear 100ms but sum to more now trigger the indicator.
 
-### Field-model simplification (commit 0.5 prep)
-
-Lands before the chain-row pivot so the reframe is built on a uniformly-lowercased field model.
-
-- `wlEntry.entry` becomes lowercased (today's `entryNorm`). No other transformations.
-- `entryNorm` and `entryLower` removed (aliases for the new `entry`).
-- Today's original-case `entry` field removed entirely. No "preserve case" field on wlEntry.
-- Lookup map renamed `byNorm` → `byEntry`.
-- **"Download original"** rewires to serve the raw IDB blob directly. `persistData(wordlist, text)` already stores the imported file byte-for-byte; no reconstruction from wlEntries needed. (My Edits has no "Download original" affordance — already true today.)
-- Other downloads (rescored, merged) reconstruct from wlEntries and `.toUpperCase()` at the write boundary to match conventional wordlist format.
-- Display uses existing `displayEntry()` (respects user's case setting); feed it `wlEntry.entry`.
-
-Today's two-field defensiveness handled multi-word entries (whitespace stripping in `entryNorm`), but real wordlists store letter-only entries — the defensiveness never earned its keep. Post-parsing synthetic entries with spaces (from phrase_parsing) keep their spaces; searching for the unspaced form no longer matches them, which is the intended semantic ("after splitting, the spaces are meaningful").
-
 ### Commit order
 
-- **Commit 0:** drop `anagram_with` from docs. ✓ done.
-- **Commit 0.5:** field-model simplification (above). Pure mechanical refactor, no user-visible behavior change.
 - **Commit 1:** chain-row data model, new tool API, executor rewrite, renderer rewrite, sort axes, CSS. The core pivot.
 - **Commit 2:** symmetric unification pass — semordnilap → bidirectional emission; runtime collapses mirror chain rows into one with `↔`.
 - **Commit 3:** distill this section into `../design.md` as present-tense documentation; trim what's shipped from this plan.
@@ -235,7 +219,7 @@ When the next tool needs runtime support that doesn't exist yet, land the runtim
 Concretely:
 
 - **Letter-bank family** (`subanagram`, `made_from`, `anagram_families`) — wait for `wordlist.byLetterBank`. Anagram already pays the cost per-keystroke for one tool; a second letter-bank tool without the shared view doubles it. Land the view alongside the first new family member.
-- **Membership family** (`kangaroo`, `joey`, `sandwich`, `nested_words`) — `wordlist.byEntry` already exists after commit 0.5 (the lookup map renamed from `byNorm`). No gate.
+- **Membership family** (`kangaroo`, `joey`, `sandwich`, `nested_words`) — `wordlist.byEntry` already exists on the merged-wordlist cache. No runtime gate.
 - **Network-bound tools** (OneLook, Datamuse) — need the `signal` argument plumbed into `run(entry, params, wordlist, signal)` for cancellation. The plumbing is small; land when the integration surface is designed.
 - **Phonetics / thesaurus families** — wait for the bundled data dependency. Until CMU dict and Roget XML are available at runtime, the tools can't run.
 
