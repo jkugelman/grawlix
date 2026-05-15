@@ -3503,15 +3503,15 @@ const TOOLS = {
     desc: 'Reverse to get a different word',
     example: 'STRESSED → DESSERTS',
     params: [],
-    kind: 'transform', inputHighlights: false, outputHighlights: false, glyph: '↔',
+    kind: 'transform', inputHighlights: false, outputHighlights: false, glyph: '→',
     run(entry, params, wordlist) {
-      // Emitted once per pair in canonical order (lexicographically smaller
-      // entry runs the row); commit 2 switches to bidirectional emission +
-      // symmetric unification. Palindromes are skipped — reversing them
-      // yields the same word, not a different one.
+      // Bidirectional emit — a row whenever the reverse is also an entry, in
+      // both directions. The post-executor `unifyMirrorRows` pass collapses
+      // the matched mirror pair into one row with a ↔ glyph; a downstream
+      // transform breaks the symmetry and the two directions stay separate.
+      // Palindromes are skipped — reversing them yields the same word.
       const reversed = reverseString(entry);
       if (reversed === entry) return [];
-      if (entry >= reversed) return [];
       if (!wordlist.byEntry.has(reversed)) return [];
       return [{ entry: reversed }];
     },
@@ -3624,7 +3624,45 @@ async function executePipeline(mergedWordlist, stack, signal) {
     }
     rows = next;
   }
-  return { rows, atomCount: computeChainTemplate(stack).atomCount };
+  return { rows: unifyMirrorRows(rows), atomCount: computeChainTemplate(stack).atomCount };
+}
+
+// Post-executor symmetric unification. A transform like semordnilap emits one
+// row per directed pair, so STRESSED→DESSERTS and DESSERTS→STRESSED both
+// appear. This pass collapses row pairs that are exact reverses of each other
+// — same entries in mirrored order, same scores — into a single row, and
+// promotes its relation glyphs to ↔ (the natural glyph for "two one-way rows
+// pointing at each other"). A downstream transform breaks the symmetry
+// (semordnilap → behead diverges the two directions), so those rows fail the
+// mirror test and stay separate with their directed → glyphs. Of the two
+// directions the survivor is the one whose entry chain sorts lexicographically
+// smaller — picked explicitly, so it's deterministic no matter which order the
+// executor emitted the pair in.
+function unifyMirrorRows(rows) {
+  const seen = new Map();   // entry-chain key → { row, index } of its slot in `out`
+  const out = [];
+  for (const row of rows) {
+    const entries = row.atoms.map(a => a.wlEntry.entry);
+    const fwd = entries.join('\0');
+    const rev = [...entries].reverse().join('\0');
+    if (fwd !== rev) {
+      const mirror = seen.get(rev);
+      if (mirror) {
+        const mScores = mirror.row.atoms.map(a => a.wlEntry.score);
+        const rScores = row.atoms.map(a => a.wlEntry.score).reverse();
+        if (mScores.every((s, i) => s === rScores[i])) {
+          // Mirror pair: keep whichever direction's chain sorts smaller.
+          const survivor = fwd < rev ? row : mirror.row;
+          for (let i = 1; i < survivor.atoms.length; i++) survivor.atoms[i].glyph = '↔';
+          out[mirror.index] = survivor;
+          continue;
+        }
+      }
+    }
+    seen.set(fwd, { row, index: out.length });
+    out.push(row);
+  }
+  return out;
 }
 
 // Flatten every atom of every chain row to its wlEntry, row order. Feeds the

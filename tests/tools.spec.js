@@ -126,12 +126,15 @@ test('pipeline output preserves wlEntry refs (popover opens, source/score intact
 // ─── Transform output (semordnilap) ─────────────────────────────────────────
 //
 // A transform branches each input row into one chain row per output, stacking
-// a new atom under the originator. Semordnilap chains read `entry ↔ reversed`.
-// Multi-atom rows behave differently along every axis the 1-atom view does —
-// sort axes swap to min/max-score, search filters on the last atom, score
-// range filters on the row minimum. These tests pin those differences.
-// Semordnilap's canonical-direction emit (smaller `entry` runs the row) is
-// also asserted here since it's the only transform producing a symmetric pair.
+// a new atom under the originator. Multi-atom rows behave differently along
+// every axis the 1-atom view does — sort axes swap to min/max-score, search
+// filters on the last atom, score range filters on the row minimum. These
+// tests pin those differences.
+//
+// Semordnilap emits both directions of each pair; the post-executor
+// `unifyMirrorRows` pass collapses the mirror pair into one row with a ↔
+// glyph. A downstream transform breaks the symmetry and the directions stay
+// as separate → rows.
 
 async function addSemordnilapFixture(page) {
   // Min scores: DEVIL/LIVED=70, DESSERTS/STRESSED=40, LOOPS/SPOOL=20. Default
@@ -145,17 +148,53 @@ async function addSemordnilapFixture(page) {
   }));
 }
 
-test('semordnilap renders canonical chains in min-score-desc order', async ({ page }) => {
+test('semordnilap unifies mirror rows into one chain in min-score-desc order', async ({ page }) => {
   await gotoApp(page);
   await addSemordnilapFixture(page);
   await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'semordnilap' }]));
 
+  // Semordnilap emits both DEVIL→LIVED and LIVED→DEVIL; unifyMirrorRows
+  // collapses each mirror pair to one row, keeping the executor's first
+  // (merged-alphabetical) direction.
   const visible = await page.evaluate(() => window.__grawlixTest.getVisibleEntries());
   expect(visible).toEqual([
     ['devil',    'lived'   ],   // min 70
     ['desserts', 'stressed'],   // min 40
     ['loops',    'spool'   ],   // min 20
   ]);
+});
+
+test('a unified semordnilap row carries the ↔ relation glyph', async ({ page }) => {
+  await gotoApp(page);
+  await addSemordnilapFixture(page);
+  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'semordnilap' }]));
+
+  // The collapsed row's second atom is glyphed ↔ — the pass promotes the
+  // directed → to ↔ once it knows the mirror exists.
+  const row = page.locator('.entry-row', { hasText: 'devil' });
+  await expect(row.locator('.atom').nth(1).locator('.atom-glyph')).toContainText('↔');
+});
+
+test('a downstream transform keeps the two semordnilap directions separate', async ({ page }) => {
+  await gotoApp(page);
+  // STAR↔RATS is a semordnilap pair; beheading the tail diverges the two
+  // directions — STAR→RATS→behead gives ats, RATS→STAR→behead gives tar — so
+  // the rows are no longer mirrors and stay separate with directed → glyphs.
+  await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
+    name: 'DivergeChain',
+    entries: ['STAR', 'RATS', 'TAR', 'ATS'],
+    scores:  [50, 50, 50, 50],
+  }));
+  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'semordnilap' }, { tool: 'behead' }]));
+
+  const visible = await page.evaluate(() => window.__grawlixTest.getVisibleEntries());
+  expect(visible).toEqual([
+    ['star', 'rats', 'ats'],
+    ['rats', 'star', 'tar'],
+  ]);
+  // No ↔ anywhere — the rows failed the mirror test, so every glyph is →.
+  await expect(page.locator('#vs-host .atom-glyph', { hasText: '↔' })).toHaveCount(0);
+  await expect(page.locator('#vs-host .atom-glyph', { hasText: '→' }).first()).toBeVisible();
 });
 
 test('semordnilap excludes palindromes', async ({ page }) => {
