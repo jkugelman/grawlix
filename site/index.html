@@ -3943,6 +3943,21 @@ const ToolStack = (() => {
     removeCursor();
   }
 
+  // Tears down every .tool-row and rebuilds from `stack`. Used by mutations
+  // that reshuffle indices (replace, removeAt, undo); add() appends in place.
+  function rerenderRows() {
+    const e = stack.length ? ensureStackEl() : stackEl();
+    if (!e) return;
+    removeCursor();
+    e.querySelectorAll('.tool-row').forEach(r => r.remove());
+    stack.forEach((row, i) => {
+      const tmp = document.createElement('div');
+      tmp.innerHTML = buildRowHTML(i, row);
+      e.appendChild(tmp.firstElementChild);
+    });
+    if (!stack.length) e.remove();
+  }
+
   function add(toolKey) {
     if (!TOOLS[toolKey]) return;
     const idx = stack.length;
@@ -3972,38 +3987,36 @@ const ToolStack = (() => {
       flashRow(0);
       return;
     }
+    const replaced = stack;
     stack = [{ tool: toolKey, params: {} }];
 
-    const e = ensureStackEl();
-    if (e) {
-      removeCursor();
-      e.querySelectorAll('.tool-row').forEach(r => r.remove());
-      const tmp = document.createElement('div');
-      tmp.innerHTML = buildRowHTML(0, stack[0]);
-      e.appendChild(tmp.firstElementChild);
-    }
+    rerenderRows();
     focusRowInput(0);
     flashRow(0);
     refreshGalleryActive();
     refreshWorkshopMergedScroller();
     Router.navigate();
+
+    if (replaced.length) notifyReplaced(replaced, toolKey);
+  }
+
+  // The gallery's replace gesture wipes the whole stack; surface what it
+  // displaced and let the user back out of an accidental click.
+  function notifyReplaced(replaced, newToolKey) {
+    const what = replaced.map(r => esc(TOOLS[r.tool]?.name || 'tool')).join(' + ');
+    showUndoToast(`Replaced ${what} with ${esc(TOOLS[newToolKey].name)}`, () => {
+      stack = replaced;
+      rerenderRows();
+      refreshGalleryActive();
+      refreshWorkshopMergedScroller();
+      Router.navigate();
+    });
   }
 
   function removeAt(idx) {
     if (idx < 0 || idx >= stack.length) return;
     stack.splice(idx, 1);
-
-    const e = stackEl();
-    if (e) {
-      removeCursor();
-      e.querySelectorAll('.tool-row').forEach(r => r.remove());
-      stack.forEach((row, i) => {
-        const tmp = document.createElement('div');
-        tmp.innerHTML = buildRowHTML(i, row);
-        e.appendChild(tmp.firstElementChild);
-      });
-      if (!stack.length) e.remove();
-    }
+    rerenderRows();
     refreshGalleryActive();
     refreshWorkshopMergedScroller();
     Router.navigate();
