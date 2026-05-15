@@ -316,13 +316,16 @@ html.dark-mode .search-match-4 { background: #14532d; color: #d1fae5; }
   padding: 0 16px;
   white-space: nowrap;
 }
+/* Font isolated into its own class so off-screen measurement probes can size
+   text in the exact face the rows / headers render with. */
+.entry-row-font { font-family: var(--font-mono); font-size: 13px; }
+.entry-headers-font { font-family: var(--font-sans); font-size: 12px; }
+.text-probe { position: absolute; visibility: hidden; white-space: pre; }
 /* A row's height is content-driven (atom count × row height): it's a
    position:absolute box with no fixed height, and grid-auto-rows sizes each
    atom's line. The virtual scroller's stride math mirrors that product. */
 .entry-row {
   position: absolute; left: 0; right: 0;
-  font-family: var(--font-mono);
-  font-size: 13px;
   box-shadow: inset 0 -1px 0 var(--border3);
 }
 /* Plain, unclickable column labels above the rows. Sit at the bottom of the
@@ -331,19 +334,11 @@ html.dark-mode .search-match-4 { background: #14532d; color: #d1fae5; }
    header's sans font and the row's mono font produce identical track widths. */
 .entry-headers {
   padding-top: 5px; padding-bottom: 5px;
-  font-family: var(--font-sans);
-  font-size: 12px;
   color: var(--muted);
   user-select: none;
   border-top: 1px solid var(--border3);
 }
 .entry-headers > * { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
-.entry-headers .col-len { text-align: right; }
-/* Track hugs the badge, so the "Score" label is ~6px wider than the track.
-   Left-align so it sits at the badge's left edge (matches the badge x-position)
-   and override overflow:hidden so the extra ~6px spills harmlessly past the
-   track right edge into the column-gap. */
-.entry-headers .col-score { justify-self: start; overflow: visible; }
 .entry-headers .col-comment, .entry-headers .col-source { display: none; }
 .entry-row:hover { background: var(--row-hover); }
 .entry-row.active { background: color-mix(in srgb, var(--accent) 12%, transparent); }
@@ -1598,7 +1593,7 @@ function buildEntriesTablePanelHTML() {
 // stay constant whether a row has one atom or many. Comment / Source only
 // surface on the 1-atom view (gated by `#detail-panel.multi-atom` in CSS).
 function buildEntryHeadersHTML() {
-  return `<div class="entry-headers" aria-hidden="true">
+  return `<div class="entry-headers entry-headers-font" aria-hidden="true">
       <span></span>
       <span class="col-entry">Entry</span>
       <span class="col-len">Len</span>
@@ -4233,60 +4228,43 @@ function compareValues(a, b) {
 }
 const ENTRY_SLOT_CAP = 20;
 
-// Cached glyph width — row font/size is fixed. Slots use px (not `ch`) so the
-// header's sans font and the row's mono font see the same track widths.
-let _monoChPx = null;
-function measureMonoChPx() {
-  if (_monoChPx !== null) return _monoChPx;
-  const probe = document.createElement('span');
-  probe.style.cssText = 'position:absolute;visibility:hidden;font-family:var(--font-mono);font-size:13px;white-space:pre;';
-  probe.textContent = '0'.repeat(100);
-  document.body.appendChild(probe);
-  _monoChPx = probe.getBoundingClientRect().width / 100;
-  probe.remove();
-  return _monoChPx;
-}
-
-// Width of a non-originator atom's `<glyph> ` prefix (relation glyph + space).
-// The arrow glyphs aren't in the mono face and render from a fallback that's
-// wider than one `ch`, so the entry slot must budget the measured px, not an
-// assumed character count. Probed once across all three glyphs (widest wins).
-let _atomGlyphPx = null;
-function measureAtomGlyphPx() {
-  if (_atomGlyphPx !== null) return _atomGlyphPx;
-  const probe = document.createElement('span');
-  probe.style.cssText = 'position:absolute;visibility:hidden;font-family:var(--font-mono);font-size:13px;white-space:pre;';
-  document.body.appendChild(probe);
-  let w = 0;
-  for (const glyph of ['→ ', '↔ ', '⊃ ']) {
-    probe.textContent = glyph;
-    w = Math.max(w, probe.getBoundingClientRect().width);
-  }
-  probe.remove();
-  _atomGlyphPx = w;
-  return _atomGlyphPx;
-}
-
-// Score badges use mono 11px + 5px-each-side padding — sizing the score track
-// from the row's 13px ch would overshoot by ~4px per digit plus extra padding,
-// leaving slack inside the track. Probe the actual badge once so the track
-// hugs the badge and the entry→badge gap is just the column-gap.
-let _badgeChPx = null, _badgePadPx = null;
-function badgeWidthPx(chars) {
-  if (_badgeChPx === null) {
+// Off-screen pixel width of `text` rendered in style class `className`
+// (.text-probe positioning is layered on automatically). Memoized per
+// text+class, so callers measure freely without caching themselves.
+const _textWidths = new Map();
+function measureTextWidth(text, className) {
+  const key = `${className} ${text}`;
+  let w = _textWidths.get(key);
+  if (w === undefined) {
     const probe = document.createElement('span');
-    probe.className = 'score-badge';
-    probe.style.cssText = 'position:absolute;visibility:hidden;';
-    probe.textContent = '0';
+    probe.className = `text-probe ${className}`;
+    probe.textContent = text;
     document.body.appendChild(probe);
-    const w1 = probe.getBoundingClientRect().width;
-    probe.textContent = '0000000000';
-    const w10 = probe.getBoundingClientRect().width;
+    w = probe.getBoundingClientRect().width;
     probe.remove();
-    _badgeChPx = (w10 - w1) / 9;
-    _badgePadPx = w1 - _badgeChPx;
+    _textWidths.set(key, w);
   }
-  return Math.max(chars, 1) * _badgeChPx + _badgePadPx;
+  return w;
+}
+
+function measureMonoChPx() {
+  return measureTextWidth('0'.repeat(100), 'entry-row-font') / 100;
+}
+
+// Arrow glyphs render from a fallback face wider than one `ch` — measure them.
+function measureAtomGlyphPx() {
+  return Math.max(...['→ ', '↔ ', '⊃ '].map(g => measureTextWidth(g, 'entry-row-font')));
+}
+
+// Two sample widths separate the badge's per-char width from its fixed padding.
+function badgeWidthPx(chars) {
+  const w1 = measureTextWidth('0', 'score-badge');
+  const chPx = (measureTextWidth('0000000000', 'score-badge') - w1) / 9;
+  return Math.max(chars, 1) * chPx + (w1 - chPx);
+}
+
+function headerLabelPx(text) {
+  return measureTextWidth(text, 'entry-headers-font');
 }
 
 // Capture-mode scroll listener catches events from any ancestor — the app's
@@ -4564,17 +4542,13 @@ class WorkshopEntriesScroller extends BaseVirtualScroller {
         if (sd > maxScoreDigits) maxScoreDigits = sd;
       }
     }
-    const entryChars = Math.max(Math.min(maxLen, ENTRY_SLOT_CAP + glyphCh), 4);
-    const lenChars = Math.max(maxLenDigits, 3);
+    const entryContentW = Math.min(maxLen, ENTRY_SLOT_CAP + glyphCh) * ch;
     const target = this.host.closest('#detail-panel') || this.sizer;
     target.style.setProperty('--count-w', `${(countDigits + 1) * ch}px`);
-    target.style.setProperty('--len-w', `${lenChars * ch}px`);
-    target.style.setProperty('--entry-w', `${entryChars * ch}px`);
-    // Score track hugs the badge so the entry→badge visible gap is just the
-    // column-gap (no internal slack). The "Score" header is ~6px wider than
-    // a 2-digit badge — it's left-aligned and allowed to spill past the track
-    // right edge into the (otherwise empty) column-gap. See `.col-score` CSS.
-    target.style.setProperty('--score-w', `${badgeWidthPx(maxScoreDigits)}px`);
+    // Floored to the header label so it never overflows its column.
+    target.style.setProperty('--entry-w', `${Math.max(entryContentW, headerLabelPx('Entry'))}px`);
+    target.style.setProperty('--len-w', `${Math.max(maxLenDigits * ch, headerLabelPx('Len'))}px`);
+    target.style.setProperty('--score-w', `${Math.max(badgeWidthPx(maxScoreDigits), headerLabelPx('Score'))}px`);
     target.style.setProperty('--source-max', `${22 * ch}px`);
   }
 
@@ -4655,7 +4629,7 @@ class WorkshopEntriesScroller extends BaseVirtualScroller {
     });
 
     const row = document.createElement('div');
-    row.className = isActive ? 'entry-row active' : 'entry-row';
+    row.className = isActive ? 'entry-row entry-row-font active' : 'entry-row entry-row-font';
     row.dataset.idx = i;
     row.dataset.entry = rowLastEntry(chainRow).entry;
     row.innerHTML = html;
