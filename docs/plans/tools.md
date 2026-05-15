@@ -92,7 +92,6 @@ The current pair-row two-line phone affordance — where a single pair splits on
 - `output.kind: 'words' | 'pair' | 'group'` → `kind: 'filter' | 'transform' | 'group'`.
 - Filters carry `producesHighlights: boolean` (or the renderer infers it from `output.highlights`, which is already declared).
 - Transforms drop `projection` and `relation` — the chain model derives both. Relation glyph is `→` by default, becoming `↔` after symmetric unification.
-- `anagram_with` is cut — `anagram(LINDSEY) → search(pattern)` does the same job and no longer needs its own tool.
 - `anagram` survives as sugar (a filter), even though it's technically `anagram_families` restricted to the cluster matching the input word's letter signature. The direct form is what users reach for.
 - `phrase_parsing` becomes a transform (`HOTTOTROT → HOT TO TROT`), so the original-vs-parsed atom pair is visible in the row.
 - Existing pair-tool catalog annotations (`pair / transform · projects 'to'`, `pair / symmetric · projects 'both'`) go away. Treat them as superseded wherever this section conflicts with the *Catalog* section below; the catalog will be re-annotated as part of the pivot.
@@ -117,7 +116,7 @@ When the next tool needs runtime support that doesn't exist yet, land the runtim
 
 Concretely:
 
-- **Letter-bank family** (`subanagram`, `made_from`, `anagram_with`, `anagram_families`) — wait for `byLetterBank` shared view. Anagram already pays the cost per-keystroke for one tool; a second letter-bank tool without the shared view doubles it. Land the view alongside the first new family member.
+- **Letter-bank family** (`subanagram`, `made_from`, `anagram_families`) — wait for `byLetterBank` shared view. Anagram already pays the cost per-keystroke for one tool; a second letter-bank tool without the shared view doubles it. Land the view alongside the first new family member.
 - **Membership family** (`kangaroo`, `joey`, `sandwich`, `nested_words`) — wait for `input.set` shared view. Behead/curtail build a Map per call which is fine for a 200K wordlist, but a chained `behead → sandwich` repeats the build twice per keystroke. Same gate.
 - **Network-bound tools** (OneLook, Datamuse) — runtime is ready (`ctx.signal` passes to `fetch`, supersession handles in-flight cancellation, spinner covers the latency). Land when the integration surface is designed.
 - **Phonetics / thesaurus families** — wait for the bundled data dependency. Until CMU dict and Roget XML are available at runtime, the tools can't run.
@@ -173,7 +172,7 @@ The basic catalog record shape (`name`, `icon`, `category`, `desc`, `example`, `
 The wordlist arrives as a wlEntry array by default. Several tools want indexed views built lazily by the runtime:
 
 - `input.set` — `Set<entryNorm>` for O(1) membership checks (kangaroo, joey, sandwich, nested_words, behead).
-- `input.byLetterBank` — `Map<sortedLetters, wlEntry[]>` keyed by sorted-letters; instant anagram lookup (anagram, anagram_with, anagram_families, made_from).
+- `input.byLetterBank` — `Map<sortedLetters, wlEntry[]>` keyed by sorted-letters; instant anagram lookup (anagram, anagram_families, made_from).
 - `input.byLength` — `Map<number, wlEntry[]>` for length-bucketed iteration.
 
 A tool declares what it wants in `requires: ['set', 'byLetterBank']`; the runtime ensures those views are built before `run` is called and reuses them across calls as long as the input set doesn't change. Cache invalidation reuses the existing `cacheVersion$` machinery.
@@ -267,7 +266,6 @@ Each entry: `slug(params)` — output kind, plus relation/projection for non-`wo
 - `add_remove_all(s)` — pair / symmetric · projects `both`.
 - `add_prefix(s)` — pair / transform · projects `to`. Highlight: `inserted` on the prefix.
 - `add_suffix(s)` — pair / transform · projects `to`. Highlight: `inserted` on the suffix.
-- `anagram_with(word)` — pair / symmetric · projects `both`.
 - `behead()` ✓ — pair / transform · projects `to`. Highlight: `removed` on `from[0]`.
 - `curtail()` ✓ — pair / transform · projects `to`. Highlight: `removed` on `from[-1]`.
 - `side_splitting()` — TBD; either pair / contains (full word + split form) or words with a custom `renderItem`. Decide when the tool lands.
