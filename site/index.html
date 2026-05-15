@@ -4247,6 +4247,26 @@ function measureMonoChPx() {
   return _monoChPx;
 }
 
+// Width of a non-originator atom's `<glyph> ` prefix (relation glyph + space).
+// The arrow glyphs aren't in the mono face and render from a fallback that's
+// wider than one `ch`, so the entry slot must budget the measured px, not an
+// assumed character count. Probed once across all three glyphs (widest wins).
+let _atomGlyphPx = null;
+function measureAtomGlyphPx() {
+  if (_atomGlyphPx !== null) return _atomGlyphPx;
+  const probe = document.createElement('span');
+  probe.style.cssText = 'position:absolute;visibility:hidden;font-family:var(--font-mono);font-size:13px;white-space:pre;';
+  document.body.appendChild(probe);
+  let w = 0;
+  for (const glyph of ['→ ', '↔ ', '⊃ ']) {
+    probe.textContent = glyph;
+    w = Math.max(w, probe.getBoundingClientRect().width);
+  }
+  probe.remove();
+  _atomGlyphPx = w;
+  return _atomGlyphPx;
+}
+
 // Score badges use mono 11px + 5px-each-side padding — sizing the score track
 // from the row's 13px ch would overshoot by ~4px per digit plus extra padding,
 // leaving slack inside the track. Probe the actual badge once so the track
@@ -4524,10 +4544,16 @@ class WorkshopEntriesScroller extends BaseVirtualScroller {
     // every row measures against the same tracks so the eye reads down them.
     const total = this.allEntries.length;
     const countDigits = total > 0 ? String(total).length : 1;
+    const ch = measureMonoChPx();
+    // A glyph atom renders `<glyph> ` ahead of its entry, so its slot need is
+    // entry chars + the glyph prefix. Cap the entry text at ENTRY_SLOT_CAP but
+    // let the glyph spill past the cap — it's fixed overhead, not entry text.
+    const glyphCh = measureAtomGlyphPx() / ch;
     let maxLen = 0, maxLenDigits = 1, maxScoreDigits = 1;
     for (const row of this.allEntries) {
       for (const atom of row.atoms) {
-        if (atom.wlEntry.entry.length > maxLen) maxLen = atom.wlEntry.entry.length;
+        const len = atom.wlEntry.entry.length + (atom.glyph ? glyphCh : 0);
+        if (len > maxLen) maxLen = len;
       }
     }
     for (const row of this.entries) {
@@ -4538,9 +4564,8 @@ class WorkshopEntriesScroller extends BaseVirtualScroller {
         if (sd > maxScoreDigits) maxScoreDigits = sd;
       }
     }
-    const entryChars = Math.max(Math.min(maxLen, ENTRY_SLOT_CAP), 4);
+    const entryChars = Math.max(Math.min(maxLen, ENTRY_SLOT_CAP + glyphCh), 4);
     const lenChars = Math.max(maxLenDigits, 3);
-    const ch = measureMonoChPx();
     const target = this.host.closest('#detail-panel') || this.sizer;
     target.style.setProperty('--count-w', `${(countDigits + 1) * ch}px`);
     target.style.setProperty('--len-w', `${lenChars * ch}px`);
