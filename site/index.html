@@ -4229,7 +4229,7 @@ const ENTRY_SLOT_CAP = 21;
 // text+class, so callers measure freely without caching themselves.
 const _textWidths = new Map();
 function measureTextWidth(text, className) {
-  const key = `${className} ${text}`;
+  const key = `${className}\0${text}`;
   let w = _textWidths.get(key);
   if (w === undefined) {
     const probe = document.createElement('span');
