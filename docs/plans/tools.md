@@ -8,207 +8,9 @@ The gallery is where Grawlix's [project goal](../../README.md#goals) — democra
 
 ## Status
 
-The chrome, the pipeline runtime, the cooperative-yielding `ctx` API (with `forEach` / `filter` / `yield` helpers, supersession, and slow-row spinners), and four tools (Anagram, Semordnilap, Behead, Curtail) are shipped — see [`../design.md` § Tool gallery & stack](../design.md#tool-gallery--stack) for the executor, runtime normalization, pair-row display, per-kind sort, the highlights pipeline, and the cooperative runtime. The `removed` highlight kind (struck-through, used by Behead and Curtail) is wired up; other highlight kinds (kept/inserted/shifted/group:N) land as tools start emitting them.
+The output reframe is shipped: the chain-row data model, the per-row tool API (`run(entry, prepared, wordlist)` with the optional once-per-run `prepare` hook), the executor, symmetric unification, the always-stacked renderer, and per-atom-count sort. Five tools have working logic — Anagram, Semordnilap, Behead, Curtail, and Search. Search is itself a pipeline filter tool: a permanent final row driven by the search bar, plus a gallery card a user can chain mid-stack. See [`../design.md` § Tool gallery & stack](../design.md#tool-gallery--stack) for the chain-row model, the cooperative runtime, unification, and the highlights pipeline.
 
-The **output reframe** below is settled but not yet implemented. It pivots the tool API and rendering model — chain rows, per-row pure-function `run`, atom counts statically derived from the catalog — and lands across two commits. After the reframe ships, the rest of this doc covers what's still planned beyond it: the catalog of tools that have records but no `run` yet, the indexed-view runtime that several anagram-family tools need, groups output, gallery polish (category picker, search), result download, and the OneLook / Datamuse / Umiaq integrations.
-
----
-
-## Output reframe — chain rows, per-row tool API
-
-Today's executor and renderer split tool output into `'words'` (1-atom rows) and `'pairs'` (2-atom rows with a relation glyph). The reframe collapses those into a single **chain-row** shape: every row is a vertical stack of atoms — one per significant transition through the pipeline — sharing column widths and reading top-to-bottom as one entry's journey. The tool API becomes per-row pure functions; the system owns chain bookkeeping, looping, yielding, and aborting. The motivating example is `behead → behead → behead`, where today's renderer only shows the bottom-most beheaded entry; under the reframe the row stacks `RELEARNING / → ELEARNING / → LEARNING / → EARNING` and reads as one self-explaining journey.
-
-Group output (clusters from `anagram_families`) is reserved in the model but deferred until that tool ships.
-
-### Kind taxonomy
-
-Two kinds in scope for the reframe; one reserved:
-
-- **Filter.** Keeps or drops entries without producing new ones. Optionally writes highlights onto the entry. Examples: search, regex, palindromes, isograms, kangaroo, made_from, hidden_anagram, almost_anagram, anagram.
-- **Transform.** Produces 0+ new entries from each input entry. Each output becomes one new chain row, so N outputs from one input means the input row branches into N rows. Examples: behead, curtail, semordnilap, add_prefix, replace_one, regex_replacement, letter_swap, letter_incrementing, phrase_parsing.
-- **Group** *(deferred)*. Partitions input into clusters of ≥2 entries. Only example: `anagram_families`. Sketch the shape when that tool ships; do not design ahead.
-
-### Tool API
-
-Tools are per-row pure-ish functions. The system handles the outer loop, cooperative yielding, abort checks, atom construction, and chain bookkeeping. Tools never touch `ctx`, scores, atoms, or chain rows — they see one entry, return per-row decisions:
-
-```js
-// Filter — predicate over one entry, with optional highlights.
-// Return values:
-//   null / false / undefined → drop the row
-//   true                     → keep, no highlights
-//   Range[]                  → keep, annotate with these highlights
-{
-  kind: 'filter',
-  inputHighlights:  boolean,   // produces highlights on the entry it received
-  outputHighlights: boolean,   //   ... or on the entry it forwards (filters declare one, not both)
-  run(entry, params, wordlist) → null | true | Range[]
-}
-
-// Transform — emits 0+ new entries per input entry. Each output is one new chain row.
-{
-  kind: 'transform',
-  inputHighlights:  boolean,   // produces highlights on the prior tail atom
-  outputHighlights: boolean,   // produces highlights on the new atom it adds
-  run(entry, params, wordlist) → TransformOutput[]
-}
-
-// Output entry — a string to look up, or [string, score] for a tool-synthesized
-// entry not in the wordlist. Loose-typed union, idiomatic JS.
-type Output = string | [string, number]
-type TransformOutput = {
-  entry: Output,
-  inputHighlights?: Range[],   // per-row range data; static flag is the kind-level decl
-  outputHighlights?: Range[],
-}
-```
-
-`entry` is the lowercased entry text (see [`../design.md` § Runtime normalization](../design.md#pipeline-execution)). `params` is the normalized params object. `wordlist` is the merged-scope wordlist, with lazy indexed-view properties (`byEntry`, `byLetterBank`, etc. — see *Indexed views* in the next section).
-
-A filter's `inputHighlights` and `outputHighlights` are positional labels for the same entry (filters don't change the entry); the choice matters under the unification model below, but the visible result of declaring one vs the other is identical. Pick the one that reads more naturally for the filter; never declare both.
-
-A transform's two flags are independent — input-side annotations go on the prior atom, output-side on the new atom. Per-row data is supplied via the matching `inputHighlights` / `outputHighlights` fields on each `TransformOutput`. The kind-level booleans are what the unification model reads to derive atom counts.
-
-Concrete examples:
-
-```js
-behead: {
-  kind: 'transform',
-  inputHighlights: true,       // annotates the dropped letter on the input atom
-  outputHighlights: false,
-  run(entry, params, wordlist) {
-    if (entry.length < 2) return [];
-    const beheaded = entry.slice(1);
-    if (!wordlist.byEntry.has(beheaded)) return [];
-    return [{
-      entry: beheaded,
-      inputHighlights: [{ kind: 'removed', start: 0, end: 1 }],
-    }];
-  },
-}
-
-semordnilap: {
-  kind: 'transform',
-  inputHighlights: false,
-  outputHighlights: false,
-  run(entry, params, wordlist) {
-    const reversed = reverseString(entry);
-    if (reversed === entry) return [];                // skip palindromes
-    if (!wordlist.byEntry.has(reversed)) return [];
-    return [{ entry: reversed }];                     // both directions emitted; commit 2 unifies
-  },
-}
-
-phrase_parsing: {
-  kind: 'transform',
-  inputHighlights: false,
-  outputHighlights: false,
-  run(entry, params, wordlist) {
-    return findParses(entry, wordlist).map(({ joined, minScore }) => ({
-      entry: [joined, minScore],                      // synthesized — joined phrase not in wordlist
-    }));
-  },
-}
-```
-
-phrase_parsing illustrates the synthetic-output escape hatch: when a tool produces an entry not in the wordlist, it returns `[string, number]` with a tool-supplied score. The system constructs a synthetic wlEntry from that pair. Most tools don't need this — they look up wordlist-resident entries via `wordlist.byEntry` and emit only those.
-
-### Atom shape
-
-```js
-type Atom = {
-  wlEntry: wlEntry,            // entry text, score, source wordlist, etc.
-  highlights?: Range[],        // optional, in display coordinates
-}
-
-type ChainRow = { atoms: Atom[] }   // length is statically derived from the stack
-```
-
-A regular atom's `wlEntry` is a reference into the wordlist (same identity as the entry in the source's `rawEntries`). A synthetic atom's `wlEntry` is constructed by the system from the tool's `[string, score]` output:
-
-```js
-{ entry: '<lowercased>', score: <tool-supplied>, wordlist: null }
-```
-
-The `null` wordlist is the synthetic marker — `AtomPopover` suppresses open when `wlEntry.wordlist === null`, since editing a synthetic's score wouldn't write back anywhere. No `synthetic: true` flag; no comment field.
-
-### Unification model — atom count is static
-
-The chain shape is derivable from the catalog records alone — no per-row runtime inspection. Each tool declares `inputHighlights` and `outputHighlights` as static booleans; the chain is built by walking adjacent-tool junctions.
-
-For K tools in the stack: K+1 junctions, one before T1, one between each Tᵢ and Tᵢ₊₁, one after T_K. Each junction has an "upstream output" side (the prior tool's `outputHighlights`, or bare for junction 0) and a "downstream input" side (the next tool's `inputHighlights`, or bare for the last junction). The atom contribution at a junction:
-
-- **Both sides highlighted** → 2 atoms (same entry, two highlight sets).
-- **At most one highlighted** → 1 atom (with whichever highlights exist, or bare).
-
-Transforms create a new entry-slot in the chain (the output entry differs from the input); filters don't (their output equals their input). Atom counts compose per-slot.
-
-| Stack | Atom count | Notes |
-|---|---|---|
-| `[]` | 1 | originator only |
-| `[palindromes]` | 1 | non-highlight filter, no contribution |
-| `[search]` | 1 | filter's highlights claim the originator |
-| `[behead]` | 2 | originator atom (with behead's input-highlights) + behead's output (bare) |
-| `[behead, behead]` | 3 | each behead annotates its input, creates a new bare output |
-| `[add_prefix]` | 2 | originator bare; output annotated |
-| `[add_prefix, behead]` | 4 | the middle slot has BOTH sides highlighted (add_prefix.out + behead.in) → 2 atoms |
-| `[kangaroo, search, behead]` | 4 | three filter/transform annotations on the originator slot (2 atoms) + behead's output (1) + … |
-
-Per-row highlight data flows via `inputHighlights` / `outputHighlights` on each `TransformOutput` and via the filter's `Range[]` return; the static flags only drive how the executor places atoms.
-
-### Bidirectional emission and symmetric unification (commit 2)
-
-Transforms emit one row per directed `(input, output)` pair. Semordnilap iterates the wordlist and emits a row whenever the reverse is also an entry — naturally producing both `STRESSED → DESSERTS` and `DESSERTS → STRESSED` without special handling. The tool author writes the dumb bidirectional emit.
-
-The post-executor **symmetric unification pass** collapses row-pairs that are reverses of each other (same entries in reverse order, equal atom counts, equal scores) into a single row whose relation glyph becomes `↔`. The bidirectional arrow falls out of the unification — it's the natural glyph for "two unidirectional rows pointing at each other." With no downstream transform, semordnilap-alone shows one row per pair, with `↔`. With a downstream transform (`semordnilap → behead`), the two directions diverge — `STRESSED → DESSERTS → ESSERTS` is no longer the mirror of `DESSERTS → STRESSED → TRESSED`, so they stay as separate rows with `→` glyphs.
-
-The author doesn't decide whether to dedupe; the renderer does, based on whether the rows actually mirror each other after the full pipeline runs.
-
-### Always-stacked layout
-
-Atoms render top-to-bottom on every viewport. No side-by-side layout at any width. Today's mobile-only 2-line pair affordance becomes the only layout, generalized to N atoms.
-
-```
-| count | entry      | len | score |
-|-------|------------|-----|-------|
-| 1.    | SLING      | 5   | 60    |
-|       | → LING     | 4   | 50    |
-| 2.    | BRING      | 5   | 70    |
-|       | → RING     | 4   | 80    |
-```
-
-The relation glyph (`→`, `↔`, `⊃`) prefixes each non-originator line. Column widths share across all atoms — one `--entry-w`, one `--score-w`, etc. Doubled atoms (from unification) appear as adjacent lines with the same entry text but different highlight overlays — reads as "this entry through one filter's lens, then through another's."
-
-Row stride = atom count × ROW_HEIGHT. The virtual scroller reads atom count via JS for stride math. The `tools-multi-word` body class is retired entirely; the mobile media query for pair rows is retired; no per-atom-count CSS variants.
-
-Headers stay constant — Entry / Length / Score columns describe what each *line* contains, not what each row contains.
-
-### Sort axes per atom count
-
-- **1-atom rows:** Entry / Length / Score. Default Entry asc.
-- **≥2-atom rows:** Entry / Length / Min score / Max score. Default Min score desc.
-
-**Projections.** *Entry* (alphabetical) and *Length* read off the **last atom** in the row — for `[behead]` results, "Entry" sorts by LING/RING/LOSE, not SLING/BRING/CLOSE. *Min/Max score* project across every atom in the row; for 1-atom rows, *Score* reads the single atom's score directly.
-
-**URL keys** reflect the UI exactly — `sort=score` at atom count 1; `sort=min-score` / `sort=max-score` at higher counts. No aliasing across atom counts; parser falls back to the per-tier default if the key is invalid for the current count.
-
-**Snap rule.** When a stack edit changes atom count, snap the sort axis to the new tier's default if the prior axis was the *old* tier's default; otherwise keep the user's pick if still valid.
-
-The whole sort story is provisional — expect to iterate after the UI is live.
-
-### Stats bar and pipeline indicator
-
-Stats bar count label is always "N entries" regardless of atom count. The unit is the chain row; how many visual lines it occupies is a display detail. "N pairs" / "N chains" labels are gone.
-
-Slow-pipeline indicator is one global signal (table dim and/or single spinner icon) whenever a pipeline run is in flight. Threshold (100ms) applies to the **whole run total**, not per-step. Today's per-tool spinner badge on the slow stack row is dropped — long pipelines of fast tools that individually clear 100ms but sum to more now trigger the indicator.
-
-### Commit order
-
-- **Commit 1:** chain-row data model, new tool API, executor rewrite, renderer rewrite, sort axes, CSS. The core pivot.
-- **Commit 2:** symmetric unification pass — semordnilap → bidirectional emission; runtime collapses mirror chain rows into one with `↔`.
-- **Commit 3:** distill this section into `../design.md` as present-tense documentation; trim what's shipped from this plan.
-
-Group output and `anagram_families` are out of scope for this sequence — design conversation happens when that tool surfaces.
+The rest of this doc is what's still planned: the catalog of tools that have records but no `run` yet, the indexed-view runtime several anagram-family tools need, groups output, gallery polish (category picker, search), result download, and the OneLook / Datamuse / Umiaq integrations.
 
 ---
 
@@ -220,7 +22,7 @@ Concretely:
 
 - **Letter-bank family** (`subanagram`, `made_from`, `anagram_families`) — wait for `wordlist.byLetterBank`. Anagram already pays the cost per-keystroke for one tool; a second letter-bank tool without the shared view doubles it. Land the view alongside the first new family member.
 - **Membership family** (`kangaroo`, `joey`, `sandwich`, `nested_words`) — `wordlist.byEntry` already exists on the merged-wordlist cache. No runtime gate.
-- **Network-bound tools** (OneLook, Datamuse) — need the `signal` argument plumbed into `run(entry, params, wordlist, signal)` for cancellation. The plumbing is small; land when the integration surface is designed.
+- **Network-bound tools** (OneLook, Datamuse) — need the `signal` argument plumbed into `run(entry, prepared, wordlist, signal)` for cancellation. The plumbing is small; land when the integration surface is designed.
 - **Phonetics / thesaurus families** — wait for the bundled data dependency. Until CMU dict and Roget XML are available at runtime, the tools can't run.
 
 For tools that fit the runtime as-is (`palindromes`, `isograms`, `supervocalics`, etc. — purely letter-pattern checks over `entry`), no gate; just add the `run` and ship.
@@ -229,11 +31,11 @@ For tools that fit the runtime as-is (`palindromes`, `isograms`, `supervocalics`
 
 ## Pipeline behavior — remaining pieces
 
-The everyday composition story (live search filtering on the last tool's output, scores coming along from `All`, score-range filtering on the rendered output) is shipped. Two pieces still wait:
+The everyday composition story is shipped: tools chain, Search is the permanent final filter, scores come along from `All`, and the score-range control filters the rendered output.
 
 **Reordering.** Order matters in a pipeline. The intended gesture is "remove (X) and re-add" — drag handles aren't planned, because chaining is a 2%-case gesture and reordering is rarer still; the design surface isn't worth the touch/keyboard-accessibility complexity. Today the stack supports add/replace/remove but not in-place reorder. Unblocks once a chained workflow surfaces that wants it.
 
-**Pre-pipeline score filtering.** "Anagrams of LINDSEY drawn only from score-50+ words" would be a separate `score_filter(min, max)` tool that takes the merged wordlist and trims it to a range before downstream tools see it. Not in the catalog yet; surface if the workflow appears.
+**Score range — view filter vs. pre-pipeline tool.** Today's score-range control is a *view* filter on the final output — it narrows what you see, and is per-user, localStorage-backed, not URL-shared. A different operation — "only feed score-50+ words into my tools" — would change what every tool sees, and belongs as a separate `score_filter(min, max)` *tool* added at the start of the stack: it trims the merged wordlist to a range before downstream tools run. The two answer different questions ("show me results in this band" vs. "only consider source words in this band") and have different semantics, so they shouldn't be merged. Leave the view filter where it is; add the `score_filter` tool if the pre-filtering workflow appears.
 
 ---
 
@@ -259,7 +61,7 @@ The everyday case is filling — narrow `All` with a pattern, then save the matc
 
 Default filename describes the stack: `grawlix-search-DOG.txt`, `grawlix-anagram-LINDSEY-search-DOG.txt`. Same tool keys as the URL query string (see [`../design.md` § URL state](../design.md#url-state)), so the file is self-describing and re-running the same stack later won't overwrite the prior snapshot.
 
-Format follows the tool's natural output shape — for plain entry lists, the standard `ENTRY;SCORE[;COMMENT]` used elsewhere. Pair and group outputs need their own format design (`FROM\tTO\tMIN_SCORE` is the obvious shape for pairs); deferred until those tools land in the user's workflow.
+Format follows the tool's natural output shape — for plain entry lists, the standard `ENTRY;SCORE[;COMMENT]` used elsewhere. Multi-atom chain and group outputs need their own format design (`FROM\tTO\tMIN_SCORE` is the obvious shape for a two-atom chain); deferred until those tools land in the user's workflow.
 
 This is a third "give me a file" path alongside the two existing ones (All/My Edits via Sync & backup, individual wordlist via the Library view). It's distinct because the file isn't a backup or a wordlist export — it's a snapshot of the current view, usually filtered or transformed.
 
@@ -267,13 +69,12 @@ This is a third "give me a file" path alongside the two existing ones (All/My Ed
 
 ## Tool API extensions
 
-The reframe (above) defines the basic catalog record shape — `name`, `icon`, `category`, `desc`, `example`, `params`, `kind`, `inputHighlights`, `outputHighlights`, optional `run`. A few subsystems sit around it.
+The catalog record shape (`name`, `icon`, `category`, `desc`, `example`, `params`, `kind`, `inputHighlights`, `outputHighlights`, optional `glyph` / `prepare` / `run`) is documented in [`../design.md` § Tool gallery & stack](../design.md#tool-gallery--stack). A few subsystems sit around it.
 
 ### Indexed views on `wordlist`
 
-The `wordlist` argument to `run` exposes lazy indexed-view properties that tools query for O(1) lookups:
+The `wordlist` argument to `run` exposes indexed-view properties that tools query for O(1) lookups. `wordlist.byEntry` — a `Map<entry, wlEntry>` keyed by the lowercased entry — ships today on the merged-wordlist cache; membership checks (kangaroo, joey, sandwich, nested_words) and beheading/curtailing lookups use it. Two more are planned, landing as the first tool that needs each one does:
 
-- `wordlist.byEntry` — `Map<entry, wlEntry>` keyed by the lowercased entry. Membership checks (kangaroo, joey, sandwich, nested_words) and beheading/curtailing lookups use this.
 - `wordlist.byLetterBank` — `Map<sortedLetters, wlEntry[]>` keyed by sorted-letters. Instant anagram lookup (anagram, made_from, anagram_families).
 - `wordlist.byLength` — `Map<number, wlEntry[]>` for length-bucketed iteration.
 
@@ -285,17 +86,11 @@ This is the keystroke-perf path for anagram and friends — today's anagram does
 
 New views land as new tools demand them. Don't predict.
 
-### Async, cancellation, spinners
+### Async tools
 
-The executor owns the per-row loop, cooperative yielding (6ms wall-clock budget, 1024-iteration bitmask gate on `performance.now()`, `scheduler.yield()` with `setTimeout(0)` fallback), and AbortSignal-based supersession (a new run aborts the in-flight one). Tools' `run` is sync per call; the executor's outer loop yields between rows and abort-throws at yield points.
+The executor and its cooperative runtime are shipped — see [`../design.md` § Cooperative runtime](../design.md#cooperative-runtime--supersession-and-yielding). Tools' `run` is synchronous; the executor owns the per-row loop, yielding, and abort.
 
-The old `ctx` API — `forEach`, `filter`, `yield`, `signal` — is gone. Tool bodies are pure-ish predicates / mappers without scheduling concerns.
-
-**Async / network tools** (OneLook, Datamuse — future) will reintroduce a `signal` argument explicitly: `run(entry, params, wordlist, signal)`. The `signal` flows into `fetch` for cancellation. No `ctx` bag; just the one extra argument when it earns its keep.
-
-Slow-pipeline indicator is one global signal (table dim and/or single spinner icon) triggered when total run time crosses 100ms. Per-tool spinner badge on the slow stack row is dropped.
-
-**Workers were considered and rejected** for the same reasons as today (see `../design.md`): cooperative yielding covers the cost without worker bundling and structured-clone overhead. The per-row-dispatch model preserves that decision.
+**Async / network tools** (OneLook, Datamuse — future) will reintroduce a `signal` argument explicitly: `run(entry, prepared, wordlist, signal)`. The `signal` flows into `fetch` for cancellation. No `ctx` bag; just the one extra argument when it earns its keep. Workers stay rejected — cooperative yielding covers the cost without worker bundling and structured-clone overhead (see `../design.md`).
 
 ### Annotations
 
@@ -303,7 +98,7 @@ Numeric / string annotations declared at the catalog level (something like `outp
 
 Annotations are display-only — downstream tools see only the chain-row's entries, not annotations. They're a separate channel from the synthesized-score escape hatch (which is for tool-supplied wlEntry scores, not arbitrary metadata).
 
-Highlights — character-range markings inside an atom — are part of the core API (see *Tool API* above). New highlight kinds extend the same `{ kind, start, end }` shape that Behead and Curtail use today.
+Highlights — character-range markings inside an atom — are part of the core API (see [`../design.md` § Highlights pipeline](../design.md#highlights-pipeline)). New highlight kinds extend the same `{ kind, start, end }` shape that Behead and Curtail use today.
 
 ### Escape hatches
 
@@ -320,10 +115,10 @@ Both default to the standard renderers. Add a real motivating case before adding
 
 ## Catalog
 
-Each entry: `slug(params)` — `kind`, then highlight kinds (`in:` for input-side, `out:` for output-side) and any annotations. Specifics are negotiable; this captures intent. Shipped tools (Anagram, Semordnilap, Behead, Curtail) are marked ✓.
+Each entry: `slug(params)` — `kind`, then highlight kinds (`in:` for input-side, `out:` for output-side) and any annotations. Specifics are negotiable; this captures intent. Shipped tools (Anagram, Search, Semordnilap, Behead, Curtail) are marked ✓.
 
 ### Pattern matching
-- `search(pattern, wholeWord)` — filter · in: `matched` per non-wildcard region, colored by region index.
+- `search(query, wholeWord)` ✓ — filter · in: `matched` per non-wildcard region, colored by region index.
 - `regex(pattern)` — filter · in: `group:n` per capture group.
 
 ### Anagrams & letter banks
@@ -421,7 +216,7 @@ Groups are the partial exception to strict pseudo-column alignment. Atom counts 
 
 ## Workers: rejected
 
-Web workers were evaluated for moving tool execution off the main thread and rejected — cooperative yielding covers the same ground without the cost. See [`../design.md` § Cooperative runtime](../design.md#cooperative-runtime--supersession-yield-spinners) for the rationale. Revisit only if a built-in tool surfaces whose work fundamentally can't fit the cooperative budget; none of the current or near-term catalog qualifies.
+Web workers were evaluated for moving tool execution off the main thread and rejected — cooperative yielding covers the same ground without the cost. See [`../design.md` § Cooperative runtime](../design.md#cooperative-runtime--supersession-and-yielding) for the rationale. Revisit only if a built-in tool surfaces whose work fundamentally can't fit the cooperative budget; none of the current or near-term catalog qualifies.
 
 ## Result caching: deferred
 
@@ -471,7 +266,7 @@ The help redesign (see `help.md`) will happen after the tool gallery is built �
 - **OneLook integration.** What does the API actually look like on the wire, and what arrangement does XWordInfo have with them?
 - **Phonetics & thesaurus data bundling.** CMU dict and Roget XML — static assets, CDN, or runtime fetch?
 - **Multi-input URL encoding.** Tools with multiple inputs (regex with min-length, anagram with bank letters) need a value-internal delimiter or named subkeys. Deferred to the first such tool — encoding choice will land alongside it. (Mirrored in [`../design.md` § URL state](../design.md#url-state).)
-- **Whole-word per Search row.** `whole-word` is a bare top-level key today, fine for the single permanent Search row. If the stack ever holds two Search rows, the eventual fix is the multi-input encoding above (likely `search=CAT:w`). Revisit when chaining a Search above a transform becomes possible.
+- **Whole-word per Search row.** Search rows can be chained from the gallery, but `whole-word` is a bare top-level URL key tied to the permanent search bar — a gallery-added Search is substring-only. Per-row whole-word needs the multi-input encoding above (likely `search=CAT:w`). Revisit when a chained Search workflow actually wants it.
 - **Synthetic-atom downstream behavior.** What does `[phrase_parsing, behead]` mean? The synthetic "hot to trot" goes into behead, which tries to look up "ot to trot" in `wordlist.byEntry`, finds nothing, drops the row. Probably degenerates harmlessly but the chained semantic is fuzzy. Revisit if a real workflow surfaces.
-- **Async signature when network tools land.** Just a `signal` parameter alongside `(entry, params, wordlist)`, or something richer? Land when OneLook/Datamuse arrives.
-- **Group output shape.** When `anagram_families` or another group tool surfaces, the `run` signature and per-row rendering need their own design pass. Sketched in *Groups view* below; not designed.
+- **Async signature when network tools land.** Just a `signal` parameter alongside `(entry, prepared, wordlist)`, or something richer? Land when OneLook/Datamuse arrives.
+- **Group output shape.** When `anagram_families` or another group tool surfaces, the `run` signature and per-row rendering need their own design pass. Sketched in *Groups view* above; not designed.
