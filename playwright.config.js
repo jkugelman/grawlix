@@ -22,7 +22,11 @@ module.exports = defineConfig({
     { name: 'webkit',   use: { ...devices['Desktop Safari']  } },
   ],
   webServer: {
-    command: 'python3 -m http.server 4173 --directory site --bind 127.0.0.1',
+    // Equivalent to `python3 -m http.server`, but with log_message stubbed out
+    // so per-request access logs don't flood the test output. Genuine failures
+    // (port in use, missing file) raise exceptions rather than routing through
+    // log_message, so stderr: 'pipe' still surfaces real errors.
+    command: `python3 -c "import http.server as h,functools; h.SimpleHTTPRequestHandler.log_message=lambda *a:None; h.test(HandlerClass=functools.partial(h.SimpleHTTPRequestHandler,directory='site'),port=4173,bind='127.0.0.1')"`,
     url: 'http://localhost:4173/index.html',
     reuseExistingServer: !process.env.CI,
     stdout: 'ignore',
