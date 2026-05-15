@@ -1,12 +1,15 @@
 // Tool pipeline seam — see docs/design.md § Tool gallery & stack and
 // docs/plans/tools.md.
 //
-// These tests cover Phase 1: the anagram tool runs against the merged wordlist
-// and feeds the Workshop entries table. The pipeline executor, the lowercased-
-// `entry` normalization, and the chain of wirings (stack mutations → scroller
+// These tests cover the chain-row pipeline: the per-row tool API
+// (`run(entry, params, wordlist)`), the executor that branches transforms
+// into stacked atoms, and the chain of wirings (stack mutations → scroller
 // refresh, param keystroke → scroller refresh, URL → stack on boot) all sit
 // downstream of the merged-view path, so the same regressions that would
 // silently break merge tests would break these.
+//
+// `getVisibleEntries` returns a string per 1-atom row and an array of atom
+// entry strings per multi-atom chain row.
 
 const { test, expect } = require('@playwright/test');
 const { stubPublisherFetches, gotoApp } = require('./helpers');
@@ -120,22 +123,21 @@ test('pipeline output preserves wlEntry refs (popover opens, source/score intact
   await expect(page.locator('#atom-pop-score')).toHaveValue('50');
 });
 
-// ─── Pair output (semordnilap) ──────────────────────────────────────────────
+// ─── Transform output (semordnilap) ─────────────────────────────────────────
 //
-// Pair-mode rows render two atoms flanking a relation glyph and behave
-// differently along every axis the words view does — sort axes swap to
-// min/max-score, search matches either side, score-range filters on min,
-// stats says "N pairs". These tests pin those differences so they don't
-// regress when more pair tools land. Semordnilap's canonical-direction dedup
-// (smaller `entry` on the `a` side) is also asserted here since it's the
-// only producing tool wired up today.
+// A transform branches each input row into one chain row per output, stacking
+// a new atom under the originator. Semordnilap chains read `entry ↔ reversed`.
+// Multi-atom rows behave differently along every axis the 1-atom view does —
+// sort axes swap to min/max-score, search filters on the last atom, score
+// range filters on the row minimum. These tests pin those differences.
+// Semordnilap's canonical-direction emit (smaller `entry` runs the row) is
+// also asserted here since it's the only transform producing a symmetric pair.
 
 async function addSemordnilapFixture(page) {
   // Min scores: DEVIL/LIVED=70, DESSERTS/STRESSED=40, LOOPS/SPOOL=20. Default
-  // pair sort is min-score descending, so visible row order is DEVIL/LIVED
-  // first, LOOPS/SPOOL last. RACECAR is a palindrome and must NOT appear.
-  // CAT/DOG are filler so the wordlist isn't all-semordnilap and the
-  // pass-through path exists if anyone clears the stack.
+  // multi-atom sort is min-score descending, so visible row order is
+  // DEVIL/LIVED first, LOOPS/SPOOL last. RACECAR is a palindrome and must NOT
+  // appear. CAT/DOG are filler so the wordlist isn't all-semordnilap.
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
     name: 'Semordnilaps',
     entries: ['STRESSED', 'DESSERTS', 'LIVED', 'DEVIL', 'LOOPS', 'SPOOL', 'RACECAR', 'CAT', 'DOG'],
@@ -143,16 +145,16 @@ async function addSemordnilapFixture(page) {
   }));
 }
 
-test('semordnilap renders dedup\'d pairs in min-score-desc order', async ({ page }) => {
+test('semordnilap renders canonical chains in min-score-desc order', async ({ page }) => {
   await gotoApp(page);
   await addSemordnilapFixture(page);
   await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'semordnilap' }]));
 
   const visible = await page.evaluate(() => window.__grawlixTest.getVisibleEntries());
   expect(visible).toEqual([
-    { a: 'devil',    b: 'lived'    },   // min 70
-    { a: 'desserts', b: 'stressed' },   // min 40
-    { a: 'loops',    b: 'spool'    },   // min 20
+    ['devil',    'lived'   ],   // min 70
+    ['desserts', 'stressed'],   // min 40
+    ['loops',    'spool'   ],   // min 20
   ]);
 });
 
@@ -167,68 +169,69 @@ test('semordnilap excludes palindromes', async ({ page }) => {
   expect(visible).toEqual([]);
 });
 
-test('pair-mode search filters when either side matches', async ({ page }) => {
+test('search filters chain rows on the last atom', async ({ page }) => {
   await gotoApp(page);
   await addSemordnilapFixture(page);
   await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'semordnilap' }]));
 
-  await page.locator('#search-input').fill('esser');
-  // 'esser' lives only inside DESSERTS — the pair surfaces because the b-side
-  // (in a-then-b canonical order, the bigger `entry`) matches.
+  // 'tress' lives in STRESSED, the last atom of the DESSERTS↔STRESSED chain.
+  // Search filters on the bottom tool's output — the last atom — so the row
+  // surfaces.
+  await page.locator('#search-input').fill('tress');
   const visible = await page.evaluate(() => window.__grawlixTest.getVisibleEntries());
-  expect(visible).toEqual([{ a: 'desserts', b: 'stressed' }]);
+  expect(visible).toEqual([['desserts', 'stressed']]);
 });
 
-test('pair-mode search highlights matched substrings on the matching side', async ({ page }) => {
+test('search highlights matched substrings on the atom that contains them', async ({ page }) => {
   await gotoApp(page);
   await addSemordnilapFixture(page);
   await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'semordnilap' }]));
 
-  // `desserts` contains 'esser'; `stressed` does not. The matched side gets
-  // `<mark>` spans; the non-matching side is unmarked.
-  await page.locator('#search-input').fill('esser');
-  const aRow = page.locator('.pair-row').first();
-  await expect(aRow.locator('.atom-entry[data-side="a"] mark')).toContainText('esser');
-  await expect(aRow.locator('.atom-entry[data-side="b"] mark')).toHaveCount(0);
+  // `stressed` contains 'tress'; `desserts` does not. Highlights render on
+  // whichever atom holds the match.
+  await page.locator('#search-input').fill('tress');
+  const row = page.locator('.entry-row', { hasText: 'stressed' });
+  await expect(row.locator('.atom', { hasText: 'stressed' }).locator('mark')).toContainText('tress');
+  await expect(row.locator('.atom', { hasText: 'desserts' }).locator('mark')).toHaveCount(0);
 });
 
-test('pair-mode score range filters on min(score)', async ({ page }) => {
+test('score range filters chain rows on the row minimum', async ({ page }) => {
   await gotoApp(page);
   await addSemordnilapFixture(page);
   await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'semordnilap' }]));
 
   // 50+ leaves only DEVIL/LIVED (min 70). DESSERTS/STRESSED (min 40) and
   // LOOPS/SPOOL (min 20) drop out — even though STRESSED is 60, the rule is
-  // min, not "any side".
+  // the row minimum, not "any atom".
   await page.locator('#score-range-input').fill('50+');
   const visible = await page.evaluate(() => window.__grawlixTest.getVisibleEntries());
-  expect(visible).toEqual([{ a: 'devil', b: 'lived' }]);
+  expect(visible).toEqual([['devil', 'lived']]);
 });
 
-test('stats bar labels count "Pairs" in pair mode and reverts to "Entries"', async ({ page }) => {
+test('stats bar counts chain rows as entries', async ({ page }) => {
   await gotoApp(page);
   await addSemordnilapFixture(page);
   await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'semordnilap' }]));
 
-  // Three pairs visible — the label is the user-facing test of "this view
-  // counts rows, not flattened atoms."
-  await expect(page.locator('#workshop-stats .stats-bar')).toContainText('Pairs');
+  // Three chain rows visible — the label is always "Entries"; the count is
+  // per row, not per flattened atom.
+  await expect(page.locator('#workshop-stats .stats-bar')).toContainText('Entries');
   await expect(page.locator('#workshop-stats .stats-bar')).toContainText('3');
 
-  // Remove the tool — words mode, label flips back.
+  // Remove the tool — the merged view's nine entries.
   await page.locator('.tool-row-remove').click();
   await expect(page.locator('#workshop-stats .stats-bar')).toContainText('Entries');
 });
 
-test('clicking an atom in a pair row opens the popover for that side', async ({ page }) => {
+test('clicking an atom in a chain row opens the popover for that atom', async ({ page }) => {
   await gotoApp(page);
   await addSemordnilapFixture(page);
   await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'semordnilap' }]));
 
-  // Click STRESSED specifically (the b-side of the second row). The popover's
-  // score input must show STRESSED's score (60), not DESSERTS's (40) — that's
-  // the data-side wiring on the click handler.
-  await page.locator('.pair-row .atom-entry[data-side="b"]', { hasText: 'stressed' }).click();
+  // Click STRESSED specifically (the second atom of the DESSERTS↔STRESSED
+  // chain). The popover's score input must show STRESSED's score (60), not
+  // DESSERTS's (40) — that's the data-atom wiring on the click handler.
+  await page.locator('.entry-row .atom', { hasText: 'stressed' }).locator('.atom-entry').click();
   await expect(page.locator('#atom-popover')).toBeVisible();
   await expect(page.locator('#atom-pop-score')).toHaveValue('60');
 });
@@ -241,7 +244,7 @@ test('clicking an atom in a pair row opens the popover for that side', async ({ 
 // point of the tiebreaker pass is that flipping a primary doesn't let short
 // junk float to the top of a tied bucket.
 
-test('words: score desc tiebreaks by length desc, then entry asc', async ({ page }) => {
+test('1-atom: score desc tiebreaks by length desc, then entry asc', async ({ page }) => {
   await gotoApp(page);
   // All score=50; pin tiebreaker behavior cleanly: AAA (3-letter), CAT (3),
   // DOG (3), BAGEL (5), CAKE (4). Expected order (score desc → length desc →
@@ -259,7 +262,7 @@ test('words: score desc tiebreaks by length desc, then entry asc', async ({ page
   expect(visible).toEqual(['bagel', 'cake', 'aaa', 'cat', 'dog']);
 });
 
-test('words: score asc keeps length desc tiebreaker (no junk-float)', async ({ page }) => {
+test('1-atom: score asc keeps length desc tiebreaker (no junk-float)', async ({ page }) => {
   await gotoApp(page);
   // Flip primary direction — tiebreakers should NOT flip. Same fixture as
   // above but the test asserts that "short junk" doesn't float to the top of
@@ -280,70 +283,65 @@ test('words: score asc keeps length desc tiebreaker (no junk-float)', async ({ p
   expect(visible).toEqual(['bagel', 'cake', 'aaa', 'cat', 'dog']);
 });
 
-test('pairs: min-score desc tiebreaks by length desc, then a.entry asc', async ({ page }) => {
+test('chains: min-score desc tiebreaks by length desc, then last-atom asc', async ({ page }) => {
   await gotoApp(page);
-  // Build a fixture where multiple semordnilap pairs share min-score=50, so
-  // tiebreakers carry the order. Pairs and their min-scores:
-  //   PALINDROMES/SEMORDNILAP — 11 letters, min 50 (top by length tie)
-  //   ABUT/TUBA              —  4 letters, min 50 (a.entry='abut')
-  //   ADOS/SODA              —  4 letters, min 50 (a.entry='ados')
-  //   AGES/SEGA              —  4 letters, min 50 (a.entry='ages')
+  // Build a fixture where multiple semordnilap chains share min-score=50, so
+  // tiebreakers carry the order. Chains and their min-scores:
+  //   PALINDROMES↔SEMORDNILAP — 11 letters, min 50 (top by length tie)
+  //   ABUT↔TUBA              —  4 letters, min 50 (last atom 'tuba')
+  //   ADOS↔SODA              —  4 letters, min 50 (last atom 'soda')
+  //   AGES↔SEGA              —  4 letters, min 50 (last atom 'sega')
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
-    name: 'TiePairs',
+    name: 'TieChains',
     entries: ['PALINDROMES', 'SEMORDNILAP', 'ABUT', 'TUBA', 'ADOS', 'SODA', 'AGES', 'SEGA'],
     scores:  [50, 50, 50, 50, 50, 50, 50, 50],
   }));
   await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'semordnilap' }]));
 
+  // length desc surfaces the 11-letter chain first; the three 4-letter chains
+  // tiebreak by the last atom's entry ascending (sega < soda < tuba).
   const visible = await page.evaluate(() => window.__grawlixTest.getVisibleEntries());
   expect(visible).toEqual([
-    { a: 'palindromes', b: 'semordnilap' },  // length 11 wins length tiebreaker
-    { a: 'abut', b: 'tuba' },                // a-side alphabetically asc
-    { a: 'ados', b: 'soda' },
-    { a: 'ages', b: 'sega' },
+    ['palindromes', 'semordnilap'],
+    ['ages', 'sega'],
+    ['ados', 'soda'],
+    ['abut', 'tuba'],
   ]);
 });
 
-test('pair-mode sort axis swap: min-score → max-score reorders rows', async ({ page }) => {
+test('chain sort axis swap: min-score → max-score reorders rows', async ({ page }) => {
   await gotoApp(page);
   await addSemordnilapFixture(page);
   await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'semordnilap' }]));
 
-  // Switch sort axis to Max score. STRESSED=60 has the highest max in any
-  // pair, beating LIVED=80 — wait, no: max(70,80)=80 for DEVIL/LIVED beats
-  // max(60,40)=60 for DESSERTS/STRESSED, which beats max(30,20)=30 for
-  // LOOPS/SPOOL. Same ordering as min-score in this fixture, but the sort
-  // axis was definitely changed. Use a fixture asymmetric enough to prove
-  // it: a max-only winner that doesn't win min.
+  // EVIL/LIVE: EVIL=99, LIVE=10 ⇒ chain min=10, max=99. By min it sorts last
+  // (10 < 20 < 40 < 70); by max it sorts first (99 > 80 > 60 > 30). Swapping
+  // the axis flips its row from bottom to top. (EVIL < LIVE ⇒ chain runs
+  // evil → live.)
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
-    name: 'AsymPair', entries: ['EVIL', 'LIVE'], scores: [99, 10],
+    name: 'AsymChain', entries: ['EVIL', 'LIVE'], scores: [99, 10],
   }));
-  // Now EVIL/LIVE: min=10, max=99. By min, it's last (10 < 20 < 40 < 70).
-  // By max, it's first (99 > 80 > 60 > 30). Swapping axes flips its row.
-  // The wordlist sits after Semordnilaps in source order, so EVIL/LIVE's
-  // canonical direction is e<l ⇒ a=EVIL b=LIVE.
-  // (Both EVIL and LIVE are 4 letters; reversing LIVE = EVIL.)
   const before = await page.evaluate(() => window.__grawlixTest.getVisibleEntries());
-  expect(before[0]).toEqual({ a: 'devil',   b: 'lived'    });   // min 70 (top)
-  expect(before[before.length - 1]).toEqual({ a: 'evil', b: 'live' }); // min 10 (bottom)
+  expect(before[0]).toEqual(['devil', 'lived']);                       // min 70 (top)
+  expect(before[before.length - 1]).toEqual(['evil', 'live']);         // min 10 (bottom)
 
   await page.locator('#search-bar-sort .sort-axis-select').selectOption('max-score');
   const after = await page.evaluate(() => window.__grawlixTest.getVisibleEntries());
-  expect(after[0]).toEqual({ a: 'evil', b: 'live' });                  // max 99 (top)
+  expect(after[0]).toEqual(['evil', 'live']);                          // max 99 (top)
 });
 
 // ─── Behead, Curtail, and the removed-letter highlight ──────────────────────
 //
-// Transform pair tools that drop one letter to get from a to b. Each emits a
-// `removed` highlight on the a-side at the position of the dropped character;
-// the renderer wraps that range in `<span class="hl-removed">`, the CSS gives
-// it the line-through + fade treatment. These tests pin both the matching
-// logic (pair found = both sides in the wordlist after the drop) and the
-// per-side highlight emission.
+// Transform tools that drop one letter to get from the originator to a new
+// word. Each emits a `removed` highlight on the *input* atom (the originator)
+// at the position of the dropped character; the renderer wraps that range in
+// `<span class="hl-removed">`, the CSS gives it the line-through + fade
+// treatment. These tests pin both the matching logic (the dropped form must
+// be a real wordlist entry) and the input-atom highlight emission.
 
 async function addBeheadCurtailFixture(page) {
-  // Each pair: SLING/LING (behead), PARTY/PART (curtail), DOG (no pair),
-  // plus extras for downstream filters.
+  // Each transform pair: SLING/LING (behead), PARTY/PART (curtail),
+  // BREAD/READ (behead), DOG (no match).
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
     name: 'BeheadCurtailTest',
     entries: ['SLING', 'LING', 'PARTY', 'PART', 'BREAD', 'READ', 'DOG'],
@@ -351,69 +349,71 @@ async function addBeheadCurtailFixture(page) {
   }));
 }
 
-test('behead pairs a-side with a-minus-first-letter b-side', async ({ page }) => {
+test('behead chains the originator with its first-letter-dropped form', async ({ page }) => {
   await gotoApp(page);
   await addBeheadCurtailFixture(page);
   await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'behead' }]));
 
+  // Default multi-atom sort is min-score desc: BREAD/READ min 45, SLING/LING
+  // min 40.
   const visible = await page.evaluate(() => window.__grawlixTest.getVisibleEntries());
   expect(visible).toEqual([
-    { a: 'bread', b: 'read' },
-    { a: 'sling', b: 'ling' },
+    ['bread', 'read'],
+    ['sling', 'ling'],
   ]);
 });
 
-test('curtail pairs a-side with a-minus-last-letter b-side', async ({ page }) => {
+test('curtail chains the originator with its last-letter-dropped form', async ({ page }) => {
   await gotoApp(page);
   await addBeheadCurtailFixture(page);
   await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'curtail' }]));
 
   const visible = await page.evaluate(() => window.__grawlixTest.getVisibleEntries());
   expect(visible).toEqual([
-    { a: 'party', b: 'part' },
+    ['party', 'part'],
   ]);
 });
 
-test('behead marks the dropped first letter with the removed highlight', async ({ page }) => {
+test('behead marks the dropped first letter on the originator atom', async ({ page }) => {
   await gotoApp(page);
   await addBeheadCurtailFixture(page);
   await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'behead' }]));
 
-  // A-side: `<span class="hl-removed">` wraps the first character. B-side:
-  // no removed highlight (nothing was dropped from b — it's the result).
-  const slingRow = page.locator('.pair-row', { hasText: 'sling' });
-  await expect(slingRow.locator('.atom-entry[data-side="a"] .hl-removed')).toHaveText('s');
-  await expect(slingRow.locator('.atom-entry[data-side="b"] .hl-removed')).toHaveCount(0);
+  // Originator atom: `<span class="hl-removed">` wraps the first character.
+  // Output atom: no removed highlight (nothing was dropped from it).
+  const slingRow = page.locator('.entry-row', { hasText: 'sling' });
+  await expect(slingRow.locator('.atom').nth(0).locator('.hl-removed')).toHaveText('s');
+  await expect(slingRow.locator('.atom').nth(1).locator('.hl-removed')).toHaveCount(0);
 });
 
-test('pair atoms truncate long entries with ellipsis + full-text title', async ({ page }) => {
+test('atoms truncate long entries with ellipsis + full-text title', async ({ page }) => {
   await gotoApp(page);
-  // The a-side entry is way over the 20-char ENTRY_SLOT_CAP; its match (a
-  // minus first letter) is too. The atom must clip to its track via CSS
-  // ellipsis rather than spilling into the score column — and the full text
-  // must live in a `title` attribute so the user can hover to see it.
+  // The originator entry is way over the 20-char ENTRY_SLOT_CAP; its beheaded
+  // form is too. The atom must clip to its track via CSS ellipsis rather than
+  // spilling into the score column — and the full text must live in a `title`
+  // attribute so the user can hover to see it.
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
-    name: 'LongPair',
+    name: 'LongChain',
     entries: ['SHEJUSTSAYINGWHATWEVEALLBEENTHINKING', 'HEJUSTSAYINGWHATWEVEALLBEENTHINKING'],
     scores:  [60, 60],
   }));
   await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'behead' }]));
 
-  const aAtom = page.locator('.pair-row .atom-entry[data-side="a"]').first();
-  await expect(aAtom).toHaveAttribute('title', 'shejustsayingwhatweveallbeenthinking');
+  const originatorAtom = page.locator('.entry-row .atom').first().locator('.atom-entry');
+  await expect(originatorAtom).toHaveAttribute('title', 'shejustsayingwhatweveallbeenthinking');
   // The track must clamp the atom — its rendered width should be far less
-  // than the natural text width. Tested via offsetWidth < scrollWidth, the
+  // than the natural text width. Tested via scrollWidth > offsetWidth, the
   // standard signal that CSS truncation kicked in.
-  const truncated = await aAtom.evaluate(el => el.scrollWidth > el.offsetWidth);
+  const truncated = await originatorAtom.evaluate(el => el.scrollWidth > el.offsetWidth);
   expect(truncated).toBe(true);
 });
 
-test('curtail marks the dropped last letter with the removed highlight', async ({ page }) => {
+test('curtail marks the dropped last letter on the originator atom', async ({ page }) => {
   await gotoApp(page);
   await addBeheadCurtailFixture(page);
   await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'curtail' }]));
 
-  const partyRow = page.locator('.pair-row', { hasText: 'party' });
-  await expect(partyRow.locator('.atom-entry[data-side="a"] .hl-removed')).toHaveText('y');
-  await expect(partyRow.locator('.atom-entry[data-side="b"] .hl-removed')).toHaveCount(0);
+  const partyRow = page.locator('.entry-row', { hasText: 'party' });
+  await expect(partyRow.locator('.atom').nth(0).locator('.hl-removed')).toHaveText('y');
+  await expect(partyRow.locator('.atom').nth(1).locator('.hl-removed')).toHaveCount(0);
 });
