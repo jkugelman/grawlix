@@ -751,9 +751,7 @@ a.get-file:hover { text-decoration: underline; }
 .gallery-card-example { font-family: var(--font-mono); font-size: 11px; color: var(--faint); margin-top: 5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .gallery-section-label + .gallery-card { margin-top: 0; }
 .gallery-card + .gallery-section-label { margin-top: 6px; }
-.gallery-card-add { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); width: 22px; height: 22px; border-radius: 50%; background: var(--accent); color: #fff; border: none; cursor: pointer; font-size: 14px; font-weight: 600; line-height: 1; padding: 0; display: flex; align-items: center; justify-content: center; opacity: 0; transition: background 0.1s; }
-.gallery-card:hover .gallery-card-add { opacity: 1; }
-.gallery-card-add:focus-visible { opacity: 1; }
+.gallery-card-add { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); width: 22px; height: 22px; border-radius: 50%; background: var(--accent); color: #fff; border: none; cursor: pointer; font-size: 14px; font-weight: 600; line-height: 1; padding: 0; display: flex; align-items: center; justify-content: center; transition: background 0.1s; }
 /* Descendant selector bumps specificity to (0,3,0) so the global
    `button:hover:not(:disabled)` rule (specificity 0,2,1) doesn't override
    our hover background and camouflage the button against the card. */
