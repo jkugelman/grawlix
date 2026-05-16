@@ -282,7 +282,10 @@ html.light-mode .histogram-readonly.is-hovered .histogram-bar:not(.histogram-bar
 .search-bar-sort .sort-axis-select:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 .search-bar-sort .sort-dir-btn { background: transparent; border: none; padding: 3px 7px; border-radius: 4px; font: inherit; font-size: 13px; color: var(--text); cursor: pointer; line-height: 1; }
 .search-bar-sort .sort-dir-btn:hover { background: var(--hover); }
-mark.search-match { border-radius: 2px; padding: 0 1px; font-style: normal; }
+/* Negative margin cancels the padding's layout width — the highlight box keeps
+   its 1px breathing room but a marked character stays exactly as wide as a bare
+   one, so a highlighted entry doesn't overflow a column sized to its text. */
+mark.search-match { border-radius: 2px; padding: 0 1px; margin: 0 -1px; font-style: normal; }
 /* Tool highlight kinds. `removed` marks the character a pair-transform tool
    dropped to get from the a-side to the b-side — strike-through plus a touch
    of opacity reads as "this part was taken away." More kinds (kept, inserted,
@@ -4524,11 +4527,12 @@ class WorkshopEntriesScroller extends BaseVirtualScroller {
     // entry chars + the glyph prefix. Cap the entry text at ENTRY_SLOT_CAP but
     // let the glyph spill past the cap — it's fixed overhead, not entry text.
     const glyphCh = measureAtomGlyphPx() / ch;
-    let maxLen = 0, maxLenDigits = 1, maxScoreDigits = 1;
+    let maxLen = 0, maxLenDigits = 1, maxScoreDigits = 1, hasHighlight = false;
     for (const row of this.allEntries) {
       for (const atom of row.atoms) {
         const len = atom.wlEntry.entry.length + (atom.glyph ? glyphCh : 0);
         if (len > maxLen) maxLen = len;
+        if (!hasHighlight && atom.lenses.some(l => l.length)) hasHighlight = true;
       }
     }
     for (const row of this.entries) {
@@ -4539,7 +4543,12 @@ class WorkshopEntriesScroller extends BaseVirtualScroller {
         if (sd > maxScoreDigits) maxScoreDigits = sd;
       }
     }
-    const entryContentW = Math.min(maxLen, ENTRY_SLOT_CAP + glyphCh) * ch;
+    // A `<mark>` highlight splits the entry into separate text runs, each
+    // rounded to a whole pixel independently — the rounding can accumulate
+    // past a column sized to the bare text. Reserve a character of slack
+    // whenever the result carries highlights so it never clips a fitting entry.
+    const entryContentW = Math.min(maxLen, ENTRY_SLOT_CAP + glyphCh) * ch
+      + (hasHighlight ? ch : 0);
     const target = this.host.closest('#detail-panel') || this.sizer;
     target.style.setProperty('--count-w', `${(countDigits + 1) * ch}px`);
     // Floored to the header label so it never overflows its column.
