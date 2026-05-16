@@ -1310,17 +1310,25 @@ function buildWildcardSpansHTML() {
 }
 
 // The search input + clear button + whole-word checkbox — shared by the
-// Workshop search bar (a permanent ToolStack row) and the Library search bar.
-// The caller supplies element ids and inline-handler strings, since the two
-// views wire to different modules.
-function buildSearchInputRowHTML({ inputId, clearId, wholeWordId, query, wholeWord, onInput, onClear, onWholeWord, searchTitle, wholeWordTitle }) {
+// permanent Workshop search bar, the Library search bar, and gallery-added
+// Search tool rows. The two bars wire via fixed ids + inline-handler strings
+// (each view targets a different module); tool rows wire via delegated
+// `data-row`/`data-key` attributes. The caller passes whichever it needs;
+// every optional attribute is omitted when its value is absent.
+function buildSearchInputRowHTML({
+  inputId, clearId, wholeWordId, query, wholeWord,
+  onInput, onClear, onWholeWord,
+  inputAttrs = '', clearAttrs = '', wholeWordAttrs = '',
+  searchTitle, wholeWordTitle,
+}) {
   const q = esc(query);
+  const a = (name, val) => val ? ` ${name}="${val}"` : '';
   return `<div class="search-input-row">
           <div class="search-input-wrap">
-            <input type="text" id="${inputId}" placeholder="pattern" value="${q}" oninput="${onInput}"${searchTitle ? ` title="${searchTitle}"` : ''}>
-            <button class="clear-btn" id="${clearId}" onclick="${onClear}" title="Clear search" aria-label="Clear search" ${q ? '' : 'hidden'}><svg width="10" height="10"><use href="#icon-x"/></svg></button>
+            <input type="text" class="search-pattern-input" placeholder="pattern" value="${q}"${a('id', inputId)}${a('oninput', onInput)}${inputAttrs ? ' ' + inputAttrs : ''}${a('title', searchTitle)}>
+            <button class="clear-btn"${a('id', clearId)}${a('onclick', onClear)}${clearAttrs ? ' ' + clearAttrs : ''} title="Clear search" aria-label="Clear search" ${q ? '' : 'hidden'}><svg width="10" height="10"><use href="#icon-x"/></svg></button>
           </div>
-          <label class="search-whole-word-label"${wholeWordTitle ? ` title="${wholeWordTitle}"` : ''}><input type="checkbox" id="${wholeWordId}" onchange="${onWholeWord}" ${wholeWord ? 'checked' : ''}> Whole word</label>
+          <label class="search-whole-word-label"${a('title', wholeWordTitle)}><input type="checkbox"${a('id', wholeWordId)}${a('onchange', onWholeWord)}${wholeWordAttrs ? ' ' + wholeWordAttrs : ''} ${wholeWord ? 'checked' : ''}> Whole word</label>
         </div>`;
 }
 
@@ -2500,7 +2508,7 @@ const LibraryView = (() => {
     state.sources.forEach((wordlist, i) => { if (cards[i]) cards[i]._wordlist = wordlist; });
   }
 
-  function renderPane() {
+  function buildPane() {
     if (_dateTimer) { clearInterval(_dateTimer); _dateTimer = null; }
     destroyScroller();
 
@@ -2588,6 +2596,13 @@ const LibraryView = (() => {
       setDate();
       _dateTimer = setInterval(setDate, 60_000);
     }
+  }
+
+  // Public entry point: rebuild the pane, then (re)bind the wildcard-help
+  // popup to the freshly rendered Library search input.
+  function renderPane() {
+    buildPane();
+    attachSearchHelpPopups();
   }
 
   // The All panel: a single Download button, merged stats + histogram, the
@@ -3490,7 +3505,7 @@ const TOOLS = {
     desc: 'Match entries by text, with wildcards',
     example: 'un*ed · c?t',
     params: [
-      { key: 'query', label: 'search' },
+      { key: 'query', label: 'pattern' },
       { key: 'whole-word', label: 'Whole word', type: 'checkbox' },
     ],
     kind: 'filter', inputHighlights: true, outputHighlights: false,
@@ -3886,16 +3901,33 @@ const ToolStack = (() => {
     return `<span class="tool-row-params">${inputs}</span>`;
   }
 
+  // A gallery-added Search tool row reuses the search bar's input chrome
+  // (input + clear + whole-word + wildcard help) rather than the generic
+  // param fields, so every Search surface looks and behaves identically.
+  // Wired via delegated data-row/data-key, like any other tool row.
+  function searchRowParamsHTML(idx, row) {
+    return buildSearchInputRowHTML({
+      query: row.params.query || '', wholeWord: !!row.params['whole-word'],
+      inputAttrs: `data-row="${idx}" data-key="query"`,
+      clearAttrs: `data-row="${idx}"`,
+      wholeWordAttrs: `data-row="${idx}" data-key="whole-word"`,
+      wholeWordTitle: 'Whole word',
+    });
+  }
+
   function buildRowHTML(idx, row) {
     // The last row is the permanent Search bar — its own chrome, no remove
     // button (undeletable). Everything above it is an ordinary tool row.
     if (idx === stack.length - 1) return buildSearchBarHTML();
     const tool = TOOLS[row.tool];
     if (!tool) return '';
+    const params = row.tool === 'search'
+      ? searchRowParamsHTML(idx, row)
+      : paramsHTML(tool, idx, row.params);
     return `<div class="tool-row">
       <div class="tool-row-body">
         ${buildToolLabelHTML(tool)}
-        ${paramsHTML(tool, idx, row.params)}
+        ${params}
       </div>
       <button type="button" class="tool-row-remove" data-remove="${idx}" title="Remove" aria-label="Remove ${esc(tool.name)}"><svg width="10" height="10"><use href="#icon-x"/></svg></button>
     </div>`;
@@ -3941,7 +3973,9 @@ const ToolStack = (() => {
   }
 
   function focusRowInput(idx) {
-    rowEls()[idx]?.querySelector('.tool-row-param input')?.focus();
+    // First text input in the row — the first param of an ordinary tool, or
+    // the query field of a Search row (which uses .search-input-wrap chrome).
+    rowEls()[idx]?.querySelector('input[type="text"]')?.focus();
   }
 
   function flashRow(idx) {
@@ -3976,9 +4010,11 @@ const ToolStack = (() => {
   }
 
   // Rebuilds the user tool rows from `stack`, leaving the permanent Search
-  // bar's DOM in place — so its input focus, the sort toolbar mounted inside
-  // it, and the help popup all survive a tool add/remove. A full re-render
-  // (which does rebuild the bar) happens only via mountWorkshopPanel.
+  // bar's DOM in place — so its input focus and the sort toolbar mounted
+  // inside it survive a tool add/remove. The wildcard-help popups are then
+  // re-attached, since a rebuilt Search tool row gets a fresh input anchor.
+  // A full re-render (which does rebuild the bar) happens only via
+  // mountWorkshopPanel.
   function rerenderRows() {
     const e = stackEl();
     if (!e) return;
@@ -3990,6 +4026,7 @@ const ToolStack = (() => {
       tmp.innerHTML = buildRowHTML(i, row);
       e.insertBefore(tmp.firstElementChild, bar);
     });
+    attachSearchHelpPopups();
   }
 
   function add(toolKey) {
@@ -4037,6 +4074,19 @@ const ToolStack = (() => {
         removeAt(parseInt(removeBtn.dataset.remove, 10));
         return;
       }
+      // A Search tool row's clear button — empties its query and re-renders.
+      const clearBtn = e.target.closest('.tool-row .clear-btn[data-row]');
+      if (clearBtn) {
+        const idx = parseInt(clearBtn.dataset.row, 10);
+        if (stack[idx]) {
+          stack[idx].params.query = '';
+          rerenderRows();
+          focusRowInput(idx);
+          refreshWorkshopMergedScroller();
+          Router.navigate();
+        }
+        return;
+      }
     });
     p?.addEventListener('input', (e) => {
       const input = e.target.closest('input[data-row]');
@@ -4045,6 +4095,9 @@ const ToolStack = (() => {
       const key = input.dataset.key;
       if (stack[idx]) {
         stack[idx].params[key] = input.type === 'checkbox' ? input.checked : input.value;
+        // A Search tool row's clear button tracks whether its query is empty.
+        const clearBtn = input.closest('.search-input-wrap')?.querySelector('.clear-btn');
+        if (clearBtn) clearBtn.hidden = !input.value;
         refreshWorkshopMergedScroller();
         Router.navigate();
       }
@@ -5632,7 +5685,7 @@ function mountWorkshopPanel(panel, stats, entries, rowCount = stats.count) {
   repositionAllHistogramRects();
   createScroller();
   workshopScroller.onFilterChange = refreshWorkshopStatsBarFromScroller;
-  attachSearchHelpPopup();
+  attachSearchHelpPopups();
 }
 
 // Recomputes the stats bar from the scroller's currently-visible entries.
@@ -5673,14 +5726,19 @@ for (const id of ['workshop-stats', 'wld-pane']) {
   new MutationObserver(refreshStatsBarOverflow).observe(parent, { childList: true });
 }
 
-// mountWorkshopPanel rebuilds the search-input on every render — the prior
-// popup's anchor reference is dead, so destroy before rebinding.
-let _searchHelpPopup = null;
-function attachSearchHelpPopup() {
-  _searchHelpPopup?.destroy();
-  _searchHelpPopup = null;
-  const input = document.getElementById('search-input');
-  if (input) _searchHelpPopup = new PopupHelp(input, buildWildcardSpansHTML());
+// The wildcard-help popup attaches to every Search input in the app — the
+// permanent Workshop search bar, gallery-added Search tool rows, and the
+// Library search bar; all three accept the same wildcard syntax. Anchors are
+// rebuilt whenever a view re-renders (mountWorkshopPanel, rerenderRows,
+// LibraryView.renderPane), so destroy the prior popups and rebind from a
+// fresh document-wide scan.
+let _searchHelpPopups = [];
+function attachSearchHelpPopups() {
+  _searchHelpPopups.forEach(p => p.destroy());
+  _searchHelpPopups = [];
+  for (const input of document.querySelectorAll('.search-pattern-input')) {
+    _searchHelpPopups.push(new PopupHelp(input, buildWildcardSpansHTML()));
+  }
 }
 
 async function renderWorkshopMergedDetail() {
