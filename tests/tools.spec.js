@@ -146,7 +146,7 @@ test('pipeline output preserves wlEntry refs (popover opens, source/score intact
 // tests pin those differences.
 //
 // Semordnilap emits both directions of each pair; the post-executor
-// `unifyMirrorRows` pass collapses the mirror pair into one row with a ↔
+// `unify` pass collapses the mirror pair into one row with a ↔
 // glyph. A downstream transform breaks the symmetry and the directions stay
 // as separate → rows.
 
@@ -169,7 +169,7 @@ test('semordnilap unifies mirror rows into one chain in min-score-desc order', a
   await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'semordnilap' }]));
   await page.locator('#search-bar-sort .sort-axis-select').selectOption('min-score');
 
-  // Semordnilap emits both DEVIL→LIVED and LIVED→DEVIL; unifyMirrorRows
+  // Semordnilap emits both DEVIL→LIVED and LIVED→DEVIL; unify
   // collapses each mirror pair to one row, keeping the executor's first
   // (merged-alphabetical) direction.
   const visible = await page.evaluate(() => window.__grawlixTest.getVisibleEntries());
@@ -228,26 +228,27 @@ test('semordnilap excludes palindromes', async ({ page }) => {
 // ─── Search as a pipeline tool ──────────────────────────────────────────────
 //
 // Search is a filter tool — a permanent final row driven by the search bar,
-// and also addable from the gallery. Because it runs *before* unifyMirrorRows,
+// and also addable from the gallery. Because it runs *before* unification,
 // the two directions of a semordnilap pair are searched independently: when
-// both survive, unification merges their highlights into one ↔ row; when only
-// one survives, the row degrades to a directed →.
+// both survive, unification collapses them into one ↔ row that keeps the
+// survivor's highlight; when only one survives, the row degrades to a directed →.
 
-test('both directions surviving search merge into one ↔ row, highlighted on each atom', async ({ page }) => {
+test('both directions surviving search collapse to one ↔ row keeping the survivor highlight', async ({ page }) => {
   await gotoApp(page);
   await addSemordnilapFixture(page);
   await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'semordnilap' }]));
 
   // 'ss' is in both DESSERTS and STRESSED, so semordnilap's two directed rows
-  // both pass search; unification collapses them and merges the per-direction
-  // highlights — the surviving row is highlighted on *both* atoms and keeps ↔.
+  // both pass search; unification collapses them into one ↔ row. The survivor
+  // is the lexicographically-smaller chain (desserts→stressed) and keeps only
+  // its own direction's highlight — on its stressed tail, not on desserts.
   await page.locator('#search-input').fill('ss');
   const visible = await page.evaluate(() => window.__grawlixTest.getVisibleEntries());
   expect(visible).toEqual([['desserts', 'stressed']]);
 
   const row = page.locator('.entry-row', { hasText: 'desserts' });
-  await expect(row.locator('.atom', { hasText: 'desserts' }).locator('mark')).toContainText('ss');
   await expect(row.locator('.atom', { hasText: 'stressed' }).locator('mark')).toContainText('ss');
+  await expect(row.locator('.atom', { hasText: 'desserts' }).locator('mark')).toHaveCount(0);
   await expect(row.locator('.atom').nth(1).locator('.atom-glyph')).toContainText('↔');
 });
 
@@ -268,6 +269,28 @@ test('a one-sided search query degrades a unified row to a directed →', async 
   await expect(row.locator('.atom').nth(1).locator('.atom-glyph')).toContainText('→');
   await expect(row.locator('.atom', { hasText: 'stressed' }).locator('mark')).toContainText('tress');
   await expect(row.locator('.atom', { hasText: 'desserts' }).locator('mark')).toHaveCount(0);
+});
+
+test('three search tools stack three separately-highlighted atoms on one row', async ({ page }) => {
+  await gotoApp(page);
+  await addAnagramFixture(page);
+
+  // Each highlighting tool emits its own same-word atom; only the originator
+  // and the first search fold together, so three searches that all match
+  // LINDSEY leave a three-atom row, one highlight per atom.
+  await page.evaluate(() => window.__grawlixTest.setStack([
+    { tool: 'search', params: { query: 'lin' } },
+    { tool: 'search', params: { query: 'nds' } },
+    { tool: 'search', params: { query: 'sey' } },
+  ]));
+  const visible = await page.evaluate(() => window.__grawlixTest.getVisibleEntries());
+  expect(visible).toEqual(['lindsey']);
+
+  const row = page.locator('#vs-host .entry-row', { hasText: 'lindsey' });
+  await expect(row.locator('.atom')).toHaveCount(3);
+  await expect(row.locator('.atom').nth(0).locator('mark')).toContainText('lin');
+  await expect(row.locator('.atom').nth(1).locator('mark')).toContainText('nds');
+  await expect(row.locator('.atom').nth(2).locator('mark')).toContainText('sey');
 });
 
 test('Search is a gallery tool and can be chained into the stack', async ({ page }) => {
@@ -468,9 +491,9 @@ test('chain sort axis swap: min-score → max-score reorders rows', async ({ pag
   expect(after[0]).toEqual(['evil', 'live']);                          // max 99 (top)
 });
 
-// Adding or removing a tool shifts the atom-count tier, swapping the available
-// sort axes (1-atom: Entry/Length/Score; multi-atom: Entry/Length/Min score/
-// Max score). The user's chosen axis must carry across the boundary rather
+// Adding or removing a transform shifts the sort tier, swapping the available
+// sort axes (filter-only: Entry/Length/Score; with a transform: Entry/Length/
+// Min score/Max score). The user's chosen axis must carry across the boundary rather
 // than snapping to a tier default: Entry and Length exist in both tiers and
 // pass through untouched; Score ⇄ Min score, and Max score collapses to Score.
 

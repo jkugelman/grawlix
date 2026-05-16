@@ -1717,12 +1717,11 @@ const Router = (() => {
       parts.push(...encodeRow(row));
     });
     // Sort axis/direction. Each key drops out when it matches the default for
-    // the current atom-count tier, so the common case (entry asc on 1-atom
-    // rows, min-score desc on stacked rows) stays silent. `sort-dir` may
-    // appear alone — parsing treats absent `sort` as the tier default. Atom
-    // count comes from the full pipeline (the Search bar can itself add an
-    // atom), matching what the scroller renders.
-    const tier = sortTierForCount(currentAtomCount(stack));
+    // the current sort tier, so the common case (entry asc on filter-only
+    // chains, min-score desc once a transform is in play) stays silent.
+    // `sort-dir` may appear alone — parsing treats absent `sort` as the tier
+    // default.
+    const tier = chainSortTier(stack);
     const defaultAxis = WORKSHOP_DEFAULT_SORT_BY_TIER[tier];
     if (WorkshopView.sortKey !== defaultAxis)                  parts.push('sort=' + WorkshopView.sortKey);
     if (WorkshopView.sortDir !== defaultSortDir(WorkshopView.sortKey)) parts.push('sort-dir=' + WorkshopView.sortDir);
@@ -2269,7 +2268,7 @@ const WorkshopView = (() => {
   // the tool stack (including the Search bar row), then hands us the sort
   // axis/direction. The search query itself rides in the stack, not here.
   function applyURLState({ sortKey, sortDir }) {
-    const tier = sortTierForCount(currentAtomCount(ToolStack.getStack()));
+    const tier = chainSortTier(ToolStack.getStack());
     _sortKey = sortKey || WORKSHOP_DEFAULT_SORT_BY_TIER[tier];
     _sortDir = sortDir || defaultSortDir(_sortKey);
   }
@@ -3458,9 +3457,9 @@ function renderHighlightedText(text, ranges) {
 // `kind` is 'filter' (keeps/drops an entry, optionally annotating it) or
 // 'transform' (emits 0+ new entries per input, each becoming a new chain row).
 // `inputHighlights` / `outputHighlights` are static booleans: each one means
-// the tool annotates the slot it reads / creates with a highlight lens.
-// `computeChainTemplate` reads them to derive the static atom count; transforms
-// also carry a relation `glyph`.
+// the tool highlights the atom it reads / the atom it creates. `currentAtomCount`
+// reads them to derive the static atom count; transforms also carry a relation
+// `glyph`.
 //
 // An optional `prepare(params, wordlist)` runs once per pipeline run; its
 // return value is handed to `run` in place of `params` (so a tool can compile
@@ -3577,7 +3576,7 @@ const TOOLS = {
     kind: 'transform', inputHighlights: false, outputHighlights: false, glyph: '→',
     run(entry, params, wordlist) {
       // Bidirectional emit — a row whenever the reverse is also an entry, in
-      // both directions. The post-executor `unifyMirrorRows` pass collapses
+      // both directions. The post-executor `unify` pass collapses
       // the matched mirror pair into one row with a ↔ glyph; a downstream
       // transform breaks the symmetry and the two directions stay separate.
       // Palindromes are skipped — reversing them yields the same word.
@@ -3617,67 +3616,55 @@ function normalizeParams(params) {
 }
 
 // The chain shape is derivable from the catalog records alone — no per-row
-// runtime inspection. Walk the active tools (run-having, not inert), growing a
-// list of entry slots: every transform adds a slot (its output entry differs
-// from its input), filters don't. Each tool's static `inputHighlights` /
-// `outputHighlights` annotate the slot it reads / the slot it creates with a
-// highlight lens; a slot draws one display line per lens, capped at two (the
-// same entry stacked through two lenses), so its line count is `1` unannotated
-// or singly annotated, `2` once two or more lenses land on it. `atomCount` is
-// the sum of line counts across slots — the row's height in `ROW_HEIGHT`
-// units, read by the renderer, the sort tier, and the scroller's stride math.
-function computeChainTemplate(stack) {
-  const slots = [{ lensCount: 0 }];   // originator slot
+// runtime inspection. Simulate the executor's emit-then-unify on the active
+// tools (run-having, not inert): the originator is one atom; each highlighting
+// tool emits a same-word atom that the unifier folds into the tail unless the
+// tail is already highlighted, in which case it stays its own atom; each
+// transform emits a new-word output atom that never folds. `atomCount` is the
+// resulting count — the row's height in `ROW_HEIGHT` units, read by the
+// renderer and the scroller's stride math.
+function currentAtomCount(stack) {
+  let count = 1;          // originator
+  let tailLit = false;    // does the tail atom carry highlights?
   for (const row of stack) {
     const tool = TOOLS[row.tool];
     if (!tool?.run || tool.isInert?.(row.params)) continue;   // transparent rows
-    const tail = slots[slots.length - 1];
     if (tool.kind === 'transform') {
-      if (tool.inputHighlights) tail.lensCount++;
-      slots.push({ lensCount: tool.outputHighlights ? 1 : 0 });
-    } else if (tool.inputHighlights || tool.outputHighlights) {
-      tail.lensCount++;
+      if (tool.inputHighlights && tailLit) count++;   // input mark can't fold into a lit tail
+      count++;                                        // output atom (new word)
+      tailLit = !!tool.outputHighlights;
+    } else if (tool.inputHighlights) {                // highlighting filter (search)
+      if (tailLit) count++;
+      tailLit = true;
     }
   }
-  let atomCount = 0;
-  for (const s of slots) atomCount += slotLineCount(s.lensCount);
-  return { slots, atomCount };
+  return count;
 }
 
-// A slot's display line count from its lens count: one line unannotated or
-// singly annotated, two once a second lens lands. The cap keeps row height
-// bounded and `atomCount` static — extra lenses merge into the second line.
-function slotLineCount(lensCount) { return lensCount >= 2 ? 2 : 1; }
-
-function currentAtomCount(stack) { return computeChainTemplate(stack).atomCount; }
-
-// True once an active transform sits in the stack: its rows branch and append
-// atoms, so they're pipeline results rather than 1:1 wordlist entries. Each
-// transform pushes exactly one slot, so >1 slot means a transform is live —
-// filters and inert tools leave the originator slot alone.
-function chainHasTransform(stack) { return computeChainTemplate(stack).slots.length > 1; }
-
-// Append a highlight lens to an atom. Each annotating tool contributes one
-// lens (its ranges, possibly empty); the renderer draws one line per lens.
-// Capped at two — `slotLineCount` mirrors the cap — so a third lens merges
-// into the second line rather than growing the row unboundedly.
-function addLens(atom, ranges) {
-  if (atom.lenses.length < 2) atom.lenses.push(ranges);
-  else atom.lenses[1] = [...atom.lenses[1], ...ranges];
+// True when no active transform sits in the stack — every row is then a single
+// merged-wordlist entry (plus same-word highlight atoms), so the count is per
+// entry and the sort axes stay in their single-atom tier. Drives the stats-bar
+// count label (Entries vs Results) and the sort tier.
+function isFilterOnlyChain(stack) {
+  return !stack.some(row => {
+    const tool = TOOLS[row.tool];
+    return tool?.kind === 'transform' && tool.run && !tool.isInert?.(row.params);
+  });
 }
 
 // Run the tool stack against the merged wordlist, returning
 // `{ rows, atomCount }`. Each row is a ChainRow — `{ atoms: Atom[] }` — where
-// an Atom is `{ wlEntry, lenses, glyph }` and `lenses` is the list of highlight
-// lenses (one display line each) the slot has collected. Seeded one-atom-per-
-// merged-entry; each transform branches a row into one new row per output
-// (appending an atom), each filter keeps or drops the row in place. Run-less
-// and inert tools are transparent. The executor owns the per-row loop,
-// cooperative yielding, and abort: `signal` aborts a superseded run at the
-// next yield.
+// an Atom is `{ wlEntry, highlights, glyph }` and `highlights` is a flat list
+// of ranges. Seeded one-atom-per-merged-entry; each transform branches a row
+// into one new row per output (appending an output atom, plus a same-word
+// input-mark atom when it highlights its input), each highlighting filter
+// appends a same-word atom carrying its match. Tools emit unconditionally —
+// `unify` folds the redundant same-word atoms afterward. Run-less and inert
+// tools are transparent. The executor owns the per-row loop, cooperative
+// yielding, and abort: `signal` aborts a superseded run at the next yield.
 async function executePipeline(mergedWordlist, stack, signal) {
   let rows = mergedWordlist.entries.map(e => ({
-    atoms: [{ wlEntry: e, lenses: [], glyph: null }],
+    atoms: [{ wlEntry: e, highlights: [], glyph: null }],
   }));
   for (const stackRow of stack) {
     const tool = TOOLS[stackRow.tool];
@@ -3693,18 +3680,27 @@ async function executePipeline(mergedWordlist, stack, signal) {
       const result = tool.run(tail.wlEntry.entry, prepared, mergedWordlist);
       if (tool.kind === 'filter') {
         if (result) {
-          // An `inputHighlights` filter contributes one lens per kept row —
-          // its ranges, or an empty lens when it matched without any. Two
-          // search rows thus stack two lenses on the tail, each its own line.
-          if (tool.inputHighlights) addLens(tail, Array.isArray(result) ? result : []);
-          next.push(row);
+          // A highlighting filter (search) appends a same-word atom carrying
+          // its ranges — `unify` folds it into the tail unless the tail is
+          // already highlighted. A plain filter just keeps the row.
+          if (tool.inputHighlights) {
+            next.push({ atoms: [...row.atoms,
+              { wlEntry: tail.wlEntry, highlights: Array.isArray(result) ? result : [], glyph: null }] });
+          } else {
+            next.push(row);
+          }
         }
       } else {
         for (const out of (result || [])) {
-          // Clone the chain per branch — and clone each atom's lens list,
-          // since a branch may push its own input lens onto the shared tail.
-          const atoms = row.atoms.map(a => ({ ...a, lenses: a.lenses.slice() }));
-          if (tool.inputHighlights) addLens(atoms[atoms.length - 1], out.inputHighlights || []);
+          // Atoms are immutable once created, so branches share the existing
+          // atoms and only append their own.
+          const atoms = row.atoms.slice();
+          // A transform that marks its input appends a same-word input-mark
+          // atom before the output atom; `unify` folds it into the input
+          // unless the input is already highlighted.
+          if (tool.inputHighlights) {
+            atoms.push({ wlEntry: tail.wlEntry, highlights: out.inputHighlights || [], glyph: null });
+          }
           const synthetic = Array.isArray(out.entry);
           const text = synthetic ? out.entry[0] : out.entry;
           const wlEntry = synthetic
@@ -3713,7 +3709,7 @@ async function executePipeline(mergedWordlist, stack, signal) {
                || { entry: text, score: 0, comment: '', wordlist: null });
           atoms.push({
             wlEntry,
-            lenses: tool.outputHighlights ? [out.outputHighlights || []] : [],
+            highlights: out.outputHighlights || [],
             glyph: tool.glyph || '→',
           });
           next.push({ atoms });
@@ -3727,33 +3723,30 @@ async function executePipeline(mergedWordlist, stack, signal) {
     }
     rows = next;
   }
-  return { rows: unifyMirrorRows(rows), atomCount: computeChainTemplate(stack).atomCount };
+  return { rows: unify(rows), atomCount: currentAtomCount(stack) };
 }
 
-// Post-executor symmetric unification. A transform like semordnilap emits one
-// row per directed pair, so STRESSED→DESSERTS and DESSERTS→STRESSED both
-// appear. This pass collapses row pairs that are exact reverses of each other
-// — same entries in mirrored order, same scores — into a single row, and
-// promotes its relation glyphs to ↔ (the natural glyph for "two one-way rows
-// pointing at each other"). A downstream transform breaks the symmetry
-// (semordnilap → behead diverges the two directions), so those rows fail the
-// mirror test and stay separate with their directed → glyphs. Of the two
-// directions the survivor is the one whose entry chain sorts lexicographically
-// smaller — picked explicitly, so it's deterministic no matter which order the
-// executor emitted the pair in.
+// Post-executor unification — two collapses that turn the executor's
+// emit-everything output into the displayed chain rows.
 //
-// Highlight lenses merge through the collapse: each direction may have been
-// annotated on its own tail (a Search row after semordnilap matches a
-// different word per direction), so the survivor absorbs the dropped row's
-// lenses at mirrored atom indices — the same word, so char offsets carry over
-// directly. That's what turns two one-sided hits into a row highlighted on
-// both atoms. The merge folds into the survivor's existing lens lines without
-// growing their count, keeping the row's height matched to the static
-// template.
-function unifyMirrorRows(rows) {
+// Within a row, `collapseRepeatAtoms` folds adjacent atoms for the same word:
+// the originator and a search's same-word atom become one, while two searches'
+// atoms stay distinct — the rule is "fold unless both carry highlights."
+//
+// Across rows, a transform like semordnilap emits both directed halves of a
+// pair (STRESSED→DESSERTS and DESSERTS→STRESSED). Exact reverses — same
+// entries mirrored, same scores — collapse to one row, its relation glyphs
+// promoted to ↔. A downstream transform breaks the symmetry, so those rows
+// fail the mirror test and stay separate with their directed → glyphs. The
+// survivor is whichever direction's entry chain sorts lexicographically
+// smaller — picked explicitly, so it's deterministic regardless of emit order
+// — and it keeps its own highlights; the dropped direction's are not carried
+// over.
+function unify(rows) {
+  const collapsed = rows.map(row => ({ atoms: collapseRepeatAtoms(row.atoms) }));
   const seen = new Map();   // entry-chain key → { row, index } of its slot in `out`
   const out = [];
-  for (const row of rows) {
+  for (const row of collapsed) {
     const entries = row.atoms.map(a => a.wlEntry.entry);
     const fwd = entries.join('\0');
     const rev = [...entries].reverse().join('\0');
@@ -3763,26 +3756,10 @@ function unifyMirrorRows(rows) {
         const mScores = mirror.row.atoms.map(a => a.wlEntry.score);
         const rScores = row.atoms.map(a => a.wlEntry.score).reverse();
         if (mScores.every((s, i) => s === rScores[i])) {
-          // Mirror pair: keep whichever direction's chain sorts smaller.
+          // Mirror pair: keep whichever direction's chain sorts smaller, with
+          // its relation glyphs promoted to ↔.
           const survivor = fwd < rev ? row : mirror.row;
-          const dropped  = fwd < rev ? mirror.row : row;
-          const n = survivor.atoms.length;
-          for (let i = 0; i < n; i++) {
-            const dLenses = dropped.atoms[n - 1 - i].lenses;
-            const sLenses = survivor.atoms[i].lenses;
-            dLenses.forEach((dl, L) => {
-              if (!dl.length) return;
-              // Fold into the survivor's matching line; a lens with no line to
-              // land on (the mirror slot was unannotated) seeds the first, and
-              // any overflow merges into the last — count never grows.
-              if (!sLenses.length) sLenses.push([...dl]);
-              else {
-                const t = Math.min(L, sLenses.length - 1);
-                sLenses[t] = [...sLenses[t], ...dl];
-              }
-            });
-            if (i > 0) survivor.atoms[i].glyph = '↔';
-          }
+          survivor.atoms = survivor.atoms.map(a => a.glyph ? { ...a, glyph: '↔' } : a);
           out[mirror.index] = survivor;
           continue;
         }
@@ -3794,11 +3771,41 @@ function unifyMirrorRows(rows) {
   return out;
 }
 
-// Flatten every atom of every chain row to its wlEntry, row order. Feeds the
-// stats aggregates / histogram — a chain row contributes all its atoms' scores.
+// Fold adjacent same-word atoms in a row into one, keeping the highlighted
+// view when only one of the pair carries highlights. Two atoms that both carry
+// highlights stay distinct — that's how two search rows render as two lines.
+function collapseRepeatAtoms(atoms) {
+  const out = [atoms[0]];
+  for (let i = 1; i < atoms.length; i++) {
+    const prev = out[out.length - 1];
+    const cur = atoms[i];
+    if (prev.wlEntry.entry === cur.wlEntry.entry &&
+        !(prev.highlights.length && cur.highlights.length)) {
+      // Survivor keeps `prev`'s glyph (a repeat atom has none) and takes
+      // whichever side's highlights exist.
+      if (cur.highlights.length) out[out.length - 1] = { ...prev, highlights: cur.highlights };
+    } else {
+      out.push(cur);
+    }
+  }
+  return out;
+}
+
+// Flatten the chain rows to their atoms' wlEntries, row order. Feeds the stats
+// aggregates / histogram — a chain row contributes each distinct word's score.
+// Atoms that merely repeat the previous atom's word (a multi-search row stacks
+// the same word under several highlights) are skipped so one entry isn't
+// counted once per highlight.
 function flattenAtoms(rows) {
   const out = [];
-  for (const row of rows) for (const atom of row.atoms) out.push(atom.wlEntry);
+  for (const row of rows) {
+    let prev = null;
+    for (const atom of row.atoms) {
+      if (atom.wlEntry.entry === prev) continue;
+      out.push(atom.wlEntry);
+      prev = atom.wlEntry.entry;
+    }
+  }
   return out;
 }
 
@@ -4178,10 +4185,10 @@ function scoreColor(score) {
   };
 }
 
-// Workshop sort axes, split by atom-count tier — 1-atom rows (empty stack or
-// a pure filter) sort by Entry / Length / Score; ≥2-atom rows swap Score for
-// Min score / Max score. Entry and Length project off the *first* atom — the
-// merged-wordlist entry the row grew from — so the table keeps its order when
+// Workshop sort axes, split by sort tier — filter-only chains (empty stack or
+// searches) sort by Entry / Length / Score; chains with a transform swap Score
+// for Min score / Max score. Entry and Length project off the *first* atom —
+// the merged-wordlist entry the row grew from — so the table keeps its order when
 // a tool is added: a filter or 1-output transform leaves every first atom in
 // place, so the rows can't reshuffle. Min/Max project across every atom.
 //
@@ -4269,13 +4276,17 @@ const WORKSHOP_SORT_AXES = {
   },
 };
 const WORKSHOP_DEFAULT_SORT_BY_TIER = { single: 'entry', multi: 'min-score' };
-// When the atom-count tier changes, an axis with no counterpart in the new
+// When the sort tier changes, an axis with no counterpart in the new
 // tier maps across rather than snapping to the tier default, so the user's
-// sort intent survives adding/removing tools. Entry and Length exist in both
-// tiers and pass through untouched; only the score axes differ.
+// sort intent survives adding/removing transforms. Entry and Length exist in
+// both tiers and pass through untouched; only the score axes differ.
 const SORT_AXIS_TIER_MAP = { 'score': 'min-score', 'min-score': 'score', 'max-score': 'score' };
-function sortTierForCount(atomCount) { return atomCount > 1 ? 'multi' : 'single'; }
-function workshopSortAxes(atomCount) { return WORKSHOP_SORT_AXES[sortTierForCount(atomCount)]; }
+// The sort tier is single-atom when the chain is filter-only and multi-atom
+// once a transform is in play — transforms are what give a row genuinely
+// distinct atoms to sort across. Highlight-only repeat atoms don't promote the
+// tier: they're all the same word and score.
+function chainSortTier(stack) { return isFilterOnlyChain(stack) ? 'single' : 'multi'; }
+function workshopSortAxes(tier) { return WORKSHOP_SORT_AXES[tier]; }
 function isValidSortAxis(key) {
   return key in WORKSHOP_SORT_AXES.single || key in WORKSHOP_SORT_AXES.multi;
 }
@@ -4403,10 +4414,11 @@ class WorkshopEntriesScroller extends BaseVirtualScroller {
     super(host, 'entries-table-rows');
     this.toolbar = document.getElementById('search-bar-sort');
     // `allEntries` / `entries` hold ChainRow[] — `{ atoms: Atom[] }`, where an
-    // Atom is `{ wlEntry, lenses, glyph }`. `atomCount` is the (static,
-    // catalog-derived) display-line count every row in the pipeline shares —
-    // one atom per slot, but a doubly-annotated slot draws two lens lines.
+    // Atom is `{ wlEntry, highlights, glyph }`. `atomCount` is the (static,
+    // catalog-derived) atom count every row in the pipeline shares — the row's
+    // height in lines. `sortTier` ('single' | 'multi') picks the sort axes.
     this.atomCount = 1;
+    this.sortTier = 'single';
     this.allEntries = [];
     this.entries = [];
     this.sortKey = WorkshopView.sortKey;
@@ -4459,45 +4471,47 @@ class WorkshopEntriesScroller extends BaseVirtualScroller {
     AtomPopover.close();
   }
 
-  // atomCount defaults to the current value so callers that only update the
-  // rows (e.g. display-case re-render) don't need to know the pipeline shape.
-  // Search is a pipeline tool now; the scroller only filters by score range.
-  setEntries(allEntries, scoreRange = '', atomCount = this.atomCount) {
+  // atomCount / sortTier default to the current values so callers that only
+  // update the rows (e.g. display-case re-render) don't need to know the
+  // pipeline shape. Search is a pipeline tool now; the scroller only filters
+  // by score range.
+  setEntries(allEntries, scoreRange = '', atomCount = this.atomCount, sortTier = this.sortTier) {
     AtomPopover.close();
-    this._setAtomCount(atomCount);
+    this._setChainShape(atomCount, sortTier);
     this.allEntries = allEntries;
     this._invalidateSortCache();
     this._buildToolbar();
     this.filter(scoreRange);
   }
 
-  updateEntries(allEntries, atomCount = this.atomCount) {
+  updateEntries(allEntries, atomCount = this.atomCount, sortTier = this.sortTier) {
     AtomPopover.close();
-    const countChanged = this._setAtomCount(atomCount);
+    const tierChanged = this._setChainShape(atomCount, sortTier);
     this.allEntries = allEntries;
     this._invalidateSortCache();
-    if (countChanged) this._buildToolbar();
+    if (tierChanged) this._buildToolbar();
     this._applyFilterAndSort();
   }
 
-  // Sets the atom count and remaps the sort axis when the prior axis has no
-  // counterpart in the new tier — Score ⇄ Min score and Max score → Score —
-  // falling back to the tier default only when no counterpart exists. The
-  // sort direction is always preserved. Axes valid in both tiers (Entry,
-  // Length) pass through untouched.
-  _setAtomCount(atomCount) {
-    const old = this.atomCount;
-    const changed = atomCount !== old;
+  // Sets the row's atom count (height in lines) and sort tier, remapping the
+  // sort axis when the prior axis has no counterpart in the new tier — Score ⇄
+  // Min score and Max score → Score — falling back to the tier default only
+  // when no counterpart exists. The sort direction is always preserved; axes
+  // valid in both tiers (Entry, Length) pass through untouched. Returns
+  // whether the tier changed, so the caller can rebuild the sort toolbar.
+  _setChainShape(atomCount, sortTier) {
+    const tierChanged = sortTier !== this.sortTier;
     this.atomCount = atomCount;
-    const axes = workshopSortAxes(atomCount);
+    this.sortTier = sortTier;
+    const axes = workshopSortAxes(sortTier);
     if (!(this.sortKey in axes)) {
       const mapped = SORT_AXIS_TIER_MAP[this.sortKey];
       this.sortKey = (mapped && mapped in axes)
         ? mapped
-        : WORKSHOP_DEFAULT_SORT_BY_TIER[sortTierForCount(atomCount)];
+        : WORKSHOP_DEFAULT_SORT_BY_TIER[sortTier];
       WorkshopView.setSort(this.sortKey, this.sortDir);
     }
-    return changed;
+    return tierChanged;
   }
 
   _invalidateSortCache() {
@@ -4513,7 +4527,7 @@ class WorkshopEntriesScroller extends BaseVirtualScroller {
   _buildToolbar() {
     if (!this.toolbar) return;
     const arrow = this.sortDir === 'asc' ? '↑' : '↓';
-    const options = Object.entries(workshopSortAxes(this.atomCount))
+    const options = Object.entries(workshopSortAxes(this.sortTier))
       .map(([key, { label }]) => `<option value="${key}"${key === this.sortKey ? ' selected' : ''}>${label}</option>`)
       .join('');
     this.toolbar.innerHTML = `
@@ -4570,7 +4584,7 @@ class WorkshopEntriesScroller extends BaseVirtualScroller {
     }
 
     let sorted;
-    const axis = workshopSortAxes(this.atomCount)[this.sortKey];
+    const axis = workshopSortAxes(this.sortTier)[this.sortKey];
     if (!axis) {
       sorted = this.allEntries;
     } else {
@@ -4609,7 +4623,7 @@ class WorkshopEntriesScroller extends BaseVirtualScroller {
       for (const atom of row.atoms) {
         const len = atom.wlEntry.entry.length + (atom.glyph ? glyphCh : 0);
         if (len > maxLen) maxLen = len;
-        if (!hasHighlight && atom.lenses.some(l => l.length)) hasHighlight = true;
+        if (!hasHighlight && atom.highlights.length) hasHighlight = true;
       }
     }
     for (const row of this.entries) {
@@ -4674,51 +4688,47 @@ class WorkshopEntriesScroller extends BaseVirtualScroller {
   }
 
   // A chain row: a leading row count, then one `.atom` (display:contents) per
-  // significant transition, each contributing an entry / length / score line
-  // that stacks vertically and shares column widths with the atoms above it.
-  // A slot annotated by two tools draws a second `.atom-lens` line — the same
-  // entry under the other highlight lens — directly below its primary line.
+  // atom, each contributing an entry / length / score line that stacks
+  // vertically and shares column widths with the atoms above it. An atom that
+  // merely repeats the word above it (a search's same-word highlight atom)
+  // renders entry-only — repeating its length / score / comment / source
+  // cells would just be noise.
   _renderChainRow(chainRow, i, tierFor, activeEntry) {
     const atoms = chainRow.atoms;
     let isActive = false;
     let html = `<span class="atom-count">${i + 1}.</span>`;
     atoms.forEach((atom, ai) => {
-      const { wlEntry, lenses, glyph } = atom;
+      const { wlEntry, highlights, glyph } = atom;
       const { entry, score } = wlEntry;
       if (activeEntry && entry === activeEntry) isActive = true;
       const displayed = displayEntry(entry);
       const glyphHTML = glyph ? `<span class="atom-glyph">${glyph} </span>` : '';
       const truncTitle = displayed.length > ENTRY_SLOT_CAP ? ` title="${esc(displayed)}"` : '';
-      // One display line per highlight lens (at least one). The primary line
-      // carries the slot's length / score / comment / source cells; extra lens
-      // lines repeat only the entry, each through its own lens — search hits
-      // and tool annotations alike are baked into the lens by the pipeline.
-      const lensList = lenses.length ? lenses : [[]];
-      lensList.forEach((lensRanges, li) => {
-        const entryCell =
-          `<span class="atom-entry"${truncTitle}>${glyphHTML}${renderHighlightedText(displayed, lensRanges)}</span>`;
-        if (li > 0) {
-          html += `<span class="atom atom-lens" data-atom="${ai}">${entryCell}</span>`;
-          return;
-        }
-        const scoreInner = buildScoreBadgeHTML(score);
-        const tierLabel = tierFor(score);
-        const scoreTitle = tierLabel ? ` title="${esc(tierLabel)}"` : '';
-        // Comment + source cells render on every primary line; CSS gates their
-        // column visibility by viewport width. A synthetic atom (no sourcing
-        // wordlist) gets empty cells.
-        const commentText = wlEntry.comment || '';
-        const sourceWl = wlEntry.wordlist;
-        const sourceHTML = sourceWl ? buildWordlistNameHTML(sourceWl, { bold: false }) : '';
-        const sourceTitle = sourceWl ? ` title="${esc(sourceWl.name)}"` : '';
-        html += `<span class="atom" data-atom="${ai}">` +
-          entryCell +
-          `<span class="atom-len">${entry.length}</span>` +
-          `<span class="atom-score"${scoreTitle}>${scoreInner}</span>` +
-          `<span class="atom-comment"${commentText ? ` title="${esc(commentText)}"` : ''}>${esc(commentText)}</span>` +
-          `<span class="atom-source"${sourceTitle}>${sourceHTML}</span>` +
-          `</span>`;
-      });
+      const entryCell =
+        `<span class="atom-entry"${truncTitle}>${glyphHTML}${renderHighlightedText(displayed, highlights)}</span>`;
+      // A repeat atom (same word as the one above it) renders bare — entry
+      // cell only — so its grid row carries just the re-highlighted word.
+      if (ai > 0 && entry === atoms[ai - 1].wlEntry.entry) {
+        html += `<span class="atom" data-atom="${ai}">${entryCell}</span>`;
+        return;
+      }
+      const scoreInner = buildScoreBadgeHTML(score);
+      const tierLabel = tierFor(score);
+      const scoreTitle = tierLabel ? ` title="${esc(tierLabel)}"` : '';
+      // Comment + source cells render on every full line; CSS gates their
+      // column visibility by viewport width. A synthetic atom (no sourcing
+      // wordlist) gets empty cells.
+      const commentText = wlEntry.comment || '';
+      const sourceWl = wlEntry.wordlist;
+      const sourceHTML = sourceWl ? buildWordlistNameHTML(sourceWl, { bold: false }) : '';
+      const sourceTitle = sourceWl ? ` title="${esc(sourceWl.name)}"` : '';
+      html += `<span class="atom" data-atom="${ai}">` +
+        entryCell +
+        `<span class="atom-len">${entry.length}</span>` +
+        `<span class="atom-score"${scoreTitle}>${scoreInner}</span>` +
+        `<span class="atom-comment"${commentText ? ` title="${esc(commentText)}"` : ''}>${esc(commentText)}</span>` +
+        `<span class="atom-source"${sourceTitle}>${sourceHTML}</span>` +
+        `</span>`;
     });
 
     const row = document.createElement('div');
@@ -5690,11 +5700,11 @@ async function refreshWorkshopMergedScroller() {
   if (!workshopScroller) return;
   const result = await runPipeline(buildMergedWordlist(), ToolStack.getStack());
   if (result.aborted || !workshopScroller) return;
-  workshopScroller.updateEntries(result.rows, result.atomCount);
+  workshopScroller.updateEntries(result.rows, result.atomCount, chainSortTier(ToolStack.getStack()));
 }
 
 function mountWorkshopPanel(panel, stats, entries, rowCount = stats.count) {
-  const countLabel = chainHasTransform(ToolStack.getStack()) ? 'Results' : 'Entries';
+  const countLabel = isFilterOnlyChain(ToolStack.getStack()) ? 'Entries' : 'Results';
   document.getElementById('workshop-stats').innerHTML =
     buildStatsBarHTML(stats, { entries, ignoredCount: stats.ignoredCount }, getHistogramLayout(), { countLabel, countValue: rowCount });
   // ToolStack.buildHTML() renders the tool rows *and* the Search bar (the
@@ -5726,7 +5736,7 @@ function refreshWorkshopStatsBarFromScroller() {
   const hist = { entries: workshopScroller._histogramViewEntries(), ignoredCount: 0 };
   // _filteredStatsViewEntries flattens every atom, so stats.count counts
   // atoms; the bar's count is per chain row.
-  const countLabel = chainHasTransform(ToolStack.getStack()) ? 'Results' : 'Entries';
+  const countLabel = isFilterOnlyChain(ToolStack.getStack()) ? 'Entries' : 'Results';
   statsBar.outerHTML = buildStatsBarHTML(stats, hist, getHistogramLayout(),
     { countLabel, countValue: workshopScroller.entries.length });
   repositionAllHistogramRects();
@@ -5787,7 +5797,7 @@ async function renderWorkshopMergedDetail() {
   workshopScroller.showSource = true;
   workshopScroller.editsWordlist = getEditsWordlist() ?? null;
   workshopScroller.showEditDeleteCol = true;
-  workshopScroller.setEntries(rows, WorkshopView.scoreRange, atomCount);
+  workshopScroller.setEntries(rows, WorkshopView.scoreRange, atomCount, chainSortTier(ToolStack.getStack()));
 
   workshopScroller._onDeleteRow = entry => deleteFromEdits(entry, refreshWorkshopMergedScroller);
   attachExternalEditHandlers(workshopScroller, refreshWorkshopMergedScroller);
@@ -7954,24 +7964,26 @@ window.__grawlixTest = {
   // interactions (which fire-and-forget the refresh) before reading the DOM.
   pipelineIdle() { return pipelineIdle(); },
 
-  // Visible Workshop scroller rows as user-meaningful strings. A 1-atom row
-  // returns its entry string; a multi-atom chain row returns the array of its
-  // atom entry strings (relation glyph stripped). Secondary `.atom-lens` lines
-  // — the same entry under another highlight lens — are skipped, so the result
-  // describes the chain's distinct atoms. Reads from the live DOM so
-  // assertions describe what's actually rendered. Awaits pipelineIdle so an
-  // in-flight async refresh finishes first.
+  // Visible Workshop scroller rows as user-meaningful strings. A single-word
+  // row returns its entry string; a chain row returns the array of its
+  // distinct atom entry strings (relation glyph stripped). Adjacent repeat
+  // atoms — the same word stacked under several search highlights — collapse
+  // to one, so the result describes the chain's distinct words. Reads from the
+  // live DOM so assertions describe what's actually rendered. Awaits
+  // pipelineIdle so an in-flight async refresh finishes first.
   async getVisibleEntries() {
     await pipelineIdle();
     const rows = document.querySelectorAll('#vs-host .entry-row');
     return [...rows].map(r => {
-      const atoms = [...r.querySelectorAll('.atom:not(.atom-lens)')].map(atomEl => {
+      const words = [];
+      for (const atomEl of r.querySelectorAll('.atom')) {
         const entryEl = atomEl.querySelector('.atom-entry');
         const glyph = entryEl.querySelector('.atom-glyph');
         const full = entryEl.textContent || '';
-        return glyph ? full.slice(glyph.textContent.length) : full;
-      });
-      return atoms.length === 1 ? atoms[0] : atoms;
+        const word = glyph ? full.slice(glyph.textContent.length) : full;
+        if (word !== words[words.length - 1]) words.push(word);
+      }
+      return words.length === 1 ? words[0] : words;
     });
   },
 
