@@ -239,16 +239,18 @@ html.light-mode .histogram-rect { opacity: 0.22; }
 .histogram-readonly.is-hovered .histogram-bar:not(.histogram-bar-ignored) { background: var(--accent); }
 html.light-mode .histogram-readonly.is-hovered .histogram-bar:not(.histogram-bar-ignored) { filter: none; }
 
-/* Search bar — bottom "filter" row of the tool stack. position: relative is
-   the positioning context for .tool-stack-cursor (parented here so its caret
-   can span the stack/search-bar boundary). flex-wrap: wrap lets the bar
-   reflow whenever it overflows, at any viewport. */
+/* Search bar — the permanent bottom row of the tool stack (a ToolStack row
+   with its own chrome). position: relative is the positioning context for
+   .tool-stack-cursor, parented here so its caret straddles the seam between
+   the last tool row and the bar. flex-wrap: wrap lets the bar reflow
+   whenever it overflows, at any viewport. */
 .search-bar { padding: 8px 14px; background: var(--surface2); border-bottom: 1px solid var(--border2); display: flex; flex-wrap: wrap; align-items: center; gap: 12px; position: relative; }
-/* The input flexes between 160 and 360px; basis 240 is the wrap threshold.
-   .search-input-row keeps the input and "Whole word" glued together — they
-   stretch and shrink as one unit, never splitting across rows. */
-.search-input-row { display: flex; align-items: center; gap: 12px; min-width: 0; flex: 1 1 auto; }
-.search-input-wrap { position: relative; display: flex; align-items: center; flex: 1 1 240px; min-width: 160px; max-width: 360px; }
+/* The search input is a fixed ~200px (shared with tool-row param inputs) —
+   wide enough to read a pattern without stretching the whole bar. The
+   .search-input-row keeps the input and "Whole word" glued together as one
+   unit, never splitting across rows. */
+.search-input-row { display: flex; align-items: center; gap: 12px; min-width: 0; flex: 0 1 auto; }
+.search-input-wrap { position: relative; display: flex; align-items: center; flex: 0 1 200px; min-width: 140px; }
 .search-input-wrap input[type="text"],
 .tool-row-param input[type="text"] { background: var(--input-bg); color: var(--text); border: 1px solid var(--border); border-radius: 4px; font-size: 13px; font-family: var(--font-mono); padding: 5px 8px; }
 .search-input-wrap input[type="text"]:focus,
@@ -793,11 +795,10 @@ body.tools-empty .gallery-card-add { display: none; }
 /* Insertion cursor — shown while hovering a gallery card to indicate
    where the new tool will land. Drawn as a right-pointing caret + line
    ( >─── ) so it reads as "insert here" rather than just "this position."
-   Parented in .search-bar (not #tool-stack) so the caret can extend both
-   above and below the stack/search-bar boundary without being clipped
-   by #tool-stack's overflow: hidden. The line itself sits at top: -1px,
-   straddling the boundary — the visual seam between the last tool row
-   and the search bar. */
+   Parented in .search-bar, sitting at top: -1px so it straddles the seam
+   between the last tool row and the search bar. The cursor only shows
+   when user tools exist, so that seam is always mid-stack — clear of
+   #tool-stack's overflow: hidden clip at the container edges. */
 .tool-stack-cursor { position: absolute; top: -1px; left: 10px; right: 10px; height: 2px; background: var(--accent); pointer-events: none; box-shadow: 0 0 6px color-mix(in srgb, var(--accent) 55%, transparent); }
 .tool-stack-cursor::before { content: ''; position: absolute; left: 0; top: 50%; width: 0; height: 0; transform: translateY(-50%); border-style: solid; border-width: 4px 0 4px 7px; border-color: transparent transparent transparent var(--accent); }
 .tool-row-body { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; min-width: 0; }
@@ -806,7 +807,8 @@ body.tools-empty .gallery-card-add { display: none; }
 .tool-row-name { font-size: 13px; font-weight: 600; color: var(--text); vertical-align: middle; }
 .tool-row-params { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
 .tool-row-param { display: flex; align-items: center; gap: 4px; font-size: 12px; color: var(--muted); }
-.tool-row-param input { width: 110px; }
+/* Shared width with the search bar's input (.search-input-wrap). */
+.tool-row-param input[type="text"] { width: 200px; }
 .tool-row-remove { background: none; border: none; color: var(--faint); cursor: pointer; padding: 4px; border-radius: 4px; line-height: 1; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; }
 .tool-row-remove:hover { color: var(--text); background: var(--hover); }
 .tool-row-remove-placeholder { width: 24px; height: 24px; }
@@ -1324,21 +1326,37 @@ function buildWildcardSpansHTML() {
         <span><kbd>[a-m]</kbd> letter range</span>`;
 }
 
-function buildSearchBarHTML() {
-  const searchQuery     = esc(WorkshopView.searchQuery);
-  const searchWholeWord = WorkshopView.searchWholeWord;
-  const scoreRange      = WorkshopView.scoreRange;
+// The search input + clear button + whole-word checkbox — shared by the
+// Workshop search bar (a permanent ToolStack row) and the Library search bar.
+// The caller supplies element ids and inline-handler strings, since the two
+// views wire to different modules.
+function buildSearchInputRowHTML({ inputId, clearId, wholeWordId, query, wholeWord, onInput, onClear, onWholeWord, searchTitle, wholeWordTitle }) {
+  const q = esc(query);
+  return `<div class="search-input-row">
+          <div class="search-input-wrap">
+            <input type="text" id="${inputId}" placeholder="pattern" value="${q}" oninput="${onInput}"${searchTitle ? ` title="${searchTitle}"` : ''}>
+            <button class="clear-btn" id="${clearId}" onclick="${onClear}" title="Clear search" aria-label="Clear search" ${q ? '' : 'hidden'}><svg width="10" height="10"><use href="#icon-x"/></svg></button>
+          </div>
+          <label class="search-whole-word-label"${wholeWordTitle ? ` title="${wholeWordTitle}"` : ''}><input type="checkbox" id="${wholeWordId}" onchange="${onWholeWord}" ${wholeWord ? 'checked' : ''}> Whole word</label>
+        </div>`;
+}
 
+// The Workshop search bar's chrome — rendered by ToolStack as the permanent
+// final row of the stack. The query/whole-word state lives in that row's
+// params; score-range and sort are WorkshopView view-config, not pipeline
+// params, and ride along here as the row's "escape hatch" controls.
+function buildSearchBarHTML() {
+  const scoreRange = WorkshopView.scoreRange;
   return `<div class="search-bar">
       <div class="search-items">
         ${buildToolLabelHTML({ icon: '<svg width="16" height="16" aria-hidden="true"><use href="#icon-search"/></svg>', name: 'Search' })}
-        <div class="search-input-row">
-          <div class="search-input-wrap">
-            <input type="text" id="search-input" placeholder="pattern" value="${searchQuery}" oninput="WorkshopView.onSearch(this.value)" title="Search (Alt+S)">
-            <button class="clear-btn" id="search-clear" onclick="WorkshopView.clearSearch()" title="Clear search" aria-label="Clear search" ${searchQuery ? '' : 'hidden'}><svg width="10" height="10"><use href="#icon-x"/></svg></button>
-          </div>
-          <label class="search-whole-word-label" title="Whole word (Alt+W)"><input type="checkbox" id="search-whole-word" onchange="WorkshopView.onSearchWholeWord(this.checked)" ${searchWholeWord ? 'checked' : ''}> Whole word</label>
-        </div>
+        ${buildSearchInputRowHTML({
+          inputId: 'search-input', clearId: 'search-clear', wholeWordId: 'search-whole-word',
+          query: WorkshopView.searchQuery, wholeWord: WorkshopView.searchWholeWord,
+          onInput: 'WorkshopView.onSearch(this.value)', onClear: 'WorkshopView.clearSearch()',
+          onWholeWord: 'WorkshopView.onSearchWholeWord(this.checked)',
+          searchTitle: 'Search (Alt+S)', wholeWordTitle: 'Whole word (Alt+W)',
+        })}
       </div>
       <div class="search-bar-end">
         <label class="score-range-label" title="Score: 50, 50-59, or 50+ (Alt+C)">Score <span class="score-range-wrap"><input type="text" id="score-range-input" value="${esc(scoreRange)}" oninput="WorkshopView.onScoreRange(this.value)"><button class="clear-btn" id="score-range-clear" onclick="WorkshopView.clearScoreRange()" title="Clear score" aria-label="Clear score" ${scoreRange ? '' : 'hidden'}><svg width="10" height="10"><use href="#icon-x"/></svg></button></span></label>
@@ -1693,13 +1711,13 @@ const Router = (() => {
   }
 
   function buildQuery() {
-    // The executed pipeline — user stack plus the permanent Search bar as
-    // its last row. Each row serializes via encodeRow; empty values are kept
+    // The full pipeline — user tools plus the permanent Search bar as its
+    // last row. Each row serializes via encodeRow; empty values are kept
     // (`anagram=`) so an added-but-unfilled row survives reload. The lone
     // exception is the Search bar: its keys are elided when it's at default
     // state *and* not preceded by another Search row, so an untouched app
     // stays at a bare URL while an added Search tool still round-trips.
-    const stack = effectivePipelineStack();
+    const stack = ToolStack.getStack();
     const parts = [];
     stack.forEach((row, i) => {
       if (!TOOLS[row.tool]) return;
@@ -1787,20 +1805,13 @@ const Router = (() => {
       // is a genuinely unknown key — most likely a tool that's been removed.
       if (!knownParam.has(key)) droppedUnknown = true;
     }
-    // The last row, if a Search, is the permanent Search bar; the rest are
-    // ordinary stack tools. No trailing Search row → the bar is at default.
-    let searchQuery = '';
-    let wholeWord = false;
-    if (rows.length && rows[rows.length - 1].tool === 'search') {
-      const bar = rows.pop();
-      searchQuery = bar.params.query || '';
-      wholeWord   = !!bar.params['whole-word'];
-    }
+    // The decoded rows are the full pipeline; ToolStack keeps the trailing
+    // Search row as the permanent bar (appending an empty one if absent).
     // Stack is set first so applyURLState can derive the current atom count
     // when picking the sort default (a stacked-output URL with no explicit
     // sort= should pick min-score, not the 1-atom default entry).
     ToolStack.setStack(rows);
-    WorkshopView.applyURLState({ searchQuery, searchWholeWord: wholeWord, sortKey, sortDir });
+    WorkshopView.applyURLState({ sortKey, sortDir });
     if (droppedUnknown) {
       // Defer: showToast appends to the toast container which may not be in
       // the DOM yet during initial load.
@@ -2200,8 +2211,8 @@ const WorkshopView = (() => {
   // object; written either through the handlers below or through
   // `applyURLState` (Router) / `restoreScoreRange` (boot). The sort state
   // is mutated by WorkshopEntriesScroller's toolbar via `setSort`.
-  let _searchQuery     = '';
-  let _searchWholeWord = false;
+  // Search query / whole-word are *not* here — they live in the permanent
+  // Search bar's ToolStack row params; the getters below read them from it.
   let _scoreRange      = '';
   let _sortKey         = 'entry';
   let _sortDir         = 'asc';
@@ -2219,18 +2230,18 @@ const WorkshopView = (() => {
   // Search / sort / score-range handlers — wired from the inline oninput /
   // onclick attributes that buildSearchBarHTML emits, plus the Alt+W
   // keyboard shortcut and the histogram drag-up commit.
-  // Search is the permanent final pipeline tool (synthesized in
-  // effectivePipelineStack), so changing the query or whole-word re-runs the
-  // pipeline. Score range stays a scroller-side view filter.
+  // Search is the permanent final ToolStack row, so changing the query or
+  // whole-word writes to that row's params and re-runs the pipeline. Score
+  // range stays a scroller-side view filter.
   function onSearch(query) {
-    _searchQuery = query;
+    ToolStack.getSearchBarRow().params.query = query;
     const btn = document.getElementById('search-clear');
     if (btn) btn.hidden = !query;
     refreshWorkshopMergedScroller();
     Router.navigate();
   }
   function onSearchWholeWord(checked) {
-    _searchWholeWord = checked;
+    ToolStack.getSearchBarRow().params['whole-word'] = checked;
     refreshWorkshopMergedScroller();
     Router.navigate();
   }
@@ -2263,16 +2274,13 @@ const WorkshopView = (() => {
   // scroller re-applies sort itself; this just keeps the canonical state.
   function setSort(key, dir) { _sortKey = key; _sortDir = dir; }
 
-  // Bulk-apply URL state at boot. Router parses the query string then hands
-  // us a clean object; this is the only path that writes everything at once
-  // without firing handler side effects.
-  function applyURLState({ searchQuery, searchWholeWord, sortKey, sortDir }) {
-    _searchQuery     = searchQuery || '';
-    _searchWholeWord = !!searchWholeWord;
-    // Tier from the full pipeline — see Router.buildQuery's note.
-    const tier = sortTierForCount(currentAtomCount(effectivePipelineStack()));
-    _sortKey         = sortKey || WORKSHOP_DEFAULT_SORT_BY_TIER[tier];
-    _sortDir         = sortDir || defaultSortDir(_sortKey);
+  // Bulk-apply URL sort state at boot. Router parses the query string, sets
+  // the tool stack (including the Search bar row), then hands us the sort
+  // axis/direction. The search query itself rides in the stack, not here.
+  function applyURLState({ sortKey, sortDir }) {
+    const tier = sortTierForCount(currentAtomCount(ToolStack.getStack()));
+    _sortKey = sortKey || WORKSHOP_DEFAULT_SORT_BY_TIER[tier];
+    _sortDir = sortDir || defaultSortDir(_sortKey);
   }
 
   // Score-range is the lone state field that's localStorage-backed (it's a
@@ -2284,8 +2292,8 @@ const WorkshopView = (() => {
     show, hide, isVisible,
     onSearch, onSearchWholeWord, onScoreRange, clearSearch, clearScoreRange,
     setSort, applyURLState, restoreScoreRange,
-    get searchQuery()     { return _searchQuery;     },
-    get searchWholeWord() { return _searchWholeWord; },
+    get searchQuery()     { return ToolStack.getSearchBarRow().params.query || ''; },
+    get searchWholeWord() { return !!ToolStack.getSearchBarRow().params['whole-word']; },
     get scoreRange()      { return _scoreRange;      },
     get sortKey()         { return _sortKey;         },
     get sortDir()         { return _sortDir;         },
@@ -2448,17 +2456,16 @@ const LibraryView = (() => {
   }
 
   function buildSearchBarHTML() {
-    const q = esc(_searchQuery);
     return `<div class="search-bar lib-search-bar">
       <div class="search-items">
         ${buildToolLabelHTML({ icon: '<svg width="16" height="16" aria-hidden="true"><use href="#icon-search"/></svg>', name: 'Search' })}
-        <div class="search-input-row">
-          <div class="search-input-wrap">
-            <input type="text" id="lib-search-input" placeholder="pattern" value="${q}" oninput="LibraryView.onSearch(this.value)">
-            <button class="clear-btn" id="lib-search-clear" onclick="LibraryView.clearSearch()" title="Clear search" aria-label="Clear search" ${_searchQuery ? '' : 'hidden'}><svg width="10" height="10"><use href="#icon-x"/></svg></button>
-          </div>
-          <label class="search-whole-word-label" title="Whole word"><input type="checkbox" id="lib-search-whole-word" onchange="LibraryView.onWholeWord(this.checked)" ${_searchWholeWord ? 'checked' : ''}> Whole word</label>
-        </div>
+        ${buildSearchInputRowHTML({
+          inputId: 'lib-search-input', clearId: 'lib-search-clear', wholeWordId: 'lib-search-whole-word',
+          query: _searchQuery, wholeWord: _searchWholeWord,
+          onInput: 'LibraryView.onSearch(this.value)', onClear: 'LibraryView.clearSearch()',
+          onWholeWord: 'LibraryView.onWholeWord(this.checked)',
+          wholeWordTitle: 'Whole word',
+        })}
       </div>
       <div class="search-bar-end">
         <div class="search-bar-sort">${buildSortControlsHTML()}</div>
@@ -3830,8 +3837,15 @@ async function runPipeline(mergedWordlist, stack) {
 }
 
 const ToolStack = (() => {
-  // [{ tool: 'anagram', params: { entry: 'LINDSEY' } }, ...]
-  let stack = [];
+  // The user's pipeline. The last row is always the permanent Search bar —
+  // rendered with .search-bar chrome, undeletable; user tools sit above it.
+  // [{ tool: 'anagram', params: {…} }, …, { tool: 'search', params: {…} }]
+  let stack = [{ tool: 'search', params: {} }];
+
+  // The permanent Search bar (always the last row) and the user tools above
+  // it. getStack() is the full pipeline — what the executor and URL consume.
+  function getSearchBarRow() { return stack[stack.length - 1]; }
+  function getUserStack() { return stack.slice(0, -1); }
 
   function paramsHTML(tool, idx, valuesByKey) {
     if (!tool.params.length) return '';
@@ -3849,6 +3863,9 @@ const ToolStack = (() => {
   }
 
   function buildRowHTML(idx, row) {
+    // The last row is the permanent Search bar — its own chrome, no remove
+    // button (undeletable). Everything above it is an ordinary tool row.
+    if (idx === stack.length - 1) return buildSearchBarHTML();
     const tool = TOOLS[row.tool];
     if (!tool) return '';
     return `<div class="tool-row">
@@ -3882,35 +3899,17 @@ const ToolStack = (() => {
     }).join('');
   }
 
-  // Used by mountWorkshopPanel for the initial render. Mutations after that go
-  // through direct DOM manipulation in add/replace/removeAt. Preview state is
-  // purely transient and lives only in the DOM (.doomed class +
-  // .tool-stack-cursor element), so it's not serialized here.
+  // Used by mountWorkshopPanel for the initial render. Mutations after that
+  // re-render the user tool rows via rerenderRows, which leaves the Search
+  // bar's DOM in place. Preview state is purely transient and lives only in
+  // the DOM (.doomed class + .tool-stack-cursor), so it's not serialized here.
   function buildHTML() {
-    if (!stack.length) return '';
     const rows = stack.map((row, idx) => buildRowHTML(idx, row)).join('');
     return `<div id="tool-stack">${rows}</div>`;
   }
 
   function stackEl() { return document.getElementById('tool-stack'); }
   function panelEl() { return document.getElementById('detail-panel'); }
-
-  function ensureStackEl() {
-    let e = stackEl();
-    if (e) return e;
-    const p = panelEl();
-    if (!p) return null;
-    e = document.createElement('div');
-    e.id = 'tool-stack';
-    // Inserts into the .sticky-stack ahead of the search bar when present;
-    // falls back to the entries-table panel's parent on the empty-panel path.
-    const searchBar = p.querySelector('.search-bar');
-    const entriesPanel = p.querySelector('#entries-table-panel');
-    const anchor = searchBar || entriesPanel;
-    if (anchor) anchor.parentNode.insertBefore(e, anchor);
-    else p.appendChild(e);
-    return e;
-  }
 
   function rowEls() {
     const e = stackEl();
@@ -3933,27 +3932,29 @@ const ToolStack = (() => {
   }
 
   function refreshGalleryActive() {
-    const active = new Set(stack.map(r => r.tool));
+    // The permanent Search bar isn't a "tool the user added" — gallery-active
+    // and tools-empty consider only the user tools above it.
+    const userStack = getUserStack();
+    const active = new Set(userStack.map(r => r.tool));
     document.querySelectorAll('.gallery-card[data-tool]').forEach(card => {
       card.classList.toggle('active', active.has(card.dataset.tool));
     });
-    document.body.classList.toggle('tools-empty', stack.length === 0);
+    document.body.classList.toggle('tools-empty', userStack.length === 0);
   }
 
   function searchBarEl() { return panelEl()?.querySelector('.search-bar'); }
   function removeCursor() { document.querySelector('.tool-stack-cursor')?.remove(); }
 
   // Hovering a gallery card previews the click outcome via:
-  //   - .doomed on every existing row in replace mode (in-place dim, no
+  //   - .doomed on every user tool row in replace mode (in-place dim, no
   //     collapse — keeps stack height stable so rapid scrubbing across the
   //     gallery never jitters).
-  //   - .tool-stack-cursor at the boundary between #tool-stack and
-  //     .search-bar (parented in .search-bar so the caret can extend across
-  //     that boundary unclipped). Absolutely positioned so it adds zero
-  //     vertical space.
+  //   - .tool-stack-cursor at the seam between the last user tool row and
+  //     the Search bar (parented in .search-bar, straddling that seam).
+  //     Absolutely positioned so it adds zero vertical space.
   // The preview is reserved for the cases where the click outcome is
   // visually surprising:
-  //   - Empty stack + replace: click just adds the tool, nothing to dim.
+  //   - No user tools + replace: click just adds the tool, nothing to dim.
   //   - Single tool + replace: a one-for-one swap is unambiguous; dimming
   //     the lone row and showing a caret is more clutter than guidance.
   //   - Chain (the `+` button): always preview — `+` is an unfamiliar
@@ -3961,8 +3962,9 @@ const ToolStack = (() => {
   //   - Multi-tool stack + replace: doom every row so the user sees the
   //     click will wipe out more than one row.
   function setPreview(mode) {
-    if (stack.length === 0) return;
-    if (mode === 'replace' && stack.length === 1) {
+    const userCount = getUserStack().length;
+    if (userCount === 0) return;
+    if (mode === 'replace' && userCount === 1) {
       clearPreview();
       return;
     }
@@ -3984,34 +3986,28 @@ const ToolStack = (() => {
     removeCursor();
   }
 
-  // Tears down every .tool-row and rebuilds from `stack`. Used by mutations
-  // that reshuffle indices (replace, removeAt, undo); add() appends in place.
+  // Rebuilds the user tool rows from `stack`, leaving the permanent Search
+  // bar's DOM in place — so its input focus, the sort toolbar mounted inside
+  // it, and the help popup all survive a tool add/remove. A full re-render
+  // (which does rebuild the bar) happens only via mountWorkshopPanel.
   function rerenderRows() {
-    const e = stack.length ? ensureStackEl() : stackEl();
+    const e = stackEl();
     if (!e) return;
     removeCursor();
+    const bar = e.querySelector('.search-bar');
     e.querySelectorAll('.tool-row').forEach(r => r.remove());
-    stack.forEach((row, i) => {
+    getUserStack().forEach((row, i) => {
       const tmp = document.createElement('div');
       tmp.innerHTML = buildRowHTML(i, row);
-      e.appendChild(tmp.firstElementChild);
+      e.insertBefore(tmp.firstElementChild, bar);
     });
-    if (!stack.length) e.remove();
   }
 
   function add(toolKey) {
     if (!TOOLS[toolKey]) return;
-    const idx = stack.length;
-    stack.push({ tool: toolKey, params: {} });
-
-    const e = ensureStackEl();
-    if (e) {
-      e.querySelectorAll('.tool-row.doomed').forEach(r => r.classList.remove('doomed'));
-      removeCursor();
-      const tmp = document.createElement('div');
-      tmp.innerHTML = buildRowHTML(idx, stack[idx]);
-      e.appendChild(tmp.firstElementChild);
-    }
+    const idx = stack.length - 1;            // insert just above the Search bar
+    stack.splice(idx, 0, { tool: toolKey, params: {} });
+    rerenderRows();
     focusRowInput(idx);
     flashRow(idx);
     refreshGalleryActive();
@@ -4021,15 +4017,16 @@ const ToolStack = (() => {
 
   function replace(toolKey) {
     if (!TOOLS[toolKey]) return;
+    const userTools = getUserStack();
     // Self-replace = no-op (still drop any preview state in place).
-    if (stack.length === 1 && stack[0].tool === toolKey) {
+    if (userTools.length === 1 && userTools[0].tool === toolKey) {
       clearPreview();
       focusRowInput(0);
       flashRow(0);
       return;
     }
-    const replaced = stack;
-    stack = [{ tool: toolKey, params: {} }];
+    const replaced = stack;                  // full stack, including the bar
+    stack = [{ tool: toolKey, params: {} }, getSearchBarRow()];
 
     rerenderRows();
     focusRowInput(0);
@@ -4038,15 +4035,15 @@ const ToolStack = (() => {
     refreshWorkshopMergedScroller();
     Router.navigate();
 
-    if (replaced.length) notifyReplaced(replaced, toolKey);
+    if (userTools.length) notifyReplaced(replaced, userTools, toolKey);
   }
 
-  // The gallery's replace gesture wipes the whole stack; surface what it
+  // The gallery's replace gesture wipes the user tools; surface what it
   // displaced and let the user back out of an accidental click.
-  function notifyReplaced(replaced, newToolKey) {
-    const what = replaced.map(r => esc(TOOLS[r.tool]?.name || 'tool')).join(' + ');
+  function notifyReplaced(replacedFull, replacedUserTools, newToolKey) {
+    const what = replacedUserTools.map(r => esc(TOOLS[r.tool]?.name || 'tool')).join(' + ');
     showUndoToast(`Replaced ${what} with ${esc(TOOLS[newToolKey].name)}`, () => {
-      stack = replaced;
+      stack = replacedFull;
       rerenderRows();
       refreshGalleryActive();
       refreshWorkshopMergedScroller();
@@ -4055,7 +4052,8 @@ const ToolStack = (() => {
   }
 
   function removeAt(idx) {
-    if (idx < 0 || idx >= stack.length) return;
+    // The permanent Search bar (last row) is undeletable.
+    if (idx < 0 || idx >= stack.length - 1) return;
     stack.splice(idx, 1);
     rerenderRows();
     refreshGalleryActive();
@@ -4112,12 +4110,21 @@ const ToolStack = (() => {
   }
 
   // setStack replaces the internal stack without animation or URL roundtrip —
-  // used by Router.applyURL on init. The next mountWorkshopPanel call (in
-  // renderAll) renders the rows; init() attaches handlers afterwards.
-  function setStack(newStack) { stack = Array.isArray(newStack) ? newStack : []; }
+  // used by Router.applyURL on init. The decoded rows are the full pipeline;
+  // their trailing Search row (if any) is the permanent bar — append an empty
+  // one when absent so the invariant "last row = Search bar" always holds.
+  // The next mountWorkshopPanel call (in renderAll) renders the rows; init()
+  // attaches handlers afterwards.
+  function setStack(newStack) {
+    const rows = Array.isArray(newStack) ? newStack.slice() : [];
+    if (!rows.length || rows[rows.length - 1].tool !== 'search') {
+      rows.push({ tool: 'search', params: {} });
+    }
+    stack = rows;
+  }
   function getStack() { return stack; }
 
-  return { buildHTML, refreshGalleryActive, init, getStack, setStack };
+  return { buildHTML, refreshGalleryActive, init, getStack, setStack, getSearchBarRow, getUserStack };
 })();
 
 // ─── Input helpers ────────────────────────────────────────────────────────────
@@ -5638,20 +5645,11 @@ function createScroller() {
 //
 // Async because the pipeline is async; the runtime supersedes any in-flight
 // run, so an aborted result is dropped and the next call wins.
-// The executed pipeline is the user's stack plus a permanent final Search
-// tool driven by the search bar. The bar isn't a ToolStack row — it's
-// synthesized here — but a user can also add their own Search rows from the
-// gallery anywhere in the stack.
-function effectivePipelineStack() {
-  return [
-    ...ToolStack.getStack(),
-    { tool: 'search', params: { query: WorkshopView.searchQuery, 'whole-word': WorkshopView.searchWholeWord } },
-  ];
-}
-
+// The executed pipeline is ToolStack's full stack — the user's tools plus
+// the permanent Search bar as its final row.
 async function refreshWorkshopMergedScroller() {
   if (!workshopScroller) return;
-  const result = await runPipeline(buildMergedWordlist(), effectivePipelineStack());
+  const result = await runPipeline(buildMergedWordlist(), ToolStack.getStack());
   if (result.aborted || !workshopScroller) return;
   workshopScroller.updateEntries(result.rows, result.atomCount);
 }
@@ -5659,10 +5657,11 @@ async function refreshWorkshopMergedScroller() {
 function mountWorkshopPanel(panel, stats, entries, rowCount = stats.count) {
   document.getElementById('workshop-stats').innerHTML =
     buildStatsBarHTML(stats, { entries, ignoredCount: stats.ignoredCount }, getHistogramLayout(), { countValue: rowCount });
+  // ToolStack.buildHTML() renders the tool rows *and* the Search bar (the
+  // stack's permanent last row).
   panel.innerHTML = `
     <div class="sticky-stack">
       ${ToolStack.buildHTML()}
-      ${buildSearchBarHTML()}
       ${buildEntryHeadersHTML()}
     </div>
     ${buildEntriesTablePanelHTML()}
@@ -5725,14 +5724,14 @@ function attachSearchHelpPopup() {
 async function renderWorkshopMergedDetail() {
   const panel = document.getElementById('detail-panel');
   const merged = buildMergedWordlist();
-  const result = await runPipeline(merged, effectivePipelineStack());
+  const result = await runPipeline(merged, ToolStack.getStack());
   if (result.aborted) return;
   const { rows, atomCount } = result;
   // Passthrough fast path: no run-having user tool and an empty search query
   // means the result is the merged All view 1:1, so the cached merged stats
   // apply. Otherwise compute raw — the scroller's onFilterChange refresh
   // replaces this initial bar immediately. Stats aggregate over every atom.
-  const passthrough = !ToolStack.getStack().some(r => TOOLS[r.tool]?.run) && !WorkshopView.searchQuery;
+  const passthrough = !ToolStack.getUserStack().some(r => TOOLS[r.tool]?.run) && !WorkshopView.searchQuery;
   const statsSource = passthrough ? merged.entries : flattenAtoms(rows);
   const stats = passthrough
     ? computeStats(_mergedStatsKey, statsSource)

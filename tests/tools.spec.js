@@ -278,13 +278,13 @@ test('a gallery Search tool and the permanent Search bar both round-trip through
     renderWorkshopMergedDetail();
   });
 
-  // Decode splits them — the added Search row survives, it doesn't collapse
-  // into the bar (the bug this scheme fixes).
+  // Decode splits them — the added Search row survives as a user tool, it
+  // doesn't collapse into the bar (the bug this scheme fixes).
   const state = await page.evaluate(() => ({
-    stack: ToolStack.getStack().map(r => ({ tool: r.tool, params: r.params })),
+    userStack: ToolStack.getUserStack().map(r => ({ tool: r.tool, params: r.params })),
     barQuery: WorkshopView.searchQuery,
   }));
-  expect(state.stack).toEqual([{ tool: 'search', params: { query: 'ca' } }]);
+  expect(state.userStack).toEqual([{ tool: 'search', params: { query: 'ca' } }]);
   expect(state.barQuery).toBe('cat');
 
   // Both rows run: "ca" then "cat" leaves only CAT.
@@ -307,9 +307,9 @@ test('whole-word rides as a bare key on its Search row and round-trips', async (
     renderWorkshopMergedDetail();
   });
 
-  const stack = await page.evaluate(() =>
-    ToolStack.getStack().map(r => ({ tool: r.tool, params: r.params })));
-  expect(stack).toEqual([{ tool: 'search', params: { query: 'cat', 'whole-word': true } }]);
+  const userStack = await page.evaluate(() =>
+    ToolStack.getUserStack().map(r => ({ tool: r.tool, params: r.params })));
+  expect(userStack).toEqual([{ tool: 'search', params: { query: 'cat', 'whole-word': true } }]);
 
   const hash = await page.evaluate(() => { Router.navigate(); return location.hash; });
   expect(hash).toBe('#/workshop?search=cat&whole-word&search=');
