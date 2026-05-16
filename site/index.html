@@ -4276,9 +4276,10 @@ function isValidSortAxis(key) {
 // Library entries sort by the same three axes over plain wlEntries; the
 // LibraryEntriesScroller owns its own comparison, so only the labels matter.
 const LIBRARY_SORT_AXES = { entry: { label: 'Entry' }, length: { label: 'Length' }, score: { label: 'Score' } };
-// Score axes sort descending — top-down reads as "best first". Others ascending.
+// Entry sorts ascending (alphabetical reads naturally A→Z). Every other axis
+// sorts descending — top-down reads as "best first".
 function defaultSortDir(key) {
-  return (key === 'score' || key === 'min-score' || key === 'max-score') ? 'desc' : 'asc';
+  return key === 'entry' ? 'asc' : 'desc';
 }
 
 // Compare two items along an axis, falling through tiebreakers when the

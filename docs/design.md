@@ -264,7 +264,7 @@ What's gained: visual calm at rest, narrow widths come nearly for free (lists sc
 
 **Sort control inside the search bar.** "Sort by [Entry ▾] [↑]" sits at the right edge of the search bar, after the score-range filter — not in a dedicated toolbar above the table. The query input is a fixed width (shared with tool-row param inputs), leaving the bar's right-hand space for the score and sort controls, so folding sort in saves a row of vertical space without crowding. Filter (search/whole-word/score) on the left, view-config (sort) on the right; same row.
 
-The sort axis is a native `<select>` with `appearance: none` and a chevron painted via background-image — quiet inline text rather than bordered chrome. Direction is a borderless `↑`/`↓` button next to it. No persistent border or background; the controls flow inline with natural HTML whitespace between them. Sort axes: Entry (alphabetical by word), Length, Score. Default Entry ascending; Score defaults to descending when first selected.
+The sort axis is a native `<select>` with `appearance: none` and a chevron painted via background-image — quiet inline text rather than bordered chrome. Direction is a borderless `↑`/`↓` button next to it. No persistent border or background; the controls flow inline with natural HTML whitespace between them. Sort axes: Entry (alphabetical by word), Length, Score. Default Entry ascending; every other axis defaults to descending when first selected.
 
 **Click an atom → AtomPopover.** A click-driven popover anchored to the clicked atom (word or score). Content: a header line repeating the atom for context, a source block (which wordlist sourced the score, with rescore/override info or "Ignored by rescore rules"), score and comment text inputs, a "Saves to My Edits" footer, and a Delete button when the row is sourced from My Edits. Edits commit via Enter (commit + close) or blur (commit, popover stays open so you can tab to the next field); Escape reverts and closes. Click-outside, scroll, resize, search/filter/sort changes, and panel re-mount all close it.
 
@@ -317,7 +317,7 @@ Each pipeline row serializes in pipeline order. A tool's parameters spread acros
 Two keys carry the entries-table sort:
 
 - `sort=<axis>` — depends on the row's atom-count tier (§ Sort axes per atom count). 1-atom rows: `entry`, `length`, `score`. ≥2-atom rows: `entry`, `length`, `min-score`, `max-score`. Dropped when the axis matches the tier's default (`entry` at 1 atom, `min-score` above).
-- `sort-dir=<asc|desc>` — dropped when the direction matches the axis's default. `entry` and `length` default to ascending; `score` / `min-score` / `max-score` default to descending (picking a score axis is "what are the best rows?", which reads top-down).
+- `sort-dir=<asc|desc>` — dropped when the direction matches the axis's default. `entry` defaults to ascending (alphabetical reads naturally A→Z); every other axis (`length`, `score`, `min-score`, `max-score`) defaults to descending, which reads top-down as "best/biggest rows first".
 
 The two-key form keeps each piece independently minimizable, so the common cases stay quiet — a 1-atom `entry asc` is silent, a stacked `min-score desc` is silent, `score desc` is just `sort=score`, `score asc` is `sort=score&sort-dir=asc`. `sort-dir` can appear without `sort` (e.g. `entry desc` becomes `sort-dir=desc`); the parser treats an absent `sort` as the tier default.
 
