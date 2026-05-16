@@ -350,14 +350,13 @@ test('stats bar counts chain rows as entries', async ({ page }) => {
   await addSemordnilapFixture(page);
   await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'semordnilap' }]));
 
-  // Three chain rows visible — the label is always "Entries"; the count is
-  // per row, not per flattened atom.
-  await expect(page.locator('#workshop-stats .stats-bar')).toContainText('Entries');
+  // Three chain rows visible — the count is per row, not per flattened atom
+  // (each semordnilap row pairs two atoms).
   await expect(page.locator('#workshop-stats .stats-bar')).toContainText('3');
 
-  // Remove the tool — the merged view's nine entries.
+  // Remove the tool — the count falls back to the merged view's nine entries.
   await page.locator('.tool-row-remove').click();
-  await expect(page.locator('#workshop-stats .stats-bar')).toContainText('Entries');
+  await expect(page.locator('#workshop-stats .stats-bar')).toContainText('9');
 });
 
 test('clicking an atom in a chain row opens the popover for that atom', async ({ page }) => {

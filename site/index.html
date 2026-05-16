@@ -1419,9 +1419,9 @@ class PopupHelp {
 // histograms, which display the distribution but don't participate in
 // score-range filtering.
 function buildStatsBarHTML(stats, hist, layout, opts = {}) {
-  // countLabel/countValue let pair output show "Pairs: 42" instead of the
-  // default "Entries: 84" — the stats aggregates run over flattened atoms,
-  // but the count is per-row.
+  // countLabel/countValue keep the label and number independent: the stats
+  // aggregates run over flattened atoms, but the count is per row — and the
+  // Workshop panel relabels it "Results" once a transform branches the rows.
   const { readOnly = false, countLabel = 'Entries', countValue = stats.count } = opts;
   const isEmpty = !countValue;
   const dash = '—';
@@ -3651,6 +3651,12 @@ function slotLineCount(ann) { return ann >= 2 ? 2 : 1; }
 
 function currentAtomCount(stack) { return computeChainTemplate(stack).atomCount; }
 
+// True once an active transform sits in the stack: its rows branch and append
+// atoms, so they're pipeline results rather than 1:1 wordlist entries. Each
+// transform pushes exactly one slot, so >1 slot means a transform is live —
+// filters and inert tools leave the originator slot alone.
+function chainHasTransform(stack) { return computeChainTemplate(stack).slots.length > 1; }
+
 // Append a highlight lens to an atom. Each annotating tool contributes one
 // lens (its ranges, possibly empty); the renderer draws one line per lens.
 // Capped at two — `slotLineCount` mirrors the cap — so a third lens merges
@@ -5688,8 +5694,9 @@ async function refreshWorkshopMergedScroller() {
 }
 
 function mountWorkshopPanel(panel, stats, entries, rowCount = stats.count) {
+  const countLabel = chainHasTransform(ToolStack.getStack()) ? 'Results' : 'Entries';
   document.getElementById('workshop-stats').innerHTML =
-    buildStatsBarHTML(stats, { entries, ignoredCount: stats.ignoredCount }, getHistogramLayout(), { countValue: rowCount });
+    buildStatsBarHTML(stats, { entries, ignoredCount: stats.ignoredCount }, getHistogramLayout(), { countLabel, countValue: rowCount });
   // ToolStack.buildHTML() renders the tool rows *and* the Search bar (the
   // stack's permanent last row).
   panel.innerHTML = `
@@ -5719,8 +5726,9 @@ function refreshWorkshopStatsBarFromScroller() {
   const hist = { entries: workshopScroller._histogramViewEntries(), ignoredCount: 0 };
   // _filteredStatsViewEntries flattens every atom, so stats.count counts
   // atoms; the bar's count is per chain row.
+  const countLabel = chainHasTransform(ToolStack.getStack()) ? 'Results' : 'Entries';
   statsBar.outerHTML = buildStatsBarHTML(stats, hist, getHistogramLayout(),
-    { countValue: workshopScroller.entries.length });
+    { countLabel, countValue: workshopScroller.entries.length });
   repositionAllHistogramRects();
 }
 
