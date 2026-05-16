@@ -3627,27 +3627,27 @@ function normalizeParams(params) {
 // the sum of line counts across slots — the row's height in `ROW_HEIGHT`
 // units, read by the renderer, the sort tier, and the scroller's stride math.
 function computeChainTemplate(stack) {
-  const slots = [{ ann: 0 }];   // originator slot
+  const slots = [{ lensCount: 0 }];   // originator slot
   for (const row of stack) {
     const tool = TOOLS[row.tool];
     if (!tool?.run || tool.isInert?.(row.params)) continue;   // transparent rows
     const tail = slots[slots.length - 1];
     if (tool.kind === 'transform') {
-      if (tool.inputHighlights) tail.ann++;
-      slots.push({ ann: tool.outputHighlights ? 1 : 0 });
+      if (tool.inputHighlights) tail.lensCount++;
+      slots.push({ lensCount: tool.outputHighlights ? 1 : 0 });
     } else if (tool.inputHighlights || tool.outputHighlights) {
-      tail.ann++;
+      tail.lensCount++;
     }
   }
   let atomCount = 0;
-  for (const s of slots) atomCount += slotLineCount(s.ann);
+  for (const s of slots) atomCount += slotLineCount(s.lensCount);
   return { slots, atomCount };
 }
 
 // A slot's display line count from its lens count: one line unannotated or
 // singly annotated, two once a second lens lands. The cap keeps row height
 // bounded and `atomCount` static — extra lenses merge into the second line.
-function slotLineCount(ann) { return ann >= 2 ? 2 : 1; }
+function slotLineCount(lensCount) { return lensCount >= 2 ? 2 : 1; }
 
 function currentAtomCount(stack) { return computeChainTemplate(stack).atomCount; }
 
