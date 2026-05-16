@@ -204,9 +204,10 @@ test('a downstream transform keeps the two semordnilap directions separate', asy
   await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'semordnilap' }, { tool: 'behead' }]));
 
   const visible = await page.evaluate(() => window.__grawlixTest.getVisibleEntries());
+  // Entry sort projects off the first atom, so rows order rats < star.
   expect(visible).toEqual([
-    ['star', 'rats', 'ats'],
     ['rats', 'star', 'tar'],
+    ['star', 'rats', 'ats'],
   ]);
   // No ↔ anywhere — the rows failed the mirror test, so every glyph is →.
   await expect(page.locator('#vs-host .atom-glyph', { hasText: '↔' })).toHaveCount(0);
@@ -499,6 +500,35 @@ test('sort axis carries across the tool tier boundary', async ({ page }) => {
   await axis.selectOption('max-score');
   await page.evaluate(() => window.__grawlixTest.setStack([]));
   await expect(axis).toHaveValue('score');
+});
+
+// Entry and Length sort project off the *first* atom — the merged-wordlist
+// entry the row grew from — so adding a 1-output transform (or a filter)
+// can't reshuffle the table: every surviving row keeps its tool-less slot.
+
+test('Entry sort holds row order when a 1-output transform is added', async ({ page }) => {
+  await gotoApp(page);
+  // Five originators that behead into a real entry; the beheaded forms and the
+  // two loners (CAT, DOG) behead into nothing, so adding behead drops them.
+  await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
+    name: 'BeheadStable',
+    entries: ['SPARK', 'PARK', 'CLAMP', 'LAMP', 'BRIDGE', 'RIDGE',
+              'WHEAT', 'HEAT', 'SCARE', 'CARE', 'CAT', 'DOG'],
+    scores:  Array(12).fill(50),
+  }));
+  await page.evaluate(() => window.__grawlixTest.setStack([]));
+
+  // Tool-less Entry order (default sort), narrowed to the five survivors.
+  const originators = ['spark', 'clamp', 'bridge', 'wheat', 'scare'];
+  const toolless = await page.evaluate(() => window.__grawlixTest.getVisibleEntries());
+  const beforeOrder = toolless.filter(e => originators.includes(e));
+
+  // Adding behead chains each survivor and drops the rest; the chains keep
+  // their tool-less first-atom order because Entry sort projects off atom 0.
+  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'behead' }]));
+  const chained = await page.evaluate(() => window.__grawlixTest.getVisibleEntries());
+  expect(chained[0]).toEqual(['bridge', 'ridge']);          // behead really ran
+  expect(chained.map(row => row[0])).toEqual(beforeOrder);
 });
 
 // ─── Behead, Curtail, and the removed-letter highlight ──────────────────────

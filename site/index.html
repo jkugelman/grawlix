@@ -4174,8 +4174,10 @@ function scoreColor(score) {
 
 // Workshop sort axes, split by atom-count tier — 1-atom rows (empty stack or
 // a pure filter) sort by Entry / Length / Score; ≥2-atom rows swap Score for
-// Min score / Max score. Entry and Length project off the *last* atom in the
-// chain (the bottom tool's output); Min/Max project across every atom.
+// Min score / Max score. Entry and Length project off the *first* atom — the
+// merged-wordlist entry the row grew from — so the table keeps its order when
+// a tool is added: a filter or 1-output transform leaves every first atom in
+// place, so the rows can't reshuffle. Min/Max project across every atom.
 //
 // Each axis declares its primary projection and a fixed-direction tiebreaker
 // chain — when the primary ties, fall to whichever direction surfaces the
@@ -4184,51 +4186,62 @@ function scoreColor(score) {
 // asc/desc toggle reverses only the primary; tiebreakers keep their declared
 // direction, so "score asc" still shows the longest among the lowest-scoring
 // rows first instead of letting short junk float to the top of a tied bucket.
-const rowLastEntry = r => r.atoms[r.atoms.length - 1].wlEntry;
-const rowMinScore  = r => Math.min(...r.atoms.map(a => a.wlEntry.score));
-const rowMaxScore  = r => Math.max(...r.atoms.map(a => a.wlEntry.score));
+//
+// A multi-output transform (anagram) branches one input into rows that share
+// their whole first atom; rowChainTail breaks those ties by the later atoms.
+const rowFirstEntry = r => r.atoms[0].wlEntry;
+const rowLastEntry  = r => r.atoms[r.atoms.length - 1].wlEntry;
+const rowMinScore   = r => Math.min(...r.atoms.map(a => a.wlEntry.score));
+const rowMaxScore   = r => Math.max(...r.atoms.map(a => a.wlEntry.score));
+// Later atoms joined with a low separator: a string compare then orders them
+// atom-by-atom, since every row in a run carries the same atom count.
+const rowChainTail  = r => r.atoms.slice(1).map(a => a.wlEntry.entry).join('\u0000');
 const WORKSHOP_SORT_AXES = {
   single: {
     entry: {
       label: 'Entry',
-      primary: r => rowLastEntry(r).entry,
+      primary: r => rowFirstEntry(r).entry,
       tiebreakers: [
-        { project: r => rowLastEntry(r).entry.length, dir: 'desc' },
-        { project: r => rowLastEntry(r).score,        dir: 'desc' },
+        { project: r => rowFirstEntry(r).entry.length, dir: 'desc' },
+        { project: r => rowFirstEntry(r).score,        dir: 'desc' },
       ],
     },
     length: {
       label: 'Length',
-      primary: r => rowLastEntry(r).entry.length,
+      primary: r => rowFirstEntry(r).entry.length,
       tiebreakers: [
-        { project: r => rowLastEntry(r).score, dir: 'desc' },
-        { project: r => rowLastEntry(r).entry, dir: 'asc'  },
+        { project: r => rowFirstEntry(r).score, dir: 'desc' },
+        { project: r => rowFirstEntry(r).entry, dir: 'asc'  },
       ],
     },
     score: {
       label: 'Score',
-      primary: r => rowLastEntry(r).score,
+      primary: r => rowFirstEntry(r).score,
       tiebreakers: [
-        { project: r => rowLastEntry(r).entry.length, dir: 'desc' },
-        { project: r => rowLastEntry(r).entry,        dir: 'asc'  },
+        { project: r => rowFirstEntry(r).entry.length, dir: 'desc' },
+        { project: r => rowFirstEntry(r).entry,        dir: 'asc'  },
       ],
     },
   },
   multi: {
     entry: {
       label: 'Entry',
-      primary: r => rowLastEntry(r).entry,
+      primary: r => rowFirstEntry(r).entry,
+      // First-atom entries are unique per input, so the only ties are a
+      // multi-output transform's branches — settled by the chain tail.
       tiebreakers: [
-        { project: r => rowLastEntry(r).entry.length, dir: 'desc' },
-        { project: rowMinScore,                       dir: 'desc' },
+        { project: rowChainTail, dir: 'asc' },
       ],
     },
     length: {
       label: 'Length',
-      primary: r => rowLastEntry(r).entry.length,
+      primary: r => rowFirstEntry(r).entry.length,
+      // First-atom score then entry replays the tool-less Length order; the
+      // chain tail then separates a multi-output transform's branches.
       tiebreakers: [
-        { project: rowMinScore,                 dir: 'desc' },
-        { project: r => rowLastEntry(r).entry,  dir: 'asc'  },
+        { project: r => rowFirstEntry(r).score, dir: 'desc' },
+        { project: r => rowFirstEntry(r).entry, dir: 'asc'  },
+        { project: rowChainTail,                dir: 'asc'  },
       ],
     },
     'min-score': {
