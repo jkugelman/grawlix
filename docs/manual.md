@@ -49,6 +49,8 @@ The entries table below the search bar shows every entry in the merged `All` vie
 
 **Sort.** "Sort by [Entry ▾] [↑]" at the right edge of the search bar. Axes: Entry (alphabetical by word), Length, Score. Click the arrow to toggle direction. Default is Entry ascending.
 
+**Narrow screens.** When the search bar is too narrow to fit the score and sort controls inline, they collapse behind an adjustments button (the sliders icon) at the bar's right edge. Click it for a popover holding the same controls.
+
 **Score histogram.** The stats bar shows a histogram of the merged wordlist's scores. Click on a bar (or drag across several) to filter the table to a score range. The filter is remembered across visits.
 
 ## Editing entries

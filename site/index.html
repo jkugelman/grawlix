@@ -242,9 +242,10 @@ html.light-mode .histogram-readonly.is-hovered .histogram-bar:not(.histogram-bar
 /* Search bar — the permanent bottom row of the tool stack (a ToolStack row
    with its own chrome). position: relative is the positioning context for
    .tool-stack-cursor, parented here so its caret straddles the seam between
-   the last tool row and the bar. flex-wrap: wrap lets the bar reflow
-   whenever it overflows, at any viewport. */
-.search-bar { padding: 8px 14px; background: var(--surface2); border-bottom: 1px solid var(--border2); display: flex; flex-wrap: wrap; align-items: center; gap: 12px; position: relative; }
+   the last tool row and the bar. flex-wrap: nowrap keeps it to one line; when
+   the bar can't fit its filter/sort controls, SearchBarCompact adds .compact
+   and the controls move behind the adjustments button (see below). */
+.search-bar { padding: 8px 14px; background: var(--surface2); border-bottom: 1px solid var(--border2); display: flex; flex-wrap: nowrap; align-items: center; gap: 12px; position: relative; }
 /* The search input is a fixed ~200px (shared with tool-row param inputs) —
    wide enough to read a pattern without stretching the whole bar. The
    .search-input-row keeps the input and "Whole word" glued together as one
@@ -261,13 +262,11 @@ html.light-mode .histogram-readonly.is-hovered .histogram-bar:not(.histogram-bar
 .score-range-label { display: flex; align-items: center; gap: 5px; font-size: 12px; color: var(--muted); white-space: nowrap; }
 /* The bar is split into two groups: .search-items (Search · input · Whole
    word) and .search-bar-end (Score · Sort on Workshop, just Sort on Library).
-   .search-items has flex-grow: 1, which lets it expand to fill any single-
-   row leftover and push .search-bar-end to the right edge. When the bar
-   has to wrap, .search-items fills row 1 (its own contents wrapping
-   internally as needed) and .search-bar-end starts row 2 at the left — so
-   the end-group is right-aligned on a single row and left-aligned once
-   wrapping kicks in. */
-.search-items { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; flex: 1 1 auto; }
+   .search-items has flex-grow: 1, which lets it expand to fill the leftover
+   and push .search-bar-end (or the .compact adjustments button) to the right
+   edge. The bar never wraps — when .search-bar-end no longer fits inline,
+   .compact hides it and the adjustments button takes its place. */
+.search-items { display: flex; flex-wrap: nowrap; align-items: center; gap: 12px; flex: 1 1 auto; }
 .search-bar-end { display: flex; align-items: center; gap: 12px; }
 .clear-btn { background: none; border: none; padding: 2px 3px; cursor: pointer; color: var(--muted); display: flex; align-items: center; line-height: 1; border-radius: 3px; flex-shrink: 0; }
 .clear-btn:hover { color: var(--text); background: var(--hover); }
@@ -282,6 +281,19 @@ html.light-mode .histogram-readonly.is-hovered .histogram-bar:not(.histogram-bar
 .search-bar-sort .sort-axis-select:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 .search-bar-sort .sort-dir-btn { background: transparent; border: none; padding: 3px 7px; border-radius: 4px; font: inherit; font-size: 13px; color: var(--text); cursor: pointer; line-height: 1; }
 .search-bar-sort .sort-dir-btn:hover { background: var(--hover); }
+/* Compact mode — when the bar is too narrow to show .search-bar-end inline,
+   SearchBarCompact adds .compact: the end-group is hidden and the
+   adjustments button takes its place, opening a popover the end-group is
+   moved into. Only the popover's layout (column, not row) is restyled —
+   the controls themselves are the same elements. */
+.search-adjust-btn { background: none; border: none; padding: 5px; margin: -3px 0; cursor: pointer; color: var(--muted); display: flex; align-items: center; border-radius: 4px; flex-shrink: 0; }
+.search-adjust-btn:hover { color: var(--text); background: var(--hover); }
+.search-adjust-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.search-bar:not(.compact) .search-adjust-btn { display: none; }
+.search-bar.compact .search-bar-end { display: none; }
+.search-adjust-popover { position: fixed; z-index: 9999; background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; box-shadow: 0 6px 20px rgba(0,0,0,0.22); }
+.search-adjust-popover[hidden] { display: none; }
+.search-adjust-popover .search-bar-end { display: flex; flex-direction: column; align-items: stretch; gap: 12px; }
 /* Negative margin cancels the padding's layout width — the highlight box keeps
    its 1px breathing room but a marked character stays exactly as wide as a bare
    one, so a highlighted entry doesn't overflow a column sized to its text. */
@@ -763,7 +775,7 @@ a.get-file:hover { text-decoration: underline; }
    doesn't shrink below the height of an input-bearing row, and the search
    bar (visually the bottom row of the stack) lines up with them. */
 .tool-row, .search-bar { min-height: 42px; }
-.tool-row { position: relative; display: grid; grid-template-columns: 1fr 32px; align-items: center; padding: 8px 14px; border-bottom: 1px solid var(--border2); gap: 10px; overflow: hidden; }
+.tool-row { position: relative; display: grid; grid-template-columns: 1fr auto; align-items: center; padding: 8px 14px; border-bottom: 1px solid var(--border2); gap: 10px; overflow: hidden; }
 .tool-row:last-child { border-bottom: none; }
 /* One-shot accent pulse on a newly added tool row — draws the eye to it.
    add() rebuilds the rows, so the new row's element is always fresh and
@@ -792,7 +804,7 @@ a.get-file:hover { text-decoration: underline; }
 .tool-row-param { display: flex; align-items: center; gap: 4px; font-size: 12px; color: var(--muted); }
 /* Shared width with the search bar's input (.search-input-wrap). */
 .tool-row-param input[type="text"] { width: 200px; }
-.tool-row-remove { background: none; border: none; color: var(--faint); cursor: pointer; padding: 4px; border-radius: 4px; line-height: 1; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; }
+.tool-row-remove { background: none; border: none; color: var(--faint); cursor: pointer; padding: 5px; border-radius: 4px; line-height: 1; display: flex; align-items: center; justify-content: center; }
 .tool-row-remove:hover { color: var(--text); background: var(--hover); }
 .tool-row-remove-placeholder { width: 24px; height: 24px; }
 
@@ -963,6 +975,9 @@ input[type="file"] { display: none; }
   </symbol>
   <symbol id="icon-book-open" viewBox="0 0 24 24" fill="currentColor" class="size-6">
     <path d="M11.25 4.533A9.707 9.707 0 0 0 6 3a9.735 9.735 0 0 0-3.25.555.75.75 0 0 0-.5.707v14.25a.75.75 0 0 0 1 .707A8.237 8.237 0 0 1 6 18.75c1.995 0 3.823.707 5.25 1.886V4.533ZM12.75 20.636A8.214 8.214 0 0 1 18 18.75c.966 0 1.89.166 2.75.47a.75.75 0 0 0 1-.708V4.262a.75.75 0 0 0-.5-.707A9.735 9.735 0 0 0 18 3a9.707 9.707 0 0 0-5.25 1.533v16.103Z" />
+  </symbol>
+  <symbol id="icon-adjustments" viewBox="0 0 24 24" fill="currentColor">
+    <path d="M18.75 12.75h1.5a.75.75 0 0 0 0-1.5h-1.5a.75.75 0 0 0 0 1.5ZM12 6a.75.75 0 0 1 .75-.75h7.5a.75.75 0 0 1 0 1.5h-7.5A.75.75 0 0 1 12 6ZM12 18a.75.75 0 0 1 .75-.75h7.5a.75.75 0 0 1 0 1.5h-7.5A.75.75 0 0 1 12 18ZM3.75 6.75h1.5a.75.75 0 1 0 0-1.5h-1.5a.75.75 0 0 0 0 1.5ZM5.25 18.75h-1.5a.75.75 0 0 1 0-1.5h1.5a.75.75 0 0 1 0 1.5ZM3 12a.75.75 0 0 1 .75-.75h7.5a.75.75 0 0 1 0 1.5h-7.5A.75.75 0 0 1 3 12ZM9 3.75a2.25 2.25 0 1 0 0 4.5 2.25 2.25 0 0 0 0-4.5ZM12.75 12a2.25 2.25 0 1 1 4.5 0 2.25 2.25 0 0 1-4.5 0ZM9 15.75a2.25 2.25 0 1 0 0 4.5 2.25 2.25 0 0 0 0-4.5Z" />
   </symbol>
 </svg>
 
@@ -1353,6 +1368,7 @@ function buildSearchBarHTML() {
         <label class="score-range-label" title="Score: 50, 50-59, or 50+ (Alt+C)">Score <span class="score-range-wrap"><input type="text" id="score-range-input" value="${esc(scoreRange)}" oninput="WorkshopView.onScoreRange(this.value)"><button class="clear-btn" id="score-range-clear" onclick="WorkshopView.clearScoreRange()" title="Clear score" aria-label="Clear score" ${scoreRange ? '' : 'hidden'}><svg width="10" height="10"><use href="#icon-x"/></svg></button></span></label>
         <span id="search-bar-sort" class="search-bar-sort"></span>
       </div>
+      <button type="button" class="search-adjust-btn" title="Filter &amp; sort options" aria-label="Filter and sort options"><svg width="18" height="18" aria-hidden="true"><use href="#icon-adjustments"/></svg></button>
     </div>`;
 }
 
@@ -2460,6 +2476,7 @@ const LibraryView = (() => {
       <div class="search-bar-end">
         <div class="search-bar-sort">${buildSortControlsHTML()}</div>
       </div>
+      <button type="button" class="search-adjust-btn" title="Sort options" aria-label="Sort options"><svg width="18" height="18" aria-hidden="true"><use href="#icon-adjustments"/></svg></button>
     </div>`;
   }
 
@@ -2602,6 +2619,7 @@ const LibraryView = (() => {
   function renderPane() {
     buildPane();
     attachSearchHelpPopups();
+    SearchBarCompact.refresh();
   }
 
   // The All panel: a single Download button, merged stats + histogram, the
@@ -5734,6 +5752,7 @@ function mountWorkshopPanel(panel, stats, entries, rowCount = stats.count) {
   createScroller();
   workshopScroller.onFilterChange = refreshWorkshopStatsBarFromScroller;
   attachSearchHelpPopups();
+  SearchBarCompact.refresh();
 }
 
 // Recomputes the stats bar from the scroller's currently-visible entries.
@@ -5773,6 +5792,125 @@ for (const id of ['workshop-stats', 'wld-pane']) {
   const parent = document.getElementById(id);
   new ResizeObserver(refreshStatsBarOverflow).observe(parent);
   new MutationObserver(refreshStatsBarOverflow).observe(parent, { childList: true });
+}
+
+// ─── Search-bar compact mode ──────────────────────────────────────────────
+// When the search bar is too narrow to show .search-bar-end inline (the
+// score-range filter on Workshop, the sort control on both views), that
+// group collapses behind an adjustments button that opens this popover. The
+// end-group is *moved* into the popover while open — never duplicated — so
+// its inputs keep their unique ids and the handlers wired into them stay
+// intact, notably the Workshop sort <select> the entries scroller mounts
+// into #search-bar-sort.
+const SearchBarCompact = (() => {
+  let popover = null;
+  let openBar = null;   // the .search-bar whose end-group is currently lifted
+
+  function ensurePopover() {
+    if (popover) return popover;
+    popover = document.createElement('div');
+    popover.className = 'search-adjust-popover';
+    popover.setAttribute('hidden', '');
+    document.body.appendChild(popover);
+    return popover;
+  }
+
+  function isOpen() { return popover && !popover.hasAttribute('hidden'); }
+
+  // Re-evaluate every search bar. The compact decision is always made from
+  // the *expanded* layout — strip .compact so the end-group is back in the
+  // flow, then check for horizontal overflow. Measuring the same layout each
+  // pass keeps the toggle from oscillating once the button appears.
+  // Called by the mount paths, where any open popover holds a stale, torn-
+  // down end-group — so close it first to discard that orphan.
+  function refresh() {
+    closePopover();
+    for (const bar of document.querySelectorAll('.search-bar')) {
+      bar.classList.remove('compact');
+      bar.classList.toggle('compact', bar.scrollWidth > bar.clientWidth + 1);
+    }
+  }
+
+  // Resize path. While the popover is open the end-group is lifted out of
+  // its bar, so it can't be measured — and a re-measure here would have to
+  // tear the popover down anyway. The stats bar rebuilds on every score-
+  // range keystroke, which can nudge the observed parent and fire this; so
+  // skip entirely while open and let the popover keep its state.
+  function onResize() {
+    if (!isOpen()) refresh();
+  }
+
+  function openPopover(bar) {
+    const end = bar.querySelector('.search-bar-end');
+    const btn = bar.querySelector('.search-adjust-btn');
+    if (!end || !btn) return;
+    const pop = ensurePopover();
+    pop.appendChild(end);
+    pop.removeAttribute('hidden');
+    openBar = bar;
+    position(btn);
+    document.addEventListener('mousedown', onDocMouseDown, true);
+    document.addEventListener('keydown', onKeydown, true);
+    window.addEventListener('scroll', closePopover, true);
+    end.querySelector('input, select')?.focus();
+  }
+
+  function closePopover() {
+    if (!isOpen()) return;
+    const end = popover.querySelector('.search-bar-end');
+    const btn = openBar && openBar.querySelector('.search-adjust-btn');
+    // Return the end-group to its bar. If the bar was rebuilt while the
+    // popover was open, btn is gone — the fresh bar already carries its own
+    // end-group, so dropping this orphaned one is correct.
+    if (end && btn) btn.before(end);
+    popover.setAttribute('hidden', '');
+    openBar = null;
+    document.removeEventListener('mousedown', onDocMouseDown, true);
+    document.removeEventListener('keydown', onKeydown, true);
+    window.removeEventListener('scroll', closePopover, true);
+  }
+
+  function onDocMouseDown(e) {
+    if (popover.contains(e.target)) return;
+    if (e.target.closest('.search-adjust-btn')) return;  // the click handler toggles
+    closePopover();
+  }
+
+  function onKeydown(e) {
+    if (e.key === 'Escape') { e.preventDefault(); closePopover(); }
+  }
+
+  // Called after the popover is shown and its content appended, so reading
+  // offsetWidth here forces one synchronous layout and needs no rAF. Right
+  // edge aligns under the button; clamped to stay on screen.
+  function position(btn) {
+    const r = btn.getBoundingClientRect();
+    popover.style.top = (r.bottom + 6) + 'px';
+    popover.style.left = Math.max(8, r.right - popover.offsetWidth) + 'px';
+  }
+
+  // Alt+C focuses the score-range input, which lives in the end-group — open
+  // the popover first when that group is collapsed out of sight.
+  function openIfCompact() {
+    const bar = document.querySelector('.search-bar.compact');
+    if (bar && !isOpen()) openPopover(bar);
+  }
+
+  document.addEventListener('click', e => {
+    const btn = e.target.closest('.search-adjust-btn');
+    if (!btn) return;
+    if (isOpen()) closePopover();
+    else openPopover(btn.closest('.search-bar'));
+  });
+
+  return { refresh, onResize, closePopover, openIfCompact };
+})();
+
+// RO catches viewport/pane resizes that change a search bar's width; the
+// refresh() calls in mountWorkshopPanel / LibraryView.renderPane catch a
+// freshly rendered bar.
+for (const id of ['workshop-stats', 'wld-pane']) {
+  new ResizeObserver(() => SearchBarCompact.onResize()).observe(document.getElementById(id));
 }
 
 // The wildcard-help popup attaches to every Search input in the app — the
@@ -7138,7 +7276,13 @@ function bindEvents() {
         if (el) { e.preventDefault(); el.focus(); el.select(); }
       } else if (k === 'c') {
         const el = document.getElementById('score-range-input');
-        if (el) { e.preventDefault(); el.focus(); el.select(); }
+        if (el) {
+          e.preventDefault();
+          // The input may be tucked inside the collapsed end-group popover.
+          if (el.offsetParent === null) SearchBarCompact.openIfCompact();
+          el.focus();
+          el.select();
+        }
       } else if (k === 'd') {
         e.preventDefault();
         cycleDarkMode();
