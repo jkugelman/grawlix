@@ -4250,6 +4250,11 @@ const WORKSHOP_SORT_AXES = {
   },
 };
 const WORKSHOP_DEFAULT_SORT_BY_TIER = { single: 'entry', multi: 'min-score' };
+// When the atom-count tier changes, an axis with no counterpart in the new
+// tier maps across rather than snapping to the tier default, so the user's
+// sort intent survives adding/removing tools. Entry and Length exist in both
+// tiers and pass through untouched; only the score axes differ.
+const SORT_AXIS_TIER_MAP = { 'score': 'min-score', 'min-score': 'score', 'max-score': 'score' };
 function sortTierForCount(atomCount) { return atomCount > 1 ? 'multi' : 'single'; }
 function workshopSortAxes(atomCount) { return WORKSHOP_SORT_AXES[sortTierForCount(atomCount)]; }
 function isValidSortAxis(key) {
@@ -4455,22 +4460,21 @@ class WorkshopEntriesScroller extends BaseVirtualScroller {
     this._applyFilterAndSort();
   }
 
-  // Sets the atom count and snaps the sort axis to the new tier's default
-  // when the prior axis isn't valid for the new tier, or when the count
-  // changed tiers and the prior axis was the *old* tier's default (so the
-  // user hadn't explicitly picked it). An explicit pick that's still valid
-  // survives.
+  // Sets the atom count and remaps the sort axis when the prior axis has no
+  // counterpart in the new tier — Score ⇄ Min score and Max score → Score —
+  // falling back to the tier default only when no counterpart exists. The
+  // sort direction is always preserved. Axes valid in both tiers (Entry,
+  // Length) pass through untouched.
   _setAtomCount(atomCount) {
     const old = this.atomCount;
     const changed = atomCount !== old;
     this.atomCount = atomCount;
     const axes = workshopSortAxes(atomCount);
-    const oldTier = sortTierForCount(old);
-    const newTier = sortTierForCount(atomCount);
-    const wasOldDefault = changed && this.sortKey === WORKSHOP_DEFAULT_SORT_BY_TIER[oldTier];
-    if (!(this.sortKey in axes) || (oldTier !== newTier && wasOldDefault)) {
-      this.sortKey = WORKSHOP_DEFAULT_SORT_BY_TIER[newTier];
-      this.sortDir = defaultSortDir(this.sortKey);
+    if (!(this.sortKey in axes)) {
+      const mapped = SORT_AXIS_TIER_MAP[this.sortKey];
+      this.sortKey = (mapped && mapped in axes)
+        ? mapped
+        : WORKSHOP_DEFAULT_SORT_BY_TIER[sortTierForCount(atomCount)];
       WorkshopView.setSort(this.sortKey, this.sortDir);
     }
     return changed;

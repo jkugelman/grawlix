@@ -151,10 +151,11 @@ test('pipeline output preserves wlEntry refs (popover opens, source/score intact
 // as separate → rows.
 
 async function addSemordnilapFixture(page) {
-  // Min scores: DEVIL/LIVED=70, DESSERTS/STRESSED=40, LOOPS/SPOOL=20. Default
-  // multi-atom sort is min-score descending, so visible row order is
-  // DEVIL/LIVED first, LOOPS/SPOOL last. RACECAR is a palindrome and must NOT
-  // appear. CAT/DOG are filler so the wordlist isn't all-semordnilap.
+  // Min scores: DEVIL/LIVED=70, DESSERTS/STRESSED=40, LOOPS/SPOOL=20. Tests
+  // that pin row order select the Min score axis explicitly (it sorts
+  // descending, so DEVIL/LIVED comes first, LOOPS/SPOOL last). RACECAR is a
+  // palindrome and must NOT appear. CAT/DOG are filler so the wordlist isn't
+  // all-semordnilap.
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
     name: 'Semordnilaps',
     entries: ['STRESSED', 'DESSERTS', 'LIVED', 'DEVIL', 'LOOPS', 'SPOOL', 'RACECAR', 'CAT', 'DOG'],
@@ -166,6 +167,7 @@ test('semordnilap unifies mirror rows into one chain in min-score-desc order', a
   await gotoApp(page);
   await addSemordnilapFixture(page);
   await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'semordnilap' }]));
+  await page.locator('#search-bar-sort .sort-axis-select').selectOption('min-score');
 
   // Semordnilap emits both DEVIL→LIVED and LIVED→DEVIL; unifyMirrorRows
   // collapses each mirror pair to one row, keeping the executor's first
@@ -431,6 +433,7 @@ test('chains: min-score desc tiebreaks by length desc, then last-atom asc', asyn
     scores:  [50, 50, 50, 50, 50, 50, 50, 50],
   }));
   await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'semordnilap' }]));
+  await page.locator('#search-bar-sort .sort-axis-select').selectOption('min-score');
 
   // length desc surfaces the 11-letter chain first; the three 4-letter chains
   // tiebreak by the last atom's entry ascending (sega < soda < tuba).
@@ -447,6 +450,7 @@ test('chain sort axis swap: min-score → max-score reorders rows', async ({ pag
   await gotoApp(page);
   await addSemordnilapFixture(page);
   await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'semordnilap' }]));
+  await page.locator('#search-bar-sort .sort-axis-select').selectOption('min-score');
 
   // EVIL/LIVE: EVIL=99, LIVE=10 ⇒ chain min=10, max=99. By min it sorts last
   // (10 < 20 < 40 < 70); by max it sorts first (99 > 80 > 60 > 30). Swapping
@@ -462,6 +466,39 @@ test('chain sort axis swap: min-score → max-score reorders rows', async ({ pag
   await page.locator('#search-bar-sort .sort-axis-select').selectOption('max-score');
   const after = await page.evaluate(() => window.__grawlixTest.getVisibleEntries());
   expect(after[0]).toEqual(['evil', 'live']);                          // max 99 (top)
+});
+
+// Adding or removing a tool shifts the atom-count tier, swapping the available
+// sort axes (1-atom: Entry/Length/Score; multi-atom: Entry/Length/Min score/
+// Max score). The user's chosen axis must carry across the boundary rather
+// than snapping to a tier default: Entry and Length exist in both tiers and
+// pass through untouched; Score ⇄ Min score, and Max score collapses to Score.
+
+test('sort axis carries across the tool tier boundary', async ({ page }) => {
+  await gotoApp(page);
+  await addSemordnilapFixture(page);
+  const axis = page.locator('#search-bar-sort .sort-axis-select');
+
+  // Length exists in both tiers — adding then removing a tool keeps it.
+  await axis.selectOption('length');
+  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'semordnilap' }]));
+  await expect(axis).toHaveValue('length');
+  await page.evaluate(() => window.__grawlixTest.setStack([]));
+  await expect(axis).toHaveValue('length');
+
+  // Score has no multi-atom counterpart — it maps to Min score when a tool is
+  // added and back to Score when the tool is removed.
+  await axis.selectOption('score');
+  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'semordnilap' }]));
+  await expect(axis).toHaveValue('min-score');
+  await page.evaluate(() => window.__grawlixTest.setStack([]));
+  await expect(axis).toHaveValue('score');
+
+  // Max score also collapses to Score on removal.
+  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'semordnilap' }]));
+  await axis.selectOption('max-score');
+  await page.evaluate(() => window.__grawlixTest.setStack([]));
+  await expect(axis).toHaveValue('score');
 });
 
 // ─── Behead, Curtail, and the removed-letter highlight ──────────────────────
@@ -487,9 +524,9 @@ test('behead chains the originator with its first-letter-dropped form', async ({
   await gotoApp(page);
   await addBeheadCurtailFixture(page);
   await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'behead' }]));
+  await page.locator('#search-bar-sort .sort-axis-select').selectOption('min-score');
 
-  // Default multi-atom sort is min-score desc: BREAD/READ min 45, SLING/LING
-  // min 40.
+  // Min score desc: BREAD/READ min 45, SLING/LING min 40.
   const visible = await page.evaluate(() => window.__grawlixTest.getVisibleEntries());
   expect(visible).toEqual([
     ['bread', 'read'],

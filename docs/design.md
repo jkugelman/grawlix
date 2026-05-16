@@ -226,7 +226,7 @@ Axes split by the row's atom count, not by an output kind:
 
 *Entry* (alphabetical) and *Length* project off the **last atom** — the bottom tool's output. *Min/Max score* project across every atom; for 1-atom rows *Score* reads the single atom directly. Each axis carries `{label, primary, tiebreakers}`; flipping the user direction reverses only the primary, tiebreakers keep their declared direction so short low-scoring junk doesn't float to the top of a tied bucket (longer > shorter, higher > lower, alphabetical asc as the final stable fallback).
 
-The URL drops `sort=` when the axis matches the current tier's default. A stack edit that changes atom count snaps the axis to the new tier's default only when the prior axis was the *old* tier's default — an explicit pick survives if still valid (`length` works in both tiers; `score` snaps to `min-score` when a transform lands). The whole sort story is provisional — expect iteration now that the UI is live.
+The URL drops `sort=` when the axis matches the current tier's default. A stack edit that changes atom count never overrides the chosen axis with a tier default — it remaps it. `entry` and `length` exist in both tiers and carry across untouched; `score` ⇄ `min-score`, and `max-score` collapses to `score` when tools are removed. The tier default applies only on first boot from a URL with no `sort=`, never as a snap-back when crossing the boundary, so the user's sort intent (including the untouched default) survives adding and removing tools. The sort direction is preserved across the remap. The whole sort story is provisional — expect iteration now that the UI is live.
 
 ### Highlights pipeline
 
@@ -319,7 +319,7 @@ Two keys carry the entries-table sort:
 
 The two-key form keeps each piece independently minimizable, so the common cases stay quiet — a 1-atom `entry asc` is silent, a stacked `min-score desc` is silent, `score desc` is just `sort=score`, `score asc` is `sort=score&sort-dir=asc`. `sort-dir` can appear without `sort` (e.g. `entry desc` becomes `sort-dir=desc`); the parser treats an absent `sort` as the tier default.
 
-Unknown values for either key are dropped without a toast (no churn risk — the axes are a closed set, unlike the tool catalog). The parser accepts any axis valid in either tier; the scroller snaps to the tier default if the parsed axis isn't valid for the rendered atom count. Sort persists across wordlist switches inside a session: it's a view-config preference of the user, not of the focused wordlist.
+Unknown values for either key are dropped without a toast (no churn risk — the axes are a closed set, unlike the tool catalog). The parser accepts any axis valid in either tier; the scroller remaps the parsed axis (§ Sort axes per atom count) if it isn't valid for the rendered atom count. Sort persists across wordlist switches inside a session: it's a view-config preference of the user, not of the focused wordlist.
 
 ### Stable links: don't rename, don't remove
 
