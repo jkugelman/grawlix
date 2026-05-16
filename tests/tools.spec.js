@@ -293,6 +293,27 @@ test('three search tools stack three separately-highlighted atoms on one row', a
   await expect(row.locator('.atom').nth(2).locator('mark')).toContainText('sey');
 });
 
+test('a wildcard-only search holds its atom even though it highlights nothing', async ({ page }) => {
+  await gotoApp(page);
+  await addAnagramFixture(page);
+
+  // 'cat' highlights CAT; '*' matches it but produces no ranges. The '*' atom
+  // is still a highlight slot, so unification doesn't fold it away — the row
+  // stays two atoms, its height matched to the static atom count. Keying the
+  // fold on whether ranges came back would collapse it and desync the count.
+  await page.evaluate(() => window.__grawlixTest.setStack([
+    { tool: 'search', params: { query: 'cat' } },
+    { tool: 'search', params: { query: '*' } },
+  ]));
+  const visible = await page.evaluate(() => window.__grawlixTest.getVisibleEntries());
+  expect(visible).toEqual(['cat']);
+
+  const row = page.locator('#vs-host .entry-row', { hasText: 'cat' });
+  await expect(row.locator('.atom')).toHaveCount(2);
+  await expect(row.locator('.atom').nth(0).locator('mark')).toContainText('cat');
+  await expect(row.locator('.atom').nth(1).locator('mark')).toHaveCount(0);
+});
+
 test('Search is a gallery tool and can be chained into the stack', async ({ page }) => {
   await gotoApp(page);
   await addAnagramFixture(page);

@@ -3619,23 +3619,25 @@ function normalizeParams(params) {
 // runtime inspection. Simulate the executor's emit-then-unify on the active
 // tools (run-having, not inert): the originator is one atom; each highlighting
 // tool emits a same-word atom that the unifier folds into the tail unless the
-// tail is already highlighted, in which case it stays its own atom; each
-// transform emits a new-word output atom that never folds. `atomCount` is the
-// resulting count — the row's height in `ROW_HEIGHT` units, read by the
-// renderer and the scroller's stride math.
+// tail is itself a highlight slot, in which case it stays its own atom; each
+// transform emits a new-word output atom that never folds. This keys off the
+// tools' static highlight flags, exactly as `collapseRepeatAtoms` keys off the
+// atoms' slot-ness, so the two always agree. `atomCount` is the resulting
+// count — the row's height in `ROW_HEIGHT` units, read by the renderer and the
+// scroller's stride math.
 function currentAtomCount(stack) {
   let count = 1;          // originator
-  let tailLit = false;    // does the tail atom carry highlights?
+  let tailSlot = false;   // is the tail atom a highlight slot?
   for (const row of stack) {
     const tool = TOOLS[row.tool];
     if (!tool?.run || tool.isInert?.(row.params)) continue;   // transparent rows
     if (tool.kind === 'transform') {
-      if (tool.inputHighlights && tailLit) count++;   // input mark can't fold into a lit tail
-      count++;                                        // output atom (new word)
-      tailLit = !!tool.outputHighlights;
-    } else if (tool.inputHighlights) {                // highlighting filter (search)
-      if (tailLit) count++;
-      tailLit = true;
+      if (tool.inputHighlights && tailSlot) count++;   // input mark can't fold into a slot tail
+      count++;                                         // output atom (new word)
+      tailSlot = !!tool.outputHighlights;
+    } else if (tool.inputHighlights) {                 // highlighting filter (search)
+      if (tailSlot) count++;
+      tailSlot = true;
     }
   }
   return count;
@@ -3654,17 +3656,19 @@ function isFilterOnlyChain(stack) {
 
 // Run the tool stack against the merged wordlist, returning
 // `{ rows, atomCount }`. Each row is a ChainRow — `{ atoms: Atom[] }` — where
-// an Atom is `{ wlEntry, highlights, glyph }` and `highlights` is a flat list
-// of ranges. Seeded one-atom-per-merged-entry; each transform branches a row
-// into one new row per output (appending an output atom, plus a same-word
-// input-mark atom when it highlights its input), each highlighting filter
-// appends a same-word atom carrying its match. Tools emit unconditionally —
-// `unify` folds the redundant same-word atoms afterward. Run-less and inert
-// tools are transparent. The executor owns the per-row loop, cooperative
-// yielding, and abort: `signal` aborts a superseded run at the next yield.
+// an Atom is `{ wlEntry, highlights, glyph }`, where `highlights` is a flat
+// list of ranges — or `null` when the atom is not a highlight slot (the
+// originator, a plain transform output). Seeded one-atom-per-merged-entry;
+// each transform branches a row into one new row per output (appending an
+// output atom, plus a same-word input-mark atom when it highlights its input),
+// each highlighting filter appends a same-word atom carrying its match. Tools
+// emit unconditionally — `unify` folds the redundant same-word atoms
+// afterward. Run-less and inert tools are transparent. The executor owns the
+// per-row loop, cooperative yielding, and abort: `signal` aborts a superseded
+// run at the next yield.
 async function executePipeline(mergedWordlist, stack, signal) {
   let rows = mergedWordlist.entries.map(e => ({
-    atoms: [{ wlEntry: e, highlights: [], glyph: null }],
+    atoms: [{ wlEntry: e, highlights: null, glyph: null }],
   }));
   for (const stackRow of stack) {
     const tool = TOOLS[stackRow.tool];
@@ -3681,8 +3685,9 @@ async function executePipeline(mergedWordlist, stack, signal) {
       if (tool.kind === 'filter') {
         if (result) {
           // A highlighting filter (search) appends a same-word atom carrying
-          // its ranges — `unify` folds it into the tail unless the tail is
-          // already highlighted. A plain filter just keeps the row.
+          // its ranges (an empty array when it matched without producing any)
+          // — `unify` folds it into the tail unless the tail is itself a
+          // highlight slot. A plain filter just keeps the row.
           if (tool.inputHighlights) {
             next.push({ atoms: [...row.atoms,
               { wlEntry: tail.wlEntry, highlights: Array.isArray(result) ? result : [], glyph: null }] });
@@ -3697,7 +3702,7 @@ async function executePipeline(mergedWordlist, stack, signal) {
           const atoms = row.atoms.slice();
           // A transform that marks its input appends a same-word input-mark
           // atom before the output atom; `unify` folds it into the input
-          // unless the input is already highlighted.
+          // unless the input is itself a highlight slot.
           if (tool.inputHighlights) {
             atoms.push({ wlEntry: tail.wlEntry, highlights: out.inputHighlights || [], glyph: null });
           }
@@ -3709,7 +3714,9 @@ async function executePipeline(mergedWordlist, stack, signal) {
                || { entry: text, score: 0, comment: '', wordlist: null });
           atoms.push({
             wlEntry,
-            highlights: out.outputHighlights || [],
+            // A non-`outputHighlights` transform's output is not a highlight
+            // slot — `null`, not `[]` — so `unify` may fold it like any atom.
+            highlights: tool.outputHighlights ? (out.outputHighlights || []) : null,
             glyph: tool.glyph || '→',
           });
           next.push({ atoms });
@@ -3771,19 +3778,25 @@ function unify(rows) {
   return out;
 }
 
-// Fold adjacent same-word atoms in a row into one, keeping the highlighted
-// view when only one of the pair carries highlights. Two atoms that both carry
-// highlights stay distinct — that's how two search rows render as two lines.
+// Fold adjacent same-word atoms in a row into one. An atom is a *highlight
+// slot* when its `highlights` is an array (a search's atom, a transform's
+// input/output mark) and not a slot when `highlights` is `null` (the
+// originator, a plain transform output). Two slot atoms for the same word stay
+// distinct — that's how three searches render as three lines; any other
+// same-word pair folds. Keying on slot-ness, not on whether the array is
+// non-empty, keeps the row's atom count matched to `currentAtomCount` even
+// when a tool highlights only conditionally (a wildcard-only search matches
+// without producing ranges, yet still holds its slot).
 function collapseRepeatAtoms(atoms) {
   const out = [atoms[0]];
   for (let i = 1; i < atoms.length; i++) {
     const prev = out[out.length - 1];
     const cur = atoms[i];
     if (prev.wlEntry.entry === cur.wlEntry.entry &&
-        !(prev.highlights.length && cur.highlights.length)) {
-      // Survivor keeps `prev`'s glyph (a repeat atom has none) and takes
-      // whichever side's highlights exist.
-      if (cur.highlights.length) out[out.length - 1] = { ...prev, highlights: cur.highlights };
+        !(prev.highlights !== null && cur.highlights !== null)) {
+      // Survivor keeps `prev`'s glyph (a repeat atom has none) and takes the
+      // highlight slot when one side is one.
+      if (cur.highlights !== null) out[out.length - 1] = { ...prev, highlights: cur.highlights };
     } else {
       out.push(cur);
     }
@@ -4623,7 +4636,7 @@ class WorkshopEntriesScroller extends BaseVirtualScroller {
       for (const atom of row.atoms) {
         const len = atom.wlEntry.entry.length + (atom.glyph ? glyphCh : 0);
         if (len > maxLen) maxLen = len;
-        if (!hasHighlight && atom.highlights.length) hasHighlight = true;
+        if (!hasHighlight && atom.highlights?.length) hasHighlight = true;
       }
     }
     for (const row of this.entries) {
