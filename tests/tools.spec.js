@@ -268,6 +268,53 @@ test('Search is a gallery tool and can be chained into the stack', async ({ page
   expect(visible).toEqual(['cat']);
 });
 
+test('a gallery Search tool and the permanent Search bar both round-trip through the URL', async ({ page }) => {
+  await gotoApp(page);
+  await addAnagramFixture(page);
+  // Two `search=` keys: the first is a stack tool, the last is the bar.
+  await page.evaluate(() => {
+    location.hash = '#/workshop?search=ca&search=cat';
+    Router.applyURL();
+    renderWorkshopMergedDetail();
+  });
+
+  // Decode splits them — the added Search row survives, it doesn't collapse
+  // into the bar (the bug this scheme fixes).
+  const state = await page.evaluate(() => ({
+    stack: ToolStack.getStack().map(r => ({ tool: r.tool, params: r.params })),
+    barQuery: WorkshopView.searchQuery,
+  }));
+  expect(state.stack).toEqual([{ tool: 'search', params: { query: 'ca' } }]);
+  expect(state.barQuery).toBe('cat');
+
+  // Both rows run: "ca" then "cat" leaves only CAT.
+  const visible = await page.evaluate(() => window.__grawlixTest.getVisibleEntries());
+  expect(visible).toEqual(['cat']);
+
+  // Re-encoding reproduces the URL verbatim.
+  const hash = await page.evaluate(() => { Router.navigate(); return location.hash; });
+  expect(hash).toBe('#/workshop?search=ca&search=cat');
+});
+
+test('whole-word rides as a bare key on its Search row and round-trips', async ({ page }) => {
+  await gotoApp(page);
+  await addAnagramFixture(page);
+  // whole-word is a successive param of the first Search row; the trailing
+  // empty `search=` is the permanent bar (not elided — preceded by a Search).
+  await page.evaluate(() => {
+    location.hash = '#/workshop?search=cat&whole-word&search=';
+    Router.applyURL();
+    renderWorkshopMergedDetail();
+  });
+
+  const stack = await page.evaluate(() =>
+    ToolStack.getStack().map(r => ({ tool: r.tool, params: r.params })));
+  expect(stack).toEqual([{ tool: 'search', params: { query: 'cat', 'whole-word': true } }]);
+
+  const hash = await page.evaluate(() => { Router.navigate(); return location.hash; });
+  expect(hash).toBe('#/workshop?search=cat&whole-word&search=');
+});
+
 test('score range filters chain rows on the row minimum', async ({ page }) => {
   await gotoApp(page);
   await addSemordnilapFixture(page);

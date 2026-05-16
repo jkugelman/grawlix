@@ -310,15 +310,15 @@ Unknown route names (`#/wat`) fall through to the default view; the query that c
 
 ### Tool stack encoding
 
-Each user-added tool row gets one query parameter, in pipeline order:
+Each pipeline row serializes in pipeline order. A tool's parameters spread across one or more adjacent query keys:
 
-- **With input:** `slug=value`. The slug is the tool's catalog key (lowercase: `anagram`, `subanagram`, `regex`, …). All values pass through `encodeURIComponent` — Grawlix's pattern syntax (`?`, `#`, `@`, `*`, `[`, `]`, `&`) overlaps with URL reserved characters and needs encoding.
-- **Without input:** bare key, no `=` (`?palindrome`). `URLSearchParams` treats it as an empty-value entry, which round-trips.
-- **Order is significant.** Parameter order is pipeline order — `?search=CAT&anagram=LINDSEY` runs Search before Anagram; the reverse runs them the other way. This breaks the convention that query strings are unordered, but the URL is mostly machine-generated and read back by Grawlix.
-- **Repeated keys are fine.** Two regex rows become two `regex=` entries; their relative order is preserved.
-- **Empty tool inputs are kept** (`?anagram=`) so a row the user added but hasn't filled in survives reload.
-- **The permanent Search is always present.** The search bar is the pipeline's permanent final step (§ Search is a tool), so it isn't a `ToolStack` row and isn't serialized by the tool-row loop — it carries its own `search=` / `whole-word` keys, which drop from the URL when the query is empty. The 95% case (`?anagram=LINDSEY`) stays free of a redundant trailing `&search=`. A Search a user adds *from the gallery* is an ordinary stack row and serializes like one.
-- **Unknown tool keys are dropped** with a toast: *"That link references a tool that's no longer available."* The rest of the stack still renders.
+- **First param → the tool-name key.** `slug=value`, where the slug is the tool's catalog key (`anagram`, `regex`, …). This key always anchors the row, so it's emitted even when empty (`anagram=`) — an added-but-unfilled row survives reload. A param-less tool is a bare key (`palindrome`). All values pass through `encodeURIComponent` — Grawlix's pattern syntax (`?`, `#`, `@`, `*`, `[`, `]`, `&`) overlaps with URL reserved characters. Because the first param anchors the row, it must be a value (text) param, not a checkbox.
+- **Successive params → their own adjacent keys.** A text param is `paramname=value`; a boolean (checkbox) param is a bare `paramname` when true. Both are omitted at their default (empty / false), so the common case stays short — Search with whole-word off is `search=cat`, with it on `search=cat&whole-word`. This readable per-key form is preferred over folding params into one delimited value.
+- **Decoding is a three-way classify.** Each key is a tool name (starts a new row, its value is the first param), a reserved view-config key (`sort`, `sort-dir`), or a successive param of the most recent row. For this to be unambiguous, **param names must be distinct from every tool name and reserved key** — the one namespace rule the scheme rests on.
+- **Order is significant.** Parameter order is pipeline order — `?search=cat&anagram=lindsey` runs Search before Anagram; the reverse runs them the other way. This breaks the convention that query strings are unordered, but the URL is mostly machine-generated and read back by Grawlix.
+- **Repeated tools are fine.** Two regex rows become two `regex=` entries; their relative order is preserved.
+- **The permanent Search bar is the pipeline's final row.** It serializes like any row, with one exception: its keys are elided when it's at default state (empty query, whole-word off) *and* the preceding row isn't a Search tool. That keeps an untouched app at a bare URL (`grawlix.wtf`) while still letting an added Search tool round-trip — `[Search "foo", bar ""]` is `search=foo&search=`, distinct from a lone populated bar `search=foo`. On decode, the last row is the bar if it's a Search; otherwise the bar is at default. Multiple Search rows therefore round-trip, the bar always being the last of them.
+- **Unknown keys are dropped** with a toast: *"That link references a tool that's no longer available."* A key that matches no tool, no reserved key, and no tool's param name is treated as a removed tool; the rest of the stack still renders.
 
 ### Sort encoding
 
@@ -358,12 +358,6 @@ These are local-only:
 - **Dialogs** (settings, Sync & backup) — transient UI state. Open them how you opened them; close them when you're done.
 - **Library's focused wordlist** and its display mode — Library is wordlist-management workspace, not something a link should pre-position the recipient into.
 - Scroll position, edit-in-progress state, transient popovers.
-
-### Open questions
-
-- **Multi-input encoding.** Tools with multiple inputs (regex with min-length, anagram with bank letters) need a value-internal delimiter or named subkeys. Deferred to the first such tool — encoding choice will land alongside it.
-- **Whole-word per Search row.** Today `whole-word` is a bare top-level key, fine for the single permanent Search row. If the stack ever holds two Search rows, it doesn't compose — the eventual fix is the multi-input encoding above (likely `search=CAT:w`). Revisit when chaining a Search above a transform becomes possible.
-- **Chained Search rows don't round-trip.** Search is a gallery tool, so a user can add a Search row mid-stack — but the URL parser collapses every `search=` into the permanent Search bar, so an extra Search row works in-session and is lost on reload or share. Distinct round-tripping needs the multi-input encoding above.
 
 ## Caches
 

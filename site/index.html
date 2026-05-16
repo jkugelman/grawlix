@@ -250,9 +250,10 @@ html.light-mode .histogram-readonly.is-hovered .histogram-bar:not(.histogram-bar
 .search-input-row { display: flex; align-items: center; gap: 12px; min-width: 0; flex: 1 1 auto; }
 .search-input-wrap { position: relative; display: flex; align-items: center; flex: 1 1 240px; min-width: 160px; max-width: 360px; }
 .search-input-wrap input[type="text"],
-.tool-row-param input { background: var(--input-bg); color: var(--text); border: 1px solid var(--border); border-radius: 4px; font-size: 13px; font-family: var(--font-mono); padding: 5px 8px; }
+.tool-row-param input[type="text"] { background: var(--input-bg); color: var(--text); border: 1px solid var(--border); border-radius: 4px; font-size: 13px; font-family: var(--font-mono); padding: 5px 8px; }
 .search-input-wrap input[type="text"]:focus,
-.tool-row-param input:focus { outline: none; border-color: var(--accent); }
+.tool-row-param input[type="text"]:focus { outline: none; border-color: var(--accent); }
+.tool-row-param label { display: flex; align-items: center; gap: 5px; cursor: pointer; user-select: none; }
 .search-input-wrap input[type="text"] { width: 100%; padding-right: 24px; }
 .search-whole-word-label { display: flex; align-items: center; gap: 5px; font-size: 12px; color: var(--muted); white-space: nowrap; cursor: pointer; user-select: none; flex-shrink: 0; }
 .score-range-label { display: flex; align-items: center; gap: 5px; font-size: 12px; color: var(--muted); white-space: nowrap; }
@@ -1663,36 +1664,56 @@ const Collapsible = (() => {
 // empty, so the most-shared case stays short. MainView owns the view registry;
 // Router treats view names opaquely.
 //
-// Query encoding: each user-added tool row in pipeline order, then the
-// permanent Search row (search/whole-word). See docs/design.md § URL state.
-// The score filter is intentionally *not* in the URL — it's per-user
-// (scores aren't portable across wordlist setups) and lives in localStorage.
+// Query encoding: each pipeline row in order — its tool name carries the
+// first param's value (`tool=value`), and each successive param is its own
+// adjacent key (a bare key for a true checkbox, `key=value` for a non-empty
+// text param, omitted at default). The permanent Search bar is the final
+// row. See docs/design.md § URL state. The score filter is intentionally
+// *not* in the URL — it's per-user (scores aren't portable across wordlist
+// setups) and lives in localStorage.
 const Router = (() => {
-  function buildQuery() {
-    const parts = [];
-    // Tool stack rows in pipeline order. Single-param tools today; multi-input
-    // encoding is deferred. Empty values are kept (`anagram=`) so a row the
-    // user has added but not filled in survives reload.
-    for (const row of ToolStack.getStack()) {
-      const tool = TOOLS[row.tool];
-      if (!tool) continue;
-      const slug = encodeURIComponent(row.tool);
-      if (tool.params.length === 0) {
-        parts.push(slug);
-      } else {
-        const value = row.params[tool.params[0].key] || '';
-        parts.push(slug + '=' + encodeURIComponent(value));
-      }
+  // One tool row → its URL key(s). The first param rides on the tool-name
+  // key so the row always has an anchor (kept even when empty, so an
+  // unfilled row survives reload); a param-less tool is a bare tool key.
+  function encodeRow(row) {
+    const tool = TOOLS[row.tool];
+    const slug = encodeURIComponent(row.tool);
+    if (!tool.params.length) return [slug];
+    const parts = [slug + '=' + encodeURIComponent(row.params[tool.params[0].key] || '')];
+    for (const p of tool.params.slice(1)) {
+      const v = row.params[p.key];
+      if (p.type === 'checkbox') { if (v) parts.push(encodeURIComponent(p.key)); }
+      else if (v)                parts.push(encodeURIComponent(p.key) + '=' + encodeURIComponent(v));
     }
-    // Permanent Search row last. Empty Search drops out — the UI re-adds an
-    // empty Search bar at the bottom regardless, so the URL stays minimal.
-    if (WorkshopView.searchQuery)     parts.push('search=' + encodeURIComponent(WorkshopView.searchQuery));
-    if (WorkshopView.searchWholeWord) parts.push('whole-word');
+    return parts;
+  }
+
+  function rowIsDefault(row) {
+    return TOOLS[row.tool].params.every(p => !row.params[p.key]);
+  }
+
+  function buildQuery() {
+    // The executed pipeline — user stack plus the permanent Search bar as
+    // its last row. Each row serializes via encodeRow; empty values are kept
+    // (`anagram=`) so an added-but-unfilled row survives reload. The lone
+    // exception is the Search bar: its keys are elided when it's at default
+    // state *and* not preceded by another Search row, so an untouched app
+    // stays at a bare URL while an added Search tool still round-trips.
+    const stack = effectivePipelineStack();
+    const parts = [];
+    stack.forEach((row, i) => {
+      if (!TOOLS[row.tool]) return;
+      const isBar = i === stack.length - 1;
+      if (isBar && rowIsDefault(row) && stack[i - 1]?.tool !== 'search') return;
+      parts.push(...encodeRow(row));
+    });
     // Sort axis/direction. Each key drops out when it matches the default for
     // the current atom-count tier, so the common case (entry asc on 1-atom
     // rows, min-score desc on stacked rows) stays silent. `sort-dir` may
-    // appear alone — parsing treats absent `sort` as the tier default.
-    const tier = sortTierForCount(currentAtomCount(ToolStack.getStack()));
+    // appear alone — parsing treats absent `sort` as the tier default. Atom
+    // count comes from the full pipeline (the Search bar can itself add an
+    // atom), matching what the scroller renders.
+    const tier = sortTierForCount(currentAtomCount(stack));
     const defaultAxis = WORKSHOP_DEFAULT_SORT_BY_TIER[tier];
     if (WorkshopView.sortKey !== defaultAxis)                  parts.push('sort=' + WorkshopView.sortKey);
     if (WorkshopView.sortDir !== defaultSortDir(WorkshopView.sortKey)) parts.push('sort-dir=' + WorkshopView.sortDir);
@@ -1739,34 +1760,47 @@ const Router = (() => {
     }
 
     const params = new URLSearchParams(queryString);
-    const stack = [];
-    let searchValue = '';
-    let wholeWord = false;
+    const rows = [];
     let sortKey = null;
     let sortDir = null;
     let droppedUnknown = false;
-    // The UI today supports only one Search row (permanent, at the bottom), so
-    // any `search=` we encounter is treated as that row — a chained Search
-    // earlier in the pipeline collapses into the permanent one. Last value
-    // wins.
+    // All param names across the catalog — lets the decoder tell a genuinely
+    // unknown key (likely a removed tool) from a merely misplaced param.
+    const knownParam = new Set(Object.values(TOOLS).flatMap(t => t.params.map(p => p.key)));
+    // Each key is one of three things: a tool name (starts a new row, its
+    // value is the first param), a reserved view-config key, or a successive
+    // param of the most recent row (a bare key sets a checkbox true).
     for (const [key, value] of params) {
-      if (key === 'whole-word') { wholeWord = true; continue; }
-      if (key === 'search')     { searchValue = value || ''; continue; }
-      if (key === 'sort')       { if (isValidSortAxis(value)) sortKey = value; continue; }
-      if (key === 'sort-dir')   { if (value === 'asc' || value === 'desc') sortDir = value; continue; }
+      if (key === 'sort')     { if (isValidSortAxis(value)) sortKey = value; continue; }
+      if (key === 'sort-dir') { if (value === 'asc' || value === 'desc') sortDir = value; continue; }
       const tool = TOOLS[key];
-      if (!tool) { droppedUnknown = true; continue; }
-      const row = { tool: key, params: {} };
-      if (tool.params.length > 0) {
-        row.params[tool.params[0].key] = value || '';
+      if (tool) {
+        const row = { tool: key, params: {} };
+        if (tool.params.length) row.params[tool.params[0].key] = value || '';
+        rows.push(row);
+        continue;
       }
-      stack.push(row);
+      const cur = rows[rows.length - 1];
+      const pdef = cur && TOOLS[cur.tool].params.find(p => p.key === key);
+      if (pdef) { cur.params[key] = pdef.type === 'checkbox' ? true : (value || ''); continue; }
+      // A key that's not a tool, not reserved, and not any tool's param name
+      // is a genuinely unknown key — most likely a tool that's been removed.
+      if (!knownParam.has(key)) droppedUnknown = true;
+    }
+    // The last row, if a Search, is the permanent Search bar; the rest are
+    // ordinary stack tools. No trailing Search row → the bar is at default.
+    let searchQuery = '';
+    let wholeWord = false;
+    if (rows.length && rows[rows.length - 1].tool === 'search') {
+      const bar = rows.pop();
+      searchQuery = bar.params.query || '';
+      wholeWord   = !!bar.params['whole-word'];
     }
     // Stack is set first so applyURLState can derive the current atom count
     // when picking the sort default (a stacked-output URL with no explicit
     // sort= should pick min-score, not the 1-atom default entry).
-    ToolStack.setStack(stack);
-    WorkshopView.applyURLState({ searchQuery: searchValue, searchWholeWord: wholeWord, sortKey, sortDir });
+    ToolStack.setStack(rows);
+    WorkshopView.applyURLState({ searchQuery, searchWholeWord: wholeWord, sortKey, sortDir });
     if (droppedUnknown) {
       // Defer: showToast appends to the toast container which may not be in
       // the DOM yet during initial load.
@@ -2235,7 +2269,8 @@ const WorkshopView = (() => {
   function applyURLState({ searchQuery, searchWholeWord, sortKey, sortDir }) {
     _searchQuery     = searchQuery || '';
     _searchWholeWord = !!searchWholeWord;
-    const tier = sortTierForCount(currentAtomCount(ToolStack.getStack()));
+    // Tier from the full pipeline — see Router.buildQuery's note.
+    const tier = sortTierForCount(currentAtomCount(effectivePipelineStack()));
     _sortKey         = sortKey || WORKSHOP_DEFAULT_SORT_BY_TIER[tier];
     _sortDir         = sortDir || defaultSortDir(_sortKey);
   }
@@ -3457,11 +3492,14 @@ const TOOLS = {
     name: 'Search', icon: '<svg width="16" height="16" aria-hidden="true"><use href="#icon-search"/></svg>', category: 'patterns',
     desc: 'Match entries by text, with wildcards',
     example: 'un*ed · c?t',
-    params: [{ key: 'query', label: 'search' }],
+    params: [
+      { key: 'query', label: 'search' },
+      { key: 'whole-word', label: 'Whole word', type: 'checkbox' },
+    ],
     kind: 'filter', inputHighlights: true, outputHighlights: false,
-    // Compiled once per run. `whole-word` rides in the params object (the
-    // permanent search bar supplies it); a gallery-added Search row is
-    // substring-only. Returns null for an empty query so `run` keeps all.
+    // Compiled once per run. `whole-word` is a checkbox param, so both the
+    // permanent search bar and a gallery-added Search row supply it. Returns
+    // null for an empty query so `run` keeps all.
     prepare(params) {
       const query = (params.query || '').trim();
       if (!query) return null;
@@ -3797,9 +3835,14 @@ const ToolStack = (() => {
 
   function paramsHTML(tool, idx, valuesByKey) {
     if (!tool.params.length) return '';
-    const single = tool.params.length === 1;
-    const inputs = tool.params.map(p => {
-      const labelHTML = single ? '' : `<label>${esc(p.label)}:</label>`;
+    const inputs = tool.params.map((p, i) => {
+      if (p.type === 'checkbox') {
+        const checked = valuesByKey?.[p.key] ? ' checked' : '';
+        return `<span class="tool-row-param"><label><input type="checkbox" data-row="${idx}" data-key="${p.key}"${checked}> ${esc(p.label)}</label></span>`;
+      }
+      // The first param's value rides on the tool-name key, so it needs no
+      // label; successive text params carry one.
+      const labelHTML = i === 0 ? '' : `<label>${esc(p.label)}:</label>`;
       return `<span class="tool-row-param">${labelHTML}<input type="text" placeholder="${esc(p.label)}" value="${esc(valuesByKey?.[p.key] || '')}" data-row="${idx}" data-key="${p.key}"></span>`;
     }).join('');
     return `<span class="tool-row-params">${inputs}</span>`;
@@ -4059,7 +4102,7 @@ const ToolStack = (() => {
       const idx = parseInt(input.dataset.row, 10);
       const key = input.dataset.key;
       if (stack[idx]) {
-        stack[idx].params[key] = input.value;
+        stack[idx].params[key] = input.type === 'checkbox' ? input.checked : input.value;
         refreshWorkshopMergedScroller();
         Router.navigate();
       }
