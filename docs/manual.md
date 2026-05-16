@@ -31,7 +31,7 @@ Workshop's card, top to bottom:
 
 ## Tools
 
-Tools transform your merged wordlist. They live in the **tool gallery** at the top of the Workshop card. Click a tool's card to add it to the stack; each click appends another tool to the end of the pipeline. Remove a tool with the `✕` on its stack row.
+Tools transform your merged wordlist. They live in the **tool gallery** at the top of the Workshop card. Click a tool's card to add it to the stack; each click appends another tool to the end of the pipeline. Remove a tool with the `✕` on its stack row, or drag a row by its handle (`≡`) to reorder the pipeline. The Search bar stays pinned as the last step.
 
 A populated stack feeds top-to-bottom: the first tool reads from `All`, each subsequent tool reads the previous tool's output. Search is the permanent last step — type LINDSEY into Anagram, then type a substring in the search bar to live-narrow the anagram list.
 

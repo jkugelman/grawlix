@@ -483,7 +483,7 @@ html.dark-mode .search-match-4 { background: #14532d; color: #d1fae5; }
 .drag-handle { color: var(--faint); cursor: grab; font-size: 13px; flex-shrink: 0; padding: 0 1px; user-select: none; }
 .drag-handle:hover { color: var(--muted); }
 .drag-handle[aria-hidden] { visibility: hidden; }
-.wordlist-card[draggable]:active .drag-handle { cursor: grabbing; }
+.drag-handle[draggable]:active { cursor: grabbing; }
 .wordlist-card.dragging { opacity: 0.4; }
 .wordlist-card.drag-over { background: var(--sel) !important; box-shadow: inset 0 0 0 2px var(--accent); }
 
@@ -776,8 +776,10 @@ a.get-file:hover { text-decoration: underline; }
    doesn't shrink below the height of an input-bearing row, and the search
    bar (visually the bottom row of the stack) lines up with them. */
 .tool-row, .search-bar { min-height: 42px; }
-.tool-row { position: relative; display: grid; grid-template-columns: 1fr auto; align-items: center; padding: 8px 14px; border-bottom: 1px solid var(--border2); gap: 10px; overflow: hidden; }
+.tool-row { position: relative; display: grid; grid-template-columns: auto 1fr auto; align-items: center; padding: 8px 14px; border-bottom: 1px solid var(--border2); gap: 12px; overflow: hidden; }
 .tool-row:last-child { border-bottom: none; }
+.tool-row.dragging { opacity: 0.4; }
+.tool-row.drag-over { box-shadow: inset 0 0 0 2px var(--accent); }
 /* One-shot accent pulse on a newly added tool row — draws the eye to it.
    add() rebuilds the rows, so the new row's element is always fresh and
    flashRow only needs to set the class once. */
@@ -1293,7 +1295,7 @@ function buildWordlistCardHTML(icon, name, meta, opts = {}) {
     </label>
   </div>`;
 
-  return `<div class="${classes.join(' ')}" data-wordlist draggable="true" tabindex="0" role="option">${dragHandle}${icon}${cardInfo}${cardActions}</div>`;
+  return `<div class="${classes.join(' ')}" data-wordlist tabindex="0" role="option">${dragHandle}${icon}${cardInfo}${cardActions}</div>`;
 }
 
 // Like a regular wordlist card but with no drag handle, no enable toggle, and
@@ -1355,6 +1357,7 @@ function buildSearchInputRowHTML({
 function buildSearchBarHTML() {
   const scoreRange = WorkshopView.scoreRange;
   return `<div class="search-bar">
+      <span class="drag-handle" aria-hidden="true">≡</span>
       <div class="search-items">
         ${buildToolLabelHTML({ icon: '<svg width="16" height="16" aria-hidden="true"><use href="#icon-search"/></svg>', name: 'Search' })}
         ${buildSearchInputRowHTML({
@@ -1633,7 +1636,7 @@ function buildTrashIconHTML() {
 }
 
 function buildDragHandleHTML() {
-  return `<span class="drag-handle" title="Drag to reorder" aria-label="Drag to reorder">≡</span>`;
+  return `<span class="drag-handle" draggable="true" title="Drag to reorder" aria-label="Drag to reorder">≡</span>`;
 }
 
 function buildWordlistNameHTML(wordlist, { bold = true } = {}) {
@@ -2856,6 +2859,7 @@ const LibraryView = (() => {
     _dragWordlist = card._wordlist;
     e.dataTransfer.effectAllowed = 'move';
     e.dataTransfer.setData('text/plain', '');
+    e.dataTransfer.setDragImage(card, 0, 0);
     setTimeout(() => card.classList.add('dragging'), 0);
   });
   listBody.addEventListener('dragend', () => {
@@ -3970,6 +3974,7 @@ const ToolStack = (() => {
       ? searchRowParamsHTML(idx, row)
       : paramsHTML(tool, idx, row.params);
     return `<div class="tool-row">
+      ${buildDragHandleHTML()}
       <div class="tool-row-body">
         ${buildToolLabelHTML(tool)}
         ${params}
@@ -4096,6 +4101,19 @@ const ToolStack = (() => {
     Router.navigate();
   }
 
+  // The Search bar is pinned as the last row — clamp both indices out of its slot.
+  function reorderAt(fromIdx, toIdx) {
+    const lastUser = stack.length - 1;
+    if (fromIdx === toIdx ||
+        fromIdx < 0 || fromIdx >= lastUser ||
+        toIdx < 0 || toIdx >= lastUser) return;
+    const [row] = stack.splice(fromIdx, 1);
+    stack.splice(toIdx, 0, row);
+    rerenderRows();
+    refreshWorkshopMergedScroller();
+    Router.navigate();
+  }
+
   function init() {
     const galleryBody = document.querySelector('.gallery-body');
     if (galleryBody) galleryBody.innerHTML = buildGalleryHTML();
@@ -4146,6 +4164,48 @@ const ToolStack = (() => {
         refreshWorkshopMergedScroller();
         Router.navigate();
       }
+    });
+
+    // ── Drag-to-reorder tool rows ─────────────────────────────────────────
+    // The drag handle is the drag source (not the whole row) so dragging
+    // inside a param input still selects text. rowEls() lists only the user
+    // tool rows — the .search-bar isn't a .tool-row — so its indices line up
+    // with the user portion of `stack`, and a drop onto the bar is ignored.
+    let _dragIdx = null;
+    p?.addEventListener('dragstart', e => {
+      const handle = e.target.closest('.tool-row .drag-handle[draggable]');
+      if (!handle) return;
+      const row = handle.closest('.tool-row');
+      _dragIdx = rowEls().indexOf(row);
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', '');
+      e.dataTransfer.setDragImage(row, 0, 0);
+      setTimeout(() => row.classList.add('dragging'), 0);
+    });
+    p?.addEventListener('dragend', () => {
+      stackEl()?.querySelectorAll('.tool-row.dragging, .tool-row.drag-over')
+        .forEach(r => r.classList.remove('dragging', 'drag-over'));
+      _dragIdx = null;
+    });
+    p?.addEventListener('dragover', e => {
+      if (_dragIdx === null) return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      const row = e.target.closest('.tool-row');
+      if (!row || rowEls().indexOf(row) === _dragIdx) return;
+      stackEl()?.querySelectorAll('.tool-row.drag-over').forEach(r => r.classList.remove('drag-over'));
+      row.classList.add('drag-over');
+    });
+    p?.addEventListener('dragleave', e => {
+      const row = e.target.closest('.tool-row');
+      if (row && !row.contains(e.relatedTarget)) row.classList.remove('drag-over');
+    });
+    p?.addEventListener('drop', e => {
+      if (_dragIdx === null) return;
+      const row = e.target.closest('.tool-row');
+      if (!row) return;
+      e.preventDefault();
+      reorderAt(_dragIdx, rowEls().indexOf(row));
     });
 
     refreshGalleryActive();
