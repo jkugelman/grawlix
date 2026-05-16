@@ -150,7 +150,7 @@ Tools live in two places: a persistent **gallery** as a top section of the card,
 
 **Single catalog drives every surface.** Each tool is one record in `TOOLS` (`name`, `icon`, `category`, `desc`, `example`, `params`, `kind`, `inputHighlights`, `outputHighlights`, optional `glyph` / `prepare` / `run`); gallery section ordering comes from a parallel `TOOL_CATEGORIES` list. Gallery cards, stack-row labels, and the search bar's `Search` label all render the inline icon-and-name pair through the shared `buildToolLabelHTML` helper. Adding a tool means adding one entry — every surface that names tools picks it up — and the helper guarantees the icon-and-name pair looks identical wherever it appears.
 
-**Two click targets per gallery card.** The card body replaces the stack with that tool — the 98%-case gesture. The `+` badge on the right edge appends the tool to the end of the stack — the 2%-case "chain" gesture. The `+` is hover-revealed (no visual presence at rest) and hidden entirely until the user has added a tool: chain reads as an unfamiliar affordance, so it shouldn't appear before there's a user tool to chain to.
+**Clicking a gallery card appends that tool** to the end of the user stack — one click target, the whole card. The first click on an empty stack starts a one-tool pipeline; each later click chains another tool onto the end. To swap tools, remove a row via its `✕` and click a fresh card.
 
 **The search bar is always present; user tools sit above it.** `#tool-stack` always exists, holding at least the permanent Search bar as its last row. Before the user adds a tool the stack is just the bar — which looks exactly like the standalone search bar of pre-tool-use Grawlix. Adding the first tool inserts a row above the bar.
 
@@ -158,21 +158,7 @@ Tools live in two places: a persistent **gallery** as a top section of the card,
 
 `rerenderRows` rebuilds only the user tool rows on a stack mutation, leaving the Search bar's DOM untouched — so its input focus, the sort toolbar mounted inside it, and the wildcard-help popup all survive an add/remove. A full re-render (`mountWorkshopPanel`) does rebuild the bar.
 
-**Hover previews show what the click will do — but only when the click is visually surprising.** The rules:
-
-- *Chain hover (`+` button)*: a ghost row appended at the end of the stack. Always shown; the `+` is unfamiliar and the ghost teaches what it does.
-- *Replace hover (card body), 2+ tools in stack*: doomed rows collapse to zero height; ghost slides in. Communicates "this click will destroy multiple rows."
-- *Replace hover, 0 or 1 tools in stack*: no preview. The click is simple enough to leave bare; previewing would add clutter.
-
-Ghost rows carry an accent tint and a subtle shimmer (sweeping accent gradient via an `::after` pseudo-element). `prefers-reduced-motion` disables the shimmer.
-
-**One animation primitive: `animateHeight(mutate)`.** Capture the stack's current rendered height, run the mutation, measure the new natural height, transition between them via an explicit `height` style. Container-level animation rather than per-row `max-height` transitions: per-row transitions jiggle when rows animate in opposite directions (one collapsing, one growing), where animating the container is one coherent move regardless of how many rows changed underneath.
-
-**Doomed rows collapse rather than hold full height.** Holding them at full height (opacity 0) with the ghost as an absolute-positioned overlay avoids height changes and jiggle during preview, but leaves an empty gap where the doomed rows still take space. Collapsing them lets the table move up smoothly into the freed space; `animateHeight` keeps the move one continuous direction.
-
-**Ghost-promote in place on commit.** When a click commits a hovered ghost, the *same* DOM element loses its `.ghost` class and gains real-row content (via `innerHTML` swap of the inner body). CSS transitions on opacity/color/background handle the visual shift naturally. Replacing the node with a fresh element would lose the in-progress transition state and produce a flash. A 24×24 placeholder div in the ghost's right slot matches the X button's footprint so the row's height is identical between ghost and real states.
-
-**`+`-button camouflage gotcha.** The global `button:hover:not(:disabled)` rule (specificity 0,2,1) overrides naive `.gallery-card-add:hover` (0,2,0), giving the add button the card's hovered background and making it visually invisible against the card. The hover rule is scoped as `.gallery-card .gallery-card-add:hover` (specificity 0,3,0) to win on specificity without `!important`.
+**Hovering a gallery card shows an insertion cursor.** A `.tool-stack-cursor` — an accent caret-and-line — appears at the seam where the click will drop the new tool: between the last user tool row and the permanent Search bar, or at the top of the stack when there are no user tools yet. It's parented in the Search bar, absolutely positioned so it adds no height, and removed on mouseleave. A freshly added row gets a one-shot `.flash` accent pulse; `rerenderRows` rebuilds the user rows on every mutation, so the new row's element is always fresh.
 
 ### Pipeline execution
 

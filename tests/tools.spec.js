@@ -82,7 +82,7 @@ test('typing in the row input live-filters the entries table', async ({ page }) 
   await gotoApp(page);
   await addAnagramFixture(page);
 
-  // Click the Anagram gallery card (no chain — body click replaces the stack).
+  // Click the Anagram gallery card to add the tool to the stack.
   await page.locator('.gallery-card[data-tool="anagram"]').click();
 
   const input = page.locator('.tool-row input[data-key="entry"]');
@@ -91,6 +91,20 @@ test('typing in the row input live-filters the entries table', async ({ page }) 
 
   const visible = await page.evaluate(() => window.__grawlixTest.getVisibleEntries());
   expect(visible.sort()).toEqual(['lindsey', 'snidely']);
+});
+
+test('clicking gallery cards appends them to the stack in order', async ({ page }) => {
+  await gotoApp(page);
+  await addAnagramFixture(page);
+
+  // Each card click appends — the second click chains onto the first rather
+  // than replacing it.
+  await page.locator('.gallery-card[data-tool="anagram"]').click();
+  await page.locator('.gallery-card[data-tool="search"]').click();
+
+  const userStack = await page.evaluate(() =>
+    ToolStack.getUserStack().map(r => r.tool));
+  expect(userStack).toEqual(['anagram', 'search']);
 });
 
 test('removing the tool row reverts to the full merged view', async ({ page }) => {

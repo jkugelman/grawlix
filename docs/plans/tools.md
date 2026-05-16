@@ -29,7 +29,7 @@ For tools that fit the runtime as-is (`palindromes`, `isograms`, `supervocalics`
 
 Two pieces of pipeline behavior aren't built yet.
 
-**Reordering.** Order matters in a pipeline. The intended gesture is "remove (X) and re-add" — drag handles aren't planned, because chaining is a 2%-case gesture and reordering is rarer still; the design surface isn't worth the touch/keyboard-accessibility complexity. Today the stack supports add/replace/remove but not in-place reorder. Unblocks once a chained workflow surfaces that wants it.
+**Reordering.** Order matters in a pipeline. The intended gesture is "remove (X) and re-add" — drag handles aren't planned; reordering is rare enough that remove-and-re-add covers it, and the design surface isn't worth the touch/keyboard-accessibility complexity. Today the stack supports add/remove but not in-place reorder. Unblocks once a chained workflow surfaces that wants it.
 
 **Score range — view filter vs. pre-pipeline tool.** Today's score-range control is a *view* filter on the final output — it narrows what you see, and is per-user, localStorage-backed, not URL-shared. A different operation — "only feed score-50+ words into my tools" — would change what every tool sees, and belongs as a separate `score_filter(min, max)` *tool* added at the start of the stack: it trims the merged wordlist to a range before downstream tools run. The two answer different questions ("show me results in this band" vs. "only consider source words in this band") and have different semantics, so they shouldn't be merged. Leave the view filter where it is; add the `score_filter` tool if the pre-filtering workflow appears.
 
