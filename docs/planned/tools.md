@@ -184,23 +184,31 @@ Deferred until `anagram_families` (or another group tool) surfaces — design co
 Groups output — N-word clusters from `anagram_families` and similar — extends the atom model but flows across the line rather than stacking vertically:
 
 ```
-Sort by Max ↓                                              89 families
+Sort by Max score ↓                                        89 families
 
-(3)   4 CARE 50  ·  4 RACE 40  ·  4 ACRE 30
-(2)   8 STRESSED 60  ·  8 DESSERTS 40
-(5)   5 ALERT 60  ·  5 ALTER 50  ·  5 LATER 60  ·  5 RATEL 20  ·  5 TALER 10
+(3)   CARE 50  ·  RACE 40  ·  ACRE 30
+(2)   STRESSED 60  ·  DESSERTS 40
+(5)   ALERT 60  ·  ALTER 50  ·  LATER 60  ·  RATEL 20  ·  TALER 10
 …
 ```
 
-A list of bullet-separated atoms with a count prefix. Default sort is Max — the anagram-families case is "find a great word that has anagrams I haven't noticed," which max surfaces and min hides. Count is a per-row property; leading `(N)` keeps it visible without dedicated chrome. Min and Max are sort axes, not displayed as numbers — derivable from the row, and showing them next to the atoms would be redundant. When a group is too wide to fit on one line, atoms wrap to the next line indented under the first atom (not under the count) so it reads as continuation.
+A list of bullet-separated atoms with a count prefix. Default sort is Max score — the anagram-families case is "find a great word that has anagrams I haven't noticed," which max surfaces and min hides. Count is a per-row property; leading `(N)` keeps it visible without dedicated chrome. Min score and Max score are sort axes, not displayed as numbers — derivable from the row, and showing them next to the atoms would be redundant. When a group is too wide to fit the viewport, the row overflows horizontally with scroll inside its own container — it never wraps onto a second line. The virtual scroller paginates vertically off a fixed per-row height (atom count × row height); content-driven wrapping would make a group row's height vary with its member count and break that stride math. Only the row's horizontal layer scrolls; vertical pagination is unaffected.
 
-Groups are the partial exception to strict pseudo-column alignment. Atom counts vary per row, so atoms don't fully cross-row align — they flow across the line separated by bullets. The leading `(N)` count slot does align across rows, giving the eye an anchor; within a row, atoms pack tightly with consistent internal `length word score` shape.
+**A different column set, not a column-alignment exception.** Group rows don't bend the chain-row's `entry / len / score / comment / source` grid — a group tool produces a *different* set of columns: **count** and **entries**. `entries` is the bullet-separated concatenation of each member's entry and its score badge; there's no separate length column and entries carry no length prefix. The `count` column (`(N)`) aligns across rows, giving the eye an anchor; `entries` flows across the line and its width varies per row with the member count.
 
-**No Comment / Source columns on group rows.** Chain rows (one- and multi-atom) carry per-atom Comment and Source columns, reactively shown when the viewport has room (see [`../design.md` § Chain-row display](../design.md#chain-row-display)). Group rows can't: those columns live in the `entry / len / score` pseudo-column grid, and group rows flow horizontally across the line rather than stacking into it. Per-atom comment/source on a group row would have to ride inside each bullet-separated atom — a denser, different layout problem that lands with the group-output design pass, not for free off the chain-row grid.
+**No Comment / Source columns on group rows.** Chain rows (one- and multi-atom) carry per-atom Comment and Source columns, reactively shown when the viewport has room (see [`../design.md` § Chain-row display](../design.md#chain-row-display)). Group rows can't: those columns belong to the chain-row's column set, and group rows use the separate `count / entries` columns, flowing horizontally across the line rather than stacking into it. Per-atom comment/source on a group row would have to ride inside each bullet-separated atom — a denser, different layout problem that lands with the group-output design pass, not for free off the chain-row grid.
 
-**Sort axes for groups:** Min, Max, Count, Alphabetical.
+**Sort axes for groups:** Alphabetical, Count, Min score, Max score.
 
-**Search on group rows** matches loosely against the rendered text — same string the user sees, all atoms in a row visible as one filter target. Default-loose is right for v1; promote to side-specific syntax (`right:un*`) only if usage shows the loose form isn't enough.
+**Chaining tools after a group tool — flatten / run / unflatten.** A group tool comes first in the stack; any tool chained after it runs over each group as a mini-wordlist. For each group: flatten its members into a temporary wordlist, run the rest of the stack over that wordlist, then unflatten — re-form the group from whatever survives or is produced. Groups whose surviving member count falls under the threshold (default 2) drop out. The chained tool never knows it's inside a group — it sees a wordlist, returns rows, the system re-groups.
+
+This is also how search works on group rows — there is no separate group-row search. A Search row after `anagram_families` flattens each family, runs the pattern, and keeps the families that still have 2+ matching members. Same mechanism for any chained tool:
+
+- `anagram_families → search(*A*)` — each family filtered to its A-containing members; families with fewer than 2 survivors drop.
+- `anagram_families → behead` — each family member becomes a 2-atom behead chain; the group row holds N such sibling chains.
+- `anagram_families → palindromes` — rare but valid; sparse output, the model still handles it.
+
+Each sibling within a group row carries the sub-pipeline's static atom count. Groups stay group-shaped — the partition survives the sub-pipeline, where a plain flatten would lose it.
 
 ---
 
