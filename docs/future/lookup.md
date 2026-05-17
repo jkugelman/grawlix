@@ -18,7 +18,24 @@ Beyond the grid-software gap, lookups serve Grawlix's own mining/research workfl
 
 - **Lookups will be built as a near-term feature**, not parked indefinitely. Promoted from "parked" during the workspace-vs-sidekick discussion.
 - **Target user:** constructors whose grid software lacks built-in lookup. Crossfire and Crossword Compiler users benefit most.
-- **Likely v1 sources:** definitions, Wikipedia, Google search, semantic search, NYT crossword history. OneLook/Datamuse and Umiaq are already on the integration list — see [`../planned/tools.md`](../planned/tools.md) "Related tools & future integrations." Google search is a low-bar add (a quick `google.com/search?q=` link or embed); even Ingrid users — who already have Google in-app — appreciate it being right next to the wordlist.
+- **Likely v1 sources:** definitions, Wikipedia, Google search, semantic search, NYT crossword history. Google search is a low-bar add (a quick `google.com/search?q=` link or embed); even Ingrid users — who already have Google in-app — appreciate it being right next to the wordlist. OneLook/Datamuse is the leading candidate for the semantic-search slot — see *Candidate source: OneLook / Datamuse* below.
+
+---
+
+## Candidate source: OneLook / Datamuse (onelook.com, datamuse.com/api)
+
+OneLook indexes an enormous dataset of words and phrases — Wikipedia, all major dictionaries, phrase dictionaries, idiom databases, proper nouns, and more. **Scale:** 16,965,772 entries across 805 dictionaries. Far broader than any single wordlist.
+
+**The integration path is their `/api/words?` endpoint** (parameters: `sp=` for spelling pattern, `ml=` for means-like). This appears to be the Datamuse API or very closely related — Datamuse is explicitly designed for programmatic access, no key required.
+
+Capabilities worth noting:
+- **Reverse dictionary / semantic search** — find words by meaning or concept. `:widespread epidemic` → "pandemic"; `:winter sport` → skiing, skating, etc. Enormous for crossword construction.
+- **Meaning-filtered pattern search** — combine a letter pattern with a meaning constraint: `p*:ireland` finds terms starting with P related to Ireland. `bl*:snow` finds blue-ish snow words.
+- **Phrase search** — `**winter**` finds multi-word phrases containing "winter" as a whole word.
+- **Crossword puzzle mode** — patterns automatically allow optional spaces, so run-together strings match phrases: `h?ttot?ot` → "hot to trot".
+- **Letter inclusion/exclusion** — `+abcd` restricts results to only those letters; `-abcd` excludes them.
+
+XWordInfo's arrangement with OneLook may involve something beyond the public API — unknown.
 
 ---
 
