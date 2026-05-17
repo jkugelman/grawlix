@@ -119,6 +119,17 @@ Today this is a stub. Full design lives in [`plans/sync.md`](plans/sync.md): pro
 - **Any wordlist's `Download` button in the Library** — produces that wordlist's file. For sources, the Rescored/Original toggle decides which version. For All, it produces the merged wordlist file.
 - **Sync & backup dialog** — Tier 1 manual backup for the whole setup. Same file output as Library's All Download, but the workflow is "make a backup" rather than "give me this file"; once Tier 1 lands, using it bumps the "Last backup" timestamp.
 
+### Fetching & updates
+
+A wordlist with a `url` is auto-fetch capable. On boot, any URL-backed wordlist that isn't yet populated fetches in the background (§ *The shell* — default landing). Thereafter `checkForUpdates()` runs once on boot and hourly (`UPDATE_CHECK_INTERVAL`): a `HEAD` request per URL-backed, populated wordlist compares `Content-Length` against the stored `fetchedSize`. A size change is the update signal — cheap, no body transfer.
+
+What happens on a detected change depends on the **Auto-update wordlists** setting (`grawlix_autoUpdate`, default off — a standalone localStorage key like `darkMode`, so no `SCHEMA_VERSION` bump):
+
+- **Off** — the wordlist gets a transient `_updateAvailable` flag, surfaced as an `info`-severity (green) bubble on its card. The user fetches manually via the card's Update action.
+- **On** — `checkForUpdates` immediately re-fetches the changed wordlist (`fetchWordlist(…, { silent: true, viaToast: true })`) and applies it.
+
+`applyWordlistText` always diffs old vs. new `rawEntries` into added / deleted / rescored lists. The `viaToast` flag picks how that diff is reported: normally it opens the full `openUpdateSummaryDialog`; under auto-update it instead shows a one-line toast with the counts (`XWI auto-updated: +1,204 −37 ~58`, zero-count categories omitted), since an unattended background refresh shouldn't pop a modal in the user's face. Toggling the setting on from the Settings dialog runs `checkForUpdates()` immediately rather than waiting up to an hour for the next tick.
+
 ### Rescore rules & tier alignment
 
 The unified scale is a declared contract: the tier labels on **All** (`state.scoring`) define what each score range means, and every wordlist's rescore rules describe how its raw scores map to that scale. Any deviation from the contract — input scores not covered by a wordlist's rescore rules, or output scores not covered by All's tier labels — surfaces uniformly as a warning the user can act on.

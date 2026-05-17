@@ -2197,6 +2197,13 @@ const SettingsDialog = (() => {
     </div>
     <div class="dialog-row">
       <div>
+        <div class="dialog-row-label">Auto-update wordlists</div>
+        <div class="dialog-row-sub">Refresh URL wordlists automatically when new versions appear</div>
+      </div>
+      <div id="auto-update-seg"></div>
+    </div>
+    <div class="dialog-row">
+      <div>
         <div class="dialog-row-label">Reset all data</div>
         <div class="dialog-row-sub">Reset all wordlists and settings</div>
       </div>
@@ -2236,6 +2243,19 @@ const SettingsDialog = (() => {
       btn.classList.add('active');
       lsSave('displayCase', btn.dataset.val);
       if (workshopScroller) workshopScroller.updateEntries(workshopScroller.allEntries);
+    };
+  });
+
+  const autoSeg = el.querySelector('#auto-update-seg');
+  autoSeg.innerHTML = buildSegCtrlHTML(null, [
+    { value: 'off', label: 'Off' },
+    { value: 'on',  label: 'On' },
+  ], getAutoUpdate() ? 'on' : 'off');
+  autoSeg.querySelectorAll('.seg-btn').forEach(btn => {
+    btn.onclick = () => {
+      autoSeg.querySelectorAll('.seg-btn').forEach(b => b.classList.toggle('active', b === btn));
+      lsSave('autoUpdate', btn.dataset.val);
+      if (btn.dataset.val === 'on') checkForUpdates();
     };
   });
 
@@ -6437,7 +6457,7 @@ const openUpdateSummaryDialog = (() => {
   };
 })();
 
-async function applyWordlistText(wordlist, text, { fetchedSize = null, originalFilename = null, nameOverride = null, source = null, clearUrl = false, silent = false } = {}) {
+async function applyWordlistText(wordlist, text, { fetchedSize = null, originalFilename = null, nameOverride = null, source = null, clearUrl = false, silent = false, viaToast = false } = {}) {
   const dbKey = wordlist.dbKey;
   const wasEmpty = !wordlist.rawEntries.length;
   const oldEntries = wasEmpty ? null : wordlist.rawEntries;
@@ -6479,14 +6499,20 @@ async function applyWordlistText(wordlist, text, { fetchedSize = null, originalF
       .map(e => ({ entry: e.entry, oldScore: e.score, score: newMap.get(e.entry) }))
       .sort((a, b) => a.entry.localeCompare(b.entry));
     if (!added.length && !deleted.length && !rescored.length) {
-      showAlert(`${buildWordlistNameHTML(wordlist)} is already up to date — no changes.`);
+      if (!viaToast) showAlert(`${buildWordlistNameHTML(wordlist)} is already up to date — no changes.`);
+    } else if (viaToast) {
+      const parts = [];
+      if (added.length)    parts.push(`+${added.length.toLocaleString()}`);
+      if (deleted.length)  parts.push(`−${deleted.length.toLocaleString()}`);
+      if (rescored.length) parts.push(`~${rescored.length.toLocaleString()}`);
+      showToast(`${esc(wordlist.name)} auto-updated: ${parts.join(' ')}`);
     } else {
       openUpdateSummaryDialog(wordlist, oldEntries.length, added, deleted, rescored);
     }
   }
 }
 
-async function fetchWordlist(wordlist, event, { silent = false } = {}) {
+async function fetchWordlist(wordlist, event, { silent = false, viaToast = false } = {}) {
   if (event) event.stopPropagation();
   if (!wordlist || !wordlist.url || wordlist._loading) return;
 
@@ -6500,7 +6526,7 @@ async function fetchWordlist(wordlist, event, { silent = false } = {}) {
     const fetchedSize = resp.headers.get('content-length') || null;
     const originalFilename = new URL(wordlist.url).pathname.split('/').pop() || null;
     wordlist._loading = false;
-    await applyWordlistText(wordlist, text, { fetchedSize, originalFilename, source: wordlist.url, silent });
+    await applyWordlistText(wordlist, text, { fetchedSize, originalFilename, source: wordlist.url, silent, viaToast });
   } catch (err) {
     wordlist._loading = false;
     renderSources();
@@ -6511,17 +6537,23 @@ async function fetchWordlist(wordlist, event, { silent = false } = {}) {
 
 const UPDATE_CHECK_INTERVAL = 60 * 60 * 1000; // 1 hour
 
+function getAutoUpdate() { return lsLoad('autoUpdate') === 'on'; }
+
 async function checkForUpdates() {
   const candidates = state.sources.filter(l => l.url && l.rawEntries.length > 0 && l.fetchedSize);
   if (!candidates.length) return;
 
+  const autoUpdate = getAutoUpdate();
   let anyChanged = false;
   await Promise.all(candidates.map(async wordlist => {
     try {
       const resp = await fetch(wordlist.url, { method: 'HEAD' });
       if (!resp.ok) return;
       const size = resp.headers.get('content-length');
-      if (size && size !== wordlist.fetchedSize && !wordlist._updateAvailable) {
+      if (!size || size === wordlist.fetchedSize) return;
+      if (autoUpdate) {
+        await fetchWordlist(wordlist, null, { silent: true, viaToast: true });
+      } else if (!wordlist._updateAvailable) {
         wordlist._updateAvailable = true;
         anyChanged = true;
       }

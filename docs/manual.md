@@ -20,6 +20,15 @@ Workshop's card, top to bottom:
   - Search bar.
 - **Entries table.** The merged `All` view, always visible — idle and search views are the same view, just filtered.
 
+## Settings
+
+The gear in the header opens **Settings**:
+
+- **Dark mode** — Auto (follow your OS), Light, or Dark.
+- **Display case** — Show entries in `lower` or `UPPER` case throughout the app.
+- **Auto-update wordlists** — Update wordlists without asking. Off by default.
+- **Reset all data** — Wipes all wordlists and settings and reloads the app.
+
 ## Search syntax
 
 - `?` — any letter
@@ -103,7 +112,7 @@ Custom wordlists with up to 10 distinct scores get auto-seeded with one inert ru
 **Scoring rules** (on `All`) are your tier labels for the merged score scale ("60 = great, 50 = good, …"). The Workshop entries table reads these for the hover tooltip on each score atom. The same Unhandled-scores banner + warning bubble pattern applies if the merged view contains scores you haven't labeled.
 
 **Severity bubbles** on each card signal something to look at:
-- **Green** — an update is available to fetch.
+- **Green** — an update is available to fetch (only when auto-update is off — see [Settings](#settings)).
 - **Orange** — there are scores in the wordlist's data not covered by its rescore rules. On **All**, orange means merged scores not covered by any tier label.
 
 The highest-severity bubble across all wordlists propagates up to the **Library** nav item.
