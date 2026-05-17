@@ -162,6 +162,7 @@ Each entry: `slug(params)` — `kind`, then highlight kinds (`in:` for input-sid
 - `nested_words()` — transform · in: `matched` over the inner span; output entry is the inner word. Stricter and more crossword-specific than Wordlisted's Kangaroo / Sandwich / Joey: outer shell and inserted word both must be real wordlist entries.
 - `letter_incrementing(n)` — transform · in & out: `shifted` on incremented letters. A common crossword theme mechanism.
 - `anagram_families()` — group · clusters of 2+ mutual anagrams. Deferred until the group-output design conversation.
+- `letter_sets(letterCount)` — group · clusters of 2+ entries sharing the same set of `letterCount` distinct letters (OPT/POT/TOP under {O,P,T}; ACT/CAT/TACT under {A,C,T}). Broader than `anagram_families` — groups by the distinct-letter set, so repeats and differing lengths still co-cluster. Deferred until the group-output design conversation.
 - *Phrase-level alterations* — likely a flag on existing transforms (`onPhrases: true`) to operate on phrase parses rather than the run-together string. Not its own tool. Wordlisted operates only on the run-together string.
 
 ## Capability families
