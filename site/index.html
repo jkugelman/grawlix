@@ -138,7 +138,6 @@ button.header-nav-item:hover:not(:disabled) { opacity: 1; background: var(--hdr-
 .header-utility { display: flex; align-items: center; gap: 2px; flex-shrink: 0; }
 .bubble { display: inline-flex; align-items: center; background: white; color: var(--accent); border-radius: 8px; padding: 1px 7px 2px; font-size: 15px; font-weight: 800; position: relative; margin-left: 9px; line-height: 1.5; vertical-align: middle; }
 .bubble::before { content: ''; position: absolute; left: -15px; top: 50%; transform: translateY(-50%); border: 9px solid transparent; border-right-color: white; }
-.header-controls { display: flex; gap: 12px; align-items: center; }
 .header-github-link { display: inline-flex; vertical-align: middle; margin-left: 4px; opacity: 0.75; color: white; text-decoration: none; border-bottom: none; }
 .header-github-link:hover { opacity: 1; }
 
@@ -941,8 +940,6 @@ html.dark-mode .wld-onboarding { background: color-mix(in srgb, var(--accent) 15
 .link-btn { background: none; border: none; color: var(--accent); cursor: pointer; font-size: inherit; font-family: inherit; padding: 0; text-decoration: underline; }
 .link-btn:hover { opacity: 0.8; }
 .dialog-divider { text-align: center; color: var(--muted); font-size: 12px; margin: 12px 0; }
-
-.annotation { position: absolute; border: 3px solid #e53935; border-radius: 50px; pointer-events: none; box-shadow: 0 0 6px rgba(229,57,53,0.4); }
 
 @keyframes shake {
   0%, 100%  { transform: translateX( 0px); }
