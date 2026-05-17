@@ -3115,6 +3115,7 @@ async function init() {
   propagateDefaults();
   MainView.activate(initialView);
   renderAll();
+  await _firstPaint;
   const _overlay = document.getElementById('busy-overlay');
   if (_overlay) {
     _overlay.classList.add('done');
@@ -5670,6 +5671,13 @@ let _renderEffectActive = false;
 let _firstRenderDone = false;
 let _cosmeticEffectFirstRun = true;
 
+// Resolves once the Workshop scroller has painted its first batch of rows.
+// init() awaits this before lifting the busy overlay — a tool chain's pipeline
+// yields to the event loop mid-run, so without the wait the overlay drops on a
+// still-empty table.
+let _signalFirstPaint;
+const _firstPaint = new Promise(r => { _signalFirstPaint = r; });
+
 function setupRenderEffect() {
   if (_renderEffectActive) return;
   _renderEffectActive = true;
@@ -5992,6 +6000,8 @@ async function renderWorkshopMergedDetail() {
 
   workshopScroller._onDeleteRow = entry => deleteFromEdits(entry, refreshWorkshopMergedScroller);
   attachExternalEditHandlers(workshopScroller, refreshWorkshopMergedScroller);
+
+  _signalFirstPaint();
 }
 
 async function downloadMergedWordlistFromPanel() {
