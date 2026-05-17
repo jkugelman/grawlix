@@ -3637,10 +3637,12 @@ function renderHighlightedText(text, ranges) {
 // reads them to derive the static atom count; transforms also carry a relation
 // `glyph`.
 //
-// An optional `prepare(params, wordlist)` runs once per pipeline run; its
-// return value is handed to `run` in place of `params` (so a tool can compile
-// a regex or pre-sort letters once instead of per row). Tools without a
-// `prepare` get the normalized params object as before.
+// An optional `async prepare(params, ctx)` runs once per stage, after every
+// upstream stage has finished; its return value is handed to `run` in place of
+// `params` (so a tool can compile a regex or pre-sort letters once instead of
+// per row, or build an index over `ctx.input`). It must yield cooperatively
+// for any non-trivial work — see docs/planned/tools.md § The prepare context.
+// Tools without a `prepare` get the normalized params object.
 //
 // `run(entry, prepared, wordlist)` is a per-row pure function — the system
 // owns the outer loop, cooperative yielding, abort, atom construction, and
@@ -3830,6 +3832,68 @@ function isFilterOnlyChain(stack) {
   });
 }
 
+// Gates the `unify` skip: a transform or a highlighting filter is what makes
+// `unify` do real work. With neither active, every row is a lone atom and
+// `unify` would only copy them, so the executor returns its rows as-is.
+function chainProducesMultiAtom(stack) {
+  return stack.some(row => {
+    const tool = TOOLS[row.tool];
+    if (!tool?.run || tool.isInert?.(row.params)) return false;
+    return tool.kind === 'transform' || !!tool.inputHighlights;
+  });
+}
+
+// `ctx.input` — chain tail entries as strings, resolved lazily so a tool that
+// ignores it pays nothing and the O(N)-per-stage materialization stays avoided.
+function makeWorkingSetView(rows) {
+  return {
+    get length() { return rows.length; },
+    at(i) { return rowLastEntry(rows[i]).entry; },
+    *[Symbol.iterator]() { for (const row of rows) yield rowLastEntry(row).entry; },
+  };
+}
+
+// The executor's seed — one single-atom row per merged entry. Cached on the
+// merged-wordlist cache because nothing downstream mutates these rows or atoms;
+// a structural change to `cache.entries` must null `_initialRows` (see
+// patchCachesForEditsChange) or stale rows render.
+async function buildInitialRows(mergedWordlist, y) {
+  if (mergedWordlist._initialRows) return mergedWordlist._initialRows;
+  const { entries } = mergedWordlist;
+  const rows = new Array(entries.length);
+  for (let i = 0; i < entries.length; i++) {
+    rows[i] = { atoms: [{ wlEntry: entries[i], highlights: null, glyph: null }] };
+    if (y.due()) await y.yield();
+  }
+  mergedWordlist._initialRows = rows;
+  return rows;
+}
+
+// The `prepare` context — see docs/planned/tools.md § The prepare context.
+// Rebuilt per stage so `ctx.input` reflects that stage's input rows.
+function makeCtx(mergedWordlist, rows, signal, y) {
+  return {
+    wordlist: mergedWordlist,
+    input: makeWorkingSetView(rows),
+    throwIfAborted: () => throwIfAborted(signal),
+    due: y.due,
+    yield: y.yield,
+    async forEach(iterable, fn) {
+      let i = 0;
+      for (const item of iterable) {
+        fn(item, i++);
+        if (y.due()) await y.yield();
+      }
+    },
+    async times(n, fn) {
+      for (let i = 0; i < n; i++) {
+        fn(i);
+        if (y.due()) await y.yield();
+      }
+    },
+  };
+}
+
 // Run the tool stack against the merged wordlist, returning
 // `{ rows, atomCount }`. Each row is a ChainRow — `{ atoms: Atom[] }` — where
 // an Atom is `{ wlEntry, highlights, glyph }`, where `highlights` is a flat
@@ -3843,17 +3907,17 @@ function isFilterOnlyChain(stack) {
 // per-row loop, cooperative yielding, and abort: `signal` aborts a superseded
 // run at the next yield.
 async function executePipeline(mergedWordlist, stack, signal) {
-  let rows = mergedWordlist.entries.map(e => ({
-    atoms: [{ wlEntry: e, highlights: null, glyph: null }],
-  }));
+  const y = makeYielder(signal);
+  let rows = await buildInitialRows(mergedWordlist, y);
   for (const stackRow of stack) {
     const tool = TOOLS[stackRow.tool];
     if (!tool?.run || tool.isInert?.(stackRow.params)) continue;
     throwIfAborted(signal);
     const params = normalizeParams(stackRow.params);
-    const prepared = tool.prepare ? tool.prepare(params, mergedWordlist) : params;
+    const prepared = tool.prepare
+      ? await tool.prepare(params, makeCtx(mergedWordlist, rows, signal, y))
+      : params;
     const next = [];
-    let lastYield = performance.now();
     for (let i = 0; i < rows.length; i++) {
       const row = rows[i];
       const tail = row.atoms[row.atoms.length - 1];
@@ -3898,15 +3962,14 @@ async function executePipeline(mergedWordlist, stack, signal) {
           next.push({ atoms });
         }
       }
-      if ((i & YIELD_CHECK_MASK) === 0 && performance.now() - lastYield >= YIELD_INTERVAL_MS) {
-        await _yieldImpl();
-        throwIfAborted(signal);
-        lastYield = performance.now();
-      }
+      if (y.due()) await y.yield();
     }
     rows = next;
   }
-  return { rows: unify(rows), atomCount: currentAtomCount(stack) };
+  return {
+    rows: chainProducesMultiAtom(stack) ? await unify(rows, y) : rows,
+    atomCount: currentAtomCount(stack),
+  };
 }
 
 // Post-executor unification — two collapses that turn the executor's
@@ -3925,29 +3988,33 @@ async function executePipeline(mergedWordlist, stack, signal) {
 // smaller — picked explicitly, so it's deterministic regardless of emit order
 // — and it keeps its own highlights; the dropped direction's are not carried
 // over.
-function unify(rows) {
-  const collapsed = rows.map(row => ({ atoms: collapseRepeatAtoms(row.atoms) }));
+async function unify(rows, y) {
   const seen = new Map();   // entry-chain key → { row, index } of its slot in `out`
   const out = [];
-  for (const row of collapsed) {
+  for (let i = 0; i < rows.length; i++) {
+    const row = { atoms: collapseRepeatAtoms(rows[i].atoms) };
     const entries = row.atoms.map(a => a.wlEntry.entry);
     const fwd = entries.join('\0');
     const rev = [...entries].reverse().join('\0');
+    let folded = false;
     if (fwd !== rev) {
       const mirror = seen.get(rev);
       if (mirror) {
         const mScores = mirror.row.atoms.map(a => a.wlEntry.score);
         const rScores = row.atoms.map(a => a.wlEntry.score).reverse();
-        if (mScores.every((s, i) => s === rScores[i])) {
+        if (mScores.every((s, j) => s === rScores[j])) {
           const survivor = fwd < rev ? row : mirror.row;
           survivor.atoms = survivor.atoms.map(a => a.glyph ? { ...a, glyph: '↔' } : a);
           out[mirror.index] = survivor;
-          continue;
+          folded = true;
         }
       }
     }
-    seen.set(fwd, { row, index: out.length });
-    out.push(row);
+    if (!folded) {
+      seen.set(fwd, { row, index: out.length });
+      out.push(row);
+    }
+    if (y.due()) await y.yield();
   }
   return out;
 }
@@ -4009,11 +4076,6 @@ const SLOW_PIPELINE_THRESHOLD_MS = 100;
 // burning hundreds of ms of pure yield overhead on a 500K filter. Time-based
 // chunking keeps yield count proportional to wall-clock cost.
 const YIELD_INTERVAL_MS = 6;
-// Bitmask gate on i — `(i & YIELD_CHECK_MASK) === 0` is a single AND, far
-// cheaper than calling performance.now() every iteration. 1023 means we check
-// elapsed time once per 1024 iterations.
-const YIELD_CHECK_MASK = 1023;
-
 // scheduler.yield is the modern primitive (Chrome 129+); the setTimeout fallback
 // is universal and lands the browser back on the macrotask queue, which is what
 // we want — input events and paints get a turn before the tool resumes.
@@ -4023,6 +4085,33 @@ const _yieldImpl = (typeof scheduler !== 'undefined' && typeof scheduler.yield =
 
 function throwIfAborted(signal) {
   if (signal?.aborted) throw signal.reason ?? new DOMException('Aborted', 'AbortError');
+}
+
+// Cooperative-yield gate, one per run. `due()` is a cheap synchronous check;
+// when true the caller `await`s `yield()`. `due()` can't read the clock every
+// iteration, so it samples once per `stride` calls and retunes `stride` to keep
+// those samples ~YIELD_CLOCK_TARGET_MS apart whatever the per-iteration cost.
+const YIELD_CLOCK_TARGET_MS = 1;
+const YIELD_STRIDE_MAX = 1 << 16;
+function makeYielder(signal) {
+  let stride = 1, sinceCheck = 0;
+  let lastClock = performance.now(), lastYield = lastClock;
+  return {
+    due() {
+      if (++sinceCheck < stride) return false;
+      const now = performance.now();
+      const elapsed = now - lastClock;
+      if (elapsed > 0) stride = Math.max(1, Math.min(YIELD_STRIDE_MAX, Math.round(stride * YIELD_CLOCK_TARGET_MS / elapsed)));
+      lastClock = now;
+      sinceCheck = 0;
+      return now - lastYield >= YIELD_INTERVAL_MS;
+    },
+    async yield() {
+      await _yieldImpl();
+      throwIfAborted(signal);
+      lastYield = lastClock = performance.now();
+    },
+  };
 }
 
 // Single-flight controller — every runPipeline call aborts the previous one's
@@ -5905,12 +5994,6 @@ function createScroller() {
   return workshopScroller;
 }
 
-// With no transforming tool in the stack, `executePipeline` returns the
-// merged cache's `entries` array unchanged — identity preserved, so the
-// patch-path optimization survives (merged cache patched in place, scroller
-// refilters without closing the popover). A transforming tool produces a
-// fresh array and the scroller takes the full `updateEntries` path.
-// Supersedes any in-flight run, so an aborted result is dropped.
 async function refreshWorkshopMergedScroller() {
   if (!workshopScroller) return;
   const result = await runPipeline(buildMergedWordlist(), ToolStack.getStack());
@@ -7958,6 +8041,7 @@ function patchCachesForEditsChange(entry, newEditsWlEntry) {
         };
         cache.byEntry.set(entry, merged);
         insertSortedByEntry(cache.entries, merged);
+        cache._initialRows = null;
         adjustSourceCount(cache, edits, 1);
       }
     }
@@ -7997,6 +8081,7 @@ function patchCachesForEditsChange(entry, newEditsWlEntry) {
           cache.byEntry.delete(entry);
           const idx = cache.entries.indexOf(existing);
           if (idx !== -1) cache.entries.splice(idx, 1);
+          cache._initialRows = null;
         } else {
           const nextList = state.sources[nextIdx];
           const nextEntry = getRescoredMap(nextList).get(entry);

@@ -6,7 +6,7 @@ Inspiration: [Wordlisted](https://aaronson.org/wordlisted/) by Adam Aaronson. Se
 
 The gallery is where Grawlix's [project goal](../../README.md#goals) — democratize wordlist manipulation — does most of its work. Constructors who program can write Python to anagram, behead, phonetic-substitute, semantic-filter against their wordlists. The gallery's job is to put those moves in non-programmers' hands. Filter when evaluating a candidate tool: *would a programmer reach for this often enough to write a script?* If yes, it probably belongs.
 
-This doc tracks what's still planned for the gallery: the rest of the tool catalog (records without a `run` yet), groups output, gallery polish (category picker, search), result download, and the cooperative `prepare` context. The pipeline that runs it all — the chain-row model, the per-row tool API, the executor — is built; see [`../design.md` § Tool gallery & stack](../design.md#tool-gallery--stack).
+This doc tracks what's still planned for the gallery: the rest of the tool catalog (records without a `run` yet), groups output, gallery polish (category picker, search), and result download. The pipeline that runs it all — the chain-row model, the per-row tool API, the executor — is built; see [`../design.md` § Tool gallery & stack](../design.md#tool-gallery--stack).
 
 ---
 
@@ -72,34 +72,12 @@ The catalog record shape (`name`, `icon`, `category`, `desc`, `example`, `params
 
 Other letter-keyed indexes — `byLetterBank` (`Map<sortedLetters, wlEntry[]>` for anagram / made_from / anagram_families), `byLetterSet` (for `letter_sets`), `byLength` — don't exist. When a tool needs one, there are two places to build it, in increasing cost:
 
-- **In the tool's own `prepare`.** `prepare(params, ctx)` runs once per stage and receives `ctx.wordlist`, so the tool indexes it there and reads the index in `run`. No runtime changes. A run fires on every keystroke, so the index rebuilds per keystroke — but the rebuild is cooperative, chunked through `ctx` (see *The `prepare` context*), so it degrades to slower-but-responsive, never a frozen tab.
+- **In the tool's own `prepare`.** `prepare(params, ctx)` runs once per stage and receives `ctx.wordlist`, so the tool indexes it there and reads the index in `run`. No runtime changes. A run fires on every keystroke, so the index rebuilds per keystroke — but the rebuild is cooperative, chunked through `ctx` (see [`../design.md` § Pipeline execution](../design.md#pipeline-execution)), so it degrades to slower-but-responsive, never a frozen tab.
 - **As another field on the merged cache.** If that per-keystroke rebuild bites, build the index inside `buildMergedWordlist` next to `byEntry`. Then it's built once per wordlist change and invalidated wholesale with the rest of the cache. One more line — still not a "system."
 
 The declarative `requires: [...]` mechanism and the lazy-property-on-Wordlist form are both parked; neither is needed. Default to `prepare`; promote an index onto the merged cache only when profiling says so. Cross-tool sharing within one pipeline (a stack that hits `byLetterBank` from three tools) is served by the same merged-cache field — revisit then, not before.
 
 New indexes land as new tools demand them. Don't predict.
-
-### The `prepare` context
-
-A tool's `prepare` is `async` and takes a context object: `prepare(params, ctx)`. The executor `await`s it. `prepare` is `async` so it can yield cooperatively while doing heavy work — building a letter-keyed index over the whole wordlist, say — without freezing the tab (see *the chunking contract* below). `prepare` runs once per stage, in stack order, after every upstream stage has finished.
-
-`ctx` carries:
-
-- `ctx.wordlist` — the merged-wordlist cache (`{ entries, sourceCounts, byEntry }`), the same object `run` receives.
-- `ctx.input` — the previous stage's output as a live view of entry strings: `length`, `.at(i)`, and iteration, each access resolved on demand with no upfront materialization. It exposes only strings — never the executor's chain rows or atoms. The first stage's `ctx.input` is the merged wordlist's entries; a downstream stage's is whatever survived upstream. Use it to index the surviving working set — for a tool that needs cross-row knowledge of the current results, e.g. pairs among them.
-- `ctx.throwIfAborted()` — bail out of a manual CPU loop once the run has been superseded. (`ctx.forEach`/`times` and `ctx.yield` check abort on their own; this is for hand-rolled loops.)
-- `ctx.forEach(iterable, fn)` / `ctx.times(n, fn)` — run a loop that yields cooperatively. The body is synchronous; the helper watches the clock between iterations and yields to the event loop when it has held the thread too long, then resumes. The easy path: wrap an indexing loop in `ctx.forEach` and chunking is handled.
-- `ctx.due()` / `ctx.yield()` — the manual gate for irregular or multi-phase work that doesn't fit one loop. `due()` is a cheap synchronous "should I yield?" check; when it's true, `await ctx.yield()`. `ctx.yield()` also stands alone — call it to give the browser a turn after an unavoidable lump of work.
-
-The clock-check stride is self-calibrating — a loop of cheap iterations is sampled rarely, a loop of expensive ones often — so no tool tunes anything.
-
-**The chunking contract.** Any `prepare` doing more than trivial work must break it into sub-frame chunks and yield between them, through `ctx.forEach`/`ctx.times` or `ctx.due()`/`ctx.yield()`. The executor owns supersession and abort but can only act at a yield point; a `prepare` that runs one long synchronous block freezes the tab and can't be cancelled. In particular, never call a native bulk operation that can't be interrupted on a large input — `Array.prototype.sort` over hundreds of thousands of entries is the canonical trap. Restructure: bucket into a `Map` instead of sorting; sort a small derived set (the distinct keys, not the entries); or, if a full sort is unavoidable, native-sort the chunks and combine them with a yielding merge. This is a general best practice for all pipeline work, not only `prepare`.
-
-**`run` stays narrow.** `run(entry, prepared, wordlist)` is unchanged — synchronous, per-row, no `ctx`. It gets its row's entry, the value `prepare` returned, and the merged wordlist. The executor owns the per-row loop along with its yielding and abort, so `run` neither needs nor receives the chunking helpers; heavy or async work belongs in `prepare`.
-
-**Memoizing across runs.** A `prepare` whose result depends only on `ctx.wordlist` and `params` — not on `ctx.input` — can be reused across runs: the wordlist changes far less often than a keystroke. Cache it keyed on the merged-wordlist cache's identity (discarded wholesale on any wordlist change), or build the index as a field on the merged cache itself (see *Indexed lookups*). A `prepare` that consumes `ctx.input` can't memoize this way — its result depends on upstream tools and their params — so it rebuilds every run, cooperatively chunked.
-
-**Runtime support.** The same yield gate drives the executor's own O(N) passes, not just tools: materializing the initial chain rows from the merged wordlist, and the `unify` pass that folds the executor's emit-everything output into displayed rows, both chunk through it. The initial-rows array is cached on the merged-wordlist cache and rebuilt only when the wordlist changes; `unify` is skipped entirely when the stack contains no transform or highlighting filter, since with only plain filters every row is a lone atom and `unify` would be an identity pass.
 
 ### Annotations
 

@@ -27,7 +27,7 @@ Plans (forward-looking, not yet shipped):
 - [`docs/planned/help.md`](docs/planned/help.md) — separating welcome tour from returning-user reference manual.
 - [`docs/planned/migration.md`](docs/planned/migration.md) — when to graduate from schema-version resets to layered migrations.
 - [`docs/planned/sync.md`](docs/planned/sync.md) — three-tier persistence (backup nag, disk file, cloud sync) for All + My Edits.
-- [`docs/planned/tools.md`](docs/planned/tools.md) — remainder of the catalog, indexed-view runtime, annotations, groups output, gallery polish (category picker, search), result download, the cooperative `prepare` context. The chain-row pipeline (executor, per-row tool API, symmetric unification, search-as-tool, per-atom-count sort, highlights) is shipped — see `design.md`.
+- [`docs/planned/tools.md`](docs/planned/tools.md) — remainder of the catalog, indexed-view runtime, annotations, groups output, gallery polish (category picker, search), result download. The chain-row pipeline (executor, per-row tool API, symmetric unification, search-as-tool, per-atom-count sort, highlights) is shipped — see `design.md`.
 
 Future (longer-horizon ideas, not actively planned):
 - [`docs/future/lookup.md`](docs/future/lookup.md) — click-a-word lookup (definitions, Wikipedia, NYT history, semantic search).
