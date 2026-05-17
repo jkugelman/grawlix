@@ -3838,10 +3838,10 @@ const TOOLS = {
       return [{ entry: reversed }];
     },
   },
-  letter_sets: {
-    name: 'Letter sets', icon: '🧩', category: 'anagrams',
-    desc: 'Cluster words built from the same distinct letters',
-    example: 'SPOT · TOPS · OPTS',
+  letter_clusters: {
+    name: 'Letter clusters', icon: '🧩', category: 'anagrams',
+    desc: 'Words built from the same distinct letters',
+    example: 'POSTOP · STOOPS · OPTS',
     params: [{ key: 'size', label: 'Distinct letters', type: 'number' }],
     kind: 'group', inputHighlights: false, outputHighlights: false,
     isInert: params => !((params && params.size || '').toString().trim()),
@@ -3858,7 +3858,7 @@ const TOOLS = {
       });
       const groups = [];
       for (const [key, words] of buckets) {
-        // The 2+ rule is letter_sets' own — a downstream tool may legitimately
+        // The 2+ rule is letter_clusters' own — a downstream tool may legitimately
         // thin a line to one word, so the executor never enforces it.
         if (words.length < 2) continue;
         words.sort((a, b) => b.score - a.score || a.entry.localeCompare(b.entry));

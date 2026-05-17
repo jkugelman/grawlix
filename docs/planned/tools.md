@@ -14,7 +14,7 @@ This doc tracks what's still planned for the gallery: the rest of the tool catal
 
 When the next tool needs runtime support that doesn't exist yet, land the runtime first, then the tool.
 
-- **Letter-bank family** (`subanagram`, `made_from`, `anagram_families`, `letter_sets`) — no runtime gate. Each builds whatever letter-keyed index it needs in its own `prepare` (see *Indexed lookups* below). If a per-keystroke rebuild proves too slow on large wordlists, promote the index onto the merged-wordlist cache — but that's a one-liner, not a prerequisite runtime.
+- **Letter-bank family** (`subanagram`, `made_from`, `anagram_families`, `letter_clusters`) — no runtime gate. Each builds whatever letter-keyed index it needs in its own `prepare` (see *Indexed lookups* below). If a per-keystroke rebuild proves too slow on large wordlists, promote the index onto the merged-wordlist cache — but that's a one-liner, not a prerequisite runtime.
 - **Membership family** (`kangaroo`, `joey`, `sandwich`, `nested_words`) — `wordlist.byEntry` already exists on the merged-wordlist cache. No runtime gate.
 - **Phonetics / thesaurus families** — wait for the bundled data dependency. Until CMU dict and Roget XML are available at runtime, the tools can't run.
 
@@ -26,7 +26,7 @@ For tools that fit the runtime as-is (`palindromes`, `isograms`, `supervocalics`
 
 **Reordering.** Order matters in a pipeline. The intended gesture is "remove (X) and re-add" — drag handles aren't planned; reordering is rare enough that remove-and-re-add covers it, and the design surface isn't worth the touch/keyboard-accessibility complexity. Today the stack supports add/remove but not in-place reorder. Unblocks once a chained workflow surfaces that wants it.
 
-**Score range — a pre-pipeline trim (shipped).** The score-range control trims the merged wordlist *before* the pipeline runs: out-of-range words are removed before any tool sees them, so they can't cluster, pair, or be looked up as targets. An earlier design kept it as a *view* filter on the final pipeline output; that was abandoned because it has no good answer for group rows — a `letter_sets` cluster with one score-0 member would be hidden wholesale by a `1+` range (a group's score aggregate spans every member). Trimming upstream sidesteps that: the junk word never enters the cluster. The control stays per-user, localStorage-backed, not URL-shared — scores aren't portable across setups (see [`../design.md` § Out of scope for the URL](../design.md#out-of-scope-for-the-url)). The histogram still shows the full merged distribution, so it stays the drag-to-select surface.
+**Score range — a pre-pipeline trim (shipped).** The score-range control trims the merged wordlist *before* the pipeline runs: out-of-range words are removed before any tool sees them, so they can't cluster, pair, or be looked up as targets. An earlier design kept it as a *view* filter on the final pipeline output; that was abandoned because it has no good answer for group rows — a `letter_clusters` cluster with one score-0 member would be hidden wholesale by a `1+` range (a group's score aggregate spans every member). Trimming upstream sidesteps that: the junk word never enters the cluster. The control stays per-user, localStorage-backed, not URL-shared — scores aren't portable across setups (see [`../design.md` § Out of scope for the URL](../design.md#out-of-scope-for-the-url)). The histogram still shows the full merged distribution, so it stays the drag-to-select surface.
 
 ---
 
@@ -68,7 +68,7 @@ The catalog record shape (`name`, `icon`, `category`, `desc`, `example`, `params
 
 `byEntry` is not a view *system*. It's the dedup map `buildMergedWordlist` already builds to merge sources, exposed as a field on the cache for free. It's built once when the merged cache is built and discarded wholesale when the cache is invalidated. There is no lazy-per-view machinery and no per-view invalidation — `cacheVersion$` is a generic "caches changed, repaint" signal, not a view tracker.
 
-Other letter-keyed indexes — `byLetterBank` (`Map<sortedLetters, wlEntry[]>` for anagram / made_from / anagram_families), `byLetterSet` (for `letter_sets`), `byLength` — don't exist. When a tool needs one, there are two places to build it, in increasing cost:
+Other letter-keyed indexes — `byLetterBank` (`Map<sortedLetters, wlEntry[]>` for anagram / made_from / anagram_families), `byLetterClusters` (for `letter_clusters`), `byLength` — don't exist. When a tool needs one, there are two places to build it, in increasing cost:
 
 - **In the tool's own `prepare`.** `prepare(params, ctx)` runs once per stage and receives `ctx.wordlist`, so the tool indexes it there and reads the index in `run`. No runtime changes. A run fires on every keystroke, so the index rebuilds per keystroke — but the rebuild is cooperative, chunked through `ctx` (see [`../design.md` § Pipeline execution](../design.md#pipeline-execution)), so it degrades to slower-but-responsive, never a frozen tab.
 - **As another field on the merged cache.** If that per-keystroke rebuild bites, build the index inside `buildMergedWordlist` next to `byEntry`. Then it's built once per wordlist change and invalidated wholesale with the rest of the cache. One more line — still not a "system."
@@ -153,7 +153,7 @@ Each entry: `slug(params)` — `kind`, then highlight kinds (`in:` for input-sid
 - `nested_words()` — transform · in: `matched` over the inner span; output entry is the inner word. Stricter and more crossword-specific than Wordlisted's Kangaroo / Sandwich / Joey: outer shell and inserted word both must be real wordlist entries.
 - `letter_incrementing(n)` — transform · in & out: `shifted` on incremented letters. A common crossword theme mechanism.
 - `anagram_families()` — group · clusters of 2+ mutual anagrams. Deferred until the group-output design conversation.
-- `letter_sets(letterCount)` — group · clusters of 2+ entries sharing the same set of `letterCount` distinct letters (OPT/POT/TOP under {O,P,T}; ACT/CAT/TACT under {A,C,T}). Broader than `anagram_families` — groups by the distinct-letter set, so repeats and differing lengths still co-cluster. Deferred until the group-output design conversation.
+- `letter_clusters(letterCount)` — group · clusters of 2+ entries sharing the same set of `letterCount` distinct letters (OPT/POT/TOP under {O,P,T}; ACT/CAT/TACT under {A,C,T}). Broader than `anagram_families` — groups by the distinct-letter set, so repeats and differing lengths still co-cluster. Deferred until the group-output design conversation.
 - *Phrase-level alterations* — likely a flag on existing transforms (`onPhrases: true`) to operate on phrase parses rather than the run-together string. Not its own tool. Wordlisted operates only on the run-together string.
 
 ## Capability families
