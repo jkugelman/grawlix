@@ -6,17 +6,15 @@ Inspiration: [Wordlisted](https://aaronson.org/wordlisted/) by Adam Aaronson. Se
 
 The gallery is where Grawlix's [project goal](../../README.md#goals) — democratize wordlist manipulation — does most of its work. Constructors who program can write Python to anagram, behead, phonetic-substitute, semantic-filter against their wordlists. The gallery's job is to put those moves in non-programmers' hands. Filter when evaluating a candidate tool: *would a programmer reach for this often enough to write a script?* If yes, it probably belongs.
 
-This doc tracks what's still planned for the gallery: the rest of the tool catalog (records without a `run` yet), the indexed-view runtime several anagram-family tools need, groups output, gallery polish (category picker, search), result download, and the OneLook / Datamuse / Umiaq integrations. The pipeline that runs it all — the chain-row model, the per-row tool API, the executor — is built; see [`../design.md` § Tool gallery & stack](../design.md#tool-gallery--stack).
+This doc tracks what's still planned for the gallery: the rest of the tool catalog (records without a `run` yet), groups output, gallery polish (category picker, search), result download, and the OneLook / Datamuse / Umiaq integrations. The pipeline that runs it all — the chain-row model, the per-row tool API, the executor — is built; see [`../design.md` § Tool gallery & stack](../design.md#tool-gallery--stack).
 
 ---
 
 ## Sequencing — runtime support before the family
 
-When the next tool needs runtime support that doesn't exist yet, land the runtime first, then the tool. Specifically: tools that want a shared indexed view should wait until that view exists on the wordlist object, because building the index inline inside each `run` re-pays the cost on every keystroke.
+When the next tool needs runtime support that doesn't exist yet, land the runtime first, then the tool.
 
-Concretely:
-
-- **Letter-bank family** (`subanagram`, `made_from`, `anagram_families`) — wait for `wordlist.byLetterBank`. Anagram already pays the cost per-keystroke for one tool; a second letter-bank tool without the shared view doubles it. Land the view alongside the first new family member.
+- **Letter-bank family** (`subanagram`, `made_from`, `anagram_families`, `letter_sets`) — no runtime gate. Each builds whatever letter-keyed index it needs in its own `prepare` (see *Indexed lookups* below). If a per-keystroke rebuild proves too slow on large wordlists, promote the index onto the merged-wordlist cache — but that's a one-liner, not a prerequisite runtime.
 - **Membership family** (`kangaroo`, `joey`, `sandwich`, `nested_words`) — `wordlist.byEntry` already exists on the merged-wordlist cache. No runtime gate.
 - **Network-bound tools** (OneLook, Datamuse) — need the `signal` argument plumbed into `run(entry, prepared, wordlist, signal)` for cancellation. The plumbing is small; land when the integration surface is designed.
 - **Phonetics / thesaurus families** — wait for the bundled data dependency. Until CMU dict and Roget XML are available at runtime, the tools can't run.
@@ -67,20 +65,20 @@ This is a third "give me a file" path alongside the two existing ones (All/My Ed
 
 The catalog record shape (`name`, `icon`, `category`, `desc`, `example`, `params`, `kind`, `inputHighlights`, `outputHighlights`, optional `glyph` / `prepare` / `run`) is documented in [`../design.md` § Tool gallery & stack](../design.md#tool-gallery--stack). A few subsystems sit around it.
 
-### Indexed views on `wordlist`
+### Indexed lookups
 
-The `wordlist` argument to `run` exposes indexed-view properties for O(1) lookups. `wordlist.byEntry` (a `Map<entry, wlEntry>` keyed by the lowercased entry) already exists; membership checks (kangaroo, joey, sandwich, nested_words) and beheading/curtailing lookups use it. Two more are planned, landing as the first tool that needs each does:
+The `wordlist` argument to `run` and `prepare` is the merged-wordlist cache — a plain object `{ entries, sourceCounts, byEntry }`. `byEntry` is a `Map<entry, wlEntry>` keyed by the lowercased entry; membership checks (kangaroo, joey, sandwich, nested_words) and beheading/curtailing lookups use it.
 
-- `wordlist.byLetterBank` — `Map<sortedLetters, wlEntry[]>` keyed by sorted-letters. Instant anagram lookup (anagram, made_from, anagram_families).
-- `wordlist.byLength` — `Map<number, wlEntry[]>` for length-bucketed iteration.
+`byEntry` is not a view *system*. It's the dedup map `buildMergedWordlist` already builds to merge sources, exposed as a field on the cache for free. It's built once when the merged cache is built and discarded wholesale when the cache is invalidated. There is no lazy-per-view machinery and no per-view invalidation — `cacheVersion$` is a generic "caches changed, repaint" signal, not a view tracker.
 
-Each view is a property on the wordlist object, built lazily on first access and cached on the instance. Invalidation reuses the existing `cacheVersion$` machinery — when a wordlist's `rawEntries` change, the views go with everything else.
+Other letter-keyed indexes — `byLetterBank` (`Map<sortedLetters, wlEntry[]>` for anagram / made_from / anagram_families), `byLetterSet` (for `letter_sets`), `byLength` — don't exist. When a tool needs one, there are two places to build it, in increasing cost:
 
-The previously-planned declarative `requires: ['set', 'byLetterBank']` mechanism is parked. The lazy-property-on-Wordlist form is simpler and sufficient — tools just read what they need; no scheduler involvement. Revisit if shared-across-steps caching becomes worth the runtime cost (e.g., a chained pipeline that hits `byLetterBank` from three different tools).
+- **In the tool's own `prepare`.** `prepare(params, wordlist)` runs once per pipeline run and receives the merged wordlist, so the tool indexes it there and reads the index in `run`. No runtime changes. The catch: a run fires on every keystroke, so the index rebuilds per keystroke — the same per-keystroke cost today's `anagram` already pays (`sortLetters` across every entry in `run`).
+- **As another field on the merged cache.** If that per-keystroke rebuild bites, build the index inside `buildMergedWordlist` next to `byEntry`. Then it's built once per wordlist change and invalidated wholesale with the rest of the cache. One more line — still not a "system."
 
-This is the keystroke-perf path for anagram and friends — today's anagram does the work per-keystroke (`sortLetters` across every entry), which compounds badly once a second letter-bank tool lands. The shared view becomes worth its complexity at that point.
+The declarative `requires: [...]` mechanism and the lazy-property-on-Wordlist form are both parked; neither is needed. Default to `prepare`; promote an index onto the merged cache only when profiling says so. Cross-tool sharing within one pipeline (a stack that hits `byLetterBank` from three tools) is served by the same merged-cache field — revisit then, not before.
 
-New views land as new tools demand them. Don't predict.
+New indexes land as new tools demand them. Don't predict.
 
 ### Async tools
 
@@ -208,7 +206,7 @@ Groups are the partial exception to strict pseudo-column alignment. Atom counts 
 
 ## Result caching: deferred
 
-Tool-result memoization is plausible — input identity is tracked by `cacheVersion$`, and tool params are known — but premature without profiling. The data-shape views above are the load-bearing optimization; per-call result caches are a layer above that.
+Tool-result memoization is plausible — input identity is tracked by `cacheVersion$`, and tool params are known — but premature without profiling. The `prepare` step — and a merged-cache index behind it, if one lands — is the load-bearing optimization; per-call result caches are a layer above that.
 
 ---
 
