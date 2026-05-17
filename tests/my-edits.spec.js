@@ -103,7 +103,7 @@ test('deleting a My Edits entry shows an undo toast that restores it', async ({ 
   });
 
   // Undo toast appears with an Undo link; click it.
-  const undoLink = page.locator('.toast .undo-link');
+  const undoLink = page.locator('.toast .toast-action');
   await expect(undoLink).toBeVisible();
   await undoLink.click();
 

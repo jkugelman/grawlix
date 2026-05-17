@@ -969,7 +969,7 @@ html.dark-mode .wld-onboarding { background: color-mix(in srgb, var(--accent) 15
 .icon-trash  { width: 14px; height: 14px; display: inline-block; vertical-align: middle; }
 
 /* Toast undo link */
-.toast .undo-link { margin-left: 10px; color: #90caf9; text-decoration: underline; cursor: pointer; }
+.toast .toast-action { margin-left: 10px; color: #90caf9; text-decoration: underline; cursor: pointer; }
 
 </style>
 </head>
@@ -6505,7 +6505,11 @@ async function applyWordlistText(wordlist, text, { fetchedSize = null, originalF
       if (added.length)    parts.push(`${added.length.toLocaleString()} added`);
       if (deleted.length)  parts.push(`${deleted.length.toLocaleString()} deleted`);
       if (rescored.length) parts.push(`${rescored.length.toLocaleString()} rescored`);
-      showToast(`${esc(wordlist.name)} auto-updated: ${parts.join(', ')}`);
+      showActionToast(
+        `${esc(wordlist.name)} auto-updated: ${parts.join(', ')}`,
+        'Details',
+        () => openUpdateSummaryDialog(wordlist, oldEntries.length, added, deleted, rescored),
+      );
     } else {
       openUpdateSummaryDialog(wordlist, oldEntries.length, added, deleted, rescored);
     }
@@ -7528,20 +7532,23 @@ function showToast(msg) {
   el.classList.add('show');
   el._timer = setTimeout(() => _dismissToast(el), 5000);
 }
-function showUndoToast(msg, onUndo) {
+function showActionToast(msg, actionLabel, onAction) {
   const el = document.createElement('div');
   el.className = 'toast';
-  el.innerHTML = msg + `<span class="undo-link">Undo</span>`;
+  el.innerHTML = msg + `<span class="toast-action">${esc(actionLabel)}</span>`;
   el.onclick = () => _dismissToast(el);
-  el.querySelector('.undo-link').onclick = e => {
+  el.querySelector('.toast-action').onclick = e => {
     e.stopPropagation();
     _dismissToast(el);
-    onUndo();
+    onAction();
   };
   _toastContainer.appendChild(el);
   el.offsetWidth; // force reflow so opacity transition fires
   el.classList.add('show');
   el._timer = setTimeout(() => _dismissToast(el), 10000);
+}
+function showUndoToast(msg, onUndo) {
+  showActionToast(msg, 'Undo', onUndo);
 }
 function _dismissToast(el) {
   clearTimeout(el._timer);

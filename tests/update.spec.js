@@ -113,6 +113,7 @@ test('with auto-update on, a changed wordlist is re-fetched and a toast shows th
   feed.updated = true;
   await page.locator('#btn-settings').click();
   await page.locator('#auto-update-seg .seg-btn[data-val="on"]').click();
+  await page.keyboard.press('Escape');
 
   await expect(page.locator('.toast')).toContainText('John Kugelman auto-updated: 1 added, 1 deleted, 1 rescored');
 
@@ -120,4 +121,11 @@ test('with auto-update on, a changed wordlist is re-fetched and a toast shows th
   expect(wl.entries.map(e => e.entry).sort()).toEqual(['alpha', 'beta', 'epsilon']);
   expect(wl.entries.find(e => e.entry === 'beta').score).toBe(60);
   expect(wl.updateAvailable).toBe(false);
+
+  await page.locator('.toast .toast-action').click();
+  const dialog = page.locator('#update-summary-dialog');
+  await expect(dialog).toBeVisible();
+  await expect(dialog.locator('.usd-pill-added')).toHaveText('1 added');
+  await expect(dialog.locator('.usd-pill-deleted')).toHaveText('1 deleted');
+  await expect(dialog.locator('.usd-pill-rescored')).toHaveText('1 rescored');
 });

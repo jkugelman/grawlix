@@ -128,7 +128,7 @@ What happens on a detected change depends on the **Auto-update wordlists** setti
 - **On** — `checkForUpdates` immediately re-fetches the changed wordlist (`fetchWordlist(…, { silent: true, viaToast: true })`) and applies it.
 - **Off** — the wordlist gets a transient `_updateAvailable` flag, surfaced as an `info`-severity (green) bubble on its card. The user fetches manually via the card's Update action.
 
-`applyWordlistText` always diffs old vs. new `rawEntries` into added / deleted / rescored lists. The `viaToast` flag picks how that diff is reported: normally it opens the full `openUpdateSummaryDialog`; under auto-update it instead shows a one-line toast with the counts (`XWI auto-updated: 1,204 added, 58 rescored`, zero-count categories omitted), since an unattended background refresh shouldn't pop a modal in the user's face. Toggling the setting on from the Settings dialog runs `checkForUpdates()` immediately rather than waiting up to an hour for the next tick.
+`applyWordlistText` always diffs old vs. new `rawEntries` into added / deleted / rescored lists. The `viaToast` flag picks how that diff is reported: normally it opens the full `openUpdateSummaryDialog`; under auto-update it instead shows a one-line toast with the counts (`XWI auto-updated: 1,204 added, 58 rescored`, zero-count categories omitted), since an unattended background refresh shouldn't pop a modal in the user's face. The toast carries a **Details** action link (`showActionToast`) that opens the full `openUpdateSummaryDialog` on demand — the modal stays opt-in. Toggling the setting on from the Settings dialog runs `checkForUpdates()` immediately rather than waiting up to an hour for the next tick.
 
 ### Rescore rules & tier alignment
 
