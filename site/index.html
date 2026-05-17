@@ -2198,7 +2198,7 @@ const SettingsDialog = (() => {
     <div class="dialog-row">
       <div>
         <div class="dialog-row-label">Auto-update wordlists</div>
-        <div class="dialog-row-sub">Refresh URL wordlists automatically when new versions appear</div>
+        <div class="dialog-row-sub">Update wordlists without asking</div>
       </div>
       <div id="auto-update-seg"></div>
     </div>
@@ -6537,7 +6537,7 @@ async function fetchWordlist(wordlist, event, { silent = false, viaToast = false
 
 const UPDATE_CHECK_INTERVAL = 60 * 60 * 1000; // 1 hour
 
-function getAutoUpdate() { return lsLoad('autoUpdate') === 'on'; }
+function getAutoUpdate() { return lsLoad('autoUpdate') !== 'off'; }
 
 async function checkForUpdates() {
   const candidates = state.sources.filter(l => l.url && l.rawEntries.length > 0 && l.fetchedSize);

@@ -77,7 +77,7 @@ test('re-fetching unchanged content reports no changes', async ({ page }) => {
   await expect(page.locator('#update-summary-dialog')).toBeHidden();
 });
 
-test('the update check flags a changed wordlist with a green bubble', async ({ page }) => {
+test('with auto-update off, the update check flags a changed wordlist with a green bubble', async ({ page }) => {
   const feed = { updated: false };
   await stubPublisherFetches(page);
   await routeJK(page, feed);
@@ -85,14 +85,14 @@ test('the update check flags a changed wordlist with a green bubble', async ({ p
   await waitForJKPopulated(page);
 
   await page.locator('#btn-settings').click();
-  await expect(page.locator('#auto-update-seg .seg-btn[data-val="off"]')).toHaveClass(/active/);
+  await page.locator('#auto-update-seg .seg-btn[data-val="off"]').click();
   await page.keyboard.press('Escape');
 
   feed.updated = true;
   await page.evaluate(() => checkForUpdates());
 
   const wl = await page.evaluate(() => window.__grawlixTest.getWordlist('John Kugelman'));
-  expect(wl.entries.length).toBe(3);
+  expect(wl.entries.map(e => e.entry).sort()).toEqual(['alpha', 'beta', 'delta']);
   expect(wl.updateAvailable).toBe(true);
   await expect(page.locator('.toast')).toHaveCount(0);
 

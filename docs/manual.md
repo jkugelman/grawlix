@@ -26,7 +26,7 @@ The gear in the header opens **Settings**:
 
 - **Dark mode** — Auto (follow your OS), Light, or Dark.
 - **Display case** — Show entries in `lower` or `UPPER` case throughout the app.
-- **Auto-update wordlists** — Update wordlists without asking. Off by default.
+- **Auto-update wordlists** — Update wordlists without asking. On by default.
 - **Reset all data** — Wipes all wordlists and settings and reloads the app.
 
 ## Search syntax

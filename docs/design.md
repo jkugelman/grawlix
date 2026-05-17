@@ -123,10 +123,10 @@ Today this is a stub. Full design lives in [`planned/sync.md`](planned/sync.md):
 
 A wordlist with a `url` is auto-fetch capable. On boot, any URL-backed wordlist that isn't yet populated fetches in the background (§ *The shell* — default landing). Thereafter `checkForUpdates()` runs once on boot and hourly (`UPDATE_CHECK_INTERVAL`): a `HEAD` request per URL-backed, populated wordlist compares `Content-Length` against the stored `fetchedSize`. A size change is the update signal — cheap, no body transfer.
 
-What happens on a detected change depends on the **Auto-update wordlists** setting (`grawlix_autoUpdate`, default off — a standalone localStorage key like `darkMode`, so no `SCHEMA_VERSION` bump):
+What happens on a detected change depends on the **Auto-update wordlists** setting (`grawlix_autoUpdate`, default on — a standalone localStorage key like `darkMode`, read-time default via `!== 'off'`, so no `SCHEMA_VERSION` bump):
 
-- **Off** — the wordlist gets a transient `_updateAvailable` flag, surfaced as an `info`-severity (green) bubble on its card. The user fetches manually via the card's Update action.
 - **On** — `checkForUpdates` immediately re-fetches the changed wordlist (`fetchWordlist(…, { silent: true, viaToast: true })`) and applies it.
+- **Off** — the wordlist gets a transient `_updateAvailable` flag, surfaced as an `info`-severity (green) bubble on its card. The user fetches manually via the card's Update action.
 
 `applyWordlistText` always diffs old vs. new `rawEntries` into added / deleted / rescored lists. The `viaToast` flag picks how that diff is reported: normally it opens the full `openUpdateSummaryDialog`; under auto-update it instead shows a one-line toast with the counts (`XWI auto-updated: 1,204 added, 58 rescored`, zero-count categories omitted), since an unattended background refresh shouldn't pop a modal in the user's face. Toggling the setting on from the Settings dialog runs `checkForUpdates()` immediately rather than waiting up to an hour for the next tick.
 
