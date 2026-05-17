@@ -6436,9 +6436,9 @@ const openUpdateSummaryDialog = (() => {
 
     pillsEl.innerHTML = '';
     const pillDefs = [
-      { key: 'added',    label: `+${added.length.toLocaleString()}`,   cls: 'usd-pill-added'   },
-      { key: 'deleted',  label: `−${deleted.length.toLocaleString()}`,  cls: 'usd-pill-deleted'  },
-      { key: 'rescored', label: `~${rescored.length.toLocaleString()}`, cls: 'usd-pill-rescored' },
+      { key: 'added',    label: `${added.length.toLocaleString()} added`,    cls: 'usd-pill-added'   },
+      { key: 'deleted',  label: `${deleted.length.toLocaleString()} deleted`,  cls: 'usd-pill-deleted'  },
+      { key: 'rescored', label: `${rescored.length.toLocaleString()} rescored`, cls: 'usd-pill-rescored' },
     ];
     for (const { key, label, cls } of pillDefs) {
       if (sectionIndices[key] == null) continue;
@@ -6502,10 +6502,10 @@ async function applyWordlistText(wordlist, text, { fetchedSize = null, originalF
       if (!viaToast) showAlert(`${buildWordlistNameHTML(wordlist)} is already up to date — no changes.`);
     } else if (viaToast) {
       const parts = [];
-      if (added.length)    parts.push(`+${added.length.toLocaleString()}`);
-      if (deleted.length)  parts.push(`−${deleted.length.toLocaleString()}`);
-      if (rescored.length) parts.push(`~${rescored.length.toLocaleString()}`);
-      showToast(`${esc(wordlist.name)} auto-updated: ${parts.join(' ')}`);
+      if (added.length)    parts.push(`${added.length.toLocaleString()} added`);
+      if (deleted.length)  parts.push(`${deleted.length.toLocaleString()} deleted`);
+      if (rescored.length) parts.push(`${rescored.length.toLocaleString()} rescored`);
+      showToast(`${esc(wordlist.name)} auto-updated: ${parts.join(', ')}`);
     } else {
       openUpdateSummaryDialog(wordlist, oldEntries.length, added, deleted, rescored);
     }

@@ -45,7 +45,7 @@ test('with auto-update on, a changed wordlist is re-fetched and a toast shows th
   await page.locator('#btn-settings').click();
   await page.locator('#auto-update-seg .seg-btn[data-val="on"]').click();
 
-  await expect(page.locator('.toast')).toContainText('John Kugelman auto-updated: +1 ~1');
+  await expect(page.locator('.toast')).toContainText('John Kugelman auto-updated: 1 added, 1 rescored');
 
   const wl = await page.evaluate(() => window.__grawlixTest.getWordlist('John Kugelman'));
   expect(wl.entries.length).toBe(3);
