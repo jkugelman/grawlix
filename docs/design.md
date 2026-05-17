@@ -183,6 +183,8 @@ Tools live in two places: a persistent **gallery** as a top section of the card,
 
 `executePipeline(mergedWordlist, stack, signal)` seeds one chain row per merged entry (a cached array — § Caches), then walks the stack rows in order, each tool transforming the row set into the next.
 
+The `mergedWordlist` it receives is already trimmed to the score-range control's band: the score range is a **pre-pipeline filter**, not a view filter on the output, so out-of-range words never enter the row set and are invisible to every tool's lookups. `workshopPipelineWordlist()` derives the trimmed view (memoized on the merged cache); a no-range control passes the merged cache through untouched.
+
 A tool's `run(entry, prepared, wordlist)` is a **per-row pure function** — it sees one entry's text and returns a per-row decision; the system owns the outer loop, cooperative yielding, abort, atom construction, and chain bookkeeping. `run` is optional — a tool without one is a transparent placeholder (its row renders, the URL serializes it, the executor passes it over), which keeps chrome-only catalog entries shipped during incremental rollout.
 
 - **Filter** (`kind: 'filter'`) keeps or drops the row. `run` returns `null`/`false` (drop), `true` (keep), or a `Range[]` (keep, highlighting the match); a highlighting filter's kept rows gain a same-word atom carrying those ranges.

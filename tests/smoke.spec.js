@@ -37,6 +37,7 @@ test('test API is exposed on window', async ({ page }) => {
     'addCustomWordlist',
     'getMergedEntry',
     'getVisibleEntries',
+    'getVisibleGroups',
     'getWordlist',
     'moveBefore',
     'pipelineIdle',

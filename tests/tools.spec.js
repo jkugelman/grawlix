@@ -345,14 +345,15 @@ test('whole-word rides as a bare key on its Search row and round-trips', async (
   expect(hash).toBe('#/workshop?search=cat&whole-word&search=');
 });
 
-test('score range filters chain rows on the row minimum', async ({ page }) => {
+test('score range pre-filters the wordlist before tools run', async ({ page }) => {
   await gotoApp(page);
   await addSemordnilapFixture(page);
   await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'semordnilap' }]));
 
-  // 50+ leaves only DEVIL/LIVED (min 70). DESSERTS/STRESSED (min 40) and
-  // LOOPS/SPOOL (min 20) drop out — even though STRESSED is 60, the rule is
-  // the row minimum, not "any atom".
+  // 50+ trims the merged wordlist before semordnilap sees it. DEVIL/LIVED
+  // (70/80) survive and pair. STRESSED is 60 — in range — but its partner
+  // DESSERTS (40) is trimmed away, so the pair can't form: a tool never sees
+  // an out-of-range word, not even as a lookup target.
   await page.locator('#score-range-input').fill('50+');
   const visible = await page.evaluate(() => window.__grawlixTest.getVisibleEntries());
   expect(visible).toEqual([['devil', 'lived']]);
@@ -565,4 +566,174 @@ test('atoms truncate long entries with ellipsis + full-text title', async ({ pag
   // standard signal that CSS truncation kicked in.
   const truncated = await originatorAtom.evaluate(el => el.scrollWidth > el.offsetWidth);
   expect(truncated).toBe(true);
+});
+
+// M-bM-^TM-^@M-bM-^TM-^@M-bM-^TM-^@ Group tools (letter_sets) M-bM-^TM-^@M-bM-^TM-^@M-bM-^TM-^@M-bM-^TM-^@M-bM-^TM-^@M-bM-^TM-^@M-bM-^TM-^@M-bM-^TM-^@M-bM-^TM-^@M-bM-^TM-^@M-bM-^TM-^@M-bM-^TM-^@M-bM-^TM-^@M-bM-^TM-^@M-bM-^TM-^@M-bM-^TM-^@M-bM-^TM-^@M-bM-^TM-^@M-bM-^TM-^@M-bM-^TM-^@M-bM-^TM-^@M-bM-^TM-^@M-bM-^TM-^@M-bM-^TM-^@M-bM-^TM-^@M-bM-^TM-^@M-bM-^TM-^@M-bM-^TM-^@M-bM-^TM-^@M-bM-^TM-^@M-bM-^TM-^@M-bM-^TM-^@M-bM-^TM-^@M-bM-^TM-^@M-bM-^TM-^@M-bM-^TM-^@M-bM-^TM-^@M-bM-^TM-^@M-bM-^TM-^@M-bM-^TM-^@M-bM-^TM-^@M-bM-^TM-^@M-bM-^TM-^@M-bM-^TM-^@M-bM-^TM-^@M-bM-^TM-^@
+// A group tool clusters the whole merged view into GroupRow[] M-bM-^@M-^T count +
+// bullet-separated members M-bM-^@M-^T rather than per-entry chain rows. See
+// docs/planned/tools.md M-BM-' Groups view.
+
+// OPT/POT/TOP share the distinct-letter set {o,p,t}; ACT/CAT share {a,c,t};
+// DOG is a singleton and drops (a group needs 2+ members).
+async function addLetterSetFixture(page) {
+  await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
+    name: 'LetterSetTest',
+    entries: ['OPT', 'POT', 'TOP', 'ACT', 'CAT', 'DOG'],
+    scores: [50, 40, 30, 60, 20, 70],
+  }));
+}
+
+test('letter_sets clusters merged entries that share a distinct-letter set', async ({ page }) => {
+  await gotoApp(page);
+  await addLetterSetFixture(page);
+  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'letter_sets', params: { size: '3' } }]));
+
+  const groups = await page.evaluate(() => window.__grawlixTest.getVisibleGroups());
+  // One line per group (just the cluster); DOG (a singleton) never appears.
+  const clusters = groups.map(g => g.lines[0].words.slice().sort()).sort();
+  expect(clusters).toEqual([['act', 'cat'], ['opt', 'pot', 'top']]);
+  expect(groups.map(g => g.lines[0].count).sort()).toEqual([2, 3]);
+});
+
+test('letter_sets with no size is inert — the row is transparent', async ({ page }) => {
+  await gotoApp(page);
+  await addLetterSetFixture(page);
+  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'letter_sets', params: {} }]));
+
+  // No size entered: the tool does nothing, like an empty search bar — the
+  // merged view shows through as ordinary chain rows, no groups.
+  const groups = await page.evaluate(() => window.__grawlixTest.getVisibleGroups());
+  expect(groups).toEqual([]);
+  const entries = await page.evaluate(() => window.__grawlixTest.getVisibleEntries());
+  expect(entries.sort()).toEqual(['act', 'cat', 'dog', 'opt', 'pot', 'top']);
+});
+
+test('letter_sets size param constrains clusters to that many distinct letters', async ({ page }) => {
+  await gotoApp(page);
+  await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
+    name: 'SizeTest',
+    entries: ['OPT', 'POT', 'AB', 'BA'],
+    scores: [50, 40, 30, 20],
+  }));
+  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'letter_sets', params: { size: '2' } }]));
+
+  const groups = await page.evaluate(() => window.__grawlixTest.getVisibleGroups());
+  // Only {a,b} has exactly 2 distinct letters; the size-3 {o,p,t} cluster is
+  // excluded by the param.
+  expect(groups.map(g => g.lines[0].words.slice().sort())).toEqual([['ab', 'ba']]);
+});
+
+test('score range trims junk out of the wordlist before letter_sets clusters it', async ({ page }) => {
+  await gotoApp(page);
+  await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
+    name: 'JunkTest',
+    entries: ['OPT', 'POT', 'TOP', 'OOPT'],
+    scores: [50, 40, 30, 0],
+  }));
+  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'letter_sets', params: { size: '3' } }]));
+
+  // All four share {o,p,t}, so unfiltered they cluster together.
+  let groups = await page.evaluate(() => window.__grawlixTest.getVisibleGroups());
+  expect(groups[0].lines[0].words.slice().sort()).toEqual(['oopt', 'opt', 'pot', 'top']);
+
+  // "1+" drops OOPT@0 before letter_sets sees it — the cluster survives at 3.
+  // (Pre-filtering, not a min-score filter that would hide the whole group.)
+  await page.locator('#score-range-input').fill('1+');
+  groups = await page.evaluate(() => window.__grawlixTest.getVisibleGroups());
+  expect(groups.length).toBe(1);
+  expect(groups[0].lines[0].words.slice().sort()).toEqual(['opt', 'pot', 'top']);
+});
+
+test('search chained after letter_sets adds a filtered subset line', async ({ page }) => {
+  await gotoApp(page);
+  await addLetterSetFixture(page);
+  await page.evaluate(() => window.__grawlixTest.setStack([
+    { tool: 'letter_sets', params: { size: '3' } },
+    { tool: 'search', params: { query: 'pt' } },
+  ]));
+
+  const groups = await page.evaluate(() => window.__grawlixTest.getVisibleGroups());
+  // The {o,p,t} cluster keeps its line plus a second line of the "pt"-matching
+  // subset; {a,c,t} has no "pt" word, so its subset line is empty and it drops.
+  expect(groups.length).toBe(1);
+  expect(groups[0].lines.length).toBe(2);
+  expect(groups[0].lines[0].words.slice().sort()).toEqual(['opt', 'pot', 'top']);
+  expect(groups[0].lines[1].words).toEqual(['opt']);
+
+  // The subset line's word carries the search highlight.
+  const lit = await page.evaluate(() =>
+    [...document.querySelectorAll('#vs-host .group-line')][1]
+      ?.querySelector('.group-cell mark') !== null);
+  expect(lit).toBe(true);
+});
+
+test('a transform chained after letter_sets adds a line of its output set', async ({ page }) => {
+  await gotoApp(page);
+  await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
+    name: 'BeheadTest',
+    entries: ['SPOT', 'TOPS', 'OPTS', 'POT', 'OPS', 'TOP'],
+    scores: [50, 40, 30, 20, 20, 20],
+  }));
+  await page.evaluate(() => window.__grawlixTest.setStack([
+    { tool: 'letter_sets', params: { size: '4' } },
+    { tool: 'behead', params: {} },
+  ]));
+
+  const groups = await page.evaluate(() => window.__grawlixTest.getVisibleGroups());
+  // Line 1 is the {o,p,s,t} cluster; line 2 is behead's output set — SPOT→POT,
+  // TOPS→OPS land (real words), OPTS→PTS doesn't.
+  expect(groups.length).toBe(1);
+  expect(groups[0].lines.length).toBe(2);
+  expect(groups[0].lines[0].words.slice().sort()).toEqual(['opts', 'spot', 'tops']);
+  expect(groups[0].lines[1].words.slice().sort()).toEqual(['ops', 'pot']);
+});
+
+test('group rows sort by Count and the axis round-trips through the URL', async ({ page }) => {
+  await gotoApp(page);
+  await addLetterSetFixture(page);
+  await page.evaluate(() => {
+    location.hash = '#/workshop?letter_sets=3&sort=count&sort-dir=desc';
+    Router.applyURL();
+    renderWorkshopMergedDetail();
+  });
+
+  const groups = await page.evaluate(() => window.__grawlixTest.getVisibleGroups());
+  expect(groups.map(g => g.lines[0].count)).toEqual([3, 2]);
+
+  await page.evaluate(() => Router.navigate());
+  expect(page.url()).toContain('sort=count');
+});
+
+test('a group member is individually editable through the atom popover', async ({ page }) => {
+  await gotoApp(page);
+  await addLetterSetFixture(page);
+  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'letter_sets', params: { size: '3' } }]));
+
+  // Click OPT's score badge inside its group row — the popover must open on
+  // that word's wlEntry, showing its own score (50).
+  await page.locator('.group-row .group-cell', { hasText: 'opt' }).locator('.atom-score').click();
+  await expect(page.locator('#atom-popover')).toBeVisible();
+  await expect(page.locator('#atom-pop-score')).toHaveValue('50');
+
+  // The edit routes into My Edits like any merged-view edit.
+  await page.locator('#atom-pop-score').fill('15');
+  await page.locator('#atom-pop-score').press('Enter');
+  const edited = await page.evaluate(() => window.__grawlixTest.getMergedEntry('opt'));
+  expect(edited.score).toBe(15);
+});
+
+test('only one group tool per pipeline M-bM-^@M-^T gallery card disabled, URL dedups', async ({ page }) => {
+  await gotoApp(page);
+  await addLetterSetFixture(page);
+  // A URL naming letter_sets twice M-bM-^@M-^T only the first is accepted.
+  await page.evaluate(() => {
+    location.hash = '#/workshop?letter_sets=3&letter_sets=4';
+    Router.applyURL();
+    renderWorkshopMergedDetail();
+  });
+  const stack = await page.evaluate(() => ToolStack.getUserStack().map(r => r.tool));
+  expect(stack).toEqual(['letter_sets']);
+
+  // With a group tool in the stack, its gallery card is disabled.
+  await expect(page.locator('.gallery-card[data-tool="letter_sets"]')).toHaveClass(/disabled/);
 });

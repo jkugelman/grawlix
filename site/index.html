@@ -266,6 +266,13 @@ html.light-mode .histogram-readonly.is-hovered .histogram-bar:not(.histogram-bar
 .tool-row-param input[type="text"] { background: var(--input-bg); color: var(--text); border: 1px solid var(--border); border-radius: 4px; font-size: 13px; font-family: var(--font-mono); padding: 5px 8px; }
 .search-input-wrap input[type="text"]:focus,
 .tool-row-param input[type="text"]:focus { outline: none; border-color: var(--accent); }
+.tool-row-param input.tool-row-num {
+  background: var(--input-bg); color: var(--text);
+  border: 1px solid var(--border); border-radius: 4px;
+  font-size: 13px; font-family: var(--font-sans); padding: 5px 8px;
+  width: 5em;
+}
+.tool-row-param input.tool-row-num:focus { outline: none; border-color: var(--accent); }
 .tool-row-param label { display: flex; align-items: center; gap: 5px; cursor: pointer; user-select: none; }
 .search-input-wrap input[type="text"] { width: 100%; padding-right: 24px; }
 .search-whole-word-label { display: flex; align-items: center; gap: 5px; font-size: 12px; color: var(--muted); white-space: nowrap; cursor: pointer; user-select: none; flex-shrink: 0; }
@@ -402,6 +409,55 @@ html.dark-mode .search-match-4 { background: #14532d; color: #d1fae5; }
   }
   .entry-row .atom-source, .entry-headers .col-source { display: block; }
 }
+
+/* A group row stacks word-set lines. Each line scrolls horizontally within
+   itself and never wraps, so the scroller's fixed per-row stride holds. */
+.group-row {
+  position: absolute; left: 0; right: 0;
+  box-shadow: inset 0 -1px 0 var(--border3);
+}
+.group-row:hover { background: var(--row-hover); }
+.group-row.active { background: color-mix(in srgb, var(--accent) 12%, transparent); }
+.group-line, .group-headers {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 0 16px;
+  white-space: nowrap;
+}
+.group-line { height: var(--row-height, 24px); }
+.group-headers {
+  padding-top: 5px; padding-bottom: 5px;
+  color: var(--muted);
+  user-select: none;
+  border-top: 1px solid var(--border3);
+}
+.group-rownum, .group-count {
+  flex: none;
+  text-align: right;
+  font-family: var(--font-sans); font-size: 12px;
+}
+.group-rownum { min-width: var(--group-rownum-w, 2ch); color: var(--faint); }
+.group-count  { min-width: var(--group-count-w, 2ch); }
+.group-entries {
+  display: flex; align-items: center; gap: 10px;
+  min-width: 0; flex: 1;
+  overflow-x: auto; overflow-y: hidden;
+  scrollbar-width: none;
+}
+.group-entries::-webkit-scrollbar { display: none; }
+/* The scrollbar is hidden so it can't squish a 24px line; an overflowing line
+   instead fades at its right edge as the "scroll for more" affordance. */
+.group-entries.group-overflow {
+  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 32px), transparent);
+          mask-image: linear-gradient(to right, #000 calc(100% - 32px), transparent);
+}
+.group-sep { color: var(--faint); user-select: none; }
+.group-cell { display: inline-flex; align-items: baseline; gap: 5px; }
+.group-cell .atom-entry { cursor: pointer; }
+.group-cell .atom-score { cursor: pointer; }
+.group-cell .atom-noedit { cursor: default; }
+.entries-empty { padding: 16px; color: var(--muted); font-size: 13px; }
 
 /* Library entries view — text-flavored, read-only counterpart to the Workshop
    entries table. Shares the virtual-scroller mechanics but renders a monospace,
@@ -777,6 +833,8 @@ a.get-file:hover { text-decoration: underline; }
 .gallery-card { border: 1px solid var(--border); border-radius: 6px; padding: 9px 12px; background: var(--surface2); cursor: pointer; user-select: none; transition: background 0.1s, border-color 0.1s, box-shadow 0.1s; }
 .gallery-card:hover { background: var(--hover); border-color: var(--accent); }
 .gallery-card.active { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.gallery-card.disabled { cursor: not-allowed; opacity: 0.4; }
+.gallery-card.disabled:hover { background: var(--surface2); border-color: var(--border); }
 .gallery-card-name { font-size: 13px; font-weight: 600; color: var(--text); }
 .gallery-card-desc { font-size: 11px; color: var(--muted); margin-top: 2px; }
 .gallery-card-example { font-family: var(--font-mono); font-size: 11px; color: var(--faint); margin-top: 5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -1661,6 +1719,13 @@ function buildEntriesTablePanelHTML() {
 // stay constant whether a row has one atom or many. Comment / Source surface
 // on every chain shape when the viewport has room (gated by media query).
 function buildEntryHeadersHTML() {
+  if (isGroupChain(ToolStack.getStack())) {
+    return `<div class="group-headers entry-headers-font" aria-hidden="true">
+      <span class="group-rownum"></span>
+      <span class="group-count">Count</span>
+      <span>Entries</span>
+    </div>`;
+  }
   return `<div class="entry-headers entry-headers-font" aria-hidden="true">
       <span></span>
       <span class="col-entry">Entry</span>
@@ -1669,6 +1734,13 @@ function buildEntryHeadersHTML() {
       <span class="col-comment">Comment</span>
       <span class="col-source">Source</span>
     </div>`;
+}
+
+// rerenderRows rebuilds only the tool rows, so a stack edit that flips chain
+// rows ⇄ group rows leaves the column headers stale until this runs.
+function rebuildEntryHeaders() {
+  const el = document.querySelector('.sticky-stack .entry-headers, .sticky-stack .group-headers');
+  if (el) el.outerHTML = buildEntryHeadersHTML();
 }
 
 function buildEditHintHTML(extraClass, onclick) {
@@ -1847,6 +1919,8 @@ const Router = (() => {
       if (key === 'sort-dir') { if (value === 'asc' || value === 'desc') sortDir = value; continue; }
       const tool = TOOLS[key];
       if (tool) {
+        // Only one group tool per pipeline — ignore any beyond the first.
+        if (tool.kind === 'group' && rows.some(r => TOOLS[r.tool]?.kind === 'group')) continue;
         const row = { tool: key, params: {} };
         if (tool.params.length) row.params[tool.params[0].key] = value || '';
         rows.push(row);
@@ -2329,7 +2403,7 @@ const WorkshopView = (() => {
     else             lsDel('scoreRange');
     const btn = document.getElementById('score-range-clear');
     if (btn) btn.hidden = trimmed === '';
-    workshopScroller?.filter(_scoreRange);
+    if (workshopScroller) refreshWorkshopMergedScroller();
     repositionAllHistogramRects();
   }
   function clearSearch() {
@@ -3630,8 +3704,8 @@ function renderHighlightedText(text, ranges) {
 // `true` and is skipped just like a run-less tool — so an empty search bar
 // neither filters nor contributes a highlight lens.
 //
-// `kind` is 'filter' (keeps/drops an entry, optionally annotating it) or
-// 'transform' (emits 0+ new entries per input, each becoming a new chain row).
+// `kind` is 'filter' (keeps/drops an entry), 'transform' (emits 0+ new entries
+// per input), or 'group' (clusters all input rows into GroupRow[] via `group`).
 // `inputHighlights` / `outputHighlights` are static booleans: each one means
 // the tool highlights the atom it reads / the atom it creates. `currentAtomCount`
 // reads them to derive the static atom count; transforms also carry a relation
@@ -3764,6 +3838,36 @@ const TOOLS = {
       return [{ entry: reversed }];
     },
   },
+  letter_sets: {
+    name: 'Letter sets', icon: '🧩', category: 'anagrams',
+    desc: 'Cluster words built from the same distinct letters',
+    example: 'SPOT · TOPS · OPTS',
+    params: [{ key: 'size', label: 'Distinct letters', type: 'number' }],
+    kind: 'group', inputHighlights: false, outputHighlights: false,
+    isInert: params => !((params && params.size || '').toString().trim()),
+    prepare(params) { return parseInt(params.size, 10); },
+    async group(rows, size, ctx) {
+      const buckets = new Map();
+      await ctx.forEach(rows, row => {
+        const wlEntry = rowLastEntry(row);
+        const key = [...new Set(wlEntry.entry)].sort().join('');
+        if (key.length !== size) return;
+        let bucket = buckets.get(key);
+        if (!bucket) buckets.set(key, bucket = []);
+        bucket.push(wlEntry);
+      });
+      const groups = [];
+      for (const [key, words] of buckets) {
+        // The 2+ rule is letter_sets' own — a downstream tool may legitimately
+        // thin a line to one word, so the executor never enforces it.
+        if (words.length < 2) continue;
+        words.sort((a, b) => b.score - a.score || a.entry.localeCompare(b.entry));
+        const cells = words.map(w => ({ wlEntry: w, highlights: null }));
+        groups.push({ key, lines: [{ cells, slot: false }] });
+      }
+      return groups;
+    },
+  },
 };
 
 function reverseString(s) {
@@ -3830,6 +3934,18 @@ function isFilterOnlyChain(stack) {
     const tool = TOOLS[row.tool];
     return tool?.kind === 'transform' && tool.run && !tool.isInert?.(row.params);
   });
+}
+
+function isGroupChain(stack) {
+  return stack.some(row => {
+    const tool = TOOLS[row.tool];
+    return tool?.kind === 'group' && tool.group && !tool.isInert?.(row.params);
+  });
+}
+
+function workshopCountLabel(stack) {
+  if (isGroupChain(stack)) return 'Groups';
+  return isFilterOnlyChain(stack) ? 'Entries' : 'Results';
 }
 
 // Gates the `unify` skip: a transform or a highlighting filter is what makes
@@ -3909,67 +4025,179 @@ function makeCtx(mergedWordlist, rows, signal, y) {
 async function executePipeline(mergedWordlist, stack, signal) {
   const y = makeYielder(signal);
   let rows = await buildInitialRows(mergedWordlist, y);
+  let grouped = false;
   for (const stackRow of stack) {
     const tool = TOOLS[stackRow.tool];
-    if (!tool?.run || tool.isInert?.(stackRow.params)) continue;
+    if (!tool) continue;
+
+    if (tool.kind === 'group') {
+      if (!tool.group || tool.isInert?.(stackRow.params)) continue;
+      throwIfAborted(signal);
+      const params = normalizeParams(stackRow.params);
+      const ctx = makeCtx(mergedWordlist, rows, signal, y);
+      const prepared = tool.prepare ? await tool.prepare(params, ctx) : params;
+      rows = await tool.group(rows, prepared, ctx);
+      grouped = true;
+      continue;
+    }
+
+    if (!tool.run || tool.isInert?.(stackRow.params)) continue;
     throwIfAborted(signal);
     const params = normalizeParams(stackRow.params);
-    const prepared = tool.prepare
-      ? await tool.prepare(params, makeCtx(mergedWordlist, rows, signal, y))
-      : params;
-    const next = [];
-    for (let i = 0; i < rows.length; i++) {
-      const row = rows[i];
-      const tail = row.atoms[row.atoms.length - 1];
-      const result = tool.run(tail.wlEntry.entry, prepared, mergedWordlist);
-      if (tool.kind === 'filter') {
-        if (result) {
-          // A highlighting filter (search) appends a same-word atom carrying
-          // its ranges (an empty array when it matched without producing any)
-          // — `unify` folds it into the tail unless the tail is itself a
-          // highlight slot. A plain filter just keeps the row.
-          if (tool.inputHighlights) {
-            next.push({ atoms: [...row.atoms,
-              { wlEntry: tail.wlEntry, highlights: Array.isArray(result) ? result : [], glyph: null }] });
-          } else {
-            next.push(row);
-          }
-        }
-      } else {
-        for (const out of (result || [])) {
-          // Atoms are immutable once created, so branches share the existing
-          // atoms and only append their own.
-          const atoms = row.atoms.slice();
-          // A transform that marks its input appends a same-word input-mark
-          // atom before the output atom; `unify` folds it into the input
-          // unless the input is itself a highlight slot.
-          if (tool.inputHighlights) {
-            atoms.push({ wlEntry: tail.wlEntry, highlights: out.inputHighlights || [], glyph: null });
-          }
-          const synthetic = Array.isArray(out.entry);
-          const text = synthetic ? out.entry[0] : out.entry;
-          const wlEntry = synthetic
-            ? { entry: text, score: out.entry[1], comment: '', wordlist: null }
-            : (mergedWordlist.byEntry.get(text)
-               || { entry: text, score: 0, comment: '', wordlist: null });
-          atoms.push({
-            wlEntry,
-            // A non-`outputHighlights` transform's output is not a highlight
-            // slot — `null`, not `[]` — so `unify` may fold it like any atom.
-            highlights: tool.outputHighlights ? (out.outputHighlights || []) : null,
-            glyph: tool.glyph || '→',
-          });
-          next.push({ atoms });
+
+    if (grouped) {
+      // A group is a stack of word-set lines; a chained tool maps the tail
+      // line to the next one (appendGroupLine), per group.
+      const flat = rows.flatMap(g =>
+        g.lines[g.lines.length - 1].cells.map(c => ({ atoms: [{ wlEntry: c.wlEntry }] })));
+      const prepared = tool.prepare
+        ? await tool.prepare(params, makeCtx(mergedWordlist, flat, signal, y))
+        : params;
+      for (const g of rows) {
+        appendGroupLine(g, tool, prepared, mergedWordlist);
+        if (y.due()) await y.yield();
+      }
+    } else {
+      const prepared = tool.prepare
+        ? await tool.prepare(params, makeCtx(mergedWordlist, rows, signal, y))
+        : params;
+      rows = await runToolStage(rows, tool, prepared, mergedWordlist, y);
+    }
+  }
+
+  if (grouped) {
+    return {
+      rows: rows.filter(g => g.lines[g.lines.length - 1].cells.length > 0),
+      atomCount: currentGroupLineCount(stack),
+      grouped: true,
+    };
+  }
+  const multiAtom = chainProducesMultiAtom(stack);
+  return {
+    rows: multiAtom ? await unify(rows, y) : rows,
+    atomCount: currentAtomCount(stack),
+    grouped: false,
+  };
+}
+
+async function runToolStage(rows, tool, prepared, mergedWordlist, y) {
+  const next = [];
+  for (let i = 0; i < rows.length; i++) {
+    const row = rows[i];
+    const tail = row.atoms[row.atoms.length - 1];
+    const result = tool.run(tail.wlEntry.entry, prepared, mergedWordlist);
+    if (tool.kind === 'filter') {
+      if (result) {
+        // A highlighting filter (search) appends a same-word atom carrying
+        // its ranges (an empty array when it matched without producing any)
+        // — `unify` folds it into the tail unless the tail is itself a
+        // highlight slot. A plain filter just keeps the row.
+        if (tool.inputHighlights) {
+          next.push({ atoms: [...row.atoms,
+            { wlEntry: tail.wlEntry, highlights: Array.isArray(result) ? result : [], glyph: null }] });
+        } else {
+          next.push(row);
         }
       }
-      if (y.due()) await y.yield();
+    } else {
+      for (const out of (result || [])) {
+        // Atoms are immutable once created, so branches share the existing
+        // atoms and only append their own.
+        const atoms = row.atoms.slice();
+        // A transform that marks its input appends a same-word input-mark
+        // atom before the output atom; `unify` folds it into the input
+        // unless the input is itself a highlight slot.
+        if (tool.inputHighlights) {
+          atoms.push({ wlEntry: tail.wlEntry, highlights: out.inputHighlights || [], glyph: null });
+        }
+        const synthetic = Array.isArray(out.entry);
+        const text = synthetic ? out.entry[0] : out.entry;
+        const wlEntry = synthetic
+          ? { entry: text, score: out.entry[1], comment: '', wordlist: null }
+          : (mergedWordlist.byEntry.get(text)
+             || { entry: text, score: 0, comment: '', wordlist: null });
+        atoms.push({
+          wlEntry,
+          // A non-`outputHighlights` transform's output is not a highlight
+          // slot — `null`, not `[]` — so `unify` may fold it like any atom.
+          highlights: tool.outputHighlights ? (out.outputHighlights || []) : null,
+          glyph: tool.glyph || '→',
+        });
+        next.push({ atoms });
+      }
     }
-    rows = next;
+    if (y.due()) await y.yield();
   }
-  return {
-    rows: chainProducesMultiAtom(stack) ? await unify(rows, y) : rows,
-    atomCount: currentAtomCount(stack),
-  };
+  return next;
+}
+
+// Run one tool over a group's tail line, appending the next line(s). Input
+// marks fold into the tail line when it carries no marks yet, or take a line
+// of their own when it does — two tools' highlights never share a line.
+function appendGroupLine(group, tool, prepared, wordlist) {
+  const tail = group.lines[group.lines.length - 1];
+  if (tool.kind === 'filter') {
+    const cells = [];
+    for (const cell of tail.cells) {
+      const result = tool.run(cell.wlEntry.entry, prepared, wordlist);
+      if (!result) continue;
+      cells.push({
+        wlEntry: cell.wlEntry,
+        highlights: tool.inputHighlights ? (Array.isArray(result) ? result : []) : null,
+      });
+    }
+    group.lines.push({ cells, slot: !!tool.inputHighlights });
+    return;
+  }
+  const outMap = new Map();        // output entry → cell (deduped)
+  const inputMarks = new Map();    // input entry → its inputHighlights
+  for (const cell of tail.cells) {
+    const result = tool.run(cell.wlEntry.entry, prepared, wordlist) || [];
+    if (tool.inputHighlights && result.length) {
+      inputMarks.set(cell.wlEntry.entry, result[0].inputHighlights || []);
+    }
+    for (const out of result) {
+      const synthetic = Array.isArray(out.entry);
+      const text = synthetic ? out.entry[0] : out.entry;
+      if (outMap.has(text)) continue;
+      const wlEntry = synthetic
+        ? { entry: text, score: out.entry[1], comment: '', wordlist: null }
+        : (wordlist.byEntry.get(text) || { entry: text, score: 0, comment: '', wordlist: null });
+      outMap.set(text, {
+        wlEntry,
+        highlights: tool.outputHighlights ? (out.outputHighlights || []) : null,
+      });
+    }
+  }
+  if (tool.inputHighlights) {
+    const markCells = tail.cells.map(c => ({
+      wlEntry: c.wlEntry,
+      highlights: inputMarks.get(c.wlEntry.entry) || [],
+    }));
+    if (tail.slot) group.lines.push({ cells: markCells, slot: true });
+    else { tail.cells = markCells; tail.slot = true; }
+  }
+  group.lines.push({ cells: [...outMap.values()], slot: !!tool.outputHighlights });
+}
+
+// How many lines a group row carries — read by the scroller for its stride,
+// so it must stay in lockstep with what appendGroupLine actually produces.
+function currentGroupLineCount(stack) {
+  let lines = 1;
+  let tailSlot = false;
+  for (const row of stack) {
+    const tool = TOOLS[row.tool];
+    if (!tool?.run || tool.isInert?.(row.params)) continue;
+    if (tool.kind === 'filter') {
+      lines++;
+      tailSlot = !!tool.inputHighlights;
+    } else {
+      if (tool.inputHighlights && tailSlot) lines++;
+      lines++;
+      tailSlot = !!tool.outputHighlights;
+    }
+  }
+  return lines;
 }
 
 // Post-executor unification — two collapses that turn the executor's
@@ -4052,15 +4280,26 @@ function collapseRepeatAtoms(atoms) {
 // counted once per highlight.
 function flattenAtoms(rows) {
   const out = [];
-  for (const row of rows) {
+  const pushChain = chain => {
     let prev = null;
-    for (const atom of row.atoms) {
+    for (const atom of chain.atoms) {
       if (atom.wlEntry.entry === prev) continue;
       out.push(atom.wlEntry);
       prev = atom.wlEntry.entry;
     }
+  };
+  for (const row of rows) {
+    if (row.lines) { for (const line of row.lines) for (const c of line.cells) out.push(c.wlEntry); }
+    else pushChain(row);
   }
   return out;
+}
+
+function* rowSetAtoms(rows) {
+  for (const row of rows) {
+    if (row.lines) { for (const line of row.lines) yield* line.cells; }
+    else yield* row.atoms;
+  }
 }
 
 // ─── Pipeline runtime ─────────────────────────────────────────────────────────
@@ -4182,10 +4421,16 @@ const ToolStack = (() => {
         const checked = valuesByKey?.[p.key] ? ' checked' : '';
         return `<span class="tool-row-param"><label><input type="checkbox" data-row="${idx}" data-key="${p.key}"${checked}> ${esc(p.label)}</label></span>`;
       }
-      // The first param's value rides on the tool-name key, so it needs no
-      // label; successive text params carry one.
-      const labelHTML = i === 0 ? '' : `<label>${esc(p.label)}:</label>`;
-      return `<span class="tool-row-param">${labelHTML}<input type="text" placeholder="${esc(p.label)}" value="${esc(valuesByKey?.[p.key] || '')}" data-row="${idx}" data-key="${p.key}"></span>`;
+      const value = esc(valuesByKey?.[p.key] || '');
+      // The first text param's value rides on the tool-name key, so it needs
+      // no label; a number param is too terse to read bare, so it keeps one.
+      const labelHTML = p.type === 'number' ? `<label>${esc(p.label)}</label>`
+                      : i === 0 ? ''
+                      : `<label>${esc(p.label)}:</label>`;
+      if (p.type === 'number') {
+        return `<span class="tool-row-param">${labelHTML}<input type="number" min="1" class="tool-row-num" placeholder="any" value="${value}" data-row="${idx}" data-key="${p.key}"></span>`;
+      }
+      return `<span class="tool-row-param">${labelHTML}<input type="text" placeholder="${esc(p.label)}" value="${value}" data-row="${idx}" data-key="${p.key}"></span>`;
     }).join('');
     return `<span class="tool-row-params">${inputs}</span>`;
   }
@@ -4263,9 +4508,9 @@ const ToolStack = (() => {
   }
 
   function focusRowInput(idx) {
-    // First text input in the row — the first param of an ordinary tool, or
-    // the query field of a Search row (which uses .search-input-wrap chrome).
-    rowEls()[idx]?.querySelector('input[type="text"]')?.focus();
+    // First text/number input in the row — the first param of an ordinary
+    // tool, or the query field of a Search row (.search-input-wrap chrome).
+    rowEls()[idx]?.querySelector('input[type="text"], input[type="number"]')?.focus();
   }
 
   function flashRow(idx) {
@@ -4276,8 +4521,14 @@ const ToolStack = (() => {
     // The permanent Search bar isn't a "tool the user added" — gallery-active
     // marks only the user tools above it.
     const active = new Set(getUserStack().map(r => r.tool));
+    const groupTaken = stack.some(r => TOOLS[r.tool]?.kind === 'group');
     document.querySelectorAll('.gallery-card[data-tool]').forEach(card => {
       card.classList.toggle('active', active.has(card.dataset.tool));
+      const tool = TOOLS[card.dataset.tool];
+      const blocked = groupTaken && tool?.kind === 'group';
+      card.classList.toggle('disabled', blocked);
+      if (blocked) card.title = 'A pipeline can have only one group tool';
+      else card.removeAttribute('title');
     });
   }
 
@@ -4321,6 +4572,7 @@ const ToolStack = (() => {
 
   function add(toolKey) {
     if (!TOOLS[toolKey]) return;
+    if (TOOLS[toolKey].kind === 'group' && stack.some(r => TOOLS[r.tool]?.kind === 'group')) return;
     const idx = stack.length - 1;            // insert just above the Search bar
     stack.splice(idx, 0, { tool: toolKey, params: {} });
     rerenderRows();
@@ -4359,14 +4611,16 @@ const ToolStack = (() => {
     if (galleryBody) galleryBody.innerHTML = buildGalleryHTML();
     galleryBody?.addEventListener('click', (e) => {
       const card = e.target.closest('.gallery-card[data-tool]');
-      if (!card) return;
+      if (!card || card.classList.contains('disabled')) return;
       const toolKey = card.dataset.tool;
       if (!TOOLS[toolKey]) return;
       add(toolKey);
     });
 
     document.querySelectorAll('.gallery-card[data-tool]').forEach(card => {
-      card.addEventListener('mouseenter', () => showInsertCursor());
+      card.addEventListener('mouseenter', () => {
+        if (!card.classList.contains('disabled')) showInsertCursor();
+      });
       card.addEventListener('mouseleave', () => removeCursor());
     });
 
@@ -4508,6 +4762,10 @@ const rowMaxScore   = r => Math.max(...r.atoms.map(a => a.wlEntry.score));
 // Later atoms joined with a low separator: a string compare then orders them
 // atom-by-atom, since every row in a run carries the same atom count.
 const rowChainTail  = r => r.atoms.slice(1).map(a => a.wlEntry.entry).join('\u0000');
+const groupScores   = g => g.lines.flatMap(l => l.cells.map(c => c.wlEntry.score));
+const groupMinScore = g => Math.min(...groupScores(g));
+const groupMaxScore = g => Math.max(...groupScores(g));
+const groupCount    = g => g.lines[0].cells.length;
 const WORKSHOP_SORT_AXES = {
   single: {
     entry: {
@@ -4573,8 +4831,40 @@ const WORKSHOP_SORT_AXES = {
       ],
     },
   },
+  // Default Max score: the letter-sets case is "find a great word with
+  // cluster-mates I'd missed," which max surfaces and min would bury.
+  group: {
+    alpha: {
+      label: 'Alphabetical',
+      primary: g => g.key,
+      tiebreakers: [{ project: groupCount, dir: 'desc' }],
+    },
+    count: {
+      label: 'Count',
+      primary: groupCount,
+      tiebreakers: [{ project: g => g.key, dir: 'asc' }],
+    },
+    'min-score': {
+      label: 'Min score',
+      primary: groupMinScore,
+      tiebreakers: [
+        { project: groupMaxScore, dir: 'desc' },
+        { project: groupCount,    dir: 'desc' },
+        { project: g => g.key,    dir: 'asc'  },
+      ],
+    },
+    'max-score': {
+      label: 'Max score',
+      primary: groupMaxScore,
+      tiebreakers: [
+        { project: groupMinScore, dir: 'desc' },
+        { project: groupCount,    dir: 'desc' },
+        { project: g => g.key,    dir: 'asc'  },
+      ],
+    },
+  },
 };
-const WORKSHOP_DEFAULT_SORT_BY_TIER = { single: 'entry', multi: 'min-score' };
+const WORKSHOP_DEFAULT_SORT_BY_TIER = { single: 'entry', multi: 'min-score', group: 'max-score' };
 // When the sort tier changes, an axis with no counterpart in the new
 // tier maps across rather than snapping to the tier default, so the user's
 // sort intent survives adding/removing transforms. Entry and Length exist in
@@ -4584,10 +4874,14 @@ const SORT_AXIS_TIER_MAP = { 'score': 'min-score', 'min-score': 'score', 'max-sc
 // once a transform is in play — transforms are what give a row genuinely
 // distinct atoms to sort across. Highlight-only repeat atoms don't promote the
 // tier: they're all the same word and score.
-function chainSortTier(stack) { return isFilterOnlyChain(stack) ? 'single' : 'multi'; }
+function chainSortTier(stack) {
+  if (isGroupChain(stack)) return 'group';
+  return isFilterOnlyChain(stack) ? 'single' : 'multi';
+}
 function workshopSortAxes(tier) { return WORKSHOP_SORT_AXES[tier]; }
 function isValidSortAxis(key) {
-  return key in WORKSHOP_SORT_AXES.single || key in WORKSHOP_SORT_AXES.multi;
+  return key in WORKSHOP_SORT_AXES.single || key in WORKSHOP_SORT_AXES.multi
+      || key in WORKSHOP_SORT_AXES.group;
 }
 // Library entries sort by the same three axes over plain wlEntries; the
 // LibraryEntriesScroller owns its own comparison, so only the labels matter.
@@ -4722,7 +5016,6 @@ class WorkshopEntriesScroller extends BaseVirtualScroller {
     this.entries = [];
     this.sortKey = WorkshopView.sortKey;
     this.sortDir = WorkshopView.sortDir;
-    this._scoreIntervals = null;
     this.showSource = false;
     this.showDeleteCol = false;
     this.showEditDeleteCol = false;
@@ -4741,11 +5034,21 @@ class WorkshopEntriesScroller extends BaseVirtualScroller {
     this.sizer.addEventListener('click', e => {
       const target = e.target.closest('.atom-entry, .atom-score, .atom-comment');
       if (!target) return;
-      const row = target.closest('.entry-row');
-      const atomEl = target.closest('.atom');
-      if (!row || !atomEl) return;
-      const item = this.entries[parseInt(row.dataset.idx, 10)];
-      const atom = item?.atoms[parseInt(atomEl.dataset.atom, 10)];
+      let row, atom;
+      const groupRow = target.closest('.group-row');
+      if (groupRow) {
+        const cellEl = target.closest('.group-cell');
+        if (!cellEl) return;
+        row = groupRow;
+        const g = this.entries[parseInt(groupRow.dataset.idx, 10)];
+        atom = g?.lines[parseInt(cellEl.dataset.line, 10)]
+                ?.cells[parseInt(cellEl.dataset.cell, 10)];
+      } else {
+        row = target.closest('.entry-row');
+        const atomEl = target.closest('.atom');
+        if (!row || !atomEl) return;
+        atom = this.entries[parseInt(row.dataset.idx, 10)]?.atoms[parseInt(atomEl.dataset.atom, 10)];
+      }
       if (!atom) return;
       // Synthetic atoms (a tool-supplied entry not in any wordlist) have a
       // null `wordlist` — editing their score wouldn't write back anywhere.
@@ -4774,13 +5077,13 @@ class WorkshopEntriesScroller extends BaseVirtualScroller {
   // update the rows (e.g. display-case re-render) don't need to know the
   // pipeline shape. Search is a pipeline tool now; the scroller only filters
   // by score range.
-  setEntries(allEntries, scoreRange = '', atomCount = this.atomCount, sortTier = this.sortTier) {
+  setEntries(allEntries, atomCount = this.atomCount, sortTier = this.sortTier) {
     AtomPopover.close();
     this._setChainShape(atomCount, sortTier);
     this.allEntries = allEntries;
     this._invalidateSortCache();
     this._buildToolbar();
-    this.filter(scoreRange);
+    this._sortAndRender();
   }
 
   updateEntries(allEntries, atomCount = this.atomCount, sortTier = this.sortTier) {
@@ -4790,8 +5093,8 @@ class WorkshopEntriesScroller extends BaseVirtualScroller {
     const tierChanged = this._setChainShape(atomCount, sortTier);
     this.allEntries = allEntries;
     this._invalidateSortCache();
-    if (tierChanged) this._buildToolbar();
-    this._applyFilterAndSort();
+    if (tierChanged) { this._buildToolbar(); rebuildEntryHeaders(); }
+    this._sortAndRender();
     AtomPopover.rebindEntry(this);
   }
 
@@ -4820,12 +5123,6 @@ class WorkshopEntriesScroller extends BaseVirtualScroller {
     this._sortedSource = null;
   }
 
-  filter(scoreRange = '') {
-    AtomPopover.close();
-    this._scoreIntervals = scoreRange ? parseRange(scoreRange) : null;
-    this._applyFilterAndSort();
-  }
-
   _buildToolbar() {
     if (!this.toolbar) return;
     const arrow = this.sortDir === 'asc' ? '↑' : '↓';
@@ -4843,7 +5140,7 @@ class WorkshopEntriesScroller extends BaseVirtualScroller {
         this.sortDir = defaultSortDir(key);
         WorkshopView.setSort(this.sortKey, this.sortDir);
         this._buildToolbar();
-        this._applyFilterAndSort();
+        this._sortAndRender();
         Router.navigate();
       }
     });
@@ -4851,25 +5148,13 @@ class WorkshopEntriesScroller extends BaseVirtualScroller {
       this.sortDir = this.sortDir === 'asc' ? 'desc' : 'asc';
       WorkshopView.setSort(this.sortKey, this.sortDir);
       this._buildToolbar();
-      this._applyFilterAndSort();
+      this._sortAndRender();
       Router.navigate();
     });
   }
 
-  _applyFilterAndSort() {
-    const source = this._getSortedSource();
-    this._entriesPreScoreRange = source;
-
-    let entries = source;
-    if (this._scoreIntervals) {
-      const intervals = this._scoreIntervals;
-      // Score range filters on the row's minimum atom score — a row qualifies
-      // if its worst-scoring atom falls in range. (Search is a pipeline tool
-      // now; it filters upstream, before the scroller ever sees these rows.)
-      entries = source.filter(r => matchesRange(rowMinScore(r), intervals));
-    }
-
-    this.entries = entries;
+  _sortAndRender() {
+    this.entries = this._getSortedSource();
     this._computeSlotWidths();
     this._render();
     this.onFilterChange?.();
@@ -4905,6 +5190,7 @@ class WorkshopEntriesScroller extends BaseVirtualScroller {
   // to #detail-panel so both .entry-row and the .entry-headers (which lives in
   // .sticky-stack, a sibling of the scroller's host) inherit the same values.
   _computeSlotWidths() {
+    if (this.sortTier === 'group') { this._computeGroupSlotWidths(); return; }
     // Count and entry slot widths track the unfiltered result so columns
     // don't shift sideways when a search or score filter cuts the visible
     // set down. Len/score slots stay tied to the filtered view since their
@@ -4948,23 +5234,24 @@ class WorkshopEntriesScroller extends BaseVirtualScroller {
     target.style.setProperty('--source-max', `${22 * ch}px`);
   }
 
-  // Stats / histogram read every atom of every row — a chain row contributes
-  // all its atoms' scores. The stats-bar count is per-row (set separately).
-  _filteredStatsViewEntries() {
+  _statsViewEntries() {
     return flattenAtoms(this.entries);
   }
 
+  // The full merged distribution, not the result rows — the histogram is the
+  // score-range drag-select surface, so it must show the scores the range
+  // trims away, not only the survivors.
   _histogramViewEntries() {
-    return flattenAtoms(this._entriesPreScoreRange || this.entries);
+    return buildMergedWordlist().entries;
   }
 
-  // Each row is a vertical stack of `atomCount` atom lines, so the per-row
-  // stride is that product.
   _rowStride() {
     return this.atomCount * ROW_HEIGHT;
   }
 
   _render() {
+    if (this.sortTier === 'group') return this._renderGroups();
+    this.host.querySelector('.entries-empty')?.remove();
     const n = this.entries.length;
     const stride = this._rowStride();
     this.sizer.style.height = (n * stride) + 'px';
@@ -5036,6 +5323,83 @@ class WorkshopEntriesScroller extends BaseVirtualScroller {
     row.dataset.entry = rowLastEntry(chainRow).entry;
     row.innerHTML = html;
     return row;
+  }
+
+  _renderGroups() {
+    const n = this.entries.length;
+    const stride = this.atomCount * ROW_HEIGHT;
+    this.sizer.style.height = (n * stride) + 'px';
+    this._renderEmptyState(n);
+    const { start, end } = this._visibleRange(n);
+    this._clearSizer();
+    const activeEntry = AtomPopover.activeEntry(this);
+    let nextActiveRow = null;
+    const frag = document.createDocumentFragment();
+    for (let i = start; i < end; i++) {
+      const g = this.entries[i];
+      const row = document.createElement('div');
+      row.className = 'group-row entry-row-font';
+      row.dataset.idx = i;
+      row.style.top = (i * stride) + 'px';
+      row.innerHTML = g.lines.map((line, li) => this._renderGroupLineHTML(line, li, i)).join('');
+      if (activeEntry && g.lines.some(l => l.cells.some(c => c.wlEntry.entry === activeEntry))) {
+        row.classList.add('active');
+        nextActiveRow = row;
+      }
+      frag.appendChild(row);
+    }
+    this.sizer.appendChild(frag);
+    // Overflowing lines get `.group-overflow` so CSS fades their right edge —
+    // the scroll affordance, since the scrollbar is hidden.
+    for (const lineEl of this.sizer.querySelectorAll('.group-entries')) {
+      lineEl.classList.toggle('group-overflow', lineEl.scrollWidth > lineEl.clientWidth + 1);
+    }
+    if (nextActiveRow) AtomPopover.rebindRow(nextActiveRow);
+  }
+
+  _renderGroupLineHTML(line, li, rowIdx) {
+    const cells = line.cells.map((cell, ci) => {
+      const { wlEntry, highlights } = cell;
+      const text = renderHighlightedText(displayEntry(wlEntry.entry), highlights);
+      const noedit = wlEntry.wordlist === null ? ' atom-noedit' : '';
+      return `<span class="group-cell" data-line="${li}" data-cell="${ci}">` +
+        `<span class="atom-entry${noedit}">${text}</span>` +
+        `<span class="atom-score${noedit}">${buildScoreBadgeHTML(wlEntry.score)}</span></span>`;
+    }).join('<span class="group-sep">·</span>');
+    return `<div class="group-line">` +
+      `<span class="group-rownum">${li === 0 ? (rowIdx + 1) + '.' : ''}</span>` +
+      `<span class="group-count">${line.cells.length}</span>` +
+      `<span class="group-entries">${cells}</span>` +
+      `</div>`;
+  }
+
+  _renderEmptyState(n) {
+    let emptyEl = this.host.querySelector('.entries-empty');
+    if (n === 0) {
+      if (!emptyEl) {
+        emptyEl = document.createElement('div');
+        emptyEl.className = 'entries-empty';
+        emptyEl.textContent = 'No groups match.';
+        this.host.appendChild(emptyEl);
+      }
+    } else if (emptyEl) {
+      emptyEl.remove();
+    }
+  }
+
+  _computeGroupSlotWidths() {
+    let maxCount = 0;
+    for (const g of this.allEntries) {
+      for (const line of g.lines) {
+        if (line.cells.length > maxCount) maxCount = line.cells.length;
+      }
+    }
+    const target = this.host.closest('#detail-panel') || this.sizer;
+    target.style.setProperty('--group-count-w', `${Math.max(
+      measureTextWidth(String(maxCount), 'entry-headers-font'),
+      headerLabelPx('Count'))}px`);
+    target.style.setProperty('--group-rownum-w',
+      `${measureTextWidth(this.allEntries.length + '.', 'entry-headers-font')}px`);
   }
 }
 
@@ -5443,9 +5807,10 @@ const AtomPopover = (() => {
   // score to comment) preserves focus and the just-typed value.
   function refresh({ resetInputs = false } = {}) {
     if (!isOpen()) return;
-    // allEntries is ChainRow[]; the popover anchors a single atom's wlEntry.
-    const stillPresent = activeScroller.allEntries
-      .some(chainRow => chainRow.atoms.some(a => a.wlEntry === activeWlEntry));
+    let stillPresent = false;
+    for (const a of rowSetAtoms(activeScroller.allEntries)) {
+      if (a.wlEntry === activeWlEntry) { stillPresent = true; break; }
+    }
     if (!stillPresent) { close(); return; }
     if (resetInputs) {
       el.innerHTML = renderHTML(activeWlEntry, activeScroller);
@@ -5554,9 +5919,8 @@ const AtomPopover = (() => {
     if (!isOpen() || activeScroller !== scroller) return;
     const entryStr = activeWlEntry.entry;
     let found = null;
-    for (const chainRow of scroller.allEntries) {
-      found = chainRow.atoms.find(a => a.wlEntry.entry === entryStr)?.wlEntry;
-      if (found) break;
+    for (const a of rowSetAtoms(scroller.allEntries)) {
+      if (a.wlEntry.entry === entryStr) { found = a.wlEntry; break; }
     }
     if (!found) { close(); return; }
     activeWlEntry = found;
@@ -6031,13 +6395,13 @@ function createScroller() {
 
 async function refreshWorkshopMergedScroller() {
   if (!workshopScroller) return;
-  const result = await runPipeline(buildMergedWordlist(), ToolStack.getStack());
+  const result = await runPipeline(workshopPipelineWordlist(), ToolStack.getStack());
   if (result.aborted || !workshopScroller) return;
   workshopScroller.updateEntries(result.rows, result.atomCount, chainSortTier(ToolStack.getStack()));
 }
 
 function mountWorkshopPanel(panel, stats, entries, rowCount = stats.count) {
-  const countLabel = isFilterOnlyChain(ToolStack.getStack()) ? 'Entries' : 'Results';
+  const countLabel = workshopCountLabel(ToolStack.getStack());
   document.getElementById('workshop-stats').innerHTML =
     buildStatsBarHTML(stats, { entries, ignoredCount: stats.ignoredCount }, getHistogramLayout(), { countLabel, countValue: rowCount });
   // ToolStack.buildHTML() renders the tool rows *and* the Search bar (the
@@ -6057,17 +6421,17 @@ function mountWorkshopPanel(panel, stats, entries, rowCount = stats.count) {
   SearchBarCompact.refresh();
 }
 
-// onFilterChange hook — keeps the stats bar in sync with the filtered view.
+// onFilterChange hook — keeps the stats bar in sync with the result rows.
 function refreshWorkshopStatsBarFromScroller() {
   if (!workshopScroller) return;
   const statsBar = document.querySelector('#workshop-stats .stats-bar');
   if (!statsBar) return;
-  const entries = workshopScroller._filteredStatsViewEntries();
+  const entries = workshopScroller._statsViewEntries();
   const stats = computeStatsRaw(entries);
   const hist = { entries: workshopScroller._histogramViewEntries(), ignoredCount: 0 };
-  // _filteredStatsViewEntries flattens every atom, so stats.count counts
-  // atoms; the bar's count is per chain row.
-  const countLabel = isFilterOnlyChain(ToolStack.getStack()) ? 'Entries' : 'Results';
+  // _statsViewEntries flattens every atom, so stats.count counts atoms; the
+  // bar's count is per chain row.
+  const countLabel = workshopCountLabel(ToolStack.getStack());
   statsBar.outerHTML = buildStatsBarHTML(stats, hist, getHistogramLayout(),
     { countLabel, countValue: workshopScroller.entries.length });
   repositionAllHistogramRects();
@@ -6229,25 +6593,26 @@ function attachSearchHelpPopups() {
 
 async function renderWorkshopMergedDetail() {
   const panel = document.getElementById('detail-panel');
-  const merged = buildMergedWordlist();
-  const result = await runPipeline(merged, ToolStack.getStack());
+  const result = await runPipeline(workshopPipelineWordlist(), ToolStack.getStack());
   if (result.aborted) return;
   const { rows, atomCount } = result;
-  // Passthrough fast path: no run-having user tool and an empty search query
-  // means the result is the merged All view 1:1, so the cached merged stats
-  // apply. Otherwise compute raw — the scroller's onFilterChange refresh
-  // replaces this initial bar immediately. Stats aggregate over every atom.
-  const passthrough = !ToolStack.getUserStack().some(r => TOOLS[r.tool]?.run) && !WorkshopView.searchQuery;
-  const statsSource = passthrough ? merged.entries : flattenAtoms(rows);
+  // Passthrough fast path: only when nothing transforms the merged view (no
+  // tool, no search, no score range) does the cached merged-stats key apply.
+  // The histogram always shows the full merged distribution — it's the
+  // score-range drag-select surface — so it gets buildMergedWordlist() either way.
+  const passthrough = !WorkshopView.scoreRange
+    && !ToolStack.getUserStack().some(r => TOOLS[r.tool]?.run || TOOLS[r.tool]?.group)
+    && !WorkshopView.searchQuery;
+  const statsSource = passthrough ? buildMergedWordlist().entries : flattenAtoms(rows);
   const stats = passthrough
     ? computeStats(_mergedStatsKey, statsSource)
     : computeStatsRaw(statsSource);
-  mountWorkshopPanel(panel, stats, statsSource, rows.length);
+  mountWorkshopPanel(panel, stats, buildMergedWordlist().entries, rows.length);
 
   workshopScroller.showSource = true;
   workshopScroller.editsWordlist = getEditsWordlist() ?? null;
   workshopScroller.showEditDeleteCol = true;
-  workshopScroller.setEntries(rows, WorkshopView.scoreRange, atomCount, chainSortTier(ToolStack.getStack()));
+  workshopScroller.setEntries(rows, atomCount, chainSortTier(ToolStack.getStack()));
 
   workshopScroller._onDeleteRow = entry => deleteFromEdits(entry, refreshWorkshopMergedScroller);
   attachExternalEditHandlers(workshopScroller, refreshWorkshopMergedScroller);
@@ -6854,7 +7219,7 @@ function deleteFromEdits(entry, refreshFn) {
 
   const refresh = refreshFn ?? (() => {
     workshopScroller._invalidateSortCache();
-    workshopScroller._applyFilterAndSort(false);
+    workshopScroller._sortAndRender();
   });
 
   const [deleted] = edits.rawEntries.splice(idx, 1);
@@ -8039,6 +8404,7 @@ function patchCachesForEditsChange(entry, newEditsWlEntry) {
   invalidateRescoredCache(edits);
   _statsCache.delete(edits);
   _statsCache.delete(_mergedStatsKey);
+  if (_mergedWordlistCache) _mergedWordlistCache._scoreFiltered = null;
 
   // If edits is disabled or a higher-priority wordlist already has `entry`,
   // edits never contributed for `entry` — caches don't reference it.
@@ -8188,6 +8554,26 @@ function buildMergedWordlist() {
   // byEntry shares object identity with entries — patching via byEntry updates entries.
   _mergedWordlistCache = { entries, sourceCounts, byEntry: mergedMap };
   return _mergedWordlistCache;
+}
+
+// The wordlist the Workshop pipeline runs over: the score-range control trims
+// it before any tool sees it. Memoized on the merged cache — so an in-place
+// score edit (patchCachesForEditsChange) must clear `_scoreFiltered`, or a
+// rescored word silently stays on the wrong side of the range.
+function workshopPipelineWordlist() {
+  const merged = buildMergedWordlist();
+  const range = WorkshopView.scoreRange;
+  const intervals = range ? parseRange(range) : null;
+  if (!intervals) return merged;
+  if (merged._scoreFiltered && merged._scoreFiltered.range === range) {
+    return merged._scoreFiltered.wordlist;
+  }
+  const entries = merged.entries.filter(e => matchesRange(e.score, intervals));
+  const byEntry = new Map();
+  for (const e of entries) byEntry.set(e.entry, e);
+  const filtered = { entries, sourceCounts: merged.sourceCounts, byEntry };
+  merged._scoreFiltered = { range, wordlist: filtered };
+  return filtered;
 }
 
 
@@ -8464,6 +8850,17 @@ window.__grawlixTest = {
       }
       return words.length === 1 ? words[0] : words;
     });
+  },
+
+  // Visible group rows, each as `{ lines: [{ count, words }] }` in render order.
+  async getVisibleGroups() {
+    await pipelineIdle();
+    return [...document.querySelectorAll('#vs-host .group-row')].map(row => ({
+      lines: [...row.querySelectorAll('.group-line')].map(line => ({
+        count: parseInt(line.querySelector('.group-count')?.textContent || '', 10),
+        words: [...line.querySelectorAll('.group-cell .atom-entry')].map(e => e.textContent),
+      })),
+    }));
   },
 
   // Read-only snapshot for assertions. Returns the fields the smoke suite

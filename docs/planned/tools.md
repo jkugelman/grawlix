@@ -24,11 +24,9 @@ For tools that fit the runtime as-is (`palindromes`, `isograms`, `supervocalics`
 
 ## Pipeline behavior — remaining pieces
 
-Two pieces of pipeline behavior aren't built yet.
-
 **Reordering.** Order matters in a pipeline. The intended gesture is "remove (X) and re-add" — drag handles aren't planned; reordering is rare enough that remove-and-re-add covers it, and the design surface isn't worth the touch/keyboard-accessibility complexity. Today the stack supports add/remove but not in-place reorder. Unblocks once a chained workflow surfaces that wants it.
 
-**Score range — view filter vs. pre-pipeline tool.** Today's score-range control is a *view* filter on the final output — it narrows what you see, and is per-user, localStorage-backed, not URL-shared. A different operation — "only feed score-50+ words into my tools" — would change what every tool sees, and belongs as a separate `score_filter(min, max)` *tool* added at the start of the stack: it trims the merged wordlist to a range before downstream tools run. The two answer different questions ("show me results in this band" vs. "only consider source words in this band") and have different semantics, so they shouldn't be merged. Leave the view filter where it is; add the `score_filter` tool if the pre-filtering workflow appears.
+**Score range — a pre-pipeline trim (shipped).** The score-range control trims the merged wordlist *before* the pipeline runs: out-of-range words are removed before any tool sees them, so they can't cluster, pair, or be looked up as targets. An earlier design kept it as a *view* filter on the final pipeline output; that was abandoned because it has no good answer for group rows — a `letter_sets` cluster with one score-0 member would be hidden wholesale by a `1+` range (a group's score aggregate spans every member). Trimming upstream sidesteps that: the junk word never enters the cluster. The control stays per-user, localStorage-backed, not URL-shared — scores aren't portable across setups (see [`../design.md` § Out of scope for the URL](../design.md#out-of-scope-for-the-url)). The histogram still shows the full merged distribution, so it stays the drag-to-select surface.
 
 ---
 
