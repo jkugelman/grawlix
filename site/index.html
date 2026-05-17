@@ -300,8 +300,7 @@ html.light-mode .histogram-readonly.is-hovered .histogram-bar:not(.histogram-bar
 mark.search-match { border-radius: 2px; padding: 0 1px; margin: 0 -1px; font-style: normal; }
 /* Tool highlight kinds. `removed` marks the character a pair-transform tool
    dropped to get from the a-side to the b-side — strike-through plus a touch
-   of opacity reads as "this part was taken away." More kinds (kept, inserted,
-   shifted, matched, group:N) land as future tools start emitting them. */
+   of opacity reads as "this part was taken away." */
 .entry-row .hl-removed { text-decoration: line-through; opacity: 0.5; }
 html.light-mode .search-match-0 { background: #ddd6fe; color: rgba(0,0,0,0.72); }
 html.light-mode .search-match-1 { background: #99f6e4; color: rgba(0,0,0,0.72); }
@@ -523,11 +522,7 @@ button.header-icon-btn:hover { background: none; color: rgba(255,255,255,0.65); 
 .wordlist-card.no-data .toggle input { pointer-events: none; }
 
 
-/* Severity bubble. A small colored dot indicating per-wordlist state. The
-   primitive only knows about severity; callers map their causes (update
-   available, misalignment, etc.) to a severity. Higher severities take
-   priority when bubbles propagate up to the Library nav tab.
-   See buildSeverityBubbleHTML / maxSeverity in the JS. */
+/* Severity bubble */
 .card-name-row { display: flex; align-items: center; gap: 5px; min-width: 0; }
 .severity-bubble { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; display: inline-block; }
 .severity-bubble[data-severity="info"]    { background: #7add9e; }
@@ -3786,8 +3781,6 @@ function unify(rows) {
         const mScores = mirror.row.atoms.map(a => a.wlEntry.score);
         const rScores = row.atoms.map(a => a.wlEntry.score).reverse();
         if (mScores.every((s, i) => s === rScores[i])) {
-          // Mirror pair: keep whichever direction's chain sorts smaller, with
-          // its relation glyphs promoted to ↔.
           const survivor = fwd < rev ? row : mirror.row;
           survivor.atoms = survivor.atoms.map(a => a.glyph ? { ...a, glyph: '↔' } : a);
           out[mirror.index] = survivor;
@@ -4665,9 +4658,6 @@ class WorkshopEntriesScroller extends BaseVirtualScroller {
     this.onFilterChange?.();
   }
 
-  // Returns allEntries sorted by current sortKey/sortDir, cached across
-  // keystrokes. `.filter()` preserves order, so callers can filter the
-  // result and skip a per-keystroke re-sort.
   _getSortedSource() {
     if (this._sortedSource
         && this._sortedSourceKey === this.sortKey
@@ -5553,7 +5543,6 @@ function maybeAutoSeedRescoreRules(wordlist) {
 function recomputeUncovered(wordlist) {
   const rules = wordlist.rescoreRules;
 
-  // Sort: primary = output score descending, then input score, then length.
   rules.sort((a, b) => {
     const ao = outputSortKey(a), bo = outputSortKey(b);
     if (ao !== bo) return bo - ao;
@@ -5775,20 +5764,12 @@ function createScroller() {
   return workshopScroller;
 }
 
-// Refresh the merged scroller against the current `_mergedWordlistCache` and
-// the active tool stack. With no tools (or only no-op tools) in the stack,
-// `executePipeline` returns the merged cache's `entries` array unchanged —
-// identity is preserved, so the patch-path optimization survives (merged
-// cache patched in place, scroller refilters without closing the popover).
-// With a transforming tool in the stack, the pipeline produces a fresh array
-// and the scroller takes the full `updateEntries` path; chained edits
-// against a tool-filtered view will close the open popover, which is
-// acceptable for v1.
-//
-// Async because the pipeline is async; the runtime supersedes any in-flight
-// run, so an aborted result is dropped and the next call wins.
-// The executed pipeline is ToolStack's full stack — the user's tools plus
-// the permanent Search bar as its final row.
+// With no transforming tool in the stack, `executePipeline` returns the
+// merged cache's `entries` array unchanged — identity preserved, so the
+// patch-path optimization survives (merged cache patched in place, scroller
+// refilters without closing the popover). A transforming tool produces a
+// fresh array and the scroller takes the full `updateEntries` path.
+// Supersedes any in-flight run, so an aborted result is dropped.
 async function refreshWorkshopMergedScroller() {
   if (!workshopScroller) return;
   const result = await runPipeline(buildMergedWordlist(), ToolStack.getStack());
@@ -5817,10 +5798,7 @@ function mountWorkshopPanel(panel, stats, entries, rowCount = stats.count) {
   SearchBarCompact.refresh();
 }
 
-// Recomputes the stats bar from the scroller's currently-visible entries.
-// Called by the scroller's onFilterChange callback so search/score-range
-// filtering, edits, and any other filter-affecting change keep the count,
-// min/max/mean/median/mode, and histogram in sync with what's on screen.
+// onFilterChange hook — keeps the stats bar in sync with the filtered view.
 function refreshWorkshopStatsBarFromScroller() {
   if (!workshopScroller) return;
   const statsBar = document.querySelector('#workshop-stats .stats-bar');
@@ -6039,7 +6017,6 @@ function makeTierLookup() {
 // `state._scoringUncovered` — the list of merged-output scores not covered
 // by any tier label. Counterpart to recomputeUncovered for the tier scale.
 function recomputeScoringUncovered(entries) {
-  // Sort rows by score range descending (highest scores first).
   state.scoring.sort((a, b) => getRuleMaxScore(b) - getRuleMaxScore(a));
 
   const actualScores = entries.length
@@ -6051,12 +6028,8 @@ function recomputeScoringUncovered(entries) {
   }));
 }
 
-// Repaint the editor in the Library view's All pane and refresh the
-// score-atom tooltips on the main panel. The scroller's rendered rows carry
-// the tier label as a `title=`; rules changes don't affect data so a cheap
-// re-render of the visible rows is enough. Also refreshes the misalignment
-// bubbles on the All card and the Library nav tab (state._scoringUncovered
-// drives both).
+// Tier-label changes don't touch data, so a cheap re-render of the visible
+// rows (they carry the label as a `title=`) is enough — no full rebuild.
 function renderScoringRules() {
   recomputeScoringUncovered(buildMergedWordlist().entries);
   LibraryView.refreshScoringSection();
@@ -6104,8 +6077,6 @@ function addScoringRow() {
   inp?.focus();
 }
 
-// Shared tail for scoring mutations: update the dirty flag, persist, keep
-// My Edits' inert defaults in lockstep with the new tier scale, and render.
 function applyScoringChange() {
   updateScoringDirty();
   persistScoring();
@@ -7903,13 +7874,9 @@ function insertSortedByEntry(entries, wlEntry) {
   entries.splice(lo, 0, wlEntry);
 }
 
-// Display-side refresh: repaint the Library list's "X used" meta and the
-// scoring legend to match current data. The main detail panel's stats bar
-// is repainted via the scroller's onFilterChange callback — every caller
-// of refreshDerivedDisplays also runs a scroller filter pass, so the bar
-// stays in sync without needing to be touched here.
-// Used by both the render effect's cache branch (after refreshSourceCounts)
-// and the patch path (which mutates caches in place without bumping).
+// The detail panel's stats bar is deliberately not repainted here — every
+// caller also runs a scroller filter pass, and its onFilterChange callback
+// repaints the bar.
 function refreshDerivedDisplays() {
   if (_sourceCountsCache) {
     const contribMap = new Map(_sourceCountsCache.map(s => [s.wordlist, s.count]));
