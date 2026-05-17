@@ -286,7 +286,7 @@ html.light-mode .histogram-readonly.is-hovered .histogram-bar:not(.histogram-bar
    adjustments button takes its place, opening a popover the end-group is
    moved into. Only the popover's layout (column, not row) is restyled —
    the controls themselves are the same elements. */
-.search-adjust-btn { background: none; border: none; padding: 5px; margin: -3px 0; cursor: pointer; color: var(--muted); display: flex; align-items: center; border-radius: 4px; flex-shrink: 0; }
+.search-adjust-btn { background: none; border: none; padding: 5px 3px; margin: -3px 0; cursor: pointer; color: var(--muted); display: flex; align-items: center; border-radius: 4px; flex-shrink: 0; }
 .search-adjust-btn:hover { color: var(--text); background: var(--hover); }
 .search-adjust-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 .search-bar:not(.compact) .search-adjust-btn { display: none; }
@@ -1367,7 +1367,7 @@ function buildSearchBarHTML() {
         <label class="score-range-label" title="Score: 50, 50-59, or 50+ (Alt+C)">Score <span class="score-range-wrap"><input type="text" id="score-range-input" value="${esc(scoreRange)}" oninput="WorkshopView.onScoreRange(this.value)"><button class="clear-btn" id="score-range-clear" onclick="WorkshopView.clearScoreRange()" title="Clear score" aria-label="Clear score" ${scoreRange ? '' : 'hidden'}><svg width="10" height="10"><use href="#icon-x"/></svg></button></span></label>
         <span id="search-bar-sort" class="search-bar-sort"></span>
       </div>
-      <button type="button" class="search-adjust-btn" title="Filter &amp; sort options" aria-label="Filter and sort options"><svg width="18" height="18" aria-hidden="true"><use href="#icon-adjustments"/></svg></button>
+      <button type="button" class="search-adjust-btn" title="Filter &amp; sort options" aria-label="Filter and sort options"><svg width="16" height="16" aria-hidden="true"><use href="#icon-adjustments"/></svg></button>
     </div>`;
 }
 
@@ -2475,7 +2475,7 @@ const LibraryView = (() => {
       <div class="search-bar-end">
         <div class="search-bar-sort">${buildSortControlsHTML()}</div>
       </div>
-      <button type="button" class="search-adjust-btn" title="Sort options" aria-label="Sort options"><svg width="18" height="18" aria-hidden="true"><use href="#icon-adjustments"/></svg></button>
+      <button type="button" class="search-adjust-btn" title="Sort options" aria-label="Sort options"><svg width="16" height="16" aria-hidden="true"><use href="#icon-adjustments"/></svg></button>
     </div>`;
   }
 
@@ -3973,7 +3973,7 @@ const ToolStack = (() => {
         ${buildToolLabelHTML(tool)}
         ${params}
       </div>
-      <button type="button" class="tool-row-remove" data-remove="${idx}" title="Remove" aria-label="Remove ${esc(tool.name)}"><svg width="10" height="10"><use href="#icon-x"/></svg></button>
+      <button type="button" class="tool-row-remove" data-remove="${idx}" title="Remove" aria-label="Remove ${esc(tool.name)}"><svg width="12" height="12"><use href="#icon-x"/></svg></button>
     </div>`;
   }
 
