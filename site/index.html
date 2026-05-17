@@ -15,6 +15,7 @@
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 [hidden] { display: none !important; }
+input[type="file"] { display: none; }
 
 :root {
   --accent:      #7b6db8;
@@ -137,6 +138,9 @@ button.header-nav-item:hover:not(:disabled) { opacity: 1; background: var(--hdr-
 .header-utility { display: flex; align-items: center; gap: 2px; flex-shrink: 0; }
 .bubble { display: inline-flex; align-items: center; background: white; color: var(--accent); border-radius: 8px; padding: 1px 7px 2px; font-size: 15px; font-weight: 800; position: relative; margin-left: 9px; line-height: 1.5; vertical-align: middle; }
 .bubble::before { content: ''; position: absolute; left: -15px; top: 50%; transform: translateY(-50%); border: 9px solid transparent; border-right-color: white; }
+.header-controls { display: flex; gap: 12px; align-items: center; }
+.header-github-link { display: inline-flex; vertical-align: middle; margin-left: 4px; opacity: 0.75; color: white; text-decoration: none; border-bottom: none; }
+.header-github-link:hover { opacity: 1; }
 
 /* The single scroll container for the whole app. Sits below the fixed
    brand header inside a viewport-height flex body. `scrollbar-gutter:
@@ -201,6 +205,7 @@ button.danger:hover:not(:disabled) { background: #e74c3c; border-color: #c0392b;
 .split-btn-menu { display: none; position: absolute; top: 100%; right: 0; margin-top: 3px; background: var(--surface); border: 1px solid var(--border); border-radius: 4px; box-shadow: 0 2px 8px rgba(0,0,0,0.15); z-index: 200; padding: 4px 0; white-space: nowrap; }
 .split-btn.open .split-btn-menu { display: block; }
 .split-btn-menu button { display: block; width: 100%; text-align: left; border: none; background: none; border-radius: 0; padding: 6px 13px; color: var(--text); }
+.more-menu-btn { padding-left: 8px; padding-right: 8px; }
 
 #detail-panel { display: flex; flex-direction: column; min-width: 0; }
 
@@ -661,8 +666,6 @@ dialog h2 { font-size: 16px; margin-bottom: 14px; padding-right: 24px; }
 .ic-9  { fill: #5E35B1; }
 .ic-10 { fill: #3949AB; }
 .ic-11 { fill: #0277BD; }
-/* More menu (⋮ button in detail header) */
-.more-menu-btn { padding-left: 8px; padding-right: 8px; }
 
 /* Update Summary dialog */
 #update-summary-dialog { width: 480px; overflow: hidden; padding: 0; max-height: min(560px, 85vh); }
@@ -699,7 +702,7 @@ dialog h2 { font-size: 16px; margin-bottom: 14px; padding-right: 24px; }
 a.get-file { font-size: 12px; color: var(--accent); text-decoration: none; white-space: nowrap; }
 a.get-file:hover { text-decoration: underline; }
 
-/* ── Rescore section ──────────────────────────────────────────────────────── */
+/* Rescore section */
 .rescore-section { background: var(--surface2); border-bottom: 1px solid var(--border2); padding: 9px 18px; flex-shrink: 0; max-height: 240px; overflow-y: auto; }
 .rescore-top { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
 .rescore-lbl { font-size: 10px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
@@ -744,7 +747,7 @@ a.get-file:hover { text-decoration: underline; }
 .rule-reset-btn { padding: 2px 10px; border: 1px solid var(--border); background: transparent; color: var(--muted); border-radius: 3px; font-size: 12px; cursor: pointer; font-family: inherit; }
 .rule-reset-btn:hover { color: var(--text); border-color: var(--accent); }
 
-/* ── Collapsible section ─────────────────────────────────────────────────── */
+/* Collapsible section */
 /* Chevron is absolute-positioned so the label lines up with whatever lives in `.collapsible-content` below. */
 .collapsible-toggle { position: relative; display: block; width: 100%; padding: 0; margin: 0 0 6px; background: none; border: none; font: inherit; color: inherit; cursor: pointer; text-align: left; }
 .collapsible-toggle:focus-visible { outline: 1px solid var(--accent); outline-offset: 2px; border-radius: 3px; }
@@ -753,11 +756,6 @@ a.get-file:hover { text-decoration: underline; }
 .collapsible.collapsed > .collapsible-toggle { margin-bottom: 0; }
 .collapsible.collapsed > .collapsible-toggle .collapsible-chevron { transform: translateY(-50%) rotate(-90deg); }
 .collapsible.collapsed > .collapsible-content { display: none; }
-
-/* Header */
-.header-controls { display: flex; gap: 12px; align-items: center; }
-.header-github-link { display: inline-flex; vertical-align: middle; margin-left: 4px; opacity: 0.75; color: white; text-decoration: none; border-bottom: none; }
-.header-github-link:hover { opacity: 1; }
 
 /* Tool gallery — top section of the card, cards laid out as a responsive grid. */
 #tool-gallery { padding: 14px 16px 18px; border-bottom: 1px solid var(--border3); }
@@ -943,7 +941,7 @@ html.dark-mode .wld-onboarding { background: color-mix(in srgb, var(--accent) 15
 .link-btn { background: none; border: none; color: var(--accent); cursor: pointer; font-size: inherit; font-family: inherit; padding: 0; text-decoration: underline; }
 .link-btn:hover { opacity: 0.8; }
 .dialog-divider { text-align: center; color: var(--muted); font-size: 12px; margin: 12px 0; }
-input[type="file"] { display: none; }
+
 .annotation { position: absolute; border: 3px solid #e53935; border-radius: 50px; pointer-events: none; box-shadow: 0 0 6px rgba(229,57,53,0.4); }
 
 @keyframes shake {
@@ -1543,6 +1541,14 @@ function buildMoreMenuHTML(menuItems) {
     `</div>`;
 }
 
+function toggleSplitMenu(event) {
+  event.stopPropagation();
+  const btn = event.currentTarget.closest('.split-btn');
+  const isOpen = btn.classList.contains('open');
+  document.querySelectorAll('.split-btn.open').forEach(b => b.classList.remove('open'));
+  if (!isOpen) btn.classList.add('open');
+}
+
 function buildUrlInputHTML(id, placeholder) {
   return `<div class="url-input-wrap">` +
     `<svg class="url-input-icon" width="14" height="14" aria-hidden="true"><use href="#icon-globe"/></svg>` +
@@ -2136,11 +2142,11 @@ function cycleDarkMode() {
 
 function getDisplayCase() { return lsLoad('displayCase') || 'lower'; }
 
-function getDownloadComments() { return lsLoad('downloadComments') !== 'no'; }
-
 function displayEntry(entry) {
   return getDisplayCase() === 'upper' ? entry.toUpperCase() : entry.toLowerCase();
 }
+
+// ─── Dialog helpers ───────────────────────────────────────────────────────────
 
 function enableDismissClicks(el) {
   el.addEventListener('click', e => {
@@ -3309,21 +3315,6 @@ function entriesToText(entries) {
   return entries.map(e => e.comment ? `${e.entry};${e.score};${e.comment}` : `${e.entry};${e.score}`).join('\n') + (entries.length ? '\n' : '');
 }
 
-function entriesToDownloadText(entries, { upper, comments }) {
-  return entries.map(e => {
-    const w = upper ? e.entry.toUpperCase() : e.entry.toLowerCase();
-    return (comments && e.comment) ? `${w};${e.score};${e.comment}` : `${w};${e.score}`;
-  }).join('\n') + '\n';
-}
-
-async function downloadWithDialog(defaultStem, wordlist, entries, title = 'Download') {
-  const result = await showDownloadDialog(defaultStem, wordlist, title);
-  if (!result) return;
-  const { stem, ext, caseMode, comments } = result;
-  triggerDownload(entriesToDownloadText(entries, { upper: caseMode === 'upper', comments }), `${stem}.${ext}`);
-  showToast(`Downloaded ${pluralize(entries.length, 'entry', 'entries')}`);
-}
-
 async function persistEdits(edits) {
   await persistData(edits.dbKey, entriesToText(edits.rawEntries));
   persistMeta();
@@ -3485,6 +3476,41 @@ function slotIntersectsRange(lo, hi, intervals) {
     if (lo <= m && hi >= n) return true;
   }
   return false;
+}
+
+// ─── Score colors ─────────────────────────────────────────────────────────────
+
+// t positions are hand-picked so that on the canonical 0–60 scale, scores
+// 30/40/50/60 land directly on stops (orange/yellow/green/blue).
+const SCORE_COLOR_STOPS = [
+  { t: 0,   bg: '--score-0-bg', fg: '--score-0-fg' },
+  { t: 1/6, bg: '--score-0-bg', fg: '--score-0-fg' },
+  { t: 1/3, bg: '--score-1-bg', fg: '--score-1-fg' },
+  { t: 1/2, bg: '--score-2-bg', fg: '--score-2-fg' },
+  { t: 2/3, bg: '--score-3-bg', fg: '--score-3-fg' },
+  { t: 5/6, bg: '--score-4-bg', fg: '--score-4-fg' },
+  { t: 1,   bg: '--score-5-bg', fg: '--score-5-fg' },
+];
+
+// Out-of-range scores clamp to the nearest endpoint. With no data loaded,
+// falls back to the middle stop (a gradient is meaningless without a range).
+function scoreColor(score) {
+  const { min, max } = getHistogramLayout();
+  if (min == null || max == null || max <= min) {
+    const s = SCORE_COLOR_STOPS[Math.floor(SCORE_COLOR_STOPS.length / 2)];
+    return { bg: `var(${s.bg})`, fg: `var(${s.fg})` };
+  }
+  const t = Math.max(0, Math.min(1, (score - min) / (max - min)));
+  let i = 0;
+  while (i < SCORE_COLOR_STOPS.length - 1 && SCORE_COLOR_STOPS[i + 1].t < t) i++;
+  const lo = SCORE_COLOR_STOPS[i];
+  const hi = SCORE_COLOR_STOPS[i + 1];
+  const localT = (t - lo.t) / (hi.t - lo.t);
+  const pct = (localT * 100).toFixed(1);
+  return {
+    bg: `color-mix(in lch, var(${lo.bg}), var(${hi.bg}) ${pct}%)`,
+    fg: `color-mix(in lch, var(${lo.fg}), var(${hi.fg}) ${pct}%)`,
+  };
 }
 
 // ─── Search ───────────────────────────────────────────────────────────────────
@@ -4343,39 +4369,6 @@ function blockSemicolon(e) {
 }
 
 // ─── Virtual Scroller ─────────────────────────────────────────────────────────
-
-// t positions are hand-picked so that on the canonical 0–60 scale, scores
-// 30/40/50/60 land directly on stops (orange/yellow/green/blue).
-const SCORE_COLOR_STOPS = [
-  { t: 0,   bg: '--score-0-bg', fg: '--score-0-fg' },
-  { t: 1/6, bg: '--score-0-bg', fg: '--score-0-fg' },
-  { t: 1/3, bg: '--score-1-bg', fg: '--score-1-fg' },
-  { t: 1/2, bg: '--score-2-bg', fg: '--score-2-fg' },
-  { t: 2/3, bg: '--score-3-bg', fg: '--score-3-fg' },
-  { t: 5/6, bg: '--score-4-bg', fg: '--score-4-fg' },
-  { t: 1,   bg: '--score-5-bg', fg: '--score-5-fg' },
-];
-
-// Out-of-range scores clamp to the nearest endpoint. With no data loaded,
-// falls back to the middle stop (a gradient is meaningless without a range).
-function scoreColor(score) {
-  const { min, max } = getHistogramLayout();
-  if (min == null || max == null || max <= min) {
-    const s = SCORE_COLOR_STOPS[Math.floor(SCORE_COLOR_STOPS.length / 2)];
-    return { bg: `var(${s.bg})`, fg: `var(${s.fg})` };
-  }
-  const t = Math.max(0, Math.min(1, (score - min) / (max - min)));
-  let i = 0;
-  while (i < SCORE_COLOR_STOPS.length - 1 && SCORE_COLOR_STOPS[i + 1].t < t) i++;
-  const lo = SCORE_COLOR_STOPS[i];
-  const hi = SCORE_COLOR_STOPS[i + 1];
-  const localT = (t - lo.t) / (hi.t - lo.t);
-  const pct = (localT * 100).toFixed(1);
-  return {
-    bg: `color-mix(in lch, var(${lo.bg}), var(${hi.bg}) ${pct}%)`,
-    fg: `color-mix(in lch, var(${lo.fg}), var(${hi.fg}) ${pct}%)`,
-  };
-}
 
 // Workshop sort axes, split by sort tier — filter-only chains (empty stack or
 // searches) sort by Entry / Length / Score; chains with a transform swap Score
@@ -6110,11 +6103,6 @@ async function renderWorkshopMergedDetail() {
   _signalFirstPaint();
 }
 
-async function downloadMergedWordlistFromPanel() {
-  const { entries } = buildMergedWordlist();
-  await downloadWithDialog('Grawlix Wordlist', null, entries, 'Download Merged Wordlist');
-}
-
 // ─── Scoring (tier labels) ────────────────────────────────────────────────────
 
 // Returns a `score → tier label` function. First matching rule wins; an
@@ -6364,6 +6352,8 @@ function repositionAllHistogramRects() {
   document.querySelectorAll('#workshop-view .histogram').forEach(h => positionHistogramRect(h));
   syncHistogramHover();
 }
+
+// ─── Fetch, import & update ───────────────────────────────────────────────────
 
 let _updateScroller = null;
 
@@ -7440,11 +7430,11 @@ function bindEvents() {
   });
 }
 
+// ─── Utility ──────────────────────────────────────────────────────────────────
+
 function nameFromPath(str) {
   return str.split('/').pop().replace(/\.[^.]+$/, '');
 }
-
-// ─── Utility ──────────────────────────────────────────────────────────────────
 
 function esc(s) {
   if (!s) return '';
@@ -8028,6 +8018,28 @@ function buildMergedWordlist() {
 }
 
 
+function getDownloadComments() { return lsLoad('downloadComments') !== 'no'; }
+
+function entriesToDownloadText(entries, { upper, comments }) {
+  return entries.map(e => {
+    const w = upper ? e.entry.toUpperCase() : e.entry.toLowerCase();
+    return (comments && e.comment) ? `${w};${e.score};${e.comment}` : `${w};${e.score}`;
+  }).join('\n') + '\n';
+}
+
+async function downloadWithDialog(defaultStem, wordlist, entries, title = 'Download') {
+  const result = await showDownloadDialog(defaultStem, wordlist, title);
+  if (!result) return;
+  const { stem, ext, caseMode, comments } = result;
+  triggerDownload(entriesToDownloadText(entries, { upper: caseMode === 'upper', comments }), `${stem}.${ext}`);
+  showToast(`Downloaded ${pluralize(entries.length, 'entry', 'entries')}`);
+}
+
+async function downloadMergedWordlistFromPanel() {
+  const { entries } = buildMergedWordlist();
+  await downloadWithDialog('Grawlix Wordlist', null, entries, 'Download Merged Wordlist');
+}
+
 function triggerDownload(text, filename) {
   const blob = new Blob([text], { type: 'text/plain' });
   const url = URL.createObjectURL(blob);
@@ -8060,14 +8072,6 @@ async function downloadOriginalWordlist(wordlist) {
 async function downloadIndividualWordlistRescored(wordlist) {
   if (!wordlist || !wordlist.rawEntries.length) return;
   await downloadWithDialog(`Grawlix ${wordlist.name}`, wordlist, getRescoredEntries(wordlist), 'Download Rescored Wordlist');
-}
-
-function toggleSplitMenu(event) {
-  event.stopPropagation();
-  const btn = event.currentTarget.closest('.split-btn');
-  const isOpen = btn.classList.contains('open');
-  document.querySelectorAll('.split-btn.open').forEach(b => b.classList.remove('open'));
-  if (!isOpen) btn.classList.add('open');
 }
 
 // ─── Mutation helpers ─────────────────────────────────────────────────────────
