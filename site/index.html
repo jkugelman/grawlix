@@ -454,10 +454,9 @@ html.dark-mode .search-match-4 { background: #14532d; color: #d1fae5; }
 /* Inline name editing (used inside the Library view's right pane) */
 .detail-date { font-size: 11px; color: var(--muted); white-space: nowrap; }
 /* On narrow viewports the actions bar is cramped; drop the "Last updated"
-   prefix and keep just the relative time (e.g. "3d ago"). The full string
-   remains in the cell's title attribute for hover/long-press. */
+   label entirely. */
 @media (max-width: 759px) {
-  .detail-date-prefix { display: none; }
+  .detail-date { display: none; }
   .header-byline-desktop,
   .header-sep-feedback,
   .header-feedback { display: none; }
@@ -2605,7 +2604,7 @@ const LibraryView = (() => {
       const setDate = () => {
         const dEl = pane.querySelector('.detail-date');
         if (!dEl) return;
-        dEl.innerHTML = `<span class="detail-date-prefix">Last updated </span>${timeAgo(wordlist.lastUpdated)}`;
+        dEl.textContent = `Last updated ${timeAgo(wordlist.lastUpdated)}`;
         dEl.title = new Date(wordlist.lastUpdated).toLocaleString();
       };
       setDate();
