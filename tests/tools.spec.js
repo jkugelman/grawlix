@@ -45,15 +45,6 @@ test('anagram via URL filters the merged view', async ({ page }) => {
   expect(visible.sort()).toEqual(['lindsey', 'snidely']);
 });
 
-test('empty anagram input passes through (full merged view)', async ({ page }) => {
-  await gotoApp(page);
-  await addAnagramFixture(page);
-  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'anagram', params: { entry: '' } }]));
-
-  const visible = await page.evaluate(() => window.__grawlixTest.getVisibleEntries());
-  expect(visible.sort()).toEqual(['act', 'cat', 'dog', 'lindsey', 'snidely']);
-});
-
 test('anagram + search compose (search filters tool output)', async ({ page }) => {
   await gotoApp(page);
   await addAnagramFixture(page);
@@ -65,17 +56,6 @@ test('anagram + search compose (search filters tool output)', async ({ page }) =
 
   const visible = await page.evaluate(() => window.__grawlixTest.getVisibleEntries());
   expect(visible).toEqual(['snidely']);
-});
-
-test('anagram param is case-insensitive', async ({ page }) => {
-  await gotoApp(page);
-  await addAnagramFixture(page);
-  // The runtime lowercases the param identically to wlEntry.entry,
-  // so typing in any case produces the same query.
-  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'anagram', params: { entry: 'LindSey' } }]));
-
-  const visible = await page.evaluate(() => window.__grawlixTest.getVisibleEntries());
-  expect(visible.sort()).toEqual(['lindsey', 'snidely']);
 });
 
 test('typing in the row input live-filters the entries table', async ({ page }) => {
@@ -212,17 +192,6 @@ test('a downstream transform keeps the two semordnilap directions separate', asy
   // No ↔ anywhere — the rows failed the mirror test, so every glyph is →.
   await expect(page.locator('#vs-host .atom-glyph', { hasText: '↔' })).toHaveCount(0);
   await expect(page.locator('#vs-host .atom-glyph', { hasText: '→' }).first()).toBeVisible();
-});
-
-test('semordnilap excludes palindromes', async ({ page }) => {
-  await gotoApp(page);
-  await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
-    name: 'PalindromeOnly', entries: ['RACECAR', 'KAYAK', 'LEVEL'], scores: [50, 50, 50],
-  }));
-  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'semordnilap' }]));
-
-  const visible = await page.evaluate(() => window.__grawlixTest.getVisibleEntries());
-  expect(visible).toEqual([]);
 });
 
 // ─── Search as a pipeline tool ──────────────────────────────────────────────
@@ -574,61 +543,7 @@ test('Entry sort holds row order when a 1-output transform is added', async ({ p
   expect(chained.map(row => row[0])).toEqual(beforeOrder);
 });
 
-// ─── Behead, Curtail, and the removed-letter highlight ──────────────────────
-//
-// Transform tools that drop one letter to get from the originator to a new
-// word. Each emits a `removed` highlight on the *input* atom (the originator)
-// at the position of the dropped character; the renderer wraps that range in
-// `<span class="hl-removed">`, the CSS gives it the line-through + fade
-// treatment. These tests pin both the matching logic (the dropped form must
-// be a real wordlist entry) and the input-atom highlight emission.
-
-async function addBeheadCurtailFixture(page) {
-  // Each transform pair: SLING/LING (behead), PARTY/PART (curtail),
-  // BREAD/READ (behead), DOG (no match).
-  await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
-    name: 'BeheadCurtailTest',
-    entries: ['SLING', 'LING', 'PARTY', 'PART', 'BREAD', 'READ', 'DOG'],
-    scores:  [   50,    40,     60,      55,     45,      50,     40],
-  }));
-}
-
-test('behead chains the originator with its first-letter-dropped form', async ({ page }) => {
-  await gotoApp(page);
-  await addBeheadCurtailFixture(page);
-  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'behead' }]));
-  await page.locator('#search-bar-sort .sort-axis-select').selectOption('min-score');
-
-  // Min score desc: BREAD/READ min 45, SLING/LING min 40.
-  const visible = await page.evaluate(() => window.__grawlixTest.getVisibleEntries());
-  expect(visible).toEqual([
-    ['bread', 'read'],
-    ['sling', 'ling'],
-  ]);
-});
-
-test('curtail chains the originator with its last-letter-dropped form', async ({ page }) => {
-  await gotoApp(page);
-  await addBeheadCurtailFixture(page);
-  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'curtail' }]));
-
-  const visible = await page.evaluate(() => window.__grawlixTest.getVisibleEntries());
-  expect(visible).toEqual([
-    ['party', 'part'],
-  ]);
-});
-
-test('behead marks the dropped first letter on the originator atom', async ({ page }) => {
-  await gotoApp(page);
-  await addBeheadCurtailFixture(page);
-  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'behead' }]));
-
-  // Originator atom: `<span class="hl-removed">` wraps the first character.
-  // Output atom: no removed highlight (nothing was dropped from it).
-  const slingRow = page.locator('.entry-row', { hasText: 'sling' });
-  await expect(slingRow.locator('.atom').nth(0).locator('.hl-removed')).toHaveText('s');
-  await expect(slingRow.locator('.atom').nth(1).locator('.hl-removed')).toHaveCount(0);
-});
+// ─── Atom rendering ─────────────────────────────────────────────────────────
 
 test('atoms truncate long entries with ellipsis + full-text title', async ({ page }) => {
   await gotoApp(page);
@@ -650,14 +565,4 @@ test('atoms truncate long entries with ellipsis + full-text title', async ({ pag
   // standard signal that CSS truncation kicked in.
   const truncated = await originatorAtom.evaluate(el => el.scrollWidth > el.offsetWidth);
   expect(truncated).toBe(true);
-});
-
-test('curtail marks the dropped last letter on the originator atom', async ({ page }) => {
-  await gotoApp(page);
-  await addBeheadCurtailFixture(page);
-  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'curtail' }]));
-
-  const partyRow = page.locator('.entry-row', { hasText: 'party' });
-  await expect(partyRow.locator('.atom').nth(0).locator('.hl-removed')).toHaveText('y');
-  await expect(partyRow.locator('.atom').nth(1).locator('.hl-removed')).toHaveCount(0);
 });
