@@ -118,7 +118,9 @@ header h1 { font-size: 19px; font-weight: 600; letter-spacing: -0.01em; line-hei
 .header-subtitle a:hover { border-bottom-color: white; }
 
 /* Top-level nav (Library / Workshop) — center of the brand bar. */
-.header-nav { display: flex; align-items: center; gap: 2px; flex-shrink: 0; }
+.header-nav { display: flex; align-items: center; flex-shrink: 0; }
+.header-nav-items { display: flex; align-items: center; gap: 2px; }
+.header-nav-trigger { display: none; }
 .header-nav-item { display: inline-flex; align-items: center; gap: 7px; padding: 8px 14px; border: none; background: none; color: white; font-family: inherit; font-size: 15px; font-weight: 500; cursor: pointer; border-radius: 4px; opacity: 0.55; transition: opacity 0.15s, background 0.15s; position: relative; line-height: 1; }
 button.header-nav-item:hover:not(:disabled) { opacity: 1; background: var(--hdr-bg-dark); color: white; }
 .header-nav-item.active { opacity: 1; }
@@ -476,6 +478,19 @@ html.dark-mode .search-match-4 { background: #14532d; color: #d1fae5; }
      a resize event that closes the popover one frame after it opens. Bump to
      16px on mobile so focus doesn't trigger the zoom. */
   .atom-pop-fields input { font-size: 16px; }
+
+  .header-nav { position: relative; }
+  .header-nav-trigger { display: inline-flex; align-items: center; gap: 6px; padding: 8px 12px; border: none; border-radius: 4px; background: none; color: white; cursor: pointer; font-family: inherit; font-size: 15px; font-weight: 500; line-height: 1; position: relative; }
+  .header-nav.open .header-nav-trigger,
+  button.header-nav-trigger:hover { background: var(--hdr-bg-dark); }
+  .header-nav-trigger .severity-bubble { position: absolute; top: 3px; right: 3px; }
+  .header-nav-chevron { transition: transform 0.15s; }
+  .header-nav.open .header-nav-chevron { transform: rotate(180deg); }
+  .header-nav-items { position: absolute; top: calc(100% + 4px); left: 0; z-index: 110; flex-direction: column; align-items: stretch; gap: 2px; min-width: 168px; padding: 4px; background: var(--hdr-bg); border: 1px solid var(--hdr-bg-dark); border-radius: 6px; box-shadow: 0 6px 20px rgba(0,0,0,0.35); }
+  .header-nav:not(.open) .header-nav-items { display: none; }
+  .header-nav-item { width: 100%; padding: 9px 12px; border-radius: 4px; justify-content: flex-start; }
+  .header-nav-item .severity-bubble { right: 8px; }
+  .header-nav-item.active::after { left: 0; right: auto; top: 0; bottom: 0; width: 3px; height: auto; border-radius: 0 2px 2px 0; }
 }
 .edit-hint { opacity: 0; flex-shrink: 0; cursor: pointer; user-select: none; transition: opacity 0.15s; }
 .name-edit-input { font-family: inherit; width: 100%; padding: 1px 5px; border: 1px solid var(--accent); border-radius: 3px; background: var(--input-bg); color: var(--text); font-size: 15px; font-weight: 600; outline: none; }
@@ -1005,14 +1020,21 @@ input[type="file"] { display: none; }
   <div class="header-row-main">
     <h1><a class="header-logo-link">Grawlix <span class="bubble">!@#$</span></a></h1>
     <nav class="header-nav" aria-label="Sections">
-      <button type="button" class="header-nav-item active" data-view="workshop" aria-current="page">
-        <svg width="18" height="18" aria-hidden="true"><use href="#icon-wrench"/></svg>
-        Workshop
+      <button type="button" class="header-nav-trigger" aria-haspopup="true" aria-expanded="false" aria-label="Switch section">
+        <svg class="header-nav-trigger-icon" width="18" height="18" aria-hidden="true"><use href="#icon-wrench"/></svg>
+        <span class="header-nav-trigger-label">Workshop</span>
+        <svg class="header-nav-chevron" width="8" height="5" aria-hidden="true"><use href="#icon-arrow"/></svg>
       </button>
-      <button type="button" class="header-nav-item" data-view="library">
-        <svg width="18" height="18" aria-hidden="true"><use href="#icon-book-open"/></svg>
-        Library
-      </button>
+      <div class="header-nav-items">
+        <button type="button" class="header-nav-item active" data-view="workshop" aria-current="page">
+          <svg width="18" height="18" aria-hidden="true"><use href="#icon-wrench"/></svg>
+          Workshop
+        </button>
+        <button type="button" class="header-nav-item" data-view="library">
+          <svg width="18" height="18" aria-hidden="true"><use href="#icon-book-open"/></svg>
+          Library
+        </button>
+      </div>
     </nav>
     <div class="header-utility">
       <button id="btn-settings" class="header-icon-btn" aria-label="Settings" title="Settings"><svg width="24" height="24" aria-hidden="true"><use href="#icon-settings"/></svg></button>
@@ -2985,6 +3007,10 @@ const MainView = (() => {
   const VIEWS = { workshop: WorkshopView, library: LibraryView };
   const DEFAULT_VIEW = 'workshop';
   const navButtons = document.querySelectorAll('.header-nav-item[data-view]');
+  const navEl = document.querySelector('.header-nav');
+  const navTrigger = navEl.querySelector('.header-nav-trigger');
+  const navTriggerIcon = navTrigger.querySelector('.header-nav-trigger-icon use');
+  const navTriggerLabel = navTrigger.querySelector('.header-nav-trigger-label');
   const scrollEl = document.querySelector('main');
   let _current = DEFAULT_VIEW;
   // Per-view scroll positions. Both views share the same <main> scroll
@@ -3002,11 +3028,16 @@ const MainView = (() => {
       if (name === view) ctrl.show(target);
       else               ctrl.hide();
     }
+    let activeBtn = null;
     for (const btn of navButtons) {
       const match = btn.dataset.view === view;
       btn.classList.toggle('active', match);
-      if (match) btn.setAttribute('aria-current', 'page');
-      else       btn.removeAttribute('aria-current');
+      if (match) { btn.setAttribute('aria-current', 'page'); activeBtn = btn; }
+      else        btn.removeAttribute('aria-current');
+    }
+    if (activeBtn) {
+      navTriggerIcon.setAttribute('href', activeBtn.querySelector('use').getAttribute('href'));
+      navTriggerLabel.textContent = activeBtn.textContent.trim();
     }
     // Restore after show() so the new view's content has been laid out and
     // <main> is tall enough to accept the saved scrollTop. Skip on the
@@ -3035,6 +3066,23 @@ const MainView = (() => {
     return best;
   }
 
+  function closeNav() {
+    if (!navEl.classList.contains('open')) return;
+    navEl.classList.remove('open');
+    navTrigger.setAttribute('aria-expanded', 'false');
+    document.removeEventListener('click', onOutsideNavClick);
+  }
+  function onOutsideNavClick(e) {
+    if (!navEl.contains(e.target)) closeNav();
+  }
+  navTrigger.addEventListener('click', () => {
+    if (navEl.classList.contains('open')) { closeNav(); return; }
+    navEl.classList.add('open');
+    navTrigger.setAttribute('aria-expanded', 'true');
+    document.addEventListener('click', onOutsideNavClick);
+  });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') closeNav(); });
+
   for (const btn of navButtons) {
     btn.addEventListener('click', () => {
       const view = btn.dataset.view;
@@ -3042,6 +3090,7 @@ const MainView = (() => {
       // affordance and an easy way to bail out of a long scroll.
       if (view === _current) scrollEl.scrollTo({ top: 0, behavior: 'smooth' });
       else                   activate(view, view === 'library' ? pickBubbledWordlist() : null);
+      closeNav();
     });
   }
 
@@ -3049,6 +3098,29 @@ const MainView = (() => {
   // Library uses on individual wordlist cards, bubbled up so the user sees
   // there's something to look at without opening the view. Callers decide
   // the severity by reducing the underlying causes (e.g. via maxSeverity).
+  function syncTriggerBubble() {
+    let bestSev = null, bestPri = 0, bestTitle = '';
+    for (const btn of navButtons) {
+      const b = btn.querySelector(':scope > .severity-bubble');
+      if (!b) continue;
+      const pri = SEVERITY_PRIORITY[b.dataset.severity] ?? 0;
+      if (pri > bestPri) { bestPri = pri; bestSev = b.dataset.severity; bestTitle = b.title; }
+    }
+    let tb = navTrigger.querySelector(':scope > .severity-bubble');
+    if (bestSev) {
+      if (!tb) {
+        tb = document.createElement('span');
+        tb.className = 'severity-bubble';
+        navTrigger.appendChild(tb);
+      }
+      tb.dataset.severity = bestSev;
+      if (bestTitle) tb.title = bestTitle;
+      else tb.removeAttribute('title');
+    } else if (tb) {
+      tb.remove();
+    }
+  }
+
   function setSeverityBubble(view, severity, title = '') {
     const btn = [...navButtons].find(b => b.dataset.view === view);
     if (!btn) return;
@@ -3065,6 +3137,7 @@ const MainView = (() => {
     } else if (bubble) {
       bubble.remove();
     }
+    syncTriggerBubble();
   }
 
   // The HTML body's initial state matches DEFAULT_VIEW (Workshop visible,

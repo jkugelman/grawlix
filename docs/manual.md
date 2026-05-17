@@ -8,7 +8,7 @@ This is the user-facing manual. Eventually it'll be turned into an in-app manual
 
 **Header.** Title, top-level nav (**Workshop** / **Library**), settings. (A `?` placeholder sits where help will live; it's currently inert.) Sticks at top while you scroll.
 
-**Two views.** *Workshop* (default) is the construction-aid surface — tool gallery, stack, entries table — always showing your merged wordlist. *Library* manages your wordlists (the list, rescoring rules, scoring rules, downloads, per-source inspection). Click either nav item in the header to switch.
+**Two views.** *Workshop* (default) is the construction-aid surface — tool gallery, stack, entries table — always showing your merged wordlist. *Library* manages your wordlists (the list, rescoring rules, scoring rules, downloads, per-source inspection). Pick **Workshop** or **Library** in the header to switch.
 
 **Centered card.** Below the header, the active view sits in a centered card with side margins. The page itself scrolls — there's only one scrollbar.
 
@@ -79,7 +79,7 @@ Defaults: **great** (≥60), **good** (≥50), **fair** (≥40), **meh** (≥30)
 
 ## Library
 
-Top-level view (one of two; the other is Workshop). Reached via the **Library** button in the brand-bar nav.
+Top-level view (one of two; the other is Workshop). Reached by picking **Library** in the header nav.
 
 **Layout.** Responsive — wordlist list on top of the focused-wordlist panel on phones; left-rail-and-panel side-by-side at ≥ 760px. The list groups into two sections: **Merged** (the `All` card at the top) and **Sources** (every wordlist below, with My Edits first by default). New wordlists are added via the **+ Add wordlist…** entry at the bottom.
 
@@ -96,7 +96,7 @@ Each wordlist card carries a drag handle (reorder = merge priority), an enable c
 
 **Rescoring rules.** Sources and My Edits each carry a rescore rules editor. Rules map an input score range — and an optional entry-length filter — to an output score, or `ignore` to drop the entry. First matching rule wins.
 
-When the wordlist's data contains scores not covered by any rule, an **Unhandled scores** banner appears at the top of the editor listing those scores (contiguous runs collapsed — e.g. `25, 45-49, 75`). An orange severity bubble also appears on the wordlist's card in the rail and on the **Library** tab in the brand bar. Add rules covering those scores and the bubble clears.
+When the wordlist's data contains scores not covered by any rule, an **Unhandled scores** banner appears at the top of the editor listing those scores (contiguous runs collapsed — e.g. `25, 45-49, 75`). An orange severity bubble also appears on the wordlist's card in the rail and on the **Library** nav item. Add rules covering those scores and the bubble clears.
 
 Custom wordlists with up to 10 distinct scores get auto-seeded with one inert rule per score on first import, so you see the wordlist's scale laid out next to All's. Larger wordlists get the Unhandled-scores banner instead.
 
@@ -106,7 +106,7 @@ Custom wordlists with up to 10 distinct scores get auto-seeded with one inert ru
 - **Green** — an update is available to fetch.
 - **Orange** — there are scores in the wordlist's data not covered by its rescore rules. On **All**, orange means merged scores not covered by any tier label.
 
-The highest-severity bubble across all wordlists propagates up to the **Library** tab in the brand bar.
+The highest-severity bubble across all wordlists propagates up to the **Library** nav item.
 
 **Reset to defaults.** A button appears in the rules editor (rescore on sources/My Edits, scoring on All) when you've customized the rules away from their shipped defaults. Clicking it restores the defaults, with a confirmation first. Visible only inside the editor and only when there's something to undo.
 
