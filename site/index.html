@@ -4784,12 +4784,15 @@ class WorkshopEntriesScroller extends BaseVirtualScroller {
   }
 
   updateEntries(allEntries, atomCount = this.atomCount, sortTier = this.sortTier) {
-    AtomPopover.close();
+    // An edit committed from inside the popover triggers this re-render;
+    // closing then would drop focus mid-tab. _render rebinds the active row.
+    if (!AtomPopover.containsFocus()) AtomPopover.close();
     const tierChanged = this._setChainShape(atomCount, sortTier);
     this.allEntries = allEntries;
     this._invalidateSortCache();
     if (tierChanged) this._buildToolbar();
     this._applyFilterAndSort();
+    AtomPopover.rebindEntry(this);
   }
 
   // Sets the row's atom count (height in lines) and sort tier, remapping the
@@ -5317,6 +5320,12 @@ const AtomPopover = (() => {
   let activeRow = null;
   let activeWlEntry = null;
   let activeScroller = null;
+  // The popover element focus is in or transitioning to. Tracked via capture-
+  // phase blur (relatedTarget says where focus is *headed*) because an
+  // edit-commit re-render runs in a microtask between blur and focusin, when
+  // document.activeElement is transiently <body> — reading it then would
+  // wrongly close the popover or clobber an input mid-tab.
+  let focusEl = null;
 
   function ensureElement() {
     if (el) return el;
@@ -5326,6 +5335,10 @@ const AtomPopover = (() => {
     el.addEventListener('click', e => {
       if (e.target.closest('.dialog-close-btn')) close();
     });
+    el.addEventListener('focus', e => { focusEl = e.target; }, true);
+    el.addEventListener('blur', e => {
+      focusEl = e.relatedTarget && el.contains(e.relatedTarget) ? e.relatedTarget : null;
+    }, true);
     document.body.appendChild(el);
     return el;
   }
@@ -5339,6 +5352,7 @@ const AtomPopover = (() => {
     activeRow = null;
     activeWlEntry = null;
     activeScroller = null;
+    focusEl = null;
     document.removeEventListener('mousedown', onDocMouseDown, true);
     document.removeEventListener('keydown', onKeydown, true);
     window.removeEventListener('resize', onWinResize);
@@ -5350,7 +5364,7 @@ const AtomPopover = (() => {
   }
 
   function containsFocus() {
-    return isOpen() && el.contains(document.activeElement);
+    return isOpen() && focusEl !== null && el.contains(focusEl);
   }
 
   function onDocMouseDown(e) {
@@ -5452,9 +5466,11 @@ const AtomPopover = (() => {
     if (!deleteBtn) return;
     const scroller = activeScroller;
     const entry = activeWlEntry.entry;
+    // No refresh() here: it would replace innerHTML and detach the focused
+    // delete button, so updateEntries' containsFocus() guard would read false
+    // and close the popover. The scroller rebuild reaches rebindEntry instead.
     deleteBtn.addEventListener('click', () => {
       scroller._onDeleteRow?.(entry);
-      refresh({ resetInputs: true });
     });
   }
 
@@ -5531,7 +5547,26 @@ const AtomPopover = (() => {
     rowEl.classList.add('active');
   }
 
-  return { open, close, isOpen, containsFocus, activeEntry, rebindRow };
+  // A scroller rebuild hands back fresh wlEntry objects, so activeWlEntry goes
+  // stale by identity — re-point it by entry string before refresh() runs its
+  // identity-based stillPresent check, or the popover wrongly closes.
+  function rebindEntry(scroller) {
+    if (!isOpen() || activeScroller !== scroller) return;
+    const entryStr = activeWlEntry.entry;
+    let found = null;
+    for (const chainRow of scroller.allEntries) {
+      found = chainRow.atoms.find(a => a.wlEntry.entry === entryStr)?.wlEntry;
+      if (found) break;
+    }
+    if (!found) { close(); return; }
+    activeWlEntry = found;
+    // Keep the inputs only while one holds focus: resetting mid-edit would
+    // clobber the value the user just typed and is tabbing away from.
+    const editing = containsFocus() && focusEl.matches('.score-input, .comment-input');
+    refresh({ resetInputs: !editing });
+  }
+
+  return { open, close, isOpen, containsFocus, activeEntry, rebindRow, rebindEntry };
 })();
 
 // ─── Update Summary Scroller ──────────────────────────────────────────────────

@@ -47,6 +47,70 @@ test('editing a row sourced from another wordlist routes the edit into My Edits'
   expect(merged).toEqual({ entry: 'bagel', score: 75, comment: '', wordlist: 'My Edits' });
 });
 
+test('tabbing between popover fields keeps it open and reflects the new source', async ({ page }) => {
+  await gotoApp(page);
+
+  await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
+    name: 'Source', entries: ['BAGEL'], scores: [50],
+  }));
+
+  // Open the popover on BAGEL's score cell and change the score.
+  await page.locator('.entry-row[data-entry="bagel"] .atom-score').click();
+  const scoreInput = page.locator('#atom-pop-score');
+  await expect(scoreInput).toBeVisible();
+  await scoreInput.fill('75');
+
+  // Tab to the comment field. The popover must stay open with focus on the
+  // comment input, and its Source field must update from Source to My Edits —
+  // the committed score routed the entry there.
+  await scoreInput.press('Tab');
+  await expect(page.locator('#atom-pop-comment')).toBeFocused();
+  await expect(page.locator('#atom-popover')).toBeVisible();
+  await expect(page.locator('.atom-pop-source')).toContainText('My Edits');
+
+  // The comment field still works post-tab — type one and commit.
+  await page.locator('#atom-pop-comment').fill('tasty');
+  await page.locator('#atom-pop-comment').press('Enter');
+
+  await expect.poll(async () =>
+    page.evaluate(() => window.__grawlixTest.getWordlist('My Edits').entries)
+  ).toEqual([{ entry: 'bagel', score: 75, comment: 'tasty' }]);
+});
+
+test('the Delete edit button keeps the popover open and reverts to the underlying source', async ({ page }) => {
+  await gotoApp(page);
+
+  await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
+    name: 'Source', entries: ['BAGEL'], scores: [50],
+  }));
+
+  // Create a My Edits override by editing BAGEL's score.
+  await page.locator('.entry-row[data-entry="bagel"] .atom-score').click();
+  await page.locator('#atom-pop-score').fill('75');
+  await page.locator('#atom-pop-score').press('Enter');
+  await expect.poll(async () =>
+    page.evaluate(() => window.__grawlixTest.getWordlist('My Edits').entries.length)
+  ).toBe(1);
+
+  // Re-open the popover — BAGEL is now sourced from My Edits, so it carries a
+  // Delete edit button.
+  await page.locator('.entry-row[data-entry="bagel"] .atom-score').click();
+  await expect(page.locator('.atom-pop-source')).toContainText('My Edits');
+  await page.locator('.atom-pop-delete').click();
+
+  // The popover stays open and re-points at the underlying Source entry: the
+  // Source field reverts, the score input shows Source's 50, and the Delete
+  // button is gone (the row is no longer sourced from My Edits).
+  await expect(page.locator('#atom-popover')).toBeVisible();
+  await expect(page.locator('.atom-pop-source')).toContainText('Source');
+  await expect(page.locator('#atom-pop-score')).toHaveValue('50');
+  await expect(page.locator('.atom-pop-delete')).toHaveCount(0);
+
+  await expect.poll(async () =>
+    page.evaluate(() => window.__grawlixTest.getWordlist('My Edits').entries)
+  ).toEqual([]);
+});
+
 test('+ Add entry footer creates a brand-new entry in My Edits', async ({ page }) => {
   await gotoApp(page);
 
