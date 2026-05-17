@@ -3527,7 +3527,13 @@ function segmentToPat(str) {
     else if (ch === '[') {
       const end = str.indexOf(']', i);
       if (end === -1) { pat += '\\['; }
-      else { pat += str.slice(i, end + 1); i = end; }
+      else {
+        const inner = str.slice(i + 1, end)
+          .replace(/#/g, CONSONANTS)
+          .replace(/@/g, VOWELS);
+        pat += `[${inner}]`;
+        i = end;
+      }
     } else {
       pat += ch.replace(/[.+^${}()|[\]\\]/g, '\\$&');
     }
