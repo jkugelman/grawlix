@@ -1,5 +1,5 @@
 // Tool pipeline seam — see docs/design.md § Tool gallery & stack and
-// docs/plans/tools.md.
+// docs/planned/tools.md.
 //
 // These tests cover the chain-row pipeline: the per-row tool API
 // (`run(entry, params, wordlist)`), the executor that branches transforms

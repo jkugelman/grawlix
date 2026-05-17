@@ -24,14 +24,16 @@ Design and manual:
 - [`docs/wordlisted.md`](docs/wordlisted.md) — reference catalogue of Wordlisted's search modes; source material for the tool gallery.
 
 Plans (forward-looking, not yet shipped):
-- [`docs/plans/help.md`](docs/plans/help.md) — separating welcome tour from returning-user reference manual.
-- [`docs/plans/lookup.md`](docs/plans/lookup.md) — click-a-word lookup (definitions, Wikipedia, NYT history, semantic search).
-- [`docs/plans/migration.md`](docs/plans/migration.md) — when to graduate from schema-version resets to layered migrations.
-- [`docs/plans/puz-to-pdf.md`](docs/plans/puz-to-pdf.md) — feasibility sketch for in-browser .PUZ → printable PDF rendering.
-- [`docs/plans/sync.md`](docs/plans/sync.md) — three-tier persistence (backup nag, disk file, cloud sync) for All + My Edits.
-- [`docs/plans/tools.md`](docs/plans/tools.md) — remainder of the catalog, indexed-view runtime, annotations, groups output, gallery polish (category picker, search), result download, OneLook/Datamuse/Umiaq. The chain-row pipeline (executor, per-row tool API, symmetric unification, search-as-tool, per-atom-count sort, highlights) is shipped — see `design.md`.
+- [`docs/planned/help.md`](docs/planned/help.md) — separating welcome tour from returning-user reference manual.
+- [`docs/planned/migration.md`](docs/planned/migration.md) — when to graduate from schema-version resets to layered migrations.
+- [`docs/planned/sync.md`](docs/planned/sync.md) — three-tier persistence (backup nag, disk file, cloud sync) for All + My Edits.
+- [`docs/planned/tools.md`](docs/planned/tools.md) — remainder of the catalog, indexed-view runtime, annotations, groups output, gallery polish (category picker, search), result download, OneLook/Datamuse/Umiaq. The chain-row pipeline (executor, per-row tool API, symmetric unification, search-as-tool, per-atom-count sort, highlights) is shipped — see `design.md`.
 
-When a plan ships, run the `distill-design-doc` skill to fold it into `design.md` and/or `manual.md`. (There used to be an in-app welcome tour with copy that needed updating per shipped feature; it was removed pending a redesign — see [`docs/plans/help.md`](docs/plans/help.md). The header `?` button is a deactivated placeholder until that lands.)
+Future (longer-horizon ideas, not actively planned):
+- [`docs/future/lookup.md`](docs/future/lookup.md) — click-a-word lookup (definitions, Wikipedia, NYT history, semantic search).
+- [`docs/future/puz-to-pdf.md`](docs/future/puz-to-pdf.md) — feasibility sketch for in-browser .PUZ → printable PDF rendering.
+
+When a plan ships, run the `distill-design-doc` skill to fold it into `design.md` and/or `manual.md`. (There used to be an in-app welcome tour with copy that needed updating per shipped feature; it was removed pending a redesign — see [`docs/planned/help.md`](docs/planned/help.md). The header `?` button is a deactivated placeholder until that lands.)
 
 ## Architecture
 
@@ -76,7 +78,7 @@ ENTRY;SCORE;COMMENT
 
 **Bump `SCHEMA_VERSION` when you change the shape of stored data.** Any change to `meta`'s field formats, the descriptor objects it contains, default values set only on first boot, or the IDB entry shape requires a bump. On load, a mismatch between the stored version and `SCHEMA_VERSION` prompts the user to reset their local data; without the bump, they'll silently load incompatible data and the app will misbehave.
 
-**No migration, cleanup, or compatibility code pre-launch.** This is venue-agnostic — applies to localStorage, IndexedDB, *and* URL routing. When you remove a feature, rename a stored field, drop a URL key, or otherwise strand existing data or shared links, just make the change cleanly. Don't `lsDel` orphaned localStorage keys to garbage-collect them. Don't write IndexedDB migration runners or tolerate-then-drop old shapes in the parser. Don't register URL alias tables for renamed tool slugs or fall-through routes for the old form. The user clears their own storage and re-shares their own links if they care. The `SCHEMA_VERSION` wipe prompt is the *one* compatibility mechanism that earns its keep today; everything else is dead weight for a userbase that doesn't exist yet. See [`docs/plans/migration.md`](docs/plans/migration.md) (storage) and [`docs/design.md`](docs/design.md) § *Stable links* (URL keys) for when each policy flips.
+**No migration, cleanup, or compatibility code pre-launch.** This is venue-agnostic — applies to localStorage, IndexedDB, *and* URL routing. When you remove a feature, rename a stored field, drop a URL key, or otherwise strand existing data or shared links, just make the change cleanly. Don't `lsDel` orphaned localStorage keys to garbage-collect them. Don't write IndexedDB migration runners or tolerate-then-drop old shapes in the parser. Don't register URL alias tables for renamed tool slugs or fall-through routes for the old form. The user clears their own storage and re-shares their own links if they care. The `SCHEMA_VERSION` wipe prompt is the *one* compatibility mechanism that earns its keep today; everything else is dead weight for a userbase that doesn't exist yet. See [`docs/planned/migration.md`](docs/planned/migration.md) (storage) and [`docs/design.md`](docs/design.md) § *Stable links* (URL keys) for when each policy flips.
 
 ## Key concepts
 

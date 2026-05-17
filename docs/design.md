@@ -13,7 +13,7 @@ Constructors use Grawlix in two modes that share one UI:
 
 Neither mode is primary. The workspace-leaning design accommodates sidekick mode for free as long as load is fast and chrome isn't loud — sidekick is just "brief use, leave."
 
-Lookup features (definitions, NYT crossword history, semantic search; see [`plans/lookup.md`](plans/lookup.md)) are differentially valuable to constructors using grid software without built-in lookup. Crossfire and Crossword Compiler are the populations that benefit most; Ingrid has Google integration and Crosserville has clue lookup, so those populations need Grawlix-side lookup less.
+Lookup features (definitions, NYT crossword history, semantic search; see [`future/lookup.md`](future/lookup.md)) are differentially valuable to constructors using grid software without built-in lookup. Crossfire and Crossword Compiler are the populations that benefit most; Ingrid has Google integration and Crosserville has clue lookup, so those populations need Grawlix-side lookup less.
 
 Mobile is a third mode — theme research on the go (subway, Discord), where a constructor wants to act on an idea before it evaporates. It runs the same UI as desktop, responsively narrowed; the section nav is the lone control recomposed rather than merely narrowed (see § *The shell* for the convergence rationale and that exception).
 
@@ -34,7 +34,7 @@ Bounded width plus a centered column keeps the horizontal space beside the (inte
 
 Library is a peer view, not a setup dialog: rescoring and curating wordlists is a return-to activity, not occasional config you set once and leave — return-to activities warrant peer real estate.
 
-**Tool gallery** sits as a top section of the Workshop card. Cards lay out as a responsive grid (~180px min). Discoverability is preserved — the gallery is always visible on entry — at the cost of being scrolled past every session. Tool catalog and chaining are owned by [`plans/tools.md`](plans/tools.md).
+**Tool gallery** sits as a top section of the Workshop card. Cards lay out as a responsive grid (~180px min). Discoverability is preserved — the gallery is always visible on entry — at the cost of being scrolled past every session. Tool catalog and chaining are owned by [`planned/tools.md`](planned/tools.md).
 
 **Workshop is always-merged.** No per-wordlist scope; the entries table shows the merged `All` view exclusively. No Workshop activity is meaningfully scoped to a single source (no one wants "anagrams in STWL only"), and per-source inspection belongs to the Library — so Workshop carries no wordlist picker.
 
@@ -48,7 +48,7 @@ Library is a peer view, not a setup dialog: rescoring and curating wordlists is 
 
 **Sticky region: stats bar → tool stack.** Stats joins the sticky region because the histogram is a clickable filter affordance — keeping it reachable while scrolling the entries table is worth the extra row of sticky chrome. The tool stack always ends with the permanent search bar as its last row, and shows just that bar before the user adds a tool, so pre-tool-use Grawlix looks unchanged — see *Tool gallery & stack* below.
 
-**No persistent rail, no collapsible side panel.** The tool gallery sits as a top section of the card instead of in a side rail; a sync indicator will arrive with sync (see [`plans/sync.md`](plans/sync.md)). A collapsible side panel was considered and rejected as a rail comeback in disguise.
+**No persistent rail, no collapsible side panel.** The tool gallery sits as a top section of the card instead of in a side rail; a sync indicator will arrive with sync (see [`planned/sync.md`](planned/sync.md)). A collapsible side panel was considered and rejected as a rail comeback in disguise.
 
 **Mechanics worth knowing:**
 
@@ -112,7 +112,7 @@ The banner is a 3-page sequence (welcome, personal-wordlist import into My Edits
 
 ### Sync & backup
 
-Today this is a stub. Full design lives in [`plans/sync.md`](plans/sync.md): prominent "Download All" and "Download My Edits" buttons (Tier 1 manual backup), per-cloud-provider connect/disconnect (Tier 3), disk-sync section gated on PWA install (Tier 2), recent activity log.
+Today this is a stub. Full design lives in [`planned/sync.md`](planned/sync.md): prominent "Download All" and "Download My Edits" buttons (Tier 1 manual backup), per-cloud-provider connect/disconnect (Tier 3), disk-sync section gated on PWA install (Tier 2), recent activity log.
 
 ### Two paths to "give me a file"
 
@@ -161,7 +161,7 @@ Propagation is silent — no toast. Rule updates only ever *add* coverage; they 
 
 ## Tool gallery & stack
 
-Tools live in two places: a persistent **gallery** as a top section of the card, and a **tool stack** inside the sticky region just below the brand header. The gallery is browseable; the stack is the user's current pipeline. The chrome, the pipeline runtime, and five tools with working logic — Anagram, Semordnilap, Behead, Curtail, Search — are shipped; the rest of the catalog renders gallery cards but doesn't yet produce results. The remainder of the catalog and chaining extensions are tracked in [`plans/tools.md`](plans/tools.md). Tool output lands in the entries table (§ Entries table) as **chain rows** — see § The chain-row model.
+Tools live in two places: a persistent **gallery** as a top section of the card, and a **tool stack** inside the sticky region just below the brand header. The gallery is browseable; the stack is the user's current pipeline. The chrome, the pipeline runtime, and five tools with working logic — Anagram, Semordnilap, Behead, Curtail, Search — are shipped; the rest of the catalog renders gallery cards but doesn't yet produce results. The remainder of the catalog and chaining extensions are tracked in [`planned/tools.md`](planned/tools.md). Tool output lands in the entries table (§ Entries table) as **chain rows** — see § The chain-row model.
 
 **Single catalog drives every surface.** Each tool is one record in `TOOLS` (`name`, `icon`, `category`, `desc`, `example`, `params`, `kind`, `inputHighlights`, `outputHighlights`, optional `glyph` / `prepare` / `run`); gallery section ordering comes from a parallel `TOOL_CATEGORIES` list. Gallery cards, stack-row labels, and the search bar's `Search` label all render the inline icon-and-name pair through the shared `buildToolLabelHTML` helper. Adding a tool means adding one entry — every surface that names tools picks it up — and the helper guarantees the icon-and-name pair looks identical wherever it appears.
 
@@ -218,7 +218,7 @@ A regular atom's `wlEntry` references the merged wordlist (same identity as the 
 
 **Test bridge.** `__grawlixTest.pipelineIdle()` resolves when no run is in flight; `getVisibleEntries` awaits it before reading the DOM so test assertions after a keystroke don't race a not-yet-finished refresh.
 
-**Workers — considered and rejected.** Cooperative yielding covers what workers would have bought, without their cost. Yielding already keeps the main thread responsive between chunks — workers' core promise. There's no untrusted code to sandbox: custom JS tools (see [`plans/tools.md` § Open questions](plans/tools.md#open-questions)) run in the author's own browser, so a misbehaving tool only locks up its author. And worker bundling is awkward without a build step — the naïve "copy 500K entries every keystroke" shape serializes ~25 MB through structured clone each direction, likely slower than the main-thread compute it replaces; the viable shape (worker holds the wordlist) pulls a state-sync protocol into every mutation. Revisit only if a built-in tool surfaces whose work fundamentally can't fit the cooperative budget — bulk preprocessing where chunked yields can't hide enough latency.
+**Workers — considered and rejected.** Cooperative yielding covers what workers would have bought, without their cost. Yielding already keeps the main thread responsive between chunks — workers' core promise. There's no untrusted code to sandbox: custom JS tools (see [`planned/tools.md` § Open questions](planned/tools.md#open-questions)) run in the author's own browser, so a misbehaving tool only locks up its author. And worker bundling is awkward without a build step — the naïve "copy 500K entries every keystroke" shape serializes ~25 MB through structured clone each direction, likely slower than the main-thread compute it replaces; the viable shape (worker holds the wordlist) pulls a state-sync protocol into every mutation. Revisit only if a built-in tool surfaces whose work fundamentally can't fit the cooperative budget — bulk preprocessing where chunked yields can't hide enough latency.
 
 ### Symmetric unification
 
@@ -297,7 +297,7 @@ Score/comment edits and the rescore/override explanation all live in the popover
 
 ## Help
 
-The header `?` button is a deactivated placeholder — present so the slot doesn't disappear, but with a `not-allowed` cursor and no behavior. There is no help surface yet; one is planned in [`plans/help.md`](plans/help.md), to land once [`plans/tools.md`](plans/tools.md) settles.
+The header `?` button is a deactivated placeholder — present so the slot doesn't disappear, but with a `not-allowed` cursor and no behavior. There is no help surface yet; one is planned in [`planned/help.md`](planned/help.md), to land once [`planned/tools.md`](planned/tools.md) settles.
 
 ## URL state
 
@@ -424,7 +424,7 @@ The invalidation contract for the sort caches is the same trap as the patch path
 
 Structural state and the view layer are reactive (signals + effects); the perf-critical caches above stay imperative. The split mirrors what production signal frameworks (Solid, Svelte 5, Preact signals) do internally.
 
-A pure-reactive design — one big `merged$ = computed(() => buildMerged(sources$))` — re-derives the whole 1M-entry merged wordlist on every My Edits keystroke. The hybrid model keeps reactivity for the 90% of state where it doesn't fight performance, and leaves the cache layer alone where it earns its keep. Pushing further — replacing imperative caches with observable collections and the virtual scroller with per-row reactive components — is a possible future rewrite; see [`plans/per-row-reactivity.md`](plans/per-row-reactivity.md).
+A pure-reactive design — one big `merged$ = computed(() => buildMerged(sources$))` — re-derives the whole 1M-entry merged wordlist on every My Edits keystroke. The hybrid model keeps reactivity for the 90% of state where it doesn't fight performance, and leaves the cache layer alone where it earns its keep. Pushing further — replacing imperative caches with observable collections and the virtual scroller with per-row reactive components — is a possible future rewrite; see [`planned/per-row-reactivity.md`](planned/per-row-reactivity.md).
 
 **The signals primitive** is hand-rolled at ~50 lines (no external dependency, preserves "no build step, no npm"):
 

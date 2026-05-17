@@ -18,7 +18,7 @@ Beyond the grid-software gap, lookups serve Grawlix's own mining/research workfl
 
 - **Lookups will be built as a near-term feature**, not parked indefinitely. Promoted from "parked" during the workspace-vs-sidekick discussion.
 - **Target user:** constructors whose grid software lacks built-in lookup. Crossfire and Crossword Compiler users benefit most.
-- **Likely v1 sources:** definitions, Wikipedia, Google search, semantic search, NYT crossword history. OneLook/Datamuse and Umiaq are already on the integration list — see [`tools.md`](tools.md) "Related tools & future integrations." Google search is a low-bar add (a quick `google.com/search?q=` link or embed); even Ingrid users — who already have Google in-app — appreciate it being right next to the wordlist.
+- **Likely v1 sources:** definitions, Wikipedia, Google search, semantic search, NYT crossword history. OneLook/Datamuse and Umiaq are already on the integration list — see [`../planned/tools.md`](../planned/tools.md) "Related tools & future integrations." Google search is a low-bar add (a quick `google.com/search?q=` link or embed); even Ingrid users — who already have Google in-app — appreciate it being right next to the wordlist.
 
 ---
 

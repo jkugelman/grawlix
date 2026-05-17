@@ -7,7 +7,7 @@ description: Convert a design doc into a feature record once the feature has shi
 
 A forward-looking design doc says "we will build X because Y." Once X is built, that framing is misleading: a new reader doesn't know whether the doc describes plans or reality. Your job is to convert the doc into a *record* — present-tense documentation of what exists and why it's shaped that way.
 
-The plan doc in `docs/plans/` gets folded into the project's two living docs and then deleted. Its register shifts: speculative → descriptive, pitch → reference.
+The plan doc in `docs/planned/` gets folded into the project's two living docs and then deleted. Its register shifts: speculative → descriptive, pitch → reference.
 
 ## Where the distilled content lands
 
@@ -48,7 +48,7 @@ When deciding what stays: prefer descriptions of **shape** (architecture, contra
 
 ## Process
 
-1. **Identify the doc.** If the user named one, read it. Otherwise ask which `docs/plans/*.md` doc they have in mind.
+1. **Identify the doc.** If the user named one, read it. Otherwise ask which `docs/planned/*.md` doc they have in mind.
 2. **Verify what actually shipped.** Read the relevant sections of `site/index.html` to confirm which parts of the doc describe live behavior, which parts didn't make it, and which parts shipped differently than planned. Don't trust the doc — it may be wrong about its own subject. Banner comments (`// ─── Section ───`) help locate the right region.
 3. **Sort the content** into four buckets:
    - **User-facing surface** → fold into `docs/manual.md`.
@@ -56,10 +56,10 @@ When deciding what stays: prefer descriptions of **shape** (architecture, contra
    - **Forward-looking** (deferred / open questions) → stays in the plan doc if it survives, or moves to a clearly-labeled "Open questions" section in `design.md` if the plan is fully retired.
    - **Drops out** (phasing, pitch, exhausted mockups, redundant implementation detail).
 4. **Edit the destination files.** Read `docs/manual.md` and `docs/design.md` first; identify where the new content fits (existing section to extend, or new section to add). Match the existing tone and structure of each file rather than dropping in a self-contained block.
-5. **Retire or trim the plan doc.** If the plan is fully shipped, `git rm docs/plans/X.md`. If partial, edit it down to just the unshipped pieces and label the split clearly.
-6. **Update cross-references.** `grep -rn 'plans/X.md'` across `docs/`, `CLAUDE.md`, and `site/index.html`. Fix:
+5. **Retire or trim the plan doc.** If the plan is fully shipped, `git rm docs/planned/X.md`. If partial, edit it down to just the unshipped pieces and label the split clearly.
+6. **Update cross-references.** `grep -rn 'planned/X.md'` across `docs/`, `CLAUDE.md`, and `site/index.html`. Fix:
    - **`CLAUDE.md`** — the doc index lives in the *Before non-trivial work* section. Remove the bullet if the plan is fully retired; update the one-liner if partial.
-   - **Sibling `docs/plans/*.md` files** — references to the retired plan should now point at `../design.md` (or the relevant section anchor) and/or `../manual.md`.
+   - **Sibling `docs/planned/*.md` files** — references to the retired plan should now point at `../design.md` (or the relevant section anchor) and/or `../manual.md`.
    - **Other top-level docs** — usually unaffected, but check.
 7. **Confirm before overwriting.** Show the user (1) a short read of what the doc currently says vs. what shipped, (2) the proposed edits to `manual.md` and `design.md` in full, (3) what happens to the plan doc (delete vs. trim), (4) the cross-reference touch list. Wait for approval. Distillation removes content; reversible only via git.
 
