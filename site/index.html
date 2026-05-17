@@ -28,6 +28,10 @@
      (Workshop's sticky-stack, Library's search bar). Stable as long as the
      histogram height is fixed. */
   --stats-bar-h: 57px;
+  /* Live height of the Library's pinned wordlist card (narrow layout) —
+     published by LibraryView, used to offset the pane's sticky bars below
+     it. The value here is just a pre-measurement fallback. */
+  --wld-pin-h: 56px;
 }
 html.dark-mode {
   color-scheme: dark;
@@ -858,6 +862,25 @@ a.get-file:hover { text-decoration: underline; }
      this, overflow cards become unreachable while the rail is pinned. */
   .wld-list-sticky { position: sticky; top: 0; max-height: calc(100vh - 90px); overflow-y: auto; }
   .wld-pane { flex: 1; min-width: 0; }
+}
+
+/* Narrow layout: the wordlist list stacks above the pane and scrolls away
+   with the page. Collapse the rail's wrapper boxes with `display: contents`
+   so the cards become flow children of .wld-body — which spans the full
+   stacked height — letting the selected card's `position: sticky` travel
+   through the whole pane scroll instead of stopping at the short list box.
+   On desktop the side rail is pinned instead (see the min-width rule above). */
+@media (max-width: 759px) {
+  .wld-list, .wld-list-sticky, .wld-list-body { display: contents; }
+  /* The collapsed wrappers carried the rail's surface tint and the divider
+     from the pane; reapply both on the rows themselves. */
+  .wordlist-card, .wld-list-section-header { background: var(--surface2); }
+  .wld-list .add-wordlist-row { border-bottom: 1px solid var(--border2); }
+  .wordlist-card.selected { position: sticky; top: 0; z-index: 52; }
+  /* Drop the pane's sticky bars below the pinned card. --wld-pin-h is the
+     live card height, published by LibraryView. */
+  .wld-pane > .stats-bar { top: var(--wld-pin-h); }
+  .lib-search-bar       { top: calc(var(--wld-pin-h) + var(--stats-bar-h)); }
 }
 
 /* Onboarding banner at the top of the Library view's wordlist list */
@@ -2520,6 +2543,18 @@ const LibraryView = (() => {
 
     const cards = listBody.querySelectorAll('.wordlist-card[data-wordlist]');
     state.sources.forEach((wordlist, i) => { if (cards[i]) cards[i]._wordlist = wordlist; });
+
+    publishStickyCardHeight();
+  }
+
+  // In the narrow stacked layout the selected card pins to the top (see the
+  // `display: contents` rule on the rail). Publish its measured height so
+  // the pane's own sticky bars can offset cleanly below it.
+  function publishStickyCardHeight() {
+    const selCard = listBody.querySelector('.wordlist-card.selected');
+    if (selCard) {
+      document.documentElement.style.setProperty('--wld-pin-h', selCard.offsetHeight + 'px');
+    }
   }
 
   function buildPane() {
