@@ -2564,8 +2564,7 @@ const LibraryView = (() => {
       const label = hasData ? 'Update' : (wordlist.url ? 'Fetch' : 'Import');
 
       if (wordlist.url) {
-        const loadingLabel = hasData ? 'Updating…' : 'Fetching…';
-        const btnLabel = `${wordlist._loading ? loadingLabel : label}${dot}`;
+        const btnLabel = `${label}${dot}`;
         actionBtn = buildSplitBtn(btnLabel, `LibraryView.action('fetch')`,
           [['Import', `LibraryView.action('import')`]],
           { primary: true, disabled: !!wordlist._loading, title: updateTitle });
