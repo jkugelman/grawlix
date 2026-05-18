@@ -284,7 +284,7 @@ The kind registry is open-ended — adding a new tool highlight kind is one (kin
 
 Both `WorkshopEntriesScroller` and `LibraryEntriesScroller` route through the same `renderHighlightedText`; Library has no pipeline and computes its own search ranges directly.
 
-**Range positions are in entry coordinates.** A tool emitting a highlight indexes into `wlEntry.entry` directly. Since `entry` is the lowercased form (no whitespace strip) and the renderer's `displayEntry()` only changes case, `entry.length` always equals the rendered string's length — display-coordinates and entry-coordinates coincide. Curtail's "strike through the last letter" range is `[entry.length - 1, entry.length]`, marking the last character of whatever the user sees.
+**Range positions are in entry coordinates.** A tool emitting a highlight indexes into `wlEntry.entry` directly. Since `entry` is the lowercased form (no whitespace strip) and the renderer's `displayEntry()` only changes case, `entry.length` always equals the rendered string's length — display-coordinates and entry-coordinates coincide. Curtail's "strike through the dropped letters" range is `[entry.length - count, entry.length]`, marking the trailing characters of whatever the user sees.
 
 ## Entries table
 

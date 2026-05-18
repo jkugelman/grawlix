@@ -43,3 +43,28 @@ test('marks the dropped first letter on the originator atom only', async ({ page
   await expect(row.locator('.atom').nth(0).locator('.hl-removed')).toHaveText('s');
   await expect(row.locator('.atom').nth(1).locator('.hl-removed')).toHaveCount(0);
 });
+
+test('Count param defaults to 1, pre-filled in the tool row', async ({ page }) => {
+  await gotoApp(page);
+  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'behead' }]));
+
+  await expect(page.locator('.tool-row-num[data-key="count"]')).toHaveValue('1');
+});
+
+test('Count drops that many leading letters and marks them', async ({ page }) => {
+  await gotoApp(page);
+  await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
+    name: 'BeheadCount',
+    entries: ['CHAIR', 'AIR', 'STABLE', 'ABLE'],
+    scores:  [   70,    50,      60,     50],
+  }));
+  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'behead', params: { count: '2' } }]));
+
+  expect(await visible(page)).toEqual([
+    ['chair', 'air'],
+    ['stable', 'able'],
+  ]);
+
+  const row = page.locator('.entry-row', { hasText: 'chair' });
+  await expect(row.locator('.atom').nth(0).locator('.hl-removed')).toHaveText('ch');
+});

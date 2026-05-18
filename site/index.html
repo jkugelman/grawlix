@@ -3839,30 +3839,32 @@ const TOOLS = {
   },
   behead: {
     name: 'Behead', icon: '🪓', category: 'pairs',
-    desc: 'Drop the first letter to get a new word',
+    desc: 'Drop the first letter(s) to get a new word',
     example: 'SLING → LING',
-    params: [],
+    params: [{ label: 'Count', default: '1', type: 'number' }],
     kind: 'transform', inputHighlights: true, outputHighlights: false, glyph: '→',
     run(entry, params, wordlist) {
-      if (entry.length < 2) return [];
-      const beheaded = entry.slice(1);
+      const count = Math.max(1, parseInt(params.count, 10) || 1);
+      if (entry.length <= count) return [];
+      const beheaded = entry.slice(count);
       if (!wordlist.byEntry.has(beheaded)) return [];
-      return [{ entry: beheaded, inputHighlights: [{ kind: 'removed', start: 0, end: 1 }] }];
+      return [{ entry: beheaded, inputHighlights: [{ kind: 'removed', start: 0, end: count }] }];
     },
   },
   curtail: {
     name: 'Curtail', icon: '✂️', category: 'pairs',
-    desc: 'Drop the last letter to get a new word',
+    desc: 'Drop the last letter(s) to get a new word',
     example: 'PARTY → PART',
-    params: [],
+    params: [{ label: 'Count', default: '1', type: 'number' }],
     kind: 'transform', inputHighlights: true, outputHighlights: false, glyph: '→',
     run(entry, params, wordlist) {
-      if (entry.length < 2) return [];
+      const count = Math.max(1, parseInt(params.count, 10) || 1);
+      if (entry.length <= count) return [];
       // Skip plural → singular.
       if (entry.endsWith('s') && !entry.endsWith('ss')) return [];
-      const curtailed = entry.slice(0, -1);
+      const curtailed = entry.slice(0, -count);
       if (!wordlist.byEntry.has(curtailed)) return [];
-      return [{ entry: curtailed, inputHighlights: [{ kind: 'removed', start: entry.length - 1, end: entry.length }] }];
+      return [{ entry: curtailed, inputHighlights: [{ kind: 'removed', start: entry.length - count, end: entry.length }] }];
     },
   },
   semordnilap: {
@@ -3958,6 +3960,9 @@ function normalizeParams(params, schema) {
 // no params) stay valid.
 function makeToolRow(tool, params = {}) {
   const def = TOOLS[tool];
+  for (const p of def.params) {
+    if (p.default !== undefined && params[p.key] === undefined) params[p.key] = p.default;
+  }
   const row = {
     tool, params, def,
     kind()    { return typeof def.kind === 'function' ? def.kind(row.params) : def.kind; },
