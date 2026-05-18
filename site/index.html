@@ -3672,7 +3672,12 @@ function buildSearchPattern(query, wholeWord = false) {
 }
 
 function searchRangesFor(text, hlRe) {
-  const m = hlRe.exec(text);
+  return groupSpansToRanges(hlRe.exec(text));
+}
+
+// Without the `d` (indices) flag on the regex, `m.indices` is absent and this
+// silently yields no highlights — the caller must compile with `d`.
+function groupSpansToRanges(m) {
   if (!m?.indices) return [];
   const ranges = [];
   let colorIdx = 0;
@@ -3710,6 +3715,161 @@ function renderHighlightedText(text, ranges) {
     pos = r.end;
   }
   return result + text.slice(pos);
+}
+
+// ─── Regex tool helpers ─────────────────────────────────────────────────────
+
+// Splits the pattern into fixed-width runs (each colored like a wildcard-Search
+// fixed group) and the breakers between them — variable quantifiers, groups,
+// alternation, anchors. The breaker set must stay aligned with Search's; if it
+// drifts, the two tools highlight the same construct differently with no error
+// to flag it.
+function analyzeRegexPattern(body) {
+  let capturing = false;
+  const runs = [];
+  let runStart = -1;
+  const closeRun = end => { if (runStart !== -1) { runs.push([runStart, end]); runStart = -1; } };
+  const n = body.length;
+  let i = 0;
+  while (i < n) {
+    const c = body[i];
+    const baseStart = i;
+    let baseEnd, isAnchor = false, isBreak = false;
+    if (c === '\\') {
+      const next = body[i + 1];
+      if (next === 'b' || next === 'B') isAnchor = true;
+      baseEnd = Math.min(i + 2, n);
+    } else if (c === '[') {
+      let j = i + 1;
+      if (body[j] === '^') j++;
+      if (body[j] === ']') j++;
+      while (j < n && body[j] !== ']') j += body[j] === '\\' ? 2 : 1;
+      baseEnd = Math.min(j + 1, n);
+    } else if (c === '(') {
+      capturing = capturing || isCapturingGroup(body, i);
+      baseEnd = matchingParen(body, i);
+      isBreak = true;
+    } else if (c === '^' || c === '$') {
+      isAnchor = true;
+      baseEnd = i + 1;
+    } else if (c === '|') {
+      closeRun(i);
+      i++;
+      continue;
+    } else {
+      baseEnd = i + 1;
+    }
+    if (isAnchor) { closeRun(i); i = baseEnd; continue; }
+    let q = baseEnd, variable = false;
+    if (q < n && (body[q] === '*' || body[q] === '+' || body[q] === '?')) {
+      variable = true;
+      q++;
+    } else if (q < n && body[q] === '{') {
+      const close = body.indexOf('}', q);
+      const mm = close !== -1 && /^(\d+)(,\d*)?$/.exec(body.slice(q + 1, close));
+      if (mm) { variable = mm[2] !== undefined; q = close + 1; }
+    }
+    if (q < n && body[q] === '?') q++;   // a `?` past a quantifier is the lazy modifier, not a new atom
+    if (isBreak || variable) closeRun(baseStart);
+    else if (runStart === -1) runStart = baseStart;
+    i = q;
+  }
+  closeRun(n);
+  return { capturing, runs };
+}
+
+function isCapturingGroup(body, i) {
+  if (body[i + 1] !== '?') return true;
+  if (body[i + 2] === '<') return body[i + 3] !== '=' && body[i + 3] !== '!';
+  return false;
+}
+
+function matchingParen(body, i) {
+  const n = body.length;
+  let depth = 0, j = i;
+  while (j < n) {
+    const c = body[j];
+    if (c === '\\') { j += 2; continue; }
+    if (c === '[') {
+      j++;
+      if (body[j] === '^') j++;
+      if (body[j] === ']') j++;
+      while (j < n && body[j] !== ']') j += body[j] === '\\' ? 2 : 1;
+      j++;
+      continue;
+    }
+    if (c === '(') depth++;
+    else if (c === ')' && --depth === 0) return j + 1;
+    j++;
+  }
+  return n;
+}
+
+function wrapRuns(body, runs) {
+  let out = '', pos = 0;
+  for (const [s, e] of runs) {
+    out += body.slice(pos, s) + '(' + body.slice(s, e) + ')';
+    pos = e;
+  }
+  return out + body.slice(pos);
+}
+
+// Grawlix tokenizes the replacement and applies it itself rather than calling
+// String.replace, because it needs each group's offset in the built output to
+// place highlights — String.replace surfaces no such offsets. `$&` is group 0.
+function parseReplacement(str) {
+  const tokens = [];
+  let lit = '';
+  const flush = () => { if (lit) { tokens.push({ lit }); lit = ''; } };
+  for (let i = 0; i < str.length; i++) {
+    const c = str[i], next = str[i + 1];
+    if (c === '$' && next === '$') { lit += '$'; i++; }
+    else if (c === '$' && next === '&') { flush(); tokens.push({ group: 0 }); i++; }
+    else if (c === '$' && next >= '0' && next <= '9') {
+      let digits = next;
+      if (str[i + 2] >= '0' && str[i + 2] <= '9') digits += str[i + 2];
+      flush();
+      tokens.push({ group: parseInt(digits, 10) });
+      i += digits.length;
+    } else lit += c;
+  }
+  flush();
+  return tokens;
+}
+
+// A capture group and its `$N` echoes must resolve to the same color so
+// rearranged text visibly moves between the input and output atoms.
+function kindForGroup(g) {
+  return 'search:' + (g <= 0 ? 0 : (g - 1) % 5);
+}
+
+function runRegexReplace(entry, prepared, wordlist) {
+  const { re, tokens } = prepared;
+  re.lastIndex = 0;
+  let out = '', inPos = 0, m;
+  const inputHighlights = [], outputHighlights = [];
+  while ((m = re.exec(entry)) !== null) {
+    const mStart = m.index, mEnd = mStart + m[0].length;
+    out += entry.slice(inPos, mStart);
+    if (m.length > 1) {
+      for (let g = 1; g < m.length; g++) {
+        if (m.indices[g]) inputHighlights.push({ start: m.indices[g][0], end: m.indices[g][1], kind: kindForGroup(g) });
+      }
+    } else {
+      inputHighlights.push({ start: mStart, end: mEnd, kind: kindForGroup(0) });
+    }
+    for (const tok of tokens) {
+      if (tok.lit !== undefined) { out += tok.lit; continue; }
+      const val = tok.group === 0 ? m[0] : (m[tok.group] || '');
+      if (val) outputHighlights.push({ start: out.length, end: out.length + val.length, kind: kindForGroup(tok.group) });
+      out += val;
+    }
+    inPos = mEnd;
+    if (m[0].length === 0) re.lastIndex++;   // a zero-width match leaves lastIndex put; step it or loop forever
+  }
+  out += entry.slice(inPos);
+  if (out === entry || !wordlist.byEntry.has(out)) return [];
+  return [{ entry: out, inputHighlights, outputHighlights }];
 }
 
 // ─── Tool stack ───────────────────────────────────────────────────────────────
@@ -3840,7 +4000,7 @@ const TOOLS = {
     // Blank replacement reads as filter mode, not "delete the match" — a blank
     // field is indistinguishable from one that was never touched.
     kind: params => (params.replace ? 'transform' : 'filter'),
-    inputHighlights: false, outputHighlights: false, glyph: '→',
+    inputHighlights: true, outputHighlights: true, glyph: '→',
     // A half-typed, invalid pattern is inert like an empty one, so the view
     // neither blanks nor churns mid-keystroke.
     isInert(params) {
@@ -3852,20 +4012,24 @@ const TOOLS = {
       const replacement = params.replace || '';
       const body = params.pattern.trim();
       // `i`: `pattern` is raw (un-normalized, so `\D \S \B` survive) but
-      // entries are stored lowercase. The whole-word wrap is non-capturing so
-      // `$N` backreferences in the replacement keep their group numbers.
-      return {
-        re: new RegExp(
-          params['whole-word'] ? '^(?:' + body + ')$' : body,
-          replacement ? 'gi' : 'i'),
-        replacement: replacement || null,
-      };
+      // entries are stored lowercase. `d` exposes match indices for
+      // highlighting. The whole-word wrap is non-capturing so a user's `$N`
+      // backreferences keep their group numbers.
+      const wrap = src => params['whole-word'] ? '^(?:' + src + ')$' : src;
+      if (replacement) {
+        return { mode: 'replace', re: new RegExp(wrap(body), 'gid'), tokens: parseReplacement(replacement) };
+      }
+      const { capturing, runs } = analyzeRegexPattern(body);
+      return { mode: 'filter', re: new RegExp(wrap(capturing ? body : wrapRuns(body, runs)), 'id') };
     },
     run(entry, prepared, wordlist) {
-      if (prepared.replacement === null) return prepared.re.test(entry);
-      const out = entry.replace(prepared.re, prepared.replacement);
-      if (out === entry || !wordlist.byEntry.has(out)) return [];
-      return [{ entry: out }];
+      if (prepared.mode === 'filter') {
+        const m = prepared.re.exec(entry);
+        if (!m) return null;
+        const ranges = groupSpansToRanges(m);
+        return ranges.length ? ranges : true;
+      }
+      return runRegexReplace(entry, prepared, wordlist);
     },
   },
   palindrome: {

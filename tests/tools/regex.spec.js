@@ -1,9 +1,11 @@
 // Regex tool's own contract — pattern matching as a filter, search-and-replace
 // as a transform once the replacement field is filled (outputs kept only when
 // they are themselves wordlist entries), the whole-word anchor, case-insensitive
-// matching, the raw (un-lowercased) pattern, and the inert empty/invalid
-// pattern. Pipeline mechanics that merely use regex live in ../tools.spec.js —
-// keep this file to the tool, not the pipeline.
+// matching, the raw (un-lowercased) pattern, the inert empty/invalid pattern,
+// and match highlighting (fixed-width runs auto-segmented, the user's own
+// capture groups honored when present, replacement echoes colored to match).
+// Pipeline mechanics that merely use regex live in ../tools.spec.js — keep
+// this file to the tool, not the pipeline.
 
 const { test, expect } = require('@playwright/test');
 const { stubPublisherFetches, gotoApp } = require('../helpers');
@@ -140,4 +142,64 @@ test('whole-word constrains a replacement to entries that match in full', async 
   await setRegex(page, 'cat', { replace: 'dog', 'whole-word': true });
 
   expect(await visible(page)).toEqual([['cat', 'dog']]);
+});
+
+async function addHighlightFixture(page) {
+  await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
+    name: 'RegexHighlight',
+    entries: ['UNITED', 'UNUSED', 'COT', 'COD'],
+    scores:  Array(4).fill(50),
+  }));
+}
+
+test('filter highlights each fixed-width run of an auto-segmented pattern', async ({ page }) => {
+  await gotoApp(page);
+  await addHighlightFixture(page);
+  await setRegex(page, '^un.+ed$');
+
+  expect((await visible(page)).sort()).toEqual(['united', 'unused']);
+  const row = page.locator('#vs-host .entry-row', { hasText: 'united' });
+  await expect(row.locator('mark')).toHaveText(['un', 'ed']);
+});
+
+test('a single-char wildcard rides inside a run rather than splitting the highlight', async ({ page }) => {
+  await gotoApp(page);
+  await addHighlightFixture(page);
+  await setRegex(page, 'c.t');
+
+  // `c.t` is one fixed-width run, so `cot` lights up as a single mark.
+  const row = page.locator('#vs-host .entry-row', { hasText: 'cot' });
+  await expect(row.locator('mark')).toHaveText(['cot']);
+});
+
+test('filter colors the user’s own capture groups when the pattern has them', async ({ page }) => {
+  await gotoApp(page);
+  await addHighlightFixture(page);
+  await setRegex(page, '^(c)o(d)$');
+
+  // Capture groups present, so the hybrid honors them — `o` sits outside both
+  // groups and stays unmarked, instead of the whole word being one run.
+  const row = page.locator('#vs-host .entry-row', { hasText: 'cod' });
+  await expect(row.locator('mark')).toHaveText(['c', 'd']);
+});
+
+test('replace colors both capture groups on the input and their swapped echoes on the output', async ({ page }) => {
+  await gotoApp(page);
+  await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
+    name: 'RegexSwap',
+    entries: ['CATS', 'CAST', 'ARC', 'CAR'],
+    scores:  Array(4).fill(50),
+  }));
+  await setRegex(page, '(t)(s)$', { replace: '$2$1' });
+
+  expect(await visible(page)).toEqual([['cats', 'cast']]);
+  const row = page.locator('#vs-host .entry-row', { hasText: 'cast' });
+  const inMarks = row.locator('.atom').nth(0).locator('mark');
+  const outMarks = row.locator('.atom').nth(1).locator('mark');
+  await expect(inMarks).toHaveText(['t', 's']);
+  await expect(outMarks).toHaveText(['s', 't']);
+
+  // The `t` keeps its color as it moves, so the swap reads at a glance.
+  const tColor = await inMarks.nth(0).getAttribute('class');
+  await expect(outMarks.nth(1)).toHaveClass(tColor);
 });
