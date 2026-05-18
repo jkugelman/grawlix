@@ -1833,11 +1833,11 @@ const Router = (() => {
   // key so the row always has an anchor (kept even when empty, so an
   // unfilled row survives reload); a param-less tool is a bare tool key.
   function encodeRow(row) {
-    const tool = TOOLS[row.tool];
+    const { params: schema } = row.def;
     const slug = encodeURIComponent(row.tool);
-    if (!tool.params.length) return [slug];
-    const parts = [slug + '=' + encodeURIComponent(row.params[tool.params[0].key] || '')];
-    for (const p of tool.params.slice(1)) {
+    if (!schema.length) return [slug];
+    const parts = [slug + '=' + encodeURIComponent(row.params[schema[0].key] || '')];
+    for (const p of schema.slice(1)) {
       const v = row.params[p.key];
       if (p.type === 'checkbox') { if (v) parts.push(encodeURIComponent(p.key)); }
       else if (v)                parts.push(encodeURIComponent(p.key) + '=' + encodeURIComponent(v));
@@ -1846,7 +1846,7 @@ const Router = (() => {
   }
 
   function rowIsDefault(row) {
-    return TOOLS[row.tool].params.every(p => !row.params[p.key]);
+    return row.def.params.every(p => !row.params[p.key]);
   }
 
   function buildQuery() {
@@ -1859,7 +1859,6 @@ const Router = (() => {
     const stack = ToolStack.getStack();
     const parts = [];
     stack.forEach((row, i) => {
-      if (!TOOLS[row.tool]) return;
       const isBar = i === stack.length - 1;
       if (isBar && rowIsDefault(row) && stack[i - 1]?.tool !== 'search') return;
       parts.push(...encodeRow(row));
@@ -1932,14 +1931,14 @@ const Router = (() => {
       const tool = TOOLS[key];
       if (tool) {
         // Only one group tool per pipeline — ignore any beyond the first.
-        if (tool.kind === 'group' && rows.some(r => TOOLS[r.tool]?.kind === 'group')) continue;
-        const row = { tool: key, params: {} };
+        if (tool.kind === 'group' && rows.some(r => r.def.kind === 'group')) continue;
+        const row = makeToolRow(key);
         if (tool.params.length) row.params[tool.params[0].key] = value || '';
         rows.push(row);
         continue;
       }
       const cur = rows[rows.length - 1];
-      const pdef = cur && TOOLS[cur.tool].params.find(p => p.key === key);
+      const pdef = cur && cur.def.params.find(p => p.key === key);
       if (pdef) { cur.params[key] = pdef.type === 'checkbox' ? true : (value || ''); continue; }
       // A key that's not a tool, not reserved, and not any tool's param name
       // is a genuinely unknown key — most likely a tool that's been removed.
@@ -3719,6 +3718,8 @@ function renderHighlightedText(text, ranges) {
 //
 // `kind` is 'filter' (keeps/drops an entry), 'transform' (emits 0+ new entries
 // per input), or 'group' (clusters all input rows into GroupRow[] via `group`).
+// It may instead be a `(params) => kind` function for a tool that switches
+// between filter and transform on its params — resolved per row by `kind()`.
 // `inputHighlights` / `outputHighlights` are static booleans: each one means
 // the tool highlights the atom it reads / the atom it creates. `currentAtomCount`
 // reads them to derive the static atom count; transforms also carry a relation
@@ -3910,6 +3911,19 @@ function normalizeParams(params) {
   return out;
 }
 
+// `group` is always a static kind, never a `(params) => kind` function, so
+// `kind === 'group'` checks on a bare definition (gallery cards, which have
+// no params) stay valid.
+function makeToolRow(tool, params = {}) {
+  const def = TOOLS[tool];
+  const row = {
+    tool, params, def,
+    kind()    { return typeof def.kind === 'function' ? def.kind(row.params) : def.kind; },
+    isInert() { return def.isInert ? def.isInert(row.params) : false; },
+  };
+  return row;
+}
+
 // The chain shape is derivable from the catalog records alone — no per-row
 // runtime inspection. Simulate the executor's emit-then-unify on the active
 // tools (run-having, not inert): the originator is one atom; each highlighting
@@ -3924,13 +3938,12 @@ function currentAtomCount(stack) {
   let count = 1;          // originator
   let tailSlot = false;   // is the tail atom a highlight slot?
   for (const row of stack) {
-    const tool = TOOLS[row.tool];
-    if (!tool?.run || tool.isInert?.(row.params)) continue;   // transparent rows
-    if (tool.kind === 'transform') {
-      if (tool.inputHighlights && tailSlot) count++;   // input mark can't fold into a slot tail
-      count++;                                         // output atom (new word)
-      tailSlot = !!tool.outputHighlights;
-    } else if (tool.inputHighlights) {                 // highlighting filter (search)
+    if (!row.def.run || row.isInert()) continue;   // transparent rows
+    if (row.kind() === 'transform') {
+      if (row.def.inputHighlights && tailSlot) count++;   // input mark can't fold into a slot tail
+      count++;                                            // output atom (new word)
+      tailSlot = !!row.def.outputHighlights;
+    } else if (row.def.inputHighlights) {                 // highlighting filter (search)
       if (tailSlot) count++;
       tailSlot = true;
     }
@@ -3943,17 +3956,11 @@ function currentAtomCount(stack) {
 // entry and the sort axes stay in their single-atom tier. Drives the stats-bar
 // count label (Entries vs Results) and the sort tier.
 function isFilterOnlyChain(stack) {
-  return !stack.some(row => {
-    const tool = TOOLS[row.tool];
-    return tool?.kind === 'transform' && tool.run && !tool.isInert?.(row.params);
-  });
+  return !stack.some(row => row.def.run && row.kind() === 'transform' && !row.isInert());
 }
 
 function isGroupChain(stack) {
-  return stack.some(row => {
-    const tool = TOOLS[row.tool];
-    return tool?.kind === 'group' && tool.group && !tool.isInert?.(row.params);
-  });
+  return stack.some(row => row.def.group && row.kind() === 'group' && !row.isInert());
 }
 
 function workshopCountLabel(stack) {
@@ -3966,9 +3973,8 @@ function workshopCountLabel(stack) {
 // `unify` would only copy them, so the executor returns its rows as-is.
 function chainProducesMultiAtom(stack) {
   return stack.some(row => {
-    const tool = TOOLS[row.tool];
-    if (!tool?.run || tool.isInert?.(row.params)) return false;
-    return tool.kind === 'transform' || !!tool.inputHighlights;
+    if (!row.def.run || row.isInert()) return false;
+    return row.kind() === 'transform' || !!row.def.inputHighlights;
   });
 }
 
@@ -4040,21 +4046,20 @@ async function executePipeline(mergedWordlist, stack, signal) {
   let rows = await buildInitialRows(mergedWordlist, y);
   let grouped = false;
   for (const stackRow of stack) {
-    const tool = TOOLS[stackRow.tool];
-    if (!tool) continue;
+    const { def } = stackRow;
 
-    if (tool.kind === 'group') {
-      if (!tool.group || tool.isInert?.(stackRow.params)) continue;
+    if (stackRow.kind() === 'group') {
+      if (!def.group || stackRow.isInert()) continue;
       throwIfAborted(signal);
       const params = normalizeParams(stackRow.params);
       const ctx = makeCtx(mergedWordlist, rows, signal, y);
-      const prepared = tool.prepare ? await tool.prepare(params, ctx) : params;
-      rows = await tool.group(rows, prepared, ctx);
+      const prepared = def.prepare ? await def.prepare(params, ctx) : params;
+      rows = await def.group(rows, prepared, ctx);
       grouped = true;
       continue;
     }
 
-    if (!tool.run || tool.isInert?.(stackRow.params)) continue;
+    if (!def.run || stackRow.isInert()) continue;
     throwIfAborted(signal);
     const params = normalizeParams(stackRow.params);
 
@@ -4063,18 +4068,18 @@ async function executePipeline(mergedWordlist, stack, signal) {
       // line to the next one (appendGroupLine), per group.
       const flat = rows.flatMap(g =>
         g.lines[g.lines.length - 1].cells.map(c => ({ atoms: [{ wlEntry: c.wlEntry }] })));
-      const prepared = tool.prepare
-        ? await tool.prepare(params, makeCtx(mergedWordlist, flat, signal, y))
+      const prepared = def.prepare
+        ? await def.prepare(params, makeCtx(mergedWordlist, flat, signal, y))
         : params;
       for (const g of rows) {
-        appendGroupLine(g, tool, prepared, mergedWordlist);
+        appendGroupLine(g, stackRow, prepared, mergedWordlist);
         if (y.due()) await y.yield();
       }
     } else {
-      const prepared = tool.prepare
-        ? await tool.prepare(params, makeCtx(mergedWordlist, rows, signal, y))
+      const prepared = def.prepare
+        ? await def.prepare(params, makeCtx(mergedWordlist, rows, signal, y))
         : params;
-      rows = await runToolStage(rows, tool, prepared, mergedWordlist, y);
+      rows = await runToolStage(rows, stackRow, prepared, mergedWordlist, y);
     }
   }
 
@@ -4093,19 +4098,21 @@ async function executePipeline(mergedWordlist, stack, signal) {
   };
 }
 
-async function runToolStage(rows, tool, prepared, mergedWordlist, y) {
+async function runToolStage(rows, stackRow, prepared, mergedWordlist, y) {
+  const { def } = stackRow;
+  const kind = stackRow.kind();
   const next = [];
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i];
     const tail = row.atoms[row.atoms.length - 1];
-    const result = tool.run(tail.wlEntry.entry, prepared, mergedWordlist);
-    if (tool.kind === 'filter') {
+    const result = def.run(tail.wlEntry.entry, prepared, mergedWordlist);
+    if (kind === 'filter') {
       if (result) {
         // A highlighting filter (search) appends a same-word atom carrying
         // its ranges (an empty array when it matched without producing any)
         // — `unify` folds it into the tail unless the tail is itself a
         // highlight slot. A plain filter just keeps the row.
-        if (tool.inputHighlights) {
+        if (def.inputHighlights) {
           next.push({ atoms: [...row.atoms,
             { wlEntry: tail.wlEntry, highlights: Array.isArray(result) ? result : [], glyph: null }] });
         } else {
@@ -4120,7 +4127,7 @@ async function runToolStage(rows, tool, prepared, mergedWordlist, y) {
         // A transform that marks its input appends a same-word input-mark
         // atom before the output atom; `unify` folds it into the input
         // unless the input is itself a highlight slot.
-        if (tool.inputHighlights) {
+        if (def.inputHighlights) {
           atoms.push({ wlEntry: tail.wlEntry, highlights: out.inputHighlights || [], glyph: null });
         }
         const synthetic = Array.isArray(out.entry);
@@ -4133,8 +4140,8 @@ async function runToolStage(rows, tool, prepared, mergedWordlist, y) {
           wlEntry,
           // A non-`outputHighlights` transform's output is not a highlight
           // slot — `null`, not `[]` — so `unify` may fold it like any atom.
-          highlights: tool.outputHighlights ? (out.outputHighlights || []) : null,
-          glyph: tool.glyph || '→',
+          highlights: def.outputHighlights ? (out.outputHighlights || []) : null,
+          glyph: def.glyph || '→',
         });
         next.push({ atoms });
       }
@@ -4147,26 +4154,27 @@ async function runToolStage(rows, tool, prepared, mergedWordlist, y) {
 // Run one tool over a group's tail line, appending the next line(s). Input
 // marks fold into the tail line when it carries no marks yet, or take a line
 // of their own when it does — two tools' highlights never share a line.
-function appendGroupLine(group, tool, prepared, wordlist) {
+function appendGroupLine(group, stackRow, prepared, wordlist) {
+  const { def } = stackRow;
   const tail = group.lines[group.lines.length - 1];
-  if (tool.kind === 'filter') {
+  if (stackRow.kind() === 'filter') {
     const cells = [];
     for (const cell of tail.cells) {
-      const result = tool.run(cell.wlEntry.entry, prepared, wordlist);
+      const result = def.run(cell.wlEntry.entry, prepared, wordlist);
       if (!result) continue;
       cells.push({
         wlEntry: cell.wlEntry,
-        highlights: tool.inputHighlights ? (Array.isArray(result) ? result : []) : null,
+        highlights: def.inputHighlights ? (Array.isArray(result) ? result : []) : null,
       });
     }
-    group.lines.push({ cells, slot: !!tool.inputHighlights });
+    group.lines.push({ cells, slot: !!def.inputHighlights });
     return;
   }
   const outMap = new Map();        // output entry → cell (deduped)
   const inputMarks = new Map();    // input entry → its inputHighlights
   for (const cell of tail.cells) {
-    const result = tool.run(cell.wlEntry.entry, prepared, wordlist) || [];
-    if (tool.inputHighlights && result.length) {
+    const result = def.run(cell.wlEntry.entry, prepared, wordlist) || [];
+    if (def.inputHighlights && result.length) {
       inputMarks.set(cell.wlEntry.entry, result[0].inputHighlights || []);
     }
     for (const out of result) {
@@ -4178,11 +4186,11 @@ function appendGroupLine(group, tool, prepared, wordlist) {
         : (wordlist.byEntry.get(text) || { entry: text, score: 0, comment: '', wordlist: null });
       outMap.set(text, {
         wlEntry,
-        highlights: tool.outputHighlights ? (out.outputHighlights || []) : null,
+        highlights: def.outputHighlights ? (out.outputHighlights || []) : null,
       });
     }
   }
-  if (tool.inputHighlights) {
+  if (def.inputHighlights) {
     const markCells = tail.cells.map(c => ({
       wlEntry: c.wlEntry,
       highlights: inputMarks.get(c.wlEntry.entry) || [],
@@ -4190,7 +4198,7 @@ function appendGroupLine(group, tool, prepared, wordlist) {
     if (tail.slot) group.lines.push({ cells: markCells, slot: true });
     else { tail.cells = markCells; tail.slot = true; }
   }
-  group.lines.push({ cells: [...outMap.values()], slot: !!tool.outputHighlights });
+  group.lines.push({ cells: [...outMap.values()], slot: !!def.outputHighlights });
 }
 
 // How many lines a group row carries — read by the scroller for its stride,
@@ -4199,15 +4207,14 @@ function currentGroupLineCount(stack) {
   let lines = 1;
   let tailSlot = false;
   for (const row of stack) {
-    const tool = TOOLS[row.tool];
-    if (!tool?.run || tool.isInert?.(row.params)) continue;
-    if (tool.kind === 'filter') {
+    if (!row.def.run || row.isInert()) continue;
+    if (row.kind() === 'filter') {
       lines++;
-      tailSlot = !!tool.inputHighlights;
+      tailSlot = !!row.def.inputHighlights;
     } else {
-      if (tool.inputHighlights && tailSlot) lines++;
+      if (row.def.inputHighlights && tailSlot) lines++;
       lines++;
-      tailSlot = !!tool.outputHighlights;
+      tailSlot = !!row.def.outputHighlights;
     }
   }
   return lines;
@@ -4420,7 +4427,7 @@ const ToolStack = (() => {
   // The user's pipeline. The last row is always the permanent Search bar —
   // rendered with .search-bar chrome, undeletable; user tools sit above it.
   // [{ tool: 'anagram', params: {…} }, …, { tool: 'search', params: {…} }]
-  let stack = [{ tool: 'search', params: {} }];
+  let stack = [makeToolRow('search')];
 
   // The permanent Search bar (always the last row) and the user tools above
   // it. getStack() is the full pipeline — what the executor and URL consume.
@@ -4466,8 +4473,7 @@ const ToolStack = (() => {
     // The last row is the permanent Search bar — its own chrome, no remove
     // button (undeletable). Everything above it is an ordinary tool row.
     if (idx === stack.length - 1) return buildSearchBarHTML();
-    const tool = TOOLS[row.tool];
-    if (!tool) return '';
+    const tool = row.def;
     const params = row.tool === 'search'
       ? searchRowParamsHTML(idx, row)
       : paramsHTML(tool, idx, row.params);
@@ -4534,7 +4540,7 @@ const ToolStack = (() => {
     // The permanent Search bar isn't a "tool the user added" — gallery-active
     // marks only the user tools above it.
     const active = new Set(getUserStack().map(r => r.tool));
-    const groupTaken = stack.some(r => TOOLS[r.tool]?.kind === 'group');
+    const groupTaken = stack.some(r => r.def.kind === 'group');
     document.querySelectorAll('.gallery-card[data-tool]').forEach(card => {
       card.classList.toggle('active', active.has(card.dataset.tool));
       const tool = TOOLS[card.dataset.tool];
@@ -4585,9 +4591,9 @@ const ToolStack = (() => {
 
   function add(toolKey) {
     if (!TOOLS[toolKey]) return;
-    if (TOOLS[toolKey].kind === 'group' && stack.some(r => TOOLS[r.tool]?.kind === 'group')) return;
+    if (TOOLS[toolKey].kind === 'group' && stack.some(r => r.def.kind === 'group')) return;
     const idx = stack.length - 1;            // insert just above the Search bar
-    stack.splice(idx, 0, { tool: toolKey, params: {} });
+    stack.splice(idx, 0, makeToolRow(toolKey));
     rerenderRows();
     focusRowInput(idx);
     flashRow(idx);
@@ -4727,7 +4733,7 @@ const ToolStack = (() => {
   function setStack(newStack) {
     const rows = Array.isArray(newStack) ? newStack.slice() : [];
     if (!rows.length || rows[rows.length - 1].tool !== 'search') {
-      rows.push({ tool: 'search', params: {} });
+      rows.push(makeToolRow('search'));
     }
     stack = rows;
   }
@@ -6718,7 +6724,7 @@ async function renderWorkshopMergedDetail() {
   // The histogram always shows the full merged distribution — it's the
   // score-range drag-select surface — so it gets buildMergedWordlist() either way.
   const passthrough = !WorkshopView.scoreRange
-    && !ToolStack.getUserStack().some(r => TOOLS[r.tool]?.run || TOOLS[r.tool]?.group)
+    && !ToolStack.getUserStack().some(r => r.def.run || r.def.group)
     && !WorkshopView.searchQuery;
   const statsSource = passthrough ? buildMergedWordlist().entries : flattenAtoms(rows);
   const stats = passthrough
@@ -8936,7 +8942,7 @@ window.__grawlixTest = {
   // same plumbing the user does. Pass an array of `{tool, params}`.
   // Returns the render promise — tests `await` it before reading the DOM.
   async setStack(stack) {
-    ToolStack.setStack(stack.map(r => ({ tool: r.tool, params: r.params || {} })));
+    ToolStack.setStack(stack.filter(r => TOOLS[r.tool]).map(r => makeToolRow(r.tool, r.params || {})));
     const p = renderWorkshopMergedDetail();
     ToolStack.refreshGalleryActive();
     await p;
