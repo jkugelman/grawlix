@@ -767,7 +767,8 @@ dialog h2 { font-size: 16px; margin-bottom: 14px; padding-right: 24px; }
 /* Toast */
 #toast-container { position: fixed; bottom: 18px; right: 18px; display: flex; flex-direction: column; gap: 8px; z-index: 1000; pointer-events: none; align-items: flex-end; }
 .toast { background: #333; color: white; padding: 9px 15px; border-radius: 6px; font-size: 13px; opacity: 0; transition: opacity 0.25s; max-width: 360px; overflow-wrap: break-word; pointer-events: none; }
-.toast.show { opacity: 1; pointer-events: auto; cursor: pointer; }
+.toast.show { opacity: 1; }
+.toast.show, .toast.dismissing { pointer-events: auto; }
 
 a.get-file { font-size: 12px; color: var(--accent); text-decoration: none; white-space: nowrap; }
 a.get-file:hover { text-decoration: underline; }
@@ -8156,36 +8157,44 @@ const _toastContainer = (() => {
   document.body.appendChild(el);
   return el;
 })();
+const _hoverCapable = window.matchMedia('(hover: hover)');
+function _mountToast(el, duration) {
+  let hovered = false;
+  const arm = () => { clearTimeout(el._timer); el._timer = setTimeout(() => _dismissToast(el), duration); };
+  // Without this gate, touch's sticky mouseenter (no mouseleave) pins the toast open forever.
+  if (_hoverCapable.matches) {
+    el.addEventListener('mouseenter', () => { hovered = true; clearTimeout(el._timer); });
+    el.addEventListener('mouseleave', () => { hovered = false; if (el.classList.contains('show')) arm(); });
+  }
+  el.addEventListener('click', () => { if (!hovered && el.classList.contains('show')) arm(); });
+  _toastContainer.appendChild(el);
+  el.offsetWidth; // force reflow so opacity transition fires
+  el.classList.add('show');
+  arm();
+}
 function showToast(msg) {
   const el = document.createElement('div');
   el.className = 'toast';
   el.innerHTML = msg;
-  el.onclick = () => _dismissToast(el);
-  _toastContainer.appendChild(el);
-  el.offsetWidth; // force reflow so opacity transition fires
-  el.classList.add('show');
-  el._timer = setTimeout(() => _dismissToast(el), 5000);
+  _mountToast(el, 5000);
 }
 function showActionToast(msg, actionLabel, onAction) {
   const el = document.createElement('div');
   el.className = 'toast';
   el.innerHTML = msg + `<span class="toast-action">${esc(actionLabel)}</span>`;
-  el.onclick = () => _dismissToast(el);
   el.querySelector('.toast-action').onclick = e => {
     e.stopPropagation();
     _dismissToast(el);
     onAction();
   };
-  _toastContainer.appendChild(el);
-  el.offsetWidth; // force reflow so opacity transition fires
-  el.classList.add('show');
-  el._timer = setTimeout(() => _dismissToast(el), 10000);
+  _mountToast(el, 10000);
 }
 function showUndoToast(msg, onUndo) {
   showActionToast(msg, 'Undo', onUndo);
 }
 function _dismissToast(el) {
   clearTimeout(el._timer);
+  el.classList.add('dismissing');
   el.classList.remove('show');
   el.addEventListener('transitionend', () => el.remove(), { once: true });
 }
