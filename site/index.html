@@ -4837,7 +4837,9 @@ const WORKSHOP_SORT_AXES = {
   group: {
     alpha: {
       label: 'Alphabetical',
-      primary: g => g.key,
+      // The cluster cells as displayed (alphabetized by _sortGroupCells in
+      // alpha mode) — rows order by the whole word list, not g.key or one word.
+      primary: g => g.lines[0].cells.map(c => c.wlEntry.entry),
       tiebreakers: [{ project: groupCount, dir: 'desc' }],
     },
     count: {
@@ -4888,7 +4890,7 @@ const LIBRARY_SORT_AXES = { entry: { label: 'Entry' }, length: { label: 'Length'
 // Entry sorts ascending (alphabetical reads naturally A→Z). Every other axis
 // sorts descending — top-down reads as "best first".
 function defaultSortDir(key) {
-  return key === 'entry' ? 'asc' : 'desc';
+  return key === 'entry' || key === 'alpha' ? 'asc' : 'desc';
 }
 
 // Run synchronously on stack mutation and URL load: the sort tier follows
@@ -4926,6 +4928,13 @@ function compareItems(a, b, axis, primaryDir) {
 }
 
 function compareValues(a, b) {
+  if (Array.isArray(a) && Array.isArray(b)) {
+    for (let i = 0; i < Math.min(a.length, b.length); i++) {
+      const c = compareValues(a[i], b[i]);
+      if (c !== 0) return c;
+    }
+    return a.length - b.length;
+  }
   if (typeof a === 'number' && typeof b === 'number') return a - b;
   return String(a).localeCompare(String(b));
 }
@@ -5180,6 +5189,7 @@ class WorkshopEntriesScroller extends BaseVirtualScroller {
     if (!axis) {
       sorted = this.allEntries;
     } else {
+      if (this.sortTier === 'group') this._sortGroupCells();
       const dir = this.sortDir;
       sorted = [...this.allEntries].sort((a, b) => compareItems(a, b, axis, dir));
     }
@@ -5188,6 +5198,19 @@ class WorkshopEntriesScroller extends BaseVirtualScroller {
     this._sortedSourceKey = this.sortKey;
     this._sortedSourceDir = this.sortDir;
     return sorted;
+  }
+
+  // Order the cells within every group line: alpha mode alphabetizes them
+  // ascending (direction reverses the rows, not the words — else the alpha
+  // row projection, which reads cell order, double-negates), other axes use
+  // score-descending. Runs before the row sort, which projects off cells.
+  _sortGroupCells() {
+    const byEntry = (a, b) => a.wlEntry.entry.localeCompare(b.wlEntry.entry);
+    const byScore = (a, b) => b.wlEntry.score - a.wlEntry.score || byEntry(a, b);
+    const cmp = this.sortKey === 'alpha' ? byEntry : byScore;
+    for (const g of this.allEntries) {
+      for (const line of g.lines) line.cells.sort(cmp);
+    }
   }
 
   // Slot widths derived from the longest values across the full result set, then
