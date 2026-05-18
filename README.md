@@ -49,3 +49,7 @@ See [CLAUDE.md](CLAUDE.md) for architecture notes and coding conventions.
 ## Tests
 
 A small Playwright smoke suite runs on push to `main`. Setup, strategy, and a command cheat sheet are in [`docs/testing.md`](docs/testing.md).
+
+## License
+
+[MIT](LICENSE) © John Kugelman
