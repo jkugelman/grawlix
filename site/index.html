@@ -5051,30 +5051,50 @@ const GroupMorePopover = (() => {
   el.hidden = true;
   document.body.appendChild(el);
   let anchor = null;
+  let cells = null;
+  let scroller = null;
+
+  // AtomPopover is passed `el` as its row so its dismiss logic treats clicks
+  // within this list as in-bounds — letting you edit one hidden word, then
+  // another, without it closing between.
+  el.addEventListener('click', e => {
+    const target = e.target.closest('.atom-score, .atom-entry');
+    if (!target || target.classList.contains('atom-noedit')) return;
+    const wlEntry = cells?.[parseInt(target.closest('.group-cell').dataset.cell, 10)]?.wlEntry;
+    if (!wlEntry) return;
+    const field = target.classList.contains('atom-score') ? 'score' : null;
+    AtomPopover.open(wlEntry, el, scroller, target, field);
+  });
 
   function close() {
     if (el.hidden) return;
     el.hidden = true;
-    anchor = null;
+    anchor = cells = scroller = null;
     document.removeEventListener('keydown', onKey, true);
     document.removeEventListener('pointerdown', onOutside, true);
     window.removeEventListener('scroll', close, true);
   }
   function onKey(e) { if (e.key === 'Escape') close(); }
-  // A chip click is left for the click handler to route through toggle —
-  // dismissing here too would close then immediately reopen.
+  // Neither a chip re-click (routed through toggle) nor a click into the
+  // AtomPopover anchored on a word here should dismiss this list.
   function onOutside(e) {
-    if (!el.contains(e.target) && !e.target.closest('.group-more')) close();
+    if (el.contains(e.target)) return;
+    if (e.target.closest('.group-more, #atom-popover')) return;
+    close();
   }
 
-  function toggle(cells, anchorEl) {
+  function toggle(nextCells, anchorEl, nextScroller) {
     if (anchor === anchorEl) { close(); return; }
     close();
-    el.innerHTML = cells.map(c =>
-      `<span class="group-cell"><span class="atom-entry">` +
-      `${renderHighlightedText(displayEntry(c.wlEntry.entry), c.highlights)}</span>` +
-      `<span class="atom-score">${buildScoreBadgeHTML(c.wlEntry.score)}</span></span>`
-    ).join('');
+    cells = nextCells;
+    scroller = nextScroller;
+    el.innerHTML = cells.map((c, i) => {
+      const noedit = c.wlEntry.wordlist === null ? ' atom-noedit' : '';
+      return `<span class="group-cell" data-cell="${i}">` +
+        `<span class="atom-entry${noedit}">` +
+        `${renderHighlightedText(displayEntry(c.wlEntry.entry), c.highlights)}</span>` +
+        `<span class="atom-score${noedit}">${buildScoreBadgeHTML(c.wlEntry.score)}</span></span>`;
+    }).join('');
     el.hidden = false;
     anchor = anchorEl;
     const r = anchorEl.getBoundingClientRect();
@@ -5123,7 +5143,7 @@ class WorkshopEntriesScroller extends BaseVirtualScroller {
         const gr = moreBtn.closest('.group-row');
         const g = this.entries[parseInt(gr.dataset.idx, 10)];
         const line = g?.lines[parseInt(moreBtn.dataset.line, 10)];
-        if (line) GroupMorePopover.toggle(line.cells, moreBtn);
+        if (line) GroupMorePopover.toggle(line.cells, moreBtn, this);
         return;
       }
       const target = e.target.closest('.atom-entry, .atom-score, .atom-comment');
