@@ -686,6 +686,11 @@ test('a transform chained after letter_clusters adds a line of its output set', 
   expect(groups[0].lines.length).toBe(2);
   expect(groups[0].lines[0].words.slice().sort()).toEqual(['opts', 'spot', 'tops']);
   expect(groups[0].lines[1].words.slice().sort()).toEqual(['ops', 'pot']);
+
+  // Behead marks the dropped first letter on the cluster line — SPOT and TOPS
+  // produced real words, OPTS didn't, so two cluster cells carry the strike.
+  const clusterLine = page.locator('.group-row .group-line').first();
+  await expect(clusterLine.locator('.hl-removed')).toHaveCount(2);
 });
 
 test('group rows sort by Count and the axis round-trips through the URL', async ({ page }) => {
