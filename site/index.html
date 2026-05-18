@@ -261,7 +261,7 @@ html.light-mode .histogram-readonly.is-hovered .histogram-bar:not(.histogram-bar
    .search-input-row keeps the input and "Whole word" glued together as one
    unit, never splitting across rows. */
 .search-input-row { display: flex; align-items: center; gap: 12px; min-width: 0; flex: 0 1 auto; }
-.search-input-wrap { position: relative; display: flex; align-items: center; flex: 0 1 200px; min-width: 140px; }
+.search-input-wrap { flex: 0 1 200px; min-width: 140px; }
 .search-input-wrap input[type="text"],
 .tool-row-param input[type="text"] { background: var(--input-bg); color: var(--text); border: 1px solid var(--border); border-radius: 4px; font-size: 13px; font-family: var(--font-mono); padding: 5px 8px; }
 .search-input-wrap input[type="text"]:focus,
@@ -275,6 +275,7 @@ html.light-mode .histogram-readonly.is-hovered .histogram-bar:not(.histogram-bar
 .tool-row-param input.tool-row-num:focus { outline: none; border-color: var(--accent); }
 .tool-row-param label { display: flex; align-items: center; gap: 5px; cursor: pointer; user-select: none; }
 .search-input-wrap input[type="text"] { width: 100%; padding-right: 24px; }
+.tool-row-param input[type="text"] { padding-right: 24px; }
 .search-whole-word-label { display: flex; align-items: center; gap: 5px; font-size: 12px; color: var(--muted); white-space: nowrap; cursor: pointer; user-select: none; flex-shrink: 0; }
 .score-range-label { display: flex; align-items: center; gap: 5px; font-size: 12px; color: var(--muted); white-space: nowrap; }
 /* The bar is split into two groups: .search-items (Search · input · Whole
@@ -288,8 +289,8 @@ html.light-mode .histogram-readonly.is-hovered .histogram-bar:not(.histogram-bar
 .clear-btn { background: none; border: none; padding: 2px 3px; cursor: pointer; color: var(--muted); display: flex; align-items: center; line-height: 1; border-radius: 3px; flex-shrink: 0; }
 .clear-btn:hover { color: var(--text); background: var(--hover); }
 .clear-btn[hidden] { display: none; }
-.search-input-wrap .clear-btn, .score-range-wrap .clear-btn { position: absolute; right: 4px; }
-.score-range-wrap { position: relative; display: inline-flex; align-items: center; }
+.clearable-input { position: relative; display: inline-flex; align-items: center; }
+.clearable-input .clear-btn { position: absolute; right: 4px; }
 .score-range-label input[type="text"] { width: 72px; padding: 4px 20px 4px 6px; border: 1px solid var(--border); border-radius: 4px; font-size: 13px; font-family: var(--font-mono); background: var(--input-bg); color: var(--text); }
 .score-range-label input[type="text"]:focus { outline: none; border-color: var(--accent); }
 .score-range-label input.invalid { border-color: #ea4335; background: var(--error-bg); }
@@ -1435,23 +1436,45 @@ function buildWildcardSpansHTML() {
 
 // The search input + clear button + whole-word checkbox — shared by the
 // permanent Workshop search bar, the Library search bar, and gallery-added
+// The × button carries no per-call wiring: clicking it empties the field and
+// dispatches an `input` event, so the field's own handler reacts as if the
+// user erased the text by hand.
+function buildClearableInputHTML(inputHTML, hasValue, extraClass = '') {
+  return `<span class="clearable-input${extraClass ? ' ' + extraClass : ''}">${inputHTML}` +
+    `<button type="button" class="clear-btn" title="Clear" aria-label="Clear"${hasValue ? '' : ' hidden'}>` +
+    `<svg width="10" height="10" aria-hidden="true"><use href="#icon-x"/></svg></button></span>`;
+}
+function syncClearButton(input) {
+  const btn = input.closest('.clearable-input')?.querySelector('.clear-btn');
+  if (btn) btn.hidden = !input.value;
+}
+document.addEventListener('input', e => {
+  if (e.target.closest('.clearable-input')) syncClearButton(e.target);
+});
+document.addEventListener('click', e => {
+  const btn = e.target.closest('.clearable-input .clear-btn');
+  if (!btn) return;
+  const input = btn.closest('.clearable-input').querySelector('input');
+  input.value = '';
+  input.focus();
+  input.dispatchEvent(new Event('input', { bubbles: true }));
+});
+
 // Search tool rows. The two bars wire via fixed ids + inline-handler strings
 // (each view targets a different module); tool rows wire via delegated
 // `data-row`/`data-key` attributes. The caller passes whichever it needs;
 // every optional attribute is omitted when its value is absent.
 function buildSearchInputRowHTML({
-  inputId, clearId, wholeWordId, query, wholeWord,
-  onInput, onClear, onWholeWord,
-  inputAttrs = '', clearAttrs = '', wholeWordAttrs = '',
+  inputId, wholeWordId, query, wholeWord,
+  onInput, onWholeWord,
+  inputAttrs = '', wholeWordAttrs = '',
   searchTitle, wholeWordTitle,
 }) {
   const q = esc(query);
   const a = (name, val) => val ? ` ${name}="${val}"` : '';
+  const input = `<input type="text" class="search-pattern-input" value="${q}"${a('id', inputId)}${a('oninput', onInput)}${inputAttrs ? ' ' + inputAttrs : ''}${a('title', searchTitle)}>`;
   return `<div class="search-input-row">
-          <div class="search-input-wrap">
-            <input type="text" class="search-pattern-input" value="${q}"${a('id', inputId)}${a('oninput', onInput)}${inputAttrs ? ' ' + inputAttrs : ''}${a('title', searchTitle)}>
-            <button class="clear-btn"${a('id', clearId)}${a('onclick', onClear)}${clearAttrs ? ' ' + clearAttrs : ''} title="Clear search" aria-label="Clear search" ${q ? '' : 'hidden'}><svg width="10" height="10"><use href="#icon-x"/></svg></button>
-          </div>
+          ${buildClearableInputHTML(input, !!query, 'search-input-wrap')}
           <label class="search-whole-word-label"${a('title', wholeWordTitle)}><input type="checkbox"${a('id', wholeWordId)}${a('onchange', onWholeWord)}${wholeWordAttrs ? ' ' + wholeWordAttrs : ''} ${wholeWord ? 'checked' : ''}> Whole word</label>
         </div>`;
 }
@@ -1467,15 +1490,15 @@ function buildSearchBarHTML() {
       <div class="search-items">
         ${buildToolLabelHTML({ icon: '<svg width="16" height="16" aria-hidden="true"><use href="#icon-search"/></svg>', name: 'Search' })}
         ${buildSearchInputRowHTML({
-          inputId: 'search-input', clearId: 'search-clear', wholeWordId: 'search-whole-word',
+          inputId: 'search-input', wholeWordId: 'search-whole-word',
           query: WorkshopView.searchQuery, wholeWord: WorkshopView.searchWholeWord,
-          onInput: 'WorkshopView.onSearch(this.value)', onClear: 'WorkshopView.clearSearch()',
+          onInput: 'WorkshopView.onSearch(this.value)',
           onWholeWord: 'WorkshopView.onSearchWholeWord(this.checked)',
           searchTitle: 'Search (Alt+S)', wholeWordTitle: 'Whole word (Alt+W)',
         })}
       </div>
       <div class="search-bar-end">
-        <label class="score-range-label" title="Score: 50, 50-59, or 50+ (Alt+C)">Score <span class="score-range-wrap"><input type="text" id="score-range-input" value="${esc(scoreRange)}" oninput="WorkshopView.onScoreRange(this.value)"><button class="clear-btn" id="score-range-clear" onclick="WorkshopView.clearScoreRange()" title="Clear score" aria-label="Clear score" ${scoreRange ? '' : 'hidden'}><svg width="10" height="10"><use href="#icon-x"/></svg></button></span></label>
+        <label class="score-range-label" title="Score: 50, 50-59, or 50+ (Alt+C)">Score ${buildClearableInputHTML(`<input type="text" id="score-range-input" value="${esc(scoreRange)}" oninput="WorkshopView.onScoreRange(this.value)">`, !!scoreRange)}</label>
         <span id="search-bar-sort" class="search-bar-sort"></span>
       </div>
       <button type="button" class="search-adjust-btn" title="Filter &amp; sort options" aria-label="Filter and sort options"><svg width="16" height="16" aria-hidden="true"><use href="#icon-adjustments"/></svg></button>
@@ -2394,8 +2417,6 @@ const WorkshopView = (() => {
   // range stays a scroller-side view filter.
   function onSearch(query) {
     ToolStack.getSearchBarRow().params.query = query;
-    const btn = document.getElementById('search-clear');
-    if (btn) btn.hidden = !query;
     refreshWorkshopMergedScroller();
     Router.navigate();
   }
@@ -2412,22 +2433,9 @@ const WorkshopView = (() => {
     _scoreRange = (trimmed && intervals) ? trimmed : '';
     if (_scoreRange) lsSave('scoreRange', _scoreRange);
     else             lsDel('scoreRange');
-    const btn = document.getElementById('score-range-clear');
-    if (btn) btn.hidden = trimmed === '';
     if (workshopScroller) refreshWorkshopMergedScroller();
     repositionAllHistogramRects();
   }
-  function clearSearch() {
-    const inp = document.getElementById('search-input');
-    if (inp) { inp.value = ''; inp.focus(); }
-    onSearch('');
-  }
-  function clearScoreRange() {
-    const inp = document.getElementById('score-range-input');
-    if (inp) { inp.value = ''; inp.classList.remove('invalid'); inp.focus(); }
-    onScoreRange('');
-  }
-
   // Sort state is mutated by WorkshopEntriesScroller's toolbar when the user
   // picks a new axis or flips the direction. No filter call here — the
   // scroller re-applies sort itself; this just keeps the canonical state.
@@ -2450,7 +2458,7 @@ const WorkshopView = (() => {
 
   return {
     show, hide, isVisible,
-    onSearch, onSearchWholeWord, onScoreRange, clearSearch, clearScoreRange,
+    onSearch, onSearchWholeWord, onScoreRange,
     setSort, applyURLState, restoreScoreRange,
     get searchQuery()     { return ToolStack.getSearchBarRow().params.query || ''; },
     get searchWholeWord() { return !!ToolStack.getSearchBarRow().params['whole-word']; },
@@ -2620,9 +2628,9 @@ const LibraryView = (() => {
       <div class="search-items">
         ${buildToolLabelHTML({ icon: '<svg width="16" height="16" aria-hidden="true"><use href="#icon-search"/></svg>', name: 'Search' })}
         ${buildSearchInputRowHTML({
-          inputId: 'lib-search-input', clearId: 'lib-search-clear', wholeWordId: 'lib-search-whole-word',
+          inputId: 'lib-search-input', wholeWordId: 'lib-search-whole-word',
           query: _searchQuery, wholeWord: _searchWholeWord,
-          onInput: 'LibraryView.onSearch(this.value)', onClear: 'LibraryView.clearSearch()',
+          onInput: 'LibraryView.onSearch(this.value)',
           onWholeWord: 'LibraryView.onWholeWord(this.checked)',
           wholeWordTitle: 'Whole word',
         })}
@@ -2894,16 +2902,7 @@ const LibraryView = (() => {
 
   function onSearch(value) {
     _searchQuery = value || '';
-    const clear = pane.querySelector('#lib-search-clear');
-    if (clear) clear.hidden = !_searchQuery;
     _entriesScroller?.setQuery(_searchQuery, _searchWholeWord);
-  }
-
-  function clearSearch() {
-    const input = pane.querySelector('#lib-search-input');
-    if (input) input.value = '';
-    onSearch('');
-    input?.focus();
   }
 
   function onWholeWord(checked) {
@@ -3101,7 +3100,7 @@ const LibraryView = (() => {
     show, hide, refresh, focus, action, getFocusedWordlist,
     refreshRescoreSection, refreshScoringSection, updateListMeta,
     isVisible: () => !el.hidden,
-    setMode, onSearch, clearSearch, onWholeWord, onSortAxis, toggleSortDir,
+    setMode, onSearch, onWholeWord, onSortAxis, toggleSortDir,
     previewRescoreRules,
   };
 })();
@@ -4490,7 +4489,8 @@ const ToolStack = (() => {
       if (p.type === 'number') {
         return `<span class="tool-row-param">${labelHTML}<input type="number" min="1" class="tool-row-num" placeholder="${placeholder}" value="${value}" data-row="${idx}" data-key="${p.key}"></span>`;
       }
-      return `<span class="tool-row-param">${labelHTML}<input type="text" placeholder="${placeholder}" value="${value}" data-row="${idx}" data-key="${p.key}"></span>`;
+      const input = `<input type="text" placeholder="${placeholder}" value="${value}" data-row="${idx}" data-key="${p.key}">`;
+      return `<span class="tool-row-param">${labelHTML}${buildClearableInputHTML(input, !!value)}</span>`;
     }).join('');
     return `<span class="tool-row-params">${inputs}</span>`;
   }
@@ -4503,7 +4503,6 @@ const ToolStack = (() => {
     return buildSearchInputRowHTML({
       query: row.params.query || '', wholeWord: !!row.params['whole-word'],
       inputAttrs: `data-row="${idx}" data-key="query"`,
-      clearAttrs: `data-row="${idx}"`,
       wholeWordAttrs: `data-row="${idx}" data-key="whole-word"`,
       wholeWordTitle: 'Whole word',
     });
@@ -4690,19 +4689,6 @@ const ToolStack = (() => {
         removeAt(parseInt(removeBtn.dataset.remove, 10));
         return;
       }
-      // A Search tool row's clear button — empties its query and re-renders.
-      const clearBtn = e.target.closest('.tool-row .clear-btn[data-row]');
-      if (clearBtn) {
-        const idx = parseInt(clearBtn.dataset.row, 10);
-        if (stack[idx]) {
-          stack[idx].params.query = '';
-          rerenderRows();
-          focusRowInput(idx);
-          refreshWorkshopMergedScroller();
-          Router.navigate();
-        }
-        return;
-      }
     });
     p?.addEventListener('input', (e) => {
       const input = e.target.closest('input[data-row]');
@@ -4711,9 +4697,6 @@ const ToolStack = (() => {
       const key = input.dataset.key;
       if (stack[idx]) {
         stack[idx].params[key] = input.type === 'checkbox' ? input.checked : input.value;
-        // A Search tool row's clear button tracks whether its query is empty.
-        const clearBtn = input.closest('.search-input-wrap')?.querySelector('.clear-btn');
-        if (clearBtn) clearBtn.hidden = !input.value;
         refreshWorkshopMergedScroller();
         Router.navigate();
       }
@@ -6973,7 +6956,7 @@ function _onHistogramPointerUp(event) {
   } else {
     next = rangeStrFromBounds(Math.min(ds.startLo, ds.curLo), Math.max(ds.startHi, ds.curHi), layout);
   }
-  document.querySelectorAll('#score-range-input').forEach(inp => { inp.value = next; });
+  document.querySelectorAll('#score-range-input').forEach(inp => { inp.value = next; syncClearButton(inp); });
   WorkshopView.onScoreRange(next);
 }
 
