@@ -61,7 +61,6 @@ When deciding what stays: prefer descriptions of **shape** (architecture, contra
    - **`CLAUDE.md`** — the doc index lives in the *Before non-trivial work* section. Remove the bullet if the plan is fully retired; update the one-liner if partial.
    - **Sibling `docs/planned/*.md` files** — references to the retired plan should now point at `../design.md` (or the relevant section anchor) and/or `../manual.md`.
    - **Other top-level docs** — usually unaffected, but check.
-7. **Confirm before overwriting.** Show the user (1) a short read of what the doc currently says vs. what shipped, (2) the proposed edits to `manual.md` and `design.md` in full, (3) what happens to the plan doc (delete vs. trim), (4) the cross-reference touch list. Wait for approval. Distillation removes content; reversible only via git.
 
 ## When not to distill
 
