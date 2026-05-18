@@ -3794,10 +3794,42 @@ const TOOLS = {
   },
   regex: {
     name: 'Regex', icon: '🪄', category: 'patterns',
-    desc: 'Match by regular expression',
-    example: '^un.*ed$',
-    params: [{ key: 'pattern', label: 'pattern' }],
-    kind: 'filter', inputHighlights: false, outputHighlights: false,
+    desc: 'Match — or rewrite — entries by regular expression',
+    example: '^un.+ed$ · (.)\\1→x',
+    params: [
+      { key: 'pattern', label: 'pattern', raw: true },
+      { key: 'with', label: 'replace' },
+      { key: 'whole-word', label: 'Whole word', type: 'checkbox' },
+    ],
+    // Blank replacement reads as filter mode, not "delete the match" — a blank
+    // field is indistinguishable from one that was never touched.
+    kind: params => (params.with ? 'transform' : 'filter'),
+    inputHighlights: false, outputHighlights: false, glyph: '→',
+    // A half-typed, invalid pattern is inert like an empty one, so the view
+    // neither blanks nor churns mid-keystroke.
+    isInert(params) {
+      const pattern = (params && params.pattern || '').trim();
+      if (!pattern) return true;
+      try { new RegExp(pattern); return false; } catch { return true; }
+    },
+    prepare(params) {
+      const replacement = params.with || '';
+      const body = params.pattern.trim();
+      // `i`: `pattern` is raw (un-normalized, so `\D \S \B` survive) but
+      // entries are stored lowercase. The whole-word wrap is non-capturing so
+      // `$N` backreferences in the replacement keep their group numbers.
+      return {
+        re: new RegExp(
+          params['whole-word'] ? '^(?:' + body + ')$' : body,
+          replacement ? 'gi' : 'i'),
+        replacement: replacement || null,
+      };
+    },
+    run(entry, prepared, wordlist) {
+      if (prepared.replacement === null) return prepared.re.test(entry);
+      const out = entry.replace(prepared.re, prepared.replacement);
+      return out === entry ? [] : [{ entry: out }];
+    },
   },
   palindrome: {
     name: 'Palindrome', icon: '🔄', category: 'patterns',
@@ -3902,11 +3934,14 @@ function sortLetters(s) {
 
 // Normalize tool param strings: lowercase only. Same rule as wlEntry.entry —
 // the executor runs this on every param before handing to `run`, so tools see
-// canonical-lowercase input on both sides without per-call ceremony.
-function normalizeParams(params) {
+// canonical-lowercase input on both sides without per-call ceremony. A param
+// flagged `raw` in the schema opts out — a regex pattern would have its `\D`
+// classes and group names corrupted by lowercasing.
+function normalizeParams(params, schema) {
+  const raw = new Set((schema || []).filter(p => p.raw).map(p => p.key));
   const out = {};
   for (const [k, v] of Object.entries(params || {})) {
-    out[k] = typeof v === 'string' ? v.toLowerCase() : v;
+    out[k] = (typeof v === 'string' && !raw.has(k)) ? v.toLowerCase() : v;
   }
   return out;
 }
@@ -4051,7 +4086,7 @@ async function executePipeline(mergedWordlist, stack, signal) {
     if (stackRow.kind() === 'group') {
       if (!def.group || stackRow.isInert()) continue;
       throwIfAborted(signal);
-      const params = normalizeParams(stackRow.params);
+      const params = normalizeParams(stackRow.params, def.params);
       const ctx = makeCtx(mergedWordlist, rows, signal, y);
       const prepared = def.prepare ? await def.prepare(params, ctx) : params;
       rows = await def.group(rows, prepared, ctx);
@@ -4061,7 +4096,7 @@ async function executePipeline(mergedWordlist, stack, signal) {
 
     if (!def.run || stackRow.isInert()) continue;
     throwIfAborted(signal);
-    const params = normalizeParams(stackRow.params);
+    const params = normalizeParams(stackRow.params, def.params);
 
     if (grouped) {
       // A group is a stack of word-set lines; a chained tool maps the tail

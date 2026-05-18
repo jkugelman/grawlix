@@ -92,10 +92,7 @@ Both default to the standard renderers. Add a real motivating case before adding
 
 ## Catalog
 
-Each entry: `slug(params)` — `kind`, then highlight kinds (`in:` for input-side, `out:` for output-side) and any annotations. Specifics are negotiable; this captures intent. Tools already built (Anagram, Search, Semordnilap, Behead, Curtail) are omitted.
-
-### Pattern matching
-- `regex(pattern)` — filter · in: `group:n` per capture group.
+Each entry: `slug(params)` — `kind`, then highlight kinds (`in:` for input-side, `out:` for output-side) and any annotations. Specifics are negotiable; this captures intent. Tools already built (Anagram, Search, Semordnilap, Behead, Curtail, Regex) are omitted.
 
 ### Anagrams & letter banks
 - `made_from(letters)` — filter.
@@ -125,7 +122,6 @@ Each entry: `slug(params)` — `kind`, then highlight kinds (`in:` for input-sid
 - `add_suffix(s)` — transform · out: `inserted` on the suffix.
 - `side_splitting()` — TBD; transform synthesizing the split form, or filter with a custom renderer. Decide when the tool lands.
 - `letter_swap(a, b)` — transform · in & out: `shifted` on swapped positions.
-- `regex_replacement(pattern, with)` — transform · in: `removed` on the match · out: `inserted` on the replacement.
 
 ### Curiosities
 - `palindromes()` — filter.
