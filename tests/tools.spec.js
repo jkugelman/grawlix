@@ -704,6 +704,27 @@ test('group rows sort by Count and the axis round-trips through the URL', async 
   expect(page.url()).toContain('sort=count');
 });
 
+test('entering the group tier snaps sort to the group default', async ({ page }) => {
+  await gotoApp(page);
+  await addLetterSetFixture(page);
+  const axis = page.locator('#search-bar-sort .sort-axis-select');
+  const dirBtn = page.locator('#search-bar-sort .sort-dir-btn');
+
+  await page.evaluate(() => window.__grawlixTest.setStack([]));
+  await expect(axis).toHaveValue('entry');
+
+  // Entry has no group counterpart, so entering the group tier resets the
+  // sort to the group default (Max score) and that axis's default direction
+  // (descending) — not Entry's ascending. The ↓ assertion is the regression.
+  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'letter_clusters', params: { size: '3' } }]));
+  await expect(axis).toHaveValue('max-score');
+  await expect(dirBtn).toHaveText('↓');
+
+  // The URL drops the now-invalid sort=entry — Max score desc is the default.
+  await page.evaluate(() => Router.navigate());
+  expect(page.url()).not.toContain('sort=');
+});
+
 test('a group member is individually editable through the atom popover', async ({ page }) => {
   await gotoApp(page);
   await addLetterSetFixture(page);

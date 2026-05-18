@@ -2429,6 +2429,7 @@ const WorkshopView = (() => {
     const tier = chainSortTier(ToolStack.getStack());
     _sortKey = sortKey || WORKSHOP_DEFAULT_SORT_BY_TIER[tier];
     _sortDir = sortDir || defaultSortDir(_sortKey);
+    reconcileSort(ToolStack.getStack());
   }
 
   // Score-range is the lone state field that's localStorage-backed (it's a
@@ -4848,18 +4849,16 @@ const WORKSHOP_SORT_AXES = {
       label: 'Min score',
       primary: groupMinScore,
       tiebreakers: [
-        { project: groupMaxScore, dir: 'desc' },
-        { project: groupCount,    dir: 'desc' },
-        { project: g => g.key,    dir: 'asc'  },
+        { project: groupCount, dir: 'desc' },
+        { project: g => g.key, dir: 'asc'  },
       ],
     },
     'max-score': {
       label: 'Max score',
       primary: groupMaxScore,
       tiebreakers: [
-        { project: groupMinScore, dir: 'desc' },
-        { project: groupCount,    dir: 'desc' },
-        { project: g => g.key,    dir: 'asc'  },
+        { project: groupCount, dir: 'desc' },
+        { project: g => g.key, dir: 'asc'  },
       ],
     },
   },
@@ -4890,6 +4889,27 @@ const LIBRARY_SORT_AXES = { entry: { label: 'Entry' }, length: { label: 'Length'
 // sorts descending — top-down reads as "best first".
 function defaultSortDir(key) {
   return key === 'entry' ? 'asc' : 'desc';
+}
+
+// Run synchronously on stack mutation and URL load: the sort tier follows
+// the stack, and settling it lazily in the async render let the URL builder
+// read a stale axis. A real cross-tier counterpart (Score ⇄ Min score) keeps
+// the user's direction; a fallback to the tier default resets it too.
+function reconcileSort(stack) {
+  const tier = chainSortTier(stack);
+  const axes = workshopSortAxes(tier);
+  let key = WorkshopView.sortKey;
+  let dir = WorkshopView.sortDir;
+  if (!(key in axes)) {
+    const mapped = SORT_AXIS_TIER_MAP[key];
+    if (mapped && mapped in axes) {
+      key = mapped;
+    } else {
+      key = WORKSHOP_DEFAULT_SORT_BY_TIER[tier];
+      dir = defaultSortDir(key);
+    }
+  }
+  WorkshopView.setSort(key, dir);
 }
 
 // Compare two items along an axis, falling through tiebreakers when the
@@ -5098,24 +5118,12 @@ class WorkshopEntriesScroller extends BaseVirtualScroller {
     AtomPopover.rebindEntry(this);
   }
 
-  // Sets the row's atom count (height in lines) and sort tier, remapping the
-  // sort axis when the prior axis has no counterpart in the new tier — Score ⇄
-  // Min score and Max score → Score — falling back to the tier default only
-  // when no counterpart exists. The sort direction is always preserved; axes
-  // valid in both tiers (Entry, Length) pass through untouched. Returns
-  // whether the tier changed, so the caller can rebuild the sort toolbar.
   _setChainShape(atomCount, sortTier) {
     const tierChanged = sortTier !== this.sortTier;
     this.atomCount = atomCount;
     this.sortTier = sortTier;
-    const axes = workshopSortAxes(sortTier);
-    if (!(this.sortKey in axes)) {
-      const mapped = SORT_AXIS_TIER_MAP[this.sortKey];
-      this.sortKey = (mapped && mapped in axes)
-        ? mapped
-        : WORKSHOP_DEFAULT_SORT_BY_TIER[sortTier];
-      WorkshopView.setSort(this.sortKey, this.sortDir);
-    }
+    this.sortKey = WorkshopView.sortKey;
+    this.sortDir = WorkshopView.sortDir;
     return tierChanged;
   }
 
@@ -6394,6 +6402,7 @@ function createScroller() {
 }
 
 async function refreshWorkshopMergedScroller() {
+  reconcileSort(ToolStack.getStack());
   if (!workshopScroller) return;
   const result = await runPipeline(workshopPipelineWordlist(), ToolStack.getStack());
   if (result.aborted || !workshopScroller) return;
@@ -6593,6 +6602,7 @@ function attachSearchHelpPopups() {
 
 async function renderWorkshopMergedDetail() {
   const panel = document.getElementById('detail-panel');
+  reconcileSort(ToolStack.getStack());
   const result = await runPipeline(workshopPipelineWordlist(), ToolStack.getStack());
   if (result.aborted) return;
   const { rows, atomCount } = result;
