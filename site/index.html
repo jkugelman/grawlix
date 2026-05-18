@@ -5071,12 +5071,12 @@ const GroupMorePopover = (() => {
     el.hidden = true;
     anchor = cells = scroller = null;
     document.removeEventListener('keydown', onKey, true);
-    document.removeEventListener('pointerdown', onOutside, true);
-    window.removeEventListener('scroll', close, true);
+    document.removeEventListener('mousedown', onOutside, true);
   }
   function onKey(e) { if (e.key === 'Escape') close(); }
   // Neither a chip re-click (routed through toggle) nor a click into the
-  // AtomPopover anchored on a word here should dismiss this list.
+  // AtomPopover anchored on a word here should dismiss this list. mousedown,
+  // not pointerdown, so a touch-drag that scrolls the table leaves it open.
   function onOutside(e) {
     if (el.contains(e.target)) return;
     if (e.target.closest('.group-more, #atom-popover')) return;
@@ -5102,8 +5102,7 @@ const GroupMorePopover = (() => {
     el.style.top = (r.bottom + 4) + 'px';
     el.style.left = Math.max(8, Math.min(r.right - w, window.innerWidth - w - 8)) + 'px';
     document.addEventListener('keydown', onKey, true);
-    document.addEventListener('pointerdown', onOutside, true);
-    window.addEventListener('scroll', close, true);
+    document.addEventListener('mousedown', onOutside, true);
   }
   return { toggle, close };
 })();
@@ -5176,23 +5175,13 @@ class WorkshopEntriesScroller extends BaseVirtualScroller {
     this._buildToolbar();
   }
 
-  // Scroll closes the click-driven AtomPopover so it doesn't anchor to a row
-  // that's scrolling out from under it — but only when the popover isn't the
-  // focus owner. On iOS, focusing the popover's input scroll-into-views it
-  // above the soft keyboard, which fires this handler; closing then would
-  // tear down the popover one frame after open.
-  _onScroll() {
-    this._render();
-    if (AtomPopover.containsFocus()) return;
-    AtomPopover.close();
-  }
-
   // atomCount / sortTier default to the current values so callers that only
   // update the rows (e.g. display-case re-render) don't need to know the
   // pipeline shape. Search is a pipeline tool now; the scroller only filters
   // by score range.
   setEntries(allEntries, atomCount = this.atomCount, sortTier = this.sortTier) {
     AtomPopover.close();
+    GroupMorePopover.close();
     this._setChainShape(atomCount, sortTier);
     this.allEntries = allEntries;
     this._invalidateSortCache();
@@ -5443,7 +5432,6 @@ class WorkshopEntriesScroller extends BaseVirtualScroller {
   }
 
   _renderGroups() {
-    GroupMorePopover.close();
     const n = this.entries.length;
     const stride = this.atomCount * ROW_HEIGHT;
     this.sizer.style.height = (n * stride) + 'px';
@@ -6514,6 +6502,7 @@ function refreshSourceCounts() {
 
 function createScroller() {
   AtomPopover.close();
+  GroupMorePopover.close();
   workshopScroller?.destroy();
   workshopScroller = new WorkshopEntriesScroller(document.getElementById('vs-host'));
   return workshopScroller;
