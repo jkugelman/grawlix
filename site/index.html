@@ -425,7 +425,7 @@ html.dark-mode .search-match-4 { background: #14532d; color: #d1fae5; }
   padding: 0 16px;
   white-space: nowrap;
 }
-.group-line { height: var(--row-height, 24px); }
+.group-line { height: var(--row-height, 24px); position: relative; }
 .group-headers {
   padding-top: 5px; padding-bottom: 5px;
   color: var(--muted);
@@ -442,15 +442,28 @@ html.dark-mode .search-match-4 { background: #14532d; color: #d1fae5; }
 .group-entries {
   display: flex; align-items: center; gap: 18px;
   min-width: 0; flex: 1;
-  overflow-x: auto; overflow-y: hidden;
-  scrollbar-width: none;
+  overflow: hidden;
 }
-.group-entries::-webkit-scrollbar { display: none; }
-/* The scrollbar is hidden so it can't squish a 24px line; an overflowing line
-   instead fades at its right edge as the "scroll for more" affordance. */
-.group-entries.group-overflow {
-  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 32px), transparent);
-          mask-image: linear-gradient(to right, #000 calc(100% - 32px), transparent);
+.group-line.is-clipped .group-entries {
+  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 80px), transparent calc(100% - 60px));
+          mask-image: linear-gradient(to right, #000 calc(100% - 80px), transparent calc(100% - 60px));
+}
+.group-more {
+  position: absolute; right: 12px; top: 50%; transform: translateY(-50%);
+  border: none; cursor: pointer;
+  background: var(--surface2); color: var(--muted);
+  font-family: var(--font-sans); font-size: 11px;
+  padding: 1px 7px; border-radius: 10px;
+}
+.group-more:hover { color: var(--text); }
+.group-more[hidden] { display: none; }
+.group-popover {
+  position: fixed; z-index: 50;
+  display: flex; flex-wrap: wrap; gap: 7px 18px;
+  max-width: 340px; max-height: 280px; overflow-y: auto;
+  padding: 10px 13px;
+  background: var(--surface); border: 1px solid var(--border2);
+  border-radius: 8px; box-shadow: 0 8px 28px rgba(0, 0, 0, 0.28);
 }
 .group-cell { display: inline-flex; align-items: baseline; gap: 5px; }
 .group-cell .atom-entry { cursor: pointer; }
@@ -5032,6 +5045,49 @@ class BaseVirtualScroller {
   _render() { throw new Error('subclass must implement _render'); }
 }
 
+const GroupMorePopover = (() => {
+  const el = document.createElement('div');
+  el.className = 'group-popover';
+  el.hidden = true;
+  document.body.appendChild(el);
+  let anchor = null;
+
+  function close() {
+    if (el.hidden) return;
+    el.hidden = true;
+    anchor = null;
+    document.removeEventListener('keydown', onKey, true);
+    document.removeEventListener('pointerdown', onOutside, true);
+    window.removeEventListener('scroll', close, true);
+  }
+  function onKey(e) { if (e.key === 'Escape') close(); }
+  // A chip click is left for the click handler to route through toggle —
+  // dismissing here too would close then immediately reopen.
+  function onOutside(e) {
+    if (!el.contains(e.target) && !e.target.closest('.group-more')) close();
+  }
+
+  function toggle(cells, anchorEl) {
+    if (anchor === anchorEl) { close(); return; }
+    close();
+    el.innerHTML = cells.map(c =>
+      `<span class="group-cell"><span class="atom-entry">` +
+      `${renderHighlightedText(displayEntry(c.wlEntry.entry), c.highlights)}</span>` +
+      `<span class="atom-score">${buildScoreBadgeHTML(c.wlEntry.score)}</span></span>`
+    ).join('');
+    el.hidden = false;
+    anchor = anchorEl;
+    const r = anchorEl.getBoundingClientRect();
+    const w = el.offsetWidth;
+    el.style.top = (r.bottom + 4) + 'px';
+    el.style.left = Math.max(8, Math.min(r.right - w, window.innerWidth - w - 8)) + 'px';
+    document.addEventListener('keydown', onKey, true);
+    document.addEventListener('pointerdown', onOutside, true);
+    window.addEventListener('scroll', close, true);
+  }
+  return { toggle, close };
+})();
+
 class WorkshopEntriesScroller extends BaseVirtualScroller {
   constructor(host) {
     super(host, 'entries-table-rows');
@@ -5062,6 +5118,14 @@ class WorkshopEntriesScroller extends BaseVirtualScroller {
     this._sortedSourceDir = null;
 
     this.sizer.addEventListener('click', e => {
+      const moreBtn = e.target.closest('.group-more');
+      if (moreBtn) {
+        const gr = moreBtn.closest('.group-row');
+        const g = this.entries[parseInt(gr.dataset.idx, 10)];
+        const line = g?.lines[parseInt(moreBtn.dataset.line, 10)];
+        if (line) GroupMorePopover.toggle(line.cells, moreBtn);
+        return;
+      }
       const target = e.target.closest('.atom-entry, .atom-score, .atom-comment');
       if (!target) return;
       let row, atom;
@@ -5359,6 +5423,7 @@ class WorkshopEntriesScroller extends BaseVirtualScroller {
   }
 
   _renderGroups() {
+    GroupMorePopover.close();
     const n = this.entries.length;
     const stride = this.atomCount * ROW_HEIGHT;
     this.sizer.style.height = (n * stride) + 'px';
@@ -5382,10 +5447,17 @@ class WorkshopEntriesScroller extends BaseVirtualScroller {
       frag.appendChild(row);
     }
     this.sizer.appendChild(frag);
-    // Overflowing lines get `.group-overflow` so CSS fades their right edge —
-    // the scroll affordance, since the scrollbar is hidden.
     for (const lineEl of this.sizer.querySelectorAll('.group-entries')) {
-      lineEl.classList.toggle('group-overflow', lineEl.scrollWidth > lineEl.clientWidth + 1);
+      const line = lineEl.closest('.group-line');
+      const limit = lineEl.getBoundingClientRect().right - 80;
+      let hidden = 0;
+      for (const cell of lineEl.children) {
+        if (cell.getBoundingClientRect().left >= limit) hidden++;
+      }
+      line.classList.toggle('is-clipped', hidden > 0);
+      const chip = line.querySelector('.group-more');
+      chip.hidden = hidden === 0;
+      if (hidden > 0) chip.textContent = '+' + hidden + ' more';
     }
     if (nextActiveRow) AtomPopover.rebindRow(nextActiveRow);
   }
@@ -5403,6 +5475,7 @@ class WorkshopEntriesScroller extends BaseVirtualScroller {
       `<span class="group-rownum">${li === 0 ? (rowIdx + 1) + '.' : ''}</span>` +
       `<span class="group-count">${line.cells.length}</span>` +
       `<span class="group-entries">${cells}</span>` +
+      `<button type="button" class="group-more" data-line="${li}" hidden></button>` +
       `</div>`;
   }
 
