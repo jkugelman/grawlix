@@ -704,25 +704,29 @@ test('group rows sort by Count and the axis round-trips through the URL', async 
   expect(page.url()).toContain('sort=count');
 });
 
-test('entering the group tier snaps sort to the group default', async ({ page }) => {
+test('sort axis crosses the group tier boundary', async ({ page }) => {
   await gotoApp(page);
   await addLetterSetFixture(page);
   const axis = page.locator('#search-bar-sort .sort-axis-select');
-  const dirBtn = page.locator('#search-bar-sort .sort-dir-btn');
 
+  // Entry exists in every tier, so it carries into the group tier unchanged
+  // rather than resetting — and it's the group default, so the URL stays bare.
   await page.evaluate(() => window.__grawlixTest.setStack([]));
   await expect(axis).toHaveValue('entry');
-
-  // Entry has no group counterpart, so entering the group tier resets the
-  // sort to the group default (Max score) and that axis's default direction
-  // (descending) — not Entry's ascending. The ↓ assertion is the regression.
   await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'letter_clusters', params: { size: '3' } }]));
-  await expect(axis).toHaveValue('max-score');
-  await expect(dirBtn).toHaveText('↓');
-
-  // The URL drops the now-invalid sort=entry — Max score desc is the default.
+  await expect(axis).toHaveValue('entry');
   await page.evaluate(() => Router.navigate());
   expect(page.url()).not.toContain('sort=');
+
+  // Score has no group counterpart — it remaps to Min score. reconcileSort
+  // settles that synchronously, so Router.navigate writes the remapped axis,
+  // not a stale sort=score.
+  await page.evaluate(() => window.__grawlixTest.setStack([]));
+  await axis.selectOption('score');
+  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'letter_clusters', params: { size: '3' } }]));
+  await expect(axis).toHaveValue('min-score');
+  await page.evaluate(() => Router.navigate());
+  expect(page.url()).toContain('sort=min-score');
 });
 
 test('a group member is individually editable through the atom popover', async ({ page }) => {

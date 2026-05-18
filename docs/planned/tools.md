@@ -191,7 +191,7 @@ A list of bullet-separated atoms with a count prefix. Default sort is Max score 
 
 **No Comment / Source columns on group rows.** Chain rows (one- and multi-atom) carry per-atom Comment and Source columns, reactively shown when the viewport has room (see [`../design.md` § Chain-row display](../design.md#chain-row-display)). Group rows can't: those columns belong to the chain-row's column set, and group rows use the separate `count / entries` columns, flowing horizontally across the line rather than stacking into it. Per-atom comment/source on a group row would have to ride inside each bullet-separated atom — a denser, different layout problem that lands with the group-output design pass, not for free off the chain-row grid.
 
-**Sort axes for groups:** Alphabetical, Count, Min score, Max score.
+**Sort axes for groups:** Entry, Count, Min score, Max score.
 
 **Chaining tools after a group tool — flatten / run / unflatten.** A group tool comes first in the stack; any tool chained after it runs over each group as a mini-wordlist. For each group: flatten its members into a temporary wordlist, run the rest of the stack over that wordlist, then unflatten — re-form the group from whatever survives or is produced. Groups whose surviving member count falls under the threshold (default 2) drop out. The chained tool never knows it's inside a group — it sees a wordlist, returns rows, the system re-groups.
 

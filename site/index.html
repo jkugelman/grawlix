@@ -4832,13 +4832,11 @@ const WORKSHOP_SORT_AXES = {
       ],
     },
   },
-  // Default Max score: the letter-sets case is "find a great word with
-  // cluster-mates I'd missed," which max surfaces and min would bury.
   group: {
-    alpha: {
-      label: 'Alphabetical',
-      // The cluster cells as displayed (alphabetized by _sortGroupCells in
-      // alpha mode) — rows order by the whole word list, not g.key or one word.
+    entry: {
+      label: 'Entry',
+      // The cluster cells as displayed — _sortGroupCells alphabetizes them
+      // for this axis, so rows order by the whole word list, not g.key.
       primary: g => g.lines[0].cells.map(c => c.wlEntry.entry),
       tiebreakers: [{ project: groupCount, dir: 'desc' }],
     },
@@ -4865,7 +4863,7 @@ const WORKSHOP_SORT_AXES = {
     },
   },
 };
-const WORKSHOP_DEFAULT_SORT_BY_TIER = { single: 'entry', multi: 'min-score', group: 'max-score' };
+const WORKSHOP_DEFAULT_SORT_BY_TIER = { single: 'entry', multi: 'min-score', group: 'entry' };
 // When the sort tier changes, an axis with no counterpart in the new
 // tier maps across rather than snapping to the tier default, so the user's
 // sort intent survives adding/removing transforms. Entry and Length exist in
@@ -4890,7 +4888,7 @@ const LIBRARY_SORT_AXES = { entry: { label: 'Entry' }, length: { label: 'Length'
 // Entry sorts ascending (alphabetical reads naturally A→Z). Every other axis
 // sorts descending — top-down reads as "best first".
 function defaultSortDir(key) {
-  return key === 'entry' || key === 'alpha' ? 'asc' : 'desc';
+  return key === 'entry' ? 'asc' : 'desc';
 }
 
 // Run synchronously on stack mutation and URL load: the sort tier follows
@@ -5200,14 +5198,15 @@ class WorkshopEntriesScroller extends BaseVirtualScroller {
     return sorted;
   }
 
-  // Order the cells within every group line: alpha mode alphabetizes them
-  // ascending (direction reverses the rows, not the words — else the alpha
-  // row projection, which reads cell order, double-negates), other axes use
-  // score-descending. Runs before the row sort, which projects off cells.
+  // Order the cells within every group line: the Entry axis alphabetizes
+  // them ascending (direction reverses the rows, not the words — else the
+  // Entry row projection, which reads cell order, double-negates), other
+  // axes use score-descending. Runs before the row sort, which projects
+  // off cells.
   _sortGroupCells() {
     const byEntry = (a, b) => a.wlEntry.entry.localeCompare(b.wlEntry.entry);
     const byScore = (a, b) => b.wlEntry.score - a.wlEntry.score || byEntry(a, b);
-    const cmp = this.sortKey === 'alpha' ? byEntry : byScore;
+    const cmp = this.sortKey === 'entry' ? byEntry : byScore;
     for (const g of this.allEntries) {
       for (const line of g.lines) line.cells.sort(cmp);
     }
