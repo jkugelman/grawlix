@@ -440,7 +440,7 @@ html.dark-mode .search-match-4 { background: #14532d; color: #d1fae5; }
 .group-rownum { min-width: var(--group-rownum-w, 2ch); color: var(--faint); }
 .group-count  { min-width: var(--group-count-w, 2ch); }
 .group-entries {
-  display: flex; align-items: center; gap: 10px;
+  display: flex; align-items: center; gap: 18px;
   min-width: 0; flex: 1;
   overflow-x: auto; overflow-y: hidden;
   scrollbar-width: none;
@@ -452,7 +452,6 @@ html.dark-mode .search-match-4 { background: #14532d; color: #d1fae5; }
   -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 32px), transparent);
           mask-image: linear-gradient(to right, #000 calc(100% - 32px), transparent);
 }
-.group-sep { color: var(--faint); user-select: none; }
 .group-cell { display: inline-flex; align-items: baseline; gap: 5px; }
 .group-cell .atom-entry { cursor: pointer; }
 .group-cell .atom-score { cursor: pointer; }
@@ -5399,7 +5398,7 @@ class WorkshopEntriesScroller extends BaseVirtualScroller {
       return `<span class="group-cell" data-line="${li}" data-cell="${ci}">` +
         `<span class="atom-entry${noedit}">${text}</span>` +
         `<span class="atom-score${noedit}">${buildScoreBadgeHTML(wlEntry.score)}</span></span>`;
-    }).join('<span class="group-sep">·</span>');
+    }).join('');
     return `<div class="group-line">` +
       `<span class="group-rownum">${li === 0 ? (rowIdx + 1) + '.' : ''}</span>` +
       `<span class="group-count">${line.cells.length}</span>` +
