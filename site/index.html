@@ -1449,7 +1449,7 @@ function buildSearchInputRowHTML({
   const a = (name, val) => val ? ` ${name}="${val}"` : '';
   return `<div class="search-input-row">
           <div class="search-input-wrap">
-            <input type="text" class="search-pattern-input" placeholder="pattern" value="${q}"${a('id', inputId)}${a('oninput', onInput)}${inputAttrs ? ' ' + inputAttrs : ''}${a('title', searchTitle)}>
+            <input type="text" class="search-pattern-input" value="${q}"${a('id', inputId)}${a('oninput', onInput)}${inputAttrs ? ' ' + inputAttrs : ''}${a('title', searchTitle)}>
             <button class="clear-btn"${a('id', clearId)}${a('onclick', onClear)}${clearAttrs ? ' ' + clearAttrs : ''} title="Clear search" aria-label="Clear search" ${q ? '' : 'hidden'}><svg width="10" height="10"><use href="#icon-x"/></svg></button>
           </div>
           <label class="search-whole-word-label"${a('title', wholeWordTitle)}><input type="checkbox"${a('id', wholeWordId)}${a('onchange', onWholeWord)}${wholeWordAttrs ? ' ' + wholeWordAttrs : ''} ${wholeWord ? 'checked' : ''}> Whole word</label>
@@ -3750,7 +3750,7 @@ const TOOLS = {
     name: 'Anagram', icon: '🔤', category: 'anagrams',
     desc: 'Same letters, rearranged',
     example: 'LINDSEY → SNIDELY',
-    params: [{ key: 'entry', label: 'entry' }],
+    params: [{ placeholder: 'entry' }],
     kind: 'filter', inputHighlights: false, outputHighlights: false,
     prepare(params) { return sortLetters(params.entry); },
     run(entry, target, wordlist) {
@@ -3762,7 +3762,7 @@ const TOOLS = {
     name: 'Subanagram', icon: '🔡', category: 'anagrams',
     desc: 'Words made from any subset of letters',
     example: 'PARENTAL → PLANE, RENT, …',
-    params: [{ key: 'letters', label: 'letters' }],
+    params: [{ placeholder: 'letters' }],
     kind: 'transform', inputHighlights: false, outputHighlights: false, glyph: '→',
   },
   search: {
@@ -3770,8 +3770,8 @@ const TOOLS = {
     desc: 'Match entries by text, with wildcards',
     example: 'un*ed · c?t',
     params: [
-      { key: 'query', label: 'pattern' },
-      { key: 'whole-word', label: 'Whole word', type: 'checkbox' },
+      { key: 'query' },
+      { key: 'whole-word', type: 'checkbox' },
     ],
     kind: 'filter', inputHighlights: true, outputHighlights: false,
     // An empty query is a no-op: the row is transparent — no filtering, no
@@ -3797,13 +3797,13 @@ const TOOLS = {
     desc: 'Match — or rewrite — entries by regular expression',
     example: '^un.+ed$ · (.)\\1→x',
     params: [
-      { key: 'pattern', label: 'pattern', raw: true },
-      { key: 'with', label: 'replace' },
-      { key: 'whole-word', label: 'Whole word', type: 'checkbox' },
+      { key: 'pattern', raw: true },
+      { label: 'Replace' },
+      { label: 'Whole word', type: 'checkbox' },
     ],
     // Blank replacement reads as filter mode, not "delete the match" — a blank
     // field is indistinguishable from one that was never touched.
-    kind: params => (params.with ? 'transform' : 'filter'),
+    kind: params => (params.replace ? 'transform' : 'filter'),
     inputHighlights: false, outputHighlights: false, glyph: '→',
     // A half-typed, invalid pattern is inert like an empty one, so the view
     // neither blanks nor churns mid-keystroke.
@@ -3813,7 +3813,7 @@ const TOOLS = {
       try { new RegExp(pattern); return false; } catch { return true; }
     },
     prepare(params) {
-      const replacement = params.with || '';
+      const replacement = params.replace || '';
       const body = params.pattern.trim();
       // `i`: `pattern` is raw (un-normalized, so `\D \S \B` survive) but
       // entries are stored lowercase. The whole-word wrap is non-capturing so
@@ -3888,7 +3888,7 @@ const TOOLS = {
     name: 'Letter clusters', icon: '🧩', category: 'anagrams',
     desc: 'Words built from the same distinct letters',
     example: 'POSTOP · STOOPS · OPTS',
-    params: [{ key: 'size', label: 'Distinct letters', type: 'number' }],
+    params: [{ key: 'size', label: 'Distinct letters', placeholder: 'any', type: 'number' }],
     kind: 'group', inputHighlights: false, outputHighlights: false,
     isInert: params => !((params && params.size || '').toString().trim()),
     prepare(params) { return parseInt(params.size, 10); },
@@ -3915,6 +3915,14 @@ const TOOLS = {
     },
   },
 };
+
+// A param's `key` defaults to a slug of its label (or placeholder); declare
+// `key` explicitly only when the internal name should differ from that text.
+for (const tool of Object.values(TOOLS)) {
+  for (const p of tool.params) {
+    if (!p.key) p.key = (p.label || p.placeholder || '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '-');
+  }
+}
 
 function reverseString(s) {
   let out = '';
@@ -4471,21 +4479,18 @@ const ToolStack = (() => {
 
   function paramsHTML(tool, idx, valuesByKey) {
     if (!tool.params.length) return '';
-    const inputs = tool.params.map((p, i) => {
+    const inputs = tool.params.map(p => {
       if (p.type === 'checkbox') {
         const checked = valuesByKey?.[p.key] ? ' checked' : '';
         return `<span class="tool-row-param"><label><input type="checkbox" data-row="${idx}" data-key="${p.key}"${checked}> ${esc(p.label)}</label></span>`;
       }
       const value = esc(valuesByKey?.[p.key] || '');
-      // The first text param's value rides on the tool-name key, so it needs
-      // no label; a number param is too terse to read bare, so it keeps one.
-      const labelHTML = p.type === 'number' ? `<label>${esc(p.label)}</label>`
-                      : i === 0 ? ''
-                      : `<label>${esc(p.label)}:</label>`;
+      const labelHTML = p.label ? `<label>${esc(p.label)}</label>` : '';
+      const placeholder = esc(p.placeholder || '');
       if (p.type === 'number') {
-        return `<span class="tool-row-param">${labelHTML}<input type="number" min="1" class="tool-row-num" placeholder="any" value="${value}" data-row="${idx}" data-key="${p.key}"></span>`;
+        return `<span class="tool-row-param">${labelHTML}<input type="number" min="1" class="tool-row-num" placeholder="${placeholder}" value="${value}" data-row="${idx}" data-key="${p.key}"></span>`;
       }
-      return `<span class="tool-row-param">${labelHTML}<input type="text" placeholder="${esc(p.label)}" value="${value}" data-row="${idx}" data-key="${p.key}"></span>`;
+      return `<span class="tool-row-param">${labelHTML}<input type="text" placeholder="${placeholder}" value="${value}" data-row="${idx}" data-key="${p.key}"></span>`;
     }).join('');
     return `<span class="tool-row-params">${inputs}</span>`;
   }

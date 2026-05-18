@@ -91,7 +91,7 @@ test('a pattern with no match leaves the view empty', async ({ page }) => {
 test('a filled replacement rewrites matched entries as a transform', async ({ page }) => {
   await gotoApp(page);
   await addFixture(page);
-  await setRegex(page, 'cat', { with: 'dog' });
+  await setRegex(page, 'cat', { replace: 'dog' });
 
   expect((await visible(page)).sort()).toEqual([
     ['cat', 'dog'],
@@ -103,7 +103,7 @@ test('a filled replacement rewrites matched entries as a transform', async ({ pa
 test('`$1` in the replacement backreferences a capture group', async ({ page }) => {
   await gotoApp(page);
   await addFixture(page);
-  await setRegex(page, '(.)\\1', { with: '$1' });
+  await setRegex(page, '(.)\\1', { replace: '$1' });
 
   expect((await visible(page)).sort()).toEqual([
     ['bell', 'bel'],
@@ -114,7 +114,7 @@ test('`$1` in the replacement backreferences a capture group', async ({ page }) 
 test('whole-word constrains a replacement to entries that match in full', async ({ page }) => {
   await gotoApp(page);
   await addFixture(page);
-  await setRegex(page, 'cat', { with: 'dog', 'whole-word': true });
+  await setRegex(page, 'cat', { replace: 'dog', 'whole-word': true });
 
   expect(await visible(page)).toEqual([['cat', 'dog']]);
 });
