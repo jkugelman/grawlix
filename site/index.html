@@ -1003,10 +1003,16 @@ html.dark-mode .wld-onboarding { background: color-mix(in srgb, var(--accent) 15
 .wordlist-name-icon .wordlist-icon { width: 1em; height: 1em; vertical-align: -0.1em; }
 
 /* Popup help */
-.popup-help { position: fixed; z-index: 9999; background: var(--surface2); border: 1px solid var(--border); border-radius: 6px; padding: 7px 12px; font-size: 11px; color: var(--muted); line-height: 1.6; display: inline-grid; grid-template-columns: auto auto; grid-template-rows: repeat(4, auto); grid-auto-flow: column; gap: 2px 22px; box-shadow: 0 4px 12px rgba(0,0,0,0.18); pointer-events: none; opacity: 0; transition: opacity 0.15s; }
+.popup-help { position: fixed; z-index: 9999; background: var(--surface2); border: 1px solid var(--border); border-radius: 6px; padding: 8px 12px; font-size: 11px; color: var(--muted); line-height: 1.6; max-width: 380px; box-shadow: 0 4px 12px rgba(0,0,0,0.18); opacity: 0; transition: opacity 0.15s; }
+.popup-help:not(.open) { pointer-events: none; }
 .popup-help.open { opacity: 1; }
-.popup-help span { display: flex; align-items: baseline; gap: 5px; }
-.popup-help kbd { font-family: var(--font-mono); font-size: 11px; color: var(--text); }
+.popup-help .help-grid { column-count: 2; column-gap: 22px; }
+.popup-help .help-grid.one-col { column-count: 1; }
+.popup-help span { display: flex; align-items: baseline; gap: 5px; margin-bottom: 2px; break-inside: avoid; }
+.popup-help kbd { font-family: var(--font-mono); font-size: 11px; color: var(--text); white-space: nowrap; }
+.popup-help .help-link { margin-top: 6px; padding-top: 6px; border-top: 1px solid var(--border); }
+.popup-help .help-link a { color: var(--accent); text-decoration: none; }
+.popup-help .help-link a:hover { text-decoration: underline; }
 
 /* Dialog helpers */
 .dialog-actions { text-align: right; }
@@ -1424,15 +1430,14 @@ function buildMergedCardHTML(selected, severity = null) {
   </div>`;
 }
 
-function buildWildcardSpansHTML() {
-  return `
-        <span><kbd>?</kbd> any letter</span>
-        <span><kbd>*</kbd> any number of letters</span>
-        <span><kbd>#</kbd> consonant</span>
-        <span><kbd>@</kbd> vowel</span>
-        <span><kbd>[jqxz]</kbd> any of these letters</span>
-        <span><kbd>[^jqxz]</kbd> none of these letters</span>
-        <span><kbd>[a-m]</kbd> letter range</span>`;
+function buildHelpHTML(rows, opts = {}) {
+  const items = rows.map(([code, desc]) =>
+    `<span><kbd>${esc(code)}</kbd> ${esc(desc)}</span>`).join('');
+  const oneCol = opts.cols === 1 ? ' one-col' : '';
+  const footer = opts.link
+    ? `<div class="help-link"><a href="${esc(opts.link.url)}" target="_blank" rel="noopener">${esc(opts.link.text)}</a></div>`
+    : '';
+  return `<div class="help-grid${oneCol}">${items}</div>${footer}`;
 }
 
 // The search input + clear button + whole-word checkbox — shared by the
@@ -1473,7 +1478,7 @@ function buildSearchInputRowHTML({
 }) {
   const q = esc(query);
   const a = (name, val) => val ? ` ${name}="${val}"` : '';
-  const input = `<input type="text" class="search-pattern-input" value="${q}"${a('id', inputId)}${a('oninput', onInput)}${inputAttrs ? ' ' + inputAttrs : ''}${a('title', searchTitle)}>`;
+  const input = `<input type="text" value="${q}" data-help="search/query"${a('id', inputId)}${a('oninput', onInput)}${inputAttrs ? ' ' + inputAttrs : ''}${a('title', searchTitle)}>`;
   return `<div class="search-input-row">
           ${buildClearableInputHTML(input, !!query, 'search-input-wrap')}
           <label class="search-whole-word-label"${a('title', wholeWordTitle)}><input type="checkbox"${a('id', wholeWordId)}${a('onchange', onWholeWord)}${wholeWordAttrs ? ' ' + wholeWordAttrs : ''} ${wholeWord ? 'checked' : ''}> Whole word</label>
@@ -1506,7 +1511,6 @@ function buildSearchBarHTML() {
     </div>`;
 }
 
-// pointer-events: none in CSS — clicks pass through, can't blur the anchor.
 class PopupHelp {
   constructor(anchor, contentHTML, opts = {}) {
     this.anchor = anchor;
@@ -1516,6 +1520,9 @@ class PopupHelp {
     this.el = document.createElement('div');
     this.el.className = 'popup-help';
     this.el.innerHTML = contentHTML;
+    // Keep the anchor focused when the popover is clicked — otherwise blur
+    // hides the popover before a click on a link inside it can land.
+    this.el.addEventListener('mousedown', e => e.preventDefault());
     document.body.appendChild(this.el);
 
     this._onFocus = () => this.show();
@@ -1543,7 +1550,10 @@ class PopupHelp {
   _position() {
     const aRect = this.anchor.getBoundingClientRect();
     const eRect = this.el.getBoundingClientRect();
-    const top = this.placement === 'above'
+    let above = this.placement === 'above';
+    if (above && aRect.top - eRect.height - this.offset < 8) above = false;
+    else if (!above && aRect.bottom + this.offset + eRect.height > window.innerHeight - 8) above = true;
+    const top = above
       ? aRect.top - eRect.height - this.offset
       : aRect.bottom + this.offset;
     const maxLeft = window.innerWidth - eRect.width - 8;
@@ -2788,11 +2798,9 @@ const LibraryView = (() => {
     }
   }
 
-  // Public entry point: rebuild the pane, then (re)bind the wildcard-help
-  // popup to the freshly rendered Library search input.
   function renderPane() {
     buildPane();
-    attachSearchHelpPopups();
+    attachHelpPopups();
     SearchBarCompact.refresh();
   }
 
@@ -3770,7 +3778,15 @@ const TOOLS = {
     desc: 'Match entries by text, with wildcards',
     example: 'un*ed · c?t',
     params: [
-      { key: 'query' },
+      { key: 'query', help: buildHelpHTML([
+        ['?', 'any letter'],
+        ['*', 'any number of letters'],
+        ['#', 'consonant'],
+        ['@', 'vowel'],
+        ['[jqxz]', 'any of these letters'],
+        ['[^jqxz]', 'none of these letters'],
+        ['[a-m]', 'letter range'],
+      ]) },
       { key: 'whole-word', type: 'checkbox' },
     ],
     kind: 'filter', inputHighlights: true, outputHighlights: false,
@@ -3797,8 +3813,28 @@ const TOOLS = {
     desc: 'Search (and replace) with regular expressions',
     example: '^un.+ed$',
     params: [
-      { key: 'pattern', raw: true },
-      { label: 'Replace' },
+      { key: 'pattern', raw: true, help: buildHelpHTML([
+        ['.', 'any character'],
+        ['\\d', 'any digit'],
+        ['\\w', 'letter or digit'],
+        ['\\s', 'whitespace'],
+        ['[abc]', 'any of a, b, c'],
+        ['[^abc]', 'none of a, b, c'],
+        ['a*', 'zero or more'],
+        ['a+', 'one or more'],
+        ['a?', 'optional'],
+        ['a{2,4}', '2 to 4 times'],
+        ['^', 'start of entry'],
+        ['$', 'end of entry'],
+        ['(…)', 'capture group'],
+        ['a|b', 'either a or b'],
+      ], { link: { url: 'https://regexone.com/', text: 'Learn regex at regexone.com →' } }) },
+      { label: 'Replace', help: buildHelpHTML([
+        ['$1', 'first capture group'],
+        ['$2', 'second group, etc.'],
+        ['$&', 'the whole match'],
+        ['$$', 'a literal $'],
+      ], { cols: 1, link: { url: 'https://regexone.com/', text: 'Learn regex at regexone.com →' } }) },
       { label: 'Whole word', type: 'checkbox' },
     ],
     // Blank replacement reads as filter mode, not "delete the match" — a blank
@@ -3924,6 +3960,15 @@ const TOOLS = {
 for (const tool of Object.values(TOOLS)) {
   for (const p of tool.params) {
     if (!p.key) p.key = (p.label || p.placeholder || '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '-');
+  }
+}
+
+// Keyed `toolKey/paramKey` to match the `data-help` attribute that input
+// builders emit — attachHelpPopups joins the two. Keep the formats in sync.
+const PARAM_HELP = {};
+for (const [toolKey, tool] of Object.entries(TOOLS)) {
+  for (const p of tool.params) {
+    if (p.help) PARAM_HELP[`${toolKey}/${p.key}`] = p.help;
   }
 }
 
@@ -4483,7 +4528,8 @@ const ToolStack = (() => {
   function getSearchBarRow() { return stack[stack.length - 1]; }
   function getUserStack() { return stack.slice(0, -1); }
 
-  function paramsHTML(tool, idx, valuesByKey) {
+  function paramsHTML(toolKey, idx, valuesByKey) {
+    const tool = TOOLS[toolKey];
     if (!tool.params.length) return '';
     const inputs = tool.params.map(p => {
       if (p.type === 'checkbox') {
@@ -4496,7 +4542,8 @@ const ToolStack = (() => {
       if (p.type === 'number') {
         return `<span class="tool-row-param">${labelHTML}<input type="number" min="1" class="tool-row-num" placeholder="${placeholder}" value="${value}" data-row="${idx}" data-key="${p.key}"></span>`;
       }
-      const input = `<input type="text" placeholder="${placeholder}" value="${value}" data-row="${idx}" data-key="${p.key}">`;
+      const helpAttr = p.help ? ` data-help="${toolKey}/${p.key}"` : '';
+      const input = `<input type="text" placeholder="${placeholder}" value="${value}" data-row="${idx}" data-key="${p.key}"${helpAttr}>`;
       return `<span class="tool-row-param">${labelHTML}${buildClearableInputHTML(input, !!value)}</span>`;
     }).join('');
     return `<span class="tool-row-params">${inputs}</span>`;
@@ -4522,7 +4569,7 @@ const ToolStack = (() => {
     const tool = row.def;
     const params = row.tool === 'search'
       ? searchRowParamsHTML(idx, row)
-      : paramsHTML(tool, idx, row.params);
+      : paramsHTML(row.tool, idx, row.params);
     return `<div class="tool-row">
       ${buildDragHandleHTML()}
       <div class="tool-row-body">
@@ -4617,10 +4664,9 @@ const ToolStack = (() => {
 
   // Rebuilds the user tool rows from `stack`, leaving the permanent Search
   // bar's DOM in place — so its input focus and the sort toolbar mounted
-  // inside it survive a tool add/remove. The wildcard-help popups are then
-  // re-attached, since a rebuilt Search tool row gets a fresh input anchor.
-  // A full re-render (which does rebuild the bar) happens only via
-  // mountWorkshopPanel.
+  // inside it survive a tool add/remove. Help popups are then re-attached,
+  // since a rebuilt tool row gets fresh input anchors. A full re-render
+  // (which does rebuild the bar) happens only via mountWorkshopPanel.
   function rerenderRows() {
     const e = stackEl();
     if (!e) return;
@@ -4632,7 +4678,7 @@ const ToolStack = (() => {
       tmp.innerHTML = buildRowHTML(i, row);
       e.insertBefore(tmp.firstElementChild, bar);
     });
-    attachSearchHelpPopups();
+    attachHelpPopups();
   }
 
   function add(toolKey) {
@@ -6569,7 +6615,7 @@ function mountWorkshopPanel(panel, stats, entries, rowCount = stats.count) {
   repositionAllHistogramRects();
   createScroller();
   workshopScroller.onFilterChange = refreshWorkshopStatsBarFromScroller;
-  attachSearchHelpPopups();
+  attachHelpPopups();
   SearchBarCompact.refresh();
 }
 
@@ -6728,18 +6774,16 @@ for (const id of ['workshop-stats', 'wld-pane']) {
   new ResizeObserver(() => SearchBarCompact.onResize()).observe(document.getElementById(id));
 }
 
-// The wildcard-help popup attaches to every Search input in the app — the
-// permanent Workshop search bar, gallery-added Search tool rows, and the
-// Library search bar; all three accept the same wildcard syntax. Anchors are
-// rebuilt whenever a view re-renders (mountWorkshopPanel, rerenderRows,
-// LibraryView.renderPane), so destroy the prior popups and rebind from a
-// fresh document-wide scan.
-let _searchHelpPopups = [];
-function attachSearchHelpPopups() {
-  _searchHelpPopups.forEach(p => p.destroy());
-  _searchHelpPopups = [];
-  for (const input of document.querySelectorAll('.search-pattern-input')) {
-    _searchHelpPopups.push(new PopupHelp(input, buildWildcardSpansHTML()));
+// Help anchors are rebuilt whenever a view re-renders (mountWorkshopPanel,
+// rerenderRows, LibraryView.renderPane), so destroy the prior popups and
+// rebind from a fresh document-wide scan for `data-help`.
+let _helpPopups = [];
+function attachHelpPopups() {
+  _helpPopups.forEach(p => p.destroy());
+  _helpPopups = [];
+  for (const input of document.querySelectorAll('[data-help]')) {
+    const content = PARAM_HELP[input.dataset.help];
+    if (content) _helpPopups.push(new PopupHelp(input, content));
   }
 }
 

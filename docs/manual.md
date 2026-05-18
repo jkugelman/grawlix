@@ -38,6 +38,8 @@ The gear in the header opens **Settings**:
 - `[abc]` — character class
 - Whole-word toggle anchors the pattern.
 
+Focus any search box and this cheat sheet pops up above it. The Regex tool's pattern and replacement boxes show regex-specific cheat sheets instead, each linking out to [regexone.com](https://regexone.com/) for the syntax a popover can't cover.
+
 ## Tools
 
 Tools transform your merged wordlist. They live in the **tool gallery** at the top of the Workshop card. Click a tool's card to add it to the stack; each click appends another tool to the end of the pipeline. Remove a tool with the `✕` on its stack row, or drag a row by its handle (`≡`) to reorder the pipeline. The Search bar stays pinned as the last step.
