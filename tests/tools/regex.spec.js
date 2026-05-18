@@ -1,8 +1,9 @@
 // Regex tool's own contract — pattern matching as a filter, search-and-replace
-// as a transform once the replacement field is filled, the whole-word anchor,
-// case-insensitive matching, the raw (un-lowercased) pattern, and the inert
-// empty/invalid pattern. Pipeline mechanics that merely use regex live in
-// ../tools.spec.js — keep this file to the tool, not the pipeline.
+// as a transform once the replacement field is filled (outputs kept only when
+// they are themselves wordlist entries), the whole-word anchor, case-insensitive
+// matching, the raw (un-lowercased) pattern, and the inert empty/invalid
+// pattern. Pipeline mechanics that merely use regex live in ../tools.spec.js —
+// keep this file to the tool, not the pipeline.
 
 const { test, expect } = require('@playwright/test');
 const { stubPublisherFetches, gotoApp } = require('../helpers');
@@ -21,6 +22,16 @@ async function addFixture(page) {
 
 async function visible(page) {
   return page.evaluate(() => window.__grawlixTest.getVisibleEntries());
+}
+
+// Replacement tests need the output words present too — the transform keeps a
+// rewritten entry only when it is itself a wordlist entry.
+async function addReplaceFixture(page) {
+  await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
+    name: 'RegexReplace',
+    entries: ['CAT', 'CATS', 'SCAT', 'DOG', 'DOGS', 'BELL', 'BEL', 'TEEN', 'TEN'],
+    scores:  Array(9).fill(50),
+  }));
 }
 
 async function setRegex(page, pattern, params = {}) {
@@ -90,19 +101,31 @@ test('a pattern with no match leaves the view empty', async ({ page }) => {
 
 test('a filled replacement rewrites matched entries as a transform', async ({ page }) => {
   await gotoApp(page);
-  await addFixture(page);
-  await setRegex(page, 'cat', { replace: 'dog' });
+  await addReplaceFixture(page);
+  await setRegex(page, '^cat', { replace: 'dog' });
 
   expect((await visible(page)).sort()).toEqual([
     ['cat', 'dog'],
     ['cats', 'dogs'],
-    ['scat', 'sdog'],
+  ]);
+});
+
+test('a replacement whose output is not a wordlist entry is dropped', async ({ page }) => {
+  await gotoApp(page);
+  await addReplaceFixture(page);
+  await setRegex(page, 'cat', { replace: 'dog' });
+
+  // `scat` matches but its output `sdog` is not a wordlist entry, so the row
+  // is dropped; `cat`/`cats` rewrite onto real entries and survive.
+  expect((await visible(page)).sort()).toEqual([
+    ['cat', 'dog'],
+    ['cats', 'dogs'],
   ]);
 });
 
 test('`$1` in the replacement backreferences a capture group', async ({ page }) => {
   await gotoApp(page);
-  await addFixture(page);
+  await addReplaceFixture(page);
   await setRegex(page, '(.)\\1', { replace: '$1' });
 
   expect((await visible(page)).sort()).toEqual([
@@ -113,7 +136,7 @@ test('`$1` in the replacement backreferences a capture group', async ({ page }) 
 
 test('whole-word constrains a replacement to entries that match in full', async ({ page }) => {
   await gotoApp(page);
-  await addFixture(page);
+  await addReplaceFixture(page);
   await setRegex(page, 'cat', { replace: 'dog', 'whole-word': true });
 
   expect(await visible(page)).toEqual([['cat', 'dog']]);

@@ -3828,7 +3828,8 @@ const TOOLS = {
     run(entry, prepared, wordlist) {
       if (prepared.replacement === null) return prepared.re.test(entry);
       const out = entry.replace(prepared.re, prepared.replacement);
-      return out === entry ? [] : [{ entry: out }];
+      if (out === entry || !wordlist.byEntry.has(out)) return [];
+      return [{ entry: out }];
     },
   },
   palindrome: {
