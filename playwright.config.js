@@ -4,6 +4,10 @@ const { defineConfig, devices } = require('@playwright/test');
 // Tests run against a static server hosting site/. __grawlixTest is exposed
 // unconditionally on window (see Test API section at the bottom of
 // site/index.html).
+// CI overrides GRAWLIX_SITE_DIR to `dist` so the suite verifies the deployed
+// minified bundle; drop this indirection and CI silently tests the source.
+const siteDir = process.env.GRAWLIX_SITE_DIR || 'site';
+
 module.exports = defineConfig({
   testDir: './tests',
   fullyParallel: true,
@@ -26,7 +30,7 @@ module.exports = defineConfig({
     // so per-request access logs don't flood the test output. Genuine failures
     // (port in use, missing file) raise exceptions rather than routing through
     // log_message, so stderr: 'pipe' still surfaces real errors.
-    command: `python3 -c "import http.server as h,functools; h.SimpleHTTPRequestHandler.log_message=lambda *a:None; h.test(HandlerClass=functools.partial(h.SimpleHTTPRequestHandler,directory='site'),port=4173,bind='127.0.0.1')"`,
+    command: `python3 -c "import http.server as h,functools; h.SimpleHTTPRequestHandler.log_message=lambda *a:None; h.test(HandlerClass=functools.partial(h.SimpleHTTPRequestHandler,directory='${siteDir}'),port=4173,bind='127.0.0.1')"`,
     url: 'http://localhost:4173/index.html',
     reuseExistingServer: !process.env.CI,
     stdout: 'ignore',

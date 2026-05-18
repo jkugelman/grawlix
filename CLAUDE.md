@@ -37,7 +37,7 @@ When a plan ships, run the `distill-design-doc` skill to fold it into `design.md
 
 ## Architecture
 
-One HTML file: `<style>` block, a minimal HTML body (app shell only — no dialog or overlay elements), then one big `<script>` block. No build step, no npm, no frameworks — plain HTML/CSS/JS that runs directly in the browser.
+One HTML file: `<style>` block, a minimal HTML body (app shell only — no dialog or overlay elements), then one big `<script>` block. No dev build step, no frameworks — plain HTML/CSS/JS that runs directly in the browser. The deploy pipeline minifies the file via `npm run build` (`site/` → `dist/`, run by [`.github/workflows/ci.yml`](.github/workflows/ci.yml)); that's the only build step.
 
 Sections within the `<script>` block are delimited by banner comments like:
 ```

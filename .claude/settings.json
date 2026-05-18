@@ -11,5 +11,11 @@
         ]
       }
     ]
+  },
+  "permissions": {
+    "allow": [
+      "Bash(npm run build)",
+      "Bash(GRAWLIX_SITE_DIR=dist npx playwright *)"
+    ]
   }
 }

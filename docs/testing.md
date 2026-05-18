@@ -139,7 +139,9 @@ Every gallery tool gets its own spec under `tests/tools/`, named for the tool's 
 
 ## CI
 
-GitHub Actions runs the suite on push to `main` only — no PR gating. Failed runs upload traces and screenshots as artifacts; download from the run page to inspect.
+GitHub Actions runs the suite on push to `main` only — no PR gating. CI first builds the minified production bundle (`npm run build` → `dist/`) and runs the suite against *that*, not the `site/` source — so a minification-induced break fails the build before it can deploy. The deploy job ships the exact `dist/` artifact the tests ran against. Failed runs upload traces and screenshots as artifacts; download from the run page to inspect.
+
+To reproduce the minified build locally: `npm run build`, then `GRAWLIX_SITE_DIR=dist npm test`. Plain `npm test` serves the unminified `site/`.
 
 ## When a test breaks
 

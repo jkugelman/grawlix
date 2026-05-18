@@ -6,6 +6,7 @@ on:
     paths:
       - 'site/**'
       - 'tests/**'
+      - 'scripts/**'
       - 'package.json'
       - 'package-lock.json'
       - 'playwright.config.js'
@@ -44,8 +45,13 @@ jobs:
       - name: Install Playwright browsers + system deps
         run: npx playwright install --with-deps
 
+      - name: Build minified site
+        run: npm run build
+
       - name: Run tests
         run: npm test
+        env:
+          GRAWLIX_SITE_DIR: dist
 
       - name: Upload report on failure
         if: failure()
@@ -54,6 +60,12 @@ jobs:
           name: playwright-report
           path: playwright-report/
           retention-days: 14
+
+      - name: Upload built site
+        uses: actions/upload-artifact@v7
+        with:
+          name: dist
+          path: dist/
 
   deploy:
     needs: test
@@ -68,10 +80,14 @@ jobs:
       group: pages
       cancel-in-progress: false
     steps:
-      - uses: actions/checkout@v6
       - uses: actions/configure-pages@v6
+      - name: Download built site
+        uses: actions/download-artifact@v7
+        with:
+          name: dist
+          path: dist
       - uses: actions/upload-pages-artifact@v5
         with:
-          path: ./site
+          path: ./dist
       - id: deployment
         uses: actions/deploy-pages@v5

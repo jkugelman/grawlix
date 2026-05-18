@@ -3,6 +3,9 @@ TODO.md
 settings.local.json
 .claude/skills/mobile-server/
 
+# Build output
+dist/
+
 # Playwright
 node_modules/
 test-results/

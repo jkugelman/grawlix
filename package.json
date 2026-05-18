@@ -4,12 +4,14 @@
   "private": true,
   "description": "Browser-based wordlist manager for crossword constructors. See site/index.html.",
   "scripts": {
+    "build": "node scripts/build.mjs",
     "test": "playwright test",
     "test:headed": "playwright test --headed",
     "test:ui": "playwright test --ui",
     "test:report": "playwright show-report"
   },
   "devDependencies": {
-    "@playwright/test": "^1.49.0"
+    "@playwright/test": "^1.49.0",
+    "html-minifier-terser": "^7.2.0"
   }
 }
