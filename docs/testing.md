@@ -133,6 +133,10 @@ test('feature does the right thing', async ({ page }) => {
 
 **Don't use `waitForTimeout`.** Use `expect.poll` or auto-retrying assertions (`expect(locator).toBeVisible()`). The smoke suite has zero hardcoded sleeps; keep it that way.
 
+### Per-tool test files
+
+Every gallery tool gets its own spec under `tests/tools/`, named for the tool's key in `TOOLS` — `tests/tools/<tool>.spec.js` (`anagram.spec.js`, `regex.spec.js`, …). The file covers that tool's *own* contract: its params, its filter / transform / group behavior, the inert cases, and any highlights. Build the stack with `__grawlixTest.setStack([{ tool, params }])` and assert on `__grawlixTest.getVisibleEntries()`; the existing files (`tests/tools/search.spec.js`, `tests/tools/behead.spec.js`) are the template. Cross-tool *pipeline* mechanics — unification across tools, sort tiers, URL round-trips, the permanent search bar — stay in the shared `tests/tools.spec.js`, not the per-tool file. When you add a tool to `TOOLS`, add its spec file.
+
 ## CI
 
 GitHub Actions runs the suite on push to `main` only — no PR gating. Failed runs upload traces and screenshots as artifacts; download from the run page to inspect.
