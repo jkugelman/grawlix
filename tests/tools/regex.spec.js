@@ -2,8 +2,8 @@
 // as a transform once the replacement field is filled (outputs kept only when
 // they are themselves wordlist entries), the whole-word anchor, case-insensitive
 // matching, the raw (un-lowercased) pattern, the inert empty/invalid pattern,
-// and match highlighting (fixed-width runs auto-segmented, the user's own
-// capture groups honored when present, replacement echoes colored to match).
+// and match highlighting (literal runs auto-segmented, the user's own capture
+// groups honored when present, replacement echoes colored to match).
 // Pipeline mechanics that merely use regex live in ../tools.spec.js — keep
 // this file to the tool, not the pipeline.
 
@@ -152,7 +152,7 @@ async function addHighlightFixture(page) {
   }));
 }
 
-test('filter highlights each fixed-width run of an auto-segmented pattern', async ({ page }) => {
+test('filter highlights each literal run of an auto-segmented pattern', async ({ page }) => {
   await gotoApp(page);
   await addHighlightFixture(page);
   await setRegex(page, '^un.+ed$');
@@ -162,14 +162,14 @@ test('filter highlights each fixed-width run of an auto-segmented pattern', asyn
   await expect(row.locator('mark')).toHaveText(['un', 'ed']);
 });
 
-test('a single-char wildcard rides inside a run rather than splitting the highlight', async ({ page }) => {
+test('a single-char wildcard splits the highlight at its literal boundaries', async ({ page }) => {
   await gotoApp(page);
   await addHighlightFixture(page);
   await setRegex(page, 'c.t');
 
-  // `c.t` is one fixed-width run, so `cot` lights up as a single mark.
+  // `.` is a wildcard — only the literal `c` and `t` light up, not the gap.
   const row = page.locator('#vs-host .entry-row', { hasText: 'cot' });
-  await expect(row.locator('mark')).toHaveText(['cot']);
+  await expect(row.locator('mark')).toHaveText(['c', 't']);
 });
 
 test('filter colors the user’s own capture groups when the pattern has them', async ({ page }) => {

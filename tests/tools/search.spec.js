@@ -88,3 +88,13 @@ test('the matched span is wrapped in a highlight mark', async ({ page }) => {
   const row = page.locator('#vs-host .entry-row', { hasText: 'untested' });
   await expect(row.locator('.atom mark')).toContainText('test');
 });
+
+test('a wildcard splits the highlight at its literal boundaries', async ({ page }) => {
+  await gotoApp(page);
+  await addFixture(page);
+  await setSearch(page, 'c?t');
+
+  // `?` is a wildcard — only the literal `c` and `t` light up, not the gap.
+  const row = page.locator('#vs-host .entry-row', { hasText: 'cot' });
+  await expect(row.locator('mark')).toHaveText(['c', 't']);
+});

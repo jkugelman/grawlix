@@ -3631,42 +3631,42 @@ function scoreColor(score) {
 const CONSONANTS = 'bcdfghjklmnpqrstvwxyz';
 const VOWELS = 'aeiou';
 
-function segmentToPat(str) {
-  let pat = '';
-  for (let i = 0; i < str.length; i++) {
-    const ch = str[i];
-    if (ch === '?')      { pat += '.'; }
-    else if (ch === '#') { pat += `[${CONSONANTS}]`; }
-    else if (ch === '@') { pat += `[${VOWELS}]`; }
+// The highlight regex colors maximal runs of literal characters and leaves
+// wildcards dark — the same literal-run rule `analyzeRegexPattern` applies to
+// the Regex tool. The two must stay aligned or the tools highlight the same
+// construct differently, with no error to flag the drift.
+function buildSearchPattern(query, wholeWord = false) {
+  const q = query.toLowerCase();
+  let filterPat = '', hlPat = '', runOpen = false;
+  const closeRun = () => { if (runOpen) { hlPat += ')'; runOpen = false; } };
+  for (let i = 0; i < q.length; i++) {
+    const ch = q[i];
+    let token, literal = false;
+    if (ch === '*')      token = '.*';
+    else if (ch === '?') token = '.';
+    else if (ch === '#') token = `[${CONSONANTS}]`;
+    else if (ch === '@') token = `[${VOWELS}]`;
     else if (ch === '[') {
-      const end = str.indexOf(']', i);
-      if (end === -1) { pat += '\\['; }
+      const end = q.indexOf(']', i);
+      if (end === -1) { token = '\\['; literal = true; }
       else {
-        const inner = str.slice(i + 1, end)
-          .replace(/#/g, CONSONANTS)
-          .replace(/@/g, VOWELS);
-        pat += `[${inner}]`;
+        token = `[${q.slice(i + 1, end).replace(/#/g, CONSONANTS).replace(/@/g, VOWELS)}]`;
         i = end;
       }
     } else {
-      pat += ch.replace(/[.+^${}()|[\]\\]/g, '\\$&');
+      token = ch.replace(/[.+^${}()|[\]\\]/g, '\\$&');
+      literal = true;
     }
+    filterPat += token;
+    if (literal) { if (!runOpen) { hlPat += '('; runOpen = true; } }
+    else closeRun();
+    hlPat += token;
   }
-  return pat;
-}
-
-function buildSearchPattern(query, wholeWord = false) {
-  const q = query.toLowerCase();
-  const segs    = q.split('*');
-  const segPats = segs.map(segmentToPat);
-  const hlParts = segPats.map(p => p ? '(' + p + ')' : '');
-  const joined  = segPats.join('.*');
-  const hlRe = new RegExp(hlParts.join('.*'), 'id');
+  closeRun();
+  const anchor = pat => wholeWord ? '^' + pat + '$' : pat;
+  const hlRe = new RegExp(anchor(hlPat), 'id');
   return {
-    filterRe: new RegExp(wholeWord ? '^' + joined + '$' : joined),
-    // Returns search-hit ranges (one per non-wildcard segment that matched)
-    // in the same `{ start, end, kind }` shape that tools emit. Lets the
-    // renderer merge search and tool highlights in one pass.
+    filterRe: new RegExp(anchor(filterPat)),
     searchRanges: text => searchRangesFor(text, hlRe),
   };
 }
@@ -3719,11 +3719,12 @@ function renderHighlightedText(text, ranges) {
 
 // ─── Regex tool helpers ─────────────────────────────────────────────────────
 
-// Splits the pattern into fixed-width runs (each colored like a wildcard-Search
-// fixed group) and the breakers between them — variable quantifiers, groups,
-// alternation, anchors. The breaker set must stay aligned with Search's; if it
-// drifts, the two tools highlight the same construct differently with no error
-// to flag it.
+// Splits the pattern into literal runs — maximal stretches of verbatim literal
+// characters — and the wildcards between them: `.`, classes (`[…]`, `\d`…),
+// quantified atoms, groups, alternation, anchors. The Regex tool colors each
+// literal run; wildcard Search colors literal runs of a query the same way.
+// The two notions of "literal run" must stay aligned or the tools highlight
+// the same construct differently, with no error to flag the drift.
 function analyzeRegexPattern(body) {
   let capturing = false;
   const runs = [];
@@ -3734,10 +3735,11 @@ function analyzeRegexPattern(body) {
   while (i < n) {
     const c = body[i];
     const baseStart = i;
-    let baseEnd, isAnchor = false, isBreak = false;
+    let baseEnd, isAnchor = false, isLiteral = false;
     if (c === '\\') {
       const next = body[i + 1];
       if (next === 'b' || next === 'B') isAnchor = true;
+      else isLiteral = !/[dDwWsS0-9]/.test(next || '');
       baseEnd = Math.min(i + 2, n);
     } else if (c === '[') {
       let j = i + 1;
@@ -3748,7 +3750,6 @@ function analyzeRegexPattern(body) {
     } else if (c === '(') {
       capturing = capturing || isCapturingGroup(body, i);
       baseEnd = matchingParen(body, i);
-      isBreak = true;
     } else if (c === '^' || c === '$') {
       isAnchor = true;
       baseEnd = i + 1;
@@ -3756,22 +3757,24 @@ function analyzeRegexPattern(body) {
       closeRun(i);
       i++;
       continue;
+    } else if (c === '.') {
+      baseEnd = i + 1;
     } else {
+      isLiteral = true;
       baseEnd = i + 1;
     }
     if (isAnchor) { closeRun(i); i = baseEnd; continue; }
-    let q = baseEnd, variable = false;
+    let q = baseEnd, quantified = false;
     if (q < n && (body[q] === '*' || body[q] === '+' || body[q] === '?')) {
-      variable = true;
+      quantified = true;
       q++;
     } else if (q < n && body[q] === '{') {
       const close = body.indexOf('}', q);
-      const mm = close !== -1 && /^(\d+)(,\d*)?$/.exec(body.slice(q + 1, close));
-      if (mm) { variable = mm[2] !== undefined; q = close + 1; }
+      if (close !== -1 && /^\d+(,\d*)?$/.test(body.slice(q + 1, close))) { quantified = true; q = close + 1; }
     }
     if (q < n && body[q] === '?') q++;   // a `?` past a quantifier is the lazy modifier, not a new atom
-    if (isBreak || variable) closeRun(baseStart);
-    else if (runStart === -1) runStart = baseStart;
+    if (isLiteral && !quantified) { if (runStart === -1) runStart = baseStart; }
+    else closeRun(baseStart);
     i = q;
   }
   closeRun(n);
