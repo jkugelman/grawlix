@@ -3728,7 +3728,7 @@ function renderHighlightedText(text, ranges) {
 // upstream stage has finished; its return value is handed to `run` in place of
 // `params` (so a tool can compile a regex or pre-sort letters once instead of
 // per row, or build an index over `ctx.input`). It must yield cooperatively
-// for any non-trivial work — see docs/planned/tools.md § The prepare context.
+// for any non-trivial work — see docs/design.md § Pipeline execution.
 // Tools without a `prepare` get the normalized params object.
 //
 // `run(entry, prepared, wordlist)` is a per-row pure function — the system
@@ -3998,7 +3998,7 @@ async function buildInitialRows(mergedWordlist, y) {
   return rows;
 }
 
-// The `prepare` context — see docs/planned/tools.md § The prepare context.
+// The `prepare` context — see docs/design.md § Pipeline execution.
 // Rebuilt per stage so `ctx.input` reflects that stage's input rows.
 function makeCtx(mergedWordlist, rows, signal, y) {
   return {
