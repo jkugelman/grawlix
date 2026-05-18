@@ -4864,11 +4864,15 @@ const WORKSHOP_SORT_AXES = {
   },
 };
 const WORKSHOP_DEFAULT_SORT_BY_TIER = { single: 'entry', multi: 'min-score', group: 'entry' };
-// When the sort tier changes, an axis with no counterpart in the new
-// tier maps across rather than snapping to the tier default, so the user's
-// sort intent survives adding/removing transforms. Entry and Length exist in
-// both tiers and pass through untouched; only the score axes differ.
-const SORT_AXIS_TIER_MAP = { 'score': 'min-score', 'min-score': 'score', 'max-score': 'score' };
+// An axis with no counterpart in the new tier maps across rather than
+// snapping to the tier default, so a sort survives a tier round-trip.
+// Length↔Count are deliberately paired despite measuring different things —
+// both are descending magnitudes, and it keeps Length from being lost when
+// a group tool toggles.
+const SORT_AXIS_TIER_MAP = {
+  'score': 'min-score', 'min-score': 'score', 'max-score': 'score',
+  'length': 'count', 'count': 'length',
+};
 // The sort tier is single-atom when the chain is filter-only and multi-atom
 // once a transform is in play — transforms are what give a row genuinely
 // distinct atoms to sort across. Highlight-only repeat atoms don't promote the
