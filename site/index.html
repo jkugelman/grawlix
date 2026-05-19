@@ -99,15 +99,18 @@ html.light-mode {
   --ok-fg: #2d7a3f; --warn-fg: #856404; --err-fg: #b71c1c;
 }
 
-body { font-family: var(--font-sans); font-size: 14px; background: var(--bg); color: var(--text); height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+/* Force the scrollbar gutter so a tall view (Workshop) and a short one
+   (Library) don't shift the page horizontally on switch. */
+html { overflow-y: scroll; }
+body { font-family: var(--font-sans); font-size: 14px; background: var(--bg); color: var(--text); }
 
 /* Brand header. Two stacked rows: row 1 has the wordmark on the left,
    top-level nav (Workshop / Library) in the center, and utility icons on the
    right; row 2 is the personal-text subtitle strip on a darkened-purple band
-   spanning full width below. Sits outside the scrolling <main> so it's
-   always visible at full viewport width; card chrome scrolls past the
-   in-card sticky search/stack (see .sticky-stack). */
-header { background: var(--hdr-bg); color: white; padding: 6px 20px 0; display: flex; flex-direction: column; position: relative; z-index: 100; flex-shrink: 0; }
+   spanning full width below. Scrolls away with the rest of the page; the
+   in-content stats/tool/search stack pins to the viewport top on its own
+   (see .sticky-stack). */
+header { background: var(--hdr-bg); color: white; padding: 6px 20px 0; display: flex; flex-direction: column; position: relative; z-index: 100; }
 .header-row-main { display: flex; align-items: center; justify-content: space-between; gap: 24px; min-height: 44px; }
 header h1 { font-size: 19px; font-weight: 600; letter-spacing: -0.01em; line-height: 1.1; flex-shrink: 1; min-width: 0; }
 .header-logo-link { color: inherit; text-decoration: none; }
@@ -141,25 +144,10 @@ button.header-nav-item:hover:not(:disabled) { opacity: 1; background: var(--hdr-
 .header-github-link { display: inline-flex; vertical-align: middle; margin-left: 4px; opacity: 0.75; color: white; text-decoration: none; border-bottom: none; }
 .header-github-link:hover { opacity: 1; }
 
-/* The single scroll container for the whole app. Sits below the fixed
-   brand header inside a viewport-height flex body. `scrollbar-gutter:
-   stable` reserves the scrollbar's space whether or not it's needed, so
-   switching between Workshop (tall, scrolls) and Library (short, doesn't)
-   doesn't shift the centered cards or anything else horizontally. */
-main { padding: 0 24px; flex: 1; min-height: 0; overflow-y: auto; scrollbar-gutter: stable; }
-
-/* Centered card chrome — shared by Workshop (#workshop-view) and Library (#library-view),
-   the two top-level views. Page background shows through the side margins so
-   the bounded width feels intentional rather than under-filled. `overflow: clip`
-   (not `hidden`) keeps rounded corners while letting the in-card sticky stack
-   escape to the viewport — `overflow: hidden` would trap it. Both views flow
-   in the page scroll. */
+/* `overflow: clip`, not `hidden`: `hidden` would make the view a scroll
+   container and trap the in-content sticky stack inside it. */
 #workshop-view,
-#library-view { max-width: 1000px; margin: 0 auto 48px; background: var(--surface); border: 1px solid var(--border); border-top: none; border-radius: 0 0 12px 12px; overflow: clip; }
-html.light-mode #workshop-view,
-html.light-mode #library-view { box-shadow: 0 1px 3px rgba(0,0,0,0.06), 0 8px 24px rgba(0,0,0,0.05); }
-html.dark-mode #workshop-view,
-html.dark-mode #library-view  { box-shadow: 0 1px 3px rgba(0,0,0,0.25); }
+#library-view { background: var(--surface); overflow: clip; }
 
 /* Busy overlay covers the viewport regardless of card position. */
 #busy-overlay { position: fixed; inset: 0; z-index: 200; background: var(--bg); display: flex; align-items: center; justify-content: center; transition: opacity 0.2s; }
@@ -512,13 +500,6 @@ html.dark-mode .search-match-4 { background: #14532d; color: #d1fae5; }
   .header-sep-feedback,
   .header-feedback { display: none; }
   .header-byline-mobile { display: inline; }
-  /* Reclaim the gutters: the bordered card frame is decorative breathing
-     room on desktop, but pure waste on a phone where every pixel matters.
-     Drop the main padding, all borders, corner radius, bottom margin, and
-     box-shadow so the views run flush to all four edges. */
-  main { padding: 0; scrollbar-gutter: auto; }
-  #workshop-view,
-  #library-view { margin-bottom: 0; border: none; border-radius: 0; box-shadow: none !important; }
   /* iOS Safari auto-zooms into focused inputs smaller than 16px, which fires
      a resize event that closes the popover one frame after it opens. Bump to
      16px on mobile so focus doesn't trigger the zoom. */
@@ -935,11 +916,11 @@ a.get-file:hover { text-decoration: underline; }
     border-bottom: none;
     border-right: 1px solid var(--border2);
   }
-  /* Cap the pinned rail at the visible portion of <main> (approximated as
-     viewport minus the ~80px brand header, with a little headroom) and let
-     it scroll internally when there are more wordlists than fit. Without
-     this, overflow cards become unreachable while the rail is pinned. */
-  .wld-list-sticky { position: sticky; top: 0; max-height: calc(100vh - 90px); overflow-y: auto; }
+  /* Cap the pinned rail at the viewport height — the brand header has
+     scrolled away by the time the rail pins — and let it scroll internally
+     when there are more wordlists than fit. Without this, overflow cards
+     become unreachable while the rail is pinned. */
+  .wld-list-sticky { position: sticky; top: 0; max-height: 100vh; overflow-y: auto; }
   .wld-pane { flex: 1; min-width: 0; }
 }
 
@@ -3110,10 +3091,9 @@ const MainView = (() => {
   const navTrigger = navEl.querySelector('.header-nav-trigger');
   const navTriggerIcon = navTrigger.querySelector('.header-nav-trigger-icon use');
   const navTriggerLabel = navTrigger.querySelector('.header-nav-trigger-label');
-  const scrollEl = document.querySelector('main');
+  const scrollEl = document.scrollingElement;
   let _current = DEFAULT_VIEW;
-  // Per-view scroll positions. Both views share the same <main> scroll
-  // container (body has overflow:hidden, main has overflow-y:auto), so
+  // Per-view scroll positions. Both views scroll the same document, so
   // toggling `hidden` would otherwise clamp scrollTop to whichever view is
   // shorter and lose the user's place when they tab back.
   const _scrollByView = Object.create(null);
@@ -3139,8 +3119,8 @@ const MainView = (() => {
       navTriggerLabel.textContent = activeBtn.textContent.trim();
     }
     // Restore after show() so the new view's content has been laid out and
-    // <main> is tall enough to accept the saved scrollTop. Skip on the
-    // initial activate so a URL-driven jump (if any) isn't clobbered.
+    // the document is tall enough to accept the saved scrollTop. Skip on
+    // the initial activate so a URL-driven jump (if any) isn't clobbered.
     if (changed) scrollEl.scrollTop = _scrollByView[view] ?? 0;
     Router.navigate();
   }
@@ -5188,8 +5168,8 @@ function headerLabelPx(text) {
   return measureTextWidth(text, 'entry-headers-font');
 }
 
-// Capture-mode scroll listener catches events from any ancestor — the app's
-// scroll container is <main>, not the window, and scroll events don't bubble.
+// Capture-mode scroll listener catches events from any ancestor — the page
+// scrolls the document, not the window, and scroll events don't bubble.
 class BaseVirtualScroller {
   constructor(host, sizerClassName) {
     this.host = host;
