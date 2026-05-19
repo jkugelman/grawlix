@@ -211,7 +211,7 @@ test('both directions surviving search collapse to one ↔ row keeping the survi
   // both pass search; unification collapses them into one ↔ row. The survivor
   // is the lexicographically-smaller chain (desserts→stressed) and keeps only
   // its own direction's highlight — on its stressed tail, not on desserts.
-  await page.locator('#search-input').fill('ss');
+  await page.locator('input[data-key="pattern"]').fill('ss');
   const visible = await page.evaluate(() => window.__grawlixTest.getVisibleEntries());
   expect(visible).toEqual([['desserts', 'stressed']]);
 
@@ -230,7 +230,7 @@ test('a one-sided search query degrades a unified row to a directed →', async 
   // it kills whichever direction's tail doesn't match: STRESSED→DESSERTS goes
   // (tail 'desserts' has no 'tress'), DESSERTS→STRESSED survives. With its
   // mirror gone there's nothing to unify, so the row stays a directed →.
-  await page.locator('#search-input').fill('tress');
+  await page.locator('input[data-key="pattern"]').fill('tress');
   const visible = await page.evaluate(() => window.__grawlixTest.getVisibleEntries());
   expect(visible).toEqual([['desserts', 'stressed']]);
 
@@ -248,9 +248,9 @@ test('three search tools stack three separately-highlighted atoms on one row', a
   // and the first search fold together, so three searches that all match
   // LINDSEY leave a three-atom row, one highlight per atom.
   await page.evaluate(() => window.__grawlixTest.setStack([
-    { tool: 'search', params: { query: 'lin' } },
-    { tool: 'search', params: { query: 'nds' } },
-    { tool: 'search', params: { query: 'sey' } },
+    { tool: 'search', params: { pattern: 'lin' } },
+    { tool: 'search', params: { pattern: 'nds' } },
+    { tool: 'search', params: { pattern: 'sey' } },
   ]));
   const visible = await page.evaluate(() => window.__grawlixTest.getVisibleEntries());
   expect(visible).toEqual(['lindsey']);
@@ -271,8 +271,8 @@ test('a wildcard-only search holds its atom even though it highlights nothing', 
   // stays two atoms, its height matched to the static atom count. Keying the
   // fold on whether ranges came back would collapse it and desync the count.
   await page.evaluate(() => window.__grawlixTest.setStack([
-    { tool: 'search', params: { query: 'cat' } },
-    { tool: 'search', params: { query: '*' } },
+    { tool: 'search', params: { pattern: 'cat' } },
+    { tool: 'search', params: { pattern: '*' } },
   ]));
   const visible = await page.evaluate(() => window.__grawlixTest.getVisibleEntries());
   expect(visible).toEqual(['cat']);
@@ -289,7 +289,7 @@ test('Search is a gallery tool and can be chained into the stack', async ({ page
 
   // Click the Search gallery card — it's a tool like any other.
   await page.locator('.gallery-card[data-tool="search"]').click();
-  const input = page.locator('.tool-row input[data-key="query"]');
+  const input = page.locator('.tool-row input[data-key="pattern"]');
   await expect(input).toBeFocused();
   await input.fill('cat');
 
@@ -314,7 +314,7 @@ test('a gallery Search tool and the permanent Search bar both round-trip through
     userStack: ToolStack.getUserStack().map(r => ({ tool: r.tool, params: r.params })),
     barQuery: WorkshopView.searchQuery,
   }));
-  expect(state.userStack).toEqual([{ tool: 'search', params: { query: 'ca' } }]);
+  expect(state.userStack).toEqual([{ tool: 'search', params: { pattern: 'ca' } }]);
   expect(state.barQuery).toBe('cat');
 
   // Both rows run: "ca" then "cat" leaves only CAT.
@@ -339,7 +339,7 @@ test('whole-word rides as a bare key on its Search row and round-trips', async (
 
   const userStack = await page.evaluate(() =>
     ToolStack.getUserStack().map(r => ({ tool: r.tool, params: r.params })));
-  expect(userStack).toEqual([{ tool: 'search', params: { query: 'cat', 'whole-word': true } }]);
+  expect(userStack).toEqual([{ tool: 'search', params: { pattern: 'cat', 'whole-word': true } }]);
 
   const hash = await page.evaluate(() => { Router.navigate(); return location.hash; });
   expect(hash).toBe('#/workshop?search=cat&whole-word&search=');
@@ -649,7 +649,7 @@ test('search chained after letter_clusters adds a filtered subset line', async (
   await addLetterSetFixture(page);
   await page.evaluate(() => window.__grawlixTest.setStack([
     { tool: 'letter_clusters', params: { size: '3' } },
-    { tool: 'search', params: { query: 'pt' } },
+    { tool: 'search', params: { pattern: 'pt' } },
   ]));
 
   const groups = await page.evaluate(() => window.__grawlixTest.getVisibleGroups());

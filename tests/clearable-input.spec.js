@@ -26,8 +26,8 @@ test('the × shows only while the field has text', async ({ page }) => {
   await gotoApp(page);
   await addFixture(page);
 
-  const input = page.locator('#search-input');
-  const clearBtn = page.locator('#search-input ~ .clear-btn');
+  const input = page.locator('input[data-key="pattern"]');
+  const clearBtn = page.locator('input[data-key="pattern"] ~ .clear-btn');
 
   await expect(clearBtn).toBeHidden();
   await input.fill('cat');
@@ -40,13 +40,13 @@ test('clicking the × empties the field and its handler reacts', async ({ page }
   await gotoApp(page);
   await addFixture(page);
 
-  await page.locator('#search-input').fill('cat');
+  await page.locator('input[data-key="pattern"]').fill('cat');
   await expect.poll(() => visible(page)).toEqual(['cat']);
 
-  await page.locator('#search-input ~ .clear-btn').click();
+  await page.locator('input[data-key="pattern"] ~ .clear-btn').click();
 
-  await expect(page.locator('#search-input')).toHaveValue('');
-  await expect(page.locator('#search-input ~ .clear-btn')).toBeHidden();
+  await expect(page.locator('input[data-key="pattern"]')).toHaveValue('');
+  await expect(page.locator('input[data-key="pattern"] ~ .clear-btn')).toBeHidden();
   await expect.poll(async () => (await visible(page)).sort()).toEqual(['cat', 'cot', 'dog']);
 });
 

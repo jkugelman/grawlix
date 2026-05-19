@@ -25,7 +25,7 @@ async function visible(page) {
 
 async function setSearch(page, query, params = {}) {
   await page.evaluate(([q, p]) =>
-    window.__grawlixTest.setStack([{ tool: 'search', params: { query: q, ...p } }]),
+    window.__grawlixTest.setStack([{ tool: 'search', params: { pattern: q, ...p } }]),
     [query, params]);
 }
 
