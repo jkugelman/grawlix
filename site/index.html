@@ -3910,15 +3910,13 @@ function runSearchReplace(entry, prepared, wordlist) {
 
 // ─── Tool stack ───────────────────────────────────────────────────────────────
 // Tools are catalog records ({ name, icon, category, desc, example, params,
-// kind, inputHighlights, outputHighlights, glyph?, run?, isInert? }). A tool
-// without a `run` is transparent in the pipeline — its row still renders, the
-// URL still serializes it, but `executePipeline` skips over it. That lets the
-// catalog list a tool in the gallery before its run function lands.
+// kind, inputHighlights, outputHighlights, glyph?, run?, group?, isInert? }).
+// A filter or transform tool carries a `run`; a group tool carries a `group`.
 //
-// `isInert(params)` is an optional second transparency gate: a tool that has a
-// `run` but is a no-op for the given params (an empty Search query) reports
-// `true` and is skipped just like a run-less tool — so an empty search bar
-// neither filters nor contributes a highlight lens.
+// `isInert(params)` is an optional transparency gate: a tool that is a no-op
+// for the given params (an empty Search query) reports `true` and
+// `executePipeline` skips its row — so an empty search bar neither filters nor
+// contributes a highlight lens.
 //
 // `kind` is 'filter' (keeps/drops an entry), 'transform' (emits 0+ new entries
 // per input), or 'group' (clusters all input rows into GroupRow[] via `group`).
@@ -3964,12 +3962,27 @@ const TOOLS = {
       return sortLetters(entry) === target;
     },
   },
-  subanagram: {
-    name: 'Subanagram', icon: '🔡', category: 'anagrams',
-    desc: 'Words made from any subset of letters',
+  made_from_letters: {
+    name: 'Made from letters', icon: '🔡', category: 'anagrams',
+    desc: 'Words spelled from a subset of the input letters',
     example: 'PARENTAL → PLANE, RENT, …',
     params: [{ placeholder: 'letters' }],
-    kind: 'transform', inputHighlights: false, outputHighlights: false, glyph: '→',
+    kind: 'filter', inputHighlights: false, outputHighlights: false,
+    isInert: params => !((params && params.letters || '').trim()),
+    prepare(params) {
+      const bank = new Map();
+      for (const ch of params.letters.trim()) bank.set(ch, (bank.get(ch) || 0) + 1);
+      return bank;
+    },
+    run(entry, bank, wordlist) {
+      const used = new Map();
+      for (const ch of entry) {
+        const n = (used.get(ch) || 0) + 1;
+        if (n > (bank.get(ch) || 0)) return false;
+        used.set(ch, n);
+      }
+      return true;
+    },
   },
   search: {
     name: 'Search', icon: '<svg width="16" height="16" aria-hidden="true"><use href="#icon-search"/></svg>', category: 'patterns',
@@ -4083,6 +4096,7 @@ const TOOLS = {
     example: 'RACECAR · KAYAK',
     params: [],
     kind: 'filter', inputHighlights: false, outputHighlights: false,
+    run(entry) { return entry === reverseString(entry); },
   },
   behead: {
     name: 'Behead', icon: '🪓', category: 'pairs',
@@ -4241,7 +4255,7 @@ function currentAtomCount(stack) {
   let count = 1;          // originator
   let tailSlot = false;   // is the tail atom a highlight slot?
   for (const row of stack) {
-    if (!row.def.run || row.isInert()) continue;   // transparent rows
+    if (row.isInert()) continue;   // transparent rows
     if (row.kind() === 'transform') {
       if (row.def.inputHighlights && tailSlot) count++;   // input mark can't fold into a slot tail
       count++;                                            // output atom (new word)
@@ -4259,11 +4273,11 @@ function currentAtomCount(stack) {
 // entry and the sort axes stay in their single-atom tier. Drives the stats-bar
 // count label (Entries vs Results) and the sort tier.
 function isFilterOnlyChain(stack) {
-  return !stack.some(row => row.def.run && row.kind() === 'transform' && !row.isInert());
+  return !stack.some(row => row.kind() === 'transform' && !row.isInert());
 }
 
 function isGroupChain(stack) {
-  return stack.some(row => row.def.group && row.kind() === 'group' && !row.isInert());
+  return stack.some(row => row.kind() === 'group' && !row.isInert());
 }
 
 function workshopCountLabel(stack) {
@@ -4276,7 +4290,7 @@ function workshopCountLabel(stack) {
 // `unify` would only copy them, so the executor returns its rows as-is.
 function chainProducesMultiAtom(stack) {
   return stack.some(row => {
-    if (!row.def.run || row.isInert()) return false;
+    if (row.isInert()) return false;
     return row.kind() === 'transform' || !!row.def.inputHighlights;
   });
 }
@@ -4341,7 +4355,7 @@ function makeCtx(mergedWordlist, rows, signal, y) {
 // output atom, plus a same-word input-mark atom when it highlights its input),
 // each highlighting filter appends a same-word atom carrying its match. Tools
 // emit unconditionally — `unify` folds the redundant same-word atoms
-// afterward. Run-less and inert tools are transparent. The executor owns the
+// afterward. Inert tools are transparent. The executor owns the
 // per-row loop, cooperative yielding, and abort: `signal` aborts a superseded
 // run at the next yield.
 async function executePipeline(mergedWordlist, stack, signal) {
@@ -4352,7 +4366,7 @@ async function executePipeline(mergedWordlist, stack, signal) {
     const { def } = stackRow;
 
     if (stackRow.kind() === 'group') {
-      if (!def.group || stackRow.isInert()) continue;
+      if (stackRow.isInert()) continue;
       throwIfAborted(signal);
       const params = normalizeParams(stackRow.params, def.params);
       const ctx = makeCtx(mergedWordlist, rows, signal, y);
@@ -4362,7 +4376,7 @@ async function executePipeline(mergedWordlist, stack, signal) {
       continue;
     }
 
-    if (!def.run || stackRow.isInert()) continue;
+    if (stackRow.isInert()) continue;
     throwIfAborted(signal);
     const params = normalizeParams(stackRow.params, def.params);
 
@@ -4510,7 +4524,7 @@ function currentGroupLineCount(stack) {
   let lines = 1;
   let tailSlot = false;
   for (const row of stack) {
-    if (!row.def.run || row.isInert()) continue;
+    if (row.kind() === 'group' || row.isInert()) continue;
     if (row.kind() === 'filter') {
       lines++;
       tailSlot = !!row.def.inputHighlights;
@@ -6989,7 +7003,7 @@ async function renderWorkshopMergedDetail() {
   // The histogram always shows the full merged distribution — it's the
   // score-range drag-select surface — so it gets buildMergedWordlist() either way.
   const passthrough = !WorkshopView.scoreRange
-    && !ToolStack.getUserStack().some(r => r.def.run || r.def.group)
+    && ToolStack.getUserStack().length === 0
     && !WorkshopView.searchQuery;
   const statsSource = passthrough ? buildMergedWordlist().entries : flattenAtoms(rows);
   const stats = passthrough
