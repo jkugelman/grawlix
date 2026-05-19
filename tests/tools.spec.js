@@ -345,6 +345,33 @@ test('whole-word rides as a bare key on its Search row and round-trips', async (
   expect(hash).toBe('#/workshop?search=cat&whole-word&search=');
 });
 
+test('the caret expands a Search row into find/replace; collapsing clears it but keeps the text', async ({ page }) => {
+  await gotoApp(page);
+  await addAnagramFixture(page);
+
+  await page.locator('.gallery-card[data-tool="search"]').click();
+  const row = page.locator('.tool-row', { has: page.locator('input[data-key="pattern"]') });
+  const replace = row.locator('input[data-key="replace"]');
+  const caret = row.locator('.find-replace-caret');
+  const replaceParam = () => page.evaluate(() => ToolStack.getUserStack()[0].params.replace);
+
+  await expect(replace).toBeHidden();
+
+  await caret.click();
+  await expect(replace).toBeVisible();
+  await replace.fill('dog');
+  expect(await replaceParam()).toBe('dog');
+
+  await caret.click();
+  await expect(replace).toBeHidden();
+  expect(await replaceParam()).toBeUndefined();
+  await expect(replace).toHaveValue('dog');
+
+  await caret.click();
+  await expect(replace).toBeVisible();
+  expect(await replaceParam()).toBe('dog');
+});
+
 test('score range pre-filters the wordlist before tools run', async ({ page }) => {
   await gotoApp(page);
   await addSemordnilapFixture(page);

@@ -1,8 +1,11 @@
 // Search tool's own pattern-matching contract — literal text, `*` and `?`
-// wildcards, whole-word, the inert empty query, the match highlight. Pipeline
-// mechanics that merely use search (unification with semordnilap, the
-// permanent search bar, URL round-trip, multi-search atom stacking) live in
-// ../tools.spec.js — keep this file to the tool, not the pipeline.
+// wildcards, whole-word, the inert empty query, the match highlight, and
+// search-and-replace as a transform once the replacement field is filled
+// (literal whole-span substitution, outputs kept only when they are themselves
+// wordlist entries). Pipeline mechanics that merely use search (unification
+// with semordnilap, the permanent search bar, URL round-trip, multi-search
+// atom stacking) live in ../tools.spec.js — keep this file to the tool, not
+// the pipeline.
 
 const { test, expect } = require('@playwright/test');
 const { stubPublisherFetches, gotoApp } = require('../helpers');
@@ -97,4 +100,48 @@ test('a wildcard splits the highlight at its literal boundaries', async ({ page 
   // `?` is a wildcard — only the literal `c` and `t` light up, not the gap.
   const row = page.locator('#vs-host .entry-row', { hasText: 'cot' });
   await expect(row.locator('mark')).toHaveText(['c', 't']);
+});
+
+// Search-replace needs the output words present too — like regex, the
+// transform keeps a rewritten entry only when it is itself a wordlist entry.
+async function addReplaceFixture(page) {
+  await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
+    name: 'SearchReplace',
+    entries: ['CAT', 'CATS', 'SCAT', 'DOG', 'DOGS'],
+    scores:  Array(5).fill(50),
+  }));
+}
+
+test('a filled replacement rewrites matched entries as a transform', async ({ page }) => {
+  await gotoApp(page);
+  await addReplaceFixture(page);
+  await setSearch(page, 'cat', { replace: 'dog' });
+
+  // `scat` matches but its output `sdog` is not a wordlist entry, so the row
+  // is dropped; `cat`/`cats` rewrite onto real entries and survive.
+  expect((await visible(page)).sort()).toEqual([
+    ['cat', 'dog'],
+    ['cats', 'dogs'],
+  ]);
+});
+
+test('whole-word constrains a replacement to entries that match in full', async ({ page }) => {
+  await gotoApp(page);
+  await addReplaceFixture(page);
+  await setSearch(page, 'cat', { replace: 'dog', 'whole-word': true });
+
+  expect(await visible(page)).toEqual([['cat', 'dog']]);
+});
+
+test('replace highlights the matched span in and the replacement out, same color', async ({ page }) => {
+  await gotoApp(page);
+  await addReplaceFixture(page);
+  await setSearch(page, 'cat', { replace: 'dog' });
+
+  const row = page.locator('#vs-host .entry-row', { hasText: 'dogs' });
+  const inMarks = row.locator('.atom').nth(0).locator('mark');
+  const outMarks = row.locator('.atom').nth(1).locator('mark');
+  await expect(inMarks).toHaveText(['cat']);
+  await expect(outMarks).toHaveText(['dog']);
+  await expect(outMarks.nth(0)).toHaveClass(await inMarks.nth(0).getAttribute('class'));
 });

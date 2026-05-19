@@ -243,15 +243,16 @@ html.light-mode .histogram-readonly.is-hovered .histogram-bar:not(.histogram-bar
    the last tool row and the bar. flex-wrap: nowrap keeps it to one line; when
    the bar can't fit its filter/sort controls, SearchBarCompact adds .compact
    and the controls move behind the adjustments button (see below). */
-.search-bar { padding: 8px 14px; background: var(--surface2); border-bottom: 1px solid var(--border2); display: flex; flex-wrap: nowrap; align-items: center; gap: 12px; position: relative; }
+.search-bar { padding: 8px 14px; background: var(--surface2); border-bottom: 1px solid var(--border2); display: flex; flex-wrap: nowrap; align-items: flex-start; gap: 12px; position: relative; }
+.search-bar > .drag-handle { line-height: var(--tool-control-h); }
 /* The bar is split into two groups: .search-items (Search · input · Whole
    word) and .search-bar-end (Score · Sort on Workshop, just Sort on Library).
    .search-items has flex-grow: 1, which lets it expand to fill the leftover
    and push .search-bar-end (or the .compact adjustments button) to the right
    edge. The bar never wraps — when .search-bar-end no longer fits inline,
    .compact hides it and the adjustments button takes its place. */
-.search-items { display: flex; flex-wrap: nowrap; align-items: center; gap: 12px; flex: 1 1 auto; }
-.search-bar-end { display: flex; align-items: center; gap: 12px; }
+.search-items { display: flex; flex-wrap: nowrap; align-items: flex-start; gap: 12px; flex: 1 1 auto; }
+.search-bar-end { display: flex; align-items: center; gap: 12px; min-height: var(--tool-control-h); }
 .score-range-label { display: flex; align-items: center; gap: 5px; font-size: 12px; color: var(--muted); white-space: nowrap; }
 .search-bar-sort { font-size: 12px; color: var(--muted); white-space: nowrap; flex-shrink: 0; }
 .search-bar-sort .sort-axis-select { appearance: none; -webkit-appearance: none; border: none; background: transparent; padding: 2px 14px 2px 3px; border-radius: 4px; font: inherit; font-size: 12px; color: var(--text); cursor: pointer; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 5'%3E%3Cpath fill='%238a8a8a' d='M0 0l4 5 4-5z'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 3px center; background-size: 8px 5px; }
@@ -263,7 +264,7 @@ html.light-mode .histogram-readonly.is-hovered .histogram-bar:not(.histogram-bar
    adjustments button takes its place, opening a popover the end-group is
    moved into. Only the popover's layout (column, not row) is restyled —
    the controls themselves are the same elements. */
-.search-adjust-btn { background: none; border: none; padding: 5px 3px; margin: -3px 0; cursor: pointer; color: var(--muted); display: flex; align-items: center; border-radius: 4px; flex-shrink: 0; }
+.search-adjust-btn { background: none; border: none; padding: 5px 3px; margin: -3px 0; cursor: pointer; color: var(--muted); display: flex; align-items: center; border-radius: 4px; flex-shrink: 0; min-height: var(--tool-control-h); }
 .search-adjust-btn:hover { color: var(--text); background: var(--hover); }
 .search-adjust-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 .search-bar:not(.compact) .search-adjust-btn { display: none; }
@@ -837,11 +838,23 @@ a.get-file:hover { text-decoration: underline; }
 .tool-row-icon { font-size: 16px; line-height: 1; width: 20px; height: 20px; display: inline-flex; align-items: center; justify-content: center; color: var(--muted); flex-shrink: 0; vertical-align: middle; }
 .tool-row-name { font-size: 13px; font-weight: 600; color: var(--text); vertical-align: middle; }
 .tool-row-params { display: flex; gap: 10px; align-items: flex-start; flex-wrap: nowrap; }
-.tool-row-fields { display: flex; flex-wrap: wrap; gap: 6px; }
+.tool-row-fields { display: flex; gap: 6px; }
 .tool-row-param { display: flex; align-items: center; gap: 4px; min-height: var(--tool-control-h); font-size: 12px; color: var(--muted); }
 .tool-row-param label { display: flex; align-items: center; gap: 5px; white-space: nowrap; cursor: pointer; user-select: none; }
 .tool-row-param-text { flex: 0 1 200px; }
 .tool-row-param-text .clearable-input { flex: 1 1 auto; }
+.find-replace { align-items: flex-start; gap: 4px; }
+.find-replace-stack { display: flex; flex-direction: column; gap: 6px; flex: 1 1 auto; min-width: 0; }
+.find-replace-replace { display: flex; }
+.find-replace-replace[hidden] { display: none; }
+.find-replace-caret { flex-shrink: 0; width: 16px; height: var(--tool-control-h); padding: 0; background: none; border: none; cursor: pointer; color: var(--muted); display: flex; align-items: center; justify-content: center; }
+.find-replace-caret:hover { color: var(--text); }
+.find-replace-caret:focus-visible { outline: 1px solid var(--accent); outline-offset: 1px; border-radius: 3px; }
+.find-replace-caret-glyph { transition: transform 0.15s; }
+.find-replace-caret[aria-expanded="true"] .find-replace-caret-glyph { transform: rotate(90deg); }
+@media (prefers-reduced-motion: reduce) {
+  .find-replace-caret-glyph { transition: none; }
+}
 .tool-row-param input[type="text"],
 .score-range-label input[type="text"] { background: var(--input-bg); color: var(--text); border: 1px solid var(--border); border-radius: 4px; font-size: 13px; font-family: var(--font-mono); }
 .tool-row-param input[type="text"]:focus,
@@ -1053,6 +1066,9 @@ html.dark-mode .wld-onboarding { background: color-mix(in srgb, var(--accent) 15
   </symbol>
   <symbol id="icon-arrow" viewBox="0 0 8 5" fill="currentColor">
     <path d="M0 0l4 5 4-5z"/>
+  </symbol>
+  <symbol id="icon-chevron-right" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+    <path d="m8.25 4.5 7.5 7.5-7.5 7.5"/>
   </symbol>
   <symbol id="icon-wrench" viewBox="0 0 24 24" fill="currentColor" class="size-6">
     <path fill-rule="evenodd" d="M12 6.75a5.25 5.25 0 0 1 6.775-5.025.75.75 0 0 1 .313 1.248l-3.32 3.319c.063.475.276.934.641 1.299.365.365.824.578 1.3.64l3.318-3.319a.75.75 0 0 1 1.248.313 5.25 5.25 0 0 1-5.472 6.756c-1.018-.086-1.87.1-2.309.634L7.344 21.3A3.298 3.298 0 1 1 2.7 16.657l8.684-7.151c.533-.44.72-1.291.634-2.309A5.342 5.342 0 0 1 12 6.75ZM4.117 19.125a.75.75 0 0 1 .75-.75h.008a.75.75 0 0 1 .75.75v.008a.75.75 0 0 1-.75.75h-.008a.75.75 0 0 1-.75-.75v-.008Z" clip-rule="evenodd" />
@@ -1438,25 +1454,52 @@ document.addEventListener('click', e => {
   input.dispatchEvent(new Event('input', { bubbles: true }));
 });
 
+function buildTextInputHTML(param, value, toolKey, wiring) {
+  const helpAttr = param.help ? ` data-help="${toolKey}/${param.key}"` : '';
+  const input = `<input type="text" placeholder="${esc(param.placeholder || '')}" value="${esc(value || '')}"${helpAttr}${wiring}>`;
+  return buildClearableInputHTML(input, !!value);
+}
+
 function buildParamHTML(param, value, toolKey, wiring) {
   if (param.type === 'checkbox') {
     return `<span class="tool-row-param"><label><input type="checkbox"${value ? ' checked' : ''}${wiring}> ${esc(param.label)}</label></span>`;
   }
   const labelHTML = param.label ? `<label>${esc(param.label)}</label>` : '';
-  const placeholder = esc(param.placeholder || '');
   if (param.type === 'number') {
     return `<span class="tool-row-param">${labelHTML}<input type="number" min="1" class="tool-row-num"`
-      + ` placeholder="${placeholder}" value="${esc(value || '')}"${wiring}></span>`;
+      + ` placeholder="${esc(param.placeholder || '')}" value="${esc(value || '')}"${wiring}></span>`;
   }
-  const helpAttr = param.help ? ` data-help="${toolKey}/${param.key}"` : '';
-  const input = `<input type="text" placeholder="${placeholder}" value="${esc(value || '')}"${helpAttr}${wiring}>`;
-  return `<span class="tool-row-param tool-row-param-text">${labelHTML}${buildClearableInputHTML(input, !!value)}</span>`;
+  return `<span class="tool-row-param tool-row-param-text">${labelHTML}${buildTextInputHTML(param, value, toolKey, wiring)}</span>`;
 }
 
-function buildParamsHTML(params, values, toolKey, wiringFn) {
+function buildFindReplaceFieldHTML(patternParam, replaceParam, values, toolKey, wiringFn, opts) {
+  const expanded = !!opts.expanded;
+  const caret = `<button type="button" class="find-replace-caret" data-replace-row="${opts.rowToken}"`
+    + ` aria-expanded="${expanded}" title="Replace" aria-label="Replace">`
+    + `<svg class="find-replace-caret-glyph" width="11" height="11" aria-hidden="true"><use href="#icon-chevron-right"/></svg></button>`;
+  const pattern = buildTextInputHTML(patternParam, values?.[patternParam.key], toolKey, wiringFn(patternParam));
+  const replace = buildTextInputHTML(replaceParam, values?.[replaceParam.key], toolKey, wiringFn(replaceParam));
+  return `<span class="tool-row-param tool-row-param-text find-replace">${caret}`
+    + `<span class="find-replace-stack">${pattern}`
+    + `<span class="find-replace-replace"${expanded ? '' : ' hidden'}>${replace}</span>`
+    + `</span></span>`;
+}
+
+function buildParamsHTML(params, values, toolKey, wiringFn, opts = {}) {
   if (!params.length) return '';
   const fields = [], aside = [];
+  let frPattern = null, frReplace = null;
+  if (opts.findReplace) {
+    frPattern = params.find(p => p.type !== 'checkbox' && p.key !== 'replace');
+    frReplace = params.find(p => p.key === 'replace');
+    if (frPattern && frReplace) {
+      fields.push(buildFindReplaceFieldHTML(frPattern, frReplace, values, toolKey, wiringFn, opts));
+    } else {
+      frPattern = frReplace = null;
+    }
+  }
   for (const p of params) {
+    if (p === frPattern || p === frReplace) continue;
     const html = buildParamHTML(p, values?.[p.key], toolKey, wiringFn(p));
     (p.type === 'checkbox' ? aside : fields).push(html);
   }
@@ -1474,7 +1517,8 @@ function buildSearchBarHTML() {
   // a baked-in index would silently point at the wrong row once tools are
   // added above it, routing search input into another row's params.
   const params = buildParamsHTML(TOOLS.search.params, row.params, 'search',
-    p => ` data-row="bar" data-key="${p.key}"`);
+    p => ` data-row="bar" data-key="${p.key}"`,
+    { findReplace: true, rowToken: 'bar', expanded: ToolStack.isRowExpanded('bar') });
   return `<div class="search-bar">
       <span class="drag-handle" aria-hidden="true">≡</span>
       <div class="search-items">
@@ -2598,7 +2642,7 @@ const LibraryView = (() => {
 
   function buildSearchBarHTML() {
     const vals = { pattern: _searchQuery, 'whole-word': _searchWholeWord };
-    const params = buildParamsHTML(TOOLS.search.params, vals, 'search', p =>
+    const params = buildParamsHTML(TOOLS.search.params.filter(p => p.key !== 'replace'), vals, 'search', p =>
       p.key === 'pattern'
         ? ` id="lib-search-input" oninput="LibraryView.onSearch(this.value)"`
         : ` id="lib-search-whole-word" onchange="LibraryView.onWholeWord(this.checked)"`);
@@ -3627,6 +3671,7 @@ function buildSearchPattern(query, wholeWord = false) {
   const hlRe = new RegExp(anchor(hlPat), 'id');
   return {
     filterRe: new RegExp(anchor(filterPat)),
+    globalRe: new RegExp(anchor(filterPat), 'gd'),
     searchRanges: text => searchRangesFor(text, hlRe),
   };
 }
@@ -3842,6 +3887,27 @@ function runRegexReplace(entry, prepared, wordlist) {
   return [{ entry: out, inputHighlights, outputHighlights }];
 }
 
+function runSearchReplace(entry, prepared, wordlist) {
+  const { pattern, replacement } = prepared;
+  const re = pattern.globalRe;
+  re.lastIndex = 0;
+  let out = '', inPos = 0, m, colorIdx = 0;
+  const inputHighlights = [], outputHighlights = [];
+  while ((m = re.exec(entry)) !== null) {
+    const mStart = m.index, mEnd = mStart + m[0].length;
+    out += entry.slice(inPos, mStart);
+    const kind = `search:${colorIdx++ % 5}`;
+    inputHighlights.push({ start: mStart, end: mEnd, kind });
+    outputHighlights.push({ start: out.length, end: out.length + replacement.length, kind });
+    out += replacement;
+    inPos = mEnd;
+    if (m[0].length === 0) re.lastIndex++;   // step past a zero-width match or loop forever
+  }
+  out += entry.slice(inPos);
+  if (out === entry || !wordlist.byEntry.has(out)) return [];
+  return [{ entry: out, inputHighlights, outputHighlights }];
+}
+
 // ─── Tool stack ───────────────────────────────────────────────────────────────
 // Tools are catalog records ({ name, icon, category, desc, example, params,
 // kind, inputHighlights, outputHighlights, glyph?, run?, isInert? }). A tool
@@ -3907,8 +3973,9 @@ const TOOLS = {
   },
   search: {
     name: 'Search', icon: '<svg width="16" height="16" aria-hidden="true"><use href="#icon-search"/></svg>', category: 'patterns',
-    desc: 'Match entries by text, with wildcards',
+    desc: 'Search (and replace) with wildcards',
     example: 'un*ed · c?t',
+    findReplace: true,
     params: [
       { placeholder: 'pattern', help: buildHelpHTML([
         ['*', 'any string'],
@@ -3919,9 +3986,11 @@ const TOOLS = {
         ['[^abc]', 'none of a, b, c'],
         ['[a-m]', 'letter range'],
       ]) },
+      { key: 'replace', placeholder: 'replace' },
       WHOLE_WORD_PARAM,
     ],
-    kind: 'filter', inputHighlights: true, outputHighlights: false,
+    kind: params => (params.replace ? 'transform' : 'filter'),
+    inputHighlights: true, outputHighlights: true, glyph: '→',
     // An empty query is a no-op: the row is transparent — no filtering, no
     // lens — so an empty permanent search bar costs nothing.
     isInert: params => !((params && params.pattern || '').trim()),
@@ -3931,10 +4000,14 @@ const TOOLS = {
     prepare(params) {
       const query = (params.pattern || '').trim();
       if (!query) return null;
-      return buildSearchPattern(query, !!params['whole-word']);
+      const pattern = buildSearchPattern(query, !!params['whole-word']);
+      const replacement = params.replace || '';
+      return replacement ? { mode: 'replace', pattern, replacement } : { mode: 'filter', pattern };
     },
-    run(entry, pattern, wordlist) {
-      if (!pattern) return true;
+    run(entry, prepared, wordlist) {
+      if (!prepared) return true;
+      if (prepared.mode === 'replace') return runSearchReplace(entry, prepared, wordlist);
+      const { pattern } = prepared;
       if (!pattern.filterRe.test(entry)) return null;
       const ranges = pattern.searchRanges(entry);
       return ranges.length ? ranges : true;
@@ -3943,7 +4016,8 @@ const TOOLS = {
   regex: {
     name: 'Regex', icon: '🪄', category: 'patterns',
     desc: 'Search (and replace) with regular expressions',
-    example: '^un.+ed$',
+    example: 'un.+ed · c.{2,4}t',
+    findReplace: true,
     params: [
       { key: 'pattern', raw: true, placeholder: 'pattern', help: buildHelpHTML([
         ['.*', 'any string'],
@@ -4663,13 +4737,19 @@ const ToolStack = (() => {
   function getSearchBarRow() { return stack[stack.length - 1]; }
   function getUserStack() { return stack.slice(0, -1); }
 
+  function isRowExpanded(token) {
+    const row = token === 'bar' ? getSearchBarRow() : stack[token];
+    return !!(row && (row._replaceExpanded || (row.params.replace || '').trim()));
+  }
+
   function buildRowHTML(idx, row) {
     // The last row is the permanent Search bar — its own chrome, no remove
     // button (undeletable). Everything above it is an ordinary tool row.
     if (idx === stack.length - 1) return buildSearchBarHTML();
     const tool = row.def;
     const params = buildParamsHTML(tool.params, row.params, row.tool,
-      p => ` data-row="${idx}" data-key="${p.key}"`);
+      p => ` data-row="${idx}" data-key="${p.key}"`,
+      { findReplace: !!tool.findReplace, rowToken: idx, expanded: isRowExpanded(idx) });
     return `<div class="tool-row">
       ${buildDragHandleHTML()}
       <div class="tool-row-body">
@@ -4840,6 +4920,27 @@ const ToolStack = (() => {
         removeAt(parseInt(removeBtn.dataset.remove, 10));
         return;
       }
+      const caret = e.target.closest('.find-replace-caret[data-replace-row]');
+      if (caret) {
+        const token = caret.dataset.replaceRow;
+        const row = token === 'bar' ? getSearchBarRow() : stack[parseInt(token, 10)];
+        if (!row) return;
+        const expanding = !isRowExpanded(token);
+        row._replaceExpanded = expanding;
+        caret.setAttribute('aria-expanded', String(expanding));
+        const wrap = caret.parentElement.querySelector('.find-replace-replace');
+        wrap.hidden = !expanding;
+        const replaceInput = wrap.querySelector('input');
+        if (expanding) {
+          row.params.replace = replaceInput.value;
+          replaceInput.focus();
+        } else {
+          delete row.params.replace;
+        }
+        refreshWorkshopMergedScroller();
+        Router.navigate();
+        return;
+      }
     });
     p?.addEventListener('input', (e) => {
       const input = e.target.closest('input[data-row]');
@@ -4914,7 +5015,7 @@ const ToolStack = (() => {
   }
   function getStack() { return stack; }
 
-  return { buildHTML, refreshGalleryActive, init, getStack, setStack, getSearchBarRow, getUserStack };
+  return { buildHTML, refreshGalleryActive, init, getStack, setStack, getSearchBarRow, getUserStack, isRowExpanded };
 })();
 
 // ─── Input helpers ────────────────────────────────────────────────────────────
