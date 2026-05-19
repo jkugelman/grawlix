@@ -1489,9 +1489,11 @@ function buildParamsHTML(params, values, toolKey, wiringFn) {
 function buildSearchBarHTML() {
   const scoreRange = WorkshopView.scoreRange;
   const row = ToolStack.getSearchBarRow();
-  const idx = ToolStack.getStack().length - 1;
+  // `bar`, not a numeric index: the bar's DOM persists across rerenderRows, so
+  // a baked-in index would silently point at the wrong row once tools are
+  // added above it, routing search input into another row's params.
   const params = buildParamsHTML(TOOLS.search.params, row.params, 'search',
-    p => ` data-row="${idx}" data-key="${p.key}"`);
+    p => ` data-row="bar" data-key="${p.key}"`);
   return `<div class="search-bar">
       <span class="drag-handle" aria-hidden="true">≡</span>
       <div class="search-items">
@@ -4856,10 +4858,11 @@ const ToolStack = (() => {
     p?.addEventListener('input', (e) => {
       const input = e.target.closest('input[data-row]');
       if (!input) return;
-      const idx = parseInt(input.dataset.row, 10);
+      const rowAttr = input.dataset.row;
+      const row = rowAttr === 'bar' ? getSearchBarRow() : stack[parseInt(rowAttr, 10)];
       const key = input.dataset.key;
-      if (stack[idx]) {
-        stack[idx].params[key] = input.type === 'checkbox' ? input.checked : input.value;
+      if (row) {
+        row.params[key] = input.type === 'checkbox' ? input.checked : input.value;
         refreshWorkshopMergedScroller();
         Router.navigate();
       }
