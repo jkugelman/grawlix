@@ -500,10 +500,6 @@ html.dark-mode .search-match-4 { background: #14532d; color: #d1fae5; }
   .header-sep-feedback,
   .header-feedback { display: none; }
   .header-byline-mobile { display: inline; }
-  /* iOS Safari auto-zooms into focused inputs smaller than 16px, which fires
-     a resize event that closes the popover one frame after it opens. Bump to
-     16px on mobile so focus doesn't trigger the zoom. */
-  .atom-pop-fields input { font-size: 16px; }
   .atom-pop-fields { grid-auto-rows: minmax(30px, auto); }
 
   .header-nav { position: relative; }
@@ -863,12 +859,14 @@ a.get-file:hover { text-decoration: underline; }
 .tool-row-remove { background: none; border: none; color: var(--faint); cursor: pointer; padding: 5px; border-radius: 4px; line-height: 1; display: flex; align-items: center; justify-content: center; }
 .tool-row-remove:hover { color: var(--text); background: var(--hover); }
 .tool-row-remove-placeholder { width: 24px; height: 24px; }
-/* 16px keeps iOS from auto-zooming into a focused input — the zoom also throws off help-popover positioning. */
-@media (max-width: 759px) {
+/* `@supports (-webkit-touch-callout)` tests for iOS Safari, which auto-zooms
+   a focused input under 16px (Android and desktop browsers don't). */
+@supports (-webkit-touch-callout: none) {
   .tool-row, .search-bar { --tool-control-h: 34px; }
   .tool-row-param input[type="text"],
   .tool-row-param input[type="number"],
-  .score-range-label input[type="text"] { font-size: 16px; }
+  .score-range-label input[type="text"],
+  .atom-pop-fields input { font-size: 16px; }
 }
 
 /* Library view — top-level page (peer of Workshop). Shared card chrome lives
