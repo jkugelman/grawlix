@@ -3807,24 +3807,31 @@ function kindForGroup(g) {
 }
 
 function runRegexReplace(entry, prepared, wordlist) {
-  const { re, tokens } = prepared;
+  const { re, hlRe, tokens } = prepared;
   re.lastIndex = 0;
   let out = '', inPos = 0, m;
   const inputHighlights = [], outputHighlights = [];
   while ((m = re.exec(entry)) !== null) {
     const mStart = m.index, mEnd = mStart + m[0].length;
+    const groups = m.length > 1;
     out += entry.slice(inPos, mStart);
-    if (m.length > 1) {
+    if (groups) {
       for (let g = 1; g < m.length; g++) {
         if (m.indices[g]) inputHighlights.push({ start: m.indices[g][0], end: m.indices[g][1], kind: kindForGroup(g) });
       }
-    } else {
-      inputHighlights.push({ start: mStart, end: mEnd, kind: kindForGroup(0) });
+    } else if (hlRe) {
+      hlRe.lastIndex = mStart;   // lockstep with `re`: same pattern, literal runs wrapped
+      inputHighlights.push(...groupSpansToRanges(hlRe.exec(entry)));
     }
+    let litIdx = 0;
     for (const tok of tokens) {
-      if (tok.lit !== undefined) { out += tok.lit; continue; }
+      if (tok.lit !== undefined) {
+        if (!groups) outputHighlights.push({ start: out.length, end: out.length + tok.lit.length, kind: `search:${litIdx++ % 5}` });
+        out += tok.lit;
+        continue;
+      }
       const val = tok.group === 0 ? m[0] : (m[tok.group] || '');
-      if (val) outputHighlights.push({ start: out.length, end: out.length + val.length, kind: kindForGroup(tok.group) });
+      if (val && groups) outputHighlights.push({ start: out.length, end: out.length + val.length, kind: kindForGroup(tok.group) });
       out += val;
     }
     inPos = mEnd;
@@ -3977,10 +3984,13 @@ const TOOLS = {
       // highlighting. The whole-word wrap is non-capturing so a user's `$N`
       // backreferences keep their group numbers.
       const wrap = src => params['whole-word'] ? '^(?:' + src + ')$' : src;
-      if (replacement) {
-        return { mode: 'replace', re: new RegExp(wrap(body), 'gid'), tokens: parseReplacement(replacement) };
-      }
       const { capturing, runs } = analyzeRegexPattern(body);
+      if (replacement) {
+        // The functional `re` can't be wrapped for highlighting — synthetic
+        // groups would renumber the user's `$N`; `hlRe` is the wrapped copy.
+        const hlRe = capturing ? null : new RegExp(wrap(wrapRuns(body, runs)), 'gid');
+        return { mode: 'replace', re: new RegExp(wrap(body), 'gid'), hlRe, tokens: parseReplacement(replacement) };
+      }
       return { mode: 'filter', re: new RegExp(wrap(capturing ? body : wrapRuns(body, runs)), 'id') };
     },
     run(entry, prepared, wordlist) {
