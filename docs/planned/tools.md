@@ -15,7 +15,7 @@ This doc tracks what's still planned for the gallery: the rest of the tool catal
 When the next tool needs runtime support that doesn't exist yet, land the runtime first, then the tool.
 
 - **Letter-bank family** (`subanagram`, `made_from`, `anagram_families`) — no runtime gate. Each builds whatever letter-keyed index it needs in its own `prepare` (see *Indexed lookups* below). If a per-keystroke rebuild proves too slow on large wordlists, promote the index onto the merged-wordlist cache — but that's a one-liner, not a prerequisite runtime.
-- **Membership family** (`kangaroo`, `joey`, `sandwich`, `nested_words`) — `wordlist.byEntry` already exists on the merged-wordlist cache. No runtime gate.
+- **Membership family** (`kangaroo`, `joey`, `sandwich`, `nested_words`, `double_occupancy`) — `wordlist.byEntry` already exists on the merged-wordlist cache. No runtime gate.
 - **Phonetics / thesaurus families** — wait for the bundled data dependency. Until CMU dict and Roget XML are available at runtime, the tools can't run.
 
 For tools that fit the runtime as-is (`palindromes`, `isograms`, `supervocalics`, etc. — purely letter-pattern checks over `entry`), no gate; just add the `run` and ship.
@@ -134,6 +134,7 @@ Each entry: `slug(params)` — `kind`, then highlight kinds (`in:` for input-sid
 
 ### Misc
 - `spelling_bee(center, outer)` — filter · in: `matched` on the center letter.
+- `double_occupancy(ref)` — filter · annotation: `compounds`. Two-part entries where *both* halves compound with one reference term — the "what do these have in common" theme staple. A half "pairs" when prepending *or* appending `ref` yields a real entry, checked against `wordlist.byEntry` like `nested_words` (`GREEN LIGHT` survives against `HOUSE` → GREENHOUSE, LIGHTHOUSE). `ref` may be a single word or a multi-word phrase. Ports [Crossword Nexus's Double Occupancy](https://crosswordnexus.com/apps/double-occupancy/).
 - `everything()` — filter · identity (no-op).
 
 ### Grawlix-original
