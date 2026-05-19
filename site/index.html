@@ -811,7 +811,7 @@ a.get-file:hover { text-decoration: underline; }
 /* Tool rows and the search bar share min-height so a row with no params
    doesn't shrink below the height of an input-bearing row, and the search
    bar (visually the bottom row of the stack) lines up with them. */
-.tool-row, .search-bar { min-height: 42px; }
+.tool-row, .search-bar { min-height: 42px; --tool-control-h: 30px; }
 .tool-row { position: relative; display: grid; grid-template-columns: auto 1fr auto; align-items: start; padding: 8px 14px; border-bottom: 1px solid var(--border2); gap: 12px; overflow: hidden; }
 .tool-row:last-child { border-bottom: none; }
 .tool-row.dragging { opacity: 0.4; }
@@ -837,11 +837,12 @@ a.get-file:hover { text-decoration: underline; }
 .tool-stack-cursor::before { content: ''; position: absolute; left: 0; top: 50%; width: 0; height: 0; transform: translateY(-50%); border-style: solid; border-width: 4px 0 4px 7px; border-color: transparent transparent transparent var(--accent); }
 .tool-row-body { display: flex; align-items: flex-start; gap: 12px; flex-wrap: nowrap; min-width: 0; }
 .tool-label { white-space: nowrap; }
+.tool-row-body .tool-label, .search-items .tool-label { line-height: var(--tool-control-h); }
 .tool-row-icon { font-size: 16px; line-height: 1; width: 20px; height: 20px; display: inline-flex; align-items: center; justify-content: center; color: var(--muted); flex-shrink: 0; vertical-align: middle; }
 .tool-row-name { font-size: 13px; font-weight: 600; color: var(--text); vertical-align: middle; }
 .tool-row-params { display: flex; gap: 10px; align-items: flex-start; flex-wrap: nowrap; }
 .tool-row-fields { display: flex; flex-wrap: wrap; gap: 6px; }
-.tool-row-param { display: flex; align-items: center; gap: 4px; font-size: 12px; color: var(--muted); }
+.tool-row-param { display: flex; align-items: center; gap: 4px; min-height: var(--tool-control-h); font-size: 12px; color: var(--muted); }
 .tool-row-param label { display: flex; align-items: center; gap: 5px; white-space: nowrap; cursor: pointer; user-select: none; }
 .tool-row-param-text { flex: 0 1 150px; }
 .tool-row-param-text .clearable-input { flex: 1 1 auto; }
@@ -864,6 +865,7 @@ a.get-file:hover { text-decoration: underline; }
 .tool-row-remove-placeholder { width: 24px; height: 24px; }
 /* 16px keeps iOS from auto-zooming into a focused input — the zoom also throws off help-popover positioning. */
 @media (max-width: 759px) {
+  .tool-row, .search-bar { --tool-control-h: 34px; }
   .tool-row-param input[type="text"],
   .tool-row-param input[type="number"],
   .score-range-label input[type="text"] { font-size: 16px; }
