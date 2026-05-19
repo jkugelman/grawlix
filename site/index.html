@@ -207,12 +207,12 @@ button.danger:hover:not(:disabled) { background: #e74c3c; border-color: #c0392b;
    since it carries the distribution at a glance). */
 .stats-overflow .stats-right .stat { display: none; }
 
-/* In the Workshop the stats bar is hoisted to the very top of #workshop-view
-   (above the tool gallery) as its own sticky band; the tool stack + search
-   bar + column headers form a second sticky band that pins just under it as
-   the user scrolls into the entries table. Two bands by recession depth:
-   stats + tools/search/column-headers on surface2 (chrome), and the data
-   plane below is surface (content, brightest). */
+/* In the Workshop the stats bar sits below the tool gallery and above the
+   tool stack, as its own sticky band; the tool stack + search bar + column
+   headers form a second sticky band that pins just under it as the user
+   scrolls into the entries table. Two bands by recession depth: stats +
+   tools/search/column-headers on surface2 (chrome), and the data plane
+   below is surface (content, brightest). */
 #workshop-stats { position: sticky; top: 0; z-index: 51; }
 .sticky-stack { position: sticky; top: 0; z-index: 50; background: var(--surface2); border-bottom: 1px solid var(--border2); }
 #workshop-view .sticky-stack { top: var(--stats-bar-h); }
@@ -896,9 +896,9 @@ a.get-file:hover { text-decoration: underline; }
 .wld-pane-rescore { border-bottom: 1px solid var(--border2); padding: 14px 22px; }
 .wld-pane-rescore-empty { font-size: 12px; color: var(--muted); padding: 6px 2px; }
 
-/* Library sticky pinning. Stats bar pins at the top of <main>; the search
-   bar pins immediately below it. The action header and rescore/scoring
-   section between them stay in flow and scroll under the stats bar. */
+/* Library sticky pinning. The stats bar and the search bar form a two-row
+   sticky region directly above the entries table; the action header and
+   rescore/scoring section sit above it and scroll away first. */
 .wld-pane > .stats-bar { position: sticky; top: 0; z-index: 51; }
 .lib-search-bar       { position: sticky; top: var(--stats-bar-h); z-index: 50; }
 
@@ -1105,7 +1105,6 @@ html.dark-mode .wld-onboarding { background: color-mix(in srgb, var(--accent) 15
 <main>
   <div id="busy-overlay"><div class="busy-spinner"></div></div>
   <div id="workshop-view">
-    <div id="workshop-stats"></div>
     <section id="tool-gallery" aria-label="Tool gallery">
       <div class="gallery-header">
         <h2 class="gallery-title">Tools</h2>
@@ -1117,6 +1116,7 @@ html.dark-mode .wld-onboarding { background: color-mix(in srgb, var(--accent) 15
       <div class="gallery-body"></div>
     </section>
 
+    <div id="workshop-stats"></div>
     <div id="detail-panel"></div>
   </div>
 
@@ -2737,11 +2737,11 @@ const LibraryView = (() => {
     const rulesHTML = `<div class="wld-pane-rescore" id="wld-rescore-section">${buildRescoreSectionHTML(wordlist)}</div>`;
 
     pane.innerHTML = `
-      ${buildStatsBarHTML(stats, { entries: sourceEntries, ignoredCount }, getHistogramLayout(), { readOnly: true })}
       <div class="wld-pane-header">
         <div class="wld-pane-actions">${actionsHTML}</div>
       </div>
       ${rulesHTML}
+      ${buildStatsBarHTML(stats, { entries: sourceEntries, ignoredCount }, getHistogramLayout(), { readOnly: true })}
       ${hasData ? buildSearchBarHTML() : ''}
       ${hasData ? buildEntriesPanelHTML() : ''}`;
 
@@ -2776,11 +2776,11 @@ const LibraryView = (() => {
     const dlBtn = hasData ? `<button class="primary" onclick="LibraryView.action('download')">Download</button>` : '';
 
     pane.innerHTML = `
-      ${buildStatsBarHTML(stats, { entries, ignoredCount: 0 }, getHistogramLayout(), { readOnly: true })}
       <div class="wld-pane-header">
         <div class="wld-pane-actions">${dlBtn}</div>
       </div>
       <div class="wld-pane-rescore" id="wld-scoring-section">${buildScoringSectionHTML()}</div>
+      ${buildStatsBarHTML(stats, { entries, ignoredCount: 0 }, getHistogramLayout(), { readOnly: true })}
       ${hasData ? buildSearchBarHTML() : ''}
       ${hasData ? buildEntriesPanelHTML() : ''}`;
 

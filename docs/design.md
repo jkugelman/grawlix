@@ -71,7 +71,7 @@ The focused-wordlist panel has no name/icon header — the focused wordlist is i
 
 **On narrow viewports the selected card pins to the top.** When the list stacks above the panel, scrolling into the panel would otherwise carry the highlighted card off-screen — and that card is the only thing identifying the focused wordlist. So the selected card is `position: sticky`. The catch: a sticky element's travel is bounded by its parent box, and the card's wrappers (`.wld-list` / `.wld-list-sticky` / `.wld-list-body`) are only as tall as the list. The narrow layout collapses all three with `display: contents`, so the cards become flow children of `.wld-body` — which spans the full stacked height — and the card pins through the entire panel scroll. The desktop rail keeps the wrappers; it pins via the standard stretched-column inner-wrapper idiom instead.
 
-**Two panel shapes** with one common skeleton (action row → stats + histogram → rules editor → search bar → entries view):
+**Two panel shapes** with one common skeleton (action row → rules editor → stats + histogram → search bar → entries view):
 
 - **Sources and My Edits** carry rescoring rules and the Rescored/Original toggle (toggle visible only when rules apply).
 - **All** carries the scoring (tier-label) rules editor in place of rescoring.
