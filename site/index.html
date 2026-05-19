@@ -238,21 +238,18 @@ html.light-mode .histogram-rect { opacity: 0.22; }
 html.light-mode .histogram-readonly.is-hovered .histogram-bar:not(.histogram-bar-ignored) { filter: none; }
 
 /* Search bar — the permanent bottom row of the tool stack (a ToolStack row
-   with its own chrome). position: relative is the positioning context for
-   .tool-stack-cursor, parented here so its caret straddles the seam between
-   the last tool row and the bar. flex-wrap: nowrap keeps it to one line; when
-   the bar can't fit its filter/sort controls, SearchBarCompact adds .compact
-   and the controls move behind the adjustments button (see below). */
-.search-bar { padding: 8px 14px; background: var(--surface2); border-bottom: 1px solid var(--border2); display: flex; flex-wrap: nowrap; align-items: flex-start; gap: 12px; position: relative; }
-.search-bar > .drag-handle { line-height: var(--tool-control-h); }
-/* The bar is split into two groups: .search-items (Search · input · Whole
-   word) and .search-bar-end (Score · Sort on Workshop, just Sort on Library).
-   .search-items has flex-grow: 1, which lets it expand to fill the leftover
-   and push .search-bar-end (or the .compact adjustments button) to the right
-   edge. The bar never wraps — when .search-bar-end no longer fits inline,
-   .compact hides it and the adjustments button takes its place. */
-.search-items { display: flex; flex-wrap: nowrap; align-items: flex-start; gap: 12px; flex: 1 1 auto; }
-.search-bar-end { display: flex; align-items: center; gap: 12px; min-height: var(--tool-control-h); }
+   with its own chrome). Shares the .tool-row grid layout: drag handle, label,
+   caret, pattern input, whole-word aside, and the overflow slot (Score/Sort
+   on Workshop, Sort on Library; the .compact adjust button shares the slot).
+   position: relative is the positioning context for .tool-stack-cursor,
+   parented here so its caret straddles the seam between the last tool row
+   and the bar. */
+.search-bar { padding: 8px 14px; background: var(--surface2); border-bottom: 1px solid var(--border2); display: grid; grid-template-columns: auto auto 1fr auto; align-items: center; column-gap: 12px; row-gap: 6px; position: relative; }
+.search-bar.lib-search-bar { grid-template-columns: auto 1fr auto; }
+.search-bar > .tool-row-replace { grid-column: 3; grid-row: 2; }
+.search-bar.lib-search-bar > .tool-row-replace { grid-column: 2; grid-row: 2; }
+.search-bar-overflow { display: flex; align-items: center; gap: 12px; }
+.search-bar-end { display: flex; align-items: center; gap: 12px; }
 .score-range-label { display: flex; align-items: center; gap: 5px; font-size: 12px; color: var(--muted); white-space: nowrap; }
 .search-bar-sort { font-size: 12px; color: var(--muted); white-space: nowrap; flex-shrink: 0; }
 .search-bar-sort .sort-axis-select { appearance: none; -webkit-appearance: none; border: none; background: transparent; padding: 2px 14px 2px 3px; border-radius: 4px; font: inherit; font-size: 12px; color: var(--text); cursor: pointer; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 5'%3E%3Cpath fill='%238a8a8a' d='M0 0l4 5 4-5z'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 3px center; background-size: 8px 5px; }
@@ -262,8 +259,8 @@ html.light-mode .histogram-readonly.is-hovered .histogram-bar:not(.histogram-bar
 /* Compact mode — when the bar is too narrow to show .search-bar-end inline,
    SearchBarCompact adds .compact: the end-group is hidden and the
    adjustments button takes its place, opening a popover the end-group is
-   moved into. Only the popover's layout (column, not row) is restyled —
-   the controls themselves are the same elements. */
+   moved into. Both share the .search-bar-overflow grid cell so toggling
+   doesn't open or close a grid column. */
 .search-adjust-btn { background: none; border: none; padding: 5px 3px; margin: -3px 0; cursor: pointer; color: var(--muted); display: flex; align-items: center; border-radius: 4px; flex-shrink: 0; min-height: var(--tool-control-h); }
 .search-adjust-btn:hover { color: var(--text); background: var(--hover); }
 .search-adjust-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
@@ -809,7 +806,8 @@ a.get-file:hover { text-decoration: underline; }
    doesn't shrink below the height of an input-bearing row, and the search
    bar (visually the bottom row of the stack) lines up with them. */
 .tool-row, .search-bar { min-height: 42px; --tool-control-h: 30px; }
-.tool-row { position: relative; display: grid; grid-template-columns: auto 1fr auto; align-items: start; padding: 8px 14px; border-bottom: 1px solid var(--border2); gap: 12px; overflow: hidden; }
+.tool-row { position: relative; display: grid; grid-template-columns: auto auto 1fr auto; align-items: center; padding: 8px 14px; border-bottom: 1px solid var(--border2); column-gap: 12px; row-gap: 6px; overflow: hidden; }
+.tool-row > .tool-row-replace { grid-column: 3; grid-row: 2; }
 .tool-row:last-child { border-bottom: none; }
 .tool-row.dragging { opacity: 0.4; }
 .tool-row.drag-over { box-shadow: inset 0 0 0 2px var(--accent); }
@@ -832,22 +830,19 @@ a.get-file:hover { text-decoration: underline; }
    when no user tools exist yet). */
 .tool-stack-cursor { position: absolute; top: -1px; left: 10px; right: 10px; height: 2px; background: var(--accent); pointer-events: none; box-shadow: 0 0 6px color-mix(in srgb, var(--accent) 55%, transparent); }
 .tool-stack-cursor::before { content: ''; position: absolute; left: 0; top: 50%; width: 0; height: 0; transform: translateY(-50%); border-style: solid; border-width: 4px 0 4px 7px; border-color: transparent transparent transparent var(--accent); }
-.tool-row-body { display: flex; align-items: flex-start; gap: 12px; flex-wrap: nowrap; min-width: 0; }
-.tool-label { white-space: nowrap; }
-.tool-row-body .tool-label, .search-items .tool-label { line-height: var(--tool-control-h); }
-.tool-row-icon { font-size: 16px; line-height: 1; width: 20px; height: 20px; display: inline-flex; align-items: center; justify-content: center; color: var(--muted); flex-shrink: 0; vertical-align: middle; }
-.tool-row-name { font-size: 13px; font-weight: 600; color: var(--text); vertical-align: middle; }
-.tool-row-params { display: flex; gap: 10px; align-items: flex-start; flex-wrap: nowrap; }
-.tool-row-fields { display: flex; gap: 6px; }
+.tool-label { white-space: nowrap; display: inline-flex; align-items: center; gap: 5px; }
+.tool-row-icon { font-size: 16px; line-height: 1; width: 20px; height: 20px; display: inline-flex; align-items: center; justify-content: center; color: var(--muted); flex-shrink: 0; }
+.tool-row-name { font-size: 13px; font-weight: 600; color: var(--text); }
+.tool-row-main { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.tool-row-main .find-replace-caret + .tool-row-param-text { margin-left: -2px; }
+.tool-row-main .tool-row-param:not(.tool-row-param-text) { margin-left: 4px; }
+.tool-row-replace { display: flex; }
+.tool-row-replace[hidden] { display: none; }
 .tool-row-param { display: flex; align-items: center; gap: 4px; min-height: var(--tool-control-h); font-size: 12px; color: var(--muted); }
 .tool-row-param label { display: flex; align-items: center; gap: 5px; white-space: nowrap; cursor: pointer; user-select: none; }
 .tool-row-param-text { flex: 0 1 200px; }
 .tool-row-param-text .clearable-input { flex: 1 1 auto; }
-.find-replace { align-items: flex-start; gap: 4px; }
-.find-replace-stack { display: flex; flex-direction: column; gap: 6px; flex: 1 1 auto; min-width: 0; }
-.find-replace-replace { display: flex; }
-.find-replace-replace[hidden] { display: none; }
-.find-replace-caret { flex-shrink: 0; width: 16px; height: var(--tool-control-h); padding: 0; background: none; border: none; cursor: pointer; color: var(--muted); display: flex; align-items: center; justify-content: center; }
+.find-replace-caret { width: 16px; height: var(--tool-control-h); padding: 0; background: none; border: none; cursor: pointer; color: var(--muted); display: flex; align-items: center; justify-content: center; }
 .find-replace-caret:hover { color: var(--text); }
 .find-replace-caret:focus-visible { outline: 1px solid var(--accent); outline-offset: 1px; border-radius: 3px; }
 .find-replace-caret-glyph { transition: transform 0.15s; }
@@ -856,10 +851,14 @@ a.get-file:hover { text-decoration: underline; }
   .find-replace-caret-glyph { transition: none; }
 }
 .tool-row-param input[type="text"],
+.tool-row-replace input[type="text"],
 .score-range-label input[type="text"] { background: var(--input-bg); color: var(--text); border: 1px solid var(--border); border-radius: 4px; font-size: 13px; font-family: var(--font-mono); }
 .tool-row-param input[type="text"]:focus,
+.tool-row-replace input[type="text"]:focus,
 .score-range-label input[type="text"]:focus { outline: none; border-color: var(--accent); }
-.tool-row-param input[type="text"] { width: 100%; min-width: 120px; padding: 5px 24px 5px 8px; }
+.tool-row-param input[type="text"],
+.tool-row-replace input[type="text"] { width: 100%; min-width: 120px; padding: 5px 24px 5px 8px; }
+.tool-row-replace .clearable-input { flex: 0 1 200px; }
 .score-range-label input[type="text"] { width: 72px; padding: 4px 20px 4px 6px; }
 .score-range-label input.invalid { border-color: #ea4335; background: var(--error-bg); }
 .tool-row-param input.tool-row-num { background: var(--input-bg); color: var(--text); border: 1px solid var(--border); border-radius: 4px; font-size: 13px; font-family: var(--font-sans); padding: 5px 8px; width: 5em; }
@@ -878,6 +877,7 @@ a.get-file:hover { text-decoration: underline; }
   .tool-row, .search-bar { --tool-control-h: 34px; }
   .tool-row-param input[type="text"],
   .tool-row-param input[type="number"],
+  .tool-row-replace input[type="text"],
   .score-range-label input[type="text"],
   .atom-pop-fields input { font-size: 16px; }
 }
@@ -1472,28 +1472,26 @@ function buildParamHTML(param, value, toolKey, wiring) {
   return `<span class="tool-row-param tool-row-param-text">${labelHTML}${buildTextInputHTML(param, value, toolKey, wiring)}</span>`;
 }
 
-function buildFindReplaceFieldHTML(patternParam, replaceParam, values, toolKey, wiringFn, opts) {
-  const expanded = !!opts.expanded;
-  const caret = `<button type="button" class="find-replace-caret" data-replace-row="${opts.rowToken}"`
+function buildFindReplaceCaretHTML(expanded, rowToken) {
+  return `<button type="button" class="find-replace-caret" data-replace-row="${rowToken}"`
     + ` aria-expanded="${expanded}" title="Replace" aria-label="Replace">`
     + `<svg class="find-replace-caret-glyph" width="11" height="11" aria-hidden="true"><use href="#icon-chevron-right"/></svg></button>`;
-  const pattern = buildTextInputHTML(patternParam, values?.[patternParam.key], toolKey, wiringFn(patternParam));
-  const replace = buildTextInputHTML(replaceParam, values?.[replaceParam.key], toolKey, wiringFn(replaceParam));
-  return `<span class="tool-row-param tool-row-param-text find-replace">${caret}`
-    + `<span class="find-replace-stack">${pattern}`
-    + `<span class="find-replace-replace"${expanded ? '' : ' hidden'}>${replace}</span>`
-    + `</span></span>`;
 }
 
-function buildParamsHTML(params, values, toolKey, wiringFn, opts = {}) {
-  if (!params.length) return '';
-  const fields = [], aside = [];
+function buildToolRowPartsHTML(params, values, toolKey, wiringFn, opts = {}) {
+  const mainFields = [], asides = [];
+  let replace = '';
   let frPattern = null, frReplace = null;
   if (opts.findReplace) {
     frPattern = params.find(p => p.type !== 'checkbox' && p.key !== 'replace');
     frReplace = params.find(p => p.key === 'replace');
     if (frPattern && frReplace) {
-      fields.push(buildFindReplaceFieldHTML(frPattern, frReplace, values, toolKey, wiringFn, opts));
+      const expanded = !!opts.expanded;
+      const caret = buildFindReplaceCaretHTML(expanded, opts.rowToken);
+      const patternInput = buildTextInputHTML(frPattern, values?.[frPattern.key], toolKey, wiringFn(frPattern));
+      mainFields.push(`${caret}<span class="tool-row-param tool-row-param-text">${patternInput}</span>`);
+      const replaceInput = buildTextInputHTML(frReplace, values?.[frReplace.key], toolKey, wiringFn(frReplace));
+      replace = `<div class="tool-row-replace"${expanded ? '' : ' hidden'}>${replaceInput}</div>`;
     } else {
       frPattern = frReplace = null;
     }
@@ -1501,9 +1499,12 @@ function buildParamsHTML(params, values, toolKey, wiringFn, opts = {}) {
   for (const p of params) {
     if (p === frPattern || p === frReplace) continue;
     const html = buildParamHTML(p, values?.[p.key], toolKey, wiringFn(p));
-    (p.type === 'checkbox' ? aside : fields).push(html);
+    (p.type === 'checkbox' ? asides : mainFields).push(html);
   }
-  return `<span class="tool-row-params"><span class="tool-row-fields">${fields.join('')}</span>${aside.join('')}</span>`;
+  return {
+    main: `<div class="tool-row-main">${mainFields.join('')}${asides.join('')}</div>`,
+    replace,
+  };
 }
 
 // The Workshop search bar's chrome — rendered by ToolStack as the permanent
@@ -1516,20 +1517,22 @@ function buildSearchBarHTML() {
   // `bar`, not a numeric index: the bar's DOM persists across rerenderRows, so
   // a baked-in index would silently point at the wrong row once tools are
   // added above it, routing search input into another row's params.
-  const params = buildParamsHTML(TOOLS.search.params, row.params, 'search',
+  const parts = buildToolRowPartsHTML(TOOLS.search.params, row.params, 'search',
     p => ` data-row="bar" data-key="${p.key}"`,
     { findReplace: true, rowToken: 'bar', expanded: ToolStack.isRowExpanded('bar') });
+  const label = buildToolLabelHTML({ icon: '<svg width="16" height="16" aria-hidden="true"><use href="#icon-search"/></svg>', name: 'Search' });
   return `<div class="search-bar">
       <span class="drag-handle" aria-hidden="true">≡</span>
-      <div class="search-items">
-        ${buildToolLabelHTML({ icon: '<svg width="16" height="16" aria-hidden="true"><use href="#icon-search"/></svg>', name: 'Search' })}
-        ${params}
+      ${label}
+      ${parts.main}
+      <div class="search-bar-overflow">
+        <div class="search-bar-end">
+          <label class="score-range-label" title="Score: 50, 50-59, or 50+">Score ${buildClearableInputHTML(`<input type="text" id="score-range-input" value="${esc(scoreRange)}" oninput="WorkshopView.onScoreRange(this.value)">`, !!scoreRange)}</label>
+          <span id="search-bar-sort" class="search-bar-sort"></span>
+        </div>
+        <button type="button" class="search-adjust-btn" title="Filter &amp; sort options" aria-label="Filter and sort options"><svg width="16" height="16" aria-hidden="true"><use href="#icon-adjustments"/></svg></button>
       </div>
-      <div class="search-bar-end">
-        <label class="score-range-label" title="Score: 50, 50-59, or 50+">Score ${buildClearableInputHTML(`<input type="text" id="score-range-input" value="${esc(scoreRange)}" oninput="WorkshopView.onScoreRange(this.value)">`, !!scoreRange)}</label>
-        <span id="search-bar-sort" class="search-bar-sort"></span>
-      </div>
-      <button type="button" class="search-adjust-btn" title="Filter &amp; sort options" aria-label="Filter and sort options"><svg width="16" height="16" aria-hidden="true"><use href="#icon-adjustments"/></svg></button>
+      ${parts.replace}
     </div>`;
 }
 
@@ -2642,19 +2645,19 @@ const LibraryView = (() => {
 
   function buildSearchBarHTML() {
     const vals = { pattern: _searchQuery, 'whole-word': _searchWholeWord };
-    const params = buildParamsHTML(TOOLS.search.params.filter(p => p.key !== 'replace'), vals, 'search', p =>
+    const parts = buildToolRowPartsHTML(TOOLS.search.params.filter(p => p.key !== 'replace'), vals, 'search', p =>
       p.key === 'pattern'
         ? ` id="lib-search-input" oninput="LibraryView.onSearch(this.value)"`
         : ` id="lib-search-whole-word" onchange="LibraryView.onWholeWord(this.checked)"`);
     return `<div class="search-bar lib-search-bar">
-      <div class="search-items">
-        ${buildToolLabelHTML({ icon: '<svg width="16" height="16" aria-hidden="true"><use href="#icon-search"/></svg>', name: 'Search' })}
-        ${params}
+      ${buildToolLabelHTML({ icon: '<svg width="16" height="16" aria-hidden="true"><use href="#icon-search"/></svg>', name: 'Search' })}
+      ${parts.main}
+      <div class="search-bar-overflow">
+        <div class="search-bar-end">
+          <div class="search-bar-sort">${buildSortControlsHTML()}</div>
+        </div>
+        <button type="button" class="search-adjust-btn" title="Sort options" aria-label="Sort options"><svg width="16" height="16" aria-hidden="true"><use href="#icon-adjustments"/></svg></button>
       </div>
-      <div class="search-bar-end">
-        <div class="search-bar-sort">${buildSortControlsHTML()}</div>
-      </div>
-      <button type="button" class="search-adjust-btn" title="Sort options" aria-label="Sort options"><svg width="16" height="16" aria-hidden="true"><use href="#icon-adjustments"/></svg></button>
     </div>`;
   }
 
@@ -4761,16 +4764,16 @@ const ToolStack = (() => {
     // button (undeletable). Everything above it is an ordinary tool row.
     if (idx === stack.length - 1) return buildSearchBarHTML();
     const tool = row.def;
-    const params = buildParamsHTML(tool.params, row.params, row.tool,
+    const parts = buildToolRowPartsHTML(tool.params, row.params, row.tool,
       p => ` data-row="${idx}" data-key="${p.key}"`,
       { findReplace: !!tool.findReplace, rowToken: idx, expanded: isRowExpanded(idx) });
+    const remove = `<button type="button" class="tool-row-remove" data-remove="${idx}" title="Remove" aria-label="Remove ${esc(tool.name)}"><svg width="12" height="12"><use href="#icon-x"/></svg></button>`;
     return `<div class="tool-row">
       ${buildDragHandleHTML()}
-      <div class="tool-row-body">
-        ${buildToolLabelHTML(tool)}
-        ${params}
-      </div>
-      <button type="button" class="tool-row-remove" data-remove="${idx}" title="Remove" aria-label="Remove ${esc(tool.name)}"><svg width="12" height="12"><use href="#icon-x"/></svg></button>
+      ${buildToolLabelHTML(tool)}
+      ${parts.main}
+      ${remove}
+      ${parts.replace}
     </div>`;
   }
 
@@ -4942,7 +4945,7 @@ const ToolStack = (() => {
         const expanding = !isRowExpanded(token);
         row._replaceExpanded = expanding;
         caret.setAttribute('aria-expanded', String(expanding));
-        const wrap = caret.parentElement.querySelector('.find-replace-replace');
+        const wrap = caret.closest('.tool-row, .search-bar').querySelector('.tool-row-replace');
         wrap.hidden = !expanding;
         const replaceInput = wrap.querySelector('input');
         if (expanding) {
