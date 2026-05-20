@@ -1,50 +1,51 @@
-# Help System Redesign
+# Help system
 
-## Problem
+Replacing the prior "first-boot welcome tour + reference manual" plan. Going with a Crosserville-style multi-page approach: several small focused pages, each free to have its own shape (Q&A, tips, deep dive, orientation), each playing a distinct role. Reference points (all Crosserville): [FAQ](https://www.crosserville.com/FAQ), [GettingStarted](https://www.crosserville.com/GettingStarted), [Tips](https://www.crosserville.com/Tips), [KeyboardShortcuts](https://www.crosserville.com/KeyboardShortcuts).
 
-The current help modal serves two masters: a welcome tour for new users and a reference guide for returning users. These have different needs and shouldn't share a container. The tour has also accumulated reference material (wildcard syntax) that muddled it.
+The earlier version of this doc planned an in-app help with two surfaces — a 4-slide first-boot tour, and a `?`-button reference manual. That framing is set aside. The manual-shaped half is being broken up into separate pages instead, and the welcome surface may or may not survive as its own slide-deck thing once we see what the Getting Started page wants to be.
 
-## Two separate experiences
+This doc is more discussion than design — the conversation is just getting started.
 
-### 1. Welcome Tour
+## Voice and principles
 
-A quick, persuasive tour for first-time users. Not comprehensive — its job is to make the user understand why Grawlix exists and what they can do with it. Short and sweet throughout; each slide has one job.
+- **DIY, personal, hand-written.** README-on-GitHub feel; the docs should read as written by a person, not by a marketing department. No "unique value propositions," no "powerful workflows," no "robust feature set." Crosserville's FAQ has the right flavor: first-person admissions, opinions delivered as earned wisdom, credit to contributors, willingness to point users at competing tools.
+- **Not comprehensive.** No goal of documenting every feature. Spend the budget on cool stuff worth advertising and hard topics worth explaining.
+- **Don't document features that already work in-app.** Every tool has a gallery blurb and examples. If the gallery falls short, fix the gallery — don't write a paragraph here as a workaround.
+- **No documenting controls.** If a toggle isn't self-explanatory, the fix is the toggle's label, not a paragraph here.
+- **Examples earn their keep where prose alone fails.** Not a density target. "Anagram returns every entry with the same letters" is fine bare; "Letter clusters groups entries by their distinct-letter set" is opaque without POST/STOP/SPOT/TOPS.
 
-**Triggered:** Automatically on first launch (existing behavior, keep as-is). **Re-triggered:** Via a "Take the quick tour →" link in the reference.
+## Pages
 
-#### Slide structure (4 slides)
+1. **Welcome / Getting started.** Tiny orientation surface. May be a first-boot in-app slide deck, a static page, or both. Open question whether it stays as the slide-deck-tour shape from the earlier plan, or collapses into a single short page in Crosserville's GettingStarted style.
 
-**Slide 1 — The Problem** Lead with the pain: popular wordlists use incompatible scoring scales. Make this concrete and visual — show the four known publishers side by side with their actual score ranges, ideally with real example entries pulled from the files themselves. The user should immediately recognize the problem if they've ever tried combining wordlists.
+2. **FAQ.** Q&A format. Covers things people would actually ask: mental-model questions (*"What is rescoring?"*), dark-corner explainers (*"Why are some scores faded?"*), data questions (*"Where does my stuff live?"*), philosophy questions (*"Why doesn't Grawlix include wordlists out of the box?"*).
 
-**Slide 2 — The Solution** Add wordlists, apply rescore rules to normalize them, merge. This absorbs what are currently two slides ("Building Your Wordlist" and "Making It Yours"). Keep it brief — the rescore and My Edits concepts don't need deep treatment here, just enough to convey the idea. Animated demo appropriate.
+3. **Tips & tricks.** Discovery format. Did-you-know one-liners: *"Click a histogram bar to filter by score range," "Press F2 to rename a wordlist," "Stack URLs are shareable."* For things users wouldn't think to ask about because they don't know the feature exists.
 
-**Slide 3 — The Payoff** Download your wordlist (or sync it — see `sync.md`). This is the end goal of the wordlist-management use case. Dedicated slide, not mixed with search. Animated demo appropriate. Default output is two files (merged wordlists + My Edits separately) to fit constructor workflow; the slide should convey *getting your data out* without dwelling on file-format details.
+4. **Tool explainer.** Long-form coverage of the genuinely complex tools — regex today, future Umiaq when it ships, possibly any tool whose query language can't be made intuitive in-app. Not a tour of every tool; just the ones that earn the page space.
 
-**Slide 4 — Searching** Search as a construction aid: filter by substring, score, patterns. Revert to the pre-wildcard version of this slide — short description plus the animated demo (the coolest demo so far). No wildcard reference table here; that belongs in the reference. This slide is a placeholder for a future cluster of slides covering more advanced wordlist manipulation (anagrams, beheadments, reversals, etc.) — keep it humble and open-ended.
+5. **Rescoring.** Its own page. The hardest mental model in the app and a core feature. Earns dedicated treatment.
 
-#### Animated demos
-Treat them as embedded video clips, not interactive components. They are high-maintenance for a human but manageable with AI assistance. Keep them in the tour; they are appropriate in the reference too if a section warrants one.
+6. **Wordlists.** Importing, updating, downloading multiple wordlists. May get merged into the rescoring page (related — both live in the Library) or stay separate. Decide when we write it.
 
-#### Use real UI components in demos
-Demo markup must be built from the same builder functions and CSS classes as the live app — never hand-rolled lookalikes. A duplicated control that merely resembles the real one will quietly drift as the app evolves: a color changes, a class gets renamed, a badge gets restructured, and suddenly the demo shows something that no longer matches what the user sees. This principle is already followed in the existing demo code (e.g. `buildScoreBadgeHTML()` is called rather than inlining a hardcoded badge) and should be maintained throughout any rework.
+## Explicitly not doing
 
----
+- **Wordlist file format page.** Not needed.
+- **Keyboard shortcuts page.** Grawlix has very few shortcuts. Notable ones live as Tips entries.
+- **A feature-by-feature manual.** The gallery covers per-tool docs; in-app labels and tooltips cover the rest.
 
-### 2. Reference Guide
+## Open questions
 
-A manual for returning users who know the app and need to look something up. Opened by the `?` button (currently opens the tour — this changes).
+- **In-app delivery shape.** Multi-page works as a content model, but how does it show up inside Grawlix? Modal with tabs, slide-out panel with a TOC, sidebar nav, etc. Punt until we know the content.
+- **Welcome surface shape.** First-boot slide deck (with animated demos, as the earlier plan described) vs. a single static Getting Started page vs. both. Probably easier to answer after we draft one of the other pages and see what voice/format emerges.
+- **Wordlists** as its own page vs. merged into Rescoring.
+- **In-app text dependency.** The "fix the in-app text first" principle assumes the gallery's blurbs and the app's labels are already where they need to be. The tool gallery is on a separate redesign track ([`tools.md`](tools.md)) — its outcome shapes what the Tool-explainer page is left to cover.
 
-**Format:** Single document or sectioned pages with sidebar navigation. **Tone:** Informative, not persuasive. Prose over flash.
+## Carry-over from the earlier plan
 
-#### Sections (figure out as we build)
-At minimum: search syntax and wildcards. Other candidates: rescore rules, My Edits, priority/merge behavior, download/sync (see `sync.md`).
+One UX principle from the earlier design is worth keeping if/when any page includes animated demos: **demos should be built from the same builder functions and CSS classes as the live app, not hand-rolled lookalikes.** Otherwise they drift as the app evolves and start lying.
 
----
+## Related
 
-## Future growth
-
-A **tool gallery** is planned for active wordlist use — searching, filling, and theme/idea generation (anagrams, beheadments, curtailments, word splits, reversals, regex operations — Wordlisted-style features and Grawlix originals). See `tools.md` for the full plan.
-
-When the gallery ships, the tour needs **structural rework**, not just additions. The current 4-slide structure (Problem → Solution → Payoff → Searching) is setup-centric; the new shape should lead with what users do daily — querying the merged wordlist and mining for ideas — and frame wordlist/rule setup as the thing you do once and revisit occasionally. Slide 1's scoring-incompatibility framing may still earn its keep; the rest needs reworking.
-
-The reference guide also gains a tool-gallery section. No help content for these features needs to be built in advance.
+- [`tools.md`](tools.md) — tool gallery design and the parallel redesign track. The gallery's blurbs set the floor for what these docs *don't* need to cover.
+- [`sync.md`](sync.md) — persistence and downloads, relevant to the FAQ and Wordlists pages.
