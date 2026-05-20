@@ -6,7 +6,7 @@ Inspiration: [Wordlisted](https://aaronson.org/wordlisted/) by Adam Aaronson. Se
 
 The gallery is where Grawlix's [project goal](../../README.md#goals) — democratize wordlist manipulation — does most of its work. Constructors who program can write Python to anagram, behead, phonetic-substitute, semantic-filter against their wordlists. The gallery's job is to put those moves in non-programmers' hands. Filter when evaluating a candidate tool: *would a programmer reach for this often enough to write a script?* If yes, it probably belongs.
 
-This doc tracks what's still planned for the gallery: the rest of the tool catalog (records without a `run` yet), gallery polish (category picker, search), and result download. The pipeline that runs it all — the chain-row model, the group-row model, the per-row tool API, the executor — is built; see [`../design.md` § Tool gallery & stack](../design.md#tool-gallery--stack).
+This doc tracks what's still planned for the gallery: the rest of the tool catalog (records without a `run` yet), the picker-overlay redesign (the gallery's main surface), and result download. The pipeline that runs it all — the chain-row model, the group-row model, the per-row tool API, the executor — is built; see [`../design.md` § Tool gallery & stack](../design.md#tool-gallery--stack).
 
 ---
 
@@ -22,17 +22,57 @@ For tools that fit the runtime as-is (`palindromes`, `isograms`, `supervocalics`
 
 ---
 
-## Gallery — unshipped pieces
+## Gallery — the picker overlay
 
-**Category picker.** A fixed category menu at the top of the gallery (Anagrams & letter banks, Letter patterns, Pairs, Oddities, etc.). Clicking a category swaps the cards displayed below; the menu itself never moves. Spatial stability — categories live in the same place every time, cards stay visible while working, and the gallery's full width goes to tools. Matches the user's settle-into-a-tool-set pattern: a constructor with a theme idea picks the relevant category once and stays there.
+A summon-and-dismiss **picker overlay** — one surface combining a command-palette typed-filter and a rich card gallery — replaces the always-visible top-of-page card panel. Triggered by an `+ Add tool` button, the `/` key from anywhere outside a text input, and Cmd-K. Clicking a card adds the tool to the stack; the picker auto-dismisses after each insertion (Notion slash-menu pattern). Closes via the X button or Escape.
 
-*Alternatives evaluated:*
+**Why summon-and-dismiss, not always-visible.** The Workshop's sticky elements — stats bar, tool stack, search bar, entry-table column headers — encode what the user stares at moment-to-moment. The current top gallery isn't sticky; it scrolls off and isn't missed. Tools are a thing you reach for, configure, and ignore. That's not a flaw to fix by adding more chrome — it's a signal that the picker should be transient. Removing the always-visible card panel reclaims the main screen for the entry table and the sticky core.
 
-- *Inline accordion* (rejected) — categories collapsed; clicking a header expands cards in place, pushing others down. Items shifting under the cursor as sections open/close fights spatial recall and muscle memory.
-- *Card list* (viable fallback) — plain vertical scroll of all tool cards with a pinned filter input at the top. Most conservative option; scrolling past viewport required but not painful.
-- *Icon strip* (viable fallback) — VS Code activity-bar style: a thin (~50px) strip of category icons at rest; clicking one slides out a side panel with that category's cards. Wins on main-pane width. Loses on interaction count (two-step to reach a tool) and on panel-open state.
+### Chip row — always-present trigger
 
-**Gallery search input.** A filter/search input at the top of the panel lets users find tools by name or keyword across categories. **Alt+T** focuses it. The DOM is in place but disabled.
+A thin sticky row (`#picker-bar`, height `--picker-bar-h`) sits directly below the stats bar and above the tool stack — the natural seam where the gallery and the thing it inserts into meet. It carries:
+
+- A primary `[+ Add tool · /]` button on the left, with the keyboard hint baked into the label.
+- A row of category chips (dot-separated, lightweight text-link weight — not buttons fighting the trigger for attention). Each chip opens the picker pre-filtered to that category. The row scrolls horizontally inside its track on narrow viewports.
+
+**Why a chip row alongside the trigger button.** A bare "Add tool" button carries no information about *what's* in the catalog. Reading just "Add tool" doesn't tell a new visitor that Grawlix does anagrams *and* letter patterns *and* phonetic transforms *and* semantic searches. The chip row advertises the scope of the toolbox at rest, without committing the user to opening anything. This is the Grawlix-specific virtue worth keeping given the app's "look what's possible" pitch.
+
+### Picker panel — search + cards in one overlay
+
+When opened, `#picker-panel` expands below the chip row with:
+
+- A `Search tools…` input at top, autofocused. Type to filter live across name + description + category; Enter on the focused match adds.
+- A close affordance (X) on the right of the search row.
+- Cards laid out as a category-grouped responsive grid below — same card markup the existing gallery uses (name, description, example).
+
+Single surface, both jobs. Power users type and hit Enter; browsers scroll the cards. No compromise between teaching and launching.
+
+### Prototype
+
+A non-functional version is live in `site/index.html` — chip row, open/close interaction, panel with real catalog cards, `/` and Escape keyboard handling. The original `#tool-gallery` is hidden via one CSS rule for the duration of evaluation; flip the rule to restore for side-by-side comparison. Card-click → stack, search filtering, and category pre-filter are deliberately stubbed; the prototype exists to validate the spatial choice, not the workflow.
+
+### Open details
+
+- **Card-click → stack.** Wire through `ToolStack.add` — currently IIFE-internal; expose at the module boundary as `buildGalleryHTML` already is. Auto-dismiss the picker after each insertion; revisit pin-open only if assembling multi-tool pipelines feels chunky in practice.
+- **Search filter.** Substring (or fuzzy) match across name + description + category. Flatten to a single ranked list while filtering active; restore category grouping when the query is empty.
+- **Chip pre-filter.** Clicking a chip opens the picker scoped to that category. The category section labels inside the panel may absorb this role as tabs — decide once the panel is populated.
+- **Cmd-K** alongside `/` for parity with modern app conventions (Linear, Notion).
+- **Mobile.** Inline downward expansion works on desktop; on narrow viewports the picker may want a full-screen sheet treatment instead, with the chip row's `+ Add tool` button as the sheet trigger.
+- **Picker stickiness.** The chip row is sticky; the panel is not. Whether the panel should pin below the row when scrolling — so the user can cross-reference results while picking — depends on whether that's a real workflow. Decide from trial.
+- **Active / disabled cards.** The picker's cards should mark tools already in the stack as `active` and group-tool conflicts as `disabled`, the way the existing gallery does. Today this works for free through document-wide queries since both card sets carry `[data-tool]`; preserve that when the old gallery is removed.
+- **Insertion-cursor preview on hover.** The existing gallery hovers a `.tool-stack-cursor` at the seam where the click will drop the row. The picker covers the seam visually, so the cursor would point at something the user can't see — drop it, unless a clearer in-panel preview earns its place.
+- **Empty-state when the search filter zeroes out.** Clear message, hint to clear the query.
+- **Category-label cleanup at scale.** Today's labels (`Anagrams & letter banks`, `Letter patterns`, `Pairs`) work as three chips. As the catalog gains Phonetics, Semantics, Transforms, Curiosities, etc., the row needs shorter forms (`Anagrams`, `Phonetics`, `Meanings`) and a category-naming pass — `Misc` and `Grawlix-original` from the catalog list are placeholders that need user-facing replacements.
+
+### Alternatives evaluated
+
+- *Inline accordion in the top card panel* (rejected) — items shifting under the cursor as sections open/close fights spatial recall and muscle memory.
+- *Fixed category tab strip atop the existing always-visible card panel* (superseded) — the prior plan in this doc. Folded into the picker: the tab-strip idea survives as the chip row + the panel's section labels.
+- *Side rail, collapsible or fixed* (rejected) — even a thin icons-only rail costs mobile horizontal real estate Grawlix doesn't have to spare. The picker covers the same job without permanent chrome.
+- *VS Code activity-bar style icon strip, horizontal or vertical* (rejected) — same real-estate argument as the rail; and tool icons aren't glanceably distinct enough to carry their job (a category icon for "Letter patterns" vs. "Curiosities" isn't intuitable). Text chips do the discoverability job better.
+- *Microsoft Office ribbon* (noted, not pursued) — the pendulum has moved away from always-visible, tabbed, content-heavy chrome. The one virtue worth borrowing (categorical groupings of related actions) survives as the chip row.
+- *Wordlisted-style dropdown of tool names* (baseline only) — any of the candidate designs clears this bar; abandoning rich cards would be a regression.
+- *Empty-state-only chip row* (parked, may revisit) — chips visible when the tool stack is empty, collapsing to a single trigger button once a tool is added. Trades steady-state cleanliness for discoverability concentrated at orientation moments. Decide whether the always-present chip row earns its keep after living with it; if it reads as clutter, this is the fallback.
 
 ---
 
