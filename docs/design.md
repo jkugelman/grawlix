@@ -90,13 +90,13 @@ My Edits' remaining distinction is just that the user's manual score/comment edi
 | Row chrome | row separators, score badges, count column | whitespace-aligned columns, no separators, no badges |
 | Click behavior | atom click → AtomPopover edit | read-only |
 | Tools | full gallery + stack | none |
-| Filter | search + score-range + sort | search + sort (no score-range) |
+| Filter | search + score-range + sort | search + score-range + sort |
 | Source attribution | per-atom source column on All | n/a |
 | Rescore annotation | red `*` + popover detail | inline `→` |
 
 The two views answer different questions about the same data — Workshop asks "what entries are available to me right now?" (merged, rescored, override-resolved), Library asks "what does this source contain and how does it get transformed?" — so they should look meaningfully different.
 
-**The Library histogram is display-only.** No cursor:pointer, no hover-revealed score gradient, no click-to-filter. Score-range filtering belongs to Workshop alone — Library inspects, doesn't query. Workshop's score filter is a Workshop-side, localStorage-persisted standing preference; the two views' filter scopes don't interact.
+**Score-range filter scope.** Workshop has one global filter (single number band against the merged scale). Library keeps a separate filter per (wordlist, mode) — each card's Rescored and Original tabs draw against different score axes, so flipping the toggle swaps which range is active. Each wordlist's filter is independent so the user can dial in different bands per source while exploring; the merged All view has a single mode and one key. Workshop's filter is keyed `scoreRange` in localStorage; Library's filters live as a JSON map under `libScoreRanges` (`merged` for All, `${dbKey}:${mode}` for sources). The two views' filter scopes don't interact.
 
 **Rescoring lives entirely inside the Library view**; it doesn't appear on the Workshop entries table. Rules are detail config, typically set once when adding a wordlist and rarely revisited; they don't earn persistent real estate next to the wordlist view.
 
@@ -400,7 +400,7 @@ No aliases exist today — this is forward-looking guidance for when the catalog
 
 These are local-only:
 
-- **Score filter.** Stored in localStorage, not the URL. Two reasons — written down so the question doesn't get re-litigated:
+- **Score filter** (both Workshop's single filter and Library's per-(wordlist, mode) filters). Stored in localStorage, not the URL. Two reasons — written down so the question doesn't get re-litigated:
   1. **Scores aren't portable across users.** What counts as `60` depends on which wordlists you have loaded and how you've rescored them. There is no universal scale — even the "common" tier labels (great / good / fair / …) are themselves per-user via My Edits' scoring. A shared `score=60` filter would apply the sender's number to the recipient's scale and produce nonsense. The other URL params don't have this problem: a search pattern, a whole-word toggle, a sort axis, and a tool stack all mean the same thing on any setup.
   2. **It's a standing preference, not a query.** The dominant use is "filter the low-scoring junk out so I'm not wading through it" — that's a setting the user wants in place every visit, not something they re-enter each load. URL-bound state resets to empty on a fresh visit (no link to apply); localStorage carries it forward.
 - **Dialogs** (settings, Sync & backup) — transient UI state. Open them how you opened them; close them when you're done.

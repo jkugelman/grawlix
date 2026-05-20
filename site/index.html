@@ -231,11 +231,6 @@ button.danger:hover:not(:disabled) { background: #e74c3c; border-color: #c0392b;
 .histogram-rect[hidden] { display: none; }
 html.light-mode .histogram.is-hovered .histogram-bar:not(.histogram-bar-ignored) { filter: saturate(1.5) brightness(0.95); }
 html.light-mode .histogram-rect { opacity: 0.22; }
-/* Readonly variant (Library): no click-to-filter, no hover-revealed gradient. */
-.histogram-readonly,
-.histogram-readonly .histogram-col:not(.histogram-col-ignored) { cursor: default; }
-.histogram-readonly.is-hovered .histogram-bar:not(.histogram-bar-ignored) { background: var(--accent); }
-html.light-mode .histogram-readonly.is-hovered .histogram-bar:not(.histogram-bar-ignored) { filter: none; }
 
 /* Search bar — the permanent bottom row of the tool stack (a ToolStack row
    with its own chrome). Shares the .tool-row grid layout: drag handle, label,
@@ -1433,6 +1428,19 @@ function buildHelpHTML(rows, opts = {}) {
 // The × button carries no per-call wiring: clicking it empties the field and
 // dispatches an `input` event, so the field's own handler reacts as if the
 // user erased the text by hand.
+function buildScoreRangeInputHTML(inputId, value, viewName) {
+  const input = `<input type="text" id="${inputId}" value="${esc(value)}" oninput="${viewName}.onScoreRange(this.value)">`;
+  return `<label class="score-range-label" title="Score: 50, 50-59, or 50+">Score ${buildClearableInputHTML(input, !!value)}</label>`;
+}
+
+function normalizeScoreRange(value, inputId) {
+  const trimmed = (value || '').trim();
+  const intervals = trimmed === '' ? null : parseRange(trimmed);
+  const inp = document.getElementById(inputId);
+  if (inp) inp.classList.toggle('invalid', trimmed !== '' && intervals === null);
+  return (trimmed && intervals) ? trimmed : '';
+}
+
 function buildClearableInputHTML(inputHTML, hasValue) {
   return `<span class="clearable-input">${inputHTML}` +
     `<button type="button" class="clear-btn" title="Clear" aria-label="Clear"${hasValue ? '' : ' hidden'}>` +
@@ -1527,7 +1535,7 @@ function buildSearchBarHTML() {
       ${parts.main}
       <div class="search-bar-overflow">
         <div class="search-bar-end">
-          <label class="score-range-label" title="Score: 50, 50-59, or 50+">Score ${buildClearableInputHTML(`<input type="text" id="score-range-input" value="${esc(scoreRange)}" oninput="WorkshopView.onScoreRange(this.value)">`, !!scoreRange)}</label>
+          ${buildScoreRangeInputHTML('score-range-input', scoreRange, 'WorkshopView')}
           <span id="search-bar-sort" class="search-bar-sort"></span>
         </div>
         <button type="button" class="search-adjust-btn" title="Filter &amp; sort options" aria-label="Filter and sort options"><svg width="16" height="16" aria-hidden="true"><use href="#icon-adjustments"/></svg></button>
@@ -1601,14 +1609,11 @@ class PopupHelp {
 // ({ entries, ignoredCount }) drives the histogram bars. Splitting them lets
 // the score-range filter shrink the numbers without making bars outside the
 // selection vanish — those bars stay sourced from the pre-score-range set.
-// `opts.readOnly` suppresses the click-to-filter behavior — used by Library
-// histograms, which display the distribution but don't participate in
-// score-range filtering.
 function buildStatsBarHTML(stats, hist, layout, opts = {}) {
   // countLabel/countValue keep the label and number independent: the stats
   // aggregates run over flattened atoms, but the count is per row — and the
   // Workshop panel relabels it "Results" once a transform branches the rows.
-  const { readOnly = false, countLabel = 'Entries', countValue = stats.count } = opts;
+  const { countLabel = 'Entries', countValue = stats.count } = opts;
   const isEmpty = !countValue;
   const dash = '—';
   const fmt = v => isEmpty ? dash : v;
@@ -1620,22 +1625,18 @@ function buildStatsBarHTML(stats, hist, layout, opts = {}) {
   const ignoredTitle = ignored > 0 ? ` title="${pluralize(ignored, 'entry', 'entries')} ignored"` : '';
   const ignoredBar = `<div class="histogram-col histogram-col-ignored"${ignoredTitle}><div class="histogram-bar histogram-bar-ignored" style="height:${barH(ignored)}px"></div></div>`;
 
-  const filterHint = readOnly ? '' : ' • Click to filter';
   const bars = layout.slots.map((s, i) => {
     const c = counts[i];
-    const title = `${pluralize(c, 'entry', 'entries')} scored ${s.label}${filterHint}`;
+    const title = `${pluralize(c, 'entry', 'entries')} scored ${s.label} • Click to filter`;
     const { bg } = scoreColor((s.lo + s.hi) / 2);
     return `<div class="histogram-col" title="${title}"><div class="histogram-bar" data-lo="${s.lo}" data-hi="${s.hi}" style="--score-bg:${bg}; height:${barH(c)}px"></div></div>`;
   }).join('');
 
-  const histTitle = readOnly ? 'Histogram' : 'Histogram • Click to filter';
   // If a histogram in the doc is currently hovered, the user's cursor is
   // inside one of these bbox regions — overwhelmingly the same one we're
   // about to replace. Bake .is-hovered into the new HTML so the fresh bars
   // are born colored (no class change after insertion = no transition replay).
   const hoveredClass = document.querySelector('.histogram.is-hovered') ? ' is-hovered' : '';
-  const readOnlyClass = readOnly ? ' histogram-readonly' : '';
-  const pointerHandler = readOnly ? '' : ' onpointerdown="onHistogramPointerDown(event)"';
 
   return `<div class="stats-bar${isEmpty ? ' stats-empty' : ''}">
       ${buildStatItemHTML(countLabel, countValue.toLocaleString())}
@@ -1645,7 +1646,7 @@ function buildStatsBarHTML(stats, hist, layout, opts = {}) {
         ${buildStatItemHTML('Mean', fmt(stats.mean), 'Average score')}
         ${buildStatItemHTML('Median', fmt(stats.median % 1 === 0 ? stats.median : stats.median.toFixed(1)), '50th percentile')}
         ${buildStatItemHTML('Mode', fmt(stats.mode), 'Most common score')}
-        <div class="histogram${hoveredClass}${readOnlyClass}" title="${histTitle}"${pointerHandler}>${ignoredBar}${bars}<div class="histogram-rect" hidden></div></div>
+        <div class="histogram${hoveredClass}" title="Histogram • Click to filter" onpointerdown="onHistogramPointerDown(event)">${ignoredBar}${bars}<div class="histogram-rect" hidden></div></div>
       </div>
     </div>`;
 }
@@ -2447,11 +2448,7 @@ const WorkshopView = (() => {
   function isVisible() { return !el.hidden; }
 
   function onScoreRange(value) {
-    const trimmed = (value || '').trim();
-    const intervals = trimmed === '' ? null : parseRange(trimmed);
-    const inp = document.getElementById('score-range-input');
-    if (inp) inp.classList.toggle('invalid', trimmed !== '' && intervals === null);
-    _scoreRange = (trimmed && intervals) ? trimmed : '';
+    _scoreRange = normalizeScoreRange(value, 'score-range-input');
     if (_scoreRange) lsSave('scoreRange', _scoreRange);
     else             lsDel('scoreRange');
     if (workshopScroller) refreshWorkshopMergedScroller();
@@ -2634,6 +2631,34 @@ const LibraryView = (() => {
   let _sortDir          = 'asc';
   let _entriesScroller  = null;
 
+  let _scoreRanges = null;
+  function loadScoreRanges() {
+    if (_scoreRanges) return _scoreRanges;
+    try { _scoreRanges = JSON.parse(lsLoad('libScoreRanges')) || {}; }
+    catch { _scoreRanges = {}; }
+    return _scoreRanges;
+  }
+  function scoreRangeKey(target, mode) {
+    if (target === MERGED_ID) return 'merged';
+    return `${target.dbKey}:${mode}`;
+  }
+  function getScoreRangeFor(target, mode) {
+    const v = loadScoreRanges()[scoreRangeKey(target, mode)] || '';
+    return v && parseRange(v) ? v : '';
+  }
+  function setScoreRangeFor(target, mode, value) {
+    const ranges = loadScoreRanges();
+    const k = scoreRangeKey(target, mode);
+    if (value) ranges[k] = value;
+    else       delete ranges[k];
+    if (Object.keys(ranges).length === 0) lsDel('libScoreRanges');
+    else                                  lsSave('libScoreRanges', JSON.stringify(ranges));
+  }
+  function activeScoreRange() {
+    if (!_focusedWordlist) return '';
+    return getScoreRangeFor(_focusedWordlist, _displayMode);
+  }
+
   // ── HTML builders for pane internals ────────────────────────────────────────
 
   function buildModeToggleHTML() {
@@ -2649,14 +2674,16 @@ const LibraryView = (() => {
       p.key === 'pattern'
         ? ` id="lib-search-input" oninput="LibraryView.onSearch(this.value)"`
         : ` id="lib-search-whole-word" onchange="LibraryView.onWholeWord(this.checked)"`);
+    const scoreRange = activeScoreRange();
     return `<div class="search-bar lib-search-bar">
       ${buildToolLabelHTML({ icon: '<svg width="16" height="16" aria-hidden="true"><use href="#icon-search"/></svg>', name: 'Search' })}
       ${parts.main}
       <div class="search-bar-overflow">
         <div class="search-bar-end">
+          ${buildScoreRangeInputHTML('lib-score-range-input', scoreRange, 'LibraryView')}
           <div class="search-bar-sort">${buildSortControlsHTML()}</div>
         </div>
-        <button type="button" class="search-adjust-btn" title="Sort options" aria-label="Sort options"><svg width="16" height="16" aria-hidden="true"><use href="#icon-adjustments"/></svg></button>
+        <button type="button" class="search-adjust-btn" title="Filter &amp; sort options" aria-label="Filter and sort options"><svg width="16" height="16" aria-hidden="true"><use href="#icon-adjustments"/></svg></button>
       </div>
     </div>`;
   }
@@ -2739,7 +2766,9 @@ const LibraryView = (() => {
     const useOriginal = _displayMode === 'original';
     const sourceEntries = useOriginal ? wordlist.rawEntries : getRescoredEntries(wordlist);
     const ignoredCount = useOriginal ? 0 : wordlist.rawEntries.length - sourceEntries.length;
-    const stats = computeStatsRaw(sourceEntries, ignoredCount);
+    const intervals = parseRange(activeScoreRange());
+    const filteredEntries = intervals ? sourceEntries.filter(e => matchesRange(e.score, intervals)) : sourceEntries;
+    const stats = computeStatsRaw(filteredEntries, intervals ? 0 : ignoredCount);
 
     // Action row shape is unified across all wordlists: date slot, primary
     // action, optional mode toggle (sources only), Download, more menu. The
@@ -2788,7 +2817,7 @@ const LibraryView = (() => {
         <div class="wld-pane-actions">${actionsHTML}</div>
       </div>
       ${rulesHTML}
-      ${buildStatsBarHTML(stats, { entries: sourceEntries, ignoredCount }, getHistogramLayout(), { readOnly: true })}
+      ${buildStatsBarHTML(stats, { entries: sourceEntries, ignoredCount }, getHistogramLayout())}
       ${hasData ? buildSearchBarHTML() : ''}
       ${hasData ? buildEntriesPanelHTML() : ''}`;
 
@@ -2810,6 +2839,7 @@ const LibraryView = (() => {
     buildPane();
     attachHelpPopups();
     SearchBarCompact.refresh();
+    repositionAllHistogramRects();
   }
 
   // The All panel: a single Download button, merged stats + histogram, the
@@ -2818,7 +2848,9 @@ const LibraryView = (() => {
   // synthesis of already-rescored sources; "Original" has no referent here.
   function renderMergedPane() {
     const { entries } = buildMergedWordlist();
-    const stats = computeStats(_mergedStatsKey, entries);
+    const intervals = parseRange(activeScoreRange());
+    const filteredEntries = intervals ? entries.filter(e => matchesRange(e.score, intervals)) : entries;
+    const stats = intervals ? computeStatsRaw(filteredEntries) : computeStats(_mergedStatsKey, entries);
     const hasData = entries.length > 0;
     const dlBtn = hasData ? `<button class="primary" onclick="LibraryView.action('download')">Download</button>` : '';
 
@@ -2827,7 +2859,7 @@ const LibraryView = (() => {
         <div class="wld-pane-actions">${dlBtn}</div>
       </div>
       <div class="wld-pane-rescore" id="wld-scoring-section">${buildScoringSectionHTML()}</div>
-      ${buildStatsBarHTML(stats, { entries, ignoredCount: 0 }, getHistogramLayout(), { readOnly: true })}
+      ${buildStatsBarHTML(stats, { entries, ignoredCount: 0 }, getHistogramLayout())}
       ${hasData ? buildSearchBarHTML() : ''}
       ${hasData ? buildEntriesPanelHTML() : ''}`;
 
@@ -2844,6 +2876,7 @@ const LibraryView = (() => {
       wholeWord: _searchWholeWord,
       sortKey: _sortKey,
       sortDir: _sortDir,
+      scoreRange: activeScoreRange(),
     });
   }
 
@@ -2852,16 +2885,27 @@ const LibraryView = (() => {
     _entriesScroller = null;
   }
 
-  // In-place stats bar refresh for the mode toggle (whole-pane rebuild not needed).
   function refreshStatsBar() {
-    if (!_focusedWordlist || _focusedWordlist === MERGED_ID) return;
-    const wordlist = _focusedWordlist;
-    const useOriginal = _displayMode === 'original';
-    const sourceEntries = useOriginal ? wordlist.rawEntries : getRescoredEntries(wordlist);
-    const ignoredCount = useOriginal ? 0 : wordlist.rawEntries.length - sourceEntries.length;
-    const stats = computeStatsRaw(sourceEntries, ignoredCount);
+    if (!_focusedWordlist) return;
+    const isMerged = _focusedWordlist === MERGED_ID;
+    let sourceEntries, ignoredCount;
+    if (isMerged) {
+      sourceEntries = buildMergedWordlist().entries;
+      ignoredCount = 0;
+    } else {
+      const wordlist = _focusedWordlist;
+      const useOriginal = _displayMode === 'original';
+      sourceEntries = useOriginal ? wordlist.rawEntries : getRescoredEntries(wordlist);
+      ignoredCount = useOriginal ? 0 : wordlist.rawEntries.length - sourceEntries.length;
+    }
+    const intervals = parseRange(activeScoreRange());
+    const filteredEntries = intervals ? sourceEntries.filter(e => matchesRange(e.score, intervals)) : sourceEntries;
+    const stats = computeStatsRaw(filteredEntries, intervals ? 0 : ignoredCount);
     const statsBar = pane.querySelector('.stats-bar');
-    if (statsBar) statsBar.outerHTML = buildStatsBarHTML(stats, { entries: sourceEntries, ignoredCount }, getHistogramLayout(), { readOnly: true });
+    if (statsBar) {
+      statsBar.outerHTML = buildStatsBarHTML(stats, { entries: sourceEntries, ignoredCount }, getHistogramLayout());
+      repositionAllHistogramRects();
+    }
   }
 
   function refresh() {
@@ -2913,8 +2957,27 @@ const LibraryView = (() => {
     pane.querySelectorAll('.seg-ctrl .seg-btn').forEach(b => {
       b.classList.toggle('active', b.dataset.mode === mode);
     });
+    refreshScoreRangeInput();
     refreshStatsBar();
     _entriesScroller?.setMode(mode);
+    _entriesScroller?.setScoreRange(activeScoreRange());
+  }
+
+  function refreshScoreRangeInput() {
+    const inp = document.getElementById('lib-score-range-input');
+    if (!inp) return;
+    const range = activeScoreRange();
+    inp.value = range;
+    inp.classList.remove('invalid');
+    syncClearButton(inp);
+  }
+
+  function onScoreRange(value) {
+    if (!_focusedWordlist) return;
+    const next = normalizeScoreRange(value, 'lib-score-range-input');
+    setScoreRangeFor(_focusedWordlist, _displayMode, next);
+    refreshStatsBar();
+    _entriesScroller?.setScoreRange(next);
   }
 
   function onSearch(value) {
@@ -3078,6 +3141,7 @@ const LibraryView = (() => {
     renderOnboarding();
     renderList();
     renderPane();
+    repositionAllHistogramRects();
   }
 
   function hide() {
@@ -3117,7 +3181,8 @@ const LibraryView = (() => {
     show, hide, refresh, focus, action, getFocusedWordlist,
     refreshRescoreSection, refreshScoringSection, updateListMeta,
     isVisible: () => !el.hidden,
-    setMode, onSearch, onWholeWord, onSortAxis, toggleSortDir,
+    setMode, onSearch, onWholeWord, onSortAxis, toggleSortDir, onScoreRange,
+    get scoreRange() { return activeScoreRange(); },
     previewRescoreRules,
   };
 })();
@@ -5876,6 +5941,7 @@ class LibraryEntriesScroller extends BaseVirtualScroller {
     this.sortDir = opts.sortDir ?? 'asc';
     this.query = opts.query ?? '';
     this.wholeWord = !!opts.wholeWord;
+    this.scoreRange = opts.scoreRange ?? '';
     this.allRows = [];
     this.rows = [];
     this._searchRanges = null;
@@ -5922,6 +5988,11 @@ class LibraryEntriesScroller extends BaseVirtualScroller {
   setSort(key, dir) {
     this.sortKey = key;
     this.sortDir = dir;
+    this._applyFilterAndSort();
+  }
+
+  setScoreRange(range) {
+    this.scoreRange = range || '';
     this._applyFilterAndSort();
   }
 
@@ -6003,7 +6074,16 @@ class LibraryEntriesScroller extends BaseVirtualScroller {
   }
 
   _applyFilterAndSort() {
-    const source = this._getSortedBaseRows();
+    let source = this._getSortedBaseRows();
+
+    const intervals = this.scoreRange ? parseRange(this.scoreRange) : null;
+    if (intervals) {
+      source = source.filter(r => {
+        if (r.ignored) return false;
+        const score = this.mode === 'rescored' ? r.outputScore : r.inputScore;
+        return matchesRange(score, intervals);
+      });
+    }
 
     const q = this.query.toLowerCase();
     let rows;
@@ -7202,21 +7282,27 @@ function _onHistogramPointerMove(event) {
   positionHistogramRect(_histDrag.histEl, [{ min: rangeLo, max: rangeHi }]);
 }
 
+function viewForHistogram(histEl) {
+  return histEl.closest('#library-view') ? LibraryView : WorkshopView;
+}
+
 function _onHistogramPointerUp(event) {
   if (!_histDrag || event.pointerId !== _histDrag.pointerId) return;
   const ds = _histDrag;
   _histDrag = null;
+  const view = viewForHistogram(ds.histEl);
+  const inputSel = view === LibraryView ? '#lib-score-range-input' : '#score-range-input';
   const layout = getHistogramLayout();
   let next;
-  if (!ds.moved && WorkshopView.scoreRange) {
-    const intervals = parseRange(WorkshopView.scoreRange);
+  if (!ds.moved && view.scoreRange) {
+    const intervals = parseRange(view.scoreRange);
     const insideSelection = intervals && matchesRange(ds.startLo, intervals) && matchesRange(ds.startHi, intervals);
     next = insideSelection ? '' : rangeStrFromBounds(ds.startLo, ds.startHi, layout);
   } else {
     next = rangeStrFromBounds(Math.min(ds.startLo, ds.curLo), Math.max(ds.startHi, ds.curHi), layout);
   }
-  document.querySelectorAll('#score-range-input').forEach(inp => { inp.value = next; syncClearButton(inp); });
-  WorkshopView.onScoreRange(next);
+  document.querySelectorAll(inputSel).forEach(inp => { inp.value = next; syncClearButton(inp); });
+  view.onScoreRange(next);
 }
 
 document.addEventListener('pointermove', _onHistogramPointerMove);
@@ -7250,7 +7336,8 @@ function positionHistogramRect(histEl, intervals = undefined) {
   const rect = histEl.querySelector('.histogram-rect');
   if (!rect) return;
   if (intervals === undefined) {
-    intervals = WorkshopView.scoreRange ? parseRange(WorkshopView.scoreRange) : null;
+    const range = viewForHistogram(histEl).scoreRange;
+    intervals = range ? parseRange(range) : null;
   }
   if (!intervals) { rect.hidden = true; return; }
   const cols = [...histEl.querySelectorAll('.histogram-col:not(.histogram-col-ignored)')];
@@ -7268,10 +7355,7 @@ function positionHistogramRect(histEl, intervals = undefined) {
 }
 
 function repositionAllHistogramRects() {
-  // The score-range selection rect is a Workshop concept (the filter belongs
-  // to the entries table). Library histograms render the same chrome but
-  // never paint a selection — scope the query to #workshop-view so they stay clean.
-  document.querySelectorAll('#workshop-view .histogram').forEach(h => positionHistogramRect(h));
+  document.querySelectorAll('#workshop-view .histogram, #library-view .histogram').forEach(h => positionHistogramRect(h));
   syncHistogramHover();
 }
 
