@@ -56,9 +56,15 @@ async function focusWordlist(page, name) {
   await page.locator('.wordlist-card[data-wordlist]', { hasText: name }).first().click();
 }
 
+async function addToolFromPicker(page, toolKey) {
+  await page.locator('#picker-trigger').click();
+  await page.locator(`.gallery-card[data-tool="${toolKey}"]`).click();
+}
+
 module.exports = {
   stubPublisherFetches,
   gotoApp,
   openLibrary,
   focusWordlist,
+  addToolFromPicker,
 };

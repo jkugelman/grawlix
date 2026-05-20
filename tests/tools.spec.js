@@ -12,7 +12,7 @@
 // entry strings per multi-atom chain row.
 
 const { test, expect } = require('@playwright/test');
-const { stubPublisherFetches, gotoApp } = require('./helpers');
+const { stubPublisherFetches, gotoApp, addToolFromPicker } = require('./helpers');
 
 test.beforeEach(async ({ page }) => {
   await stubPublisherFetches(page);
@@ -62,8 +62,7 @@ test('typing in the row input live-filters the entries table', async ({ page }) 
   await gotoApp(page);
   await addAnagramFixture(page);
 
-  // Click the Anagram gallery card to add the tool to the stack.
-  await page.locator('.gallery-card[data-tool="anagram"]').click();
+  await addToolFromPicker(page, 'anagram');
 
   const input = page.locator('.tool-row input[data-key="entry"]');
   await expect(input).toBeFocused();
@@ -79,8 +78,8 @@ test('clicking gallery cards appends them to the stack in order', async ({ page 
 
   // Each card click appends — the second click chains onto the first rather
   // than replacing it.
-  await page.locator('.gallery-card[data-tool="anagram"]').click();
-  await page.locator('.gallery-card[data-tool="search"]').click();
+  await addToolFromPicker(page, 'anagram');
+  await addToolFromPicker(page, 'search');
 
   const userStack = await page.evaluate(() =>
     ToolStack.getUserStack().map(r => r.tool));
@@ -287,8 +286,7 @@ test('Search is a gallery tool and can be chained into the stack', async ({ page
   await gotoApp(page);
   await addAnagramFixture(page);
 
-  // Click the Search gallery card — it's a tool like any other.
-  await page.locator('.gallery-card[data-tool="search"]').click();
+  await addToolFromPicker(page, 'search');
   const input = page.locator('.tool-row input[data-key="pattern"]');
   await expect(input).toBeFocused();
   await input.fill('cat');
@@ -349,7 +347,7 @@ test('the caret expands a Search row into find/replace; collapsing clears it but
   await gotoApp(page);
   await addAnagramFixture(page);
 
-  await page.locator('.gallery-card[data-tool="search"]').click();
+  await addToolFromPicker(page, 'search');
   const row = page.locator('.tool-row', { has: page.locator('input[data-key="pattern"]') });
   const replace = row.locator('input[data-key="replace"]');
   const caret = row.locator('.find-replace-caret');

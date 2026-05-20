@@ -29,6 +29,7 @@ input[type="file"] { display: none; }
      (Workshop's sticky-stack, Library's search bar). Stable as long as the
      histogram height is fixed. */
   --stats-bar-h: 57px;
+  --picker-bar-h: 44px;
   /* Live height of the Library's pinned wordlist card (narrow layout) —
      published by LibraryView, used to offset the pane's sticky bars below
      it. The value here is just a pre-measurement fallback. */
@@ -215,7 +216,7 @@ button.danger:hover:not(:disabled) { background: #e74c3c; border-color: #c0392b;
    below is surface (content, brightest). */
 #workshop-stats { position: sticky; top: 0; z-index: 51; }
 .sticky-stack { position: sticky; top: 0; z-index: 50; background: var(--surface2); border-bottom: 1px solid var(--border2); }
-#workshop-view .sticky-stack { top: var(--stats-bar-h); }
+#workshop-view .sticky-stack { top: calc(var(--stats-bar-h) + var(--picker-bar-h)); }
 .sticky-stack .search-bar { border-bottom: none; }
 .stat { display: flex; flex-direction: column; gap: 2px; }
 .stat-label { font-size: 10px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
@@ -240,11 +241,8 @@ html.light-mode .histogram-readonly.is-hovered .histogram-bar:not(.histogram-bar
 /* Search bar — the permanent bottom row of the tool stack (a ToolStack row
    with its own chrome). Shares the .tool-row grid layout: drag handle, label,
    caret, pattern input, whole-word aside, and the overflow slot (Score/Sort
-   on Workshop, Sort on Library; the .compact adjust button shares the slot).
-   position: relative is the positioning context for .tool-stack-cursor,
-   parented here so its caret straddles the seam between the last tool row
-   and the bar. */
-.search-bar { padding: 8px 14px; background: var(--surface2); border-bottom: 1px solid var(--border2); display: grid; grid-template-columns: auto auto 1fr auto; align-items: center; column-gap: 12px; row-gap: 6px; position: relative; }
+   on Workshop, Sort on Library; the .compact adjust button shares the slot). */
+.search-bar { padding: 8px 14px; background: var(--surface2); border-bottom: 1px solid var(--border2); display: grid; grid-template-columns: auto auto 1fr auto; align-items: center; column-gap: 12px; row-gap: 6px; }
 .search-bar.lib-search-bar { grid-template-columns: auto 1fr auto; }
 .search-bar > .tool-row-replace { grid-column: 3; grid-row: 2; }
 .search-bar.lib-search-bar > .tool-row-replace { grid-column: 2; grid-row: 2; }
@@ -774,20 +772,8 @@ a.get-file:hover { text-decoration: underline; }
 .collapsible.collapsed > .collapsible-toggle .collapsible-chevron { transform: translateY(-50%) rotate(-90deg); }
 .collapsible.collapsed > .collapsible-content { display: none; }
 
-/* Tool gallery — top section of the card, cards laid out as a responsive grid. */
-#tool-gallery { padding: 14px 16px 18px; border-bottom: 1px solid var(--border3); }
-.gallery-header { display: flex; align-items: center; gap: 14px; margin-bottom: 12px; }
-.gallery-title { font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; flex-shrink: 0; }
-.gallery-search-wrap { position: relative; display: flex; align-items: center; flex: 0 0 220px; margin-left: auto; }
-.gallery-search-wrap > svg { position: absolute; left: 8px; pointer-events: none; color: var(--muted); }
-.gallery-search-wrap input { width: 100%; padding: 5px 8px 5px 26px; border: 1px solid var(--border); border-radius: 4px; background: var(--input-bg); color: var(--text); font-size: 12px; font-family: inherit; }
-.gallery-search-wrap input:disabled { cursor: not-allowed; }
-.gallery-body { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 10px; }
 .gallery-section-label { grid-column: 1 / -1; font-size: 10px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; padding: 0 2px; margin-top: 4px; }
 .gallery-section-label:first-child { margin-top: 0; }
-.gallery-empty { grid-column: 1 / -1; border: 1px dashed var(--border); border-radius: 6px; padding: 18px 14px; text-align: center; color: var(--muted); }
-.gallery-empty p { font-size: 13px; font-weight: 600; color: var(--text); margin-bottom: 4px; }
-.gallery-empty small { font-size: 11px; line-height: 1.5; display: block; }
 
 /* Tool gallery cards */
 .gallery-card { border: 1px solid var(--border); border-radius: 6px; padding: 9px 12px; background: var(--surface2); cursor: pointer; user-select: none; transition: background 0.1s, border-color 0.1s, box-shadow 0.1s; }
@@ -800,6 +786,31 @@ a.get-file:hover { text-decoration: underline; }
 .gallery-card-example { font-family: var(--font-mono); font-size: 11px; color: var(--faint); margin-top: 5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .gallery-section-label + .gallery-card { margin-top: 0; }
 .gallery-card + .gallery-section-label { margin-top: 6px; }
+
+#picker-bar { position: sticky; top: var(--stats-bar-h); z-index: 50; min-height: var(--picker-bar-h); display: flex; align-items: center; gap: 16px; background: var(--surface2); border-bottom: 1px solid var(--border3); padding: 6px 16px; }
+.picker-trigger { display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); color: var(--text); cursor: pointer; font: inherit; font-size: 13px; font-weight: 600; flex-shrink: 0; transition: background 0.1s, border-color 0.1s; }
+.picker-trigger:hover { background: var(--hover); border-color: var(--accent); }
+.picker-trigger-plus { color: var(--accent); font-size: 16px; line-height: 1; font-weight: 700; }
+.picker-trigger-label { white-space: nowrap; }
+.picker-trigger-hint { font-size: 10px; color: var(--muted); background: var(--surface2); border: 1px solid var(--border); border-radius: 3px; padding: 1px 5px; font-family: var(--font-mono); line-height: 1.3; }
+.picker-chips { display: flex; align-items: center; gap: 6px; flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; min-width: 0; scrollbar-width: thin; }
+.picker-chips::-webkit-scrollbar { height: 4px; }
+.picker-chip { font-size: 12px; color: var(--muted); background: none; border: none; padding: 4px 2px; cursor: pointer; font: inherit; white-space: nowrap; transition: color 0.1s; }
+.picker-chip:hover { color: var(--accent); }
+.picker-chip.active { color: var(--accent); font-weight: 600; }
+.picker-chip-sep { color: var(--faint); user-select: none; pointer-events: none; font-size: 12px; }
+
+#picker-panel { background: var(--surface); border-bottom: 1px solid var(--border3); box-shadow: 0 6px 14px -8px rgba(0,0,0,0.25); padding: 14px 16px 18px; }
+#picker-panel[hidden] { display: none; }
+.picker-panel-header { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+.picker-search-wrap { position: relative; flex: 1; display: flex; align-items: center; }
+.picker-search-wrap > svg { position: absolute; left: 10px; pointer-events: none; color: var(--muted); }
+.picker-search-wrap input { width: 100%; padding: 7px 10px 7px 30px; border: 1px solid var(--border); border-radius: 4px; background: var(--input-bg); color: var(--text); font-size: 13px; font-family: inherit; }
+.picker-search-wrap input:focus { outline: 2px solid color-mix(in srgb, var(--accent) 50%, transparent); outline-offset: -1px; border-color: var(--accent); }
+.picker-close-btn { border: 1px solid var(--border); background: var(--surface2); border-radius: 4px; padding: 4px 10px; cursor: pointer; color: var(--muted); font-size: 13px; flex-shrink: 0; }
+.picker-close-btn:hover { color: var(--text); border-color: var(--accent); }
+.picker-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 10px; }
+.picker-empty { grid-column: 1 / -1; border: 1px dashed var(--border); border-radius: 6px; padding: 18px 14px; text-align: center; color: var(--muted); font-size: 12px; }
 
 #tool-stack { background: var(--surface2); position: relative; }
 /* Tool rows and the search bar share min-height so a row with no params
@@ -822,14 +833,6 @@ a.get-file:hover { text-decoration: underline; }
 @media (prefers-reduced-motion: reduce) {
   .tool-row.flash { animation: none; }
 }
-/* Insertion cursor — shown while hovering a gallery card to indicate
-   where the new tool will land. Drawn as a right-pointing caret + line
-   ( >─── ) so it reads as "insert here" rather than just "this position."
-   Parented in .search-bar, sitting at top: -1px so it straddles the seam
-   between the last tool row and the search bar (or the top of the stack
-   when no user tools exist yet). */
-.tool-stack-cursor { position: absolute; top: -1px; left: 10px; right: 10px; height: 2px; background: var(--accent); pointer-events: none; box-shadow: 0 0 6px color-mix(in srgb, var(--accent) 55%, transparent); }
-.tool-stack-cursor::before { content: ''; position: absolute; left: 0; top: 50%; width: 0; height: 0; transform: translateY(-50%); border-style: solid; border-width: 4px 0 4px 7px; border-color: transparent transparent transparent var(--accent); }
 .tool-label { white-space: nowrap; display: inline-flex; align-items: center; gap: 5px; }
 .tool-row-icon { font-size: 16px; line-height: 1; width: 20px; height: 20px; display: inline-flex; align-items: center; justify-content: center; color: var(--muted); flex-shrink: 0; }
 .tool-row-name { font-size: 13px; font-weight: 600; color: var(--text); }
@@ -1121,18 +1124,18 @@ html.dark-mode .wld-onboarding { background: color-mix(in srgb, var(--accent) 15
 <main>
   <div id="busy-overlay"><div class="busy-spinner"></div></div>
   <div id="workshop-view">
-    <section id="tool-gallery" aria-label="Tool gallery">
-      <div class="gallery-header">
-        <h2 class="gallery-title">Tools</h2>
-        <div class="gallery-search-wrap">
-          <svg width="13" height="13" aria-hidden="true"><use href="#icon-search"/></svg>
-          <input id="gallery-search" type="text" placeholder="Search tools…" title="Search tools (Alt+T)" disabled>
-        </div>
-      </div>
-      <div class="gallery-body"></div>
-    </section>
-
     <div id="workshop-stats"></div>
+
+    <div id="picker-bar">
+      <button class="picker-trigger" type="button" id="picker-trigger" aria-label="Add tool" title="Add tool (/)">
+        <span class="picker-trigger-plus">+</span>
+        <span class="picker-trigger-label">Add tool</span>
+        <span class="picker-trigger-hint">/</span>
+      </button>
+      <div class="picker-chips" id="picker-chips"></div>
+    </div>
+    <div id="picker-panel" hidden></div>
+
     <div id="detail-panel"></div>
   </div>
 
@@ -4777,27 +4780,6 @@ const ToolStack = (() => {
     </div>`;
   }
 
-  function buildGalleryCardHTML(toolKey, tool) {
-    return `<div class="gallery-card" data-tool="${esc(toolKey)}">
-      <div class="gallery-card-name">${buildToolLabelHTML(tool)}</div>
-      <div class="gallery-card-desc">${esc(tool.desc)}</div>
-      <div class="gallery-card-example">${esc(tool.example)}</div>
-    </div>`;
-  }
-
-  function buildGalleryHTML() {
-    const byCategory = new Map(TOOL_CATEGORIES.map(c => [c.id, []]));
-    Object.entries(TOOLS).forEach(([key, tool]) => {
-      byCategory.get(tool.category)?.push([key, tool]);
-    });
-    return TOOL_CATEGORIES.map(cat => {
-      const cards = byCategory.get(cat.id) || [];
-      if (!cards.length) return '';
-      return `<div class="gallery-section-label">${esc(cat.label)}</div>` +
-             cards.map(([key, tool]) => buildGalleryCardHTML(key, tool)).join('');
-    }).join('');
-  }
-
   // Used by mountWorkshopPanel for the initial render. Mutations after that
   // re-render the user tool rows via rerenderRows, which leaves the Search
   // bar's DOM in place. The hover insertion cursor is purely transient and
@@ -4839,24 +4821,6 @@ const ToolStack = (() => {
     });
   }
 
-  function searchBarEl() { return panelEl()?.querySelector('.search-bar'); }
-  function removeCursor() { document.querySelector('.tool-stack-cursor')?.remove(); }
-
-  // Hovering a gallery card shows a .tool-stack-cursor — an insertion caret
-  // at the seam where the click will drop the tool: between the last user
-  // tool row and the permanent Search bar, or the top of the stack when no
-  // user tools exist yet. Parented in .search-bar, absolutely positioned so
-  // it adds zero vertical space. Every click appends, so there's nothing
-  // destructive to preview — the cursor is the whole hover affordance.
-  function showInsertCursor() {
-    const sbar = searchBarEl();
-    if (sbar && !sbar.querySelector('.tool-stack-cursor')) {
-      const cursor = document.createElement('div');
-      cursor.className = 'tool-stack-cursor';
-      sbar.appendChild(cursor);
-    }
-  }
-
   // Rebuilds the user tool rows from `stack`, leaving the permanent Search
   // bar's DOM in place — so its input focus and the sort toolbar mounted
   // inside it survive a tool add/remove. Help popups are then re-attached,
@@ -4865,7 +4829,6 @@ const ToolStack = (() => {
   function rerenderRows() {
     const e = stackEl();
     if (!e) return;
-    removeCursor();
     const bar = e.querySelector('.search-bar');
     e.querySelectorAll('.tool-row').forEach(r => r.remove());
     getUserStack().forEach((row, i) => {
@@ -4913,23 +4876,6 @@ const ToolStack = (() => {
   }
 
   function init() {
-    const galleryBody = document.querySelector('.gallery-body');
-    if (galleryBody) galleryBody.innerHTML = buildGalleryHTML();
-    galleryBody?.addEventListener('click', (e) => {
-      const card = e.target.closest('.gallery-card[data-tool]');
-      if (!card || card.classList.contains('disabled')) return;
-      const toolKey = card.dataset.tool;
-      if (!TOOLS[toolKey]) return;
-      add(toolKey);
-    });
-
-    document.querySelectorAll('.gallery-card[data-tool]').forEach(card => {
-      card.addEventListener('mouseenter', () => {
-        if (!card.classList.contains('disabled')) showInsertCursor();
-      });
-      card.addEventListener('mouseleave', () => removeCursor());
-    });
-
     const p = panelEl();
     p?.addEventListener('click', (e) => {
       const removeBtn = e.target.closest('.tool-row-remove[data-remove]');
@@ -5032,7 +4978,7 @@ const ToolStack = (() => {
   }
   function getStack() { return stack; }
 
-  return { buildHTML, refreshGalleryActive, init, getStack, setStack, getSearchBarRow, getUserStack, isRowExpanded };
+  return { buildHTML, add, refreshGalleryActive, init, getStack, setStack, getSearchBarRow, getUserStack, isRowExpanded };
 })();
 
 // ─── Input helpers ────────────────────────────────────────────────────────────
@@ -8329,6 +8275,152 @@ const ConfigureWordlistDialog = (() => {
   return { open, openAdd };
 })();
 
+// ─── Picker ──────────────────────────────────────────────────────────────────
+
+const Picker = (() => {
+  let activeCategory = null;
+  let searchQuery = '';
+
+  function buildCardHTML(toolKey, tool) {
+    return `<div class="gallery-card" data-tool="${esc(toolKey)}">
+      <div class="gallery-card-name">${buildToolLabelHTML(tool)}</div>
+      <div class="gallery-card-desc">${esc(tool.desc)}</div>
+      <div class="gallery-card-example">${esc(tool.example)}</div>
+    </div>`;
+  }
+
+  function buildCardsHTML() {
+    const q = searchQuery.trim().toLowerCase();
+    const matches = (tool) => {
+      if (activeCategory && tool.category !== activeCategory) return false;
+      if (!q) return true;
+      return tool.name.toLowerCase().includes(q) || (tool.desc || '').toLowerCase().includes(q);
+    };
+    const byCategory = new Map(TOOL_CATEGORIES.map(c => [c.id, []]));
+    Object.entries(TOOLS).forEach(([key, tool]) => {
+      if (matches(tool)) byCategory.get(tool.category)?.push([key, tool]);
+    });
+    const sections = TOOL_CATEGORIES.map(cat => {
+      const cards = byCategory.get(cat.id) || [];
+      if (!cards.length) return '';
+      return `<div class="gallery-section-label">${esc(cat.label)}</div>` +
+             cards.map(([key, tool]) => buildCardHTML(key, tool)).join('');
+    }).join('');
+    return sections || `<div class="picker-empty">No tools match.</div>`;
+  }
+
+  function buildChipsHTML() {
+    return TOOL_CATEGORIES
+      .map(c => `<button class="picker-chip${activeCategory === c.id ? ' active' : ''}" type="button" data-cat="${esc(c.id)}">${esc(c.label)}</button>`)
+      .join('<span class="picker-chip-sep">·</span>');
+  }
+
+  function renderChips() {
+    const chips = document.getElementById('picker-chips');
+    if (chips) chips.innerHTML = buildChipsHTML();
+  }
+
+  function renderCards() {
+    const cards = document.querySelector('#picker-panel .picker-cards');
+    if (cards) cards.innerHTML = buildCardsHTML();
+    ToolStack.refreshGalleryActive();
+  }
+
+  function open(categoryId) {
+    const panel = document.getElementById('picker-panel');
+    if (!panel) return;
+    activeCategory = (categoryId && TOOL_CATEGORIES.some(c => c.id === categoryId)) ? categoryId : null;
+    panel.hidden = false;
+    renderChips();
+    renderCards();
+    const input = document.getElementById('picker-search');
+    if (input) { input.value = searchQuery; input.focus(); }
+  }
+
+  function close() {
+    const panel = document.getElementById('picker-panel');
+    if (!panel) return;
+    panel.hidden = true;
+    activeCategory = null;
+    searchQuery = '';
+    const input = document.getElementById('picker-search');
+    if (input) input.value = '';
+    renderChips();
+  }
+
+  function isOpen() {
+    const panel = document.getElementById('picker-panel');
+    return !!(panel && !panel.hidden);
+  }
+
+  function init() {
+    const panel = document.getElementById('picker-panel');
+    if (panel) {
+      panel.innerHTML = `
+        <div class="picker-panel-header">
+          <div class="picker-search-wrap">
+            <svg width="13" height="13" aria-hidden="true"><use href="#icon-search"/></svg>
+            <input type="text" placeholder="Search tools…" id="picker-search" autocomplete="off">
+          </div>
+          <button class="picker-close-btn" type="button" id="picker-close" aria-label="Close picker">✕ Close</button>
+        </div>
+        <div class="picker-cards"></div>
+      `;
+    }
+    renderChips();
+    renderCards();
+
+    document.getElementById('picker-trigger')?.addEventListener('click', () => open());
+
+    document.getElementById('picker-chips')?.addEventListener('click', e => {
+      const chip = e.target.closest('.picker-chip');
+      if (!chip) return;
+      const cat = chip.dataset.cat;
+      if (isOpen() && activeCategory === cat) {
+        activeCategory = null;
+        renderChips();
+        renderCards();
+      } else {
+        open(cat);
+      }
+    });
+
+    document.getElementById('picker-close')?.addEventListener('click', close);
+
+    panel?.addEventListener('input', e => {
+      if (e.target.id !== 'picker-search') return;
+      searchQuery = e.target.value;
+      renderCards();
+    });
+
+    panel?.addEventListener('click', e => {
+      const card = e.target.closest('.gallery-card[data-tool]');
+      if (!card || card.classList.contains('disabled')) return;
+      const toolKey = card.dataset.tool;
+      if (!TOOLS[toolKey]) return;
+      ToolStack.add(toolKey);
+      close();
+    });
+
+    document.addEventListener('keydown', e => {
+      if (e.key === 'Escape' && isOpen()) { e.preventDefault(); close(); return; }
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k' && !isOpen()) {
+        e.preventDefault();
+        open();
+        return;
+      }
+      if (e.key === '/' && !isOpen()) {
+        const t = e.target;
+        if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
+        e.preventDefault();
+        open();
+      }
+    });
+  }
+
+  return { init, open, close };
+})();
+
 // ─── Event wiring ─────────────────────────────────────────────────────────────
 
 function bindEvents() {
@@ -8337,15 +8429,13 @@ function bindEvents() {
   document.getElementById('btn-settings').onclick = () => SettingsDialog.open();
 
   ToolStack.init();
+  Picker.init();
 
   // Global keyboard shortcuts
   document.addEventListener('keydown', e => {
     if (e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey) {
       const k = e.key.toLowerCase();
-      if (k === 't') {
-        const el = document.getElementById('gallery-search');
-        if (el) { e.preventDefault(); el.focus(); el.select(); }
-      } else if (k === 'm') {
+      if (k === 'm') {
         e.preventDefault();
         cycleDarkMode();
       }
