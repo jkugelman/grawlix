@@ -224,12 +224,11 @@ button.danger:hover:not(:disabled) { background: #e74c3c; border-color: #c0392b;
 .stats-right { display: flex; align-items: center; gap: 22px; margin-left: auto; }
 .histogram-col { width: 7px; display: flex; align-items: flex-end; }
 .histogram-col-ignored { margin-right: 5px; cursor: default; }
-.histogram-bar { width: 7px; background: var(--accent); border-radius: 2px 2px 0 0; position: relative; z-index: 1; transition: background-color 0.2s ease; }
+.histogram-bar { width: 7px; background: var(--score-bg, var(--accent)); border-radius: 2px 2px 0 0; position: relative; z-index: 1; }
 .histogram-bar.histogram-bar-ignored { background: var(--faint); }
-.histogram.is-hovered .histogram-bar:not(.histogram-bar-ignored) { background: var(--score-bg, var(--accent)); }
 .histogram-rect { position: absolute; top: -2px; bottom: -2px; background: var(--accent); opacity: 0.18; border-radius: 4px; pointer-events: none; z-index: 0; transition: left 0.05s ease, width 0.05s ease; }
 .histogram-rect[hidden] { display: none; }
-html.light-mode .histogram.is-hovered .histogram-bar:not(.histogram-bar-ignored) { filter: saturate(1.5) brightness(0.95); }
+html.light-mode .histogram-bar:not(.histogram-bar-ignored) { filter: saturate(1.5) brightness(0.95); }
 html.light-mode .histogram-rect { opacity: 0.22; }
 
 /* Search bar — the permanent bottom row of the tool stack (a ToolStack row
@@ -1632,12 +1631,6 @@ function buildStatsBarHTML(stats, hist, layout, opts = {}) {
     return `<div class="histogram-col" title="${title}"><div class="histogram-bar" data-lo="${s.lo}" data-hi="${s.hi}" style="--score-bg:${bg}; height:${barH(c)}px"></div></div>`;
   }).join('');
 
-  // If a histogram in the doc is currently hovered, the user's cursor is
-  // inside one of these bbox regions — overwhelmingly the same one we're
-  // about to replace. Bake .is-hovered into the new HTML so the fresh bars
-  // are born colored (no class change after insertion = no transition replay).
-  const hoveredClass = document.querySelector('.histogram.is-hovered') ? ' is-hovered' : '';
-
   return `<div class="stats-bar${isEmpty ? ' stats-empty' : ''}">
       ${buildStatItemHTML(countLabel, countValue.toLocaleString())}
       ${buildStatItemHTML('Min', fmt(stats.min))}
@@ -1646,7 +1639,7 @@ function buildStatsBarHTML(stats, hist, layout, opts = {}) {
         ${buildStatItemHTML('Mean', fmt(stats.mean), 'Average score')}
         ${buildStatItemHTML('Median', fmt(stats.median % 1 === 0 ? stats.median : stats.median.toFixed(1)), '50th percentile')}
         ${buildStatItemHTML('Mode', fmt(stats.mode), 'Most common score')}
-        <div class="histogram${hoveredClass}" title="Histogram • Click to filter" onpointerdown="onHistogramPointerDown(event)">${ignoredBar}${bars}<div class="histogram-rect" hidden></div></div>
+        <div class="histogram" title="Histogram • Click to filter" onpointerdown="onHistogramPointerDown(event)">${ignoredBar}${bars}<div class="histogram-rect" hidden></div></div>
       </div>
     </div>`;
 }
@@ -7309,28 +7302,6 @@ document.addEventListener('pointermove', _onHistogramPointerMove);
 document.addEventListener('pointerup', _onHistogramPointerUp);
 document.addEventListener('pointercancel', () => { _histDrag = null; repositionAllHistogramRects(); });
 
-// Track cursor for cross-render hover continuity. Native :hover doesn't apply
-// to a freshly inserted element until the next pointer event, so after a
-// click commits a selection and the stats bar is replaced, the new bars
-// would briefly render monochrome before :hover caught up — replaying the
-// fade-to-color animation. We mirror :hover via a JS class applied
-// synchronously on render, so new bars paint already-colored.
-const _histCursor = { x: -Infinity, y: -Infinity };
-
-function syncHistogramHover() {
-  document.querySelectorAll('.histogram').forEach(h => {
-    const r = h.getBoundingClientRect();
-    const inside = _histCursor.x >= r.left && _histCursor.x <= r.right && _histCursor.y >= r.top && _histCursor.y <= r.bottom;
-    h.classList.toggle('is-hovered', inside);
-  });
-}
-
-document.addEventListener('pointermove', e => {
-  _histCursor.x = e.clientX;
-  _histCursor.y = e.clientY;
-  syncHistogramHover();
-}, { passive: true });
-
 // Pass `intervals` to override the live filter (used during drag preview).
 function positionHistogramRect(histEl, intervals = undefined) {
   const rect = histEl.querySelector('.histogram-rect');
@@ -7356,7 +7327,6 @@ function positionHistogramRect(histEl, intervals = undefined) {
 
 function repositionAllHistogramRects() {
   document.querySelectorAll('#workshop-view .histogram, #library-view .histogram').forEach(h => positionHistogramRect(h));
-  syncHistogramHover();
 }
 
 // ─── Fetch, import & update ───────────────────────────────────────────────────
