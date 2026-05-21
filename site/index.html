@@ -239,8 +239,8 @@ html.light-mode .histogram-rect { opacity: 0.11; }
    position: relative is the positioning context for .tool-stack-cursor,
    parented here so its caret straddles the seam between the last tool row
    and the bar. */
-.search-bar { padding: 8px 14px; background: var(--surface2); border-bottom: 1px solid var(--border2); display: grid; grid-template-columns: auto auto 1fr auto; align-items: center; column-gap: 12px; row-gap: 6px; position: relative; }
-.search-bar.lib-search-bar { grid-template-columns: auto 1fr auto; }
+.search-bar { padding: 8px 14px; background: var(--surface2); border-bottom: 1px solid var(--border2); display: grid; grid-template-columns: auto auto minmax(120px, 1fr) auto; align-items: center; column-gap: 12px; row-gap: 6px; position: relative; }
+.search-bar.lib-search-bar { grid-template-columns: auto minmax(120px, 1fr) auto; }
 .search-bar > .tool-row-replace { grid-column: 3; grid-row: 2; }
 .search-bar.lib-search-bar > .tool-row-replace { grid-column: 2; grid-row: 2; }
 .search-bar-overflow { display: flex; align-items: center; gap: 12px; }
