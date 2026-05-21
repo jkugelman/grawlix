@@ -92,68 +92,19 @@ Both default to the standard renderers. Add a real motivating case before adding
 
 ## Catalog
 
-Each entry: `slug(params)` — `kind`, then highlight kinds (`in:` for input-side, `out:` for output-side) and any annotations. Specifics are negotiable; this captures intent. Tools already built (Anagram, Search, Semordnilap, Behead, Curtail, Regex) are omitted.
-
-### Anagrams & letter banks
-- `made_from(letters)` — filter.
-- `hidden_anagram(word)` — filter · in: `matched` over the hidden-anagram span.
-- `almost_anagram(word, n)` — filter · annotation: `editDistance`.
-- `letter_bank(word)` — filter.
-- `required(letters)` — filter · in: `matched` on each required letter.
-- `limited(letters)` — filter.
-
-### Letter patterns
-- `kangaroo(word)` — filter · in: `matched` over the joey span.
-- `joey(word)` — filter.
-- `sandwich(word)` — filter.
-- `dead_center(word)` — filter · in: `matched` over the center.
-- `letter_changes(word, n)` — filter · in: `shifted` on changed letters · annotation: `actualN`.
-- `consonantcy(word)` — filter.
-- `vowelcy(word)` — filter.
-- `cryptogram(word)` — filter.
-
-### Transforms
-- `replace_one(find, with)` — transform · in: `removed` on `find` · out: `inserted` on `with`.
-- `replace_all(find, with)` — transform · same highlights, every occurrence.
-- `replace_anything(with)` — transform · out: `inserted` on `with`.
-- `add_remove_one(s)` — transform · bidirectional emit (unification gives `↔`); highlight on the added/removed substring.
-- `add_remove_all(s)` — transform · same logic across all matches.
-- `add_prefix(s)` — transform · out: `inserted` on the prefix.
-- `add_suffix(s)` — transform · out: `inserted` on the suffix.
-- `side_splitting()` — TBD; transform synthesizing the split form, or filter with a custom renderer. Decide when the tool lands.
-- `letter_swap(a, b)` — transform · in & out: `shifted` on swapped positions.
-
-### Curiosities
-- `isograms()` — filter.
-- `supervocalics()` — filter · in: `matched` on each vowel.
-- `monovocs()` — filter · in: `matched` on the lone vowel.
-- `repeaters()` — filter · in: `matched` on the repeating run.
-- `neckouts()` — filter.
-- `alphabetical()` — filter.
-
-### Misc
-- `spelling_bee(center, outer)` — filter · in: `matched` on the center letter.
-- `double_occupancy(ref)` — filter · annotation: `compounds`. Two-part entries where *both* halves compound with one reference term — the "what do these have in common" theme staple. A half "pairs" when prepending *or* appending `ref` yields a real entry, checked against `wordlist.byEntry` like `nested_words` (`GREEN LIGHT` survives against `HOUSE` → GREENHOUSE, LIGHTHOUSE). `ref` may be a single word or a multi-word phrase. Ports [Crossword Nexus's Double Occupancy](https://crosswordnexus.com/apps/double-occupancy/).
-- `everything()` — filter · identity (no-op).
-
-### Grawlix-original
-- `phrase_parsing()` — transform · synthesizes the joined phrase using `[string, number]` output (score = min over constituents). Open: scoring formula, frequency weighting — separate design conversation.
-- `nested_words()` — transform · in: `matched` over the inner span; output entry is the inner word. Stricter and more crossword-specific than Wordlisted's Kangaroo / Sandwich / Joey: outer shell and inserted word both must be real wordlist entries.
-- `letter_incrementing(n)` — transform · in & out: `shifted` on incremented letters. A common crossword theme mechanism.
-- `anagram_families()` — group · clusters of 2+ mutual anagrams. Unbuilt; the group-output model it would use is now shipped — see [`../design.md` § The group-row model](../design.md#the-group-row-model).
-- *Phrase-level alterations* — likely a flag on existing transforms (`onPhrases: true`) to operate on phrase parses rather than the run-together string. Not its own tool. Wordlisted operates only on the run-together string.
+The list of shipped and planned tools — with their cards' icon, name, description, and example — lives in [`../tools.md`](../tools.md). Highlight kinds and annotation hooks for individual planned tools (e.g. `matched` over the hidden-anagram span, `editDistance` annotation on Almost anagram) are negotiable per-tool implementation details and will be settled when each tool lands; this doc focuses on the runtime support, gallery polish, and API extensions around them.
 
 ## Capability families
 
-Two families that unlock entire categories of tools, gated on bundling external data.
+Two families that unlock entire categories of tools, gated on bundling external data. The individual tools each family unlocks are listed in [`../tools.md`](../tools.md).
 
 ### Phonetics
 
-The CMU Pronouncing Dictionary maps words to phoneme sequences, opening up an entire class of sound-based operations that letter-based tools can't touch. Largely unexplored territory. Early examples from existing scripts: rhyme finding at the phrase level, phonetic substitutions (swap one phoneme for another across the wordlist), sound-shift pairs (move a phoneme from the front of a word to the end to get a new word/phrase). Many more possibilities. Requires bundling or fetching the CMU dict as a data dependency.
+The CMU Pronouncing Dictionary maps words to phoneme sequences, opening up an entire class of sound-based operations that letter-based tools can't touch. Largely unexplored territory. Requires bundling or fetching the CMU dict as a data dependency.
 
 ### Thesaurus / semantics
 
-Roget's Thesaurus (available as structured XML) enables meaning-based searches: find synonyms, antonyms, words in the same semantic category. This unlocks tools Wordlisted can't do at all — Kangaroo words that actually verify the joey is a *synonym* of the kangaroo (rather than just a subsequence), theme-entry finders based on semantic relationships, category membership filters. An undertapped gold mine. Requires bundling Roget data.
+Roget's Thesaurus (available as structured XML) enables meaning-based searches: synonyms, antonyms, words in the same semantic category. Unlocks tools Wordlisted can't do at all — semantic relationships layered on top of the letter-pattern moves. An undertapped gold mine. Requires bundling Roget data.
 
 ---
 

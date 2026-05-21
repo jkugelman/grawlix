@@ -21,13 +21,14 @@ Design and manual:
 - [`docs/manual.md`](docs/manual.md) — user-facing manual. Update when shipping user-facing changes.
 - [`docs/style.md`](docs/style.md) — coding-style conventions: CSS, JS, Markdown, terminology, commit messages. Read before formatting changes.
 - [`docs/testing.md`](docs/testing.md) — Playwright smoke suite handbook + strategy. Read before adding/modifying tests.
+- [`docs/tools.md`](docs/tools.md) — **single source of truth for the tool catalog**: every shipped and planned tool, with its card's icon, name, description, example, and implementation status. `design.md`, `manual.md`, and `planned/tools.md` all defer to it. Read before adding, renaming, or recategorizing any tool.
 - [`docs/wordlisted.md`](docs/wordlisted.md) — reference catalogue of Wordlisted's search modes; source material for the tool gallery.
 
 Plans (forward-looking, not yet shipped):
 - [`docs/planned/help.md`](docs/planned/help.md) — separating welcome tour from returning-user reference manual.
 - [`docs/planned/migration.md`](docs/planned/migration.md) — when to graduate from schema-version resets to layered migrations.
 - [`docs/planned/sync.md`](docs/planned/sync.md) — three-tier persistence (backup nag, disk file, cloud sync) for All + My Edits.
-- [`docs/planned/tools.md`](docs/planned/tools.md) — remainder of the catalog, indexed-view runtime, annotations, gallery polish (category picker, search), result download. The chain-row pipeline (executor, per-row tool API, symmetric unification, search-as-tool, per-atom-count sort, highlights) and the group-row model (group tools, group rows, the +N-more reveal) are shipped — see `design.md`.
+- [`docs/planned/tools.md`](docs/planned/tools.md) — runtime support sequencing, gallery polish (category picker, search), result download, tool API extensions (indexed lookups, annotations, escape hatches), open questions. The chain-row pipeline (executor, per-row tool API, symmetric unification, search-as-tool, per-atom-count sort, highlights) and the group-row model (group tools, group rows, the +N-more reveal) are shipped — see `design.md`. The tool catalog itself lives in `docs/tools.md`.
 
 Future (longer-horizon ideas, not actively planned):
 - [`docs/future/lookup.md`](docs/future/lookup.md) — click-a-word lookup (definitions, Wikipedia, NYT history, semantic search).
