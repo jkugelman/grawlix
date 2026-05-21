@@ -33,6 +33,7 @@ input[type="file"] { display: none; }
      published by LibraryView, used to offset the pane's sticky bars below
      it. The value here is just a pre-measurement fallback. */
   --wld-pin-h: 56px;
+  --header-h: 84px;
 }
 html.dark-mode {
   color-scheme: dark;
@@ -107,10 +108,10 @@ body { font-family: var(--font-sans); font-size: 14px; background: var(--bg); co
 /* Brand header. Two stacked rows: row 1 has the wordmark on the left,
    top-level nav (Workshop / Library) in the center, and utility icons on the
    right; row 2 is the personal-text subtitle strip on a darkened-purple band
-   spanning full width below. Scrolls away with the rest of the page; the
-   in-content stats/tool/search stack pins to the viewport top on its own
-   (see .sticky-stack). */
-header { background: var(--hdr-bg); color: white; padding: 6px 20px 0; display: flex; flex-direction: column; position: relative; z-index: 100; }
+   spanning full width below. Pinned to the viewport top; the in-content
+   stats/tool/search stack pins beneath it (see .sticky-stack), offset by
+   --header-h. */
+header { background: var(--hdr-bg); color: white; padding: 6px 20px 0; display: flex; flex-direction: column; position: sticky; top: 0; z-index: 100; }
 .header-row-main { display: flex; align-items: center; justify-content: space-between; gap: 24px; min-height: 44px; }
 header h1 { font-size: 19px; font-weight: 600; letter-spacing: -0.01em; line-height: 1.1; flex-shrink: 1; min-width: 0; }
 .header-logo-link { color: inherit; text-decoration: none; }
@@ -213,9 +214,9 @@ button.danger:hover:not(:disabled) { background: #e74c3c; border-color: #c0392b;
    scrolls into the entries table. Two bands by recession depth: stats +
    tools/search/column-headers on surface2 (chrome), and the data plane
    below is surface (content, brightest). */
-#workshop-stats { position: sticky; top: 0; z-index: 51; }
-.sticky-stack { position: sticky; top: 0; z-index: 50; background: var(--surface2); border-bottom: 1px solid var(--border2); }
-#workshop-view .sticky-stack { top: var(--stats-bar-h); }
+#workshop-stats { position: sticky; top: var(--header-h); z-index: 51; }
+.sticky-stack { position: sticky; top: var(--header-h); z-index: 50; background: var(--surface2); border-bottom: 1px solid var(--border2); }
+#workshop-view .sticky-stack { top: calc(var(--header-h) + var(--stats-bar-h)); }
 .sticky-stack .search-bar { border-bottom: none; }
 .stat { display: flex; flex-direction: column; gap: 2px; }
 .stat-label { font-size: 10px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
@@ -910,8 +911,8 @@ a.get-file:hover { text-decoration: underline; }
 /* Library sticky pinning. The stats bar and the search bar form a two-row
    sticky region directly above the entries table; the action header and
    rescore/scoring section sit above it and scroll away first. */
-.wld-pane > .stats-bar { position: sticky; top: 0; z-index: 51; }
-.lib-search-bar       { position: sticky; top: var(--stats-bar-h); z-index: 50; }
+.wld-pane > .stats-bar { position: sticky; top: var(--header-h); z-index: 51; }
+.lib-search-bar       { position: sticky; top: calc(var(--header-h) + var(--stats-bar-h)); z-index: 50; }
 
 /* Desktop: list on the left, pane on the right. `align-items: stretch`
    (flex default) lets the surface2 list extend to match the pane's height
@@ -927,11 +928,7 @@ a.get-file:hover { text-decoration: underline; }
     border-bottom: none;
     border-right: 1px solid var(--border2);
   }
-  /* Cap the pinned rail at the viewport height — the brand header has
-     scrolled away by the time the rail pins — and let it scroll internally
-     when there are more wordlists than fit. Without this, overflow cards
-     become unreachable while the rail is pinned. */
-  .wld-list-sticky { position: sticky; top: 0; max-height: 100vh; overflow-y: auto; }
+  .wld-list-sticky { position: sticky; top: var(--header-h); max-height: calc(100vh - var(--header-h)); overflow-y: auto; }
   .wld-pane { flex: 1; min-width: 0; }
 }
 
@@ -947,11 +944,9 @@ a.get-file:hover { text-decoration: underline; }
      from the pane; reapply both on the rows themselves. */
   .wordlist-card, .wld-list-section-header { background: var(--surface2); }
   .wld-list .add-wordlist-row { border-bottom: 1px solid var(--border2); }
-  .wordlist-card.selected { position: sticky; top: 0; z-index: 52; }
-  /* Drop the pane's sticky bars below the pinned card. --wld-pin-h is the
-     live card height, published by LibraryView. */
-  .wld-pane > .stats-bar { top: var(--wld-pin-h); }
-  .lib-search-bar       { top: calc(var(--wld-pin-h) + var(--stats-bar-h)); }
+  .wordlist-card.selected { position: sticky; top: var(--header-h); z-index: 52; }
+  .wld-pane > .stats-bar { top: calc(var(--header-h) + var(--wld-pin-h)); }
+  .lib-search-bar       { top: calc(var(--header-h) + var(--wld-pin-h) + var(--stats-bar-h)); }
 }
 
 /* Onboarding banner at the top of the Library view's wordlist list */
@@ -6959,6 +6954,15 @@ for (const id of ['workshop-stats', 'wld-pane']) {
   const parent = document.getElementById(id);
   new ResizeObserver(refreshStatsBarOverflow).observe(parent);
   new MutationObserver(refreshStatsBarOverflow).observe(parent, { childList: true });
+}
+
+{
+  const headerEl = document.querySelector('header');
+  const publish = () => document.documentElement.style.setProperty(
+    '--header-h', headerEl.offsetHeight + 'px'
+  );
+  publish();
+  new ResizeObserver(publish).observe(headerEl);
 }
 
 // ─── Search-bar compact mode ──────────────────────────────────────────────

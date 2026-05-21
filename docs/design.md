@@ -19,7 +19,7 @@ Mobile is a third mode — theme research on the go (subway, Discord), where a c
 
 ## The shell
 
-**The whole document scrolls.** The brand header, the active view, and everything in it share one document-level scroll — no nested scroll container. The header is a normal block at the top of the page and scrolls away with the rest. The active view fills the full content width below it. As the user scrolls into the entries table, a sticky region (stats bar → tool stack, the search bar being the stack's last row) pins to the top of the viewport. One scrollbar, the document's.
+**The whole document scrolls.** The brand header, the active view, and everything in it share one document-level scroll — no nested scroll container. The header pins to the top of the viewport via `position: sticky`, so it stays visible while the page scrolls beneath it. The active view fills the full content width below it. As the user scrolls into the entries table, a sticky region (stats bar → tool stack, the search bar being the stack's last row) pins directly under the header. One scrollbar, the document's.
 
 `html` carries `overflow-y: scroll` to keep the scrollbar gutter present whether or not content overflows. Without it, the Library view (short, no scrollbar) and the Workshop view (tall, scrollbar) would lay out at different widths and the page would jump horizontally on every view switch. On mobile the scrollbars are overlay-drawn and reserve no space, so the declaration is inert there — which is fine, since the shift it prevents only happens with classic desktop scrollbars.
 
@@ -53,7 +53,7 @@ Library is a peer view, not a setup dialog: rescoring and curating wordlists is 
 **Mechanics worth knowing:**
 
 - Each view uses `overflow: clip`, not `overflow: hidden`. The latter establishes a scroll container that breaks `position: sticky` for descendants, trapping the sticky region inside the view. `overflow: clip` contains stray child overflow without that side effect.
-- The sticky region anchors at `top: 0` — the top of the viewport. The brand header scrolls away above it, so once the region pins, the header is gone and the region sits flush at the screen top.
+- The sticky region anchors at `top: var(--header-h)` — directly below the pinned brand header. `--header-h` is published at module load by a ResizeObserver on the header element so subtitle wrap on narrow viewports keeps the stack correctly offset.
 - The virtual scroller listens for `scroll` events in **capture mode** on `window`, computes its visible slice from the host's `getBoundingClientRect()` against `window.innerHeight`, and slices a window of rows out of a full-height sizer. Capture is required because scroll events don't bubble. The math is viewport-relative and works directly against the document scroll.
 
 ## Wordlists & setup
