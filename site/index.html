@@ -239,9 +239,11 @@ html.light-mode .histogram-rect { opacity: 0.11; }
    position: relative is the positioning context for .tool-stack-cursor,
    parented here so its caret straddles the seam between the last tool row
    and the bar. */
-.search-bar { padding: 8px 14px; background: var(--surface2); border-bottom: 1px solid var(--border2); display: grid; grid-template-columns: auto auto auto minmax(120px, 1fr) auto auto; align-items: center; column-gap: 12px; row-gap: 6px; position: relative; }
-.search-bar.lib-search-bar { grid-template-columns: auto minmax(120px, 1fr) auto auto; }
+.search-bar { padding: 8px 14px; background: var(--surface2); border-bottom: 1px solid var(--border2); display: grid; grid-template-columns: auto auto auto minmax(120px, auto) auto 1fr auto; align-items: center; column-gap: 12px; row-gap: 6px; position: relative; }
+.search-bar.lib-search-bar { grid-template-columns: auto minmax(120px, auto) auto 1fr auto; }
 .search-bar > .tool-row-replace { grid-column: 4; grid-row: 2; }
+.search-bar.lib-search-bar > .tool-row-replace { grid-column: 2; grid-row: 2; }
+.search-bar > .search-bar-overflow { grid-column: -2 / -1; }
 .search-bar-overflow { display: flex; align-items: center; gap: 12px; }
 .search-bar-end { display: flex; align-items: center; gap: 12px; }
 .score-range-label { display: flex; align-items: center; gap: 5px; font-size: 12px; color: var(--muted); white-space: nowrap; }
@@ -804,8 +806,9 @@ a.get-file:hover { text-decoration: underline; }
    doesn't shrink below the height of an input-bearing row, and the search
    bar (visually the bottom row of the stack) lines up with them. */
 .tool-row, .search-bar { min-height: 42px; --tool-control-h: 30px; }
-.tool-row { position: relative; display: grid; grid-template-columns: auto auto auto minmax(120px, 1fr) auto auto; align-items: center; padding: 8px 14px; border-bottom: 1px solid var(--border2); column-gap: 12px; row-gap: 6px; overflow: hidden; }
+.tool-row { position: relative; display: grid; grid-template-columns: auto auto auto minmax(120px, auto) auto 1fr auto; align-items: center; padding: 8px 14px; border-bottom: 1px solid var(--border2); column-gap: 12px; row-gap: 6px; overflow: hidden; }
 .tool-row > .tool-row-replace { grid-column: 4; grid-row: 2; }
+.tool-row > .tool-row-remove { grid-column: -2 / -1; }
 .tool-row:last-child { border-bottom: none; }
 .tool-row.dragging { opacity: 0.4; }
 .tool-row.drag-over { box-shadow: inset 0 0 0 2px var(--accent); }
@@ -835,7 +838,7 @@ a.get-file:hover { text-decoration: underline; }
 .tool-row-replace[hidden] { display: none; }
 .tool-row-param { display: flex; align-items: center; gap: 4px; min-height: var(--tool-control-h); font-size: 12px; color: var(--muted); }
 .tool-row-param label { display: flex; align-items: center; gap: 5px; white-space: nowrap; cursor: pointer; user-select: none; }
-.tool-row-param-text { flex: 0 1 200px; }
+.tool-row-param-text { flex: 0 1 200px; max-width: 200px; justify-self: start; width: 100%; }
 .tool-row-param-text .clearable-input { flex: 1 1 auto; }
 .find-replace-caret { width: 16px; height: var(--tool-control-h); padding: 0; background: none; border: none; cursor: pointer; color: var(--muted); display: flex; align-items: center; justify-content: center; }
 .find-replace-caret:hover { color: var(--text); }
