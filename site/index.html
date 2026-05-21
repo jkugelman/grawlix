@@ -421,7 +421,11 @@ html.dark-mode .search-match-4 { background: #14532d; color: #d1fae5; }
 .group-cell .atom-entry { cursor: pointer; }
 .group-cell .atom-score { cursor: pointer; }
 .group-cell .atom-noedit { cursor: default; }
-.entries-empty { padding: 16px; color: var(--muted); font-size: 13px; }
+.entries-empty { padding: 36px 22px; color: var(--muted); font-size: 14px; text-align: center; }
+.entries-empty-msg { font-style: italic; margin-bottom: 10px; }
+.entries-empty-term { font-weight: 600; color: var(--text); font-style: normal; }
+.entries-empty-add { background: transparent; border: 1px solid var(--border); border-radius: 4px; color: var(--accent); font: inherit; cursor: pointer; padding: 4px 12px; font-style: normal; }
+.entries-empty-add:hover { background: var(--hover); border-color: var(--accent); }
 
 /* Library entries view — text-flavored, read-only counterpart to the Workshop
    entries table. Shares the virtual-scroller mechanics but renders a monospace,
@@ -1009,20 +1013,6 @@ html.dark-mode .wld-onboarding { background: color-mix(in srgb, var(--accent) 15
   80%       { transform: translateX(-2px); }
 }
 .shake { animation: shake 0.3s ease; }
-
-/* Add entry footer row */
-#add-row-footer { flex-shrink: 0; border-top: 1px solid var(--border2); }
-.add-row-trigger { display: flex; align-items: center; padding: 5px 16px; height: 29px; cursor: pointer; color: var(--text); font-size: 12px; user-select: none; background: var(--surface2); border-top: 1px solid var(--border3); }
-.add-row-trigger:hover { background: var(--hover); color: var(--accent); }
-.add-entry-bar { display: flex; align-items: center; gap: 8px; padding: 5px 16px; background: var(--surface2); }
-.add-entry-bar:focus { outline: none; }
-.add-entry-bar input { font-family: inherit; font-size: 12px; padding: 2px 6px; border: 1px solid var(--border); border-radius: 3px; background: var(--input-bg); color: var(--text); outline: none; }
-.add-entry-bar input:focus { border-color: var(--accent); }
-.add-entry-bar input.invalid { border-color: #ea4335; }
-.add-entry-bar .ae-entry { width: 120px; }
-.add-entry-bar .ae-score { width: 60px; }
-.add-entry-bar .ae-comment { flex: 1; }
-.add-entry-bar .ae-hint { font-size: 11px; color: var(--faint); white-space: nowrap; }
 
 /* Shared icons */
 .icon-trash  { width: 14px; height: 14px; display: inline-block; vertical-align: middle; }
@@ -1776,7 +1766,6 @@ function buildScoringSectionHTML() {
 function buildEntriesTablePanelHTML() {
   return `<div id="entries-table-panel">
       <div id="vs-host"></div>
-      <div id="add-row-footer">${ADD_ENTRY_TRIGGER_HTML}</div>
     </div>`;
 }
 
@@ -5537,7 +5526,6 @@ class WorkshopEntriesScroller extends BaseVirtualScroller {
   // pipeline shape. Search is a pipeline tool now; the scroller only filters
   // by score range.
   setEntries(allEntries, atomCount = this.atomCount, sortTier = this.sortTier) {
-    AtomPopover.close();
     GroupMorePopover.close();
     this._setChainShape(atomCount, sortTier);
     this.allEntries = allEntries;
@@ -5547,9 +5535,6 @@ class WorkshopEntriesScroller extends BaseVirtualScroller {
   }
 
   updateEntries(allEntries, atomCount = this.atomCount, sortTier = this.sortTier) {
-    // An edit committed from inside the popover triggers this re-render;
-    // closing then would drop focus mid-tab. _render rebinds the active row.
-    if (!AtomPopover.containsFocus()) AtomPopover.close();
     const tierChanged = this._setChainShape(atomCount, sortTier);
     this.allEntries = allEntries;
     this._invalidateSortCache();
@@ -5714,10 +5699,10 @@ class WorkshopEntriesScroller extends BaseVirtualScroller {
 
   _render() {
     if (this.sortTier === 'group') return this._renderGroups();
-    this.host.querySelector('.entries-empty')?.remove();
     const n = this.entries.length;
     const stride = this._rowStride();
     this.sizer.style.height = (n * stride) + 'px';
+    this._renderEmptyState(n, 'chain');
 
     const { start, end } = this._visibleRange(n);
     this._clearSizer();
@@ -5792,7 +5777,7 @@ class WorkshopEntriesScroller extends BaseVirtualScroller {
     const n = this.entries.length;
     const stride = this.atomCount * ROW_HEIGHT;
     this.sizer.style.height = (n * stride) + 'px';
-    this._renderEmptyState(n);
+    this._renderEmptyState(n, 'group');
     const { start, end } = this._visibleRange(n);
     this._clearSizer();
     const activeEntry = AtomPopover.activeEntry(this);
@@ -5844,18 +5829,32 @@ class WorkshopEntriesScroller extends BaseVirtualScroller {
       `</div>`;
   }
 
-  _renderEmptyState(n) {
-    let emptyEl = this.host.querySelector('.entries-empty');
-    if (n === 0) {
-      if (!emptyEl) {
-        emptyEl = document.createElement('div');
-        emptyEl.className = 'entries-empty';
-        emptyEl.textContent = 'No groups match.';
-        this.host.appendChild(emptyEl);
-      }
-    } else if (emptyEl) {
-      emptyEl.remove();
+  _renderEmptyState(n, kind) {
+    const existing = this.host.querySelector('.entries-empty');
+    if (n > 0) { existing?.remove(); return; }
+
+    const query = WorkshopView.searchQuery.trim();
+    const addable = kind === 'chain' && /^[a-z]+$/i.test(query);
+    const key = `${kind}|${addable ? query.toLowerCase() : ''}`;
+    if (existing && existing.dataset.key === key) return;
+
+    const el = existing || document.createElement('div');
+    el.className = 'entries-empty';
+    el.dataset.key = key;
+
+    if (kind === 'group') {
+      el.textContent = 'No groups match.';
+    } else if (addable) {
+      el.innerHTML =
+        `<div class="entries-empty-msg">${buildNoMatchQuipHTML(query)}</div>` +
+        `<button type="button" class="entries-empty-add">＋ Add it</button>`;
+      el.querySelector('.entries-empty-add').onclick = e =>
+        AtomPopover.openForCreate(query.toLowerCase(), workshopScroller, e.currentTarget);
+    } else {
+      el.textContent = 'No matches.';
     }
+
+    if (!existing) this.host.appendChild(el);
   }
 
   _computeGroupSlotWidths() {
@@ -6170,6 +6169,7 @@ const AtomPopover = (() => {
   let activeRow = null;
   let activeWlEntry = null;
   let activeScroller = null;
+  let pendingDelete = false;
   // The popover element focus is in or transitioning to. Tracked via capture-
   // phase blur (relatedTarget says where focus is *headed*) because an
   // edit-commit re-render runs in a microtask between blur and focusin, when
@@ -6203,14 +6203,9 @@ const AtomPopover = (() => {
     activeWlEntry = null;
     activeScroller = null;
     focusEl = null;
+    pendingDelete = false;
     document.removeEventListener('mousedown', onDocMouseDown, true);
     document.removeEventListener('keydown', onKeydown, true);
-    window.removeEventListener('resize', onWinResize);
-  }
-
-  function onWinResize() {
-    if (containsFocus()) return;
-    close();
   }
 
   function containsFocus() {
@@ -6234,7 +6229,7 @@ const AtomPopover = (() => {
     activeWlEntry = wlEntry;
     activeRow = rowEl;
     activeScroller = scroller;
-    rowEl.classList.add('active');
+    if (rowEl) rowEl.classList.add('active');
 
     popover.innerHTML = renderHTML(wlEntry, scroller);
     popover.removeAttribute('hidden');
@@ -6247,7 +6242,10 @@ const AtomPopover = (() => {
 
     document.addEventListener('mousedown', onDocMouseDown, true);
     document.addEventListener('keydown', onKeydown, true);
-    window.addEventListener('resize', onWinResize);
+  }
+
+  function openForCreate(entryStr, scroller, anchorEl) {
+    open({ entry: entryStr, score: '', comment: '' }, null, scroller, anchorEl, 'score');
   }
 
   function renderFooterHTML(wlEntry, scroller) {
@@ -6268,6 +6266,10 @@ const AtomPopover = (() => {
   }
 
   function renderHTML(wlEntry, scroller) {
+    const sourceHTML = renderSourceHTML(wlEntry, scroller);
+    const sourceRow = sourceHTML
+      ? `<label>Source</label><span class="atom-pop-source">${sourceHTML}</span>`
+      : '';
     return `
       <button class="dialog-close-btn" type="button" aria-label="Close">✕</button>
       <div class="atom-pop-head">${esc(wlEntry.entry)}</div>
@@ -6276,8 +6278,7 @@ const AtomPopover = (() => {
         <input id="atom-pop-score" class="score-input" type="number" min="0" value="${wlEntry.score}">
         <label for="atom-pop-comment">Comment</label>
         <input id="atom-pop-comment" class="comment-input" type="text" value="${esc(wlEntry.comment || '')}">
-        <label>Source</label>
-        <span class="atom-pop-source">${renderSourceHTML(wlEntry, scroller)}</span>
+        ${sourceRow}
       </div>
       <div class="atom-pop-foot">${renderFooterHTML(wlEntry, scroller)}</div>`;
   }
@@ -6297,7 +6298,7 @@ const AtomPopover = (() => {
     for (const a of rowSetAtoms(activeScroller.allEntries)) {
       if (a.wlEntry === activeWlEntry) { stillPresent = true; break; }
     }
-    if (!stillPresent) { close(); return; }
+    if (!stillPresent) return;
     if (resetInputs) {
       el.innerHTML = renderHTML(activeWlEntry, activeScroller);
       wireFields();
@@ -6317,10 +6318,9 @@ const AtomPopover = (() => {
     if (!deleteBtn) return;
     const scroller = activeScroller;
     const entry = activeWlEntry.entry;
-    // No refresh() here: it would replace innerHTML and detach the focused
-    // delete button, so updateEntries' containsFocus() guard would read false
-    // and close the popover. The scroller rebuild reaches rebindEntry instead.
+    deleteBtn.addEventListener('mousedown', e => e.preventDefault());
     deleteBtn.addEventListener('click', () => {
+      pendingDelete = true;
       scroller._onDeleteRow?.(entry);
     });
   }
@@ -6408,15 +6408,23 @@ const AtomPopover = (() => {
     for (const a of rowSetAtoms(scroller.allEntries)) {
       if (a.wlEntry.entry === entryStr) { found = a.wlEntry; break; }
     }
-    if (!found) { close(); return; }
+    const wasPendingDelete = pendingDelete;
+    pendingDelete = false;
+    if (!found) {
+      if (wasPendingDelete) {
+        activeWlEntry = { entry: entryStr, score: '', comment: '' };
+        el.innerHTML = renderHTML(activeWlEntry, activeScroller);
+        wireFields();
+        el.querySelector('.score-input')?.focus();
+      }
+      return;
+    }
     activeWlEntry = found;
-    // Keep the inputs only while one holds focus: resetting mid-edit would
-    // clobber the value the user just typed and is tabbing away from.
-    const editing = containsFocus() && focusEl.matches('.score-input, .comment-input');
+    const editing = !wasPendingDelete && containsFocus() && focusEl.matches('.score-input, .comment-input');
     refresh({ resetInputs: !editing });
   }
 
-  return { open, close, isOpen, containsFocus, activeEntry, rebindRow, rebindEntry };
+  return { open, openForCreate, close, isOpen, containsFocus, activeEntry, rebindRow, rebindEntry };
 })();
 
 // ─── Update Summary Scroller ──────────────────────────────────────────────────
@@ -7595,79 +7603,25 @@ function ingestFile(file, wordlist, nameOverride) {
 
 // ─── My Edits: add entry & delete ────────────────────────────────────────────
 
-const ADD_ENTRY_TRIGGER_HTML = '<div class="add-row-trigger" onclick="openAddEntryBar()">＋ Add entry</div>';
+const NO_MATCH_QUIPS = [
+  q => `"The ${q} is in another castle."`,
+  q => `"This is not the ${q} you are looking for."`,
+  q => `"${q} has left the chat."`,
+  q => `"${q}? We're gonna need a bigger wordlist."`,
+  q => `"We don't talk about ${q}."`,
+  q => `"${q} has left the building."`,
+  q => `"Nobody puts ${q} in the corner."`,
+  q => `"${q}? Where we're going, we don't need ${q}."`,
+  q => `"${q}? Inconceivable!"`,
+  q => `"Hasta la vista, ${q}."`,
+  q => `"Sorry, ${q} can't come to the phone right now."`,
+  q => `"Show me the ${q}!"`,
+  q => `"${q}? You can't handle the ${q}!"`,
+];
 
-function openAddEntryBar() {
-  const footer = document.getElementById('add-row-footer');
-  if (!footer || footer.querySelector('.add-entry-bar')) return;
-
-  footer.innerHTML = '';
-  const bar = document.createElement('div');
-  bar.className = 'add-entry-bar';
-  bar.tabIndex = -1;
-  bar.innerHTML = `
-    <input class="ae-entry"    placeholder="Entry"   autocomplete="off" spellcheck="false">
-    <input class="ae-score"   placeholder="Score"   type="number" min="0">
-    <input class="ae-comment" placeholder="Comment (optional)">
-    <span class="ae-hint">Enter to save · Esc to cancel</span>`;
-  footer.appendChild(bar);
-
-  const entryInput    = bar.querySelector('.ae-entry');
-  const scoreInput   = bar.querySelector('.ae-score');
-  const commentInput = bar.querySelector('.ae-comment');
-  entryInput.addEventListener('beforeinput', blockSemicolon);
-  commentInput.addEventListener('beforeinput', blockSemicolon);
-  entryInput.focus();
-
-  const allEmpty = () => !entryInput.value.trim() && !scoreInput.value.trim() && !commentInput.value.trim();
-
-  function restoreTrigger() {
-    bar.remove();
-    footer.innerHTML = ADD_ENTRY_TRIGGER_HTML;
-  }
-
-  bar.addEventListener('focusout', e => {
-    if (e.relatedTarget && bar.contains(e.relatedTarget)) return;
-    if (allEmpty()) restoreTrigger();
-  });
-
-  function commit() {
-    const entry = entryInput.value.trim().toLowerCase();
-    const score = parseInt(scoreInput.value.trim(), 10);
-    const comment = commentInput.value.trim();
-
-    entryInput.classList.toggle('invalid', !entry || entry.includes(';'));
-    commentInput.classList.toggle('invalid', comment.includes(';'));
-    scoreInput.classList.toggle('invalid', isNaN(score) || score < 0);
-    if (entryInput.classList.contains('invalid') || commentInput.classList.contains('invalid') || scoreInput.classList.contains('invalid')) return;
-
-    const edits = getEditsWordlist();
-
-    const existing = edits.rawEntries.find(e => e.entry === entry);
-    let wlEntry;
-    if (existing) {
-      existing.score = score;
-      existing.comment = comment;
-      wlEntry = existing;
-      showToast(`Updated ${displayEntry(entry)}`);
-    } else {
-      wlEntry = { entry, score, comment };
-      edits.rawEntries.push(wlEntry);
-      showToast(`Added ${displayEntry(entry)}`);
-    }
-
-    patchCachesForEditsChange(entry, wlEntry);
-    recomputeUncovered(edits);
-    persistEdits(edits);
-    refreshDerivedDisplays();
-    refreshWorkshopMergedScroller();
-    restoreTrigger();
-  }
-
-  bar.addEventListener('keydown', e => {
-    if (e.key === 'Enter') { e.preventDefault(); commit(); }
-    if (e.key === 'Escape') restoreTrigger();
-  });
+function buildNoMatchQuipHTML(term) {
+  const span = `<span class="entries-empty-term">${esc(displayEntry(term))}</span>`;
+  return NO_MATCH_QUIPS[hashStringMod(term.toLowerCase(), NO_MATCH_QUIPS.length)](span);
 }
 
 function deleteFromEdits(entry, refreshFn) {
@@ -8506,11 +8460,13 @@ function nameToInitials(name) {
   return (words[0][0] + words[words.length - 1][0]).toUpperCase();
 }
 
-function nameColorIndex(name) {
+function hashStringMod(str, mod) {
   let h = 0;
-  for (let i = 0; i < name.length; i++) h = (Math.imul(31, h) + name.charCodeAt(i)) | 0;
-  return Math.abs(h) % INITIALS_PALETTE.length;
+  for (let i = 0; i < str.length; i++) h = (Math.imul(31, h) + str.charCodeAt(i)) | 0;
+  return Math.abs(h) % mod;
 }
+
+function nameColorIndex(name) { return hashStringMod(name, INITIALS_PALETTE.length); }
 
 function buildInitialsIconHTML(name, colorSeed = name) {
   const initials = esc(nameToInitials(name));

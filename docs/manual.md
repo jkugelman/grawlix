@@ -76,7 +76,7 @@ When the score you see differs from what the wordlist itself contains (because i
 
 For entries sourced from My Edits, the popover also has a Delete button (with undo via toast).
 
-The `+ Add entry` footer at the bottom of the table lets you create new entries that don't yet exist in any wordlist — they land in My Edits.
+**Adding new entries.** Search for the word you want. If no wordlist has it, the empty-state message offers an **Add it** button — click it to open the same editor popover used everywhere else, pre-populated with the word. Type a score (and an optional comment), press Enter, and the new entry lands in My Edits.
 
 ## My Edits
 

@@ -111,23 +111,23 @@ test('the Delete edit button keeps the popover open and reverts to the underlyin
   ).toEqual([]);
 });
 
-test('+ Add entry footer creates a brand-new entry in My Edits', async ({ page }) => {
+test('searching for an unknown entry surfaces an Add-it affordance that lands the entry in My Edits', async ({ page }) => {
   await gotoApp(page);
 
-  // Add an existing wordlist so the entries table isn't empty (cosmetic —
-  // the add-row footer is always present, but having data exercises the
-  // ADD branch where the entry is brand-new to *all* wordlists).
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
     name: 'Other', entries: ['EXISTING'], scores: [50],
   }));
 
-  // Click the trigger, fill the bar, press Enter.
-  await page.locator('.add-row-trigger').click();
-  await page.locator('.add-entry-bar .ae-entry').fill('NEWWORD');
-  await page.locator('.add-entry-bar .ae-score').fill('60');
-  await page.locator('.add-entry-bar .ae-score').press('Enter');
+  await page.locator('.search-bar input[data-key="pattern"]').fill('NEWWORD');
+  await expect(page.locator('.entries-empty-add')).toBeVisible();
+  await expect(page.locator('.entries-empty-term')).toHaveText(/newword/i);
 
-  // My Edits now contains the new entry; merged view exposes it.
+  await page.locator('.entries-empty-add').click();
+  await expect(page.locator('#atom-popover')).toBeVisible();
+  await expect(page.locator('#atom-popover .atom-pop-head')).toHaveText('newword');
+  await page.locator('#atom-pop-score').fill('60');
+  await page.locator('#atom-pop-score').press('Enter');
+
   await expect.poll(async () =>
     page.evaluate(() => window.__grawlixTest.getWordlist('My Edits').entries)
   ).toEqual([{ entry: 'newword', score: 60, comment: '' }]);
