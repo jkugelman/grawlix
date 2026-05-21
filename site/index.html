@@ -239,10 +239,9 @@ html.light-mode .histogram-rect { opacity: 0.11; }
    position: relative is the positioning context for .tool-stack-cursor,
    parented here so its caret straddles the seam between the last tool row
    and the bar. */
-.search-bar { padding: 8px 14px; background: var(--surface2); border-bottom: 1px solid var(--border2); display: grid; grid-template-columns: auto auto minmax(120px, 1fr) auto; align-items: center; column-gap: 12px; row-gap: 6px; position: relative; }
-.search-bar.lib-search-bar { grid-template-columns: auto minmax(120px, 1fr) auto; }
-.search-bar > .tool-row-replace { grid-column: 3; grid-row: 2; }
-.search-bar.lib-search-bar > .tool-row-replace { grid-column: 2; grid-row: 2; }
+.search-bar { padding: 8px 14px; background: var(--surface2); border-bottom: 1px solid var(--border2); display: grid; grid-template-columns: auto auto auto minmax(120px, 1fr) auto auto; align-items: center; column-gap: 12px; row-gap: 6px; position: relative; }
+.search-bar.lib-search-bar { grid-template-columns: auto minmax(120px, 1fr) auto auto; }
+.search-bar > .tool-row-replace { grid-column: 4; grid-row: 2; }
 .search-bar-overflow { display: flex; align-items: center; gap: 12px; }
 .search-bar-end { display: flex; align-items: center; gap: 12px; }
 .score-range-label { display: flex; align-items: center; gap: 5px; font-size: 12px; color: var(--muted); white-space: nowrap; }
@@ -805,8 +804,8 @@ a.get-file:hover { text-decoration: underline; }
    doesn't shrink below the height of an input-bearing row, and the search
    bar (visually the bottom row of the stack) lines up with them. */
 .tool-row, .search-bar { min-height: 42px; --tool-control-h: 30px; }
-.tool-row { position: relative; display: grid; grid-template-columns: auto auto 1fr auto; align-items: center; padding: 8px 14px; border-bottom: 1px solid var(--border2); column-gap: 12px; row-gap: 6px; overflow: hidden; }
-.tool-row > .tool-row-replace { grid-column: 3; grid-row: 2; }
+.tool-row { position: relative; display: grid; grid-template-columns: auto auto auto minmax(120px, 1fr) auto auto; align-items: center; padding: 8px 14px; border-bottom: 1px solid var(--border2); column-gap: 12px; row-gap: 6px; overflow: hidden; }
+.tool-row > .tool-row-replace { grid-column: 4; grid-row: 2; }
 .tool-row:last-child { border-bottom: none; }
 .tool-row.dragging { opacity: 0.4; }
 .tool-row.drag-over { box-shadow: inset 0 0 0 2px var(--accent); }
@@ -832,10 +831,7 @@ a.get-file:hover { text-decoration: underline; }
 .tool-label { white-space: nowrap; display: inline-flex; align-items: center; gap: 5px; }
 .tool-row-icon { font-size: 16px; line-height: 1; width: 20px; height: 20px; display: inline-flex; align-items: center; justify-content: center; color: var(--muted); flex-shrink: 0; }
 .tool-row-name { font-size: 13px; font-weight: 600; color: var(--text); }
-.tool-row-main { display: flex; align-items: center; gap: 6px; min-width: 0; }
-.tool-row-main .find-replace-caret + .tool-row-param-text { margin-left: -2px; }
-.tool-row-main .tool-row-param:not(.tool-row-param-text) { margin-left: 4px; }
-.tool-row-replace { display: flex; }
+.tool-row-asides { display: flex; align-items: center; gap: 6px; }
 .tool-row-replace[hidden] { display: none; }
 .tool-row-param { display: flex; align-items: center; gap: 4px; min-height: var(--tool-control-h); font-size: 12px; color: var(--muted); }
 .tool-row-param label { display: flex; align-items: center; gap: 5px; white-space: nowrap; cursor: pointer; user-select: none; }
@@ -850,14 +846,10 @@ a.get-file:hover { text-decoration: underline; }
   .find-replace-caret-glyph { transition: none; }
 }
 .tool-row-param input[type="text"],
-.tool-row-replace input[type="text"],
 .score-range-label input[type="text"] { background: var(--input-bg); color: var(--text); border: 1px solid var(--border); border-radius: 4px; font-size: 13px; font-family: var(--font-mono); }
 .tool-row-param input[type="text"]:focus,
-.tool-row-replace input[type="text"]:focus,
 .score-range-label input[type="text"]:focus { outline: none; border-color: var(--accent); }
-.tool-row-param input[type="text"],
-.tool-row-replace input[type="text"] { width: 100%; min-width: 120px; padding: 5px 24px 5px 8px; }
-.tool-row-replace .clearable-input { flex: 0 1 200px; }
+.tool-row-param input[type="text"] { width: 100%; min-width: 0; padding: 5px 24px 5px 8px; }
 .score-range-label input[type="text"] { width: 72px; padding: 4px 20px 4px 6px; }
 .score-range-label input.invalid { border-color: #ea4335; background: var(--error-bg); }
 .tool-row-param input.tool-row-num { background: var(--input-bg); color: var(--text); border: 1px solid var(--border); border-radius: 4px; font-size: 13px; font-family: var(--font-sans); padding: 5px 8px; width: 5em; }
@@ -876,7 +868,6 @@ a.get-file:hover { text-decoration: underline; }
   .tool-row, .search-bar { --tool-control-h: 34px; }
   .tool-row-param input[type="text"],
   .tool-row-param input[type="number"],
-  .tool-row-replace input[type="text"],
   .score-range-label input[type="text"],
   .atom-pop-fields input { font-size: 16px; }
 }
@@ -1471,7 +1462,9 @@ function buildFindReplaceCaretHTML(expanded, rowToken) {
 }
 
 function buildToolRowPartsHTML(params, values, toolKey, wiringFn, opts = {}) {
-  const mainFields = [], asides = [];
+  const asideEls = [];
+  let main = '';
+  let caret = '';
   let replace = '';
   let frPattern = null, frReplace = null;
   if (opts.findReplace) {
@@ -1479,11 +1472,11 @@ function buildToolRowPartsHTML(params, values, toolKey, wiringFn, opts = {}) {
     frReplace = params.find(p => p.key === 'replace');
     if (frPattern && frReplace) {
       const expanded = !!opts.expanded;
-      const caret = buildFindReplaceCaretHTML(expanded, opts.rowToken);
+      caret = buildFindReplaceCaretHTML(expanded, opts.rowToken);
       const patternInput = buildTextInputHTML(frPattern, values?.[frPattern.key], toolKey, wiringFn(frPattern));
-      mainFields.push(`${caret}<span class="tool-row-param tool-row-param-text">${patternInput}</span>`);
+      main = `<span class="tool-row-param tool-row-param-text">${patternInput}</span>`;
       const replaceInput = buildTextInputHTML(frReplace, values?.[frReplace.key], toolKey, wiringFn(frReplace));
-      replace = `<div class="tool-row-replace"${expanded ? '' : ' hidden'}>${replaceInput}</div>`;
+      replace = `<span class="tool-row-param tool-row-param-text tool-row-replace"${expanded ? '' : ' hidden'}>${replaceInput}</span>`;
     } else {
       frPattern = frReplace = null;
     }
@@ -1491,12 +1484,12 @@ function buildToolRowPartsHTML(params, values, toolKey, wiringFn, opts = {}) {
   for (const p of params) {
     if (p === frPattern || p === frReplace) continue;
     const html = buildParamHTML(p, values?.[p.key], toolKey, wiringFn(p));
-    (p.type === 'checkbox' ? asides : mainFields).push(html);
+    if (p.type === 'checkbox') asideEls.push(html);
+    else if (!main) main = html;
+    else asideEls.push(html);
   }
-  return {
-    main: `<div class="tool-row-main">${mainFields.join('')}${asides.join('')}</div>`,
-    replace,
-  };
+  const asides = asideEls.length ? `<div class="tool-row-asides">${asideEls.join('')}</div>` : '';
+  return { caret, main, asides, replace };
 }
 
 // The Workshop search bar's chrome — rendered by ToolStack as the permanent
@@ -1516,7 +1509,9 @@ function buildSearchBarHTML() {
   return `<div class="search-bar">
       <span class="drag-handle" aria-hidden="true">≡</span>
       ${label}
+      ${parts.caret}
       ${parts.main}
+      ${parts.asides}
       <div class="search-bar-overflow">
         <div class="search-bar-end">
           ${buildScoreRangeInputHTML('score-range-input', scoreRange, 'WorkshopView')}
@@ -2663,6 +2658,7 @@ const LibraryView = (() => {
     return `<div class="search-bar lib-search-bar">
       ${buildToolLabelHTML({ icon: '<svg width="16" height="16" aria-hidden="true"><use href="#icon-search"/></svg>', name: 'Search' })}
       ${parts.main}
+      ${parts.asides}
       <div class="search-bar-overflow">
         <div class="search-bar-end">
           ${buildScoreRangeInputHTML('lib-score-range-input', scoreRange, 'LibraryView')}
@@ -4821,7 +4817,9 @@ const ToolStack = (() => {
     return `<div class="tool-row">
       ${buildDragHandleHTML()}
       ${buildToolLabelHTML(tool)}
+      ${parts.caret}
       ${parts.main}
+      ${parts.asides}
       ${remove}
       ${parts.replace}
     </div>`;
