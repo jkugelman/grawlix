@@ -1550,8 +1550,15 @@ class PopupHelp {
     this._onFocus = () => this.show();
     this._onBlur  = () => this.hide();
     this._reflow  = () => { if (this._open) this._position(); };
+    this._onKeyDown = (e) => {
+      if (e.key === 'Escape' && this._open) {
+        this.hide();
+        e.stopPropagation();
+      }
+    };
     anchor.addEventListener('focus', this._onFocus);
     anchor.addEventListener('blur',  this._onBlur);
+    anchor.addEventListener('keydown', this._onKeyDown);
     window.addEventListener('resize', this._reflow);
     window.addEventListener('scroll', this._reflow, true);
 
@@ -1588,6 +1595,7 @@ class PopupHelp {
   destroy() {
     this.anchor.removeEventListener('focus', this._onFocus);
     this.anchor.removeEventListener('blur',  this._onBlur);
+    this.anchor.removeEventListener('keydown', this._onKeyDown);
     window.removeEventListener('resize', this._reflow);
     window.removeEventListener('scroll', this._reflow, true);
     this.el.remove();
