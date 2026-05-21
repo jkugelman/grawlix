@@ -41,8 +41,9 @@ async function gotoApp(page, route = '/') {
   // Don't wait on the busy overlay — it's removed synchronously by the boot
   // scaffolding when localStorage is empty, before init() even runs. _db
   // going non-null is the actual signal that init()'s `await openDB()` has
-  // resolved (Chromium wins this race incidentally; Firefox doesn't).
-  await expect.poll(async () => page.evaluate(() => _db !== null), { timeout: 5000 }).toBe(true);
+  // resolved (Chromium wins this race incidentally; Firefox doesn't, and 5s
+  // isn't enough under heavy parallel-worker load — was flaking ~5%).
+  await expect.poll(async () => page.evaluate(() => _db !== null), { timeout: 30000 }).toBe(true);
 }
 
 // Switch to the Library view via the brand-bar nav button.
