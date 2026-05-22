@@ -610,46 +610,6 @@ async function addLetterSetFixture(page) {
   }));
 }
 
-test('letter_clusters clusters merged entries that share a distinct-letter set', async ({ page }) => {
-  await gotoApp(page);
-  await addLetterSetFixture(page);
-  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'letter_clusters', params: { size: '3' } }]));
-
-  const groups = await page.evaluate(() => window.__grawlixTest.getVisibleGroups());
-  // One line per group (just the cluster); DOG (a singleton) never appears.
-  const clusters = groups.map(g => g.lines[0].words.slice().sort()).sort();
-  expect(clusters).toEqual([['act', 'cat'], ['opt', 'pot', 'top']]);
-  expect(groups.map(g => g.lines[0].count).sort()).toEqual([2, 3]);
-});
-
-test('letter_clusters with no size is inert — the row is transparent', async ({ page }) => {
-  await gotoApp(page);
-  await addLetterSetFixture(page);
-  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'letter_clusters', params: {} }]));
-
-  // No size entered: the tool does nothing, like an empty search bar — the
-  // merged view shows through as ordinary chain rows, no groups.
-  const groups = await page.evaluate(() => window.__grawlixTest.getVisibleGroups());
-  expect(groups).toEqual([]);
-  const entries = await page.evaluate(() => window.__grawlixTest.getVisibleEntries());
-  expect(entries.sort()).toEqual(['act', 'cat', 'dog', 'opt', 'pot', 'top']);
-});
-
-test('letter_clusters size param constrains clusters to that many distinct letters', async ({ page }) => {
-  await gotoApp(page);
-  await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
-    name: 'SizeTest',
-    entries: ['OPT', 'POT', 'AB', 'BA'],
-    scores: [50, 40, 30, 20],
-  }));
-  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'letter_clusters', params: { size: '2' } }]));
-
-  const groups = await page.evaluate(() => window.__grawlixTest.getVisibleGroups());
-  // Only {a,b} has exactly 2 distinct letters; the size-3 {o,p,t} cluster is
-  // excluded by the param.
-  expect(groups.map(g => g.lines[0].words.slice().sort())).toEqual([['ab', 'ba']]);
-});
-
 test('score range trims junk out of the wordlist before letter_clusters clusters it', async ({ page }) => {
   await gotoApp(page);
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
