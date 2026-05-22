@@ -3731,7 +3731,7 @@ function buildSearchPattern(query, wholeWord = false) {
   }
   closeRun();
   const anchor = pat => wholeWord ? '^' + pat + '$' : pat;
-  const hlRe = new RegExp(anchor(hlPat), 'id');
+  const hlRe = new RegExp(anchor(hlPat), 'gid');
   return {
     filterRe: new RegExp(anchor(filterPat)),
     globalRe: new RegExp(anchor(filterPat), 'gd'),
@@ -3740,7 +3740,14 @@ function buildSearchPattern(query, wholeWord = false) {
 }
 
 function searchRangesFor(text, hlRe) {
-  return groupSpansToRanges(hlRe.exec(text));
+  hlRe.lastIndex = 0;
+  const ranges = [];
+  let m;
+  while ((m = hlRe.exec(text)) !== null) {
+    ranges.push(...groupSpansToRanges(m));
+    if (m[0].length === 0) hlRe.lastIndex++;   // step past a zero-width match or loop forever
+  }
+  return ranges;
 }
 
 // Without the `d` (indices) flag on the regex, `m.indices` is absent and this
@@ -4289,13 +4296,20 @@ const TOOLS = {
         const hlRe = capturing ? null : new RegExp(wrap(wrapRuns(body, runs)), 'gid');
         return { mode: 'replace', re: new RegExp(wrap(body), 'gid'), hlRe, tokens: parseReplacement(replacement) };
       }
-      return { mode: 'filter', re: new RegExp(wrap(capturing ? body : wrapRuns(body, runs)), 'id') };
+      return { mode: 'filter', re: new RegExp(wrap(capturing ? body : wrapRuns(body, runs)), 'gid') };
     },
     run(entry, prepared, wordlist) {
       if (prepared.mode === 'filter') {
-        const m = prepared.re.exec(entry);
-        if (!m) return null;
-        const ranges = groupSpansToRanges(m);
+        const { re } = prepared;
+        re.lastIndex = 0;
+        const ranges = [];
+        let m, hit = false;
+        while ((m = re.exec(entry)) !== null) {
+          hit = true;
+          ranges.push(...groupSpansToRanges(m));
+          if (m[0].length === 0) re.lastIndex++;   // step past a zero-width match or loop forever
+        }
+        if (!hit) return null;
         return ranges.length ? ranges : true;
       }
       return runRegexReplace(entry, prepared, wordlist);

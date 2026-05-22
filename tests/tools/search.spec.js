@@ -102,6 +102,15 @@ test('a wildcard splits the highlight at its literal boundaries', async ({ page 
   await expect(row.locator('mark')).toHaveText(['c', 't']);
 });
 
+test('every match in an entry is highlighted, not just the first', async ({ page }) => {
+  await gotoApp(page);
+  await addFixture(page);
+  await setSearch(page, 't');
+
+  const row = page.locator('#vs-host .entry-row', { hasText: 'untested' });
+  await expect(row.locator('mark')).toHaveText(['t', 't']);
+});
+
 // Search-replace needs the output words present too — like regex, the
 // transform keeps a rewritten entry only when it is itself a wordlist entry.
 async function addReplaceFixture(page) {

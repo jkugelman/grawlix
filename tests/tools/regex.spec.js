@@ -172,6 +172,19 @@ test('a single-char wildcard splits the highlight at its literal boundaries', as
   await expect(row.locator('mark')).toHaveText(['c', 't']);
 });
 
+test('every match in an entry is highlighted, not just the first', async ({ page }) => {
+  await gotoApp(page);
+  await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
+    name: 'RegexMulti',
+    entries: ['BANANA'],
+    scores: [50],
+  }));
+  await setRegex(page, 'na');
+
+  const row = page.locator('#vs-host .entry-row', { hasText: 'banana' });
+  await expect(row.locator('mark')).toHaveText(['na', 'na']);
+});
+
 test('filter colors the user’s own capture groups when the pattern has them', async ({ page }) => {
   await gotoApp(page);
   await addHighlightFixture(page);
