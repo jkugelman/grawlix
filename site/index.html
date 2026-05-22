@@ -4083,7 +4083,7 @@ const TOOLS = {
   isograms: {
     name: 'Isograms', icon: '1️⃣', category: 'letters',
     desc: 'No repeated letter',
-    example: 'DIALOGUE',
+    example: 'CYBERPUNK · JUXTAPOSE',
     params: [],
     kind: 'filter', inputHighlights: false, outputHighlights: false,
     run(entry) {
@@ -4099,7 +4099,7 @@ const TOOLS = {
   supervocalics: {
     name: 'Supervocalics', icon: '🌈', category: 'letters',
     desc: 'Each of A E I O U exactly once',
-    example: 'SEQUOIA',
+    example: 'AIRQUOTE · EUPHORIA',
     params: [],
     kind: 'filter', inputHighlights: false, outputHighlights: false,
     run(entry) {
@@ -4133,7 +4133,7 @@ const TOOLS = {
   alphabetical: {
     name: 'Alphabetical', icon: '🔠', category: 'letters',
     desc: 'Letters in alphabetical order',
-    example: 'ABBEY · BILLOWY',
+    example: 'CHINTZ · KNOTTY',
     params: [],
     kind: 'filter', inputHighlights: false, outputHighlights: false,
     run(entry) {
@@ -4175,7 +4175,7 @@ const TOOLS = {
   search: {
     name: 'Search', icon: '<svg width="16" height="16" aria-hidden="true"><use href="#icon-search"/></svg>', category: 'search',
     desc: 'Search (and replace) with wildcards',
-    example: 'un*ed · c?t',
+    example: 'UN*ED · C?T',
     findReplace: true,
     params: [
       { placeholder: 'pattern', help: buildHelpHTML([
@@ -4217,7 +4217,7 @@ const TOOLS = {
   regex: {
     name: 'Regex', icon: '🪄', category: 'search',
     desc: 'Search (and replace) with regular expressions',
-    example: 'un.+ed · c.{2,4}t',
+    example: 'UN.+ED · C.{2,4}T',
     findReplace: true,
     params: [
       { key: 'pattern', raw: true, placeholder: 'pattern', help: buildHelpHTML([

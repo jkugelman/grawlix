@@ -23,7 +23,7 @@ Source material: shipped catalog lives in `TOOLS` in [`site/index.html`](../site
 |   | Cipher | 🔐 Cryptogram | Same letter-pattern shape | ABBA · NOON · DEED |
 |   | Halves | 🦒 Neckouts | Left and right halves are anagrams | TEAMMATE · INTESTINES |
 |   | Halves | 🔂 Repeaters | Left and right halves are the same | TARTAR · HOTSHOTS |
-| ✓ | Letters | 1️⃣ Isograms | No repeated letter | DIALOGUE |
+| ✓ | Letters | 1️⃣ Isograms | No repeated letter | CYBERPUNK · JUXTAPOSE |
 | ✓ | Letters | 🌈 Supervocalics | Each of A E I O U exactly once | SEQUOIA |
 | ✓ | Letters | 👩‍🎤 Monovocs | Only one distinct vowel | TOOCOOLFORSCHOOL |
 | ✓ | Letters | 🔠 Alphabetical | Letters in alphabetical order | ABBEY · BILLOWY |
