@@ -243,12 +243,12 @@ html.light-mode .histogram-rect { opacity: 0.11; }
 .search-bar.lib-search-bar { grid-template-columns: auto minmax(80px, auto) auto 1fr auto; }
 .search-bar > .tool-label { margin-left: 12px; }
 .search-bar > .find-replace-caret { margin-left: 12px; }
-.search-bar > .tool-row-param-text { padding-left: 6px; }
+.search-bar > .tool-row-param-text { padding-left: 12px; }
+.search-bar > .find-replace-caret ~ .tool-row-param-text { padding-left: 6px; }
+.search-bar > .tool-row-param:not(.tool-row-param-text) { margin-left: 12px; }
 .search-bar > .tool-row-asides { margin-left: 12px; }
 .search-bar > .search-bar-overflow { grid-column: -2 / -1; margin-left: 12px; }
 .search-bar > .tool-row-replace { grid-column: 4; grid-row: 2; }
-.search-bar.lib-search-bar > .tool-row-param-text { padding-left: 12px; }
-.search-bar.lib-search-bar > .tool-row-asides { margin-left: 12px; }
 .search-bar-overflow { display: flex; align-items: center; gap: 12px; }
 .search-bar-end { display: flex; align-items: center; gap: 12px; }
 .score-range-label { display: flex; align-items: center; gap: 5px; font-size: 12px; color: var(--muted); white-space: nowrap; }
@@ -814,7 +814,9 @@ a.get-file:hover { text-decoration: underline; }
 .tool-row { position: relative; display: grid; grid-template-columns: auto auto auto minmax(80px, auto) auto 1fr auto; align-items: center; padding: 8px 14px; border-bottom: 1px solid var(--border2); column-gap: 0; row-gap: 6px; overflow: hidden; }
 .tool-row > .tool-label { margin-left: 12px; }
 .tool-row > .find-replace-caret { margin-left: 12px; }
-.tool-row > .tool-row-param-text { padding-left: 6px; }
+.tool-row > .tool-row-param-text { padding-left: 12px; }
+.tool-row > .find-replace-caret ~ .tool-row-param-text { padding-left: 6px; }
+.tool-row > .tool-row-param:not(.tool-row-param-text) { margin-left: 12px; }
 .tool-row > .tool-row-asides { margin-left: 12px; }
 .tool-row > .tool-row-remove { grid-column: -2 / -1; margin-left: 12px; }
 .tool-row > .tool-row-replace { grid-column: 4; grid-row: 2; }
