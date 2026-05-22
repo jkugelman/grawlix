@@ -8,32 +8,33 @@ Source material: shipped catalog lives in `TOOLS` in [`site/index.html`](../site
 
 | Status | Category | Tool | Description | Example |
 |---|---|---|---|---|
-| ✓ | Anagram | 🔤 Anagram | Same letters, rearranged | LINDSEY → SNIDELY |
+| ✓ | Anagram | 🔤 Anagram | Same letters, rearranged | ELVIS → LIVES |
 |   | Anagram | 🔤 Anagram families | Groups of mutual anagrams | TBD |
 |   | Anagram | 🫥 Hidden anagram | An anagram of the input hidden inside a longer word | TBD |
 |   | Anagram | 🤏 Almost anagram | Anagrams within *n* letter edits | TBD |
 |   | Bank | 🏦 Letter bank | TBD | TBD |
 | ✓ | Bank | 🧩 Letter bank families | Groups of Words built from the same distinct letters | POSTOP · STOOPS · OPTS |
-|   | Bank | 🅱️ Scrabble | TBD | TBD |
 | ✓ | Bank | 🔡 Made from letters | Words spelled from a subset of the input letters | PARENTAL → PLANE, RENT, … |
 |   | Bank | ❗ Required letters | Contains every given letter (in any order) | TBD |
 |   | Bank | 🧱 Limited letters | Uses only the given letters | TBD |
-|   | Bank | 🐝 Spelling bee | Uses only the given letter set, must include the center letter | TBD |
+|   | Bank | 🅱️ Scrabble | Made from a set of letters | TBD |
+|   | Bank | 🐝 Spelling bee | Made from a set of letters with repeats, must include the center letter | TBD |
 |   | Cipher | 📈 Caesar shift | Shift each letter by *n* | TBD |
 |   | Cipher | 🔐 Cryptogram | Same letter-pattern shape | ABBA · NOON · DEED |
 |   | Halves | 🦒 Neckouts | Left and right halves are anagrams | TEAMMATE · INTESTINES |
 |   | Halves | 🔂 Repeaters | Left and right halves are the same | TARTAR · HOTSHOTS |
-| ✓ | Letters | 1️⃣ Isograms | No repeated letter | CYBERPUNK · JUXTAPOSE |
-| ✓ | Letters | 🌈 Supervocalics | Each of A E I O U exactly once | SEQUOIA |
-| ✓ | Letters | 👩‍🎤 Monovocs | Only one distinct vowel | TOOCOOLFORSCHOOL |
+| ✓ | Letters | 1️⃣ Isograms | No repeated letters | CYBERPUNK · JUXTAPOSE |
+| ✓ | Letters | 🌈 Supervocalics | Each of A E I O U exactly once | AIRQUOTE |
+| ✓ | Letters | 👩‍🎤 Monovocalics | Only one distinct vowel | TOOCOOLFORSCHOOL |
 | ✓ | Letters | 🔠 Alphabetical | Letters in alphabetical order | ABBEY · BILLOWY |
+| ✓ | Letters | 🔠 Reverse alphabetical | Letters in reverse alphabetical order | TBD |
 |   | Letters | 🦴 Consonantcy | Same consonants in order; vowels may differ | TBD |
 |   | Letters | 🅰️ Vowelcy | Same vowels in order; consonants may differ | TBD |
 |   | Pairs | 🦘 Kangaroo | Outer word containing the input as a hidden joey (subsequence) | TBD |
 |   | Pairs | 🦘 Joey | TBD | TBD |
 |   | Pairs | 🪺 Nested | One word inside another | MARI(JUAN)A |
-| ✓ | Palindrome | 🪞 Palindromes | Read the same forwards and back | RACECAR · KAYAK |
-| ✓ | Palindrome | ⬅️ Semordnilap | Reverse to get a different word | STRESSED → DESSERTS |
+| ✓ | Palindrome | 🪞 Palindromes | Read the same when mirrored | RACECAR · CIVIC |
+| ✓ | Palindrome | ⬅️ Semordnilap | Reverse to get a different word | STRESSED ↔ DESSERTS |
 |   | Phonetic | 🎵 Rhymes | Same end-of-word phoneme sequence | TBD |
 |   | Phonetic | 🔊 Phonetic substitution | Swap one phoneme for another across the wordlist | TBD |
 |   | Phonetic | 🎶 Sound shift | Move a phoneme between word positions (e.g. front → end) | TBD |
