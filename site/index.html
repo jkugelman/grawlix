@@ -4121,13 +4121,20 @@ const TOOLS = {
     params: [],
     kind: 'filter', inputHighlights: false, outputHighlights: false,
     run(entry) {
-      let found = '';
+      let vowel = '';
+      let prevWasLetter = false;
       for (const ch of entry) {
-        if (ch !== 'a' && ch !== 'e' && ch !== 'i' && ch !== 'o' && ch !== 'u') continue;
-        if (!found) found = ch;
-        else if (ch !== found) return false;
+        if (ch < 'a' || ch > 'z') { prevWasLetter = false; continue; }
+        let v = '';
+        if (ch === 'a' || ch === 'e' || ch === 'i' || ch === 'o' || ch === 'u') v = ch;
+        else if (ch === 'y' && prevWasLetter) v = 'y';
+        if (v) {
+          if (!vowel) vowel = v;
+          else if (v !== vowel) return false;
+        }
+        prevWasLetter = true;
       }
-      return !!found;
+      return !!vowel;
     },
   },
   alphabetical: {

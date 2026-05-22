@@ -21,13 +21,35 @@ test('keeps entries whose vowels are all the same letter', async ({ page }) => {
   expect((await visible(page)).sort()).toEqual(['banana', 'strengths', 'toocoolforschool']);
 });
 
-test('an entry with no AEIOU vowel is dropped — Y is not counted', async ({ page }) => {
+test('Y at the start of a word is a consonant — YOLK is O-monovocalic', async ({ page }) => {
   await gotoApp(page);
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
-    name: 'NoVowels',
-    entries: ['RHYTHM', 'SHHH'],
-    scores:  [50, 50],
+    name: 'YAtStart',
+    entries: ['YOLK', 'YELP', 'YACHT', 'YEAR'],
+    scores:  [50, 50, 50, 50],
+  }));
+  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'monovocalics' }]));
+  expect((await visible(page)).sort()).toEqual(['yacht', 'yelp', 'yolk']);
+});
+
+test('Y anywhere else is a vowel — it counts as a second vowel in an AEIOU word', async ({ page }) => {
+  await gotoApp(page);
+  await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
+    name: 'YAsVowel',
+    entries: ['BOYTOY', 'BABY', 'KAYAK', 'SYRUP', 'LARYNX'],
+    scores:  [50, 50, 50, 50, 50],
   }));
   await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'monovocalics' }]));
   expect(await visible(page)).toEqual([]);
+});
+
+test('a Y-only entry matches as Y-monovocalic; a vowel-less entry drops', async ({ page }) => {
+  await gotoApp(page);
+  await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
+    name: 'YOnly',
+    entries: ['RHYTHM', 'GYPSY', 'WHY', 'SHHH'],
+    scores:  [50, 50, 50, 50],
+  }));
+  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'monovocalics' }]));
+  expect((await visible(page)).sort()).toEqual(['gypsy', 'rhythm', 'why']);
 });
