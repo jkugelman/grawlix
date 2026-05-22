@@ -27,7 +27,7 @@ Source material: shipped catalog lives in `TOOLS` in [`site/index.html`](../site
 | ✓ | Letters | 🌈 Supervocalics | Each of A E I O U exactly once | AIRQUOTE |
 | ✓ | Letters | 👩‍🎤 Monovocalics | Only one distinct vowel | TOOCOOLFORSCHOOL |
 | ✓ | Letters | 🔠 Alphabetical | Letters in alphabetical order | ABBEY · BILLOWY |
-| ✓ | Letters | 🔠 Reverse alphabetical | Letters in reverse alphabetical order | TBD |
+| ✓ | Letters | 🔠 Reverse alphabetical | Letters in reverse alphabetical order | SPOOFED · YUPPIE |
 |   | Letters | 🦴 Consonantcy | Same consonants in order; vowels may differ | TBD |
 |   | Letters | 🅰️ Vowelcy | Same vowels in order; consonants may differ | TBD |
 |   | Pairs | 🦘 Kangaroo | Outer word containing the input as a hidden joey (subsequence) | TBD |
