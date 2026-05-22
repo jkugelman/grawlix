@@ -4,102 +4,56 @@ One place to see every tool — shipped and planned — with the card content th
 
 Source material: shipped catalog lives in `TOOLS` in [`site/index.html`](../site/index.html); planned items come from [`planned/tools.md`](planned/tools.md) (catalog + capability families) and [`wordlisted.md`](wordlisted.md) (Wordlisted's search modes, the reference inspiration).
 
-**Status** — `✓` = shipped (gallery card renders and `run` produces results). Blank = planned (no card, or a card with no `run` yet). `TBD` in any field = not yet specified; fill in when the design firms up.
+**Status** — `✓` = shipped (gallery card renders and `run` produces results). Blank = planned (no card, or a card with no `run` yet). `TBD` in any field = not yet specified; fill in when the design firms up. **Phonetics** is gated on bundling the CMU Pronouncing Dictionary; **Thesaurus** is gated on bundling Roget's Thesaurus (XML) — see [`planned/tools.md`](planned/tools.md#capability-families) for the family rationale. Tool lists in those two categories are provisional.
 
-## Anagrams & letter banks
-
-| Status | Icon | Name | Description | Example |
+| Status | Category | Tool | Description | Example |
 |---|---|---|---|---|
-| ✓ | 🔤 | Anagram | Same letters, rearranged | LINDSEY → SNIDELY |
-| ✓ | 🔡 | Made from letters | Words spelled from a subset of the input letters | PARENTAL → PLANE, RENT, … |
-| ✓ | 🧩 | Letter clusters | Group: words built from the same distinct letters | POSTOP · STOOPS · OPTS |
-|   | 🫥 | Hidden anagram | An anagram of the input hidden inside a longer word | TBD |
-|   | 🤏 | Almost anagram | Anagrams within *n* letter edits | TBD |
-|   | 🏦 | Letter bank | TBD | TBD |
-|   | ❗ | Required letters | Contains every given letter (in any order) | TBD |
-|   | 🧱 | Limited letters | Uses only the given letters | TBD |
-
-## Letter patterns
-
-| Status | Icon | Name | Description | Example |
-|---|---|---|---|---|
-| ✓ | 🔍 | Search | Search (and replace) with wildcards | un*ed · c?t |
-| ✓ | 🪄 | Regex | Search (and replace) with regular expressions | un.+ed · c.{2,4}t |
-| ✓ | 🔄 | Palindrome | Reads the same forwards and back | RACECAR · KAYAK |
-|   | 🦘 | Kangaroo | Outer word containing the input as a hidden joey (subsequence) | TBD |
-|   | 👶 | Joey | TBD | TBD |
-|   | 🥪 | Sandwich | TBD | TBD |
-|   | 🎯 | Dead center | Input sits at the exact center of a longer word | TBD |
-|   | 🔀 | Letter changes | Differs from input by exactly *n* single-letter substitutions | TBD |
-|   | 🦴 | Consonantcy | Same consonants in order; vowels may differ | TBD |
-|   | 🅰️ | Vowelcy | Same vowels in order; consonants may differ | TBD |
-|   | 🔐 | Cryptogram | Same letter-pattern shape (positions consistent across letters) | ABBA · NOON · DEED |
-
-## Pairs
-
-| Status | Icon | Name | Description | Example |
-|---|---|---|---|---|
-| ✓ | 🪓 | Behead | Drop the first letter(s) to get a new word | SLING → LING |
-| ✓ | ✂️ | Curtail | Drop the last letter(s) to get a new word | PARTY → PART |
-| ✓ | ↔️ | Semordnilap | Reverse to get a different word | STRESSED → DESSERTS |
-
-## Transforms
-
-| Status | Icon | Name | Description | Example |
-|---|---|---|---|---|
-|   | 🃏 | Replace anything | Insert *with* in place of any deleted substring | TBD |
-|   | ⚖️ | Add/remove one | Add or remove one occurrence of a substring (bidirectional) | TBD |
-|   | 🧮 | Add/remove all | Same logic, every occurrence | TBD |
-|   | 📥 | Add prefix | Prepend a string | TBD |
-|   | 📤 | Add suffix | Append a string | TBD |
-|   | 🪚 | Side splitting | TBD (transform or filter — decide when it lands) | TBD |
-|   | 🔁 | Letter swap | Swap two letters throughout | TBD |
-
-## Curiosities
-
-| Status | Icon | Name | Description | Example |
-|---|---|---|---|---|
-|   | 🦓 | Isograms | No repeated letter | DIALOGUE |
-|   | 🌈 | Supervocalics | Each of A E I O U exactly once | SEQUOIA |
-|   | 1️⃣ | Monovocs | Only one distinct vowel | TBD |
-|   | 🔂 | Repeaters | TBD | TBD |
-|   | 🦒 | Neckouts | TBD | TBD |
-|   | 🔠 | Alphabetical | Letters in alphabetical order | ABBEY · BILLOWY |
-
-## Misc
-
-| Status | Icon | Name | Description | Example |
-|---|---|---|---|---|
-|   | 🐝 | Spelling bee | Uses only the given letter set, must include the center letter | TBD |
-|   | 👯 | Double occupancy | Two-part entries where both halves compound with one reference term | GREEN LIGHT + HOUSE → GREENHOUSE, LIGHTHOUSE |
-|   | ♾️ | Everything | Identity — no filtering | — |
-
-## Grawlix-original
-
-| Status | Icon | Name | Description | Example |
-|---|---|---|---|---|
-|   | 💬 | Phrase parsing | Synthesizes the joined-phrase form of multi-word entries | TBD |
-|   | 🪆 | Nested words | Outer shell with an inner word nested inside; both must be real entries | TBD |
-|   | 📈 | Letter incrementing | Each letter shifted by *n* (Caesar-style) to form a new entry | TBD |
-|   | 👨‍👩‍👧 | Anagram families | Group: clusters of 2+ mutual anagrams | TBD |
-
-## Phonetics
-
-Gated on bundling the CMU Pronouncing Dictionary as a runtime data dependency. See [`planned/tools.md`](planned/tools.md#phonetics) for the family rationale. Largely unexplored territory; tool list is provisional.
-
-| Status | Icon | Name | Description | Example |
-|---|---|---|---|---|
-|   | 🎵 | Rhymes | Same end-of-word phoneme sequence | TBD |
-|   | 🔊 | Phonetic substitution | Swap one phoneme for another across the wordlist | TBD |
-|   | 🎶 | Sound shift | Move a phoneme between word positions (e.g. front → end) | TBD |
-
-## Thesaurus / semantics
-
-Gated on bundling Roget's Thesaurus (XML). See [`planned/tools.md`](planned/tools.md#thesaurus--semantics). Unlocks meaning-based searches that letter-based tools can't express; tool list is provisional.
-
-| Status | Icon | Name | Description | Example |
-|---|---|---|---|---|
-|   | 🤝 | Synonyms | Words with similar meaning to a target | TBD |
-|   | ⚔️ | Antonyms | Words opposite in meaning | TBD |
-|   | 📚 | Category | Words in the same Roget semantic category | TBD |
-|   | 🧠 | Synonym kangaroo | Kangaroo whose joey is a synonym of the kangaroo | TBD |
+| ✓ | Anagram | 🔤 Anagram | Same letters, rearranged | LINDSEY → SNIDELY |
+|   | Anagram | 🔤 Anagram families | Groups of mutual anagrams | TBD |
+|   | Anagram | 🫥 Hidden anagram | An anagram of the input hidden inside a longer word | TBD |
+|   | Anagram | 🤏 Almost anagram | Anagrams within *n* letter edits | TBD |
+|   | Anagram | 🦒 Neckouts | Left and right halves are anagrams | TEAMMATE · INTESTINES |
+|   | Bank | 🏦 Letter bank | TBD | TBD |
+| ✓ | Bank | 🧩 Letter bank families | Groups of Words built from the same distinct letters | POSTOP · STOOPS · OPTS |
+|   | Bank | 🅱️ Scrabble | TBD | TBD |
+| ✓ | Bank | 🔡 Made from letters | Words spelled from a subset of the input letters | PARENTAL → PLANE, RENT, … |
+|   | Bank | ❗ Required letters | Contains every given letter (in any order) | TBD |
+|   | Bank | 🧱 Limited letters | Uses only the given letters | TBD |
+|   | Bank | 🐝 Spelling bee | Uses only the given letter set, must include the center letter | TBD |
+|   | Cipher | 📈 Caesar shift | Shift each letter by *n* | TBD |
+|   | Cipher | 🔐 Cryptogram | Same letter-pattern shape | ABBA · NOON · DEED |
+|   | Letters | 🦓 Isograms | No repeated letter | DIALOGUE |
+|   | Letters | 🌈 Supervocalics | Each of A E I O U exactly once | SEQUOIA |
+|   | Letters | 1️⃣ Monovocs | Only one distinct vowel | TBD |
+|   | Letters | 🔂 Repeaters | TBD | TBD |
+|   | Letters | 🔠 Alphabetical | Letters in alphabetical order | ABBEY · BILLOWY |
+|   | Letters | 🦴 Consonantcy | Same consonants in order; vowels may differ | TBD |
+|   | Letters | 🅰️ Vowelcy | Same vowels in order; consonants may differ | TBD |
+|   | Pairs | 🦘 Kangaroo | Outer word containing the input as a hidden joey (subsequence) | TBD |
+|   | Pairs | 🦘 Joey | TBD | TBD |
+|   | Pairs | 🪺 Nested | One word inside another | MARI(JUAN)A |
+| ✓ | Palindrome | 🪞 Palindromes | Read the same forwards and back | RACECAR · KAYAK |
+| ✓ | Palindrome | ⬅️ Semordnilap | Reverse to get a different word | STRESSED → DESSERTS |
+|   | Phonetic | 🎵 Rhymes | Same end-of-word phoneme sequence | TBD |
+|   | Phonetic | 🔊 Phonetic substitution | Swap one phoneme for another across the wordlist | TBD |
+|   | Phonetic | 🎶 Sound shift | Move a phoneme between word positions (e.g. front → end) | TBD |
+|   | Phrase | 💬 Split | Add spaces to multi-word entries | TBD |
+|   | Phrase | 👯 Double occupancy | Two-part entries where both halves compound with one reference term | GREEN LIGHT + HOUSE → GREENHOUSE, LIGHTHOUSE |
+| ✓ | Search | 🔍 Search | Search (and replace) with wildcards | un*ed · c?t |
+| ✓ | Search | 🪄 Regex | Search (and replace) with regular expressions | un.+ed · c.{2,4}t |
+| ✓ | Sides | 🪓 Behead | Remove the first N letters | SLING → LING |
+|   | Sides | 📥 Add prefix | Add a string prefix | TBD |
+|   | Sides | 📥 Remove prefix | Remove a string prefix | TBD |
+| ✓ | Sides | ✂️ Curtail | Remove the last N letters | PARTY → PART |
+|   | Sides | 📤 Add suffix | Add a string suffix | TBD |
+|   | Sides | 📤 Remove suffix | Remove a string suffix | TBD |
+|   | Sides | 🪚 Side splitting | Remove both sides | IFATALL → FATAL |
+|   | Sides | 🎯 Dead center | Input sits at the exact center of a longer word | TBD |
+|   | Sides | 🥪 Sandwich | TBD | TBD |
+|   | Thesaurus | 🤝 Synonyms | Words with similar meaning to a target | TBD |
+|   | Thesaurus | ⚔️ Antonyms | Words opposite in meaning | TBD |
+|   | Thesaurus | 📚 Category | Words in the same Roget semantic category | TBD |
+|   | Thesaurus | 🧠 Synonym kangaroo | Kangaroo whose joey is a synonym of the kangaroo | TBD |
+|   | Transform | 🃏 Replace anything | Insert *with* in place of any deleted substring | TBD |
+|   | Transform | 🔀 Letter changes | Differs from input by exactly *n* single-letter substitutions | TBD |
+|   | Transform | 🔁 Letter swap | Swap two letters throughout | TBD |

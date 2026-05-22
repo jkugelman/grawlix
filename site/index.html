@@ -4003,16 +4003,18 @@ function runSearchReplace(entry, prepared, wordlist) {
 // or `[string, score]` for a tool-synthesized entry not in the wordlist.
 
 const TOOL_CATEGORIES = [
-  { id: 'anagrams', label: 'Anagrams & letter banks' },
-  { id: 'patterns', label: 'Letter patterns' },
-  { id: 'pairs',    label: 'Pairs' },
+  { id: 'anagram',    label: 'Anagram' },
+  { id: 'bank',       label: 'Bank' },
+  { id: 'palindrome', label: 'Palindrome' },
+  { id: 'search',     label: 'Search' },
+  { id: 'sides',      label: 'Sides' },
 ];
 
 const WHOLE_WORD_PARAM = { key: 'whole-word', type: 'checkbox', label: 'Whole word' };
 
 const TOOLS = {
   anagram: {
-    name: 'Anagram', icon: '🔤', category: 'anagrams',
+    name: 'Anagram', icon: '🔤', category: 'anagram',
     desc: 'Same letters, rearranged',
     example: 'LINDSEY → SNIDELY',
     params: [{ placeholder: 'entry' }],
@@ -4023,8 +4025,38 @@ const TOOLS = {
       return sortLetters(entry) === target;
     },
   },
+  letter_clusters: {
+    name: 'Letter bank families', icon: '🧩', category: 'bank',
+    desc: 'Groups of words built from the same distinct letters',
+    example: 'POSTOP · STOOPS · OPTS',
+    params: [{ key: 'size', label: 'Distinct letters', placeholder: 'any', type: 'number' }],
+    kind: 'group', inputHighlights: false, outputHighlights: false,
+    isInert: params => !((params && params.size || '').toString().trim()),
+    prepare(params) { return parseInt(params.size, 10); },
+    async group(rows, size, ctx) {
+      const buckets = new Map();
+      await ctx.forEach(rows, row => {
+        const wlEntry = rowLastEntry(row);
+        const key = [...new Set(wlEntry.entry)].sort().join('');
+        if (key.length !== size) return;
+        let bucket = buckets.get(key);
+        if (!bucket) buckets.set(key, bucket = []);
+        bucket.push(wlEntry);
+      });
+      const groups = [];
+      for (const [key, words] of buckets) {
+        // The 2+ rule is letter_clusters' own — a downstream tool may legitimately
+        // thin a line to one word, so the executor never enforces it.
+        if (words.length < 2) continue;
+        words.sort((a, b) => b.score - a.score || a.entry.localeCompare(b.entry));
+        const cells = words.map(w => ({ wlEntry: w, highlights: null }));
+        groups.push({ key, lines: [{ cells, slot: false }] });
+      }
+      return groups;
+    },
+  },
   made_from_letters: {
-    name: 'Made from letters', icon: '🔡', category: 'anagrams',
+    name: 'Made from letters', icon: '🔡', category: 'bank',
     desc: 'Words spelled from a subset of the input letters',
     example: 'PARENTAL → PLANE, RENT, …',
     params: [{ placeholder: 'letters' }],
@@ -4045,8 +4077,34 @@ const TOOLS = {
       return true;
     },
   },
+  palindrome: {
+    name: 'Palindromes', icon: '🪞', category: 'palindrome',
+    desc: 'Read the same forwards and back',
+    example: 'RACECAR · KAYAK',
+    params: [],
+    kind: 'filter', inputHighlights: false, outputHighlights: false,
+    run(entry) { return entry === reverseString(entry); },
+  },
+  semordnilap: {
+    name: 'Semordnilap', icon: '⬅️', category: 'palindrome',
+    desc: 'Reverse to get a different word',
+    example: 'STRESSED → DESSERTS',
+    params: [],
+    kind: 'transform', inputHighlights: false, outputHighlights: false, glyph: '→',
+    run(entry, params, wordlist) {
+      // Bidirectional emit — a row whenever the reverse is also an entry, in
+      // both directions. The post-executor `unify` pass collapses
+      // the matched mirror pair into one row with a ↔ glyph; a downstream
+      // transform breaks the symmetry and the two directions stay separate.
+      // Palindromes are skipped — reversing them yields the same word.
+      const reversed = reverseString(entry);
+      if (reversed === entry) return [];
+      if (!wordlist.byEntry.has(reversed)) return [];
+      return [{ entry: reversed }];
+    },
+  },
   search: {
-    name: 'Search', icon: '<svg width="16" height="16" aria-hidden="true"><use href="#icon-search"/></svg>', category: 'patterns',
+    name: 'Search', icon: '<svg width="16" height="16" aria-hidden="true"><use href="#icon-search"/></svg>', category: 'search',
     desc: 'Search (and replace) with wildcards',
     example: 'un*ed · c?t',
     findReplace: true,
@@ -4088,7 +4146,7 @@ const TOOLS = {
     },
   },
   regex: {
-    name: 'Regex', icon: '🪄', category: 'patterns',
+    name: 'Regex', icon: '🪄', category: 'search',
     desc: 'Search (and replace) with regular expressions',
     example: 'un.+ed · c.{2,4}t',
     findReplace: true,
@@ -4151,17 +4209,9 @@ const TOOLS = {
       return runRegexReplace(entry, prepared, wordlist);
     },
   },
-  palindrome: {
-    name: 'Palindrome', icon: '🔄', category: 'patterns',
-    desc: 'Reads the same forwards and back',
-    example: 'RACECAR · KAYAK',
-    params: [],
-    kind: 'filter', inputHighlights: false, outputHighlights: false,
-    run(entry) { return entry === reverseString(entry); },
-  },
   behead: {
-    name: 'Behead', icon: '🪓', category: 'pairs',
-    desc: 'Drop the first letter(s) to get a new word',
+    name: 'Behead', icon: '🪓', category: 'sides',
+    desc: 'Remove the first N letters',
     example: 'SLING → LING',
     params: [{ label: 'Count', default: '1', type: 'number' }],
     kind: 'transform', inputHighlights: true, outputHighlights: false, glyph: '→',
@@ -4174,8 +4224,8 @@ const TOOLS = {
     },
   },
   curtail: {
-    name: 'Curtail', icon: '✂️', category: 'pairs',
-    desc: 'Drop the last letter(s) to get a new word',
+    name: 'Curtail', icon: '✂️', category: 'sides',
+    desc: 'Remove the last N letters',
     example: 'PARTY → PART',
     params: [{ label: 'Count', default: '1', type: 'number' }],
     kind: 'transform', inputHighlights: true, outputHighlights: false, glyph: '→',
@@ -4187,54 +4237,6 @@ const TOOLS = {
       const curtailed = entry.slice(0, -count);
       if (!wordlist.byEntry.has(curtailed)) return [];
       return [{ entry: curtailed, inputHighlights: [{ kind: 'removed', start: entry.length - count, end: entry.length }] }];
-    },
-  },
-  semordnilap: {
-    name: 'Semordnilap', icon: '↔️', category: 'pairs',
-    desc: 'Reverse to get a different word',
-    example: 'STRESSED → DESSERTS',
-    params: [],
-    kind: 'transform', inputHighlights: false, outputHighlights: false, glyph: '→',
-    run(entry, params, wordlist) {
-      // Bidirectional emit — a row whenever the reverse is also an entry, in
-      // both directions. The post-executor `unify` pass collapses
-      // the matched mirror pair into one row with a ↔ glyph; a downstream
-      // transform breaks the symmetry and the two directions stay separate.
-      // Palindromes are skipped — reversing them yields the same word.
-      const reversed = reverseString(entry);
-      if (reversed === entry) return [];
-      if (!wordlist.byEntry.has(reversed)) return [];
-      return [{ entry: reversed }];
-    },
-  },
-  letter_clusters: {
-    name: 'Letter clusters', icon: '🧩', category: 'anagrams',
-    desc: 'Words built from the same distinct letters',
-    example: 'POSTOP · STOOPS · OPTS',
-    params: [{ key: 'size', label: 'Distinct letters', placeholder: 'any', type: 'number' }],
-    kind: 'group', inputHighlights: false, outputHighlights: false,
-    isInert: params => !((params && params.size || '').toString().trim()),
-    prepare(params) { return parseInt(params.size, 10); },
-    async group(rows, size, ctx) {
-      const buckets = new Map();
-      await ctx.forEach(rows, row => {
-        const wlEntry = rowLastEntry(row);
-        const key = [...new Set(wlEntry.entry)].sort().join('');
-        if (key.length !== size) return;
-        let bucket = buckets.get(key);
-        if (!bucket) buckets.set(key, bucket = []);
-        bucket.push(wlEntry);
-      });
-      const groups = [];
-      for (const [key, words] of buckets) {
-        // The 2+ rule is letter_clusters' own — a downstream tool may legitimately
-        // thin a line to one word, so the executor never enforces it.
-        if (words.length < 2) continue;
-        words.sort((a, b) => b.score - a.score || a.entry.localeCompare(b.entry));
-        const cells = words.map(w => ({ wlEntry: w, highlights: null }));
-        groups.push({ key, lines: [{ cells, slot: false }] });
-      }
-      return groups;
     },
   },
 };
