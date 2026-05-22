@@ -12,7 +12,6 @@ Source material: shipped catalog lives in `TOOLS` in [`site/index.html`](../site
 |   | Anagram | 🔤 Anagram families | Groups of mutual anagrams | TBD |
 |   | Anagram | 🫥 Hidden anagram | An anagram of the input hidden inside a longer word | TBD |
 |   | Anagram | 🤏 Almost anagram | Anagrams within *n* letter edits | TBD |
-|   | Anagram | 🦒 Neckouts | Left and right halves are anagrams | TEAMMATE · INTESTINES |
 |   | Bank | 🏦 Letter bank | TBD | TBD |
 | ✓ | Bank | 🧩 Letter bank families | Groups of Words built from the same distinct letters | POSTOP · STOOPS · OPTS |
 |   | Bank | 🅱️ Scrabble | TBD | TBD |
@@ -22,11 +21,12 @@ Source material: shipped catalog lives in `TOOLS` in [`site/index.html`](../site
 |   | Bank | 🐝 Spelling bee | Uses only the given letter set, must include the center letter | TBD |
 |   | Cipher | 📈 Caesar shift | Shift each letter by *n* | TBD |
 |   | Cipher | 🔐 Cryptogram | Same letter-pattern shape | ABBA · NOON · DEED |
-|   | Letters | 🦓 Isograms | No repeated letter | DIALOGUE |
-|   | Letters | 🌈 Supervocalics | Each of A E I O U exactly once | SEQUOIA |
-|   | Letters | 1️⃣ Monovocs | Only one distinct vowel | TBD |
-|   | Letters | 🔂 Repeaters | TBD | TBD |
-|   | Letters | 🔠 Alphabetical | Letters in alphabetical order | ABBEY · BILLOWY |
+|   | Halves | 🦒 Neckouts | Left and right halves are anagrams | TEAMMATE · INTESTINES |
+|   | Halves | 🔂 Repeaters | Left and right halves are the same | TARTAR · HOTSHOTS |
+| ✓ | Letters | 1️⃣ Isograms | No repeated letter | DIALOGUE |
+| ✓ | Letters | 🌈 Supervocalics | Each of A E I O U exactly once | SEQUOIA |
+| ✓ | Letters | 👩‍🎤 Monovocs | Only one distinct vowel | TOOCOOLFORSCHOOL |
+| ✓ | Letters | 🔠 Alphabetical | Letters in alphabetical order | ABBEY · BILLOWY |
 |   | Letters | 🦴 Consonantcy | Same consonants in order; vowels may differ | TBD |
 |   | Letters | 🅰️ Vowelcy | Same vowels in order; consonants may differ | TBD |
 |   | Pairs | 🦘 Kangaroo | Outer word containing the input as a hidden joey (subsequence) | TBD |

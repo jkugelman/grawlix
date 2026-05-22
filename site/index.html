@@ -4007,6 +4007,7 @@ function runSearchReplace(entry, prepared, wordlist) {
 const TOOL_CATEGORIES = [
   { id: 'anagram',    label: 'Anagram' },
   { id: 'bank',       label: 'Bank' },
+  { id: 'letters',    label: 'Letters' },
   { id: 'palindrome', label: 'Palindrome' },
   { id: 'search',     label: 'Search' },
   { id: 'sides',      label: 'Sides' },
@@ -4075,6 +4076,72 @@ const TOOLS = {
         const n = (used.get(ch) || 0) + 1;
         if (n > (bank.get(ch) || 0)) return false;
         used.set(ch, n);
+      }
+      return true;
+    },
+  },
+  isograms: {
+    name: 'Isograms', icon: '1️⃣', category: 'letters',
+    desc: 'No repeated letter',
+    example: 'DIALOGUE',
+    params: [],
+    kind: 'filter', inputHighlights: false, outputHighlights: false,
+    run(entry) {
+      const seen = new Set();
+      for (const ch of entry) {
+        if (ch < 'a' || ch > 'z') continue;
+        if (seen.has(ch)) return false;
+        seen.add(ch);
+      }
+      return true;
+    },
+  },
+  supervocalics: {
+    name: 'Supervocalics', icon: '🌈', category: 'letters',
+    desc: 'Each of A E I O U exactly once',
+    example: 'SEQUOIA',
+    params: [],
+    kind: 'filter', inputHighlights: false, outputHighlights: false,
+    run(entry) {
+      let a = 0, e = 0, i = 0, o = 0, u = 0;
+      for (const ch of entry) {
+        if (ch === 'a') a++;
+        else if (ch === 'e') e++;
+        else if (ch === 'i') i++;
+        else if (ch === 'o') o++;
+        else if (ch === 'u') u++;
+      }
+      return a === 1 && e === 1 && i === 1 && o === 1 && u === 1;
+    },
+  },
+  monovocs: {
+    name: 'Monovocs', icon: '👩‍🎤', category: 'letters',
+    desc: 'Only one distinct vowel',
+    example: 'TOOCOOLFORSCHOOL',
+    params: [],
+    kind: 'filter', inputHighlights: false, outputHighlights: false,
+    run(entry) {
+      let found = '';
+      for (const ch of entry) {
+        if (ch !== 'a' && ch !== 'e' && ch !== 'i' && ch !== 'o' && ch !== 'u') continue;
+        if (!found) found = ch;
+        else if (ch !== found) return false;
+      }
+      return !!found;
+    },
+  },
+  alphabetical: {
+    name: 'Alphabetical', icon: '🔠', category: 'letters',
+    desc: 'Letters in alphabetical order',
+    example: 'ABBEY · BILLOWY',
+    params: [],
+    kind: 'filter', inputHighlights: false, outputHighlights: false,
+    run(entry) {
+      let prev = '';
+      for (const ch of entry) {
+        if (ch < 'a' || ch > 'z') continue;
+        if (ch < prev) return false;
+        prev = ch;
       }
       return true;
     },
