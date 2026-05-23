@@ -9,16 +9,12 @@ Source material: shipped catalog lives in `TOOLS` in [`site/index.html`](../site
 | Status | Category | Tool | Description | Example |
 |---|---|---|---|---|
 | ✓ | Anagram | 🔤 Anagram | Same letters, rearranged | ELVIS → LIVES |
-|   | Anagram | 🔤 Anagram family | Groups of mutual anagrams | TBD |
 |   | Anagram | 🫥 Hidden anagram | An anagram of the input hidden inside a longer word | TBD |
 |   | Anagram | 🤏 Almost anagram | Anagrams within *n* letter edits | TBD |
-|   | Bank | 🏦 Letter bank | TBD | TBD |
-| ✓ | Bank | 🧩 Letter bank families | Groups built from the same distinct letters | POSTOP · STOOPS · OPTS |
-| ✓ | Bank | 🔡 Made from letters | Spelled from a subset of the input letters | PARENTAL → PLANE, RENT, … |
-|   | Bank | ❗ Required letters | Contains every given letter (in any order) | TBD |
-|   | Bank | 🧱 Limited letters | Uses only the given letters | TBD |
-|   | Bank | 🅱️ Scrabble | Made from a set of letters | TBD |
-|   | Bank | 🐝 Spelling bee | Made from a set of letters with repeats, must include the center letter | TBD |
+| ✓ | Bank | 🏦 Letter bank | Uses every letter at least once | SPOT → STOOPS, TOPS, POSTOP |
+| ✓ | Bank | 🔡 Restricted alphabet | Uses only the given letters | SPOT → STOOP, TOP, POP |
+| ✓ | Bank | 🅰️ Scrabble | Can be spelled with the given tiles | PARENTAL → PLANE, RENT |
+|   | Bank | 🐝 Spelling bee | Made from a restricted alphabet, must include the center letter | TBD |
 |   | Cipher | 📈 Caesar shift | Shift each letter by *n* | TBD |
 |   | Cipher | 🔐 Cryptogram | Same letter-pattern shape | ABBA · NOON · DEED |
 |   | Halves | 🔂 Repeater | Left and right halves are the same | TARTAR · HOTSHOTS |
@@ -40,6 +36,7 @@ Source material: shipped catalog lives in `TOOLS` in [`site/index.html`](../site
 |   | Phonetic | 🎶 Sound shift | Move a phoneme between word positions (e.g. front → end) | TBD |
 |   | Phrase | 💬 Split | Add spaces to multi-word entries | TBD |
 |   | Phrase | 👯 Double occupancy | Two-part entries where both halves compound with one reference term | GREEN LIGHT + HOUSE → GREENHOUSE, LIGHTHOUSE |
+|   | Required | ❗ Required letters | Contains every given letter (in any order) | TBD |
 | ✓ | Search | 🔍 Search | Search (and replace) with wildcards | un*ed · c?t |
 | ✓ | Search | 🪄 Regex | Search (and replace) with regular expressions | un.+ed · c.{2,4}t |
 | ✓ | Side | 🪓 Behead | Remove the first N letters | SLING → LING |

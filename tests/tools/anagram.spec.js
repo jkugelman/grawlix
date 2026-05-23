@@ -56,3 +56,31 @@ test('the param is matched case-insensitively', async ({ page }) => {
 
   expect((await visible(page)).sort()).toEqual(['act', 'cat']);
 });
+
+test('grouped: clusters merged entries that share a letter multiset', async ({ page }) => {
+  await gotoApp(page);
+  await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
+    name: 'AnagramGrouped',
+    entries: ['LIVES', 'ELVIS', 'LEVIS', 'EVILS', 'TIGER'],
+    scores:  [50, 50, 50, 50, 50],
+  }));
+  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'anagram_grouped', params: {} }]));
+
+  const groups = await page.evaluate(() => window.__grawlixTest.getVisibleGroups());
+  expect(groups.length).toBe(1);
+  expect(groups[0].lines[0].words.slice().sort()).toEqual(['elvis', 'evils', 'levis', 'lives']);
+});
+
+test('grouped: TOPS and POTS share a multiset but not OPT (different length)', async ({ page }) => {
+  await gotoApp(page);
+  await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
+    name: 'MultisetMatters',
+    entries: ['TOPS', 'POTS', 'OPT', 'POT', 'TOP'],
+    scores:  [50, 50, 50, 50, 50],
+  }));
+  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'anagram_grouped', params: {} }]));
+
+  const groups = await page.evaluate(() => window.__grawlixTest.getVisibleGroups());
+  const clusters = groups.map(g => g.lines[0].words.slice().sort()).sort();
+  expect(clusters).toEqual([['opt', 'pot', 'top'], ['pots', 'tops']]);
+});

@@ -595,10 +595,6 @@ test('atoms truncate long entries with ellipsis + full-text title', async ({ pag
   expect(truncated).toBe(true);
 });
 
-// ─── Group tools (letter_clusters) ──────────────────────────────────────────
-
-// OPT/POT/TOP share the distinct-letter set {o,p,t}; ACT/CAT share {a,c,t};
-// DOG is a singleton and drops (a group needs 2+ members).
 async function addLetterSetFixture(page) {
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
     name: 'LetterSetTest',
@@ -607,51 +603,45 @@ async function addLetterSetFixture(page) {
   }));
 }
 
-test('score range trims junk out of the wordlist before letter_clusters clusters it', async ({ page }) => {
+test('score range trims junk before the grouped tool clusters', async ({ page }) => {
   await gotoApp(page);
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
     name: 'JunkTest',
     entries: ['OPT', 'POT', 'TOP', 'OOPT'],
     scores: [50, 40, 30, 0],
   }));
-  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'letter_clusters', params: { size: '3' } }]));
+  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'letter_bank_grouped', params: {} }]));
 
-  // All four share {o,p,t}, so unfiltered they cluster together.
   let groups = await page.evaluate(() => window.__grawlixTest.getVisibleGroups());
   expect(groups[0].lines[0].words.slice().sort()).toEqual(['oopt', 'opt', 'pot', 'top']);
 
-  // "1+" drops OOPT@0 before letter_clusters sees it — the cluster survives at 3.
-  // (Pre-filtering, not a min-score filter that would hide the whole group.)
   await page.locator('#score-range-input').fill('1+');
   groups = await page.evaluate(() => window.__grawlixTest.getVisibleGroups());
   expect(groups.length).toBe(1);
   expect(groups[0].lines[0].words.slice().sort()).toEqual(['opt', 'pot', 'top']);
 });
 
-test('search chained after letter_clusters adds a filtered subset line', async ({ page }) => {
+test('search chained after the grouped tool adds a filtered subset line', async ({ page }) => {
   await gotoApp(page);
   await addLetterSetFixture(page);
   await page.evaluate(() => window.__grawlixTest.setStack([
-    { tool: 'letter_clusters', params: { size: '3' } },
+    { tool: 'letter_bank_grouped', params: {} },
     { tool: 'search', params: { pattern: 'pt' } },
   ]));
 
   const groups = await page.evaluate(() => window.__grawlixTest.getVisibleGroups());
-  // The {o,p,t} cluster keeps its line plus a second line of the "pt"-matching
-  // subset; {a,c,t} has no "pt" word, so its subset line is empty and it drops.
   expect(groups.length).toBe(1);
   expect(groups[0].lines.length).toBe(2);
   expect(groups[0].lines[0].words.slice().sort()).toEqual(['opt', 'pot', 'top']);
   expect(groups[0].lines[1].words).toEqual(['opt']);
 
-  // The subset line's word carries the search highlight.
   const lit = await page.evaluate(() =>
     [...document.querySelectorAll('#vs-host .group-line')][1]
       ?.querySelector('.group-cell mark') !== null);
   expect(lit).toBe(true);
 });
 
-test('a transform chained after letter_clusters adds a line of its output set', async ({ page }) => {
+test('a transform chained after the grouped tool adds a line of its output set', async ({ page }) => {
   await gotoApp(page);
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
     name: 'BeheadTest',
@@ -659,21 +649,18 @@ test('a transform chained after letter_clusters adds a line of its output set', 
     scores: [50, 40, 30, 20, 20, 20],
   }));
   await page.evaluate(() => window.__grawlixTest.setStack([
-    { tool: 'letter_clusters', params: { size: '4' } },
+    { tool: 'letter_bank_grouped', params: {} },
     { tool: 'behead', params: {} },
   ]));
 
   const groups = await page.evaluate(() => window.__grawlixTest.getVisibleGroups());
-  // Line 1 is the {o,p,s,t} cluster; line 2 is behead's output set — SPOT→POT,
-  // TOPS→OPS land (real words), OPTS→PTS doesn't.
-  expect(groups.length).toBe(1);
-  expect(groups[0].lines.length).toBe(2);
-  expect(groups[0].lines[0].words.slice().sort()).toEqual(['opts', 'spot', 'tops']);
-  expect(groups[0].lines[1].words.slice().sort()).toEqual(['ops', 'pot']);
+  const fourLetter = groups.find(g => g.lines[0].count === 3);
+  expect(fourLetter).toBeTruthy();
+  expect(fourLetter.lines.length).toBe(2);
+  expect(fourLetter.lines[0].words.slice().sort()).toEqual(['opts', 'spot', 'tops']);
+  expect(fourLetter.lines[1].words.slice().sort()).toEqual(['ops', 'pot']);
 
-  // Behead marks the dropped first letter on the cluster line — SPOT and TOPS
-  // produced real words, OPTS didn't, so two cluster cells carry the strike.
-  const clusterLine = page.locator('.group-row .group-line').first();
+  const clusterLine = page.locator('.group-row', { hasText: 'opts' }).locator('.group-line').first();
   await expect(clusterLine.locator('.hl-removed')).toHaveCount(2);
 });
 
@@ -681,7 +668,7 @@ test('group rows sort by Count and the axis round-trips through the URL', async 
   await gotoApp(page);
   await addLetterSetFixture(page);
   await page.evaluate(() => {
-    location.hash = '#/workshop?letter_clusters=3&sort=count&sort-dir=desc';
+    location.hash = '#/workshop?letter_bank_grouped&sort=count&sort-dir=desc';
     Router.applyURL();
     renderWorkshopMergedDetail();
   });
@@ -698,21 +685,16 @@ test('sort axis crosses the group tier boundary', async ({ page }) => {
   await addLetterSetFixture(page);
   const axis = page.locator('#search-bar-sort .sort-axis-select');
 
-  // Entry exists in every tier, so it carries into the group tier unchanged
-  // rather than resetting — and it's the group default, so the URL stays bare.
   await page.evaluate(() => window.__grawlixTest.setStack([]));
   await expect(axis).toHaveValue('entry');
-  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'letter_clusters', params: { size: '3' } }]));
+  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'letter_bank_grouped', params: {} }]));
   await expect(axis).toHaveValue('entry');
   await page.evaluate(() => Router.navigate());
   expect(page.url()).not.toContain('sort=');
 
-  // Score has no group counterpart — it remaps to Min score. reconcileSort
-  // settles that synchronously, so Router.navigate writes the remapped axis,
-  // not a stale sort=score.
   await page.evaluate(() => window.__grawlixTest.setStack([]));
   await axis.selectOption('score');
-  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'letter_clusters', params: { size: '3' } }]));
+  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'letter_bank_grouped', params: {} }]));
   await expect(axis).toHaveValue('min-score');
   await page.evaluate(() => Router.navigate());
   expect(page.url()).toContain('sort=min-score');
@@ -721,32 +703,41 @@ test('sort axis crosses the group tier boundary', async ({ page }) => {
 test('a group member is individually editable through the atom popover', async ({ page }) => {
   await gotoApp(page);
   await addLetterSetFixture(page);
-  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'letter_clusters', params: { size: '3' } }]));
+  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'letter_bank_grouped', params: {} }]));
 
-  // Click OPT's score badge inside its group row — the popover must open on
-  // that word's wlEntry, showing its own score (50).
   await page.locator('.group-row .group-cell', { hasText: 'opt' }).locator('.atom-score').click();
   await expect(page.locator('#atom-popover')).toBeVisible();
   await expect(page.locator('#atom-pop-score')).toHaveValue('50');
 
-  // The edit routes into My Edits like any merged-view edit.
   await page.locator('#atom-pop-score').fill('15');
   await page.locator('#atom-pop-score').press('Enter');
   const edited = await page.evaluate(() => window.__grawlixTest.getMergedEntry('opt'));
   expect(edited.score).toBe(15);
 });
 
-test('only one group tool per pipeline — gallery card disabled, URL dedups', async ({ page }) => {
+test('only one group tool per pipeline — Group button disabled, URL dedups', async ({ page }) => {
   await gotoApp(page);
   await addLetterSetFixture(page);
   await page.evaluate(() => {
-    location.hash = '#/workshop?letter_clusters=3&letter_clusters=4';
+    location.hash = '#/workshop?letter_bank_grouped&anagram_grouped';
     Router.applyURL();
     renderWorkshopMergedDetail();
   });
   const stack = await page.evaluate(() => ToolStack.getUserStack().map(r => r.tool));
-  expect(stack).toEqual(['letter_clusters']);
+  expect(stack).toEqual(['letter_bank_grouped']);
 
-  // With a group tool in the stack, its gallery card is disabled.
-  await expect(page.locator('.gallery-card[data-tool="letter_clusters"]')).toHaveClass(/disabled/);
+  await expect(page.locator('.gallery-card-group-btn[data-group-tool="anagram_grouped"]')).toHaveClass(/disabled/);
+});
+
+test('grouped tool exposes its tool-defined sort axis', async ({ page }) => {
+  await gotoApp(page);
+  await addLetterSetFixture(page);
+  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'letter_bank_grouped', params: {} }]));
+
+  const axis = page.locator('#search-bar-sort .sort-axis-select');
+  await expect(axis.locator('option', { hasText: 'Distinct letters' })).toHaveCount(1);
+
+  await axis.selectOption('distinct-letters');
+  const groups = await page.evaluate(() => window.__grawlixTest.getVisibleGroups());
+  expect(groups.length).toBe(2);
 });

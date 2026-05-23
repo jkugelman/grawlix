@@ -1,0 +1,43 @@
+const { test, expect } = require('@playwright/test');
+const { stubPublisherFetches, gotoApp } = require('../helpers');
+
+test.beforeEach(async ({ page }) => {
+  await stubPublisherFetches(page);
+});
+
+async function visible(page) {
+  return page.evaluate(() => window.__grawlixTest.getVisibleEntries());
+}
+
+test('keeps entries whose letters all belong to the input alphabet', async ({ page }) => {
+  await gotoApp(page);
+  await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
+    name: 'Alphabet',
+    entries: ['POP', 'TOP', 'STOOP', 'PEAR', 'CAT'],
+    scores:  [50, 50, 50, 50, 50],
+  }));
+  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'restricted_alphabet', params: { letters: 'SPOT' } }]));
+  expect((await visible(page)).sort()).toEqual(['pop', 'stoop', 'top']);
+});
+
+test('input duplicates are ignored — the alphabet is a set', async ({ page }) => {
+  await gotoApp(page);
+  await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
+    name: 'SetSemantics',
+    entries: ['POP', 'POPPY'],
+    scores:  [50, 50],
+  }));
+  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'restricted_alphabet', params: { letters: 'OP' } }]));
+  expect((await visible(page)).sort()).toEqual(['pop']);
+});
+
+test('empty letters is inert — the full merged view passes through', async ({ page }) => {
+  await gotoApp(page);
+  await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
+    name: 'EmptyAlphabet',
+    entries: ['CAT', 'DOG'],
+    scores:  [50, 50],
+  }));
+  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'restricted_alphabet', params: { letters: '' } }]));
+  expect((await visible(page)).sort()).toEqual(['cat', 'dog']);
+});

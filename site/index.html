@@ -391,7 +391,7 @@ html.dark-mode .search-match-4 { background: #14532d; color: #d1fae5; }
   user-select: none;
   border-top: 1px solid var(--border3);
 }
-.group-rownum, .group-count {
+.group-rownum, .group-count, .group-col {
   flex: none;
   text-align: right;
   font-family: var(--font-sans); font-size: 12px;
@@ -795,7 +795,7 @@ a.get-file:hover { text-decoration: underline; }
 .gallery-empty small { font-size: 11px; line-height: 1.5; display: block; }
 
 /* Tool gallery cards */
-.gallery-card { border: 1px solid var(--border); border-radius: 6px; padding: 9px 12px; background: var(--surface2); cursor: pointer; user-select: none; transition: background 0.1s, border-color 0.1s, box-shadow 0.1s; }
+.gallery-card { position: relative; border: 1px solid var(--border); border-radius: 6px; padding: 9px 12px; background: var(--surface2); cursor: pointer; user-select: none; transition: background 0.1s, border-color 0.1s, box-shadow 0.1s; }
 .gallery-card:hover { background: var(--hover); border-color: var(--accent); }
 .gallery-card.active { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
 .gallery-card.disabled { cursor: not-allowed; opacity: 0.4; }
@@ -805,6 +805,18 @@ a.get-file:hover { text-decoration: underline; }
 .gallery-card-example { font-family: var(--font-mono); font-size: 11px; color: var(--faint); margin-top: 5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .gallery-section-label + .gallery-card { margin-top: 0; }
 .gallery-card + .gallery-section-label { margin-top: 6px; }
+.gallery-card-group-btn {
+  position: absolute; top: 6px; right: 6px;
+  font: inherit; font-size: 10px; line-height: 1;
+  padding: 2px 6px;
+  border: 1px solid var(--border); border-radius: 3px;
+  background: var(--surface2); color: var(--muted);
+  cursor: pointer;
+}
+.gallery-card-group-btn:hover { border-color: var(--accent); color: var(--accent); background: var(--hover); }
+.gallery-card-group-btn.active { border-color: var(--accent); color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.gallery-card-group-btn.disabled { cursor: not-allowed; opacity: 0.4; }
+.gallery-card-group-btn.disabled:hover { background: var(--surface2); border-color: var(--border); color: var(--muted); }
 
 #tool-stack { background: var(--surface2); position: relative; }
 /* Tool rows and the search bar share min-height so a row with no params
@@ -1786,10 +1798,16 @@ function buildEntriesTablePanelHTML() {
 // stay constant whether a row has one atom or many. Comment / Source surface
 // on every chain shape when the viewport has room (gated by media query).
 function buildEntryHeadersHTML() {
-  if (isGroupChain(ToolStack.getStack())) {
+  const stack = ToolStack.getStack();
+  if (isGroupChain(stack)) {
+    const cols = activeGroupColumns(stack);
+    const colHeaders = cols.map(c =>
+      `<span class="group-col" data-col="${esc(c.key)}">${esc(c.label)}</span>`
+    ).join('');
     return `<div class="group-headers entry-headers-font" aria-hidden="true">
       <span class="group-rownum"></span>
       <span class="group-count">Count</span>
+      ${colHeaders}
       <span>Entries</span>
     </div>`;
   }
@@ -4034,47 +4052,60 @@ const TOOLS = {
       if (!target) return true;
       return sortLetters(entry) === target;
     },
-  },
-  letter_clusters: {
-    name: 'Letter bank families', icon: '🧩', category: 'bank',
-    desc: 'Groups of words built from the same distinct letters',
-    example: 'POSTOP · STOOPS · OPTS',
-    params: [{ key: 'size', label: 'Distinct letters', placeholder: 'any', type: 'number' }],
-    kind: 'group', inputHighlights: false, outputHighlights: false,
-    isInert: params => !((params && params.size || '').toString().trim()),
-    prepare(params) { return parseInt(params.size, 10); },
-    async group(rows, size, ctx) {
-      const buckets = new Map();
-      await ctx.forEach(rows, row => {
-        const wlEntry = rowLastEntry(row);
-        const key = [...new Set(wlEntry.entry)].sort().join('');
-        if (key.length !== size) return;
-        let bucket = buckets.get(key);
-        if (!bucket) buckets.set(key, bucket = []);
-        bucket.push(wlEntry);
-      });
-      const groups = [];
-      for (const [key, words] of buckets) {
-        // The 2+ rule is letter_clusters' own — a downstream tool may legitimately
-        // thin a line to one word, so the executor never enforces it.
-        if (words.length < 2) continue;
-        words.sort((a, b) => b.score - a.score || a.entry.localeCompare(b.entry));
-        const cells = words.map(w => ({ wlEntry: w, highlights: null }));
-        groups.push({ key, lines: [{ cells, slot: false }] });
-      }
-      return groups;
+    group: {
+      key: entry => sortLetters(entry),
+      columns: [
+        { label: 'Letters', value: g => g.key.length },
+      ],
     },
   },
-  made_from_letters: {
-    name: 'Made from letters', icon: '🔡', category: 'bank',
-    desc: 'Words spelled from a subset of the input letters',
-    example: 'PARENTAL → PLANE, RENT, …',
+  letter_bank: {
+    name: 'Letter bank', icon: '🏦', category: 'bank',
+    desc: 'Uses every letter at least once',
+    example: 'SPOT → STOOPS, TOPS, POSTOP',
     params: [{ placeholder: 'letters' }],
     kind: 'filter', inputHighlights: false, outputHighlights: false,
     isInert: params => !((params && params.letters || '').trim()),
+    prepare(params) { return new Set(params.letters.trim()); },
+    run(entry, alphabet, wordlist) {
+      if (alphabet.size === 0) return true;
+      const present = new Set();
+      for (const ch of entry) {
+        if (!alphabet.has(ch)) return false;
+        present.add(ch);
+      }
+      return present.size === alphabet.size;
+    },
+    group: {
+      key: entry => [...new Set(entry)].sort().join(''),
+      columns: [
+        { label: 'Distinct letters', value: g => g.key.length },
+      ],
+    },
+  },
+  restricted_alphabet: {
+    name: 'Restricted alphabet', icon: '🔡', category: 'bank',
+    desc: 'Uses only the given letters',
+    example: 'SPOT → STOOP, TOP, POP',
+    params: [{ placeholder: 'letters' }],
+    kind: 'filter', inputHighlights: false, outputHighlights: false,
+    isInert: params => !((params && params.letters || '').trim()),
+    prepare(params) { return new Set(params.letters.trim()); },
+    run(entry, alphabet, wordlist) {
+      for (const ch of entry) if (!alphabet.has(ch)) return false;
+      return true;
+    },
+  },
+  scrabble: {
+    name: 'Scrabble', icon: '🅰️', category: 'bank',
+    desc: 'Can be spelled with the given tiles',
+    example: 'PARENTAL → PLANE, RENT',
+    params: [{ key: 'tiles', placeholder: 'tiles' }],
+    kind: 'filter', inputHighlights: false, outputHighlights: false,
+    isInert: params => !((params && params.tiles || '').trim()),
     prepare(params) {
       const bank = new Map();
-      for (const ch of params.letters.trim()) bank.set(ch, (bank.get(ch) || 0) + 1);
+      for (const ch of params.tiles.trim()) bank.set(ch, (bank.get(ch) || 0) + 1);
       return bank;
     },
     run(entry, bank, wordlist) {
@@ -4355,6 +4386,37 @@ for (const tool of Object.values(TOOLS)) {
   }
 }
 
+for (const [flatKey, flat] of Object.entries(TOOLS)) {
+  if (!flat.group || flat.kind === 'group') continue;
+  const groupedKey = `${flatKey}_grouped`;
+  if (TOOLS[groupedKey]) continue;
+  TOOLS[groupedKey] = {
+    name: flat.name, icon: flat.icon, category: flat.category,
+    desc: flat.desc, example: flat.example,
+    params: [],
+    kind: 'group', inputHighlights: false, outputHighlights: false,
+    group: flat.group,
+    flatTool: flatKey,
+  };
+}
+
+for (const col of Object.values(TOOLS).flatMap(t => t.group?.columns || [])) {
+  if (!col.key) col.key = col.label.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-');
+}
+
+(() => {
+  const keys = new Set();
+  for (const tool of Object.values(TOOLS)) {
+    for (const col of tool.group?.columns || []) keys.add(col.key);
+  }
+  if (!keys.size) return;
+  const style = document.createElement('style');
+  style.textContent = [...keys].map(k =>
+    `.group-col[data-col="${k}"] { min-width: var(--group-col-${k}-w, 2ch); }`
+  ).join('\n');
+  document.head.appendChild(style);
+})();
+
 // Keyed `toolKey/paramKey` to match the `data-help` attribute that input
 // builders emit — attachHelpPopups joins the two. Keep the formats in sync.
 const PARAM_HELP = {};
@@ -4537,10 +4599,8 @@ async function executePipeline(mergedWordlist, stack, signal) {
     if (stackRow.kind() === 'group') {
       if (stackRow.isInert()) continue;
       throwIfAborted(signal);
-      const params = normalizeParams(stackRow.params, def.params);
       const ctx = makeCtx(mergedWordlist, rows, signal, y);
-      const prepared = def.prepare ? await def.prepare(params, ctx) : params;
-      rows = await def.group(rows, prepared, ctx);
+      rows = await bucketize(rows, def.group, ctx);
       grouped = true;
       continue;
     }
@@ -4635,6 +4695,26 @@ async function runToolStage(rows, stackRow, prepared, mergedWordlist, y) {
     if (y.due()) await y.yield();
   }
   return next;
+}
+
+async function bucketize(rows, spec, ctx) {
+  const buckets = new Map();
+  await ctx.forEach(rows, row => {
+    const wlEntry = rowLastEntry(row);
+    const key = spec.key(wlEntry.entry);
+    if (!key) return;
+    let bucket = buckets.get(key);
+    if (!bucket) buckets.set(key, bucket = []);
+    bucket.push(wlEntry);
+  });
+  const groups = [];
+  for (const [key, words] of buckets) {
+    if (words.length < 2) continue;
+    words.sort((a, b) => b.score - a.score || a.entry.localeCompare(b.entry));
+    const cells = words.map(w => ({ wlEntry: w, highlights: null }));
+    groups.push({ key, lines: [{ cells, slot: false }] });
+  }
+  return groups;
 }
 
 // Run one tool over a group's tail line, appending the next line(s). Input
@@ -4946,7 +5026,11 @@ const ToolStack = (() => {
   }
 
   function buildGalleryCardHTML(toolKey, tool) {
+    const groupBtn = tool.group
+      ? `<button type="button" class="gallery-card-group-btn" data-group-tool="${esc(toolKey)}_grouped" title="Add grouped variant">Group</button>`
+      : '';
     return `<div class="gallery-card" data-tool="${esc(toolKey)}">
+      ${groupBtn}
       <div class="gallery-card-name">${buildToolLabelHTML(tool)}</div>
       <div class="gallery-card-desc">${esc(tool.desc)}</div>
       <div class="gallery-card-example">${esc(tool.example)}</div>
@@ -4956,6 +5040,7 @@ const ToolStack = (() => {
   function buildGalleryHTML() {
     const byCategory = new Map(TOOL_CATEGORIES.map(c => [c.id, []]));
     Object.entries(TOOLS).forEach(([key, tool]) => {
+      if (tool.flatTool) return;
       byCategory.get(tool.category)?.push([key, tool]);
     });
     return TOOL_CATEGORIES.map(cat => {
@@ -5004,6 +5089,14 @@ const ToolStack = (() => {
       card.classList.toggle('disabled', blocked);
       if (blocked) card.title = 'A pipeline can have only one group tool';
       else card.removeAttribute('title');
+    });
+    document.querySelectorAll('.gallery-card-group-btn[data-group-tool]').forEach(btn => {
+      const key = btn.dataset.groupTool;
+      btn.classList.toggle('active', active.has(key));
+      btn.classList.toggle('disabled', groupTaken && !active.has(key));
+      btn.title = groupTaken && !active.has(key)
+        ? 'A pipeline can have only one group tool'
+        : 'Add grouped variant';
     });
   }
 
@@ -5084,6 +5177,15 @@ const ToolStack = (() => {
     const galleryBody = document.querySelector('.gallery-body');
     if (galleryBody) galleryBody.innerHTML = buildGalleryHTML();
     galleryBody?.addEventListener('click', (e) => {
+      const groupBtn = e.target.closest('.gallery-card-group-btn[data-group-tool]');
+      if (groupBtn) {
+        e.stopPropagation();
+        if (groupBtn.classList.contains('disabled')) return;
+        const key = groupBtn.dataset.groupTool;
+        if (!TOOLS[key]) return;
+        add(key);
+        return;
+      }
       const card = e.target.closest('.gallery-card[data-tool]');
       if (!card || card.classList.contains('disabled')) return;
       const toolKey = card.dataset.tool;
@@ -5096,6 +5198,12 @@ const ToolStack = (() => {
         if (!card.classList.contains('disabled')) showInsertCursor();
       });
       card.addEventListener('mouseleave', () => removeCursor());
+    });
+    document.querySelectorAll('.gallery-card-group-btn[data-group-tool]').forEach(btn => {
+      btn.addEventListener('mouseenter', () => {
+        if (!btn.classList.contains('disabled')) showInsertCursor();
+      });
+      btn.addEventListener('mouseleave', () => removeCursor());
     });
 
     const p = panelEl();
@@ -5360,10 +5468,53 @@ function chainSortTier(stack) {
   if (isGroupChain(stack)) return 'group';
   return isFilterOnlyChain(stack) ? 'single' : 'multi';
 }
-function workshopSortAxes(tier) { return WORKSHOP_SORT_AXES[tier]; }
+function activeGroupRow(stack) {
+  return stack.find(r => r.kind() === 'group' && !r.isInert());
+}
+function activeGroupColumns(stack) {
+  return activeGroupRow(stack)?.def.group?.columns || [];
+}
+function buildColumnAxis(primaryCol, allColumns) {
+  return {
+    label: primaryCol.label,
+    primary: g => primaryCol.value(g),
+    tiebreakers: [
+      ...allColumns
+        .filter(c => c !== primaryCol && c.tiebreaker !== false)
+        .map(c => ({ project: g => c.value(g), dir: 'desc' })),
+      { project: g => g.key, dir: 'asc' },
+    ],
+  };
+}
+function workshopSortAxes(tier, stack = ToolStack.getStack()) {
+  if (tier !== 'group') return WORKSHOP_SORT_AXES[tier];
+  const cols = activeGroupColumns(stack);
+  const extraTiebreakers = cols
+    .filter(c => c.tiebreaker !== false)
+    .map(c => ({ project: g => c.value(g), dir: 'desc' }));
+  const baseAxes = {};
+  for (const [key, axis] of Object.entries(WORKSHOP_SORT_AXES.group)) {
+    baseAxes[key] = extraTiebreakers.length
+      ? { ...axis, tiebreakers: [...axis.tiebreakers, ...extraTiebreakers] }
+      : axis;
+  }
+  const columnAxes = {};
+  for (const col of cols) {
+    if (col.sort === false) continue;
+    if (baseAxes[col.key]) continue;
+    columnAxes[col.key] = buildColumnAxis(col, cols);
+  }
+  return { ...baseAxes, ...columnAxes };
+}
 function isValidSortAxis(key) {
-  return key in WORKSHOP_SORT_AXES.single || key in WORKSHOP_SORT_AXES.multi
-      || key in WORKSHOP_SORT_AXES.group;
+  if (key in WORKSHOP_SORT_AXES.single || key in WORKSHOP_SORT_AXES.multi
+      || key in WORKSHOP_SORT_AXES.group) return true;
+  for (const tool of Object.values(TOOLS)) {
+    for (const col of tool.group?.columns || []) {
+      if (col.key === key) return true;
+    }
+  }
+  return false;
 }
 // Library entries sort by the same three axes over plain wlEntries; the
 // LibraryEntriesScroller owns its own comparison, so only the labels matter.
@@ -5380,7 +5531,7 @@ function defaultSortDir(key) {
 // the user's direction; a fallback to the tier default resets it too.
 function reconcileSort(stack) {
   const tier = chainSortTier(stack);
-  const axes = workshopSortAxes(tier);
+  const axes = workshopSortAxes(tier, stack);
   let key = WorkshopView.sortKey;
   let dir = WorkshopView.sortDir;
   if (!(key in axes)) {
@@ -5903,6 +6054,7 @@ class WorkshopEntriesScroller extends BaseVirtualScroller {
     this._clearSizer();
     const activeEntry = AtomPopover.activeEntry(this);
     let nextActiveRow = null;
+    const columns = activeGroupColumns(ToolStack.getStack());
     const frag = document.createDocumentFragment();
     for (let i = start; i < end; i++) {
       const g = this.entries[i];
@@ -5910,7 +6062,7 @@ class WorkshopEntriesScroller extends BaseVirtualScroller {
       row.className = 'group-row entry-row-font';
       row.dataset.idx = i;
       row.style.top = (i * stride) + 'px';
-      row.innerHTML = g.lines.map((line, li) => this._renderGroupLineHTML(line, li, i)).join('');
+      row.innerHTML = g.lines.map((line, li) => this._renderGroupLineHTML(line, li, i, g, columns)).join('');
       if (activeEntry && g.lines.some(l => l.cells.some(c => c.wlEntry.entry === activeEntry))) {
         row.classList.add('active');
         nextActiveRow = row;
@@ -5933,7 +6085,7 @@ class WorkshopEntriesScroller extends BaseVirtualScroller {
     if (nextActiveRow) AtomPopover.rebindRow(nextActiveRow);
   }
 
-  _renderGroupLineHTML(line, li, rowIdx) {
+  _renderGroupLineHTML(line, li, rowIdx, group, columns) {
     const cells = line.cells.map((cell, ci) => {
       const { wlEntry, highlights } = cell;
       const text = renderHighlightedText(displayEntry(wlEntry.entry), highlights);
@@ -5942,9 +6094,13 @@ class WorkshopEntriesScroller extends BaseVirtualScroller {
         `<span class="atom-entry${noedit}">${text}</span>` +
         `<span class="atom-score${noedit}">${buildScoreBadgeHTML(wlEntry.score)}</span></span>`;
     }).join('');
+    const colCells = columns.map(c =>
+      `<span class="group-col" data-col="${esc(c.key)}">${li === 0 ? esc(String(c.value(group))) : ''}</span>`
+    ).join('');
     return `<div class="group-line">` +
       `<span class="group-rownum">${li === 0 ? (rowIdx + 1) + '.' : ''}</span>` +
       `<span class="group-count">${line.cells.length}</span>` +
+      colCells +
       `<span class="group-entries">${cells}</span>` +
       `<button type="button" class="group-more" data-line="${li}" hidden></button>` +
       `</div>`;
@@ -5991,6 +6147,18 @@ class WorkshopEntriesScroller extends BaseVirtualScroller {
       headerLabelPx('Count'))}px`);
     target.style.setProperty('--group-rownum-w',
       `${measureTextWidth(this.allEntries.length + '.', 'entry-headers-font')}px`);
+    const columns = activeGroupColumns(ToolStack.getStack());
+    for (const col of columns) {
+      let maxColW = 0;
+      for (const g of this.allEntries) {
+        const w = measureTextWidth(String(col.value(g)), 'entry-headers-font');
+        if (w > maxColW) maxColW = w;
+      }
+      target.style.setProperty(
+        `--group-col-${col.key}-w`,
+        `${Math.max(maxColW, headerLabelPx(col.label))}px`,
+      );
+    }
   }
 }
 
