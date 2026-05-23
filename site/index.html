@@ -5351,10 +5351,11 @@ const rowMaxScore   = r => Math.max(...r.atoms.map(a => a.wlEntry.score));
 // Later atoms joined with a low separator: a string compare then orders them
 // atom-by-atom, since every row in a run carries the same atom count.
 const rowChainTail  = r => r.atoms.slice(1).map(a => a.wlEntry.entry).join('\u0000');
-const groupScores   = g => g.lines.flatMap(l => l.cells.map(c => c.wlEntry.score));
-const groupMinScore = g => Math.min(...groupScores(g));
-const groupMaxScore = g => Math.max(...groupScores(g));
-const groupCount    = g => g.lines[0].cells.length;
+const groupScores       = g => g.lines.flatMap(l => l.cells.map(c => c.wlEntry.score));
+const groupMinScore     = g => Math.min(...groupScores(g));
+const groupMaxScore     = g => Math.max(...groupScores(g));
+const groupCount        = g => g.lines[0].cells.length;
+const groupCellsEntries = g => g.lines[0].cells.map(c => c.wlEntry.entry);
 const WORKSHOP_SORT_AXES = {
   single: {
     entry: {
@@ -5476,15 +5477,15 @@ function activeGroupColumns(stack) {
   return activeGroupRow(stack)?.def.group?.columns || [];
 }
 function buildColumnAxis(primaryCol, allColumns) {
+  const tiebreakers = primaryCol.tiebreakers ?? [
+    { project: groupMinScore,     dir: 'desc' },
+    { project: groupMaxScore,     dir: 'desc' },
+    { project: groupCellsEntries, dir: 'asc'  },
+  ];
   return {
     label: primaryCol.label,
     primary: g => primaryCol.value(g),
-    tiebreakers: [
-      ...allColumns
-        .filter(c => c !== primaryCol && c.tiebreaker !== false)
-        .map(c => ({ project: g => c.value(g), dir: 'desc' })),
-      { project: g => g.key, dir: 'asc' },
-    ],
+    tiebreakers,
   };
 }
 function workshopSortAxes(tier, stack = ToolStack.getStack()) {

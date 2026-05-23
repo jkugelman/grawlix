@@ -739,5 +739,8 @@ test('grouped tool exposes its tool-defined sort axis', async ({ page }) => {
 
   await axis.selectOption('letters');
   const groups = await page.evaluate(() => window.__grawlixTest.getVisibleGroups());
-  expect(groups.length).toBe(2);
+  expect(groups.map(g => g.lines[0].words.slice().sort())).toEqual([
+    ['opt', 'pot', 'top'],
+    ['act', 'cat'],
+  ]);
 });
