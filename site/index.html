@@ -4730,7 +4730,7 @@ async function runToolStage(rows, stackRow, prepared, mergedWordlist, y) {
           // A non-`outputHighlights` transform's output is not a highlight
           // slot — `null`, not `[]` — so `unify` may fold it like any atom.
           highlights: def.outputHighlights ? (out.outputHighlights || []) : null,
-          glyph: def.glyph || '→',
+          glyph: def.glyph,
         });
         next.push({ atoms });
       }
@@ -4776,7 +4776,7 @@ function appendGroupLine(group, stackRow, prepared, wordlist) {
         highlights: def.inputHighlights ? (Array.isArray(result) ? result : []) : null,
       });
     }
-    group.lines.push({ cells, slot: !!def.inputHighlights });
+    group.lines.push({ cells, slot: !!def.inputHighlights, glyph: def.glyph });
     return;
   }
   const outMap = new Map();        // output entry → cell (deduped)
@@ -4807,7 +4807,7 @@ function appendGroupLine(group, stackRow, prepared, wordlist) {
     if (tail.slot) group.lines.push({ cells: markCells, slot: true });
     else { tail.cells = markCells; tail.slot = true; }
   }
-  group.lines.push({ cells: [...outMap.values()], slot: !!def.outputHighlights });
+  group.lines.push({ cells: [...outMap.values()], slot: !!def.outputHighlights, glyph: def.glyph });
 }
 
 // How many lines a group row carries — read by the scroller for its stride,
@@ -6141,8 +6141,9 @@ class WorkshopEntriesScroller extends BaseVirtualScroller {
       const { wlEntry, highlights } = cell;
       const text = renderHighlightedText(displayEntry(wlEntry.entry), highlights);
       const noedit = wlEntry.wordlist === null ? ' atom-noedit' : '';
+      const glyphHTML = ci === 0 && line.glyph ? `<span class="atom-glyph">${line.glyph} </span>` : '';
       return `<span class="group-cell" data-line="${li}" data-cell="${ci}">` +
-        `<span class="atom-entry${noedit}">${text}</span>` +
+        `<span class="atom-entry${noedit}">${glyphHTML}${text}</span>` +
         `<span class="atom-score${noedit}">${buildScoreBadgeHTML(wlEntry.score)}</span></span>`;
     }).join('');
     const colCells = columns.map(c =>
