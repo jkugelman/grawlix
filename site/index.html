@@ -4220,6 +4220,42 @@ const TOOLS = {
       return true;
     },
   },
+  consonantcy: {
+    name: 'Consonantcy', icon: '🦴', category: 'letters',
+    desc: 'Same consonants in order; vowels may differ',
+    example: 'ISAIDNO → SODONE',
+    params: [{ placeholder: 'entry' }],
+    kind: 'filter', inputHighlights: false, outputHighlights: false,
+    prepare(params) { return consonantSkeleton(params.entry); },
+    run(entry, skeleton, wordlist) {
+      if (!skeleton) return true;
+      return consonantSkeleton(entry) === skeleton;
+    },
+    group: {
+      key: entry => consonantSkeleton(entry),
+      columns: [
+        { label: 'Consonants', value: g => g.key.length },
+      ],
+    },
+  },
+  vowelcy: {
+    name: 'Vowelcy', icon: '🅰️', category: 'letters',
+    desc: 'Same vowels in order; consonants may differ',
+    example: 'OUTHOUSE → OUTOFUSE',
+    params: [{ placeholder: 'entry' }],
+    kind: 'filter', inputHighlights: false, outputHighlights: false,
+    prepare(params) { return vowelSkeleton(params.entry); },
+    run(entry, skeleton, wordlist) {
+      if (!skeleton) return true;
+      return vowelSkeleton(entry) === skeleton;
+    },
+    group: {
+      key: entry => vowelSkeleton(entry),
+      columns: [
+        { label: 'Vowels', value: g => g.key.length },
+      ],
+    },
+  },
   palindromes: {
     name: 'Palindromes', icon: '🪞', category: 'palindrome',
     desc: 'Read the same forwards and back',
@@ -4440,6 +4476,9 @@ function sortLetters(s) {
   if (!s) return '';
   return s.split('').sort().join('');
 }
+
+const consonantSkeleton = s => (s || '').replace(/[^bcdfghjklmnpqrstvwxyz]/g, '');
+const vowelSkeleton     = s => (s || '').replace(/[^aeiou]/g, '');
 
 // Normalize tool param strings: lowercase only. Same rule as wlEntry.entry —
 // the executor runs this on every param before handing to `run`, so tools see
