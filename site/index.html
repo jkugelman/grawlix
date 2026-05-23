@@ -5028,7 +5028,7 @@ const ToolStack = (() => {
 
   function buildGalleryCardHTML(toolKey, tool) {
     const groupBtn = tool.group
-      ? `<button type="button" class="gallery-card-group-btn" data-group-tool="${esc(toolKey)}_grouped" title="Add grouped variant">Group</button>`
+      ? `<button type="button" class="gallery-card-group-btn" data-group-tool="${esc(toolKey)}_grouped" title="Add grouped variant">Grouped</button>`
       : '';
     return `<div class="gallery-card" data-tool="${esc(toolKey)}">
       ${groupBtn}
