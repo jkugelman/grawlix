@@ -8,22 +8,22 @@ Source material: shipped catalog lives in `TOOLS` in [`site/index.html`](../site
 
 | Status | Category | Tool | Description | Example |
 |---|---|---|---|---|
-| ✓ | Anagram | 🔤 Anagrams | Same letters, rearranged | ELVIS → LIVES |
+| ✓ | Anagram | 🔀 Anagrams | Same letters, rearranged | ELVIS → LIVES |
 |   | Anagram | 🫥 Hidden anagram | Anagrams of the input hidden inside longer words | TBD |
 |   | Anagram | 🤏 Almost anagram | Anagrams within *n* letter edits | TBD |
 | ✓ | Bank | 🏦 Letter bank | Uses every letter at least once | SPOT → STOOPS, TOPS, POSTOP |
 | ✓ | Bank | 🔡 Restricted alphabet | Uses only the given letters | SPOT → STOOP, TOP, POP |
-| ✓ | Bank | 🅰️ Scrabble | Can be spelled with the given tiles | PARENTAL → PLANE, RENT |
+| ✓ | Bank | 🧱 Scrabble | Can be spelled with the given tiles | PARENTAL → PLANE, RENT |
 |   | Bank | 🐝 Spelling bee | Made from a restricted alphabet, must include the center letter | TBD |
-|   | Cipher | 📈 Caesar shift | Shift each letter by *n* | TBD |
+|   | Cipher | 🥗 Caesar shift | Shift each letter by *n* | TBD |
 |   | Cipher | 🔐 Cryptogram | Same letter-pattern shape | ABBA · NOON · DEED |
 |   | Halves | 🔂 Repeater | Left and right halves are the same | TARTAR · HOTSHOTS |
 |   | Halves | 🦒 Neckout | Left and right halves are anagrams | TEAMMATE · INTESTINES |
 | ✓ | Letters | 1️⃣ Isograms | No repeated letters | CYBERPUNK · JUXTAPOSE |
 | ✓ | Letters | 🌈 Supervocalics | Each of A E I O U exactly once | AIRQUOTE |
 | ✓ | Letters | 👩‍🎤 Monovocalics | Only one distinct vowel | TOOCOOLFORSCHOOL |
-| ✓ | Letters | 🔠 Alphabetical | Letters in alphabetical order | ABBEY · BILLOWY |
-| ✓ | Letters | 🔠 Reverse alphabetical | Letters in reverse alphabetical order | SPOOFED · YUPPIE |
+| ✓ | Letters | 📈 Alphabetical | Letters in alphabetical order | ABBEY · BILLOWY |
+| ✓ | Letters | 📉 Reverse alphabetical | Letters in reverse alphabetical order | SPOOFED · YUPPIE |
 |   | Letters | 🦴 Consonantcy | Same consonants in order; vowels may differ | TBD |
 |   | Letters | 🅰️ Vowelcy | Same vowels in order; consonants may differ | TBD |
 |   | Pairs | 🦘 Kangaroo | Outer word containing the input as a hidden joey (subsequence) | TBD |
@@ -40,11 +40,11 @@ Source material: shipped catalog lives in `TOOLS` in [`site/index.html`](../site
 | ✓ | Search | 🔍 Search | Search (and replace) with wildcards | un*ed · c?t |
 | ✓ | Search | 🪄 Regex | Search (and replace) with regular expressions | un.+ed · c.{2,4}t |
 | ✓ | Side | 🪓 Behead | Remove the first N letters | SLING → LING |
-|   | Side | 📥 Add prefix | Add a string prefix | TBD |
-|   | Side | 📥 Remove prefix | Remove a string prefix | TBD |
+|   | Side | 📥 Add prefix | Add a string prefix | TATA → CANTATA |
+|   | Side | 📥 Remove prefix | Remove a string prefix | CANTATA → TATA |
 | ✓ | Side | ✂️ Curtail | Remove the last N letters | PARTY → PART |
-|   | Side | 📤 Add suffix | Add a string suffix | TBD |
-|   | Side | 📤 Remove suffix | Remove a string suffix | TBD |
+|   | Side | 📤 Add suffix | Add a string suffix | PETS → PETSCAN |
+|   | Side | 📤 Remove suffix | Remove a string suffix | PETSCAN → PETS |
 |   | Side | 🪚 Side splitting | Remove both sides | IFATALL → FATAL |
 |   | Side | 🎯 Dead center | Input sits at the exact center of a longer word | TBD |
 |   | Side | 🥪 Sandwich | TBD | TBD |
