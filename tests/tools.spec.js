@@ -744,3 +744,20 @@ test('grouped tool exposes its tool-defined sort axis', async ({ page }) => {
     ['act', 'cat'],
   ]);
 });
+
+test('grouped column sort tiebreaks by count desc before min score', async ({ page }) => {
+  await gotoApp(page);
+  await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
+    name: 'CountTiebreak',
+    entries: ['OPT', 'POT', 'TOP', 'ACT', 'CAT'],
+    scores: [30, 30, 30, 80, 70],
+  }));
+  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'letter_bank_grouped', params: {} }]));
+  await page.locator('#search-bar-sort .sort-axis-select').selectOption('letters');
+
+  const groups = await page.evaluate(() => window.__grawlixTest.getVisibleGroups());
+  expect(groups.map(g => g.lines[0].words.slice().sort())).toEqual([
+    ['opt', 'pot', 'top'],
+    ['act', 'cat'],
+  ]);
+});

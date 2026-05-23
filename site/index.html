@@ -5478,6 +5478,7 @@ function activeGroupColumns(stack) {
 }
 function buildColumnAxis(primaryCol, allColumns) {
   const tiebreakers = primaryCol.tiebreakers ?? [
+    { project: groupCount,        dir: 'desc' },
     { project: groupMinScore,     dir: 'desc' },
     { project: groupMaxScore,     dir: 'desc' },
     { project: groupCellsEntries, dir: 'asc'  },
