@@ -668,7 +668,7 @@ test('group rows sort by Count and the axis round-trips through the URL', async 
   await gotoApp(page);
   await addLetterSetFixture(page);
   await page.evaluate(() => {
-    location.hash = '#/workshop?letter_bank&sort=count&sort-dir=desc';
+    location.hash = '#/workshop?letter_bank&grouped&sort=count&sort-dir=desc';
     Router.applyURL();
     renderWorkshopMergedDetail();
   });
@@ -719,7 +719,7 @@ test('only one group tool per pipeline — Group button disabled, URL dedups', a
   await gotoApp(page);
   await addLetterSetFixture(page);
   await page.evaluate(() => {
-    location.hash = '#/workshop?letter_bank&anagrams';
+    location.hash = '#/workshop?letter_bank&grouped&anagrams&grouped';
     Router.applyURL();
     renderWorkshopMergedDetail();
   });

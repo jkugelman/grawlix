@@ -1903,21 +1903,12 @@ const Collapsible = (() => {
 // row. See docs/design.md § URL state. The score filter is intentionally
 // *not* in the URL — it's per-user (scores aren't portable across wordlist
 // setups) and lives in localStorage.
-function* parseQueryEntries(queryString) {
-  for (const part of queryString.split('&')) {
-    if (!part) continue;
-    const eqIdx = part.indexOf('=');
-    if (eqIdx < 0) yield [decodeURIComponent(part), null];
-    else yield [decodeURIComponent(part.slice(0, eqIdx)), decodeURIComponent(part.slice(eqIdx + 1))];
-  }
-}
-
 const Router = (() => {
   // One tool row → its URL key(s). The first param rides on the tool-name
   // key so the row always has an anchor (kept even when empty, so an
   // unfilled row survives reload); a param-less tool is a bare tool key.
   function encodeRow(row) {
-    if (row.grouped) return [encodeURIComponent(row.tool)];
+    if (row.grouped) return [encodeURIComponent(row.tool), 'grouped'];
     const { params: schema } = row.def;
     const slug = encodeURIComponent(row.tool);
     if (!schema.length) return [slug];
@@ -1999,6 +1990,7 @@ const Router = (() => {
       // most likely intended for a view that has been renamed or removed).
     }
 
+    const params = new URLSearchParams(queryString);
     const rows = [];
     let sortKey = null;
     let sortDir = null;
@@ -2009,16 +2001,23 @@ const Router = (() => {
     // Each key is one of three things: a tool name (starts a new row, its
     // value is the first param), a reserved view-config key, or a successive
     // param of the most recent row (a bare key sets a checkbox true).
-    for (const [key, value] of parseQueryEntries(queryString)) {
-      if (key === 'sort')     { if (value !== null && isValidSortAxis(value)) sortKey = value; continue; }
+    for (const [key, value] of params) {
+      if (key === 'sort')     { if (isValidSortAxis(value)) sortKey = value; continue; }
       if (key === 'sort-dir') { if (value === 'asc' || value === 'desc') sortDir = value; continue; }
+      if (key === 'grouped') {
+        const cur = rows[rows.length - 1];
+        if (cur && cur.def.group) {
+          if (rows.some(r => r.grouped)) {
+            rows.pop();
+          } else {
+            cur.grouped = true;
+            cur.params = {};
+          }
+        }
+        continue;
+      }
       const tool = TOOLS[key];
       if (tool) {
-        if (value === null && tool.group) {
-          if (rows.some(r => r.grouped)) continue;
-          rows.push(makeToolRow(key, {}, true));
-          continue;
-        }
         const row = makeToolRow(key);
         if (tool.params.length) row.params[tool.params[0].key] = value || '';
         rows.push(row);
