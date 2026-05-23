@@ -595,10 +595,7 @@ test('atoms truncate long entries with ellipsis + full-text title', async ({ pag
   expect(truncated).toBe(true);
 });
 
-// M-bM-^TM-^@M-bM-^TM-^@M-bM-^TM-^@ Group tools (letter_clusters) M-bM-^TM-^@M-bM-^TM-^@M-bM-^TM-^@M-bM-^TM-^@M-bM-^TM-^@M-bM-^TM-^@M-bM-^TM-^@M-bM-^TM-^@M-bM-^TM-^@M-bM-^TM-^@M-bM-^TM-^@M-bM-^TM-^@M-bM-^TM-^@M-bM-^TM-^@M-bM-^TM-^@M-bM-^TM-^@M-bM-^TM-^@M-bM-^TM-^@M-bM-^TM-^@M-bM-^TM-^@M-bM-^TM-^@M-bM-^TM-^@M-bM-^TM-^@M-bM-^TM-^@M-bM-^TM-^@M-bM-^TM-^@M-bM-^TM-^@M-bM-^TM-^@M-bM-^TM-^@M-bM-^TM-^@M-bM-^TM-^@M-bM-^TM-^@M-bM-^TM-^@M-bM-^TM-^@M-bM-^TM-^@M-bM-^TM-^@M-bM-^TM-^@M-bM-^TM-^@M-bM-^TM-^@M-bM-^TM-^@M-bM-^TM-^@M-bM-^TM-^@M-bM-^TM-^@M-bM-^TM-^@M-bM-^TM-^@M-bM-^TM-^@
-// A group tool clusters the whole merged view into GroupRow[] M-bM-^@M-^T count +
-// bullet-separated members M-bM-^@M-^T rather than per-entry chain rows. See
-// docs/planned/tools.md M-BM-' Groups view.
+// ─── Group tools (letter_clusters) ──────────────────────────────────────────
 
 // OPT/POT/TOP share the distinct-letter set {o,p,t}; ACT/CAT share {a,c,t};
 // DOG is a singleton and drops (a group needs 2+ members).
@@ -739,10 +736,9 @@ test('a group member is individually editable through the atom popover', async (
   expect(edited.score).toBe(15);
 });
 
-test('only one group tool per pipeline M-bM-^@M-^T gallery card disabled, URL dedups', async ({ page }) => {
+test('only one group tool per pipeline — gallery card disabled, URL dedups', async ({ page }) => {
   await gotoApp(page);
   await addLetterSetFixture(page);
-  // A URL naming letter_clusters twice M-bM-^@M-^T only the first is accepted.
   await page.evaluate(() => {
     location.hash = '#/workshop?letter_clusters=3&letter_clusters=4';
     Router.applyURL();
