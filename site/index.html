@@ -4017,7 +4017,7 @@ const TOOL_CATEGORIES = [
   { id: 'letters',    label: 'Letters' },
   { id: 'palindrome', label: 'Palindrome' },
   { id: 'search',     label: 'Search' },
-  { id: 'sides',      label: 'Sides' },
+  { id: 'side',       label: 'Side' },
 ];
 
 const WHOLE_WORD_PARAM = { key: 'whole-word', type: 'checkbox', label: 'Whole word' };
@@ -4087,8 +4087,8 @@ const TOOLS = {
       return true;
     },
   },
-  isograms: {
-    name: 'Isograms', icon: '1️⃣', category: 'letters',
+  isogram: {
+    name: 'Isogram', icon: '1️⃣', category: 'letters',
     desc: 'No repeated letter',
     example: 'CYBERPUNK · JUXTAPOSE',
     params: [],
@@ -4103,8 +4103,8 @@ const TOOLS = {
       return true;
     },
   },
-  supervocalics: {
-    name: 'Supervocalics', icon: '🌈', category: 'letters',
+  supervocalic: {
+    name: 'Supervocalic', icon: '🌈', category: 'letters',
     desc: 'Each of A E I O U exactly once',
     example: 'AIRQUOTE · EUPHORIA',
     params: [],
@@ -4121,8 +4121,8 @@ const TOOLS = {
       return a === 1 && e === 1 && i === 1 && o === 1 && u === 1;
     },
   },
-  monovocalics: {
-    name: 'Monovocalics', icon: '👩‍🎤', category: 'letters',
+  monovocalic: {
+    name: 'Monovocalic', icon: '👩‍🎤', category: 'letters',
     desc: 'Only one distinct vowel',
     example: 'TOOCOOLFORSCHOOL',
     params: [],
@@ -4177,7 +4177,7 @@ const TOOLS = {
     },
   },
   palindrome: {
-    name: 'Palindromes', icon: '🪞', category: 'palindrome',
+    name: 'Palindrome', icon: '🪞', category: 'palindrome',
     desc: 'Read the same forwards and back',
     example: 'RACECAR · KAYAK',
     params: [],
@@ -4316,7 +4316,7 @@ const TOOLS = {
     },
   },
   behead: {
-    name: 'Behead', icon: '🪓', category: 'sides',
+    name: 'Behead', icon: '🪓', category: 'side',
     desc: 'Remove the first N letters',
     example: 'SLING → LING',
     params: [{ label: 'Count', default: '1', type: 'number' }],
@@ -4330,7 +4330,7 @@ const TOOLS = {
     },
   },
   curtail: {
-    name: 'Curtail', icon: '✂️', category: 'sides',
+    name: 'Curtail', icon: '✂️', category: 'side',
     desc: 'Remove the last N letters',
     example: 'PARTY → PART',
     params: [{ label: 'Count', default: '1', type: 'number' }],

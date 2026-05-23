@@ -18,7 +18,7 @@ When the next tool needs runtime support that doesn't exist yet, land the runtim
 - **Membership family** (`kangaroo`, `joey`, `sandwich`, `nested_words`, `double_occupancy`) — `wordlist.byEntry` already exists on the merged-wordlist cache. No runtime gate.
 - **Phonetics / thesaurus families** — wait for the bundled data dependency. Until CMU dict and Roget XML are available at runtime, the tools can't run.
 
-For tools that fit the runtime as-is (`palindromes`, `isograms`, `supervocalics`, etc. — purely letter-pattern checks over `entry`), no gate; just add the `run` and ship.
+For tools that fit the runtime as-is (`palindrome`, `isogram`, `supervocalic`, etc. — purely letter-pattern checks over `entry`), no gate; just add the `run` and ship.
 
 ---
 

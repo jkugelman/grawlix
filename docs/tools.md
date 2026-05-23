@@ -9,23 +9,23 @@ Source material: shipped catalog lives in `TOOLS` in [`site/index.html`](../site
 | Status | Category | Tool | Description | Example |
 |---|---|---|---|---|
 | ✓ | Anagram | 🔤 Anagram | Same letters, rearranged | ELVIS → LIVES |
-|   | Anagram | 🔤 Anagram families | Groups of mutual anagrams | TBD |
+|   | Anagram | 🔤 Anagram family | Groups of mutual anagrams | TBD |
 |   | Anagram | 🫥 Hidden anagram | An anagram of the input hidden inside a longer word | TBD |
 |   | Anagram | 🤏 Almost anagram | Anagrams within *n* letter edits | TBD |
 |   | Bank | 🏦 Letter bank | TBD | TBD |
-| ✓ | Bank | 🧩 Letter bank families | Groups of Words built from the same distinct letters | POSTOP · STOOPS · OPTS |
-| ✓ | Bank | 🔡 Made from letters | Words spelled from a subset of the input letters | PARENTAL → PLANE, RENT, … |
+| ✓ | Bank | 🧩 Letter bank families | Groups built from the same distinct letters | POSTOP · STOOPS · OPTS |
+| ✓ | Bank | 🔡 Made from letters | Spelled from a subset of the input letters | PARENTAL → PLANE, RENT, … |
 |   | Bank | ❗ Required letters | Contains every given letter (in any order) | TBD |
 |   | Bank | 🧱 Limited letters | Uses only the given letters | TBD |
 |   | Bank | 🅱️ Scrabble | Made from a set of letters | TBD |
 |   | Bank | 🐝 Spelling bee | Made from a set of letters with repeats, must include the center letter | TBD |
 |   | Cipher | 📈 Caesar shift | Shift each letter by *n* | TBD |
 |   | Cipher | 🔐 Cryptogram | Same letter-pattern shape | ABBA · NOON · DEED |
-|   | Halves | 🦒 Neckouts | Left and right halves are anagrams | TEAMMATE · INTESTINES |
-|   | Halves | 🔂 Repeaters | Left and right halves are the same | TARTAR · HOTSHOTS |
-| ✓ | Letters | 1️⃣ Isograms | No repeated letters | CYBERPUNK · JUXTAPOSE |
-| ✓ | Letters | 🌈 Supervocalics | Each of A E I O U exactly once | AIRQUOTE |
-| ✓ | Letters | 👩‍🎤 Monovocalics | Only one distinct vowel | TOOCOOLFORSCHOOL |
+|   | Halves | 🔂 Repeater | Left and right halves are the same | TARTAR · HOTSHOTS |
+|   | Halves | 🦒 Neckout | Left and right halves are anagrams | TEAMMATE · INTESTINES |
+| ✓ | Letters | 1️⃣ Isogram | No repeated letters | CYBERPUNK · JUXTAPOSE |
+| ✓ | Letters | 🌈 Supervocalic | Each of A E I O U exactly once | AIRQUOTE |
+| ✓ | Letters | 👩‍🎤 Monovocalic | Only one distinct vowel | TOOCOOLFORSCHOOL |
 | ✓ | Letters | 🔠 Alphabetical | Letters in alphabetical order | ABBEY · BILLOWY |
 | ✓ | Letters | 🔠 Reverse alphabetical | Letters in reverse alphabetical order | SPOOFED · YUPPIE |
 |   | Letters | 🦴 Consonantcy | Same consonants in order; vowels may differ | TBD |
@@ -33,7 +33,7 @@ Source material: shipped catalog lives in `TOOLS` in [`site/index.html`](../site
 |   | Pairs | 🦘 Kangaroo | Outer word containing the input as a hidden joey (subsequence) | TBD |
 |   | Pairs | 🦘 Joey | TBD | TBD |
 |   | Pairs | 🪺 Nested | One word inside another | MARI(JUAN)A |
-| ✓ | Palindrome | 🪞 Palindromes | Read the same when mirrored | RACECAR · CIVIC |
+| ✓ | Palindrome | 🪞 Palindrome | Read the same when mirrored | RACECAR · CIVIC |
 | ✓ | Palindrome | ⬅️ Semordnilap | Reverse to get a different word | STRESSED ↔ DESSERTS |
 |   | Phonetic | 🎵 Rhymes | Same end-of-word phoneme sequence | TBD |
 |   | Phonetic | 🔊 Phonetic substitution | Swap one phoneme for another across the wordlist | TBD |
@@ -42,15 +42,15 @@ Source material: shipped catalog lives in `TOOLS` in [`site/index.html`](../site
 |   | Phrase | 👯 Double occupancy | Two-part entries where both halves compound with one reference term | GREEN LIGHT + HOUSE → GREENHOUSE, LIGHTHOUSE |
 | ✓ | Search | 🔍 Search | Search (and replace) with wildcards | un*ed · c?t |
 | ✓ | Search | 🪄 Regex | Search (and replace) with regular expressions | un.+ed · c.{2,4}t |
-| ✓ | Sides | 🪓 Behead | Remove the first N letters | SLING → LING |
-|   | Sides | 📥 Add prefix | Add a string prefix | TBD |
-|   | Sides | 📥 Remove prefix | Remove a string prefix | TBD |
-| ✓ | Sides | ✂️ Curtail | Remove the last N letters | PARTY → PART |
-|   | Sides | 📤 Add suffix | Add a string suffix | TBD |
-|   | Sides | 📤 Remove suffix | Remove a string suffix | TBD |
-|   | Sides | 🪚 Side splitting | Remove both sides | IFATALL → FATAL |
-|   | Sides | 🎯 Dead center | Input sits at the exact center of a longer word | TBD |
-|   | Sides | 🥪 Sandwich | TBD | TBD |
+| ✓ | Side | 🪓 Behead | Remove the first N letters | SLING → LING |
+|   | Side | 📥 Add prefix | Add a string prefix | TBD |
+|   | Side | 📥 Remove prefix | Remove a string prefix | TBD |
+| ✓ | Side | ✂️ Curtail | Remove the last N letters | PARTY → PART |
+|   | Side | 📤 Add suffix | Add a string suffix | TBD |
+|   | Side | 📤 Remove suffix | Remove a string suffix | TBD |
+|   | Side | 🪚 Side splitting | Remove both sides | IFATALL → FATAL |
+|   | Side | 🎯 Dead center | Input sits at the exact center of a longer word | TBD |
+|   | Side | 🥪 Sandwich | TBD | TBD |
 |   | Thesaurus | 🤝 Synonyms | Words with similar meaning to a target | TBD |
 |   | Thesaurus | ⚔️ Antonyms | Words opposite in meaning | TBD |
 |   | Thesaurus | 📚 Category | Words in the same Roget semantic category | TBD |
