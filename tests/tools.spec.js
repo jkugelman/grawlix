@@ -610,7 +610,7 @@ test('score range trims junk before the grouped tool clusters', async ({ page })
     entries: ['OPT', 'POT', 'TOP', 'OOPT'],
     scores: [50, 40, 30, 0],
   }));
-  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'letter_bank_grouped', params: {} }]));
+  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'letter_bank', grouped: true }]));
 
   let groups = await page.evaluate(() => window.__grawlixTest.getVisibleGroups());
   expect(groups[0].lines[0].words.slice().sort()).toEqual(['oopt', 'opt', 'pot', 'top']);
@@ -625,7 +625,7 @@ test('search chained after the grouped tool adds a filtered subset line', async 
   await gotoApp(page);
   await addLetterSetFixture(page);
   await page.evaluate(() => window.__grawlixTest.setStack([
-    { tool: 'letter_bank_grouped', params: {} },
+    { tool: 'letter_bank', grouped: true },
     { tool: 'search', params: { pattern: 'pt' } },
   ]));
 
@@ -649,7 +649,7 @@ test('a transform chained after the grouped tool adds a line of its output set',
     scores: [50, 40, 30, 20, 20, 20],
   }));
   await page.evaluate(() => window.__grawlixTest.setStack([
-    { tool: 'letter_bank_grouped', params: {} },
+    { tool: 'letter_bank', grouped: true },
     { tool: 'behead', params: {} },
   ]));
 
@@ -668,7 +668,7 @@ test('group rows sort by Count and the axis round-trips through the URL', async 
   await gotoApp(page);
   await addLetterSetFixture(page);
   await page.evaluate(() => {
-    location.hash = '#/workshop?letter_bank_grouped&sort=count&sort-dir=desc';
+    location.hash = '#/workshop?letter_bank&sort=count&sort-dir=desc';
     Router.applyURL();
     renderWorkshopMergedDetail();
   });
@@ -687,14 +687,14 @@ test('sort axis crosses the group tier boundary', async ({ page }) => {
 
   await page.evaluate(() => window.__grawlixTest.setStack([]));
   await expect(axis).toHaveValue('entry');
-  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'letter_bank_grouped', params: {} }]));
+  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'letter_bank', grouped: true }]));
   await expect(axis).toHaveValue('entry');
   await page.evaluate(() => Router.navigate());
   expect(page.url()).not.toContain('sort=');
 
   await page.evaluate(() => window.__grawlixTest.setStack([]));
   await axis.selectOption('score');
-  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'letter_bank_grouped', params: {} }]));
+  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'letter_bank', grouped: true }]));
   await expect(axis).toHaveValue('min-score');
   await page.evaluate(() => Router.navigate());
   expect(page.url()).toContain('sort=min-score');
@@ -703,7 +703,7 @@ test('sort axis crosses the group tier boundary', async ({ page }) => {
 test('a group member is individually editable through the atom popover', async ({ page }) => {
   await gotoApp(page);
   await addLetterSetFixture(page);
-  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'letter_bank_grouped', params: {} }]));
+  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'letter_bank', grouped: true }]));
 
   await page.locator('.group-row .group-cell', { hasText: 'opt' }).locator('.atom-score').click();
   await expect(page.locator('#atom-popover')).toBeVisible();
@@ -719,20 +719,20 @@ test('only one group tool per pipeline — Group button disabled, URL dedups', a
   await gotoApp(page);
   await addLetterSetFixture(page);
   await page.evaluate(() => {
-    location.hash = '#/workshop?letter_bank_grouped&anagrams_grouped';
+    location.hash = '#/workshop?letter_bank&anagrams';
     Router.applyURL();
     renderWorkshopMergedDetail();
   });
-  const stack = await page.evaluate(() => ToolStack.getUserStack().map(r => r.tool));
-  expect(stack).toEqual(['letter_bank_grouped']);
+  const stack = await page.evaluate(() => ToolStack.getUserStack().map(r => ({ tool: r.tool, grouped: r.grouped })));
+  expect(stack).toEqual([{ tool: 'letter_bank', grouped: true }]);
 
-  await expect(page.locator('.gallery-card-group-btn[data-group-tool="anagrams_grouped"]')).toHaveClass(/disabled/);
+  await expect(page.locator('.gallery-card-group-btn[data-group-tool="anagrams"]')).toHaveClass(/disabled/);
 });
 
 test('grouped tool exposes its tool-defined sort axis', async ({ page }) => {
   await gotoApp(page);
   await addLetterSetFixture(page);
-  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'letter_bank_grouped', params: {} }]));
+  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'letter_bank', grouped: true }]));
 
   const axis = page.locator('#search-bar-sort .sort-axis-select');
   await expect(axis.locator('option', { hasText: 'Letters' })).toHaveCount(1);
@@ -752,7 +752,7 @@ test('grouped column sort tiebreaks by count desc before min score', async ({ pa
     entries: ['OPT', 'POT', 'TOP', 'ACT', 'CAT'],
     scores: [30, 30, 30, 80, 70],
   }));
-  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'letter_bank_grouped', params: {} }]));
+  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'letter_bank', grouped: true }]));
   await page.locator('#search-bar-sort .sort-axis-select').selectOption('letters');
 
   const groups = await page.evaluate(() => window.__grawlixTest.getVisibleGroups());

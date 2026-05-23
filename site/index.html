@@ -1903,11 +1903,21 @@ const Collapsible = (() => {
 // row. See docs/design.md § URL state. The score filter is intentionally
 // *not* in the URL — it's per-user (scores aren't portable across wordlist
 // setups) and lives in localStorage.
+function* parseQueryEntries(queryString) {
+  for (const part of queryString.split('&')) {
+    if (!part) continue;
+    const eqIdx = part.indexOf('=');
+    if (eqIdx < 0) yield [decodeURIComponent(part), null];
+    else yield [decodeURIComponent(part.slice(0, eqIdx)), decodeURIComponent(part.slice(eqIdx + 1))];
+  }
+}
+
 const Router = (() => {
   // One tool row → its URL key(s). The first param rides on the tool-name
   // key so the row always has an anchor (kept even when empty, so an
   // unfilled row survives reload); a param-less tool is a bare tool key.
   function encodeRow(row) {
+    if (row.grouped) return [encodeURIComponent(row.tool)];
     const { params: schema } = row.def;
     const slug = encodeURIComponent(row.tool);
     if (!schema.length) return [slug];
@@ -1989,7 +1999,6 @@ const Router = (() => {
       // most likely intended for a view that has been renamed or removed).
     }
 
-    const params = new URLSearchParams(queryString);
     const rows = [];
     let sortKey = null;
     let sortDir = null;
@@ -2000,13 +2009,16 @@ const Router = (() => {
     // Each key is one of three things: a tool name (starts a new row, its
     // value is the first param), a reserved view-config key, or a successive
     // param of the most recent row (a bare key sets a checkbox true).
-    for (const [key, value] of params) {
-      if (key === 'sort')     { if (isValidSortAxis(value)) sortKey = value; continue; }
+    for (const [key, value] of parseQueryEntries(queryString)) {
+      if (key === 'sort')     { if (value !== null && isValidSortAxis(value)) sortKey = value; continue; }
       if (key === 'sort-dir') { if (value === 'asc' || value === 'desc') sortDir = value; continue; }
       const tool = TOOLS[key];
       if (tool) {
-        // Only one group tool per pipeline — ignore any beyond the first.
-        if (tool.kind === 'group' && rows.some(r => r.def.kind === 'group')) continue;
+        if (value === null && tool.group) {
+          if (rows.some(r => r.grouped)) continue;
+          rows.push(makeToolRow(key, {}, true));
+          continue;
+        }
         const row = makeToolRow(key);
         if (tool.params.length) row.params[tool.params[0].key] = value || '';
         rows.push(row);
@@ -4388,20 +4400,6 @@ for (const tool of Object.values(TOOLS)) {
   }
 }
 
-for (const [flatKey, flat] of Object.entries(TOOLS)) {
-  if (!flat.group || flat.kind === 'group') continue;
-  const groupedKey = `${flatKey}_grouped`;
-  if (TOOLS[groupedKey]) continue;
-  TOOLS[groupedKey] = {
-    name: flat.name, icon: flat.icon, category: flat.category,
-    desc: flat.desc, example: flat.example,
-    params: [],
-    kind: 'group', inputHighlights: false, outputHighlights: false,
-    group: flat.group,
-    flatTool: flatKey,
-  };
-}
-
 for (const col of Object.values(TOOLS).flatMap(t => t.group?.columns || [])) {
   if (!col.key) col.key = col.label.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-');
 }
@@ -4458,18 +4456,23 @@ function normalizeParams(params, schema) {
   return out;
 }
 
-// `group` is always a static kind, never a `(params) => kind` function, so
-// `kind === 'group'` checks on a bare definition (gallery cards, which have
-// no params) stay valid.
-function makeToolRow(tool, params = {}) {
+function makeToolRow(tool, params = {}, grouped = false) {
   const def = TOOLS[tool];
-  for (const p of def.params) {
-    if (p.default !== undefined && params[p.key] === undefined) params[p.key] = p.default;
+  if (!grouped) {
+    for (const p of def.params) {
+      if (p.default !== undefined && params[p.key] === undefined) params[p.key] = p.default;
+    }
   }
   const row = {
-    tool, params, def,
-    kind()    { return typeof def.kind === 'function' ? def.kind(row.params) : def.kind; },
-    isInert() { return def.isInert ? def.isInert(row.params) : false; },
+    tool, params, def, grouped,
+    kind() {
+      if (row.grouped) return 'group';
+      return typeof def.kind === 'function' ? def.kind(row.params) : def.kind;
+    },
+    isInert() {
+      if (row.grouped) return false;
+      return def.isInert ? def.isInert(row.params) : false;
+    },
   };
   return row;
 }
@@ -5011,13 +5014,14 @@ const ToolStack = (() => {
     // button (undeletable). Everything above it is an ordinary tool row.
     if (idx === stack.length - 1) return buildSearchBarHTML();
     const tool = row.def;
-    const parts = buildToolRowPartsHTML(tool.params, row.params, row.tool,
+    const schema = row.grouped ? [] : tool.params;
+    const parts = buildToolRowPartsHTML(schema, row.params, row.tool,
       p => ` data-row="${idx}" data-key="${p.key}"`,
-      { findReplace: !!tool.findReplace, rowToken: idx, expanded: isRowExpanded(idx) });
+      { findReplace: !row.grouped && !!tool.findReplace, rowToken: idx, expanded: isRowExpanded(idx) });
     const remove = `<button type="button" class="tool-row-remove" data-remove="${idx}" title="Remove" aria-label="Remove ${esc(tool.name)}"><svg width="12" height="12"><use href="#icon-x"/></svg></button>`;
     return `<div class="tool-row">
       ${buildDragHandleHTML()}
-      ${buildToolLabelHTML(tool, tool.flatTool ? 'Grouped' : null)}
+      ${buildToolLabelHTML(tool, row.grouped ? 'Grouped' : null)}
       ${parts.caret}
       ${parts.main}
       ${parts.asides}
@@ -5028,7 +5032,7 @@ const ToolStack = (() => {
 
   function buildGalleryCardHTML(toolKey, tool) {
     const groupBtn = tool.group
-      ? `<button type="button" class="gallery-card-group-btn" data-group-tool="${esc(toolKey)}_grouped" title="Add grouped variant">Grouped</button>`
+      ? `<button type="button" class="gallery-card-group-btn" data-group-tool="${esc(toolKey)}" title="Add grouped variant">Grouped</button>`
       : '';
     return `<div class="gallery-card" data-tool="${esc(toolKey)}">
       ${groupBtn}
@@ -5041,7 +5045,6 @@ const ToolStack = (() => {
   function buildGalleryHTML() {
     const byCategory = new Map(TOOL_CATEGORIES.map(c => [c.id, []]));
     Object.entries(TOOLS).forEach(([key, tool]) => {
-      if (tool.flatTool) return;
       byCategory.get(tool.category)?.push([key, tool]);
     });
     return TOOL_CATEGORIES.map(cat => {
@@ -5081,22 +5084,21 @@ const ToolStack = (() => {
   function refreshGalleryActive() {
     // The permanent Search bar isn't a "tool the user added" — gallery-active
     // marks only the user tools above it.
-    const active = new Set(getUserStack().map(r => r.tool));
-    const groupTaken = stack.some(r => r.def.kind === 'group');
+    const userStack = getUserStack();
+    const activeFlat = new Set(userStack.filter(r => !r.grouped).map(r => r.tool));
+    const activeGrouped = new Set(userStack.filter(r => r.grouped).map(r => r.tool));
+    const groupTaken = userStack.some(r => r.grouped);
     document.querySelectorAll('.gallery-card[data-tool]').forEach(card => {
-      card.classList.toggle('active', active.has(card.dataset.tool));
-      const tool = TOOLS[card.dataset.tool];
-      const blocked = groupTaken && tool?.kind === 'group';
-      card.classList.toggle('disabled', blocked);
-      if (blocked) card.title = 'A pipeline can have only one group tool';
-      else card.removeAttribute('title');
+      card.classList.toggle('active', activeFlat.has(card.dataset.tool));
+      card.removeAttribute('title');
     });
     document.querySelectorAll('.gallery-card-group-btn[data-group-tool]').forEach(btn => {
       const key = btn.dataset.groupTool;
-      btn.classList.toggle('active', active.has(key));
-      btn.classList.toggle('disabled', groupTaken && !active.has(key));
-      btn.title = groupTaken && !active.has(key)
-        ? 'A pipeline can have only one group tool'
+      const isActive = activeGrouped.has(key);
+      btn.classList.toggle('active', isActive);
+      btn.classList.toggle('disabled', groupTaken);
+      btn.title = groupTaken
+        ? 'Grouped tools cannot be combined'
         : 'Add grouped variant';
     });
   }
@@ -5138,11 +5140,12 @@ const ToolStack = (() => {
     attachHelpPopups();
   }
 
-  function add(toolKey) {
+  function add(toolKey, { grouped = false } = {}) {
     if (!TOOLS[toolKey]) return;
-    if (TOOLS[toolKey].kind === 'group' && stack.some(r => r.def.kind === 'group')) return;
+    if (grouped && !TOOLS[toolKey].group) return;
+    if (grouped && stack.some(r => r.grouped)) return;
     const idx = stack.length - 1;            // insert just above the Search bar
-    stack.splice(idx, 0, makeToolRow(toolKey));
+    stack.splice(idx, 0, makeToolRow(toolKey, {}, grouped));
     rerenderRows();
     focusRowInput(idx);
     flashRow(idx);
@@ -5184,7 +5187,7 @@ const ToolStack = (() => {
         if (groupBtn.classList.contains('disabled')) return;
         const key = groupBtn.dataset.groupTool;
         if (!TOOLS[key]) return;
-        add(key);
+        add(key, { grouped: true });
         return;
       }
       const card = e.target.closest('.gallery-card[data-tool]');
@@ -9535,7 +9538,7 @@ window.__grawlixTest = {
   // same plumbing the user does. Pass an array of `{tool, params}`.
   // Returns the render promise — tests `await` it before reading the DOM.
   async setStack(stack) {
-    ToolStack.setStack(stack.filter(r => TOOLS[r.tool]).map(r => makeToolRow(r.tool, r.params || {})));
+    ToolStack.setStack(stack.filter(r => TOOLS[r.tool]).map(r => makeToolRow(r.tool, r.params || {}, !!r.grouped)));
     const p = renderWorkshopMergedDetail();
     ToolStack.refreshGalleryActive();
     await p;

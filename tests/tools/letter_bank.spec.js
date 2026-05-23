@@ -64,7 +64,7 @@ async function addLetterSetFixture(page) {
 test('grouped: clusters merged entries that share a distinct-letter set', async ({ page }) => {
   await gotoApp(page);
   await addLetterSetFixture(page);
-  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'letter_bank_grouped', params: {} }]));
+  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'letter_bank', grouped: true }]));
 
   const groups = await page.evaluate(() => window.__grawlixTest.getVisibleGroups());
   const clusters = groups.map(g => g.lines[0].words.slice().sort()).sort();
@@ -75,7 +75,7 @@ test('grouped: clusters merged entries that share a distinct-letter set', async 
 test('grouped: a singleton entry drops — a group needs at least two members', async ({ page }) => {
   await gotoApp(page);
   await addLetterSetFixture(page);
-  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'letter_bank_grouped', params: {} }]));
+  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'letter_bank', grouped: true }]));
 
   const groups = await page.evaluate(() => window.__grawlixTest.getVisibleGroups());
   const allWords = groups.flatMap(g => g.lines[0].words);
@@ -85,7 +85,7 @@ test('grouped: a singleton entry drops — a group needs at least two members', 
 test('grouped: within a group, members sort by score desc then entry asc', async ({ page }) => {
   await gotoApp(page);
   await addLetterSetFixture(page);
-  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'letter_bank_grouped', params: {} }]));
+  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'letter_bank', grouped: true }]));
 
   const groups = await page.evaluate(() => window.__grawlixTest.getVisibleGroups());
   const optGroup = groups.find(g => g.lines[0].words.includes('opt'));
