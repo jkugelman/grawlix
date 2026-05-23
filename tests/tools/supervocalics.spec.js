@@ -16,7 +16,7 @@ test('keeps entries where each of A E I O U appears exactly once', async ({ page
     entries: ['SEQUOIA', 'EDUCATION', 'HELLO', 'BANANA'],
     scores:  [50, 50, 50, 50],
   }));
-  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'supervocalic' }]));
+  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'supervocalics' }]));
 
   expect((await visible(page)).sort()).toEqual(['education', 'sequoia']);
 });
@@ -28,7 +28,7 @@ test('a doubled vowel disqualifies an entry — each vowel must appear exactly o
     entries: ['AERONAUTIC'],
     scores:  [50],
   }));
-  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'supervocalic' }]));
+  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'supervocalics' }]));
   expect(await visible(page)).toEqual([]);
 });
 
@@ -39,6 +39,6 @@ test('Y is not counted as a vowel', async ({ page }) => {
     entries: ['LAYOUT'],
     scores:  [50],
   }));
-  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'supervocalic' }]));
+  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'supervocalics' }]));
   expect(await visible(page)).toEqual([]);
 });

@@ -214,7 +214,7 @@ A regular atom's `wlEntry` references the merged wordlist (same identity as the 
 
 ### The group-row model
 
-A **group tool** (`kind: 'group'`) clusters the merged wordlist rather than transforming it entry by entry. Today's two are `anagram_grouped` (entries sharing a letter multiset) and `letter_bank_grouped` (entries sharing a distinct-letter set — POST, STOP, SPOT, TOPS cluster under `opst`).
+A **group tool** (`kind: 'group'`) clusters the merged wordlist rather than transforming it entry by entry. Today's two are `anagrams_grouped` (entries sharing a letter multiset) and `letter_bank_grouped` (entries sharing a distinct-letter set — POST, STOP, SPOT, TOPS cluster under `opst`).
 
 **Grouped siblings are auto-synthesized.** A flat tool declares groupability by adding a `group: { key, columns }` sub-object — `key(entry)` returns the equivalence's canonical string, and `columns` declares the per-group attributes that surface in the row. A post-registration pass over `TOOLS` synthesizes a `<flatKey>_grouped` sibling for every such tool, sharing the parent's name, icon, description, and example. The gallery renders one card per concept; a "Group" button on the card adds the grouped sibling. Grouped tools take no input — they always run.
 

@@ -16,7 +16,7 @@ test('keeps entries that read the same forwards and backwards', async ({ page })
     entries: ['RACECAR', 'KAYAK', 'NOON', 'HELLO', 'TEST'],
     scores:  [50, 50, 50, 50, 50],
   }));
-  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'palindrome' }]));
+  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'palindromes' }]));
 
   expect((await visible(page)).sort()).toEqual(['kayak', 'noon', 'racecar']);
 });
@@ -28,6 +28,6 @@ test('even-length and odd-length palindromes both match', async ({ page }) => {
     entries: ['ABBA', 'CIVIC'],
     scores:  [50, 50],
   }));
-  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'palindrome' }]));
+  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'palindromes' }]));
   expect((await visible(page)).sort()).toEqual(['abba', 'civic']);
 });

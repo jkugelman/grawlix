@@ -4043,8 +4043,8 @@ const TOOL_CATEGORIES = [
 const WHOLE_WORD_PARAM = { key: 'whole-word', type: 'checkbox', label: 'Whole word' };
 
 const TOOLS = {
-  anagram: {
-    name: 'Anagram', icon: '🔤', category: 'anagram',
+  anagrams: {
+    name: 'Anagrams', icon: '🔤', category: 'anagram',
     desc: 'Same letters, rearranged',
     example: 'LINDSEY → SNIDELY',
     params: [{ placeholder: 'entry' }],
@@ -4120,8 +4120,8 @@ const TOOLS = {
       return true;
     },
   },
-  isogram: {
-    name: 'Isogram', icon: '1️⃣', category: 'letters',
+  isograms: {
+    name: 'Isograms', icon: '1️⃣', category: 'letters',
     desc: 'No repeated letter',
     example: 'CYBERPUNK · JUXTAPOSE',
     params: [],
@@ -4136,8 +4136,8 @@ const TOOLS = {
       return true;
     },
   },
-  supervocalic: {
-    name: 'Supervocalic', icon: '🌈', category: 'letters',
+  supervocalics: {
+    name: 'Supervocalics', icon: '🌈', category: 'letters',
     desc: 'Each of A E I O U exactly once',
     example: 'AIRQUOTE · EUPHORIA',
     params: [],
@@ -4154,8 +4154,8 @@ const TOOLS = {
       return a === 1 && e === 1 && i === 1 && o === 1 && u === 1;
     },
   },
-  monovocalic: {
-    name: 'Monovocalic', icon: '👩‍🎤', category: 'letters',
+  monovocalics: {
+    name: 'Monovocalics', icon: '👩‍🎤', category: 'letters',
     desc: 'Only one distinct vowel',
     example: 'TOOCOOLFORSCHOOL',
     params: [],
@@ -4209,8 +4209,8 @@ const TOOLS = {
       return true;
     },
   },
-  palindrome: {
-    name: 'Palindrome', icon: '🪞', category: 'palindrome',
+  palindromes: {
+    name: 'Palindromes', icon: '🪞', category: 'palindrome',
     desc: 'Read the same forwards and back',
     example: 'RACECAR · KAYAK',
     params: [],
@@ -4994,7 +4994,6 @@ async function runPipeline(mergedWordlist, stack) {
 const ToolStack = (() => {
   // The user's pipeline. The last row is always the permanent Search bar —
   // rendered with .search-bar chrome, undeletable; user tools sit above it.
-  // [{ tool: 'anagram', params: {…} }, …, { tool: 'search', params: {…} }]
   let stack = [makeToolRow('search')];
 
   // The permanent Search bar (always the last row) and the user tools above

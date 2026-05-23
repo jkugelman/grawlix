@@ -36,7 +36,7 @@ test('anagram via URL filters the merged view', async ({ page }) => {
   // applying the URL on a populated app exercises the same boot path a
   // shared link would.
   await page.evaluate(() => {
-    location.hash = '#/workshop?anagram=LINDSEY';
+    location.hash = '#/workshop?anagrams=LINDSEY';
     Router.applyURL();
     renderWorkshopMergedDetail();
   });
@@ -49,7 +49,7 @@ test('anagram + search compose (search filters tool output)', async ({ page }) =
   await gotoApp(page);
   await addAnagramFixture(page);
   await page.evaluate(() => {
-    location.hash = '#/workshop?anagram=LINDSEY&search=sni';
+    location.hash = '#/workshop?anagrams=LINDSEY&search=sni';
     Router.applyURL();
     renderWorkshopMergedDetail();
   });
@@ -63,7 +63,7 @@ test('typing in the row input live-filters the entries table', async ({ page }) 
   await addAnagramFixture(page);
 
   // Click the Anagram gallery card to add the tool to the stack.
-  await page.locator('.gallery-card[data-tool="anagram"]').click();
+  await page.locator('.gallery-card[data-tool="anagrams"]').click();
 
   const input = page.locator('.tool-row input[data-key="entry"]');
   await expect(input).toBeFocused();
@@ -79,18 +79,18 @@ test('clicking gallery cards appends them to the stack in order', async ({ page 
 
   // Each card click appends — the second click chains onto the first rather
   // than replacing it.
-  await page.locator('.gallery-card[data-tool="anagram"]').click();
+  await page.locator('.gallery-card[data-tool="anagrams"]').click();
   await page.locator('.gallery-card[data-tool="search"]').click();
 
   const userStack = await page.evaluate(() =>
     ToolStack.getUserStack().map(r => r.tool));
-  expect(userStack).toEqual(['anagram', 'search']);
+  expect(userStack).toEqual(['anagrams', 'search']);
 });
 
 test('removing the tool row reverts to the full merged view', async ({ page }) => {
   await gotoApp(page);
   await addAnagramFixture(page);
-  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'anagram', params: { entry: 'LINDSEY' } }]));
+  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'anagrams', params: { entry: 'LINDSEY' } }]));
 
   // Sanity: tool is filtering.
   let visible = await page.evaluate(() => window.__grawlixTest.getVisibleEntries());
@@ -106,7 +106,7 @@ test('removing the tool row reverts to the full merged view', async ({ page }) =
 test('pipeline output preserves wlEntry refs (popover opens, source/score intact)', async ({ page }) => {
   await gotoApp(page);
   await addAnagramFixture(page);
-  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'anagram', params: { entry: 'LINDSEY' } }]));
+  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'anagrams', params: { entry: 'LINDSEY' } }]));
 
   // Open the popover on an entry produced by the pipeline.
   await page.locator('.entry-row .atom-entry', { hasText: 'snidely' }).click();
@@ -719,14 +719,14 @@ test('only one group tool per pipeline — Group button disabled, URL dedups', a
   await gotoApp(page);
   await addLetterSetFixture(page);
   await page.evaluate(() => {
-    location.hash = '#/workshop?letter_bank_grouped&anagram_grouped';
+    location.hash = '#/workshop?letter_bank_grouped&anagrams_grouped';
     Router.applyURL();
     renderWorkshopMergedDetail();
   });
   const stack = await page.evaluate(() => ToolStack.getUserStack().map(r => r.tool));
   expect(stack).toEqual(['letter_bank_grouped']);
 
-  await expect(page.locator('.gallery-card-group-btn[data-group-tool="anagram_grouped"]')).toHaveClass(/disabled/);
+  await expect(page.locator('.gallery-card-group-btn[data-group-tool="anagrams_grouped"]')).toHaveClass(/disabled/);
 });
 
 test('grouped tool exposes its tool-defined sort axis', async ({ page }) => {

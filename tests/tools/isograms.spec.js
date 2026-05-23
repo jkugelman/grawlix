@@ -16,7 +16,7 @@ test('keeps entries with every letter unique', async ({ page }) => {
     entries: ['DIALOGUE', 'CYBERPUNK', 'HELLO', 'ECCENTRIC'],
     scores:  [50, 50, 50, 50],
   }));
-  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'isogram' }]));
+  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'isograms' }]));
 
   expect((await visible(page)).sort()).toEqual(['cyberpunk', 'dialogue']);
 });
@@ -28,7 +28,7 @@ test('non-letter characters in an entry are skipped, not counted as repeats', as
     entries: ['JACK-O', 'OO-LA'],
     scores:  [50, 50],
   }));
-  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'isogram' }]));
+  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'isograms' }]));
 
   expect(await visible(page)).toEqual(['jack-o']);
 });

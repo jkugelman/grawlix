@@ -27,7 +27,7 @@ async function visible(page) {
 test('keeps every rearrangement of the param, including the param itself', async ({ page }) => {
   await gotoApp(page);
   await addFixture(page);
-  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'anagram', params: { entry: 'LINDSEY' } }]));
+  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'anagrams', params: { entry: 'LINDSEY' } }]));
 
   expect((await visible(page)).sort()).toEqual(['lindsey', 'snidely']);
 });
@@ -35,7 +35,7 @@ test('keeps every rearrangement of the param, including the param itself', async
 test('a different letter multiset is excluded even when most letters overlap', async ({ page }) => {
   await gotoApp(page);
   await addFixture(page);
-  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'anagram', params: { entry: 'EERIE' } }]));
+  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'anagrams', params: { entry: 'EERIE' } }]));
 
   expect(await visible(page)).toEqual(['eerie']);
 });
@@ -43,7 +43,7 @@ test('a different letter multiset is excluded even when most letters overlap', a
 test('an empty param is a no-op — the full merged view passes through', async ({ page }) => {
   await gotoApp(page);
   await addFixture(page);
-  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'anagram', params: { entry: '' } }]));
+  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'anagrams', params: { entry: '' } }]));
 
   expect((await visible(page)).sort())
     .toEqual(['act', 'cat', 'dog', 'eerie', 'eyrie', 'lindsey', 'snidely']);
@@ -52,7 +52,7 @@ test('an empty param is a no-op — the full merged view passes through', async 
 test('the param is matched case-insensitively', async ({ page }) => {
   await gotoApp(page);
   await addFixture(page);
-  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'anagram', params: { entry: 'aCt' } }]));
+  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'anagrams', params: { entry: 'aCt' } }]));
 
   expect((await visible(page)).sort()).toEqual(['act', 'cat']);
 });
@@ -64,7 +64,7 @@ test('grouped: clusters merged entries that share a letter multiset', async ({ p
     entries: ['LIVES', 'ELVIS', 'LEVIS', 'EVILS', 'TIGER'],
     scores:  [50, 50, 50, 50, 50],
   }));
-  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'anagram_grouped', params: {} }]));
+  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'anagrams_grouped', params: {} }]));
 
   const groups = await page.evaluate(() => window.__grawlixTest.getVisibleGroups());
   expect(groups.length).toBe(1);
@@ -78,7 +78,7 @@ test('grouped: TOPS and POTS share a multiset but not OPT (different length)', a
     entries: ['TOPS', 'POTS', 'OPT', 'POT', 'TOP'],
     scores:  [50, 50, 50, 50, 50],
   }));
-  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'anagram_grouped', params: {} }]));
+  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'anagrams_grouped', params: {} }]));
 
   const groups = await page.evaluate(() => window.__grawlixTest.getVisibleGroups());
   const clusters = groups.map(g => g.lines[0].words.slice().sort()).sort();

@@ -53,7 +53,7 @@ test('clicking the × empties the field and its handler reacts', async ({ page }
 test('a tool-row text input carries the clear button too', async ({ page }) => {
   await gotoApp(page);
   await addFixture(page);
-  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'anagram', params: { entry: 'cat' } }]));
+  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'anagrams', params: { entry: 'cat' } }]));
 
   const input = page.locator('input[data-key="entry"]');
   const clearBtn = page.locator('input[data-key="entry"] ~ .clear-btn');

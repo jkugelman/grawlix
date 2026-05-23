@@ -8,8 +8,8 @@ Source material: shipped catalog lives in `TOOLS` in [`site/index.html`](../site
 
 | Status | Category | Tool | Description | Example |
 |---|---|---|---|---|
-| ✓ | Anagram | 🔤 Anagram | Same letters, rearranged | ELVIS → LIVES |
-|   | Anagram | 🫥 Hidden anagram | An anagram of the input hidden inside a longer word | TBD |
+| ✓ | Anagram | 🔤 Anagrams | Same letters, rearranged | ELVIS → LIVES |
+|   | Anagram | 🫥 Hidden anagram | Anagrams of the input hidden inside longer words | TBD |
 |   | Anagram | 🤏 Almost anagram | Anagrams within *n* letter edits | TBD |
 | ✓ | Bank | 🏦 Letter bank | Uses every letter at least once | SPOT → STOOPS, TOPS, POSTOP |
 | ✓ | Bank | 🔡 Restricted alphabet | Uses only the given letters | SPOT → STOOP, TOP, POP |
@@ -19,9 +19,9 @@ Source material: shipped catalog lives in `TOOLS` in [`site/index.html`](../site
 |   | Cipher | 🔐 Cryptogram | Same letter-pattern shape | ABBA · NOON · DEED |
 |   | Halves | 🔂 Repeater | Left and right halves are the same | TARTAR · HOTSHOTS |
 |   | Halves | 🦒 Neckout | Left and right halves are anagrams | TEAMMATE · INTESTINES |
-| ✓ | Letters | 1️⃣ Isogram | No repeated letters | CYBERPUNK · JUXTAPOSE |
-| ✓ | Letters | 🌈 Supervocalic | Each of A E I O U exactly once | AIRQUOTE |
-| ✓ | Letters | 👩‍🎤 Monovocalic | Only one distinct vowel | TOOCOOLFORSCHOOL |
+| ✓ | Letters | 1️⃣ Isograms | No repeated letters | CYBERPUNK · JUXTAPOSE |
+| ✓ | Letters | 🌈 Supervocalics | Each of A E I O U exactly once | AIRQUOTE |
+| ✓ | Letters | 👩‍🎤 Monovocalics | Only one distinct vowel | TOOCOOLFORSCHOOL |
 | ✓ | Letters | 🔠 Alphabetical | Letters in alphabetical order | ABBEY · BILLOWY |
 | ✓ | Letters | 🔠 Reverse alphabetical | Letters in reverse alphabetical order | SPOOFED · YUPPIE |
 |   | Letters | 🦴 Consonantcy | Same consonants in order; vowels may differ | TBD |
@@ -29,7 +29,7 @@ Source material: shipped catalog lives in `TOOLS` in [`site/index.html`](../site
 |   | Pairs | 🦘 Kangaroo | Outer word containing the input as a hidden joey (subsequence) | TBD |
 |   | Pairs | 🦘 Joey | TBD | TBD |
 |   | Pairs | 🪺 Nested | One word inside another | MARI(JUAN)A |
-| ✓ | Palindrome | 🪞 Palindrome | Read the same when mirrored | RACECAR · CIVIC |
+| ✓ | Palindrome | 🪞 Palindromes | Read the same when mirrored | RACECAR · CIVIC |
 | ✓ | Palindrome | ⬅️ Semordnilap | Reverse to get a different word | STRESSED ↔ DESSERTS |
 |   | Phonetic | 🎵 Rhymes | Same end-of-word phoneme sequence | TBD |
 |   | Phonetic | 🔊 Phonetic substitution | Swap one phoneme for another across the wordlist | TBD |
