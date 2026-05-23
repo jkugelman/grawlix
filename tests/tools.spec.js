@@ -735,9 +735,9 @@ test('grouped tool exposes its tool-defined sort axis', async ({ page }) => {
   await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'letter_bank_grouped', params: {} }]));
 
   const axis = page.locator('#search-bar-sort .sort-axis-select');
-  await expect(axis.locator('option', { hasText: 'Distinct letters' })).toHaveCount(1);
+  await expect(axis.locator('option', { hasText: 'Letters' })).toHaveCount(1);
 
-  await axis.selectOption('distinct-letters');
+  await axis.selectOption('letters');
   const groups = await page.evaluate(() => window.__grawlixTest.getVisibleGroups());
   expect(groups.length).toBe(2);
 });
