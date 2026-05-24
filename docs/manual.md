@@ -15,9 +15,9 @@ This is the user-facing manual. Eventually it'll be turned into an in-app manual
 Workshop's card, top to bottom:
 - **Tool gallery.** Cards laid out as a responsive grid.
 - **Sticky region** that anchors just below the header as you scroll into the entries table:
-  - Stats bar with histogram (click the histogram to filter by score range).
-  - Tool stack — only when you've added tools.
-  - Search bar.
+  - Tool stack (only when you've added tools — the search bar sits at the bottom either way).
+  - Stats bar with histogram (click or drag across the histogram to filter by score range).
+  - Entry headers labelling the columns below.
 - **Entries table.** The merged `All` view, always visible — idle and search views are the same view, just filtered.
 
 ## Settings
@@ -58,13 +58,18 @@ The full tool catalog — every shipped and planned tool, with its icon, name, d
 
 ## Entries table
 
-The entries table below the search bar shows every entry in the merged `All` view, one row per entry, in your current sort order. Each row reads as `1. CARE 4 50` — count, entry, length, score badge. Click on the entry or score to edit it (see *Editing entries*).
+The entries table below the stats bar shows every entry in the merged `All` view, one row per entry, in your current sort order. Each row reads as `1. CARE 4 50` — count, entry, length, score badge. Click on the entry or score to edit it (see *Editing entries*).
 
-**Sort.** "Sort by [Entry ▾] [↑]" at the right edge of the search bar. Axes: Entry (alphabetical by word), Length, Score. Click the arrow to toggle direction. Default is Entry ascending.
+## Stats bar
 
-**Narrow screens.** When the search bar is too narrow to fit the score and sort controls inline, they collapse behind an adjustments button (the sliders icon) at the bar's right edge. Click it for a popover holding the same controls.
+A single sticky band above the entries table, carrying every readout about the visible result set and the two controls that shape it. Left to right:
 
-**Score histogram.** The stats bar shows a histogram of the merged wordlist's scores. Click on a bar (or drag across several) to filter the table to a score range. The filter is remembered across visits.
+- **Counts.** `Entries N`; with a grouping tool in the stack, `Groups N` rides alongside. The Entries count reflects what made it to the end of the pipeline — chain rows for flat pipelines, surviving member chains across every visible group for grouped pipelines.
+- **Stats numbers and histogram.** `Min · Max · Mean · Median · Mode` of the score-range-filtered output, followed by the histogram. On narrow screens the stats numbers drop progressively — `Mean · Median · Mode` first, then `Min · Max` — but counts, histogram, range, and sort always hold.
+- **Score range.** A `lo-hi` / `lo+` / `n` text input, or drag-select across the histogram. The histogram itself shows the full pipeline output regardless of range; bars outside the bracket fade in place so you can see what you're trimming as you drag the range narrower. The filter is remembered across visits.
+- **Sort.** "Sort by [Entry ▾] [↑]". Click the arrow to toggle direction. Default is Entry ascending; every other axis defaults to descending.
+
+The score range applies after the pipeline runs, dropping any chain whose journey touched an out-of-range atom. Grouped pipelines drop chains per group; a group stays visible as long as at least one chain survives.
 
 ## Editing entries
 
@@ -98,7 +103,7 @@ Top-level view (one of two; the other is Workshop). Reached by picking **Library
 
 Each wordlist card carries a drag handle (reorder = merge priority), an enable checkbox, and the wordlist's name. The `All` card has neither drag handle nor toggle — it's always present and isn't reorderable.
 
-**Right pane.** Each card's panel has the same shape: an action row, a stats bar with histogram, a rules editor, a search bar (on populated wordlists), and an entries view below it. The histogram is display-only in the Library — no click-to-filter.
+**Right pane.** Each card's panel has the same shape: an action row, a rules editor, then a sticky region above the entries view holding the search bar (on populated wordlists) and the stats bar with histogram. The stats bar carries the same controls as on Workshop — counts, stats numbers, histogram, score range, sort — minus the Groups count (Library has no tool pipeline). The histogram is click-and-drag to filter, same as on Workshop.
 
 **Action buttons differ per wordlist:**
 - **Sources** — Update/Fetch primary action, the Rescored/Original toggle (when rules exist), Download, and a ⋮ menu with Configure / Delete.
@@ -125,7 +130,7 @@ The highest-severity bubble across all wordlists propagates up to the **Library*
 
 **Entries view.** Each populated wordlist's panel includes a virtual-scrolled, monospace, text-file-flavored entries list below its rules editor. In Rescored mode, an inline arrow shows what each rule changed — e.g. `BAGEL  45 → 50  tasty`; rows dropped by an `ignore` rule are struck through with their input score. Untouched rows show their input score plain. Switching to Original mode strips the arrows and strikethrough — you see the wordlist as the file contains it. The Library entries view is read-only; editing routes through the Workshop entries table's popover.
 
-**Search bar** (above the entries view). Full pattern syntax, whole-word toggle, and sort controls (Entry / Length / Score). No Replace caret and no score-range filter — the Library bar filters a wordlist for inspection, it doesn't transform or query it.
+**Search bar** (above the stats bar). Full pattern syntax and whole-word toggle. No Replace caret — the Library bar filters a wordlist for inspection, it doesn't transform or query it. Score range and sort live in the stats bar below, the same as on Workshop.
 
 **Renaming.** Focus a wordlist card and press **F2** to rename inline.
 
