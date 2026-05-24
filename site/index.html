@@ -4269,7 +4269,8 @@ const TOOLS = {
     desc: 'Reverse to get a different word',
     example: 'STRESSED → DESSERTS',
     params: [],
-    kind: 'transform', inputHighlights: false, outputHighlights: false, glyph: '→',
+    kind: 'transform', inputHighlights: false, outputHighlights: false,
+    glyph: () => '→',
     run(entry, params, wordlist) {
       // Bidirectional emit — a row whenever the reverse is also an entry, in
       // both directions. The post-executor `unify` pass collapses
@@ -4301,7 +4302,8 @@ const TOOLS = {
       WHOLE_WORD_PARAM,
     ],
     kind: params => (params.replace ? 'transform' : 'filter'),
-    inputHighlights: true, outputHighlights: true, glyph: '→',
+    inputHighlights: true, outputHighlights: true,
+    glyph: params => (params.replace ? '→' : null),
     // An empty query is a no-op: the row is transparent — no filtering, no
     // lens — so an empty permanent search bar costs nothing.
     isInert: params => !((params && params.pattern || '').trim()),
@@ -4353,7 +4355,8 @@ const TOOLS = {
     // Blank replacement reads as filter mode, not "delete the match" — a blank
     // field is indistinguishable from one that was never touched.
     kind: params => (params.replace ? 'transform' : 'filter'),
-    inputHighlights: true, outputHighlights: true, glyph: '→',
+    inputHighlights: true, outputHighlights: true,
+    glyph: params => (params.replace ? '→' : null),
     // A half-typed, invalid pattern is inert like an empty one, so the view
     // neither blanks nor churns mid-keystroke.
     isInert(params) {
@@ -4400,7 +4403,8 @@ const TOOLS = {
     desc: 'Remove the first N letters',
     example: 'SLING → LING',
     params: [{ label: 'Count', default: '1', type: 'number' }],
-    kind: 'transform', inputHighlights: true, outputHighlights: false, glyph: '→',
+    kind: 'transform', inputHighlights: true, outputHighlights: false,
+    glyph: () => '→',
     run(entry, params, wordlist) {
       const count = Math.max(1, parseInt(params.count, 10) || 1);
       if (entry.length <= count) return [];
@@ -4414,7 +4418,8 @@ const TOOLS = {
     desc: 'Remove the last N letters',
     example: 'PARTY → PART',
     params: [{ label: 'Count', default: '1', type: 'number' }],
-    kind: 'transform', inputHighlights: true, outputHighlights: false, glyph: '→',
+    kind: 'transform', inputHighlights: true, outputHighlights: false,
+    glyph: () => '→',
     run(entry, params, wordlist) {
       const count = Math.max(1, parseInt(params.count, 10) || 1);
       if (entry.length <= count) return [];
@@ -4510,6 +4515,9 @@ function makeToolRow(tool, params = {}, grouped = false) {
     isInert() {
       if (row.grouped) return false;
       return def.isInert ? def.isInert(row.params) : false;
+    },
+    glyph() {
+      return def.glyph ? def.glyph(row.params) : null;
     },
   };
   return row;
@@ -4690,6 +4698,7 @@ async function executePipeline(mergedWordlist, stack, signal) {
 async function runToolStage(rows, stackRow, prepared, mergedWordlist, y) {
   const { def } = stackRow;
   const kind = stackRow.kind();
+  const glyph = stackRow.glyph();
   const next = [];
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i];
@@ -4703,7 +4712,7 @@ async function runToolStage(rows, stackRow, prepared, mergedWordlist, y) {
         // highlight slot. A plain filter just keeps the row.
         if (def.inputHighlights) {
           next.push({ atoms: [...row.atoms,
-            { wlEntry: tail.wlEntry, highlights: Array.isArray(result) ? result : [], glyph: null }] });
+            { wlEntry: tail.wlEntry, highlights: Array.isArray(result) ? result : [], glyph }] });
         } else {
           next.push(row);
         }
@@ -4713,9 +4722,6 @@ async function runToolStage(rows, stackRow, prepared, mergedWordlist, y) {
         // Atoms are immutable once created, so branches share the existing
         // atoms and only append their own.
         const atoms = row.atoms.slice();
-        // A transform that marks its input appends a same-word input-mark
-        // atom before the output atom; `unify` folds it into the input
-        // unless the input is itself a highlight slot.
         if (def.inputHighlights) {
           atoms.push({ wlEntry: tail.wlEntry, highlights: out.inputHighlights || [], glyph: null });
         }
@@ -4730,7 +4736,7 @@ async function runToolStage(rows, stackRow, prepared, mergedWordlist, y) {
           // A non-`outputHighlights` transform's output is not a highlight
           // slot — `null`, not `[]` — so `unify` may fold it like any atom.
           highlights: def.outputHighlights ? (out.outputHighlights || []) : null,
-          glyph: def.glyph,
+          glyph,
         });
         next.push({ atoms });
       }
@@ -4765,6 +4771,7 @@ async function bucketize(rows, spec, ctx) {
 // of their own when it does — two tools' highlights never share a line.
 function appendGroupLine(group, stackRow, prepared, wordlist) {
   const { def } = stackRow;
+  const glyph = stackRow.glyph();
   const tail = group.lines[group.lines.length - 1];
   if (stackRow.kind() === 'filter') {
     const cells = [];
@@ -4776,7 +4783,7 @@ function appendGroupLine(group, stackRow, prepared, wordlist) {
         highlights: def.inputHighlights ? (Array.isArray(result) ? result : []) : null,
       });
     }
-    group.lines.push({ cells, slot: !!def.inputHighlights, glyph: def.glyph });
+    group.lines.push({ cells, slot: !!def.inputHighlights, glyph });
     return;
   }
   const outMap = new Map();        // output entry → cell (deduped)
@@ -4807,7 +4814,7 @@ function appendGroupLine(group, stackRow, prepared, wordlist) {
     if (tail.slot) group.lines.push({ cells: markCells, slot: true });
     else { tail.cells = markCells; tail.slot = true; }
   }
-  group.lines.push({ cells: [...outMap.values()], slot: !!def.outputHighlights, glyph: def.glyph });
+  group.lines.push({ cells: [...outMap.values()], slot: !!def.outputHighlights, glyph });
 }
 
 // How many lines a group row carries — read by the scroller for its stride,
@@ -9616,7 +9623,11 @@ window.__grawlixTest = {
     return [...document.querySelectorAll('#vs-host .group-row')].map(row => ({
       lines: [...row.querySelectorAll('.group-line')].map(line => ({
         count: parseInt(line.querySelector('.group-count')?.textContent || '', 10),
-        words: [...line.querySelectorAll('.group-cell .atom-entry')].map(e => e.textContent),
+        words: [...line.querySelectorAll('.group-cell .atom-entry')].map(e => {
+          const glyph = e.querySelector('.atom-glyph');
+          const full = e.textContent || '';
+          return glyph ? full.slice(glyph.textContent.length) : full;
+        }),
       })),
     }));
   },

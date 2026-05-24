@@ -664,6 +664,32 @@ test('a transform chained after the grouped tool adds a line of its output set',
   await expect(clusterLine.locator('.hl-removed')).toHaveCount(2);
 });
 
+test('chained tool prefixes its group line with the tool glyph (transform → arrow, filter bare)', async ({ page }) => {
+  await gotoApp(page);
+  await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
+    name: 'GlyphTest',
+    entries: ['SPOT', 'TOPS', 'OPTS', 'POT', 'OPS', 'TOP'],
+    scores: [50, 40, 30, 20, 20, 20],
+  }));
+
+  await page.evaluate(() => window.__grawlixTest.setStack([
+    { tool: 'letter_bank', grouped: true },
+    { tool: 'behead', params: {} },
+  ]));
+  const transformRow = page.locator('.group-row', { hasText: 'opts' });
+  await expect(transformRow.locator('.group-line').nth(0).locator('.atom-glyph')).toHaveCount(0);
+  const transformOut = transformRow.locator('.group-line').nth(1).locator('.group-cell').first();
+  await expect(transformOut.locator('.atom-glyph')).toHaveText('→');
+
+  await page.evaluate(() => window.__grawlixTest.setStack([
+    { tool: 'letter_bank', grouped: true },
+    { tool: 'search', params: { pattern: 'pt' } },
+  ]));
+  const filterRow = page.locator('.group-row', { hasText: 'opts' });
+  await expect(filterRow.locator('.group-line').nth(0).locator('.atom-glyph')).toHaveCount(0);
+  await expect(filterRow.locator('.group-line').nth(1).locator('.atom-glyph')).toHaveCount(0);
+});
+
 test('group rows sort by Count and the axis round-trips through the URL', async ({ page }) => {
   await gotoApp(page);
   await addLetterSetFixture(page);
