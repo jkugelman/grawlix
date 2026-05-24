@@ -613,15 +613,15 @@ test('score range trims junk before the grouped tool clusters', async ({ page })
   await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'letter_bank', grouped: true }]));
 
   let groups = await page.evaluate(() => window.__grawlixTest.getVisibleGroups());
-  expect(groups[0].lines[0].words.slice().sort()).toEqual(['oopt', 'opt', 'pot', 'top']);
+  expect(groups[0].chains.map(c => c[0]).sort()).toEqual(['oopt', 'opt', 'pot', 'top']);
 
   await page.locator('#score-range-input').fill('1+');
   groups = await page.evaluate(() => window.__grawlixTest.getVisibleGroups());
   expect(groups.length).toBe(1);
-  expect(groups[0].lines[0].words.slice().sort()).toEqual(['opt', 'pot', 'top']);
+  expect(groups[0].chains.map(c => c[0]).sort()).toEqual(['opt', 'pot', 'top']);
 });
 
-test('search chained after the grouped tool adds a filtered subset line', async ({ page }) => {
+test('search chained after the grouped tool keeps only matching chains, highlighted', async ({ page }) => {
   await gotoApp(page);
   await addLetterSetFixture(page);
   await page.evaluate(() => window.__grawlixTest.setStack([
@@ -631,17 +631,15 @@ test('search chained after the grouped tool adds a filtered subset line', async 
 
   const groups = await page.evaluate(() => window.__grawlixTest.getVisibleGroups());
   expect(groups.length).toBe(1);
-  expect(groups[0].lines.length).toBe(2);
-  expect(groups[0].lines[0].words.slice().sort()).toEqual(['opt', 'pot', 'top']);
-  expect(groups[0].lines[1].words).toEqual(['opt']);
+  expect(groups[0].count).toBe(1);
+  expect(groups[0].chains).toEqual([['opt']]);
 
   const lit = await page.evaluate(() =>
-    [...document.querySelectorAll('#vs-host .group-line')][1]
-      ?.querySelector('.group-cell mark') !== null);
+    document.querySelector('#vs-host .group-chain .atom-entry mark') !== null);
   expect(lit).toBe(true);
 });
 
-test('a transform chained after the grouped tool adds a line of its output set', async ({ page }) => {
+test('a transform chained after the grouped tool emits a pair atom per surviving chain', async ({ page }) => {
   await gotoApp(page);
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
     name: 'BeheadTest',
@@ -654,20 +652,17 @@ test('a transform chained after the grouped tool adds a line of its output set',
   ]));
 
   const groups = await page.evaluate(() => window.__grawlixTest.getVisibleGroups());
-  const fourLetter = groups.find(g => g.lines[0].count === 3);
-  expect(fourLetter).toBeTruthy();
-  expect(fourLetter.lines.length).toBe(2);
-  expect(fourLetter.lines[0].words.slice().sort()).toEqual(['opts', 'spot', 'tops']);
-  expect(fourLetter.lines[1].pairs.slice().sort((a, b) => a.input.localeCompare(b.input)))
-    .toEqual([{ input: 'spot', output: 'pot' }, { input: 'tops', output: 'ops' }]);
+  const opst = groups.find(g => g.chains.some(c => c[0] === 'spot'));
+  expect(opst).toBeTruthy();
+  expect(opst.count).toBe(2);
+  const sorted = opst.chains.slice().sort((a, b) => a[0].localeCompare(b[0]));
+  expect(sorted).toEqual([['spot', 'pot'], ['tops', 'ops']]);
 
-  const clusterLine = page.locator('.group-row', { hasText: 'opts' }).locator('.group-line').first();
-  await expect(clusterLine.locator('.hl-removed')).toHaveCount(0);
-  const pairLine = page.locator('.group-row', { hasText: 'opts' }).locator('.group-line').nth(1);
-  await expect(pairLine.locator('.atom-entry[data-side="input"] .hl-removed')).toHaveCount(2);
+  const row = page.locator('.group-row', { hasText: 'spot' });
+  await expect(row.locator('.hl-removed')).toHaveCount(2);
 });
 
-test('chained tool prefixes its group line with the tool glyph (transform → arrow, filter bare)', async ({ page }) => {
+test('a transform chain prefixes the new-word atom with its relation glyph; a filter chain is bare', async ({ page }) => {
   await gotoApp(page);
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
     name: 'GlyphTest',
@@ -679,18 +674,16 @@ test('chained tool prefixes its group line with the tool glyph (transform → ar
     { tool: 'letter_bank', grouped: true },
     { tool: 'behead', params: {} },
   ]));
-  const transformRow = page.locator('.group-row', { hasText: 'opts' });
-  await expect(transformRow.locator('.group-line').nth(0).locator('.atom-glyph')).toHaveCount(0);
-  const transformOut = transformRow.locator('.group-line').nth(1).locator('.group-cell').first();
-  await expect(transformOut.locator('.atom-glyph')).toHaveText('→');
+  const transformChain = page.locator('.group-row', { hasText: 'spot' }).locator('.group-chain').first();
+  await expect(transformChain.locator('.atom').nth(0).locator('.atom-glyph')).toHaveCount(0);
+  await expect(transformChain.locator('.atom').nth(1).locator('.atom-glyph')).toHaveText('→ ');
 
   await page.evaluate(() => window.__grawlixTest.setStack([
     { tool: 'letter_bank', grouped: true },
     { tool: 'search', params: { pattern: 'pt' } },
   ]));
-  const filterRow = page.locator('.group-row', { hasText: 'opts' });
-  await expect(filterRow.locator('.group-line').nth(0).locator('.atom-glyph')).toHaveCount(0);
-  await expect(filterRow.locator('.group-line').nth(1).locator('.atom-glyph')).toHaveCount(0);
+  const filterRow = page.locator('.group-row', { hasText: 'opt' });
+  await expect(filterRow.locator('.atom-glyph')).toHaveCount(0);
 });
 
 test('group rows sort by Count and the axis round-trips through the URL', async ({ page }) => {
@@ -703,7 +696,7 @@ test('group rows sort by Count and the axis round-trips through the URL', async 
   });
 
   const groups = await page.evaluate(() => window.__grawlixTest.getVisibleGroups());
-  expect(groups.map(g => g.lines[0].count)).toEqual([3, 2]);
+  expect(groups.map(g => g.count)).toEqual([3, 2]);
 
   await page.evaluate(() => Router.navigate());
   expect(page.url()).toContain('sort=count');
@@ -734,7 +727,7 @@ test('a group member is individually editable through the atom popover', async (
   await addLetterSetFixture(page);
   await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'letter_bank', grouped: true }]));
 
-  await page.locator('.group-row .group-cell', { hasText: 'opt' }).locator('.atom-score').click();
+  await page.locator('.group-row .group-chain .atom', { hasText: 'opt' }).first().locator('.atom-score').click();
   await expect(page.locator('#atom-popover')).toBeVisible();
   await expect(page.locator('#atom-pop-score')).toHaveValue('50');
 
@@ -768,7 +761,7 @@ test('grouped tool exposes its tool-defined sort axis', async ({ page }) => {
 
   await axis.selectOption('letters');
   const groups = await page.evaluate(() => window.__grawlixTest.getVisibleGroups());
-  expect(groups.map(g => g.lines[0].words.slice().sort())).toEqual([
+  expect(groups.map(g => g.chains.map(c => c[0]).sort())).toEqual([
     ['opt', 'pot', 'top'],
     ['act', 'cat'],
   ]);
@@ -785,7 +778,7 @@ test('grouped column sort tiebreaks by count desc before min score', async ({ pa
   await page.locator('#search-bar-sort .sort-axis-select').selectOption('letters');
 
   const groups = await page.evaluate(() => window.__grawlixTest.getVisibleGroups());
-  expect(groups.map(g => g.lines[0].words.slice().sort())).toEqual([
+  expect(groups.map(g => g.chains.map(c => c[0]).sort())).toEqual([
     ['opt', 'pot', 'top'],
     ['act', 'cat'],
   ]);

@@ -67,6 +67,6 @@ test('grouped: clusters entries by vowel sequence', async ({ page }) => {
   await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'vowelcy', grouped: true }]));
 
   const groups = await page.evaluate(() => window.__grawlixTest.getVisibleGroups());
-  const clusters = groups.map(g => g.lines[0].words.slice().sort()).sort();
+  const clusters = groups.map(g => g.chains.map(c => c[0]).sort()).sort();
   expect(clusters).toEqual([['bar', 'cat'], ['hole', 'node', 'poem']]);
 });

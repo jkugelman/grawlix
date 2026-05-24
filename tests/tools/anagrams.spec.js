@@ -68,7 +68,7 @@ test('grouped: clusters merged entries that share a letter multiset', async ({ p
 
   const groups = await page.evaluate(() => window.__grawlixTest.getVisibleGroups());
   expect(groups.length).toBe(1);
-  expect(groups[0].lines[0].words.slice().sort()).toEqual(['elvis', 'evils', 'levis', 'lives']);
+  expect(groups[0].chains.map(c => c[0]).sort()).toEqual(['elvis', 'evils', 'levis', 'lives']);
 });
 
 test('grouped: TOPS and POTS share a multiset but not OPT (different length)', async ({ page }) => {
@@ -81,6 +81,6 @@ test('grouped: TOPS and POTS share a multiset but not OPT (different length)', a
   await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'anagrams', grouped: true }]));
 
   const groups = await page.evaluate(() => window.__grawlixTest.getVisibleGroups());
-  const clusters = groups.map(g => g.lines[0].words.slice().sort()).sort();
+  const clusters = groups.map(g => g.chains.map(c => c[0]).sort()).sort();
   expect(clusters).toEqual([['opt', 'pot', 'top'], ['pots', 'tops']]);
 });

@@ -369,22 +369,18 @@ html.dark-mode .search-match-4 { background: #14532d; color: #d1fae5; }
   .entry-row .atom-source, .entry-headers .col-source { display: block; }
 }
 
-/* A group row stacks word-set lines. Each line scrolls horizontally within
-   itself and never wraps, so the scroller's fixed per-row stride holds. */
+.group-row, .group-headers {
+  display: flex; align-items: flex-start;
+  gap: 14px;
+  padding: 0 16px;
+  white-space: nowrap;
+}
 .group-row {
   position: absolute; left: 0; right: 0;
   box-shadow: inset 0 -1px 0 var(--border3);
 }
 .group-row:hover { background: var(--row-hover); }
 .group-row.active { background: color-mix(in srgb, var(--accent) 12%, transparent); }
-.group-line, .group-headers {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  padding: 0 16px;
-  white-space: nowrap;
-}
-.group-line { height: var(--row-height, 24px); position: relative; }
 .group-headers {
   padding-top: 5px; padding-bottom: 5px;
   color: var(--muted);
@@ -395,20 +391,35 @@ html.dark-mode .search-match-4 { background: #14532d; color: #d1fae5; }
   flex: none;
   text-align: right;
   font-family: var(--font-sans); font-size: 12px;
+  height: var(--row-height, 24px);
+  line-height: var(--row-height, 24px);
 }
 .group-rownum { min-width: var(--group-rownum-w, 2ch); color: var(--faint); }
 .group-count  { min-width: var(--group-count-w, 2ch); }
-.group-entries {
-  display: flex; align-items: center; gap: 18px;
-  min-width: 0; flex: 1;
-  overflow: hidden;
+.group-chains {
+  flex: 1; display: flex; gap: 18px;
+  min-width: 0; overflow: hidden;
+  position: relative;
 }
-.group-line.is-clipped .group-entries {
+.group-chains.is-clipped {
   -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 80px), transparent calc(100% - 60px));
           mask-image: linear-gradient(to right, #000 calc(100% - 80px), transparent calc(100% - 60px));
 }
+.group-chain {
+  flex: none;
+  display: grid;
+  grid-template-columns: max-content max-content;
+  grid-auto-rows: var(--row-height, 24px);
+  column-gap: 5px;
+  align-items: center;
+}
+.group-chain .atom { display: contents; }
+.group-chain .atom-entry { cursor: pointer; }
+.group-chain .atom-score { cursor: pointer; }
+.group-chain .atom-noedit { cursor: default; }
 .group-more {
-  position: absolute; right: 12px; top: 50%; transform: translateY(-50%);
+  position: absolute; right: 12px; top: 0;
+  height: var(--row-height, 24px);
   border: none; cursor: pointer;
   background: var(--surface2); color: var(--muted);
   font-family: var(--font-sans); font-size: 11px;
@@ -418,17 +429,13 @@ html.dark-mode .search-match-4 { background: #14532d; color: #d1fae5; }
 .group-more[hidden] { display: none; }
 .group-popover {
   position: fixed; z-index: 600;
-  display: flex; flex-wrap: wrap; gap: 7px 18px;
+  display: flex; flex-wrap: wrap; align-items: flex-start; gap: 7px 18px;
   max-width: 340px; max-height: 280px; overflow-y: auto;
   padding: 10px 13px;
   background: var(--surface); border: 1px solid var(--border2);
   border-radius: 8px; box-shadow: 0 8px 28px rgba(0, 0, 0, 0.28);
 }
 .group-popover-sentinel { flex-basis: 100%; height: 1px; }
-.group-cell { display: inline-flex; align-items: baseline; gap: 5px; }
-.group-cell .atom-entry { cursor: pointer; }
-.group-cell .atom-score { cursor: pointer; }
-.group-cell .atom-noedit { cursor: default; }
 .entries-empty { padding: 36px 22px; color: var(--muted); font-size: 14px; text-align: center; }
 .entries-empty-msg { font-style: italic; margin-bottom: 10px; }
 .entries-empty-term { font-weight: 600; color: var(--text); font-style: normal; }
@@ -4662,16 +4669,13 @@ async function executePipeline(mergedWordlist, stack, signal) {
     const params = normalizeParams(stackRow.params, def.params);
 
     if (grouped) {
-      // A group is a stack of word-set lines; a chained tool maps the tail
-      // line to the next one (appendGroupLine), per group.
       let prepared = params;
       if (def.prepare) {
-        const flat = rows.flatMap(g =>
-          g.lines[g.lines.length - 1].cells.map(c => ({ atoms: [{ wlEntry: c.wlEntry }] })));
-        prepared = await def.prepare(params, makeCtx(mergedWordlist, flat, signal, y));
+        const allChains = rows.flatMap(g => g.chains);
+        prepared = await def.prepare(params, makeCtx(mergedWordlist, allChains, signal, y));
       }
       for (const g of rows) {
-        await appendGroupLine(g, stackRow, prepared, mergedWordlist, y);
+        g.chains = await runToolStage(g.chains, stackRow, prepared, mergedWordlist, y);
         if (y.due()) await y.yield();
       }
     } else {
@@ -4682,19 +4686,22 @@ async function executePipeline(mergedWordlist, stack, signal) {
     }
   }
 
+  const multiAtom = chainProducesMultiAtom(stack);
   if (grouped) {
-    const filtered = rows.filter(g => g.lines[g.lines.length - 1].cells.length > 0);
-    for (const g of filtered) {
+    const result = [];
+    for (const g of rows) {
+      if (g.chains.length === 0) { if (y.due()) await y.yield(); continue; }
+      if (multiAtom) g.chains = await unify(g.chains, y);
       cacheGroupStats(g);
+      result.push(g);
       if (y.due()) await y.yield();
     }
     return {
-      rows: filtered,
-      atomCount: currentGroupLineCount(stack),
+      rows: result,
+      atomCount: currentAtomCount(stack),
       grouped: true,
     };
   }
-  const multiAtom = chainProducesMultiAtom(stack);
   return {
     rows: multiAtom ? await unify(rows, y) : rows,
     atomCount: currentAtomCount(stack),
@@ -4767,115 +4774,24 @@ async function bucketize(rows, spec, ctx) {
   for (const [key, words] of buckets) {
     if (words.length < 2) continue;
     words.sort((a, b) => b.score - a.score || a.entry.localeCompare(b.entry));
-    const cells = words.map(w => ({ wlEntry: w, highlights: null }));
-    groups.push({ key, lines: [{ cells }] });
+    const chains = words.map(w => ({ atoms: [{ wlEntry: w, highlights: null, glyph: null }] }));
+    groups.push({ key, chains });
   }
   return groups;
 }
 
-const cellTailAtom = c => c.input ? c.output : c;
-function* cellAtoms(c) {
-  if (c.input) { yield c.input; yield c.output; }
-  else yield c;
-}
-
-async function appendGroupLine(group, stackRow, prepared, wordlist, y) {
-  const { def } = stackRow;
-  const tail = group.lines[group.lines.length - 1];
-  if (stackRow.kind() === 'filter') {
-    const cells = [];
-    const seen = new Set();
-    for (const cell of tail.cells) {
-      const atom = cellTailAtom(cell);
-      if (seen.has(atom.wlEntry.entry)) continue;
-      seen.add(atom.wlEntry.entry);
-      const result = def.run(atom.wlEntry.entry, prepared, wordlist);
-      if (result) {
-        cells.push({
-          wlEntry: atom.wlEntry,
-          highlights: def.inputHighlights ? (Array.isArray(result) ? result : []) : null,
-        });
-      }
-      if (y.due()) await y.yield();
-    }
-    group.lines.push({ cells });
-    return;
-  }
-  const glyph = stackRow.glyph();
-  const pairs = [];
-  const seenInputs = new Set();
-  for (const cell of tail.cells) {
-    const inAtom = cellTailAtom(cell);
-    if (seenInputs.has(inAtom.wlEntry.entry)) continue;
-    seenInputs.add(inAtom.wlEntry.entry);
-    const result = def.run(inAtom.wlEntry.entry, prepared, wordlist) || [];
-    const inputHL = def.inputHighlights && result.length ? (result[0].inputHighlights || []) : null;
-    for (const out of result) {
-      const synthetic = Array.isArray(out.entry);
-      const text = synthetic ? out.entry[0] : out.entry;
-      const outWlEntry = synthetic
-        ? { entry: text, score: out.entry[1], comment: '', wordlist: null }
-        : (wordlist.byEntry.get(text) || { entry: text, score: 0, comment: '', wordlist: null });
-      pairs.push({
-        input: { wlEntry: inAtom.wlEntry, highlights: def.inputHighlights ? inputHL : null },
-        output: { wlEntry: outWlEntry, highlights: def.outputHighlights ? (out.outputHighlights || []) : null },
-        glyph,
-      });
-    }
-    if (y.due()) await y.yield();
-  }
-  group.lines.push({ cells: unifyGroupPairs(pairs) });
-}
-
-function unifyGroupPairs(pairs) {
-  const seen = new Map();
-  const out = [];
-  for (const pair of pairs) {
-    const ie = pair.input.wlEntry.entry;
-    const oe = pair.output.wlEntry.entry;
-    if (ie !== oe) {
-      const fwd = ie + '\0' + oe;
-      const rev = oe + '\0' + ie;
-      const mirror = seen.get(rev);
-      if (mirror) {
-        const mp = mirror.pair;
-        if (mp.input.wlEntry.score === pair.output.wlEntry.score
-            && mp.output.wlEntry.score === pair.input.wlEntry.score) {
-          const survivor = fwd < rev ? pair : mp;
-          out[mirror.index] = { ...survivor, glyph: '↔' };
-          continue;
-        }
-      }
-      seen.set(fwd, { pair, index: out.length });
-    }
-    out.push(pair);
-  }
-  return out;
-}
-
 function cacheGroupStats(g) {
   let min = Infinity, max = -Infinity;
-  for (const line of g.lines) {
-    for (const cell of line.cells) {
-      for (const atom of cellAtoms(cell)) {
-        const s = atom.wlEntry.score;
-        if (s < min) min = s;
-        if (s > max) max = s;
-      }
+  for (const chain of g.chains) {
+    for (const atom of chain.atoms) {
+      const s = atom.wlEntry.score;
+      if (s < min) min = s;
+      if (s > max) max = s;
     }
   }
   g._minScore = min;
   g._maxScore = max;
-  g._count = g.lines[0].cells.length;
-}
-
-function currentGroupLineCount(stack) {
-  let lines = 1;
-  for (const row of stack) {
-    if (row.kind() === 'group' || row.isInert()) continue;
-    lines++;
-  }
-  return lines;
+  g._count = g.chains.length;
 }
 
 // Post-executor unification — two collapses that turn the executor's
@@ -4967,12 +4883,8 @@ function flattenAtoms(rows) {
     }
   };
   for (const row of rows) {
-    if (row.lines) {
-      for (const line of row.lines) {
-        for (const cell of line.cells) {
-          for (const atom of cellAtoms(cell)) out.push(atom.wlEntry);
-        }
-      }
+    if (row.chains) {
+      for (const chain of row.chains) pushChain(chain);
     } else pushChain(row);
   }
   return out;
@@ -4980,10 +4892,8 @@ function flattenAtoms(rows) {
 
 function* rowSetAtoms(rows) {
   for (const row of rows) {
-    if (row.lines) {
-      for (const line of row.lines) {
-        for (const cell of line.cells) yield* cellAtoms(cell);
-      }
+    if (row.chains) {
+      for (const chain of row.chains) yield* chain.atoms;
     } else yield* row.atoms;
   }
 }
@@ -5452,7 +5362,7 @@ const rowChainTail  = r => r.atoms.slice(1).map(a => a.wlEntry.entry).join('\u00
 const groupMinScore     = g => g._minScore;
 const groupMaxScore     = g => g._maxScore;
 const groupCount        = g => g._count;
-const groupCellsEntries = g => g.lines[0].cells.map(c => c.wlEntry.entry);
+const groupChainEntries = g => g.chains.map(c => c.atoms[0].wlEntry.entry);
 const WORKSHOP_SORT_AXES = {
   single: {
     entry: {
@@ -5521,9 +5431,7 @@ const WORKSHOP_SORT_AXES = {
   group: {
     entry: {
       label: 'Entry',
-      // The cluster cells as displayed — _sortGroupCells alphabetizes them
-      // for this axis, so rows order by the whole word list, not g.key.
-      primary: g => g.lines[0].cells.map(c => c.wlEntry.entry),
+      primary: groupChainEntries,
       tiebreakers: [{ project: groupCount, dir: 'desc' }],
     },
     count: {
@@ -5578,7 +5486,7 @@ function buildColumnAxis(primaryCol, allColumns) {
     { project: groupCount,        dir: 'desc' },
     { project: groupMinScore,     dir: 'desc' },
     { project: groupMaxScore,     dir: 'desc' },
-    { project: groupCellsEntries, dir: 'asc'  },
+    { project: groupChainEntries, dir: 'asc'  },
   ];
   return {
     label: primaryCol.label,
@@ -5763,34 +5671,37 @@ class BaseVirtualScroller {
   _render() { throw new Error('subclass must implement _render'); }
 }
 
-function estimateGroupCellWidth(cell, ctx) {
-  const atomW = atom => atom.wlEntry.entry.length * ctx.monoCh + 5
-    + badgeWidthPx(String(atom.wlEntry.score).length);
-  if (cell.input) return atomW(cell.input) + 5 + ctx.glyphPx + 5 + atomW(cell.output);
-  return atomW(cell);
-}
-
-function renderAtomSpansHTML(atom, side) {
-  const { wlEntry, highlights } = atom;
-  const text = renderHighlightedText(displayEntry(wlEntry.entry), highlights);
-  const noedit = wlEntry.wordlist === null ? ' atom-noedit' : '';
-  const sideAttr = side ? ` data-side="${side}"` : '';
-  return `<span class="atom-entry${noedit}"${sideAttr}>${text}</span>` +
-    `<span class="atom-score${noedit}"${sideAttr}>${buildScoreBadgeHTML(wlEntry.score)}</span>`;
-}
-
-function renderGroupCellHTML(cell, li, ci) {
-  const lineAttr = li == null ? '' : ` data-line="${li}"`;
-  if (cell.input) {
-    return `<span class="group-cell"${lineAttr} data-cell="${ci}">` +
-      renderAtomSpansHTML(cell.input, 'input') +
-      `<span class="atom-glyph">${cell.glyph}</span>` +
-      renderAtomSpansHTML(cell.output, 'output') +
-      `</span>`;
+function estimateChainWidth(chain, ctx) {
+  let maxEntryW = 0;
+  let maxScoreW = 0;
+  for (const atom of chain.atoms) {
+    const glyphW = atom.glyph ? ctx.glyphPx : 0;
+    const entryW = atom.wlEntry.entry.length * ctx.monoCh + glyphW;
+    if (entryW > maxEntryW) maxEntryW = entryW;
+    const scoreW = badgeWidthPx(String(atom.wlEntry.score).length);
+    if (scoreW > maxScoreW) maxScoreW = scoreW;
   }
-  return `<span class="group-cell"${lineAttr} data-cell="${ci}">` +
-    renderAtomSpansHTML(cell, null) +
-    `</span>`;
+  return maxEntryW + 5 + maxScoreW;
+}
+
+function buildGroupChainHTML(chain, ci) {
+  const atoms = chain.atoms;
+  const html = [];
+  for (let ai = 0; ai < atoms.length; ai++) {
+    const { wlEntry, highlights, glyph } = atoms[ai];
+    const isRepeat = ai > 0 && wlEntry.entry === atoms[ai - 1].wlEntry.entry;
+    const displayed = displayEntry(wlEntry.entry);
+    const glyphHTML = glyph ? `<span class="atom-glyph">${glyph} </span>` : '';
+    const truncTitle = displayed.length > ENTRY_SLOT_CAP ? ` title="${esc(displayed)}"` : '';
+    const noedit = wlEntry.wordlist === null ? ' atom-noedit' : '';
+    const text = renderHighlightedText(displayed, highlights);
+    const entryCell = `<span class="atom-entry${noedit}"${truncTitle}>${glyphHTML}${text}</span>`;
+    const scoreCell = isRepeat
+      ? `<span class="atom-score"></span>`
+      : `<span class="atom-score${noedit}">${buildScoreBadgeHTML(wlEntry.score)}</span>`;
+    html.push(`<span class="atom" data-atom="${ai}">${entryCell}${scoreCell}</span>`);
+  }
+  return `<div class="group-chain" data-chain="${ci}">${html.join('')}</div>`;
 }
 
 const GroupMorePopover = (() => {
@@ -5800,7 +5711,7 @@ const GroupMorePopover = (() => {
   el.hidden = true;
   document.body.appendChild(el);
   let anchor = null;
-  let cells = null;
+  let chains = null;
   let scroller = null;
   let rendered = 0;
   let sentinel = null;
@@ -5812,12 +5723,12 @@ const GroupMorePopover = (() => {
   el.addEventListener('click', e => {
     const target = e.target.closest('.atom-score, .atom-entry');
     if (!target || target.classList.contains('atom-noedit')) return;
-    const cell = cells?.[parseInt(target.closest('.group-cell').dataset.cell, 10)];
-    if (!cell) return;
-    const atom = cell.input
-      ? (target.dataset.side === 'input' ? cell.input : cell.output)
-      : cell;
-    if (atom.wlEntry.wordlist === null) return;
+    const chainEl = target.closest('.group-chain');
+    const atomEl = target.closest('.atom');
+    if (!chainEl || !atomEl) return;
+    const atom = chains?.[parseInt(chainEl.dataset.chain, 10)]
+                  ?.atoms[parseInt(atomEl.dataset.atom, 10)];
+    if (!atom || atom.wlEntry.wordlist === null) return;
     const field = target.classList.contains('atom-score') ? 'score' : null;
     AtomPopover.open(atom.wlEntry, el, scroller, target, field);
   });
@@ -5825,7 +5736,7 @@ const GroupMorePopover = (() => {
   function close() {
     if (el.hidden) return;
     el.hidden = true;
-    anchor = cells = scroller = null;
+    anchor = chains = scroller = null;
     rendered = 0;
     if (io) { io.disconnect(); io = null; }
     sentinel = null;
@@ -5843,14 +5754,14 @@ const GroupMorePopover = (() => {
   }
 
   function renderChunk() {
-    const end = Math.min(cells.length, rendered + POPOVER_CHUNK);
+    const end = Math.min(chains.length, rendered + POPOVER_CHUNK);
     const html = [];
     for (let i = rendered; i < end; i++) {
-      html.push(renderGroupCellHTML(cells[i], null, i));
+      html.push(buildGroupChainHTML(chains[i], i));
     }
     sentinel.insertAdjacentHTML('beforebegin', html.join(''));
     rendered = end;
-    if (rendered >= cells.length) {
+    if (rendered >= chains.length) {
       io?.disconnect();
       io = null;
       sentinel.remove();
@@ -5858,10 +5769,10 @@ const GroupMorePopover = (() => {
     }
   }
 
-  function toggle(nextCells, anchorEl, nextScroller) {
+  function toggle(nextChains, anchorEl, nextScroller) {
     if (anchor === anchorEl) { close(); return; }
     close();
-    cells = nextCells;
+    chains = nextChains;
     scroller = nextScroller;
     el.innerHTML = '';
     sentinel = document.createElement('span');
@@ -5928,8 +5839,7 @@ class WorkshopEntriesScroller extends BaseVirtualScroller {
       if (moreBtn) {
         const gr = moreBtn.closest('.group-row');
         const g = this.entries[parseInt(gr.dataset.idx, 10)];
-        const line = g?.lines[parseInt(moreBtn.dataset.line, 10)];
-        if (line) GroupMorePopover.toggle(line.cells, moreBtn, this);
+        if (g) GroupMorePopover.toggle(g.chains, moreBtn, this);
         return;
       }
       const target = e.target.closest('.atom-entry, .atom-score, .atom-comment');
@@ -5937,16 +5847,13 @@ class WorkshopEntriesScroller extends BaseVirtualScroller {
       let row, atom;
       const groupRow = target.closest('.group-row');
       if (groupRow) {
-        const cellEl = target.closest('.group-cell');
-        if (!cellEl) return;
+        const chainEl = target.closest('.group-chain');
+        const atomEl = target.closest('.atom');
+        if (!chainEl || !atomEl) return;
         row = groupRow;
         const g = this.entries[parseInt(groupRow.dataset.idx, 10)];
-        const cell = g?.lines[parseInt(cellEl.dataset.line, 10)]
-                      ?.cells[parseInt(cellEl.dataset.cell, 10)];
-        if (!cell) return;
-        atom = cell.input
-          ? (target.dataset.side === 'input' ? cell.input : cell.output)
-          : cell;
+        atom = g?.chains[parseInt(chainEl.dataset.chain, 10)]
+                ?.atoms[parseInt(atomEl.dataset.atom, 10)];
       } else {
         row = target.closest('.entry-row');
         const atomEl = target.closest('.atom');
@@ -6050,7 +5957,7 @@ class WorkshopEntriesScroller extends BaseVirtualScroller {
     if (!axis) {
       sorted = this.allEntries;
     } else {
-      if (this.sortTier === 'group') this._sortGroupCells();
+      if (this.sortTier === 'group') this._sortGroupChains();
       const dir = this.sortDir;
       sorted = [...this.allEntries].sort((a, b) => compareItems(a, b, axis, dir));
     }
@@ -6061,20 +5968,13 @@ class WorkshopEntriesScroller extends BaseVirtualScroller {
     return sorted;
   }
 
-  // Order the cells within every group line: the Entry axis alphabetizes
-  // them ascending (direction reverses the rows, not the words — else the
-  // Entry row projection, which reads cell order, double-negates), other
-  // axes use score-descending. Runs before the row sort, which projects
-  // off cells.
-  _sortGroupCells() {
-    const tailEntry = c => cellTailAtom(c).wlEntry.entry;
-    const tailScore = c => cellTailAtom(c).wlEntry.score;
-    const byEntry = (a, b) => tailEntry(a).localeCompare(tailEntry(b));
-    const byScore = (a, b) => tailScore(b) - tailScore(a) || byEntry(a, b);
+  _sortGroupChains() {
+    const seedEntry = c => c.atoms[0].wlEntry.entry;
+    const seedScore = c => c.atoms[0].wlEntry.score;
+    const byEntry = (a, b) => seedEntry(a).localeCompare(seedEntry(b));
+    const byScore = (a, b) => seedScore(b) - seedScore(a) || byEntry(a, b);
     const cmp = this.sortKey === 'entry' ? byEntry : byScore;
-    for (const g of this.allEntries) {
-      for (const line of g.lines) line.cells.sort(cmp);
-    }
+    for (const g of this.allEntries) g.chains.sort(cmp);
   }
 
   // Slot widths derived from the longest values across the full result set, then
@@ -6242,11 +6142,8 @@ class WorkshopEntriesScroller extends BaseVirtualScroller {
       row.className = 'group-row entry-row-font';
       row.dataset.idx = i;
       row.style.top = (i * stride) + 'px';
-      row.innerHTML = g.lines.map((line, li) => this._renderGroupLineHTML(line, li, i, g, columns, ctx)).join('');
-      if (activeEntry && g.lines.some(l => l.cells.some(c => {
-        for (const a of cellAtoms(c)) if (a.wlEntry.entry === activeEntry) return true;
-        return false;
-      }))) {
+      row.innerHTML = this._renderGroupRowHTML(g, i, columns, ctx);
+      if (activeEntry && g.chains.some(c => c.atoms.some(a => a.wlEntry.entry === activeEntry))) {
         row.classList.add('active');
         nextActiveRow = row;
       }
@@ -6256,33 +6153,29 @@ class WorkshopEntriesScroller extends BaseVirtualScroller {
     if (nextActiveRow) AtomPopover.rebindRow(nextActiveRow);
   }
 
-  _renderGroupLineHTML(line, li, rowIdx, group, columns, ctx) {
-    const cellsArr = line.cells;
-    const total = cellsArr.length;
+  _renderGroupRowHTML(group, rowIdx, columns, ctx) {
+    const chains = group.chains;
+    const total = chains.length;
     let leftEdge = 0;
     let visibleCount = 0;
     for (let ci = 0; ci < total; ci++) {
       if (visibleCount > 0 && leftEdge >= ctx.slot) break;
-      leftEdge += (ci > 0 ? 18 : 0) + estimateGroupCellWidth(cellsArr[ci], ctx);
+      leftEdge += (ci > 0 ? 18 : 0) + estimateChainWidth(chains[ci], ctx);
       visibleCount = ci + 1;
     }
     const hidden = total - visibleCount;
-
-    const cellHTML = [];
+    const chainsHTML = [];
     for (let ci = 0; ci < visibleCount; ci++) {
-      cellHTML.push(renderGroupCellHTML(cellsArr[ci], li, ci));
+      chainsHTML.push(buildGroupChainHTML(chains[ci], ci));
     }
     const colCells = columns.map(c =>
-      `<span class="group-col" data-col="${esc(c.key)}">${li === 0 ? esc(String(c.value(group))) : ''}</span>`
+      `<span class="group-col" data-col="${esc(c.key)}">${esc(String(c.value(group)))}</span>`
     ).join('');
-    return `<div class="group-line${hidden > 0 ? ' is-clipped' : ''}">` +
-      `<span class="group-rownum">${li === 0 ? (rowIdx + 1) + '.' : ''}</span>` +
+    return `<span class="group-rownum">${rowIdx + 1}.</span>` +
       `<span class="group-count">${total}</span>` +
       colCells +
-      `<span class="group-entries">${cellHTML.join('')}</span>` +
-      `<button type="button" class="group-more" data-line="${li}"` +
-      `${hidden > 0 ? `>+${hidden} more` : ' hidden>'}</button>` +
-      `</div>`;
+      `<div class="group-chains${hidden > 0 ? ' is-clipped' : ''}">${chainsHTML.join('')}</div>` +
+      `<button type="button" class="group-more"${hidden > 0 ? `>+${hidden} more` : ' hidden>'}</button>`;
   }
 
   _renderEmptyState(n, kind) {
@@ -6316,9 +6209,7 @@ class WorkshopEntriesScroller extends BaseVirtualScroller {
   _computeGroupSlotWidths() {
     let maxCount = 0;
     for (const g of this.allEntries) {
-      for (const line of g.lines) {
-        if (line.cells.length > maxCount) maxCount = line.cells.length;
-      }
+      if (g.chains.length > maxCount) maxCount = g.chains.length;
     }
     const target = this.host.closest('#detail-panel') || this.sizer;
     const countW = Math.max(
@@ -9743,26 +9634,17 @@ window.__grawlixTest = {
 
   async getVisibleGroups() {
     await pipelineIdle();
-    const entryText = e => e?.textContent || '';
+    const stripGlyph = el => {
+      if (!el) return '';
+      const glyph = el.querySelector('.atom-glyph');
+      const full = el.textContent || '';
+      return glyph ? full.slice(glyph.textContent.length) : full;
+    };
     return [...document.querySelectorAll('#vs-host .group-row')].map(row => ({
-      lines: [...row.querySelectorAll('.group-line')].map(line => {
-        const count = parseInt(line.querySelector('.group-count')?.textContent || '', 10);
-        const cells = [...line.querySelectorAll('.group-cell')];
-        const isPair = cells.length > 0 && cells[0].querySelector('[data-side="input"]') != null;
-        if (isPair) {
-          return {
-            count,
-            pairs: cells.map(cell => ({
-              input: entryText(cell.querySelector('.atom-entry[data-side="input"]')),
-              output: entryText(cell.querySelector('.atom-entry[data-side="output"]')),
-            })),
-          };
-        }
-        return {
-          count,
-          words: cells.map(cell => entryText(cell.querySelector('.atom-entry'))),
-        };
-      }),
+      count: parseInt(row.querySelector('.group-count')?.textContent || '', 10),
+      chains: [...row.querySelectorAll('.group-chain')].map(chainEl =>
+        [...chainEl.querySelectorAll('.atom .atom-entry')].map(stripGlyph)
+      ),
     }));
   },
 

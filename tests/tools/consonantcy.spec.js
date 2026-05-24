@@ -67,6 +67,6 @@ test('grouped: clusters entries by consonant skeleton', async ({ page }) => {
   await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'consonantcy', grouped: true }]));
 
   const groups = await page.evaluate(() => window.__grawlixTest.getVisibleGroups());
-  const clusters = groups.map(g => g.lines[0].words.slice().sort()).sort();
+  const clusters = groups.map(g => g.chains.map(c => c[0]).sort()).sort();
   expect(clusters).toEqual([['bland', 'blend', 'blond']]);
 });
