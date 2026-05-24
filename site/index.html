@@ -4574,20 +4574,16 @@ function makeWorkingSetView(rows) {
   };
 }
 
-// The executor's seed — one single-atom row per merged entry. Cached on the
-// merged-wordlist cache because nothing downstream mutates these rows or atoms;
-// a structural change to `cache.entries` must null `_initialRows` (see
-// patchCachesForEditsChange) or stale rows render.
-async function buildInitialRows(mergedWordlist, y) {
-  if (mergedWordlist._initialRows) return mergedWordlist._initialRows;
+async function buildInitialChains(mergedWordlist, y) {
+  if (mergedWordlist._initialChains) return mergedWordlist._initialChains;
   const { entries } = mergedWordlist;
-  const rows = new Array(entries.length);
+  const chains = new Array(entries.length);
   for (let i = 0; i < entries.length; i++) {
-    rows[i] = { atoms: [{ wlEntry: entries[i], highlights: null, glyph: null }] };
+    chains[i] = { atoms: [{ wlEntry: entries[i], highlights: null, glyph: null }] };
     if (y.due()) await y.yield();
   }
-  mergedWordlist._initialRows = rows;
-  return rows;
+  mergedWordlist._initialChains = chains;
+  return chains;
 }
 
 // The `prepare` context — see docs/design.md § Pipeline execution.
@@ -4629,62 +4625,46 @@ function makeCtx(mergedWordlist, rows, signal, y) {
 // run at the next yield.
 async function executePipeline(mergedWordlist, stack, signal) {
   const y = makeYielder(signal);
-  let rows = await buildInitialRows(mergedWordlist, y);
+  let groups = [{ key: undefined, chains: await buildInitialChains(mergedWordlist, y) }];
   let grouped = false;
+
   for (const stackRow of stack) {
+    if (stackRow.isInert()) continue;
     const { def } = stackRow;
+    throwIfAborted(signal);
 
     if (stackRow.kind() === 'group') {
-      if (stackRow.isInert()) continue;
-      throwIfAborted(signal);
-      const ctx = makeCtx(mergedWordlist, rows, signal, y);
-      rows = await bucketize(rows, def.group, ctx);
+      const ctx = makeCtx(mergedWordlist, groups[0].chains, signal, y);
+      groups = await bucketize(groups[0].chains, def.group, ctx);
       grouped = true;
       continue;
     }
 
-    if (stackRow.isInert()) continue;
-    throwIfAborted(signal);
     const params = normalizeParams(stackRow.params, def.params);
-
-    if (grouped) {
-      let prepared = params;
-      if (def.prepare) {
-        const allChains = rows.flatMap(g => g.chains);
-        prepared = await def.prepare(params, makeCtx(mergedWordlist, allChains, signal, y));
-      }
-      for (const g of rows) {
-        g.chains = await runToolStage(g.chains, stackRow, prepared, mergedWordlist, y);
-        if (y.due()) await y.yield();
-      }
-    } else {
-      const prepared = def.prepare
-        ? await def.prepare(params, makeCtx(mergedWordlist, rows, signal, y))
-        : params;
-      rows = await runToolStage(rows, stackRow, prepared, mergedWordlist, y);
+    const prepareInput = grouped ? groups.flatMap(g => g.chains) : groups[0].chains;
+    const prepared = def.prepare
+      ? await def.prepare(params, makeCtx(mergedWordlist, prepareInput, signal, y))
+      : params;
+    for (const g of groups) {
+      g.chains = await runToolStage(g.chains, stackRow, prepared, mergedWordlist, y);
+      if (y.due()) await y.yield();
     }
   }
 
   const multiAtom = chainProducesMultiAtom(stack);
-  if (grouped) {
-    const result = [];
-    for (const g of rows) {
-      if (g.chains.length === 0) { if (y.due()) await y.yield(); continue; }
-      if (multiAtom) g.chains = await unify(g.chains, y);
-      cacheGroupStats(g);
-      result.push(g);
-      if (y.due()) await y.yield();
-    }
-    return {
-      rows: result,
-      atomCount: currentAtomCount(stack),
-      grouped: true,
-    };
+  const result = [];
+  for (const g of groups) {
+    if (grouped && g.chains.length === 0) { if (y.due()) await y.yield(); continue; }
+    if (multiAtom) g.chains = await unify(g.chains, y);
+    if (grouped) cacheGroupStats(g);
+    result.push(g);
+    if (y.due()) await y.yield();
   }
+
   return {
-    rows: multiAtom ? await unify(rows, y) : rows,
+    rows: grouped ? result : (result[0]?.chains ?? []),
     atomCount: currentAtomCount(stack),
-    grouped: false,
+    grouped,
   };
 }
 
@@ -4739,23 +4719,23 @@ async function runToolStage(rows, stackRow, prepared, mergedWordlist, y) {
   return next;
 }
 
-async function bucketize(rows, spec, ctx) {
+async function bucketize(chains, spec, ctx) {
   const buckets = new Map();
-  await ctx.forEach(rows, row => {
-    const key = spec.key(rowLastEntry(row).entry);
+  await ctx.forEach(chains, chain => {
+    const key = spec.key(rowLastEntry(chain).entry);
     if (!key) return;
     let bucket = buckets.get(key);
     if (!bucket) buckets.set(key, bucket = []);
-    bucket.push(row);
+    bucket.push(chain);
   });
   const groups = [];
-  for (const [key, chains] of buckets) {
-    if (chains.length < 2) continue;
-    chains.sort((a, b) => {
+  for (const [key, groupChains] of buckets) {
+    if (groupChains.length < 2) continue;
+    groupChains.sort((a, b) => {
       const ae = rowLastEntry(a), be = rowLastEntry(b);
       return be.score - ae.score || ae.entry.localeCompare(be.entry);
     });
-    groups.push({ key, chains });
+    groups.push({ key, chains: groupChains });
   }
   return groups;
 }
@@ -9153,7 +9133,7 @@ function patchCachesForEditsChange(entry, newEditsWlEntry) {
         };
         cache.byEntry.set(entry, merged);
         insertSortedByEntry(cache.entries, merged);
-        cache._initialRows = null;
+        cache._initialChains = null;
         adjustSourceCount(cache, edits, 1);
       }
     }
@@ -9193,7 +9173,7 @@ function patchCachesForEditsChange(entry, newEditsWlEntry) {
           cache.byEntry.delete(entry);
           const idx = cache.entries.indexOf(existing);
           if (idx !== -1) cache.entries.splice(idx, 1);
-          cache._initialRows = null;
+          cache._initialChains = null;
         } else {
           const nextList = state.sources[nextIdx];
           const nextEntry = getRescoredMap(nextList).get(entry);

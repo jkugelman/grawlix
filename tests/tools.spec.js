@@ -658,6 +658,27 @@ test('a transform chained after the grouped tool emits a pair atom per surviving
   await expect(row.locator('.hl-removed')).toHaveCount(2);
 });
 
+test('a transform chained before the grouped tool carries its atom forward into each chain', async ({ page }) => {
+  await gotoApp(page);
+  await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
+    name: 'BeforeGroupTest',
+    entries: ['AOPT', 'BPOT', 'CTOP', 'OPT', 'POT', 'TOP'],
+    scores: [50, 50, 50, 50, 50, 50],
+  }));
+  await page.evaluate(() => window.__grawlixTest.setStack([
+    { tool: 'behead', params: {} },
+    { tool: 'letter_bank', grouped: true },
+  ]));
+
+  const groups = await page.evaluate(() => window.__grawlixTest.getVisibleGroups());
+  expect(groups.length).toBe(1);
+  const sorted = groups[0].chains.slice().sort((a, b) => a[0].localeCompare(b[0]));
+  expect(sorted).toEqual([['aopt', 'opt'], ['bpot', 'pot'], ['ctop', 'top']]);
+
+  const row = page.locator('.group-row').first();
+  await expect(row.locator('.hl-removed')).toHaveCount(3);
+});
+
 test('a transform chain prefixes the new-word atom with its relation glyph; a filter chain is bare', async ({ page }) => {
   await gotoApp(page);
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
