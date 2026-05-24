@@ -65,7 +65,7 @@ The entries table below the stats bar shows every entry in the merged `All` view
 A single sticky band above the entries table, carrying every readout about the visible result set and the two controls that shape it. Left to right:
 
 - **Counts.** `Entries N`; with a grouping tool in the stack, `Groups N` rides alongside. The Entries count reflects what made it to the end of the pipeline — chain rows for flat pipelines, surviving member chains across every visible group for grouped pipelines.
-- **Stats numbers and histogram.** `Min · Max · Mean · Median · Mode` of the score-range-filtered output, followed by the histogram. On narrow screens the stats numbers drop progressively — `Mean · Median · Mode` first, then `Min · Max` — but counts, histogram, range, and sort always hold.
+- **Stats numbers and histogram.** `Min · Max` of the score-range-filtered output, followed by the histogram. On narrow screens `Min · Max` drops out, but counts, histogram, range, and sort always hold.
 - **Score range.** A `lo-hi` / `lo+` / `n` text input, or drag-select across the histogram. The histogram itself shows the full pipeline output regardless of range; bars outside the bracket fade in place so you can see what you're trimming as you drag the range narrower. The filter is remembered across visits.
 - **Sort.** "Sort by [Entry ▾] [↑]". Click the arrow to toggle direction. Default is Entry ascending; every other axis defaults to descending.
 

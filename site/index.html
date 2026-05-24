@@ -216,8 +216,7 @@ button.danger:hover:not(:disabled) { background: #e74c3c; border-color: #c0392b;
 .stats-bar-distribution { display: flex; align-items: center; gap: 22px; min-width: 0; }
 .stats-bar-numbers { display: flex; align-items: center; gap: 22px; flex-shrink: 0; }
 .stats-bar-controls { display: flex; align-items: center; gap: 12px; flex-shrink: 0; justify-self: end; }
-.stats-bar.stats-narrow-1 .stat-mid { display: none; }
-.stats-bar.stats-narrow-2 .stat-far { display: none; }
+.stats-bar.stats-narrow .stat-far { display: none; }
 
 .sticky-stack { position: sticky; top: var(--header-h); z-index: 50; background: var(--surface2); }
 #workshop-view .sticky-stack > #tool-stack { position: sticky; top: var(--header-h); z-index: 53; background: var(--surface2); border-bottom: 1px solid var(--border2); }
@@ -1596,7 +1595,7 @@ class PopupHelp {
   }
 }
 
-// `stats` drives the numeric readouts (count/min/max/mean/median/mode); `hist`
+// `stats` drives the numeric readouts (count/min/max); `hist`
 // ({ entries, ignoredCount }) drives the histogram bars. Splitting them lets
 // the score-range filter shrink the numbers without making bars outside the
 // selection vanish — those bars stay sourced from the pre-score-range set.
@@ -1648,9 +1647,6 @@ function buildStatsBarHTML(stats, hist, layout, opts = {}) {
         <div class="stats-bar-numbers">
           ${buildStatItemHTML('Min', fmt(stats.min), null, 'stat-far')}
           ${buildStatItemHTML('Max', fmt(stats.max), null, 'stat-far')}
-          ${buildStatItemHTML('Mean', fmt(stats.mean), 'Average score', 'stat-mid')}
-          ${buildStatItemHTML('Median', fmt(stats.median % 1 === 0 ? stats.median : stats.median.toFixed(1)), '50th percentile', 'stat-mid')}
-          ${buildStatItemHTML('Mode', fmt(stats.mode), 'Most common score', 'stat-mid')}
         </div>
         <div class="histogram" title="Histogram • Click to filter" onpointerdown="onHistogramPointerDown(event)">${ignoredBar}${bars}<div class="histogram-rect" hidden></div></div>
       </div>
@@ -3587,27 +3583,17 @@ function computeStatsRaw(entries, ignoredCount = 0) {
   // Empty state: return an all-zero shape so buildStatsBarHTML can render the
   // bar with dashes and an empty histogram.
   if (!entries.length) {
-    return { count: 0, min: 0, max: 0, mean: 0, median: 0, mode: 0, distinctScores: [], ignoredCount };
+    return { count: 0, min: 0, max: 0, distinctScores: [], ignoredCount };
   }
   let min = Infinity, max = -Infinity;
   const freq = {};
-  const scores = [];
   for (const { score } of entries) {
     if (score < min) min = score;
     if (score > max) max = score;
-    scores.push(score);
     freq[score] = (freq[score] || 0) + 1;
   }
-  scores.sort((a, b) => a - b);
-  const mid = Math.floor(scores.length / 2);
-  const median = scores.length % 2 === 0 ? (scores[mid - 1] + scores[mid]) / 2 : scores[mid];
-  let mode = null, modeCount = 0;
-  for (const [s, c] of Object.entries(freq)) {
-    if (c > modeCount) { modeCount = c; mode = +s; }
-  }
-  const mean = Math.round(scores.reduce((a, b) => a + b, 0) / scores.length);
   const distinctScores = Object.keys(freq).map(Number).sort((a, b) => a - b);
-  return { count: entries.length, min, max, mean, median, mode, distinctScores, ignoredCount };
+  return { count: entries.length, min, max, distinctScores, ignoredCount };
 }
 
 function computeStats(key, entries, ignoredCount = 0) {
@@ -7376,12 +7362,9 @@ function publishLibraryBarHeights() {
 
 function refreshStatsBarOverflow() {
   for (const bar of document.querySelectorAll('.stats-bar')) {
-    bar.classList.remove('stats-narrow-1', 'stats-narrow-2');
+    bar.classList.remove('stats-narrow');
     if (bar.scrollWidth > bar.clientWidth + 1) {
-      bar.classList.add('stats-narrow-1');
-      if (bar.scrollWidth > bar.clientWidth + 1) {
-        bar.classList.add('stats-narrow-2');
-      }
+      bar.classList.add('stats-narrow');
     }
   }
 }
