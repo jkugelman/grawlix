@@ -4682,8 +4682,13 @@ async function executePipeline(mergedWordlist, stack, signal) {
   }
 
   if (grouped) {
+    const filtered = rows.filter(g => g.lines[g.lines.length - 1].cells.length > 0);
+    for (const g of filtered) {
+      cacheGroupStats(g);
+      if (y.due()) await y.yield();
+    }
     return {
-      rows: rows.filter(g => g.lines[g.lines.length - 1].cells.length > 0),
+      rows: filtered,
       atomCount: currentGroupLineCount(stack),
       grouped: true,
     };
@@ -4819,6 +4824,20 @@ async function appendGroupLine(group, stackRow, prepared, wordlist, y) {
     else { tail.cells = markCells; tail.slot = true; }
   }
   group.lines.push({ cells: [...outMap.values()], slot: !!def.outputHighlights, glyph });
+}
+
+function cacheGroupStats(g) {
+  let min = Infinity, max = -Infinity;
+  for (const line of g.lines) {
+    for (const cell of line.cells) {
+      const s = cell.wlEntry.score;
+      if (s < min) min = s;
+      if (s > max) max = s;
+    }
+  }
+  g._minScore = min;
+  g._maxScore = max;
+  g._count = g.lines[0].cells.length;
 }
 
 // How many lines a group row carries — read by the scroller for its stride,
@@ -5403,10 +5422,9 @@ const rowMaxScore   = r => Math.max(...r.atoms.map(a => a.wlEntry.score));
 // Later atoms joined with a low separator: a string compare then orders them
 // atom-by-atom, since every row in a run carries the same atom count.
 const rowChainTail  = r => r.atoms.slice(1).map(a => a.wlEntry.entry).join('\u0000');
-const groupScores       = g => g.lines.flatMap(l => l.cells.map(c => c.wlEntry.score));
-const groupMinScore     = g => Math.min(...groupScores(g));
-const groupMaxScore     = g => Math.max(...groupScores(g));
-const groupCount        = g => g.lines[0].cells.length;
+const groupMinScore     = g => g._minScore;
+const groupMaxScore     = g => g._maxScore;
+const groupCount        = g => g._count;
 const groupCellsEntries = g => g.lines[0].cells.map(c => c.wlEntry.entry);
 const WORKSHOP_SORT_AXES = {
   single: {
