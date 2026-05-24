@@ -2,6 +2,8 @@
 
 Grawlix is a browser-based wordlist manager for crossword constructors. It rescores wordlists from different sources to a common scale, then merges them into a single unified view.
 
+Everything stays in your browser. There's no account, no login, and no server-side storage — your wordlists, edits, and settings live entirely in your browser's local storage on this device.
+
 This is the user-facing manual. Eventually it'll be turned into an in-app manual; for now it's a Markdown file.
 
 ## The app shell
