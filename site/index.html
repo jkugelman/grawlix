@@ -230,9 +230,8 @@ button.danger:hover:not(:disabled) { background: #e74c3c; border-color: #c0392b;
 .histogram { display: flex; gap: 3px; align-items: stretch; height: 36px; position: relative; cursor: pointer; user-select: none; touch-action: none; flex-shrink: 1; min-width: 80px; }
 .histogram-col { width: 7px; display: flex; align-items: flex-end; flex-shrink: 0; }
 .histogram-col-ignored { margin-right: 5px; cursor: default; }
-.histogram-bar { width: 7px; background: var(--score-bg, var(--accent)); border-radius: 2px 2px 0 0; position: relative; z-index: 1; transition: opacity 0.12s ease; }
+.histogram-bar { width: 7px; background: var(--score-bg, var(--accent)); border-radius: 2px 2px 0 0; position: relative; z-index: 1; }
 .histogram-bar.histogram-bar-ignored { background: var(--faint); }
-.histogram-col.histogram-col-cut .histogram-bar { opacity: 0.25; }
 .histogram-rect { position: absolute; top: -2px; bottom: -2px; background: var(--accent); opacity: 0.18; border-radius: 4px; pointer-events: none; z-index: 0; transition: left 0.05s ease, width 0.05s ease; }
 .histogram-rect[hidden] { display: none; }
 html.light-mode .histogram-bar:not(.histogram-bar-ignored) { filter: saturate(1.8) brightness(0.9); }
@@ -1606,7 +1605,6 @@ function buildStatsBarHTML(stats, hist, layout, opts = {}) {
     scoreRange = null,
     sortHTML = '',
     sortSlotId = '',
-    intervals = null,
   } = opts;
   const isEmpty = !countValue;
   const dash = '—';
@@ -1625,8 +1623,7 @@ function buildStatsBarHTML(stats, hist, layout, opts = {}) {
     const c = counts[i];
     const title = `${pluralize(c, 'entry', 'entries')} scored ${s.label} • Click to filter`;
     const { bg } = scoreColor((s.lo + s.hi) / 2);
-    const cut = intervals && !slotIntersectsRange(s.lo, s.hi, intervals) ? ' histogram-col-cut' : '';
-    return `<div class="histogram-col${cut}" title="${title}"><div class="histogram-bar" data-lo="${s.lo}" data-hi="${s.hi}" style="--score-bg:${bg}; height:${barH(c)}px"></div></div>`;
+    return `<div class="histogram-col" title="${title}"><div class="histogram-bar" data-lo="${s.lo}" data-hi="${s.hi}" style="--score-bg:${bg}; height:${barH(c)}px"></div></div>`;
   }).join('');
 
   const countsHTML = groupCount != null
@@ -2881,11 +2878,9 @@ const LibraryView = (() => {
 
   function buildLibraryStatsBarHTML(stats, histEntries, ignoredCount) {
     const range = activeScoreRange();
-    const intervals = range ? parseRange(range) : null;
     return buildStatsBarHTML(stats, { entries: histEntries, ignoredCount }, getHistogramLayout(), {
       scoreRange: { value: range, inputId: 'lib-score-range-input', viewName: 'LibraryView' },
       sortHTML: buildSortControlsHTML(),
-      intervals,
     });
   }
 
@@ -4893,7 +4888,7 @@ function applyScoreRangeToRows(rows, intervals, grouped) {
     const out = [];
     for (const g of rows) {
       const chains = g.chains.filter(chainOk);
-      if (!chains.length) continue;
+      if (chains.length < 2) continue;
       const ng = { ...g, chains };
       cacheGroupStats(ng);
       out.push(ng);
@@ -7318,13 +7313,11 @@ function buildWorkshopStatsBarHTML() {
     : (scroller ? scroller.entries.length : statsEntries.length);
   const stats = computeStatsRaw(statsEntries);
   const range = WorkshopView.scoreRange;
-  const intervals = range ? parseRange(range) : null;
   return buildStatsBarHTML(stats, { entries: histEntries, ignoredCount: 0 }, getHistogramLayout(), {
     countValue: visibleEntries,
     groupCount,
     scoreRange: { value: range, inputId: 'score-range-input', viewName: 'WorkshopView' },
     sortSlotId: 'stats-bar-sort',
-    intervals,
   });
 }
 
