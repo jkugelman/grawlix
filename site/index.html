@@ -4742,18 +4742,19 @@ async function runToolStage(rows, stackRow, prepared, mergedWordlist, y) {
 async function bucketize(rows, spec, ctx) {
   const buckets = new Map();
   await ctx.forEach(rows, row => {
-    const wlEntry = rowLastEntry(row);
-    const key = spec.key(wlEntry.entry);
+    const key = spec.key(rowLastEntry(row).entry);
     if (!key) return;
     let bucket = buckets.get(key);
     if (!bucket) buckets.set(key, bucket = []);
-    bucket.push(wlEntry);
+    bucket.push(row);
   });
   const groups = [];
-  for (const [key, words] of buckets) {
-    if (words.length < 2) continue;
-    words.sort((a, b) => b.score - a.score || a.entry.localeCompare(b.entry));
-    const chains = words.map(w => ({ atoms: [{ wlEntry: w, highlights: null, glyph: null }] }));
+  for (const [key, chains] of buckets) {
+    if (chains.length < 2) continue;
+    chains.sort((a, b) => {
+      const ae = rowLastEntry(a), be = rowLastEntry(b);
+      return be.score - ae.score || ae.entry.localeCompare(be.entry);
+    });
     groups.push({ key, chains });
   }
   return groups;
