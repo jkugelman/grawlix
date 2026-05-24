@@ -1110,7 +1110,7 @@ html.dark-mode .wld-onboarding { background: color-mix(in srgb, var(--accent) 15
         <h2 class="gallery-title">Tools</h2>
         <div class="gallery-search-wrap">
           <svg width="13" height="13" aria-hidden="true"><use href="#icon-search"/></svg>
-          <input id="gallery-search" type="text" placeholder="Search tools…" title="Search tools (Alt+T)" disabled>
+          <input id="gallery-search" type="text" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="Search tools…" title="Search tools (Alt+T)" disabled>
         </div>
       </div>
       <div class="gallery-body"></div>
@@ -1418,7 +1418,7 @@ function buildHelpHTML(rows, opts = {}) {
 // dispatches an `input` event, so the field's own handler reacts as if the
 // user erased the text by hand.
 function buildScoreRangeInputHTML(inputId, value, viewName) {
-  const input = `<input type="text" id="${inputId}" value="${esc(value)}" oninput="${viewName}.onScoreRange(this.value)">`;
+  const input = `<input type="text" id="${inputId}" autocapitalize="off" autocorrect="off" spellcheck="false" value="${esc(value)}" oninput="${viewName}.onScoreRange(this.value)">`;
   return `<label class="score-range-label" title="Score: 50, 50-59, or 50+">Score ${buildClearableInputHTML(input, !!value)}</label>`;
 }
 
@@ -1453,7 +1453,7 @@ document.addEventListener('click', e => {
 
 function buildTextInputHTML(param, value, toolKey, wiring) {
   const helpAttr = param.help ? ` data-help="${toolKey}/${param.key}"` : '';
-  const input = `<input type="text" placeholder="${esc(param.placeholder || '')}" value="${esc(value || '')}"${helpAttr}${wiring}>`;
+  const input = `<input type="text" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="${esc(param.placeholder || '')}" value="${esc(value || '')}"${helpAttr}${wiring}>`;
   return buildClearableInputHTML(input, !!value);
 }
 
@@ -1724,7 +1724,7 @@ function buildRulesListHTML(rules, { rulesId, saveFn, deleteFn, addFn = '', rese
       const inputInvalid = !readOnly && parseRange((r.input || '').trim()) === null;
       const disabled = readOnly ? ' disabled' : '';
       const inputHandlers = readOnly ? '' : ` oninput="onRuleInput(this)" onchange="${saveFn}(${i},'input',this.value)"`;
-      let fieldsHTML = `<input class="rule-in${inputInvalid ? ' invalid' : ''}" value="${esc(r.input)}"
+      let fieldsHTML = `<input class="rule-in${inputInvalid ? ' invalid' : ''}" autocapitalize="off" autocorrect="off" spellcheck="false" value="${esc(r.input)}"
             title="Score range: 50, 50-59, or 50+"${disabled}${inputHandlers}>`;
       if (rescore) {
         const lenVal = (r.length || '').trim();
@@ -1733,10 +1733,10 @@ function buildRulesListHTML(rules, { rulesId, saveFn, deleteFn, addFn = '', rese
         const lenHandlers = readOnly ? '' : ` oninput="onRuleInput(this)" onchange="${saveFn}(${i},'length',this.value)"`;
         const outHandlers = readOnly ? '' : ` oninput="onRuleInput(this)" onchange="${saveFn}(${i},'output',this.value)"`;
         fieldsHTML += `
-          <span class="rule-field-lbl">length</span><input class="rule-len${lenInvalid ? ' invalid' : ''}" value="${esc(r.length||'')}" placeholder="any"
+          <span class="rule-field-lbl">length</span><input class="rule-len${lenInvalid ? ' invalid' : ''}" autocapitalize="off" autocorrect="off" spellcheck="false" value="${esc(r.length||'')}" placeholder="any"
             title="Entry length filter: 7, 7-10, or 7+ (blank = any length)"${disabled}${lenHandlers}>
           <span class="rule-arrow">→</span>
-          <input class="rule-out${outInvalid ? ' invalid' : ''}" value="${esc(r.output)}" placeholder="unchanged"
+          <input class="rule-out${outInvalid ? ' invalid' : ''}" autocapitalize="off" autocorrect="off" spellcheck="false" value="${esc(r.output)}" placeholder="unchanged"
             title="Output score, 'ignore', or blank for unchanged"${disabled}${outHandlers}>`;
       }
       return buildRuleRowHTML(i, fieldsHTML, r.note, deleteFn, readOnly);
@@ -8023,7 +8023,7 @@ const showDownloadDialog = (() => {
       <div class="form-field">
         <label for="download-dialog-filename">Filename</label>
         <div class="filename-combo">
-          <input id="download-dialog-filename" type="text" autofocus>
+          <input id="download-dialog-filename" type="text" autocapitalize="off" autocorrect="off" spellcheck="false" autofocus>
           <select id="download-dialog-ext" aria-label="File extension">
             <option value="txt">.txt</option>
             <option value="dict">.dict</option>
