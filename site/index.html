@@ -6113,6 +6113,11 @@ class WorkshopEntriesScroller extends BaseVirtualScroller {
     const activeEntry = AtomPopover.activeEntry(this);
     let nextActiveRow = null;
     const columns = activeGroupColumns(ToolStack.getStack());
+    const ctx = {
+      monoCh: this._groupMonoCh || measureMonoChPx(),
+      glyphPx: this._groupGlyphPx || 0,
+      slot: Math.max(0, this.host.clientWidth - (this._groupChromeWidth || 0)),
+    };
     const frag = document.createDocumentFragment();
     for (let i = start; i < end; i++) {
       const g = this.entries[i];
@@ -6120,7 +6125,7 @@ class WorkshopEntriesScroller extends BaseVirtualScroller {
       row.className = 'group-row entry-row-font';
       row.dataset.idx = i;
       row.style.top = (i * stride) + 'px';
-      row.innerHTML = g.lines.map((line, li) => this._renderGroupLineHTML(line, li, i, g, columns)).join('');
+      row.innerHTML = g.lines.map((line, li) => this._renderGroupLineHTML(line, li, i, g, columns, ctx)).join('');
       if (activeEntry && g.lines.some(l => l.cells.some(c => c.wlEntry.entry === activeEntry))) {
         row.classList.add('active');
         nextActiveRow = row;
@@ -6128,40 +6133,45 @@ class WorkshopEntriesScroller extends BaseVirtualScroller {
       frag.appendChild(row);
     }
     this.sizer.appendChild(frag);
-    for (const lineEl of this.sizer.querySelectorAll('.group-entries')) {
-      const line = lineEl.closest('.group-line');
-      const limit = lineEl.getBoundingClientRect().right - 80;
-      let hidden = 0;
-      for (const cell of lineEl.children) {
-        if (cell.getBoundingClientRect().left >= limit) hidden++;
-      }
-      line.classList.toggle('is-clipped', hidden > 0);
-      const chip = line.querySelector('.group-more');
-      chip.hidden = hidden === 0;
-      if (hidden > 0) chip.textContent = '+' + hidden + ' more';
-    }
     if (nextActiveRow) AtomPopover.rebindRow(nextActiveRow);
   }
 
-  _renderGroupLineHTML(line, li, rowIdx, group, columns) {
-    const cells = line.cells.map((cell, ci) => {
-      const { wlEntry, highlights } = cell;
+  _renderGroupLineHTML(line, li, rowIdx, group, columns, ctx) {
+    const cellsArr = line.cells;
+    const total = cellsArr.length;
+    let leftEdge = 0;
+    let visibleCount = 0;
+    for (let ci = 0; ci < total; ci++) {
+      if (visibleCount > 0 && leftEdge >= ctx.slot) break;
+      const c = cellsArr[ci];
+      const glyphW = ci === 0 && line.glyph ? ctx.glyphPx : 0;
+      const cellW = c.wlEntry.entry.length * ctx.monoCh + glyphW + 5
+        + badgeWidthPx(String(c.wlEntry.score).length);
+      leftEdge += (ci > 0 ? 18 : 0) + cellW;
+      visibleCount = ci + 1;
+    }
+    const hidden = total - visibleCount;
+
+    const cellHTML = [];
+    for (let ci = 0; ci < visibleCount; ci++) {
+      const { wlEntry, highlights } = cellsArr[ci];
       const text = renderHighlightedText(displayEntry(wlEntry.entry), highlights);
       const noedit = wlEntry.wordlist === null ? ' atom-noedit' : '';
       const glyphHTML = ci === 0 && line.glyph ? `<span class="atom-glyph">${line.glyph} </span>` : '';
-      return `<span class="group-cell" data-line="${li}" data-cell="${ci}">` +
+      cellHTML.push(`<span class="group-cell" data-line="${li}" data-cell="${ci}">` +
         `<span class="atom-entry${noedit}">${glyphHTML}${text}</span>` +
-        `<span class="atom-score${noedit}">${buildScoreBadgeHTML(wlEntry.score)}</span></span>`;
-    }).join('');
+        `<span class="atom-score${noedit}">${buildScoreBadgeHTML(wlEntry.score)}</span></span>`);
+    }
     const colCells = columns.map(c =>
       `<span class="group-col" data-col="${esc(c.key)}">${li === 0 ? esc(String(c.value(group))) : ''}</span>`
     ).join('');
-    return `<div class="group-line">` +
+    return `<div class="group-line${hidden > 0 ? ' is-clipped' : ''}">` +
       `<span class="group-rownum">${li === 0 ? (rowIdx + 1) + '.' : ''}</span>` +
-      `<span class="group-count">${line.cells.length}</span>` +
+      `<span class="group-count">${total}</span>` +
       colCells +
-      `<span class="group-entries">${cells}</span>` +
-      `<button type="button" class="group-more" data-line="${li}" hidden></button>` +
+      `<span class="group-entries">${cellHTML.join('')}</span>` +
+      `<button type="button" class="group-more" data-line="${li}"` +
+      `${hidden > 0 ? `>+${hidden} more` : ' hidden>'}</button>` +
       `</div>`;
   }
 
@@ -6201,23 +6211,27 @@ class WorkshopEntriesScroller extends BaseVirtualScroller {
       }
     }
     const target = this.host.closest('#detail-panel') || this.sizer;
-    target.style.setProperty('--group-count-w', `${Math.max(
+    const countW = Math.max(
       measureTextWidth(String(maxCount), 'entry-headers-font'),
-      headerLabelPx('Count'))}px`);
-    target.style.setProperty('--group-rownum-w',
-      `${measureTextWidth(this.allEntries.length + '.', 'entry-headers-font')}px`);
+      headerLabelPx('Count'));
+    const rownumW = measureTextWidth(this.allEntries.length + '.', 'entry-headers-font');
+    target.style.setProperty('--group-count-w', `${countW}px`);
+    target.style.setProperty('--group-rownum-w', `${rownumW}px`);
     const columns = activeGroupColumns(ToolStack.getStack());
+    let columnsW = 0;
     for (const col of columns) {
       let maxColW = 0;
       for (const g of this.allEntries) {
         const w = measureTextWidth(String(col.value(g)), 'entry-headers-font');
         if (w > maxColW) maxColW = w;
       }
-      target.style.setProperty(
-        `--group-col-${col.key}-w`,
-        `${Math.max(maxColW, headerLabelPx(col.label))}px`,
-      );
+      const colW = Math.max(maxColW, headerLabelPx(col.label));
+      target.style.setProperty(`--group-col-${col.key}-w`, `${colW}px`);
+      columnsW += colW;
     }
+    this._groupChromeWidth = 32 + rownumW + countW + columnsW + 14 * (2 + columns.length);
+    this._groupMonoCh = measureMonoChPx();
+    this._groupGlyphPx = measureAtomGlyphPx();
   }
 }
 
