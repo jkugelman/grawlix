@@ -4768,72 +4768,100 @@ async function bucketize(rows, spec, ctx) {
     if (words.length < 2) continue;
     words.sort((a, b) => b.score - a.score || a.entry.localeCompare(b.entry));
     const cells = words.map(w => ({ wlEntry: w, highlights: null }));
-    groups.push({ key, lines: [{ cells, slot: false }] });
+    groups.push({ key, lines: [{ cells }] });
   }
   return groups;
 }
 
-// Run one tool over a group's tail line, appending the next line(s). Input
-// marks fold into the tail line when it carries no marks yet, or take a line
-// of their own when it does — two tools' highlights never share a line.
+const cellTailAtom = c => c.input ? c.output : c;
+function* cellAtoms(c) {
+  if (c.input) { yield c.input; yield c.output; }
+  else yield c;
+}
+
 async function appendGroupLine(group, stackRow, prepared, wordlist, y) {
   const { def } = stackRow;
-  const glyph = stackRow.glyph();
   const tail = group.lines[group.lines.length - 1];
   if (stackRow.kind() === 'filter') {
     const cells = [];
+    const seen = new Set();
     for (const cell of tail.cells) {
-      const result = def.run(cell.wlEntry.entry, prepared, wordlist);
+      const atom = cellTailAtom(cell);
+      if (seen.has(atom.wlEntry.entry)) continue;
+      seen.add(atom.wlEntry.entry);
+      const result = def.run(atom.wlEntry.entry, prepared, wordlist);
       if (result) {
         cells.push({
-          wlEntry: cell.wlEntry,
+          wlEntry: atom.wlEntry,
           highlights: def.inputHighlights ? (Array.isArray(result) ? result : []) : null,
         });
       }
       if (y.due()) await y.yield();
     }
-    group.lines.push({ cells, slot: !!def.inputHighlights, glyph });
+    group.lines.push({ cells });
     return;
   }
-  const outMap = new Map();        // output entry → cell (deduped)
-  const inputMarks = new Map();    // input entry → its inputHighlights
+  const glyph = stackRow.glyph();
+  const pairs = [];
+  const seenInputs = new Set();
   for (const cell of tail.cells) {
-    const result = def.run(cell.wlEntry.entry, prepared, wordlist) || [];
-    if (def.inputHighlights && result.length) {
-      inputMarks.set(cell.wlEntry.entry, result[0].inputHighlights || []);
-    }
+    const inAtom = cellTailAtom(cell);
+    if (seenInputs.has(inAtom.wlEntry.entry)) continue;
+    seenInputs.add(inAtom.wlEntry.entry);
+    const result = def.run(inAtom.wlEntry.entry, prepared, wordlist) || [];
+    const inputHL = def.inputHighlights && result.length ? (result[0].inputHighlights || []) : null;
     for (const out of result) {
       const synthetic = Array.isArray(out.entry);
       const text = synthetic ? out.entry[0] : out.entry;
-      if (outMap.has(text)) continue;
-      const wlEntry = synthetic
+      const outWlEntry = synthetic
         ? { entry: text, score: out.entry[1], comment: '', wordlist: null }
         : (wordlist.byEntry.get(text) || { entry: text, score: 0, comment: '', wordlist: null });
-      outMap.set(text, {
-        wlEntry,
-        highlights: def.outputHighlights ? (out.outputHighlights || []) : null,
+      pairs.push({
+        input: { wlEntry: inAtom.wlEntry, highlights: def.inputHighlights ? inputHL : null },
+        output: { wlEntry: outWlEntry, highlights: def.outputHighlights ? (out.outputHighlights || []) : null },
+        glyph,
       });
     }
     if (y.due()) await y.yield();
   }
-  if (def.inputHighlights) {
-    const markCells = tail.cells.map(c => ({
-      wlEntry: c.wlEntry,
-      highlights: inputMarks.get(c.wlEntry.entry) || [],
-    }));
-    if (tail.slot) group.lines.push({ cells: markCells, slot: true });
-    else { tail.cells = markCells; tail.slot = true; }
+  group.lines.push({ cells: unifyGroupPairs(pairs) });
+}
+
+function unifyGroupPairs(pairs) {
+  const seen = new Map();
+  const out = [];
+  for (const pair of pairs) {
+    const ie = pair.input.wlEntry.entry;
+    const oe = pair.output.wlEntry.entry;
+    if (ie !== oe) {
+      const fwd = ie + '\0' + oe;
+      const rev = oe + '\0' + ie;
+      const mirror = seen.get(rev);
+      if (mirror) {
+        const mp = mirror.pair;
+        if (mp.input.wlEntry.score === pair.output.wlEntry.score
+            && mp.output.wlEntry.score === pair.input.wlEntry.score) {
+          const survivor = fwd < rev ? pair : mp;
+          out[mirror.index] = { ...survivor, glyph: '↔' };
+          continue;
+        }
+      }
+      seen.set(fwd, { pair, index: out.length });
+    }
+    out.push(pair);
   }
-  group.lines.push({ cells: [...outMap.values()], slot: !!def.outputHighlights, glyph });
+  return out;
 }
 
 function cacheGroupStats(g) {
   let min = Infinity, max = -Infinity;
   for (const line of g.lines) {
     for (const cell of line.cells) {
-      const s = cell.wlEntry.score;
-      if (s < min) min = s;
-      if (s > max) max = s;
+      for (const atom of cellAtoms(cell)) {
+        const s = atom.wlEntry.score;
+        if (s < min) min = s;
+        if (s > max) max = s;
+      }
     }
   }
   g._minScore = min;
@@ -4841,21 +4869,11 @@ function cacheGroupStats(g) {
   g._count = g.lines[0].cells.length;
 }
 
-// How many lines a group row carries — read by the scroller for its stride,
-// so it must stay in lockstep with what appendGroupLine actually produces.
 function currentGroupLineCount(stack) {
   let lines = 1;
-  let tailSlot = false;
   for (const row of stack) {
     if (row.kind() === 'group' || row.isInert()) continue;
-    if (row.kind() === 'filter') {
-      lines++;
-      tailSlot = !!row.def.inputHighlights;
-    } else {
-      if (row.def.inputHighlights && tailSlot) lines++;
-      lines++;
-      tailSlot = !!row.def.outputHighlights;
-    }
+    lines++;
   }
   return lines;
 }
@@ -4949,16 +4967,24 @@ function flattenAtoms(rows) {
     }
   };
   for (const row of rows) {
-    if (row.lines) { for (const line of row.lines) for (const c of line.cells) out.push(c.wlEntry); }
-    else pushChain(row);
+    if (row.lines) {
+      for (const line of row.lines) {
+        for (const cell of line.cells) {
+          for (const atom of cellAtoms(cell)) out.push(atom.wlEntry);
+        }
+      }
+    } else pushChain(row);
   }
   return out;
 }
 
 function* rowSetAtoms(rows) {
   for (const row of rows) {
-    if (row.lines) { for (const line of row.lines) yield* line.cells; }
-    else yield* row.atoms;
+    if (row.lines) {
+      for (const line of row.lines) {
+        for (const cell of line.cells) yield* cellAtoms(cell);
+      }
+    } else yield* row.atoms;
   }
 }
 
@@ -5737,6 +5763,36 @@ class BaseVirtualScroller {
   _render() { throw new Error('subclass must implement _render'); }
 }
 
+function estimateGroupCellWidth(cell, ctx) {
+  const atomW = atom => atom.wlEntry.entry.length * ctx.monoCh + 5
+    + badgeWidthPx(String(atom.wlEntry.score).length);
+  if (cell.input) return atomW(cell.input) + 5 + ctx.glyphPx + 5 + atomW(cell.output);
+  return atomW(cell);
+}
+
+function renderAtomSpansHTML(atom, side) {
+  const { wlEntry, highlights } = atom;
+  const text = renderHighlightedText(displayEntry(wlEntry.entry), highlights);
+  const noedit = wlEntry.wordlist === null ? ' atom-noedit' : '';
+  const sideAttr = side ? ` data-side="${side}"` : '';
+  return `<span class="atom-entry${noedit}"${sideAttr}>${text}</span>` +
+    `<span class="atom-score${noedit}"${sideAttr}>${buildScoreBadgeHTML(wlEntry.score)}</span>`;
+}
+
+function renderGroupCellHTML(cell, li, ci) {
+  const lineAttr = li == null ? '' : ` data-line="${li}"`;
+  if (cell.input) {
+    return `<span class="group-cell"${lineAttr} data-cell="${ci}">` +
+      renderAtomSpansHTML(cell.input, 'input') +
+      `<span class="atom-glyph">${cell.glyph}</span>` +
+      renderAtomSpansHTML(cell.output, 'output') +
+      `</span>`;
+  }
+  return `<span class="group-cell"${lineAttr} data-cell="${ci}">` +
+    renderAtomSpansHTML(cell, null) +
+    `</span>`;
+}
+
 const GroupMorePopover = (() => {
   const POPOVER_CHUNK = 200;
   const el = document.createElement('div');
@@ -5756,10 +5812,14 @@ const GroupMorePopover = (() => {
   el.addEventListener('click', e => {
     const target = e.target.closest('.atom-score, .atom-entry');
     if (!target || target.classList.contains('atom-noedit')) return;
-    const wlEntry = cells?.[parseInt(target.closest('.group-cell').dataset.cell, 10)]?.wlEntry;
-    if (!wlEntry) return;
+    const cell = cells?.[parseInt(target.closest('.group-cell').dataset.cell, 10)];
+    if (!cell) return;
+    const atom = cell.input
+      ? (target.dataset.side === 'input' ? cell.input : cell.output)
+      : cell;
+    if (atom.wlEntry.wordlist === null) return;
     const field = target.classList.contains('atom-score') ? 'score' : null;
-    AtomPopover.open(wlEntry, el, scroller, target, field);
+    AtomPopover.open(atom.wlEntry, el, scroller, target, field);
   });
 
   function close() {
@@ -5786,12 +5846,7 @@ const GroupMorePopover = (() => {
     const end = Math.min(cells.length, rendered + POPOVER_CHUNK);
     const html = [];
     for (let i = rendered; i < end; i++) {
-      const c = cells[i];
-      const noedit = c.wlEntry.wordlist === null ? ' atom-noedit' : '';
-      html.push(`<span class="group-cell" data-cell="${i}">` +
-        `<span class="atom-entry${noedit}">` +
-        `${renderHighlightedText(displayEntry(c.wlEntry.entry), c.highlights)}</span>` +
-        `<span class="atom-score${noedit}">${buildScoreBadgeHTML(c.wlEntry.score)}</span></span>`);
+      html.push(renderGroupCellHTML(cells[i], null, i));
     }
     sentinel.insertAdjacentHTML('beforebegin', html.join(''));
     rendered = end;
@@ -5886,8 +5941,12 @@ class WorkshopEntriesScroller extends BaseVirtualScroller {
         if (!cellEl) return;
         row = groupRow;
         const g = this.entries[parseInt(groupRow.dataset.idx, 10)];
-        atom = g?.lines[parseInt(cellEl.dataset.line, 10)]
-                ?.cells[parseInt(cellEl.dataset.cell, 10)];
+        const cell = g?.lines[parseInt(cellEl.dataset.line, 10)]
+                      ?.cells[parseInt(cellEl.dataset.cell, 10)];
+        if (!cell) return;
+        atom = cell.input
+          ? (target.dataset.side === 'input' ? cell.input : cell.output)
+          : cell;
       } else {
         row = target.closest('.entry-row');
         const atomEl = target.closest('.atom');
@@ -6008,8 +6067,10 @@ class WorkshopEntriesScroller extends BaseVirtualScroller {
   // axes use score-descending. Runs before the row sort, which projects
   // off cells.
   _sortGroupCells() {
-    const byEntry = (a, b) => a.wlEntry.entry.localeCompare(b.wlEntry.entry);
-    const byScore = (a, b) => b.wlEntry.score - a.wlEntry.score || byEntry(a, b);
+    const tailEntry = c => cellTailAtom(c).wlEntry.entry;
+    const tailScore = c => cellTailAtom(c).wlEntry.score;
+    const byEntry = (a, b) => tailEntry(a).localeCompare(tailEntry(b));
+    const byScore = (a, b) => tailScore(b) - tailScore(a) || byEntry(a, b);
     const cmp = this.sortKey === 'entry' ? byEntry : byScore;
     for (const g of this.allEntries) {
       for (const line of g.lines) line.cells.sort(cmp);
@@ -6182,7 +6243,10 @@ class WorkshopEntriesScroller extends BaseVirtualScroller {
       row.dataset.idx = i;
       row.style.top = (i * stride) + 'px';
       row.innerHTML = g.lines.map((line, li) => this._renderGroupLineHTML(line, li, i, g, columns, ctx)).join('');
-      if (activeEntry && g.lines.some(l => l.cells.some(c => c.wlEntry.entry === activeEntry))) {
+      if (activeEntry && g.lines.some(l => l.cells.some(c => {
+        for (const a of cellAtoms(c)) if (a.wlEntry.entry === activeEntry) return true;
+        return false;
+      }))) {
         row.classList.add('active');
         nextActiveRow = row;
       }
@@ -6199,24 +6263,14 @@ class WorkshopEntriesScroller extends BaseVirtualScroller {
     let visibleCount = 0;
     for (let ci = 0; ci < total; ci++) {
       if (visibleCount > 0 && leftEdge >= ctx.slot) break;
-      const c = cellsArr[ci];
-      const glyphW = ci === 0 && line.glyph ? ctx.glyphPx : 0;
-      const cellW = c.wlEntry.entry.length * ctx.monoCh + glyphW + 5
-        + badgeWidthPx(String(c.wlEntry.score).length);
-      leftEdge += (ci > 0 ? 18 : 0) + cellW;
+      leftEdge += (ci > 0 ? 18 : 0) + estimateGroupCellWidth(cellsArr[ci], ctx);
       visibleCount = ci + 1;
     }
     const hidden = total - visibleCount;
 
     const cellHTML = [];
     for (let ci = 0; ci < visibleCount; ci++) {
-      const { wlEntry, highlights } = cellsArr[ci];
-      const text = renderHighlightedText(displayEntry(wlEntry.entry), highlights);
-      const noedit = wlEntry.wordlist === null ? ' atom-noedit' : '';
-      const glyphHTML = ci === 0 && line.glyph ? `<span class="atom-glyph">${line.glyph} </span>` : '';
-      cellHTML.push(`<span class="group-cell" data-line="${li}" data-cell="${ci}">` +
-        `<span class="atom-entry${noedit}">${glyphHTML}${text}</span>` +
-        `<span class="atom-score${noedit}">${buildScoreBadgeHTML(wlEntry.score)}</span></span>`);
+      cellHTML.push(renderGroupCellHTML(cellsArr[ci], li, ci));
     }
     const colCells = columns.map(c =>
       `<span class="group-col" data-col="${esc(c.key)}">${li === 0 ? esc(String(c.value(group))) : ''}</span>`
@@ -9687,18 +9741,28 @@ window.__grawlixTest = {
     });
   },
 
-  // Visible group rows, each as `{ lines: [{ count, words }] }` in render order.
   async getVisibleGroups() {
     await pipelineIdle();
+    const entryText = e => e?.textContent || '';
     return [...document.querySelectorAll('#vs-host .group-row')].map(row => ({
-      lines: [...row.querySelectorAll('.group-line')].map(line => ({
-        count: parseInt(line.querySelector('.group-count')?.textContent || '', 10),
-        words: [...line.querySelectorAll('.group-cell .atom-entry')].map(e => {
-          const glyph = e.querySelector('.atom-glyph');
-          const full = e.textContent || '';
-          return glyph ? full.slice(glyph.textContent.length) : full;
-        }),
-      })),
+      lines: [...row.querySelectorAll('.group-line')].map(line => {
+        const count = parseInt(line.querySelector('.group-count')?.textContent || '', 10);
+        const cells = [...line.querySelectorAll('.group-cell')];
+        const isPair = cells.length > 0 && cells[0].querySelector('[data-side="input"]') != null;
+        if (isPair) {
+          return {
+            count,
+            pairs: cells.map(cell => ({
+              input: entryText(cell.querySelector('.atom-entry[data-side="input"]')),
+              output: entryText(cell.querySelector('.atom-entry[data-side="output"]')),
+            })),
+          };
+        }
+        return {
+          count,
+          words: cells.map(cell => entryText(cell.querySelector('.atom-entry'))),
+        };
+      }),
     }));
   },
 

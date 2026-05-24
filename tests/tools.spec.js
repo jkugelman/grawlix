@@ -658,10 +658,13 @@ test('a transform chained after the grouped tool adds a line of its output set',
   expect(fourLetter).toBeTruthy();
   expect(fourLetter.lines.length).toBe(2);
   expect(fourLetter.lines[0].words.slice().sort()).toEqual(['opts', 'spot', 'tops']);
-  expect(fourLetter.lines[1].words.slice().sort()).toEqual(['ops', 'pot']);
+  expect(fourLetter.lines[1].pairs.slice().sort((a, b) => a.input.localeCompare(b.input)))
+    .toEqual([{ input: 'spot', output: 'pot' }, { input: 'tops', output: 'ops' }]);
 
   const clusterLine = page.locator('.group-row', { hasText: 'opts' }).locator('.group-line').first();
-  await expect(clusterLine.locator('.hl-removed')).toHaveCount(2);
+  await expect(clusterLine.locator('.hl-removed')).toHaveCount(0);
+  const pairLine = page.locator('.group-row', { hasText: 'opts' }).locator('.group-line').nth(1);
+  await expect(pairLine.locator('.atom-entry[data-side="input"] .hl-removed')).toHaveCount(2);
 });
 
 test('chained tool prefixes its group line with the tool glyph (transform → arrow, filter bare)', async ({ page }) => {
