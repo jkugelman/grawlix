@@ -4663,13 +4663,14 @@ async function executePipeline(mergedWordlist, stack, signal) {
     if (grouped) {
       // A group is a stack of word-set lines; a chained tool maps the tail
       // line to the next one (appendGroupLine), per group.
-      const flat = rows.flatMap(g =>
-        g.lines[g.lines.length - 1].cells.map(c => ({ atoms: [{ wlEntry: c.wlEntry }] })));
-      const prepared = def.prepare
-        ? await def.prepare(params, makeCtx(mergedWordlist, flat, signal, y))
-        : params;
+      let prepared = params;
+      if (def.prepare) {
+        const flat = rows.flatMap(g =>
+          g.lines[g.lines.length - 1].cells.map(c => ({ atoms: [{ wlEntry: c.wlEntry }] })));
+        prepared = await def.prepare(params, makeCtx(mergedWordlist, flat, signal, y));
+      }
       for (const g of rows) {
-        appendGroupLine(g, stackRow, prepared, mergedWordlist);
+        await appendGroupLine(g, stackRow, prepared, mergedWordlist, y);
         if (y.due()) await y.yield();
       }
     } else {
@@ -4769,7 +4770,7 @@ async function bucketize(rows, spec, ctx) {
 // Run one tool over a group's tail line, appending the next line(s). Input
 // marks fold into the tail line when it carries no marks yet, or take a line
 // of their own when it does — two tools' highlights never share a line.
-function appendGroupLine(group, stackRow, prepared, wordlist) {
+async function appendGroupLine(group, stackRow, prepared, wordlist, y) {
   const { def } = stackRow;
   const glyph = stackRow.glyph();
   const tail = group.lines[group.lines.length - 1];
@@ -4777,11 +4778,13 @@ function appendGroupLine(group, stackRow, prepared, wordlist) {
     const cells = [];
     for (const cell of tail.cells) {
       const result = def.run(cell.wlEntry.entry, prepared, wordlist);
-      if (!result) continue;
-      cells.push({
-        wlEntry: cell.wlEntry,
-        highlights: def.inputHighlights ? (Array.isArray(result) ? result : []) : null,
-      });
+      if (result) {
+        cells.push({
+          wlEntry: cell.wlEntry,
+          highlights: def.inputHighlights ? (Array.isArray(result) ? result : []) : null,
+        });
+      }
+      if (y.due()) await y.yield();
     }
     group.lines.push({ cells, slot: !!def.inputHighlights, glyph });
     return;
@@ -4805,6 +4808,7 @@ function appendGroupLine(group, stackRow, prepared, wordlist) {
         highlights: def.outputHighlights ? (out.outputHighlights || []) : null,
       });
     }
+    if (y.due()) await y.yield();
   }
   if (def.inputHighlights) {
     const markCells = tail.cells.map(c => ({
