@@ -5687,16 +5687,40 @@ class BaseVirtualScroller {
     host.innerHTML = '';
     host.appendChild(this.sizer);
 
+    this._reservedHeight = 0;
+
     this._onWinScroll = () => this._onScroll();
     this._onWinResize = () => this._render();
+    this._onFocusOut = (e) => {
+      if (this._reservedHeight === 0) return;
+      const next = e.relatedTarget;
+      if (next && next.closest && next.closest('.search-bar, .tool-row')) return;
+      this._reservedHeight = 0;
+      this._render();
+    };
     window.addEventListener('scroll', this._onWinScroll, { capture: true, passive: true });
     window.addEventListener('resize', this._onWinResize);
+    document.addEventListener('focusout', this._onFocusOut);
     this._resizeObserver = new ResizeObserver(() => this._render());
     this._resizeObserver.observe(host);
   }
 
   // Subclasses can override to react to scroll (e.g., close any open popover).
   _onScroll() { this._render(); }
+
+  _isReservationActive() {
+    const a = document.activeElement;
+    return !!(a && a.matches && a.matches('.search-bar input, .tool-row input'));
+  }
+
+  _sizerHeightFor(naturalHeight) {
+    if (this._isReservationActive()) {
+      this._reservedHeight = Math.max(this._reservedHeight, this.sizer.offsetHeight, naturalHeight);
+    } else if (this._reservedHeight) {
+      this._reservedHeight = 0;
+    }
+    return Math.max(naturalHeight, this._reservedHeight);
+  }
 
   // Per-item vertical stride. Subclasses with variable-height row kinds
   // (pair-stacked on mobile) override this; the value flips on viewport
@@ -5723,6 +5747,7 @@ class BaseVirtualScroller {
   destroy() {
     window.removeEventListener('scroll', this._onWinScroll, { capture: true });
     window.removeEventListener('resize', this._onWinResize);
+    document.removeEventListener('focusout', this._onFocusOut);
     this._resizeObserver.disconnect();
   }
 
@@ -6124,7 +6149,7 @@ class WorkshopEntriesScroller extends BaseVirtualScroller {
     if (this.sortTier === 'group') return this._renderGroups();
     const n = this.entries.length;
     const stride = this._rowStride();
-    this.sizer.style.height = (n * stride) + 'px';
+    this.sizer.style.height = this._sizerHeightFor(n * stride) + 'px';
     this._renderEmptyState(n, 'chain');
 
     const { start, end } = this._visibleRange(n);
@@ -6199,7 +6224,7 @@ class WorkshopEntriesScroller extends BaseVirtualScroller {
   _renderGroups() {
     const n = this.entries.length;
     const stride = this.atomCount * ROW_HEIGHT;
-    this.sizer.style.height = (n * stride) + 'px';
+    this.sizer.style.height = this._sizerHeightFor(n * stride) + 'px';
     this._renderEmptyState(n, 'group');
     const { start, end } = this._visibleRange(n);
     this._clearSizer();
@@ -6546,7 +6571,7 @@ class LibraryEntriesScroller extends BaseVirtualScroller {
 
   _render() {
     const n = this.rows.length;
-    this.sizer.style.height = (n * ROW_HEIGHT) + 'px';
+    this.sizer.style.height = this._sizerHeightFor(n * ROW_HEIGHT) + 'px';
 
     // Empty-state placeholder when a search has filtered everything out.
     let emptyEl = this.host.querySelector('.lib-entries-empty');
