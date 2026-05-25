@@ -752,6 +752,8 @@ a.get-file:hover { text-decoration: underline; }
 .rule-banner { display: flex; align-items: center; gap: 6px; padding: 4px 8px; margin-bottom: 6px; background: var(--callout-bg); border: 1px solid var(--callout-border); color: var(--callout-fg); border-radius: 3px; font-size: 12px; }
 .rule-banner-icon { flex-shrink: 0; }
 .rule-banner-body { flex: 1; min-width: 0; }
+.rule-banner-action { flex-shrink: 0; padding: 2px 8px; border: 1px solid var(--callout-border); background: transparent; color: var(--callout-fg); border-radius: 3px; font-size: 12px; cursor: pointer; font-family: inherit; }
+.rule-banner-action:hover { border-color: var(--accent); color: var(--accent); }
 
 .rule-actions { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 6px; }
 .rule-add-btn { padding: 2px 10px; border: 1px dashed var(--border); background: transparent; color: var(--muted); border-radius: 3px; font-size: 12px; cursor: pointer; font-family: inherit; }
@@ -1703,19 +1705,24 @@ function buildRuleRowHTML(i, fieldsHTML, note, onDeleteFn, readOnly = false) {
     </div>`;
 }
 
-function buildRuleBannerHTML(scores) {
+function buildRuleBannerHTML(scores, addFn = '') {
+  const runs = scoresToRuns(scores);
+  const action = addFn
+    ? `<button type="button" class="rule-banner-action" onclick="${addFn}()">Add ${plural(runs.length, 'rule')}</button>`
+    : '';
   return `<div class="rule-banner" role="status">
       <span class="rule-banner-icon" aria-hidden="true">⚠️</span>
-      <span class="rule-banner-body">Unhandled ${plural(scores.length, 'score')}: ${esc(scoresToGroupedList(scores))}</span>
+      <span class="rule-banner-body">Unhandled ${plural(scores.length, 'score')}: ${esc(runs.map(runToRangeStr).join(', '))}</span>
+      ${action}
     </div>`;
 }
 
-function buildRulesListHTML(rules, { rulesId, saveFn, deleteFn, addFn = '', resetFn = '', uncovered = [], dirty = false, rescore = false, readOnly = false }) {
+function buildRulesListHTML(rules, { rulesId, saveFn, deleteFn, addFn = '', resetFn = '', uncovered = [], addUncoveredFn = '', dirty = false, rescore = false, readOnly = false }) {
   // Uncovered scores surface as a banner above the list; rule authoring goes
   // through the `+ Add rule` button below. The two split off what used to be
   // a single dual-purpose row in the editor.
   const banner = (!readOnly && uncovered.length)
-    ? buildRuleBannerHTML(uncovered)
+    ? buildRuleBannerHTML(uncovered, addUncoveredFn)
     : '';
 
   let rulesHTML;
@@ -1761,6 +1768,7 @@ function buildRescoreSectionHTML(wordlist) {
       addFn:     'addRule',
       resetFn:   hasDefaults ? 'resetRescoreRules' : '',
       uncovered: wordlist._uncovered || [],
+      addUncoveredFn: 'addUncoveredRescoreRules',
       dirty:     !!wordlist.dirty,
       rescore:   true,
     });
@@ -1778,6 +1786,7 @@ function buildScoringSectionHTML() {
       addFn:     'addScoringRow',
       resetFn:   'resetScoringRules',
       uncovered: state._scoringUncovered,
+      addUncoveredFn: 'addUncoveredScoringRows',
       dirty:     state.scoringDirty,
     });
 }
@@ -6989,20 +6998,27 @@ function scoresToRangeStr(scores) {
   return min === max ? `${min}` : `${min}-${max}`;
 }
 
-// Format a list of integer scores, collapsing runs of consecutive scores
-// into ranges: [25, 45, 46, 47, 48, 49, 75] → "25, 45-49, 75".
-function scoresToGroupedList(scores) {
-  if (!scores.length) return '';
+function scoresToRuns(scores) {
+  if (!scores.length) return [];
   const sorted = [...scores].sort((a, b) => a - b);
-  const groups = [];
+  const runs = [];
   let start = sorted[0], end = sorted[0];
-  const flush = () => groups.push(start === end ? `${start}` : `${start}-${end}`);
   for (let i = 1; i < sorted.length; i++) {
     if (sorted[i] === end + 1) end = sorted[i];
-    else { flush(); start = end = sorted[i]; }
+    else { runs.push([start, end]); start = end = sorted[i]; }
   }
-  flush();
-  return groups.join(', ');
+  runs.push([start, end]);
+  return runs;
+}
+
+function runToRangeStr([start, end]) { return start === end ? `${start}` : `${start}-${end}`; }
+
+function scoresToGroupedList(scores) {
+  return scoresToRuns(scores).map(runToRangeStr).join(', ');
+}
+
+function scoresToRangeInputs(scores) {
+  return scoresToRuns(scores).map(runToRangeStr);
 }
 
 function getRuleMaxScore(rule) {
@@ -7107,13 +7123,16 @@ function propagateDefaults() {
 // See docs/design.md § Rescore rules & tier alignment.
 const AUTO_SEED_SCORE_LIMIT = 10;
 
+function makeRescoreRuleStub(input = '') { return { input, length: '', output: '', note: '' }; }
+function makeScoringRowStub(input = '') { return { input, note: '' }; }
+
 function maybeAutoSeedRescoreRules(wordlist) {
   if (wordlist.publisherId) return;
   if (wordlist.rescoreRules?.length) return;
   const scores = [...new Set(wordlist.rawEntries.map(e => e.score))];
   if (!scores.length || scores.length > AUTO_SEED_SCORE_LIMIT) return;
   scores.sort((a, b) => a - b);
-  wordlist.rescoreRules = scores.map(s => ({ input: String(s), length: '', output: '', note: '' }));
+  wordlist.rescoreRules = scores.map(s => makeRescoreRuleStub(String(s)));
 }
 
 // Sort the wordlist's rescore rules into editor display order and recompute
@@ -7155,7 +7174,7 @@ function invalidateActualScoresCache(wordlist) { wordlist._actualScores = null; 
 
 function parseRuleOutput(str) {
   str = (str || '').trim().toLowerCase();
-  if (!str || str === 'unchanged') return 'unchanged';
+  if (!str) return 'unchanged';
   if (str === 'ignore') return 'ignore';
   const mRange = str.match(/^(\d+)[-–](\d+)$/);
   if (mRange) return { min: +mRange[1], max: +mRange[2] };
@@ -7557,10 +7576,17 @@ function saveScoringField(i, field, val) {
 }
 
 function addScoringRow() {
-  state.scoring.push({ input: '', note: '' });
+  state.scoring.push(makeScoringRowStub());
   applyScoringChange();
   const inp = [...document.querySelectorAll('#scoring-rules .rule-row .rule-in')].find(i => !i.value);
   inp?.focus();
+}
+
+function addUncoveredScoringRows() {
+  const inputs = scoresToRangeInputs(state._scoringUncovered || []);
+  if (!inputs.length) return;
+  for (const input of inputs) state.scoring.push(makeScoringRowStub(input));
+  applyScoringChange();
 }
 
 function applyScoringChange() {
@@ -9010,12 +9036,21 @@ function saveRuleField(idx, field, value) {
 function addRule() {
   const wordlist = getRescoreContextWordlist();
   if (!wordlist) return;
-  wordlist.rescoreRules.push({ input: '', length: '', output: '', note: '' });
+  wordlist.rescoreRules.push(makeRescoreRuleStub());
   afterRuleChange(wordlist);
   // Focus the new rule's input — recomputeUncovered reorders the array, so
   // find the first row whose input is empty after the re-render.
   const inp = [...document.querySelectorAll('#rescore-rules .rule-row .rule-in')].find(i => !i.value);
   inp?.focus();
+}
+
+function addUncoveredRescoreRules() {
+  const wordlist = getRescoreContextWordlist();
+  if (!wordlist) return;
+  const inputs = scoresToRangeInputs(wordlist._uncovered || []);
+  if (!inputs.length) return;
+  for (const input of inputs) wordlist.rescoreRules.push(makeRescoreRuleStub(input));
+  afterRuleChange(wordlist);
 }
 
 async function resetRescoreRules() {
