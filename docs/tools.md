@@ -17,8 +17,8 @@ Source material: shipped catalog lives in `TOOLS` in [`site/index.html`](../site
 |   | Bank | 🐝 Spelling bee | Made from a restricted alphabet, must include the center letter | TBD |
 |   | Cipher | 🥗 Caesar shift | Shift each letter by *n* | TBD |
 |   | Cipher | 🔐 Cryptogram | Same letter-pattern shape | ABBA · NOON · DEED |
-|   | Halves | 🔂 Repeater | Left and right halves are the same | TARTAR · HOTSHOTS |
-|   | Halves | 🦒 Neckout | Left and right halves are anagrams | TEAMMATE · INTESTINES |
+| ✓ | Halves | 🔂 Repeaters | Left and right halves are the same | TARTAR · HOTSHOTS |
+| ✓ | Halves | 🦒 Neckouts | Left and right halves are anagrams | STUCKONESNECKOUT |
 | ✓ | Letters | 1️⃣ Isograms | No repeated letters | CYBERPUNK · JUXTAPOSE |
 | ✓ | Letters | 🌈 Supervocalics | Each of A E I O U exactly once | AIRQUOTE |
 | ✓ | Letters | 👩‍🎤 Monovocalics | Only one distinct vowel | TOOCOOLFORSCHOOL |
@@ -26,8 +26,8 @@ Source material: shipped catalog lives in `TOOLS` in [`site/index.html`](../site
 | ✓ | Letters | 📉 Reverse alphabetical | Letters in reverse alphabetical order | SPOOFED · YUPPIE |
 | ✓ | Letters | 🦴 Consonantcy | Same consonants in order; vowels may differ | ISAIDNO → SODONE |
 | ✓ | Letters | 🅰️ Vowelcy | Same vowels in order; consonants may differ | OUTHOUSE → OUTOFUSE |
-|   | Pairs | 🦘 Kangaroo | Outer word containing the input as a hidden joey (subsequence) | TBD |
-|   | Pairs | 🦘 Joey | TBD | TBD |
+| ✓ | Pairs | 🦘 Kangaroos | Words containing the input spread out | KANGA → MILKANDSUGAR |
+| ✓ | Pairs | 🍼 Joeys | Words contained in the input spread out | MAJORKEY → JOEY |
 |   | Pairs | 🪺 Nested | One word inside another | MARI(JUAN)A |
 | ✓ | Palindrome | 🪞 Palindromes | Read the same when mirrored | RACECAR · CIVIC |
 | ✓ | Palindrome | ⬅️ Semordnilap | Reverse to get a different word | STRESSED ↔ DESSERTS |

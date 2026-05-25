@@ -4039,7 +4039,9 @@ function runSearchReplace(entry, prepared, wordlist) {
 const TOOL_CATEGORIES = [
   { id: 'anagram',    label: 'Anagram' },
   { id: 'bank',       label: 'Bank' },
+  { id: 'halves',     label: 'Halves' },
   { id: 'letters',    label: 'Letters' },
+  { id: 'pairs',      label: 'Pairs' },
   { id: 'palindrome', label: 'Palindrome' },
   { id: 'search',     label: 'Search' },
   { id: 'side',       label: 'Side' },
@@ -4123,6 +4125,35 @@ const TOOLS = {
         used.set(ch, n);
       }
       return true;
+    },
+  },
+  repeaters: {
+    name: 'Repeaters', icon: '🔂', category: 'halves',
+    desc: 'Left and right halves are the same',
+    example: 'TARTAR · HOTSHOTS',
+    params: [],
+    kind: 'filter', inputHighlights: false, outputHighlights: false,
+    run(entry) {
+      const n = entry.length;
+      if (n < 2 || n % 2 !== 0) return false;
+      const half = n / 2;
+      return entry.slice(0, half) === entry.slice(half);
+    },
+  },
+  neckouts: {
+    name: 'Neckouts', icon: '🦒', category: 'halves',
+    desc: 'Left and right halves are anagrams',
+    example: 'STUCKONESNECKOUT',
+    params: [],
+    kind: 'filter', inputHighlights: false, outputHighlights: false,
+    run(entry) {
+      const n = entry.length;
+      if (n < 2 || n % 2 !== 0) return false;
+      const half = n / 2;
+      const left = entry.slice(0, half);
+      const right = entry.slice(half);
+      if (left === right) return false;
+      return sortLetters(left) === sortLetters(right);
     },
   },
   isograms: {
@@ -4248,6 +4279,42 @@ const TOOLS = {
       columns: [
         { label: 'Vowels', value: g => g.key.length },
       ],
+    },
+  },
+  kangaroos: {
+    name: 'Kangaroos', icon: '🦘', category: 'pairs',
+    desc: 'Words containing the input spread out',
+    example: 'KANGA → MILKANDSUGAR',
+    params: [{ placeholder: 'entry' }],
+    kind: 'filter', inputHighlights: false, outputHighlights: false,
+    isInert: params => !((params && params.entry || '').trim()),
+    prepare(params) { return params.entry.trim(); },
+    run(entry, joey, wordlist) {
+      if (!joey) return true;
+      if (entry.length <= joey.length) return false;
+      let i = 0;
+      for (let j = 0; j < entry.length && i < joey.length; j++) {
+        if (entry[j] === joey[i]) i++;
+      }
+      return i === joey.length;
+    },
+  },
+  joeys: {
+    name: 'Joeys', icon: '🍼', category: 'pairs',
+    desc: 'Words contained in the input spread out',
+    example: 'MAJORKEY → JOEY',
+    params: [{ placeholder: 'entry' }],
+    kind: 'filter', inputHighlights: false, outputHighlights: false,
+    isInert: params => !((params && params.entry || '').trim()),
+    prepare(params) { return params.entry.trim(); },
+    run(entry, kangaroo, wordlist) {
+      if (!kangaroo) return true;
+      if (entry.length >= kangaroo.length) return false;
+      let i = 0;
+      for (let j = 0; j < kangaroo.length && i < entry.length; j++) {
+        if (kangaroo[j] === entry[i]) i++;
+      }
+      return i === entry.length;
     },
   },
   palindromes: {
