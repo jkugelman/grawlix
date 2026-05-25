@@ -9545,10 +9545,11 @@ function chainCopyText(chain) {
   const parts = [];
   let prevEntry = null;
   for (const atom of chain.atoms) {
-    if (atom.wlEntry.entry === prevEntry) continue;
-    const glyph = atom.glyph;
-    parts.push(glyph ? `${glyph} ${atom.wlEntry.entry}` : atom.wlEntry.entry);
-    prevEntry = atom.wlEntry.entry;
+    const entry = atom.wlEntry.entry.toUpperCase();
+    if (entry === prevEntry) continue;
+    const piece = `${entry.length} ${entry}`;
+    parts.push(atom.glyph ? `${atom.glyph} ${piece}` : piece);
+    prevEntry = entry;
   }
   return parts.join(' ');
 }
@@ -9581,9 +9582,40 @@ function buildCopyText(rows, grouped, stack) {
   if (grouped) {
     for (const g of rows) body.push(g.chains.map(chainCopyText).join(', '));
   } else {
-    for (const chain of rows) body.push(chainCopyText(chain));
+    body.push(...flatCopyLines(rows));
   }
-  return header + (body.length ? '\n\n' + body.join('\n') : '');
+  return header + (body.length ? '\n' + body.join('\n') : '');
+}
+
+function flatCopyLines(chains) {
+  const piecesPerChain = chains.map(chain => {
+    const pieces = [];
+    let prev = null;
+    for (const atom of chain.atoms) {
+      const entry = atom.wlEntry.entry.toUpperCase();
+      if (entry === prev) continue;
+      pieces.push({ glyph: atom.glyph || '', len: String(entry.length), entry });
+      prev = entry;
+    }
+    return pieces;
+  });
+
+  const maxCols = Math.max(0, ...piecesPerChain.map(p => p.length));
+  const lenW = new Array(maxCols).fill(0);
+  const entryW = new Array(maxCols).fill(0);
+  for (const pieces of piecesPerChain) {
+    pieces.forEach((p, i) => {
+      if (p.len.length > lenW[i]) lenW[i] = p.len.length;
+      if (p.entry.length > entryW[i]) entryW[i] = p.entry.length;
+    });
+  }
+
+  return piecesPerChain.map(pieces => pieces.map((p, i) => {
+    const lenStr = p.len.padStart(lenW[i], ' ');
+    const entry = i === maxCols - 1 ? p.entry : p.entry.padEnd(entryW[i], ' ');
+    const piece = `${lenStr} ${entry}`;
+    return p.glyph ? `${p.glyph} ${piece}` : piece;
+  }).join(' '));
 }
 
 async function workshopExportCopy() {

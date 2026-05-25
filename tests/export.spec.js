@@ -37,8 +37,8 @@ test('Copy renders multi-entry chains inline with their glyphs', async ({ page }
   await setStack(page, [{ tool: 'behead', params: { count: '1' } }]);
 
   const text = await getExport(page, 'copy');
-  expect(text).toContain('scar → car');
-  expect(text).toContain('sling → ling');
+  expect(text).toContain('4 SCAR  → 3 CAR');
+  expect(text).toContain('5 SLING → 4 LING');
 });
 
 test('Copy lists group members per line, no group key', async ({ page }) => {
@@ -50,7 +50,7 @@ test('Copy lists group members per line, no group key', async ({ page }) => {
   expect(text).not.toContain('opst:');
   const memberLine = text.split('\n').find(l => {
     const members = l.split(', ').sort();
-    return members.length === 4 && members.join(',') === 'post,spot,stop,tops';
+    return members.length === 4 && members.join(',') === '4 POST,4 SPOT,4 STOP,4 TOPS';
   });
   expect(memberLine).toBeTruthy();
 });
