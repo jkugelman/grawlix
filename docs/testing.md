@@ -99,6 +99,8 @@ Exposed unconditionally in `site/index.html` (see the *Test API* section near th
 | `moveBefore(name, beforeName)` | Reorder `state.sources` so `name` lands at `beforeName`'s position. Routes through `reorderSources` so caches invalidate the same way a drag does. |
 | `getMergedEntry(entry)` | Read-only snapshot of the merged `All` view for a single entry: `{score, comment, wordlist}`. The sourcing wordlist is observable via the row's popover, but `.atom-source` is hidden in the default Workshop layout. |
 | `getWordlist(name)` | Read-only snapshot of the fields tests care about (`entries`, `rescoreRules`, `uncovered`, `dirty`, `updateAvailable`, etc.). |
+| `exportText(format)` | Run a Workshop export builder against the current pipeline output and return its result. `format` is `'copy'`, `'wordlist'`, `'csv'`, or `'json'`. Returns a string for copy/csv, an object `{text, count, skipped}` for wordlist, and the data object for json. Awaits `pipelineIdle` first. |
+| `exportFilename(ext)` | Run the same filename builder Download menu items use, against the current tool stack. Returns the sanitized filename including extension. |
 
 Adding a function is fine; renaming or repurposing an existing one means updating every test that uses it.
 

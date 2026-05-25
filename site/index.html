@@ -1605,6 +1605,7 @@ function buildStatsBarHTML(stats, hist, layout, opts = {}) {
     scoreRange = null,
     sortHTML = '',
     sortSlotId = '',
+    exportHTML = '',
   } = opts;
   const isEmpty = !countValue;
   const dash = '—';
@@ -1637,6 +1638,7 @@ function buildStatsBarHTML(stats, hist, layout, opts = {}) {
   const sortSlotHTML = sortHTML
     ? `<span class="stats-bar-sort"${sortSlotId ? ` id="${sortSlotId}"` : ''}>${sortHTML}</span>`
     : (sortSlotId ? `<span class="stats-bar-sort" id="${sortSlotId}"></span>` : '');
+  const exportSlotHTML = exportHTML ? `<span class="stats-bar-export">${exportHTML}</span>` : '';
 
   return `<div class="stats-bar${isEmpty ? ' stats-empty' : ''}">
       <div class="stats-bar-counts">${countsHTML}</div>
@@ -1647,7 +1649,7 @@ function buildStatsBarHTML(stats, hist, layout, opts = {}) {
         </div>
         <div class="histogram" title="Histogram • Click to filter" onpointerdown="onHistogramPointerDown(event)">${ignoredBar}${bars}<div class="histogram-rect" hidden></div></div>
       </div>
-      <div class="stats-bar-controls">${rangeHTML}${sortSlotHTML}</div>
+      <div class="stats-bar-controls">${rangeHTML}${sortSlotHTML}${exportSlotHTML}</div>
     </div>`;
 }
 
@@ -7299,6 +7301,7 @@ function buildWorkshopStatsBarHTML() {
     groupCount,
     scoreRange: { value: range, inputId: 'score-range-input', viewName: 'WorkshopView' },
     sortSlotId: 'stats-bar-sort',
+    exportHTML: buildWorkshopExportMenuHTML(),
   });
 }
 
@@ -9303,6 +9306,310 @@ async function downloadIndividualWordlistRescored(wordlist) {
   await downloadWithDialog(`Grawlix ${wordlist.name}`, wordlist, getRescoredEntries(wordlist), 'Download Rescored Wordlist');
 }
 
+// ─── Workshop export ──────────────────────────────────────────────────────────
+// See docs/design.md § Entries-table export.
+
+function buildWorkshopExportMenuHTML() {
+  return buildMoreMenuHTML([
+    ['Copy to clipboard',    'workshopExportCopy()'],
+    ['Download as wordlist', 'workshopExportWordlist()'],
+    ['Download as CSV',      'workshopExportCSV()'],
+    ['Download as JSON',     'workshopExportJSON()'],
+  ]);
+}
+
+function chainContentEntries(chain) {
+  const out = [];
+  let prevEntry = null;
+  for (const atom of chain.atoms) {
+    if (atom.wlEntry.entry === prevEntry) continue;
+    out.push(atom.wlEntry);
+    prevEntry = atom.wlEntry.entry;
+  }
+  return out;
+}
+
+function currentContentAtomCount(stack) {
+  let count = 1;
+  for (const row of stack) {
+    if (row.isInert()) continue;
+    if (row.kind() === 'transform') count++;
+  }
+  return count;
+}
+
+function* iterDisplayChains(rows, grouped) {
+  if (grouped) {
+    for (const g of rows) for (const chain of g.chains) yield { group: g, chain };
+  } else {
+    for (const chain of rows) yield { group: null, chain };
+  }
+}
+
+function countExportEntries(rows, grouped) {
+  if (grouped) { let n = 0; for (const g of rows) n += g.chains.length; return n; }
+  return rows.length;
+}
+
+function exportToolsMetadata(stack) {
+  const out = [];
+  stack.forEach((row, i) => {
+    const isBar = i === stack.length - 1 && row.tool === 'search';
+    if (isBar && row.isInert()) return;
+    const entry = { name: row.tool };
+    const params = {};
+    for (const p of row.def.params) {
+      const v = row.params[p.key];
+      if (p.type === 'checkbox') { if (v) params[p.key] = true; }
+      else if (v !== undefined && v !== '') params[p.key] = v;
+    }
+    if (Object.keys(params).length) entry.params = params;
+    if (row.grouped) entry.grouped = true;
+    out.push(entry);
+  });
+  return out;
+}
+
+function exportScoreRangeMetadata() {
+  const intervals = parseRange(WorkshopView.scoreRange);
+  if (!intervals) return null;
+  const { min, max } = intervals[0];
+  const out = {};
+  if (min !== null) out.min = min;
+  if (max !== null) out.max = max;
+  return Object.keys(out).length ? out : null;
+}
+
+function exportSortMetadata() {
+  return { by: WorkshopView.sortKey, dir: WorkshopView.sortDir };
+}
+
+function exportFilenameSegment(s) {
+  return (s || '')
+    .toLowerCase()
+    .replace(/[*?#@\[\]/\\:|"<>]/g, '')
+    .replace(/[^a-z0-9_.-]+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
+
+function exportFilename(stack, ext) {
+  const parts = ['grawlix'];
+  stack.forEach((row, i) => {
+    const isBar = i === stack.length - 1 && row.tool === 'search';
+    if (isBar && row.isInert()) return;
+    parts.push(exportFilenameSegment(row.tool));
+    if (row.grouped) parts.push('grouped');
+    const firstParam = row.def.params.find(p => row.params[p.key] && p.type !== 'checkbox');
+    if (firstParam) {
+      const seg = exportFilenameSegment(String(row.params[firstParam.key]));
+      if (seg) parts.push(seg);
+    }
+  });
+  if (parts.length === 1) parts.push('all');
+  let name = parts.join('-');
+  if (name.length > 100) name = name.slice(0, 100).replace(/-+$/, '');
+  return `${name}.${ext}`;
+}
+
+// ── Copy ──
+
+function chainCopyText(chain) {
+  const parts = [];
+  let prevEntry = null;
+  for (const atom of chain.atoms) {
+    if (atom.wlEntry.entry === prevEntry) continue;
+    const glyph = atom.glyph;
+    parts.push(glyph ? `${glyph} ${atom.wlEntry.entry}` : atom.wlEntry.entry);
+    prevEntry = atom.wlEntry.entry;
+  }
+  return parts.join(' ');
+}
+
+// Backtick the params: a wildcard like `*EARNING` would otherwise trigger
+// italic-on-rest-of-line in markdown renderers that parse formatting inside
+// link text — a silent breakage in Discord/GitHub, invisible in plain text.
+function exportCopyHeader(stack) {
+  const url = location.href;
+  const labels = [];
+  stack.forEach((row, i) => {
+    const isBar = i === stack.length - 1 && row.tool === 'search';
+    if (isBar && row.isInert()) return;
+    let label = row.def.name;
+    const firstParam = row.def.params.find(p => row.params[p.key] && p.type !== 'checkbox');
+    if (firstParam) {
+      const v = row.params[firstParam.key];
+      label += firstParam.type === 'number' ? ` ${v}` : ' `' + v + '`';
+    }
+    if (row.grouped) label += ' (grouped)';
+    labels.push(label);
+  });
+  const desc = labels.length ? labels.join(' → ') : MERGED_NAME;
+  return `[${desc}](${url})`;
+}
+
+function buildCopyText(rows, grouped, stack) {
+  const header = exportCopyHeader(stack);
+  const body = [];
+  if (grouped) {
+    for (const g of rows) body.push(g.chains.map(chainCopyText).join(', '));
+  } else {
+    for (const chain of rows) body.push(chainCopyText(chain));
+  }
+  return header + (body.length ? '\n\n' + body.join('\n') : '');
+}
+
+async function workshopExportCopy() {
+  if (!workshopScroller) return;
+  const grouped = workshopScroller.sortTier === 'group';
+  const text = buildCopyText(workshopScroller.entries, grouped, ToolStack.getStack());
+  try {
+    await navigator.clipboard.writeText(text);
+  } catch (e) {
+    showToast('Copy failed — clipboard permission denied');
+    return;
+  }
+  const count = countExportEntries(workshopScroller.entries, grouped);
+  showToast(`Copied ${pluralize(count, 'entry', 'entries')}`);
+}
+
+// ── Wordlist ──
+
+function buildWordlistText(rows, grouped) {
+  const acc = new Map();
+  let skipped = 0;
+  for (const { chain } of iterDisplayChains(rows, grouped)) {
+    const content = chainContentEntries(chain);
+    if (!content.length) continue;
+    const tail = content[content.length - 1].entry;
+    if (tail.includes(';')) { skipped++; continue; }
+    let chainMin = Infinity;
+    for (const wlE of content) if (wlE.score < chainMin) chainMin = wlE.score;
+    const cur = acc.get(tail);
+    if (cur === undefined || chainMin > cur) acc.set(tail, chainMin);
+  }
+  const lines = [...acc.keys()].sort().map(e => `${e};${acc.get(e)}`);
+  return { text: lines.length ? lines.join('\n') + '\n' : '', count: lines.length, skipped };
+}
+
+async function workshopExportWordlist() {
+  if (!workshopScroller) return;
+  const grouped = workshopScroller.sortTier === 'group';
+  const { text, count, skipped } = buildWordlistText(workshopScroller.entries, grouped);
+  triggerDownload(text, exportFilename(ToolStack.getStack(), 'txt'));
+  let msg = `Downloaded ${pluralize(count, 'entry', 'entries')}`;
+  if (skipped) msg += ` (${pluralize(skipped, 'entry', 'entries')} skipped due to semicolons)`;
+  showToast(msg);
+}
+
+// ── CSV ──
+
+function csvCell(v) {
+  if (v == null) return '';
+  const s = String(v);
+  return /[",\r\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+}
+function csvRow(cells) { return cells.map(csvCell).join(','); }
+
+function buildCSVText(rows, grouped, stack) {
+  const atomCount = currentContentAtomCount(stack);
+  const isMulti = atomCount > 1;
+  const groupCols = grouped ? activeGroupColumns(stack) : [];
+
+  const header = [];
+  if (grouped) header.push('group_key', 'count');
+  for (const col of groupCols) header.push(col.key);
+  if (isMulti) header.push('min_score', 'max_score');
+  if (atomCount === 1) {
+    header.push('entry', 'length', 'score');
+    if (!grouped) header.push('comment', 'source');
+  } else {
+    for (let i = 1; i <= atomCount; i++) {
+      header.push(`entry_${i}`, `length_${i}`, `score_${i}`);
+      if (!grouped) header.push(`comment_${i}`, `source_${i}`);
+    }
+  }
+
+  const out = [csvRow(header)];
+  for (const { group, chain } of iterDisplayChains(rows, grouped)) {
+    const content = chainContentEntries(chain);
+    const cells = [];
+    if (grouped) {
+      cells.push(group.key, group.chains.length);
+      for (const col of groupCols) cells.push(col.value(group));
+    }
+    if (isMulti) {
+      let mn = Infinity, mx = -Infinity;
+      for (const wlE of content) { if (wlE.score < mn) mn = wlE.score; if (wlE.score > mx) mx = wlE.score; }
+      cells.push(mn, mx);
+    }
+    for (let i = 0; i < atomCount; i++) {
+      const wlE = content[i];
+      if (!wlE) {
+        cells.push('', '', '');
+        if (!grouped) cells.push('', '');
+      } else {
+        cells.push(wlE.entry, wlE.entry.length, wlE.score);
+        if (!grouped) cells.push(wlE.comment || '', wlE.wordlist?.name ?? '');
+      }
+    }
+    out.push(csvRow(cells));
+  }
+  return out.join('\r\n') + '\r\n';
+}
+
+async function workshopExportCSV() {
+  if (!workshopScroller) return;
+  const grouped = workshopScroller.sortTier === 'group';
+  const text = buildCSVText(workshopScroller.entries, grouped, ToolStack.getStack());
+  triggerDownload(text, exportFilename(ToolStack.getStack(), 'csv'));
+  const count = countExportEntries(workshopScroller.entries, grouped);
+  showToast(`Downloaded ${pluralize(count, 'entry', 'entries')}`);
+}
+
+// ── JSON ──
+
+function buildExportJSONObject(rows, grouped, stack) {
+  const obj = { url: location.href, tools: exportToolsMetadata(stack) };
+  const range = exportScoreRangeMetadata();
+  if (range) obj.score_range = range;
+  obj.sort = exportSortMetadata();
+  const groupCols = grouped ? activeGroupColumns(stack) : [];
+
+  function chainObj(chain, includeProvenance) {
+    const entries = chainContentEntries(chain).map(wlE => {
+      const e = { entry: wlE.entry, score: wlE.score };
+      if (includeProvenance) {
+        e.comment = wlE.comment || '';
+        e.source = wlE.wordlist?.name ?? null;
+      }
+      return e;
+    });
+    return { entries };
+  }
+
+  if (grouped) {
+    obj.groups = rows.map(g => {
+      const out = { group_key: g.key };
+      for (const col of groupCols) out[col.key] = col.value(g);
+      out.chains = g.chains.map(c => chainObj(c, false));
+      return out;
+    });
+  } else {
+    obj.groups = [{ chains: rows.map(c => chainObj(c, true)) }];
+  }
+  return obj;
+}
+
+async function workshopExportJSON() {
+  if (!workshopScroller) return;
+  const grouped = workshopScroller.sortTier === 'group';
+  const obj = buildExportJSONObject(workshopScroller.entries, grouped, ToolStack.getStack());
+  triggerDownload(JSON.stringify(obj, null, 2) + '\n', exportFilename(ToolStack.getStack(), 'json'));
+  const count = countExportEntries(workshopScroller.entries, grouped);
+  showToast(`Downloaded ${pluralize(count, 'entry', 'entries')}`);
+}
+
 // ─── Mutation helpers ─────────────────────────────────────────────────────────
 //
 // State mutations bundled with the right invalidation/persistence/cache bump,
@@ -9554,6 +9861,22 @@ window.__grawlixTest = {
       dirty: !!wl.dirty,
       updateAvailable: !!wl._updateAvailable,
     };
+  },
+
+  async exportText(format) {
+    await pipelineIdle();
+    const rows = workshopScroller.entries;
+    const grouped = workshopScroller.sortTier === 'group';
+    const stack = ToolStack.getStack();
+    if (format === 'copy')     return buildCopyText(rows, grouped, stack);
+    if (format === 'wordlist') return buildWordlistText(rows, grouped);
+    if (format === 'csv')      return buildCSVText(rows, grouped, stack);
+    if (format === 'json')     return buildExportJSONObject(rows, grouped, stack);
+    throw new Error(`Unknown export format: ${format}`);
+  },
+
+  exportFilename(ext) {
+    return exportFilename(ToolStack.getStack(), ext);
   },
 
   _lookup(name) {

@@ -6,7 +6,7 @@ Inspiration: [Wordlisted](https://aaronson.org/wordlisted/) by Adam Aaronson. Se
 
 The gallery is where Grawlix's [project goal](../../README.md#goals) — democratize wordlist manipulation — does most of its work. Constructors who program can write Python to anagram, behead, phonetic-substitute, semantic-filter against their wordlists. The gallery's job is to put those moves in non-programmers' hands. Filter when evaluating a candidate tool: *would a programmer reach for this often enough to write a script?* If yes, it probably belongs.
 
-This doc tracks what's still planned for the gallery: the rest of the tool catalog (records without a `run` yet), gallery polish (category picker, search), and result download. The pipeline that runs it all — the chain-row model, the group-row model, the per-row tool API, the executor — is built; see [`../design.md` § Tool gallery & stack](../design.md#tool-gallery--stack).
+This doc tracks what's still planned for the gallery: the rest of the tool catalog (records without a `run` yet) and gallery polish (category picker, search). The pipeline that runs it all — the chain-row model, the group-row model, the per-row tool API, the executor — is built; see [`../design.md` § Tool gallery & stack](../design.md#tool-gallery--stack). Result download/copy is shipped — see [`../design.md` § Entries-table export](../design.md#entries-table-export).
 
 ---
 
@@ -33,20 +33,6 @@ For tools that fit the runtime as-is (`palindrome`, `isogram`, `supervocalic`, e
 - *Icon strip* (viable fallback) — VS Code activity-bar style: a thin (~50px) strip of category icons at rest; clicking one slides out a side panel with that category's cards. Wins on main-pane width. Loses on interaction count (two-step to reach a tool) and on panel-open state.
 
 **Gallery search input.** A filter/search input at the top of the panel lets users find tools by name or keyword across categories. **Alt+T** focuses it. The DOM is in place but disabled.
-
----
-
-## Downloading results
-
-A download affordance near the results list saves the current output to disk — whatever the bottom row of the stack produces. For the empty stack (just the search bar), that's "the filtered list" — the merged `All` view restricted to the current pattern. For a longer stack (`Anagram LINDSEY → Search DOG`) it's the full pipeline output. The button is always present; what it produces just follows the stack.
-
-The everyday case is filling — narrow `All` with a pattern, then save the matches as a working set.
-
-Default filename describes the stack: `grawlix-search-DOG.txt`, `grawlix-anagram-LINDSEY-search-DOG.txt`. Same tool keys as the URL query string (see [`../design.md` § URL state](../design.md#url-state)), so the file is self-describing and re-running the same stack later won't overwrite the prior snapshot.
-
-Format follows the tool's natural output shape — for plain entry lists, the standard `ENTRY;SCORE[;COMMENT]` used elsewhere. Multi-atom chain and group outputs need their own format design (`FROM\tTO\tMIN_SCORE` is the obvious shape for a two-atom chain); deferred until those tools land in the user's workflow.
-
-This is a third "give me a file" path alongside the two existing ones (All/My Edits via Sync & backup, individual wordlist via the Library view). It's distinct because the file isn't a backup or a wordlist export — it's a snapshot of the current view, usually filtered or transformed.
 
 ---
 

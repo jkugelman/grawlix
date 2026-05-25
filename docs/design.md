@@ -338,6 +338,72 @@ Score/comment edits and the rescore/override explanation all live in the popover
 
 **Two scrollers, one base class.** `BaseVirtualScroller` owns the shared mechanics — sizer DOM, capture-mode window scroll listener, ResizeObserver, the visible-range math, destroy. `WorkshopEntriesScroller` extends it with the atom-grid render, AtomPopover binding, click-to-edit wiring, and the sort toolbar. `LibraryEntriesScroller` extends it with the monospace render, mode-aware `→` annotations, and live rescore-rule preview. The two scrollers diverge in everything the user sees — they share only the act of "render a window of rows into a sizer as the user scrolls."
 
+## Entries-table export
+
+A kebab `⋮` menu at the right end of the Workshop stats bar offers four ways to get the current view out of Grawlix: **Copy to clipboard**, **Download as wordlist**, **Download as CSV**, **Download as JSON**. The four split by audience — Copy for paste-into-chat, wordlist for filling tools (Crossfire, Ingrid, Compiler, Crosserville), CSV for spreadsheets, JSON for scripters.
+
+**Kebab over icon buttons or a dialog.** Two icon buttons (download + copy) was considered and rejected — icon mystery vs self-documenting named items, and the bar already collapses Min/Max on narrow viewports without room for more chrome. An "Export…" dialog with format chooser and live preview was considered and rejected as overcomplex for the common case; the kebab keeps the bar quiet and the per-format defaults are sensible enough.
+
+**Scope is the visible view.** Every format reflects the current filter, sort, and pipeline output. Score range applies (WYSIWYG). Grouped pipelines export every surviving member chain — the `+N more` cap is a display artifact, not a filter. Synthetic atoms (tool-supplied `[string, score]` with no wordlist backing) are included.
+
+**Same skip rule everywhere: highlight-slot atoms collapse.** A chain's same-word repeat atoms (the `[]`-slot atoms emitted by Search and other highlighting tools) are display constructs — their entry/score/comment match the prior atom — so exports use the chain's *content* entries (originator + transform outputs). `currentContentAtomCount(stack)` derives the static count from the catalog records (`1 + non-inert transforms`); CSV's column count and JSON's `entries[]` length both align with it.
+
+**No "Export…" dialog or sticky settings.** Defaults are baked into each menu item; "Copy as wordlist with comments" or a comment-toggle variant lands only if users surface the need. Same for "with source attribution" — the column appears in the merged-view display but not in CSV/JSON exports today. Surface complexity costs more than the minor friction of users post-processing.
+
+### Copy to clipboard
+
+Plain text with a markdown header. Header is `[Tool description](URL)` — a markdown link to the URL that reproduces the view; string param values are backtick-quoted inside the label so a wildcard like `*EARNING` doesn't trigger italic-on-rest-of-line in markdown renderers that parse formatting inside link text (numeric params can't carry markdown specials and go bare for legibility). Empty-stack/empty-search header uses `[All](URL)` — the merged view's name — so every copy has the same shape rather than degrading to a bare angle-bracketed URL. No `#` prefix — markdown would render it as H1.
+
+Body: one row per line, chains rendered inline with their glyphs (`RELEARNING → ELEARNING → LEARNING → EARNING`). Semordnilap mirror pairs use `↔` per `unify`. Grouped pipelines render one line per group as `chain1, chain2, …` — no `group_key:` prefix, since the key isn't shown on the group rows the user is looking at either; CSV/JSON carry the key when an exporter needs it.
+
+Sort order = current table sort, no dedup needed (chains with glyphs are visibly distinct, so two journeys to the same tail are two distinct lines naturally).
+
+### Download as wordlist
+
+Strict `ENTRY;SCORE` per line, no header, no comments, `\n` line endings, trailing newline. Intended for filling tools that expect raw wordlist format.
+
+**Chain rows → tail entry only.** The journey is meaningful in Grawlix but irrelevant to the filling tool consuming the file.
+
+**Score = min across chain content atoms.** Matches the existing rationale that the worst-scoring atom caps a chain's quality (§ Sort axes per tier). A theme using both ends of the chain has to live with the weak link.
+
+**Dedup by tail entry, score = max-of-mins.** Two chains both producing EARNING (mins 30 and 50) collapse to one `EARNING;50` line. Each chain is an alternate path; the user has the option of using the strongest, so the entry's effective quality is the better path's min. Per output entry: max over chains producing it of (min over atoms in chain of atom score).
+
+**Grouped pipelines flatten.** Every surviving member-chain tail, group identity discarded. Wordlist format can't represent clusters; CSV/JSON carry the structure when needed.
+
+**Sort = alphabetical asc.** Decoupled from the user's Workshop sort. Wordlist files in the wild ship alphabetical-ish (XWI, Broda, JK, STWL all follow this), and a canonical sort is diffable across snapshots.
+
+**Semicolon-in-entry handling: drop + toast notice.** Wordlist format has no escape mechanism. Toast: `Downloaded grawlix-search-ice.txt — 124 entries (2 skipped due to semicolons)`. Parenthetical omitted when zero. Replacing the `;` with anything else would silently corrupt entries.
+
+**Comments off by default.** The export's purpose is "snapshot for filling tool," not backup — comments are scoring metadata that mostly lives in Grawlix, and at least one consumer (Crossfire) chokes on them. Backup is Library's per-wordlist Download.
+
+### Download as CSV
+
+Spreadsheet-oriented structured format (`.csv`). Header row, RFC 4180 `"` quoting (handles entries with `,`, `;`, `"`, newlines — no dropping needed), UTF-8, `\r\n` line endings (Excel-friendly).
+
+**Column order matches the site's display: `entry, length, score, comment, source`** — interleaved per entry on multi-content-atom chain rows (`entry_1, length_1, score_1, comment_1, source_1, entry_2, …`). On flat one-content-atom rows, plain column names.
+
+**Sort = preserve table sort, no dedup.** CSV is the "analyze elsewhere" format; the user's current sort signals intent, and multiple chains producing the same tail are distinct rows.
+
+**Computed columns kept** (`min_score`, `max_score` before the entry columns; `count` on grouped rows; catalog group columns). Asymmetric with JSON — the spreadsheet audience would hand-type `=MIN(...)` formulas otherwise.
+
+**Comments + source mimic the display table** — present on flat pipelines, omitted on grouped (per `design.md`'s "no Length, Comment, or Source column on group chains" rule).
+
+### Download as JSON
+
+Scripter-oriented structured format (`.json`). Pretty-printed (2-space indent), UTF-8. Mirrors the executor's `group → chains → entries` model directly.
+
+**Uniform shape regardless of pipeline.** Always `{url, tools, score_range?, sort, groups}`. Flat pipelines are one mega-group (no `group_key`, no catalog cols, comments/source on entries). Grouped pipelines have one group per cluster (with `group_key` and catalog cols, comments/source omitted on entries per the same rule as CSV). Consumer parses one schema.
+
+**Drops generically-computed fields** — `length`, `count`, `min_score`, `max_score`. Scripter can compute trivially (`Math.min(...chain.entries.map(e => e.score))`); the JSON should be lean. Catalog group cols *kept* — they're tool-declared, and JSON doesn't know whether a given catalog col is trivially derivable from `group_key` (Letter clusters' `letters` is `group_key.length`) or non-trivial.
+
+**Metadata fields:** `url` (the link that reproduces the view; mostly redundant with `tools`+`sort` but kept as the human-clickable handle); `tools` (parsed pipeline as `[{name, params?, grouped?}]` in order, with the same skip rule as `Router.buildQuery` — permanent search bar drops out when inert, other rows kept); `score_range` ({min, max} numbers, either bound omitted when open-ended, whole field omitted when no range set — the one piece not in URL since the filter is per-user); `sort` ({by, dir} matching internal axis keys).
+
+Wordlist metadata (names + enabled state) was considered for forensic-reproducibility ("which data produced this view") and deferred — noise for the common case; timestamps and Grawlix-version fields were rejected outright (privacy-leakage on shared files, premature).
+
+### Filename scheme
+
+Across all three Download formats: `grawlix-<tool>-<param>-<tool>-<param>.<ext>`. Same tool keys as the URL query string, sanitized for filesystem safety (lowercase, wildcards `?` `*` `#` `@` `[…]` stripped — invalid on Windows, noisy anyway; non-alphanumerics collapsed to `-`; capped at 100 chars). Empty pipeline → `grawlix-all.<ext>`. The downside is that `grawlix-search-ice.txt` can't distinguish `?ICE` from `*ICE` from plain `ICE`; accepted, since the file content is the source of truth and the filename is just for telling snapshots apart in the Downloads folder.
+
 ## Help
 
 The header `?` button is a deactivated placeholder — present so the slot doesn't disappear, but with a `not-allowed` cursor and no behavior. There is no help surface yet; one is planned in [`planned/help.md`](planned/help.md), to land once [`planned/tools.md`](planned/tools.md) settles.

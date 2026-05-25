@@ -73,6 +73,17 @@ A single sticky band above the entries table, carrying every readout about the v
 
 The score range applies after the pipeline runs, dropping any chain whose journey touched an out-of-range atom. Grouped pipelines drop chains per group; a group stays visible as long as at least one chain survives.
 
+## Exporting the entries table
+
+The kebab `⋮` at the right end of the stats bar offers four ways to get the current view out:
+
+- **Copy to clipboard** — plain text with a markdown link header. Chains render inline with their glyphs (`scar → car`); grouped pipelines render the chain members per line, comma-separated. Designed for pasting into Discord, notes, or any chat/markdown surface.
+- **Download as wordlist** — `.txt` file in `ENTRY;SCORE` per line. Chain rows use the tail entry only with the chain's minimum score (the weak link caps the chain's quality); duplicates collapse to the better of the per-chain mins. Output is alphabetical regardless of your table sort. Comments are not included. Entries containing `;` are dropped with a toast notice.
+- **Download as CSV** — `.csv` file for spreadsheet use. Columns mirror what's on screen (entry, length, score, comment, source on flat pipelines; group_key, count, and the grouped tool's columns on grouped pipelines). Chain rows interleave columns per atom and prefix with min/max score. Sort matches your current table sort.
+- **Download as JSON** — `.json` file for scripters. Mirrors the pipeline's group → chains → entries shape uniformly. Includes the URL that reproduces the view, the parsed tool stack, your current score range, and your current sort. Drops computed fields (length, count, min/max score) since a script can derive them.
+
+All four reflect the current view — search, score range, sort, every active tool. Files are named after the pipeline (`grawlix-behead-1-search-earning.json`); wildcards are stripped from filenames since they're invalid on Windows.
+
 ## Editing entries
 
 Click any entry or score in a row to open an editor popover. The popover shows which wordlist sourced the score (with any rescoring or override explanation) and lets you edit the score and comment. Edits always land in My Edits, regardless of which wordlist sourced the row.
