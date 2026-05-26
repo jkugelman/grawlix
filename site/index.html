@@ -5280,7 +5280,10 @@ async function runPipeline(mergedWordlist, stack) {
   _pipelineRunning++;
 
   const panel = document.getElementById('entries-table-panel');
-  const markSlow = () => panel?.classList.add('pipeline-running');
+  const markSlow = () => {
+    panel?.classList.add('pipeline-running');
+    _signalFirstPaint();
+  };
   const slowTimer = setTimeout(markSlow, SLOW_PIPELINE_THRESHOLD_MS);
 
   try {
@@ -7587,10 +7590,6 @@ let _renderEffectActive = false;
 let _firstRenderDone = false;
 let _cosmeticEffectFirstRun = true;
 
-// Resolves once the Workshop scroller has painted its first batch of rows.
-// init() awaits this before lifting the busy overlay — a tool chain's pipeline
-// yields to the event loop mid-run, so without the wait the overlay drops on a
-// still-empty table.
 let _signalFirstPaint;
 const _firstPaint = new Promise(r => { _signalFirstPaint = r; });
 
@@ -7808,18 +7807,17 @@ async function renderWorkshopMergedDetail() {
   try {
     const panel = document.getElementById('detail-panel');
     reconcileSort(ToolStack.getStack());
-    const result = await runPipeline(buildMergedWordlist(), ToolStack.getStack());
-    if (result.aborted) return;
-    const { rows, atomCount } = result;
     mountWorkshopPanel(panel);
-
     workshopScroller.showSource = true;
     workshopScroller.editsWordlist = getEditsWordlist() ?? null;
     workshopScroller.showEditDeleteCol = true;
-    workshopScroller.setEntries(rows, atomCount, chainSortTier(ToolStack.getStack()));
-
     workshopScroller._onDeleteRow = entry => deleteFromEdits(entry, refreshWorkshopMergedScroller);
     attachExternalEditHandlers(workshopScroller, refreshWorkshopMergedScroller);
+
+    const result = await runPipeline(buildMergedWordlist(), ToolStack.getStack());
+    if (result.aborted) return;
+    const { rows, atomCount } = result;
+    workshopScroller.setEntries(rows, atomCount, chainSortTier(ToolStack.getStack()));
     ToolStack.refreshErrorMarks();
   } finally {
     // In `finally` so a thrown/aborted pipeline still dismisses the busy
