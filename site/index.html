@@ -4143,6 +4143,8 @@ async function loadUnigramCorpus() {
 function rankedSplits(entry, window, wordlist) {
   if (entry.length < 1) return [];
   const isAllowedPart = p => p.length <= 2 || wordlist.byEntry.has(p);
+  const isDigit = c => c >= '0' && c <= '9';
+  const splitsMidDigit = (s, i) => i < s.length && isDigit(s[i - 1]) && isDigit(s[i]);
 
   const bestMemo = new Map();
   bestMemo.set('', 0);
@@ -4151,6 +4153,7 @@ function rankedSplits(entry, window, wordlist) {
     if (hit !== undefined) return hit;
     let best = -Infinity;
     for (let i = 1; i <= s.length; i++) {
+      if (splitsMidDigit(s, i)) continue;
       const p = s.slice(0, i);
       if (!isAllowedPart(p)) continue;
       const score = unigramLogFreq(p) + bestFor(s.slice(i));
@@ -4173,6 +4176,7 @@ function rankedSplits(entry, window, wordlist) {
     }
     if (accScore + bestFor(s) < threshold) return;
     for (let i = 1; i <= s.length; i++) {
+      if (splitsMidDigit(s, i)) continue;
       const p = s.slice(0, i);
       if (!isAllowedPart(p)) continue;
       acc.push(p);

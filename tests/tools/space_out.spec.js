@@ -84,6 +84,18 @@ test('rejects splits made of legit-but-low-frequency parts by score', async ({ p
   expect(rows).toEqual(['a barrel of laughs']);
 });
 
+test('never splits in the middle of a digit run', async ({ page }) => {
+  await gotoApp(page);
+  await setup(page, {
+    entries: ['25OR6TO4'],
+    corpus: { '25': -8, '6': -3, '4': -3, '2': -3, '5': -3, or: -3, to: -3 },
+  });
+  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'space_out' }]));
+
+  const rows = (await visible(page)).filter(r => Array.isArray(r) && r[0] === '25or6to4').map(r => r[1]);
+  expect(rows).toEqual(['25 or 6 to 4']);
+});
+
 test('Splits=One returns exactly the top result; Splits=Many surfaces near-tie alternates', async ({ page }) => {
   await gotoApp(page);
   await setup(page, {
