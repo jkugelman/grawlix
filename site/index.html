@@ -30,6 +30,7 @@ input[type="file"] { display: none; }
      histogram height is fixed. */
   --stats-bar-h: 57px;
   --tool-stack-h: 53px;
+  --sticky-stack-h: 138px;
   --search-bar-h: 51px;
   /* Live height of the Library's pinned wordlist card (narrow layout) —
      published by LibraryView, used to offset the pane's sticky bars below
@@ -281,7 +282,8 @@ html.dark-mode .search-match-4 { background: #14532d; color: #d1fae5; }
    Clears the moment the run completes (or aborts). The dim lands on #vs-host,
    not the panel, so the spinner overlay stays at full opacity. */
 #entries-table-panel.pipeline-running #vs-host { opacity: 0.55; transition: opacity 0.15s ease; }
-.pipeline-spinner { display: none; position: fixed; top: calc(var(--header-h) + var(--tool-stack-h) + var(--stats-bar-h) + 40px); left: 50%; margin-left: -18px; width: 36px; height: 36px; border: 3px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: pipeline-spin 0.8s linear infinite; z-index: 5; pointer-events: none; }
+.pipeline-spinner { display: none; position: sticky; top: calc(var(--header-h) + var(--sticky-stack-h) + 40px); margin: 40px auto -76px; width: 36px; height: 36px; border: 3px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: pipeline-spin 0.8s linear infinite; z-index: 5; pointer-events: none; }
+#entries-table-panel.pipeline-running { min-height: 96px; }
 #entries-table-panel.pipeline-running .pipeline-spinner { display: block; }
 @keyframes pipeline-spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .pipeline-spinner { animation: none; } }
@@ -1820,8 +1822,8 @@ function buildScoringSectionHTML() {
 
 function buildEntriesTablePanelHTML() {
   return `<div id="entries-table-panel">
-      <div id="vs-host"></div>
       <div class="pipeline-spinner" aria-hidden="true"></div>
+      <div id="vs-host"></div>
     </div>`;
 }
 
@@ -7757,6 +7759,8 @@ function publishWorkshopBarHeights() {
   if (stack) document.documentElement.style.setProperty('--tool-stack-h', stack.offsetHeight + 'px');
   const stats = document.getElementById('workshop-stats');
   if (stats) document.documentElement.style.setProperty('--stats-bar-h', stats.offsetHeight + 'px');
+  const stickyStack = document.querySelector('#workshop-view .sticky-stack');
+  if (stickyStack) document.documentElement.style.setProperty('--sticky-stack-h', stickyStack.offsetHeight + 'px');
 }
 
 function publishLibraryBarHeights() {
