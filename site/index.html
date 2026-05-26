@@ -5679,6 +5679,7 @@ const ToolStack = (() => {
       rows.push(makeToolRow('search'));
     }
     stack = rows;
+    invalidatePreSearchCache();
   }
   function getStack() { return stack; }
 
