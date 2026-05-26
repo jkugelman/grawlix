@@ -3607,6 +3607,7 @@ function invalidateStatsCache(key) { _statsCache.delete(key); }
 function invalidateSourceCounts() {
   _sourceCountsCache = null;
   _mergedWordlistCache = null;
+  invalidatePreSearchCache();
   invalidateHistogramLayout();
   for (const l of state.sources) l._overrideMap = null;
 }
@@ -4920,42 +4921,40 @@ class ToolStageError extends Error {
   }
 }
 
+let _preSearchCache = null;
+function invalidatePreSearchCache() { _preSearchCache = null; }
+
+function clonePreSearchState(state) {
+  return {
+    groups: state.groups.map(g => ({ ...g })),
+    grouped: state.grouped,
+  };
+}
+
 async function executePipeline(mergedWordlist, stack, signal, onSlow) {
   const y = makeYielder(signal, onSlow);
   for (const stackRow of stack) stackRow._error = null;
-  let groups = [{ key: undefined, chains: await buildInitialChains(mergedWordlist, y) }];
-  let grouped = false;
 
-  for (const stackRow of stack) {
-    if (stackRow.isInert()) continue;
-    const { def } = stackRow;
-    throwIfAborted(signal);
+  const userStack = stack.slice(0, -1);
+  const searchRow = stack[stack.length - 1];
 
-    try {
-      if (stackRow.kind() === 'group') {
-        const ctx = makeCtx(mergedWordlist, groups[0].chains, signal, y);
-        groups = await bucketize(groups[0].chains, def.group, ctx);
-        grouped = true;
-        continue;
-      }
-
-      const params = normalizeParams(stackRow.params, def.params);
-      const prepareInput = grouped ? groups.flatMap(g => g.chains) : groups[0].chains;
-      const prepared = def.prepare
-        ? await def.prepare(params, makeCtx(mergedWordlist, prepareInput, signal, y))
-        : params;
-      for (const g of groups) {
-        g.chains = await runToolStage(g.chains, stackRow, prepared, mergedWordlist, y);
-        if (y.due()) await y.yield();
-      }
-    } catch (e) {
-      if (signal?.aborted) throw e;
-      stackRow._error = e?.message || String(e);
-      console.error(`Tool "${stackRow.tool}" failed:`, e);
-      throw new ToolStageError(e, stackRow);
+  let state;
+  if (_preSearchCache) {
+    state = clonePreSearchState(_preSearchCache);
+  } else {
+    state = {
+      groups: [{ key: undefined, chains: await buildInitialChains(mergedWordlist, y) }],
+      grouped: false,
+    };
+    for (const stackRow of userStack) {
+      await runStackRow(stackRow, state, mergedWordlist, signal, y);
     }
+    _preSearchCache = clonePreSearchState(state);
   }
 
+  await runStackRow(searchRow, state, mergedWordlist, signal, y);
+
+  const { groups, grouped } = state;
   const multiAtom = chainProducesMultiAtom(stack);
   const result = [];
   for (const g of groups) {
@@ -4971,6 +4970,38 @@ async function executePipeline(mergedWordlist, stack, signal, onSlow) {
     atomCount: currentAtomCount(stack),
     grouped,
   };
+}
+
+async function runStackRow(stackRow, state, mergedWordlist, signal, y) {
+  if (stackRow.isInert()) return;
+  const { def } = stackRow;
+  throwIfAborted(signal);
+
+  try {
+    if (stackRow.kind() === 'group') {
+      const ctx = makeCtx(mergedWordlist, state.groups[0].chains, signal, y);
+      state.groups = await bucketize(state.groups[0].chains, def.group, ctx);
+      state.grouped = true;
+      return;
+    }
+
+    const params = normalizeParams(stackRow.params, def.params);
+    const prepareInput = state.grouped
+      ? state.groups.flatMap(g => g.chains)
+      : state.groups[0].chains;
+    const prepared = def.prepare
+      ? await def.prepare(params, makeCtx(mergedWordlist, prepareInput, signal, y))
+      : params;
+    for (const g of state.groups) {
+      g.chains = await runToolStage(g.chains, stackRow, prepared, mergedWordlist, y);
+      if (y.due()) await y.yield();
+    }
+  } catch (e) {
+    if (signal?.aborted) throw e;
+    stackRow._error = e?.message || String(e);
+    console.error(`Tool "${stackRow.tool}" failed:`, e);
+    throw new ToolStageError(e, stackRow);
+  }
 }
 
 async function runToolStage(rows, stackRow, prepared, mergedWordlist, y) {
@@ -5466,6 +5497,7 @@ const ToolStack = (() => {
     focusRowInput(idx);
     flashRow(idx);
     refreshGalleryActive();
+    invalidatePreSearchCache();
     refreshWorkshopMergedScroller();
     Router.navigate();
   }
@@ -5476,6 +5508,7 @@ const ToolStack = (() => {
     stack.splice(idx, 1);
     rerenderRows();
     refreshGalleryActive();
+    invalidatePreSearchCache();
     refreshWorkshopMergedScroller();
     Router.navigate();
   }
@@ -5489,6 +5522,7 @@ const ToolStack = (() => {
     const [row] = stack.splice(fromIdx, 1);
     stack.splice(toIdx, 0, row);
     rerenderRows();
+    invalidatePreSearchCache();
     refreshWorkshopMergedScroller();
     Router.navigate();
   }
@@ -5559,6 +5593,7 @@ const ToolStack = (() => {
         } else {
           delete row.params.replace;
         }
+        if (token !== 'bar') invalidatePreSearchCache();
         refreshWorkshopMergedScroller();
         Router.navigate();
         return;
@@ -5579,6 +5614,7 @@ const ToolStack = (() => {
         } else {
           row.params[key] = input.value;
         }
+        if (rowAttr !== 'bar') invalidatePreSearchCache();
         refreshWorkshopMergedScroller();
         Router.navigate();
       }
