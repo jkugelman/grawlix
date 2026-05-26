@@ -879,6 +879,10 @@ a.get-file:hover { text-decoration: underline; }
 .score-range-label input.invalid { border-color: #ea4335; background: var(--error-bg); }
 .tool-row-param input.tool-row-num { background: var(--input-bg); color: var(--text); border: 1px solid var(--border); border-radius: 4px; font-size: 13px; font-family: var(--font-sans); padding: 5px 8px; width: 5em; }
 .tool-row-param input.tool-row-num:focus { outline: none; border-color: var(--accent); }
+.tool-row-range-wrap { display: inline-flex; flex-direction: column; align-items: stretch; gap: 1px; }
+.tool-row-range-wrap input[type="range"] { width: 110px; margin: 0; padding: 0; height: 16px; accent-color: var(--accent); }
+.tool-row-range-wrap input[type="range"]:focus { outline: none; }
+.tool-row-range-ticks { display: flex; justify-content: space-between; font-size: 10px; line-height: 1; color: var(--faint); padding: 0 2px; }
 .clearable-input { position: relative; display: inline-flex; align-items: center; }
 .clearable-input .clear-btn { position: absolute; right: 4px; }
 .clear-btn { background: none; border: none; padding: 2px 3px; cursor: pointer; color: var(--muted); display: flex; align-items: center; line-height: 1; border-radius: 3px; flex-shrink: 0; }
@@ -1478,6 +1482,18 @@ function buildParamHTML(param, value, toolKey, wiring) {
   if (param.type === 'number') {
     return `<span class="tool-row-param">${labelHTML}<input type="number" min="1" class="tool-row-num"`
       + ` placeholder="${esc(param.placeholder || '')}" value="${esc(value || '')}"${wiring}></span>`;
+  }
+  if (param.type === 'range') {
+    const choices = (param.choices || []).map(c => typeof c === 'string' ? { value: c, label: c } : c);
+    const max = Math.max(0, choices.length - 1);
+    const cur = String(value ?? param.default ?? choices[0]?.value ?? '').toLowerCase();
+    const idx = Math.max(0, choices.findIndex(c => c.value.toLowerCase() === cur));
+    const ticks = choices.map(c => `<span>${esc(c.label)}</span>`).join('');
+    const valuesAttr = ` data-range-values="${esc(choices.map(c => c.value).join(','))}"`;
+    return `<span class="tool-row-param tool-row-range">${labelHTML}<span class="tool-row-range-wrap">`
+      + `<input type="range" min="0" max="${max}" step="1" value="${idx}"${valuesAttr}${wiring}>`
+      + `<span class="tool-row-range-ticks">${ticks}</span>`
+      + `</span></span>`;
   }
   return `<span class="tool-row-param tool-row-param-text">${labelHTML}${buildTextInputHTML(param, value, toolKey, wiring)}</span>`;
 }
@@ -3476,6 +3492,8 @@ async function init() {
   state.sources
     .filter(l => l.url && !l.populated)
     .forEach(l => fetchWordlist(l, null, { silent: true }));
+
+  loadUnigramCorpus().catch(() => { /* surfaced when the tool is used */ });
 }
 
 function defaultSources() {
@@ -4024,6 +4042,150 @@ function runSearchReplace(entry, prepared, wordlist) {
   return [{ entry: out, inputHighlights, outputHighlights }];
 }
 
+// ─── Unigram corpus & phrase segmenter ───────────────────────────────────────
+
+const UNIGRAM_CORPUS_URL = 'https://raw.githubusercontent.com/rspeer/wordfreq/master/wordfreq/data/large_en.msgpack.gz';
+const UNIGRAM_CORPUS_IDB_KEY = 'corpus_unigrams';
+const UNIGRAM_CORPUS_SIZE_KEY = 'corpus_unigrams_size';
+
+const SPACE_OUT_WINDOWS = { one: 2, few: 5, many: 10 };
+
+let unigramLogFreqs = null;
+let unigramMinLogFreq = -Infinity;
+let unigramFetchedSize = null;
+let unigramLoadPromise = null;
+
+function unigramLogFreq(word) {
+  const lf = unigramLogFreqs?.get(word);
+  if (lf !== undefined) return lf;
+  return unigramMinLogFreq - word.length * Math.LN10;
+}
+
+function msgpackDecode(bytes) {
+  const td = new TextDecoder('utf-8');
+  let pos = 0;
+  const u8 = () => bytes[pos++];
+  const u16 = () => { const v = (bytes[pos] << 8) | bytes[pos + 1]; pos += 2; return v; };
+  const u32 = () => {
+    const v = bytes[pos] * 0x1000000 + ((bytes[pos + 1] << 16) | (bytes[pos + 2] << 8) | bytes[pos + 3]);
+    pos += 4;
+    return v;
+  };
+  const str = (len) => { const s = td.decode(bytes.subarray(pos, pos + len)); pos += len; return s; };
+  const arr = (n) => { const out = new Array(n); for (let i = 0; i < n; i++) out[i] = readVal(); return out; };
+  const map = (n) => { const out = {}; for (let i = 0; i < n; i++) { const k = readVal(); out[k] = readVal(); } return out; };
+  function readVal() {
+    const t = u8();
+    if (t <= 0x7f) return t;
+    if (t <= 0x8f) return map(t & 0x0f);
+    if (t <= 0x9f) return arr(t & 0x0f);
+    if (t <= 0xbf) return str(t & 0x1f);
+    if (t === 0xd9) return str(u8());
+    if (t === 0xda) return str(u16());
+    if (t === 0xdb) return str(u32());
+    if (t === 0xdc) return arr(u16());
+    if (t === 0xdd) return arr(u32());
+    if (t === 0xde) return map(u16());
+    if (t === 0xdf) return map(u32());
+    throw new Error(`msgpack: unsupported type 0x${t.toString(16)}`);
+  }
+  return readVal();
+}
+
+async function gunzipBytes(bytes) {
+  const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'));
+  return new Uint8Array(await new Response(stream).arrayBuffer());
+}
+
+function buildCorpusFromMsgpack(decoded) {
+  const map = new Map();
+  let lastNonEmpty = 1;
+  for (let bucket = 1; bucket < decoded.length; bucket++) {
+    const words = decoded[bucket];
+    if (!words || words.length === 0) continue;
+    const logFreq = -bucket * Math.LN10 / 100;
+    for (const word of words) map.set(word, logFreq);
+    lastNonEmpty = bucket;
+  }
+  return { map, minLog: -lastNonEmpty * Math.LN10 / 100 };
+}
+
+async function loadUnigramCorpus() {
+  if (unigramLogFreqs) return;
+  if (unigramLoadPromise) return unigramLoadPromise;
+  unigramLoadPromise = (async () => {
+    let gz = await idbGet(UNIGRAM_CORPUS_IDB_KEY);
+    const fromCache = !!gz;
+    if (!gz) {
+      const resp = await fetch(UNIGRAM_CORPUS_URL);
+      if (!resp.ok) throw new Error(`HTTP ${resp.status} ${resp.statusText}`);
+      gz = await resp.arrayBuffer();
+      unigramFetchedSize = resp.headers.get('content-length') || null;
+    } else {
+      unigramFetchedSize = lsLoad(UNIGRAM_CORPUS_SIZE_KEY);
+    }
+    const decompressed = await gunzipBytes(new Uint8Array(gz));
+    const { map, minLog } = buildCorpusFromMsgpack(msgpackDecode(decompressed));
+    unigramLogFreqs = map;
+    unigramMinLogFreq = minLog;
+    if (!fromCache) {
+      await idbPut(UNIGRAM_CORPUS_IDB_KEY, gz);
+      if (unigramFetchedSize) lsSave(UNIGRAM_CORPUS_SIZE_KEY, unigramFetchedSize);
+    }
+  })();
+  try {
+    await unigramLoadPromise;
+  } finally {
+    if (!unigramLogFreqs) unigramLoadPromise = null;
+  }
+}
+
+function rankedSplits(entry, window, wordlist) {
+  if (entry.length < 1) return [];
+  const isAllowedPart = p => p.length <= 2 || wordlist.byEntry.has(p);
+
+  const bestMemo = new Map();
+  bestMemo.set('', 0);
+  function bestFor(s) {
+    const hit = bestMemo.get(s);
+    if (hit !== undefined) return hit;
+    let best = -Infinity;
+    for (let i = 1; i <= s.length; i++) {
+      const p = s.slice(0, i);
+      if (!isAllowedPart(p)) continue;
+      const score = unigramLogFreq(p) + bestFor(s.slice(i));
+      if (score > best) best = score;
+    }
+    bestMemo.set(s, best);
+    return best;
+  }
+  const overallBest = bestFor(entry);
+  const threshold = overallBest - window;
+
+  const results = [];
+  const acc = [];
+  function enumerate(s, accScore) {
+    if (s === '') {
+      if (accScore >= threshold) {
+        results.push({ score: accScore, parts: acc.slice() });
+      }
+      return;
+    }
+    if (accScore + bestFor(s) < threshold) return;
+    for (let i = 1; i <= s.length; i++) {
+      const p = s.slice(0, i);
+      if (!isAllowedPart(p)) continue;
+      acc.push(p);
+      enumerate(s.slice(i), accScore + unigramLogFreq(p));
+      acc.pop();
+    }
+  }
+  enumerate(entry, 0);
+
+  results.sort((a, b) => b.score - a.score);
+  return results.map(r => r.parts);
+}
+
 // ─── Tool stack ───────────────────────────────────────────────────────────────
 // Tools are catalog records ({ name, icon, category, desc, example, params,
 // kind, inputHighlights, outputHighlights, glyph?, run?, group?, isInert? }).
@@ -4064,6 +4226,7 @@ const TOOL_CATEGORIES = [
   { id: 'letters',    label: 'Letters' },
   { id: 'pairs',      label: 'Pairs' },
   { id: 'palindrome', label: 'Palindrome' },
+  { id: 'phrase',     label: 'Phrase' },
   { id: 'search',     label: 'Search' },
   { id: 'side',       label: 'Side' },
 ];
@@ -4363,6 +4526,34 @@ const TOOLS = {
       if (reversed === entry) return [];
       if (!wordlist.byEntry.has(reversed)) return [];
       return [{ entry: reversed }];
+    },
+  },
+  space_out: {
+    name: 'Space out', icon: '🪐', category: 'phrase',
+    desc: 'Guess at where spaces go in multi-word entries',
+    example: 'SPACEOUT → SPACE OUT',
+    params: [
+      { key: 'splits', label: 'Splits', type: 'range', default: 'few',
+        choices: [
+          { value: 'one',  label: 'One'  },
+          { value: 'few',  label: 'Few'  },
+          { value: 'many', label: 'Many' },
+        ] },
+    ],
+    kind: 'transform', inputHighlights: false, outputHighlights: false,
+    glyph: () => '→',
+    async prepare(params) {
+      await loadUnigramCorpus();
+      const choice = params.splits || 'few';
+      return { window: SPACE_OUT_WINDOWS[choice] ?? SPACE_OUT_WINDOWS.few, onlyTop: choice === 'one' };
+    },
+    run(entry, prepared, wordlist) {
+      if (!unigramLogFreqs) return [];
+      const splits = rankedSplits(entry, prepared.window, wordlist);
+      if (splits.length === 0) return [];
+      const inputScore = wordlist.byEntry.get(entry)?.score ?? 0;
+      const picks = prepared.onlyTop ? splits.slice(0, 1) : splits;
+      return picks.map(parts => ({ entry: [parts.join(' '), inputScore] }));
     },
   },
   search: {
@@ -4922,7 +5113,8 @@ function collapseRepeatAtoms(atoms) {
     const prev = out[out.length - 1];
     const cur = atoms[i];
     if (prev.wlEntry.entry === cur.wlEntry.entry &&
-        !(prev.highlights !== null && cur.highlights !== null)) {
+        !(prev.highlights !== null && cur.highlights !== null) &&
+        !cur.glyph) {
       // Survivor keeps `prev`'s glyph (a repeat atom has none) and takes the
       // highlight slot when one side is one.
       if (cur.highlights !== null) out[out.length - 1] = { ...prev, highlights: cur.highlights };
@@ -5360,7 +5552,14 @@ const ToolStack = (() => {
       const row = rowAttr === 'bar' ? getSearchBarRow() : stack[parseInt(rowAttr, 10)];
       const key = input.dataset.key;
       if (row) {
-        row.params[key] = input.type === 'checkbox' ? input.checked : input.value;
+        if (input.type === 'checkbox') {
+          row.params[key] = input.checked;
+        } else if (input.type === 'range' && input.dataset.rangeValues) {
+          const values = input.dataset.rangeValues.split(',');
+          row.params[key] = values[parseInt(input.value, 10)] || '';
+        } else {
+          row.params[key] = input.value;
+        }
         refreshWorkshopMergedScroller();
         Router.navigate();
       }
@@ -8033,6 +8232,19 @@ async function checkForUpdates() {
   if (anyChanged) {
     renderSources();
   }
+
+  if (unigramFetchedSize) {
+    try {
+      const resp = await fetch(UNIGRAM_CORPUS_URL, { method: 'HEAD' });
+      const size = resp.ok ? resp.headers.get('content-length') : null;
+      if (size && size !== unigramFetchedSize) {
+        unigramLogFreqs = null;
+        unigramLoadPromise = null;
+        await idbPut(UNIGRAM_CORPUS_IDB_KEY, '');
+        await loadUnigramCorpus();
+      }
+    } catch { /* offline or network error — silently ignore */ }
+  }
 }
 
 function triggerImportForWordlist(wordlist, event) {
@@ -10058,6 +10270,13 @@ window.__grawlixTest = {
     const m = buildMergedWordlist().byEntry.get(entry.toLowerCase());
     if (!m) return null;
     return { entry: m.entry, score: m.score, comment: m.comment, wordlist: m.wordlist.name };
+  },
+
+  setUnigramCorpus(freqs) {
+    const entries = Object.entries(freqs);
+    unigramLogFreqs = new Map(entries);
+    unigramMinLogFreq = entries.length ? Math.min(...entries.map(([, lf]) => lf)) : -Infinity;
+    unigramLoadPromise = null;
   },
 
   // Set the Workshop tool stack directly, bypassing gallery clicks. Routes

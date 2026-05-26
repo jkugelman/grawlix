@@ -34,7 +34,7 @@ Source material: shipped catalog lives in `TOOLS` in [`site/index.html`](../site
 |   | Phonetic | 🎵 Rhymes | Same end-of-word phoneme sequence | TBD |
 |   | Phonetic | 🔊 Phonetic substitution | Swap one phoneme for another across the wordlist | TBD |
 |   | Phonetic | 🎶 Sound shift | Move a phoneme between word positions (e.g. front → end) | TBD |
-|   | Phrase | 💬 Split | Add spaces to multi-word entries | TBD |
+| ✓ | Phrase | 🪐 Space out | Guess at where spaces go in multi-word entries | SPACEOUT → SPACE OUT |
 |   | Phrase | 👯 Double occupancy | Two-part entries where both halves compound with one reference term | GREEN LIGHT + HOUSE → GREENHOUSE, LIGHTHOUSE |
 |   | Required | ❗ Required letters | Contains every given letter (in any order) | TBD |
 | ✓ | Search | 🔍 Search | Search (and replace) with wildcards | un*ed · c?t |

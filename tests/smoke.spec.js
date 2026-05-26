@@ -45,6 +45,7 @@ test('test API is exposed on window', async ({ page }) => {
     'pipelineIdle',
     'setRescoreRules',
     'setStack',
+    'setUnigramCorpus',
     'setUpdateAvailable',
   ]);
 });
