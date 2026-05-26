@@ -84,6 +84,43 @@ test('rejects splits made of legit-but-low-frequency parts by score', async ({ p
   expect(rows).toEqual(['a barrel of laughs']);
 });
 
+test('uses the real wordlist metadata when the split form is itself an entry', async ({ page }) => {
+  await gotoApp(page);
+  await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
+    name: 'SpaceOutLookup',
+    entries: ['ICECREAM', 'ICE CREAM', 'ICE', 'CREAM'],
+    scores:  [50, 60, 50, 50],
+    comments: ['', 'a frozen dessert', '', ''],
+  }));
+  await page.evaluate(() => window.__grawlixTest.setUnigramCorpus({
+    ice: -7, cream: -7,
+  }));
+  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'space_out' }]));
+
+  const row = page.locator('.entry-row', { hasText: 'icecream' });
+  await expect(row.locator('.atom').nth(1).locator('.atom-entry')).toHaveText(/ice cream/);
+  await expect(row.locator('.atom').nth(1).locator('.atom-score')).toHaveText('60');
+  await expect(row.locator('.atom').nth(1).locator('.atom-comment')).toHaveText('a frozen dessert');
+});
+
+test('passthrough atom renders score and source when the entry is in the wordlist', async ({ page }) => {
+  await gotoApp(page);
+  await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
+    name: 'SpaceOutPassthrough',
+    entries: ['DOG'],
+    scores:  [45],
+    comments: ['canid'],
+  }));
+  await page.evaluate(() => window.__grawlixTest.setUnigramCorpus({
+    dog: -7, do: -5, d: -10,
+  }));
+  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'space_out' }]));
+
+  const row = page.locator('.entry-row', { hasText: 'dog' });
+  await expect(row.locator('.atom').nth(1).locator('.atom-score')).toHaveText('45');
+  await expect(row.locator('.atom').nth(1).locator('.atom-comment')).toHaveText('canid');
+});
+
 test('never splits in the middle of a digit run', async ({ page }) => {
   await gotoApp(page);
   await setup(page, {

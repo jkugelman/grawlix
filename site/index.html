@@ -4557,7 +4557,10 @@ const TOOLS = {
       if (splits.length === 0) return [];
       const inputScore = wordlist.byEntry.get(entry)?.score ?? 0;
       const picks = prepared.onlyTop ? splits.slice(0, 1) : splits;
-      return picks.map(parts => ({ entry: [parts.join(' '), inputScore] }));
+      return picks.map(parts => {
+        const joined = parts.join(' ');
+        return { entry: wordlist.byEntry.has(joined) ? joined : [joined, inputScore] };
+      });
     },
   },
   search: {
@@ -4916,8 +4919,8 @@ class ToolStageError extends Error {
   }
 }
 
-async function executePipeline(mergedWordlist, stack, signal) {
-  const y = makeYielder(signal);
+async function executePipeline(mergedWordlist, stack, signal, onSlow) {
+  const y = makeYielder(signal, onSlow);
   for (const stackRow of stack) stackRow._error = null;
   let groups = [{ key: undefined, chains: await buildInitialChains(mergedWordlist, y) }];
   let grouped = false;
@@ -5219,9 +5222,11 @@ function throwIfAborted(signal) {
 // those samples ~YIELD_CLOCK_TARGET_MS apart whatever the per-iteration cost.
 const YIELD_CLOCK_TARGET_MS = 1;
 const YIELD_STRIDE_MAX = 1 << 16;
-function makeYielder(signal) {
+function makeYielder(signal, onSlow) {
   let stride = 1, sinceCheck = 0;
-  let lastClock = performance.now(), lastYield = lastClock;
+  const start = performance.now();
+  let lastClock = start, lastYield = lastClock;
+  let slowFired = false;
   return {
     due() {
       if (++sinceCheck < stride) return false;
@@ -5235,7 +5240,12 @@ function makeYielder(signal) {
     async yield() {
       await _yieldImpl();
       throwIfAborted(signal);
-      lastYield = lastClock = performance.now();
+      const now = performance.now();
+      lastYield = lastClock = now;
+      if (!slowFired && onSlow && now - start >= SLOW_PIPELINE_THRESHOLD_MS) {
+        slowFired = true;
+        onSlow();
+      }
     },
   };
 }
@@ -5270,10 +5280,11 @@ async function runPipeline(mergedWordlist, stack) {
   _pipelineRunning++;
 
   const panel = document.getElementById('entries-table-panel');
-  const slowTimer = setTimeout(() => panel?.classList.add('pipeline-running'), SLOW_PIPELINE_THRESHOLD_MS);
+  const markSlow = () => panel?.classList.add('pipeline-running');
+  const slowTimer = setTimeout(markSlow, SLOW_PIPELINE_THRESHOLD_MS);
 
   try {
-    const result = await executePipeline(mergedWordlist, stack, ac.signal);
+    const result = await executePipeline(mergedWordlist, stack, ac.signal, markSlow);
     return { ...result, aborted: false };
   } catch (e) {
     if (ac.signal.aborted) return { aborted: true };
@@ -6506,7 +6517,7 @@ class WorkshopEntriesScroller extends BaseVirtualScroller {
         `<span class="atom-entry"${truncTitle}>${glyphHTML}${renderHighlightedText(displayed, highlights)}</span>`;
       // A repeat atom (same word as the one above it) renders bare — entry
       // cell only — so its grid row carries just the re-highlighted word.
-      if (ai > 0 && entry === atoms[ai - 1].wlEntry.entry) {
+      if (ai > 0 && entry === atoms[ai - 1].wlEntry.entry && !atom.glyph) {
         html += `<span class="atom" data-atom="${ai}">${entryCell}</span>`;
         return;
       }

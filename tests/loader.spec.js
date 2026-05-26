@@ -35,6 +35,38 @@ test('adding a slow tool dims the entries panel via .pipeline-running', async ({
   await expect(page.locator('#entries-table-panel')).not.toHaveClass(/pipeline-running/);
 });
 
+test('a CPU-bound slow run still trips .pipeline-running (scheduler.yield doesnt starve the indicator)', async ({ page }) => {
+  await gotoApp(page);
+  await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
+    name: 'CpuBound',
+    entries: ['AAA', 'BBB', 'CCC', 'DDD', 'EEE', 'FFF', 'GGG', 'HHH'],
+    scores: [50, 50, 50, 50, 50, 50, 50, 50],
+  }));
+  await page.evaluate(() => {
+    TOOLS.anagrams.run = () => {
+      const end = performance.now() + 60;
+      while (performance.now() < end) { /* burn CPU per row */ }
+      return true;
+    };
+    window.__sawPipelineRunning = false;
+    const obs = new MutationObserver(muts => {
+      for (const m of muts) {
+        if (m.attributeName === 'class' && m.target.id === 'entries-table-panel'
+            && m.target.classList.contains('pipeline-running')) {
+          window.__sawPipelineRunning = true;
+        }
+      }
+    });
+    obs.observe(document.body, { attributes: true, subtree: true, attributeFilter: ['class'] });
+  });
+
+  await page.locator('.gallery-card[data-tool="anagrams"]').click();
+
+  await page.evaluate(() => window.__grawlixTest.pipelineIdle());
+  expect(await page.evaluate(() => window.__sawPipelineRunning)).toBe(true);
+  await expect(page.locator('#entries-table-panel')).not.toHaveClass(/pipeline-running/);
+});
+
 test('a slow run shows a spinner over the entries table in addition to the dim', async ({ page }) => {
   await gotoApp(page);
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
