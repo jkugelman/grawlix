@@ -275,11 +275,16 @@ html.dark-mode .search-match-4 { background: #14532d; color: #d1fae5; }
    rows; each row is a vertical stack of atoms — one per significant transition
    through the tool pipeline — sharing column widths via grid so the eye reads
    straight down each column. */
-#entries-table-panel { background: var(--surface); }
+#entries-table-panel { background: var(--surface); position: relative; }
 /* Faded "the results you see are stale, a new run is in flight" treatment —
    the runtime adds this whenever a pipeline run crosses the slow threshold.
-   Clears the moment the run completes (or aborts). */
-#entries-table-panel.pipeline-running { opacity: 0.55; transition: opacity 0.15s ease; }
+   Clears the moment the run completes (or aborts). The dim lands on #vs-host,
+   not the panel, so the spinner overlay stays at full opacity. */
+#entries-table-panel.pipeline-running #vs-host { opacity: 0.55; transition: opacity 0.15s ease; }
+.pipeline-spinner { display: none; position: fixed; top: calc(var(--header-h) + var(--tool-stack-h) + var(--stats-bar-h) + 40px); left: 50%; margin-left: -18px; width: 36px; height: 36px; border: 3px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: pipeline-spin 0.8s linear infinite; z-index: 5; pointer-events: none; }
+#entries-table-panel.pipeline-running .pipeline-spinner { display: block; }
+@keyframes pipeline-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .pipeline-spinner { animation: none; } }
 #vs-host { position: relative; }
 .entries-table-rows { position: relative; }
 .entry-row, .entry-headers {
@@ -535,7 +540,8 @@ button.header-icon-btn:hover { background: none; color: rgba(255,255,255,0.65); 
 #btn-settings svg { position: relative; top: 1px; }
 #btn-help { width: 32px; height: 32px; padding: 0; border-radius: 4px; background: none; cursor: not-allowed; }
 #btn-help:disabled { opacity: 1; }
-.help-circle { width: 20px; height: 20px; border-radius: 50%; background: white; color: var(--accent); font-size: 12px; font-weight: 800; display: inline-flex; align-items: center; justify-content: center; }
+.icon { width: 20px; height: 20px; display: inline-flex; align-items: center; justify-content: center; }
+.help-circle { border-radius: 50%; background: white; color: var(--accent); font-size: 12px; font-weight: 800; }
 
 /* Settings dialog */
 #settings-dialog { width: 340px; }
@@ -739,7 +745,7 @@ a.get-file:hover { text-decoration: underline; }
 .rule-note-pencil { font-size: 11px; color: var(--faint); }
 .rule-row:hover .rule-note-wrap.has-note .rule-note-pencil { opacity: 1; }
 .rule-note-input { flex: 1; padding: 1px 4px; border: 1px solid var(--accent); border-radius: 3px; font-size: 12px; background: var(--input-bg); color: var(--text); outline: none; min-width: 0; }
-.rule-del { width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; border: none; background: none; cursor: pointer; font-size: 15px; padding: 0; line-height: 1; border-radius: 3px; font-family: inherit; color: var(--faint); }
+.rule-del { border: none; background: none; cursor: pointer; font-size: 15px; padding: 0; line-height: 1; border-radius: 3px; font-family: inherit; color: var(--faint); }
 @media (hover: hover) {
   .rule-del { color: transparent; }
   .rule-row:hover .rule-del { color: var(--faint); }
@@ -847,7 +853,7 @@ a.get-file:hover { text-decoration: underline; }
 .tool-stack-cursor { position: absolute; top: -1px; left: 10px; right: 10px; height: 2px; background: var(--accent); pointer-events: none; box-shadow: 0 0 6px color-mix(in srgb, var(--accent) 55%, transparent); }
 .tool-stack-cursor::before { content: ''; position: absolute; left: 0; top: 50%; width: 0; height: 0; transform: translateY(-50%); border-style: solid; border-width: 4px 0 4px 7px; border-color: transparent transparent transparent var(--accent); }
 .tool-label { white-space: nowrap; display: inline-flex; align-items: center; gap: 5px; }
-.tool-row-icon { font-size: 16px; line-height: 1; width: 20px; height: 20px; display: inline-flex; align-items: center; justify-content: center; color: var(--muted); flex-shrink: 0; }
+.tool-row-icon { font-size: 16px; line-height: 1; color: var(--muted); flex-shrink: 0; }
 .tool-row-name { font-size: 13px; font-weight: 600; color: var(--text); }
 .tool-row-name-suffix { font-weight: 400; color: var(--muted); }
 .tool-row-asides { display: flex; align-items: center; gap: 6px; }
@@ -881,6 +887,11 @@ a.get-file:hover { text-decoration: underline; }
 .tool-row-remove { background: none; border: none; color: var(--faint); cursor: pointer; padding: 5px; border-radius: 4px; line-height: 1; display: flex; align-items: center; justify-content: center; }
 .tool-row-remove:hover { color: var(--text); background: var(--hover); }
 .tool-row-remove-placeholder { width: 24px; height: 24px; }
+.tool-row > .tool-row-error-btn { grid-column: -3 / -2; justify-self: end; margin-right: 0.25em; }
+.tool-row-error-btn { background: none; border: none; padding: 0; cursor: default; font-size: 16px; line-height: 1; }
+.tool-row-error-btn[hidden] { display: none; }
+.tool-row-error-popover { position: fixed; z-index: 220; max-width: 320px; padding: 8px 11px; background: var(--surface2); color: var(--text); border: 1px solid var(--border); border-radius: 6px; font-size: 12px; line-height: 1.4; box-shadow: 0 4px 14px rgba(0,0,0,0.25); overflow-wrap: anywhere; }
+.tool-row-error-popover[hidden] { display: none; }
 /* `@supports (-webkit-touch-callout)` tests for iOS Safari, which auto-zooms
    a focused input under 16px (Android and desktop browsers don't). */
 @supports (-webkit-touch-callout: none) {
@@ -1089,7 +1100,7 @@ html.dark-mode .wld-onboarding { background: color-mix(in srgb, var(--accent) 15
     </nav>
     <div class="header-utility">
       <button id="btn-settings" class="header-icon-btn" aria-label="Settings" title="Settings"><svg width="24" height="24" aria-hidden="true"><use href="#icon-settings"/></svg></button>
-      <button id="btn-help" class="header-icon-btn" aria-label="Help (coming soon)" title="Help (coming soon)" disabled><span class="help-circle">?</span></button>
+      <button id="btn-help" class="header-icon-btn" aria-label="Help (coming soon)" title="Help (coming soon)" disabled><span class="icon help-circle">?</span></button>
     </div>
   </div>
   <div class="header-subtitle">
@@ -1697,7 +1708,7 @@ function buildRuleRowHTML(i, fieldsHTML, note, onDeleteFn, readOnly = false) {
         <span class="rule-note-text">${esc(note||'')}</span>
         ${buildEditHintHTML('rule-note-pencil', 'startNoteEdit(this.parentElement)')}
       </span>`;
-  const delBtn = readOnly ? '' : `<button class="rule-del" onclick="${onDeleteFn}(${i})" title="Delete row">${buildTrashIconHTML()}</button>`;
+  const delBtn = readOnly ? '' : `<button class="icon rule-del" onclick="${onDeleteFn}(${i})" title="Delete row">${buildTrashIconHTML()}</button>`;
   return `<div class="rule-row" data-i="${i}">
       ${fieldsHTML}
       ${noteWrap}
@@ -1794,6 +1805,7 @@ function buildScoringSectionHTML() {
 function buildEntriesTablePanelHTML() {
   return `<div id="entries-table-panel">
       <div id="vs-host"></div>
+      <div class="pipeline-spinner" aria-hidden="true"></div>
     </div>`;
 }
 
@@ -1857,7 +1869,7 @@ function buildWordlistNameHTML(wordlist, { bold = true } = {}) {
 // `icon` is raw HTML (emoji string or <svg>); `name` is plain text.
 function buildToolLabelHTML({ icon, name }, suffix) {
   const suf = suffix ? `<span class="tool-row-name-suffix"> · ${esc(suffix)}</span>` : '';
-  return `<span class="tool-label"><span class="tool-row-icon">${icon}</span> <span class="tool-row-name">${esc(name)}${suf}</span></span>`;
+  return `<span class="tool-label"><span class="icon tool-row-icon">${icon}</span> <span class="tool-row-name">${esc(name)}${suf}</span></span>`;
 }
 
 const Collapsible = (() => {
@@ -4701,8 +4713,17 @@ function makeCtx(mergedWordlist, rows, signal, y) {
 // afterward. Inert tools are transparent. The executor owns the
 // per-row loop, cooperative yielding, and abort: `signal` aborts a superseded
 // run at the next yield.
+class ToolStageError extends Error {
+  constructor(cause, stackRow) {
+    super(cause?.message || String(cause));
+    this.cause = cause;
+    this.stackRow = stackRow;
+  }
+}
+
 async function executePipeline(mergedWordlist, stack, signal) {
   const y = makeYielder(signal);
+  for (const stackRow of stack) stackRow._error = null;
   let groups = [{ key: undefined, chains: await buildInitialChains(mergedWordlist, y) }];
   let grouped = false;
 
@@ -4711,21 +4732,28 @@ async function executePipeline(mergedWordlist, stack, signal) {
     const { def } = stackRow;
     throwIfAborted(signal);
 
-    if (stackRow.kind() === 'group') {
-      const ctx = makeCtx(mergedWordlist, groups[0].chains, signal, y);
-      groups = await bucketize(groups[0].chains, def.group, ctx);
-      grouped = true;
-      continue;
-    }
+    try {
+      if (stackRow.kind() === 'group') {
+        const ctx = makeCtx(mergedWordlist, groups[0].chains, signal, y);
+        groups = await bucketize(groups[0].chains, def.group, ctx);
+        grouped = true;
+        continue;
+      }
 
-    const params = normalizeParams(stackRow.params, def.params);
-    const prepareInput = grouped ? groups.flatMap(g => g.chains) : groups[0].chains;
-    const prepared = def.prepare
-      ? await def.prepare(params, makeCtx(mergedWordlist, prepareInput, signal, y))
-      : params;
-    for (const g of groups) {
-      g.chains = await runToolStage(g.chains, stackRow, prepared, mergedWordlist, y);
-      if (y.due()) await y.yield();
+      const params = normalizeParams(stackRow.params, def.params);
+      const prepareInput = grouped ? groups.flatMap(g => g.chains) : groups[0].chains;
+      const prepared = def.prepare
+        ? await def.prepare(params, makeCtx(mergedWordlist, prepareInput, signal, y))
+        : params;
+      for (const g of groups) {
+        g.chains = await runToolStage(g.chains, stackRow, prepared, mergedWordlist, y);
+        if (y.due()) await y.yield();
+      }
+    } catch (e) {
+      if (signal?.aborted) throw e;
+      stackRow._error = e?.message || String(e);
+      console.error(`Tool "${stackRow.tool}" failed:`, e);
+      throw new ToolStageError(e, stackRow);
     }
   }
 
@@ -5053,6 +5081,9 @@ async function runPipeline(mergedWordlist, stack) {
     return { ...result, aborted: false };
   } catch (e) {
     if (ac.signal.aborted) return { aborted: true };
+    if (e instanceof ToolStageError) {
+      return { aborted: false, errored: true, rows: [], atomCount: currentAtomCount(stack), grouped: false };
+    }
     throw e;
   } finally {
     clearTimeout(slowTimer);
@@ -5091,12 +5122,14 @@ const ToolStack = (() => {
       p => ` data-row="${idx}" data-key="${p.key}"`,
       { findReplace: !row.grouped && !!tool.findReplace, rowToken: idx, expanded: isRowExpanded(idx) });
     const remove = `<button type="button" class="tool-row-remove" data-remove="${idx}" title="Remove" aria-label="Remove ${esc(tool.name)}"><svg width="12" height="12"><use href="#icon-x"/></svg></button>`;
+    const errBtn = `<button type="button" class="icon tool-row-error-btn" data-error-row="${idx}" aria-label="Tool error" hidden>⚠️</button>`;
     return `<div class="tool-row">
       ${buildDragHandleHTML()}
       ${buildToolLabelHTML(tool, row.grouped ? 'Grouped' : null)}
       ${parts.caret}
       ${parts.main}
       ${parts.asides}
+      ${errBtn}
       ${remove}
       ${parts.replace}
     </div>`;
@@ -5284,6 +5317,15 @@ const ToolStack = (() => {
 
     const p = panelEl();
     p?.addEventListener('click', (e) => {
+      const errBtn = e.target.closest('.tool-row-error-btn[data-error-row]');
+      if (errBtn) {
+        e.stopPropagation();
+        if (window.matchMedia('(hover: hover)').matches) return;
+        const idx = parseInt(errBtn.dataset.errorRow, 10);
+        const msg = stack[idx]?._error || '';
+        ErrorPopover.toggle(errBtn, msg);
+        return;
+      }
       const removeBtn = e.target.closest('.tool-row-remove[data-remove]');
       if (removeBtn) {
         removeAt(parseInt(removeBtn.dataset.remove, 10));
@@ -5384,7 +5426,19 @@ const ToolStack = (() => {
   }
   function getStack() { return stack; }
 
-  return { buildHTML, refreshGalleryActive, init, getStack, setStack, getSearchBarRow, getUserStack, isRowExpanded };
+  function refreshErrorMarks() {
+    const userRows = getUserStack();
+    rowEls().forEach((rowEl, idx) => {
+      const btn = rowEl.querySelector('.tool-row-error-btn');
+      if (!btn) return;
+      const err = userRows[idx]?._error;
+      btn.hidden = !err;
+      if (err) btn.title = err;
+      else btn.removeAttribute('title');
+    });
+  }
+
+  return { buildHTML, refreshGalleryActive, init, getStack, setStack, getSearchBarRow, getUserStack, isRowExpanded, refreshErrorMarks };
 })();
 
 // ─── Input helpers ────────────────────────────────────────────────────────────
@@ -5795,6 +5849,56 @@ function buildGroupChainHTML(chain, ci) {
   }
   return `<div class="group-chain" data-chain="${ci}">${html.join('')}</div>`;
 }
+
+const ErrorPopover = (() => {
+  let el = null, anchor = null;
+  function ensure() {
+    if (el) return;
+    el = document.createElement('div');
+    el.className = 'tool-row-error-popover';
+    el.hidden = true;
+    document.body.appendChild(el);
+  }
+  function position() {
+    if (!el || !anchor) return;
+    const r = anchor.getBoundingClientRect();
+    const top = r.bottom + 6;
+    const left = Math.max(8, Math.min(r.left, window.innerWidth - el.offsetWidth - 8));
+    el.style.top = top + 'px';
+    el.style.left = left + 'px';
+  }
+  function open(btn, message) {
+    ensure();
+    el.textContent = message;
+    el.hidden = false;
+    anchor = btn;
+    position();
+    document.addEventListener('click', onDocClick, true);
+    document.addEventListener('keydown', onKey);
+    window.addEventListener('resize', position);
+    window.addEventListener('scroll', position, true);
+  }
+  function close() {
+    if (!el) return;
+    el.hidden = true;
+    anchor = null;
+    document.removeEventListener('click', onDocClick, true);
+    document.removeEventListener('keydown', onKey);
+    window.removeEventListener('resize', position);
+    window.removeEventListener('scroll', position, true);
+  }
+  function onDocClick(e) {
+    if (anchor && (e.target === anchor || anchor.contains(e.target))) return;
+    if (el && el.contains(e.target)) return;
+    close();
+  }
+  function onKey(e) { if (e.key === 'Escape') close(); }
+  function toggle(btn, message) {
+    if (anchor === btn && el && !el.hidden) { close(); return; }
+    open(btn, message);
+  }
+  return { open, close, toggle };
+})();
 
 const GroupMorePopover = (() => {
   const POPOVER_CHUNK = 200;
@@ -7377,6 +7481,7 @@ async function refreshWorkshopMergedScroller() {
   const result = await runPipeline(buildMergedWordlist(), ToolStack.getStack());
   if (result.aborted || !workshopScroller) return;
   workshopScroller.updateEntries(result.rows, result.atomCount, chainSortTier(ToolStack.getStack()));
+  ToolStack.refreshErrorMarks();
 }
 
 function mountWorkshopPanel(panel) {
@@ -7486,22 +7591,28 @@ function attachHelpPopups() {
 }
 
 async function renderWorkshopMergedDetail() {
-  const panel = document.getElementById('detail-panel');
-  reconcileSort(ToolStack.getStack());
-  const result = await runPipeline(buildMergedWordlist(), ToolStack.getStack());
-  if (result.aborted) return;
-  const { rows, atomCount } = result;
-  mountWorkshopPanel(panel);
+  try {
+    const panel = document.getElementById('detail-panel');
+    reconcileSort(ToolStack.getStack());
+    const result = await runPipeline(buildMergedWordlist(), ToolStack.getStack());
+    if (result.aborted) return;
+    const { rows, atomCount } = result;
+    mountWorkshopPanel(panel);
 
-  workshopScroller.showSource = true;
-  workshopScroller.editsWordlist = getEditsWordlist() ?? null;
-  workshopScroller.showEditDeleteCol = true;
-  workshopScroller.setEntries(rows, atomCount, chainSortTier(ToolStack.getStack()));
+    workshopScroller.showSource = true;
+    workshopScroller.editsWordlist = getEditsWordlist() ?? null;
+    workshopScroller.showEditDeleteCol = true;
+    workshopScroller.setEntries(rows, atomCount, chainSortTier(ToolStack.getStack()));
 
-  workshopScroller._onDeleteRow = entry => deleteFromEdits(entry, refreshWorkshopMergedScroller);
-  attachExternalEditHandlers(workshopScroller, refreshWorkshopMergedScroller);
-
-  _signalFirstPaint();
+    workshopScroller._onDeleteRow = entry => deleteFromEdits(entry, refreshWorkshopMergedScroller);
+    attachExternalEditHandlers(workshopScroller, refreshWorkshopMergedScroller);
+    ToolStack.refreshErrorMarks();
+  } finally {
+    // In `finally` so a thrown/aborted pipeline still dismisses the busy
+    // splash — otherwise a broken tool in the boot URL strands the user on
+    // a forever-spinning overlay with no error in sight.
+    _signalFirstPaint();
+  }
 }
 
 // ─── Scoring (tier labels) ────────────────────────────────────────────────────
