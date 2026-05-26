@@ -277,7 +277,7 @@ The shape mirrors flat chains intentionally: a group row reads as "many of those
 Axes split by the pipeline's shape — a filter-only chain, a chain with a transform, or a pipeline with a group tool — not by an output kind. `isFilterOnlyChain(stack)` and `isGroupChain(stack)` are the signals — a filter-only chain can still stack several atoms (three searches on one word), but they're all the same word and score, so the score-spread axes would be noise; only a transform gives a row genuinely distinct atoms to sort across:
 
 - **Filter-only chains** (empty stack, searches, plain filters): Entry, Length, Score. Default Entry asc.
-- **Chains with a transform:** Entry, Length, Min score, Max score. Default Min score desc (the worst-scoring atom caps a chain's quality; surfacing best-worst-case rows first matches "what's worth fishing out").
+- **Chains with a transform:** Entry, Length, Min score, Max score. Default Entry asc — same default in every tier, so adding a transform never silently swaps the axis on the user, and the table holds still when one comes or goes. Min score is one dropdown click away for grid-filling "what's worth fishing out" passes.
 - **Grouped pipelines** (a group tool in the stack): Entry, Count, Min score, Max score. Default Entry asc.
 
 *Entry* (alphabetical) and *Length* project off the **first atom** — the merged-wordlist entry the row grew from — so the table holds its order when a tool is added: a filter or 1-output transform leaves every first atom in place, and the rows can't reshuffle. *Min/Max score* project across every atom; for filter-only chains *Score* reads the row's word directly. Each axis carries `{label, primary, tiebreakers}`; flipping the user direction reverses only the primary, tiebreakers keep their declared direction so short low-scoring junk doesn't float to the top of a tied bucket (longer > shorter, higher > lower, alphabetical asc as the final stable fallback).
@@ -479,10 +479,10 @@ Each pipeline row serializes in pipeline order. A tool's parameters spread acros
 
 Two keys carry the entries-table sort:
 
-- `sort=<axis>` — depends on the chain's sort tier (§ Sort axes per chain tier). Filter-only chains: `entry`, `length`, `score`. Chains with a transform: `entry`, `length`, `min-score`, `max-score`. Dropped when the axis matches the tier's default (`entry` for filter-only, `min-score` with a transform).
+- `sort=<axis>` — depends on the chain's sort tier (§ Sort axes per chain tier). Filter-only chains: `entry`, `length`, `score`. Chains with a transform: `entry`, `length`, `min-score`, `max-score`. Dropped when the axis matches the tier's default — `entry` in every tier.
 - `sort-dir=<asc|desc>` — dropped when the direction matches the axis's default. `entry` defaults to ascending (alphabetical reads naturally A→Z); every other axis (`length`, `score`, `min-score`, `max-score`) defaults to descending, which reads top-down as "best/biggest rows first".
 
-The two-key form keeps each piece independently minimizable, so the common cases stay quiet — a filter-only `entry asc` is silent, a transformed `min-score desc` is silent, `score desc` is just `sort=score`, `score asc` is `sort=score&sort-dir=asc`. `sort-dir` can appear without `sort` (e.g. `entry desc` becomes `sort-dir=desc`); the parser treats an absent `sort` as the tier default.
+The two-key form keeps each piece independently minimizable, so the common cases stay quiet — `entry asc` is silent across every tier, `score desc` is just `sort=score`, `score asc` is `sort=score&sort-dir=asc`. `sort-dir` can appear without `sort` (e.g. `entry desc` becomes `sort-dir=desc`); the parser treats an absent `sort` as the tier default.
 
 Unknown values for either key are dropped without a toast (no churn risk — the axes are a closed set, unlike the tool catalog). The parser accepts any axis valid in either tier; the scroller remaps the parsed axis (§ Sort axes per chain tier) if it isn't valid for the current tier. Sort persists across wordlist switches inside a session: it's a view-config preference of the user, not of the focused wordlist.
 

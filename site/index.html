@@ -2005,11 +2005,6 @@ const Router = (() => {
       if (isBar && rowIsDefault(row) && stack[i - 1]?.tool !== 'search') return;
       parts.push(...encodeRow(row));
     });
-    // Sort axis/direction. Each key drops out when it matches the default for
-    // the current sort tier, so the common case (entry asc on filter-only
-    // chains, min-score desc once a transform is in play) stays silent.
-    // `sort-dir` may appear alone — parsing treats absent `sort` as the tier
-    // default.
     const tier = chainSortTier(stack);
     const defaultAxis = WORKSHOP_DEFAULT_SORT_BY_TIER[tier];
     if (WorkshopView.sortKey !== defaultAxis)                  parts.push('sort=' + WorkshopView.sortKey);
@@ -5855,7 +5850,7 @@ const WORKSHOP_SORT_AXES = {
     },
   },
 };
-const WORKSHOP_DEFAULT_SORT_BY_TIER = { single: 'entry', multi: 'min-score', group: 'entry' };
+const WORKSHOP_DEFAULT_SORT_BY_TIER = { single: 'entry', multi: 'entry', group: 'entry' };
 // An axis with no counterpart in the new tier maps across rather than
 // snapping to the tier default, so a sort survives a tier round-trip.
 // Length↔Count are deliberately paired despite measuring different things —
