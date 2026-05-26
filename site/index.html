@@ -278,15 +278,48 @@ html.dark-mode .search-match-4 { background: #14532d; color: #d1fae5; }
    straight down each column. */
 #entries-table-panel { background: var(--surface); position: relative; }
 /* Faded "the results you see are stale, a new run is in flight" treatment —
-   the runtime adds this whenever a pipeline run crosses the slow threshold.
-   Clears the moment the run completes (or aborts). The dim lands on #vs-host,
-   not the panel, so the spinner overlay stays at full opacity. */
-#entries-table-panel.pipeline-running #vs-host { opacity: 0.55; transition: opacity 0.15s ease; }
-.pipeline-spinner { display: none; position: sticky; top: calc(var(--header-h) + var(--sticky-stack-h) + 40px); margin: 40px auto -76px; width: 36px; height: 36px; border: 3px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: pipeline-spin 0.8s linear infinite; z-index: 5; pointer-events: none; }
-#entries-table-panel.pipeline-running { min-height: 96px; }
-#entries-table-panel.pipeline-running .pipeline-spinner { display: block; }
-@keyframes pipeline-spin { to { transform: rotate(360deg); } }
-@media (prefers-reduced-motion: reduce) { .pipeline-spinner { animation: none; } }
+   the runtime adds .pipeline-running at the start of every run and removes it
+   on completion or abort. The visible effects each carry a 100ms
+   animation-delay, so a quick run that adds and removes the class within the
+   threshold cancels the animations before they ever start — nothing flashes
+   on fast keystrokes. CSS-driven rather than a JS setTimeout because
+   scheduler.yield()'s continuations outrank lower-priority tasks and starve
+   setTimeout on CPU-bound runs; CSS animations tick on the browser's render
+   pipeline, which runs between yields regardless of task priority. The dim
+   lands on #vs-host, not the panel, so the spinner overlay stays at full
+   opacity. */
+#entries-table-panel.pipeline-running #vs-host {
+  animation: pipeline-dim 0.15s ease 0.1s forwards;
+}
+.pipeline-spinner {
+  position: sticky;
+  top: calc(var(--header-h) + var(--sticky-stack-h) + 40px);
+  margin: 40px auto -76px;
+  width: 36px; height: 36px;
+  border: 3px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  opacity: 0;
+  z-index: 5;
+  pointer-events: none;
+}
+#entries-table-panel.pipeline-running .pipeline-spinner {
+  animation:
+    pipeline-spin 0.8s linear infinite,
+    pipeline-reveal 0.15s ease 0.1s forwards;
+}
+#entries-table-panel.pipeline-running {
+  animation: pipeline-room 0.15s linear 0.1s forwards;
+}
+@keyframes pipeline-dim    { to { opacity: 0.55; } }
+@keyframes pipeline-reveal { to { opacity: 1; } }
+@keyframes pipeline-spin   { to { transform: rotate(360deg); } }
+@keyframes pipeline-room   { to { min-height: 96px; } }
+@media (prefers-reduced-motion: reduce) {
+  #entries-table-panel.pipeline-running .pipeline-spinner {
+    animation: pipeline-reveal 0.15s ease 0.1s forwards;
+  }
+}
 #vs-host { position: relative; }
 .entries-table-rows { position: relative; }
 .entry-row, .entry-headers {
@@ -4933,8 +4966,8 @@ function clonePreSearchState(state) {
   };
 }
 
-async function executePipeline(mergedWordlist, stack, signal, onSlow) {
-  const y = makeYielder(signal, onSlow);
+async function executePipeline(mergedWordlist, stack, signal) {
+  const y = makeYielder(signal);
   for (const stackRow of stack) stackRow._error = null;
 
   const userStack = stack.slice(0, -1);
@@ -5231,7 +5264,6 @@ function* rowSetAtoms(rows) {
 // in-flight one) and a slow-pipeline indicator that dims the results table
 // when the whole run exceeds ~100ms.
 
-const SLOW_PIPELINE_THRESHOLD_MS = 100;
 // Yield budget — when an in-helper loop has consumed this much CPU since its
 // last yield, it gives the browser a turn. ~6ms is roughly half a 60Hz frame,
 // leaving the other half for input handling and paint. Iteration-count chunking
@@ -5256,11 +5288,9 @@ function throwIfAborted(signal) {
 // those samples ~YIELD_CLOCK_TARGET_MS apart whatever the per-iteration cost.
 const YIELD_CLOCK_TARGET_MS = 1;
 const YIELD_STRIDE_MAX = 1 << 16;
-function makeYielder(signal, onSlow) {
+function makeYielder(signal) {
   let stride = 1, sinceCheck = 0;
-  const start = performance.now();
-  let lastClock = start, lastYield = lastClock;
-  let slowFired = false;
+  let lastClock = performance.now(), lastYield = lastClock;
   return {
     due() {
       if (++sinceCheck < stride) return false;
@@ -5274,12 +5304,7 @@ function makeYielder(signal, onSlow) {
     async yield() {
       await _yieldImpl();
       throwIfAborted(signal);
-      const now = performance.now();
-      lastYield = lastClock = now;
-      if (!slowFired && onSlow && now - start >= SLOW_PIPELINE_THRESHOLD_MS) {
-        slowFired = true;
-        onSlow();
-      }
+      lastYield = lastClock = performance.now();
     },
   };
 }
@@ -5314,14 +5339,10 @@ async function runPipeline(mergedWordlist, stack) {
   _pipelineRunning++;
 
   const panel = document.getElementById('entries-table-panel');
-  const markSlow = () => {
-    panel?.classList.add('pipeline-running');
-    _signalFirstPaint();
-  };
-  const slowTimer = setTimeout(markSlow, SLOW_PIPELINE_THRESHOLD_MS);
+  panel?.classList.add('pipeline-running');
 
   try {
-    const result = await executePipeline(mergedWordlist, stack, ac.signal, markSlow);
+    const result = await executePipeline(mergedWordlist, stack, ac.signal);
     return { ...result, aborted: false };
   } catch (e) {
     if (ac.signal.aborted) return { aborted: true };
@@ -5330,7 +5351,6 @@ async function runPipeline(mergedWordlist, stack) {
     }
     throw e;
   } finally {
-    clearTimeout(slowTimer);
     panel?.classList.remove('pipeline-running');
     if (_pipelineController === ac) _pipelineController = null;
     _pipelineRunning--;
@@ -7752,6 +7772,9 @@ function mountWorkshopPanel(panel) {
   workshopScroller.onFilterChange = refreshWorkshopStatsBarFromScroller;
   attachHelpPopups();
   publishWorkshopBarHeights();
+  document.getElementById('entries-table-panel').addEventListener('animationstart', e => {
+    if (e.animationName === 'pipeline-room') _signalFirstPaint();
+  });
 }
 
 function buildWorkshopStatsBarHTML() {
