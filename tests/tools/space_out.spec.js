@@ -124,13 +124,13 @@ test('passthrough atom renders score and source when the entry is in the wordlis
 test('never splits in the middle of a digit run', async ({ page }) => {
   await gotoApp(page);
   await setup(page, {
-    entries: ['25OR6TO4'],
-    corpus: { '25': -8, '6': -3, '4': -3, '2': -3, '5': -3, or: -3, to: -3 },
+    entries: ['99PROBLEMS', 'PROBLEMS'],
+    corpus: { '99': -5, '9': -3, problems: -7 },
   });
   await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'space_out' }]));
 
-  const rows = (await visible(page)).filter(r => Array.isArray(r) && r[0] === '25or6to4').map(r => r[1]);
-  expect(rows).toEqual(['25 or 6 to 4']);
+  const rows = (await visible(page)).filter(r => Array.isArray(r) && r[0] === '99problems').map(r => r[1]);
+  expect(rows).toEqual(['99 problems']);
 });
 
 test('Splits=One returns exactly the top result; Splits=Many surfaces near-tie alternates', async ({ page }) => {
