@@ -4047,7 +4047,7 @@ function runSearchReplace(entry, prepared, wordlist) {
 // ─── Unigram corpus & phrase segmenter ───────────────────────────────────────
 
 const UNIGRAM_CORPUS_URL = 'https://raw.githubusercontent.com/rspeer/wordfreq/master/wordfreq/data/large_en.msgpack.gz';
-const UNIGRAM_CORPUS_IDB_KEY = 'corpus_unigrams';
+const UNIGRAM_CORPUS_IDB_KEY = 'corpus_unigrams_decoded';
 const UNIGRAM_CORPUS_SIZE_KEY = 'corpus_unigrams_size';
 
 const SPACE_OUT_WINDOWS = { one: 2, few: 5, many: 10 };
@@ -4116,24 +4116,23 @@ async function loadUnigramCorpus() {
   if (unigramLogFreqs) return;
   if (unigramLoadPromise) return unigramLoadPromise;
   unigramLoadPromise = (async () => {
-    let gz = await idbGet(UNIGRAM_CORPUS_IDB_KEY);
-    const fromCache = !!gz;
-    if (!gz) {
-      const resp = await fetch(UNIGRAM_CORPUS_URL);
-      if (!resp.ok) throw new Error(`HTTP ${resp.status} ${resp.statusText}`);
-      gz = await resp.arrayBuffer();
-      unigramFetchedSize = resp.headers.get('content-length') || null;
-    } else {
+    const cached = await idbGet(UNIGRAM_CORPUS_IDB_KEY);
+    if (cached && cached.map) {
+      unigramLogFreqs = cached.map;
+      unigramMinLogFreq = cached.minLog;
       unigramFetchedSize = lsLoad(UNIGRAM_CORPUS_SIZE_KEY);
+      return;
     }
+    const resp = await fetch(UNIGRAM_CORPUS_URL);
+    if (!resp.ok) throw new Error(`HTTP ${resp.status} ${resp.statusText}`);
+    const gz = await resp.arrayBuffer();
+    unigramFetchedSize = resp.headers.get('content-length') || null;
     const decompressed = await gunzipBytes(new Uint8Array(gz));
     const { map, minLog } = buildCorpusFromMsgpack(msgpackDecode(decompressed));
     unigramLogFreqs = map;
     unigramMinLogFreq = minLog;
-    if (!fromCache) {
-      await idbPut(UNIGRAM_CORPUS_IDB_KEY, gz);
-      if (unigramFetchedSize) lsSave(UNIGRAM_CORPUS_SIZE_KEY, unigramFetchedSize);
-    }
+    await idbPut(UNIGRAM_CORPUS_IDB_KEY, { map, minLog });
+    if (unigramFetchedSize) lsSave(UNIGRAM_CORPUS_SIZE_KEY, unigramFetchedSize);
   })();
   try {
     await unigramLoadPromise;
