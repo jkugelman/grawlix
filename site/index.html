@@ -218,6 +218,11 @@ button.danger:hover:not(:disabled) { background: #e74c3c; border-color: #c0392b;
 .stats-bar-numbers { display: flex; align-items: center; gap: 22px; flex-shrink: 0; }
 .stats-bar-controls { display: flex; align-items: center; gap: 12px; flex-shrink: 0; justify-self: end; }
 .stats-bar.stats-narrow .stat-far { display: none; }
+.stats-bar.stats-no-hist .histogram { display: none; }
+.stats-bar.stats-no-hist .stats-bar-distribution { display: none; }
+.stats-bar.stats-no-hist { padding-left: 10px; padding-right: 10px; gap: 8px; }
+.stats-bar.stats-no-hist .stats-bar-counts { margin-right: 0; }
+.stats-bar.stats-no-hist .stats-bar-controls { gap: 8px; }
 
 .sticky-stack { position: sticky; top: var(--header-h); z-index: 50; background: var(--surface2); }
 #workshop-view .sticky-stack > #tool-stack { position: sticky; top: var(--header-h); z-index: 53; background: var(--surface2); border-bottom: 1px solid var(--border2); }
@@ -8070,9 +8075,20 @@ function publishLibraryBarHeights() {
 
 function refreshStatsBarOverflow() {
   for (const bar of document.querySelectorAll('.stats-bar')) {
-    bar.classList.remove('stats-narrow');
-    if (bar.scrollWidth > bar.clientWidth + 1) {
+    bar.classList.remove('stats-narrow', 'stats-no-hist');
+    const overlapsControls = () => {
+      const ctrls = bar.querySelector('.stats-bar-controls');
+      if (!ctrls) return false;
+      const ctrlsLeft = ctrls.getBoundingClientRect().left;
+      for (const el of bar.querySelectorAll('.stats-bar-counts, .stat-far, .histogram')) {
+        if (!el.offsetWidth) continue;
+        if (el.getBoundingClientRect().right > ctrlsLeft + 0.5) return true;
+      }
+      return false;
+    };
+    if (overlapsControls()) {
       bar.classList.add('stats-narrow');
+      if (overlapsControls()) bar.classList.add('stats-no-hist');
     }
   }
 }
