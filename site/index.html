@@ -826,11 +826,9 @@ body.picker-expanded #picker-backdrop { opacity: 1; }
 .picker-bar { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; margin-bottom: 14px; gap: 8px; }
 .picker-search-wrap { grid-column: 2; position: relative; display: flex; align-items: center; width: min(440px, 100%); justify-self: center; }
 .picker-search-wrap > svg { position: absolute; left: 10px; pointer-events: none; color: var(--muted); }
-.picker-search-wrap > input { width: 100%; padding: 8px 38px 8px 32px; border: 1px solid var(--border); border-radius: 6px; background: var(--input-bg); color: var(--text); font: inherit; font-size: 13px; cursor: text; }
+.picker-search-wrap > input { width: 100%; padding: 8px 10px 8px 32px; border: 1px solid var(--border); border-radius: 6px; background: var(--input-bg); color: var(--text); font: inherit; font-size: 13px; cursor: text; }
 .picker-search-wrap > input::placeholder { color: var(--muted); }
 .picker-search-wrap > input:focus { border-color: var(--accent); outline: none; box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 25%, transparent); }
-.picker-kbd { position: absolute; right: 8px; font: inherit; font-size: 10px; padding: 1px 5px; border: 1px solid var(--border); border-radius: 3px; background: var(--surface); color: var(--muted); pointer-events: none; }
-#featured-row.expanded .picker-kbd { display: none; }
 .picker-close { grid-column: 3; justify-self: end; font: inherit; font-size: 16px; padding: 4px 10px; border: 1px solid var(--border); border-radius: 4px; background: var(--surface2); color: var(--muted); cursor: pointer; }
 .picker-close:hover { color: var(--text); border-color: var(--accent); }
 
@@ -857,7 +855,6 @@ body.picker-expanded #picker-backdrop { opacity: 1; }
   .picker-bar { grid-template-columns: 1fr auto; }
   .picker-search-wrap { grid-column: 1; justify-self: stretch; width: 100%; }
   .picker-close { grid-column: 2; }
-  .picker-kbd { display: none; }
   .featured-cards { display: flex; overflow-x: auto; scrollbar-width: none; }
   .featured-cards::-webkit-scrollbar { display: none; }
   .featured-card, .featured-more-tile { flex: 0 0 130px; }
@@ -1203,8 +1200,7 @@ html.dark-mode .wld-onboarding { background: color-mix(in srgb, var(--accent) 15
       <div class="picker-bar">
         <div class="picker-search-wrap">
           <svg width="13" height="13" aria-hidden="true"><use href="#icon-search"/></svg>
-          <input id="tool-picker-search" type="text" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="Search tools…">
-          <kbd class="picker-kbd">/</kbd>
+          <input id="tool-picker-search" type="text" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="Search tools…" title="Tools (Alt-T)">
         </div>
         <button type="button" class="picker-close" aria-label="Close tool picker" hidden>✕</button>
       </div>
@@ -1515,7 +1511,7 @@ function buildHelpHTML(rows, opts = {}) {
 // user erased the text by hand.
 function buildScoreRangeInputHTML(inputId, value, viewName) {
   const input = `<input type="text" id="${inputId}" autocapitalize="off" autocorrect="off" spellcheck="false" value="${esc(value)}" oninput="${viewName}.onScoreRange(this.value)">`;
-  return `<label class="score-range-label" title="Score: 50, 50-59, or 50+">Score ${buildClearableInputHTML(input, !!value)}</label>`;
+  return `<label class="score-range-label" title="50, 50-59, or 50+ (Alt-C)">Score ${buildClearableInputHTML(input, !!value)}</label>`;
 }
 
 function normalizeScoreRange(value, inputId) {
@@ -1554,8 +1550,9 @@ function buildTextInputHTML(param, value, toolKey, wiring) {
 }
 
 function buildParamHTML(param, value, toolKey, wiring) {
+  const titleAttr = param.title ? ` title="${esc(param.title)}"` : '';
   if (param.type === 'checkbox') {
-    return `<span class="tool-row-param"><label><input type="checkbox"${value ? ' checked' : ''}${wiring}> ${esc(param.label)}</label></span>`;
+    return `<span class="tool-row-param"><label${titleAttr}><input type="checkbox"${value ? ' checked' : ''}${wiring}> ${esc(param.label)}</label></span>`;
   }
   const labelHTML = param.label ? `<label>${esc(param.label)}</label>` : '';
   if (param.type === 'number') {
@@ -1620,7 +1617,7 @@ function buildSearchBarHTML() {
   // a baked-in index would silently point at the wrong row once tools are
   // added above it, routing search input into another row's params.
   const parts = buildToolRowPartsHTML(TOOLS.search.params, row.params, 'search',
-    p => ` data-row="bar" data-key="${p.key}"`,
+    p => ` data-row="bar" data-key="${p.key}"${p.key === 'pattern' ? ' title="Search (Alt-S)"' : ''}`,
     { findReplace: true, rowToken: 'bar', expanded: ToolStack.isRowExpanded('bar') });
   const label = buildToolLabelHTML({ icon: '<svg width="16" height="16" aria-hidden="true"><use href="#icon-search"/></svg>', name: 'Search' });
   return `<div class="search-bar">
@@ -2810,7 +2807,7 @@ const LibraryView = (() => {
     const vals = { pattern: _searchQuery, 'whole-word': _searchWholeWord };
     const parts = buildToolRowPartsHTML(TOOLS.search.params.filter(p => p.key !== 'replace'), vals, 'search', p =>
       p.key === 'pattern'
-        ? ` id="lib-search-input" oninput="LibraryView.onSearch(this.value)"`
+        ? ` id="lib-search-input" title="Search (Alt-S)" oninput="LibraryView.onSearch(this.value)"`
         : ` id="lib-search-whole-word" onchange="LibraryView.onWholeWord(this.checked)"`);
     return `<div class="search-bar lib-search-bar">
       ${buildToolLabelHTML({ icon: '<svg width="16" height="16" aria-hidden="true"><use href="#icon-search"/></svg>', name: 'Search' })}
@@ -4348,7 +4345,7 @@ const TOOL_CATEGORIES = [
 
 const FEATURED_TOOLS = ['search', 'anagrams', 'letter_bank', 'regex', 'palindromes', 'kangaroos'];
 
-const WHOLE_WORD_PARAM = { key: 'whole-word', type: 'checkbox', label: 'Whole word' };
+const WHOLE_WORD_PARAM = { key: 'whole-word', type: 'checkbox', label: 'Whole word', title: 'Whole word (Alt-W)' };
 
 const TOOLS = {
   anagrams: {
@@ -5951,13 +5948,9 @@ const ToolPicker = (() => {
       if (e.key === 'Escape') { e.preventDefault(); close(); }
       return;
     }
-    const active = document.activeElement;
-    const inEditable = active && (
-      active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.isContentEditable
-    );
-    const isSlash = e.key === '/' && !inEditable && !e.ctrlKey && !e.metaKey && !e.altKey;
-    const isCmdK  = (e.key === 'k' || e.key === 'K') && (e.metaKey || e.ctrlKey) && !e.altKey;
-    if (isSlash || isCmdK) {
+    const isAltT = e.altKey && e.code === 'KeyT' && !e.ctrlKey && !e.metaKey && !e.shiftKey;
+    const isCmdK = (e.key === 'k' || e.key === 'K') && (e.metaKey || e.ctrlKey) && !e.altKey;
+    if (isAltT || isCmdK) {
       e.preventDefault();
       open();
     }
@@ -9417,16 +9410,47 @@ function bindEvents() {
 
   ToolStack.init();
 
-  // Global keyboard shortcuts
   document.addEventListener('keydown', e => {
-    if (e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey) {
-      const k = e.key.toLowerCase();
-      if (k === 'm') {
-        e.preventDefault();
-        cycleDarkMode();
-      }
+    if (!e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
+    let handled = true;
+    switch (e.code) {
+      case 'KeyM': cycleDarkMode();          break;
+      case 'KeyS': focusPermanentSearch();   break;
+      case 'KeyW': toggleWholeWord();        break;
+      case 'KeyC': focusScoreRange();        break;
+      default: handled = false;
     }
+    if (handled) e.preventDefault();
   });
+}
+
+function focusPermanentSearch() {
+  const view = MainView.getCurrent();
+  const input = view === 'library'
+    ? document.getElementById('lib-search-input')
+    : document.querySelector('#workshop-view input[data-row="bar"][data-key="pattern"]');
+  if (input) { input.focus(); input.select(); }
+}
+
+function focusScoreRange() {
+  const view = MainView.getCurrent();
+  const input = document.getElementById(view === 'library' ? 'lib-score-range-input' : 'score-range-input');
+  if (input) { input.focus(); input.select(); }
+}
+
+function toggleWholeWord() {
+  const row = document.activeElement?.closest('.tool-row, .search-bar');
+  let cb = row?.querySelector('input[type="checkbox"][data-key="whole-word"], #lib-search-whole-word');
+  if (!cb) {
+    const view = MainView.getCurrent();
+    cb = view === 'library'
+      ? document.getElementById('lib-search-whole-word')
+      : document.querySelector('#workshop-view input[data-row="bar"][data-key="whole-word"]');
+  }
+  if (!cb) return;
+  cb.checked = !cb.checked;
+  cb.dispatchEvent(new Event('input', { bubbles: true }));
+  cb.dispatchEvent(new Event('change', { bubbles: true }));
 }
 
 // ─── Utility ──────────────────────────────────────────────────────────────────

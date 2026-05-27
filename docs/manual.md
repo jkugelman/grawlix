@@ -31,6 +31,15 @@ The gear in the header opens **Settings**:
 - **Auto-update wordlists** — Update wordlists without asking. On by default.
 - **Reset all data** — Wipes all wordlists and settings and reloads the app.
 
+## Keyboard shortcuts
+
+- **Alt-T** — open the tool picker (also **Cmd-K** / **Ctrl-K**).
+- **Alt-S** — focus the search input (Workshop's permanent search bar, or the focused wordlist's search bar in Library).
+- **Alt-W** — toggle the whole-word checkbox. If a Search or Regex tool row has focus, toggles that row's; otherwise toggles the active view's permanent search bar.
+- **Alt-C** — focus the score-range input.
+- **Alt-M** — cycle dark mode (Auto / Light / Dark).
+- **F2** — rename a focused wordlist card (Library).
+
 ## Search syntax
 
 - `?` — any letter
