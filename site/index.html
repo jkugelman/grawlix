@@ -6448,7 +6448,7 @@ const GroupMorePopover = (() => {
     if (!chainEl || !atomEl) return;
     const atom = chains?.[parseInt(chainEl.dataset.chain, 10)]
                   ?.atoms[parseInt(atomEl.dataset.atom, 10)];
-    if (!atom || atom.wlEntry.wordlist === null) return;
+    if (!atom) return;
     const field = target.classList.contains('atom-score') ? 'score' : null;
     AtomPopover.open(atom.wlEntry, el, scroller, target, field);
   });
@@ -6583,9 +6583,6 @@ class WorkshopEntriesScroller extends BaseVirtualScroller {
         atom = this.entries[parseInt(row.dataset.idx, 10)]?.atoms[parseInt(atomEl.dataset.atom, 10)];
       }
       if (!atom) return;
-      // Synthetic atoms (a tool-supplied entry not in any wordlist) have a
-      // null `wordlist` — editing their score wouldn't write back anywhere.
-      if (atom.wlEntry.wordlist === null) return;
       const field = target.classList.contains('atom-score') ? 'score'
                   : target.classList.contains('atom-comment') ? 'comment'
                   : null;
