@@ -812,46 +812,52 @@ a.get-file:hover { text-decoration: underline; }
 .collapsible.collapsed > .collapsible-toggle .collapsible-chevron { transform: translateY(-50%) rotate(-90deg); }
 .collapsible.collapsed > .collapsible-content { display: none; }
 
-#featured-row { padding: 14px 16px 18px; border-bottom: 1px solid var(--border3); }
-.featured-header { display: flex; align-items: center; gap: 14px; margin-bottom: 12px; }
-.featured-title { font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; flex-shrink: 0; }
-.featured-search-trigger { margin-left: auto; display: inline-flex; align-items: center; gap: 8px; min-width: 220px; padding: 5px 8px 5px 10px; border: 1px solid var(--border); border-radius: 4px; background: var(--input-bg); color: var(--muted); font: inherit; font-size: 12px; cursor: text; text-align: left; }
-.featured-search-trigger:hover { border-color: var(--accent); color: var(--text); }
-.featured-search-trigger > svg { flex-shrink: 0; color: var(--muted); }
-.featured-search-trigger > .featured-search-label { flex: 1; }
-.featured-search-trigger > kbd { font: inherit; font-size: 10px; padding: 1px 5px; border: 1px solid var(--border); border-radius: 3px; background: var(--surface); color: var(--muted); }
-.featured-row-scroll { display: flex; gap: 10px; overflow-x: auto; scrollbar-width: thin; }
-.featured-row-scroll::-webkit-scrollbar { height: 6px; }
-.featured-card { flex: 0 0 200px; position: relative; border: 1px solid var(--border); border-radius: 6px; padding: 9px 12px; background: var(--surface2); cursor: pointer; user-select: none; transition: background 0.1s, border-color 0.1s, box-shadow 0.1s; }
+#featured-row { padding: 14px 16px 18px; border-bottom: 1px solid var(--border3); position: relative; background: var(--surface); z-index: 60; }
+#featured-row.expanded { border-bottom-color: transparent; }
+
+#picker-backdrop { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.5); z-index: 50; opacity: 0; pointer-events: none; transition: opacity 220ms ease; }
+body.picker-expanded #picker-backdrop { opacity: 1; }
+
+.picker-bar { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; margin-bottom: 14px; gap: 8px; }
+.picker-search-wrap { grid-column: 2; position: relative; display: flex; align-items: center; width: min(440px, 100%); justify-self: center; }
+.picker-search-wrap > svg { position: absolute; left: 10px; pointer-events: none; color: var(--muted); }
+.picker-search-wrap > input { width: 100%; padding: 8px 38px 8px 32px; border: 1px solid var(--border); border-radius: 6px; background: var(--input-bg); color: var(--text); font: inherit; font-size: 13px; cursor: text; }
+.picker-search-wrap > input::placeholder { color: var(--muted); }
+.picker-search-wrap > input:focus { border-color: var(--accent); outline: none; box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 25%, transparent); }
+.picker-kbd { position: absolute; right: 8px; font: inherit; font-size: 10px; padding: 1px 5px; border: 1px solid var(--border); border-radius: 3px; background: var(--surface); color: var(--muted); pointer-events: none; }
+#featured-row.expanded .picker-kbd { display: none; }
+.picker-close { grid-column: 3; justify-self: end; font: inherit; font-size: 16px; padding: 4px 10px; border: 1px solid var(--border); border-radius: 4px; background: var(--surface2); color: var(--muted); cursor: pointer; }
+.picker-close:hover { color: var(--text); border-color: var(--accent); }
+
+.featured-cards { display: grid; gap: 8px; justify-content: center; }
+.picker-gallery { position: absolute; top: 100%; left: 0; right: 0; max-height: 0; overflow: hidden; transition: max-height 240ms ease; background: var(--surface); border-bottom: 0 solid var(--border); z-index: 100; }
+#featured-row.expanded .picker-gallery { max-height: 65vh; overflow-y: auto; border-bottom-width: 1px; }
+.picker-gallery-inner { padding: 14px; display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 10px; align-content: start; }
+
+.featured-card { position: relative; border: 1px solid var(--border); border-radius: 6px; padding: 10px 12px; background: var(--surface2); cursor: pointer; user-select: none; display: flex; flex-direction: column; min-width: 0; transition: background 0.1s, border-color 0.1s, box-shadow 0.1s; }
 .featured-card:hover { background: var(--hover); border-color: var(--accent); }
 .featured-card.active { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
 .featured-card.disabled { cursor: not-allowed; opacity: 0.4; }
 .featured-card.disabled:hover { background: var(--surface2); border-color: var(--border); }
-.featured-card-name { font-size: 13px; font-weight: 600; color: var(--text); }
-.featured-card-desc { font-size: 11px; color: var(--muted); margin-top: 2px; }
-.featured-card-example { font-family: var(--font-mono); font-size: 11px; color: var(--faint); margin-top: 5px; overflow-wrap: anywhere; }
-.featured-more-tile { flex: 0 0 130px; display: flex; flex-direction: column; align-items: center; justify-content: center; border: 1px dashed var(--border); border-radius: 6px; padding: 9px 12px; background: transparent; color: var(--muted); font: inherit; cursor: pointer; transition: background 0.1s, border-color 0.1s, color 0.1s; }
+.featured-card-name { font-size: 12.5px; font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.featured-card-desc { font-size: 11px; color: var(--muted); margin-top: 4px; height: 2.6em; line-height: 1.3; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; }
+.featured-card-example { font-family: var(--font-mono); font-size: 11px; color: var(--faint); margin-top: auto; padding-top: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.featured-more-tile { display: flex; flex-direction: column; align-items: center; justify-content: center; border: 1px dashed var(--border); border-radius: 6px; padding: 10px 12px; background: transparent; color: var(--muted); font: inherit; cursor: pointer; min-width: 0; transition: background 0.1s, border-color 0.1s, color 0.1s; }
 .featured-more-tile:hover { border-color: var(--accent); color: var(--accent); background: var(--hover); }
 .featured-more-tile-count { font-size: 18px; font-weight: 700; line-height: 1; }
 .featured-more-tile-label { font-size: 11px; font-weight: 600; color: inherit; margin-top: 3px; }
+
 @media (max-width: 759px) {
-  .featured-search-trigger { min-width: 0; }
-  .featured-search-trigger > .featured-search-label,
-  .featured-search-trigger > kbd { display: none; }
+  .picker-bar { grid-template-columns: 1fr auto; }
+  .picker-search-wrap { grid-column: 1; justify-self: stretch; width: 100%; }
+  .picker-close { grid-column: 2; }
+  .picker-kbd { display: none; }
+  .featured-cards { display: flex; overflow-x: auto; scrollbar-width: none; }
+  .featured-cards::-webkit-scrollbar { display: none; }
+  .featured-card, .featured-more-tile { flex: 0 0 130px; }
 }
 
-#tool-picker-dialog { width: min(720px, 100vw); height: 80vh; padding: 0; border: 1px solid var(--border); border-radius: 8px; background: var(--surface2); color: var(--text); overflow: hidden; }
-#tool-picker-dialog::backdrop { background: rgba(0, 0, 0, 0.5); }
-#tool-picker-dialog .dialog-body { display: flex; flex-direction: column; padding: 0; height: 100%; min-height: 0; }
-.picker-header { display: flex; align-items: center; gap: 8px; padding: 12px 14px; border-bottom: 1px solid var(--border3); flex-shrink: 0; }
-.picker-search-wrap { flex: 1; position: relative; display: flex; align-items: center; }
-.picker-search-wrap > svg { position: absolute; left: 8px; pointer-events: none; color: var(--muted); }
-.picker-search-wrap input { width: 100%; padding: 7px 8px 7px 28px; border: 1px solid var(--border); border-radius: 4px; background: var(--input-bg); color: var(--text); font: inherit; }
-#tool-picker-dialog .dialog-close-btn { position: static; padding: 4px 9px; font-size: 16px; flex-shrink: 0; }
-.picker-gallery { flex: 1; min-height: 0; padding: 14px; overflow-y: auto; display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 10px; align-content: start; }
-@media (max-width: 759px) {
-  #tool-picker-dialog { width: 100vw; max-width: 100vw; height: 100vh; border-radius: 0; border: none; }
-}
 
 .gallery-section-label { grid-column: 1 / -1; font-size: 10px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; padding: 0 2px; margin-top: 4px; }
 .gallery-section-label:first-child { margin-top: 0; }
@@ -1184,19 +1190,21 @@ html.dark-mode .wld-onboarding { background: color-mix(in srgb, var(--accent) 15
   </div>
 </header>
 
+<div id="picker-backdrop"></div>
 <main>
   <div id="busy-overlay"><div class="busy-spinner"></div></div>
   <div id="workshop-view">
-    <section id="featured-row" aria-label="Featured tools">
-      <div class="featured-header">
-        <h2 class="featured-title">Tools</h2>
-        <button type="button" class="featured-search-trigger" id="featured-search-trigger" aria-label="Search tools (open tool picker)">
+    <section id="featured-row" aria-label="Tools">
+      <div class="picker-bar">
+        <div class="picker-search-wrap">
           <svg width="13" height="13" aria-hidden="true"><use href="#icon-search"/></svg>
-          <span class="featured-search-label">Search tools…</span>
-          <kbd>/</kbd>
-        </button>
+          <input id="tool-picker-search" type="text" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="Search tools…">
+          <kbd class="picker-kbd">/</kbd>
+        </div>
+        <button type="button" class="picker-close" aria-label="Close tool picker" hidden>✕</button>
       </div>
-      <div class="featured-row-scroll"></div>
+      <div class="featured-cards"></div>
+      <div class="picker-gallery"></div>
     </section>
 
     <div id="detail-panel"></div>
@@ -5500,6 +5508,25 @@ const ToolStack = (() => {
     return cards + moreTile;
   }
 
+  function relayoutFeaturedRow(container) {
+    const CARD_MIN = 140, CARD_MAX = 200, GAP = 8;
+    const cards = container.querySelectorAll('.featured-card');
+    const moreCountEl = container.querySelector('.featured-more-tile-count');
+    const totalTools = Object.keys(TOOLS).length;
+    if (window.matchMedia('(max-width: 759px)').matches) {
+      cards.forEach(c => { c.hidden = false; });
+      container.style.gridTemplateColumns = '';
+      moreCountEl.textContent = `+${totalTools - FEATURED_TOOLS.length}`;
+      return;
+    }
+    const w = container.clientWidth;
+    let maxN = Math.max(1, Math.floor((w - CARD_MIN) / (CARD_MIN + GAP)));
+    maxN = Math.min(maxN, FEATURED_TOOLS.length);
+    cards.forEach((c, i) => { c.hidden = i >= maxN; });
+    moreCountEl.textContent = `+${totalTools - maxN}`;
+    container.style.gridTemplateColumns = `repeat(${maxN + 1}, minmax(${CARD_MIN}px, ${CARD_MAX}px))`;
+  }
+
   // Used by mountWorkshopPanel for the initial render. Mutations after that
   // re-render the user tool rows via rerenderRows, which leaves the Search
   // bar's DOM in place. The hover insertion cursor is purely transient and
@@ -5626,10 +5653,10 @@ const ToolStack = (() => {
   }
 
   function init() {
-    const featuredRow = document.querySelector('#featured-row .featured-row-scroll');
-    if (featuredRow) {
-      featuredRow.innerHTML = buildFeaturedRowHTML();
-      featuredRow.addEventListener('click', (e) => {
+    const featuredCards = document.querySelector('#featured-row .featured-cards');
+    if (featuredCards) {
+      featuredCards.innerHTML = buildFeaturedRowHTML();
+      featuredCards.addEventListener('click', (e) => {
         if (e.target.closest('.featured-more-tile')) {
           ToolPicker.open();
           return;
@@ -5640,14 +5667,15 @@ const ToolStack = (() => {
         if (!TOOLS[toolKey]) return;
         add(toolKey);
       });
-      featuredRow.querySelectorAll('.featured-card').forEach(card => {
+      featuredCards.querySelectorAll('.featured-card').forEach(card => {
         card.addEventListener('mouseenter', () => {
           if (!card.classList.contains('disabled')) showInsertCursor();
         });
         card.addEventListener('mouseleave', () => removeCursor());
       });
+      relayoutFeaturedRow(featuredCards);
+      new ResizeObserver(() => relayoutFeaturedRow(featuredCards)).observe(featuredCards);
     }
-    document.getElementById('featured-search-trigger')?.addEventListener('click', () => ToolPicker.open());
 
     const p = panelEl();
     p?.addEventListener('click', (e) => {
@@ -5786,20 +5814,15 @@ const ToolStack = (() => {
 })();
 
 const ToolPicker = (() => {
-  const { el, body } = createDialog('tool-picker-dialog', { label: 'Tool picker' });
-  body.innerHTML = `
-    <div class="picker-header">
-      <div class="picker-search-wrap">
-        <svg width="13" height="13" aria-hidden="true"><use href="#icon-search"/></svg>
-        <input id="tool-picker-search" type="text" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="Search tools…" autofocus>
-      </div>
-      <button type="button" class="dialog-close-btn" aria-label="Close">✕</button>
-    </div>
-    <div class="picker-gallery"></div>`;
+  const host        = document.getElementById('featured-row');
+  const searchInput = document.getElementById('tool-picker-search');
+  const closeBtn    = host.querySelector('.picker-close');
+  const gallery     = host.querySelector('.picker-gallery');
+  gallery.innerHTML = `<div class="picker-gallery-inner">${ToolStack.buildGalleryHTML()}</div>`;
+  const galleryInner = gallery.querySelector('.picker-gallery-inner');
 
-  const searchInput = el.querySelector('#tool-picker-search');
-  const gallery     = el.querySelector('.picker-gallery');
-  gallery.innerHTML = ToolStack.buildGalleryHTML();
+  let _isOpen          = false;
+  let _addedDuringOpen = false;
 
   function applyFilter() {
     const q = searchInput.value.trim().toLowerCase();
@@ -5820,13 +5843,13 @@ const ToolPicker = (() => {
       }
       label.hidden = !any;
     });
-    let empty = gallery.querySelector('.gallery-empty');
+    let empty = galleryInner.querySelector('.gallery-empty');
     if (visibleCount === 0) {
       if (!empty) {
         empty = document.createElement('div');
         empty.className = 'gallery-empty';
         empty.innerHTML = '<p>No tools match.</p>';
-        gallery.appendChild(empty);
+        galleryInner.appendChild(empty);
       }
       empty.hidden = false;
     } else if (empty) {
@@ -5834,22 +5857,35 @@ const ToolPicker = (() => {
     }
   }
 
-  let _addedDuringOpen = false;
-
   function open() {
+    if (_isOpen) return;
+    _isOpen = true;
     _addedDuringOpen = false;
     searchInput.value = '';
     applyFilter();
     ToolStack.refreshGalleryActive();
-    showDialog(el, () => {
-      if (!_addedDuringOpen) return;
+    closeBtn.hidden = false;
+    host.classList.add('expanded');
+    document.body.classList.add('picker-expanded');
+    if (window.scrollY > 0) window.scrollTo({ top: 0, behavior: 'smooth' });
+    requestAnimationFrame(() => searchInput.focus());
+    document.addEventListener('mousedown', onOutsideMouseDown, true);
+  }
+
+  function close() {
+    if (!_isOpen) return;
+    _isOpen = false;
+    document.removeEventListener('mousedown', onOutsideMouseDown, true);
+    host.classList.remove('expanded');
+    document.body.classList.remove('picker-expanded');
+    closeBtn.hidden = true;
+    searchInput.blur();
+    if (_addedDuringOpen) {
       const rows = document.querySelectorAll('#tool-stack .tool-row');
       const lastRow = rows[rows.length - 1];
       lastRow?.querySelector('input[type="text"], input[type="number"]')?.focus();
-    });
+    }
   }
-
-  function close() { if (el.open) el.close(); }
 
   function pick(toolKey, opts) {
     ToolStack.add(toolKey, opts);
@@ -5857,7 +5893,8 @@ const ToolPicker = (() => {
     close();
   }
 
-  searchInput.addEventListener('input', applyFilter);
+  searchInput.addEventListener('click', () => open());
+  searchInput.addEventListener('input', () => { if (!_isOpen) open(); applyFilter(); });
 
   searchInput.addEventListener('keydown', (e) => {
     if (e.key !== 'Enter') return;
@@ -5866,6 +5903,14 @@ const ToolPicker = (() => {
     if (!first) return;
     pick(first.dataset.tool);
   });
+
+  closeBtn.addEventListener('click', () => close());
+
+  const onOutsideMouseDown = (e) => {
+    if (!_isOpen) return;
+    if (host.contains(e.target)) return;
+    close();
+  };
 
   gallery.addEventListener('click', (e) => {
     const groupBtn = e.target.closest('.gallery-card-group-btn[data-group-tool]');
@@ -5885,7 +5930,10 @@ const ToolPicker = (() => {
   });
 
   document.addEventListener('keydown', (e) => {
-    if (el.open) return;
+    if (_isOpen) {
+      if (e.key === 'Escape') { e.preventDefault(); close(); }
+      return;
+    }
     const active = document.activeElement;
     const inEditable = active && (
       active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.isContentEditable

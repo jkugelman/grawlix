@@ -58,10 +58,12 @@ async function focusWordlist(page, name) {
 }
 
 async function addTool(page, toolKey) {
-  await page.locator('#featured-search-trigger').click();
-  await expect(page.locator('#tool-picker-dialog')).toBeVisible();
-  await page.locator(`#tool-picker-dialog .gallery-card[data-tool="${toolKey}"]`).click();
-  await expect(page.locator('#tool-picker-dialog')).toBeHidden();
+  await page.locator('#tool-picker-search').click();
+  await expect(page.locator('#featured-row')).toHaveClass(/expanded/);
+  await page.evaluate((key) => {
+    document.querySelector(`#featured-row .picker-gallery .gallery-card[data-tool="${key}"]`)?.click();
+  }, toolKey);
+  await expect(page.locator('#featured-row')).not.toHaveClass(/expanded/);
 }
 
 module.exports = {
