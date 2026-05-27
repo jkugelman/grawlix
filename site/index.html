@@ -4082,15 +4082,42 @@ const UNIGRAM_CORPUS_SIZE_KEY = 'corpus_unigrams_size';
 const SPACE_OUT_WINDOWS = { one: 2, few: 5, many: 10 };
 const SPACE_OUT_PART_PENALTY = 7;
 const SPACE_OUT_OOV_PER_LETTER = 1.5 * Math.LN10;
+const SPACE_OUT_MORPHEME_PENALTY = 1.0;
+const SPACE_OUT_SUFFIXES = ['s', 'es', 'ed', 'ied', 'ing', 'er', 'est', 'ly', 'ies'];
 
 let unigramLogFreqs = null;
 let unigramMinLogFreq = -Infinity;
 let unigramFetchedSize = null;
 let unigramLoadPromise = null;
 
+function morphemeStemLogFreq(word) {
+  if (!unigramLogFreqs) return -Infinity;
+  let best = -Infinity;
+  const tryStem = s => {
+    const lf = unigramLogFreqs.get(s);
+    if (lf !== undefined && lf > best) best = lf;
+  };
+  for (const suf of SPACE_OUT_SUFFIXES) {
+    if (!word.endsWith(suf)) continue;
+    const stemLen = word.length - suf.length;
+    if (stemLen < 2) continue;
+    const stem = word.slice(0, stemLen);
+    tryStem(stem);
+    if (suf === 'ed' || suf === 'ing' || suf === 'er' || suf === 'est') {
+      tryStem(stem + 'e');  // raced, racing, racer, ...
+    }
+    if (suf === 'ies' || suf === 'ied') {
+      tryStem(stem + 'y');  // tries, tried
+    }
+  }
+  return best;
+}
+
 function unigramLogFreq(word) {
   const lf = unigramLogFreqs?.get(word);
   if (lf !== undefined) return lf;
+  const stemLf = morphemeStemLogFreq(word);
+  if (stemLf > -Infinity) return stemLf - SPACE_OUT_MORPHEME_PENALTY;
   return unigramMinLogFreq - word.length * SPACE_OUT_OOV_PER_LETTER;
 }
 
