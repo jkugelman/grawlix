@@ -8107,7 +8107,9 @@ function attachHelpPopups() {
   _helpPopups = [];
   for (const input of document.querySelectorAll('[data-help]')) {
     const content = PARAM_HELP[input.dataset.help];
-    if (content) _helpPopups.push(new PopupHelp(input, content));
+    if (!content) continue;
+    const placement = input.closest('.tool-row-replace') ? 'below' : 'above';
+    _helpPopups.push(new PopupHelp(input, content, { placement }));
   }
 }
 
