@@ -6803,12 +6803,6 @@ class WorkshopEntriesScroller extends BaseVirtualScroller {
     if (nextActiveRow) AtomPopover.rebindRow(nextActiveRow);
   }
 
-  // A chain row: a leading row count, then one `.atom` (display:contents) per
-  // atom, each contributing an entry / length / score line that stacks
-  // vertically and shares column widths with the atoms above it. An atom that
-  // merely repeats the word above it (a search's same-word highlight atom)
-  // renders entry-only — repeating its length / score / comment / source
-  // cells would just be noise.
   _renderChainRow(chainRow, i, tierFor, activeEntry) {
     const atoms = chainRow.atoms;
     let isActive = false;
@@ -6822,18 +6816,9 @@ class WorkshopEntriesScroller extends BaseVirtualScroller {
       const truncTitle = displayed.length > ENTRY_SLOT_CAP ? ` title="${esc(displayed)}"` : '';
       const entryCell =
         `<span class="atom-entry"${truncTitle}>${glyphHTML}${renderHighlightedText(displayed, highlights)}</span>`;
-      // A repeat atom (same word as the one above it) renders bare — entry
-      // cell only — so its grid row carries just the re-highlighted word.
-      if (ai > 0 && entry === atoms[ai - 1].wlEntry.entry && !atom.glyph) {
-        html += `<span class="atom" data-atom="${ai}">${entryCell}</span>`;
-        return;
-      }
       const scoreInner = buildScoreBadgeHTML(score);
       const tierLabel = tierFor(score);
       const scoreTitle = tierLabel ? ` title="${esc(tierLabel)}"` : '';
-      // Comment + source cells render on every full line; CSS gates their
-      // column visibility by viewport width. A synthetic atom (no sourcing
-      // wordlist) gets empty cells.
       const commentText = wlEntry.comment || '';
       const sourceWl = wlEntry.wordlist;
       const sourceHTML = sourceWl ? buildWordlistNameHTML(sourceWl, { bold: false }) : '';
