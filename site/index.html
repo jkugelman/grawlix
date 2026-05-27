@@ -8016,6 +8016,8 @@ function mountWorkshopPanel(panel) {
   workshopScroller.onFilterChange = refreshWorkshopStatsBarFromScroller;
   attachHelpPopups();
   publishWorkshopBarHeights();
+  _workshopStickyObserver.disconnect();
+  _workshopStickyObserver.observe(panel.querySelector('.sticky-stack'));
   document.getElementById('entries-table-panel').addEventListener('animationstart', e => {
     if (e.animationName === 'pipeline-room') _signalFirstPaint();
   });
@@ -8067,6 +8069,7 @@ function publishWorkshopBarHeights() {
   const stickyStack = document.querySelector('#workshop-view .sticky-stack');
   if (stickyStack) document.documentElement.style.setProperty('--sticky-stack-h', stickyStack.offsetHeight + 'px');
 }
+const _workshopStickyObserver = new ResizeObserver(publishWorkshopBarHeights);
 
 function publishLibraryBarHeights() {
   const bar = document.querySelector('.lib-search-bar');
