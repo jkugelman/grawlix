@@ -2421,6 +2421,13 @@ function displayEntry(entry) {
   return getDisplayCase() === 'upper' ? entry.toUpperCase() : entry.toLowerCase();
 }
 
+function refreshToolExampleCase() {
+  document.querySelectorAll('.featured-card[data-tool] .featured-card-example, .gallery-card[data-tool] .gallery-card-example').forEach(el => {
+    const tool = TOOLS[el.closest('[data-tool]').dataset.tool];
+    if (tool) el.textContent = displayEntry(tool.example);
+  });
+}
+
 // ─── Dialog helpers ───────────────────────────────────────────────────────────
 
 function enableDismissClicks(el) {
@@ -2519,6 +2526,7 @@ const SettingsDialog = (() => {
       btn.classList.add('active');
       lsSave('displayCase', btn.dataset.val);
       if (workshopScroller) workshopScroller.updateEntries(workshopScroller.allEntries);
+      refreshToolExampleCase();
     };
   });
 
@@ -5479,7 +5487,7 @@ const ToolStack = (() => {
       ${groupBtn}
       <div class="gallery-card-name">${buildToolLabelHTML(tool)}</div>
       <div class="gallery-card-desc">${esc(tool.desc)}</div>
-      <div class="gallery-card-example">${esc(tool.example)}</div>
+      <div class="gallery-card-example">${esc(displayEntry(tool.example))}</div>
     </div>`;
   }
 
@@ -5500,7 +5508,7 @@ const ToolStack = (() => {
     return `<div class="featured-card" data-tool="${esc(toolKey)}">
       <div class="featured-card-name">${buildToolLabelHTML(tool)}</div>
       <div class="featured-card-desc">${esc(tool.desc)}</div>
-      <div class="featured-card-example">${esc(tool.example)}</div>
+      <div class="featured-card-example">${esc(displayEntry(tool.example))}</div>
     </div>`;
   }
 
