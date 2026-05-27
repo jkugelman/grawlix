@@ -5674,7 +5674,7 @@ const ToolStack = (() => {
         if (!card || card.classList.contains('disabled')) return;
         const toolKey = card.dataset.tool;
         if (!TOOLS[toolKey]) return;
-        add(toolKey);
+        ToolPicker.pick(toolKey);
       });
       featuredCards.querySelectorAll('.featured-card').forEach(card => {
         card.addEventListener('mouseenter', () => {
@@ -5955,7 +5955,7 @@ const ToolPicker = (() => {
     }
   });
 
-  return { open, close };
+  return { open, close, pick };
 })();
 
 // ─── Input helpers ────────────────────────────────────────────────────────────
