@@ -812,22 +812,52 @@ a.get-file:hover { text-decoration: underline; }
 .collapsible.collapsed > .collapsible-toggle .collapsible-chevron { transform: translateY(-50%) rotate(-90deg); }
 .collapsible.collapsed > .collapsible-content { display: none; }
 
-/* Tool gallery — top section of the card, cards laid out as a responsive grid. */
-#tool-gallery { padding: 14px 16px 18px; border-bottom: 1px solid var(--border3); }
-.gallery-header { display: flex; align-items: center; gap: 14px; margin-bottom: 12px; }
-.gallery-title { font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; flex-shrink: 0; }
-.gallery-search-wrap { position: relative; display: flex; align-items: center; flex: 0 0 220px; margin-left: auto; }
-.gallery-search-wrap > svg { position: absolute; left: 8px; pointer-events: none; color: var(--muted); }
-.gallery-search-wrap input { width: 100%; padding: 5px 8px 5px 26px; border: 1px solid var(--border); border-radius: 4px; background: var(--input-bg); color: var(--text); font-size: 12px; font-family: inherit; }
-.gallery-search-wrap input:disabled { cursor: not-allowed; }
-.gallery-body { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 10px; }
+#featured-row { padding: 14px 16px 18px; border-bottom: 1px solid var(--border3); }
+.featured-header { display: flex; align-items: center; gap: 14px; margin-bottom: 12px; }
+.featured-title { font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; flex-shrink: 0; }
+.featured-search-trigger { margin-left: auto; display: inline-flex; align-items: center; gap: 8px; min-width: 220px; padding: 5px 8px 5px 10px; border: 1px solid var(--border); border-radius: 4px; background: var(--input-bg); color: var(--muted); font: inherit; font-size: 12px; cursor: text; text-align: left; }
+.featured-search-trigger:hover { border-color: var(--accent); color: var(--text); }
+.featured-search-trigger > svg { flex-shrink: 0; color: var(--muted); }
+.featured-search-trigger > .featured-search-label { flex: 1; }
+.featured-search-trigger > kbd { font: inherit; font-size: 10px; padding: 1px 5px; border: 1px solid var(--border); border-radius: 3px; background: var(--surface); color: var(--muted); }
+.featured-row-scroll { display: flex; gap: 10px; overflow-x: auto; scrollbar-width: thin; }
+.featured-row-scroll::-webkit-scrollbar { height: 6px; }
+.featured-card { flex: 0 0 200px; position: relative; border: 1px solid var(--border); border-radius: 6px; padding: 9px 12px; background: var(--surface2); cursor: pointer; user-select: none; transition: background 0.1s, border-color 0.1s, box-shadow 0.1s; }
+.featured-card:hover { background: var(--hover); border-color: var(--accent); }
+.featured-card.active { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.featured-card.disabled { cursor: not-allowed; opacity: 0.4; }
+.featured-card.disabled:hover { background: var(--surface2); border-color: var(--border); }
+.featured-card-name { font-size: 13px; font-weight: 600; color: var(--text); }
+.featured-card-desc { font-size: 11px; color: var(--muted); margin-top: 2px; }
+.featured-card-example { font-family: var(--font-mono); font-size: 11px; color: var(--faint); margin-top: 5px; overflow-wrap: anywhere; }
+.featured-more-tile { flex: 0 0 130px; display: flex; flex-direction: column; align-items: center; justify-content: center; border: 1px dashed var(--border); border-radius: 6px; padding: 9px 12px; background: transparent; color: var(--muted); font: inherit; cursor: pointer; transition: background 0.1s, border-color 0.1s, color 0.1s; }
+.featured-more-tile:hover { border-color: var(--accent); color: var(--accent); background: var(--hover); }
+.featured-more-tile-count { font-size: 18px; font-weight: 700; line-height: 1; }
+.featured-more-tile-label { font-size: 11px; font-weight: 600; color: inherit; margin-top: 3px; }
+@media (max-width: 759px) {
+  .featured-search-trigger { min-width: 0; }
+  .featured-search-trigger > .featured-search-label,
+  .featured-search-trigger > kbd { display: none; }
+}
+
+#tool-picker-dialog { width: min(720px, 100vw); height: 80vh; padding: 0; border: 1px solid var(--border); border-radius: 8px; background: var(--surface2); color: var(--text); overflow: hidden; }
+#tool-picker-dialog::backdrop { background: rgba(0, 0, 0, 0.5); }
+#tool-picker-dialog .dialog-body { display: flex; flex-direction: column; padding: 0; height: 100%; min-height: 0; }
+.picker-header { display: flex; align-items: center; gap: 8px; padding: 12px 14px; border-bottom: 1px solid var(--border3); flex-shrink: 0; }
+.picker-search-wrap { flex: 1; position: relative; display: flex; align-items: center; }
+.picker-search-wrap > svg { position: absolute; left: 8px; pointer-events: none; color: var(--muted); }
+.picker-search-wrap input { width: 100%; padding: 7px 8px 7px 28px; border: 1px solid var(--border); border-radius: 4px; background: var(--input-bg); color: var(--text); font: inherit; }
+#tool-picker-dialog .dialog-close-btn { position: static; padding: 4px 9px; font-size: 16px; flex-shrink: 0; }
+.picker-gallery { flex: 1; min-height: 0; padding: 14px; overflow-y: auto; display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 10px; align-content: start; }
+@media (max-width: 759px) {
+  #tool-picker-dialog { width: 100vw; max-width: 100vw; height: 100vh; border-radius: 0; border: none; }
+}
+
 .gallery-section-label { grid-column: 1 / -1; font-size: 10px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; padding: 0 2px; margin-top: 4px; }
 .gallery-section-label:first-child { margin-top: 0; }
 .gallery-empty { grid-column: 1 / -1; border: 1px dashed var(--border); border-radius: 6px; padding: 18px 14px; text-align: center; color: var(--muted); }
 .gallery-empty p { font-size: 13px; font-weight: 600; color: var(--text); margin-bottom: 4px; }
 .gallery-empty small { font-size: 11px; line-height: 1.5; display: block; }
-
-/* Tool gallery cards */
 .gallery-card { position: relative; border: 1px solid var(--border); border-radius: 6px; padding: 9px 12px; background: var(--surface2); cursor: pointer; user-select: none; transition: background 0.1s, border-color 0.1s, box-shadow 0.1s; }
 .gallery-card:hover { background: var(--hover); border-color: var(--accent); }
 .gallery-card.active { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
@@ -1157,15 +1187,16 @@ html.dark-mode .wld-onboarding { background: color-mix(in srgb, var(--accent) 15
 <main>
   <div id="busy-overlay"><div class="busy-spinner"></div></div>
   <div id="workshop-view">
-    <section id="tool-gallery" aria-label="Tool gallery">
-      <div class="gallery-header">
-        <h2 class="gallery-title">Tools</h2>
-        <div class="gallery-search-wrap">
+    <section id="featured-row" aria-label="Featured tools">
+      <div class="featured-header">
+        <h2 class="featured-title">Tools</h2>
+        <button type="button" class="featured-search-trigger" id="featured-search-trigger" aria-label="Search tools (open tool picker)">
           <svg width="13" height="13" aria-hidden="true"><use href="#icon-search"/></svg>
-          <input id="gallery-search" type="text" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="Search tools…" title="Search tools (Alt+T)" disabled>
-        </div>
+          <span class="featured-search-label">Search tools…</span>
+          <kbd>/</kbd>
+        </button>
       </div>
-      <div class="gallery-body"></div>
+      <div class="featured-row-scroll"></div>
     </section>
 
     <div id="detail-panel"></div>
@@ -4294,6 +4325,8 @@ const TOOL_CATEGORIES = [
   { id: 'side',       label: 'Side' },
 ];
 
+const FEATURED_TOOLS = ['search', 'anagrams', 'letter_bank', 'regex', 'palindromes', 'kangaroos'];
+
 const WHOLE_WORD_PARAM = { key: 'whole-word', type: 'checkbox', label: 'Whole word' };
 
 const TOOLS = {
@@ -5446,6 +5479,27 @@ const ToolStack = (() => {
     }).join('');
   }
 
+  function buildFeaturedCardHTML(toolKey, tool) {
+    return `<div class="featured-card" data-tool="${esc(toolKey)}">
+      <div class="featured-card-name">${buildToolLabelHTML(tool)}</div>
+      <div class="featured-card-desc">${esc(tool.desc)}</div>
+      <div class="featured-card-example">${esc(tool.example)}</div>
+    </div>`;
+  }
+
+  function buildFeaturedRowHTML() {
+    const cards = FEATURED_TOOLS.map(key => {
+      const tool = TOOLS[key];
+      return tool ? buildFeaturedCardHTML(key, tool) : '';
+    }).join('');
+    const moreCount = Object.keys(TOOLS).length - FEATURED_TOOLS.length;
+    const moreTile = `<button type="button" class="featured-more-tile" aria-label="Browse all tools">
+      <span class="featured-more-tile-count">+${moreCount}</span>
+      <span class="featured-more-tile-label">more</span>
+    </button>`;
+    return cards + moreTile;
+  }
+
   // Used by mountWorkshopPanel for the initial render. Mutations after that
   // re-render the user tool rows via rerenderRows, which leaves the Search
   // bar's DOM in place. The hover insertion cursor is purely transient and
@@ -5479,7 +5533,7 @@ const ToolStack = (() => {
     const activeFlat = new Set(userStack.filter(r => !r.grouped).map(r => r.tool));
     const activeGrouped = new Set(userStack.filter(r => r.grouped).map(r => r.tool));
     const groupTaken = userStack.some(r => r.grouped);
-    document.querySelectorAll('.gallery-card[data-tool]').forEach(card => {
+    document.querySelectorAll('.gallery-card[data-tool], .featured-card[data-tool]').forEach(card => {
       card.classList.toggle('active', activeFlat.has(card.dataset.tool));
       card.removeAttribute('title');
     });
@@ -5572,37 +5626,28 @@ const ToolStack = (() => {
   }
 
   function init() {
-    const galleryBody = document.querySelector('.gallery-body');
-    if (galleryBody) galleryBody.innerHTML = buildGalleryHTML();
-    galleryBody?.addEventListener('click', (e) => {
-      const groupBtn = e.target.closest('.gallery-card-group-btn[data-group-tool]');
-      if (groupBtn) {
-        e.stopPropagation();
-        if (groupBtn.classList.contains('disabled')) return;
-        const key = groupBtn.dataset.groupTool;
-        if (!TOOLS[key]) return;
-        add(key, { grouped: true });
-        return;
-      }
-      const card = e.target.closest('.gallery-card[data-tool]');
-      if (!card || card.classList.contains('disabled')) return;
-      const toolKey = card.dataset.tool;
-      if (!TOOLS[toolKey]) return;
-      add(toolKey);
-    });
-
-    document.querySelectorAll('.gallery-card[data-tool]').forEach(card => {
-      card.addEventListener('mouseenter', () => {
-        if (!card.classList.contains('disabled')) showInsertCursor();
+    const featuredRow = document.querySelector('#featured-row .featured-row-scroll');
+    if (featuredRow) {
+      featuredRow.innerHTML = buildFeaturedRowHTML();
+      featuredRow.addEventListener('click', (e) => {
+        if (e.target.closest('.featured-more-tile')) {
+          ToolPicker.open();
+          return;
+        }
+        const card = e.target.closest('.featured-card[data-tool]');
+        if (!card || card.classList.contains('disabled')) return;
+        const toolKey = card.dataset.tool;
+        if (!TOOLS[toolKey]) return;
+        add(toolKey);
       });
-      card.addEventListener('mouseleave', () => removeCursor());
-    });
-    document.querySelectorAll('.gallery-card-group-btn[data-group-tool]').forEach(btn => {
-      btn.addEventListener('mouseenter', () => {
-        if (!btn.classList.contains('disabled')) showInsertCursor();
+      featuredRow.querySelectorAll('.featured-card').forEach(card => {
+        card.addEventListener('mouseenter', () => {
+          if (!card.classList.contains('disabled')) showInsertCursor();
+        });
+        card.addEventListener('mouseleave', () => removeCursor());
       });
-      btn.addEventListener('mouseleave', () => removeCursor());
-    });
+    }
+    document.getElementById('featured-search-trigger')?.addEventListener('click', () => ToolPicker.open());
 
     const p = panelEl();
     p?.addEventListener('click', (e) => {
@@ -5737,7 +5782,123 @@ const ToolStack = (() => {
     });
   }
 
-  return { buildHTML, refreshGalleryActive, init, getStack, setStack, getSearchBarRow, getUserStack, isRowExpanded, refreshErrorMarks };
+  return { buildHTML, buildGalleryHTML, refreshGalleryActive, init, add, getStack, setStack, getSearchBarRow, getUserStack, isRowExpanded, refreshErrorMarks };
+})();
+
+const ToolPicker = (() => {
+  const { el, body } = createDialog('tool-picker-dialog', { label: 'Tool picker' });
+  body.innerHTML = `
+    <div class="picker-header">
+      <div class="picker-search-wrap">
+        <svg width="13" height="13" aria-hidden="true"><use href="#icon-search"/></svg>
+        <input id="tool-picker-search" type="text" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" placeholder="Search tools…" autofocus>
+      </div>
+      <button type="button" class="dialog-close-btn" aria-label="Close">✕</button>
+    </div>
+    <div class="picker-gallery"></div>`;
+
+  const searchInput = el.querySelector('#tool-picker-search');
+  const gallery     = el.querySelector('.picker-gallery');
+  gallery.innerHTML = ToolStack.buildGalleryHTML();
+
+  function applyFilter() {
+    const q = searchInput.value.trim().toLowerCase();
+    let visibleCount = 0;
+    gallery.querySelectorAll('.gallery-card[data-tool]').forEach(card => {
+      const tool = TOOLS[card.dataset.tool];
+      if (!tool) { card.hidden = true; return; }
+      const match = !q || (tool.name + ' ' + (tool.desc || '')).toLowerCase().includes(q);
+      card.hidden = !match;
+      if (match) visibleCount++;
+    });
+    gallery.querySelectorAll('.gallery-section-label').forEach(label => {
+      let next = label.nextElementSibling;
+      let any = false;
+      while (next && !next.classList.contains('gallery-section-label')) {
+        if (next.classList.contains('gallery-card') && !next.hidden) { any = true; break; }
+        next = next.nextElementSibling;
+      }
+      label.hidden = !any;
+    });
+    let empty = gallery.querySelector('.gallery-empty');
+    if (visibleCount === 0) {
+      if (!empty) {
+        empty = document.createElement('div');
+        empty.className = 'gallery-empty';
+        empty.innerHTML = '<p>No tools match.</p>';
+        gallery.appendChild(empty);
+      }
+      empty.hidden = false;
+    } else if (empty) {
+      empty.hidden = true;
+    }
+  }
+
+  let _addedDuringOpen = false;
+
+  function open() {
+    _addedDuringOpen = false;
+    searchInput.value = '';
+    applyFilter();
+    ToolStack.refreshGalleryActive();
+    showDialog(el, () => {
+      if (!_addedDuringOpen) return;
+      const rows = document.querySelectorAll('#tool-stack .tool-row');
+      const lastRow = rows[rows.length - 1];
+      lastRow?.querySelector('input[type="text"], input[type="number"]')?.focus();
+    });
+  }
+
+  function close() { if (el.open) el.close(); }
+
+  function pick(toolKey, opts) {
+    ToolStack.add(toolKey, opts);
+    _addedDuringOpen = true;
+    close();
+  }
+
+  searchInput.addEventListener('input', applyFilter);
+
+  searchInput.addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter') return;
+    e.preventDefault();
+    const first = gallery.querySelector('.gallery-card[data-tool]:not([hidden]):not(.disabled)');
+    if (!first) return;
+    pick(first.dataset.tool);
+  });
+
+  gallery.addEventListener('click', (e) => {
+    const groupBtn = e.target.closest('.gallery-card-group-btn[data-group-tool]');
+    if (groupBtn) {
+      e.stopPropagation();
+      if (groupBtn.classList.contains('disabled')) return;
+      const key = groupBtn.dataset.groupTool;
+      if (!TOOLS[key]) return;
+      pick(key, { grouped: true });
+      return;
+    }
+    const card = e.target.closest('.gallery-card[data-tool]');
+    if (!card || card.classList.contains('disabled')) return;
+    const key = card.dataset.tool;
+    if (!TOOLS[key]) return;
+    pick(key);
+  });
+
+  document.addEventListener('keydown', (e) => {
+    if (el.open) return;
+    const active = document.activeElement;
+    const inEditable = active && (
+      active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.isContentEditable
+    );
+    const isSlash = e.key === '/' && !inEditable && !e.ctrlKey && !e.metaKey && !e.altKey;
+    const isCmdK  = (e.key === 'k' || e.key === 'K') && (e.metaKey || e.ctrlKey) && !e.altKey;
+    if (isSlash || isCmdK) {
+      e.preventDefault();
+      open();
+    }
+  });
+
+  return { open, close };
 })();
 
 // ─── Input helpers ────────────────────────────────────────────────────────────
@@ -6057,6 +6218,12 @@ class BaseVirtualScroller {
       if (this._reservedHeight === 0) return;
       const next = e.relatedTarget;
       if (next && next.closest && next.closest('.search-bar, .tool-row')) return;
+      // Don't drop reservation when focus moves *within* the host: dropping
+      // it reflows the host between mousedown and mouseup, moving in-host
+      // buttons (e.g. empty-state Add-it) out from under the click. The
+      // bug only shows when the page is short enough that scroll doesn't
+      // absorb the shift, so it's easy to "simplify" this line away.
+      if (next && this.host.contains(next)) return;
       this._reservedHeight = 0;
       this._render();
     };
@@ -9178,10 +9345,7 @@ function bindEvents() {
   document.addEventListener('keydown', e => {
     if (e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey) {
       const k = e.key.toLowerCase();
-      if (k === 't') {
-        const el = document.getElementById('gallery-search');
-        if (el) { e.preventDefault(); el.focus(); el.select(); }
-      } else if (k === 'm') {
+      if (k === 'm') {
         e.preventDefault();
         cycleDarkMode();
       }

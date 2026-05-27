@@ -12,7 +12,7 @@
 // entry strings per multi-atom chain row.
 
 const { test, expect } = require('@playwright/test');
-const { stubPublisherFetches, gotoApp } = require('./helpers');
+const { stubPublisherFetches, gotoApp, addTool } = require('./helpers');
 
 test.beforeEach(async ({ page }) => {
   await stubPublisherFetches(page);
@@ -62,8 +62,7 @@ test('typing in the row input live-filters the entries table', async ({ page }) 
   await gotoApp(page);
   await addAnagramFixture(page);
 
-  // Click the Anagram gallery card to add the tool to the stack.
-  await page.locator('.gallery-card[data-tool="anagrams"]').click();
+  await addTool(page, 'anagrams');
 
   const input = page.locator('.tool-row input[data-key="entry"]');
   await expect(input).toBeFocused();
@@ -73,14 +72,12 @@ test('typing in the row input live-filters the entries table', async ({ page }) 
   expect(visible.sort()).toEqual(['lindsey', 'snidely']);
 });
 
-test('clicking gallery cards appends them to the stack in order', async ({ page }) => {
+test('adding tools from the picker appends them to the stack in order', async ({ page }) => {
   await gotoApp(page);
   await addAnagramFixture(page);
 
-  // Each card click appends — the second click chains onto the first rather
-  // than replacing it.
-  await page.locator('.gallery-card[data-tool="anagrams"]').click();
-  await page.locator('.gallery-card[data-tool="search"]').click();
+  await addTool(page, 'anagrams');
+  await addTool(page, 'search');
 
   const userStack = await page.evaluate(() =>
     ToolStack.getUserStack().map(r => r.tool));
@@ -283,12 +280,11 @@ test('a wildcard-only search holds its atom even though it highlights nothing', 
   await expect(row.locator('.atom').nth(1).locator('mark')).toHaveCount(0);
 });
 
-test('Search is a gallery tool and can be chained into the stack', async ({ page }) => {
+test('Search is a tool addable from the picker and can be chained into the stack', async ({ page }) => {
   await gotoApp(page);
   await addAnagramFixture(page);
 
-  // Click the Search gallery card — it's a tool like any other.
-  await page.locator('.gallery-card[data-tool="search"]').click();
+  await addTool(page, 'search');
   const input = page.locator('.tool-row input[data-key="pattern"]');
   await expect(input).toBeFocused();
   await input.fill('cat');
@@ -298,7 +294,7 @@ test('Search is a gallery tool and can be chained into the stack', async ({ page
   expect(visible).toEqual(['cat']);
 });
 
-test('a gallery Search tool and the permanent Search bar both round-trip through the URL', async ({ page }) => {
+test('a stack Search tool and the permanent Search bar both round-trip through the URL', async ({ page }) => {
   await gotoApp(page);
   await addAnagramFixture(page);
   // Two `search=` keys: the first is a stack tool, the last is the bar.
@@ -349,7 +345,7 @@ test('the caret expands a Search row into find/replace; collapsing clears it but
   await gotoApp(page);
   await addAnagramFixture(page);
 
-  await page.locator('.gallery-card[data-tool="search"]').click();
+  await addTool(page, 'search');
   const row = page.locator('.tool-row', { has: page.locator('input[data-key="pattern"]') });
   const replace = row.locator('input[data-key="replace"]');
   const caret = row.locator('.find-replace-caret');

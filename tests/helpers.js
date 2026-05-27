@@ -57,9 +57,17 @@ async function focusWordlist(page, name) {
   await page.locator('.wordlist-card[data-wordlist]', { hasText: name }).first().click();
 }
 
+async function addTool(page, toolKey) {
+  await page.locator('#featured-search-trigger').click();
+  await expect(page.locator('#tool-picker-dialog')).toBeVisible();
+  await page.locator(`#tool-picker-dialog .gallery-card[data-tool="${toolKey}"]`).click();
+  await expect(page.locator('#tool-picker-dialog')).toBeHidden();
+}
+
 module.exports = {
   stubPublisherFetches,
   gotoApp,
   openLibrary,
   focusWordlist,
+  addTool,
 };
