@@ -228,7 +228,7 @@ button.danger:hover:not(:disabled) { background: #e74c3c; border-color: #c0392b;
 #workshop-view .sticky-stack > #tool-stack { position: sticky; top: var(--header-h); z-index: 53; background: var(--surface2); border-bottom: 1px solid var(--border2); }
 #workshop-view .sticky-stack > #workshop-stats { position: sticky; top: calc(var(--header-h) + var(--tool-stack-h)); z-index: 52; background: var(--surface2); }
 #workshop-view .sticky-stack > .entry-headers,
-#workshop-view .sticky-stack > .group-headers { position: sticky; top: calc(var(--header-h) + var(--tool-stack-h) + var(--stats-bar-h)); z-index: 51; background: var(--surface2); border-bottom: 1px solid var(--border2); }
+#workshop-view .sticky-stack > .group-headers { position: sticky; top: calc(var(--header-h) + var(--tool-stack-h) + var(--stats-bar-h)); z-index: 51; background: var(--surface); border-bottom: 1px solid var(--border2); }
 .sticky-stack .search-bar { border-bottom: none; }
 .stat { display: flex; flex-direction: column; gap: 2px; }
 .stat-label { font-size: 10px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
@@ -353,10 +353,8 @@ html.dark-mode .search-match-4 { background: #14532d; color: #d1fae5; }
    slot-width vars are computed in pixels (see _computeSlotWidths) so the
    header's sans font and the row's mono font produce identical track widths. */
 .entry-headers {
-  padding-top: 5px; padding-bottom: 5px;
   color: var(--muted);
   user-select: none;
-  border-top: 1px solid var(--border3);
 }
 .entry-headers > * { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 .entry-headers .col-comment, .entry-headers .col-source { display: none; }
@@ -409,10 +407,8 @@ html.dark-mode .search-match-4 { background: #14532d; color: #d1fae5; }
 .group-row:hover { background: var(--row-hover); }
 .group-row.active { background: color-mix(in srgb, var(--accent) 12%, transparent); }
 .group-headers {
-  padding-top: 5px; padding-bottom: 5px;
   color: var(--muted);
   user-select: none;
-  border-top: 1px solid var(--border3);
 }
 .group-rownum, .group-count, .group-col, .group-entries-label {
   font-family: var(--font-sans); font-size: 12px;
