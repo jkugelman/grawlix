@@ -157,7 +157,7 @@ test.describe('UI-typed entries preserve case', () => {
     await gotoApp(page);
     await page.locator('.search-bar input[data-key="pattern"]').fill('Helen of Troy');
     await page.locator('.entries-empty-add').click();
-    await expect(page.locator('#atom-popover .atom-pop-head')).toHaveText('Helen of Troy');
+    await expect(page.locator('#atom-pop-entry')).toHaveValue('Helen of Troy');
     await page.locator('#atom-pop-score').fill('70');
     await page.locator('#atom-pop-score').press('Enter');
     await expect.poll(async () =>
