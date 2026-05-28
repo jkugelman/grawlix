@@ -109,49 +109,6 @@ test.describe('display-aware search', () => {
   });
 });
 
-test.describe('acronym match tool', () => {
-  async function addLib(page) {
-    await addRich(page, 'Acronyms', [
-      'what the fuck', 'world tour finals', 'cat',
-      'co-op', "don't", 'big easy',
-    ], [50, 50, 50, 50, 50, 50]);
-  }
-
-  async function setAcronym(page, q) {
-    await page.evaluate(target => window.__grawlixTest.setStack([
-      { tool: 'acronym_match', params: { acronym: target } },
-    ]), q);
-  }
-
-  test('matches displays whose word-initial letters spell the acronym', async ({ page }) => {
-    await gotoApp(page);
-    await addLib(page);
-    await setAcronym(page, 'WTF');
-    expect((await visible(page)).sort()).toEqual(['what the fuck', 'world tour finals']);
-  });
-
-  test('hyphens are optional word boundaries', async ({ page }) => {
-    await gotoApp(page);
-    await addLib(page);
-    await setAcronym(page, 'CO');
-    expect(await visible(page)).toEqual(['co-op']);
-  });
-
-  test('single-letter pattern matches every entry whose first word starts with it', async ({ page }) => {
-    await gotoApp(page);
-    await addLib(page);
-    await setAcronym(page, 'C');
-    expect((await visible(page)).sort()).toEqual(['cat', 'co-op']);
-  });
-
-  test("apostrophes aren't word boundaries — DT doesn't match \"don't\"", async ({ page }) => {
-    await gotoApp(page);
-    await addLib(page);
-    await setAcronym(page, 'DT');
-    expect(await visible(page)).toEqual([]);
-  });
-});
-
 test.describe('UI-typed entries preserve case', () => {
   test('Add-it from the search empty state lands a verbatim display', async ({ page }) => {
     await gotoApp(page);

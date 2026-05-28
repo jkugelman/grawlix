@@ -441,6 +441,27 @@ html.dark-mode .search-match-4 { background: #14532d; color: #d1fae5; }
 .group-chain .atom-entry { cursor: pointer; }
 .group-chain .atom-score { cursor: pointer; }
 .group-chain .atom-noedit { cursor: default; }
+.group-anchor {
+  flex: none;
+  min-width: var(--group-anchor-w, 0);
+}
+.group-headers .group-anchor {
+  font-family: var(--font-sans); font-size: 12px;
+  height: var(--row-height, 24px);
+  line-height: var(--row-height, 24px);
+  text-align: right;
+}
+.group-row .group-anchor {
+  display: grid;
+  grid-template-columns: max-content max-content;
+  grid-auto-rows: var(--row-height, 24px);
+  column-gap: 5px;
+  align-items: center;
+  justify-content: end;
+}
+.group-row .group-anchor .atom { display: contents; }
+.group-row .group-anchor .atom-entry { cursor: pointer; overflow: hidden; text-overflow: ellipsis; }
+.group-row .group-anchor .atom-score { cursor: pointer; }
 .group-more {
   position: absolute; right: 12px; top: 0;
   height: var(--row-height, 24px);
@@ -1906,12 +1927,17 @@ function buildEntryHeadersHTML() {
   const stack = ToolStack.getStack();
   if (isGroupChain(stack)) {
     const cols = activeGroupColumns(stack);
+    const anchorLabel = activeGroupAnchorLabel(stack);
+    const anchorHeader = anchorLabel
+      ? `<span class="group-anchor">${esc(anchorLabel)}</span>`
+      : '';
     const colHeaders = cols.map(c =>
       `<span class="group-col" data-col="${esc(c.key)}">${esc(c.label)}</span>`
     ).join('');
     return `<div class="group-headers entry-headers-font" aria-hidden="true">
       <span class="group-rownum"></span>
       <span class="group-count">Count</span>
+      ${anchorHeader}
       ${colHeaders}
       <span class="group-entries-label">Entries</span>
     </div>`;
@@ -4874,8 +4900,8 @@ const TOOLS = {
       return runRegexReplace(entry, prepared, wordlist);
     },
   },
-  acronym_match: {
-    name: 'Acronym match', icon: '🔠', category: 'search',
+  acronyms: {
+    name: 'Acronyms', icon: '🔠', category: 'search',
     desc: 'Word-initial letters spell the acronym',
     example: 'WTF → what the fuck',
     params: [{ placeholder: 'acronym' }],
@@ -4894,6 +4920,17 @@ const TOOLS = {
         if (ok) return true;
       }
       return false;
+    },
+    group: {
+      key: displayText => {
+        const words = displayText.split(/[ ]+/).filter(Boolean);
+        if (words.length < 2) return null;
+        let acronym = '';
+        for (const w of words) acronym += w[0].toLowerCase();
+        return acronym;
+      },
+      anchor: (key, wordlist) => wordlist.byNorm.get(key) || null,
+      anchorLabel: 'Acronym',
     },
   },
   behead: {
@@ -5205,7 +5242,7 @@ async function runStackRow(stackRow, state, mergedWordlist, signal, y) {
   try {
     if (stackRow.kind() === 'group') {
       const ctx = makeCtx(mergedWordlist, state.groups[0].chains, signal, y);
-      state.groups = await bucketize(state.groups[0].chains, def.group, ctx);
+      state.groups = await bucketize(state.groups[0].chains, def, ctx);
       state.grouped = true;
       return;
     }
@@ -5278,23 +5315,29 @@ async function runToolStage(rows, stackRow, prepared, mergedWordlist, y) {
   return next;
 }
 
-async function bucketize(chains, spec, ctx) {
+async function bucketize(chains, def, ctx) {
+  const useDisplay = def.matchOn === 'display';
   const buckets = new Map();
   await ctx.forEach(chains, chain => {
-    const key = spec.key(rowLastEntry(chain).norm);
+    const tail = rowLastEntry(chain);
+    const input = useDisplay ? displayOf(tail) : tail.norm;
+    const key = def.group.key(input);
     if (!key) return;
     let bucket = buckets.get(key);
     if (!bucket) buckets.set(key, bucket = []);
     bucket.push(chain);
   });
+  const anchorFn = def.group.anchor;
   const groups = [];
   for (const [key, groupChains] of buckets) {
     if (groupChains.length < 2) continue;
+    const anchor = anchorFn ? anchorFn(key, ctx.wordlist) : null;
+    if (anchorFn && !anchor) continue;
     groupChains.sort((a, b) => {
       const ae = rowLastEntry(a), be = rowLastEntry(b);
       return be.score - ae.score || ae.norm.localeCompare(be.norm);
     });
-    groups.push({ key, chains: groupChains });
+    groups.push({ key, chains: groupChains, anchor });
   }
   return groups;
 }
@@ -5428,6 +5471,7 @@ function applyScoreRangeToRows(rows, intervals, grouped) {
   if (grouped) {
     const out = [];
     for (const g of rows) {
+      if (g.anchor && !matchesRange(g.anchor.score, intervals)) continue;
       const chains = g.chains.filter(chainOk);
       if (chains.length < 2) continue;
       const ng = { ...g, chains };
@@ -6235,6 +6279,9 @@ function activeGroupRow(stack) {
 function activeGroupColumns(stack) {
   return activeGroupRow(stack)?.def.group?.columns || [];
 }
+function activeGroupAnchorLabel(stack) {
+  return activeGroupRow(stack)?.def.group?.anchorLabel || null;
+}
 function buildColumnAxis(primaryCol, allColumns) {
   const tiebreakers = primaryCol.tiebreakers ?? [
     { project: groupCount,        dir: 'desc' },
@@ -6251,14 +6298,43 @@ function buildColumnAxis(primaryCol, allColumns) {
 function workshopSortAxes(tier, stack = ToolStack.getStack()) {
   if (tier !== 'group') return WORKSHOP_SORT_AXES[tier];
   const cols = activeGroupColumns(stack);
+  const spec = activeGroupRow(stack)?.def.group || null;
+  const anchorLabel = spec?.anchorLabel || null;
   const extraTiebreakers = cols
     .filter(c => c.tiebreaker !== false)
     .map(c => ({ project: g => c.value(g), dir: 'desc' }));
   const baseAxes = {};
   for (const [key, axis] of Object.entries(WORKSHOP_SORT_AXES.group)) {
+    let updated = axis;
+    if (key === 'entry' && anchorLabel) {
+      updated = {
+        ...axis,
+        label: anchorLabel,
+        primary: g => g.anchor.norm,
+        tiebreakers: [{ project: groupCount, dir: 'desc' }],
+      };
+    }
     baseAxes[key] = extraTiebreakers.length
-      ? { ...axis, tiebreakers: [...axis.tiebreakers, ...extraTiebreakers] }
-      : axis;
+      ? { ...updated, tiebreakers: [...updated.tiebreakers, ...extraTiebreakers] }
+      : updated;
+  }
+  if (anchorLabel) {
+    baseAxes['length'] = {
+      label: `${anchorLabel} length`,
+      primary: g => g.anchor.norm.length,
+      tiebreakers: [
+        { project: g => g.anchor.norm, dir: 'asc' },
+        { project: groupCount,         dir: 'desc' },
+      ],
+    };
+    baseAxes['score'] = {
+      label: `${anchorLabel} score`,
+      primary: g => g.anchor.score,
+      tiebreakers: [
+        { project: g => g.anchor.norm, dir: 'asc' },
+        { project: groupCount,         dir: 'desc' },
+      ],
+    };
   }
   const columnAxes = {};
   for (const col of cols) {
@@ -6467,6 +6543,18 @@ function estimateChainWidth(chain, ctx) {
     if (scoreW > maxScoreW) maxScoreW = scoreW;
   }
   return maxEntryW + 5 + maxScoreW;
+}
+
+function buildGroupAnchorHTML(anchor) {
+  if (!anchor) return `<span class="group-anchor"></span>`;
+  const displayed = displayOf(anchor);
+  const truncTitle = displayed.length > ENTRY_SLOT_CAP ? ` title="${esc(displayed)}"` : '';
+  return `<span class="group-anchor">` +
+    `<span class="atom" data-atom-role="anchor">` +
+      `<span class="atom-entry"${truncTitle}>${esc(displayed)}</span>` +
+      `<span class="atom-score">${buildScoreBadgeHTML(anchor.score)}</span>` +
+    `</span>` +
+  `</span>`;
 }
 
 function buildGroupChainHTML(chain, ci) {
@@ -6682,27 +6770,33 @@ class WorkshopEntriesScroller extends BaseVirtualScroller {
       }
       const target = e.target.closest('.atom-entry, .atom-score, .atom-comment');
       if (!target) return;
-      let row, atom;
+      let row, wlEntry;
       const groupRow = target.closest('.group-row');
       if (groupRow) {
-        const chainEl = target.closest('.group-chain');
         const atomEl = target.closest('.atom');
-        if (!chainEl || !atomEl) return;
+        if (!atomEl) return;
         row = groupRow;
         const g = this.entries[parseInt(groupRow.dataset.idx, 10)];
-        atom = g?.chains[parseInt(chainEl.dataset.chain, 10)]
-                ?.atoms[parseInt(atomEl.dataset.atom, 10)];
+        if (atomEl.dataset.atomRole === 'anchor') {
+          wlEntry = g?.anchor || null;
+        } else {
+          const chainEl = target.closest('.group-chain');
+          if (!chainEl) return;
+          wlEntry = g?.chains[parseInt(chainEl.dataset.chain, 10)]
+                    ?.atoms[parseInt(atomEl.dataset.atom, 10)]?.wlEntry;
+        }
       } else {
         row = target.closest('.entry-row');
         const atomEl = target.closest('.atom');
         if (!row || !atomEl) return;
-        atom = this.entries[parseInt(row.dataset.idx, 10)]?.atoms[parseInt(atomEl.dataset.atom, 10)];
+        wlEntry = this.entries[parseInt(row.dataset.idx, 10)]
+                  ?.atoms[parseInt(atomEl.dataset.atom, 10)]?.wlEntry;
       }
-      if (!atom) return;
+      if (!wlEntry) return;
       const field = target.classList.contains('atom-score') ? 'score'
                   : target.classList.contains('atom-comment') ? 'comment'
                   : null;
-      AtomPopover.open(atom.wlEntry, row, this, target, field);
+      AtomPopover.open(wlEntry, row, this, target, field);
     });
 
     this._buildToolbar();
@@ -6966,7 +7060,9 @@ class WorkshopEntriesScroller extends BaseVirtualScroller {
     this._clearSizer();
     const activeNorm = AtomPopover.activeNorm(this);
     let nextActiveRow = null;
-    const columns = activeGroupColumns(ToolStack.getStack());
+    const stack = ToolStack.getStack();
+    const columns = activeGroupColumns(stack);
+    const hasAnchor = !!activeGroupAnchorLabel(stack);
     const ctx = {
       monoCh: this._groupMonoCh || measureMonoChPx(),
       glyphPx: this._groupGlyphPx || 0,
@@ -6979,8 +7075,12 @@ class WorkshopEntriesScroller extends BaseVirtualScroller {
       row.className = 'group-row entry-row-font';
       row.dataset.idx = i;
       row.style.top = (i * stride) + 'px';
-      row.innerHTML = this._renderGroupRowHTML(g, i, columns, ctx);
-      if (activeNorm && g.chains.some(c => c.atoms.some(a => a.wlEntry.norm === activeNorm))) {
+      row.innerHTML = this._renderGroupRowHTML(g, i, columns, hasAnchor, ctx);
+      const matchesActive = activeNorm && (
+        (g.anchor && g.anchor.norm === activeNorm) ||
+        g.chains.some(c => c.atoms.some(a => a.wlEntry.norm === activeNorm))
+      );
+      if (matchesActive) {
         row.classList.add('active');
         nextActiveRow = row;
       }
@@ -6990,7 +7090,7 @@ class WorkshopEntriesScroller extends BaseVirtualScroller {
     if (nextActiveRow) AtomPopover.rebindRow(nextActiveRow);
   }
 
-  _renderGroupRowHTML(group, rowIdx, columns, ctx) {
+  _renderGroupRowHTML(group, rowIdx, columns, hasAnchor, ctx) {
     const chains = group.chains;
     const total = chains.length;
     let leftEdge = 0;
@@ -7005,11 +7105,13 @@ class WorkshopEntriesScroller extends BaseVirtualScroller {
     for (let ci = 0; ci < visibleCount; ci++) {
       chainsHTML.push(buildGroupChainHTML(chains[ci], ci));
     }
+    const anchorCell = hasAnchor ? buildGroupAnchorHTML(group.anchor) : '';
     const colCells = columns.map(c =>
       `<span class="group-col" data-col="${esc(c.key)}">${esc(String(c.value(group)))}</span>`
     ).join('');
     return `<span class="group-rownum">${rowIdx + 1}.</span>` +
       `<span class="group-count">${total}</span>` +
+      anchorCell +
       colCells +
       `<div class="group-chains${hidden > 0 ? ' is-clipped' : ''}">${chainsHTML.join('')}</div>` +
       `<button type="button" class="group-more"${hidden > 0 ? `>+${hidden} more` : ' hidden>'}</button>`;
@@ -7055,7 +7157,23 @@ class WorkshopEntriesScroller extends BaseVirtualScroller {
     const rownumW = measureTextWidth(this.allEntries.length + '.', 'entry-headers-font');
     target.style.setProperty('--group-count-w', `${countW}px`);
     target.style.setProperty('--group-rownum-w', `${rownumW}px`);
-    const columns = activeGroupColumns(ToolStack.getStack());
+    const stack = ToolStack.getStack();
+    const monoCh = measureMonoChPx();
+    const anchorLabel = activeGroupAnchorLabel(stack);
+    let anchorW = 0;
+    if (anchorLabel) {
+      let maxEntryW = 0, maxBadgeW = 0;
+      for (const g of this.allEntries) {
+        if (!g.anchor) continue;
+        const entryW = displayOf(g.anchor).length * monoCh;
+        if (entryW > maxEntryW) maxEntryW = entryW;
+        const badgeW = badgeWidthPx(String(g.anchor.score).length);
+        if (badgeW > maxBadgeW) maxBadgeW = badgeW;
+      }
+      anchorW = Math.max(maxEntryW + 5 + maxBadgeW, headerLabelPx(anchorLabel));
+      target.style.setProperty('--group-anchor-w', `${anchorW}px`);
+    }
+    const columns = activeGroupColumns(stack);
     let columnsW = 0;
     for (const col of columns) {
       let maxColW = 0;
@@ -7067,8 +7185,9 @@ class WorkshopEntriesScroller extends BaseVirtualScroller {
       target.style.setProperty(`--group-col-${col.key}-w`, `${colW}px`);
       columnsW += colW;
     }
-    this._groupChromeWidth = 32 + rownumW + countW + columnsW + 14 * (2 + columns.length);
-    this._groupMonoCh = measureMonoChPx();
+    const flexChildren = 2 + (anchorLabel ? 1 : 0) + columns.length;
+    this._groupChromeWidth = 32 + rownumW + countW + anchorW + columnsW + 14 * flexChildren;
+    this._groupMonoCh = monoCh;
     this._groupGlyphPx = measureAtomGlyphPx();
   }
 }
@@ -10736,12 +10855,20 @@ window.__grawlixTest = {
       const full = el.textContent || '';
       return glyph ? full.slice(glyph.textContent.length) : full;
     };
-    return [...document.querySelectorAll('#vs-host .group-row')].map(row => ({
-      count: parseInt(row.querySelector('.group-count')?.textContent || '', 10),
-      chains: [...row.querySelectorAll('.group-chain')].map(chainEl =>
-        [...chainEl.querySelectorAll('.atom .atom-entry')].map(stripGlyph)
-      ),
-    }));
+    return [...document.querySelectorAll('#vs-host .group-row')].map(row => {
+      const anchorAtom = row.querySelector('.group-anchor .atom[data-atom-role="anchor"]');
+      const anchor = anchorAtom ? {
+        entry: stripGlyph(anchorAtom.querySelector('.atom-entry')),
+        score: parseInt(anchorAtom.querySelector('.score-badge')?.textContent || '', 10),
+      } : null;
+      return {
+        count: parseInt(row.querySelector('.group-count')?.textContent || '', 10),
+        anchor,
+        chains: [...row.querySelectorAll('.group-chain')].map(chainEl =>
+          [...chainEl.querySelectorAll('.atom .atom-entry')].map(stripGlyph)
+        ),
+      };
+    });
   },
 
   // Read-only snapshot for assertions. Returns the fields the smoke suite
