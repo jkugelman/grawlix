@@ -49,9 +49,7 @@ test('a custom wordlist survives a page reload with its entries and rules intact
 
   // Rules came back intact — including the length filter, which lives in
   // localStorage's meta. A pre-bump SCHEMA_VERSION change that broke the
-  // rule shape would corrupt this. Order reflects `recomputeUncovered`'s
-  // post-sort (output score descending) applied at boot, which is the
-  // order the rule editor renders them in.
+  // rule shape would corrupt this.
   expect(wl.rescoreRules).toEqual([
     { input: '90',    length: '5', output: '95' },
     { input: '10-50', length: '',  output: '40' },
