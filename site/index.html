@@ -509,6 +509,7 @@ html.dark-mode .search-match-4 { background: #14532d; color: #d1fae5; }
 
 #atom-popover { position: fixed; z-index: 600; background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 6px 24px rgba(0,0,0,0.2); padding: 12px 14px; font-size: 12px; color: var(--text); min-width: 280px; max-width: 360px; }
 .atom-pop-source { font-size: 12px; color: var(--text); overflow-wrap: anywhere; }
+.atom-pop-source-row { display: contents; }
 .atom-pop-fields { display: grid; grid-template-columns: auto 1fr; grid-auto-rows: minmax(26px, auto); gap: 8px 10px; align-items: center; padding-right: 32px; }
 .atom-pop-fields label { font-size: 11px; color: var(--muted); }
 .atom-pop-fields input { font: inherit; font-size: 12px; padding: 4px 7px; border: 1px solid var(--border); border-radius: 3px; background: var(--input-bg); color: var(--text); outline: none; width: 100%; box-sizing: border-box; }
@@ -7443,10 +7444,10 @@ const AtomPopover = (() => {
     open(buildUserWlEntry(entryStr, '', ''), null, scroller, anchorEl, 'score');
   }
 
-  function renderFooterHTML(wlEntry, scroller) {
-    const rowWordlist = wlEntry.wordlist || scroller.currentWordlist;
+  function renderFooterHTML(preview, scroller) {
+    const rowWordlist = preview?.wordlist || scroller.currentWordlist;
     const editsWordlist = scroller.editsWordlist || getEditsWordlist();
-    const rowIsEdits = rowWordlist === editsWordlist;
+    const rowIsEdits = rowWordlist && rowWordlist === editsWordlist;
     const showDelete = scroller.showDeleteCol || (scroller.showEditDeleteCol && rowIsEdits);
     const editsName = editsWordlist ? buildWordlistNameHTML(editsWordlist, { bold: false }) : 'My Edits';
     const leftSlot = showDelete
@@ -7457,16 +7458,25 @@ const AtomPopover = (() => {
       + `<button class="atom-pop-save" type="button">Save</button>`;
   }
 
-  function renderSourceHTML(wlEntry, scroller) {
-    const rowWordlist = wlEntry.wordlist || scroller.currentWordlist;
-    return rowWordlist ? buildWordlistNameHTML(rowWordlist, { bold: false }) : '';
+  function renderSourceRowHTML(preview, scroller) {
+    const rowWordlist = preview?.wordlist || scroller.currentWordlist;
+    if (!rowWordlist) return '';
+    return `<label>Source</label><span class="atom-pop-source">${buildWordlistNameHTML(rowWordlist, { bold: false })}</span>`;
+  }
+
+  function previewWlEntry(rawEntry) {
+    const raw = rawEntry?.trim();
+    if (!raw) return null;
+    return buildMergedWordlist().byNorm.get(toNorm(raw)) || null;
+  }
+
+  function currentPreview() {
+    const inp = el?.querySelector('.entry-input');
+    return previewWlEntry(inp ? inp.value : displayOf(activeWlEntry));
   }
 
   function renderHTML(wlEntry, scroller) {
-    const sourceHTML = renderSourceHTML(wlEntry, scroller);
-    const sourceRow = sourceHTML
-      ? `<label>Source</label><span class="atom-pop-source">${sourceHTML}</span>`
-      : '';
+    const preview = previewWlEntry(displayOf(wlEntry)) ?? wlEntry;
     return `
       <button class="dialog-close-btn" type="button" aria-label="Close">✕</button>
       <div class="atom-pop-fields">
@@ -7476,9 +7486,9 @@ const AtomPopover = (() => {
         <input id="atom-pop-score" class="score-input" type="number" min="0" value="${wlEntry.score}">
         <label for="atom-pop-comment">Comment</label>
         <input id="atom-pop-comment" class="comment-input" type="text" value="${esc(wlEntry.comment || '')}">
-        ${sourceRow}
+        <span class="atom-pop-source-row">${renderSourceRowHTML(preview, scroller)}</span>
       </div>
-      <div class="atom-pop-foot">${renderFooterHTML(wlEntry, scroller)}</div>`;
+      <div class="atom-pop-foot">${renderFooterHTML(preview, scroller)}</div>`;
   }
 
   // Re-render after an edit/delete commits so the popover reflects the new
@@ -7502,16 +7512,24 @@ const AtomPopover = (() => {
       wireFields();
       return;
     }
-    const srcEl = el.querySelector('.atom-pop-source');
-    if (srcEl) srcEl.innerHTML = renderSourceHTML(activeWlEntry, activeScroller);
+    refreshDynamicBits();
+  }
+
+  function refreshDynamicBits() {
+    if (!isOpen()) return;
+    const preview = currentPreview();
+    const srcRowEl = el.querySelector('.atom-pop-source-row');
+    if (srcRowEl) srcRowEl.innerHTML = renderSourceRowHTML(preview, activeScroller);
     const footEl = el.querySelector('.atom-pop-foot');
     if (footEl) {
-      footEl.innerHTML = renderFooterHTML(activeWlEntry, activeScroller);
+      footEl.innerHTML = renderFooterHTML(preview, activeScroller);
       wireFooter();
     }
   }
 
   function editTarget() {
+    const preview = currentPreview();
+    if (preview) return { norm: preview.norm, display: preview.display ?? preview.norm };
     return { norm: activeWlEntry.norm, display: activeWlEntry.display ?? activeWlEntry.norm };
   }
 
@@ -7568,6 +7586,7 @@ const AtomPopover = (() => {
 
     entryInp.addEventListener('beforeinput', blockSemicolon);
     commentInp.addEventListener('beforeinput', blockSemicolon);
+    entryInp.addEventListener('input', refreshDynamicBits);
 
     for (const inp of [entryInp, scoreInp, commentInp]) {
       inp.addEventListener('input', refreshSaveEnabled);

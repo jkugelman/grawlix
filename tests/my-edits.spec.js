@@ -89,6 +89,36 @@ test('Cancel closes the popover without committing edits', async ({ page }) => {
   expect(await page.evaluate(() => window.__grawlixTest.getWordlist('My Edits').entries)).toEqual([]);
 });
 
+test('Source row and footer track the typed entry', async ({ page }) => {
+  await gotoApp(page);
+
+  await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
+    name: 'Source', entries: ['BAGEL', 'CARROT'], scores: [50, 50],
+  }));
+
+  await page.locator('.entry-row[data-entry="bagel"] .atom-score').click();
+  await page.locator('#atom-pop-score').fill('75');
+  await page.locator('.atom-pop-save').click();
+  await expect.poll(async () =>
+    page.evaluate(() => window.__grawlixTest.getWordlist('My Edits').entries.length)
+  ).toBe(1);
+
+  await page.locator('.entry-row[data-entry="carrot"] .atom-score').click();
+  await expect(page.locator('.atom-pop-source')).toContainText('Source');
+  await expect(page.locator('.atom-pop-delete')).toHaveCount(0);
+  await expect(page.locator('.atom-pop-saves')).toBeVisible();
+
+  await page.locator('#atom-pop-entry').fill('BAGEL');
+  await expect(page.locator('.atom-pop-source')).toContainText('My Edits');
+  await expect(page.locator('.atom-pop-delete')).toBeVisible();
+  await expect(page.locator('.atom-pop-saves')).toHaveCount(0);
+
+  await page.locator('#atom-pop-entry').fill('NEWWORD');
+  await expect(page.locator('.atom-pop-source')).toHaveCount(0);
+  await expect(page.locator('.atom-pop-delete')).toHaveCount(0);
+  await expect(page.locator('.atom-pop-saves')).toBeVisible();
+});
+
 test('editing the entry text renames the My Edits record', async ({ page }) => {
   await gotoApp(page);
 
