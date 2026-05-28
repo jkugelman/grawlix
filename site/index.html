@@ -10234,9 +10234,11 @@ function buildMergedWordlist() {
   for (const [norm, { contributors, displays }] of buckets) {
     const variants = displays.size > 0 ? [...displays].sort() : [null];
     for (const variant of variants) {
-      const winner = contributors.find(c => c.display === variant || c.display === null);
+      const eligible = c => c.display === variant || c.display === null;
+      const winner = contributors.find(eligible);
       if (!winner) continue;
-      const row = { norm, display: variant, score: winner.score, comment: winner.comment, wordlist: winner.wordlist };
+      const commenter = contributors.find(c => eligible(c) && c.comment) ?? winner;
+      const row = { norm, display: variant, score: winner.score, comment: commenter.comment, wordlist: winner.wordlist };
       entries.push(row);
       if (!byNorm.has(norm)) byNorm.set(norm, row);
       byKey.set(mergeKey(norm, variant), row);
@@ -10832,8 +10834,9 @@ window.__grawlixTest = {
   // `.atom-source` column, but that column is hidden below a 960px viewport.
   // Exposing it here lets merge-correctness tests assert regardless of
   // viewport width and without driving the popover.
-  getMergedEntry(entry) {
-    const m = buildMergedWordlist().byNorm.get(toNorm(entry));
+  getMergedEntry(entry, display) {
+    const cache = buildMergedWordlist();
+    const m = display !== undefined ? cache.byKey.get(mergeKey(toNorm(entry), display)) : cache.byNorm.get(toNorm(entry));
     if (!m) return null;
     return { entry: m.norm, display: m.display, score: m.score, comment: m.comment, wordlist: m.wordlist.name };
   },
