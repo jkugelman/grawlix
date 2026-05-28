@@ -1275,18 +1275,35 @@ const EMOJI_LIST = [
 const WORDLIST_PUBLISHERS = [
   {
     id: 'jkugelman',
-    popularity: 4,
+    popularity: 5,
     name: 'John Kugelman',
     url: 'https://raw.githubusercontent.com/jkugelman/crossword/refs/heads/main/wordlists/jkugelman-wordlist.txt',
     icon: null,
     defaultRules: [
-      { input:'60', length:'', output:'', note:'Great (colorful phrases, sayings, people, etc.)' },
-      { input:'50', length:'', output:'', note:'Good (dictionary words, phrases)' },
+      { input:'60', length:'', output:'', note:'Good (colorful phrases, sayings, people, etc.)' },
+      { input:'50', length:'', output:'', note:'Average (dictionary words and phrases)' },
       { input:'40', length:'', output:'', note:'Okay in moderation (proper names, abbreviations, prepositional phrases)' },
       { input:'30', length:'', output:'', note:'Not good (plural names, crosswordese, contrived inflections)' },
       { input:'20', length:'', output:'', note:'Junk (partials, variant spellings, Roman numerals)' },
       { input:'10', length:'', output:'', note:'Offensive' },
       { input:'0',  length:'', output:'', note:'Gibberish' },
+    ],
+  },
+  {
+    id: 'nediger',
+    popularity: 4,
+    name: 'Will Nediger',
+    url: null,
+    icon: null,
+    defaultRules: [
+      { input:'99', length:'8+',  output:'60', note:'Asset' },
+      { input:'99', length:'1-2', output:'40', note:'Short fill' },
+      { input:'99', length:'',    output:'50', note:'Good for any venue' },
+      { input:'51', length:'1-2', output:'30', note:'Short fill' },
+      { input:'51', length:'',    output:'50', note:'Decent to good' },
+      { input:'49', length:'',    output:'10', note:'Racy' },
+      { input:'25', length:'1-2', output:'20', note:'Short fill' },
+      { input:'25', length:'',    output:'40', note:'Not great' },
     ],
   },
   {
@@ -1319,9 +1336,9 @@ const WORDLIST_PUBLISHERS = [
       { input:'50', length:'', output:'50', note:'Clean' },
       { input:'40', length:'', output:'30', note:'Dubious'},
       { input:'30', length:'', output:'20', note:'Dubious+'},
-      { input:'0',  length:'', output:'10', note:'Offensive'},
       { input:'20', length:'', output:'0',  note:'Dubious++'},
       { input:'10', length:'', output:'0',  note:'Dubious+++'},
+      { input:'0',  length:'', output:'10', note:'Offensive'},
     ],
   },
   {
@@ -1331,7 +1348,7 @@ const WORDLIST_PUBLISHERS = [
     url: 'https://grawlix.wtf/peter-broda-wordlist.txt',
     icon: null,
     defaultRules: [
-      { input:'76-100', length:'7+', output:'60'      },
+      { input:'76-100', length:'7+', output:'60'     },
       { input:'0-100',  length:'',   output:'ignore' },
     ],
   },
@@ -2187,8 +2204,8 @@ function getMyEditsDefaultRules() {
 // Default tier labels for the unified score scale. Stored on `state.scoring`
 // and surfaced as a read/write legend on the merged All view.
 const DEFAULT_SCORING = [
-  { input: '60', note: 'Great (colorful phrases, sayings, people, etc.)' },
-  { input: '50', note: 'Good (dictionary words, phrases)' },
+  { input: '60', note: 'Good (colorful phrases, sayings, people, etc.)' },
+  { input: '50', note: 'Average (dictionary words and phrases)' },
   { input: '40', note: 'Okay in moderation (proper names, abbreviations, prepositional phrases)' },
   { input: '30', note: 'Not good (plural names, crosswordese, contrived inflections)' },
   { input: '20', note: 'Junk (partials, variant spellings, Roman numerals)' },
