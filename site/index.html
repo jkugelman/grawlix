@@ -107,6 +107,7 @@ html.light-mode {
    (Library) don't shift the page horizontally on switch. */
 html { overflow-y: scroll; }
 body { font-family: var(--font-sans); font-size: 14px; background: var(--bg); color: var(--text); }
+main { display: flex; flex-direction: column; min-height: calc(100vh - var(--header-h)); }
 
 /* Brand header. Two stacked rows: row 1 has the wordmark on the left,
    top-level nav (Workshop / Library) in the center, and utility icons on the
@@ -151,7 +152,7 @@ button.header-nav-item:hover:not(:disabled) { opacity: 1; background: var(--hdr-
 /* `overflow: clip`, not `hidden`: `hidden` would make the view a scroll
    container and trap the in-content sticky stack inside it. */
 #workshop-view,
-#library-view { background: var(--surface); overflow: clip; }
+#library-view { background: var(--surface); overflow: clip; flex: 1 1 auto; display: flex; flex-direction: column; }
 
 /* Busy overlay covers the viewport regardless of card position. */
 #busy-overlay { position: fixed; inset: 0; z-index: 200; background: var(--bg); display: flex; align-items: center; justify-content: center; transition: opacity 0.2s; }
@@ -198,7 +199,7 @@ button.danger:hover:not(:disabled) { background: #e74c3c; border-color: #c0392b;
 .split-btn-menu button { display: block; width: 100%; text-align: left; border: none; background: none; border-radius: 0; padding: 6px 13px; color: var(--text); }
 .more-menu-btn { padding-left: 8px; padding-right: 8px; }
 
-#detail-panel { display: flex; flex-direction: column; min-width: 0; }
+#detail-panel { display: flex; flex-direction: column; min-width: 0; flex: 1 1 auto; }
 
 .no-selection { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; color: var(--faint); background: var(--bg); }
 .no-selection p { font-size: 15px; margin-bottom: 6px; }
@@ -971,6 +972,7 @@ body.picker-expanded #picker-backdrop { opacity: 1; }
 /* Library view — top-level page (peer of Workshop). Shared card chrome lives
    above with #workshop-view. Responsive layout: wordlist list on top on mobile,
    list alongside the pane on desktop. Both flow in the page scroll. */
+.wld-body { flex: 1 1 auto; }
 .wld-list { background: var(--surface2); border-bottom: 1px solid var(--border2); }
 .wld-list-body { padding: 4px 0 0; }
 .wld-list .add-wordlist-row { padding: 9px 14px; }
