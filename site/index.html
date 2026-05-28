@@ -2227,27 +2227,105 @@ function wrapWordlist(wl) {
 
 // ─── Parsing ─────────────────────────────────────────────────────────────────
 
+function stripAccents(s) {
+  return s.normalize('NFKD').replace(/[̀-ͯ]/g, '');
+}
+
+function toNorm(s) {
+  return stripAccents(s).toLowerCase().replace(/[^a-z0-9]/g, '');
+}
+
+function buildNormToDisplay(display) {
+  if (display == null) return null;
+  const map = [];
+  for (let i = 0; i < display.length; i++) {
+    const stripped = stripAccents(display[i]).toLowerCase();
+    for (const c of stripped) {
+      if (c >= 'a' && c <= 'z' || c >= '0' && c <= '9') map.push(i);
+    }
+  }
+  return new Uint16Array(map);
+}
+
+function normToDisplayMap(wlEntry) {
+  if (wlEntry.display == null) return null;
+  return wlEntry._normMap ??= buildNormToDisplay(wlEntry.display);
+}
+
+function displayOf(wlEntry) {
+  return wlEntry.display ?? wlEntry.norm;
+}
+
+function projectRangesToDisplay(ranges, wlEntry) {
+  if (!ranges?.length) return ranges;
+  const map = normToDisplayMap(wlEntry);
+  if (!map) return ranges;
+  const display = wlEntry.display;
+  return ranges.map(r => {
+    if (r.coord === 'display') return r;
+    if (r.start >= map.length) return { ...r, start: display.length, end: display.length };
+    const start = map[r.start];
+    const endIdx = Math.min(r.end - 1, map.length - 1);
+    const end = endIdx >= 0 ? map[endIdx] + 1 : start;
+    return { ...r, start, end };
+  });
+}
+
 function parseWordlistLine(line) {
   if (!line) return null;
   const semi = line.indexOf(';');
   if (semi === -1) return null;
-  const entry = line.slice(0, semi).toLowerCase();
-  if (!entry || entry.includes(';')) return null;
+  const raw = line.slice(0, semi).trim();
+  if (!raw || raw.includes(';')) return null;
   const rest = line.slice(semi + 1);
   const semi2 = rest.indexOf(';');
   const score = parseInt(semi2 === -1 ? rest : rest.slice(0, semi2), 10);
   if (isNaN(score)) return null;
   const comment = semi2 === -1 ? '' : rest.slice(semi2 + 1).trim();
-  return { entry, score, comment };
+  return { raw, score, comment };
+}
+
+function classifyWordlist(rawEntries) {
+  if (!rawEntries.length) return 'plain';
+  let richCount = 0, upperOnly = 0, lowerOnly = 0;
+  for (const { raw } of rawEntries) {
+    const hasNonAlnum = /[^A-Za-z0-9]/.test(raw);
+    const hasUpper = /[A-Z]/.test(raw);
+    const hasLower = /[a-z]/.test(raw);
+    if (hasNonAlnum || (hasUpper && hasLower)) richCount++;
+    else if (hasUpper) upperOnly++;
+    else if (hasLower) lowerOnly++;
+  }
+  if (richCount / rawEntries.length > 0.01) return 'rich';
+  if (upperOnly > 0 && lowerOnly > 0) return 'rich';
+  return 'plain';
 }
 
 function parseWordlist(text) {
-  const entries = [];
+  const rawEntries = [];
   for (const line of text.split('\n')) {
-    const wlEntry = parseWordlistLine(line);
-    if (wlEntry) entries.push(wlEntry);
+    const parsed = parseWordlistLine(line);
+    if (parsed) rawEntries.push(parsed);
   }
-  return entries;
+  const richness = classifyWordlist(rawEntries);
+  return rawEntries.map(({ raw, score, comment }) => buildWlEntry(raw, score, comment, richness));
+}
+
+function buildWlEntry(raw, score, comment, richness) {
+  const norm = toNorm(raw);
+  const display = richness === 'plain' ? null : raw;
+  return { norm, display, score, comment };
+}
+
+function buildUserWlEntry(raw, score, comment) {
+  const trimmed = raw.trim();
+  return { norm: toNorm(trimmed), display: trimmed, score, comment };
+}
+
+function synthWlEntry(text, score) {
+  const norm = toNorm(text);
+  const display = text === norm ? null : text;
+  return { norm, display, score, comment: '', wordlist: null };
 }
 
 // Validates a chunk from a Range GET. Drops the last line (may be truncated
@@ -2274,7 +2352,7 @@ function lsDel(key)  { localStorage.removeItem(LS_PREFIX + key); }
 //   v4 — drop state.outputScoring; tier labels live exclusively on My Edits' `scoring`.
 //   v5 — tier labels move off My Edits to top-level `state.scoring` (its own
 //        localStorage key); My Edits gains a normal rescoreRules editor.
-const SCHEMA_VERSION = 5;
+const SCHEMA_VERSION = 6;
 
 function readMergedSettings() {
   try { return JSON.parse(lsLoad('mergedSettings')) || {}; } catch { return {}; }
@@ -2399,21 +2477,6 @@ function cycleDarkMode() {
   showToast(`Dark mode: ${DARK_MODE_LABELS[next]}`);
 }
 
-// ─── Display case ─────────────────────────────────────────────────────────────
-
-function getDisplayCase() { return lsLoad('displayCase') || 'lower'; }
-
-function displayEntry(entry) {
-  return getDisplayCase() === 'upper' ? entry.toUpperCase() : entry.toLowerCase();
-}
-
-function refreshToolExampleCase() {
-  document.querySelectorAll('.tool-card[data-tool] .tool-card-example').forEach(el => {
-    const tool = TOOLS[el.closest('[data-tool]').dataset.tool];
-    if (tool) el.textContent = displayEntry(tool.example);
-  });
-}
-
 // ─── Dialog helpers ───────────────────────────────────────────────────────────
 
 function enableDismissClicks(el) {
@@ -2461,10 +2524,6 @@ const SettingsDialog = (() => {
       <div id="dark-mode-seg"></div>
     </div>
     <div class="dialog-row">
-      <span class="dialog-row-label">Display case</span>
-      <div id="display-case-ctrl"></div>
-    </div>
-    <div class="dialog-row">
       <div>
         <div class="dialog-row-label">Auto-update wordlists</div>
         <div class="dialog-row-sub">Update wordlists without asking</div>
@@ -2480,7 +2539,6 @@ const SettingsDialog = (() => {
     </div>`;
 
   const seg  = el.querySelector('#dark-mode-seg');
-  const ctrl = el.querySelector('#display-case-ctrl');
 
   const darkSaved = lsLoad('darkMode') || 'auto';
   applyDarkMode(darkSaved);
@@ -2499,21 +2557,6 @@ const SettingsDialog = (() => {
   });
   window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
     if ((lsLoad('darkMode') || 'auto') === 'auto') applyDarkMode('auto');
-  });
-
-  const caseSaved = getDisplayCase();
-  ctrl.innerHTML = buildSegCtrlHTML(null, [
-    { value: 'lower', label: 'lower' },
-    { value: 'upper', label: 'UPPER' },
-  ], caseSaved);
-  ctrl.querySelectorAll('.seg-btn').forEach(btn => {
-    btn.onclick = () => {
-      ctrl.querySelectorAll('.seg-btn').forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
-      lsSave('displayCase', btn.dataset.val);
-      if (workshopScroller) workshopScroller.updateEntries(workshopScroller.allEntries);
-      refreshToolExampleCase();
-    };
   });
 
   const autoSeg = el.querySelector('#auto-update-seg');
@@ -3035,10 +3078,11 @@ const LibraryView = (() => {
   }
 
   function applyLibrarySearchFilter(entries) {
-    const q = _searchQuery.toLowerCase().trim();
+    const q = _searchQuery.trim();
     if (!q) return entries;
-    const { filterRe } = buildSearchPattern(q, _searchWholeWord);
-    return entries.filter(e => filterRe.test(e.entry));
+    const matcher = buildSearchPattern(q, _searchWholeWord);
+    if (!matcher) return entries;
+    return entries.filter(e => matcher.test(displayOf(e)));
   }
 
   function refresh() {
@@ -3634,7 +3678,10 @@ function ensureScoring() {
 }
 
 function entriesToText(entries) {
-  return entries.map(e => e.comment ? `${e.entry};${e.score};${e.comment}` : `${e.entry};${e.score}`).join('\n') + (entries.length ? '\n' : '');
+  return entries.map(e => {
+    const head = e.display ?? e.norm;
+    return e.comment ? `${head};${e.score};${e.comment}` : `${head};${e.score}`;
+  }).join('\n') + (entries.length ? '\n' : '');
 }
 
 async function persistEdits(edits) {
@@ -3675,7 +3722,6 @@ function invalidateSourceCounts() {
   _mergedWordlistCache = null;
   invalidatePreSearchCache();
   invalidateHistogramLayout();
-  for (const l of state.sources) l._overrideMap = null;
 }
 function invalidateWordlistCaches(wordlist) {
   invalidateRescoredCache(wordlist);
@@ -3830,45 +3876,83 @@ function scoreColor(score) {
 
 const CONSONANTS = 'bcdfghjklmnpqrstvwxyz';
 const VOWELS = 'aeiou';
+const SEARCH_GLUE = '[^\\p{L}\\p{N}]*';
 
-// The highlight regex colors maximal runs of literal characters and leaves
-// wildcards dark — the same literal-run rule `analyzeRegexPattern` applies to
-// the Regex tool. The two must stay aligned or the tools highlight the same
-// construct differently, with no error to flag the drift.
+const ACCENT_VARIANTS = (() => {
+  const out = {};
+  for (let cp = 0x0020; cp <= 0x024F; cp++) {
+    const ch = String.fromCodePoint(cp);
+    const stripped = stripAccents(ch).toLowerCase();
+    if (stripped.length === 1 && stripped >= 'a' && stripped <= 'z') {
+      out[stripped] = (out[stripped] || '') + ch;
+    }
+  }
+  return out;
+})();
+
+function escapeRegex(s)        { return s.replace(/[.+*?^${}()|[\]\\]/g, '\\$&'); }
+function escapeRegexClass(s)   { return s.replace(/[\]\\^-]/g, '\\$&'); }
+
 function buildSearchPattern(query, wholeWord = false) {
-  const q = query.toLowerCase();
-  let filterPat = '', hlPat = '', runOpen = false;
-  const closeRun = () => { if (runOpen) { hlPat += ')'; runOpen = false; } };
+  const q = query.normalize('NFC').trim();
+  if (!q) return null;
+
+  function letterClass(base) {
+    return `[${escapeRegexClass(ACCENT_VARIANTS[base] || base)}]`;
+  }
+  function customClass(body) {
+    const expanded = body.replace(/#/g, CONSONANTS).replace(/@/g, VOWELS);
+    if (expanded.startsWith('^')) return `[^${escapeRegexClass(expanded.slice(1))}]`;
+    return `[${escapeRegexClass(expanded)}]`;
+  }
+
+  const tokens = [];
   for (let i = 0; i < q.length; i++) {
     const ch = q[i];
-    let token, literal = false;
-    if (ch === '*')      token = '.*';
-    else if (ch === '?') token = '.';
-    else if (ch === '#') token = `[${CONSONANTS}]`;
-    else if (ch === '@') token = `[${VOWELS}]`;
+    if (ch === '*')      tokens.push({ kind: 'wild', re: '[\\p{L}\\p{N}]*' });
+    else if (ch === '?') tokens.push({ kind: 'wild', re: '[\\p{L}\\p{N}]' });
+    else if (ch === '#') tokens.push({ kind: 'wild', re: `[${CONSONANTS}]` });
+    else if (ch === '@') tokens.push({ kind: 'wild', re: `[${VOWELS}]` });
     else if (ch === '[') {
       const end = q.indexOf(']', i);
-      if (end === -1) { token = '\\['; literal = true; }
-      else {
-        token = `[${q.slice(i + 1, end).replace(/#/g, CONSONANTS).replace(/@/g, VOWELS)}]`;
-        i = end;
-      }
-    } else {
-      token = ch.replace(/[.+^${}()|[\]\\]/g, '\\$&');
-      literal = true;
+      if (end === -1) tokens.push({ kind: 'literal', re: '\\[' });
+      else { tokens.push({ kind: 'wild', re: customClass(q.slice(i + 1, end)) }); i = end; }
     }
-    filterPat += token;
-    if (literal) { if (!runOpen) { hlPat += '('; runOpen = true; } }
-    else closeRun();
-    hlPat += token;
+    else {
+      const lower = ch.toLowerCase();
+      if (lower >= 'a' && lower <= 'z' && stripAccents(ch).toLowerCase() === lower) {
+        tokens.push({ kind: 'literal', re: letterClass(lower) });
+      } else {
+        tokens.push({ kind: 'literal', re: escapeRegex(ch) });
+      }
+    }
+  }
+
+  let pat = '', hlPat = '', runOpen = false;
+  const closeRun = () => { if (runOpen) { hlPat += ')'; runOpen = false; } };
+  for (let ti = 0; ti < tokens.length; ti++) {
+    const tok = tokens[ti];
+    const prevTok = ti > 0 ? tokens[ti - 1] : null;
+    if (ti > 0) {
+      pat += SEARCH_GLUE;
+      if (tok.kind !== 'literal' || prevTok.kind !== 'literal') closeRun();
+      hlPat += SEARCH_GLUE;
+    }
+    pat += tok.re;
+    if (tok.kind === 'literal' && !runOpen) { hlPat += '('; runOpen = true; }
+    else if (tok.kind !== 'literal') closeRun();
+    hlPat += tok.re;
   }
   closeRun();
-  const anchor = pat => wholeWord ? '^' + pat + '$' : pat;
-  const hlRe = new RegExp(anchor(hlPat), 'gid');
+
+  const anchor = p => wholeWord ? '^' + p + '$' : p;
+  const filterRe = new RegExp(anchor(pat),   'iu');
+  const globalRe = new RegExp(anchor(pat),   'giud');
+  const hlRe     = new RegExp(anchor(hlPat), 'giud');
   return {
-    filterRe: new RegExp(anchor(filterPat)),
-    globalRe: new RegExp(anchor(filterPat), 'gd'),
+    test: text => filterRe.test(text),
     searchRanges: text => searchRangesFor(text, hlRe),
+    globalRe,
   };
 }
 
@@ -4086,13 +4170,13 @@ function runRegexReplace(entry, prepared, wordlist) {
     if (m[0].length === 0) re.lastIndex++;   // a zero-width match leaves lastIndex put; step it or loop forever
   }
   out += entry.slice(inPos);
-  if (out === entry || !wordlist.byEntry.has(out)) return [];
+  if (out === entry || !wordlist.byNorm.has(out)) return [];
   return [{ entry: out, inputHighlights, outputHighlights }];
 }
 
 function runSearchReplace(entry, prepared, wordlist) {
-  const { pattern, replacement } = prepared;
-  const re = pattern.globalRe;
+  const { matcher, replacement } = prepared;
+  const re = matcher.globalRe;
   re.lastIndex = 0;
   let out = '', inPos = 0, m, colorIdx = 0;
   const inputHighlights = [], outputHighlights = [];
@@ -4100,14 +4184,15 @@ function runSearchReplace(entry, prepared, wordlist) {
     const mStart = m.index, mEnd = mStart + m[0].length;
     out += entry.slice(inPos, mStart);
     const kind = `search:${colorIdx++ % 5}`;
-    inputHighlights.push({ start: mStart, end: mEnd, kind });
-    outputHighlights.push({ start: out.length, end: out.length + replacement.length, kind });
+    inputHighlights.push({ start: mStart, end: mEnd, kind, coord: 'display' });
+    outputHighlights.push({ start: out.length, end: out.length + replacement.length, kind, coord: 'display' });
     out += replacement;
     inPos = mEnd;
-    if (m[0].length === 0) re.lastIndex++;   // step past a zero-width match or loop forever
+    if (m[0].length === 0) re.lastIndex++;
   }
   out += entry.slice(inPos);
-  if (out === entry || !wordlist.byEntry.has(out)) return [];
+  const outNorm = toNorm(out);
+  if (outNorm === toNorm(entry) || !wordlist.byNorm.has(outNorm)) return [];
   return [{ entry: out, inputHighlights, outputHighlights }];
 }
 
@@ -4239,7 +4324,7 @@ async function loadUnigramCorpus() {
 
 function rankedSplits(entry, window, wordlist) {
   if (entry.length < 1) return [];
-  const isAllowedPart = p => p.length <= 2 || wordlist.byEntry.has(p);
+  const isAllowedPart = p => p.length <= 2 || wordlist.byNorm.has(p);
   const isDigit = c => c >= '0' && c <= '9';
   const splitsMidDigit = (s, i) => i < s.length && isDigit(s[i - 1]) && isDigit(s[i]);
 
@@ -4631,7 +4716,7 @@ const TOOLS = {
       // Palindromes are skipped — reversing them yields the same word.
       const reversed = reverseString(entry);
       if (reversed === entry) return [];
-      if (!wordlist.byEntry.has(reversed)) return [];
+      if (!wordlist.byNorm.has(reversed)) return [];
       return [{ entry: reversed }];
     },
   },
@@ -4658,11 +4743,14 @@ const TOOLS = {
       if (!unigramLogFreqs) return [];
       const splits = rankedSplits(entry, prepared.window, wordlist);
       if (splits.length === 0) return [];
-      const inputScore = wordlist.byEntry.get(entry)?.score ?? 0;
+      const inputScore = wordlist.byNorm.get(entry)?.score ?? 0;
       const picks = prepared.onlyTop ? splits.slice(0, 1) : splits;
       return picks.map(parts => {
         const joined = parts.join(' ');
-        return { entry: wordlist.byEntry.has(joined) ? joined : [joined, inputScore] };
+        if (joined === entry) return { entry };
+        const hit = wordlist.byNorm.get(toNorm(joined));
+        const hitIsJoined = hit && (hit.display || '').toLowerCase() === joined;
+        return { entry: hitIsJoined ? hit.norm : [joined, inputScore] };
       });
     },
   },
@@ -4681,7 +4769,7 @@ const TOOLS = {
         ['[^abc]', 'none of a, b, c'],
         ['[a-m]', 'letter range'],
       ]) },
-      { key: 'replace', placeholder: 'replace' },
+      { key: 'replace', placeholder: 'replace', raw: true },
       WHOLE_WORD_PARAM,
     ],
     kind: params => (params.replace ? 'transform' : 'filter'),
@@ -4690,22 +4778,19 @@ const TOOLS = {
     // An empty query is a no-op: the row is transparent — no filtering, no
     // lens — so an empty permanent search bar costs nothing.
     isInert: params => !((params && params.pattern || '').trim()),
-    // Compiled once per run. `whole-word` is a checkbox param, so both the
-    // permanent search bar and a gallery-added Search row supply it. Returns
-    // null for an empty query so `run` keeps all.
+    matchOn: 'display',
     prepare(params) {
-      const query = (params.pattern || '').trim();
-      if (!query) return null;
-      const pattern = buildSearchPattern(query, !!params['whole-word']);
+      const matcher = buildSearchPattern((params.pattern || '').trim(), !!params['whole-word']);
+      if (!matcher) return null;
       const replacement = params.replace || '';
-      return replacement ? { mode: 'replace', pattern, replacement } : { mode: 'filter', pattern };
+      return replacement ? { mode: 'replace', matcher, replacement } : { mode: 'filter', matcher };
     },
     run(entry, prepared, wordlist) {
       if (!prepared) return true;
       if (prepared.mode === 'replace') return runSearchReplace(entry, prepared, wordlist);
-      const { pattern } = prepared;
-      if (!pattern.filterRe.test(entry)) return null;
-      const ranges = pattern.searchRanges(entry);
+      const { matcher } = prepared;
+      if (!matcher.test(entry)) return null;
+      const ranges = matcher.searchRanges(entry);
       return ranges.length ? ranges : true;
     },
   },
@@ -4727,7 +4812,7 @@ const TOOLS = {
         ['a|b', 'either a or b'],
         ['(…)', 'capture group'],
       ], { link: { url: 'https://regexone.com/', text: 'Learn regex at regexone.com →' } }) },
-      { key: 'replace', placeholder: 'replace', help: buildHelpHTML([
+      { key: 'replace', placeholder: 'replace', raw: true, help: buildHelpHTML([
         ['$1', 'first capture group'],
         ['$2', 'second group, etc.'],
         ['$&', 'the whole match'],
@@ -4781,6 +4866,28 @@ const TOOLS = {
       return runRegexReplace(entry, prepared, wordlist);
     },
   },
+  acronym_match: {
+    name: 'Acronym match', icon: '🔠', category: 'search',
+    desc: 'Word-initial letters spell the acronym',
+    example: 'WTF → what the fuck',
+    params: [{ placeholder: 'acronym' }],
+    kind: 'filter', inputHighlights: false, outputHighlights: false,
+    matchOn: 'display',
+    isInert: params => !((params && params['acronym'] || '').trim()),
+    prepare(params) { return (params['acronym'] || '').trim().toLowerCase(); },
+    run(displayText, target, wordlist) {
+      if (!target) return true;
+      for (const split of wordSplits(displayText)) {
+        if (split.length !== target.length) continue;
+        let ok = true;
+        for (let i = 0; i < split.length; i++) {
+          if (split[i][0].toLowerCase() !== target[i]) { ok = false; break; }
+        }
+        if (ok) return true;
+      }
+      return false;
+    },
+  },
   behead: {
     name: 'Behead', icon: '🪓', category: 'side',
     desc: 'Remove the first N letters',
@@ -4792,7 +4899,7 @@ const TOOLS = {
       const count = Math.max(1, parseInt(params.count, 10) || 1);
       if (entry.length <= count) return [];
       const beheaded = entry.slice(count);
-      if (!wordlist.byEntry.has(beheaded)) return [];
+      if (!wordlist.byNorm.has(beheaded)) return [];
       return [{ entry: beheaded, inputHighlights: [{ kind: 'removed', start: 0, end: count }] }];
     },
   },
@@ -4809,7 +4916,7 @@ const TOOLS = {
       // Skip plural → singular.
       if (entry.endsWith('s') && !entry.endsWith('ss')) return [];
       const curtailed = entry.slice(0, -count);
-      if (!wordlist.byEntry.has(curtailed)) return [];
+      if (!wordlist.byNorm.has(curtailed)) return [];
       return [{ entry: curtailed, inputHighlights: [{ kind: 'removed', start: entry.length - count, end: entry.length }] }];
     },
   },
@@ -4868,7 +4975,16 @@ function sortLetters(s) {
 const consonantSkeleton = s => (s || '').replace(/[^bcdfghjklmnpqrstvwxyz]/g, '');
 const vowelSkeleton     = s => (s || '').replace(/[^aeiou]/g, '');
 
-// Normalize tool param strings: lowercase only. Same rule as wlEntry.entry —
+function wordSplits(display) {
+  const stripped = display.split(/[ ]+/).filter(Boolean);
+  const splits = [stripped];
+  if (stripped.some(w => w.includes('-'))) {
+    splits.push(stripped.flatMap(w => w.split(/-+/).filter(Boolean)));
+  }
+  return splits;
+}
+
+// Normalize tool param strings: lowercase only. Same rule as wlEntry.norm —
 // the executor runs this on every param before handing to `run`, so tools see
 // canonical-lowercase input on both sides without per-call ceremony. A param
 // flagged `raw` in the schema opts out — a regex pattern would have its `\D`
@@ -4960,8 +5076,8 @@ function chainProducesMultiAtom(stack) {
 function makeWorkingSetView(rows) {
   return {
     get length() { return rows.length; },
-    at(i) { return rowLastEntry(rows[i]).entry; },
-    *[Symbol.iterator]() { for (const row of rows) yield rowLastEntry(row).entry; },
+    at(i) { return rowLastEntry(rows[i]).norm; },
+    *[Symbol.iterator]() { for (const row of rows) yield rowLastEntry(row).norm; },
   };
 }
 
@@ -5105,47 +5221,45 @@ async function runStackRow(stackRow, state, mergedWordlist, signal, y) {
   }
 }
 
+function tagCoord(ranges, coord) {
+  if (!ranges?.length) return ranges;
+  return ranges.map(r => r.coord ? r : { ...r, coord });
+}
+
 async function runToolStage(rows, stackRow, prepared, mergedWordlist, y) {
   const { def } = stackRow;
   const kind = stackRow.kind();
   const glyph = stackRow.glyph();
+  const coord = def.matchOn === 'display' ? 'display' : 'norm';
   const next = [];
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i];
     const tail = row.atoms[row.atoms.length - 1];
-    const result = def.run(tail.wlEntry.entry, prepared, mergedWordlist);
+    const inputText = coord === 'display' ? displayOf(tail.wlEntry) : tail.wlEntry.norm;
+    const result = def.run(inputText, prepared, mergedWordlist);
     if (kind === 'filter') {
       if (result) {
-        // A highlighting filter (search) appends a same-word atom carrying
-        // its ranges (an empty array when it matched without producing any)
-        // — `unify` folds it into the tail unless the tail is itself a
-        // highlight slot. A plain filter just keeps the row.
         if (def.inputHighlights) {
+          const highlights = Array.isArray(result) ? tagCoord(result, coord) : [];
           next.push({ atoms: [...row.atoms,
-            { wlEntry: tail.wlEntry, highlights: Array.isArray(result) ? result : [], glyph }] });
+            { wlEntry: tail.wlEntry, highlights, glyph }] });
         } else {
           next.push(row);
         }
       }
     } else {
       for (const out of (result || [])) {
-        // Atoms are immutable once created, so branches share the existing
-        // atoms and only append their own.
         const atoms = row.atoms.slice();
         if (def.inputHighlights) {
-          atoms.push({ wlEntry: tail.wlEntry, highlights: out.inputHighlights || [], glyph: null });
+          atoms.push({ wlEntry: tail.wlEntry, highlights: tagCoord(out.inputHighlights || [], coord), glyph: null });
         }
         const synthetic = Array.isArray(out.entry);
         const text = synthetic ? out.entry[0] : out.entry;
-        const wlEntry = synthetic
-          ? { entry: text, score: out.entry[1], comment: '', wordlist: null }
-          : (mergedWordlist.byEntry.get(text)
-             || { entry: text, score: 0, comment: '', wordlist: null });
+        const lookup = synthetic ? null : mergedWordlist.byNorm.get(toNorm(text));
+        const wlEntry = lookup || synthWlEntry(text, synthetic ? out.entry[1] : 0);
         atoms.push({
           wlEntry,
-          // A non-`outputHighlights` transform's output is not a highlight
-          // slot — `null`, not `[]` — so `unify` may fold it like any atom.
-          highlights: def.outputHighlights ? (out.outputHighlights || []) : null,
+          highlights: def.outputHighlights ? tagCoord(out.outputHighlights || [], coord) : null,
           glyph,
         });
         next.push({ atoms });
@@ -5159,7 +5273,7 @@ async function runToolStage(rows, stackRow, prepared, mergedWordlist, y) {
 async function bucketize(chains, spec, ctx) {
   const buckets = new Map();
   await ctx.forEach(chains, chain => {
-    const key = spec.key(rowLastEntry(chain).entry);
+    const key = spec.key(rowLastEntry(chain).norm);
     if (!key) return;
     let bucket = buckets.get(key);
     if (!bucket) buckets.set(key, bucket = []);
@@ -5170,7 +5284,7 @@ async function bucketize(chains, spec, ctx) {
     if (groupChains.length < 2) continue;
     groupChains.sort((a, b) => {
       const ae = rowLastEntry(a), be = rowLastEntry(b);
-      return be.score - ae.score || ae.entry.localeCompare(be.entry);
+      return be.score - ae.score || ae.norm.localeCompare(be.norm);
     });
     groups.push({ key, chains: groupChains });
   }
@@ -5212,7 +5326,7 @@ async function unify(rows, y) {
   const out = [];
   for (let i = 0; i < rows.length; i++) {
     const row = { atoms: collapseRepeatAtoms(rows[i].atoms) };
-    const entries = row.atoms.map(a => a.wlEntry.entry);
+    const entries = row.atoms.map(a => a.wlEntry.norm);
     const fwd = entries.join('\0');
     const rev = [...entries].reverse().join('\0');
     let folded = false;
@@ -5252,7 +5366,7 @@ function collapseRepeatAtoms(atoms) {
   for (let i = 1; i < atoms.length; i++) {
     const prev = out[out.length - 1];
     const cur = atoms[i];
-    if (prev.wlEntry.entry === cur.wlEntry.entry &&
+    if (prev.wlEntry.norm === cur.wlEntry.norm &&
         !(prev.highlights !== null && cur.highlights !== null) &&
         !cur.glyph) {
       // Survivor keeps `prev`'s glyph (a repeat atom has none) and takes the
@@ -5275,9 +5389,9 @@ function flattenAtoms(rows) {
   const pushChain = chain => {
     let prev = null;
     for (const atom of chain.atoms) {
-      if (atom.wlEntry.entry === prev) continue;
+      if (atom.wlEntry.norm === prev) continue;
       out.push(atom.wlEntry);
-      prev = atom.wlEntry.entry;
+      prev = atom.wlEntry.norm;
     }
   };
   for (const row of rows) {
@@ -5473,7 +5587,7 @@ const ToolStack = (() => {
       ${groupBtn}
       <div class="tool-card-name">${buildToolLabelHTML(tool)}</div>
       <div class="tool-card-desc">${esc(tool.desc)}</div>
-      <div class="tool-card-example">${esc(displayEntry(tool.example))}</div>
+      <div class="tool-card-example">${esc(tool.example)}</div>
     </div>`;
   }
 
@@ -5494,7 +5608,7 @@ const ToolStack = (() => {
     return `<div class="tool-card" data-tool="${esc(toolKey)}">
       <div class="tool-card-name">${buildToolLabelHTML(tool)}</div>
       <div class="tool-card-desc">${esc(tool.desc)}</div>
-      <div class="tool-card-example">${esc(displayEntry(tool.example))}</div>
+      <div class="tool-card-example">${esc(tool.example)}</div>
     </div>`;
   }
 
@@ -5990,42 +6104,42 @@ const rowMinScore   = r => Math.min(...r.atoms.map(a => a.wlEntry.score));
 const rowMaxScore   = r => Math.max(...r.atoms.map(a => a.wlEntry.score));
 // Later atoms joined with a low separator: a string compare then orders them
 // atom-by-atom, since every row in a run carries the same atom count.
-const rowChainTail  = r => r.atoms.slice(1).map(a => a.wlEntry.entry).join('\u0000');
+const rowChainTail  = r => r.atoms.slice(1).map(a => a.wlEntry.norm).join('\u0000');
 const groupMinScore     = g => g._minScore;
 const groupMaxScore     = g => g._maxScore;
 const groupCount        = g => g._count;
-const groupChainEntries = g => g.chains.map(c => c.atoms[0].wlEntry.entry);
+const groupChainEntries = g => g.chains.map(c => c.atoms[0].wlEntry.norm);
 const WORKSHOP_SORT_AXES = {
   single: {
     entry: {
       label: 'Entry',
-      primary: r => rowFirstEntry(r).entry,
+      primary: r => rowFirstEntry(r).norm,
       tiebreakers: [
-        { project: r => rowFirstEntry(r).entry.length, dir: 'desc' },
+        { project: r => rowFirstEntry(r).norm.length, dir: 'desc' },
         { project: r => rowFirstEntry(r).score,        dir: 'desc' },
       ],
     },
     length: {
       label: 'Length',
-      primary: r => rowFirstEntry(r).entry.length,
+      primary: r => rowFirstEntry(r).norm.length,
       tiebreakers: [
         { project: r => rowFirstEntry(r).score, dir: 'desc' },
-        { project: r => rowFirstEntry(r).entry, dir: 'asc'  },
+        { project: r => rowFirstEntry(r).norm, dir: 'asc'  },
       ],
     },
     score: {
       label: 'Score',
       primary: r => rowFirstEntry(r).score,
       tiebreakers: [
-        { project: r => rowFirstEntry(r).entry.length, dir: 'desc' },
-        { project: r => rowFirstEntry(r).entry,        dir: 'asc'  },
+        { project: r => rowFirstEntry(r).norm.length, dir: 'desc' },
+        { project: r => rowFirstEntry(r).norm,        dir: 'asc'  },
       ],
     },
   },
   multi: {
     entry: {
       label: 'Entry',
-      primary: r => rowFirstEntry(r).entry,
+      primary: r => rowFirstEntry(r).norm,
       // First-atom entries are unique per input, so the only ties are a
       // multi-output transform's branches — settled by the chain tail.
       tiebreakers: [
@@ -6034,12 +6148,12 @@ const WORKSHOP_SORT_AXES = {
     },
     length: {
       label: 'Length',
-      primary: r => rowFirstEntry(r).entry.length,
+      primary: r => rowFirstEntry(r).norm.length,
       // First-atom score then entry replays the tool-less Length order; the
       // chain tail then separates a multi-output transform's branches.
       tiebreakers: [
         { project: r => rowFirstEntry(r).score, dir: 'desc' },
-        { project: r => rowFirstEntry(r).entry, dir: 'asc'  },
+        { project: r => rowFirstEntry(r).norm, dir: 'asc'  },
         { project: rowChainTail,                dir: 'asc'  },
       ],
     },
@@ -6047,16 +6161,16 @@ const WORKSHOP_SORT_AXES = {
       label: 'Min score',
       primary: rowMinScore,
       tiebreakers: [
-        { project: r => rowLastEntry(r).entry.length, dir: 'desc' },
-        { project: r => rowLastEntry(r).entry,        dir: 'asc'  },
+        { project: r => rowLastEntry(r).norm.length, dir: 'desc' },
+        { project: r => rowLastEntry(r).norm,        dir: 'asc'  },
       ],
     },
     'max-score': {
       label: 'Max score',
       primary: rowMaxScore,
       tiebreakers: [
-        { project: r => rowLastEntry(r).entry.length, dir: 'desc' },
-        { project: r => rowLastEntry(r).entry,        dir: 'asc'  },
+        { project: r => rowLastEntry(r).norm.length, dir: 'desc' },
+        { project: r => rowLastEntry(r).norm,        dir: 'asc'  },
       ],
     },
   },
@@ -6339,7 +6453,7 @@ function estimateChainWidth(chain, ctx) {
   let maxScoreW = 0;
   for (const atom of chain.atoms) {
     const glyphW = atom.glyph ? ctx.glyphPx : 0;
-    const entryW = atom.wlEntry.entry.length * ctx.monoCh + glyphW;
+    const entryW = displayOf(atom.wlEntry).length * ctx.monoCh + glyphW;
     if (entryW > maxEntryW) maxEntryW = entryW;
     const scoreW = badgeWidthPx(String(atom.wlEntry.score).length);
     if (scoreW > maxScoreW) maxScoreW = scoreW;
@@ -6352,12 +6466,13 @@ function buildGroupChainHTML(chain, ci) {
   const html = [];
   for (let ai = 0; ai < atoms.length; ai++) {
     const { wlEntry, highlights, glyph } = atoms[ai];
-    const isRepeat = ai > 0 && wlEntry.entry === atoms[ai - 1].wlEntry.entry;
-    const displayed = displayEntry(wlEntry.entry);
+    const isRepeat = ai > 0 && wlEntry.norm === atoms[ai - 1].wlEntry.norm;
+    const displayed = displayOf(wlEntry);
+    const projected = projectRangesToDisplay(highlights, wlEntry);
     const glyphHTML = glyph ? `<span class="atom-glyph">${glyph} </span>` : '';
     const truncTitle = displayed.length > ENTRY_SLOT_CAP ? ` title="${esc(displayed)}"` : '';
     const noedit = wlEntry.wordlist === null ? ' atom-noedit' : '';
-    const text = renderHighlightedText(displayed, highlights);
+    const text = renderHighlightedText(displayed, projected);
     const entryCell = `<span class="atom-entry${noedit}"${truncTitle}>${glyphHTML}${text}</span>`;
     const scoreCell = isRepeat
       ? `<span class="atom-score"></span>`
@@ -6694,11 +6809,11 @@ class WorkshopEntriesScroller extends BaseVirtualScroller {
   }
 
   _sortGroupChains() {
-    const seedEntry = c => c.atoms[0].wlEntry.entry;
+    const seedEntry = c => c.atoms[0].wlEntry.norm;
     const seedScore = c => c.atoms[0].wlEntry.score;
-    const byEntry = (a, b) => seedEntry(a).localeCompare(seedEntry(b));
-    const byScore = (a, b) => seedScore(b) - seedScore(a) || byEntry(a, b);
-    const cmp = this.sortKey === 'entry' ? byEntry : byScore;
+    const byNorm = (a, b) => seedEntry(a).localeCompare(seedEntry(b));
+    const byScore = (a, b) => seedScore(b) - seedScore(a) || byNorm(a, b);
+    const cmp = this.sortKey === 'entry' ? byNorm : byScore;
     for (const g of this.allEntries) g.chains.sort(cmp);
   }
 
@@ -6726,14 +6841,14 @@ class WorkshopEntriesScroller extends BaseVirtualScroller {
     let maxLen = 0, maxLenDigits = 1, maxScoreDigits = 1, hasHighlight = false;
     for (const row of this.allEntries) {
       for (const atom of row.atoms) {
-        const len = atom.wlEntry.entry.length + (atom.glyph ? glyphCh : 0);
+        const len = displayOf(atom.wlEntry).length + (atom.glyph ? glyphCh : 0);
         if (len > maxLen) maxLen = len;
         if (!hasHighlight && atom.highlights?.length) hasHighlight = true;
       }
     }
     for (const row of this.entries) {
       for (const atom of row.atoms) {
-        const d = String(atom.wlEntry.entry.length).length;
+        const d = String(atom.wlEntry.norm.length).length;
         if (d > maxLenDigits) maxLenDigits = d;
         const sd = String(atom.wlEntry.score).length;
         if (sd > maxScoreDigits) maxScoreDigits = sd;
@@ -6783,11 +6898,11 @@ class WorkshopEntriesScroller extends BaseVirtualScroller {
     this._clearSizer();
 
     const tierFor = makeTierLookup();
-    const activeEntry = AtomPopover.activeEntry(this);
+    const activeNorm = AtomPopover.activeNorm(this);
     let nextActiveRow = null;
     const frag = document.createDocumentFragment();
     for (let i = start; i < end; i++) {
-      const row = this._renderChainRow(this.entries[i], i, tierFor, activeEntry);
+      const row = this._renderChainRow(this.entries[i], i, tierFor, activeNorm);
       row.style.top = (i * stride) + 'px';
       if (row.classList.contains('active')) nextActiveRow = row;
       frag.appendChild(row);
@@ -6796,19 +6911,20 @@ class WorkshopEntriesScroller extends BaseVirtualScroller {
     if (nextActiveRow) AtomPopover.rebindRow(nextActiveRow);
   }
 
-  _renderChainRow(chainRow, i, tierFor, activeEntry) {
+  _renderChainRow(chainRow, i, tierFor, activeNorm) {
     const atoms = chainRow.atoms;
     let isActive = false;
     let html = `<span class="atom-count">${i + 1}.</span>`;
     atoms.forEach((atom, ai) => {
       const { wlEntry, highlights, glyph } = atom;
-      const { entry, score } = wlEntry;
-      if (activeEntry && entry === activeEntry) isActive = true;
-      const displayed = displayEntry(entry);
+      const { norm, score } = wlEntry;
+      if (activeNorm && norm === activeNorm) isActive = true;
+      const displayed = displayOf(wlEntry);
+      const projected = projectRangesToDisplay(highlights, wlEntry);
       const glyphHTML = glyph ? `<span class="atom-glyph">${glyph} </span>` : '';
       const truncTitle = displayed.length > ENTRY_SLOT_CAP ? ` title="${esc(displayed)}"` : '';
       const entryCell =
-        `<span class="atom-entry"${truncTitle}>${glyphHTML}${renderHighlightedText(displayed, highlights)}</span>`;
+        `<span class="atom-entry"${truncTitle}>${glyphHTML}${renderHighlightedText(displayed, projected)}</span>`;
       const scoreInner = buildScoreBadgeHTML(score);
       const tierLabel = tierFor(score);
       const scoreTitle = tierLabel ? ` title="${esc(tierLabel)}"` : '';
@@ -6818,7 +6934,7 @@ class WorkshopEntriesScroller extends BaseVirtualScroller {
       const sourceTitle = sourceWl ? ` title="${esc(sourceWl.name)}"` : '';
       html += `<span class="atom" data-atom="${ai}">` +
         entryCell +
-        `<span class="atom-len">${entry.length}</span>` +
+        `<span class="atom-len">${norm.length}</span>` +
         `<span class="atom-score"${scoreTitle}>${scoreInner}</span>` +
         `<span class="atom-comment"${commentText ? ` title="${esc(commentText)}"` : ''}>${esc(commentText)}</span>` +
         `<span class="atom-source"${sourceTitle}>${sourceHTML}</span>` +
@@ -6828,7 +6944,7 @@ class WorkshopEntriesScroller extends BaseVirtualScroller {
     const row = document.createElement('div');
     row.className = isActive ? 'entry-row entry-row-font active' : 'entry-row entry-row-font';
     row.dataset.idx = i;
-    row.dataset.entry = rowLastEntry(chainRow).entry;
+    row.dataset.entry = rowLastEntry(chainRow).norm;
     row.innerHTML = html;
     return row;
   }
@@ -6840,7 +6956,7 @@ class WorkshopEntriesScroller extends BaseVirtualScroller {
     this._renderEmptyState(n, 'group');
     const { start, end } = this._visibleRange(n);
     this._clearSizer();
-    const activeEntry = AtomPopover.activeEntry(this);
+    const activeNorm = AtomPopover.activeNorm(this);
     let nextActiveRow = null;
     const columns = activeGroupColumns(ToolStack.getStack());
     const ctx = {
@@ -6856,7 +6972,7 @@ class WorkshopEntriesScroller extends BaseVirtualScroller {
       row.dataset.idx = i;
       row.style.top = (i * stride) + 'px';
       row.innerHTML = this._renderGroupRowHTML(g, i, columns, ctx);
-      if (activeEntry && g.chains.some(c => c.atoms.some(a => a.wlEntry.entry === activeEntry))) {
+      if (activeNorm && g.chains.some(c => c.atoms.some(a => a.wlEntry.norm === activeNorm))) {
         row.classList.add('active');
         nextActiveRow = row;
       }
@@ -6896,7 +7012,7 @@ class WorkshopEntriesScroller extends BaseVirtualScroller {
     if (n > 0) { existing?.remove(); return; }
 
     const query = WorkshopView.searchQuery.trim();
-    const addable = kind === 'chain' && /^[a-z]+$/i.test(query);
+    const addable = kind === 'chain' && /\S/i.test(query);
     const key = `${kind}|${addable ? query.toLowerCase() : ''}`;
     if (existing && existing.dataset.key === key) return;
 
@@ -6911,7 +7027,7 @@ class WorkshopEntriesScroller extends BaseVirtualScroller {
         `<div class="entries-empty-msg">${buildNoMatchQuipHTML(query)}</div>` +
         `<button type="button" class="entries-empty-add">＋ Add it</button>`;
       el.querySelector('.entries-empty-add').onclick = e =>
-        AtomPopover.openForCreate(query.toLowerCase(), workshopScroller, e.currentTarget);
+        AtomPopover.openForCreate(query, workshopScroller, e.currentTarget);
     } else {
       el.textContent = 'No matches.';
     }
@@ -6966,23 +7082,21 @@ function libraryEntryColumnWidths() {
   for (const wl of state.sources) {
     const rules = wl.rescoreRules || [];
     for (const wlE of wl.rawEntries) {
-      if (wlE.entry.length > maxEntryLen) maxEntryLen = wlE.entry.length;
+      const displayLen = displayOf(wlE).length;
+      if (displayLen > maxEntryLen) maxEntryLen = displayLen;
       const inLen = String(wlE.score).length;
       let scoreChars = inLen;
       if (rules.length) {
         const r = rescoreEntry(wlE, rules);
-        // Ignored rows render just the input score (struck through via CSS),
-        // so they don't expand the score column.
         if (r.kept && r.score !== wlE.score) scoreChars = inLen + 3 + String(r.score).length;
       }
       if (scoreChars > maxScoreChars) maxScoreChars = scoreChars;
     }
   }
-  // Also consider the merged All view, in case it carries entries (or scores)
-  // wider than any single source after override resolution.
   const merged = buildMergedWordlist().entries;
   for (const wlE of merged) {
-    if (wlE.entry.length > maxEntryLen) maxEntryLen = wlE.entry.length;
+    const displayLen = displayOf(wlE).length;
+    if (displayLen > maxEntryLen) maxEntryLen = displayLen;
     const inLen = String(wlE.score).length;
     if (inLen > maxScoreChars) maxScoreChars = inLen;
   }
@@ -7078,8 +7192,10 @@ class LibraryEntriesScroller extends BaseVirtualScroller {
     if (!wl) {
       const { entries } = buildMergedWordlist();
       return entries.map(e => ({
-        entry: e.entry,
-        len: e.entry.length,
+        wlEntry: e,
+        norm: e.norm,
+        display: displayOf(e),
+        len: e.norm.length,
         inputScore: e.score,
         outputScore: e.score,
         rescored: false,
@@ -7100,8 +7216,10 @@ class LibraryEntriesScroller extends BaseVirtualScroller {
         else outputScore = r.score;
       }
       return {
-        entry: wlE.entry,
-        len: wlE.entry.length,
+        wlEntry: wlE,
+        norm: wlE.norm,
+        display: displayOf(wlE),
+        len: wlE.norm.length,
         inputScore: wlE.score,
         outputScore,
         rescored,
@@ -7125,13 +7243,11 @@ class LibraryEntriesScroller extends BaseVirtualScroller {
     const key = this.sortKey;
     const sorted = [...this._baseRows].sort((a, b) => {
       if (key === 'score') {
-        // Ignored rows have no meaningful score; sink them to the bottom in
-        // both directions rather than letting them anchor either extreme.
         if (a.ignored !== b.ignored) return a.ignored ? 1 : -1;
         return dir * (a.outputScore - b.outputScore);
       }
-      const av = key === 'length' ? a.len : a.entry;
-      const bv = key === 'length' ? b.len : b.entry;
+      const av = key === 'length' ? a.len : a.norm;
+      const bv = key === 'length' ? b.len : b.norm;
       if (typeof av === 'number' && typeof bv === 'number') return dir * (av - bv);
       return dir * String(av).localeCompare(String(bv));
     });
@@ -7153,12 +7269,12 @@ class LibraryEntriesScroller extends BaseVirtualScroller {
       });
     }
 
-    const q = this.query.toLowerCase();
+    const q = this.query.trim();
     let rows;
     if (q) {
-      const { filterRe, searchRanges } = buildSearchPattern(q, this.wholeWord);
-      this._searchRanges = searchRanges;
-      rows = source.filter(r => filterRe.test(r.entry));
+      const matcher = buildSearchPattern(q, this.wholeWord);
+      this._searchRanges = matcher ? matcher.searchRanges : null;
+      rows = matcher ? source.filter(r => matcher.test(r.display)) : source;
     } else {
       this._searchRanges = null;
       rows = source;
@@ -7204,10 +7320,8 @@ class LibraryEntriesScroller extends BaseVirtualScroller {
     const frag = document.createDocumentFragment();
     for (let i = start; i < end; i++) {
       const r = this.rows[i];
-      const entryHtml = renderHighlightedText(r.entry, this._searchRanges?.(r.entry) || []);
+      const entryHtml = renderHighlightedText(r.display, this._searchRanges?.(r.display) || []);
 
-      // Ignored rows show the input score struck through (CSS via .lib-ignored);
-      // no `→ ✕` annotation needed.
       const showArrow = this.mode === 'rescored' && r.rescored && !r.ignored;
       const scoreHTML = showArrow
         ? `${r.inputScore}<span class="lib-atom-arrow">→</span><span class="lib-atom-out">${r.outputScore}</span>`
@@ -7218,7 +7332,7 @@ class LibraryEntriesScroller extends BaseVirtualScroller {
       if (r.ignored) cls += ' lib-ignored';
       row.className = cls;
       row.style.top = (i * ROW_HEIGHT) + 'px';
-      if (r.entry.length > ENTRY_SLOT_CAP) row.title = r.entry;
+      if (r.display.length > ENTRY_SLOT_CAP) row.title = r.display;
       row.innerHTML =
         `<span class="lib-atom-entry">${entryHtml}</span>` +
         `<span class="lib-atom-score">${scoreHTML}</span>` +
@@ -7321,7 +7435,7 @@ const AtomPopover = (() => {
   }
 
   function openForCreate(entryStr, scroller, anchorEl) {
-    open({ entry: entryStr, score: '', comment: '' }, null, scroller, anchorEl, 'score');
+    open(buildUserWlEntry(entryStr, '', ''), null, scroller, anchorEl, 'score');
   }
 
   function renderFooterHTML(wlEntry, scroller) {
@@ -7348,7 +7462,7 @@ const AtomPopover = (() => {
       : '';
     return `
       <button class="dialog-close-btn" type="button" aria-label="Close">✕</button>
-      <div class="atom-pop-head">${esc(wlEntry.entry)}</div>
+      <div class="atom-pop-head">${esc(displayOf(wlEntry))}</div>
       <div class="atom-pop-fields">
         <label for="atom-pop-score">Score</label>
         <input id="atom-pop-score" class="score-input" type="number" min="0" value="${wlEntry.score}">
@@ -7389,22 +7503,26 @@ const AtomPopover = (() => {
     }
   }
 
+  function editTarget() {
+    return { norm: activeWlEntry.norm, display: activeWlEntry.display ?? activeWlEntry.norm };
+  }
+
   function wireDeleteButton() {
     const deleteBtn = el.querySelector('.atom-pop-delete');
     if (!deleteBtn) return;
     const scroller = activeScroller;
-    const entry = activeWlEntry.entry;
+    const target = editTarget();
     deleteBtn.addEventListener('mousedown', e => e.preventDefault());
     deleteBtn.addEventListener('click', () => {
       pendingDelete = true;
-      scroller._onDeleteRow?.(entry);
+      scroller._onDeleteRow?.(target);
     });
   }
 
   function wireFields() {
     const popover = el;
     const scroller = activeScroller;
-    const entry = activeWlEntry.entry;
+    const target = editTarget();
 
     const scoreInp = popover.querySelector('.score-input');
     if (scoreInp) {
@@ -7412,7 +7530,7 @@ const AtomPopover = (() => {
       const commit = () => {
         const parsed = parseInt(scoreInp.value, 10);
         if (!isNaN(parsed) && parsed >= 0 && String(parsed) !== initial) {
-          scroller._onCellEdit?.(entry, 'score', parsed);
+          scroller._onCellEdit?.(target, 'score', parsed);
           initial = String(parsed);
           refresh();
         }
@@ -7430,7 +7548,7 @@ const AtomPopover = (() => {
       commentInp.addEventListener('beforeinput', blockSemicolon);
       const commit = () => {
         if (commentInp.value !== initial) {
-          scroller._onCellEdit?.(entry, 'comment', commentInp.value);
+          scroller._onCellEdit?.(target, 'comment', commentInp.value);
           initial = commentInp.value;
           refresh();
         }
@@ -7461,10 +7579,10 @@ const AtomPopover = (() => {
     });
   }
 
-  function activeEntry(scroller) {
+  function activeNorm(scroller) {
     if (!isOpen()) return null;
     if (scroller && activeScroller !== scroller) return null;
-    return activeWlEntry ? activeWlEntry.entry : null;
+    return activeWlEntry ? activeWlEntry.norm : null;
   }
 
   function rebindRow(rowEl) {
@@ -7474,21 +7592,22 @@ const AtomPopover = (() => {
     rowEl.classList.add('active');
   }
 
-  // A scroller rebuild hands back fresh wlEntry objects, so activeWlEntry goes
-  // stale by identity — re-point it by entry string before refresh() runs its
-  // identity-based stillPresent check, or the popover wrongly closes.
   function rebindEntry(scroller) {
     if (!isOpen() || activeScroller !== scroller) return;
-    const entryStr = activeWlEntry.entry;
-    let found = null;
+    const targetNorm = activeWlEntry.norm;
+    const targetDisplay = activeWlEntry.display;
+    let found = null, normFallback = null;
     for (const a of rowSetAtoms(scroller.allEntries)) {
-      if (a.wlEntry.entry === entryStr) { found = a.wlEntry; break; }
+      if (a.wlEntry.norm !== targetNorm) continue;
+      if (a.wlEntry.display === targetDisplay) { found = a.wlEntry; break; }
+      if (!normFallback) normFallback = a.wlEntry;
     }
+    found ??= normFallback;
     const wasPendingDelete = pendingDelete;
     pendingDelete = false;
     if (!found) {
       if (wasPendingDelete) {
-        activeWlEntry = { entry: entryStr, score: '', comment: '' };
+        activeWlEntry = { norm: targetNorm, display: targetDisplay, score: '', comment: '' };
         el.innerHTML = renderHTML(activeWlEntry, activeScroller);
         wireFields();
         el.querySelector('.score-input')?.focus();
@@ -7500,7 +7619,7 @@ const AtomPopover = (() => {
     refresh({ resetInputs: !editing });
   }
 
-  return { open, openForCreate, close, isOpen, containsFocus, activeEntry, rebindRow, rebindEntry };
+  return { open, openForCreate, close, isOpen, containsFocus, activeNorm, rebindRow, rebindEntry };
 })();
 
 // ─── Update Summary Scroller ──────────────────────────────────────────────────
@@ -7553,7 +7672,7 @@ class UpdateSummaryScroller {
 
         const entrySpan = document.createElement('span');
         entrySpan.className = 'usd-entry-col';
-        entrySpan.textContent = displayEntry(row.entry);
+        entrySpan.textContent = row.display;
         div.appendChild(entrySpan);
 
         const scoreSpan = document.createElement('span');
@@ -7808,7 +7927,7 @@ function getRescoredEntries(wordlist) {
 function getRescoredMap(wordlist) {
   if (wordlist._rescoredMap) return wordlist._rescoredMap;
   const map = new Map();
-  for (const e of getRescoredEntries(wordlist)) map.set(e.entry, e);
+  for (const e of getRescoredEntries(wordlist)) map.set(e.norm, e);
   wordlist._rescoredMap = map;
   return map;
 }
@@ -7819,7 +7938,7 @@ function rescoreEntry(wlEntry, rules) {
     if (!scoreIntervals || !matchesRange(wlEntry.score, scoreIntervals)) continue;
     if (rule.length && rule.length.trim()) {
       const lenIntervals = rule._lenIntervals !== undefined ? rule._lenIntervals : parseRange(rule.length);
-      if (!lenIntervals || !matchesRange(wlEntry.entry.length, lenIntervals)) continue;
+      if (!lenIntervals || !matchesRange(wlEntry.norm.length, lenIntervals)) continue;
     }
     const s = rule._output !== undefined ? rule._output : parseRuleOutput(rule.output);
     if (s === null) continue;
@@ -8232,28 +8351,29 @@ async function resetScoringRules() {
 // ─── Actions ──────────────────────────────────────────────────────────────────
 
 function attachExternalEditHandlers(s, refreshFn) {
-  s._onCellEdit = (entry, field, newValue) => {
-    upsertEdits(entry, field, newValue);
+  s._onCellEdit = (target, field, newValue) => {
+    upsertEdits(target, field, newValue);
     refreshFn?.();
   };
 }
 
-function upsertEdits(entry, field, newValue) {
+function upsertEdits(target, field, newValue) {
   const edits = getEditsWordlist();
-  const entryLow = entry.toLowerCase();
-  const existing = edits.rawEntries.find(e => e.entry === entryLow);
+  const norm = target.norm;
+  const display = target.display ?? norm;
+  const existing = edits.rawEntries.find(e => e.norm === norm && e.display === display);
   let wlEntry;
   if (existing) {
     existing[field] = newValue;
     wlEntry = existing;
   } else {
-    const orig = workshopScroller?.allEntries?.find(e => e.entry === entryLow);
+    const orig = buildMergedWordlist().byNorm.get(norm);
     const score   = field === 'score'   ? newValue : (orig?.score   ?? 50);
     const comment = field === 'comment' ? newValue : (orig?.comment ?? '');
-    wlEntry = { entry: entryLow, score, comment };
+    wlEntry = { norm, display, score, comment };
     edits.rawEntries.push(wlEntry);
   }
-  patchCachesForEditsChange(entryLow, wlEntry);
+  patchCachesForEditsChange(norm, wlEntry);
   recomputeUncovered(edits);
   persistEdits(edits);
   refreshDerivedDisplays();
@@ -8402,17 +8522,17 @@ const openUpdateSummaryDialog = (() => {
     if (added.length) {
       sectionIndices.added = rows.length;
       rows.push({ type: 'header', label: `Added (${added.length.toLocaleString()})` });
-      for (const e of added) rows.push({ type: 'entry', entry: e.entry, score: e.score, kind: 'added' });
+      for (const e of added) rows.push({ type: 'entry', display: displayOf(e), score: e.score, kind: 'added' });
     }
     if (deleted.length) {
       sectionIndices.deleted = rows.length;
       rows.push({ type: 'header', label: `Deleted (${deleted.length.toLocaleString()})` });
-      for (const e of deleted) rows.push({ type: 'entry', entry: e.entry, score: e.score, kind: 'deleted' });
+      for (const e of deleted) rows.push({ type: 'entry', display: displayOf(e), score: e.score, kind: 'deleted' });
     }
     if (rescored.length) {
       sectionIndices.rescored = rows.length;
       rows.push({ type: 'header', label: `Rescored (${rescored.length.toLocaleString()})` });
-      for (const e of rescored) rows.push({ type: 'entry', entry: e.entry, score: e.score, kind: 'rescored', oldScore: e.oldScore });
+      for (const e of rescored) rows.push({ type: 'entry', display: displayOf(e.entry), score: e.score, kind: 'rescored', oldScore: e.oldScore });
     }
 
     pillsEl.innerHTML = '';
@@ -8471,14 +8591,14 @@ async function applyWordlistText(wordlist, text, { fetchedSize = null, originalF
   if (wasEmpty) {
     if (!silent) showToast(`Loaded ${pluralize(wordlist.rawEntries.length, 'entry', 'entries')} from ${esc(source)}`);
   } else {
-    const oldMap = new Map(oldEntries.map(e => [e.entry, e.score]));
-    const newMap = new Map(wordlist.rawEntries.map(e => [e.entry, e.score]));
-    const added   = wordlist.rawEntries.filter(e => !oldMap.has(e.entry)).sort((a, b) => a.entry.localeCompare(b.entry));
-    const deleted = oldEntries.filter(e => !newMap.has(e.entry)).sort((a, b) => a.entry.localeCompare(b.entry));
+    const oldMap = new Map(oldEntries.map(e => [e.norm, e.score]));
+    const newMap = new Map(wordlist.rawEntries.map(e => [e.norm, e.score]));
+    const added   = wordlist.rawEntries.filter(e => !oldMap.has(e.norm)).sort((a, b) => a.norm.localeCompare(b.norm));
+    const deleted = oldEntries.filter(e => !newMap.has(e.norm)).sort((a, b) => a.norm.localeCompare(b.norm));
     const rescored = oldEntries
-      .filter(e => newMap.has(e.entry) && newMap.get(e.entry) !== e.score)
-      .map(e => ({ entry: e.entry, oldScore: e.score, score: newMap.get(e.entry) }))
-      .sort((a, b) => a.entry.localeCompare(b.entry));
+      .filter(e => newMap.has(e.norm) && newMap.get(e.norm) !== e.score)
+      .map(e => ({ entry: e, oldScore: e.score, score: newMap.get(e.norm) }))
+      .sort((a, b) => a.entry.norm.localeCompare(b.entry.norm));
     if (!added.length && !deleted.length && !rescored.length) {
       if (!viaToast) showAlert(`${buildWordlistNameHTML(wordlist)} is already up to date — no changes.`);
     } else if (viaToast) {
@@ -8591,12 +8711,12 @@ function ingestFile(file, wordlist, nameOverride) {
 
     // My Edits: always combine instead of replace
     if (wordlist.type === 'edits' && wordlist.rawEntries.length > 0) {
-      const existingMap = new Map(wordlist.rawEntries.map(e => [e.entry, e]));
+      const existingMap = new Map(wordlist.rawEntries.map(e => [mergeKey(e.norm, e.display), e]));
       const newEntries = [], conflicts = [];
       let unchanged = 0;
 
       for (const wlEntry of entries) {
-        const existing = existingMap.get(wlEntry.entry);
+        const existing = existingMap.get(mergeKey(wlEntry.norm, wlEntry.display));
         if (!existing) {
           newEntries.push(wlEntry);
         } else if (existing.score !== wlEntry.score || existing.comment !== wlEntry.comment) {
@@ -8664,14 +8784,15 @@ const NO_MATCH_QUIPS = [
 ];
 
 function buildNoMatchQuipHTML(term) {
-  const span = `<span class="entries-empty-term">${esc(displayEntry(term))}</span>`;
+  const span = `<span class="entries-empty-term">${esc(term)}</span>`;
   return NO_MATCH_QUIPS[hashStringMod(term.toLowerCase(), NO_MATCH_QUIPS.length)](span);
 }
 
-function deleteFromEdits(entry, refreshFn) {
+function deleteFromEdits(target, refreshFn) {
   const edits = getEditsWordlist();
-  const entryLow = entry.toLowerCase();
-  const idx = edits.rawEntries.findIndex(e => e.entry === entryLow);
+  const norm = target.norm;
+  const display = target.display;
+  const idx = edits.rawEntries.findIndex(e => e.norm === norm && e.display === display);
   if (idx === -1) return;
 
   const refresh = refreshFn ?? (() => {
@@ -8680,15 +8801,15 @@ function deleteFromEdits(entry, refreshFn) {
   });
 
   const [deleted] = edits.rawEntries.splice(idx, 1);
-  patchCachesForEditsChange(entryLow, null);
+  patchCachesForEditsChange(norm, null);
   recomputeUncovered(edits);
   persistEdits(edits);
   refresh();
   refreshDerivedDisplays();
 
-  showUndoToast(`Deleted ${esc(displayEntry(deleted.entry))} from ${buildWordlistNameHTML(edits)}`, () => {
+  showUndoToast(`Deleted ${esc(displayOf(deleted))} from ${buildWordlistNameHTML(edits)}`, () => {
     edits.rawEntries.splice(idx, 0, deleted);
-    patchCachesForEditsChange(entryLow, deleted);
+    patchCachesForEditsChange(norm, deleted);
     recomputeUncovered(edits);
     persistEdits(edits);
     refresh();
@@ -8813,7 +8934,7 @@ const showDownloadDialog = (() => {
     titleEl.textContent = title;
     return new Promise(resolve => {
       const settings = wordlist || readMergedSettings();
-      const savedCase     = settings.downloadCase || 'lower';
+      const savedCase     = settings.downloadCase || 'asis';
       const savedExt      = settings.downloadExt  || 'txt';
       const savedStem     = settings.downloadStem || '';
       const savedComments = getDownloadComments() ? 'yes' : 'no';
@@ -8822,6 +8943,7 @@ const showDownloadDialog = (() => {
       filenameEl.placeholder = defaultStem;
       extSelect.value = savedExt;
       caseCtrl.innerHTML = buildSegCtrlHTML(null, [
+        { value: 'asis',  label: 'As is' },
         { value: 'lower', label: 'lower' },
         { value: 'upper', label: 'UPPER' },
       ], savedCase);
@@ -9864,147 +9986,15 @@ function startInlineRename(inputEl, originalName, { onCommit, onCancel, onInput 
 
 // ─── Merge & Download ─────────────────────────────────────────────────────────
 
-// Wordlist order determines merge priority: higher-priority wordlists appear earlier in state.sources; the loop breaks at the target wordlist's position.
-// Cached on `wordlist._overrideMap` and invalidated by `invalidateSourceCounts` whenever any source's content, ordering, enabled flag, or rescore rules change.
-function buildOverrideMap(wordlist) {
-  if (wordlist._overrideMap) return wordlist._overrideMap;
-  const map = new Map();
-  for (const l of state.sources) {
-    if (l === wordlist) break;
-    if (!l.enabled) continue;
-    for (const { entry, score, comment } of getRescoredEntries(l)) {
-      if (!map.has(entry)) map.set(entry, { wordlist: l, score, comment: comment || '' });
-    }
-  }
-  wordlist._overrideMap = map;
-  return map;
-}
 
-// In-place cache patch for a single My Edits change to `entry`.
-//   newEditsWlEntry → ADD or UPDATE (record now in edits.rawEntries)
-//   null            → DELETE (record just removed from edits.rawEntries)
-// Caller has already mutated edits.rawEntries.
-function patchCachesForEditsChange(entry, newEditsWlEntry) {
+function patchCachesForEditsChange(_norm, _newEditsWlEntry) {
   const edits = getEditsWordlist();
   if (!edits) return;
-
-  // edits's own derived caches are now stale; lazy rebuild on next access.
   invalidateActualScoresCache(edits);
   invalidateRescoredCache(edits);
   _statsCache.delete(edits);
   _statsCache.delete(_mergedStatsKey);
-
-  // If edits is disabled or a higher-priority wordlist already has `entry`,
-  // edits never contributed for `entry` — caches don't reference it.
-  if (!edits.enabled) return;
-  if (buildOverrideMap(edits).has(entry)) return;
-
-  const editsIdx = state.sources.indexOf(edits);
-  const cache = _mergedWordlistCache;
-
-  if (newEditsWlEntry) {
-    // ADD or UPDATE: edits is now the contributor for `entry` from editsIdx down.
-    const ovEntry = { wordlist: edits, score: newEditsWlEntry.score, comment: newEditsWlEntry.comment || '' };
-    for (let i = editsIdx + 1; i < state.sources.length; i++) {
-      const m = state.sources[i]._overrideMap;
-      if (m) m.set(entry, ovEntry);
-    }
-    if (cache) {
-      const existing = cache.byEntry.get(entry);
-      if (existing) {
-        // UPDATE, or ADD that took over from a below-edits contributor.
-        if (existing.wordlist !== edits) {
-          adjustSourceCount(cache, existing.wordlist, -1);
-          adjustSourceCount(cache, edits, 1);
-          existing.wordlist = edits;
-        }
-        existing.score = newEditsWlEntry.score;
-        existing.comment = newEditsWlEntry.comment || '';
-      } else {
-        // ADD: brand-new entry, no other wordlist has it.
-        const merged = {
-          entry: newEditsWlEntry.entry,
-          score: newEditsWlEntry.score,
-          comment: newEditsWlEntry.comment || '',
-          wordlist: edits,
-        };
-        cache.byEntry.set(entry, merged);
-        insertSortedByEntry(cache.entries, merged);
-        cache._initialChains = null;
-        adjustSourceCount(cache, edits, 1);
-      }
-    }
-  } else {
-    // DELETE: edits was the contributor (no higher-priority list has `entry`).
-    // Walk down to find the next enabled wordlist with `entry`.
-    let nextIdx = -1;
-    for (let i = editsIdx + 1; i < state.sources.length; i++) {
-      const l = state.sources[i];
-      if (!l.enabled) continue;
-      if (getRescoredMap(l).has(entry)) { nextIdx = i; break; }
-    }
-
-    // Override maps for L below edits: at L_pos > nextIdx, next wins; at L_pos ≤ nextIdx, no contributor in range → delete.
-    if (nextIdx === -1) {
-      for (let i = editsIdx + 1; i < state.sources.length; i++) {
-        const m = state.sources[i]._overrideMap;
-        if (m) m.delete(entry);
-      }
-    } else {
-      const nextList = state.sources[nextIdx];
-      const nextRaw = getRescoredMap(nextList).get(entry);
-      const ovEntry = { wordlist: nextList, score: nextRaw.score, comment: nextRaw.comment || '' };
-      for (let i = editsIdx + 1; i < state.sources.length; i++) {
-        const m = state.sources[i]._overrideMap;
-        if (!m) continue;
-        if (i <= nextIdx) m.delete(entry);
-        else m.set(entry, ovEntry);
-      }
-    }
-
-    if (cache) {
-      const existing = cache.byEntry.get(entry);
-      if (existing) {
-        adjustSourceCount(cache, edits, -1);
-        if (nextIdx === -1) {
-          cache.byEntry.delete(entry);
-          const idx = cache.entries.indexOf(existing);
-          if (idx !== -1) cache.entries.splice(idx, 1);
-          cache._initialChains = null;
-        } else {
-          const nextList = state.sources[nextIdx];
-          const nextEntry = getRescoredMap(nextList).get(entry);
-          adjustSourceCount(cache, nextList, 1);
-          existing.wordlist = nextList;
-          existing.score = nextEntry.score;
-          existing.comment = nextEntry.comment || '';
-        }
-      }
-    }
-  }
-}
-
-function adjustSourceCount(cache, wordlist, delta) {
-  const i = cache.sourceCounts.findIndex(s => s.wordlist === wordlist);
-  if (i >= 0) {
-    cache.sourceCounts[i].count += delta;
-    // Mirror buildMergedWordlist's filter: drop wordlists that are now empty.
-    if (cache.sourceCounts[i].count <= 0 && wordlist.rawEntries.length === 0) {
-      cache.sourceCounts.splice(i, 1);
-    }
-  } else if (delta > 0) {
-    cache.sourceCounts.push({ wordlist, count: delta });
-  }
-}
-
-function insertSortedByEntry(entries, wlEntry) {
-  let lo = 0, hi = entries.length;
-  while (lo < hi) {
-    const mid = (lo + hi) >>> 1;
-    if (entries[mid].entry.localeCompare(wlEntry.entry) < 0) lo = mid + 1;
-    else hi = mid;
-  }
-  entries.splice(lo, 0, wlEntry);
+  invalidateSourceCounts();
 }
 
 // The detail panel's stats bar is deliberately not repainted here — every
@@ -10021,34 +10011,59 @@ function refreshDerivedDisplays() {
 function buildMergedWordlist() {
   if (_mergedWordlistCache) return _mergedWordlistCache;
 
-  const mergedMap = new Map(); // entry → wordlistEntry
-  const sourceCounts = [];
-
+  const buckets = new Map();
   for (const wordlist of state.sources) {
     if (!wordlist.enabled) continue;
-    let count = 0;
-    for (const { entry, score, comment } of getRescoredEntries(wordlist)) {
-      if (!mergedMap.has(entry)) {
-        mergedMap.set(entry, { entry, score, comment: comment || '', wordlist });
-        count++;
-      }
+    for (const wlE of getRescoredEntries(wordlist)) {
+      let b = buckets.get(wlE.norm);
+      if (!b) buckets.set(wlE.norm, b = { contributors: [], displays: new Set() });
+      b.contributors.push({ wordlist, score: wlE.score, comment: wlE.comment || '', display: wlE.display });
+      if (wlE.display != null) b.displays.add(wlE.display);
     }
-    sourceCounts.push({ wordlist, count });
   }
 
-  const entries = [...mergedMap.values()]
-    .sort((a, b) => a.entry.localeCompare(b.entry));
+  const entries = [];
+  const byNorm = new Map();
+  const byKey = new Map();
+  const sourceCountMap = new Map();
+  for (const [norm, { contributors, displays }] of buckets) {
+    const variants = displays.size > 0 ? [...displays].sort() : [null];
+    for (const variant of variants) {
+      const winner = contributors.find(c => c.display === variant || c.display === null);
+      if (!winner) continue;
+      const row = { norm, display: variant, score: winner.score, comment: winner.comment, wordlist: winner.wordlist };
+      entries.push(row);
+      if (!byNorm.has(norm)) byNorm.set(norm, row);
+      byKey.set(mergeKey(norm, variant), row);
+      sourceCountMap.set(winner.wordlist, (sourceCountMap.get(winner.wordlist) || 0) + 1);
+    }
+  }
 
-  // byEntry shares object identity with entries — patching via byEntry updates entries.
-  _mergedWordlistCache = { entries, sourceCounts, byEntry: mergedMap };
+  entries.sort((a, b) => a.norm.localeCompare(b.norm)
+    || (a.display ?? '').localeCompare(b.display ?? ''));
+
+  const sourceCounts = [];
+  for (const wl of state.sources) {
+    if (!wl.enabled) continue;
+    sourceCounts.push({ wordlist: wl, count: sourceCountMap.get(wl) || 0 });
+  }
+
+  _mergedWordlistCache = { entries, sourceCounts, byNorm, byKey };
   return _mergedWordlistCache;
+}
+
+function mergeKey(norm, display) {
+  return norm + '\0' + (display ?? '');
 }
 
 function getDownloadComments() { return lsLoad('downloadComments') !== 'no'; }
 
-function entriesToDownloadText(entries, { upper, comments }) {
+function entriesToDownloadText(entries, { caseMode, comments }) {
   return entries.map(e => {
-    const w = upper ? e.entry.toUpperCase() : e.entry.toLowerCase();
+    let w;
+    if (caseMode === 'upper')      w = e.norm.toUpperCase();
+    else if (caseMode === 'lower') w = e.norm;
+    else                            w = e.display ?? e.norm;
     return (comments && e.comment) ? `${w};${e.score};${e.comment}` : `${w};${e.score}`;
   }).join('\n') + '\n';
 }
@@ -10057,7 +10072,7 @@ async function downloadWithDialog(defaultStem, wordlist, entries, title = 'Downl
   const result = await showDownloadDialog(defaultStem, wordlist, title);
   if (!result) return;
   const { stem, ext, caseMode, comments } = result;
-  triggerDownload(entriesToDownloadText(entries, { upper: caseMode === 'upper', comments }), `${stem}.${ext}`);
+  triggerDownload(entriesToDownloadText(entries, { caseMode, comments }), `${stem}.${ext}`);
   showToast(`Downloaded ${pluralize(entries.length, 'entry', 'entries')}`);
 }
 
@@ -10116,9 +10131,9 @@ function chainContentEntries(chain) {
   const out = [];
   let prevEntry = null;
   for (const atom of chain.atoms) {
-    if (atom.wlEntry.entry === prevEntry) continue;
+    if (atom.wlEntry.norm === prevEntry) continue;
     out.push(atom.wlEntry);
-    prevEntry = atom.wlEntry.entry;
+    prevEntry = atom.wlEntry.norm;
   }
   return out;
 }
@@ -10210,13 +10225,14 @@ function exportFilename(stack, ext) {
 
 function chainCopyText(chain) {
   const parts = [];
-  let prevEntry = null;
+  let prevNorm = null;
   for (const atom of chain.atoms) {
-    const entry = atom.wlEntry.entry.toUpperCase();
-    if (entry === prevEntry) continue;
-    const piece = `${entry.length} ${entry}`;
+    const wlE = atom.wlEntry;
+    if (wlE.norm === prevNorm) continue;
+    const shown = wlE.display ?? wlE.norm.toUpperCase();
+    const piece = `${wlE.norm.length} ${shown}`;
     parts.push(atom.glyph ? `${atom.glyph} ${piece}` : piece);
-    prevEntry = entry;
+    prevNorm = wlE.norm;
   }
   return parts.join(' ');
 }
@@ -10257,12 +10273,13 @@ function buildCopyText(rows, grouped, stack) {
 function flatCopyLines(chains) {
   const piecesPerChain = chains.map(chain => {
     const pieces = [];
-    let prev = null;
+    let prevNorm = null;
     for (const atom of chain.atoms) {
-      const entry = atom.wlEntry.entry.toUpperCase();
-      if (entry === prev) continue;
-      pieces.push({ glyph: atom.glyph || '', len: String(entry.length), entry });
-      prev = entry;
+      const wlE = atom.wlEntry;
+      if (wlE.norm === prevNorm) continue;
+      const shown = wlE.display ?? wlE.norm.toUpperCase();
+      pieces.push({ glyph: atom.glyph || '', len: String(wlE.norm.length), entry: shown });
+      prevNorm = wlE.norm;
     }
     return pieces;
   });
@@ -10307,7 +10324,7 @@ function buildWordlistText(rows, grouped) {
   for (const { chain } of iterDisplayChains(rows, grouped)) {
     const content = chainContentEntries(chain);
     if (!content.length) continue;
-    const tail = content[content.length - 1].entry;
+    const tail = displayOf(content[content.length - 1]);
     if (tail.includes(';')) { skipped++; continue; }
     let chainMin = Infinity;
     for (const wlE of content) if (wlE.score < chainMin) chainMin = wlE.score;
@@ -10375,7 +10392,7 @@ function buildCSVText(rows, grouped, stack) {
         cells.push('', '', '');
         if (!grouped) cells.push('', '');
       } else {
-        cells.push(wlE.entry, wlE.entry.length, wlE.score);
+        cells.push(displayOf(wlE), wlE.norm.length, wlE.score);
         if (!grouped) cells.push(wlE.comment || '', wlE.wordlist?.name ?? '');
       }
     }
@@ -10404,7 +10421,7 @@ function buildExportJSONObject(rows, grouped, stack) {
 
   function chainObj(chain, includeProvenance) {
     const entries = chainContentEntries(chain).map(wlE => {
-      const e = { entry: wlE.entry, score: wlE.score };
+      const e = { entry: displayOf(wlE), score: wlE.score };
       if (includeProvenance) {
         e.comment = wlE.comment || '';
         e.source = wlE.wordlist?.name ?? null;
@@ -10611,9 +10628,9 @@ window.__grawlixTest = {
   // Exposing it here lets merge-correctness tests assert regardless of
   // viewport width and without driving the popover.
   getMergedEntry(entry) {
-    const m = buildMergedWordlist().byEntry.get(entry.toLowerCase());
+    const m = buildMergedWordlist().byNorm.get(toNorm(entry));
     if (!m) return null;
-    return { entry: m.entry, score: m.score, comment: m.comment, wordlist: m.wordlist.name };
+    return { entry: m.norm, display: m.display, score: m.score, comment: m.comment, wordlist: m.wordlist.name };
   },
 
   setUnigramCorpus(freqs) {
@@ -10688,7 +10705,7 @@ window.__grawlixTest = {
       publisherId: wl.publisherId,
       enabled: wl.enabled,
       populated: wl.populated,
-      entries: wl.rawEntries.map(e => ({ entry: e.entry, score: e.score, comment: e.comment || '' })),
+      entries: wl.rawEntries.map(e => ({ entry: e.norm, display: e.display, score: e.score, comment: e.comment || '' })),
       rescoreRules: wl.rescoreRules.map(r => ({ input: r.input, length: r.length || '', output: r.output })),
       uncovered: [...(wl._uncovered || [])],
       dirty: !!wl.dirty,

@@ -38,6 +38,7 @@ Source material: shipped catalog lives in `TOOLS` in [`site/index.html`](../site
 |   | Phrase | 👯 Double occupancy | Two-part entries where both halves compound with one reference term | GREEN LIGHT + HOUSE → GREENHOUSE, LIGHTHOUSE |
 |   | Required | ❗ Required letters | Contains every given letter (in any order) | TBD |
 | ✓ | Search | 🔍 Search | Search (and replace) with wildcards | un*ed · c?t |
+| ✓ | Search | 🔠 Acronym match | Word-initial letters spell the acronym | WTF → what the fuck |
 | ✓ | Search | 🪄 Regex | Search (and replace) with regular expressions | un.+ed · c.{2,4}t |
 | ✓ | Side | 🪓 Behead | Remove the first N letters | SLING → LING |
 |   | Side | 📥 Add prefix | Add a string prefix | TATA → CANTATA |

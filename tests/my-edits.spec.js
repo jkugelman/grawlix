@@ -38,13 +38,13 @@ test('editing a row sourced from another wordlist routes the edit into My Edits'
   // at index 0 = highest priority).
   await expect.poll(async () =>
     page.evaluate(() => window.__grawlixTest.getWordlist('My Edits').entries)
-  ).toEqual([{ entry: 'bagel', score: 75, comment: '' }]);
+  ).toEqual([{ entry: 'bagel', display: 'bagel', score: 75, comment: '' }]);
 
   const source = await page.evaluate(() => window.__grawlixTest.getWordlist('Source'));
-  expect(source.entries).toEqual([{ entry: 'bagel', score: 50, comment: '' }]);
+  expect(source.entries).toEqual([{ entry: 'bagel', display: null, score: 50, comment: '' }]);
 
   const merged = await page.evaluate(() => window.__grawlixTest.getMergedEntry('BAGEL'));
-  expect(merged).toEqual({ entry: 'bagel', score: 75, comment: '', wordlist: 'My Edits' });
+  expect(merged).toMatchObject({ entry: 'bagel', score: 75, comment: '', wordlist: 'My Edits' });
 });
 
 test('tabbing between popover fields keeps it open and reflects the new source', async ({ page }) => {
@@ -74,7 +74,7 @@ test('tabbing between popover fields keeps it open and reflects the new source',
 
   await expect.poll(async () =>
     page.evaluate(() => window.__grawlixTest.getWordlist('My Edits').entries)
-  ).toEqual([{ entry: 'bagel', score: 75, comment: 'tasty' }]);
+  ).toEqual([{ entry: 'bagel', display: 'bagel', score: 75, comment: 'tasty' }]);
 });
 
 test('the Delete edit button keeps the popover open and reverts to the underlying source', async ({ page }) => {
@@ -124,14 +124,14 @@ test('searching for an unknown entry surfaces an Add-it affordance that lands th
 
   await page.locator('.entries-empty-add').click();
   await expect(page.locator('#atom-popover')).toBeVisible();
-  await expect(page.locator('#atom-popover .atom-pop-head')).toHaveText('newword');
+  await expect(page.locator('#atom-popover .atom-pop-head')).toHaveText('NEWWORD');
   await page.locator('#atom-pop-score').fill('60');
   await page.locator('#atom-pop-score').press('Enter');
 
   await expect.poll(async () =>
     page.evaluate(() => window.__grawlixTest.getWordlist('My Edits').entries)
-  ).toEqual([{ entry: 'newword', score: 60, comment: '' }]);
-  expect(await page.evaluate(() => window.__grawlixTest.getMergedEntry('NEWWORD'))).toEqual({
+  ).toEqual([{ entry: 'newword', display: 'NEWWORD', score: 60, comment: '' }]);
+  expect(await page.evaluate(() => window.__grawlixTest.getMergedEntry('NEWWORD'))).toMatchObject({
     entry: 'newword', score: 60, comment: '', wordlist: 'My Edits',
   });
 });
@@ -162,7 +162,7 @@ test('deleting a My Edits entry shows an undo toast that restores it', async ({ 
   await expect.poll(async () =>
     page.evaluate(() => window.__grawlixTest.getWordlist('My Edits').entries)
   ).toEqual([]);
-  expect(await page.evaluate(() => window.__grawlixTest.getMergedEntry('BAGEL'))).toEqual({
+  expect(await page.evaluate(() => window.__grawlixTest.getMergedEntry('BAGEL'))).toMatchObject({
     entry: 'bagel', score: 50, comment: '', wordlist: 'Source',
   });
 
@@ -174,8 +174,8 @@ test('deleting a My Edits entry shows an undo toast that restores it', async ({ 
   // My Edits' BAGEL is back at 75, merged view follows.
   await expect.poll(async () =>
     page.evaluate(() => window.__grawlixTest.getWordlist('My Edits').entries)
-  ).toEqual([{ entry: 'bagel', score: 75, comment: '' }]);
-  expect(await page.evaluate(() => window.__grawlixTest.getMergedEntry('BAGEL'))).toEqual({
+  ).toEqual([{ entry: 'bagel', display: 'bagel', score: 75, comment: '' }]);
+  expect(await page.evaluate(() => window.__grawlixTest.getMergedEntry('BAGEL'))).toMatchObject({
     entry: 'bagel', score: 75, comment: '', wordlist: 'My Edits',
   });
 });

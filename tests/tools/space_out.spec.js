@@ -98,7 +98,7 @@ test('uses the real wordlist metadata when the split form is itself an entry', a
   await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'space_out' }]));
 
   const row = page.locator('.entry-row', { hasText: 'icecream' });
-  await expect(row.locator('.atom').nth(1).locator('.atom-entry')).toHaveText(/ice cream/);
+  await expect(row.locator('.atom').nth(1).locator('.atom-entry')).toHaveText(/ICE CREAM/i);
   await expect(row.locator('.atom').nth(1).locator('.atom-score')).toHaveText('60');
   await expect(row.locator('.atom').nth(1).locator('.atom-comment')).toHaveText('a frozen dessert');
 });

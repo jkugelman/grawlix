@@ -55,10 +55,10 @@ test('a length-filtered rescore rule only rewrites entries whose length matches'
 
   // BAGEL matches the length filter → rescored to 25.
   // CARROTS doesn't → passes through at 50 (rescoreEntry's fall-through).
-  expect(await page.evaluate(() => window.__grawlixTest.getMergedEntry('BAGEL'))).toEqual({
+  expect(await page.evaluate(() => window.__grawlixTest.getMergedEntry('BAGEL'))).toMatchObject({
     entry: 'bagel', score: 25, comment: '', wordlist: 'LenTest',
   });
-  expect(await page.evaluate(() => window.__grawlixTest.getMergedEntry('CARROTS'))).toEqual({
+  expect(await page.evaluate(() => window.__grawlixTest.getMergedEntry('CARROTS'))).toMatchObject({
     entry: 'carrots', score: 50, comment: '', wordlist: 'LenTest',
   });
 });

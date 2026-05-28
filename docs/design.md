@@ -112,6 +112,43 @@ The banner is a 3-page sequence (welcome, personal-wordlist import into My Edits
 
 **`All` lives in the Library.** It's the synthesized wordlist and belongs in the list of wordlists; the merged-wordlist download lives here too rather than in Sync & backup, which would conflate *one-time download* with *backup workflow*.
 
+### Rich wordlists
+
+The wlEntry schema is `{ norm, display, … }` (§ Tool gallery & stack — *Two-field entry identity*). The plumbing that surrounds it:
+
+**Richness is a per-file load-time decision.** The parser classifies each imported file as **plain** or **rich** and populates `display` accordingly: plain files leave `display: null` on every entry; rich files preserve the entry text as written. The rule is:
+
+- ≥99% of entries match `[a-z0-9]+` *or* `[A-Z0-9]+`, consistently the same one across the whole file, AND
+- ≤1% of entries contain space, accent, punctuation, or within-entry mixed case.
+
+Otherwise rich. The thresholds are knobs in code (`classifyWordlist`); reasonable defaults ship and get tuned against real-world feedback.
+
+The heuristic guards a single direction. Three of the four misclassification cases are tolerable: a deliberately-rich file misclassified as plain *loses data*; a dirty personal file misclassified as rich renders as-given (the user put the dirt there); a uniformly-lowercase plain file misclassified as rich renders lowercase, visually identical to the plain treatment. The one bad case is misclassifying a uniformly-uppercase plain file as rich — every entry would render in shouty all-caps when the data is conceptually lowercase. The heuristic specifically guards against that: uniform `[A-Z0-9]+` plus very few rich-feature entries → plain.
+
+Per-file rather than per-entry: a single accent typo in an otherwise-plain public wordlist shouldn't flip the whole file to rich, and a personal wordlist with mixed-case dirt shouldn't be forced into uniform plain rendering. Recovery from misclassification is re-import; no UI toggle today.
+
+**UI-typed entries preserve display literally.** Popover edits and "add entry" rows store the entered text verbatim as `display` — even when it happens to be uniform lowercase. This is variant targeting: when a user edits the score on `the IRS`, the My Edits entry must carry `display: "the IRS"` so it targets that specific variant; if an autodetect ran per-string, an edit on plain `theirs` would null-out and become ambient (leaking onto `the IRS` and any other variant sharing the norm). Literal-preserve sidesteps that without per-string heuristics. As a result, My Edits ends up mixed-state — entries imported from a plain file have `display: null`, entries typed via the UI have `display` set — and the merge handles the mix correctly.
+
+**Merge semantics: keyed by `(norm, display)`.** Within a single norm, multiple distinct displays from rich sources produce **multiple rows** in the merged view: `theirs` and `the IRS` are substitutable letter-wise in a 6-letter slot but the rich sources have deliberately split them, so the UI honors the split.
+
+`display` is treated as opaque. Two displays compare as strings; there's no content-based normalization, no "richer display wins" rule. `"THEIRS"`, `"theirs"`, `"Theirs"`, and `"the IRS"` from different sources are four distinct rows sharing one norm.
+
+Null-display contributors are **ambient**: a contributor with `display: null` participates in every merged row that shares its norm. So a plain source's entry for norm `theirs` contributes its score to both the `theirs` and `the IRS` rows if those rich variants exist. The plain entry doesn't surface as its own row — it has no display string to anchor — but it acts as a fallback contributor when no higher-priority source provides a matching display. When every contributor to a norm has `display: null`, the merged row renders `norm` (lowercase); no display is invented.
+
+The merged cache exposes `byNorm` (norm → first row sharing that norm, the lookup tools use) and `byKey` (mergeKey → row, for full disambiguation when needed). My Edits edits go through `patchCachesForEditsChange`, which invalidates the merged cache and lets `refreshWorkshopMergedScroller` rebuild from scratch. The in-place patch path that ran on plain-only entries was retired: the `(norm, display)` keying makes correct in-place patching significantly more complex, and the rebuild cost is accepted for now. Revisit when My Edits sizes or edit cadences make it visible.
+
+**Display-aware search.** Search's pattern is matched against `display` (falling back to `norm` when null) with implicit `[\W_]*` glue between every adjacent pair of pattern characters. Pattern characters are literal-required: letters case-insensitive, bare letters accent-permissive (`resume` matches `resume` and `résumé`), accented letters require a matching accent (`résumé` matches only `résumé`), spaces require a literal space, other punctuation requires the literal character. Wildcards (`?`, `*`, `#`, `@`, `[…]`) match alphanumerics only and treat punctuation/spaces as part of the glue — so `?O?` matches every letter-O-letter sequence regardless of the surrounding punctuation. Highlight ranges are emitted in display coordinates and pass through the projector untouched.
+
+The matcher compiles to a regex (`buildSearchPattern`). Bare-letter tokens expand into a character class of all Latin accent variants (precomputed at module load); accented-letter tokens stay literal under the `i` flag. The conceptual model is "walk pattern char by pattern char, tolerating non-alnum gaps" — the regex shape preserves that exactly via `[^\p{L}\p{N}]*` between adjacent pattern tokens.
+
+**Length, sort, stats — letter count always.** `wlEntry.norm.length` drives the Length column, the Length sort axis, histogram bin counts, and score-range / length-filter rule matching. `the IRS` has length 6, not 7. The crossword grid slot is letter-counted; display length never affects what fills where.
+
+**Acronym match.** The first tool to operate on word structure rather than letter sequence. Pattern is a literal acronym; matches displays whose word-initial letters spell the pattern (case-insensitive). Word boundaries: spaces always, hyphens optional (the matcher tries both interpretations, so `CO` matches `co-op` via the split and `C` matches via the join), apostrophes/periods/commas/slashes never (`don't` is one word; `DT` does not match it). No wildcards, no minimum pattern length — a single-letter pattern matches every display whose first word starts with that letter. Other rich-format tools (Initials, Has-accent, Word-count, …) ship later as the catalog grows.
+
+**Space out and rich displays.** Space out emits the joined display (e.g. `a barrel of laughs`) and the executor looks it up against the merged wordlist's `byNorm` to recover real metadata. With rich sources providing the spaced form directly (`A BARREL OF LAUGHS` already an entry), the lookup hits the rich row and the atom inherits its score, comment, and source. For a passthrough — the segmenter's best split is the original input — the tool short-circuits before any lookup and reuses the input entry directly.
+
+**Schema version bumped to 6.** The wlEntry shape change (`entry` → `{norm, display}`) is a stored-data format change, so the schema-mismatch reset prompt covers existing users.
+
 ### Sync & backup
 
 Today this is a stub. Full design lives in [`planned/sync.md`](planned/sync.md): prominent "Download All" and "Download My Edits" buttons (Tier 1 manual backup), per-cloud-provider connect/disconnect (Tier 3), disk-sync section gated on PWA install (Tier 2), recent activity log.
@@ -192,17 +229,26 @@ The `mergedWordlist` it receives is the full merged view: the score range is a *
 A tool's `run(entry, prepared, wordlist)` is a **per-row pure function** — it sees one entry's text and returns a per-row decision; the system owns the outer loop, cooperative yielding, abort, atom construction, and chain bookkeeping. Filter and transform tools carry a `run`; a group tool carries a `group` instead and is dispatched separately by `executePipeline`.
 
 - **Filter** (`kind: 'filter'`) keeps or drops the row. `run` returns `null`/`false` (drop), `true` (keep), or a `Range[]` (keep, highlighting the match); a highlighting filter's kept rows gain a same-word atom carrying those ranges.
-- **Transform** (`kind: 'transform'`) emits 0+ new entries; each output branches the row into a new chain row with an atom appended. `run` returns `TransformOutput[]` of `{ entry, inputHighlights?, outputHighlights? }`, where `entry` is a string (looked up in the merged wordlist's `byEntry` index) or `[string, score]` for a tool-synthesized entry not in any wordlist.
+- **Transform** (`kind: 'transform'`) emits 0+ new entries; each output branches the row into a new chain row with an atom appended. `run` returns `TransformOutput[]` of `{ entry, inputHighlights?, outputHighlights? }`, where `entry` is a string (looked up in the merged wordlist's `byNorm` index) or `[string, score]` for a tool-synthesized entry not in any wordlist.
 
 An optional `async prepare(params, ctx)` runs **once per stage**, after every upstream stage has finished; its return value is handed to `run` in place of the params. It's where a tool compiles a regex or pre-sorts letters once instead of per row — Search compiles its match pattern, Anagram pre-sorts its target letters — or builds an index for a heavier tool. Tools without a `prepare` get the normalized params object.
 
-`ctx` is the tool's view of the run. `ctx.wordlist` is the merged-wordlist cache (`{ entries, sourceCounts, byEntry }`; `byEntry`, a `Map<entry, wlEntry>`, is the membership index that ships today, with sorted-letter and length indexes to land as tools demand them). `ctx.input` is a lazy, read-only view of the previous stage's output as entry strings — resolved on access, so a tool that ignores it pays nothing and the executor's chain rows never leak into the tool surface; it lets a `prepare` index the surviving working set, not only the wordlist. `ctx.forEach` / `ctx.times` / `ctx.due` / `ctx.yield` / `ctx.throwIfAborted` are the cooperative-yield surface (§ Cooperative runtime). `prepare` is `async`, and carries those helpers, because indexing the wordlist is real O(N) work that has to be chunked and yielded or it freezes the tab. `run` stays narrow by contrast — synchronous, per-row, no `ctx` — so the executor keeps sole ownership of the loop, its yielding, and abort; a tool's `run` can't stall or re-drive the run.
+`ctx` is the tool's view of the run. `ctx.wordlist` is the merged-wordlist cache (`{ entries, sourceCounts, byNorm }`; `byNorm`, a `Map<entry, wlEntry>`, is the membership index that ships today, with sorted-letter and length indexes to land as tools demand them). `ctx.input` is a lazy, read-only view of the previous stage's output as entry strings — resolved on access, so a tool that ignores it pays nothing and the executor's chain rows never leak into the tool surface; it lets a `prepare` index the surviving working set, not only the wordlist. `ctx.forEach` / `ctx.times` / `ctx.due` / `ctx.yield` / `ctx.throwIfAborted` are the cooperative-yield surface (§ Cooperative runtime). `prepare` is `async`, and carries those helpers, because indexing the wordlist is real O(N) work that has to be chunked and yielded or it freezes the tab. `run` stays narrow by contrast — synchronous, per-row, no `ctx` — so the executor keeps sole ownership of the loop, its yielding, and abort; a tool's `run` can't stall or re-drive the run.
 
-**Runtime normalization.** Every wlEntry carries a single `entry` field, lowercased at parse and otherwise untouched — no separate normalized cache, no original-case backup. Tools compare against `.entry` directly. Param strings get the same treatment (`v.toLowerCase()`) at the executor boundary, so tools see canonical-lowercase input on both sides without per-call ceremony.
+**Two-field entry identity.** Every wlEntry carries `{ norm, display, score, comment }`:
 
-One field, not separate normalized caches. A two-field split — `entryLower` for case-insensitive matching, `entryNorm` for whitespace-stripped letter banks — solves a problem real wordlists don't have (they store letter-only entries with no spaces or mixed case) and would leave every `wlEntry` consumer choosing between three near-identical fields. The lone case where space-stripping actually matters is synthesized outputs from tools like `phrase_parsing` (which emit `HOT TO TROT` after parsing the run-together input), and there the spaces are *meaningful* — searching for "hottotrot" should *not* match the parsed form, because the parsing introduced the spaces as a deliberate result. One field, lowercased, spaces preserved, makes both cases work without special casing. Params follow the same rule: typing `L I N D S E Y` doesn't auto-match `LINDSEY` — if the user wanted a parsed/multi-word match, the parsing tool is the right surface for that.
+- `norm` — the canonical letter form. Lowercase `[a-z0-9]+`, accents stripped, spaces and punctuation removed. The merge key, the input letter-pattern tools (Anagrams, Behead, Curtail, Regex, …) operate on by default, the basis for `Length`/`Min`/`Max` sort.
+- `display` — the rich form as written. Set when the source carries information not recoverable from `norm` (any space, accent, punctuation, or per-entry case beyond uniform all-upper / all-lower). `null` for entries from plain wordlists, where the renderer falls back to lowercase `norm`.
 
-The original-case form of the imported file isn't preserved on wlEntries. **"Download original"** serves the raw IndexedDB blob (`idbGet('data_' + dbKey)`) byte-for-byte, since the imported file text is already stashed there by `applyWordlistText`. Reconstructing from parsed wlEntries would lose case, whitespace nuance, and any comment formatting the user had. My Edits has no "Download original" affordance — it has no imported file, only the user's accumulated edits.
+Plain wordlists in the wild collapse entries to a letter-only form (`[A-Z]+` or `[a-z]+`) with no spaces, punctuation, or accents. Rich wordlists preserve those distinctions, so `mate` and `maté` become distinct entries, `theirs` and `the IRS` carry independent scores and comments, and the Acronym match tool can read `Helen of Troy` as initials `HOT`.
+
+The naming holds across the codebase: `norm` and `display` over `canonical / raw` or `letters / written` — short in code, semantically clear, no misleading "raw" for plain sources whose raw form *is* the canonical. Tool output APIs still use the `entry` slot — that's the *string* a transform emits (typically letter-form), and the executor decides whether it lands as a `byNorm` lookup or as a synthetic `{ norm: toNorm(text), display: text === norm ? null : text }`.
+
+Param strings get lowercased at the executor boundary (raw flag opts out for regex patterns), so tools see canonical input on both sides without per-call ceremony.
+
+**Runtime input routing.** Tools that operate on letters receive `wlEntry.norm`; tools flagged `matchOn: 'display'` (Search, Acronym match) receive `displayOf(wlEntry)` instead. The executor in `runToolStage` picks the right input per stage based on the tool definition. The same flag tags any ranges the tool emits with their coordinate space (`norm` or `display`), so the renderer can project at paint time without each tool having to think about coordinates.
+
+**"Download original"** still serves the raw IndexedDB blob (`idbGet('data_' + dbKey)`) byte-for-byte, even though `display` now preserves much of what was lost before. The blob is what's most loyal to the imported file's whitespace and comment formatting, and reparsing-then-serializing would add round-trip noise. My Edits has no "Download original" affordance — it has no imported file, only accumulated edits.
 
 ### The chain-row model
 
@@ -302,7 +348,9 @@ The kind registry is open-ended — adding a new tool highlight kind is one (kin
 
 Both `WorkshopEntriesScroller` and `LibraryEntriesScroller` route through the same `renderHighlightedText`; Library has no pipeline and computes its own search ranges directly.
 
-**Range positions are in entry coordinates.** A tool emitting a highlight indexes into `wlEntry.entry` directly. Since `entry` is the lowercased form (no whitespace strip) and the renderer's `displayEntry()` only changes case, `entry.length` always equals the rendered string's length — display-coordinates and entry-coordinates coincide. Curtail's "strike through the dropped letters" range is `[entry.length - count, entry.length]`, marking the trailing characters of whatever the user sees.
+**Range positions carry their coordinate space.** Each range carries an implicit `coord` tag — `norm` for letter-pattern tools (Behead, Curtail, Anagrams, …), `display` for the two display-aware tools (Search, Acronym match). The executor in `runToolStage` tags ranges as it appends them to atoms, so tools don't have to think about coordinates. At paint time `projectRangesToDisplay` projects `norm`-tagged ranges onto the display string via a per-wlEntry `Uint16Array` (norm index → display index), so a Behead range `[0, count]` lights up the right display characters even when the display has spaces or accents between the letters. Display-tagged ranges (Search hits) pass through unchanged.
+
+On plain entries (`display === null`) the projection is the identity and the array is never built — near-zero cost on letter-only wordlists. On rich entries the array is built lazily and cached on `wlEntry._normMap`.
 
 ### Space out: phrase reconstruction via word-frequency NLP
 
@@ -335,7 +383,7 @@ The window is user-controllable via a 3-position slider param, **Splits** (One /
 
 **Synthetic-atom score = input entry's score.** The tool emits `[joined, inputScore]`-shaped synthetic outputs, picked up by the executor's existing synthetic-atom path: a `wlEntry` with `wordlist: null`, no AtomPopover edit, blank Comment/Source columns. The displayed score is the originating wordlist entry's score, not min-of-parts or the Norvig log-likelihood. Rationale: Space out is *rendering* an existing entry, not creating a new one. `ABARRELOFLAUGHS` at score 80 stays score 80 when displayed as "A BARREL OF LAUGHS" — same entry, same quality, just with spaces restored. The Norvig log-likelihood is a *ranking signal*, decoupled from display.
 
-**Downstream chain composition is undefined.** Chaining `[space_out, behead]` runs Behead on a synthetic multi-word entry like "A BARREL OF LAUGHS" — Behead looks up "BARREL OF LAUGHS" in `wordlist.byEntry`, finds nothing, drops the row. Probably degenerates harmlessly but the chained semantics are fuzzy; documented here in case a downstream tool ever wants to surface multi-word entries differently.
+**Downstream chain composition is undefined.** Chaining `[space_out, behead]` runs Behead on a synthetic multi-word entry like "A BARREL OF LAUGHS"; Behead operates on the norm (`abarreloflaughs`) which trivially has no `byNorm` entry for `barreloflaughs`, so the row drops. Probably degenerates harmlessly but the chained semantics are fuzzy; documented here in case a downstream tool ever wants to surface multi-word entries differently.
 
 ## Entries table
 
@@ -523,45 +571,36 @@ Wordlists can be hundreds of thousands of entries. Several caches keep wordlist 
 | Cache | Scope | Derived from | Cleared by |
 |---|---|---|---|
 | `wordlist._rescored` | per-wordlist | own `rawEntries` + `rescoreRules` | `invalidateRescoredCache(wordlist)` |
-| `wordlist._rescoredMap` | per-wordlist | `_rescored` (`entry` → wlEntry, for fast lookup) | `invalidateRescoredCache(wordlist)` |
+| `wordlist._rescoredMap` | per-wordlist | `_rescored` (`norm` → wlEntry, for fast lookup) | `invalidateRescoredCache(wordlist)` |
 | `wordlist._actualScores` | per-wordlist | own `rawEntries` (sorted distinct raw scores; feeds `_uncovered`) | `invalidateActualScoresCache(wordlist)` |
-| `wordlist._overrideMap` | per-wordlist | every higher-priority enabled wordlist's `_rescored` | `invalidateSourceCounts()` (clears all) |
-| `_mergedWordlistCache` | module | every enabled wordlist's `_rescored` (entries + `byEntry` map) | `invalidateSourceCounts()` |
+| `_mergedWordlistCache` | module | every enabled wordlist's `_rescored` (entries + `byNorm` + `byKey` maps) | `invalidateSourceCounts()` |
 | `_sourceCountsCache` | module | aliases `_mergedWordlistCache.sourceCounts` | `invalidateSourceCounts()` |
-| `_mergedWordlistCache._initialRows` | module (on the merged cache) | the cache's `entries` — one seed chain row each | replacing `_mergedWordlistCache`; an `entries`-structural edit in `patchCachesForEditsChange` |
+| `_mergedWordlistCache._initialChains` | module (on the merged cache) | the cache's `entries` — one seed chain row each | replacing `_mergedWordlistCache` |
 | `_statsCache` (WeakMap) | module, keyed by wordlist or `_mergedStatsKey` | a wordlist's `rawEntries` (or merged entries) | `invalidateStatsCache(key)` |
 | `_layoutCache` | module | every enabled wordlist's score distribution (via `_rescored`) | `invalidateHistogramLayout()` (called from `invalidateRescoredCache`) |
 | `_libraryColumnWidthsCache` | module, versioned by `cacheVersion$` | every source's `rawEntries` + the merged set | next `cacheVersion$` bump |
 
 Three composite helpers cover the common change patterns:
 
-- **`invalidateWordlistCaches(wordlist)`** — when a wordlist's `rawEntries` change. Clears its `_rescored`, its stats cache, merged stats, the merged caches, and every wordlist's `_overrideMap`.
-- **`invalidateSourceCounts()`** — narrower. Used when source ordering, enabled flags, names, or any `_rescored` change but `rawEntries` did not. Clears merged caches and every `_overrideMap`.
+- **`invalidateWordlistCaches(wordlist)`** — when a wordlist's `rawEntries` change. Clears its `_rescored`, its stats cache, merged stats, and the merged caches.
+- **`invalidateSourceCounts()`** — narrower. Used when source ordering, enabled flags, names, or any `_rescored` change but `rawEntries` did not. Clears the merged caches.
 - **`refreshSourceCounts()`** — invalidate then re-warm `_sourceCountsCache` (it's read by the rail meta on every dialog refresh).
 
-Override maps are invalidated globally rather than per-affected-list because tracking dependencies (which lists sit below the changed one) isn't worth the complexity. Lazy rebuild on next access keeps the unaffected views free; only what's actually rendered pays the cost. The `_mergedWordlistCache` follows the same pattern.
+The `_mergedWordlistCache` is invalidated globally rather than per-affected-list because tracking dependencies isn't worth the complexity. Lazy rebuild on next access keeps the unaffected views free; only what's actually rendered pays the cost.
 
 **Read live, don't snapshot.** Cache entries hold a `wordlist` reference rather than copying out display fields like `name`. Render-time code reads `entry.wordlist.name` so renames propagate without cache invalidation. The virtual scroller follows the same convention — `currentWordlist` is a ref, not a name string.
 
-**Lowercase keys throughout.** `_rescoredMap`, `_overrideMap`, and `_mergedWordlistCache.byEntry` are all keyed by `wlEntry.entry`, which is lowercased at parse. Map keys share storage with the wlEntry's `entry` field, so construction allocates no extra strings and lookups never need a per-call `.toLowerCase()`. Anything that looks up against these caches (e.g. `patchCachesForEditsChange(entry, ...)`) takes its `entry` parameter already-lowercased.
+**Canonical keys throughout.** `_rescoredMap` and `_mergedWordlistCache.byNorm` are keyed by `wlEntry.norm`, which is the canonical letter form computed once at parse. Map keys share storage with the wlEntry's `norm` field, so construction allocates no extra strings and lookups never need an extra normalization step. `_mergedWordlistCache.byKey` keys by `mergeKey(norm, display)` for full (norm, display) disambiguation in the rare callers that need it.
 
-**Hot path: switching wordlists.** First switch builds `_rescored` (lazy) and `_overrideMap` (lazy); subsequent switches are near-free.
+**Hot path: switching wordlists.** First switch builds `_rescored` (lazy); subsequent switches are near-free.
 
 **Hot path: editing rescore rules.** Commits go through `applyRescoreRulesChange(wordlist)`, which clears `_rescored` so the merged view picks up the new mapping. The set of distinct raw scores in the data — needed to compute `_uncovered` — does not depend on rules, so it lives on `wordlist._actualScores` and survives rule edits. The keystroke preview path also compiles rules once before handing them to the Library entries scroller, so the per-row `rescoreEntry` walk reads compiled intervals instead of re-parsing strings; for Broda-sized wordlists (~500K entries) that's millions of regex calls saved per keystroke.
 
-**Hot path: editing My Edits.** Score and comment edits, new-entry adds, and deletes all flow through `patchCachesForEditsChange(entry, newEditsWlEntry)`. It mutates the affected `_overrideMap` entries and the matching slot in `_mergedWordlistCache.byEntry` instead of triggering a full rebuild. No `buildMergedWordlist` walks across all sources per keystroke.
+**Hot path: editing My Edits.** Score and comment edits, new-entry adds, and deletes all route through `patchCachesForEditsChange`, which invalidates the merged cache; `refreshWorkshopMergedScroller` then re-runs the pipeline against the freshly-rebuilt cache. The earlier in-place patch path that mutated `_mergedWordlistCache.byNorm` in-place was retired with the rich-entry shift: the `(norm, display)` keying makes correct in-place patching significantly more complex, and the rebuild cost is accepted for now. Revisit when My Edits sizes or edit cadences make the cost visible.
 
-The patch is structured around three observations:
+**Hot path: typing in search.** Per-keystroke filtering is sized to avoid the two costs that dominate large wordlists — normalizing the entry and re-sorting the filtered result. The caches involved are scroller-internal (not in the table above): they belong to the active `WorkshopEntriesScroller` / `LibraryEntriesScroller` instance and end with the scroller's life.
 
-- If a higher-priority wordlist also has `entry` (`buildOverrideMap(edits).has(entry)`), edits is overshadowed and never appears in any cache — nothing to patch.
-- For ADD and UPDATE, edits becomes the contributor for `entry` in every override map below it; for the merged cache, an existing entry's `wordlist` reference is reassigned (with source-count adjustments) or a new entry is bisect-inserted into the sorted `entries` array.
-- For DELETE, walk down from edits's position to find the next enabled wordlist with `entry` (using a lazily-built `wordlist._rescoredMap`). Override maps for positions ≤ next contributor's position drop the entry; positions below adopt next's value. The merged entry is reassigned to next, or removed if no contributor remains.
-
-`_mergedWordlistCache` keeps a `byEntry` Map alongside `entries`; both share the same wlEntry objects, so patching via `byEntry` is visible in `entries`. An ADD or DELETE that structurally changes the `entries` array also nulls the cache's `_initialRows` — the executor's pre-built seed rows — since that derived array would otherwise no longer match. The merged-view refresh chooses between in-place refilter and full rebuild depending on whether the patch reused the entries array. `refreshDerivedDisplays()` is the post-patch counterpart to `refreshSourceCounts()` — it repaints the rail meta and the scroller's score-atom tier tooltips without invalidating any caches.
-
-**Hot path: typing in search.** Per-keystroke filtering is sized to avoid the two costs that dominate large wordlists — lowercasing the entry and re-sorting the filtered result. The caches involved are scroller-internal (not in the table above): they belong to the active `WorkshopEntriesScroller` / `LibraryEntriesScroller` instance and end with the scroller's life.
-
-- Every `wlEntry` carries a single `entry` field, lowercased at parse and at every mutation path. Filters read `.entry` directly — no per-keystroke `.toLowerCase()` allocation across hundreds of thousands of entries. For source wordlists with uppercase entries (e.g. Broda), the lowercase form is allocated once at parse; the original-case file content is preserved separately as a raw blob in IndexedDB for "Download original" but isn't stored on the wlEntry. Merged-map entries and My Edits-edited entries share the same `entry` field with no duplication.
+- Every `wlEntry` carries `norm` and `display` set once at parse. Filters read those directly — no per-keystroke normalization across hundreds of thousands of entries. Merged-map entries and My Edits-edited entries share the same `norm` field with no duplication.
 - The Workshop scroller keeps `_sortedSource` — `allEntries` sorted by the current `sortKey`/`sortDir`. `.filter()` preserves order, so the filter result is already sorted and the post-filter sort drops out.
 - The Library scroller splits work two ways. `_baseRows` holds the unfiltered row data — `_buildRows()` walks `rawEntries` and applies `rescoreEntry`, and that result is rebuilt only on `setWordlist` / `setMode` / `setRescorePreview`. `_sortedBaseRows` is its sorted view, rebuilt on sort change. `setQuery` runs neither — it just refilters the cached sorted source.
 

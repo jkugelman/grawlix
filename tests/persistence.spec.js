@@ -42,9 +42,9 @@ test('a custom wordlist survives a page reload with its entries and rules intact
   const wl = await page.evaluate(() => window.__grawlixTest.getWordlist('Persist'));
   expect(wl.populated).toBe(true);
   expect(wl.entries).toEqual([
-    { entry: 'aardvark', score: 10, comment: '' },
-    { entry: 'bagel',    score: 50, comment: '' },
-    { entry: 'carrot',   score: 90, comment: '' },
+    { entry: 'aardvark', display: null, score: 10, comment: '' },
+    { entry: 'bagel',    display: null, score: 50, comment: '' },
+    { entry: 'carrot',   display: null, score: 90, comment: '' },
   ]);
 
   // Rules came back intact — including the length filter, which lives in
@@ -62,7 +62,7 @@ test('a custom wordlist survives a page reload with its entries and rules intact
   // first rule. Proves the IndexedDB read path
   // (`idbGet('data_' + dbKey)`) reattached and the rules are wired into
   // the merge.
-  expect(await page.evaluate(() => window.__grawlixTest.getMergedEntry('BAGEL'))).toEqual({
+  expect(await page.evaluate(() => window.__grawlixTest.getMergedEntry('BAGEL'))).toMatchObject({
     entry: 'bagel', score: 40, comment: '', wordlist: 'Persist',
   });
 });

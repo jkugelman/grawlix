@@ -89,7 +89,7 @@ test('Wordlist dedups by tail entry using max-of-mins', async ({ page }) => {
   await addFixture(page);
 
   const { text, count } = await page.evaluate(() => {
-    const make = (e, s) => ({ wlEntry: { entry: e, score: s, comment: '', wordlist: null } });
+    const make = (e, s) => ({ wlEntry: { norm: e, display: null, score: s, comment: '', wordlist: null } });
     const rows = [
       { atoms: [make('alpha', 30), make('shared', 60)] },
       { atoms: [make('bravo', 50), make('shared', 60)] },
@@ -106,7 +106,7 @@ test('Wordlist drops entries containing semicolons and reports the skipped count
   await addFixture(page);
 
   const result = await page.evaluate(() => {
-    const make = (e, s) => ({ wlEntry: { entry: e, score: s, comment: '', wordlist: null } });
+    const make = (e, s) => ({ wlEntry: { norm: e, display: e.includes(';') ? e : null, score: s, comment: '', wordlist: null } });
     const rows = [
       { atoms: [make('cat', 50)] },
       { atoms: [make('bad;entry', 60)] },

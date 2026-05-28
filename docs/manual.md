@@ -27,7 +27,6 @@ Workshop's card, top to bottom:
 The gear in the header opens **Settings**:
 
 - **Dark mode** — Auto (follow your OS), Light, or Dark.
-- **Display case** — Show entries in `lower` or `UPPER` case throughout the app.
 - **Auto-update wordlists** — Update wordlists without asking. On by default.
 - **Reset all data** — Wipes all wordlists and settings and reloads the app.
 
@@ -48,6 +47,8 @@ The gear in the header opens **Settings**:
 - `*` — any substring
 - `[abc]` — character class
 - Whole-word toggle anchors the pattern.
+
+Patterns match against each entry's display text, with spaces, hyphens, and punctuation in the data treated as optional gaps between pattern characters: `theirs` matches both `theirs` and `the IRS`; `co-op` matches `co-op` and `co - op` but not `coop` (the hyphen is required); a bare letter matches accented variants too (`resume` matches both `resume` and `résumé`), but typing the accent narrows the match (`résumé` matches only `résumé`).
 
 Focus any search box and this cheat sheet pops up above it. The Regex tool's pattern and replacement boxes show regex-specific cheat sheets instead, each linking out to [regexone.com](https://regexone.com/) for the syntax a popover can't cover.
 
@@ -158,7 +159,7 @@ The highest-severity bubble across all wordlists propagates up to the **Library*
 
 **Renaming.** Focus a wordlist card and press **F2** to rename inline.
 
-**Downloads.** Each wordlist (and All) has its own Download button. On sources, the Rescored/Original toggle decides whether you get the file as imported or as rescored.
+**Downloads.** Each wordlist (and All) has its own Download button. On sources, the Rescored/Original toggle decides whether you get the file as imported or as rescored. The Download dialog also picks a **case mode**: *As is* (rich entries preserved, plain entries emitted lowercase), *Normalize to lowercase* (`[a-z0-9]+`, spaces and accents stripped), or *Normalize to uppercase* (`[A-Z0-9]+`, same stripping). The two Normalize modes feed downstream tools that expect letter-only entries; *As is* is for backup and inspection.
 
 **Onboarding banner.** First-run users see a short 3-page sequence at the top of the wordlist list: a welcome confirming the pre-loaded popular wordlists, then optional prompts to import a personal wordlist into My Edits and to import an XWI subscriber file. Each prompt has a *Skip*; the ✕ ends the whole flow. (You won't see it until you visit Library.)
 
@@ -180,3 +181,11 @@ One entry per line:
 ENTRY;SCORE
 ENTRY;SCORE;COMMENT
 ```
+
+**Plain vs. rich wordlists.** Older wordlists strip everything to letters (`THEIRS`, `COOP`); newer **rich** wordlists preserve spaces, accents, punctuation, and mixed case (`the IRS`, `co-op`, `Mötley Crüe`, `Helen of Troy`). Grawlix supports both freely. The format detector treats a file as plain when at least 99% of entries are uniformly `[a-z0-9]+` or `[A-Z0-9]+`; otherwise it treats the file as rich and shows entries as written. The few features that depend on rich form — the Acronym match tool's word boundaries, the search syntax's literal-space/hyphen rules above — light up automatically when the data carries the detail.
+
+Within Grawlix, mate / maté / Mate / and MATE are distinct entries when they come from rich sources but collapse to one row when the data only contains the letter form. Each variant keeps its own score and comment.
+
+## Acronym match
+
+Available in the tool gallery. Type an acronym; results are entries whose word-initial letters spell it. Spaces split words unconditionally; hyphens act as optional boundaries so `co-op` reads as both one word (`C` matches) and two (`CO` matches); apostrophes and other inline punctuation stay inside the word (`DT` does not match `don't`). Single-letter patterns match every entry whose first word starts with that letter — surface-level but not wrong; narrow with another tool if it's noisy.

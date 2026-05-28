@@ -61,7 +61,7 @@ async function addTool(page, toolKey) {
   await page.locator('#tool-picker-search').click();
   await expect(page.locator('#featured-row')).toHaveClass(/expanded/);
   await page.evaluate((key) => {
-    document.querySelector(`#featured-row .picker-gallery .gallery-card[data-tool="${key}"]`)?.click();
+    document.querySelector(`#featured-row .picker-gallery .tool-card[data-tool="${key}"]`)?.click();
   }, toolKey);
   await expect(page.locator('#featured-row')).not.toHaveClass(/expanded/);
 }

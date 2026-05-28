@@ -29,13 +29,13 @@ test('higher-positioned wordlist wins the override for a shared entry', async ({
 
   // High wins.
   const before = await page.evaluate(() => window.__grawlixTest.getMergedEntry('BAGEL'));
-  expect(before).toEqual({ entry: 'bagel', score: 90, comment: '', wordlist: 'High' });
+  expect(before).toMatchObject({ entry: 'bagel', score: 90, comment: '', wordlist: 'High' });
 
   // Reorder Low above High → Low wins. Routes through reorderSources, the
   // same code path drag reordering uses.
   await page.evaluate(() => window.__grawlixTest.moveBefore('Low', 'High'));
   const after = await page.evaluate(() => window.__grawlixTest.getMergedEntry('BAGEL'));
-  expect(after).toEqual({ entry: 'bagel', score: 50, comment: '', wordlist: 'Low' });
+  expect(after).toMatchObject({ entry: 'bagel', score: 50, comment: '', wordlist: 'Low' });
 });
 
 test('disabling a wordlist excludes its entries from All; re-enabling restores them', async ({ page }) => {

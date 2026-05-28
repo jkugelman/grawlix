@@ -30,5 +30,5 @@ test('non-letter characters in an entry are skipped, not counted as repeats', as
   }));
   await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'isograms' }]));
 
-  expect(await visible(page)).toEqual(['jack-o']);
+  expect(await visible(page)).toEqual(['JACK-O']);
 });

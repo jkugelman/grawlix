@@ -1,6 +1,7 @@
 CLAUDE.local.md
 TODO.md
 settings.local.json
+.claude/scheduled_tasks.lock
 .claude/skills/mobile-server/
 
 # Build output

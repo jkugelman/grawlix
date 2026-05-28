@@ -761,7 +761,7 @@ test('only one group tool per pipeline — Group button disabled, URL dedups', a
   const stack = await page.evaluate(() => ToolStack.getUserStack().map(r => ({ tool: r.tool, grouped: r.grouped })));
   expect(stack).toEqual([{ tool: 'letter_bank', grouped: true }]);
 
-  await expect(page.locator('.gallery-card-group-btn[data-group-tool="anagrams"]')).toHaveClass(/disabled/);
+  await expect(page.locator('.tool-card-group-btn[data-group-tool="anagrams"]')).toHaveClass(/disabled/);
 });
 
 test('grouped tool exposes its tool-defined sort axis', async ({ page }) => {
