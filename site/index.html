@@ -833,8 +833,8 @@ body.picker-expanded #picker-backdrop { opacity: 1; }
 .picker-close:hover { color: var(--text); border-color: var(--accent); }
 
 .featured-cards { display: grid; gap: 8px; justify-content: center; }
-.picker-gallery { position: absolute; top: 100%; left: 0; right: 0; max-height: 0; overflow: hidden; transition: max-height 240ms ease; background: var(--surface); border-bottom: 0 solid var(--border); z-index: 100; }
-#featured-row.expanded .picker-gallery { max-height: 65vh; overflow-y: auto; border-bottom-width: 1px; }
+.picker-gallery { position: absolute; top: 100%; left: 0; right: 0; max-height: 0; overflow-y: auto; scrollbar-gutter: stable; transition: max-height 240ms ease; background: var(--surface); border-bottom: 0 solid var(--border); z-index: 100; }
+#featured-row.expanded .picker-gallery { max-height: 65vh; border-bottom-width: 1px; }
 .picker-gallery-inner { padding: 14px; display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 10px; align-content: start; }
 
 .featured-card { position: relative; border: 1px solid var(--border); border-radius: 6px; padding: 10px 12px; background: var(--surface2); cursor: pointer; user-select: none; display: flex; flex-direction: column; min-width: 0; transition: background 0.1s, border-color 0.1s, box-shadow 0.1s; }
