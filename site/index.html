@@ -831,16 +831,16 @@ body.picker-expanded #picker-backdrop { opacity: 1; }
 .featured-cards { display: grid; gap: 8px; justify-content: center; }
 .picker-gallery { position: absolute; top: 100%; left: 0; right: 0; max-height: 0; overflow-y: auto; scrollbar-gutter: stable; transition: max-height 240ms ease; background: var(--surface); border-bottom: 0 solid var(--border); z-index: 100; }
 #featured-row.expanded .picker-gallery { max-height: 65vh; border-bottom-width: 1px; }
-.picker-gallery-inner { padding: 14px; display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 10px; align-content: start; }
+.picker-gallery-inner { padding: 32px; display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 200px)); gap: 8px; justify-content: center; align-content: start; }
 
-.featured-card { position: relative; border: 1px solid var(--border); border-radius: 6px; padding: 10px 12px; background: var(--surface2); cursor: pointer; user-select: none; display: flex; flex-direction: column; min-width: 0; transition: background 0.1s, border-color 0.1s, box-shadow 0.1s; }
-.featured-card:hover { background: var(--hover); border-color: var(--accent); }
-.featured-card.active { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
-.featured-card.disabled { cursor: not-allowed; opacity: 0.4; }
-.featured-card.disabled:hover { background: var(--surface2); border-color: var(--border); }
-.featured-card-name { font-size: 12.5px; font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.featured-card-desc { font-size: 11px; color: var(--muted); margin-top: 4px; height: 2.6em; line-height: 1.3; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; }
-.featured-card-example { font-family: var(--font-mono); font-size: 11px; color: var(--faint); margin-top: auto; padding-top: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tool-card { position: relative; border: 1px solid var(--border); border-radius: 6px; padding: 10px 12px; background: var(--surface2); cursor: pointer; user-select: none; display: flex; flex-direction: column; min-width: 0; transition: background 0.1s, border-color 0.1s, box-shadow 0.1s; }
+.tool-card:hover { background: var(--hover); border-color: var(--accent); }
+.tool-card.active { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.tool-card.disabled { cursor: not-allowed; opacity: 0.4; }
+.tool-card.disabled:hover { background: var(--surface2); border-color: var(--border); }
+.tool-card-name { font-size: 12.5px; font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tool-card-desc { font-size: 11px; color: var(--muted); margin-top: 4px; height: 2.6em; line-height: 1.3; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; }
+.tool-card-example { font-family: var(--font-mono); font-size: 11px; color: var(--faint); margin-top: auto; padding-top: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 .featured-more-tile { display: flex; flex-direction: column; align-items: center; justify-content: center; border: 1px dashed var(--border); border-radius: 6px; padding: 10px 12px; background: transparent; color: var(--muted); font: inherit; cursor: pointer; min-width: 0; transition: background 0.1s, border-color 0.1s, color 0.1s; }
 .featured-more-tile:hover { border-color: var(--accent); color: var(--accent); background: var(--hover); }
@@ -848,13 +848,14 @@ body.picker-expanded #picker-backdrop { opacity: 1; }
 .featured-more-tile-label { font-size: 11px; font-weight: 600; color: inherit; margin-top: 3px; }
 
 @media (max-width: 759px) {
-  #featured-row { padding: 14px 16px 18px; }
+  #featured-row, .picker-gallery-inner { padding: 14px 16px 18px; }
+  .picker-gallery-inner { grid-template-columns: repeat(auto-fill, 130px); justify-content: start; }
   .picker-bar { grid-template-columns: 1fr auto; }
   .picker-search-wrap { grid-column: 1; justify-self: stretch; width: 100%; }
   .picker-close { grid-column: 2; }
   .featured-cards { display: flex; overflow-x: auto; scrollbar-width: none; }
   .featured-cards::-webkit-scrollbar { display: none; }
-  .featured-card, .featured-more-tile { flex: 0 0 130px; }
+  .tool-card, .featured-more-tile { flex: 0 0 130px; }
 }
 
 
@@ -863,17 +864,7 @@ body.picker-expanded #picker-backdrop { opacity: 1; }
 .gallery-empty { grid-column: 1 / -1; border: 1px dashed var(--border); border-radius: 6px; padding: 18px 14px; text-align: center; color: var(--muted); }
 .gallery-empty p { font-size: 13px; font-weight: 600; color: var(--text); margin-bottom: 4px; }
 .gallery-empty small { font-size: 11px; line-height: 1.5; display: block; }
-.gallery-card { position: relative; border: 1px solid var(--border); border-radius: 6px; padding: 9px 12px; background: var(--surface2); cursor: pointer; user-select: none; transition: background 0.1s, border-color 0.1s, box-shadow 0.1s; }
-.gallery-card:hover { background: var(--hover); border-color: var(--accent); }
-.gallery-card.active { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
-.gallery-card.disabled { cursor: not-allowed; opacity: 0.4; }
-.gallery-card.disabled:hover { background: var(--surface2); border-color: var(--border); }
-.gallery-card-name { font-size: 13px; font-weight: 600; color: var(--text); }
-.gallery-card-desc { font-size: 11px; color: var(--muted); margin-top: 2px; }
-.gallery-card-example { font-family: var(--font-mono); font-size: 11px; color: var(--faint); margin-top: 5px; overflow-wrap: anywhere; }
-.gallery-section-label + .gallery-card { margin-top: 0; }
-.gallery-card + .gallery-section-label { margin-top: 6px; }
-.gallery-card-group-btn {
+.tool-card-group-btn {
   position: absolute; top: 6px; right: 6px;
   font: inherit; font-size: 10px; line-height: 1;
   padding: 2px 6px;
@@ -881,10 +872,10 @@ body.picker-expanded #picker-backdrop { opacity: 1; }
   background: var(--surface2); color: var(--muted);
   cursor: pointer;
 }
-.gallery-card-group-btn:hover { border-color: var(--accent); color: var(--accent); background: var(--hover); }
-.gallery-card-group-btn.active { border-color: var(--accent); color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
-.gallery-card-group-btn.disabled { cursor: not-allowed; opacity: 0.4; }
-.gallery-card-group-btn.disabled:hover { background: var(--surface2); border-color: var(--border); color: var(--muted); }
+.tool-card-group-btn:hover { border-color: var(--accent); color: var(--accent); background: var(--hover); }
+.tool-card-group-btn.active { border-color: var(--accent); color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.tool-card-group-btn.disabled { cursor: not-allowed; opacity: 0.4; }
+.tool-card-group-btn.disabled:hover { background: var(--surface2); border-color: var(--border); color: var(--muted); }
 
 #tool-stack { background: var(--surface2); position: relative; }
 /* Tool rows and the search bar share min-height so a row with no params
@@ -2416,7 +2407,7 @@ function displayEntry(entry) {
 }
 
 function refreshToolExampleCase() {
-  document.querySelectorAll('.featured-card[data-tool] .featured-card-example, .gallery-card[data-tool] .gallery-card-example').forEach(el => {
+  document.querySelectorAll('.tool-card[data-tool] .tool-card-example').forEach(el => {
     const tool = TOOLS[el.closest('[data-tool]').dataset.tool];
     if (tool) el.textContent = displayEntry(tool.example);
   });
@@ -5475,13 +5466,13 @@ const ToolStack = (() => {
 
   function buildGalleryCardHTML(toolKey, tool) {
     const groupBtn = tool.group
-      ? `<button type="button" class="gallery-card-group-btn" data-group-tool="${esc(toolKey)}" title="Add grouped variant">Grouped</button>`
+      ? `<button type="button" class="tool-card-group-btn" data-group-tool="${esc(toolKey)}" title="Add grouped variant">Grouped</button>`
       : '';
-    return `<div class="gallery-card" data-tool="${esc(toolKey)}">
+    return `<div class="tool-card" data-tool="${esc(toolKey)}">
       ${groupBtn}
-      <div class="gallery-card-name">${buildToolLabelHTML(tool)}</div>
-      <div class="gallery-card-desc">${esc(tool.desc)}</div>
-      <div class="gallery-card-example">${esc(displayEntry(tool.example))}</div>
+      <div class="tool-card-name">${buildToolLabelHTML(tool)}</div>
+      <div class="tool-card-desc">${esc(tool.desc)}</div>
+      <div class="tool-card-example">${esc(displayEntry(tool.example))}</div>
     </div>`;
   }
 
@@ -5499,10 +5490,10 @@ const ToolStack = (() => {
   }
 
   function buildFeaturedCardHTML(toolKey, tool) {
-    return `<div class="featured-card" data-tool="${esc(toolKey)}">
-      <div class="featured-card-name">${buildToolLabelHTML(tool)}</div>
-      <div class="featured-card-desc">${esc(tool.desc)}</div>
-      <div class="featured-card-example">${esc(displayEntry(tool.example))}</div>
+    return `<div class="tool-card" data-tool="${esc(toolKey)}">
+      <div class="tool-card-name">${buildToolLabelHTML(tool)}</div>
+      <div class="tool-card-desc">${esc(tool.desc)}</div>
+      <div class="tool-card-example">${esc(displayEntry(tool.example))}</div>
     </div>`;
   }
 
@@ -5521,12 +5512,14 @@ const ToolStack = (() => {
 
   function relayoutFeaturedRow(container) {
     const CARD_MIN = 140, CARD_MAX = 200, GAP = 8;
-    const cards = container.querySelectorAll('.featured-card');
+    const cards = container.querySelectorAll('.tool-card');
     const moreCountEl = container.querySelector('.featured-more-tile-count');
     const totalTools = Object.keys(TOOLS).length;
+    const drawer = document.querySelector('#featured-row .picker-gallery-inner');
     if (window.matchMedia('(max-width: 759px)').matches) {
       cards.forEach(c => { c.hidden = false; });
       container.style.gridTemplateColumns = '';
+      if (drawer) drawer.style.gridTemplateColumns = '';
       moreCountEl.textContent = `+${totalTools - FEATURED_TOOLS.length}`;
       return;
     }
@@ -5535,7 +5528,9 @@ const ToolStack = (() => {
     maxN = Math.min(maxN, FEATURED_TOOLS.length);
     cards.forEach((c, i) => { c.hidden = i >= maxN; });
     moreCountEl.textContent = `+${totalTools - maxN}`;
-    container.style.gridTemplateColumns = `repeat(${maxN + 1}, minmax(${CARD_MIN}px, ${CARD_MAX}px))`;
+    const template = `repeat(${maxN + 1}, minmax(${CARD_MIN}px, ${CARD_MAX}px))`;
+    container.style.gridTemplateColumns = template;
+    if (drawer) drawer.style.gridTemplateColumns = template;
   }
 
   // Used by mountWorkshopPanel for the initial render. Mutations after that
@@ -5571,11 +5566,11 @@ const ToolStack = (() => {
     const activeFlat = new Set(userStack.filter(r => !r.grouped).map(r => r.tool));
     const activeGrouped = new Set(userStack.filter(r => r.grouped).map(r => r.tool));
     const groupTaken = userStack.some(r => r.grouped);
-    document.querySelectorAll('.gallery-card[data-tool], .featured-card[data-tool]').forEach(card => {
+    document.querySelectorAll('.tool-card[data-tool]').forEach(card => {
       card.classList.toggle('active', activeFlat.has(card.dataset.tool));
       card.removeAttribute('title');
     });
-    document.querySelectorAll('.gallery-card-group-btn[data-group-tool]').forEach(btn => {
+    document.querySelectorAll('.tool-card-group-btn[data-group-tool]').forEach(btn => {
       const key = btn.dataset.groupTool;
       const isActive = activeGrouped.has(key);
       btn.classList.toggle('active', isActive);
@@ -5672,13 +5667,13 @@ const ToolStack = (() => {
           ToolPicker.open();
           return;
         }
-        const card = e.target.closest('.featured-card[data-tool]');
+        const card = e.target.closest('.tool-card[data-tool]');
         if (!card || card.classList.contains('disabled')) return;
         const toolKey = card.dataset.tool;
         if (!TOOLS[toolKey]) return;
         ToolPicker.pick(toolKey);
       });
-      featuredCards.querySelectorAll('.featured-card').forEach(card => {
+      featuredCards.querySelectorAll('.tool-card').forEach(card => {
         card.addEventListener('mouseenter', () => {
           if (!card.classList.contains('disabled')) showInsertCursor();
         });
@@ -5838,7 +5833,7 @@ const ToolPicker = (() => {
   function applyFilter() {
     const q = searchInput.value.trim().toLowerCase();
     let visibleCount = 0;
-    gallery.querySelectorAll('.gallery-card[data-tool]').forEach(card => {
+    gallery.querySelectorAll('.tool-card[data-tool]').forEach(card => {
       const tool = TOOLS[card.dataset.tool];
       if (!tool) { card.hidden = true; return; }
       const match = !q || (tool.name + ' ' + (tool.desc || '')).toLowerCase().includes(q);
@@ -5849,7 +5844,7 @@ const ToolPicker = (() => {
       let next = label.nextElementSibling;
       let any = false;
       while (next && !next.classList.contains('gallery-section-label')) {
-        if (next.classList.contains('gallery-card') && !next.hidden) { any = true; break; }
+        if (next.classList.contains('tool-card') && !next.hidden) { any = true; break; }
         next = next.nextElementSibling;
       }
       label.hidden = !any;
@@ -5910,7 +5905,7 @@ const ToolPicker = (() => {
   searchInput.addEventListener('keydown', (e) => {
     if (e.key !== 'Enter') return;
     e.preventDefault();
-    const first = gallery.querySelector('.gallery-card[data-tool]:not([hidden]):not(.disabled)');
+    const first = gallery.querySelector('.tool-card[data-tool]:not([hidden]):not(.disabled)');
     if (!first) return;
     pick(first.dataset.tool);
   });
@@ -5924,7 +5919,7 @@ const ToolPicker = (() => {
   };
 
   gallery.addEventListener('click', (e) => {
-    const groupBtn = e.target.closest('.gallery-card-group-btn[data-group-tool]');
+    const groupBtn = e.target.closest('.tool-card-group-btn[data-group-tool]');
     if (groupBtn) {
       e.stopPropagation();
       if (groupBtn.classList.contains('disabled')) return;
@@ -5933,7 +5928,7 @@ const ToolPicker = (() => {
       pick(key, { grouped: true });
       return;
     }
-    const card = e.target.closest('.gallery-card[data-tool]');
+    const card = e.target.closest('.tool-card[data-tool]');
     if (!card || card.classList.contains('disabled')) return;
     const key = card.dataset.tool;
     if (!TOOLS[key]) return;
