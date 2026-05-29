@@ -2293,8 +2293,23 @@ function wrapWordlist(wl) {
 
 // ─── Parsing ─────────────────────────────────────────────────────────────────
 
+const FOLD_MAP = {
+  'ß': 'ss',
+  'ø': 'o',  'Ø': 'O',
+  'æ': 'ae', 'Æ': 'AE',
+  'œ': 'oe', 'Œ': 'OE',
+  'þ': 'th', 'Þ': 'TH',
+  'ð': 'd',  'Ð': 'D',
+  'ł': 'l',  'Ł': 'L',
+  'đ': 'd',  'Đ': 'D',
+  'ı': 'i',  'İ': 'I',
+};
+const FOLD_RE = new RegExp(`[${Object.keys(FOLD_MAP).join('')}]`, 'g');
+
 function stripAccents(s) {
-  return s.normalize('NFKD').replace(/[̀-ͯ]/g, '');
+  return s.replace(FOLD_RE, c => FOLD_MAP[c])
+          .normalize('NFKD')
+          .replace(/\p{M}/gu, '');
 }
 
 function toNorm(s) {
