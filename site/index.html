@@ -5679,20 +5679,35 @@ const ToolStack = (() => {
     return html;
   }
 
+  function allModeTooltip({ blocked, active, kind }) {
+    if (active) return kind === 'corner' ? 'Already showing all' : 'Show one';
+    if (blocked) return 'Only one tool can show all at a time';
+    return 'Show all';
+  }
+
+  function applyAllModeButtonState(btn, { blocked, active, kind }) {
+    btn.classList.toggle('active', !!active);
+    btn.classList.toggle('disabled', !!blocked);
+    const title = allModeTooltip({ blocked, active, kind });
+    btn.title = title;
+    btn.setAttribute('aria-label', title);
+    if (kind === 'toggle') btn.setAttribute('aria-pressed', String(!!active));
+  }
+
   function buildAllToggleHTML(rowIdx, active, blocked) {
     const cls = ['tool-row-all-toggle'];
     if (active) cls.push('active');
     if (blocked) cls.push('disabled');
-    const title = blocked ? 'Only one tool can show all values at a time'
-                          : (active ? 'Show one value' : 'Show all values');
+    const title = allModeTooltip({ blocked, active, kind: 'toggle' });
     return `<button type="button" class="${cls.join(' ')}" data-all-toggle="${rowIdx}"`
       + ` title="${esc(title)}" aria-pressed="${active}" aria-label="${esc(title)}">`
       + `<span class="ast-glyph" aria-hidden="true">✱</span></button>`;
   }
 
   function buildGalleryCardHTML(toolKey, tool) {
+    const title = allModeTooltip({ blocked: false, active: false, kind: 'corner' });
     const allBtn = tool.group
-      ? `<button type="button" class="tool-card-all-btn" data-all-tool="${esc(toolKey)}" title="Show all values" aria-label="Show all values">✱</button>`
+      ? `<button type="button" class="tool-card-all-btn" data-all-tool="${esc(toolKey)}" title="${esc(title)}" aria-label="${esc(title)}">✱</button>`
       : '';
     return `<div class="tool-card" data-tool="${esc(toolKey)}">
       ${allBtn}
@@ -5801,15 +5816,11 @@ const ToolStack = (() => {
       card.removeAttribute('title');
     });
     document.querySelectorAll('.tool-card-all-btn[data-all-tool]').forEach(btn => {
-      const key = btn.dataset.allTool;
-      const isMine = inAllMode.has(key);
-      btn.classList.toggle('active', isMine);
-      btn.classList.toggle('disabled', allTaken);
-      const title = isMine ? 'Already showing all values'
-                  : allTaken ? 'Only one tool can show all values at a time'
-                  : 'Show all values';
-      btn.title = title;
-      btn.setAttribute('aria-label', title);
+      applyAllModeButtonState(btn, {
+        blocked: allTaken,
+        active: inAllMode.has(btn.dataset.allTool),
+        kind: 'corner',
+      });
     });
   }
 
@@ -5886,10 +5897,7 @@ const ToolStack = (() => {
     const wrap = rowEl?.querySelector('.clearable-input.has-all-toggle');
     const btn = rowEl?.querySelector('.tool-row-all-toggle');
     if (wrap && btn) {
-      btn.classList.toggle('active', turningOn);
-      btn.setAttribute('aria-pressed', String(turningOn));
-      btn.title = turningOn ? 'Show one value' : 'Show all values';
-      btn.setAttribute('aria-label', btn.title);
+      applyAllModeButtonState(btn, { blocked: false, active: turningOn, kind: 'toggle' });
       wrap.classList.toggle('all-on', turningOn);
       const input = wrap.querySelector('input');
       const firstParam = row.def.params[0];
@@ -5918,12 +5926,11 @@ const ToolStack = (() => {
       const otherBtn = el.querySelector('.tool-row-all-toggle');
       if (!otherBtn) return;
       const otherRow = stack[i];
-      const blocked = !otherRow.grouped && groupTaken;
-      otherBtn.classList.toggle('disabled', blocked);
-      const title = blocked ? 'Only one tool can show all values at a time'
-                            : (otherRow.grouped ? 'Show one value' : 'Show all values');
-      otherBtn.title = title;
-      otherBtn.setAttribute('aria-label', title);
+      applyAllModeButtonState(otherBtn, {
+        blocked: !otherRow.grouped && groupTaken,
+        active: !!otherRow.grouped,
+        kind: 'toggle',
+      });
     });
   }
 
