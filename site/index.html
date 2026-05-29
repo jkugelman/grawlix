@@ -892,18 +892,20 @@ body.picker-expanded #picker-backdrop { opacity: 1; }
 .gallery-empty { grid-column: 1 / -1; border: 1px dashed var(--border); border-radius: 6px; padding: 18px 14px; text-align: center; color: var(--muted); }
 .gallery-empty p { font-size: 13px; font-weight: 600; color: var(--text); margin-bottom: 4px; }
 .gallery-empty small { font-size: 11px; line-height: 1.5; display: block; }
-.tool-card-group-btn {
-  position: absolute; top: 6px; right: 6px;
-  font: inherit; font-size: 10px; line-height: 1;
-  padding: 2px 6px;
-  border: 1px solid var(--border); border-radius: 3px;
-  background: var(--surface2); color: var(--muted);
-  cursor: pointer;
+.tool-card-all-btn {
+  position: absolute; top: 3px; right: 4px;
+  background: none; border: none;
+  font: inherit; font-size: 13px; line-height: 1;
+  padding: 3px 5px; border-radius: 4px;
+  color: var(--faint); cursor: pointer;
+  transition: color 0.15s, background 0.15s;
 }
-.tool-card-group-btn:hover { border-color: var(--accent); color: var(--accent); background: var(--hover); }
-.tool-card-group-btn.active { border-color: var(--accent); color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
-.tool-card-group-btn.disabled { cursor: not-allowed; opacity: 0.4; }
-.tool-card-group-btn.disabled:hover { background: var(--surface2); border-color: var(--border); color: var(--muted); }
+.tool-card-all-btn:hover { color: var(--accent); background: var(--hover); }
+.tool-card-all-btn.active { color: var(--accent); }
+.tool-card-all-btn.disabled { cursor: not-allowed; opacity: 0.35; }
+.tool-card-all-btn.disabled:hover { color: var(--faint); background: none; }
+.tool-card-all-btn.disabled.active { opacity: 1; }
+.tool-card-all-btn.disabled.active:hover { color: var(--accent); background: none; }
 
 #tool-stack { background: var(--surface2); position: relative; }
 /* Tool rows and the search bar share min-height so a row with no params
@@ -974,9 +976,22 @@ body.picker-expanded #picker-backdrop { opacity: 1; }
 .tool-row-range-ticks { display: flex; justify-content: space-between; font-size: 10px; line-height: 1; color: var(--faint); padding: 0 2px; }
 .clearable-input { position: relative; display: inline-flex; align-items: center; }
 .clearable-input .clear-btn { position: absolute; right: 4px; }
+.clearable-input.has-all-toggle .clear-btn { right: 28px; }
+.clearable-input.has-all-toggle input { padding-right: 50px; }
+.clearable-input.all-on input { background: var(--bg); pointer-events: none; transition: background 0.2s ease; }
+.clearable-input.has-all-toggle input { transition: background 0.2s ease; }
+.clearable-input.all-on input::placeholder { color: var(--accent); opacity: 1; }
+.clearable-input.all-on .clear-btn { display: none; }
 .clear-btn { background: none; border: none; padding: 2px 3px; cursor: pointer; color: var(--muted); display: flex; align-items: center; line-height: 1; border-radius: 3px; flex-shrink: 0; }
 .clear-btn:hover { color: var(--text); background: var(--hover); }
 .clear-btn[hidden] { display: none; }
+
+.tool-row-all-toggle { position: absolute; right: 4px; top: 50%; transform: translateY(-50%); background: none; border: none; padding: 0; width: 22px; height: 22px; border-radius: 4px; cursor: pointer; color: var(--muted); display: flex; align-items: center; justify-content: center; line-height: 1; transition: color 0.15s, background 0.15s; }
+.tool-row-all-toggle:hover { color: var(--accent); background: var(--hover); }
+.tool-row-all-toggle.active { color: var(--accent); background: var(--hover); }
+.tool-row-all-toggle.disabled { cursor: not-allowed; opacity: 0.35; }
+.tool-row-all-toggle.disabled:hover { color: var(--muted); background: none; }
+.tool-row-all-toggle .ast-glyph { font-size: 15px; line-height: 1; display: inline-block; }
 .tool-row-remove { background: none; border: none; color: var(--faint); cursor: pointer; padding: 5px; border-radius: 4px; line-height: 1; display: flex; align-items: center; justify-content: center; }
 .tool-row-remove:hover { color: var(--text); background: var(--hover); }
 .tool-row-remove-placeholder { width: 24px; height: 24px; }
@@ -2055,7 +2070,7 @@ const Router = (() => {
   // key so the row always has an anchor (kept even when empty, so an
   // unfilled row survives reload); a param-less tool is a bare tool key.
   function encodeRow(row) {
-    if (row.grouped) return [encodeURIComponent(row.tool), 'grouped'];
+    if (row.grouped) return [encodeURIComponent(row.tool), 'all'];
     const { params: schema } = row.def;
     const slug = encodeURIComponent(row.tool);
     if (!schema.length) return [slug];
@@ -2146,7 +2161,7 @@ const Router = (() => {
     for (const [key, value] of params) {
       if (key === 'sort')     { if (isValidSortAxis(value)) sortKey = value; continue; }
       if (key === 'sort-dir') { if (value === 'asc' || value === 'desc') sortDir = value; continue; }
-      if (key === 'grouped') {
+      if (key === 'all') {
         const cur = rows[rows.length - 1];
         if (cur && cur.def.group) {
           if (rows.some(r => r.grouped)) {
@@ -5630,17 +5645,18 @@ const ToolStack = (() => {
     // button (undeletable). Everything above it is an ordinary tool row.
     if (idx === stack.length - 1) return buildSearchBarHTML();
     const tool = row.def;
-    const schema = row.grouped ? [] : tool.params;
-    const parts = buildToolRowPartsHTML(schema, row.params, row.tool,
+    const parts = buildToolRowPartsHTML(tool.params, row.params, row.tool,
       p => ` data-row="${idx}" data-key="${p.key}"`,
-      { findReplace: !row.grouped && !!tool.findReplace, rowToken: idx, expanded: isRowExpanded(idx) });
+      { findReplace: !!tool.findReplace, rowToken: idx, expanded: isRowExpanded(idx) });
+    let main = parts.main;
+    if (tool.group) main = decorateMainWithAllToggle(main, idx, row);
     const remove = `<button type="button" class="tool-row-remove" data-remove="${idx}" title="Remove" aria-label="Remove ${esc(tool.name)}"><svg width="12" height="12"><use href="#icon-x"/></svg></button>`;
     const errBtn = `<button type="button" class="icon tool-row-error-btn" data-error-row="${idx}" aria-label="Tool error" hidden>⚠️</button>`;
     return `<div class="tool-row">
       ${buildDragHandleHTML()}
-      ${buildToolLabelHTML(tool, row.grouped ? 'Grouped' : null)}
+      ${buildToolLabelHTML(tool)}
       ${parts.caret}
-      ${parts.main}
+      ${main}
       ${parts.asides}
       ${errBtn}
       ${remove}
@@ -5648,12 +5664,38 @@ const ToolStack = (() => {
     </div>`;
   }
 
+  function decorateMainWithAllToggle(mainHTML, rowIdx, row) {
+    const active = !!row.grouped;
+    const blocked = !active && stack.some(r => r !== row && r.grouped);
+    const wrapClasses = `clearable-input has-all-toggle${active ? ' all-on' : ''}`;
+    const toggle = buildAllToggleHTML(rowIdx, active, blocked);
+    let html = mainHTML
+      .replace('<span class="clearable-input">', `<span class="${wrapClasses}">`)
+      .replace('</span></span>', `${toggle}</span></span>`);
+    if (active) {
+      html = html.replace(/placeholder="[^"]*"/, 'placeholder="all"')
+                 .replace(/value="[^"]*"/, 'value=""');
+    }
+    return html;
+  }
+
+  function buildAllToggleHTML(rowIdx, active, blocked) {
+    const cls = ['tool-row-all-toggle'];
+    if (active) cls.push('active');
+    if (blocked) cls.push('disabled');
+    const title = blocked ? 'Only one tool can show all values at a time'
+                          : (active ? 'Show one value' : 'Show all values');
+    return `<button type="button" class="${cls.join(' ')}" data-all-toggle="${rowIdx}"`
+      + ` title="${esc(title)}" aria-pressed="${active}" aria-label="${esc(title)}">`
+      + `<span class="ast-glyph" aria-hidden="true">✱</span></button>`;
+  }
+
   function buildGalleryCardHTML(toolKey, tool) {
-    const groupBtn = tool.group
-      ? `<button type="button" class="tool-card-group-btn" data-group-tool="${esc(toolKey)}" title="Add grouped variant">Grouped</button>`
+    const allBtn = tool.group
+      ? `<button type="button" class="tool-card-all-btn" data-all-tool="${esc(toolKey)}" title="Show all values" aria-label="Show all values">✱</button>`
       : '';
     return `<div class="tool-card" data-tool="${esc(toolKey)}">
-      ${groupBtn}
+      ${allBtn}
       <div class="tool-card-name">${buildToolLabelHTML(tool)}</div>
       <div class="tool-card-desc">${esc(tool.desc)}</div>
       <div class="tool-card-example">${esc(tool.example)}</div>
@@ -5736,7 +5778,11 @@ const ToolStack = (() => {
   }
 
   function focusRowInput(idx) {
-    rowEls()[idx]?.querySelector('input[type="text"], input[type="number"]')?.focus();
+    const el = rowEls()[idx];
+    if (!el) return;
+    const allBtn = el.querySelector('.tool-row-all-toggle.active');
+    if (allBtn) { allBtn.focus(); return; }
+    el.querySelector('input[type="text"], input[type="number"]')?.focus();
   }
 
   function flashRow(idx) {
@@ -5747,21 +5793,23 @@ const ToolStack = (() => {
     // The permanent Search bar isn't a "tool the user added" — gallery-active
     // marks only the user tools above it.
     const userStack = getUserStack();
-    const activeFlat = new Set(userStack.filter(r => !r.grouped).map(r => r.tool));
-    const activeGrouped = new Set(userStack.filter(r => r.grouped).map(r => r.tool));
-    const groupTaken = userStack.some(r => r.grouped);
+    const inStack = new Set(userStack.map(r => r.tool));
+    const inAllMode = new Set(userStack.filter(r => r.grouped).map(r => r.tool));
+    const allTaken = inAllMode.size > 0;
     document.querySelectorAll('.tool-card[data-tool]').forEach(card => {
-      card.classList.toggle('active', activeFlat.has(card.dataset.tool));
+      card.classList.toggle('active', inStack.has(card.dataset.tool));
       card.removeAttribute('title');
     });
-    document.querySelectorAll('.tool-card-group-btn[data-group-tool]').forEach(btn => {
-      const key = btn.dataset.groupTool;
-      const isActive = activeGrouped.has(key);
-      btn.classList.toggle('active', isActive);
-      btn.classList.toggle('disabled', groupTaken);
-      btn.title = groupTaken
-        ? 'Grouped tools cannot be combined'
-        : 'Add grouped variant';
+    document.querySelectorAll('.tool-card-all-btn[data-all-tool]').forEach(btn => {
+      const key = btn.dataset.allTool;
+      const isMine = inAllMode.has(key);
+      btn.classList.toggle('active', isMine);
+      btn.classList.toggle('disabled', allTaken);
+      const title = isMine ? 'Already showing all values'
+                  : allTaken ? 'Only one tool can show all values at a time'
+                  : 'Show all values';
+      btn.title = title;
+      btn.setAttribute('aria-label', title);
     });
   }
 
@@ -5828,6 +5876,57 @@ const ToolStack = (() => {
     Router.navigate();
   }
 
+  function toggleAllMode(idx) {
+    const row = stack[idx];
+    if (!row || !row.def.group) return;
+    const turningOn = !row.grouped;
+    if (turningOn && stack.some(r => r !== row && r.grouped)) return;
+    row.grouped = turningOn;
+    const rowEl = rowEls()[idx];
+    const wrap = rowEl?.querySelector('.clearable-input.has-all-toggle');
+    const btn = rowEl?.querySelector('.tool-row-all-toggle');
+    if (wrap && btn) {
+      btn.classList.toggle('active', turningOn);
+      btn.setAttribute('aria-pressed', String(turningOn));
+      btn.title = turningOn ? 'Show one value' : 'Show all values';
+      btn.setAttribute('aria-label', btn.title);
+      wrap.classList.toggle('all-on', turningOn);
+      const input = wrap.querySelector('input');
+      const firstParam = row.def.params[0];
+      if (input && firstParam) {
+        if (turningOn) {
+          input.placeholder = 'all';
+          input.value = '';
+        } else {
+          input.placeholder = firstParam.placeholder || '';
+          input.value = row.params[firstParam.key] || '';
+        }
+        syncClearButton(input);
+      }
+    }
+    refreshOtherAllToggles(idx);
+    refreshGalleryActive();
+    invalidatePreSearchCache();
+    refreshWorkshopMergedScroller();
+    Router.navigate();
+  }
+
+  function refreshOtherAllToggles(skipIdx) {
+    const groupTaken = stack.some(r => r.grouped);
+    rowEls().forEach((el, i) => {
+      if (i === skipIdx) return;
+      const otherBtn = el.querySelector('.tool-row-all-toggle');
+      if (!otherBtn) return;
+      const otherRow = stack[i];
+      const blocked = !otherRow.grouped && groupTaken;
+      otherBtn.classList.toggle('disabled', blocked);
+      const title = blocked ? 'Only one tool can show all values at a time'
+                            : (otherRow.grouped ? 'Show one value' : 'Show all values');
+      otherBtn.title = title;
+      otherBtn.setAttribute('aria-label', title);
+    });
+  }
+
   // The Search bar is pinned as the last row — clamp both indices out of its slot.
   function reorderAt(fromIdx, toIdx) {
     const lastUser = stack.length - 1;
@@ -5881,6 +5980,12 @@ const ToolStack = (() => {
       const removeBtn = e.target.closest('.tool-row-remove[data-remove]');
       if (removeBtn) {
         removeAt(parseInt(removeBtn.dataset.remove, 10));
+        return;
+      }
+      const allBtn = e.target.closest('.tool-row-all-toggle[data-all-toggle]');
+      if (allBtn) {
+        if (allBtn.classList.contains('disabled')) return;
+        toggleAllMode(parseInt(allBtn.dataset.allToggle, 10));
         return;
       }
       const caret = e.target.closest('.find-replace-caret[data-replace-row]');
@@ -6073,7 +6178,9 @@ const ToolPicker = (() => {
     if (_addedDuringOpen) {
       const rows = document.querySelectorAll('#tool-stack .tool-row');
       const lastRow = rows[rows.length - 1];
-      lastRow?.querySelector('input[type="text"], input[type="number"]')?.focus();
+      const allBtn = lastRow?.querySelector('.tool-row-all-toggle.active');
+      if (allBtn) allBtn.focus();
+      else lastRow?.querySelector('input[type="text"], input[type="number"]')?.focus();
     }
   }
 
@@ -6103,11 +6210,11 @@ const ToolPicker = (() => {
   };
 
   gallery.addEventListener('click', (e) => {
-    const groupBtn = e.target.closest('.tool-card-group-btn[data-group-tool]');
-    if (groupBtn) {
+    const allBtn = e.target.closest('.tool-card-all-btn[data-all-tool]');
+    if (allBtn) {
       e.stopPropagation();
-      if (groupBtn.classList.contains('disabled')) return;
-      const key = groupBtn.dataset.groupTool;
+      if (allBtn.classList.contains('disabled')) return;
+      const key = allBtn.dataset.allTool;
       if (!TOOLS[key]) return;
       pick(key, { grouped: true });
       return;
@@ -10419,7 +10526,7 @@ function exportFilename(stack, ext) {
     const isBar = i === stack.length - 1 && row.tool === 'search';
     if (isBar && row.isInert()) return;
     parts.push(exportFilenameSegment(row.tool));
-    if (row.grouped) parts.push('grouped');
+    if (row.grouped) parts.push('all');
     const firstParam = row.def.params.find(p => row.params[p.key] && p.type !== 'checkbox');
     if (firstParam) {
       const seg = exportFilenameSegment(String(row.params[firstParam.key]));
@@ -10463,7 +10570,7 @@ function exportCopyHeader(stack) {
       const v = row.params[firstParam.key];
       label += firstParam.type === 'number' ? ` ${v}` : ' `' + v + '`';
     }
-    if (row.grouped) label += ' (grouped)';
+    if (row.grouped) label += ' (all)';
     labels.push(label);
   });
   const desc = labels.length ? labels.join(' → ') : MERGED_NAME;

@@ -703,7 +703,7 @@ test('group rows sort by Count and the axis round-trips through the URL', async 
   await gotoApp(page);
   await addLetterSetFixture(page);
   await page.evaluate(() => {
-    location.hash = '#/workshop?letter_bank&grouped&sort=count&sort-dir=desc';
+    location.hash = '#/workshop?letter_bank&all&sort=count&sort-dir=desc';
     Router.applyURL();
     renderWorkshopMergedDetail();
   });
@@ -750,18 +750,23 @@ test('a group member is individually editable through the atom popover', async (
   expect(edited.score).toBe(15);
 });
 
-test('only one group tool per pipeline — Group button disabled, URL dedups', async ({ page }) => {
+test('only one group tool per pipeline — all-toggle disabled on others, URL dedups', async ({ page }) => {
   await gotoApp(page);
   await addLetterSetFixture(page);
   await page.evaluate(() => {
-    location.hash = '#/workshop?letter_bank&grouped&anagrams&grouped';
+    location.hash = '#/workshop?letter_bank&all&anagrams&all';
     Router.applyURL();
     renderWorkshopMergedDetail();
   });
   const stack = await page.evaluate(() => ToolStack.getUserStack().map(r => ({ tool: r.tool, grouped: r.grouped })));
   expect(stack).toEqual([{ tool: 'letter_bank', grouped: true }]);
 
-  await expect(page.locator('.tool-card-group-btn[data-group-tool="anagrams"]')).toHaveClass(/disabled/);
+  await page.evaluate(() => window.__grawlixTest.setStack([
+    { tool: 'letter_bank', grouped: true },
+    { tool: 'anagrams' },
+  ]));
+  const anagramsRow = page.locator('.tool-row').nth(1);
+  await expect(anagramsRow.locator('.tool-row-all-toggle')).toHaveClass(/disabled/);
 });
 
 test('grouped tool exposes its tool-defined sort axis', async ({ page }) => {
