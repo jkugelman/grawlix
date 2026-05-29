@@ -10233,6 +10233,7 @@ function buildMergedWordlist() {
   const sourceCountMap = new Map();
   for (const [norm, { contributors, displays }] of buckets) {
     const variants = displays.size > 0 ? [...displays].sort() : [null];
+    const countedContributors = new Set();
     for (const variant of variants) {
       const eligible = c => c.display === variant || c.display === null;
       const winner = contributors.find(eligible);
@@ -10242,7 +10243,10 @@ function buildMergedWordlist() {
       entries.push(row);
       if (!byNorm.has(norm)) byNorm.set(norm, row);
       byKey.set(mergeKey(norm, variant), row);
-      sourceCountMap.set(winner.wordlist, (sourceCountMap.get(winner.wordlist) || 0) + 1);
+      if (!countedContributors.has(winner)) {
+        countedContributors.add(winner);
+        sourceCountMap.set(winner.wordlist, (sourceCountMap.get(winner.wordlist) || 0) + 1);
+      }
     }
   }
 
