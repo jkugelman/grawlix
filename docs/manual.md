@@ -110,9 +110,9 @@ For entries sourced from My Edits, the popover also has a Delete button (with un
 
 ## My Edits
 
-A special wordlist created automatically on first boot. It's where your manual score and comment edits land; otherwise it behaves like any other wordlist — it has a rescore rules editor and gets the Rescored/Original toggle once rules apply. It's always enabled and can't be deleted, but can be reordered (position determines merge priority on ties).
+A special wordlist created automatically on first boot. It's where your manual score and comment edits land; otherwise it behaves like any other wordlist. It's always enabled and can't be deleted, but can be reordered (position determines merge priority on ties).
 
-My Edits ships with inert default rescore rules mirroring your tier scale on **All** — one row per tier, outputs blank, scores pass through unchanged. The rows lay your scale out inside the editor and ensure an edit at a recognized tier doesn't trip a warning. Customize the tier scale and the inert defaults follow in lockstep.
+Unlike Sources, My Edits has no rescore rules — the scores you type are already in Grawlix's scale, so they pass through unchanged. In place of a rescore editor, My Edits' panel shows the same scoring (tier-label) editor that **All** carries. The labels are shared: editing in either place updates both, so the legend is right next to your edits as you work.
 
 From My Edits' panel in the Library you can Import a personal wordlist (replacing the current contents), Download what you've got, or Clear it.
 
@@ -132,18 +132,18 @@ Each wordlist card carries a drag handle (reorder = merge priority), an enable c
 
 **Action buttons differ per wordlist:**
 - **Sources** — Update/Fetch primary action, the Rescored/Original toggle (when rules exist), Download, and a ⋮ menu with Configure / Delete.
-- **My Edits** — Import (primary when empty, plain otherwise), the Rescored/Original toggle (when rules exist), Download (primary when populated, hidden when empty), Clear in the ⋮ menu.
+- **My Edits** — Import (primary when empty, plain otherwise), Download (primary when populated, hidden when empty), Clear in the ⋮ menu. No toggle — My Edits has no rescore rules.
 - **All** — Download. No toggle (merged has no "original" version), no ⋮ menu.
 
 **Rescored/Original toggle.** A segmented control on a wordlist's action row. It governs *every* rescore-affected surface on the panel together: stats bar, histogram, the entries view's annotations, and what Download produces. **Rescored** is the default — what the wordlist actually contributes to All. **Original** strips rescoring and shows the file as imported. Hidden when no rescore rules apply.
 
-**Rescoring rules.** Sources and My Edits each carry a rescore rules editor. Rules map an input score range — and an optional entry-length filter — to an output score, or `ignore` to drop the entry. First matching rule wins.
+**Rescoring rules.** Each Source carries a rescore rules editor. Rules map an input score range — and an optional entry-length filter — to an output score, or `ignore` to drop the entry. First matching rule wins. My Edits has no rescore rules — its scores are already in the unified scale; in that slot My Edits shows the scoring (tier-label) editor instead.
 
 When the wordlist's data contains scores not covered by any rule, an **Unhandled scores** banner appears at the top of the editor listing those scores (contiguous runs collapsed — e.g. `25, 45-49, 75`). An orange severity bubble also appears on the wordlist's card in the rail and on the **Library** nav item. Add rules covering those scores and the bubble clears.
 
 Custom wordlists with up to 10 distinct scores get auto-seeded with one inert rule per score on first import, so you see the wordlist's scale laid out next to All's. Larger wordlists get the Unhandled-scores banner instead.
 
-**Scoring rules** (on `All`) are your tier labels for the merged score scale ("60 = great, 50 = good, …"). The Workshop entries table reads these for the hover tooltip on each score atom. The same Unhandled-scores banner + warning bubble pattern applies if the merged view contains scores you haven't labeled.
+**Scoring rules** are your tier labels for the merged score scale ("60 = great, 50 = good, …"). They render as a shared editor on both **All** and **My Edits** — edit in either place and both update. The Workshop entries table reads these for the hover tooltip on each score atom. The same Unhandled-scores banner + warning bubble pattern applies if the merged view contains scores you haven't labeled.
 
 **Severity bubbles** on each card signal something to look at:
 - **Green** — an update is available to fetch (only when auto-update is off — see [Settings](#settings)).
@@ -151,7 +151,7 @@ Custom wordlists with up to 10 distinct scores get auto-seeded with one inert ru
 
 The highest-severity bubble across all wordlists propagates up to the **Library** nav item.
 
-**Reset to defaults.** A button appears in the rules editor (rescore on sources/My Edits, scoring on All) when you've customized the rules away from their shipped defaults. Clicking it restores the defaults, with a confirmation first. Visible only inside the editor and only when there's something to undo.
+**Reset to defaults.** A button appears in the rules editor (rescore on Sources, scoring on All or My Edits) when you've customized the rules away from their shipped defaults. Clicking it restores the defaults, with a confirmation first. Visible only inside the editor and only when there's something to undo.
 
 **Entries view.** Each populated wordlist's panel includes a virtual-scrolled, monospace, text-file-flavored entries list below its rules editor. In Rescored mode, an inline arrow shows what each rule changed — e.g. `BAGEL  45 → 50  tasty`; rows dropped by an `ignore` rule are struck through with their input score. Untouched rows show their input score plain. Switching to Original mode strips the arrows and strikethrough — you see the wordlist as the file contains it. The Library entries view is read-only; editing routes through the Workshop entries table's popover.
 

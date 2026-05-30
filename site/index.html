@@ -2229,15 +2229,6 @@ const Router = (() => {
 
 // ─── State ────────────────────────────────────────────────────────────────────
 
-// My Edits' default rescore rules mirror All's tier scale (state.scoring):
-// one inert row per tier, carrying the tier's score and note. Inert because
-// My Edits' scores are already in the unified scale — the rules just declare
-// "these scores are recognized." Lets a fresh user edit a tier-covered score
-// without tripping the misalignment bubble; the rule already covers it.
-function getMyEditsDefaultRules() {
-  return state.scoring.map(r => ({ input: r.input, length: '', output: '', note: r.note || '' }));
-}
-
 // Default tier labels for the unified score scale. Stored on `state.scoring`
 // and surfaced as a read/write legend on the merged All view.
 const DEFAULT_SCORING = [
@@ -2455,7 +2446,8 @@ function lsDel(key)  { localStorage.removeItem(LS_PREFIX + key); }
 //   v4 — drop state.outputScoring; tier labels live exclusively on My Edits' `scoring`.
 //   v5 — tier labels move off My Edits to top-level `state.scoring` (its own
 //        localStorage key); My Edits gains a normal rescoreRules editor.
-const SCHEMA_VERSION = 6;
+//   v7 — drop rescoring from My Edits; user-typed scores pass through unchanged.
+const SCHEMA_VERSION = 7;
 
 function readMergedSettings() {
   try { return JSON.parse(lsLoad('mergedSettings')) || {}; } catch { return {}; }
@@ -3022,13 +3014,11 @@ const LibraryView = (() => {
     const wordlist = _focusedWordlist;
     const isEdits = wordlist.type === 'edits';
     const hasData = wordlist.rawEntries.length > 0;
-    const hasRules = (wordlist.rescoreRules?.length ?? 0) > 0;
+    const hasRules = !isEdits && (wordlist.rescoreRules?.length ?? 0) > 0;
 
-    // Stats source depends on display mode: rescored mode applies rules and
-    // drops ignored entries; original mode shows the raw scores.
     const useOriginal = _displayMode === 'original';
-    const sourceEntries = useOriginal ? wordlist.rawEntries : getRescoredEntries(wordlist);
-    const ignoredCount = useOriginal ? 0 : wordlist.rawEntries.length - sourceEntries.length;
+    const sourceEntries = (isEdits || useOriginal) ? wordlist.rawEntries : getRescoredEntries(wordlist);
+    const ignoredCount = (isEdits || useOriginal) ? 0 : wordlist.rawEntries.length - sourceEntries.length;
     const intervals = parseRange(activeScoreRange());
     const filteredEntries = intervals ? sourceEntries.filter(e => matchesRange(e.score, intervals)) : sourceEntries;
     const stats = computeStatsRaw(filteredEntries, intervals ? 0 : ignoredCount);
@@ -3073,7 +3063,9 @@ const LibraryView = (() => {
     // Toggle on the left (when present); date + buttons on the right.
     const actionsHTML = [toggleHTML, dateSlot, actionBtn, dlBtn, moreMenu].filter(Boolean).join('\n');
 
-    const rulesHTML = `<div class="wld-pane-rescore" id="wld-rescore-section">${buildRescoreSectionHTML(wordlist)}</div>`;
+    const rulesHTML = isEdits
+      ? `<div class="wld-pane-rescore" id="wld-scoring-section">${buildScoringSectionHTML()}</div>`
+      : `<div class="wld-pane-rescore" id="wld-rescore-section">${buildRescoreSectionHTML(wordlist)}</div>`;
 
     pane.innerHTML = `
       <div class="wld-pane-header">
@@ -3440,7 +3432,6 @@ const LibraryView = (() => {
     if (section) section.innerHTML = buildRescoreSectionHTML(_focusedWordlist);
   }
 
-  // Counterpart for the scoring (tier-label) editor on All.
   function refreshScoringSection() {
     const section = el.querySelector('#wld-scoring-section');
     if (section) section.innerHTML = buildScoringSectionHTML();
@@ -3768,7 +3759,7 @@ function ensureEdits() {
       rawEntries: [],
       lastUpdated: null,
       _loading: false,
-      rescoreRules: getMyEditsDefaultRules(),
+      rescoreRules: [],
     });
     recomputeUncovered(newEdits);
     state.sources.unshift(newEdits);
@@ -8136,11 +8127,8 @@ function scoringRulesEqual(a, b) {
   });
 }
 
-// The current "default rescore rules" for a wordlist that has them. Returns
-// null for custom wordlists with no canonical baseline (no publisher, not
-// My Edits). dirty/propagation logic short-circuits on null.
 function getWordlistDefaultRules(wordlist) {
-  if (wordlist.type === 'edits') return getMyEditsDefaultRules();
+  if (wordlist.type === 'edits') return null;
   const publisher = getPublisher(wordlist);
   return publisher?.defaultRules ?? null;
 }
@@ -8157,13 +8145,6 @@ function updateScoringDirty() {
   state.scoringDirty = !scoringRulesEqual(state.scoring, DEFAULT_SCORING);
 }
 
-// For any rule set with defaults, if persisted rules differ but `dirty` is
-// false, silently overwrite with defaults. At boot this picks up dev-shipped
-// updates for users who haven't customized; within a session it keeps My
-// Edits' inert defaults in lockstep with state.scoring when the user edits
-// tier labels. Scoring runs first because My Edits' defaults derive from
-// state.scoring (via getMyEditsDefaultRules).
-// See docs/design.md § Rescore rules & tier alignment.
 function propagateDefaults() {
   if (!scoringRulesEqual(state.scoring, DEFAULT_SCORING) && !state.scoringDirty) {
     state.scoring = DEFAULT_SCORING.map(r => ({ ...r }));
@@ -8226,6 +8207,7 @@ function compareRescoreRulesForPriority(a, b) {
 // any length-filter-free rule. The Unhandled-scores banner in the editor and
 // the warning severity bubble on the card both key off this field.
 function recomputeUncovered(wordlist) {
+  if (wordlist.type === 'edits') { wordlist._uncovered = []; return; }
   const rules = wordlist.rescoreRules;
 
   rules.sort(compareRescoreRulesForPriority);
