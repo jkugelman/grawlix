@@ -32,13 +32,13 @@ test('a merged score not covered by any tier label shows a warning bubble on All
   // `allSeverity()` — verifies the propagation runs without needing to
   // open Library first.
   await expect(
-    page.locator('.header-nav-item[data-view="library"] .severity-bubble[data-severity="warning"]')
+    page.locator('.header-nav-item[data-view="library"] .badge[data-severity="warning"]')
   ).toBeVisible();
 
   // Open Library; the All card itself carries the bubble.
   await openLibrary(page);
   const allCard = page.locator('.wordlist-card[data-merged]');
-  await expect(allCard.locator('.severity-bubble[data-severity="warning"]')).toBeVisible();
+  await expect(allCard.locator('.badge[data-severity="warning"]')).toBeVisible();
 });
 
 test('a length-filtered rescore rule only rewrites entries whose length matches', async ({ page }) => {

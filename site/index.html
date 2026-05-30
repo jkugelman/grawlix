@@ -130,18 +130,13 @@ header h1 { font-size: 19px; font-weight: 600; letter-spacing: -0.01em; line-hei
 .header-nav { display: flex; align-items: center; flex-shrink: 0; }
 .header-nav-items { display: flex; align-items: center; gap: 2px; }
 .header-nav-trigger { display: none; }
-.header-nav-item { display: inline-flex; align-items: center; gap: 7px; padding: 8px 14px; border: none; background: none; color: white; font-family: inherit; font-size: 15px; font-weight: 500; cursor: pointer; border-radius: 4px; opacity: 0.55; transition: opacity 0.15s, background 0.15s; position: relative; line-height: 1; }
-button.header-nav-item:hover:not(:disabled) { opacity: 1; background: var(--hdr-bg-dark); color: white; }
-.header-nav-item.active { opacity: 1; }
+.header-nav-item { display: inline-flex; align-items: center; gap: 7px; padding: 8px 14px; border: none; background: none; color: rgba(255,255,255,0.55); font-family: inherit; font-size: 15px; font-weight: 500; cursor: pointer; border-radius: 4px; transition: color 0.15s, background 0.15s; position: relative; line-height: 1; }
+button.header-nav-item:hover:not(:disabled) { color: white; background: var(--hdr-bg-dark); }
+.header-nav-item.active { color: white; }
 .header-nav-item.active::after { content: ''; position: absolute; left: 14px; right: 14px; bottom: 1px; height: 2px; background: white; border-radius: 1px; }
 .header-nav-item svg { flex-shrink: 0; }
-/* Per-wordlist severity bubble, hoisted to the Library tab. Pinned absolutely
-   outside layout so its appearance doesn't shift sibling nav items, and far
-   enough right that the active-tab underline (`::after { right: 14px }`)
-   doesn't reach under it. The brand bar has comfortable spacing between the
-   nav and the utility cluster, so floating the dot past the button edge is
-   safe. */
-.header-nav-item .severity-bubble { position: absolute; top: 50%; right: 0; transform: translateY(-50%); }
+.header-nav-item > .badge { position: absolute; top: 50%; right: 0; transform: translateY(-50%); }
+.header-nav-item > .badge.badge--count { right: -8px; }
 
 .header-utility { display: flex; align-items: center; gap: 2px; flex-shrink: 0; }
 .bubble { display: inline-flex; align-items: center; background: white; color: var(--accent); border-radius: 8px; padding: 1px 7px 2px; font-size: 15px; font-weight: 800; position: relative; margin-left: 9px; line-height: 1.5; vertical-align: middle; }
@@ -568,13 +563,13 @@ input.entry-input { font-family: var(--font-mono); font-size: 13px; }
   .header-nav-trigger { display: inline-flex; align-items: center; gap: 6px; padding: 8px 12px; border: none; border-radius: 4px; background: none; color: white; cursor: pointer; font-family: inherit; font-size: 15px; font-weight: 500; line-height: 1; position: relative; }
   .header-nav.open .header-nav-trigger,
   button.header-nav-trigger:hover { background: var(--hdr-bg-dark); }
-  .header-nav-trigger .severity-bubble { position: absolute; top: 3px; right: 3px; }
+  .header-nav-trigger .badge { position: absolute; top: 3px; right: 3px; }
+  .header-nav-item > .badge { right: 8px; }
   .header-nav-chevron { transition: transform 0.15s; }
   .header-nav.open .header-nav-chevron { transform: rotate(180deg); }
   .header-nav-items { position: absolute; top: calc(100% + 4px); left: 0; z-index: 110; flex-direction: column; align-items: stretch; gap: 2px; min-width: 168px; padding: 4px; background: var(--hdr-bg); border: 1px solid var(--hdr-bg-dark); border-radius: 6px; box-shadow: 0 6px 20px rgba(0,0,0,0.35); }
   .header-nav:not(.open) .header-nav-items { display: none; }
   .header-nav-item { width: 100%; padding: 9px 12px; border-radius: 4px; justify-content: flex-start; }
-  .header-nav-item .severity-bubble { right: 8px; }
   .header-nav-item.active::after { left: 0; right: auto; top: 0; bottom: 0; width: 3px; height: auto; border-radius: 0 2px 2px 0; }
 }
 .edit-hint { opacity: 0; flex-shrink: 0; cursor: pointer; user-select: none; transition: opacity 0.15s; }
@@ -626,11 +621,11 @@ button.header-icon-btn:hover { background: none; color: rgba(255,255,255,0.65); 
 .wordlist-card.no-data .toggle input { pointer-events: none; }
 
 
-/* Severity bubble */
 .card-name-row { display: flex; align-items: center; gap: 5px; min-width: 0; }
-.severity-bubble { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; display: inline-block; }
-.severity-bubble[data-severity="info"]    { background: #7add9e; }
-.severity-bubble[data-severity="warning"] { background: #e8a040; }
+.badge { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; display: inline-block; box-sizing: border-box; }
+.badge[data-severity="info"]    { background: #7add9e; }
+.badge[data-severity="warning"] { background: #e8a040; }
+.badge.badge--count { background: #ff3b30; width: auto; height: 15px; min-width: 15px; padding: 0 5px 1px; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; color: white; font-family: inherit; line-height: 1; }
 
 /* Import zone */
 .import-zone { border: 2px dashed var(--border); border-radius: 6px; padding: 24px 16px; text-align: center; color: var(--faint); cursor: pointer; transition: border-color 0.15s, color 0.15s; user-select: none; }
@@ -1447,16 +1442,16 @@ function buildStatItemHTML(label, value, title, extraClass) {
   </div>`;
 }
 
-// Severity bubble: a small colored dot keyed by severity. The primitive only
-// knows about severity; callers map their causes (update available,
-// misalignment, …) to a severity. Higher severities take priority when
-// bubbles propagate up to a parent surface (see maxSeverity).
 const SEVERITY_PRIORITY = { info: 1, warning: 2 };
 
-function buildSeverityBubbleHTML(severity, title = '') {
+function buildBadgeHTML(severity, opts = {}) {
   if (!severity) return '';
+  const { count = null, title = '' } = opts;
+  const classes = ['badge'];
+  if (count != null) classes.push('badge--count');
   const titleAttr = title ? ` title="${esc(title)}" aria-label="${esc(title)}"` : '';
-  return `<span class="severity-bubble" data-severity="${severity}"${titleAttr}></span>`;
+  const text = count != null ? esc(String(count)) : '';
+  return `<span class="${classes.join(' ')}" data-severity="${severity}"${titleAttr}>${text}</span>`;
 }
 
 function maxSeverity(...severities) {
@@ -1509,10 +1504,10 @@ function buildWordlistCardHTML(icon, name, meta, opts = {}) {
 
   const dragHandle = buildDragHandleHTML();
 
-  const bubble = buildSeverityBubbleHTML(severity, severityTitle);
+  const badge = buildBadgeHTML(severity, { title: severityTitle });
 
   const cardInfo = `<div class="card-info">
-      <div class="card-name-row"><div class="card-name">${esc(name)}</div>${bubble}</div>
+      <div class="card-name-row"><div class="card-name">${esc(name)}</div>${badge}</div>
       <div class="card-meta">${meta}</div>
     </div>`;
 
@@ -1534,12 +1529,12 @@ function buildMergedCardHTML(selected, severity = null) {
   const meta = pluralize(buildMergedWordlist().entries.length, 'entry', 'entries');
   const cls = ['wordlist-card', 'wld-merged-card'];
   if (selected) cls.push('selected');
-  const bubble = buildSeverityBubbleHTML(severity, severityTitle(severity));
+  const badge = buildBadgeHTML(severity, { title: severityTitle(severity) });
   return `<div class="${cls.join(' ')}" data-merged tabindex="0" role="option">
     <span class="drag-handle" aria-hidden="true">≡</span>
     ${MERGED_ICON}
     <div class="card-info">
-      <div class="card-name-row"><div class="card-name">${MERGED_NAME}</div>${bubble}</div>
+      <div class="card-name-row"><div class="card-name">${MERGED_NAME}</div>${badge}</div>
       <div class="card-meta">${esc(meta)}</div>
     </div>
     <span class="wld-merged-card-spacer" aria-hidden="true"></span>
@@ -3023,9 +3018,9 @@ const LibraryView = (() => {
         ['Clear', `LibraryView.action('clear')`],
       ]) : '';
     } else {
-      const showBubble = wordlist._updateAvailable && !wordlist._loading;
-      const dot = showBubble ? `&nbsp;${buildSeverityBubbleHTML('info')}` : '';
-      const updateTitle = showBubble ? 'Update available' : '';
+      const showBadge = wordlist._updateAvailable && !wordlist._loading;
+      const dot = showBadge ? `&nbsp;${buildBadgeHTML('info')}` : '';
+      const updateTitle = showBadge ? 'Update available' : '';
       const label = hasData ? 'Update' : (wordlist.url ? 'Fetch' : 'Import');
 
       if (wordlist.url) {
@@ -3497,11 +3492,7 @@ const MainView = (() => {
     Router.navigate();
   }
 
-  // When the user clicks Library via the nav tab, prefer focusing whichever
-  // card has the most severe bubble — that's almost certainly what they came
-  // to look at. Higher severity wins; ties break by rail order (All first,
-  // then sources in priority order). Returns null if nothing is bubbled.
-  function pickBubbledWordlist() {
+  function pickBadgedWordlist() {
     let best = null;
     let bestPri = 0;
     const consider = (target, severity) => {
@@ -3540,28 +3531,24 @@ const MainView = (() => {
       // Re-clicking the active nav scrolls back to the top — a common
       // affordance and an easy way to bail out of a long scroll.
       if (view === _current) scrollEl.scrollTo({ top: 0, behavior: 'smooth' });
-      else                   activate(view, view === 'library' ? pickBubbledWordlist() : null);
+      else                   activate(view, view === 'library' ? pickBadgedWordlist() : null);
       closeNav();
     });
   }
 
-  // Toggle a per-view severity bubble on the nav button — the same dot the
-  // Library uses on individual wordlist cards, bubbled up so the user sees
-  // there's something to look at without opening the view. Callers decide
-  // the severity by reducing the underlying causes (e.g. via maxSeverity).
-  function syncTriggerBubble() {
+  function syncTriggerBadge() {
     let bestSev = null, bestPri = 0, bestTitle = '';
     for (const btn of navButtons) {
-      const b = btn.querySelector(':scope > .severity-bubble');
+      const b = btn.querySelector(':scope > .badge');
       if (!b) continue;
       const pri = SEVERITY_PRIORITY[b.dataset.severity] ?? 0;
       if (pri > bestPri) { bestPri = pri; bestSev = b.dataset.severity; bestTitle = b.title; }
     }
-    let tb = navTrigger.querySelector(':scope > .severity-bubble');
+    let tb = navTrigger.querySelector(':scope > .badge');
     if (bestSev) {
       if (!tb) {
         tb = document.createElement('span');
-        tb.className = 'severity-bubble';
+        tb.className = 'badge';
         navTrigger.appendChild(tb);
       }
       tb.dataset.severity = bestSev;
@@ -3572,23 +3559,23 @@ const MainView = (() => {
     }
   }
 
-  function setSeverityBubble(view, severity, title = '') {
+  function setSeverityBadge(view, severity, title = '') {
     const btn = [...navButtons].find(b => b.dataset.view === view);
     if (!btn) return;
-    let bubble = btn.querySelector(':scope > .severity-bubble');
+    let badge = btn.querySelector(':scope > .badge');
     if (severity) {
-      if (!bubble) {
-        bubble = document.createElement('span');
-        bubble.className = 'severity-bubble';
-        btn.appendChild(bubble);
+      if (!badge) {
+        badge = document.createElement('span');
+        badge.className = 'badge';
+        btn.appendChild(badge);
       }
-      bubble.dataset.severity = severity;
-      if (title) bubble.title = title;
-      else bubble.removeAttribute('title');
-    } else if (bubble) {
-      bubble.remove();
+      badge.dataset.severity = severity;
+      if (title) badge.title = title;
+      else badge.removeAttribute('title');
+    } else if (badge) {
+      badge.remove();
     }
-    syncTriggerBubble();
+    syncTriggerBadge();
   }
 
   // The HTML body's initial state matches DEFAULT_VIEW (Workshop visible,
@@ -3600,7 +3587,7 @@ const MainView = (() => {
     getCurrent: () => _current,
     getDefault: () => DEFAULT_VIEW,
     hasView: name => Object.hasOwn(VIEWS, name),
-    setSeverityBubble,
+    setSeverityBadge,
   };
 })();
 
@@ -8387,7 +8374,7 @@ function renderSources() {
   recomputeScoringUncovered(buildMergedWordlist().entries);
   LibraryView?.refresh();
   const severity = maxSeverity(...state.sources.map(wordlistSeverity), allSeverity());
-  MainView?.setSeverityBubble('library', severity, severityTitle(severity));
+  MainView?.setSeverityBadge('library', severity, severityTitle(severity));
 }
 
 
@@ -8604,25 +8591,21 @@ function renderScoringRules() {
   recomputeScoringUncovered(buildMergedWordlist().entries);
   LibraryView.refreshScoringSection();
   workshopScroller?._render?.();
-  refreshLibrarySeverityBubbles();
+  refreshLibrarySeverityBadges();
 }
 
-// Update every Library-rail card bubble + the nav-tab bubble in place. Used
-// after non-cacheVersion-bumping changes (scoring edits, My Edits upserts
-// patched through patchCachesForEditsChange) that affect what severities
-// should be visible. Idempotent — safe to call after renderSources too.
-function refreshLibrarySeverityBubbles() {
-  const setRowBubble = (row, severity) => {
+function refreshLibrarySeverityBadges() {
+  const setRowBadge = (row, severity) => {
     if (!row) return;
-    row.querySelector('.severity-bubble')?.remove();
-    if (severity) row.insertAdjacentHTML('beforeend', buildSeverityBubbleHTML(severity, severityTitle(severity)));
+    row.querySelector('.badge')?.remove();
+    if (severity) row.insertAdjacentHTML('beforeend', buildBadgeHTML(severity, { title: severityTitle(severity) }));
   };
   for (const card of document.querySelectorAll('.wordlist-card[data-wordlist]')) {
-    setRowBubble(card.querySelector('.card-name-row'), wordlistSeverity(card._wordlist));
+    setRowBadge(card.querySelector('.card-name-row'), wordlistSeverity(card._wordlist));
   }
-  setRowBubble(document.querySelector('.wld-merged-card .card-name-row'), allSeverity());
+  setRowBadge(document.querySelector('.wld-merged-card .card-name-row'), allSeverity());
   const navSev = maxSeverity(...state.sources.map(wordlistSeverity), allSeverity());
-  MainView?.setSeverityBubble('library', navSev, severityTitle(navSev));
+  MainView?.setSeverityBadge('library', navSev, severityTitle(navSev));
 }
 
 function deleteScoringRow(i) {

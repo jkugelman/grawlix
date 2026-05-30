@@ -98,7 +98,7 @@ test('with auto-update off, the update check flags a changed wordlist with a gre
 
   await openLibrary(page);
   const card = page.locator('.wordlist-card[data-wordlist]', { hasText: 'John Kugelman' });
-  await expect(card.locator('.severity-bubble[data-severity="info"]')).toBeVisible();
+  await expect(card.locator('.badge[data-severity="info"]')).toBeVisible();
 });
 
 test('with auto-update on, a changed wordlist is re-fetched and a toast shows the counts', async ({ page }) => {

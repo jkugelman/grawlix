@@ -31,8 +31,8 @@ test('warning overrides info when both conditions apply to the same wordlist', a
   // Card bubble renders as warning, not info.
   await openLibrary(page);
   const card = page.locator('.wordlist-card[data-wordlist]', { hasText: 'Both' });
-  await expect(card.locator('.severity-bubble[data-severity="warning"]')).toBeVisible();
-  await expect(card.locator('.severity-bubble[data-severity="info"]')).toHaveCount(0);
+  await expect(card.locator('.badge[data-severity="warning"]')).toBeVisible();
+  await expect(card.locator('.badge[data-severity="info"]')).toHaveCount(0);
 });
 
 test('info alone renders an info bubble', async ({ page }) => {
@@ -54,6 +54,6 @@ test('info alone renders an info bubble', async ({ page }) => {
 
   await openLibrary(page);
   const card = page.locator('.wordlist-card[data-wordlist]', { hasText: 'Clean' });
-  await expect(card.locator('.severity-bubble[data-severity="info"]')).toBeVisible();
-  await expect(card.locator('.severity-bubble[data-severity="warning"]')).toHaveCount(0);
+  await expect(card.locator('.badge[data-severity="info"]')).toBeVisible();
+  await expect(card.locator('.badge[data-severity="warning"]')).toHaveCount(0);
 });

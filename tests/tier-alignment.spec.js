@@ -1,8 +1,4 @@
 // Tier-alignment behaviors — see docs/design.md § Rescore rules & tier alignment.
-//
-// Covers auto-seed-on-import, the Unhandled-scores banner, and the
-// severity-bubble propagation from card → Library nav tab. The dirty-flag
-// round-trip and severity priority live in a separate spec.
 
 const { test, expect } = require('@playwright/test');
 const { stubPublisherFetches, gotoApp, openLibrary, focusWordlist } = require('./helpers');
@@ -84,13 +80,13 @@ test('uncovered scores show an orange bubble on the card and Library nav tab', a
 
   // Nav tab bubble is rendered regardless of which view is active.
   await expect(
-    page.locator('.header-nav-item[data-view="library"] .severity-bubble[data-severity="warning"]')
+    page.locator('.header-nav-item[data-view="library"] .badge[data-severity="warning"]')
   ).toBeVisible();
 
   // Card bubble appears once Library is open.
   await openLibrary(page);
   const card = page.locator('.wordlist-card[data-wordlist]', { hasText: 'Mixed' });
-  await expect(card.locator('.severity-bubble[data-severity="warning"]')).toBeVisible();
+  await expect(card.locator('.badge[data-severity="warning"]')).toBeVisible();
 });
 
 test('bubble clears when rules cover all scores', async ({ page }) => {
@@ -103,10 +99,10 @@ test('bubble clears when rules cover all scores', async ({ page }) => {
   ]));
   await openLibrary(page);
   const card = page.locator('.wordlist-card[data-wordlist]', { hasText: 'Mixed' });
-  const navBubble = page.locator('.header-nav-item[data-view="library"] .severity-bubble[data-severity="warning"]');
+  const navBubble = page.locator('.header-nav-item[data-view="library"] .badge[data-severity="warning"]');
 
   // Precondition: bubbles present.
-  await expect(card.locator('.severity-bubble[data-severity="warning"]')).toBeVisible();
+  await expect(card.locator('.badge[data-severity="warning"]')).toBeVisible();
   await expect(navBubble).toBeVisible();
 
   // Widen the rule to cover everything.
@@ -116,7 +112,7 @@ test('bubble clears when rules cover all scores', async ({ page }) => {
 
   // Both bubbles gone. (The bubble span is removed entirely, not just
   // hidden — so we assert count 0 rather than not-visible.)
-  await expect(card.locator('.severity-bubble[data-severity="warning"]')).toHaveCount(0);
+  await expect(card.locator('.badge[data-severity="warning"]')).toHaveCount(0);
   await expect(navBubble).toHaveCount(0);
 });
 
