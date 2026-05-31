@@ -898,6 +898,8 @@ body.picker-expanded #picker-backdrop { opacity: 1; }
 .featured-more-tile:hover { border-color: var(--accent); color: var(--accent); background: var(--hover); }
 .featured-more-tile-count { font-size: 18px; font-weight: 700; line-height: 1; }
 .featured-more-tile-label { font-size: 11px; font-weight: 600; color: inherit; margin-top: 3px; }
+.featured-more-tile-chevron { color: inherit; margin-top: 5px; transition: transform 0.15s; }
+#featured-row.expanded .featured-more-tile-chevron { transform: rotate(180deg); }
 
 @media (max-width: 759px) {
   #featured-row, .picker-gallery-inner { padding: 14px 16px 18px; }
@@ -5795,6 +5797,7 @@ const ToolStack = (() => {
     const moreTile = `<button type="button" class="featured-more-tile" aria-label="Browse all tools">
       <span class="featured-more-tile-count">+${moreCount}</span>
       <span class="featured-more-tile-label">more</span>
+      <svg class="featured-more-tile-chevron" width="10" height="6" aria-hidden="true"><use href="#icon-arrow"/></svg>
     </button>`;
     return cards + moreTile;
   }
@@ -6002,7 +6005,7 @@ const ToolStack = (() => {
       featuredCards.innerHTML = buildFeaturedRowHTML();
       featuredCards.addEventListener('click', (e) => {
         if (e.target.closest('.featured-more-tile')) {
-          ToolPicker.open();
+          ToolPicker.toggle();
           return;
         }
         const card = e.target.closest('.tool-card[data-tool]');
@@ -6294,7 +6297,9 @@ const ToolPicker = (() => {
     }
   });
 
-  return { open, close, pick };
+  function toggle() { _isOpen ? close() : open(); }
+
+  return { open, close, toggle, pick };
 })();
 
 // ─── Input helpers ────────────────────────────────────────────────────────────
