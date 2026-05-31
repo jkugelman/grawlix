@@ -626,6 +626,14 @@ input.entry-input { font-family: var(--font-mono); font-size: 13px; }
 .header-icon-btn { background: none; border: none; color: white; font-size: 19px; padding: 4px 8px; border-radius: 4px; cursor: pointer; line-height: 1; font-family: inherit; display: inline-flex; align-items: center; justify-content: center; }
 button.header-icon-btn:hover { background: none; color: rgba(255,255,255,0.65); }
 #btn-settings svg { position: relative; top: 1px; }
+.storage-icon { position: relative; display: inline-flex; align-items: center; justify-content: center; }
+.storage-slash { position: absolute; top: 50%; left: 50%; width: 28px; height: 4px; background: var(--hdr-bg); transform: translate(-50%, -50%) rotate(45deg); pointer-events: none; border-radius: 2px; }
+.storage-slash::after { content: ''; position: absolute; top: 50%; left: 0; right: 0; height: 2px; background: currentColor; transform: translateY(-50%); border-radius: 1px; }
+.storage-label { display: inline-block; font-size: 12px; font-weight: 500; max-width: 0; margin-left: 0; opacity: 0; overflow: hidden; white-space: nowrap; transition: max-width 0.25s ease, opacity 0.2s ease, margin-left 0.25s ease; }
+.storage-label.visible { max-width: 160px; margin-left: 6px; opacity: 1; }
+@media (max-width: 899px) {
+  .storage-label.visible { max-width: 0; margin-left: 0; opacity: 0; }
+}
 #btn-help { width: 32px; height: 32px; padding: 0; border-radius: 4px; background: none; cursor: not-allowed; }
 #btn-help:disabled { opacity: 1; }
 .icon { width: 20px; height: 20px; display: inline-flex; align-items: center; justify-content: center; }
@@ -633,6 +641,9 @@ button.header-icon-btn:hover { background: none; color: rgba(255,255,255,0.65); 
 
 /* Settings dialog */
 #settings-dialog { width: 340px; }
+#storage-dialog { width: 420px; }
+#storage-dialog .storage-pitch { color: var(--muted); line-height: 1.5; margin: 0 0 14px; font-size: 13px; }
+#storage-dialog .storage-tab-help { color: var(--muted); line-height: 1.5; margin: 0 0 16px; font-size: 12px; }
 #confirm-dialog, #alert-dialog { width: 320px; }
 #download-dialog { width: 340px; }
 #merge-conflict-dialog { width: 380px; }
@@ -1186,8 +1197,8 @@ html.dark-mode .wld-onboarding { background: color-mix(in srgb, var(--accent) 15
     <path fill-rule="evenodd" d="M11.078 2.25c-.917 0-1.699.663-1.85 1.567L9.05 4.889c-.02.12-.115.26-.297.348a7.493 7.493 0 0 0-.986.57c-.166.115-.334.126-.45.083L6.3 5.508a1.875 1.875 0 0 0-2.282.819l-.922 1.597a1.875 1.875 0 0 0 .432 2.385l.84.692c.095.078.17.229.154.43a7.598 7.598 0 0 0 0 1.139c.015.2-.059.352-.153.43l-.841.692a1.875 1.875 0 0 0-.432 2.385l.922 1.597a1.875 1.875 0 0 0 2.282.818l1.019-.382c.115-.043.283-.031.45.082.312.214.641.405.985.57.182.088.277.228.297.35l.178 1.071c.151.904.933 1.567 1.85 1.567h1.844c.916 0 1.699-.663 1.85-1.567l.178-1.072c.02-.12.114-.26.297-.349.344-.165.673-.356.985-.57.167-.114.335-.125.45-.082l1.02.382a1.875 1.875 0 0 0 2.28-.819l.923-1.597a1.875 1.875 0 0 0-.432-2.385l-.84-.692c-.095-.078-.17-.229-.154-.43a7.614 7.614 0 0 0 0-1.139c-.016-.2.059-.352.153-.43l.84-.692c.708-.582.891-1.59.433-2.385l-.922-1.597a1.875 1.875 0 0 0-2.282-.818l-1.02.382c-.114.043-.282.031-.449-.083a7.49 7.49 0 0 0-.985-.57c-.183-.087-.277-.227-.297-.348l-.179-1.072a1.875 1.875 0 0 0-1.85-1.567h-1.843ZM12 15.75a3.75 3.75 0 1 0 0-7.5 3.75 3.75 0 0 0 0 7.5Z" clip-rule="evenodd" />
   </symbol>
 
-  <symbol id="icon-globe" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-    <path d="M12 21a9.004 9.004 0 0 0 8.716-6.747M12 21a9.004 9.004 0 0 1-8.716-6.747M12 21c2.485 0 4.5-4.03 4.5-9S14.485 3 12 3m0 18c-2.485 0-4.5-4.03-4.5-9S9.515 3 12 3m0 0a8.997 8.997 0 0 1 7.843 4.582M12 3a8.997 8.997 0 0 0-7.843 4.582m15.686 0A11.953 11.953 0 0 1 12 10.5c-2.998 0-5.74-1.1-7.843-2.918m15.686 0A8.959 8.959 0 0 1 21 12c0 .778-.099 1.533-.284 2.253m0 0A17.919 17.919 0 0 1 12 16.5c-3.162 0-6.133-.815-8.716-2.247m0 0A9.015 9.015 0 0 1 3 12c0-1.605.42-3.113 1.157-4.418"/>
+  <symbol id="icon-globe" viewBox="0 0 24 24" fill="currentColor">
+    <path d="M21.721 12.752a9.711 9.711 0 0 0-.945-5.003 12.754 12.754 0 0 1-4.339 2.708 18.991 18.991 0 0 1-.214 4.772 17.165 17.165 0 0 0 5.498-2.477ZM14.634 15.55a17.324 17.324 0 0 0 .332-4.647c-.952.227-1.945.347-2.966.347-1.021 0-2.014-.12-2.966-.347a17.515 17.515 0 0 0 .332 4.647 17.385 17.385 0 0 0 5.268 0ZM9.772 17.119a18.963 18.963 0 0 0 4.456 0A17.182 17.182 0 0 1 12 21.724a17.18 17.18 0 0 1-2.228-4.605ZM7.777 15.23a18.87 18.87 0 0 1-.214-4.774 12.753 12.753 0 0 1-4.34-2.708 9.711 9.711 0 0 0-.944 5.004 17.165 17.165 0 0 0 5.498 2.477ZM21.356 14.752a9.765 9.765 0 0 1-7.478 6.817 18.64 18.64 0 0 0 1.988-4.718 18.627 18.627 0 0 0 5.49-2.098ZM2.644 14.752c1.682.971 3.53 1.688 5.49 2.099a18.64 18.64 0 0 0 1.988 4.718 9.765 9.765 0 0 1-7.478-6.816ZM13.878 2.43a9.755 9.755 0 0 1 6.116 3.986 11.267 11.267 0 0 1-3.746 2.504 18.63 18.63 0 0 0-2.37-6.49ZM12 2.276a17.152 17.152 0 0 1 2.805 7.121c-.897.23-1.837.353-2.805.353-.968 0-1.908-.122-2.805-.353A17.151 17.151 0 0 1 12 2.276ZM10.122 2.43a18.629 18.629 0 0 0-2.37 6.49 11.266 11.266 0 0 1-3.746-2.504 9.754 9.754 0 0 1 6.116-3.985Z"/>
   </symbol>
   <symbol id="icon-search" viewBox="0 0 13 13">
     <circle cx="5.5" cy="5.5" r="4" fill="none" stroke="currentColor" stroke-width="1.5"/>
@@ -1235,6 +1246,7 @@ html.dark-mode .wld-onboarding { background: color-mix(in srgb, var(--accent) 15
       </div>
     </nav>
     <div class="header-utility">
+      <button id="btn-storage" class="header-icon-btn" aria-label="Storage" title="Storage"><span class="storage-icon"><svg width="24" height="24" aria-hidden="true"><use href="#icon-hdd"/></svg><span class="storage-slash" aria-hidden="true"></span></span><span class="storage-label"></span></button>
       <button id="btn-settings" class="header-icon-btn" aria-label="Settings" title="Settings"><svg width="24" height="24" aria-hidden="true"><use href="#icon-settings"/></svg></button>
       <button id="btn-help" class="header-icon-btn" aria-label="Help (coming soon)" title="Help (coming soon)" disabled><span class="icon help-circle">?</span></button>
     </div>
@@ -2514,7 +2526,7 @@ function newDbKey() {
   return `${hex(8)}-${hex(4)}-${hex(4)}-${hex(4)}-${hex(12)}`;
 }
 
-const Storage = {
+const IdbBackend = {
   schemaVersion() { const v = parseInt(lsLoad('schemaVersion'), 10); return Number.isFinite(v) ? v : null; },
   setSchemaVersion(v) { lsSave('schemaVersion', String(v)); },
   hasData() { return lsLoad('meta') !== null; },
@@ -2562,6 +2574,78 @@ const Storage = {
 
 const DISK_HANDLE_IDB_KEY = '_diskFolderHandle';
 const GRAWLIX_JSON_NAME   = 'grawlix.json';
+
+const DiskBackend = {
+  _handle: null,
+  _cache: null,
+  _pending: false,
+  _inFlight: false,
+
+  attach(handle, cache) {
+    this._handle = handle;
+    this._cache = cache;
+  },
+  isAttached() { return this._handle !== null; },
+  handle() { return this._handle; },
+
+  schemaVersion()      { return this._cache?.schemaVersion ?? null; },
+  setSchemaVersion(v)  { this._cache.schemaVersion = v; this._queueWrite(); },
+  hasData()            { return this._cache !== null; },
+
+  readMeta()           { return this._cache?.sources ?? null; },
+  writeMeta(sources)   { this._cache.sources = sources; this._queueWrite(); },
+
+  readScoring() {
+    if (!this._cache || !this._cache.scoring) return null;
+    return { scoring: this._cache.scoring, dirty: !!this._cache.scoringDirty };
+  },
+  writeScoring(scoring, dirty) {
+    this._cache.scoring = scoring;
+    this._cache.scoringDirty = !!dirty;
+    this._queueWrite();
+  },
+
+  readMergedSettings()  { return this._cache?.mergedSettings ?? {}; },
+  writeMergedSettings(s) { this._cache.mergedSettings = s; this._queueWrite(); },
+
+  async readWordlist(wordlist) {
+    if (!wordlist.filename) return null;
+    return Disk.readFile(this._handle, wordlist.filename);
+  },
+  async writeWordlist(wordlist, text) {
+    if (!wordlist.filename) wordlist.filename = `${wordlist.name}.txt`;
+    await Disk.writeFile(this._handle, wordlist.filename, text);
+  },
+  async deleteWordlist(wordlist) {
+    if (wordlist.filename) await Disk.deleteFile(this._handle, wordlist.filename);
+  },
+
+  async reset() {
+    this._handle = null;
+    this._cache = null;
+    await Disk.clearHandle();
+    await IdbBackend.reset();
+    Storage = IdbBackend;
+  },
+
+  _queueWrite() {
+    this._pending = true;
+    if (!this._inFlight) this._flush();
+  },
+  async _flush() {
+    this._inFlight = true;
+    while (this._pending) {
+      this._pending = false;
+      try {
+        await Disk.writeFile(this._handle, GRAWLIX_JSON_NAME,
+          JSON.stringify(this._cache, null, 2));
+      } catch (err) { console.error('grawlix.json write failed', err); }
+    }
+    this._inFlight = false;
+  },
+};
+
+let Storage = IdbBackend;
 
 const Disk = {
   isSupported() { return typeof window.showDirectoryPicker === 'function'; },
@@ -2637,10 +2721,11 @@ function persistMeta() {
   _persistMetaNow();
 }
 
-function _persistMetaNow() {
-  Storage.writeMeta(state.sources.map(l => ({
+function serializeMetaEntry(l) {
+  return {
     ...(l.type ? { type: l.type } : {}),
     dbKey: l.dbKey,
+    ...(l.filename ? { filename: l.filename } : {}),
     ...(l.icon ? { icon: l.icon } : {}),
     ...(l.publisherId ? { publisherId: l.publisherId } : {}),
     name: l.name, url: l.url || null,
@@ -2652,7 +2737,11 @@ function _persistMetaNow() {
     ...(l.downloadCase ? { downloadCase: l.downloadCase } : {}),
     ...(l.downloadExt  ? { downloadExt:  l.downloadExt  } : {}),
     ...(l.downloadStem ? { downloadStem: l.downloadStem } : {}),
-  })));
+  };
+}
+
+function _persistMetaNow() {
+  Storage.writeMeta(state.sources.map(serializeMetaEntry));
 }
 
 function persistScoring() {
@@ -2786,6 +2875,108 @@ const SettingsDialog = (() => {
 
   return { open };
 })();
+
+// ─── Storage dialog ───────────────────────────────────────────────────────────
+
+const StorageDialog = (() => {
+  const { el, body } = createDialog('storage-dialog', { labelledby: 'storage-dialog-title' });
+
+  let _intent = 'new';
+
+  function renderOff() {
+    const pickLabel = () => _intent === 'new' ? 'New folder…' : 'Load existing…';
+    body.innerHTML = `
+      <button class="dialog-close-btn" aria-label="Close">✕</button>
+      <h2 id="storage-dialog-title">Set up storage</h2>
+      <p class="storage-pitch">Save your wordlists and settings to a folder on disk so your browser doesn't lose them. Point your construction software at the same folder — edits in either place will sync automatically.</p>
+      <div class="tabs">
+        <button type="button" class="tab-btn active" data-intent="new">New folder</button>
+        <button type="button" class="tab-btn"        data-intent="existing">Load existing</button>
+      </div>
+      <p class="storage-tab-help" data-help="new">Create a new folder. Your wordlists and settings will be saved there.</p>
+      <p class="storage-tab-help" data-help="existing" hidden>Load a folder that already has Grawlix data — for example, one synced from another device via Dropbox.</p>
+      <div class="dialog-footer">
+        <button type="button" class="dialog-cancel-btn">Cancel</button>
+        <button type="button" id="btn-storage-pick" class="primary">${pickLabel()}</button>
+      </div>
+    `;
+    _intent = 'new';
+
+    body.querySelectorAll('.tab-btn').forEach(t => {
+      t.onclick = () => {
+        _intent = t.dataset.intent;
+        body.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b === t));
+        body.querySelectorAll('.storage-tab-help').forEach(h => h.hidden = h.dataset.help !== _intent);
+        body.querySelector('#btn-storage-pick').textContent = pickLabel();
+      };
+    });
+
+    body.querySelector('#btn-storage-pick').onclick = async () => {
+      let handle;
+      try { handle = await Disk.pickFolder(); }
+      catch (err) { showAlert(`Couldn't open the folder picker: ${esc(err.message || err)}`); return; }
+      if (!handle) return;
+
+      let identity;
+      try { identity = await Disk.identifyFolder(handle); }
+      catch (err) { showAlert(`Couldn't read folder contents: ${esc(err.message || err)}`); return; }
+
+      el.close();
+      await handlePickedFolder(_intent, handle, identity);
+    };
+  }
+
+  async function handlePickedFolder(intent, handle, identity) {
+    if (intent === 'new' && identity === 'empty') {
+      try { await migrateToDisk(handle); }
+      catch (err) { showAlert(`Migration failed: ${esc(err.message || err)}`); return; }
+      showToast(`Storage is now in "${handle.name}".`);
+      return;
+    }
+    showAlert('Only New folder + empty folder is wired up so far. The other paths land in the next commits.');
+  }
+
+  function renderInfo() {
+    body.innerHTML = `
+      <button class="dialog-close-btn" aria-label="Close">✕</button>
+      <h2 id="storage-dialog-title">Saving to disk</h2>
+      <p class="storage-pitch">Saving your wordlists to a folder on disk requires Chrome, Edge, or another Chromium-based browser. In Firefox and Safari, Grawlix saves your data inside the browser — which works fine for one device but can't sync to a folder your construction software reads.</p>
+      <div class="dialog-footer">
+        <button type="button" class="dialog-cancel-btn primary" autofocus>Close</button>
+      </div>
+    `;
+  }
+
+  function open() {
+    if (!Disk.isSupported()) renderInfo();
+    else                     renderOff();
+    showDialog(el);
+  }
+
+  return { open };
+})();
+
+async function migrateToDisk(handle) {
+  for (const wl of state.sources) {
+    if (!wl.filename) wl.filename = `${wl.name}.txt`;
+  }
+  for (const wl of state.sources) {
+    const text = await IdbBackend.readWordlist(wl);
+    await Disk.writeFile(handle, wl.filename, text ?? '');
+  }
+  const cache = {
+    schemaVersion: SCHEMA_VERSION,
+    sources: state.sources.map(serializeMetaEntry),
+    scoring: state.scoring,
+    scoringDirty: state.scoringDirty,
+    mergedSettings: IdbBackend.readMergedSettings(),
+  };
+  await Disk.writeFile(handle, GRAWLIX_JSON_NAME, JSON.stringify(cache, null, 2));
+  await Disk.saveHandle(handle);
+
+  DiskBackend.attach(handle, cache);
+  Storage = DiskBackend;
+}
 
 // ─── Workshop view ────────────────────────────────────────────────────────────
 // Top-level page (peer of Library in the brand-bar nav). Hosts the tool gallery,
@@ -3768,6 +3959,7 @@ async function init() {
         const wordlist = wrapWordlist({
           ...(m.type     ? { type: m.type }         : {}),
           dbKey,
+          ...(m.filename ? { filename: m.filename } : {}),
           icon:            m.icon || null,
           publisherId:     m.publisherId || null,
           name: m.name, url: m.url || null,
@@ -9962,6 +10154,9 @@ function bindEvents() {
   // Header chrome
   document.querySelector('.header-logo-link').href = location.pathname;
   document.getElementById('btn-settings').onclick = () => SettingsDialog.open();
+  document.getElementById('btn-storage').onclick  = () => StorageDialog.open();
+  const isDesktopLike = window.matchMedia('(hover: hover) and (pointer: fine)').matches;
+  if (!Disk.isSupported() && !isDesktopLike) document.getElementById('btn-storage').hidden = true;
 
   ToolStack.init();
 
