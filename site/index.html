@@ -644,6 +644,9 @@ button.header-icon-btn:hover { background: none; color: rgba(255,255,255,0.65); 
 #storage-dialog { width: 420px; }
 #storage-dialog .storage-pitch { color: var(--muted); line-height: 1.5; margin: 0 0 14px; font-size: 13px; }
 #storage-dialog .storage-tab-help { color: var(--muted); line-height: 1.5; margin: 0 0 16px; font-size: 12px; }
+#storage-anomaly-dialog { width: 380px; }
+.dialog-footer-stacked { flex-direction: column; align-items: stretch; gap: 6px; }
+.dialog-footer-stacked button { width: 100%; padding: 8px 12px; text-align: center; }
 #confirm-dialog, #alert-dialog { width: 320px; }
 #download-dialog { width: 340px; }
 #merge-conflict-dialog { width: 380px; }
@@ -2880,27 +2883,29 @@ const SettingsDialog = (() => {
 
 const StorageDialog = (() => {
   const { el, body } = createDialog('storage-dialog', { labelledby: 'storage-dialog-title' });
+  const { el: anomalyEl, body: anomalyBody } = createDialog('storage-anomaly-dialog', { labelledby: 'storage-anomaly-title' });
 
   let _intent = 'new';
 
   function renderOff() {
+    const newActive = _intent === 'new' ? ' active' : '';
+    const exiActive = _intent === 'existing' ? ' active' : '';
     const pickLabel = () => _intent === 'new' ? 'New folder…' : 'Load existing…';
     body.innerHTML = `
       <button class="dialog-close-btn" aria-label="Close">✕</button>
       <h2 id="storage-dialog-title">Set up storage</h2>
       <p class="storage-pitch">Save your wordlists and settings to a folder on disk so your browser doesn't lose them. Point your construction software at the same folder — edits in either place will sync automatically.</p>
       <div class="tabs">
-        <button type="button" class="tab-btn active" data-intent="new">New folder</button>
-        <button type="button" class="tab-btn"        data-intent="existing">Load existing</button>
+        <button type="button" class="tab-btn${newActive}" data-intent="new">New folder</button>
+        <button type="button" class="tab-btn${exiActive}" data-intent="existing">Load existing</button>
       </div>
-      <p class="storage-tab-help" data-help="new">Create a new folder. Your wordlists and settings will be saved there.</p>
-      <p class="storage-tab-help" data-help="existing" hidden>Load a folder that already has Grawlix data — for example, one synced from another device via Dropbox.</p>
+      <p class="storage-tab-help" data-help="new"${_intent === 'new' ? '' : ' hidden'}>Create a new folder. Your wordlists and settings will be saved there.</p>
+      <p class="storage-tab-help" data-help="existing"${_intent === 'existing' ? '' : ' hidden'}>Load a folder that already has Grawlix data — for example, one synced from another device via Dropbox.</p>
       <div class="dialog-footer">
         <button type="button" class="dialog-cancel-btn">Cancel</button>
         <button type="button" id="btn-storage-pick" class="primary">${pickLabel()}</button>
       </div>
     `;
-    _intent = 'new';
 
     body.querySelectorAll('.tab-btn').forEach(t => {
       t.onclick = () => {
@@ -2927,13 +2932,74 @@ const StorageDialog = (() => {
   }
 
   async function handlePickedFolder(intent, handle, identity) {
-    if (intent === 'new' && identity === 'empty') {
-      try { await migrateToDisk(handle); }
-      catch (err) { showAlert(`Migration failed: ${esc(err.message || err)}`); return; }
-      showToast(`Storage is now in "${handle.name}".`);
-      return;
+    const result = await routePickedFolder(intent, handle, identity);
+    if (result === 'retry') open();
+  }
+
+  async function routePickedFolder(intent, handle, identity) {
+    if (intent === 'new') {
+      if (identity === 'empty') return setupNew(handle);
+      if (identity === 'grawlix') {
+        const load = await showConfirm(
+          `"${handle.name}" already has Grawlix data. Did you mean to use it as an existing folder?`,
+          { confirmText: 'Load this data', cancelText: 'Pick different folder', danger: false }
+        );
+        return load ? openMergeDialog(handle) : 'retry';
+      }
+      if (identity === 'other') {
+        const choice = await showNewOtherAnomaly(handle);
+        if (choice === 'subfolder') {
+          let sub;
+          try { sub = await handle.getDirectoryHandle('grawlix', { create: true }); }
+          catch (err) { await showAlert(`Couldn't create subfolder: ${esc(err.message || err)}`); return 'retry'; }
+          return setupNew(sub);
+        }
+        if (choice === 'alongside') return setupNew(handle);
+        return 'retry';
+      }
     }
-    showAlert('Only New folder + empty folder is wired up so far. The other paths land in the next commits.');
+    if (intent === 'existing') {
+      if (identity === 'grawlix') return openMergeDialog(handle);
+      if (identity === 'empty') {
+        const ok = await showConfirm(
+          `"${handle.name}" is empty. Set up Grawlix here instead?`,
+          { confirmText: 'Set up here', cancelText: 'Pick different folder', danger: false }
+        );
+        return ok ? setupNew(handle) : 'retry';
+      }
+      if (identity === 'other') {
+        await showAlert(`"${handle.name}" has files but isn't a Grawlix folder. Pick a different folder.`);
+        return 'retry';
+      }
+    }
+  }
+
+  async function setupNew(handle) {
+    try { await migrateToDisk(handle); }
+    catch (err) { showAlert(`Migration failed: ${esc(err.message || err)}`); return; }
+    showToast(`Storage is now in "${handle.name}".`);
+  }
+
+  function openMergeDialog(handle) {
+    showAlert('Loading from an existing Grawlix folder lands in the next commit.');
+  }
+
+  function showNewOtherAnomaly(handle) {
+    anomalyBody.innerHTML = `
+      <button type="button" class="dialog-close-btn" aria-label="Close">✕</button>
+      <form method="dialog">
+        <h2 id="storage-anomaly-title">This folder isn't empty</h2>
+        <p class="dialog-msg">"${esc(handle.name)}" has files but doesn't look like a Grawlix folder.</p>
+        <div class="dialog-footer dialog-footer-stacked">
+          <button class="primary" value="different" autofocus>Pick a different folder</button>
+          <button value="subfolder">Create a 'grawlix' subfolder here</button>
+          <button class="danger" value="alongside">Add Grawlix files alongside what's here</button>
+        </div>
+      </form>
+    `;
+    return new Promise(resolve => {
+      showDialog(anomalyEl, () => resolve(anomalyEl.returnValue || 'different'));
+    });
   }
 
   function renderInfo() {
