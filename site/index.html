@@ -1226,6 +1226,9 @@ html.dark-mode .wld-onboarding { background: color-mix(in srgb, var(--accent) 15
   <symbol id="icon-globe" viewBox="0 0 24 24" fill="currentColor">
     <path d="M21.721 12.752a9.711 9.711 0 0 0-.945-5.003 12.754 12.754 0 0 1-4.339 2.708 18.991 18.991 0 0 1-.214 4.772 17.165 17.165 0 0 0 5.498-2.477ZM14.634 15.55a17.324 17.324 0 0 0 .332-4.647c-.952.227-1.945.347-2.966.347-1.021 0-2.014-.12-2.966-.347a17.515 17.515 0 0 0 .332 4.647 17.385 17.385 0 0 0 5.268 0ZM9.772 17.119a18.963 18.963 0 0 0 4.456 0A17.182 17.182 0 0 1 12 21.724a17.18 17.18 0 0 1-2.228-4.605ZM7.777 15.23a18.87 18.87 0 0 1-.214-4.774 12.753 12.753 0 0 1-4.34-2.708 9.711 9.711 0 0 0-.944 5.004 17.165 17.165 0 0 0 5.498 2.477ZM21.356 14.752a9.765 9.765 0 0 1-7.478 6.817 18.64 18.64 0 0 0 1.988-4.718 18.627 18.627 0 0 0 5.49-2.098ZM2.644 14.752c1.682.971 3.53 1.688 5.49 2.099a18.64 18.64 0 0 0 1.988 4.718 9.765 9.765 0 0 1-7.478-6.816ZM13.878 2.43a9.755 9.755 0 0 1 6.116 3.986 11.267 11.267 0 0 1-3.746 2.504 18.63 18.63 0 0 0-2.37-6.49ZM12 2.276a17.152 17.152 0 0 1 2.805 7.121c-.897.23-1.837.353-2.805.353-.968 0-1.908-.122-2.805-.353A17.151 17.151 0 0 1 12 2.276ZM10.122 2.43a18.629 18.629 0 0 0-2.37 6.49 11.266 11.266 0 0 1-3.746-2.504 9.754 9.754 0 0 1 6.116-3.985Z"/>
   </symbol>
+  <symbol id="icon-hdd" viewBox="0 0 16 16">
+    <path fill="currentColor" d="M0 10a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v1a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2zm2.5 1a.5.5 0 1 0 0-1 .5.5 0 0 0 0 1m2 0a.5.5 0 1 0 0-1 .5.5 0 0 0 0 1M.91 7.204A3 3 0 0 1 2 7h12c.384 0 .752.072 1.09.204l-1.867-3.422A1.5 1.5 0 0 0 11.906 3H4.094a1.5 1.5 0 0 0-1.317.782z"/>
+  </symbol>
   <symbol id="icon-search" viewBox="0 0 13 13">
     <circle cx="5.5" cy="5.5" r="4" fill="none" stroke="currentColor" stroke-width="1.5"/>
     <line x1="8.7" y1="8.7" x2="12" y2="12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
@@ -3495,6 +3498,28 @@ const StorageDialog = (() => {
   return { open };
 })();
 
+function getStorageLabel() {
+  const edits = getEditsWordlist();
+  if (!edits || !edits.rawEntries.length) return null;
+  return Storage === DiskBackend ? 'Saved to disk' : 'Saved in browser';
+}
+
+function refreshStorageButton() {
+  const btn = document.getElementById('btn-storage');
+  if (!btn) return;
+  const slash = btn.querySelector('.storage-slash');
+  if (slash) slash.hidden = Storage === DiskBackend;
+  const labelEl = btn.querySelector('.storage-label');
+  if (!labelEl) return;
+  const label = getStorageLabel();
+  if (label) {
+    labelEl.textContent = label;
+    labelEl.classList.add('visible');
+  } else {
+    labelEl.classList.remove('visible');
+  }
+}
+
 async function turnOffStorage({ deleteFiles }) {
   const handle = DiskBackend.handle();
   if (deleteFiles && handle) {
@@ -4722,6 +4747,7 @@ async function init() {
     _overlay.addEventListener('transitionend', () => _overlay.remove(), { once: true });
   }
   bindEvents();
+  refreshStorageButton();
   checkForUpdates();
   setInterval(checkForUpdates, UPDATE_CHECK_INTERVAL);
 
@@ -4810,6 +4836,7 @@ function sortedEntries(entries) {
 async function persistEdits(edits) {
   await Storage.writeWordlist(edits, entriesToText(edits.rawEntries));
   persistMeta();
+  refreshStorageButton();
 }
 
 async function downloadEdits() {
@@ -9980,6 +10007,7 @@ async function applyWordlistText(wordlist, text, { fetchedSize = null, originalF
       openUpdateSummaryDialog(wordlist, oldEntries.length, added, deleted, rescored);
     }
   }
+  if (wordlist.type === 'edits') refreshStorageButton();
 }
 
 async function fetchWordlist(wordlist, event, { silent = false, viaToast = false } = {}) {
