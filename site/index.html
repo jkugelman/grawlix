@@ -646,6 +646,13 @@ button.header-icon-btn:hover { background: none; color: rgba(255,255,255,0.65); 
 #storage-dialog .storage-tab-help { color: var(--muted); line-height: 1.5; margin: 0 0 16px; font-size: 12px; }
 #storage-anomaly-dialog { width: 380px; }
 #storage-turnoff-dialog { width: 380px; }
+.busy-actions { display: flex; flex-direction: column; gap: 8px; align-items: stretch; min-width: 280px; }
+.busy-actions.animated { opacity: 0; animation: busy-actions-reveal 0.4s ease-out 0.5s forwards; }
+@keyframes busy-actions-reveal { to { opacity: 1; } }
+#storage-paused-banner { position: fixed; top: 0; left: 0; right: 0; z-index: 100; padding: 10px 16px; background: #f3c44f; color: #5b3a00; display: flex; gap: 14px; align-items: center; justify-content: center; font-size: 13px; flex-wrap: wrap; box-shadow: 0 1px 3px rgba(0,0,0,0.15); }
+#storage-paused-banner button { padding: 4px 10px; border: 1px solid currentColor; background: rgba(255,255,255,0.5); color: inherit; cursor: pointer; font-size: 12px; border-radius: 4px; font-family: inherit; }
+#storage-paused-banner button:hover { background: rgba(255,255,255,0.75); }
+body:has(#storage-paused-banner:not([hidden])) header { margin-top: 38px; }
 .storage-folder-chip { display: inline-flex; align-items: center; gap: 8px; padding: 8px 12px; background: var(--surface); border: 1px solid var(--border2); border-radius: 6px; font-size: 13px; margin: 6px 0 14px; }
 .storage-folder-chip-icon { font-size: 16px; line-height: 1; }
 .dialog-footer-split { justify-content: space-between; }
@@ -2664,6 +2671,22 @@ const DiskBackend = {
   },
 };
 
+const NullBackend = {
+  schemaVersion()        { return SCHEMA_VERSION; },
+  setSchemaVersion()     {},
+  hasData()              { return false; },
+  readMeta()             { return null; },
+  writeMeta()            {},
+  readScoring()          { return null; },
+  writeScoring()         {},
+  readMergedSettings()   { return {}; },
+  writeMergedSettings()  {},
+  async readWordlist()   { return null; },
+  async writeWordlist()  {},
+  async deleteWordlist() {},
+  async reset()          {},
+};
+
 let Storage = IdbBackend;
 
 const Disk = {
@@ -2996,6 +3019,7 @@ const StorageDialog = (() => {
     try { await migrateToDisk(handle); }
     catch (err) { showAlert(`Migration failed: ${esc(err.message || err)}`); return; }
     showToast(`Storage is now in "${handle.name}".`);
+    setTimeout(() => location.reload(), 900);
   }
 
   async function openMergeDialog(handle) {
@@ -3021,6 +3045,7 @@ const StorageDialog = (() => {
     try { await applyMerge(handle, folderSettings, diff, result); }
     catch (err) { await showAlert(`Loading from folder failed: ${esc(err.message || err)}`); return; }
     showToast(`Storage is now in "${handle.name}".`);
+    setTimeout(() => location.reload(), 900);
   }
 
   async function computeMergeDiff(handle, folderSettings) {
@@ -3290,6 +3315,149 @@ async function turnOffStorage({ deleteFiles }) {
   await DiskBackend.reset();
   location.reload();
   await new Promise(() => {});
+}
+
+async function loadDiskCache(handle) {
+  let text;
+  try { text = await Disk.readFile(handle, GRAWLIX_JSON_NAME); }
+  catch { return null; }
+  if (text == null) return null;
+  let cache;
+  try { cache = JSON.parse(text); }
+  catch { return null; }
+  if (cache.schemaVersion !== SCHEMA_VERSION) {
+    await showAlert(`This folder was written with a different version of Grawlix (schema ${cache.schemaVersion}; this Grawlix expects ${SCHEMA_VERSION}). Storage isn't compatible.`);
+    return null;
+  }
+  return cache;
+}
+
+const BlockingDialog = (() => {
+  let _hasAnimatedIn = false;
+
+  function ensureOverlay() {
+    let overlay = document.getElementById('busy-overlay');
+    if (overlay) return overlay;
+    overlay = document.createElement('div');
+    overlay.id = 'busy-overlay';
+    overlay.innerHTML = `<div class="busy-logo">Grawlix <span class="bubble">!@#$</span></div><div class="busy-spinner"><span></span><span></span><span></span></div>`;
+    document.body.appendChild(overlay);
+    return overlay;
+  }
+
+  function show(initialHandle) {
+    return new Promise(resolve => {
+      const overlay = ensureOverlay();
+      const spinner = overlay.querySelector('.busy-spinner');
+
+      const finish = (result) => {
+        overlay.querySelectorAll('.busy-actions').forEach(e => e.remove());
+        if (spinner) spinner.hidden = false;
+        resolve(result);
+      };
+
+      if (spinner) spinner.hidden = true;
+      renderAccess(overlay, initialHandle, finish);
+    });
+  }
+
+  function renderAccess(overlay, handle, finish) {
+    setActions(overlay, [
+      { label: 'Load Grawlix data', primary: true, onclick: async () => {
+        const granted = await Disk.requestPermission(handle);
+        if (!granted) { renderUnavailable(overlay, handle, finish); return; }
+        const cache = await loadDiskCache(handle);
+        if (!cache) { renderUnavailable(overlay, handle, finish); return; }
+        finish({ mode: 'disk', handle, cache });
+      } },
+      canInstall() && { label: 'Install Grawlix', onclick: async () => {
+        await tryInstall();
+        overlay.querySelector('.busy-actions button.primary').click();
+      } },
+      { label: 'Use without disk storage this session', onclick: () => finish({ mode: 'session' }) },
+    ]);
+  }
+
+  function renderUnavailable(overlay, handle, finish) {
+    setActions(overlay, [
+      { label: 'Try again', primary: true, onclick: async () => {
+        const granted = handle ? await Disk.requestPermission(handle) : false;
+        if (!granted) return;
+        const cache = await loadDiskCache(handle);
+        if (!cache) return;
+        finish({ mode: 'disk', handle, cache });
+      } },
+      { label: 'Pick a different folder', onclick: async () => {
+        let newHandle;
+        try { newHandle = await Disk.pickFolder(); }
+        catch { return; }
+        if (!newHandle) return;
+        await Disk.saveHandle(newHandle);
+        const cache = await loadDiskCache(newHandle);
+        if (!cache) { renderUnavailable(overlay, newHandle, finish); return; }
+        finish({ mode: 'disk', handle: newHandle, cache });
+      } },
+      { label: 'Use without disk storage this session', onclick: () => finish({ mode: 'session' }) },
+    ]);
+  }
+
+  function setActions(overlay, actions) {
+    overlay.querySelectorAll('.busy-actions').forEach(e => e.remove());
+    const div = document.createElement('div');
+    div.className = _hasAnimatedIn ? 'busy-actions' : 'busy-actions animated';
+    _hasAnimatedIn = true;
+    for (const a of actions.filter(Boolean)) {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.textContent = a.label;
+      if (a.primary) btn.className = 'primary';
+      btn.onclick = a.onclick;
+      div.appendChild(btn);
+    }
+    overlay.appendChild(div);
+    (div.querySelector('.primary') || div.querySelector('button'))?.focus();
+  }
+
+  return { show };
+})();
+
+const SessionPausedBanner = (() => {
+  let bannerEl = null;
+
+  function show() {
+    if (bannerEl) { bannerEl.hidden = false; return; }
+    bannerEl = document.createElement('div');
+    bannerEl.id = 'storage-paused-banner';
+    bannerEl.innerHTML = `
+      <span>Disk storage paused for this session — your data is safe in your folder.</span>
+      <button type="button" id="banner-reload">Reload to try again</button>
+      <button type="button" id="banner-turn-off">Turn off storage</button>
+    `;
+    document.body.insertBefore(bannerEl, document.body.firstChild);
+    bannerEl.querySelector('#banner-reload').onclick = () => location.reload();
+    bannerEl.querySelector('#banner-turn-off').onclick = async () => {
+      const ok = await showConfirm(
+        'Turn off disk storage? Your files on disk are left untouched. This Grawlix will switch to browser storage.',
+        { confirmText: 'Turn off', danger: true }
+      );
+      if (!ok) return;
+      await Disk.clearHandle();
+      await IdbBackend.reset();
+      location.reload();
+    };
+  }
+
+  return { show };
+})();
+
+async function attemptDiskBoot() {
+  const handle = await Disk.loadHandle();
+  if (!handle) return { mode: 'none' };
+  if (await Disk.hasPermission(handle)) {
+    const cache = await loadDiskCache(handle);
+    if (cache) return { mode: 'disk', handle, cache };
+  }
+  return BlockingDialog.show(handle);
 }
 
 async function migrateToDisk(handle) {
@@ -4311,13 +4479,22 @@ async function init() {
 
   await openDB();
 
+  const boot = await attemptDiskBoot();
+  if (boot.mode === 'disk') {
+    DiskBackend.attach(boot.handle, boot.cache);
+    Storage = DiskBackend;
+  } else if (boot.mode === 'session') {
+    Storage = NullBackend;
+    SessionPausedBanner.show();
+  }
+
   const meta = Storage.readMeta();
   if (meta) {
     try {
       state.sources = await Promise.all(meta.map(async m => {
-        const dbKey = m.dbKey || newDbKey();
-        const text = await Storage.readWordlist({ dbKey }) ?? await idbGet('data_' + m.id);
-        return wordlistFromMeta({ ...m, dbKey }, text);
+        const m2 = { ...m, dbKey: m.dbKey || newDbKey() };
+        const text = await Storage.readWordlist(m2) ?? await idbGet('data_' + m.id);
+        return wordlistFromMeta(m2, text);
       }));
     } catch { state.sources = defaultSources(); }
   } else {
