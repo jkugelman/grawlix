@@ -27,7 +27,7 @@ Design and manual:
 Plans (forward-looking, not yet shipped):
 - [`docs/planned/help.md`](docs/planned/help.md) — separating welcome tour from returning-user reference manual.
 - [`docs/planned/migration.md`](docs/planned/migration.md) — when to graduate from schema-version resets to layered migrations.
-- [`docs/planned/sync.md`](docs/planned/sync.md) — three-tier persistence (backup nag, disk file, cloud sync) for All + My Edits.
+- [`docs/planned/storage.md`](docs/planned/storage.md) — disk storage: Grawlix stores its data in a user-picked folder (wordlists as files, settings as `grawlix.json`). Cross-device falls out of putting the folder in Dropbox/iCloud/OneDrive. Boot-time blocking dialog handles the per-session FSA re-grant on non-installed Chromium.
 - [`docs/planned/tools.md`](docs/planned/tools.md) — runtime support sequencing, gallery polish (category picker, search), result download, tool API extensions (indexed lookups, annotations, escape hatches), open questions. The chain-row pipeline (executor, per-row tool API, symmetric unification, search-as-tool, per-atom-count sort, highlights) and the group-row model (group tools, group rows, the +N-more reveal) are shipped — see `design.md`. The tool catalog itself lives in `docs/tools.md`.
 
 Future (longer-horizon ideas, not actively planned):

@@ -50,7 +50,7 @@ Library is a peer view, not a setup dialog: rescoring and curating wordlists is 
 
 **One bar, one story.** The stats bar carries every readout about the visible result set (counts, stats numbers, histogram) and the two controls that shape that view (score range, sort) in a single sticky band. Counts and stats describe the score-range-filtered output; the histogram projects the unfiltered pipeline output with the bracket overlaid, so dragging the range narrower shows what's being trimmed instead of bars disappearing past the bracket. Left → right: `Entries N   Groups N` · `Min Max + histogram` · `Score [range] · Sort by [axis] [↑/↓]`. Counts hold; `Min · Max` collapses when the bar would overflow.
 
-**No persistent rail, no collapsible side panel.** The tool gallery sits as a top section of the card instead of in a side rail; a sync indicator will arrive with sync (see [`planned/sync.md`](planned/sync.md)). A collapsible side panel was considered and rejected as a rail comeback in disguise.
+**No persistent rail, no collapsible side panel.** The tool gallery sits as a top section of the card instead of in a side rail; disk storage's loud signal is the boot-time blocking dialog rather than a status indicator in the chrome (see [`planned/storage.md`](planned/storage.md)). A collapsible side panel was considered and rejected as a rail comeback in disguise.
 
 **Mechanics worth knowing:**
 
@@ -63,7 +63,7 @@ Library is a peer view, not a setup dialog: rescoring and curating wordlists is 
 Setup splits across two surfaces that answer different questions and stay distinct:
 
 - **Library** — what wordlists do I have, in what order, with what rules. A top-level view (peer of Workshop) reached via the brand-bar nav.
-- **Sync & backup** — how is my data being preserved across time and devices. A dialog.
+- **Disk storage** — where my data lives on disk, with a boot-time blocking dialog when the FSA handle needs re-granting. Reached from Settings, not its own dialog or view.
 
 ### Library
 
@@ -110,7 +110,7 @@ The two views answer different questions about the same data — Workshop asks "
 
 The banner is a 3-page sequence (welcome, personal-wordlist import into My Edits, XWI subscriber import) that exists to *surface features users might not know are there*, not to provide parallel import paths — pages 2 and 3 route through the same `ingestFile` plumbing as the canonical import flows. Page 3 is gated on the XWI wordlist still being present and unpopulated, so it drops out when irrelevant rather than asking a question that has no answer.
 
-**`All` lives in the Library.** It's the synthesized wordlist and belongs in the list of wordlists; the merged-wordlist download lives here too rather than in Sync & backup, which would conflate *one-time download* with *backup workflow*.
+**`All` lives in the Library.** It's the synthesized wordlist and belongs in the list of wordlists; the merged-wordlist download lives here too, alongside per-wordlist Downloads.
 
 ### Rich wordlists
 
@@ -151,14 +151,13 @@ The matcher compiles to a regex (`buildSearchPattern`). Bare-letter tokens expan
 
 **Schema version bumped to 6.** The wlEntry shape change (`entry` → `{norm, display}`) is a stored-data format change, so the schema-mismatch reset prompt covers existing users.
 
-### Sync & backup
+### Disk storage
 
-Today this is a stub. Full design lives in [`planned/sync.md`](planned/sync.md): prominent "Download All" and "Download My Edits" buttons (Tier 1 manual backup), per-cloud-provider connect/disconnect (Tier 3), disk-sync section gated on PWA install (Tier 2), recent activity log.
+Today this is a stub. Full design lives in [`planned/storage.md`](planned/storage.md): the user picks a folder on their hard drive and Grawlix uses it as its data directory — wordlists as files, settings as `grawlix.json`. When disk storage is on, IDB is abandoned and the folder is the single source of truth. Cross-device falls out for free when the folder lives in Dropbox/iCloud/OneDrive. A blocking dialog handles the per-session FSA re-grant on non-installed Chromium; PWA install removes the prompt. Firefox/Safari and mobile have no FSA and run unsynced.
 
-### Two paths to "give me a file"
+### One path to "give me a file"
 
-- **Any wordlist's `Download` button in the Library** — produces that wordlist's file. For sources, the Rescored/Original toggle decides which version. For All, it produces the merged wordlist file.
-- **Sync & backup dialog** — Tier 1 manual backup for the whole setup. Same file output as Library's All Download, but the workflow is "make a backup" rather than "give me this file"; once Tier 1 lands, using it bumps the "Last backup" timestamp.
+Any wordlist's `Download` button in the Library produces that wordlist's file. For Sources, the Rescored/Original toggle decides which version; for All, it produces the merged wordlist file. There's no separate "backup" gesture — under disk storage the folder is the backup; under unsynced mode the per-wordlist Downloads are the manual backup path.
 
 ### Fetching & updates
 
@@ -574,7 +573,7 @@ These are local-only:
 - **Score filter** (both Workshop's single filter and Library's per-(wordlist, mode) filters). Stored in localStorage, not the URL. Two reasons — written down so the question doesn't get re-litigated:
   1. **Scores aren't portable across users.** What counts as `60` depends on which wordlists you have loaded and how you've rescored them. There is no universal scale — even the "common" tier labels (great / good / fair / …) are themselves per-user via My Edits' scoring. A shared `score=60` filter would apply the sender's number to the recipient's scale and produce nonsense. The other URL params don't have this problem: a search pattern, a whole-word toggle, a sort axis, and a tool stack all mean the same thing on any setup.
   2. **It's a standing preference, not a query.** The dominant use is "filter the low-scoring junk out so I'm not wading through it" — that's a setting the user wants in place every visit, not something they re-enter each load. URL-bound state resets to empty on a fresh visit (no link to apply); localStorage carries it forward.
-- **Dialogs** (settings, Sync & backup) — transient UI state. Open them how you opened them; close them when you're done.
+- **Dialogs** (settings, etc.) — transient UI state. Open them how you opened them; close them when you're done.
 - **Library's focused wordlist** and its display mode — Library is wordlist-management workspace, not something a link should pre-position the recipient into.
 - Scroll position, edit-in-progress state, transient popovers.
 
@@ -674,9 +673,9 @@ The alternative — sprinkling `invalidateX()` and `repaintY()` calls at every m
 
 ## Open questions
 
-### Routes for Sync & backup, Settings, Help?
+### Routes for Settings, Help?
 
-Top-level views (Workshop, Library) are routed; setup-style dialogs (Sync & backup, Settings, Help) aren't. Confirms/alerts/downloads stay as dialogs regardless — those really are transient.
+Top-level views (Workshop, Library) are routed; setup-style dialogs (Settings, Help) aren't. Confirms/alerts/downloads stay as dialogs regardless — those really are transient.
 
 Arguments in favor of routes for setup: setup screens are *places* users spend real time, URL-addressable means deep-linkable and reload-safe, narrow viewports turn modals into full-screen routes anyway. Currently sticking with dialogs because they match the existing codebase idiom.
 

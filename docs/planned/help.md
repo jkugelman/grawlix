@@ -48,4 +48,4 @@ One UX principle from the earlier design is worth keeping if/when any page inclu
 ## Related
 
 - [`tools.md`](tools.md) — tool gallery design and the parallel redesign track. The gallery's blurbs set the floor for what these docs *don't* need to cover.
-- [`sync.md`](sync.md) — persistence and downloads, relevant to the FAQ and Wordlists pages.
+- [`storage.md`](storage.md) — disk storage, relevant to the FAQ and Wordlists pages.
