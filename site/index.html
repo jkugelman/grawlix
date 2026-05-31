@@ -645,6 +645,10 @@ button.header-icon-btn:hover { background: none; color: rgba(255,255,255,0.65); 
 #storage-dialog .storage-pitch { color: var(--muted); line-height: 1.5; margin: 0 0 14px; font-size: 13px; }
 #storage-dialog .storage-tab-help { color: var(--muted); line-height: 1.5; margin: 0 0 16px; font-size: 12px; }
 #storage-anomaly-dialog { width: 380px; }
+#storage-turnoff-dialog { width: 380px; }
+.storage-folder-chip { display: inline-flex; align-items: center; gap: 8px; padding: 8px 12px; background: var(--surface); border: 1px solid var(--border2); border-radius: 6px; font-size: 13px; margin: 6px 0 14px; }
+.storage-folder-chip-icon { font-size: 16px; line-height: 1; }
+.dialog-footer-split { justify-content: space-between; }
 .dialog-footer-stacked { flex-direction: column; align-items: stretch; gap: 6px; }
 .dialog-footer-stacked button { width: 100%; padding: 8px 12px; text-align: center; }
 #storage-merge-dialog { width: 460px; }
@@ -2897,6 +2901,7 @@ const StorageDialog = (() => {
   const { el, body } = createDialog('storage-dialog', { labelledby: 'storage-dialog-title' });
   const { el: anomalyEl, body: anomalyBody } = createDialog('storage-anomaly-dialog', { labelledby: 'storage-anomaly-title' });
   const { el: mergeEl, body: mergeBody } = createDialog('storage-merge-dialog', { labelledby: 'storage-merge-title' });
+  const { el: turnOffEl, body: turnOffBody } = createDialog('storage-turnoff-dialog', { labelledby: 'storage-turnoff-title' });
 
   let _intent = 'new';
 
@@ -3224,14 +3229,68 @@ const StorageDialog = (() => {
     `;
   }
 
+  function renderOn() {
+    const folderName = DiskBackend.handle()?.name || '(unknown)';
+    body.innerHTML = `
+      <button class="dialog-close-btn" aria-label="Close">✕</button>
+      <h2 id="storage-dialog-title">Storage</h2>
+      <p class="storage-pitch">Grawlix wordlists are saved to disk so your construction software can use them directly. Edits in either place flow to the other automatically.</p>
+      <div class="storage-folder-chip"><span class="storage-folder-chip-icon">📁</span>${esc(folderName)}</div>
+      <div class="dialog-footer dialog-footer-split">
+        <button type="button" id="btn-storage-off">Turn off</button>
+        <button type="button" class="dialog-cancel-btn primary">Close</button>
+      </div>
+    `;
+    body.querySelector('#btn-storage-off').onclick = () => {
+      el.close();
+      openTurnOffDialog();
+    };
+  }
+
+  function openTurnOffDialog() {
+    turnOffBody.innerHTML = `
+      <button type="button" class="dialog-close-btn" aria-label="Close">✕</button>
+      <form method="dialog">
+        <h2 id="storage-turnoff-title">Turn off storage</h2>
+        <p class="dialog-msg">Grawlix will stop saving to disk. What about the files?</p>
+        <div class="dialog-footer dialog-footer-stacked">
+          <button value="keep" autofocus>Keep files on disk</button>
+          <button class="danger" value="delete">Delete files from disk</button>
+          <button type="button" class="dialog-cancel-btn">Cancel</button>
+        </div>
+      </form>
+    `;
+    showDialog(turnOffEl, async () => {
+      const v = turnOffEl.returnValue;
+      if (v !== 'keep' && v !== 'delete') return;
+      try { await turnOffStorage({ deleteFiles: v === 'delete' }); }
+      catch (err) { showAlert(`Turning off storage failed: ${esc(err.message || err)}`); }
+    });
+  }
+
   function open() {
-    if (!Disk.isSupported()) renderInfo();
-    else                     renderOff();
+    if (!Disk.isSupported())           renderInfo();
+    else if (DiskBackend.isAttached()) renderOn();
+    else                               renderOff();
     showDialog(el);
   }
 
   return { open };
 })();
+
+async function turnOffStorage({ deleteFiles }) {
+  const handle = DiskBackend.handle();
+  if (deleteFiles && handle) {
+    for (const name of await Disk.listFiles(handle)) {
+      if (name === GRAWLIX_JSON_NAME || name === 'README.txt' || name.endsWith('.txt')) {
+        await Disk.deleteFile(handle, name);
+      }
+    }
+  }
+  await DiskBackend.reset();
+  location.reload();
+  await new Promise(() => {});
+}
 
 async function migrateToDisk(handle) {
   for (const wl of state.sources) {
