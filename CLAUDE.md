@@ -94,7 +94,7 @@ ENTRY;SCORE;COMMENT
 ## CSS custom properties
 
 All colors are CSS variables on `html.dark-mode` / `html.light-mode`. The naming convention:
-- `--bg`, `--surface`, `--surface2` — background layers
+- `--bg`, `--surface` — background layers (`--bg` is the page; `--surface` is a slightly-tinted layer for sticky bars, sidebars, popovers)
 - `--border`, `--border2`, `--border3` — border layers
 - `--text`, `--muted`, `--faint` — text strength layers
 - `--accent`, `--accent-hover` — brand purple
