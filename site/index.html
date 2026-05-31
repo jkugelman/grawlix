@@ -3072,7 +3072,7 @@ const LibraryView = (() => {
         <div class="wld-pane-actions">${actionsHTML}</div>
       </div>
       ${rulesHTML}
-      ${hasData ? buildSearchBarHTML() : ''}
+      ${buildSearchBarHTML()}
       ${buildLibraryStatsBarHTML(stats, sourceEntries, ignoredCount)}
       ${hasData ? buildEntriesPanelHTML() : ''}`;
 
@@ -3114,7 +3114,7 @@ const LibraryView = (() => {
         <div class="wld-pane-actions">${dlBtn}</div>
       </div>
       <div class="wld-pane-rescore" id="wld-scoring-section">${buildScoringSectionHTML()}</div>
-      ${hasData ? buildSearchBarHTML() : ''}
+      ${buildSearchBarHTML()}
       ${buildLibraryStatsBarHTML(stats, entries, 0)}
       ${hasData ? buildEntriesPanelHTML() : ''}`;
 
