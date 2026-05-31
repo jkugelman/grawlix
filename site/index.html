@@ -176,11 +176,18 @@ button.header-nav-item:hover:not(:disabled) { color: white; background: var(--hd
 #workshop-view,
 #library-view { background: var(--surface); overflow: clip; flex: 1 1 auto; display: flex; flex-direction: column; }
 
-/* Busy overlay covers the viewport regardless of card position. */
-#busy-overlay { position: fixed; inset: 0; z-index: 200; background: var(--bg); display: flex; align-items: center; justify-content: center; transition: opacity 0.2s; }
+#busy-overlay { position: fixed; inset: 0; z-index: 200; background: var(--surface); color: var(--accent); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 48px; transition: opacity 0.3s; }
 #busy-overlay.done { opacity: 0; pointer-events: none; }
-.busy-spinner { width: 36px; height: 36px; border: 3px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: busy-spin 0.7s linear infinite; }
-@keyframes busy-spin { to { transform: rotate(360deg); } }
+.busy-logo { font-size: 56px; font-weight: 600; letter-spacing: -0.01em; line-height: 1.1; display: inline-flex; align-items: center; opacity: 0; animation: busy-logo-reveal 0.4s ease-out forwards; }
+.busy-logo .bubble { background: var(--accent); color: var(--surface); font-size: 44px; padding: 3px 20px 6px; border-radius: 16px; margin-left: 27px; }
+.busy-logo .bubble::before { left: -45px; border-width: 27px; border-right-color: var(--accent); }
+.busy-spinner { display: flex; gap: 10px; opacity: 0; animation: busy-spinner-reveal 0.4s ease-out 5s forwards; }
+.busy-spinner span { width: 11px; height: 11px; background: var(--accent); border-radius: 50%; animation: busy-worm 1.4s ease-in-out infinite; }
+.busy-spinner span:nth-child(2) { animation-delay: 0.2s; }
+.busy-spinner span:nth-child(3) { animation-delay: 0.4s; }
+@keyframes busy-worm { 0%, 80%, 100% { transform: translateY(0); opacity: 0.45; } 40% { transform: translateY(-9px); opacity: 1; } }
+@keyframes busy-spinner-reveal { to { opacity: 1; } }
+@keyframes busy-logo-reveal { to { opacity: 1; } }
 
 /* Add wordlist row (at the bottom of the Library's wordlist list) */
 .add-wordlist-row { padding: 9px 14px; cursor: pointer; color: var(--text); font-size: 13px; display: flex; align-items: center; gap: 9px; transition: background 0.1s, color 0.1s; user-select: none; background: var(--surface); }
@@ -1249,7 +1256,10 @@ html.dark-mode .wld-onboarding { background: color-mix(in srgb, var(--accent) 15
 
 <div id="picker-backdrop"></div>
 <main>
-  <div id="busy-overlay"><div class="busy-spinner"></div></div>
+  <div id="busy-overlay">
+    <div class="busy-logo">Grawlix <span class="bubble">!@#$</span></div>
+    <div class="busy-spinner"><span></span><span></span><span></span></div>
+  </div>
   <div id="workshop-view">
     <section id="featured-row" aria-label="Tools">
       <div class="picker-bar">
