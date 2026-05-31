@@ -2456,25 +2456,13 @@ function lsDel(key)  { localStorage.removeItem(LS_PREFIX + key); }
 //   v7 — drop rescoring from My Edits; user-typed scores pass through unchanged.
 const SCHEMA_VERSION = 7;
 
-function readMergedSettings() {
-  try { return JSON.parse(lsLoad('mergedSettings')) || {}; } catch { return {}; }
-}
-function writeMergedSettings(s) { lsSave('mergedSettings', JSON.stringify(s)); }
-
 // IndexedDB for large wordlist data (localStorage has ~5MB limit)
 const IDB_NAME  = 'grawlix';
 const IDB_STORE = 'data';
 let _db = null;
 
 async function resetAllDataAndReload() {
-  Object.keys(localStorage).filter(k => k.startsWith(LS_PREFIX)).forEach(k => localStorage.removeItem(k));
-  if (_db) { _db.close(); _db = null; }
-  await new Promise(resolve => {
-    const req = indexedDB.deleteDatabase(IDB_NAME);
-    req.onsuccess = resolve;
-    req.onerror   = resolve;
-    req.onblocked = resolve;
-  });
+  await Storage.reset();
   location.reload();
   // location.reload() is asynchronous — JS keeps running until the navigation
   // actually fires. Block the caller so it can't re-persist the state we just
@@ -2526,13 +2514,59 @@ function newDbKey() {
   return `${hex(8)}-${hex(4)}-${hex(4)}-${hex(4)}-${hex(12)}`;
 }
 
+const Storage = {
+  schemaVersion() { const v = parseInt(lsLoad('schemaVersion'), 10); return Number.isFinite(v) ? v : null; },
+  setSchemaVersion(v) { lsSave('schemaVersion', String(v)); },
+  hasData() { return lsLoad('meta') !== null; },
+
+  readMeta() {
+    const raw = lsLoad('meta');
+    if (!raw) return null;
+    try { return JSON.parse(raw); }
+    catch { return null; }
+  },
+  writeMeta(sources) { lsSave('meta', JSON.stringify(sources)); },
+
+  readScoring() {
+    const raw = lsLoad('scoring');
+    if (!raw) return null;
+    try { return { scoring: JSON.parse(raw), dirty: lsLoad('scoringDirty') === '1' }; }
+    catch { return null; }
+  },
+  writeScoring(scoring, dirty) {
+    lsSave('scoring', JSON.stringify(scoring));
+    lsSave('scoringDirty', dirty ? '1' : '0');
+  },
+
+  readMergedSettings() {
+    try { return JSON.parse(lsLoad('mergedSettings')) || {}; }
+    catch { return {}; }
+  },
+  writeMergedSettings(s) { lsSave('mergedSettings', JSON.stringify(s)); },
+
+  async readWordlist(wordlist) { return idbGet('data_' + wordlist.dbKey); },
+  async writeWordlist(wordlist, text) { await idbPut('data_' + wordlist.dbKey, text); },
+  async deleteWordlist(wordlist) { await idbDel('data_' + wordlist.dbKey); },
+
+  async reset() {
+    Object.keys(localStorage).filter(k => k.startsWith(LS_PREFIX)).forEach(k => localStorage.removeItem(k));
+    if (_db) { _db.close(); _db = null; }
+    await new Promise(resolve => {
+      const req = indexedDB.deleteDatabase(IDB_NAME);
+      req.onsuccess = resolve;
+      req.onerror   = resolve;
+      req.onblocked = resolve;
+    });
+  },
+};
+
 function persistMeta() {
   if (_batchDepth > 0) { _persistPending = true; return; }
   _persistMetaNow();
 }
 
 function _persistMetaNow() {
-  lsSave('meta', JSON.stringify(state.sources.map(l => ({
+  Storage.writeMeta(state.sources.map(l => ({
     ...(l.type ? { type: l.type } : {}),
     dbKey: l.dbKey,
     ...(l.icon ? { icon: l.icon } : {}),
@@ -2546,16 +2580,11 @@ function _persistMetaNow() {
     ...(l.downloadCase ? { downloadCase: l.downloadCase } : {}),
     ...(l.downloadExt  ? { downloadExt:  l.downloadExt  } : {}),
     ...(l.downloadStem ? { downloadStem: l.downloadStem } : {}),
-  }))));
+  })));
 }
 
 function persistScoring() {
-  lsSave('scoring', JSON.stringify(state.scoring));
-  lsSave('scoringDirty', state.scoringDirty ? '1' : '0');
-}
-
-async function persistData(dbKey, text) {
-  await idbPut('data_' + dbKey, text);
+  Storage.writeScoring(state.scoring, state.scoringDirty);
 }
 
 // ─── Dark mode ────────────────────────────────────────────────────────────────
@@ -2862,7 +2891,7 @@ const LibraryView = (() => {
     recomputeUncovered(edits);
     persistMeta();
     persistScoring();
-    await Promise.all(toRemove.map(l => idbDel('data_' + l.dbKey)));
+    await Promise.all(toRemove.map(l => Storage.deleteWordlist(l)));
     renderAll();
     advanceOnboarding();
   }
@@ -3642,8 +3671,8 @@ async function tryInstall() {
 // ─── Init ─────────────────────────────────────────────────────────────────────
 
 async function init() {
-  const storedSchema = parseInt(lsLoad('schemaVersion'), 10);
-  const hasOldData   = lsLoad('meta') !== null;
+  const storedSchema = Storage.schemaVersion();
+  const hasOldData   = Storage.hasData();
   if (hasOldData && storedSchema !== SCHEMA_VERSION) {
     const reset = await showConfirm(
       `Grawlix's data format has changed since your last visit. The site may not work correctly until reset.`,
@@ -3653,18 +3682,17 @@ async function init() {
       await resetAllDataAndReload();
     }
   } else if (!hasOldData) {
-    lsSave('schemaVersion', String(SCHEMA_VERSION));
+    Storage.setSchemaVersion(SCHEMA_VERSION);
   }
 
   await openDB();
 
-  const raw = lsLoad('meta');
-  if (raw) {
+  const meta = Storage.readMeta();
+  if (meta) {
     try {
-      const meta = JSON.parse(raw);
       state.sources = await Promise.all(meta.map(async m => {
         const dbKey = m.dbKey || newDbKey();
-        const text = await idbGet('data_' + dbKey) ?? await idbGet('data_' + m.id);
+        const text = await Storage.readWordlist({ dbKey }) ?? await idbGet('data_' + m.id);
         const wordlist = wrapWordlist({
           ...(m.type     ? { type: m.type }         : {}),
           dbKey,
@@ -3777,16 +3805,11 @@ function ensureEdits() {
 
 // Load tier labels from storage, or seed defaults on first boot.
 function ensureScoring() {
-  const raw = lsLoad('scoring');
-  if (raw) {
-    try {
-      const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed)) {
-        state.scoring = parsed;
-        state.scoringDirty = lsLoad('scoringDirty') === '1';
-        return;
-      }
-    } catch {}
+  const stored = Storage.readScoring();
+  if (stored && Array.isArray(stored.scoring)) {
+    state.scoring = stored.scoring;
+    state.scoringDirty = stored.dirty;
+    return;
   }
   state.scoring = DEFAULT_SCORING.map(r => ({ ...r }));
   state.scoringDirty = false;
@@ -3801,7 +3824,7 @@ function entriesToText(entries) {
 }
 
 async function persistEdits(edits) {
-  await persistData(edits.dbKey, entriesToText(edits.rawEntries));
+  await Storage.writeWordlist(edits, entriesToText(edits.rawEntries));
   persistMeta();
 }
 
@@ -8918,7 +8941,6 @@ const openUpdateSummaryDialog = (() => {
 })();
 
 async function applyWordlistText(wordlist, text, { fetchedSize = null, originalFilename = null, nameOverride = null, source = null, clearUrl = false, silent = false, viaToast = false } = {}) {
-  const dbKey = wordlist.dbKey;
   const wasEmpty = !wordlist.rawEntries.length;
   const oldEntries = wasEmpty ? null : wordlist.rawEntries;
 
@@ -8942,7 +8964,7 @@ async function applyWordlistText(wordlist, text, { fetchedSize = null, originalF
     repaintAfterCacheChange();
   });
 
-  await persistData(dbKey, text);
+  await Storage.writeWordlist(wordlist, text);
   // The render effect drained inside batchUpdate already updated the Library
   // list, dropdown, scoring legend, stats bar, and active scroller for the
   // current selection. Nothing else to repaint here.
@@ -9104,7 +9126,7 @@ function ingestFile(file, wordlist, nameOverride) {
       invalidateWordlistCaches(wordlist);
       recomputeUncovered(wordlist);
 
-      await persistData(wordlist.dbKey, entriesToText(wordlist.rawEntries));
+      await Storage.writeWordlist(wordlist, entriesToText(wordlist.rawEntries));
       persistMeta();
 
       renderSources();
@@ -9184,7 +9206,7 @@ async function deleteWordlist(wordlist, event) {
   // `state.sources` change below don't read a stale merged cache.
   invalidateWordlistCaches(wordlist);
   state.sources = state.sources.filter(l => l !== wordlist);
-  await idbDel('data_' + wordlist.dbKey);
+  await Storage.deleteWordlist(wordlist);
   persistMeta();
   renderAll();
 }
@@ -9292,7 +9314,7 @@ const showDownloadDialog = (() => {
   return function(defaultStem, wordlist, title = 'Download') {
     titleEl.textContent = title;
     return new Promise(resolve => {
-      const settings = wordlist || readMergedSettings();
+      const settings = wordlist || Storage.readMergedSettings();
       const savedCase     = settings.downloadCase || 'asis';
       const savedExt      = settings.downloadExt  || 'txt';
       const savedStem     = settings.downloadStem || '';
@@ -9332,7 +9354,7 @@ const showDownloadDialog = (() => {
           if (stem) wordlist.downloadStem = stem; else delete wordlist.downloadStem;
           persistMeta();
         } else {
-          writeMergedSettings({ downloadCase: caseMode, downloadExt: ext, ...(stem ? { downloadStem: stem } : {}) });
+          Storage.writeMergedSettings({ downloadCase: caseMode, downloadExt: ext, ...(stem ? { downloadStem: stem } : {}) });
         }
         lsSave('downloadComments', comments);
         resolve({ stem: stem || defaultStem, ext, caseMode, comments: comments === 'yes' });
@@ -10465,7 +10487,7 @@ async function downloadOriginalWordlist(wordlist) {
   // casing, whitespace, comment formatting, and line endings — none of which
   // survive a reconstruction from parsed wlEntries (entries are stored
   // lowercased internally; the original-case form isn't kept).
-  const text = await idbGet('data_' + wordlist.dbKey);
+  const text = await Storage.readWordlist(wordlist);
   if (!text) {
     showToast('Original file not available');
     return;
@@ -11114,7 +11136,7 @@ window.__grawlixTest = {
 
 document.addEventListener('click', () => document.querySelectorAll('.split-btn.open').forEach(b => b.classList.remove('open')));
 // Hide the busy overlay immediately if no wordlists have data.
-{ let _m; try { _m = JSON.parse(lsLoad('meta') || '[]'); } catch { _m = []; }
+{ const _m = Storage.readMeta() || [];
   if (!_m.some(l => l.lastUpdated)) document.getElementById('busy-overlay').remove(); }
 
 init();
