@@ -2560,6 +2560,78 @@ const Storage = {
   },
 };
 
+const DISK_HANDLE_IDB_KEY = '_diskFolderHandle';
+const GRAWLIX_JSON_NAME   = 'grawlix.json';
+
+const Disk = {
+  isSupported() { return typeof window.showDirectoryPicker === 'function'; },
+
+  async pickFolder(opts = {}) {
+    if (!Disk.isSupported()) return null;
+    try {
+      return await window.showDirectoryPicker({ id: 'grawlix', mode: 'readwrite', ...opts });
+    } catch (e) {
+      if (e?.name === 'AbortError') return null;
+      throw e;
+    }
+  },
+
+  async hasPermission(handle, mode = 'readwrite') {
+    if (!handle) return false;
+    return (await handle.queryPermission?.({ mode })) === 'granted';
+  },
+  async requestPermission(handle, mode = 'readwrite') {
+    if (!handle) return false;
+    return (await handle.requestPermission?.({ mode })) === 'granted';
+  },
+
+  async saveHandle(handle) { await idbPut(DISK_HANDLE_IDB_KEY, handle); },
+  async loadHandle()        { return idbGet(DISK_HANDLE_IDB_KEY); },
+  async clearHandle()       { await idbDel(DISK_HANDLE_IDB_KEY); },
+
+  async listFiles(handle) {
+    const names = [];
+    for await (const entry of handle.values()) {
+      if (entry.kind === 'file') names.push(entry.name);
+    }
+    return names;
+  },
+
+  async readFile(handle, name) {
+    try {
+      const fh = await handle.getFileHandle(name);
+      return await (await fh.getFile()).text();
+    } catch (e) {
+      if (e?.name === 'NotFoundError') return null;
+      throw e;
+    }
+  },
+
+  async writeFile(handle, name, text) {
+    const fh = await handle.getFileHandle(name, { create: true });
+    const w  = await fh.createWritable();
+    await w.write(text);
+    await w.close();
+  },
+
+  async deleteFile(handle, name) {
+    try { await handle.removeEntry(name); }
+    catch (e) { if (e?.name !== 'NotFoundError') throw e; }
+  },
+
+  async identifyFolder(handle) {
+    let hasGrawlixJson = false;
+    let hasOther = false;
+    for await (const entry of handle.values()) {
+      if (entry.kind === 'file' && entry.name === GRAWLIX_JSON_NAME) hasGrawlixJson = true;
+      else hasOther = true;
+    }
+    if (hasGrawlixJson) return 'grawlix';
+    if (hasOther) return 'other';
+    return 'empty';
+  },
+};
+
 function persistMeta() {
   if (_batchDepth > 0) { _persistPending = true; return; }
   _persistMetaNow();
