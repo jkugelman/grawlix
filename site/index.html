@@ -2585,6 +2585,8 @@ const IdbBackend = {
   async readWordlist(wordlist) { return idbGet('data_' + wordlist.dbKey); },
   async writeWordlist(wordlist, text) { await idbPut('data_' + wordlist.dbKey, text); },
   async deleteWordlist(wordlist) { await idbDel('data_' + wordlist.dbKey); },
+  async writeRescored() {},
+  async writeAllRescored() {},
 
   async reset() {
     Object.keys(localStorage).filter(k => k.startsWith(LS_PREFIX)).forEach(k => localStorage.removeItem(k));
@@ -2600,6 +2602,48 @@ const IdbBackend = {
 
 const DISK_HANDLE_IDB_KEY = '_diskFolderHandle';
 const GRAWLIX_JSON_NAME   = 'grawlix.json';
+const README_NAME         = 'README.txt';
+
+const README_TEXT = `Grawlix folder
+==============
+
+This folder is Grawlix's data folder. Wordlists, settings, and
+rescored exports for use in construction software live here.
+
+Files
+-----
+
+  grawlix.json      Settings, wordlist metadata, tier labels.
+                    Managed by Grawlix.
+
+  *.txt             Your wordlists. Edit them in any text editor;
+                    Grawlix picks up your changes automatically.
+                    My Edits.txt is the one most people customize.
+
+  * rescored.txt    Each of your wordlists with that wordlist's
+                    rescore rules applied. Sorted alphabetically.
+                    Write-only outputs for your construction
+                    software; Grawlix regenerates them every time
+                    the wordlist or its rescore rules change.
+                    Don't edit these — your changes will be
+                    overwritten.
+
+  All rescored.txt  The merged result of all enabled wordlists,
+                    rescored and sorted. The unified wordlist
+                    your construction software should point at;
+                    regenerated whenever any source wordlist or
+                    its rules change.
+
+  README.txt        This file.
+
+Cross-device
+------------
+
+Drop this folder in Dropbox, iCloud Drive, OneDrive, or Google
+Drive. On your other device, open Grawlix, click the storage
+button in the header → Load existing → pick the same folder.
+Edits will sync through your cloud client.
+`;
 
 const DiskBackend = {
   _handle: null,
@@ -2640,10 +2684,27 @@ const DiskBackend = {
   },
   async writeWordlist(wordlist, text) {
     if (!wordlist.filename) wordlist.filename = `${wordlist.name}.txt`;
-    await Disk.writeFile(this._handle, wordlist.filename, text);
+    await withOwnWrite(wordlist.filename, () => Disk.writeFile(this._handle, wordlist.filename, text));
+    await this.writeRescored(wordlist);
+    await this.writeAllRescored();
   },
   async deleteWordlist(wordlist) {
-    if (wordlist.filename) await Disk.deleteFile(this._handle, wordlist.filename);
+    if (!wordlist.filename) return;
+    await Disk.deleteFile(this._handle, wordlist.filename);
+    const r = rescoredNameFor(wordlist.filename);
+    if (r) await Disk.deleteFile(this._handle, r);
+    await this.writeAllRescored();
+  },
+  async writeRescored(wordlist) {
+    if (!wordlist.filename || wordlist.type === 'edits') return;
+    const name = rescoredNameFor(wordlist.filename);
+    if (!name) return;
+    const entries = sortedEntries(applyRescoring(wordlist.rawEntries, wordlist.rescoreRules || []));
+    await withOwnWrite(name, () => Disk.writeFile(this._handle, name, entriesToText(entries)));
+  },
+  async writeAllRescored() {
+    const entries = sortedEntries(buildMergedWordlist().entries);
+    await withOwnWrite(ALL_RESCORED_NAME, () => Disk.writeFile(this._handle, ALL_RESCORED_NAME, entriesToText(entries)));
   },
 
   async reset() {
@@ -2684,7 +2745,130 @@ const NullBackend = {
   async readWordlist()   { return null; },
   async writeWordlist()  {},
   async deleteWordlist() {},
+  async writeRescored()  {},
+  async writeAllRescored() {},
   async reset()          {},
+};
+
+function rescoredNameFor(filename) {
+  if (!filename) return null;
+  const base = filename.endsWith('.txt') ? filename.slice(0, -4) : filename;
+  return `${base} rescored.txt`;
+}
+
+const ALL_RESCORED_NAME = `${MERGED_NAME} rescored.txt`;
+
+const DISK_WATCHER_INTERVAL = 2000;
+
+async function withOwnWrite(name, op) {
+  DiskWatcher.holdName(name);
+  try {
+    await op();
+    DiskWatcher.recordOwnWrite(name);
+  } finally {
+    DiskWatcher.releaseName(name);
+  }
+}
+
+const DiskWatcher = {
+  _snapshot: new Map(),
+  _ownWrites: new Set(),
+  _heldNames: new Map(),
+  _intervalId: null,
+
+  start() {
+    if (this._intervalId) return;
+    this._tick();
+    this._intervalId = setInterval(() => this._tick(), DISK_WATCHER_INTERVAL);
+    document.addEventListener('visibilitychange', this._onVisibility);
+  },
+
+  stop() {
+    if (this._intervalId) { clearInterval(this._intervalId); this._intervalId = null; }
+    document.removeEventListener('visibilitychange', this._onVisibility);
+  },
+
+  _onVisibility() {
+    if (document.visibilityState === 'visible') DiskWatcher._tick();
+  },
+
+  recordOwnWrite(filename) {
+    this._ownWrites.add(filename);
+  },
+
+  holdName(name) {
+    this._heldNames.set(name, (this._heldNames.get(name) || 0) + 1);
+  },
+  releaseName(name) {
+    const c = this._heldNames.get(name) || 0;
+    if (c <= 1) this._heldNames.delete(name);
+    else this._heldNames.set(name, c - 1);
+  },
+
+  async _tick() {
+    if (document.visibilityState === 'hidden') return;
+    if (Storage !== DiskBackend) return;
+    const handle = DiskBackend.handle();
+    if (!handle) return;
+
+    const seenNames = new Set();
+    const changed = [];
+    try {
+      for await (const entry of handle.values()) {
+        if (entry.kind !== 'file') continue;
+        const name = entry.name;
+        seenNames.add(name);
+        if (this._heldNames.has(name)) continue;
+        const file = await entry.getFile();
+        const mtime = file.lastModified;
+
+        if (this._ownWrites.has(name)) {
+          this._ownWrites.delete(name);
+          this._snapshot.set(name, mtime);
+          continue;
+        }
+
+        const prev = this._snapshot.get(name);
+        this._snapshot.set(name, mtime);
+        if (prev === undefined || prev === mtime) continue;
+        changed.push({ name, file });
+      }
+    } catch (err) {
+      console.error('Disk watcher tick failed', err);
+      return;
+    }
+
+    for (const name of [...this._snapshot.keys()]) {
+      if (!seenNames.has(name)) this._snapshot.delete(name);
+    }
+
+    for (const { name, file } of changed) {
+      await this._applyExternalChange(name, file);
+    }
+  },
+
+  async _applyExternalChange(name, file) {
+    if (name === GRAWLIX_JSON_NAME || name === README_NAME) return;
+    if (name.endsWith(' rescored.txt')) return;
+    if (!name.endsWith('.txt')) return;
+
+    const wl = state.sources.find(s => s.filename === name);
+    if (!wl) return;
+
+    const text = await file.text();
+    const newEntries = parseWordlist(text);
+
+    batchUpdate(() => {
+      wl.rawEntries = newEntries;
+      wl.lastUpdated = Date.now();
+      invalidateActualScoresCache(wl);
+      invalidateWordlistCaches(wl);
+      recomputeUncovered(wl);
+      repaintAfterCacheChange();
+    });
+
+    await Storage.writeRescored(wl);
+  },
 };
 
 let Storage = IdbBackend;
@@ -2784,6 +2968,7 @@ function serializeMetaEntry(l) {
 
 function _persistMetaNow() {
   Storage.writeMeta(state.sources.map(serializeMetaEntry));
+  Storage.writeAllRescored().catch(err => console.error('writeAllRescored failed', err));
 }
 
 function persistScoring() {
@@ -3213,6 +3398,13 @@ const StorageDialog = (() => {
     if (editsWl && diff.folderEdits && diff.deviceEdits) {
       await Disk.writeFile(handle, editsWl.filename, entriesToText(editsWl.rawEntries));
     }
+    for (const wl of newSources) {
+      if (wl.type === 'edits' || !wl.filename) continue;
+      const entries = sortedEntries(applyRescoring(wl.rawEntries, wl.rescoreRules || []));
+      await Disk.writeFile(handle, rescoredNameFor(wl.filename), entriesToText(entries));
+    }
+    await Disk.writeFile(handle, ALL_RESCORED_NAME, entriesToText(sortedEntries(buildMergedWordlist().entries)));
+    await Disk.writeFile(handle, README_NAME, README_TEXT);
     await Disk.writeFile(handle, GRAWLIX_JSON_NAME, JSON.stringify(cache, null, 2));
     await Disk.saveHandle(handle);
 
@@ -3307,7 +3499,7 @@ async function turnOffStorage({ deleteFiles }) {
   const handle = DiskBackend.handle();
   if (deleteFiles && handle) {
     for (const name of await Disk.listFiles(handle)) {
-      if (name === GRAWLIX_JSON_NAME || name === 'README.txt' || name.endsWith('.txt')) {
+      if (name === GRAWLIX_JSON_NAME || name === README_NAME || name.endsWith('.txt')) {
         await Disk.deleteFile(handle, name);
       }
     }
@@ -3467,7 +3659,13 @@ async function migrateToDisk(handle) {
   for (const wl of state.sources) {
     const text = await IdbBackend.readWordlist(wl);
     await Disk.writeFile(handle, wl.filename, text ?? '');
+    if (wl.type !== 'edits') {
+      const entries = sortedEntries(applyRescoring(wl.rawEntries, wl.rescoreRules || []));
+      await Disk.writeFile(handle, rescoredNameFor(wl.filename), entriesToText(entries));
+    }
   }
+  await Disk.writeFile(handle, ALL_RESCORED_NAME, entriesToText(sortedEntries(buildMergedWordlist().entries)));
+  await Disk.writeFile(handle, README_NAME, README_TEXT);
   const cache = {
     schemaVersion: SCHEMA_VERSION,
     sources: state.sources.map(serializeMetaEntry),
@@ -4483,6 +4681,7 @@ async function init() {
   if (boot.mode === 'disk') {
     DiskBackend.attach(boot.handle, boot.cache);
     Storage = DiskBackend;
+    DiskWatcher.start();
   } else if (boot.mode === 'session') {
     Storage = NullBackend;
     SessionPausedBanner.show();
@@ -4602,6 +4801,10 @@ function entriesToText(entries) {
     const head = e.display ?? e.norm;
     return e.comment ? `${head};${e.score};${e.comment}` : `${head};${e.score}`;
   }).join('\n') + (entries.length ? '\n' : '');
+}
+
+function sortedEntries(entries) {
+  return [...entries].sort((a, b) => a.norm.localeCompare(b.norm));
 }
 
 async function persistEdits(edits) {
@@ -11717,6 +11920,7 @@ function applyRescoreRulesChange(wordlist) {
   updateWordlistDirty(wordlist);
   invalidateWordlistCaches(wordlist);
   persistMeta();
+  Storage.writeRescored(wordlist).catch(err => console.error('writeRescored failed', err));
   repaintAfterCacheChange();
 }
 
