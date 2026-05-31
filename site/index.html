@@ -647,6 +647,18 @@ button.header-icon-btn:hover { background: none; color: rgba(255,255,255,0.65); 
 #storage-anomaly-dialog { width: 380px; }
 .dialog-footer-stacked { flex-direction: column; align-items: stretch; gap: 6px; }
 .dialog-footer-stacked button { width: 100%; padding: 8px 12px; text-align: center; }
+#storage-merge-dialog { width: 460px; }
+#storage-merge-dialog .merge-section-label { color: var(--muted); font-size: 12px; margin: 12px 0 4px; }
+#storage-merge-dialog .merge-list { list-style: none; padding: 0 0 0 10px; margin: 0 0 12px; font-size: 13px; }
+#storage-merge-dialog .merge-list li::before { content: '• '; color: var(--muted); }
+#storage-merge-dialog .merge-edits { margin: 12px 0; padding: 10px 12px; background: var(--surface); border-radius: 6px; }
+#storage-merge-dialog .merge-edits-label { display: block; font-size: 13px; margin-bottom: 6px; }
+#storage-merge-dialog .merge-edits-pick { display: inline-flex; align-items: center; gap: 4px; margin-right: 12px; font-size: 13px; cursor: pointer; }
+#storage-merge-dialog .merge-edits-pick input { margin: 0; }
+#storage-merge-dialog .merge-toggle { background: none; border: none; color: var(--accent); cursor: pointer; padding: 0; font-size: 12px; margin-left: 4px; }
+#storage-merge-dialog .merge-entries { margin-top: 10px; max-height: 180px; overflow-y: auto; font-size: 12px; border-top: 1px solid var(--border3); padding-top: 8px; }
+#storage-merge-dialog .merge-entry-row { padding: 4px 0; color: var(--muted); }
+#storage-merge-dialog .merge-entry-row b { color: var(--text); margin-right: 6px; }
 #confirm-dialog, #alert-dialog { width: 320px; }
 #download-dialog { width: 340px; }
 #merge-conflict-dialog { width: 380px; }
@@ -2884,6 +2896,7 @@ const SettingsDialog = (() => {
 const StorageDialog = (() => {
   const { el, body } = createDialog('storage-dialog', { labelledby: 'storage-dialog-title' });
   const { el: anomalyEl, body: anomalyBody } = createDialog('storage-anomaly-dialog', { labelledby: 'storage-anomaly-title' });
+  const { el: mergeEl, body: mergeBody } = createDialog('storage-merge-dialog', { labelledby: 'storage-merge-title' });
 
   let _intent = 'new';
 
@@ -2980,8 +2993,206 @@ const StorageDialog = (() => {
     showToast(`Storage is now in "${handle.name}".`);
   }
 
-  function openMergeDialog(handle) {
-    showAlert('Loading from an existing Grawlix folder lands in the next commit.');
+  async function openMergeDialog(handle) {
+    let folderSettings;
+    try {
+      const text = await Disk.readFile(handle, GRAWLIX_JSON_NAME);
+      if (text == null) throw new Error('grawlix.json not found');
+      folderSettings = JSON.parse(text);
+    } catch (err) {
+      await showAlert(`Couldn't read grawlix.json: ${esc(err.message || err)}`);
+      return 'retry';
+    }
+
+    if (folderSettings.schemaVersion !== SCHEMA_VERSION) {
+      await showAlert(`This folder was written with a different version of Grawlix (schema ${folderSettings.schemaVersion}; this Grawlix expects ${SCHEMA_VERSION}). Storage isn't compatible.`);
+      return 'retry';
+    }
+
+    const diff = await computeMergeDiff(handle, folderSettings);
+    const result = await showMergeChoice(handle, diff);
+    if (!result) return 'retry';
+
+    try { await applyMerge(handle, folderSettings, diff, result); }
+    catch (err) { await showAlert(`Loading from folder failed: ${esc(err.message || err)}`); return; }
+    showToast(`Storage is now in "${handle.name}".`);
+  }
+
+  async function computeMergeDiff(handle, folderSettings) {
+    const folderSources = folderSettings.sources || [];
+    const deviceSources = state.sources;
+
+    const replaced = [];
+    const folderOnly = [];
+    const matchedDevice = new Set();
+
+    for (const fw of folderSources) {
+      if (fw.type === 'edits') continue;
+      const dw = deviceSources.find(d =>
+        d.type !== 'edits' &&
+        d.name === fw.name &&
+        (d.publisherId || null) === (fw.publisherId || null)
+      );
+      if (dw) { replaced.push(fw.name); matchedDevice.add(dw); }
+      else    { folderOnly.push(fw); }
+    }
+    const deviceOnly = deviceSources.filter(d => d.type !== 'edits' && !matchedDevice.has(d));
+
+    const folderEdits = folderSources.find(s => s.type === 'edits');
+    const deviceEdits = getEditsWordlist();
+    let editsConflicts = [];
+    let folderEditsEntries = null;
+    if (folderEdits) {
+      const text = folderEdits.filename ? await Disk.readFile(handle, folderEdits.filename) : null;
+      folderEditsEntries = text ? parseWordlist(text) : [];
+      if (deviceEdits) {
+        const fm = new Map(folderEditsEntries.map(e => [e.norm, e]));
+        for (const d of deviceEdits.rawEntries) {
+          const f = fm.get(d.norm);
+          if (f && (f.score !== d.score || (f.comment || '') !== (d.comment || ''))) {
+            editsConflicts.push({
+              entry: d.display ?? d.norm,
+              device: { score: d.score, comment: d.comment },
+              folder: { score: f.score, comment: f.comment },
+              norm: d.norm,
+            });
+          }
+        }
+      }
+    }
+
+    return { replaced, folderOnly, deviceOnly, folderEdits, folderEditsEntries, deviceEdits, editsConflicts };
+  }
+
+  function showMergeChoice(handle, diff) {
+    return new Promise(resolve => {
+      const replacedHTML = diff.replaced.length
+        ? `<p class="merge-section-label">These wordlists will be replaced by the folder's version:</p>
+           <ul class="merge-list">${diff.replaced.map(n => `<li>${esc(n)}</li>`).join('')}</ul>`
+        : '';
+
+      const editsHTML = diff.editsConflicts.length
+        ? `<div class="merge-edits">
+             <span class="merge-edits-label">My Edits: ${diff.editsConflicts.length} ${diff.editsConflicts.length === 1 ? 'entry differs' : 'entries differ'} — keep</span>
+             <label class="merge-edits-pick"><input type="radio" name="edits-pick" value="device"> this device</label>
+             <label class="merge-edits-pick"><input type="radio" name="edits-pick" value="folder"> folder</label>
+             <button type="button" class="merge-toggle">show entries ▾</button>
+             <div class="merge-entries" hidden>
+               ${diff.editsConflicts.map(c => `<div class="merge-entry-row"><b>${esc(c.entry)}</b> this device: ${c.device.score}${c.device.comment ? ' (' + esc(c.device.comment) + ')' : ''} | folder: ${c.folder.score}${c.folder.comment ? ' (' + esc(c.folder.comment) + ')' : ''}</div>`).join('')}
+             </div>
+           </div>`
+        : '';
+
+      mergeBody.innerHTML = `
+        <button type="button" class="dialog-close-btn" aria-label="Close">✕</button>
+        <form method="dialog">
+          <h2 id="storage-merge-title">Load Grawlix data from this folder?</h2>
+          ${replacedHTML}
+          ${editsHTML}
+          <div class="dialog-footer">
+            <button type="button" class="dialog-cancel-btn">Cancel</button>
+            <button id="btn-merge-load" class="primary" value="ok">Load</button>
+          </div>
+        </form>
+      `;
+
+      const loadBtn = mergeBody.querySelector('#btn-merge-load');
+      if (diff.editsConflicts.length) {
+        loadBtn.disabled = true;
+        mergeBody.querySelectorAll('input[name="edits-pick"]').forEach(r => {
+          r.onchange = () => { loadBtn.disabled = false; };
+        });
+        const toggle = mergeBody.querySelector('.merge-toggle');
+        const entries = mergeBody.querySelector('.merge-entries');
+        toggle.onclick = () => {
+          entries.hidden = !entries.hidden;
+          toggle.textContent = entries.hidden ? 'show entries ▾' : 'hide entries ▴';
+        };
+      }
+
+      showDialog(mergeEl, () => {
+        if (mergeEl.returnValue !== 'ok') return resolve(null);
+        const editsChoice = mergeBody.querySelector('input[name="edits-pick"]:checked')?.value || null;
+        resolve({ editsChoice });
+      });
+    });
+  }
+
+  async function applyMerge(handle, folderSettings, diff, choice) {
+    const newSources = [];
+
+    for (const fw of (folderSettings.sources || [])) {
+      if (fw.type === 'edits') continue;
+      const text = fw.filename ? await Disk.readFile(handle, fw.filename) : null;
+      newSources.push(wordlistFromMeta(fw, text));
+    }
+
+    for (const dw of diff.deviceOnly) {
+      if (!dw.filename) dw.filename = `${dw.name}.txt`;
+      const text = await IdbBackend.readWordlist(dw);
+      await Disk.writeFile(handle, dw.filename, text ?? '');
+      newSources.push(dw);
+    }
+
+    let editsWl = null;
+    if (diff.folderEdits && diff.deviceEdits) {
+      const conflictNorms = new Set(diff.editsConflicts.map(c => c.norm));
+      const useDevice = choice.editsChoice === 'device';
+      const folderMap = new Map((diff.folderEditsEntries || []).map(e => [e.norm, e]));
+      const deviceMap = new Map(diff.deviceEdits.rawEntries.map(e => [e.norm, e]));
+      const merged = [];
+      const seen = new Set();
+      for (const fe of (diff.folderEditsEntries || [])) {
+        merged.push(conflictNorms.has(fe.norm) && useDevice ? deviceMap.get(fe.norm) : fe);
+        seen.add(fe.norm);
+      }
+      for (const de of diff.deviceEdits.rawEntries) {
+        if (!seen.has(de.norm)) merged.push(de);
+      }
+      const fwm = diff.folderEdits;
+      editsWl = wordlistFromMeta(
+        { ...fwm, filename: fwm.filename || 'My Edits.txt', dbKey: fwm.dbKey || diff.deviceEdits.dbKey },
+        entriesToText(merged)
+      );
+    } else if (diff.folderEdits) {
+      const fwm = diff.folderEdits;
+      const text = fwm.filename ? await Disk.readFile(handle, fwm.filename) : null;
+      editsWl = wordlistFromMeta(fwm, text);
+    } else if (diff.deviceEdits) {
+      const dw = diff.deviceEdits;
+      if (!dw.filename) dw.filename = 'My Edits.txt';
+      await Disk.writeFile(handle, dw.filename, entriesToText(dw.rawEntries));
+      editsWl = dw;
+    }
+    if (editsWl) newSources.unshift(editsWl);
+
+    state.sources = newSources;
+    if (folderSettings.scoring) {
+      state.scoring = folderSettings.scoring;
+      state.scoringDirty = !!folderSettings.scoringDirty;
+    }
+
+    const cache = {
+      schemaVersion: SCHEMA_VERSION,
+      sources: state.sources.map(serializeMetaEntry),
+      scoring: state.scoring,
+      scoringDirty: state.scoringDirty,
+      mergedSettings: folderSettings.mergedSettings || {},
+    };
+
+    if (editsWl && diff.folderEdits && diff.deviceEdits) {
+      await Disk.writeFile(handle, editsWl.filename, entriesToText(editsWl.rawEntries));
+    }
+    await Disk.writeFile(handle, GRAWLIX_JSON_NAME, JSON.stringify(cache, null, 2));
+    await Disk.saveHandle(handle);
+
+    DiskBackend.attach(handle, cache);
+    Storage = DiskBackend;
+
+    state.sources.forEach(invalidateWordlistCaches);
+    propagateDefaults();
+    sources$.bump();
+    renderAll();
   }
 
   function showNewOtherAnomaly(handle) {
@@ -3997,6 +4208,31 @@ async function tryInstall() {
   return outcome === 'accepted';
 }
 
+function wordlistFromMeta(m, text) {
+  const wordlist = wrapWordlist({
+    ...(m.type     ? { type: m.type }         : {}),
+    dbKey:         m.dbKey || newDbKey(),
+    ...(m.filename ? { filename: m.filename } : {}),
+    icon:            m.icon || null,
+    publisherId:     m.publisherId || null,
+    name: m.name, url: m.url || null,
+    enabled: !!m.enabled,
+    populated: !!(m.populated || m.type === 'edits' || text || m.lastUpdated),
+    lastUpdated: m.lastUpdated || null,
+    fetchedSize: m.fetchedSize || null,
+    rescoreRules: (m.rescoreRules || []).map(r => ({ length: '', ...r })),
+    dirty: !!m.dirty,
+    originalFilename: m.originalFilename || null,
+    ...(m.downloadCase ? { downloadCase: m.downloadCase } : {}),
+    ...(m.downloadExt  ? { downloadExt:  m.downloadExt  } : {}),
+    ...(m.downloadStem ? { downloadStem: m.downloadStem } : {}),
+    rawEntries: text ? parseWordlist(text) : [],
+    _loading: false,
+  });
+  recomputeUncovered(wordlist);
+  return wordlist;
+}
+
 // ─── Init ─────────────────────────────────────────────────────────────────────
 
 async function init() {
@@ -4022,28 +4258,7 @@ async function init() {
       state.sources = await Promise.all(meta.map(async m => {
         const dbKey = m.dbKey || newDbKey();
         const text = await Storage.readWordlist({ dbKey }) ?? await idbGet('data_' + m.id);
-        const wordlist = wrapWordlist({
-          ...(m.type     ? { type: m.type }         : {}),
-          dbKey,
-          ...(m.filename ? { filename: m.filename } : {}),
-          icon:            m.icon || null,
-          publisherId:     m.publisherId || null,
-          name: m.name, url: m.url || null,
-          enabled: !!m.enabled,
-          populated: !!(m.populated || m.type === 'edits' || text || m.lastUpdated),
-          lastUpdated: m.lastUpdated || null,
-          fetchedSize: m.fetchedSize || null,
-          rescoreRules: (m.rescoreRules || []).map(r => ({ length: '', ...r })),
-          dirty: !!m.dirty,
-          originalFilename: m.originalFilename || null,
-          ...(m.downloadCase ? { downloadCase: m.downloadCase } : {}),
-          ...(m.downloadExt  ? { downloadExt:  m.downloadExt  } : {}),
-          ...(m.downloadStem ? { downloadStem: m.downloadStem } : {}),
-          rawEntries: text ? parseWordlist(text) : [],
-          _loading: false,
-        });
-        recomputeUncovered(wordlist);
-        return wordlist;
+        return wordlistFromMeta({ ...m, dbKey }, text);
       }));
     } catch { state.sources = defaultSources(); }
   } else {
