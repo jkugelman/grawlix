@@ -1526,6 +1526,12 @@ function allSeverity() {
   return state._scoringUncovered.length ? 'warning' : null;
 }
 
+function libraryNavBadge() {
+  const severity = maxSeverity(...state.sources.map(wordlistSeverity), allSeverity());
+  const count = state.sources.filter(wordlistSeverity).length + (allSeverity() ? 1 : 0);
+  return { severity, count };
+}
+
 // Tooltip for a severity bubble. Causes (uncovered scores, update available)
 // all roll up to the same severity → title mapping; that's the right level
 // of detail for an at-a-glance tooltip.
@@ -4554,44 +4560,23 @@ const MainView = (() => {
   }
 
   function syncTriggerBadge() {
-    let bestSev = null, bestPri = 0, bestTitle = '';
+    let bestSev = null, bestPri = 0, bestTitle = '', totalCount = 0;
     for (const btn of navButtons) {
       const b = btn.querySelector(':scope > .badge');
       if (!b) continue;
       const pri = SEVERITY_PRIORITY[b.dataset.severity] ?? 0;
       if (pri > bestPri) { bestPri = pri; bestSev = b.dataset.severity; bestTitle = b.title; }
+      if (b.classList.contains('badge--count')) totalCount += parseInt(b.textContent, 10) || 0;
     }
-    let tb = navTrigger.querySelector(':scope > .badge');
-    if (bestSev) {
-      if (!tb) {
-        tb = document.createElement('span');
-        tb.className = 'badge';
-        navTrigger.appendChild(tb);
-      }
-      tb.dataset.severity = bestSev;
-      if (bestTitle) tb.title = bestTitle;
-      else tb.removeAttribute('title');
-    } else if (tb) {
-      tb.remove();
-    }
+    navTrigger.querySelector(':scope > .badge')?.remove();
+    if (bestSev) navTrigger.insertAdjacentHTML('beforeend', buildBadgeHTML(bestSev, { count: totalCount || null, title: bestTitle }));
   }
 
-  function setSeverityBadge(view, severity, title = '') {
+  function setSeverityBadge(view, severity, count = null, title = '') {
     const btn = [...navButtons].find(b => b.dataset.view === view);
     if (!btn) return;
-    let badge = btn.querySelector(':scope > .badge');
-    if (severity) {
-      if (!badge) {
-        badge = document.createElement('span');
-        badge.className = 'badge';
-        btn.appendChild(badge);
-      }
-      badge.dataset.severity = severity;
-      if (title) badge.title = title;
-      else badge.removeAttribute('title');
-    } else if (badge) {
-      badge.remove();
-    }
+    btn.querySelector(':scope > .badge')?.remove();
+    if (severity) btn.insertAdjacentHTML('beforeend', buildBadgeHTML(severity, { count, title }));
     syncTriggerBadge();
   }
 
@@ -9403,8 +9388,8 @@ function renderSources() {
   // fresh data. (renderScoringRules also recomputes — idempotent.)
   recomputeScoringUncovered(buildMergedWordlist().entries);
   LibraryView?.refresh();
-  const severity = maxSeverity(...state.sources.map(wordlistSeverity), allSeverity());
-  MainView?.setSeverityBadge('library', severity, severityTitle(severity));
+  const { severity, count } = libraryNavBadge();
+  MainView?.setSeverityBadge('library', severity, count, severityTitle(severity));
 }
 
 
@@ -9634,8 +9619,8 @@ function refreshLibrarySeverityBadges() {
     setRowBadge(card.querySelector('.card-name-row'), wordlistSeverity(card._wordlist));
   }
   setRowBadge(document.querySelector('.wld-merged-card .card-name-row'), allSeverity());
-  const navSev = maxSeverity(...state.sources.map(wordlistSeverity), allSeverity());
-  MainView?.setSeverityBadge('library', navSev, severityTitle(navSev));
+  const { severity, count } = libraryNavBadge();
+  MainView?.setSeverityBadge('library', severity, count, severityTitle(severity));
 }
 
 function deleteScoringRow(i) {
