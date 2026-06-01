@@ -4834,7 +4834,7 @@ function sortedEntries(entries) {
 }
 
 async function persistEdits(edits) {
-  await Storage.writeWordlist(edits, entriesToText(edits.rawEntries));
+  await Storage.writeWordlist(edits, entriesToText(sortedEntries(edits.rawEntries)));
   persistMeta();
   refreshStorageButton();
 }
