@@ -4789,7 +4789,7 @@ const _mergedStatsKey = {};
 let _sourceCountsCache = null;
 let _mergedWordlistCache = null;
 
-function invalidateRescoredCache(wordlist) { wordlist._rescored = null; wordlist._rescoredMap = null; invalidateHistogramLayout(); }
+function invalidateRescoredCache(wordlist) { wordlist._rescored = null; wordlist._rescoredMap = null; wordlist._rescoredByNorm = null; invalidateHistogramLayout(); }
 function invalidateStatsCache(key) { _statsCache.delete(key); }
 function invalidateSourceCounts() {
   _sourceCountsCache = null;
@@ -9239,6 +9239,20 @@ function getRescoredMap(wordlist) {
   return map;
 }
 
+// norm → all rescored entries for that norm. Distinct from `getRescoredMap`,
+// which keeps one entry per norm: a faithful single-norm merged rebuild must
+// see every display variant a wordlist holds, not just the last.
+function getRescoredByNorm(wordlist) {
+  if (wordlist._rescoredByNorm) return wordlist._rescoredByNorm;
+  const map = new Map();
+  for (const e of getRescoredEntries(wordlist)) {
+    let arr = map.get(e.norm);
+    if (!arr) map.set(e.norm, arr = []);
+    arr.push(e);
+  }
+  return wordlist._rescoredByNorm = map;
+}
+
 function rescoreEntry(wlEntry, rules) {
   for (const rule of rules) {
     const scoreIntervals = rule._scoreIntervals !== undefined ? rule._scoreIntervals : parseRange(rule.input);
@@ -9675,25 +9689,22 @@ function saveEdit(originalWlEntry, { raw, score, comment }) {
   }
 
   const entryChanged = newNorm !== origNorm || newDisplay !== origDisplay;
-  if (entryChanged && origNorm) {
-    const idx = edits.rawEntries.findIndex(e => e.norm === origNorm && e.display === origDisplay);
-    if (idx >= 0) edits.rawEntries.splice(idx, 1);
-  }
+  const norms = entryChanged && origNorm ? [origNorm, newNorm] : [newNorm];
 
-  const existing = edits.rawEntries.find(e => e.norm === newNorm && e.display === newDisplay);
-  let wlEntry;
-  if (existing) {
-    existing.score = score;
-    existing.comment = comment;
-    wlEntry = existing;
-  } else {
-    wlEntry = { norm: newNorm, display: newDisplay, score, comment };
-    edits.rawEntries.push(wlEntry);
-  }
-  patchCachesForEditsChange(newNorm, wlEntry);
-  recomputeUncovered(edits);
+  applyEditsChange(edits, norms, () => {
+    if (entryChanged && origNorm) {
+      const idx = edits.rawEntries.findIndex(e => e.norm === origNorm && displayOf(e) === origDisplay);
+      if (idx >= 0) edits.rawEntries.splice(idx, 1);
+    }
+    const existing = edits.rawEntries.find(e => e.norm === newNorm && displayOf(e) === newDisplay);
+    if (existing) {
+      existing.score = score;
+      existing.comment = comment;
+    } else {
+      edits.rawEntries.push({ norm: newNorm, display: newDisplay, score, comment });
+    }
+  });
   persistEdits(edits);
-  refreshDerivedDisplays();
 }
 
 // ─── Histogram pointer interaction ───────────────────────────────────────────
@@ -10109,7 +10120,7 @@ function deleteFromEdits(target, refreshFn) {
   const edits = getEditsWordlist();
   const norm = target.norm;
   const display = target.display;
-  const idx = edits.rawEntries.findIndex(e => e.norm === norm && e.display === display);
+  const idx = edits.rawEntries.findIndex(e => e.norm === norm && displayOf(e) === display);
   if (idx === -1) return;
 
   const refresh = refreshFn ?? (() => {
@@ -10117,20 +10128,15 @@ function deleteFromEdits(target, refreshFn) {
     workshopScroller._sortAndRender();
   });
 
-  const [deleted] = edits.rawEntries.splice(idx, 1);
-  patchCachesForEditsChange(norm, null);
-  recomputeUncovered(edits);
+  let deleted;
+  applyEditsChange(edits, [norm], () => { [deleted] = edits.rawEntries.splice(idx, 1); });
   persistEdits(edits);
   refresh();
-  refreshDerivedDisplays();
 
   showUndoToast(`Deleted ${esc(displayOf(deleted))} from ${buildWordlistNameHTML(edits)}`, () => {
-    edits.rawEntries.splice(idx, 0, deleted);
-    patchCachesForEditsChange(norm, deleted);
-    recomputeUncovered(edits);
+    applyEditsChange(edits, [norm], () => { edits.rawEntries.splice(idx, 0, deleted); });
     persistEdits(edits);
     refresh();
-    refreshDerivedDisplays();
   });
 }
 
@@ -11306,14 +11312,20 @@ function startInlineRename(inputEl, originalName, { onCommit, onCancel, onInput 
 // ─── Merge & Download ─────────────────────────────────────────────────────────
 
 
-function patchCachesForEditsChange(_norm, _newEditsWlEntry) {
-  const edits = getEditsWordlist();
-  if (!edits) return;
+// `norms` must list every norm the mutation touches — an entry-text edit moves
+// an entry between two norms, and any omitted norm keeps a stale merged bucket
+// with no error.
+function applyEditsChange(edits, norms, mutate) {
+  const snap = snapshotMergedBuckets(norms);
+  mutate();
   invalidateActualScoresCache(edits);
   invalidateRescoredCache(edits);
   _statsCache.delete(edits);
   _statsCache.delete(_mergedStatsKey);
-  invalidateSourceCounts();
+  invalidatePreSearchCache();
+  patchMergedForNorms(snap);
+  recomputeUncovered(edits);
+  refreshDerivedDisplays();
 }
 
 // The detail panel's stats bar is deliberately not repainted here — every
@@ -11379,6 +11391,88 @@ function buildMergedWordlist() {
 
 function mergeKey(norm, display) {
   return norm + '\0' + (display ?? '');
+}
+
+// Must reproduce buildMergedWordlist's per-bucket logic exactly — including
+// deduping winners by contributor, not wordlist — or the merged cache drifts
+// silently on the next edit.
+function computeMergedBucket(norm) {
+  const contributors = [];
+  const displays = new Set();
+  for (const wl of state.sources) {
+    if (!wl.enabled) continue;
+    const arr = getRescoredByNorm(wl).get(norm);
+    if (!arr) continue;
+    for (const e of arr) {
+      contributors.push({ wordlist: wl, score: e.score, comment: e.comment || '', display: e.display });
+      if (e.display != null) displays.add(e.display);
+    }
+  }
+  const rows = [];
+  const winners = [];
+  const counted = new Set();
+  const variants = displays.size > 0 ? [...displays].sort() : [null];
+  for (const variant of variants) {
+    const eligible = c => c.display === variant || c.display === null;
+    const winner = contributors.find(eligible);
+    if (!winner) continue;
+    const commenter = contributors.find(c => eligible(c) && c.comment) ?? winner;
+    rows.push({ norm, display: variant, score: winner.score, comment: commenter.comment, wordlist: winner.wordlist });
+    if (!counted.has(winner)) { counted.add(winner); winners.push(winner.wordlist); }
+  }
+  rows.sort((a, b) => (a.display ?? '').localeCompare(b.display ?? ''));
+  return { rows, winners };
+}
+
+function mergedNormLowerBound(entries, norm) {
+  let lo = 0, hi = entries.length;
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1;
+    if (entries[mid].norm.localeCompare(norm) < 0) lo = mid + 1;
+    else hi = mid;
+  }
+  return lo;
+}
+
+// Must run BEFORE My Edits is mutated: patchMergedForNorms diffs these winners
+// against the post-mutation ones, so a snapshot taken too late drifts the
+// source counts with no error.
+function snapshotMergedBuckets(norms) {
+  if (!_mergedWordlistCache) return null;
+  const snap = new Map();
+  for (const norm of norms) snap.set(norm, computeMergedBucket(norm).winners);
+  return snap;
+}
+
+// `_initialChains` is parallel to `entries`, so it must take the same splice —
+// otherwise the pipeline keeps seeding from rows that no longer exist.
+function patchMergedForNorms(snap) {
+  const cache = _mergedWordlistCache;
+  if (!cache || !snap) return;
+  const { entries, byNorm, byKey, sourceCounts } = cache;
+  const chains = cache._initialChains;
+  const countDelta = new Map();
+  for (const [norm, beforeWinners] of snap) {
+    const lo = mergedNormLowerBound(entries, norm);
+    let hi = lo;
+    while (hi < entries.length && entries[hi].norm === norm) hi++;
+    for (let i = lo; i < hi; i++) byKey.delete(mergeKey(norm, entries[i].display));
+
+    const { rows, winners } = computeMergedBucket(norm);
+    entries.splice(lo, hi - lo, ...rows);
+    if (chains) chains.splice(lo, hi - lo, ...rows.map(r => ({ atoms: [{ wlEntry: r, highlights: null, glyph: null }] })));
+    for (const r of rows) byKey.set(mergeKey(norm, r.display), r);
+    if (rows.length) byNorm.set(norm, rows[0]); else byNorm.delete(norm);
+
+    for (const wl of beforeWinners) countDelta.set(wl, (countDelta.get(wl) || 0) - 1);
+    for (const wl of winners)       countDelta.set(wl, (countDelta.get(wl) || 0) + 1);
+  }
+  for (const [wl, d] of countDelta) {
+    if (!d) continue;
+    const sc = sourceCounts.find(s => s.wordlist === wl);
+    if (sc) sc.count += d;
+    else sourceCounts.push({ wordlist: wl, count: d });
+  }
 }
 
 function getDownloadComments() { return lsLoad('downloadComments') !== 'no'; }
@@ -11958,6 +12052,41 @@ window.__grawlixTest = {
     const m = display !== undefined ? cache.byKey.get(mergeKey(toNorm(entry), display)) : cache.byNorm.get(toNorm(entry));
     if (!m) return null;
     return { entry: m.norm, display: m.display, score: m.score, comment: m.comment, wordlist: m.wordlist.name };
+  },
+
+  // Stable, comparable dump of the merged cache: entries as ordered tuples
+  // plus per-source counts (sorted by name so map-order noise can't fail a
+  // comparison). Tests diff the live surgically-patched cache against a forced
+  // full rebuild to prove the My Edits patch stays faithful.
+  dumpMergedCache() {
+    const c = buildMergedWordlist();
+    return {
+      entries: c.entries.map(e => [e.norm, e.display, e.score, e.comment, e.wordlist.name]),
+      counts: c.sourceCounts.map(s => [s.wordlist.name, s.count]).sort((a, b) => a[0].localeCompare(b[0])),
+    };
+  },
+  rebuildMergedCache() {
+    invalidateSourceCounts();
+    return this.dumpMergedCache();
+  },
+
+  // Stamp the live cache object; a My Edits edit must preserve the stamp
+  // (in-place patch). A full rebuild — the regression we guard against —
+  // discards the object and the stamp with it.
+  markMergedCache(tag) { buildMergedWordlist()._testTag = tag; },
+  mergedCacheTag() { return _mergedWordlistCache ? (_mergedWordlistCache._testTag ?? null) : null; },
+
+  // Drive a My Edits upsert/rename through the real saveEdit path — the patch
+  // under test — without the popover DOM, so the cache-consistency test can
+  // apply many mutations without choreographing popovers across search changes.
+  // origRaw === raw upserts; differing raw renames (a two-norm move).
+  saveMyEdit(origRaw, raw, score, comment = '') {
+    const orig = buildMergedWordlist().byNorm.get(toNorm(origRaw)) || buildUserWlEntry(origRaw, score, comment);
+    saveEdit(orig, { raw, score, comment });
+  },
+  deleteMyEdit(raw) {
+    const m = getEditsWordlist().rawEntries.find(e => e.norm === toNorm(raw));
+    if (m) deleteFromEdits({ norm: m.norm, display: displayOf(m) });
   },
 
   setUnigramCorpus(freqs) {
