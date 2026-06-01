@@ -631,8 +631,9 @@ button.header-icon-btn:hover { background: none; color: rgba(255,255,255,0.65); 
 #storage-paused-banner button { padding: 4px 10px; border: 1px solid currentColor; background: rgba(255,255,255,0.5); color: inherit; cursor: pointer; font-size: 12px; border-radius: 4px; font-family: inherit; }
 #storage-paused-banner button:hover { background: rgba(255,255,255,0.75); }
 body:has(#storage-paused-banner:not([hidden])) header { margin-top: 38px; }
-.storage-folder-chip { display: inline-flex; align-items: center; gap: 8px; padding: 8px 12px; background: var(--surface); border: 1px solid var(--border2); border-radius: 6px; font-size: 13px; margin: 6px 0 14px; }
-.storage-folder-chip-icon { font-size: 16px; line-height: 1; }
+.storage-folder-chip { display: inline-block; padding: 8px 12px; background: var(--surface); border: 1px solid var(--border2); border-radius: 6px; font-size: 13px; margin: 6px 0 14px; }
+.folder-name-icon { display: inline; white-space: nowrap; }
+.storage-folder-chip .folder-name-icon { font-size: 16px; }
 .dialog-footer-split { justify-content: space-between; }
 .dialog-footer-stacked { flex-direction: column; align-items: stretch; gap: 6px; }
 .dialog-footer-stacked button { width: 100%; padding: 8px 12px; text-align: center; }
@@ -2061,6 +2062,10 @@ function buildWordlistNameHTML(wordlist, { bold = true } = {}) {
   return `<span class="wordlist-name-icon">${icon} </span>${name}`;
 }
 
+function buildFolderNameHTML(name) {
+  return `<span class="folder-name-icon">📁 </span>${esc(name)}`;
+}
+
 // Inline icon + name pair used by tool rows, the search bar, etc.
 // `icon` is raw HTML (emoji string or <svg>); `name` is plain text.
 function buildToolLabelHTML({ icon, name }, suffix) {
@@ -3013,10 +3018,10 @@ const SettingsDialog = (() => {
     </div>
     <div class="dialog-row">
       <div>
-        <div class="dialog-row-label">Reset all data</div>
-        <div class="dialog-row-sub">Reset all wordlists and settings</div>
+        <div class="dialog-row-label">Reset browser data</div>
+        <div class="dialog-row-sub" id="reset-row-sub"></div>
       </div>
-      <button id="btn-reset" class="danger" title="Reset all wordlists and data"><svg class="icon-trash"><use href="#icon-trash"/></svg> Reset</button>
+      <button id="btn-reset" class="danger" title="Reset browser data"><svg class="icon-trash"><use href="#icon-trash"/></svg> Reset</button>
     </div>`;
 
   const seg  = el.querySelector('#dark-mode-seg');
@@ -3053,12 +3058,21 @@ const SettingsDialog = (() => {
     };
   });
 
+  const resetSub = el.querySelector('#reset-row-sub');
+
   el.querySelector('#btn-reset').onclick = async () => {
-    if (!await showConfirm('Reset all wordlists and settings? This cannot be undone.', { confirmText: 'Reset' })) return;
+    const opts = { confirmText: 'Reset' };
+    if (Storage === DiskBackend) {
+      opts.html = `Reset all settings and turn off disk storage? Your files in ${buildFolderNameHTML(DiskBackend.handle()?.name)} will not be touched.`;
+    }
+    if (!await showConfirm('Reset all wordlists and settings? This cannot be undone.', opts)) return;
     await resetAllDataAndReload();
   };
 
   function open() {
+    resetSub.textContent = Storage === DiskBackend
+      ? 'Reset all settings and turn off disk storage'
+      : 'Reset all wordlists and settings';
     showDialog(el);
   }
 
@@ -3409,7 +3423,7 @@ const StorageDialog = (() => {
       <button class="dialog-close-btn" aria-label="Close">✕</button>
       <h2 id="storage-dialog-title">Disk storage</h2>
       <p class="storage-pitch">Your wordlists and settings are saved to a folder on disk so your browser can't lose them. Your construction software can read the same folder — edits in either place sync automatically.</p>
-      <div class="storage-folder-chip"><span class="storage-folder-chip-icon">📁</span>${esc(folderName)}</div>
+      <div class="storage-folder-chip">${buildFolderNameHTML(folderName)}</div>
       <div class="dialog-footer dialog-footer-split">
         <button type="button" id="btn-storage-off">Turn off</button>
         <button type="button" class="dialog-cancel-btn primary">Close</button>
