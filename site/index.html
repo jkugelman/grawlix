@@ -602,8 +602,8 @@ button.header-icon-btn:hover { background: none; color: rgba(255,255,255,0.65); 
 .storage-icon { position: relative; display: inline-flex; align-items: center; justify-content: center; }
 .storage-slash { position: absolute; top: 50%; left: 50%; width: 28px; height: 4px; background: var(--hdr-bg); transform: translate(-50%, -50%) rotate(45deg); pointer-events: none; border-radius: 2px; }
 .storage-slash::after { content: ''; position: absolute; top: 50%; left: 0; right: 0; height: 2px; background: currentColor; transform: translateY(-50%); border-radius: 1px; }
-.storage-label { display: inline-block; font-size: 12px; font-weight: 500; max-width: 0; margin-left: 0; opacity: 0; overflow: hidden; white-space: nowrap; transition: max-width 0.25s ease, opacity 0.2s ease, margin-left 0.25s ease; }
-.storage-label.visible { max-width: 160px; margin-left: 6px; opacity: 1; }
+.storage-label { display: inline-block; font-size: 12px; font-weight: 500; max-width: 0; margin-right: 0; opacity: 0; overflow: hidden; white-space: nowrap; transition: max-width 0.25s ease, opacity 0.2s ease, margin-right 0.25s ease; }
+.storage-label.visible { max-width: 160px; margin-right: 6px; opacity: 1; }
 @media (max-width: 899px) {
   .storage-label.visible { max-width: 0; margin-left: 0; opacity: 0; }
 }
@@ -1249,7 +1249,7 @@ html.dark-mode .wld-onboarding { background: color-mix(in srgb, var(--accent) 15
       </div>
     </nav>
     <div class="header-utility">
-      <button id="btn-storage" class="header-icon-btn" aria-label="Storage" title="Storage"><span class="storage-icon"><svg width="24" height="24" aria-hidden="true"><use href="#icon-hdd"/></svg><span class="storage-slash" aria-hidden="true"></span></span><span class="storage-label"></span></button>
+      <button id="btn-storage" class="header-icon-btn" aria-label="Storage" title="Storage"><span class="storage-label"></span><span class="storage-icon"><svg width="24" height="24" aria-hidden="true"><use href="#icon-hdd"/></svg><span class="storage-slash" aria-hidden="true"></span></span></button>
       <button id="btn-settings" class="header-icon-btn" aria-label="Settings" title="Settings"><svg width="24" height="24" aria-hidden="true"><use href="#icon-settings"/></svg></button>
       <button id="btn-help" class="header-icon-btn" aria-label="Help (coming soon)" title="Help (coming soon)" disabled><span class="icon help-circle">?</span></button>
     </div>
