@@ -2699,7 +2699,7 @@ const DiskBackend = {
     await this.writeAllRescored();
   },
   async writeRescored(wordlist) {
-    if (!wordlist.filename || wordlist.type === 'edits') return;
+    if (!wordlist.filename || wordlist.type === 'edits' || !wordlist.populated) return;
     const name = rescoredNameFor(wordlist.filename);
     if (!name) return;
     const entries = sortedEntries(applyRescoring(wordlist.rawEntries, wordlist.rescoreRules || []));
@@ -3347,8 +3347,10 @@ const StorageDialog = (() => {
 
     for (const dw of diff.deviceOnly) {
       if (!dw.filename) dw.filename = `${dw.name}.txt`;
-      const text = await IdbBackend.readWordlist(dw);
-      await Disk.writeFile(handle, dw.filename, text ?? '');
+      if (dw.populated) {
+        const text = await IdbBackend.readWordlist(dw);
+        await Disk.writeFile(handle, dw.filename, text ?? '');
+      }
       newSources.push(dw);
     }
 
@@ -3402,7 +3404,7 @@ const StorageDialog = (() => {
       await Disk.writeFile(handle, editsWl.filename, entriesToText(editsWl.rawEntries));
     }
     for (const wl of newSources) {
-      if (wl.type === 'edits' || !wl.filename) continue;
+      if (wl.type === 'edits' || !wl.filename || !wl.populated) continue;
       const entries = sortedEntries(applyRescoring(wl.rawEntries, wl.rescoreRules || []));
       await Disk.writeFile(handle, rescoredNameFor(wl.filename), entriesToText(entries));
     }
@@ -3682,6 +3684,7 @@ async function migrateToDisk(handle) {
     if (!wl.filename) wl.filename = `${wl.name}.txt`;
   }
   for (const wl of state.sources) {
+    if (!wl.populated) continue;
     const text = await IdbBackend.readWordlist(wl);
     await Disk.writeFile(handle, wl.filename, text ?? '');
     if (wl.type !== 'edits') {
@@ -4667,7 +4670,7 @@ function wordlistFromMeta(m, text) {
     publisherId:     m.publisherId || null,
     name: m.name, url: m.url || null,
     enabled: !!m.enabled,
-    populated: !!(m.populated || m.type === 'edits' || text || m.lastUpdated),
+    populated: !!(m.populated || text || m.lastUpdated),
     lastUpdated: m.lastUpdated || null,
     fetchedSize: m.fetchedSize || null,
     rescoreRules: (m.rescoreRules || []).map(r => ({ length: '', ...r })),
