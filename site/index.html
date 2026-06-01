@@ -1382,12 +1382,12 @@ const WORDLIST_PUBLISHERS = [
     icon: null,
     defaultRules: [
       { input:'99', length:'8+',  output:'60', note:'Asset' },
-      { input:'99', length:'1-2', output:'40', note:'Short fill' },
+      { input:'99', length:'1-2', output:'40', note:'Short fill', scoring:false },
       { input:'99', length:'',    output:'50', note:'Good for any venue' },
-      { input:'51', length:'1-2', output:'30', note:'Short fill' },
+      { input:'51', length:'1-2', output:'30', note:'Short fill', scoring:false },
       { input:'51', length:'',    output:'50', note:'Decent to good' },
       { input:'49', length:'',    output:'10', note:'Racy' },
-      { input:'25', length:'1-2', output:'20', note:'Short fill' },
+      { input:'25', length:'1-2', output:'20', note:'Short fill', scoring:false },
       { input:'25', length:'',    output:'40', note:'Not great' },
     ],
   },
@@ -1433,7 +1433,7 @@ const WORDLIST_PUBLISHERS = [
     url: 'https://grawlix.wtf/peter-broda-wordlist.txt',
     icon: null,
     defaultRules: [
-      { input:'76-100', length:'7+', output:'60'     },
+      { input:'76-100', length:'7+', output:'60',     scoring:false },
       { input:'0-100',  length:'',   output:'ignore' },
     ],
   },
@@ -10618,10 +10618,11 @@ const ConfigureWordlistDialog = (() => {
     const publisherUnchanged = !isAdd && _selectedPublisher?.id === _originalPublisher?.id;
     const recommendedIsNoop  = publisherUnchanged && rulesMatchDefaultRules(_wordlist, _selectedPublisher);
     const applyVerb = isAdd ? 'Use' : publisherUnchanged ? 'Reapply' : 'Apply';
-    const opts = [{ value: 'recommended', label: `${applyVerb} recommended rules`, disabled: recommendedIsNoop }];
-    if (_selectedPublisher.defaultRules?.some(r => r.note))
-      opts.push({ value: 'levels', label: `${applyVerb} scoring levels only` });
-    opts.push({ value: 'none', label: isAdd ? 'None' : 'Do not change rules' });
+    const opts = [
+      { value: 'recommended', label: `${applyVerb} recommended rules`, disabled: recommendedIsNoop },
+      { value: 'levels',      label: `${applyVerb} scoring levels only` },
+      { value: 'none',        label: isAdd ? 'None' : 'Do not change rules' },
+    ];
     rulesSelect.innerHTML = opts.map(o =>
       `<option value="${o.value}"${_rulesOption === o.value ? ' selected' : ''}${o.disabled ? ' disabled' : ''}>${o.label}</option>`
     ).join('');
@@ -10641,7 +10642,7 @@ const ConfigureWordlistDialog = (() => {
   function updateRulesPreview() {
     if (!_selectedPublisher || _rulesOption === 'none') { rulesPreviewWrap.hidden = true; return; }
     const rules = _rulesOption === 'levels'
-      ? _selectedPublisher.defaultRules.map(r => ({ ...r, length: '', output: '' }))
+      ? _selectedPublisher.defaultRules.filter(r => r.scoring !== false).map(r => ({ ...r, output: '' }))
       : _selectedPublisher.defaultRules;
     rulesPreviewWrap.hidden = false;
     rulesPreviewWrap.innerHTML = buildRulesListHTML(rules || [], {
@@ -10776,7 +10777,7 @@ const ConfigureWordlistDialog = (() => {
   function computeRulesToApply() {
     if (!_selectedPublisher) return _mode === 'add' ? [] : null;
     if (_rulesOption === 'recommended') return JSON.parse(JSON.stringify(_selectedPublisher.defaultRules || []));
-    if (_rulesOption === 'levels')      return _selectedPublisher.defaultRules.map(r => ({ ...r, output: '' }));
+    if (_rulesOption === 'levels')      return _selectedPublisher.defaultRules.filter(r => r.scoring !== false).map(r => ({ ...r, output: '' }));
     return _mode === 'add' ? [] : null;
   }
 
