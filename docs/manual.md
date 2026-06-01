@@ -41,12 +41,12 @@ Grawlix's data normally lives in your browser's local storage. **Disk storage** 
 
 The label collapses on narrow viewports (≤899px); the icon stays. On phones and tablets, and in browsers without File System Access support, the button is hidden entirely.
 
-**Setting it up.** Click the storage button to open the **Set up storage** dialog. Two tabs:
+**Setting it up.** Click the storage button to open the **Set up storage** dialog. Two cards:
 
 - **New folder** — Pick an empty folder. Your wordlists and settings will be saved there.
 - **Load existing** — Pick a folder that already has Grawlix data (for example, one synced from another device via Dropbox).
 
-The picker is your browser's native folder picker. After picking, Grawlix routes you through the right next step based on what's in the folder — sets up immediately for an empty new-folder pick, redirects if you used the wrong tab, runs a three-button anomaly dialog if a "new" folder isn't empty, errors if a "Load existing" folder isn't a Grawlix folder, or opens the merge dialog if it is.
+The picker is your browser's native folder picker. After picking, Grawlix routes you through the right next step based on what's in the folder — sets up immediately for an empty new-folder pick, redirects if you picked the wrong kind of folder, runs a three-button anomaly dialog if a "new" folder isn't empty, errors if a "Load existing" folder isn't a Grawlix folder, or opens the merge dialog if it is.
 
 **The merge dialog** shows only what's different between your local data and the folder. Wordlists matched between the two have their content replaced by the folder's version. Same-entry My Edits conflicts surface as a bulk "keep this device / keep folder" pick. Wordlists only on your device carry over; wordlists only in the folder load. Settings and scoring rules come from the folder.
 

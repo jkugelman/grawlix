@@ -616,7 +616,12 @@ button.header-icon-btn:hover { background: none; color: rgba(255,255,255,0.65); 
 #settings-dialog { width: 340px; }
 #storage-dialog { width: 420px; }
 #storage-dialog .storage-pitch { color: var(--muted); line-height: 1.5; margin: 0 0 14px; font-size: 13px; }
-#storage-dialog .storage-tab-help { color: var(--muted); line-height: 1.5; margin: 0 0 16px; font-size: 12px; }
+.storage-choice-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.storage-choice-card { display: flex; flex-direction: column; align-items: flex-start; justify-content: flex-start; gap: 6px; text-align: left; padding: 14px; border: 1px solid var(--border); border-radius: 8px; background: var(--btn-bg); cursor: pointer; font-family: inherit; transition: border-color 0.15s ease, background 0.15s ease; }
+.storage-choice-card:hover { border-color: var(--accent); background: var(--hover); }
+.storage-choice-card:focus-visible { outline: none; border-color: var(--accent); }
+.storage-choice-card-title { font-size: 14px; font-weight: 600; color: var(--text); }
+.storage-choice-card-desc { font-size: 12px; color: var(--muted); line-height: 1.45; }
 #storage-anomaly-dialog { width: 380px; }
 #storage-turnoff-dialog { width: 380px; }
 .splash-actions { display: flex; flex-direction: column; gap: 8px; align-items: stretch; min-width: 280px; }
@@ -679,11 +684,6 @@ dialog::backdrop { background: var(--backdrop); }
 dialog h2 { font-size: 16px; margin-bottom: 14px; padding-right: 24px; }
 .dialog-close-btn { position: absolute; top: 10px; right: 12px; background: none; border: none; font-size: 18px; line-height: 1; color: var(--muted); cursor: pointer; padding: 2px 6px; border-radius: 4px; z-index: 1; }
 .dialog-close-btn:hover { background: var(--hover); color: var(--text); }
-.tabs { display: flex; border: 1px solid var(--border); border-radius: 5px; overflow: hidden; margin-bottom: 16px; }
-.tab-btn { flex: 1; border: none; border-radius: 0; padding: 7px; font-size: 12px; font-weight: 600; color: var(--muted); background: var(--btn-bg); cursor: pointer; }
-.tab-btn + .tab-btn { border-left: 1px solid var(--border); }
-.tab-btn.active { background: var(--sel); color: var(--accent); }
-.tab-btn:hover:not(.active) { background: var(--hover); }
 .form-field { margin-bottom: 22px; }
 .form-field label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px; }
 .form-field input { width: 100%; padding: 7px 10px; border: 1px solid var(--border); border-radius: 4px; font-size: 13px; font-family: inherit; background: var(--input-bg); color: var(--text); }
@@ -3073,50 +3073,43 @@ const StorageDialog = (() => {
   const { el: mergeEl, body: mergeBody } = createDialog('storage-merge-dialog', { labelledby: 'storage-merge-title' });
   const { el: turnOffEl, body: turnOffBody } = createDialog('storage-turnoff-dialog', { labelledby: 'storage-turnoff-title' });
 
-  let _intent = 'new';
-
   function renderOff() {
-    const newActive = _intent === 'new' ? ' active' : '';
-    const exiActive = _intent === 'existing' ? ' active' : '';
-    const pickLabel = () => _intent === 'new' ? 'New folder…' : 'Load existing…';
     body.innerHTML = `
       <button class="dialog-close-btn" aria-label="Close">✕</button>
       <h2 id="storage-dialog-title">Disk storage</h2>
       <p class="storage-pitch">Save your wordlists and settings to a folder on disk so your browser doesn't lose them. Point your construction software at the same folder — edits in either place will sync automatically.</p>
-      <div class="tabs">
-        <button type="button" class="tab-btn${newActive}" data-intent="new">New folder</button>
-        <button type="button" class="tab-btn${exiActive}" data-intent="existing">Load existing</button>
+      <div class="storage-choice-cards">
+        <button type="button" class="storage-choice-card" data-intent="new">
+          <span class="storage-choice-card-title">📁 New folder</span>
+          <span class="storage-choice-card-desc">Create a new folder. Your wordlists and settings will be saved there.</span>
+        </button>
+        <button type="button" class="storage-choice-card" data-intent="existing">
+          <span class="storage-choice-card-title">📂 Load existing</span>
+          <span class="storage-choice-card-desc">Load a folder that already has Grawlix data — for example, one synced from another device via Dropbox.</span>
+        </button>
       </div>
-      <p class="storage-tab-help" data-help="new"${_intent === 'new' ? '' : ' hidden'}>Create a new folder. Your wordlists and settings will be saved there.</p>
-      <p class="storage-tab-help" data-help="existing"${_intent === 'existing' ? '' : ' hidden'}>Load a folder that already has Grawlix data — for example, one synced from another device via Dropbox.</p>
       <div class="dialog-footer">
         <button type="button" class="dialog-cancel-btn">Cancel</button>
-        <button type="button" id="btn-storage-pick" class="primary">${pickLabel()}</button>
       </div>
     `;
 
-    body.querySelectorAll('.tab-btn').forEach(t => {
-      t.onclick = () => {
-        _intent = t.dataset.intent;
-        body.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b === t));
-        body.querySelectorAll('.storage-tab-help').forEach(h => h.hidden = h.dataset.help !== _intent);
-        body.querySelector('#btn-storage-pick').textContent = pickLabel();
-      };
+    body.querySelectorAll('.storage-choice-card').forEach(card => {
+      card.onclick = () => pickFolder(card.dataset.intent);
     });
+  }
 
-    body.querySelector('#btn-storage-pick').onclick = async () => {
-      let handle;
-      try { handle = await Disk.pickFolder(); }
-      catch (err) { showAlert(`Couldn't open the folder picker: ${esc(err.message || err)}`); return; }
-      if (!handle) return;
+  async function pickFolder(intent) {
+    let handle;
+    try { handle = await Disk.pickFolder(); }
+    catch (err) { showAlert(`Couldn't open the folder picker: ${esc(err.message || err)}`); return; }
+    if (!handle) return;
 
-      let identity;
-      try { identity = await Disk.identifyFolder(handle); }
-      catch (err) { showAlert(`Couldn't read folder contents: ${esc(err.message || err)}`); return; }
+    let identity;
+    try { identity = await Disk.identifyFolder(handle); }
+    catch (err) { showAlert(`Couldn't read folder contents: ${esc(err.message || err)}`); return; }
 
-      el.close();
-      await handlePickedFolder(_intent, handle, identity);
-    };
+    el.close();
+    await handlePickedFolder(intent, handle, identity);
   }
 
   async function handlePickedFolder(intent, handle, identity) {
