@@ -3095,7 +3095,7 @@ const StorageDialog = (() => {
     const pickLabel = () => _intent === 'new' ? 'New folder…' : 'Load existing…';
     body.innerHTML = `
       <button class="dialog-close-btn" aria-label="Close">✕</button>
-      <h2 id="storage-dialog-title">Set up storage</h2>
+      <h2 id="storage-dialog-title">Disk storage</h2>
       <p class="storage-pitch">Save your wordlists and settings to a folder on disk so your browser doesn't lose them. Point your construction software at the same folder — edits in either place will sync automatically.</p>
       <div class="tabs">
         <button type="button" class="tab-btn${newActive}" data-intent="new">New folder</button>
@@ -3416,7 +3416,7 @@ const StorageDialog = (() => {
   function renderInfo() {
     body.innerHTML = `
       <button class="dialog-close-btn" aria-label="Close">✕</button>
-      <h2 id="storage-dialog-title">Saving to disk</h2>
+      <h2 id="storage-dialog-title">Disk storage</h2>
       <p class="storage-pitch">Saving your wordlists to a folder on disk requires Chrome, Edge, or another Chromium-based browser. In Firefox and Safari, Grawlix saves your data inside the browser — which works fine for one device but can't sync to a folder your construction software reads.</p>
       <div class="dialog-footer">
         <button type="button" class="dialog-cancel-btn primary" autofocus>Close</button>
@@ -3428,8 +3428,8 @@ const StorageDialog = (() => {
     const folderName = DiskBackend.handle()?.name || '(unknown)';
     body.innerHTML = `
       <button class="dialog-close-btn" aria-label="Close">✕</button>
-      <h2 id="storage-dialog-title">Storage</h2>
-      <p class="storage-pitch">Grawlix wordlists are saved to disk so your construction software can use them directly. Edits in either place flow to the other automatically.</p>
+      <h2 id="storage-dialog-title">Disk storage</h2>
+      <p class="storage-pitch">Your wordlists and settings are saved to a folder on disk so your browser can't lose them. Your construction software can read the same folder — edits in either place sync automatically.</p>
       <div class="storage-folder-chip"><span class="storage-folder-chip-icon">📁</span>${esc(folderName)}</div>
       <div class="dialog-footer dialog-footer-split">
         <button type="button" id="btn-storage-off">Turn off</button>
