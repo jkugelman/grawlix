@@ -6707,7 +6707,7 @@ async function runPipeline(mergedWordlist, stack) {
     _pipelineRunning--;
     if (_pipelineRunning === 0) {
       const waiters = _pipelineIdleWaiters.splice(0);
-      waiters.forEach(fn => fn());
+      queueMicrotask(() => waiters.forEach(fn => fn()));
     }
   }
 }
