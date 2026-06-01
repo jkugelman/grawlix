@@ -50,7 +50,7 @@ Library is a peer view, not a setup dialog: rescoring and curating wordlists is 
 
 **One bar, one story.** The stats bar carries every readout about the visible result set (counts, stats numbers, histogram) and the two controls that shape that view (score range, sort) in a single sticky band. Counts and stats describe the score-range-filtered output; the histogram projects the unfiltered pipeline output with the bracket overlaid, so dragging the range narrower shows what's being trimmed instead of bars disappearing past the bracket. Left → right: `Entries N   Groups N` · `Min Max + histogram` · `Score [range] · Sort by [axis] [↑/↓]`. Counts hold; `Min · Max` collapses when the bar would overflow.
 
-**No persistent rail, no collapsible side panel.** The tool gallery sits as a top section of the card instead of in a side rail; disk storage's loud signal is the boot-time blocking dialog rather than a status indicator in the chrome (see [`planned/storage.md`](planned/storage.md)). A collapsible side panel was considered and rejected as a rail comeback in disguise.
+**No persistent rail, no collapsible side panel.** The tool gallery sits as a top section of the card instead of in a side rail; disk storage's loud signal is the boot-time blocking splash rather than a status indicator in the chrome (see § *Disk storage* below). A collapsible side panel was considered and rejected as a rail comeback in disguise.
 
 **Mechanics worth knowing:**
 
@@ -153,7 +153,65 @@ The matcher compiles to a regex (`buildSearchPattern`). Bare-letter tokens expan
 
 ### Disk storage
 
-Today this is a stub. Full design lives in [`planned/storage.md`](planned/storage.md): the user picks a folder on their hard drive and Grawlix uses it as its data directory — wordlists as files, settings as `grawlix.json`. When disk storage is on, IDB is abandoned and the folder is the single source of truth. Cross-device falls out for free when the folder lives in Dropbox/iCloud/OneDrive. A blocking dialog handles the per-session FSA re-grant on non-installed Chromium; PWA install removes the prompt. Firefox/Safari and mobile have no FSA and run unsynced.
+Disk storage lets the user pick a folder on their hard drive; from then on Grawlix reads and writes wordlists as files and settings as `grawlix.json` in that folder. IDB drops out of the picture entirely in this mode — the folder *is* the source of truth. User-facing behavior lives in [`manual.md` § Disk storage](manual.md#disk-storage); this section covers the architectural shape.
+
+**One source of truth.** Disk mode does not also write to IDB. There is no reconciliation engine, no pending-edits log, no "both backends in sync" path. A single `Storage` dispatch object routes every read/write to whichever backend is active, and the user is in one mode at a time.
+
+**Three backends, one shape.** `IdbBackend`, `DiskBackend`, and `NullBackend` share one method surface — meta / scoring / mergedSettings / wordlist / rescored / allRescored / reset:
+
+- **`IdbBackend`** — IDB for wordlist text, localStorage for settings. The mode Grawlix runs in when storage isn't configured. `writeRescored` and `writeAllRescored` are no-ops.
+- **`DiskBackend`** — FSA folder handle; settings cached in memory and flushed to `grawlix.json` through a queued in-flight write that coalesces bursts.
+- **`NullBackend`** — All operations silently no-op. Active only when the user clicks "Use without disk storage this session" on the boot splash; the session runs with default state and edits don't persist anywhere.
+
+`let Storage = IdbBackend` is the dispatch. On boot, if a disk folder handle is found in IDB and its permission is granted silently, `Storage = DiskBackend`. If permission isn't granted, the blocking splash runs; on success disk mode, on opt-out `NullBackend`. Call sites just call `Storage.writeMeta(...)` without branching on backend.
+
+**Folder layout is flat.** All files at the root: `grawlix.json`, one `<name>.txt` per wordlist, one `<name> rescored.txt` per wordlist with rescore rules applied, an `All rescored.txt` of the merged-rescored output, and a `README.txt` generated on first setup.
+
+The rescored suffix is a leading space — `XWI rescored.txt` rather than `XWI-rescored.txt`. Reads more naturally in file pickers; hyphens look like they're encoding a special token, spaces just look like a label.
+
+**`grawlix.json`** carries everything except wordlist content — sources array, `state.scoring`, `state.scoringDirty`, `mergedSettings`, `schemaVersion`. The schema version follows the same wipe-on-mismatch policy as IDB's: a folder written by a different Grawlix schema is refused with an explanatory dialog rather than tolerated. Disk and IDB stay venue-symmetric; the wipe policy flips to layered migration when shared links and synced folders make it load-bearing — see [`planned/migration.md`](planned/migration.md).
+
+**Sort on save; raw files unchanged.** When Grawlix writes a rescored file or `All rescored.txt`, entries are sorted alphabetically by `norm` via a shared `sortedEntries` helper. Raw wordlist files preserve insertion / import order verbatim — they round-trip as the user (or publisher) wrote them. The lone exception is `My Edits.txt`, which sorts on persist: it has no rescored variant (rescore rules don't apply to user-typed entries), and a sorted file is easier to scan in an editor.
+
+**Empty files exist.** Every wordlist's raw file and rescored variant is written at migration time, even if the wordlist has no entries yet — the file just ends up empty. The watcher therefore only needs to detect *changes to existing files*; it never has to react to a file appearing for the first time. This is what makes the common "user externally creates `My Edits.txt`" case work — the file already exists from setup, so an external save is an mtime change on a known filename, which routes straight to the matching wordlist's `rawEntries`. The simpler watcher logic earns the cost of a few empty files in the folder.
+
+**Atomic writes via FSA.** `Disk.writeFile` is a plain `getFileHandle({ create: true }) → createWritable → write → close` sequence. FSA's `FileSystemWritableFileStream` buffers writes to a hidden swap location and atomically swaps them into place on `close()`; partial writes are never visible to other readers (or to the watcher). The "write-to-temp + rename" idiom that's customary for atomic file writes is unnecessary — the FSA spec provides atomicity for free.
+
+**File watcher polls.** FSA has no change-notification API, so `DiskWatcher` polls the folder every 2 seconds (paused when the tab is hidden, resumed on visibility return). Each tick compares each file's mtime against the previous snapshot; external changes route through `_applyExternalChange`, which re-reads the file, parses, and updates the matching wordlist's in-memory state. Cross-tab edits use the same mechanism: tab A's write produces an mtime change tab B's watcher sees as external.
+
+**The watcher's own-write race.** Without care, an in-progress `Disk.writeFile` produces a file with intermediate (often empty) content visible to the watcher during the write. If the tick fires in that window, the watcher would re-read the file and overwrite `state.sources` mid-mutation. Two suppressions guard against this:
+
+- **`_heldNames`** is set on every write before `Disk.writeFile` starts, cleared in `finally` after `recordOwnWrite` fires. The watcher tick skips held names entirely — doesn't even read the file. Counter-based, so concurrent writes to the same file compose.
+- **`_ownWrites`** is set after the write completes (in the same `try` block, before `finally`). The watcher's next tick that sees the name consumes the mark and updates its snapshot to the new mtime, without flagging the file as changed. This suppresses the one post-write tick the held window doesn't cover.
+
+A `withOwnWrite(name, op)` helper bundles hold + write + recordOwn + release so every disk-write site uses the same pattern.
+
+**Detection: feature + media query.** The storage button is hidden when both `!Disk.isSupported()` (no `showDirectoryPicker`) and `!matchMedia('(hover: hover) and (pointer: fine)').matches` (no desktop-like input). The matrix:
+
+- Chromium desktop has FSA → button shows, setup dialog works.
+- Firefox / Safari desktop have desktop-like input but no FSA → button shows; click opens an info dialog explaining disk storage needs Chrome.
+- Phones, tablets, iPadOS in "Request Desktop Site" mode all report coarse pointer or no hover → button hidden.
+- Touchscreen laptops with a trackpad report `(pointer: fine)` as the primary pointer → button shown.
+
+Media-query detection is future-proof: a new browser that ships FSA lights up `Disk.isSupported()` automatically without code changes. iPadOS's notorious "I'm a Mac" UA string is also handled cleanly — iPadOS reports a coarse pointer even in desktop mode, so the media query keeps the button hidden where UA matching would have shown it.
+
+**The blocking splash, not a modal dialog.** When the saved handle exists but the permission isn't live (Chrome heuristics, explicit revocation, browser restart on non-PWA Chromium), the loading splash itself hosts the recovery UI: the spinner hides, and three buttons fade in below the logo after the logo's own fade-in (chained CSS animation with a 0.5s delay). Buttons are Load Grawlix data / Install Grawlix (Chromium, not already installed) / Use without disk storage this session.
+
+If the permission grant fails or the cache doesn't load (drive ejected, folder moved, JSON corrupt), the splash re-renders with Try again / Pick a different folder / Use without disk storage this session — same splash, different action set. A `_hasAnimatedIn` flag skips the entrance animation on re-renders; only the first appearance fades in.
+
+Hosting recovery in the splash rather than in a separate modal puts the controls where the user is already looking (the page is blocked anyway) and avoids a small dialog window's awkward fit at this stage of init.
+
+**Session-paused banner.** When the user opts out of disk storage for the session, `Storage = NullBackend` and a persistent banner sits at the top of the page: *"Disk storage paused for this session — your data is safe in your folder."* with **Reload to try again** and **Turn off storage** off-ramps. The banner pushes the header down. **Turn off storage** clears the saved handle from IDB and wipes IDB+localStorage so the next reload runs as fresh IDB-mode Grawlix.
+
+**Cross-device via OS sync, not Grawlix code.** Grawlix ships no cloud code. Cross-device works because the user's existing cloud-drive client (Dropbox, iCloud Drive, OneDrive, Google Drive) syncs the folder. The user picks a synced folder on device A; on device B, the **Load existing** tab points at the same path. The diff-only merge dialog handles whatever's already there. The `README.txt` Grawlix writes on first setup names this workflow explicitly so users discover it without being told.
+
+Two-device-simultaneous-editing produces last-writer-wins per file — the same model as opening one document in two text editors at once. Most cloud clients produce a "conflict copy" file when they can't decide; Grawlix ignores files it doesn't recognize, so the user resolves the conflict in their editor.
+
+**Header chrome.** A storage button between the gear and the help-circle in the brand bar. Icon is Bootstrap's `hdd-fill` glyph. The off-state slash is a CSS pseudo-element — a diagonal band in `--hdr-bg` with a narrower `currentColor` line inside, so the slash reads cleanly against any background without needing a separate slashed icon. When `Storage === DiskBackend`, JS sets the slash element `hidden` and the unslashed hard-drive shows through.
+
+A growing label sits next to the icon (`Saved in browser` when off, `Saved to disk` when on) once the user has My Edits content — the moment they have state they'd care about losing. The label is permanent once it appears (no dismissal); it collapses at `≤899px` viewport widths to keep clearance above the nav-collapse breakpoint at 759px. Animation uses `max-width` / `opacity` / `margin-left` transitions on a span that's always present in the DOM — CSS transitions don't fire on freshly-created elements, so the span lives in the static HTML and JS just toggles a `.visible` class plus the text content.
+
+**Non-features.** No second copy in IDB while disk is active. No reconciliation engine; no pending-edits log. No per-provider cloud integration — Grawlix has zero cloud code; the user's existing Dropbox/iCloud/OneDrive client does the sync. No degraded-but-usable read-only mode when storage is configured but unavailable; "Use without disk storage this session" is an escape hatch (loads defaults, silently discards writes) rather than a fallback UI, deliberately so the user doesn't accidentally make edits that vanish without warning.
 
 ### One path to "give me a file"
 
@@ -684,6 +742,15 @@ Worth revisiting if the dialog-as-workspace feel becomes a friction point — pa
 ### Workshop result-export
 
 A copy-to-clipboard + save-as-file affordance for *query results* (anagrams, regex hits) on the Workshop entries table. Distinct from any wordlist download — query results are not wordlists. Parked for now; placement (sort cluster vs. table-region header vs. separate button) deferred.
+
+### Disk storage: deferred gaps
+
+Known limitations to address as the need surfaces:
+
+- **External file renames.** The watcher sees the old name disappear and the new name appear, but `wordlist.filename` doesn't auto-update. The renamed file becomes an ignored "unknown" file; the original wordlist sits with no on-disk file. Resolve in Grawlix's UI (rename the wordlist) or accept the stale state until next migration.
+- **External file deletions.** Wordlist stays in `state.sources` with stale rawEntries; the next edit re-creates the file. Same shape as rename.
+- **Externally-created files for unknown wordlists.** A `.txt` dropped into the folder with no matching wordlist meta is ignored. A "load this as a new wordlist?" prompt would be the natural feature, not built.
+- **PWA install button on the blocking splash** stays for now even though Chrome's "Always allow" feature has made the persistent-permission pitch largely redundant. To be removed in a follow-up.
 
 ## Non-features
 

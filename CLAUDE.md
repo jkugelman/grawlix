@@ -17,7 +17,7 @@ All code lives in a single file: `site/index.html`. Don't bother searching for o
 For any feature work, redesign, brainstorming, or structural change — **not** targeted bug fixes or small tweaks — open the docs that touch the area before proposing or implementing. Adjacent docs may share screen real estate or constrain the answer; treat the topical index below as a checklist, not a suggestion.
 
 Design and manual:
-- [`docs/design.md`](docs/design.md) — present-tense design + whys: shell, Workshop / Library views, tool gallery & stack, entries table, URL state, caches & reactivity, non-features.
+- [`docs/design.md`](docs/design.md) — present-tense design + whys: shell, Workshop / Library views, disk storage, tool gallery & stack, entries table, URL state, caches & reactivity, non-features.
 - [`docs/manual.md`](docs/manual.md) — user-facing manual. Update when shipping user-facing changes.
 - [`docs/style.md`](docs/style.md) — coding-style conventions: CSS, JS, Markdown, terminology, commit messages. Read before formatting changes.
 - [`docs/testing.md`](docs/testing.md) — Playwright smoke suite handbook + strategy. Read before adding/modifying tests.
@@ -27,7 +27,6 @@ Design and manual:
 Plans (forward-looking, not yet shipped):
 - [`docs/planned/help.md`](docs/planned/help.md) — separating welcome tour from returning-user reference manual.
 - [`docs/planned/migration.md`](docs/planned/migration.md) — when to graduate from schema-version resets to layered migrations.
-- [`docs/planned/storage.md`](docs/planned/storage.md) — disk storage: Grawlix stores its data in a user-picked folder (wordlists as files, settings as `grawlix.json`). Cross-device falls out of putting the folder in Dropbox/iCloud/OneDrive. Boot-time blocking dialog handles the per-session FSA re-grant on non-installed Chromium.
 - [`docs/planned/tools.md`](docs/planned/tools.md) — runtime support sequencing, gallery polish (category picker, search), result download, tool API extensions (indexed lookups, annotations, escape hatches), open questions. The chain-row pipeline (executor, per-row tool API, symmetric unification, search-as-tool, per-atom-count sort, highlights) and the group-row model (group tools, group rows, the +N-more reveal) are shipped — see `design.md`. The tool catalog itself lives in `docs/tools.md`.
 
 Future (longer-horizon ideas, not actively planned):

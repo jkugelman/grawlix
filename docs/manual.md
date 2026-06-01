@@ -30,6 +30,44 @@ The gear in the header opens **Settings**:
 - **Auto-update wordlists** — Update wordlists without asking. On by default.
 - **Reset all data** — Wipes all wordlists and settings and reloads the app.
 
+## Disk storage
+
+Grawlix's data normally lives in your browser's local storage. **Disk storage** lets you save it to a folder on your hard drive instead — so your construction software can read your wordlists directly from disk, and so a browser wipe doesn't take years of edits with it.
+
+**The storage button.** A hard-drive icon sits in the header next to the gear. By default it shows a slash through it (your data is in browser storage); once storage is set up the slash disappears. Once you've added something to My Edits, a label grows next to the icon:
+
+- **Saved in browser** when storage is off
+- **Saved to disk** when storage is on
+
+The label collapses on narrow viewports (≤899px); the icon stays. On phones and tablets, and in browsers without File System Access support, the button is hidden entirely.
+
+**Setting it up.** Click the storage button to open the **Set up storage** dialog. Two tabs:
+
+- **New folder** — Pick an empty folder. Your wordlists and settings will be saved there.
+- **Load existing** — Pick a folder that already has Grawlix data (for example, one synced from another device via Dropbox).
+
+The picker is your browser's native folder picker. After picking, Grawlix routes you through the right next step based on what's in the folder — sets up immediately for an empty new-folder pick, redirects if you used the wrong tab, runs a three-button anomaly dialog if a "new" folder isn't empty, errors if a "Load existing" folder isn't a Grawlix folder, or opens the merge dialog if it is.
+
+**The merge dialog** shows only what's different between your local data and the folder. Wordlists matched between the two have their content replaced by the folder's version. Same-entry My Edits conflicts surface as a bulk "keep this device / keep folder" pick. Wordlists only on your device carry over; wordlists only in the folder load. Settings and scoring rules come from the folder.
+
+**Folder contents.** Flat — all files at the root:
+
+- **`grawlix.json`** — your settings, wordlist metadata, and tier labels. Managed by Grawlix.
+- **`<name>.txt`** (e.g. `XWI.txt`, `My Edits.txt`) — your wordlists. Edit them in any text editor; Grawlix picks up your changes automatically.
+- **`<name> rescored.txt`** — your wordlists with rescore rules applied, sorted alphabetically. Write-only — Grawlix regenerates them whenever the wordlist or its rescore rules change.
+- **`All rescored.txt`** — the merged result of all enabled wordlists, rescored and sorted. The unified wordlist your construction software should point at; regenerated whenever any source wordlist or its rules change.
+- **`README.txt`** — generated once at setup. Names each file and explains the cross-device trick.
+
+**External edits.** Edit a wordlist file in your text editor, save, and Grawlix re-reads it within a couple of seconds — no manual refresh. Same mechanism handles cross-tab updates (two Grawlix tabs open on the same folder).
+
+**Cross-device.** Put the folder in Dropbox, iCloud Drive, OneDrive, or Google Drive. On your other device, click the storage button → **Load existing** → pick the same folder. Edits sync through your cloud client. Grawlix has no cloud code of its own.
+
+**Turn off.** Click the storage button (now showing the unslashed hard-drive icon) → **Turn off**. A second dialog asks what to do with the files — **Keep files on disk** (Grawlix detaches; files stay) or **Delete files from disk** (Grawlix removes `grawlix.json`, `README.txt`, and all `*.txt` files in the folder; other files in the folder are left alone). Either action reloads the page to fresh Grawlix.
+
+**When the folder isn't accessible.** Browsers don't always remember the folder permission across sessions. On boot, if Grawlix has a saved folder but the browser hasn't kept the permission, the loading splash shows three buttons under the logo instead of the usual spinner: **Load Grawlix data** (re-grant the folder permission), **Install Grawlix** (Chromium PWA install gives persistent permission so the splash never appears again), and **Use without disk storage this session** (proceed with empty defaults; a banner with "Reload to try again" and "Turn off storage" off-ramps appears at the top of the page). If "Load Grawlix data" fails because the folder isn't accessible, the splash switches to Try again / Pick a different folder / Use without disk storage this session.
+
+**Browser support.** Disk storage uses the File System Access API. It works in Chrome, Edge, and other Chromium-based desktop browsers. In Firefox and Safari (desktop) the storage button appears but clicking it shows an informational dialog explaining disk storage requires a Chromium browser. On phones and tablets the button is hidden. Chrome's "Always allow" option on the folder grant means most users see the boot-time splash once and then never again.
+
 ## Keyboard shortcuts
 
 - **Alt-T** — open the tool picker (also **Cmd-K** / **Ctrl-K**).
