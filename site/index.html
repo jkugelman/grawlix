@@ -10593,9 +10593,7 @@ const ConfigureWordlistDialog = (() => {
         _pendingName = publisher.name;
         nameInput.value = publisher.name;
         setBufferedIcon(publisher.icon ? { ...publisher.icon } : null);
-        if (publisher.url) {
-          urlInput.value = publisher.url;
-        }
+        urlInput.value = publisher.url || '';
       }
       _rulesOption = _mode === 'add' ? 'recommended' : 'none';
     }
