@@ -3474,9 +3474,10 @@ const StorageDialog = (() => {
 })();
 
 function getStorageLabel() {
+  if (Storage === DiskBackend) return 'Saved to disk';
   const edits = getEditsWordlist();
   if (!edits || !edits.rawEntries.length) return null;
-  return Storage === DiskBackend ? 'Saved to disk' : 'Saved in browser';
+  return 'Saved in browser';
 }
 
 function refreshStorageButton() {
