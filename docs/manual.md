@@ -34,10 +34,10 @@ The gear in the header opens **Settings**:
 
 Grawlix's data normally lives in your browser's local storage. **Disk storage** lets you save it to a folder on your hard drive instead — so your construction software can read your wordlists directly from disk, and so a browser wipe doesn't take years of edits with it.
 
-**The storage button.** A hard-drive icon sits in the header next to the gear. By default it shows a slash through it (your data is in browser storage); once storage is set up the slash disappears. Once you've added something to My Edits, a label grows next to the icon:
+**The storage button.** A hard-drive icon sits in the header next to the gear. By default it shows a slash through it (your data is in browser storage); once storage is set up the slash disappears. A label grows next to the icon:
 
-- **Saved in browser** when storage is off
-- **Saved to disk** when storage is on
+- **Disk storage on** whenever storage is set up
+- **Disk storage off** once you've added something to My Edits (the moment you have state worth saving)
 
 The label collapses on narrow viewports (≤899px); the icon stays. On phones and tablets, and in browsers without File System Access support, the button is hidden entirely.
 
