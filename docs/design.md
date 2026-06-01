@@ -195,7 +195,7 @@ A `withOwnWrite(name, op)` helper bundles hold + write + recordOwn + release so 
 
 Media-query detection is future-proof: a new browser that ships FSA lights up `Disk.isSupported()` automatically without code changes. iPadOS's notorious "I'm a Mac" UA string is also handled cleanly — iPadOS reports a coarse pointer even in desktop mode, so the media query keeps the button hidden where UA matching would have shown it.
 
-**The blocking splash, not a modal dialog.** When the saved handle exists but the permission isn't live (Chrome heuristics, explicit revocation, browser restart on non-PWA Chromium), the loading splash itself hosts the recovery UI: the spinner hides, and three buttons fade in below the logo after the logo's own fade-in (chained CSS animation with a 0.5s delay). Buttons are Load Grawlix data / Install Grawlix (Chromium, not already installed) / Use without disk storage this session.
+**The blocking splash, not a modal dialog.** When the saved handle exists but the permission isn't live (Chrome heuristics, explicit revocation, browser restart), the loading splash itself hosts the recovery UI: the spinner hides, and two buttons fade in below the logo after the logo's own fade-in (chained CSS animation with a 0.5s delay). Buttons are Load Grawlix data / Use without disk storage this session.
 
 If the permission grant fails or the cache doesn't load (drive ejected, folder moved, JSON corrupt), the splash re-renders with Try again / Pick a different folder / Use without disk storage this session — same splash, different action set. A `_hasAnimatedIn` flag skips the entrance animation on re-renders; only the first appearance fades in.
 
@@ -750,7 +750,6 @@ Known limitations to address as the need surfaces:
 - **External file renames.** The watcher sees the old name disappear and the new name appear, but `wordlist.filename` doesn't auto-update. The renamed file becomes an ignored "unknown" file; the original wordlist sits with no on-disk file. Resolve in Grawlix's UI (rename the wordlist) or accept the stale state until next migration.
 - **External file deletions.** Wordlist stays in `state.sources` with stale rawEntries; the next edit re-creates the file. Same shape as rename.
 - **Externally-created files for unknown wordlists.** A `.txt` dropped into the folder with no matching wordlist meta is ignored. A "load this as a new wordlist?" prompt would be the natural feature, not built.
-- **PWA install button on the blocking splash** stays for now even though Chrome's "Always allow" feature has made the persistent-permission pitch largely redundant. To be removed in a follow-up.
 
 ## Non-features
 
