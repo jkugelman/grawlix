@@ -147,9 +147,9 @@ button.header-nav-item:hover:not(:disabled) { color: white; background: var(--hd
 #workshop-view,
 #library-view { background: var(--bg); overflow: clip; flex: 1 1 auto; display: flex; flex-direction: column; }
 
-#busy-overlay { position: fixed; inset: 0; z-index: 200; background: var(--bg); color: var(--accent); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 48px; transition: opacity 0.3s; }
+#busy-overlay { position: fixed; inset: 0; z-index: 200; background: var(--bg); color: var(--accent); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 48px; transition: opacity 0.3s; will-change: opacity; }
 #busy-overlay.done { opacity: 0; pointer-events: none; }
-.busy-logo { font-size: 56px; font-weight: 600; letter-spacing: -0.01em; line-height: 1.1; display: inline-flex; align-items: center; opacity: 0; animation: busy-logo-reveal 0.4s ease-out forwards; }
+.busy-logo { font-size: 56px; font-weight: 600; letter-spacing: -0.01em; line-height: 1.1; display: inline-flex; align-items: center; opacity: 0; animation: busy-logo-reveal 0.4s ease-out forwards; will-change: opacity; }
 .busy-logo .bubble { background: var(--accent); color: var(--bg); font-size: 44px; padding: 3px 20px 6px; border-radius: 16px; margin-left: 27px; }
 .busy-logo .bubble::before { left: -45px; border-width: 27px; border-right-color: var(--accent); }
 .busy-spinner { display: flex; gap: 10px; opacity: 0; animation: busy-spinner-reveal 0.4s ease-out 5s forwards; }
@@ -4661,6 +4661,10 @@ async function init() {
     Storage = NullBackend;
     SessionPausedBanner.show();
   }
+
+  // Commit the splash fade to the compositor before the synchronous parse
+  // below blocks the main thread, else the logo reveal stalls mid-fade.
+  await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
 
   const meta = Storage.readMeta();
   if (meta) {
