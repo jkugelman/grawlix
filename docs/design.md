@@ -165,7 +165,7 @@ Disk storage lets the user pick a folder on their hard drive; from then on Grawl
 
 `let Storage = IdbBackend` is the dispatch. On boot, if a disk folder handle is found in IDB and its permission is granted silently, `Storage = DiskBackend`. If permission isn't granted, the blocking splash runs; on success disk mode, on opt-out `NullBackend`. Call sites just call `Storage.writeMeta(...)` without branching on backend.
 
-**Folder layout is flat.** All files at the root: `grawlix.json`, one `<name>.txt` per wordlist, one `<name> rescored.txt` per wordlist with rescore rules applied, an `All rescored.txt` of the merged-rescored output, and a `README.txt` generated on first setup.
+**Folder layout is flat.** All files at the root: `grawlix.json`, one `<name>.txt` per wordlist, one `<name> rescored.txt` per wordlist with rescore rules applied, an `All rescored.txt` of the merged-rescored output, and a `README.md` generated on first setup.
 
 The rescored suffix is a leading space — `XWI rescored.txt` rather than `XWI-rescored.txt`. Reads more naturally in file pickers; hyphens look like they're encoding a special token, spaces just look like a label.
 
@@ -203,7 +203,7 @@ Hosting recovery in the splash rather than in a separate modal puts the controls
 
 **Session-paused banner.** When the user opts out of disk storage for the session, `Storage = NullBackend` and a persistent banner sits at the top of the page: *"Disk storage paused for this session — your data is safe in your folder."* with **Reload to try again** and **Turn off storage** off-ramps. The banner pushes the header down. **Turn off storage** clears the saved handle from IDB and wipes IDB+localStorage so the next reload runs as fresh IDB-mode Grawlix.
 
-**Cross-device via OS sync, not Grawlix code.** Grawlix ships no cloud code. Cross-device works because the user's existing cloud-drive client (Dropbox, iCloud Drive, OneDrive, Google Drive) syncs the folder. The user picks a synced folder on device A; on device B, the **Load existing** tab points at the same path. The diff-only merge dialog handles whatever's already there. The `README.txt` Grawlix writes on first setup names this workflow explicitly so users discover it without being told.
+**Cross-device via OS sync, not Grawlix code.** Grawlix ships no cloud code. Cross-device works because the user's existing cloud-drive client (Dropbox, iCloud Drive, OneDrive, Google Drive) syncs the folder. The user picks a synced folder on device A; on device B, the **Load existing** tab points at the same path. The diff-only merge dialog handles whatever's already there. The `README.md` Grawlix writes on first setup names this workflow explicitly so users discover it without being told.
 
 Two-device-simultaneous-editing produces last-writer-wins per file — the same model as opening one document in two text editors at once. Most cloud clients produce a "conflict copy" file when they can't decide; Grawlix ignores files it doesn't recognize, so the user resolves the conflict in their editor.
 

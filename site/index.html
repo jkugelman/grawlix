@@ -2584,48 +2584,28 @@ const IdbBackend = {
 
 const DISK_HANDLE_IDB_KEY = '_diskFolderHandle';
 const GRAWLIX_JSON_NAME   = 'grawlix.json';
-const README_NAME         = 'README.txt';
+const README_NAME         = 'README.md';
 
-const README_TEXT = `Grawlix folder
-==============
+const README_TEXT = `# Grawlix folder
 
-This folder is Grawlix's data folder. Wordlists, settings, and
-rescored exports for use in construction software live here.
+## Files
 
-Files
------
+- \`My Edits.txt\` — Your score overrides and comments. Have your construction software save your edits here and edits in either place will sync automatically.
+- \`All rescored.txt\` — All wordlists and your edits combined. Load this into your construction software.
+- \`<Wordlist> rescored.txt\` — Each wordlist with Grawlix scoring.
+- \`<Wordlist>.txt\` — Each wordlist with its original scores.
+- \`grawlix.json\` — Settings, wordlist metadata, and tier labels.
 
-  grawlix.json      Settings, wordlist metadata, tier labels.
-                    Managed by Grawlix.
+## Cross-device
 
-  *.txt             Your wordlists. Edit them in any text editor;
-                    Grawlix picks up your changes automatically.
-                    My Edits.txt is the one most people customize.
-
-  * rescored.txt    Each of your wordlists with that wordlist's
-                    rescore rules applied. Sorted alphabetically.
-                    Write-only outputs for your construction
-                    software; Grawlix regenerates them every time
-                    the wordlist or its rescore rules change.
-                    Don't edit these — your changes will be
-                    overwritten.
-
-  All rescored.txt  The merged result of all enabled wordlists,
-                    rescored and sorted. The unified wordlist
-                    your construction software should point at;
-                    regenerated whenever any source wordlist or
-                    its rules change.
-
-  README.txt        This file.
-
-Cross-device
-------------
-
-Drop this folder in Dropbox, iCloud Drive, OneDrive, or Google
-Drive. On your other device, open Grawlix, click the storage
-button in the header → Load existing → pick the same folder.
-Edits will sync through your cloud client.
+Drop this folder in Dropbox, iCloud Drive, OneDrive, or Google Drive. On your other device, open Grawlix, click the storage button in the header → **Load existing** → pick the same folder. Your edits will sync through your cloud client.
 `;
+
+async function writeReadme(handle) {
+  if (await Disk.readFile(handle, README_NAME) !== README_TEXT) {
+    await Disk.writeFile(handle, README_NAME, README_TEXT);
+  }
+}
 
 const DiskBackend = {
   _handle: null,
@@ -3388,7 +3368,7 @@ const StorageDialog = (() => {
       await Disk.writeFile(handle, rescoredNameFor(wl.filename), entriesToText(entries));
     }
     await Disk.writeFile(handle, ALL_RESCORED_NAME, entriesToText(sortedEntries(buildMergedWordlist().entries)));
-    await Disk.writeFile(handle, README_NAME, README_TEXT);
+    await writeReadme(handle);
     await Disk.writeFile(handle, GRAWLIX_JSON_NAME, JSON.stringify(cache, null, 2));
     await Disk.saveHandle(handle);
 
@@ -3669,7 +3649,7 @@ async function migrateToDisk(handle) {
     }
   }
   await Disk.writeFile(handle, ALL_RESCORED_NAME, entriesToText(sortedEntries(buildMergedWordlist().entries)));
-  await Disk.writeFile(handle, README_NAME, README_TEXT);
+  await writeReadme(handle);
   const cache = {
     schemaVersion: SCHEMA_VERSION,
     sources: state.sources.map(serializeMetaEntry),
@@ -4641,6 +4621,7 @@ async function init() {
   if (boot.mode === 'disk') {
     DiskBackend.attach(boot.handle, boot.cache);
     Storage = DiskBackend;
+    await writeReadme(boot.handle);
     DiskWatcher.start();
   } else if (boot.mode === 'session') {
     Storage = NullBackend;

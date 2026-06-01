@@ -56,13 +56,13 @@ The picker is your browser's native folder picker. After picking, Grawlix routes
 - **`<name>.txt`** (e.g. `XWI.txt`, `My Edits.txt`) — your wordlists. Edit them in any text editor; Grawlix picks up your changes automatically.
 - **`<name> rescored.txt`** — your wordlists with rescore rules applied, sorted alphabetically. Write-only — Grawlix regenerates them whenever the wordlist or its rescore rules change.
 - **`All rescored.txt`** — the merged result of all enabled wordlists, rescored and sorted. The unified wordlist your construction software should point at; regenerated whenever any source wordlist or its rules change.
-- **`README.txt`** — generated once at setup. Names each file and explains the cross-device trick.
+- **`README.md`** — generated at setup and refreshed on boot whenever a new Grawlix version changes its text (rewritten only on drift, so unchanged folders stay untouched). Names each file and explains the cross-device trick.
 
 **External edits.** Edit a wordlist file in your text editor, save, and Grawlix re-reads it within a couple of seconds — no manual refresh. Same mechanism handles cross-tab updates (two Grawlix tabs open on the same folder).
 
 **Cross-device.** Put the folder in Dropbox, iCloud Drive, OneDrive, or Google Drive. On your other device, click the storage button → **Load existing** → pick the same folder. Edits sync through your cloud client. Grawlix has no cloud code of its own.
 
-**Turn off.** Click the storage button (now showing the unslashed hard-drive icon) → **Turn off**. A second dialog asks what to do with the files — **Keep files on disk** (Grawlix detaches; files stay) or **Delete files from disk** (Grawlix removes `grawlix.json`, `README.txt`, and all `*.txt` files in the folder; other files in the folder are left alone). Either action reloads the page to fresh Grawlix.
+**Turn off.** Click the storage button (now showing the unslashed hard-drive icon) → **Turn off**. A second dialog asks what to do with the files — **Keep files on disk** (Grawlix detaches; files stay) or **Delete files from disk** (Grawlix removes `grawlix.json`, `README.md`, and all `*.txt` files in the folder; other files in the folder are left alone). Either action reloads the page to fresh Grawlix.
 
 **When the folder isn't accessible.** Browsers don't always remember the folder permission across sessions. On boot, if Grawlix has a saved folder but the browser hasn't kept the permission, the loading splash shows two buttons under the logo instead of the usual spinner: **Load Grawlix data** (re-grant the folder permission) and **Use without disk storage this session** (proceed with empty defaults; a banner with "Reload to try again" and "Turn off storage" off-ramps appears at the top of the page). If "Load Grawlix data" fails because the folder isn't accessible, the splash switches to Try again / Pick a different folder / Use without disk storage this session.
 
