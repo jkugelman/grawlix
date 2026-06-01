@@ -147,18 +147,18 @@ button.header-nav-item:hover:not(:disabled) { color: white; background: var(--hd
 #workshop-view,
 #library-view { background: var(--bg); overflow: clip; flex: 1 1 auto; display: flex; flex-direction: column; }
 
-#busy-overlay { position: fixed; inset: 0; z-index: 200; background: var(--bg); color: var(--accent); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 48px; transition: opacity 0.3s; will-change: opacity; }
-#busy-overlay.done { opacity: 0; pointer-events: none; }
-.busy-logo { font-size: 56px; font-weight: 600; letter-spacing: -0.01em; line-height: 1.1; display: inline-flex; align-items: center; opacity: 0; animation: busy-logo-reveal 0.4s ease-out forwards; will-change: opacity; }
-.busy-logo .bubble { background: var(--accent); color: var(--bg); font-size: 44px; padding: 3px 20px 6px; border-radius: 16px; margin-left: 27px; }
-.busy-logo .bubble::before { left: -45px; border-width: 27px; border-right-color: var(--accent); }
-.busy-spinner { display: flex; gap: 10px; opacity: 0; animation: busy-spinner-reveal 0.4s ease-out 5s forwards; }
-.busy-spinner span { width: 11px; height: 11px; background: var(--accent); border-radius: 50%; animation: busy-worm 1.4s ease-in-out infinite; }
-.busy-spinner span:nth-child(2) { animation-delay: 0.2s; }
-.busy-spinner span:nth-child(3) { animation-delay: 0.4s; }
-@keyframes busy-worm { 0%, 80%, 100% { transform: translateY(0); opacity: 0.45; } 40% { transform: translateY(-9px); opacity: 1; } }
-@keyframes busy-spinner-reveal { to { opacity: 1; } }
-@keyframes busy-logo-reveal { to { opacity: 1; } }
+#splash-screen { position: fixed; inset: 0; z-index: 200; background: var(--bg); color: var(--accent); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 48px; transition: opacity 0.3s; will-change: opacity; }
+#splash-screen.done { opacity: 0; pointer-events: none; }
+.splash-logo { font-size: 56px; font-weight: 600; letter-spacing: -0.01em; line-height: 1.1; display: inline-flex; align-items: center; opacity: 0; animation: splash-logo-reveal 0.4s ease-out forwards; will-change: opacity; }
+.splash-logo .bubble { background: var(--accent); color: var(--bg); font-size: 44px; padding: 3px 20px 6px; border-radius: 16px; margin-left: 27px; }
+.splash-logo .bubble::before { left: -45px; border-width: 27px; border-right-color: var(--accent); }
+.splash-spinner { display: flex; gap: 10px; opacity: 0; animation: splash-spinner-reveal 0.4s ease-out 5s forwards; }
+.splash-spinner span { width: 11px; height: 11px; background: var(--accent); border-radius: 50%; animation: splash-worm 1.4s ease-in-out infinite; }
+.splash-spinner span:nth-child(2) { animation-delay: 0.2s; }
+.splash-spinner span:nth-child(3) { animation-delay: 0.4s; }
+@keyframes splash-worm { 0%, 80%, 100% { transform: translateY(0); opacity: 0.45; } 40% { transform: translateY(-9px); opacity: 1; } }
+@keyframes splash-spinner-reveal { to { opacity: 1; } }
+@keyframes splash-logo-reveal { to { opacity: 1; } }
 
 /* Add wordlist row (at the bottom of the Library's wordlist list) */
 .add-wordlist-row { padding: 9px 14px; cursor: pointer; color: var(--text); font-size: 13px; display: flex; align-items: center; gap: 9px; transition: background 0.1s, color 0.1s; user-select: none; background: var(--bg); }
@@ -619,9 +619,9 @@ button.header-icon-btn:hover { background: none; color: rgba(255,255,255,0.65); 
 #storage-dialog .storage-tab-help { color: var(--muted); line-height: 1.5; margin: 0 0 16px; font-size: 12px; }
 #storage-anomaly-dialog { width: 380px; }
 #storage-turnoff-dialog { width: 380px; }
-.busy-actions { display: flex; flex-direction: column; gap: 8px; align-items: stretch; min-width: 280px; }
-.busy-actions.animated { opacity: 0; animation: busy-actions-reveal 0.4s ease-out 0.5s forwards; }
-@keyframes busy-actions-reveal { to { opacity: 1; } }
+.splash-actions { display: flex; flex-direction: column; gap: 8px; align-items: stretch; min-width: 280px; }
+.splash-actions.animated { opacity: 0; animation: splash-actions-reveal 0.4s ease-out 0.5s forwards; }
+@keyframes splash-actions-reveal { to { opacity: 1; } }
 #storage-paused-banner { position: fixed; top: 0; left: 0; right: 0; z-index: 100; padding: 10px 16px; background: #f3c44f; color: #5b3a00; display: flex; gap: 14px; align-items: center; justify-content: center; font-size: 13px; flex-wrap: wrap; box-shadow: 0 1px 3px rgba(0,0,0,0.15); }
 #storage-paused-banner button { padding: 4px 10px; border: 1px solid currentColor; background: rgba(255,255,255,0.5); color: inherit; cursor: pointer; font-size: 12px; border-radius: 4px; font-family: inherit; }
 #storage-paused-banner button:hover { background: rgba(255,255,255,0.75); }
@@ -1267,9 +1267,9 @@ html.dark-mode .wld-onboarding { background: color-mix(in srgb, var(--accent) 15
 
 <div id="picker-backdrop"></div>
 <main>
-  <div id="busy-overlay">
-    <div class="busy-logo">Grawlix <span class="bubble">!@#$</span></div>
-    <div class="busy-spinner"><span></span><span></span><span></span></div>
+  <div id="splash-screen">
+    <div class="splash-logo">Grawlix <span class="bubble">!@#$</span></div>
+    <div class="splash-spinner"><span></span><span></span><span></span></div>
   </div>
   <div id="workshop-view">
     <section id="featured-row" aria-label="Tools">
@@ -3535,11 +3535,11 @@ const BlockingDialog = (() => {
   let _hasAnimatedIn = false;
 
   function ensureOverlay() {
-    let overlay = document.getElementById('busy-overlay');
+    let overlay = document.getElementById('splash-screen');
     if (overlay) return overlay;
     overlay = document.createElement('div');
-    overlay.id = 'busy-overlay';
-    overlay.innerHTML = `<div class="busy-logo">Grawlix <span class="bubble">!@#$</span></div><div class="busy-spinner"><span></span><span></span><span></span></div>`;
+    overlay.id = 'splash-screen';
+    overlay.innerHTML = `<div class="splash-logo">Grawlix <span class="bubble">!@#$</span></div><div class="splash-spinner"><span></span><span></span><span></span></div>`;
     document.body.appendChild(overlay);
     return overlay;
   }
@@ -3547,10 +3547,10 @@ const BlockingDialog = (() => {
   function show(initialHandle) {
     return new Promise(resolve => {
       const overlay = ensureOverlay();
-      const spinner = overlay.querySelector('.busy-spinner');
+      const spinner = overlay.querySelector('.splash-spinner');
 
       const finish = (result) => {
-        overlay.querySelectorAll('.busy-actions').forEach(e => e.remove());
+        overlay.querySelectorAll('.splash-actions').forEach(e => e.remove());
         if (spinner) spinner.hidden = false;
         resolve(result);
       };
@@ -3597,9 +3597,9 @@ const BlockingDialog = (() => {
   }
 
   function setActions(overlay, actions) {
-    overlay.querySelectorAll('.busy-actions').forEach(e => e.remove());
+    overlay.querySelectorAll('.splash-actions').forEach(e => e.remove());
     const div = document.createElement('div');
-    div.className = _hasAnimatedIn ? 'busy-actions' : 'busy-actions animated';
+    div.className = _hasAnimatedIn ? 'splash-actions' : 'splash-actions animated';
     _hasAnimatedIn = true;
     for (const a of actions.filter(Boolean)) {
       const btn = document.createElement('button');
@@ -4680,7 +4680,7 @@ async function init() {
   MainView.activate(initialView);
   renderAll();
   await _firstPaint;
-  const _overlay = document.getElementById('busy-overlay');
+  const _overlay = document.getElementById('splash-screen');
   if (_overlay) {
     _overlay.classList.add('done');
     _overlay.addEventListener('transitionend', () => _overlay.remove(), { once: true });
@@ -9564,8 +9564,8 @@ async function renderWorkshopMergedDetail() {
     workshopScroller.setEntries(rows, atomCount, chainSortTier(ToolStack.getStack()));
     ToolStack.refreshErrorMarks();
   } finally {
-    // In `finally` so a thrown/aborted pipeline still dismisses the busy
-    // splash — otherwise a broken tool in the boot URL strands the user on
+    // In `finally` so a thrown/aborted pipeline still dismisses the splash
+    // screen — otherwise a broken tool in the boot URL strands the user on
     // a forever-spinning overlay with no error in sight.
     _signalFirstPaint();
   }
@@ -12089,9 +12089,9 @@ window.__grawlixTest = {
 // ─── Boot ─────────────────────────────────────────────────────────────────────
 
 document.addEventListener('click', () => document.querySelectorAll('.split-btn.open').forEach(b => b.classList.remove('open')));
-// Hide the busy overlay immediately if no wordlists have data.
+// Hide the splash screen immediately if no wordlists have data.
 { const _m = Storage.readMeta() || [];
-  if (!_m.some(l => l.lastUpdated)) document.getElementById('busy-overlay').remove(); }
+  if (!_m.some(l => l.lastUpdated)) document.getElementById('splash-screen').remove(); }
 
 init();
 </script>
