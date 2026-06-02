@@ -44,6 +44,15 @@ async function gotoApp(page, route = '/') {
   // resolved (Chromium wins this race incidentally; Firefox doesn't, and 5s
   // isn't enough under heavy parallel-worker load — was flaking ~5%).
   await expect.poll(async () => page.evaluate(() => _db !== null), { timeout: 10000 }).toBe(true);
+  // Then drain the boot publisher fetches: init() kicks them off fire-and-
+  // forget after _db is set, and each re-renders the Workshop. Left pending,
+  // that re-render lands mid-test on WebKit and races the test's setStack/edit.
+  // Wait for every URL-backed source to populate, then let the pipeline settle.
+  await expect.poll(
+    async () => page.evaluate(() => state.sources.every(w => !w.url || w.populated)),
+    { timeout: 10000 }
+  ).toBe(true);
+  await page.evaluate(() => window.__grawlixTest.pipelineIdle());
 }
 
 // Switch to the Library view via the brand-bar nav button.
