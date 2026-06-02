@@ -50,19 +50,20 @@ The picker is your browser's native folder picker. After picking, Grawlix routes
 
 **The merge dialog** shows only what's different between your local data and the folder. Wordlists matched between the two have their content replaced by the folder's version. Same-entry My Edits conflicts surface as a bulk "keep this device / keep folder" pick. Wordlists only on your device carry over; wordlists only in the folder load. Settings and scoring rules come from the folder.
 
-**Folder contents.** Flat — all files at the root:
+**Folder contents.** The outputs your construction software reads sit at the root; the original source files are tucked into an `original/` subfolder so they don't clutter it:
 
 - **`grawlix.json`** — your settings, wordlist metadata, and tier labels. Managed by Grawlix.
-- **`<name>.txt`** (e.g. `XWI.txt`, `My Edits.txt`) — your wordlists. Edit them in any text editor; Grawlix picks up your changes automatically.
+- **`My Edits.txt`** — your score overrides and comments. Edit it in any text editor; Grawlix picks up your changes automatically. Stays at the root (not in `original/`) so your software can read and write it alongside the rescored outputs.
 - **`<name> rescored.txt`** — your wordlists with rescore rules applied, sorted alphabetically. Write-only — Grawlix regenerates them whenever the wordlist or its rescore rules change.
 - **`All rescored.txt`** — the merged result of all enabled wordlists, rescored and sorted. The unified wordlist your construction software should point at; regenerated whenever any source wordlist or its rules change.
+- **`original/<name>.txt`** (e.g. `original/XWI.txt`) — your source wordlists with their original scores. Edit them in any text editor; Grawlix picks up your changes automatically.
 - **`README.md`** — generated at setup and refreshed on boot whenever a new Grawlix version changes its text (rewritten only on drift, so unchanged folders stay untouched). Names each file and explains the cross-device trick.
 
 **External edits.** Edit a wordlist file in your text editor, save, and Grawlix re-reads it within a couple of seconds — no manual refresh. Same mechanism handles cross-tab updates (two Grawlix tabs open on the same folder).
 
 **Cross-device.** Put the folder in Dropbox, iCloud Drive, OneDrive, or Google Drive. On your other device, click the storage button → **Load existing** → pick the same folder. Edits sync through your cloud client. Grawlix has no cloud code of its own.
 
-**Turn off.** Click the storage button (now showing the unslashed hard-drive icon) → **Turn off**. A second dialog asks what to do with the files — **Keep files on disk** (Grawlix detaches; files stay) or **Delete files from disk** (Grawlix removes `grawlix.json`, `README.md`, and all `*.txt` files in the folder; other files in the folder are left alone). Either action reloads the page to fresh Grawlix.
+**Turn off.** Click the storage button (now showing the unslashed hard-drive icon) → **Turn off**. A second dialog asks what to do with the files — **Keep files on disk** (Grawlix detaches; files stay) or **Delete files from disk** (Grawlix removes `grawlix.json`, `README.md`, all root `*.txt` files, and the `original/` subfolder; other files in the folder are left alone). Either action reloads the page to fresh Grawlix.
 
 **When the folder isn't accessible.** Browsers don't always remember the folder permission across sessions. On boot, if Grawlix has a saved folder but the browser hasn't kept the permission, the loading splash shows two buttons under the logo instead of the usual spinner: **Load Grawlix data** (re-grant the folder permission) and **Use without disk storage this session** (proceed with empty defaults; a banner with "Reload to try again" and "Turn off storage" off-ramps appears at the top of the page). If "Load Grawlix data" fails because the folder isn't accessible, the splash switches to Try again / Pick a different folder / Use without disk storage this session.
 

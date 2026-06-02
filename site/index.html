@@ -2475,7 +2475,7 @@ function lsDel(key)  { localStorage.removeItem(LS_PREFIX + key); }
 //   v5 — tier labels move off My Edits to top-level `state.scoring` (its own
 //        localStorage key); My Edits gains a normal rescoreRules editor.
 //   v7 — drop rescoring from My Edits; user-typed scores pass through unchanged.
-const SCHEMA_VERSION = 7;
+const SCHEMA_VERSION = 8;
 
 // IndexedDB for large wordlist data (localStorage has ~5MB limit)
 const IDB_NAME  = 'grawlix';
@@ -2594,7 +2594,7 @@ const README_TEXT = `# Grawlix folder
 - \`My Edits.txt\` — Your score overrides and comments. Have your construction software save your edits here and edits in either place will sync automatically.
 - \`All rescored.txt\` — All wordlists and your edits combined. Load this into your construction software.
 - \`<Wordlist> rescored.txt\` — Each wordlist with Grawlix scoring.
-- \`<Wordlist>.txt\` — Each wordlist with its original scores.
+- \`original/<Wordlist>.txt\` — Each wordlist with its original scores.
 - \`grawlix.json\` — Settings, wordlist metadata, and tier labels.
 
 ## Cross-device
@@ -2643,17 +2643,18 @@ const DiskBackend = {
 
   async readWordlist(wordlist) {
     if (!wordlist.filename) return null;
-    return Disk.readFile(this._handle, wordlist.filename);
+    return Disk.readFile(this._handle, rawPathFor(wordlist));
   },
   async writeWordlist(wordlist, text) {
     if (!wordlist.filename) wordlist.filename = `${wordlist.name}.txt`;
-    await withOwnWrite(wordlist.filename, () => Disk.writeFile(this._handle, wordlist.filename, text));
+    const path = rawPathFor(wordlist);
+    await withOwnWrite(path, () => Disk.writeFile(this._handle, path, text));
     await this.writeRescored(wordlist);
     await this.writeAllRescored();
   },
   async deleteWordlist(wordlist) {
     if (!wordlist.filename) return;
-    await Disk.deleteFile(this._handle, wordlist.filename);
+    await Disk.deleteFile(this._handle, rawPathFor(wordlist));
     const r = rescoredNameFor(wordlist.filename);
     if (r) await Disk.deleteFile(this._handle, r);
     await this.writeAllRescored();
@@ -2719,6 +2720,15 @@ function rescoredNameFor(filename) {
   return `${base} rescored.txt`;
 }
 
+const ORIGINAL_DIR = 'original';
+
+// My Edits stays at the root, not under original/ — it's the file the user's
+// construction software writes back to, so moving it would break external sync.
+function rawPathFor(wordlist) {
+  if (!wordlist.filename) return null;
+  return wordlist.type === 'edits' ? wordlist.filename : `${ORIGINAL_DIR}/${wordlist.filename}`;
+}
+
 const ALL_RESCORED_NAME = `${MERGED_NAME} rescored.txt`;
 
 const DISK_WATCHER_INTERVAL = 2000;
@@ -2777,45 +2787,50 @@ const DiskWatcher = {
     const seenNames = new Set();
     const changed = [];
     try {
-      for await (const entry of handle.values()) {
-        if (entry.kind !== 'file') continue;
-        const name = entry.name;
-        seenNames.add(name);
-        if (this._heldNames.has(name)) continue;
+      for await (const { path, entry } of this._iterFiles(handle)) {
+        seenNames.add(path);
+        if (this._heldNames.has(path)) continue;
         const file = await entry.getFile();
         const mtime = file.lastModified;
 
-        if (this._ownWrites.has(name)) {
-          this._ownWrites.delete(name);
-          this._snapshot.set(name, mtime);
+        if (this._ownWrites.has(path)) {
+          this._ownWrites.delete(path);
+          this._snapshot.set(path, mtime);
           continue;
         }
 
-        const prev = this._snapshot.get(name);
-        this._snapshot.set(name, mtime);
+        const prev = this._snapshot.get(path);
+        this._snapshot.set(path, mtime);
         if (prev === undefined || prev === mtime) continue;
-        changed.push({ name, file });
+        changed.push({ path, file });
       }
     } catch (err) {
       console.error('Disk watcher tick failed', err);
       return;
     }
 
-    for (const name of [...this._snapshot.keys()]) {
-      if (!seenNames.has(name)) this._snapshot.delete(name);
+    for (const path of [...this._snapshot.keys()]) {
+      if (!seenNames.has(path)) this._snapshot.delete(path);
     }
 
-    for (const { name, file } of changed) {
-      await this._applyExternalChange(name, file);
+    for (const { path, file } of changed) {
+      await this._applyExternalChange(path, file);
     }
   },
 
-  async _applyExternalChange(name, file) {
-    if (name === GRAWLIX_JSON_NAME || name === README_NAME) return;
-    if (name.endsWith(' rescored.txt')) return;
-    if (!name.endsWith('.txt')) return;
+  async *_iterFiles(handle) {
+    for await (const entry of handle.values()) {
+      if (entry.kind === 'file') yield { path: entry.name, entry };
+      else if (entry.kind === 'directory' && entry.name === ORIGINAL_DIR) {
+        for await (const sub of entry.values()) {
+          if (sub.kind === 'file') yield { path: `${ORIGINAL_DIR}/${sub.name}`, entry: sub };
+        }
+      }
+    }
+  },
 
-    const wl = state.sources.find(s => s.filename === name);
+  async _applyExternalChange(path, file) {
+    const wl = state.sources.find(s => rawPathFor(s) === path);
     if (!wl) return;
 
     const text = await file.text();
@@ -2870,9 +2885,18 @@ const Disk = {
     return names;
   },
 
-  async readFile(handle, name) {
+  async _resolveDir(handle, parts, { create = false } = {}) {
+    let dir = handle;
+    for (const p of parts) dir = await dir.getDirectoryHandle(p, { create });
+    return dir;
+  },
+
+  async readFile(handle, path) {
+    const parts = path.split('/');
+    const name = parts.pop();
     try {
-      const fh = await handle.getFileHandle(name);
+      const dir = await this._resolveDir(handle, parts);
+      const fh = await dir.getFileHandle(name);
       return await (await fh.getFile()).text();
     } catch (e) {
       if (e?.name === 'NotFoundError') return null;
@@ -2880,16 +2904,23 @@ const Disk = {
     }
   },
 
-  async writeFile(handle, name, text) {
-    const fh = await handle.getFileHandle(name, { create: true });
+  async writeFile(handle, path, text) {
+    const parts = path.split('/');
+    const name = parts.pop();
+    const dir = await this._resolveDir(handle, parts, { create: true });
+    const fh = await dir.getFileHandle(name, { create: true });
     const w  = await fh.createWritable();
     await w.write(text);
     await w.close();
   },
 
-  async deleteFile(handle, name) {
-    try { await handle.removeEntry(name); }
-    catch (e) { if (e?.name !== 'NotFoundError') throw e; }
+  async deleteFile(handle, path) {
+    const parts = path.split('/');
+    const name = parts.pop();
+    try {
+      const dir = await this._resolveDir(handle, parts);
+      await dir.removeEntry(name);
+    } catch (e) { if (e?.name !== 'NotFoundError') throw e; }
   },
 
   async identifyFolder(handle) {
@@ -3223,7 +3254,7 @@ const StorageDialog = (() => {
     let editsConflicts = [];
     let folderEditsEntries = null;
     if (folderEdits) {
-      const text = folderEdits.filename ? await Disk.readFile(handle, folderEdits.filename) : null;
+      const text = folderEdits.filename ? await Disk.readFile(handle, rawPathFor(folderEdits)) : null;
       folderEditsEntries = text ? parseWordlist(text) : [];
       if (deviceEdits) {
         const fm = new Map(folderEditsEntries.map(e => [e.norm, e]));
@@ -3303,7 +3334,7 @@ const StorageDialog = (() => {
 
     for (const fw of (folderSettings.sources || [])) {
       if (fw.type === 'edits') continue;
-      const text = fw.filename ? await Disk.readFile(handle, fw.filename) : null;
+      const text = fw.filename ? await Disk.readFile(handle, rawPathFor(fw)) : null;
       newSources.push(wordlistFromMeta(fw, text));
     }
 
@@ -3311,7 +3342,7 @@ const StorageDialog = (() => {
       if (!dw.filename) dw.filename = `${dw.name}.txt`;
       if (dw.populated) {
         const text = await IdbBackend.readWordlist(dw);
-        await Disk.writeFile(handle, dw.filename, text ?? '');
+        await Disk.writeFile(handle, rawPathFor(dw), text ?? '');
       }
       newSources.push(dw);
     }
@@ -3338,12 +3369,12 @@ const StorageDialog = (() => {
       );
     } else if (diff.folderEdits) {
       const fwm = diff.folderEdits;
-      const text = fwm.filename ? await Disk.readFile(handle, fwm.filename) : null;
+      const text = fwm.filename ? await Disk.readFile(handle, rawPathFor(fwm)) : null;
       editsWl = wordlistFromMeta(fwm, text);
     } else if (diff.deviceEdits) {
       const dw = diff.deviceEdits;
       if (!dw.filename) dw.filename = 'My Edits.txt';
-      await Disk.writeFile(handle, dw.filename, entriesToText(dw.rawEntries));
+      await Disk.writeFile(handle, rawPathFor(dw), entriesToText(dw.rawEntries));
       editsWl = dw;
     }
     if (editsWl) newSources.unshift(editsWl);
@@ -3363,7 +3394,7 @@ const StorageDialog = (() => {
     };
 
     if (editsWl && diff.folderEdits && diff.deviceEdits) {
-      await Disk.writeFile(handle, editsWl.filename, entriesToText(editsWl.rawEntries));
+      await Disk.writeFile(handle, rawPathFor(editsWl), entriesToText(editsWl.rawEntries));
     }
     for (const wl of newSources) {
       if (wl.type === 'edits' || !wl.filename || !wl.populated) continue;
@@ -3493,6 +3524,8 @@ async function turnOffStorage({ deleteFiles }) {
         await Disk.deleteFile(handle, name);
       }
     }
+    try { await handle.removeEntry(ORIGINAL_DIR, { recursive: true }); }
+    catch (e) { if (e?.name !== 'NotFoundError') throw e; }
   }
   await DiskBackend.reset();
   location.reload();
@@ -3645,7 +3678,7 @@ async function migrateToDisk(handle) {
   for (const wl of state.sources) {
     if (!wl.populated) continue;
     const text = await IdbBackend.readWordlist(wl);
-    await Disk.writeFile(handle, wl.filename, text ?? '');
+    await Disk.writeFile(handle, rawPathFor(wl), text ?? '');
     if (wl.type !== 'edits') {
       const entries = sortedEntries(applyRescoring(wl.rawEntries, wl.rescoreRules || []));
       await Disk.writeFile(handle, rescoredNameFor(wl.filename), entriesToText(entries));
