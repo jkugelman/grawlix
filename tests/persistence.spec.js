@@ -36,7 +36,12 @@ test('a custom wordlist survives a page reload with its entries and rules intact
   // Reload. The page.route stub set up in beforeEach persists across the
   // reload (same browser context), so the publisher fetches stay empty.
   await page.reload();
-  await expect.poll(async () => page.evaluate(() => _db !== null), { timeout: 5000 }).toBe(true);
+  // Poll the wordlist, not _db: load-into-state.sources is a separate async
+  // step that lags _db on a slow WebKit reload, so getWordlist returns null.
+  await expect.poll(
+    async () => page.evaluate(() => window.__grawlixTest.getWordlist('Persist')?.populated ?? false),
+    { timeout: 10000 }
+  ).toBe(true);
 
   // Wordlist came back with the exact entries it had.
   const wl = await page.evaluate(() => window.__grawlixTest.getWordlist('Persist'));

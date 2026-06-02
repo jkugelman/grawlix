@@ -43,7 +43,7 @@ async function gotoApp(page, route = '/') {
   // going non-null is the actual signal that init()'s `await openDB()` has
   // resolved (Chromium wins this race incidentally; Firefox doesn't, and 5s
   // isn't enough under heavy parallel-worker load — was flaking ~5%).
-  await expect.poll(async () => page.evaluate(() => _db !== null), { timeout: 30000 }).toBe(true);
+  await expect.poll(async () => page.evaluate(() => _db !== null), { timeout: 10000 }).toBe(true);
 }
 
 // Switch to the Library view via the brand-bar nav button.

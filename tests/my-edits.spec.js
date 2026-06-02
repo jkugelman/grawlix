@@ -264,9 +264,10 @@ test('a My Edits entry deletes via the popover after a reload reparses its displ
   ).toEqual([{ entry: 'words', display: 'words', score: 40, comment: '' }]);
 
   await page.reload();
-  await expect.poll(async () => page.evaluate(() => _db !== null), { timeout: 5000 }).toBe(true);
-  await expect.poll(async () =>
-    page.evaluate(() => window.__grawlixTest.getWordlist('My Edits')?.entries ?? null)
+  // Longer than the 5s default: a post-reload poll absorbs full boot + IDB reparse.
+  await expect.poll(
+    async () => page.evaluate(() => window.__grawlixTest.getWordlist('My Edits')?.entries ?? null),
+    { timeout: 10000 }
   ).toEqual([{ entry: 'words', display: null, score: 40, comment: '' }]);
 
   const scoreCell = page.locator('.entry-row[data-entry="words"] .atom-score');
