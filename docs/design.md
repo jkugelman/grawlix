@@ -480,7 +480,7 @@ What's gained: visual calm at rest, narrow widths come nearly for free (lists sc
 
 **Sort control inside the stats bar.** "Sort by [Entry ▾] [↑]" sits at the right edge of the stats bar, after the score-range input — not in a dedicated toolbar above the table. Counts, stats numbers, and histogram on the left describe the visible result set; score range and sort on the right shape it. The Workshop scroller mounts its axes into `#stats-bar-sort` (a slot inside the stats bar's right region) so the available sort axes update with the pipeline's tier; Library renders its three static axes (Entry, Length, Score) directly into the same class slot.
 
-The sort axis is a native `<select>` with `appearance: none` and a chevron painted via background-image — quiet inline text rather than bordered chrome. Direction is a borderless `↑`/`↓` button next to it. No persistent border or background; the controls flow inline with natural HTML whitespace between them. Sort axes: Entry (alphabetical by word), Length, Score (or Min score / Max score on a multi-atom chain tier). Default Entry ascending; every other axis defaults to descending when first selected.
+The sort axis is a native `<select>` with `appearance: none` and a chevron painted via background-image — quiet inline text rather than bordered chrome. Direction is a borderless `↑`/`↓` button next to it. No persistent border or background; the controls flow inline with natural HTML whitespace between them. Sort axes: Entry (alphabetical by word), Length, Score (or Min score / Max score on a multi-atom chain tier).
 
 **Stats bar refresh is surgical.** A score-range keystroke triggers a re-render of the bar's counts and stats numbers, but `.stats-bar-controls` (containing the input the user is typing into) is left untouched — `swapStatsBarReadouts` replaces only `.stats-bar-counts` and `.stats-bar-distribution`. Rebuilding the whole bar on every keystroke would destroy the input element under the cursor and drop focus mid-edit.
 
@@ -601,7 +601,7 @@ Each pipeline row serializes in pipeline order. A tool's parameters spread acros
 Two keys carry the entries-table sort:
 
 - `sort=<axis>` — depends on the chain's sort tier (§ Sort axes per chain tier). Filter-only chains: `entry`, `length`, `score`. Chains with a transform: `entry`, `length`, `min-score`, `max-score`. Dropped when the axis matches the tier's default — `entry` in every tier.
-- `sort-dir=<asc|desc>` — dropped when the direction matches the axis's default. `entry` defaults to ascending (alphabetical reads naturally A→Z); every other axis (`length`, `score`, `min-score`, `max-score`) defaults to descending, which reads top-down as "best/biggest rows first".
+- `sort-dir=<asc|desc>` — dropped when the direction is `asc` (the default).
 
 The two-key form keeps each piece independently minimizable, so the common cases stay quiet — `entry asc` is silent across every tier, `score desc` is just `sort=score`, `score asc` is `sort=score&sort-dir=asc`. `sort-dir` can appear without `sort` (e.g. `entry desc` becomes `sort-dir=desc`); the parser treats an absent `sort` as the tier default.
 

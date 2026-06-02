@@ -120,7 +120,7 @@ A single sticky band above the entries table, carrying every readout about the v
 - **Counts.** `Entries N`; with a tool in all-mode, `Groups N` rides alongside. The Entries count reflects what made it to the end of the pipeline — chain rows for flat pipelines, surviving member chains across every visible group for all-mode pipelines.
 - **Stats numbers and histogram.** `Min · Max` of the score-range-filtered output, followed by the histogram. On narrow screens `Min · Max` drops out, but counts, histogram, range, and sort always hold.
 - **Score range.** A `lo-hi` / `lo+` / `n` text input, or drag-select across the histogram. The histogram itself shows the full pipeline output regardless of range; bars outside the bracket fade in place so you can see what you're trimming as you drag the range narrower. The filter is remembered across visits.
-- **Sort.** "Sort by [Entry ▾] [↑]". Click the arrow to toggle direction. Default is Entry ascending; every other axis defaults to descending.
+- **Sort.** "Sort by [Entry ▾] [↑]". Click the arrow to toggle direction.
 
 The score range applies after the pipeline runs, dropping any chain whose journey touched an out-of-range atom. All-mode pipelines drop chains per group; a group stays visible as long as at least one chain survives.
 

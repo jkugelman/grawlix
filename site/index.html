@@ -2154,7 +2154,7 @@ const Router = (() => {
     const tier = chainSortTier(stack);
     const defaultAxis = WORKSHOP_DEFAULT_SORT_BY_TIER[tier];
     if (WorkshopView.sortKey !== defaultAxis)                  parts.push('sort=' + WorkshopView.sortKey);
-    if (WorkshopView.sortDir !== defaultSortDir(WorkshopView.sortKey)) parts.push('sort-dir=' + WorkshopView.sortDir);
+    if (WorkshopView.sortDir !== 'asc') parts.push('sort-dir=' + WorkshopView.sortDir);
     return parts.join('&');
   }
 
@@ -3729,7 +3729,7 @@ const WorkshopView = (() => {
   function applyURLState({ sortKey, sortDir }) {
     const tier = chainSortTier(ToolStack.getStack());
     _sortKey = sortKey || WORKSHOP_DEFAULT_SORT_BY_TIER[tier];
-    _sortDir = sortDir || defaultSortDir(_sortKey);
+    _sortDir = sortDir || 'asc';
     reconcileSort(ToolStack.getStack());
   }
 
@@ -4269,7 +4269,7 @@ const LibraryView = (() => {
   function onSortAxis(key) {
     if (!LIBRARY_SORT_AXES[key] || _sortKey === key) return;
     _sortKey = key;
-    _sortDir = defaultSortDir(key);
+    _sortDir = 'asc';
     refreshSortControls();
     _entriesScroller?.setSort(_sortKey, _sortDir);
   }
@@ -7512,11 +7512,6 @@ function isValidSortAxis(key) {
 // Library entries sort by the same three axes over plain wlEntries; the
 // LibraryEntriesScroller owns its own comparison, so only the labels matter.
 const LIBRARY_SORT_AXES = { entry: { label: 'Entry' }, length: { label: 'Length' }, score: { label: 'Score' } };
-// Entry sorts ascending (alphabetical reads naturally A→Z). Every other axis
-// sorts descending — top-down reads as "best first".
-function defaultSortDir(key) {
-  return key === 'entry' ? 'asc' : 'desc';
-}
 
 // Run synchronously on stack mutation and URL load: the sort tier follows
 // the stack, and settling it lazily in the async render let the URL builder
@@ -7533,7 +7528,7 @@ function reconcileSort(stack) {
       key = mapped;
     } else {
       key = WORKSHOP_DEFAULT_SORT_BY_TIER[tier];
-      dir = defaultSortDir(key);
+      dir = 'asc';
     }
   }
   WorkshopView.setSort(key, dir);
@@ -8015,7 +8010,7 @@ class WorkshopEntriesScroller extends BaseVirtualScroller {
       const key = e.target.value;
       if (this.sortKey !== key) {
         this.sortKey = key;
-        this.sortDir = defaultSortDir(key);
+        this.sortDir = 'asc';
         WorkshopView.setSort(this.sortKey, this.sortDir);
         this._buildToolbar();
         this._sortAndRender();

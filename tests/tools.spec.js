@@ -145,6 +145,7 @@ test('semordnilap unifies mirror rows into one chain in min-score-desc order', a
   await addSemordnilapFixture(page);
   await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'semordnilap' }]));
   await page.locator('#stats-bar-sort .sort-axis-select').selectOption('min-score');
+  await page.locator('#stats-bar-sort .sort-dir-btn').click();
 
   // Semordnilap emits both DEVIL→LIVED and LIVED→DEVIL; unify
   // collapses each mirror pair to one row, keeping the executor's first
@@ -423,9 +424,9 @@ test('1-atom: score desc tiebreaks by length desc, then entry asc', async ({ pag
     entries: ['CAT', 'AAA', 'BAGEL', 'DOG', 'CAKE'],
     scores:  [  50,    50,      50,    50,     50],
   }));
-  // Score axis defaults desc, which is what we want — no manual toggle.
   await page.evaluate(() => window.__grawlixTest.setStack([]));
   await page.locator('#stats-bar-sort .sort-axis-select').selectOption('score');
+  await page.locator('#stats-bar-sort .sort-dir-btn').click();
 
   const visible = await page.evaluate(() => window.__grawlixTest.getVisibleEntries());
   expect(visible).toEqual(['bagel', 'cake', 'aaa', 'cat', 'dog']);
@@ -443,10 +444,6 @@ test('1-atom: score asc keeps length desc tiebreaker (no junk-float)', async ({ 
   }));
   await page.evaluate(() => window.__grawlixTest.setStack([]));
   await page.locator('#stats-bar-sort .sort-axis-select').selectOption('score');
-  // Flip to ascending — primary now goes 50→50→50 (all equal), tiebreakers
-  // still apply in their declared direction (length desc, entry asc). Result
-  // should match the desc test: BAGEL, CAKE, AAA, CAT, DOG.
-  await page.locator('#stats-bar-sort .sort-dir-btn').click();
 
   const visible = await page.evaluate(() => window.__grawlixTest.getVisibleEntries());
   expect(visible).toEqual(['bagel', 'cake', 'aaa', 'cat', 'dog']);
@@ -484,6 +481,7 @@ test('chain sort axis swap: min-score → max-score reorders rows', async ({ pag
   await addSemordnilapFixture(page);
   await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'semordnilap' }]));
   await page.locator('#stats-bar-sort .sort-axis-select').selectOption('min-score');
+  await page.locator('#stats-bar-sort .sort-dir-btn').click();
 
   // EVIL/LIVE: EVIL=99, LIVE=10 ⇒ chain min=10, max=99. By min it sorts last
   // (10 < 20 < 40 < 70); by max it sorts first (99 > 80 > 60 > 30). Swapping
@@ -497,6 +495,7 @@ test('chain sort axis swap: min-score → max-score reorders rows', async ({ pag
   expect(before[before.length - 1]).toEqual(['evil', 'live']);         // min 10 (bottom)
 
   await page.locator('#stats-bar-sort .sort-axis-select').selectOption('max-score');
+  await page.locator('#stats-bar-sort .sort-dir-btn').click();
   const after = await page.evaluate(() => window.__grawlixTest.getVisibleEntries());
   expect(after[0]).toEqual(['evil', 'live']);                          // max 99 (top)
 });
