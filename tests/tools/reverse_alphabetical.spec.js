@@ -13,7 +13,7 @@ test('keeps entries whose letters are in non-increasing order, with or without r
   await gotoApp(page);
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
     name: 'ReverseAlphabeticalTool',
-    entries: ['SPOOFED', 'YUPPIE', 'WOLFED', 'HELLO', 'CAT'],
+    entries: ['spoofed', 'yuppie', 'wolfed', 'hello', 'cat'],
     scores:  [50, 50, 50, 50, 50],
   }));
   await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'reverse_alphabetical' }]));

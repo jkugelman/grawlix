@@ -13,7 +13,7 @@ test.beforeEach(async ({ page }) => {
 async function addFixture(page) {
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
     name: 'ClearTest',
-    entries: ['CAT', 'COT', 'DOG'],
+    entries: ['cat', 'cot', 'dog'],
     scores: [50, 50, 50],
   }));
 }

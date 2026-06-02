@@ -17,7 +17,7 @@ test.beforeEach(async ({ page }) => {
 async function addFixture(page) {
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
     name: 'RegexTool',
-    entries: ['CAT', 'CATS', 'SCAT', 'COT', 'DOG', 'COG', 'BELL', 'TEEN'],
+    entries: ['cat', 'cats', 'scat', 'cot', 'dog', 'cog', 'bell', 'teen'],
     scores:  Array(8).fill(50),
   }));
 }
@@ -31,7 +31,7 @@ async function visible(page) {
 async function addReplaceFixture(page) {
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
     name: 'RegexReplace',
-    entries: ['CAT', 'CATS', 'SCAT', 'DOG', 'DOGS', 'BELL', 'BEL', 'TEEN', 'TEN'],
+    entries: ['cat', 'cats', 'scat', 'dog', 'dogs', 'bell', 'bel', 'teen', 'ten'],
     scores:  Array(9).fill(50),
   }));
 }
@@ -147,7 +147,7 @@ test('whole-word constrains a replacement to entries that match in full', async 
 async function addHighlightFixture(page) {
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
     name: 'RegexHighlight',
-    entries: ['UNITED', 'UNUSED', 'COT', 'COD'],
+    entries: ['united', 'unused', 'cot', 'cod'],
     scores:  Array(4).fill(50),
   }));
 }
@@ -176,7 +176,7 @@ test('every match in an entry is highlighted, not just the first', async ({ page
   await gotoApp(page);
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
     name: 'RegexMulti',
-    entries: ['BANANA'],
+    entries: ['banana'],
     scores: [50],
   }));
   await setRegex(page, 'na');
@@ -200,7 +200,7 @@ test('replace colors both capture groups on the input and their swapped echoes o
   await gotoApp(page);
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
     name: 'RegexSwap',
-    entries: ['CATS', 'CAST', 'ARC', 'CAR'],
+    entries: ['cats', 'cast', 'arc', 'car'],
     scores:  Array(4).fill(50),
   }));
   await setRegex(page, '(t)(s)$', { replace: '$2$1' });

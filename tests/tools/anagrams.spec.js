@@ -15,7 +15,7 @@ async function addFixture(page) {
   // plain pair.
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
     name: 'AnagramTool',
-    entries: ['LINDSEY', 'SNIDELY', 'CAT', 'ACT', 'EERIE', 'EYRIE', 'DOG'],
+    entries: ['lindsey', 'snidely', 'cat', 'act', 'eerie', 'eyrie', 'dog'],
     scores:  [       60,        50,    40,    40,      45,      45,    40],
   }));
 }
@@ -61,7 +61,7 @@ test('grouped: clusters merged entries that share a letter multiset', async ({ p
   await gotoApp(page);
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
     name: 'AnagramGrouped',
-    entries: ['LIVES', 'ELVIS', 'LEVIS', 'EVILS', 'TIGER'],
+    entries: ['lives', 'elvis', 'levis', 'evils', 'tiger'],
     scores:  [50, 50, 50, 50, 50],
   }));
   await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'anagrams', grouped: true }]));
@@ -75,7 +75,7 @@ test('grouped: TOPS and POTS share a multiset but not OPT (different length)', a
   await gotoApp(page);
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
     name: 'MultisetMatters',
-    entries: ['TOPS', 'POTS', 'OPT', 'POT', 'TOP'],
+    entries: ['tops', 'pots', 'opt', 'pot', 'top'],
     scores:  [50, 50, 50, 50, 50],
   }));
   await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'anagrams', grouped: true }]));

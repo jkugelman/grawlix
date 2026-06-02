@@ -13,7 +13,7 @@ test('keeps entries where each of A E I O U appears exactly once', async ({ page
   await gotoApp(page);
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
     name: 'SupervocalicTool',
-    entries: ['SEQUOIA', 'EDUCATION', 'HELLO', 'BANANA'],
+    entries: ['sequoia', 'education', 'hello', 'banana'],
     scores:  [50, 50, 50, 50],
   }));
   await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'supervocalics' }]));
@@ -25,7 +25,7 @@ test('a doubled vowel disqualifies an entry — each vowel must appear exactly o
   await gotoApp(page);
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
     name: 'DoubledVowels',
-    entries: ['AERONAUTIC'],
+    entries: ['aeronautic'],
     scores:  [50],
   }));
   await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'supervocalics' }]));
@@ -36,7 +36,7 @@ test('Y is not counted as a vowel', async ({ page }) => {
   await gotoApp(page);
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
     name: 'YNotVowel',
-    entries: ['LAYOUT'],
+    entries: ['layout'],
     scores:  [50],
   }));
   await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'supervocalics' }]));

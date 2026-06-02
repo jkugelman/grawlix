@@ -24,7 +24,7 @@ test('editing a row sourced from another wordlist routes the edit into My Edits'
 
   // Seed a custom wordlist with one entry. My Edits is empty to start.
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
-    name: 'Source', entries: ['BAGEL'], scores: [50],
+    name: 'Source', entries: ['bagel'], scores: [50],
   }));
   const editsBefore = await page.evaluate(() => window.__grawlixTest.getWordlist('My Edits'));
   expect(editsBefore.entries).toEqual([]);
@@ -54,7 +54,7 @@ test('popover edits only commit when the user clicks Save', async ({ page }) => 
   await gotoApp(page);
 
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
-    name: 'Source', entries: ['BAGEL'], scores: [50],
+    name: 'Source', entries: ['bagel'], scores: [50],
   }));
 
   await page.locator('.entry-row[data-entry="bagel"] .atom-score').click();
@@ -81,7 +81,7 @@ test('Cancel closes the popover without committing edits', async ({ page }) => {
   await gotoApp(page);
 
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
-    name: 'Source', entries: ['BAGEL'], scores: [50],
+    name: 'Source', entries: ['bagel'], scores: [50],
   }));
 
   await page.locator('.entry-row[data-entry="bagel"] .atom-score').click();
@@ -96,7 +96,7 @@ test('Source row and footer track the typed entry', async ({ page }) => {
   await gotoApp(page);
 
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
-    name: 'Source', entries: ['BAGEL', 'CARROT'], scores: [50, 50],
+    name: 'Source', entries: ['bagel', 'carrot'], scores: [50, 50],
   }));
 
   await page.locator('.entry-row[data-entry="bagel"] .atom-score').click();
@@ -126,7 +126,7 @@ test('editing the entry text renames the My Edits record', async ({ page }) => {
   await gotoApp(page);
 
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
-    name: 'Source', entries: ['BAGEL'], scores: [50],
+    name: 'Source', entries: ['bagel'], scores: [50],
   }));
 
   await page.locator('.entry-row[data-entry="bagel"] .atom-score').click();
@@ -149,7 +149,7 @@ test('the Delete edit button keeps the popover open and reverts to the underlyin
   await gotoApp(page);
 
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
-    name: 'Source', entries: ['BAGEL'], scores: [50],
+    name: 'Source', entries: ['bagel'], scores: [50],
   }));
 
   // Create a My Edits override by editing BAGEL's score.
@@ -183,7 +183,7 @@ test('searching for an unknown entry surfaces an Add-it affordance that lands th
   await gotoApp(page);
 
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
-    name: 'Other', entries: ['EXISTING'], scores: [50],
+    name: 'Other', entries: ['existing'], scores: [50],
   }));
 
   await page.locator('.search-bar input[data-key="pattern"]').fill('NEWWORD');
@@ -211,7 +211,7 @@ test('deleting a My Edits entry shows an undo toast that restores it', async ({ 
   // creates a My Edits override (the natural way to populate My Edits with
   // an entry that's visible in the merged view).
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
-    name: 'Source', entries: ['BAGEL'], scores: [50],
+    name: 'Source', entries: ['bagel'], scores: [50],
   }));
   await page.locator('.entry-row[data-entry="bagel"] .atom-score').click();
   await page.locator('#atom-pop-score').fill('75');
@@ -283,7 +283,7 @@ test('a My Edits entry deletes via the popover after a reload reparses its displ
 test('editing My Edits patches the merged cache in place instead of rebuilding it', async ({ page }) => {
   await gotoApp(page);
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
-    name: 'Source', entries: ['BAGEL', 'CARROT'], scores: [50, 60],
+    name: 'Source', entries: ['bagel', 'carrot'], scores: [50, 60],
   }));
 
   await page.evaluate(() => window.__grawlixTest.markMergedCache('keep-me'));
@@ -305,10 +305,10 @@ test('editing My Edits patches the merged cache in place instead of rebuilding i
 test('the patched merged cache matches a full rebuild across override, add, rename, and delete', async ({ page }) => {
   await gotoApp(page);
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
-    name: 'A', entries: ['BAGEL', 'CARROT', 'DONUT'], scores: [50, 60, 70],
+    name: 'A', entries: ['bagel', 'carrot', 'donut'], scores: [50, 60, 70],
   }));
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
-    name: 'B', entries: ['BAGEL', 'EGG'], scores: [55, 80],
+    name: 'B', entries: ['bagel', 'egg'], scores: [55, 80],
   }));
 
   // Each mutation hits a different patch branch: override an entry two lists

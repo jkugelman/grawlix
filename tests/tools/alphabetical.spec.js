@@ -13,7 +13,7 @@ test('keeps entries whose letters are in non-decreasing order, with or without r
   await gotoApp(page);
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
     name: 'AlphabeticalTool',
-    entries: ['ABBEY', 'BILLOWY', 'BEEF', 'HELLO', 'BOOK'],
+    entries: ['abbey', 'billowy', 'beef', 'hello', 'book'],
     scores:  [50, 50, 50, 50, 50],
   }));
   await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'alphabetical' }]));

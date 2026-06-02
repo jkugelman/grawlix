@@ -13,7 +13,7 @@ test('keeps entries whose halves are anagrams of each other', async ({ page }) =
   await gotoApp(page);
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
     name: 'Neckout',
-    entries: ['STUCKONESNECKOUT', 'INTESTINES', 'HELLO', 'CARDS'],
+    entries: ['stuckonesneckout', 'intestines', 'hello', 'cards'],
     scores:  [50, 50, 50, 50],
   }));
   await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'neckouts' }]));
@@ -25,7 +25,7 @@ test('a repeater (halves identical) is excluded — that is a different tool', a
   await gotoApp(page);
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
     name: 'NoRepeaters',
-    entries: ['TARTAR', 'INTESTINES'],
+    entries: ['tartar', 'intestines'],
     scores:  [50, 50],
   }));
   await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'neckouts' }]));
@@ -37,7 +37,7 @@ test('odd-length entries are excluded — a neckout requires even length', async
   await gotoApp(page);
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
     name: 'OddLen',
-    entries: ['HELLO', 'INTESTINES'],
+    entries: ['hello', 'intestines'],
     scores:  [50, 50],
   }));
   await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'neckouts' }]));
@@ -49,7 +49,7 @@ test('halves with different letter multisets are dropped', async ({ page }) => {
   await gotoApp(page);
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
     name: 'NotAnagram',
-    entries: ['MURDER', 'INTESTINES'],
+    entries: ['murder', 'intestines'],
     scores:  [50, 50],
   }));
   await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'neckouts' }]));

@@ -14,7 +14,7 @@ test.beforeEach(async ({ page }) => {
 async function addFixture(page) {
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
     name: 'BeheadTool',
-    entries: ['SLING', 'LING', 'BREAD', 'READ', 'DOG'],
+    entries: ['sling', 'ling', 'bread', 'read', 'dog'],
     scores:  [   50,    40,      60,     55,    40],
   }));
 }
@@ -55,7 +55,7 @@ test('Count drops that many leading letters and marks them', async ({ page }) =>
   await gotoApp(page);
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
     name: 'BeheadCount',
-    entries: ['CHAIR', 'AIR', 'STABLE', 'ABLE'],
+    entries: ['chair', 'air', 'stable', 'able'],
     scores:  [   70,    50,      60,     50],
   }));
   await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'behead', params: { count: '2' } }]));

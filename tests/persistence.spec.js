@@ -26,7 +26,7 @@ test('a custom wordlist survives a page reload with its entries and rules intact
   // rescore rule so a regression that drops rules (or auto-seeds on top of
   // existing rules) shows up clearly.
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
-    name: 'Persist', entries: ['AARDVARK', 'BAGEL', 'CARROT'], scores: [10, 50, 90],
+    name: 'Persist', entries: ['aardvark', 'bagel', 'carrot'], scores: [10, 50, 90],
   }));
   await page.evaluate(() => window.__grawlixTest.setRescoreRules('Persist', [
     { input: '10-50', length: '',  output: '40', note: 'compress' },

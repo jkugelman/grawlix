@@ -8,7 +8,7 @@ test.beforeEach(async ({ page }) => {
 async function addFixture(page) {
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
     name: 'ExportTest',
-    entries: ['SCAR', 'CAR', 'SLING', 'LING', 'POST', 'STOP', 'SPOT', 'TOPS', 'CAT', 'COT'],
+    entries: ['scar', 'car', 'sling', 'ling', 'post', 'stop', 'spot', 'tops', 'cat', 'cot'],
     scores:  [50,     60,    70,      30,     50,     60,     55,     40,     70,    30],
     comments:['',     'auto', '',     '',     '',     '',     '',     '',     '',    ''],
   }));

@@ -17,7 +17,7 @@ async function addFixture(page) {
   // Don't drop either pair.
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
     name: 'CurtailTool',
-    entries: ['PARTY', 'PART', 'PRESS', 'PRES', 'CATS', 'CAT', 'DOG'],
+    entries: ['party', 'part', 'press', 'pres', 'cats', 'cat', 'dog'],
     scores:  [   60,    55,      50,     45,     40,    40,    40],
   }));
 }
@@ -58,7 +58,7 @@ test('Count drops that many trailing letters and marks them', async ({ page }) =
   await gotoApp(page);
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
     name: 'CurtailCount',
-    entries: ['CASTLE', 'CAST', 'PLANET', 'PLAN'],
+    entries: ['castle', 'cast', 'planet', 'plan'],
     scores:  [    70,     50,      60,     50],
   }));
   await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'curtail', params: { count: '2' } }]));

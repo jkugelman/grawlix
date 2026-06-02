@@ -13,7 +13,7 @@ test('keeps entries that contain every input letter and only those letters', asy
   await gotoApp(page);
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
     name: 'Bank',
-    entries: ['STOOPS', 'TOPS', 'POSTOP', 'TOP', 'PEAR'],
+    entries: ['stoops', 'tops', 'postop', 'top', 'pear'],
     scores:  [50, 50, 50, 50, 50],
   }));
   await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'letter_bank', params: { letters: 'SPOT' } }]));
@@ -24,7 +24,7 @@ test('rejects entries missing any letter from the input alphabet', async ({ page
   await gotoApp(page);
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
     name: 'Missing',
-    entries: ['OPS', 'TOP', 'POSTOP'],
+    entries: ['ops', 'top', 'postop'],
     scores:  [50, 50, 50],
   }));
   await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'letter_bank', params: { letters: 'OPTS' } }]));
@@ -35,7 +35,7 @@ test('input duplicates do not raise the per-letter minimum', async ({ page }) =>
   await gotoApp(page);
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
     name: 'Dup',
-    entries: ['AB', 'AAB', 'ABBA'],
+    entries: ['ab', 'aab', 'abba'],
     scores:  [50, 50, 50],
   }));
   await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'letter_bank', params: { letters: 'AAB' } }]));
@@ -46,7 +46,7 @@ test('empty letters is inert — the full merged view passes through', async ({ 
   await gotoApp(page);
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
     name: 'EmptyBank',
-    entries: ['CAT', 'DOG'],
+    entries: ['cat', 'dog'],
     scores:  [50, 50],
   }));
   await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'letter_bank', params: { letters: '' } }]));
@@ -56,7 +56,7 @@ test('empty letters is inert — the full merged view passes through', async ({ 
 async function addLetterSetFixture(page) {
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
     name: 'LetterSetTest',
-    entries: ['OPT', 'POT', 'TOP', 'ACT', 'CAT', 'DOG'],
+    entries: ['opt', 'pot', 'top', 'act', 'cat', 'dog'],
     scores: [50, 40, 30, 60, 20, 70],
   }));
 }

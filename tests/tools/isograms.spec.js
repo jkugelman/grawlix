@@ -13,7 +13,7 @@ test('keeps entries with every letter unique', async ({ page }) => {
   await gotoApp(page);
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
     name: 'IsogramTool',
-    entries: ['DIALOGUE', 'CYBERPUNK', 'HELLO', 'ECCENTRIC'],
+    entries: ['dialogue', 'cyberpunk', 'hello', 'eccentric'],
     scores:  [50, 50, 50, 50],
   }));
   await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'isograms' }]));
@@ -25,10 +25,10 @@ test('non-letter characters in an entry are skipped, not counted as repeats', as
   await gotoApp(page);
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
     name: 'NonLetters',
-    entries: ['JACK-O', 'OO-LA'],
+    entries: ['jack-o', 'oo-la'],
     scores:  [50, 50],
   }));
   await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'isograms' }]));
 
-  expect(await visible(page)).toEqual(['JACK-O']);
+  expect(await visible(page)).toEqual(['jack-o']);
 });

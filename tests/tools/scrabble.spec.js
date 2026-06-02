@@ -13,7 +13,7 @@ test('keeps entries spelled from any subset of the input tiles', async ({ page }
   await gotoApp(page);
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
     name: 'Scrabble',
-    entries: ['PLANE', 'RENT', 'PEAR', 'TIGER'],
+    entries: ['plane', 'rent', 'pear', 'tiger'],
     scores:  [50, 50, 50, 50],
   }));
   await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'scrabble', params: { tiles: 'PARENTAL' } }]));
@@ -25,7 +25,7 @@ test('a tile is consumed at the frequency it appears in the input', async ({ pag
   await gotoApp(page);
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
     name: 'Frequency',
-    entries: ['POOL', 'POP', 'POL'],
+    entries: ['pool', 'pop', 'pol'],
     scores:  [50, 50, 50],
   }));
   await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'scrabble', params: { tiles: 'POL' } }]));
@@ -36,7 +36,7 @@ test('empty tiles param is inert — the full merged view passes through', async
   await gotoApp(page);
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
     name: 'EmptyParam',
-    entries: ['CAT', 'DOG'],
+    entries: ['cat', 'dog'],
     scores:  [50, 50],
   }));
   await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'scrabble', params: { tiles: '' } }]));
@@ -47,7 +47,7 @@ test('the param is matched case-insensitively', async ({ page }) => {
   await gotoApp(page);
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
     name: 'CaseInsensitive',
-    entries: ['CAT', 'DOG'],
+    entries: ['cat', 'dog'],
     scores:  [50, 50],
   }));
   await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'scrabble', params: { tiles: 'aCt' } }]));

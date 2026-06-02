@@ -13,7 +13,7 @@ test('keeps entries whose vowels are all the same letter', async ({ page }) => {
   await gotoApp(page);
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
     name: 'MonovocalicTool',
-    entries: ['TOOCOOLFORSCHOOL', 'STRENGTHS', 'BANANA', 'HELLO'],
+    entries: ['toocoolforschool', 'strengths', 'banana', 'hello'],
     scores:  [50, 50, 50, 50],
   }));
   await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'monovocalics' }]));
@@ -25,7 +25,7 @@ test('Y at the start of a word is a consonant — YOLK is O-monovocalic', async 
   await gotoApp(page);
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
     name: 'YAtStart',
-    entries: ['YOLK', 'YELP', 'YACHT', 'YEAR'],
+    entries: ['yolk', 'yelp', 'yacht', 'year'],
     scores:  [50, 50, 50, 50],
   }));
   await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'monovocalics' }]));
@@ -36,7 +36,7 @@ test('Y anywhere else is a vowel — it counts as a second vowel in an AEIOU wor
   await gotoApp(page);
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
     name: 'YAsVowel',
-    entries: ['BOYTOY', 'BABY', 'KAYAK', 'SYRUP', 'LARYNX'],
+    entries: ['boytoy', 'baby', 'kayak', 'syrup', 'larynx'],
     scores:  [50, 50, 50, 50, 50],
   }));
   await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'monovocalics' }]));
@@ -47,7 +47,7 @@ test('a Y-only entry matches as Y-monovocalic; a vowel-less entry drops', async 
   await gotoApp(page);
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
     name: 'YOnly',
-    entries: ['RHYTHM', 'GYPSY', 'WHY', 'SHHH'],
+    entries: ['rhythm', 'gypsy', 'why', 'shhh'],
     scores:  [50, 50, 50, 50],
   }));
   await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'monovocalics' }]));

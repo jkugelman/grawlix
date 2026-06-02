@@ -13,7 +13,7 @@ test('keeps entries that contain the input as a subsequence with gaps', async ({
   await gotoApp(page);
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
     name: 'Kangaroo',
-    entries: ['MILKANDSUGAR', 'KANGAROO', 'HELLO', 'BANGALORE'],
+    entries: ['milkandsugar', 'kangaroo', 'hello', 'bangalore'],
     scores:  [50, 50, 50, 50],
   }));
   await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'kangaroos', params: { entry: 'KANGA' } }]));
@@ -25,7 +25,7 @@ test('subsequence order matters — same letters in a different order are not a 
   await gotoApp(page);
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
     name: 'OrderMatters',
-    entries: ['ABCDEF', 'FEDCBA'],
+    entries: ['abcdef', 'fedcba'],
     scores:  [50, 50],
   }));
   await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'kangaroos', params: { entry: 'ACE' } }]));
@@ -37,7 +37,7 @@ test('the input itself is excluded — a kangaroo must be longer than its joey',
   await gotoApp(page);
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
     name: 'StrictLonger',
-    entries: ['KANGA', 'KANGAS'],
+    entries: ['kanga', 'kangas'],
     scores:  [50, 50],
   }));
   await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'kangaroos', params: { entry: 'KANGA' } }]));
@@ -49,7 +49,7 @@ test('an empty param is inert — the full merged view passes through', async ({
   await gotoApp(page);
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
     name: 'Empty',
-    entries: ['CAT', 'DOG'],
+    entries: ['cat', 'dog'],
     scores:  [50, 50],
   }));
   await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'kangaroos', params: { entry: '' } }]));
@@ -61,7 +61,7 @@ test('the param is matched case-insensitively', async ({ page }) => {
   await gotoApp(page);
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
     name: 'Case',
-    entries: ['KANGAROO'],
+    entries: ['kangaroo'],
     scores:  [50],
   }));
   await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'kangaroos', params: { entry: 'kAnGa' } }]));

@@ -17,7 +17,7 @@ test.beforeEach(async ({ page }) => {
 async function addFixture(page) {
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
     name: 'SearchTool',
-    entries: ['UNTESTED', 'UNITED', 'RETESTED', 'CAT', 'COT', 'CART', 'CATS', 'SCAT'],
+    entries: ['untested', 'united', 'retested', 'cat', 'cot', 'cart', 'cats', 'scat'],
     scores:  Array(8).fill(50),
   }));
 }
@@ -116,7 +116,7 @@ test('every match in an entry is highlighted, not just the first', async ({ page
 async function addReplaceFixture(page) {
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
     name: 'SearchReplace',
-    entries: ['CAT', 'CATS', 'SCAT', 'DOG', 'DOGS'],
+    entries: ['cat', 'cats', 'scat', 'dog', 'dogs'],
     scores:  Array(5).fill(50),
   }));
 }

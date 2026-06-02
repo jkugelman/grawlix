@@ -92,10 +92,10 @@ test('a plain ambient winner inherits the rich variant\'s comment', async ({ pag
     name: 'Plain', entries: ['theirs'], scores: [90], comments: [''],
   }));
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
-    name: 'Rich', entries: ['theirs', 'the IRS'], scores: [50, 60], comments: ['pronoun', 'tax agency'],
+    name: 'Rich', entries: ['Theirs', 'the IRS'], scores: [50, 60], comments: ['pronoun', 'tax agency'],
   }));
 
-  const pronoun = await page.evaluate(() => window.__grawlixTest.getMergedEntry('theirs', 'theirs'));
+  const pronoun = await page.evaluate(() => window.__grawlixTest.getMergedEntry('theirs', 'Theirs'));
   const agency  = await page.evaluate(() => window.__grawlixTest.getMergedEntry('theirs', 'the IRS'));
   expect(pronoun).toMatchObject({ score: 90, comment: 'pronoun',    wordlist: 'Plain' });
   expect(agency).toMatchObject({  score: 90, comment: 'tax agency', wordlist: 'Plain' });

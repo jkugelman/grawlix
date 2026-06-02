@@ -18,7 +18,7 @@ test('chains an entry with its reversed form, dropping entries with no reverse',
   await gotoApp(page);
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
     name: 'SemordnilapTool',
-    entries: ['STAR', 'RATS', 'DEVIL', 'LIVED', 'CAT', 'DOG'],
+    entries: ['star', 'rats', 'devil', 'lived', 'cat', 'dog'],
     scores:  [   50,    50,     70,      60,    40,    40],
   }));
   await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'semordnilap' }]));
@@ -33,7 +33,7 @@ test('excludes palindromes — reversing them yields the same word', async ({ pa
   await gotoApp(page);
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
     name: 'PalindromeOnly',
-    entries: ['RACECAR', 'KAYAK', 'LEVEL'],
+    entries: ['racecar', 'kayak', 'level'],
     scores:  [50, 50, 50],
   }));
   await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'semordnilap' }]));

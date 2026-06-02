@@ -221,9 +221,9 @@ ENTRY;SCORE
 ENTRY;SCORE;COMMENT
 ```
 
-**Plain vs. rich wordlists.** Older wordlists strip everything to letters (`THEIRS`, `COOP`); newer **rich** wordlists preserve spaces, accents, punctuation, and mixed case (`the IRS`, `co-op`, `Mötley Crüe`, `Helen of Troy`). Grawlix supports both freely. The format detector treats a file as plain when at least 99% of entries are uniformly `[a-z0-9]+` or `[A-Z0-9]+`; otherwise it treats the file as rich and shows entries as written. The few features that depend on rich form — the Acronyms tool's word boundaries, the search syntax's literal-space/hyphen rules above — light up automatically when the data carries the detail.
+**Casing and special characters.** Grawlix shows each entry as written — spaces, accents, punctuation, and mixed case all preserved (`the IRS`, `co-op`, `Mötley Crüe`, `Helen of Troy`). Case is the exception: wordlists come in all-uppercase or all-lowercase with no standard between them and no meaning to the choice, so a wordlist's plain entries always render in lowercase however the file was written. A deliberate all-caps entry in an otherwise-lowercase list — an `FBI` among lowercase words — is kept as written. So you can freely mix: add `Helen of Troy` to a wordlist that previously held only `helenoftroy`, and it keeps its spaces and capitals. The few features that read the written form — the Acronyms tool's word boundaries, the search syntax's literal-space/hyphen rules above — light up automatically when the data carries the detail.
 
-Within Grawlix, mate / maté / Mate / and MATE are distinct entries when they come from rich sources but collapse to one row when the data only contains the letter form. Each variant keeps its own score and comment.
+Within Grawlix, mate / maté / Mate / and MATE are distinct entries when a wordlist spells them that way, but collapse to one row when the data only contains the bare letter form. Each variant keeps its own score and comment.
 
 ## Acronyms
 

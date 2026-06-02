@@ -13,7 +13,7 @@ test('matches entries sharing the same vowel sequence in order', async ({ page }
   await gotoApp(page);
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
     name: 'Vowelcy',
-    entries: ['POEM', 'NODE', 'HOLE', 'ZONE', 'PEEL', 'CODE'],
+    entries: ['poem', 'node', 'hole', 'zone', 'peel', 'code'],
     scores:  [50, 50, 50, 50, 50, 50],
   }));
   await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'vowelcy', params: { entry: 'POEM' } }]));
@@ -25,7 +25,7 @@ test('vowel order matters — same vowels in a different order do not match', as
   await gotoApp(page);
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
     name: 'Order',
-    entries: ['TAILS', 'TIALS', 'PAINS'],
+    entries: ['tails', 'tials', 'pains'],
     scores:  [50, 50, 50],
   }));
   await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'vowelcy', params: { entry: 'TAILS' } }]));
@@ -37,7 +37,7 @@ test('Y does not count as a vowel', async ({ page }) => {
   await gotoApp(page);
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
     name: 'Y',
-    entries: ['CRY', 'TRY'],
+    entries: ['cry', 'try'],
     scores:  [50, 50],
   }));
   await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'vowelcy', params: { entry: 'CRY' } }]));
@@ -49,7 +49,7 @@ test('empty param is inert — the full merged view passes through', async ({ pa
   await gotoApp(page);
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
     name: 'Empty',
-    entries: ['CAT', 'DOG'],
+    entries: ['cat', 'dog'],
     scores:  [50, 50],
   }));
   await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'vowelcy', params: { entry: '' } }]));
@@ -61,7 +61,7 @@ test('grouped: clusters entries by vowel sequence', async ({ page }) => {
   await gotoApp(page);
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
     name: 'VowGrouped',
-    entries: ['POEM', 'NODE', 'HOLE', 'CAT', 'BAR'],
+    entries: ['poem', 'node', 'hole', 'cat', 'bar'],
     scores:  [50, 50, 50, 50, 50],
   }));
   await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'vowelcy', grouped: true }]));

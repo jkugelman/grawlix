@@ -23,7 +23,7 @@ test.beforeEach(async ({ page }) => {
 async function addAnagramFixture(page) {
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
     name: 'AnagramTest',
-    entries: ['LINDSEY', 'SNIDELY', 'CAT', 'ACT', 'DOG'],
+    entries: ['lindsey', 'snidely', 'cat', 'act', 'dog'],
     scores: [60, 50, 40, 40, 40],
   }));
 }
@@ -135,7 +135,7 @@ async function addSemordnilapFixture(page) {
   // all-semordnilap.
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
     name: 'Semordnilaps',
-    entries: ['STRESSED', 'DESSERTS', 'LIVED', 'DEVIL', 'LOOPS', 'SPOOL', 'RACECAR', 'CAT', 'DOG'],
+    entries: ['stressed', 'desserts', 'lived', 'devil', 'loops', 'spool', 'racecar', 'cat', 'dog'],
     scores:  [        60,        40,      80,      70,      30,      20,        50,    40,    40],
   }));
 }
@@ -176,7 +176,7 @@ test('a downstream transform keeps the two semordnilap directions separate', asy
   // the rows are no longer mirrors and stay separate with directed → glyphs.
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
     name: 'DivergeChain',
-    entries: ['STAR', 'RATS', 'TAR', 'ATS'],
+    entries: ['star', 'rats', 'tar', 'ats'],
     scores:  [50, 50, 50, 50],
   }));
   await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'semordnilap' }, { tool: 'behead' }]));
@@ -421,7 +421,7 @@ test('1-atom: score desc tiebreaks by length desc, then entry asc', async ({ pag
   // entry asc): BAGEL, CAKE, AAA, CAT, DOG.
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
     name: 'TieScore',
-    entries: ['CAT', 'AAA', 'BAGEL', 'DOG', 'CAKE'],
+    entries: ['cat', 'aaa', 'bagel', 'dog', 'cake'],
     scores:  [  50,    50,      50,    50,     50],
   }));
   await page.evaluate(() => window.__grawlixTest.setStack([]));
@@ -439,7 +439,7 @@ test('1-atom: score asc keeps length desc tiebreaker (no junk-float)', async ({ 
   // the tied bucket just because the primary was reversed.
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
     name: 'TieScoreAsc',
-    entries: ['CAT', 'AAA', 'BAGEL', 'DOG', 'CAKE'],
+    entries: ['cat', 'aaa', 'bagel', 'dog', 'cake'],
     scores:  [  50,    50,      50,    50,     50],
   }));
   await page.evaluate(() => window.__grawlixTest.setStack([]));
@@ -459,7 +459,7 @@ test('chains: min-score desc tiebreaks by length desc, then last-atom asc', asyn
   //   AGES↔SEGA              —  4 letters, min 50 (last atom 'sega')
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
     name: 'TieChains',
-    entries: ['PALINDROMES', 'SEMORDNILAP', 'ABUT', 'TUBA', 'ADOS', 'SODA', 'AGES', 'SEGA'],
+    entries: ['palindromes', 'semordnilap', 'abut', 'tuba', 'ados', 'soda', 'ages', 'sega'],
     scores:  [50, 50, 50, 50, 50, 50, 50, 50],
   }));
   await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'semordnilap' }]));
@@ -488,7 +488,7 @@ test('chain sort axis swap: min-score → max-score reorders rows', async ({ pag
   // the axis flips its row from bottom to top. (EVIL < LIVE ⇒ chain runs
   // evil → live.)
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
-    name: 'AsymChain', entries: ['EVIL', 'LIVE'], scores: [99, 10],
+    name: 'AsymChain', entries: ['evil', 'live'], scores: [99, 10],
   }));
   const before = await page.evaluate(() => window.__grawlixTest.getVisibleEntries());
   expect(before[0]).toEqual(['devil', 'lived']);                       // min 70 (top)
@@ -543,8 +543,8 @@ test('Entry sort holds row order when a 1-output transform is added', async ({ p
   // two loners (CAT, DOG) behead into nothing, so adding behead drops them.
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
     name: 'BeheadStable',
-    entries: ['SPARK', 'PARK', 'CLAMP', 'LAMP', 'BRIDGE', 'RIDGE',
-              'WHEAT', 'HEAT', 'SCARE', 'CARE', 'CAT', 'DOG'],
+    entries: ['spark', 'park', 'clamp', 'lamp', 'bridge', 'ridge',
+              'wheat', 'heat', 'scare', 'care', 'cat', 'dog'],
     scores:  Array(12).fill(50),
   }));
   await page.evaluate(() => window.__grawlixTest.setStack([]));
@@ -572,7 +572,7 @@ test('atoms truncate long entries with ellipsis + full-text title', async ({ pag
   // attribute so the user can hover to see it.
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
     name: 'LongChain',
-    entries: ['SHEJUSTSAYINGWHATWEVEALLBEENTHINKING', 'HEJUSTSAYINGWHATWEVEALLBEENTHINKING'],
+    entries: ['shejustsayingwhatweveallbeenthinking', 'hejustsayingwhatweveallbeenthinking'],
     scores:  [60, 60],
   }));
   await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'behead' }]));
@@ -589,7 +589,7 @@ test('atoms truncate long entries with ellipsis + full-text title', async ({ pag
 async function addLetterSetFixture(page) {
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
     name: 'LetterSetTest',
-    entries: ['OPT', 'POT', 'TOP', 'ACT', 'CAT', 'DOG'],
+    entries: ['opt', 'pot', 'top', 'act', 'cat', 'dog'],
     scores: [50, 40, 30, 60, 20, 70],
   }));
 }
@@ -598,7 +598,7 @@ test('score range trims junk before the grouped tool clusters', async ({ page })
   await gotoApp(page);
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
     name: 'JunkTest',
-    entries: ['OPT', 'POT', 'TOP', 'OOPT'],
+    entries: ['opt', 'pot', 'top', 'oopt'],
     scores: [50, 40, 30, 0],
   }));
   await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'letter_bank', grouped: true }]));
@@ -634,7 +634,7 @@ test('a transform chained after the grouped tool emits a pair atom per surviving
   await gotoApp(page);
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
     name: 'BeheadTest',
-    entries: ['SPOT', 'TOPS', 'OPTS', 'POT', 'OPS', 'TOP'],
+    entries: ['spot', 'tops', 'opts', 'pot', 'ops', 'top'],
     scores: [50, 40, 30, 20, 20, 20],
   }));
   await page.evaluate(() => window.__grawlixTest.setStack([
@@ -657,7 +657,7 @@ test('a transform chained before the grouped tool carries its atom forward into 
   await gotoApp(page);
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
     name: 'BeforeGroupTest',
-    entries: ['AOPT', 'BPOT', 'CTOP', 'OPT', 'POT', 'TOP'],
+    entries: ['aopt', 'bpot', 'ctop', 'opt', 'pot', 'top'],
     scores: [50, 50, 50, 50, 50, 50],
   }));
   await page.evaluate(() => window.__grawlixTest.setStack([
@@ -678,7 +678,7 @@ test('a transform chain prefixes the new-word atom with its relation glyph; a fi
   await gotoApp(page);
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
     name: 'GlyphTest',
-    entries: ['SPOT', 'TOPS', 'OPTS', 'POT', 'OPS', 'TOP'],
+    entries: ['spot', 'tops', 'opts', 'pot', 'ops', 'top'],
     scores: [50, 40, 30, 20, 20, 20],
   }));
 
@@ -788,7 +788,7 @@ test('grouped column sort tiebreaks by count desc before min score', async ({ pa
   await gotoApp(page);
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
     name: 'CountTiebreak',
-    entries: ['OPT', 'POT', 'TOP', 'ACT', 'CAT'],
+    entries: ['opt', 'pot', 'top', 'act', 'cat'],
     scores: [30, 30, 30, 80, 70],
   }));
   await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'letter_bank', grouped: true }]));

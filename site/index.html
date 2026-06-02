@@ -2407,20 +2407,23 @@ function parseWordlistLine(line) {
   return { raw, score, comment };
 }
 
-function classifyWordlist(rawEntries) {
-  if (!rawEntries.length) return 'plain';
-  let richCount = 0, upperOnly = 0, lowerOnly = 0;
+// Thresholds pinned to real wordlists — of cased entries Broda is 100%
+// uppercase, XWI 0%, Nediger ~1% (1,277 acronyms); see docs/design.md.
+const UPPER_ABSOLUTE_MAX = 10000;
+const UPPER_RATIO_MAX = 0.80;
+const UPPER_RATIO_THRESHOLD = 1000;
+
+function detectCase(rawEntries) {
+  let upper = 0, lower = 0, mixed = 0;
   for (const { raw } of rawEntries) {
-    const hasNonAlnum = /[^A-Za-z0-9]/.test(raw);
-    const hasUpper = /[A-Z]/.test(raw);
-    const hasLower = /[a-z]/.test(raw);
-    if (hasNonAlnum || (hasUpper && hasLower)) richCount++;
-    else if (hasUpper) upperOnly++;
-    else if (hasLower) lowerOnly++;
+    const hasUpper = /[A-Z]/.test(raw), hasLower = /[a-z]/.test(raw);
+    if (hasUpper && hasLower) mixed++;
+    else if (hasUpper) upper++;
+    else if (hasLower) lower++;
   }
-  if (richCount / rawEntries.length > 0.01) return 'rich';
-  if (upperOnly > 0 && lowerOnly > 0) return 'rich';
-  return 'plain';
+  if (upper > UPPER_ABSOLUTE_MAX) return 'upper';
+  if (upper > UPPER_RATIO_THRESHOLD && upper / (upper + lower + mixed) > UPPER_RATIO_MAX) return 'upper';
+  return 'lower';
 }
 
 function parseWordlist(text) {
@@ -2429,13 +2432,19 @@ function parseWordlist(text) {
     const parsed = parseWordlistLine(line);
     if (parsed) rawEntries.push(parsed);
   }
-  const richness = classifyWordlist(rawEntries);
-  return rawEntries.map(({ raw, score, comment }) => buildWlEntry(raw, score, comment, richness));
+  const fileCase = detectCase(rawEntries);
+  return rawEntries.map(({ raw, score, comment }) => buildWlEntry(raw, score, comment, fileCase));
 }
 
-function buildWlEntry(raw, score, comment, richness) {
+// display is null only for bare letter-runs already in the file's convention
+// case — those render as lowercase norm. Anything carrying extra information
+// (spaces, accents, punctuation, or an off-convention case like an FBI in a
+// lowercase file) keeps its display verbatim.
+function buildWlEntry(raw, score, comment, fileCase) {
   const norm = toNorm(raw);
-  const display = richness === 'plain' ? null : raw;
+  const letterOnly = /^[A-Za-z0-9]+$/.test(raw);
+  const offCase = fileCase === 'upper' ? /[a-z]/.test(raw) : /[A-Z]/.test(raw);
+  const display = letterOnly && !offCase ? null : raw;
   return { norm, display, score, comment };
 }
 

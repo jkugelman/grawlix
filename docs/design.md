@@ -116,16 +116,28 @@ The banner is a 3-page sequence (welcome, personal-wordlist import into My Edits
 
 The wlEntry schema is `{ norm, display, … }` (§ Tool gallery & stack — *Two-field entry identity*). The plumbing that surrounds it:
 
-**Richness is a per-file load-time decision.** The parser classifies each imported file as **plain** or **rich** and populates `display` accordingly: plain files leave `display: null` on every entry; rich files preserve the entry text as written. The rule is:
+**The parser detects a per-file casing convention, then sets `display` per entry.** Wordlists have no case standard — some are written entirely in uppercase, some entirely in lowercase, and the choice carries no meaning. A bare letter-run renders from its lowercase `norm` so entries look consistent whichever convention a source used; the only trick is telling the conventions apart. In an all-uppercase file a bare `THEIRS` is uppercase only *because the file is*, and should render lowercase like everyone else's; an `FBI` typed into a lowercase file is uppercase *on purpose*, and should be kept. `detectCase` reads each entry's case from its letters (ignoring spaces/punctuation) and returns `'upper'` only when a file carries far more uppercase than ordinary text would:
 
-- ≥99% of entries match `[a-z0-9]+` *or* `[A-Z0-9]+`, consistently the same one across the whole file, AND
-- ≤1% of entries contain space, accent, punctuation, or within-entry mixed case.
+```
+upper  iff  uppercase_count > UPPER_ABSOLUTE_MAX (10000)
+            OR (uppercase_count > UPPER_RATIO_THRESHOLD (1000)
+                AND uppercase / cased > UPPER_RATIO_MAX (0.80))
+```
 
-Otherwise rich. The thresholds are knobs in code (`classifyWordlist`); reasonable defaults ship and get tuned against real-world feedback.
+otherwise `'lower'` (`cased` = every letter-bearing entry). Case is just an unstandardized convention — some publishers (STWL) ship both an uppercase and a lowercase build — so the thresholds are pinned to real measured distributions rather than any assumption about which case is normal:
 
-The heuristic guards a single direction. Three of the four misclassification cases are tolerable: a deliberately-rich file misclassified as plain *loses data*; a dirty personal file misclassified as rich renders as-given (the user put the dirt there); a uniformly-lowercase plain file misclassified as rich renders lowercase, visually identical to the plain treatment. The one bad case is misclassifying a uniformly-uppercase plain file as rich — every entry would render in shouty all-caps when the data is conceptually lowercase. The heuristic specifically guards against that: uniform `[A-Z0-9]+` plus very few rich-feature entries → plain.
+| wordlist | entries | uppercase | verdict |
+|---|---|---|---|
+| Broda | 527K | 527K (100%) | upper |
+| XWI | 281K | 0 | lower |
+| Nediger | 345K | 1,277 (~1% of cased) | lower |
+| STWL (lowercase build), JK | — | ~0 | lower |
 
-Per-file rather than per-entry: a single accent typo in an otherwise-plain public wordlist shouldn't flip the whole file to rich, and a personal wordlist with mixed-case dirt shouldn't be forced into uniform plain rendering. Recovery from misclassification is re-import; no UI toggle today.
+`buildWlEntry` then sets `display = null` for a bare letter-run already in the convention case — it renders as lowercase `norm`. Anything carrying extra information — spaces, accents, punctuation, or an off-convention case like an `FBI` in a lowercase file — keeps its `display` verbatim.
+
+**Why both a count and a ratio.** Either alone misreads an extreme. A tiny `{FBI, CIA}` list is 100% uppercase yet must stay `lower` so the acronyms survive — the count floor stops the ratio from firing. Nediger is the mirror case: its 1,277 acronyms clear the count floor, but at ~1% of the file the ratio keeps it `lower`. And because a fully uppercase list like Broda clears the absolute count outright, no mixed-case enrichment ever flips it back — a user can keep adding lowercase entries to an uppercase wordlist without the existing ones changing.
+
+Per-file, not per-entry, by necessity: one entry can't reveal whether its uppercase is the file's stripping convention or a deliberate acronym — only the file-wide population can. Recovery from misclassification is re-import; no UI toggle today.
 
 **UI-typed entries preserve display literally.** Popover edits and "add entry" rows store the entered text verbatim as `display` — even when it happens to be uniform lowercase. This is variant targeting: when a user edits the score on `the IRS`, the My Edits entry must carry `display: "the IRS"` so it targets that specific variant; if an autodetect ran per-string, an edit on plain `theirs` would null-out and become ambient (leaking onto `the IRS` and any other variant sharing the norm). Literal-preserve sidesteps that without per-string heuristics. As a result, My Edits ends up mixed-state — entries imported from a plain file have `display: null`, entries typed via the UI have `display` set — and the merge handles the mix correctly.
 

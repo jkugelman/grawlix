@@ -13,7 +13,7 @@ test('keeps entries whose letters all belong to the input alphabet', async ({ pa
   await gotoApp(page);
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
     name: 'Alphabet',
-    entries: ['POP', 'TOP', 'STOOP', 'PEAR', 'CAT'],
+    entries: ['pop', 'top', 'stoop', 'pear', 'cat'],
     scores:  [50, 50, 50, 50, 50],
   }));
   await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'restricted_alphabet', params: { letters: 'SPOT' } }]));
@@ -24,7 +24,7 @@ test('input duplicates are ignored — the alphabet is a set', async ({ page }) 
   await gotoApp(page);
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
     name: 'SetSemantics',
-    entries: ['POP', 'POPPY'],
+    entries: ['pop', 'poppy'],
     scores:  [50, 50],
   }));
   await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'restricted_alphabet', params: { letters: 'OP' } }]));
@@ -35,7 +35,7 @@ test('empty letters is inert — the full merged view passes through', async ({ 
   await gotoApp(page);
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
     name: 'EmptyAlphabet',
-    entries: ['CAT', 'DOG'],
+    entries: ['cat', 'dog'],
     scores:  [50, 50],
   }));
   await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'restricted_alphabet', params: { letters: '' } }]));

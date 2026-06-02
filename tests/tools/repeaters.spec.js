@@ -13,7 +13,7 @@ test('keeps entries whose first and second halves are identical', async ({ page 
   await gotoApp(page);
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
     name: 'Repeater',
-    entries: ['TARTAR', 'HOTSHOTS', 'BONBON', 'COCOA', 'HELLO'],
+    entries: ['tartar', 'hotshots', 'bonbon', 'cocoa', 'hello'],
     scores:  [50, 50, 50, 50, 50],
   }));
   await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'repeaters' }]));
@@ -25,7 +25,7 @@ test('odd-length entries are excluded — a repeater requires even length', asyn
   await gotoApp(page);
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
     name: 'OddLen',
-    entries: ['ABCABC', 'ABABA'],
+    entries: ['abcabc', 'ababa'],
     scores:  [50, 50],
   }));
   await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'repeaters' }]));
@@ -37,7 +37,7 @@ test('an even-length non-repeater (halves differ) is dropped', async ({ page }) 
   await gotoApp(page);
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
     name: 'NonRepeater',
-    entries: ['MURDER', 'TARTAR'],
+    entries: ['murder', 'tartar'],
     scores:  [50, 50],
   }));
   await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'repeaters' }]));
