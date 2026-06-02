@@ -63,7 +63,7 @@ The picker is your browser's native folder picker. After picking, Grawlix routes
 
 **Cross-device.** Put the folder in Dropbox, iCloud Drive, OneDrive, or Google Drive. On your other device, click the storage button → **Load existing** → pick the same folder. Edits sync through your cloud client. Grawlix has no cloud code of its own.
 
-**Turn off.** Click the storage button (now showing the unslashed hard-drive icon) → **Turn off**. A second dialog asks what to do with the files — **Keep files on disk** (Grawlix detaches; files stay) or **Delete files from disk** (Grawlix removes `grawlix.json`, `README.md`, all root `*.txt` files, and the `original/` subfolder; other files in the folder are left alone). Either action reloads the page to fresh Grawlix.
+**Turn off.** Click the storage button (now showing the unslashed hard-drive icon) → **Turn off**, then confirm. Grawlix detaches from the folder and reloads to fresh Grawlix; your files stay in the folder untouched, ready to load again later. Grawlix never deletes the folder's contents — clean it up yourself if you want it gone.
 
 **When the folder isn't accessible.** Browsers don't always remember the folder permission across sessions. On boot, if Grawlix has a saved folder but the browser hasn't kept the permission, the loading splash shows two buttons under the logo instead of the usual spinner: **Load Grawlix data** (re-grant the folder permission) and **Use without disk storage this session** (proceed with empty defaults; a banner with "Reload to try again" and "Turn off storage" off-ramps appears at the top of the page). If "Load Grawlix data" fails because the folder isn't accessible, the splash switches to Try again / Pick a different folder / Use without disk storage this session.
 

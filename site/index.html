@@ -2877,14 +2877,6 @@ const Disk = {
   async loadHandle()        { return idbGet(DISK_HANDLE_IDB_KEY); },
   async clearHandle()       { await idbDel(DISK_HANDLE_IDB_KEY); },
 
-  async listFiles(handle) {
-    const names = [];
-    for await (const entry of handle.values()) {
-      if (entry.kind === 'file') names.push(entry.name);
-    }
-    return names;
-  },
-
   async _resolveDir(handle, parts, { create = false } = {}) {
     let dir = handle;
     for (const p of parts) dir = await dir.getDirectoryHandle(p, { create });
@@ -3467,18 +3459,16 @@ const StorageDialog = (() => {
       <button type="button" class="dialog-close-btn" aria-label="Close">✕</button>
       <form method="dialog">
         <h2 id="storage-turnoff-title">Turn off storage</h2>
-        <p class="dialog-msg">Grawlix will stop saving to disk. What about the files?</p>
-        <div class="dialog-footer dialog-footer-stacked">
-          <button value="keep" autofocus>Keep files on disk</button>
-          <button class="danger" value="delete">Delete files from disk</button>
+        <p class="dialog-msg">Grawlix will stop saving to disk. Your files stay in the folder — load them again anytime.</p>
+        <div class="dialog-footer">
           <button type="button" class="dialog-cancel-btn">Cancel</button>
+          <button class="primary" value="off" autofocus>Turn off</button>
         </div>
       </form>
     `;
     showDialog(turnOffEl, async () => {
-      const v = turnOffEl.returnValue;
-      if (v !== 'keep' && v !== 'delete') return;
-      try { await turnOffStorage({ deleteFiles: v === 'delete' }); }
+      if (turnOffEl.returnValue !== 'off') return;
+      try { await turnOffStorage(); }
       catch (err) { showAlert(`Turning off storage failed: ${esc(err.message || err)}`); }
     });
   }
@@ -3516,17 +3506,7 @@ function refreshStorageButton() {
   }
 }
 
-async function turnOffStorage({ deleteFiles }) {
-  const handle = DiskBackend.handle();
-  if (deleteFiles && handle) {
-    for (const name of await Disk.listFiles(handle)) {
-      if (name === GRAWLIX_JSON_NAME || name === README_NAME || name.endsWith('.txt')) {
-        await Disk.deleteFile(handle, name);
-      }
-    }
-    try { await handle.removeEntry(ORIGINAL_DIR, { recursive: true }); }
-    catch (e) { if (e?.name !== 'NotFoundError') throw e; }
-  }
+async function turnOffStorage() {
   await DiskBackend.reset();
   location.reload();
   await new Promise(() => {});
