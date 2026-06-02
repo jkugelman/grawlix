@@ -632,8 +632,7 @@ button.header-icon-btn:hover { background: none; color: rgba(255,255,255,0.65); 
 #storage-paused-banner button:hover { background: rgba(255,255,255,0.75); }
 body:has(#storage-paused-banner:not([hidden])) header { margin-top: 38px; }
 .storage-folder-chip { display: inline-block; padding: 8px 12px; background: var(--surface); border: 1px solid var(--border2); border-radius: 6px; font-size: 13px; margin: 6px 0 14px; }
-.folder-name-icon { display: inline; white-space: nowrap; }
-.storage-folder-chip .folder-name-icon { font-size: 16px; }
+.folder-name { white-space: nowrap; font-weight: 600; }
 .dialog-footer-split { justify-content: space-between; }
 .dialog-footer-stacked { flex-direction: column; align-items: stretch; gap: 6px; }
 .dialog-footer-stacked button { width: 100%; padding: 8px 12px; text-align: center; }
@@ -2060,7 +2059,7 @@ function buildWordlistNameHTML(wordlist, { bold = true } = {}) {
 }
 
 function buildFolderNameHTML(name) {
-  return `<span class="folder-name-icon">📁 </span>${esc(name)}`;
+  return `<span class="folder-name">📁 ${esc(name)}</span>`;
 }
 
 // Inline icon + name pair used by tool rows, the search bar, etc.
@@ -3060,7 +3059,7 @@ const SettingsDialog = (() => {
   el.querySelector('#btn-reset').onclick = async () => {
     const opts = { confirmText: 'Reset' };
     if (Storage === DiskBackend) {
-      opts.html = `Reset all settings and turn off disk storage? Your files in ${buildFolderNameHTML(DiskBackend.handle()?.name)} will not be touched.`;
+      opts.html = `Reset all settings and turn off disk storage? Your ${buildFolderNameHTML(DiskBackend.handle()?.name)} folder will not be deleted.`;
     }
     if (!await showConfirm('Reset all wordlists and settings? This cannot be undone.', opts)) return;
     await resetAllDataAndReload();
