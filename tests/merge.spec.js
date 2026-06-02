@@ -1,5 +1,4 @@
-// Merge / override seam — see docs/design.md and site/index.html §
-// buildOverrideMap / buildMergedWordlist.
+// Merge seam — see docs/design.md and site/index.html § buildMergedWordlist.
 //
 // These tests pin the central contract of the app: when multiple enabled
 // wordlists share an entry, which one wins, and what does the merged All
@@ -62,9 +61,8 @@ test('disabling a wordlist excludes its entries from All; re-enabling restores t
   await berriesToggle.uncheck();
 
   // BLUEBERRY gone, APPLE still present. The merged-cache invalidation
-  // seam is what this is really testing — if `_overrideMap` or
-  // `_mergedWordlistCache` didn't get invalidated on toggle, BLUEBERRY
-  // would stick around.
+  // seam is what this is really testing — if `_mergedWordlistCache` didn't
+  // get invalidated on toggle, BLUEBERRY would stick around.
   expect(await page.evaluate(() => window.__grawlixTest.getMergedEntry('BLUEBERRY'))).toBeNull();
   expect(await page.evaluate(() => window.__grawlixTest.getMergedEntry('APPLE'))).not.toBeNull();
 

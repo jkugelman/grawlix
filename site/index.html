@@ -11943,7 +11943,7 @@ function setWordlistPublisher(wordlist, publisherId) {
 }
 
 // Cache-affecting setters: bump cacheVersion$ so the render effect refreshes
-// derived state (merged cache, override maps, scroller).
+// derived state (merged cache, scroller).
 function setWordlistEnabled(wordlist, enabled) {
   if (wordlist.enabled === enabled) return;
   wordlist.enabled = enabled;

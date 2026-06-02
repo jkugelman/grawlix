@@ -2,18 +2,18 @@
 
 A Playwright smoke suite covers user-visible behaviors whose breakage would survive a manual play-through — silent data corruption, cross-feature regressions, browser-specific quirks. Visual and layout regressions stay manual.
 
-End-to-end smoke is the right shape for a single-file vanilla-JS app: subtle cross-feature breakage like "editing a score while a filter is active corrupts the override map" is exactly what it catches. Targeted tests at the seams beat comprehensive coverage. CI is a passive monitor, not a gate.
+End-to-end smoke is the right shape for a single-file vanilla-JS app: subtle cross-feature breakage like "editing a score in My Edits patches the merged cache wrong" is exactly what it catches. Targeted tests at the seams beat comprehensive coverage. CI is a passive monitor, not a gate.
 
 ## What earns a test
 
 The suite covers what manual testing structurally misses. Manual already catches visual layout, copy, feel, mobile, and anything obvious within the feature you're actively using — so those don't need automation. Automation pays off for:
 
-- **Silent data corruption.** UI looks fine, underlying state is wrong (the override-map-during-filter case is the archetype).
+- **Silent data corruption.** UI looks fine, underlying state is wrong (the merged-cache patch diverging from a full rebuild is the archetype).
 - **Cross-feature regressions.** Touching A breaks B; you'd only notice next time you used B.
 - **Cross-browser quirks.** You only run one browser locally; the suite runs three.
 - **Async/timing races.** Flakes that surface intermittently under parallelism.
 
-**Add a test when** the behavior has cross-cutting reach (override map, cache invalidation, persistence boundaries), the bug would survive a five-minute manual play-through, or the behavior sits at a seam where plausible future refactors could re-break it.
+**Add a test when** the behavior has cross-cutting reach (the merged-cache patch, cache invalidation, persistence boundaries), the bug would survive a five-minute manual play-through, or the behavior sits at a seam where plausible future refactors could re-break it.
 
 **Skip when** the change is purely visual, localized to code with no neighbors that affect it, or experimental code about to be rewritten.
 
