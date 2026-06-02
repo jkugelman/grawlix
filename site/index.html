@@ -597,7 +597,7 @@ input.entry-input { font-family: var(--font-mono); font-size: 13px; }
 
 /* Settings and help buttons */
 .header-icon-btn { background: none; border: none; color: white; font-size: 19px; padding: 4px 8px; border-radius: 4px; cursor: pointer; line-height: 1; font-family: inherit; display: inline-flex; align-items: center; justify-content: center; }
-button.header-icon-btn:hover { background: none; color: rgba(255,255,255,0.65); }
+button.header-icon-btn:hover:not(:disabled) { background: var(--hdr-bg-dark); color: white; }
 #btn-settings svg { position: relative; top: 1px; }
 .storage-icon { position: relative; top: 1px; display: inline-flex; align-items: center; justify-content: center; }
 .storage-slash { position: absolute; top: 50%; left: 50%; width: 28px; height: 4px; background: var(--hdr-bg); transform: translate(-50%, -50%) rotate(45deg); pointer-events: none; border-radius: 2px; }
