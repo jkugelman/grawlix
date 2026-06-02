@@ -3455,11 +3455,12 @@ const StorageDialog = (() => {
   }
 
   function openTurnOffDialog() {
+    const folderName = DiskBackend.handle()?.name || '(unknown)';
     turnOffBody.innerHTML = `
       <button type="button" class="dialog-close-btn" aria-label="Close">✕</button>
       <form method="dialog">
         <h2 id="storage-turnoff-title">Turn off storage</h2>
-        <p class="dialog-msg">Grawlix will stop saving to disk. Your files stay in the folder — load them again anytime.</p>
+        <p class="dialog-msg">Grawlix will stop saving to disk. Your files stay in ${buildFolderNameHTML(folderName)} — load them again anytime.</p>
         <div class="dialog-footer">
           <button type="button" class="dialog-cancel-btn">Cancel</button>
           <button class="primary" value="off" autofocus>Turn off</button>
