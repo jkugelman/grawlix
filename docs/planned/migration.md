@@ -40,6 +40,33 @@ The moment you write your first migration, every field in `meta` becomes load-be
 
 Be especially conservative with the *shape* of nested objects (rescore rules, icon descriptors, scoring tiers). Adding a top-level field is cheap; restructuring a nested array is expensive.
 
+## When the config diverges but the shape doesn't (unsolved)
+
+`SCHEMA_VERSION` answers exactly one question: *can old code read this stored data?* That's about **shape**. There's a second, unrelated way persisted data goes stale that the version counter does not address and should not: a value in `WORDLIST_PUBLISHERS` changes while the shape of `meta` stays identical. Two concrete cases:
+
+- **Updating a publisher setting** — e.g. giving a publisher a `url` it didn't have. This is real history: Will Nediger's list went from import-only to auto-fetched purely by setting `url`. Pre-launch we bumped `SCHEMA_VERSION` for it as a shortcut, since the wipe re-runs `defaultSources()` and re-seeds the new value for free — but that's an abuse of the counter, not a shape change.
+- **Adding a new publisher wordlist** to the catalog.
+
+Neither is a shape change. `url` is a field that already exists; a new publisher is purely additive. Old code reads the new data and new code reads the old data either way. So `SCHEMA_VERSION` is the wrong tool post-launch — bumping it forces the destructive reset prompt on every user (wiping curated wordlists, My Edits, and rules) just to push one setting or surface one new list. Wildly disproportionate.
+
+The mechanics that make this its own problem:
+
+- `defaultSources()` runs **only** on first boot (no stored `meta`). Returning users rebuild `state.sources` from `meta` via `wordlistFromMeta` — the publisher config's `url` / `name` / `icon` never re-seed them.
+- `propagateDefaults()` is the *only* thing that pushes config changes into existing users' sources on each boot, and it covers **only `rescoreRules` and `state.scoring`**, only for non-dirty sources. It does not propagate `url` (or any other field), and it does not *add* publishers that aren't already present.
+
+So a publisher-config change reaches existing users only if we explicitly reconcile it. Two directions, neither committed:
+
+- **Reconcile in code** — extend `propagateDefaults()` (or a layered migration per above) to bring the changed field forward / inject the new source disabled-by-default. Non-destructive; not a `SCHEMA_VERSION` bump. `propagateDefaults()`'s existing rule propagation is the working template.
+- **Socialize** — ship the config so new users get it; tell existing users to re-add or re-enable. Their stored data is untouched.
+
+Wrinkles to weigh when we pick a direction:
+
+- `url` has no `dirty` bit the way rules do. A user may have deliberately imported a file into a publisher-backed wordlist, which clears `url` (a wordlist is auto-fetch *or* file-based, not both) — naive propagation would clobber that choice.
+- Setting `url` on an unpopulated source trips the boot auto-fetch (`filter(l => l.url && !l.populated)`), so the user gets an unprompted multi-MB download.
+- Adding a wordlist is the safe end of the spectrum — purely additive, can't corrupt anything — so injecting new publishers disabled-by-default is low-risk if we choose to.
+
+No solution yet; this is documented so future-us recognizes it as distinct from a schema bump rather than reaching for the version counter again.
+
 ## When you pick this up later
 
 Regenerate the specifics fresh. Ask for: (1) the migration runner and its position in `init()`, (2) a template for `migrateVNtoVN+1`, and (3) the squash policy (which version cutoff drops to reset).
