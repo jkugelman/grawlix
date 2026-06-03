@@ -17,7 +17,7 @@ permissions:
   contents: read
 
 jobs:
-  test:
+  build:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -30,26 +30,60 @@ jobs:
 
       - run: npm ci
 
-      # Cache Playwright browser binaries. Key on package-lock (Playwright
-      # version → browser ABI) AND playwright.config.js (the browser list
-      # lives there, so adding/removing a project should cache-bust).
-      - uses: actions/cache@v5
-        with:
-          path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ hashFiles('package-lock.json', 'playwright.config.js') }}
-
-      # Always run install — it's idempotent (skips already-cached binaries,
-      # ~5s on cache hit) and self-healing if the cache key ever lies about
-      # what's actually in the cache. System deps aren't cached and always
-      # need apt-get, so --with-deps stays on every run.
-      - name: Install Playwright browsers + system deps
-        run: npx playwright install --with-deps
-
       - name: Build minified site
         run: npm run build
 
+      # The deployed artifact and the bytes the tests run against are the same
+      # upload — build once here, every test shard and deploy pulls this.
+      - name: Upload built site
+        uses: actions/upload-artifact@v7
+        with:
+          name: dist
+          path: dist/
+
+  test:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # One job per browser, each running Playwright single-worker (webkit flakes
+    # under parallel-worker load — see tests/flaky.md). Sharding keeps that
+    # per-job determinism while the three engines run concurrently, so the full
+    # 777-test matrix finishes in ~one browser's wall-clock instead of 3× it.
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, firefox, webkit]
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      # Cache Playwright browser binaries per engine — each shard installs only
+      # its own. Key on package-lock (Playwright version → browser ABI).
+      - uses: actions/cache@v5
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ matrix.browser }}-${{ hashFiles('package-lock.json') }}
+
+      # Always run install — idempotent (skips already-cached binaries) and
+      # self-healing if the cache key ever lies. System deps aren't cached and
+      # always need apt-get, so --with-deps stays on every run.
+      - name: Install Playwright browser + system deps
+        run: npx playwright install --with-deps ${{ matrix.browser }}
+
+      - name: Download built site
+        uses: actions/download-artifact@v7
+        with:
+          name: dist
+          path: dist
+
       - name: Run tests
-        run: npm test
+        run: npm test -- --project=${{ matrix.browser }}
         env:
           GRAWLIX_SITE_DIR: dist
 
@@ -57,15 +91,9 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v7
         with:
-          name: playwright-report
+          name: playwright-report-${{ matrix.browser }}
           path: playwright-report/
           retention-days: 14
-
-      - name: Upload built site
-        uses: actions/upload-artifact@v7
-        with:
-          name: dist
-          path: dist/
 
   deploy:
     needs: test
