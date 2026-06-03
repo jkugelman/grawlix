@@ -1358,10 +1358,10 @@ const WORDLIST_PUBLISHERS = [
     url: 'https://raw.githubusercontent.com/jkugelman/crossword/refs/heads/main/wordlists/jkugelman-wordlist.txt',
     icon: null,
     defaultRules: [
-      { input:'60', length:'', output:'', note:'Good (colorful phrases, sayings, people, etc.)' },
-      { input:'50', length:'', output:'', note:'Average (dictionary words and phrases)' },
+      { input:'60', length:'', output:'', note:'Good (colorful phrases, interesting full names)' },
+      { input:'50', length:'', output:'', note:'Average (dictionary words)' },
       { input:'40', length:'', output:'', note:'Okay in moderation (proper names, abbreviations, prepositional phrases)' },
-      { input:'30', length:'', output:'', note:'Not good (plural names, crosswordese, contrived inflections)' },
+      { input:'30', length:'', output:'', note:'Not good (crosswordese, plural names, contrived inflections)' },
       { input:'20', length:'', output:'', note:'Junk (partials, variant spellings, Roman numerals)' },
       { input:'10', length:'', output:'', note:'Offensive' },
       { input:'0',  length:'', output:'', note:'Gibberish' },
@@ -2314,15 +2314,14 @@ const Router = (() => {
 
 // Default tier labels for the unified score scale. Stored on `state.scoring`
 // and surfaced as a read/write legend on the merged All view.
-const DEFAULT_SCORING = [
-  { input: '60', note: 'Good (colorful phrases, sayings, people, etc.)' },
-  { input: '50', note: 'Average (dictionary words and phrases)' },
-  { input: '40', note: 'Okay in moderation (proper names, abbreviations, prepositional phrases)' },
-  { input: '30', note: 'Not good (plural names, crosswordese, contrived inflections)' },
-  { input: '20', note: 'Junk (partials, variant spellings, Roman numerals)' },
-  { input: '10', note: 'Offensive' },
-  { input: '0',  note: 'Gibberish' },
-];
+//
+// Derived from JK's rules, not duplicated: the unified scale IS JK's scoring
+// scheme (its rescore rules are canonical).
+const DEFAULT_SCORING = WORDLIST_PUBLISHERS
+  .find(p => p.id === 'jkugelman')
+  .defaultRules
+  .filter(r => r.scoring !== false)
+  .map(({ input, note }) => ({ input, note }));
 
 // Top-level state. `sources$` is the array of wordlists, signal-backed so
 // the cosmetic effect can subscribe; reorder/add/remove call `sources$.bump()`
@@ -2330,7 +2329,7 @@ const DEFAULT_SCORING = [
 // bump). Per-view UI state (search/sort/score-range, focused wordlist, display
 // mode) lives inside each view's IIFE — WorkshopView and LibraryView — not
 // here.
-const sources$  = signal([]);
+const sources$ = signal([]);
 
 // `cacheVersion$` is bumped whenever the imperative caches change (full
 // invalidation or in-place patch). The render effect subscribes to it so
