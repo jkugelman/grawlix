@@ -36,6 +36,10 @@ One row per test, by count. "Seen" = number of distinct runs it has failed in. I
 | 1 | export — JSON keeps catalog group cols on grouped pipelines but drops `count` | wk | 2026-06-02 | #3 — open |
 | 1 | my-edits — editing My Edits patches the merged cache in place instead of rebuilding it | wk | 2026-06-02 | #2 — addressed (not recurred) |
 | 1 | tool-error — fixing the broken tool clears the ⚠ icon on the next successful run | wk | 2026-06-02 | open (already polls correctly; not recurred) |
+| 1 | tools/regex — filter colors the user's own capture groups when the pattern has them | wk | 2026-06-02 | #3 — open (highlight-coloring face) |
+| 1 | tools/search — replace highlights the matched span in and the replacement out, same color | wk | 2026-06-02 | #3 — open (highlight-coloring face) |
+| 1 | tools/space_out — never splits in the middle of a digit run | wk | 2026-06-02 | #3 — open |
+| 1 | tools — grouped column sort tiebreaks by count desc before min score | wk | 2026-06-02 | open — sort-axis `<select>` options not yet rendered when `selectOption` fired (pipeline/render-settle race) |
 
 ## Run log
 
@@ -47,6 +51,7 @@ Append a row per `npm test` (or `--project=webkit`) run that produced failures. 
 | 2026-06-02 | `npm test` | 4 failed | fix #1 committed | my-edits "patches merged cache", tools "wildcard-only search", curtail "marks dropped last letter", tools "score range trims junk" |
 | 2026-06-02 | `npm test` | 726 passed, 9 failed | + fix #2 | severity "info alone", curtail "Count drops trailing", kangaroos, monovocalics, scrabble "case-insensitive", search "literal query", space_out "passes single-word", tools "one-sided search →", tools "transform chain prefixes glyph" |
 | 2026-06-02 | `npm test` | 726 passed, 9 failed | + fix #3 (then reverted) | export "JSON keeps catalog group cols", behead "Count drops leading", consonantcy, kangaroos, letter_bank ×2, restricted_alphabet, scrabble "subset of tiles", tools "stats bar counts chain rows" |
+| 2026-06-02 | `npm test` | 767 passed, 4 failed | output-format feature (uncommitted) | regex "colors own capture groups", search "replace highlights span, same color", space_out "never splits mid digit run", tools "grouped column sort count desc before min score" (selectOption timeout). All 4 passed on isolated webkit re-run. |
 
 ## Known causes
 
@@ -61,6 +66,8 @@ The three auto-fetch publishers (JK/STWL/Broda) fetch fire-and-forget from `init
 ### #3 — Wrong tool output under load — **OPEN, not root-caused**
 
 The dominant remaining flake. A tool or search emits output that's *close but wrong* — usually **one entry too many** (scrabble lets `tiger` through, kangaroos keeps `kanga`, monovocalics keeps `shhh`), occasionally the whole fixture (`search` "literal query", `tools` "one-sided search →"). The failing set changes every webkit run (~9 of 735), which is itself the signature of a load race rather than a logic bug. Same family as the chromium `export` "Filename includes tool keys" sighting (where `ToolStack.getStack()` momentarily read empty → `grawlix-all`).
+
+Highlight/coloring assertions share the symptom: `tools/regex` "colors own capture groups" and `tools/search` "replace highlights span, same color" flake when the rendered atom highlight is briefly absent or miscolored under load, not just when entry counts are off — same near-miss-render signature, applied to the highlight ranges rather than the row set.
 
 **Disproven so far:** a superseded empty-stack pipeline run poisoning the shared `_preSearchCache`. `setStack`'s `invalidatePreSearchCache()` and the next run's cache-read are *synchronously contiguous* (no `await` between), so the newer run can't read a poisoned cache. Adding `throwIfAborted` before the `_preSearchCache` write did not reduce failures and was reverted.
 

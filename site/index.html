@@ -1136,6 +1136,12 @@ html.dark-mode .wld-onboarding { background: color-mix(in srgb, var(--accent) 15
 .seg-btn.active { background: var(--sel); color: var(--accent); }
 .seg-btn:hover:not(.active) { background: var(--hover); }
 
+.of-section { margin-bottom: 22px; }
+.of-ctrls { margin-top: 12px; }
+.of-flags { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 16px; }
+.of-flag { display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; cursor: pointer; }
+.of-flag input { cursor: pointer; }
+
 /* Empty states */
 .no-rules { font-size: 12px; color: var(--faint); font-style: italic; margin-bottom: 3px; }
 .stats-bar.stats-empty .stat-value { color: var(--faint); }
@@ -1477,6 +1483,30 @@ function buildSegCtrlHTML(id, options, activeValue) {
     `<button class="seg-btn${value === activeValue ? ' active' : ''}" data-val="${value}">${label}</button>`
   ).join('');
   return `<div class="seg-ctrl"${id ? ` id="${id}"` : ''}>${buttons}</div>`;
+}
+
+const OUTPUT_FLAGS = ['spaces', 'punctuation', 'accents', 'comments'];
+const OUTPUT_FORMAT_REGEN_DELAY = 1000;
+
+function buildOutputFormatControlsHTML(fmt) {
+  const flags = OUTPUT_FLAGS.map(k =>
+    `<label class="of-flag"><input type="checkbox" data-flag="${k}"${fmt[k] ? ' checked' : ''}> ${k[0].toUpperCase() + k.slice(1)}</label>`
+  ).join('');
+  return `<div class="of-flags">${flags}</div>`;
+}
+
+function readOutputFormatControls(container) {
+  const fmt = {};
+  for (const k of OUTPUT_FLAGS) fmt[k] = container.querySelector(`input[data-flag="${k}"]`).checked;
+  return fmt;
+}
+
+function wireOutputFormatControls(container, onChange) {
+  container.querySelectorAll('input[data-flag]').forEach(cb => { cb.onchange = () => onChange && onChange(); });
+}
+
+function outputFormatsEqual(a, b) {
+  return OUTPUT_FLAGS.every(k => !!a[k] === !!b[k]);
 }
 
 function buildStatItemHTML(label, value, title, extraClass) {
@@ -2606,6 +2636,10 @@ const README_TEXT = `# Grawlix folder
 - \`original/<Wordlist>.txt\` — Each wordlist with its original scores.
 - \`grawlix.json\` — Settings, wordlist metadata, and tier labels.
 
+## Output format
+
+The rescored files are written in the format set under **Output format** in Grawlix's Settings — keep or strip spaces, punctuation, and accents — so they match what your construction software can read. \`My Edits.txt\` and the \`original/\` files are always written as-is.
+
 ## Cross-device
 
 Drop this folder in Dropbox, iCloud Drive, OneDrive, or Google Drive. On your other device, open Grawlix, click the storage button in the header → **Load existing** → pick the same folder. Your edits will sync through your cloud client.
@@ -2673,11 +2707,11 @@ const DiskBackend = {
     const name = rescoredNameFor(wordlist.filename);
     if (!name) return;
     const entries = sortedEntries(applyRescoring(wordlist.rawEntries, wordlist.rescoreRules || []));
-    await withOwnWrite(name, () => Disk.writeFile(this._handle, name, entriesToText(entries)));
+    await withOwnWrite(name, () => Disk.writeFile(this._handle, name, serializeEntries(entries, getOutputFormat())));
   },
   async writeAllRescored() {
     const entries = sortedEntries(buildMergedWordlist().entries);
-    await withOwnWrite(ALL_RESCORED_NAME, () => Disk.writeFile(this._handle, ALL_RESCORED_NAME, entriesToText(entries)));
+    await withOwnWrite(ALL_RESCORED_NAME, () => Disk.writeFile(this._handle, ALL_RESCORED_NAME, serializeEntries(entries, getOutputFormat())));
   },
 
   async reset() {
@@ -2955,7 +2989,6 @@ function serializeMetaEntry(l) {
     rescoreRules: l.rescoreRules || [],
     ...(l.dirty ? { dirty: true } : {}),
     originalFilename: l.originalFilename || null,
-    ...(l.downloadCase ? { downloadCase: l.downloadCase } : {}),
     ...(l.downloadExt  ? { downloadExt:  l.downloadExt  } : {}),
     ...(l.downloadStem ? { downloadStem: l.downloadStem } : {}),
   };
@@ -3044,6 +3077,11 @@ const SettingsDialog = (() => {
       </div>
       <div id="auto-update-seg"></div>
     </div>
+    <div class="of-section">
+      <div class="dialog-row-label">Output format</div>
+      <div class="dialog-row-sub">How entries are written to files and downloads.</div>
+      <div id="output-format-ctrls" class="of-ctrls"></div>
+    </div>
     <div class="dialog-row">
       <div>
         <div class="dialog-row-label">Reset browser data</div>
@@ -3086,6 +3124,7 @@ const SettingsDialog = (() => {
     };
   });
 
+  const ofCtrls  = el.querySelector('#output-format-ctrls');
   const resetSub = el.querySelector('#reset-row-sub');
 
   el.querySelector('#btn-reset').onclick = async () => {
@@ -3097,11 +3136,25 @@ const SettingsDialog = (() => {
     await resetAllDataAndReload();
   };
 
+  let ofRegenTimer = null;
+  function flushRegen() {
+    if (!ofRegenTimer) return;
+    clearTimeout(ofRegenTimer);
+    ofRegenTimer = null;
+    regenerateFillOutputs();
+  }
+
   function open() {
     resetSub.textContent = Storage === DiskBackend
       ? 'Reset all settings and turn off disk storage'
       : 'Reset all wordlists and settings';
-    showDialog(el);
+    ofCtrls.innerHTML = buildOutputFormatControlsHTML(getOutputFormat());
+    wireOutputFormatControls(ofCtrls, () => {
+      setOutputFormat(readOutputFormatControls(ofCtrls));
+      if (ofRegenTimer) clearTimeout(ofRegenTimer);
+      ofRegenTimer = setTimeout(() => { ofRegenTimer = null; regenerateFillOutputs(); }, OUTPUT_FORMAT_REGEN_DELAY);
+    });
+    showDialog(el, flushRegen);
   }
 
   return { open };
@@ -3366,7 +3419,7 @@ const StorageDialog = (() => {
       const fwm = diff.folderEdits;
       editsWl = wordlistFromMeta(
         { ...fwm, filename: fwm.filename || 'My Edits.txt', dbKey: fwm.dbKey || diff.deviceEdits.dbKey },
-        entriesToText(merged)
+        serializeEntries(merged)
       );
     } else if (diff.folderEdits) {
       const fwm = diff.folderEdits;
@@ -3375,7 +3428,7 @@ const StorageDialog = (() => {
     } else if (diff.deviceEdits) {
       const dw = diff.deviceEdits;
       if (!dw.filename) dw.filename = 'My Edits.txt';
-      await Disk.writeFile(handle, rawPathFor(dw), entriesToText(dw.rawEntries));
+      await Disk.writeFile(handle, rawPathFor(dw), serializeEntries(dw.rawEntries));
       editsWl = dw;
     }
     if (editsWl) newSources.unshift(editsWl);
@@ -3393,16 +3446,17 @@ const StorageDialog = (() => {
       scoringDirty: state.scoringDirty,
       mergedSettings: folderSettings.mergedSettings || {},
     };
+    const outFmt = { ...AS_IS_FORMAT, ...(cache.mergedSettings.outputFormat || {}) };
 
     if (editsWl && diff.folderEdits && diff.deviceEdits) {
-      await Disk.writeFile(handle, rawPathFor(editsWl), entriesToText(editsWl.rawEntries));
+      await Disk.writeFile(handle, rawPathFor(editsWl), serializeEntries(editsWl.rawEntries));
     }
     for (const wl of newSources) {
       if (wl.type === 'edits' || !wl.filename || !wl.populated) continue;
       const entries = sortedEntries(applyRescoring(wl.rawEntries, wl.rescoreRules || []));
-      await Disk.writeFile(handle, rescoredNameFor(wl.filename), entriesToText(entries));
+      await Disk.writeFile(handle, rescoredNameFor(wl.filename), serializeEntries(entries, outFmt));
     }
-    await Disk.writeFile(handle, ALL_RESCORED_NAME, entriesToText(sortedEntries(buildMergedWordlist().entries)));
+    await Disk.writeFile(handle, ALL_RESCORED_NAME, serializeEntries(sortedEntries(buildMergedWordlist().entries), outFmt));
     await writeReadme(handle);
     await Disk.writeFile(handle, GRAWLIX_JSON_NAME, JSON.stringify(cache, null, 2));
     await Disk.saveHandle(handle);
@@ -3671,10 +3725,10 @@ async function migrateToDisk(handle) {
     await Disk.writeFile(handle, rawPathFor(wl), text ?? '');
     if (wl.type !== 'edits') {
       const entries = sortedEntries(applyRescoring(wl.rawEntries, wl.rescoreRules || []));
-      await Disk.writeFile(handle, rescoredNameFor(wl.filename), entriesToText(entries));
+      await Disk.writeFile(handle, rescoredNameFor(wl.filename), serializeEntries(entries, getOutputFormat()));
     }
   }
-  await Disk.writeFile(handle, ALL_RESCORED_NAME, entriesToText(sortedEntries(buildMergedWordlist().entries)));
+  await Disk.writeFile(handle, ALL_RESCORED_NAME, serializeEntries(sortedEntries(buildMergedWordlist().entries), getOutputFormat()));
   await writeReadme(handle);
   const cache = {
     schemaVersion: SCHEMA_VERSION,
@@ -4614,7 +4668,6 @@ function wordlistFromMeta(m, text) {
     rescoreRules: (m.rescoreRules || []).map(r => ({ length: '', ...r })),
     dirty: !!m.dirty,
     originalFilename: m.originalFilename || null,
-    ...(m.downloadCase ? { downloadCase: m.downloadCase } : {}),
     ...(m.downloadExt  ? { downloadExt:  m.downloadExt  } : {}),
     ...(m.downloadStem ? { downloadStem: m.downloadStem } : {}),
     rawEntries: text ? parseWordlist(text) : [],
@@ -4768,11 +4821,73 @@ function ensureScoring() {
   persistScoring();
 }
 
-function entriesToText(entries) {
-  return entries.map(e => {
-    const head = e.display ?? e.norm;
-    return e.comment ? `${head};${e.score};${e.comment}` : `${head};${e.score}`;
-  }).join('\n') + (entries.length ? '\n' : '');
+const AS_IS_FORMAT = { spaces: true, punctuation: true, accents: true, comments: true };
+
+function formatEntryText(e, fmt) {
+  let s = e.display ?? e.norm;
+  if (!fmt.accents)     s = stripAccents(s);
+  if (!fmt.spaces)      s = s.replace(/\s+/g, '');
+  if (!fmt.punctuation) s = s.replace(/[^\p{L}\p{N}\s]/gu, '');
+  return s;
+}
+
+function serializeEntries(entries, fmt = AS_IS_FORMAT) {
+  const transforming = !fmt.spaces || !fmt.punctuation || !fmt.accents;
+  let lines;
+  if (transforming) {
+    // formatEntryText is many-to-one under stripping (café/cafe, the IRS/theirs);
+    // collapse or the output file gets duplicate, conflicting entry lines.
+    const byText = new Map();
+    for (const e of entries) {
+      const text = formatEntryText(e, fmt);
+      const cur = byText.get(text);
+      if (!cur) byText.set(text, { text, score: e.score, comments: e.comment ? [{ comment: e.comment, score: e.score }] : [] });
+      else {
+        cur.score = Math.max(cur.score, e.score);
+        if (e.comment) cur.comments.push({ comment: e.comment, score: e.score });
+      }
+    }
+    lines = [...byText.values()].map(({ text, score, comments }) => {
+      if (!fmt.comments || !comments.length) return `${text};${score}`;
+      const combined = [...new Set(comments.sort((a, b) => b.score - a.score).map(c => c.comment))].join(' / ');
+      return `${text};${score};${combined}`;
+    });
+  } else {
+    lines = entries.map(e => {
+      const head = e.display ?? e.norm;
+      return (fmt.comments && e.comment) ? `${head};${e.score};${e.comment}` : `${head};${e.score}`;
+    });
+  }
+  return lines.join('\n') + (lines.length ? '\n' : '');
+}
+
+function getOutputFormat() {
+  return { ...AS_IS_FORMAT, ...(Storage.readMergedSettings().outputFormat || {}) };
+}
+
+function setOutputFormat(fmt) {
+  Storage.writeMergedSettings({ ...Storage.readMergedSettings(), outputFormat: fmt });
+}
+
+let _regenInFlight = false, _regenAgain = false;
+async function regenerateFillOutputs() {
+  if (Storage !== DiskBackend) return;
+  // A format change landing mid-rewrite re-runs once at the end; without it the
+  // files would sit stale at the pre-change format until the next edit.
+  if (_regenInFlight) { _regenAgain = true; return; }
+  _regenInFlight = true;
+  try {
+    do {
+      _regenAgain = false;
+      for (const wl of state.sources) await Storage.writeRescored(wl);
+      await Storage.writeAllRescored();
+    } while (_regenAgain);
+  } finally { _regenInFlight = false; }
+}
+
+async function applyOutputFormat(fmt) {
+  setOutputFormat(fmt);
+  await regenerateFillOutputs();
 }
 
 function sortedEntries(entries) {
@@ -4780,7 +4895,7 @@ function sortedEntries(entries) {
 }
 
 async function persistEdits(edits) {
-  await Storage.writeWordlist(edits, entriesToText(sortedEntries(edits.rawEntries)));
+  await Storage.writeWordlist(edits, serializeEntries(sortedEntries(edits.rawEntries)));
   persistMeta();
   refreshStorageButton();
 }
@@ -10090,7 +10205,7 @@ function ingestFile(file, wordlist, nameOverride) {
       invalidateWordlistCaches(wordlist);
       recomputeUncovered(wordlist);
 
-      await Storage.writeWordlist(wordlist, entriesToText(wordlist.rawEntries));
+      await Storage.writeWordlist(wordlist, serializeEntries(wordlist.rawEntries));
       persistMeta();
 
       renderSources();
@@ -10251,72 +10366,63 @@ const showDownloadDialog = (() => {
           </select>
         </div>
       </div>
-      <div class="dialog-row">
-        <span class="dialog-row-label">Case</span>
-        <div id="download-dialog-case-ctrl"></div>
-      </div>
-      <div class="dialog-row">
-        <span class="dialog-row-label">Comments</span>
-        <div id="download-dialog-comments-ctrl"></div>
+      <div class="of-section" id="download-format-section">
+        <div class="dialog-row-label">Output format</div>
+        <div id="download-format-ctrls" class="of-ctrls"></div>
       </div>
       <div class="dialog-footer">
         <button type="button" class="dialog-cancel-btn">Cancel</button>
+        <button type="button" id="download-save-default" hidden>Save as default</button>
         <button class="primary" value="ok">Download</button>
       </div>
     </form>`;
-  const titleEl      = el.querySelector('#download-dialog-title');
-  const filenameEl   = el.querySelector('#download-dialog-filename');
-  const caseCtrl     = el.querySelector('#download-dialog-case-ctrl');
-  const extSelect    = el.querySelector('#download-dialog-ext');
-  const commentsCtrl = el.querySelector('#download-dialog-comments-ctrl');
+  const titleEl    = el.querySelector('#download-dialog-title');
+  const filenameEl = el.querySelector('#download-dialog-filename');
+  const extSelect  = el.querySelector('#download-dialog-ext');
+  const fmtSection = el.querySelector('#download-format-section');
+  const fmtCtrls   = el.querySelector('#download-format-ctrls');
+  const saveDefBtn = el.querySelector('#download-save-default');
 
   return function(defaultStem, wordlist, title = 'Download') {
     titleEl.textContent = title;
+    const isEdits = wordlist?.type === 'edits';
     return new Promise(resolve => {
       const settings = wordlist || Storage.readMergedSettings();
-      const savedCase     = settings.downloadCase || 'asis';
-      const savedExt      = settings.downloadExt  || 'txt';
-      const savedStem     = settings.downloadStem || '';
-      const savedComments = getDownloadComments() ? 'yes' : 'no';
+      const savedExt  = settings.downloadExt  || 'txt';
+      const savedStem = settings.downloadStem || '';
 
       filenameEl.value = savedStem;
       filenameEl.placeholder = defaultStem;
       extSelect.value = savedExt;
-      caseCtrl.innerHTML = buildSegCtrlHTML(null, [
-        { value: 'asis',  label: 'As is' },
-        { value: 'lower', label: 'lower' },
-        { value: 'upper', label: 'UPPER' },
-      ], savedCase);
-      commentsCtrl.innerHTML = buildSegCtrlHTML(null, [
-        { value: 'yes', label: 'Include' },
-        { value: 'no',  label: 'Exclude' },
-      ], savedComments);
 
-      [caseCtrl, commentsCtrl].forEach(ctrl => {
-        ctrl.querySelectorAll('.seg-btn').forEach(btn => {
-          btn.onclick = () => {
-            ctrl.querySelectorAll('.seg-btn').forEach(b => b.classList.remove('active'));
-            btn.classList.add('active');
-          };
-        });
-      });
+      fmtSection.hidden = isEdits;
+      if (!isEdits) {
+        fmtCtrls.innerHTML = buildOutputFormatControlsHTML(getOutputFormat());
+        const refreshSaveBtn = () => {
+          saveDefBtn.hidden = outputFormatsEqual(readOutputFormatControls(fmtCtrls), getOutputFormat());
+        };
+        wireOutputFormatControls(fmtCtrls, refreshSaveBtn);
+        refreshSaveBtn();
+        saveDefBtn.onclick = async () => {
+          await applyOutputFormat(readOutputFormatControls(fmtCtrls));
+          refreshSaveBtn();
+          showToast('Saved as your default output format');
+        };
+      }
 
       showDialog(el, () => {
         if (el.returnValue !== 'ok') return resolve(null);
-        const caseMode = caseCtrl.querySelector('.seg-btn.active')?.dataset.val     || 'lower';
-        const comments = commentsCtrl.querySelector('.seg-btn.active')?.dataset.val || 'yes';
-        const ext      = extSelect.value;
-        const stem     = filenameEl.value.trim();
+        const ext  = extSelect.value;
+        const stem = filenameEl.value.trim();
         if (wordlist) {
-          wordlist.downloadCase = caseMode;
-          wordlist.downloadExt  = ext;
+          wordlist.downloadExt = ext;
           if (stem) wordlist.downloadStem = stem; else delete wordlist.downloadStem;
           persistMeta();
         } else {
-          Storage.writeMergedSettings({ downloadCase: caseMode, downloadExt: ext, ...(stem ? { downloadStem: stem } : {}) });
+          Storage.writeMergedSettings({ ...Storage.readMergedSettings(), downloadExt: ext, ...(stem ? { downloadStem: stem } : {}) });
         }
-        lsSave('downloadComments', comments);
-        resolve({ stem: stem || defaultStem, ext, caseMode, comments: comments === 'yes' });
+        const fmt = isEdits ? AS_IS_FORMAT : readOutputFormatControls(fmtCtrls);
+        resolve({ stem: stem || defaultStem, ext, fmt });
       });
     });
   };
@@ -11492,23 +11598,11 @@ function patchMergedForNorms(snap) {
   }
 }
 
-function getDownloadComments() { return lsLoad('downloadComments') !== 'no'; }
-
-function entriesToDownloadText(entries, { caseMode, comments }) {
-  return entries.map(e => {
-    let w;
-    if (caseMode === 'upper')      w = e.norm.toUpperCase();
-    else if (caseMode === 'lower') w = e.norm;
-    else                            w = e.display ?? e.norm;
-    return (comments && e.comment) ? `${w};${e.score};${e.comment}` : `${w};${e.score}`;
-  }).join('\n') + '\n';
-}
-
 async function downloadWithDialog(defaultStem, wordlist, entries, title = 'Download') {
   const result = await showDownloadDialog(defaultStem, wordlist, title);
   if (!result) return;
-  const { stem, ext, caseMode, comments } = result;
-  triggerDownload(entriesToDownloadText(entries, { caseMode, comments }), `${stem}.${ext}`);
+  const { stem, ext, fmt } = result;
+  triggerDownload(serializeEntries(entries, fmt), `${stem}.${ext}`);
   showToast(`Downloaded ${pluralize(entries.length, 'entry', 'entries')}`);
 }
 

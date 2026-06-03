@@ -28,6 +28,7 @@ The gear in the header opens **Settings**:
 
 - **Dark mode** — Auto (follow your OS), Light, or Dark.
 - **Auto-update wordlists** — Update wordlists without asking. On by default.
+- **Output format** — How entries are written to downloads and to your disk-storage folder, so they match what your construction software can read: checkboxes to keep or strip **spaces**, **punctuation**, **accents**, and **comments**. Defaults to fully rich (everything kept). My Edits and the original source files are always written as-is regardless. This is the only place the format's default is edited; the download dialog lets you override it for a single download.
 - **Reset all data** — Wipes all wordlists and settings and reloads the app.
 
 ## Disk storage
@@ -54,8 +55,8 @@ The picker is your browser's native folder picker. After picking, Grawlix routes
 
 - **`grawlix.json`** — your settings, wordlist metadata, and tier labels. Managed by Grawlix.
 - **`My Edits.txt`** — your score overrides and comments. Edit it in any text editor; Grawlix picks up your changes automatically. Stays at the root (not in `original/`) so your software can read and write it alongside the rescored outputs.
-- **`<name> rescored.txt`** — your wordlists with rescore rules applied, sorted alphabetically. Write-only — Grawlix regenerates them whenever the wordlist or its rescore rules change.
-- **`All rescored.txt`** — the merged result of all enabled wordlists, rescored and sorted. The unified wordlist your construction software should point at; regenerated whenever any source wordlist or its rules change.
+- **`<name> rescored.txt`** — your wordlists with rescore rules applied, sorted alphabetically, written in your **Output format** (see [Settings](#settings)). Write-only — Grawlix regenerates them whenever the wordlist or its rescore rules change, or when you change the format.
+- **`All rescored.txt`** — the merged result of all enabled wordlists, rescored and sorted, written in your **Output format**. The unified wordlist your construction software should point at; regenerated whenever any source wordlist or its rules change.
 - **`original/<name>.txt`** (e.g. `original/XWI.txt`) — your source wordlists with their original scores. Edit them in any text editor; Grawlix picks up your changes automatically.
 - **`README.md`** — generated at setup and refreshed on boot whenever a new Grawlix version changes its text (rewritten only on drift, so unchanged folders stay untouched). Names each file and explains the cross-device trick.
 
@@ -153,7 +154,7 @@ A special wordlist created automatically on first boot. It's where your manual s
 
 Unlike Sources, My Edits has no rescore rules — the scores you type are already in Grawlix's scale, so they pass through unchanged. In place of a rescore editor, My Edits' panel shows the same scoring (tier-label) editor that **All** carries. The labels are shared: editing in either place updates both, so the legend is right next to your edits as you work.
 
-From My Edits' panel in the Library you can Import a personal wordlist (replacing the current contents), Download what you've got, or Clear it.
+From My Edits' panel in the Library you can Import a personal wordlist (replacing the current contents), Download what you've got, or Clear it. My Edits is always written as-is — spaces, accents, punctuation, and case preserved — both on disk and on download, since it's the file your construction software edits in place; its entries still reach letters-only software through `All rescored.txt`, which honors your Output format.
 
 ## Score tiers
 
@@ -198,7 +199,7 @@ The highest-severity bubble across all wordlists propagates up to the **Library*
 
 **Renaming.** Focus a wordlist card and press **F2** to rename inline.
 
-**Downloads.** Each wordlist (and All) has its own Download button. On sources, the Rescored/Original toggle decides whether you get the file as imported or as rescored. The Download dialog also picks a **case mode**: *As is* (rich entries preserved, plain entries emitted lowercase), *Normalize to lowercase* (`[a-z0-9]+`, spaces and accents stripped), or *Normalize to uppercase* (`[A-Z0-9]+`, same stripping). The two Normalize modes feed downstream tools that expect letter-only entries; *As is* is for backup and inspection.
+**Downloads.** Each wordlist (and All) has its own Download button. On sources, the Rescored/Original toggle decides whether you get the file as imported or as rescored. The dialog shows your global **Output format** (set in [Settings](#settings)) and lets you tweak it for this one download — **Download** uses whatever's on screen without changing your default. If you do change it, a **Save as default** button appears that writes the tweak back to Settings (and rewrites your disk files to match). My Edits always downloads as-is. When the chosen format strips characters, entries that collapse to the same text are merged: the highest score wins and their distinct comments combine with ` / `.
 
 **Onboarding banner.** First-run users see a short 3-page sequence at the top of the wordlist list: a welcome confirming the pre-loaded popular wordlists, then optional prompts to import a personal wordlist into My Edits and to import an XWI subscriber file. Each prompt has a *Skip*; the ✕ ends the whole flow. (You won't see it until you visit Library.)
 
