@@ -5745,7 +5745,7 @@ const TOOL_CATEGORIES = [
   { id: 'side',       label: 'Side' },
 ];
 
-const FEATURED_TOOLS = ['regex', 'anagrams', 'letter_bank', 'palindromes', 'acronyms', 'behead'];
+const FEATURED_TOOLS = ['regex', 'anagrams', 'letter_bank', 'palindromes', 'initialisms', 'behead'];
 
 const WHOLE_WORD_PARAM = { key: 'whole-word', type: 'checkbox', label: 'Whole word', title: 'Whole word (Alt-W)' };
 
@@ -6194,15 +6194,15 @@ const TOOLS = {
       return runRegexReplace(entry, prepared, wordlist);
     },
   },
-  acronyms: {
-    name: 'Acronyms', icon: '🔠', category: 'phrase',
-    desc: 'Word-initial letters spell the acronym',
+  initialisms: {
+    name: 'Initialisms', icon: '🔠', category: 'phrase',
+    desc: 'Starting letters spell a word',
     example: 'HOT → Helen of Troy',
-    params: [{ placeholder: 'acronym' }],
+    params: [{ placeholder: 'word' }],
     kind: 'filter', inputHighlights: false, outputHighlights: false,
     matchOn: 'display',
-    isInert: params => !((params && params['acronym'] || '').trim()),
-    prepare(params) { return (params['acronym'] || '').trim().toLowerCase(); },
+    isInert: params => !((params && params['word'] || '').trim()),
+    prepare(params) { return (params['word'] || '').trim().toLowerCase(); },
     run(displayText, target, wordlist) {
       if (!target) return true;
       for (const split of wordSplits(displayText)) {
@@ -6219,12 +6219,12 @@ const TOOLS = {
       key: displayText => {
         const words = displayText.split(/[ ]+/).filter(Boolean);
         if (words.length < 2) return null;
-        let acronym = '';
-        for (const w of words) acronym += w[0].toLowerCase();
-        return acronym;
+        let initialism = '';
+        for (const w of words) initialism += w[0].toLowerCase();
+        return initialism;
       },
       anchor: (key, wordlist) => wordlist.byNorm.get(key) || null,
-      anchorLabel: 'Acronym',
+      anchorLabel: 'Initialism',
     },
   },
   behead: {
