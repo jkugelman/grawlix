@@ -3205,6 +3205,11 @@ const WelcomeDialog = (() => {
       .map(k => TOOLS[k] ? buildFeaturedCardHTML(k, TOOLS[k]) : '')
       .join('');
 
+    const featuredToolNames = FEATURED_TOOLS
+      .filter(k => TOOLS[k])
+      .map(k => TOOLS[k].name)
+      .join(', ');
+
     const byPop = [...WORDLIST_PUBLISHERS].sort((a, b) => a.popularity - b.popularity);
     const names = byPop.map(p => p.name);
     const nameList = `${names.slice(0, -1).join(', ')}, and ${names[names.length - 1]}`;
@@ -3237,23 +3242,23 @@ const WelcomeDialog = (() => {
       <section class="welcome-feature">
         <div class="welcome-copy">
           <h3>Hunt for theme ideas</h3>
-          <p>Comb your wordlist with anagrams, letter banks, palindromes, regex, and a few dozen more tools. Chain them together to take searching to the next level.</p>
+          <p>Comb your wordlist with ${featuredToolNames}, and a few dozen more tools. Combine them to unlock new wordplay possibilities.</p>
         </div>
         <div class="welcome-shot" inert><div class="welcome-shot-inner welcome-shot-tools">${toolsShot}</div></div>
       </section>
 
       <section class="welcome-feature">
         <div class="welcome-copy">
-          <h3>Access multiple popular wordlists</h3>
-          <p>Search across ${nameList}. Grawlix rescores each onto a shared scale and merges them into one combined list.</p>
+          <h3>Search multiple popular wordlists</h3>
+          <p>${nameList} are at your fingertips. Grawlix rescores each onto a common scale.</p>
         </div>
         <div class="welcome-shot" inert><div class="welcome-shot-inner welcome-shot-wordlists">${wordlistShot}</div></div>
       </section>
 
       <section class="welcome-feature">
         <div class="welcome-copy">
-          <h3>Sync into your construction software</h3>
-          <p>Save to a folder on disk and point Crossfire, Ingrid, or Crossword Compiler at the same file. Edits flow both ways, automatically.${diskCaveat}</p>
+          <h3>Sync with your construction software</h3>
+          <p>Save to disk and load your wordlists in Ingrid, Crossfire, or Crossword Compiler. Edits flow both ways, automatically.${diskCaveat}</p>
         </div>
         <div class="welcome-shot" inert><div class="welcome-shot-inner welcome-shot-storage">${storageShot}</div></div>
       </section>
@@ -5740,7 +5745,7 @@ const TOOL_CATEGORIES = [
   { id: 'side',       label: 'Side' },
 ];
 
-const FEATURED_TOOLS = ['search', 'anagrams', 'letter_bank', 'regex', 'palindromes', 'kangaroos'];
+const FEATURED_TOOLS = ['regex', 'anagrams', 'letter_bank', 'palindromes', 'acronyms', 'behead'];
 
 const WHOLE_WORD_PARAM = { key: 'whole-word', type: 'checkbox', label: 'Whole word', title: 'Whole word (Alt-W)' };
 
@@ -6190,9 +6195,9 @@ const TOOLS = {
     },
   },
   acronyms: {
-    name: 'Acronyms', icon: '🔠', category: 'search',
+    name: 'Acronyms', icon: '🔠', category: 'phrase',
     desc: 'Word-initial letters spell the acronym',
-    example: 'WTF → what the fuck',
+    example: 'HOT → Helen of Troy',
     params: [{ placeholder: 'acronym' }],
     kind: 'filter', inputHighlights: false, outputHighlights: false,
     matchOn: 'display',
