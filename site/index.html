@@ -3332,7 +3332,7 @@ const StorageDialog = (() => {
   function showMergeChoice(handle, diff) {
     return new Promise(resolve => {
       const replacedHTML = diff.replaced.length
-        ? `<p class="merge-section-label">These wordlists will be replaced by the folder's version:</p>
+        ? `<p class="merge-section-label">These wordlists will be replaced by the folder's versions:</p>
            <ul class="merge-list">${diff.replaced.map(n => `<li>${esc(n)}</li>`).join('')}</ul>`
         : '';
 
