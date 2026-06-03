@@ -11,7 +11,7 @@ One row per test, by count. "Seen" = number of distinct runs it has failed in. I
 | Seen | Spec — test | Browsers | Last seen | Cause / status |
 |------|-------------|----------|-----------|----------------|
 | 3 | persistence — a custom wordlist survives a page reload with its entries and rules intact | wk, ch | 2026-06-02 | #1 — **fixed** |
-| 3 | severity-priority — info alone renders an info bubble | wk | 2026-06-03 | #5 — `setUpdateAvailable` not yet reflected in `getWordlist` |
+| 3 | severity-priority — info alone renders an info bubble | wk | 2026-06-03 | #5 — backend read `updateAvailable: false`; provably not an app-logic reset (60× isolated pass) |
 | 2 | tools/kangaroos — the input itself is excluded; a kangaroo must be longer than its joey | wk | 2026-06-02 | #3 — open |
 | 2 | tools — a wildcard-only search holds its atom even though it highlights nothing | wk | 2026-06-02 | #3 — open (highlight-coloring face) |
 | 2 | tools/restricted_alphabet — keeps entries whose letters all belong to the input alphabet | wk | 2026-06-02 | #3 — open |
@@ -84,9 +84,21 @@ Highlight/coloring assertions share the symptom: `tools/regex` "colors own captu
 
 `selectOption('#stats-bar-sort .sort-axis-select')` times out on webkit, the call log showing either "element was detached from the DOM, retrying" or "did not find some options." Seen on `tools` "grouped column sort tiebreaks" and "chains: min-score tiebreaks." The stats bar re-renders when the pipeline settles (a tool/group change rebuilds the available sort axes), so the `<select>` the test grabbed gets replaced — or its `<option>`s aren't populated yet — exactly as `selectOption` fires. Distinct from #3: this is a DOM-timing race on the control, not wrong pipeline output. Likely fix is test-side — wait for the expected `<option>` to be present (or set the sort via the test API) before selecting. Not yet attempted.
 
-### #5 — `setUpdateAvailable` not reflected in the next `getWordlist` — **OPEN (test-side or add-settle race)**
+### #5 — `severity-priority` "info alone" backend snapshot reads `updateAvailable: false` — **OPEN, not root-caused; provably not an app-logic reset**
 
-`severity-priority` "info alone" failed on webkit at **line 53** — `expect(wl.updateAvailable).toBe(true)` received `false` — which is the *backend snapshot* assertion, **before** `openLibrary` is ever called. This contradicts the row's earlier guess ("Library-badge render-settle race"): the test never reached the badge render. The sequence is three separate `page.evaluate` calls — `addCustomWordlist({name:'Clean', scores:[10,30,50]})`, then `setUpdateAvailable('Clean', true)`, then `getWordlist('Clean')`. The read-back showed `updateAvailable` falsy, so the `setUpdateAvailable` write either didn't find the wordlist by name or didn't stick. Leading hypothesis: `addCustomWordlist` returns before the new source is fully registered in `state.sources`, so `setUpdateAvailable('Clean', …)`'s by-name lookup misses under load and silently no-ops; by the time `getWordlist` runs, the source exists but the flag was never set. Not yet traced in `site/index.html` — pursue via `/test-failure debug`. (The two earlier sightings of this test on 2026-06-02 were logged without a captured failure line, so it's unconfirmed whether they failed here or at the badge assertion.)
+`severity-priority` "info alone" failed on webkit at **line 53** — `expect(wl.updateAvailable).toBe(true)` received `false` — the *backend snapshot* assertion, **before** `openLibrary`. The test does three separate `page.evaluate` calls: `addCustomWordlist({name:'Clean', scores:[10,30,50]})` (awaited), then `setUpdateAvailable('Clean', true)`, then `getWordlist('Clean')`.
+
+**Traced 2026-06-03 (`/test-failure debug`).** The flag cannot be reset by app logic in this scenario:
+- Every `_updateAvailable` write was enumerated. The only writes that *clear* it are in `applyWordlistText` (gated on `fetchedSize !== null` / `clearUrl`), which fire only on a fetch. The 'Clean' wordlist has `url: null`, so it never fetches — once `setUpdateAvailable` (`wl._updateAvailable = !!value`, synchronous, before `renderSources()`) sets it, nothing clears it.
+- No path rebuilds the 'Clean' object after `addNewWordlist` pushes it. All `wrapWordlist`/`wordlistFromMeta` sites are boot-load (done before `gotoApp` returns) or folder-sync (needs a disk handle — not in tests). The render/cosmetic effects only repaint the DOM; they never replace `state.sources` entries.
+- `setUpdateAvailable`'s write and `getWordlist`'s read are synchronous, in separate awaited `page.evaluate`s, on the page's single thread — the read *must* observe the write. A `false` read needs either the write to not happen (then `_lookup` throws → failure at line 49, not 53) or the object to be swapped (no such path).
+- `checkForUpdates` (fire-and-forget at boot) early-returns: its candidates need `url && rawEntries.length > 0 && fetchedSize`, and the stubbed publishers have empty bodies (0 entries). So nothing is pending mid-test that touches 'Clean'.
+
+**Differentiator from the passing sibling.** The first test ("Both", 11 scores) asserts the same `updateAvailable === true` and has never been tallied. The only behavioral difference is that "Clean" (3 scores) goes through `maybeAutoSeedRescoreRules` while "Both" stays above `AUTO_SEED_SCORE_LIMIT` — but auto-seed is synchronous and flag-neutral, so it's a timing correlate, not a cause.
+
+**Reproduction.** Not reproducible in isolation: `severity-priority.spec.js --project=webkit --repeat-each=30 --workers=4` → 60/60 passed. Confirms load-dependence, consistent with the logic being sound.
+
+**Status / leads.** No code fix applied — the trace shows no mechanism, and guessing here already burned us once (the reverted `_preSearchCache` guard, #3). Likely either a harness/scheduling artifact under webkit CPU starvation, or the two earlier 2026-06-02 sightings were actually at the **badge assertions (lines 57–58)** — a render-settle race in the #3 family — and only this run hit line 53. **Next time it fails, capture the failure line.** If line 53 recurs, the pragmatic hardening is to `expect.poll` the backend snapshot (lines 51–53) or drop it in favor of the badge contract (lines 56–58) which is what the test actually pins — but that masks rather than explains, so hold it until a reproduction with logged values exists.
 
 ## How to reproduce
 
