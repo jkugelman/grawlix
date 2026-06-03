@@ -1380,7 +1380,7 @@ const WORDLIST_PUBLISHERS = [
     id: 'nediger',
     popularity: 4,
     name: 'Will Nediger',
-    url: null,
+    url: 'https://grawlix.wtf/Nediger list.txt',
     icon: null,
     defaultRules: [
       { input:'99', length:'8+',  output:'60', note:'Asset' },
@@ -2543,11 +2543,7 @@ function lsDel(key)  { localStorage.removeItem(LS_PREFIX + key); }
 
 // Bump when the shape of stored data (localStorage `meta`, IDB entries) changes
 // in a way that older code can't read. Mismatch on load triggers a reset prompt.
-//   v4 — drop state.outputScoring; tier labels live exclusively on My Edits' `scoring`.
-//   v5 — tier labels move off My Edits to top-level `state.scoring` (its own
-//        localStorage key); My Edits gains a normal rescoreRules editor.
-//   v7 — drop rescoring from My Edits; user-typed scores pass through unchanged.
-const SCHEMA_VERSION = 8;
+const SCHEMA_VERSION = 9;
 
 // IndexedDB for large wordlist data (localStorage has ~5MB limit)
 const IDB_NAME  = 'grawlix';

@@ -5,10 +5,11 @@
 const { expect } = require('@playwright/test');
 
 // Stub the publisher wordlist fetches so the app boots in CI without touching
-// the real network. Three publisher wordlists fetch on boot:
+// the real network. Four publisher wordlists fetch on boot:
 //
 //   jkugelman → raw.githubusercontent.com
 //   stwl      → grawlix.wtf
+//   nediger   → grawlix.wtf
 //   broda     → grawlix.wtf
 //
 // (XWI has no auto-fetch URL — it's subscriber-import-only.) The fetch
@@ -21,8 +22,9 @@ async function stubPublisherFetches(page, bodies = {}) {
   await page.route(/raw\.githubusercontent\.com|grawlix\.wtf/, route => {
     const url = route.request().url();
     let body = '';
-    if (url.includes('jkugelman-wordlist.txt'))       body = bodies.jkugelman ?? '';
-    else if (url.includes('spreadthewordlist.txt'))   body = bodies.stwl ?? '';
+    if (url.includes('jkugelman-wordlist.txt'))        body = bodies.jkugelman ?? '';
+    else if (url.includes('spreadthewordlist.txt'))    body = bodies.stwl ?? '';
+    else if (url.includes('Nediger'))                  body = bodies.nediger ?? '';
     else if (url.includes('peter-broda-wordlist.txt')) body = bodies.broda ?? '';
     route.fulfill({
       status: 200,
