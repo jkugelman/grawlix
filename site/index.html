@@ -707,7 +707,7 @@ dialog h2 { font-size: 16px; margin-bottom: 14px; padding-right: 24px; }
 .welcome-copy h3 { font-size: 14px; margin: 0 0 5px; color: var(--text); }
 .welcome-copy p { font-size: 13px; line-height: 1.5; color: var(--muted); margin: 0; }
 .welcome-shot { position: relative; height: 132px; overflow: hidden; border: 1px solid var(--border2); border-radius: 8px; background: var(--surface); pointer-events: none; user-select: none; -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 30px), transparent); mask-image: linear-gradient(to bottom, #000 calc(100% - 30px), transparent); }
-.welcome-shot:has(.welcome-shot-tools) { -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 44px), transparent); mask-image: linear-gradient(to right, #000 calc(100% - 44px), transparent); }
+.welcome-shot:has(.welcome-shot-tools), .welcome-shot:has(.welcome-shot-storage) { -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 44px), transparent); mask-image: linear-gradient(to right, #000 calc(100% - 44px), transparent); }
 .welcome-shot-inner { padding: 10px; }
 .welcome-shot-tools { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(150px, 1fr); gap: 8px; }
 .welcome-shot:has(.welcome-shot-merge) { -webkit-mask-image: none; mask-image: none; }
@@ -3242,7 +3242,6 @@ const WelcomeDialog = (() => {
         <li>📄 <strong>All rescored.txt</strong></li>
         <li>📄 Spread the Word(list) rescored.txt</li>
         <li>📄 Will Nediger rescored.txt</li>
-        <li>📄 Peter Broda rescored.txt</li>
       </ul>`;
 
     const diskCaveat = Disk.isSupported() ? ''
