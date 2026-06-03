@@ -11,8 +11,8 @@ One row per test, by count. "Seen" = number of distinct runs it has failed in. I
 | Seen | Spec — test | Browsers | Last seen | Cause / status |
 |------|-------------|----------|-----------|----------------|
 | 3 | persistence — a custom wordlist survives a page reload with its entries and rules intact | wk, ch | 2026-06-02 | #1 — **fixed** |
+| 3 | severity-priority — info alone renders an info bubble | wk | 2026-06-03 | #5 — `setUpdateAvailable` not yet reflected in `getWordlist` |
 | 2 | tools/kangaroos — the input itself is excluded; a kangaroo must be longer than its joey | wk | 2026-06-02 | #3 — open |
-| 2 | severity-priority — info alone renders an info bubble | wk | 2026-06-02 | open, unclassified (likely a Library-badge render-settle race, not #3) |
 | 2 | tools — a wildcard-only search holds its atom even though it highlights nothing | wk | 2026-06-02 | #3 — open (highlight-coloring face) |
 | 2 | tools/restricted_alphabet — keeps entries whose letters all belong to the input alphabet | wk | 2026-06-02 | #3 — open |
 | 1 | tools — score range trims junk before the grouped tool clusters | wk | 2026-06-02 | #3 — open |
@@ -56,6 +56,7 @@ Append a row per `npm test` (or `--project=webkit`) run that produced failures. 
 | 2026-06-02 | `npm test` | 726 passed, 9 failed | + fix #3 (then reverted) | export "JSON keeps catalog group cols", behead "Count drops leading", consonantcy, kangaroos, letter_bank ×2, restricted_alphabet, scrabble "subset of tiles", tools "stats bar counts chain rows" |
 | 2026-06-02 | `npm test` | 767 passed, 4 failed | output-format feature (uncommitted) | regex "colors own capture groups", search "replace highlights span, same color", space_out "never splits mid digit run", tools "grouped column sort count desc before min score" (selectOption timeout). All 4 passed on isolated webkit re-run. |
 | 2026-06-02 | `npm test` (user-run) | 5 failed | output-format feature, staged | tools "chains: min-score tiebreaks" (#4), tools "wildcard-only search", tools/search "filled replacement transform", tools/restricted_alphabet "input alphabet", tools/regex "matching is case-insensitive" |
+| 2026-06-03 | `npm test` (user-run) | 1 failed | clean main @ 67d1970 ("first-boot welcome popup") | severity-priority "info alone renders an info bubble" — failed at line 53 (`updateAvailable` false on the backend snapshot, *before* the Library was opened) |
 
 ## Known causes
 
@@ -82,6 +83,10 @@ Highlight/coloring assertions share the symptom: `tools/regex` "colors own captu
 ### #4 — Sort-axis `<select>` detached / not-ready under load — **OPEN (test-side)**
 
 `selectOption('#stats-bar-sort .sort-axis-select')` times out on webkit, the call log showing either "element was detached from the DOM, retrying" or "did not find some options." Seen on `tools` "grouped column sort tiebreaks" and "chains: min-score tiebreaks." The stats bar re-renders when the pipeline settles (a tool/group change rebuilds the available sort axes), so the `<select>` the test grabbed gets replaced — or its `<option>`s aren't populated yet — exactly as `selectOption` fires. Distinct from #3: this is a DOM-timing race on the control, not wrong pipeline output. Likely fix is test-side — wait for the expected `<option>` to be present (or set the sort via the test API) before selecting. Not yet attempted.
+
+### #5 — `setUpdateAvailable` not reflected in the next `getWordlist` — **OPEN (test-side or add-settle race)**
+
+`severity-priority` "info alone" failed on webkit at **line 53** — `expect(wl.updateAvailable).toBe(true)` received `false` — which is the *backend snapshot* assertion, **before** `openLibrary` is ever called. This contradicts the row's earlier guess ("Library-badge render-settle race"): the test never reached the badge render. The sequence is three separate `page.evaluate` calls — `addCustomWordlist({name:'Clean', scores:[10,30,50]})`, then `setUpdateAvailable('Clean', true)`, then `getWordlist('Clean')`. The read-back showed `updateAvailable` falsy, so the `setUpdateAvailable` write either didn't find the wordlist by name or didn't stick. Leading hypothesis: `addCustomWordlist` returns before the new source is fully registered in `state.sources`, so `setUpdateAvailable('Clean', …)`'s by-name lookup misses under load and silently no-ops; by the time `getWordlist` runs, the source exists but the flag was never set. Not yet traced in `site/index.html` — pursue via `/test-failure debug`. (The two earlier sightings of this test on 2026-06-02 were logged without a captured failure line, so it's unconfirmed whether they failed here or at the badge assertion.)
 
 ## How to reproduce
 
