@@ -12243,6 +12243,10 @@ window.__grawlixTest = {
       source: name,
       silent: true,
     });
+    // Drain the fire-and-forget refresh applyWordlistText's cache bump started,
+    // else a following setStack aborts it mid-run and strands the scroller on
+    // pre-filter rows — the webkit flake the single-read tool specs lose.
+    await pipelineIdle();
     return wordlist.dbKey;
   },
 
