@@ -13,7 +13,8 @@ One row per test, by count. "Seen" = number of distinct runs it has failed in. I
 | 3 | persistence — a custom wordlist survives a page reload with its entries and rules intact | wk, ch | 2026-06-02 | #1 — **fixed** |
 | 2 | tools/kangaroos — the input itself is excluded; a kangaroo must be longer than its joey | wk | 2026-06-02 | #3 — open |
 | 2 | severity-priority — info alone renders an info bubble | wk | 2026-06-02 | open, unclassified (likely a Library-badge render-settle race, not #3) |
-| 1 | tools — a wildcard-only search holds its atom even though it highlights nothing | wk | 2026-06-02 | #3 — open |
+| 2 | tools — a wildcard-only search holds its atom even though it highlights nothing | wk | 2026-06-02 | #3 — open (highlight-coloring face) |
+| 2 | tools/restricted_alphabet — keeps entries whose letters all belong to the input alphabet | wk | 2026-06-02 | #3 — open |
 | 1 | tools — score range trims junk before the grouped tool clusters | wk | 2026-06-02 | #3 — open |
 | 1 | tools — a one-sided search query degrades a unified row to a directed → | wk | 2026-06-02 | #3 — open |
 | 1 | tools — a transform chain prefixes the new-word atom with its relation glyph; a filter chain is bare | wk | 2026-06-02 | #3 — open |
@@ -31,7 +32,6 @@ One row per test, by count. "Seen" = number of distinct runs it has failed in. I
 | 1 | tools/consonantcy — matches entries sharing the same consonant skeleton in order | wk | 2026-06-02 | #3 — open |
 | 1 | tools/letter_bank — keeps entries that contain every input letter and only those letters | wk | 2026-06-02 | #3 — open |
 | 1 | tools/letter_bank — grouped: within a group, members sort by score desc then entry asc | wk | 2026-06-02 | #3 — open |
-| 1 | tools/restricted_alphabet — keeps entries whose letters all belong to the input alphabet | wk | 2026-06-02 | #3 — open |
 | 1 | export — Filename includes tool keys for chained pipeline | ch | 2026-06-02 | #3 — open (the only chromium sighting) |
 | 1 | export — JSON keeps catalog group cols on grouped pipelines but drops `count` | wk | 2026-06-02 | #3 — open |
 | 1 | my-edits — editing My Edits patches the merged cache in place instead of rebuilding it | wk | 2026-06-02 | #2 — addressed (not recurred) |
@@ -39,7 +39,10 @@ One row per test, by count. "Seen" = number of distinct runs it has failed in. I
 | 1 | tools/regex — filter colors the user's own capture groups when the pattern has them | wk | 2026-06-02 | #3 — open (highlight-coloring face) |
 | 1 | tools/search — replace highlights the matched span in and the replacement out, same color | wk | 2026-06-02 | #3 — open (highlight-coloring face) |
 | 1 | tools/space_out — never splits in the middle of a digit run | wk | 2026-06-02 | #3 — open |
-| 1 | tools — grouped column sort tiebreaks by count desc before min score | wk | 2026-06-02 | open — sort-axis `<select>` options not yet rendered when `selectOption` fired (pipeline/render-settle race) |
+| 1 | tools — grouped column sort tiebreaks by count desc before min score | wk | 2026-06-02 | #4 — sort-axis `<select>` race |
+| 1 | tools — chains: min-score desc tiebreaks by length desc, then last-atom asc | wk | 2026-06-02 | #4 — sort-axis `<select>` race |
+| 1 | tools/search — a filled replacement rewrites matched entries as a transform | wk | 2026-06-02 | #3 — open |
+| 1 | tools/regex — matching is case-insensitive | wk | 2026-06-02 | #3 — open |
 
 ## Run log
 
@@ -52,6 +55,7 @@ Append a row per `npm test` (or `--project=webkit`) run that produced failures. 
 | 2026-06-02 | `npm test` | 726 passed, 9 failed | + fix #2 | severity "info alone", curtail "Count drops trailing", kangaroos, monovocalics, scrabble "case-insensitive", search "literal query", space_out "passes single-word", tools "one-sided search →", tools "transform chain prefixes glyph" |
 | 2026-06-02 | `npm test` | 726 passed, 9 failed | + fix #3 (then reverted) | export "JSON keeps catalog group cols", behead "Count drops leading", consonantcy, kangaroos, letter_bank ×2, restricted_alphabet, scrabble "subset of tiles", tools "stats bar counts chain rows" |
 | 2026-06-02 | `npm test` | 767 passed, 4 failed | output-format feature (uncommitted) | regex "colors own capture groups", search "replace highlights span, same color", space_out "never splits mid digit run", tools "grouped column sort count desc before min score" (selectOption timeout). All 4 passed on isolated webkit re-run. |
+| 2026-06-02 | `npm test` (user-run) | 5 failed | output-format feature, staged | tools "chains: min-score tiebreaks" (#4), tools "wildcard-only search", tools/search "filled replacement transform", tools/restricted_alphabet "input alphabet", tools/regex "matching is case-insensitive" |
 
 ## Known causes
 
@@ -74,6 +78,10 @@ Highlight/coloring assertions share the symptom: `tools/regex` "colors own captu
 **Leading leads to pursue next:**
 - `_preSearchCache` (or `_mergedWordlistCache`) going **stale on a data change that doesn't change the stack** — data mutations (`addCustomWordlist`/fetch) call `invalidateWordlistCaches` + `repaintAfterCacheChange` but **not** `invalidatePreSearchCache`, which is only called on stack changes. A pipeline run that reuses a pre-search state computed from older data would emit a near-miss result. Start here.
 - A concurrent `addCustomWordlist` repaint run interacting with `setStack`'s run on the shared scroller / caches in a way the single-flight abort doesn't fully serialize.
+
+### #4 — Sort-axis `<select>` detached / not-ready under load — **OPEN (test-side)**
+
+`selectOption('#stats-bar-sort .sort-axis-select')` times out on webkit, the call log showing either "element was detached from the DOM, retrying" or "did not find some options." Seen on `tools` "grouped column sort tiebreaks" and "chains: min-score tiebreaks." The stats bar re-renders when the pipeline settles (a tool/group change rebuilds the available sort axes), so the `<select>` the test grabbed gets replaced — or its `<option>`s aren't populated yet — exactly as `selectOption` fires. Distinct from #3: this is a DOM-timing race on the control, not wrong pipeline output. Likely fix is test-side — wait for the expected `<option>` to be present (or set the sort via the test API) before selecting. Not yet attempted.
 
 ## How to reproduce
 
