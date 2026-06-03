@@ -52,7 +52,7 @@ test('welcome popup persists until dismissed and reopens from ?', async ({ page 
 
 test('welcome All count updates live while the dialog is open', async ({ page }) => {
   await page.goto('/');
-  const meta = page.locator('#welcome-dialog .wld-merged-card .card-meta');
+  const meta = page.locator('#welcome-dialog .welcome-merge-count');
   await expect(meta).toBeVisible();
   await expect(meta).toHaveText('0 entries');
 

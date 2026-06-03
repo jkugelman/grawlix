@@ -710,7 +710,16 @@ dialog h2 { font-size: 16px; margin-bottom: 14px; padding-right: 24px; }
 .welcome-shot:has(.welcome-shot-tools) { -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 44px), transparent); mask-image: linear-gradient(to right, #000 calc(100% - 44px), transparent); }
 .welcome-shot-inner { padding: 10px; }
 .welcome-shot-tools { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(150px, 1fr); gap: 8px; }
-.welcome-shot-wordlists { display: flex; flex-direction: column; gap: 5px; }
+.welcome-shot:has(.welcome-shot-merge) { -webkit-mask-image: none; mask-image: none; }
+.welcome-shot-merge { height: 100%; box-sizing: border-box; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 7px; padding: 8px; }
+.welcome-merge-sources { display: flex; flex-wrap: wrap; justify-content: center; gap: 7px; }
+.welcome-merge-sources .wordlist-icon { width: 20px; height: 20px; }
+.welcome-merge-arrow { color: var(--faint); }
+.welcome-merge-all { display: flex; flex-direction: column; align-items: center; }
+.welcome-merge-all-head { display: flex; align-items: center; gap: 6px; }
+.welcome-merge-all .wordlist-icon { width: 22px; height: 22px; }
+.welcome-merge-all-name { font-weight: 600; color: var(--text); font-size: 13px; }
+.welcome-merge-count { color: var(--muted); font-size: 12px; }
 .welcome-shot-storage { font-size: 12px; line-height: 1.7; }
 .welcome-folder-name { color: var(--text); }
 .welcome-folder-files { list-style: none; margin: 4px 0 0; padding-left: 16px; }
@@ -3188,15 +3197,13 @@ const SettingsDialog = (() => {
 
 const WelcomeDialog = (() => {
   const { el, body } = createDialog('welcome-dialog', { labelledby: 'welcome-title' });
-  const COUNTS = { jkugelman: 62000, nediger: 80000, xwi: 55000, stwl: 318000, broda: 210000 };
-
   // Without this the All count freezes at its open-time snapshot (~0 on a cold boot, before fetches populate the wordlists).
   effect(() => {
     sources$.get();
     cacheVersion$.get();
     if (!el.open) return;
-    const meta = el.querySelector('.wld-merged-card .card-meta');
-    if (meta) meta.textContent = pluralize(buildMergedWordlist().entries.length, 'entry', 'entries');
+    const count = el.querySelector('.welcome-merge-count');
+    if (count) count.textContent = pluralize(buildMergedWordlist().entries.length, 'entry', 'entries');
   });
 
   function render() {
@@ -3213,12 +3220,20 @@ const WelcomeDialog = (() => {
     const names = byPop.map(p => p.name);
     const nameList = `${names.slice(0, -1).join(', ')}, and ${names[names.length - 1]}`;
 
-    const wordlistShot =
-      buildMergedCardHTML(false) +
-      buildWordlistCardHTML(buildIconHTML(EDITS_ICON, 'My Edits', 'My Edits'), 'My Edits', pluralize(142, 'entry', 'entries'), {}) +
-      byPop.map(p =>
-        buildWordlistCardHTML(buildIconHTML(p.icon, p.name, colorSeed(p)), p.name, pluralize(COUNTS[p.id], 'entry', 'entries'), {})
-      ).join('');
+    const sourceIcons = byPop
+      .map(p => buildIconHTML(p.icon, p.name, colorSeed(p)))
+      .join('');
+
+    const wordlistShot = `
+      <div class="welcome-merge-sources">${sourceIcons}</div>
+      <svg class="welcome-merge-arrow" width="16" height="10" viewBox="0 0 16 10" aria-hidden="true"><path d="M2 2l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <div class="welcome-merge-all">
+        <div class="welcome-merge-all-head">
+          ${MERGED_ICON}
+          <span class="welcome-merge-all-name">${MERGED_NAME}</span>
+        </div>
+        <span class="welcome-merge-count">${pluralize(buildMergedWordlist().entries.length, 'entry', 'entries')}</span>
+      </div>`;
 
     const storageShot = `
       <div class="welcome-folder-name">📁 Grawlix</div>
@@ -3251,7 +3266,7 @@ const WelcomeDialog = (() => {
           <h3>Search multiple popular wordlists</h3>
           <p>${nameList} are at your fingertips. Grawlix rescores each onto a common scale.</p>
         </div>
-        <div class="welcome-shot" inert><div class="welcome-shot-inner welcome-shot-wordlists">${wordlistShot}</div></div>
+        <div class="welcome-shot" inert><div class="welcome-shot-inner welcome-shot-merge">${wordlistShot}</div></div>
       </section>
 
       <section class="welcome-feature">
