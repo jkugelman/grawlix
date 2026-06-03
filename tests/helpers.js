@@ -37,6 +37,10 @@ async function stubPublisherFetches(page, bodies = {}) {
 // (Workshop). Polls until init() has finished opening the IndexedDB so
 // callers can immediately call test-API functions that persist data.
 async function gotoApp(page, route = '/') {
+  // Suppress the first-boot welcome modal: as a showModal() dialog its backdrop
+  // would swallow clicks in every test. The welcome test in smoke.spec.js skips
+  // this helper to exercise the real first boot.
+  await page.addInitScript(() => localStorage.setItem('grawlix_welcomeSeen', '1'));
   await page.goto(route);
   // Don't wait on the busy overlay — it's removed synchronously by the boot
   // scaffolding when localStorage is empty, before init() even runs. _db

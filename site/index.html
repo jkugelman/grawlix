@@ -607,8 +607,7 @@ button.header-icon-btn:hover:not(:disabled) { background: var(--hdr-bg-dark); co
 @media (max-width: 899px) {
   .storage-label.visible { max-width: 0; margin-left: 0; opacity: 0; }
 }
-#btn-help { width: 32px; height: 32px; padding: 0; border-radius: 4px; background: none; cursor: not-allowed; }
-#btn-help:disabled { opacity: 1; }
+#btn-help { width: 32px; height: 32px; padding: 0; border-radius: 4px; background: none; }
 .icon { width: 20px; height: 20px; display: inline-flex; align-items: center; justify-content: center; }
 .help-circle { border-radius: 50%; background: white; color: var(--accent); font-size: 12px; font-weight: 800; }
 
@@ -698,6 +697,24 @@ dialog h2 { font-size: 16px; margin-bottom: 14px; padding-right: 24px; }
 .known-wordlist-name { font-size: 13px; font-weight: 600; }
 .known-wordlist-sub  { font-size: 11px; color: var(--muted); margin-top: 2px; }
 .dialog-footer { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--border2); display: flex; justify-content: flex-end; gap: 8px; }
+
+/* Welcome dialog */
+#welcome-dialog { width: 700px; }
+.welcome-feature { display: grid; grid-template-columns: 2fr 1fr; gap: 18px; align-items: center; margin-bottom: 20px; }
+.welcome-feature:last-of-type { margin-bottom: 0; }
+.welcome-feature:nth-of-type(even) { grid-template-columns: 1fr 2fr; }
+.welcome-feature:nth-of-type(even) .welcome-shot { order: -1; }
+.welcome-copy h3 { font-size: 14px; margin: 0 0 5px; color: var(--text); }
+.welcome-copy p { font-size: 13px; line-height: 1.5; color: var(--muted); margin: 0; }
+.welcome-shot { position: relative; height: 132px; overflow: hidden; border: 1px solid var(--border2); border-radius: 8px; background: var(--surface); pointer-events: none; user-select: none; -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 30px), transparent); mask-image: linear-gradient(to bottom, #000 calc(100% - 30px), transparent); }
+.welcome-shot:has(.welcome-shot-tools) { -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 44px), transparent); mask-image: linear-gradient(to right, #000 calc(100% - 44px), transparent); }
+.welcome-shot-inner { padding: 10px; }
+.welcome-shot-tools { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(150px, 1fr); gap: 8px; }
+.welcome-shot-wordlists { display: flex; flex-direction: column; gap: 5px; }
+.welcome-shot-storage { font-size: 12px; line-height: 1.7; }
+.welcome-folder-name { color: var(--text); }
+.welcome-folder-files { list-style: none; margin: 4px 0 0; padding-left: 16px; }
+.welcome-folder-files li { color: var(--muted); white-space: nowrap; }
 
 /* Import guide dialog */
 #import-guide-dialog { width: 480px; }
@@ -1253,7 +1270,7 @@ html.dark-mode .wld-onboarding { background: color-mix(in srgb, var(--accent) 15
     <div class="header-utility">
       <button id="btn-storage" class="header-icon-btn" aria-label="Storage" title="Storage"><span class="storage-label"></span><span class="storage-icon"><svg width="24" height="26" aria-hidden="true"><use href="#icon-hdd"/></svg><span class="storage-slash" aria-hidden="true"></span></span></button>
       <button id="btn-settings" class="header-icon-btn" aria-label="Settings" title="Settings"><svg width="24" height="24" aria-hidden="true"><use href="#icon-settings"/></svg></button>
-      <button id="btn-help" class="header-icon-btn" aria-label="Help (coming soon)" title="Help (coming soon)" disabled><span class="icon help-circle">?</span></button>
+      <button id="btn-help" class="header-icon-btn" aria-label="Welcome to Grawlix" title="Welcome to Grawlix"><span class="icon help-circle">?</span></button>
     </div>
   </div>
   <div class="header-subtitle">
@@ -2097,6 +2114,14 @@ function buildFolderNameHTML(name) {
 function buildToolLabelHTML({ icon, name }, suffix) {
   const suf = suffix ? `<span class="tool-row-name-suffix"> · ${esc(suffix)}</span>` : '';
   return `<span class="tool-label"><span class="icon tool-row-icon">${icon}</span> <span class="tool-row-name">${esc(name)}${suf}</span></span>`;
+}
+
+function buildFeaturedCardHTML(toolKey, tool) {
+  return `<div class="tool-card" data-tool="${esc(toolKey)}">
+    <div class="tool-card-name">${buildToolLabelHTML(tool)}</div>
+    <div class="tool-card-desc">${esc(tool.desc)}</div>
+    <div class="tool-card-example">${esc(tool.example)}</div>
+  </div>`;
 }
 
 const Collapsible = (() => {
@@ -3155,6 +3180,92 @@ const SettingsDialog = (() => {
       ofRegenTimer = setTimeout(() => { ofRegenTimer = null; regenerateFillOutputs(); }, OUTPUT_FORMAT_REGEN_DELAY);
     });
     showDialog(el, flushRegen);
+  }
+
+  return { open };
+})();
+
+// ─── Welcome dialog ───────────────────────────────────────────────────────────
+
+const WelcomeDialog = (() => {
+  const { el, body } = createDialog('welcome-dialog', { labelledby: 'welcome-title' });
+  const COUNTS = { jkugelman: 62000, nediger: 80000, xwi: 55000, stwl: 318000, broda: 210000 };
+
+  // Without this the All count freezes at its open-time snapshot (~0 on a cold boot, before fetches populate the wordlists).
+  effect(() => {
+    sources$.get();
+    cacheVersion$.get();
+    if (!el.open) return;
+    const meta = el.querySelector('.wld-merged-card .card-meta');
+    if (meta) meta.textContent = pluralize(buildMergedWordlist().entries.length, 'entry', 'entries');
+  });
+
+  function render() {
+    const toolsShot = FEATURED_TOOLS
+      .map(k => TOOLS[k] ? buildFeaturedCardHTML(k, TOOLS[k]) : '')
+      .join('');
+
+    const byPop = [...WORDLIST_PUBLISHERS].sort((a, b) => a.popularity - b.popularity);
+    const names = byPop.map(p => p.name);
+    const nameList = `${names.slice(0, -1).join(', ')}, and ${names[names.length - 1]}`;
+
+    const wordlistShot =
+      buildMergedCardHTML(false) +
+      buildWordlistCardHTML(buildIconHTML(EDITS_ICON, 'My Edits', 'My Edits'), 'My Edits', pluralize(142, 'entry', 'entries'), {}) +
+      byPop.map(p =>
+        buildWordlistCardHTML(buildIconHTML(p.icon, p.name, colorSeed(p)), p.name, pluralize(COUNTS[p.id], 'entry', 'entries'), {})
+      ).join('');
+
+    const storageShot = `
+      <div class="welcome-folder-name">📁 Grawlix</div>
+      <ul class="welcome-folder-files">
+        <li>📄 All rescored.txt</li>
+        <li>📄 <strong>My Edits.txt</strong></li>
+        <li>📄 Spread the Word(list) rescored.txt</li>
+        <li>📄 Will Nediger.txt</li>
+        <li>📄 Peter Broda.txt</li>
+      </ul>`;
+
+    const diskCaveat = Disk.isSupported() ? ''
+      : !window.matchMedia('(hover: hover) and (pointer: fine)').matches ? ' (Desktop only)'
+      : ' (Chrome only)';
+
+    body.innerHTML = `
+      <button type="button" class="dialog-close-btn" aria-label="Close">✕</button>
+      <h2 id="welcome-title">Welcome to Grawlix</h2>
+
+      <section class="welcome-feature">
+        <div class="welcome-copy">
+          <h3>Hunt for theme ideas</h3>
+          <p>Comb your wordlist with anagrams, letter banks, palindromes, regex, and a few dozen more tools. Chain them together to take searching to the next level.</p>
+        </div>
+        <div class="welcome-shot" inert><div class="welcome-shot-inner welcome-shot-tools">${toolsShot}</div></div>
+      </section>
+
+      <section class="welcome-feature">
+        <div class="welcome-copy">
+          <h3>Access multiple popular wordlists</h3>
+          <p>Search across ${nameList}. Grawlix rescores each onto a shared scale and merges them into one combined list.</p>
+        </div>
+        <div class="welcome-shot" inert><div class="welcome-shot-inner welcome-shot-wordlists">${wordlistShot}</div></div>
+      </section>
+
+      <section class="welcome-feature">
+        <div class="welcome-copy">
+          <h3>Sync into your construction software</h3>
+          <p>Save to a folder on disk and point Crossfire, Ingrid, or Crossword Compiler at the same file. Edits flow both ways, automatically.${diskCaveat}</p>
+        </div>
+        <div class="welcome-shot" inert><div class="welcome-shot-inner welcome-shot-storage">${storageShot}</div></div>
+      </section>
+
+      <div class="dialog-footer">
+        <button type="button" class="primary dialog-cancel-btn" autofocus>Get started</button>
+      </div>`;
+  }
+
+  function open() {
+    render();
+    showDialog(el, () => lsSave('welcomeSeen', '1'));
   }
 
   return { open };
@@ -4747,6 +4858,7 @@ async function init() {
   }
   bindEvents();
   refreshStorageButton();
+  if (!lsLoad('welcomeSeen')) WelcomeDialog.open();
   checkForUpdates();
   setInterval(checkForUpdates, UPDATE_CHECK_INTERVAL);
 
@@ -6873,14 +6985,6 @@ const ToolStack = (() => {
       return `<div class="gallery-section-label">${esc(cat.label)}</div>` +
              cards.map(([key, tool]) => buildGalleryCardHTML(key, tool)).join('');
     }).join('');
-  }
-
-  function buildFeaturedCardHTML(toolKey, tool) {
-    return `<div class="tool-card" data-tool="${esc(toolKey)}">
-      <div class="tool-card-name">${buildToolLabelHTML(tool)}</div>
-      <div class="tool-card-desc">${esc(tool.desc)}</div>
-      <div class="tool-card-example">${esc(tool.example)}</div>
-    </div>`;
   }
 
   function buildFeaturedRowHTML() {
@@ -9746,10 +9850,10 @@ function refreshLibrarySeverityBadges() {
     row.querySelector('.badge')?.remove();
     if (severity) row.insertAdjacentHTML('beforeend', buildBadgeHTML(severity, { title: severityTitle(severity) }));
   };
-  for (const card of document.querySelectorAll('.wordlist-card[data-wordlist]')) {
+  for (const card of document.querySelectorAll('#wld-list-body .wordlist-card[data-wordlist]')) {
     setRowBadge(card.querySelector('.card-name-row'), wordlistSeverity(card._wordlist));
   }
-  setRowBadge(document.querySelector('.wld-merged-card .card-name-row'), allSeverity());
+  setRowBadge(document.querySelector('#wld-list-body .wld-merged-card .card-name-row'), allSeverity());
   const { severity, count } = libraryNavBadge();
   MainView?.setSeverityBadge('library', severity, count, severityTitle(severity));
 }
@@ -10955,6 +11059,7 @@ function bindEvents() {
   document.querySelector('.header-logo-link').href = location.pathname;
   document.getElementById('btn-settings').onclick = () => SettingsDialog.open();
   document.getElementById('btn-storage').onclick  = () => StorageDialog.open();
+  document.getElementById('btn-help').onclick     = () => WelcomeDialog.open();
   const isDesktopLike = window.matchMedia('(hover: hover) and (pointer: fine)').matches;
   if (!Disk.isSupported() && !isDesktopLike) document.getElementById('btn-storage').hidden = true;
 
