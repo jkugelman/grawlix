@@ -479,8 +479,7 @@ test('chain sort axis swap: min-score → max-score reorders rows', async ({ pag
   }).toEqual([['devil', 'lived'], ['evil', 'live']]);                   // min 70 top, min 10 bottom
 
   await page.locator('#stats-bar-sort .sort-axis-select').selectOption('max-score');
-  await page.locator('#stats-bar-sort .sort-dir-btn').click();
-  await expect.poll(async () => (await readVisible(page))[0]).toEqual(['evil', 'live']);   // max 99 (top)
+  await expect.poll(async () => (await readVisible(page))[0]).toEqual(['evil', 'live']);   // max 99 (top, desc carries over)
 });
 
 // Adding or removing a transform shifts the sort tier, swapping the available

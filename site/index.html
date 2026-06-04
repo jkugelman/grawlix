@@ -4529,7 +4529,6 @@ const LibraryView = (() => {
   function onSortAxis(key) {
     if (!LIBRARY_SORT_AXES[key] || _sortKey === key) return;
     _sortKey = key;
-    _sortDir = 'asc';
     refreshSortControls();
     _entriesScroller?.setSort(_sortKey, _sortDir);
   }
@@ -8334,7 +8333,6 @@ class WorkshopEntriesScroller extends BaseVirtualScroller {
       const key = e.target.value;
       if (this.sortKey !== key) {
         this.sortKey = key;
-        this.sortDir = 'asc';
         WorkshopView.setSort(this.sortKey, this.sortDir);
         this._buildToolbar();
         this._sortAndRender();
