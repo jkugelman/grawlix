@@ -19,6 +19,7 @@ One row per `npm test` (or `--project=webkit`) run that produced failures.
 
 | Date | Command | Result | Tree state | Failures |
 |------|---------|--------|------------|----------|
+| 2026-06-04 | CI run `26925163791` | webkit 1 flaky (passed on retry); ch/ff clean | post boot-race fix | stats-bar-layout "hides Min/Max first, then the histogram" — the read after `setViewportSize` raced `refreshStatsBarOverflow`'s ResizeObserver. Fixed test-side: poll the visibility shape to a settle (`expectStatsShape`). |
 
 ## Gotchas
 

@@ -33,11 +33,22 @@ async function seedWordlist(page) {
   }));
 }
 
+// Poll the stats bar's responsive visibility to a settle. setViewportSize
+// drives the show/hide through refreshStatsBarOverflow's ResizeObserver, which
+// fires a task after the resize — a single read races it (the webkit flake).
+async function expectStatsShape(page, shape) {
+  await expect.poll(async () => {
+    const b = await statsBarBoxes(page);
+    return { min: b.min !== null, max: b.max !== null, histogram: b.histogram !== null };
+  }).toEqual(shape);
+}
+
 test.describe('Workshop stats bar layout', () => {
   test('at iPhone width: stats-bar sections do not overlap', async ({ page }) => {
     await page.setViewportSize({ width: 375, height: 667 });
     await gotoApp(page);
     await seedWordlist(page);
+    await expectStatsShape(page, { min: false, max: false, histogram: false });
 
     const b = await statsBarBoxes(page);
 
@@ -54,21 +65,12 @@ test.describe('Workshop stats bar layout', () => {
     await gotoApp(page);
     await seedWordlist(page);
 
-    let b = await statsBarBoxes(page);
-    expect(b.min).not.toBeNull();
-    expect(b.max).not.toBeNull();
-    expect(b.histogram).not.toBeNull();
+    await expectStatsShape(page, { min: true, max: true, histogram: true });
 
     await page.setViewportSize({ width: 600, height: 800 });
-    b = await statsBarBoxes(page);
-    expect(b.min).toBeNull();
-    expect(b.max).toBeNull();
-    expect(b.histogram).not.toBeNull();
+    await expectStatsShape(page, { min: false, max: false, histogram: true });
 
     await page.setViewportSize({ width: 375, height: 667 });
-    b = await statsBarBoxes(page);
-    expect(b.min).toBeNull();
-    expect(b.max).toBeNull();
-    expect(b.histogram).toBeNull();
+    await expectStatsShape(page, { min: false, max: false, histogram: false });
   });
 });
