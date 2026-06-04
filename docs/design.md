@@ -161,7 +161,7 @@ The matcher compiles to a regex (`buildSearchPattern`). Bare-letter tokens expan
 
 **Space out and rich displays.** Space out emits the joined display (e.g. `a barrel of laughs`) and the executor looks it up against the merged wordlist's `byNorm` to recover real metadata. With rich sources providing the spaced form directly (`A BARREL OF LAUGHS` already an entry), the lookup hits the rich row and the atom inherits its score, comment, and source. For a passthrough — the segmenter's best split is the original input — the tool short-circuits before any lookup and reuses the input entry directly.
 
-**Schema version bumped to 6.** The wlEntry shape change (`entry` → `{norm, display}`) is a stored-data format change, so the schema-mismatch reset prompt covers existing users.
+**The wlEntry shape** (`entry` → `{norm, display}`) is a stored-data format change, so it's gated by `SCHEMA_VERSION` — see [`migration.md`](migration.md).
 
 ### Disk storage
 
@@ -181,7 +181,7 @@ Disk storage lets the user pick a folder on their hard drive; from then on Grawl
 
 The rescored suffix is a leading space — `XWI rescored.txt` rather than `XWI-rescored.txt`. Reads more naturally in file pickers; hyphens look like they're encoding a special token, spaces just look like a label.
 
-**`grawlix.json`** carries everything except wordlist content — sources array, `state.scoring`, `state.scoringDirty`, `mergedSettings`, `schemaVersion`. The schema version follows the same wipe-on-mismatch policy as IDB's: a folder written by a different Grawlix schema is refused with an explanatory dialog rather than tolerated. Disk and IDB stay venue-symmetric; the wipe policy flips to layered migration when shared links and synced folders make it load-bearing — see [`planned/migration.md`](planned/migration.md).
+**`grawlix.json`** carries everything except wordlist content — sources array, `state.scoring`, `state.scoringDirty`, `mergedSettings`, `schemaVersion`. The schema version is checked the same way IDB's is — disk and IDB stay venue-symmetric. A folder written by an older schema is migrated forward in place (`migrateCacheInPlace`, then the cache is rewritten); one written by a *newer* or otherwise un-migratable schema is refused with an explanatory dialog — the floor. See [`migration.md`](migration.md).
 
 **Sort on save; raw files unchanged.** When Grawlix writes a rescored file or `All rescored.txt`, entries are sorted alphabetically by `norm` via a shared `sortedEntries` helper. Raw wordlist files preserve insertion / import order verbatim — they round-trip as the user (or publisher) wrote them. The lone exception is `My Edits.txt`, which sorts on persist: it has no rescored variant (rescore rules don't apply to user-typed entries), and a sorted file is easier to scan in an editor.
 

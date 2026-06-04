@@ -21,12 +21,12 @@ Design and manual:
 - [`docs/manual.md`](docs/manual.md) — user-facing manual. Update when shipping user-facing changes.
 - [`docs/style.md`](docs/style.md) — coding-style conventions: CSS, JS, Markdown, terminology, commit messages. Read before formatting changes.
 - [`docs/testing.md`](docs/testing.md) — Playwright smoke suite handbook + strategy. Read before adding/modifying tests.
+- [`docs/migration.md`](docs/migration.md) — storage migration policy: every `SCHEMA_VERSION` bump registers a `MIGRATIONS` step that carries data forward (no more wipe-on-mismatch); the reset prompt survives only as the floor.
 - [`docs/tools.md`](docs/tools.md) — **single source of truth for the tool catalog**: every shipped and planned tool, with its card's icon, name, description, example, and implementation status. `design.md`, `manual.md`, and `planned/tools.md` all defer to it. Read before adding, renaming, or recategorizing any tool.
 - [`docs/wordlisted.md`](docs/wordlisted.md) — reference catalogue of Wordlisted's search modes; source material for the tool gallery.
 
 Plans (forward-looking, not yet shipped):
 - [`docs/planned/help.md`](docs/planned/help.md) — separating welcome tour from returning-user reference manual.
-- [`docs/planned/migration.md`](docs/planned/migration.md) — when to graduate from schema-version resets to layered migrations.
 - [`docs/planned/tools.md`](docs/planned/tools.md) — runtime support sequencing, gallery polish (category picker, search), result download, tool API extensions (indexed lookups, annotations, escape hatches), open questions. The chain-row pipeline (executor, per-row tool API, symmetric unification, search-as-tool, per-atom-count sort, highlights) and the group-row model (group tools, group rows, the +N-more reveal) are shipped — see `design.md`. The tool catalog itself lives in `docs/tools.md`.
 
 Future (longer-horizon ideas, not actively planned):
@@ -76,9 +76,11 @@ ENTRY;SCORE;COMMENT
 
 **Never store generated code (HTML, SVG markup) in localStorage or IndexedDB — store the parameters and render at read time.** Otherwise users with stale data continue to render with the old code shape after you change the renderer.
 
-**Bump `SCHEMA_VERSION` when you change the shape of stored data.** Any change to `meta`'s field formats, the descriptor objects it contains, default values set only on first boot, or the IDB entry shape requires a bump. On load, a mismatch between the stored version and `SCHEMA_VERSION` prompts the user to reset their local data; without the bump, they'll silently load incompatible data and the app will misbehave.
+**Bump `SCHEMA_VERSION` and ship a migration when you change the shape of stored data.** Any change to `meta`'s field formats, the descriptor objects it contains, default values set only on first boot, or the IDB / `grawlix.json` record shape requires a bump. Grawlix is in beta with real users, so register a `MIGRATIONS` step (keyed by the *from* version) — plus a frozen before→after fixture test, always — that upgrades existing data in place rather than letting the version-mismatch dialog wipe it. The reset prompt is now only a last-resort floor (data newer than this code, older than the squash horizon, or corrupt) — see [`docs/migration.md`](docs/migration.md). Without the bump, old and new code silently disagree about the stored shape and the app misbehaves.
 
-**No migration, cleanup, or compatibility code pre-launch.** This is venue-agnostic — applies to localStorage, IndexedDB, *and* URL routing. When you remove a feature, rename a stored field, drop a URL key, or otherwise strand existing data or shared links, just make the change cleanly. Don't `lsDel` orphaned localStorage keys to garbage-collect them. Don't write IndexedDB migration runners or tolerate-then-drop old shapes in the parser. Don't register URL alias tables for renamed tool slugs or fall-through routes for the old form. The user clears their own storage and re-shares their own links if they care. The `SCHEMA_VERSION` wipe prompt is the *one* compatibility mechanism that earns its keep today; everything else is dead weight for a userbase that doesn't exist yet. See [`docs/planned/migration.md`](docs/planned/migration.md) (storage) and [`docs/design.md`](docs/design.md) § *Stable links* (URL keys) for when each policy flips.
+**Migrate stored data; don't wipe it, and keep the parser strict.** localStorage and IndexedDB are past the pre-launch "just reset everyone" policy — schema changes migrate forward (above). Migrations upgrade the stored blob *before* parse, so `wordlistFromMeta` and the rest of the read path only ever see the current shape — never tolerate-then-drop old shapes inline. Cleanup-for-its-own-sake still isn't worth it: don't `lsDel` orphaned localStorage keys to garbage-collect them; an unused key costs nothing.
+
+**URL routing is still pre-launch-clean.** Shared-link stability has *not* flipped. When you rename or drop a tool slug or URL key, just make the change cleanly — don't register alias tables or fall-through routes for the old form. A user re-shares their own link if they care; a broken link doesn't destroy data the way a storage wipe would. See [`docs/design.md`](docs/design.md) § *Stable links* for when this policy flips too.
 
 ## Key concepts
 

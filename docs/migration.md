@@ -1,0 +1,118 @@
+# Storage migration strategy
+
+## Policy
+
+Grawlix is in beta with real users, so **stored data is migrated forward on every schema change — never wiped.** When you change the shape of `localStorage.meta`, an IndexedDB record, or a `grawlix.json` field, bump `SCHEMA_VERSION` (in `site/index.html`) *and* register a `MIGRATIONS` step that upgrades existing data in place. A bump with no migration is a bug.
+
+This reverses the pre-beta policy, under which a bump just triggered a confirm dialog offering to wipe all local data. That was the right call when no user had data worth keeping and writing migration code cost more than a wipe. The trigger we always named for flipping it — *the first user with data they'd be upset to lose* (a custom-rescored wordlist, hand-edited entries, a personalized rule set) — has fired. Beta testers have that data now.
+
+The reset prompt stays, but only as a last-resort *floor* — see below.
+
+## How it works
+
+`SCHEMA_VERSION` is compared on load against the stored version — `localStorage.schemaVersion` in IDB mode, the `schemaVersion` field of `grawlix.json` in disk mode. The load path:
+
+1. Equal → proceed.
+2. Stored version older, within the migration horizon → run each `MIGRATIONS` step from the stored version up to current over the settings blob, stamp the new version, proceed. Both venues run the same chain.
+3. Migration fails, the stored version predates the horizon, or the stored version is *newer* than this code → fall back to the floor.
+
+Migrations upgrade the stored blob *before* it's parsed, so `wordlistFromMeta` and the rest of the read path only ever see the current shape — no tolerate-then-drop branches scattered through the parser.
+
+## Reset is the floor
+
+Migration handles the common case — a store a step or few behind current. The floor exists for the cases it can't carry:
+
+- **Data newer than the code.** A stale CDN cache or a second device on an older deploy can hand this Grawlix a `schemaVersion` *above* `SCHEMA_VERSION`. Migrations only run forward; you can't downgrade a shape. (The disk backend already refuses this — the check is `schemaVersion !== SCHEMA_VERSION`, an inequality in both directions.)
+- **Data older than the squash horizon.** Once old migrations are deleted (below), a store from before the oldest surviving migration can't be walked forward.
+- **Migration failure or corruption.** A migration step that throws, or stored data malformed regardless of version.
+
+When `canMigrate` returns false the load path falls to the floor: IDB mode shows a reset confirm in `init()` ("Grawlix's data format has changed… The site may not work correctly until reset.", **Reset** / **I'll take my chances**); disk mode refuses the folder with an alert (`loadDiskCache`, `openMergeDialog`). **Demote the floor, never delete it** — without it the first un-migratable store has no guard at all.
+
+## Cost of migrations
+
+Per bump:
+- Add a `MIGRATIONS[v]` step, keyed by the *from* version.
+- Add its before→after fixture test (see *Testing migrations*). Buggy migrations *silently corrupt* data, which is worse than losing it — the reset prompt at least announces itself.
+- Keep both until squashed (below).
+
+Amortize: batch related schema changes into a single bump rather than one bump per tweak.
+
+## The hidden cost
+
+The moment the first migration exists, every field in `meta` becomes load-bearing. Renaming `originalFilename` to `sourceFilename` stops being a free refactor and becomes "write a migration." That discipline is good — it forces you to think before churning storage shapes — but it does slow you down.
+
+Be especially conservative with the *shape* of nested objects (rescore rules, icon descriptors, scoring tiers). Adding a top-level field is cheap; restructuring a nested array is expensive.
+
+## Testing migrations
+
+**Every migration ships with a permanent before→after test, and those tests aren't deleted casually — only when their version is squashed.** This is the one place Grawlix's otherwise-lean *[regression budget — not automatic](testing.md)* policy flips to *always test*: a migration must transform real historical data correctly *forever*, long after the code around it has moved on.
+
+The trap a normal test misses: a `MIGRATIONS[v]` step leans on the blob shape current at the time, and often on shared helpers. When those churn later — a field renamed, a helper's behavior changed, the blob restructured — an old step can silently start producing wrong output, and nothing notices, because no current code path feeds it old data anymore. A test that builds *current* data and migrates it proves nothing about the step that runs on *v-era* data. Only a **frozen fixture** catches the regression.
+
+So, per version:
+
+- **Before** — a real settings blob captured at version `v`, the exact shape that version persisted, pasted in verbatim and never edited again. Capture it from an actual `grawlix.json` / `localStorage.meta` at that version; don't synthesize it from current code, or it drifts with the code and stops testing anything.
+- **After** — the expected blob once walked to the current schema.
+- Assert `migrateSettings(structuredClone(before), v)` deep-equals `after`. Clone so a re-run doesn't mutate the fixture in place.
+
+Drive these through `window.__grawlixTest` (expose `migrateSettings` / `MIGRATIONS` there the way the bridge wraps other internals). This is the rare case where asserting the data shape directly — rather than a user-visible outcome, as the suite normally insists — is correct: a migration's entire contract *is* the stored shape, and a wrong shape fails silently.
+
+Add, separately, **one or two integration tests through the real boot** — seed an old-version `localStorage.meta` (or an old `grawlix.json`), reload, and assert the migrated state lands, persists, and stamps the new version; and that a *newer* or un-migratable version hits the floor instead. These cover the venue adapters, the disk re-persist, and the floor wiring — once, not per version.
+
+Squashing a migration (deleting `MIGRATIONS[v]`) deletes its fixture test in the same commit — which makes the squash, and the data it strands, visible in the diff rather than silent rot.
+
+## Squashing old migrations
+
+Bounded growth — the universal pattern is to delete migrations older than ~6–12 months and route those users through the floor. Someone who hasn't opened the app in a year loses their data; that's a tradeoff every long-lived app makes. The horizon is what step 3 above means by "predates the horizon."
+
+## Version history
+
+You need to know what each version meant — both to write the right migration step and to know when a version is old enough to squash. Keep a comment block above `SCHEMA_VERSION` listing each bump with its date and what changed. Don't encode the date *in* the version number (e.g. `20260505`) — comparison gets ugly, two bumps in one day collide, and you still need the table anyway.
+
+```js
+// Schema version history:
+//   ≤9: pre-migration-policy baseline; a store this old hits the reset floor.
+//   v10 (YYYY-MM-DD): <first migrated bump — what changed>
+const SCHEMA_VERSION = 9;
+```
+
+Versions through 9 predate this policy and have no `MIGRATIONS` steps, so a pre-v10 store hits the floor. v10 — the first schema change after this decision — is the first that must register one.
+
+## When the config diverges but the shape doesn't (unsolved)
+
+`SCHEMA_VERSION` answers exactly one question: *can old code read this stored data?* That's about **shape**. There's a second, unrelated way persisted data goes stale that the version counter does not address and should not: a value in `WORDLIST_PUBLISHERS` changes while the shape of `meta` stays identical. Two concrete cases:
+
+- **Updating a publisher setting** — e.g. giving a publisher a `url` it didn't have. This is real history: Will Nediger's list went from import-only to auto-fetched purely by setting `url`. Pre-beta we bumped `SCHEMA_VERSION` for it as a shortcut, since the wipe re-ran `defaultSources()` and re-seeded the new value for free. That shortcut is gone — a bump now migrates rather than wipes, so it no longer re-seeds config, and bumping to push a setting was always an abuse of the counter anyway.
+- **Adding a new publisher wordlist** to the catalog.
+
+Neither is a shape change. `url` is a field that already exists; a new publisher is purely additive. Old code reads the new data and new code reads the old data either way. So `SCHEMA_VERSION` is the wrong tool: a migration carries shape forward, it doesn't re-seed publisher config.
+
+The mechanics that make this its own problem:
+
+- `defaultSources()` runs **only** on first boot (no stored `meta`). Returning users rebuild `state.sources` from `meta` via `wordlistFromMeta` — the publisher config's `url` / `name` / `icon` never re-seed them.
+- `propagateDefaults()` is the *only* thing that pushes config changes into existing users' sources on each boot, and it covers **only `rescoreRules` and `state.scoring`**, only for non-dirty sources. It does not propagate `url` (or any other field), and it does not *add* publishers that aren't already present.
+
+So a publisher-config change reaches existing users only if we explicitly reconcile it. Two directions, neither committed:
+
+- **Reconcile in code** — extend `propagateDefaults()` (or a layered migration per above) to bring the changed field forward / inject the new source disabled-by-default. Non-destructive; not a `SCHEMA_VERSION` bump. `propagateDefaults()`'s existing rule propagation is the working template.
+- **Socialize** — ship the config so new users get it; tell existing users to re-add or re-enable. Their stored data is untouched.
+
+Wrinkles to weigh when we pick a direction:
+
+- `url` has no `dirty` bit the way rules do. A user may have deliberately imported a file into a publisher-backed wordlist, which clears `url` (a wordlist is auto-fetch *or* file-based, not both) — naive propagation would clobber that choice.
+- Setting `url` on an unpopulated source trips the boot auto-fetch (`filter(l => l.url && !l.populated)`), so the user gets an unprompted multi-MB download.
+- Adding a wordlist is the safe end of the spectrum — purely additive, can't corrupt anything — so injecting new publishers disabled-by-default is low-risk if we choose to.
+
+No solution yet; this is documented so future-us recognizes it as distinct from a schema bump rather than reaching for the version counter again.
+
+## The runner
+
+`MIGRATIONS` (in `site/index.html` near `SCHEMA_VERSION`) maps a *from* version to a step that mutates a settings blob in place. `canMigrate(from)` checks every step from `from` up to current exists; `migrateSettings(blob, from)` walks them. Two venue adapters drive it:
+
+- **IDB** — `migrateLocalStorage(from)`, called from the `init()` mismatch branch, assembles the blob from the separate localStorage keys, migrates, writes them back, and stamps the new version. On a thrown step it returns false untouched and the floor's reset confirm takes over.
+- **Disk** — `migrateCacheInPlace(cache)`, called from `loadDiskCache` (silent boot) and `openMergeDialog` (connect-to-existing-folder), migrates the `grawlix.json` cache object directly, since it already *is* the blob shape. `loadDiskCache` then **persists** the migrated cache immediately — an unpersisted, non-idempotent step would re-run every boot; `openMergeDialog` lets `applyMerge` write the fresh `grawlix.json`.
+
+Two things the runner deliberately doesn't do:
+
+- **Wordlist text.** `MIGRATIONS` steps transform settings only. A change to the stored text format (the `ENTRY;SCORE;COMMENT` lines, or the parsed wlEntry shape) needs an async per-wordlist pass that reads, transforms, and rewrites each wordlist's text — add that machinery when a text-format change first demands it.
+- **Squashing.** No cutoff is enforced yet — every version from the start of the policy is still notionally walkable because none has been deleted. Set the horizon (and route older stores to the floor) once the migration list is long enough to be worth pruning.

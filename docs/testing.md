@@ -19,6 +19,8 @@ The suite covers what manual testing structurally misses. Manual already catches
 
 **Regression budget — not automatic.** When a bug is fixed, ask: seam, or typo in bounded code? Seam earns a test; typo doesn't. Pre-launch refactor-heavy phase makes "every bug gets a test" the wrong default — it locks the codebase against changes that need to happen.
 
+**The one always-test exception: schema migrations.** Every `MIGRATIONS` step ships a permanent before→after fixture test, no judgment call. A migration must keep transforming *historical* data correctly forever, and only a frozen old-version fixture catches a step that later code churn silently breaks. See [`migration.md` § Testing migrations](migration.md#testing-migrations).
+
 **AI-coded caveat.** AI writes and updates tests cheaply, so the suite can grow without much keystroke tax. The subtler cost: AI biases toward "make the test pass," which means a broken assertion gets adjusted instead of investigated. Write assertions where adjusting them is obviously suspicious — see *Strategy* below.
 
 ## Strategy

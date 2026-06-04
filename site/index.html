@@ -2538,9 +2538,43 @@ function lsSave(key, value) {
 function lsLoad(key) { return localStorage.getItem(LS_PREFIX + key); }
 function lsDel(key)  { localStorage.removeItem(LS_PREFIX + key); }
 
-// Bump when the shape of stored data (localStorage `meta`, IDB entries) changes
-// in a way that older code can't read. Mismatch on load triggers a reset prompt.
+// Bump when the shape of stored data (localStorage `meta`, IDB entries, or
+// grawlix.json) changes, and register a MIGRATIONS[N] step in the same commit:
+// a bump without one routes every existing user to the reset/refuse floor.
+// See docs/migration.md.
+//
+// Schema version history:
+//   ≤9: pre-migration-policy baseline; a store this old hits the reset floor.
 const SCHEMA_VERSION = 9;
+
+// MIGRATIONS[v] upgrades a settings blob from schema v to v+1, mutating it in
+// place (a returned value is ignored). The blob is the grawlix.json shape —
+// { sources, scoring, scoringDirty, mergedSettings } — which IDB mode assembles
+// from its separate localStorage keys; migrations target that, never raw storage.
+const MIGRATIONS = {
+  // 9: blob => { for (const w of blob.sources) upgradeIconInPlace(w); },
+};
+
+function canMigrate(from) {
+  if (!Number.isFinite(from) || from > SCHEMA_VERSION) return false;
+  for (let v = from; v < SCHEMA_VERSION; v++) if (!MIGRATIONS[v]) return false;
+  return true;
+}
+
+function migrateSettings(blob, from) {
+  for (let v = from; v < SCHEMA_VERSION; v++) MIGRATIONS[v](blob); // canMigrate(from) must hold
+  return blob;
+}
+
+function migrateCacheInPlace(cache) {
+  if (!canMigrate(cache.schemaVersion)) return false;
+  try { migrateSettings(cache, cache.schemaVersion); }
+  catch (err) { console.error('migration failed', err); return false; }
+  cache.schemaVersion = SCHEMA_VERSION;
+  // Caller must persist grawlix.json next — an unpersisted non-idempotent
+  // migration re-runs (and re-corrupts) on the following boot.
+  return true;
+}
 
 // IndexedDB for large wordlist data (localStorage has ~5MB limit)
 const IDB_NAME  = 'grawlix';
@@ -2647,6 +2681,23 @@ const IdbBackend = {
     });
   },
 };
+
+function migrateLocalStorage(from) {
+  const scoring = IdbBackend.readScoring();
+  const blob = {
+    sources:        IdbBackend.readMeta(),
+    scoring:        scoring?.scoring ?? null,
+    scoringDirty:   scoring?.dirty ?? false,
+    mergedSettings: IdbBackend.readMergedSettings(),
+  };
+  try { migrateSettings(blob, from); }
+  catch (err) { console.error('migration failed', err); return false; }
+  IdbBackend.writeMeta(blob.sources);
+  if (blob.scoring) IdbBackend.writeScoring(blob.scoring, blob.scoringDirty);
+  IdbBackend.writeMergedSettings(blob.mergedSettings);
+  IdbBackend.setSchemaVersion(SCHEMA_VERSION);
+  return true;
+}
 
 const DISK_HANDLE_IDB_KEY = '_diskFolderHandle';
 const GRAWLIX_JSON_NAME   = 'grawlix.json';
@@ -3411,7 +3462,7 @@ const StorageDialog = (() => {
       return 'retry';
     }
 
-    if (folderSettings.schemaVersion !== SCHEMA_VERSION) {
+    if (folderSettings.schemaVersion !== SCHEMA_VERSION && !migrateCacheInPlace(folderSettings)) {
       await showAlert(`This folder was written with a different version of Grawlix (schema ${folderSettings.schemaVersion}; this Grawlix expects ${SCHEMA_VERSION}). Storage isn't compatible.`);
       return 'retry';
     }
@@ -3728,8 +3779,11 @@ async function loadDiskCache(handle) {
   try { cache = JSON.parse(text); }
   catch { return null; }
   if (cache.schemaVersion !== SCHEMA_VERSION) {
-    await showAlert(`This folder was written with a different version of Grawlix (schema ${cache.schemaVersion}; this Grawlix expects ${SCHEMA_VERSION}). Storage isn't compatible.`);
-    return null;
+    if (!migrateCacheInPlace(cache)) {
+      await showAlert(`This folder was written with a different version of Grawlix (schema ${cache.schemaVersion}; this Grawlix expects ${SCHEMA_VERSION}). Storage isn't compatible.`);
+      return null;
+    }
+    await Disk.writeFile(handle, GRAWLIX_JSON_NAME, JSON.stringify(cache, null, 2));
   }
   return cache;
 }
@@ -4833,12 +4887,14 @@ async function init() {
   const storedSchema = Storage.schemaVersion();
   const hasOldData   = Storage.hasData();
   if (hasOldData && storedSchema !== SCHEMA_VERSION) {
-    const reset = await showConfirm(
-      `Grawlix's data format has changed since your last visit. The site may not work correctly until reset.`,
-      { confirmText: 'Reset', cancelText: 'I\'ll take my chances' }
-    );
-    if (reset) {
-      await resetAllDataAndReload();
+    if (!(canMigrate(storedSchema) && migrateLocalStorage(storedSchema))) {
+      const reset = await showConfirm(
+        `Grawlix's data format has changed since your last visit. The site may not work correctly until reset.`,
+        { confirmText: 'Reset', cancelText: 'I\'ll take my chances' }
+      );
+      if (reset) {
+        await resetAllDataAndReload();
+      }
     }
   } else if (!hasOldData) {
     Storage.setSchemaVersion(SCHEMA_VERSION);
