@@ -1,13 +1,9 @@
-const { test, expect } = require('@playwright/test');
-const { stubPublisherFetches, gotoApp } = require('../helpers');
+const { test } = require('@playwright/test');
+const { stubPublisherFetches, gotoApp, expectVisible } = require('../helpers');
 
 test.beforeEach(async ({ page }) => {
   await stubPublisherFetches(page);
 });
-
-async function visible(page) {
-  return page.evaluate(() => window.__grawlixTest.getVisibleEntries());
-}
 
 test('keeps entries whose halves are anagrams of each other', async ({ page }) => {
   await gotoApp(page);
@@ -18,7 +14,7 @@ test('keeps entries whose halves are anagrams of each other', async ({ page }) =
   }));
   await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'neckouts' }]));
 
-  expect((await visible(page)).sort()).toEqual(['intestines', 'stuckonesneckout']);
+  await expectVisible(page, ['intestines', 'stuckonesneckout']);
 });
 
 test('a repeater (halves identical) is excluded — that is a different tool', async ({ page }) => {
@@ -30,7 +26,7 @@ test('a repeater (halves identical) is excluded — that is a different tool', a
   }));
   await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'neckouts' }]));
 
-  expect(await visible(page)).toEqual(['intestines']);
+  await expectVisible(page, ['intestines'], { ordered: true });
 });
 
 test('odd-length entries are excluded — a neckout requires even length', async ({ page }) => {
@@ -42,7 +38,7 @@ test('odd-length entries are excluded — a neckout requires even length', async
   }));
   await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'neckouts' }]));
 
-  expect(await visible(page)).toEqual(['intestines']);
+  await expectVisible(page, ['intestines'], { ordered: true });
 });
 
 test('halves with different letter multisets are dropped', async ({ page }) => {
@@ -54,5 +50,5 @@ test('halves with different letter multisets are dropped', async ({ page }) => {
   }));
   await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'neckouts' }]));
 
-  expect(await visible(page)).toEqual(['intestines']);
+  await expectVisible(page, ['intestines'], { ordered: true });
 });

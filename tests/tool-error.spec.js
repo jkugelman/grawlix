@@ -1,5 +1,5 @@
 const { test, expect } = require('@playwright/test');
-const { stubPublisherFetches, gotoApp } = require('./helpers');
+const { stubPublisherFetches, gotoApp, expectVisible } = require('./helpers');
 
 test.beforeEach(async ({ page }) => {
   await stubPublisherFetches(page);
@@ -29,8 +29,7 @@ test('a throwing tool marks its row with a ⚠ icon and clears stale results', a
   const row = page.locator('.tool-row').first();
   await expect(row.locator('.tool-row-error-btn')).toBeVisible();
 
-  const visible = await page.evaluate(() => window.__grawlixTest.getVisibleEntries());
-  expect(visible).toEqual([]);
+  await expectVisible(page, []);
 });
 
 test('a hover-capable device carries the error in the button title and does not open the popover on click', async ({ page }) => {

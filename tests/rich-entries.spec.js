@@ -1,5 +1,5 @@
 const { test, expect } = require('@playwright/test');
-const { stubPublisherFetches, gotoApp } = require('./helpers');
+const { stubPublisherFetches, gotoApp, expectVisible } = require('./helpers');
 
 test.beforeEach(async ({ page }) => {
   await stubPublisherFetches(page);
@@ -9,10 +9,6 @@ async function addRich(page, name, entries, scores) {
   await page.evaluate(([n, es, ss]) => window.__grawlixTest.addCustomWordlist({
     name: n, entries: es, scores: ss,
   }), [name, entries, scores]);
-}
-
-async function visible(page) {
-  return page.evaluate(() => window.__grawlixTest.getVisibleEntries());
 }
 
 async function setSearch(page, query) {
@@ -48,15 +44,13 @@ test.describe('norm + display', () => {
   test('distinct rich variants of one norm produce distinct merged rows', async ({ page }) => {
     await gotoApp(page);
     await addRich(page, 'Variants', ['Theirs', 'the IRS'], [50, 60]);
-    const visible = await page.evaluate(() => window.__grawlixTest.getVisibleEntries());
-    expect(visible.sort()).toEqual(['Theirs', 'the IRS']);
+    await expectVisible(page, ['Theirs', 'the IRS']);
   });
 
   test('a bare lowercase entry collapses into a richer same-norm variant', async ({ page }) => {
     await gotoApp(page);
     await addRich(page, 'Collapse', ['helenoftroy', 'Helen of Troy'], [50, 60]);
-    const visible = await page.evaluate(() => window.__grawlixTest.getVisibleEntries());
-    expect(visible).toEqual(['Helen of Troy']);
+    await expectVisible(page, ['Helen of Troy']);
   });
 
   test('length column counts norm letters, not display chars', async ({ page }) => {
@@ -79,35 +73,35 @@ test.describe('display-aware search', () => {
     await gotoApp(page);
     await addLib(page);
     await setSearch(page, 'theirs');
-    expect(await visible(page)).toEqual(['the IRS']);
+    await expectVisible(page, ['the IRS']);
   });
 
   test('a pattern with a literal space requires that space in the display', async ({ page }) => {
     await gotoApp(page);
     await addLib(page);
     await setSearch(page, 'the IRS');
-    expect(await visible(page)).toEqual(['the IRS']);
+    await expectVisible(page, ['the IRS']);
   });
 
   test('a pattern with a literal hyphen requires that hyphen in the display', async ({ page }) => {
     await gotoApp(page);
     await addLib(page);
     await setSearch(page, 'co-op');
-    expect(await visible(page)).toEqual(['co-op']);
+    await expectVisible(page, ['co-op']);
   });
 
   test('a bare letter pattern matches both accented and unaccented displays', async ({ page }) => {
     await gotoApp(page);
     await addLib(page);
     await setSearch(page, 'resume');
-    expect((await visible(page)).sort()).toEqual(['Resume', 'résumé']);
+    await expectVisible(page, ['Resume', 'résumé']);
   });
 
   test('an accent in the pattern requires that accent in the display', async ({ page }) => {
     await gotoApp(page);
     await addLib(page);
     await setSearch(page, 'résumé');
-    expect(await visible(page)).toEqual(['résumé']);
+    await expectVisible(page, ['résumé']);
   });
 });
 
@@ -130,7 +124,6 @@ test.describe('UI-typed entries preserve case', () => {
     await page.evaluate(() => window.__grawlixTest.setStack([
       { tool: 'search', params: { pattern: 'Helen', replace: 'Bob' } },
     ]));
-    const visible = await page.evaluate(() => window.__grawlixTest.getVisibleEntries());
-    expect(visible).toEqual([['Helen of Troy', 'Bob of Troy']]);
+    await expectVisible(page, [['Helen of Troy', 'Bob of Troy']]);
   });
 });

@@ -8,7 +8,7 @@
 // this file to the tool, not the pipeline.
 
 const { test, expect } = require('@playwright/test');
-const { stubPublisherFetches, gotoApp } = require('../helpers');
+const { stubPublisherFetches, gotoApp, expectVisible, readVisible } = require('../helpers');
 
 test.beforeEach(async ({ page }) => {
   await stubPublisherFetches(page);
@@ -20,10 +20,6 @@ async function addFixture(page) {
     entries: ['cat', 'cats', 'scat', 'cot', 'dog', 'cog', 'bell', 'teen'],
     scores:  Array(8).fill(50),
   }));
-}
-
-async function visible(page) {
-  return page.evaluate(() => window.__grawlixTest.getVisibleEntries());
 }
 
 // Replacement tests need the output words present too — the transform keeps a
@@ -47,7 +43,7 @@ test('a pattern filters entries by regular expression', async ({ page }) => {
   await addFixture(page);
   await setRegex(page, '^c.t$');
 
-  expect((await visible(page)).sort()).toEqual(['cat', 'cot']);
+  await expectVisible(page, ['cat', 'cot']);
 });
 
 test('matching is case-insensitive', async ({ page }) => {
@@ -55,7 +51,7 @@ test('matching is case-insensitive', async ({ page }) => {
   await addFixture(page);
   await setRegex(page, '^CAT$');
 
-  expect(await visible(page)).toEqual(['cat']);
+  await expectVisible(page, ['cat'], { ordered: true });
 });
 
 test('the pattern is not lowercased — `\\D` survives as non-digit', async ({ page }) => {
@@ -63,7 +59,7 @@ test('the pattern is not lowercased — `\\D` survives as non-digit', async ({ p
   await addFixture(page);
   await setRegex(page, '^\\D+$');
 
-  expect((await visible(page)).length).toBe(8);
+  await expect.poll(async () => (await readVisible(page)).length).toBe(8);
 });
 
 test('whole-word anchors the pattern to the entry boundaries', async ({ page }) => {
@@ -71,10 +67,10 @@ test('whole-word anchors the pattern to the entry boundaries', async ({ page }) 
   await addFixture(page);
 
   await setRegex(page, 'cat');
-  expect((await visible(page)).sort()).toEqual(['cat', 'cats', 'scat']);
+  await expectVisible(page, ['cat', 'cats', 'scat']);
 
   await setRegex(page, 'cat', { 'whole-word': true });
-  expect(await visible(page)).toEqual(['cat']);
+  await expectVisible(page, ['cat'], { ordered: true });
 });
 
 test('an empty pattern is inert — the full merged view passes through', async ({ page }) => {
@@ -82,7 +78,7 @@ test('an empty pattern is inert — the full merged view passes through', async 
   await addFixture(page);
   await setRegex(page, '');
 
-  expect((await visible(page)).length).toBe(8);
+  await expect.poll(async () => (await readVisible(page)).length).toBe(8);
 });
 
 test('an invalid pattern is inert rather than matching nothing', async ({ page }) => {
@@ -90,7 +86,7 @@ test('an invalid pattern is inert rather than matching nothing', async ({ page }
   await addFixture(page);
   await setRegex(page, '(');
 
-  expect((await visible(page)).length).toBe(8);
+  await expect.poll(async () => (await readVisible(page)).length).toBe(8);
 });
 
 test('a pattern with no match leaves the view empty', async ({ page }) => {
@@ -98,7 +94,7 @@ test('a pattern with no match leaves the view empty', async ({ page }) => {
   await addFixture(page);
   await setRegex(page, 'zzz');
 
-  expect(await visible(page)).toEqual([]);
+  await expectVisible(page, [], { ordered: true });
 });
 
 test('a filled replacement rewrites matched entries as a transform', async ({ page }) => {
@@ -106,7 +102,7 @@ test('a filled replacement rewrites matched entries as a transform', async ({ pa
   await addReplaceFixture(page);
   await setRegex(page, '^cat', { replace: 'dog' });
 
-  expect((await visible(page)).sort()).toEqual([
+  await expectVisible(page, [
     ['cat', 'dog'],
     ['cats', 'dogs'],
   ]);
@@ -119,7 +115,7 @@ test('a replacement whose output is not a wordlist entry is dropped', async ({ p
 
   // `scat` matches but its output `sdog` is not a wordlist entry, so the row
   // is dropped; `cat`/`cats` rewrite onto real entries and survive.
-  expect((await visible(page)).sort()).toEqual([
+  await expectVisible(page, [
     ['cat', 'dog'],
     ['cats', 'dogs'],
   ]);
@@ -130,7 +126,7 @@ test('`$1` in the replacement backreferences a capture group', async ({ page }) 
   await addReplaceFixture(page);
   await setRegex(page, '(.)\\1', { replace: '$1' });
 
-  expect((await visible(page)).sort()).toEqual([
+  await expectVisible(page, [
     ['bell', 'bel'],
     ['teen', 'ten'],
   ]);
@@ -141,7 +137,7 @@ test('whole-word constrains a replacement to entries that match in full', async 
   await addReplaceFixture(page);
   await setRegex(page, 'cat', { replace: 'dog', 'whole-word': true });
 
-  expect(await visible(page)).toEqual([['cat', 'dog']]);
+  await expectVisible(page, [['cat', 'dog']], { ordered: true });
 });
 
 async function addHighlightFixture(page) {
@@ -157,7 +153,7 @@ test('filter highlights each literal run of an auto-segmented pattern', async ({
   await addHighlightFixture(page);
   await setRegex(page, '^un.+ed$');
 
-  expect((await visible(page)).sort()).toEqual(['united', 'unused']);
+  await expectVisible(page, ['united', 'unused']);
   const row = page.locator('#vs-host .entry-row', { hasText: 'united' });
   await expect(row.locator('mark')).toHaveText(['un', 'ed']);
 });
@@ -205,7 +201,7 @@ test('replace colors both capture groups on the input and their swapped echoes o
   }));
   await setRegex(page, '(t)(s)$', { replace: '$2$1' });
 
-  expect(await visible(page)).toEqual([['cats', 'cast']]);
+  await expectVisible(page, [['cats', 'cast']], { ordered: true });
   const row = page.locator('#vs-host .entry-row', { hasText: 'cast' });
   const inMarks = row.locator('.atom').nth(0).locator('mark');
   const outMarks = row.locator('.atom').nth(1).locator('mark');

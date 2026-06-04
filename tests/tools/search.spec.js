@@ -8,7 +8,7 @@
 // the pipeline.
 
 const { test, expect } = require('@playwright/test');
-const { stubPublisherFetches, gotoApp } = require('../helpers');
+const { stubPublisherFetches, gotoApp, expectVisible, readVisible } = require('../helpers');
 
 test.beforeEach(async ({ page }) => {
   await stubPublisherFetches(page);
@@ -22,10 +22,6 @@ async function addFixture(page) {
   }));
 }
 
-async function visible(page) {
-  return page.evaluate(() => window.__grawlixTest.getVisibleEntries());
-}
-
 async function setSearch(page, query, params = {}) {
   await page.evaluate(([q, p]) =>
     window.__grawlixTest.setStack([{ tool: 'search', params: { pattern: q, ...p } }]),
@@ -37,7 +33,7 @@ test('a literal query matches anywhere in the entry', async ({ page }) => {
   await addFixture(page);
   await setSearch(page, 'test');
 
-  expect((await visible(page)).sort()).toEqual(['retested', 'untested']);
+  await expectVisible(page, ['retested', 'untested']);
 });
 
 test('`*` matches any run of characters', async ({ page }) => {
@@ -45,7 +41,7 @@ test('`*` matches any run of characters', async ({ page }) => {
   await addFixture(page);
   await setSearch(page, 'un*ed');
 
-  expect((await visible(page)).sort()).toEqual(['united', 'untested']);
+  await expectVisible(page, ['united', 'untested']);
 });
 
 test('`?` matches exactly one character', async ({ page }) => {
@@ -53,7 +49,7 @@ test('`?` matches exactly one character', async ({ page }) => {
   await addFixture(page);
   await setSearch(page, 'c?t');
 
-  expect((await visible(page)).sort()).toEqual(['cat', 'cats', 'cot', 'scat']);
+  await expectVisible(page, ['cat', 'cats', 'cot', 'scat']);
 });
 
 test('whole-word anchors the query to the entry boundaries', async ({ page }) => {
@@ -61,10 +57,10 @@ test('whole-word anchors the query to the entry boundaries', async ({ page }) =>
   await addFixture(page);
 
   await setSearch(page, 'cat');
-  expect((await visible(page)).sort()).toEqual(['cat', 'cats', 'scat']);
+  await expectVisible(page, ['cat', 'cats', 'scat']);
 
   await setSearch(page, 'cat', { 'whole-word': true });
-  expect(await visible(page)).toEqual(['cat']);
+  await expectVisible(page, ['cat'], { ordered: true });
 });
 
 test('an empty query is inert — the full merged view passes through', async ({ page }) => {
@@ -72,7 +68,7 @@ test('an empty query is inert — the full merged view passes through', async ({
   await addFixture(page);
   await setSearch(page, '');
 
-  expect((await visible(page)).length).toBe(8);
+  await expect.poll(async () => (await readVisible(page)).length).toBe(8);
 });
 
 test('a query with no match leaves the view empty', async ({ page }) => {
@@ -80,7 +76,7 @@ test('a query with no match leaves the view empty', async ({ page }) => {
   await addFixture(page);
   await setSearch(page, 'zzz');
 
-  expect(await visible(page)).toEqual([]);
+  await expectVisible(page, [], { ordered: true });
 });
 
 test('the matched span is wrapped in a highlight mark', async ({ page }) => {
@@ -128,7 +124,7 @@ test('a filled replacement rewrites matched entries as a transform', async ({ pa
 
   // `scat` matches but its output `sdog` is not a wordlist entry, so the row
   // is dropped; `cat`/`cats` rewrite onto real entries and survive.
-  expect((await visible(page)).sort()).toEqual([
+  await expectVisible(page, [
     ['cat', 'dog'],
     ['cats', 'dogs'],
   ]);
@@ -139,7 +135,7 @@ test('whole-word constrains a replacement to entries that match in full', async 
   await addReplaceFixture(page);
   await setSearch(page, 'cat', { replace: 'dog', 'whole-word': true });
 
-  expect(await visible(page)).toEqual([['cat', 'dog']]);
+  await expectVisible(page, [['cat', 'dog']], { ordered: true });
 });
 
 test('replace highlights the matched span in and the replacement out, same color', async ({ page }) => {

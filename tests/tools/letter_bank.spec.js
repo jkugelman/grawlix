@@ -1,13 +1,9 @@
 const { test, expect } = require('@playwright/test');
-const { stubPublisherFetches, gotoApp } = require('../helpers');
+const { stubPublisherFetches, gotoApp, expectVisible, expectGroups, readGroups } = require('../helpers');
 
 test.beforeEach(async ({ page }) => {
   await stubPublisherFetches(page);
 });
-
-async function visible(page) {
-  return page.evaluate(() => window.__grawlixTest.getVisibleEntries());
-}
 
 test('keeps entries that contain every input letter and only those letters', async ({ page }) => {
   await gotoApp(page);
@@ -17,7 +13,7 @@ test('keeps entries that contain every input letter and only those letters', asy
     scores:  [50, 50, 50, 50, 50],
   }));
   await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'letter_bank', params: { letters: 'SPOT' } }]));
-  expect((await visible(page)).sort()).toEqual(['postop', 'stoops', 'tops']);
+  await expectVisible(page, ['postop', 'stoops', 'tops']);
 });
 
 test('rejects entries missing any letter from the input alphabet', async ({ page }) => {
@@ -28,7 +24,7 @@ test('rejects entries missing any letter from the input alphabet', async ({ page
     scores:  [50, 50, 50],
   }));
   await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'letter_bank', params: { letters: 'OPTS' } }]));
-  expect((await visible(page)).sort()).toEqual(['postop']);
+  await expectVisible(page, ['postop']);
 });
 
 test('input duplicates do not raise the per-letter minimum', async ({ page }) => {
@@ -39,7 +35,7 @@ test('input duplicates do not raise the per-letter minimum', async ({ page }) =>
     scores:  [50, 50, 50],
   }));
   await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'letter_bank', params: { letters: 'AAB' } }]));
-  expect((await visible(page)).sort()).toEqual(['aab', 'ab', 'abba']);
+  await expectVisible(page, ['aab', 'ab', 'abba']);
 });
 
 test('empty letters is inert — the full merged view passes through', async ({ page }) => {
@@ -50,7 +46,7 @@ test('empty letters is inert — the full merged view passes through', async ({ 
     scores:  [50, 50],
   }));
   await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'letter_bank', params: { letters: '' } }]));
-  expect((await visible(page)).sort()).toEqual(['cat', 'dog']);
+  await expectVisible(page, ['cat', 'dog']);
 });
 
 async function addLetterSetFixture(page) {
@@ -66,10 +62,10 @@ test('grouped: clusters merged entries that share a distinct-letter set', async 
   await addLetterSetFixture(page);
   await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'letter_bank', grouped: true }]));
 
-  const groups = await page.evaluate(() => window.__grawlixTest.getVisibleGroups());
-  const clusters = groups.map(g => g.chains.map(c => c[0]).sort()).sort();
-  expect(clusters).toEqual([['act', 'cat'], ['opt', 'pot', 'top']]);
-  expect(groups.map(g => g.count).sort()).toEqual([2, 3]);
+  await expectGroups(page,
+    gs => gs.map(g => g.chains.map(c => c[0]).sort()).sort(),
+    [['act', 'cat'], ['opt', 'pot', 'top']]);
+  await expectGroups(page, gs => gs.map(g => g.count).sort(), [2, 3]);
 });
 
 test('grouped: a singleton entry drops — a group needs at least two members', async ({ page }) => {
@@ -77,8 +73,8 @@ test('grouped: a singleton entry drops — a group needs at least two members', 
   await addLetterSetFixture(page);
   await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'letter_bank', grouped: true }]));
 
-  const groups = await page.evaluate(() => window.__grawlixTest.getVisibleGroups());
-  const allSeeds = groups.flatMap(g => g.chains.map(c => c[0]));
+  await expectGroups(page, gs => gs.length, 2);
+  const allSeeds = (await readGroups(page)).flatMap(g => g.chains.map(c => c[0]));
   expect(allSeeds).not.toContain('dog');
 });
 
@@ -87,7 +83,7 @@ test('grouped: within a group, members sort by score desc then entry asc', async
   await addLetterSetFixture(page);
   await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'letter_bank', grouped: true }]));
 
-  const groups = await page.evaluate(() => window.__grawlixTest.getVisibleGroups());
-  const optGroup = groups.find(g => g.chains.some(c => c[0] === 'opt'));
-  expect(optGroup.chains.map(c => c[0])).toEqual(['opt', 'pot', 'top']);
+  await expectGroups(page,
+    gs => gs.find(g => g.chains.some(c => c[0] === 'opt'))?.chains.map(c => c[0]) ?? null,
+    ['opt', 'pot', 'top']);
 });

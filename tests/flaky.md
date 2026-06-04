@@ -68,9 +68,18 @@ Append a row per `npm test` (or `--project=webkit`) run that produced failures. 
 
 The three auto-fetch publishers (JK/STWL/Broda) fetch fire-and-forget from `init()` *after* `_db` is set, and `gotoApp` used to return as soon as `_db` was non-null. When a fetch resolves, `applyWordlistText` runs `invalidateWordlistCaches` + `repaintAfterCacheChange` — it flips the publisher `enabled`, rebuilds the merged cache, and re-renders the Workshop. On webkit under load these resolve *mid-test* and the re-render races the assertions; the clearest victim was `my-edits` "patches merged cache in place" (the racing fetch rebuilt the cache the test was checking stayed stamped). Fix: after `_db`, `gotoApp` waits until every URL-backed source has populated (the stubs all return 200), then `pipelineIdle()`, so no boot fetch lands mid-test. Holds across all runs since.
 
-### #3 — Wrong tool output under load — **OPEN, not root-caused**
+### #3 — Wrong tool output under load — **fixed** (read-race + `addCustomWordlist` drain)
 
-The dominant remaining flake. A tool or search emits output that's *close but wrong* — usually **one entry too many** (scrabble lets `tiger` through, kangaroos keeps `kanga`, monovocalics keeps `shhh`), occasionally the whole fixture (`search` "literal query", `tools` "one-sided search →"). The failing set changes every webkit run (~9 of 735), which is itself the signature of a load race rather than a logic bug. Same family as the chromium `export` "Filename includes tool keys" sighting (where `ToolStack.getStack()` momentarily read empty → `grawlix-all`).
+**Resolved.** Two compounding causes, both fixed:
+
+1. **Single-snapshot reads raced the async repaint (the dominant mechanism).** The tool/pipeline specs read `getVisibleEntries`/`getVisibleGroups` *once*, right after `setStack`/search/edit, and asserted on that frozen value. The pipeline repaints the scroller a frame or two later, so on webkit-under-load the read landed pre-settle — the output wasn't wrong, the read was early. Fix: all reads now poll via `expectVisible` / `expectGroups` (`tests/helpers.js`), which retry until the DOM reflects the settled result. See [`docs/testing.md`](../docs/testing.md) § *Reading async pipeline output*.
+2. **`addCustomWordlist` returned with a refresh still in flight (the amplifier — the lead at the bottom of this section, now confirmed).** Its `applyWordlistText` cache bump fires the render effect, which kicks off a *fire-and-forget* `refreshWorkshopMergedScroller`. The helper didn't await it, so a following `setStack` aborted that run mid-flight and stranded the scroller on its pre-filter rows — the "whole fixture" / empty-`[]` variant, and the source of the highlight-absent sightings too. Fix: `addCustomWordlist` now `await pipelineIdle()` before returning, matching `gotoApp`'s settle contract.
+
+Together these took the webkit suite from ~9/735 flaking (and timing the shard out under the retry storm) to **643 passed under `--repeat-each=3`, zero failures**. A webkit-under-load flake can't be *proven* gone, but the mechanism is understood and the stress signal is clean.
+
+---
+
+*Original diagnosis, kept for history:* A tool or search emits output that's *close but wrong* — usually **one entry too many** (scrabble lets `tiger` through, kangaroos keeps `kanga`, monovocalics keeps `shhh`), occasionally the whole fixture (`search` "literal query", `tools` "one-sided search →"). The failing set changes every webkit run (~9 of 735), which is itself the signature of a load race rather than a logic bug. Same family as the chromium `export` "Filename includes tool keys" sighting (where `ToolStack.getStack()` momentarily read empty → `grawlix-all`).
 
 Highlight/coloring assertions share the symptom: `tools/regex` "colors own capture groups" and `tools/search` "replace highlights span, same color" flake when the rendered atom highlight is briefly absent or miscolored under load, not just when entry counts are off — same near-miss-render signature, applied to the highlight ranges rather than the row set.
 

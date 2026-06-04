@@ -12,7 +12,7 @@
 // entry strings per multi-atom chain row.
 
 const { test, expect } = require('@playwright/test');
-const { stubPublisherFetches, gotoApp, addTool } = require('./helpers');
+const { stubPublisherFetches, gotoApp, addTool, expectVisible, expectGroups, readVisible, readGroups } = require('./helpers');
 
 test.beforeEach(async ({ page }) => {
   await stubPublisherFetches(page);
@@ -41,8 +41,7 @@ test('anagram via URL filters the merged view', async ({ page }) => {
     renderWorkshopMergedDetail();
   });
 
-  const visible = await page.evaluate(() => window.__grawlixTest.getVisibleEntries());
-  expect(visible.sort()).toEqual(['lindsey', 'snidely']);
+  await expectVisible(page, ['lindsey', 'snidely']);
 });
 
 test('anagram + search compose (search filters tool output)', async ({ page }) => {
@@ -54,8 +53,7 @@ test('anagram + search compose (search filters tool output)', async ({ page }) =
     renderWorkshopMergedDetail();
   });
 
-  const visible = await page.evaluate(() => window.__grawlixTest.getVisibleEntries());
-  expect(visible).toEqual(['snidely']);
+  await expectVisible(page, ['snidely']);
 });
 
 test('typing in the row input live-filters the entries table', async ({ page }) => {
@@ -68,8 +66,7 @@ test('typing in the row input live-filters the entries table', async ({ page }) 
   await expect(input).toBeFocused();
   await input.fill('LINDSEY');
 
-  const visible = await page.evaluate(() => window.__grawlixTest.getVisibleEntries());
-  expect(visible.sort()).toEqual(['lindsey', 'snidely']);
+  await expectVisible(page, ['lindsey', 'snidely']);
 });
 
 test('adding tools from the picker appends them to the stack in order', async ({ page }) => {
@@ -90,14 +87,12 @@ test('removing the tool row reverts to the full merged view', async ({ page }) =
   await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'anagrams', params: { entry: 'LINDSEY' } }]));
 
   // Sanity: tool is filtering.
-  let visible = await page.evaluate(() => window.__grawlixTest.getVisibleEntries());
-  expect(visible.sort()).toEqual(['lindsey', 'snidely']);
+  await expectVisible(page, ['lindsey', 'snidely']);
 
   // Click the row's X.
   await page.locator('.tool-row-remove').click();
 
-  visible = await page.evaluate(() => window.__grawlixTest.getVisibleEntries());
-  expect(visible.sort()).toEqual(['act', 'cat', 'dog', 'lindsey', 'snidely']);
+  await expectVisible(page, ['act', 'cat', 'dog', 'lindsey', 'snidely']);
 });
 
 test('pipeline output preserves wlEntry refs (popover opens, source/score intact)', async ({ page }) => {
@@ -150,12 +145,11 @@ test('semordnilap unifies mirror rows into one chain in min-score-desc order', a
   // Semordnilap emits both DEVIL→LIVED and LIVED→DEVIL; unify
   // collapses each mirror pair to one row, keeping the executor's first
   // (merged-alphabetical) direction.
-  const visible = await page.evaluate(() => window.__grawlixTest.getVisibleEntries());
-  expect(visible).toEqual([
+  await expectVisible(page, [
     ['devil',    'lived'   ],   // min 70
     ['desserts', 'stressed'],   // min 40
     ['loops',    'spool'   ],   // min 20
-  ]);
+  ], { ordered: true });
 });
 
 test('a unified semordnilap row carries the ↔ relation glyph', async ({ page }) => {
@@ -181,12 +175,11 @@ test('a downstream transform keeps the two semordnilap directions separate', asy
   }));
   await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'semordnilap' }, { tool: 'behead' }]));
 
-  const visible = await page.evaluate(() => window.__grawlixTest.getVisibleEntries());
   // Entry sort projects off the first atom, so rows order rats < star.
-  expect(visible).toEqual([
+  await expectVisible(page, [
     ['rats', 'star', 'tar'],
     ['star', 'rats', 'ats'],
-  ]);
+  ], { ordered: true });
   // No ↔ anywhere — the rows failed the mirror test, so every glyph is →.
   await expect(page.locator('#vs-host .atom-glyph', { hasText: '↔' })).toHaveCount(0);
   await expect(page.locator('#vs-host .atom-glyph', { hasText: '→' }).first()).toBeVisible();
@@ -210,8 +203,7 @@ test('both directions surviving search collapse to one ↔ row keeping the survi
   // is the lexicographically-smaller chain (desserts→stressed) and keeps only
   // its own direction's highlight — on its stressed tail, not on desserts.
   await page.locator('input[data-key="pattern"]').fill('ss');
-  const visible = await page.evaluate(() => window.__grawlixTest.getVisibleEntries());
-  expect(visible).toEqual([['desserts', 'stressed']]);
+  await expectVisible(page, [['desserts', 'stressed']]);
 
   const row = page.locator('.entry-row', { hasText: 'desserts' });
   await expect(row.locator('.atom', { hasText: 'stressed' }).locator('mark')).toContainText('ss');
@@ -229,8 +221,7 @@ test('a one-sided search query degrades a unified row to a directed →', async 
   // (tail 'desserts' has no 'tress'), DESSERTS→STRESSED survives. With its
   // mirror gone there's nothing to unify, so the row stays a directed →.
   await page.locator('input[data-key="pattern"]').fill('tress');
-  const visible = await page.evaluate(() => window.__grawlixTest.getVisibleEntries());
-  expect(visible).toEqual([['desserts', 'stressed']]);
+  await expectVisible(page, [['desserts', 'stressed']]);
 
   const row = page.locator('.entry-row', { hasText: 'desserts' });
   await expect(row.locator('.atom').nth(1).locator('.atom-glyph')).toContainText('→');
@@ -250,8 +241,7 @@ test('three search tools stack three separately-highlighted atoms on one row', a
     { tool: 'search', params: { pattern: 'nds' } },
     { tool: 'search', params: { pattern: 'sey' } },
   ]));
-  const visible = await page.evaluate(() => window.__grawlixTest.getVisibleEntries());
-  expect(visible).toEqual(['lindsey']);
+  await expectVisible(page, ['lindsey']);
 
   const row = page.locator('#vs-host .entry-row', { hasText: 'lindsey' });
   await expect(row.locator('.atom')).toHaveCount(3);
@@ -272,8 +262,7 @@ test('a wildcard-only search holds its atom even though it highlights nothing', 
     { tool: 'search', params: { pattern: 'cat' } },
     { tool: 'search', params: { pattern: '*' } },
   ]));
-  const visible = await page.evaluate(() => window.__grawlixTest.getVisibleEntries());
-  expect(visible).toEqual(['cat']);
+  await expectVisible(page, ['cat']);
 
   const row = page.locator('#vs-host .entry-row', { hasText: 'cat' });
   await expect(row.locator('.atom')).toHaveCount(2);
@@ -291,8 +280,7 @@ test('Search is a tool addable from the picker and can be chained into the stack
   await input.fill('cat');
 
   // The mid-stack Search row filters; the permanent (empty) Search is a no-op.
-  const visible = await page.evaluate(() => window.__grawlixTest.getVisibleEntries());
-  expect(visible).toEqual(['cat']);
+  await expectVisible(page, ['cat']);
 });
 
 test('a stack Search tool and the permanent Search bar both round-trip through the URL', async ({ page }) => {
@@ -315,8 +303,7 @@ test('a stack Search tool and the permanent Search bar both round-trip through t
   expect(state.barQuery).toBe('cat');
 
   // Both rows run: "ca" then "cat" leaves only CAT.
-  const visible = await page.evaluate(() => window.__grawlixTest.getVisibleEntries());
-  expect(visible).toEqual(['cat']);
+  await expectVisible(page, ['cat']);
 
   // Re-encoding reproduces the URL verbatim.
   const hash = await page.evaluate(() => { Router.navigate(); return location.hash; });
@@ -375,8 +362,7 @@ test('score range drops chains whose journey touched an out-of-range atom', asyn
   await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'semordnilap' }]));
 
   await page.locator('#score-range-input').fill('50+');
-  const visible = await page.evaluate(() => window.__grawlixTest.getVisibleEntries());
-  expect(visible).toEqual([['devil', 'lived']]);
+  await expectVisible(page, [['devil', 'lived']]);
 });
 
 test('stats bar counts chain rows as entries', async ({ page }) => {
@@ -428,8 +414,7 @@ test('1-atom: score desc tiebreaks by length desc, then entry asc', async ({ pag
   await page.locator('#stats-bar-sort .sort-axis-select').selectOption('score');
   await page.locator('#stats-bar-sort .sort-dir-btn').click();
 
-  const visible = await page.evaluate(() => window.__grawlixTest.getVisibleEntries());
-  expect(visible).toEqual(['bagel', 'cake', 'aaa', 'cat', 'dog']);
+  await expectVisible(page, ['bagel', 'cake', 'aaa', 'cat', 'dog'], { ordered: true });
 });
 
 test('1-atom: score asc keeps length desc tiebreaker (no junk-float)', async ({ page }) => {
@@ -445,8 +430,7 @@ test('1-atom: score asc keeps length desc tiebreaker (no junk-float)', async ({ 
   await page.evaluate(() => window.__grawlixTest.setStack([]));
   await page.locator('#stats-bar-sort .sort-axis-select').selectOption('score');
 
-  const visible = await page.evaluate(() => window.__grawlixTest.getVisibleEntries());
-  expect(visible).toEqual(['bagel', 'cake', 'aaa', 'cat', 'dog']);
+  await expectVisible(page, ['bagel', 'cake', 'aaa', 'cat', 'dog'], { ordered: true });
 });
 
 test('chains: min-score desc tiebreaks by length desc, then last-atom asc', async ({ page }) => {
@@ -467,13 +451,12 @@ test('chains: min-score desc tiebreaks by length desc, then last-atom asc', asyn
 
   // length desc surfaces the 11-letter chain first; the three 4-letter chains
   // tiebreak by the last atom's entry ascending (sega < soda < tuba).
-  const visible = await page.evaluate(() => window.__grawlixTest.getVisibleEntries());
-  expect(visible).toEqual([
+  await expectVisible(page, [
     ['palindromes', 'semordnilap'],
     ['ages', 'sega'],
     ['ados', 'soda'],
     ['abut', 'tuba'],
-  ]);
+  ], { ordered: true });
 });
 
 test('chain sort axis swap: min-score → max-score reorders rows', async ({ page }) => {
@@ -490,14 +473,14 @@ test('chain sort axis swap: min-score → max-score reorders rows', async ({ pag
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
     name: 'AsymChain', entries: ['evil', 'live'], scores: [99, 10],
   }));
-  const before = await page.evaluate(() => window.__grawlixTest.getVisibleEntries());
-  expect(before[0]).toEqual(['devil', 'lived']);                       // min 70 (top)
-  expect(before[before.length - 1]).toEqual(['evil', 'live']);         // min 10 (bottom)
+  await expect.poll(async () => {
+    const rows = await readVisible(page);
+    return [rows[0], rows[rows.length - 1]];
+  }).toEqual([['devil', 'lived'], ['evil', 'live']]);                   // min 70 top, min 10 bottom
 
   await page.locator('#stats-bar-sort .sort-axis-select').selectOption('max-score');
   await page.locator('#stats-bar-sort .sort-dir-btn').click();
-  const after = await page.evaluate(() => window.__grawlixTest.getVisibleEntries());
-  expect(after[0]).toEqual(['evil', 'live']);                          // max 99 (top)
+  await expect.poll(async () => (await readVisible(page))[0]).toEqual(['evil', 'live']);   // max 99 (top)
 });
 
 // Adding or removing a transform shifts the sort tier, swapping the available
@@ -551,14 +534,15 @@ test('Entry sort holds row order when a 1-output transform is added', async ({ p
 
   // Tool-less Entry order (default sort), narrowed to the five survivors.
   const originators = ['spark', 'clamp', 'bridge', 'wheat', 'scare'];
-  const toolless = await page.evaluate(() => window.__grawlixTest.getVisibleEntries());
+  await expect.poll(async () => (await readVisible(page)).length).toBe(12);
+  const toolless = await readVisible(page);
   const beforeOrder = toolless.filter(e => originators.includes(e));
 
   // Adding behead chains each survivor and drops the rest; the chains keep
   // their tool-less first-atom order because Entry sort projects off atom 0.
   await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'behead' }]));
-  const chained = await page.evaluate(() => window.__grawlixTest.getVisibleEntries());
-  expect(chained[0]).toEqual(['bridge', 'ridge']);          // behead really ran
+  await expect.poll(async () => (await readVisible(page))[0]).toEqual(['bridge', 'ridge']);  // behead really ran
+  const chained = await readVisible(page);
   expect(chained.map(row => row[0])).toEqual(beforeOrder);
 });
 
@@ -603,13 +587,11 @@ test('score range trims junk before the grouped tool clusters', async ({ page })
   }));
   await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'letter_bank', grouped: true }]));
 
-  let groups = await page.evaluate(() => window.__grawlixTest.getVisibleGroups());
-  expect(groups[0].chains.map(c => c[0]).sort()).toEqual(['oopt', 'opt', 'pot', 'top']);
+  await expectGroups(page, gs => gs.flatMap(g => g.chains.map(c => c[0])).sort(), ['oopt', 'opt', 'pot', 'top']);
 
   await page.locator('#score-range-input').fill('1+');
-  groups = await page.evaluate(() => window.__grawlixTest.getVisibleGroups());
-  expect(groups.length).toBe(1);
-  expect(groups[0].chains.map(c => c[0]).sort()).toEqual(['opt', 'pot', 'top']);
+  await expectGroups(page, gs => gs.length, 1);
+  await expectGroups(page, gs => gs.flatMap(g => g.chains.map(c => c[0])).sort(), ['opt', 'pot', 'top']);
 });
 
 test('search chained after the grouped tool keeps only matching chains, highlighted', async ({ page }) => {
@@ -620,14 +602,12 @@ test('search chained after the grouped tool keeps only matching chains, highligh
     { tool: 'search', params: { pattern: 'pt' } },
   ]));
 
-  const groups = await page.evaluate(() => window.__grawlixTest.getVisibleGroups());
-  expect(groups.length).toBe(1);
+  await expectGroups(page, gs => gs.length, 1);
+  const groups = await readGroups(page);
   expect(groups[0].count).toBe(1);
   expect(groups[0].chains).toEqual([['opt']]);
 
-  const lit = await page.evaluate(() =>
-    document.querySelector('#vs-host .group-chain .atom-entry mark') !== null);
-  expect(lit).toBe(true);
+  await expect(page.locator('#vs-host .group-chain .atom-entry mark').first()).toBeVisible();
 });
 
 test('a transform chained after the grouped tool emits a pair atom per surviving chain', async ({ page }) => {
@@ -642,10 +622,9 @@ test('a transform chained after the grouped tool emits a pair atom per surviving
     { tool: 'behead', params: {} },
   ]));
 
-  const groups = await page.evaluate(() => window.__grawlixTest.getVisibleGroups());
-  const opst = groups.find(g => g.chains.some(c => c[0] === 'spot'));
-  expect(opst).toBeTruthy();
-  expect(opst.count).toBe(2);
+  await expectGroups(page,
+    gs => gs.find(g => g.chains.some(c => c[0] === 'spot'))?.count ?? null, 2);
+  const opst = (await readGroups(page)).find(g => g.chains.some(c => c[0] === 'spot'));
   const sorted = opst.chains.slice().sort((a, b) => a[0].localeCompare(b[0]));
   expect(sorted).toEqual([['spot', 'pot'], ['tops', 'ops']]);
 
@@ -665,8 +644,8 @@ test('a transform chained before the grouped tool carries its atom forward into 
     { tool: 'letter_bank', grouped: true },
   ]));
 
-  const groups = await page.evaluate(() => window.__grawlixTest.getVisibleGroups());
-  expect(groups.length).toBe(1);
+  await expectGroups(page, gs => gs.length, 1);
+  const groups = await readGroups(page);
   const sorted = groups[0].chains.slice().sort((a, b) => a[0].localeCompare(b[0]));
   expect(sorted).toEqual([['aopt', 'opt'], ['bpot', 'pot'], ['ctop', 'top']]);
 
@@ -707,8 +686,7 @@ test('group rows sort by Count and the axis round-trips through the URL', async 
     renderWorkshopMergedDetail();
   });
 
-  const groups = await page.evaluate(() => window.__grawlixTest.getVisibleGroups());
-  expect(groups.map(g => g.count)).toEqual([3, 2]);
+  await expectGroups(page, gs => gs.map(g => g.count), [3, 2]);
 
   await page.evaluate(() => Router.navigate());
   expect(page.url()).toContain('sort=count');
@@ -777,8 +755,7 @@ test('grouped tool exposes its tool-defined sort axis', async ({ page }) => {
   await expect(axis.locator('option', { hasText: 'Letters' })).toHaveCount(1);
 
   await axis.selectOption('letters');
-  const groups = await page.evaluate(() => window.__grawlixTest.getVisibleGroups());
-  expect(groups.map(g => g.chains.map(c => c[0]).sort())).toEqual([
+  await expectGroups(page, gs => gs.map(g => g.chains.map(c => c[0]).sort()), [
     ['opt', 'pot', 'top'],
     ['act', 'cat'],
   ]);
@@ -794,8 +771,7 @@ test('grouped column sort tiebreaks by count desc before min score', async ({ pa
   await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'letter_bank', grouped: true }]));
   await page.locator('#stats-bar-sort .sort-axis-select').selectOption('letters');
 
-  const groups = await page.evaluate(() => window.__grawlixTest.getVisibleGroups());
-  expect(groups.map(g => g.chains.map(c => c[0]).sort())).toEqual([
+  await expectGroups(page, gs => gs.map(g => g.chains.map(c => c[0]).sort()), [
     ['opt', 'pot', 'top'],
     ['act', 'cat'],
   ]);

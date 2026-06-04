@@ -137,7 +137,32 @@ test('feature does the right thing', async ({ page }) => {
 
 ### Per-tool test files
 
-Every gallery tool gets its own spec under `tests/tools/`, named for the tool's key in `TOOLS` — `tests/tools/<tool>.spec.js` (`anagram.spec.js`, `regex.spec.js`, …). The file covers that tool's *own* contract: its params, its filter / transform / group behavior, the inert cases, and any highlights. Build the stack with `__grawlixTest.setStack([{ tool, params }])` and assert on `__grawlixTest.getVisibleEntries()`; the existing files (`tests/tools/search.spec.js`, `tests/tools/behead.spec.js`) are the template. Cross-tool *pipeline* mechanics — unification across tools, sort tiers, URL round-trips, the permanent search bar — stay in the shared `tests/tools.spec.js`, not the per-tool file. When you add a tool to `TOOLS`, add its spec file.
+Every gallery tool gets its own spec under `tests/tools/`, named for the tool's key in `TOOLS` — `tests/tools/<tool>.spec.js` (`anagram.spec.js`, `regex.spec.js`, …). The file covers that tool's *own* contract: its params, its filter / transform / group behavior, the inert cases, and any highlights. Build the stack with `__grawlixTest.setStack([{ tool, params }])` and assert with the polling `expectVisible` / `expectGroups` helpers — never a bare `getVisibleEntries()` snapshot (see *Reading async pipeline output* below). The existing files (`tests/tools/search.spec.js`, `tests/tools/behead.spec.js`) are the template. Cross-tool *pipeline* mechanics — unification across tools, sort tiers, URL round-trips, the permanent search bar — stay in the shared `tests/tools.spec.js`, not the per-tool file. When you add a tool to `TOOLS`, add its spec file.
+
+### Reading async pipeline output
+
+The Workshop results pipeline is **asynchronous**: `setStack`, a search keystroke, or an entry edit kicks off a fire-and-forget run that repaints the entries scroller a frame or two later. A test that reads the rendered rows *once*, right after the interaction —
+
+```js
+const visible = await page.evaluate(() => window.__grawlixTest.getVisibleEntries());
+expect(visible.sort()).toEqual(['kayak', 'noon', 'racecar']);   // ❌ races the repaint
+```
+
+— passes on chromium/firefox (they settle fast) and flakes on webkit under load (it doesn't). The output isn't wrong; the read lands before the pipeline finishes painting. This was the dominant webkit flake (see [`flaky.md`](../tests/flaky.md) cause #3).
+
+**Always poll the read.** [`tests/helpers.js`](../tests/helpers.js) provides the wrappers — use them instead of a bare `getVisibleEntries` / `getVisibleGroups` snapshot:
+
+| Helper | Use for |
+|---|---|
+| `expectVisible(page, expected, { ordered? })` | the visible entry rows. Order-independent by default (sorts both sides); pass `{ ordered: true }` when the test pins row order. |
+| `expectGroups(page, project, expected)` | grouped output — `project` maps the raw groups array (cluster seeds, counts, anchors) before comparing. |
+| `readVisible(page)` / `readGroups(page)` | raw reads — only for a *follow-up* assertion on state a preceding `expectVisible` / `expectGroups` already polled to a settle, or inside your own `expect.poll`. A bare read as the first/only assertion is the flake. |
+
+```js
+await expectVisible(page, ['kayak', 'noon', 'racecar']);            // ✅ retries until settled
+```
+
+Playwright's own locator assertions (`expect(locator).toHaveText(...)`, `.toHaveCount(...)`) already auto-retry, so they're fine as-is — the trap is specifically the frozen `page.evaluate(...)` snapshot, which doesn't. For an "assert empty / assert absent" check, poll a *positive* settle signal first (a count, a present member) so the absence can't pass before the pipeline has even run.
 
 ## CI
 

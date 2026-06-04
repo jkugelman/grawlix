@@ -1,13 +1,9 @@
 const { test, expect } = require('@playwright/test');
-const { stubPublisherFetches, gotoApp } = require('../helpers');
+const { stubPublisherFetches, gotoApp, expectVisible, readVisible } = require('../helpers');
 
 test.beforeEach(async ({ page }) => {
   await stubPublisherFetches(page);
 });
-
-async function visible(page) {
-  return page.evaluate(() => window.__grawlixTest.getVisibleEntries());
-}
 
 async function setup(page, { entries, corpus }) {
   await page.evaluate(({ entries }) => window.__grawlixTest.addCustomWordlist({
@@ -26,8 +22,9 @@ test('picks the highest-likelihood split among multiple valid alternatives', asy
   });
   await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'space_out' }]));
 
-  const rows = (await visible(page)).filter(r => Array.isArray(r) && r[0] === 'wonderland').map(r => r[1]);
-  expect(rows).toEqual(['wonder land']);
+  await expect.poll(async () =>
+    (await readVisible(page)).filter(r => Array.isArray(r) && r[0] === 'wonderland').map(r => r[1])
+  ).toEqual(['wonder land']);
 });
 
 test('passes single-word entries through when no split improves on the whole word', async ({ page }) => {
@@ -38,7 +35,7 @@ test('passes single-word entries through when no split improves on the whole wor
   });
   await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'space_out' }]));
 
-  expect(await visible(page)).toEqual(['dog']);
+  await expectVisible(page, ['dog'], { ordered: true });
   await expect(page.locator('.entry-row .atom')).toHaveCount(2);
 });
 
@@ -67,7 +64,7 @@ test('skips 3+ letter parts that arent in the merged wordlist', async ({ page })
   });
   await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'space_out' }]));
 
-  expect(await visible(page)).toEqual(['abbarr']);
+  await expectVisible(page, ['abbarr'], { ordered: true });
 });
 
 test('rejects splits made of legit-but-low-frequency parts by score', async ({ page }) => {
@@ -78,10 +75,10 @@ test('rejects splits made of legit-but-low-frequency parts by score', async ({ p
   });
   await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'space_out' }]));
 
-  const rows = (await visible(page))
+  await expect.poll(async () => (await readVisible(page))
     .filter(r => Array.isArray(r) && r[0] === 'abarreloflaughs')
-    .map(r => r[1]);
-  expect(rows).toEqual(['a barrel of laughs']);
+    .map(r => r[1])
+  ).toEqual(['a barrel of laughs']);
 });
 
 test('uses the real wordlist metadata when the split form is itself an entry', async ({ page }) => {
@@ -131,8 +128,9 @@ test('never splits in the middle of a digit run', async ({ page }) => {
   });
   await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'space_out' }]));
 
-  const rows = (await visible(page)).filter(r => Array.isArray(r) && r[0] === '99problems').map(r => r[1]);
-  expect(rows).toEqual(['99 problems']);
+  await expect.poll(async () =>
+    (await readVisible(page)).filter(r => Array.isArray(r) && r[0] === '99problems').map(r => r[1])
+  ).toEqual(['99 problems']);
 });
 
 test('Splits=One returns exactly the top result; Splits=Many surfaces near-tie alternates', async ({ page }) => {
@@ -143,10 +141,12 @@ test('Splits=One returns exactly the top result; Splits=Many surfaces near-tie a
   });
 
   await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'space_out', params: { splits: 'one' } }]));
-  const one = (await visible(page)).filter(r => Array.isArray(r) && r[0] === 'abcdef').map(r => r[1]);
-  expect(one).toEqual(['abc def']);
+  await expect.poll(async () =>
+    (await readVisible(page)).filter(r => Array.isArray(r) && r[0] === 'abcdef').map(r => r[1])
+  ).toEqual(['abc def']);
 
   await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'space_out', params: { splits: 'many' } }]));
-  const many = new Set((await visible(page)).filter(r => Array.isArray(r) && r[0] === 'abcdef').map(r => r[1]));
-  expect(many).toEqual(new Set(['abc def', 'abcd ef']));
+  await expect.poll(async () =>
+    [...new Set((await readVisible(page)).filter(r => Array.isArray(r) && r[0] === 'abcdef').map(r => r[1]))].sort()
+  ).toEqual(['abc def', 'abcd ef']);
 });

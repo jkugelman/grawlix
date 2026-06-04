@@ -1,13 +1,9 @@
-const { test, expect } = require('@playwright/test');
-const { stubPublisherFetches, gotoApp } = require('../helpers');
+const { test } = require('@playwright/test');
+const { stubPublisherFetches, gotoApp, expectVisible } = require('../helpers');
 
 test.beforeEach(async ({ page }) => {
   await stubPublisherFetches(page);
 });
-
-async function visible(page) {
-  return page.evaluate(() => window.__grawlixTest.getVisibleEntries());
-}
 
 test('keeps entries spelled from any subset of the input tiles', async ({ page }) => {
   await gotoApp(page);
@@ -18,7 +14,7 @@ test('keeps entries spelled from any subset of the input tiles', async ({ page }
   }));
   await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'scrabble', params: { tiles: 'PARENTAL' } }]));
 
-  expect((await visible(page)).sort()).toEqual(['pear', 'plane', 'rent']);
+  await expectVisible(page, ['pear', 'plane', 'rent']);
 });
 
 test('a tile is consumed at the frequency it appears in the input', async ({ page }) => {
@@ -29,7 +25,7 @@ test('a tile is consumed at the frequency it appears in the input', async ({ pag
     scores:  [50, 50, 50],
   }));
   await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'scrabble', params: { tiles: 'POL' } }]));
-  expect(await visible(page)).toEqual(['pol']);
+  await expectVisible(page, ['pol'], { ordered: true });
 });
 
 test('empty tiles param is inert — the full merged view passes through', async ({ page }) => {
@@ -40,7 +36,7 @@ test('empty tiles param is inert — the full merged view passes through', async
     scores:  [50, 50],
   }));
   await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'scrabble', params: { tiles: '' } }]));
-  expect((await visible(page)).sort()).toEqual(['cat', 'dog']);
+  await expectVisible(page, ['cat', 'dog']);
 });
 
 test('the param is matched case-insensitively', async ({ page }) => {
@@ -51,5 +47,5 @@ test('the param is matched case-insensitively', async ({ page }) => {
     scores:  [50, 50],
   }));
   await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'scrabble', params: { tiles: 'aCt' } }]));
-  expect(await visible(page)).toEqual(['cat']);
+  await expectVisible(page, ['cat'], { ordered: true });
 });

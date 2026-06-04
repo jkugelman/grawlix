@@ -1,13 +1,9 @@
-const { test, expect } = require('@playwright/test');
-const { stubPublisherFetches, gotoApp } = require('../helpers');
+const { test } = require('@playwright/test');
+const { stubPublisherFetches, gotoApp, expectVisible } = require('../helpers');
 
 test.beforeEach(async ({ page }) => {
   await stubPublisherFetches(page);
 });
-
-async function visible(page) {
-  return page.evaluate(() => window.__grawlixTest.getVisibleEntries());
-}
 
 test('keeps entries that contain the input as a subsequence with gaps', async ({ page }) => {
   await gotoApp(page);
@@ -18,7 +14,7 @@ test('keeps entries that contain the input as a subsequence with gaps', async ({
   }));
   await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'kangaroos', params: { entry: 'KANGA' } }]));
 
-  expect((await visible(page)).sort()).toEqual(['kangaroo', 'milkandsugar']);
+  await expectVisible(page, ['kangaroo', 'milkandsugar']);
 });
 
 test('subsequence order matters — same letters in a different order are not a kangaroo', async ({ page }) => {
@@ -30,7 +26,7 @@ test('subsequence order matters — same letters in a different order are not a 
   }));
   await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'kangaroos', params: { entry: 'ACE' } }]));
 
-  expect(await visible(page)).toEqual(['abcdef']);
+  await expectVisible(page, ['abcdef'], { ordered: true });
 });
 
 test('the input itself is excluded — a kangaroo must be longer than its joey', async ({ page }) => {
@@ -42,7 +38,7 @@ test('the input itself is excluded — a kangaroo must be longer than its joey',
   }));
   await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'kangaroos', params: { entry: 'KANGA' } }]));
 
-  expect(await visible(page)).toEqual(['kangas']);
+  await expectVisible(page, ['kangas'], { ordered: true });
 });
 
 test('an empty param is inert — the full merged view passes through', async ({ page }) => {
@@ -54,7 +50,7 @@ test('an empty param is inert — the full merged view passes through', async ({
   }));
   await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'kangaroos', params: { entry: '' } }]));
 
-  expect((await visible(page)).sort()).toEqual(['cat', 'dog']);
+  await expectVisible(page, ['cat', 'dog']);
 });
 
 test('the param is matched case-insensitively', async ({ page }) => {
@@ -66,5 +62,5 @@ test('the param is matched case-insensitively', async ({ page }) => {
   }));
   await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'kangaroos', params: { entry: 'kAnGa' } }]));
 
-  expect(await visible(page)).toEqual(['kangaroo']);
+  await expectVisible(page, ['kangaroo'], { ordered: true });
 });

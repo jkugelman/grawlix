@@ -1,13 +1,9 @@
-const { test, expect } = require('@playwright/test');
-const { stubPublisherFetches, gotoApp } = require('../helpers');
+const { test } = require('@playwright/test');
+const { stubPublisherFetches, gotoApp, expectVisible } = require('../helpers');
 
 test.beforeEach(async ({ page }) => {
   await stubPublisherFetches(page);
 });
-
-async function visible(page) {
-  return page.evaluate(() => window.__grawlixTest.getVisibleEntries());
-}
 
 test('keeps entries whose first and second halves are identical', async ({ page }) => {
   await gotoApp(page);
@@ -18,7 +14,7 @@ test('keeps entries whose first and second halves are identical', async ({ page 
   }));
   await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'repeaters' }]));
 
-  expect((await visible(page)).sort()).toEqual(['bonbon', 'hotshots', 'tartar']);
+  await expectVisible(page, ['bonbon', 'hotshots', 'tartar']);
 });
 
 test('odd-length entries are excluded — a repeater requires even length', async ({ page }) => {
@@ -30,7 +26,7 @@ test('odd-length entries are excluded — a repeater requires even length', asyn
   }));
   await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'repeaters' }]));
 
-  expect(await visible(page)).toEqual(['abcabc']);
+  await expectVisible(page, ['abcabc'], { ordered: true });
 });
 
 test('an even-length non-repeater (halves differ) is dropped', async ({ page }) => {
@@ -42,5 +38,5 @@ test('an even-length non-repeater (halves differ) is dropped', async ({ page }) 
   }));
   await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'repeaters' }]));
 
-  expect(await visible(page)).toEqual(['tartar']);
+  await expectVisible(page, ['tartar'], { ordered: true });
 });

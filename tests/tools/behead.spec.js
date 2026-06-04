@@ -5,7 +5,7 @@
 // keep this file to the tool, not the pipeline.
 
 const { test, expect } = require('@playwright/test');
-const { stubPublisherFetches, gotoApp } = require('../helpers');
+const { stubPublisherFetches, gotoApp, expectVisible } = require('../helpers');
 
 test.beforeEach(async ({ page }) => {
   await stubPublisherFetches(page);
@@ -19,19 +19,15 @@ async function addFixture(page) {
   }));
 }
 
-async function visible(page) {
-  return page.evaluate(() => window.__grawlixTest.getVisibleEntries());
-}
-
 test('chains an entry with its first-letter-dropped form, dropping entries with no beheaded match', async ({ page }) => {
   await gotoApp(page);
   await addFixture(page);
   await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'behead' }]));
 
-  expect(await visible(page)).toEqual([
+  await expectVisible(page, [
     ['bread', 'read'],
     ['sling', 'ling'],
-  ]);
+  ], { ordered: true });
 });
 
 test('marks the dropped first letter on the originator atom only', async ({ page }) => {
@@ -60,10 +56,10 @@ test('Count drops that many leading letters and marks them', async ({ page }) =>
   }));
   await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'behead', params: { count: '2' } }]));
 
-  expect(await visible(page)).toEqual([
+  await expectVisible(page, [
     ['chair', 'air'],
     ['stable', 'able'],
-  ]);
+  ], { ordered: true });
 
   const row = page.locator('.entry-row', { hasText: 'chair' });
   await expect(row.locator('.atom').nth(0).locator('.hl-removed')).toHaveText('ch');

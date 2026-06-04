@@ -1,13 +1,9 @@
-const { test, expect } = require('@playwright/test');
-const { stubPublisherFetches, gotoApp } = require('../helpers');
+const { test } = require('@playwright/test');
+const { stubPublisherFetches, gotoApp, expectVisible } = require('../helpers');
 
 test.beforeEach(async ({ page }) => {
   await stubPublisherFetches(page);
 });
-
-async function visible(page) {
-  return page.evaluate(() => window.__grawlixTest.getVisibleEntries());
-}
 
 test('keeps entries that read the same forwards and backwards', async ({ page }) => {
   await gotoApp(page);
@@ -18,7 +14,7 @@ test('keeps entries that read the same forwards and backwards', async ({ page })
   }));
   await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'palindromes' }]));
 
-  expect((await visible(page)).sort()).toEqual(['kayak', 'noon', 'racecar']);
+  await expectVisible(page, ['kayak', 'noon', 'racecar']);
 });
 
 test('even-length and odd-length palindromes both match', async ({ page }) => {
@@ -29,5 +25,5 @@ test('even-length and odd-length palindromes both match', async ({ page }) => {
     scores:  [50, 50],
   }));
   await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'palindromes' }]));
-  expect((await visible(page)).sort()).toEqual(['abba', 'civic']);
+  await expectVisible(page, ['abba', 'civic']);
 });

@@ -1,13 +1,9 @@
-const { test, expect } = require('@playwright/test');
-const { stubPublisherFetches, gotoApp } = require('../helpers');
+const { test } = require('@playwright/test');
+const { stubPublisherFetches, gotoApp, expectVisible, expectGroups } = require('../helpers');
 
 test.beforeEach(async ({ page }) => {
   await stubPublisherFetches(page);
 });
-
-async function visible(page) {
-  return page.evaluate(() => window.__grawlixTest.getVisibleEntries());
-}
 
 test('matches entries sharing the same consonant skeleton in order', async ({ page }) => {
   await gotoApp(page);
@@ -18,7 +14,7 @@ test('matches entries sharing the same consonant skeleton in order', async ({ pa
   }));
   await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'consonantcy', params: { entry: 'BLAND' } }]));
 
-  expect((await visible(page)).sort()).toEqual(['bland', 'blend', 'blind', 'blond']);
+  await expectVisible(page, ['bland', 'blend', 'blind', 'blond']);
 });
 
 test('consonant order matters — same consonants in a different order do not match', async ({ page }) => {
@@ -30,7 +26,7 @@ test('consonant order matters — same consonants in a different order do not ma
   }));
   await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'consonantcy', params: { entry: 'STAR' } }]));
 
-  expect(await visible(page)).toEqual(['star']);
+  await expectVisible(page, ['star']);
 });
 
 test('Y counts as a consonant', async ({ page }) => {
@@ -42,7 +38,7 @@ test('Y counts as a consonant', async ({ page }) => {
   }));
   await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'consonantcy', params: { entry: 'CRY' } }]));
 
-  expect((await visible(page)).sort()).toEqual(['cray', 'cry']);
+  await expectVisible(page, ['cray', 'cry']);
 });
 
 test('empty param is inert — the full merged view passes through', async ({ page }) => {
@@ -54,7 +50,7 @@ test('empty param is inert — the full merged view passes through', async ({ pa
   }));
   await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'consonantcy', params: { entry: '' } }]));
 
-  expect((await visible(page)).sort()).toEqual(['cat', 'dog']);
+  await expectVisible(page, ['cat', 'dog']);
 });
 
 test('grouped: clusters entries by consonant skeleton', async ({ page }) => {
@@ -66,7 +62,7 @@ test('grouped: clusters entries by consonant skeleton', async ({ page }) => {
   }));
   await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'consonantcy', grouped: true }]));
 
-  const groups = await page.evaluate(() => window.__grawlixTest.getVisibleGroups());
-  const clusters = groups.map(g => g.chains.map(c => c[0]).sort()).sort();
-  expect(clusters).toEqual([['bland', 'blend', 'blond']]);
+  await expectGroups(page,
+    gs => gs.map(g => g.chains.map(c => c[0]).sort()).sort(),
+    [['bland', 'blend', 'blond']]);
 });

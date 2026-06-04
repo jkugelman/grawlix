@@ -1,13 +1,9 @@
-const { test, expect } = require('@playwright/test');
-const { stubPublisherFetches, gotoApp } = require('../helpers');
+const { test } = require('@playwright/test');
+const { stubPublisherFetches, gotoApp, expectVisible } = require('../helpers');
 
 test.beforeEach(async ({ page }) => {
   await stubPublisherFetches(page);
 });
-
-async function visible(page) {
-  return page.evaluate(() => window.__grawlixTest.getVisibleEntries());
-}
 
 test('keeps entries whose vowels are all the same letter', async ({ page }) => {
   await gotoApp(page);
@@ -18,7 +14,7 @@ test('keeps entries whose vowels are all the same letter', async ({ page }) => {
   }));
   await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'monovocalics' }]));
 
-  expect((await visible(page)).sort()).toEqual(['banana', 'strengths', 'toocoolforschool']);
+  await expectVisible(page, ['banana', 'strengths', 'toocoolforschool']);
 });
 
 test('Y at the start of a word is a consonant — YOLK is O-monovocalic', async ({ page }) => {
@@ -29,7 +25,7 @@ test('Y at the start of a word is a consonant — YOLK is O-monovocalic', async 
     scores:  [50, 50, 50, 50],
   }));
   await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'monovocalics' }]));
-  expect((await visible(page)).sort()).toEqual(['yacht', 'yelp', 'yolk']);
+  await expectVisible(page, ['yacht', 'yelp', 'yolk']);
 });
 
 test('Y anywhere else is a vowel — it counts as a second vowel in an AEIOU word', async ({ page }) => {
@@ -40,7 +36,7 @@ test('Y anywhere else is a vowel — it counts as a second vowel in an AEIOU wor
     scores:  [50, 50, 50, 50, 50],
   }));
   await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'monovocalics' }]));
-  expect(await visible(page)).toEqual([]);
+  await expectVisible(page, [], { ordered: true });
 });
 
 test('a Y-only entry matches as Y-monovocalic; a vowel-less entry drops', async ({ page }) => {
@@ -51,5 +47,5 @@ test('a Y-only entry matches as Y-monovocalic; a vowel-less entry drops', async 
     scores:  [50, 50, 50, 50],
   }));
   await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'monovocalics' }]));
-  expect((await visible(page)).sort()).toEqual(['gypsy', 'rhythm', 'why']);
+  await expectVisible(page, ['gypsy', 'rhythm', 'why']);
 });

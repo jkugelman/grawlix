@@ -1,13 +1,9 @@
-const { test, expect } = require('@playwright/test');
-const { stubPublisherFetches, gotoApp } = require('../helpers');
+const { test } = require('@playwright/test');
+const { stubPublisherFetches, gotoApp, expectVisible } = require('../helpers');
 
 test.beforeEach(async ({ page }) => {
   await stubPublisherFetches(page);
 });
-
-async function visible(page) {
-  return page.evaluate(() => window.__grawlixTest.getVisibleEntries());
-}
 
 test('keeps entries where each of A E I O U appears exactly once', async ({ page }) => {
   await gotoApp(page);
@@ -18,7 +14,7 @@ test('keeps entries where each of A E I O U appears exactly once', async ({ page
   }));
   await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'supervocalics' }]));
 
-  expect((await visible(page)).sort()).toEqual(['education', 'sequoia']);
+  await expectVisible(page, ['education', 'sequoia']);
 });
 
 test('a doubled vowel disqualifies an entry — each vowel must appear exactly once', async ({ page }) => {
@@ -29,7 +25,7 @@ test('a doubled vowel disqualifies an entry — each vowel must appear exactly o
     scores:  [50],
   }));
   await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'supervocalics' }]));
-  expect(await visible(page)).toEqual([]);
+  await expectVisible(page, [], { ordered: true });
 });
 
 test('Y is not counted as a vowel', async ({ page }) => {
@@ -40,5 +36,5 @@ test('Y is not counted as a vowel', async ({ page }) => {
     scores:  [50],
   }));
   await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'supervocalics' }]));
-  expect(await visible(page)).toEqual([]);
+  await expectVisible(page, [], { ordered: true });
 });

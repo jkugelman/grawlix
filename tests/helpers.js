@@ -81,10 +81,36 @@ async function addTool(page, toolKey) {
   await expect(page.locator('#featured-row')).not.toHaveClass(/expanded/);
 }
 
+// ─── Reading async pipeline output ────────────────────────────────────────
+//
+// The Workshop pipeline is async — setStack / a search / an edit repaints the
+// scroller a frame or two later. A single snapshot read races that repaint:
+// green on chromium/firefox, flaky on webkit under load. Always poll. The
+// anti-pattern and its history live in docs/testing.md § "Reading async
+// pipeline output".
+async function expectVisible(page, expected, { ordered = false } = {}) {
+  const norm = arr => (ordered ? arr : [...arr].sort());
+  await expect.poll(async () => norm(await readVisible(page))).toEqual(norm(expected));
+}
+
+async function expectGroups(page, project, expected) {
+  await expect.poll(async () => project(await readGroups(page))).toEqual(expected);
+}
+
+// Raw reads — ONLY for a follow-up assertion after expectVisible/expectGroups
+// already polled the state to a settle, or inside your own expect.poll. A bare
+// read as a test's first/only assertion is the flake.
+function readVisible(page) { return page.evaluate(() => window.__grawlixTest.getVisibleEntries()); }
+function readGroups(page)  { return page.evaluate(() => window.__grawlixTest.getVisibleGroups()); }
+
 module.exports = {
   stubPublisherFetches,
   gotoApp,
   openLibrary,
   focusWordlist,
   addTool,
+  expectVisible,
+  expectGroups,
+  readVisible,
+  readGroups,
 };
