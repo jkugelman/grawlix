@@ -2849,7 +2849,7 @@ const DiskBackend = {
     return Disk.readFile(this._handle, rawPathFor(wordlist));
   },
   async writeWordlist(wordlist, text) {
-    if (!wordlist.filename) wordlist.filename = `${wordlist.name}.txt`;
+    if (!wordlist.filename) await ensureDiskFilenames(this._handle);
     const path = rawPathFor(wordlist);
     await withOwnWrite(path, () => Disk.writeFile(this._handle, path, text));
     await this.writeRescored(wordlist);
@@ -2933,6 +2933,55 @@ function rawPathFor(wordlist) {
 }
 
 const ALL_RESCORED_NAME = `${MERGED_NAME} rescored.txt`;
+const EDITS_FILENAME = 'My Edits.txt';
+
+// Windows device names — unopenable even as CON.txt. Guarded everywhere because folders sync to Windows.
+const RESERVED_DEVICE_NAMES = new Set(
+  ['CON', 'PRN', 'AUX', 'NUL']
+    .concat(Array.from({ length: 9 }, (_, i) => `COM${i + 1}`))
+    .concat(Array.from({ length: 9 }, (_, i) => `LPT${i + 1}`))
+);
+
+// An empty, reserved, or separator-bearing stem breaks Disk.writeFile's path
+// split — silently misplacing or clobbering the file.
+function sanitizeFilenameStem(name) {
+  const stem = (name || '')
+    .replace(/[\/\\:*?"<>|\x00-\x1f]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .replace(/[. ]+$/, '');
+  if (!stem || RESERVED_DEVICE_NAMES.has(stem.toUpperCase())) return `${stem || 'Wordlist'}_`;
+  return stem;
+}
+
+// Taken if either generated file already exists on disk, was claimed earlier in
+// this pass (files aren't written yet), or is "All" — its rescored file is the
+// merged output, which may not be on disk yet during the first migration.
+async function stemTaken(stem, handle, claimed) {
+  const lc = stem.toLowerCase();
+  if (lc === MERGED_NAME.toLowerCase() || claimed.has(lc)) return true;
+  const filename = `${stem}.txt`;
+  return await Disk.fileExists(handle, `${ORIGINAL_DIR}/${filename}`)
+      || await Disk.fileExists(handle, rescoredNameFor(filename));
+}
+
+async function assignStem(wl, handle, claimed) {
+  if (wl.filename) return;
+  if (wl.type === 'edits') { wl.filename = EDITS_FILENAME; return; }
+  const base = sanitizeFilenameStem(wl.name);
+  let stem = base;
+  for (let n = 2; await stemTaken(stem, handle, claimed); n++) stem = `${base} (${n})`;
+  claimed.add(stem.toLowerCase());
+  wl.filename = `${stem}.txt`;
+}
+
+// Sticky: an existing filename is never rewritten, so disk files and the
+// external watcher stay stable across renames.
+async function ensureDiskFilenames(handle) {
+  if (!handle) return;
+  const claimed = new Set();
+  for (const wl of state.sources) await assignStem(wl, handle, claimed);
+}
 
 const DISK_WATCHER_INTERVAL = 2000;
 
@@ -3111,6 +3160,21 @@ const Disk = {
         return await (await fh.getFile()).text();
       } catch (e) {
         if (e?.name === 'NotFoundError') return null;
+        throw e;
+      }
+    });
+  },
+
+  async fileExists(handle, path) {
+    const parts = path.split('/');
+    const name = parts.pop();
+    return withFsRetry(async () => {
+      try {
+        const dir = await this._resolveDir(handle, parts);
+        await dir.getFileHandle(name);
+        return true;
+      } catch (e) {
+        if (e?.name === 'NotFoundError') return false;
         throw e;
       }
     });
@@ -3669,8 +3733,9 @@ const StorageDialog = (() => {
       newSources.push(wordlistFromMeta(fw, text));
     }
 
+    const claimed = new Set();
     for (const dw of diff.deviceOnly) {
-      if (!dw.filename) dw.filename = `${dw.name}.txt`;
+      await assignStem(dw, handle, claimed);
       if (dw.populated) {
         const text = await IdbBackend.readWordlist(dw);
         await Disk.writeFile(handle, rawPathFor(dw), text ?? '');
@@ -3695,7 +3760,7 @@ const StorageDialog = (() => {
       }
       const fwm = diff.folderEdits;
       editsWl = wordlistFromMeta(
-        { ...fwm, filename: fwm.filename || 'My Edits.txt', dbKey: fwm.dbKey || diff.deviceEdits.dbKey },
+        { ...fwm, filename: fwm.filename || EDITS_FILENAME, dbKey: fwm.dbKey || diff.deviceEdits.dbKey },
         serializeEntries(merged)
       );
     } else if (diff.folderEdits) {
@@ -3704,7 +3769,7 @@ const StorageDialog = (() => {
       editsWl = wordlistFromMeta(fwm, text);
     } else if (diff.deviceEdits) {
       const dw = diff.deviceEdits;
-      if (!dw.filename) dw.filename = 'My Edits.txt';
+      if (!dw.filename) dw.filename = EDITS_FILENAME;
       await Disk.writeFile(handle, rawPathFor(dw), serializeEntries(dw.rawEntries));
       editsWl = dw;
     }
@@ -3996,9 +4061,7 @@ async function attemptDiskBoot() {
 }
 
 async function migrateToDisk(handle) {
-  for (const wl of state.sources) {
-    if (!wl.filename) wl.filename = `${wl.name}.txt`;
-  }
+  await ensureDiskFilenames(handle);
   for (const wl of state.sources) {
     if (!wl.populated) continue;
     const text = await IdbBackend.readWordlist(wl);
