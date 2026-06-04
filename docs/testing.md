@@ -148,7 +148,7 @@ const visible = await page.evaluate(() => window.__grawlixTest.getVisibleEntries
 expect(visible.sort()).toEqual(['kayak', 'noon', 'racecar']);   // ❌ races the repaint
 ```
 
-— passes on chromium/firefox (they settle fast) and flakes on webkit under load (it doesn't). The output isn't wrong; the read lands before the pipeline finishes painting. This was the dominant webkit flake (see [`flaky.md`](../tests/flaky.md) cause #3).
+— passes on chromium/firefox (they settle fast) and flakes on webkit under load (it doesn't). The output isn't wrong; the read lands before the pipeline finishes painting. (The big 2026-06 webkit shard failure turned out to be a separate boot-vs-test race, [`flaky.md`](../tests/flaky.md) cause #3 — but the snapshot read is still a genuine flake class, so poll regardless.)
 
 **Always poll the read.** [`tests/helpers.js`](../tests/helpers.js) provides the wrappers — use them instead of a bare `getVisibleEntries` / `getVisibleGroups` snapshot:
 

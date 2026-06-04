@@ -44,15 +44,15 @@ async function gotoApp(page, route = '/') {
   // this helper to exercise the real first boot.
   await page.addInitScript(() => localStorage.setItem('grawlix_welcomeSeen', '1'));
   await page.goto(route);
-  // Don't wait on the busy overlay — it's removed synchronously by the boot
-  // scaffolding when localStorage is empty, before init() even runs. _db
-  // going non-null is the actual signal that init()'s `await openDB()` has
-  // resolved (Chromium wins this race incidentally; Firefox doesn't, and 5s
-  // isn't enough under heavy parallel-worker load — was flaking ~5%).
-  await expect.poll(async () => page.evaluate(() => _db !== null), { timeout: 10000 }).toBe(true);
+  // Wait for init() to fully complete before touching the app — NOT the old
+  // `_db !== null` gate. `_db` goes true early (in openDB), before init's tail
+  // runs Router.applyURL() + the boot first render; a test resuming on `_db`
+  // mutates the stack mid-boot and init's tail then resets it over the test —
+  // a stable wrong state polling can't rescue (tests/flaky.md cause #3).
+  await page.evaluate(() => window.__grawlixTest.whenReady());
   // Then drain the boot publisher fetches: init() kicks them off fire-and-
-  // forget after _db is set, and each re-renders the Workshop. Left pending,
-  // that re-render lands mid-test on WebKit and races the test's setStack/edit.
+  // forget at its tail, and each re-renders the Workshop. Left pending, that
+  // re-render lands mid-test on WebKit and races the test's setStack/edit.
   // Wait for every URL-backed source to populate, then let the pipeline settle.
   await expect.poll(
     async () => page.evaluate(() => state.sources.every(w => !w.url || w.populated)),

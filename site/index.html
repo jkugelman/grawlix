@@ -4804,6 +4804,13 @@ function wordlistFromMeta(m, text) {
 
 // ─── Init ─────────────────────────────────────────────────────────────────────
 
+// Resolves when init() fully completes. The test bridge awaits this before
+// driving the UI: `_db` (set early in openDB) goes non-null long before
+// applyURL/renderAll, so a test gated on it alone races init's tail, which
+// resets the tool stack and re-runs the first render over the test's own.
+let _signalReady;
+const _ready = new Promise(r => { _signalReady = r; });
+
 async function init() {
   const storedSchema = Storage.schemaVersion();
   const hasOldData   = Storage.hasData();
@@ -4881,6 +4888,7 @@ async function init() {
     .forEach(l => fetchWordlist(l, null, { silent: true }));
 
   loadUnigramCorpus().catch(() => { /* surfaced when the tool is used */ });
+  _signalReady();
 }
 
 function defaultSources() {
@@ -12345,6 +12353,10 @@ window.__grawlixTest = {
   // Resolves when no pipeline run is in flight. Tests use this after keystroke
   // interactions (which fire-and-forget the refresh) before reading the DOM.
   pipelineIdle() { return pipelineIdle(); },
+
+  // Resolves once init() has fully completed. gotoApp awaits this before the
+  // test touches the UI, so init's boot tail can't reset the stack mid-test.
+  whenReady() { return _ready; },
 
   // Visible Workshop scroller rows as user-meaningful strings. A single-word
   // row returns its entry string; a chain row returns the array of its

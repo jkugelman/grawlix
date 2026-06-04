@@ -87,5 +87,6 @@ test('test API is exposed on window', async ({ page }) => {
     'setStack',
     'setUnigramCorpus',
     'setUpdateAvailable',
+    'whenReady',
   ]);
 });
