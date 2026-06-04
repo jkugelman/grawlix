@@ -81,16 +81,16 @@ The picker is your browser's native folder picker. After picking, Grawlix routes
 
 ## Search syntax
 
-- `?` — any letter
+- `?` — any character
 - `#` — consonant
 - `@` — vowel
 - `*` — any substring
 - `[abc]` — character class
 - Whole-word toggle anchors the pattern.
 
-Patterns match against each entry's display text, with spaces, hyphens, and punctuation in the data treated as optional gaps between pattern characters: `theirs` matches both `theirs` and `the IRS`; `co-op` matches `co-op` and `co - op` but not `coop` (the hyphen is required); a bare letter matches accented variants too (`resume` matches both `resume` and `résumé`), but typing the accent narrows the match (`résumé` matches only `résumé`).
+Every pattern is matched two ways, and an entry counts as a hit if *either* matches: against the entry **as written** — so a space, hyphen, or accent you type has to be there (`co-op` matches `co-op` but not `coop`; `the IRS` matches `the IRS`; `résumé` matches only `résumé`) — and against its **letters alone**, lowercased with accents, spaces, and punctuation stripped (so `theirs` matches `the IRS`, and a bare `resume` matches both `resume` and `résumé`). The letters-only pass means you rarely need to type separators; the as-written pass means typing them narrows the match to exactly that form. A `?` fills exactly one character of any kind — a letter, or a symbol or space in the as-written form — never nothing.
 
-Focus any search box and this cheat sheet pops up above it. The Regex tool's pattern and replacement boxes show regex-specific cheat sheets instead, each linking out to [regexone.com](https://regexone.com/) for the syntax a popover can't cover.
+Focus any search box and this cheat sheet pops up above it. The Regex tool's pattern and replacement boxes show regex-specific cheat sheets instead, each linking out to [regexone.com](https://regexone.com/) for the syntax a popover can't cover; regex patterns are tested against the same two forms, so `\s` or `\b` can key on the spacing in a phrase (`Helen of Troy`) that the letters-only form drops.
 
 ## Tools
 

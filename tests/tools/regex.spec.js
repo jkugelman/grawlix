@@ -62,6 +62,35 @@ test('the pattern is not lowercased — `\\D` survives as non-digit', async ({ p
   await expect.poll(async () => (await readVisible(page)).length).toBe(8);
 });
 
+test('the pattern matches against both the stripped norm and the verbatim display', async ({ page }) => {
+  await gotoApp(page);
+  await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
+    name: 'RegexBoth',
+    entries: ['the IRS', 'Theirs', 'Helen of Troy'],
+    scores:  [50, 50, 50],
+  }));
+
+  await setRegex(page, '^theirs$');
+  await expectVisible(page, ['the IRS', 'Theirs']);
+
+  await setRegex(page, ' of ');
+  await expectVisible(page, ['Helen of Troy']);
+});
+
+test('a display-arm match highlights the punctuation it matched', async ({ page }) => {
+  await gotoApp(page);
+  await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
+    name: 'RegexHyphen',
+    entries: ['co-op'],
+    scores:  [50],
+  }));
+
+  await setRegex(page, 'o-o');
+  await expectVisible(page, ['co-op']);
+  const row = page.locator('#vs-host .entry-row', { hasText: 'co-op' });
+  await expect(row.locator('mark')).toHaveText(['o-o']);
+});
+
 test('whole-word anchors the pattern to the entry boundaries', async ({ page }) => {
   await gotoApp(page);
   await addFixture(page);

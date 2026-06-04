@@ -4482,7 +4482,7 @@ const LibraryView = (() => {
     if (!q) return entries;
     const matcher = buildSearchPattern(q, _searchWholeWord);
     if (!matcher) return entries;
-    return entries.filter(e => matcher.test(displayOf(e)));
+    return entries.filter(e => matcher.test(e));
   }
 
   function refresh() {
@@ -5337,30 +5337,16 @@ function scoreColor(score) {
 
 const CONSONANTS = 'bcdfghjklmnpqrstvwxyz';
 const VOWELS = 'aeiou';
-const SEARCH_GLUE = '[^\\p{L}\\p{N}]*';
-
-const ACCENT_VARIANTS = (() => {
-  const out = {};
-  for (let cp = 0x0020; cp <= 0x024F; cp++) {
-    const ch = String.fromCodePoint(cp);
-    const stripped = stripAccents(ch).toLowerCase();
-    if (stripped.length === 1 && stripped >= 'a' && stripped <= 'z') {
-      out[stripped] = (out[stripped] || '') + ch;
-    }
-  }
-  return out;
-})();
-
 function escapeRegex(s)        { return s.replace(/[.+*?^${}()|[\]\\]/g, '\\$&'); }
 function escapeRegexClass(s)   { return s.replace(/[\]\\^-]/g, '\\$&'); }
 
+// Two arms: the regex runs against both the entry's norm (accents + separators
+// stripped) and its verbatim display, matching if either does — norm forgives
+// separators (`theirs` finds "the IRS"); display requires a typed space/accent.
 function buildSearchPattern(query, wholeWord = false) {
   const q = query.normalize('NFC').trim();
   if (!q) return null;
 
-  function letterClass(base) {
-    return `[${escapeRegexClass(ACCENT_VARIANTS[base] || base)}]`;
-  }
   function customClass(body) {
     const expanded = body.replace(/#/g, CONSONANTS).replace(/@/g, VOWELS);
     if (expanded.startsWith('^')) return `[^${escapeRegexClass(expanded.slice(1))}]`;
@@ -5370,8 +5356,8 @@ function buildSearchPattern(query, wholeWord = false) {
   const tokens = [];
   for (let i = 0; i < q.length; i++) {
     const ch = q[i];
-    if (ch === '*')      tokens.push({ kind: 'wild', re: '[\\p{L}\\p{N}]*' });
-    else if (ch === '?') tokens.push({ kind: 'wild', re: '[\\p{L}\\p{N}]' });
+    if (ch === '*')      tokens.push({ kind: 'wild', re: '.*' });
+    else if (ch === '?') tokens.push({ kind: 'wild', re: '.' });
     else if (ch === '#') tokens.push({ kind: 'wild', re: `[${CONSONANTS}]` });
     else if (ch === '@') tokens.push({ kind: 'wild', re: `[${VOWELS}]` });
     else if (ch === '[') {
@@ -5379,40 +5365,43 @@ function buildSearchPattern(query, wholeWord = false) {
       if (end === -1) tokens.push({ kind: 'literal', re: '\\[' });
       else { tokens.push({ kind: 'wild', re: customClass(q.slice(i + 1, end)) }); i = end; }
     }
-    else {
-      const lower = ch.toLowerCase();
-      if (lower >= 'a' && lower <= 'z' && stripAccents(ch).toLowerCase() === lower) {
-        tokens.push({ kind: 'literal', re: letterClass(lower) });
-      } else {
-        tokens.push({ kind: 'literal', re: escapeRegex(ch) });
-      }
-    }
+    else tokens.push({ kind: 'literal', re: escapeRegex(ch) });
   }
 
+  // hlPat wraps each maximal run of literal tokens in a capture group so only
+  // the fixed text highlights, never what `?`/`*` swallowed.
   let pat = '', hlPat = '', runOpen = false;
   const closeRun = () => { if (runOpen) { hlPat += ')'; runOpen = false; } };
-  for (let ti = 0; ti < tokens.length; ti++) {
-    const tok = tokens[ti];
-    const prevTok = ti > 0 ? tokens[ti - 1] : null;
-    if (ti > 0) {
-      pat += SEARCH_GLUE;
-      if (tok.kind !== 'literal' || prevTok.kind !== 'literal') closeRun();
-      hlPat += SEARCH_GLUE;
-    }
+  for (const tok of tokens) {
     pat += tok.re;
-    if (tok.kind === 'literal' && !runOpen) { hlPat += '('; runOpen = true; }
-    else if (tok.kind !== 'literal') closeRun();
+    if (tok.kind === 'literal') { if (!runOpen) { hlPat += '('; runOpen = true; } }
+    else closeRun();
     hlPat += tok.re;
   }
   closeRun();
 
-  const anchor = p => wholeWord ? '^' + p + '$' : p;
+  const anchor = p => wholeWord ? '^(?:' + p + ')$' : p;
   const filterRe = new RegExp(anchor(pat),   'iu');
-  const globalRe = new RegExp(anchor(pat),   'giud');
   const hlRe     = new RegExp(anchor(hlPat), 'giud');
+  const globalRe = new RegExp(anchor(pat),   'giud');
+
+  const tag = (ranges, coord) => ranges.map(r => ({ ...r, coord }));
   return {
-    test: text => filterRe.test(text),
-    searchRanges: text => searchRangesFor(text, hlRe),
+    test(wlEntry) {
+      if (filterRe.test(wlEntry.norm)) return true;
+      const d = wlEntry.display;
+      return d != null && filterRe.test(d);
+    },
+    // Prefer the display arm's ranges (already in display coordinates); fall back
+    // to the norm arm, whose coordinates projectRangesToDisplay maps at render.
+    searchRanges(wlEntry) {
+      const d = wlEntry.display;
+      if (d != null) {
+        const dispRanges = searchRangesFor(d, hlRe);
+        if (dispRanges.length) return tag(dispRanges, 'display');
+      }
+      return tag(searchRangesFor(wlEntry.norm, hlRe), 'norm');
+    },
     globalRe,
   };
 }
@@ -5601,6 +5590,18 @@ function parseReplacement(str) {
 // rearranged text visibly moves between the input and output atoms.
 function kindForGroup(g) {
   return 'search:' + (g <= 0 ? 0 : (g - 1) % HL_COLORS);
+}
+
+function regexExecAll(re, text) {
+  re.lastIndex = 0;
+  const ranges = [];
+  let m, hit = false;
+  while ((m = re.exec(text)) !== null) {
+    hit = true;
+    ranges.push(...groupSpansToRanges(m));
+    if (m[0].length === 0) re.lastIndex++;   // step past a zero-width match or loop forever
+  }
+  return { hit, ranges };
 }
 
 function runRegexReplace(entry, prepared, wordlist) {
@@ -6245,19 +6246,19 @@ const TOOLS = {
     // An empty query is a no-op: the row is transparent — no filtering, no
     // lens — so an empty permanent search bar costs nothing.
     isInert: params => !((params && params.pattern || '').trim()),
-    matchOn: 'display',
+    matchOn: 'both',
     prepare(params) {
       const matcher = buildSearchPattern((params.pattern || '').trim(), !!params['whole-word']);
       if (!matcher) return null;
       const replacement = params.replace || '';
       return replacement ? { mode: 'replace', matcher, replacement } : { mode: 'filter', matcher };
     },
-    run(entry, prepared, wordlist) {
+    run(wlEntry, prepared, wordlist) {
       if (!prepared) return true;
-      if (prepared.mode === 'replace') return runSearchReplace(entry, prepared, wordlist);
+      if (prepared.mode === 'replace') return runSearchReplace(displayOf(wlEntry), prepared, wordlist);
       const { matcher } = prepared;
-      if (!matcher.test(entry)) return null;
-      const ranges = matcher.searchRanges(entry);
+      if (!matcher.test(wlEntry)) return null;
+      const ranges = matcher.searchRanges(wlEntry);
       return ranges.length ? ranges : true;
     },
   },
@@ -6299,13 +6300,16 @@ const TOOLS = {
       if (!pattern) return true;
       try { new RegExp(pattern); return false; } catch { return true; }
     },
+    matchOn: 'both',
     prepare(params) {
       const replacement = params.replace || '';
       const body = params.pattern.trim();
-      // `i`: `pattern` is raw (un-normalized, so `\D \S \B` survive) but
-      // entries are stored lowercase. `d` exposes match indices for
-      // highlighting. The whole-word wrap is non-capturing so a user's `$N`
-      // backreferences keep their group numbers.
+      // Flags `gid`: `i` lets a raw (un-lowercased, so `\D \S \B` survive)
+      // pattern match case-insensitively; `d` exposes match indices for
+      // highlighting. The pattern runs against both norm and display (see run),
+      // so `\s`, `-`, or an accent can match the punctuation display carries but
+      // norm strips. The whole-word wrap is non-capturing so `$N` backrefs keep
+      // their group numbers.
       const wrap = src => params['whole-word'] ? '^(?:' + src + ')$' : src;
       const { capturing, runs } = analyzeRegexPattern(body);
       if (replacement) {
@@ -6316,21 +6320,18 @@ const TOOLS = {
       }
       return { mode: 'filter', re: new RegExp(wrap(capturing ? body : wrapRuns(body, runs)), 'gid') };
     },
-    run(entry, prepared, wordlist) {
+    run(wlEntry, prepared, wordlist) {
       if (prepared.mode === 'filter') {
         const { re } = prepared;
-        re.lastIndex = 0;
-        const ranges = [];
-        let m, hit = false;
-        while ((m = re.exec(entry)) !== null) {
-          hit = true;
-          ranges.push(...groupSpansToRanges(m));
-          if (m[0].length === 0) re.lastIndex++;   // step past a zero-width match or loop forever
-        }
-        if (!hit) return null;
-        return ranges.length ? ranges : true;
+        const normRes = regexExecAll(re, wlEntry.norm);
+        const d = wlEntry.display;
+        const dispRes = d != null ? regexExecAll(re, d) : null;
+        if (!normRes.hit && !dispRes?.hit) return null;
+        if (dispRes?.ranges.length) return dispRes.ranges.map(r => ({ ...r, coord: 'display' }));
+        if (normRes.ranges.length) return normRes.ranges.map(r => ({ ...r, coord: 'norm' }));
+        return true;
       }
-      return runRegexReplace(entry, prepared, wordlist);
+      return runRegexReplace(wlEntry.norm, prepared, wordlist);
     },
   },
   initialisms: {
@@ -6708,12 +6709,15 @@ async function runToolStage(rows, stackRow, prepared, mergedWordlist, y) {
   const { def } = stackRow;
   const kind = stackRow.kind();
   const glyph = stackRow.glyph();
-  const coord = def.matchOn === 'display' ? 'display' : 'norm';
+  const matchOn = def.matchOn || 'norm';
+  const coord = matchOn === 'display' ? 'display' : 'norm';
   const next = [];
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i];
     const tail = row.atoms[row.atoms.length - 1];
-    const inputText = coord === 'display' ? displayOf(tail.wlEntry) : tail.wlEntry.norm;
+    const inputText = matchOn === 'both' ? tail.wlEntry
+      : matchOn === 'display' ? displayOf(tail.wlEntry)
+      : tail.wlEntry.norm;
     const result = def.run(inputText, prepared, mergedWordlist);
     if (kind === 'filter') {
       if (result) {
@@ -8915,7 +8919,7 @@ class LibraryEntriesScroller extends BaseVirtualScroller {
     if (q) {
       const matcher = buildSearchPattern(q, this.wholeWord);
       this._searchRanges = matcher ? matcher.searchRanges : null;
-      rows = matcher ? source.filter(r => matcher.test(r.display)) : source;
+      rows = matcher ? source.filter(r => matcher.test(r.wlEntry)) : source;
     } else {
       this._searchRanges = null;
       rows = source;
@@ -8961,7 +8965,8 @@ class LibraryEntriesScroller extends BaseVirtualScroller {
     const frag = document.createDocumentFragment();
     for (let i = start; i < end; i++) {
       const r = this.rows[i];
-      const entryHtml = renderHighlightedText(r.display, this._searchRanges?.(r.display) || []);
+      const ranges = this._searchRanges ? projectRangesToDisplay(this._searchRanges(r.wlEntry), r.wlEntry) : [];
+      const entryHtml = renderHighlightedText(r.display, ranges);
 
       const showArrow = this.mode === 'rescored' && r.rescored && !r.ignored;
       const scoreHTML = showArrow

@@ -63,6 +63,73 @@ test('whole-word anchors the query to the entry boundaries', async ({ page }) =>
   await expectVisible(page, ['cat'], { ordered: true });
 });
 
+test('`*` spans separators, so a prefix matches a multi-word entry even when whole-word', async ({ page }) => {
+  await gotoApp(page);
+  await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
+    name: 'Phrases',
+    entries: ['A Book from the Sky', 'abacus'],
+    scores:  [50, 50],
+  }));
+
+  await setSearch(page, 'abook*');
+  await expectVisible(page, ['A Book from the Sky']);
+
+  await setSearch(page, 'abook*', { 'whole-word': true });
+  await expectVisible(page, ['A Book from the Sky']);
+});
+
+test('whole-word forgives separators at the entry edges, not just between letters', async ({ page }) => {
+  await gotoApp(page);
+  await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
+    name: 'Edges',
+    entries: ['Yahoo!', 'U.S.A.', 'scat'],
+    scores:  [50, 50, 50],
+  }));
+
+  await setSearch(page, 'yahoo', { 'whole-word': true });
+  await expectVisible(page, ['Yahoo!']);
+
+  await setSearch(page, 'usa', { 'whole-word': true });
+  await expectVisible(page, ['U.S.A.']);
+});
+
+test('`?` fills exactly one character of any kind — letter, symbol, or space — never nothing', async ({ page }) => {
+  await gotoApp(page);
+  await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
+    name: 'Slots',
+    entries: ['hisc', 'hi-c', 'hi c', 'hic'],
+    scores:  [50, 50, 50, 50],
+  }));
+
+  await setSearch(page, 'hi?c');
+  await expectVisible(page, ['hisc', 'hi-c', 'hi c']);
+});
+
+test('whole-word matches an entry whose letters equal the query across its separators', async ({ page }) => {
+  await gotoApp(page);
+  await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
+    name: 'Norm',
+    entries: ['the IRS', 'Theirs', 'theirsy'],
+    scores:  [50, 50, 50],
+  }));
+
+  await setSearch(page, 'theirs', { 'whole-word': true });
+  await expectVisible(page, ['the IRS', 'Theirs']);
+});
+
+test('a match found through the stripped letters still highlights on the display', async ({ page }) => {
+  await gotoApp(page);
+  await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
+    name: 'NormHl',
+    entries: ['the IRS'],
+    scores:  [50],
+  }));
+
+  await setSearch(page, 'theirs');
+  const row = page.locator('#vs-host .entry-row', { hasText: 'IRS' });
+  await expect(row.locator('mark')).toHaveText(['the IRS']);
+});
+
 test('an empty query is inert — the full merged view passes through', async ({ page }) => {
   await gotoApp(page);
   await addFixture(page);
