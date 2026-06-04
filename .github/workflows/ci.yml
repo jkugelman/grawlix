@@ -44,7 +44,8 @@ jobs:
   test:
     needs: build
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    # Backstop only — the real gate is the step-level timeout on "Run tests".
+    timeout-minutes: 20
     # One job per browser, each running Playwright single-worker (webkit flakes
     # under parallel-worker load — see tests/flaky.md). Sharding keeps that
     # per-job determinism while the three engines run concurrently, so the full
@@ -83,6 +84,10 @@ jobs:
           path: dist
 
       - name: Run tests
+        # Step-level, not job-level: an overrun here FAILS the job (run → failure
+        # → GitHub emails). A job-level timeout CANCELS instead, which GitHub
+        # never notifies on. Don't hoist this to the job. Verified on-runner.
+        timeout-minutes: 10
         run: npm test -- --project=${{ matrix.browser }}
         env:
           GRAWLIX_SITE_DIR: dist
@@ -119,18 +124,3 @@ jobs:
           path: ./dist
       - id: deployment
         uses: actions/deploy-pages@v5
-
-  # GitHub's failure notifications fire on conclusion `failure`, not `cancelled`
-  # — so a timed-out (cancelled) job slips past them silently. This guard runs
-  # regardless of upstream outcome and *fails* whenever any job didn't succeed,
-  # converting cancellations/timeouts into a notifiable failure.
-  ci-status:
-    needs: [build, test, deploy]
-    if: ${{ always() }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    steps:
-      - if: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}
-        run: |
-          echo "A job failed or was cancelled (e.g. a timeout)"
-          exit 1
