@@ -63,6 +63,17 @@ html.dark-mode {
   --score-3-bg: #615b0d; --score-3-fg: #fef7c0;
   --score-4-bg: #2a6b42; --score-4-fg: #d4f9e5;
   --score-5-bg: #1e4a8f; --score-5-fg: #cce4ff;
+  /* Feeds both search-match marks and the gallery category pills — retuning a
+     hue here silently shifts the other surface too. */
+  --hl0: #4a1d96; --hl0-fg: #e9d5ff;
+  --hl1: #065f46; --hl1-fg: #a7f3d0;
+  --hl2: #78350f; --hl2-fg: #fef3c7;
+  --hl3: #831843; --hl3-fg: #fce7f3;
+  --hl4: #14532d; --hl4-fg: #d1fae5;
+  --hl5: #1e3a8a; --hl5-fg: #bfdbfe;
+  --hl6: #7f1d1d; --hl6-fg: #fecaca;
+  --hl7: #701a75; --hl7-fg: #f5d0fe;
+  --hl8: #365314; --hl8-fg: #d9f99d;
   --callout-bg: #201d09; --callout-border: #3d3410; --callout-fg: #b09840;
   --usd-added-bg:    #1a3d2a; --usd-added-fg:    #6ee89a;
   --usd-deleted-bg:  #3d1a1a; --usd-deleted-fg:  #f07070;
@@ -94,6 +105,15 @@ html.light-mode {
   --score-3-bg: #fff3cd; --score-3-fg: #856404;
   --score-4-bg: #d4edda; --score-4-fg: #155724;
   --score-5-bg: #cce5ff; --score-5-fg: #004085;
+  --hl0: #ddd6fe; --hl0-fg: rgba(0,0,0,0.72);
+  --hl1: #99f6e4; --hl1-fg: rgba(0,0,0,0.72);
+  --hl2: #fde68a; --hl2-fg: rgba(0,0,0,0.72);
+  --hl3: #fbcfe8; --hl3-fg: rgba(0,0,0,0.72);
+  --hl4: #bbf7d0; --hl4-fg: rgba(0,0,0,0.72);
+  --hl5: #bfdbfe; --hl5-fg: rgba(0,0,0,0.72);
+  --hl6: #fecaca; --hl6-fg: rgba(0,0,0,0.72);
+  --hl7: #f5d0fe; --hl7-fg: rgba(0,0,0,0.72);
+  --hl8: #d9f99d; --hl8-fg: rgba(0,0,0,0.72);
   --callout-bg: #fff3cd; --callout-border: #ffc107; --callout-fg: #856404;
   --usd-added-bg:    #e6f4ea; --usd-added-fg:    #2d7a3f;
   --usd-deleted-bg:  #fce8e6; --usd-deleted-fg:  #b71c1c;
@@ -263,16 +283,15 @@ mark.search-match { border-radius: 2px; padding: 0 1px; margin: 0 -1px; font-sty
    dropped to get from the a-side to the b-side — strike-through plus a touch
    of opacity reads as "this part was taken away." */
 .hl-removed { text-decoration: line-through; opacity: 0.5; }
-html.light-mode .search-match-0 { background: #ddd6fe; color: rgba(0,0,0,0.72); }
-html.light-mode .search-match-1 { background: #99f6e4; color: rgba(0,0,0,0.72); }
-html.light-mode .search-match-2 { background: #fde68a; color: rgba(0,0,0,0.72); }
-html.light-mode .search-match-3 { background: #fbcfe8; color: rgba(0,0,0,0.72); }
-html.light-mode .search-match-4 { background: #bbf7d0; color: rgba(0,0,0,0.72); }
-html.dark-mode .search-match-0 { background: #4a1d96; color: #e9d5ff; }
-html.dark-mode .search-match-1 { background: #065f46; color: #a7f3d0; }
-html.dark-mode .search-match-2 { background: #78350f; color: #fef3c7; }
-html.dark-mode .search-match-3 { background: #831843; color: #fce7f3; }
-html.dark-mode .search-match-4 { background: #14532d; color: #d1fae5; }
+.search-match-0 { background: var(--hl0); color: var(--hl0-fg); }
+.search-match-1 { background: var(--hl1); color: var(--hl1-fg); }
+.search-match-2 { background: var(--hl2); color: var(--hl2-fg); }
+.search-match-3 { background: var(--hl3); color: var(--hl3-fg); }
+.search-match-4 { background: var(--hl4); color: var(--hl4-fg); }
+.search-match-5 { background: var(--hl5); color: var(--hl5-fg); }
+.search-match-6 { background: var(--hl6); color: var(--hl6-fg); }
+.search-match-7 { background: var(--hl7); color: var(--hl7-fg); }
+.search-match-8 { background: var(--hl8); color: var(--hl8-fg); }
 
 /* Entries table (the at-rest results display). A single-column list of chain
    rows; each row is a vertical stack of atoms — one per significant transition
@@ -918,9 +937,9 @@ body.picker-expanded #picker-backdrop { opacity: 1; }
 .featured-cards { display: grid; gap: 8px; justify-content: center; }
 .picker-gallery { position: absolute; top: 100%; left: 0; right: 0; max-height: 0; overflow-y: auto; scrollbar-gutter: stable; transition: max-height 240ms ease; background: var(--bg); border-bottom: 0 solid var(--border); z-index: 100; }
 #featured-row.expanded .picker-gallery { max-height: 65vh; border-bottom-width: 1px; }
-.picker-gallery-inner { padding: 32px; display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 200px)); gap: 8px; justify-content: center; align-content: start; }
+.picker-gallery-inner { padding: 32px; display: flex; flex-wrap: wrap; align-items: flex-start; align-content: start; gap: 8px; }
 
-.tool-card { position: relative; border: 1px solid var(--border); border-radius: 6px; padding: 10px 12px; background: var(--surface); cursor: pointer; user-select: none; display: flex; flex-direction: column; min-width: 0; transition: background 0.1s, border-color 0.1s, box-shadow 0.1s; }
+.tool-card { position: relative; flex: 0 0 175px; border: 1px solid var(--border); border-radius: 6px; padding: 10px 12px; background: var(--surface); cursor: pointer; user-select: none; display: flex; flex-direction: column; min-width: 0; transition: background 0.1s, border-color 0.1s, box-shadow 0.1s; }
 .tool-card:hover { background: var(--hover); border-color: var(--accent); }
 .tool-card.active { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
 .tool-card.disabled { cursor: not-allowed; opacity: 0.4; }
@@ -938,7 +957,6 @@ body.picker-expanded #picker-backdrop { opacity: 1; }
 
 @media (max-width: 759px) {
   #featured-row, .picker-gallery-inner { padding: 14px 16px 18px; }
-  .picker-gallery-inner { grid-template-columns: repeat(auto-fill, 130px); justify-content: start; }
   .picker-bar { grid-template-columns: 1fr auto; }
   .picker-search-wrap { grid-column: 1; justify-self: stretch; width: 100%; }
   .picker-close { grid-column: 2; }
@@ -948,9 +966,22 @@ body.picker-expanded #picker-backdrop { opacity: 1; }
 }
 
 
-.gallery-section-label { grid-column: 1 / -1; font-size: 10px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; padding: 0 2px; margin-top: 4px; }
-.gallery-section-label:first-child { margin-top: 0; }
-.gallery-empty { grid-column: 1 / -1; border: 1px dashed var(--border); border-radius: 6px; padding: 18px 14px; text-align: center; color: var(--muted); }
+.gallery-cat-group { display: flex; gap: 8px; flex: 0 0 auto; }
+/* Separate categories via a trailing margin on the item before a group, not a
+   leading margin on the group — a leading margin would indent a group that
+   wraps to the start of a row; trailing slack just vanishes at a row's end. */
+.picker-gallery-inner > :has(+ .gallery-cat-group) { margin-right: 16px; }
+.gallery-cat-chip { flex: 0 0 auto; align-self: stretch; writing-mode: vertical-rl; transform: rotate(180deg); display: flex; align-items: center; justify-content: center; width: 24px; padding: 10px 0; border-radius: 999px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; white-space: nowrap; user-select: none; background: var(--chl, var(--surface)); color: var(--chl-fg, var(--muted)); }
+.hl-cat-0 { --chl: var(--hl0); --chl-fg: var(--hl0-fg); }
+.hl-cat-1 { --chl: var(--hl1); --chl-fg: var(--hl1-fg); }
+.hl-cat-2 { --chl: var(--hl2); --chl-fg: var(--hl2-fg); }
+.hl-cat-3 { --chl: var(--hl3); --chl-fg: var(--hl3-fg); }
+.hl-cat-4 { --chl: var(--hl4); --chl-fg: var(--hl4-fg); }
+.hl-cat-5 { --chl: var(--hl5); --chl-fg: var(--hl5-fg); }
+.hl-cat-6 { --chl: var(--hl6); --chl-fg: var(--hl6-fg); }
+.hl-cat-7 { --chl: var(--hl7); --chl-fg: var(--hl7-fg); }
+.hl-cat-8 { --chl: var(--hl8); --chl-fg: var(--hl8-fg); }
+.gallery-empty { flex: 0 0 100%; border: 1px dashed var(--border); border-radius: 6px; padding: 18px 14px; text-align: center; color: var(--muted); }
 .gallery-empty p { font-size: 13px; font-weight: 600; color: var(--text); margin-bottom: 4px; }
 .gallery-empty small { font-size: 11px; line-height: 1.5; display: block; }
 .tool-card-all-btn {
@@ -2122,8 +2153,20 @@ function buildToolLabelHTML({ icon, name }, suffix) {
   return `<span class="tool-label"><span class="icon tool-row-icon">${icon}</span> <span class="tool-row-name">${esc(name)}${suf}</span></span>`;
 }
 
-function buildFeaturedCardHTML(toolKey, tool) {
+function allModeTooltip({ blocked, active, kind }) {
+  if (active) return kind === 'corner' ? 'Already showing all' : 'Show one';
+  if (blocked) return 'Only one tool can show all at a time';
+  return 'Show all';
+}
+
+function buildToolCardHTML(toolKey, tool, { allButton = true } = {}) {
+  let allBtn = '';
+  if (allButton && tool.group) {
+    const title = allModeTooltip({ blocked: false, active: false, kind: 'corner' });
+    allBtn = `<button type="button" class="tool-card-all-btn" data-all-tool="${esc(toolKey)}" title="${esc(title)}" aria-label="${esc(title)}">✱</button>`;
+  }
   return `<div class="tool-card" data-tool="${esc(toolKey)}">
+    ${allBtn}
     <div class="tool-card-name">${buildToolLabelHTML(tool)}</div>
     <div class="tool-card-desc">${esc(tool.desc)}</div>
     <div class="tool-card-example">${esc(tool.example)}</div>
@@ -3273,7 +3316,7 @@ const WelcomeDialog = (() => {
 
   function render() {
     const toolsShot = FEATURED_TOOLS
-      .map(k => TOOLS[k] ? buildFeaturedCardHTML(k, TOOLS[k]) : '')
+      .map(k => TOOLS[k] ? buildToolCardHTML(k, TOOLS[k], { allButton: false }) : '')
       .join('');
 
     const featuredToolNames = FEATURED_TOOLS
@@ -5387,6 +5430,10 @@ function searchRangesFor(text, hlRe) {
 
 // Without the `d` (indices) flag on the regex, `m.indices` is absent and this
 // silently yields no highlights — the caller must compile with `d`.
+// Must equal the count of --hl0..N CSS vars / .search-match-N rules; a mismatch
+// emits search:N kinds with no matching color.
+const HL_COLORS = 9;
+
 function groupSpansToRanges(m) {
   if (!m?.indices) return [];
   const ranges = [];
@@ -5394,7 +5441,7 @@ function groupSpansToRanges(m) {
   for (let g = 1; g < m.indices.length; g++) {
     if (!m.indices[g]) continue;
     const [start, end] = m.indices[g];
-    ranges.push({ start, end, kind: `search:${colorIdx % 5}` });
+    ranges.push({ start, end, kind: `search:${colorIdx % HL_COLORS}` });
     colorIdx++;
   }
   return ranges;
@@ -5553,7 +5600,7 @@ function parseReplacement(str) {
 // A capture group and its `$N` echoes must resolve to the same color so
 // rearranged text visibly moves between the input and output atoms.
 function kindForGroup(g) {
-  return 'search:' + (g <= 0 ? 0 : (g - 1) % 5);
+  return 'search:' + (g <= 0 ? 0 : (g - 1) % HL_COLORS);
 }
 
 function runRegexReplace(entry, prepared, wordlist) {
@@ -5576,7 +5623,7 @@ function runRegexReplace(entry, prepared, wordlist) {
     let litIdx = 0;
     for (const tok of tokens) {
       if (tok.lit !== undefined) {
-        if (!groups) outputHighlights.push({ start: out.length, end: out.length + tok.lit.length, kind: `search:${litIdx++ % 5}` });
+        if (!groups) outputHighlights.push({ start: out.length, end: out.length + tok.lit.length, kind: `search:${litIdx++ % HL_COLORS}` });
         out += tok.lit;
         continue;
       }
@@ -5601,7 +5648,7 @@ function runSearchReplace(entry, prepared, wordlist) {
   while ((m = re.exec(entry)) !== null) {
     const mStart = m.index, mEnd = mStart + m[0].length;
     out += entry.slice(inPos, mStart);
-    const kind = `search:${colorIdx++ % 5}`;
+    const kind = `search:${colorIdx++ % HL_COLORS}`;
     inputHighlights.push({ start: mStart, end: mEnd, kind, coord: 'display' });
     outputHighlights.push({ start: out.length, end: out.length + replacement.length, kind, coord: 'display' });
     out += replacement;
@@ -7031,12 +7078,6 @@ const ToolStack = (() => {
     return html;
   }
 
-  function allModeTooltip({ blocked, active, kind }) {
-    if (active) return kind === 'corner' ? 'Already showing all' : 'Show one';
-    if (blocked) return 'Only one tool can show all at a time';
-    return 'Show all';
-  }
-
   function applyAllModeButtonState(btn, { blocked, active, kind }) {
     btn.classList.toggle('active', !!active);
     btn.classList.toggle('disabled', !!blocked);
@@ -7056,36 +7097,27 @@ const ToolStack = (() => {
       + `<span class="ast-glyph" aria-hidden="true">✱</span></button>`;
   }
 
-  function buildGalleryCardHTML(toolKey, tool) {
-    const title = allModeTooltip({ blocked: false, active: false, kind: 'corner' });
-    const allBtn = tool.group
-      ? `<button type="button" class="tool-card-all-btn" data-all-tool="${esc(toolKey)}" title="${esc(title)}" aria-label="${esc(title)}">✱</button>`
-      : '';
-    return `<div class="tool-card" data-tool="${esc(toolKey)}">
-      ${allBtn}
-      <div class="tool-card-name">${buildToolLabelHTML(tool)}</div>
-      <div class="tool-card-desc">${esc(tool.desc)}</div>
-      <div class="tool-card-example">${esc(tool.example)}</div>
-    </div>`;
-  }
-
   function buildGalleryHTML() {
     const byCategory = new Map(TOOL_CATEGORIES.map(c => [c.id, []]));
     Object.entries(TOOLS).forEach(([key, tool]) => {
       byCategory.get(tool.category)?.push([key, tool]);
     });
-    return TOOL_CATEGORIES.map(cat => {
+    return TOOL_CATEGORIES.map((cat, i) => {
       const cards = byCategory.get(cat.id) || [];
       if (!cards.length) return '';
-      return `<div class="gallery-section-label">${esc(cat.label)}</div>` +
-             cards.map(([key, tool]) => buildGalleryCardHTML(key, tool)).join('');
+      const chip = `<div class="gallery-cat-chip hl-cat-${i % HL_COLORS}">${esc(cat.label)}</div>`;
+      const [first, ...rest] = cards;
+      // Bind the chip to its first card as one flex item — otherwise a wrap can
+      // strand the chip alone at a row's end while its card starts the next row.
+      return `<div class="gallery-cat-group">${chip}${buildToolCardHTML(first[0], first[1])}</div>`
+           + rest.map(([key, tool]) => buildToolCardHTML(key, tool)).join('');
     }).join('');
   }
 
   function buildFeaturedRowHTML() {
     const cards = FEATURED_TOOLS.map(key => {
       const tool = TOOLS[key];
-      return tool ? buildFeaturedCardHTML(key, tool) : '';
+      return tool ? buildToolCardHTML(key, tool) : '';
     }).join('');
     const moreCount = Object.keys(TOOLS).length - FEATURED_TOOLS.length;
     const moreTile = `<button type="button" class="featured-more-tile" aria-label="Browse all tools">
@@ -7101,11 +7133,9 @@ const ToolStack = (() => {
     const cards = container.querySelectorAll('.tool-card');
     const moreCountEl = container.querySelector('.featured-more-tile-count');
     const totalTools = Object.keys(TOOLS).length;
-    const drawer = document.querySelector('#featured-row .picker-gallery-inner');
     if (window.matchMedia('(max-width: 759px)').matches) {
       cards.forEach(c => { c.hidden = false; });
       container.style.gridTemplateColumns = '';
-      if (drawer) drawer.style.gridTemplateColumns = '';
       moreCountEl.textContent = `+${totalTools - FEATURED_TOOLS.length}`;
       return;
     }
@@ -7116,7 +7146,6 @@ const ToolStack = (() => {
     moreCountEl.textContent = `+${totalTools - maxN}`;
     const template = `repeat(${maxN + 1}, minmax(${CARD_MIN}px, ${CARD_MAX}px))`;
     container.style.gridTemplateColumns = template;
-    if (drawer) drawer.style.gridTemplateColumns = template;
   }
 
   // Used by mountWorkshopPanel for the initial render. Mutations after that
@@ -7302,6 +7331,13 @@ const ToolStack = (() => {
           ToolPicker.toggle();
           return;
         }
+        const allBtn = e.target.closest('.tool-card-all-btn[data-all-tool]');
+        if (allBtn) {
+          if (!allBtn.classList.contains('disabled') && TOOLS[allBtn.dataset.allTool]) {
+            ToolPicker.pick(allBtn.dataset.allTool, { grouped: true });
+          }
+          return;
+        }
         const card = e.target.closest('.tool-card[data-tool]');
         if (!card || card.classList.contains('disabled')) return;
         const toolKey = card.dataset.tool;
@@ -7481,14 +7517,14 @@ const ToolPicker = (() => {
       card.hidden = !match;
       if (match) visibleCount++;
     });
-    gallery.querySelectorAll('.gallery-section-label').forEach(label => {
-      let next = label.nextElementSibling;
-      let any = false;
-      while (next && !next.classList.contains('gallery-section-label')) {
-        if (next.classList.contains('tool-card') && !next.hidden) { any = true; break; }
+    gallery.querySelectorAll('.gallery-cat-group').forEach(group => {
+      let any = !!group.querySelector('.tool-card[data-tool]:not([hidden])');
+      let next = group.nextElementSibling;
+      while (!any && next && !next.classList.contains('gallery-cat-group')) {
+        if (next.classList.contains('tool-card') && !next.hidden) any = true;
         next = next.nextElementSibling;
       }
-      label.hidden = !any;
+      group.hidden = !any;
     });
     let empty = galleryInner.querySelector('.gallery-empty');
     if (visibleCount === 0) {
