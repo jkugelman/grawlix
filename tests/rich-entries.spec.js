@@ -56,9 +56,9 @@ test.describe('norm + display', () => {
   test('length column counts norm letters, not display chars', async ({ page }) => {
     await gotoApp(page);
     await addRich(page, 'Lengths', ['the IRS'], [50]);
-    const lens = await page.evaluate(() =>
-      [...document.querySelectorAll('#vs-host .atom-len')].map(el => el.textContent));
-    expect(lens).toEqual(['6']);
+    await expect.poll(async () => page.evaluate(() =>
+      [...document.querySelectorAll('#vs-host .atom-len')].map(el => el.textContent))
+    ).toEqual(['6']);
   });
 });
 

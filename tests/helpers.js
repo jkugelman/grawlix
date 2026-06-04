@@ -48,7 +48,7 @@ async function gotoApp(page, route = '/') {
   // `_db !== null` gate. `_db` goes true early (in openDB), before init's tail
   // runs Router.applyURL() + the boot first render; a test resuming on `_db`
   // mutates the stack mid-boot and init's tail then resets it over the test —
-  // a stable wrong state polling can't rescue (tests/flaky.md cause #3).
+  // a stable wrong state polling can't rescue (a boot-vs-test race).
   await page.evaluate(() => window.__grawlixTest.whenReady());
   // Then drain the boot publisher fetches: init() kicks them off fire-and-
   // forget at its tail, and each re-renders the Workshop. Left pending, that
