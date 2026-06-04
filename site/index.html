@@ -6206,9 +6206,11 @@ const TOOLS = {
     },
     run(entry, prepared, wordlist) {
       if (!unigramLogFreqs) return [];
+      const existing = wordlist.byNorm.get(entry);
+      if (existing && displayOf(existing).includes(' ')) return [{ entry }];
       const splits = rankedSplits(entry, prepared.window, wordlist);
       if (splits.length === 0) return [];
-      const inputScore = wordlist.byNorm.get(entry)?.score ?? 0;
+      const inputScore = existing?.score ?? 0;
       const picks = prepared.onlyTop ? splits.slice(0, 1) : splits;
       return picks.map(parts => {
         const joined = parts.join(' ');
