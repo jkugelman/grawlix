@@ -2923,6 +2923,21 @@ const DiskWatcher = {
 
 let Storage = IdbBackend;
 
+// InvalidStateError here means the directory changed underneath the handle
+// mid-operation — a cloud-sync client (Dropbox, OneDrive) touching the folder, not an app bug.
+const FS_RETRY_ATTEMPTS = 5;
+const FS_RETRY_BASE_MS  = 200;
+
+async function withFsRetry(op) {
+  for (let attempt = 1; ; attempt++) {
+    try { return await op(); }
+    catch (e) {
+      if (e?.name !== 'InvalidStateError' || attempt >= FS_RETRY_ATTEMPTS) throw e;
+      await new Promise(r => setTimeout(r, FS_RETRY_BASE_MS * attempt));
+    }
+  }
+}
+
 const Disk = {
   isSupported() { return typeof window.showDirectoryPicker === 'function'; },
 
@@ -2958,33 +2973,39 @@ const Disk = {
   async readFile(handle, path) {
     const parts = path.split('/');
     const name = parts.pop();
-    try {
-      const dir = await this._resolveDir(handle, parts);
-      const fh = await dir.getFileHandle(name);
-      return await (await fh.getFile()).text();
-    } catch (e) {
-      if (e?.name === 'NotFoundError') return null;
-      throw e;
-    }
+    return withFsRetry(async () => {
+      try {
+        const dir = await this._resolveDir(handle, parts);
+        const fh = await dir.getFileHandle(name);
+        return await (await fh.getFile()).text();
+      } catch (e) {
+        if (e?.name === 'NotFoundError') return null;
+        throw e;
+      }
+    });
   },
 
   async writeFile(handle, path, text) {
     const parts = path.split('/');
     const name = parts.pop();
-    const dir = await this._resolveDir(handle, parts, { create: true });
-    const fh = await dir.getFileHandle(name, { create: true });
-    const w  = await fh.createWritable();
-    await w.write(text);
-    await w.close();
+    return withFsRetry(async () => {
+      const dir = await this._resolveDir(handle, parts, { create: true });
+      const fh = await dir.getFileHandle(name, { create: true });
+      const w  = await fh.createWritable();
+      await w.write(text);
+      await w.close();
+    });
   },
 
   async deleteFile(handle, path) {
     const parts = path.split('/');
     const name = parts.pop();
-    try {
-      const dir = await this._resolveDir(handle, parts);
-      await dir.removeEntry(name);
-    } catch (e) { if (e?.name !== 'NotFoundError') throw e; }
+    return withFsRetry(async () => {
+      try {
+        const dir = await this._resolveDir(handle, parts);
+        await dir.removeEntry(name);
+      } catch (e) { if (e?.name !== 'NotFoundError') throw e; }
+    });
   },
 
   async identifyFolder(handle) {
@@ -3351,7 +3372,7 @@ const StorageDialog = (() => {
         const choice = await showNewOtherAnomaly(handle);
         if (choice === 'subfolder') {
           let sub;
-          try { sub = await handle.getDirectoryHandle('grawlix', { create: true }); }
+          try { sub = await withFsRetry(() => handle.getDirectoryHandle('grawlix', { create: true })); }
           catch (err) { await showAlert(`Couldn't create subfolder: ${esc(err.message || err)}`); return 'retry'; }
           return setupNew(sub);
         }
