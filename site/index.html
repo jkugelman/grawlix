@@ -8432,8 +8432,12 @@ class WorkshopEntriesScroller extends BaseVirtualScroller {
     // rounded to a whole pixel independently — the rounding can accumulate
     // past a column sized to the bare text. Reserve a character of slack
     // whenever the result carries highlights so it never clips a fitting entry.
-    const entryContentW = Math.min(maxLen, ENTRY_SLOT_CAP + glyphCh) * ch
-      + (hasHighlight ? ch : 0);
+    // Then round up and pad a pixel: length × average-char-width lands a
+    // sub-pixel under the real rendered string, which Safari/iPad clips at the
+    // grid track's sub-pixel boundary (Chrome rounds the other way and fits).
+    const entryContentW = Math.ceil(
+      Math.min(maxLen, ENTRY_SLOT_CAP + glyphCh) * ch + (hasHighlight ? ch : 0)
+    ) + 1;
     const target = this.host.closest('#detail-panel') || this.sizer;
     target.style.setProperty('--count-w', `${(countDigits + 1) * ch}px`);
     // Floored to the header label so it never overflows its column.
