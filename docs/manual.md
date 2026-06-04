@@ -108,6 +108,8 @@ The full tool catalog — every shipped and planned tool, with its icon, name, d
 
 **Sort.** Axes depend on whether the stack has a transforming tool. With none — a flat list, or just searches — rows sort by Entry / Length / Score. Once a transforming tool is in play, rows sort by Entry / Length / Min score / Max score — Min and Max read across every atom of the row. Adding or removing a transforming tool keeps your sort choice rather than resetting it: Entry and Length stay put, Score becomes Min score, and Min or Max score becomes Score. When the primary axis ties, tiebreakers surface the most interesting entry first: longer over shorter, higher-scoring over lower, with alphabetical as the final stable fallback. Flipping asc/desc reverses only the primary axis; tiebreakers keep their direction, so short low-scoring entries don't float to the top of a tied bucket on `score asc`. With a tool in all-mode, rows sort by Entry / Count / Min score / Max score (Min/Max read across every atom of every chain in the cluster).
 
+**Click a column header to sort by it.** Entry, Len, and Score headers — or Count and the cluster columns in all-mode — are clickable; the column you're sorted by shows a ↑/↓ arrow, and clicking it again flips direction. Clicking a different column sorts by it ascending. The Sort-by dropdown stays the complete control — it's how you reach axes a header doesn't map to, like Max score (the Score header always starts at Min score once a transform is in play), or Min/Max score in all-mode, where group rows have no score column to click.
+
 **Sharing the stack.** The URL captures your tool stack and inputs — pasting a Grawlix link reproduces what you were looking at. See *Sharing & links*.
 
 ## Entries table
@@ -121,7 +123,7 @@ A single sticky band above the entries table, carrying every readout about the v
 - **Counts.** `Entries N`; with a tool in all-mode, `Groups N` rides alongside. The Entries count reflects what made it to the end of the pipeline — chain rows for flat pipelines, surviving member chains across every visible group for all-mode pipelines.
 - **Stats numbers and histogram.** `Min · Max` of the score-range-filtered output, followed by the histogram. On narrow screens `Min · Max` drops out, but counts, histogram, range, and sort always hold.
 - **Score range.** A `lo-hi` / `lo+` / `n` text input, or drag-select across the histogram. The histogram itself shows the full pipeline output regardless of range; bars outside the bracket fade in place so you can see what you're trimming as you drag the range narrower. The filter is remembered across visits.
-- **Sort.** "Sort by [Entry ▾] [↑]". Click the arrow to toggle direction.
+- **Sort.** "Sort by [Entry ▾] [↑]". Click the arrow to toggle direction, or click a column header in the table below to sort by that column (see *Tools → Sort*).
 
 The score range applies after the pipeline runs, dropping any chain whose journey touched an out-of-range atom. All-mode pipelines drop chains per group; a group stays visible as long as at least one chain survives.
 

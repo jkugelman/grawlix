@@ -374,6 +374,9 @@ mark.search-match { border-radius: 2px; padding: 0 1px; margin: 0 -1px; font-sty
 }
 .entry-headers > * { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 .entry-headers .col-comment, .entry-headers .col-source { display: none; }
+.entry-headers [data-sort-axes], .group-headers [data-sort-axes] { cursor: pointer; border-radius: 3px; }
+.entry-headers [data-sort-axes]:hover, .group-headers [data-sort-axes]:hover { color: var(--text); }
+.entry-headers [data-sort-axes]:focus-visible, .group-headers [data-sort-axes]:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 .entry-row:hover { background: var(--row-hover); }
 .entry-row.active { background: color-mix(in srgb, var(--accent) 12%, transparent); }
 /* `.atom` is display:contents — its cells participate directly in the
@@ -2087,31 +2090,68 @@ function buildEntriesTablePanelHTML() {
 // on every chain shape when the viewport has room (gated by media query).
 function buildEntryHeadersHTML() {
   const stack = ToolStack.getStack();
+  const tier = chainSortTier(stack);
+  const tierAxes = workshopSortAxes(tier, stack);
+  const hdr = (label, ownedAxes) => {
+    if (!ownedAxes.length) return { attrs: '', inner: esc(label) };
+    const active = ownedAxes.includes(WorkshopView.sortKey);
+    const asc = WorkshopView.sortDir === 'asc';
+    const arrow = active ? (asc ? ' ↑' : ' ↓') : '';
+    const state = active ? (asc ? ', ascending' : ', descending') : '';
+    return {
+      attrs: ` data-sort-axes="${ownedAxes.join(' ')}" role="button" tabindex="0" aria-label="Sort by ${esc(label)}${state}"`,
+      inner: `${esc(label)}${arrow}`,
+    };
+  };
   if (isGroupChain(stack)) {
     const cols = activeGroupColumns(stack);
     const anchorLabel = activeGroupAnchorLabel(stack);
-    const anchorHeader = anchorLabel
-      ? `<span class="group-anchor">${esc(anchorLabel)}</span>`
-      : '';
-    const colHeaders = cols.map(c =>
-      `<span class="group-col" data-col="${esc(c.key)}">${esc(c.label)}</span>`
-    ).join('');
-    return `<div class="group-headers entry-headers-font" aria-hidden="true">
+    const countH = hdr('Count', columnSortAxes('group-count', tierAxes));
+    const anchorH = anchorLabel ? hdr(anchorLabel, columnSortAxes('group-anchor', tierAxes)) : null;
+    const anchorHeader = anchorH ? `<span class="group-anchor"${anchorH.attrs}>${anchorH.inner}</span>` : '';
+    const colHeaders = cols.map(c => {
+      const owned = (c.sort !== false && c.key in tierAxes) ? [c.key] : [];
+      const h = hdr(c.label, owned);
+      return `<span class="group-col" data-col="${esc(c.key)}"${h.attrs}>${h.inner}</span>`;
+    }).join('');
+    const entriesH = hdr('Entries', anchorLabel ? [] : columnSortAxes('group-entries', tierAxes));
+    return `<div class="group-headers entry-headers-font">
       <span class="group-rownum"></span>
-      <span class="group-count">Count</span>
+      <span class="group-count"${countH.attrs}>${countH.inner}</span>
       ${anchorHeader}
       ${colHeaders}
-      <span class="group-entries-label">Entries</span>
+      <span class="group-entries-label"${entriesH.attrs}>${entriesH.inner}</span>
     </div>`;
   }
-  return `<div class="entry-headers entry-headers-font" aria-hidden="true">
+  const entryH = hdr('Entry', columnSortAxes('col-entry', tierAxes));
+  const lenH   = hdr('Len',   columnSortAxes('col-len', tierAxes));
+  const scoreH = hdr('Score', columnSortAxes('col-score', tierAxes));
+  return `<div class="entry-headers entry-headers-font">
       <span></span>
-      <span class="col-entry">Entry</span>
-      <span class="col-len">Len</span>
-      <span class="col-score">Score</span>
+      <span class="col-entry"${entryH.attrs}>${entryH.inner}</span>
+      <span class="col-len"${lenH.attrs}>${lenH.inner}</span>
+      <span class="col-score"${scoreH.attrs}>${scoreH.inner}</span>
       <span class="col-comment">Comment</span>
       <span class="col-source">Source</span>
     </div>`;
+}
+
+function onSortHeaderActivate(e) {
+  const cell = e.target.closest('[data-sort-axes]');
+  if (!cell) return;
+  if (e.type === 'keydown') {
+    if (e.key !== 'Enter' && e.key !== ' ') return;
+    e.preventDefault();
+  }
+  const owned = cell.dataset.sortAxes.split(' ');
+  const { key, dir } = nextSortForColumn(owned, WorkshopView.sortKey, WorkshopView.sortDir);
+  const sel = cell.dataset.col
+    ? `.sticky-stack [data-col="${CSS.escape(cell.dataset.col)}"]`
+    : `.sticky-stack .${cell.classList[0]}`;
+  workshopScroller?.applySort(key, dir);
+  // applySort rebuilds the header, destroying the activated cell — refocus its
+  // replacement so keyboard focus isn't silently dropped to <body>.
+  if (e.type === 'keydown') document.querySelector(sel)?.focus();
 }
 
 // rerenderRows rebuilds only the tool rows, so a stack edit that flips chain
@@ -7874,6 +7914,25 @@ function isValidSortAxis(key) {
   }
   return false;
 }
+
+// Order is load-bearing: the first surviving axis is the column's canonical
+// pick, consumed far away as nextSortForColumn's ownedAxes[0].
+const COLUMN_AXIS_CANDIDATES = {
+  'col-entry':     ['entry'],
+  'col-len':       ['length'],
+  'col-score':     ['score', 'min-score', 'max-score'],
+  'group-count':   ['count'],
+  'group-anchor':  ['entry', 'length', 'score'],
+  'group-entries': ['entry'],
+};
+function columnSortAxes(colKind, tierAxes) {
+  return (COLUMN_AXIS_CANDIDATES[colKind] || []).filter(k => k in tierAxes);
+}
+function nextSortForColumn(ownedAxes, curKey, curDir) {
+  if (ownedAxes.includes(curKey)) return { key: curKey, dir: curDir === 'asc' ? 'desc' : 'asc' };
+  return { key: ownedAxes[0], dir: 'asc' };
+}
+
 // Library entries sort by the same three axes over plain wlEntries; the
 // LibraryEntriesScroller owns its own comparison, so only the labels matter.
 const LIBRARY_SORT_AXES = { entry: { label: 'Entry' }, length: { label: 'Length' }, score: { label: 'Score' } };
@@ -7962,6 +8021,9 @@ function badgeWidthPx(chars) {
 
 function headerLabelPx(text) {
   return measureTextWidth(text, 'entry-headers-font');
+}
+function sortableHeaderPx(label) {
+  return headerLabelPx(label + ' ↑');
 }
 
 // Capture-mode scroll listener catches events from any ancestor — the page
@@ -8372,22 +8434,23 @@ class WorkshopEntriesScroller extends BaseVirtualScroller {
       <select class="sort-axis-select">${options}</select>
       <button class="sort-dir-btn" type="button" title="Toggle direction" aria-label="Toggle direction">${arrow}</button>`;
     this.toolbar.querySelector('.sort-axis-select').addEventListener('change', e => {
-      const key = e.target.value;
-      if (this.sortKey !== key) {
-        this.sortKey = key;
-        WorkshopView.setSort(this.sortKey, this.sortDir);
-        this._buildToolbar();
-        this._sortAndRender();
-        Router.navigate();
-      }
+      if (this.sortKey !== e.target.value) this.applySort(e.target.value, this.sortDir);
     });
     this.toolbar.querySelector('.sort-dir-btn').addEventListener('click', () => {
-      this.sortDir = this.sortDir === 'asc' ? 'desc' : 'asc';
-      WorkshopView.setSort(this.sortKey, this.sortDir);
-      this._buildToolbar();
-      this._sortAndRender();
-      Router.navigate();
+      this.applySort(this.sortKey, this.sortDir === 'asc' ? 'desc' : 'asc');
     });
+  }
+
+  // rebuildEntryHeaders looks redundant here — its only other caller fires on a
+  // tier flip — but it's what re-syncs the header arrow on same-tier sort changes.
+  applySort(key, dir) {
+    this.sortKey = key;
+    this.sortDir = dir;
+    WorkshopView.setSort(key, dir);
+    this._buildToolbar();
+    rebuildEntryHeaders();
+    this._sortAndRender();
+    Router.navigate();
   }
 
   _sortAndRender() {
@@ -8483,9 +8546,9 @@ class WorkshopEntriesScroller extends BaseVirtualScroller {
     const target = this.host.closest('#detail-panel') || this.sizer;
     target.style.setProperty('--count-w', `${(countDigits + 1) * ch}px`);
     // Floored to the header label so it never overflows its column.
-    target.style.setProperty('--entry-w', `${Math.max(entryContentW, headerLabelPx('Entry'))}px`);
-    target.style.setProperty('--len-w', `${Math.max(maxLenDigits * ch, headerLabelPx('Len'))}px`);
-    target.style.setProperty('--score-w', `${Math.max(badgeWidthPx(maxScoreDigits), headerLabelPx('Score'))}px`);
+    target.style.setProperty('--entry-w', `${Math.max(entryContentW, sortableHeaderPx('Entry'))}px`);
+    target.style.setProperty('--len-w', `${Math.max(maxLenDigits * ch, sortableHeaderPx('Len'))}px`);
+    target.style.setProperty('--score-w', `${Math.max(badgeWidthPx(maxScoreDigits), sortableHeaderPx('Score'))}px`);
     target.style.setProperty('--source-max', `${22 * ch}px`);
   }
 
@@ -8671,7 +8734,7 @@ class WorkshopEntriesScroller extends BaseVirtualScroller {
     const target = this.host.closest('#detail-panel') || this.sizer;
     const countW = Math.max(
       measureTextWidth(String(maxCount), 'entry-headers-font'),
-      headerLabelPx('Count'));
+      sortableHeaderPx('Count'));
     const rownumW = measureTextWidth(this.allEntries.length + '.', 'entry-headers-font');
     target.style.setProperty('--group-count-w', `${countW}px`);
     target.style.setProperty('--group-rownum-w', `${rownumW}px`);
@@ -8688,7 +8751,7 @@ class WorkshopEntriesScroller extends BaseVirtualScroller {
         const badgeW = badgeWidthPx(String(g.anchor.score).length);
         if (badgeW > maxBadgeW) maxBadgeW = badgeW;
       }
-      anchorW = Math.max(maxEntryW + 5 + maxBadgeW, headerLabelPx(anchorLabel));
+      anchorW = Math.max(maxEntryW + 5 + maxBadgeW, sortableHeaderPx(anchorLabel));
       target.style.setProperty('--group-anchor-w', `${anchorW}px`);
     }
     const columns = activeGroupColumns(stack);
@@ -8699,7 +8762,8 @@ class WorkshopEntriesScroller extends BaseVirtualScroller {
         const w = measureTextWidth(String(col.value(g)), 'entry-headers-font');
         if (w > maxColW) maxColW = w;
       }
-      const colW = Math.max(maxColW, headerLabelPx(col.label));
+      const colLabelW = col.sort === false ? headerLabelPx(col.label) : sortableHeaderPx(col.label);
+      const colW = Math.max(maxColW, colLabelW);
       target.style.setProperty(`--group-col-${col.key}-w`, `${colW}px`);
       columnsW += colW;
     }
@@ -9811,8 +9875,14 @@ function mountWorkshopPanel(panel) {
   workshopScroller.onFilterChange = refreshWorkshopStatsBarFromScroller;
   attachHelpPopups();
   publishWorkshopBarHeights();
+  const stickyStack = panel.querySelector('.sticky-stack');
   _workshopStickyObserver.disconnect();
-  _workshopStickyObserver.observe(panel.querySelector('.sticky-stack'));
+  _workshopStickyObserver.observe(stickyStack);
+  // Delegate rather than bind the header cells directly: rebuildEntryHeaders
+  // replaces them via outerHTML on every sort change, which would orphan a
+  // direct listener after the first sort.
+  stickyStack.addEventListener('click', onSortHeaderActivate);
+  stickyStack.addEventListener('keydown', onSortHeaderActivate);
   document.getElementById('entries-table-panel').addEventListener('animationstart', e => {
     if (e.animationName === 'pipeline-room') _signalFirstPaint();
   });
