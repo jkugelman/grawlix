@@ -8100,6 +8100,8 @@ function sortableHeaderPx(label) {
   return headerLabelPx(label + ' ↑');
 }
 
+const EMPTY_REVEAL_DELAY_MS = 450;
+
 // Capture-mode scroll listener catches events from any ancestor — the page
 // scrolls the document, not the window, and scroll events don't bubble.
 class BaseVirtualScroller {
@@ -8111,11 +8113,12 @@ class BaseVirtualScroller {
     host.appendChild(this.sizer);
 
     this._reservedHeight = 0;
+    this._revealEmpty = false;
+    this._emptyRevealTimer = null;
 
     this._onWinScroll = () => this._onScroll();
     this._onWinResize = () => this._render();
     this._onFocusOut = (e) => {
-      if (this._reservedHeight === 0) return;
       const next = e.relatedTarget;
       if (next && next.closest && next.closest('.search-bar, .tool-row')) return;
       // Don't drop reservation when focus moves *within* the host: dropping
@@ -8124,6 +8127,10 @@ class BaseVirtualScroller {
       // bug only shows when the page is short enough that scroll doesn't
       // absorb the shift, so it's easy to "simplify" this line away.
       if (next && this.host.contains(next)) return;
+      if (!this._reservedHeight && !this._emptyRevealTimer && !this._revealEmpty) return;
+      clearTimeout(this._emptyRevealTimer);
+      this._emptyRevealTimer = null;
+      this._revealEmpty = false;
       this._reservedHeight = 0;
       this._render();
     };
@@ -8143,7 +8150,7 @@ class BaseVirtualScroller {
   }
 
   _sizerHeightFor(naturalHeight) {
-    if (this._isReservationActive()) {
+    if (this._isReservationActive() && !this._revealEmpty) {
       this._reservedHeight = Math.max(this._reservedHeight, this.sizer.offsetHeight, naturalHeight);
     } else if (this._reservedHeight) {
       this._reservedHeight = 0;
@@ -8174,6 +8181,7 @@ class BaseVirtualScroller {
   }
 
   destroy() {
+    clearTimeout(this._emptyRevealTimer);
     window.removeEventListener('scroll', this._onWinScroll, { capture: true });
     window.removeEventListener('resize', this._onWinResize);
     document.removeEventListener('focusout', this._onFocusOut);
@@ -8528,10 +8536,24 @@ class WorkshopEntriesScroller extends BaseVirtualScroller {
   }
 
   _sortAndRender() {
+    this._revealEmpty = false;
+    clearTimeout(this._emptyRevealTimer);
+    this._emptyRevealTimer = null;
     this.entries = this._getSortedSource();
     this._computeSlotWidths();
     this._render();
     this.onFilterChange?.();
+    // _sizerHeightFor parks the no-match quip below the fold while a search
+    // input is focused. Reveal it after a typing pause — debounced so the quip
+    // settles on the final query rather than re-rolling each keystroke (blur,
+    // via _onFocusOut, reveals immediately).
+    if (this.entries.length === 0 && this._isReservationActive()) {
+      this._emptyRevealTimer = setTimeout(() => {
+        this._emptyRevealTimer = null;
+        this._revealEmpty = true;
+        this._render();
+      }, EMPTY_REVEAL_DELAY_MS);
+    }
   }
 
   _getSortedSource() {
@@ -8775,6 +8797,8 @@ class WorkshopEntriesScroller extends BaseVirtualScroller {
   _renderEmptyState(n, kind) {
     const existing = this.host.querySelector('.entries-empty');
     if (n > 0) { existing?.remove(); return; }
+
+    if (existing && this._isReservationActive() && !this._revealEmpty) return;
 
     const query = WorkshopView.searchQuery.trim();
     const addable = kind === 'chain' && /\S/i.test(query);
