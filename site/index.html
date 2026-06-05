@@ -166,6 +166,10 @@ button.header-nav-item:hover:not(:disabled) { color: white; background: var(--hd
 #workshop-view,
 #library-view { background: var(--bg); overflow: clip; flex: 1 1 auto; display: flex; flex-direction: column; }
 
+#workshop-add-fab { position: fixed; right: 24px; bottom: 24px; z-index: 40; width: 44px; height: 44px; padding: 0; border: none; border-radius: 50%; background: var(--accent); color: white; font-size: 26px; line-height: 1; box-shadow: 0 4px 14px rgba(0,0,0,0.32); transition: background 0.12s, transform 0.12s, box-shadow 0.12s; }
+#workshop-add-fab:hover { background: var(--accent-hover); transform: translateY(-1px); box-shadow: 0 7px 20px rgba(0,0,0,0.38); }
+#workshop-add-fab:active { transform: translateY(0); box-shadow: 0 3px 10px rgba(0,0,0,0.3); }
+
 #splash-screen { position: fixed; inset: 0; z-index: 200; background: var(--bg); color: var(--accent); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 48px; transition: opacity 0.3s; will-change: opacity; }
 #splash-screen.done { opacity: 0; pointer-events: none; }
 .splash-logo { font-size: 56px; font-weight: 600; letter-spacing: -0.01em; line-height: 1.1; display: inline-flex; align-items: center; opacity: 0; animation: splash-logo-reveal 0.4s ease-out forwards; will-change: opacity; }
@@ -1346,6 +1350,8 @@ html.dark-mode .wld-onboarding { background: color-mix(in srgb, var(--accent) 15
     </section>
 
     <div id="detail-panel"></div>
+
+    <button type="button" id="workshop-add-fab" aria-label="Add entry" title="Add entry">＋</button>
   </div>
 
   <section id="library-view" hidden>
@@ -5444,6 +5450,10 @@ const VOWELS = 'aeiou';
 function escapeRegex(s)        { return s.replace(/[.+*?^${}()|[\]\\]/g, '\\$&'); }
 function escapeRegexClass(s)   { return s.replace(/[\]\\^-]/g, '\\$&'); }
 
+// Wildcards buildSearchPattern recognizes — keep this list in sync with it.
+const SEARCH_WILDCARD_RE = /[*?#@[]/;
+function isLiteralQuery(query) { return query !== '' && !SEARCH_WILDCARD_RE.test(query); }
+
 // Two arms: the regex runs against both the entry's norm (accents + separators
 // stripped) and its verbatim display, matching if either does — norm forgives
 // separators (`theirs` finds "the IRS"); display requires a typed space/accent.
@@ -9207,7 +9217,8 @@ const AtomPopover = (() => {
   }
 
   function openForCreate(entryStr, scroller, anchorEl) {
-    open(buildUserWlEntry(entryStr, '', ''), null, scroller, anchorEl, 'score');
+    const focusField = entryStr.trim() ? 'score' : 'entry';
+    open(buildUserWlEntry(entryStr, '', ''), null, scroller, anchorEl, focusField);
   }
 
   function renderFooterHTML(preview, scroller) {
@@ -9364,8 +9375,14 @@ const AtomPopover = (() => {
     wireFooter();
   }
 
-  function position(rowEl) {
-    const r = rowEl.getBoundingClientRect();
+  function position(anchorEl) {
+    if (!anchorEl) {
+      const pw = el.offsetWidth, ph = el.offsetHeight;
+      el.style.left = Math.max(8, (window.innerWidth  - pw) / 2) + 'px';
+      el.style.top  = Math.max(8, (window.innerHeight - ph) / 2) + 'px';
+      return;
+    }
+    const r = anchorEl.getBoundingClientRect();
     el.style.top = (r.bottom + 4) + 'px';
     el.style.left = r.left + 'px';
     requestAnimationFrame(() => {
@@ -10606,6 +10623,12 @@ function ingestFile(file, wordlist, nameOverride) {
 
 // ─── My Edits: add entry & delete ────────────────────────────────────────────
 
+function newEntrySeedQuery() {
+  const q = WorkshopView.searchQuery.trim();
+  if (!isLiteralQuery(q) || buildMergedWordlist().byNorm.has(toNorm(q))) return '';
+  return q;
+}
+
 const NO_MATCH_QUIPS = [
   q => `"The ${q} is in another castle."`,
   q => `"This is not the ${q} you are looking for."`,
@@ -11335,6 +11358,8 @@ function bindEvents() {
   document.getElementById('btn-settings').onclick = () => SettingsDialog.open();
   document.getElementById('btn-storage').onclick  = () => StorageDialog.open();
   document.getElementById('btn-help').onclick     = () => WelcomeDialog.open();
+  document.getElementById('workshop-add-fab').onclick = () =>
+    AtomPopover.openForCreate(newEntrySeedQuery(), workshopScroller, null);
   const isDesktopLike = window.matchMedia('(hover: hover) and (pointer: fine)').matches;
   if (!Disk.isSupported() && !isDesktopLike) document.getElementById('btn-storage').hidden = true;
 

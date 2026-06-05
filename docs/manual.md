@@ -148,7 +148,7 @@ When the score you see differs from what the wordlist itself contains (because i
 
 For entries sourced from My Edits, the popover also has a Delete button (with undo via toast).
 
-**Adding new entries.** Search for the word you want. If no wordlist has it, the empty-state message offers an **Add it** button — click it to open the same editor popover used everywhere else, pre-populated with the word. Type a score (and an optional comment), press Enter, and the new entry lands in My Edits.
+**Adding new entries.** A floating **＋** button in the bottom-right corner of the Workshop opens the entry editor in the center of the screen. If you've just searched for a plain word that no wordlist has, it starts with that word filled in (a wildcard search, or one that already matches something, opens blank). Type a score and an optional comment, press Enter, and the entry lands in My Edits. Searching for a missing word also surfaces an **Add it** button under the empty-results quip — the same editor, pre-populated. Either way the new entry lands in My Edits.
 
 ## My Edits
 

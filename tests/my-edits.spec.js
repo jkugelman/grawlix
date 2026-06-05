@@ -204,6 +204,55 @@ test('searching for an unknown entry surfaces an Add-it affordance that lands th
   });
 });
 
+test('the floating + button opens a blank create popover that lands the entry in My Edits', async ({ page }) => {
+  await gotoApp(page);
+
+  const fab = page.locator('#workshop-add-fab');
+  await expect(fab).toBeVisible();
+  await fab.click();
+
+  const entryInput = page.locator('#atom-pop-entry');
+  await expect(entryInput).toBeFocused();
+  await expect(entryInput).toHaveValue('');
+
+  await entryInput.fill('FRESH');
+  await page.locator('#atom-pop-score').fill('55');
+  await page.locator('#atom-pop-score').press('Enter');
+
+  await expect.poll(async () =>
+    page.evaluate(() => window.__grawlixTest.getWordlist('My Edits').entries)
+  ).toEqual([{ entry: 'fresh', display: 'FRESH', score: 55, comment: '' }]);
+
+  await page.locator('.header-nav-item[data-view="library"]').click();
+  await expect(fab).toBeHidden();
+});
+
+test('the floating + button seeds the search term only for a literal word that is missing', async ({ page }) => {
+  await gotoApp(page);
+  await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
+    name: 'Source', entries: ['bagel'], scores: [50],
+  }));
+
+  const fab = page.locator('#workshop-add-fab');
+  const search = page.locator('.search-bar input[data-key="pattern"]');
+  const entryInput = page.locator('#atom-pop-entry');
+
+  await search.fill('ZYMURGY');
+  await fab.click();
+  await expect(entryInput).toHaveValue('ZYMURGY');
+  await expect(page.locator('#atom-pop-score')).toBeFocused();
+  await page.keyboard.press('Escape');
+
+  await search.fill('BAGEL');
+  await fab.click();
+  await expect(entryInput).toHaveValue('');
+  await page.keyboard.press('Escape');
+
+  await search.fill('ZY*GY');
+  await fab.click();
+  await expect(entryInput).toHaveValue('');
+});
+
 test('deleting a My Edits entry shows an undo toast that restores it', async ({ page }) => {
   await gotoApp(page);
 
