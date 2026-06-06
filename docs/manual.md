@@ -166,9 +166,9 @@ Each wordlist card carries a drag handle (reorder = merge priority), an enable c
 
 Every panel also carries the **sync pill** on the left of the action row (see § Disk sync).
 
-**Rescored view.** A wordlist's panel — its stats, histogram, and entries list — always shows the *rescored* result, the version it contributes to All. As you tune a rescore rule the rows below update live (`input → output` annotations on rows the rule changed; a struck-through row for an ignored entry). To get the *original* imported file instead, use **Download original** on the source's Download button (below).
+**Rescored view.** A wordlist's panel — its stats, histogram, and entries list — always shows the *rescored* result, the version it contributes to All. As you tune a rescore rule the rows below update live, with `input → output` annotations on rows the rule changed. To get the *original* imported file instead, use **Download original** on the source's Download button (below).
 
-**Rescoring rules.** Each Source — and My Edits — carries a rescore rules editor. Rules map an input score range — and an optional entry-length filter — to an output score, or `ignore` to drop the entry. First matching rule wins. My Edits' typed scores are stored raw and run through its rules just like any source; it ships with the tier legend (blank-output rows), so they pass through unchanged until you fill in an output.
+**Rescoring rules.** Each Source — and My Edits — carries a rescore rules editor. Rules map an input score range — and an optional entry-length filter — to an output score. First matching rule wins. My Edits' typed scores are stored raw and run through its rules just like any source; it ships with the tier legend (blank-output rows), so they pass through unchanged until you fill in an output.
 
 Rescoring is entirely optional. If a wordlist's scores don't line up with Grawlix's scale and you don't care, leave the rules empty — the raw scores pass through and nothing warns you about it. You can ignore the score column entirely and still search, filter, and run every tool.
 
@@ -180,7 +180,7 @@ Custom wordlists with up to 10 distinct scores get auto-seeded with one inert ru
 
 **Reset to defaults.** A button appears in the rules editor (rescore on a publisher Source or My Edits, scoring on All) when you've customized the rules away from their shipped defaults. Clicking it restores the defaults, with a confirmation first. Visible only inside the editor and only when there's something to undo.
 
-**Entries view.** Each populated wordlist's panel includes a virtual-scrolled, monospace, text-file-flavored entries list below its rules editor, always showing the rescored result. An inline arrow shows what each rule changed — e.g. `BAGEL  45 → 50  tasty`; rows dropped by an `ignore` rule are struck through with their input score, and untouched rows show their input score plain. The Library entries view is read-only; editing routes through the Workshop entries table's popover.
+**Entries view.** Each populated wordlist's panel includes a virtual-scrolled, monospace, text-file-flavored entries list below its rules editor, always showing the rescored result. An inline arrow shows what each rule changed — e.g. `BAGEL  45 → 50  tasty`; untouched rows show their input score plain. The Library entries view is read-only; editing routes through the Workshop entries table's popover.
 
 **Search bar** (above the stats bar). Full pattern syntax and whole-word toggle. No Replace caret — the Library bar filters a wordlist for inspection, it doesn't transform or query it. Score range and sort live in the stats bar below, the same as on Workshop.
 

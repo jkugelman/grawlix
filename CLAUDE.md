@@ -65,7 +65,7 @@ ENTRY;SCORE
 ENTRY;SCORE;COMMENT
 ```
 
-**Rescore rules** (every wordlist, including My Edits) map an input score range + optional entry-length filter to an output score (or `'ignore'` to drop the entry). First matching rule wins. Rescoring is optional: raw scores not matched by any rule pass through unchanged, and nothing nags the user about the gap.
+**Rescore rules** (every wordlist, including My Edits) map an input score range + optional entry-length filter to an output score. First matching rule wins; rescoring is total — every raw entry maps to exactly one rescored entry, never dropped. Rescoring is optional: raw scores not matched by any rule pass through unchanged, and nothing nags the user about the gap.
 
 **Scoring rules** (`state.scoring`) are the user's tier labels for the unified score scale: single source of truth for what each score range means. Edited from All's right pane in the Library view. Labeling is optional too — merged scores with no tier label still display, just without a tooltip name.
 

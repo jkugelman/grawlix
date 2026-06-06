@@ -255,12 +255,10 @@ button.danger:hover:not(:disabled) { background: #e74c3c; border-color: #c0392b;
 .stat-value { font-size: 15px; font-weight: 700; line-height: 1; }
 .histogram { display: flex; gap: 3px; align-items: stretch; height: 36px; position: relative; cursor: pointer; user-select: none; touch-action: none; flex-shrink: 1; min-width: 80px; }
 .histogram-col { width: 7px; display: flex; align-items: flex-end; flex-shrink: 0; }
-.histogram-col-ignored { margin-right: 5px; cursor: default; }
 .histogram-bar { width: 7px; background: var(--score-bg, var(--accent)); border-radius: 2px 2px 0 0; position: relative; z-index: 1; }
-.histogram-bar.histogram-bar-ignored { background: var(--faint); }
 .histogram-rect { position: absolute; top: -2px; bottom: -2px; background: var(--accent); opacity: 0.18; border-radius: 4px; pointer-events: none; z-index: 0; transition: left 0.05s ease, width 0.05s ease; }
 .histogram-rect[hidden] { display: none; }
-html.light-mode .histogram-bar:not(.histogram-bar-ignored) { filter: saturate(1.8) brightness(0.9); }
+html.light-mode .histogram-bar { filter: saturate(1.8) brightness(0.9); }
 html.light-mode .histogram-rect { opacity: 0.11; }
 .stats-bar-sort { font-size: 12px; color: var(--muted); white-space: nowrap; flex-shrink: 0; display: inline-flex; align-items: center; gap: 4px; }
 .stats-bar-sort .sort-axis-select { appearance: none; -webkit-appearance: none; border: none; background: transparent; padding: 2px 14px 2px 3px; border-radius: 4px; font: inherit; font-size: 12px; color: var(--text); cursor: pointer; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 5'%3E%3Cpath fill='%238a8a8a' d='M0 0l4 5 4-5z'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 3px center; background-size: 8px 5px; }
@@ -544,10 +542,6 @@ mark.search-match { border-radius: 2px; padding: 0 1px; margin: 0 -1px; font-sty
 .lib-entry-row .lib-atom-comment { overflow: hidden; text-overflow: ellipsis; min-width: 0; font-size: 12px; }
 .lib-entry-row .lib-atom-arrow { color: var(--faint); padding: 0 2px; }
 .lib-entry-row .lib-atom-out { color: var(--accent); font-weight: 600; }
-.lib-entry-row.lib-ignored { opacity: 0.55; }
-.lib-entry-row.lib-ignored .lib-atom-entry,
-.lib-entry-row.lib-ignored .lib-atom-score,
-.lib-entry-row.lib-ignored .lib-atom-comment { text-decoration: line-through; }
 .lib-entries-empty { padding: 28px 22px; color: var(--faint); font-size: 13px; font-style: italic; }
 
 #atom-popover { position: fixed; z-index: 600; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 6px 24px rgba(0,0,0,0.2); padding: 12px 14px; font-size: 12px; color: var(--text); min-width: 280px; max-width: 360px; }
@@ -1481,7 +1475,7 @@ const WORDLIST_PUBLISHERS = [
     icon: null,
     defaultRules: [
       { input:'76-100', length:'7+', output:'60',     scoring:false },
-      { input:'0-100',  length:'',   output:'ignore' },
+      { input:'0-100',  length:'',   output:'20' },
     ],
   },
 ];
@@ -1916,11 +1910,11 @@ class PopupHelp {
   }
 }
 
-// `stats` drives the numeric readouts (count/min/max); `hist`
-// ({ entries, ignoredCount }) drives the histogram bars. Splitting them lets
-// the score-range filter shrink the numbers without making bars outside the
-// selection vanish — those bars stay sourced from the pre-score-range set.
-function buildStatsBarHTML(stats, hist, layout, opts = {}) {
+// `stats` drives the numeric readouts (count/min/max); `histEntries` drives the
+// histogram bars. Splitting them lets the score-range filter shrink the numbers
+// without making bars outside the selection vanish — those bars stay sourced
+// from the pre-score-range set.
+function buildStatsBarHTML(stats, histEntries, layout, opts = {}) {
   const {
     countValue = stats.count,
     groupCount = null,
@@ -1932,15 +1926,9 @@ function buildStatsBarHTML(stats, hist, layout, opts = {}) {
   const isEmpty = !countValue;
   const dash = '—';
   const fmt = v => isEmpty ? dash : v;
-  const ignored = hist.ignoredCount || 0;
-  const counts = bucketCounts(hist.entries || [], layout);
-  const scale = Math.max(ignored, ...counts, 1);
+  const counts = bucketCounts(histEntries || [], layout);
+  const scale = Math.max(...counts, 1);
   const barH = c => c === 0 ? 0 : Math.max(2, Math.round((c / scale) * 34));
-
-  const ignoredTitle = ignored > 0 ? ` title="${pluralize(ignored, 'entry', 'entries')} ignored"` : '';
-  const ignoredBar = ignored > 0
-    ? `<div class="histogram-col histogram-col-ignored"${ignoredTitle}><div class="histogram-bar histogram-bar-ignored" style="height:${barH(ignored)}px"></div></div>`
-    : '';
 
   const bars = layout.slots.map((s, i) => {
     const c = counts[i];
@@ -1969,7 +1957,7 @@ function buildStatsBarHTML(stats, hist, layout, opts = {}) {
           ${buildStatItemHTML('Min', fmt(stats.min), null, 'stat-far')}
           ${buildStatItemHTML('Max', fmt(stats.max), null, 'stat-far')}
         </div>
-        <div class="histogram" title="Histogram • Click to filter" onpointerdown="onHistogramPointerDown(event)">${ignoredBar}${bars}<div class="histogram-rect" hidden></div></div>
+        <div class="histogram" title="Histogram • Click to filter" onpointerdown="onHistogramPointerDown(event)">${bars}<div class="histogram-rect" hidden></div></div>
       </div>
       <div class="stats-bar-controls">${rangeHTML}${sortSlotHTML}${exportSlotHTML}</div>
     </div>`;
@@ -2048,7 +2036,7 @@ function buildRulesListHTML(rules, { rulesId, saveFn, deleteFn, addFn = '', rese
             title="Entry length filter: 7, 7-10, or 7+ (blank = any length)"${disabled}${lenHandlers}>
           <span class="rule-arrow">→</span>
           <input class="rule-out${outInvalid ? ' invalid' : ''}" autocapitalize="off" autocorrect="off" spellcheck="false" value="${esc(r.output)}" placeholder="unchanged"
-            title="Output score, 'ignore', or blank for unchanged"${disabled}${outHandlers}>`;
+            title="Output score, or blank for unchanged"${disabled}${outHandlers}>`;
       }
       return buildRuleRowHTML(i, fieldsHTML, r.note, deleteFn, readOnly);
     }).join('');
@@ -2636,14 +2624,22 @@ function lsDel(key)  { localStorage.removeItem(LS_PREFIX + key); }
 //
 // Schema version history:
 //   ≤9: pre-migration-policy baseline; a store this old hits the reset floor.
-const SCHEMA_VERSION = 9;
+//   v10 (2026-06-06): dropped the 'ignore' rescore output; rules that output
+//                     'ignore' rewrite to '0'.
+const SCHEMA_VERSION = 10;
 
 // MIGRATIONS[v] upgrades a settings blob from schema v to v+1, mutating it in
 // place (a returned value is ignored). The blob is the
 // { sources, scoring, scoringDirty, mergedSettings } shape that migrateLocalStorage
 // assembles from the separate localStorage keys; migrations target that, never raw storage.
 const MIGRATIONS = {
-  // 9: blob => { for (const w of blob.sources) upgradeIconInPlace(w); },
+  9: blob => {
+    for (const w of blob.sources || []) {
+      for (const r of w.rescoreRules || []) {
+        if ((r.output || '').trim().toLowerCase() === 'ignore') r.output = '0';
+      }
+    }
+  },
 };
 
 function canMigrate(from) {
@@ -3900,10 +3896,9 @@ const LibraryView = (() => {
     const hasData = wordlist.rawEntries.length > 0;
 
     const sourceEntries = getRescoredEntries(wordlist);
-    const ignoredCount = wordlist.rawEntries.length - sourceEntries.length;
     const intervals = parseRange(activeScoreRange());
     const filteredEntries = intervals ? sourceEntries.filter(e => matchesRange(e.score, intervals)) : sourceEntries;
-    const stats = computeStatsRaw(filteredEntries, intervals ? 0 : ignoredCount);
+    const stats = computeStatsRaw(filteredEntries);
 
     const hasRules = (wordlist.rescoreRules?.length ?? 0) > 0;
     let dlBtn;
@@ -3950,7 +3945,7 @@ const LibraryView = (() => {
       ${syncSignHTML(wordlist)}
       ${rulesHTML}
       ${buildSearchBarHTML()}
-      ${buildLibraryStatsBarHTML(stats, sourceEntries, ignoredCount)}
+      ${buildLibraryStatsBarHTML(stats, sourceEntries)}
       ${hasData ? buildEntriesPanelHTML() : ''}`;
 
     if (hasData) buildScrollerInPane(wordlist);
@@ -4001,9 +3996,9 @@ const LibraryView = (() => {
     if (hasData) buildScrollerInPane(null);
   }
 
-  function buildLibraryStatsBarHTML(stats, histEntries, ignoredCount) {
+  function buildLibraryStatsBarHTML(stats, histEntries) {
     const range = activeScoreRange();
-    return buildStatsBarHTML(stats, { entries: histEntries, ignoredCount }, getHistogramLayout(), {
+    return buildStatsBarHTML(stats, histEntries, getHistogramLayout(), {
       scoreRange: { value: range, inputId: 'lib-score-range-input', viewName: 'LibraryView' },
       sortHTML: buildSortControlsHTML(),
     });
@@ -4030,22 +4025,14 @@ const LibraryView = (() => {
   function refreshStatsBar() {
     if (!_focusedWordlist) return;
     const isMerged = _focusedWordlist === MERGED_ID;
-    let sourceEntries, ignoredCount;
-    if (isMerged) {
-      sourceEntries = buildMergedWordlist().entries;
-      ignoredCount = 0;
-    } else {
-      const wordlist = _focusedWordlist;
-      sourceEntries = getRescoredEntries(wordlist);
-      ignoredCount = wordlist.rawEntries.length - sourceEntries.length;
-    }
+    const sourceEntries = isMerged ? buildMergedWordlist().entries : getRescoredEntries(_focusedWordlist);
     const intervals = parseRange(activeScoreRange());
     const searchEntries = applyLibrarySearchFilter(sourceEntries);
     const rangeFiltered = intervals ? searchEntries.filter(e => matchesRange(e.score, intervals)) : searchEntries;
-    const stats = computeStatsRaw(rangeFiltered, intervals ? 0 : ignoredCount);
+    const stats = computeStatsRaw(rangeFiltered);
     const statsBar = pane.querySelector('.stats-bar');
     if (statsBar) {
-      swapStatsBarReadouts(statsBar, buildLibraryStatsBarHTML(stats, searchEntries, ignoredCount));
+      swapStatsBarReadouts(statsBar, buildLibraryStatsBarHTML(stats, searchEntries));
       repositionAllHistogramRects();
     }
   }
@@ -4737,11 +4724,11 @@ function invalidateWordlistCaches(wordlist) {
   invalidateStatsCache(_mergedStatsKey);
 }
 
-function computeStatsRaw(entries, ignoredCount = 0) {
+function computeStatsRaw(entries) {
   // Empty state: return an all-zero shape so buildStatsBarHTML can render the
   // bar with dashes and an empty histogram.
   if (!entries.length) {
-    return { count: 0, min: 0, max: 0, distinctScores: [], ignoredCount };
+    return { count: 0, min: 0, max: 0, distinctScores: [] };
   }
   let min = Infinity, max = -Infinity;
   const freq = {};
@@ -4751,20 +4738,14 @@ function computeStatsRaw(entries, ignoredCount = 0) {
     freq[score] = (freq[score] || 0) + 1;
   }
   const distinctScores = Object.keys(freq).map(Number).sort((a, b) => a - b);
-  return { count: entries.length, min, max, distinctScores, ignoredCount };
+  return { count: entries.length, min, max, distinctScores };
 }
 
-function computeStats(key, entries, ignoredCount = 0) {
+function computeStats(key, entries) {
   if (_statsCache.has(key)) return _statsCache.get(key);
-  const result = computeStatsRaw(entries, ignoredCount);
+  const result = computeStatsRaw(entries);
   _statsCache.set(key, result);
   return result;
-}
-
-function statsForWordlist(wordlist) {
-  const entries = getRescoredEntries(wordlist);
-  const ignoredCount = wordlist.rawEntries.length - entries.length;
-  return { stats: computeStats(wordlist, entries, ignoredCount), entries };
 }
 
 // ─── Histogram layout ─────────────────────────────────────────────────────────
@@ -8329,8 +8310,8 @@ function libraryEntryColumnWidths() {
       const inLen = String(wlE.score).length;
       let scoreChars = inLen;
       if (rules.length) {
-        const r = rescoreEntry(wlE, rules);
-        if (r.kept && r.score !== wlE.score) scoreChars = inLen + 3 + String(r.score).length;
+        const s = rescoreEntry(wlE, rules);
+        if (s !== wlE.score) scoreChars = inLen + 3 + String(s).length;
       }
       if (scoreChars > maxScoreChars) maxScoreChars = scoreChars;
     }
@@ -8429,7 +8410,6 @@ class LibraryEntriesScroller extends BaseVirtualScroller {
         inputScore: e.score,
         outputScore: e.score,
         rescored: false,
-        ignored: false,
         comment: e.comment || '',
       }));
     }
@@ -8438,12 +8418,9 @@ class LibraryEntriesScroller extends BaseVirtualScroller {
     return wl.rawEntries.map(wlE => {
       let outputScore = wlE.score;
       let rescored = false;
-      let ignored = false;
       if (annotate) {
-        const r = rescoreEntry(wlE, rules);
-        if (!r.kept) ignored = true;
-        else if (r.score !== wlE.score) { outputScore = r.score; rescored = true; }
-        else outputScore = r.score;
+        const s = rescoreEntry(wlE, rules);
+        if (s !== wlE.score) { outputScore = s; rescored = true; }
       }
       return {
         wlEntry: wlE,
@@ -8453,7 +8430,6 @@ class LibraryEntriesScroller extends BaseVirtualScroller {
         inputScore: wlE.score,
         outputScore,
         rescored,
-        ignored,
         comment: wlE.comment || '',
       };
     });
@@ -8473,7 +8449,6 @@ class LibraryEntriesScroller extends BaseVirtualScroller {
     const key = this.sortKey;
     const sorted = [...this._baseRows].sort((a, b) => {
       if (key === 'score') {
-        if (a.ignored !== b.ignored) return a.ignored ? 1 : -1;
         return dir * (a.outputScore - b.outputScore);
       }
       const av = key === 'length' ? a.len : a.norm;
@@ -8492,10 +8467,7 @@ class LibraryEntriesScroller extends BaseVirtualScroller {
 
     const intervals = this.scoreRange ? parseRange(this.scoreRange) : null;
     if (intervals) {
-      source = source.filter(r => {
-        if (r.ignored) return false;
-        return matchesRange(r.outputScore, intervals);
-      });
+      source = source.filter(r => matchesRange(r.outputScore, intervals));
     }
 
     const q = this.query.trim();
@@ -8517,8 +8489,8 @@ class LibraryEntriesScroller extends BaseVirtualScroller {
   // Column widths come from the global cache (computed across every source +
   // merged), so they stay stable as the user navigates between wordlists or
   // flips Rescored/Original. The score slot is sized for the widest variant —
-  // `input → output` or `input → ✕` — which means Original mode has some slack
-  // on the right; that's the cost of stability.
+  // `input → output` — which means Original mode has some slack on the right;
+  // that's the cost of stability.
   _computeSlotWidths() {
     const { entryChars, scoreChars } = libraryEntryColumnWidths();
     const ch = measureMonoChPx();
@@ -8552,15 +8524,13 @@ class LibraryEntriesScroller extends BaseVirtualScroller {
       const ranges = this._searchRanges ? projectRangesToDisplay(this._searchRanges(r.wlEntry), r.wlEntry) : [];
       const entryHtml = renderHighlightedText(r.display, ranges);
 
-      const showArrow = r.rescored && !r.ignored;
+      const showArrow = r.rescored;
       const scoreHTML = showArrow
         ? `${r.inputScore}<span class="lib-atom-arrow">→</span><span class="lib-atom-out">${r.outputScore}</span>`
         : String(r.inputScore);
 
       const row = document.createElement('div');
-      let cls = 'lib-entry-row';
-      if (r.ignored) cls += ' lib-ignored';
-      row.className = cls;
+      row.className = 'lib-entry-row';
       row.style.top = (i * ROW_HEIGHT) + 'px';
       if (r.display.length > ENTRY_SLOT_CAP) row.title = r.display;
       row.innerHTML =
@@ -9011,7 +8981,6 @@ function outputSortKey(rule) {
   const s = parseRuleOutput(rule.output);
   if (typeof s === 'number') return s;
   if (s && typeof s === 'object') return s.max === null ? s.min : (s.min + s.max) / 2;
-  if (s === 'ignore') return -1;
   return getRuleMaxScore(rule); // 'unchanged' sorts by input score
 }
 
@@ -9136,7 +9105,6 @@ function compileRescoreRules(wordlist) {
 function parseRuleOutput(str) {
   str = (str || '').trim().toLowerCase();
   if (!str) return 'unchanged';
-  if (str === 'ignore') return 'ignore';
   const mRange = str.match(/^(\d+)[-–](\d+)$/);
   if (mRange) return { min: +mRange[1], max: +mRange[2] };
   const mPlus  = str.match(/^(\d+)\+$/);
@@ -9152,10 +9120,9 @@ function compileRule(rule) {
 }
 
 function applyRescoring(entries, rules) {
-  return entries.flatMap(e => {
-    const r = rescoreEntry(e, rules);
-    if (!r.kept) return [];
-    return [r.score !== e.score ? { ...e, score: r.score } : e];
+  return entries.map(e => {
+    const score = rescoreEntry(e, rules);
+    return score !== e.score ? { ...e, score } : e;
   });
 }
 
@@ -9195,22 +9162,21 @@ function rescoreEntry(wlEntry, rules) {
     }
     const s = rule._output !== undefined ? rule._output : parseRuleOutput(rule.output);
     if (s === null) continue;
-    if (s === 'ignore') return { kept: false };
-    if (s === 'unchanged') return { kept: true, score: wlEntry.score };
+    if (s === 'unchanged') return wlEntry.score;
     if (s && typeof s === 'object') {
       const iv = scoreIntervals[0];
       if (iv.max === null && s.max === null) {
         // Both N+: shift by the difference
-        return { kept: true, score: wlEntry.score + (s.min - iv.min) };
+        return wlEntry.score + (s.min - iv.min);
       }
       // Bounded range: linearly scale; skip if shapes don't match or input is degenerate
       if (iv.min === null || iv.max === null || s.max === null || iv.min === iv.max) continue;
       const t = (wlEntry.score - iv.min) / (iv.max - iv.min);
-      return { kept: true, score: Math.round(s.min + t * (s.max - s.min)) };
+      return Math.round(s.min + t * (s.max - s.min));
     }
-    return { kept: true, score: s }; // first matching rule wins
+    return s; // first matching rule wins
   }
-  return { kept: true, score: wlEntry.score };
+  return wlEntry.score;
 }
 
 // ─── Rescoring / Scoring section ─────────────────────────────────────────────
@@ -9387,7 +9353,7 @@ function buildWorkshopStatsBarHTML() {
     : (scroller ? scroller.entries.length : statsEntries.length);
   const stats = computeStatsRaw(statsEntries);
   const range = WorkshopView.scoreRange;
-  return buildStatsBarHTML(stats, { entries: histEntries, ignoredCount: 0 }, getHistogramLayout(), {
+  return buildStatsBarHTML(stats, histEntries, getHistogramLayout(), {
     countValue: visibleEntries,
     groupCount,
     scoreRange: { value: range, inputId: 'score-range-input', viewName: 'WorkshopView' },
@@ -9624,9 +9590,8 @@ function rangeStrFromBounds(lo, hi, layout) {
   return `${lo}-${hi}`;
 }
 
-// Returns null when the cursor sits before the first regular bar (the ignored-bar zone).
 function _slotAt(histEl, clientX) {
-  const cols = histEl.querySelectorAll('.histogram-col:not(.histogram-col-ignored)');
+  const cols = histEl.querySelectorAll('.histogram-col');
   if (!cols.length) return null;
   const x = clientX - histEl.getBoundingClientRect().left;
   const first = cols[0];
@@ -9704,7 +9669,7 @@ function positionHistogramRect(histEl, intervals = undefined) {
     intervals = range ? parseRange(range) : null;
   }
   if (!intervals) { rect.hidden = true; return; }
-  const cols = [...histEl.querySelectorAll('.histogram-col:not(.histogram-col-ignored)')];
+  const cols = [...histEl.querySelectorAll('.histogram-col')];
   const matching = cols.filter(c => {
     const bar = c.querySelector('.histogram-bar');
     return slotIntersectsRange(+bar.dataset.lo, +bar.dataset.hi, intervals);
@@ -12086,6 +12051,8 @@ window.__grawlixTest = {
     if (!wl) throw new Error(`No wordlist named "${name}"`);
     return wl;
   },
+
+  migrateSettings,
 };
 
 // ─── Boot ─────────────────────────────────────────────────────────────────────

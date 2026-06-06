@@ -79,6 +79,7 @@ test('test API is exposed on window', async ({ page }) => {
     'getWordlist',
     'markMergedCache',
     'mergedCacheTag',
+    'migrateSettings',
     'moveBefore',
     'pipelineIdle',
     'rebuildMergedCache',

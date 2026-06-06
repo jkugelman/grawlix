@@ -100,20 +100,3 @@ test('a plain ambient winner inherits the rich variant\'s comment', async ({ pag
   expect(pronoun).toMatchObject({ score: 90, comment: 'pronoun',    wordlist: 'Plain' });
   expect(agency).toMatchObject({  score: 90, comment: 'tax agency', wordlist: 'Plain' });
 });
-
-test('rescore rule with output "ignore" drops the entry from All', async ({ page }) => {
-  await gotoApp(page);
-
-  // Three entries, one with score 70 — we'll ignore that one.
-  await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
-    name: 'Pruned', entries: ['KEEP1', 'DROPME', 'KEEP2'], scores: [50, 70, 50],
-  }));
-  await page.evaluate(() => window.__grawlixTest.setRescoreRules('Pruned', [
-    { input: '70', length: '', output: 'ignore', note: '' },
-    { input: '50', length: '', output: '',       note: '' },
-  ]));
-
-  expect(await page.evaluate(() => window.__grawlixTest.getMergedEntry('KEEP1'))).not.toBeNull();
-  expect(await page.evaluate(() => window.__grawlixTest.getMergedEntry('DROPME'))).toBeNull();
-  expect(await page.evaluate(() => window.__grawlixTest.getMergedEntry('KEEP2'))).not.toBeNull();
-});
