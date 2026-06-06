@@ -2408,11 +2408,6 @@ const DEFAULT_SCORING = WORDLIST_PUBLISHERS
   .filter(r => r.scoring !== false)
   .map(({ input, note }) => ({ input, note }));
 
-// Outputs MUST stay blank: propagateDefaults pushes this set onto every
-// non-dirty My Edits, so a real output here would silently re-grade existing
-// users' entries.
-const EDITS_DEFAULT_RULES = DEFAULT_SCORING.map(({ input, note }) => ({ input, length: '', output: '', note }));
-
 // Top-level state. `sources$` is the array of wordlists, signal-backed so
 // the cosmetic effect can subscribe; reorder/add/remove call `sources$.bump()`
 // after splicing (signal equality is by reference, so plain mutation needs a
@@ -4590,7 +4585,7 @@ function ensureEdits() {
       rawEntries: [],
       lastUpdated: null,
       _loading: false,
-      rescoreRules: EDITS_DEFAULT_RULES.map(r => ({ ...r })),
+      rescoreRules: editsLegend(),
     });
     compileRescoreRules(newEdits);
     state.sources.unshift(newEdits);
@@ -9009,8 +9004,17 @@ function scoringRulesEqual(a, b) {
   });
 }
 
+// The My Edits legend: an inert mirror of All's tier scale, one blank-output row
+// per tier. Sourced from the live tiers (state.scoring), not frozen
+// DEFAULT_SCORING — otherwise customizing All's tiers would silently desync the
+// legend My Edits shows. Outputs stay blank (scoring rows carry none), so
+// propagateDefaults can push it onto a non-dirty My Edits without re-grading.
+function editsLegend() {
+  return state.scoring.map(({ input, note }) => ({ input, length: '', output: '', note }));
+}
+
 function getWordlistDefaultRules(wordlist) {
-  if (wordlist.type === 'edits') return EDITS_DEFAULT_RULES;
+  if (wordlist.type === 'edits') return editsLegend();
   const publisher = getPublisher(wordlist);
   return publisher?.defaultRules ?? null;
 }
@@ -9073,7 +9077,7 @@ function maybeAutoSeedRescoreRules(wordlist) {
 // import discards it and auto-seeds the actual scale instead.
 function reconcileEditsRulesAfterImport(edits) {
   if (edits.dirty) return;
-  const tierIntervals = EDITS_DEFAULT_RULES.map(r => parseRange(r.input)).filter(Boolean);
+  const tierIntervals = editsLegend().map(r => parseRange(r.input)).filter(Boolean);
   const aligned = edits.rawEntries.every(e => tierIntervals.some(iv => matchesRange(e.score, iv)));
   if (aligned) return;
   edits.rescoreRules = [];
