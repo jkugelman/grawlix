@@ -598,12 +598,25 @@ input.entry-input { font-family: var(--font-mono); font-size: 13px; }
 .card-name-edit { font-family: inherit; width: 100%; padding: 0 3px; border: 1px solid var(--accent); border-radius: 3px; background: var(--input-bg); color: var(--text); font-size: 13px; font-weight: 600; outline: none; }
 
 /* Drag handle */
-.drag-handle { color: var(--faint); cursor: grab; font-size: 13px; flex-shrink: 0; padding: 0 1px; user-select: none; }
+.drag-handle { color: var(--faint); cursor: grab; font-size: 13px; flex-shrink: 0; padding: 0 1px; user-select: none; touch-action: none; }
 .drag-handle:hover { color: var(--muted); }
 .drag-handle[aria-hidden] { visibility: hidden; }
-.drag-handle[draggable]:active { cursor: grabbing; }
+.drag-handle:not([aria-hidden]):active { cursor: grabbing; }
+/* A viewport-pinned clip box for the drag ghost. overflow: hidden keeps a wide
+   ghost dragged past the edge from extending the page (spurious scrollbar);
+   pointer-events: none lets elementFromPoint reach the drop targets through it. */
+.drag-ghost-layer { position: fixed; inset: 0; z-index: 1000; overflow: hidden; pointer-events: none; }
+/* Scoped under the layer so position:absolute outweighs a cloned item's own
+   position — .tool-row sets position:relative later in this sheet and would
+   otherwise win on source order, stranding the ghost in normal flow (invisible). */
+.drag-ghost-layer .drag-ghost { position: absolute; box-sizing: border-box; opacity: 0.95; background: var(--surface); border-radius: 6px; box-shadow: 0 8px 24px rgba(0,0,0,0.3); }
 .wordlist-card.dragging { opacity: 0.4; }
-.wordlist-card.drag-over { background: var(--sel) !important; box-shadow: inset 0 0 0 2px var(--accent); }
+.drop-line { position: absolute; height: 2px; background: var(--accent); border-radius: 1px; box-shadow: 0 0 6px color-mix(in srgb, var(--accent) 55%, transparent); }
+.drop-line[hidden] { display: none; }
+/* Suppress the browser's horizontal swipe-to-go-back (and pull-to-refresh) for the
+   duration of a reorder drag. Reproduces only on touch, so a desktop dev removing
+   this won't see the regression — it bites mobile silently. Toggled by makeReorderable. */
+html.reorder-dragging { overscroll-behavior: none; }
 
 /* Toggle switch */
 .toggle { position: relative; display: inline-block; width: 28px; height: 16px; flex-shrink: 0; cursor: pointer; }
@@ -980,7 +993,6 @@ body.picker-expanded #picker-backdrop { opacity: 1; }
 .tool-row > .tool-row-replace { grid-column: 4; grid-row: 2; }
 .tool-row:last-child { border-bottom: none; }
 .tool-row.dragging { opacity: 0.4; }
-.tool-row.drag-over { box-shadow: inset 0 0 0 2px var(--accent); }
 /* One-shot accent pulse on a newly added tool row — draws the eye to it.
    add() rebuilds the rows, so the new row's element is always fresh and
    flashRow only needs to set the class once. */
@@ -2172,7 +2184,134 @@ function buildTrashIconHTML() {
 }
 
 function buildDragHandleHTML() {
-  return `<span class="drag-handle" draggable="true" title="Drag to reorder" aria-label="Drag to reorder">≡</span>`;
+  return `<span class="drag-handle" title="Drag to reorder" aria-label="Drag to reorder">≡</span>`;
+}
+
+let _dragGhostLayer = null;
+function dragGhostLayer() {
+  if (!_dragGhostLayer) {
+    _dragGhostLayer = document.createElement('div');
+    _dragGhostLayer.className = 'drag-ghost-layer';
+    document.body.appendChild(_dragGhostLayer);
+  }
+  return _dragGhostLayer;
+}
+
+// Native HTML5 drag never fires from touch, so the reorder handles that used it
+// were dead on mobile; pointer events fix that. Needs `touch-action: none` on the
+// handle (CSS) or a touch-drag scrolls the page instead of dragging.
+function makeReorderable(container, { handleSelector, itemSelector, onReorder }) {
+  if (!container) return;
+  const THRESHOLD = 4, EDGE = 48, SPEED = 10;
+  let fromEl = null, pointerId = null, dragging = false;
+  let startX = 0, startY = 0, lastX = 0, lastY = 0, rafId = 0;
+  let ghost = null, grabX = 0, grabY = 0;
+  let dropLine = null, dropBeforeEl = null, hasDrop = false;
+
+  const moveGhost = () => {
+    if (ghost) { ghost.style.left = `${lastX - grabX}px`; ghost.style.top = `${lastY - grabY}px`; }
+  };
+
+  // iOS WebKit honors neither overscroll-behavior nor touch-action for the history
+  // swipe; only preventing the (non-passive) touchmove keeps the page from sliding.
+  const blockTouch = e => e.preventDefault();
+
+  function refreshDrop() {
+    const items = [...container.querySelectorAll(itemSelector)];
+    const fromIdx = items.indexOf(fromEl);
+    let gap = items.findIndex(it => {
+      const r = it.getBoundingClientRect();
+      return lastY < r.top + r.height / 2;
+    });
+    if (gap < 0) gap = items.length;
+    hasDrop = gap !== fromIdx && gap !== fromIdx + 1;
+    if (!hasDrop) { if (dropLine) dropLine.hidden = true; return; }
+    dropBeforeEl = gap < items.length ? items[gap] : null;
+    const r = (dropBeforeEl || items[items.length - 1]).getBoundingClientRect();
+    if (!dropLine) {
+      dropLine = document.createElement('div');
+      dropLine.className = 'drop-line';
+      dragGhostLayer().appendChild(dropLine);
+    }
+    dropLine.style.left  = `${r.left}px`;
+    dropLine.style.width = `${r.width}px`;
+    dropLine.style.top   = `${(dropBeforeEl ? r.top : r.bottom) - 1}px`;
+    dropLine.hidden = false;
+  }
+
+  // The nearest scrollable ancestor, else the page (null) — the surface to
+  // auto-scroll when a drag nears its edge.
+  function scrollHost() {
+    for (let n = fromEl?.parentElement; n; n = n.parentElement) {
+      const oy = getComputedStyle(n).overflowY;
+      if ((oy === 'auto' || oy === 'scroll') && n.scrollHeight > n.clientHeight) return n;
+    }
+    return null;
+  }
+
+  // A touch held at the edge stops firing pointermove, so edge-scroll runs on
+  // its own frame loop off the last pointer position.
+  function tick() {
+    rafId = dragging ? requestAnimationFrame(tick) : 0;
+    if (!dragging) return;
+    const host = scrollHost();
+    if (host) {
+      const r = host.getBoundingClientRect();
+      if (lastY < r.top + EDGE && host.scrollTop > 0) host.scrollTop -= SPEED;
+      else if (lastY > r.bottom - EDGE)               host.scrollTop += SPEED;
+    } else if (lastY < EDGE)                           scrollBy(0, -SPEED);
+    else if (lastY > innerHeight - EDGE)              scrollBy(0,  SPEED);
+    refreshDrop();
+  }
+
+  function stop(commit) {
+    if (!fromEl) return;
+    const doDrop = commit && dragging && hasDrop;
+    const before = dropBeforeEl;
+    if (dropLine) dropLine.hidden = true;
+    fromEl.classList.remove('dragging');
+    ghost?.remove(); ghost = null;
+    if (doDrop) onReorder(fromEl, before);
+    fromEl = null; pointerId = null; dragging = false; hasDrop = false;
+    document.documentElement.classList.remove('reorder-dragging');
+    document.removeEventListener('touchmove', blockTouch, { passive: false });
+    if (rafId) { cancelAnimationFrame(rafId); rafId = 0; }
+  }
+
+  container.addEventListener('pointerdown', e => {
+    if (e.button > 0) return;
+    const handle = e.target.closest(handleSelector);
+    if (!handle || !container.contains(handle)) return;
+    const item = handle.closest(itemSelector);
+    if (!item) return;
+    fromEl = item; pointerId = e.pointerId;
+    startX = lastX = e.clientX; startY = lastY = e.clientY;
+    handle.setPointerCapture(e.pointerId);
+    document.documentElement.classList.add('reorder-dragging');
+    document.addEventListener('touchmove', blockTouch, { passive: false });
+    e.preventDefault();
+  });
+  container.addEventListener('pointermove', e => {
+    if (!fromEl || e.pointerId !== pointerId) return;
+    lastX = e.clientX; lastY = e.clientY;
+    if (!dragging) {
+      if (Math.hypot(lastX - startX, lastY - startY) < THRESHOLD) return;
+      dragging = true;
+      const r = fromEl.getBoundingClientRect();
+      grabX = lastX - r.left; grabY = lastY - r.top;
+      ghost = fromEl.cloneNode(true);
+      ghost.classList.add('drag-ghost');
+      ghost.style.width = `${r.width}px`;
+      dragGhostLayer().appendChild(ghost);
+      fromEl.classList.add('dragging');
+      rafId = requestAnimationFrame(tick);
+    }
+    e.preventDefault();
+    refreshDrop();
+    moveGhost();
+  });
+  container.addEventListener('pointerup',     e => { if (e.pointerId === pointerId) stop(true);  });
+  container.addEventListener('pointercancel', e => { if (e.pointerId === pointerId) stop(false); });
 }
 
 function buildWordlistNameHTML(wordlist, { bold = true } = {}) {
@@ -4229,42 +4368,15 @@ const LibraryView = (() => {
     toggleWordlist(card._wordlist, e);
   });
 
-  // Drag-to-reorder (mouse)
-  let _dragWordlist = null;
-  listBody.addEventListener('dragstart', e => {
-    const card = e.target.closest('.wordlist-card[data-wordlist]');
-    if (!card?._wordlist) return;
-    _dragWordlist = card._wordlist;
-    e.dataTransfer.effectAllowed = 'move';
-    e.dataTransfer.setData('text/plain', '');
-    e.dataTransfer.setDragImage(card, 0, 0);
-    setTimeout(() => card.classList.add('dragging'), 0);
-  });
-  listBody.addEventListener('dragend', () => {
-    listBody.querySelectorAll('.wordlist-card.dragging, .wordlist-card.drag-over')
-      .forEach(c => c.classList.remove('dragging', 'drag-over'));
-    _dragWordlist = null;
-  });
-  listBody.addEventListener('dragover', e => {
-    e.preventDefault();
-    e.dataTransfer.dropEffect = 'move';
-    const card = e.target.closest('.wordlist-card[data-wordlist]');
-    if (!card || card._wordlist === _dragWordlist) return;
-    listBody.querySelectorAll('.wordlist-card.drag-over').forEach(c => c.classList.remove('drag-over'));
-    card.classList.add('drag-over');
-  });
-  listBody.addEventListener('dragleave', e => {
-    const card = e.target.closest('.wordlist-card');
-    if (card && !card.contains(e.relatedTarget)) card.classList.remove('drag-over');
-  });
-  listBody.addEventListener('drop', e => {
-    e.preventDefault();
-    const card = e.target.closest('.wordlist-card[data-wordlist]');
-    const toWordlist = card?._wordlist;
-    if (!_dragWordlist || !toWordlist || _dragWordlist === toWordlist) return;
-    const fromIdx = state.sources.indexOf(_dragWordlist);
-    const toIdx   = state.sources.indexOf(toWordlist);
-    reorderSources(fromIdx, toIdx);
+  makeReorderable(listBody, {
+    handleSelector: '.drag-handle:not([aria-hidden])',
+    itemSelector:   '.wordlist-card[data-wordlist]',
+    onReorder: (fromEl, beforeEl) => {
+      const fromIdx = state.sources.indexOf(fromEl._wordlist);
+      let toIdx = beforeEl ? state.sources.indexOf(beforeEl._wordlist) : state.sources.length;
+      if (toIdx > fromIdx) toIdx--;
+      reorderSources(fromIdx, toIdx);
+    },
   });
 
   // ── + Add wordlist ────────────────────────────────────────────────────────────────
@@ -7017,46 +7129,16 @@ const ToolStack = (() => {
       }
     });
 
-    // ── Drag-to-reorder tool rows ─────────────────────────────────────────
-    // The drag handle is the drag source (not the whole row) so dragging
-    // inside a param input still selects text. rowEls() lists only the user
-    // tool rows — the .search-bar isn't a .tool-row — so its indices line up
-    // with the user portion of `stack`, and a drop onto the bar is ignored.
-    let _dragIdx = null;
-    p?.addEventListener('dragstart', e => {
-      const handle = e.target.closest('.tool-row .drag-handle[draggable]');
-      if (!handle) return;
-      const row = handle.closest('.tool-row');
-      _dragIdx = rowEls().indexOf(row);
-      e.dataTransfer.effectAllowed = 'move';
-      e.dataTransfer.setData('text/plain', '');
-      e.dataTransfer.setDragImage(row, 0, 0);
-      setTimeout(() => row.classList.add('dragging'), 0);
-    });
-    p?.addEventListener('dragend', () => {
-      stackEl()?.querySelectorAll('.tool-row.dragging, .tool-row.drag-over')
-        .forEach(r => r.classList.remove('dragging', 'drag-over'));
-      _dragIdx = null;
-    });
-    p?.addEventListener('dragover', e => {
-      if (_dragIdx === null) return;
-      e.preventDefault();
-      e.dataTransfer.dropEffect = 'move';
-      const row = e.target.closest('.tool-row');
-      if (!row || rowEls().indexOf(row) === _dragIdx) return;
-      stackEl()?.querySelectorAll('.tool-row.drag-over').forEach(r => r.classList.remove('drag-over'));
-      row.classList.add('drag-over');
-    });
-    p?.addEventListener('dragleave', e => {
-      const row = e.target.closest('.tool-row');
-      if (row && !row.contains(e.relatedTarget)) row.classList.remove('drag-over');
-    });
-    p?.addEventListener('drop', e => {
-      if (_dragIdx === null) return;
-      const row = e.target.closest('.tool-row');
-      if (!row) return;
-      e.preventDefault();
-      reorderAt(_dragIdx, rowEls().indexOf(row));
+    makeReorderable(p, {
+      handleSelector: '.drag-handle:not([aria-hidden])',
+      itemSelector:   '.tool-row',
+      onReorder: (fromEl, beforeEl) => {
+        const rows = rowEls();
+        const fromIdx = rows.indexOf(fromEl);
+        let toIdx = beforeEl ? rows.indexOf(beforeEl) : rows.length;
+        if (toIdx > fromIdx) toIdx--;
+        reorderAt(fromIdx, toIdx);
+      },
     });
 
     refreshGalleryActive();
