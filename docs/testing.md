@@ -25,7 +25,7 @@ The suite covers what manual testing structurally misses. Manual already catches
 
 ## Strategy
 
-**Hybrid setup-via-API, assert-via-DOM.** Constructing the data shapes the tests want (a custom wordlist with three specific scores, an existing wordlist with rules removed, a wordlist with both an update available *and* uncovered scores) through pure UI clicks would be slow, brittle, and tied to copy. Pure backend assertions miss what the user actually sees. So tests:
+**Hybrid setup-via-API, assert-via-DOM.** Constructing the data shapes the tests want (a custom wordlist with three specific scores, an existing wordlist with rules removed, a wordlist with an update available) through pure UI clicks would be slow, brittle, and tied to copy. Pure backend assertions miss what the user actually sees. So tests:
 
 1. Build preconditions via `window.__grawlixTest` — a tiny API exposed by `site/index.html` that wraps real internal helpers (`addNewWordlist`, `applyWordlistText`, `setWordlistRescoreRules`). It's a fixture builder, not a backdoor — the data flows through the same plumbing the UI uses.
 2. Drive user actions through the real DOM (click cards, type into rule inputs, click reset buttons).
@@ -104,7 +104,7 @@ Exposed unconditionally in `site/index.html` (see the *Test API* section near th
 | `setUpdateAvailable(name, value)` | Toggle the transient `_updateAvailable` flag and repaint. Used to put info + warning severities on the same wordlist. |
 | `moveBefore(name, beforeName)` | Reorder `state.sources` so `name` lands at `beforeName`'s position. Routes through `reorderSources` so caches invalidate the same way a drag does. |
 | `getMergedEntry(entry)` | Read-only snapshot of the merged `All` view for a single entry: `{score, comment, wordlist}`. The sourcing wordlist is observable via the row's popover, but `.atom-source` is hidden in the default Workshop layout. |
-| `getWordlist(name)` | Read-only snapshot of the fields tests care about (`entries`, `rescoreRules`, `uncovered`, `dirty`, `updateAvailable`, etc.). |
+| `getWordlist(name)` | Read-only snapshot of the fields tests care about (`entries`, `rescoreRules`, `dirty`, `updateAvailable`, etc.). |
 | `exportText(format)` | Run a Workshop export builder against the current pipeline output and return its result. `format` is `'copy'`, `'wordlist'`, `'csv'`, or `'json'`. Returns a string for copy/csv, an object `{text, count, skipped}` for wordlist, and the data object for json. Awaits `pipelineIdle` first. |
 | `exportFilename(ext)` | Run the same filename builder Download menu items use, against the current tool stack. Returns the sanitized filename including extension. |
 | `sync.merge3(base, file, idb)` | Run the pure My Edits 3-way merge over three wordlist-text inputs. Returns `{resolved: [...], conflicts: [...]}` for asserting deletion-doesn't-resurrect and conflict detection without any file I/O. |

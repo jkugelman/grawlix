@@ -153,7 +153,6 @@ button.header-nav-item:hover:not(:disabled) { color: white; background: var(--hd
 .header-nav-item.active::after { content: ''; position: absolute; left: 14px; right: 14px; bottom: 1px; height: 2px; background: white; border-radius: 1px; }
 .header-nav-item svg { flex-shrink: 0; }
 .header-nav-item > .badge { position: absolute; top: 50%; right: 0; transform: translateY(-50%); }
-.header-nav-item > .badge.badge--count { right: -8px; }
 
 .header-utility { display: flex; align-items: center; gap: 2px; flex-shrink: 0; }
 .bubble { display: inline-flex; align-items: center; background: white; color: var(--accent); border-radius: 8px; padding: 1px 7px 2px; font-size: 15px; font-weight: 800; position: relative; margin-left: 9px; line-height: 1.5; vertical-align: middle; }
@@ -675,9 +674,7 @@ button.header-icon-btn:hover:not(:disabled) { background: var(--hdr-bg-dark); co
 
 .card-name-row { display: flex; align-items: center; gap: 5px; min-width: 0; }
 .badge { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; display: inline-block; box-sizing: border-box; }
-.badge[data-severity="info"]    { background: #7add9e; }
-.badge[data-severity="warning"] { background: #e8a040; }
-.badge.badge--count { background: #ff3b30; width: auto; height: 15px; min-width: 15px; padding: 0 5px 1px; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; color: white; font-family: inherit; line-height: 1; }
+.badge[data-severity="info"] { background: #7add9e; }
 
 /* Import zone */
 .import-zone { border: 2px dashed var(--border); border-radius: 6px; padding: 24px 16px; text-align: center; color: var(--faint); cursor: pointer; transition: border-color 0.15s, color 0.15s; user-select: none; }
@@ -876,15 +873,6 @@ a.get-file:hover { text-decoration: underline; }
   .rule-row:hover .rule-del { color: var(--faint); }
 }
 .rule-del:hover { color: #e53935 !important; background: var(--del-hover); }
-
-/* Informational banner above a rules list when there are uncovered scores —
-   purely informational, listing them. Same warning palette as the severity
-   bubble it pairs with on the wordlist card. */
-.rule-banner { display: flex; align-items: center; gap: 6px; padding: 4px 8px; margin-bottom: 6px; background: var(--callout-bg); border: 1px solid var(--callout-border); color: var(--callout-fg); border-radius: 3px; font-size: 12px; }
-.rule-banner-icon { flex-shrink: 0; }
-.rule-banner-body { flex: 1; min-width: 0; }
-.rule-banner-action { flex-shrink: 0; padding: 2px 8px; border: 1px solid var(--callout-border); background: transparent; color: var(--callout-fg); border-radius: 3px; font-size: 12px; cursor: pointer; font-family: inherit; }
-.rule-banner-action:hover { border-color: var(--accent); color: var(--accent); }
 
 .rule-actions { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 6px; }
 .rule-add-btn { padding: 2px 10px; border: 1px dashed var(--border); background: transparent; color: var(--muted); border-radius: 3px; font-size: 12px; cursor: pointer; font-family: inherit; }
@@ -1598,16 +1586,13 @@ function buildStatItemHTML(label, value, title, extraClass) {
   </div>`;
 }
 
-const SEVERITY_PRIORITY = { info: 1, warning: 2 };
+const SEVERITY_PRIORITY = { info: 1 };
 
 function buildBadgeHTML(severity, opts = {}) {
   if (!severity) return '';
-  const { count = null, title = '' } = opts;
-  const classes = ['badge'];
-  if (count != null) classes.push('badge--count');
+  const { title = '' } = opts;
   const titleAttr = title ? ` title="${esc(title)}" aria-label="${esc(title)}"` : '';
-  const text = count != null ? esc(String(count)) : '';
-  return `<span class="${classes.join(' ')}" data-severity="${severity}"${titleAttr}>${text}</span>`;
+  return `<span class="badge" data-severity="${severity}"${titleAttr}></span>`;
 }
 
 const BROWSER = (() => {
@@ -1663,33 +1648,16 @@ function maxSeverity(...severities) {
   return max;
 }
 
-// Severity for a regular wordlist's card: uncovered raw scores (rule
-// coverage gap) take priority over the update-available info.
 function wordlistSeverity(wordlist) {
-  if (wordlist._uncovered?.length) return 'warning';
-  if (wordlist._updateAvailable) return 'info';
-  return null;
+  return wordlist._updateAvailable ? 'info' : null;
 }
 
-// Severity for the All card: merged output scores not covered by any tier
-// label on `state.scoring`.
-function allSeverity() {
-  return state._scoringUncovered.length ? 'warning' : null;
+function libraryNavSeverity() {
+  return maxSeverity(...state.sources.map(wordlistSeverity));
 }
 
-function libraryNavBadge() {
-  const severity = maxSeverity(...state.sources.map(wordlistSeverity), allSeverity());
-  const count = state.sources.filter(wordlistSeverity).length + (allSeverity() ? 1 : 0);
-  return { severity, count };
-}
-
-// Tooltip for a severity bubble. Causes (uncovered scores, update available)
-// all roll up to the same severity → title mapping; that's the right level
-// of detail for an at-a-glance tooltip.
 function severityTitle(severity) {
-  if (severity === 'warning') return 'Unhandled scores';
-  if (severity === 'info')    return 'Update available';
-  return '';
+  return severity === 'info' ? 'Update available' : '';
 }
 
 // opts: { enabled, populated, selected, severity, severityTitle }
@@ -1730,16 +1698,15 @@ function buildWordlistCardHTML(icon, name, meta, opts = {}) {
 
 // Like a regular wordlist card but with no drag handle, no enable toggle, and
 // not reorderable.
-function buildMergedCardHTML(selected, severity = null) {
+function buildMergedCardHTML(selected) {
   const meta = pluralize(buildMergedWordlist().entries.length, 'entry', 'entries');
   const cls = ['wordlist-card', 'wld-merged-card'];
   if (selected) cls.push('selected');
-  const badge = buildBadgeHTML(severity, { title: severityTitle(severity) });
   return `<div class="${cls.join(' ')}" data-merged tabindex="0" role="option">
     <span class="drag-handle" aria-hidden="true">≡</span>
     ${MERGED_ICON}
     <div class="card-info">
-      <div class="card-name-row"><div class="card-name">${MERGED_NAME}</div>${badge}</div>
+      <div class="card-name-row"><div class="card-name">${MERGED_NAME}</div></div>
       <div class="card-meta">${esc(meta)}</div>
     </div>
     <span class="wld-merged-card-spacer" aria-hidden="true"></span>
@@ -2059,26 +2026,7 @@ function buildRuleRowHTML(i, fieldsHTML, note, onDeleteFn, readOnly = false) {
     </div>`;
 }
 
-function buildRuleBannerHTML(scores, addFn = '') {
-  const runs = scoresToRuns(scores);
-  const action = addFn
-    ? `<button type="button" class="rule-banner-action" onclick="${addFn}()">Add ${plural(runs.length, 'rule')}</button>`
-    : '';
-  return `<div class="rule-banner" role="status">
-      <span class="rule-banner-icon" aria-hidden="true">⚠️</span>
-      <span class="rule-banner-body">Unhandled ${plural(scores.length, 'score')}: ${esc(runs.map(runToRangeStr).join(', '))}</span>
-      ${action}
-    </div>`;
-}
-
-function buildRulesListHTML(rules, { rulesId, saveFn, deleteFn, addFn = '', resetFn = '', uncovered = [], addUncoveredFn = '', dirty = false, rescore = false, readOnly = false }) {
-  // Uncovered scores surface as a banner above the list; rule authoring goes
-  // through the `+ Add rule` button below. The two split off what used to be
-  // a single dual-purpose row in the editor.
-  const banner = (!readOnly && uncovered.length)
-    ? buildRuleBannerHTML(uncovered, addUncoveredFn)
-    : '';
-
+function buildRulesListHTML(rules, { rulesId, saveFn, deleteFn, addFn = '', resetFn = '', dirty = false, rescore = false, readOnly = false }) {
   let rulesHTML;
   if (!rules.length && rescore) {
     rulesHTML = '<div class="no-rules">No rules — entries kept as-is</div>';
@@ -2108,7 +2056,7 @@ function buildRulesListHTML(rules, { rulesId, saveFn, deleteFn, addFn = '', rese
   const addBtn = (!readOnly && addFn) ? `<button class="rule-add-btn" onclick="${addFn}()">+ Add rule</button>` : '';
   const resetBtn = (!readOnly && resetFn && dirty) ? `<button class="rule-reset-btn" onclick="${resetFn}()">Reset to defaults</button>` : '';
   const actionsRow = (addBtn || resetBtn) ? `<div class="rule-actions">${addBtn}${resetBtn}</div>` : '';
-  return `${banner}<div id="${rulesId}">${rulesHTML}</div>${actionsRow}`;
+  return `<div id="${rulesId}">${rulesHTML}</div>${actionsRow}`;
 }
 
 function buildRescoreSectionHTML(wordlist) {
@@ -2121,17 +2069,13 @@ function buildRescoreSectionHTML(wordlist) {
       deleteFn:  'deleteRule',
       addFn:     'addRule',
       resetFn:   hasDefaults ? 'resetRescoreRules' : '',
-      uncovered: wordlist._uncovered || [],
-      addUncoveredFn: 'addUncoveredRescoreRules',
       dirty:     !!wordlist.dirty,
       rescore:   true,
     });
 }
 
-// Uncovered scores are recomputed from merged entries each render so they
-// reflect whatever's currently in the data.
 function buildScoringSectionHTML() {
-  recomputeScoringUncovered(buildMergedWordlist().entries);
+  sortScoringRules();
   return `<div class="rescore-top"><span class="rescore-lbl">Scoring</span></div>` +
     buildRulesListHTML(state.scoring, {
       rulesId:   'scoring-rules',
@@ -2139,8 +2083,6 @@ function buildScoringSectionHTML() {
       deleteFn:  'deleteScoringRow',
       addFn:     'addScoringRow',
       resetFn:   'resetScoringRules',
-      uncovered: state._scoringUncovered,
-      addUncoveredFn: 'addUncoveredScoringRows',
       dirty:     state.scoringDirty,
     });
 }
@@ -2508,10 +2450,6 @@ const state = {
   // Drives `propagateDefaults` at boot (pristine users silently pick up dev
   // updates) and the "Reset to defaults" button visibility.
   scoringDirty: false,
-  // Transient: merged-output scores not covered by any tier label.
-  // Recomputed by recomputeScoringUncovered; drives the Unhandled-scores
-  // banner on All's pane and the warning bubble on the All card.
-  _scoringUncovered: [],
 };
 
 // Per-wordlist cosmetic fields are signal-backed: each wordlist exposes both
@@ -3022,9 +2960,8 @@ function applyReconciledEdits(edits, entries) {
   batchUpdate(() => {
     invalidateWordlistCaches(edits);
     edits.rawEntries = entries;
-    invalidateActualScoresCache(edits);
     edits.lastUpdated = Date.now();
-    recomputeUncovered(edits);
+    compileRescoreRules(edits);
     persistMeta();
     repaintAfterCacheChange();
   });
@@ -3814,7 +3751,7 @@ const LibraryView = (() => {
     state.sources = [edits];
     state.scoring = [];
     edits.rescoreRules = [];
-    recomputeUncovered(edits);
+    compileRescoreRules(edits);
     persistMeta();
     persistScoring();
     await Promise.all(toRemove.map(l => Storage.deleteWordlist(l)));
@@ -3916,7 +3853,7 @@ const LibraryView = (() => {
     if (!_sourceCountsCache) _sourceCountsCache = buildMergedWordlist().sourceCounts;
     const contribMap = new Map(_sourceCountsCache.map(s => [s.wordlist, s.count]));
 
-    const mergedCard = buildMergedCardHTML(_focusedWordlist === MERGED_ID, allSeverity());
+    const mergedCard = buildMergedCardHTML(_focusedWordlist === MERGED_ID);
     const sourceCards = state.sources.map(wordlist => {
       const icon = getWordlistIcon(wordlist);
       const meta = wordlistCardMeta(wordlist, contribMap);
@@ -4447,15 +4384,9 @@ const MainView = (() => {
   function pickBadgedWordlist() {
     let best = null;
     let bestPri = 0;
-    const consider = (target, severity) => {
-      const p = SEVERITY_PRIORITY[severity] ?? 0;
-      if (p > bestPri) { best = target; bestPri = p; }
-    };
-    const allSev = allSeverity();
-    if (allSev) consider(MERGED_ID, allSev);
     for (const wordlist of state.sources) {
-      const sev = wordlistSeverity(wordlist);
-      if (sev) consider(wordlist, sev);
+      const p = SEVERITY_PRIORITY[wordlistSeverity(wordlist)] ?? 0;
+      if (p > bestPri) { best = wordlist; bestPri = p; }
     }
     return best;
   }
@@ -4489,23 +4420,22 @@ const MainView = (() => {
   }
 
   function syncTriggerBadge() {
-    let bestSev = null, bestPri = 0, bestTitle = '', totalCount = 0;
+    let bestSev = null, bestPri = 0, bestTitle = '';
     for (const btn of navButtons) {
       const b = btn.querySelector(':scope > .badge');
       if (!b) continue;
       const pri = SEVERITY_PRIORITY[b.dataset.severity] ?? 0;
       if (pri > bestPri) { bestPri = pri; bestSev = b.dataset.severity; bestTitle = b.title; }
-      if (b.classList.contains('badge--count')) totalCount += parseInt(b.textContent, 10) || 0;
     }
     navTrigger.querySelector(':scope > .badge')?.remove();
-    if (bestSev) navTrigger.insertAdjacentHTML('beforeend', buildBadgeHTML(bestSev, { count: totalCount || null, title: bestTitle }));
+    if (bestSev) navTrigger.insertAdjacentHTML('beforeend', buildBadgeHTML(bestSev, { title: bestTitle }));
   }
 
-  function setSeverityBadge(view, severity, count = null, title = '') {
+  function setSeverityBadge(view, severity, title = '') {
     const btn = [...navButtons].find(b => b.dataset.view === view);
     if (!btn) return;
     btn.querySelector(':scope > .badge')?.remove();
-    if (severity) btn.insertAdjacentHTML('beforeend', buildBadgeHTML(severity, { count, title }));
+    if (severity) btn.insertAdjacentHTML('beforeend', buildBadgeHTML(severity, { title }));
     syncTriggerBadge();
   }
 
@@ -4539,7 +4469,7 @@ function wordlistFromMeta(m, text) {
     rawEntries: text ? parseWordlist(text) : [],
     _loading: false,
   });
-  recomputeUncovered(wordlist);
+  compileRescoreRules(wordlist);
   return wordlist;
 }
 
@@ -4644,7 +4574,7 @@ function defaultSources() {
       _loading: false,
       rescoreRules: t.defaultRules ? JSON.parse(JSON.stringify(t.defaultRules)) : [],
     });
-    recomputeUncovered(wordlist);
+    compileRescoreRules(wordlist);
     return wordlist;
   });
 }
@@ -4673,7 +4603,7 @@ function ensureEdits() {
       _loading: false,
       rescoreRules: [],
     });
-    recomputeUncovered(newEdits);
+    compileRescoreRules(newEdits);
     state.sources.unshift(newEdits);
     sources$.bump();
     persistMeta();
@@ -4783,9 +4713,8 @@ async function clearEdits() {
   if (!await showConfirm(`Clear all ${pluralize(edits.rawEntries.length, 'entry', 'entries')} from "${esc(edits.name)}"?`, { confirmText: 'Clear' })) return;
   batchUpdate(() => {
     edits.rawEntries = [];
-    invalidateActualScoresCache(edits);
     invalidateWordlistCaches(edits);
-    recomputeUncovered(edits);
+    compileRescoreRules(edits);
     repaintAfterCacheChange();
   });
   await persistEdits(edits);
@@ -9073,29 +9002,6 @@ function scoresToRangeStr(scores) {
   return min === max ? `${min}` : `${min}-${max}`;
 }
 
-function scoresToRuns(scores) {
-  if (!scores.length) return [];
-  const sorted = [...scores].sort((a, b) => a - b);
-  const runs = [];
-  let start = sorted[0], end = sorted[0];
-  for (let i = 1; i < sorted.length; i++) {
-    if (sorted[i] === end + 1) end = sorted[i];
-    else { runs.push([start, end]); start = end = sorted[i]; }
-  }
-  runs.push([start, end]);
-  return runs;
-}
-
-function runToRangeStr([start, end]) { return start === end ? `${start}` : `${start}-${end}`; }
-
-function scoresToGroupedList(scores) {
-  return scoresToRuns(scores).map(runToRangeStr).join(', ');
-}
-
-function scoresToRangeInputs(scores) {
-  return scoresToRuns(scores).map(runToRangeStr);
-}
-
 function getRuleMaxScore(rule) {
   const intervals = parseRange(rule.input);
   if (!intervals) return -1;
@@ -9169,7 +9075,7 @@ function propagateDefaults() {
     if (defaults === null) continue;
     if (!rescoreRulesEqual(wordlist.rescoreRules, defaults) && !wordlist.dirty) {
       wordlist.rescoreRules = defaults.map(r => ({ ...r }));
-      recomputeUncovered(wordlist);
+      compileRescoreRules(wordlist);
       invalidateWordlistCaches(wordlist);
       metaTouched = true;
     }
@@ -9185,7 +9091,7 @@ function propagateDefaults() {
 // blank output, so scores pass through unchanged. Lays the source's scale
 // out as concrete rows next to All's tier scale; the user can fill in
 // output mappings if they want to translate into the unified scale.
-// See docs/design.md § Rescore rules & tier alignment.
+// See docs/design.md § Rescore rules.
 const AUTO_SEED_SCORE_LIMIT = 10;
 
 function makeRescoreRuleStub(input = '') { return { input, length: '', output: '', note: '' }; }
@@ -9215,36 +9121,12 @@ function compareRescoreRulesForPriority(a, b) {
   return outputSortKey(b) - outputSortKey(a);
 }
 
-// Sort the wordlist's rescore rules into canonical priority order and recompute
-// `wordlist._uncovered` — the list of raw scores in the data not covered by
-// any length-filter-free rule. The Unhandled-scores banner in the editor and
-// the warning severity bubble on the card both key off this field.
-function recomputeUncovered(wordlist) {
-  if (wordlist.type === 'edits') { wordlist._uncovered = []; return; }
+function compileRescoreRules(wordlist) {
+  if (wordlist.type === 'edits') return;
   const rules = wordlist.rescoreRules;
-
   rules.sort(compareRescoreRulesForPriority);
   rules.forEach(compileRule);
-
-  const actualScores = getActualScores(wordlist);
-  wordlist._uncovered = actualScores.filter(s => !rules.some(r => {
-    if (r.length && r.length.trim()) return false;
-    return r._scoreIntervals && matchesRange(s, r._scoreIntervals);
-  }));
 }
-
-// Sorted distinct raw scores for a wordlist. Depends only on rawEntries, so
-// it survives rule edits — invalidated only when entries change. For Broda-
-// sized wordlists (~500K entries) this scan would otherwise run on every
-// rule keystroke commit.
-function getActualScores(wordlist) {
-  if (wordlist._actualScores) return wordlist._actualScores;
-  const entries = wordlist.rawEntries;
-  if (!entries || !entries.length) return wordlist._actualScores = [];
-  return wordlist._actualScores = [...new Set(entries.map(e => e.score))].sort((a, b) => a - b);
-}
-
-function invalidateActualScoresCache(wordlist) { wordlist._actualScores = null; }
 
 function parseRuleOutput(str) {
   str = (str || '').trim().toLowerCase();
@@ -9428,12 +9310,9 @@ function wordlistCardMeta(wordlist, contribMap) {
 // lazy path is only hit when no cache rebuild is in flight.
 function renderSources() {
   if (!_sourceCountsCache) _sourceCountsCache = buildMergedWordlist().sourceCounts;
-  // Refresh state._scoringUncovered so the All card's severity bubble reads
-  // fresh data. (renderScoringRules also recomputes — idempotent.)
-  recomputeScoringUncovered(buildMergedWordlist().entries);
   LibraryView?.refresh();
-  const { severity, count } = libraryNavBadge();
-  MainView?.setSeverityBadge('library', severity, count, severityTitle(severity));
+  const severity = libraryNavSeverity();
+  MainView?.setSeverityBadge('library', severity, severityTitle(severity));
 }
 
 
@@ -9637,42 +9516,18 @@ function makeTierLookup() {
   };
 }
 
-// Sort state.scoring into editor display order and recompute
-// `state._scoringUncovered` — the list of merged-output scores not covered
-// by any tier label. Counterpart to recomputeUncovered for the tier scale.
-function recomputeScoringUncovered(entries) {
+// Sort tier labels into canonical priority order (highest max score first) so
+// makeTierLookup's first-match-wins resolves overlapping ranges consistently.
+function sortScoringRules() {
   state.scoring.sort((a, b) => getRuleMaxScore(b) - getRuleMaxScore(a));
-
-  const actualScores = entries.length
-    ? [...new Set(entries.map(e => e.score))].sort((a, b) => a - b)
-    : [];
-  state._scoringUncovered = actualScores.filter(s => !state.scoring.some(r => {
-    const intervals = parseRange(r.input);
-    return intervals && matchesRange(s, intervals);
-  }));
 }
 
 // Tier-label changes don't touch data, so a cheap re-render of the visible
 // rows (they carry the label as a `title=`) is enough — no full rebuild.
 function renderScoringRules() {
-  recomputeScoringUncovered(buildMergedWordlist().entries);
+  sortScoringRules();
   LibraryView.refreshScoringSection();
   workshopScroller?._render?.();
-  refreshLibrarySeverityBadges();
-}
-
-function refreshLibrarySeverityBadges() {
-  const setRowBadge = (row, severity) => {
-    if (!row) return;
-    row.querySelector('.badge')?.remove();
-    if (severity) row.insertAdjacentHTML('beforeend', buildBadgeHTML(severity, { title: severityTitle(severity) }));
-  };
-  for (const card of document.querySelectorAll('#wld-list-body .wordlist-card[data-wordlist]')) {
-    setRowBadge(card.querySelector('.card-name-row'), wordlistSeverity(card._wordlist));
-  }
-  setRowBadge(document.querySelector('#wld-list-body .wld-merged-card .card-name-row'), allSeverity());
-  const { severity, count } = libraryNavBadge();
-  MainView?.setSeverityBadge('library', severity, count, severityTitle(severity));
 }
 
 function deleteScoringRow(i) {
@@ -9695,13 +9550,6 @@ function addScoringRow() {
   applyScoringChange();
   const inp = [...document.querySelectorAll('#scoring-rules .rule-row .rule-in')].find(i => !i.value);
   inp?.focus();
-}
-
-function addUncoveredScoringRows() {
-  const inputs = scoresToRangeInputs(state._scoringUncovered || []);
-  if (!inputs.length) return;
-  for (const input of inputs) state.scoring.push(makeScoringRowStub(input));
-  applyScoringChange();
 }
 
 function applyScoringChange() {
@@ -9950,13 +9798,12 @@ async function applyWordlistText(wordlist, text, { fetchedSize = null, originalF
   batchUpdate(() => {
     invalidateWordlistCaches(wordlist);
     wordlist.rawEntries = parseWordlist(text);
-    invalidateActualScoresCache(wordlist);
     wordlist.lastUpdated = Date.now();
     if (fetchedSize !== null) { wordlist.fetchedSize = fetchedSize; wordlist._updateAvailable = false; }
     if (originalFilename !== null) wordlist.originalFilename = originalFilename;
     if (!wordlist.populated) { wordlist.populated = true; wordlist.enabled = true; }
     maybeAutoSeedRescoreRules(wordlist);
-    recomputeUncovered(wordlist);
+    compileRescoreRules(wordlist);
     if (nameOverride) wordlist.name = nameOverride;
     if (clearUrl) { wordlist.url = null; wordlist.fetchedSize = null; wordlist._updateAvailable = false; }
     persistMeta();
@@ -10122,10 +9969,9 @@ function ingestFile(file, wordlist, nameOverride) {
       }
 
       wordlist.rawEntries.push(...newEntries);
-      invalidateActualScoresCache(wordlist);
       wordlist.lastUpdated = Date.now();
       invalidateWordlistCaches(wordlist);
-      recomputeUncovered(wordlist);
+      compileRescoreRules(wordlist);
 
       await Storage.writeWordlist(wordlist, serializeEntries(wordlist.rawEntries));
       persistMeta();
@@ -10222,7 +10068,7 @@ function toggleWordlist(wordlist, event) {
 
 function addNewWordlist(wordlistDef) {
   const wordlist = wrapWordlist({ rescoreRules: [], ...wordlistDef, rawEntries: [], lastUpdated: null, _loading: false });
-  recomputeUncovered(wordlist);
+  compileRescoreRules(wordlist);
   state.sources.push(wordlist);
   invalidateSourceCounts();
   invalidateStatsCache(_mergedStatsKey);
@@ -10938,8 +10784,8 @@ function pluralize(n, singular, pluralForm = singular + 's') {
   return `${n.toLocaleString()} ${plural(n, singular, pluralForm)}`;
 }
 
-// Just the inflected noun, no count. For when the count appears elsewhere in
-// the sentence (or not at all): `Unhandled ${plural(scores.length, 'score')}`.
+// Just the inflected noun, no count — for when the count appears elsewhere in
+// the sentence, or not at all. (`pluralize` is the count-prefixed form.)
 function plural(n, singular, pluralForm = singular + 's') {
   return n === 1 ? singular : pluralForm;
 }
@@ -11195,19 +11041,9 @@ function addRule() {
   if (!wordlist) return;
   wordlist.rescoreRules.push(makeRescoreRuleStub());
   afterRuleChange(wordlist);
-  // Focus the new rule's input — recomputeUncovered reorders the array, so
-  // find the first row whose input is empty after the re-render.
+  // afterRuleChange re-sorts and re-renders, so find the new row by its empty input rather than by index.
   const inp = [...document.querySelectorAll('#rescore-rules .rule-row .rule-in')].find(i => !i.value);
   inp?.focus();
-}
-
-function addUncoveredRescoreRules() {
-  const wordlist = getRescoreContextWordlist();
-  if (!wordlist) return;
-  const inputs = scoresToRangeInputs(wordlist._uncovered || []);
-  if (!inputs.length) return;
-  for (const input of inputs) wordlist.rescoreRules.push(makeRescoreRuleStub(input));
-  afterRuleChange(wordlist);
 }
 
 async function resetRescoreRules() {
@@ -11361,13 +11197,11 @@ function startInlineRename(inputEl, originalName, { onCommit, onCancel, onInput 
 function applyEditsChange(edits, norms, mutate) {
   const snap = snapshotMergedBuckets(norms);
   mutate();
-  invalidateActualScoresCache(edits);
   invalidateRescoredCache(edits);
   _statsCache.delete(edits);
   _statsCache.delete(_mergedStatsKey);
   invalidatePreSearchCache();
   patchMergedForNorms(snap);
-  recomputeUncovered(edits);
   refreshDerivedDisplays();
 }
 
@@ -11980,7 +11814,7 @@ function setWordlistRescoreRules(wordlist, rules) {
 // and merged caches must clear too, since histograms now show rescored entries
 // and the histogram layout depends on the union of every source's rescored set.
 function applyRescoreRulesChange(wordlist) {
-  recomputeUncovered(wordlist);
+  compileRescoreRules(wordlist);
   updateWordlistDirty(wordlist);
   invalidateWordlistCaches(wordlist);
   persistMeta();
@@ -12046,8 +11880,6 @@ window.__grawlixTest = {
     setWordlistRescoreRules(wl, rules);
   },
 
-  // Toggle the transient `_updateAvailable` flag and repaint. Used by the
-  // severity-priority test to put info + warning on the same wordlist.
   setUpdateAvailable(name, value) {
     const wl = this._lookup(name);
     wl._updateAvailable = !!value;
@@ -12198,7 +12030,6 @@ window.__grawlixTest = {
       populated: wl.populated,
       entries: wl.rawEntries.map(e => ({ entry: e.norm, display: e.display, score: e.score, comment: e.comment || '' })),
       rescoreRules: wl.rescoreRules.map(r => ({ input: r.input, length: r.length || '', output: r.output })),
-      uncovered: [...(wl._uncovered || [])],
       dirty: !!wl.dirty,
       updateAvailable: !!wl._updateAvailable,
     };

@@ -170,17 +170,13 @@ Every panel also carries the **sync pill** on the left of the action row (see §
 
 **Rescoring rules.** Each Source carries a rescore rules editor. Rules map an input score range — and an optional entry-length filter — to an output score, or `ignore` to drop the entry. First matching rule wins. My Edits has no rescore rules — its scores are already in the unified scale; in that slot My Edits shows the scoring (tier-label) editor instead.
 
-When the wordlist's data contains scores not covered by any rule, an **Unhandled scores** banner appears at the top of the editor listing those scores (contiguous runs collapsed — e.g. `25, 45-49, 75`). An orange severity bubble also appears on the wordlist's card in the rail and on the **Library** nav item. Add rules covering those scores and the bubble clears.
+Rescoring is entirely optional. If a wordlist's scores don't line up with Grawlix's scale and you don't care, leave the rules empty — the raw scores pass through and nothing warns you about it. You can ignore the score column entirely and still search, filter, and run every tool.
 
-Custom wordlists with up to 10 distinct scores get auto-seeded with one inert rule per score on first import, so you see the wordlist's scale laid out next to All's. Larger wordlists get the Unhandled-scores banner instead.
+Custom wordlists with up to 10 distinct scores get auto-seeded with one inert rule per score on first import, so you see the wordlist's scale laid out next to All's. You can fill in output mappings, or leave them blank to pass the scores through.
 
-**Scoring rules** are your tier labels for the merged score scale ("60 = great, 50 = good, …"). They render as a shared editor on both **All** and **My Edits** — edit in either place and both update. The Workshop entries table reads these for the hover tooltip on each score atom. The same Unhandled-scores banner + warning bubble pattern applies if the merged view contains scores you haven't labeled.
+**Scoring rules** are your tier labels for the merged score scale ("60 = great, 50 = good, …"). They render as a shared editor on both **All** and **My Edits** — edit in either place and both update. The Workshop entries table reads these for the hover tooltip on each score atom. Labeling is optional too — unlabeled scores still appear, just without a tier name in the tooltip.
 
-**Severity bubbles** on each card signal something to look at:
-- **Green** — an update is available to fetch (only when auto-update is off — see [Settings](#settings)).
-- **Orange** — there are scores in the wordlist's data not covered by its rescore rules. On **All**, orange means merged scores not covered by any tier label.
-
-The highest-severity bubble across all wordlists propagates up to the **Library** nav item.
+**Update bubble.** A green dot appears on a wordlist's card, and on the **Library** nav item, when an update is available to fetch (only when auto-update is off — see [Settings](#settings)).
 
 **Reset to defaults.** A button appears in the rules editor (rescore on Sources, scoring on All or My Edits) when you've customized the rules away from their shipped defaults. Clicking it restores the defaults, with a confirmation first. Visible only inside the editor and only when there's something to undo.
 

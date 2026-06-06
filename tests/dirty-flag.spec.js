@@ -1,4 +1,4 @@
-// Dirty-flag behaviors — see docs/design.md § Rescore rules & tier alignment.
+// Dirty-flag behaviors — see docs/design.md § Rescore rules.
 //
 // Covers the round-trip between pristine and customized rule sets, and the
 // confirm-protected "Reset to defaults" button that restores the pristine
@@ -10,8 +10,8 @@ const { test, expect } = require('@playwright/test');
 const { stubPublisherFetches, gotoApp, openLibrary, focusWordlist } = require('./helpers');
 
 // Tiny JK fixture: scores that all fall within JK's default-rule coverage
-// (60, 50, 40, 30, 20, 10, 0) so the pristine state has no uncovered
-// surprises distracting from the dirty-flag signal.
+// (60, 50, 40, 30, 20, 10, 0), so rescoring is a clean passthrough and the
+// dirty-flag signal stands alone.
 const JK_FIXTURE = 'WORDA;60\nWORDB;50\nWORDC;30\n';
 
 async function populateJK(page) {
