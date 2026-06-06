@@ -20,6 +20,7 @@ One row per `npm test` (or `--project=webkit`) run that produced failures.
 | Date | Command | Result | Tree state | Failures |
 |------|---------|--------|------------|----------|
 | 2026-06-04 | CI run `26925163791` | webkit 1 flaky (passed on retry); ch/ff clean | post boot-race fix | stats-bar-layout "hides Min/Max first, then the histogram" — the read after `setViewportSize` raced `refreshStatsBarOverflow`'s ResizeObserver. Fixed test-side: poll the visibility shape to a settle (`expectStatsShape`). |
+| 2026-06-06 | CI run `27068839712` | webkit 1 failed all 3 retries; ch/ff clean | main @ bc8c712 | tools.spec "atoms truncate long entries with ellipsis + full-text title" — the single `scrollWidth > offsetWidth` read fired before webkit applied the `--entry-w` grid track, so it saw the atom un-clamped. The failure screenshot showed truncation working; the `title` poll one line up passes the instant the atom's HTML lands, but the grid track reflows a beat later. Failed all 3 whole-test retries (each repeats the same early read) rather than flaking randomly — never reproduced locally. Fixed test-side: `expect.poll` the truncation read to a settle. |
 
 ## Gotchas
 

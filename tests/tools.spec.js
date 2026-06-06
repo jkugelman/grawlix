@@ -562,11 +562,9 @@ test('atoms truncate long entries with ellipsis + full-text title', async ({ pag
 
   const originatorAtom = page.locator('.entry-row .atom').first().locator('.atom-entry');
   await expect(originatorAtom).toHaveAttribute('title', 'shejustsayingwhatweveallbeenthinking');
-  // The track must clamp the atom — its rendered width should be far less
-  // than the natural text width. Tested via scrollWidth > offsetWidth, the
-  // standard signal that CSS truncation kicked in.
-  const truncated = await originatorAtom.evaluate(el => el.scrollWidth > el.offsetWidth);
-  expect(truncated).toBe(true);
+  // Poll, don't read once: webkit applies the grid track width a beat after the
+  // title lands, so a single read races the layout and flakes on loaded CI only.
+  await expect.poll(() => originatorAtom.evaluate(el => el.scrollWidth > el.offsetWidth)).toBe(true);
 });
 
 async function addLetterSetFixture(page) {
