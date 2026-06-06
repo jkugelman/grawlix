@@ -2420,6 +2420,11 @@ const DEFAULT_SCORING = WORDLIST_PUBLISHERS
   .filter(r => r.scoring !== false)
   .map(({ input, note }) => ({ input, note }));
 
+// Outputs MUST stay blank: propagateDefaults pushes this set onto every
+// non-dirty My Edits, so a real output here would silently re-grade existing
+// users' entries.
+const EDITS_DEFAULT_RULES = DEFAULT_SCORING.map(({ input, note }) => ({ input, length: '', output: '', note }));
+
 // Top-level state. `sources$` is the array of wordlists, signal-backed so
 // the cosmetic effect can subscribe; reorder/add/remove call `sources$.bump()`
 // after splicing (signal equality is by reference, so plain mutation needs a
@@ -3894,16 +3899,22 @@ const LibraryView = (() => {
     const isEdits = wordlist.type === 'edits';
     const hasData = wordlist.rawEntries.length > 0;
 
-    const sourceEntries = isEdits ? wordlist.rawEntries : getRescoredEntries(wordlist);
-    const ignoredCount = isEdits ? 0 : wordlist.rawEntries.length - sourceEntries.length;
+    const sourceEntries = getRescoredEntries(wordlist);
+    const ignoredCount = wordlist.rawEntries.length - sourceEntries.length;
     const intervals = parseRange(activeScoreRange());
     const filteredEntries = intervals ? sourceEntries.filter(e => matchesRange(e.score, intervals)) : sourceEntries;
     const stats = computeStatsRaw(filteredEntries, intervals ? 0 : ignoredCount);
 
-    let actionBtn, dlBtn, moreMenu;
+    const hasRules = (wordlist.rescoreRules?.length ?? 0) > 0;
+    let dlBtn;
+    if (!hasData) dlBtn = '';
+    else if (hasRules) dlBtn = buildSplitBtn('Download', `LibraryView.action('download')`,
+      [['Download original', `LibraryView.action('downloadOriginal')`]], { primary: true, id: 'wld-download-btn' });
+    else dlBtn = `<button id="wld-download-btn" class="primary" onclick="LibraryView.action('download')">Download</button>`;
+
+    let actionBtn, moreMenu;
     if (isEdits) {
       actionBtn = `<button id="wld-action-btn" class="${hasData ? '' : 'primary'}" onclick="LibraryView.action('import')" ${wordlist._loading ? 'disabled' : ''}>${wordlist._loading ? 'Importing…' : 'Import'}</button>`;
-      dlBtn = hasData ? `<button id="wld-download-btn" class="primary" onclick="LibraryView.action('download')">Download</button>` : '';
       moreMenu = hasData ? buildMoreMenuHTML([['Clear', `LibraryView.action('clear')`]]) : '';
     } else {
       const showBadge = wordlist._updateAvailable && !wordlist._loading;
@@ -3920,12 +3931,6 @@ const LibraryView = (() => {
         actionBtn = `<button id="wld-action-btn" class="primary"${updateTitle ? ` title="${updateTitle}"` : ''} onclick="LibraryView.action('import')" ${wordlist._loading ? 'disabled' : ''}>${wordlist._loading ? 'Importing…' : 'Import'}${dot}</button>`;
       }
 
-      const hasRules = (wordlist.rescoreRules?.length ?? 0) > 0;
-      if (!hasData) dlBtn = '';
-      else if (hasRules) dlBtn = buildSplitBtn('Download', `LibraryView.action('download')`,
-        [['Download original', `LibraryView.action('downloadOriginal')`]], { primary: true, id: 'wld-download-btn' });
-      else dlBtn = `<button id="wld-download-btn" class="primary" onclick="LibraryView.action('download')">Download</button>`;
-
       moreMenu = buildMoreMenuHTML([
         ['Configure', `LibraryView.action('configure')`],
         ['Delete',    `LibraryView.action('delete')`],
@@ -3935,9 +3940,7 @@ const LibraryView = (() => {
     const dateSlot = (hasData && wordlist.lastUpdated) ? '<span class="detail-date"></span>' : '';
     const actionsHTML = [dateSlot, actionBtn, dlBtn, moreMenu].filter(Boolean).join('\n');
 
-    const rulesHTML = isEdits
-      ? `<div class="wld-pane-rescore" id="wld-scoring-section">${buildScoringSectionHTML()}</div>`
-      : `<div class="wld-pane-rescore" id="wld-rescore-section">${buildRescoreSectionHTML(wordlist)}</div>`;
+    const rulesHTML = `<div class="wld-pane-rescore" id="wld-rescore-section">${buildRescoreSectionHTML(wordlist)}</div>`;
 
     pane.innerHTML = `
       <div class="wld-title-bar">
@@ -4090,7 +4093,6 @@ const LibraryView = (() => {
     clear:     () => clearEdits(),
     download:  () => {
       if (_focusedWordlist === MERGED_ID) return downloadMergedWordlistFromPanel();
-      if (_focusedWordlist?.type === 'edits') return downloadEdits();
       return downloadSourceWordlist(_focusedWordlist);
     },
     downloadOriginal: () => downloadOriginalWordlist(_focusedWordlist),
@@ -4601,7 +4603,7 @@ function ensureEdits() {
       rawEntries: [],
       lastUpdated: null,
       _loading: false,
-      rescoreRules: [],
+      rescoreRules: EDITS_DEFAULT_RULES.map(r => ({ ...r })),
     });
     compileRescoreRules(newEdits);
     state.sources.unshift(newEdits);
@@ -4700,13 +4702,6 @@ async function persistEdits(edits) {
   EditsSync.scheduleWrite();
 }
 
-async function downloadEdits() {
-  const edits = getEditsWordlist();
-  if (!edits.rawEntries.length) return;
-  triggerDownload(serializeEntries(edits.rawEntries, AS_IS_FORMAT), `${sanitizeFilenameStem(edits.name)}.txt`);
-  showToast(`Downloaded ${pluralize(edits.rawEntries.length, 'entry', 'entries')}`);
-}
-
 async function clearEdits() {
   const edits = getEditsWordlist();
   if (!edits.rawEntries.length) return;
@@ -4767,9 +4762,8 @@ function computeStats(key, entries, ignoredCount = 0) {
 }
 
 function statsForWordlist(wordlist) {
-  const isEdits = wordlist.type === 'edits';
-  const entries = isEdits ? wordlist.rawEntries : getRescoredEntries(wordlist);
-  const ignoredCount = isEdits ? 0 : wordlist.rawEntries.length - entries.length;
+  const entries = getRescoredEntries(wordlist);
+  const ignoredCount = wordlist.rawEntries.length - entries.length;
   return { stats: computeStats(wordlist, entries, ignoredCount), entries };
 }
 
@@ -9047,7 +9041,7 @@ function scoringRulesEqual(a, b) {
 }
 
 function getWordlistDefaultRules(wordlist) {
-  if (wordlist.type === 'edits') return null;
+  if (wordlist.type === 'edits') return EDITS_DEFAULT_RULES;
   const publisher = getPublisher(wordlist);
   return publisher?.defaultRules ?? null;
 }
@@ -9106,6 +9100,18 @@ function maybeAutoSeedRescoreRules(wordlist) {
   wordlist.rescoreRules = scores.map(s => makeRescoreRuleStub(String(s)));
 }
 
+// A pristine tier legend mislabels a foreign-scaled import, so a misaligned
+// import discards it and auto-seeds the actual scale instead.
+function reconcileEditsRulesAfterImport(edits) {
+  if (edits.dirty) return;
+  const tierIntervals = EDITS_DEFAULT_RULES.map(r => parseRange(r.input)).filter(Boolean);
+  const aligned = edits.rawEntries.every(e => tierIntervals.some(iv => matchesRange(e.score, iv)));
+  if (aligned) return;
+  edits.rescoreRules = [];
+  maybeAutoSeedRescoreRules(edits);
+  updateWordlistDirty(edits);
+}
+
 // First-match-wins: narrower rules must precede broader supersets or never fire.
 function compareRescoreRulesForPriority(a, b) {
   const am = getRuleMaxScore(a), bm = getRuleMaxScore(b);
@@ -9122,7 +9128,6 @@ function compareRescoreRulesForPriority(a, b) {
 }
 
 function compileRescoreRules(wordlist) {
-  if (wordlist.type === 'edits') return;
   const rules = wordlist.rescoreRules;
   rules.sort(compareRescoreRulesForPriority);
   rules.forEach(compileRule);
@@ -9803,6 +9808,7 @@ async function applyWordlistText(wordlist, text, { fetchedSize = null, originalF
     if (originalFilename !== null) wordlist.originalFilename = originalFilename;
     if (!wordlist.populated) { wordlist.populated = true; wordlist.enabled = true; }
     maybeAutoSeedRescoreRules(wordlist);
+    if (wordlist.type === 'edits') reconcileEditsRulesAfterImport(wordlist);
     compileRescoreRules(wordlist);
     if (nameOverride) wordlist.name = nameOverride;
     if (clearUrl) { wordlist.url = null; wordlist.fetchedSize = null; wordlist._updateAvailable = false; }
@@ -9970,6 +9976,7 @@ function ingestFile(file, wordlist, nameOverride) {
 
       wordlist.rawEntries.push(...newEntries);
       wordlist.lastUpdated = Date.now();
+      reconcileEditsRulesAfterImport(wordlist);
       invalidateWordlistCaches(wordlist);
       compileRescoreRules(wordlist);
 

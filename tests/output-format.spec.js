@@ -139,16 +139,23 @@ test.describe('output format UI', () => {
     expect(await readDownload(await strippedDl)).toContain('BLUEJAY;80');
   });
 
-  test('My Edits downloads immediately, always as-is regardless of the global format', async ({ page }) => {
+  test('My Edits Download applies the output format like any source; Download original is the editable file verbatim', async ({ page }) => {
     await gotoApp(page);
     await page.evaluate(() => saveEdit({ norm: '', display: '', score: 0, comment: '' }, { raw: 'BLUE JAY', score: 50, comment: '' }));
     await page.evaluate(() => setOutputFormat({ spaces: false, punctuation: false, accents: false, comments: true }));
+    await page.evaluate(async () => { await persistEdits(state.sources.find(w => w.type === 'edits')); });
 
     const dl = page.waitForEvent('download');
-    await page.evaluate(() => downloadEdits());
+    await page.evaluate(() => downloadSourceWordlist(state.sources.find(w => w.type === 'edits')));
     const file = await dl;
-    expect(file.suggestedFilename()).toBe('My Edits.txt');
-    expect(await readDownload(file)).toContain('BLUE JAY;50');
+    expect(file.suggestedFilename()).toBe('My Edits rescored.txt');
+    expect(await readDownload(file)).toContain('BLUEJAY;50');
+
+    const origDl = page.waitForEvent('download');
+    await page.evaluate(() => downloadOriginalWordlist(state.sources.find(w => w.type === 'edits')));
+    const orig = await origDl;
+    expect(orig.suggestedFilename()).toBe('My Edits.txt');
+    expect(await readDownload(orig)).toContain('BLUE JAY;50');
   });
 
   test('a source with rules gets a split Download with a Download-original door; one without is a plain button', async ({ page }) => {

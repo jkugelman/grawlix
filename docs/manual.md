@@ -28,7 +28,7 @@ The gear in the header opens **Settings**:
 
 - **Dark mode** — Auto (follow your OS), Light, or Dark.
 - **Auto-update wordlists** — Update wordlists without asking. On by default.
-- **Output format** — How entries are written to downloads and to synced files, so they match what your construction software can read: checkboxes to keep or strip **spaces**, **punctuation**, **accents**, and **comments**. Defaults to fully rich (everything kept). My Edits is always written as-is regardless. This is the one place the format is set — downloads and synced files both follow it.
+- **Output format** — How entries are written to downloads and to synced files, so they match what your construction software can read: checkboxes to keep or strip **spaces**, **punctuation**, **accents**, and **comments**. Defaults to fully rich (everything kept). The two-way My Edits file is always written as-is regardless — it's the file your construction software edits in place. This is the one place the format is set — downloads and synced files both follow it.
 - **Reset all data** — Wipes all wordlists and settings and reloads the app.
 
 ## Disk sync
@@ -141,9 +141,9 @@ For entries sourced from My Edits, the popover also has a Delete button (with un
 
 A special wordlist created automatically on first boot. It's where your manual score and comment edits land; otherwise it behaves like any other wordlist. It's always enabled and can't be deleted, but can be reordered (position determines merge priority on ties).
 
-Unlike Sources, My Edits has no rescore rules — the scores you type are already in Grawlix's scale, so they pass through unchanged. In place of a rescore editor, My Edits' panel shows the same scoring (tier-label) editor that **All** carries. The labels are shared: editing in either place updates both, so the legend is right next to your edits as you work.
+Like any Source, My Edits carries a rescore-rules editor. The scores you type are stored **raw** and run through those rules on the way into the merged view. It starts with a **tier legend** — Grawlix's default tiers (great/good/fair/…) listed as blank-output rows that document the scale right next to where you type scores, remapping nothing, so the score you type is the score you see. Fill in an output only if you want a typed score remapped; whether your scores line up with the tiers is your call, not something Grawlix enforces. Delete the legend if you don't want it (Reset to defaults brings it back). Importing a personal list scored on a different scale clears the legend automatically and lays out that file's scores instead, so it never mislabels them.
 
-From My Edits' panel in the Library you can Import a personal wordlist (replacing the current contents), Download what you've got, or Clear it. My Edits is always written as-is — spaces, accents, punctuation, and case preserved — both in its synced file and on download, since it's the file your construction software edits in place; its entries still reach letters-only software through **All**, which honors your Output format. You can also sync My Edits to a file ([Disk sync](#disk-sync)).
+From My Edits' panel in the Library you can Import a personal wordlist, Download what you've got, or Clear it. Its **Download** follows your Output format like any source; **Download original** (the split button's second door, once it has rules) and its synced file stay as-is — spaces, accents, punctuation, and case preserved — since the synced file is the one your construction software edits in place. Its entries also reach letters-only software through **All**, which honors your Output format. You can also sync My Edits to a file ([Disk sync](#disk-sync)).
 
 ## Score tiers
 
@@ -161,24 +161,24 @@ Each wordlist card carries a drag handle (reorder = merge priority), an enable c
 
 **Action buttons differ per wordlist:**
 - **Sources** — Update/Fetch primary action, Download, and a ⋮ menu with Configure / Delete.
-- **My Edits** — Import (primary when empty, plain otherwise), Download (primary when populated, hidden when empty), and Clear in the ⋮ menu. No toggle — My Edits has no rescore rules.
+- **My Edits** — Import (primary when empty, plain otherwise), Download (primary when populated, hidden when empty; splits to add **Download original** once it has rescore rules), and Clear in the ⋮ menu.
 - **All** — Download, no ⋮ menu.
 
 Every panel also carries the **sync pill** on the left of the action row (see § Disk sync).
 
 **Rescored view.** A wordlist's panel — its stats, histogram, and entries list — always shows the *rescored* result, the version it contributes to All. As you tune a rescore rule the rows below update live (`input → output` annotations on rows the rule changed; a struck-through row for an ignored entry). To get the *original* imported file instead, use **Download original** on the source's Download button (below).
 
-**Rescoring rules.** Each Source carries a rescore rules editor. Rules map an input score range — and an optional entry-length filter — to an output score, or `ignore` to drop the entry. First matching rule wins. My Edits has no rescore rules — its scores are already in the unified scale; in that slot My Edits shows the scoring (tier-label) editor instead.
+**Rescoring rules.** Each Source — and My Edits — carries a rescore rules editor. Rules map an input score range — and an optional entry-length filter — to an output score, or `ignore` to drop the entry. First matching rule wins. My Edits' typed scores are stored raw and run through its rules just like any source; it ships with the tier legend (blank-output rows), so they pass through unchanged until you fill in an output.
 
 Rescoring is entirely optional. If a wordlist's scores don't line up with Grawlix's scale and you don't care, leave the rules empty — the raw scores pass through and nothing warns you about it. You can ignore the score column entirely and still search, filter, and run every tool.
 
 Custom wordlists with up to 10 distinct scores get auto-seeded with one inert rule per score on first import, so you see the wordlist's scale laid out next to All's. You can fill in output mappings, or leave them blank to pass the scores through.
 
-**Scoring rules** are your tier labels for the merged score scale ("60 = great, 50 = good, …"). They render as a shared editor on both **All** and **My Edits** — edit in either place and both update. The Workshop entries table reads these for the hover tooltip on each score atom. Labeling is optional too — unlabeled scores still appear, just without a tier name in the tooltip.
+**Scoring rules** are your tier labels for the merged score scale ("60 = great, 50 = good, …"). The editor lives on **All**'s panel, since the tiers describe the merged scale. The Workshop entries table reads these for the hover tooltip on each score atom. Labeling is optional too — unlabeled scores still appear, just without a tier name in the tooltip.
 
 **Update bubble.** A green dot appears on a wordlist's card, and on the **Library** nav item, when an update is available to fetch (only when auto-update is off — see [Settings](#settings)).
 
-**Reset to defaults.** A button appears in the rules editor (rescore on Sources, scoring on All or My Edits) when you've customized the rules away from their shipped defaults. Clicking it restores the defaults, with a confirmation first. Visible only inside the editor and only when there's something to undo.
+**Reset to defaults.** A button appears in the rules editor (rescore on a publisher Source or My Edits, scoring on All) when you've customized the rules away from their shipped defaults. Clicking it restores the defaults, with a confirmation first. Visible only inside the editor and only when there's something to undo.
 
 **Entries view.** Each populated wordlist's panel includes a virtual-scrolled, monospace, text-file-flavored entries list below its rules editor, always showing the rescored result. An inline arrow shows what each rule changed — e.g. `BAGEL  45 → 50  tasty`; rows dropped by an `ignore` rule are struck through with their input score, and untouched rows show their input score plain. The Library entries view is read-only; editing routes through the Workshop entries table's popover.
 
@@ -186,7 +186,7 @@ Custom wordlists with up to 10 distinct scores get auto-seeded with one inert ru
 
 **Renaming.** Focus a wordlist card and press **F2** to rename inline.
 
-**Downloads.** Each wordlist (and All) has its own Download button, and every download saves immediately — no dialog. The file uses your global **Output format** (set in [Settings](#settings)). For a **source with rescore rules** the button is a split: **Download** saves the rescored output (the rule result, `<name> rescored.txt`) and the menu's **Download original** saves your imported file back verbatim with its original formatting (`<name>.txt`). **All** saves its merged output as `All rescored.txt`; **My Edits** saves as `My Edits.txt`, always as-is (the global format doesn't apply to it). When the format strips characters, entries that collapse to the same text are merged: the highest score wins and their distinct comments combine with ` / `.
+**Downloads.** Each wordlist (and All) has its own Download button, and every download saves immediately — no dialog. The file uses your global **Output format** (set in [Settings](#settings)). For a **source with rescore rules** the button is a split: **Download** saves the rescored output (the rule result, `<name> rescored.txt`) and the menu's **Download original** saves your imported file back verbatim with its original formatting (`<name>.txt`). **All** saves its merged output as `All rescored.txt`. **My Edits** follows the same rule as any source — **Download** saves its rescored output at your format (`My Edits rescored.txt`), and once it has rules the split's **Download original** saves the editable file verbatim (`My Edits.txt`). When the format strips characters, entries that collapse to the same text are merged: the highest score wins and their distinct comments combine with ` / `.
 
 **Onboarding banner.** First-run users see a short 3-page sequence at the top of the wordlist list: a welcome confirming the pre-loaded popular wordlists, then optional prompts to import a personal wordlist into My Edits and to import an XWI subscriber file. Each prompt has a *Skip*; the ✕ ends the whole flow. (You won't see it until you visit Library.)
 
