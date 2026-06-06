@@ -48,7 +48,7 @@ test('updating a wordlist applies the new version and summarizes the diff', asyn
 
   feed.updated = true;
   await focusJK(page);
-  await page.locator('.wld-pane-actions .split-btn-main').click();
+  await page.locator('#wld-action-btn .split-btn-main').click();
 
   const dialog = page.locator('#update-summary-dialog');
   await expect(dialog).toBeVisible();
@@ -70,7 +70,7 @@ test('re-fetching unchanged content reports no changes', async ({ page }) => {
   await waitForJKPopulated(page);
 
   await focusJK(page);
-  await page.locator('.wld-pane-actions .split-btn-main').click();
+  await page.locator('#wld-action-btn .split-btn-main').click();
 
   await expect(page.locator('#alert-dialog')).toBeVisible();
   await expect(page.locator('#alert-dialog-msg')).toContainText('already up to date');

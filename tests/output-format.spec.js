@@ -1,5 +1,5 @@
 const { test, expect } = require('@playwright/test');
-const { stubPublisherFetches, gotoApp } = require('./helpers');
+const { stubPublisherFetches, gotoApp, openLibrary, focusWordlist } = require('./helpers');
 
 test.beforeEach(async ({ page }) => {
   await stubPublisherFetches(page);
@@ -7,6 +7,13 @@ test.beforeEach(async ({ page }) => {
 
 function ser(page, entries, fmt) {
   return page.evaluate(([es, f]) => serializeEntries(es, f), [entries, fmt]);
+}
+
+async function readDownload(download) {
+  const stream = await download.createReadStream();
+  let data = '';
+  for await (const chunk of stream) data += chunk;
+  return data;
 }
 
 const RICH    = { spaces: true,  punctuation: true,  accents: true,  comments: true };
@@ -115,16 +122,69 @@ test.describe('output format UI', () => {
     expect(await page.evaluate(() => getOutputFormat().accents)).toBe(false);
   });
 
-  test('download dialog hides the format section for My Edits but shows it for sources', async ({ page }) => {
+  test('a source downloads immediately, applying the global output format with no dialog', async ({ page }) => {
     await gotoApp(page);
-    await page.evaluate(() => window.__grawlixTest.addCustomWordlist({ name: 'Src', entries: ['cat'], scores: [50] }));
+    await page.evaluate(() => window.__grawlixTest.addCustomWordlist({ name: 'Src', entries: ['BLUE JAY'], scores: [50] }));
+    await page.evaluate(() => window.__grawlixTest.setRescoreRules('Src', [{ input: '50', length: '', output: '80' }]));
 
-    await page.evaluate(() => { showDownloadDialog('Src', state.sources.find(w => w.name === 'Src')); });
-    await expect(page.locator('#download-format-section')).toBeVisible();
-    await page.locator('#download-dialog .dialog-cancel-btn').click();
+    const richDl = page.waitForEvent('download');
+    await page.evaluate(() => downloadSourceWordlist(state.sources.find(w => w.name === 'Src')));
+    const rich = await richDl;
+    expect(rich.suggestedFilename()).toBe('Src rescored.txt');
+    expect(await readDownload(rich)).toContain('BLUE JAY;80');
 
-    await page.evaluate(() => { showDownloadDialog('My Edits', getEditsWordlist()); });
-    await expect(page.locator('#download-format-section')).toBeHidden();
-    await page.locator('#download-dialog .dialog-cancel-btn').click();
+    await page.evaluate(() => setOutputFormat({ spaces: false, punctuation: false, accents: false, comments: true }));
+    const strippedDl = page.waitForEvent('download');
+    await page.evaluate(() => downloadSourceWordlist(state.sources.find(w => w.name === 'Src')));
+    expect(await readDownload(await strippedDl)).toContain('BLUEJAY;80');
+  });
+
+  test('My Edits downloads immediately, always as-is regardless of the global format', async ({ page }) => {
+    await gotoApp(page);
+    await page.evaluate(() => saveEdit({ norm: '', display: '', score: 0, comment: '' }, { raw: 'BLUE JAY', score: 50, comment: '' }));
+    await page.evaluate(() => setOutputFormat({ spaces: false, punctuation: false, accents: false, comments: true }));
+
+    const dl = page.waitForEvent('download');
+    await page.evaluate(() => downloadEdits());
+    const file = await dl;
+    expect(file.suggestedFilename()).toBe('My Edits.txt');
+    expect(await readDownload(file)).toContain('BLUE JAY;50');
+  });
+
+  test('a source with rules gets a split Download with a Download-original door; one without is a plain button', async ({ page }) => {
+    await gotoApp(page);
+    await page.evaluate(() => window.__grawlixTest.addCustomWordlist({ name: 'Ruled', entries: ['cat'], scores: [50] }));
+    await page.evaluate(() => window.__grawlixTest.setRescoreRules('Ruled', [{ input: '50', length: '', output: '80' }]));
+    await page.evaluate(() => window.__grawlixTest.addCustomWordlist({ name: 'Plain', entries: ['dog'], scores: [50] }));
+    await page.evaluate(() => window.__grawlixTest.setRescoreRules('Plain', []));  // custom lists auto-seed rules; clear them
+    await openLibrary(page);
+
+    const downloadOriginal = page.locator('#wld-download-btn .split-btn-menu button');
+
+    await focusWordlist(page, 'Ruled');
+    await expect(page.locator('#wld-download-btn .split-btn-main')).toHaveText('Download');
+    await expect(downloadOriginal).toHaveText('Download original');
+
+    await focusWordlist(page, 'Plain');
+    await expect(downloadOriginal).toHaveCount(0);
+    await expect(page.locator('#wld-download-btn')).toHaveText('Download');
+
+    await page.evaluate(() => LibraryView.focus(MERGED_ID));
+    await expect(downloadOriginal).toHaveCount(0);
+    await expect(page.locator('#wld-download-btn')).toHaveText('Download');
+  });
+
+  test('Download original saves the imported file verbatim, not the rule output', async ({ page }) => {
+    await gotoApp(page);
+    await page.evaluate(() => window.__grawlixTest.addCustomWordlist({ name: 'Src', entries: ['ALPHA', 'BETA'], scores: [50, 50] }));
+    await page.evaluate(() => window.__grawlixTest.setRescoreRules('Src', [{ input: '50', length: '', output: '80' }]));
+
+    const originalDl = page.waitForEvent('download');
+    await page.evaluate(() => downloadOriginalWordlist(state.sources.find(w => w.name === 'Src')));
+    const original = await originalDl;
+    expect(original.suggestedFilename()).toBe('Src.txt');
+    const text = await readDownload(original);
+    expect(text).toContain('ALPHA;50');
+    expect(text).not.toContain('80');
   });
 });

@@ -17,7 +17,7 @@ All code lives in a single file: `site/index.html`. Don't bother searching for o
 For any feature work, redesign, brainstorming, or structural change — **not** targeted bug fixes or small tweaks — open the docs that touch the area before proposing or implementing. Adjacent docs may share screen real estate or constrain the answer; treat the topical index below as a checklist, not a suggestion.
 
 Design and manual:
-- [`docs/design.md`](docs/design.md) — present-tense design + whys: shell, Workshop / Library views, disk storage, tool gallery & stack, entries table, URL state, caches & reactivity, non-features.
+- [`docs/design.md`](docs/design.md) — present-tense design + whys: shell, Workshop / Library views, disk sync, tool gallery & stack, entries table, URL state, caches & reactivity, non-features.
 - [`docs/manual.md`](docs/manual.md) — user-facing manual. Update when shipping user-facing changes.
 - [`docs/style.md`](docs/style.md) — coding-style conventions: CSS, JS, Markdown, terminology, commit messages. Read before formatting changes.
 - [`docs/testing.md`](docs/testing.md) — Playwright smoke suite handbook + strategy. Read before adding/modifying tests.
@@ -72,11 +72,13 @@ ENTRY;SCORE;COMMENT
 ## Persistence
 
 - **localStorage** (prefix `grawlix_`): wordlist metadata and settings. `persistMeta()` saves all wordlist metadata.
-- **IndexedDB**: raw wordlist text per wordlist. Wordlists can be hundreds of thousands of entries, too large for localStorage. `persistData(wordlist, text)` saves one wordlist's text, keyed by `wordlist.dbKey`.
+- **IndexedDB**: raw wordlist text per wordlist (keyed `data_<dbKey>`) plus per-list disk-sync targets (keyed `sync_<dbKey | __merged__>`: a `FileSystemFileHandle` + My Edits' baseline). Wordlists can be hundreds of thousands of entries, too large for localStorage. `Storage.writeWordlist(wordlist, text)` saves one wordlist's text.
+
+**Disk sync is a per-list layer on IDB, not a backend.** IDB is always canonical; `Storage` is the sole storage object (no dispatch, no `DiskBackend`/`NullBackend`). A list optionally syncs to a file: My Edits is bidirectional (watched + 3-way merged against a baseline), every other list is a one-way output mirror. See [`docs/design.md`](docs/design.md) § *Disk sync*.
 
 **Never store generated code (HTML, SVG markup) in localStorage or IndexedDB — store the parameters and render at read time.** Otherwise users with stale data continue to render with the old code shape after you change the renderer.
 
-**Bump `SCHEMA_VERSION` and ship a migration when you change the shape of stored data.** Any change to `meta`'s field formats, the descriptor objects it contains, default values set only on first boot, or the IDB / `grawlix.json` record shape requires a bump. Grawlix is in beta with real users, so register a `MIGRATIONS` step (keyed by the *from* version) — plus a frozen before→after fixture test, always — that upgrades existing data in place rather than letting the version-mismatch dialog wipe it. The reset prompt is now only a last-resort floor (data newer than this code, older than the squash horizon, or corrupt) — see [`docs/migration.md`](docs/migration.md). Without the bump, old and new code silently disagree about the stored shape and the app misbehaves.
+**Bump `SCHEMA_VERSION` and ship a migration when you change the shape of stored data.** Any change to `meta`'s field formats, the descriptor objects it contains, default values set only on first boot, or the IDB record shape requires a bump. Grawlix is in beta with real users, so register a `MIGRATIONS` step (keyed by the *from* version) — plus a frozen before→after fixture test, always — that upgrades existing data in place rather than letting the version-mismatch dialog wipe it. The reset prompt is now only a last-resort floor (data newer than this code, older than the squash horizon, or corrupt) — see [`docs/migration.md`](docs/migration.md). Without the bump, old and new code silently disagree about the stored shape and the app misbehaves.
 
 **Migrate stored data; don't wipe it, and keep the parser strict.** localStorage and IndexedDB are past the pre-launch "just reset everyone" policy — schema changes migrate forward (above). Migrations upgrade the stored blob *before* parse, so `wordlistFromMeta` and the rest of the read path only ever see the current shape — never tolerate-then-drop old shapes inline. Cleanup-for-its-own-sake still isn't worth it: don't `lsDel` orphaned localStorage keys to garbage-collect them; an unused key costs nothing.
 

@@ -2,7 +2,7 @@
 
 ## Policy
 
-Grawlix is in beta with real users, so **stored data is migrated forward on every schema change — never wiped.** When you change the shape of `localStorage.meta`, an IndexedDB record, or a `grawlix.json` field, bump `SCHEMA_VERSION` (in `site/index.html`) *and* register a `MIGRATIONS` step that upgrades existing data in place. A bump with no migration is a bug.
+Grawlix is in beta with real users, so **stored data is migrated forward on every schema change — never wiped.** When you change the shape of `localStorage.meta` or an IndexedDB record, bump `SCHEMA_VERSION` (in `site/index.html`) *and* register a `MIGRATIONS` step that upgrades existing data in place. A bump with no migration is a bug.
 
 This reverses the pre-beta policy, under which a bump just triggered a confirm dialog offering to wipe all local data. That was the right call when no user had data worth keeping and writing migration code cost more than a wipe. The trigger we always named for flipping it — *the first user with data they'd be upset to lose* (a custom-rescored wordlist, hand-edited entries, a personalized rule set) — has fired. Beta testers have that data now.
 
@@ -10,7 +10,7 @@ The reset prompt stays, but only as a last-resort *floor* — see below.
 
 ## How it works
 
-`SCHEMA_VERSION` is compared on load against the stored version — `localStorage.schemaVersion` in IDB mode, the `schemaVersion` field of `grawlix.json` in disk mode. The load path:
+`SCHEMA_VERSION` is compared on load against the stored version — `localStorage.schemaVersion`. (Disk sync stores no schema-versioned blob: synced files are plain wordlist text, and per-list sync targets are additive/optional fields, so they don't participate in the version check — see *Disk sync* below.) The load path:
 
 1. Equal → proceed.
 2. Stored version older, within the migration horizon → run each `MIGRATIONS` step from the stored version up to current over the settings blob, stamp the new version, proceed. Both venues run the same chain.
@@ -22,11 +22,11 @@ Migrations upgrade the stored blob *before* it's parsed, so `wordlistFromMeta` a
 
 Migration handles the common case — a store a step or few behind current. The floor exists for the cases it can't carry:
 
-- **Data newer than the code.** A stale CDN cache or a second device on an older deploy can hand this Grawlix a `schemaVersion` *above* `SCHEMA_VERSION`. Migrations only run forward; you can't downgrade a shape. (The disk backend already refuses this — the check is `schemaVersion !== SCHEMA_VERSION`, an inequality in both directions.)
+- **Data newer than the code.** A stale CDN cache or a second device on an older deploy can hand this Grawlix a `schemaVersion` *above* `SCHEMA_VERSION`. Migrations only run forward; you can't downgrade a shape.
 - **Data older than the squash horizon.** Once old migrations are deleted (below), a store from before the oldest surviving migration can't be walked forward.
 - **Migration failure or corruption.** A migration step that throws, or stored data malformed regardless of version.
 
-When `canMigrate` returns false the load path falls to the floor: IDB mode shows a reset confirm in `init()` ("Grawlix's data format has changed… The site may not work correctly until reset.", **Reset** / **I'll take my chances**); disk mode refuses the folder with an alert (`loadDiskCache`, `openMergeDialog`). **Demote the floor, never delete it** — without it the first un-migratable store has no guard at all.
+When `canMigrate` returns false the load path falls to the floor: `init()` shows a reset confirm ("Grawlix's data format has changed… The site may not work correctly until reset.", **Reset** / **I'll take my chances**). **Demote the floor, never delete it** — without it the first un-migratable store has no guard at all.
 
 ## Cost of migrations
 
@@ -51,13 +51,13 @@ The trap a normal test misses: a `MIGRATIONS[v]` step leans on the blob shape cu
 
 So, per version:
 
-- **Before** — a real settings blob captured at version `v`, the exact shape that version persisted, pasted in verbatim and never edited again. Capture it from an actual `grawlix.json` / `localStorage.meta` at that version; don't synthesize it from current code, or it drifts with the code and stops testing anything.
+- **Before** — a real settings blob captured at version `v`, the exact shape that version persisted, pasted in verbatim and never edited again. Capture it from an actual `localStorage.meta` at that version; don't synthesize it from current code, or it drifts with the code and stops testing anything.
 - **After** — the expected blob once walked to the current schema.
 - Assert `migrateSettings(structuredClone(before), v)` deep-equals `after`. Clone so a re-run doesn't mutate the fixture in place.
 
 Drive these through `window.__grawlixTest` (expose `migrateSettings` / `MIGRATIONS` there the way the bridge wraps other internals). This is the rare case where asserting the data shape directly — rather than a user-visible outcome, as the suite normally insists — is correct: a migration's entire contract *is* the stored shape, and a wrong shape fails silently.
 
-Add, separately, **one or two integration tests through the real boot** — seed an old-version `localStorage.meta` (or an old `grawlix.json`), reload, and assert the migrated state lands, persists, and stamps the new version; and that a *newer* or un-migratable version hits the floor instead. These cover the venue adapters, the disk re-persist, and the floor wiring — once, not per version.
+Add, separately, **one or two integration tests through the real boot** — seed an old-version `localStorage.meta`, reload, and assert the migrated state lands, persists, and stamps the new version; and that a *newer* or un-migratable version hits the floor instead. These cover the read path and the floor wiring — once, not per version.
 
 Squashing a migration (deleting `MIGRATIONS[v]`) deletes its fixture test in the same commit — which makes the squash, and the data it strands, visible in the diff rather than silent rot.
 
@@ -107,10 +107,11 @@ No solution yet; this is documented so future-us recognizes it as distinct from 
 
 ## The runner
 
-`MIGRATIONS` (in `site/index.html` near `SCHEMA_VERSION`) maps a *from* version to a step that mutates a settings blob in place. `canMigrate(from)` checks every step from `from` up to current exists; `migrateSettings(blob, from)` walks them. Two venue adapters drive it:
+`MIGRATIONS` (in `site/index.html` near `SCHEMA_VERSION`) maps a *from* version to a step that mutates a settings blob in place. `canMigrate(from)` checks every step from `from` up to current exists; `migrateSettings(blob, from)` walks them. One adapter drives it:
 
-- **IDB** — `migrateLocalStorage(from)`, called from the `init()` mismatch branch, assembles the blob from the separate localStorage keys, migrates, writes them back, and stamps the new version. On a thrown step it returns false untouched and the floor's reset confirm takes over.
-- **Disk** — `migrateCacheInPlace(cache)`, called from `loadDiskCache` (silent boot) and `openMergeDialog` (connect-to-existing-folder), migrates the `grawlix.json` cache object directly, since it already *is* the blob shape. `loadDiskCache` then **persists** the migrated cache immediately — an unpersisted, non-idempotent step would re-run every boot; `openMergeDialog` lets `applyMerge` write the fresh `grawlix.json`.
+- **`migrateLocalStorage(from)`**, called from the `init()` mismatch branch, assembles the blob from the separate localStorage keys, migrates, writes them back, and stamps the new version. On a thrown step it returns false untouched and the floor's reset confirm takes over.
+
+Disk sync needs no migration adapter: synced files are plain wordlist text, and the per-list sync targets in IDB (handle + My Edits baseline) are additive/optional — absent on existing users — so they're forward-compatible without a `SCHEMA_VERSION` bump. **Folder→per-file is deliberately not migrated**: a former folder-mode user boots into IDB-mode Grawlix with stale/default state (their real data lives in their folder files, since IDB dropped out under the old model) and manually re-attaches each file; first-attach merges the content back. The orphaned folder handle left in IDB is harmless and isn't garbage-collected. This was a conscious call — folder mode reached almost nobody, and handling a one-user scenario wasn't worth the code.
 
 Two things the runner deliberately doesn't do:
 

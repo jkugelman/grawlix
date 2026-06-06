@@ -28,47 +28,34 @@ The gear in the header opens **Settings**:
 
 - **Dark mode** — Auto (follow your OS), Light, or Dark.
 - **Auto-update wordlists** — Update wordlists without asking. On by default.
-- **Output format** — How entries are written to downloads and to your disk-storage folder, so they match what your construction software can read: checkboxes to keep or strip **spaces**, **punctuation**, **accents**, and **comments**. Defaults to fully rich (everything kept). My Edits and the original source files are always written as-is regardless. This is the only place the format's default is edited; the download dialog lets you override it for a single download.
+- **Output format** — How entries are written to downloads and to synced files, so they match what your construction software can read: checkboxes to keep or strip **spaces**, **punctuation**, **accents**, and **comments**. Defaults to fully rich (everything kept). My Edits is always written as-is regardless. This is the one place the format is set — downloads and synced files both follow it.
 - **Reset all data** — Wipes all wordlists and settings and reloads the app.
 
-## Disk storage
+## Disk sync
 
-Grawlix's data normally lives in your browser's local storage. **Disk storage** lets you save it to a folder on your hard drive instead — so your construction software can read your wordlists directly from disk, and so a browser wipe doesn't take years of edits with it.
+Grawlix keeps your data in your browser. **Disk sync** additionally connects an individual list to an individual file on your hard drive — a file you already have, in the place your construction software already reads — and keeps the two in sync. There's no Grawlix folder to set up and no settings to re-point.
 
-**The storage button.** A hard-drive icon sits in the header next to the gear. By default it shows a slash through it (your data is in browser storage); once storage is set up the slash disappears. A label grows next to the icon:
+You sync each list from the **Library**, list by list. Two kinds of sync, depending on the list:
 
-- **Disk storage on** whenever storage is set up
-- **Disk storage off** once you've added something to My Edits (the moment you have state worth saving)
+- **My Edits is two-way.** The file is the one your construction software (Ingrid, Crossfire, Crossword Compiler) reads *and* writes. Edit in Grawlix and the file updates; edit the file and Grawlix picks the change up within a couple of seconds. Grawlix's copy in the browser stays the source of truth, so it keeps working even when the file isn't reachable.
+- **Every other list is one-way out.** **All** and each source write their rescored output to their file whenever the list or its rescore rules change. These are generated outputs — if you hand-edit one of these files, your changes are overwritten the next time Grawlix rewrites it. Point your construction software at **All** for the unified wordlist.
 
-The label collapses on narrow viewports (≤899px); the icon stays. On phones and tablets, and in browsers without File System Access support, the button is hidden entirely.
+**The sync pill.** Every list's panel shows a small status pill on the left of its action row — a logo for the browser your data lives in, then its sync state: **Saved in browser** when it's browser-only, **→ _filename_ · Synced to disk** for a one-way output (All and sources), or **⇄ _filename_ · Synced to disk** for the two-way My Edits. Clicking the pill opens a dialog that explains what sync is and lets you set it up or turn it off — no surprise file pickers.
 
-**Setting it up.** Click the storage button to open the **Set up storage** dialog. Two cards:
+**Setting up sync.** Click the pill and choose:
 
-- **New folder** — Pick an empty folder. Your wordlists and settings will be saved there.
-- **Load existing** — Pick a folder that already has Grawlix data (for example, one synced from another device via Dropbox).
+- For **My Edits**, two doors: **Use a file I already have** (point at the file your software opens — Grawlix loads it and keeps both in sync, the common case) or **Create a new file**.
+- For **All** or a **source**, a single **Choose file…** — pick or name the file Grawlix writes the rescored output to.
 
-The picker is your browser's native folder picker. After picking, Grawlix routes you through the right next step based on what's in the folder — sets up immediately for an empty new-folder pick, redirects if you picked the wrong kind of folder, runs a three-button anomaly dialog if a "new" folder isn't empty, errors if a "Load existing" folder isn't a Grawlix folder, or opens the merge dialog if it is.
+**While synced.** The pill names the synced file. Clicking it again shows **Stop syncing**; stopping leaves the file on disk untouched — it just disconnects. To point a list at a different file, stop syncing and set it up again. **Download** is always there too, in every state.
 
-**The merge dialog** shows only what's different between your local data and the folder. Wordlists matched between the two have their content replaced by the folder's version. Same-entry My Edits conflicts surface as a bulk "keep this device / keep folder" pick. Wordlists only on your device carry over; wordlists only in the folder load. Settings and scoring rules come from the folder.
+**When edits collide (My Edits only).** If the same entry was changed both in Grawlix and in the file since they last agreed, Grawlix asks which to keep — **Keep this device** or **Keep the file** — and applies your choice. Changes that touched different entries merge silently; this prompt appears only on a true conflict, so it's rare. Deleting an entry on either side stays deleted — it isn't resurrected by the merge.
 
-**Folder contents.** The outputs your construction software reads sit at the root; the original source files are tucked into an `original/` subfolder so they don't clutter it:
+**Reconnecting.** Browsers don't always remember file permission across sessions. On boot, files whose permission is remembered resume silently — straight to the app. For any file the browser has forgotten, the loading splash shows an **Open _filename_** button (one click per file to re-grant) and a muted **Skip for now**. Skip is always safe: the full app runs from your browser data, and the un-granted files just stay paused until the next launch reconnects them. If a file goes missing mid-session (moved or deleted), its pill turns attention-colored and reads **⤫ _filename_ · File missing** — stop syncing and set it up again to recover.
 
-- **`grawlix.json`** — your settings, wordlist metadata, and tier labels. Managed by Grawlix.
-- **`My Edits.txt`** — your score overrides and comments. Edit it in any text editor; Grawlix picks up your changes automatically. Stays at the root (not in `original/`) so your software can read and write it alongside the rescored outputs.
-- **`<name> rescored.txt`** — your wordlists with rescore rules applied, sorted alphabetically, written in your **Output format** (see [Settings](#settings)). Write-only — Grawlix regenerates them whenever the wordlist or its rescore rules change, or when you change the format.
-- **`All rescored.txt`** — the merged result of all enabled wordlists, rescored and sorted, written in your **Output format**. The unified wordlist your construction software should point at; regenerated whenever any source wordlist or its rules change.
-- **`original/<name>.txt`** (e.g. `original/XWI.txt`) — your source wordlists with their original scores. Edit them in any text editor; Grawlix picks up your changes automatically.
-- **`README.md`** — generated at setup and refreshed on boot whenever a new Grawlix version changes its text (rewritten only on drift, so unchanged folders stay untouched). Names each file and explains the cross-device trick.
+**Cross-device.** Put a synced file in Dropbox, iCloud Drive, OneDrive, or Google Drive, and on your other device sync the same list to that same file. Your cloud client moves the bytes; Grawlix has no cloud code of its own. (For My Edits this merges both devices' edits; for a one-way list the latest writer wins.)
 
-**External edits.** Edit a wordlist file in your text editor, save, and Grawlix re-reads it within a couple of seconds — no manual refresh. Same mechanism handles cross-tab updates (two Grawlix tabs open on the same folder).
-
-**Cross-device.** Put the folder in Dropbox, iCloud Drive, OneDrive, or Google Drive. On your other device, click the storage button → **Load existing** → pick the same folder. Edits sync through your cloud client. Grawlix has no cloud code of its own.
-
-**Turn off.** Click the storage button (now showing the unslashed hard-drive icon) → **Turn off**, then confirm. Grawlix detaches from the folder and reloads to fresh Grawlix; your files stay in the folder untouched, ready to load again later. Grawlix never deletes the folder's contents — clean it up yourself if you want it gone.
-
-**When the folder isn't accessible.** Browsers don't always remember the folder permission across sessions. On boot, if Grawlix has a saved folder but the browser hasn't kept the permission, the loading splash shows two buttons under the logo instead of the usual spinner: **Load Grawlix data** (re-grant the folder permission) and **Use without disk storage this session** (proceed with empty defaults; a banner with "Reload to try again" and "Turn off storage" off-ramps appears at the top of the page). If "Load Grawlix data" fails because the folder isn't accessible, the splash switches to Try again / Pick a different folder / Use without disk storage this session.
-
-**Browser support.** Disk storage uses the File System Access API. It works in Chrome, Edge, and other Chromium-based desktop browsers. In Firefox and Safari (desktop) the storage button appears but clicking it shows an informational dialog explaining disk storage requires a Chromium browser. On phones and tablets the button is hidden. Chrome's "Always allow" option on the folder grant means most users see the boot-time splash once and then never again.
+**Browser support.** Disk sync uses the File System Access API — Chrome, Edge, and other Chromium-based desktop browsers. In Firefox, Safari, and on phones and tablets, the pill stays on **Saved in browser** and its dialog explains that sync needs a Chromium browser; **Download** is the way to get a file out there. Chrome's "Always allow" on a file grant means most users reconnect once and then never again.
 
 ## Keyboard shortcuts
 
@@ -156,7 +143,7 @@ A special wordlist created automatically on first boot. It's where your manual s
 
 Unlike Sources, My Edits has no rescore rules — the scores you type are already in Grawlix's scale, so they pass through unchanged. In place of a rescore editor, My Edits' panel shows the same scoring (tier-label) editor that **All** carries. The labels are shared: editing in either place updates both, so the legend is right next to your edits as you work.
 
-From My Edits' panel in the Library you can Import a personal wordlist (replacing the current contents), Download what you've got, or Clear it. My Edits is always written as-is — spaces, accents, punctuation, and case preserved — both on disk and on download, since it's the file your construction software edits in place; its entries still reach letters-only software through `All rescored.txt`, which honors your Output format.
+From My Edits' panel in the Library you can Import a personal wordlist (replacing the current contents), Download what you've got, or Clear it. My Edits is always written as-is — spaces, accents, punctuation, and case preserved — both in its synced file and on download, since it's the file your construction software edits in place; its entries still reach letters-only software through **All**, which honors your Output format. You can also sync My Edits to a file ([Disk sync](#disk-sync)).
 
 ## Score tiers
 
@@ -173,11 +160,13 @@ Each wordlist card carries a drag handle (reorder = merge priority), an enable c
 **Right pane.** Each card's panel has the same shape: an action row, a rules editor, then a sticky region above the entries view holding the search bar (on populated wordlists) and the stats bar with histogram. The stats bar carries the same controls as on Workshop — counts, stats numbers, histogram, score range, sort — minus the Groups count (Library has no tool pipeline). The histogram is click-and-drag to filter, same as on Workshop.
 
 **Action buttons differ per wordlist:**
-- **Sources** — Update/Fetch primary action, the Rescored/Original toggle (when rules exist), Download, and a ⋮ menu with Configure / Delete.
-- **My Edits** — Import (primary when empty, plain otherwise), Download (primary when populated, hidden when empty), Clear in the ⋮ menu. No toggle — My Edits has no rescore rules.
-- **All** — Download. No toggle (merged has no "original" version), no ⋮ menu.
+- **Sources** — Update/Fetch primary action, Download, and a ⋮ menu with Configure / Delete.
+- **My Edits** — Import (primary when empty, plain otherwise), Download (primary when populated, hidden when empty), and Clear in the ⋮ menu. No toggle — My Edits has no rescore rules.
+- **All** — Download, no ⋮ menu.
 
-**Rescored/Original toggle.** A segmented control on a wordlist's action row. It governs *every* rescore-affected surface on the panel together: stats bar, histogram, the entries view's annotations, and what Download produces. **Rescored** is the default — what the wordlist actually contributes to All. **Original** strips rescoring and shows the file as imported. Hidden when no rescore rules apply.
+Every panel also carries the **sync pill** on the left of the action row (see § Disk sync).
+
+**Rescored view.** A wordlist's panel — its stats, histogram, and entries list — always shows the *rescored* result, the version it contributes to All. As you tune a rescore rule the rows below update live (`input → output` annotations on rows the rule changed; a struck-through row for an ignored entry). To get the *original* imported file instead, use **Download original** on the source's Download button (below).
 
 **Rescoring rules.** Each Source carries a rescore rules editor. Rules map an input score range — and an optional entry-length filter — to an output score, or `ignore` to drop the entry. First matching rule wins. My Edits has no rescore rules — its scores are already in the unified scale; in that slot My Edits shows the scoring (tier-label) editor instead.
 
@@ -195,13 +184,13 @@ The highest-severity bubble across all wordlists propagates up to the **Library*
 
 **Reset to defaults.** A button appears in the rules editor (rescore on Sources, scoring on All or My Edits) when you've customized the rules away from their shipped defaults. Clicking it restores the defaults, with a confirmation first. Visible only inside the editor and only when there's something to undo.
 
-**Entries view.** Each populated wordlist's panel includes a virtual-scrolled, monospace, text-file-flavored entries list below its rules editor. In Rescored mode, an inline arrow shows what each rule changed — e.g. `BAGEL  45 → 50  tasty`; rows dropped by an `ignore` rule are struck through with their input score. Untouched rows show their input score plain. Switching to Original mode strips the arrows and strikethrough — you see the wordlist as the file contains it. The Library entries view is read-only; editing routes through the Workshop entries table's popover.
+**Entries view.** Each populated wordlist's panel includes a virtual-scrolled, monospace, text-file-flavored entries list below its rules editor, always showing the rescored result. An inline arrow shows what each rule changed — e.g. `BAGEL  45 → 50  tasty`; rows dropped by an `ignore` rule are struck through with their input score, and untouched rows show their input score plain. The Library entries view is read-only; editing routes through the Workshop entries table's popover.
 
 **Search bar** (above the stats bar). Full pattern syntax and whole-word toggle. No Replace caret — the Library bar filters a wordlist for inspection, it doesn't transform or query it. Score range and sort live in the stats bar below, the same as on Workshop.
 
 **Renaming.** Focus a wordlist card and press **F2** to rename inline.
 
-**Downloads.** Each wordlist (and All) has its own Download button. On sources, the Rescored/Original toggle decides whether you get the file as imported or as rescored. The dialog shows your global **Output format** (set in [Settings](#settings)) and lets you tweak it for this one download — **Download** uses whatever's on screen without changing your default. If you do change it, a **Save as default** button appears that writes the tweak back to Settings (and rewrites your disk files to match). My Edits always downloads as-is. When the chosen format strips characters, entries that collapse to the same text are merged: the highest score wins and their distinct comments combine with ` / `.
+**Downloads.** Each wordlist (and All) has its own Download button, and every download saves immediately — no dialog. The file uses your global **Output format** (set in [Settings](#settings)). For a **source with rescore rules** the button is a split: **Download** saves the rescored output (the rule result, `<name> rescored.txt`) and the menu's **Download original** saves your imported file back verbatim with its original formatting (`<name>.txt`). **All** saves its merged output as `All rescored.txt`; **My Edits** saves as `My Edits.txt`, always as-is (the global format doesn't apply to it). When the format strips characters, entries that collapse to the same text are merged: the highest score wins and their distinct comments combine with ` / `.
 
 **Onboarding banner.** First-run users see a short 3-page sequence at the top of the wordlist list: a welcome confirming the pre-loaded popular wordlists, then optional prompts to import a personal wordlist into My Edits and to import an XWI subscriber file. Each prompt has a *Skip*; the ✕ ends the whole flow. (You won't see it until you visit Library.)
 

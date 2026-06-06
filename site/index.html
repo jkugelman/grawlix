@@ -32,10 +32,10 @@ input[type="file"] { display: none; }
   --tool-stack-h: 53px;
   --sticky-stack-h: 138px;
   --search-bar-h: 51px;
-  /* Live height of the Library's pinned wordlist card (narrow layout) —
-     published by LibraryView, used to offset the pane's sticky bars below
-     it. The value here is just a pre-measurement fallback. */
-  --wld-pin-h: 56px;
+  /* Live height of the Library pane's sticky title/action bar — published by
+     LibraryView, used to offset the search/stats bars that pin below it. The
+     value here is just a pre-measurement fallback. */
+  --title-bar-h: 54px;
   --header-h: 84px;
 }
 html.dark-mode {
@@ -625,57 +625,40 @@ input.entry-input { font-family: var(--font-mono); font-size: 13px; }
 .header-icon-btn { background: none; border: none; color: white; font-size: 19px; padding: 4px 8px; border-radius: 4px; cursor: pointer; line-height: 1; font-family: inherit; display: inline-flex; align-items: center; justify-content: center; }
 button.header-icon-btn:hover:not(:disabled) { background: var(--hdr-bg-dark); color: white; }
 #btn-settings svg { position: relative; top: 1px; }
-.storage-icon { position: relative; top: 1px; display: inline-flex; align-items: center; justify-content: center; }
-.storage-slash { position: absolute; top: 50%; left: 50%; width: 28px; height: 4px; background: var(--hdr-bg); transform: translate(-50%, -50%) rotate(45deg); pointer-events: none; border-radius: 2px; }
-.storage-slash::after { content: ''; position: absolute; top: 50%; left: 0; right: 0; height: 2px; background: currentColor; transform: translateY(-50%); border-radius: 1px; }
-.storage-label { display: inline-block; font-size: 12px; font-weight: 500; line-height: 1.4; max-width: 0; margin-right: 0; opacity: 0; overflow: hidden; white-space: nowrap; transition: max-width 0.25s ease, opacity 0.2s ease, margin-right 0.25s ease; }
-.storage-label.visible { max-width: 160px; margin-right: 6px; opacity: 1; }
-@media (max-width: 899px) {
-  .storage-label.visible { max-width: 0; margin-left: 0; opacity: 0; }
-}
 #btn-help { width: 32px; height: 32px; padding: 0; border-radius: 4px; background: none; }
 .icon { width: 20px; height: 20px; display: inline-flex; align-items: center; justify-content: center; }
 .help-circle { border-radius: 50%; background: white; color: var(--accent); font-size: 12px; font-weight: 800; }
 
 /* Settings dialog */
 #settings-dialog { width: 340px; }
-#storage-dialog { width: 420px; }
-#storage-dialog .storage-pitch { color: var(--muted); line-height: 1.5; margin: 0 0 14px; font-size: 13px; }
-.storage-choice-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-.storage-choice-card { display: flex; flex-direction: column; align-items: flex-start; justify-content: flex-start; gap: 6px; text-align: left; padding: 14px; border: 1px solid var(--border); border-radius: 8px; background: var(--btn-bg); cursor: pointer; font-family: inherit; transition: border-color 0.15s ease, background 0.15s ease; }
-.storage-choice-card:hover { border-color: var(--accent); background: var(--hover); }
-.storage-choice-card:focus-visible { outline: none; border-color: var(--accent); }
-.storage-choice-card-title { font-size: 14px; font-weight: 600; color: var(--text); }
-.storage-choice-card-desc { font-size: 12px; color: var(--muted); line-height: 1.45; }
-#storage-anomaly-dialog { width: 380px; }
-#storage-turnoff-dialog { width: 380px; }
-.splash-actions { display: flex; flex-direction: column; gap: 8px; align-items: stretch; min-width: 280px; }
-.splash-actions.animated { opacity: 0; animation: splash-actions-reveal 0.4s ease-out 0.5s forwards; }
-@keyframes splash-actions-reveal { to { opacity: 1; } }
-#storage-paused-banner { position: fixed; top: 0; left: 0; right: 0; z-index: 100; padding: 10px 16px; background: #f3c44f; color: #5b3a00; display: flex; gap: 14px; align-items: center; justify-content: center; font-size: 13px; flex-wrap: wrap; box-shadow: 0 1px 3px rgba(0,0,0,0.15); }
-#storage-paused-banner button { padding: 4px 10px; border: 1px solid currentColor; background: rgba(255,255,255,0.5); color: inherit; cursor: pointer; font-size: 12px; border-radius: 4px; font-family: inherit; }
-#storage-paused-banner button:hover { background: rgba(255,255,255,0.75); }
-body:has(#storage-paused-banner:not([hidden])) header { margin-top: 38px; }
-.storage-folder-chip { display: inline-block; padding: 8px 12px; background: var(--surface); border: 1px solid var(--border2); border-radius: 6px; font-size: 13px; margin: 6px 0 14px; }
-.folder-name { white-space: nowrap; font-weight: 600; }
+#edits-conflict-dialog { width: 460px; }
+.merge-entries-conflict { max-height: 200px; overflow: auto; margin: 4px 0 0; font-size: 12px; }
+.splash-reconnect { display: flex; flex-direction: column; gap: 8px; align-items: stretch; min-width: 280px; }
+.splash-reconnect.animated { opacity: 0; animation: splash-reconnect-reveal 0.4s ease-out 0.5s forwards; }
+@keyframes splash-reconnect-reveal { to { opacity: 1; } }
+.splash-reconnect-intro { margin: 0 0 4px; text-align: center; color: var(--muted); font-size: 13px; }
+.splash-reconnect-skip { margin-top: 18px; background: none; border: none; color: var(--faint); font-size: 12px; text-decoration: underline; cursor: pointer; font-family: inherit; align-self: center; }
+.splash-reconnect-skip:hover { color: var(--muted); }
 .dialog-footer-split { justify-content: space-between; }
-.dialog-footer-stacked { flex-direction: column; align-items: stretch; gap: 6px; }
-.dialog-footer-stacked button { width: 100%; padding: 8px 12px; text-align: center; }
-#storage-merge-dialog { width: 460px; }
-#storage-merge-dialog .merge-section-label { color: var(--muted); font-size: 12px; margin: 12px 0 4px; }
-#storage-merge-dialog .merge-list { list-style: none; padding: 0 0 0 10px; margin: 0 0 12px; font-size: 13px; }
-#storage-merge-dialog .merge-list li::before { content: '• '; color: var(--muted); }
-#storage-merge-dialog .merge-edits { margin: 12px 0; padding: 10px 12px; background: var(--surface); border-radius: 6px; }
-#storage-merge-dialog .merge-edits-label { display: block; font-size: 13px; margin-bottom: 6px; }
-#storage-merge-dialog .merge-edits-pick { display: inline-flex; align-items: center; gap: 4px; margin-right: 12px; font-size: 13px; cursor: pointer; }
-#storage-merge-dialog .merge-edits-pick input { margin: 0; }
-#storage-merge-dialog .merge-toggle { background: none; border: none; color: var(--accent); cursor: pointer; padding: 0; font-size: 12px; margin-left: 4px; }
-#storage-merge-dialog .merge-entries { margin-top: 10px; max-height: 180px; overflow-y: auto; font-size: 12px; border-top: 1px solid var(--border3); padding-top: 8px; }
-#storage-merge-dialog .merge-entry-row { padding: 4px 0; color: var(--muted); }
-#storage-merge-dialog .merge-entry-row b { color: var(--text); margin-right: 6px; }
+.merge-entry-row { padding: 4px 0; color: var(--muted); }
+.merge-entry-row b { color: var(--text); margin-right: 6px; }
 #confirm-dialog, #alert-dialog { width: 320px; }
-#download-dialog { width: 340px; }
 #merge-conflict-dialog { width: 380px; }
+#sync-dialog { width: 440px; }
+.sync-diagram { display: flex; align-items: center; justify-content: center; gap: 8px; margin: 6px 0 18px; }
+.sync-diagram-icon { width: 28px; height: 28px; flex-shrink: 0; }
+.sync-diagram-emoji { font-size: 24px; line-height: 1; flex-shrink: 0; }
+.sync-diagram-arrow { color: var(--accent); font-weight: 700; font-size: 20px; line-height: 1; flex-shrink: 0; }
+.sync-dialog-lead { line-height: 1.5; color: var(--text); margin: 0 0 16px; }
+.sync-dialog-note { display: flex; align-items: flex-start; gap: 7px; line-height: 1.45; font-size: 13px; margin: -6px 0 16px; }
+.sync-dialog-note-icon { flex-shrink: 0; }
+.sync-dialog-note.attention { color: var(--warn-fg); }
+.sync-dialog-actions { display: flex; justify-content: flex-end; gap: 8px; }
+.sync-choices { display: flex; flex-direction: column; gap: 10px; }
+.sync-choice { display: block; width: 100%; text-align: left; padding: 12px 14px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); cursor: pointer; font-family: inherit; }
+.sync-choice:hover { border-color: var(--accent); background: var(--hover); }
+.sync-choice-title { display: block; font-weight: 600; color: var(--text); margin-bottom: 3px; }
+.sync-choice-sub { display: block; font-size: 12px; color: var(--muted); line-height: 1.4; }
 .dialog-msg { margin-bottom: 4px; line-height: 1.5; padding-right: 24px; }
 .dialog-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 22px; }
 .dialog-row:last-child { margin-bottom: 0; }
@@ -709,15 +692,6 @@ dialog::backdrop { background: var(--backdrop); }
 dialog h2 { font-size: 16px; margin-bottom: 14px; padding-right: 24px; }
 .dialog-close-btn { position: absolute; top: 10px; right: 12px; background: none; border: none; font-size: 18px; line-height: 1; color: var(--muted); cursor: pointer; padding: 2px 6px; border-radius: 4px; z-index: 1; }
 .dialog-close-btn:hover { background: var(--hover); color: var(--text); }
-.form-field { margin-bottom: 22px; }
-.form-field label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px; }
-.form-field input { width: 100%; padding: 7px 10px; border: 1px solid var(--border); border-radius: 4px; font-size: 13px; font-family: inherit; background: var(--input-bg); color: var(--text); }
-.form-field input:focus { outline: none; border-color: var(--accent); }
-.filename-combo { display: flex; align-items: stretch; }
-.filename-combo input { flex: 1; min-width: 0; border-top-right-radius: 0; border-bottom-right-radius: 0; }
-.filename-combo select { border: 1px solid var(--border); border-left: none; border-radius: 0 4px 4px 0; background: var(--input-bg); padding: 0 6px 0 8px; font-size: 13px; font-family: inherit; color: var(--text); cursor: pointer; }
-.filename-combo select:focus { outline: none; border-color: var(--accent); border-left: none; }
-.filename-combo:has(select:focus) input { border-right-color: var(--accent); }
 .known-wordlist { display: flex; align-items: center; justify-content: space-between; gap: 9px; padding: 9px 12px; border: 1px solid var(--border2); border-radius: 6px; margin-bottom: 7px; }
 .known-wordlist-info { flex: 1; }
 .known-wordlist-name { font-size: 13px; font-weight: 600; }
@@ -747,9 +721,10 @@ dialog h2 { font-size: 16px; margin-bottom: 14px; padding-right: 24px; }
 .welcome-merge-all-name { font-weight: 600; color: var(--text); font-size: 13px; }
 .welcome-merge-count { color: var(--muted); font-size: 12px; }
 .welcome-shot-storage { font-size: 12px; line-height: 1.7; }
-.welcome-folder-name { color: var(--text); }
-.welcome-folder-files { list-style: none; margin: 4px 0 0; padding-left: 16px; }
-.welcome-folder-files li { white-space: nowrap; }
+.welcome-sync-files { list-style: none; margin: 0; padding-left: 4px; color: var(--muted); }
+.welcome-sync-files li { white-space: nowrap; }
+.welcome-sync-files strong { color: var(--text); }
+.welcome-sync-dir { color: var(--accent); font-weight: 700; padding: 0 2px; }
 
 /* Import guide dialog */
 #import-guide-dialog { width: 480px; }
@@ -1128,19 +1103,28 @@ body.picker-expanded #picker-backdrop { opacity: 1; }
 }
 .wld-pane { display: flex; flex-direction: column; }
 .wld-pane-empty { display: flex; align-items: center; justify-content: center; color: var(--faint); font-size: 14px; padding: 60px 30px; }
-.wld-pane-header { display: flex; align-items: center; padding: 12px 22px; border-bottom: 1px solid var(--border); }
+.wld-title-bar { display: flex; align-items: center; gap: 16px; padding: 12px 22px; border-bottom: 1px solid var(--border2);
+  position: sticky; top: var(--header-h); z-index: 52; background: var(--surface); }
 .wld-pane-actions { display: flex; align-items: center; gap: 6px; flex: 1; min-width: 0; flex-wrap: wrap; }
-/* Rescored/Original toggle sits left-aligned; the buttons that follow get
-   pushed to the right edge via this auto margin. */
-.wld-pane-actions > .seg-ctrl { margin-right: auto; }
-/* When the toggle isn't present (My Edits, All, or no rules), push the
-   first action item to the right edge instead. */
-.wld-pane-actions > :first-child:not(.seg-ctrl) { margin-left: auto; }
+.wld-pane-actions > :first-child { margin-left: auto; }
+.wld-pane-title { font-size: 20px; font-weight: 600; color: var(--text); line-height: 1.2; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.wld-sync-hang { padding: 0 22px; }
+.wld-sync-sign { display: inline-flex; align-items: center; gap: 6px; max-width: 100%; margin-top: -3px;
+  padding: 6px 12px; background: var(--surface); border: 1px solid var(--border); border-top: none; border-radius: 0 0 8px 8px;
+  box-shadow: 0 3px 5px -1px rgba(0, 0, 0, 0.12); font-family: inherit; font-size: 12px; line-height: 1.5; color: var(--muted); cursor: pointer; }
+.wld-sync-sign:hover { color: var(--text); background: var(--hover); }
+.wld-sync-sign.attention { color: var(--warn-fg); }
+.wld-sync-line-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wld-sync-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+.wld-sync-dot--ok { background: var(--ok-fg); }
+.wld-sync-dot--off { background: none; border: 1.5px solid var(--faint); box-sizing: border-box; }
+.wld-sync-dot--warn { background: var(--warn-fg); }
+.wld-sync-dot--working { background: var(--accent); }
 .wld-pane-rescore { border-bottom: 1px solid var(--border2); padding: 14px 22px; }
 .wld-pane-rescore-empty { font-size: 12px; color: var(--muted); padding: 6px 2px; }
 
-.lib-search-bar       { position: sticky; top: var(--header-h); z-index: 51; background: var(--surface); }
-.wld-pane > .stats-bar { position: sticky; top: calc(var(--header-h) + var(--search-bar-h)); z-index: 50; }
+.lib-search-bar       { position: sticky; top: calc(var(--header-h) + var(--title-bar-h)); z-index: 51; background: var(--surface); }
+.wld-pane > .stats-bar { position: sticky; top: calc(var(--header-h) + var(--title-bar-h) + var(--search-bar-h)); z-index: 50; }
 
 /* Desktop: list on the left, pane on the right. `align-items: stretch`
    (flex default) lets the surface2 list extend to match the pane's height
@@ -1162,19 +1146,14 @@ body.picker-expanded #picker-backdrop { opacity: 1; }
 
 /* Narrow layout: the wordlist list stacks above the pane and scrolls away
    with the page. Collapse the rail's wrapper boxes with `display: contents`
-   so the cards become flow children of .wld-body — which spans the full
-   stacked height — letting the selected card's `position: sticky` travel
-   through the whole pane scroll instead of stopping at the short list box.
-   On desktop the side rail is pinned instead (see the min-width rule above). */
+   so the cards become flow children of .wld-body and scroll with it; the
+   pane bar pins on scroll instead (sticky on all platforms — see .wld-title-bar). */
 @media (max-width: 759px) {
   .wld-list, .wld-list-sticky, .wld-list-body { display: contents; }
   /* The collapsed wrappers carried the rail's surface tint and the divider
      from the pane; reapply both on the rows themselves. */
   .wordlist-card, .wld-list-section-header { background: var(--surface); }
   .wld-list .add-wordlist-row { border-bottom: 1px solid var(--border2); }
-  .wordlist-card.selected { position: sticky; top: var(--header-h); z-index: 52; }
-  .lib-search-bar       { top: calc(var(--header-h) + var(--wld-pin-h)); }
-  .wld-pane > .stats-bar { top: calc(var(--header-h) + var(--wld-pin-h) + var(--search-bar-h)); }
 }
 
 /* Onboarding banner at the top of the Library view's wordlist list */
@@ -1270,8 +1249,48 @@ html.dark-mode .wld-onboarding { background: color-mix(in srgb, var(--accent) 15
   <symbol id="icon-globe" viewBox="0 0 16 16" fill="currentColor">
     <path d="M0 8a8 8 0 1 1 16 0A8 8 0 0 1 0 8m7.5-6.923c-.67.204-1.335.82-1.887 1.855q-.215.403-.395.872c.705.157 1.472.257 2.282.287zM4.249 3.539q.214-.577.481-1.078a7 7 0 0 1 .597-.933A7 7 0 0 0 3.051 3.05q.544.277 1.198.49zM3.509 7.5c.036-1.07.188-2.087.436-3.008a9 9 0 0 1-1.565-.667A6.96 6.96 0 0 0 1.018 7.5zm1.4-2.741a12.3 12.3 0 0 0-.4 2.741H7.5V5.091c-.91-.03-1.783-.145-2.591-.332M8.5 5.09V7.5h2.99a12.3 12.3 0 0 0-.399-2.741c-.808.187-1.681.301-2.591.332zM4.51 8.5c.035.987.176 1.914.399 2.741A13.6 13.6 0 0 1 7.5 10.91V8.5zm3.99 0v2.409c.91.03 1.783.145 2.591.332.223-.827.364-1.754.4-2.741zm-3.282 3.696q.18.469.395.872c.552 1.035 1.218 1.65 1.887 1.855V11.91c-.81.03-1.577.13-2.282.287zm.11 2.276a7 7 0 0 1-.598-.933 9 9 0 0 1-.481-1.079 8.4 8.4 0 0 0-1.198.49 7 7 0 0 0 2.276 1.522zm-1.383-2.964A13.4 13.4 0 0 1 3.508 8.5h-2.49a6.96 6.96 0 0 0 1.362 3.675c.47-.258.995-.482 1.565-.667m6.728 2.964a7 7 0 0 0 2.275-1.521 8.4 8.4 0 0 0-1.197-.49 9 9 0 0 1-.481 1.078 7 7 0 0 1-.597.933M8.5 11.909v3.014c.67-.204 1.335-.82 1.887-1.855q.216-.403.395-.872A12.6 12.6 0 0 0 8.5 11.91zm3.555-.401c.57.185 1.095.409 1.565.667A6.96 6.96 0 0 0 14.982 8.5h-2.49a13.4 13.4 0 0 1-.437 3.008M14.982 7.5a6.96 6.96 0 0 0-1.362-3.675c-.47.258-.995.482-1.565.667.248.92.4 1.938.437 3.008zM11.27 2.461q.266.502.482 1.078a8.4 8.4 0 0 0 1.196-.49 7 7 0 0 0-2.275-1.52c.218.283.418.597.597.932m-.488 1.343a8 8 0 0 0-.395-.872C9.835 1.897 9.17 1.282 8.5 1.077V4.09c.81-.03 1.577-.13 2.282-.287z"/>
   </symbol>
-  <symbol id="icon-hdd" viewBox="0 0 16 16" preserveAspectRatio="none">
-    <path fill="currentColor" d="M0 10a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v1a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2zm2.5 1a.5.5 0 1 0 0-1 .5.5 0 0 0 0 1m2 0a.5.5 0 1 0 0-1 .5.5 0 0 0 0 1M.91 7.204A3 3 0 0 1 2 7h12c.384 0 .752.072 1.09.204l-1.867-3.422A1.5 1.5 0 0 0 11.906 3H4.094a1.5 1.5 0 0 0-1.317.782z"/>
+  <symbol id="icon-browser-chrome" viewBox="0 0 48 48">
+    <path fill="#ea4335" d="M24 24 43.05 13A22 22 0 0 0 4.95 13Z"/>
+    <path fill="#34a853" d="M24 24 4.95 13A22 22 0 0 0 24 46Z"/>
+    <path fill="#fbbc05" d="M24 24 24 46A22 22 0 0 0 43.05 13Z"/>
+    <circle cx="24" cy="24" r="9" fill="#fff"/>
+    <circle cx="24" cy="24" r="7" fill="#4285f4"/>
+  </symbol>
+  <symbol id="icon-browser-firefox" viewBox="0 0 48 48">
+    <circle cx="24" cy="24" r="22" fill="#ff5d2b"/>
+    <path fill="#ffb822" d="M2 24A22 22 0 0 1 46 24 30 30 0 0 0 2 24Z"/>
+    <circle cx="21" cy="27" r="13" fill="#1184ff"/>
+  </symbol>
+  <symbol id="icon-browser-safari" viewBox="0 0 48 48">
+    <circle cx="24" cy="24" r="22" fill="#2eaaf0"/>
+    <circle cx="24" cy="24" r="17" fill="#f1f6f9"/>
+    <polygon points="35,13 27.5,27.5 20.5,20.5" fill="#f3503e"/>
+    <polygon points="13,35 27.5,27.5 20.5,20.5" fill="#c2ced6"/>
+  </symbol>
+  <symbol id="icon-browser-edge" viewBox="0 0 48 48">
+    <circle cx="24" cy="24" r="22" fill="#1153a3"/>
+    <path fill="#3bc9f3" d="M6 14A22 22 0 0 1 45 21 19 19 0 0 0 12 33 22 22 0 0 1 6 14Z"/>
+  </symbol>
+  <symbol id="icon-crossword" viewBox="0 0 100 100">
+    <rect x="0" y="0" width="100" height="100" rx="18" fill="#ffffff"/>
+    <g fill="#000000">
+      <rect x="67.5" y="15" width="17.5" height="17.5"/>
+      <rect x="32.5" y="32.5" width="17.5" height="17.5"/>
+      <rect x="50" y="50" width="17.5" height="17.5"/>
+      <rect x="15" y="67.5" width="17.5" height="17.5"/>
+    </g>
+    <g stroke="#000000" stroke-width="4" stroke-linecap="square">
+      <line x1="15" y1="15" x2="15" y2="85"/>
+      <line x1="32.5" y1="15" x2="32.5" y2="85"/>
+      <line x1="50" y1="15" x2="50" y2="85"/>
+      <line x1="67.5" y1="15" x2="67.5" y2="85"/>
+      <line x1="85" y1="15" x2="85" y2="85"/>
+      <line x1="15" y1="15" x2="85" y2="15"/>
+      <line x1="15" y1="32.5" x2="85" y2="32.5"/>
+      <line x1="15" y1="50" x2="85" y2="50"/>
+      <line x1="15" y1="67.5" x2="85" y2="67.5"/>
+      <line x1="15" y1="85" x2="85" y2="85"/>
+    </g>
   </symbol>
   <symbol id="icon-search" viewBox="0 0 13 13">
     <circle cx="5.5" cy="5.5" r="4" fill="none" stroke="currentColor" stroke-width="1.5"/>
@@ -1316,7 +1335,6 @@ html.dark-mode .wld-onboarding { background: color-mix(in srgb, var(--accent) 15
       </div>
     </nav>
     <div class="header-utility">
-      <button id="btn-storage" class="header-icon-btn" aria-label="Storage" title="Storage"><span class="storage-label"></span><span class="storage-icon"><svg width="24" height="26" aria-hidden="true"><use href="#icon-hdd"/></svg><span class="storage-slash" aria-hidden="true"></span></span></button>
       <button id="btn-settings" class="header-icon-btn" aria-label="Settings" title="Settings"><svg width="24" height="24" aria-hidden="true"><use href="#icon-settings"/></svg></button>
       <button id="btn-help" class="header-icon-btn" aria-label="Welcome to Grawlix" title="Welcome to Grawlix"><span class="icon help-circle">?</span></button>
     </div>
@@ -1544,8 +1562,10 @@ function buildScoreBadgeHTML(score) {
 
 // options: array of { value, label }
 function buildSegCtrlHTML(id, options, activeValue) {
+  // type="button" so a seg control placed inside a <form method="dialog"> (the
+  // download dialog) doesn't submit and close the dialog on selection.
   const buttons = options.map(({ value, label }) =>
-    `<button class="seg-btn${value === activeValue ? ' active' : ''}" data-val="${value}">${label}</button>`
+    `<button type="button" class="seg-btn${value === activeValue ? ' active' : ''}" data-val="${value}">${label}</button>`
   ).join('');
   return `<div class="seg-ctrl"${id ? ` id="${id}"` : ''}>${buttons}</div>`;
 }
@@ -1570,10 +1590,6 @@ function wireOutputFormatControls(container, onChange) {
   container.querySelectorAll('input[data-flag]').forEach(cb => { cb.onchange = () => onChange && onChange(); });
 }
 
-function outputFormatsEqual(a, b) {
-  return OUTPUT_FLAGS.every(k => !!a[k] === !!b[k]);
-}
-
 function buildStatItemHTML(label, value, title, extraClass) {
   const cls = 'stat' + (extraClass ? ' ' + extraClass : '');
   return `<div class="${cls}"${title ? ` title="${title}"` : ''}>
@@ -1592,6 +1608,49 @@ function buildBadgeHTML(severity, opts = {}) {
   const titleAttr = title ? ` title="${esc(title)}" aria-label="${esc(title)}"` : '';
   const text = count != null ? esc(String(count)) : '';
   return `<span class="${classes.join(' ')}" data-severity="${severity}"${titleAttr}>${text}</span>`;
+}
+
+const BROWSER = (() => {
+  const ua = navigator.userAgent;
+  const brands = navigator.userAgentData?.brands?.map(b => b.brand).join(' ') || '';
+  if (/Firefox\//.test(ua))                                return { id: 'firefox', icon: 'icon-browser-firefox', name: 'Firefox' };
+  if (/Edg\//.test(ua))                                    return { id: 'edge',    icon: 'icon-browser-edge',    name: 'Edge' };
+  if (/Safari\//.test(ua) && !/Chrom(e|ium)\//.test(ua))   return { id: 'safari',  icon: 'icon-browser-safari',  name: 'Safari' };
+  const fork = /\b(Brave|OPR|Vivaldi)\b/.test(ua) || /\b(Brave|Opera|Vivaldi|Arc)\b/.test(brands);
+  if (!fork && /Chrome\//.test(ua) && (!brands || /Google Chrome/.test(brands)))
+    return { id: 'chrome', icon: 'icon-browser-chrome', name: 'Chrome' };
+  return { id: 'other', icon: 'icon-globe', name: 'your browser' };
+})();
+
+const isMobile = () =>
+  navigator.userAgentData?.mobile
+  ?? !window.matchMedia('(any-pointer: fine) and (any-hover: hover)').matches;
+
+function paneTitleHTML(list) {
+  const name = esc(list === MERGED_ID ? MERGED_NAME : list.name);
+  return `<div class="wld-pane-title" title="${name}">${buildWordlistNameHTML(list, { bold: false })}</div>`;
+}
+
+function syncSignHTML(list) {
+  if (isMobile()) return '';
+  const key = syncKey(list);
+  const synced = syncTargets.has(key);
+  const status = synced ? SyncStatus.get(key) : null;
+  const file = synced ? esc(syncFilename(key)) : '';
+
+  let dot, text;
+  if (!synced)                       { dot = 'off';     text = 'Disk sync off'; }
+  else if (status === 'unavailable') { dot = 'warn';    text = `Can’t find ${file}`; }
+  else if (status === 'conflict')    { dot = 'warn';    text = 'Sync conflict'; }
+  else if (status === 'writing')     { dot = 'working'; text = 'Saving…'; }
+  else                               { dot = 'ok';      text = `Syncing to ${file}`; }
+
+  return `<div class="wld-sync-hang">
+      <button type="button" id="wld-sync-sign" class="wld-sync-sign${dot === 'warn' ? ' attention' : ''}" onclick="LibraryView.action('openSync')" title="${synced ? 'Manage disk sync' : 'Disk sync'}">
+        <span class="wld-sync-dot wld-sync-dot--${dot}"></span>
+        <span class="wld-sync-line-text">${text}</span>
+      </button>
+    </div>`;
 }
 
 function maxSeverity(...severities) {
@@ -1949,12 +2008,13 @@ function buildStatsBarHTML(stats, hist, layout, opts = {}) {
     </div>`;
 }
 
-function buildSplitBtn(mainLabel, mainOnclick, menuItems, { primary = false, disabled = false, title = '' } = {}) {
+function buildSplitBtn(mainLabel, mainOnclick, menuItems, { primary = false, disabled = false, title = '', id = '' } = {}) {
   const dis = disabled ? ' disabled' : '';
   const titleAttr = title ? ` title="${title}"` : '';
+  const idAttr = id ? ` id="${id}"` : '';
   const arrow = `<svg width="8" height="5"><use href="#icon-arrow"/></svg>`;
   const items = menuItems.map(([lbl, fn]) => `<button onclick="${fn}">${lbl}</button>`).join('');
-  return `<div class="split-btn${primary ? ' primary' : ''}">` +
+  return `<div class="split-btn${primary ? ' primary' : ''}"${idAttr}>` +
     `<button class="split-btn-main"${titleAttr} onclick="${mainOnclick}"${dis}>${mainLabel}</button>` +
     `<button class="split-btn-arrow" onclick="toggleSplitMenu(event)" title="More options"${dis}>${arrow}</button>` +
     `<div class="split-btn-menu">${items}</div>` +
@@ -2182,16 +2242,14 @@ function buildDragHandleHTML() {
 }
 
 function buildWordlistNameHTML(wordlist, { bold = true } = {}) {
-  const icon = getWordlistIcon(wordlist);
-  const name = bold ? `<strong>${esc(wordlist.name)}</strong>` : esc(wordlist.name);
+  const merged = wordlist === MERGED_ID;
+  const icon = merged ? MERGED_ICON : getWordlistIcon(wordlist);
+  const text = esc(merged ? MERGED_NAME : wordlist.name);
+  const name = bold ? `<strong>${text}</strong>` : text;
   // The trailing space inside the span is load-bearing: combined with `white-space: nowrap` on
   // .wordlist-name-icon, it keeps the icon glued to the first word of the name. Move it outside
   // the span and the icon can orphan at a line end.
   return `<span class="wordlist-name-icon">${icon} </span>${name}`;
-}
-
-function buildFolderNameHTML(name) {
-  return `<span class="folder-name">📁 ${esc(name)}</span>`;
 }
 
 // Inline icon + name pair used by tool rows, the search bar, etc.
@@ -2629,19 +2687,18 @@ function lsSave(key, value) {
 function lsLoad(key) { return localStorage.getItem(LS_PREFIX + key); }
 function lsDel(key)  { localStorage.removeItem(LS_PREFIX + key); }
 
-// Bump when the shape of stored data (localStorage `meta`, IDB entries, or
-// grawlix.json) changes, and register a MIGRATIONS[N] step in the same commit:
-// a bump without one routes every existing user to the reset/refuse floor.
-// See docs/migration.md.
+// Bump when the shape of stored data (localStorage `meta` or IDB entries)
+// changes, and register a MIGRATIONS[N] step in the same commit: a bump without
+// one routes every existing user to the reset floor. See docs/migration.md.
 //
 // Schema version history:
 //   ≤9: pre-migration-policy baseline; a store this old hits the reset floor.
 const SCHEMA_VERSION = 9;
 
 // MIGRATIONS[v] upgrades a settings blob from schema v to v+1, mutating it in
-// place (a returned value is ignored). The blob is the grawlix.json shape —
-// { sources, scoring, scoringDirty, mergedSettings } — which IDB mode assembles
-// from its separate localStorage keys; migrations target that, never raw storage.
+// place (a returned value is ignored). The blob is the
+// { sources, scoring, scoringDirty, mergedSettings } shape that migrateLocalStorage
+// assembles from the separate localStorage keys; migrations target that, never raw storage.
 const MIGRATIONS = {
   // 9: blob => { for (const w of blob.sources) upgradeIconInPlace(w); },
 };
@@ -2655,16 +2712,6 @@ function canMigrate(from) {
 function migrateSettings(blob, from) {
   for (let v = from; v < SCHEMA_VERSION; v++) MIGRATIONS[v](blob); // canMigrate(from) must hold
   return blob;
-}
-
-function migrateCacheInPlace(cache) {
-  if (!canMigrate(cache.schemaVersion)) return false;
-  try { migrateSettings(cache, cache.schemaVersion); }
-  catch (err) { console.error('migration failed', err); return false; }
-  cache.schemaVersion = SCHEMA_VERSION;
-  // Caller must persist grawlix.json next — an unpersisted non-idempotent
-  // migration re-runs (and re-corrupts) on the following boot.
-  return true;
 }
 
 // IndexedDB for large wordlist data (localStorage has ~5MB limit)
@@ -2725,7 +2772,7 @@ function newDbKey() {
   return `${hex(8)}-${hex(4)}-${hex(4)}-${hex(4)}-${hex(12)}`;
 }
 
-const IdbBackend = {
+const Storage = {
   schemaVersion() { const v = parseInt(lsLoad('schemaVersion'), 10); return Number.isFinite(v) ? v : null; },
   setSchemaVersion(v) { lsSave('schemaVersion', String(v)); },
   hasData() { return lsLoad('meta') !== null; },
@@ -2758,8 +2805,6 @@ const IdbBackend = {
   async readWordlist(wordlist) { return idbGet('data_' + wordlist.dbKey); },
   async writeWordlist(wordlist, text) { await idbPut('data_' + wordlist.dbKey, text); },
   async deleteWordlist(wordlist) { await idbDel('data_' + wordlist.dbKey); },
-  async writeRescored() {},
-  async writeAllRescored() {},
 
   async reset() {
     Object.keys(localStorage).filter(k => k.startsWith(LS_PREFIX)).forEach(k => localStorage.removeItem(k));
@@ -2774,345 +2819,66 @@ const IdbBackend = {
 };
 
 function migrateLocalStorage(from) {
-  const scoring = IdbBackend.readScoring();
+  const scoring = Storage.readScoring();
   const blob = {
-    sources:        IdbBackend.readMeta(),
+    sources:        Storage.readMeta(),
     scoring:        scoring?.scoring ?? null,
     scoringDirty:   scoring?.dirty ?? false,
-    mergedSettings: IdbBackend.readMergedSettings(),
+    mergedSettings: Storage.readMergedSettings(),
   };
   try { migrateSettings(blob, from); }
   catch (err) { console.error('migration failed', err); return false; }
-  IdbBackend.writeMeta(blob.sources);
-  if (blob.scoring) IdbBackend.writeScoring(blob.scoring, blob.scoringDirty);
-  IdbBackend.writeMergedSettings(blob.mergedSettings);
-  IdbBackend.setSchemaVersion(SCHEMA_VERSION);
+  Storage.writeMeta(blob.sources);
+  if (blob.scoring) Storage.writeScoring(blob.scoring, blob.scoringDirty);
+  Storage.writeMergedSettings(blob.mergedSettings);
+  Storage.setSchemaVersion(SCHEMA_VERSION);
   return true;
 }
 
-const DISK_HANDLE_IDB_KEY = '_diskFolderHandle';
-const GRAWLIX_JSON_NAME   = 'grawlix.json';
-const README_NAME         = 'README.md';
+// ─── Disk sync (per-list file sync) ───────────────────────────────────────────
 
-const README_TEXT = `# Grawlix folder
+const SYNC_REC_PREFIX        = 'sync_';        // IDB record key: sync_<dbKey | MERGED_ID>
+const EDITS_DEFAULT_FILENAME = 'My Edits.txt';
+const DISK_SYNC_POLL_INTERVAL = 2000;
+const MIRROR_WRITE_DELAY      = 500;
 
-## Files
+// key → { handle, baseline? }. `baseline` (serialized as-is My Edits text) is the
+// common ancestor for My Edits' 3-way merge; without it, a two-way union can't
+// tell "added here" from "deleted there" and silently resurrects deletions.
+const syncTargets = new Map();
+const syncStatus  = new Map();
 
-- \`My Edits.txt\` — Your score overrides and comments. Have your construction software save your edits here and edits in either place will sync automatically.
-- \`All rescored.txt\` — All wordlists and your edits combined. Load this into your construction software.
-- \`<Wordlist> rescored.txt\` — Each wordlist with Grawlix scoring.
-- \`original/<Wordlist>.txt\` — Each wordlist with its original scores.
-- \`grawlix.json\` — Settings, wordlist metadata, and tier labels.
+function syncKey(list)       { return list === MERGED_ID ? MERGED_ID : list.dbKey; }
+function isMirrorList(list)  { return list === MERGED_ID || list.type !== 'edits'; }
+function editsSyncKey()      { const e = getEditsWordlist(); return e ? e.dbKey : null; }
+function listForSyncKey(key) { return key === MERGED_ID ? MERGED_ID : state.sources.find(s => s.dbKey === key) || null; }
+function syncFilename(key)   { return syncTargets.get(key)?.handle?.name || ''; }
 
-## Output format
+const SyncStatus = {
+  get(key) { return syncTargets.has(key) ? (syncStatus.get(key) || 'synced') : null; },
+  set(key, status) { syncStatus.set(key, status); renderSyncIndicators(); },
+  clear(key) { syncStatus.delete(key); renderSyncIndicators(); },
+};
 
-The rescored files are written in the format set under **Output format** in Grawlix's Settings — keep or strip spaces, punctuation, and accents — so they match what your construction software can read. \`My Edits.txt\` and the \`original/\` files are always written as-is.
+function renderSyncIndicators() {
+  LibraryView.refreshSyncIndicators?.();
+}
 
-## Cross-device
-
-Drop this folder in Dropbox, iCloud Drive, OneDrive, or Google Drive. On your other device, open Grawlix, click the storage button in the header → **Load existing** → pick the same folder. Your edits will sync through your cloud client.
-`;
-
-async function writeReadme(handle) {
-  if (await Disk.readFile(handle, README_NAME) !== README_TEXT) {
-    await Disk.writeFile(handle, README_NAME, README_TEXT);
+async function loadSyncTargets() {
+  for (const key of [MERGED_ID, ...state.sources.map(s => s.dbKey)]) {
+    const rec = await idbGet(SYNC_REC_PREFIX + key);
+    if (rec && rec.handle) syncTargets.set(key, { handle: rec.handle, baseline: rec.baseline });
   }
 }
 
-const DiskBackend = {
-  _handle: null,
-  _cache: null,
-  _pending: false,
-  _inFlight: false,
-
-  attach(handle, cache) {
-    this._handle = handle;
-    this._cache = cache;
-  },
-  isAttached() { return this._handle !== null; },
-  handle() { return this._handle; },
-
-  schemaVersion()      { return this._cache?.schemaVersion ?? null; },
-  setSchemaVersion(v)  { this._cache.schemaVersion = v; this._queueWrite(); },
-  hasData()            { return this._cache !== null; },
-
-  readMeta()           { return this._cache?.sources ?? null; },
-  writeMeta(sources)   { this._cache.sources = sources; this._queueWrite(); },
-
-  readScoring() {
-    if (!this._cache || !this._cache.scoring) return null;
-    return { scoring: this._cache.scoring, dirty: !!this._cache.scoringDirty };
-  },
-  writeScoring(scoring, dirty) {
-    this._cache.scoring = scoring;
-    this._cache.scoringDirty = !!dirty;
-    this._queueWrite();
-  },
-
-  readMergedSettings()  { return this._cache?.mergedSettings ?? {}; },
-  writeMergedSettings(s) { this._cache.mergedSettings = s; this._queueWrite(); },
-
-  async readWordlist(wordlist) {
-    if (!wordlist.filename) return null;
-    return Disk.readFile(this._handle, rawPathFor(wordlist));
-  },
-  async writeWordlist(wordlist, text) {
-    if (!wordlist.filename) await ensureDiskFilenames(this._handle);
-    const path = rawPathFor(wordlist);
-    await withOwnWrite(path, () => Disk.writeFile(this._handle, path, text));
-    await this.writeRescored(wordlist);
-    await this.writeAllRescored();
-  },
-  async deleteWordlist(wordlist) {
-    if (!wordlist.filename) return;
-    await Disk.deleteFile(this._handle, rawPathFor(wordlist));
-    const r = rescoredNameFor(wordlist.filename);
-    if (r) await Disk.deleteFile(this._handle, r);
-    await this.writeAllRescored();
-  },
-  async writeRescored(wordlist) {
-    if (!wordlist.filename || wordlist.type === 'edits' || !wordlist.populated) return;
-    const name = rescoredNameFor(wordlist.filename);
-    if (!name) return;
-    const entries = sortedEntries(applyRescoring(wordlist.rawEntries, wordlist.rescoreRules || []));
-    await withOwnWrite(name, () => Disk.writeFile(this._handle, name, serializeEntries(entries, getOutputFormat())));
-  },
-  async writeAllRescored() {
-    const entries = sortedEntries(buildMergedWordlist().entries);
-    await withOwnWrite(ALL_RESCORED_NAME, () => Disk.writeFile(this._handle, ALL_RESCORED_NAME, serializeEntries(entries, getOutputFormat())));
-  },
-
-  async reset() {
-    this._handle = null;
-    this._cache = null;
-    await Disk.clearHandle();
-    await IdbBackend.reset();
-    Storage = IdbBackend;
-  },
-
-  _queueWrite() {
-    this._pending = true;
-    if (!this._inFlight) this._flush();
-  },
-  async _flush() {
-    this._inFlight = true;
-    while (this._pending) {
-      this._pending = false;
-      try {
-        await Disk.writeFile(this._handle, GRAWLIX_JSON_NAME,
-          JSON.stringify(this._cache, null, 2));
-      } catch (err) { console.error('grawlix.json write failed', err); }
-    }
-    this._inFlight = false;
-  },
-};
-
-const NullBackend = {
-  schemaVersion()        { return SCHEMA_VERSION; },
-  setSchemaVersion()     {},
-  hasData()              { return false; },
-  readMeta()             { return null; },
-  writeMeta()            {},
-  readScoring()          { return null; },
-  writeScoring()         {},
-  readMergedSettings()   { return {}; },
-  writeMergedSettings()  {},
-  async readWordlist()   { return null; },
-  async writeWordlist()  {},
-  async deleteWordlist() {},
-  async writeRescored()  {},
-  async writeAllRescored() {},
-  async reset()          {},
-};
-
-function rescoredNameFor(filename) {
-  if (!filename) return null;
-  const base = filename.endsWith('.txt') ? filename.slice(0, -4) : filename;
-  return `${base} rescored.txt`;
+async function persistSyncTarget(key) {
+  const t = syncTargets.get(key);
+  if (t) await idbPut(SYNC_REC_PREFIX + key, { handle: t.handle, baseline: t.baseline });
+  else   await idbDel(SYNC_REC_PREFIX + key);
 }
 
-const ORIGINAL_DIR = 'original';
-
-// My Edits stays at the root, not under original/ — it's the file the user's
-// construction software writes back to, so moving it would break external sync.
-function rawPathFor(wordlist) {
-  if (!wordlist.filename) return null;
-  return wordlist.type === 'edits' ? wordlist.filename : `${ORIGINAL_DIR}/${wordlist.filename}`;
-}
-
-const ALL_RESCORED_NAME = `${MERGED_NAME} rescored.txt`;
-const EDITS_FILENAME = 'My Edits.txt';
-
-// Windows device names — unopenable even as CON.txt. Guarded everywhere because folders sync to Windows.
-const RESERVED_DEVICE_NAMES = new Set(
-  ['CON', 'PRN', 'AUX', 'NUL']
-    .concat(Array.from({ length: 9 }, (_, i) => `COM${i + 1}`))
-    .concat(Array.from({ length: 9 }, (_, i) => `LPT${i + 1}`))
-);
-
-// An empty, reserved, or separator-bearing stem breaks Disk.writeFile's path
-// split — silently misplacing or clobbering the file.
-function sanitizeFilenameStem(name) {
-  const stem = (name || '')
-    .replace(/[\/\\:*?"<>|\x00-\x1f]/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim()
-    .replace(/[. ]+$/, '');
-  if (!stem || RESERVED_DEVICE_NAMES.has(stem.toUpperCase())) return `${stem || 'Wordlist'}_`;
-  return stem;
-}
-
-// Taken if either generated file already exists on disk, was claimed earlier in
-// this pass (files aren't written yet), or is "All" — its rescored file is the
-// merged output, which may not be on disk yet during the first migration.
-async function stemTaken(stem, handle, claimed) {
-  const lc = stem.toLowerCase();
-  if (lc === MERGED_NAME.toLowerCase() || claimed.has(lc)) return true;
-  const filename = `${stem}.txt`;
-  return await Disk.fileExists(handle, `${ORIGINAL_DIR}/${filename}`)
-      || await Disk.fileExists(handle, rescoredNameFor(filename));
-}
-
-async function assignStem(wl, handle, claimed) {
-  if (wl.filename) return;
-  if (wl.type === 'edits') { wl.filename = EDITS_FILENAME; return; }
-  const base = sanitizeFilenameStem(wl.name);
-  let stem = base;
-  for (let n = 2; await stemTaken(stem, handle, claimed); n++) stem = `${base} (${n})`;
-  claimed.add(stem.toLowerCase());
-  wl.filename = `${stem}.txt`;
-}
-
-// Sticky: an existing filename is never rewritten, so disk files and the
-// external watcher stay stable across renames.
-async function ensureDiskFilenames(handle) {
-  if (!handle) return;
-  const claimed = new Set();
-  for (const wl of state.sources) await assignStem(wl, handle, claimed);
-}
-
-const DISK_WATCHER_INTERVAL = 2000;
-
-async function withOwnWrite(name, op) {
-  DiskWatcher.holdName(name);
-  try {
-    await op();
-    DiskWatcher.recordOwnWrite(name);
-  } finally {
-    DiskWatcher.releaseName(name);
-  }
-}
-
-const DiskWatcher = {
-  _snapshot: new Map(),
-  _ownWrites: new Set(),
-  _heldNames: new Map(),
-  _intervalId: null,
-
-  start() {
-    if (this._intervalId) return;
-    this._tick();
-    this._intervalId = setInterval(() => this._tick(), DISK_WATCHER_INTERVAL);
-    document.addEventListener('visibilitychange', this._onVisibility);
-  },
-
-  stop() {
-    if (this._intervalId) { clearInterval(this._intervalId); this._intervalId = null; }
-    document.removeEventListener('visibilitychange', this._onVisibility);
-  },
-
-  _onVisibility() {
-    if (document.visibilityState === 'visible') DiskWatcher._tick();
-  },
-
-  recordOwnWrite(filename) {
-    this._ownWrites.add(filename);
-  },
-
-  holdName(name) {
-    this._heldNames.set(name, (this._heldNames.get(name) || 0) + 1);
-  },
-  releaseName(name) {
-    const c = this._heldNames.get(name) || 0;
-    if (c <= 1) this._heldNames.delete(name);
-    else this._heldNames.set(name, c - 1);
-  },
-
-  async _tick() {
-    if (document.visibilityState === 'hidden') return;
-    if (Storage !== DiskBackend) return;
-    const handle = DiskBackend.handle();
-    if (!handle) return;
-
-    const seenNames = new Set();
-    const changed = [];
-    try {
-      for await (const { path, entry } of this._iterFiles(handle)) {
-        seenNames.add(path);
-        if (this._heldNames.has(path)) continue;
-        const file = await entry.getFile();
-        const mtime = file.lastModified;
-
-        if (this._ownWrites.has(path)) {
-          this._ownWrites.delete(path);
-          this._snapshot.set(path, mtime);
-          continue;
-        }
-
-        const prev = this._snapshot.get(path);
-        this._snapshot.set(path, mtime);
-        if (prev === undefined || prev === mtime) continue;
-        changed.push({ path, file });
-      }
-    } catch (err) {
-      console.error('Disk watcher tick failed', err);
-      return;
-    }
-
-    for (const path of [...this._snapshot.keys()]) {
-      if (!seenNames.has(path)) this._snapshot.delete(path);
-    }
-
-    for (const { path, file } of changed) {
-      await this._applyExternalChange(path, file);
-    }
-  },
-
-  async *_iterFiles(handle) {
-    for await (const entry of handle.values()) {
-      if (entry.kind === 'file') yield { path: entry.name, entry };
-      else if (entry.kind === 'directory' && entry.name === ORIGINAL_DIR) {
-        for await (const sub of entry.values()) {
-          if (sub.kind === 'file') yield { path: `${ORIGINAL_DIR}/${sub.name}`, entry: sub };
-        }
-      }
-    }
-  },
-
-  async _applyExternalChange(path, file) {
-    const wl = state.sources.find(s => rawPathFor(s) === path);
-    if (!wl) return;
-
-    const text = await file.text();
-    const newEntries = parseWordlist(text);
-
-    batchUpdate(() => {
-      wl.rawEntries = newEntries;
-      wl.lastUpdated = Date.now();
-      invalidateActualScoresCache(wl);
-      invalidateWordlistCaches(wl);
-      recomputeUncovered(wl);
-      repaintAfterCacheChange();
-    });
-
-    await Storage.writeRescored(wl);
-  },
-};
-
-let Storage = IdbBackend;
-
-// InvalidStateError here means the directory changed underneath the handle
-// mid-operation — a cloud-sync client (Dropbox, OneDrive) touching the folder, not an app bug.
+// InvalidStateError means a cloud-sync client (Dropbox, OneDrive) touched the file
+// underneath the handle mid-operation, not an app bug — retry rather than fail.
 const FS_RETRY_ATTEMPTS = 5;
 const FS_RETRY_BASE_MS  = 200;
 
@@ -3127,102 +2893,374 @@ async function withFsRetry(op) {
 }
 
 const Disk = {
-  isSupported() { return typeof window.showDirectoryPicker === 'function'; },
-
-  async pickFolder(opts = {}) {
-    if (!Disk.isSupported()) return null;
-    try {
-      return await window.showDirectoryPicker({ id: 'grawlix', mode: 'readwrite', ...opts });
-    } catch (e) {
-      if (e?.name === 'AbortError') return null;
-      throw e;
-    }
+  isSupported() {
+    return typeof window.showOpenFilePicker === 'function'
+        && typeof window.showSaveFilePicker === 'function';
   },
 
-  async hasPermission(handle, mode = 'readwrite') {
-    if (!handle) return false;
-    return (await handle.queryPermission?.({ mode })) === 'granted';
+  async pickExisting() {
+    if (!Disk.isSupported()) return null;
+    try {
+      const [handle] = await window.showOpenFilePicker({ id: 'grawlix', multiple: false });
+      return handle || null;
+    } catch (e) { if (e?.name === 'AbortError') return null; throw e; }
+  },
+  async pickNew(suggestedName) {
+    if (!Disk.isSupported()) return null;
+    try {
+      return await window.showSaveFilePicker({ id: 'grawlix', suggestedName });
+    } catch (e) { if (e?.name === 'AbortError') return null; throw e; }
+  },
+
+  async queryPermission(handle, mode = 'readwrite') {
+    if (!handle) return 'denied';
+    try { return (await handle.queryPermission?.({ mode })) ?? 'prompt'; }
+    catch { return 'prompt'; }
   },
   async requestPermission(handle, mode = 'readwrite') {
     if (!handle) return false;
-    return (await handle.requestPermission?.({ mode })) === 'granted';
+    try { return (await handle.requestPermission?.({ mode })) === 'granted'; }
+    catch { return false; }
   },
 
-  async saveHandle(handle) { await idbPut(DISK_HANDLE_IDB_KEY, handle); },
-  async loadHandle()        { return idbGet(DISK_HANDLE_IDB_KEY); },
-  async clearHandle()       { await idbDel(DISK_HANDLE_IDB_KEY); },
-
-  async _resolveDir(handle, parts, { create = false } = {}) {
-    let dir = handle;
-    for (const p of parts) dir = await dir.getDirectoryHandle(p, { create });
-    return dir;
-  },
-
-  async readFile(handle, path) {
-    const parts = path.split('/');
-    const name = parts.pop();
+  async read(handle) {
     return withFsRetry(async () => {
-      try {
-        const dir = await this._resolveDir(handle, parts);
-        const fh = await dir.getFileHandle(name);
-        return await (await fh.getFile()).text();
-      } catch (e) {
-        if (e?.name === 'NotFoundError') return null;
-        throw e;
-      }
+      try { return await (await handle.getFile()).text(); }
+      catch (e) { if (e?.name === 'NotFoundError') return null; throw e; }
     });
   },
-
-  async fileExists(handle, path) {
-    const parts = path.split('/');
-    const name = parts.pop();
+  async lastModified(handle) {
     return withFsRetry(async () => {
-      try {
-        const dir = await this._resolveDir(handle, parts);
-        await dir.getFileHandle(name);
-        return true;
-      } catch (e) {
-        if (e?.name === 'NotFoundError') return false;
-        throw e;
-      }
+      try { return (await handle.getFile()).lastModified; }
+      catch (e) { if (e?.name === 'NotFoundError') return null; throw e; }
     });
   },
-
-  async writeFile(handle, path, text) {
-    const parts = path.split('/');
-    const name = parts.pop();
+  async write(handle, text) {
     return withFsRetry(async () => {
-      const dir = await this._resolveDir(handle, parts, { create: true });
-      const fh = await dir.getFileHandle(name, { create: true });
-      const w  = await fh.createWritable();
+      const w = await handle.createWritable();
       await w.write(text);
       await w.close();
     });
   },
+};
 
-  async deleteFile(handle, path) {
-    const parts = path.split('/');
-    const name = parts.pop();
-    return withFsRetry(async () => {
-      try {
-        const dir = await this._resolveDir(handle, parts);
-        await dir.removeEntry(name);
-      } catch (e) { if (e?.name !== 'NotFoundError') throw e; }
-    });
+const MirrorSync = {
+  _timers: new Map(),
+
+  schedule(list) {
+    const key = syncKey(list);
+    if (!syncTargets.has(key) || !isMirrorList(list)) return;
+    this._debounce(key, () => this._flush(key));
+  },
+  scheduleMerged() {
+    if (!syncTargets.has(MERGED_ID)) return;
+    this._debounce(MERGED_ID, () => this._flush(MERGED_ID));
+  },
+  _debounce(key, fn) {
+    clearTimeout(this._timers.get(key));
+    this._timers.set(key, setTimeout(fn, MIRROR_WRITE_DELAY));
   },
 
-  async identifyFolder(handle) {
-    let hasGrawlixJson = false;
-    let hasOther = false;
-    for await (const entry of handle.values()) {
-      if (entry.kind === 'file' && entry.name === GRAWLIX_JSON_NAME) hasGrawlixJson = true;
-      else hasOther = true;
+  async _flush(key) {
+    const t = syncTargets.get(key);
+    if (!t) return;
+    SyncStatus.set(key, 'writing');
+    try {
+      await Disk.write(t.handle, this._serialize(key));
+      SyncStatus.set(key, 'synced');
+    } catch (err) {
+      console.error('mirror write failed', err);
+      SyncStatus.set(key, 'unavailable');
     }
-    if (hasGrawlixJson) return 'grawlix';
-    if (hasOther) return 'other';
-    return 'empty';
+  },
+  _serialize(key) {
+    if (key === MERGED_ID) return serializeEntries(sortedEntries(buildMergedWordlist().entries), getOutputFormat());
+    const list = listForSyncKey(key);
+    return serializeEntries(sortedEntries(applyRescoring(list.rawEntries, list.rescoreRules || [])), getOutputFormat());
   },
 };
+
+function editsEntriesByNorm(entries) {
+  const m = new Map();
+  for (const e of entries) m.set(e.norm, e);
+  return m;
+}
+function editsEntryEqual(a, b) {
+  if (!a || !b) return !a && !b;
+  return a.score === b.score
+    && (a.comment || '') === (b.comment || '')
+    && (a.display ?? a.norm) === (b.display ?? b.norm);
+}
+
+// Conflicting norms default to the IDB/device side in `resolved`; the dialog's
+// "keep the file" choice swaps them. One-sided changes are already applied here.
+function threeWayMergeEdits(base, file, idb) {
+  const bMap = editsEntriesByNorm(base), fMap = editsEntriesByNorm(file), iMap = editsEntriesByNorm(idb);
+  const resolved = new Map();
+  const conflicts = [];
+  for (const norm of new Set([...bMap.keys(), ...fMap.keys(), ...iMap.keys()])) {
+    const b = bMap.get(norm) || null, f = fMap.get(norm) || null, i = iMap.get(norm) || null;
+    if (editsEntryEqual(f, i)) { if (f) resolved.set(norm, f); continue; }
+    const fChanged = !editsEntryEqual(f, b);
+    const iChanged = !editsEntryEqual(i, b);
+    if (fChanged && !iChanged)      { if (f) resolved.set(norm, f); }
+    else if (iChanged && !fChanged) { if (i) resolved.set(norm, i); }
+    else { if (i) resolved.set(norm, i); conflicts.push({ norm, device: i, file: f }); }
+  }
+  return { resolved, conflicts };
+}
+
+function sameEditsEntries(a, b) {
+  if (a.length !== b.length) return false;
+  const am = editsEntriesByNorm(a), bm = editsEntriesByNorm(b);
+  if (am.size !== bm.size) return false;
+  for (const [norm, ae] of am) if (!editsEntryEqual(ae, bm.get(norm))) return false;
+  return true;
+}
+
+function applyReconciledEdits(edits, entries) {
+  batchUpdate(() => {
+    invalidateWordlistCaches(edits);
+    edits.rawEntries = entries;
+    invalidateActualScoresCache(edits);
+    edits.lastUpdated = Date.now();
+    recomputeUncovered(edits);
+    persistMeta();
+    repaintAfterCacheChange();
+  });
+  Storage.writeWordlist(edits, serializeEntries(sortedEntries(entries)))
+    .catch(err => console.error('My Edits IDB write failed', err));
+}
+
+const EditsSync = {
+  _pollId: null,
+  _snapshotMtime: null,
+  _held: 0,
+  _ownWritePending: false,
+  _writeTimer: null,
+  _reconcileInFlight: false,
+
+  handle()   { const t = syncTargets.get(editsSyncKey()); return t?.handle || null; },
+  isActive() { return !!this.handle(); },
+
+  async connect(handle) {
+    const key = editsSyncKey();
+    syncTargets.set(key, { handle, baseline: '' });
+    await persistSyncTarget(key);
+    SyncStatus.set(key, 'synced');
+    await this.reconcile();
+    this.start();
+    renderSyncIndicators();
+  },
+
+  start() {
+    if (this._pollId || !this.isActive()) return;
+    // The first tick re-establishes the mtime baseline, absorbing any write
+    // connect() just did — so a leftover own-write mark must not survive into it,
+    // or the next genuine external edit gets consumed as ours and skipped.
+    this._snapshotMtime = null;
+    this._ownWritePending = false;
+    this._pollId = setInterval(() => this._tick(), DISK_SYNC_POLL_INTERVAL);
+    document.addEventListener('visibilitychange', this._onVisibility);
+  },
+  stop() {
+    if (this._pollId) { clearInterval(this._pollId); this._pollId = null; }
+    document.removeEventListener('visibilitychange', this._onVisibility);
+    this._snapshotMtime = null;
+  },
+  _onVisibility() {
+    if (document.visibilityState === 'visible') EditsSync._tick();
+  },
+
+  scheduleWrite() {
+    if (!this.isActive()) return;
+    clearTimeout(this._writeTimer);
+    this._writeTimer = setTimeout(() => this._flushWrite(), MIRROR_WRITE_DELAY);
+  },
+  async _flushWrite() {
+    const key = editsSyncKey();
+    const t = syncTargets.get(key);
+    if (!t) return;
+    const text = serializeEntries(sortedEntries(getEditsWordlist().rawEntries));
+    if (text === t.baseline) return;
+    SyncStatus.set(key, 'writing');
+    try {
+      await this._ownWrite(text);
+      t.baseline = text;
+      await persistSyncTarget(key);
+      SyncStatus.set(key, 'synced');
+    } catch (err) {
+      console.error('My Edits file write failed', err);
+      SyncStatus.set(key, 'unavailable');
+    }
+  },
+  // `_held` skips ticks for the whole write so the watcher can't read a half-written
+  // file; `_ownWritePending` consumes the mtime bump the write causes so the next
+  // tick doesn't mistake it for an external edit and reconcile against itself.
+  async _ownWrite(text) {
+    const t = syncTargets.get(editsSyncKey());
+    this._held++;
+    try {
+      await Disk.write(t.handle, text);
+      this._ownWritePending = true;
+    } finally {
+      this._held--;
+    }
+  },
+
+  async _tick() {
+    if (document.visibilityState === 'hidden' || this._held > 0 || this._reconcileInFlight) return;
+    const t = syncTargets.get(editsSyncKey());
+    if (!t) return;
+    const mtime = await Disk.lastModified(t.handle);
+    if (mtime === null) { SyncStatus.set(editsSyncKey(), 'unavailable'); return; }
+    if (this._snapshotMtime === null) { this._snapshotMtime = mtime; return; }
+    if (mtime === this._snapshotMtime) return;
+    this._snapshotMtime = mtime;
+    if (this._ownWritePending) { this._ownWritePending = false; return; }
+    this._reconcileInFlight = true;
+    try { await this.reconcile(); }
+    finally { this._reconcileInFlight = false; }
+  },
+
+  async reconcile() {
+    const key = editsSyncKey();
+    const t = syncTargets.get(key);
+    if (!t) return;
+    const edits = getEditsWordlist();
+    const fileText = await Disk.read(t.handle);
+    if (fileText === null) { SyncStatus.set(key, 'unavailable'); return; }
+
+    const { resolved, conflicts } = threeWayMergeEdits(
+      parseWordlist(t.baseline || ''), parseWordlist(fileText), edits.rawEntries);
+
+    if (conflicts.length) {
+      SyncStatus.set(key, 'conflict');
+      const choice = await showEditsConflict(t.handle.name, conflicts);
+      if (choice === 'file') {
+        for (const c of conflicts) { if (c.file) resolved.set(c.norm, c.file); else resolved.delete(c.norm); }
+      }
+    }
+
+    const merged = [...resolved.values()];
+    if (!sameEditsEntries(merged, edits.rawEntries)) applyReconciledEdits(edits, merged);
+
+    const outText = serializeEntries(sortedEntries(merged));
+    if (outText !== fileText) await this._ownWrite(outText);
+    t.baseline = outText;
+    await persistSyncTarget(key);
+    SyncStatus.set(key, 'synced');
+  },
+};
+
+async function attachMirrorSync(list, { existing = false } = {}) {
+  let handle;
+  if (existing) {
+    handle = await Disk.pickExisting();
+    if (handle && !await Disk.requestPermission(handle, 'readwrite')) {
+      await showAlert(`Grawlix needs permission to write ${esc(handle.name)} to sync it.`);
+      return false;
+    }
+  } else {
+    handle = await Disk.pickNew(rescoredFilename(list));
+  }
+  if (!handle) return false;
+  const key = syncKey(list);
+  syncTargets.set(key, { handle });
+  await persistSyncTarget(key);
+  SyncStatus.set(key, 'writing');
+  await MirrorSync._flush(key);
+  renderSyncIndicators();
+  return true;
+}
+
+async function attachEditsSync({ existing }) {
+  let handle;
+  if (existing) {
+    handle = await Disk.pickExisting();
+    if (handle && !await Disk.requestPermission(handle, 'readwrite')) {
+      await showAlert(`Grawlix needs permission to write ${esc(handle.name)} to sync it.`);
+      return false;
+    }
+  } else {
+    handle = await Disk.pickNew(EDITS_DEFAULT_FILENAME);
+  }
+  if (!handle) return false;
+  await EditsSync.connect(handle);
+  return true;
+}
+
+async function detachSync(list) {
+  const key = syncKey(list);
+  if (!syncTargets.has(key)) return true;
+  if (!isMirrorList(list)) EditsSync.stop();
+  syncTargets.delete(key);
+  syncStatus.delete(key);
+  await idbDel(SYNC_REC_PREFIX + key);
+  renderSyncIndicators();
+  return true;
+}
+
+function rescoredFilename(list) {
+  return `${sanitizeFilenameStem(list === MERGED_ID ? MERGED_NAME : list.name)} rescored.txt`;
+}
+
+const RESERVED_DEVICE_NAMES = new Set(
+  ['CON', 'PRN', 'AUX', 'NUL']
+    .concat(Array.from({ length: 9 }, (_, i) => `COM${i + 1}`))
+    .concat(Array.from({ length: 9 }, (_, i) => `LPT${i + 1}`))
+);
+function sanitizeFilenameStem(name) {
+  const stem = (name || '')
+    .replace(/[\/\\:*?"<>|\x00-\x1f]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .replace(/[. ]+$/, '');
+  if (!stem || RESERVED_DEVICE_NAMES.has(stem.toUpperCase())) return `${stem || 'Wordlist'}_`;
+  return stem;
+}
+
+async function partitionSyncPermissions() {
+  const granted = [], prompt = [];
+  for (const [key, t] of syncTargets) {
+    (await Disk.queryPermission(t.handle, 'readwrite') === 'granted' ? granted : prompt).push(key);
+  }
+  return { granted, prompt };
+}
+
+async function activateSyncTarget(key) {
+  if (key === editsSyncKey()) {
+    EditsSync.start();
+    await EditsSync.reconcile();
+  } else if (key === MERGED_ID) {
+    MirrorSync.scheduleMerged();
+  } else {
+    MirrorSync.schedule(listForSyncKey(key));
+  }
+}
+
+const showEditsConflict = (() => {
+  const { el, body } = createDialog('edits-conflict-dialog', { labelledby: 'edits-conflict-title' });
+  const side = e => e ? `${e.score}${e.comment ? ' (' + esc(e.comment) + ')' : ''}` : '(removed)';
+  return function (filename, conflicts) {
+    return new Promise(resolve => {
+      const rows = conflicts.map(c =>
+        `<div class="merge-entry-row"><b>${esc(c.device?.display ?? c.file?.display ?? c.norm)}</b> this device: ${side(c.device)} | file: ${side(c.file)}</div>`).join('');
+      body.innerHTML = `
+        <button type="button" class="dialog-close-btn" aria-label="Close">✕</button>
+        <form method="dialog">
+          <h2 id="edits-conflict-title">My Edits changed in two places</h2>
+          <p class="dialog-msg">${conflicts.length} ${conflicts.length === 1 ? 'entry was' : 'entries were'} changed both here and in ${esc(filename)} since they last agreed. Keep which version?</p>
+          <div class="merge-entries merge-entries-conflict">${rows}</div>
+          <div class="dialog-footer dialog-footer-split">
+            <button type="button" class="dialog-cancel-btn">Keep this device</button>
+            <button class="primary" value="file" autofocus>Keep the file</button>
+          </div>
+        </form>`;
+      showDialog(el, () => resolve(el.returnValue === 'file' ? 'file' : 'device'));
+    });
+  };
+})();
 
 function persistMeta() {
   if (_batchDepth > 0) { _persistPending = true; return; }
@@ -3233,7 +3271,6 @@ function serializeMetaEntry(l) {
   return {
     ...(l.type ? { type: l.type } : {}),
     dbKey: l.dbKey,
-    ...(l.filename ? { filename: l.filename } : {}),
     ...(l.icon ? { icon: l.icon } : {}),
     ...(l.publisherId ? { publisherId: l.publisherId } : {}),
     name: l.name, url: l.url || null,
@@ -3242,14 +3279,12 @@ function serializeMetaEntry(l) {
     rescoreRules: l.rescoreRules || [],
     ...(l.dirty ? { dirty: true } : {}),
     originalFilename: l.originalFilename || null,
-    ...(l.downloadExt  ? { downloadExt:  l.downloadExt  } : {}),
-    ...(l.downloadStem ? { downloadStem: l.downloadStem } : {}),
   };
 }
 
 function _persistMetaNow() {
   Storage.writeMeta(state.sources.map(serializeMetaEntry));
-  Storage.writeAllRescored().catch(err => console.error('writeAllRescored failed', err));
+  MirrorSync.scheduleMerged();
 }
 
 function persistScoring() {
@@ -3381,11 +3416,7 @@ const SettingsDialog = (() => {
   const resetSub = el.querySelector('#reset-row-sub');
 
   el.querySelector('#btn-reset').onclick = async () => {
-    const opts = { confirmText: 'Reset' };
-    if (Storage === DiskBackend) {
-      opts.html = `Reset all settings and turn off disk storage? Your ${buildFolderNameHTML(DiskBackend.handle()?.name)} folder will not be deleted.`;
-    }
-    if (!await showConfirm('Reset all wordlists and settings? This cannot be undone.', opts)) return;
+    if (!await showConfirm('Reset all wordlists and settings? This cannot be undone.', { confirmText: 'Reset' })) return;
     await resetAllDataAndReload();
   };
 
@@ -3398,9 +3429,7 @@ const SettingsDialog = (() => {
   }
 
   function open() {
-    resetSub.textContent = Storage === DiskBackend
-      ? 'Reset all settings and turn off disk storage'
-      : 'Reset all wordlists and settings';
+    resetSub.textContent = 'Reset all wordlists and settings';
     ofCtrls.innerHTML = buildOutputFormatControlsHTML(getOutputFormat());
     wireOutputFormatControls(ofCtrls, () => {
       setOutputFormat(readOutputFormatControls(ofCtrls));
@@ -3456,16 +3485,14 @@ const WelcomeDialog = (() => {
       </div>`;
 
     const storageShot = `
-      <div class="welcome-folder-name">📁 Grawlix</div>
-      <ul class="welcome-folder-files">
-        <li>📄 <strong>My Edits.txt</strong></li>
-        <li>📄 <strong>All rescored.txt</strong></li>
-        <li>📄 Spread the Word(list) rescored.txt</li>
-        <li>📄 Will Nediger rescored.txt</li>
+      <ul class="welcome-sync-files">
+        <li>📄 <strong>My Edits.txt</strong> <span class="welcome-sync-dir">⇄</span> Grawlix</li>
+        <li>Grawlix <span class="welcome-sync-dir">→</span> 📄 <strong>All rescored.txt</strong></li>
+        <li>Grawlix <span class="welcome-sync-dir">→</span> 📄 Spread the Word(list).txt</li>
       </ul>`;
 
     const diskCaveat = Disk.isSupported() ? ''
-      : !window.matchMedia('(hover: hover) and (pointer: fine)').matches ? ' (Desktop only)'
+      : isMobile() ? ' (Desktop only)'
       : ' (Chrome only)';
 
     body.innerHTML = `
@@ -3491,7 +3518,7 @@ const WelcomeDialog = (() => {
       <section class="welcome-feature">
         <div class="welcome-copy">
           <h3>Sync with your construction software</h3>
-          <p>Save to disk and load your wordlists in Ingrid, Crossfire, or Crossword Compiler. Edits flow both ways, automatically.${diskCaveat}</p>
+          <p>Point Grawlix at a file you already feed to Ingrid, Crossfire, or Crossword Compiler. Your edits flow both ways, automatically.${diskCaveat}</p>
         </div>
         <div class="welcome-shot" inert><div class="welcome-shot-inner welcome-shot-storage">${storageShot}</div></div>
       </section>
@@ -3509,442 +3536,39 @@ const WelcomeDialog = (() => {
   return { open };
 })();
 
-// ─── Storage dialog ───────────────────────────────────────────────────────────
+// ─── Boot reconnect splash ────────────────────────────────────────────────────
 
-const StorageDialog = (() => {
-  const { el, body } = createDialog('storage-dialog', { labelledby: 'storage-dialog-title' });
-  const { el: anomalyEl, body: anomalyBody } = createDialog('storage-anomaly-dialog', { labelledby: 'storage-anomaly-title' });
-  const { el: mergeEl, body: mergeBody } = createDialog('storage-merge-dialog', { labelledby: 'storage-merge-title' });
-  const { el: turnOffEl, body: turnOffBody } = createDialog('storage-turnoff-dialog', { labelledby: 'storage-turnoff-title' });
-
-  function renderOff() {
-    body.innerHTML = `
-      <button class="dialog-close-btn" aria-label="Close">✕</button>
-      <h2 id="storage-dialog-title">Disk storage</h2>
-      <p class="storage-pitch">Save your wordlists and settings to a folder on disk so your browser doesn't lose them. Point your construction software at the same folder — edits in either place will sync automatically.</p>
-      <div class="storage-choice-cards">
-        <button type="button" class="storage-choice-card" data-intent="new">
-          <span class="storage-choice-card-title">📁 New folder</span>
-          <span class="storage-choice-card-desc">Create a new folder. Your wordlists and settings will be saved there.</span>
-        </button>
-        <button type="button" class="storage-choice-card" data-intent="existing">
-          <span class="storage-choice-card-title">📂 Load existing</span>
-          <span class="storage-choice-card-desc">Load a folder that already has Grawlix data — for example, one synced from another device via Dropbox.</span>
-        </button>
-      </div>
-      <div class="dialog-footer">
-        <button type="button" class="dialog-cancel-btn">Cancel</button>
-      </div>
-    `;
-
-    body.querySelectorAll('.storage-choice-card').forEach(card => {
-      card.onclick = () => pickFolder(card.dataset.intent);
-    });
+// Must run inside a click — FSA gates requestPermission/pickers on a user gesture,
+// so calling this off a gesture silently fails.
+async function regrantSyncTarget(key) {
+  const t = syncTargets.get(key);
+  if (!t) return false;
+  if (await Disk.requestPermission(t.handle, 'readwrite') && await Disk.lastModified(t.handle) !== null) {
+    await activateSyncTarget(key);
+    SyncStatus.set(key, 'synced');
+    return true;
   }
-
-  async function pickFolder(intent) {
-    let handle;
-    try { handle = await Disk.pickFolder(); }
-    catch (err) { showAlert(`Couldn't open the folder picker: ${esc(err.message || err)}`); return; }
-    if (!handle) return;
-
-    let identity;
-    try { identity = await Disk.identifyFolder(handle); }
-    catch (err) { showAlert(`Couldn't read folder contents: ${esc(err.message || err)}`); return; }
-
-    el.close();
-    await handlePickedFolder(intent, handle, identity);
-  }
-
-  async function handlePickedFolder(intent, handle, identity) {
-    const result = await routePickedFolder(intent, handle, identity);
-    if (result === 'retry') open();
-  }
-
-  async function routePickedFolder(intent, handle, identity) {
-    if (intent === 'new') {
-      if (identity === 'empty') return setupNew(handle);
-      if (identity === 'grawlix') {
-        const load = await showConfirm(
-          `"${handle.name}" already has Grawlix data. Did you mean to use it as an existing folder?`,
-          { confirmText: 'Load this data', cancelText: 'Pick different folder', danger: false }
-        );
-        return load ? openMergeDialog(handle) : 'retry';
-      }
-      if (identity === 'other') {
-        const choice = await showNewOtherAnomaly(handle);
-        if (choice === 'subfolder') {
-          let sub;
-          try { sub = await withFsRetry(() => handle.getDirectoryHandle('grawlix', { create: true })); }
-          catch (err) { await showAlert(`Couldn't create subfolder: ${esc(err.message || err)}`); return 'retry'; }
-          return setupNew(sub);
-        }
-        if (choice === 'alongside') return setupNew(handle);
-        return 'retry';
-      }
-    }
-    if (intent === 'existing') {
-      if (identity === 'grawlix') return openMergeDialog(handle);
-      if (identity === 'empty') {
-        const ok = await showConfirm(
-          `"${handle.name}" is empty. Set up Grawlix here instead?`,
-          { confirmText: 'Set up here', cancelText: 'Pick different folder', danger: false }
-        );
-        return ok ? setupNew(handle) : 'retry';
-      }
-      if (identity === 'other') {
-        await showAlert(`"${handle.name}" has files but isn't a Grawlix folder. Pick a different folder.`);
-        return 'retry';
-      }
-    }
-  }
-
-  async function setupNew(handle) {
-    try { await migrateToDisk(handle); }
-    catch (err) { showAlert(`Migration failed: ${esc(err.message || err)}`); return; }
-    showToast(`Storage is now in "${handle.name}".`);
-    setTimeout(() => location.reload(), 900);
-  }
-
-  async function openMergeDialog(handle) {
-    let folderSettings;
-    try {
-      const text = await Disk.readFile(handle, GRAWLIX_JSON_NAME);
-      if (text == null) throw new Error('grawlix.json not found');
-      folderSettings = JSON.parse(text);
-    } catch (err) {
-      await showAlert(`Couldn't read grawlix.json: ${esc(err.message || err)}`);
-      return 'retry';
-    }
-
-    if (folderSettings.schemaVersion !== SCHEMA_VERSION && !migrateCacheInPlace(folderSettings)) {
-      await showAlert(`This folder was written with a different version of Grawlix (schema ${folderSettings.schemaVersion}; this Grawlix expects ${SCHEMA_VERSION}). Storage isn't compatible.`);
-      return 'retry';
-    }
-
-    const diff = await computeMergeDiff(handle, folderSettings);
-    const result = await showMergeChoice(handle, diff);
-    if (!result) return 'retry';
-
-    try { await applyMerge(handle, folderSettings, diff, result); }
-    catch (err) { await showAlert(`Loading from folder failed: ${esc(err.message || err)}`); return; }
-    showToast(`Storage is now in "${handle.name}".`);
-    setTimeout(() => location.reload(), 900);
-  }
-
-  async function computeMergeDiff(handle, folderSettings) {
-    const folderSources = folderSettings.sources || [];
-    const deviceSources = state.sources;
-
-    const replaced = [];
-    const folderOnly = [];
-    const matchedDevice = new Set();
-
-    for (const fw of folderSources) {
-      if (fw.type === 'edits') continue;
-      const dw = deviceSources.find(d =>
-        d.type !== 'edits' &&
-        d.name === fw.name &&
-        (d.publisherId || null) === (fw.publisherId || null)
-      );
-      if (dw) { replaced.push(fw.name); matchedDevice.add(dw); }
-      else    { folderOnly.push(fw); }
-    }
-    const deviceOnly = deviceSources.filter(d => d.type !== 'edits' && !matchedDevice.has(d));
-
-    const folderEdits = folderSources.find(s => s.type === 'edits');
-    const deviceEdits = getEditsWordlist();
-    let editsConflicts = [];
-    let folderEditsEntries = null;
-    if (folderEdits) {
-      const text = folderEdits.filename ? await Disk.readFile(handle, rawPathFor(folderEdits)) : null;
-      folderEditsEntries = text ? parseWordlist(text) : [];
-      if (deviceEdits) {
-        const fm = new Map(folderEditsEntries.map(e => [e.norm, e]));
-        for (const d of deviceEdits.rawEntries) {
-          const f = fm.get(d.norm);
-          if (f && (f.score !== d.score || (f.comment || '') !== (d.comment || ''))) {
-            editsConflicts.push({
-              entry: d.display ?? d.norm,
-              device: { score: d.score, comment: d.comment },
-              folder: { score: f.score, comment: f.comment },
-              norm: d.norm,
-            });
-          }
-        }
-      }
-    }
-
-    return { replaced, folderOnly, deviceOnly, folderEdits, folderEditsEntries, deviceEdits, editsConflicts };
-  }
-
-  function showMergeChoice(handle, diff) {
-    return new Promise(resolve => {
-      const replacedHTML = diff.replaced.length
-        ? `<p class="merge-section-label">These wordlists will be replaced by the folder's versions:</p>
-           <ul class="merge-list">${diff.replaced.map(n => `<li>${esc(n)}</li>`).join('')}</ul>`
-        : '';
-
-      const editsHTML = diff.editsConflicts.length
-        ? `<div class="merge-edits">
-             <span class="merge-edits-label">My Edits: ${diff.editsConflicts.length} ${diff.editsConflicts.length === 1 ? 'entry differs' : 'entries differ'} — keep</span>
-             <label class="merge-edits-pick"><input type="radio" name="edits-pick" value="device"> this device</label>
-             <label class="merge-edits-pick"><input type="radio" name="edits-pick" value="folder"> folder</label>
-             <button type="button" class="merge-toggle">show entries ▾</button>
-             <div class="merge-entries" hidden>
-               ${diff.editsConflicts.map(c => `<div class="merge-entry-row"><b>${esc(c.entry)}</b> this device: ${c.device.score}${c.device.comment ? ' (' + esc(c.device.comment) + ')' : ''} | folder: ${c.folder.score}${c.folder.comment ? ' (' + esc(c.folder.comment) + ')' : ''}</div>`).join('')}
-             </div>
-           </div>`
-        : '';
-
-      mergeBody.innerHTML = `
-        <button type="button" class="dialog-close-btn" aria-label="Close">✕</button>
-        <form method="dialog">
-          <h2 id="storage-merge-title">Load Grawlix data from this folder?</h2>
-          ${replacedHTML}
-          ${editsHTML}
-          <div class="dialog-footer">
-            <button type="button" class="dialog-cancel-btn">Cancel</button>
-            <button id="btn-merge-load" class="primary" value="ok">Load</button>
-          </div>
-        </form>
-      `;
-
-      const loadBtn = mergeBody.querySelector('#btn-merge-load');
-      if (diff.editsConflicts.length) {
-        loadBtn.disabled = true;
-        mergeBody.querySelectorAll('input[name="edits-pick"]').forEach(r => {
-          r.onchange = () => { loadBtn.disabled = false; };
-        });
-        const toggle = mergeBody.querySelector('.merge-toggle');
-        const entries = mergeBody.querySelector('.merge-entries');
-        toggle.onclick = () => {
-          entries.hidden = !entries.hidden;
-          toggle.textContent = entries.hidden ? 'show entries ▾' : 'hide entries ▴';
-        };
-      }
-
-      showDialog(mergeEl, () => {
-        if (mergeEl.returnValue !== 'ok') return resolve(null);
-        const editsChoice = mergeBody.querySelector('input[name="edits-pick"]:checked')?.value || null;
-        resolve({ editsChoice });
-      });
-    });
-  }
-
-  async function applyMerge(handle, folderSettings, diff, choice) {
-    const newSources = [];
-
-    for (const fw of (folderSettings.sources || [])) {
-      if (fw.type === 'edits') continue;
-      const text = fw.filename ? await Disk.readFile(handle, rawPathFor(fw)) : null;
-      newSources.push(wordlistFromMeta(fw, text));
-    }
-
-    const claimed = new Set();
-    for (const dw of diff.deviceOnly) {
-      await assignStem(dw, handle, claimed);
-      if (dw.populated) {
-        const text = await IdbBackend.readWordlist(dw);
-        await Disk.writeFile(handle, rawPathFor(dw), text ?? '');
-      }
-      newSources.push(dw);
-    }
-
-    let editsWl = null;
-    if (diff.folderEdits && diff.deviceEdits) {
-      const conflictNorms = new Set(diff.editsConflicts.map(c => c.norm));
-      const useDevice = choice.editsChoice === 'device';
-      const folderMap = new Map((diff.folderEditsEntries || []).map(e => [e.norm, e]));
-      const deviceMap = new Map(diff.deviceEdits.rawEntries.map(e => [e.norm, e]));
-      const merged = [];
-      const seen = new Set();
-      for (const fe of (diff.folderEditsEntries || [])) {
-        merged.push(conflictNorms.has(fe.norm) && useDevice ? deviceMap.get(fe.norm) : fe);
-        seen.add(fe.norm);
-      }
-      for (const de of diff.deviceEdits.rawEntries) {
-        if (!seen.has(de.norm)) merged.push(de);
-      }
-      const fwm = diff.folderEdits;
-      editsWl = wordlistFromMeta(
-        { ...fwm, filename: fwm.filename || EDITS_FILENAME, dbKey: fwm.dbKey || diff.deviceEdits.dbKey },
-        serializeEntries(merged)
-      );
-    } else if (diff.folderEdits) {
-      const fwm = diff.folderEdits;
-      const text = fwm.filename ? await Disk.readFile(handle, rawPathFor(fwm)) : null;
-      editsWl = wordlistFromMeta(fwm, text);
-    } else if (diff.deviceEdits) {
-      const dw = diff.deviceEdits;
-      if (!dw.filename) dw.filename = EDITS_FILENAME;
-      await Disk.writeFile(handle, rawPathFor(dw), serializeEntries(dw.rawEntries));
-      editsWl = dw;
-    }
-    if (editsWl) newSources.unshift(editsWl);
-
-    state.sources = newSources;
-    if (folderSettings.scoring) {
-      state.scoring = folderSettings.scoring;
-      state.scoringDirty = !!folderSettings.scoringDirty;
-    }
-
-    const cache = {
-      schemaVersion: SCHEMA_VERSION,
-      sources: state.sources.map(serializeMetaEntry),
-      scoring: state.scoring,
-      scoringDirty: state.scoringDirty,
-      mergedSettings: folderSettings.mergedSettings || {},
-    };
-    const outFmt = { ...AS_IS_FORMAT, ...(cache.mergedSettings.outputFormat || {}) };
-
-    if (editsWl && diff.folderEdits && diff.deviceEdits) {
-      await Disk.writeFile(handle, rawPathFor(editsWl), serializeEntries(editsWl.rawEntries));
-    }
-    for (const wl of newSources) {
-      if (wl.type === 'edits' || !wl.filename || !wl.populated) continue;
-      const entries = sortedEntries(applyRescoring(wl.rawEntries, wl.rescoreRules || []));
-      await Disk.writeFile(handle, rescoredNameFor(wl.filename), serializeEntries(entries, outFmt));
-    }
-    await Disk.writeFile(handle, ALL_RESCORED_NAME, serializeEntries(sortedEntries(buildMergedWordlist().entries), outFmt));
-    await writeReadme(handle);
-    await Disk.writeFile(handle, GRAWLIX_JSON_NAME, JSON.stringify(cache, null, 2));
-    await Disk.saveHandle(handle);
-
-    DiskBackend.attach(handle, cache);
-    Storage = DiskBackend;
-
-    state.sources.forEach(invalidateWordlistCaches);
-    propagateDefaults();
-    sources$.bump();
-    renderAll();
-  }
-
-  function showNewOtherAnomaly(handle) {
-    anomalyBody.innerHTML = `
-      <button type="button" class="dialog-close-btn" aria-label="Close">✕</button>
-      <form method="dialog">
-        <h2 id="storage-anomaly-title">This folder isn't empty</h2>
-        <p class="dialog-msg">"${esc(handle.name)}" has files but doesn't look like a Grawlix folder.</p>
-        <div class="dialog-footer dialog-footer-stacked">
-          <button class="primary" value="different" autofocus>Pick a different folder</button>
-          <button value="subfolder">Create a 'grawlix' subfolder here</button>
-          <button class="danger" value="alongside">Add Grawlix files alongside what's here</button>
-        </div>
-      </form>
-    `;
-    return new Promise(resolve => {
-      showDialog(anomalyEl, () => resolve(anomalyEl.returnValue || 'different'));
-    });
-  }
-
-  function renderInfo() {
-    body.innerHTML = `
-      <button class="dialog-close-btn" aria-label="Close">✕</button>
-      <h2 id="storage-dialog-title">Disk storage</h2>
-      <p class="storage-pitch">Saving your wordlists to a folder on disk requires Chrome, Edge, or another Chromium-based browser. In Firefox and Safari, Grawlix saves your data inside the browser — which works fine for one device but can't sync to a folder your construction software reads.</p>
-      <div class="dialog-footer">
-        <button type="button" class="dialog-cancel-btn primary" autofocus>Close</button>
-      </div>
-    `;
-  }
-
-  function renderOn() {
-    const folderName = DiskBackend.handle()?.name || '(unknown)';
-    body.innerHTML = `
-      <button class="dialog-close-btn" aria-label="Close">✕</button>
-      <h2 id="storage-dialog-title">Disk storage</h2>
-      <p class="storage-pitch">Your wordlists and settings are saved to a folder on disk so your browser can't lose them. Your construction software can read the same folder — edits in either place sync automatically.</p>
-      <div class="storage-folder-chip">${buildFolderNameHTML(folderName)}</div>
-      <div class="dialog-footer dialog-footer-split">
-        <button type="button" id="btn-storage-off">Turn off</button>
-        <button type="button" class="dialog-cancel-btn primary">Close</button>
-      </div>
-    `;
-    body.querySelector('#btn-storage-off').onclick = () => {
-      el.close();
-      openTurnOffDialog();
-    };
-  }
-
-  function openTurnOffDialog() {
-    const folderName = DiskBackend.handle()?.name || '(unknown)';
-    turnOffBody.innerHTML = `
-      <button type="button" class="dialog-close-btn" aria-label="Close">✕</button>
-      <form method="dialog">
-        <h2 id="storage-turnoff-title">Turn off storage</h2>
-        <p class="dialog-msg">Grawlix will stop saving to disk. Your files stay in ${buildFolderNameHTML(folderName)} — load them again anytime.</p>
-        <div class="dialog-footer">
-          <button type="button" class="dialog-cancel-btn">Cancel</button>
-          <button class="primary" value="off" autofocus>Turn off</button>
-        </div>
-      </form>
-    `;
-    showDialog(turnOffEl, async () => {
-      if (turnOffEl.returnValue !== 'off') return;
-      try { await turnOffStorage(); }
-      catch (err) { showAlert(`Turning off storage failed: ${esc(err.message || err)}`); }
-    });
-  }
-
-  function open() {
-    if (!Disk.isSupported())           renderInfo();
-    else if (DiskBackend.isAttached()) renderOn();
-    else                               renderOff();
-    showDialog(el);
-  }
-
-  return { open };
-})();
-
-function getStorageLabel() {
-  if (Storage === DiskBackend) return 'Disk storage on';
-  const edits = getEditsWordlist();
-  if (!edits || !edits.rawEntries.length) return null;
-  return 'Disk storage off';
+  return repickSyncTarget(key);
 }
 
-function refreshStorageButton() {
-  const btn = document.getElementById('btn-storage');
-  if (!btn) return;
-  const slash = btn.querySelector('.storage-slash');
-  if (slash) slash.hidden = Storage === DiskBackend;
-  const labelEl = btn.querySelector('.storage-label');
-  if (!labelEl) return;
-  const label = getStorageLabel();
-  if (label) {
-    labelEl.textContent = label;
-    labelEl.classList.add('visible');
+async function repickSyncTarget(key) {
+  const isEdits = key === editsSyncKey();
+  let handle;
+  if (isEdits) {
+    handle = await Disk.pickExisting();
+    if (handle && !await Disk.requestPermission(handle, 'readwrite')) return false;
   } else {
-    labelEl.classList.remove('visible');
+    handle = await Disk.pickNew(syncFilename(key) || rescoredFilename(listForSyncKey(key)));
   }
+  if (!handle) return false;
+  syncTargets.set(key, isEdits ? { handle, baseline: '' } : { handle });
+  await persistSyncTarget(key);
+  await activateSyncTarget(key);
+  SyncStatus.set(key, 'synced');
+  return true;
 }
 
-async function turnOffStorage() {
-  await DiskBackend.reset();
-  location.reload();
-  await new Promise(() => {});
-}
-
-async function loadDiskCache(handle) {
-  let text;
-  try { text = await Disk.readFile(handle, GRAWLIX_JSON_NAME); }
-  catch { return null; }
-  if (text == null) return null;
-  let cache;
-  try { cache = JSON.parse(text); }
-  catch { return null; }
-  if (cache.schemaVersion !== SCHEMA_VERSION) {
-    if (!migrateCacheInPlace(cache)) {
-      await showAlert(`This folder was written with a different version of Grawlix (schema ${cache.schemaVersion}; this Grawlix expects ${SCHEMA_VERSION}). Storage isn't compatible.`);
-      return null;
-    }
-    await Disk.writeFile(handle, GRAWLIX_JSON_NAME, JSON.stringify(cache, null, 2));
-  }
-  return cache;
-}
-
-const BlockingDialog = (() => {
+const ReconnectSplash = (() => {
   let _hasAnimatedIn = false;
 
   function ensureOverlay() {
@@ -3957,143 +3581,65 @@ const BlockingDialog = (() => {
     return overlay;
   }
 
-  function show(initialHandle) {
+  function show(keys) {
     return new Promise(resolve => {
       const overlay = ensureOverlay();
       const spinner = overlay.querySelector('.splash-spinner');
+      if (spinner) spinner.hidden = true;
+      const pending = new Set(keys);
 
-      const finish = (result) => {
-        overlay.querySelectorAll('.splash-actions').forEach(e => e.remove());
-        if (spinner) spinner.hidden = false;
-        resolve(result);
+      const finish = () => {
+        overlay.classList.add('done');
+        overlay.addEventListener('transitionend', () => overlay.remove(), { once: true });
+        resolve();
       };
 
-      if (spinner) spinner.hidden = true;
-      renderAccess(overlay, initialHandle, finish);
+      function render() {
+        overlay.querySelectorAll('.splash-reconnect').forEach(e => e.remove());
+        const wrap = document.createElement('div');
+        wrap.className = _hasAnimatedIn ? 'splash-reconnect' : 'splash-reconnect animated';
+        _hasAnimatedIn = true;
+
+        const intro = document.createElement('p');
+        intro.className = 'splash-reconnect-intro';
+        intro.textContent = pending.size === 1
+          ? 'Reopen your synced file to resume syncing.'
+          : 'Reopen your synced files to resume syncing.';
+        wrap.appendChild(intro);
+
+        for (const key of pending) {
+          const btn = document.createElement('button');
+          btn.type = 'button';
+          btn.className = 'primary splash-reconnect-open';
+          btn.textContent = `Open ${syncFilename(key)}`;
+          btn.onclick = async () => {
+            btn.disabled = true;
+            const ok = await regrantSyncTarget(key);
+            btn.disabled = false;
+            if (!ok) return;
+            pending.delete(key);
+            pending.size ? render() : finish();
+          };
+          wrap.appendChild(btn);
+        }
+
+        const skip = document.createElement('button');
+        skip.type = 'button';
+        skip.className = 'splash-reconnect-skip';
+        skip.textContent = 'Skip for now';
+        skip.onclick = finish;
+        wrap.appendChild(skip);
+
+        overlay.appendChild(wrap);
+        wrap.querySelector('.splash-reconnect-open')?.focus();
+      }
+
+      render();
     });
   }
 
-  function renderAccess(overlay, handle, finish) {
-    setActions(overlay, [
-      { label: 'Load Grawlix data', primary: true, onclick: async () => {
-        const granted = await Disk.requestPermission(handle);
-        if (!granted) { renderUnavailable(overlay, handle, finish); return; }
-        const cache = await loadDiskCache(handle);
-        if (!cache) { renderUnavailable(overlay, handle, finish); return; }
-        finish({ mode: 'disk', handle, cache });
-      } },
-      { label: 'Use without disk storage this session', onclick: () => finish({ mode: 'session' }) },
-    ]);
-  }
-
-  function renderUnavailable(overlay, handle, finish) {
-    setActions(overlay, [
-      { label: 'Try again', primary: true, onclick: async () => {
-        const granted = handle ? await Disk.requestPermission(handle) : false;
-        if (!granted) return;
-        const cache = await loadDiskCache(handle);
-        if (!cache) return;
-        finish({ mode: 'disk', handle, cache });
-      } },
-      { label: 'Pick a different folder', onclick: async () => {
-        let newHandle;
-        try { newHandle = await Disk.pickFolder(); }
-        catch { return; }
-        if (!newHandle) return;
-        await Disk.saveHandle(newHandle);
-        const cache = await loadDiskCache(newHandle);
-        if (!cache) { renderUnavailable(overlay, newHandle, finish); return; }
-        finish({ mode: 'disk', handle: newHandle, cache });
-      } },
-      { label: 'Use without disk storage this session', onclick: () => finish({ mode: 'session' }) },
-    ]);
-  }
-
-  function setActions(overlay, actions) {
-    overlay.querySelectorAll('.splash-actions').forEach(e => e.remove());
-    const div = document.createElement('div');
-    div.className = _hasAnimatedIn ? 'splash-actions' : 'splash-actions animated';
-    _hasAnimatedIn = true;
-    for (const a of actions.filter(Boolean)) {
-      const btn = document.createElement('button');
-      btn.type = 'button';
-      btn.textContent = a.label;
-      if (a.primary) btn.className = 'primary';
-      btn.onclick = a.onclick;
-      div.appendChild(btn);
-    }
-    overlay.appendChild(div);
-    (div.querySelector('.primary') || div.querySelector('button'))?.focus();
-  }
-
   return { show };
 })();
-
-const SessionPausedBanner = (() => {
-  let bannerEl = null;
-
-  function show() {
-    if (bannerEl) { bannerEl.hidden = false; return; }
-    bannerEl = document.createElement('div');
-    bannerEl.id = 'storage-paused-banner';
-    bannerEl.innerHTML = `
-      <span>Disk storage paused for this session — your data is safe in your folder.</span>
-      <button type="button" id="banner-reload">Reload to try again</button>
-      <button type="button" id="banner-turn-off">Turn off storage</button>
-    `;
-    document.body.insertBefore(bannerEl, document.body.firstChild);
-    bannerEl.querySelector('#banner-reload').onclick = () => location.reload();
-    bannerEl.querySelector('#banner-turn-off').onclick = async () => {
-      const ok = await showConfirm(
-        'Turn off disk storage? Your files on disk are left untouched. This Grawlix will switch to browser storage.',
-        { confirmText: 'Turn off', danger: true }
-      );
-      if (!ok) return;
-      await Disk.clearHandle();
-      await IdbBackend.reset();
-      location.reload();
-    };
-  }
-
-  return { show };
-})();
-
-async function attemptDiskBoot() {
-  const handle = await Disk.loadHandle();
-  if (!handle) return { mode: 'none' };
-  if (await Disk.hasPermission(handle)) {
-    const cache = await loadDiskCache(handle);
-    if (cache) return { mode: 'disk', handle, cache };
-  }
-  return BlockingDialog.show(handle);
-}
-
-async function migrateToDisk(handle) {
-  await ensureDiskFilenames(handle);
-  for (const wl of state.sources) {
-    if (!wl.populated) continue;
-    const text = await IdbBackend.readWordlist(wl);
-    await Disk.writeFile(handle, rawPathFor(wl), text ?? '');
-    if (wl.type !== 'edits') {
-      const entries = sortedEntries(applyRescoring(wl.rawEntries, wl.rescoreRules || []));
-      await Disk.writeFile(handle, rescoredNameFor(wl.filename), serializeEntries(entries, getOutputFormat()));
-    }
-  }
-  await Disk.writeFile(handle, ALL_RESCORED_NAME, serializeEntries(sortedEntries(buildMergedWordlist().entries), getOutputFormat()));
-  await writeReadme(handle);
-  const cache = {
-    schemaVersion: SCHEMA_VERSION,
-    sources: state.sources.map(serializeMetaEntry),
-    scoring: state.scoring,
-    scoringDirty: state.scoringDirty,
-    mergedSettings: IdbBackend.readMergedSettings(),
-  };
-  await Disk.writeFile(handle, GRAWLIX_JSON_NAME, JSON.stringify(cache, null, 2));
-  await Disk.saveHandle(handle);
-
-  DiskBackend.attach(handle, cache);
-  Storage = DiskBackend;
-}
 
 // ─── Workshop view ────────────────────────────────────────────────────────────
 // Top-level page (peer of Library in the brand-bar nav). Hosts the tool gallery,
@@ -4302,7 +3848,6 @@ const LibraryView = (() => {
   // Library-only view state — never persisted, never URL-routed. Survives
   // across wordlist switches inside a session so the user's last search
   // and sort stick around while they explore.
-  let _displayMode      = 'rescored';  // 'rescored' | 'original'
   let _searchQuery      = '';
   let _searchWholeWord  = false;
   let _sortKey          = 'entry';
@@ -4316,17 +3861,16 @@ const LibraryView = (() => {
     catch { _scoreRanges = {}; }
     return _scoreRanges;
   }
-  function scoreRangeKey(target, mode) {
-    if (target === MERGED_ID) return 'merged';
-    return `${target.dbKey}:${mode}`;
+  function scoreRangeKey(target) {
+    return target === MERGED_ID ? 'merged' : target.dbKey;
   }
-  function getScoreRangeFor(target, mode) {
-    const v = loadScoreRanges()[scoreRangeKey(target, mode)] || '';
+  function getScoreRangeFor(target) {
+    const v = loadScoreRanges()[scoreRangeKey(target)] || '';
     return v && parseRange(v) ? v : '';
   }
-  function setScoreRangeFor(target, mode, value) {
+  function setScoreRangeFor(target, value) {
     const ranges = loadScoreRanges();
-    const k = scoreRangeKey(target, mode);
+    const k = scoreRangeKey(target);
     if (value) ranges[k] = value;
     else       delete ranges[k];
     if (Object.keys(ranges).length === 0) lsDel('libScoreRanges');
@@ -4334,17 +3878,10 @@ const LibraryView = (() => {
   }
   function activeScoreRange() {
     if (!_focusedWordlist) return '';
-    return getScoreRangeFor(_focusedWordlist, _displayMode);
+    return getScoreRangeFor(_focusedWordlist);
   }
 
   // ── HTML builders for pane internals ────────────────────────────────────────
-
-  function buildModeToggleHTML() {
-    return `<div class="seg-ctrl" role="group" aria-label="Display mode">
-      <button type="button" class="seg-btn${_displayMode === 'rescored' ? ' active' : ''}" data-mode="rescored" onclick="LibraryView.setMode('rescored')">Rescored</button>
-      <button type="button" class="seg-btn${_displayMode === 'original' ? ' active' : ''}" data-mode="original" onclick="LibraryView.setMode('original')">Original</button>
-    </div>`;
-  }
 
   function buildSearchBarHTML() {
     const vals = { pattern: _searchQuery, 'whole-word': _searchWholeWord };
@@ -4402,17 +3939,6 @@ const LibraryView = (() => {
     const cards = listBody.querySelectorAll('.wordlist-card[data-wordlist]');
     state.sources.forEach((wordlist, i) => { if (cards[i]) cards[i]._wordlist = wordlist; });
 
-    publishStickyCardHeight();
-  }
-
-  // In the narrow stacked layout the selected card pins to the top (see the
-  // `display: contents` rule on the rail). Publish its measured height so
-  // the pane's own sticky bars can offset cleanly below it.
-  function publishStickyCardHeight() {
-    const selCard = listBody.querySelector('.wordlist-card.selected');
-    if (selCard) {
-      document.documentElement.style.setProperty('--wld-pin-h', selCard.offsetHeight + 'px');
-    }
   }
 
   function buildPane() {
@@ -4430,26 +3956,18 @@ const LibraryView = (() => {
     const wordlist = _focusedWordlist;
     const isEdits = wordlist.type === 'edits';
     const hasData = wordlist.rawEntries.length > 0;
-    const hasRules = !isEdits && (wordlist.rescoreRules?.length ?? 0) > 0;
 
-    const useOriginal = _displayMode === 'original';
-    const sourceEntries = (isEdits || useOriginal) ? wordlist.rawEntries : getRescoredEntries(wordlist);
-    const ignoredCount = (isEdits || useOriginal) ? 0 : wordlist.rawEntries.length - sourceEntries.length;
+    const sourceEntries = isEdits ? wordlist.rawEntries : getRescoredEntries(wordlist);
+    const ignoredCount = isEdits ? 0 : wordlist.rawEntries.length - sourceEntries.length;
     const intervals = parseRange(activeScoreRange());
     const filteredEntries = intervals ? sourceEntries.filter(e => matchesRange(e.score, intervals)) : sourceEntries;
     const stats = computeStatsRaw(filteredEntries, intervals ? 0 : ignoredCount);
 
-    // Action row shape is unified across all wordlists: date slot, primary
-    // action, optional mode toggle (sources only), Download, more menu. The
-    // toggle governs stats, histogram, entries view, and what Download
-    // produces — a single coupled "what version am I working with" knob.
     let actionBtn, dlBtn, moreMenu;
     if (isEdits) {
-      actionBtn = `<button class="${hasData ? '' : 'primary'}" onclick="LibraryView.action('import')" ${wordlist._loading ? 'disabled' : ''}>${wordlist._loading ? 'Importing…' : 'Import'}</button>`;
-      dlBtn = hasData ? `<button class="primary" onclick="LibraryView.action('download')">Download</button>` : '';
-      moreMenu = hasData ? buildMoreMenuHTML([
-        ['Clear', `LibraryView.action('clear')`],
-      ]) : '';
+      actionBtn = `<button id="wld-action-btn" class="${hasData ? '' : 'primary'}" onclick="LibraryView.action('import')" ${wordlist._loading ? 'disabled' : ''}>${wordlist._loading ? 'Importing…' : 'Import'}</button>`;
+      dlBtn = hasData ? `<button id="wld-download-btn" class="primary" onclick="LibraryView.action('download')">Download</button>` : '';
+      moreMenu = hasData ? buildMoreMenuHTML([['Clear', `LibraryView.action('clear')`]]) : '';
     } else {
       const showBadge = wordlist._updateAvailable && !wordlist._loading;
       const dot = showBadge ? `&nbsp;${buildBadgeHTML('info')}` : '';
@@ -4460,12 +3978,16 @@ const LibraryView = (() => {
         const btnLabel = `${label}${dot}`;
         actionBtn = buildSplitBtn(btnLabel, `LibraryView.action('fetch')`,
           [['Import', `LibraryView.action('import')`]],
-          { primary: true, disabled: !!wordlist._loading, title: updateTitle });
+          { primary: true, disabled: !!wordlist._loading, title: updateTitle, id: 'wld-action-btn' });
       } else {
-        actionBtn = `<button class="primary"${updateTitle ? ` title="${updateTitle}"` : ''} onclick="LibraryView.action('import')" ${wordlist._loading ? 'disabled' : ''}>${wordlist._loading ? 'Importing…' : 'Import'}${dot}</button>`;
+        actionBtn = `<button id="wld-action-btn" class="primary"${updateTitle ? ` title="${updateTitle}"` : ''} onclick="LibraryView.action('import')" ${wordlist._loading ? 'disabled' : ''}>${wordlist._loading ? 'Importing…' : 'Import'}${dot}</button>`;
       }
 
-      dlBtn = hasData ? `<button class="primary" onclick="LibraryView.action('download')">Download</button>` : '';
+      const hasRules = (wordlist.rescoreRules?.length ?? 0) > 0;
+      if (!hasData) dlBtn = '';
+      else if (hasRules) dlBtn = buildSplitBtn('Download', `LibraryView.action('download')`,
+        [['Download original', `LibraryView.action('downloadOriginal')`]], { primary: true, id: 'wld-download-btn' });
+      else dlBtn = `<button id="wld-download-btn" class="primary" onclick="LibraryView.action('download')">Download</button>`;
 
       moreMenu = buildMoreMenuHTML([
         ['Configure', `LibraryView.action('configure')`],
@@ -4473,20 +3995,19 @@ const LibraryView = (() => {
       ]);
     }
 
-    // Mode toggle: only meaningful when there are rules to apply.
-    const toggleHTML = (hasData && hasRules) ? buildModeToggleHTML() : '';
     const dateSlot = (hasData && wordlist.lastUpdated) ? '<span class="detail-date"></span>' : '';
-    // Toggle on the left (when present); date + buttons on the right.
-    const actionsHTML = [toggleHTML, dateSlot, actionBtn, dlBtn, moreMenu].filter(Boolean).join('\n');
+    const actionsHTML = [dateSlot, actionBtn, dlBtn, moreMenu].filter(Boolean).join('\n');
 
     const rulesHTML = isEdits
       ? `<div class="wld-pane-rescore" id="wld-scoring-section">${buildScoringSectionHTML()}</div>`
       : `<div class="wld-pane-rescore" id="wld-rescore-section">${buildRescoreSectionHTML(wordlist)}</div>`;
 
     pane.innerHTML = `
-      <div class="wld-pane-header">
+      <div class="wld-title-bar">
+        ${paneTitleHTML(wordlist)}
         <div class="wld-pane-actions">${actionsHTML}</div>
       </div>
+      ${syncSignHTML(wordlist)}
       ${rulesHTML}
       ${buildSearchBarHTML()}
       ${buildLibraryStatsBarHTML(stats, sourceEntries, ignoredCount)}
@@ -4523,12 +4044,15 @@ const LibraryView = (() => {
     const filteredEntries = intervals ? entries.filter(e => matchesRange(e.score, intervals)) : entries;
     const stats = intervals ? computeStatsRaw(filteredEntries) : computeStats(_mergedStatsKey, entries);
     const hasData = entries.length > 0;
-    const dlBtn = hasData ? `<button class="primary" onclick="LibraryView.action('download')">Download</button>` : '';
+    const dlBtn = hasData ? `<button id="wld-download-btn" class="primary" onclick="LibraryView.action('download')">Download</button>` : '';
+    const actionsHTML = [dlBtn].filter(Boolean).join('\n');
 
     pane.innerHTML = `
-      <div class="wld-pane-header">
-        <div class="wld-pane-actions">${dlBtn}</div>
+      <div class="wld-title-bar">
+        ${paneTitleHTML(MERGED_ID)}
+        <div class="wld-pane-actions">${actionsHTML}</div>
       </div>
+      ${syncSignHTML(MERGED_ID)}
       <div class="wld-pane-rescore" id="wld-scoring-section">${buildScoringSectionHTML()}</div>
       ${buildSearchBarHTML()}
       ${buildLibraryStatsBarHTML(stats, entries, 0)}
@@ -4550,7 +4074,6 @@ const LibraryView = (() => {
     if (!host) return;
     _entriesScroller = new LibraryEntriesScroller(host, {
       wordlist,
-      mode: _displayMode,
       query: _searchQuery,
       wholeWord: _searchWholeWord,
       sortKey: _sortKey,
@@ -4573,9 +4096,8 @@ const LibraryView = (() => {
       ignoredCount = 0;
     } else {
       const wordlist = _focusedWordlist;
-      const useOriginal = _displayMode === 'original';
-      sourceEntries = useOriginal ? wordlist.rawEntries : getRescoredEntries(wordlist);
-      ignoredCount = useOriginal ? 0 : wordlist.rawEntries.length - sourceEntries.length;
+      sourceEntries = getRescoredEntries(wordlist);
+      ignoredCount = wordlist.rawEntries.length - sourceEntries.length;
     }
     const intervals = parseRange(activeScoreRange());
     const searchEntries = applyLibrarySearchFilter(sourceEntries);
@@ -4612,6 +4134,15 @@ const LibraryView = (() => {
     renderPane();
   }
 
+  // Must stay an in-place patch of the pill, never a renderPane — sync status
+  // flips on every debounced save, and rebuilding the scroller mid-edit would
+  // steal the user's focus and scroll position.
+  function refreshSyncIndicators() {
+    if (el.hidden || !_focusedWordlist) return;
+    const hang = pane.querySelector('.wld-sync-hang');
+    if (hang) hang.outerHTML = syncSignHTML(_focusedWordlist);
+  }
+
   // ── Actions (called from inline onclick handlers in pane HTML) ───────────────
 
   const ACTIONS = {
@@ -4620,50 +4151,38 @@ const LibraryView = (() => {
     delete:    async () => { await deleteWordlist(_focusedWordlist); },
     configure: () => ConfigureWordlistDialog.open(_focusedWordlist),
     clear:     () => clearEdits(),
-    // Single Download: routes by focused wordlist + display mode. The
-    // Rescored/Original toggle decides which version a source produces.
     download:  () => {
       if (_focusedWordlist === MERGED_ID) return downloadMergedWordlistFromPanel();
       if (_focusedWordlist?.type === 'edits') return downloadEdits();
-      return _displayMode === 'original'
-        ? downloadOriginalWordlist(_focusedWordlist)
-        : downloadIndividualWordlistRescored(_focusedWordlist);
+      return downloadSourceWordlist(_focusedWordlist);
     },
+    downloadOriginal: () => downloadOriginalWordlist(_focusedWordlist),
+    openSync:      () => SyncDialog.open(_focusedWordlist),
+    syncExisting:  () => syncThen(isMirrorList(_focusedWordlist) ? attachMirrorSync(_focusedWordlist, { existing: true })  : attachEditsSync({ existing: true })),
+    syncNew:       () => syncThen(isMirrorList(_focusedWordlist) ? attachMirrorSync(_focusedWordlist, { existing: false }) : attachEditsSync({ existing: false })),
+    stopSync:      () => syncThen(detachSync(_focusedWordlist)),
   };
+
+  async function syncThen(promise) {
+    let done = false;
+    try { done = await promise; }
+    catch (err) { console.error('sync action failed', err); }
+    renderPane();
+    renderList();
+    return done;
+  }
 
   function action(name) {
     const fn = ACTIONS[name];
-    if (fn) fn();
+    return fn ? fn() : undefined;
   }
 
-  // ── Search / sort / mode handlers (inline onclick/oninput → here) ────────────
-
-  function setMode(mode) {
-    if (mode !== 'rescored' && mode !== 'original') return;
-    if (_displayMode === mode) return;
-    _displayMode = mode;
-    pane.querySelectorAll('.seg-ctrl .seg-btn').forEach(b => {
-      b.classList.toggle('active', b.dataset.mode === mode);
-    });
-    refreshScoreRangeInput();
-    refreshStatsBar();
-    _entriesScroller?.setMode(mode);
-    _entriesScroller?.setScoreRange(activeScoreRange());
-  }
-
-  function refreshScoreRangeInput() {
-    const inp = document.getElementById('lib-score-range-input');
-    if (!inp) return;
-    const range = activeScoreRange();
-    inp.value = range;
-    inp.classList.remove('invalid');
-    syncClearButton(inp);
-  }
+  // ── Search / sort handlers (inline onclick/oninput → here) ───────────────────
 
   function onScoreRange(value) {
     if (!_focusedWordlist) return;
     const next = normalizeScoreRange(value, 'lib-score-range-input');
-    setScoreRangeFor(_focusedWordlist, _displayMode, next);
+    setScoreRangeFor(_focusedWordlist, next);
     refreshStatsBar();
     _entriesScroller?.setScoreRange(next);
   }
@@ -4867,9 +4386,9 @@ const LibraryView = (() => {
 
   return {
     show, hide, refresh, focus, action, getFocusedWordlist,
-    refreshRescoreSection, refreshScoringSection, updateListMeta,
+    refreshRescoreSection, refreshScoringSection, updateListMeta, refreshSyncIndicators,
     isVisible: () => !el.hidden,
-    setMode, onSearch, onWholeWord, onSortAxis, toggleSortDir, onScoreRange,
+    onSearch, onWholeWord, onSortAxis, toggleSortDir, onScoreRange,
     get scoreRange() { return activeScoreRange(); },
     previewRescoreRules,
   };
@@ -5007,7 +4526,6 @@ function wordlistFromMeta(m, text) {
   const wordlist = wrapWordlist({
     ...(m.type     ? { type: m.type }         : {}),
     dbKey:         m.dbKey || newDbKey(),
-    ...(m.filename ? { filename: m.filename } : {}),
     icon:            m.icon || null,
     publisherId:     m.publisherId || null,
     name: m.name, url: m.url || null,
@@ -5018,8 +4536,6 @@ function wordlistFromMeta(m, text) {
     rescoreRules: (m.rescoreRules || []).map(r => ({ length: '', ...r })),
     dirty: !!m.dirty,
     originalFilename: m.originalFilename || null,
-    ...(m.downloadExt  ? { downloadExt:  m.downloadExt  } : {}),
-    ...(m.downloadStem ? { downloadStem: m.downloadStem } : {}),
     rawEntries: text ? parseWordlist(text) : [],
     _loading: false,
   });
@@ -5055,17 +4571,6 @@ async function init() {
 
   await openDB();
 
-  const boot = await attemptDiskBoot();
-  if (boot.mode === 'disk') {
-    DiskBackend.attach(boot.handle, boot.cache);
-    Storage = DiskBackend;
-    await writeReadme(boot.handle);
-    DiskWatcher.start();
-  } else if (boot.mode === 'session') {
-    Storage = NullBackend;
-    SessionPausedBanner.show();
-  }
-
   // Commit the splash fade to the compositor before the synchronous parse
   // below blocks the main thread, else the logo reveal stalls mid-fade.
   await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
@@ -5099,13 +4604,19 @@ async function init() {
   MainView.activate(initialView);
   renderAll();
   await _firstPaint;
+
+  await loadSyncTargets();
+  const { granted, prompt } = await partitionSyncPermissions();
   const _overlay = document.getElementById('splash-screen');
-  if (_overlay) {
+  if (prompt.length) {
+    ReconnectSplash.show(prompt);
+  } else if (_overlay) {
     _overlay.classList.add('done');
     _overlay.addEventListener('transitionend', () => _overlay.remove(), { once: true });
   }
+  Promise.all(granted.map(activateSyncTarget)).catch(err => console.error('sync resume failed', err));
+
   bindEvents();
-  refreshStorageButton();
   if (!lsLoad('welcomeSeen')) WelcomeDialog.open();
   checkForUpdates();
   setInterval(checkForUpdates, UPDATE_CHECK_INTERVAL);
@@ -5231,8 +4742,9 @@ function setOutputFormat(fmt) {
 }
 
 let _regenInFlight = false, _regenAgain = false;
+// My Edits is excluded — its file is always written as-is, never output-format-
+// stripped; including it here would silently destroy the user's rich entries.
 async function regenerateFillOutputs() {
-  if (Storage !== DiskBackend) return;
   // A format change landing mid-rewrite re-runs once at the end; without it the
   // files would sit stale at the pre-change format until the next edit.
   if (_regenInFlight) { _regenAgain = true; return; }
@@ -5240,15 +4752,12 @@ async function regenerateFillOutputs() {
   try {
     do {
       _regenAgain = false;
-      for (const wl of state.sources) await Storage.writeRescored(wl);
-      await Storage.writeAllRescored();
+      for (const wl of state.sources) {
+        if (wl.type !== 'edits' && syncTargets.has(wl.dbKey)) await MirrorSync._flush(wl.dbKey);
+      }
+      if (syncTargets.has(MERGED_ID)) await MirrorSync._flush(MERGED_ID);
     } while (_regenAgain);
   } finally { _regenInFlight = false; }
-}
-
-async function applyOutputFormat(fmt) {
-  setOutputFormat(fmt);
-  await regenerateFillOutputs();
 }
 
 function sortedEntries(entries) {
@@ -5258,12 +4767,14 @@ function sortedEntries(entries) {
 async function persistEdits(edits) {
   await Storage.writeWordlist(edits, serializeEntries(sortedEntries(edits.rawEntries)));
   persistMeta();
-  refreshStorageButton();
+  EditsSync.scheduleWrite();
 }
 
 async function downloadEdits() {
   const edits = getEditsWordlist();
-  await downloadWithDialog(edits.name, edits, edits.rawEntries);
+  if (!edits.rawEntries.length) return;
+  triggerDownload(serializeEntries(edits.rawEntries, AS_IS_FORMAT), `${sanitizeFilenameStem(edits.name)}.txt`);
+  showToast(`Downloaded ${pluralize(edits.rawEntries.length, 'entry', 'entries')}`);
 }
 
 async function clearEdits() {
@@ -8926,7 +8437,6 @@ class LibraryEntriesScroller extends BaseVirtualScroller {
   constructor(host, opts = {}) {
     super(host, 'lib-entries-rows');
     this.wordlist = opts.wordlist ?? null;         // null = merged All view
-    this.mode = opts.mode ?? 'rescored';           // 'rescored' | 'original'
     this.sortKey = opts.sortKey ?? 'entry';
     this.sortDir = opts.sortDir ?? 'asc';
     this.query = opts.query ?? '';
@@ -8949,13 +8459,6 @@ class LibraryEntriesScroller extends BaseVirtualScroller {
   // wordlist = null => merged-all view. Otherwise the focused source wordlist.
   setWordlist(wordlist) {
     this.wordlist = wordlist;
-    this._invalidateRowsCache();
-    this._applyFilterAndSort();
-  }
-
-  setMode(mode) {
-    if (this.mode === mode) return;
-    this.mode = mode;
     this._invalidateRowsCache();
     this._applyFilterAndSort();
   }
@@ -8991,10 +8494,6 @@ class LibraryEntriesScroller extends BaseVirtualScroller {
     this._sortedBaseRows = null;
   }
 
-  // Produce the unfiltered row data. For source wordlists, walks rawEntries
-  // and (in rescored mode) applies rescoreEntry to get the transformation.
-  // Three states per row: unchanged (input only), rescored (input → output),
-  // ignored (input → ✕).
   _buildRows() {
     const wl = this.wordlist;
     if (!wl) {
@@ -9012,7 +8511,7 @@ class LibraryEntriesScroller extends BaseVirtualScroller {
       }));
     }
     const rules = this._previewRules ?? wl.rescoreRules ?? [];
-    const annotate = this.mode === 'rescored' && rules.length > 0;
+    const annotate = rules.length > 0;
     return wl.rawEntries.map(wlE => {
       let outputScore = wlE.score;
       let rescored = false;
@@ -9072,8 +8571,7 @@ class LibraryEntriesScroller extends BaseVirtualScroller {
     if (intervals) {
       source = source.filter(r => {
         if (r.ignored) return false;
-        const score = this.mode === 'rescored' ? r.outputScore : r.inputScore;
-        return matchesRange(score, intervals);
+        return matchesRange(r.outputScore, intervals);
       });
     }
 
@@ -9131,7 +8629,7 @@ class LibraryEntriesScroller extends BaseVirtualScroller {
       const ranges = this._searchRanges ? projectRangesToDisplay(this._searchRanges(r.wlEntry), r.wlEntry) : [];
       const entryHtml = renderHighlightedText(r.display, ranges);
 
-      const showArrow = this.mode === 'rescored' && r.rescored && !r.ignored;
+      const showArrow = r.rescored && !r.ignored;
       const scoreHTML = showArrow
         ? `${r.inputScore}<span class="lib-atom-arrow">→</span><span class="lib-atom-out">${r.outputScore}</span>`
         : String(r.inputScore);
@@ -10043,6 +9541,8 @@ function publishWorkshopBarHeights() {
 const _workshopStickyObserver = new ResizeObserver(publishWorkshopBarHeights);
 
 function publishLibraryBarHeights() {
+  const titleBar = document.querySelector('.wld-title-bar');
+  if (titleBar) document.documentElement.style.setProperty('--title-bar-h', titleBar.offsetHeight + 'px');
   const bar = document.querySelector('.lib-search-bar');
   if (bar) document.documentElement.style.setProperty('--search-bar-h', bar.offsetHeight + 'px');
   const stats = document.querySelector('.wld-pane > .stats-bar');
@@ -10464,6 +9964,8 @@ async function applyWordlistText(wordlist, text, { fetchedSize = null, originalF
   });
 
   await Storage.writeWordlist(wordlist, text);
+  if (wordlist.type === 'edits') EditsSync.scheduleWrite();
+  else                           MirrorSync.schedule(wordlist);
   // The render effect drained inside batchUpdate already updated the Library
   // list, dropdown, scoring legend, stats bar, and active scroller for the
   // current selection. Nothing else to repaint here.
@@ -10495,7 +9997,6 @@ async function applyWordlistText(wordlist, text, { fetchedSize = null, originalF
       openUpdateSummaryDialog(wordlist, oldEntries.length, added, deleted, rescored);
     }
   }
-  if (wordlist.type === 'edits') refreshStorageButton();
 }
 
 async function fetchWordlist(wordlist, event, { silent = false, viaToast = false } = {}) {
@@ -10707,6 +10208,7 @@ async function deleteWordlist(wordlist, event) {
   // `state.sources` change below don't read a stale merged cache.
   invalidateWordlistCaches(wordlist);
   state.sources = state.sources.filter(l => l !== wordlist);
+  await detachSync(wordlist);
   await Storage.deleteWordlist(wordlist);
   persistMeta();
   renderAll();
@@ -10777,84 +10279,6 @@ const showAlert = (() => {
   };
 })();
 
-const showDownloadDialog = (() => {
-  const { el, body } = createDialog('download-dialog', { labelledby: 'download-dialog-title' });
-  body.innerHTML = `
-    <button type="button" class="dialog-close-btn" aria-label="Close">✕</button>
-    <form method="dialog">
-      <h2 id="download-dialog-title">Download</h2>
-      <div class="form-field">
-        <label for="download-dialog-filename">Filename</label>
-        <div class="filename-combo">
-          <input id="download-dialog-filename" type="text" autocapitalize="off" autocorrect="off" spellcheck="false" autofocus>
-          <select id="download-dialog-ext" aria-label="File extension">
-            <option value="txt">.txt</option>
-            <option value="dict">.dict</option>
-          </select>
-        </div>
-      </div>
-      <div class="of-section" id="download-format-section">
-        <div class="dialog-row-label">Output format</div>
-        <div id="download-format-ctrls" class="of-ctrls"></div>
-      </div>
-      <div class="dialog-footer">
-        <button type="button" class="dialog-cancel-btn">Cancel</button>
-        <button type="button" id="download-save-default" hidden>Save as default</button>
-        <button class="primary" value="ok">Download</button>
-      </div>
-    </form>`;
-  const titleEl    = el.querySelector('#download-dialog-title');
-  const filenameEl = el.querySelector('#download-dialog-filename');
-  const extSelect  = el.querySelector('#download-dialog-ext');
-  const fmtSection = el.querySelector('#download-format-section');
-  const fmtCtrls   = el.querySelector('#download-format-ctrls');
-  const saveDefBtn = el.querySelector('#download-save-default');
-
-  return function(defaultStem, wordlist, title = 'Download') {
-    titleEl.textContent = title;
-    const isEdits = wordlist?.type === 'edits';
-    return new Promise(resolve => {
-      const settings = wordlist || Storage.readMergedSettings();
-      const savedExt  = settings.downloadExt  || 'txt';
-      const savedStem = settings.downloadStem || '';
-
-      filenameEl.value = savedStem;
-      filenameEl.placeholder = defaultStem;
-      extSelect.value = savedExt;
-
-      fmtSection.hidden = isEdits;
-      if (!isEdits) {
-        fmtCtrls.innerHTML = buildOutputFormatControlsHTML(getOutputFormat());
-        const refreshSaveBtn = () => {
-          saveDefBtn.hidden = outputFormatsEqual(readOutputFormatControls(fmtCtrls), getOutputFormat());
-        };
-        wireOutputFormatControls(fmtCtrls, refreshSaveBtn);
-        refreshSaveBtn();
-        saveDefBtn.onclick = async () => {
-          await applyOutputFormat(readOutputFormatControls(fmtCtrls));
-          refreshSaveBtn();
-          showToast('Saved as your default output format');
-        };
-      }
-
-      showDialog(el, () => {
-        if (el.returnValue !== 'ok') return resolve(null);
-        const ext  = extSelect.value;
-        const stem = filenameEl.value.trim();
-        if (wordlist) {
-          wordlist.downloadExt = ext;
-          if (stem) wordlist.downloadStem = stem; else delete wordlist.downloadStem;
-          persistMeta();
-        } else {
-          Storage.writeMergedSettings({ ...Storage.readMergedSettings(), downloadExt: ext, ...(stem ? { downloadStem: stem } : {}) });
-        }
-        const fmt = isEdits ? AS_IS_FORMAT : readOutputFormatControls(fmtCtrls);
-        resolve({ stem: stem || defaultStem, ext, fmt });
-      });
-    });
-  };
-})();
-
 const showMergeConflict = (() => {
   const { el, body } = createDialog('merge-conflict-dialog', { labelledby: 'merge-conflict-msg' });
   body.innerHTML = `
@@ -10876,6 +10300,75 @@ const showMergeConflict = (() => {
       msgEl.textContent = `${conflictCount.toLocaleString()} ${noun} in both ${editsName} and the imported file with different scores or comments. Which should take precedence?`;
       showDialog(el, () => resolve(el.returnValue || null));
     });
+  };
+})();
+
+// ─── Disk sync dialog ─────────────────────────────────────────────────────────
+
+const SyncDialog = (() => {
+  const { el, body } = createDialog('sync-dialog', { labelledby: 'sync-dialog-title' });
+
+  function diagram(arrow) {
+    return `<div class="sync-diagram">
+        <svg class="sync-diagram-icon" aria-hidden="true"><use href="#${BROWSER.icon}"/></svg>
+        <span class="sync-diagram-arrow">${arrow}</span>
+        <span class="sync-diagram-emoji">📄</span>
+        <span class="sync-diagram-arrow">${arrow}</span>
+        <svg class="sync-diagram-icon" aria-hidden="true"><use href="#icon-crossword"/></svg>
+      </div>`;
+  }
+
+  function render(target) {
+    const key = syncKey(target);
+    const synced = syncTargets.has(key);
+    const mirror = isMirrorList(target);
+    const name = esc(syncFilename(key));
+    const listLabel = buildWordlistNameHTML(target, { bold: false });
+
+    let title, inner;
+    if (!Disk.isSupported()) {
+      title = 'Saved in your browser';
+      inner = `<p class="sync-dialog-lead">Grawlix keeps your wordlists in ${esc(BROWSER.name)}'s storage on this device. Disk sync — keeping a list in sync with a file your construction software reads — needs a Chromium browser like Chrome or Edge. Use <strong>Download</strong> to save a file out anytime.</p>
+        <div class="sync-dialog-actions"><button type="button" class="dialog-cancel-btn primary">Got it</button></div>`;
+    } else if (synced) {
+      const unavailable = SyncStatus.get(key) === 'unavailable';
+      title = `Syncing ${listLabel} to disk`;
+      inner = `${diagram(mirror ? '→' : '⇄')}
+        <p class="sync-dialog-lead">${mirror
+          ? `<strong>${name}</strong> is shared by Grawlix and your construction software. It will stay up to date as you make changes.`
+          : `<strong>${name}</strong> is shared between Grawlix and your construction software. Edit in either place — changes flow both ways.`}</p>
+        ${unavailable ? `<p class="sync-dialog-note attention"><span class="sync-dialog-note-icon" aria-hidden="true">⚠️</span><span>Grawlix can't find <strong>${name}</strong> — it may have been moved or deleted, so syncing is paused.</span></p>` : ''}
+        <div class="sync-dialog-actions"><button type="button" class="danger" onclick="SyncDialog.act('stopSync')">Turn off</button></div>`;
+    } else {
+      title = `Sync ${listLabel} to disk`;
+      inner = `${diagram(mirror ? '→' : '⇄')}
+        <p class="sync-dialog-lead">Share a single file between Grawlix and your construction software.${mirror ? ' It will stay up to date as you make changes.' : ' Edit in either place — changes will flow both ways.'}</p>
+        <div class="sync-choices">
+          <button type="button" class="sync-choice" onclick="SyncDialog.act('syncExisting')">
+            <span class="sync-choice-title">${mirror ? 'Overwrite an existing file' : 'Use an existing file'}</span>
+            <span class="sync-choice-sub">Point at the wordlist your construction software already reads.</span>
+          </button>
+          <button type="button" class="sync-choice" onclick="SyncDialog.act('syncNew')">
+            <span class="sync-choice-title">Create a new file</span>
+            <span class="sync-choice-sub">Save changes to a fresh file.</span>
+          </button>
+        </div>`;
+    }
+
+    body.innerHTML = `<button type="button" class="dialog-close-btn" aria-label="Close">✕</button>
+      <h2 id="sync-dialog-title">${title}</h2>
+      ${inner}`;
+  }
+
+  // Don't await before dispatching: the action's FSA picker must fire inside this
+  // click's transient activation, or it silently fails.
+  function act(name) {
+    Promise.resolve(LibraryView.action(name)).then(done => { if (done) el.close(); });
+  }
+
+  return {
+    open(target) { render(target); showDialog(el); },
+    act,
   };
 })();
 
@@ -11381,12 +10874,9 @@ function bindEvents() {
   // Header chrome
   document.querySelector('.header-logo-link').href = location.pathname;
   document.getElementById('btn-settings').onclick = () => SettingsDialog.open();
-  document.getElementById('btn-storage').onclick  = () => StorageDialog.open();
   document.getElementById('btn-help').onclick     = () => WelcomeDialog.open();
   document.getElementById('workshop-add-fab').onclick = () =>
     AtomPopover.openForCreate(newEntrySeedQuery(), workshopScroller, null);
-  const isDesktopLike = window.matchMedia('(hover: hover) and (pointer: fine)').matches;
-  if (!Disk.isSupported() && !isDesktopLike) document.getElementById('btn-storage').hidden = true;
 
   ToolStack.init();
 
@@ -12028,17 +11518,10 @@ function patchMergedForNorms(snap) {
   }
 }
 
-async function downloadWithDialog(defaultStem, wordlist, entries, title = 'Download') {
-  const result = await showDownloadDialog(defaultStem, wordlist, title);
-  if (!result) return;
-  const { stem, ext, fmt } = result;
-  triggerDownload(serializeEntries(entries, fmt), `${stem}.${ext}`);
-  showToast(`Downloaded ${pluralize(entries.length, 'entry', 'entries')}`);
-}
-
-async function downloadMergedWordlistFromPanel() {
+function downloadMergedWordlistFromPanel() {
   const { entries } = buildMergedWordlist();
-  await downloadWithDialog('Grawlix Wordlist', null, entries, 'Download Merged Wordlist');
+  triggerDownload(serializeEntries(entries, getOutputFormat()), rescoredFilename(MERGED_ID));
+  showToast(`Downloaded ${pluralize(entries.length, 'entry', 'entries')}`);
 }
 
 function triggerDownload(text, filename) {
@@ -12053,26 +11536,21 @@ function triggerDownload(text, filename) {
   URL.revokeObjectURL(url);
 }
 
-async function downloadOriginalWordlist(wordlist) {
+function downloadSourceWordlist(wordlist) {
   if (!wordlist || !wordlist.rawEntries.length) return;
-  // The imported file text is stashed verbatim in IndexedDB at
-  // `data_<dbKey>`. Serving it byte-for-byte preserves the user's original
-  // casing, whitespace, comment formatting, and line endings — none of which
-  // survive a reconstruction from parsed wlEntries (entries are stored
-  // lowercased internally; the original-case form isn't kept).
-  const text = await Storage.readWordlist(wordlist);
-  if (!text) {
-    showToast('Original file not available');
-    return;
-  }
-  const filename = wordlist.originalFilename || `${wordlist.name}.txt`;
-  triggerDownload(text, filename);
+  triggerDownload(serializeEntries(getRescoredEntries(wordlist), getOutputFormat()), rescoredFilename(wordlist));
   showToast(`Downloaded ${pluralize(wordlist.rawEntries.length, 'entry', 'entries')}`);
 }
 
-async function downloadIndividualWordlistRescored(wordlist) {
+async function downloadOriginalWordlist(wordlist) {
   if (!wordlist || !wordlist.rawEntries.length) return;
-  await downloadWithDialog(`Grawlix ${wordlist.name}`, wordlist, getRescoredEntries(wordlist), 'Download Rescored Wordlist');
+  // Serve the imported file verbatim from IndexedDB — reconstructing from parsed
+  // wlEntries would lose the comment formatting, line endings, and ordering the
+  // user's file had, none of which round-trip through serializeEntries.
+  const text = await Storage.readWordlist(wordlist);
+  if (!text) { showToast('Original file not available'); return; }
+  triggerDownload(text, `${sanitizeFilenameStem(wordlist.name)}.txt`);
+  showToast(`Downloaded ${pluralize(wordlist.rawEntries.length, 'entry', 'entries')}`);
 }
 
 // ─── Workshop export ──────────────────────────────────────────────────────────
@@ -12506,7 +11984,7 @@ function applyRescoreRulesChange(wordlist) {
   updateWordlistDirty(wordlist);
   invalidateWordlistCaches(wordlist);
   persistMeta();
-  Storage.writeRescored(wordlist).catch(err => console.error('writeRescored failed', err));
+  MirrorSync.schedule(wordlist);
   repaintAfterCacheChange();
 }
 
@@ -12740,6 +12218,29 @@ window.__grawlixTest = {
 
   exportFilename(ext) {
     return exportFilename(ToolStack.getStack(), ext);
+  },
+
+  sync: {
+    merge3(base, file, idb) {
+      const { resolved, conflicts } = threeWayMergeEdits(parseWordlist(base), parseWordlist(file), parseWordlist(idb));
+      const dump = e => ({ entry: e.norm, display: e.display, score: e.score, comment: e.comment || '' });
+      return {
+        resolved: [...resolved.values()].map(dump).sort((a, b) => a.entry.localeCompare(b.entry)),
+        conflicts: conflicts.map(c => ({ norm: c.norm, device: c.device ? dump(c.device) : null, file: c.file ? dump(c.file) : null })),
+      };
+    },
+    _list(name) { return name === 'All' ? MERGED_ID : state.sources.find(w => w.name === name); },
+    attachMirror(name, opts) { return attachMirrorSync(this._list(name), opts); },
+    attachEditsExisting() { return attachEditsSync({ existing: true }); },
+    attachEditsNew() { return attachEditsSync({ existing: false }); },
+    reconcileEdits() { return EditsSync.reconcile(); },
+    tickEdits() { return EditsSync._tick(); },
+    isSynced(name) { return syncTargets.has(syncKey(this._list(name))); },
+    filename(name) { return syncFilename(syncKey(this._list(name))); },
+    async flushWrites() {
+      for (const [key, id] of [...MirrorSync._timers]) { clearTimeout(id); MirrorSync._timers.delete(key); await MirrorSync._flush(key); }
+      if (EditsSync._writeTimer) { clearTimeout(EditsSync._writeTimer); EditsSync._writeTimer = null; await EditsSync._flushWrite(); }
+    },
   },
 
   _lookup(name) {

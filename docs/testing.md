@@ -33,6 +33,8 @@ The suite covers what manual testing structurally misses. Manual already catches
 
 **Assertions describe user-meaningful outcomes** ("BAGEL has score 50"), not implementation details ("rule[3].output equals 50"). Implementation-level assertions break on harmless refactors, produce noise instead of signal, and are easy to "fix" by adjusting them to match the new code — silently watering down what the suite guarantees.
 
+**Don't assert element counts or static UI copy.** How many buttons a dialog renders, or a label's exact words, is markup and copy — not behavior. It churns constantly, so a test pinned to it breaks on every wording or layout tweak without catching a real regression (it tests the copy). Assert the outcome the controls produce — a sync attaches, an entry is written, a badge appears — not that there are two buttons reading X and Y. When a design change makes such a test fail, delete it rather than rewrite it, unless it guards genuine behavior.
+
 **Publisher fetches are stubbed.** The four auto-fetching publisher wordlists (JK, STWL, Broda, Nediger) hit `raw.githubusercontent.com` and `grawlix.wtf` on boot. Tests intercept via `page.route()` and return empty bodies by default; tests that need a publisher populated pass their own body. See [`tests/helpers.js`](../tests/helpers.js).
 
 **Fresh browser context per test.** Playwright's default. Each test gets clean localStorage + IndexedDB, so test order doesn't matter and no teardown is needed.
@@ -44,6 +46,8 @@ The suite covers what manual testing structurally misses. Manual already catches
 **Visual / layout bugs.** Screenshot diffing (compare each test's rendered PNG against a saved baseline) catches "the icon moved 5px" bugs but is brittle: antialiasing noise, constant baseline updates on every UI tweak, cross-browser font rendering differences. Not worth the maintenance burden for a solo project. Substitute: open the site on Safari, Firefox, and a phone before any release.
 
 **Real mobile Safari.** Playwright's WebKit is a Linux build that approximates Safari but isn't it. iOS-specific bugs only surface on actual devices.
+
+**Real File System Access.** The native file pickers and permission prompts can't be driven headless. `tests/disk-sync.spec.js` installs an in-memory fake for `showOpenFilePicker` / `showSaveFilePicker` / the handle, so the app's own attach/reconcile/write code is exercised, but the picker UI, permission grant, and boot reconnect-splash flow stay manual. The 3-way merge — the deletion-resurrection risk — is also covered directly via `sync.merge3`, which needs no fake at all. The action-row **sync pill** is asserted at the DOM level against the same fake — that it reflects sync state (the synced filename, the `→`/`⇄` arrow) once a list is attached. The sync **dialog's** button layout and copy aren't pinned by tests — that's brittle markup/copy (see *Strategy*); the doors' behavior is exercised through the attach paths (`sync.attachMirror` with and without `{ existing }`, `attachEditsExisting`/`attachEditsNew`), including that a mirror's "use existing" overwrites the target file with rescored output.
 
 ## Out of scope
 
@@ -103,6 +107,8 @@ Exposed unconditionally in `site/index.html` (see the *Test API* section near th
 | `getWordlist(name)` | Read-only snapshot of the fields tests care about (`entries`, `rescoreRules`, `uncovered`, `dirty`, `updateAvailable`, etc.). |
 | `exportText(format)` | Run a Workshop export builder against the current pipeline output and return its result. `format` is `'copy'`, `'wordlist'`, `'csv'`, or `'json'`. Returns a string for copy/csv, an object `{text, count, skipped}` for wordlist, and the data object for json. Awaits `pipelineIdle` first. |
 | `exportFilename(ext)` | Run the same filename builder Download menu items use, against the current tool stack. Returns the sanitized filename including extension. |
+| `sync.merge3(base, file, idb)` | Run the pure My Edits 3-way merge over three wordlist-text inputs. Returns `{resolved: [...], conflicts: [...]}` for asserting deletion-doesn't-resurrect and conflict detection without any file I/O. |
+| `sync.attachMirror(name, {existing}?)` / `attachEditsExisting()` / `attachEditsNew()` / `reconcileEdits()` / `isSynced(name)` / `filename(name)` / `flushWrites()` | Drive the real disk-sync attach/reconcile/write paths against the fake File System Access layer the test installs (`name === 'All'` targets the merged mirror; `attachMirror`'s `{existing: true}` exercises the write-to-existing-file door). See [`tests/disk-sync.spec.js`](../tests/disk-sync.spec.js). |
 
 Adding a function is fine; renaming or repurposing an existing one means updating every test that uses it.
 
