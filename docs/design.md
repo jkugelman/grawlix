@@ -69,7 +69,7 @@ Setup splits across two surfaces that answer different questions and stay distin
 
 Two-pane layout: list as a left rail beside the focused-wordlist panel when the viewport is wide enough, stacking above it on narrow viewports. The list itself groups into two labeled sections — **Merged** (the All card at the top) and **Sources** (every reorderable wordlist below). My Edits sits first inside Sources by default but is reorderable like any other.
 
-The focused-wordlist panel has no name/icon header — the focused wordlist is identified by the highlighted card in the list. The action row justifies the date label and primary action right.
+The focused-wordlist panel has no name/icon header — the focused wordlist is identified by the highlighted card in the list. The action row justifies the date label and action buttons right; none of the buttons carries accent styling — the Library is self-sufficient and has no single obvious next click.
 
 **On narrow viewports the selected card pins to the top.** When the list stacks above the panel, scrolling into the panel would otherwise carry the highlighted card off-screen — and that card is the only thing identifying the focused wordlist. So the selected card is `position: sticky`. The catch: a sticky element's travel is bounded by its parent box, and the card's wrappers (`.wld-list` / `.wld-list-sticky` / `.wld-list-body`) are only as tall as the list. The narrow layout collapses all three with `display: contents`, so the cards become flow children of `.wld-body` — which spans the full stacked height — and the card pins through the entire panel scroll. The desktop rail keeps the wrappers; it pins via the standard stretched-column inner-wrapper idiom instead.
 

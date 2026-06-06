@@ -3909,12 +3909,12 @@ const LibraryView = (() => {
     let dlBtn;
     if (!hasData) dlBtn = '';
     else if (hasRules) dlBtn = buildSplitBtn('Download', `LibraryView.action('download')`,
-      [['Download original', `LibraryView.action('downloadOriginal')`]], { primary: true, id: 'wld-download-btn' });
-    else dlBtn = `<button id="wld-download-btn" class="primary" onclick="LibraryView.action('download')">Download</button>`;
+      [['Download original', `LibraryView.action('downloadOriginal')`]], { id: 'wld-download-btn' });
+    else dlBtn = `<button id="wld-download-btn" onclick="LibraryView.action('download')">Download</button>`;
 
     let actionBtn, moreMenu;
     if (isEdits) {
-      actionBtn = `<button id="wld-action-btn" class="${hasData ? '' : 'primary'}" onclick="LibraryView.action('import')" ${wordlist._loading ? 'disabled' : ''}>${wordlist._loading ? 'Importing…' : 'Import'}</button>`;
+      actionBtn = `<button id="wld-action-btn" onclick="LibraryView.action('import')" ${wordlist._loading ? 'disabled' : ''}>${wordlist._loading ? 'Importing…' : 'Import'}</button>`;
       moreMenu = hasData ? buildMoreMenuHTML([['Clear', `LibraryView.action('clear')`]]) : '';
     } else {
       const showBadge = wordlist._updateAvailable && !wordlist._loading;
@@ -3926,9 +3926,9 @@ const LibraryView = (() => {
         const btnLabel = `${label}${dot}`;
         actionBtn = buildSplitBtn(btnLabel, `LibraryView.action('fetch')`,
           [['Import', `LibraryView.action('import')`]],
-          { primary: true, disabled: !!wordlist._loading, title: updateTitle, id: 'wld-action-btn' });
+          { disabled: !!wordlist._loading, title: updateTitle, id: 'wld-action-btn' });
       } else {
-        actionBtn = `<button id="wld-action-btn" class="primary"${updateTitle ? ` title="${updateTitle}"` : ''} onclick="LibraryView.action('import')" ${wordlist._loading ? 'disabled' : ''}>${wordlist._loading ? 'Importing…' : 'Import'}${dot}</button>`;
+        actionBtn = `<button id="wld-action-btn"${updateTitle ? ` title="${updateTitle}"` : ''} onclick="LibraryView.action('import')" ${wordlist._loading ? 'disabled' : ''}>${wordlist._loading ? 'Importing…' : 'Import'}${dot}</button>`;
       }
 
       moreMenu = buildMoreMenuHTML([
@@ -3984,7 +3984,7 @@ const LibraryView = (() => {
     const filteredEntries = intervals ? entries.filter(e => matchesRange(e.score, intervals)) : entries;
     const stats = intervals ? computeStatsRaw(filteredEntries) : computeStats(_mergedStatsKey, entries);
     const hasData = entries.length > 0;
-    const dlBtn = hasData ? `<button id="wld-download-btn" class="primary" onclick="LibraryView.action('download')">Download</button>` : '';
+    const dlBtn = hasData ? `<button id="wld-download-btn" onclick="LibraryView.action('download')">Download</button>` : '';
     const actionsHTML = [dlBtn].filter(Boolean).join('\n');
 
     pane.innerHTML = `

@@ -160,8 +160,8 @@ Each wordlist card carries a drag handle (reorder = merge priority), an enable c
 **Right pane.** Each card's panel has the same shape: an action row, a rules editor, then a sticky region above the entries view holding the search bar (on populated wordlists) and the stats bar with histogram. The stats bar carries the same controls as on Workshop — counts, stats numbers, histogram, score range, sort — minus the Groups count (Library has no tool pipeline). The histogram is click-and-drag to filter, same as on Workshop.
 
 **Action buttons differ per wordlist:**
-- **Sources** — Update/Fetch primary action, Download, and a ⋮ menu with Configure / Delete.
-- **My Edits** — Import (primary when empty, plain otherwise), Download (primary when populated, hidden when empty; splits to add **Download original** once it has rescore rules), and Clear in the ⋮ menu.
+- **Sources** — Update/Fetch, Download, and a ⋮ menu with Configure / Delete.
+- **My Edits** — Import, Download (hidden when empty; splits to add **Download original** once it has rescore rules), and Clear in the ⋮ menu.
 - **All** — Download, no ⋮ menu.
 
 Every panel also carries the **sync pill** on the left of the action row (see § Disk sync).
