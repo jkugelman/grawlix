@@ -180,6 +180,8 @@ Custom wordlists with up to 10 distinct scores get auto-seeded with one inert ru
 
 **Reset to defaults.** A button appears in the rules editor (rescore on a publisher Source or My Edits, scoring on All) when you've customized the rules away from their shipped defaults. Clicking it restores the defaults, with a confirmation first. Visible only inside the editor and only when there's something to undo.
 
+**Apply rescoring permanently.** A kebab (⋮) action on My Edits and imported wordlists: it rewrites every entry's stored score to its rescored value, then resets the rules. Use it once you've translated a personal list onto Grawlix's scale and want to stop maintaining the translation — afterward the scores *are* Grawlix-scale, so new scores you type are taken at face value instead of being re-mapped. The original scores are lost, so grab **Download original** first if you want a backup. It's disabled when there's no rescoring to apply, and on auto-fetched or publisher wordlists.
+
 **Entries view.** Each populated wordlist's panel includes a virtual-scrolled, monospace, text-file-flavored entries list below its rules editor, always showing the rescored result. An inline arrow shows what each rule changed — e.g. `BAGEL  45 → 50  tasty`; untouched rows show their input score plain. The Library entries view is read-only; editing routes through the Workshop entries table's popover.
 
 **Search bar** (above the stats bar). Full pattern syntax and whole-word toggle. No Replace caret — the Library bar filters a wordlist for inspection, it doesn't transform or query it. Score range and sort live in the stats bar below, the same as on Workshop.

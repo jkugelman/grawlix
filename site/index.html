@@ -1977,7 +1977,11 @@ function buildSplitBtn(mainLabel, mainOnclick, menuItems, { primary = false, dis
 }
 
 function buildMoreMenuHTML(menuItems) {
-  const items = menuItems.map(([lbl, fn]) => `<button onclick="${fn}">${lbl}</button>`).join('');
+  const items = menuItems.map(([lbl, fn, opts = {}]) => {
+    const dis   = opts.disabled ? ' disabled' : '';
+    const title = opts.title ? ` title="${esc(opts.title)}"` : '';
+    return `<button onclick="${fn}"${dis}${title}>${lbl}</button>`;
+  }).join('');
   return `<div class="split-btn">` +
     `<button class="more-menu-btn" onclick="toggleSplitMenu(event)" title="More options">⋮</button>` +
     `<div class="split-btn-menu">${items}</div>` +
@@ -3905,7 +3909,10 @@ const LibraryView = (() => {
     let actionBtn, moreMenu;
     if (isEdits) {
       actionBtn = `<button id="wld-action-btn" onclick="LibraryView.action('import')" ${wordlist._loading ? 'disabled' : ''}>${wordlist._loading ? 'Importing…' : 'Import'}</button>`;
-      moreMenu = hasData ? buildMoreMenuHTML([['Clear', `LibraryView.action('clear')`]]) : '';
+      moreMenu = hasData ? buildMoreMenuHTML([
+        ['Apply rescoring permanently', `LibraryView.action('bakeRescoring')`, bakeMenuOpts(wordlist)],
+        ['Clear', `LibraryView.action('clear')`],
+      ]) : '';
     } else {
       const showBadge = wordlist._updateAvailable && !wordlist._loading;
       const dot = showBadge ? `&nbsp;${buildBadgeHTML('info')}` : '';
@@ -3923,6 +3930,7 @@ const LibraryView = (() => {
 
       moreMenu = buildMoreMenuHTML([
         ['Configure', `LibraryView.action('configure')`],
+        ['Apply rescoring permanently', `LibraryView.action('bakeRescoring')`, bakeMenuOpts(wordlist)],
         ['Delete',    `LibraryView.action('delete')`],
       ]);
     }
@@ -4073,6 +4081,7 @@ const LibraryView = (() => {
     delete:    async () => { await deleteWordlist(_focusedWordlist); },
     configure: () => ConfigureWordlistDialog.open(_focusedWordlist),
     clear:     () => clearEdits(),
+    bakeRescoring: () => bakeRescoring(_focusedWordlist),
     download:  () => {
       if (_focusedWordlist === MERGED_ID) return downloadMergedWordlistFromPanel();
       return downloadSourceWordlist(_focusedWordlist);
@@ -4682,6 +4691,63 @@ async function persistEdits(edits) {
   await Storage.writeWordlist(edits, serializeEntries(sortedEntries(edits.rawEntries)));
   persistMeta();
   EditsSync.scheduleWrite();
+}
+
+// Gated to user-owned, non-fetched lists: a fetch URL would re-pull the
+// original-scale data and clobber the bake, and a publisher's defaultRules are a
+// live transform, so resetting a baked publisher list to them would re-rescore
+// the already-baked scores.
+function canBakeRescoring(wordlist) {
+  return !wordlist.publisherId && !wordlist.url && bakingWouldChangeScores(wordlist);
+}
+
+function bakingWouldChangeScores(wordlist) {
+  return getRescoredEntries(wordlist).some((e, i) => e.score !== wordlist.rawEntries[i].score);
+}
+
+function bakeMenuOpts(wordlist) {
+  if (canBakeRescoring(wordlist)) return {};
+  const reason = (wordlist.publisherId || wordlist.url)
+    ? 'Only available for My Edits and imported lists'
+    : 'No rescoring to apply';
+  return { disabled: true, title: reason };
+}
+
+// Reset like a fresh import. The dirty = false is load-bearing: reconcile
+// early-returns on a dirty list, so without it a prior translation setup would
+// survive the bake and silently re-impose the dual scale baking just resolved.
+function resetRescoreRulesAfterBake(wordlist) {
+  if (wordlist.type === 'edits') {
+    wordlist.rescoreRules = editsLegend();
+    wordlist.dirty = false;
+    reconcileEditsRulesAfterImport(wordlist);
+  } else {
+    wordlist.rescoreRules = [];
+    maybeAutoSeedRescoreRules(wordlist);
+  }
+}
+
+async function bakeRescoring(wordlist) {
+  if (!canBakeRescoring(wordlist)) return;
+  const html = `Permanently rescore ${buildWordlistNameHTML(wordlist)}? This will rewrite every entry's score using the current rules, then reset the rules. The original scores will be lost — use <strong>Download original</strong> first if you want a backup.`;
+  if (!await showConfirm('', { confirmText: 'Rescore', html })) return;
+
+  const baked = getRescoredEntries(wordlist).map(e => ({ ...e }));
+  batchUpdate(() => {
+    invalidateWordlistCaches(wordlist);
+    wordlist.rawEntries = baked;
+    resetRescoreRulesAfterBake(wordlist);
+    compileRescoreRules(wordlist);
+    repaintAfterCacheChange();
+  });
+
+  if (wordlist.type === 'edits') {
+    await persistEdits(wordlist);
+  } else {
+    await Storage.writeWordlist(wordlist, serializeEntries(wordlist.rawEntries));
+    persistMeta();
+    MirrorSync.schedule(wordlist);
+  }
 }
 
 async function clearEdits() {
@@ -11855,6 +11921,8 @@ window.__grawlixTest = {
     const wl = this._lookup(name);
     setWordlistRescoreRules(wl, rules);
   },
+
+  bakeRescoring(name) { return bakeRescoring(this._lookup(name)); },
 
   setUpdateAvailable(name, value) {
     const wl = this._lookup(name);

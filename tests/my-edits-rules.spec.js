@@ -49,3 +49,32 @@ test("customizing an All tier propagates into a non-dirty My Edits legend", asyn
   expect(wl.rescoreRules.map(r => r.input)).not.toContain('60');
   expect(wl.dirty).toBe(false);
 });
+
+test('baking My Edits writes rescored scores into the raw data and resets the rules', async ({ page }) => {
+  await gotoApp(page);
+  await importIntoEdits(page, 'CAT;5\nDOG;7\n');
+  await page.evaluate(() => window.__grawlixTest.setRescoreRules('My Edits', [
+    { input: '5', length: '', output: '50', note: '' },
+    { input: '7', length: '', output: '60', note: '' },
+  ]));
+
+  await page.evaluate(() => { window.__grawlixTest.bakeRescoring('My Edits'); });
+  await page.locator('#confirm-dialog #btn-confirm-ok').click();
+
+  await expect.poll(async () =>
+    page.evaluate(() => window.__grawlixTest.getWordlist('My Edits').entries.map(e => e.score).sort((a, b) => a - b)),
+  ).toEqual([50, 60]);
+
+  const wl = await myEdits(page);
+  expect(wl.rescoreRules.map(r => r.input)).toEqual(['60', '50', '40', '30', '20', '10', '0']);
+  expect(wl.rescoreRules.every(r => r.output === '')).toBe(true);
+  expect(wl.dirty).toBe(false);
+
+  expect(await page.evaluate(() => window.__grawlixTest.getMergedEntry('CAT'))).toMatchObject({ score: 50 });
+
+  await page.reload();
+  await expect.poll(async () =>
+    page.evaluate(() => window.__grawlixTest.getWordlist('My Edits')?.entries.map(e => e.score).sort((a, b) => a - b) ?? null),
+    { timeout: 10000 },
+  ).toEqual([50, 60]);
+});

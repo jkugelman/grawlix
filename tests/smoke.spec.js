@@ -69,6 +69,7 @@ test('test API is exposed on window', async ({ page }) => {
   expect(apiShape).toEqual([
     '_lookup',
     'addCustomWordlist',
+    'bakeRescoring',
     'deleteMyEdit',
     'dumpMergedCache',
     'exportFilename',
