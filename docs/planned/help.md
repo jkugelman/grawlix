@@ -18,7 +18,7 @@ This doc is more discussion than design — the conversation is just getting sta
 
 1. **Welcome / Getting started.** Tiny orientation surface. May be a first-boot in-app slide deck, a static page, or both. Open question whether it stays as the slide-deck-tour shape from the earlier plan, or collapses into a single short page in Crosserville's GettingStarted style.
 
-2. **FAQ.** Q&A format. Covers things people would actually ask: mental-model questions (*"What is rescoring?"*), dark-corner explainers (*"Why are some scores faded?"*), data questions (*"Where does my stuff live?"*), philosophy questions (*"Why doesn't Grawlix include wordlists out of the box?"*).
+2. **FAQ.** Q&A format. Covers things people would actually ask: mental-model questions (*"What is rescoring?"*), dark-corner explainers (*"Why does the same word show up twice?"*), data questions (*"Where does my stuff live?"*), philosophy questions (*"Why doesn't Grawlix include wordlists out of the box?"*).
 
 3. **Tips & tricks.** Discovery format. Did-you-know one-liners: *"Click a histogram bar to filter by score range," "Press F2 to rename a wordlist," "Stack URLs are shareable."* For things users wouldn't think to ask about because they don't know the feature exists.
 
