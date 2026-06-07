@@ -1099,9 +1099,10 @@ body.picker-expanded #picker-backdrop { opacity: 1; }
 .wld-pane-empty { display: flex; align-items: center; justify-content: center; color: var(--faint); font-size: 14px; padding: 60px 30px; }
 .wld-title-bar { display: flex; align-items: center; gap: 16px; padding: 12px 22px; border-bottom: 1px solid var(--border2);
   position: sticky; top: var(--header-h); z-index: 52; background: var(--surface); }
-.wld-pane-actions { display: flex; align-items: center; gap: 6px; flex: 1; min-width: 0; flex-wrap: wrap; }
-.wld-pane-actions > :first-child { margin-left: auto; }
-.wld-pane-title { font-size: 20px; font-weight: 600; color: var(--text); line-height: 1.2; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.wld-pane-actions { display: flex; align-items: center; gap: 6px; flex: 0 0 auto; margin-left: auto; flex-wrap: wrap; }
+.wld-pane-title { display: flex; align-items: center; gap: 8px; min-width: 0; overflow: hidden; font-family: inherit; font-size: inherit; font-weight: 600; line-height: 1.2; color: var(--text); background: none; border: none; padding: 0; text-align: left; cursor: default; }
+.wld-pane-title-label { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.wld-pane-title-chevron { flex-shrink: 0; display: none; color: var(--muted); }
 .wld-sync-hang { padding: 0 22px; }
 .wld-sync-sign { display: inline-flex; align-items: center; gap: 6px; max-width: 100%; margin-top: -3px;
   padding: 6px 12px; background: var(--surface); border: 1px solid var(--border); border-top: none; border-radius: 0 0 8px 8px;
@@ -1136,18 +1137,23 @@ body.picker-expanded #picker-backdrop { opacity: 1; }
   }
   .wld-list-sticky { position: sticky; top: var(--header-h); max-height: calc(100vh - var(--header-h)); overflow-y: auto; }
   .wld-pane { flex: 1; min-width: 0; }
+  #wld-onboarding-mobile { display: none; }
 }
 
-/* Narrow layout: the wordlist list stacks above the pane and scrolls away
-   with the page. Collapse the rail's wrapper boxes with `display: contents`
-   so the cards become flow children of .wld-body and scroll with it; the
-   pane bar pins on scroll instead (sticky on all platforms — see .wld-title-bar). */
+/* Rail collapses into a dropdown under the title bar (the title is its trigger,
+   paneTitleHTML). Fixed, not absolute: it hangs off the sticky title bar, which
+   offers no positioned ancestor to anchor against. */
 @media (max-width: 759px) {
-  .wld-list, .wld-list-sticky, .wld-list-body { display: contents; }
-  /* The collapsed wrappers carried the rail's surface tint and the divider
-     from the pane; reapply both on the rows themselves. */
-  .wordlist-card, .wld-list-section-header { background: var(--surface); }
-  .wld-list .add-wordlist-row { border-bottom: 1px solid var(--border2); }
+  .wld-list {
+    position: fixed; left: 0; right: 0; top: calc(var(--header-h) + var(--title-bar-h)); z-index: 60;
+    max-height: calc(100dvh - var(--header-h) - var(--title-bar-h) - 12px); overflow-y: auto;
+    border-top: 1px solid var(--border2); box-shadow: 0 12px 24px rgba(0, 0, 0, 0.28);
+  }
+  #library-view:not(.wld-picker-open) .wld-list { display: none; }
+  #wld-onboarding { display: none; }
+  .wld-pane-title { cursor: pointer; }
+  .wld-pane-title-chevron { display: inline-block; transition: transform 0.15s; }
+  #library-view.wld-picker-open .wld-pane-title-chevron { transform: rotate(180deg); }
 }
 
 /* Onboarding banner at the top of the Library view's wordlist list */
@@ -1368,6 +1374,7 @@ html.dark-mode .wld-onboarding { background: color-mix(in srgb, var(--accent) 15
   </div>
 
   <section id="library-view" hidden>
+    <div class="wld-onboarding" id="wld-onboarding-mobile" hidden></div>
     <div class="wld-body">
       <aside class="wld-list">
         <div class="wld-list-sticky">
@@ -1619,7 +1626,10 @@ const isMobile = () =>
 
 function paneTitleHTML(list) {
   const name = esc(list === MERGED_ID ? MERGED_NAME : list.name);
-  return `<div class="wld-pane-title" title="${name}">${buildWordlistNameHTML(list, { bold: false })}</div>`;
+  return `<button type="button" class="wld-pane-title" title="${name}" aria-haspopup="true" aria-expanded="false" onclick="LibraryView.togglePicker(event)">`
+    + `<span class="wld-pane-title-label">${buildWordlistNameHTML(list, { bold: false })}</span>`
+    + `<svg class="wld-pane-title-chevron" width="10" height="6" aria-hidden="true"><use href="#icon-arrow"/></svg>`
+    + `</button>`;
 }
 
 function syncSignHTML(list) {
@@ -3792,7 +3802,9 @@ const WorkshopView = (() => {
 const LibraryView = (() => {
   const el = document.getElementById('library-view');
 
-  const onboarding = el.querySelector('#wld-onboarding');
+  // Two hosts: the rail one plus one above .wld-body, because on mobile the rail
+  // collapses into a closed popover that would otherwise hide onboarding inside it.
+  const onboardingHosts = [...el.querySelectorAll('.wld-onboarding')];
   let _onboardingPage = lsLoad('onboarded')
     ? null
     : (parseInt(lsLoad('onboardingPage'), 10) || 1);
@@ -3847,7 +3859,7 @@ const LibraryView = (() => {
   }
 
   function renderOnboarding() {
-    if (_onboardingPage === null) { onboarding.hidden = true; return; }
+    if (_onboardingPage === null) { onboardingHosts.forEach(h => h.hidden = true); return; }
 
     // Auto-advance: relevant wordlist already populated.
     if (_onboardingPage === 2 && (getEditsWordlist()?.rawEntries.length ?? 0) > 0) {
@@ -3862,13 +3874,13 @@ const LibraryView = (() => {
       }
     }
 
-    onboarding.hidden = false;
-    onboarding.innerHTML = buildOnboardingPageHTML(_onboardingPage);
+    const html = buildOnboardingPageHTML(_onboardingPage);
+    onboardingHosts.forEach(h => { h.hidden = false; h.innerHTML = html; });
   }
 
   function finishOnboarding() {
     setOnboardingPage(null);
-    onboarding.hidden = true;
+    onboardingHosts.forEach(h => h.hidden = true);
     lsSave('onboarded', '1');
   }
 
@@ -3906,8 +3918,9 @@ const LibraryView = (() => {
     // renderAll → renderOnboarding, auto-advancing once the import lands.
   }
 
-  onboarding.addEventListener('click', e => {
+  el.addEventListener('click', e => {
     const action = e.target.closest('[data-onboard-action]')?.dataset.onboardAction;
+    if (!action) return;
     if (action === 'dismiss')     finishOnboarding();
     else if (action === 'next')   advanceOnboarding();
     else if (action === 'blank')  onboardingGoBlank();
@@ -4199,9 +4212,34 @@ const LibraryView = (() => {
 
   function focus(target) {
     _focusedWordlist = target;
+    closePicker();
     renderList();
     renderPane();
   }
+
+  // Gated on the width media query, not isMobile(): the CSS popover keys off the
+  // same 760px breakpoint, while isMobile() (a pointer/touch check) would desync —
+  // a narrow desktop window would show the popover but leave the trigger dead.
+  const pickerNarrow = window.matchMedia('(max-width: 759px)');
+  function openPicker() {
+    el.classList.add('wld-picker-open');
+    el.querySelector('.wld-pane-title')?.setAttribute('aria-expanded', 'true');
+    document.addEventListener('click', onOutsidePickerClick);
+  }
+  function closePicker() {
+    if (!el.classList.contains('wld-picker-open')) return;
+    el.classList.remove('wld-picker-open');
+    el.querySelector('.wld-pane-title')?.setAttribute('aria-expanded', 'false');
+    document.removeEventListener('click', onOutsidePickerClick);
+  }
+  function togglePicker() {
+    if (!pickerNarrow.matches) return;
+    el.classList.contains('wld-picker-open') ? closePicker() : openPicker();
+  }
+  function onOutsidePickerClick(e) {
+    if (!e.target.closest('.wld-list, .wld-pane-title')) closePicker();
+  }
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') closePicker(); });
 
   // Must stay an in-place patch of the pill, never a renderPane — sync status
   // flips on every debounced save, and rebuilding the scroller mid-edit would
@@ -4427,7 +4465,7 @@ const LibraryView = (() => {
   }
 
   return {
-    show, hide, refresh, focus, action, getFocusedWordlist,
+    show, hide, refresh, focus, action, getFocusedWordlist, togglePicker,
     refreshRescoreSection, refreshScoringSection, updateListMeta, refreshSyncIndicators,
     isVisible: () => !el.hidden,
     onSearch, onWholeWord, onSortAxis, toggleSortDir, onScoreRange,
