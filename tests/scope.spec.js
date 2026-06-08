@@ -1,8 +1,9 @@
-// Scoped-corpus engine (Stage 1a of the unify redesign). Pins the contract
-// that scoping the table + tools to a single source shows that source as
-// itself — no other publisher's opinion mixed in — but with the My Edits
-// overlay applied, and that returning to All restores the merged view. Scope
-// is driven through the `setScope` test API; there is no scope UI yet.
+// Scoped-corpus engine (unify redesign). Pins the contract that scoping the
+// table + tools to a single source shows that source's OWN data only — no other
+// publisher's opinion and no My Edits overlay mixed in — and that returning to
+// All restores the merged view. A My Edits edit therefore appears only in All or
+// when scoped to My Edits itself. Scope is driven through the `setScope` test
+// API; there is no scope UI yet.
 
 const { test, expect } = require('@playwright/test');
 const { stubPublisherFetches, gotoApp, scopeTo, expectVisible, openLibrary, focusWordlist } = require('./helpers');
@@ -42,25 +43,30 @@ test('scope shows the source itself (no other publisher mixed in); back-to-All r
     .toMatchObject({ score: 90, wordlist: 'Hi' });
 });
 
-test('the My Edits overlay travels into a scoped source', async ({ page }) => {
+test('a My Edits edit does not appear in a scoped source view — only in All', async ({ page }) => {
   await gotoApp(page);
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
     name: 'Pub', entries: ['ocean', 'tide'], scores: [70, 40],
   }));
 
-  // Override tide in My Edits (before scoping, so the scoped corpus is built
-  // fresh with the edit present). My Edits is you, not a publisher, so it
-  // follows you into every scope at top priority. All-lowercase keeps display
-  // null, matching the source's variant so the override supersedes in place.
+  // Override tide to 55 in My Edits. All-lowercase keeps display null, matching
+  // the source's variant so the override would supersede in place if it traveled.
   await page.evaluate(() => window.__grawlixTest.saveMyEdit('tide', 'tide', 55));
 
+  // Scoped to Pub the view is Pub's own data only — the My Edits override is
+  // absent and tide reads Pub's own 40.
   await scopeTo(page, 'Pub');
   await expectVisible(page, ['ocean', 'tide']);
   expect(await page.evaluate(() => window.__grawlixTest.getMergedEntry('TIDE')))
-    .toMatchObject({ score: 55, wordlist: 'My Edits' });
-  // OCEAN, untouched by My Edits, reads the source's own score.
+    .toMatchObject({ score: 40, wordlist: 'Pub' });
   expect(await page.evaluate(() => window.__grawlixTest.getMergedEntry('OCEAN')))
     .toMatchObject({ score: 70, wordlist: 'Pub' });
+
+  // In All, the edit surfaces: My Edits wins TIDE at 55.
+  await scopeTo(page, 'All');
+  await expectVisible(page, ['ocean', 'tide']);
+  expect(await page.evaluate(() => window.__grawlixTest.getMergedEntry('TIDE')))
+    .toMatchObject({ score: 55, wordlist: 'My Edits' });
 });
 
 test('a disabled source is still viewable when scoped to it', async ({ page }) => {
@@ -98,39 +104,39 @@ async function readWorkshopStats(page) {
   });
 }
 
-test('editing My Edits while scoped updates the scoped view immediately', async ({ page }) => {
+test('editing My Edits while scoped: a regular source is unchanged, All reflects it, My Edits itself updates', async ({ page }) => {
   await gotoApp(page);
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
     name: 'Pub', entries: ['ocean', 'tide'], scores: [70, 40],
   }));
 
+  // Scoped to a regular source, a My Edits edit leaves that source's view
+  // untouched (the scope shows Pub's own data) but does flow into All.
   await scopeTo(page, 'Pub');
   await expectVisible(page, ['ocean', 'tide']);
-
-  // Override an existing entry: the scoped view must show the new score, not the
-  // source's, even though the only patch path patchMergedForNorms knows is the
-  // merged cache. The scoped corpus is rebuilt on edit instead.
   await page.evaluate(() => window.__grawlixTest.saveMyEdit('tide', 'tide', 55));
   expect(await page.evaluate(() => window.__grawlixTest.getMergedEntry('TIDE')))
-    .toMatchObject({ score: 55, wordlist: 'My Edits' });
-  await expectVisible(page, ['ocean', 'tide']);
-
-  // Add a brand-new entry while scoped.
+    .toMatchObject({ score: 40, wordlist: 'Pub' });
+  // A pure add to My Edits also stays out of the scoped source view.
   await page.evaluate(() => window.__grawlixTest.saveMyEdit('reef', 'reef', 60));
-  await expectVisible(page, ['ocean', 'reef', 'tide']);
-  expect(await page.evaluate(() => window.__grawlixTest.getMergedEntry('REEF')))
-    .toMatchObject({ score: 60, wordlist: 'My Edits' });
-
-  // Delete a My Edits-only entry while scoped — its row leaves the view.
-  await page.evaluate(() => window.__grawlixTest.deleteMyEdit('reef'));
   await expectVisible(page, ['ocean', 'tide']);
   expect(await page.evaluate(() => window.__grawlixTest.getMergedEntry('REEF'))).toBeNull();
 
-  // Back to All, the merged cache carries the surviving edit (TIDE override).
   await scopeTo(page, 'All');
-  await expectVisible(page, ['ocean', 'tide']);
+  await expectVisible(page, ['ocean', 'reef', 'tide']);
   expect(await page.evaluate(() => window.__grawlixTest.getMergedEntry('TIDE')))
     .toMatchObject({ score: 55, wordlist: 'My Edits' });
+  expect(await page.evaluate(() => window.__grawlixTest.getMergedEntry('REEF')))
+    .toMatchObject({ score: 60, wordlist: 'My Edits' });
+
+  // Scoped to My Edits itself, an edit there must rebuild its own view in place —
+  // the cache-invalidate hook in applyEditsChange covers exactly this case.
+  await scopeTo(page, 'My Edits');
+  await expectVisible(page, ['reef', 'tide']);
+  await page.evaluate(() => window.__grawlixTest.saveMyEdit('kelp', 'kelp', 50));
+  await expectVisible(page, ['kelp', 'reef', 'tide']);
+  await page.evaluate(() => window.__grawlixTest.deleteMyEdit('reef'));
+  await expectVisible(page, ['kelp', 'tide']);
 });
 
 test('the histogram + stats reflect the scoped corpus, not All', async ({ page }) => {

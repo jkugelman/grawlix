@@ -11526,8 +11526,8 @@ function applyEditsChange(edits, norms, mutate) {
   _statsCache.delete(_mergedStatsKey);
   invalidatePreSearchCache();
   patchMergedForNorms(snap);
-  // Scoped views rebuild on edit rather than teaching patchMergedForNorms a
-  // second in-place resolver — the dual-resolver-in-sync trap lazy-merge rejected.
+  // When scoped to My Edits itself, its own view must rebuild to reflect the edit
+  // (other scoped sources show only their own data, so they're unaffected).
   if (state.selected !== MERGED_ID) _scopedWordlistCache.delete(state.selected);
   refreshDerivedDisplays();
 }
@@ -11596,15 +11596,12 @@ function buildMergedWordlist() {
   return _mergedWordlistCache;
 }
 
-// Two-contributor merge: My Edits overlay (highest priority) over the scoped
-// source, independent of enabled flags — My Edits travels into every scope and
-// a disabled source is still viewable when scoped to it.
+// Built independent of source.enabled so a disabled source stays viewable when
+// it's the scope.
 function buildScopedCorpus(source) {
   const cached = _scopedWordlistCache.get(source);
   if (cached) return cached;
-  const edits = getEditsWordlist();
-  const contributors = edits && edits !== source ? [edits, source] : [source];
-  const corpus = resolveCorpus(bucketContributors(contributors), contributors);
+  const corpus = resolveCorpus(bucketContributors([source]), [source]);
   _scopedWordlistCache.set(source, corpus);
   return corpus;
 }
