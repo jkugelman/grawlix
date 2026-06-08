@@ -3,7 +3,7 @@
 // code against it. See site/index.html § Disk sync and docs/design.md § Disk sync.
 
 const { test, expect } = require('@playwright/test');
-const { gotoApp, stubPublisherFetches, openLibrary, focusWordlist } = require('./helpers');
+const { gotoApp, stubPublisherFetches, scopeTo } = require('./helpers');
 
 async function installFakeFS(page) {
   await page.addInitScript(() => {
@@ -160,16 +160,15 @@ test('the poll tick applies an external edit even right after connect wrote the 
 test('the sync sign reflects the synced file', async ({ page }) => {
   await gotoApp(page);
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({ name: 'Src', scores: [50], entries: ['ALPHA'] }));
-  await openLibrary(page);
-  await focusWordlist(page, 'Src');
+  await scopeTo(page, 'Src');
 
-  await expect(page.locator('#wld-sync-sign')).not.toContainText('.txt');
+  const syncSign = page.locator('#workshop-wordlist-bar #wld-sync-sign');
+  await expect(syncSign).not.toContainText('.txt');
 
   await setNextName(page, 'Src.txt');
   await page.evaluate(() => window.__grawlixTest.sync.attachMirror('Src'));
-  await page.evaluate(() => LibraryView.focus(state.sources.find(w => w.name === 'Src')));
 
-  await expect(page.locator('#wld-sync-sign')).toContainText('Src.txt');
+  await expect(syncSign).toContainText('Src.txt');
 });
 
 test('an external deletion in the synced file deletes the entry without resurrecting it', async ({ page }) => {

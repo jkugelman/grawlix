@@ -1,5 +1,5 @@
 const { test, expect } = require('@playwright/test');
-const { stubPublisherFetches, gotoApp, openLibrary, focusWordlist } = require('./helpers');
+const { stubPublisherFetches, gotoApp, scopeTo } = require('./helpers');
 
 test.beforeEach(async ({ page }) => {
   await stubPublisherFetches(page);
@@ -164,21 +164,21 @@ test.describe('output format UI', () => {
     await page.evaluate(() => window.__grawlixTest.setRescoreRules('Ruled', [{ input: '50', length: '', output: '80' }]));
     await page.evaluate(() => window.__grawlixTest.addCustomWordlist({ name: 'Plain', entries: ['dog'], scores: [50] }));
     await page.evaluate(() => window.__grawlixTest.setRescoreRules('Plain', []));  // custom lists auto-seed rules; clear them
-    await openLibrary(page);
 
-    const downloadOriginal = page.locator('#wld-download-btn .split-btn-menu button');
+    const downloadBtn = page.locator('#workshop-wordlist-bar #wld-download-btn');
+    const downloadOriginal = downloadBtn.locator('.split-btn-menu button');
 
-    await focusWordlist(page, 'Ruled');
-    await expect(page.locator('#wld-download-btn .split-btn-main')).toHaveText('Download');
+    await scopeTo(page, 'Ruled');
+    await expect(downloadBtn.locator('.split-btn-main')).toHaveText('Download');
     await expect(downloadOriginal).toHaveText('Download original');
 
-    await focusWordlist(page, 'Plain');
+    await scopeTo(page, 'Plain');
     await expect(downloadOriginal).toHaveCount(0);
-    await expect(page.locator('#wld-download-btn')).toHaveText('Download');
+    await expect(downloadBtn).toHaveText('Download');
 
-    await page.evaluate(() => LibraryView.focus(MERGED_ID));
+    await scopeTo(page, 'All');
     await expect(downloadOriginal).toHaveCount(0);
-    await expect(page.locator('#wld-download-btn')).toHaveText('Download');
+    await expect(downloadBtn).toHaveText('Download');
   });
 
   test('Download original saves the imported file verbatim, not the rule output', async ({ page }) => {

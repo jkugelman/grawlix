@@ -197,11 +197,17 @@ button.header-nav-item:hover:not(:disabled) { color: white; background: var(--hd
 .wls-option--disabled { color: var(--faint); }
 .wls-option--disabled .wordlist-icon { filter: grayscale(1); opacity: 0.6; }
 
-.workshop-rescore-toggle { display: inline-flex; align-items: center; justify-content: center; padding: 4px; color: var(--muted); background: none; border: 1px solid transparent; border-radius: 6px; cursor: pointer; transition: color 0.15s, background 0.15s, border-color 0.15s; }
-.workshop-rescore-toggle:hover { color: var(--accent); background: var(--hover); }
+.workshop-rescore-toggle { padding: 4px 8px; color: var(--muted); transition: color 0.15s, background 0.15s, border-color 0.15s; }
+.workshop-rescore-toggle:hover { color: var(--text); }
 .workshop-rescore-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .workshop-rescore-toggle-icon { flex-shrink: 0; display: block; }
 #workshop-wordlist-bar.rescore-open .workshop-rescore-toggle { color: var(--accent); background: var(--sel); border-color: var(--accent); }
+.wls-actions { display: flex; align-items: center; gap: 8px; flex: 0 0 auto; margin-left: auto; flex-wrap: wrap; }
+.wls-actions:empty { display: none; }
+.wls-bar-meta { position: absolute; top: calc(100% + 1px); right: 32px; }
+.wls-bar-meta:empty { display: none; }
+#workshop-wordlist-bar .wld-sync-hang { padding: 0; }
+#workshop-wordlist-bar .wld-sync-sign { margin-top: 0; }
 /* grid 0fr is not display:none, so the collapsed editor stays in layout + the
    a11y tree; the hidden attribute (set after the close transition) is what
    actually removes it, keeping Playwright's toBeVisible/toBeHidden honest. */
@@ -263,6 +269,7 @@ button.danger:hover:not(:disabled) { background: #e74c3c; border-color: #c0392b;
 .split-btn-menu { display: none; position: absolute; top: 100%; right: 0; margin-top: 3px; background: var(--bg); border: 1px solid var(--border); border-radius: 4px; box-shadow: 0 2px 8px rgba(0,0,0,0.15); z-index: 200; padding: 4px 0; white-space: nowrap; }
 .split-btn.open .split-btn-menu { display: block; }
 .split-btn-menu button { display: block; width: 100%; text-align: left; border: none; background: none; border-radius: 0; padding: 6px 13px; color: var(--text); }
+.split-btn-menu-header { padding: 4px 13px 5px; margin-bottom: 4px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: var(--faint); border-bottom: 1px solid var(--border2); }
 .more-menu-btn { padding-left: 8px; padding-right: 8px; }
 
 #detail-panel { display: flex; flex-direction: column; min-width: 0; flex: 1 1 auto; }
@@ -950,8 +957,9 @@ a.get-file:hover { text-decoration: underline; }
 .rule-actions-right { display: flex; align-items: center; gap: 8px; margin-left: auto; }
 .rule-add-btn { padding: 2px 10px; border: 1px dashed var(--border); background: transparent; color: var(--muted); border-radius: 3px; font-size: 12px; cursor: pointer; font-family: inherit; }
 .rule-add-btn:hover { color: var(--text); border-color: var(--accent); }
-.rule-reset-btn, .rule-neutralize-btn { padding: 2px 10px; border: 1px solid var(--border); background: transparent; color: var(--muted); border-radius: 3px; font-size: 12px; cursor: pointer; font-family: inherit; }
-.rule-reset-btn:hover, .rule-neutralize-btn:hover { color: var(--text); border-color: var(--accent); }
+.rule-reset-btn, .rule-neutralize-btn, .rule-bake-btn { padding: 2px 10px; border: 1px solid var(--border); background: transparent; color: var(--muted); border-radius: 3px; font-size: 12px; cursor: pointer; font-family: inherit; }
+.rule-reset-btn:hover, .rule-neutralize-btn:hover, .rule-bake-btn:hover:not(:disabled) { color: var(--text); border-color: var(--accent); }
+.rule-bake-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
 /* Collapsible section */
 /* Chevron is absolute-positioned so the label lines up with whatever lives in `.collapsible-content` below. */
@@ -2082,15 +2090,16 @@ function buildSplitBtn(mainLabel, mainOnclick, menuItems, { primary = false, dis
     `</div>`;
 }
 
-function buildMoreMenuHTML(menuItems) {
+function buildMoreMenuHTML(menuItems, { className = '', header = '' } = {}) {
   const items = menuItems.map(([lbl, fn, opts = {}]) => {
     const dis   = opts.disabled ? ' disabled' : '';
     const title = opts.title ? ` title="${esc(opts.title)}"` : '';
     return `<button onclick="${fn}"${dis}${title}>${lbl}</button>`;
   }).join('');
-  return `<div class="split-btn">` +
+  const headerHTML = header ? `<div class="split-btn-menu-header">${esc(header)}</div>` : '';
+  return `<div class="split-btn${className ? ' ' + className : ''}">` +
     `<button class="more-menu-btn" onclick="toggleSplitMenu(event)" title="More options">⋮</button>` +
-    `<div class="split-btn-menu">${items}</div>` +
+    `<div class="split-btn-menu">${headerHTML}${items}</div>` +
     `</div>`;
 }
 
@@ -2124,7 +2133,7 @@ function buildRuleRowHTML(i, fieldsHTML, note, onDeleteFn, readOnly = false) {
     </div>`;
 }
 
-function buildRulesListHTML(rules, { rulesId, saveFn, deleteFn, addFn = '', resetFn = '', neutralizeFn = '', dirty = false, rescore = false, readOnly = false }) {
+function buildRulesListHTML(rules, { rulesId, saveFn, deleteFn, addFn = '', resetFn = '', neutralizeFn = '', bakeFn = '', bakeOpts = {}, dirty = false, rescore = false, readOnly = false }) {
   let rulesHTML;
   if (!rules.length && rescore) {
     rulesHTML = '<div class="no-rules">No rules — entries kept as-is</div>';
@@ -2152,9 +2161,12 @@ function buildRulesListHTML(rules, { rulesId, saveFn, deleteFn, addFn = '', rese
     }).join('');
   }
   const addBtn = (!readOnly && addFn) ? `<button class="rule-add-btn" onclick="${addFn}()">+ Add rule</button>` : '';
-  const neutralizeBtn = (!readOnly && neutralizeFn && rescoringIsNeutralizable(rules)) ? `<button class="rule-neutralize-btn" onclick="${neutralizeFn}()">Disable rescoring</button>` : '';
+  const neutralizeBtn = (!readOnly && neutralizeFn && rescoringIsNeutralizable(rules)) ? `<button class="rule-neutralize-btn" title="Keep this list's raw scores and notes — drop only Grawlix's rescoring" onclick="${neutralizeFn}()">Disable rescoring</button>` : '';
   const resetBtn = (!readOnly && resetFn && dirty) ? `<button class="rule-reset-btn" onclick="${resetFn}()">Reset to defaults</button>` : '';
-  const rightCluster = (neutralizeBtn || resetBtn) ? `<div class="rule-actions-right">${neutralizeBtn}${resetBtn}</div>` : '';
+  const bakeBtn = (!readOnly && bakeFn)
+    ? `<button class="rule-bake-btn" onclick="${bakeFn}"${bakeOpts.disabled ? ' disabled' : ''}${bakeOpts.title ? ` title="${esc(bakeOpts.title)}"` : ''}>Apply rescoring permanently</button>`
+    : '';
+  const rightCluster = (neutralizeBtn || resetBtn || bakeBtn) ? `<div class="rule-actions-right">${neutralizeBtn}${resetBtn}${bakeBtn}</div>` : '';
   const actionsRow = (addBtn || rightCluster) ? `<div class="rule-actions">${addBtn}${rightCluster}</div>` : '';
   return `<div id="${rulesId}">${rulesHTML}</div>${actionsRow}`;
 }
@@ -2170,6 +2182,8 @@ function buildRescoreSectionHTML(wordlist, rulesId = 'rescore-rules') {
       addFn:     'addRule',
       resetFn:   hasDefaults ? 'resetRescoreRules' : '',
       neutralizeFn: 'neutralizeRescoreRules',
+      bakeFn:    `LibraryView.action('bakeRescoring')`,
+      bakeOpts:  bakeMenuOpts(wordlist),
       dirty:     !!wordlist.dirty,
       rescore:   true,
     });
@@ -3038,6 +3052,7 @@ const SyncStatus = {
 
 function renderSyncIndicators() {
   LibraryView.refreshSyncIndicators?.();
+  WordlistSelector.refreshSyncSign?.();
 }
 
 async function loadSyncTargets() {
@@ -3903,16 +3918,25 @@ const WordlistSelector = (() => {
         </button>
         <div class="wls-menu" role="listbox" tabindex="-1"></div>
       </div>
-      <button type="button" class="workshop-rescore-toggle" aria-expanded="false" aria-controls="workshop-rescore-editor">
-        <svg class="workshop-rescore-toggle-icon" width="18" height="18" aria-hidden="true"><use href="#icon-adjustments"/></svg>
-      </button>
+      <div class="wls-actions">
+        <span class="wls-dl-slot"></span>
+        <button type="button" class="workshop-rescore-toggle" aria-expanded="false" aria-controls="workshop-rescore-editor">
+          <svg class="workshop-rescore-toggle-icon" width="18" height="18" aria-hidden="true"><use href="#icon-adjustments"/></svg>
+        </button>
+        <span class="wls-kebab-slot"></span>
+      </div>
     </div>
+    <div class="wls-bar-meta"></div>
     <div id="workshop-rescore-editor" hidden><div class="workshop-rescore-editor-inner"></div></div>`;
   document.getElementById('workshop-view').prepend(bar);
 
   const root    = bar.querySelector('.wls');
   const trigger = bar.querySelector('.wls-trigger');
   const menu    = bar.querySelector('.wls-menu');
+  const actions = bar.querySelector('.wls-actions');
+  const metaRow = bar.querySelector('.wls-bar-meta');
+  const dlSlot    = bar.querySelector('.wls-dl-slot');
+  const kebabSlot = bar.querySelector('.wls-kebab-slot');
 
   function scopeIcon(scope)  { return scope === MERGED_ID ? MERGED_ICON : getWordlistIcon(scope); }
   function scopeLabel(scope) { return scope === MERGED_ID ? MERGED_NAME : scope.name; }
@@ -3921,6 +3945,74 @@ const WordlistSelector = (() => {
     const scope = state.selected;
     trigger.querySelector('.wls-trigger-icon').innerHTML = scopeIcon(scope);
     trigger.querySelector('.wls-trigger-label').textContent = scopeLabel(scope);
+  }
+
+  function downloadBtnHTML() {
+    const scope = state.selected;
+    if (scope === MERGED_ID) {
+      const hasData = buildMergedWordlist().entries.length > 0;
+      return hasData ? `<button id="wld-download-btn" title="Download the merged wordlist" onclick="LibraryView.action('download')">Download</button>` : '';
+    }
+    if (!scope.rawEntries.length) return '';
+    const hasRules = (scope.rescoreRules?.length ?? 0) > 0;
+    return hasRules
+      ? buildSplitBtn('Download', `LibraryView.action('download')`,
+          [['Download original', `LibraryView.action('downloadOriginal')`]], { id: 'wld-download-btn', title: 'Download this wordlist (rescored)' })
+      : `<button id="wld-download-btn" title="Download this wordlist" onclick="LibraryView.action('download')">Download</button>`;
+  }
+
+  function kebabHTML() {
+    const scope = state.selected;
+    if (scope === MERGED_ID) return '';
+    let items;
+    if (scope.type === 'edits') {
+      items = [
+        ['Import', `LibraryView.action('import')`],
+        ['Clear',  `LibraryView.action('clear')`],
+      ];
+    } else {
+      const fetchItems = scope.url
+        ? [['Fetch', `LibraryView.action('fetch')`], ['Import', `LibraryView.action('import')`]]
+        : [['Import', `LibraryView.action('import')`]];
+      items = [
+        ...fetchItems,
+        ['Configure', `LibraryView.action('configure')`],
+        ['Delete',    `LibraryView.action('delete')`],
+      ];
+    }
+    return buildMoreMenuHTML(items, { className: 'wls-kebab' });
+  }
+
+  let _dateTimer = null;
+  function renderActions() {
+    if (_dateTimer) { clearInterval(_dateTimer); _dateTimer = null; }
+    const scope = state.selected;
+    const hasDate = scope !== MERGED_ID && scope.rawEntries.length && scope.lastUpdated;
+    const dateSlot = hasDate ? '<span class="detail-date"></span>' : '';
+    dlSlot.innerHTML = `${dateSlot}${downloadBtnHTML()}`;
+    kebabSlot.innerHTML = kebabHTML();
+    if (hasDate) {
+      const setDate = () => {
+        const dEl = actions.querySelector('.detail-date');
+        if (!dEl) return;
+        dEl.textContent = `Last updated ${timeAgo(scope.lastUpdated)}`;
+        dEl.title = new Date(scope.lastUpdated).toLocaleString();
+      };
+      setDate();
+      _dateTimer = setInterval(setDate, 60_000);
+    }
+  }
+
+  function renderMeta() {
+    metaRow.innerHTML = syncSignHTML(state.selected);
+  }
+
+  // In-place patch, never a renderMeta: sync status flips on every debounced
+  // save, and re-rendering the bar mid-edit would steal focus and scroll.
+  function refreshSyncSign() {
+    if (!WorkshopView.isVisible()) return;
+    const hang = metaRow.querySelector('.wld-sync-hang');
+    if (hang) hang.outerHTML = syncSignHTML(state.selected);
   }
 
   function optionHTML(scope) {
@@ -4028,13 +4120,15 @@ const WordlistSelector = (() => {
 
   function refresh() {
     renderTrigger();
+    renderActions();
+    renderMeta();
     if (root.classList.contains('open')) renderMenu();
     refreshEditor();
   }
 
   renderTrigger();
   syncToggleLabel();
-  return { refresh, refreshEditor, isEditorOpen: () => editorOpen };
+  return { refresh, refreshEditor, refreshSyncSign, isEditorOpen: () => editorOpen };
 })();
 
 // ─── Library view ─────────────────────────────────────────────────────────────
@@ -4304,7 +4398,6 @@ const LibraryView = (() => {
     if (isEdits) {
       actionBtn = `<button id="wld-action-btn" onclick="LibraryView.action('import')" ${wordlist._loading ? 'disabled' : ''}>${wordlist._loading ? 'Importing…' : 'Import'}</button>`;
       moreMenu = hasData ? buildMoreMenuHTML([
-        ['Apply rescoring permanently', `LibraryView.action('bakeRescoring')`, bakeMenuOpts(wordlist)],
         ['Clear', `LibraryView.action('clear')`],
       ]) : '';
     } else {
@@ -4324,7 +4417,6 @@ const LibraryView = (() => {
 
       moreMenu = buildMoreMenuHTML([
         ['Configure', `LibraryView.action('configure')`],
-        ['Apply rescoring permanently', `LibraryView.action('bakeRescoring')`, bakeMenuOpts(wordlist)],
         ['Delete',    `LibraryView.action('delete')`],
       ]);
     }
@@ -4495,21 +4587,22 @@ const LibraryView = (() => {
   // ── Actions (called from inline onclick handlers in pane HTML) ───────────────
 
   const ACTIONS = {
-    fetch:     () => fetchWordlist(_focusedWordlist),
-    import:    () => importToWordlist(_focusedWordlist),
-    delete:    async () => { await deleteWordlist(_focusedWordlist); },
-    configure: () => ConfigureWordlistDialog.open(_focusedWordlist),
+    fetch:     () => fetchWordlist(getActionTargetWordlist()),
+    import:    () => importToWordlist(getActionTargetWordlist()),
+    delete:    async () => { await deleteWordlist(getActionTargetWordlist()); },
+    configure: () => ConfigureWordlistDialog.open(getActionTargetWordlist()),
     clear:     () => clearEdits(),
-    bakeRescoring: () => bakeRescoring(_focusedWordlist),
+    bakeRescoring: () => bakeRescoring(getActionTargetWordlist()),
     download:  () => {
-      if (_focusedWordlist === MERGED_ID) return downloadMergedWordlistFromPanel();
-      return downloadSourceWordlist(_focusedWordlist);
+      const target = getActionTargetWordlist();
+      if (target === MERGED_ID) return downloadMergedWordlistFromPanel();
+      return downloadSourceWordlist(target);
     },
-    downloadOriginal: () => downloadOriginalWordlist(_focusedWordlist),
-    openSync:      () => SyncDialog.open(_focusedWordlist),
-    syncExisting:  () => syncThen(isMirrorList(_focusedWordlist) ? attachMirrorSync(_focusedWordlist, { existing: true })  : attachEditsSync({ existing: true })),
-    syncNew:       () => syncThen(isMirrorList(_focusedWordlist) ? attachMirrorSync(_focusedWordlist, { existing: false }) : attachEditsSync({ existing: false })),
-    stopSync:      () => syncThen(detachSync(_focusedWordlist)),
+    downloadOriginal: () => downloadOriginalWordlist(getActionTargetWordlist()),
+    openSync:      () => SyncDialog.open(getActionTargetWordlist()),
+    syncExisting:  () => { const t = getActionTargetWordlist(); return syncThen(isMirrorList(t) ? attachMirrorSync(t, { existing: true })  : attachEditsSync({ existing: true })); },
+    syncNew:       () => { const t = getActionTargetWordlist(); return syncThen(isMirrorList(t) ? attachMirrorSync(t, { existing: false }) : attachEditsSync({ existing: false })); },
+    stopSync:      () => syncThen(detachSync(getActionTargetWordlist())),
   };
 
   async function syncThen(promise) {
@@ -9811,6 +9904,7 @@ function setupRenderEffect() {
     if (!_firstRenderDone) {
       _firstRenderDone = true;
       renderSources();
+      WordlistSelector.refresh();
       renderWorkshopMergedDetail();
       return;
     }
@@ -11601,6 +11695,12 @@ function getRescoreContextWordlist() {
   return (focused && focused !== MERGED_ID) ? focused : null;
 }
 
+// Sound only because the views are mutually exclusive (MainView.activate hides
+// all but one); were both visible, this would silently route to the wrong list.
+function getActionTargetWordlist() {
+  return WorkshopView?.isVisible?.() ? state.selected : LibraryView?.getFocusedWordlist?.();
+}
+
 function deleteRule(idx) {
   const wordlist = getRescoreContextWordlist();
   if (!wordlist) return;
@@ -12024,11 +12124,11 @@ async function downloadOriginalWordlist(wordlist) {
 
 function buildWorkshopExportMenuHTML() {
   return buildMoreMenuHTML([
-    ['Copy to clipboard',    'workshopExportCopy()'],
-    ['Download as wordlist', 'workshopExportWordlist()'],
-    ['Download as CSV',      'workshopExportCSV()'],
-    ['Download as JSON',     'workshopExportJSON()'],
-  ]);
+    ['Copy to clipboard',            'workshopExportCopy()'],
+    ['Download results as wordlist', 'workshopExportWordlist()'],
+    ['Download as CSV',              'workshopExportCSV()'],
+    ['Download as JSON',             'workshopExportJSON()'],
+  ], { header: 'Export these results' });
 }
 
 function chainContentEntries(chain) {

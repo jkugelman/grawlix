@@ -4,11 +4,18 @@
 // disabled source renders grayed-out yet stays selectable (scope ≠ merge).
 
 const { test, expect } = require('@playwright/test');
-const { stubPublisherFetches, gotoApp, scopeViaSelector, expectVisible } = require('./helpers');
+const { stubPublisherFetches, gotoApp, scopeTo, scopeViaSelector, expectVisible, openRescoreEditor } = require('./helpers');
 
 test.beforeEach(async ({ page }) => {
   await stubPublisherFetches(page);
 });
+
+async function kebabItems(page) {
+  const kebab = page.locator('#workshop-wordlist-bar .wls-actions .wls-kebab');
+  await kebab.locator('.more-menu-btn').click();
+  await expect(kebab).toHaveClass(/open/);
+  return kebab.locator('.split-btn-menu button').allTextContents();
+}
 
 async function openMenu(page) {
   await page.locator('#workshop-wordlist-bar .wls-trigger').click();
@@ -95,4 +102,86 @@ test('a disabled source renders grayed-out but is still selectable', async ({ pa
   await expectVisible(page, ['ocean', 'tide']);
   expect(await page.evaluate(() => window.__grawlixTest.getMergedEntry('OCEAN')))
     .toMatchObject({ score: 70, wordlist: 'Off' });
+});
+
+test('a URL-backed source kebab offers Fetch, Import, Configure, Delete — never bake', async ({ page }) => {
+  await gotoApp(page);
+  await scopeTo(page, 'John Kugelman');
+
+  const items = await kebabItems(page);
+  expect(items).toEqual(['Fetch', 'Import', 'Configure', 'Delete']);
+  expect(items).not.toContain('Apply rescoring permanently');
+});
+
+test('an imported (file-based) source kebab offers Import, Configure, Delete — no Fetch, no bake', async ({ page }) => {
+  await gotoApp(page);
+  await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
+    name: 'Mine', entries: ['ocean'], scores: [70],
+  }));
+  await scopeTo(page, 'Mine');
+
+  const items = await kebabItems(page);
+  expect(items).toEqual(['Import', 'Configure', 'Delete']);
+});
+
+test('the My Edits kebab offers only Import and Clear — no Fetch, no Delete, no bake', async ({ page }) => {
+  await gotoApp(page);
+  await scopeTo(page, 'My Edits');
+
+  const items = await kebabItems(page);
+  expect(items).toEqual(['Import', 'Clear']);
+  expect(items).not.toContain('Delete');
+  expect(items).not.toContain('Apply rescoring permanently');
+});
+
+test('All shows no kebab — only its Download', async ({ page }) => {
+  await gotoApp(page);
+  await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
+    name: 'Mine', entries: ['ocean'], scores: [70],
+  }));
+  await expect(page.locator('#workshop-wordlist-bar .wls-trigger-label')).toHaveText('All');
+  await expect(page.locator('#workshop-wordlist-bar .wls-actions .wls-kebab')).toHaveCount(0);
+
+  await scopeTo(page, 'Mine');
+  await expect(page.locator('#workshop-wordlist-bar .wls-actions .wls-kebab')).toHaveCount(1);
+});
+
+test('the rescore panel bake button is enabled for a bakeable source and applies the rescoring', async ({ page }) => {
+  await gotoApp(page);
+  await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
+    name: 'Mine', entries: ['cat', 'dog'], scores: [5, 7],
+  }));
+  await scopeTo(page, 'Mine');
+  await page.evaluate(() => window.__grawlixTest.setRescoreRules('Mine', [
+    { input: '5', length: '', output: '50', note: '' },
+    { input: '7', length: '', output: '60', note: '' },
+  ]));
+
+  await openRescoreEditor(page);
+  const bakeBtn = page.locator('#workshop-rescore-editor .rule-bake-btn');
+  await expect(bakeBtn).toBeEnabled();
+
+  await bakeBtn.click();
+  await page.locator('#confirm-dialog #btn-confirm-ok').click();
+
+  await expect.poll(() =>
+    page.evaluate(() => window.__grawlixTest.getWordlist('Mine').entries.map(e => e.score).sort((a, b) => a - b))
+  ).toEqual([50, 60]);
+});
+
+test('the rescore panel bake button is disabled for a publisher source', async ({ page }) => {
+  await gotoApp(page);
+  await scopeTo(page, 'John Kugelman');
+  await openRescoreEditor(page);
+  await expect(page.locator('#workshop-rescore-editor .rule-bake-btn')).toBeDisabled();
+});
+
+test('All has no bake button — its panel is the scoring/tier editor', async ({ page }) => {
+  await gotoApp(page);
+  await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
+    name: 'Mine', entries: ['ocean'], scores: [70],
+  }));
+  await expect(page.locator('#workshop-wordlist-bar .wls-trigger-label')).toHaveText('All');
+  await openRescoreEditor(page);
+  await expect(page.locator('#workshop-rescore-editor .rule-bake-btn')).toHaveCount(0);
 });
