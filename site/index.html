@@ -181,6 +181,8 @@ button.header-nav-item:hover:not(:disabled) { color: white; background: var(--hd
 .wls-trigger .wordlist-icon { width: 20px; height: 20px; }
 .wls-trigger-icon { display: flex; align-items: center; flex-shrink: 0; }
 .wls-trigger-label { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.wls-trigger-badge { display: flex; align-items: center; flex-shrink: 0; }
+.wls-trigger-badge:empty { display: none; }
 .wls-trigger-chevron { flex-shrink: 0; margin-left: 2px; transition: transform 0.15s; }
 .wls.open .wls-trigger-chevron { transform: rotate(180deg); }
 
@@ -1743,7 +1745,7 @@ function syncSignHTML(list) {
   else                               { dot = 'ok';      text = `Syncing to ${file}`; }
 
   return `<div class="wld-sync-hang">
-      <button type="button" id="wld-sync-sign" class="wld-sync-sign${dot === 'warn' ? ' attention' : ''}" onclick="LibraryView.action('openSync')" title="${synced ? 'Manage disk sync' : 'Disk sync'}">
+      <button type="button" id="wld-sync-sign" class="wld-sync-sign${dot === 'warn' ? ' attention' : ''}" onclick="WordlistActions.action('openSync')" title="${synced ? 'Manage disk sync' : 'Disk sync'}">
         <span class="wld-sync-dot wld-sync-dot--${dot}"></span>
         <span class="wld-sync-line-text">${text}</span>
       </button>
@@ -2187,7 +2189,7 @@ function buildRescoreSectionHTML(wordlist, rulesId = 'rescore-rules') {
       addFn:     'addRule',
       resetFn:   hasDefaults ? 'resetRescoreRules' : '',
       neutralizeFn: 'neutralizeRescoreRules',
-      bakeFn:    `LibraryView.action('bakeRescoring')`,
+      bakeFn:    `WordlistActions.action('bakeRescoring')`,
       bakeOpts:  bakeMenuOpts(wordlist),
       dirty:     !!wordlist.dirty,
       rescore:   true,
@@ -3936,6 +3938,7 @@ const WordlistSelector = (() => {
         <button type="button" class="wls-trigger" aria-haspopup="listbox" aria-expanded="false">
           <span class="wls-trigger-icon"></span>
           <span class="wls-trigger-label"></span>
+          <span class="wls-trigger-badge"></span>
           <svg class="wls-trigger-chevron" width="10" height="6" aria-hidden="true"><use href="#icon-arrow"/></svg>
         </button>
         <div class="wls-menu" role="listbox" tabindex="-1"></div>
@@ -3967,20 +3970,23 @@ const WordlistSelector = (() => {
     const scope = state.selected;
     trigger.querySelector('.wls-trigger-icon').innerHTML = scopeIcon(scope);
     trigger.querySelector('.wls-trigger-label').textContent = scopeLabel(scope);
+    const severity = libraryNavSeverity();
+    trigger.querySelector('.wls-trigger-badge').innerHTML =
+      buildBadgeHTML(severity, { title: severityTitle(severity) });
   }
 
   function downloadBtnHTML() {
     const scope = state.selected;
     if (scope === MERGED_ID) {
       const hasData = buildMergedWordlist().entries.length > 0;
-      return hasData ? `<button id="wld-download-btn" title="Download the merged wordlist" onclick="LibraryView.action('download')">Download</button>` : '';
+      return hasData ? `<button id="wld-download-btn" title="Download the merged wordlist" onclick="WordlistActions.action('download')">Download</button>` : '';
     }
     if (!scope.rawEntries.length) return '';
     const hasRules = (scope.rescoreRules?.length ?? 0) > 0;
     return hasRules
-      ? buildSplitBtn('Download', `LibraryView.action('download')`,
-          [['Download original', `LibraryView.action('downloadOriginal')`]], { id: 'wld-download-btn', title: 'Download this wordlist (rescored)' })
-      : `<button id="wld-download-btn" title="Download this wordlist" onclick="LibraryView.action('download')">Download</button>`;
+      ? buildSplitBtn('Download', `WordlistActions.action('download')`,
+          [['Download original', `WordlistActions.action('downloadOriginal')`]], { id: 'wld-download-btn', title: 'Download this wordlist (rescored)' })
+      : `<button id="wld-download-btn" title="Download this wordlist" onclick="WordlistActions.action('download')">Download</button>`;
   }
 
   function kebabHTML() {
@@ -3989,17 +3995,17 @@ const WordlistSelector = (() => {
     let items;
     if (scope.type === 'edits') {
       items = [
-        ['Import', `LibraryView.action('import')`],
-        ['Clear',  `LibraryView.action('clear')`],
+        ['Import', `WordlistActions.action('import')`],
+        ['Clear',  `WordlistActions.action('clear')`],
       ];
     } else {
       const fetchItems = scope.url
-        ? [['Fetch', `LibraryView.action('fetch')`], ['Import', `LibraryView.action('import')`]]
-        : [['Import', `LibraryView.action('import')`]];
+        ? [['Fetch', `WordlistActions.action('fetch')`], ['Import', `WordlistActions.action('import')`]]
+        : [['Import', `WordlistActions.action('import')`]];
       items = [
         ...fetchItems,
-        ['Configure', `LibraryView.action('configure')`],
-        ['Delete',    `LibraryView.action('delete')`],
+        ['Configure', `WordlistActions.action('configure')`],
+        ['Delete',    `WordlistActions.action('delete')`],
       ];
     }
     return buildMoreMenuHTML(items, { className: 'wls-kebab' });
@@ -4037,21 +4043,29 @@ const WordlistSelector = (() => {
     if (hang) hang.outerHTML = syncSignHTML(state.selected);
   }
 
-  function optionHTML(scope) {
+  function optionHTML(scope, contribMap) {
     const selected = scope === state.selected;
     if (scope === MERGED_ID) {
       return buildWordlistCardHTML(MERGED_ICON, MERGED_NAME,
         pluralize(buildMergedWordlist().entries.length, 'entry', 'entries'),
         { draggable: false, toggle: false, selected });
     }
+    const severity = wordlistSeverity(scope);
     return buildWordlistCardHTML(getWordlistIcon(scope), scope.name,
-      pluralize(scope.rawEntries.length, 'entry', 'entries'),
-      { draggable: false, toggle: false, selected, enabled: scope.enabled, populated: scope.populated });
+      wordlistCardMeta(scope, contribMap),
+      { draggable: false, toggle: false, selected, enabled: scope.enabled, populated: scope.populated,
+        severity, severityTitle: severityTitle(severity) });
+  }
+
+  function buildContribMap() {
+    if (!_sourceCountsCache) _sourceCountsCache = buildMergedWordlist().sourceCounts;
+    return new Map(_sourceCountsCache.map(s => [s.wordlist, s.count]));
   }
 
   function renderMenu() {
     const scopes = [MERGED_ID, ...state.sources];
-    menu.innerHTML = scopes.map(optionHTML).join('')
+    const contribMap = buildContribMap();
+    menu.innerHTML = scopes.map(s => optionHTML(s, contribMap)).join('')
       + `<button type="button" class="wls-configure-footer">`
       + `<svg aria-hidden="true"><use href="#icon-settings"/></svg>Manage wordlists</button>`;
     menu.querySelectorAll('.wordlist-card').forEach((el, i) => {
@@ -4155,9 +4169,13 @@ const WordlistSelector = (() => {
     refreshEditor();
   }
 
+  function refreshMeta() {
+    if (root.classList.contains('open')) renderMenu();
+  }
+
   renderTrigger();
   syncToggleLabel();
-  return { refresh, refreshEditor, refreshSyncSign, isEditorOpen: () => editorOpen };
+  return { refresh, refreshEditor, refreshSyncSign, refreshMeta, isEditorOpen: () => editorOpen };
 })();
 
 // ─── Manage wordlists panel ─────────────────────────────────────────────────────
@@ -4275,6 +4293,38 @@ const ManagePanel = (() => {
   }
 
   return { open };
+})();
+
+// ─── Wordlist actions dispatcher ──────────────────────────────────────────────
+// Lives outside any view because both Workshop and Library bars dispatch through
+// it; getActionTargetWordlist() resolves the target by which view is visible.
+
+const WordlistActions = (() => {
+  const ACTIONS = {
+    fetch:     () => fetchWordlist(getActionTargetWordlist()),
+    import:    () => importToWordlist(getActionTargetWordlist()),
+    delete:    async () => { await deleteWordlist(getActionTargetWordlist()); },
+    configure: () => ConfigureWordlistDialog.open(getActionTargetWordlist()),
+    clear:     () => clearEdits(),
+    bakeRescoring: () => bakeRescoring(getActionTargetWordlist()),
+    download:  () => {
+      const target = getActionTargetWordlist();
+      if (target === MERGED_ID) return downloadMergedWordlistFromPanel();
+      return downloadSourceWordlist(target);
+    },
+    downloadOriginal: () => downloadOriginalWordlist(getActionTargetWordlist()),
+    openSync:      () => SyncDialog.open(getActionTargetWordlist()),
+    syncExisting:  () => { const t = getActionTargetWordlist(); return LibraryView.syncThen(isMirrorList(t) ? attachMirrorSync(t, { existing: true })  : attachEditsSync({ existing: true })); },
+    syncNew:       () => { const t = getActionTargetWordlist(); return LibraryView.syncThen(isMirrorList(t) ? attachMirrorSync(t, { existing: false }) : attachEditsSync({ existing: false })); },
+    stopSync:      () => LibraryView.syncThen(detachSync(getActionTargetWordlist())),
+  };
+
+  function action(name) {
+    const fn = ACTIONS[name];
+    return fn ? fn() : undefined;
+  }
+
+  return { action };
 })();
 
 // ─── Library view ─────────────────────────────────────────────────────────────
@@ -4536,15 +4586,15 @@ const LibraryView = (() => {
     const hasRules = (wordlist.rescoreRules?.length ?? 0) > 0;
     let dlBtn;
     if (!hasData) dlBtn = '';
-    else if (hasRules) dlBtn = buildSplitBtn('Download', `LibraryView.action('download')`,
-      [['Download original', `LibraryView.action('downloadOriginal')`]], { id: 'wld-download-btn' });
-    else dlBtn = `<button id="wld-download-btn" onclick="LibraryView.action('download')">Download</button>`;
+    else if (hasRules) dlBtn = buildSplitBtn('Download', `WordlistActions.action('download')`,
+      [['Download original', `WordlistActions.action('downloadOriginal')`]], { id: 'wld-download-btn' });
+    else dlBtn = `<button id="wld-download-btn" onclick="WordlistActions.action('download')">Download</button>`;
 
     let actionBtn, moreMenu;
     if (isEdits) {
-      actionBtn = `<button id="wld-action-btn" onclick="LibraryView.action('import')" ${wordlist._loading ? 'disabled' : ''}>${wordlist._loading ? 'Importing…' : 'Import'}</button>`;
+      actionBtn = `<button id="wld-action-btn" onclick="WordlistActions.action('import')" ${wordlist._loading ? 'disabled' : ''}>${wordlist._loading ? 'Importing…' : 'Import'}</button>`;
       moreMenu = hasData ? buildMoreMenuHTML([
-        ['Clear', `LibraryView.action('clear')`],
+        ['Clear', `WordlistActions.action('clear')`],
       ]) : '';
     } else {
       const showBadge = wordlist._updateAvailable && !wordlist._loading;
@@ -4554,16 +4604,16 @@ const LibraryView = (() => {
 
       if (wordlist.url) {
         const btnLabel = `${label}${dot}`;
-        actionBtn = buildSplitBtn(btnLabel, `LibraryView.action('fetch')`,
-          [['Import', `LibraryView.action('import')`]],
+        actionBtn = buildSplitBtn(btnLabel, `WordlistActions.action('fetch')`,
+          [['Import', `WordlistActions.action('import')`]],
           { disabled: !!wordlist._loading, title: updateTitle, id: 'wld-action-btn' });
       } else {
-        actionBtn = `<button id="wld-action-btn"${updateTitle ? ` title="${updateTitle}"` : ''} onclick="LibraryView.action('import')" ${wordlist._loading ? 'disabled' : ''}>${wordlist._loading ? 'Importing…' : 'Import'}${dot}</button>`;
+        actionBtn = `<button id="wld-action-btn"${updateTitle ? ` title="${updateTitle}"` : ''} onclick="WordlistActions.action('import')" ${wordlist._loading ? 'disabled' : ''}>${wordlist._loading ? 'Importing…' : 'Import'}${dot}</button>`;
       }
 
       moreMenu = buildMoreMenuHTML([
-        ['Configure', `LibraryView.action('configure')`],
-        ['Delete',    `LibraryView.action('delete')`],
+        ['Configure', `WordlistActions.action('configure')`],
+        ['Delete',    `WordlistActions.action('delete')`],
       ]);
     }
 
@@ -4614,7 +4664,7 @@ const LibraryView = (() => {
     const filteredEntries = intervals ? entries.filter(e => matchesRange(e.score, intervals)) : entries;
     const stats = intervals ? computeStatsRaw(filteredEntries) : computeStats(_mergedStatsKey, entries);
     const hasData = entries.length > 0;
-    const dlBtn = hasData ? `<button id="wld-download-btn" onclick="LibraryView.action('download')">Download</button>` : '';
+    const dlBtn = hasData ? `<button id="wld-download-btn" onclick="WordlistActions.action('download')">Download</button>` : '';
     const actionsHTML = [dlBtn].filter(Boolean).join('\n');
 
     pane.innerHTML = `
@@ -4730,27 +4780,9 @@ const LibraryView = (() => {
     if (hang) hang.outerHTML = syncSignHTML(_focusedWordlist);
   }
 
-  // ── Actions (called from inline onclick handlers in pane HTML) ───────────────
-
-  const ACTIONS = {
-    fetch:     () => fetchWordlist(getActionTargetWordlist()),
-    import:    () => importToWordlist(getActionTargetWordlist()),
-    delete:    async () => { await deleteWordlist(getActionTargetWordlist()); },
-    configure: () => ConfigureWordlistDialog.open(getActionTargetWordlist()),
-    clear:     () => clearEdits(),
-    bakeRescoring: () => bakeRescoring(getActionTargetWordlist()),
-    download:  () => {
-      const target = getActionTargetWordlist();
-      if (target === MERGED_ID) return downloadMergedWordlistFromPanel();
-      return downloadSourceWordlist(target);
-    },
-    downloadOriginal: () => downloadOriginalWordlist(getActionTargetWordlist()),
-    openSync:      () => SyncDialog.open(getActionTargetWordlist()),
-    syncExisting:  () => { const t = getActionTargetWordlist(); return syncThen(isMirrorList(t) ? attachMirrorSync(t, { existing: true })  : attachEditsSync({ existing: true })); },
-    syncNew:       () => { const t = getActionTargetWordlist(); return syncThen(isMirrorList(t) ? attachMirrorSync(t, { existing: false }) : attachEditsSync({ existing: false })); },
-    stopSync:      () => syncThen(detachSync(getActionTargetWordlist())),
-  };
-
+  // Exposed publicly so the view-neutral WordlistActions sync handlers can trigger
+  // the Library-private renderPane/renderList without inlining them (which would
+  // change behavior).
   async function syncThen(promise) {
     let done = false;
     try { done = await promise; }
@@ -4758,11 +4790,6 @@ const LibraryView = (() => {
     renderPane();
     renderList();
     return done;
-  }
-
-  function action(name) {
-    const fn = ACTIONS[name];
-    return fn ? fn() : undefined;
   }
 
   // ── Search / sort handlers (inline onclick/oninput → here) ───────────────────
@@ -4946,7 +4973,7 @@ const LibraryView = (() => {
   }
 
   return {
-    show, hide, refresh, focus, action, getFocusedWordlist, togglePicker,
+    show, hide, refresh, focus, syncThen, getFocusedWordlist, togglePicker,
     refreshRescoreSection, refreshScoringSection, updateListMeta, refreshSyncIndicators,
     isVisible: () => !el.hidden,
     onSearch, onWholeWord, onSortAxis, toggleSortDir, onScoreRange,
@@ -10717,6 +10744,7 @@ async function checkForUpdates() {
 
   if (anyChanged) {
     renderSources();
+    WordlistSelector.refresh();
   }
 
   if (unigramFetchedSize) {
@@ -11031,7 +11059,7 @@ const SyncDialog = (() => {
   // Don't await before dispatching: the action's FSA picker must fire inside this
   // click's transient activation, or it silently fails.
   function act(name) {
-    Promise.resolve(LibraryView.action(name)).then(done => { if (done) el.close(); });
+    Promise.resolve(WordlistActions.action(name)).then(done => { if (done) el.close(); });
   }
 
   return {
@@ -12065,10 +12093,7 @@ function applyEditsChange(edits, norms, mutate) {
 // caller also runs a scroller filter pass, and its onFilterChange callback
 // repaints the bar.
 function refreshDerivedDisplays() {
-  if (_sourceCountsCache) {
-    const contribMap = new Map(_sourceCountsCache.map(s => [s.wordlist, s.count]));
-    LibraryView.updateListMeta(contribMap);
-  }
+  WordlistSelector.refreshMeta();
   renderScoringRules();
 }
 
@@ -12768,6 +12793,7 @@ window.__grawlixTest = {
     const wl = this._lookup(name);
     wl._updateAvailable = !!value;
     renderSources();
+    WordlistSelector.refresh();
   },
 
   // Reorder state.sources so `name` lands at `beforeName`'s position (and

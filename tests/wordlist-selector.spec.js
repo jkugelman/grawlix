@@ -52,7 +52,48 @@ test('the dropdown lists All plus each added source as icon+name+count rows', as
   expect(await cards.locator('.card-meta').count()).toBe(optionCount);
   expect(await cards.locator('input[type="checkbox"]').count()).toBe(0);
   expect(await cards.locator('.drag-handle').count()).toBe(0);
-  expect(await page.locator('#workshop-wordlist-bar .wls-menu .card-meta', { hasText: 'entr' }).count()).toBe(optionCount);
+  // Only the 3 populated rows (All, Alpha, Beta) say "entries"; unpopulated
+  // publishers and empty My Edits read "No data", not "0 entries".
+  expect(await page.locator('#workshop-wordlist-bar .wls-menu .card-meta', { hasText: 'entr' }).count()).toBe(3);
+  for (const meta of await cards.locator('.card-meta').allTextContents()) {
+    expect(meta.trim()).not.toBe('');
+  }
+});
+
+test('a menu row shows contribution-aware meta when its entries partly lose to a higher-priority list', async ({ page }) => {
+  await gotoApp(page);
+  // Hi (added first) outranks Lo. Both carry OCEAN; Hi wins it, so Lo
+  // contributes only TIDE — 1 of its 2 entries used.
+  await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
+    name: 'Hi', entries: ['ocean', 'zebra'], scores: [90, 60],
+  }));
+  await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
+    name: 'Lo', entries: ['ocean', 'tide'], scores: [70, 40],
+  }));
+
+  await openMenu(page);
+  const cardMeta = name => page.locator('#workshop-wordlist-bar .wls-menu .wordlist-card')
+    .filter({ has: page.locator('.card-name', { hasText: name }) })
+    .locator('.card-meta');
+
+  await expect(cardMeta('Hi')).toHaveText('2 entries used');
+  await expect(cardMeta('Lo')).toHaveText('1 of 2 entries used');
+});
+
+test('an update-available source shows the info dot on its menu row and the collapsed trigger', async ({ page }) => {
+  await gotoApp(page);
+  await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
+    name: 'Mine', entries: ['ocean'], scores: [70],
+  }));
+  await page.evaluate(() => window.__grawlixTest.setUpdateAvailable('Mine', true));
+
+  await expect(page.locator('#workshop-wordlist-bar .wls-trigger .badge[data-severity="info"]')).toBeVisible();
+
+  await openMenu(page);
+  const mineRow = page.locator('#workshop-wordlist-bar .wls-menu .wordlist-card')
+    .filter({ has: page.locator('.card-name', { hasText: 'Mine' }) });
+  await expect(mineRow.locator('.badge[data-severity="info"]')).toBeVisible();
+  expect(await page.locator('#workshop-wordlist-bar .wls-menu .badge[data-severity="info"]').count()).toBe(1);
 });
 
 test('clicking a source scopes the table to it; clicking All restores the merge', async ({ page }) => {
