@@ -1217,6 +1217,15 @@ html.dark-mode .wld-onboarding { background: color-mix(in srgb, var(--accent) 15
 .wld-onboarding-dots span.skipped { background: transparent; outline: 1px solid color-mix(in srgb, var(--accent) 30%, transparent); }
 .wld-onboarding-dots span.skipped::before { content: ''; position: absolute; top: 50%; left: -2px; right: -2px; height: 1px; background: color-mix(in srgb, var(--accent) 55%, transparent); transform: translateY(-50%) rotate(-45deg); }
 
+#discovery-banner { margin: 12px 16px; padding: 12px 14px; border-radius: 6px; font-size: 13px; position: relative; }
+html.light-mode #discovery-banner { background: color-mix(in srgb, var(--accent) 7%, var(--bg)); border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--border)); }
+html.dark-mode #discovery-banner { background: color-mix(in srgb, var(--accent) 15%, var(--bg)); border: 1px solid color-mix(in srgb, var(--accent) 40%, var(--border)); }
+#discovery-banner p { margin: 0 24px 10px 0; line-height: 1.5; color: var(--text); }
+.discovery-banner-actions { display: flex; gap: 8px; }
+.discovery-banner-import { font-size: 12px; padding: 4px 12px; }
+.discovery-banner-close { position: absolute; top: 8px; right: 9px; background: none; border: none; font-size: 13px; line-height: 1; color: var(--muted); cursor: pointer; padding: 2px 6px; border-radius: 4px; }
+.discovery-banner-close:hover { background: var(--hover); color: var(--text); }
+
 /* Segmented control */
 .seg-ctrl { display: flex; border: 1px solid var(--border); border-radius: 4px; overflow: hidden; }
 .seg-btn { border: none; border-radius: 0; padding: 4px 10px; font-size: 12px; font-weight: 600; color: var(--muted); background: var(--btn-bg); cursor: pointer; font-family: inherit; }
@@ -4071,6 +4080,68 @@ const WordlistSelector = (() => {
   renderTrigger();
   syncToggleLabel();
   return { refresh, refreshEditor, refreshSyncSign, refreshMeta, isEditorOpen: () => editorOpen };
+})();
+
+// ─── Discovery banner ───────────────────────────────────────────────────────────
+
+// Sibling above #detail-panel, not inside it: a banner mounted in the scroller's
+// fixed-row-height container would corrupt row layout, and a sticky one would
+// permanently consume vertical space for a one-time dismissable notice.
+const DiscoveryBanner = (() => {
+  const el = document.createElement('div');
+  el.id = 'discovery-banner';
+  el.hidden = true;
+  document.getElementById('detail-panel').before(el);
+
+  const BANNERS = [
+    {
+      key: 'banner_myedits_dismissed',
+      when: scope => scope !== MERGED_ID && scope?.type === 'edits',
+      body: 'This is <strong>My Edits</strong> — your own corrections and additions, and they win over every other list. Already keep a word list of your own? Import it and it lands right here.',
+    },
+    {
+      // XWI is paywalled, so Grawlix ships only its default scores, never the
+      // list itself — gate on !populated so the nudge stops once a subscriber
+      // has brought their real copy in.
+      key: 'banner_xwi_dismissed',
+      when: scope => scope !== MERGED_ID && scope?.publisherId === 'xwi' && !scope.populated,
+      body: 'Got an <strong>XWord Info</strong> subscription? You can import your real XWI list here — Grawlix ships only XWI’s default scores, so the genuine list is a big step up.',
+    },
+  ];
+
+  function pick() {
+    return BANNERS.find(b => b.when(state.selected) && lsLoad(b.key) !== '1') || null;
+  }
+
+  function refresh() {
+    const banner = pick();
+    if (!banner) { el.hidden = true; el.innerHTML = ''; el.dataset.banner = ''; return; }
+    if (el.dataset.banner === banner.key) return;   // already showing this one
+    el.dataset.banner = banner.key;
+    el.innerHTML = `
+      <button type="button" class="discovery-banner-close" aria-label="Dismiss">✕</button>
+      <p>${banner.body}</p>
+      <div class="discovery-banner-actions">
+        <button type="button" class="discovery-banner-import primary">Import</button>
+      </div>`;
+    el.hidden = false;
+  }
+
+  el.addEventListener('click', e => {
+    if (e.target.closest('.discovery-banner-close')) {
+      const key = el.dataset.banner;
+      if (key) lsSave(key, '1');
+      el.hidden = true;
+      el.innerHTML = '';
+      el.dataset.banner = '';
+      return;
+    }
+    if (e.target.closest('.discovery-banner-import')) {
+      WordlistActions.action('import');
+    }
+  });
+
+  return { refresh };
 })();
 
 // ─── Manage wordlists panel ─────────────────────────────────────────────────────
@@ -9202,6 +9273,7 @@ function setupRenderEffect() {
       _firstRenderDone = true;
       renderSources();
       WordlistSelector.refresh();
+      DiscoveryBanner.refresh();
       renderWorkshopMergedDetail();
       return;
     }
@@ -9211,6 +9283,7 @@ function setupRenderEffect() {
     refreshSourceCounts();        // rebuild caches before any UI reads them
     renderSources();              // list/dialog with fresh meta
     WordlistSelector.refresh();   // add/remove/reorder/enable changes the list
+    DiscoveryBanner.refresh();    // import can populate the scoped XWI source
     refreshDerivedDisplays();     // scoring legend + main-panel stats bar
     if (workshopScroller) refreshWorkshopMergedScroller();
   });
@@ -9298,6 +9371,7 @@ async function setScope(target) {
   invalidatePreSearchCache();
   invalidateHistogramLayout();
   WordlistSelector.refresh();
+  DiscoveryBanner.refresh();
   await renderWorkshopMergedDetail();
 }
 
