@@ -26,7 +26,7 @@ input[type="file"] { display: none; }
   --font-mono:   ui-monospace, 'Cascadia Mono', monospace;
   /* Stats-bar natural height: 36px histogram + 10px×2 padding + 1px border.
      Used as the sticky top-offset for whatever pins immediately below it
-     (Workshop's entry headers). Stable as long as the histogram height is
+     (the entry headers). Stable as long as the histogram height is
      fixed. */
   --stats-bar-h: 57px;
   --tool-stack-h: 53px;
@@ -140,15 +140,15 @@ header h1 { font-size: 19px; font-weight: 600; letter-spacing: -0.01em; line-hei
 
 /* `overflow: clip`, not `hidden`: `hidden` would make the view a scroll
    container and trap the in-content sticky stack inside it. */
-#workshop-view { background: var(--bg); overflow: clip; flex: 1 1 auto; display: flex; flex-direction: column; }
+#app { background: var(--bg); overflow: clip; flex: 1 1 auto; display: flex; flex-direction: column; }
 
-#workshop-add-fab { position: fixed; right: 24px; bottom: 24px; z-index: 40; width: 44px; height: 44px; padding: 0; border: none; border-radius: 50%; background: var(--accent); color: white; font-size: 26px; line-height: 1; box-shadow: 0 4px 14px rgba(0,0,0,0.32); transition: background 0.12s, transform 0.12s, box-shadow 0.12s; }
-#workshop-add-fab:hover { background: var(--accent-hover); transform: translateY(-1px); box-shadow: 0 7px 20px rgba(0,0,0,0.38); }
-#workshop-add-fab:active { transform: translateY(0); box-shadow: 0 3px 10px rgba(0,0,0,0.3); }
+#add-fab { position: fixed; right: 24px; bottom: 24px; z-index: 40; width: 44px; height: 44px; padding: 0; border: none; border-radius: 50%; background: var(--accent); color: white; font-size: 26px; line-height: 1; box-shadow: 0 4px 14px rgba(0,0,0,0.32); transition: background 0.12s, transform 0.12s, box-shadow 0.12s; }
+#add-fab:hover { background: var(--accent-hover); transform: translateY(-1px); box-shadow: 0 7px 20px rgba(0,0,0,0.38); }
+#add-fab:active { transform: translateY(0); box-shadow: 0 3px 10px rgba(0,0,0,0.3); }
 
 /* z-index above #featured-row (60): the open menu drops over the tool gallery,
    which establishes its own stacking context. */
-#workshop-wordlist-bar { position: sticky; top: var(--header-h); z-index: 61; display: flex; flex-direction: column; padding: 8px 16px; background: var(--surface); border-bottom: 1px solid var(--border2); }
+#wordlist-bar { position: sticky; top: var(--header-h); z-index: 61; display: flex; flex-direction: column; padding: 8px 16px; background: var(--surface); border-bottom: 1px solid var(--border2); }
 .wls-bar-top { display: flex; align-items: center; gap: 12px; }
 .wls { position: relative; }
 .wls-trigger { display: flex; align-items: center; gap: 8px; max-width: 360px; padding: 0; font: inherit; font-size: 18px; font-weight: 600; line-height: 1.2; color: var(--text); background: none; border: none; cursor: pointer; }
@@ -172,26 +172,26 @@ header h1 { font-size: 19px; font-weight: 600; letter-spacing: -0.01em; line-hei
 .wls-configure-footer:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 .wls-configure-footer svg { width: 16px; height: 16px; flex-shrink: 0; }
 
-.workshop-rescore-toggle { padding: 4px 8px; color: var(--muted); transition: color 0.15s, background 0.15s, border-color 0.15s; }
-.workshop-rescore-toggle:hover { color: var(--text); }
-.workshop-rescore-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.workshop-rescore-toggle-icon { flex-shrink: 0; display: block; }
-#workshop-wordlist-bar.rescore-open .workshop-rescore-toggle { color: var(--accent); background: var(--sel); border-color: var(--accent); }
+.rescore-toggle { padding: 4px 8px; color: var(--muted); transition: color 0.15s, background 0.15s, border-color 0.15s; }
+.rescore-toggle:hover { color: var(--text); }
+.rescore-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.rescore-toggle-icon { flex-shrink: 0; display: block; }
+#wordlist-bar.rescore-open .rescore-toggle { color: var(--accent); background: var(--sel); border-color: var(--accent); }
 .wls-actions { display: flex; align-items: center; gap: 8px; flex: 0 0 auto; margin-left: auto; flex-wrap: wrap; }
 .wls-actions:empty { display: none; }
 .wls-bar-meta { position: absolute; top: calc(100% + 1px); right: 32px; }
 .wls-bar-meta:empty { display: none; }
-#workshop-wordlist-bar .wld-sync-hang { padding: 0; }
-#workshop-wordlist-bar .wld-sync-sign { margin-top: 0; }
+#wordlist-bar .sync-hang { padding: 0; }
+#wordlist-bar .sync-sign { margin-top: 0; }
 /* grid 0fr is not display:none, so the collapsed editor stays in layout + the
    a11y tree; the hidden attribute (set after the close transition) is what
    actually removes it, keeping Playwright's toBeVisible/toBeHidden honest. */
-#workshop-rescore-editor { display: grid; grid-template-rows: 0fr; opacity: 0; overflow: hidden; transition: grid-template-rows 0.2s ease, opacity 0.2s ease; }
-#workshop-rescore-editor[hidden] { display: none; }
-#workshop-wordlist-bar.rescore-open #workshop-rescore-editor { grid-template-rows: 1fr; opacity: 1; }
-.workshop-rescore-editor-inner { min-height: 0; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border2); }
+#rescore-editor { display: grid; grid-template-rows: 0fr; opacity: 0; overflow: hidden; transition: grid-template-rows 0.2s ease, opacity 0.2s ease; }
+#rescore-editor[hidden] { display: none; }
+#wordlist-bar.rescore-open #rescore-editor { grid-template-rows: 1fr; opacity: 1; }
+.rescore-editor-inner { min-height: 0; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border2); }
 @media (prefers-reduced-motion: reduce) {
-  #workshop-rescore-editor { transition: none; }
+  #rescore-editor { transition: none; }
 }
 
 #splash-screen { position: fixed; inset: 0; z-index: 200; background: var(--bg); color: var(--accent); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 48px; transition: opacity 0.3s; will-change: opacity; }
@@ -207,7 +207,7 @@ header h1 { font-size: 19px; font-weight: 600; letter-spacing: -0.01em; line-hei
 @keyframes splash-spinner-reveal { to { opacity: 1; } }
 @keyframes splash-logo-reveal { to { opacity: 1; } }
 
-/* Add wordlist row (at the bottom of the Library's wordlist list) */
+/* Add wordlist row (at the bottom of the wordlist list) */
 .add-wordlist-row { padding: 9px 14px; cursor: pointer; color: var(--text); font-size: 13px; display: flex; align-items: center; gap: 9px; transition: background 0.1s, color 0.1s; user-select: none; background: var(--bg); }
 .add-wordlist-row:hover { background: var(--hover); color: var(--accent); }
 .add-wordlist-icon { font-size: 15px; line-height: 1; width: 16px; text-align: center; flex-shrink: 0; }
@@ -222,7 +222,7 @@ header h1 { font-size: 19px; font-weight: 600; letter-spacing: -0.01em; line-hei
 .card-actions { display: flex; gap: 5px; align-items: center; flex-shrink: 0; }
 /* The All card has no toggle; the spacer reserves the same footprint so its
    icon/name/meta line up with the rest of the cards. */
-.wld-merged-card-spacer { width: 28px; height: 16px; flex-shrink: 0; }
+.merged-card-spacer { width: 28px; height: 16px; flex-shrink: 0; }
 
 /* Buttons */
 button { font-size: 13px; padding: 7px 11px; border-radius: 4px; border: 1px solid var(--border); background: var(--btn-bg); color: var(--text); cursor: pointer; font-family: inherit; line-height: 1; display: inline-flex; align-items: center; justify-content: center; }
@@ -271,11 +271,11 @@ button.danger:hover:not(:disabled) { background: #e74c3c; border-color: #c0392b;
 .stats-bar.stats-no-hist .stats-bar-controls { gap: 8px; }
 
 .sticky-stack { position: sticky; top: var(--header-h); z-index: 50; background: var(--surface); }
-#workshop-view .sticky-stack { top: calc(var(--header-h) + var(--wordlist-bar-h)); }
-#workshop-view .sticky-stack > #tool-stack { position: sticky; top: calc(var(--header-h) + var(--wordlist-bar-h)); z-index: 53; background: var(--surface); border-bottom: 1px solid var(--border2); }
-#workshop-view .sticky-stack > #workshop-stats { position: sticky; top: calc(var(--header-h) + var(--wordlist-bar-h) + var(--tool-stack-h)); z-index: 52; background: var(--surface); }
-#workshop-view .sticky-stack > .entry-headers,
-#workshop-view .sticky-stack > .group-headers { position: sticky; top: calc(var(--header-h) + var(--wordlist-bar-h) + var(--tool-stack-h) + var(--stats-bar-h)); z-index: 51; background: var(--bg); border-bottom: 1px solid var(--border2); }
+#app .sticky-stack { top: calc(var(--header-h) + var(--wordlist-bar-h)); }
+#app .sticky-stack > #tool-stack { position: sticky; top: calc(var(--header-h) + var(--wordlist-bar-h)); z-index: 53; background: var(--surface); border-bottom: 1px solid var(--border2); }
+#app .sticky-stack > #stats { position: sticky; top: calc(var(--header-h) + var(--wordlist-bar-h) + var(--tool-stack-h)); z-index: 52; background: var(--surface); }
+#app .sticky-stack > .entry-headers,
+#app .sticky-stack > .group-headers { position: sticky; top: calc(var(--header-h) + var(--wordlist-bar-h) + var(--tool-stack-h) + var(--stats-bar-h)); z-index: 51; background: var(--bg); border-bottom: 1px solid var(--border2); }
 .sticky-stack .search-bar { border-bottom: none; }
 .stat { display: flex; flex-direction: column; gap: 2px; }
 .stat-label { font-size: 10px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
@@ -1079,18 +1079,18 @@ body.picker-expanded #picker-backdrop { opacity: 1; }
   .picker-search-wrap > input { font-size: 16px; }
 }
 
-.wld-sync-hang { padding: 0 22px; }
-.wld-sync-sign { display: inline-flex; align-items: center; gap: 6px; max-width: 100%; margin-top: -3px;
+.sync-hang { padding: 0 22px; }
+.sync-sign { display: inline-flex; align-items: center; gap: 6px; max-width: 100%; margin-top: -3px;
   padding: 6px 12px; background: var(--surface); border: 1px solid var(--border); border-top: none; border-radius: 0 0 8px 8px;
   box-shadow: 0 3px 5px -1px rgba(0, 0, 0, 0.12); font-family: inherit; font-size: 12px; line-height: 1.5; color: var(--muted); cursor: pointer; }
-.wld-sync-sign:hover { color: var(--text); background: var(--hover); }
-.wld-sync-sign.attention { color: var(--warn-fg); }
-.wld-sync-line-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.wld-sync-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
-.wld-sync-dot--ok { background: var(--ok-fg); }
-.wld-sync-dot--off { background: none; border: 1.5px solid var(--faint); box-sizing: border-box; }
-.wld-sync-dot--warn { background: var(--warn-fg); }
-.wld-sync-dot--working { background: var(--accent); }
+.sync-sign:hover { color: var(--text); background: var(--hover); }
+.sync-sign.attention { color: var(--warn-fg); }
+.sync-line-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sync-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+.sync-dot--ok { background: var(--ok-fg); }
+.sync-dot--off { background: none; border: 1.5px solid var(--faint); box-sizing: border-box; }
+.sync-dot--warn { background: var(--warn-fg); }
+.sync-dot--working { background: var(--accent); }
 
 #discovery-banner { margin: 12px 16px; padding: 12px 14px; border-radius: 6px; font-size: 13px; position: relative; }
 html.light-mode #discovery-banner { background: color-mix(in srgb, var(--accent) 7%, var(--bg)); border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--border)); }
@@ -1266,7 +1266,7 @@ html.dark-mode #discovery-banner { background: color-mix(in srgb, var(--accent) 
     <div class="splash-logo">Grawlix <span class="bubble">!@#$</span></div>
     <div class="splash-spinner"><span></span><span></span><span></span></div>
   </div>
-  <div id="workshop-view">
+  <div id="app">
     <section id="featured-row" aria-label="Tools">
       <div class="picker-bar">
         <div class="picker-search-wrap">
@@ -1281,7 +1281,7 @@ html.dark-mode #discovery-banner { background: color-mix(in srgb, var(--accent) 
 
     <div id="detail-panel"></div>
 
-    <button type="button" id="workshop-add-fab" aria-label="Add entry" title="Add entry">＋</button>
+    <button type="button" id="add-fab" aria-label="Add entry" title="Add entry">＋</button>
   </div>
 </main>
 
@@ -1551,10 +1551,10 @@ function syncSignHTML(list) {
   else if (status === 'writing')     { dot = 'working'; text = 'Saving…'; }
   else                               { dot = 'ok';      text = `Syncing to ${file}`; }
 
-  return `<div class="wld-sync-hang">
-      <button type="button" id="wld-sync-sign" class="wld-sync-sign${dot === 'warn' ? ' attention' : ''}" onclick="WordlistActions.action('openSync')" title="${synced ? 'Manage disk sync' : 'Disk sync'}">
-        <span class="wld-sync-dot wld-sync-dot--${dot}"></span>
-        <span class="wld-sync-line-text">${text}</span>
+  return `<div class="sync-hang">
+      <button type="button" id="sync-sign" class="sync-sign${dot === 'warn' ? ' attention' : ''}" onclick="WordlistActions.action('openSync')" title="${synced ? 'Manage disk sync' : 'Disk sync'}">
+        <span class="sync-dot sync-dot--${dot}"></span>
+        <span class="sync-line-text">${text}</span>
       </button>
     </div>`;
 }
@@ -1573,7 +1573,7 @@ function wordlistSeverity(wordlist) {
   return wordlist._updateAvailable ? 'info' : null;
 }
 
-function libraryNavSeverity() {
+function sourcesSeverity() {
   return maxSeverity(...state.sources.map(wordlistSeverity));
 }
 
@@ -1622,7 +1622,7 @@ function buildWordlistCardHTML(icon, name, meta, opts = {}) {
 // not reorderable.
 function buildMergedCardHTML(selected) {
   const meta = pluralize(buildMergedWordlist().entries.length, 'entry', 'entries');
-  const cls = ['wordlist-card', 'wld-merged-card'];
+  const cls = ['wordlist-card', 'merged-card'];
   if (selected) cls.push('selected');
   return `<div class="${cls.join(' ')}" data-merged tabindex="0" role="option">
     <span class="drag-handle" aria-hidden="true">≡</span>
@@ -1631,7 +1631,7 @@ function buildMergedCardHTML(selected) {
       <div class="card-name-row"><div class="card-name">${MERGED_NAME}</div></div>
       <div class="card-meta">${esc(meta)}</div>
     </div>
-    <span class="wld-merged-card-spacer" aria-hidden="true"></span>
+    <span class="merged-card-spacer" aria-hidden="true"></span>
   </div>`;
 }
 
@@ -1838,59 +1838,6 @@ class PopupHelp {
   }
 }
 
-// `stats` drives the numeric readouts (count/min/max); `histEntries` drives the
-// histogram bars. Splitting them lets the score-range filter shrink the numbers
-// without making bars outside the selection vanish — those bars stay sourced
-// from the pre-score-range set.
-function buildStatsBarHTML(stats, histEntries, layout, opts = {}) {
-  const {
-    countValue = stats.count,
-    groupCount = null,
-    scoreRange = null,
-    sortHTML = '',
-    sortSlotId = '',
-    exportHTML = '',
-  } = opts;
-  const isEmpty = !countValue;
-  const dash = '—';
-  const fmt = v => isEmpty ? dash : v;
-  const counts = bucketCounts(histEntries || [], layout);
-  const scale = Math.max(...counts, 1);
-  const barH = c => c === 0 ? 0 : Math.max(2, Math.round((c / scale) * 34));
-
-  const bars = layout.slots.map((s, i) => {
-    const c = counts[i];
-    const title = `${pluralize(c, 'entry', 'entries')} scored ${s.label} • Click to filter`;
-    const { bg } = scoreColor((s.lo + s.hi) / 2);
-    return `<div class="histogram-col" title="${title}"><div class="histogram-bar" data-lo="${s.lo}" data-hi="${s.hi}" style="--score-bg:${bg}; height:${barH(c)}px"></div></div>`;
-  }).join('');
-
-  const countsHTML = groupCount != null
-    ? buildStatItemHTML('Entries', countValue.toLocaleString()) +
-      buildStatItemHTML('Groups', groupCount.toLocaleString())
-    : buildStatItemHTML('Entries', countValue.toLocaleString());
-
-  const rangeHTML = scoreRange
-    ? buildScoreRangeInputHTML(scoreRange.inputId, scoreRange.value, scoreRange.viewName)
-    : '';
-  const sortSlotHTML = sortHTML
-    ? `<span class="stats-bar-sort"${sortSlotId ? ` id="${sortSlotId}"` : ''}>${sortHTML}</span>`
-    : (sortSlotId ? `<span class="stats-bar-sort" id="${sortSlotId}"></span>` : '');
-  const exportSlotHTML = exportHTML ? `<span class="stats-bar-export">${exportHTML}</span>` : '';
-
-  return `<div class="stats-bar${isEmpty ? ' stats-empty' : ''}">
-      <div class="stats-bar-counts">${countsHTML}</div>
-      <div class="stats-bar-distribution">
-        <div class="stats-bar-numbers">
-          ${buildStatItemHTML('Min', fmt(stats.min), null, 'stat-far')}
-          ${buildStatItemHTML('Max', fmt(stats.max), null, 'stat-far')}
-        </div>
-        <div class="histogram" title="Histogram • Click to filter" onpointerdown="onHistogramPointerDown(event)">${bars}<div class="histogram-rect" hidden></div></div>
-      </div>
-      <div class="stats-bar-controls">${rangeHTML}${sortSlotHTML}${exportSlotHTML}</div>
-    </div>`;
-}
-
 function buildSplitBtn(mainLabel, mainOnclick, menuItems, { primary = false, disabled = false, title = '', id = '' } = {}) {
   const dis = disabled ? ' disabled' : '';
   const titleAttr = title ? ` title="${title}"` : '';
@@ -2030,11 +1977,11 @@ function buildEntriesTablePanelHTML() {
 function buildEntryHeadersHTML() {
   const stack = ToolStack.getStack();
   const tier = chainSortTier(stack);
-  const tierAxes = workshopSortAxes(tier, stack);
+  const tierAxes = sortAxes(tier, stack);
   const hdr = (label, ownedAxes) => {
     if (!ownedAxes.length) return { attrs: '', inner: esc(label) };
-    const active = ownedAxes.includes(WorkshopView.sortKey);
-    const asc = WorkshopView.sortDir === 'asc';
+    const active = ownedAxes.includes(AppView.sortKey);
+    const asc = AppView.sortDir === 'asc';
     const arrow = active ? (asc ? ' ↑' : ' ↓') : '';
     const state = active ? (asc ? ', ascending' : ', descending') : '';
     return {
@@ -2084,11 +2031,11 @@ function onSortHeaderActivate(e) {
     e.preventDefault();
   }
   const owned = cell.dataset.sortAxes.split(' ');
-  const { key, dir } = nextSortForColumn(owned, WorkshopView.sortKey, WorkshopView.sortDir);
+  const { key, dir } = nextSortForColumn(owned, AppView.sortKey, AppView.sortDir);
   const sel = cell.dataset.col
     ? `.sticky-stack [data-col="${CSS.escape(cell.dataset.col)}"]`
     : `.sticky-stack .${cell.classList[0]}`;
-  workshopScroller?.applySort(key, dir);
+  entriesScroller?.applySort(key, dir);
   // applySort rebuilds the header, destroying the activated cell — refocus its
   // replacement so keyboard focus isn't silently dropped to <body>.
   if (e.type === 'keydown') document.querySelector(sel)?.focus();
@@ -2375,9 +2322,9 @@ const Router = (() => {
       parts.push(...encodeRow(row));
     });
     const tier = chainSortTier(stack);
-    const defaultAxis = WORKSHOP_DEFAULT_SORT_BY_TIER[tier];
-    if (WorkshopView.sortKey !== defaultAxis)                  parts.push('sort=' + WorkshopView.sortKey);
-    if (WorkshopView.sortDir !== 'asc') parts.push('sort-dir=' + WorkshopView.sortDir);
+    const defaultAxis = DEFAULT_SORT_BY_TIER[tier];
+    if (AppView.sortKey !== defaultAxis)                  parts.push('sort=' + AppView.sortKey);
+    if (AppView.sortDir !== 'asc') parts.push('sort-dir=' + AppView.sortDir);
     return parts.join('&');
   }
 
@@ -2442,7 +2389,7 @@ const Router = (() => {
     // when picking the sort default (a stacked-output URL with no explicit
     // sort= should pick min-score, not the 1-atom default entry).
     ToolStack.setStack(rows);
-    WorkshopView.applyURLState({ sortKey, sortDir });
+    AppView.applyURLState({ sortKey, sortDir });
     if (droppedUnknown) {
       // Defer: showToast appends to the toast container which may not be in
       // the DOM yet during initial load.
@@ -3633,14 +3580,14 @@ const ReconnectSplash = (() => {
   return { show };
 })();
 
-// ─── Workshop view ────────────────────────────────────────────────────────────
-const WorkshopView = (() => {
-  const el = document.getElementById('workshop-view');
+// ─── App view ─────────────────────────────────────────────────────────────────
+const AppView = (() => {
+  const el = document.getElementById('app');
 
   // View-private state. Read externally via the getters in the returned
   // object; written either through the handlers below or through
   // `applyURLState` (Router) / `restoreScoreRanges` (boot). The sort state
-  // is mutated by WorkshopEntriesScroller's toolbar via `setSort`.
+  // is mutated by EntriesScroller's toolbar via `setSort`.
   // Search query / whole-word are *not* here — they live in the permanent
   // Search bar's ToolStack row params; the getters below read them from it.
   let _scoreRanges     = {};
@@ -3662,7 +3609,7 @@ const WorkshopView = (() => {
     if (range) _scoreRanges[activeScopeKey()] = range;
     else       delete _scoreRanges[activeScopeKey()];
     persistScoreRanges();
-    if (workshopScroller) workshopScroller.setScoreRange(range);
+    if (entriesScroller) entriesScroller.setScoreRange(range);
     repositionAllHistogramRects();
   }
 
@@ -3670,7 +3617,7 @@ const WorkshopView = (() => {
     if (Object.keys(_scoreRanges).length) lsSave('scoreRanges', JSON.stringify(_scoreRanges));
     else                                  lsDel('scoreRanges');
   }
-  // Sort state is mutated by WorkshopEntriesScroller's toolbar when the user
+  // Sort state is mutated by EntriesScroller's toolbar when the user
   // picks a new axis or flips the direction. No filter call here — the
   // scroller re-applies sort itself; this just keeps the canonical state.
   function setSort(key, dir) { _sortKey = key; _sortDir = dir; }
@@ -3680,7 +3627,7 @@ const WorkshopView = (() => {
   // axis/direction. The search query itself rides in the stack, not here.
   function applyURLState({ sortKey, sortDir }) {
     const tier = chainSortTier(ToolStack.getStack());
-    _sortKey = sortKey || WORKSHOP_DEFAULT_SORT_BY_TIER[tier];
+    _sortKey = sortKey || DEFAULT_SORT_BY_TIER[tier];
     _sortDir = sortDir || 'asc';
     reconcileSort(ToolStack.getStack());
   }
@@ -3707,7 +3654,7 @@ const WorkshopView = (() => {
 
 const WordlistSelector = (() => {
   const bar = document.createElement('div');
-  bar.id = 'workshop-wordlist-bar';
+  bar.id = 'wordlist-bar';
   bar.innerHTML = `
     <div class="wls-bar-top">
       <div class="wls">
@@ -3721,15 +3668,15 @@ const WordlistSelector = (() => {
       </div>
       <div class="wls-actions">
         <span class="wls-dl-slot"></span>
-        <button type="button" class="workshop-rescore-toggle" aria-expanded="false" aria-controls="workshop-rescore-editor">
-          <svg class="workshop-rescore-toggle-icon" width="18" height="18" aria-hidden="true"><use href="#icon-adjustments"/></svg>
+        <button type="button" class="rescore-toggle" aria-expanded="false" aria-controls="rescore-editor">
+          <svg class="rescore-toggle-icon" width="18" height="18" aria-hidden="true"><use href="#icon-adjustments"/></svg>
         </button>
         <span class="wls-kebab-slot"></span>
       </div>
     </div>
     <div class="wls-bar-meta"></div>
-    <div id="workshop-rescore-editor" hidden><div class="workshop-rescore-editor-inner"></div></div>`;
-  document.getElementById('workshop-view').prepend(bar);
+    <div id="rescore-editor" hidden><div class="rescore-editor-inner"></div></div>`;
+  document.getElementById('app').prepend(bar);
 
   const root    = bar.querySelector('.wls');
   const trigger = bar.querySelector('.wls-trigger');
@@ -3746,7 +3693,7 @@ const WordlistSelector = (() => {
     const scope = state.selected;
     trigger.querySelector('.wls-trigger-icon').innerHTML = scopeIcon(scope);
     trigger.querySelector('.wls-trigger-label').textContent = scopeLabel(scope);
-    const severity = libraryNavSeverity();
+    const severity = sourcesSeverity();
     trigger.querySelector('.wls-trigger-badge').innerHTML =
       buildBadgeHTML(severity, { title: severityTitle(severity) });
   }
@@ -3755,14 +3702,14 @@ const WordlistSelector = (() => {
     const scope = state.selected;
     if (scope === MERGED_ID) {
       const hasData = buildMergedWordlist().entries.length > 0;
-      return hasData ? `<button id="wld-download-btn" title="Download the merged wordlist" onclick="WordlistActions.action('download')">Download</button>` : '';
+      return hasData ? `<button id="download-btn" title="Download the merged wordlist" onclick="WordlistActions.action('download')">Download</button>` : '';
     }
     if (!scope.rawEntries.length) return '';
     const hasRules = (scope.rescoreRules?.length ?? 0) > 0;
     return hasRules
       ? buildSplitBtn('Download', `WordlistActions.action('download')`,
-          [['Download original', `WordlistActions.action('downloadOriginal')`]], { id: 'wld-download-btn', title: 'Download this wordlist (rescored)' })
-      : `<button id="wld-download-btn" title="Download this wordlist" onclick="WordlistActions.action('download')">Download</button>`;
+          [['Download original', `WordlistActions.action('downloadOriginal')`]], { id: 'download-btn', title: 'Download this wordlist (rescored)' })
+      : `<button id="download-btn" title="Download this wordlist" onclick="WordlistActions.action('download')">Download</button>`;
   }
 
   function kebabHTML() {
@@ -3814,7 +3761,7 @@ const WordlistSelector = (() => {
   // In-place patch, never a renderMeta: sync status flips on every debounced
   // save, and re-rendering the bar mid-edit would steal focus and scroll.
   function refreshSyncSign() {
-    const hang = metaRow.querySelector('.wld-sync-hang');
+    const hang = metaRow.querySelector('.sync-hang');
     if (hang) hang.outerHTML = syncSignHTML(state.selected);
   }
 
@@ -3877,13 +3824,13 @@ const WordlistSelector = (() => {
   });
   document.addEventListener('keydown', e => { if (e.key === 'Escape') close(); });
 
-  // The editor must stay inside #workshop-wordlist-bar: the sticky
+  // The editor must stay inside #wordlist-bar: the sticky
   // ResizeObserver watches the bar and cascades the table's offset from its
   // height, so an editor mounted elsewhere would expand under the pinned
   // headers instead of pushing them down.
-  const editorToggle = bar.querySelector('.workshop-rescore-toggle');
-  const editor       = bar.querySelector('#workshop-rescore-editor');
-  const editorInner  = editor.querySelector('.workshop-rescore-editor-inner');
+  const editorToggle = bar.querySelector('.rescore-toggle');
+  const editor       = bar.querySelector('#rescore-editor');
+  const editorInner  = editor.querySelector('.rescore-editor-inner');
   let editorOpen = false;
 
   function editorLabel() {
@@ -3895,8 +3842,8 @@ const WordlistSelector = (() => {
   }
   function renderEditorContent() {
     editorInner.innerHTML = state.selected === MERGED_ID
-      ? buildScoringSectionHTML('workshop-scoring-rules')
-      : buildRescoreSectionHTML(state.selected, 'workshop-rescore-rules');
+      ? buildScoringSectionHTML('scoring-rules')
+      : buildRescoreSectionHTML(state.selected, 'rescore-rules');
   }
   function refreshEditor() {
     syncToggleLabel();
@@ -3918,7 +3865,7 @@ const WordlistSelector = (() => {
     // The raw → rescored preview lives in the scroller rows, gated on the
     // editor's open state, so toggling it must repaint the table — refreshEditor
     // only touches the editor's own subtree.
-    if (workshopScroller) refreshWorkshopMergedScroller();
+    if (entriesScroller) refreshMergedScroller();
   }
   function hideAfterCollapse() {
     const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -4239,14 +4186,14 @@ async function init() {
   // state.selected). Scope is localStorage-only, never the URL, so it's
   // independent of Router.applyURL below.
   restoreSelectedScope();
-  WorkshopView.restoreScoreRanges(restoreScoreRanges());
+  AppView.restoreScoreRanges(restoreScoreRanges());
 
   Router.applyURL();
 
   ensureScoring();
   ensureEdits();
   propagateDefaults();
-  WorkshopView.show();
+  AppView.show();
   Router.navigate();
   renderAll();
   await _firstPaint;
@@ -4562,7 +4509,7 @@ const HIST_BINNED_BUCKETS = 11;
 
 // Keyed, not a single slot: two distinct axes coexist — the scope-aware stats
 // histogram and the scope-stable all-sources badge-color gradient. A shared
-// slot would let a Workshop scope silently leak into the badge colors.
+// slot would let the selected scope silently leak into the badge colors.
 const _layoutCache = new Map();
 function invalidateHistogramLayout() { _layoutCache.clear(); }
 
@@ -4570,13 +4517,13 @@ function* allSourcesScores() {
   for (const wl of state.sources) yield* getRescoredEntries(wl);
 }
 
-function workshopHistogramLayout() {
+function scopedHistogramLayout() {
   const scoreSource = state.selected === MERGED_ID ? allSourcesScores() : getActiveCorpus().entries;
-  return getHistogramLayout(scoreSource, 'workshop:' + syncKey(state.selected));
+  return getHistogramLayout(scoreSource, 'scoped:' + syncKey(state.selected));
 }
 
 // A fixed all-sources axis, used by scoreColor's badge gradient: pointing it at
-// the scoped Workshop axis would shift badge colors on every scope change, a
+// the scoped axis would shift badge colors on every scope change, a
 // regression no error would surface.
 function allSourcesHistogramLayout() {
   return getHistogramLayout(allSourcesScores(), 'all');
@@ -6511,7 +6458,7 @@ const ToolStack = (() => {
     container.style.gridTemplateColumns = template;
   }
 
-  // Used by mountWorkshopPanel for the initial render. Mutations after that
+  // Used by mountPanel for the initial render. Mutations after that
   // re-render the user tool rows via rerenderRows, which leaves the Search
   // bar's DOM in place. The hover insertion cursor is purely transient and
   // lives only in the DOM, so it's not serialized here.
@@ -6583,7 +6530,7 @@ const ToolStack = (() => {
   // bar's DOM in place — so its input focus and the sort toolbar mounted
   // inside it survive a tool add/remove. Help popups are then re-attached,
   // since a rebuilt tool row gets fresh input anchors. A full re-render
-  // (which does rebuild the bar) happens only via mountWorkshopPanel.
+  // (which does rebuild the bar) happens only via mountPanel.
   function rerenderRows() {
     const e = stackEl();
     if (!e) return;
@@ -6609,7 +6556,7 @@ const ToolStack = (() => {
     flashRow(idx);
     refreshGalleryActive();
     invalidatePreSearchCache();
-    refreshWorkshopMergedScroller();
+    refreshMergedScroller();
     Router.navigate();
   }
 
@@ -6620,7 +6567,7 @@ const ToolStack = (() => {
     rerenderRows();
     refreshGalleryActive();
     invalidatePreSearchCache();
-    refreshWorkshopMergedScroller();
+    refreshMergedScroller();
     Router.navigate();
   }
 
@@ -6652,7 +6599,7 @@ const ToolStack = (() => {
     refreshOtherAllToggles(idx);
     refreshGalleryActive();
     invalidatePreSearchCache();
-    refreshWorkshopMergedScroller();
+    refreshMergedScroller();
     Router.navigate();
   }
 
@@ -6681,7 +6628,7 @@ const ToolStack = (() => {
     stack.splice(toIdx, 0, row);
     rerenderRows();
     invalidatePreSearchCache();
-    refreshWorkshopMergedScroller();
+    refreshMergedScroller();
     Router.navigate();
   }
 
@@ -6757,7 +6704,7 @@ const ToolStack = (() => {
           delete row.params.replace;
         }
         if (token !== 'bar') invalidatePreSearchCache();
-        refreshWorkshopMergedScroller();
+        refreshMergedScroller();
         Router.navigate();
         return;
       }
@@ -6778,7 +6725,7 @@ const ToolStack = (() => {
           row.params[key] = input.value;
         }
         if (rowAttr !== 'bar') invalidatePreSearchCache();
-        refreshWorkshopMergedScroller();
+        refreshMergedScroller();
         Router.navigate();
       }
     });
@@ -6802,7 +6749,7 @@ const ToolStack = (() => {
   // used by Router.applyURL on init. The decoded rows are the full pipeline;
   // their trailing Search row (if any) is the permanent bar — append an empty
   // one when absent so the invariant "last row = Search bar" always holds.
-  // The next mountWorkshopPanel call (in renderAll) renders the rows; init()
+  // The next mountPanel call (in renderAll) renders the rows; init()
   // attaches handlers afterwards.
   function setStack(newStack) {
     const rows = Array.isArray(newStack) ? newStack.slice() : [];
@@ -6980,7 +6927,7 @@ function blockSemicolon(e) {
 
 // ─── Virtual Scroller ─────────────────────────────────────────────────────────
 
-// Workshop sort axes, split by sort tier — filter-only chains (empty stack or
+// Entry sort axes, split by sort tier — filter-only chains (empty stack or
 // searches) sort by Entry / Length / Score; chains with a transform swap Score
 // for Min score / Max score. Entry and Length project off the *first* atom —
 // the merged-wordlist entry the row grew from — so the table keeps its order when
@@ -7008,7 +6955,7 @@ const groupMinScore     = g => g._minScore;
 const groupMaxScore     = g => g._maxScore;
 const groupCount        = g => g._count;
 const groupChainEntries = g => g.chains.map(c => c.atoms[0].wlEntry.norm);
-const WORKSHOP_SORT_AXES = {
+const SORT_AXES = {
   single: {
     entry: {
       label: 'Entry',
@@ -7102,7 +7049,7 @@ const WORKSHOP_SORT_AXES = {
     },
   },
 };
-const WORKSHOP_DEFAULT_SORT_BY_TIER = { single: 'entry', multi: 'entry', group: 'entry' };
+const DEFAULT_SORT_BY_TIER = { single: 'entry', multi: 'entry', group: 'entry' };
 // An axis with no counterpart in the new tier maps across rather than
 // snapping to the tier default, so a sort survives a tier round-trip.
 // Length↔Count are deliberately paired despite measuring different things —
@@ -7142,8 +7089,8 @@ function buildColumnAxis(primaryCol, allColumns) {
     tiebreakers,
   };
 }
-function workshopSortAxes(tier, stack = ToolStack.getStack()) {
-  if (tier !== 'group') return WORKSHOP_SORT_AXES[tier];
+function sortAxes(tier, stack = ToolStack.getStack()) {
+  if (tier !== 'group') return SORT_AXES[tier];
   const cols = activeGroupColumns(stack);
   const spec = activeGroupRow(stack)?.def.group || null;
   const anchorLabel = spec?.anchorLabel || null;
@@ -7151,7 +7098,7 @@ function workshopSortAxes(tier, stack = ToolStack.getStack()) {
     .filter(c => c.tiebreaker !== false)
     .map(c => ({ project: g => c.value(g), dir: 'desc' }));
   const baseAxes = {};
-  for (const [key, axis] of Object.entries(WORKSHOP_SORT_AXES.group)) {
+  for (const [key, axis] of Object.entries(SORT_AXES.group)) {
     let updated = axis;
     if (key === 'entry' && anchorLabel) {
       updated = {
@@ -7192,8 +7139,8 @@ function workshopSortAxes(tier, stack = ToolStack.getStack()) {
   return { ...baseAxes, ...columnAxes };
 }
 function isValidSortAxis(key) {
-  if (key in WORKSHOP_SORT_AXES.single || key in WORKSHOP_SORT_AXES.multi
-      || key in WORKSHOP_SORT_AXES.group) return true;
+  if (key in SORT_AXES.single || key in SORT_AXES.multi
+      || key in SORT_AXES.group) return true;
   for (const tool of Object.values(TOOLS)) {
     for (const col of tool.group?.columns || []) {
       if (col.key === key) return true;
@@ -7226,19 +7173,19 @@ function nextSortForColumn(ownedAxes, curKey, curDir) {
 // the user's direction; a fallback to the tier default resets it too.
 function reconcileSort(stack) {
   const tier = chainSortTier(stack);
-  const axes = workshopSortAxes(tier, stack);
-  let key = WorkshopView.sortKey;
-  let dir = WorkshopView.sortDir;
+  const axes = sortAxes(tier, stack);
+  let key = AppView.sortKey;
+  let dir = AppView.sortDir;
   if (!(key in axes)) {
     const mapped = SORT_AXIS_TIER_MAP[key];
     if (mapped && mapped in axes) {
       key = mapped;
     } else {
-      key = WORKSHOP_DEFAULT_SORT_BY_TIER[tier];
+      key = DEFAULT_SORT_BY_TIER[tier];
       dir = 'asc';
     }
   }
-  WorkshopView.setSort(key, dir);
+  AppView.setSort(key, dir);
 }
 
 // Compare two items along an axis, falling through tiebreakers when the
@@ -7602,7 +7549,7 @@ const GroupMorePopover = (() => {
   return { toggle, close };
 })();
 
-class WorkshopEntriesScroller extends BaseVirtualScroller {
+class EntriesScroller extends BaseVirtualScroller {
   constructor(host) {
     super(host, 'entries-table-rows');
     this.toolbar = document.getElementById('stats-bar-sort');
@@ -7614,9 +7561,9 @@ class WorkshopEntriesScroller extends BaseVirtualScroller {
     this.sortTier = 'single';
     this.allEntries = [];
     this.entries = [];
-    this.sortKey = WorkshopView.sortKey;
-    this.sortDir = WorkshopView.sortDir;
-    this.scoreRange = WorkshopView.scoreRange;
+    this.sortKey = AppView.sortKey;
+    this.sortDir = AppView.sortDir;
+    this.scoreRange = AppView.scoreRange;
     this._scoreIntervals = this.scoreRange ? parseRange(this.scoreRange) : null;
     this.showSource = false;
     this.showDeleteCol = false;
@@ -7701,8 +7648,8 @@ class WorkshopEntriesScroller extends BaseVirtualScroller {
     const tierChanged = sortTier !== this.sortTier;
     this.atomCount = atomCount;
     this.sortTier = sortTier;
-    this.sortKey = WorkshopView.sortKey;
-    this.sortDir = WorkshopView.sortDir;
+    this.sortKey = AppView.sortKey;
+    this.sortDir = AppView.sortDir;
     return tierChanged;
   }
 
@@ -7722,7 +7669,7 @@ class WorkshopEntriesScroller extends BaseVirtualScroller {
   _buildToolbar() {
     if (!this.toolbar) return;
     const arrow = this.sortDir === 'asc' ? '↑' : '↓';
-    const options = Object.entries(workshopSortAxes(this.sortTier))
+    const options = Object.entries(sortAxes(this.sortTier))
       .map(([key, { label }]) => `<option value="${key}"${key === this.sortKey ? ' selected' : ''}>${label}</option>`)
       .join('');
     this.toolbar.innerHTML = `
@@ -7742,7 +7689,7 @@ class WorkshopEntriesScroller extends BaseVirtualScroller {
   applySort(key, dir) {
     this.sortKey = key;
     this.sortDir = dir;
-    WorkshopView.setSort(key, dir);
+    AppView.setSort(key, dir);
     this._buildToolbar();
     rebuildEntryHeaders();
     this._sortAndRender();
@@ -7781,7 +7728,7 @@ class WorkshopEntriesScroller extends BaseVirtualScroller {
     const filtered = applyScoreRangeToRows(this.allEntries, this._scoreIntervals, this.sortTier === 'group');
 
     let sorted;
-    const axis = workshopSortAxes(this.sortTier)[this.sortKey];
+    const axis = sortAxes(this.sortTier)[this.sortKey];
     if (!axis) {
       sorted = filtered;
     } else {
@@ -8024,7 +7971,7 @@ class WorkshopEntriesScroller extends BaseVirtualScroller {
 
     if (existing && this._isReservationActive() && !this._revealEmpty) return;
 
-    const query = WorkshopView.searchQuery.trim();
+    const query = AppView.searchQuery.trim();
     const addable = kind === 'chain' && /\S/i.test(query);
     const key = `${kind}|${addable ? query.toLowerCase() : ''}`;
     if (existing && existing.dataset.key === key) return;
@@ -8040,7 +7987,7 @@ class WorkshopEntriesScroller extends BaseVirtualScroller {
         `<div class="entries-empty-msg">${buildNoMatchQuipHTML(query)}</div>` +
         `<button type="button" class="entries-empty-add">＋ Add it</button>`;
       el.querySelector('.entries-empty-add').onclick = e =>
-        AtomPopover.openForCreate(query, workshopScroller, e.currentTarget);
+        AtomPopover.openForCreate(query, entriesScroller, e.currentTarget);
     } else {
       el.textContent = 'No matches.';
     }
@@ -8864,12 +8811,12 @@ function renderRescoreSection() {
 
 // ─── Rendering ────────────────────────────────────────────────────────────────
 
-let workshopScroller = null;
+let entriesScroller = null;
 
 // The render dispatcher is two effects:
 //   - render effect — reads `cacheVersion$`, dispatches the panel render
 //     (full render on first run, in-place scroller update on subsequent
-//     cache bumps). Workshop always shows the merged view, so there's no
+//     cache bumps). The panel always shows the merged view, so there's no
 //     selection to dispatch on.
 //   - cosmetic effect — subscribes to per-wordlist `name$`/`icon$`/`url$`/
 //     `publisherId$` signals across all sources; cosmetic field changes
@@ -8900,7 +8847,7 @@ function setupRenderEffect() {
       renderSources();
       WordlistSelector.refresh();
       DiscoveryBanner.refresh();
-      renderWorkshopMergedDetail();
+      renderMergedDetail();
       return;
     }
 
@@ -8911,7 +8858,7 @@ function setupRenderEffect() {
     WordlistSelector.refresh();   // add/remove/reorder/enable changes the list
     DiscoveryBanner.refresh();    // import can populate the scoped XWI source
     refreshDerivedDisplays();     // scoring legend + main-panel stats bar
-    if (workshopScroller) refreshWorkshopMergedScroller();
+    if (entriesScroller) refreshMergedScroller();
   });
 
   // Cosmetic effect: re-renders the wordlist list and the merged scroller's
@@ -8932,7 +8879,7 @@ function setupRenderEffect() {
     }
     renderSources();
     WordlistSelector.refresh();   // a renamed/re-iconed source restyles the rows
-    if (workshopScroller) workshopScroller._render();
+    if (entriesScroller) entriesScroller._render();
   });
 }
 
@@ -8974,17 +8921,17 @@ function refreshSourceCounts() {
 function createScroller() {
   AtomPopover.close();
   GroupMorePopover.close();
-  workshopScroller?.destroy();
-  workshopScroller = new WorkshopEntriesScroller(document.getElementById('vs-host'));
-  return workshopScroller;
+  entriesScroller?.destroy();
+  entriesScroller = new EntriesScroller(document.getElementById('vs-host'));
+  return entriesScroller;
 }
 
-async function refreshWorkshopMergedScroller() {
+async function refreshMergedScroller() {
   reconcileSort(ToolStack.getStack());
-  if (!workshopScroller) return;
+  if (!entriesScroller) return;
   const result = await runPipeline(getActiveCorpus(), ToolStack.getStack());
-  if (result.aborted || !workshopScroller) return;
-  workshopScroller.updateEntries(result.rows, result.atomCount, chainSortTier(ToolStack.getStack()));
+  if (result.aborted || !entriesScroller) return;
+  entriesScroller.updateEntries(result.rows, result.atomCount, chainSortTier(ToolStack.getStack()));
   ToolStack.refreshErrorMarks();
 }
 
@@ -8999,14 +8946,14 @@ async function setScope(target) {
   invalidateHistogramLayout();
   WordlistSelector.refresh();
   DiscoveryBanner.refresh();
-  await renderWorkshopMergedDetail();
+  await renderMergedDetail();
 }
 
-function mountWorkshopPanel(panel) {
+function mountPanel(panel) {
   panel.innerHTML = `
     <div class="sticky-stack">
       ${ToolStack.buildHTML()}
-      <div id="workshop-stats">${buildWorkshopStatsBarHTML()}</div>
+      <div id="stats">${buildStatsBarHTML()}</div>
       ${buildEntryHeadersHTML()}
     </div>
     ${buildEntriesTablePanelHTML()}
@@ -9014,14 +8961,14 @@ function mountWorkshopPanel(panel) {
   ToolStack.refreshGalleryActive();
   repositionAllHistogramRects();
   createScroller();
-  workshopScroller.onFilterChange = refreshWorkshopStatsBarFromScroller;
+  entriesScroller.onFilterChange = refreshStatsBarFromScroller;
   attachHelpPopups();
-  publishWorkshopBarHeights();
+  publishBarHeights();
   const stickyStack = panel.querySelector('.sticky-stack');
-  _workshopStickyObserver.disconnect();
-  _workshopStickyObserver.observe(stickyStack);
-  const wordlistBar = document.getElementById('workshop-wordlist-bar');
-  if (wordlistBar) _workshopStickyObserver.observe(wordlistBar);
+  _stickyObserver.disconnect();
+  _stickyObserver.observe(stickyStack);
+  const wordlistBar = document.getElementById('wordlist-bar');
+  if (wordlistBar) _stickyObserver.observe(wordlistBar);
   // Delegate rather than bind the header cells directly: rebuildEntryHeaders
   // replaces them via outerHTML on every sort change, which would orphan a
   // direct listener after the first sort.
@@ -9032,31 +8979,62 @@ function mountWorkshopPanel(panel) {
   });
 }
 
-function buildWorkshopStatsBarHTML() {
-  const scroller = workshopScroller;
+// histEntries stays the pre-score-range set (not the filtered statsEntries) so the
+// histogram keeps out-of-range bars — clickable to widen the filter — while the readouts shrink.
+function buildStatsBarHTML() {
+  const scroller = entriesScroller;
   const statsEntries = scroller ? scroller._statsViewEntries() : [];
   const histEntries = scroller ? scroller._histogramEntries() : getActiveCorpus().entries;
   const grouped = scroller ? scroller.sortTier === 'group' : false;
   const groupCount = grouped ? scroller.entries.length : null;
-  const visibleEntries = grouped
+  const countValue = grouped
     ? (scroller ? scroller._visibleGroupChainCount() : 0)
     : (scroller ? scroller.entries.length : statsEntries.length);
   const stats = computeStatsRaw(statsEntries);
-  const range = WorkshopView.scoreRange;
-  return buildStatsBarHTML(stats, histEntries, workshopHistogramLayout(), {
-    countValue: visibleEntries,
-    groupCount,
-    scoreRange: { value: range, inputId: 'score-range-input', viewName: 'WorkshopView' },
-    sortSlotId: 'stats-bar-sort',
-    exportHTML: buildWorkshopExportMenuHTML(),
-  });
+  const layout = scopedHistogramLayout();
+
+  const isEmpty = !countValue;
+  const dash = '—';
+  const fmt = v => isEmpty ? dash : v;
+  const counts = bucketCounts(histEntries || [], layout);
+  const scale = Math.max(...counts, 1);
+  const barH = c => c === 0 ? 0 : Math.max(2, Math.round((c / scale) * 34));
+
+  const bars = layout.slots.map((s, i) => {
+    const c = counts[i];
+    const title = `${pluralize(c, 'entry', 'entries')} scored ${s.label} • Click to filter`;
+    const { bg } = scoreColor((s.lo + s.hi) / 2);
+    return `<div class="histogram-col" title="${title}"><div class="histogram-bar" data-lo="${s.lo}" data-hi="${s.hi}" style="--score-bg:${bg}; height:${barH(c)}px"></div></div>`;
+  }).join('');
+
+  const countsHTML = groupCount != null
+    ? buildStatItemHTML('Entries', countValue.toLocaleString()) +
+      buildStatItemHTML('Groups', groupCount.toLocaleString())
+    : buildStatItemHTML('Entries', countValue.toLocaleString());
+
+  const rangeHTML = buildScoreRangeInputHTML('score-range-input', AppView.scoreRange, 'AppView');
+  const sortSlotHTML = `<span class="stats-bar-sort" id="stats-bar-sort"></span>`;
+  const exportHTML = buildExportMenuHTML();
+  const exportSlotHTML = exportHTML ? `<span class="stats-bar-export">${exportHTML}</span>` : '';
+
+  return `<div class="stats-bar${isEmpty ? ' stats-empty' : ''}">
+      <div class="stats-bar-counts">${countsHTML}</div>
+      <div class="stats-bar-distribution">
+        <div class="stats-bar-numbers">
+          ${buildStatItemHTML('Min', fmt(stats.min), null, 'stat-far')}
+          ${buildStatItemHTML('Max', fmt(stats.max), null, 'stat-far')}
+        </div>
+        <div class="histogram" title="Histogram • Click to filter" onpointerdown="onHistogramPointerDown(event)">${bars}<div class="histogram-rect" hidden></div></div>
+      </div>
+      <div class="stats-bar-controls">${rangeHTML}${sortSlotHTML}${exportSlotHTML}</div>
+    </div>`;
 }
 
-function refreshWorkshopStatsBarFromScroller() {
-  if (!workshopScroller) return;
-  const bar = document.querySelector('#workshop-stats .stats-bar');
+function refreshStatsBarFromScroller() {
+  if (!entriesScroller) return;
+  const bar = document.querySelector('#stats .stats-bar');
   if (!bar) return;
-  swapStatsBarReadouts(bar, buildWorkshopStatsBarHTML());
+  swapStatsBarReadouts(bar, buildStatsBarHTML());
   repositionAllHistogramRects();
 }
 
@@ -9070,17 +9048,17 @@ function swapStatsBarReadouts(bar, html) {
   bar.className = next.className;
 }
 
-function publishWorkshopBarHeights() {
+function publishBarHeights() {
   const stack = document.getElementById('tool-stack');
   if (stack) document.documentElement.style.setProperty('--tool-stack-h', stack.offsetHeight + 'px');
-  const stats = document.getElementById('workshop-stats');
+  const stats = document.getElementById('stats');
   if (stats) document.documentElement.style.setProperty('--stats-bar-h', stats.offsetHeight + 'px');
-  const stickyStack = document.querySelector('#workshop-view .sticky-stack');
+  const stickyStack = document.querySelector('#app .sticky-stack');
   if (stickyStack) document.documentElement.style.setProperty('--sticky-stack-h', stickyStack.offsetHeight + 'px');
-  const bar = document.getElementById('workshop-wordlist-bar');
+  const bar = document.getElementById('wordlist-bar');
   if (bar) document.documentElement.style.setProperty('--wordlist-bar-h', bar.offsetHeight + 'px');
 }
-const _workshopStickyObserver = new ResizeObserver(publishWorkshopBarHeights);
+const _stickyObserver = new ResizeObserver(publishBarHeights);
 
 function refreshStatsBarOverflow() {
   for (const bar of document.querySelectorAll('.stats-bar')) {
@@ -9117,7 +9095,7 @@ for (const id of ['detail-panel']) {
   new ResizeObserver(publish).observe(headerEl);
 }
 
-// Help anchors are rebuilt whenever the Workshop re-renders (mountWorkshopPanel,
+// Help anchors are rebuilt whenever the panel re-renders (mountPanel,
 // rerenderRows), so destroy the prior popups and rebind from a fresh
 // document-wide scan for `data-help`.
 let _helpPopups = [];
@@ -9132,23 +9110,23 @@ function attachHelpPopups() {
   }
 }
 
-async function renderWorkshopMergedDetail() {
+async function renderMergedDetail() {
   try {
     const panel = document.getElementById('detail-panel');
     reconcileSort(ToolStack.getStack());
-    mountWorkshopPanel(panel);
+    mountPanel(panel);
     const showSource = state.selected === MERGED_ID;
-    workshopScroller.showSource = showSource;
+    entriesScroller.showSource = showSource;
     panel.classList.toggle('no-source-col', !showSource);
-    workshopScroller.editsWordlist = getEditsWordlist() ?? null;
-    workshopScroller.showEditDeleteCol = true;
-    workshopScroller._onDeleteRow = entry => deleteFromEdits(entry, refreshWorkshopMergedScroller);
-    attachExternalEditHandlers(workshopScroller, refreshWorkshopMergedScroller);
+    entriesScroller.editsWordlist = getEditsWordlist() ?? null;
+    entriesScroller.showEditDeleteCol = true;
+    entriesScroller._onDeleteRow = entry => deleteFromEdits(entry, refreshMergedScroller);
+    attachExternalEditHandlers(entriesScroller, refreshMergedScroller);
 
     const result = await runPipeline(getActiveCorpus(), ToolStack.getStack());
     if (result.aborted) return;
     const { rows, atomCount } = result;
-    workshopScroller.setEntries(rows, atomCount, chainSortTier(ToolStack.getStack()));
+    entriesScroller.setEntries(rows, atomCount, chainSortTier(ToolStack.getStack()));
     ToolStack.refreshErrorMarks();
   } finally {
     // In `finally` so a thrown/aborted pipeline still dismisses the splash
@@ -9183,7 +9161,7 @@ function sortScoringRules() {
 function renderScoringRules() {
   sortScoringRules();
   WordlistSelector.refreshEditor();
-  workshopScroller?._render?.();
+  entriesScroller?._render?.();
 }
 
 function deleteScoringRow(i) {
@@ -9322,17 +9300,17 @@ function _onHistogramPointerUp(event) {
   if (!_histDrag || event.pointerId !== _histDrag.pointerId) return;
   const ds = _histDrag;
   _histDrag = null;
-  const layout = workshopHistogramLayout();
+  const layout = scopedHistogramLayout();
   let next;
-  if (!ds.moved && WorkshopView.scoreRange) {
-    const intervals = parseRange(WorkshopView.scoreRange);
+  if (!ds.moved && AppView.scoreRange) {
+    const intervals = parseRange(AppView.scoreRange);
     const insideSelection = intervals && matchesRange(ds.startLo, intervals) && matchesRange(ds.startHi, intervals);
     next = insideSelection ? '' : rangeStrFromBounds(ds.startLo, ds.startHi, layout);
   } else {
     next = rangeStrFromBounds(Math.min(ds.startLo, ds.curLo), Math.max(ds.startHi, ds.curHi), layout);
   }
   document.querySelectorAll('#score-range-input').forEach(inp => { inp.value = next; syncClearButton(inp); });
-  WorkshopView.onScoreRange(next);
+  AppView.onScoreRange(next);
 }
 
 document.addEventListener('pointermove', _onHistogramPointerMove);
@@ -9344,7 +9322,7 @@ function positionHistogramRect(histEl, intervals = undefined) {
   const rect = histEl.querySelector('.histogram-rect');
   if (!rect) return;
   if (intervals === undefined) {
-    const range = WorkshopView.scoreRange;
+    const range = AppView.scoreRange;
     intervals = range ? parseRange(range) : null;
   }
   if (!intervals) { rect.hidden = true; return; }
@@ -9363,7 +9341,7 @@ function positionHistogramRect(histEl, intervals = undefined) {
 }
 
 function repositionAllHistogramRects() {
-  document.querySelectorAll('#workshop-view .histogram').forEach(h => positionHistogramRect(h));
+  document.querySelectorAll('#app .histogram').forEach(h => positionHistogramRect(h));
 }
 
 // ─── Fetch, import & update ───────────────────────────────────────────────────
@@ -9629,7 +9607,7 @@ function ingestFile(file, wordlist, nameOverride) {
       persistMeta();
 
       renderSources();
-      renderWorkshopMergedDetail();
+      renderMergedDetail();
 
       const parts = [];
       if (newEntries.length) parts.push(`${newEntries.length.toLocaleString()} new`);
@@ -9648,7 +9626,7 @@ function ingestFile(file, wordlist, nameOverride) {
 // ─── My Edits: add entry & delete ────────────────────────────────────────────
 
 function newEntrySeedQuery() {
-  const q = WorkshopView.searchQuery.trim();
+  const q = AppView.searchQuery.trim();
   if (!isLiteralQuery(q) || getActiveCorpus().byNorm.has(toNorm(q))) return '';
   return q;
 }
@@ -9682,8 +9660,8 @@ function deleteFromEdits(target, refreshFn) {
   if (idx === -1) return;
 
   const refresh = refreshFn ?? (() => {
-    workshopScroller._invalidateSortCache();
-    workshopScroller._sortAndRender();
+    entriesScroller._invalidateSortCache();
+    entriesScroller._sortAndRender();
   });
 
   let deleted;
@@ -10376,8 +10354,8 @@ function bindEvents() {
   document.querySelector('.header-logo-link').href = location.pathname;
   document.getElementById('btn-settings').onclick = () => SettingsDialog.open();
   document.getElementById('btn-help').onclick     = () => WelcomeDialog.open();
-  document.getElementById('workshop-add-fab').onclick = () =>
-    AtomPopover.openForCreate(newEntrySeedQuery(), workshopScroller, null);
+  document.getElementById('add-fab').onclick = () =>
+    AtomPopover.openForCreate(newEntrySeedQuery(), entriesScroller, null);
 
   ToolStack.init();
 
@@ -10396,7 +10374,7 @@ function bindEvents() {
 }
 
 function focusPermanentSearch() {
-  const input = document.querySelector('#workshop-view input[data-row="bar"][data-key="pattern"]');
+  const input = document.querySelector('#app input[data-row="bar"][data-key="pattern"]');
   if (input) { input.focus(); input.select(); }
 }
 
@@ -10408,7 +10386,7 @@ function focusScoreRange() {
 function toggleWholeWord() {
   const row = document.activeElement?.closest('.tool-row, .search-bar');
   let cb = row?.querySelector('input[type="checkbox"][data-key="whole-word"]');
-  if (!cb) cb = document.querySelector('#workshop-view input[data-row="bar"][data-key="whole-word"]');
+  if (!cb) cb = document.querySelector('#app input[data-row="bar"][data-key="whole-word"]');
   if (!cb) return;
   cb.checked = !cb.checked;
   cb.dispatchEvent(new Event('input', { bubbles: true }));
@@ -10680,7 +10658,7 @@ function saveRuleField(idx, field, value) {
 }
 
 function activeRescoreContainerSelector(kind) {
-  return kind === 'scoring' ? '#workshop-scoring-rules' : '#workshop-rescore-rules';
+  return kind === 'scoring' ? '#scoring-rules' : '#rescore-rules';
 }
 
 function addRule() {
@@ -10722,7 +10700,7 @@ function noteDisplayHTML(note) {
 function startNoteEdit(wrapEl) {
   if (wrapEl.querySelector('.rule-note-input')) return;
   const i = parseInt(wrapEl.closest('.rule-row').dataset.i, 10);
-  const isScoring = !!wrapEl.closest('#scoring-rules, #workshop-scoring-rules');
+  const isScoring = !!wrapEl.closest('#scoring-rules');
 
   let currentNote, onSave;
   if (isScoring) {
@@ -10801,7 +10779,7 @@ function validateRulesContainer(container) {
 function onRuleInput(el) {
   if (el.classList.contains('rule-len') && el.value.trim().toLowerCase() === 'any') el.value = '';
   if (el.classList.contains('rule-out') && el.value.trim().toLowerCase() === 'unchanged') el.value = '';
-  const container = el.closest('#workshop-rescore-rules, #workshop-scoring-rules');
+  const container = el.closest('#rescore-rules, #scoring-rules');
   if (!container) return;
   validateRulesContainer(container);
 }
@@ -11053,15 +11031,15 @@ async function downloadOriginalWordlist(wordlist) {
   showToast(`Downloaded ${pluralize(wordlist.rawEntries.length, 'entry', 'entries')}`);
 }
 
-// ─── Workshop export ──────────────────────────────────────────────────────────
+// ─── Export ──────────────────────────────────────────────────────────
 // See docs/design.md § Entries-table export.
 
-function buildWorkshopExportMenuHTML() {
+function buildExportMenuHTML() {
   return buildMoreMenuHTML([
-    ['Copy to clipboard',            'workshopExportCopy()'],
-    ['Download results as wordlist', 'workshopExportWordlist()'],
-    ['Download as CSV',              'workshopExportCSV()'],
-    ['Download as JSON',             'workshopExportJSON()'],
+    ['Copy to clipboard',            'exportCopy()'],
+    ['Download results as wordlist', 'exportWordlist()'],
+    ['Download as CSV',              'exportCSV()'],
+    ['Download as JSON',             'exportJSON()'],
   ], { header: 'Export these results' });
 }
 
@@ -11118,7 +11096,7 @@ function exportToolsMetadata(stack) {
 }
 
 function exportScoreRangeMetadata() {
-  const intervals = parseRange(WorkshopView.scoreRange);
+  const intervals = parseRange(AppView.scoreRange);
   if (!intervals) return null;
   const { min, max } = intervals[0];
   const out = {};
@@ -11128,7 +11106,7 @@ function exportScoreRangeMetadata() {
 }
 
 function exportSortMetadata() {
-  return { by: WorkshopView.sortKey, dir: WorkshopView.sortDir };
+  return { by: AppView.sortKey, dir: AppView.sortDir };
 }
 
 function exportFilenameSegment(s) {
@@ -11240,17 +11218,17 @@ function flatCopyLines(chains) {
   }).join(' '));
 }
 
-async function workshopExportCopy() {
-  if (!workshopScroller) return;
-  const grouped = workshopScroller.sortTier === 'group';
-  const text = buildCopyText(workshopScroller.entries, grouped, ToolStack.getStack());
+async function exportCopy() {
+  if (!entriesScroller) return;
+  const grouped = entriesScroller.sortTier === 'group';
+  const text = buildCopyText(entriesScroller.entries, grouped, ToolStack.getStack());
   try {
     await navigator.clipboard.writeText(text);
   } catch (e) {
     showToast('Copy failed — clipboard permission denied');
     return;
   }
-  const count = countExportEntries(workshopScroller.entries, grouped);
+  const count = countExportEntries(entriesScroller.entries, grouped);
   showToast(`Copied ${pluralize(count, 'entry', 'entries')}`);
 }
 
@@ -11273,10 +11251,10 @@ function buildWordlistText(rows, grouped) {
   return { text: lines.length ? lines.join('\n') + '\n' : '', count: lines.length, skipped };
 }
 
-async function workshopExportWordlist() {
-  if (!workshopScroller) return;
-  const grouped = workshopScroller.sortTier === 'group';
-  const { text, count, skipped } = buildWordlistText(workshopScroller.entries, grouped);
+async function exportWordlist() {
+  if (!entriesScroller) return;
+  const grouped = entriesScroller.sortTier === 'group';
+  const { text, count, skipped } = buildWordlistText(entriesScroller.entries, grouped);
   triggerDownload(text, exportFilename(ToolStack.getStack(), 'txt'));
   let msg = `Downloaded ${pluralize(count, 'entry', 'entries')}`;
   if (skipped) msg += ` (${pluralize(skipped, 'entry', 'entries')} skipped due to semicolons)`;
@@ -11339,12 +11317,12 @@ function buildCSVText(rows, grouped, stack) {
   return out.join('\r\n') + '\r\n';
 }
 
-async function workshopExportCSV() {
-  if (!workshopScroller) return;
-  const grouped = workshopScroller.sortTier === 'group';
-  const text = buildCSVText(workshopScroller.entries, grouped, ToolStack.getStack());
+async function exportCSV() {
+  if (!entriesScroller) return;
+  const grouped = entriesScroller.sortTier === 'group';
+  const text = buildCSVText(entriesScroller.entries, grouped, ToolStack.getStack());
   triggerDownload(text, exportFilename(ToolStack.getStack(), 'csv'));
-  const count = countExportEntries(workshopScroller.entries, grouped);
+  const count = countExportEntries(entriesScroller.entries, grouped);
   showToast(`Downloaded ${pluralize(count, 'entry', 'entries')}`);
 }
 
@@ -11382,12 +11360,12 @@ function buildExportJSONObject(rows, grouped, stack) {
   return obj;
 }
 
-async function workshopExportJSON() {
-  if (!workshopScroller) return;
-  const grouped = workshopScroller.sortTier === 'group';
-  const obj = buildExportJSONObject(workshopScroller.entries, grouped, ToolStack.getStack());
+async function exportJSON() {
+  if (!entriesScroller) return;
+  const grouped = entriesScroller.sortTier === 'group';
+  const obj = buildExportJSONObject(entriesScroller.entries, grouped, ToolStack.getStack());
   triggerDownload(JSON.stringify(obj, null, 2) + '\n', exportFilename(ToolStack.getStack(), 'json'));
-  const count = countExportEntries(workshopScroller.entries, grouped);
+  const count = countExportEntries(entriesScroller.entries, grouped);
   showToast(`Downloaded ${pluralize(count, 'entry', 'entries')}`);
 }
 
@@ -11615,11 +11593,11 @@ window.__grawlixTest = {
     // saveEdit treats it as a genuine add, not a no-op against an equal score.
     const orig = getActiveCorpus().byNorm.get(toNorm(origRaw)) || buildUserWlEntry(origRaw, '', '');
     saveEdit(orig, { raw, score, comment });
-    return refreshWorkshopMergedScroller();
+    return refreshMergedScroller();
   },
   deleteMyEdit(raw) {
     const m = getEditsWordlist().rawEntries.find(e => e.norm === toNorm(raw));
-    if (m) deleteFromEdits({ norm: m.norm, display: displayOf(m) }, refreshWorkshopMergedScroller);
+    if (m) deleteFromEdits({ norm: m.norm, display: displayOf(m) }, refreshMergedScroller);
   },
 
   setUnigramCorpus(freqs) {
@@ -11629,14 +11607,14 @@ window.__grawlixTest = {
     unigramLoadPromise = null;
   },
 
-  // Set the Workshop tool stack directly, bypassing gallery clicks. Routes
+  // Set the tool stack directly, bypassing gallery clicks. Routes
   // through the same path the URL parser uses (`ToolStack.setStack` +
-  // `renderWorkshopMergedDetail`), so tests exercise the executor with the
+  // `renderMergedDetail`), so tests exercise the executor with the
   // same plumbing the user does. Pass an array of `{tool, params}`.
   // Returns the render promise — tests `await` it before reading the DOM.
   async setStack(stack) {
     ToolStack.setStack(stack.filter(r => TOOLS[r.tool]).map(r => makeToolRow(r.tool, r.params || {}, !!r.grouped)));
-    const p = renderWorkshopMergedDetail();
+    const p = renderMergedDetail();
     ToolStack.refreshGalleryActive();
     await p;
   },
@@ -11649,7 +11627,7 @@ window.__grawlixTest = {
   // test touches the UI, so init's boot tail can't reset the stack mid-test.
   whenReady() { return _ready; },
 
-  // Visible Workshop scroller rows as user-meaningful strings. A single-word
+  // Visible scroller rows as user-meaningful strings. A single-word
   // row returns its entry string; a chain row returns the array of its
   // distinct atom entry strings (relation glyph stripped). Adjacent repeat
   // atoms — the same word stacked under several search highlights — collapse
@@ -11715,8 +11693,8 @@ window.__grawlixTest = {
 
   async exportText(format) {
     await pipelineIdle();
-    const rows = workshopScroller.entries;
-    const grouped = workshopScroller.sortTier === 'group';
+    const rows = entriesScroller.entries;
+    const grouped = entriesScroller.sortTier === 'group';
     const stack = ToolStack.getStack();
     if (format === 'copy')     return buildCopyText(rows, grouped, stack);
     if (format === 'wordlist') return buildWordlistText(rows, grouped);

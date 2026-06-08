@@ -262,7 +262,7 @@ test('JSON metadata: score_range is {min, max} when fully specified', async ({ p
   await gotoApp(page);
   await addFixture(page);
   await setStack(page, []);
-  await page.evaluate(() => WorkshopView.onScoreRange('40-60'));
+  await page.evaluate(() => AppView.onScoreRange('40-60'));
 
   const json = await getExport(page, 'json');
   expect(json.score_range).toEqual({ min: 40, max: 60 });
@@ -272,7 +272,7 @@ test('JSON metadata: score_range omitted when no range set', async ({ page }) =>
   await gotoApp(page);
   await addFixture(page);
   await setStack(page, []);
-  await page.evaluate(() => WorkshopView.onScoreRange(''));
+  await page.evaluate(() => AppView.onScoreRange(''));
 
   const json = await getExport(page, 'json');
   expect(json).not.toHaveProperty('score_range');
@@ -282,7 +282,7 @@ test('JSON metadata: score_range omits open-ended bound', async ({ page }) => {
   await gotoApp(page);
   await addFixture(page);
   await setStack(page, []);
-  await page.evaluate(() => WorkshopView.onScoreRange('40+'));
+  await page.evaluate(() => AppView.onScoreRange('40+'));
 
   const json = await getExport(page, 'json');
   expect(json.score_range).toEqual({ min: 40 });

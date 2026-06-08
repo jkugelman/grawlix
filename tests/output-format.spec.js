@@ -165,7 +165,7 @@ test.describe('output format UI', () => {
     await page.evaluate(() => window.__grawlixTest.addCustomWordlist({ name: 'Plain', entries: ['dog'], scores: [50] }));
     await page.evaluate(() => window.__grawlixTest.setRescoreRules('Plain', []));  // custom lists auto-seed rules; clear them
 
-    const downloadBtn = page.locator('#workshop-wordlist-bar #wld-download-btn');
+    const downloadBtn = page.locator('#wordlist-bar #download-btn');
     const downloadOriginal = downloadBtn.locator('.split-btn-menu button');
 
     await scopeTo(page, 'Ruled');

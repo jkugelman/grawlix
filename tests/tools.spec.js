@@ -18,7 +18,7 @@ test.beforeEach(async ({ page }) => {
   await stubPublisherFetches(page);
 });
 
-// Default Workshop display case is lowercase, so visible entry text comes
+// Default display case is lowercase, so visible entry text comes
 // back lowercase regardless of how the wordlist stored it.
 async function addAnagramFixture(page) {
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
@@ -38,7 +38,7 @@ test('anagram via URL filters the merged view', async ({ page }) => {
   await page.evaluate(() => {
     history.replaceState(null, '', '?anagrams=LINDSEY');
     Router.applyURL();
-    renderWorkshopMergedDetail();
+    renderMergedDetail();
   });
 
   await expectVisible(page, ['lindsey', 'snidely']);
@@ -50,7 +50,7 @@ test('anagram + search compose (search filters tool output)', async ({ page }) =
   await page.evaluate(() => {
     history.replaceState(null, '', '?anagrams=LINDSEY&search=sni');
     Router.applyURL();
-    renderWorkshopMergedDetail();
+    renderMergedDetail();
   });
 
   await expectVisible(page, ['snidely']);
@@ -290,14 +290,14 @@ test('a stack Search tool and the permanent Search bar both round-trip through t
   await page.evaluate(() => {
     history.replaceState(null, '', '?search=ca&search=cat');
     Router.applyURL();
-    renderWorkshopMergedDetail();
+    renderMergedDetail();
   });
 
   // Decode splits them — the added Search row survives as a user tool, it
   // doesn't collapse into the bar (the bug this scheme fixes).
   const state = await page.evaluate(() => ({
     userStack: ToolStack.getUserStack().map(r => ({ tool: r.tool, params: r.params })),
-    barQuery: WorkshopView.searchQuery,
+    barQuery: AppView.searchQuery,
   }));
   expect(state.userStack).toEqual([{ tool: 'search', params: { pattern: 'ca' } }]);
   expect(state.barQuery).toBe('cat');
@@ -318,7 +318,7 @@ test('whole-word rides as a bare key on its Search row and round-trips', async (
   await page.evaluate(() => {
     history.replaceState(null, '', '?search=cat&whole-word&search=');
     Router.applyURL();
-    renderWorkshopMergedDetail();
+    renderMergedDetail();
   });
 
   const userStack = await page.evaluate(() =>
@@ -372,11 +372,11 @@ test('stats bar counts chain rows as entries', async ({ page }) => {
 
   // Three chain rows visible — the count is per row, not per flattened atom
   // (each semordnilap row pairs two atoms).
-  await expect(page.locator('#workshop-stats .stats-bar')).toContainText('3');
+  await expect(page.locator('#stats .stats-bar')).toContainText('3');
 
   // Remove the tool — the count falls back to the merged view's nine entries.
   await page.locator('.tool-row-remove').click();
-  await expect(page.locator('#workshop-stats .stats-bar')).toContainText('9');
+  await expect(page.locator('#stats .stats-bar')).toContainText('9');
 });
 
 test('clicking an atom in a chain row opens the popover for that atom', async ({ page }) => {
@@ -680,7 +680,7 @@ test('group rows sort by Count and the axis round-trips through the URL', async 
   await page.evaluate(() => {
     history.replaceState(null, '', '?letter_bank&all&sort=count&sort-dir=desc');
     Router.applyURL();
-    renderWorkshopMergedDetail();
+    renderMergedDetail();
   });
 
   await expectGroups(page, gs => gs.map(g => g.count), [3, 2]);
@@ -730,7 +730,7 @@ test('only one group tool per pipeline — all-toggle disabled on others, URL de
   await page.evaluate(() => {
     history.replaceState(null, '', '?letter_bank&all&anagrams&all');
     Router.applyURL();
-    renderWorkshopMergedDetail();
+    renderMergedDetail();
   });
   const stack = await page.evaluate(() => ToolStack.getUserStack().map(r => ({ tool: r.tool, grouped: r.grouped })));
   expect(stack).toEqual([{ tool: 'letter_bank', grouped: true }]);

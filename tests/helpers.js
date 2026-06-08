@@ -51,7 +51,7 @@ async function gotoApp(page, route = '/') {
   // a stable wrong state polling can't rescue (a boot-vs-test race).
   await page.evaluate(() => window.__grawlixTest.whenReady());
   // Then drain the boot publisher fetches: init() kicks them off fire-and-
-  // forget at its tail, and each re-renders the Workshop. Left pending, that
+  // forget at its tail, and each re-renders the panel. Left pending, that
   // re-render lands mid-test on WebKit and races the test's setStack/edit.
   // Wait for every URL-backed source to populate, then let the pipeline settle.
   await expect.poll(
@@ -71,24 +71,24 @@ async function scopeTo(page, name) {
 // Scope by driving the real selector UI, not the test API — use this (over
 // scopeTo) when the test's subject is the selector itself.
 async function scopeViaSelector(page, name) {
-  await page.locator('#workshop-wordlist-bar .wls-trigger').click();
-  await page.locator('#workshop-wordlist-bar .wls-menu .wordlist-card')
+  await page.locator('#wordlist-bar .wls-trigger').click();
+  await page.locator('#wordlist-bar .wls-menu .wordlist-card')
     .filter({ has: page.locator('.card-name', { hasText: name }) })
     .first().click();
   await page.evaluate(() => window.__grawlixTest.pipelineIdle());
 }
 
-// Expand the Workshop bar's inline rescore/scoring editor. Its content is keyed
+// Expand the wordlist bar's inline rescore/scoring editor. Its content is keyed
 // to the current scope, so scope first, then open.
 async function openRescoreEditor(page) {
-  const toggle = page.locator('#workshop-wordlist-bar .workshop-rescore-toggle');
+  const toggle = page.locator('#wordlist-bar .rescore-toggle');
   if ((await toggle.getAttribute('aria-expanded')) !== 'true') await toggle.click();
-  await expect(page.locator('#workshop-rescore-editor')).toBeVisible();
+  await expect(page.locator('#rescore-editor')).toBeVisible();
 }
 
 async function openManagePanel(page) {
-  await page.locator('#workshop-wordlist-bar .wls-trigger').click();
-  await page.locator('#workshop-wordlist-bar .wls-configure-footer').click();
+  await page.locator('#wordlist-bar .wls-trigger').click();
+  await page.locator('#wordlist-bar .wls-configure-footer').click();
   await expect(page.locator('#manage-dialog')).toBeVisible();
 }
 
@@ -105,7 +105,7 @@ async function setEnabledViaPanel(page, name, enabled) {
 }
 
 async function barKebabAction(page, label) {
-  const kebab = page.locator('#workshop-wordlist-bar .wls-actions .wls-kebab');
+  const kebab = page.locator('#wordlist-bar .wls-actions .wls-kebab');
   await kebab.locator('.more-menu-btn').click();
   await expect(kebab).toHaveClass(/open/);
   await kebab.locator('.split-btn-menu button', { hasText: label }).click();
@@ -122,7 +122,7 @@ async function addTool(page, toolKey) {
 
 // ─── Reading async pipeline output ────────────────────────────────────────
 //
-// The Workshop pipeline is async — setStack / a search / an edit repaints the
+// The entries pipeline is async — setStack / a search / an edit repaints the
 // scroller a frame or two later. A single snapshot read races that repaint:
 // green on chromium/firefox, flaky on webkit under load. Always poll. The
 // anti-pattern and its history live in docs/testing.md § "Reading async

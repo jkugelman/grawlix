@@ -11,8 +11,8 @@ test.beforeEach(async ({ page }) => {
   await stubPublisherFetches(page);
 });
 
-// The Workshop score-range input. Filling it fires its oninput =>
-// WorkshopView.onScoreRange, the same path the user drives.
+// The score-range input. Filling it fires its oninput =>
+// AppView.onScoreRange, the same path the user drives.
 const rangeInput = page => page.locator('#score-range-input');
 
 async function setRange(page, value) {
@@ -61,7 +61,7 @@ test('a score range is per-scope: set on A, B is independent, A persists across 
   // Reload: sticky scope lands back on Alpha (the last scope) with its range
   // intact, and Beta still carries its own when we switch to it.
   await reloadReady(page);
-  await expect(page.locator('#workshop-wordlist-bar .wls-trigger-label')).toHaveText('Alpha');
+  await expect(page.locator('#wordlist-bar .wls-trigger-label')).toHaveText('Alpha');
   await expect(rangeInput(page)).toHaveValue('50-90');
   await scopeTo(page, 'Beta');
   await expect(rangeInput(page)).toHaveValue('60+');
@@ -98,11 +98,11 @@ test('the selected scope persists across a reload', async ({ page }) => {
   }));
 
   await scopeViaSelector(page, 'Mine');
-  await expect(page.locator('#workshop-wordlist-bar .wls-trigger-label')).toHaveText('Mine');
+  await expect(page.locator('#wordlist-bar .wls-trigger-label')).toHaveText('Mine');
 
   await reloadReady(page);
   // Without sticky scope this would reset to All.
-  await expect(page.locator('#workshop-wordlist-bar .wls-trigger-label')).toHaveText('Mine');
+  await expect(page.locator('#wordlist-bar .wls-trigger-label')).toHaveText('Mine');
 });
 
 test('a disabled scoped source still restores on reload (scope is not gated on enabled)', async ({ page }) => {
@@ -113,12 +113,12 @@ test('a disabled scoped source still restores on reload (scope is not gated on e
   expect(dbKey).toBeTruthy();
 
   await scopeViaSelector(page, 'Off');
-  await expect(page.locator('#workshop-wordlist-bar .wls-trigger-label')).toHaveText('Off');
+  await expect(page.locator('#wordlist-bar .wls-trigger-label')).toHaveText('Off');
 
   await reloadReady(page);
   // The source boots disabled (dimmed in the selector) but scope still lands on
   // it — disabled sources stay viewable when scoped to.
-  await expect(page.locator('#workshop-wordlist-bar .wls-trigger-label')).toHaveText('Off');
+  await expect(page.locator('#wordlist-bar .wls-trigger-label')).toHaveText('Off');
 });
 
 test('deleting the scoped source then reloading falls back to All', async ({ page }) => {
@@ -128,7 +128,7 @@ test('deleting the scoped source then reloading falls back to All', async ({ pag
   }));
 
   await scopeViaSelector(page, 'Doomed');
-  await expect(page.locator('#workshop-wordlist-bar .wls-trigger-label')).toHaveText('Doomed');
+  await expect(page.locator('#wordlist-bar .wls-trigger-label')).toHaveText('Doomed');
 
   // Delete it from storage directly (no confirm dialog), leaving a dangling
   // selectedScope dbKey for the next boot to resolve.
@@ -140,14 +140,14 @@ test('deleting the scoped source then reloading falls back to All', async ({ pag
 
   await reloadReady(page);
   // The stored dbKey no longer matches any source, so boot falls back to All.
-  await expect(page.locator('#workshop-wordlist-bar .wls-trigger-label')).toHaveText('All');
+  await expect(page.locator('#wordlist-bar .wls-trigger-label')).toHaveText('All');
 });
 
 test('first run (cleared storage) lands on All', async ({ page }) => {
   // gotoApp seeds welcomeSeen but nothing else; no selectedScope is stored, so
   // boot must default to All.
   await gotoApp(page);
-  await expect(page.locator('#workshop-wordlist-bar .wls-trigger-label')).toHaveText('All');
+  await expect(page.locator('#wordlist-bar .wls-trigger-label')).toHaveText('All');
   // And no selectedScope key was written until the user actually scopes.
   expect(await page.evaluate(() => localStorage.getItem('grawlix_selectedScope'))).toBeNull();
 });

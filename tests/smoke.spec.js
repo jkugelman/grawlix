@@ -5,15 +5,15 @@ test.beforeEach(async ({ page }) => {
   await stubPublisherFetches(page);
 });
 
-test('page loads into the unified Workshop screen', async ({ page }) => {
+test('page loads into the unified screen', async ({ page }) => {
   await gotoApp(page);
 
   // Brand bar shows the wordmark.
   await expect(page.locator('header h1')).toContainText('Grawlix');
 
-  await expect(page.locator('#workshop-view')).toBeVisible();
-  await expect(page.locator('#workshop-wordlist-bar')).toBeVisible();
-  await expect(page.locator('#workshop-wordlist-bar .wls-trigger-label')).toHaveText('All');
+  await expect(page.locator('#app')).toBeVisible();
+  await expect(page.locator('#wordlist-bar')).toBeVisible();
+  await expect(page.locator('#wordlist-bar .wls-trigger-label')).toHaveText('All');
 });
 
 test('welcome popup persists until dismissed and reopens from ?', async ({ page }) => {
@@ -33,7 +33,7 @@ test('welcome popup persists until dismissed and reopens from ?', async ({ page 
 
   await page.reload();
   await expect.poll(() => page.evaluate(() => _db !== null), { timeout: 10000 }).toBe(true);
-  await expect(page.locator('#workshop-view')).toBeVisible();
+  await expect(page.locator('#app')).toBeVisible();
   await expect(dialog).toBeHidden();
 
   await page.locator('#btn-help').click();

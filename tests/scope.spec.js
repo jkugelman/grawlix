@@ -86,13 +86,13 @@ test('a disabled source is still viewable when scoped to it', async ({ page }) =
     .toMatchObject({ score: 70, wordlist: 'Off' });
 });
 
-// Read the Workshop stats bar's label→value readouts (Entries, Min, Max). The
+// Read the stats bar's label→value readouts (Entries, Min, Max). The
 // histogram + these numbers must reflect whatever corpus is in scope, so a
 // scoped source with a narrower score range reads a different Max than All.
-async function readWorkshopStats(page) {
+async function readStats(page) {
   return page.evaluate(() => {
     const out = {};
-    for (const stat of document.querySelectorAll('#workshop-stats .stats-bar .stat')) {
+    for (const stat of document.querySelectorAll('#stats .stats-bar .stat')) {
       const label = stat.querySelector('.stat-label')?.textContent;
       const value = stat.querySelector('.stat-value')?.textContent;
       if (label) out[label] = value;
@@ -148,20 +148,20 @@ test('the histogram + stats reflect the scoped corpus, not All', async ({ page }
   }));
 
   await expectVisible(page, ['ocean', 'reef', 'tide', 'zebra']);
-  const allStats = await readWorkshopStats(page);
+  const allStats = await readStats(page);
   expect(allStats.Entries).toBe('4');
   expect(allStats.Max).toBe('90');
   expect(allStats.Min).toBe('30');
 
   await scopeTo(page, 'Lo');
   await expectVisible(page, ['reef', 'tide']);
-  const loStats = await readWorkshopStats(page);
+  const loStats = await readStats(page);
   expect(loStats.Entries).toBe('2');
   expect(loStats.Max).toBe('40');
   expect(loStats.Min).toBe('30');
 
   await scopeTo(page, 'All');
-  const backStats = await readWorkshopStats(page);
+  const backStats = await readStats(page);
   expect(backStats.Entries).toBe('4');
   expect(backStats.Max).toBe('90');
 });

@@ -22,7 +22,7 @@ test('auto-seeds inert rules on custom-wordlist import with ≤10 distinct score
   // DOM: editor shows three rule rows.
   await scopeViaSelector(page, 'Tiny');
   await openRescoreEditor(page);
-  await expect(page.locator('#workshop-rescore-rules .rule-row')).toHaveCount(3);
+  await expect(page.locator('#rescore-rules .rule-row')).toHaveCount(3);
 });
 
 test('does not auto-seed when distinct scores exceed the threshold (>10)', async ({ page }) => {
@@ -37,7 +37,7 @@ test('does not auto-seed when distinct scores exceed the threshold (>10)', async
   // DOM: no rule rows.
   await scopeViaSelector(page, 'Big');
   await openRescoreEditor(page);
-  await expect(page.locator('#workshop-rescore-rules .rule-row')).toHaveCount(0);
+  await expect(page.locator('#rescore-rules .rule-row')).toHaveCount(0);
 });
 
 test('does not auto-seed for known publishers — publisher defaults are preserved', async ({ page }) => {

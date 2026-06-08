@@ -95,10 +95,10 @@ test('with auto-update off, the update check flags a changed wordlist with a gre
   expect(wl.updateAvailable).toBe(true);
   await expect(page.locator('.toast')).toHaveCount(0);
 
-  await expect(page.locator('#workshop-wordlist-bar .wls-trigger .badge[data-severity="info"]')).toBeVisible();
+  await expect(page.locator('#wordlist-bar .wls-trigger .badge[data-severity="info"]')).toBeVisible();
 
-  await page.locator('#workshop-wordlist-bar .wls-trigger').click();
-  const jkRow = page.locator('#workshop-wordlist-bar .wls-menu .wordlist-card')
+  await page.locator('#wordlist-bar .wls-trigger').click();
+  const jkRow = page.locator('#wordlist-bar .wls-menu .wordlist-card')
     .filter({ has: page.locator('.card-name', { hasText: 'John Kugelman' }) });
   await expect(jkRow.locator('.badge[data-severity="info"]')).toBeVisible();
 });

@@ -6,9 +6,9 @@ test.beforeEach(async ({ page }) => {
 });
 
 async function statsBarBoxes(page) {
-  await page.locator('#workshop-stats .stats-bar').waitFor();
+  await page.locator('#stats .stats-bar').waitFor();
   return await page.evaluate(() => {
-    const bar = document.querySelector('#workshop-stats .stats-bar');
+    const bar = document.querySelector('#stats .stats-bar');
     const box = (el) => {
       if (!el || el.offsetWidth === 0) return null;
       const r = el.getBoundingClientRect();
@@ -43,7 +43,7 @@ async function expectStatsShape(page, shape) {
   }).toEqual(shape);
 }
 
-test.describe('Workshop stats bar layout', () => {
+test.describe('Stats bar layout', () => {
   test('at iPhone width: stats-bar sections do not overlap', async ({ page }) => {
     await page.setViewportSize({ width: 375, height: 667 });
     await gotoApp(page);

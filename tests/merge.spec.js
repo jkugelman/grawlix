@@ -4,7 +4,7 @@
 // wordlists share an entry, which one wins, and what does the merged All
 // view show. Most cross-feature regressions in Grawlix land somewhere
 // downstream of this seam (cache invalidation, popover sourcing, the
-// Workshop entries table, downloads).
+// entries table, downloads).
 
 const { test, expect } = require('@playwright/test');
 const { stubPublisherFetches, gotoApp, openManagePanel } = require('./helpers');

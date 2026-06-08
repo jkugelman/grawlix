@@ -27,7 +27,7 @@ async function searchBarBoxes(page) {
   });
 }
 
-test.describe('Workshop search bar layout', () => {
+test.describe('Search bar layout', () => {
   test('at 1000px viewport: pattern ~200px, whole-word next to it, controls vertically centered', async ({ page }) => {
     await page.setViewportSize({ width: 1000, height: 800 });
     await gotoApp(page);

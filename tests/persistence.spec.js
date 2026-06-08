@@ -73,7 +73,7 @@ test('a custom wordlist survives a page reload with its entries and rules intact
 test('URL search/sort/whole-word state applies on boot and updates as the UI changes', async ({ page }) => {
   // Visit the app with a URL that encodes a non-default sort axis, a
   // search query, and the whole-word toggle. The Router's applyURL runs
-  // during init() and seeds WorkshopView's state from these params.
+  // during init() and seeds AppView's state from these params.
   await gotoApp(page, '/?search=BAGEL&whole-word&sort=length');
 
   // UI reflects the URL.

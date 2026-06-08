@@ -9,7 +9,7 @@ test.beforeEach(async ({ page }) => {
   await stubPublisherFetches(page);
 });
 
-const sortState = page => page.evaluate(() => ({ key: WorkshopView.sortKey, dir: WorkshopView.sortDir }));
+const sortState = page => page.evaluate(() => ({ key: AppView.sortKey, dir: AppView.sortDir }));
 
 async function addFixture(page) {
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({

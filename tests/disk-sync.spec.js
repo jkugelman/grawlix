@@ -162,7 +162,7 @@ test('the sync sign reflects the synced file', async ({ page }) => {
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({ name: 'Src', scores: [50], entries: ['ALPHA'] }));
   await scopeTo(page, 'Src');
 
-  const syncSign = page.locator('#workshop-wordlist-bar #wld-sync-sign');
+  const syncSign = page.locator('#wordlist-bar #sync-sign');
   await expect(syncSign).not.toContainText('.txt');
 
   await setNextName(page, 'Src.txt');

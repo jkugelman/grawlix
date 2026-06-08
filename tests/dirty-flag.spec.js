@@ -112,7 +112,7 @@ test('neutralize flips dirty, blanks every output, drops scoring:false, keeps Re
     { input: '50', length: '1-2', output: '30', note: '', scoring: false },
   ]));
 
-  const editor = page.locator('#workshop-rescore-editor');
+  const editor = page.locator('#rescore-editor');
   await editor.locator('.rule-neutralize-btn').click();
   const confirmDialog = page.locator('#confirm-dialog');
   await expect(confirmDialog).toBeVisible();

@@ -1,4 +1,4 @@
-// The Workshop's live rule-arrow preview: while the rescore editor is open and
+// The live rule-arrow preview: while the rescore editor is open and
 // scoped to a source, rows a rule remapped show `raw → rescored` in the score
 // cell; unaffected rows show a single badge. Closing the editor — or scoping to
 // All, where the editor edits tier labels, not scores — drops every arrow.
@@ -50,8 +50,8 @@ test('closing the editor removes the arrow', async ({ page }) => {
   await page.evaluate(() => window.__grawlixTest.pipelineIdle());
   await expect(oceanScore(page).locator('.atom-score-arrow')).toHaveCount(1);
 
-  await page.locator('#workshop-wordlist-bar .workshop-rescore-toggle').click();
-  await expect(page.locator('#workshop-rescore-editor')).toBeHidden();
+  await page.locator('#wordlist-bar .rescore-toggle').click();
+  await expect(page.locator('#rescore-editor')).toBeHidden();
   await page.evaluate(() => window.__grawlixTest.pipelineIdle());
 
   await expect(oceanScore(page).locator('.atom-score-arrow')).toHaveCount(0);
@@ -68,12 +68,12 @@ test('on All the editor edits tier labels, so no row shows an arrow', async ({ p
   await expect(oceanScore(page).locator('.atom-score-arrow')).toHaveCount(1);
 
   await scopeViaSelector(page, 'All');
-  await expect(page.locator('#workshop-rescore-editor')).toBeVisible();
+  await expect(page.locator('#rescore-editor')).toBeVisible();
   await expect(oceanScore(page).locator('.atom-score-arrow')).toHaveCount(0);
   await expect(oceanScore(page).locator('.score-badge')).toHaveText('80');
 });
 
-const neutralizeBtn = page => page.locator('#workshop-rescore-editor .rule-neutralize-btn');
+const neutralizeBtn = page => page.locator('#rescore-editor .rule-neutralize-btn');
 
 // Neutralize keeps a source's raw scores but strips Grawlix's remapping: surviving
 // rules blank their outputs (ranges + notes survive as a documenting legend) while
@@ -128,6 +128,6 @@ test('Disable rescoring is hidden when every rule is already pass-through (a no-
   ]));
   await scopeViaSelector(page, 'Inert');
   await openRescoreEditor(page);
-  await expect(page.locator('#workshop-rescore-rules .rule-row')).toHaveCount(2);
+  await expect(page.locator('#rescore-rules .rule-row')).toHaveCount(2);
   await expect(neutralizeBtn(page)).toHaveCount(0);
 });

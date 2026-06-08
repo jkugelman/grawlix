@@ -212,7 +212,7 @@ test('searching for an unknown entry surfaces an Add-it affordance that lands th
 test('the floating + button opens a blank create popover that lands the entry in My Edits', async ({ page }) => {
   await gotoApp(page);
 
-  const fab = page.locator('#workshop-add-fab');
+  const fab = page.locator('#add-fab');
   await expect(fab).toBeVisible();
   await fab.click();
 
@@ -235,7 +235,7 @@ test('the floating + button seeds the search term only for a literal word that i
     name: 'Source', entries: ['bagel'], scores: [50],
   }));
 
-  const fab = page.locator('#workshop-add-fab');
+  const fab = page.locator('#add-fab');
   const search = page.locator('.search-bar input[data-key="pattern"]');
   const entryInput = page.locator('#atom-pop-entry');
 
