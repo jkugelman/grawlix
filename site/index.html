@@ -117,8 +117,8 @@ html.light-mode {
   --ok-fg: #2d7a3f; --warn-fg: #856404; --err-fg: #b71c1c;
 }
 
-/* Force the scrollbar gutter so a tall view (Workshop) and a short one
-   (Library) don't shift the page horizontally on switch. */
+/* Force the scrollbar gutter so the page doesn't shift horizontally when
+   content grows past the viewport and the scrollbar appears. */
 html { overflow-y: scroll; }
 body { font-family: var(--font-sans); font-size: 14px; background: var(--bg); color: var(--text); }
 main { display: flex; flex-direction: column; min-height: calc(100vh - var(--header-h)); }
@@ -3651,13 +3651,11 @@ const WorkshopView = (() => {
   function activeScoreRange() { return _scoreRanges[activeScopeKey()] || ''; }
 
   function show() {
-    el.hidden = false;
-    // Histogram rect positioning reads live offsetLeft/offsetWidth, which are
-    // 0 while the card is hidden. Any rect write during hidden corrupts the
-    // saved position; reposition now that the bars have real dimensions.
+    // Reposition once the bars are laid out: rect positioning reads live
+    // offsetLeft/offsetWidth, and a write before layout would silently bake a
+    // 0-based position into the saved rect.
     repositionAllHistogramRects();
   }
-  function isVisible() { return !el.hidden; }
 
   function onScoreRange(value) {
     const range = normalizeScoreRange(value, 'score-range-input');
@@ -3693,7 +3691,7 @@ const WorkshopView = (() => {
   function restoreScoreRanges(map) { _scoreRanges = map; }
 
   return {
-    show, isVisible,
+    show,
     onScoreRange,
     setSort, applyURLState, restoreScoreRanges,
     get searchQuery()     { return ToolStack.getSearchBarRow().params.pattern || ''; },
@@ -3816,7 +3814,6 @@ const WordlistSelector = (() => {
   // In-place patch, never a renderMeta: sync status flips on every debounced
   // save, and re-rendering the bar mid-edit would steal focus and scroll.
   function refreshSyncSign() {
-    if (!WorkshopView.isVisible()) return;
     const hang = metaRow.querySelector('.wld-sync-hang');
     if (hang) hang.outerHTML = syncSignHTML(state.selected);
   }
@@ -4136,8 +4133,6 @@ const ManagePanel = (() => {
 })();
 
 // ─── Wordlist actions dispatcher ──────────────────────────────────────────────
-// Lives outside any view because both Workshop and Library bars dispatch through
-// it; getActionTargetWordlist() resolves the target by which view is visible.
 
 const WordlistActions = (() => {
   const ACTIONS = {
@@ -4565,9 +4560,9 @@ function computeStats(key, entries) {
 const HIST_DISCRETE_THRESHOLD = 12;
 const HIST_BINNED_BUCKETS = 11;
 
-// Keyed, not a single slot: the scope-aware Workshop axis and the fixed
-// all-sources axis coexist. A shared slot let a Workshop scope silently leak
-// into the still-present Library histogram.
+// Keyed, not a single slot: two distinct axes coexist — the scope-aware stats
+// histogram and the scope-stable all-sources badge-color gradient. A shared
+// slot would let a Workshop scope silently leak into the badge colors.
 const _layoutCache = new Map();
 function invalidateHistogramLayout() { _layoutCache.clear(); }
 
@@ -4580,9 +4575,9 @@ function workshopHistogramLayout() {
   return getHistogramLayout(scoreSource, 'workshop:' + syncKey(state.selected));
 }
 
-// A fixed all-sources axis. Used by the Library and by scoreColor's badge
-// gradient: pointing those at the scoped Workshop axis would shift badge colors
-// on every scope change, a regression no error would surface.
+// A fixed all-sources axis, used by scoreColor's badge gradient: pointing it at
+// the scoped Workshop axis would shift badge colors on every scope change, a
+// regression no error would surface.
 function allSourcesHistogramLayout() {
   return getHistogramLayout(allSourcesScores(), 'all');
 }
@@ -8919,7 +8914,7 @@ function setupRenderEffect() {
     if (workshopScroller) refreshWorkshopMergedScroller();
   });
 
-  // Cosmetic effect: re-renders the Library list and the merged scroller's
+  // Cosmetic effect: re-renders the wordlist list and the merged scroller's
   // per-row source column when any wordlist's name/icon/url/publisher
   // changes. Cache-affecting fields (enabled, rescoreRules) route through
   // `cacheVersion$` instead since changing them invalidates derived state.
@@ -9468,7 +9463,7 @@ async function applyWordlistText(wordlist, text, { fetchedSize = null, originalF
   await Storage.writeWordlist(wordlist, text);
   if (wordlist.type === 'edits') EditsSync.scheduleWrite();
   else                           MirrorSync.schedule(wordlist);
-  // The render effect drained inside batchUpdate already updated the Library
+  // The render effect drained inside batchUpdate already updated the wordlist
   // list, dropdown, scoring legend, stats bar, and active scroller for the
   // current selection. Nothing else to repaint here.
 
