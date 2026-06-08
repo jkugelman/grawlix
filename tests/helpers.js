@@ -83,7 +83,9 @@ async function scopeTo(page, name) {
 // scopeTo) when the test's subject is the selector itself.
 async function scopeViaSelector(page, name) {
   await page.locator('#workshop-wordlist-bar .wls-trigger').click();
-  await page.locator('#workshop-wordlist-bar .wls-option', { hasText: name }).first().click();
+  await page.locator('#workshop-wordlist-bar .wls-menu .wordlist-card')
+    .filter({ has: page.locator('.card-name', { hasText: name }) })
+    .first().click();
   await page.evaluate(() => window.__grawlixTest.pipelineIdle());
 }
 
@@ -93,6 +95,12 @@ async function openRescoreEditor(page) {
   const toggle = page.locator('#workshop-wordlist-bar .workshop-rescore-toggle');
   if ((await toggle.getAttribute('aria-expanded')) !== 'true') await toggle.click();
   await expect(page.locator('#workshop-rescore-editor')).toBeVisible();
+}
+
+async function openManagePanel(page) {
+  await page.locator('#workshop-wordlist-bar .wls-trigger').click();
+  await page.locator('#workshop-wordlist-bar .wls-configure-footer').click();
+  await expect(page.locator('#manage-dialog')).toBeVisible();
 }
 
 async function addTool(page, toolKey) {
@@ -134,6 +142,7 @@ module.exports = {
   scopeTo,
   scopeViaSelector,
   openRescoreEditor,
+  openManagePanel,
   addTool,
   expectVisible,
   expectGroups,

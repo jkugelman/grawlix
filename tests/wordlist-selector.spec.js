@@ -1,7 +1,7 @@
 // Workshop wordlist selector (Stage 2a of the unify redesign). Drives the real
 // dropdown UI — not the setScope test API — to prove the control lists All plus
-// each source as icon+label rows, that clicking one scopes the table, and that a
-// disabled source renders grayed-out yet stays selectable (scope ≠ merge).
+// each source as rows, that clicking one scopes the table, and that a disabled
+// source renders dimmed yet stays selectable (scope ≠ merge).
 
 const { test, expect } = require('@playwright/test');
 const { stubPublisherFetches, gotoApp, scopeTo, scopeViaSelector, expectVisible, openRescoreEditor } = require('./helpers');
@@ -23,10 +23,10 @@ async function openMenu(page) {
 }
 
 function optionLabels(page) {
-  return page.locator('#workshop-wordlist-bar .wls-option .wls-option-label').allTextContents();
+  return page.locator('#workshop-wordlist-bar .wls-menu .wordlist-card .card-name').allTextContents();
 }
 
-test('the dropdown lists All plus each added source as icon+label rows', async ({ page }) => {
+test('the dropdown lists All plus each added source as icon+name+count rows', async ({ page }) => {
   await gotoApp(page);
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
     name: 'Alpha', entries: ['ocean'], scores: [70],
@@ -46,11 +46,13 @@ test('the dropdown lists All plus each added source as icon+label rows', async (
   expect(labels).toContain('Beta');
   expect(labels.indexOf('Alpha')).toBeLessThan(labels.indexOf('Beta'));
 
-  // Icon + label only — every option has an icon, none has a checkbox/toggle.
-  const optionCount = await page.locator('#workshop-wordlist-bar .wls-option').count();
-  const iconCount = await page.locator('#workshop-wordlist-bar .wls-option .wordlist-icon').count();
-  expect(iconCount).toBe(optionCount);
-  expect(await page.locator('#workshop-wordlist-bar .wls-option input[type="checkbox"]').count()).toBe(0);
+  const cards = page.locator('#workshop-wordlist-bar .wls-menu .wordlist-card');
+  const optionCount = await cards.count();
+  expect(await cards.locator('.wordlist-icon').count()).toBe(optionCount);
+  expect(await cards.locator('.card-meta').count()).toBe(optionCount);
+  expect(await cards.locator('input[type="checkbox"]').count()).toBe(0);
+  expect(await cards.locator('.drag-handle').count()).toBe(0);
+  expect(await page.locator('#workshop-wordlist-bar .wls-menu .card-meta', { hasText: 'entr' }).count()).toBe(optionCount);
 });
 
 test('clicking a source scopes the table to it; clicking All restores the merge', async ({ page }) => {
@@ -77,7 +79,7 @@ test('clicking a source scopes the table to it; clicking All restores the merge'
   await expectVisible(page, ['ocean', 'tide', 'zebra']);
 });
 
-test('a disabled source renders grayed-out but is still selectable', async ({ page }) => {
+test('a disabled source renders dimmed but is still selectable', async ({ page }) => {
   await gotoApp(page);
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
     name: 'Off', entries: ['ocean', 'tide'], scores: [70, 40],
@@ -90,10 +92,11 @@ test('a disabled source renders grayed-out but is still selectable', async ({ pa
   await page.locator('.header-nav-item[data-view="workshop"]').click();
 
   await openMenu(page);
-  const offOption = page.locator('#workshop-wordlist-bar .wls-option', { hasText: 'Off' });
-  // Grayed-out is asserted via the modifier class, never a computed color
+  const offOption = page.locator('#workshop-wordlist-bar .wls-menu .wordlist-card')
+    .filter({ has: page.locator('.card-name', { hasText: 'Off' }) });
+  // Dimming is asserted via the shared .disabled class, never a computed color
   // (project rule: no toHaveCSS assertions).
-  await expect(offOption).toHaveClass(/wls-option--disabled/);
+  await expect(offOption).toHaveClass(/\bdisabled\b/);
 
   // Disabled does not mean unclickable — scope to it and the table shows it.
   await offOption.click();

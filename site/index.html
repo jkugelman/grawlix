@@ -179,23 +179,20 @@ button.header-nav-item:hover:not(:disabled) { color: white; background: var(--hd
 .wls-trigger:hover { color: var(--accent); }
 .wls-trigger:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
 .wls-trigger .wordlist-icon { width: 20px; height: 20px; }
-.wls-trigger-icon, .wls-option-icon { display: flex; align-items: center; flex-shrink: 0; }
+.wls-trigger-icon { display: flex; align-items: center; flex-shrink: 0; }
 .wls-trigger-label { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .wls-trigger-chevron { flex-shrink: 0; margin-left: 2px; transition: transform 0.15s; }
 .wls.open .wls-trigger-chevron { transform: rotate(180deg); }
 
 .wls-menu { position: absolute; top: calc(100% + 4px); left: 0; z-index: 60; min-width: 240px; max-width: 360px; max-height: 60vh; overflow-y: auto; padding: 4px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; box-shadow: var(--shadow); }
 .wls:not(.open) .wls-menu { display: none; }
-.wls-option { display: flex; justify-content: flex-start; align-items: center; gap: 8px; width: 100%; padding: 7px 10px; font: inherit; color: var(--text); text-align: left; background: none; border: none; border-radius: 5px; cursor: pointer; }
-.wls-option:hover { background: var(--hover); }
-.wls-option:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
-.wls-option.selected { background: var(--sel); font-weight: 600; }
-.wls-option .wordlist-icon { width: 18px; height: 18px; }
-.wls-option-label { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-/* Dimmed but deliberately still clickable: scope means "look at this list,"
-   not "merge it," so a disabled list stays selectable. */
-.wls-option--disabled { color: var(--faint); }
-.wls-option--disabled .wordlist-icon { filter: grayscale(1); opacity: 0.6; }
+.wls-menu .wordlist-card { border-bottom: none; border-radius: 5px; }
+.wls-menu .wordlist-card.selected { border-left: none; padding-left: 14px; }
+
+.wls-configure-footer { display: flex; align-items: center; justify-content: flex-start; gap: 8px; width: 100%; margin-top: 4px; padding: 9px 10px; font: inherit; color: var(--text); text-align: left; background: none; border: none; border-top: 1px solid var(--border2); border-radius: 0 0 5px 5px; cursor: pointer; }
+.wls-configure-footer:hover { background: var(--hover); color: var(--text); }
+.wls-configure-footer:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.wls-configure-footer svg { width: 16px; height: 16px; flex-shrink: 0; }
 
 .workshop-rescore-toggle { padding: 4px 8px; color: var(--muted); transition: color 0.15s, background 0.15s, border-color 0.15s; }
 .workshop-rescore-toggle:hover { color: var(--text); }
@@ -766,13 +763,20 @@ dialog:focus { outline: none; }
 .dialog-body { padding: 22px; }
 dialog::backdrop { background: var(--backdrop); }
 dialog h2 { font-size: 16px; margin-bottom: 14px; padding-right: 24px; }
-.dialog-close-btn { position: absolute; top: 10px; right: 12px; background: none; border: none; font-size: 18px; line-height: 1; color: var(--muted); cursor: pointer; padding: 2px 6px; border-radius: 4px; z-index: 1; }
-.dialog-close-btn:hover { background: var(--hover); color: var(--text); }
+.dialog-close-btn, .manage-close-btn { position: absolute; top: 10px; right: 12px; background: none; border: none; font-size: 18px; line-height: 1; color: var(--muted); cursor: pointer; padding: 2px 6px; border-radius: 4px; z-index: 1; }
+.dialog-close-btn:hover, .manage-close-btn:hover { background: var(--hover); color: var(--text); }
 .known-wordlist { display: flex; align-items: center; justify-content: space-between; gap: 9px; padding: 9px 12px; border: 1px solid var(--border2); border-radius: 6px; margin-bottom: 7px; }
 .known-wordlist-info { flex: 1; }
 .known-wordlist-name { font-size: 13px; font-weight: 600; }
 .known-wordlist-sub  { font-size: 11px; color: var(--muted); margin-top: 2px; }
 .dialog-footer { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--border2); display: flex; justify-content: flex-end; gap: 8px; }
+
+#manage-dialog { width: 380px; }
+.manage-list { max-height: 50vh; overflow-y: auto; margin: 4px 0; background: var(--surface); border: 1px solid var(--border2); border-radius: 6px; }
+.manage-list .wordlist-card:last-child { border-bottom: none; }
+.manage-add-row { width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px; margin-top: 8px; padding: 8px 10px; border: 1px dashed var(--border3); border-radius: 6px; background: none; color: var(--muted); font-size: 13px; font-weight: 600; cursor: pointer; transition: background 0.1s, color 0.1s, border-color 0.1s; }
+.manage-add-row:hover { background: var(--hover); color: var(--accent); border-color: var(--accent); }
+.manage-add-row .add-wordlist-icon { font-size: 15px; line-height: 1; }
 
 /* Welcome dialog */
 #welcome-dialog { width: 700px; }
@@ -1768,7 +1772,6 @@ function severityTitle(severity) {
   return severity === 'info' ? 'Update available' : '';
 }
 
-// opts: { enabled, populated, selected, severity, severityTitle }
 function buildWordlistCardHTML(icon, name, meta, opts = {}) {
   const {
     enabled       = true,
@@ -1776,6 +1779,8 @@ function buildWordlistCardHTML(icon, name, meta, opts = {}) {
     selected      = false,
     severity      = null,
     severityTitle = '',
+    draggable     = true,
+    toggle        = true,
   } = opts;
 
   const classes = ['wordlist-card'];
@@ -1783,7 +1788,7 @@ function buildWordlistCardHTML(icon, name, meta, opts = {}) {
   if (!enabled)   classes.push('disabled');
   if (!populated) classes.push('no-data');
 
-  const dragHandle = buildDragHandleHTML();
+  const dragHandle = draggable ? buildDragHandleHTML() : '';
 
   const badge = buildBadgeHTML(severity, { title: severityTitle });
 
@@ -1794,12 +1799,12 @@ function buildWordlistCardHTML(icon, name, meta, opts = {}) {
 
   const toggleTitle = !populated ? 'Click to import'
     : enabled ? 'Enabled — click to disable' : 'Disabled — click to enable';
-  const cardActions = `<div class="card-actions">
+  const cardActions = toggle ? `<div class="card-actions">
     <label class="toggle" title="${toggleTitle}" aria-label="Toggle ${esc(name)}">
       <input type="checkbox"${populated && enabled ? ' checked' : ''}${populated ? '' : ' disabled'}>
       <span class="toggle-slider"></span>
     </label>
-  </div>`;
+  </div>` : '';
 
   return `<div class="${classes.join(' ')}" data-wordlist tabindex="0" role="option">${dragHandle}${icon}${cardInfo}${cardActions}</div>`;
 }
@@ -2304,9 +2309,18 @@ function dragGhostLayer() {
   if (!_dragGhostLayer) {
     _dragGhostLayer = document.createElement('div');
     _dragGhostLayer.className = 'drag-ghost-layer';
-    document.body.appendChild(_dragGhostLayer);
   }
   return _dragGhostLayer;
+}
+
+// A body-parented fixed layer is occluded by a modal's top layer, so the ghost
+// vanishes behind the dialog; re-parent the singleton into the dragged
+// container's own top-layer host (open dialog, else body). One drag at a time.
+function hostDragGhostLayer(container) {
+  const host = container.closest('dialog[open]') || document.body;
+  const layer = dragGhostLayer();
+  if (layer.parentElement !== host) host.appendChild(layer);
+  return layer;
 }
 
 // Native HTML5 drag never fires from touch, so the reorder handles that used it
@@ -2320,8 +2334,15 @@ function makeReorderable(container, { handleSelector, itemSelector, onReorder })
   let ghost = null, grabX = 0, grabY = 0;
   let dropLine = null, dropBeforeEl = null, hasDrop = false;
 
+  // A transform-centered modal dialog is the fixed ghost-layer's containing block, so
+  // ghost/drop-line positions are layer-relative, not viewport (rail layer origin = 0,0).
+  const layerOrigin = () => dragGhostLayer().getBoundingClientRect();
+
   const moveGhost = () => {
-    if (ghost) { ghost.style.left = `${lastX - grabX}px`; ghost.style.top = `${lastY - grabY}px`; }
+    if (!ghost) return;
+    const o = layerOrigin();
+    ghost.style.left = `${lastX - grabX - o.left}px`;
+    ghost.style.top  = `${lastY - grabY - o.top}px`;
   };
 
   // iOS WebKit honors neither overscroll-behavior nor touch-action for the history
@@ -2345,9 +2366,10 @@ function makeReorderable(container, { handleSelector, itemSelector, onReorder })
       dropLine.className = 'drop-line';
       dragGhostLayer().appendChild(dropLine);
     }
-    dropLine.style.left  = `${r.left}px`;
+    const o = layerOrigin();
+    dropLine.style.left  = `${r.left - o.left}px`;
     dropLine.style.width = `${r.width}px`;
-    dropLine.style.top   = `${(dropBeforeEl ? r.top : r.bottom) - 1}px`;
+    dropLine.style.top   = `${(dropBeforeEl ? r.top : r.bottom) - 1 - o.top}px`;
     dropLine.hidden = false;
   }
 
@@ -2414,7 +2436,7 @@ function makeReorderable(container, { handleSelector, itemSelector, onReorder })
       ghost = fromEl.cloneNode(true);
       ghost.classList.add('drag-ghost');
       ghost.style.width = `${r.width}px`;
-      dragGhostLayer().appendChild(ghost);
+      hostDragGhostLayer(container).appendChild(ghost);
       fromEl.classList.add('dragging');
       rafId = requestAnimationFrame(tick);
     }
@@ -4017,23 +4039,25 @@ const WordlistSelector = (() => {
 
   function optionHTML(scope) {
     const selected = scope === state.selected;
-    const disabled = scope !== MERGED_ID && scope.enabled === false;
-    const cls = ['wls-option'];
-    if (selected) cls.push('selected');
-    // Modifier class only, never aria-disabled or the disabled attribute: the
-    // option is genuinely actionable (you can scope to a disabled list), so
-    // marking it disabled to assistive tech would lie and block activation.
-    if (disabled) cls.push('wls-option--disabled');
-    return `<button type="button" class="${cls.join(' ')}" role="option" aria-selected="${selected}">`
-      + `<span class="wls-option-icon">${scopeIcon(scope)}</span>`
-      + `<span class="wls-option-label">${esc(scopeLabel(scope))}</span>`
-      + `</button>`;
+    if (scope === MERGED_ID) {
+      return buildWordlistCardHTML(MERGED_ICON, MERGED_NAME,
+        pluralize(buildMergedWordlist().entries.length, 'entry', 'entries'),
+        { draggable: false, toggle: false, selected });
+    }
+    return buildWordlistCardHTML(getWordlistIcon(scope), scope.name,
+      pluralize(scope.rawEntries.length, 'entry', 'entries'),
+      { draggable: false, toggle: false, selected, enabled: scope.enabled, populated: scope.populated });
   }
 
   function renderMenu() {
     const scopes = [MERGED_ID, ...state.sources];
-    menu.innerHTML = scopes.map(optionHTML).join('');
-    menu.querySelectorAll('.wls-option').forEach((el, i) => { el._scope = scopes[i]; });
+    menu.innerHTML = scopes.map(optionHTML).join('')
+      + `<button type="button" class="wls-configure-footer">`
+      + `<svg aria-hidden="true"><use href="#icon-settings"/></svg>Manage wordlists</button>`;
+    menu.querySelectorAll('.wordlist-card').forEach((el, i) => {
+      el._scope = scopes[i];
+      el.setAttribute('aria-selected', String(scopes[i] === state.selected));
+    });
   }
 
   function open() {
@@ -4052,7 +4076,12 @@ const WordlistSelector = (() => {
 
   trigger.addEventListener('click', () => root.classList.contains('open') ? close() : open());
   menu.addEventListener('click', e => {
-    const opt = e.target.closest('.wls-option');
+    if (e.target.closest('.wls-configure-footer')) {
+      close();
+      ManagePanel.open();
+      return;
+    }
+    const opt = e.target.closest('.wordlist-card');
     if (!opt) return;
     close();
     setScope(opt._scope);
@@ -4129,6 +4158,123 @@ const WordlistSelector = (() => {
   renderTrigger();
   syncToggleLabel();
   return { refresh, refreshEditor, refreshSyncSign, isEditorOpen: () => editorOpen };
+})();
+
+// ─── Manage wordlists panel ─────────────────────────────────────────────────────
+
+const ManagePanel = (() => {
+  const { el, body } = createDialog('manage-dialog', { labelledby: 'manage-dialog-title', dismissOnBackdrop: false });
+  body.innerHTML = `
+    <button type="button" class="manage-close-btn" aria-label="Close">✕</button>
+    <h2 id="manage-dialog-title">Manage wordlists</h2>
+    <div class="manage-list"></div>
+    <button type="button" class="manage-add-row"><span class="add-wordlist-icon">＋</span>Add wordlist</button>
+    <div class="dialog-footer">
+      <button type="button" class="manage-cancel-btn dialog-cancel-btn">Cancel</button>
+      <button type="button" class="manage-apply-btn primary">Apply</button>
+    </div>`;
+
+  const listEl   = el.querySelector('.manage-list');
+  const closeBtn = el.querySelector('.manage-close-btn');
+  const applyBtn = el.querySelector('.manage-apply-btn');
+  const addRow   = el.querySelector('.manage-add-row');
+
+  let shadow = null;
+
+  function rowHTML(wl) {
+    // Added-while-open lists are absent from shadow.enabled by design; falling
+    // back to live wl.enabled keeps their async force-enable from reading as a
+    // staged disable here, in isDirty, and in apply.
+    const enabled = shadow.enabled.get(wl) ?? wl.enabled;
+    return buildWordlistCardHTML(
+      getWordlistIcon(wl),
+      wl.name,
+      pluralize(wl.rawEntries.length, 'entry', 'entries'),
+      { enabled, populated: wl.populated },
+    );
+  }
+
+  function render() {
+    listEl.innerHTML = shadow.order.map(rowHTML).join('');
+    listEl.querySelectorAll('.wordlist-card').forEach((cardEl, i) => { cardEl._wordlist = shadow.order[i]; });
+  }
+
+  function absorb() {
+    let grew = false;
+    for (const wl of state.sources) {
+      // Stays out of shadow.enabled on purpose — see rowHTML's fallback note.
+      if (!shadow.order.includes(wl)) { shadow.order.push(wl); grew = true; }
+    }
+    if (grew) render();
+  }
+
+  function isDirty() {
+    if (shadow.order.length !== state.sources.length) return true;
+    if (shadow.order.some((wl, i) => wl !== state.sources[i])) return true;
+    return shadow.order.some(wl => (shadow.enabled.get(wl) ?? wl.enabled) !== wl.enabled);
+  }
+
+  listEl.addEventListener('change', e => {
+    const input = e.target.closest('.toggle input[type="checkbox"]');
+    if (!input) return;
+    const card = input.closest('.wordlist-card');
+    // Must write the shadow map, never wl.enabled: touching wl.enabled here would
+    // silently mutate canonical state and rebuild the merge mid-staging, defeating
+    // the Apply gate while looking identical on screen.
+    shadow.enabled.set(card._wordlist, input.checked);
+    card.classList.toggle('disabled', !input.checked);
+  });
+
+  // Stage into shadow.order, never reorderSources: that canonical path would
+  // rebuild the merge mid-staging and defeat the Apply gate, looking identical
+  // on screen — the same trap as the enable toggle above.
+  makeReorderable(listEl, {
+    handleSelector: '.drag-handle:not([aria-hidden])',
+    itemSelector:   '.wordlist-card',
+    onReorder: (fromEl, beforeEl) => {
+      const from = shadow.order.indexOf(fromEl._wordlist);
+      let to = beforeEl ? shadow.order.indexOf(beforeEl._wordlist) : shadow.order.length;
+      if (to > from) to--;
+      const [item] = shadow.order.splice(from, 1);
+      shadow.order.splice(to, 0, item);
+      render();
+    },
+  });
+
+  function apply() {
+    if (isDirty()) {
+      batchUpdate(() => {
+        state.sources.splice(0, state.sources.length, ...shadow.order);
+        for (const wl of state.sources) wl.enabled = shadow.enabled.get(wl) ?? wl.enabled;
+        persistMeta();
+        repaintAfterCacheChange();
+      });
+    }
+    el.close();
+  }
+
+  applyBtn.addEventListener('click', apply);
+  closeBtn.addEventListener('click', async () => {
+    if (isDirty() && !await showConfirm('Discard changes?', { confirmText: 'Discard' })) return;
+    el.close();
+  });
+
+  addRow.addEventListener('click', () => ConfigureWordlistDialog.openAdd(absorb));
+
+  // Self-gates on shadow rather than subscribing only while open: the signals
+  // lib has no teardown, so this lifelong effect must no-op when closed.
+  effect(() => {
+    cacheVersion$.get();
+    if (shadow) { absorb(); render(); }
+  });
+
+  function open() {
+    shadow = { order: [...state.sources], enabled: new Map(state.sources.map(wl => [wl, wl.enabled])) };
+    render();
+    showDialog(el, () => { shadow = null; });
+  }
+
+  return { open };
 })();
 
 // ─── Library view ─────────────────────────────────────────────────────────────
@@ -10973,6 +11119,7 @@ const ConfigureWordlistDialog = (() => {
   let _pendingName    = '';
   let _rulesOption    = 'none';
   let _pendingFile    = null;
+  let _onAdded        = null;
 
   // Elements
   const titleEl          = el.querySelector('#configure-wordlist-title');
@@ -11287,6 +11434,7 @@ const ConfigureWordlistDialog = (() => {
         ...(_selectedPublisher ? { publisherId: _selectedPublisher.id } : {}),
         rescoreRules: rules || [],
       });
+      _onAdded?.(wordlist);
       el.close();
       if (LibraryView.isVisible()) LibraryView.focus(wordlist);
       if (url) {
@@ -11327,6 +11475,7 @@ const ConfigureWordlistDialog = (() => {
     _pendingName    = wordlist.name || '';
     _pendingFile    = null;
     _rulesOption    = 'none';
+    _onAdded        = null;
 
     titleEl.textContent = 'Configure Wordlist';
     btnSave.textContent = 'Save';
@@ -11356,7 +11505,7 @@ const ConfigureWordlistDialog = (() => {
 
   // ── openAdd (add mode) ────────────────────────────────────────────────────────
 
-  function openAdd() {
+  function openAdd(onAdded = null) {
     _mode           = 'add';
     _wordlist           = null;
     _pickerOpen     = false;
@@ -11366,6 +11515,7 @@ const ConfigureWordlistDialog = (() => {
     _pendingName    = '';
     _pendingFile    = null;
     _rulesOption    = 'none';
+    _onAdded        = onAdded;
 
     titleEl.textContent = 'Add Wordlist';
     btnSave.textContent = 'Add';

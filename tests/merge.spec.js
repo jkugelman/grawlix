@@ -7,7 +7,7 @@
 // Workshop entries table, downloads).
 
 const { test, expect } = require('@playwright/test');
-const { stubPublisherFetches, gotoApp } = require('./helpers');
+const { stubPublisherFetches, gotoApp, openManagePanel } = require('./helpers');
 
 test.beforeEach(async ({ page }) => {
   await stubPublisherFetches(page);
@@ -53,21 +53,21 @@ test('disabling a wordlist excludes its entries from All; re-enabling restores t
   // Sanity: both contribute, BLUEBERRY is in All.
   expect(await page.evaluate(() => window.__grawlixTest.getMergedEntry('BLUEBERRY'))).not.toBeNull();
 
-  // Disable TestBerries via the Library toggle — same path the user takes.
-  // The native checkbox is hidden behind a custom toggle slider, so target
-  // the label by its aria-label.
-  await page.locator('.header-nav-item[data-view="library"]').click();
-  const berriesToggle = page.getByLabel('Toggle TestBerries');
-  await berriesToggle.uncheck();
+  await openManagePanel(page);
+  await page.locator('#manage-dialog label.toggle[aria-label="Toggle TestBerries"]').click();
+  await page.locator('#manage-dialog .manage-apply-btn').click();
+  await expect(page.locator('#manage-dialog')).toBeHidden();
 
   // BLUEBERRY gone, APPLE still present. The merged-cache invalidation
   // seam is what this is really testing — if `_mergedWordlistCache` didn't
-  // get invalidated on toggle, BLUEBERRY would stick around.
+  // get invalidated on Apply, BLUEBERRY would stick around.
   expect(await page.evaluate(() => window.__grawlixTest.getMergedEntry('BLUEBERRY'))).toBeNull();
   expect(await page.evaluate(() => window.__grawlixTest.getMergedEntry('APPLE'))).not.toBeNull();
 
-  // Re-enable → BLUEBERRY returns.
-  await berriesToggle.check();
+  await openManagePanel(page);
+  await page.locator('#manage-dialog label.toggle[aria-label="Toggle TestBerries"]').click();
+  await page.locator('#manage-dialog .manage-apply-btn').click();
+  await expect(page.locator('#manage-dialog')).toBeHidden();
   expect(await page.evaluate(() => window.__grawlixTest.getMergedEntry('BLUEBERRY'))).not.toBeNull();
 });
 

@@ -1,28 +1,36 @@
 // Drag-to-reorder runs on pointer events (native HTML5 drag never fires from
 // touch), so these drive the real pointer path rather than the moveBefore API.
-// The disabled-card test pins that the drag path has no enabled-gate.
+// Reorder lives in the Manage panel: a drag stages into the shadow and Apply
+// commits to state.sources. The disabled-row test pins that the drag path has
+// no enabled-gate.
 
 const { test, expect } = require('@playwright/test');
-const { stubPublisherFetches, gotoApp, openLibrary } = require('./helpers');
+const { stubPublisherFetches, gotoApp, openManagePanel } = require('./helpers');
+
+// A taller viewport so the panel's full row list fits without scrolling. With
+// the default 720px height the 9-row list overflows its 50vh cap and the drag's
+// edge-auto-scroll shifts every row mid-gesture, landing the drop a slot off.
+test.use({ viewport: { width: 1280, height: 1000 } });
 
 test.beforeEach(async ({ page }) => {
   await stubPublisherFetches(page);
 });
 
+const TEST_LISTS = ['Alpha', 'Beta', 'Gamma'];
+
 function sourceOrder(page) {
-  return page.evaluate(() => state.sources.map(s => s.name));
+  return page.evaluate(names =>
+    state.sources.map(s => s.name).filter(n => names.includes(n)), TEST_LISTS);
 }
 
 // Two couplings to makeReorderable: the +10px nudge clears the drag-start
-// threshold, and releasing in the target's top half selects insert-before —
+// threshold, and releasing in the target's top quarter selects insert-before —
 // the adjacency the assertions below check.
-async function dragCardBefore(page, fromName, beforeName) {
-  const card   = name => page.locator('.wordlist-card[data-wordlist]', { hasText: name }).first();
-  const handle = card(fromName).locator('.drag-handle');
-  await handle.scrollIntoViewIfNeeded();
+async function dragRowBefore(page, fromName, beforeName) {
+  const row    = name => page.locator('#manage-dialog .wordlist-card', { hasText: name }).first();
+  const handle = row(fromName).locator('.drag-handle');
   const h = await handle.boundingBox();
-  await card(beforeName).scrollIntoViewIfNeeded();
-  const t = await card(beforeName).boundingBox();
+  const t = await row(beforeName).boundingBox();
 
   await page.mouse.move(h.x + h.width / 2, h.y + h.height / 2);
   await page.mouse.down();
@@ -32,39 +40,37 @@ async function dragCardBefore(page, fromName, beforeName) {
 }
 
 async function addThree(page) {
-  for (const name of ['Alpha', 'Beta', 'Gamma']) {
+  for (const name of TEST_LISTS) {
     await page.evaluate(n => window.__grawlixTest.addCustomWordlist({
       name: n, entries: ['ENTRY' + n.toUpperCase()], scores: [50],
     }), name);
   }
 }
 
-test('dropping a card before an earlier one reorders state.sources', async ({ page }) => {
+test('dropping a row before an earlier one reorders state.sources on Apply', async ({ page }) => {
   await gotoApp(page);
   await addThree(page);
-  await openLibrary(page);
 
-  await dragCardBefore(page, 'Gamma', 'Alpha');
+  await openManagePanel(page);
+  await dragRowBefore(page, 'Gamma', 'Alpha');
+  await page.locator('#manage-dialog .manage-apply-btn').click();
+  await expect(page.locator('#manage-dialog')).toBeHidden();
 
-  await expect.poll(async () => {
-    const order = await sourceOrder(page);
-    return order.filter(n => ['Alpha', 'Beta', 'Gamma'].includes(n));
-  }).toEqual(['Gamma', 'Alpha', 'Beta']);
+  await expect.poll(() => sourceOrder(page)).toEqual(['Gamma', 'Alpha', 'Beta']);
 });
 
-test('a disabled card reorders just like an enabled one', async ({ page }) => {
+test('a disabled row reorders just like an enabled one', async ({ page }) => {
   await gotoApp(page);
   await addThree(page);
-  await openLibrary(page);
 
-  await page.getByLabel('Toggle Gamma').uncheck();
-  await expect(page.locator('.wordlist-card[data-wordlist]', { hasText: 'Gamma' }).first())
+  await openManagePanel(page);
+  await page.locator('#manage-dialog .wordlist-card label.toggle[aria-label="Toggle Gamma"]').click();
+  await expect(page.locator('#manage-dialog .wordlist-card', { hasText: 'Gamma' }).first())
     .toHaveClass(/disabled/);
 
-  await dragCardBefore(page, 'Gamma', 'Alpha');
+  await dragRowBefore(page, 'Gamma', 'Alpha');
+  await page.locator('#manage-dialog .manage-apply-btn').click();
+  await expect(page.locator('#manage-dialog')).toBeHidden();
 
-  await expect.poll(async () => {
-    const order = await sourceOrder(page);
-    return order.filter(n => ['Alpha', 'Beta', 'Gamma'].includes(n));
-  }).toEqual(['Gamma', 'Alpha', 'Beta']);
+  await expect.poll(() => sourceOrder(page)).toEqual(['Gamma', 'Alpha', 'Beta']);
 });
