@@ -109,7 +109,7 @@ test('a throwing tool in the boot URL does not hang the splash', async ({ page }
     }
   });
 
-  await page.goto('/#/workshop?anagrams=CAT');
+  await page.goto('/?anagrams=CAT');
 
   await expect(page.locator('#busy-overlay')).toHaveCount(0, { timeout: 10000 });
   await expect(page.locator('.tool-row-error-btn')).toBeVisible();

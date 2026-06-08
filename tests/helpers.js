@@ -35,9 +35,9 @@ async function stubPublisherFetches(page, bodies = {}) {
   });
 }
 
-// Navigate to the app with the given route. Defaults to the bare URL
-// (Workshop). Polls until init() has finished opening the IndexedDB so
-// callers can immediately call test-API functions that persist data.
+// Navigate to the app with the given route. Defaults to the bare URL.
+// Polls until init() has finished opening the IndexedDB so callers can
+// immediately call test-API functions that persist data.
 async function gotoApp(page, route = '/') {
   // Suppress the first-boot welcome modal: as a showModal() dialog its backdrop
   // would swallow clicks in every test. The welcome test in smoke.spec.js skips

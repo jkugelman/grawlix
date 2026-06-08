@@ -74,7 +74,7 @@ test('URL search/sort/whole-word state applies on boot and updates as the UI cha
   // Visit the app with a URL that encodes a non-default sort axis, a
   // search query, and the whole-word toggle. The Router's applyURL runs
   // during init() and seeds WorkshopView's state from these params.
-  await gotoApp(page, '/#/workshop?search=BAGEL&whole-word&sort=length');
+  await gotoApp(page, '/?search=BAGEL&whole-word&sort=length');
 
   // UI reflects the URL.
   await expect(page.locator('input[data-key="pattern"]')).toHaveValue('BAGEL');
@@ -84,11 +84,11 @@ test('URL search/sort/whole-word state applies on boot and updates as the UI cha
   // The other half of the round-trip: drive the UI, watch the URL update.
   // Changing the search query is debounced (250ms), so poll the hash.
   await page.locator('input[data-key="pattern"]').fill('CARROT');
-  await expect.poll(async () => page.evaluate(() => location.hash)).toContain('search=CARROT');
+  await expect.poll(async () => page.evaluate(() => location.search)).toContain('search=CARROT');
 
   // Sort axis change is immediate.
   await page.locator('.sort-axis-select').selectOption('score');
-  await expect.poll(async () => page.evaluate(() => location.hash)).toContain('sort=score');
+  await expect.poll(async () => page.evaluate(() => location.search)).toContain('sort=score');
 });
 
 test('SCHEMA_VERSION reset prompt does not re-arm itself after the user clicks Reset', async ({ page }) => {

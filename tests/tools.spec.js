@@ -36,7 +36,7 @@ test('anagram via URL filters the merged view', async ({ page }) => {
   // applying the URL on a populated app exercises the same boot path a
   // shared link would.
   await page.evaluate(() => {
-    location.hash = '#/workshop?anagrams=LINDSEY';
+    history.replaceState(null, '', '?anagrams=LINDSEY');
     Router.applyURL();
     renderWorkshopMergedDetail();
   });
@@ -48,7 +48,7 @@ test('anagram + search compose (search filters tool output)', async ({ page }) =
   await gotoApp(page);
   await addAnagramFixture(page);
   await page.evaluate(() => {
-    location.hash = '#/workshop?anagrams=LINDSEY&search=sni';
+    history.replaceState(null, '', '?anagrams=LINDSEY&search=sni');
     Router.applyURL();
     renderWorkshopMergedDetail();
   });
@@ -288,7 +288,7 @@ test('a stack Search tool and the permanent Search bar both round-trip through t
   await addAnagramFixture(page);
   // Two `search=` keys: the first is a stack tool, the last is the bar.
   await page.evaluate(() => {
-    location.hash = '#/workshop?search=ca&search=cat';
+    history.replaceState(null, '', '?search=ca&search=cat');
     Router.applyURL();
     renderWorkshopMergedDetail();
   });
@@ -306,8 +306,8 @@ test('a stack Search tool and the permanent Search bar both round-trip through t
   await expectVisible(page, ['cat']);
 
   // Re-encoding reproduces the URL verbatim.
-  const hash = await page.evaluate(() => { Router.navigate(); return location.hash; });
-  expect(hash).toBe('#/workshop?search=ca&search=cat');
+  const search = await page.evaluate(() => { Router.navigate(); return location.search; });
+  expect(search).toBe('?search=ca&search=cat');
 });
 
 test('whole-word rides as a bare key on its Search row and round-trips', async ({ page }) => {
@@ -316,7 +316,7 @@ test('whole-word rides as a bare key on its Search row and round-trips', async (
   // whole-word is a successive param of the first Search row; the trailing
   // empty `search=` is the permanent bar (not elided — preceded by a Search).
   await page.evaluate(() => {
-    location.hash = '#/workshop?search=cat&whole-word&search=';
+    history.replaceState(null, '', '?search=cat&whole-word&search=');
     Router.applyURL();
     renderWorkshopMergedDetail();
   });
@@ -325,8 +325,8 @@ test('whole-word rides as a bare key on its Search row and round-trips', async (
     ToolStack.getUserStack().map(r => ({ tool: r.tool, params: r.params })));
   expect(userStack).toEqual([{ tool: 'search', params: { pattern: 'cat', 'whole-word': true } }]);
 
-  const hash = await page.evaluate(() => { Router.navigate(); return location.hash; });
-  expect(hash).toBe('#/workshop?search=cat&whole-word&search=');
+  const search = await page.evaluate(() => { Router.navigate(); return location.search; });
+  expect(search).toBe('?search=cat&whole-word&search=');
 });
 
 test('the caret expands a Search row into find/replace; collapsing clears it but keeps the text', async ({ page }) => {
@@ -678,7 +678,7 @@ test('group rows sort by Count and the axis round-trips through the URL', async 
   await gotoApp(page);
   await addLetterSetFixture(page);
   await page.evaluate(() => {
-    location.hash = '#/workshop?letter_bank&all&sort=count&sort-dir=desc';
+    history.replaceState(null, '', '?letter_bank&all&sort=count&sort-dir=desc');
     Router.applyURL();
     renderWorkshopMergedDetail();
   });
@@ -728,7 +728,7 @@ test('only one group tool per pipeline — all-toggle disabled on others, URL de
   await gotoApp(page);
   await addLetterSetFixture(page);
   await page.evaluate(() => {
-    location.hash = '#/workshop?letter_bank&all&anagrams&all';
+    history.replaceState(null, '', '?letter_bank&all&anagrams&all');
     Router.applyURL();
     renderWorkshopMergedDetail();
   });

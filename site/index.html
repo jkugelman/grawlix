@@ -1420,6 +1420,7 @@ const VS_BUFFER    = 60;
 // LS_PREFIX defined in <head> so the FOUC-prevention script can share it.
 const MERGED_ID    = '__merged__';
 const MERGED_NAME  = 'All';
+const scopeKey = scope => scope === MERGED_ID ? MERGED_ID : scope.dbKey;
 const EDITS_ICON   = { type: 'emoji', value: '✏️' };
 const MERGED_ICON  = buildEmojiIconHTML('⭐');
 
@@ -2450,8 +2451,8 @@ const Collapsible = (() => {
 
 // ─── Router ───────────────────────────────────────────────────────────────────
 // Keeps the URL in sync with the tool stack via history.replaceState. URL shape:
-//   bare URL              → no query state
-//   #/workshop?<query>    → Workshop with query state
+//   bare URL    → no query state
+//   ?<query>    → the pipeline encoded in the query string
 // The bare-URL form is used when there's no query, so the most-shared case stays
 // short.
 //
@@ -2505,15 +2506,14 @@ const Router = (() => {
     return parts.join('&');
   }
 
-  function buildHash() {
+  function buildSearch() {
     const query = buildQuery();
-    if (!query) return '';
-    return '#/workshop?' + query;
+    return query ? '?' + query : '';
   }
 
   function navigate() {
-    const target = location.pathname + buildHash();
-    if (location.pathname + location.hash !== target) {
+    const target = location.pathname + buildSearch();
+    if (location.pathname + location.search !== target) {
       history.replaceState(null, '', target);
     }
   }
@@ -2521,16 +2521,7 @@ const Router = (() => {
   // Applies URL state (tool stack, search) as a side effect. The score filter
   // is loaded from localStorage in init() and doesn't participate in URL routing.
   function applyURL() {
-    let queryString = '';
-    const hash = location.hash;
-    if (hash.startsWith('#/')) {
-      const rest  = hash.slice(2);
-      const qIdx  = rest.indexOf('?');
-      const route = qIdx >= 0 ? rest.slice(0, qIdx) : rest;
-      if (route === 'workshop') queryString = qIdx >= 0 ? rest.slice(qIdx + 1) : '';
-    }
-
-    const params = new URLSearchParams(queryString);
+    const params = new URLSearchParams(location.search);
     const rows = [];
     let sortKey = null;
     let sortDir = null;
@@ -3773,13 +3764,16 @@ const WorkshopView = (() => {
 
   // View-private state. Read externally via the getters in the returned
   // object; written either through the handlers below or through
-  // `applyURLState` (Router) / `restoreScoreRange` (boot). The sort state
+  // `applyURLState` (Router) / `restoreScoreRanges` (boot). The sort state
   // is mutated by WorkshopEntriesScroller's toolbar via `setSort`.
   // Search query / whole-word are *not* here — they live in the permanent
   // Search bar's ToolStack row params; the getters below read them from it.
-  let _scoreRange      = '';
+  let _scoreRanges     = {};
   let _sortKey         = 'entry';
   let _sortDir         = 'asc';
+
+  function activeScopeKey() { return scopeKey(state.selected); }
+  function activeScoreRange() { return _scoreRanges[activeScopeKey()] || ''; }
 
   function show() {
     el.hidden = false;
@@ -3792,11 +3786,17 @@ const WorkshopView = (() => {
   function isVisible() { return !el.hidden; }
 
   function onScoreRange(value) {
-    _scoreRange = normalizeScoreRange(value, 'score-range-input');
-    if (_scoreRange) lsSave('scoreRange', _scoreRange);
-    else             lsDel('scoreRange');
-    if (workshopScroller) workshopScroller.setScoreRange(_scoreRange);
+    const range = normalizeScoreRange(value, 'score-range-input');
+    if (range) _scoreRanges[activeScopeKey()] = range;
+    else       delete _scoreRanges[activeScopeKey()];
+    persistScoreRanges();
+    if (workshopScroller) workshopScroller.setScoreRange(range);
     repositionAllHistogramRects();
+  }
+
+  function persistScoreRanges() {
+    if (Object.keys(_scoreRanges).length) lsSave('scoreRanges', JSON.stringify(_scoreRanges));
+    else                                  lsDel('scoreRanges');
   }
   // Sort state is mutated by WorkshopEntriesScroller's toolbar when the user
   // picks a new axis or flips the direction. No filter call here — the
@@ -3815,15 +3815,15 @@ const WorkshopView = (() => {
 
   // Score-range is the lone state field that's localStorage-backed (it's a
   // standing preference, not a shared URL parameter — see design.md § Out of
-  // scope for the URL). Boot restores the validated value via this setter.
-  function restoreScoreRange(v) { _scoreRange = v; }
+  // scope for the URL). Boot hands the validated per-scope map to this setter.
+  function restoreScoreRanges(map) { _scoreRanges = map; }
 
   return {
     show, hide, isVisible,
     onScoreRange,
-    setSort, applyURLState, restoreScoreRange,
+    setSort, applyURLState, restoreScoreRanges,
     get searchQuery()     { return ToolStack.getSearchBarRow().params.pattern || ''; },
-    get scoreRange()      { return _scoreRange;      },
+    get scoreRange()      { return activeScoreRange(); },
     get sortKey()         { return _sortKey;         },
     get sortDir()         { return _sortDir;         },
   };
@@ -4365,12 +4365,12 @@ async function init() {
     persistMeta();
   }
 
-  // Score filter persists across visits — see docs/design.md § Out of scope
-  // for the URL. Validate the stored value; drop silently if corrupt.
-  const storedScoreRange = lsLoad('scoreRange');
-  if (storedScoreRange !== null && parseRange(storedScoreRange.trim()) !== null) {
-    WorkshopView.restoreScoreRange(storedScoreRange.trim());
-  }
+  // Scope must land before the score ranges (the active range is keyed off the
+  // restored scope) and before the first render (the selector + panel read
+  // state.selected). Scope is localStorage-only, never the URL, so it's
+  // independent of Router.applyURL below.
+  restoreSelectedScope();
+  WorkshopView.restoreScoreRanges(restoreScoreRanges());
 
   Router.applyURL();
 
@@ -4424,6 +4424,27 @@ function defaultSources() {
     compileRescoreRules(wordlist);
     return wordlist;
   });
+}
+
+// A stored dbKey scopes to that source even when disabled — disabled sources
+// stay viewable when scoped to, so don't add an enabled guard here.
+function restoreSelectedScope() {
+  const stored = lsLoad('selectedScope');
+  if (!stored || stored === MERGED_ID) return;
+  const source = state.sources.find(w => w.dbKey === stored);
+  if (source) state.selected = source;
+}
+
+function restoreScoreRanges() {
+  let parsed;
+  try { parsed = JSON.parse(lsLoad('scoreRanges') || '{}'); }
+  catch { return {}; }
+  if (!parsed || typeof parsed !== 'object') return {};
+  const out = {};
+  for (const [key, range] of Object.entries(parsed)) {
+    if (typeof range === 'string' && parseRange(range.trim()) !== null) out[key] = range.trim();
+  }
+  return out;
 }
 
 // ─── My Edits helpers ─────────────────────────────────────────────────────────
@@ -9368,6 +9389,7 @@ async function refreshWorkshopMergedScroller() {
 async function setScope(target) {
   if (state.selected === target) return;
   state.selected = target;
+  lsSave('selectedScope', scopeKey(target));
   invalidatePreSearchCache();
   invalidateHistogramLayout();
   WordlistSelector.refresh();
