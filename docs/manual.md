@@ -8,19 +8,31 @@ This is the user-facing manual. Eventually it'll be turned into an in-app manual
 
 ## The app shell
 
-**Header.** Title, top-level nav (**Workshop** / **Library**), settings. (A `?` placeholder sits where help will live; it's currently inert.) Sticks at top while you scroll.
+**Header.** Wordmark, the personal "Made with…" byline, settings, and a `?` button that opens a short welcome popup. Sticks at the top while you scroll.
 
-**Two views.** *Workshop* (default) is the construction-aid surface — tool gallery, stack, entries table — always showing your merged wordlist. *Library* manages your wordlists (the list, rescoring rules, scoring rules, downloads, per-source inspection). Pick **Workshop** or **Library** in the header to switch.
+**One screen.** Everything lives on a single screen. The page itself scrolls — there's only one scrollbar.
 
-**Centered card.** Below the header, the active view sits in a centered card with side margins. The page itself scrolls — there's only one scrollbar.
-
-Workshop's card, top to bottom:
+The screen, top to bottom:
 - **Tool gallery.** Cards laid out as a responsive grid.
+- **Wordlist bar.** Holds the wordlist selector and the actions for whatever wordlist you're looking at (see *The wordlist bar* below).
 - **Sticky region** that anchors just below the header as you scroll into the entries table:
   - Tool stack (only when you've added tools — the search bar sits at the bottom either way).
   - Stats bar with histogram (click or drag across the histogram to filter by score range).
   - Entry headers labelling the columns below.
-- **Entries table.** The merged `All` view, always visible — idle and search views are the same view, just filtered.
+- **Entries table.** The entries for your current scope, always visible — idle and search views are the same view, just filtered.
+
+## The wordlist selector and scope
+
+A **selector** at the left of the wordlist bar names what you're looking at. It lists **All** at the top, then every wordlist below — pick one to *scope* the whole screen to it. Scope is the corpus: the entries table, the tools, and every readout reflect the selected wordlist.
+
+- **All** (the default and most common case) is the merged view — every enabled wordlist deduped into one unified list, the same merge you download and feed to your construction software.
+- Pick **XWI** (or any other wordlist) and the table shows that wordlist's own rescored entries in the same rich, editable style, and tools run against it alone.
+
+The selector is a pure picker — icons and labels, no checkboxes. A disabled wordlist (one excluded from the All merge) shows grayed out but is still selectable: you can land on it, view it, edit it, and run tools on it. Each row also shows how much that wordlist contributes — an **X of Y entries used** count (how many of its entries survive dedup and priority in the merge). A green dot on a row flags an available update for that wordlist; an aggregate dot rides on the collapsed selector title when any wordlist has one.
+
+Scope is **sticky** — Grawlix reopens to the wordlist you were last looking at (All on first run). It stays on your device and never travels in a shared link.
+
+**Managing wordlists.** A **Manage wordlists** footer at the bottom of the selector dropdown opens the manage panel — where you reorder wordlists (order is merge priority), enable or disable them, and add new ones. Reordering and toggling stage up as you go and apply all at once when you click **Apply** (or discard on **Cancel**); the merge rebuilds once, on Apply, rather than on every change. **Add wordlist** runs the usual import/fetch flow and returns you to the panel with the new list in place.
 
 ## Settings
 
@@ -35,36 +47,35 @@ The gear in the header opens **Settings**:
 
 Grawlix keeps your data in your browser. **Disk sync** additionally connects an individual list to an individual file on your hard drive — a file you already have, in the place your construction software already reads — and keeps the two in sync. There's no Grawlix folder to set up and no settings to re-point.
 
-You sync each list from the **Library**, list by list. Two kinds of sync, depending on the list:
+You sync each list from its wordlist bar, list by list. Two kinds of sync, depending on the list:
 
 - **My Edits is two-way.** The file is the one your construction software (Ingrid, Crossfire, Crossword Compiler) reads *and* writes. Edit in Grawlix and the file updates; edit the file and Grawlix picks the change up within a couple of seconds. Grawlix's copy in the browser stays the source of truth, so it keeps working even when the file isn't reachable.
 - **Every other list is one-way out.** **All** and each source write their rescored output to their file whenever the list or its rescore rules change. These are generated outputs — if you hand-edit one of these files, your changes are overwritten the next time Grawlix rewrites it. Point your construction software at **All** for the unified wordlist.
 
-**The sync pill.** Every list's panel shows a small status pill on the left of its action row — a logo for the browser your data lives in, then its sync state: **Saved in browser** when it's browser-only, **→ _filename_ · Synced to disk** for a one-way output (All and sources), or **⇄ _filename_ · Synced to disk** for the two-way My Edits. Clicking the pill opens a dialog that explains what sync is and lets you set it up or turn it off — no surprise file pickers.
+**The sync sign.** When you've scoped to a wordlist, its sync sign hangs below the wordlist bar on the right — a logo for the browser your data lives in, then its sync state: **Saved in browser** when it's browser-only, **→ _filename_ · Synced to disk** for a one-way output (All and sources), or **⇄ _filename_ · Synced to disk** for the two-way My Edits. Clicking it opens a dialog that explains what sync is and lets you set it up or turn it off — no surprise file pickers.
 
-**Setting up sync.** Click the pill and choose:
+**Setting up sync.** Click the sign and choose:
 
 - For **My Edits**, two doors: **Use a file I already have** (point at the file your software opens — Grawlix loads it and keeps both in sync, the common case) or **Create a new file**.
 - For **All** or a **source**, a single **Choose file…** — pick or name the file Grawlix writes the rescored output to.
 
-**While synced.** The pill names the synced file. Clicking it again shows **Stop syncing**; stopping leaves the file on disk untouched — it just disconnects. To point a list at a different file, stop syncing and set it up again. **Download** is always there too, in every state.
+**While synced.** The sign names the synced file. Clicking it again shows **Stop syncing**; stopping leaves the file on disk untouched — it just disconnects. To point a list at a different file, stop syncing and set it up again. **Download** is always there too, in every state.
 
 **When edits collide (My Edits only).** If the same entry was changed both in Grawlix and in the file since they last agreed, Grawlix asks which to keep — **Keep this device** or **Keep the file** — and applies your choice. Changes that touched different entries merge silently; this prompt appears only on a true conflict, so it's rare. Deleting an entry on either side stays deleted — it isn't resurrected by the merge.
 
-**Reconnecting.** Browsers don't always remember file permission across sessions. On boot, files whose permission is remembered resume silently — straight to the app. For any file the browser has forgotten, the loading splash shows an **Open _filename_** button (one click per file to re-grant) and a muted **Skip for now**. Skip is always safe: the full app runs from your browser data, and the un-granted files just stay paused until the next launch reconnects them. If a file goes missing mid-session (moved or deleted), its pill turns attention-colored and reads **⤫ _filename_ · File missing** — stop syncing and set it up again to recover.
+**Reconnecting.** Browsers don't always remember file permission across sessions. On boot, files whose permission is remembered resume silently — straight to the app. For any file the browser has forgotten, the loading splash shows an **Open _filename_** button (one click per file to re-grant) and a muted **Skip for now**. Skip is always safe: the full app runs from your browser data, and the un-granted files just stay paused until the next launch reconnects them. If a file goes missing mid-session (moved or deleted), its sign turns attention-colored and reads **⤫ _filename_ · File missing** — stop syncing and set it up again to recover.
 
 **Cross-device.** Put a synced file in Dropbox, iCloud Drive, OneDrive, or Google Drive, and on your other device sync the same list to that same file. Your cloud client moves the bytes; Grawlix has no cloud code of its own. (For My Edits this merges both devices' edits; for a one-way list the latest writer wins.)
 
-**Browser support.** Disk sync uses the File System Access API — Chrome, Edge, and other Chromium-based desktop browsers. In Firefox, Safari, and on phones and tablets, the pill stays on **Saved in browser** and its dialog explains that sync needs a Chromium browser; **Download** is the way to get a file out there. Chrome's "Always allow" on a file grant means most users reconnect once and then never again.
+**Browser support.** Disk sync uses the File System Access API — Chrome, Edge, and other Chromium-based desktop browsers. In Firefox, Safari, and on phones and tablets, the sign stays on **Saved in browser** and its dialog explains that sync needs a Chromium browser; **Download** is the way to get a file out there. Chrome's "Always allow" on a file grant means most users reconnect once and then never again.
 
 ## Keyboard shortcuts
 
 - **Alt-T** — open the tool picker (also **Cmd-K** / **Ctrl-K**).
-- **Alt-S** — focus the search input (Workshop's permanent search bar, or the focused wordlist's search bar in Library).
-- **Alt-W** — toggle the whole-word checkbox. If a Search or Regex tool row has focus, toggles that row's; otherwise toggles the active view's permanent search bar.
+- **Alt-S** — focus the search input (the permanent search bar).
+- **Alt-W** — toggle the whole-word checkbox. If a Search or Regex tool row has focus, toggles that row's; otherwise toggles the permanent search bar's.
 - **Alt-C** — focus the score-range input.
 - **Alt-M** — cycle dark mode (Auto / Light / Dark).
-- **F2** — rename a focused wordlist card (Library).
 
 ## Search syntax
 
@@ -81,9 +92,9 @@ Focus any search box and this cheat sheet pops up above it. The Regex tool's pat
 
 ## Tools
 
-Tools transform your merged wordlist. They live in the **tool gallery** at the top of the Workshop card. Click a tool's card to add it to the stack; each click appends another tool to the end of the pipeline. Remove a tool with the `✕` on its stack row, or drag a row by its handle (`≡`) to reorder the pipeline. The Search bar stays pinned as the last step.
+Tools transform the wordlist you're scoped to. They live in the **tool gallery** at the top of the screen. Click a tool's card to add it to the stack; each click appends another tool to the end of the pipeline. Remove a tool with the `✕` on its stack row, or drag a row by its handle (`≡`) to reorder the pipeline. The Search bar stays pinned as the last step.
 
-A populated stack feeds top-to-bottom: the first tool reads from `All`, each subsequent tool reads the previous tool's output. Search is the permanent last step — type LINDSEY into Anagram, then type a substring in the search bar to live-narrow the anagram list.
+A populated stack feeds top-to-bottom: the first tool reads from your current scope (`All`, or the selected wordlist), each subsequent tool reads the previous tool's output. Search is the permanent last step — type LINDSEY into Anagram, then type a substring in the search bar to live-narrow the anagram list.
 
 The full tool catalog — every shipped and planned tool, with its icon, name, description, and example — lives in [`tools.md`](tools.md). The gallery card text matches that catalog. A few cross-tool behaviours worth knowing in the manual: tools that produce a new word (Behead, Curtail, Semordnilap, Space out) show each transformation as a stacked row (covered below in *Chain rows*); the Search and Regex tools have a `▾` caret beside their pattern box that reveals a **Replace** field, turning the filter into a transform (results are kept only when the rewritten word is itself a real entry); some tools support an **all-mode** (covered below in *All-mode and group rows*) that buckets every value into clusters instead of filtering to one. Gallery cards for these carry a `✱` button in their top-right corner — click the card to add the tool flat, click `✱` to add it straight into all-mode. Only one tool in a stack can be in all-mode at a time.
 
@@ -101,7 +112,7 @@ The full tool catalog — every shipped and planned tool, with its icon, name, d
 
 ## Entries table
 
-The entries table below the stats bar shows every entry in the merged `All` view, one row per entry, in your current sort order. Each row reads as `1. CARE 4 50` — count, entry, length, score badge. Click on the entry or score to edit it (see *Editing entries*).
+The entries table below the stats bar shows every entry in your current scope — the merged `All` view, or the selected wordlist's own entries — one row per entry, in your current sort order. Each row reads as `1. CARE 4 50` — count, entry, length, score badge. Click on the entry or score to edit it (see *Editing entries*). When you've scoped to a single wordlist, the Source column drops out — every row comes from the one wordlist.
 
 ## Stats bar
 
@@ -109,7 +120,7 @@ A single sticky band above the entries table, carrying every readout about the v
 
 - **Counts.** `Entries N`; with a tool in all-mode, `Groups N` rides alongside. The Entries count reflects what made it to the end of the pipeline — chain rows for flat pipelines, surviving member chains across every visible group for all-mode pipelines.
 - **Stats numbers and histogram.** `Min · Max` of the score-range-filtered output, followed by the histogram. On narrow screens `Min · Max` drops out, but counts, histogram, range, and sort always hold.
-- **Score range.** A `lo-hi` / `lo+` / `n` text input, or drag-select across the histogram. The histogram itself shows the full pipeline output regardless of range; bars outside the bracket fade in place so you can see what you're trimming as you drag the range narrower. The filter is remembered across visits.
+- **Score range.** A `lo-hi` / `lo+` / `n` text input, or drag-select across the histogram. The histogram itself shows the full pipeline output regardless of range; bars outside the bracket fade in place so you can see what you're trimming as you drag the range narrower. The filter is remembered across visits, per scope — each wordlist (and All) keeps its own range.
 - **Sort.** "Sort by [Entry ▾] [↑]". Click the arrow to toggle direction, or click a column header in the table below to sort by that column (see *Tools → Sort*).
 
 The score range applies after the pipeline runs, dropping any chain whose journey touched an out-of-range atom. All-mode pipelines drop chains per group; a group stays visible as long as at least one chain survives.
@@ -127,15 +138,17 @@ All four reflect the current view — search, score range, sort, every active to
 
 ## Editing entries
 
-Click any entry or score in a row to open an editor popover. The popover shows which wordlist sourced the score (with any rescoring or override explanation) and lets you edit the score and comment. Edits always land in My Edits, regardless of which wordlist sourced the row.
+Click any entry or score in a row to open an editor popover. Edit the score and comment there; edits always land in My Edits, regardless of which wordlist sourced the row.
 
 Press Enter to save and close, or Tab to chain edits between score and comment. Escape reverts. Clicking outside, scrolling, or changing the search closes the popover.
 
-When the score you see differs from what the wordlist itself contains (because it's been rescored, or another wordlist overrides it), a small red asterisk (`*`) marks the badge. The popover spells out exactly what's going on.
+**The popover is a cross-wordlist provenance panel.** Below the editor it lists every wordlist that contributes the clicked entry — in priority order, each with that wordlist's actual entry text, effective score, and comment — **including disabled and non-winning** wordlists. So you can see at a glance whether another list scored or spelled the same word differently, even one you aren't merging. Clicking a plain entry shows the whole letter-form across every wordlist; clicking a specific spelling (like `the IRS`) shows that spelling plus the plain forms it shares letters with. This panel is where you compare wordlists when scoped to a single one, since the table itself then shows only that one.
 
 For entries sourced from My Edits, the popover also has a Delete button (with undo via toast).
 
-**Adding new entries.** A floating **＋** button in the bottom-right corner of the Workshop opens the entry editor in the center of the screen. If you've just searched for a plain word that no wordlist has, it starts with that word filled in (a wildcard search, or one that already matches something, opens blank). Type a score and an optional comment, press Enter, and the entry lands in My Edits. Searching for a missing word also surfaces an **Add it** button under the empty-results quip — the same editor, pre-populated. Either way the new entry lands in My Edits.
+**Where your edits show up.** An edit lands in My Edits and surfaces wherever My Edits participates: in **All** (My Edits is top priority and wins there) and when you scope to **My Edits** itself. A scoped wordlist always shows its *own* values, so an edit you make while scoped to, say, XWI won't change the XWI-scoped view — it's in My Edits now, visible in All and in My Edits' own view. The provenance panel still shows your My Edits value alongside the others.
+
+**Adding new entries.** A floating **＋** button in the bottom-right corner opens the entry editor in the center of the screen. If you've just searched for a plain word that no wordlist has, it starts with that word filled in (a wildcard search, or one that already matches something, opens blank). Type a score and an optional comment, press Enter, and the entry lands in My Edits. Searching for a missing word also surfaces an **Add it** button under the empty-results quip — the same editor, pre-populated. Either way the new entry lands in My Edits.
 
 ## My Edits
 
@@ -143,64 +156,68 @@ A special wordlist created automatically on first boot. It's where your manual s
 
 Like any Source, My Edits carries a rescore-rules editor. The scores you type are stored **raw** and run through those rules on the way into the merged view. It starts with a **tier legend** — Grawlix's default tiers (great/good/fair/…) listed as blank-output rows that document the scale right next to where you type scores, remapping nothing, so the score you type is the score you see. Fill in an output only if you want a typed score remapped; whether your scores line up with the tiers is your call, not something Grawlix enforces. Delete the legend if you don't want it (Reset to defaults brings it back). Importing a personal list scored on a different scale clears the legend automatically and lays out that file's scores instead, so it never mislabels them.
 
-From My Edits' panel in the Library you can Import a personal wordlist, Download what you've got, or Clear it. Its **Download** follows your Output format like any source; **Download original** (the split button's second door, once it has rules) and its synced file stay as-is — spaces, accents, punctuation, and case preserved — since the synced file is the one your construction software edits in place. Its entries also reach letters-only software through **All**, which honors your Output format. You can also sync My Edits to a file ([Disk sync](#disk-sync)).
+Scope to My Edits and its wordlist bar lets you Import a personal wordlist, Download what you've got, or Clear it. Its **Download** follows your Output format like any source; **Download original** (the split button's second door, once it has rules) and its synced file stay as-is — spaces, accents, punctuation, and case preserved — since the synced file is the one your construction software edits in place. Its entries also reach letters-only software through **All**, which honors your Output format. You can also sync My Edits to a file ([Disk sync](#disk-sync)).
 
 ## Score tiers
 
-Defaults: **great** (≥60), **good** (≥50), **fair** (≥40), **meh** (≥30), **bad** (<30). Score badges color by tier. Hover any score in the Workshop entries table to see its tier label. Customize the tier labels via **All**'s scoring rules in the Library (see *Library*).
+Defaults: **great** (≥60), **good** (≥50), **fair** (≥40), **meh** (≥30), **bad** (<30). Score badges color by tier. Hover any score in the entries table to see its tier label. Customize the tier labels via **All**'s scoring rules (see *Rescoring and scoring rules*).
 
-## Library
+## The wordlist bar
 
-Top-level view (one of two; the other is Workshop). Reached by picking **Library** in the header nav.
+When you've scoped to a wordlist, its actions sit on the right of the wordlist bar. The bar is calm by default — the selector on the left, a small adjustments cluster on the right — and the rest of the screen looks the same whatever you're scoped to.
 
-**Layout.** Responsive — wordlist list on top of the focused-wordlist panel on phones; left-rail-and-panel side-by-side at ≥ 760px. The list groups into two sections: **Merged** (the `All` card at the top) and **Sources** (every wordlist below, with My Edits first by default). New wordlists are added via the **+ Add wordlist…** entry at the bottom.
+**Actions differ by scope:**
+- **A source** — a split **Download** button, the adjustments (sliders) icon, and a slim **⋮** kebab with **Fetch/Import**, **Configure**, and **Delete**. Configure is the existing dialog (rename, change icon, publisher binding, auto-update URL, import, rules).
+- **My Edits** — **Import** a personal wordlist, the adjustments icon, and a **⋮** kebab with **Clear**.
+- **All** — just **Download** (the merged product) and the adjustments icon, no kebab.
 
-Each wordlist card carries a drag handle (reorder = merge priority), an enable checkbox, and the wordlist's name. The `All` card has neither drag handle nor toggle — it's always present and isn't reorderable.
+The **sync sign** hangs below the bar on the right in every scope (see [Disk sync](#disk-sync)).
 
-**Right pane.** Each card's panel has the same shape: an action row, a rules editor, then a sticky region above the entries view holding the search bar (on populated wordlists) and the stats bar with histogram. The stats bar carries the same controls as on Workshop — counts, stats numbers, histogram, score range, sort — minus the Groups count (Library has no tool pipeline). The histogram is click-and-drag to filter, same as on Workshop.
+## Rescoring and scoring rules
 
-**Action buttons differ per wordlist:**
-- **Sources** — Update/Fetch, Download, and a ⋮ menu with Configure / Delete.
-- **My Edits** — Import, Download (hidden when empty; splits to add **Download original** once it has rescore rules), and Clear in the ⋮ menu.
-- **All** — Download, no ⋮ menu.
+The **adjustments (sliders) icon** beside the selector opens an inline editor that expands in place, pinned while the table scrolls beneath it. What it edits depends on your scope:
 
-Every panel also carries the **sync pill** on the left of the action row (see § Disk sync).
+- On a **source** (or My Edits), it edits that wordlist's **rescore rules**.
+- On **All**, it edits the **scoring tiers** — the labels for the unified scale.
 
-**Rescored view.** A wordlist's panel — its stats, histogram, and entries list — always shows the *rescored* result, the version it contributes to All. As you tune a rescore rule the rows below update live, with `input → output` annotations on rows the rule changed. To get the *original* imported file instead, use **Download original** on the source's Download button (below).
+**The table is the live preview.** While the rescore editor is open, the rows below show a `350 → 80` arrow on any entry a rule remapped, so you tune a rule and watch its effect immediately.
 
-**Rescoring rules.** Each Source — and My Edits — carries a rescore rules editor. Rules map an input score range — and an optional entry-length filter — to an output score. First matching rule wins. My Edits' typed scores are stored raw and run through its rules just like any source; it ships with the tier legend (blank-output rows), so they pass through unchanged until you fill in an output.
+**Rescoring rules** map an input score range — and an optional entry-length filter — to an output score. First matching rule wins. Each source and My Edits carries them; My Edits' typed scores are stored raw and run through its rules just like any source. Custom wordlists with up to 10 distinct scores get auto-seeded with one inert rule per score on first import, so you see the wordlist's scale laid out next to All's — fill in output mappings, or leave them blank to pass the scores through.
 
 Rescoring is entirely optional. If a wordlist's scores don't line up with Grawlix's scale and you don't care, leave the rules empty — the raw scores pass through and nothing warns you about it. You can ignore the score column entirely and still search, filter, and run every tool.
 
-Custom wordlists with up to 10 distinct scores get auto-seeded with one inert rule per score on first import, so you see the wordlist's scale laid out next to All's. You can fill in output mappings, or leave them blank to pass the scores through.
+**Scoring rules** (the All-flavored editor) are your tier labels for the merged scale ("60 = great, 50 = good, …"). They feed the hover tooltip on each score badge. Labeling is optional too — unlabeled scores still appear, just without a tier name in the tooltip.
 
-**Scoring rules** are your tier labels for the merged score scale ("60 = great, 50 = good, …"). The editor lives on **All**'s panel, since the tiers describe the merged scale. The Workshop entries table reads these for the hover tooltip on each score atom. Labeling is optional too — unlabeled scores still appear, just without a tier name in the tooltip.
+The editor also carries lifecycle actions:
 
-**Update bubble.** A green dot appears on a wordlist's card, and on the **Library** nav item, when an update is available to fetch (only when auto-update is off — see [Settings](#settings)).
+- **Reset to defaults** appears (with a confirmation) once you've customized rules away from their shipped defaults — rescore on a publisher source or My Edits, scoring on All. Visible only when there's something to undo.
+- **Disable rescoring** (sources only) keeps a wordlist's raw scores and notes but drops Grawlix's remapping: the input ranges and notes survive as a documenting legend, only the score remapping goes away. It makes the list dirty, so Reset stays available to undo it. (On All it has no place — tier labels already remap nothing.)
+- **Apply rescoring permanently** (My Edits and imported wordlists) rewrites every entry's stored score to its rescored value, then resets the rules. Use it once you've translated a personal list onto Grawlix's scale and want to stop maintaining the translation — afterward the scores *are* Grawlix-scale, so new scores you type are taken at face value. The originals are lost, so grab **Download original** first if you want a backup. Disabled when there's no rescoring to apply, and on auto-fetched or publisher wordlists.
 
-**Reset to defaults.** A button appears in the rules editor (rescore on a publisher Source or My Edits, scoring on All) when you've customized the rules away from their shipped defaults. Clicking it restores the defaults, with a confirmation first. Visible only inside the editor and only when there's something to undo.
+**Update dot.** A green dot appears on a wordlist's row in the selector, and on the collapsed selector title (aggregated), when an update is available to fetch — only when auto-update is off (see [Settings](#settings)).
 
-**Apply rescoring permanently.** A kebab (⋮) action on My Edits and imported wordlists: it rewrites every entry's stored score to its rescored value, then resets the rules. Use it once you've translated a personal list onto Grawlix's scale and want to stop maintaining the translation — afterward the scores *are* Grawlix-scale, so new scores you type are taken at face value instead of being re-mapped. The original scores are lost, so grab **Download original** first if you want a backup. It's disabled when there's no rescoring to apply, and on auto-fetched or publisher wordlists.
+## Downloads
 
-**Entries view.** Each populated wordlist's panel includes a virtual-scrolled, monospace, text-file-flavored entries list below its rules editor, always showing the rescored result. An inline arrow shows what each rule changed — e.g. `BAGEL  45 → 50  tasty`; untouched rows show their input score plain. The Library entries view is read-only; editing routes through the Workshop entries table's popover.
+Every wordlist (and All) downloads from its wordlist bar, saving immediately — no dialog. The file uses your global **Output format** (set in [Settings](#settings)). For a **source with rescore rules** the button is a split: **Download** saves the rescored output (the rule result, `<name> rescored.txt`) and the menu's **Download original** saves your imported file back verbatim with its original formatting (`<name>.txt`). **All** saves its merged output as `All rescored.txt`. **My Edits** follows the same rule as any source — **Download** saves its rescored output at your format (`My Edits rescored.txt`), and once it has rules the split's **Download original** saves the editable file verbatim (`My Edits.txt`). When the format strips characters, entries that collapse to the same text are merged: the highest score wins and their distinct comments combine with ` / `.
 
-**Search bar** (above the stats bar). Full pattern syntax and whole-word toggle. No Replace caret — the Library bar filters a wordlist for inspection, it doesn't transform or query it. Score range and sort live in the stats bar below, the same as on Workshop.
+## Discovery banners
 
-**Renaming.** Focus a wordlist card and press **F2** to rename inline.
+Two small dismissable banners appear only in the wordlist they're about, never as a global nag:
 
-**Downloads.** Each wordlist (and All) has its own Download button, and every download saves immediately — no dialog. The file uses your global **Output format** (set in [Settings](#settings)). For a **source with rescore rules** the button is a split: **Download** saves the rescored output (the rule result, `<name> rescored.txt`) and the menu's **Download original** saves your imported file back verbatim with its original formatting (`<name>.txt`). **All** saves its merged output as `All rescored.txt`. **My Edits** follows the same rule as any source — **Download** saves its rescored output at your format (`My Edits rescored.txt`), and once it has rules the split's **Download original** saves the editable file verbatim (`My Edits.txt`). When the format strips characters, entries that collapse to the same text are merged: the highest score wins and their distinct comments combine with ` / `.
+- **My Edits import** — shown when you scope to My Edits, nudging you to import a personal wordlist if you keep one.
+- **XWI import** — shown when you scope to XWI while it's still unpopulated (Grawlix ships only XWI's default scores, not the paywalled list itself), nudging a subscriber to import their real copy.
 
-**Onboarding banner.** First-run users see a short 3-page sequence at the top of the wordlist list: a welcome confirming the pre-loaded popular wordlists, then optional prompts to import a personal wordlist into My Edits and to import an XWI subscriber file. Each prompt has a *Skip*; the ✕ ends the whole flow. (You won't see it until you visit Library.)
+Each carries an **Import** button and a ✕ to dismiss; once dismissed, a banner stays gone.
 
 ## Help
 
-The header `?` button is a placeholder — it's inert today. A help surface is planned.
+The header `?` button opens a short welcome popup — what Grawlix is, the pre-loaded wordlists, and a few featured tools. A fuller help surface is planned.
 
 ## Sharing & links
 
 Your tool stack — every tool you've added and its inputs, in pipeline order — plus the search pattern, whole-word toggle, and sort all ride along in the URL. Refreshing the page keeps your state, and pasting the URL into a chat or saving it as a bookmark reproduces what you were looking at.
 
-The link carries your tools and search settings, not your wordlists or your score filter. Wordlists you've loaded stay local. The score filter is omitted on purpose: a `60` on your scale isn't a `60` on theirs, so the number wouldn't translate. Your filter is remembered across your visits instead.
+The link carries your tools and search settings, not your wordlists, your scope, or your score filter. Wordlists you've loaded stay local; so does the wordlist you're scoped to — a recipient sees the same tools applied to their own scope (usually All). The score filter is omitted on purpose: a `60` on your scale isn't a `60` on theirs, so the number wouldn't translate. Your filter and your scope are remembered across your own visits instead.
 
 ## Wordlist file format
 
