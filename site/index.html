@@ -575,14 +575,29 @@ mark.search-match { border-radius: 2px; padding: 0 1px; margin: 0 -1px; font-sty
 .lib-entry-row .lib-atom-out { color: var(--accent); font-weight: 600; }
 .lib-entries-empty { padding: 28px 22px; color: var(--faint); font-size: 13px; font-style: italic; }
 
-#atom-popover { position: fixed; z-index: 600; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 6px 24px rgba(0,0,0,0.2); padding: 12px 14px; font-size: 12px; color: var(--text); min-width: 280px; max-width: 360px; }
-.atom-pop-source { font-size: 12px; color: var(--text); overflow-wrap: anywhere; }
-.atom-pop-source-row { display: contents; }
+#atom-popover { position: fixed; z-index: 600; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 6px 24px rgba(0,0,0,0.2); padding: 12px 14px; font-size: 12px; color: var(--text); min-width: 280px; max-width: 440px; }
+.atom-pop-prov-wrap { margin-top: 10px; }
+.atom-pop-prov-wrap:empty { display: none; }
+.atom-pop-prov { width: 100%; border-collapse: collapse; font-size: 11px; }
+.atom-pop-prov th { text-align: left; font-weight: 600; color: var(--muted); padding: 2px 8px 4px 0; border-bottom: 1px solid var(--border3); white-space: nowrap; }
+.atom-pop-prov td { padding: 3px 8px 3px 0; vertical-align: top; border-bottom: 1px solid var(--border3); }
+.atom-pop-prov tr:last-child td { border-bottom: none; }
+.atom-pop-prov-entry { font-family: var(--font-mono); color: var(--text); overflow-wrap: anywhere; }
+.atom-pop-prov-score { white-space: nowrap; }
+.atom-pop-prov-comment { color: var(--muted); max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.atom-pop-prov-source { white-space: nowrap; }
+.atom-pop-prov-row--disabled td { color: var(--faint); }
+.atom-pop-prov-row--disabled .wordlist-icon { filter: grayscale(1); opacity: 0.6; }
+.atom-pop-prov-row--disabled .score-badge { opacity: 0.55; }
 .atom-pop-fields { display: grid; grid-template-columns: auto 1fr; grid-auto-rows: minmax(26px, auto); gap: 8px 10px; align-items: center; padding-right: 32px; }
 .atom-pop-fields label { font-size: 11px; color: var(--muted); }
 .atom-pop-fields input { font: inherit; font-size: 12px; padding: 4px 7px; border: 1px solid var(--border); border-radius: 3px; background: var(--input-bg); color: var(--text); outline: none; width: 100%; box-sizing: border-box; }
 .atom-pop-fields input:focus { border-color: var(--accent); }
 .atom-pop-fields input.score-input { font-family: var(--font-mono); max-width: 90px; }
+.atom-pop-score-cell { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.atom-pop-rescore-wrap:empty { display: none; }
+.atom-pop-rescore-note { color: var(--muted); font-size: 11px; white-space: nowrap; }
+.atom-pop-rescore-note .score-badge { margin-left: 2px; }
 .atom-pop-foot { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; padding-top: 10px; border-top: 1px solid var(--border3); margin-top: 10px; }
 .atom-pop-saves { color: var(--muted); font-size: 11px; min-width: 0; }
 .atom-pop-cancel { margin-left: auto; }
@@ -8877,6 +8892,7 @@ const AtomPopover = (() => {
   let el = null;
   let activeRow = null;
   let activeWlEntry = null;
+  let activeSeed = null;
   let activeScroller = null;
   let pendingDelete = false;
   // The popover element focus is in or transitioning to. Tracked via capture-
@@ -8910,6 +8926,7 @@ const AtomPopover = (() => {
     if (activeRow) activeRow.classList.remove('active');
     activeRow = null;
     activeWlEntry = null;
+    activeSeed = null;
     activeScroller = null;
     focusEl = null;
     pendingDelete = false;
@@ -8974,10 +8991,46 @@ const AtomPopover = (() => {
       + `<button class="atom-pop-save" type="button">Save</button>`;
   }
 
-  function renderSourceRowHTML(preview, scroller) {
-    const rowWordlist = preview?.wordlist || scroller.currentWordlist;
-    if (!rowWordlist) return '';
-    return `<label>Source</label><span class="atom-pop-source">${buildWordlistNameHTML(rowWordlist, { bold: false })}</span>`;
+  // Spans ALL sources, not the merge's enabled-only walk: filtering by `enabled`
+  // here would silently drop the disabled/non-winning lists this panel exists to
+  // surface. A null-display (bare) entry applies to every spelling of its norm, so
+  // the include test stays asymmetric — never collapse it to `e.display === display`.
+  function gatherProvenance(norm, display) {
+    const rows = [];
+    for (const wl of state.sources) {
+      const arr = getRescoredByNorm(wl).get(norm);
+      if (!arr) continue;
+      for (const e of arr) {
+        const include = display == null || e.display === display || e.display == null;
+        if (include) rows.push({ wordlist: wl, entry: e });
+      }
+    }
+    return rows;
+  }
+
+  function renderProvenanceHTML(wlEntry) {
+    if (!wlEntry || wlEntry.norm == null) return '';
+    const rows = gatherProvenance(wlEntry.norm, wlEntry.display);
+    if (!rows.length) return '';
+    const body = rows.map(({ wordlist, entry }) => {
+      const cls = wordlist.enabled === false ? ' atom-pop-prov-row--disabled' : '';
+      const comment = entry.comment || '';
+      return `<tr class="atom-pop-prov-row${cls}">`
+        + `<td class="atom-pop-prov-entry">${esc(displayOf(entry))}</td>`
+        + `<td class="atom-pop-prov-score">${buildScoreBadgeHTML(entry.score)}</td>`
+        + `<td class="atom-pop-prov-comment"${comment ? ` title="${esc(comment)}"` : ''}>${esc(comment)}</td>`
+        + `<td class="atom-pop-prov-source">${buildWordlistNameHTML(wordlist, { bold: false })}</td>`
+        + `</tr>`;
+    }).join('');
+    return `<table class="atom-pop-prov">`
+      + `<thead><tr>`
+      + `<th class="atom-pop-prov-entry">Entry</th>`
+      + `<th class="atom-pop-prov-score">Score</th>`
+      + `<th class="atom-pop-prov-comment">Comment</th>`
+      + `<th class="atom-pop-prov-source">Source</th>`
+      + `</tr></thead>`
+      + `<tbody>${body}</tbody>`
+      + `</table>`;
   }
 
   function previewWlEntry(rawEntry) {
@@ -8991,19 +9044,79 @@ const AtomPopover = (() => {
     return previewWlEntry(inp ? inp.value : displayOf(activeWlEntry));
   }
 
+  // Seed from the All-merge winner, never the clicked atom's own value: under a
+  // scoped lower-priority list the atom holds that list's losing value, but the
+  // editor must show what the merge actually serves — a regression invisible
+  // until you scope away from My Edits.
+  function resolveSeed(clicked) {
+    const merged = buildMergedWordlist();
+    const norm = clicked.norm;
+    let row = merged.byKey.get(mergeKey(norm, clicked.display));
+    // A bare click with no bare merged row edits the first-alphabetical spelled
+    // variant — deterministic but arbitrary; don't "fix" the ordering.
+    if (!row && clicked.display == null) {
+      const variants = mergedRowsForNorm(merged, norm).filter(r => r.display != null);
+      variants.sort((a, b) => a.display.localeCompare(b.display));
+      row = variants[0] || merged.byNorm.get(norm) || null;
+    }
+    if (!row) row = clicked; // norm absent from the merge (only in a disabled list)
+
+    let score = row.score;
+    const edits = getEditsWordlist();
+    // Seed the score field from My Edits' RAW score, not the displayed effective:
+    // the field edits raw, so seeding effective would re-rescore it on every save
+    // and silently drift My Edits.
+    if (edits && row.wordlist === edits) {
+      const rawEntry = edits.rawEntries.find(e => e.norm === row.norm && displayOf(e) === displayOf(row));
+      if (rawEntry) score = rawEntry.score;
+    }
+
+    return {
+      entry: displayOf(row),
+      score,
+      comment: row.comment || '',
+      norm: row.norm,
+      display: row.display ?? null,
+    };
+  }
+
+  // The score field edits a raw score that My Edits' rules then rescore, so when
+  // they remap it the save is lossy; surface the gap rather than letting the
+  // typed number silently become something else.
+  function rescoreNoteHTML() {
+    const edits = getEditsWordlist();
+    if (!edits) return '';
+    const rawScore = parseInt(el.querySelector('.score-input').value, 10);
+    if (isNaN(rawScore)) return '';
+    const entryVal = el.querySelector('.entry-input')?.value;
+    const norm = entryVal != null ? toNorm(entryVal) : (activeSeed?.norm ?? activeWlEntry?.norm ?? '');
+    const effective = rescoreEntry({ norm, score: rawScore }, edits.rescoreRules);
+    if (effective === rawScore) return '';
+    return `<div class="atom-pop-rescore-note">rescores to ${buildScoreBadgeHTML(effective)}</div>`;
+  }
+
+  function refreshRescoreNote() {
+    const wrap = el?.querySelector('.atom-pop-rescore-wrap');
+    if (wrap) wrap.innerHTML = rescoreNoteHTML();
+  }
+
   function renderHTML(wlEntry, scroller) {
-    const preview = previewWlEntry(displayOf(wlEntry)) ?? wlEntry;
+    const seed = activeSeed = resolveSeed(wlEntry);
+    const preview = previewWlEntry(seed.entry) ?? wlEntry;
     return `
       <button class="dialog-close-btn" type="button" aria-label="Close">✕</button>
       <div class="atom-pop-fields">
         <label for="atom-pop-entry">Entry</label>
-        <input id="atom-pop-entry" class="entry-input" type="text" value="${esc(displayOf(wlEntry))}">
+        <input id="atom-pop-entry" class="entry-input" type="text" value="${esc(seed.entry)}">
         <label for="atom-pop-score">Score</label>
-        <input id="atom-pop-score" class="score-input" type="number" min="0" value="${wlEntry.score}">
+        <span class="atom-pop-score-cell">
+          <input id="atom-pop-score" class="score-input" type="number" min="0" value="${seed.score}">
+          <span class="atom-pop-rescore-wrap"></span>
+        </span>
         <label for="atom-pop-comment">Comment</label>
-        <input id="atom-pop-comment" class="comment-input" type="text" value="${esc(wlEntry.comment || '')}">
-        <span class="atom-pop-source-row">${renderSourceRowHTML(preview, scroller)}</span>
+        <input id="atom-pop-comment" class="comment-input" type="text" value="${esc(seed.comment)}">
       </div>
+      <div class="atom-pop-prov-wrap">${renderProvenanceHTML(wlEntry)}</div>
       <div class="atom-pop-foot">${renderFooterHTML(preview, scroller)}</div>`;
   }
 
@@ -9034,13 +9147,22 @@ const AtomPopover = (() => {
   function refreshDynamicBits() {
     if (!isOpen()) return;
     const preview = currentPreview();
-    const srcRowEl = el.querySelector('.atom-pop-source-row');
-    if (srcRowEl) srcRowEl.innerHTML = renderSourceRowHTML(preview, activeScroller);
+    const provEl = el.querySelector('.atom-pop-prov-wrap');
+    if (provEl) provEl.innerHTML = renderProvenanceHTML(provenanceTarget());
     const footEl = el.querySelector('.atom-pop-foot');
     if (footEl) {
       footEl.innerHTML = renderFooterHTML(preview, activeScroller);
       wireFooter();
     }
+  }
+
+  function provenanceTarget() {
+    const preview = currentPreview();
+    if (preview) return preview;
+    const inp = el?.querySelector('.entry-input');
+    const raw = inp ? inp.value.trim() : displayOf(activeWlEntry);
+    if (!raw) return activeWlEntry;
+    return { norm: toNorm(raw), display: null };
   }
 
   function editTarget() {
@@ -9061,6 +9183,16 @@ const AtomPopover = (() => {
     return raw.length > 0 && !isNaN(score) && score >= 0;
   }
 
+  // Diff against the seed (what's shown/edited), not the clicked atom: from a
+  // scoped lower-priority view those differ, so an unchanged save would
+  // otherwise write a spurious My Edits entry no one asked for.
+  function saveBaseline() {
+    if (activeSeed) {
+      return { norm: activeSeed.norm, display: activeSeed.display, score: activeSeed.score, comment: activeSeed.comment };
+    }
+    return activeWlEntry;
+  }
+
   function submit() {
     const newValues = readNewValues();
     if (!valuesValid(newValues)) {
@@ -9068,7 +9200,7 @@ const AtomPopover = (() => {
       el.querySelector(focusTarget).focus();
       return;
     }
-    activeScroller._onSave?.(activeWlEntry, newValues);
+    activeScroller._onSave?.(saveBaseline(), newValues);
     close();
   }
 
@@ -9103,6 +9235,8 @@ const AtomPopover = (() => {
     entryInp.addEventListener('beforeinput', blockSemicolon);
     commentInp.addEventListener('beforeinput', blockSemicolon);
     entryInp.addEventListener('input', refreshDynamicBits);
+    entryInp.addEventListener('input', refreshRescoreNote);
+    scoreInp.addEventListener('input', refreshRescoreNote);
 
     for (const inp of [entryInp, scoreInp, commentInp]) {
       inp.addEventListener('input', refreshSaveEnabled);
@@ -9111,6 +9245,7 @@ const AtomPopover = (() => {
       });
     }
 
+    refreshRescoreNote();
     wireFooter();
   }
 
@@ -11653,6 +11788,15 @@ function mergedNormLowerBound(entries, norm) {
     else hi = mid;
   }
   return lo;
+}
+
+function mergedRowsForNorm(merged, norm) {
+  const { entries } = merged;
+  const rows = [];
+  for (let i = mergedNormLowerBound(entries, norm); i < entries.length && entries[i].norm === norm; i++) {
+    rows.push(entries[i]);
+  }
+  return rows;
 }
 
 // Must run BEFORE My Edits is mutated: patchMergedForNorms diffs these winners

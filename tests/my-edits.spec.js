@@ -65,7 +65,7 @@ test('popover edits only commit when the user clicks Save', async ({ page }) => 
   await scoreInput.press('Tab');
   await expect(page.locator('#atom-pop-comment')).toBeFocused();
   await expect(page.locator('#atom-popover')).toBeVisible();
-  await expect(page.locator('.atom-pop-source')).toContainText('Source');
+  await expect(page.locator('.atom-pop-prov tbody .atom-pop-prov-source')).toContainText('Source');
   expect(await page.evaluate(() => window.__grawlixTest.getWordlist('My Edits').entries)).toEqual([]);
 
   await page.locator('#atom-pop-comment').fill('tasty');
@@ -92,7 +92,7 @@ test('Cancel closes the popover without committing edits', async ({ page }) => {
   expect(await page.evaluate(() => window.__grawlixTest.getWordlist('My Edits').entries)).toEqual([]);
 });
 
-test('Source row and footer track the typed entry', async ({ page }) => {
+test('the provenance table and footer track the typed entry', async ({ page }) => {
   await gotoApp(page);
 
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
@@ -107,17 +107,21 @@ test('Source row and footer track the typed entry', async ({ page }) => {
   ).toBe(1);
 
   await page.locator('.entry-row[data-entry="carrot"] .atom-score').click();
-  await expect(page.locator('.atom-pop-source')).toContainText('Source');
+  await expect(page.locator('.atom-pop-prov tbody .atom-pop-prov-source')).toHaveCount(1);
+  await expect(page.locator('.atom-pop-prov tbody .atom-pop-prov-source')).toContainText('Source');
   await expect(page.locator('.atom-pop-delete')).toHaveCount(0);
   await expect(page.locator('.atom-pop-saves')).toBeVisible();
 
+  // Retyping to BAGEL (carried by both Source and My Edits) lists both rows; the
+  // footer switches to Delete because the winning contributor is My Edits.
   await page.locator('#atom-pop-entry').fill('BAGEL');
-  await expect(page.locator('.atom-pop-source')).toContainText('My Edits');
+  await expect(page.locator('.atom-pop-prov tbody .atom-pop-prov-source')).toHaveCount(2);
+  await expect(page.locator('.atom-pop-prov tbody .atom-pop-prov-source')).toContainText(['My Edits', 'Source']);
   await expect(page.locator('.atom-pop-delete')).toBeVisible();
   await expect(page.locator('.atom-pop-saves')).toHaveCount(0);
 
   await page.locator('#atom-pop-entry').fill('NEWWORD');
-  await expect(page.locator('.atom-pop-source')).toHaveCount(0);
+  await expect(page.locator('.atom-pop-prov tbody .atom-pop-prov-source')).toHaveCount(0);
   await expect(page.locator('.atom-pop-delete')).toHaveCount(0);
   await expect(page.locator('.atom-pop-saves')).toBeVisible();
 });
@@ -161,16 +165,17 @@ test('the Delete edit button keeps the popover open and reverts to the underlyin
   ).toBe(1);
 
   // Re-open the popover — BAGEL is now sourced from My Edits, so it carries a
-  // Delete edit button.
+  // Delete edit button, and the provenance table lists both My Edits and Source.
   await page.locator('.entry-row[data-entry="bagel"] .atom-score').click();
-  await expect(page.locator('.atom-pop-source')).toContainText('My Edits');
+  await expect(page.locator('.atom-pop-prov tbody .atom-pop-prov-source')).toContainText(['My Edits', 'Source']);
   await page.locator('.atom-pop-delete').click();
 
   // The popover stays open and re-points at the underlying Source entry: the
-  // Source field reverts, the score input shows Source's 50, and the Delete
-  // button is gone (the row is no longer sourced from My Edits).
+  // score input shows Source's 50, the Delete button is gone (the row is no
+  // longer sourced from My Edits), and only Source remains in the table.
   await expect(page.locator('#atom-popover')).toBeVisible();
-  await expect(page.locator('.atom-pop-source')).toContainText('Source');
+  await expect(page.locator('.atom-pop-prov tbody .atom-pop-prov-source')).toHaveCount(1);
+  await expect(page.locator('.atom-pop-prov tbody .atom-pop-prov-source')).toContainText('Source');
   await expect(page.locator('#atom-pop-score')).toHaveValue('50');
   await expect(page.locator('.atom-pop-delete')).toHaveCount(0);
 
