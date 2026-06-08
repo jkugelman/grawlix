@@ -3489,9 +3489,11 @@ function cycleDarkMode() {
 
 // ─── Dialog helpers ───────────────────────────────────────────────────────────
 
-function enableDismissClicks(el) {
+function enableDismissClicks(el, dismissOnBackdrop = true) {
   el.addEventListener('click', e => {
-    if (e.target === el || e.target.closest('.dialog-close-btn, .dialog-cancel-btn')) el.close();
+    const onDismissBtn = e.target.closest('.dialog-close-btn, .dialog-cancel-btn');
+    const onBackdrop = e.target === el && dismissOnBackdrop;
+    if (onDismissBtn || onBackdrop) el.close();
   });
 }
 
@@ -3509,12 +3511,12 @@ function showDialog(el, onClose = null) {
   }
 }
 
-function createDialog(id, { labelledby, label } = {}) {
+function createDialog(id, { labelledby, label, dismissOnBackdrop = true } = {}) {
   const el = document.createElement('dialog');
   el.id = id;
   if (labelledby) el.setAttribute('aria-labelledby', labelledby);
   if (label)      el.setAttribute('aria-label', label);
-  enableDismissClicks(el);
+  enableDismissClicks(el, dismissOnBackdrop);
   const body = document.createElement('div');
   body.className = 'dialog-body';
   el.appendChild(body);
@@ -10801,7 +10803,7 @@ const SyncDialog = (() => {
 // ─── Configure / Add wordlist dialog ─────────────────────────────────────────────
 
 const ConfigureWordlistDialog = (() => {
-  const { el, body } = createDialog('configure-wordlist-dialog', { labelledby: 'configure-wordlist-title' });
+  const { el, body } = createDialog('configure-wordlist-dialog', { labelledby: 'configure-wordlist-title', dismissOnBackdrop: false });
   body.innerHTML = `
     <button class="dialog-close-btn" aria-label="Close">✕</button>
     <h2 id="configure-wordlist-title"></h2>
