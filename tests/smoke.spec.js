@@ -1,29 +1,19 @@
 const { test, expect } = require('@playwright/test');
-const { stubPublisherFetches, gotoApp, openLibrary } = require('./helpers');
+const { stubPublisherFetches, gotoApp } = require('./helpers');
 
 test.beforeEach(async ({ page }) => {
   await stubPublisherFetches(page);
 });
 
-test('page loads and lands on Workshop', async ({ page }) => {
+test('page loads into the unified Workshop screen', async ({ page }) => {
   await gotoApp(page);
 
   // Brand bar shows the wordmark.
   await expect(page.locator('header h1')).toContainText('Grawlix');
 
-  // Workshop is the default landing view; Library is hidden.
   await expect(page.locator('#workshop-view')).toBeVisible();
-  await expect(page.locator('#library-view')).toBeHidden();
-  await expect(page.locator('.header-nav-item[data-view="workshop"]')).toHaveClass(/active/);
-});
-
-test('Library nav switches views', async ({ page }) => {
-  await gotoApp(page);
-  await openLibrary(page);
-
-  await expect(page.locator('#workshop-view')).toBeHidden();
-  await expect(page.locator('#library-view')).toBeVisible();
-  await expect(page.locator('.header-nav-item[data-view="library"]')).toHaveClass(/active/);
+  await expect(page.locator('#workshop-wordlist-bar')).toBeVisible();
+  await expect(page.locator('#workshop-wordlist-bar .wls-trigger-label')).toHaveText('All');
 });
 
 test('welcome popup persists until dismissed and reopens from ?', async ({ page }) => {

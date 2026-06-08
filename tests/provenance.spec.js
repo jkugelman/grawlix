@@ -4,7 +4,7 @@
 // show only their own data, leaving the popover the one place to compare lists.
 
 const { test, expect } = require('@playwright/test');
-const { stubPublisherFetches, gotoApp, scopeTo } = require('./helpers');
+const { stubPublisherFetches, gotoApp, scopeTo, setEnabledViaPanel } = require('./helpers');
 
 test.beforeEach(async ({ page }) => {
   await stubPublisherFetches(page);
@@ -85,14 +85,10 @@ test('a disabled wordlist still contributes a (dimmed) provenance row', async ({
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
     name: 'On',  entries: ['ocean'], scores: [70],
   }));
-  // addCustomWordlist force-enables on population, so disable via the real
-  // Library toggle after import (matching scope.spec.js).
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
     name: 'Off', entries: ['ocean'], scores: [50],
   }));
-  await page.locator('.header-nav-item[data-view="library"]').click();
-  await page.getByLabel('Toggle Off').uncheck();
-  await page.locator('.header-nav-item[data-view="workshop"]').click();
+  await setEnabledViaPanel(page, 'Off', false);
 
   // From All, OCEAN comes only from On (Off is excluded from the merge), but the
   // popover still lists Off as a contributor — dimmed.

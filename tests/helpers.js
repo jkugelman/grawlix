@@ -61,17 +61,6 @@ async function gotoApp(page, route = '/') {
   await page.evaluate(() => window.__grawlixTest.pipelineIdle());
 }
 
-// Switch to the Library view via the brand-bar nav button.
-async function openLibrary(page) {
-  await page.locator('.header-nav-item[data-view="library"]').click();
-  await expect(page.locator('#library-view')).toBeVisible();
-}
-
-// Click a wordlist card by name in the Library list. Library must be open.
-async function focusWordlist(page, name) {
-  await page.locator('.wordlist-card[data-wordlist]', { hasText: name }).first().click();
-}
-
 // Scope the table + tools to a source by name (or 'All' / omit for the merged
 // view) via the test API, then wait for the re-rendered pipeline to settle.
 async function scopeTo(page, name) {
@@ -101,6 +90,25 @@ async function openManagePanel(page) {
   await page.locator('#workshop-wordlist-bar .wls-trigger').click();
   await page.locator('#workshop-wordlist-bar .wls-configure-footer').click();
   await expect(page.locator('#manage-dialog')).toBeVisible();
+}
+
+// Importing data force-enables a list, so disabling has to happen after
+// population through this real toggle path, then Apply to reach canonical state.
+async function setEnabledViaPanel(page, name, enabled) {
+  await openManagePanel(page);
+  const toggle = page.locator(
+    `#manage-dialog .wordlist-card label.toggle[aria-label="Toggle ${name}"]`);
+  const input = toggle.locator('input[type="checkbox"]');
+  if ((await input.isChecked()) !== enabled) await toggle.click();
+  await page.locator('#manage-dialog .manage-apply-btn').click();
+  await expect(page.locator('#manage-dialog')).toBeHidden();
+}
+
+async function barKebabAction(page, label) {
+  const kebab = page.locator('#workshop-wordlist-bar .wls-actions .wls-kebab');
+  await kebab.locator('.more-menu-btn').click();
+  await expect(kebab).toHaveClass(/open/);
+  await kebab.locator('.split-btn-menu button', { hasText: label }).click();
 }
 
 async function addTool(page, toolKey) {
@@ -137,12 +145,12 @@ function readGroups(page)  { return page.evaluate(() => window.__grawlixTest.get
 module.exports = {
   stubPublisherFetches,
   gotoApp,
-  openLibrary,
-  focusWordlist,
   scopeTo,
   scopeViaSelector,
   openRescoreEditor,
   openManagePanel,
+  setEnabledViaPanel,
+  barKebabAction,
   addTool,
   expectVisible,
   expectGroups,

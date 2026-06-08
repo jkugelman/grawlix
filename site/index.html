@@ -128,32 +128,14 @@ html { overflow-y: scroll; }
 body { font-family: var(--font-sans); font-size: 14px; background: var(--bg); color: var(--text); }
 main { display: flex; flex-direction: column; min-height: calc(100vh - var(--header-h)); }
 
-/* Brand header. Two stacked rows: row 1 has the wordmark on the left,
-   top-level nav (Workshop / Library) in the center, and utility icons on the
-   right; row 2 is the personal-text subtitle strip on a darkened-purple band
-   spanning full width below. Pinned to the viewport top; the in-content
-   stats/tool/search stack pins beneath it (see .sticky-stack), offset by
-   --header-h. */
-header { background: var(--hdr-bg); color: white; padding: 6px 20px 0; display: flex; flex-direction: column; position: sticky; top: 0; z-index: 100; }
+header { background: var(--hdr-bg); color: white; padding: 6px 20px; display: flex; flex-direction: column; position: sticky; top: 0; z-index: 100; }
 .header-row-main { display: flex; align-items: center; justify-content: space-between; gap: 24px; min-height: 44px; }
 header h1 { font-size: 19px; font-weight: 600; letter-spacing: -0.01em; line-height: 1.1; flex-shrink: 1; min-width: 0; }
 .header-logo-link { color: inherit; text-decoration: none; }
-.header-subtitle { background: var(--hdr-bg-dark); color: rgba(255, 255, 255, 0.85); font-size: 12px; display: flex; align-items: center; justify-content: center; gap: 7px; line-height: 1.2; flex-wrap: wrap; padding: 7px 20px; margin: 6px -20px 0; }
+.header-byline-group { display: flex; align-items: center; justify-content: center; gap: 7px; flex: 1 1 auto; min-width: 0; color: rgba(255, 255, 255, 0.85); font-size: 12px; line-height: 1.2; flex-wrap: wrap; }
 .header-sep { opacity: 0.5; }
-.header-byline-mobile { display: none; }
-.header-subtitle a { color: inherit; text-decoration: none; border-bottom: 1px solid rgba(255,255,255,0.35); transition: border-color 0.15s; }
-.header-subtitle a:hover { border-bottom-color: white; }
-
-/* Top-level nav (Library / Workshop) — center of the brand bar. */
-.header-nav { display: flex; align-items: center; flex-shrink: 0; }
-.header-nav-items { display: flex; align-items: center; gap: 2px; }
-.header-nav-trigger { display: none; }
-.header-nav-item { display: inline-flex; align-items: center; gap: 7px; padding: 8px 14px; border: none; background: none; color: rgba(255,255,255,0.55); font-family: inherit; font-size: 15px; font-weight: 500; cursor: pointer; border-radius: 4px; transition: color 0.15s, background 0.15s; position: relative; line-height: 1; }
-button.header-nav-item:hover:not(:disabled) { color: white; background: var(--hdr-bg-dark); }
-.header-nav-item.active { color: white; }
-.header-nav-item.active::after { content: ''; position: absolute; left: 14px; right: 14px; bottom: 1px; height: 2px; background: white; border-radius: 1px; }
-.header-nav-item svg { flex-shrink: 0; }
-.header-nav-item > .badge { position: absolute; top: 50%; right: 0; transform: translateY(-50%); }
+.header-byline-group a { color: inherit; text-decoration: none; border-bottom: 1px solid rgba(255,255,255,0.35); transition: border-color 0.15s; }
+.header-byline-group a:hover { border-bottom-color: white; }
 
 .header-utility { display: flex; align-items: center; gap: 2px; flex-shrink: 0; }
 .bubble { display: inline-flex; align-items: center; background: white; color: var(--accent); border-radius: 8px; padding: 1px 7px 2px; font-size: 15px; font-weight: 800; position: relative; margin-left: 9px; line-height: 1.5; vertical-align: middle; }
@@ -163,8 +145,7 @@ button.header-nav-item:hover:not(:disabled) { color: white; background: var(--hd
 
 /* `overflow: clip`, not `hidden`: `hidden` would make the view a scroll
    container and trap the in-content sticky stack inside it. */
-#workshop-view,
-#library-view { background: var(--bg); overflow: clip; flex: 1 1 auto; display: flex; flex-direction: column; }
+#workshop-view { background: var(--bg); overflow: clip; flex: 1 1 auto; display: flex; flex-direction: column; }
 
 #workshop-add-fab { position: fixed; right: 24px; bottom: 24px; z-index: 40; width: 44px; height: 44px; padding: 0; border: none; border-radius: 50%; background: var(--accent); color: white; font-size: 26px; line-height: 1; box-shadow: 0 4px 14px rgba(0,0,0,0.32); transition: background 0.12s, transform 0.12s, box-shadow 0.12s; }
 #workshop-add-fab:hover { background: var(--accent-hover); transform: translateY(-1px); box-shadow: 0 7px 20px rgba(0,0,0,0.38); }
@@ -645,24 +626,8 @@ input.entry-input { font-family: var(--font-mono); font-size: 13px; }
    label entirely. */
 @media (max-width: 759px) {
   .detail-date { display: none; }
-  .header-byline-desktop,
-  .header-sep-feedback,
-  .header-feedback { display: none; }
-  .header-byline-mobile { display: inline; }
+  .header-byline-group { display: none; }
   .atom-pop-fields { grid-auto-rows: minmax(30px, auto); }
-
-  .header-nav { position: relative; }
-  .header-nav-trigger { display: inline-flex; align-items: center; gap: 6px; padding: 8px 12px; border: none; border-radius: 4px; background: none; color: white; cursor: pointer; font-family: inherit; font-size: 15px; font-weight: 500; line-height: 1; position: relative; }
-  .header-nav.open .header-nav-trigger,
-  button.header-nav-trigger:hover { background: var(--hdr-bg-dark); }
-  .header-nav-trigger .badge { position: absolute; top: 3px; right: 3px; }
-  .header-nav-item > .badge { right: 8px; }
-  .header-nav-chevron { transition: transform 0.15s; }
-  .header-nav.open .header-nav-chevron { transform: rotate(180deg); }
-  .header-nav-items { position: absolute; top: calc(100% + 4px); left: 0; z-index: 110; flex-direction: column; align-items: stretch; gap: 2px; min-width: 168px; padding: 4px; background: var(--hdr-bg); border: 1px solid var(--hdr-bg-dark); border-radius: 6px; box-shadow: 0 6px 20px rgba(0,0,0,0.35); }
-  .header-nav:not(.open) .header-nav-items { display: none; }
-  .header-nav-item { width: 100%; padding: 9px 12px; border-radius: 4px; justify-content: flex-start; }
-  .header-nav-item.active::after { left: 0; right: auto; top: 0; bottom: 0; width: 3px; height: auto; border-radius: 0 2px 2px 0; }
 }
 .edit-hint { opacity: 0; flex-shrink: 0; cursor: pointer; user-select: none; transition: opacity 0.15s; }
 .name-edit-input { font-family: inherit; width: 100%; padding: 1px 5px; border: 1px solid var(--accent); border-radius: 3px; background: var(--input-bg); color: var(--text); font-size: 15px; font-weight: 600; outline: none; }
@@ -1389,9 +1354,6 @@ html.dark-mode .wld-onboarding { background: color-mix(in srgb, var(--accent) 15
   <symbol id="icon-wrench" viewBox="0 0 24 24" fill="currentColor" class="size-6">
     <path fill-rule="evenodd" d="M12 6.75a5.25 5.25 0 0 1 6.775-5.025.75.75 0 0 1 .313 1.248l-3.32 3.319c.063.475.276.934.641 1.299.365.365.824.578 1.3.64l3.318-3.319a.75.75 0 0 1 1.248.313 5.25 5.25 0 0 1-5.472 6.756c-1.018-.086-1.87.1-2.309.634L7.344 21.3A3.298 3.298 0 1 1 2.7 16.657l8.684-7.151c.533-.44.72-1.291.634-2.309A5.342 5.342 0 0 1 12 6.75ZM4.117 19.125a.75.75 0 0 1 .75-.75h.008a.75.75 0 0 1 .75.75v.008a.75.75 0 0 1-.75.75h-.008a.75.75 0 0 1-.75-.75v-.008Z" clip-rule="evenodd" />
   </symbol>
-  <symbol id="icon-book-open" viewBox="0 0 24 24" fill="currentColor" class="size-6">
-    <path d="M11.25 4.533A9.707 9.707 0 0 0 6 3a9.735 9.735 0 0 0-3.25.555.75.75 0 0 0-.5.707v14.25a.75.75 0 0 0 1 .707A8.237 8.237 0 0 1 6 18.75c1.995 0 3.823.707 5.25 1.886V4.533ZM12.75 20.636A8.214 8.214 0 0 1 18 18.75c.966 0 1.89.166 2.75.47a.75.75 0 0 0 1-.708V4.262a.75.75 0 0 0-.5-.707A9.735 9.735 0 0 0 18 3a9.707 9.707 0 0 0-5.25 1.533v16.103Z" />
-  </symbol>
   <symbol id="icon-adjustments" viewBox="0 0 24 24" fill="currentColor" class="size-6">
     <path d="M18.75 12.75h1.5a.75.75 0 0 0 0-1.5h-1.5a.75.75 0 0 0 0 1.5ZM12 6a.75.75 0 0 1 .75-.75h7.5a.75.75 0 0 1 0 1.5h-7.5A.75.75 0 0 1 12 6ZM12 18a.75.75 0 0 1 .75-.75h7.5a.75.75 0 0 1 0 1.5h-7.5A.75.75 0 0 1 12 18ZM3.75 6.75h1.5a.75.75 0 1 0 0-1.5h-1.5a.75.75 0 0 0 0 1.5ZM5.25 18.75h-1.5a.75.75 0 0 1 0-1.5h1.5a.75.75 0 0 1 0 1.5ZM3 12a.75.75 0 0 1 .75-.75h7.5a.75.75 0 0 1 0 1.5h-7.5A.75.75 0 0 1 3 12ZM9 3.75a2.25 2.25 0 1 0 0 4.5 2.25 2.25 0 0 0 0-4.5ZM12.75 12a2.25 2.25 0 1 1 4.5 0 2.25 2.25 0 0 1-4.5 0ZM9 15.75a2.25 2.25 0 1 0 0 4.5 2.25 2.25 0 0 0 0-4.5Z" />
   </symbol>
@@ -1400,35 +1362,17 @@ html.dark-mode .wld-onboarding { background: color-mix(in srgb, var(--accent) 15
 <header>
   <div class="header-row-main">
     <h1><a class="header-logo-link">Grawlix <span class="bubble">!@#$</span></a></h1>
-    <nav class="header-nav" aria-label="Sections">
-      <button type="button" class="header-nav-trigger" aria-haspopup="true" aria-expanded="false" aria-label="Switch section">
-        <svg class="header-nav-trigger-icon" width="18" height="18" aria-hidden="true"><use href="#icon-wrench"/></svg>
-        <span class="header-nav-trigger-label">Workshop</span>
-        <svg class="header-nav-chevron" width="8" height="5" aria-hidden="true"><use href="#icon-arrow"/></svg>
-      </button>
-      <div class="header-nav-items">
-        <button type="button" class="header-nav-item active" data-view="workshop" aria-current="page">
-          <svg width="18" height="18" aria-hidden="true"><use href="#icon-wrench"/></svg>
-          Workshop
-        </button>
-        <button type="button" class="header-nav-item" data-view="library">
-          <svg width="18" height="18" aria-hidden="true"><use href="#icon-book-open"/></svg>
-          Library
-        </button>
-      </div>
-    </nav>
+    <div class="header-byline-group">
+      <span class="header-byline">Made with ♥ by John Kugelman</span>
+      <span class="header-sep">&middot;</span>
+      <span class="header-feedback">Got feedback? <a href="mailto:john@kugelman.name?subject=Grawlix">Email me</a></span>
+      <span class="header-sep">&middot;</span>
+      <a href="https://github.com/jkugelman/grawlix" target="_blank" rel="noopener" title="View on GitHub" class="header-github-link"><svg width="15" height="15" aria-label="GitHub" role="img"><use href="#icon-github"/></svg></a>
+    </div>
     <div class="header-utility">
       <button id="btn-settings" class="header-icon-btn" aria-label="Settings" title="Settings"><svg width="24" height="24" aria-hidden="true"><use href="#icon-settings"/></svg></button>
       <button id="btn-help" class="header-icon-btn" aria-label="Welcome to Grawlix" title="Welcome to Grawlix"><span class="icon help-circle">?</span></button>
     </div>
-  </div>
-  <div class="header-subtitle">
-    <span class="header-byline header-byline-desktop">Made with ♥ by John Kugelman</span>
-    <span class="header-byline header-byline-mobile">Made with ♥ by <a href="mailto:john@kugelman.name?subject=Grawlix">John Kugelman</a></span>
-    <span class="header-sep header-sep-feedback">&middot;</span>
-    <span class="header-feedback">Got feedback? <a href="mailto:john@kugelman.name?subject=Grawlix">Email me</a></span>
-    <span class="header-sep">&middot;</span>
-    <a href="https://github.com/jkugelman/grawlix" target="_blank" rel="noopener" title="View on GitHub" class="header-github-link"><svg width="15" height="15" aria-label="GitHub" role="img"><use href="#icon-github"/></svg></a>
   </div>
 </header>
 
@@ -1455,20 +1399,6 @@ html.dark-mode .wld-onboarding { background: color-mix(in srgb, var(--accent) 15
 
     <button type="button" id="workshop-add-fab" aria-label="Add entry" title="Add entry">＋</button>
   </div>
-
-  <section id="library-view" hidden>
-    <div class="wld-onboarding" id="wld-onboarding-mobile" hidden></div>
-    <div class="wld-body">
-      <aside class="wld-list">
-        <div class="wld-list-sticky">
-          <div class="wld-onboarding" id="wld-onboarding" hidden></div>
-          <div class="wld-list-body" id="wld-list-body"></div>
-          <div class="add-wordlist-row" id="wld-add-wordlist"><span class="drag-handle" aria-hidden="true">≡</span><span class="add-wordlist-icon">＋</span>Add wordlist</div>
-        </div>
-      </aside>
-      <section class="wld-pane" id="wld-pane"></section>
-    </div>
-  </section>
 </main>
 
 <script>
@@ -1721,14 +1651,6 @@ const BROWSER = (() => {
 const isMobile = () =>
   navigator.userAgentData?.mobile
   ?? !window.matchMedia('(any-pointer: fine) and (any-hover: hover)').matches;
-
-function paneTitleHTML(list) {
-  const name = esc(list === MERGED_ID ? MERGED_NAME : list.name);
-  return `<button type="button" class="wld-pane-title" title="${name}" aria-haspopup="true" aria-expanded="false" onclick="LibraryView.togglePicker(event)">`
-    + `<span class="wld-pane-title-label">${buildWordlistNameHTML(list, { bold: false })}</span>`
-    + `<svg class="wld-pane-title-chevron" width="10" height="6" aria-hidden="true"><use href="#icon-arrow"/></svg>`
-    + `</button>`;
-}
 
 function syncSignHTML(list) {
   if (isMobile()) return '';
@@ -2518,14 +2440,11 @@ const Collapsible = (() => {
 })();
 
 // ─── Router ───────────────────────────────────────────────────────────────────
-// Keeps the URL in sync with the active view and the tool stack via
-// history.replaceState. URL shape:
-//   bare URL              → default view, no query
-//   #/<view>              → named view, no query
-//   #/<view>?<query>      → named view with query state
-// The default view (Workshop today) gets the bare-URL form when its query is
-// empty, so the most-shared case stays short. MainView owns the view registry;
-// Router treats view names opaquely.
+// Keeps the URL in sync with the tool stack via history.replaceState. URL shape:
+//   bare URL              → no query state
+//   #/workshop?<query>    → Workshop with query state
+// The bare-URL form is used when there's no query, so the most-shared case stays
+// short.
 //
 // Query encoding: each pipeline row in order — its tool name carries the
 // first param's value (`tool=value`), and each successive param is its own
@@ -2578,16 +2497,9 @@ const Router = (() => {
   }
 
   function buildHash() {
-    const view = MainView.getCurrent();
-    const def  = MainView.getDefault();
-    // Query state belongs to the active view. Today the pipeline is Workshop's
-    // (default view) and no other view has URL-bound state — so when we're on
-    // Library, the URL is route-only and the pipeline lives in memory until
-    // the user switches back. When another view gains URL state, give it its
-    // own builder (e.g. per-view query-builders registered with MainView).
-    const query = view === def ? buildQuery() : '';
-    if (view === def && !query) return '';
-    return '#/' + view + (query ? '?' + query : '');
+    const query = buildQuery();
+    if (!query) return '';
+    return '#/workshop?' + query;
   }
 
   function navigate() {
@@ -2597,23 +2509,16 @@ const Router = (() => {
     }
   }
 
-  // Returns the view to activate. State (tool stack, search) is applied as a
-  // side effect. The score filter is loaded from localStorage in init() and
-  // doesn't participate in URL routing.
+  // Applies URL state (tool stack, search) as a side effect. The score filter
+  // is loaded from localStorage in init() and doesn't participate in URL routing.
   function applyURL() {
-    let view = MainView.getDefault();
     let queryString = '';
     const hash = location.hash;
     if (hash.startsWith('#/')) {
       const rest  = hash.slice(2);
       const qIdx  = rest.indexOf('?');
       const route = qIdx >= 0 ? rest.slice(0, qIdx) : rest;
-      if (MainView.hasView(route)) {
-        view = route;
-        queryString = qIdx >= 0 ? rest.slice(qIdx + 1) : '';
-      }
-      // Unknown route → fall through to default view; drop the query (it was
-      // most likely intended for a view that has been renamed or removed).
+      if (route === 'workshop') queryString = qIdx >= 0 ? rest.slice(qIdx + 1) : '';
     }
 
     const params = new URLSearchParams(queryString);
@@ -2668,7 +2573,6 @@ const Router = (() => {
       // the DOM yet during initial load.
       setTimeout(() => showToast("That link references a tool that's no longer available."), 0);
     }
-    return view;
   }
 
   return { navigate, applyURL };
@@ -2690,9 +2594,7 @@ const DEFAULT_SCORING = WORDLIST_PUBLISHERS
 // Top-level state. `sources$` is the array of wordlists, signal-backed so
 // the cosmetic effect can subscribe; reorder/add/remove call `sources$.bump()`
 // after splicing (signal equality is by reference, so plain mutation needs a
-// bump). Per-view UI state (search/sort/score-range, focused wordlist, display
-// mode) lives inside each view's IIFE — WorkshopView and LibraryView — not
-// here.
+// bump).
 const sources$ = signal([]);
 
 // `cacheVersion$` is bumped whenever the imperative caches change (full
@@ -3075,7 +2977,6 @@ const SyncStatus = {
 };
 
 function renderSyncIndicators() {
-  LibraryView.refreshSyncIndicators?.();
   WordlistSelector.refreshSyncSign?.();
 }
 
@@ -3858,12 +3759,6 @@ const ReconnectSplash = (() => {
 })();
 
 // ─── Workshop view ────────────────────────────────────────────────────────────
-// Top-level page (peer of Library in the brand-bar nav). Hosts the tool gallery,
-// stack, and entries table — the construction-aid surface. Owns the show/hide
-// lifecycle plus the search / whole-word / score-range / sort state and its
-// handlers, mirroring LibraryView's shape (self-contained module, no shared
-// state object between the two views).
-
 const WorkshopView = (() => {
   const el = document.getElementById('workshop-view');
 
@@ -4314,10 +4209,15 @@ const WordlistActions = (() => {
     },
     downloadOriginal: () => downloadOriginalWordlist(getActionTargetWordlist()),
     openSync:      () => SyncDialog.open(getActionTargetWordlist()),
-    syncExisting:  () => { const t = getActionTargetWordlist(); return LibraryView.syncThen(isMirrorList(t) ? attachMirrorSync(t, { existing: true })  : attachEditsSync({ existing: true })); },
-    syncNew:       () => { const t = getActionTargetWordlist(); return LibraryView.syncThen(isMirrorList(t) ? attachMirrorSync(t, { existing: false }) : attachEditsSync({ existing: false })); },
-    stopSync:      () => LibraryView.syncThen(detachSync(getActionTargetWordlist())),
+    syncExisting:  () => { const t = getActionTargetWordlist(); return syncThen(isMirrorList(t) ? attachMirrorSync(t, { existing: true })  : attachEditsSync({ existing: true })); },
+    syncNew:       () => { const t = getActionTargetWordlist(); return syncThen(isMirrorList(t) ? attachMirrorSync(t, { existing: false }) : attachEditsSync({ existing: false })); },
+    stopSync:      () => syncThen(detachSync(getActionTargetWordlist())),
   };
+
+  async function syncThen(promise) {
+    try { return await promise; }
+    catch (err) { console.error('sync action failed', err); return false; }
+  }
 
   function action(name) {
     const fn = ACTIONS[name];
@@ -4325,782 +4225,6 @@ const WordlistActions = (() => {
   }
 
   return { action };
-})();
-
-// ─── Library view ─────────────────────────────────────────────────────────────
-// Top-level page (peer of Workshop in the brand-bar nav). Hosts the wordlist
-// list and the focused-wordlist details pane.
-
-const LibraryView = (() => {
-  const el = document.getElementById('library-view');
-
-  // Two hosts: the rail one plus one above .wld-body, because on mobile the rail
-  // collapses into a closed popover that would otherwise hide onboarding inside it.
-  const onboardingHosts = [...el.querySelectorAll('.wld-onboarding')];
-  let _onboardingPage = lsLoad('onboarded')
-    ? null
-    : (parseInt(lsLoad('onboardingPage'), 10) || 1);
-
-  function setOnboardingPage(page) {
-    _onboardingPage = page;
-    if (page === null) lsDel('onboardingPage');
-    else               lsSave('onboardingPage', String(page));
-  }
-
-  function getXwiWordlist() {
-    return state.sources.find(l => l.publisherId === 'xwi');
-  }
-
-  function buildOnboardingPageHTML(page) {
-    const xwi = getXwiWordlist();
-    const visiblePages = [1, 2];
-    if (xwi && xwi.rawEntries.length === 0) visiblePages.push(3);
-    const dots = visiblePages.map(n =>
-      `<span${n === page ? ' class="active"' : ''}></span>`).join('');
-    const dotsHTML = `<div class="wld-onboarding-dots">${dots}</div>`;
-
-    if (page === 1) {
-      return `
-        <button class="dialog-close-btn" aria-label="Dismiss" data-onboard-action="dismiss">✕</button>
-        <p>Some popular wordlists have been set up with suggested scoring rules.</p>
-        <div class="wld-onboarding-actions">
-          <button class="link-btn" data-onboard-action="blank">No thanks, remove them</button>
-          <button class="primary" data-onboard-action="next">Sounds good</button>
-        </div>
-        ${dotsHTML}`;
-    }
-    if (page === 2) {
-      return `
-        <button class="dialog-close-btn" aria-label="Dismiss" data-onboard-action="dismiss">✕</button>
-        <p>Got a personal wordlist? Import it into ${buildWordlistNameHTML(getEditsWordlist())}.</p>
-        <div class="wld-onboarding-actions">
-          <button class="link-btn" data-onboard-action="next">Skip</button>
-          <button class="primary" data-onboard-action="import">Import…</button>
-        </div>
-        ${dotsHTML}`;
-    }
-    // page 3 — XWI
-    return `
-      <button class="dialog-close-btn" aria-label="Dismiss" data-onboard-action="dismiss">✕</button>
-      <p>XWord Info subscriber? Import your ${buildWordlistNameHTML(getXwiWordlist())} wordlist.</p>
-      <div class="wld-onboarding-actions">
-        <button class="link-btn" data-onboard-action="next">Skip</button>
-        <button class="primary" data-onboard-action="import">Import…</button>
-      </div>
-      ${dotsHTML}`;
-  }
-
-  function renderOnboarding() {
-    if (_onboardingPage === null) { onboardingHosts.forEach(h => h.hidden = true); return; }
-
-    // Auto-advance: relevant wordlist already populated.
-    if (_onboardingPage === 2 && (getEditsWordlist()?.rawEntries.length ?? 0) > 0) {
-      setOnboardingPage(3);
-    }
-    // Page 3 requires XWI to exist and be unpopulated; otherwise end onboarding.
-    if (_onboardingPage === 3) {
-      const xwi = getXwiWordlist();
-      if (!xwi || xwi.rawEntries.length > 0) {
-        finishOnboarding();
-        return;
-      }
-    }
-
-    const html = buildOnboardingPageHTML(_onboardingPage);
-    onboardingHosts.forEach(h => { h.hidden = false; h.innerHTML = html; });
-  }
-
-  function finishOnboarding() {
-    setOnboardingPage(null);
-    onboardingHosts.forEach(h => h.hidden = true);
-    lsSave('onboarded', '1');
-  }
-
-  function advanceOnboarding() {
-    if (_onboardingPage === 1)      setOnboardingPage(2);
-    else if (_onboardingPage === 2) setOnboardingPage(3);
-    else                            { finishOnboarding(); return; }
-    renderOnboarding();
-  }
-
-  async function onboardingGoBlank() {
-    // Invalidate every wordlist's caches first so the cosmetic effect that
-    // fires on the `state.sources = …` assignment doesn't read a stale
-    // merged cache (whether the wordlist is being removed or just having its
-    // rules cleared).
-    state.sources.forEach(l => invalidateWordlistCaches(l));
-    const edits = getEditsWordlist();
-    const toRemove = state.sources.filter(l => l !== edits);
-    state.sources = [edits];
-    state.scoring = [];
-    edits.rescoreRules = [];
-    compileRescoreRules(edits);
-    persistMeta();
-    persistScoring();
-    await Promise.all(toRemove.map(l => Storage.deleteWordlist(l)));
-    renderAll();
-    advanceOnboarding();
-  }
-
-  function openOnboardingImport() {
-    const target = _onboardingPage === 2 ? getEditsWordlist() : getXwiWordlist();
-    if (!target) { advanceOnboarding(); return; }
-    ImportGuideDialog.open(target);
-    // A successful import inside the dialog calls ingestFile, which triggers
-    // renderAll → renderOnboarding, auto-advancing once the import lands.
-  }
-
-  el.addEventListener('click', e => {
-    const action = e.target.closest('[data-onboard-action]')?.dataset.onboardAction;
-    if (!action) return;
-    if (action === 'dismiss')     finishOnboarding();
-    else if (action === 'next')   advanceOnboarding();
-    else if (action === 'blank')  onboardingGoBlank();
-    else if (action === 'import') openOnboardingImport();
-  });
-
-  const listBody = el.querySelector('#wld-list-body');
-  const pane     = el.querySelector('#wld-pane');
-  const addBtn   = el.querySelector('#wld-add-wordlist');
-
-  let _focusedWordlist = null;
-  let _dateTimer   = null;
-
-  // Library-only view state — never persisted, never URL-routed. Survives
-  // across wordlist switches inside a session so the user's last search
-  // and sort stick around while they explore.
-  let _searchQuery      = '';
-  let _searchWholeWord  = false;
-  let _sortKey          = 'entry';
-  let _sortDir          = 'asc';
-  let _entriesScroller  = null;
-
-  let _scoreRanges = null;
-  function loadScoreRanges() {
-    if (_scoreRanges) return _scoreRanges;
-    try { _scoreRanges = JSON.parse(lsLoad('libScoreRanges')) || {}; }
-    catch { _scoreRanges = {}; }
-    return _scoreRanges;
-  }
-  function scoreRangeKey(target) {
-    return target === MERGED_ID ? 'merged' : target.dbKey;
-  }
-  function getScoreRangeFor(target) {
-    const v = loadScoreRanges()[scoreRangeKey(target)] || '';
-    return v && parseRange(v) ? v : '';
-  }
-  function setScoreRangeFor(target, value) {
-    const ranges = loadScoreRanges();
-    const k = scoreRangeKey(target);
-    if (value) ranges[k] = value;
-    else       delete ranges[k];
-    if (Object.keys(ranges).length === 0) lsDel('libScoreRanges');
-    else                                  lsSave('libScoreRanges', JSON.stringify(ranges));
-  }
-  function activeScoreRange() {
-    if (!_focusedWordlist) return '';
-    return getScoreRangeFor(_focusedWordlist);
-  }
-
-  // ── HTML builders for pane internals ────────────────────────────────────────
-
-  function buildSearchBarHTML() {
-    const vals = { pattern: _searchQuery, 'whole-word': _searchWholeWord };
-    const parts = buildToolRowPartsHTML(TOOLS.search.params.filter(p => p.key !== 'replace'), vals, 'search', p =>
-      p.key === 'pattern'
-        ? ` id="lib-search-input" title="Search (Alt-S)" oninput="LibraryView.onSearch(this.value)"`
-        : ` id="lib-search-whole-word" onchange="LibraryView.onWholeWord(this.checked)"`);
-    return `<div class="search-bar lib-search-bar">
-      ${buildToolLabelHTML({ icon: '<svg width="16" height="16" aria-hidden="true"><use href="#icon-search"/></svg>', name: 'Search' })}
-      ${parts.main}
-      ${parts.asides}
-    </div>`;
-  }
-
-  function buildSortControlsHTML() {
-    const arrow = _sortDir === 'asc' ? '↑' : '↓';
-    const options = Object.entries(LIBRARY_SORT_AXES)
-      .map(([key, { label }]) => `<option value="${key}"${key === _sortKey ? ' selected' : ''}>${esc(label)}</option>`)
-      .join('');
-    return `Sort by
-      <select class="sort-axis-select" onchange="LibraryView.onSortAxis(this.value)">${options}</select>
-      <button class="sort-dir-btn" type="button" title="Toggle direction" aria-label="Toggle direction" onclick="LibraryView.toggleSortDir()">${arrow}</button>`;
-  }
-
-  function buildEntriesPanelHTML() {
-    return `<div class="lib-entries-panel"><div class="lib-entries-host" id="lib-entries-host"></div></div>`;
-  }
-
-  // ── Rendering ─────────────────────────────────────────────────────────────────
-
-  function renderList() {
-    if (!_sourceCountsCache) _sourceCountsCache = buildMergedWordlist().sourceCounts;
-    const contribMap = new Map(_sourceCountsCache.map(s => [s.wordlist, s.count]));
-
-    const mergedCard = buildMergedCardHTML(_focusedWordlist === MERGED_ID);
-    const sourceCards = state.sources.map(wordlist => {
-      const icon = getWordlistIcon(wordlist);
-      const meta = wordlistCardMeta(wordlist, contribMap);
-      const severity = wordlistSeverity(wordlist);
-      return buildWordlistCardHTML(icon, wordlist.name, meta, {
-        selected:      _focusedWordlist === wordlist,
-        enabled:       wordlist.enabled,
-        populated:     wordlist.populated,
-        severity,
-        severityTitle: severityTitle(severity),
-      });
-    });
-    listBody.innerHTML = [
-      `<div class="wld-list-section-header">Merged</div>`,
-      mergedCard,
-      `<div class="wld-list-section-header">Sources</div>`,
-      ...sourceCards,
-    ].join('');
-
-    const cards = listBody.querySelectorAll('.wordlist-card[data-wordlist]');
-    state.sources.forEach((wordlist, i) => { if (cards[i]) cards[i]._wordlist = wordlist; });
-
-  }
-
-  function buildPane() {
-    if (_dateTimer) { clearInterval(_dateTimer); _dateTimer = null; }
-    destroyScroller();
-
-    if (!_focusedWordlist) {
-      pane.innerHTML = '<div class="wld-pane-empty">Select a wordlist to configure</div>';
-      return;
-    }
-    if (_focusedWordlist === MERGED_ID) {
-      renderMergedPane();
-      return;
-    }
-    const wordlist = _focusedWordlist;
-    const isEdits = wordlist.type === 'edits';
-    const hasData = wordlist.rawEntries.length > 0;
-
-    const sourceEntries = getRescoredEntries(wordlist);
-    const intervals = parseRange(activeScoreRange());
-    const filteredEntries = intervals ? sourceEntries.filter(e => matchesRange(e.score, intervals)) : sourceEntries;
-    const stats = computeStatsRaw(filteredEntries);
-
-    const hasRules = (wordlist.rescoreRules?.length ?? 0) > 0;
-    let dlBtn;
-    if (!hasData) dlBtn = '';
-    else if (hasRules) dlBtn = buildSplitBtn('Download', `WordlistActions.action('download')`,
-      [['Download original', `WordlistActions.action('downloadOriginal')`]], { id: 'wld-download-btn' });
-    else dlBtn = `<button id="wld-download-btn" onclick="WordlistActions.action('download')">Download</button>`;
-
-    let actionBtn, moreMenu;
-    if (isEdits) {
-      actionBtn = `<button id="wld-action-btn" onclick="WordlistActions.action('import')" ${wordlist._loading ? 'disabled' : ''}>${wordlist._loading ? 'Importing…' : 'Import'}</button>`;
-      moreMenu = hasData ? buildMoreMenuHTML([
-        ['Clear', `WordlistActions.action('clear')`],
-      ]) : '';
-    } else {
-      const showBadge = wordlist._updateAvailable && !wordlist._loading;
-      const dot = showBadge ? `&nbsp;${buildBadgeHTML('info')}` : '';
-      const updateTitle = showBadge ? 'Update available' : '';
-      const label = hasData ? 'Update' : (wordlist.url ? 'Fetch' : 'Import');
-
-      if (wordlist.url) {
-        const btnLabel = `${label}${dot}`;
-        actionBtn = buildSplitBtn(btnLabel, `WordlistActions.action('fetch')`,
-          [['Import', `WordlistActions.action('import')`]],
-          { disabled: !!wordlist._loading, title: updateTitle, id: 'wld-action-btn' });
-      } else {
-        actionBtn = `<button id="wld-action-btn"${updateTitle ? ` title="${updateTitle}"` : ''} onclick="WordlistActions.action('import')" ${wordlist._loading ? 'disabled' : ''}>${wordlist._loading ? 'Importing…' : 'Import'}${dot}</button>`;
-      }
-
-      moreMenu = buildMoreMenuHTML([
-        ['Configure', `WordlistActions.action('configure')`],
-        ['Delete',    `WordlistActions.action('delete')`],
-      ]);
-    }
-
-    const dateSlot = (hasData && wordlist.lastUpdated) ? '<span class="detail-date"></span>' : '';
-    const actionsHTML = [dateSlot, actionBtn, dlBtn, moreMenu].filter(Boolean).join('\n');
-
-    const rulesHTML = `<div class="wld-pane-rescore" id="wld-rescore-section">${buildRescoreSectionHTML(wordlist)}</div>`;
-
-    pane.innerHTML = `
-      <div class="wld-title-bar">
-        ${paneTitleHTML(wordlist)}
-        <div class="wld-pane-actions">${actionsHTML}</div>
-      </div>
-      ${syncSignHTML(wordlist)}
-      ${rulesHTML}
-      ${buildSearchBarHTML()}
-      ${buildLibraryStatsBarHTML(stats, sourceEntries)}
-      ${hasData ? buildEntriesPanelHTML() : ''}`;
-
-    if (hasData) buildScrollerInPane(wordlist);
-
-    if (hasData && wordlist.lastUpdated) {
-      const setDate = () => {
-        const dEl = pane.querySelector('.detail-date');
-        if (!dEl) return;
-        dEl.textContent = `Last updated ${timeAgo(wordlist.lastUpdated)}`;
-        dEl.title = new Date(wordlist.lastUpdated).toLocaleString();
-      };
-      setDate();
-      _dateTimer = setInterval(setDate, 60_000);
-    }
-  }
-
-  function renderPane() {
-    buildPane();
-    attachHelpPopups();
-    publishLibraryBarHeights();
-    repositionAllHistogramRects();
-  }
-
-  // The All panel: a single Download button, merged stats + histogram, the
-  // scoring (tier-label) rules editor, and a search-filtered view of the
-  // merged entries. No Rescored/Original toggle — the merged view is the
-  // synthesis of already-rescored sources; "Original" has no referent here.
-  function renderMergedPane() {
-    const { entries } = buildMergedWordlist();
-    const intervals = parseRange(activeScoreRange());
-    const filteredEntries = intervals ? entries.filter(e => matchesRange(e.score, intervals)) : entries;
-    const stats = intervals ? computeStatsRaw(filteredEntries) : computeStats(_mergedStatsKey, entries);
-    const hasData = entries.length > 0;
-    const dlBtn = hasData ? `<button id="wld-download-btn" onclick="WordlistActions.action('download')">Download</button>` : '';
-    const actionsHTML = [dlBtn].filter(Boolean).join('\n');
-
-    pane.innerHTML = `
-      <div class="wld-title-bar">
-        ${paneTitleHTML(MERGED_ID)}
-        <div class="wld-pane-actions">${actionsHTML}</div>
-      </div>
-      ${syncSignHTML(MERGED_ID)}
-      <div class="wld-pane-rescore" id="wld-scoring-section">${buildScoringSectionHTML()}</div>
-      ${buildSearchBarHTML()}
-      ${buildLibraryStatsBarHTML(stats, entries, 0)}
-      ${hasData ? buildEntriesPanelHTML() : ''}`;
-
-    if (hasData) buildScrollerInPane(null);
-  }
-
-  function buildLibraryStatsBarHTML(stats, histEntries) {
-    const range = activeScoreRange();
-    return buildStatsBarHTML(stats, histEntries, allSourcesHistogramLayout(), {
-      scoreRange: { value: range, inputId: 'lib-score-range-input', viewName: 'LibraryView' },
-      sortHTML: buildSortControlsHTML(),
-    });
-  }
-
-  function buildScrollerInPane(wordlist) {
-    const host = pane.querySelector('#lib-entries-host');
-    if (!host) return;
-    _entriesScroller = new LibraryEntriesScroller(host, {
-      wordlist,
-      query: _searchQuery,
-      wholeWord: _searchWholeWord,
-      sortKey: _sortKey,
-      sortDir: _sortDir,
-      scoreRange: activeScoreRange(),
-    });
-  }
-
-  function destroyScroller() {
-    _entriesScroller?.destroy();
-    _entriesScroller = null;
-  }
-
-  function refreshStatsBar() {
-    if (!_focusedWordlist) return;
-    const isMerged = _focusedWordlist === MERGED_ID;
-    const sourceEntries = isMerged ? buildMergedWordlist().entries : getRescoredEntries(_focusedWordlist);
-    const intervals = parseRange(activeScoreRange());
-    const searchEntries = applyLibrarySearchFilter(sourceEntries);
-    const rangeFiltered = intervals ? searchEntries.filter(e => matchesRange(e.score, intervals)) : searchEntries;
-    const stats = computeStatsRaw(rangeFiltered);
-    const statsBar = pane.querySelector('.stats-bar');
-    if (statsBar) {
-      swapStatsBarReadouts(statsBar, buildLibraryStatsBarHTML(stats, searchEntries));
-      repositionAllHistogramRects();
-    }
-  }
-
-  function applyLibrarySearchFilter(entries) {
-    const q = _searchQuery.trim();
-    if (!q) return entries;
-    const matcher = buildSearchPattern(q, _searchWholeWord);
-    if (!matcher) return entries;
-    return entries.filter(e => matcher.test(e));
-  }
-
-  function refresh() {
-    if (el.hidden) return;
-    if (_focusedWordlist && _focusedWordlist !== MERGED_ID && !state.sources.includes(_focusedWordlist)) {
-      _focusedWordlist = MERGED_ID;
-    }
-    renderOnboarding();
-    renderList();
-    renderPane();
-  }
-
-  function focus(target) {
-    _focusedWordlist = target;
-    closePicker();
-    renderList();
-    renderPane();
-  }
-
-  // Gated on the width media query, not isMobile(): the CSS popover keys off the
-  // same 760px breakpoint, while isMobile() (a pointer/touch check) would desync —
-  // a narrow desktop window would show the popover but leave the trigger dead.
-  const pickerNarrow = window.matchMedia('(max-width: 759px)');
-  function openPicker() {
-    el.classList.add('wld-picker-open');
-    el.querySelector('.wld-pane-title')?.setAttribute('aria-expanded', 'true');
-    document.addEventListener('click', onOutsidePickerClick);
-  }
-  function closePicker() {
-    if (!el.classList.contains('wld-picker-open')) return;
-    el.classList.remove('wld-picker-open');
-    el.querySelector('.wld-pane-title')?.setAttribute('aria-expanded', 'false');
-    document.removeEventListener('click', onOutsidePickerClick);
-  }
-  function togglePicker() {
-    if (!pickerNarrow.matches) return;
-    el.classList.contains('wld-picker-open') ? closePicker() : openPicker();
-  }
-  function onOutsidePickerClick(e) {
-    if (!e.target.closest('.wld-list, .wld-pane-title')) closePicker();
-  }
-  document.addEventListener('keydown', e => { if (e.key === 'Escape') closePicker(); });
-
-  // Must stay an in-place patch of the pill, never a renderPane — sync status
-  // flips on every debounced save, and rebuilding the scroller mid-edit would
-  // steal the user's focus and scroll position.
-  function refreshSyncIndicators() {
-    if (el.hidden || !_focusedWordlist) return;
-    const hang = pane.querySelector('.wld-sync-hang');
-    if (hang) hang.outerHTML = syncSignHTML(_focusedWordlist);
-  }
-
-  // Exposed publicly so the view-neutral WordlistActions sync handlers can trigger
-  // the Library-private renderPane/renderList without inlining them (which would
-  // change behavior).
-  async function syncThen(promise) {
-    let done = false;
-    try { done = await promise; }
-    catch (err) { console.error('sync action failed', err); }
-    renderPane();
-    renderList();
-    return done;
-  }
-
-  // ── Search / sort handlers (inline onclick/oninput → here) ───────────────────
-
-  function onScoreRange(value) {
-    if (!_focusedWordlist) return;
-    const next = normalizeScoreRange(value, 'lib-score-range-input');
-    setScoreRangeFor(_focusedWordlist, next);
-    refreshStatsBar();
-    _entriesScroller?.setScoreRange(next);
-  }
-
-  function onSearch(value) {
-    _searchQuery = value || '';
-    _entriesScroller?.setQuery(_searchQuery, _searchWholeWord);
-    refreshStatsBar();
-  }
-
-  function onWholeWord(checked) {
-    _searchWholeWord = !!checked;
-    _entriesScroller?.setQuery(_searchQuery, _searchWholeWord);
-    refreshStatsBar();
-  }
-
-  function onSortAxis(key) {
-    if (!LIBRARY_SORT_AXES[key] || _sortKey === key) return;
-    _sortKey = key;
-    refreshSortControls();
-    _entriesScroller?.setSort(_sortKey, _sortDir);
-  }
-
-  function toggleSortDir() {
-    _sortDir = _sortDir === 'asc' ? 'desc' : 'asc';
-    refreshSortControls();
-    _entriesScroller?.setSort(_sortKey, _sortDir);
-  }
-
-  function refreshSortControls() {
-    const slot = pane.querySelector('.stats-bar-sort');
-    if (slot) slot.innerHTML = buildSortControlsHTML();
-  }
-
-  // Called from updateRescorePreview as the user types in the rules editor.
-  // Applies uncommitted rules to the entries view so rule tuning is live.
-  function previewRescoreRules(rules) {
-    if (!_entriesScroller) return;
-    if (_focusedWordlist === MERGED_ID) return;
-    _entriesScroller.setRescorePreview(rules);
-  }
-
-  function startCardRename(wordlist) {
-    if (!wordlist) return;
-    const card = [...listBody.querySelectorAll('.wordlist-card[data-wordlist]')].find(c => c._wordlist === wordlist);
-    const nameEl = card?.querySelector('.card-name');
-    if (!nameEl || nameEl.querySelector('input')) return;
-    const originalName = wordlist.name;
-    nameEl.textContent = '';
-    const input = document.createElement('input');
-    input.className = 'card-name-edit';
-    input.value = originalName;
-    nameEl.appendChild(input);
-    input.focus();
-    input.select();
-    input.onclick = e => e.stopPropagation();
-    startInlineRename(input, originalName, {
-      onCommit(newName) {
-        setWordlistName(wordlist, newName);
-        nameEl.textContent = newName;
-      },
-      onCancel() {
-        nameEl.textContent = originalName;
-      },
-    });
-  }
-
-  // ── List event delegation ─────────────────────────────────────────────────────
-
-  listBody.addEventListener('click', e => {
-    if (e.target.closest('.wordlist-card[data-merged]')) {
-      focus(MERGED_ID);
-      return;
-    }
-    const toggleLabel = e.target.closest('label.toggle');
-    if (toggleLabel) {
-      const card = toggleLabel.closest('.wordlist-card[data-wordlist]');
-      if (card?._wordlist && !card._wordlist.populated) {
-        e.stopPropagation();
-        triggerImportForWordlist(card._wordlist, e);
-      }
-      return;
-    }
-    const card = e.target.closest('.wordlist-card[data-wordlist]');
-    if (!card?._wordlist) return;
-    focus(card._wordlist);
-  });
-
-  listBody.addEventListener('keydown', e => {
-    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
-    if (e.target.closest('.wordlist-card[data-merged]')) {
-      if (e.key === 'Enter' || e.key === ' ') {
-        e.preventDefault();
-        focus(MERGED_ID);
-      }
-      return;
-    }
-    const card = e.target.closest('.wordlist-card[data-wordlist]');
-    if (!card?._wordlist) return;
-    if (e.key === 'Enter' || e.key === ' ') {
-      e.preventDefault();
-      focus(card._wordlist);
-    } else if (e.key === 'F2') {
-      e.preventDefault();
-      startCardRename(card._wordlist);
-    }
-  });
-
-  listBody.addEventListener('change', e => {
-    const toggle = e.target.closest('.toggle input[type="checkbox"]');
-    if (!toggle) return;
-    const card = toggle.closest('.wordlist-card[data-wordlist]');
-    if (!card?._wordlist) return;
-    toggleWordlist(card._wordlist, e);
-  });
-
-  makeReorderable(listBody, {
-    handleSelector: '.drag-handle:not([aria-hidden])',
-    itemSelector:   '.wordlist-card[data-wordlist]',
-    onReorder: (fromEl, beforeEl) => {
-      const fromIdx = state.sources.indexOf(fromEl._wordlist);
-      let toIdx = beforeEl ? state.sources.indexOf(beforeEl._wordlist) : state.sources.length;
-      if (toIdx > fromIdx) toIdx--;
-      reorderSources(fromIdx, toIdx);
-    },
-  });
-
-  // ── + Add wordlist ────────────────────────────────────────────────────────────────
-
-  addBtn.addEventListener('click', () => ConfigureWordlistDialog.openAdd());
-
-  // ── Show / hide ───────────────────────────────────────────────────────────────
-
-  function show(target = null) {
-    _focusedWordlist = target ?? _focusedWordlist ?? MERGED_ID;
-    el.hidden = false;
-    renderOnboarding();
-    renderList();
-    renderPane();
-    repositionAllHistogramRects();
-  }
-
-  function hide() {
-    if (_dateTimer) { clearInterval(_dateTimer); _dateTimer = null; }
-    destroyScroller();
-    el.hidden = true;
-  }
-
-  function getFocusedWordlist() { return _focusedWordlist; }
-
-  // In-place so a pending edit isn't wiped out mid-keystroke.
-  function refreshRescoreSection() {
-    const section = el.querySelector('#wld-rescore-section');
-    if (section) section.innerHTML = buildRescoreSectionHTML(_focusedWordlist);
-  }
-
-  function refreshScoringSection() {
-    const section = el.querySelector('#wld-scoring-section');
-    if (section) section.innerHTML = buildScoringSectionHTML();
-  }
-
-  // Update the "X used" meta text on each wordlist card in place. Avoids rebuilding
-  // the whole list (which would lose drag/hover state mid-interaction).
-  function updateListMeta(contribMap) {
-    for (const card of listBody.querySelectorAll('.wordlist-card[data-wordlist]')) {
-      const wordlist = card._wordlist;
-      if (!wordlist) continue;
-      const metaEl = card.querySelector('.card-meta');
-      if (metaEl) metaEl.textContent = wordlistCardMeta(wordlist, contribMap);
-    }
-    const mergedMetaEl = listBody.querySelector('.wld-merged-card .card-meta');
-    if (mergedMetaEl) mergedMetaEl.textContent = pluralize(buildMergedWordlist().entries.length, 'entry', 'entries');
-  }
-
-  return {
-    show, hide, refresh, focus, syncThen, getFocusedWordlist, togglePicker,
-    refreshRescoreSection, refreshScoringSection, updateListMeta, refreshSyncIndicators,
-    isVisible: () => !el.hidden,
-    onSearch, onWholeWord, onSortAxis, toggleSortDir, onScoreRange,
-    get scoreRange() { return activeScoreRange(); },
-    previewRescoreRules,
-  };
-})();
-
-// ─── Main view nav (Workshop / Library) ──────────────────────────────────────
-// Switches the active top-level page. Treats Workshop and Library as peers —
-// each owns its own show/hide lifecycle; this just routes the choice to them
-// and updates the brand-bar nav state.
-
-const MainView = (() => {
-  // Adding a new top-level view: register it here and add a matching
-  // `.header-nav-item[data-view="…"]` button. The Router picks up the route
-  // automatically — see docs/design.md § URL state.
-  const VIEWS = { workshop: WorkshopView, library: LibraryView };
-  const DEFAULT_VIEW = 'workshop';
-  const navButtons = document.querySelectorAll('.header-nav-item[data-view]');
-  const navEl = document.querySelector('.header-nav');
-  const navTrigger = navEl.querySelector('.header-nav-trigger');
-  const navTriggerIcon = navTrigger.querySelector('.header-nav-trigger-icon use');
-  const navTriggerLabel = navTrigger.querySelector('.header-nav-trigger-label');
-  const scrollEl = document.scrollingElement;
-  let _current = DEFAULT_VIEW;
-  // Per-view scroll positions. Both views scroll the same document, so
-  // toggling `hidden` would otherwise clamp scrollTop to whichever view is
-  // shorter and lose the user's place when they tab back.
-  const _scrollByView = Object.create(null);
-
-  function activate(view, target = null) {
-    if (!VIEWS[view]) view = DEFAULT_VIEW;
-    const changed = view !== _current;
-    if (changed) _scrollByView[_current] = scrollEl.scrollTop;
-    _current = view;
-    for (const [name, ctrl] of Object.entries(VIEWS)) {
-      if (name === view) ctrl.show(target);
-      else               ctrl.hide();
-    }
-    let activeBtn = null;
-    for (const btn of navButtons) {
-      const match = btn.dataset.view === view;
-      btn.classList.toggle('active', match);
-      if (match) { btn.setAttribute('aria-current', 'page'); activeBtn = btn; }
-      else        btn.removeAttribute('aria-current');
-    }
-    if (activeBtn) {
-      navTriggerIcon.setAttribute('href', activeBtn.querySelector('use').getAttribute('href'));
-      navTriggerLabel.textContent = activeBtn.textContent.trim();
-    }
-    // Restore after show() so the new view's content has been laid out and
-    // the document is tall enough to accept the saved scrollTop. Skip on
-    // the initial activate so a URL-driven jump (if any) isn't clobbered.
-    if (changed) scrollEl.scrollTop = _scrollByView[view] ?? 0;
-    Router.navigate();
-  }
-
-  function pickBadgedWordlist() {
-    let best = null;
-    let bestPri = 0;
-    for (const wordlist of state.sources) {
-      const p = SEVERITY_PRIORITY[wordlistSeverity(wordlist)] ?? 0;
-      if (p > bestPri) { best = wordlist; bestPri = p; }
-    }
-    return best;
-  }
-
-  function closeNav() {
-    if (!navEl.classList.contains('open')) return;
-    navEl.classList.remove('open');
-    navTrigger.setAttribute('aria-expanded', 'false');
-    document.removeEventListener('click', onOutsideNavClick);
-  }
-  function onOutsideNavClick(e) {
-    if (!navEl.contains(e.target)) closeNav();
-  }
-  navTrigger.addEventListener('click', () => {
-    if (navEl.classList.contains('open')) { closeNav(); return; }
-    navEl.classList.add('open');
-    navTrigger.setAttribute('aria-expanded', 'true');
-    document.addEventListener('click', onOutsideNavClick);
-  });
-  document.addEventListener('keydown', e => { if (e.key === 'Escape') closeNav(); });
-
-  for (const btn of navButtons) {
-    btn.addEventListener('click', () => {
-      const view = btn.dataset.view;
-      // Re-clicking the active nav scrolls back to the top — a common
-      // affordance and an easy way to bail out of a long scroll.
-      if (view === _current) scrollEl.scrollTo({ top: 0, behavior: 'smooth' });
-      else                   activate(view, view === 'library' ? pickBadgedWordlist() : null);
-      closeNav();
-    });
-  }
-
-  function syncTriggerBadge() {
-    let bestSev = null, bestPri = 0, bestTitle = '';
-    for (const btn of navButtons) {
-      const b = btn.querySelector(':scope > .badge');
-      if (!b) continue;
-      const pri = SEVERITY_PRIORITY[b.dataset.severity] ?? 0;
-      if (pri > bestPri) { bestPri = pri; bestSev = b.dataset.severity; bestTitle = b.title; }
-    }
-    navTrigger.querySelector(':scope > .badge')?.remove();
-    if (bestSev) navTrigger.insertAdjacentHTML('beforeend', buildBadgeHTML(bestSev, { title: bestTitle }));
-  }
-
-  function setSeverityBadge(view, severity, title = '') {
-    const btn = [...navButtons].find(b => b.dataset.view === view);
-    if (!btn) return;
-    btn.querySelector(':scope > .badge')?.remove();
-    if (severity) btn.insertAdjacentHTML('beforeend', buildBadgeHTML(severity, { title }));
-    syncTriggerBadge();
-  }
-
-  // The HTML body's initial state matches DEFAULT_VIEW (Workshop visible,
-  // Library hidden). init() calls activate() with the URL-derived view after
-  // Router.applyURL() so the JS is the source of truth from that point on.
-
-  return {
-    activate,
-    getCurrent: () => _current,
-    getDefault: () => DEFAULT_VIEW,
-    hasView: name => Object.hasOwn(VIEWS, name),
-    setSeverityBadge,
-  };
 })();
 
 function wordlistFromMeta(m, text) {
@@ -5177,12 +4301,13 @@ async function init() {
     WorkshopView.restoreScoreRange(storedScoreRange.trim());
   }
 
-  const initialView = Router.applyURL();
+  Router.applyURL();
 
   ensureScoring();
   ensureEdits();
   propagateDefaults();
-  MainView.activate(initialView);
+  WorkshopView.show();
+  Router.navigate();
   renderAll();
   await _firstPaint;
 
@@ -10037,7 +9162,6 @@ function rescoreEntry(wlEntry, rules) {
 // ─── Rescoring / Scoring section ─────────────────────────────────────────────
 
 function renderRescoreSection() {
-  LibraryView.refreshRescoreSection();
   WordlistSelector.refreshEditor();
 }
 
@@ -10128,10 +9252,6 @@ function wordlistCardMeta(wordlist, contribMap) {
     : `${used.toLocaleString()} of ${pluralize(total, 'entry', 'entries')} used`;
 }
 
-// Centralized "sources changed in some way" hook: repaint anything that
-// displays per-source state (source dropdown trigger when name/icon may
-// have changed, the Library view's list/pane).
-//
 // Reads `_sourceCountsCache` for "X used" meta — populated lazily here when
 // missing, so cosmetic-effect callers don't crash if a cache-affecting helper
 // invalidated the merged cache earlier in the same drain. The render effect's
@@ -10139,9 +9259,6 @@ function wordlistCardMeta(wordlist, contribMap) {
 // lazy path is only hit when no cache rebuild is in flight.
 function renderSources() {
   if (!_sourceCountsCache) _sourceCountsCache = buildMergedWordlist().sourceCounts;
-  LibraryView?.refresh();
-  const severity = libraryNavSeverity();
-  MainView?.setSeverityBadge('library', severity, severityTitle(severity));
 }
 
 
@@ -10308,9 +9425,9 @@ for (const id of ['detail-panel', 'wld-pane']) {
   new ResizeObserver(publish).observe(headerEl);
 }
 
-// Help anchors are rebuilt whenever a view re-renders (mountWorkshopPanel,
-// rerenderRows, LibraryView.renderPane), so destroy the prior popups and
-// rebind from a fresh document-wide scan for `data-help`.
+// Help anchors are rebuilt whenever the Workshop re-renders (mountWorkshopPanel,
+// rerenderRows), so destroy the prior popups and rebind from a fresh
+// document-wide scan for `data-help`.
 let _helpPopups = [];
 function attachHelpPopups() {
   _helpPopups.forEach(p => p.destroy());
@@ -10373,7 +9490,6 @@ function sortScoringRules() {
 // rows (they carry the label as a `title=`) is enough — no full rebuild.
 function renderScoringRules() {
   sortScoringRules();
-  LibraryView.refreshScoringSection();
   WordlistSelector.refreshEditor();
   workshopScroller?._render?.();
 }
@@ -10510,27 +9626,21 @@ function _onHistogramPointerMove(event) {
   positionHistogramRect(_histDrag.histEl, [{ min: rangeLo, max: rangeHi }]);
 }
 
-function viewForHistogram(histEl) {
-  return histEl.closest('#library-view') ? LibraryView : WorkshopView;
-}
-
 function _onHistogramPointerUp(event) {
   if (!_histDrag || event.pointerId !== _histDrag.pointerId) return;
   const ds = _histDrag;
   _histDrag = null;
-  const view = viewForHistogram(ds.histEl);
-  const inputSel = view === LibraryView ? '#lib-score-range-input' : '#score-range-input';
-  const layout = view === LibraryView ? allSourcesHistogramLayout() : workshopHistogramLayout();
+  const layout = workshopHistogramLayout();
   let next;
-  if (!ds.moved && view.scoreRange) {
-    const intervals = parseRange(view.scoreRange);
+  if (!ds.moved && WorkshopView.scoreRange) {
+    const intervals = parseRange(WorkshopView.scoreRange);
     const insideSelection = intervals && matchesRange(ds.startLo, intervals) && matchesRange(ds.startHi, intervals);
     next = insideSelection ? '' : rangeStrFromBounds(ds.startLo, ds.startHi, layout);
   } else {
     next = rangeStrFromBounds(Math.min(ds.startLo, ds.curLo), Math.max(ds.startHi, ds.curHi), layout);
   }
-  document.querySelectorAll(inputSel).forEach(inp => { inp.value = next; syncClearButton(inp); });
-  view.onScoreRange(next);
+  document.querySelectorAll('#score-range-input').forEach(inp => { inp.value = next; syncClearButton(inp); });
+  WorkshopView.onScoreRange(next);
 }
 
 document.addEventListener('pointermove', _onHistogramPointerMove);
@@ -10542,7 +9652,7 @@ function positionHistogramRect(histEl, intervals = undefined) {
   const rect = histEl.querySelector('.histogram-rect');
   if (!rect) return;
   if (intervals === undefined) {
-    const range = viewForHistogram(histEl).scoreRange;
+    const range = WorkshopView.scoreRange;
     intervals = range ? parseRange(range) : null;
   }
   if (!intervals) { rect.hidden = true; return; }
@@ -10561,7 +9671,7 @@ function positionHistogramRect(histEl, intervals = undefined) {
 }
 
 function repositionAllHistogramRects() {
-  document.querySelectorAll('#workshop-view .histogram, #library-view .histogram').forEach(h => positionHistogramRect(h));
+  document.querySelectorAll('#workshop-view .histogram').forEach(h => positionHistogramRect(h));
 }
 
 // ─── Fetch, import & update ───────────────────────────────────────────────────
@@ -11464,7 +10574,6 @@ const ConfigureWordlistDialog = (() => {
       });
       _onAdded?.(wordlist);
       el.close();
-      if (LibraryView.isVisible()) LibraryView.focus(wordlist);
       if (url) {
         fetchWordlist(wordlist);
       } else if (_pendingFile) {
@@ -11595,28 +10704,19 @@ function bindEvents() {
 }
 
 function focusPermanentSearch() {
-  const view = MainView.getCurrent();
-  const input = view === 'library'
-    ? document.getElementById('lib-search-input')
-    : document.querySelector('#workshop-view input[data-row="bar"][data-key="pattern"]');
+  const input = document.querySelector('#workshop-view input[data-row="bar"][data-key="pattern"]');
   if (input) { input.focus(); input.select(); }
 }
 
 function focusScoreRange() {
-  const view = MainView.getCurrent();
-  const input = document.getElementById(view === 'library' ? 'lib-score-range-input' : 'score-range-input');
+  const input = document.getElementById('score-range-input');
   if (input) { input.focus(); input.select(); }
 }
 
 function toggleWholeWord() {
   const row = document.activeElement?.closest('.tool-row, .search-bar');
-  let cb = row?.querySelector('input[type="checkbox"][data-key="whole-word"], #lib-search-whole-word');
-  if (!cb) {
-    const view = MainView.getCurrent();
-    cb = view === 'library'
-      ? document.getElementById('lib-search-whole-word')
-      : document.querySelector('#workshop-view input[data-row="bar"][data-key="whole-word"]');
-  }
+  let cb = row?.querySelector('input[type="checkbox"][data-key="whole-word"]');
+  if (!cb) cb = document.querySelector('#workshop-view input[data-row="bar"][data-key="whole-word"]');
   if (!cb) return;
   cb.checked = !cb.checked;
   cb.dispatchEvent(new Event('input', { bubbles: true }));
@@ -11857,26 +10957,14 @@ const ImportGuideDialog = (() => {
 function afterRuleChange(wordlist) {
   applyRescoreRulesChange(wordlist);
   renderRescoreSection();
-  // The Library's live preview reads its own #rescore-rules editor; skip it on
-  // the Workshop, whose table updates through the committed rescore→rebuild path.
-  if (!WorkshopView?.isVisible?.()) updateRescorePreview();
 }
 
-// Dispatching on the active view is only sound because the Workshop and
-// Library editors are mutually exclusive; if both could show at once this
-// would silently route edits to the wrong one's target.
 function getRescoreContextWordlist() {
-  if (WorkshopView?.isVisible?.()) {
-    return (state.selected && state.selected !== MERGED_ID) ? state.selected : null;
-  }
-  const focused = LibraryView?.getFocusedWordlist?.();
-  return (focused && focused !== MERGED_ID) ? focused : null;
+  return (state.selected && state.selected !== MERGED_ID) ? state.selected : null;
 }
 
-// Sound only because the views are mutually exclusive (MainView.activate hides
-// all but one); were both visible, this would silently route to the wrong list.
 function getActionTargetWordlist() {
-  return WorkshopView?.isVisible?.() ? state.selected : LibraryView?.getFocusedWordlist?.();
+  return state.selected;
 }
 
 function deleteRule(idx) {
@@ -11900,9 +10988,7 @@ function saveRuleField(idx, field, value) {
 }
 
 function activeRescoreContainerSelector(kind) {
-  const workshop = kind === 'scoring' ? '#workshop-scoring-rules' : '#workshop-rescore-rules';
-  const library  = kind === 'scoring' ? '#scoring-rules' : '#rescore-rules';
-  return WorkshopView?.isVisible?.() ? workshop : library;
+  return kind === 'scoring' ? '#workshop-scoring-rules' : '#workshop-rescore-rules';
 }
 
 function addRule() {
@@ -12023,28 +11109,9 @@ function validateRulesContainer(container) {
 function onRuleInput(el) {
   if (el.classList.contains('rule-len') && el.value.trim().toLowerCase() === 'any') el.value = '';
   if (el.classList.contains('rule-out') && el.value.trim().toLowerCase() === 'unchanged') el.value = '';
-  const container = el.closest('#rescore-rules, #scoring-rules, #workshop-rescore-rules, #workshop-scoring-rules');
+  const container = el.closest('#workshop-rescore-rules, #workshop-scoring-rules');
   if (!container) return;
   validateRulesContainer(container);
-  if (container.id === 'rescore-rules') updateRescorePreview();
-}
-
-function updateRescorePreview() {
-  const rules = Array.from(document.querySelectorAll('#rescore-rules .rule-row')).map(row => ({
-    input:  row.querySelector('.rule-in')?.value  || '',
-    length: row.querySelector('.rule-len')?.value || '',
-    output: row.querySelector('.rule-out')?.value || '',
-  }));
-  // Compile once so the scroller's per-row rescoreEntry walks compiled
-  // intervals instead of re-running parseRange/parseRuleOutput per rule per
-  // entry. For Broda-sized wordlists that's millions of regex calls per
-  // keystroke saved.
-  rules.forEach(compileRule);
-  // The rules editor lives inside the Library's focused-wordlist pane, so
-  // its uncommitted rules always apply to what that pane's entries view is
-  // rendering. Workshop's merged view picks up the change on commit (via
-  // the cache-version bump from afterRuleChange).
-  LibraryView.previewRescoreRules(rules);
 }
 
 // ─── Rename ───────────────────────────────────────────────────────────────────

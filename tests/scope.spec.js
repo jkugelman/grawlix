@@ -6,7 +6,7 @@
 // API; there is no scope UI yet.
 
 const { test, expect } = require('@playwright/test');
-const { stubPublisherFetches, gotoApp, scopeTo, expectVisible, openLibrary, focusWordlist } = require('./helpers');
+const { stubPublisherFetches, gotoApp, scopeTo, expectVisible, setEnabledViaPanel } = require('./helpers');
 
 test.beforeEach(async ({ page }) => {
   await stubPublisherFetches(page);
@@ -75,10 +75,7 @@ test('a disabled source is still viewable when scoped to it', async ({ page }) =
     name: 'Off', entries: ['ocean', 'tide'], scores: [70, 40],
   }));
 
-  // Disable via the Library toggle — importing data force-enables a list, so
-  // disabling has to happen after population, through the real toggle path.
-  await page.locator('.header-nav-item[data-view="library"]').click();
-  await page.getByLabel('Toggle Off').uncheck();
+  await setEnabledViaPanel(page, 'Off', false);
   expect(await page.evaluate(() => window.__grawlixTest.getMergedEntry('OCEAN'))).toBeNull();
 
   // Scope means "look at this list," not "merge it" — a disabled list is still
@@ -221,51 +218,4 @@ test('the source column is shown for All and hidden when scoped', async ({ page 
   await expect(page.locator('#detail-panel')).not.toHaveClass(/no-source-col/);
   await expect(page.locator('.entry-headers .col-source')).toHaveCount(1);
   expect(await page.locator('.entry-row .atom-source').count()).toBeGreaterThan(0);
-});
-
-// Reads a histogram's axis bounds from the bars' data-lo/data-hi (the layout's
-// slot boundaries), not pixel geometry. Within a `selector` scope so the
-// Workshop and Library bars are read independently.
-async function readHistogramAxis(page, selector) {
-  return page.evaluate(sel => {
-    const bars = [...document.querySelectorAll(`${sel} .histogram-bar`)];
-    if (!bars.length) return null;
-    return {
-      min: Number(bars[0].dataset.lo),
-      max: Number(bars[bars.length - 1].dataset.hi),
-    };
-  }, selector);
-}
-
-// Stage 1b made getHistogramLayout read the global scope; the still-present
-// Library view also calls it. This is the regression guard for Stage 2b's fix:
-// scoping the Workshop must NOT shift the Library's histogram axis (it's a fixed
-// all-sources scale), while the Workshop's axis DOES follow the scope.
-test('a Workshop scope does not leak into the Library histogram axis', async ({ page }) => {
-  await gotoApp(page);
-  // Disjoint score ranges: All spans 30–90, Lo alone spans 30–40. Four distinct
-  // scores stay under the discrete-histogram threshold, so the axis bounds read
-  // straight off the first/last slot.
-  await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
-    name: 'Hi', entries: ['ocean', 'zebra'], scores: [90, 80],
-  }));
-  await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
-    name: 'Lo', entries: ['tide', 'reef'], scores: [40, 30],
-  }));
-
-  await expectVisible(page, ['ocean', 'reef', 'tide', 'zebra']);
-  expect(await readHistogramAxis(page, '#workshop-stats')).toEqual({ min: 30, max: 90 });
-
-  // Scope the Workshop to Lo: its histogram narrows to 30–40.
-  await scopeTo(page, 'Lo');
-  await expectVisible(page, ['reef', 'tide']);
-  expect(await readHistogramAxis(page, '#workshop-stats')).toEqual({ min: 30, max: 40 });
-
-  // Now open the Library while the Workshop is still scoped to Lo. The Library's
-  // histogram must reflect ALL sources (30–90), not the leaked Lo scope (30–40).
-  await openLibrary(page);
-  await focusWordlist(page, 'Hi');
-  expect(await readHistogramAxis(page, '#library-view')).toEqual({ min: 30, max: 90 });
-  await focusWordlist(page, 'Lo');
-  expect(await readHistogramAxis(page, '#library-view')).toEqual({ min: 30, max: 90 });
 });

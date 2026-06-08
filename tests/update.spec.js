@@ -6,7 +6,7 @@
 // silently re-fetches and toasts the counts (auto-update on).
 
 const { test, expect } = require('@playwright/test');
-const { stubPublisherFetches, gotoApp, openLibrary, focusWordlist } = require('./helpers');
+const { stubPublisherFetches, gotoApp, scopeViaSelector, barKebabAction } = require('./helpers');
 
 // The two bodies must differ in byte length — checkForUpdates' HEAD poll
 // detects updates by Content-Length, so equal-length bodies look unchanged.
@@ -34,9 +34,8 @@ async function waitForJKPopulated(page) {
   ).toBe(3);
 }
 
-async function focusJK(page) {
-  await openLibrary(page);
-  await focusWordlist(page, 'John Kugelman');
+async function scopeJK(page) {
+  await scopeViaSelector(page, 'John Kugelman');
 }
 
 test('updating a wordlist applies the new version and summarizes the diff', async ({ page }) => {
@@ -47,8 +46,8 @@ test('updating a wordlist applies the new version and summarizes the diff', asyn
   await waitForJKPopulated(page);
 
   feed.updated = true;
-  await focusJK(page);
-  await page.locator('#wld-action-btn .split-btn-main').click();
+  await scopeJK(page);
+  await barKebabAction(page, 'Fetch');
 
   const dialog = page.locator('#update-summary-dialog');
   await expect(dialog).toBeVisible();
@@ -69,8 +68,8 @@ test('re-fetching unchanged content reports no changes', async ({ page }) => {
   await gotoApp(page);
   await waitForJKPopulated(page);
 
-  await focusJK(page);
-  await page.locator('#wld-action-btn .split-btn-main').click();
+  await scopeJK(page);
+  await barKebabAction(page, 'Fetch');
 
   await expect(page.locator('#alert-dialog')).toBeVisible();
   await expect(page.locator('#alert-dialog-msg')).toContainText('already up to date');
@@ -96,9 +95,12 @@ test('with auto-update off, the update check flags a changed wordlist with a gre
   expect(wl.updateAvailable).toBe(true);
   await expect(page.locator('.toast')).toHaveCount(0);
 
-  await openLibrary(page);
-  const card = page.locator('.wordlist-card[data-wordlist]', { hasText: 'John Kugelman' });
-  await expect(card.locator('.badge[data-severity="info"]')).toBeVisible();
+  await expect(page.locator('#workshop-wordlist-bar .wls-trigger .badge[data-severity="info"]')).toBeVisible();
+
+  await page.locator('#workshop-wordlist-bar .wls-trigger').click();
+  const jkRow = page.locator('#workshop-wordlist-bar .wls-menu .wordlist-card')
+    .filter({ has: page.locator('.card-name', { hasText: 'John Kugelman' }) });
+  await expect(jkRow.locator('.badge[data-severity="info"]')).toBeVisible();
 });
 
 test('with auto-update on, a changed wordlist is re-fetched and a toast shows the counts', async ({ page }) => {

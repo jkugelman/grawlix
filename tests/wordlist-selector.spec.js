@@ -4,7 +4,7 @@
 // source renders dimmed yet stays selectable (scope ≠ merge).
 
 const { test, expect } = require('@playwright/test');
-const { stubPublisherFetches, gotoApp, scopeTo, scopeViaSelector, expectVisible, openRescoreEditor } = require('./helpers');
+const { stubPublisherFetches, gotoApp, scopeTo, scopeViaSelector, expectVisible, openRescoreEditor, setEnabledViaPanel } = require('./helpers');
 
 test.beforeEach(async ({ page }) => {
   await stubPublisherFetches(page);
@@ -126,11 +126,7 @@ test('a disabled source renders dimmed but is still selectable', async ({ page }
     name: 'Off', entries: ['ocean', 'tide'], scores: [70, 40],
   }));
 
-  // Importing data force-enables a list, so disable through the real Library
-  // toggle after population (mirrors scope.spec.js / merge.spec.js).
-  await page.locator('.header-nav-item[data-view="library"]').click();
-  await page.getByLabel('Toggle Off').uncheck();
-  await page.locator('.header-nav-item[data-view="workshop"]').click();
+  await setEnabledViaPanel(page, 'Off', false);
 
   await openMenu(page);
   const offOption = page.locator('#workshop-wordlist-bar .wls-menu .wordlist-card')

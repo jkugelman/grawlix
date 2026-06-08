@@ -227,9 +227,6 @@ test('the floating + button opens a blank create popover that lands the entry in
   await expect.poll(async () =>
     page.evaluate(() => window.__grawlixTest.getWordlist('My Edits').entries)
   ).toEqual([{ entry: 'fresh', display: 'FRESH', score: 55, comment: '' }]);
-
-  await page.locator('.header-nav-item[data-view="library"]').click();
-  await expect(fab).toBeHidden();
 });
 
 test('the floating + button seeds the search term only for a literal word that is missing', async ({ page }) => {
