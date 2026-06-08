@@ -87,6 +87,14 @@ async function scopeViaSelector(page, name) {
   await page.evaluate(() => window.__grawlixTest.pipelineIdle());
 }
 
+// Expand the Workshop bar's inline rescore/scoring editor. Its content is keyed
+// to the current scope, so scope first, then open.
+async function openRescoreEditor(page) {
+  const toggle = page.locator('#workshop-wordlist-bar .workshop-rescore-toggle');
+  if ((await toggle.getAttribute('aria-expanded')) !== 'true') await toggle.click();
+  await expect(page.locator('#workshop-rescore-editor')).toBeVisible();
+}
+
 async function addTool(page, toolKey) {
   await page.locator('#tool-picker-search').click();
   await expect(page.locator('#featured-row')).toHaveClass(/expanded/);
@@ -125,6 +133,7 @@ module.exports = {
   focusWordlist,
   scopeTo,
   scopeViaSelector,
+  openRescoreEditor,
   addTool,
   expectVisible,
   expectGroups,

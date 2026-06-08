@@ -172,7 +172,8 @@ button.header-nav-item:hover:not(:disabled) { color: white; background: var(--hd
 
 /* z-index above #featured-row (60): the open menu drops over the tool gallery,
    which establishes its own stacking context. */
-#workshop-wordlist-bar { position: sticky; top: var(--header-h); z-index: 61; display: flex; align-items: center; padding: 8px 16px; background: var(--surface); border-bottom: 1px solid var(--border2); }
+#workshop-wordlist-bar { position: sticky; top: var(--header-h); z-index: 61; display: flex; flex-direction: column; padding: 8px 16px; background: var(--surface); border-bottom: 1px solid var(--border2); }
+.wls-bar-top { display: flex; align-items: center; gap: 12px; }
 .wls { position: relative; }
 .wls-trigger { display: flex; align-items: center; gap: 8px; max-width: 360px; padding: 0; font: inherit; font-size: 18px; font-weight: 600; line-height: 1.2; color: var(--text); background: none; border: none; cursor: pointer; }
 .wls-trigger:hover { color: var(--accent); }
@@ -195,6 +196,22 @@ button.header-nav-item:hover:not(:disabled) { color: white; background: var(--hd
    not "merge it," so a disabled list stays selectable. */
 .wls-option--disabled { color: var(--faint); }
 .wls-option--disabled .wordlist-icon { filter: grayscale(1); opacity: 0.6; }
+
+.workshop-rescore-toggle { display: inline-flex; align-items: center; justify-content: center; padding: 4px; color: var(--muted); background: none; border: 1px solid transparent; border-radius: 6px; cursor: pointer; transition: color 0.15s, background 0.15s, border-color 0.15s; }
+.workshop-rescore-toggle:hover { color: var(--accent); background: var(--hover); }
+.workshop-rescore-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.workshop-rescore-toggle-icon { flex-shrink: 0; display: block; }
+#workshop-wordlist-bar.rescore-open .workshop-rescore-toggle { color: var(--accent); background: var(--sel); border-color: var(--accent); }
+/* grid 0fr is not display:none, so the collapsed editor stays in layout + the
+   a11y tree; the hidden attribute (set after the close transition) is what
+   actually removes it, keeping Playwright's toBeVisible/toBeHidden honest. */
+#workshop-rescore-editor { display: grid; grid-template-rows: 0fr; opacity: 0; overflow: hidden; transition: grid-template-rows 0.2s ease, opacity 0.2s ease; }
+#workshop-rescore-editor[hidden] { display: none; }
+#workshop-wordlist-bar.rescore-open #workshop-rescore-editor { grid-template-rows: 1fr; opacity: 1; }
+.workshop-rescore-editor-inner { min-height: 0; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border2); }
+@media (prefers-reduced-motion: reduce) {
+  #workshop-rescore-editor { transition: none; }
+}
 
 #splash-screen { position: fixed; inset: 0; z-index: 200; background: var(--bg); color: var(--accent); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 48px; transition: opacity 0.3s; will-change: opacity; }
 #splash-screen.done { opacity: 0; pointer-events: none; }
@@ -418,6 +435,8 @@ mark.search-match { border-radius: 2px; padding: 0 1px; margin: 0 -1px; font-sty
 .entry-row .atom-entry { grid-column: 2; overflow: hidden; text-overflow: ellipsis; min-width: 0; cursor: pointer; }
 .entry-row .atom-len { grid-column: 3; text-align: right; font-family: var(--font-sans); font-size: 12px; }
 .entry-row .atom-score { grid-column: 4; cursor: pointer; justify-self: end; }
+.atom-score-raw { color: var(--muted); }
+.atom-score-arrow { color: var(--faint); padding: 0 4px; }
 .entry-row .atom-comment { grid-column: 5; overflow: hidden; text-overflow: ellipsis; min-width: 0; font-family: var(--font-sans); font-size: 12px; cursor: pointer; }
 .entry-row .atom-source  { grid-column: 6; overflow: hidden; text-overflow: ellipsis; min-width: 0; font-family: var(--font-sans); font-size: 12px; }
 /* Relation glyph (→, ↔, ⊃) prefixing every non-originator atom's entry. */
@@ -928,10 +947,11 @@ a.get-file:hover { text-decoration: underline; }
 .rule-del:hover { color: #e53935 !important; background: var(--del-hover); }
 
 .rule-actions { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 6px; }
+.rule-actions-right { display: flex; align-items: center; gap: 8px; margin-left: auto; }
 .rule-add-btn { padding: 2px 10px; border: 1px dashed var(--border); background: transparent; color: var(--muted); border-radius: 3px; font-size: 12px; cursor: pointer; font-family: inherit; }
 .rule-add-btn:hover { color: var(--text); border-color: var(--accent); }
-.rule-reset-btn { padding: 2px 10px; border: 1px solid var(--border); background: transparent; color: var(--muted); border-radius: 3px; font-size: 12px; cursor: pointer; font-family: inherit; }
-.rule-reset-btn:hover { color: var(--text); border-color: var(--accent); }
+.rule-reset-btn, .rule-neutralize-btn { padding: 2px 10px; border: 1px solid var(--border); background: transparent; color: var(--muted); border-radius: 3px; font-size: 12px; cursor: pointer; font-family: inherit; }
+.rule-reset-btn:hover, .rule-neutralize-btn:hover { color: var(--text); border-color: var(--accent); }
 
 /* Collapsible section */
 /* Chevron is absolute-positioned so the label lines up with whatever lives in `.collapsible-content` below. */
@@ -1358,6 +1378,9 @@ html.dark-mode .wld-onboarding { background: color-mix(in srgb, var(--accent) 15
   <symbol id="icon-book-open" viewBox="0 0 24 24" fill="currentColor" class="size-6">
     <path d="M11.25 4.533A9.707 9.707 0 0 0 6 3a9.735 9.735 0 0 0-3.25.555.75.75 0 0 0-.5.707v14.25a.75.75 0 0 0 1 .707A8.237 8.237 0 0 1 6 18.75c1.995 0 3.823.707 5.25 1.886V4.533ZM12.75 20.636A8.214 8.214 0 0 1 18 18.75c.966 0 1.89.166 2.75.47a.75.75 0 0 0 1-.708V4.262a.75.75 0 0 0-.5-.707A9.735 9.735 0 0 0 18 3a9.707 9.707 0 0 0-5.25 1.533v16.103Z" />
   </symbol>
+  <symbol id="icon-adjustments" viewBox="0 0 24 24" fill="currentColor" class="size-6">
+    <path d="M18.75 12.75h1.5a.75.75 0 0 0 0-1.5h-1.5a.75.75 0 0 0 0 1.5ZM12 6a.75.75 0 0 1 .75-.75h7.5a.75.75 0 0 1 0 1.5h-7.5A.75.75 0 0 1 12 6ZM12 18a.75.75 0 0 1 .75-.75h7.5a.75.75 0 0 1 0 1.5h-7.5A.75.75 0 0 1 12 18ZM3.75 6.75h1.5a.75.75 0 1 0 0-1.5h-1.5a.75.75 0 0 0 0 1.5ZM5.25 18.75h-1.5a.75.75 0 0 1 0-1.5h1.5a.75.75 0 0 1 0 1.5ZM3 12a.75.75 0 0 1 .75-.75h7.5a.75.75 0 0 1 0 1.5h-7.5A.75.75 0 0 1 3 12ZM9 3.75a2.25 2.25 0 1 0 0 4.5 2.25 2.25 0 0 0 0-4.5ZM12.75 12a2.25 2.25 0 1 1 4.5 0 2.25 2.25 0 0 1-4.5 0ZM9 15.75a2.25 2.25 0 1 0 0 4.5 2.25 2.25 0 0 0 0-4.5Z" />
+  </symbol>
 </svg>
 
 <header>
@@ -1605,6 +1628,21 @@ function effect(fn) {
 function buildScoreBadgeHTML(score) {
   const { bg, fg } = scoreColor(score);
   return `<span class="score-badge" style="--score-bg:${bg}; --score-fg:${fg}">${score}</span>`;
+}
+
+// Scoped-source-only: on All the open editor edits tier labels, which don't
+// remap scores, so a raw → rescored arrow would be meaningless there.
+function rescorePreviewActive() {
+  return state.selected !== MERGED_ID && WordlistSelector.isEditorOpen();
+}
+
+function buildScoreCellHTML(wlEntry) {
+  if (rescorePreviewActive() && wlEntry.rawScore != null && wlEntry.rawScore !== wlEntry.score) {
+    return `<span class="atom-score-raw">${wlEntry.rawScore}</span>`
+      + `<span class="atom-score-arrow">→</span>`
+      + buildScoreBadgeHTML(wlEntry.score);
+  }
+  return buildScoreBadgeHTML(wlEntry.score);
 }
 
 // options: array of { value, label }
@@ -2086,7 +2124,7 @@ function buildRuleRowHTML(i, fieldsHTML, note, onDeleteFn, readOnly = false) {
     </div>`;
 }
 
-function buildRulesListHTML(rules, { rulesId, saveFn, deleteFn, addFn = '', resetFn = '', dirty = false, rescore = false, readOnly = false }) {
+function buildRulesListHTML(rules, { rulesId, saveFn, deleteFn, addFn = '', resetFn = '', neutralizeFn = '', dirty = false, rescore = false, readOnly = false }) {
   let rulesHTML;
   if (!rules.length && rescore) {
     rulesHTML = '<div class="no-rules">No rules — entries kept as-is</div>';
@@ -2114,31 +2152,34 @@ function buildRulesListHTML(rules, { rulesId, saveFn, deleteFn, addFn = '', rese
     }).join('');
   }
   const addBtn = (!readOnly && addFn) ? `<button class="rule-add-btn" onclick="${addFn}()">+ Add rule</button>` : '';
+  const neutralizeBtn = (!readOnly && neutralizeFn && rescoringIsNeutralizable(rules)) ? `<button class="rule-neutralize-btn" onclick="${neutralizeFn}()">Disable rescoring</button>` : '';
   const resetBtn = (!readOnly && resetFn && dirty) ? `<button class="rule-reset-btn" onclick="${resetFn}()">Reset to defaults</button>` : '';
-  const actionsRow = (addBtn || resetBtn) ? `<div class="rule-actions">${addBtn}${resetBtn}</div>` : '';
+  const rightCluster = (neutralizeBtn || resetBtn) ? `<div class="rule-actions-right">${neutralizeBtn}${resetBtn}</div>` : '';
+  const actionsRow = (addBtn || rightCluster) ? `<div class="rule-actions">${addBtn}${rightCluster}</div>` : '';
   return `<div id="${rulesId}">${rulesHTML}</div>${actionsRow}`;
 }
 
-function buildRescoreSectionHTML(wordlist) {
+function buildRescoreSectionHTML(wordlist, rulesId = 'rescore-rules') {
   if (!wordlist) return '';
   const hasDefaults = getWordlistDefaultRules(wordlist) !== null;
   return `<div class="rescore-top"><span class="rescore-lbl">Rescoring</span></div>` +
     buildRulesListHTML(wordlist.rescoreRules || [], {
-      rulesId:   'rescore-rules',
+      rulesId,
       saveFn:    'saveRuleField',
       deleteFn:  'deleteRule',
       addFn:     'addRule',
       resetFn:   hasDefaults ? 'resetRescoreRules' : '',
+      neutralizeFn: 'neutralizeRescoreRules',
       dirty:     !!wordlist.dirty,
       rescore:   true,
     });
 }
 
-function buildScoringSectionHTML() {
+function buildScoringSectionHTML(rulesId = 'scoring-rules') {
   sortScoringRules();
   return `<div class="rescore-top"><span class="rescore-lbl">Scoring</span></div>` +
     buildRulesListHTML(state.scoring, {
-      rulesId:   'scoring-rules',
+      rulesId,
       saveFn:    'saveScoringField',
       deleteFn:  'deleteScoringRow',
       addFn:     'addScoringRow',
@@ -3851,14 +3892,20 @@ const WordlistSelector = (() => {
   const bar = document.createElement('div');
   bar.id = 'workshop-wordlist-bar';
   bar.innerHTML = `
-    <div class="wls">
-      <button type="button" class="wls-trigger" aria-haspopup="listbox" aria-expanded="false">
-        <span class="wls-trigger-icon"></span>
-        <span class="wls-trigger-label"></span>
-        <svg class="wls-trigger-chevron" width="10" height="6" aria-hidden="true"><use href="#icon-arrow"/></svg>
+    <div class="wls-bar-top">
+      <div class="wls">
+        <button type="button" class="wls-trigger" aria-haspopup="listbox" aria-expanded="false">
+          <span class="wls-trigger-icon"></span>
+          <span class="wls-trigger-label"></span>
+          <svg class="wls-trigger-chevron" width="10" height="6" aria-hidden="true"><use href="#icon-arrow"/></svg>
+        </button>
+        <div class="wls-menu" role="listbox" tabindex="-1"></div>
+      </div>
+      <button type="button" class="workshop-rescore-toggle" aria-expanded="false" aria-controls="workshop-rescore-editor">
+        <svg class="workshop-rescore-toggle-icon" width="18" height="18" aria-hidden="true"><use href="#icon-adjustments"/></svg>
       </button>
-      <div class="wls-menu" role="listbox" tabindex="-1"></div>
-    </div>`;
+    </div>
+    <div id="workshop-rescore-editor" hidden><div class="workshop-rescore-editor-inner"></div></div>`;
   document.getElementById('workshop-view').prepend(bar);
 
   const root    = bar.querySelector('.wls');
@@ -3918,13 +3965,74 @@ const WordlistSelector = (() => {
   });
   document.addEventListener('keydown', e => { if (e.key === 'Escape') close(); });
 
+  // The editor must stay inside #workshop-wordlist-bar: the sticky
+  // ResizeObserver watches the bar and cascades the table's offset from its
+  // height, so an editor mounted elsewhere would expand under the pinned
+  // headers instead of pushing them down.
+  const editorToggle = bar.querySelector('.workshop-rescore-toggle');
+  const editor       = bar.querySelector('#workshop-rescore-editor');
+  const editorInner  = editor.querySelector('.workshop-rescore-editor-inner');
+  let editorOpen = false;
+
+  function editorLabel() {
+    return state.selected === MERGED_ID ? 'Scoring tiers' : 'Rescoring rules';
+  }
+  function syncToggleLabel() {
+    editorToggle.title = editorLabel();
+    editorToggle.setAttribute('aria-label', editorLabel());
+  }
+  function renderEditorContent() {
+    editorInner.innerHTML = state.selected === MERGED_ID
+      ? buildScoringSectionHTML('workshop-scoring-rules')
+      : buildRescoreSectionHTML(state.selected, 'workshop-rescore-rules');
+  }
+  function refreshEditor() {
+    syncToggleLabel();
+    if (editorOpen) renderEditorContent();
+  }
+  function setEditorOpen(open) {
+    editorOpen = open;
+    editorToggle.setAttribute('aria-expanded', String(open));
+    if (open) {
+      // Unhide before flipping .rescore-open so the grid-rows transition runs
+      // from 0fr; toggling both in one frame would skip the animation.
+      editor.hidden = false;
+      renderEditorContent();
+      requestAnimationFrame(() => bar.classList.add('rescore-open'));
+    } else {
+      bar.classList.remove('rescore-open');
+      hideAfterCollapse();
+    }
+    // The raw → rescored preview lives in the scroller rows, gated on the
+    // editor's open state, so toggling it must repaint the table — refreshEditor
+    // only touches the editor's own subtree.
+    if (workshopScroller) refreshWorkshopMergedScroller();
+  }
+  function hideAfterCollapse() {
+    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const finish = () => {
+      if (editorOpen) return; // reopened mid-transition
+      editor.hidden = true;
+      editorInner.innerHTML = '';
+    };
+    if (reduced) { finish(); return; }
+    editor.addEventListener('transitionend', function te(e) {
+      if (e.target !== editor || e.propertyName !== 'grid-template-rows') return;
+      editor.removeEventListener('transitionend', te);
+      finish();
+    });
+  }
+  editorToggle.addEventListener('click', () => setEditorOpen(!editorOpen));
+
   function refresh() {
     renderTrigger();
     if (root.classList.contains('open')) renderMenu();
+    refreshEditor();
   }
 
   renderTrigger();
-  return { refresh };
+  syncToggleLabel();
+  return { refresh, refreshEditor, isEditorOpen: () => editorOpen };
 })();
 
 // ─── Library view ─────────────────────────────────────────────────────────────
@@ -7837,6 +7945,11 @@ function measureAtomGlyphPx() {
   return Math.max(...['→ ', '↔ ', '⊃ '].map(g => measureTextWidth(g, 'entry-row-font')));
 }
 
+const SCORE_ARROW_PAD_PX = 8; // matches .atom-score-arrow horizontal padding
+function measureScoreArrowPx() {
+  return measureTextWidth('→', 'entry-row-font') + SCORE_ARROW_PAD_PX;
+}
+
 // Two sample widths separate the badge's per-char width from its fixed padding.
 function badgeWidthPx(chars) {
   const w1 = measureTextWidth('0', 'score-badge');
@@ -8372,12 +8485,18 @@ class WorkshopEntriesScroller extends BaseVirtualScroller {
         if (!hasHighlight && atom.highlights?.length) hasHighlight = true;
       }
     }
+    const preview = rescorePreviewActive();
+    let maxRawDigits = 0;
     for (const row of this.entries) {
       for (const atom of row.atoms) {
         const d = String(atom.wlEntry.norm.length).length;
         if (d > maxLenDigits) maxLenDigits = d;
         const sd = String(atom.wlEntry.score).length;
         if (sd > maxScoreDigits) maxScoreDigits = sd;
+        const { rawScore, score } = atom.wlEntry;
+        if (preview && rawScore != null && rawScore !== score) {
+          maxRawDigits = Math.max(maxRawDigits, String(rawScore).length);
+        }
       }
     }
     // A `<mark>` highlight splits the entry into separate text runs, each
@@ -8395,7 +8514,8 @@ class WorkshopEntriesScroller extends BaseVirtualScroller {
     // Floored to the header label so it never overflows its column.
     target.style.setProperty('--entry-w', `${Math.max(entryContentW, sortableHeaderPx('Entry'))}px`);
     target.style.setProperty('--len-w', `${Math.max(maxLenDigits * ch, sortableHeaderPx('Len'))}px`);
-    target.style.setProperty('--score-w', `${Math.max(badgeWidthPx(maxScoreDigits), sortableHeaderPx('Score'))}px`);
+    const arrowPrefixW = maxRawDigits ? maxRawDigits * ch + measureScoreArrowPx() : 0;
+    target.style.setProperty('--score-w', `${Math.max(badgeWidthPx(maxScoreDigits) + arrowPrefixW, sortableHeaderPx('Score'))}px`);
     target.style.setProperty('--source-max', `${22 * ch}px`);
   }
 
@@ -8455,7 +8575,7 @@ class WorkshopEntriesScroller extends BaseVirtualScroller {
       const truncTitle = displayed.length > ENTRY_SLOT_CAP ? ` title="${esc(displayed)}"` : '';
       const entryCell =
         `<span class="atom-entry"${truncTitle}>${glyphHTML}${renderHighlightedText(displayed, projected)}</span>`;
-      const scoreInner = buildScoreBadgeHTML(score);
+      const scoreInner = buildScoreCellHTML(wlEntry);
       const tierLabel = tierFor(score);
       const scoreTitle = tierLabel ? ` title="${esc(tierLabel)}"` : '';
       const commentText = wlEntry.comment || '';
@@ -9589,7 +9709,7 @@ function compileRule(rule) {
 function applyRescoring(entries, rules) {
   return entries.map(e => {
     const score = rescoreEntry(e, rules);
-    return score !== e.score ? { ...e, score } : e;
+    return score !== e.score ? { ...e, score, rawScore: e.score } : e;
   });
 }
 
@@ -9649,8 +9769,8 @@ function rescoreEntry(wlEntry, rules) {
 // ─── Rescoring / Scoring section ─────────────────────────────────────────────
 
 function renderRescoreSection() {
-  // Per-source rescoring lives only inside the Library view's right pane now.
   LibraryView.refreshRescoreSection();
+  WordlistSelector.refreshEditor();
 }
 
 // ─── Rendering ────────────────────────────────────────────────────────────────
@@ -9985,6 +10105,7 @@ function sortScoringRules() {
 function renderScoringRules() {
   sortScoringRules();
   LibraryView.refreshScoringSection();
+  WordlistSelector.refreshEditor();
   workshopScroller?._render?.();
 }
 
@@ -10006,7 +10127,7 @@ function saveScoringField(i, field, val) {
 function addScoringRow() {
   state.scoring.push(makeScoringRowStub());
   applyScoringChange();
-  const inp = [...document.querySelectorAll('#scoring-rules .rule-row .rule-in')].find(i => !i.value);
+  const inp = [...document.querySelectorAll(`${activeRescoreContainerSelector('scoring')} .rule-row .rule-in`)].find(i => !i.value);
   inp?.focus();
 }
 
@@ -11461,16 +11582,19 @@ const ImportGuideDialog = (() => {
 
 function afterRuleChange(wordlist) {
   applyRescoreRulesChange(wordlist);
-  // Library-only: refresh the rule editor and the live preview while the
-  // Library view is visible. No-ops when it isn't.
   renderRescoreSection();
-  updateRescorePreview();
+  // The Library's live preview reads its own #rescore-rules editor; skip it on
+  // the Workshop, whose table updates through the committed rescore→rebuild path.
+  if (!WorkshopView?.isVisible?.()) updateRescorePreview();
 }
 
-// Per-source rescore rules live in the Library view's right pane only. The
-// rule-editing handlers target the focused wordlist there; null when no
-// wordlist is in focus or All is.
+// Dispatching on the active view is only sound because the Workshop and
+// Library editors are mutually exclusive; if both could show at once this
+// would silently route edits to the wrong one's target.
 function getRescoreContextWordlist() {
+  if (WorkshopView?.isVisible?.()) {
+    return (state.selected && state.selected !== MERGED_ID) ? state.selected : null;
+  }
   const focused = LibraryView?.getFocusedWordlist?.();
   return (focused && focused !== MERGED_ID) ? focused : null;
 }
@@ -11495,13 +11619,19 @@ function saveRuleField(idx, field, value) {
   afterRuleChange(wordlist);
 }
 
+function activeRescoreContainerSelector(kind) {
+  const workshop = kind === 'scoring' ? '#workshop-scoring-rules' : '#workshop-rescore-rules';
+  const library  = kind === 'scoring' ? '#scoring-rules' : '#rescore-rules';
+  return WorkshopView?.isVisible?.() ? workshop : library;
+}
+
 function addRule() {
   const wordlist = getRescoreContextWordlist();
   if (!wordlist) return;
   wordlist.rescoreRules.push(makeRescoreRuleStub());
   afterRuleChange(wordlist);
   // afterRuleChange re-sorts and re-renders, so find the new row by its empty input rather than by index.
-  const inp = [...document.querySelectorAll('#rescore-rules .rule-row .rule-in')].find(i => !i.value);
+  const inp = [...document.querySelectorAll(`${activeRescoreContainerSelector('rescore')} .rule-row .rule-in`)].find(i => !i.value);
   inp?.focus();
 }
 
@@ -11515,6 +11645,18 @@ async function resetRescoreRules() {
   afterRuleChange(wordlist);
 }
 
+function rescoringIsNeutralizable(rules) {
+  return (rules || []).some(r => r.scoring === false || (r.output ?? '').trim() !== '');
+}
+
+async function neutralizeRescoreRules() {
+  const wordlist = getRescoreContextWordlist();
+  if (!wordlist || !wordlist.rescoreRules?.length) return;
+  if (!await showConfirm('Disable rescoring? The input ranges and notes are kept as a legend — only the score remapping is removed.', { confirmText: 'Disable rescoring' })) return;
+  wordlist.rescoreRules = wordlist.rescoreRules.filter(r => r.scoring !== false).map(r => ({ ...r, output: '' }));
+  afterRuleChange(wordlist);
+}
+
 function noteDisplayHTML(note) {
   return `<span class="rule-note-text">${esc(note)}</span><span class="edit-hint rule-note-pencil" aria-hidden="true">✏️</span>`;
 }
@@ -11522,7 +11664,7 @@ function noteDisplayHTML(note) {
 function startNoteEdit(wrapEl) {
   if (wrapEl.querySelector('.rule-note-input')) return;
   const i = parseInt(wrapEl.closest('.rule-row').dataset.i, 10);
-  const isScoring = !!wrapEl.closest('#scoring-rules');
+  const isScoring = !!wrapEl.closest('#scoring-rules, #workshop-scoring-rules');
 
   let currentNote, onSave;
   if (isScoring) {
@@ -11601,7 +11743,7 @@ function validateRulesContainer(container) {
 function onRuleInput(el) {
   if (el.classList.contains('rule-len') && el.value.trim().toLowerCase() === 'any') el.value = '';
   if (el.classList.contains('rule-out') && el.value.trim().toLowerCase() === 'unchanged') el.value = '';
-  const container = el.closest('#rescore-rules, #scoring-rules');
+  const container = el.closest('#rescore-rules, #scoring-rules, #workshop-rescore-rules, #workshop-scoring-rules');
   if (!container) return;
   validateRulesContainer(container);
   if (container.id === 'rescore-rules') updateRescorePreview();
@@ -11685,7 +11827,7 @@ function bucketContributors(sourceList) {
     for (const wlE of getRescoredEntries(wordlist)) {
       let b = buckets.get(wlE.norm);
       if (!b) buckets.set(wlE.norm, b = { contributors: [], displays: new Set() });
-      b.contributors.push({ wordlist, score: wlE.score, comment: wlE.comment || '', display: wlE.display });
+      b.contributors.push({ wordlist, score: wlE.score, rawScore: wlE.rawScore, comment: wlE.comment || '', display: wlE.display });
       if (wlE.display != null) b.displays.add(wlE.display);
     }
   }
@@ -11705,7 +11847,7 @@ function resolveCorpus(buckets, sourceList) {
       const winner = contributors.find(eligible);
       if (!winner) continue;
       const commenter = contributors.find(c => eligible(c) && c.comment) ?? winner;
-      const row = { norm, display: variant, score: winner.score, comment: commenter.comment, wordlist: winner.wordlist };
+      const row = { norm, display: variant, score: winner.score, rawScore: winner.rawScore, comment: commenter.comment, wordlist: winner.wordlist };
       entries.push(row);
       if (!byNorm.has(norm)) byNorm.set(norm, row);
       byKey.set(mergeKey(norm, variant), row);

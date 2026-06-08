@@ -7,7 +7,7 @@
 // that's easy to assert against.
 
 const { test, expect } = require('@playwright/test');
-const { stubPublisherFetches, gotoApp, openLibrary, focusWordlist } = require('./helpers');
+const { stubPublisherFetches, gotoApp, scopeViaSelector, openRescoreEditor } = require('./helpers');
 
 // Tiny JK fixture: scores that all fall within JK's default-rule coverage
 // (60, 50, 40, 30, 20, 10, 0), so rescoring is a clean passthrough and the
@@ -18,8 +18,8 @@ async function populateJK(page) {
   await expect.poll(async () =>
     page.evaluate(() => window.__grawlixTest.getWordlist('John Kugelman')?.populated)
   ).toBe(true);
-  await openLibrary(page);
-  await focusWordlist(page, 'John Kugelman');
+  await scopeViaSelector(page, 'John Kugelman');
+  await openRescoreEditor(page);
 }
 
 test.beforeEach(async ({ page }) => {
@@ -97,4 +97,31 @@ test('cancel on reset keeps customizations intact', async ({ page }) => {
   expect(wl.dirty).toBe(true);
   expect(wl.rescoreRules).toHaveLength(1);
   await expect(page.locator('.rule-reset-btn')).toBeVisible();
+});
+
+// On a list with defaults, neutralize leaves rules that diverge from those
+// defaults, so it flips dirty and keeps Reset available to undo it. Seed remap
+// rules first (JK's own defaults are already blank-output, so neutralizing the
+// pristine list would be a no-op with nothing to assert).
+test('neutralize flips dirty, blanks every output, drops scoring:false, keeps Reset available', async ({ page }) => {
+  await gotoApp(page);
+  await populateJK(page);
+
+  await page.evaluate(() => window.__grawlixTest.setRescoreRules('John Kugelman', [
+    { input: '60', length: '', output: '50', note: '' },
+    { input: '50', length: '1-2', output: '30', note: '', scoring: false },
+  ]));
+
+  const editor = page.locator('#workshop-rescore-editor');
+  await editor.locator('.rule-neutralize-btn').click();
+  const confirmDialog = page.locator('#confirm-dialog');
+  await expect(confirmDialog).toBeVisible();
+  await confirmDialog.locator('#btn-confirm-ok').click();
+
+  // Reset reappearing is the DOM signal that the post-neutralize render settled.
+  await expect(editor.locator('.rule-reset-btn')).toBeVisible();
+
+  const wl = await page.evaluate(() => window.__grawlixTest.getWordlist('John Kugelman'));
+  expect(wl.dirty).toBe(true);
+  expect(wl.rescoreRules).toEqual([{ input: '60', length: '', output: '' }]);
 });
