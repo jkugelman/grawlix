@@ -30,6 +30,7 @@ input[type="file"] { display: none; }
      histogram height is fixed. */
   --stats-bar-h: 57px;
   --tool-stack-h: 53px;
+  --wordlist-bar-h: 39px;
   --sticky-stack-h: 138px;
   --search-bar-h: 51px;
   /* Live height of the Library pane's sticky title/action bar — published by
@@ -169,6 +170,32 @@ button.header-nav-item:hover:not(:disabled) { color: white; background: var(--hd
 #workshop-add-fab:hover { background: var(--accent-hover); transform: translateY(-1px); box-shadow: 0 7px 20px rgba(0,0,0,0.38); }
 #workshop-add-fab:active { transform: translateY(0); box-shadow: 0 3px 10px rgba(0,0,0,0.3); }
 
+/* z-index above #featured-row (60): the open menu drops over the tool gallery,
+   which establishes its own stacking context. */
+#workshop-wordlist-bar { position: sticky; top: var(--header-h); z-index: 61; display: flex; align-items: center; padding: 8px 16px; background: var(--surface); border-bottom: 1px solid var(--border2); }
+.wls { position: relative; }
+.wls-trigger { display: flex; align-items: center; gap: 8px; max-width: 360px; padding: 0; font: inherit; font-size: 18px; font-weight: 600; line-height: 1.2; color: var(--text); background: none; border: none; cursor: pointer; }
+.wls-trigger:hover { color: var(--accent); }
+.wls-trigger:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+.wls-trigger .wordlist-icon { width: 20px; height: 20px; }
+.wls-trigger-icon, .wls-option-icon { display: flex; align-items: center; flex-shrink: 0; }
+.wls-trigger-label { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.wls-trigger-chevron { flex-shrink: 0; margin-left: 2px; transition: transform 0.15s; }
+.wls.open .wls-trigger-chevron { transform: rotate(180deg); }
+
+.wls-menu { position: absolute; top: calc(100% + 4px); left: 0; z-index: 60; min-width: 240px; max-width: 360px; max-height: 60vh; overflow-y: auto; padding: 4px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; box-shadow: var(--shadow); }
+.wls:not(.open) .wls-menu { display: none; }
+.wls-option { display: flex; justify-content: flex-start; align-items: center; gap: 8px; width: 100%; padding: 7px 10px; font: inherit; color: var(--text); text-align: left; background: none; border: none; border-radius: 5px; cursor: pointer; }
+.wls-option:hover { background: var(--hover); }
+.wls-option:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.wls-option.selected { background: var(--sel); font-weight: 600; }
+.wls-option .wordlist-icon { width: 18px; height: 18px; }
+.wls-option-label { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* Dimmed but deliberately still clickable: scope means "look at this list,"
+   not "merge it," so a disabled list stays selectable. */
+.wls-option--disabled { color: var(--faint); }
+.wls-option--disabled .wordlist-icon { filter: grayscale(1); opacity: 0.6; }
+
 #splash-screen { position: fixed; inset: 0; z-index: 200; background: var(--bg); color: var(--accent); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 48px; transition: opacity 0.3s; will-change: opacity; }
 #splash-screen.done { opacity: 0; pointer-events: none; }
 .splash-logo { font-size: 56px; font-weight: 600; letter-spacing: -0.01em; line-height: 1.1; display: inline-flex; align-items: center; opacity: 0; animation: splash-logo-reveal 0.4s ease-out forwards; will-change: opacity; }
@@ -245,10 +272,11 @@ button.danger:hover:not(:disabled) { background: #e74c3c; border-color: #c0392b;
 .stats-bar.stats-no-hist .stats-bar-controls { gap: 8px; }
 
 .sticky-stack { position: sticky; top: var(--header-h); z-index: 50; background: var(--surface); }
-#workshop-view .sticky-stack > #tool-stack { position: sticky; top: var(--header-h); z-index: 53; background: var(--surface); border-bottom: 1px solid var(--border2); }
-#workshop-view .sticky-stack > #workshop-stats { position: sticky; top: calc(var(--header-h) + var(--tool-stack-h)); z-index: 52; background: var(--surface); }
+#workshop-view .sticky-stack { top: calc(var(--header-h) + var(--wordlist-bar-h)); }
+#workshop-view .sticky-stack > #tool-stack { position: sticky; top: calc(var(--header-h) + var(--wordlist-bar-h)); z-index: 53; background: var(--surface); border-bottom: 1px solid var(--border2); }
+#workshop-view .sticky-stack > #workshop-stats { position: sticky; top: calc(var(--header-h) + var(--wordlist-bar-h) + var(--tool-stack-h)); z-index: 52; background: var(--surface); }
 #workshop-view .sticky-stack > .entry-headers,
-#workshop-view .sticky-stack > .group-headers { position: sticky; top: calc(var(--header-h) + var(--tool-stack-h) + var(--stats-bar-h)); z-index: 51; background: var(--bg); border-bottom: 1px solid var(--border2); }
+#workshop-view .sticky-stack > .group-headers { position: sticky; top: calc(var(--header-h) + var(--wordlist-bar-h) + var(--tool-stack-h) + var(--stats-bar-h)); z-index: 51; background: var(--bg); border-bottom: 1px solid var(--border2); }
 .sticky-stack .search-bar { border-bottom: none; }
 .stat { display: flex; flex-direction: column; gap: 2px; }
 .stat-label { font-size: 10px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
@@ -413,6 +441,9 @@ mark.search-match { border-radius: 2px; padding: 0 1px; margin: 0 -1px; font-sty
     grid-template-columns: var(--count-w, 2ch) var(--entry-w, 12ch) var(--len-w, 3ch) var(--score-w, calc(5ch + 12px)) minmax(0, 1fr) minmax(0, var(--source-max, 22ch));
   }
   .entry-row .atom-source, .entry-headers .col-source { display: block; }
+  #detail-panel.no-source-col .entry-row, #detail-panel.no-source-col .entry-headers {
+    grid-template-columns: var(--count-w, 2ch) var(--entry-w, 12ch) var(--len-w, 3ch) var(--score-w, calc(5ch + 12px)) minmax(0, 1fr);
+  }
 }
 
 .group-row, .group-headers {
@@ -2150,13 +2181,14 @@ function buildEntryHeadersHTML() {
   const entryH = hdr('Entry', columnSortAxes('col-entry', tierAxes));
   const lenH   = hdr('Len',   columnSortAxes('col-len', tierAxes));
   const scoreH = hdr('Score', columnSortAxes('col-score', tierAxes));
+  const sourceHeader = state.selected === MERGED_ID ? '<span class="col-source">Source</span>' : '';
   return `<div class="entry-headers entry-headers-font">
       <span></span>
       <span class="col-entry"${entryH.attrs}>${entryH.inner}</span>
       <span class="col-len"${lenH.attrs}>${lenH.inner}</span>
       <span class="col-score"${scoreH.attrs}>${scoreH.inner}</span>
       <span class="col-comment">Comment</span>
-      <span class="col-source">Source</span>
+      ${sourceHeader}
     </div>`;
 }
 
@@ -2591,6 +2623,7 @@ const state = {
   // Drives `propagateDefaults` at boot (pristine users silently pick up dev
   // updates) and the "Reset to defaults" button visibility.
   scoringDirty: false,
+  selected: MERGED_ID,
 };
 
 // Per-wordlist cosmetic fields are signal-backed: each wordlist exposes both
@@ -3795,6 +3828,90 @@ const WorkshopView = (() => {
   };
 })();
 
+// ─── Wordlist selector ─────────────────────────────────────────────────────────
+// Pure-scope: clicking a row drives setScope. Enable/disable toggling stays out
+// of here on purpose — it lives in the manage panel.
+
+const WordlistSelector = (() => {
+  const bar = document.createElement('div');
+  bar.id = 'workshop-wordlist-bar';
+  bar.innerHTML = `
+    <div class="wls">
+      <button type="button" class="wls-trigger" aria-haspopup="listbox" aria-expanded="false">
+        <span class="wls-trigger-icon"></span>
+        <span class="wls-trigger-label"></span>
+        <svg class="wls-trigger-chevron" width="10" height="6" aria-hidden="true"><use href="#icon-arrow"/></svg>
+      </button>
+      <div class="wls-menu" role="listbox" tabindex="-1"></div>
+    </div>`;
+  document.getElementById('workshop-view').prepend(bar);
+
+  const root    = bar.querySelector('.wls');
+  const trigger = bar.querySelector('.wls-trigger');
+  const menu    = bar.querySelector('.wls-menu');
+
+  function scopeIcon(scope)  { return scope === MERGED_ID ? MERGED_ICON : getWordlistIcon(scope); }
+  function scopeLabel(scope) { return scope === MERGED_ID ? MERGED_NAME : scope.name; }
+
+  function renderTrigger() {
+    const scope = state.selected;
+    trigger.querySelector('.wls-trigger-icon').innerHTML = scopeIcon(scope);
+    trigger.querySelector('.wls-trigger-label').textContent = scopeLabel(scope);
+  }
+
+  function optionHTML(scope) {
+    const selected = scope === state.selected;
+    const disabled = scope !== MERGED_ID && scope.enabled === false;
+    const cls = ['wls-option'];
+    if (selected) cls.push('selected');
+    // Modifier class only, never aria-disabled or the disabled attribute: the
+    // option is genuinely actionable (you can scope to a disabled list), so
+    // marking it disabled to assistive tech would lie and block activation.
+    if (disabled) cls.push('wls-option--disabled');
+    return `<button type="button" class="${cls.join(' ')}" role="option" aria-selected="${selected}">`
+      + `<span class="wls-option-icon">${scopeIcon(scope)}</span>`
+      + `<span class="wls-option-label">${esc(scopeLabel(scope))}</span>`
+      + `</button>`;
+  }
+
+  function renderMenu() {
+    const scopes = [MERGED_ID, ...state.sources];
+    menu.innerHTML = scopes.map(optionHTML).join('');
+    menu.querySelectorAll('.wls-option').forEach((el, i) => { el._scope = scopes[i]; });
+  }
+
+  function open() {
+    renderMenu();
+    root.classList.add('open');
+    trigger.setAttribute('aria-expanded', 'true');
+    document.addEventListener('click', onOutsideClick);
+  }
+  function close() {
+    if (!root.classList.contains('open')) return;
+    root.classList.remove('open');
+    trigger.setAttribute('aria-expanded', 'false');
+    document.removeEventListener('click', onOutsideClick);
+  }
+  function onOutsideClick(e) { if (!e.target.closest('.wls')) close(); }
+
+  trigger.addEventListener('click', () => root.classList.contains('open') ? close() : open());
+  menu.addEventListener('click', e => {
+    const opt = e.target.closest('.wls-option');
+    if (!opt) return;
+    close();
+    setScope(opt._scope);
+  });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') close(); });
+
+  function refresh() {
+    renderTrigger();
+    if (root.classList.contains('open')) renderMenu();
+  }
+
+  renderTrigger();
+  return { refresh };
+})();
+
 // ─── Library view ─────────────────────────────────────────────────────────────
 // Top-level page (peer of Workshop in the brand-bar nav). Hosts the wordlist
 // list and the focused-wordlist details pane.
@@ -4153,7 +4270,7 @@ const LibraryView = (() => {
 
   function buildLibraryStatsBarHTML(stats, histEntries) {
     const range = activeScoreRange();
-    return buildStatsBarHTML(stats, histEntries, getHistogramLayout(), {
+    return buildStatsBarHTML(stats, histEntries, allSourcesHistogramLayout(), {
       scoreRange: { value: range, inputId: 'lib-score-range-input', viewName: 'LibraryView' },
       sortHTML: buildSortControlsHTML(),
     });
@@ -4919,12 +5036,14 @@ const _statsCache = new WeakMap();
 const _mergedStatsKey = {};
 let _sourceCountsCache = null;
 let _mergedWordlistCache = null;
+let _scopedWordlistCache = new Map();
 
 function invalidateRescoredCache(wordlist) { wordlist._rescored = null; wordlist._rescoredMap = null; wordlist._rescoredByNorm = null; invalidateHistogramLayout(); }
 function invalidateStatsCache(key) { _statsCache.delete(key); }
 function invalidateSourceCounts() {
   _sourceCountsCache = null;
   _mergedWordlistCache = null;
+  _scopedWordlistCache.clear();
   invalidatePreSearchCache();
   invalidateHistogramLayout();
 }
@@ -4964,19 +5083,37 @@ function computeStats(key, entries) {
 const HIST_DISCRETE_THRESHOLD = 12;
 const HIST_BINNED_BUCKETS = 11;
 
-let _layoutCache = null;
-function invalidateHistogramLayout() { _layoutCache = null; }
+// Keyed, not a single slot: the scope-aware Workshop axis and the fixed
+// all-sources axis coexist. A shared slot let a Workshop scope silently leak
+// into the still-present Library histogram.
+const _layoutCache = new Map();
+function invalidateHistogramLayout() { _layoutCache.clear(); }
 
-function getHistogramLayout() {
-  if (_layoutCache) return _layoutCache;
+function* allSourcesScores() {
+  for (const wl of state.sources) yield* getRescoredEntries(wl);
+}
+
+function workshopHistogramLayout() {
+  const scoreSource = state.selected === MERGED_ID ? allSourcesScores() : getActiveCorpus().entries;
+  return getHistogramLayout(scoreSource, 'workshop:' + syncKey(state.selected));
+}
+
+// A fixed all-sources axis. Used by the Library and by scoreColor's badge
+// gradient: pointing those at the scoped Workshop axis would shift badge colors
+// on every scope change, a regression no error would surface.
+function allSourcesHistogramLayout() {
+  return getHistogramLayout(allSourcesScores(), 'all');
+}
+
+function getHistogramLayout(scoreSource, cacheKey) {
+  const cached = _layoutCache.get(cacheKey);
+  if (cached) return cached;
   const distinct = new Set();
   let min = Infinity, max = -Infinity;
-  for (const wl of state.sources) {
-    for (const { score } of getRescoredEntries(wl)) {
-      distinct.add(score);
-      if (score < min) min = score;
-      if (score > max) max = score;
-    }
+  for (const { score } of scoreSource) {
+    distinct.add(score);
+    if (score < min) min = score;
+    if (score > max) max = score;
   }
   if (!distinct.size) {
     // No data → empty layout. Don't cache: as soon as data arrives, the next
@@ -4985,25 +5122,27 @@ function getHistogramLayout() {
     return { mode: 'empty', slots: [], min: null, max: null };
   }
   const distinctScores = [...distinct].sort((a, b) => a - b);
+  let layout;
   if (distinctScores.length <= HIST_DISCRETE_THRESHOLD) {
-    _layoutCache = {
+    layout = {
       mode: 'discrete',
       slots: distinctScores.map(s => ({ score: s, lo: s, hi: s, label: String(s) })),
       min, max,
     };
-    return _layoutCache;
+  } else {
+    const N = HIST_BINNED_BUCKETS;
+    const bucketSize = Math.max(1, Math.ceil((max - min + 1) / N));
+    const slots = [];
+    for (let i = 0; i < N; i++) {
+      const lo = min + i * bucketSize;
+      if (lo > max) break;
+      const hi = Math.min(max, lo + bucketSize - 1);
+      slots.push({ lo, hi, label: lo === hi ? String(lo) : `${lo}–${hi}` });
+    }
+    layout = { mode: 'binned', slots, min, max };
   }
-  const N = HIST_BINNED_BUCKETS;
-  const bucketSize = Math.max(1, Math.ceil((max - min + 1) / N));
-  const slots = [];
-  for (let i = 0; i < N; i++) {
-    const lo = min + i * bucketSize;
-    if (lo > max) break;
-    const hi = Math.min(max, lo + bucketSize - 1);
-    slots.push({ lo, hi, label: lo === hi ? String(lo) : `${lo}–${hi}` });
-  }
-  _layoutCache = { mode: 'binned', slots, min, max };
-  return _layoutCache;
+  _layoutCache.set(cacheKey, layout);
+  return layout;
 }
 
 function bucketCounts(entries, layout) {
@@ -5052,7 +5191,7 @@ const SCORE_COLOR_STOPS = [
 // Out-of-range scores clamp to the nearest endpoint. With no data loaded,
 // falls back to the middle stop (a gradient is meaningless without a range).
 function scoreColor(score) {
-  const { min, max } = getHistogramLayout();
+  const { min, max } = allSourcesHistogramLayout();
   if (min == null || max == null || max <= min) {
     const s = SCORE_COLOR_STOPS[Math.floor(SCORE_COLOR_STOPS.length / 2)];
     return { bg: `var(${s.bg})`, fg: `var(${s.fg})` };
@@ -8308,12 +8447,15 @@ class WorkshopEntriesScroller extends BaseVirtualScroller {
       const sourceWl = wlEntry.wordlist;
       const sourceHTML = sourceWl ? buildWordlistNameHTML(sourceWl, { bold: false }) : '';
       const sourceTitle = sourceWl ? ` title="${esc(sourceWl.name)}"` : '';
+      const sourceCell = this.showSource
+        ? `<span class="atom-source"${sourceTitle}>${sourceHTML}</span>`
+        : '';
       html += `<span class="atom" data-atom="${ai}">` +
         entryCell +
         `<span class="atom-len">${norm.length}</span>` +
         `<span class="atom-score"${scoreTitle}>${scoreInner}</span>` +
         `<span class="atom-comment"${commentText ? ` title="${esc(commentText)}"` : ''}>${esc(commentText)}</span>` +
-        `<span class="atom-source"${sourceTitle}>${sourceHTML}</span>` +
+        sourceCell +
         `</span>`;
     });
 
@@ -9420,6 +9562,7 @@ function setupRenderEffect() {
     // the panel and the scroller.
     refreshSourceCounts();        // rebuild caches before any UI reads them
     renderSources();              // list/dialog with fresh meta
+    WordlistSelector.refresh();   // add/remove/reorder/enable changes the list
     refreshDerivedDisplays();     // scoring legend + main-panel stats bar
     if (workshopScroller) refreshWorkshopMergedScroller();
   });
@@ -9441,6 +9584,7 @@ function setupRenderEffect() {
       return;            // render effect's first run already painted everything
     }
     renderSources();
+    WordlistSelector.refresh();   // a renamed/re-iconed source restyles the rows
     if (workshopScroller) workshopScroller._render();
   });
 }
@@ -9498,10 +9642,22 @@ function createScroller() {
 async function refreshWorkshopMergedScroller() {
   reconcileSort(ToolStack.getStack());
   if (!workshopScroller) return;
-  const result = await runPipeline(buildMergedWordlist(), ToolStack.getStack());
+  const result = await runPipeline(getActiveCorpus(), ToolStack.getStack());
   if (result.aborted || !workshopScroller) return;
   workshopScroller.updateEntries(result.rows, result.atomCount, chainSortTier(ToolStack.getStack()));
   ToolStack.refreshErrorMarks();
+}
+
+// The pre-search and histogram caches assume one corpus, so a scope change
+// must drop both before the pipeline re-runs — otherwise the prior scope's
+// memoized seed rows leak into the new view with no error.
+async function setScope(target) {
+  if (state.selected === target) return;
+  state.selected = target;
+  invalidatePreSearchCache();
+  invalidateHistogramLayout();
+  WordlistSelector.refresh();
+  await renderWorkshopMergedDetail();
 }
 
 function mountWorkshopPanel(panel) {
@@ -9522,6 +9678,8 @@ function mountWorkshopPanel(panel) {
   const stickyStack = panel.querySelector('.sticky-stack');
   _workshopStickyObserver.disconnect();
   _workshopStickyObserver.observe(stickyStack);
+  const wordlistBar = document.getElementById('workshop-wordlist-bar');
+  if (wordlistBar) _workshopStickyObserver.observe(wordlistBar);
   // Delegate rather than bind the header cells directly: rebuildEntryHeaders
   // replaces them via outerHTML on every sort change, which would orphan a
   // direct listener after the first sort.
@@ -9535,7 +9693,7 @@ function mountWorkshopPanel(panel) {
 function buildWorkshopStatsBarHTML() {
   const scroller = workshopScroller;
   const statsEntries = scroller ? scroller._statsViewEntries() : [];
-  const histEntries = scroller ? scroller._histogramEntries() : buildMergedWordlist().entries;
+  const histEntries = scroller ? scroller._histogramEntries() : getActiveCorpus().entries;
   const grouped = scroller ? scroller.sortTier === 'group' : false;
   const groupCount = grouped ? scroller.entries.length : null;
   const visibleEntries = grouped
@@ -9543,7 +9701,7 @@ function buildWorkshopStatsBarHTML() {
     : (scroller ? scroller.entries.length : statsEntries.length);
   const stats = computeStatsRaw(statsEntries);
   const range = WorkshopView.scoreRange;
-  return buildStatsBarHTML(stats, histEntries, getHistogramLayout(), {
+  return buildStatsBarHTML(stats, histEntries, workshopHistogramLayout(), {
     countValue: visibleEntries,
     groupCount,
     scoreRange: { value: range, inputId: 'score-range-input', viewName: 'WorkshopView' },
@@ -9577,6 +9735,8 @@ function publishWorkshopBarHeights() {
   if (stats) document.documentElement.style.setProperty('--stats-bar-h', stats.offsetHeight + 'px');
   const stickyStack = document.querySelector('#workshop-view .sticky-stack');
   if (stickyStack) document.documentElement.style.setProperty('--sticky-stack-h', stickyStack.offsetHeight + 'px');
+  const bar = document.getElementById('workshop-wordlist-bar');
+  if (bar) document.documentElement.style.setProperty('--wordlist-bar-h', bar.offsetHeight + 'px');
 }
 const _workshopStickyObserver = new ResizeObserver(publishWorkshopBarHeights);
 
@@ -9644,13 +9804,15 @@ async function renderWorkshopMergedDetail() {
     const panel = document.getElementById('detail-panel');
     reconcileSort(ToolStack.getStack());
     mountWorkshopPanel(panel);
-    workshopScroller.showSource = true;
+    const showSource = state.selected === MERGED_ID;
+    workshopScroller.showSource = showSource;
+    panel.classList.toggle('no-source-col', !showSource);
     workshopScroller.editsWordlist = getEditsWordlist() ?? null;
     workshopScroller.showEditDeleteCol = true;
     workshopScroller._onDeleteRow = entry => deleteFromEdits(entry, refreshWorkshopMergedScroller);
     attachExternalEditHandlers(workshopScroller, refreshWorkshopMergedScroller);
 
-    const result = await runPipeline(buildMergedWordlist(), ToolStack.getStack());
+    const result = await runPipeline(getActiveCorpus(), ToolStack.getStack());
     if (result.aborted) return;
     const { rows, atomCount } = result;
     workshopScroller.setEntries(rows, atomCount, chainSortTier(ToolStack.getStack()));
@@ -9833,7 +9995,7 @@ function _onHistogramPointerUp(event) {
   _histDrag = null;
   const view = viewForHistogram(ds.histEl);
   const inputSel = view === LibraryView ? '#lib-score-range-input' : '#score-range-input';
-  const layout = getHistogramLayout();
+  const layout = view === LibraryView ? allSourcesHistogramLayout() : workshopHistogramLayout();
   let next;
   if (!ds.moved && view.scoreRange) {
     const intervals = parseRange(view.scoreRange);
@@ -10159,7 +10321,7 @@ function ingestFile(file, wordlist, nameOverride) {
 
 function newEntrySeedQuery() {
   const q = WorkshopView.searchQuery.trim();
-  if (!isLiteralQuery(q) || buildMergedWordlist().byNorm.has(toNorm(q))) return '';
+  if (!isLiteralQuery(q) || getActiveCorpus().byNorm.has(toNorm(q))) return '';
   return q;
 }
 
@@ -11364,6 +11526,9 @@ function applyEditsChange(edits, norms, mutate) {
   _statsCache.delete(_mergedStatsKey);
   invalidatePreSearchCache();
   patchMergedForNorms(snap);
+  // Scoped views rebuild on edit rather than teaching patchMergedForNorms a
+  // second in-place resolver — the dual-resolver-in-sync trap lazy-merge rejected.
+  if (state.selected !== MERGED_ID) _scopedWordlistCache.delete(state.selected);
   refreshDerivedDisplays();
 }
 
@@ -11378,12 +11543,10 @@ function refreshDerivedDisplays() {
   renderScoringRules();
 }
 
-function buildMergedWordlist() {
-  if (_mergedWordlistCache) return _mergedWordlistCache;
-
+// `sourceList[0]` is highest priority; winner resolution depends on it.
+function bucketContributors(sourceList) {
   const buckets = new Map();
-  for (const wordlist of state.sources) {
-    if (!wordlist.enabled) continue;
+  for (const wordlist of sourceList) {
     for (const wlE of getRescoredEntries(wordlist)) {
       let b = buckets.get(wlE.norm);
       if (!b) buckets.set(wlE.norm, b = { contributors: [], displays: new Set() });
@@ -11391,7 +11554,10 @@ function buildMergedWordlist() {
       if (wlE.display != null) b.displays.add(wlE.display);
     }
   }
+  return buckets;
+}
 
+function resolveCorpus(buckets, sourceList) {
   const entries = [];
   const byNorm = new Map();
   const byKey = new Map();
@@ -11418,14 +11584,33 @@ function buildMergedWordlist() {
   entries.sort((a, b) => a.norm.localeCompare(b.norm)
     || (a.display ?? '').localeCompare(b.display ?? ''));
 
-  const sourceCounts = [];
-  for (const wl of state.sources) {
-    if (!wl.enabled) continue;
-    sourceCounts.push({ wordlist: wl, count: sourceCountMap.get(wl) || 0 });
-  }
+  const sourceCounts = sourceList.map(wl => ({ wordlist: wl, count: sourceCountMap.get(wl) || 0 }));
 
-  _mergedWordlistCache = { entries, sourceCounts, byNorm, byKey };
+  return { entries, sourceCounts, byNorm, byKey };
+}
+
+function buildMergedWordlist() {
+  if (_mergedWordlistCache) return _mergedWordlistCache;
+  const enabled = state.sources.filter(wl => wl.enabled);
+  _mergedWordlistCache = resolveCorpus(bucketContributors(enabled), enabled);
   return _mergedWordlistCache;
+}
+
+// Two-contributor merge: My Edits overlay (highest priority) over the scoped
+// source, independent of enabled flags — My Edits travels into every scope and
+// a disabled source is still viewable when scoped to it.
+function buildScopedCorpus(source) {
+  const cached = _scopedWordlistCache.get(source);
+  if (cached) return cached;
+  const edits = getEditsWordlist();
+  const contributors = edits && edits !== source ? [edits, source] : [source];
+  const corpus = resolveCorpus(bucketContributors(contributors), contributors);
+  _scopedWordlistCache.set(source, corpus);
+  return corpus;
+}
+
+function getActiveCorpus() {
+  return state.selected === MERGED_ID ? buildMergedWordlist() : buildScopedCorpus(state.selected);
 }
 
 function mergeKey(norm, display) {
@@ -12061,16 +12246,22 @@ window.__grawlixTest = {
     reorderSources(fromIdx, toIdx);
   },
 
-  // Read-only snapshot of the merged All view for a single entry. The
-  // sourcing wordlist is user-observable via the row's popover and via the
-  // `.atom-source` column, but that column is hidden below a 960px viewport.
-  // Exposing it here lets merge-correctness tests assert regardless of
-  // viewport width and without driving the popover.
+  // Read-only snapshot of the active corpus (All by default, the scoped source
+  // after setScope) for a single entry. The sourcing wordlist is user-
+  // observable via the row's popover and via the `.atom-source` column, but
+  // that column is hidden below a 960px viewport. Exposing it here lets merge-
+  // correctness tests assert regardless of viewport width and without driving
+  // the popover.
   getMergedEntry(entry, display) {
-    const cache = buildMergedWordlist();
+    const cache = getActiveCorpus();
     const m = display !== undefined ? cache.byKey.get(mergeKey(toNorm(entry), display)) : cache.byNorm.get(toNorm(entry));
     if (!m) return null;
     return { entry: m.norm, display: m.display, score: m.score, comment: m.comment, wordlist: m.wordlist.name };
+  },
+
+  // Pass a source name to scope, or 'All'/nothing for the merged view.
+  async setScope(name) {
+    await setScope(!name || name === MERGED_NAME ? MERGED_ID : this._lookup(name));
   },
 
   // Stable, comparable dump of the merged cache: entries as ordered tuples
@@ -12100,12 +12291,15 @@ window.__grawlixTest = {
   // apply many mutations without choreographing popovers across search changes.
   // origRaw === raw upserts; differing raw renames (a two-norm move).
   saveMyEdit(origRaw, raw, score, comment = '') {
-    const orig = buildMergedWordlist().byNorm.get(toNorm(origRaw)) || buildUserWlEntry(origRaw, score, comment);
+    // Mirror openForCreate: a not-yet-present entry seeds a blank-score orig so
+    // saveEdit treats it as a genuine add, not a no-op against an equal score.
+    const orig = getActiveCorpus().byNorm.get(toNorm(origRaw)) || buildUserWlEntry(origRaw, '', '');
     saveEdit(orig, { raw, score, comment });
+    return refreshWorkshopMergedScroller();
   },
   deleteMyEdit(raw) {
     const m = getEditsWordlist().rawEntries.find(e => e.norm === toNorm(raw));
-    if (m) deleteFromEdits({ norm: m.norm, display: displayOf(m) });
+    if (m) deleteFromEdits({ norm: m.norm, display: displayOf(m) }, refreshWorkshopMergedScroller);
   },
 
   setUnigramCorpus(freqs) {

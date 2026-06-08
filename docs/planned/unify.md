@@ -45,7 +45,7 @@ It also dissolves a redundancy: the Library's read-only monospace entries view g
 
 Scope shows a source as *itself*, with **no other publisher's opinion mixed in** — `ocean` reads XWI's 70, not Broda's higher 90 — but with **your** My Edits overlay applied and flagged (`tide` shows `40 → 55*`; see [The editing model](#the-editing-model-my-edits-as-a-universal-overlay)). My Edits is *you*, not another wordlist, so it travels into every scope. The word set is the source's: `zebra`, which XWI lacks, is absent.
 
-Filter — re-merging over a subset of *publishers* — is deferred, because it's almost entirely covered already: it's the same as disabling the rest and viewing All, which the enable/disable controls do. The only thing filter adds is a *transient* subset that doesn't change the persisted enabled flags — a minor convenience, addable later as a facet if anyone asks. The dropdown's two roles stay clean and non-overlapping: **click a name = scope** (single-select corpus), **check/uncheck = include in the All merge**.
+Filter — re-merging over a subset of *publishers* — is deferred, because it's almost entirely covered already: it's the same as disabling the rest and viewing All, which the enable/disable controls do. The only thing filter adds is a *transient* subset that doesn't change the persisted enabled flags — a minor convenience, addable later as a facet if anyone asks. The selector is single-purpose: **click a name = scope** (single-select corpus); enable/disable — which lists feed the All merge — lives in the manage panel, not the picker, so the dropdown stays a clean, title-like list of icons and labels.
 
 ## The screen
 

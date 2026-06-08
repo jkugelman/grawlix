@@ -86,6 +86,7 @@ test('test API is exposed on window', async ({ page }) => {
     'rebuildMergedCache',
     'saveMyEdit',
     'setRescoreRules',
+    'setScope',
     'setStack',
     'setUnigramCorpus',
     'setUpdateAvailable',

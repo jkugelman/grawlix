@@ -72,6 +72,21 @@ async function focusWordlist(page, name) {
   await page.locator('.wordlist-card[data-wordlist]', { hasText: name }).first().click();
 }
 
+// Scope the table + tools to a source by name (or 'All' / omit for the merged
+// view) via the test API, then wait for the re-rendered pipeline to settle.
+async function scopeTo(page, name) {
+  await page.evaluate(n => window.__grawlixTest.setScope(n), name);
+  await page.evaluate(() => window.__grawlixTest.pipelineIdle());
+}
+
+// Scope by driving the real selector UI, not the test API — use this (over
+// scopeTo) when the test's subject is the selector itself.
+async function scopeViaSelector(page, name) {
+  await page.locator('#workshop-wordlist-bar .wls-trigger').click();
+  await page.locator('#workshop-wordlist-bar .wls-option', { hasText: name }).first().click();
+  await page.evaluate(() => window.__grawlixTest.pipelineIdle());
+}
+
 async function addTool(page, toolKey) {
   await page.locator('#tool-picker-search').click();
   await expect(page.locator('#featured-row')).toHaveClass(/expanded/);
@@ -108,6 +123,8 @@ module.exports = {
   gotoApp,
   openLibrary,
   focusWordlist,
+  scopeTo,
+  scopeViaSelector,
   addTool,
   expectVisible,
   expectGroups,
