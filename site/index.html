@@ -26,17 +26,12 @@ input[type="file"] { display: none; }
   --font-mono:   ui-monospace, 'Cascadia Mono', monospace;
   /* Stats-bar natural height: 36px histogram + 10px×2 padding + 1px border.
      Used as the sticky top-offset for whatever pins immediately below it
-     (Workshop's entry headers, Library's entries). Stable as long as the
-     histogram height is fixed. */
+     (Workshop's entry headers). Stable as long as the histogram height is
+     fixed. */
   --stats-bar-h: 57px;
   --tool-stack-h: 53px;
   --wordlist-bar-h: 39px;
   --sticky-stack-h: 138px;
-  --search-bar-h: 51px;
-  /* Live height of the Library pane's sticky title/action bar — published by
-     LibraryView, used to offset the search/stats bars that pin below it. The
-     value here is just a pre-measurement fallback. */
-  --title-bar-h: 54px;
   --header-h: 84px;
 }
 html.dark-mode {
@@ -300,7 +295,6 @@ html.light-mode .histogram-rect { opacity: 0.11; }
 .stats-bar-sort .sort-dir-btn:hover { background: var(--hover); }
 
 .search-bar { padding: 8px 14px; background: var(--surface); border-bottom: 1px solid var(--border2); display: grid; grid-template-columns: auto auto auto minmax(80px, auto) auto 1fr; align-items: center; column-gap: 0; row-gap: 6px; position: relative; }
-.search-bar.lib-search-bar { grid-template-columns: auto minmax(80px, auto) auto 1fr; }
 .search-bar > .tool-label { margin-left: 12px; }
 .search-bar > .find-replace-caret { margin-left: 12px; }
 .search-bar > .tool-row-param-text { padding-left: 12px; }
@@ -544,43 +538,6 @@ mark.search-match { border-radius: 2px; padding: 0 1px; margin: 0 -1px; font-sty
 .entries-empty-add { background: transparent; border: 1px solid var(--border); border-radius: 4px; color: var(--accent); font: inherit; cursor: pointer; padding: 4px 12px; font-style: normal; }
 .entries-empty-add:hover { background: var(--hover); border-color: var(--accent); }
 
-/* Library entries view — text-flavored, read-only counterpart to the Workshop
-   entries table. Shares the virtual-scroller mechanics but renders a monospace,
-   whitespace-aligned layout so it reads like a source file. Inline `→`
-   annotations show how rescore rules transform each entry. */
-.lib-entries-panel { padding: 6px 0 14px; position: relative; background: var(--bg); }
-.lib-entries-host { position: relative; }
-.lib-entries-rows { position: relative; }
-.lib-entry-row, .lib-entry-headers {
-  display: grid;
-  grid-template-columns: var(--lib-entry-w, 14ch) var(--lib-score-w, 9ch) minmax(0, 1fr);
-  column-gap: 14px;
-  padding: 0 22px;
-  white-space: nowrap;
-}
-.lib-entry-row {
-  position: absolute; left: 0; right: 0;
-  height: var(--row-height, 24px);
-  font-family: var(--font-mono);
-  font-size: 13px;
-  color: var(--text);
-  align-items: center;
-}
-.lib-entry-headers {
-  font-family: var(--font-sans);
-  font-size: 12px;
-  color: var(--muted);
-  padding-top: 4px; padding-bottom: 4px;
-  border-bottom: 1px solid var(--border3);
-  user-select: none;
-}
-.lib-entry-headers > * { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
-.lib-entry-row .lib-atom-entry { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
-.lib-entry-row .lib-atom-comment { overflow: hidden; text-overflow: ellipsis; min-width: 0; font-size: 12px; }
-.lib-entry-row .lib-atom-arrow { color: var(--faint); padding: 0 2px; }
-.lib-entry-row .lib-atom-out { color: var(--accent); font-weight: 600; }
-.lib-entries-empty { padding: 28px 22px; color: var(--faint); font-size: 13px; font-style: italic; }
-
 #atom-popover { position: fixed; z-index: 600; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 6px 24px rgba(0,0,0,0.2); padding: 12px 14px; font-size: 12px; color: var(--text); min-width: 280px; max-width: 440px; }
 .atom-pop-prov-wrap { margin-top: 10px; }
 .atom-pop-prov-wrap:empty { display: none; }
@@ -620,7 +577,6 @@ input.entry-input { font-family: var(--font-mono); font-size: 13px; }
 
 .score-badge { display: inline-block; padding: 1px 5px; border-radius: 3px; font-size: 11px; font-weight: 700; font-family: var(--font-mono); background: var(--score-bg); color: var(--score-fg); }
 
-/* Inline name editing (used inside the Library view's right pane) */
 .detail-date { font-size: 11px; color: var(--muted); white-space: nowrap; }
 /* On narrow viewports the actions bar is cramped; drop the "Last updated"
    label entirely. */
@@ -630,8 +586,6 @@ input.entry-input { font-family: var(--font-mono); font-size: 13px; }
   .atom-pop-fields { grid-auto-rows: minmax(30px, auto); }
 }
 .edit-hint { opacity: 0; flex-shrink: 0; cursor: pointer; user-select: none; transition: opacity 0.15s; }
-.name-edit-input { font-family: inherit; width: 100%; padding: 1px 5px; border: 1px solid var(--accent); border-radius: 3px; background: var(--input-bg); color: var(--text); font-size: 15px; font-weight: 600; outline: none; }
-.card-name-edit { font-family: inherit; width: 100%; padding: 0 3px; border: 1px solid var(--accent); border-radius: 3px; background: var(--input-bg); color: var(--text); font-size: 13px; font-weight: 600; outline: none; }
 
 /* Drag handle */
 .drag-handle { color: var(--faint); cursor: grab; font-size: 13px; flex-shrink: 0; padding: 0 1px; user-select: none; touch-action: none; }
@@ -1125,29 +1079,6 @@ body.picker-expanded #picker-backdrop { opacity: 1; }
   .picker-search-wrap > input { font-size: 16px; }
 }
 
-/* Library view — top-level page (peer of Workshop). Shared card chrome lives
-   above with #workshop-view. Responsive layout: wordlist list on top on mobile,
-   list alongside the pane on desktop. Both flow in the page scroll. */
-.wld-body { flex: 1 1 auto; }
-.wld-list { background: var(--surface); border-bottom: 1px solid var(--border2); }
-.wld-list-body { padding: 4px 0 0; }
-.wld-list .add-wordlist-row { padding: 9px 14px; }
-.wld-list-section-header {
-  padding: 8px 14px 4px;
-  font-size: 10px; font-weight: 700;
-  color: var(--muted);
-  text-transform: uppercase; letter-spacing: 0.06em;
-  user-select: none;
-  border-bottom: 1px solid var(--border3);
-}
-.wld-pane { display: flex; flex-direction: column; }
-.wld-pane-empty { display: flex; align-items: center; justify-content: center; color: var(--faint); font-size: 14px; padding: 60px 30px; }
-.wld-title-bar { display: flex; align-items: center; gap: 16px; padding: 12px 22px; border-bottom: 1px solid var(--border2);
-  position: sticky; top: var(--header-h); z-index: 52; background: var(--surface); }
-.wld-pane-actions { display: flex; align-items: center; gap: 6px; flex: 0 0 auto; margin-left: auto; flex-wrap: wrap; }
-.wld-pane-title { display: flex; align-items: center; gap: 8px; min-width: 0; overflow: hidden; font-family: inherit; font-size: inherit; font-weight: 600; line-height: 1.2; color: var(--text); background: none; border: none; padding: 0; text-align: left; cursor: default; }
-.wld-pane-title-label { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.wld-pane-title-chevron { flex-shrink: 0; display: none; color: var(--muted); }
 .wld-sync-hang { padding: 0 22px; }
 .wld-sync-sign { display: inline-flex; align-items: center; gap: 6px; max-width: 100%; margin-top: -3px;
   padding: 6px 12px; background: var(--surface); border: 1px solid var(--border); border-top: none; border-radius: 0 0 8px 8px;
@@ -1160,62 +1091,6 @@ body.picker-expanded #picker-backdrop { opacity: 1; }
 .wld-sync-dot--off { background: none; border: 1.5px solid var(--faint); box-sizing: border-box; }
 .wld-sync-dot--warn { background: var(--warn-fg); }
 .wld-sync-dot--working { background: var(--accent); }
-.wld-pane-rescore { border-bottom: 1px solid var(--border2); padding: 14px 22px; }
-.wld-pane-rescore-empty { font-size: 12px; color: var(--muted); padding: 6px 2px; }
-
-.lib-search-bar       { position: sticky; top: calc(var(--header-h) + var(--title-bar-h)); z-index: 51; background: var(--surface); }
-.wld-pane > .stats-bar { position: sticky; top: calc(var(--header-h) + var(--title-bar-h) + var(--search-bar-h)); z-index: 50; }
-
-/* Desktop: list on the left, pane on the right. `align-items: stretch`
-   (flex default) lets the surface2 list extend to match the pane's height
-   instead of stopping at its content. The inner .wld-list-sticky wrapper
-   is what actually sticks — pinning the outer .wld-list directly would
-   fail because its stretched height equals its containing block, leaving
-   no room for sticky to travel. The outer keeps its surface2 background
-   so the rail visual stays continuous behind the pinned content. */
-@media (min-width: 760px) {
-  .wld-body { display: flex; }
-  .wld-list {
-    width: 280px; flex-shrink: 0;
-    border-bottom: none;
-    border-right: 1px solid var(--border2);
-  }
-  .wld-list-sticky { position: sticky; top: var(--header-h); max-height: calc(100vh - var(--header-h)); overflow-y: auto; }
-  .wld-pane { flex: 1; min-width: 0; }
-  #wld-onboarding-mobile { display: none; }
-}
-
-/* Rail collapses into a dropdown under the title bar (the title is its trigger,
-   paneTitleHTML). Fixed, not absolute: it hangs off the sticky title bar, which
-   offers no positioned ancestor to anchor against. */
-@media (max-width: 759px) {
-  .wld-list {
-    position: fixed; left: 0; right: 0; top: calc(var(--header-h) + var(--title-bar-h)); z-index: 60;
-    max-height: calc(100dvh - var(--header-h) - var(--title-bar-h) - 12px); overflow-y: auto;
-    border-top: 1px solid var(--border2); box-shadow: 0 12px 24px rgba(0, 0, 0, 0.28);
-  }
-  #library-view:not(.wld-picker-open) .wld-list { display: none; }
-  #wld-onboarding { display: none; }
-  .wld-pane-title { cursor: pointer; }
-  .wld-pane-title-chevron { display: inline-block; transition: transform 0.15s; }
-  #library-view.wld-picker-open .wld-pane-title-chevron { transform: rotate(180deg); }
-}
-
-/* Onboarding banner at the top of the Library view's wordlist list */
-.wld-onboarding { margin: 8px 8px 4px; padding: 10px 11px; border-radius: 6px; font-size: 12px; position: relative; }
-html.light-mode .wld-onboarding { background: color-mix(in srgb, var(--accent) 7%, var(--bg)); border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--border)); }
-html.dark-mode .wld-onboarding { background: color-mix(in srgb, var(--accent) 15%, var(--bg)); border: 1px solid color-mix(in srgb, var(--accent) 40%, var(--border)); }
-.wld-onboarding p { margin: 0 22px 9px 0; line-height: 1.45; color: var(--text); }
-.wld-onboarding button { font-size: 11px; }
-.wld-onboarding button.primary { padding: 4px 9px; }
-.wld-onboarding .dialog-close-btn { font-size: 12px; top: 6px; right: 6px; padding: 1px 0px 1px 5px; }
-.wld-onboarding-actions { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
-.wld-onboarding .link-btn { font-size: 11px; }
-.wld-onboarding-dots { display: flex; justify-content: center; gap: 5px; margin-top: 8px; }
-.wld-onboarding-dots span { position: relative; width: 6px; height: 6px; border-radius: 50%; background: color-mix(in srgb, var(--accent) 25%, transparent); }
-.wld-onboarding-dots span.active { background: var(--accent); }
-.wld-onboarding-dots span.skipped { background: transparent; outline: 1px solid color-mix(in srgb, var(--accent) 30%, transparent); }
-.wld-onboarding-dots span.skipped::before { content: ''; position: absolute; top: 50%; left: -2px; right: -2px; height: 1px; background: color-mix(in srgb, var(--accent) 55%, transparent); transform: translateY(-50%) rotate(-45deg); }
 
 #discovery-banner { margin: 12px 16px; padding: 12px 14px; border-radius: 6px; font-size: 13px; position: relative; }
 html.light-mode #discovery-banner { background: color-mix(in srgb, var(--accent) 7%, var(--bg)); border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--border)); }
@@ -3782,7 +3657,6 @@ const WorkshopView = (() => {
     // saved position; reposition now that the bars have real dimensions.
     repositionAllHistogramRects();
   }
-  function hide() { el.hidden = true; }
   function isVisible() { return !el.hidden; }
 
   function onScoreRange(value) {
@@ -3819,7 +3693,7 @@ const WorkshopView = (() => {
   function restoreScoreRanges(map) { _scoreRanges = map; }
 
   return {
-    show, hide, isVisible,
+    show, isVisible,
     onScoreRange,
     setSort, applyURLState, restoreScoreRanges,
     get searchQuery()     { return ToolStack.getSearchBarRow().params.pattern || ''; },
@@ -7351,10 +7225,6 @@ function nextSortForColumn(ownedAxes, curKey, curDir) {
   return { key: ownedAxes[0], dir: 'asc' };
 }
 
-// Library entries sort by the same three axes over plain wlEntries; the
-// LibraryEntriesScroller owns its own comparison, so only the labels matter.
-const LIBRARY_SORT_AXES = { entry: { label: 'Entry' }, length: { label: 'Length' }, score: { label: 'Score' } };
-
 // Run synchronously on stack mutation and URL load: the sort tier follows
 // the stack, and settling it lazily in the async render let the URL builder
 // read a stale axis. A real cross-tier counterpart (Score ⇄ Min score) keeps
@@ -8228,266 +8098,6 @@ class WorkshopEntriesScroller extends BaseVirtualScroller {
     this._groupChromeWidth = 32 + rownumW + countW + anchorW + columnsW + 14 * flexChildren;
     this._groupMonoCh = monoCh;
     this._groupGlyphPx = measureAtomGlyphPx();
-  }
-}
-
-// Library column-width cache. Computed once across every source's data and
-// every rescore rule's effect, so the entry and score columns stay the same
-// width as the user navigates between wordlists. Invalidated whenever caches
-// bump (rescore rules, source order, imports, etc.).
-let _libraryColumnWidthsCache = null;
-let _libraryColumnWidthsCacheVersion = -1;
-
-function libraryEntryColumnWidths() {
-  const cv = cacheVersion$.peek();
-  if (_libraryColumnWidthsCache && _libraryColumnWidthsCacheVersion === cv) {
-    return _libraryColumnWidthsCache;
-  }
-  let maxEntryLen = 0;
-  let maxScoreChars = 0;
-  for (const wl of state.sources) {
-    const rules = wl.rescoreRules || [];
-    for (const wlE of wl.rawEntries) {
-      const displayLen = displayOf(wlE).length;
-      if (displayLen > maxEntryLen) maxEntryLen = displayLen;
-      const inLen = String(wlE.score).length;
-      let scoreChars = inLen;
-      if (rules.length) {
-        const s = rescoreEntry(wlE, rules);
-        if (s !== wlE.score) scoreChars = inLen + 3 + String(s).length;
-      }
-      if (scoreChars > maxScoreChars) maxScoreChars = scoreChars;
-    }
-  }
-  const merged = buildMergedWordlist().entries;
-  for (const wlE of merged) {
-    const displayLen = displayOf(wlE).length;
-    if (displayLen > maxEntryLen) maxEntryLen = displayLen;
-    const inLen = String(wlE.score).length;
-    if (inLen > maxScoreChars) maxScoreChars = inLen;
-  }
-  _libraryColumnWidthsCache = {
-    entryChars: Math.max(Math.min(maxEntryLen, ENTRY_SLOT_CAP), 4),
-    scoreChars: Math.max(maxScoreChars, 5),
-  };
-  _libraryColumnWidthsCacheVersion = cv;
-  return _libraryColumnWidthsCache;
-}
-
-// Library entries scroller — read-only counterpart to WorkshopEntriesScroller,
-// used in the Library view to show a wordlist's contents alongside its
-// rescore-rules editor. Renders monospace text-flavored rows with inline `→`
-// annotations rather than the Workshop's atom-grid layout, and has no click-
-// to-edit / popover / override-resolution machinery. Shares scrolling
-// mechanics via BaseVirtualScroller.
-class LibraryEntriesScroller extends BaseVirtualScroller {
-  constructor(host, opts = {}) {
-    super(host, 'lib-entries-rows');
-    this.wordlist = opts.wordlist ?? null;         // null = merged All view
-    this.sortKey = opts.sortKey ?? 'entry';
-    this.sortDir = opts.sortDir ?? 'asc';
-    this.query = opts.query ?? '';
-    this.wholeWord = !!opts.wholeWord;
-    this.scoreRange = opts.scoreRange ?? '';
-    this.allRows = [];
-    this.rows = [];
-    this._searchRanges = null;
-    // Row-rescore output cached across keystrokes — only the search query is
-    // changing as the user types, and rows don't depend on the query. Sorted
-    // view is similarly memoized so `.filter()` preserves order and the
-    // post-filter sort can be skipped on every keystroke.
-    this._baseRows = null;
-    this._sortedBaseRows = null;
-    this._sortedBaseRowsKey = null;
-    this._sortedBaseRowsDir = null;
-    this._applyFilterAndSort();
-  }
-
-  // wordlist = null => merged-all view. Otherwise the focused source wordlist.
-  setWordlist(wordlist) {
-    this.wordlist = wordlist;
-    this._invalidateRowsCache();
-    this._applyFilterAndSort();
-  }
-
-  // Live rescore preview as the user types in the rules editor — rules come
-  // straight from the DOM, not from the (uncommitted) wordlist. Cleared by
-  // the next renderPane, which rebuilds the scroller from committed rules.
-  setRescorePreview(rules) {
-    this._previewRules = rules;
-    this._invalidateRowsCache();
-    this._applyFilterAndSort();
-  }
-
-  setQuery(query, wholeWord) {
-    this.query = query || '';
-    this.wholeWord = !!wholeWord;
-    this._applyFilterAndSort();
-  }
-
-  setSort(key, dir) {
-    this.sortKey = key;
-    this.sortDir = dir;
-    this._applyFilterAndSort();
-  }
-
-  setScoreRange(range) {
-    this.scoreRange = range || '';
-    this._applyFilterAndSort();
-  }
-
-  _invalidateRowsCache() {
-    this._baseRows = null;
-    this._sortedBaseRows = null;
-  }
-
-  _buildRows() {
-    const wl = this.wordlist;
-    if (!wl) {
-      const { entries } = buildMergedWordlist();
-      return entries.map(e => ({
-        wlEntry: e,
-        norm: e.norm,
-        display: displayOf(e),
-        len: e.norm.length,
-        inputScore: e.score,
-        outputScore: e.score,
-        rescored: false,
-        comment: e.comment || '',
-      }));
-    }
-    const rules = this._previewRules ?? wl.rescoreRules ?? [];
-    const annotate = rules.length > 0;
-    return wl.rawEntries.map(wlE => {
-      let outputScore = wlE.score;
-      let rescored = false;
-      if (annotate) {
-        const s = rescoreEntry(wlE, rules);
-        if (s !== wlE.score) { outputScore = s; rescored = true; }
-      }
-      return {
-        wlEntry: wlE,
-        norm: wlE.norm,
-        display: displayOf(wlE),
-        len: wlE.norm.length,
-        inputScore: wlE.score,
-        outputScore,
-        rescored,
-        comment: wlE.comment || '',
-      };
-    });
-  }
-
-  _getSortedBaseRows() {
-    if (this._sortedBaseRows
-        && this._sortedBaseRowsKey === this.sortKey
-        && this._sortedBaseRowsDir === this.sortDir) {
-      return this._sortedBaseRows;
-    }
-    if (!this._baseRows) {
-      this._baseRows = this._buildRows();
-      this.allRows = this._baseRows;
-    }
-    const dir = this.sortDir === 'asc' ? 1 : -1;
-    const key = this.sortKey;
-    const sorted = [...this._baseRows].sort((a, b) => {
-      if (key === 'score') {
-        return dir * (a.outputScore - b.outputScore);
-      }
-      const av = key === 'length' ? a.len : a.norm;
-      const bv = key === 'length' ? b.len : b.norm;
-      if (typeof av === 'number' && typeof bv === 'number') return dir * (av - bv);
-      return dir * String(av).localeCompare(String(bv));
-    });
-    this._sortedBaseRows = sorted;
-    this._sortedBaseRowsKey = this.sortKey;
-    this._sortedBaseRowsDir = this.sortDir;
-    return sorted;
-  }
-
-  _applyFilterAndSort() {
-    let source = this._getSortedBaseRows();
-
-    const intervals = this.scoreRange ? parseRange(this.scoreRange) : null;
-    if (intervals) {
-      source = source.filter(r => matchesRange(r.outputScore, intervals));
-    }
-
-    const q = this.query.trim();
-    let rows;
-    if (q) {
-      const matcher = buildSearchPattern(q, this.wholeWord);
-      this._searchRanges = matcher ? matcher.searchRanges : null;
-      rows = matcher ? source.filter(r => matcher.test(r.wlEntry)) : source;
-    } else {
-      this._searchRanges = null;
-      rows = source;
-    }
-
-    this.rows = rows;
-    this._computeSlotWidths();
-    this._render();
-  }
-
-  // Column widths come from the global cache (computed across every source +
-  // merged), so they stay stable as the user navigates between wordlists or
-  // flips Rescored/Original. The score slot is sized for the widest variant —
-  // `input → output` — which means Original mode has some slack on the right;
-  // that's the cost of stability.
-  _computeSlotWidths() {
-    const { entryChars, scoreChars } = libraryEntryColumnWidths();
-    const ch = measureMonoChPx();
-    this.host.style.setProperty('--lib-entry-w', `${entryChars * ch}px`);
-    this.host.style.setProperty('--lib-score-w', `${scoreChars * ch}px`);
-  }
-
-  _render() {
-    const n = this.rows.length;
-    this.sizer.style.height = this._sizerHeightFor(n * ROW_HEIGHT) + 'px';
-
-    // Empty-state placeholder when a search has filtered everything out.
-    let emptyEl = this.host.querySelector('.lib-entries-empty');
-    if (n === 0 && this.allRows.length > 0) {
-      if (!emptyEl) {
-        emptyEl = document.createElement('div');
-        emptyEl.className = 'lib-entries-empty';
-        emptyEl.textContent = 'No entries match the search.';
-        this.host.appendChild(emptyEl);
-      }
-    } else if (emptyEl) {
-      emptyEl.remove();
-    }
-
-    const { start, end } = this._visibleRange(n);
-    this._clearSizer();
-
-    const frag = document.createDocumentFragment();
-    for (let i = start; i < end; i++) {
-      const r = this.rows[i];
-      const ranges = this._searchRanges ? projectRangesToDisplay(this._searchRanges(r.wlEntry), r.wlEntry) : [];
-      const entryHtml = renderHighlightedText(r.display, ranges);
-
-      const showArrow = r.rescored;
-      const scoreHTML = showArrow
-        ? `${r.inputScore}<span class="lib-atom-arrow">→</span><span class="lib-atom-out">${r.outputScore}</span>`
-        : String(r.inputScore);
-
-      const row = document.createElement('div');
-      row.className = 'lib-entry-row';
-      row.style.top = (i * ROW_HEIGHT) + 'px';
-      if (r.display.length > ENTRY_SLOT_CAP) row.title = r.display;
-      row.innerHTML =
-        `<span class="lib-atom-entry">${entryHtml}</span>` +
-        `<span class="lib-atom-score">${scoreHTML}</span>` +
-        `<span class="lib-atom-comment"${r.comment ? ` title="${esc(r.comment)}"` : ''}>${esc(r.comment)}</span>`;
-      frag.appendChild(row);
-    }
-    this.sizer.appendChild(frag);
-  }
-
-  destroy() {
-    super.destroy();
-    this.host.innerHTML = '';
   }
 }
 
@@ -9477,15 +9087,6 @@ function publishWorkshopBarHeights() {
 }
 const _workshopStickyObserver = new ResizeObserver(publishWorkshopBarHeights);
 
-function publishLibraryBarHeights() {
-  const titleBar = document.querySelector('.wld-title-bar');
-  if (titleBar) document.documentElement.style.setProperty('--title-bar-h', titleBar.offsetHeight + 'px');
-  const bar = document.querySelector('.lib-search-bar');
-  if (bar) document.documentElement.style.setProperty('--search-bar-h', bar.offsetHeight + 'px');
-  const stats = document.querySelector('.wld-pane > .stats-bar');
-  if (stats) document.documentElement.style.setProperty('--stats-bar-h', stats.offsetHeight + 'px');
-}
-
 function refreshStatsBarOverflow() {
   for (const bar of document.querySelectorAll('.stats-bar')) {
     bar.classList.remove('stats-narrow', 'stats-no-hist');
@@ -9505,7 +9106,7 @@ function refreshStatsBarOverflow() {
     }
   }
 }
-for (const id of ['detail-panel', 'wld-pane']) {
+for (const id of ['detail-panel']) {
   const parent = document.getElementById(id);
   if (!parent) continue;
   new ResizeObserver(refreshStatsBarOverflow).observe(parent);
