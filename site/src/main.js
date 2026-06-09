@@ -11,7 +11,8 @@ const MERGED_ID    = '__merged__';
 const MERGED_NAME  = 'All Wordlists';
 const scopeKey = scope => scope === MERGED_ID ? MERGED_ID : scope.dbKey;
 const EDITS_ICON   = { type: 'emoji', value: '✏️' };
-const MERGED_ICON  = buildEmojiIconHTML('⭐');
+let _mergedIcon = null;
+function getMergedIcon() { return _mergedIcon ??= buildEmojiIconHTML('⭐'); }
 
 const INITIALS_PALETTE = [
   '#5C6BC0', '#1E88E5', '#00ACC1', '#00897B',
@@ -235,17 +236,19 @@ function buildBadgeHTML(severity, opts = {}) {
   return `<span class="badge" data-severity="${severity}"${titleAttr}></span>`;
 }
 
-const BROWSER = (() => {
+let _browser = null;
+function getBrowser() {
+  if (_browser) return _browser;
   const ua = navigator.userAgent;
   const brands = navigator.userAgentData?.brands?.map(b => b.brand).join(' ') || '';
-  if (/Firefox\//.test(ua))                                return { id: 'firefox', icon: 'icon-browser-firefox', name: 'Firefox' };
-  if (/Edg\//.test(ua))                                    return { id: 'edge',    icon: 'icon-browser-edge',    name: 'Edge' };
-  if (/Safari\//.test(ua) && !/Chrom(e|ium)\//.test(ua))   return { id: 'safari',  icon: 'icon-browser-safari',  name: 'Safari' };
+  if (/Firefox\//.test(ua))                                return _browser = { id: 'firefox', icon: 'icon-browser-firefox', name: 'Firefox' };
+  if (/Edg\//.test(ua))                                    return _browser = { id: 'edge',    icon: 'icon-browser-edge',    name: 'Edge' };
+  if (/Safari\//.test(ua) && !/Chrom(e|ium)\//.test(ua))   return _browser = { id: 'safari',  icon: 'icon-browser-safari',  name: 'Safari' };
   const fork = /\b(Brave|OPR|Vivaldi)\b/.test(ua) || /\b(Brave|Opera|Vivaldi|Arc)\b/.test(brands);
   if (!fork && /Chrome\//.test(ua) && (!brands || /Google Chrome/.test(brands)))
-    return { id: 'chrome', icon: 'icon-browser-chrome', name: 'Chrome' };
-  return { id: 'other', icon: 'icon-globe', name: 'your browser' };
-})();
+    return _browser = { id: 'chrome', icon: 'icon-browser-chrome', name: 'Chrome' };
+  return _browser = { id: 'other', icon: 'icon-globe', name: 'your browser' };
+}
 
 const isMobile = () =>
   navigator.userAgentData?.mobile
@@ -340,7 +343,7 @@ function buildMergedCardHTML(selected) {
   if (selected) cls.push('selected');
   return `<div class="${cls.join(' ')}" data-merged tabindex="0" role="option">
     <span class="drag-handle" aria-hidden="true">≡</span>
-    ${MERGED_ICON}
+    ${getMergedIcon()}
     <div class="card-info">
       <div class="card-name-row"><div class="card-name">${MERGED_NAME}</div></div>
       <div class="card-meta">${esc(meta)}</div>
@@ -384,17 +387,19 @@ function syncClearButton(input) {
   const btn = input.closest('.clearable-input')?.querySelector('.clear-btn');
   if (btn) btn.hidden = !input.value;
 }
-document.addEventListener('input', e => {
-  if (e.target.closest('.clearable-input')) syncClearButton(e.target);
-});
-document.addEventListener('click', e => {
-  const btn = e.target.closest('.clearable-input .clear-btn');
-  if (!btn) return;
-  const input = btn.closest('.clearable-input').querySelector('input');
-  input.value = '';
-  input.focus();
-  input.dispatchEvent(new Event('input', { bubbles: true }));
-});
+function mountClearableInputs() {
+  document.addEventListener('input', e => {
+    if (e.target.closest('.clearable-input')) syncClearButton(e.target);
+  });
+  document.addEventListener('click', e => {
+    const btn = e.target.closest('.clearable-input .clear-btn');
+    if (!btn) return;
+    const input = btn.closest('.clearable-input').querySelector('input');
+    input.value = '';
+    input.focus();
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+}
 
 function buildTextInputHTML(param, value, toolKey, wiring) {
   const helpAttr = param.help ? ` data-help="${toolKey}/${param.key}"` : '';
@@ -921,7 +926,7 @@ function makeReorderable(container, { handleSelector, itemSelector, onReorder })
 
 function buildWordlistNameHTML(wordlist, { bold = true } = {}) {
   const merged = wordlist === MERGED_ID;
-  const icon = merged ? MERGED_ICON : getWordlistIcon(wordlist);
+  const icon = merged ? getMergedIcon() : getWordlistIcon(wordlist);
   const text = esc(merged ? MERGED_NAME : wordlist.name);
   const name = bold ? `<strong>${text}</strong>` : text;
   // The trailing space inside the span is load-bearing: combined with `white-space: nowrap` on
@@ -972,18 +977,20 @@ const Collapsible = (() => {
 
   // Caller wires persistence (localStorage, signal, etc.) by listening for
   // `collapsible:toggle` on the wrapper or any ancestor.
-  document.addEventListener('click', e => {
-    const toggle = e.target.closest('.collapsible-toggle');
-    if (!toggle) return;
-    const wrapper = toggle.closest('.collapsible');
-    if (!wrapper) return;
-    const collapsed = !wrapper.classList.contains('collapsed');
-    wrapper.classList.toggle('collapsed', collapsed);
-    toggle.setAttribute('aria-expanded', String(!collapsed));
-    wrapper.dispatchEvent(new CustomEvent('collapsible:toggle', { detail: { collapsed }, bubbles: true }));
-  });
+  function mount() {
+    document.addEventListener('click', e => {
+      const toggle = e.target.closest('.collapsible-toggle');
+      if (!toggle) return;
+      const wrapper = toggle.closest('.collapsible');
+      if (!wrapper) return;
+      const collapsed = !wrapper.classList.contains('collapsed');
+      wrapper.classList.toggle('collapsed', collapsed);
+      toggle.setAttribute('aria-expanded', String(!collapsed));
+      wrapper.dispatchEvent(new CustomEvent('collapsible:toggle', { detail: { collapsed }, bubbles: true }));
+    });
+  }
 
-  return { buildHTML };
+  return { buildHTML, mount };
 })();
 
 // ─── Router ───────────────────────────────────────────────────────────────────
@@ -1900,9 +1907,9 @@ async function activateSyncTarget(key) {
 }
 
 const showEditsConflict = (() => {
-  const { el, body } = createDialog('edits-conflict-dialog', { labelledby: 'edits-conflict-title' });
+  let el, body;
   const side = e => e ? `${e.score}${e.comment ? ' (' + esc(e.comment) + ')' : ''}` : '(removed)';
-  return function (filename, conflicts) {
+  const show = function (filename, conflicts) {
     return new Promise(resolve => {
       const rows = conflicts.map(c =>
         `<div class="merge-entry-row"><b>${esc(c.device?.display ?? c.file?.display ?? c.norm)}</b> this device: ${side(c.device)} | file: ${side(c.file)}</div>`).join('');
@@ -1920,6 +1927,8 @@ const showEditsConflict = (() => {
       showDialog(el, () => resolve(el.returnValue === 'file' ? 'file' : 'device'));
     });
   };
+  show.mount = () => { ({ el, body } = createDialog('edits-conflict-dialog', { labelledby: 'edits-conflict-title' })); };
+  return show;
 })();
 
 function persistMeta() {
@@ -2014,75 +2023,79 @@ function createDialog(id, { labelledby, label, dismissOnBackdrop = true } = {}) 
 // ─── Settings dialog ──────────────────────────────────────────────────────────
 
 const SettingsDialog = (() => {
-  const { el, body } = createDialog('settings-dialog', { labelledby: 'settings-dialog-title' });
-  body.innerHTML = `
-    <button class="dialog-close-btn" aria-label="Close">✕</button>
-    <h2 id="settings-dialog-title">Settings</h2>
-    <div class="dialog-row">
-      <span class="dialog-row-label">Dark mode</span>
-      <div id="dark-mode-seg"></div>
-    </div>
-    <div class="dialog-row">
-      <div>
-        <div class="dialog-row-label">Auto-update wordlists</div>
-        <div class="dialog-row-sub">Update wordlists without asking</div>
+  let el, body, ofCtrls, resetSub;
+
+  function mount() {
+    ({ el, body } = createDialog('settings-dialog', { labelledby: 'settings-dialog-title' }));
+    body.innerHTML = `
+      <button class="dialog-close-btn" aria-label="Close">✕</button>
+      <h2 id="settings-dialog-title">Settings</h2>
+      <div class="dialog-row">
+        <span class="dialog-row-label">Dark mode</span>
+        <div id="dark-mode-seg"></div>
       </div>
-      <div id="auto-update-seg"></div>
-    </div>
-    <div class="of-section">
-      <div class="dialog-row-label">Output format</div>
-      <div class="dialog-row-sub">How entries are written to files and downloads.</div>
-      <div id="output-format-ctrls" class="of-ctrls"></div>
-    </div>
-    <div class="dialog-row">
-      <div>
-        <div class="dialog-row-label">Reset browser data</div>
-        <div class="dialog-row-sub" id="reset-row-sub"></div>
+      <div class="dialog-row">
+        <div>
+          <div class="dialog-row-label">Auto-update wordlists</div>
+          <div class="dialog-row-sub">Update wordlists without asking</div>
+        </div>
+        <div id="auto-update-seg"></div>
       </div>
-      <button id="btn-reset" class="danger" title="Reset browser data"><svg class="icon-trash"><use href="#icon-trash"/></svg> Reset</button>
-    </div>`;
+      <div class="of-section">
+        <div class="dialog-row-label">Output format</div>
+        <div class="dialog-row-sub">How entries are written to files and downloads.</div>
+        <div id="output-format-ctrls" class="of-ctrls"></div>
+      </div>
+      <div class="dialog-row">
+        <div>
+          <div class="dialog-row-label">Reset browser data</div>
+          <div class="dialog-row-sub" id="reset-row-sub"></div>
+        </div>
+        <button id="btn-reset" class="danger" title="Reset browser data"><svg class="icon-trash"><use href="#icon-trash"/></svg> Reset</button>
+      </div>`;
 
-  const seg  = el.querySelector('#dark-mode-seg');
+    const seg  = el.querySelector('#dark-mode-seg');
 
-  const darkSaved = lsLoad('darkMode') || 'auto';
-  applyDarkMode(darkSaved);
-  seg.innerHTML = buildSegCtrlHTML(null, [
-    { value: 'auto',  label: 'Auto' },
-    { value: 'light', label: '☀ Light' },
-    { value: 'dark',  label: '☽ Dark' },
-  ], darkSaved);
-  seg.querySelectorAll('.seg-btn').forEach(btn => {
-    btn.onclick = () => {
-      const val = btn.dataset.val;
-      lsSave('darkMode', val);
-      applyDarkMode(val);
-      seg.querySelectorAll('.seg-btn').forEach(b => b.classList.toggle('active', b === btn));
+    const darkSaved = lsLoad('darkMode') || 'auto';
+    applyDarkMode(darkSaved);
+    seg.innerHTML = buildSegCtrlHTML(null, [
+      { value: 'auto',  label: 'Auto' },
+      { value: 'light', label: '☀ Light' },
+      { value: 'dark',  label: '☽ Dark' },
+    ], darkSaved);
+    seg.querySelectorAll('.seg-btn').forEach(btn => {
+      btn.onclick = () => {
+        const val = btn.dataset.val;
+        lsSave('darkMode', val);
+        applyDarkMode(val);
+        seg.querySelectorAll('.seg-btn').forEach(b => b.classList.toggle('active', b === btn));
+      };
+    });
+    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+      if ((lsLoad('darkMode') || 'auto') === 'auto') applyDarkMode('auto');
+    });
+
+    const autoSeg = el.querySelector('#auto-update-seg');
+    autoSeg.innerHTML = buildSegCtrlHTML(null, [
+      { value: 'off', label: 'Off' },
+      { value: 'on',  label: 'On' },
+    ], getAutoUpdate() ? 'on' : 'off');
+    autoSeg.querySelectorAll('.seg-btn').forEach(btn => {
+      btn.onclick = () => {
+        autoSeg.querySelectorAll('.seg-btn').forEach(b => b.classList.toggle('active', b === btn));
+        lsSave('autoUpdate', btn.dataset.val);
+        if (btn.dataset.val === 'on') checkForUpdates();
+      };
+    });
+
+    ofCtrls  = el.querySelector('#output-format-ctrls');
+    resetSub = el.querySelector('#reset-row-sub');
+
+    el.querySelector('#btn-reset').onclick = async () => {
+      if (!await showConfirm('Reset all wordlists and settings? This cannot be undone.', { confirmText: 'Reset' })) return;
+      await resetAllDataAndReload();
     };
-  });
-  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
-    if ((lsLoad('darkMode') || 'auto') === 'auto') applyDarkMode('auto');
-  });
-
-  const autoSeg = el.querySelector('#auto-update-seg');
-  autoSeg.innerHTML = buildSegCtrlHTML(null, [
-    { value: 'off', label: 'Off' },
-    { value: 'on',  label: 'On' },
-  ], getAutoUpdate() ? 'on' : 'off');
-  autoSeg.querySelectorAll('.seg-btn').forEach(btn => {
-    btn.onclick = () => {
-      autoSeg.querySelectorAll('.seg-btn').forEach(b => b.classList.toggle('active', b === btn));
-      lsSave('autoUpdate', btn.dataset.val);
-      if (btn.dataset.val === 'on') checkForUpdates();
-    };
-  });
-
-  const ofCtrls  = el.querySelector('#output-format-ctrls');
-  const resetSub = el.querySelector('#reset-row-sub');
-
-  el.querySelector('#btn-reset').onclick = async () => {
-    if (!await showConfirm('Reset all wordlists and settings? This cannot be undone.', { confirmText: 'Reset' })) return;
-    await resetAllDataAndReload();
-  };
+  }
 
   let ofRegenTimer = null;
   function flushRegen() {
@@ -2103,21 +2116,25 @@ const SettingsDialog = (() => {
     showDialog(el, flushRegen);
   }
 
-  return { open };
+  return { mount, open };
 })();
 
 // ─── Welcome dialog ───────────────────────────────────────────────────────────
 
 const WelcomeDialog = (() => {
-  const { el, body } = createDialog('welcome-dialog', { labelledby: 'welcome-title' });
-  // Without this the All Wordlists count freezes at its open-time snapshot (~0 on a cold boot, before fetches populate the wordlists).
-  effect(() => {
-    sources$.get();
-    cacheVersion$.get();
-    if (!el.open) return;
-    const count = el.querySelector('.welcome-merge-count');
-    if (count) count.textContent = pluralize(buildMergedWordlist().entries.length, 'entry', 'entries');
-  });
+  let el, body;
+
+  function mount() {
+    ({ el, body } = createDialog('welcome-dialog', { labelledby: 'welcome-title' }));
+    // Without this the All Wordlists count freezes at its open-time snapshot (~0 on a cold boot, before fetches populate the wordlists).
+    effect(() => {
+      sources$.get();
+      cacheVersion$.get();
+      if (!el.open) return;
+      const count = el.querySelector('.welcome-merge-count');
+      if (count) count.textContent = pluralize(buildMergedWordlist().entries.length, 'entry', 'entries');
+    });
+  }
 
   function render() {
     const toolsShot = FEATURED_TOOLS
@@ -2142,7 +2159,7 @@ const WelcomeDialog = (() => {
       <svg class="welcome-merge-arrow" width="16" height="10" viewBox="0 0 16 10" aria-hidden="true"><path d="M2 2l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
       <div class="welcome-merge-all">
         <div class="welcome-merge-all-head">
-          ${MERGED_ICON}
+          ${getMergedIcon()}
           <span class="welcome-merge-all-name">${MERGED_NAME}</span>
         </div>
         <span class="welcome-merge-count">${pluralize(buildMergedWordlist().entries.length, 'entry', 'entries')}</span>
@@ -2197,7 +2214,7 @@ const WelcomeDialog = (() => {
     showDialog(el, () => lsSave('welcomeSeen', '1'));
   }
 
-  return { open };
+  return { mount, open };
 })();
 
 // ─── Boot reconnect splash ────────────────────────────────────────────────────
@@ -2307,8 +2324,6 @@ const ReconnectSplash = (() => {
 
 // ─── App view ─────────────────────────────────────────────────────────────────
 const AppView = (() => {
-  const el = document.getElementById('app');
-
   // View-private state. Read externally via the getters in the returned
   // object; written either through the handlers below or through
   // `applyURLState` (Router) / `restoreScoreRanges` (boot). The sort state
@@ -2378,40 +2393,11 @@ const AppView = (() => {
 // of here on purpose — it lives in the manage panel.
 
 const WordlistSelector = (() => {
-  const bar = document.createElement('div');
-  bar.id = 'wordlist-bar';
-  bar.innerHTML = `
-    <div class="wls-bar-top">
-      <div class="wls">
-        <button type="button" class="wls-trigger" aria-haspopup="listbox" aria-expanded="false">
-          <span class="wls-trigger-icon"></span>
-          <span class="wls-trigger-label"></span>
-          <span class="wls-trigger-badge"></span>
-          <svg class="wls-trigger-chevron" width="10" height="6" aria-hidden="true"><use href="#icon-arrow"/></svg>
-        </button>
-        <div class="wls-menu" role="listbox" tabindex="-1"></div>
-      </div>
-      <div class="wls-actions">
-        <span class="wls-dl-slot"></span>
-        <button type="button" class="rescore-toggle" aria-expanded="false" aria-controls="rescore-editor">
-          <svg class="rescore-toggle-icon" width="18" height="18" aria-hidden="true"><use href="#icon-adjustments"/></svg>
-        </button>
-        <span class="wls-kebab-slot"></span>
-      </div>
-    </div>
-    <div class="wls-bar-meta"></div>
-    <div id="rescore-editor" hidden><div class="rescore-editor-inner"></div></div>`;
-  document.getElementById('app').prepend(bar);
+  let bar, root, trigger, menu, actions, metaRow, dlSlot, kebabSlot;
+  let editorToggle, editor, editorInner;
+  let editorOpen = false;
 
-  const root    = bar.querySelector('.wls');
-  const trigger = bar.querySelector('.wls-trigger');
-  const menu    = bar.querySelector('.wls-menu');
-  const actions = bar.querySelector('.wls-actions');
-  const metaRow = bar.querySelector('.wls-bar-meta');
-  const dlSlot    = bar.querySelector('.wls-dl-slot');
-  const kebabSlot = bar.querySelector('.wls-kebab-slot');
-
-  function scopeIcon(scope)  { return scope === MERGED_ID ? MERGED_ICON : getWordlistIcon(scope); }
+  function scopeIcon(scope)  { return scope === MERGED_ID ? getMergedIcon() : getWordlistIcon(scope); }
   function scopeLabel(scope) { return scope === MERGED_ID ? MERGED_NAME : scope.name; }
 
   function renderTrigger() {
@@ -2493,7 +2479,7 @@ const WordlistSelector = (() => {
   function optionHTML(scope, contribMap) {
     const selected = scope === state.selected;
     if (scope === MERGED_ID) {
-      return buildWordlistCardHTML(MERGED_ICON, MERGED_NAME,
+      return buildWordlistCardHTML(getMergedIcon(), MERGED_NAME,
         pluralize(buildMergedWordlist().entries.length, 'entry', 'entries'),
         { draggable: false, toggle: false, selected });
     }
@@ -2538,29 +2524,6 @@ const WordlistSelector = (() => {
     document.removeEventListener('click', onOutsideClick);
   }
   function onOutsideClick(e) { if (!e.target.closest('.wls')) close(); }
-
-  trigger.addEventListener('click', () => root.classList.contains('open') ? close() : open());
-  menu.addEventListener('click', e => {
-    if (e.target.closest('.wls-configure-footer')) {
-      close();
-      ManagePanel.open();
-      return;
-    }
-    const opt = e.target.closest('.wordlist-card');
-    if (!opt) return;
-    close();
-    setScope(opt._scope);
-  });
-  document.addEventListener('keydown', e => { if (e.key === 'Escape') close(); });
-
-  // The editor must stay inside #wordlist-bar: the sticky
-  // ResizeObserver watches the bar and cascades the table's offset from its
-  // height, so an editor mounted elsewhere would expand under the pinned
-  // headers instead of pushing them down.
-  const editorToggle = bar.querySelector('.rescore-toggle');
-  const editor       = bar.querySelector('#rescore-editor');
-  const editorInner  = editor.querySelector('.rescore-editor-inner');
-  let editorOpen = false;
 
   function editorLabel() {
     return state.selected === MERGED_ID ? 'Scoring tiers' : 'Rescoring rules';
@@ -2610,7 +2573,6 @@ const WordlistSelector = (() => {
       finish();
     });
   }
-  editorToggle.addEventListener('click', () => setEditorOpen(!editorOpen));
 
   function refresh() {
     renderTrigger();
@@ -2624,9 +2586,68 @@ const WordlistSelector = (() => {
     if (root.classList.contains('open')) renderMenu();
   }
 
-  renderTrigger();
-  syncToggleLabel();
-  return { refresh, refreshEditor, refreshSyncSign, refreshMeta, isEditorOpen: () => editorOpen };
+  function mount() {
+    bar = document.createElement('div');
+    bar.id = 'wordlist-bar';
+    bar.innerHTML = `
+      <div class="wls-bar-top">
+        <div class="wls">
+          <button type="button" class="wls-trigger" aria-haspopup="listbox" aria-expanded="false">
+            <span class="wls-trigger-icon"></span>
+            <span class="wls-trigger-label"></span>
+            <span class="wls-trigger-badge"></span>
+            <svg class="wls-trigger-chevron" width="10" height="6" aria-hidden="true"><use href="#icon-arrow"/></svg>
+          </button>
+          <div class="wls-menu" role="listbox" tabindex="-1"></div>
+        </div>
+        <div class="wls-actions">
+          <span class="wls-dl-slot"></span>
+          <button type="button" class="rescore-toggle" aria-expanded="false" aria-controls="rescore-editor">
+            <svg class="rescore-toggle-icon" width="18" height="18" aria-hidden="true"><use href="#icon-adjustments"/></svg>
+          </button>
+          <span class="wls-kebab-slot"></span>
+        </div>
+      </div>
+      <div class="wls-bar-meta"></div>
+      <div id="rescore-editor" hidden><div class="rescore-editor-inner"></div></div>`;
+    document.getElementById('app').prepend(bar);
+
+    root    = bar.querySelector('.wls');
+    trigger = bar.querySelector('.wls-trigger');
+    menu    = bar.querySelector('.wls-menu');
+    actions = bar.querySelector('.wls-actions');
+    metaRow = bar.querySelector('.wls-bar-meta');
+    dlSlot    = bar.querySelector('.wls-dl-slot');
+    kebabSlot = bar.querySelector('.wls-kebab-slot');
+
+    // The editor must stay inside #wordlist-bar: the sticky
+    // ResizeObserver watches the bar and cascades the table's offset from its
+    // height, so an editor mounted elsewhere would expand under the pinned
+    // headers instead of pushing them down.
+    editorToggle = bar.querySelector('.rescore-toggle');
+    editor       = bar.querySelector('#rescore-editor');
+    editorInner  = editor.querySelector('.rescore-editor-inner');
+
+    trigger.addEventListener('click', () => root.classList.contains('open') ? close() : open());
+    menu.addEventListener('click', e => {
+      if (e.target.closest('.wls-configure-footer')) {
+        close();
+        ManagePanel.open();
+        return;
+      }
+      const opt = e.target.closest('.wordlist-card');
+      if (!opt) return;
+      close();
+      setScope(opt._scope);
+    });
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') close(); });
+    editorToggle.addEventListener('click', () => setEditorOpen(!editorOpen));
+
+    renderTrigger();
+    syncToggleLabel();
+  }
+
+  return { mount, refresh, refreshEditor, refreshSyncSign, refreshMeta, isEditorOpen: () => editorOpen };
 })();
 
 // ─── Discovery banner ───────────────────────────────────────────────────────────
@@ -2635,10 +2656,7 @@ const WordlistSelector = (() => {
 // fixed-row-height container would corrupt row layout, and a sticky one would
 // permanently consume vertical space for a one-time dismissable notice.
 const DiscoveryBanner = (() => {
-  const el = document.createElement('div');
-  el.id = 'discovery-banner';
-  el.hidden = true;
-  document.getElementById('detail-panel').before(el);
+  let el;
 
   const BANNERS = [
     {
@@ -2674,42 +2692,34 @@ const DiscoveryBanner = (() => {
     el.hidden = false;
   }
 
-  el.addEventListener('click', e => {
-    if (e.target.closest('.discovery-banner-close')) {
-      const key = el.dataset.banner;
-      if (key) lsSave(key, '1');
-      el.hidden = true;
-      el.innerHTML = '';
-      el.dataset.banner = '';
-      return;
-    }
-    if (e.target.closest('.discovery-banner-import')) {
-      WordlistActions.action('import');
-    }
-  });
+  function mount() {
+    el = document.createElement('div');
+    el.id = 'discovery-banner';
+    el.hidden = true;
+    document.getElementById('detail-panel').before(el);
 
-  return { refresh };
+    el.addEventListener('click', e => {
+      if (e.target.closest('.discovery-banner-close')) {
+        const key = el.dataset.banner;
+        if (key) lsSave(key, '1');
+        el.hidden = true;
+        el.innerHTML = '';
+        el.dataset.banner = '';
+        return;
+      }
+      if (e.target.closest('.discovery-banner-import')) {
+        WordlistActions.action('import');
+      }
+    });
+  }
+
+  return { mount, refresh };
 })();
 
 // ─── Manage wordlists panel ─────────────────────────────────────────────────────
 
 const ManagePanel = (() => {
-  const { el, body } = createDialog('manage-dialog', { labelledby: 'manage-dialog-title', dismissOnBackdrop: false });
-  body.innerHTML = `
-    <button type="button" class="manage-close-btn" aria-label="Close">✕</button>
-    <h2 id="manage-dialog-title">Manage wordlists</h2>
-    <div class="manage-list"></div>
-    <button type="button" class="manage-add-row"><span class="add-wordlist-icon">＋</span>Add wordlist</button>
-    <div class="dialog-footer">
-      <button type="button" class="manage-cancel-btn dialog-cancel-btn">Cancel</button>
-      <button type="button" class="manage-apply-btn primary">Apply</button>
-    </div>`;
-
-  const listEl   = el.querySelector('.manage-list');
-  const closeBtn = el.querySelector('.manage-close-btn');
-  const applyBtn = el.querySelector('.manage-apply-btn');
-  const addRow   = el.querySelector('.manage-add-row');
-
+  let el, listEl, closeBtn, applyBtn, addRow;
   let shadow = null;
 
   function rowHTML(wl) {
@@ -2745,33 +2755,6 @@ const ManagePanel = (() => {
     return shadow.order.some(wl => (shadow.enabled.get(wl) ?? wl.enabled) !== wl.enabled);
   }
 
-  listEl.addEventListener('change', e => {
-    const input = e.target.closest('.toggle input[type="checkbox"]');
-    if (!input) return;
-    const card = input.closest('.wordlist-card');
-    // Must write the shadow map, never wl.enabled: touching wl.enabled here would
-    // silently mutate canonical state and rebuild the merge mid-staging, defeating
-    // the Apply gate while looking identical on screen.
-    shadow.enabled.set(card._wordlist, input.checked);
-    card.classList.toggle('disabled', !input.checked);
-  });
-
-  // Stage into shadow.order, never reorderSources: that canonical path would
-  // rebuild the merge mid-staging and defeat the Apply gate, looking identical
-  // on screen — the same trap as the enable toggle above.
-  makeReorderable(listEl, {
-    handleSelector: '.drag-handle:not([aria-hidden])',
-    itemSelector:   '.wordlist-card',
-    onReorder: (fromEl, beforeEl) => {
-      const from = shadow.order.indexOf(fromEl._wordlist);
-      let to = beforeEl ? shadow.order.indexOf(beforeEl._wordlist) : shadow.order.length;
-      if (to > from) to--;
-      const [item] = shadow.order.splice(from, 1);
-      shadow.order.splice(to, 0, item);
-      render();
-    },
-  });
-
   function apply() {
     if (isDirty()) {
       batchUpdate(() => {
@@ -2784,20 +2767,66 @@ const ManagePanel = (() => {
     el.close();
   }
 
-  applyBtn.addEventListener('click', apply);
-  closeBtn.addEventListener('click', async () => {
-    if (isDirty() && !await showConfirm('Discard changes?', { confirmText: 'Discard' })) return;
-    el.close();
-  });
+  function mount() {
+    let body;
+    ({ el, body } = createDialog('manage-dialog', { labelledby: 'manage-dialog-title', dismissOnBackdrop: false }));
+    body.innerHTML = `
+      <button type="button" class="manage-close-btn" aria-label="Close">✕</button>
+      <h2 id="manage-dialog-title">Manage wordlists</h2>
+      <div class="manage-list"></div>
+      <button type="button" class="manage-add-row"><span class="add-wordlist-icon">＋</span>Add wordlist</button>
+      <div class="dialog-footer">
+        <button type="button" class="manage-cancel-btn dialog-cancel-btn">Cancel</button>
+        <button type="button" class="manage-apply-btn primary">Apply</button>
+      </div>`;
 
-  addRow.addEventListener('click', () => ConfigureWordlistDialog.openAdd(absorb));
+    listEl   = el.querySelector('.manage-list');
+    closeBtn = el.querySelector('.manage-close-btn');
+    applyBtn = el.querySelector('.manage-apply-btn');
+    addRow   = el.querySelector('.manage-add-row');
 
-  // Self-gates on shadow rather than subscribing only while open: the signals
-  // lib has no teardown, so this lifelong effect must no-op when closed.
-  effect(() => {
-    cacheVersion$.get();
-    if (shadow) { absorb(); render(); }
-  });
+    listEl.addEventListener('change', e => {
+      const input = e.target.closest('.toggle input[type="checkbox"]');
+      if (!input) return;
+      const card = input.closest('.wordlist-card');
+      // Must write the shadow map, never wl.enabled: touching wl.enabled here would
+      // silently mutate canonical state and rebuild the merge mid-staging, defeating
+      // the Apply gate while looking identical on screen.
+      shadow.enabled.set(card._wordlist, input.checked);
+      card.classList.toggle('disabled', !input.checked);
+    });
+
+    // Stage into shadow.order, never reorderSources: that canonical path would
+    // rebuild the merge mid-staging and defeat the Apply gate, looking identical
+    // on screen — the same trap as the enable toggle above.
+    makeReorderable(listEl, {
+      handleSelector: '.drag-handle:not([aria-hidden])',
+      itemSelector:   '.wordlist-card',
+      onReorder: (fromEl, beforeEl) => {
+        const from = shadow.order.indexOf(fromEl._wordlist);
+        let to = beforeEl ? shadow.order.indexOf(beforeEl._wordlist) : shadow.order.length;
+        if (to > from) to--;
+        const [item] = shadow.order.splice(from, 1);
+        shadow.order.splice(to, 0, item);
+        render();
+      },
+    });
+
+    applyBtn.addEventListener('click', apply);
+    closeBtn.addEventListener('click', async () => {
+      if (isDirty() && !await showConfirm('Discard changes?', { confirmText: 'Discard' })) return;
+      el.close();
+    });
+
+    addRow.addEventListener('click', () => ConfigureWordlistDialog.openAdd(absorb));
+
+    // Self-gates on shadow rather than subscribing only while open: the signals
+    // lib has no teardown, so this lifelong effect must no-op when closed.
+    effect(() => {
+      cacheVersion$.get();
+      if (shadow) { absorb(); render(); }
+    });
+  }
 
   function open() {
     shadow = { order: [...state.sources], enabled: new Map(state.sources.map(wl => [wl, wl.enabled])) };
@@ -2805,7 +2834,7 @@ const ManagePanel = (() => {
     showDialog(el, () => { shadow = null; });
   }
 
-  return { open };
+  return { mount, open };
 })();
 
 // ─── Wordlist actions dispatcher ──────────────────────────────────────────────
@@ -4469,7 +4498,7 @@ for (const col of Object.values(TOOLS).flatMap(t => t.group?.columns || [])) {
   if (!col.key) col.key = col.label.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-');
 }
 
-(() => {
+function mountGroupColumnStyle() {
   const keys = new Set();
   for (const tool of Object.values(TOOLS)) {
     for (const col of tool.group?.columns || []) keys.add(col.key);
@@ -4480,7 +4509,7 @@ for (const col of Object.values(TOOLS).flatMap(t => t.group?.columns || [])) {
     `.group-col[data-col="${k}"] { min-width: var(--group-col-${k}-w, 2ch); }`
   ).join('\n');
   document.head.appendChild(style);
-})();
+}
 
 // Keyed `toolKey/paramKey` to match the `data-help` attribute that input
 // builders emit — attachHelpPopups joins the two. Keep the formats in sync.
@@ -5539,12 +5568,7 @@ const ToolStack = (() => {
 })();
 
 const ToolPicker = (() => {
-  const host        = document.getElementById('featured-row');
-  const searchInput = document.getElementById('tool-picker-search');
-  const closeBtn    = host.querySelector('.picker-close');
-  const gallery     = host.querySelector('.picker-gallery');
-  gallery.innerHTML = `<div class="picker-gallery-inner">${ToolStack.buildGalleryHTML()}</div>`;
-  const galleryInner = gallery.querySelector('.picker-gallery-inner');
+  let host, searchInput, closeBtn, gallery, galleryInner;
 
   let _isOpen          = false;
   let _addedDuringOpen = false;
@@ -5620,58 +5644,67 @@ const ToolPicker = (() => {
     close();
   }
 
-  searchInput.addEventListener('click', () => open());
-  searchInput.addEventListener('input', () => { if (!_isOpen) open(); applyFilter(); });
-
-  searchInput.addEventListener('keydown', (e) => {
-    if (e.key !== 'Enter') return;
-    e.preventDefault();
-    const first = gallery.querySelector('.tool-card[data-tool]:not([hidden]):not(.disabled)');
-    if (!first) return;
-    pick(first.dataset.tool);
-  });
-
-  closeBtn.addEventListener('click', () => close());
-
-  const onOutsideMouseDown = (e) => {
+  function onOutsideMouseDown(e) {
     if (!_isOpen) return;
     if (host.contains(e.target)) return;
     close();
-  };
-
-  gallery.addEventListener('click', (e) => {
-    const allBtn = e.target.closest('.tool-card-all-btn[data-all-tool]');
-    if (allBtn) {
-      e.stopPropagation();
-      if (allBtn.classList.contains('disabled')) return;
-      const key = allBtn.dataset.allTool;
-      if (!TOOLS[key]) return;
-      pick(key, { grouped: true });
-      return;
-    }
-    const card = e.target.closest('.tool-card[data-tool]');
-    if (!card || card.classList.contains('disabled')) return;
-    const key = card.dataset.tool;
-    if (!TOOLS[key]) return;
-    pick(key);
-  });
-
-  document.addEventListener('keydown', (e) => {
-    if (_isOpen) {
-      if (e.key === 'Escape') { e.preventDefault(); close(); }
-      return;
-    }
-    const isAltT = e.altKey && e.code === 'KeyT' && !e.ctrlKey && !e.metaKey && !e.shiftKey;
-    const isCmdK = (e.key === 'k' || e.key === 'K') && (e.metaKey || e.ctrlKey) && !e.altKey;
-    if (isAltT || isCmdK) {
-      e.preventDefault();
-      open();
-    }
-  });
+  }
 
   function toggle() { _isOpen ? close() : open(); }
 
-  return { open, close, toggle, pick };
+  function mount() {
+    host        = document.getElementById('featured-row');
+    searchInput = document.getElementById('tool-picker-search');
+    closeBtn    = host.querySelector('.picker-close');
+    gallery     = host.querySelector('.picker-gallery');
+    gallery.innerHTML = `<div class="picker-gallery-inner">${ToolStack.buildGalleryHTML()}</div>`;
+    galleryInner = gallery.querySelector('.picker-gallery-inner');
+
+    searchInput.addEventListener('click', () => open());
+    searchInput.addEventListener('input', () => { if (!_isOpen) open(); applyFilter(); });
+
+    searchInput.addEventListener('keydown', (e) => {
+      if (e.key !== 'Enter') return;
+      e.preventDefault();
+      const first = gallery.querySelector('.tool-card[data-tool]:not([hidden]):not(.disabled)');
+      if (!first) return;
+      pick(first.dataset.tool);
+    });
+
+    closeBtn.addEventListener('click', () => close());
+
+    gallery.addEventListener('click', (e) => {
+      const allBtn = e.target.closest('.tool-card-all-btn[data-all-tool]');
+      if (allBtn) {
+        e.stopPropagation();
+        if (allBtn.classList.contains('disabled')) return;
+        const key = allBtn.dataset.allTool;
+        if (!TOOLS[key]) return;
+        pick(key, { grouped: true });
+        return;
+      }
+      const card = e.target.closest('.tool-card[data-tool]');
+      if (!card || card.classList.contains('disabled')) return;
+      const key = card.dataset.tool;
+      if (!TOOLS[key]) return;
+      pick(key);
+    });
+
+    document.addEventListener('keydown', (e) => {
+      if (_isOpen) {
+        if (e.key === 'Escape') { e.preventDefault(); close(); }
+        return;
+      }
+      const isAltT = e.altKey && e.code === 'KeyT' && !e.ctrlKey && !e.metaKey && !e.shiftKey;
+      const isCmdK = (e.key === 'k' || e.key === 'K') && (e.metaKey || e.ctrlKey) && !e.altKey;
+      if (isAltT || isCmdK) {
+        e.preventDefault();
+        open();
+      }
+    });
+  }
+
+  return { mount, open, close, toggle, pick };
 })();
 
 // ─── Input helpers ────────────────────────────────────────────────────────────
@@ -6220,10 +6253,7 @@ const ErrorPopover = (() => {
 
 const GroupMorePopover = (() => {
   const POPOVER_CHUNK = 200;
-  const el = document.createElement('div');
-  el.className = 'group-popover';
-  el.hidden = true;
-  document.body.appendChild(el);
+  let el = null;
   let anchor = null;
   let chains = null;
   let scroller = null;
@@ -6231,21 +6261,28 @@ const GroupMorePopover = (() => {
   let sentinel = null;
   let io = null;
 
-  // AtomPopover is passed `el` as its row so its dismiss logic treats clicks
-  // within this list as in-bounds — letting you edit one hidden word, then
-  // another, without it closing between.
-  el.addEventListener('click', e => {
-    const target = e.target.closest('.atom-score, .atom-entry');
-    if (!target || target.classList.contains('atom-noedit')) return;
-    const chainEl = target.closest('.group-chain');
-    const atomEl = target.closest('.atom');
-    if (!chainEl || !atomEl) return;
-    const atom = chains?.[parseInt(chainEl.dataset.chain, 10)]
-                  ?.atoms[parseInt(atomEl.dataset.atom, 10)];
-    if (!atom) return;
-    const field = target.classList.contains('atom-score') ? 'score' : null;
-    AtomPopover.open(atom.wlEntry, el, scroller, target, field);
-  });
+  function mount() {
+    el = document.createElement('div');
+    el.className = 'group-popover';
+    el.hidden = true;
+    document.body.appendChild(el);
+
+    // AtomPopover is passed `el` as its row so its dismiss logic treats clicks
+    // within this list as in-bounds — letting you edit one hidden word, then
+    // another, without it closing between.
+    el.addEventListener('click', e => {
+      const target = e.target.closest('.atom-score, .atom-entry');
+      if (!target || target.classList.contains('atom-noedit')) return;
+      const chainEl = target.closest('.group-chain');
+      const atomEl = target.closest('.atom');
+      if (!chainEl || !atomEl) return;
+      const atom = chains?.[parseInt(chainEl.dataset.chain, 10)]
+                    ?.atoms[parseInt(atomEl.dataset.atom, 10)];
+      if (!atom) return;
+      const field = target.classList.contains('atom-score') ? 'score' : null;
+      AtomPopover.open(atom.wlEntry, el, scroller, target, field);
+    });
+  }
 
   function close() {
     if (el.hidden) return;
@@ -6316,7 +6353,7 @@ const GroupMorePopover = (() => {
     document.addEventListener('keydown', onKey, true);
     document.addEventListener('mousedown', onOutside, true);
   }
-  return { toggle, close };
+  return { mount, toggle, close };
 })();
 
 class EntriesScroller extends BaseVirtualScroller {
@@ -7855,14 +7892,14 @@ function refreshStatsBarOverflow() {
     }
   }
 }
-for (const id of ['detail-panel']) {
-  const parent = document.getElementById(id);
-  if (!parent) continue;
+function mountStatsBarOverflowObservers() {
+  const parent = document.getElementById('detail-panel');
+  if (!parent) return;
   new ResizeObserver(refreshStatsBarOverflow).observe(parent);
   new MutationObserver(refreshStatsBarOverflow).observe(parent, { childList: true, subtree: true });
 }
 
-{
+function mountHeaderHeightObserver() {
   const headerEl = document.querySelector('header');
   const publish = () => document.documentElement.style.setProperty(
     '--header-h', headerEl.offsetHeight + 'px'
@@ -8089,9 +8126,11 @@ function _onHistogramPointerUp(event) {
   AppView.onScoreRange(next);
 }
 
-document.addEventListener('pointermove', _onHistogramPointerMove);
-document.addEventListener('pointerup', _onHistogramPointerUp);
-document.addEventListener('pointercancel', () => { _histDrag = null; repositionAllHistogramRects(); });
+function mountHistogramPointer() {
+  document.addEventListener('pointermove', _onHistogramPointerMove);
+  document.addEventListener('pointerup', _onHistogramPointerUp);
+  document.addEventListener('pointercancel', () => { _histDrag = null; repositionAllHistogramRects(); });
+}
 
 // Pass `intervals` to override the live filter (used during drag preview).
 function positionHistogramRect(histEl, intervals = undefined) {
@@ -8125,26 +8164,9 @@ function repositionAllHistogramRects() {
 let _updateScroller = null;
 
 const openUpdateSummaryDialog = (() => {
-  const el = document.createElement('dialog');
-  el.id = 'update-summary-dialog';
-  el.setAttribute('aria-labelledby', 'update-summary-title');
-  document.body.appendChild(el);
-  el.innerHTML = `
-    <button class="dialog-close-btn" aria-label="Close">✕</button>
-    <div class="usd-header">
-      <h2 id="update-summary-title"></h2>
-      <div class="usd-count" id="update-summary-count"></div>
-      <div class="usd-pills" id="update-summary-pills"></div>
-    </div>
-    <div class="usd-scroll" id="update-summary-scroll"></div>`;
-  const titleEl   = el.querySelector('#update-summary-title');
-  const countEl   = el.querySelector('#update-summary-count');
-  const pillsEl   = el.querySelector('#update-summary-pills');
-  const scrollEl  = el.querySelector('#update-summary-scroll');
+  let el, titleEl, countEl, pillsEl, scrollEl;
 
-  enableDismissClicks(el);
-
-  return function(wordlist, oldCount, added, deleted, rescored) {
+  const show = function(wordlist, oldCount, added, deleted, rescored) {
     titleEl.textContent = `${wordlist.name} Updated`;
     countEl.textContent = `${oldCount.toLocaleString()} → ${wordlist.rawEntries.length.toLocaleString()} entries`;
 
@@ -8188,6 +8210,26 @@ const openUpdateSummaryDialog = (() => {
 
     showDialog(el);
   };
+  show.mount = () => {
+    el = document.createElement('dialog');
+    el.id = 'update-summary-dialog';
+    el.setAttribute('aria-labelledby', 'update-summary-title');
+    document.body.appendChild(el);
+    el.innerHTML = `
+      <button class="dialog-close-btn" aria-label="Close">✕</button>
+      <div class="usd-header">
+        <h2 id="update-summary-title"></h2>
+        <div class="usd-count" id="update-summary-count"></div>
+        <div class="usd-pills" id="update-summary-pills"></div>
+      </div>
+      <div class="usd-scroll" id="update-summary-scroll"></div>`;
+    titleEl   = el.querySelector('#update-summary-title');
+    countEl   = el.querySelector('#update-summary-count');
+    pillsEl   = el.querySelector('#update-summary-pills');
+    scrollEl  = el.querySelector('#update-summary-scroll');
+    enableDismissClicks(el);
+  };
+  return show;
 })();
 
 async function applyWordlistText(wordlist, text, { fetchedSize = null, originalFilename = null, nameOverride = null, source = null, clearUrl = false, silent = false, viaToast = false } = {}) {
@@ -8486,21 +8528,9 @@ function addNewWordlist(wordlistDef) {
 // ─── Confirm Dialog ───────────────────────────────────────────────────────────
 
 const showConfirm = (() => {
-  const { el, body } = createDialog('confirm-dialog', { labelledby: 'confirm-dialog-msg' });
-  body.innerHTML = `
-    <button type="button" class="dialog-close-btn" aria-label="Close">✕</button>
-    <form method="dialog">
-      <p class="dialog-msg" id="confirm-dialog-msg"></p>
-      <div class="dialog-footer">
-        <button type="button" id="btn-confirm-cancel" class="dialog-cancel-btn">Cancel</button>
-        <button id="btn-confirm-ok" value="ok"></button>
-      </div>
-    </form>`;
-  const msgEl     = el.querySelector('#confirm-dialog-msg');
-  const okBtn     = el.querySelector('#btn-confirm-ok');
-  const cancelBtn = el.querySelector('#btn-confirm-cancel');
+  let el, msgEl, okBtn, cancelBtn;
 
-  return function(message, { confirmText = 'OK', cancelText = 'Cancel', danger = true, html = null } = {}) {
+  const show = function(message, { confirmText = 'OK', cancelText = 'Cancel', danger = true, html = null } = {}) {
     return new Promise(resolve => {
       if (html != null) { msgEl.innerHTML = html; } else { msgEl.textContent = message; }
       okBtn.textContent     = confirmText;
@@ -8509,43 +8539,54 @@ const showConfirm = (() => {
       showDialog(el, () => resolve(el.returnValue === 'ok'));
     });
   };
+  show.mount = () => {
+    let body;
+    ({ el, body } = createDialog('confirm-dialog', { labelledby: 'confirm-dialog-msg' }));
+    body.innerHTML = `
+      <button type="button" class="dialog-close-btn" aria-label="Close">✕</button>
+      <form method="dialog">
+        <p class="dialog-msg" id="confirm-dialog-msg"></p>
+        <div class="dialog-footer">
+          <button type="button" id="btn-confirm-cancel" class="dialog-cancel-btn">Cancel</button>
+          <button id="btn-confirm-ok" value="ok"></button>
+        </div>
+      </form>`;
+    msgEl     = el.querySelector('#confirm-dialog-msg');
+    okBtn     = el.querySelector('#btn-confirm-ok');
+    cancelBtn = el.querySelector('#btn-confirm-cancel');
+  };
+  return show;
 })();
 
 const showAlert = (() => {
-  const { el, body } = createDialog('alert-dialog', { labelledby: 'alert-dialog-msg' });
-  body.innerHTML = `
-    <button type="button" class="dialog-close-btn" aria-label="Close">✕</button>
-    <form method="dialog">
-      <p class="dialog-msg" id="alert-dialog-msg"></p>
-      <div class="dialog-footer">
-        <button class="primary" autofocus>OK</button>
-      </div>
-    </form>`;
-  const msgEl = el.querySelector('#alert-dialog-msg');
+  let el, msgEl;
 
-  return function(message) {
+  const show = function(message) {
     return new Promise(resolve => {
       msgEl.innerHTML = message;
       showDialog(el, resolve);
     });
   };
+  show.mount = () => {
+    let body;
+    ({ el, body } = createDialog('alert-dialog', { labelledby: 'alert-dialog-msg' }));
+    body.innerHTML = `
+      <button type="button" class="dialog-close-btn" aria-label="Close">✕</button>
+      <form method="dialog">
+        <p class="dialog-msg" id="alert-dialog-msg"></p>
+        <div class="dialog-footer">
+          <button class="primary" autofocus>OK</button>
+        </div>
+      </form>`;
+    msgEl = el.querySelector('#alert-dialog-msg');
+  };
+  return show;
 })();
 
 const showMergeConflict = (() => {
-  const { el, body } = createDialog('merge-conflict-dialog', { labelledby: 'merge-conflict-msg' });
-  body.innerHTML = `
-    <button type="button" class="dialog-close-btn" aria-label="Close">✕</button>
-    <form method="dialog">
-      <p class="dialog-msg" id="merge-conflict-msg"></p>
-      <div class="dialog-footer">
-        <button type="button" class="dialog-cancel-btn" autofocus>Cancel</button>
-        <button value="file">Use Imported File</button>
-        <button class="primary" value="edits">Keep My Edits</button>
-      </div>
-    </form>`;
-  const msgEl = el.querySelector('#merge-conflict-msg');
+  let el, msgEl;
 
-  return function(conflictCount) {
+  const show = function(conflictCount) {
     return new Promise(resolve => {
       const editsName = getEditsWordlist().name;
       const noun = conflictCount === 1 ? 'entry appears' : 'entries appear';
@@ -8553,16 +8594,36 @@ const showMergeConflict = (() => {
       showDialog(el, () => resolve(el.returnValue || null));
     });
   };
+  show.mount = () => {
+    let body;
+    ({ el, body } = createDialog('merge-conflict-dialog', { labelledby: 'merge-conflict-msg' }));
+    body.innerHTML = `
+      <button type="button" class="dialog-close-btn" aria-label="Close">✕</button>
+      <form method="dialog">
+        <p class="dialog-msg" id="merge-conflict-msg"></p>
+        <div class="dialog-footer">
+          <button type="button" class="dialog-cancel-btn" autofocus>Cancel</button>
+          <button value="file">Use Imported File</button>
+          <button class="primary" value="edits">Keep My Edits</button>
+        </div>
+      </form>`;
+    msgEl = el.querySelector('#merge-conflict-msg');
+  };
+  return show;
 })();
 
 // ─── Disk sync dialog ─────────────────────────────────────────────────────────
 
 const SyncDialog = (() => {
-  const { el, body } = createDialog('sync-dialog', { labelledby: 'sync-dialog-title' });
+  let el, body;
+
+  function mount() {
+    ({ el, body } = createDialog('sync-dialog', { labelledby: 'sync-dialog-title' }));
+  }
 
   function diagram(arrow) {
     return `<div class="sync-diagram">
-        <svg class="sync-diagram-icon" aria-hidden="true"><use href="#${BROWSER.icon}"/></svg>
+        <svg class="sync-diagram-icon" aria-hidden="true"><use href="#${getBrowser().icon}"/></svg>
         <span class="sync-diagram-arrow">${arrow}</span>
         <span class="sync-diagram-emoji">📄</span>
         <span class="sync-diagram-arrow">${arrow}</span>
@@ -8580,7 +8641,7 @@ const SyncDialog = (() => {
     let title, inner;
     if (!Disk.isSupported()) {
       title = 'Saved in your browser';
-      inner = `<p class="sync-dialog-lead">Grawlix keeps your wordlists in ${esc(BROWSER.name)}'s storage on this device. Disk sync — keeping a list in sync with a file your construction software reads — needs a Chromium browser like Chrome or Edge. Use <strong>Download</strong> to save a file out anytime.</p>
+      inner = `<p class="sync-dialog-lead">Grawlix keeps your wordlists in ${esc(getBrowser().name)}'s storage on this device. Disk sync — keeping a list in sync with a file your construction software reads — needs a Chromium browser like Chrome or Edge. Use <strong>Download</strong> to save a file out anytime.</p>
         <div class="sync-dialog-actions"><button type="button" class="dialog-cancel-btn primary">Got it</button></div>`;
     } else if (synced) {
       const unavailable = SyncStatus.get(key) === 'unavailable';
@@ -8619,6 +8680,7 @@ const SyncDialog = (() => {
   }
 
   return {
+    mount,
     open(target) { render(target); showDialog(el); },
     act,
   };
@@ -8627,71 +8689,7 @@ const SyncDialog = (() => {
 // ─── Configure / Add wordlist dialog ─────────────────────────────────────────────
 
 const ConfigureWordlistDialog = (() => {
-  const { el, body } = createDialog('configure-wordlist-dialog', { labelledby: 'configure-wordlist-title', dismissOnBackdrop: false });
-  body.innerHTML = `
-    <button class="dialog-close-btn" aria-label="Close">✕</button>
-    <h2 id="configure-wordlist-title"></h2>
-    <div class="configure-section">
-      <div class="configure-section-label">Publisher</div>
-      <div class="publisher-chips" id="publisher-chips"></div>
-      <div class="rules-option-row" id="rules-option-row" hidden>
-        <span class="rules-option-lbl">Scoring</span>
-        <select id="rules-select"></select>
-      </div>
-      <div class="rules-preview-wrap" id="rules-preview-wrap" hidden></div>
-    </div>
-    <div class="configure-section">
-      <div class="configure-icon-name-row">
-        <div class="configure-section-label">Icon</div>
-        <div class="configure-section-label">Name</div>
-        <div class="icon-picker-trigger" id="icon-picker-trigger" tabindex="0" role="button" aria-label="Change icon">
-          <div class="icon-preview-box" id="config-icon-preview"></div>
-        </div>
-        <input type="text" id="config-name-input" class="config-name-input" placeholder="Wordlist name" spellcheck="false" autocomplete="off">
-      </div>
-    </div>
-    <div class="configure-section">
-      <div class="configure-section-label">Auto-update URL</div>
-      <div class="url-input-wrap">
-        <svg class="url-input-icon" width="14" height="14" aria-hidden="true"><use href="#icon-globe"/></svg>
-        <input class="url-input" id="config-url-input" type="url" placeholder="Auto-update disabled" spellcheck="false" autocomplete="off">
-        <span id="url-check-icon" hidden></span>
-      </div>
-      <div id="source-url-meta" class="source-meta"></div>
-    </div>
-    <div class="configure-section" id="source-import-section" hidden>
-      <div class="configure-section-label">Import</div>
-      <div id="source-file-add-zone">
-        <div class="import-zone" id="cfg-drop-zone">
-          <span id="cfg-import-zone-label">Drop file here or click to browse</span>
-          <input type="file" id="cfg-file-input" accept=".txt,.dict">
-        </div>
-      </div>
-    </div>
-    <div class="dialog-footer">
-      <button id="btn-cfg-cancel" class="dialog-cancel-btn">Cancel</button>
-      <button class="primary" id="btn-cfg-save"></button>
-    </div>`;
-
-  // Popup lives inside the dialog so it's in the top layer with it
-  const pickerPopup = document.createElement('div');
-  pickerPopup.id = 'icon-picker-popup';
-  pickerPopup.hidden = true;
-  pickerPopup.innerHTML = `
-    <div class="icon-picker-tabs">
-      <button class="icon-picker-tab active" data-mode="emoji">Emoji</button>
-      <button class="icon-picker-tab" data-mode="url">URL</button>
-    </div>
-    <div class="icon-picker-pane active" data-pane="emoji">
-      <div class="icon-emoji-grid" id="icon-emoji-grid">
-        <button class="icon-emoji-btn" data-auto></button>
-        ${EMOJI_LIST.map(e => `<button class="icon-emoji-btn" data-emoji="${esc(e)}">${e}</button>`).join('')}
-      </div>
-    </div>
-    <div class="icon-picker-pane" data-pane="url">
-      ${buildUrlInputHTML('icon-img-url-input', 'https://example.com/icon.png')}
-    </div>`;
-  el.appendChild(pickerPopup);
+  let el, pickerPopup;
 
   // State
   let _mode           = 'configure';
@@ -8706,21 +8704,9 @@ const ConfigureWordlistDialog = (() => {
   let _onAdded        = null;
 
   // Elements
-  const titleEl          = el.querySelector('#configure-wordlist-title');
-  const publisherChipsEl = el.querySelector('#publisher-chips');
-  const rulesOptionRow   = el.querySelector('#rules-option-row');
-  const rulesSelect      = el.querySelector('#rules-select');
-  const rulesPreviewWrap = el.querySelector('#rules-preview-wrap');
-  const iconPreview      = el.querySelector('#config-icon-preview');
-  const pickerTrigger    = el.querySelector('#icon-picker-trigger');
-  const imgUrlInput      = el.querySelector('#icon-img-url-input');
-  const nameInput        = el.querySelector('#config-name-input');
-  const urlInput         = el.querySelector('#config-url-input');
-  const urlCheckIcon     = el.querySelector('#url-check-icon');
-  const urlMetaEl        = el.querySelector('#source-url-meta');
-  const importSection    = el.querySelector('#source-import-section');
-  const btnSave          = el.querySelector('#btn-cfg-save');
-  const importZoneLabel  = el.querySelector('#cfg-import-zone-label');
+  let titleEl, publisherChipsEl, rulesOptionRow, rulesSelect, rulesPreviewWrap,
+      iconPreview, pickerTrigger, imgUrlInput, nameInput, urlInput, urlCheckIcon,
+      urlMetaEl, importSection, btnSave, importZoneLabel;
 
   // ── Icon picker ──────────────────────────────────────────────────────────────
 
@@ -8768,37 +8754,39 @@ const ConfigureWordlistDialog = (() => {
     pickerPopup.hidden = true;
   }
 
-  pickerTrigger.addEventListener('click',   () => { _pickerOpen ? closePicker() : openPicker(); });
-  pickerTrigger.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); _pickerOpen ? closePicker() : openPicker(); } });
+  function wireIconPicker() {
+    pickerTrigger.addEventListener('click',   () => { _pickerOpen ? closePicker() : openPicker(); });
+    pickerTrigger.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); _pickerOpen ? closePicker() : openPicker(); } });
 
-  el.addEventListener('mousedown', e => {
-    if (!_pickerOpen) return;
-    if (pickerPopup.contains(e.target) || pickerTrigger.contains(e.target)) return;
-    closePicker();
-  });
+    el.addEventListener('mousedown', e => {
+      if (!_pickerOpen) return;
+      if (pickerPopup.contains(e.target) || pickerTrigger.contains(e.target)) return;
+      closePicker();
+    });
 
-  pickerPopup.querySelectorAll('.icon-picker-tab').forEach(tab => {
-    tab.addEventListener('click', () => showPickerMode(tab.dataset.mode));
-  });
+    pickerPopup.querySelectorAll('.icon-picker-tab').forEach(tab => {
+      tab.addEventListener('click', () => showPickerMode(tab.dataset.mode));
+    });
 
-  pickerPopup.querySelector('#icon-emoji-grid').addEventListener('click', e => {
-    const btn = e.target.closest('.icon-emoji-btn');
-    if (!btn) return;
-    if (btn.hasAttribute('data-auto')) {
-      setBufferedIcon(null);
-    } else {
-      const emoji = btn.dataset.emoji;
-      const same = _pendingIcon?.type === 'emoji' && _pendingIcon.value === emoji;
-      setBufferedIcon(same ? null : { type: 'emoji', value: emoji });
-    }
-    syncEmojiGrid();
-    closePicker();
-  });
+    pickerPopup.querySelector('#icon-emoji-grid').addEventListener('click', e => {
+      const btn = e.target.closest('.icon-emoji-btn');
+      if (!btn) return;
+      if (btn.hasAttribute('data-auto')) {
+        setBufferedIcon(null);
+      } else {
+        const emoji = btn.dataset.emoji;
+        const same = _pendingIcon?.type === 'emoji' && _pendingIcon.value === emoji;
+        setBufferedIcon(same ? null : { type: 'emoji', value: emoji });
+      }
+      syncEmojiGrid();
+      closePicker();
+    });
 
-  imgUrlInput.addEventListener('input', () => {
-    const url = imgUrlInput.value.trim();
-    setBufferedIcon(url ? { type: 'img', url } : null);
-  });
+    imgUrlInput.addEventListener('input', () => {
+      const url = imgUrlInput.value.trim();
+      setBufferedIcon(url ? { type: 'img', url } : null);
+    });
+  }
 
   // ── Publisher chips ──────────────────────────────────────────────────────────
 
@@ -8827,12 +8815,14 @@ const ConfigureWordlistDialog = (() => {
     updateRulesPreview();
   }
 
-  publisherChipsEl.addEventListener('click', e => {
-    const chip = e.target.closest('.publisher-chip');
-    if (!chip) return;
-    const publisher = chip.dataset.publisherId ? WORDLIST_PUBLISHERS.find(p => p.id === chip.dataset.publisherId) : null;
-    selectPublisher(publisher);
-  });
+  function wirePublisherChips() {
+    publisherChipsEl.addEventListener('click', e => {
+      const chip = e.target.closest('.publisher-chip');
+      if (!chip) return;
+      const publisher = chip.dataset.publisherId ? WORDLIST_PUBLISHERS.find(p => p.id === chip.dataset.publisherId) : null;
+      selectPublisher(publisher);
+    });
+  }
 
   // ── Rules option ─────────────────────────────────────────────────────────────
 
@@ -8877,22 +8867,26 @@ const ConfigureWordlistDialog = (() => {
     });
   }
 
-  rulesSelect.addEventListener('change', () => {
-    _rulesOption = rulesSelect.value;
-    updateRulesPreview();
-  });
+  function wireRulesSelect() {
+    rulesSelect.addEventListener('change', () => {
+      _rulesOption = rulesSelect.value;
+      updateRulesPreview();
+    });
+  }
 
   // ── Name input ────────────────────────────────────────────────────────────────
 
-  nameInput.addEventListener('input', () => {
-    _pendingName = nameInput.value;
-    if (!_pendingIcon) {
-      iconPreview.innerHTML = buildInitialsIconHTML(_pendingName, colorSeed(colorSeedObj()));
-      if (_pickerOpen) pickerPopup.querySelector('[data-auto]').innerHTML = buildInitialsIconHTML(_pendingName, colorSeed(colorSeedObj()));
-    }
-  });
+  function wireNameInput() {
+    nameInput.addEventListener('input', () => {
+      _pendingName = nameInput.value;
+      if (!_pendingIcon) {
+        iconPreview.innerHTML = buildInitialsIconHTML(_pendingName, colorSeed(colorSeedObj()));
+        if (_pickerOpen) pickerPopup.querySelector('[data-auto]').innerHTML = buildInitialsIconHTML(_pendingName, colorSeed(colorSeedObj()));
+      }
+    });
 
-  nameInput.addEventListener('focus', () => nameInput.classList.remove('invalid'));
+    nameInput.addEventListener('focus', () => nameInput.classList.remove('invalid'));
+  }
 
   // ── Auto-update URL / file areas ─────────────────────────────────────────────
 
@@ -8972,29 +8966,31 @@ const ConfigureWordlistDialog = (() => {
     }
   }
 
-  urlInput.addEventListener('input', () => {
-    clearTimeout(_urlCheckTimer);
-    if (_urlCheckAbort) { _urlCheckAbort.abort(); _urlCheckAbort = null; }
-    const url = urlInput.value.trim();
-    if (!url) { urlCheckIcon.hidden = true; urlMetaEl.classList.remove('visible'); return; }
-    urlCheckIcon.innerHTML = '<div class="url-check-spinner"></div>';
-    urlCheckIcon.hidden = false;
-    urlMetaEl.classList.remove('visible');
-    _urlCheckTimer = setTimeout(() => {
-      _urlCheckAbort = new AbortController();
-      checkUrl(url, _urlCheckAbort.signal);
-    }, 600);
-  });
+  function wireUrlAndFile() {
+    urlInput.addEventListener('input', () => {
+      clearTimeout(_urlCheckTimer);
+      if (_urlCheckAbort) { _urlCheckAbort.abort(); _urlCheckAbort = null; }
+      const url = urlInput.value.trim();
+      if (!url) { urlCheckIcon.hidden = true; urlMetaEl.classList.remove('visible'); return; }
+      urlCheckIcon.innerHTML = '<div class="url-check-spinner"></div>';
+      urlCheckIcon.hidden = false;
+      urlMetaEl.classList.remove('visible');
+      _urlCheckTimer = setTimeout(() => {
+        _urlCheckAbort = new AbortController();
+        checkUrl(url, _urlCheckAbort.signal);
+      }, 600);
+    });
 
-  bindDropZone(el.querySelector('#cfg-drop-zone'), el.querySelector('#cfg-file-input'), file => {
-    _pendingFile = file;
-    importZoneLabel.textContent = file.name;
-    if (!nameInput.value.trim()) {
-      _pendingName = nameFromPath(file.name);
-      nameInput.value = _pendingName;
-      if (!_pendingIcon) iconPreview.innerHTML = buildInitialsIconHTML(_pendingName, colorSeed(colorSeedObj()));
-    }
-  });
+    bindDropZone(el.querySelector('#cfg-drop-zone'), el.querySelector('#cfg-file-input'), file => {
+      _pendingFile = file;
+      importZoneLabel.textContent = file.name;
+      if (!nameInput.value.trim()) {
+        _pendingName = nameFromPath(file.name);
+        nameInput.value = _pendingName;
+        if (!_pendingIcon) iconPreview.innerHTML = buildInitialsIconHTML(_pendingName, colorSeed(colorSeedObj()));
+      }
+    });
+  }
 
   // ── Save / Add ────────────────────────────────────────────────────────────────
 
@@ -9005,46 +9001,46 @@ const ConfigureWordlistDialog = (() => {
     return _mode === 'add' ? [] : null;
   }
 
-  btnSave.onclick = () => {
-    const name = nameInput.value.trim();
-    if (!name) { nameInput.focus(); nameInput.classList.add('invalid'); return; }
-    const rules = computeRulesToApply();
-    const url   = urlInput.value.trim() || null;
+  function wireSaveAndClose() {
+    btnSave.onclick = () => {
+      const name = nameInput.value.trim();
+      if (!name) { nameInput.focus(); nameInput.classList.add('invalid'); return; }
+      const rules = computeRulesToApply();
+      const url   = urlInput.value.trim() || null;
 
-    if (_mode === 'add') {
-      const wordlist = addNewWordlist({
-        dbKey: newDbKey(), icon: _pendingIcon, name,
-        url, enabled: false, populated: false,
-        ...(_selectedPublisher ? { publisherId: _selectedPublisher.id } : {}),
-        rescoreRules: rules || [],
-      });
-      _onAdded?.(wordlist);
-      el.close();
-      if (url) {
-        fetchWordlist(wordlist);
-      } else if (_pendingFile) {
-        ingestFile(_pendingFile, wordlist, name);
+      if (_mode === 'add') {
+        const wordlist = addNewWordlist({
+          dbKey: newDbKey(), icon: _pendingIcon, name,
+          url, enabled: false, populated: false,
+          ...(_selectedPublisher ? { publisherId: _selectedPublisher.id } : {}),
+          rescoreRules: rules || [],
+        });
+        _onAdded?.(wordlist);
+        el.close();
+        if (url) {
+          fetchWordlist(wordlist);
+        } else if (_pendingFile) {
+          ingestFile(_pendingFile, wordlist, name);
+        }
+      } else {
+        batchUpdate(() => {
+          setWordlistName(_wordlist, name);
+          setWordlistIcon(_wordlist, _pendingIcon);
+          setWordlistUrl(_wordlist, url);
+          setWordlistPublisher(_wordlist, _selectedPublisher?.id ?? null);
+          if (rules !== null) setWordlistRescoreRules(_wordlist, rules);
+        });
+        el.close();
       }
-    } else {
-      batchUpdate(() => {
-        setWordlistName(_wordlist, name);
-        setWordlistIcon(_wordlist, _pendingIcon);
-        setWordlistUrl(_wordlist, url);
-        setWordlistPublisher(_wordlist, _selectedPublisher?.id ?? null);
-        if (rules !== null) setWordlistRescoreRules(_wordlist, rules);
-      });
-      el.close();
-    }
-  };
+    };
 
-  // ── Cancel / close ────────────────────────────────────────────────────────────
-
-  el.addEventListener('cancel', e => { if (_pickerOpen) { e.preventDefault(); closePicker(); } });
-  el.addEventListener('close',  () => {
-    closePicker();
-    clearTimeout(_urlCheckTimer);
-    if (_urlCheckAbort) { _urlCheckAbort.abort(); _urlCheckAbort = null; }
-  });
+    el.addEventListener('cancel', e => { if (_pickerOpen) { e.preventDefault(); closePicker(); } });
+    el.addEventListener('close',  () => {
+      closePicker();
+      clearTimeout(_urlCheckTimer);
+      if (_urlCheckAbort) { _urlCheckAbort.abort(); _urlCheckAbort = null; }
+    });
+  }
 
   // ── open (configure mode) ─────────────────────────────────────────────────────
 
@@ -9120,7 +9116,99 @@ const ConfigureWordlistDialog = (() => {
     showDialog(el);
   }
 
-  return { open, openAdd };
+  function mount() {
+    let body;
+    ({ el, body } = createDialog('configure-wordlist-dialog', { labelledby: 'configure-wordlist-title', dismissOnBackdrop: false }));
+    body.innerHTML = `
+      <button class="dialog-close-btn" aria-label="Close">✕</button>
+      <h2 id="configure-wordlist-title"></h2>
+      <div class="configure-section">
+        <div class="configure-section-label">Publisher</div>
+        <div class="publisher-chips" id="publisher-chips"></div>
+        <div class="rules-option-row" id="rules-option-row" hidden>
+          <span class="rules-option-lbl">Scoring</span>
+          <select id="rules-select"></select>
+        </div>
+        <div class="rules-preview-wrap" id="rules-preview-wrap" hidden></div>
+      </div>
+      <div class="configure-section">
+        <div class="configure-icon-name-row">
+          <div class="configure-section-label">Icon</div>
+          <div class="configure-section-label">Name</div>
+          <div class="icon-picker-trigger" id="icon-picker-trigger" tabindex="0" role="button" aria-label="Change icon">
+            <div class="icon-preview-box" id="config-icon-preview"></div>
+          </div>
+          <input type="text" id="config-name-input" class="config-name-input" placeholder="Wordlist name" spellcheck="false" autocomplete="off">
+        </div>
+      </div>
+      <div class="configure-section">
+        <div class="configure-section-label">Auto-update URL</div>
+        <div class="url-input-wrap">
+          <svg class="url-input-icon" width="14" height="14" aria-hidden="true"><use href="#icon-globe"/></svg>
+          <input class="url-input" id="config-url-input" type="url" placeholder="Auto-update disabled" spellcheck="false" autocomplete="off">
+          <span id="url-check-icon" hidden></span>
+        </div>
+        <div id="source-url-meta" class="source-meta"></div>
+      </div>
+      <div class="configure-section" id="source-import-section" hidden>
+        <div class="configure-section-label">Import</div>
+        <div id="source-file-add-zone">
+          <div class="import-zone" id="cfg-drop-zone">
+            <span id="cfg-import-zone-label">Drop file here or click to browse</span>
+            <input type="file" id="cfg-file-input" accept=".txt,.dict">
+          </div>
+        </div>
+      </div>
+      <div class="dialog-footer">
+        <button id="btn-cfg-cancel" class="dialog-cancel-btn">Cancel</button>
+        <button class="primary" id="btn-cfg-save"></button>
+      </div>`;
+
+    // Popup lives inside the dialog so it's in the top layer with it
+    pickerPopup = document.createElement('div');
+    pickerPopup.id = 'icon-picker-popup';
+    pickerPopup.hidden = true;
+    pickerPopup.innerHTML = `
+      <div class="icon-picker-tabs">
+        <button class="icon-picker-tab active" data-mode="emoji">Emoji</button>
+        <button class="icon-picker-tab" data-mode="url">URL</button>
+      </div>
+      <div class="icon-picker-pane active" data-pane="emoji">
+        <div class="icon-emoji-grid" id="icon-emoji-grid">
+          <button class="icon-emoji-btn" data-auto></button>
+          ${EMOJI_LIST.map(e => `<button class="icon-emoji-btn" data-emoji="${esc(e)}">${e}</button>`).join('')}
+        </div>
+      </div>
+      <div class="icon-picker-pane" data-pane="url">
+        ${buildUrlInputHTML('icon-img-url-input', 'https://example.com/icon.png')}
+      </div>`;
+    el.appendChild(pickerPopup);
+
+    titleEl          = el.querySelector('#configure-wordlist-title');
+    publisherChipsEl = el.querySelector('#publisher-chips');
+    rulesOptionRow   = el.querySelector('#rules-option-row');
+    rulesSelect      = el.querySelector('#rules-select');
+    rulesPreviewWrap = el.querySelector('#rules-preview-wrap');
+    iconPreview      = el.querySelector('#config-icon-preview');
+    pickerTrigger    = el.querySelector('#icon-picker-trigger');
+    imgUrlInput      = el.querySelector('#icon-img-url-input');
+    nameInput        = el.querySelector('#config-name-input');
+    urlInput         = el.querySelector('#config-url-input');
+    urlCheckIcon     = el.querySelector('#url-check-icon');
+    urlMetaEl        = el.querySelector('#source-url-meta');
+    importSection    = el.querySelector('#source-import-section');
+    btnSave          = el.querySelector('#btn-cfg-save');
+    importZoneLabel  = el.querySelector('#cfg-import-zone-label');
+
+    wireIconPicker();
+    wirePublisherChips();
+    wireRulesSelect();
+    wireNameInput();
+    wireUrlAndFile();
+    wireSaveAndClose();
+  }
+
+  return { mount, open, openAdd };
 })();
 
 // ─── Event wiring ─────────────────────────────────────────────────────────────
@@ -9207,23 +9295,26 @@ function timeAgo(ts) {
   return `${yr} year${yr === 1 ? '' : 's'} ago`;
 }
 
-const _toastContainer = (() => {
-  const el = document.createElement('div');
-  el.id = 'toast-container';
-  document.body.appendChild(el);
-  return el;
-})();
-const _hoverCapable = window.matchMedia('(hover: hover)');
+let _toastContainerEl = null;
+function toastContainer() {
+  if (_toastContainerEl) return _toastContainerEl;
+  _toastContainerEl = document.createElement('div');
+  _toastContainerEl.id = 'toast-container';
+  document.body.appendChild(_toastContainerEl);
+  return _toastContainerEl;
+}
+let _hoverCapable = null;
+function hoverCapable() { return _hoverCapable ??= window.matchMedia('(hover: hover)'); }
 function _mountToast(el, duration) {
   let hovered = false;
   const arm = () => { clearTimeout(el._timer); el._timer = setTimeout(() => _dismissToast(el), duration); };
   // Without this gate, touch's sticky mouseenter (no mouseleave) pins the toast open forever.
-  if (_hoverCapable.matches) {
+  if (hoverCapable().matches) {
     el.addEventListener('mouseenter', () => { hovered = true; clearTimeout(el._timer); });
     el.addEventListener('mouseleave', () => { hovered = false; if (el.classList.contains('show')) arm(); });
   }
   el.addEventListener('click', () => { if (!hovered && el.classList.contains('show')) arm(); });
-  _toastContainer.appendChild(el);
+  toastContainer().appendChild(el);
   el.offsetWidth; // force reflow so opacity transition fires
   el.classList.add('show');
   arm();
@@ -9323,10 +9414,14 @@ function bindDropZone(zone, fileInput, onFile) {
 }
 
 const ImportGuideDialog = (() => {
-  const { el, body } = createDialog('import-guide-dialog', { labelledby: 'guide-title' });
+  let el, body;
 
   let _wordlist = null;
   let _pendingFile = null;
+
+  function mount() {
+    ({ el, body } = createDialog('import-guide-dialog', { labelledby: 'guide-title' }));
+  }
 
   function open(wordlist) {
     _wordlist = wordlist;
@@ -9396,7 +9491,7 @@ const ImportGuideDialog = (() => {
       ${footer}`;
   }
 
-  return { open };
+  return { mount, open };
 })();
 
 
@@ -10282,7 +10377,7 @@ function reorderSources(fromIdx, toIdx) {
 // stable — adding to it is fine; renaming or repurposing existing helpers
 // breaks the tests that depend on them.
 
-window.__grawlixTest = {
+const __grawlixTest = {
   // Add a populated custom wordlist (no publisherId). Entries are auto-named
   // WORD001, WORD002, … one per score. Goes through applyWordlistText so the
   // auto-seed path is exercised on import.
@@ -10540,25 +10635,78 @@ window.__grawlixTest = {
 // Two callers reach module-scoped names through `window`, which can't see this
 // module's private scope: inline on*= handlers in generated HTML, and the
 // Playwright suite's page.evaluate bodies. Expose the names both depend on.
-Object.assign(window, {
-  WordlistActions, SyncDialog, AppView,
-  toggleSplitMenu, startNoteEdit, onRuleInput, onHistogramPointerDown,
-  saveRuleField, deleteRule, addRule, resetRescoreRules, neutralizeRescoreRules,
-  saveScoringField, deleteScoringRow, addScoringRow, resetScoringRules,
-  exportCopy, exportWordlist, exportCSV, exportJSON,
-  state, Router, ToolStack, SettingsDialog, Storage, TOOLS,
-  getOutputFormat, setOutputFormat, persistMeta, persistEdits, buildMergedWordlist,
-  downloadSourceWordlist, downloadOriginalWordlist, checkForUpdates, saveEdit,
-  serializeEntries, buildWordlistText, applyWordlistText, renderMergedDetail,
-  getEditsWordlist,
-});
-// `_db` is reassigned after openDB() resolves; a static copy would freeze at its
-// boot-time null, so the suite (which polls `_db !== null`) needs a live read.
-Object.defineProperty(window, '_db', { get: () => _db, configurable: true });
+function exposeWindowGlobals() {
+  Object.assign(window, {
+    WordlistActions, SyncDialog, AppView,
+    toggleSplitMenu, startNoteEdit, onRuleInput, onHistogramPointerDown,
+    saveRuleField, deleteRule, addRule, resetRescoreRules, neutralizeRescoreRules,
+    saveScoringField, deleteScoringRow, addScoringRow, resetScoringRules,
+    exportCopy, exportWordlist, exportCSV, exportJSON,
+    state, Router, ToolStack, SettingsDialog, Storage, TOOLS,
+    getOutputFormat, setOutputFormat, persistMeta, persistEdits, buildMergedWordlist,
+    downloadSourceWordlist, downloadOriginalWordlist, checkForUpdates, saveEdit,
+    serializeEntries, buildWordlistText, applyWordlistText, renderMergedDetail,
+    getEditsWordlist,
+  });
+  window.__grawlixTest = __grawlixTest;
+  // `_db` is reassigned after openDB() resolves; a static copy would freeze at its
+  // boot-time null, so the suite (which polls `_db !== null`) needs a live read.
+  Object.defineProperty(window, '_db', { get: () => _db, configurable: true });
+}
 
-document.addEventListener('click', () => document.querySelectorAll('.split-btn.open').forEach(b => b.classList.remove('open')));
-// Hide the splash screen immediately if no wordlists have data.
-{ const _m = Storage.readMeta() || [];
-  if (!_m.some(l => l.lastUpdated)) document.getElementById('splash-screen').remove(); }
+function mountSplitMenuDismiss() {
+  document.addEventListener('click', () => document.querySelectorAll('.split-btn.open').forEach(b => b.classList.remove('open')));
+}
 
-init();
+// Hide the splash screen immediately if no wordlists have data. (When data
+// exists, init's reconnect/fade path retires it instead.)
+function maybeRemoveSplashEarly() {
+  const meta = Storage.readMeta() || [];
+  if (!meta.some(l => l.lastUpdated)) document.getElementById('splash-screen')?.remove();
+}
+
+// Module evaluation only *defines*; the side effects run here. The order is a
+// load-bearing contract — a wrong order surfaces as a runtime error, not the
+// hoisting non-issue it was when these ran as stray top-level statements.
+function boot() {
+  // Window exposure first: components below render HTML with inline on*= handlers
+  // that resolve through `window`, and the Playwright bridge polls `window._db`.
+  exposeWindowGlobals();
+
+  // Document-level / pure wiring — no dependency on the app-shell DOM existing.
+  mountGroupColumnStyle();
+  mountClearableInputs();
+  Collapsible.mount();
+  mountHistogramPointer();
+  mountSplitMenuDismiss();
+
+  // Dialog/overlay singletons append to <body>. showConfirm must exist before
+  // init() (init's migration path calls it); the rest before any UI opens them.
+  SettingsDialog.mount();
+  WelcomeDialog.mount();
+  showEditsConflict.mount();
+  showConfirm.mount();
+  showAlert.mount();
+  showMergeConflict.mount();
+  openUpdateSummaryDialog.mount();
+  SyncDialog.mount();
+  ConfigureWordlistDialog.mount();
+  ImportGuideDialog.mount();
+  GroupMorePopover.mount();
+
+  // App-shell components must exist before init()'s renderAll: the render
+  // effect's first run calls WordlistSelector.refresh() + DiscoveryBanner.refresh()
+  // and renders the panel (whose sticky observer watches #wordlist-bar).
+  WordlistSelector.mount();
+  ManagePanel.mount();
+  DiscoveryBanner.mount();
+  ToolPicker.mount();
+
+  mountStatsBarOverflowObservers();
+  mountHeaderHeightObserver();
+
+  maybeRemoveSplashEarly();
+  init();
+}
+
+boot();
