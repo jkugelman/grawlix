@@ -25,7 +25,7 @@ Major sections of the `<script>` block are delimited by full-width banner commen
 Sub-sections inside a component or other indented scope use a shorter form, two dashes, indented to match the surrounding code:
 
 ```
-  // ── Rail event delegation ─────────────────────────────────────────────────────
+  // ── Event delegation ─────────────────────────────────────────────────────
 ```
 
 These are anchors for grepping and for orientation; keep them stable.
@@ -103,6 +103,6 @@ The at-rest results display below the search bar. "Table" is loose: it's a div-b
 ## Commit messages
 
 - Conventional commits.
-- **No parenthetical scope.** Use `fix:` not `fix(rail):`.
+- **No parenthetical scope.** Use `fix:` not `fix(parser):`.
 - Lowercase subject, imperative mood.
 - Bodies are appreciated for most commits, but subject-only is fine if the body adds nothing useful.

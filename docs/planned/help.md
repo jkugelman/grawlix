@@ -26,7 +26,7 @@ This doc is more discussion than design — the conversation is just getting sta
 
 5. **Rescoring.** Its own page. The hardest mental model in the app and a core feature. Earns dedicated treatment.
 
-6. **Wordlists.** Importing, updating, downloading multiple wordlists. May get merged into the rescoring page (related — both live in the Library) or stay separate. Decide when we write it.
+6. **Wordlists.** Importing, updating, downloading multiple wordlists. May get merged into the rescoring page (related — both cover managing wordlists) or stay separate. Decide when we write it.
 
 ## Explicitly not doing
 

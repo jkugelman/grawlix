@@ -103,9 +103,9 @@ Exposed unconditionally in `site/index.html` (see the *Test API* section near th
 | `setRescoreRules(name, rules)` | Replace a wordlist's rescore rules via `setWordlistRescoreRules`. Rules shape: `{input, length, output, note?}`. |
 | `setUpdateAvailable(name, value)` | Toggle the transient `_updateAvailable` flag and repaint. Used to put info + warning severities on the same wordlist. |
 | `moveBefore(name, beforeName)` | Reorder `state.sources` so `name` lands at `beforeName`'s position. Routes through `reorderSources` so caches invalidate the same way a drag does. |
-| `getMergedEntry(entry)` | Read-only snapshot of the merged `All` view for a single entry: `{score, comment, wordlist}`. The sourcing wordlist is observable via the row's popover, but `.atom-source` is hidden in the default Workshop layout. |
+| `getMergedEntry(entry)` | Read-only snapshot of the merged `All` view for a single entry: `{score, comment, wordlist}`. The sourcing wordlist is observable via the row's popover, but `.atom-source` is hidden at narrow viewport widths. |
 | `getWordlist(name)` | Read-only snapshot of the fields tests care about (`entries`, `rescoreRules`, `dirty`, `updateAvailable`, etc.). |
-| `exportText(format)` | Run a Workshop export builder against the current pipeline output and return its result. `format` is `'copy'`, `'wordlist'`, `'csv'`, or `'json'`. Returns a string for copy/csv, an object `{text, count, skipped}` for wordlist, and the data object for json. Awaits `pipelineIdle` first. |
+| `exportText(format)` | Run an export builder against the current pipeline output and return its result. `format` is `'copy'`, `'wordlist'`, `'csv'`, or `'json'`. Returns a string for copy/csv, an object `{text, count, skipped}` for wordlist, and the data object for json. Awaits `pipelineIdle` first. |
 | `exportFilename(ext)` | Run the same filename builder Download menu items use, against the current tool stack. Returns the sanitized filename including extension. |
 | `sync.merge3(base, file, idb)` | Run the pure My Edits 3-way merge over three wordlist-text inputs. Returns `{resolved: [...], conflicts: [...]}` for asserting deletion-doesn't-resurrect and conflict detection without any file I/O. |
 | `sync.attachMirror(name, {existing}?)` / `attachEditsExisting()` / `attachEditsNew()` / `reconcileEdits()` / `isSynced(name)` / `filename(name)` / `flushWrites()` | Drive the real disk-sync attach/reconcile/write paths against the fake File System Access layer the test installs (`name === 'All'` targets the merged mirror; `attachMirror`'s `{existing: true}` exercises the write-to-existing-file door). See [`tests/disk-sync.spec.js`](../tests/disk-sync.spec.js). |
@@ -118,7 +118,7 @@ Pattern:
 
 ```js
 const { test, expect } = require('@playwright/test');
-const { stubPublisherFetches, gotoApp, openLibrary, focusWordlist } = require('./helpers');
+const { stubPublisherFetches, gotoApp, scopeViaSelector, openRescoreEditor } = require('./helpers');
 
 test.beforeEach(async ({ page }) => {
   await stubPublisherFetches(page);
@@ -133,8 +133,8 @@ test('feature does the right thing', async ({ page }) => {
   }));
 
   // Drive the UI.
-  await openLibrary(page);
-  await focusWordlist(page, 'Test');
+  await scopeViaSelector(page, 'Test');
+  await openRescoreEditor(page);
 
   // Assert against the DOM.
   await expect(page.locator('#rescore-rules .rule-row')).toHaveCount(3);
@@ -149,7 +149,7 @@ Every gallery tool gets its own spec under `tests/tools/`, named for the tool's 
 
 ### Reading async pipeline output
 
-The Workshop results pipeline is **asynchronous**: `setStack`, a search keystroke, or an entry edit kicks off a fire-and-forget run that repaints the entries scroller a frame or two later. A test that reads the rendered rows *once*, right after the interaction —
+The results pipeline is **asynchronous**: `setStack`, a search keystroke, or an entry edit kicks off a fire-and-forget run that repaints the entries scroller a frame or two later. A test that reads the rendered rows *once*, right after the interaction —
 
 ```js
 const visible = await page.evaluate(() => window.__grawlixTest.getVisibleEntries());

@@ -2091,7 +2091,7 @@ function makeReorderable(container, { handleSelector, itemSelector, onReorder })
   let dropLine = null, dropBeforeEl = null, hasDrop = false;
 
   // A transform-centered modal dialog is the fixed ghost-layer's containing block, so
-  // ghost/drop-line positions are layer-relative, not viewport (rail layer origin = 0,0).
+  // ghost/drop-line positions are layer-relative, not viewport (body layer origin = 0,0).
   const layerOrigin = () => dragGhostLayer().getBoundingClientRect();
 
   const moveGhost = () => {
