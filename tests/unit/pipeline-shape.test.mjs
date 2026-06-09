@@ -1,19 +1,20 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { extract } from './support/extract.mjs';
+import { displayOf } from '../../site/src/engine/norm.js';
 
-// Cross-region pulls give the REAL helpers rather than stubs: `bucketize` reaches
-// `displayOf` (parsing), `applyScoreRangeToRows` reaches `matchesRange`
-// (rescoring), and `rowLastEntry` is fenced into pipeline-shape with the targets.
+// `bucketize` reaches `displayOf` and `applyScoreRangeToRows` reaches `matchesRange`;
+// supplying the real helpers (imported `displayOf`, pulled `rescoring` region) rather
+// than stubs is what makes the pins exercise actual behavior.
 const {
   currentAtomCount, isFilterOnlyChain, isGroupChain, chainProducesMultiAtom,
   bucketize, cacheGroupStats, unify, collapseRepeatAtoms,
   flattenAtoms, bottomLineAtoms, applyScoreRangeToRows, rowLastEntry,
-} = extract(['parsing', 'rescoring', 'pipeline-shape'], [
+} = extract(['rescoring', 'pipeline-shape'], [
   'currentAtomCount', 'isFilterOnlyChain', 'isGroupChain', 'chainProducesMultiAtom',
   'bucketize', 'cacheGroupStats', 'unify', 'collapseRepeatAtoms',
   'flattenAtoms', 'bottomLineAtoms', 'applyScoreRangeToRows', 'rowLastEntry',
-]);
+], { displayOf });
 
 // ─── Fixtures ───────────────────────────────────────────────────────────────
 

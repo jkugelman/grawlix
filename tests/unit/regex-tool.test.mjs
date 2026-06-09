@@ -1,14 +1,15 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { extract } from './support/extract.mjs';
+import { toNorm, projectRangesToDisplay } from '../../site/src/engine/norm.js';
 
 const {
   analyzeRegexPattern, isCapturingGroup, matchingParen, wrapRuns,
   parseReplacement, kindForGroup, regexExecAll, runRegexReplace, runSearchReplace,
-} = extract(['parsing', 'search-highlight', 'regex-tool'], [
+} = extract(['search-highlight', 'regex-tool'], [
   'analyzeRegexPattern', 'isCapturingGroup', 'matchingParen', 'wrapRuns',
   'parseReplacement', 'kindForGroup', 'regexExecAll', 'runRegexReplace', 'runSearchReplace',
-]);
+], { toNorm, projectRangesToDisplay });
 
 const corpus = keys => ({ byNorm: new Map(keys.map(k => [k, true])) });
 

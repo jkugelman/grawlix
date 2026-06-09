@@ -1,14 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { extract } from './support/extract.mjs';
-
-const {
+import {
   toNorm, parseWordlistLine, parseWordlist, detectCase, validateWordlistChunk, buildWlEntry,
   stripAccents, buildNormToDisplay, projectRangesToDisplay, buildUserWlEntry, synthWlEntry,
-} = extract('parsing', [
-  'toNorm', 'parseWordlistLine', 'parseWordlist', 'detectCase', 'validateWordlistChunk', 'buildWlEntry',
-  'stripAccents', 'buildNormToDisplay', 'projectRangesToDisplay', 'buildUserWlEntry', 'synthWlEntry',
-]);
+} from '../../site/src/engine/norm.js';
 
 test('toNorm strips accents, case, separators, and ligatures', () => {
   assert.equal(toNorm('Café Olé!'), 'cafeole');

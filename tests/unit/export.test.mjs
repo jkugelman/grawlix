@@ -1,16 +1,17 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { extract } from './support/extract.mjs';
+import { displayOf } from '../../site/src/engine/norm.js';
 
-// buildWordlistText reaches displayOf (parsing) for the serialized entry text;
-// a cross-region pull gives the REAL helper rather than a stub.
+// buildWordlistText reaches displayOf for the serialized entry text; injecting the
+// real helper gives the REAL behavior rather than a stub.
 const {
   csvCell, exportFilenameSegment, exportFilename,
   flatCopyLines, chainContentEntries, buildWordlistText,
-} = extract(['parsing', 'export'], [
+} = extract(['export'], [
   'csvCell', 'exportFilenameSegment', 'exportFilename',
   'flatCopyLines', 'chainContentEntries', 'buildWordlistText',
-]);
+], { displayOf });
 
 // ─── Fixtures ───────────────────────────────────────────────────────────────
 
