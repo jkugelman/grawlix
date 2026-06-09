@@ -12,6 +12,7 @@ import {
   stripAccents, toNorm, displayOf, projectRangesToDisplay, parseWordlist,
   buildUserWlEntry, synthWlEntry, validateWordlistChunk,
 } from './engine/norm.js';
+import { parseRange, matchesRange, rangeSpan } from './engine/range.js';
 
 const scopeKey = scope => scope === MERGED_ID ? MERGED_ID : scope.dbKey;
 let _mergedIcon = null;
@@ -6996,34 +6997,6 @@ class UpdateSummaryScroller {
 // ─── Rescoring ────────────────────────────────────────────────────────────────
 
 // #region nodetest:rescoring
-function parseRange(str) {
-  str = (str || '').trim();
-  if (!str) return null;
-  const mPlus  = str.match(/^(\d+)\+$/);        if (mPlus)  return [{ min: +mPlus[1],  max: null }];
-  const mRange = str.match(/^(\d+)[-–](\d+)$/); if (mRange) return [{ min: +mRange[1], max: +mRange[2] }];
-  const mExact = str.match(/^(\d+)$/);          if (mExact) return [{ min: +mExact[1], max: +mExact[1] }];
-  return null;
-}
-
-function matchesRange(value, intervals) {
-  for (const { min, max } of intervals) {
-    if ((min === null || value >= min) && (max === null || value <= max)) return true;
-  }
-  return false;
-}
-
-function rangeSpan(str) {
-  if (!str || !str.trim()) return Infinity;
-  const intervals = parseRange(str);
-  if (!intervals) return Infinity;
-  let total = 0;
-  for (const { min, max } of intervals) {
-    if (max === null) return Infinity;
-    total += max - min;
-  }
-  return total;
-}
-
 function scoresToRangeStr(scores) {
   if (!scores.length) return '';
   const sorted = [...scores].sort((a, b) => a - b);
