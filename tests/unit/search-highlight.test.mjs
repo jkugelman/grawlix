@@ -188,10 +188,10 @@ test('groupSpansToRanges: a falsy match yields []', () => {
   assert.deepEqual(groupSpansToRanges(null), []);
 });
 
-test('renderHighlightedText: no ranges returns the input string unchanged (by reference)', () => {
-  const s = 'cat';
-  assert.equal(renderHighlightedText(s, []), s);
-  assert.equal(renderHighlightedText(s, null), s);
+test('renderHighlightedText: no ranges returns the HTML-escaped input', () => {
+  assert.equal(renderHighlightedText('cat', []), 'cat');
+  assert.equal(renderHighlightedText('cat', null), 'cat');
+  assert.equal(renderHighlightedText('a<img>&"', []), 'a&lt;img&gt;&amp;&quot;');
 });
 
 test('renderHighlightedText: a search:N kind wraps in <mark class="search-match search-match-N">', () => {
@@ -212,11 +212,9 @@ test('renderHighlightedText: interleaves un-highlighted text between ranges verb
   assert.equal(out, '<mark class="search-match search-match-0">c</mark>a<mark class="search-match search-match-1">t</mark>');
 });
 
-test('renderHighlightedText: entry text is inserted UNescaped (trust-the-wordlist)', () => {
-  // Pins a deliberately surprising contract: the renderer does NOT HTML-escape,
-  // so a future "escape this" change would (correctly) break this test.
+test('renderHighlightedText: entry text is HTML-escaped (entries can come from untrusted wordlists)', () => {
   const out = renderHighlightedText('a<b&c', [{ start: 0, end: 3, kind: 'search:0' }]);
-  assert.equal(out, '<mark class="search-match search-match-0">a<b</mark>&c');
+  assert.equal(out, '<mark class="search-match search-match-0">a&lt;b</mark>&amp;c');
 });
 
 test('renderHighlightedText: overlapping later ranges are skipped entirely', () => {

@@ -4777,17 +4777,18 @@ function groupSpansToRanges(m) {
 // (rendered as `<span class="hl-<kind>">`). Overlapping ranges are resolved
 // by skipping later ranges entirely — simple and predictable; the visual
 // loss is bounded to the rare case where a tool highlight overlaps a search
-// match exactly. Entries are inserted unescaped to match the rest of the
-// app's "trust the wordlist file" assumption.
+// match exactly. Entry text is HTML-escaped: this output is interpolated into
+// innerHTML and an entry's display can come from a wordlist imported or fetched
+// from an untrusted URL, so an unescaped `<img onerror>` entry would be XSS.
 function renderHighlightedText(text, ranges) {
-  if (!ranges || !ranges.length) return text;
+  if (!ranges || !ranges.length) return esc(text);
   const sorted = [...ranges].sort((a, b) => a.start - b.start);
   let result = '';
   let pos = 0;
   for (const r of sorted) {
     if (r.start < pos || r.end <= r.start) continue;
-    result += text.slice(pos, r.start);
-    const content = text.slice(r.start, r.end);
+    result += esc(text.slice(pos, r.start));
+    const content = esc(text.slice(r.start, r.end));
     if (r.kind.startsWith('search:')) {
       result += `<mark class="search-match search-match-${r.kind.slice(7)}">${content}</mark>`;
     } else {
@@ -4795,7 +4796,7 @@ function renderHighlightedText(text, ranges) {
     }
     pos = r.end;
   }
-  return result + text.slice(pos);
+  return result + esc(text.slice(pos));
 }
 // #endregion nodetest:search-highlight
 
@@ -10467,10 +10468,12 @@ function nameFromPath(str) {
   return str.split('/').pop().replace(/\.[^.]+$/, '');
 }
 
+// #region nodetest:search-highlight
 function esc(s) {
   if (!s) return '';
   return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
+// #endregion nodetest:search-highlight
 
 function pluralize(n, singular, pluralForm = singular + 's') {
   return `${n.toLocaleString()} ${plural(n, singular, pluralForm)}`;
