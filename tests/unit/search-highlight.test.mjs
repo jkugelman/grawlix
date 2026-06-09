@@ -1,15 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { extract } from './support/extract.mjs';
-import { esc } from '../../site/src/core/util.js';
-
-const {
+import {
   buildSearchPattern, isLiteralQuery, searchRangesFor,
   groupSpansToRanges, renderHighlightedText, HL_COLORS,
-} = extract('search-highlight', [
-  'buildSearchPattern', 'isLiteralQuery', 'searchRangesFor',
-  'groupSpansToRanges', 'renderHighlightedText', 'HL_COLORS',
-], { esc });
+} from '../../site/src/engine/search.js';
 
 const wl = (norm, display = null) => ({ norm, display });
 const matches = (pat, s) => { pat.globalRe.lastIndex = 0; return pat.globalRe.test(s); };
