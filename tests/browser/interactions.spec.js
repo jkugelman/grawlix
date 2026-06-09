@@ -75,7 +75,14 @@ test('the sync sign opens the Sync dialog', async ({ page }) => {
   await page.locator('#sync-sign').click();
   const dialog = page.locator('#sync-dialog');
   await expect(dialog).toBeVisible();
-  await expect(dialog.locator('.sync-choice')).toHaveCount(2);
+  // Disk sync (File System Access) is Chromium-only; elsewhere the dialog shows a notice, not attach choices.
+  const diskSupported = await page.evaluate(() => 'showSaveFilePicker' in window);
+  if (diskSupported) {
+    await expect(dialog.locator('.sync-choice')).toHaveCount(2);
+  } else {
+    await expect(dialog.locator('.sync-choice')).toHaveCount(0);
+    await expect(dialog.locator('.sync-dialog-lead')).toContainText('Chromium');
+  }
 });
 
 async function kebabAction(page, label) {
