@@ -304,6 +304,10 @@ html.light-mode .histogram-rect { opacity: 0.11; }
 .search-bar > .tool-row-param:not(.tool-row-param-text) { margin-left: 12px; }
 .search-bar > .tool-row-asides { margin-left: 12px; }
 .search-bar > .tool-row-replace { grid-column: 4; grid-row: 2; }
+/* Collapse, don't remove: dropping this handle from the grid reshuffles the
+   auto-placed columns and misaligns the find-replace row under the input. */
+.search-bar.solo > .drag-handle { width: 0; padding: 0; overflow: hidden; }
+.search-bar.solo > .tool-label { margin-left: 0; }
 .score-range-label { display: flex; align-items: center; gap: 5px; font-size: 12px; color: var(--muted); white-space: nowrap; }
 /* Negative margin cancels the padding's layout width — the highlight box keeps
    its 1px breathing room but a marked character stays exactly as wide as a bare
@@ -1762,7 +1766,8 @@ function buildSearchBarHTML() {
     p => ` data-row="bar" data-key="${p.key}"${p.key === 'pattern' ? ' title="Search (Alt-S)"' : ''}`,
     { findReplace: true, rowToken: 'bar', expanded: ToolStack.isRowExpanded('bar') });
   const label = buildToolLabelHTML({ icon: '<svg width="16" height="16" aria-hidden="true"><use href="#icon-search"/></svg>', name: 'Search' });
-  return `<div class="search-bar">
+  const solo = ToolStack.getUserStack().length === 0 ? ' solo' : '';
+  return `<div class="search-bar${solo}">
       <span class="drag-handle" aria-hidden="true">≡</span>
       ${label}
       ${parts.caret}
@@ -6544,11 +6549,13 @@ const ToolStack = (() => {
     removeCursor();
     const bar = e.querySelector('.search-bar');
     e.querySelectorAll('.tool-row').forEach(r => r.remove());
-    getUserStack().forEach((row, i) => {
+    const userStack = getUserStack();
+    userStack.forEach((row, i) => {
       const tmp = document.createElement('div');
       tmp.innerHTML = buildRowHTML(i, row);
       e.insertBefore(tmp.firstElementChild, bar);
     });
+    bar?.classList.toggle('solo', userStack.length === 0);
     attachHelpPopups();
   }
 
