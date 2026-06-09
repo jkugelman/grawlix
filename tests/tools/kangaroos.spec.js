@@ -1,4 +1,4 @@
-const { test } = require('@playwright/test');
+const { test, expect } = require('@playwright/test');
 const { stubPublisherFetches, gotoApp, expectVisible } = require('../helpers');
 
 test.beforeEach(async ({ page }) => {
@@ -63,4 +63,17 @@ test('the param is matched case-insensitively', async ({ page }) => {
   await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'kangaroos', params: { entry: 'kAnGa' } }]));
 
   await expectVisible(page, ['kangaroo'], { ordered: true });
+});
+
+test('highlights each joey letter where it lands in the kangaroo', async ({ page }) => {
+  await gotoApp(page);
+  await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
+    name: 'KangaHl',
+    entries: ['milkandsugar'],
+    scores:  [50],
+  }));
+  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'kangaroos', params: { entry: 'KANGA' } }]));
+
+  const row = page.locator('#vs-host .entry-row', { hasText: 'milkandsugar' });
+  await expect(row.locator('mark')).toHaveText(['k', 'a', 'n', 'g', 'a']);
 });

@@ -52,6 +52,36 @@ test('`?` matches exactly one character', async ({ page }) => {
   await expectVisible(page, ['cat', 'cats', 'cot', 'scat']);
 });
 
+test('`#` matches any consonant and `@` matches any vowel', async ({ page }) => {
+  await gotoApp(page);
+  await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
+    name: 'Classes',
+    entries: ['bad', 'bed', 'bid', 'bod', 'bud', 'byd'],
+    scores:  Array(6).fill(50),
+  }));
+
+  await setSearch(page, 'b@d');
+  await expectVisible(page, ['bad', 'bed', 'bid', 'bod', 'bud']);
+
+  await setSearch(page, 'b#d');
+  await expectVisible(page, ['byd'], { ordered: true });
+});
+
+test('`[abc]` matches any listed letter and `[^abc]` matches any unlisted letter', async ({ page }) => {
+  await gotoApp(page);
+  await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
+    name: 'Brackets',
+    entries: ['bat', 'cat', 'rat', 'hat', 'mat'],
+    scores:  Array(5).fill(50),
+  }));
+
+  await setSearch(page, '[bcr]at');
+  await expectVisible(page, ['bat', 'cat', 'rat']);
+
+  await setSearch(page, '[^bcr]at');
+  await expectVisible(page, ['hat', 'mat']);
+});
+
 test('whole-word anchors the query to the entry boundaries', async ({ page }) => {
   await gotoApp(page);
   await addFixture(page);

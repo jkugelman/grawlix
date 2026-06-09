@@ -1,3 +1,10 @@
+// Pixel-geometry layout tests — a DELIBERATE, user-authorized exception to the
+// "visual/layout stays manual" rule in docs/testing.md and the no-computed-style
+// convention. The search bar accumulated repeated fiddly layout regressions that
+// manual play-throughs kept missing, so its geometry (input widths, control gaps,
+// vertical centering) is pinned here on purpose. Do NOT delete these as
+// philosophy drift — see docs/testing.md § "What stays manual".
+
 const { test, expect } = require('@playwright/test');
 const { stubPublisherFetches, gotoApp } = require('./helpers');
 

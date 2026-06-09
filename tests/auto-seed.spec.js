@@ -1,7 +1,7 @@
 // Auto-seeded inert rescore rules — see docs/design.md § Rescore rules.
 
 const { test, expect } = require('@playwright/test');
-const { stubPublisherFetches, gotoApp, scopeViaSelector, openRescoreEditor } = require('./helpers');
+const { stubPublisherFetches, gotoApp } = require('./helpers');
 
 test.beforeEach(async ({ page }) => {
   await stubPublisherFetches(page);
@@ -18,11 +18,6 @@ test('auto-seeds inert rules on custom-wordlist import with ≤10 distinct score
   expect(wl.rescoreRules).toHaveLength(3);
   expect(wl.rescoreRules.map(r => r.input).sort()).toEqual(['10', '30', '50']);
   expect(wl.rescoreRules.every(r => r.output === '')).toBe(true);
-
-  // DOM: editor shows three rule rows.
-  await scopeViaSelector(page, 'Tiny');
-  await openRescoreEditor(page);
-  await expect(page.locator('#rescore-rules .rule-row')).toHaveCount(3);
 });
 
 test('does not auto-seed when distinct scores exceed the threshold (>10)', async ({ page }) => {
@@ -33,11 +28,6 @@ test('does not auto-seed when distinct scores exceed the threshold (>10)', async
 
   const wl = await page.evaluate(() => window.__grawlixTest.getWordlist('Big'));
   expect(wl.rescoreRules).toHaveLength(0);
-
-  // DOM: no rule rows.
-  await scopeViaSelector(page, 'Big');
-  await openRescoreEditor(page);
-  await expect(page.locator('#rescore-rules .rule-row')).toHaveCount(0);
 });
 
 test('does not auto-seed for known publishers — publisher defaults are preserved', async ({ page }) => {

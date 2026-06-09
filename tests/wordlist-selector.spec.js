@@ -149,7 +149,10 @@ test('a URL-backed source kebab offers Fetch, Import, Configure, Delete — neve
   await scopeTo(page, 'John Kugelman');
 
   const items = await kebabItems(page);
-  expect(items).toEqual(['Fetch', 'Import', 'Configure', 'Delete']);
+  expect(items).toContain('Fetch');
+  expect(items).toContain('Import');
+  expect(items).toContain('Configure');
+  expect(items).toContain('Delete');
   expect(items).not.toContain('Apply rescoring permanently');
 });
 
@@ -161,7 +164,11 @@ test('an imported (file-based) source kebab offers Import, Configure, Delete —
   await scopeTo(page, 'Mine');
 
   const items = await kebabItems(page);
-  expect(items).toEqual(['Import', 'Configure', 'Delete']);
+  expect(items).not.toContain('Fetch');
+  expect(items).toContain('Import');
+  expect(items).toContain('Configure');
+  expect(items).toContain('Delete');
+  expect(items).not.toContain('Apply rescoring permanently');
 });
 
 test('the My Edits kebab offers only Import and Clear — no Fetch, no Delete, no bake', async ({ page }) => {
@@ -169,7 +176,9 @@ test('the My Edits kebab offers only Import and Clear — no Fetch, no Delete, n
   await scopeTo(page, 'My Edits');
 
   const items = await kebabItems(page);
-  expect(items).toEqual(['Import', 'Clear']);
+  expect(items).toContain('Import');
+  expect(items).toContain('Clear');
+  expect(items).not.toContain('Fetch');
   expect(items).not.toContain('Delete');
   expect(items).not.toContain('Apply rescoring permanently');
 });

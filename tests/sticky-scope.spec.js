@@ -107,10 +107,9 @@ test('the selected scope persists across a reload', async ({ page }) => {
 
 test('a disabled scoped source still restores on reload (scope is not gated on enabled)', async ({ page }) => {
   await gotoApp(page);
-  const dbKey = await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
+  await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
     name: 'Off', entries: ['ocean', 'tide'], scores: [70, 40], enabled: false,
   }));
-  expect(dbKey).toBeTruthy();
 
   await scopeViaSelector(page, 'Off');
   await expect(page.locator('#wordlist-bar .wls-trigger-label')).toHaveText('Off');

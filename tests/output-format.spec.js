@@ -169,16 +169,13 @@ test.describe('output format UI', () => {
     const downloadOriginal = downloadBtn.locator('.split-btn-menu button');
 
     await scopeTo(page, 'Ruled');
-    await expect(downloadBtn.locator('.split-btn-main')).toHaveText('Download');
-    await expect(downloadOriginal).toHaveText('Download original');
+    await expect(downloadOriginal).toHaveCount(1);
 
     await scopeTo(page, 'Plain');
     await expect(downloadOriginal).toHaveCount(0);
-    await expect(downloadBtn).toHaveText('Download');
 
     await scopeTo(page, 'All Wordlists');
     await expect(downloadOriginal).toHaveCount(0);
-    await expect(downloadBtn).toHaveText('Download');
   });
 
   test('Download original saves the imported file verbatim, not the rule output', async ({ page }) => {

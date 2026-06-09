@@ -29,7 +29,6 @@ async function addAnagramFixture(page) {
 }
 
 test('anagram via URL filters the merged view', async ({ page }) => {
-  await stubPublisherFetches(page);
   await gotoApp(page);
   await addAnagramFixture(page);
   // Re-navigate to land on the anagram URL after the wordlist is loaded;

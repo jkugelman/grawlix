@@ -2,8 +2,7 @@
 // table + tools to a single source shows that source's OWN data only — no other
 // publisher's opinion and no My Edits overlay mixed in — and that returning to
 // All Wordlists restores the merged view. A My Edits edit therefore appears only in All Wordlists or
-// when scoped to My Edits itself. Scope is driven through the `setScope` test
-// API; there is no scope UI yet.
+// when scoped to My Edits itself.
 
 const { test, expect } = require('@playwright/test');
 const { stubPublisherFetches, gotoApp, scopeTo, expectVisible, setEnabledViaPanel } = require('./helpers');

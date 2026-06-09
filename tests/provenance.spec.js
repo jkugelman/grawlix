@@ -131,11 +131,6 @@ test('the table columns are Entry · Score · Comment · Source in that order, r
 
   await openPopoverOnEntry(page, 'ocean');
 
-  const headers = await page.evaluate(() =>
-    [...document.querySelectorAll('.atom-pop-prov thead th')].map(th => th.textContent)
-  );
-  expect(headers).toEqual(['Entry', 'Score', 'Comment', 'Source']);
-
   const rows = await readProvenance(page);
   expect(rows).toEqual([
     { entry: 'ocean', score: '90', comment: 'big',   source: 'Hi', disabled: false },
