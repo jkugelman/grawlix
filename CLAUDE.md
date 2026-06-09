@@ -26,14 +26,14 @@ Design and manual:
 - [`docs/wordlisted.md`](docs/wordlisted.md) — reference catalogue of Wordlisted's search modes; source material for the tool gallery.
 
 Plans (forward-looking, not yet shipped):
-- [`docs/planned/help.md`](docs/planned/help.md) — separating welcome tour from returning-user reference manual.
+- [`docs/planned/help.md`](docs/planned/help.md) — planned multi-page help system (FAQ, tips, tool/rescoring explainers); the in-app Welcome dialog already ships.
 - [`docs/planned/tools.md`](docs/planned/tools.md) — runtime support sequencing, gallery polish (category picker, search), result download, tool API extensions (indexed lookups, annotations, escape hatches), open questions. The chain-row pipeline (executor, per-row tool API, symmetric unification, search-as-tool, per-atom-count sort, highlights) and the group-row model (group tools, group rows, the +N-more reveal) are shipped — see `design.md`. The tool catalog itself lives in `docs/tools.md`.
 
 Future (longer-horizon ideas, not actively planned):
 - [`docs/future/lookup.md`](docs/future/lookup.md) — click-a-word lookup (definitions, Wikipedia, NYT history, semantic search).
 - [`docs/future/puz-to-pdf.md`](docs/future/puz-to-pdf.md) — feasibility sketch for in-browser .PUZ → printable PDF rendering.
 
-When a plan ships, run the `distill-design-doc` skill to fold it into `design.md` and/or `manual.md`. (There used to be an in-app welcome tour with copy that needed updating per shipped feature; it was removed pending a redesign — see [`docs/planned/help.md`](docs/planned/help.md). The header `?` button is a deactivated placeholder until that lands.)
+When a plan ships, run the `distill-design-doc` skill to fold it into `design.md` and/or `manual.md`. (The header `?` button opens the in-app Welcome dialog (`WelcomeDialog`) — a 3-section slide deck, also shown on first boot, that renders its tool/publisher mentions from the live catalog. A broader multi-page help system is still planned — see [`docs/planned/help.md`](docs/planned/help.md).)
 
 ## Architecture
 
