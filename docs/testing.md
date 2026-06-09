@@ -1,6 +1,6 @@
 # Testing
 
-A Playwright smoke suite covers user-visible behaviors whose breakage would survive a manual play-through — silent data corruption, cross-feature regressions, browser-specific quirks. Visual and layout regressions stay manual.
+Two tiers. A **Playwright browser suite** ([`tests/browser/`](../tests/browser/)) covers user-visible behaviors whose breakage would survive a manual play-through — silent data corruption, cross-feature regressions, browser-specific quirks; visual and layout regressions stay manual. A **`node:test` unit tier** ([`tests/unit/`](../tests/unit/)) covers pure logic — parsing, rescoring, the 3-way merge, schema migrations — extracted from `site/index.html` and run with no browser, so branchy arithmetic and ordering that's awkward to reach through the DOM gets pinned directly.
 
 End-to-end smoke is the right shape for a single-file vanilla-JS app: subtle cross-feature breakage like "editing a score in My Edits patches the merged cache wrong" is exactly what it catches. Targeted tests at the seams beat comprehensive coverage. CI is a passive monitor, not a gate.
 
@@ -51,9 +51,22 @@ The suite covers what manual testing structurally misses. Manual already catches
 
 **Real File System Access.** The native file pickers and permission prompts can't be driven headless. `tests/browser/disk-sync.spec.js` installs an in-memory fake for `showOpenFilePicker` / `showSaveFilePicker` / the handle, so the app's own attach/reconcile/write code is exercised, but the picker UI, permission grant, and boot reconnect-splash flow stay manual. The 3-way merge — the deletion-resurrection risk — is also covered directly via `sync.merge3`, which needs no fake at all. The action-row **sync pill** is asserted at the DOM level against the same fake — that it reflects sync state (the synced filename, the `→`/`⇄` arrow) once a list is attached. The sync **dialog's** button layout and copy aren't pinned by tests — that's brittle markup/copy (see *Strategy*); the doors' behavior is exercised through the attach paths (`sync.attachMirror` with and without `{ existing }`, `attachEditsExisting`/`attachEditsNew`), including that a mirror's "use existing" overwrites the target file with rescored output.
 
+## Unit tier (`tests/unit/`)
+
+Pure logic — parsing, rescoring, the My Edits 3-way merge, schema migrations — lives in one closure inside `site/index.html`, so it isn't importable. The unit tier extracts it without a build step and without the shipped file changing shape:
+
+- **Marker-fenced regions.** Pure functions are fenced inline in `site/index.html` with `// #region nodetest:<name>` / `// #endregion nodetest:<name>`. The markers are plain comments — zero runtime effect, they ship verbatim, and `npm run build`'s minifier strips them from `dist/`. A region may be fenced in several blocks to skip a `state`-coupled neighbour mid-section; same-named blocks concatenate in source order.
+- **The harness.** [`tests/unit/support/extract.mjs`](../tests/unit/support/extract.mjs) reads the source (never `dist/` — the markers only exist in source), slices the requested regions, and evaluates them as an IIFE in the host realm via `runInThisContext`. (Not a fresh `vm` context: that gives returned objects a foreign `Object.prototype` that `deepStrictEqual` rejects as "same structure but not reference-equal.") `extract(regions, names)` returns the named functions; pass a `globals` object for any stub a region needs.
+- **The runner.** `node:test` + `node:assert/strict`, no new dependencies. Specs are `tests/unit/*.test.mjs`; run `npm run test:unit` (or `node --test tests/unit/`). CI runs it in the build job, gating the browser matrix.
+
+**What belongs here:** deterministic transforms with no browser-specific behavior — string→string, score mapping, dedup, sort/priority ordering, serialization, the 3-way merge, migration blob-transformers. Especially the branchy paths that are awkward to reach through Playwright: rescore range-output scaling and N+ shift, the rule-priority tie-break with *overlapping* rules, malformed-line parsing, `detectCase`'s ratio threshold.
+
+**What stays in the browser tier:** anything touching `state`, the DOM, persistence, the pipeline, or rendering. When fencing, draw the markers to exclude `state`-reading wrappers (`editsLegend`, `getRescoredEntries`'s cache) — the harness throws a `ReferenceError` if a fenced function reaches outside its region, which is the signal you fenced too much. Schema migrations keep their mandated frozen before→after fixture, now in [`tests/unit/migrations.test.mjs`](../tests/unit/migrations.test.mjs) rather than through the browser.
+
+The tool predicates (`TOOLS[*].run/group`) are the next region to extract — they're the largest pure surface but live as methods inside one object literal, so fencing them means co-fencing the registry's helpers (skeletons, `buildSearchPattern`, the corpus); until then their contracts stay in `tests/browser/tools/`.
+
 ## Out of scope
 
-- **Unit tests.** No meaningful seams — logic is wired to DOM and persistence. Unit testing would mean either testing trivial pure helpers (low value) or rebuilding the DOM/IDB environment in jsdom (high cost, divergence risk).
 - **PR gating / branch protection.** CI runs on push to `main` only. For a solo pre-launch project, automation is a regression *signal*, not a release gate.
 - **Coverage metrics.** Smoke is the target, not comprehensive coverage. A coverage number would invite chasing it rather than chasing the bugs.
 
@@ -77,7 +90,8 @@ sudo npx playwright install-deps   # first time only — installs OS-level brows
 ## Cheat sheet
 
 ```sh
-npm test                              # all browsers, headless — what CI runs
+npm test                              # browser suite, all engines — what CI runs
+npm run test:unit                     # node:test unit tier (fast, no browser)
 npm test -- --project=chromium        # one browser (fast)
 npm test -- tests/browser/smoke.spec.js       # one file
 npm test -- -g "auto-seed"            # one test by name (grep)

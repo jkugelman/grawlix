@@ -30,6 +30,11 @@ jobs:
 
       - run: npm ci
 
+      # Fast logic tier (node:test) — extracts pure functions from the source and
+      # runs them with no browser, gating the build before the 3-engine matrix.
+      - name: Run unit tests
+        run: npm run test:unit
+
       - name: Build minified site
         run: npm run build
 

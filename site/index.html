@@ -2481,6 +2481,7 @@ function wrapWordlist(wl) {
 
 // ─── Parsing ─────────────────────────────────────────────────────────────────
 
+// #region nodetest:parsing
 const FOLD_MAP = {
   'ß': 'ss',
   'ø': 'o',  'Ø': 'O',
@@ -2615,6 +2616,7 @@ function validateWordlistChunk(text) {
   if (!dataLines.length) return false;
   return dataLines.every(l => parseWordlistLine(l) !== null);
 }
+// #endregion nodetest:parsing
 
 // ─── Storage ──────────────────────────────────────────────────────────────────
 
@@ -2633,6 +2635,7 @@ function lsDel(key)  { localStorage.removeItem(LS_PREFIX + key); }
 //   ≤9: pre-migration-policy baseline; a store this old hits the reset floor.
 //   v10 (2026-06-06): dropped the 'ignore' rescore output; rules that output
 //                     'ignore' rewrite to '0'.
+// #region nodetest:migrations
 const SCHEMA_VERSION = 10;
 
 // MIGRATIONS[v] upgrades a settings blob from schema v to v+1, mutating it in
@@ -2659,6 +2662,7 @@ function migrateSettings(blob, from) {
   for (let v = from; v < SCHEMA_VERSION; v++) MIGRATIONS[v](blob); // canMigrate(from) must hold
   return blob;
 }
+// #endregion nodetest:migrations
 
 // IndexedDB for large wordlist data (localStorage has ~5MB limit)
 const IDB_NAME  = 'grawlix';
@@ -2926,6 +2930,7 @@ const MirrorSync = {
   },
 };
 
+// #region nodetest:merge3
 function editsEntriesByNorm(entries) {
   const m = new Map();
   for (const e of entries) m.set(e.norm, e);
@@ -2963,6 +2968,7 @@ function sameEditsEntries(a, b) {
   for (const [norm, ae] of am) if (!editsEntryEqual(ae, bm.get(norm))) return false;
   return true;
 }
+// #endregion nodetest:merge3
 
 function applyReconciledEdits(edits, entries) {
   batchUpdate(() => {
@@ -8560,6 +8566,7 @@ class UpdateSummaryScroller {
 
 // ─── Rescoring ────────────────────────────────────────────────────────────────
 
+// #region nodetest:rescoring
 function parseRange(str) {
   str = (str || '').trim();
   if (!str) return null;
@@ -8637,6 +8644,7 @@ function scoringRulesEqual(a, b) {
     return r.input === o.input && (r.note || '') === (o.note || '');
   });
 }
+// #endregion nodetest:rescoring
 
 // The My Edits legend: an inert mirror of All Wordlists' tier scale, one blank-output row
 // per tier. Sourced from the live tiers (state.scoring), not frozen
@@ -8719,6 +8727,7 @@ function reconcileEditsRulesAfterImport(edits) {
   updateWordlistDirty(edits);
 }
 
+// #region nodetest:rescoring
 // First-match-wins: narrower rules must precede broader supersets or never fire.
 function compareRescoreRulesForPriority(a, b) {
   const am = getRuleMaxScore(a), bm = getRuleMaxScore(b);
@@ -8763,6 +8772,7 @@ function applyRescoring(entries, rules) {
     return score !== e.score ? { ...e, score, rawScore: e.score } : e;
   });
 }
+// #endregion nodetest:rescoring
 
 function getRescoredEntries(wordlist) {
   return wordlist._rescored ??= applyRescoring(wordlist.rawEntries, wordlist.rescoreRules);
@@ -8790,6 +8800,7 @@ function getRescoredByNorm(wordlist) {
   return wordlist._rescoredByNorm = map;
 }
 
+// #region nodetest:rescoring
 function rescoreEntry(wlEntry, rules) {
   for (const rule of rules) {
     const scoreIntervals = rule._scoreIntervals !== undefined ? rule._scoreIntervals : parseRange(rule.input);
@@ -8816,6 +8827,7 @@ function rescoreEntry(wlEntry, rules) {
   }
   return wlEntry.score;
 }
+// #endregion nodetest:rescoring
 
 // ─── Rescoring / Scoring section ─────────────────────────────────────────────
 
