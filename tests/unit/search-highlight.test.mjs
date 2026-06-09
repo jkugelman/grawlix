@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { extract } from './support/extract.mjs';
+import { esc } from '../../site/src/core/util.js';
 
 const {
   buildSearchPattern, isLiteralQuery, searchRangesFor,
@@ -8,7 +9,7 @@ const {
 } = extract('search-highlight', [
   'buildSearchPattern', 'isLiteralQuery', 'searchRangesFor',
   'groupSpansToRanges', 'renderHighlightedText', 'HL_COLORS',
-]);
+], { esc });
 
 const wl = (norm, display = null) => ({ norm, display });
 const matches = (pat, s) => { pat.globalRe.lastIndex = 0; return pat.globalRe.test(s); };

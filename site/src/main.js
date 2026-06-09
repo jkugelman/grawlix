@@ -1,171 +1,17 @@
 'use strict';
 
-// ─── Constants ────────────────────────────────────────────────────────────────
+import {
+  ROW_HEIGHT, VS_BUFFER, LS_PREFIX, MERGED_ID, MERGED_NAME, EDITS_ICON,
+  INITIALS_PALETTE, EMOJI_LIST, WORDLIST_PUBLISHERS, DEFAULT_SCORING,
+  SEVERITY_PRIORITY,
+} from './core/constants.js';
+import { esc, pluralize, plural, timeAgo, nameFromPath, buildHelpHTML } from './core/util.js';
+import { getBrowser, isMobile, hoverCapable } from './core/platform.js';
+import { signal, effect, runBatched } from './core/signals.js';
 
-const ROW_HEIGHT   = 24;
-const VS_BUFFER    = 60;
-// Duplicated in the <head> FOUC script on purpose: that script must run before
-// first paint, so it can't import a shared binding from this deferred module.
-const LS_PREFIX    = 'grawlix_';
-const MERGED_ID    = '__merged__';
-const MERGED_NAME  = 'All Wordlists';
 const scopeKey = scope => scope === MERGED_ID ? MERGED_ID : scope.dbKey;
-const EDITS_ICON   = { type: 'emoji', value: '✏️' };
 let _mergedIcon = null;
 function getMergedIcon() { return _mergedIcon ??= buildEmojiIconHTML('⭐'); }
-
-const INITIALS_PALETTE = [
-  '#5C6BC0', '#1E88E5', '#00ACC1', '#00897B',
-  '#43A047', '#FB8C00', '#E53935', '#D81B60',
-  '#8E24AA', '#5E35B1', '#3949AB', '#0277BD',
-];
-
-const EMOJI_LIST = [
-       '🥇','🏅','💫','✨','🔥','💎','👑',
-  '🏆','🎯','🎲','🎪','🎭','🎨','🎵','🎬',
-  '🎮','📖','📝','✏️','🔑','💡','🔮','🧩',
-  '🦁','🐻','🦊','🐺','🦄','🐉','🦅','🦋',
-  '🌊','🌈','🌙','☀️','⚡','🍀','🌸','🌺',
-  '🚀','🛸','🧠','👾','🤖','👻','😎','🤓',
-  '❤️','💜','💙','💚','💛','🧡','🖤','🤍',
-];
-
-const WORDLIST_PUBLISHERS = [
-  {
-    id: 'jkugelman',
-    popularity: 5,
-    name: 'John Kugelman',
-    url: 'https://raw.githubusercontent.com/jkugelman/crossword/refs/heads/main/wordlists/jkugelman-wordlist.txt',
-    icon: null,
-    defaultRules: [
-      { input:'60', length:'', output:'', note:'Good (colorful phrases, interesting full names)' },
-      { input:'50', length:'', output:'', note:'Average (dictionary words)' },
-      { input:'40', length:'', output:'', note:'Okay in moderation (proper names, abbreviations, prepositional phrases)' },
-      { input:'30', length:'', output:'', note:'Not good (crosswordese, plural names, contrived inflections)' },
-      { input:'20', length:'', output:'', note:'Junk (partials, variant spellings, Roman numerals)' },
-      { input:'10', length:'', output:'', note:'Offensive' },
-      { input:'0',  length:'', output:'', note:'Gibberish' },
-    ],
-  },
-  {
-    id: 'nediger',
-    popularity: 4,
-    name: 'Will Nediger',
-    url: 'https://grawlix.wtf/Nediger list.txt',
-    icon: null,
-    defaultRules: [
-      { input:'99', length:'8+',  output:'60', note:'Asset' },
-      { input:'99', length:'1-2', output:'40', note:'Short fill', scoring:false },
-      { input:'99', length:'',    output:'50', note:'Good for any venue' },
-      { input:'51', length:'1-2', output:'30', note:'Short fill', scoring:false },
-      { input:'51', length:'',    output:'50', note:'Decent to good' },
-      { input:'49', length:'',    output:'10', note:'Racy' },
-      { input:'25', length:'1-2', output:'20', note:'Short fill', scoring:false },
-      { input:'25', length:'',    output:'40', note:'Not great' },
-    ],
-  },
-  {
-    id: 'xwi',
-    popularity: 2,
-    name: 'XWord Info',
-    url: null,
-    sourcePage: 'https://www.xwordinfo.com/WordList',
-    sourceNote: 'Sign in and download the <strong>plain-text (.txt)</strong> version.',
-    subscriptionNote: 'XWord Info\'s wordlist requires a paid subscription.',
-    icon: { type: 'img', url: 'https://www.xwordinfo.com/favicon.ico' },
-    defaultRules: [
-      { input:'60', length:'', output:'',   note:'Entries considered "assets" to a puzzle' },
-      { input:'50', length:'', output:'',   note:'Fine entries' },
-      { input:'30', length:'', output:'',   note:'' },
-      { input:'25', length:'', output:'30', note:'Partials, odd abbreviations, very esoteric names, short Roman numerals, etc.' },
-      { input:'20', length:'', output:'20', note:'Five-letter entries that would be hard to defend as fine' },
-      { input:'15', length:'', output:'20', note:'Random Roman numerals that are longer than three letters' },
-      { input:'10', length:'', output:'20', note:'' },
-      { input:'5',  length:'', output:'20', note:'Entries that Will Shortz or other editors have identified as "puzzle-killers"' },
-    ],
-  },
-  {
-    id: 'stwl',
-    popularity: 1,
-    name: 'Spread the Word(list)',
-    url: 'https://grawlix.wtf/spreadthewordlist.txt',
-    icon: { type: 'img', url: 'https://www.spreadthewordlist.com/favicon.ico' },
-    defaultRules: [
-      { input:'50', length:'', output:'50', note:'Clean' },
-      { input:'40', length:'', output:'30', note:'Dubious'},
-      { input:'30', length:'', output:'20', note:'Dubious'},
-      { input:'20', length:'', output:'0',  note:'Dubious'},
-      { input:'10', length:'', output:'0',  note:'Dubious'},
-      { input:'0',  length:'', output:'10', note:'Offensive'},
-    ],
-  },
-  {
-    id: 'broda',
-    popularity: 3,
-    name: 'Peter Broda',
-    url: 'https://grawlix.wtf/peter-broda-wordlist.txt',
-    icon: null,
-    defaultRules: [
-      { input:'76-100', length:'7+', output:'60',     scoring:false },
-      { input:'0-100',  length:'',   output:'20' },
-    ],
-  },
-];
-
-// ─── Signals ──────────────────────────────────────────────────────────────────
-//
-// Hand-rolled minimal signals primitive. Reactivity for the structural state
-// and view layer; the perf-critical caches (merged, override, stats) stay
-// imperative and bump `cacheVersion$` to notify subscribers. ~50 lines, no
-// external dependency — keeps grawlix's "no build step, no npm" property.
-//
-// Scope notes:
-//   - No automatic dependency cleanup on re-runs (effects accumulate subs).
-//     Fine for grawlix's small, stable graph.
-//   - No batching primitive in the lib — `batchUpdate` already coalesces at
-//     the call-site level.
-//   - No async support; not needed.
-
-let _currentEffect = null;
-// While `_batchedEffects` is non-null, signal writes queue subscribers here
-// instead of running them; the batch owner drains and runs each effect once.
-// Coalesces multi-field updates (e.g. the configure-wordlist dialog save) so
-// each effect sees a coherent post-batch state and runs once, not N times.
-let _batchedEffects = null;
-
-function _fireSubs(subs) {
-  if (_batchedEffects) {
-    for (const s of subs) _batchedEffects.add(s);
-  } else {
-    [...subs].forEach(s => s());
-  }
-}
-
-function signal(initial) {
-  let value = initial;
-  const subs = new Set();
-  return {
-    get() { if (_currentEffect) subs.add(_currentEffect); return value; },
-    peek() { return value; },          // non-subscribing read
-    set(v) {
-      if (Object.is(v, value)) return;
-      value = v;
-      _fireSubs(subs);
-    },
-    // For mutable values (arrays, maps): force notify even when ref is unchanged.
-    bump() { _fireSubs(subs); },
-  };
-}
-
-function effect(fn) {
-  const run = () => {
-    const prev = _currentEffect;
-    _currentEffect = run;
-    try { fn(); } finally { _currentEffect = prev; }
-  };
-  run();
-  return run;
-}
 
 // ─── Components ──────────────────────────────────────────────────────────────
 
@@ -227,32 +73,12 @@ function buildStatItemHTML(label, value, title, extraClass) {
   </div>`;
 }
 
-const SEVERITY_PRIORITY = { info: 1 };
-
 function buildBadgeHTML(severity, opts = {}) {
   if (!severity) return '';
   const { title = '' } = opts;
   const titleAttr = title ? ` title="${esc(title)}" aria-label="${esc(title)}"` : '';
   return `<span class="badge" data-severity="${severity}"${titleAttr}></span>`;
 }
-
-let _browser = null;
-function getBrowser() {
-  if (_browser) return _browser;
-  const ua = navigator.userAgent;
-  const brands = navigator.userAgentData?.brands?.map(b => b.brand).join(' ') || '';
-  if (/Firefox\//.test(ua))                                return _browser = { id: 'firefox', icon: 'icon-browser-firefox', name: 'Firefox' };
-  if (/Edg\//.test(ua))                                    return _browser = { id: 'edge',    icon: 'icon-browser-edge',    name: 'Edge' };
-  if (/Safari\//.test(ua) && !/Chrom(e|ium)\//.test(ua))   return _browser = { id: 'safari',  icon: 'icon-browser-safari',  name: 'Safari' };
-  const fork = /\b(Brave|OPR|Vivaldi)\b/.test(ua) || /\b(Brave|Opera|Vivaldi|Arc)\b/.test(brands);
-  if (!fork && /Chrome\//.test(ua) && (!brands || /Google Chrome/.test(brands)))
-    return _browser = { id: 'chrome', icon: 'icon-browser-chrome', name: 'Chrome' };
-  return _browser = { id: 'other', icon: 'icon-globe', name: 'your browser' };
-}
-
-const isMobile = () =>
-  navigator.userAgentData?.mobile
-  ?? !window.matchMedia('(any-pointer: fine) and (any-hover: hover)').matches;
 
 function syncSignHTML(list) {
   if (isMobile()) return '';
@@ -350,16 +176,6 @@ function buildMergedCardHTML(selected) {
     </div>
     <span class="merged-card-spacer" aria-hidden="true"></span>
   </div>`;
-}
-
-function buildHelpHTML(rows, opts = {}) {
-  const items = rows.map(([code, desc]) =>
-    `<span><kbd>${esc(code)}</kbd> ${esc(desc)}</span>`).join('');
-  const oneCol = opts.cols === 1 ? ' one-col' : '';
-  const footer = opts.link
-    ? `<div class="help-link"><a href="${esc(opts.link.url)}" target="_blank" rel="noopener">${esc(opts.link.text)}</a></div>`
-    : '';
-  return `<div class="help-grid${oneCol}">${items}</div>${footer}`;
 }
 
 // The × button carries no per-call wiring: clicking it empties the field and
@@ -1096,14 +912,6 @@ const Router = (() => {
 // Default tier labels for the unified score scale. Stored on `state.scoring`
 // and surfaced as a read/write legend on the merged All Wordlists view.
 //
-// Derived from JK's rules, not duplicated: the unified scale IS JK's scoring
-// scheme (its rescore rules are canonical).
-const DEFAULT_SCORING = WORDLIST_PUBLISHERS
-  .find(p => p.id === 'jkugelman')
-  .defaultRules
-  .filter(r => r.scoring !== false)
-  .map(({ input, note }) => ({ input, note }));
-
 // Top-level state. `sources$` is the array of wordlists, signal-backed so
 // the cosmetic effect can subscribe; reorder/add/remove call `sources$.bump()`
 // after splicing (signal equality is by reference, so plain mutation needs a
@@ -9228,42 +9036,6 @@ function toggleWholeWord() {
 
 // ─── Utility ──────────────────────────────────────────────────────────────────
 
-function nameFromPath(str) {
-  return str.split('/').pop().replace(/\.[^.]+$/, '');
-}
-
-// #region nodetest:search-highlight
-function esc(s) {
-  if (!s) return '';
-  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-}
-// #endregion nodetest:search-highlight
-
-function pluralize(n, singular, pluralForm = singular + 's') {
-  return `${n.toLocaleString()} ${plural(n, singular, pluralForm)}`;
-}
-
-// Just the inflected noun, no count — for when the count appears elsewhere in
-// the sentence, or not at all. (`pluralize` is the count-prefixed form.)
-function plural(n, singular, pluralForm = singular + 's') {
-  return n === 1 ? singular : pluralForm;
-}
-
-function timeAgo(ts) {
-  const s = Math.floor((Date.now() - ts) / 1000);
-  if (s < 60)  return 'just now';
-  const m = Math.floor(s / 60);
-  if (m < 60)  return `${m}m ago`;
-  const h = Math.floor(m / 60);
-  if (h < 24)  return `${h}h ago`;
-  const d = Math.floor(h / 24);
-  if (d < 30)  return `${d} day${d === 1 ? '' : 's'} ago`;
-  const mo = Math.floor(d / 30);
-  if (mo < 12) return `${mo} month${mo === 1 ? '' : 's'} ago`;
-  const yr = Math.floor(d / 365);
-  return `${yr} year${yr === 1 ? '' : 's'} ago`;
-}
-
 let _toastContainerEl = null;
 function toastContainer() {
   if (_toastContainerEl) return _toastContainerEl;
@@ -9272,8 +9044,6 @@ function toastContainer() {
   document.body.appendChild(_toastContainerEl);
   return _toastContainerEl;
 }
-let _hoverCapable = null;
-function hoverCapable() { return _hoverCapable ??= window.matchMedia('(hover: hover)'); }
 function _mountToast(el, duration) {
   let hovered = false;
   const arm = () => { clearTimeout(el._timer); el._timer = setTimeout(() => _dismissToast(el), duration); };
@@ -10245,22 +10015,19 @@ let _cacheBumpPending = false;
 let _persistPending = false;
 
 function batchUpdate(fn) {
-  const owner = _batchedEffects === null;
-  if (owner) _batchedEffects = new Set();
-  _batchDepth++;
-  try { fn(); }
-  finally {
-    _batchDepth--;
-    if (_batchDepth === 0) {
-      if (_persistPending) { _persistPending = false; _persistMetaNow(); }
-      if (_cacheBumpPending) { _cacheBumpPending = false; bumpCacheVersion(); }
+  // The persist/cache flush must run inside runBatched's fn, not after it, so it
+  // lands before the signal queue drains — effects see the persisted/bumped state.
+  runBatched(() => {
+    _batchDepth++;
+    try { fn(); }
+    finally {
+      _batchDepth--;
+      if (_batchDepth === 0) {
+        if (_persistPending) { _persistPending = false; _persistMetaNow(); }
+        if (_cacheBumpPending) { _cacheBumpPending = false; bumpCacheVersion(); }
+      }
     }
-    if (owner) {
-      const queued = _batchedEffects;
-      _batchedEffects = null;
-      [...queued].forEach(s => s());
-    }
-  }
+  });
 }
 
 function repaintAfterCacheChange() {
