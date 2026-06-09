@@ -2,10 +2,13 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { extract } from './support/extract.mjs';
 
-const { toNorm, parseWordlistLine, parseWordlist, detectCase, validateWordlistChunk, buildWlEntry } =
-  extract('parsing', [
-    'toNorm', 'parseWordlistLine', 'parseWordlist', 'detectCase', 'validateWordlistChunk', 'buildWlEntry',
-  ]);
+const {
+  toNorm, parseWordlistLine, parseWordlist, detectCase, validateWordlistChunk, buildWlEntry,
+  stripAccents, buildNormToDisplay, projectRangesToDisplay, buildUserWlEntry, synthWlEntry,
+} = extract('parsing', [
+  'toNorm', 'parseWordlistLine', 'parseWordlist', 'detectCase', 'validateWordlistChunk', 'buildWlEntry',
+  'stripAccents', 'buildNormToDisplay', 'projectRangesToDisplay', 'buildUserWlEntry', 'synthWlEntry',
+]);
 
 test('toNorm strips accents, case, separators, and ligatures', () => {
   assert.equal(toNorm('Café Olé!'), 'cafeole');
@@ -55,4 +58,62 @@ test('buildWlEntry: in-convention letter runs drop display, off-convention or ri
   assert.deepEqual(buildWlEntry('CAT', 50, '', 'upper'), { norm: 'cat', display: null, score: 50, comment: '' });
   assert.deepEqual(buildWlEntry('FBI', 50, '', 'lower'), { norm: 'fbi', display: 'FBI', score: 50, comment: '' });
   assert.deepEqual(buildWlEntry('New York', 50, '', 'upper'), { norm: 'newyork', display: 'New York', score: 50, comment: '' });
+});
+
+test('stripAccents: folds ligatures, decomposes accents to ASCII, preserves case and passes undecomposable chars through', () => {
+  assert.equal(stripAccents('Æsop'), 'AEsop');
+  assert.equal(stripAccents('straße'), 'strasse');
+  assert.equal(stripAccents('Łódź'), 'Lodz');
+  assert.equal(stripAccents('Café'), 'Cafe');
+  assert.equal(stripAccents('naïve'), 'naive');
+  assert.equal(stripAccents('Ré-do!'), 'Re-do!');
+  assert.equal(stripAccents('猫'), '猫');
+});
+
+test('buildNormToDisplay: maps each norm char index back to the display index that produced it', () => {
+  assert.equal(buildNormToDisplay(null), null);
+  assert.deepEqual(Array.from(buildNormToDisplay('')), []);
+  assert.deepEqual(Array.from(buildNormToDisplay('cat')), [0, 1, 2]);
+  assert.deepEqual(Array.from(buildNormToDisplay('New York!')), [0, 1, 2, 4, 5, 6, 7]);
+  assert.deepEqual(Array.from(buildNormToDisplay('Æsop')), [0, 0, 1, 2, 3]);
+  assert.deepEqual(Array.from(buildNormToDisplay('straße')), [0, 1, 2, 3, 4, 4, 5]);
+});
+
+test('projectRangesToDisplay: maps norm-coordinate ranges onto the display string', () => {
+  const ny = { norm: 'newyork', display: 'New York!' };
+  assert.deepEqual(projectRangesToDisplay([{ start: 0, end: 3 }], ny), [{ start: 0, end: 3 }]);
+  assert.deepEqual(projectRangesToDisplay([{ start: 3, end: 7 }], ny), [{ start: 4, end: 8 }]);
+  assert.deepEqual(projectRangesToDisplay([{ start: 0, end: 7 }], ny), [{ start: 0, end: 8 }]);
+
+  const aesop = { norm: 'aesop', display: 'Æsop' };
+  assert.deepEqual(projectRangesToDisplay([{ start: 0, end: 2 }], aesop), [{ start: 0, end: 1 }]);
+  assert.deepEqual(projectRangesToDisplay([{ start: 0, end: 1 }], aesop), [{ start: 0, end: 1 }]);
+  assert.deepEqual(projectRangesToDisplay([{ start: 2, end: 5 }], aesop), [{ start: 1, end: 4 }]);
+
+  const abc = { norm: 'abc', display: 'abc' };
+  assert.deepEqual(projectRangesToDisplay([{ start: 0, end: 0 }], abc), [{ start: 0, end: 0 }]);
+  assert.deepEqual(projectRangesToDisplay([{ start: 1, end: 1 }], abc), [{ start: 1, end: 1 }]);
+  assert.deepEqual(projectRangesToDisplay([{ start: 2, end: 3 }], abc), [{ start: 2, end: 3 }]);
+  assert.deepEqual(projectRangesToDisplay([{ start: 3, end: 5 }], abc), [{ start: 3, end: 3 }]);
+
+  assert.deepEqual(projectRangesToDisplay([], abc), []);
+  assert.equal(projectRangesToDisplay(null, abc), null);
+
+  const ranges = [{ start: 0, end: 1 }];
+  assert.equal(projectRangesToDisplay(ranges, { norm: 'cat', display: null }), ranges);
+
+  const displayRange = { start: 1, end: 2, coord: 'display' };
+  assert.deepEqual(projectRangesToDisplay([displayRange], ny), [displayRange]);
+});
+
+test('buildUserWlEntry: trims, always keeps a verbatim display, and norms the trimmed text', () => {
+  assert.deepEqual(buildUserWlEntry('  CAT  ', 50, ''), { norm: 'cat', display: 'CAT', score: 50, comment: '' });
+  assert.deepEqual(buildUserWlEntry('New York', 50, 'a note'), { norm: 'newyork', display: 'New York', score: 50, comment: 'a note' });
+  assert.deepEqual(buildUserWlEntry('cat', 50, ''), { norm: 'cat', display: 'cat', score: 50, comment: '' });
+});
+
+test('synthWlEntry: display is null only when the text already equals its norm', () => {
+  assert.deepEqual(synthWlEntry('cat', 1), { norm: 'cat', display: null, score: 1, comment: '', wordlist: null });
+  assert.deepEqual(synthWlEntry('CAT', 1), { norm: 'cat', display: 'CAT', score: 1, comment: '', wordlist: null });
+  assert.deepEqual(synthWlEntry('new york', 1), { norm: 'newyork', display: 'new york', score: 1, comment: '', wordlist: null });
 });

@@ -3156,6 +3156,7 @@ function rescoredFilename(list) {
   return `${sanitizeFilenameStem(list === MERGED_ID ? MERGED_NAME : list.name)} rescored.txt`;
 }
 
+// #region nodetest:merge3
 const RESERVED_DEVICE_NAMES = new Set(
   ['CON', 'PRN', 'AUX', 'NUL']
     .concat(Array.from({ length: 9 }, (_, i) => `COM${i + 1}`))
@@ -3170,6 +3171,7 @@ function sanitizeFilenameStem(name) {
   if (!stem || RESERVED_DEVICE_NAMES.has(stem.toUpperCase())) return `${stem || 'Wordlist'}_`;
   return stem;
 }
+// #endregion nodetest:merge3
 
 async function partitionSyncPermissions() {
   const granted = [], prompt = [];
@@ -3218,6 +3220,7 @@ function persistMeta() {
   _persistMetaNow();
 }
 
+// #region nodetest:merge3
 function serializeMetaEntry(l) {
   return {
     ...(l.type ? { type: l.type } : {}),
@@ -3232,6 +3235,7 @@ function serializeMetaEntry(l) {
     originalFilename: l.originalFilename || null,
   };
 }
+// #endregion nodetest:merge3
 
 function _persistMetaNow() {
   Storage.writeMeta(state.sources.map(serializeMetaEntry));
@@ -4496,6 +4500,7 @@ function invalidateWordlistCaches(wordlist) {
   invalidateStatsCache(_mergedStatsKey);
 }
 
+// #region nodetest:histogram
 function computeStatsRaw(entries) {
   // Empty state: return an all-zero shape so buildStatsBarHTML can render the
   // bar with dashes and an empty histogram.
@@ -4512,6 +4517,7 @@ function computeStatsRaw(entries) {
   const distinctScores = Object.keys(freq).map(Number).sort((a, b) => a - b);
   return { count: entries.length, min, max, distinctScores };
 }
+// #endregion nodetest:histogram
 
 function computeStats(key, entries) {
   if (_statsCache.has(key)) return _statsCache.get(key);
@@ -4522,8 +4528,10 @@ function computeStats(key, entries) {
 
 // ─── Histogram layout ─────────────────────────────────────────────────────────
 
+// #region nodetest:histogram
 const HIST_DISCRETE_THRESHOLD = 12;
 const HIST_BINNED_BUCKETS = 11;
+// #endregion nodetest:histogram
 
 // Keyed, not a single slot: two distinct axes coexist — the scope-aware stats
 // histogram and the scope-stable all-sources badge-color gradient. A shared
@@ -4547,6 +4555,7 @@ function allSourcesHistogramLayout() {
   return getHistogramLayout(allSourcesScores(), 'all');
 }
 
+// #region nodetest:histogram
 function getHistogramLayout(scoreSource, cacheKey) {
   const cached = _layoutCache.get(cacheKey);
   if (cached) return cached;
@@ -4586,7 +4595,9 @@ function getHistogramLayout(scoreSource, cacheKey) {
   _layoutCache.set(cacheKey, layout);
   return layout;
 }
+// #endregion nodetest:histogram
 
+// #region nodetest:histogram
 function bucketCounts(entries, layout) {
   const counts = layout.slots.map(() => 0);
   if (layout.mode === 'discrete') {
@@ -4615,6 +4626,7 @@ function slotIntersectsRange(lo, hi, intervals) {
   }
   return false;
 }
+// #endregion nodetest:histogram
 
 // ─── Score colors ─────────────────────────────────────────────────────────────
 
@@ -4653,6 +4665,7 @@ function scoreColor(score) {
 
 // ─── Search ───────────────────────────────────────────────────────────────────
 
+// #region nodetest:search-highlight
 const CONSONANTS = 'bcdfghjklmnpqrstvwxyz';
 const VOWELS = 'aeiou';
 function escapeRegex(s)        { return s.replace(/[.+*?^${}()|[\]\\]/g, '\\$&'); }
@@ -4784,9 +4797,11 @@ function renderHighlightedText(text, ranges) {
   }
   return result + text.slice(pos);
 }
+// #endregion nodetest:search-highlight
 
 // ─── Regex tool helpers ─────────────────────────────────────────────────────
 
+// #region nodetest:regex-tool
 // Splits the pattern into literal runs — maximal stretches of verbatim literal
 // characters — and the wildcards between them: `.`, classes (`[…]`, `\d`…),
 // quantified atoms, groups, alternation, anchors. The Regex tool colors each
@@ -4983,6 +4998,7 @@ function runSearchReplace(entry, prepared, wordlist) {
   if (outNorm === toNorm(entry) || !wordlist.byNorm.has(outNorm)) return [];
   return [{ entry: out, inputHighlights, outputHighlights }];
 }
+// #endregion nodetest:regex-tool
 
 // ─── Unigram corpus & phrase segmenter ───────────────────────────────────────
 
@@ -4990,17 +5006,20 @@ const UNIGRAM_CORPUS_URL = 'https://raw.githubusercontent.com/rspeer/wordfreq/ma
 const UNIGRAM_CORPUS_IDB_KEY = 'corpus_unigrams_decoded';
 const UNIGRAM_CORPUS_SIZE_KEY = 'corpus_unigrams_size';
 
+// #region nodetest:segmenter
 const SPACE_OUT_WINDOWS = { one: 2, few: 5, many: 10 };
 const SPACE_OUT_PART_PENALTY = 7;
 const SPACE_OUT_OOV_PER_LETTER = 1.5 * Math.LN10;
 const SPACE_OUT_MORPHEME_PENALTY = 1.0;
 const SPACE_OUT_SUFFIXES = ['s', 'es', 'ed', 'ied', 'ing', 'er', 'est', 'ly', 'ies'];
+// #endregion nodetest:segmenter
 
 let unigramLogFreqs = null;
 let unigramMinLogFreq = -Infinity;
 let unigramFetchedSize = null;
 let unigramLoadPromise = null;
 
+// #region nodetest:segmenter
 function morphemeStemLogFreq(word) {
   if (!unigramLogFreqs) return -Infinity;
   let best = -Infinity;
@@ -5031,7 +5050,9 @@ function unigramLogFreq(word) {
   if (stemLf > -Infinity) return stemLf - SPACE_OUT_MORPHEME_PENALTY;
   return unigramMinLogFreq - word.length * SPACE_OUT_OOV_PER_LETTER;
 }
+// #endregion nodetest:segmenter
 
+// #region nodetest:segmenter
 function msgpackDecode(bytes) {
   const td = new TextDecoder('utf-8');
   let pos = 0;
@@ -5062,12 +5083,14 @@ function msgpackDecode(bytes) {
   }
   return readVal();
 }
+// #endregion nodetest:segmenter
 
 async function gunzipBytes(bytes) {
   const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'));
   return new Uint8Array(await new Response(stream).arrayBuffer());
 }
 
+// #region nodetest:segmenter
 function buildCorpusFromMsgpack(decoded) {
   const map = new Map();
   let lastNonEmpty = 1;
@@ -5080,6 +5103,7 @@ function buildCorpusFromMsgpack(decoded) {
   }
   return { map, minLog: -lastNonEmpty * Math.LN10 / 100 };
 }
+// #endregion nodetest:segmenter
 
 async function loadUnigramCorpus() {
   if (unigramLogFreqs) return;
@@ -5110,6 +5134,7 @@ async function loadUnigramCorpus() {
   }
 }
 
+// #region nodetest:segmenter
 function rankedSplits(entry, window, wordlist) {
   if (entry.length < 1) return [];
   const isAllowedPart = p => p.length <= 2 || wordlist.byNorm.has(p);
@@ -5159,6 +5184,7 @@ function rankedSplits(entry, window, wordlist) {
   results.sort((a, b) => b.score - a.score);
   return results.map(r => r.parts);
 }
+// #endregion nodetest:segmenter
 
 // ─── Tool stack ───────────────────────────────────────────────────────────────
 // Tools are catalog records ({ name, icon, category, desc, example, params,
@@ -5763,6 +5789,7 @@ function reverseString(s) {
   return out;
 }
 
+// #region nodetest:tool-utils
 // Sort the letters of an already-canonical string. Tools that need letter-bank
 // equivalence call this on `entry` (and on user-supplied params, which the
 // runtime normalizes the same way before passing in). Non-letters survive and
@@ -5798,6 +5825,7 @@ function normalizeParams(params, schema) {
   }
   return out;
 }
+// #endregion nodetest:tool-utils
 
 function makeToolRow(tool, params = {}, grouped = false) {
   const def = TOOLS[tool];
@@ -5823,6 +5851,7 @@ function makeToolRow(tool, params = {}, grouped = false) {
   return row;
 }
 
+// #region nodetest:pipeline-shape
 // The chain shape is derivable from the catalog records alone — no per-row
 // runtime inspection. Simulate the executor's emit-then-unify on the active
 // tools (run-having, not inert): the originator is one atom; each highlighting
@@ -5849,7 +5878,9 @@ function currentAtomCount(stack) {
   }
   return count;
 }
+// #endregion nodetest:pipeline-shape
 
+// #region nodetest:pipeline-shape
 // True when no active transform sits in the stack — every row is then a single
 // merged-wordlist entry (plus same-word highlight atoms), so the count is per
 // entry and the sort axes stay in their single-atom tier. Drives the stats-bar
@@ -5871,6 +5902,7 @@ function chainProducesMultiAtom(stack) {
     return row.kind() === 'transform' || !!row.def.inputHighlights;
   });
 }
+// #endregion nodetest:pipeline-shape
 
 // `ctx.input` — chain tail entries as strings, resolved lazily so a tool that
 // ignores it pays nothing and the O(N)-per-stage materialization stays avoided.
@@ -6074,6 +6106,7 @@ async function runToolStage(rows, stackRow, prepared, mergedWordlist, y) {
   return next;
 }
 
+// #region nodetest:pipeline-shape
 async function bucketize(chains, def, ctx) {
   const useDisplay = def.matchOn === 'display';
   const buckets = new Map();
@@ -6241,6 +6274,7 @@ function applyScoreRangeToRows(rows, intervals, grouped) {
   }
   return rows.filter(chainOk);
 }
+// #endregion nodetest:pipeline-shape
 
 function* rowSetAtoms(rows) {
   for (const row of rows) {
@@ -6965,9 +6999,13 @@ function blockSemicolon(e) {
 // A multi-output transform (anagram) branches one input into rows that share
 // their whole first atom; rowChainTail breaks those ties by the later atoms.
 const rowFirstEntry = r => r.atoms[0].wlEntry;
+// #region nodetest:pipeline-shape
 const rowLastEntry  = r => r.atoms[r.atoms.length - 1].wlEntry;
+// #endregion nodetest:pipeline-shape
+// #region nodetest:scroller-sort
 const rowMinScore   = r => Math.min(...r.atoms.map(a => a.wlEntry.score));
 const rowMaxScore   = r => Math.max(...r.atoms.map(a => a.wlEntry.score));
+// #endregion nodetest:scroller-sort
 // Later atoms joined with a low separator: a string compare then orders them
 // atom-by-atom, since every row in a run carries the same atom count.
 const rowChainTail  = r => r.atoms.slice(1).map(a => a.wlEntry.norm).join('\u0000');
@@ -7169,6 +7207,7 @@ function isValidSortAxis(key) {
   return false;
 }
 
+// #region nodetest:scroller-sort
 // Order is load-bearing: the first surviving axis is the column's canonical
 // pick, consumed far away as nextSortForColumn's ownedAxes[0].
 const COLUMN_AXIS_CANDIDATES = {
@@ -7186,6 +7225,7 @@ function nextSortForColumn(ownedAxes, curKey, curDir) {
   if (ownedAxes.includes(curKey)) return { key: curKey, dir: curDir === 'asc' ? 'desc' : 'asc' };
   return { key: ownedAxes[0], dir: 'asc' };
 }
+// #endregion nodetest:scroller-sort
 
 // Run synchronously on stack mutation and URL load: the sort tier follows
 // the stack, and settling it lazily in the async render let the URL builder
@@ -7208,6 +7248,7 @@ function reconcileSort(stack) {
   AppView.setSort(key, dir);
 }
 
+// #region nodetest:scroller-sort
 // Compare two items along an axis, falling through tiebreakers when the
 // primary projection is equal. Primary direction is the user's pick;
 // tiebreakers keep their declared direction regardless.
@@ -7232,6 +7273,7 @@ function compareValues(a, b) {
   if (typeof a === 'number' && typeof b === 'number') return a - b;
   return String(a).localeCompare(String(b));
 }
+// #endregion nodetest:scroller-sort
 const ENTRY_SLOT_CAP = 21;
 
 // Off-screen pixel width of `text` rendered in style class `className`
@@ -10874,6 +10916,7 @@ function bucketContributors(sourceList) {
   return buckets;
 }
 
+// #region nodetest:merge
 function resolveCorpus(buckets, sourceList) {
   const entries = [];
   const byNorm = new Map();
@@ -10905,6 +10948,7 @@ function resolveCorpus(buckets, sourceList) {
 
   return { entries, sourceCounts, byNorm, byKey };
 }
+// #endregion nodetest:merge
 
 function buildMergedWordlist() {
   if (_mergedWordlistCache) return _mergedWordlistCache;
@@ -10927,9 +10971,11 @@ function getActiveCorpus() {
   return state.selected === MERGED_ID ? buildMergedWordlist() : buildScopedCorpus(state.selected);
 }
 
+// #region nodetest:merge
 function mergeKey(norm, display) {
   return norm + '\0' + (display ?? '');
 }
+// #endregion nodetest:merge
 
 // Must reproduce buildMergedWordlist's per-bucket logic exactly — including
 // deduping winners by contributor, not wordlist — or the merged cache drifts
@@ -10962,6 +11008,7 @@ function computeMergedBucket(norm) {
   return { rows, winners };
 }
 
+// #region nodetest:merge
 function mergedNormLowerBound(entries, norm) {
   let lo = 0, hi = entries.length;
   while (lo < hi) {
@@ -10980,6 +11027,7 @@ function mergedRowsForNorm(merged, norm) {
   }
   return rows;
 }
+// #endregion nodetest:merge
 
 // Must run BEFORE My Edits is mutated: patchMergedForNorms diffs these winners
 // against the post-mutation ones, so a snapshot taken too late drifts the
@@ -11069,6 +11117,7 @@ function buildExportMenuHTML() {
   ], { header: 'Export these results' });
 }
 
+// #region nodetest:export
 function chainContentEntries(chain) {
   const out = [];
   let prevEntry = null;
@@ -11079,6 +11128,7 @@ function chainContentEntries(chain) {
   }
   return out;
 }
+// #endregion nodetest:export
 
 function currentContentAtomCount(stack) {
   let count = 1;
@@ -11089,6 +11139,7 @@ function currentContentAtomCount(stack) {
   return count;
 }
 
+// #region nodetest:export
 function* iterDisplayChains(rows, grouped) {
   if (grouped) {
     for (const g of rows) for (const chain of g.chains) yield { group: g, chain };
@@ -11096,6 +11147,7 @@ function* iterDisplayChains(rows, grouped) {
     for (const chain of rows) yield { group: null, chain };
   }
 }
+// #endregion nodetest:export
 
 function countExportEntries(rows, grouped) {
   if (grouped) { let n = 0; for (const g of rows) n += g.chains.length; return n; }
@@ -11135,6 +11187,7 @@ function exportSortMetadata() {
   return { by: AppView.sortKey, dir: AppView.sortDir };
 }
 
+// #region nodetest:export
 function exportFilenameSegment(s) {
   return (s || '')
     .toLowerCase()
@@ -11162,6 +11215,7 @@ function exportFilename(stack, ext) {
   if (name.length > 100) name = name.slice(0, 100).replace(/-+$/, '');
   return `${name}.${ext}`;
 }
+// #endregion nodetest:export
 
 // ── Copy ──
 
@@ -11212,6 +11266,7 @@ function buildCopyText(rows, grouped, stack) {
   return header + (body.length ? '\n' + body.join('\n') : '');
 }
 
+// #region nodetest:export
 function flatCopyLines(chains) {
   const piecesPerChain = chains.map(chain => {
     const pieces = [];
@@ -11243,6 +11298,7 @@ function flatCopyLines(chains) {
     return p.glyph ? `${p.glyph} ${piece}` : piece;
   }).join(' '));
 }
+// #endregion nodetest:export
 
 async function exportCopy() {
   if (!entriesScroller) return;
@@ -11260,6 +11316,7 @@ async function exportCopy() {
 
 // ── Wordlist ──
 
+// #region nodetest:export
 function buildWordlistText(rows, grouped) {
   const acc = new Map();
   let skipped = 0;
@@ -11276,6 +11333,7 @@ function buildWordlistText(rows, grouped) {
   const lines = [...acc.keys()].sort().map(e => `${e};${acc.get(e)}`);
   return { text: lines.length ? lines.join('\n') + '\n' : '', count: lines.length, skipped };
 }
+// #endregion nodetest:export
 
 async function exportWordlist() {
   if (!entriesScroller) return;
@@ -11289,11 +11347,13 @@ async function exportWordlist() {
 
 // ── CSV ──
 
+// #region nodetest:export
 function csvCell(v) {
   if (v == null) return '';
   const s = String(v);
   return /[",\r\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
 }
+// #endregion nodetest:export
 function csvRow(cells) { return cells.map(csvCell).join(','); }
 
 function buildCSVText(rows, grouped, stack) {

@@ -16,15 +16,27 @@ const SOURCE = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', '
 let _text = null;
 const sourceText = () => (_text ??= readFileSync(SOURCE, 'utf8'));
 
+// Match a tag only when it isn't a prefix of a longer region name — otherwise
+// `nodetest:merge` would also match every `nodetest:merge3` marker and silently
+// splice in the wrong region (the tests still pass, so the bug hides). The guard
+// requires the char after the tag to be a non-identifier (newline/EOF).
+function findTag(text, tag, from) {
+  for (let i = text.indexOf(tag, from); i !== -1; i = text.indexOf(tag, i + 1)) {
+    const after = text[i + tag.length];
+    if (after === undefined || !/\w/.test(after)) return i;
+  }
+  return -1;
+}
+
 function regionBody(text, name) {
   const startTag = `// #region nodetest:${name}`;
   const endTag = `// #endregion nodetest:${name}`;
   const blocks = [];
   let from = 0;
   for (;;) {
-    const i = text.indexOf(startTag, from);
+    const i = findTag(text, startTag, from);
     if (i === -1) break;
-    const j = text.indexOf(endTag, i);
+    const j = findTag(text, endTag, i);
     if (j === -1) throw new Error(`extract: region '${name}' has a start with no matching #endregion`);
     blocks.push(text.slice(i + startTag.length, j));
     from = j + endTag.length;
