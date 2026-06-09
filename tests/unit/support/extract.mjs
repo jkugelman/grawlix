@@ -1,7 +1,7 @@
-// Evaluates marker-fenced regions of site/index.html so the unit tier can call
+// Evaluates marker-fenced regions of site/src/main.js so the unit tier can call
 // its pure functions directly. Regions are fenced inline with
 // `// #region nodetest:<name>` / `// #endregion nodetest:<name>`. Those markers
-// ship verbatim in site/index.html and the deploy minifier strips them from
+// ship verbatim in site/src/main.js and the deploy minifier strips them from
 // dist/ — so don't "tidy" them out of the source; the harness slices on them.
 // Reads source, never dist (the markers only exist in source). Same-named blocks
 // concatenate in source order, so a region can skip a state-coupled neighbour.
@@ -11,7 +11,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import vm from 'node:vm';
 
-const SOURCE = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', 'site', 'index.html');
+const SOURCE = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', 'site', 'src', 'main.js');
 
 let _text = null;
 const sourceText = () => (_text ??= readFileSync(SOURCE, 'utf8'));
@@ -41,7 +41,7 @@ function regionBody(text, name) {
     blocks.push(text.slice(i + startTag.length, j));
     from = j + endTag.length;
   }
-  if (!blocks.length) throw new Error(`extract: region '${name}' not found in site/index.html`);
+  if (!blocks.length) throw new Error(`extract: region '${name}' not found in site/src/main.js`);
   return blocks.join('\n');
 }
 

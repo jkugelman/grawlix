@@ -6,6 +6,7 @@
   "description": "Browser-based wordlist manager for crossword constructors. See site/index.html.",
   "scripts": {
     "build": "node scripts/build.mjs",
+    "dev": "python3 -m http.server 4173 --directory site",
     "test": "playwright test",
     "test:unit": "node --test tests/unit/",
     "test:headed": "playwright test --headed",
@@ -14,6 +15,7 @@
   },
   "devDependencies": {
     "@playwright/test": "^1.49.0",
+    "esbuild": "^0.28.0",
     "html-minifier-terser": "^7.2.0"
   }
 }
