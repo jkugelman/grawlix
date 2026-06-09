@@ -220,7 +220,7 @@ header h1 { font-size: 19px; font-weight: 600; letter-spacing: -0.01em; line-hei
 .card-name { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 13px; }
 .card-meta { color: var(--muted); font-size: 11px; margin-top: 2px; display: flex; align-items: center; gap: 5px; }
 .card-actions { display: flex; gap: 5px; align-items: center; flex-shrink: 0; }
-/* The All card has no toggle; the spacer reserves the same footprint so its
+/* The All Wordlists card has no toggle; the spacer reserves the same footprint so its
    icon/name/meta line up with the rest of the cards. */
 .merged-card-spacer { width: 28px; height: 16px; flex-shrink: 0; }
 
@@ -1295,7 +1295,7 @@ const ROW_HEIGHT   = 24;
 const VS_BUFFER    = 60;
 // LS_PREFIX defined in <head> so the FOUC-prevention script can share it.
 const MERGED_ID    = '__merged__';
-const MERGED_NAME  = 'All';
+const MERGED_NAME  = 'All Wordlists';
 const scopeKey = scope => scope === MERGED_ID ? MERGED_ID : scope.dbKey;
 const EDITS_ICON   = { type: 'emoji', value: '✏️' };
 const MERGED_ICON  = buildEmojiIconHTML('⭐');
@@ -1460,7 +1460,7 @@ function buildScoreBadgeHTML(score) {
   return `<span class="score-badge" style="--score-bg:${bg}; --score-fg:${fg}">${score}</span>`;
 }
 
-// Scoped-source-only: on All the open editor edits tier labels, which don't
+// Scoped-source-only: on All Wordlists the open editor edits tier labels, which don't
 // remap scores, so a raw → rescored arrow would be meaningless there.
 function rescorePreviewActive() {
   return state.selected !== MERGED_ID && WordlistSelector.isEditorOpen();
@@ -2404,7 +2404,7 @@ const Router = (() => {
 // ─── State ────────────────────────────────────────────────────────────────────
 
 // Default tier labels for the unified score scale. Stored on `state.scoring`
-// and surfaced as a read/write legend on the merged All view.
+// and surfaced as a read/write legend on the merged All Wordlists view.
 //
 // Derived from JK's rules, not duplicated: the unified scale IS JK's scoring
 // scheme (its rescore rules are canonical).
@@ -2434,7 +2434,7 @@ const state = {
   get sources()  { return sources$.peek(); },
   set sources(v) { sources$.set(v); },
   // Tier labels for the unified score scale. Single source of truth for what
-  // each score range means to the user; edited from All's pane and used
+  // each score range means to the user; edited from All Wordlists' pane and used
   // everywhere scores get a tooltip. No signal — mutators call
   // `persistScoring()` and `renderScoringRules()` explicitly.
   scoring: [],
@@ -3386,7 +3386,7 @@ const SettingsDialog = (() => {
 
 const WelcomeDialog = (() => {
   const { el, body } = createDialog('welcome-dialog', { labelledby: 'welcome-title' });
-  // Without this the All count freezes at its open-time snapshot (~0 on a cold boot, before fetches populate the wordlists).
+  // Without this the All Wordlists count freezes at its open-time snapshot (~0 on a cold boot, before fetches populate the wordlists).
   effect(() => {
     sources$.get();
     cacheVersion$.get();
@@ -3427,7 +3427,7 @@ const WelcomeDialog = (() => {
     const storageShot = `
       <ul class="welcome-sync-files">
         <li>📄 <strong>My Edits.txt</strong> <span class="welcome-sync-dir">⇄</span> Grawlix</li>
-        <li>Grawlix <span class="welcome-sync-dir">→</span> 📄 <strong>All rescored.txt</strong></li>
+        <li>Grawlix <span class="welcome-sync-dir">→</span> 📄 <strong>${MERGED_NAME} rescored.txt</strong></li>
         <li>Grawlix <span class="welcome-sync-dir">→</span> 📄 Spread the Word(list).txt</li>
       </ul>`;
 
@@ -8202,7 +8202,7 @@ const AtomPopover = (() => {
     return previewWlEntry(inp ? inp.value : displayOf(activeWlEntry));
   }
 
-  // Seed from the All-merge winner, never the clicked atom's own value: under a
+  // Seed from the All Wordlists merge winner, never the clicked atom's own value: under a
   // scoped lower-priority list the atom holds that list's losing value, but the
   // editor must show what the merge actually serves — a regression invisible
   // until you scope away from My Edits.
@@ -8625,9 +8625,9 @@ function scoringRulesEqual(a, b) {
   });
 }
 
-// The My Edits legend: an inert mirror of All's tier scale, one blank-output row
+// The My Edits legend: an inert mirror of All Wordlists' tier scale, one blank-output row
 // per tier. Sourced from the live tiers (state.scoring), not frozen
-// DEFAULT_SCORING — otherwise customizing All's tiers would silently desync the
+// DEFAULT_SCORING — otherwise customizing All Wordlists' tiers would silently desync the
 // legend My Edits shows. Outputs stay blank (scoring rows carry none), so
 // propagateDefaults can push it onto a non-dirty My Edits without re-grading.
 function editsLegend() {
@@ -8677,7 +8677,7 @@ function propagateDefaults() {
 // On fetch/import of a custom wordlist (no publisherId) with empty rescore
 // rules and ≤10 distinct scores, seed one inert row per distinct score —
 // blank output, so scores pass through unchanged. Lays the source's scale
-// out as concrete rows next to All's tier scale; the user can fill in
+// out as concrete rows next to All Wordlists' tier scale; the user can fill in
 // output mappings if they want to translate into the unified scale.
 // See docs/design.md § Rescore rules.
 const AUTO_SEED_SCORE_LIMIT = 10;
@@ -11545,7 +11545,7 @@ window.__grawlixTest = {
     reorderSources(fromIdx, toIdx);
   },
 
-  // Read-only snapshot of the active corpus (All by default, the scoped source
+  // Read-only snapshot of the active corpus (All Wordlists by default, the scoped source
   // after setScope) for a single entry. The sourcing wordlist is user-
   // observable via the row's popover and via the `.atom-source` column, but
   // that column is hidden below a 960px viewport. Exposing it here lets merge-
@@ -11558,7 +11558,7 @@ window.__grawlixTest = {
     return { entry: m.norm, display: m.display, score: m.score, comment: m.comment, wordlist: m.wordlist.name };
   },
 
-  // Pass a source name to scope, or 'All'/nothing for the merged view.
+  // Pass a source name to scope, or 'All Wordlists'/nothing for the merged view.
   async setScope(name) {
     await setScope(!name || name === MERGED_NAME ? MERGED_ID : this._lookup(name));
   },
@@ -11717,7 +11717,7 @@ window.__grawlixTest = {
         conflicts: conflicts.map(c => ({ norm: c.norm, device: c.device ? dump(c.device) : null, file: c.file ? dump(c.file) : null })),
       };
     },
-    _list(name) { return name === 'All' ? MERGED_ID : state.sources.find(w => w.name === name); },
+    _list(name) { return name === MERGED_NAME ? MERGED_ID : state.sources.find(w => w.name === name); },
     attachMirror(name, opts) { return attachMirrorSync(this._list(name), opts); },
     attachEditsExisting() { return attachEditsSync({ existing: true }); },
     attachEditsNew() { return attachEditsSync({ existing: false }); },

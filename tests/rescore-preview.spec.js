@@ -1,7 +1,7 @@
 // The live rule-arrow preview: while the rescore editor is open and
 // scoped to a source, rows a rule remapped show `raw → rescored` in the score
 // cell; unaffected rows show a single badge. Closing the editor — or scoping to
-// All, where the editor edits tier labels, not scores — drops every arrow.
+// All Wordlists, where the editor edits tier labels, not scores — drops every arrow.
 
 const { test, expect } = require('@playwright/test');
 const { stubPublisherFetches, gotoApp, scopeViaSelector, openRescoreEditor } = require('./helpers');
@@ -58,16 +58,16 @@ test('closing the editor removes the arrow', async ({ page }) => {
   await expect(oceanScore(page).locator('.score-badge')).toHaveText('80');
 });
 
-test('on All the editor edits tier labels, so no row shows an arrow', async ({ page }) => {
+test('on All Wordlists the editor edits tier labels, so no row shows an arrow', async ({ page }) => {
   await gotoApp(page);
   await seedRemappedSource(page);
-  // Open the editor on the source (arrow present), then scope to All. The editor
+  // Open the editor on the source (arrow present), then scope to All Wordlists. The editor
   // stays open but switches to tier labels, so the arrow must vanish.
   await openRescoreEditor(page);
   await page.evaluate(() => window.__grawlixTest.pipelineIdle());
   await expect(oceanScore(page).locator('.atom-score-arrow')).toHaveCount(1);
 
-  await scopeViaSelector(page, 'All');
+  await scopeViaSelector(page, 'All Wordlists');
   await expect(page.locator('#rescore-editor')).toBeVisible();
   await expect(oceanScore(page).locator('.atom-score-arrow')).toHaveCount(0);
   await expect(oceanScore(page).locator('.score-badge')).toHaveText('80');
@@ -109,10 +109,10 @@ test('Neutralize blanks rule outputs, drops scoring:false rows, and clears the a
   await expect(oceanScore(page).locator('.score-badge')).toHaveText('350');
 });
 
-test('Neutralize is absent on All (tier labels have nothing to neutralize)', async ({ page }) => {
+test('Neutralize is absent on All Wordlists (tier labels have nothing to neutralize)', async ({ page }) => {
   await gotoApp(page);
   await seedRemappedSource(page);
-  await scopeViaSelector(page, 'All');
+  await scopeViaSelector(page, 'All Wordlists');
   await openRescoreEditor(page);
   await expect(neutralizeBtn(page)).toHaveCount(0);
 });

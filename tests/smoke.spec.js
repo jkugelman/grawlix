@@ -13,7 +13,7 @@ test('page loads into the unified screen', async ({ page }) => {
 
   await expect(page.locator('#app')).toBeVisible();
   await expect(page.locator('#wordlist-bar')).toBeVisible();
-  await expect(page.locator('#wordlist-bar .wls-trigger-label')).toHaveText('All');
+  await expect(page.locator('#wordlist-bar .wls-trigger-label')).toHaveText('All Wordlists');
 });
 
 test('welcome popup persists until dismissed and reopens from ?', async ({ page }) => {
@@ -40,7 +40,7 @@ test('welcome popup persists until dismissed and reopens from ?', async ({ page 
   await expect(dialog).toBeVisible();
 });
 
-test('welcome All count updates live while the dialog is open', async ({ page }) => {
+test('welcome All Wordlists count updates live while the dialog is open', async ({ page }) => {
   await page.goto('/');
   const meta = page.locator('#welcome-dialog .welcome-merge-count');
   await expect(meta).toBeVisible();

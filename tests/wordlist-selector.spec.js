@@ -1,5 +1,5 @@
 // Wordlist selector (Stage 2a of the unify redesign). Drives the real
-// dropdown UI — not the setScope test API — to prove the control lists All plus
+// dropdown UI — not the setScope test API — to prove the control lists All Wordlists plus
 // each source as rows, that clicking one scopes the table, and that a disabled
 // source renders dimmed yet stays selectable (scope ≠ merge).
 
@@ -26,7 +26,7 @@ function optionLabels(page) {
   return page.locator('#wordlist-bar .wls-menu .wordlist-card .card-name').allTextContents();
 }
 
-test('the dropdown lists All plus each added source as icon+name+count rows', async ({ page }) => {
+test('the dropdown lists All Wordlists plus each added source as icon+name+count rows', async ({ page }) => {
   await gotoApp(page);
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
     name: 'Alpha', entries: ['ocean'], scores: [70],
@@ -35,13 +35,13 @@ test('the dropdown lists All plus each added source as icon+name+count rows', as
     name: 'Beta', entries: ['tide'], scores: [40],
   }));
 
-  await expect(page.locator('#wordlist-bar .wls-trigger-label')).toHaveText('All');
+  await expect(page.locator('#wordlist-bar .wls-trigger-label')).toHaveText('All Wordlists');
 
   await openMenu(page);
   // My Edits and the four unpopulated publishers also appear, so assert the
-  // meaningful subset rather than an exact list: All first, then sources in order.
+  // meaningful subset rather than an exact list: All Wordlists first, then sources in order.
   const labels = await optionLabels(page);
-  expect(labels[0]).toBe('All');
+  expect(labels[0]).toBe('All Wordlists');
   expect(labels).toContain('Alpha');
   expect(labels).toContain('Beta');
   expect(labels.indexOf('Alpha')).toBeLessThan(labels.indexOf('Beta'));
@@ -52,7 +52,7 @@ test('the dropdown lists All plus each added source as icon+name+count rows', as
   expect(await cards.locator('.card-meta').count()).toBe(optionCount);
   expect(await cards.locator('input[type="checkbox"]').count()).toBe(0);
   expect(await cards.locator('.drag-handle').count()).toBe(0);
-  // Only the 3 populated rows (All, Alpha, Beta) say "entries"; unpopulated
+  // Only the 3 populated rows (All Wordlists, Alpha, Beta) say "entries"; unpopulated
   // publishers and empty My Edits read "No data", not "0 entries".
   expect(await page.locator('#wordlist-bar .wls-menu .card-meta', { hasText: 'entr' }).count()).toBe(3);
   for (const meta of await cards.locator('.card-meta').allTextContents()) {
@@ -96,9 +96,9 @@ test('an update-available source shows the info dot on its menu row and the coll
   expect(await page.locator('#wordlist-bar .wls-menu .badge[data-severity="info"]').count()).toBe(1);
 });
 
-test('clicking a source scopes the table to it; clicking All restores the merge', async ({ page }) => {
+test('clicking a source scopes the table to it; clicking All Wordlists restores the merge', async ({ page }) => {
   await gotoApp(page);
-  // Two sources sharing OCEAN; Hi (added first) wins the All merge and carries
+  // Two sources sharing OCEAN; Hi (added first) wins the All Wordlists merge and carries
   // ZEBRA, which Lo lacks.
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
     name: 'Hi', entries: ['ocean', 'zebra'], scores: [90, 60],
@@ -115,8 +115,8 @@ test('clicking a source scopes the table to it; clicking All restores the merge'
   expect(await page.evaluate(() => window.__grawlixTest.getMergedEntry('OCEAN')))
     .toMatchObject({ score: 70, wordlist: 'Lo' });
 
-  await scopeViaSelector(page, 'All');
-  await expect(page.locator('#wordlist-bar .wls-trigger-label')).toHaveText('All');
+  await scopeViaSelector(page, 'All Wordlists');
+  await expect(page.locator('#wordlist-bar .wls-trigger-label')).toHaveText('All Wordlists');
   await expectVisible(page, ['ocean', 'tide', 'zebra']);
 });
 
@@ -174,12 +174,12 @@ test('the My Edits kebab offers only Import and Clear — no Fetch, no Delete, n
   expect(items).not.toContain('Apply rescoring permanently');
 });
 
-test('All shows no kebab — only its Download', async ({ page }) => {
+test('All Wordlists shows no kebab — only its Download', async ({ page }) => {
   await gotoApp(page);
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
     name: 'Mine', entries: ['ocean'], scores: [70],
   }));
-  await expect(page.locator('#wordlist-bar .wls-trigger-label')).toHaveText('All');
+  await expect(page.locator('#wordlist-bar .wls-trigger-label')).toHaveText('All Wordlists');
   await expect(page.locator('#wordlist-bar .wls-actions .wls-kebab')).toHaveCount(0);
 
   await scopeTo(page, 'Mine');
@@ -216,12 +216,12 @@ test('the rescore panel bake button is disabled for a publisher source', async (
   await expect(page.locator('#rescore-editor .rule-bake-btn')).toBeDisabled();
 });
 
-test('All has no bake button — its panel is the scoring/tier editor', async ({ page }) => {
+test('All Wordlists has no bake button — its panel is the scoring/tier editor', async ({ page }) => {
   await gotoApp(page);
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
     name: 'Mine', entries: ['ocean'], scores: [70],
   }));
-  await expect(page.locator('#wordlist-bar .wls-trigger-label')).toHaveText('All');
+  await expect(page.locator('#wordlist-bar .wls-trigger-label')).toHaveText('All Wordlists');
   await openRescoreEditor(page);
   await expect(page.locator('#rescore-editor .rule-bake-btn')).toHaveCount(0);
 });

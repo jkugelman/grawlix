@@ -64,13 +64,13 @@ test('Copy header omits backticks around numeric params', async ({ page }) => {
   expect(text).toMatch(/^\[Behead 1\]\(http/);
 });
 
-test('Copy header for empty pipeline uses [All](URL)', async ({ page }) => {
+test('Copy header for empty pipeline uses [All Wordlists](URL)', async ({ page }) => {
   await gotoApp(page);
   await addFixture(page);
   await setStack(page, []);
 
   const text = await getExport(page, 'copy');
-  expect(text).toMatch(/^\[All\]\(http/);
+  expect(text).toMatch(/^\[All Wordlists\]\(http/);
 });
 
 test('Wordlist dumps tail entries with chain-min score, alphabetically sorted', async ({ page }) => {

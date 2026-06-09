@@ -61,8 +61,8 @@ async function gotoApp(page, route = '/') {
   await page.evaluate(() => window.__grawlixTest.pipelineIdle());
 }
 
-// Scope the table + tools to a source by name (or 'All' / omit for the merged
-// view) via the test API, then wait for the re-rendered pipeline to settle.
+// Scope the table + tools to a source by name (or 'All Wordlists' / omit for the
+// merged view) via the test API, then wait for the re-rendered pipeline to settle.
 async function scopeTo(page, name) {
   await page.evaluate(n => window.__grawlixTest.setScope(n), name);
   await page.evaluate(() => window.__grawlixTest.pipelineIdle());

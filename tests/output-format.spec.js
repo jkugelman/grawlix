@@ -176,7 +176,7 @@ test.describe('output format UI', () => {
     await expect(downloadOriginal).toHaveCount(0);
     await expect(downloadBtn).toHaveText('Download');
 
-    await scopeTo(page, 'All');
+    await scopeTo(page, 'All Wordlists');
     await expect(downloadOriginal).toHaveCount(0);
     await expect(downloadBtn).toHaveText('Download');
   });

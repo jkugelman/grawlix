@@ -25,7 +25,7 @@ test('My Edits banner shows only when scoped to My Edits', async ({ page }) => {
   await scopeTo(page, 'XWord Info');
   await expect(banner(page)).not.toContainText('My Edits');
 
-  await scopeTo(page, 'All');
+  await scopeTo(page, 'All Wordlists');
   await expect(banner(page)).toBeHidden();
 });
 

@@ -1,7 +1,7 @@
 // Scoped-corpus engine (unify redesign). Pins the contract that scoping the
 // table + tools to a single source shows that source's OWN data only — no other
 // publisher's opinion and no My Edits overlay mixed in — and that returning to
-// All restores the merged view. A My Edits edit therefore appears only in All or
+// All Wordlists restores the merged view. A My Edits edit therefore appears only in All Wordlists or
 // when scoped to My Edits itself. Scope is driven through the `setScope` test
 // API; there is no scope UI yet.
 
@@ -12,11 +12,11 @@ test.beforeEach(async ({ page }) => {
   await stubPublisherFetches(page);
 });
 
-test('scope shows the source itself (no other publisher mixed in); back-to-All re-merges', async ({ page }) => {
+test('scope shows the source itself (no other publisher mixed in); back-to-All Wordlists re-merges', async ({ page }) => {
   await gotoApp(page);
 
   // Two sources sharing OCEAN. Hi sits above Lo (added first = higher
-  // priority), so the All merge resolves OCEAN to Hi's 90 and includes
+  // priority), so the All Wordlists merge resolves OCEAN to Hi's 90 and includes
   // ZEBRA, which only Hi carries.
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
     name: 'Hi', entries: ['ocean', 'zebra'], scores: [90, 60],
@@ -37,13 +37,13 @@ test('scope shows the source itself (no other publisher mixed in); back-to-All r
     .toMatchObject({ score: 70, wordlist: 'Lo' });
   expect(await page.evaluate(() => window.__grawlixTest.getMergedEntry('ZEBRA'))).toBeNull();
 
-  await scopeTo(page, 'All');
+  await scopeTo(page, 'All Wordlists');
   await expectVisible(page, ['ocean', 'tide', 'zebra']);
   expect(await page.evaluate(() => window.__grawlixTest.getMergedEntry('OCEAN')))
     .toMatchObject({ score: 90, wordlist: 'Hi' });
 });
 
-test('a My Edits edit does not appear in a scoped source view — only in All', async ({ page }) => {
+test('a My Edits edit does not appear in a scoped source view — only in All Wordlists', async ({ page }) => {
   await gotoApp(page);
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
     name: 'Pub', entries: ['ocean', 'tide'], scores: [70, 40],
@@ -62,8 +62,8 @@ test('a My Edits edit does not appear in a scoped source view — only in All', 
   expect(await page.evaluate(() => window.__grawlixTest.getMergedEntry('OCEAN')))
     .toMatchObject({ score: 70, wordlist: 'Pub' });
 
-  // In All, the edit surfaces: My Edits wins TIDE at 55.
-  await scopeTo(page, 'All');
+  // In All Wordlists, the edit surfaces: My Edits wins TIDE at 55.
+  await scopeTo(page, 'All Wordlists');
   await expectVisible(page, ['ocean', 'tide']);
   expect(await page.evaluate(() => window.__grawlixTest.getMergedEntry('TIDE')))
     .toMatchObject({ score: 55, wordlist: 'My Edits' });
@@ -88,7 +88,7 @@ test('a disabled source is still viewable when scoped to it', async ({ page }) =
 
 // Read the stats bar's label→value readouts (Entries, Min, Max). The
 // histogram + these numbers must reflect whatever corpus is in scope, so a
-// scoped source with a narrower score range reads a different Max than All.
+// scoped source with a narrower score range reads a different Max than All Wordlists.
 async function readStats(page) {
   return page.evaluate(() => {
     const out = {};
@@ -101,14 +101,14 @@ async function readStats(page) {
   });
 }
 
-test('editing My Edits while scoped: a regular source is unchanged, All reflects it, My Edits itself updates', async ({ page }) => {
+test('editing My Edits while scoped: a regular source is unchanged, All Wordlists reflects it, My Edits itself updates', async ({ page }) => {
   await gotoApp(page);
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
     name: 'Pub', entries: ['ocean', 'tide'], scores: [70, 40],
   }));
 
   // Scoped to a regular source, a My Edits edit leaves that source's view
-  // untouched (the scope shows Pub's own data) but does flow into All.
+  // untouched (the scope shows Pub's own data) but does flow into All Wordlists.
   await scopeTo(page, 'Pub');
   await expectVisible(page, ['ocean', 'tide']);
   await page.evaluate(() => window.__grawlixTest.saveMyEdit('tide', 'tide', 55));
@@ -119,7 +119,7 @@ test('editing My Edits while scoped: a regular source is unchanged, All reflects
   await expectVisible(page, ['ocean', 'tide']);
   expect(await page.evaluate(() => window.__grawlixTest.getMergedEntry('REEF'))).toBeNull();
 
-  await scopeTo(page, 'All');
+  await scopeTo(page, 'All Wordlists');
   await expectVisible(page, ['ocean', 'reef', 'tide']);
   expect(await page.evaluate(() => window.__grawlixTest.getMergedEntry('TIDE')))
     .toMatchObject({ score: 55, wordlist: 'My Edits' });
@@ -136,9 +136,9 @@ test('editing My Edits while scoped: a regular source is unchanged, All reflects
   await expectVisible(page, ['kelp', 'tide']);
 });
 
-test('the histogram + stats reflect the scoped corpus, not All', async ({ page }) => {
+test('the histogram + stats reflect the scoped corpus, not All Wordlists', async ({ page }) => {
   await gotoApp(page);
-  // Two sources with disjoint score ranges. All spans 40–90; scoping to Lo
+  // Two sources with disjoint score ranges. All Wordlists spans 40–90; scoping to Lo
   // narrows the stats + histogram to 30–40.
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
     name: 'Hi', entries: ['ocean', 'zebra'], scores: [90, 80],
@@ -160,13 +160,13 @@ test('the histogram + stats reflect the scoped corpus, not All', async ({ page }
   expect(loStats.Max).toBe('40');
   expect(loStats.Min).toBe('30');
 
-  await scopeTo(page, 'All');
+  await scopeTo(page, 'All Wordlists');
   const backStats = await readStats(page);
   expect(backStats.Entries).toBe('4');
   expect(backStats.Max).toBe('90');
 });
 
-test('a tool runs against the scoped corpus, not All', async ({ page }) => {
+test('a tool runs against the scoped corpus, not All Wordlists', async ({ page }) => {
   await gotoApp(page);
   // CAT/ACT anagram pair split across two lists: ACT lives only in Other.
   // Scoped to Main, the anagram tool must not surface ACT.
@@ -184,14 +184,14 @@ test('a tool runs against the scoped corpus, not All', async ({ page }) => {
   await scopeTo(page, 'Main');
   await expectVisible(page, ['cat']);
 
-  await scopeTo(page, 'All');
+  await scopeTo(page, 'All Wordlists');
   await expectVisible(page, ['act', 'cat']);
 });
 
 // The source column tells you which list a merged row came from. Scoped to one
 // source every row shares it, so the column is dropped — header and cells both.
 // Asserted via the cells' absence (and the header class), never computed CSS.
-test('the source column is shown for All and hidden when scoped', async ({ page }) => {
+test('the source column is shown for All Wordlists and hidden when scoped', async ({ page }) => {
   await gotoApp(page);
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
     name: 'Hi', entries: ['ocean', 'zebra'], scores: [90, 60],
@@ -201,7 +201,7 @@ test('the source column is shown for All and hidden when scoped', async ({ page 
   }));
 
   // The default 1280px viewport clears the 960px breakpoint that gates the
-  // column, so at All the header and per-row cells are present.
+  // column, so at All Wordlists the header and per-row cells are present.
   await expectVisible(page, ['ocean', 'tide', 'zebra']);
   await expect(page.locator('#detail-panel')).not.toHaveClass(/no-source-col/);
   await expect(page.locator('.entry-headers .col-source')).toHaveCount(1);
@@ -213,7 +213,7 @@ test('the source column is shown for All and hidden when scoped', async ({ page 
   await expect(page.locator('.entry-headers .col-source')).toHaveCount(0);
   await expect(page.locator('.entry-row .atom-source')).toHaveCount(0);
 
-  await scopeTo(page, 'All');
+  await scopeTo(page, 'All Wordlists');
   await expectVisible(page, ['ocean', 'tide', 'zebra']);
   await expect(page.locator('#detail-panel')).not.toHaveClass(/no-source-col/);
   await expect(page.locator('.entry-headers .col-source')).toHaveCount(1);

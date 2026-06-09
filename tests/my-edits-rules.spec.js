@@ -38,7 +38,7 @@ test('importing a list already on Grawlix tiers keeps the legend', async ({ page
   expect(wl.dirty).toBe(false);
 });
 
-test("customizing an All tier propagates into a non-dirty My Edits legend", async ({ page }) => {
+test("customizing an All Wordlists tier propagates into a non-dirty My Edits legend", async ({ page }) => {
   await gotoApp(page);
   await page.evaluate(() => {
     const i = state.scoring.findIndex(r => r.input === '60');

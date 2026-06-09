@@ -1,5 +1,5 @@
 // Atom-popover seeding (unify redesign, Stage 3c). The editor seeds its three
-// fields from the All-merge winner for the clicked entry — never the
+// fields from the All Wordlists merge winner for the clicked entry — never the
 // viewed/scoped wordlist's own value. Decision A: the score field edits My
 // Edits' RAW score, so a non-pass-through My Edits entry seeds from raw and
 // shows the raw → rescored mapping. Decision B: a bare click whose norm has no

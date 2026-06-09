@@ -1,7 +1,7 @@
 // Merge seam — see docs/design.md and site/index.html § buildMergedWordlist.
 //
 // These tests pin the central contract of the app: when multiple enabled
-// wordlists share an entry, which one wins, and what does the merged All
+// wordlists share an entry, which one wins, and what does the merged All Wordlists
 // view show. Most cross-feature regressions in Grawlix land somewhere
 // downstream of this seam (cache invalidation, popover sourcing, the
 // entries table, downloads).
@@ -37,10 +37,10 @@ test('higher-positioned wordlist wins the override for a shared entry', async ({
   expect(after).toMatchObject({ entry: 'bagel', score: 50, comment: '', wordlist: 'Low' });
 });
 
-test('disabling a wordlist excludes its entries from All; re-enabling restores them', async ({ page }) => {
+test('disabling a wordlist excludes its entries from All Wordlists; re-enabling restores them', async ({ page }) => {
   await gotoApp(page);
 
-  // Two wordlists with disjoint entries — three entries each, six in All.
+  // Two wordlists with disjoint entries — three entries each, six in All Wordlists.
   // Names chosen so neither substring-collides with a publisher card on the
   // page (publishers are present-but-empty after the fetch stub).
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
@@ -50,7 +50,7 @@ test('disabling a wordlist excludes its entries from All; re-enabling restores t
     name: 'TestBerries', entries: ['BLUEBERRY', 'RASPBERRY', 'STRAWBERRY'], scores: [50, 50, 50],
   }));
 
-  // Sanity: both contribute, BLUEBERRY is in All.
+  // Sanity: both contribute, BLUEBERRY is in All Wordlists.
   expect(await page.evaluate(() => window.__grawlixTest.getMergedEntry('BLUEBERRY'))).not.toBeNull();
 
   await openManagePanel(page);

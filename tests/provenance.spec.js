@@ -90,7 +90,7 @@ test('a disabled wordlist still contributes a (dimmed) provenance row', async ({
   }));
   await setEnabledViaPanel(page, 'Off', false);
 
-  // From All, OCEAN comes only from On (Off is excluded from the merge), but the
+  // From All Wordlists, OCEAN comes only from On (Off is excluded from the merge), but the
   // popover still lists Off as a contributor — dimmed.
   await openPopoverOnEntry(page, 'ocean');
   const rows = await readProvenance(page);

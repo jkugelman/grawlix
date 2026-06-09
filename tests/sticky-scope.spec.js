@@ -2,7 +2,7 @@
 // ride standalone read-time-default localStorage keys — `selectedScope` and
 // `scoreRanges` — outside the versioned `meta` blob, so no SCHEMA_VERSION bump
 // and no migration. These tests pin: the active scope survives a reload, each
-// scope keeps its own score range, and a vanished scope falls back to All.
+// scope keeps its own score range, and a vanished scope falls back to All Wordlists.
 
 const { test, expect } = require('@playwright/test');
 const { stubPublisherFetches, gotoApp, scopeTo, scopeViaSelector } = require('./helpers');
@@ -50,11 +50,11 @@ test('a score range is per-scope: set on A, B is independent, A persists across 
   await setRange(page, '60+');
   await expect(rangeInput(page)).toHaveValue('60+');
 
-  // All keeps its own (still empty) range independent of both sources.
-  await scopeTo(page, 'All');
+  // All Wordlists keeps its own (still empty) range independent of both sources.
+  await scopeTo(page, 'All Wordlists');
   await expect(rangeInput(page)).toHaveValue('');
 
-  // Back to Alpha: its range is restored, not Beta's nor All's blank.
+  // Back to Alpha: its range is restored, not Beta's nor All Wordlists' blank.
   await scopeTo(page, 'Alpha');
   await expect(rangeInput(page)).toHaveValue('50-90');
 
@@ -73,19 +73,19 @@ test('clearing a scope\'s range drops only that scope\'s entry', async ({ page }
     name: 'Alpha', entries: ['ocean', 'tide'], scores: [80, 20],
   }));
 
-  await scopeTo(page, 'All');
+  await scopeTo(page, 'All Wordlists');
   await setRange(page, '10-90');
   await scopeTo(page, 'Alpha');
   await setRange(page, '50-90');
 
-  // Clear Alpha's range. All's range must survive.
+  // Clear Alpha's range. All Wordlists' range must survive.
   await setRange(page, '');
   await expect(rangeInput(page)).toHaveValue('');
-  await scopeTo(page, 'All');
+  await scopeTo(page, 'All Wordlists');
   await expect(rangeInput(page)).toHaveValue('10-90');
 
   await reloadReady(page);
-  // Sticky scope returned us to All; its range persisted, Alpha's stayed cleared.
+  // Sticky scope returned us to All Wordlists; its range persisted, Alpha's stayed cleared.
   await expect(rangeInput(page)).toHaveValue('10-90');
   await scopeTo(page, 'Alpha');
   await expect(rangeInput(page)).toHaveValue('');
@@ -101,7 +101,7 @@ test('the selected scope persists across a reload', async ({ page }) => {
   await expect(page.locator('#wordlist-bar .wls-trigger-label')).toHaveText('Mine');
 
   await reloadReady(page);
-  // Without sticky scope this would reset to All.
+  // Without sticky scope this would reset to All Wordlists.
   await expect(page.locator('#wordlist-bar .wls-trigger-label')).toHaveText('Mine');
 });
 
@@ -121,7 +121,7 @@ test('a disabled scoped source still restores on reload (scope is not gated on e
   await expect(page.locator('#wordlist-bar .wls-trigger-label')).toHaveText('Off');
 });
 
-test('deleting the scoped source then reloading falls back to All', async ({ page }) => {
+test('deleting the scoped source then reloading falls back to All Wordlists', async ({ page }) => {
   await gotoApp(page);
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
     name: 'Doomed', entries: ['ocean'], scores: [70],
@@ -139,15 +139,15 @@ test('deleting the scoped source then reloading falls back to All', async ({ pag
   });
 
   await reloadReady(page);
-  // The stored dbKey no longer matches any source, so boot falls back to All.
-  await expect(page.locator('#wordlist-bar .wls-trigger-label')).toHaveText('All');
+  // The stored dbKey no longer matches any source, so boot falls back to All Wordlists.
+  await expect(page.locator('#wordlist-bar .wls-trigger-label')).toHaveText('All Wordlists');
 });
 
-test('first run (cleared storage) lands on All', async ({ page }) => {
+test('first run (cleared storage) lands on All Wordlists', async ({ page }) => {
   // gotoApp seeds welcomeSeen but nothing else; no selectedScope is stored, so
-  // boot must default to All.
+  // boot must default to All Wordlists.
   await gotoApp(page);
-  await expect(page.locator('#wordlist-bar .wls-trigger-label')).toHaveText('All');
+  await expect(page.locator('#wordlist-bar .wls-trigger-label')).toHaveText('All Wordlists');
   // And no selectedScope key was written until the user actually scopes.
   expect(await page.evaluate(() => localStorage.getItem('grawlix_selectedScope'))).toBeNull();
 });
