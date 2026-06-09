@@ -1,12 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { extract } from './support/extract.mjs';
-
-const {
+import {
   sortLetters, consonantSkeleton, vowelSkeleton, wordSplits, normalizeParams,
-} = extract('tool-utils', [
-  'sortLetters', 'consonantSkeleton', 'vowelSkeleton', 'wordSplits', 'normalizeParams',
-]);
+} from '../../site/src/engine/tools.js';
 
 test('sortLetters: returns the letters in ascending code-unit order', () => {
   assert.equal(sortLetters('cat'), 'act');
