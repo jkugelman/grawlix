@@ -35,7 +35,7 @@ The suite covers what manual testing structurally misses. Manual already catches
 
 **Don't assert element counts or static UI copy.** How many buttons a dialog renders, or a label's exact words, is markup and copy — not behavior. It churns constantly, so a test pinned to it breaks on every wording or layout tweak without catching a real regression (it tests the copy). Assert the outcome the controls produce — a sync attaches, an entry is written, a badge appears — not that there are two buttons reading X and Y. When a design change makes such a test fail, delete it rather than rewrite it, unless it guards genuine behavior.
 
-**Publisher fetches are stubbed.** The four auto-fetching publisher wordlists (JK, STWL, Broda, Nediger) hit `raw.githubusercontent.com` and `grawlix.wtf` on boot. Tests intercept via `page.route()` and return empty bodies by default; tests that need a publisher populated pass their own body. See [`tests/helpers.js`](../tests/helpers.js).
+**Publisher fetches are stubbed.** The four auto-fetching publisher wordlists (JK, STWL, Broda, Nediger) hit `raw.githubusercontent.com` and `grawlix.wtf` on boot. Tests intercept via `page.route()` and return empty bodies by default; tests that need a publisher populated pass their own body. See [`tests/browser/helpers.js`](../tests/browser/helpers.js).
 
 **Fresh browser context per test.** Playwright's default. Each test gets clean localStorage + IndexedDB, so test order doesn't matter and no teardown is needed.
 
@@ -45,11 +45,11 @@ The suite covers what manual testing structurally misses. Manual already catches
 
 **Visual / layout bugs.** Screenshot diffing (compare each test's rendered PNG against a saved baseline) catches "the icon moved 5px" bugs but is brittle: antialiasing noise, constant baseline updates on every UI tweak, cross-browser font rendering differences. Not worth the maintenance burden for a solo project. Substitute: open the site on Safari, Firefox, and a phone before any release.
 
-**One sanctioned exception: [`tests/search-bar-layout.spec.js`](../tests/search-bar-layout.spec.js).** The search bar earned dedicated pixel-geometry tests (input widths, control gaps, vertical centering, all via `getBoundingClientRect`) after a run of fiddly layout regressions that manual play-throughs kept missing — the user explicitly authorized them. They are a deliberate carve-out from the rule above, not drift; don't delete them on a philosophy pass. If the search-bar layout is intentionally reworked, update the measurements rather than removing the file. (`tests/stats-bar-layout.spec.js` mixes geometry with genuine responsive show/hide behavior — keep the show/hide assertions regardless.)
+**One sanctioned exception: [`tests/browser/search-bar-layout.spec.js`](../tests/browser/search-bar-layout.spec.js).** The search bar earned dedicated pixel-geometry tests (input widths, control gaps, vertical centering, all via `getBoundingClientRect`) after a run of fiddly layout regressions that manual play-throughs kept missing — the user explicitly authorized them. They are a deliberate carve-out from the rule above, not drift; don't delete them on a philosophy pass. If the search-bar layout is intentionally reworked, update the measurements rather than removing the file. (`tests/browser/stats-bar-layout.spec.js` mixes geometry with genuine responsive show/hide behavior — keep the show/hide assertions regardless.)
 
 **Real mobile Safari.** Playwright's WebKit is a Linux build that approximates Safari but isn't it. iOS-specific bugs only surface on actual devices.
 
-**Real File System Access.** The native file pickers and permission prompts can't be driven headless. `tests/disk-sync.spec.js` installs an in-memory fake for `showOpenFilePicker` / `showSaveFilePicker` / the handle, so the app's own attach/reconcile/write code is exercised, but the picker UI, permission grant, and boot reconnect-splash flow stay manual. The 3-way merge — the deletion-resurrection risk — is also covered directly via `sync.merge3`, which needs no fake at all. The action-row **sync pill** is asserted at the DOM level against the same fake — that it reflects sync state (the synced filename, the `→`/`⇄` arrow) once a list is attached. The sync **dialog's** button layout and copy aren't pinned by tests — that's brittle markup/copy (see *Strategy*); the doors' behavior is exercised through the attach paths (`sync.attachMirror` with and without `{ existing }`, `attachEditsExisting`/`attachEditsNew`), including that a mirror's "use existing" overwrites the target file with rescored output.
+**Real File System Access.** The native file pickers and permission prompts can't be driven headless. `tests/browser/disk-sync.spec.js` installs an in-memory fake for `showOpenFilePicker` / `showSaveFilePicker` / the handle, so the app's own attach/reconcile/write code is exercised, but the picker UI, permission grant, and boot reconnect-splash flow stay manual. The 3-way merge — the deletion-resurrection risk — is also covered directly via `sync.merge3`, which needs no fake at all. The action-row **sync pill** is asserted at the DOM level against the same fake — that it reflects sync state (the synced filename, the `→`/`⇄` arrow) once a list is attached. The sync **dialog's** button layout and copy aren't pinned by tests — that's brittle markup/copy (see *Strategy*); the doors' behavior is exercised through the attach paths (`sync.attachMirror` with and without `{ existing }`, `attachEditsExisting`/`attachEditsNew`), including that a mirror's "use existing" overwrites the target file with rescored output.
 
 ## Out of scope
 
@@ -79,7 +79,7 @@ sudo npx playwright install-deps   # first time only — installs OS-level brows
 ```sh
 npm test                              # all browsers, headless — what CI runs
 npm test -- --project=chromium        # one browser (fast)
-npm test -- tests/smoke.spec.js       # one file
+npm test -- tests/browser/smoke.spec.js       # one file
 npm test -- -g "auto-seed"            # one test by name (grep)
 CI=1 npm test                         # reproduce CI conditions (1 worker, 2 retries)
 npm run test:headed                   # opens a real browser window
@@ -110,7 +110,7 @@ Exposed unconditionally in `site/index.html` (see the *Test API* section near th
 | `exportText(format)` | Run an export builder against the current pipeline output and return its result. `format` is `'copy'`, `'wordlist'`, `'csv'`, or `'json'`. Returns a string for copy/csv, an object `{text, count, skipped}` for wordlist, and the data object for json. Awaits `pipelineIdle` first. |
 | `exportFilename(ext)` | Run the same filename builder Download menu items use, against the current tool stack. Returns the sanitized filename including extension. |
 | `sync.merge3(base, file, idb)` | Run the pure My Edits 3-way merge over three wordlist-text inputs. Returns `{resolved: [...], conflicts: [...]}` for asserting deletion-doesn't-resurrect and conflict detection without any file I/O. |
-| `sync.attachMirror(name, {existing}?)` / `attachEditsExisting()` / `attachEditsNew()` / `reconcileEdits()` / `isSynced(name)` / `filename(name)` / `flushWrites()` | Drive the real disk-sync attach/reconcile/write paths against the fake File System Access layer the test installs (`name === 'All Wordlists'` targets the merged mirror; `attachMirror`'s `{existing: true}` exercises the write-to-existing-file door). See [`tests/disk-sync.spec.js`](../tests/disk-sync.spec.js). |
+| `sync.attachMirror(name, {existing}?)` / `attachEditsExisting()` / `attachEditsNew()` / `reconcileEdits()` / `isSynced(name)` / `filename(name)` / `flushWrites()` | Drive the real disk-sync attach/reconcile/write paths against the fake File System Access layer the test installs (`name === 'All Wordlists'` targets the merged mirror; `attachMirror`'s `{existing: true}` exercises the write-to-existing-file door). See [`tests/browser/disk-sync.spec.js`](../tests/browser/disk-sync.spec.js). |
 
 Adding a function is fine; renaming or repurposing an existing one means updating every test that uses it.
 
@@ -147,7 +147,7 @@ test('feature does the right thing', async ({ page }) => {
 
 ### Per-tool test files
 
-Every gallery tool gets its own spec under `tests/tools/`, named for the tool's key in `TOOLS` — `tests/tools/<tool>.spec.js` (`anagram.spec.js`, `regex.spec.js`, …). The file covers that tool's *own* contract: its params, its filter / transform / group behavior, the inert cases, and any highlights. Build the stack with `__grawlixTest.setStack([{ tool, params }])` and assert with the polling `expectVisible` / `expectGroups` helpers — never a bare `getVisibleEntries()` snapshot (see *Reading async pipeline output* below). The existing files (`tests/tools/search.spec.js`, `tests/tools/behead.spec.js`) are the template. Cross-tool *pipeline* mechanics — unification across tools, sort tiers, URL round-trips, the permanent search bar — stay in the shared `tests/tools.spec.js`, not the per-tool file. When you add a tool to `TOOLS`, add its spec file.
+Every gallery tool gets its own spec under `tests/browser/tools/`, named for the tool's key in `TOOLS` — `tests/browser/tools/<tool>.spec.js` (`anagram.spec.js`, `regex.spec.js`, …). The file covers that tool's *own* contract: its params, its filter / transform / group behavior, the inert cases, and any highlights. Build the stack with `__grawlixTest.setStack([{ tool, params }])` and assert with the polling `expectVisible` / `expectGroups` helpers — never a bare `getVisibleEntries()` snapshot (see *Reading async pipeline output* below). The existing files (`tests/browser/tools/search.spec.js`, `tests/browser/tools/behead.spec.js`) are the template. Cross-tool *pipeline* mechanics — unification across tools, sort tiers, URL round-trips, the permanent search bar — stay in the shared `tests/browser/tools.spec.js`, not the per-tool file. When you add a tool to `TOOLS`, add its spec file.
 
 ### Reading async pipeline output
 
@@ -160,7 +160,7 @@ expect(visible.sort()).toEqual(['kayak', 'noon', 'racecar']);   // ❌ races the
 
 — passes on chromium/firefox (they settle fast) and flakes on webkit under load (it doesn't). The output isn't wrong; the read lands before the pipeline finishes painting. (The big 2026-06 webkit shard failure turned out to be a separate boot-vs-test race in `gotoApp`, not this — but the snapshot read is still a genuine flake class, so poll regardless.)
 
-**Always poll the read.** [`tests/helpers.js`](../tests/helpers.js) provides the wrappers — use them instead of a bare `getVisibleEntries` / `getVisibleGroups` snapshot:
+**Always poll the read.** [`tests/browser/helpers.js`](../tests/browser/helpers.js) provides the wrappers — use them instead of a bare `getVisibleEntries` / `getVisibleGroups` snapshot:
 
 | Helper | Use for |
 |---|---|

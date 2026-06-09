@@ -47,7 +47,7 @@ jobs:
     # Backstop only — the real gate is the step-level timeout on "Run tests".
     timeout-minutes: 20
     # One job per browser, each running Playwright single-worker (webkit flakes
-    # under parallel-worker load — see tests/flaky.md). Sharding keeps that
+    # under parallel-worker load — see tests/browser/flaky.md). Sharding keeps that
     # per-job determinism while the three engines run concurrently, so the full
     # 777-test matrix finishes in ~one browser's wall-clock instead of 3× it.
     strategy:
