@@ -778,16 +778,6 @@ a.get-file:hover { text-decoration: underline; }
 .rule-reset-btn:hover, .rule-neutralize-btn:hover, .rule-bake-btn:hover:not(:disabled) { color: var(--text); border-color: var(--accent); }
 .rule-bake-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
-/* Collapsible section */
-/* Chevron is absolute-positioned so the label lines up with whatever lives in `.collapsible-content` below. */
-.collapsible-toggle { position: relative; display: block; width: 100%; padding: 0; margin: 0 0 6px; background: none; border: none; font: inherit; color: inherit; cursor: pointer; text-align: left; }
-.collapsible-toggle:focus-visible { outline: 1px solid var(--accent); outline-offset: 2px; border-radius: 3px; }
-.collapsible-chevron { position: absolute; right: 100%; top: 50%; margin-right: 2px; transform: translateY(-50%); font-size: 14px; color: var(--muted); line-height: 1; transition: transform 0.15s; }
-.collapsible-toggle:hover .collapsible-chevron { color: var(--text); }
-.collapsible.collapsed > .collapsible-toggle { margin-bottom: 0; }
-.collapsible.collapsed > .collapsible-toggle .collapsible-chevron { transform: translateY(-50%) rotate(-90deg); }
-.collapsible.collapsed > .collapsible-content { display: none; }
-
 #featured-row { padding: 32px; border-bottom: 1px solid var(--border3); position: relative; background: var(--bg); z-index: 60; }
 #featured-row.expanded { border-bottom-color: transparent; }
 

@@ -118,41 +118,6 @@ test('the kebab Import item opens the ImportGuide dialog', async ({ page }) => {
   await expect(dialog.locator('.guide-drop-zone')).toBeVisible();
 });
 
-// No app surface renders a Collapsible yet, but Collapsible.mount() arms its
-// delegated click handler at boot. Inject the markup that handler keys off so a
-// true click exercises it (and the collapse/expand CSS) — the wiring this test
-// guards. The builder itself is a pure string fn with no event wiring, so the
-// markup shape, not the builder, is what matters.
-test('clicking a collapsible header toggles its content via the boot-mounted handler', async ({ page }) => {
-  await gotoApp(page);
-  await page.evaluate(() => {
-    const host = document.createElement('div');
-    host.innerHTML = `
-      <div id="test-collapsible" class="collapsible">
-        <button type="button" class="collapsible-toggle" aria-expanded="true">
-          <span class="collapsible-chevron" aria-hidden="true">▾</span>
-          <span>Section</span>
-        </button>
-        <div class="collapsible-content"><p class="test-collapsible-body">body</p></div>
-      </div>`;
-    document.getElementById('app').appendChild(host);
-  });
-
-  const body = page.locator('#test-collapsible .test-collapsible-body');
-  const toggle = page.locator('#test-collapsible .collapsible-toggle');
-
-  await expect(body).toBeVisible();
-  await expect(toggle).toHaveAttribute('aria-expanded', 'true');
-
-  await toggle.click();
-  await expect(body).toBeHidden();
-  await expect(toggle).toHaveAttribute('aria-expanded', 'false');
-
-  await toggle.click();
-  await expect(body).toBeVisible();
-  await expect(toggle).toHaveAttribute('aria-expanded', 'true');
-});
-
 test('clicking outside an open split menu dismisses it', async ({ page }) => {
   await gotoApp(page);
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({

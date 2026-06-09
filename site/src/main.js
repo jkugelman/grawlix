@@ -962,37 +962,6 @@ function buildToolCardHTML(toolKey, tool, { allButton = true } = {}) {
   </div>`;
 }
 
-const Collapsible = (() => {
-  function buildHTML({ id = '', className = '', labelHTML, contentHTML, collapsed = false }) {
-    const cls = ['collapsible', className, collapsed && 'collapsed'].filter(Boolean).join(' ');
-    const idAttr = id ? ` id="${id}"` : '';
-    return `<div${idAttr} class="${cls}">
-        <button type="button" class="collapsible-toggle" aria-expanded="${!collapsed}">
-          <span class="collapsible-chevron" aria-hidden="true">▾</span>
-          ${labelHTML}
-        </button>
-        <div class="collapsible-content">${contentHTML}</div>
-      </div>`;
-  }
-
-  // Caller wires persistence (localStorage, signal, etc.) by listening for
-  // `collapsible:toggle` on the wrapper or any ancestor.
-  function mount() {
-    document.addEventListener('click', e => {
-      const toggle = e.target.closest('.collapsible-toggle');
-      if (!toggle) return;
-      const wrapper = toggle.closest('.collapsible');
-      if (!wrapper) return;
-      const collapsed = !wrapper.classList.contains('collapsed');
-      wrapper.classList.toggle('collapsed', collapsed);
-      toggle.setAttribute('aria-expanded', String(!collapsed));
-      wrapper.dispatchEvent(new CustomEvent('collapsible:toggle', { detail: { collapsed }, bubbles: true }));
-    });
-  }
-
-  return { buildHTML, mount };
-})();
-
 // ─── Router ───────────────────────────────────────────────────────────────────
 // Keeps the URL in sync with the tool stack via history.replaceState. URL shape:
 //   bare URL    → no query state
@@ -10676,7 +10645,6 @@ function boot() {
   // Document-level / pure wiring — no dependency on the app-shell DOM existing.
   mountGroupColumnStyle();
   mountClearableInputs();
-  Collapsible.mount();
   mountHistogramPointer();
   mountSplitMenuDismiss();
 
