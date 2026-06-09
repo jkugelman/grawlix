@@ -1,18 +1,23 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { extract } from './support/extract.mjs';
+import {
+  msgpackDecode, buildCorpusFromMsgpack, morphemeStemLogFreq,
+  unigramLogFreq, rankedSplits, setUnigramCorpus,
+  SPACE_OUT_PART_PENALTY, SPACE_OUT_MORPHEME_PENALTY, SPACE_OUT_OOV_PER_LETTER,
+} from '../../site/src/engine/segmenter.js';
 
 const LN10 = Math.LN10;
 
-// unigramLogFreq/morphemeStemLogFreq read module-level `unigramLogFreqs`/
-// `unigramMinLogFreq`, which are left unfenced; injecting a fresh fake per call
-// is the only way to control what the segmenter "knows" without code changes.
-const corpus = (entries, minLog = -10) =>
-  extract('segmenter', [
-    'msgpackDecode', 'buildCorpusFromMsgpack', 'morphemeStemLogFreq',
-    'unigramLogFreq', 'rankedSplits',
-    'SPACE_OUT_PART_PENALTY', 'SPACE_OUT_MORPHEME_PENALTY', 'SPACE_OUT_OOV_PER_LETTER',
-  ], { unigramLogFreqs: new Map(entries), unigramMinLogFreq: minLog });
+// The segmenter's corpus is module-level singleton state, so corpus() mutates
+// it rather than returning an isolated fixture — the returned functions all read
+// whatever the latest corpus() call set.
+const corpus = (entries, minLog = -10) => {
+  setUnigramCorpus(Object.fromEntries(entries), minLog);
+  return {
+    msgpackDecode, buildCorpusFromMsgpack, morphemeStemLogFreq, unigramLogFreq, rankedSplits,
+    SPACE_OUT_PART_PENALTY, SPACE_OUT_MORPHEME_PENALTY, SPACE_OUT_OOV_PER_LETTER,
+  };
+};
 
 const pure = corpus([]);
 const decode = (...bytes) => pure.msgpackDecode(new Uint8Array(bytes));

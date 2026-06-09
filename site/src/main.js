@@ -21,6 +21,12 @@ import {
   analyzeRegexPattern, wrapRuns, parseReplacement,
   regexExecAll, runRegexReplace, runSearchReplace,
 } from './engine/regex.js';
+import {
+  SPACE_OUT_WINDOWS, UNIGRAM_CORPUS_URL, UNIGRAM_CORPUS_IDB_KEY,
+  configureIO as configureSegmenterIO, loadUnigramCorpus, rankedSplits,
+  hasUnigramCorpus, setUnigramCorpus as segmenterSetCorpus,
+  invalidateUnigramCorpus, getUnigramFetchedSize,
+} from './engine/segmenter.js';
 
 const scopeKey = scope => scope === MERGED_ID ? MERGED_ID : scope.dbKey;
 let _mergedIcon = null;
@@ -3050,192 +3056,6 @@ function scoreColor(score) {
   };
 }
 
-// ─── Unigram corpus & phrase segmenter ───────────────────────────────────────
-
-const UNIGRAM_CORPUS_URL = 'https://raw.githubusercontent.com/rspeer/wordfreq/master/wordfreq/data/large_en.msgpack.gz';
-const UNIGRAM_CORPUS_IDB_KEY = 'corpus_unigrams_decoded';
-const UNIGRAM_CORPUS_SIZE_KEY = 'corpus_unigrams_size';
-
-// #region nodetest:segmenter
-const SPACE_OUT_WINDOWS = { one: 2, few: 5, many: 10 };
-const SPACE_OUT_PART_PENALTY = 7;
-const SPACE_OUT_OOV_PER_LETTER = 1.5 * Math.LN10;
-const SPACE_OUT_MORPHEME_PENALTY = 1.0;
-const SPACE_OUT_SUFFIXES = ['s', 'es', 'ed', 'ied', 'ing', 'er', 'est', 'ly', 'ies'];
-// #endregion nodetest:segmenter
-
-let unigramLogFreqs = null;
-let unigramMinLogFreq = -Infinity;
-let unigramFetchedSize = null;
-let unigramLoadPromise = null;
-
-// #region nodetest:segmenter
-function morphemeStemLogFreq(word) {
-  if (!unigramLogFreqs) return -Infinity;
-  let best = -Infinity;
-  const tryStem = s => {
-    const lf = unigramLogFreqs.get(s);
-    if (lf !== undefined && lf > best) best = lf;
-  };
-  for (const suf of SPACE_OUT_SUFFIXES) {
-    if (!word.endsWith(suf)) continue;
-    const stemLen = word.length - suf.length;
-    if (stemLen < 2) continue;
-    const stem = word.slice(0, stemLen);
-    tryStem(stem);
-    if (suf === 'ed' || suf === 'ing' || suf === 'er' || suf === 'est') {
-      tryStem(stem + 'e');  // raced, racing, racer, ...
-    }
-    if (suf === 'ies' || suf === 'ied') {
-      tryStem(stem + 'y');  // tries, tried
-    }
-  }
-  return best;
-}
-
-function unigramLogFreq(word) {
-  const lf = unigramLogFreqs?.get(word);
-  if (lf !== undefined) return lf;
-  const stemLf = morphemeStemLogFreq(word);
-  if (stemLf > -Infinity) return stemLf - SPACE_OUT_MORPHEME_PENALTY;
-  return unigramMinLogFreq - word.length * SPACE_OUT_OOV_PER_LETTER;
-}
-// #endregion nodetest:segmenter
-
-// #region nodetest:segmenter
-function msgpackDecode(bytes) {
-  const td = new TextDecoder('utf-8');
-  let pos = 0;
-  const u8 = () => bytes[pos++];
-  const u16 = () => { const v = (bytes[pos] << 8) | bytes[pos + 1]; pos += 2; return v; };
-  const u32 = () => {
-    const v = bytes[pos] * 0x1000000 + ((bytes[pos + 1] << 16) | (bytes[pos + 2] << 8) | bytes[pos + 3]);
-    pos += 4;
-    return v;
-  };
-  const str = (len) => { const s = td.decode(bytes.subarray(pos, pos + len)); pos += len; return s; };
-  const arr = (n) => { const out = new Array(n); for (let i = 0; i < n; i++) out[i] = readVal(); return out; };
-  const map = (n) => { const out = {}; for (let i = 0; i < n; i++) { const k = readVal(); out[k] = readVal(); } return out; };
-  function readVal() {
-    const t = u8();
-    if (t <= 0x7f) return t;
-    if (t <= 0x8f) return map(t & 0x0f);
-    if (t <= 0x9f) return arr(t & 0x0f);
-    if (t <= 0xbf) return str(t & 0x1f);
-    if (t === 0xd9) return str(u8());
-    if (t === 0xda) return str(u16());
-    if (t === 0xdb) return str(u32());
-    if (t === 0xdc) return arr(u16());
-    if (t === 0xdd) return arr(u32());
-    if (t === 0xde) return map(u16());
-    if (t === 0xdf) return map(u32());
-    throw new Error(`msgpack: unsupported type 0x${t.toString(16)}`);
-  }
-  return readVal();
-}
-// #endregion nodetest:segmenter
-
-async function gunzipBytes(bytes) {
-  const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'));
-  return new Uint8Array(await new Response(stream).arrayBuffer());
-}
-
-// #region nodetest:segmenter
-function buildCorpusFromMsgpack(decoded) {
-  const map = new Map();
-  let lastNonEmpty = 1;
-  for (let bucket = 1; bucket < decoded.length; bucket++) {
-    const words = decoded[bucket];
-    if (!words || words.length === 0) continue;
-    const logFreq = -bucket * Math.LN10 / 100;
-    for (const word of words) map.set(word, logFreq);
-    lastNonEmpty = bucket;
-  }
-  return { map, minLog: -lastNonEmpty * Math.LN10 / 100 };
-}
-// #endregion nodetest:segmenter
-
-async function loadUnigramCorpus() {
-  if (unigramLogFreqs) return;
-  if (unigramLoadPromise) return unigramLoadPromise;
-  unigramLoadPromise = (async () => {
-    const cached = await idbGet(UNIGRAM_CORPUS_IDB_KEY);
-    if (cached && cached.map) {
-      unigramLogFreqs = cached.map;
-      unigramMinLogFreq = cached.minLog;
-      unigramFetchedSize = lsLoad(UNIGRAM_CORPUS_SIZE_KEY);
-      return;
-    }
-    const resp = await fetch(UNIGRAM_CORPUS_URL);
-    if (!resp.ok) throw new Error(`HTTP ${resp.status} ${resp.statusText}`);
-    const gz = await resp.arrayBuffer();
-    unigramFetchedSize = resp.headers.get('content-length') || null;
-    const decompressed = await gunzipBytes(new Uint8Array(gz));
-    const { map, minLog } = buildCorpusFromMsgpack(msgpackDecode(decompressed));
-    unigramLogFreqs = map;
-    unigramMinLogFreq = minLog;
-    await idbPut(UNIGRAM_CORPUS_IDB_KEY, { map, minLog });
-    if (unigramFetchedSize) lsSave(UNIGRAM_CORPUS_SIZE_KEY, unigramFetchedSize);
-  })();
-  try {
-    await unigramLoadPromise;
-  } finally {
-    if (!unigramLogFreqs) unigramLoadPromise = null;
-  }
-}
-
-// #region nodetest:segmenter
-function rankedSplits(entry, window, wordlist) {
-  if (entry.length < 1) return [];
-  const isAllowedPart = p => p.length <= 2 || wordlist.byNorm.has(p);
-  const isDigit = c => c >= '0' && c <= '9';
-  const splitsMidDigit = (s, i) => i < s.length && isDigit(s[i - 1]) && isDigit(s[i]);
-
-  const bestMemo = new Map();
-  bestMemo.set('', 0);
-  function bestFor(s) {
-    const hit = bestMemo.get(s);
-    if (hit !== undefined) return hit;
-    let best = -Infinity;
-    for (let i = 1; i <= s.length; i++) {
-      if (splitsMidDigit(s, i)) continue;
-      const p = s.slice(0, i);
-      if (!isAllowedPart(p)) continue;
-      const score = unigramLogFreq(p) - SPACE_OUT_PART_PENALTY + bestFor(s.slice(i));
-      if (score > best) best = score;
-    }
-    bestMemo.set(s, best);
-    return best;
-  }
-  const overallBest = bestFor(entry);
-  const threshold = overallBest - window;
-
-  const results = [];
-  const acc = [];
-  function enumerate(s, accScore) {
-    if (s === '') {
-      if (accScore >= threshold) {
-        results.push({ score: accScore, parts: acc.slice() });
-      }
-      return;
-    }
-    if (accScore + bestFor(s) < threshold) return;
-    for (let i = 1; i <= s.length; i++) {
-      if (splitsMidDigit(s, i)) continue;
-      const p = s.slice(0, i);
-      if (!isAllowedPart(p)) continue;
-      acc.push(p);
-      enumerate(s.slice(i), accScore + unigramLogFreq(p) - SPACE_OUT_PART_PENALTY);
-      acc.pop();
-    }
-  }
-  enumerate(entry, 0);
-
-  results.sort((a, b) => b.score - a.score);
-  return results.map(r => r.parts);
-}
-// #endregion nodetest:segmenter
-
 // ─── Tool stack ───────────────────────────────────────────────────────────────
 // Tools are catalog records ({ name, icon, category, desc, example, params,
 // kind, inputHighlights, outputHighlights, glyph?, run?, group?, isInert? }).
@@ -3604,7 +3424,7 @@ const TOOLS = {
       return { window: SPACE_OUT_WINDOWS[choice] ?? SPACE_OUT_WINDOWS.few, onlyTop: choice === 'one' };
     },
     run(entry, prepared, wordlist) {
-      if (!unigramLogFreqs) return [];
+      if (!hasUnigramCorpus()) return [];
       const existing = wordlist.byNorm.get(entry);
       if (existing && displayOf(existing).includes(' ')) return [{ entry }];
       const splits = rankedSplits(entry, prepared.window, wordlist);
@@ -7630,13 +7450,13 @@ async function checkForUpdates() {
     WordlistSelector.refresh();
   }
 
-  if (unigramFetchedSize) {
+  const fetchedSize = getUnigramFetchedSize();
+  if (fetchedSize) {
     try {
       const resp = await fetch(UNIGRAM_CORPUS_URL, { method: 'HEAD' });
       const size = resp.ok ? resp.headers.get('content-length') : null;
-      if (size && size !== unigramFetchedSize) {
-        unigramLogFreqs = null;
-        unigramLoadPromise = null;
+      if (size && size !== fetchedSize) {
+        invalidateUnigramCorpus();
         await idbPut(UNIGRAM_CORPUS_IDB_KEY, '');
         await loadUnigramCorpus();
       }
@@ -9735,12 +9555,7 @@ const __grawlixTest = {
     if (m) deleteFromEdits({ norm: m.norm, display: displayOf(m) }, refreshMergedScroller);
   },
 
-  setUnigramCorpus(freqs) {
-    const entries = Object.entries(freqs);
-    unigramLogFreqs = new Map(entries);
-    unigramMinLogFreq = entries.length ? Math.min(...entries.map(([, lf]) => lf)) : -Infinity;
-    unigramLoadPromise = null;
-  },
+  setUnigramCorpus: segmenterSetCorpus,
 
   // Set the tool stack directly, bypassing gallery clicks. Routes
   // through the same path the URL parser uses (`ToolStack.setStack` +
@@ -9912,10 +9727,21 @@ function maybeRemoveSplashEarly() {
 // Module evaluation only *defines*; the side effects run here. The order is a
 // load-bearing contract — a wrong order surfaces as a runtime error, not the
 // hoisting non-issue it was when these ran as stray top-level statements.
+const UNIGRAM_CORPUS_SIZE_KEY = 'corpus_unigrams_size';
+
 function boot() {
   // Window exposure first: components below render HTML with inline on*= handlers
   // that resolve through `window`, and the Playwright bridge polls `window._db`.
   exposeWindowGlobals();
+
+  // Inject the segmenter's I/O before init() runs loadUnigramCorpus / checkForUpdates.
+  // onSize() with no arg reads the persisted corpus-size note; onSize(bytes) writes it.
+  configureSegmenterIO({
+    idbGet, idbPut,
+    onSize: bytes => bytes === undefined
+      ? lsLoad(UNIGRAM_CORPUS_SIZE_KEY)
+      : lsSave(UNIGRAM_CORPUS_SIZE_KEY, bytes),
+  });
 
   // Document-level / pure wiring — no dependency on the app-shell DOM existing.
   mountGroupColumnStyle();
