@@ -27,6 +27,11 @@ import {
   hasUnigramCorpus, setUnigramCorpus as segmenterSetCorpus,
   invalidateUnigramCorpus, getUnigramFetchedSize,
 } from './engine/segmenter.js';
+import { computeStatsRaw, invalidateStatsCache } from './engine/stats.js';
+import {
+  getHistogramLayout, bucketCounts, slotIntersectsRange,
+  invalidateHistogramLayout,
+} from './engine/histogram.js';
 
 const scopeKey = scope => scope === MERGED_ID ? MERGED_ID : scope.dbKey;
 let _mergedIcon = null;
@@ -2871,14 +2876,12 @@ async function clearEdits() {
 
 // ─── Stats ────────────────────────────────────────────────────────────────────
 
-const _statsCache = new WeakMap();
 const _mergedStatsKey = {};
 let _sourceCountsCache = null;
 let _mergedWordlistCache = null;
 let _scopedWordlistCache = new Map();
 
 function invalidateRescoredCache(wordlist) { wordlist._rescored = null; wordlist._rescoredMap = null; wordlist._rescoredByNorm = null; invalidateHistogramLayout(); }
-function invalidateStatsCache(key) { _statsCache.delete(key); }
 function invalidateSourceCounts() {
   _sourceCountsCache = null;
   _mergedWordlistCache = null;
@@ -2893,44 +2896,7 @@ function invalidateWordlistCaches(wordlist) {
   invalidateStatsCache(_mergedStatsKey);
 }
 
-// #region nodetest:histogram
-function computeStatsRaw(entries) {
-  // Empty state: return an all-zero shape so buildStatsBarHTML can render the
-  // bar with dashes and an empty histogram.
-  if (!entries.length) {
-    return { count: 0, min: 0, max: 0, distinctScores: [] };
-  }
-  let min = Infinity, max = -Infinity;
-  const freq = {};
-  for (const { score } of entries) {
-    if (score < min) min = score;
-    if (score > max) max = score;
-    freq[score] = (freq[score] || 0) + 1;
-  }
-  const distinctScores = Object.keys(freq).map(Number).sort((a, b) => a - b);
-  return { count: entries.length, min, max, distinctScores };
-}
-// #endregion nodetest:histogram
-
-function computeStats(key, entries) {
-  if (_statsCache.has(key)) return _statsCache.get(key);
-  const result = computeStatsRaw(entries);
-  _statsCache.set(key, result);
-  return result;
-}
-
 // ─── Histogram layout ─────────────────────────────────────────────────────────
-
-// #region nodetest:histogram
-const HIST_DISCRETE_THRESHOLD = 12;
-const HIST_BINNED_BUCKETS = 11;
-// #endregion nodetest:histogram
-
-// Keyed, not a single slot: two distinct axes coexist — the scope-aware stats
-// histogram and the scope-stable all-sources badge-color gradient. A shared
-// slot would let the selected scope silently leak into the badge colors.
-const _layoutCache = new Map();
-function invalidateHistogramLayout() { _layoutCache.clear(); }
 
 function* allSourcesScores() {
   for (const wl of state.sources) yield* getRescoredEntries(wl);
@@ -2947,79 +2913,6 @@ function scopedHistogramLayout() {
 function allSourcesHistogramLayout() {
   return getHistogramLayout(allSourcesScores(), 'all');
 }
-
-// #region nodetest:histogram
-function getHistogramLayout(scoreSource, cacheKey) {
-  const cached = _layoutCache.get(cacheKey);
-  if (cached) return cached;
-  const distinct = new Set();
-  let min = Infinity, max = -Infinity;
-  for (const { score } of scoreSource) {
-    distinct.add(score);
-    if (score < min) min = score;
-    if (score > max) max = score;
-  }
-  if (!distinct.size) {
-    // No data → empty layout. Don't cache: as soon as data arrives, the next
-    // call should recompute. (Caching here would also burn the cache if
-    // anything calls into the layout before sources finish loading.)
-    return { mode: 'empty', slots: [], min: null, max: null };
-  }
-  const distinctScores = [...distinct].sort((a, b) => a - b);
-  let layout;
-  if (distinctScores.length <= HIST_DISCRETE_THRESHOLD) {
-    layout = {
-      mode: 'discrete',
-      slots: distinctScores.map(s => ({ score: s, lo: s, hi: s, label: String(s) })),
-      min, max,
-    };
-  } else {
-    const N = HIST_BINNED_BUCKETS;
-    const bucketSize = Math.max(1, Math.ceil((max - min + 1) / N));
-    const slots = [];
-    for (let i = 0; i < N; i++) {
-      const lo = min + i * bucketSize;
-      if (lo > max) break;
-      const hi = Math.min(max, lo + bucketSize - 1);
-      slots.push({ lo, hi, label: lo === hi ? String(lo) : `${lo}–${hi}` });
-    }
-    layout = { mode: 'binned', slots, min, max };
-  }
-  _layoutCache.set(cacheKey, layout);
-  return layout;
-}
-// #endregion nodetest:histogram
-
-// #region nodetest:histogram
-function bucketCounts(entries, layout) {
-  const counts = layout.slots.map(() => 0);
-  if (layout.mode === 'discrete') {
-    const idxByScore = new Map(layout.slots.map((s, i) => [s.score, i]));
-    for (const { score } of entries) {
-      const idx = idxByScore.get(score);
-      if (idx !== undefined) counts[idx]++;
-    }
-  } else if (layout.slots.length) {
-    const min0 = layout.slots[0].lo;
-    const bs = layout.slots[0].hi - layout.slots[0].lo + 1;
-    const last = layout.slots.length - 1;
-    for (const { score } of entries) {
-      const idx = Math.min(last, Math.max(0, Math.floor((score - min0) / bs)));
-      counts[idx]++;
-    }
-  }
-  return counts;
-}
-
-function slotIntersectsRange(lo, hi, intervals) {
-  for (const { min, max } of intervals) {
-    const m = max === null ? Infinity : max;
-    const n = min === null ? -Infinity : min;
-    if (lo <= m && hi >= n) return true;
-  }
-  return false;
-}
-// #endregion nodetest:histogram
 
 // ─── Score colors ─────────────────────────────────────────────────────────────
 
@@ -8756,8 +8649,8 @@ function applyEditsChange(edits, norms, mutate) {
   const snap = snapshotMergedBuckets(norms);
   mutate();
   invalidateRescoredCache(edits);
-  _statsCache.delete(edits);
-  _statsCache.delete(_mergedStatsKey);
+  invalidateStatsCache(edits);
+  invalidateStatsCache(_mergedStatsKey);
   invalidatePreSearchCache();
   patchMergedForNorms(snap);
   // When scoped to My Edits itself, its own view must rebuild to reflect the edit

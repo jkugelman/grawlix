@@ -1,18 +1,15 @@
-import { test } from 'node:test';
+import { test, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
-import { extract } from './support/extract.mjs';
+import { computeStatsRaw } from '../../site/src/engine/stats.js';
+import {
+  getHistogramLayout, bucketCounts, slotIntersectsRange,
+  invalidateHistogramLayout, HIST_DISCRETE_THRESHOLD, HIST_BINNED_BUCKETS,
+} from '../../site/src/engine/histogram.js';
 
-// getHistogramLayout reads a module-level `_layoutCache` Map; a fresh fake via
-// `globals` (plus a unique cacheKey per call) keeps cache state from leaking
+// getHistogramLayout reads a module-level `_layoutCache` Map. Clearing it before
+// each test (plus a unique cacheKey per call) keeps cache state from leaking
 // between assertions.
-const _layoutCache = new Map();
-const {
-  computeStatsRaw, getHistogramLayout, bucketCounts, slotIntersectsRange,
-  HIST_DISCRETE_THRESHOLD, HIST_BINNED_BUCKETS,
-} = extract('histogram', [
-  'computeStatsRaw', 'getHistogramLayout', 'bucketCounts', 'slotIntersectsRange',
-  'HIST_DISCRETE_THRESHOLD', 'HIST_BINNED_BUCKETS',
-], { _layoutCache });
+beforeEach(invalidateHistogramLayout);
 
 const scores = (...ns) => ns.map(score => ({ score }));
 let keySeq = 0;
@@ -93,17 +90,15 @@ test('getHistogramLayout: a wide binned range fills all 11 buckets', () => {
 });
 
 test('getHistogramLayout: caches per cacheKey; the empty layout is not cached', () => {
-  const cache = new Map();
-  const local = extract('histogram', ['getHistogramLayout'], { _layoutCache: cache }).getHistogramLayout;
   // Empty source must NOT cache: the layout has to recompute once data arrives,
-  // and caching an empty result would freeze the histogram blank.
-  local(scores(), 'k');
-  assert.equal(cache.has('k'), false);
-  const first = local(scores(1, 2, 3), 'k');
-  assert.equal(cache.get('k'), first);
+  // and caching an empty result would freeze the histogram blank. So a real
+  // source under a key first touched while empty must still compute fresh.
+  getHistogramLayout(scores(), 'k');
+  const first = getHistogramLayout(scores(1, 2, 3), 'k');
+  assert.equal(first.max, 3);
   // The key, not the data, is the cache identity: a different source under the
   // same key returns the stale layout.
-  const second = local(scores(100, 200, 300), 'k');
+  const second = getHistogramLayout(scores(100, 200, 300), 'k');
   assert.equal(second, first);
   assert.equal(second.max, 3);
 });
