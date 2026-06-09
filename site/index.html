@@ -166,6 +166,8 @@ header h1 { font-size: 19px; font-weight: 600; letter-spacing: -0.01em; line-hei
 .wls:not(.open) .wls-menu { display: none; }
 .wls-menu .wordlist-card { border-bottom: none; border-radius: 5px; }
 .wls-menu .wordlist-card.selected { border-left: none; padding-left: 14px; }
+.wls-menu-section { padding: 6px 10px 3px; font-size: 10px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); user-select: none; }
+.wls-menu-section ~ .wls-menu-section { margin-top: 4px; }
 
 .wls-configure-footer { display: flex; align-items: center; justify-content: flex-start; gap: 8px; width: 100%; margin-top: 4px; padding: 9px 10px; font: inherit; color: var(--text); text-align: left; background: none; border: none; border-top: 1px solid var(--border2); border-radius: 0 0 5px 5px; cursor: pointer; }
 .wls-configure-footer:hover { background: var(--hover); color: var(--text); }
@@ -3788,7 +3790,11 @@ const WordlistSelector = (() => {
   function renderMenu() {
     const scopes = [MERGED_ID, ...state.sources];
     const contribMap = buildContribMap();
-    menu.innerHTML = scopes.map(s => optionHTML(s, contribMap)).join('')
+    menu.innerHTML =
+        `<div class="wls-menu-section">Merged</div>`
+      + optionHTML(MERGED_ID, contribMap)
+      + `<div class="wls-menu-section">Sources</div>`
+      + state.sources.map(s => optionHTML(s, contribMap)).join('')
       + `<button type="button" class="wls-configure-footer">`
       + `<svg aria-hidden="true"><use href="#icon-settings"/></svg>Manage wordlists</button>`;
     menu.querySelectorAll('.wordlist-card').forEach((el, i) => {
