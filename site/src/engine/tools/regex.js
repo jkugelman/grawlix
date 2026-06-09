@@ -1,0 +1,81 @@
+'use strict';
+
+import {
+  analyzeRegexPattern, wrapRuns, parseReplacement,
+  regexExecAll, runRegexReplace,
+} from '../regex.js';
+import { buildHelpHTML } from '../../core/util.js';
+import { WHOLE_WORD_PARAM } from './shared.js';
+
+export default {
+  name: 'Regex', icon: '🪄', category: 'search',
+  desc: 'Search (and replace) with regular expressions',
+  example: 'UN.+ED · C.{2,4}T',
+  findReplace: true,
+  params: [
+    { key: 'pattern', raw: true, placeholder: 'pattern', help: buildHelpHTML([
+      ['.*', 'any string'],
+      ['.', 'any character'],
+      ['[abc]', 'any of a, b, c'],
+      ['[^abc]', 'none of a, b, c'],
+      ['a*', 'zero or more'],
+      ['a+', 'one or more'],
+      ['a?', 'optional'],
+      ['a{2,4}', '2 to 4 times'],
+      ['a|b', 'either a or b'],
+      ['(…)', 'capture group'],
+    ], { link: { url: 'https://regexone.com/', text: 'Learn regex at regexone.com →' } }) },
+    { key: 'replace', placeholder: 'replace', raw: true, help: buildHelpHTML([
+      ['$1', 'first capture group'],
+      ['$2', 'second group, etc.'],
+      ['$&', 'the whole match'],
+      ['$$', 'a literal $'],
+    ], { cols: 1, link: { url: 'https://regexone.com/', text: 'Learn regex at regexone.com →' } }) },
+    WHOLE_WORD_PARAM,
+  ],
+  // Blank replacement reads as filter mode, not "delete the match" — a blank
+  // field is indistinguishable from one that was never touched.
+  kind: params => (params.replace ? 'transform' : 'filter'),
+  inputHighlights: true, outputHighlights: true,
+  glyph: params => (params.replace ? '→' : null),
+  // A half-typed, invalid pattern is inert like an empty one, so the view
+  // neither blanks nor churns mid-keystroke.
+  isInert(params) {
+    const pattern = (params && params.pattern || '').trim();
+    if (!pattern) return true;
+    try { new RegExp(pattern); return false; } catch { return true; }
+  },
+  matchOn: 'both',
+  prepare(params) {
+    const replacement = params.replace || '';
+    const body = params.pattern.trim();
+    // Flags `gid`: `i` lets a raw (un-lowercased, so `\D \S \B` survive)
+    // pattern match case-insensitively; `d` exposes match indices for
+    // highlighting. The pattern runs against both norm and display (see run),
+    // so `\s`, `-`, or an accent can match the punctuation display carries but
+    // norm strips. The whole-word wrap is non-capturing so `$N` backrefs keep
+    // their group numbers.
+    const wrap = src => params['whole-word'] ? '^(?:' + src + ')$' : src;
+    const { capturing, runs } = analyzeRegexPattern(body);
+    if (replacement) {
+      // The functional `re` can't be wrapped for highlighting — synthetic
+      // groups would renumber the user's `$N`; `hlRe` is the wrapped copy.
+      const hlRe = capturing ? null : new RegExp(wrap(wrapRuns(body, runs)), 'gid');
+      return { mode: 'replace', re: new RegExp(wrap(body), 'gid'), hlRe, tokens: parseReplacement(replacement) };
+    }
+    return { mode: 'filter', re: new RegExp(wrap(capturing ? body : wrapRuns(body, runs)), 'gid') };
+  },
+  run(wlEntry, prepared, wordlist) {
+    if (prepared.mode === 'filter') {
+      const { re } = prepared;
+      const normRes = regexExecAll(re, wlEntry.norm);
+      const d = wlEntry.display;
+      const dispRes = d != null ? regexExecAll(re, d) : null;
+      if (!normRes.hit && !dispRes?.hit) return null;
+      if (dispRes?.ranges.length) return dispRes.ranges.map(r => ({ ...r, coord: 'display' }));
+      if (normRes.ranges.length) return normRes.ranges.map(r => ({ ...r, coord: 'norm' }));
+      return true;
+    }
+    return runRegexReplace(wlEntry.norm, prepared, wordlist);
+  },
+};

@@ -1,8 +1,10 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import {
-  sortLetters, consonantSkeleton, vowelSkeleton, wordSplits, normalizeParams,
-} from '../../site/src/engine/tools.js';
+import { normalizeParams } from '../../site/src/engine/tools.js';
+import { sortLetters } from '../../site/src/engine/tools/shared.js';
+import { consonantSkeleton } from '../../site/src/engine/tools/consonantcy.js';
+import { vowelSkeleton } from '../../site/src/engine/tools/vowelcy.js';
+import { wordSplits } from '../../site/src/engine/tools/initialisms.js';
 
 test('sortLetters: returns the letters in ascending code-unit order', () => {
   assert.equal(sortLetters('cat'), 'act');
