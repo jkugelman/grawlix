@@ -1,21 +1,10 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { extract } from './support/extract.mjs';
-import { displayOf } from '../../site/src/engine/norm.js';
-import { parseRange, matchesRange, rangeSpan } from '../../site/src/engine/range.js';
-
-// `bucketize` reaches `displayOf` and `applyScoreRangeToRows` reaches `matchesRange`;
-// supplying the real helpers (imported `displayOf`, pulled `rescoring` region) rather
-// than stubs is what makes the pins exercise actual behavior.
-const {
+import {
   currentAtomCount, isFilterOnlyChain, isGroupChain, chainProducesMultiAtom,
   bucketize, cacheGroupStats, unify, collapseRepeatAtoms,
   flattenAtoms, bottomLineAtoms, applyScoreRangeToRows, rowLastEntry,
-} = extract(['rescoring', 'pipeline-shape'], [
-  'currentAtomCount', 'isFilterOnlyChain', 'isGroupChain', 'chainProducesMultiAtom',
-  'bucketize', 'cacheGroupStats', 'unify', 'collapseRepeatAtoms',
-  'flattenAtoms', 'bottomLineAtoms', 'applyScoreRangeToRows', 'rowLastEntry',
-], { displayOf, parseRange, matchesRange, rangeSpan });
+} from '../../site/src/engine/executor.js';
 
 // ─── Fixtures ───────────────────────────────────────────────────────────────
 
