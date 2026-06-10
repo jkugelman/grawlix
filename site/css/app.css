@@ -14,13 +14,14 @@ header h1 { font-size: 19px; font-weight: 600; letter-spacing: -0.01em; line-hei
 .header-logo-link { color: inherit; text-decoration: none; }
 .header-byline-group { display: flex; align-items: center; justify-content: center; gap: 7px; flex: 1 1 auto; min-width: 0; color: rgba(255, 255, 255, 0.85); font-size: 12px; line-height: 1.2; flex-wrap: wrap; }
 .header-sep { opacity: 0.5; }
-.header-byline-group a { color: inherit; text-decoration: none; border-bottom: 1px solid rgba(255,255,255,0.35); transition: border-color 0.15s; }
-.header-byline-group a:hover { border-bottom-color: white; }
+.header-byline-group a { color: inherit; text-decoration: none; }
+.header-byline a { border-bottom: 1px solid rgba(255,255,255,0.35); transition: border-color 0.15s; }
+.header-byline a:hover { border-bottom-color: white; }
 
 .header-utility { display: flex; align-items: center; gap: 2px; flex-shrink: 0; }
 .bubble { display: inline-flex; align-items: center; background: white; color: var(--accent); border-radius: 8px; padding: 1px 7px 2px; font-size: 15px; font-weight: 800; position: relative; margin-left: 9px; line-height: 1.5; vertical-align: middle; }
 .bubble::before { content: ''; position: absolute; left: -15px; top: 50%; transform: translateY(-50%); border: 9px solid transparent; border-right-color: white; }
-.header-github-link { display: inline-flex; vertical-align: middle; margin-left: 4px; opacity: 0.75; color: white; text-decoration: none; border-bottom: none; }
+.header-github-link { display: inline-flex; vertical-align: middle; margin-left: 4px; opacity: 0.75; color: white; text-decoration: none; }
 .header-github-link:hover { opacity: 1; }
 
 /* `overflow: clip`, not `hidden`: `hidden` would make the view a scroll
