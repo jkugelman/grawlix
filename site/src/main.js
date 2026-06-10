@@ -107,6 +107,10 @@ import {
   syncSignHTML, wordlistSeverity, sourcesSeverity, severityTitle,
 } from './ui/sync-indicators.js';
 import { createDialog, showDialog, enableDismissClicks } from './ui/dialogs/dialog.js';
+import {
+  showConfirm, showAlert, showMergeConflict, showEditsConflict,
+} from './ui/dialogs/confirm.js';
+import { openUpdateSummaryDialog } from './ui/dialogs/update-summary.js';
 
 const scopeKey = scope => scope === MERGED_ID ? MERGED_ID : scope.dbKey;
 
@@ -589,33 +593,6 @@ const Router = (() => {
   }
 
   return { navigate, applyURL };
-})();
-
-// ─── Disk sync dialogs ────────────────────────────────────────────────────────
-
-const showEditsConflict = (() => {
-  let el, body;
-  const side = e => e ? `${e.score}${e.comment ? ' (' + esc(e.comment) + ')' : ''}` : '(removed)';
-  const show = function (filename, conflicts) {
-    return new Promise(resolve => {
-      const rows = conflicts.map(c =>
-        `<div class="merge-entry-row"><b>${esc(c.device?.display ?? c.file?.display ?? c.norm)}</b> this device: ${side(c.device)} | file: ${side(c.file)}</div>`).join('');
-      body.innerHTML = `
-        <button type="button" class="dialog-close-btn" aria-label="Close">✕</button>
-        <form method="dialog">
-          <h2 id="edits-conflict-title">My Edits changed in two places</h2>
-          <p class="dialog-msg">${conflicts.length} ${conflicts.length === 1 ? 'entry was' : 'entries were'} changed both here and in ${esc(filename)} since they last agreed. Keep which version?</p>
-          <div class="merge-entries merge-entries-conflict">${rows}</div>
-          <div class="dialog-footer dialog-footer-split">
-            <button type="button" class="dialog-cancel-btn">Keep this device</button>
-            <button class="primary" value="file" autofocus>Keep the file</button>
-          </div>
-        </form>`;
-      showDialog(el, () => resolve(el.returnValue === 'file' ? 'file' : 'device'));
-    });
-  };
-  show.mount = () => { ({ el, body } = createDialog('edits-conflict-dialog', { labelledby: 'edits-conflict-title' })); };
-  return show;
 })();
 
 // ─── Dark mode ────────────────────────────────────────────────────────────────
@@ -4029,79 +4006,6 @@ const AtomPopover = (() => {
   return { open, openForCreate, close, isOpen, containsFocus, activeNorm, rebindRow, rebindEntry };
 })();
 
-// ─── Update Summary Scroller ──────────────────────────────────────────────────
-
-class UpdateSummaryScroller {
-  constructor(container) {
-    this.container = container;
-    this.rows = [];
-
-    this.sizer = document.createElement('div');
-    this.sizer.className = 'usd-sizer';
-    container.appendChild(this.sizer);
-
-    container.addEventListener('scroll', () => this._render(), { passive: true });
-    new ResizeObserver(() => this._render()).observe(container);
-  }
-
-  setRows(rows) {
-    this.rows = rows;
-    this.sizer.style.height = (rows.length * ROW_HEIGHT) + 'px';
-    this.container.scrollTop = 0;
-    this._render();
-  }
-
-  scrollToIndex(i) {
-    this.container.scrollTop = i * ROW_HEIGHT;
-  }
-
-  _render() {
-    const n = this.rows.length;
-    const scrollTop = this.container.scrollTop;
-    const viewH = this.container.clientHeight;
-    const start = Math.max(0, Math.floor(scrollTop / ROW_HEIGHT) - VS_BUFFER);
-    const end   = Math.min(n, Math.ceil((scrollTop + viewH) / ROW_HEIGHT) + VS_BUFFER);
-
-    this.sizer.innerHTML = '';
-    const frag = document.createDocumentFragment();
-
-    for (let i = start; i < end; i++) {
-      const row = this.rows[i];
-      const div = document.createElement('div');
-      div.className = 'usd-row';
-      div.style.top = (i * ROW_HEIGHT) + 'px';
-
-      if (row.type === 'header') {
-        div.classList.add('usd-section-header');
-        div.textContent = row.label;
-      } else {
-        div.classList.add('usd-entry-row', 'usd-' + row.kind);
-
-        const entrySpan = document.createElement('span');
-        entrySpan.className = 'usd-entry-col';
-        entrySpan.textContent = row.display;
-        div.appendChild(entrySpan);
-
-        const scoreSpan = document.createElement('span');
-        scoreSpan.className = 'usd-score-col';
-        if (row.kind === 'rescored') {
-          scoreSpan.innerHTML =
-            `<span class="usd-old-score">${row.oldScore}</span>` +
-            `<span class="usd-arrow">→</span>` +
-            buildScoreBadgeHTML(row.score);
-        } else {
-          scoreSpan.innerHTML = buildScoreBadgeHTML(row.score);
-        }
-        div.appendChild(scoreSpan);
-      }
-
-      frag.appendChild(div);
-    }
-
-    this.sizer.appendChild(frag);
-  }
-}
-
 // ─── Rescoring / Scoring section ─────────────────────────────────────────────
 
 function renderRescoreSection() {
@@ -4635,77 +4539,6 @@ function repositionAllHistogramRects() {
 
 // ─── Fetch, import & update ───────────────────────────────────────────────────
 
-let _updateScroller = null;
-
-const openUpdateSummaryDialog = (() => {
-  let el, titleEl, countEl, pillsEl, scrollEl;
-
-  const show = function(wordlist, oldCount, added, deleted, rescored) {
-    titleEl.textContent = `${wordlist.name} Updated`;
-    countEl.textContent = `${oldCount.toLocaleString()} → ${wordlist.rawEntries.length.toLocaleString()} entries`;
-
-    const rows = [];
-    const sectionIndices = {};
-
-    if (added.length) {
-      sectionIndices.added = rows.length;
-      rows.push({ type: 'header', label: `Added (${added.length.toLocaleString()})` });
-      for (const e of added) rows.push({ type: 'entry', display: displayOf(e), score: e.score, kind: 'added' });
-    }
-    if (deleted.length) {
-      sectionIndices.deleted = rows.length;
-      rows.push({ type: 'header', label: `Deleted (${deleted.length.toLocaleString()})` });
-      for (const e of deleted) rows.push({ type: 'entry', display: displayOf(e), score: e.score, kind: 'deleted' });
-    }
-    if (rescored.length) {
-      sectionIndices.rescored = rows.length;
-      rows.push({ type: 'header', label: `Rescored (${rescored.length.toLocaleString()})` });
-      for (const e of rescored) rows.push({ type: 'entry', display: displayOf(e.entry), score: e.score, kind: 'rescored', oldScore: e.oldScore });
-    }
-
-    pillsEl.innerHTML = '';
-    const pillDefs = [
-      { key: 'added',    label: `${added.length.toLocaleString()} added`,    cls: 'usd-pill-added'   },
-      { key: 'deleted',  label: `${deleted.length.toLocaleString()} deleted`,  cls: 'usd-pill-deleted'  },
-      { key: 'rescored', label: `${rescored.length.toLocaleString()} rescored`, cls: 'usd-pill-rescored' },
-    ];
-    for (const { key, label, cls } of pillDefs) {
-      if (sectionIndices[key] == null) continue;
-      const btn = document.createElement('button');
-      btn.className = 'usd-pill ' + cls;
-      btn.textContent = label;
-      btn.onclick = () => _updateScroller.scrollToIndex(sectionIndices[key]);
-      pillsEl.appendChild(btn);
-    }
-
-    scrollEl.innerHTML = '';
-    _updateScroller = new UpdateSummaryScroller(scrollEl);
-    _updateScroller.setRows(rows);
-
-    showDialog(el);
-  };
-  show.mount = () => {
-    el = document.createElement('dialog');
-    el.id = 'update-summary-dialog';
-    el.setAttribute('aria-labelledby', 'update-summary-title');
-    document.body.appendChild(el);
-    el.innerHTML = `
-      <button class="dialog-close-btn" aria-label="Close">✕</button>
-      <div class="usd-header">
-        <h2 id="update-summary-title"></h2>
-        <div class="usd-count" id="update-summary-count"></div>
-        <div class="usd-pills" id="update-summary-pills"></div>
-      </div>
-      <div class="usd-scroll" id="update-summary-scroll"></div>`;
-    titleEl   = el.querySelector('#update-summary-title');
-    countEl   = el.querySelector('#update-summary-count');
-    pillsEl   = el.querySelector('#update-summary-pills');
-    scrollEl  = el.querySelector('#update-summary-scroll');
-    enableDismissClicks(el);
-  };
-  return show;
-})();
-
 async function applyWordlistText(wordlist, text, { fetchedSize = null, originalFilename = null, nameOverride = null, source = null, clearUrl = false, silent = false, viaToast = false } = {}) {
   const wasEmpty = !wordlist.rawEntries.length;
   const oldEntries = wasEmpty ? null : wordlist.rawEntries;
@@ -4998,93 +4831,6 @@ function addNewWordlist(wordlistDef) {
   sources$.bump();              // notify cosmetic effect with fresh caches
   return wordlist;
 }
-
-// ─── Confirm Dialog ───────────────────────────────────────────────────────────
-
-const showConfirm = (() => {
-  let el, msgEl, okBtn, cancelBtn;
-
-  const show = function(message, { confirmText = 'OK', cancelText = 'Cancel', danger = true, html = null } = {}) {
-    return new Promise(resolve => {
-      if (html != null) { msgEl.innerHTML = html; } else { msgEl.textContent = message; }
-      okBtn.textContent     = confirmText;
-      cancelBtn.textContent = cancelText;
-      okBtn.className       = danger ? 'danger' : '';
-      showDialog(el, () => resolve(el.returnValue === 'ok'));
-    });
-  };
-  show.mount = () => {
-    let body;
-    ({ el, body } = createDialog('confirm-dialog', { labelledby: 'confirm-dialog-msg' }));
-    body.innerHTML = `
-      <button type="button" class="dialog-close-btn" aria-label="Close">✕</button>
-      <form method="dialog">
-        <p class="dialog-msg" id="confirm-dialog-msg"></p>
-        <div class="dialog-footer">
-          <button type="button" id="btn-confirm-cancel" class="dialog-cancel-btn">Cancel</button>
-          <button id="btn-confirm-ok" value="ok"></button>
-        </div>
-      </form>`;
-    msgEl     = el.querySelector('#confirm-dialog-msg');
-    okBtn     = el.querySelector('#btn-confirm-ok');
-    cancelBtn = el.querySelector('#btn-confirm-cancel');
-  };
-  return show;
-})();
-
-const showAlert = (() => {
-  let el, msgEl;
-
-  const show = function(message) {
-    return new Promise(resolve => {
-      msgEl.innerHTML = message;
-      showDialog(el, resolve);
-    });
-  };
-  show.mount = () => {
-    let body;
-    ({ el, body } = createDialog('alert-dialog', { labelledby: 'alert-dialog-msg' }));
-    body.innerHTML = `
-      <button type="button" class="dialog-close-btn" aria-label="Close">✕</button>
-      <form method="dialog">
-        <p class="dialog-msg" id="alert-dialog-msg"></p>
-        <div class="dialog-footer">
-          <button class="primary" autofocus>OK</button>
-        </div>
-      </form>`;
-    msgEl = el.querySelector('#alert-dialog-msg');
-  };
-  return show;
-})();
-
-const showMergeConflict = (() => {
-  let el, msgEl;
-
-  const show = function(conflictCount) {
-    return new Promise(resolve => {
-      const editsName = getEditsWordlist().name;
-      const noun = conflictCount === 1 ? 'entry appears' : 'entries appear';
-      msgEl.textContent = `${conflictCount.toLocaleString()} ${noun} in both ${editsName} and the imported file with different scores or comments. Which should take precedence?`;
-      showDialog(el, () => resolve(el.returnValue || null));
-    });
-  };
-  show.mount = () => {
-    let body;
-    ({ el, body } = createDialog('merge-conflict-dialog', { labelledby: 'merge-conflict-msg' }));
-    body.innerHTML = `
-      <button type="button" class="dialog-close-btn" aria-label="Close">✕</button>
-      <form method="dialog">
-        <p class="dialog-msg" id="merge-conflict-msg"></p>
-        <div class="dialog-footer">
-          <button type="button" class="dialog-cancel-btn" autofocus>Cancel</button>
-          <button value="file">Use Imported File</button>
-          <button class="primary" value="edits">Keep My Edits</button>
-        </div>
-      </form>`;
-    msgEl = el.querySelector('#merge-conflict-msg');
-  };
-  return show;
-})();
 
 // ─── Disk sync dialog ─────────────────────────────────────────────────────────
 
