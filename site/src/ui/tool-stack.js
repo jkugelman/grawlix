@@ -348,9 +348,12 @@ export const ToolStack = (() => {
   // re-render the user tool rows via rerenderRows, which leaves the Search
   // bar's DOM in place. The hover insertion cursor is purely transient and
   // lives only in the DOM, so it's not serialized here.
+  function buildRowsHTML() {
+    return stack.map((row, idx) => buildRowHTML(idx, row)).join('');
+  }
+
   function buildHTML() {
-    const rows = stack.map((row, idx) => buildRowHTML(idx, row)).join('');
-    return `<div id="tool-stack">${rows}</div>`;
+    return `<div id="tool-stack">${buildRowsHTML()}</div>`;
   }
 
   function stackEl() { return document.getElementById('tool-stack'); }
@@ -433,6 +436,17 @@ export const ToolStack = (() => {
     _attachHelpPopups();
   }
 
+  // Counterpart to rerenderRows for when a reorder changes which row *is* the
+  // bar (a Search row dropped below it): rerenderRows preserves the bar's DOM in
+  // place, so reusing it here would leave a stale bar plus a duplicate tool row.
+  function rerenderAll() {
+    const e = stackEl();
+    if (!e) return;
+    removeCursor();
+    e.innerHTML = buildRowsHTML();
+    _attachHelpPopups();
+  }
+
   function add(toolKey, { grouped = false } = {}) {
     if (!TOOLS[toolKey]) return;
     if (grouped && !TOOLS[toolKey].group) return;
@@ -509,6 +523,18 @@ export const ToolStack = (() => {
     const [row] = stack.splice(fromIdx, 1);
     stack.splice(toIdx, 0, row);
     rerenderRows();
+    repaintAfterStackChange();
+  }
+
+  // The pushed row becomes the new last row and so the new bar — gated to Search
+  // rows so the last row stays a Search bar and the bar stays permanent.
+  function moveBelowBar(fromIdx) {
+    const row = stack[fromIdx];
+    if (!row || row.tool !== 'search') return;
+    stack.splice(fromIdx, 1);
+    stack.push(row);
+    rerenderAll();
+    refreshGalleryActive();
     repaintAfterStackChange();
   }
 
@@ -612,11 +638,21 @@ export const ToolStack = (() => {
 
     makeReorderable(p, {
       handleSelector: '.drag-handle:not([aria-hidden])',
-      itemSelector:   '.tool-row',
+      // The bar is a drop target (so a Search row can land below it) but never a
+      // drag source — safe only because its handle is aria-hidden, set elsewhere.
+      itemSelector:   '.tool-row, .search-bar',
+      canDrop: (fromEl, beforeEl) => {
+        if (beforeEl) return true;
+        const idx = rowEls().indexOf(fromEl);
+        return idx >= 0 && stack[idx]?.tool === 'search';
+      },
       onReorder: (fromEl, beforeEl) => {
         const rows = rowEls();
         const fromIdx = rows.indexOf(fromEl);
-        let toIdx = beforeEl ? rows.indexOf(beforeEl) : rows.length;
+        if (fromIdx < 0) return;
+        if (!beforeEl) { moveBelowBar(fromIdx); return; }
+        let toIdx = beforeEl.classList.contains('search-bar') ? rows.length : rows.indexOf(beforeEl);
+        if (toIdx < 0) return;
         if (toIdx > fromIdx) toIdx--;
         reorderAt(fromIdx, toIdx);
       },

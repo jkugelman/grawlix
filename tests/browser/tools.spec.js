@@ -108,6 +108,59 @@ test('pipeline output preserves wlEntry refs (popover opens, source/score intact
   await expect(page.locator('#atom-pop-score')).toHaveValue('50');
 });
 
+// ─── Search rows below the permanent bar ────────────────────────────────────
+//
+// Drag drives the real pointer path (native HTML5 drag never fires from touch),
+// like wordlist-reorder.spec.
+
+// Taller viewport keeps the rows on screen so the drag's edge-auto-scroll never
+// fires mid-gesture (same coupling as wordlist-reorder.spec).
+test.describe('dropping a Search row below the permanent bar', () => {
+  test.use({ viewport: { width: 1280, height: 1000 } });
+
+  // The +10 nudge clears makeReorderable's drag-start threshold; the final move
+  // below the bar's vertical center is what selects the below-bar drop slot.
+  async function dragRowBelowBar(page, rowLocator) {
+    const h = await rowLocator.locator('.drag-handle').boundingBox();
+    const b = await page.locator('.search-bar').boundingBox();
+    await page.mouse.move(h.x + h.width / 2, h.y + h.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(h.x + h.width / 2, h.y + h.height / 2 + 10);
+    await page.mouse.move(b.x + b.width / 2, b.y + b.height + 6, { steps: 12 });
+    await page.mouse.up();
+  }
+
+  test('a Search row dragged below the bar becomes the new bar', async ({ page }) => {
+    await gotoApp(page);
+    await addTool(page, 'search');
+    const userRow = page.locator('.tool-row', { has: page.locator('input[data-key="pattern"]') });
+    await userRow.locator('input[data-key="pattern"]').fill('FOO');
+
+    await dragRowBelowBar(page, userRow);
+
+    await expect.poll(() => page.evaluate(() => ({
+      bar: ToolStack.getSearchBarRow().params.pattern || '',
+      user: ToolStack.getUserStack().map(r => ({ tool: r.tool, pattern: r.params.pattern || '' })),
+    }))).toEqual({ bar: 'FOO', user: [{ tool: 'search', pattern: '' }] });
+  });
+
+  test('a non-Search row stays above the bar', async ({ page }) => {
+    await gotoApp(page);
+    await addAnagramFixture(page);
+    await addTool(page, 'anagrams');
+    const userRow = page.locator('.tool-row', { has: page.locator('input[data-key="entry"]') });
+    await userRow.locator('input[data-key="entry"]').fill('LINDSEY');
+
+    await dragRowBelowBar(page, userRow);
+
+    await expect.poll(() => page.evaluate(() => ({
+      bar: ToolStack.getSearchBarRow().tool,
+      barPattern: ToolStack.getSearchBarRow().params.pattern || '',
+      user: ToolStack.getUserStack().map(r => r.tool),
+    }))).toEqual({ bar: 'search', barPattern: '', user: ['anagrams'] });
+  });
+});
+
 // ─── Transform output (semordnilap) ─────────────────────────────────────────
 //
 // A transform branches each input row into one chain row per output, stacking

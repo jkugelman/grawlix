@@ -92,7 +92,7 @@ Focus any search box and this cheat sheet pops up above it. The Regex tool's pat
 
 ## Tools
 
-Tools transform the wordlist you're scoped to. They live in the **tool gallery** at the top of the screen. Click a tool's card to add it to the stack; each click appends another tool to the end of the pipeline. Remove a tool with the `✕` on its stack row, or drag a row by its handle (`≡`) to reorder the pipeline. The Search bar stays pinned as the last step.
+Tools transform the wordlist you're scoped to. They live in the **tool gallery** at the top of the screen. Click a tool's card to add it to the stack; each click appends another tool to the end of the pipeline. Remove a tool with the `✕` on its stack row, or drag a row by its handle (`≡`) to reorder the pipeline. The Search bar stays pinned as the last step — the one exception is that you can drag another Search tool below it, since the last step only needs to be *a* search; that Search then becomes the final bar.
 
 A populated stack feeds top-to-bottom: the first tool reads from your current scope (`All Wordlists`, or the selected wordlist), each subsequent tool reads the previous tool's output. Search is the permanent last step — type LINDSEY into Anagram, then type a substring in the search bar to live-narrow the anagram list.
 

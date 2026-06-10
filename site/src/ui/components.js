@@ -240,7 +240,7 @@ function hostDragGhostLayer(container) {
 // Native HTML5 drag never fires from touch, so the reorder handles that used it
 // were dead on mobile; pointer events fix that. Needs `touch-action: none` on the
 // handle (CSS) or a touch-drag scrolls the page instead of dragging.
-export function makeReorderable(container, { handleSelector, itemSelector, onReorder }) {
+export function makeReorderable(container, { handleSelector, itemSelector, onReorder, canDrop }) {
   if (!container) return;
   const THRESHOLD = 4, EDGE = 48, SPEED = 10;
   let fromEl = null, pointerId = null, dragging = false;
@@ -271,9 +271,10 @@ export function makeReorderable(container, { handleSelector, itemSelector, onReo
       return lastY < r.top + r.height / 2;
     });
     if (gap < 0) gap = items.length;
-    hasDrop = gap !== fromIdx && gap !== fromIdx + 1;
+    const before = gap < items.length ? items[gap] : null;
+    hasDrop = gap !== fromIdx && gap !== fromIdx + 1 && (!canDrop || canDrop(fromEl, before));
     if (!hasDrop) { if (dropLine) dropLine.hidden = true; return; }
-    dropBeforeEl = gap < items.length ? items[gap] : null;
+    dropBeforeEl = before;
     const r = (dropBeforeEl || items[items.length - 1]).getBoundingClientRect();
     if (!dropLine) {
       dropLine = document.createElement('div');
