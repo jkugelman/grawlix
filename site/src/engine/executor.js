@@ -6,7 +6,6 @@ import { normalizeParams } from './tools.js';
 
 export const rowLastEntry = r => r.atoms[r.atoms.length - 1].wlEntry;
 
-// #region nodetest:pipeline-shape
 // The chain shape is derivable from the catalog records alone — no per-row
 // runtime inspection. Simulate the executor's emit-then-unify on the active
 // tools (run-having, not inert): the originator is one atom; each highlighting
@@ -55,7 +54,6 @@ export function chainProducesMultiAtom(stack) {
     return row.kind() === 'transform' || !!row.def.inputHighlights;
   });
 }
-// #endregion nodetest:pipeline-shape
 
 // `ctx.input` — chain tail entries as strings, resolved lazily so a tool that
 // ignores it pays nothing and the O(N)-per-stage materialization stays avoided.
@@ -262,7 +260,6 @@ async function runToolStage(rows, stackRow, prepared, mergedWordlist, y) {
   return next;
 }
 
-// #region nodetest:pipeline-shape
 export async function bucketize(chains, def, ctx) {
   const useDisplay = def.matchOn === 'display';
   const buckets = new Map();
@@ -430,7 +427,6 @@ export function applyScoreRangeToRows(rows, intervals, grouped) {
   }
   return rows.filter(chainOk);
 }
-// #endregion nodetest:pipeline-shape
 
 export function* rowSetAtoms(rows) {
   for (const row of rows) {

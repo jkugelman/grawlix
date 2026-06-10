@@ -5,13 +5,11 @@
 export const UNIGRAM_CORPUS_URL = 'https://raw.githubusercontent.com/rspeer/wordfreq/master/wordfreq/data/large_en.msgpack.gz';
 export const UNIGRAM_CORPUS_IDB_KEY = 'corpus_unigrams_decoded';
 
-// #region nodetest:segmenter
 export const SPACE_OUT_WINDOWS = { one: 2, few: 5, many: 10 };
 export const SPACE_OUT_PART_PENALTY = 7;
 export const SPACE_OUT_OOV_PER_LETTER = 1.5 * Math.LN10;
 export const SPACE_OUT_MORPHEME_PENALTY = 1.0;
 export const SPACE_OUT_SUFFIXES = ['s', 'es', 'ed', 'ied', 'ing', 'er', 'est', 'ly', 'ies'];
-// #endregion nodetest:segmenter
 
 // Injected so this engine module never imports the data layer (IDB/localStorage).
 let _idbGet = null;
@@ -46,7 +44,6 @@ export function getUnigramFetchedSize() {
   return unigramFetchedSize;
 }
 
-// #region nodetest:segmenter
 export function morphemeStemLogFreq(word) {
   if (!unigramLogFreqs) return -Infinity;
   let best = -Infinity;
@@ -77,9 +74,7 @@ export function unigramLogFreq(word) {
   if (stemLf > -Infinity) return stemLf - SPACE_OUT_MORPHEME_PENALTY;
   return unigramMinLogFreq - word.length * SPACE_OUT_OOV_PER_LETTER;
 }
-// #endregion nodetest:segmenter
 
-// #region nodetest:segmenter
 export function msgpackDecode(bytes) {
   const td = new TextDecoder('utf-8');
   let pos = 0;
@@ -110,14 +105,12 @@ export function msgpackDecode(bytes) {
   }
   return readVal();
 }
-// #endregion nodetest:segmenter
 
 async function gunzipBytes(bytes) {
   const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'));
   return new Uint8Array(await new Response(stream).arrayBuffer());
 }
 
-// #region nodetest:segmenter
 export function buildCorpusFromMsgpack(decoded) {
   const map = new Map();
   let lastNonEmpty = 1;
@@ -130,7 +123,6 @@ export function buildCorpusFromMsgpack(decoded) {
   }
   return { map, minLog: -lastNonEmpty * Math.LN10 / 100 };
 }
-// #endregion nodetest:segmenter
 
 export async function loadUnigramCorpus() {
   if (unigramLogFreqs) return;
@@ -165,7 +157,6 @@ export function hasUnigramCorpus() {
   return !!unigramLogFreqs;
 }
 
-// #region nodetest:segmenter
 export function rankedSplits(entry, window, wordlist) {
   if (entry.length < 1) return [];
   const isAllowedPart = p => p.length <= 2 || wordlist.byNorm.has(p);
@@ -215,4 +206,3 @@ export function rankedSplits(entry, window, wordlist) {
   results.sort((a, b) => b.score - a.score);
   return results.map(r => r.parts);
 }
-// #endregion nodetest:segmenter

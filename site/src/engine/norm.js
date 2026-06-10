@@ -2,7 +2,6 @@
 
 // ─── Parsing ─────────────────────────────────────────────────────────────────
 
-// #region nodetest:parsing
 export const FOLD_MAP = {
   'ß': 'ss',
   'ø': 'o',  'Ø': 'O',
@@ -137,4 +136,3 @@ export function validateWordlistChunk(text) {
   if (!dataLines.length) return false;
   return dataLines.every(l => parseWordlistLine(l) !== null);
 }
-// #endregion nodetest:parsing

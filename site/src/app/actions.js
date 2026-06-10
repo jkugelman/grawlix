@@ -68,16 +68,8 @@ import {
 import { SyncDialog } from '../ui/dialogs/sync.js';
 import { ConfigureWordlistDialog } from '../ui/dialogs/configure-wordlist.js';
 import { ImportGuideDialog } from '../ui/dialogs/import-guide.js';
+import { ReconnectSplash } from '../ui/reconnect-splash.js';
 import { Router } from './router.js';
-
-// ReconnectSplash still lives in main.js; importing it would be a cycle back
-// into main.js, which evaluates boot() at load and can't run DOM-less under
-// node:test. boot() injects it through this seam so actions.js stays importable
-// in isolation for the unit tier.
-let _reconnectSplash;
-export function configureActions({ ReconnectSplash }) {
-  if (ReconnectSplash) _reconnectSplash = ReconnectSplash;
-}
 
 // ─── Wordlist actions dispatcher ──────────────────────────────────────────────
 
@@ -206,7 +198,7 @@ export async function init() {
   const { granted, prompt } = await partitionSyncPermissions();
   const _overlay = document.getElementById('splash-screen');
   if (prompt.length) {
-    _reconnectSplash.show(prompt);
+    ReconnectSplash.show(prompt);
   } else if (_overlay) {
     _overlay.classList.add('done');
     _overlay.addEventListener('transitionend', () => _overlay.remove(), { once: true });
