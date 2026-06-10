@@ -1,17 +1,11 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { extract } from './support/extract.mjs';
 import { parseRange, matchesRange, rangeSpan } from '../../site/src/engine/range.js';
-
-const {
+import {
   parseRuleOutput, compileRescoreRules, rescoreEntry,
   rescoreRulesEqual, scoringRulesEqual, compareRescoreRulesForPriority,
   getRuleMaxScore, outputSortKey,
-} = extract('rescoring', [
-  'parseRuleOutput', 'compileRescoreRules', 'rescoreEntry',
-  'rescoreRulesEqual', 'scoringRulesEqual', 'compareRescoreRulesForPriority',
-  'getRuleMaxScore', 'outputSortKey',
-], { parseRange, matchesRange, rangeSpan });
+} from '../../site/src/data/rescoring.js';
 
 const rule = (input, output, length = '') => ({ input, length, output, note: '' });
 const ruleN = (input, output = '', length = '', note = '') => ({ input, length, output, note });
