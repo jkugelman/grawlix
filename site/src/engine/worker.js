@@ -291,6 +291,11 @@ onmessage = ({ data }) => {
     case '__testPatchTool':
       patchToolForTest(data.tool, data.method, data.message);
       break;
+
+    // Test-only: the uncaught throw is the point — it fires the parent Worker's
+    // `error` event, the real crash signal the client's fallback path keys on.
+    case '__testCrash':
+      throw new Error('forced worker crash');
   }
 };
 

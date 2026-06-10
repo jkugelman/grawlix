@@ -29,7 +29,10 @@ import {
 } from './data/disk-sync.js';
 import { WordlistSelector } from './ui/scope-selector.js';
 import { ToolStack, pipelineIdle } from './ui/tool-stack.js';
-import { pingWorker, runOnWorker, shippedSnapshot, patchWorkerToolForTest } from './ui/pipeline-worker.js';
+import {
+  pingWorker, runOnWorker, shippedSnapshot, patchWorkerToolForTest,
+  pipelineWorkerState, crashWorkerForTest, forceWorkerCrashForTest,
+} from './ui/pipeline-worker.js';
 import { executePipeline } from './engine/executor.js';
 import {
   getEntriesScroller, setScope, renderSources, renderMergedDetail, refreshMergedScroller,
@@ -155,6 +158,9 @@ const __grawlixTest = {
 
   pingWorker,
   patchWorkerToolForTest,
+  pipelineWorkerState,
+  crashWorkerForTest,
+  forceWorkerCrashForTest,
 
   async workerMirrorsMain(stack) {
     await this.pipelineIdle();

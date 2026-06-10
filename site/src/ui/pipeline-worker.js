@@ -7,7 +7,7 @@
 // included (no leading-slash hardcoding).
 
 import { packSnapshot, snapshotTransferables } from '../engine/snapshot.js';
-import { currentAtomCount } from '../engine/executor.js';
+import { currentAtomCount, executePipeline } from '../engine/executor.js';
 
 let workerBaseURL = null;
 let worker = null;
@@ -15,6 +15,10 @@ let worker = null;
 let shippedCorpus = null;
 let shippedSnapshotId = 0;
 let lastShippedVersion = null;
+
+const MAX_CRASHES = 2;
+let crashCount = 0;
+let useMainThread = false;
 
 export function configurePipelineWorker({ baseURL }) {
   workerBaseURL = baseURL;
@@ -24,8 +28,57 @@ function getWorker() {
   if (!worker) {
     worker = new Worker(new URL('./engine/worker.js', workerBaseURL), { type: 'module' });
     worker.addEventListener('message', onWorkerMessage);
+    worker.addEventListener('error', onWorkerCrash);
+    worker.addEventListener('messageerror', onWorkerCrash);
   }
   return worker;
+}
+
+function onWorkerCrash() {
+  if (worker) {
+    worker.removeEventListener('message', onWorkerMessage);
+    worker.removeEventListener('error', onWorkerCrash);
+    worker.removeEventListener('messageerror', onWorkerCrash);
+    worker.terminate();
+    worker = null;
+  }
+  // A respawned worker boots with no corpus; nulling these makes ensureSnapshot
+  // reship rather than assume the dead worker's load carried over.
+  shippedCorpus = null;
+  lastShippedVersion = null;
+
+  crashCount++;
+  if (crashCount >= MAX_CRASHES) useMainThread = true;
+
+  // The dead worker owes no reply, so re-run its in-flight stack on main and
+  // resolve the original awaiter — else that awaiter (and pipelineIdle) dangles.
+  // Supersession-safe: a newer run during the rescue advances runCounter, so the
+  // rescue's signal aborts and it resolves { aborted: true }, harmlessly dropped.
+  const run = pendingRun;
+  pendingRun = null;
+  if (run) runMainThread(run.corpus, run.stack).then(run.resolve);
+}
+
+async function runMainThread(corpus, stack) {
+  for (const row of stack) row._error = null;
+
+  const runId = ++runCounter;
+  const signal = { get aborted() { return runId !== runCounter; } };
+
+  let out;
+  try {
+    out = await executePipeline(corpus, stack, signal);
+  } catch (e) {
+    if (e?.name === 'AbortError' || signal.aborted) return { aborted: true };
+    const idx = stack.indexOf(e?.stackRow);
+    if (idx !== -1) stack[idx]._error = e?.message || String(e);
+    return {
+      aborted: false, errored: true, rows: [],
+      atomCount: currentAtomCount(stack), grouped: false,
+    };
+  }
+  if (signal.aborted) return { aborted: true };
+  return { rows: out.rows, atomCount: out.atomCount, grouped: out.grouped, aborted: false };
 }
 
 export function sendSnapshot(corpus) {
@@ -58,6 +111,8 @@ let runCounter = 0;
 let pendingRun = null;   // { runId, resolve, stack } for the latest dispatched run
 
 export function runOnWorker(corpus, stack, sort) {
+  if (useMainThread) return runMainThread(corpus, stack);
+
   ensureSnapshot(corpus);
 
   // Main owns the per-run _error reset now that the executor runs off-thread —
@@ -73,7 +128,7 @@ export function runOnWorker(corpus, stack, sort) {
 
   const w = getWorker();
   return new Promise(resolve => {
-    pendingRun = { runId, resolve, stack };
+    pendingRun = { runId, resolve, stack, corpus };
     w.postMessage({ type: 'run', runId, snapshotId: shippedSnapshotId, stack: serialized, sort });
   });
 }
@@ -151,8 +206,20 @@ function decodeGroup(g, corpus) {
   };
 }
 
+export function pipelineWorkerState() {
+  return { degraded: useMainThread, crashCount };
+}
+
 export function patchWorkerToolForTest(tool, method, message) {
   getWorker().postMessage({ type: '__testPatchTool', tool, method, message });
+}
+
+export function crashWorkerForTest() {
+  getWorker().postMessage({ type: '__testCrash' });
+}
+
+export function forceWorkerCrashForTest() {
+  onWorkerCrash();
 }
 
 export function pingWorker(timeout = 2000) {
