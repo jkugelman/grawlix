@@ -17,9 +17,10 @@ export const sources$ = signal([]);
 export const cacheVersion$ = signal(0);
 export function bumpCacheVersion() { cacheVersion$.set(cacheVersion$.peek() + 1); }
 
-// Repaint signal for sync-status changes (per-list disk-sync indicators); a
-// later chunk bumps it when a sync target's status moves.
+// Disk-sync bumps this instead of calling the ui repaint directly; routing
+// through the signal is what keeps data/ from importing ui/ (the data⇄ui cycle).
 export const syncStatus$ = signal(0);
+export function bumpSyncStatus() { syncStatus$.set(syncStatus$.peek() + 1); }
 
 // Reads through `state.sources` are non-subscribing (peek). Effects that
 // need to re-run on changes read the underlying signal explicitly with
@@ -68,6 +69,10 @@ export function wrapWordlist(wl) {
 }
 
 export function syncKey(list) { return list === MERGED_ID ? MERGED_ID : list.dbKey; }
+
+export function getEditsWordlist() {
+  return state.sources.find(l => l.type === 'edits');
+}
 
 // Opaque IDB key. Avoids crypto.randomUUID because WebKit gates it on
 // secure contexts, which breaks local-network mobile testing over HTTP.
