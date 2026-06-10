@@ -1106,7 +1106,8 @@ export class EntriesScroller extends BaseVirtualScroller {
 
     const query = AppView.searchQuery.trim();
     const addable = kind === 'chain' && /\S/i.test(query);
-    const key = `${kind}|${addable ? query.toLowerCase() : ''}`;
+    const inMerge = addable && buildMergedWordlist().byNorm.has(toNorm(query));
+    const key = `${kind}|${addable ? query.toLowerCase() : ''}|${addable ? inMerge : ''}`;
     if (existing && existing.dataset.key === key) return;
 
     const el = existing || document.createElement('div');
@@ -1116,11 +1117,11 @@ export class EntriesScroller extends BaseVirtualScroller {
     if (kind === 'group') {
       el.textContent = 'No groups match.';
     } else if (addable) {
-      el.innerHTML =
-        `<div class="entries-empty-msg">${buildNoMatchQuipHTML(query)}</div>` +
-        `<button type="button" class="entries-empty-add">＋ Add it</button>`;
-      el.querySelector('.entries-empty-add').onclick = e =>
-        AtomPopover.openForCreate(query, this, e.currentTarget);
+      el.innerHTML = `<div class="entries-empty-msg">${buildNoMatchQuipHTML(query, inMerge)}</div>`
+        + (inMerge ? '' : `<button type="button" class="entries-empty-add">＋ Add it</button>`);
+      el.querySelectorAll('.entries-empty-link, .entries-empty-add').forEach(t => {
+        t.onclick = e => AtomPopover.openForCreate(query, this, e.currentTarget);
+      });
     } else {
       el.textContent = 'No matches.';
     }

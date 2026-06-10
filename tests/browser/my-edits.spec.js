@@ -13,7 +13,7 @@
 // reparse produces.
 
 const { test, expect } = require('@playwright/test');
-const { stubPublisherFetches, gotoApp } = require('./helpers');
+const { stubPublisherFetches, gotoApp, scopeTo } = require('./helpers');
 
 test.beforeEach(async ({ page }) => {
   await stubPublisherFetches(page);
@@ -207,6 +207,33 @@ test('searching for an unknown entry surfaces an Add-it affordance that lands th
   expect(await page.evaluate(() => window.__grawlixTest.getMergedEntry('NEWWORD'))).toMatchObject({
     entry: 'newword', score: 60, comment: '', wordlist: 'My Edits',
   });
+});
+
+test('the no-match affordance switches on merge membership: link when the word is in the merge, button when it is not', async ({ page }) => {
+  await gotoApp(page);
+
+  await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
+    name: 'Has', entries: ['phantom'], scores: [50],
+  }));
+  await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
+    name: 'Other', entries: ['existing'], scores: [50],
+  }));
+  await scopeTo(page, 'Other');
+
+  const search = page.locator('.search-bar input[data-key="pattern"]');
+
+  await search.fill('phantom');
+  await expect(page.locator('.entries-empty-add')).toHaveCount(0);
+  await expect(page.locator('.entries-empty-link').first()).toHaveText(/phantom/i);
+
+  await search.fill('ghost');
+  await expect(page.locator('.entries-empty-link')).toHaveCount(0);
+  await expect(page.locator('.entries-empty-add')).toBeVisible();
+
+  await search.fill('phantom');
+  await page.locator('.entries-empty-link').first().click();
+  await expect(page.locator('#atom-popover')).toBeVisible();
+  await expect(page.locator('#atom-pop-entry')).toHaveValue('phantom');
 });
 
 test('the floating + button opens a blank create popover that lands the entry in My Edits', async ({ page }) => {

@@ -408,7 +408,9 @@ const NO_MATCH_QUIPS = [
   q => `"${q}? You can't handle the ${q}!"`,
 ];
 
-export function buildNoMatchQuipHTML(term) {
-  const span = `<span class="entries-empty-term">${esc(term)}</span>`;
-  return NO_MATCH_QUIPS[hashStringMod(term.toLowerCase(), NO_MATCH_QUIPS.length)](span);
+export function buildNoMatchQuipHTML(term, asLink = false) {
+  const wrapped = asLink
+    ? `<button type="button" class="entries-empty-link">${esc(term)}</button>`
+    : `<span class="entries-empty-term">${esc(term)}</span>`;
+  return NO_MATCH_QUIPS[hashStringMod(term.toLowerCase(), NO_MATCH_QUIPS.length)](wrapped);
 }
