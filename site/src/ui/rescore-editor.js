@@ -17,15 +17,13 @@ import { showUndoToast } from './toasts.js';
 import { showConfirm } from './dialogs/confirm.js';
 import { buildEditHintHTML, buildTrashIconHTML } from './components.js';
 import { WordlistSelector } from './scope-selector.js';
+import { getEntriesScroller } from './rendering.js';
 
-// The scroller instance and the bake-availability check live upward (main.js);
-// injected so this view imports nothing above ui. (WordlistSelector is a sibling
-// ui module — the import cycle is define-only and safe.)
-let _getEntriesScroller = () => null;
+// The bake-availability check lives upward (main.js); injected so this view
+// imports nothing above ui.
 let _bakeMenuOpts       = () => ({});
 
-export function configureRescoreEditor({ getEntriesScroller, bakeMenuOpts }) {
-  if (getEntriesScroller) _getEntriesScroller = getEntriesScroller;
+export function configureRescoreEditor({ bakeMenuOpts }) {
   if (bakeMenuOpts)       _bakeMenuOpts = bakeMenuOpts;
 }
 
@@ -134,7 +132,7 @@ export function sortScoringRules() {
 export function renderScoringRules() {
   sortScoringRules();
   WordlistSelector.refreshEditor();
-  _getEntriesScroller()?._render?.();
+  getEntriesScroller()?._render?.();
 }
 
 export function deleteScoringRow(i) {

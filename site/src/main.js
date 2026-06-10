@@ -26,13 +26,12 @@ import {
   hasUnigramCorpus, setUnigramCorpus as segmenterSetCorpus,
   invalidateUnigramCorpus, getUnigramFetchedSize,
 } from './engine/segmenter.js';
-import { computeStatsRaw, invalidateStatsCache } from './engine/stats.js';
+import { invalidateStatsCache } from './engine/stats.js';
 import {
-  bucketCounts, slotIntersectsRange,
-  invalidateHistogramLayout,
+  slotIntersectsRange,
 } from './engine/histogram.js';
 import {
-  FEATURED_TOOLS, TOOLS, PARAM_HELP, makeToolRow,
+  FEATURED_TOOLS, TOOLS, makeToolRow,
 } from './engine/tools.js';
 import {
   isFilterOnlyChain, isGroupChain, buildInitialChains,
@@ -40,7 +39,7 @@ import {
   bottomLineAtoms, rowSetAtoms, rowLastEntry,
 } from './engine/executor.js';
 import {
-  sources$, cacheVersion$, bumpCacheVersion, syncStatus$,
+  sources$, cacheVersion$, syncStatus$,
   state, wrapWordlist, newDbKey, syncKey, getEditsWordlist,
 } from './data/state.js';
 import {
@@ -68,7 +67,7 @@ import {
   snapshotMergedBuckets, patchMergedForNorms, _mergedStatsKey,
 } from './data/merge.js';
 import {
-  scopedHistogramLayout, allSourcesHistogramLayout,
+  allSourcesHistogramLayout,
 } from './data/derived.js';
 import { invalidateWordlistCaches } from './data/invalidate.js';
 import {
@@ -87,10 +86,10 @@ import {
   makeTierLookup, updateScoringDirty, propagateDefaults, makeScoringRowStub,
 } from './model/scoring.js';
 import {
-  scoreColor, buildScoreBadgeHTML, buildScoreCellHTML,
+  buildScoreBadgeHTML, buildScoreCellHTML,
 } from './model/score-display.js';
 import {
-  hashStringMod, buildInitialsIconHTML, buildIconHTML,
+  buildInitialsIconHTML, buildIconHTML,
   colorSeed, getWordlistIcon, getMergedIcon,
 } from './ui/icons.js';
 import { showToast, showActionToast, showUndoToast } from './ui/toasts.js';
@@ -98,7 +97,7 @@ import {
   buildSegCtrlHTML, buildOutputFormatControlsHTML, readOutputFormatControls,
   wireOutputFormatControls, buildBadgeHTML, buildClearableInputHTML,
   syncClearButton, mountClearableInputs, buildTextInputHTML, buildParamHTML,
-  PopupHelp, buildSplitBtn, buildMoreMenuHTML, toggleSplitMenu, buildUrlInputHTML,
+  buildSplitBtn, buildMoreMenuHTML, toggleSplitMenu, buildUrlInputHTML,
   buildEditHintHTML, buildTrashIconHTML, buildDragHandleHTML, makeReorderable,
 } from './ui/components.js';
 import {
@@ -109,20 +108,19 @@ import {
   showConfirm, showAlert, showMergeConflict, showEditsConflict,
 } from './ui/dialogs/confirm.js';
 import { openUpdateSummaryDialog } from './ui/dialogs/update-summary.js';
-import { AppView, configureAppView, scopeKey, normalizeScoreRange } from './ui/app-view.js';
+import { AppView } from './ui/app-view.js';
 import {
-  configureEntriesTable, EntriesScroller, AtomPopover, GroupMorePopover, ErrorPopover,
-  chainSortTier, activeGroupColumns, DEFAULT_SORT_BY_TIER, isValidSortAxis, reconcileSort,
-  buildEntriesTablePanelHTML, buildEntryHeadersHTML, onSortHeaderActivate, rebuildEntryHeaders,
+  configureEntriesTable, AtomPopover, GroupMorePopover, ErrorPopover,
+  chainSortTier, activeGroupColumns, DEFAULT_SORT_BY_TIER, isValidSortAxis,
 } from './ui/entries-table.js';
 import {
   ToolStack, ToolPicker, configureToolStack, mountGroupColumnStyle,
-  runPipeline, pipelineIdle, buildToolCardHTML, buildToolLabelHTML,
+  pipelineIdle, buildToolCardHTML, buildToolLabelHTML,
   buildToolRowPartsHTML, buildSearchBarHTML, buildFindReplaceCaretHTML, allModeTooltip,
 } from './ui/tool-stack.js';
 import {
   mountHistogramPointer, onHistogramPointerDown, positionHistogramRect,
-  repositionAllHistogramRects, rangeStrFromBounds,
+  rangeStrFromBounds,
 } from './ui/histogram-view.js';
 import {
   configureRescoreEditor, buildRulesListHTML, buildRescoreSectionHTML, buildScoringSectionHTML,
@@ -131,29 +129,20 @@ import {
   saveScoringField, deleteScoringRow, addScoringRow, resetScoringRules,
 } from './ui/rescore-editor.js';
 import {
-  configureScopeSelector, WordlistSelector, renderSyncIndicators,
+  WordlistSelector, renderSyncIndicators,
   buildWordlistNameHTML,
 } from './ui/scope-selector.js';
 import { configureManagePanel, ManagePanel } from './ui/manage-panel.js';
 import { configureDiscoveryBanner, DiscoveryBanner } from './ui/discovery-banner.js';
+import {
+  configureRendering, getEntriesScroller, setScope, renderAll, renderSources,
+  refreshMergedScroller, renderMergedDetail, mountStatsBarOverflowObservers,
+  mountHeaderHeightObserver, attachHelpPopups, firstPaint,
+} from './ui/rendering.js';
 
 // ─── Components ──────────────────────────────────────────────────────────────
 
-// Scoped-source-only: on All Wordlists the open editor edits tier labels, which don't
-// remap scores, so a raw → rescored arrow would be meaningless there.
-function rescorePreviewActive() {
-  return state.selected !== MERGED_ID && WordlistSelector.isEditorOpen();
-}
-
 const OUTPUT_FORMAT_REGEN_DELAY = 1000;
-
-function buildStatItemHTML(label, value, title, extraClass) {
-  const cls = 'stat' + (extraClass ? ' ' + extraClass : '');
-  return `<div class="${cls}"${title ? ` title="${title}"` : ''}>
-    <span class="stat-label">${label}</span>
-    <span class="stat-value">${value}</span>
-  </div>`;
-}
 
 // The × button carries no per-call wiring: clicking it empties the field and
 // dispatches an `input` event, so the field's own handler reacts as if the
@@ -736,7 +725,7 @@ async function init() {
   AppView.show();
   Router.navigate();
   renderAll();
-  await _firstPaint;
+  await firstPaint;
 
   await loadSyncTargets();
   const { granted, prompt } = await partitionSyncPermissions();
@@ -936,323 +925,6 @@ async function clearEdits() {
     repaintAfterCacheChange();
   });
   await persistEdits(edits);
-}
-
-// ─── Rendering ────────────────────────────────────────────────────────────────
-
-let entriesScroller = null;
-
-// The render dispatcher is two effects:
-//   - render effect — reads `cacheVersion$`, dispatches the panel render
-//     (full render on first run, in-place scroller update on subsequent
-//     cache bumps). The panel always shows the merged view, so there's no
-//     selection to dispatch on.
-//   - cosmetic effect — subscribes to per-wordlist `name$`/`icon$`/`url$`/
-//     `publisherId$` signals across all sources; cosmetic field changes
-//     re-render the list/dropdown/dialog and visible scroller rows without
-//     touching the merged cache
-// Helpers that want to repaint after a cache change bump `cacheVersion$` via
-// `repaintAfterCacheChange`. Cosmetic field setters just write the signal —
-// the cosmetic effect notices and repaints.
-//
-// `renderAll()` is the entry point: first call wires up the effects (the
-// render effect's first run does the initial paint); subsequent calls bump
-// `cacheVersion$` and let the effect dispatch.
-let _renderEffectActive = false;
-let _firstRenderDone = false;
-let _cosmeticEffectFirstRun = true;
-
-let _signalFirstPaint;
-const _firstPaint = new Promise(r => { _signalFirstPaint = r; });
-
-function setupRenderEffect() {
-  if (_renderEffectActive) return;
-  _renderEffectActive = true;
-  effect(() => {
-    cacheVersion$.get();             // subscribe to cache-change bumps
-
-    if (!_firstRenderDone) {
-      _firstRenderDone = true;
-      renderSources();
-      WordlistSelector.refresh();
-      DiscoveryBanner.refresh();
-      renderMergedDetail();
-      return;
-    }
-
-    // Cache change — refresh derived state in place rather than rebuilding
-    // the panel and the scroller.
-    refreshSourceCounts();        // rebuild caches before any UI reads them
-    renderSources();              // list/dialog with fresh meta
-    WordlistSelector.refresh();   // add/remove/reorder/enable changes the list
-    DiscoveryBanner.refresh();    // import can populate the scoped XWI source
-    refreshDerivedDisplays();     // scoring legend + main-panel stats bar
-    if (entriesScroller) refreshMergedScroller();
-  });
-
-  // Cosmetic effect: re-renders the wordlist list and the merged scroller's
-  // per-row source column when any wordlist's name/icon/url/publisher
-  // changes. Cache-affecting fields (enabled, rescoreRules) route through
-  // `cacheVersion$` instead since changing them invalidates derived state.
-  effect(() => {
-    const sources = sources$.get();
-    for (const wl of sources) {
-      wl.name$.get();
-      wl.icon$.get();
-      wl.url$.get();
-      wl.publisherId$.get();
-    }
-    if (_cosmeticEffectFirstRun) {
-      _cosmeticEffectFirstRun = false;
-      return;            // render effect's first run already painted everything
-    }
-    renderSources();
-    WordlistSelector.refresh();   // a renamed/re-iconed source restyles the rows
-    if (entriesScroller) entriesScroller._render();
-  });
-}
-
-function renderAll() {
-  if (!_renderEffectActive) setupRenderEffect();
-  else bumpCacheVersion();
-}
-
-// Warms the source-count cache for "X used" meta so cosmetic-effect callers
-// don't crash if a cache-affecting helper invalidated the merged cache earlier
-// in the same drain. The render effect's cache branch has already rebuilt by the
-// time it calls renderSources, so the lazy path is only hit when no cache
-// rebuild is in flight.
-function renderSources() {
-  getSourceCounts();
-}
-
-
-// Pure cache rebuild — invalidate merged/override/stats caches and re-warm the
-// source counts so the next renderSources sees fresh meta. Does no rendering
-// itself; the render effect's cache branch calls this and then `renderSources`
-// to paint with the rebuilt counts.
-function refreshSourceCounts() {
-  invalidateSourceCounts();
-  invalidateStatsCache(_mergedStatsKey);
-  getSourceCounts();
-}
-
-function createScroller() {
-  AtomPopover.close();
-  GroupMorePopover.close();
-  entriesScroller?.destroy();
-  entriesScroller = new EntriesScroller(document.getElementById('vs-host'));
-  return entriesScroller;
-}
-
-async function refreshMergedScroller() {
-  reconcileSort(ToolStack.getStack());
-  if (!entriesScroller) return;
-  const result = await runPipeline(getActiveCorpus(), ToolStack.getStack());
-  if (result.aborted || !entriesScroller) return;
-  entriesScroller.updateEntries(result.rows, result.atomCount, chainSortTier(ToolStack.getStack()));
-  ToolStack.refreshErrorMarks();
-}
-
-// The pre-search and histogram caches assume one corpus, so a scope change
-// must drop both before the pipeline re-runs — otherwise the prior scope's
-// memoized seed rows leak into the new view with no error.
-async function setScope(target) {
-  if (state.selected === target) return;
-  state.selected = target;
-  lsSave('selectedScope', scopeKey(target));
-  invalidatePreSearchCache();
-  invalidateHistogramLayout();
-  WordlistSelector.refresh();
-  DiscoveryBanner.refresh();
-  await renderMergedDetail();
-}
-
-function mountPanel(panel) {
-  panel.innerHTML = `
-    <div class="sticky-stack">
-      ${ToolStack.buildHTML()}
-      <div id="stats">${buildStatsBarHTML()}</div>
-      ${buildEntryHeadersHTML()}
-    </div>
-    ${buildEntriesTablePanelHTML()}
-  `;
-  ToolStack.refreshGalleryActive();
-  repositionAllHistogramRects();
-  createScroller();
-  entriesScroller.onFilterChange = refreshStatsBarFromScroller;
-  attachHelpPopups();
-  publishBarHeights();
-  const stickyStack = panel.querySelector('.sticky-stack');
-  _stickyObserver.disconnect();
-  _stickyObserver.observe(stickyStack);
-  const wordlistBar = document.getElementById('wordlist-bar');
-  if (wordlistBar) _stickyObserver.observe(wordlistBar);
-  // Delegate rather than bind the header cells directly: rebuildEntryHeaders
-  // replaces them via outerHTML on every sort change, which would orphan a
-  // direct listener after the first sort.
-  stickyStack.addEventListener('click', onSortHeaderActivate);
-  stickyStack.addEventListener('keydown', onSortHeaderActivate);
-  document.getElementById('entries-table-panel').addEventListener('animationstart', e => {
-    if (e.animationName === 'pipeline-room') _signalFirstPaint();
-  });
-}
-
-// histEntries stays the pre-score-range set (not the filtered statsEntries) so the
-// histogram keeps out-of-range bars — clickable to widen the filter — while the readouts shrink.
-function buildStatsBarHTML() {
-  const scroller = entriesScroller;
-  const statsEntries = scroller ? scroller._statsViewEntries() : [];
-  const histEntries = scroller ? scroller._histogramEntries() : getActiveCorpus().entries;
-  const grouped = scroller ? scroller.sortTier === 'group' : false;
-  const groupCount = grouped ? scroller.entries.length : null;
-  const countValue = grouped
-    ? (scroller ? scroller._visibleGroupChainCount() : 0)
-    : (scroller ? scroller.entries.length : statsEntries.length);
-  const stats = computeStatsRaw(statsEntries);
-  const layout = scopedHistogramLayout();
-
-  const isEmpty = !countValue;
-  const dash = '—';
-  const fmt = v => isEmpty ? dash : v;
-  const counts = bucketCounts(histEntries || [], layout);
-  const scale = Math.max(...counts, 1);
-  const barH = c => c === 0 ? 0 : Math.max(2, Math.round((c / scale) * 34));
-
-  const bars = layout.slots.map((s, i) => {
-    const c = counts[i];
-    const title = `${pluralize(c, 'entry', 'entries')} scored ${s.label} • Click to filter`;
-    const { bg } = scoreColor((s.lo + s.hi) / 2);
-    return `<div class="histogram-col" title="${title}"><div class="histogram-bar" data-lo="${s.lo}" data-hi="${s.hi}" style="--score-bg:${bg}; height:${barH(c)}px"></div></div>`;
-  }).join('');
-
-  const countsHTML = groupCount != null
-    ? buildStatItemHTML('Entries', countValue.toLocaleString()) +
-      buildStatItemHTML('Groups', groupCount.toLocaleString())
-    : buildStatItemHTML('Entries', countValue.toLocaleString());
-
-  const rangeHTML = buildScoreRangeInputHTML('score-range-input', AppView.scoreRange, 'AppView');
-  const sortSlotHTML = `<span class="stats-bar-sort" id="stats-bar-sort"></span>`;
-  const exportHTML = buildExportMenuHTML();
-  const exportSlotHTML = exportHTML ? `<span class="stats-bar-export">${exportHTML}</span>` : '';
-
-  return `<div class="stats-bar${isEmpty ? ' stats-empty' : ''}">
-      <div class="stats-bar-counts">${countsHTML}</div>
-      <div class="stats-bar-distribution">
-        <div class="stats-bar-numbers">
-          ${buildStatItemHTML('Min', fmt(stats.min), null, 'stat-far')}
-          ${buildStatItemHTML('Max', fmt(stats.max), null, 'stat-far')}
-        </div>
-        <div class="histogram" title="Histogram • Click to filter" onpointerdown="onHistogramPointerDown(event)">${bars}<div class="histogram-rect" hidden></div></div>
-      </div>
-      <div class="stats-bar-controls">${rangeHTML}${sortSlotHTML}${exportSlotHTML}</div>
-    </div>`;
-}
-
-function refreshStatsBarFromScroller() {
-  if (!entriesScroller) return;
-  const bar = document.querySelector('#stats .stats-bar');
-  if (!bar) return;
-  swapStatsBarReadouts(bar, buildStatsBarHTML());
-  repositionAllHistogramRects();
-}
-
-function swapStatsBarReadouts(bar, html) {
-  const tmp = document.createElement('div');
-  tmp.innerHTML = html;
-  const next = tmp.querySelector('.stats-bar');
-  if (!next) return;
-  bar.querySelector('.stats-bar-counts')?.replaceWith(next.querySelector('.stats-bar-counts'));
-  bar.querySelector('.stats-bar-distribution')?.replaceWith(next.querySelector('.stats-bar-distribution'));
-  bar.className = next.className;
-}
-
-function publishBarHeights() {
-  const stack = document.getElementById('tool-stack');
-  if (stack) document.documentElement.style.setProperty('--tool-stack-h', stack.offsetHeight + 'px');
-  const stats = document.getElementById('stats');
-  if (stats) document.documentElement.style.setProperty('--stats-bar-h', stats.offsetHeight + 'px');
-  const stickyStack = document.querySelector('#app .sticky-stack');
-  if (stickyStack) document.documentElement.style.setProperty('--sticky-stack-h', stickyStack.offsetHeight + 'px');
-  const bar = document.getElementById('wordlist-bar');
-  if (bar) document.documentElement.style.setProperty('--wordlist-bar-h', bar.offsetHeight + 'px');
-}
-const _stickyObserver = new ResizeObserver(publishBarHeights);
-
-function refreshStatsBarOverflow() {
-  for (const bar of document.querySelectorAll('.stats-bar')) {
-    bar.classList.remove('stats-narrow', 'stats-no-hist');
-    const overlapsControls = () => {
-      const ctrls = bar.querySelector('.stats-bar-controls');
-      if (!ctrls) return false;
-      const ctrlsLeft = ctrls.getBoundingClientRect().left;
-      for (const el of bar.querySelectorAll('.stats-bar-counts, .stat-far, .histogram')) {
-        if (!el.offsetWidth) continue;
-        if (el.getBoundingClientRect().right > ctrlsLeft + 0.5) return true;
-      }
-      return false;
-    };
-    if (overlapsControls()) {
-      bar.classList.add('stats-narrow');
-      if (overlapsControls()) bar.classList.add('stats-no-hist');
-    }
-  }
-}
-function mountStatsBarOverflowObservers() {
-  const parent = document.getElementById('detail-panel');
-  if (!parent) return;
-  new ResizeObserver(refreshStatsBarOverflow).observe(parent);
-  new MutationObserver(refreshStatsBarOverflow).observe(parent, { childList: true, subtree: true });
-}
-
-function mountHeaderHeightObserver() {
-  const headerEl = document.querySelector('header');
-  const publish = () => document.documentElement.style.setProperty(
-    '--header-h', headerEl.offsetHeight + 'px'
-  );
-  publish();
-  new ResizeObserver(publish).observe(headerEl);
-}
-
-// Help anchors are rebuilt whenever the panel re-renders (mountPanel,
-// rerenderRows), so destroy the prior popups and rebind from a fresh
-// document-wide scan for `data-help`.
-let _helpPopups = [];
-function attachHelpPopups() {
-  _helpPopups.forEach(p => p.destroy());
-  _helpPopups = [];
-  for (const input of document.querySelectorAll('[data-help]')) {
-    const content = PARAM_HELP[input.dataset.help];
-    if (!content) continue;
-    const placement = input.closest('.tool-row-replace') ? 'below' : 'above';
-    _helpPopups.push(new PopupHelp(input, content, { placement }));
-  }
-}
-
-async function renderMergedDetail() {
-  try {
-    const panel = document.getElementById('detail-panel');
-    reconcileSort(ToolStack.getStack());
-    mountPanel(panel);
-    const showSource = state.selected === MERGED_ID;
-    entriesScroller.showSource = showSource;
-    panel.classList.toggle('no-source-col', !showSource);
-    entriesScroller.editsWordlist = getEditsWordlist() ?? null;
-    entriesScroller.showEditDeleteCol = true;
-    entriesScroller._onDeleteRow = entry => deleteFromEdits(entry, refreshMergedScroller);
-    attachExternalEditHandlers(entriesScroller, refreshMergedScroller);
-
-    const result = await runPipeline(getActiveCorpus(), ToolStack.getStack());
-    if (result.aborted) return;
-    const { rows, atomCount } = result;
-    entriesScroller.setEntries(rows, atomCount, chainSortTier(ToolStack.getStack()));
-    ToolStack.refreshErrorMarks();
-  } finally {
-    // In `finally` so a thrown/aborted pipeline still dismisses the splash
-    // screen — otherwise a broken tool in the boot URL strands the user on
-    // a forever-spinning overlay with no error in sight.
-    _signalFirstPaint();
-  }
 }
 
 // ─── Actions ──────────────────────────────────────────────────────────────────
@@ -1516,27 +1188,6 @@ function newEntrySeedQuery() {
   return q;
 }
 
-const NO_MATCH_QUIPS = [
-  q => `"The ${q} is in another castle."`,
-  q => `"This is not the ${q} you are looking for."`,
-  q => `"${q} has left the chat."`,
-  q => `"${q}? We're gonna need a bigger wordlist."`,
-  q => `"We don't talk about ${q}."`,
-  q => `"${q} has left the building."`,
-  q => `"Nobody puts ${q} in the corner."`,
-  q => `"${q}? Where we're going, we don't need ${q}."`,
-  q => `"${q}? Inconceivable!"`,
-  q => `"Hasta la vista, ${q}."`,
-  q => `"Sorry, ${q} can't come to the phone right now."`,
-  q => `"Show me the ${q}!"`,
-  q => `"${q}? You can't handle the ${q}!"`,
-];
-
-function buildNoMatchQuipHTML(term) {
-  const span = `<span class="entries-empty-term">${esc(term)}</span>`;
-  return NO_MATCH_QUIPS[hashStringMod(term.toLowerCase(), NO_MATCH_QUIPS.length)](span);
-}
-
 function deleteFromEdits(target, refreshFn) {
   const edits = getEditsWordlist();
   const norm = target.norm;
@@ -1545,8 +1196,9 @@ function deleteFromEdits(target, refreshFn) {
   if (idx === -1) return;
 
   const refresh = refreshFn ?? (() => {
-    entriesScroller._invalidateSortCache();
-    entriesScroller._sortAndRender();
+    const scroller = getEntriesScroller();
+    scroller._invalidateSortCache();
+    scroller._sortAndRender();
   });
 
   let deleted;
@@ -2199,7 +1851,7 @@ function bindEvents() {
   document.getElementById('btn-settings').onclick = () => SettingsDialog.open();
   document.getElementById('btn-help').onclick     = () => WelcomeDialog.open();
   document.getElementById('add-fab').onclick = () =>
-    AtomPopover.openForCreate(newEntrySeedQuery(), entriesScroller, null);
+    AtomPopover.openForCreate(newEntrySeedQuery(), getEntriesScroller(), null);
 
   ToolStack.init();
 
@@ -2615,16 +2267,17 @@ function flatCopyLines(chains) {
 // #endregion nodetest:export
 
 async function exportCopy() {
-  if (!entriesScroller) return;
-  const grouped = entriesScroller.sortTier === 'group';
-  const text = buildCopyText(entriesScroller.entries, grouped, ToolStack.getStack());
+  const scroller = getEntriesScroller();
+  if (!scroller) return;
+  const grouped = scroller.sortTier === 'group';
+  const text = buildCopyText(scroller.entries, grouped, ToolStack.getStack());
   try {
     await navigator.clipboard.writeText(text);
   } catch (e) {
     showToast('Copy failed — clipboard permission denied');
     return;
   }
-  const count = countExportEntries(entriesScroller.entries, grouped);
+  const count = countExportEntries(scroller.entries, grouped);
   showToast(`Copied ${pluralize(count, 'entry', 'entries')}`);
 }
 
@@ -2650,9 +2303,10 @@ function buildWordlistText(rows, grouped) {
 // #endregion nodetest:export
 
 async function exportWordlist() {
-  if (!entriesScroller) return;
-  const grouped = entriesScroller.sortTier === 'group';
-  const { text, count, skipped } = buildWordlistText(entriesScroller.entries, grouped);
+  const scroller = getEntriesScroller();
+  if (!scroller) return;
+  const grouped = scroller.sortTier === 'group';
+  const { text, count, skipped } = buildWordlistText(scroller.entries, grouped);
   triggerDownload(text, exportFilename(ToolStack.getStack(), 'txt'));
   let msg = `Downloaded ${pluralize(count, 'entry', 'entries')}`;
   if (skipped) msg += ` (${pluralize(skipped, 'entry', 'entries')} skipped due to semicolons)`;
@@ -2718,11 +2372,12 @@ function buildCSVText(rows, grouped, stack) {
 }
 
 async function exportCSV() {
-  if (!entriesScroller) return;
-  const grouped = entriesScroller.sortTier === 'group';
-  const text = buildCSVText(entriesScroller.entries, grouped, ToolStack.getStack());
+  const scroller = getEntriesScroller();
+  if (!scroller) return;
+  const grouped = scroller.sortTier === 'group';
+  const text = buildCSVText(scroller.entries, grouped, ToolStack.getStack());
   triggerDownload(text, exportFilename(ToolStack.getStack(), 'csv'));
-  const count = countExportEntries(entriesScroller.entries, grouped);
+  const count = countExportEntries(scroller.entries, grouped);
   showToast(`Downloaded ${pluralize(count, 'entry', 'entries')}`);
 }
 
@@ -2761,11 +2416,12 @@ function buildExportJSONObject(rows, grouped, stack) {
 }
 
 async function exportJSON() {
-  if (!entriesScroller) return;
-  const grouped = entriesScroller.sortTier === 'group';
-  const obj = buildExportJSONObject(entriesScroller.entries, grouped, ToolStack.getStack());
+  const scroller = getEntriesScroller();
+  if (!scroller) return;
+  const grouped = scroller.sortTier === 'group';
+  const obj = buildExportJSONObject(scroller.entries, grouped, ToolStack.getStack());
   triggerDownload(JSON.stringify(obj, null, 2) + '\n', exportFilename(ToolStack.getStack(), 'json'));
-  const count = countExportEntries(entriesScroller.entries, grouped);
+  const count = countExportEntries(scroller.entries, grouped);
   showToast(`Downloaded ${pluralize(count, 'entry', 'entries')}`);
 }
 
@@ -2978,8 +2634,9 @@ const __grawlixTest = {
 
   async exportText(format) {
     await pipelineIdle();
-    const rows = entriesScroller.entries;
-    const grouped = entriesScroller.sortTier === 'group';
+    const scroller = getEntriesScroller();
+    const rows = scroller.entries;
+    const grouped = scroller.sortTier === 'group';
     const stack = ToolStack.getStack();
     if (format === 'copy')     return buildCopyText(rows, grouped, stack);
     if (format === 'wordlist') return buildWordlistText(rows, grouped);
@@ -3078,15 +2735,16 @@ function boot() {
       : lsSave(UNIGRAM_CORPUS_SIZE_KEY, bytes),
   });
 
-  // Inject the rendering-layer hooks the extracted ui views can't import upward.
-  configureAppView({
-    setScrollerScoreRange: range => { if (entriesScroller) entriesScroller.setScoreRange(range); },
+  // Inject the app-layer callees the extracted ui views can't import upward.
+  configureRendering({
+    refreshDerivedDisplays,
+    deleteFromEdits,
+    attachExternalEditHandlers,
+    buildScoreRangeInputHTML,
+    buildExportMenuHTML,
   });
   configureEntriesTable({
     navigate: () => Router.navigate(),
-    getEntriesScroller: () => entriesScroller,
-    rescorePreviewActive,
-    buildNoMatchQuipHTML,
   });
   configureToolStack({
     navigate: () => Router.navigate(),
@@ -3094,13 +2752,7 @@ function boot() {
     attachHelpPopups,
   });
   configureRescoreEditor({
-    getEntriesScroller: () => entriesScroller,
     bakeMenuOpts,
-  });
-  configureScopeSelector({
-    setScope,
-    refreshMergedScroller,
-    getEntriesScroller: () => entriesScroller,
   });
   configureManagePanel({
     openAddWordlist: onAdded => ConfigureWordlistDialog.openAdd(onAdded),

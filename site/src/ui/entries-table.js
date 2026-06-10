@@ -7,12 +7,10 @@
 // filter chains, multi-atom transform chains, group chains); each tier owns a
 // set of sort axes with fixed-direction tiebreaker chains.
 //
-// The scroller *instance* (entriesScroller) plus createScroller/refreshMergedScroller
-// still live in the rendering layer (main.js); this module exports the classes.
-// A handful of rendering-layer hooks the scroller calls back into — the router,
-// the active-scroller accessor, the rescore-preview gate, and two name/quip
-// builders — are injected via configureEntriesTable so this view never reaches
-// upward into app/main.
+// The scroller *instance* plus createScroller/refreshMergedScroller live in the
+// sibling rendering module (the cycle is define-only); this module exports the
+// classes. The router callback can't be imported (it lives in app/main), so it
+// arrives via configureEntriesTable.
 
 import { ROW_HEIGHT, VS_BUFFER, MERGED_ID } from '../core/constants.js';
 import { esc } from '../core/util.js';
@@ -33,23 +31,14 @@ import { showToast } from './toasts.js';
 import { AppView } from './app-view.js';
 import { ToolStack } from './tool-stack.js';
 import { buildWordlistNameHTML } from './scope-selector.js';
+import {
+  getEntriesScroller, rescorePreviewActive, buildNoMatchQuipHTML,
+} from './rendering.js';
 
-// Rendering-layer hooks injected at boot (see configureEntriesTable). The
-// scroller instance and these collaborators live in main.js, which can't be
-// imported upward.
 let _navigate              = () => {};
-let _getEntriesScroller    = () => null;
-let _rescorePreviewActive  = () => false;
-let _buildNoMatchQuipHTML  = () => '';
 
-export function configureEntriesTable({
-  navigate, getEntriesScroller, rescorePreviewActive,
-  buildNoMatchQuipHTML,
-}) {
+export function configureEntriesTable({ navigate }) {
   if (navigate)              _navigate = navigate;
-  if (getEntriesScroller)    _getEntriesScroller = getEntriesScroller;
-  if (rescorePreviewActive)  _rescorePreviewActive = rescorePreviewActive;
-  if (buildNoMatchQuipHTML)  _buildNoMatchQuipHTML = buildNoMatchQuipHTML;
 }
 
 // ─── Input helpers ────────────────────────────────────────────────────────────
@@ -925,7 +914,7 @@ export class EntriesScroller extends BaseVirtualScroller {
         if (!hasHighlight && atom.highlights?.length) hasHighlight = true;
       }
     }
-    const preview = _rescorePreviewActive();
+    const preview = rescorePreviewActive();
     let maxRawDigits = 0;
     for (const row of this.entries) {
       for (const atom of row.atoms) {
@@ -988,7 +977,7 @@ export class EntriesScroller extends BaseVirtualScroller {
     this._clearSizer();
 
     const tierFor = makeTierLookup();
-    const preview = _rescorePreviewActive();
+    const preview = rescorePreviewActive();
     const activeNorm = AtomPopover.activeNorm(this);
     let nextActiveRow = null;
     const frag = document.createDocumentFragment();
@@ -1128,7 +1117,7 @@ export class EntriesScroller extends BaseVirtualScroller {
       el.textContent = 'No groups match.';
     } else if (addable) {
       el.innerHTML =
-        `<div class="entries-empty-msg">${_buildNoMatchQuipHTML(query)}</div>` +
+        `<div class="entries-empty-msg">${buildNoMatchQuipHTML(query)}</div>` +
         `<button type="button" class="entries-empty-add">＋ Add it</button>`;
       el.querySelector('.entries-empty-add').onclick = e =>
         AtomPopover.openForCreate(query, this, e.currentTarget);
@@ -1687,7 +1676,7 @@ export function onSortHeaderActivate(e) {
   const sel = cell.dataset.col
     ? `.sticky-stack [data-col="${CSS.escape(cell.dataset.col)}"]`
     : `.sticky-stack .${cell.classList[0]}`;
-  _getEntriesScroller()?.applySort(key, dir);
+  getEntriesScroller()?.applySort(key, dir);
   // applySort rebuilds the header, destroying the activated cell — refocus its
   // replacement so keyboard focus isn't silently dropped to <body>.
   if (e.type === 'keydown') document.querySelector(sel)?.focus();

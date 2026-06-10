@@ -9,6 +9,7 @@ import { lsSave, lsDel } from '../data/storage.js';
 import { ToolStack } from './tool-stack.js';
 import { repositionAllHistogramRects } from './histogram-view.js';
 import { reconcileSort, chainSortTier, DEFAULT_SORT_BY_TIER } from './entries-table.js';
+import { getEntriesScroller } from './rendering.js';
 
 export const scopeKey = scope => scope === MERGED_ID ? MERGED_ID : scope.dbKey;
 
@@ -18,14 +19,6 @@ export function normalizeScoreRange(value, inputId) {
   const inp = document.getElementById(inputId);
   if (inp) inp.classList.toggle('invalid', trimmed !== '' && intervals === null);
   return (trimmed && intervals) ? trimmed : '';
-}
-
-// The entries-table import is circular; it resolves to undefined (not an
-// error) if reconcileSort ever moves from runtime use to module-init time.
-let _setScrollerScoreRange = () => {};
-
-export function configureAppView({ setScrollerScoreRange }) {
-  if (setScrollerScoreRange) _setScrollerScoreRange = setScrollerScoreRange;
 }
 
 export const AppView = (() => {
@@ -54,7 +47,7 @@ export const AppView = (() => {
     if (range) _scoreRanges[activeScopeKey()] = range;
     else       delete _scoreRanges[activeScopeKey()];
     persistScoreRanges();
-    _setScrollerScoreRange(range);
+    getEntriesScroller()?.setScoreRange(range);
     repositionAllHistogramRects();
   }
 

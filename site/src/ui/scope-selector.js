@@ -20,19 +20,7 @@ import {
   buildRescoreSectionHTML, buildScoringSectionHTML,
 } from './rescore-editor.js';
 import { ManagePanel } from './manage-panel.js';
-
-// Rendering lives upward (main.js); injected so this view imports nothing above
-// ui. The WordlistActions menu callees in the generated HTML resolve through
-// `window` and need no injection.
-let _setScope            = () => {};
-let _refreshMergedScroller = () => {};
-let _getEntriesScroller  = () => null;
-
-export function configureScopeSelector({ setScope, refreshMergedScroller, getEntriesScroller }) {
-  if (setScope)              _setScope = setScope;
-  if (refreshMergedScroller) _refreshMergedScroller = refreshMergedScroller;
-  if (getEntriesScroller)    _getEntriesScroller = getEntriesScroller;
-}
+import { setScope, refreshMergedScroller, getEntriesScroller } from './rendering.js';
 
 // ─── Wordlist-card domain builders ──────────────────────────────────────────
 
@@ -284,7 +272,7 @@ export const WordlistSelector = (() => {
     // The raw → rescored preview lives in the scroller rows, gated on the
     // editor's open state, so toggling it must repaint the table — refreshEditor
     // only touches the editor's own subtree.
-    if (_getEntriesScroller()) _refreshMergedScroller();
+    if (getEntriesScroller()) refreshMergedScroller();
   }
   function hideAfterCollapse() {
     const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -365,7 +353,7 @@ export const WordlistSelector = (() => {
       const opt = e.target.closest('.wordlist-card');
       if (!opt) return;
       close();
-      _setScope(opt._scope);
+      setScope(opt._scope);
     });
     document.addEventListener('keydown', e => { if (e.key === 'Escape') close(); });
     editorToggle.addEventListener('click', () => setEditorOpen(!editorOpen));
