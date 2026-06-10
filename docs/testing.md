@@ -191,9 +191,9 @@ Playwright's own locator assertions (`expect(locator).toHaveText(...)`, `.toHave
 
 GitHub Actions runs the suite on push to `main` only — no PR gating. CI first builds the bundled production artifact (`npm run build` → `dist/`, where esbuild bundles the module graph and minifies) and runs the suite against *that*, not the `site/` source — so a bundling- or minification-induced break fails the build before it can deploy. The deploy job ships the exact `dist/` artifact the tests ran against. Failed runs upload traces and screenshots as artifacts; download from the run page to inspect.
 
-To reproduce the bundled build locally: `npm run build`, then `GRAWLIX_SITE_DIR=dist npm test`. Plain `npm test` serves the unbundled `site/` module graph.
+To reproduce the bundled build locally: `npm run test:full` (it runs `npm run build`, then the suite against `dist/`). Plain `npm test` serves the unbundled `site/` module graph.
 
-**Run the full matrix against `dist`, not `site/`.** Dev serves the raw module graph (~75 small files), and a full `npm test` against `site/` makes every page load waterfall through that graph — which flakes on **webkit** under parallel-worker load (`page.goto` "waiting until load" timeouts). The bundled `dist` is one request, no waterfall, and runs clean. So use `GRAWLIX_SITE_DIR=dist npm test` for the full three-browser matrix (CI does this already); single-browser chromium iteration against `site/` is fine.
+**Run the full matrix against `dist`, not `site/`.** Dev serves the raw module graph (~75 small files), and a full `npm test` against `site/` makes every page load waterfall through that graph — which flakes on **webkit** under parallel-worker load (`page.goto` "waiting until load" timeouts). The bundled `dist` is one request, no waterfall, and runs clean. So use `npm run test:full` for the full three-browser matrix — it builds `dist/` and runs the suite against it (CI does the equivalent already); single-browser chromium iteration against `site/` is fine.
 
 ## When a test breaks
 

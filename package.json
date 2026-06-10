@@ -9,6 +9,7 @@
     "dev": "python3 -m http.server 4173 --directory site",
     "test": "playwright test",
     "test:unit": "node --test tests/unit/",
+    "test:full": "npm run build && GRAWLIX_SITE_DIR=dist playwright test",
     "test:headed": "playwright test --headed",
     "test:ui": "playwright test --ui",
     "test:report": "playwright show-report"
