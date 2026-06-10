@@ -48,7 +48,7 @@ export const WORDLIST_PUBLISHERS = [
     id: 'nediger',
     popularity: 4,
     name: 'Will Nediger',
-    url: 'https://grawlix.wtf/Nediger list.txt',
+    url: 'https://grawlix.wtf/wordlists/Nediger list.txt',
     icon: null,
     defaultRules: [
       { input:'99', length:'8+',  output:'60', note:'Asset' },
@@ -85,7 +85,7 @@ export const WORDLIST_PUBLISHERS = [
     id: 'stwl',
     popularity: 1,
     name: 'Spread the Word(list)',
-    url: 'https://grawlix.wtf/spreadthewordlist.txt',
+    url: 'https://grawlix.wtf/wordlists/spreadthewordlist.txt',
     icon: { type: 'img', url: 'https://www.spreadthewordlist.com/favicon.ico' },
     defaultRules: [
       { input:'50', length:'', output:'50', note:'Clean' },
@@ -100,13 +100,21 @@ export const WORDLIST_PUBLISHERS = [
     id: 'broda',
     popularity: 3,
     name: 'Peter Broda',
-    url: 'https://grawlix.wtf/peter-broda-wordlist.txt',
+    url: 'https://grawlix.wtf/wordlists/peter-broda-wordlist.txt',
     icon: null,
     defaultRules: [
       { input:'76-100', length:'7+', output:'60',     scoring:false },
       { input:'0-100',  length:'',   output:'20' },
     ],
   },
+];
+
+// Not a SCHEMA_VERSION bump: that counter tracks stored *shape*, and a relocated
+// file is the same shape with a drifted value. See docs/migration.md § Remapping moved URLs.
+export const URL_REMAPS = [
+  { from: 'https://grawlix.wtf/Nediger list.txt',         to: 'https://grawlix.wtf/wordlists/Nediger list.txt' },
+  { from: 'https://grawlix.wtf/spreadthewordlist.txt',    to: 'https://grawlix.wtf/wordlists/spreadthewordlist.txt' },
+  { from: 'https://grawlix.wtf/peter-broda-wordlist.txt', to: 'https://grawlix.wtf/wordlists/peter-broda-wordlist.txt' },
 ];
 
 // Derived from JK's rules, not duplicated: the unified scale IS JK's scoring

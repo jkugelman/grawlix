@@ -97,6 +97,33 @@ test('migration v9→v10 rewrites every "ignore" rescore output to "0"', async (
   expect(result).toEqual(V10_AFTER);
 });
 
+test('a relocated wordlist URL is remapped in stored data on boot', async ({ page }) => {
+  await gotoApp(page);
+  await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
+    name: 'Relo', entries: ['KEEP'], scores: [50],
+  }));
+
+  // Schema version left current: the remap must run on every boot, not only
+  // when a shape migration also runs.
+  await page.evaluate(() => {
+    const meta = JSON.parse(localStorage.getItem('grawlix_meta'));
+    meta.find(w => w.name === 'Relo').url = 'https://grawlix.wtf/peter-broda-wordlist.txt';
+    localStorage.setItem('grawlix_meta', JSON.stringify(meta));
+  });
+  await page.reload();
+  await page.evaluate(() => window.__grawlixTest.whenReady());
+
+  const NEW_URL = 'https://grawlix.wtf/wordlists/peter-broda-wordlist.txt';
+  const live = await page.evaluate(() => state.sources.find(w => w.name === 'Relo')?.url);
+  expect(live).toBe(NEW_URL);
+
+  const stored = await page.evaluate(() => {
+    const meta = JSON.parse(localStorage.getItem('grawlix_meta'));
+    return meta.find(w => w.name === 'Relo').url;
+  });
+  expect(stored).toBe(NEW_URL);
+});
+
 test('an old v9 store migrates forward on boot and stamps the new version', async ({ page }) => {
   // Downgrade a freshly-seeded meta to a v9 shape so the reload drives the real
   // load-path migration, not a direct migrateSettings call (the first test's job).

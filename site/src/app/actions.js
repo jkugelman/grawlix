@@ -23,7 +23,7 @@ import {
   lsLoad, idbGet, idbPut, Storage, openDB, resetAllDataAndReload,
 } from '../data/storage.js';
 import {
-  SCHEMA_VERSION, canMigrate, migrateLocalStorage,
+  SCHEMA_VERSION, canMigrate, migrateLocalStorage, remapStoredUrls,
 } from '../data/migrations.js';
 import {
   serializeEntries, sortedEntries, getOutputFormat,
@@ -165,6 +165,7 @@ export async function init() {
 
   const meta = Storage.readMeta();
   if (meta) {
+    if (remapStoredUrls(meta)) Storage.writeMeta(meta);
     try {
       state.sources = await Promise.all(meta.map(async m => {
         const m2 = { ...m, dbKey: m.dbKey || newDbKey() };

@@ -105,6 +105,14 @@ Wrinkles to weigh when we pick a direction:
 
 No solution yet; this is documented so future-us recognizes it as distinct from a schema bump rather than reaching for the version counter again.
 
+## Remapping moved URLs
+
+The general divergence above stays unsolved, but one specific, safe slice of it *is* handled: a hosted wordlist file **moving to a new path** under the same host (e.g. the three grawlix.wtf-hosted lists moving from the site root into `wordlists/`). The file's contents and the stored `meta` shape are identical; only the `url` string drifted. `URL_REMAPS` in `site/src/core/constants.js` is an append-only list of `{ from, to }` pairs, and `remapStoredUrls(meta)` (in `migrations.js`) rewrites any stored `wordlist.url` that *exactly* equals a `from`. It runs from `init()` on **every** boot — deliberately *not* through `MIGRATIONS`, because a relocated file trips no version mismatch and so a version-gated fixup would never reach users already on the current schema — and persists only when it actually rewrote something, so an affected user pays one localStorage write the first boot after a move and nothing thereafter.
+
+Why this is safe where the general `url` propagation above is not: a remap only touches a `url` that *already equals* the old value. A user who imported a file (clearing `url`) has nothing to match, so their choice isn't clobbered; a source already auto-fetching from the old path is simply repointed, tripping no *new* download. It sidesteps every wrinkle the propagation problem carries — which is exactly why relocation can be automated while "give a publisher a `url` it never had" and "add a new publisher" can't.
+
+To relocate a file: move it, update the `url` on its publisher in `WORDLIST_PUBLISHERS`, and append the old→new pair to `URL_REMAPS`. The table is applied in array order and chains — a user stuck at `A` walks `A→B→C` in one pass when both pairs are present — so always *append*; never rewrite or reorder existing entries, or you strand users several moves behind. Unlike a `SCHEMA_VERSION` step, a remap needs no version bump and no frozen fixture: it carries no shape, so it can't silently corrupt data the way a buggy migration can. A plain before→after unit test plus one boot-integration test (both in the migration suites) is enough.
+
 ## The runner
 
 `MIGRATIONS` (in `site/src/data/migrations.js` near `SCHEMA_VERSION`) maps a *from* version to a step that mutates a settings blob in place. `canMigrate(from)` checks every step from `from` up to current exists; `migrateSettings(blob, from)` walks them. One adapter drives it:

@@ -3,6 +3,7 @@
 // ─── Migrations ─────────────────────────────────────────────────────────────
 
 import { Storage } from './storage.js';
+import { URL_REMAPS } from '../core/constants.js';
 
 // Bump when the shape of stored data (localStorage `meta` or IDB entries)
 // changes, and register a MIGRATIONS[N] step in the same commit: a bump without
@@ -37,6 +38,24 @@ export function canMigrate(from) {
 export function migrateSettings(blob, from) {
   for (let v = from; v < SCHEMA_VERSION; v++) MIGRATIONS[v](blob); // canMigrate(from) must hold
   return blob;
+}
+
+// ─── URL remaps ─────────────────────────────────────────────────────────────
+//
+// Rewrites a source meta's `url` when a hosted wordlist relocates. Runs every
+// boot rather than through MIGRATIONS: a relocated file leaves the stored shape
+// unchanged, so the version check never fires and a version-gated fixup would
+// silently never reach users already on the current schema.
+export function remapStoredUrls(sourceMetas, remaps = URL_REMAPS) {
+  let changed = false;
+  for (const m of sourceMetas || []) {
+    if (!m.url) continue;
+    // Re-test, don't break: chains forward (A→B then B→C) for a far-behind user.
+    for (const { from, to } of remaps) {
+      if (m.url === from) { m.url = to; changed = true; }
+    }
+  }
+  return changed;
 }
 
 export function migrateLocalStorage(from) {
