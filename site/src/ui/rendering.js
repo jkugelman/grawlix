@@ -247,9 +247,6 @@ export function mountPanel(panel) {
   // direct listener after the first sort.
   stickyStack.addEventListener('click', onSortHeaderActivate);
   stickyStack.addEventListener('keydown', onSortHeaderActivate);
-  document.getElementById('entries-table-panel').addEventListener('animationstart', e => {
-    if (e.animationName === 'pipeline-room') _signalFirstPaint();
-  });
 }
 
 // histEntries stays the pre-score-range set (not the filtered statsEntries) so the
@@ -406,9 +403,9 @@ export async function renderMergedDetail() {
     entriesScroller.setEntries(result, result.atomCount, chainSortTier(ToolStack.getStack()));
     ToolStack.refreshErrorMarks();
   } finally {
-    // In `finally` so a thrown/aborted pipeline still dismisses the splash
-    // screen — otherwise a broken tool in the boot URL strands the user on
-    // a forever-spinning overlay with no error in sight.
+    // Sole firstPaint signal — gating on the real result (not an early timer)
+    // holds the splash through the worker round-trip instead of flashing an
+    // empty spinner; in `finally` so a broken boot-URL tool still dismisses it.
     _signalFirstPaint();
   }
 }
