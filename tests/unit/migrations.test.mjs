@@ -1,9 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { extract } from './support/extract.mjs';
-
-const { canMigrate, migrateSettings, SCHEMA_VERSION } =
-  extract('migrations', ['canMigrate', 'migrateSettings', 'SCHEMA_VERSION']);
+import { canMigrate, migrateSettings, SCHEMA_VERSION } from '../../site/src/data/migrations.js';
 
 test('v9 → v10 rewrites the dropped "ignore" rescore output to "0"', () => {
   const blob = {

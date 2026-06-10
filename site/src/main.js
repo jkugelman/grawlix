@@ -42,6 +42,21 @@ import {
   invalidatePreSearchCache, applyScoreRangeToRows,
   bottomLineAtoms, rowSetAtoms, rowLastEntry,
 } from './engine/executor.js';
+import {
+  sources$, cacheVersion$, bumpCacheVersion,
+  state, wrapWordlist, newDbKey,
+} from './data/state.js';
+import {
+  lsSave, lsLoad, lsDel,
+  getDb, openDB, idbPut, idbGet, idbDel,
+  Storage, resetAllDataAndReload,
+} from './data/storage.js';
+import {
+  SCHEMA_VERSION, canMigrate, migrateSettings, migrateLocalStorage,
+} from './data/migrations.js';
+import {
+  serializeEntries, sortedEntries, getOutputFormat, setOutputFormat,
+} from './data/serialize.js';
 
 const scopeKey = scope => scope === MERGED_ID ? MERGED_ID : scope.dbKey;
 let _mergedIcon = null;
@@ -940,236 +955,6 @@ const Router = (() => {
 
   return { navigate, applyURL };
 })();
-
-// ─── State ────────────────────────────────────────────────────────────────────
-
-// Default tier labels for the unified score scale. Stored on `state.scoring`
-// and surfaced as a read/write legend on the merged All Wordlists view.
-//
-// Top-level state. `sources$` is the array of wordlists, signal-backed so
-// the cosmetic effect can subscribe; reorder/add/remove call `sources$.bump()`
-// after splicing (signal equality is by reference, so plain mutation needs a
-// bump).
-const sources$ = signal([]);
-
-// `cacheVersion$` is bumped whenever the imperative caches change (full
-// invalidation or in-place patch). The render effect subscribes to it so
-// cache-impacting changes trigger a repaint without manual dispatch.
-const cacheVersion$ = signal(0);
-function bumpCacheVersion() { cacheVersion$.set(cacheVersion$.peek() + 1); }
-
-// Reads through `state.sources` are non-subscribing (peek). Effects that
-// need to re-run on changes read the underlying signal explicitly with
-// `.get()`. This keeps the imperative call sites unchanged while preventing
-// accidental over-subscription from incidental reads inside effects.
-const state = {
-  get sources()  { return sources$.peek(); },
-  set sources(v) { sources$.set(v); },
-  // Tier labels for the unified score scale. Single source of truth for what
-  // each score range means to the user; edited from All Wordlists' pane and used
-  // everywhere scores get a tooltip. No signal — mutators call
-  // `persistScoring()` and `renderScoringRules()` explicitly.
-  scoring: [],
-  // True when state.scoring has been customized away from DEFAULT_SCORING.
-  // Drives `propagateDefaults` at boot (pristine users silently pick up dev
-  // updates) and the "Reset to defaults" button visibility.
-  scoringDirty: false,
-  selected: MERGED_ID,
-};
-
-// Per-wordlist cosmetic fields are signal-backed: each wordlist exposes both
-// `wl.name`/`wl.icon`/etc. (peek getter, set setter) and `wl.name$`/`wl.icon$`
-// for explicit subscriptions. The cosmetic effect subscribes to all four
-// across every wordlist.
-//
-// Cache-affecting fields (`enabled`, `rescoreRules`, `rawEntries`) and
-// transient fields (`_loading`, `_updateAvailable`, `lastUpdated`, etc.) are
-// plain properties: their mutation goes through a helper that handles the
-// invalidation/persistence/dispatch explicitly. See "Mutation helpers" below.
-const REACTIVE_WORDLIST_FIELDS = ['name', 'icon', 'url', 'publisherId'];
-
-function wrapWordlist(wl) {
-  if (wl.name$) return wl;  // already wrapped
-  for (const field of REACTIVE_WORDLIST_FIELDS) {
-    const sig = signal(wl[field]);
-    delete wl[field];
-    Object.defineProperty(wl, field + '$', { value: sig });
-    Object.defineProperty(wl, field, {
-      get() { return sig.peek(); },
-      set(v) { sig.set(v); },
-      enumerable: true,
-      configurable: false,
-    });
-  }
-  return wl;
-}
-
-// ─── Storage ──────────────────────────────────────────────────────────────────
-
-function lsSave(key, value) {
-  try { localStorage.setItem(LS_PREFIX + key, value); return true; }
-  catch { return false; }
-}
-function lsLoad(key) { return localStorage.getItem(LS_PREFIX + key); }
-function lsDel(key)  { localStorage.removeItem(LS_PREFIX + key); }
-
-// Bump when the shape of stored data (localStorage `meta` or IDB entries)
-// changes, and register a MIGRATIONS[N] step in the same commit: a bump without
-// one routes every existing user to the reset floor. See docs/migration.md.
-//
-// Schema version history:
-//   ≤9: pre-migration-policy baseline; a store this old hits the reset floor.
-//   v10 (2026-06-06): dropped the 'ignore' rescore output; rules that output
-//                     'ignore' rewrite to '0'.
-// #region nodetest:migrations
-const SCHEMA_VERSION = 10;
-
-// MIGRATIONS[v] upgrades a settings blob from schema v to v+1, mutating it in
-// place (a returned value is ignored). The blob is the
-// { sources, scoring, scoringDirty, mergedSettings } shape that migrateLocalStorage
-// assembles from the separate localStorage keys; migrations target that, never raw storage.
-const MIGRATIONS = {
-  9: blob => {
-    for (const w of blob.sources || []) {
-      for (const r of w.rescoreRules || []) {
-        if ((r.output || '').trim().toLowerCase() === 'ignore') r.output = '0';
-      }
-    }
-  },
-};
-
-function canMigrate(from) {
-  if (!Number.isFinite(from) || from > SCHEMA_VERSION) return false;
-  for (let v = from; v < SCHEMA_VERSION; v++) if (!MIGRATIONS[v]) return false;
-  return true;
-}
-
-function migrateSettings(blob, from) {
-  for (let v = from; v < SCHEMA_VERSION; v++) MIGRATIONS[v](blob); // canMigrate(from) must hold
-  return blob;
-}
-// #endregion nodetest:migrations
-
-// IndexedDB for large wordlist data (localStorage has ~5MB limit)
-const IDB_NAME  = 'grawlix';
-const IDB_STORE = 'data';
-let _db = null;
-
-async function resetAllDataAndReload() {
-  await Storage.reset();
-  location.reload();
-  // location.reload() is asynchronous — JS keeps running until the navigation
-  // actually fires. Block the caller so it can't re-persist the state we just
-  // wiped (init() in particular would write a fresh `meta` back to localStorage
-  // and leave the SCHEMA_VERSION warning re-armed for the next load).
-  await new Promise(() => {});
-}
-
-function openDB() {
-  return new Promise((resolve, reject) => {
-    const req = indexedDB.open(IDB_NAME, 1);
-    req.onupgradeneeded = e => e.target.result.createObjectStore(IDB_STORE);
-    req.onsuccess = e => { _db = e.target.result; resolve(); };
-    req.onerror   = () => reject(req.error);
-  });
-}
-
-function idbPut(key, val) {
-  return new Promise(resolve => {
-    const tx = _db.transaction(IDB_STORE, 'readwrite');
-    tx.objectStore(IDB_STORE).put(val, key);
-    tx.oncomplete = resolve;
-    tx.onerror    = resolve;
-  });
-}
-
-function idbGet(key) {
-  return new Promise(resolve => {
-    const tx  = _db.transaction(IDB_STORE, 'readonly');
-    const req = tx.objectStore(IDB_STORE).get(key);
-    req.onsuccess = () => resolve(req.result ?? null);
-    req.onerror   = () => resolve(null);
-  });
-}
-
-function idbDel(key) {
-  return new Promise(resolve => {
-    const tx = _db.transaction(IDB_STORE, 'readwrite');
-    tx.objectStore(IDB_STORE).delete(key);
-    tx.oncomplete = resolve;
-    tx.onerror    = resolve;
-  });
-}
-
-// Opaque IDB key. Avoids crypto.randomUUID because WebKit gates it on
-// secure contexts, which breaks local-network mobile testing over HTTP.
-function newDbKey() {
-  const hex = (n) => Array.from({ length: n }, () => Math.floor(Math.random() * 16).toString(16)).join('');
-  return `${hex(8)}-${hex(4)}-${hex(4)}-${hex(4)}-${hex(12)}`;
-}
-
-const Storage = {
-  schemaVersion() { const v = parseInt(lsLoad('schemaVersion'), 10); return Number.isFinite(v) ? v : null; },
-  setSchemaVersion(v) { lsSave('schemaVersion', String(v)); },
-  hasData() { return lsLoad('meta') !== null; },
-
-  readMeta() {
-    const raw = lsLoad('meta');
-    if (!raw) return null;
-    try { return JSON.parse(raw); }
-    catch { return null; }
-  },
-  writeMeta(sources) { lsSave('meta', JSON.stringify(sources)); },
-
-  readScoring() {
-    const raw = lsLoad('scoring');
-    if (!raw) return null;
-    try { return { scoring: JSON.parse(raw), dirty: lsLoad('scoringDirty') === '1' }; }
-    catch { return null; }
-  },
-  writeScoring(scoring, dirty) {
-    lsSave('scoring', JSON.stringify(scoring));
-    lsSave('scoringDirty', dirty ? '1' : '0');
-  },
-
-  readMergedSettings() {
-    try { return JSON.parse(lsLoad('mergedSettings')) || {}; }
-    catch { return {}; }
-  },
-  writeMergedSettings(s) { lsSave('mergedSettings', JSON.stringify(s)); },
-
-  async readWordlist(wordlist) { return idbGet('data_' + wordlist.dbKey); },
-  async writeWordlist(wordlist, text) { await idbPut('data_' + wordlist.dbKey, text); },
-  async deleteWordlist(wordlist) { await idbDel('data_' + wordlist.dbKey); },
-
-  async reset() {
-    Object.keys(localStorage).filter(k => k.startsWith(LS_PREFIX)).forEach(k => localStorage.removeItem(k));
-    if (_db) { _db.close(); _db = null; }
-    await new Promise(resolve => {
-      const req = indexedDB.deleteDatabase(IDB_NAME);
-      req.onsuccess = resolve;
-      req.onerror   = resolve;
-      req.onblocked = resolve;
-    });
-  },
-};
-
-function migrateLocalStorage(from) {
-  const scoring = Storage.readScoring();
-  const blob = {
-    sources:        Storage.readMeta(),
-    scoring:        scoring?.scoring ?? null,
-    scoringDirty:   scoring?.dirty ?? false,
-    mergedSettings: Storage.readMergedSettings(),
-  };
-  try { migrateSettings(blob, from); }
-  catch (err) { console.error('migration failed', err); return false; }
-  Storage.writeMeta(blob.sources);
-  if (blob.scoring) Storage.writeScoring(blob.scoring, blob.scoringDirty);
-  Storage.writeMergedSettings(blob.mergedSettings);
-  Storage.setSchemaVersion(SCHEMA_VERSION);
-  return true;
-}
 
 // ─── Disk sync (per-list file sync) ───────────────────────────────────────────
 
@@ -2737,54 +2522,6 @@ function ensureScoring() {
   persistScoring();
 }
 
-const AS_IS_FORMAT = { spaces: true, punctuation: true, accents: true, comments: true };
-
-function formatEntryText(e, fmt) {
-  let s = e.display ?? e.norm;
-  if (!fmt.accents)     s = stripAccents(s);
-  if (!fmt.spaces)      s = s.replace(/\s+/g, '');
-  if (!fmt.punctuation) s = s.replace(/[^\p{L}\p{N}\s]/gu, '');
-  return s;
-}
-
-function serializeEntries(entries, fmt = AS_IS_FORMAT) {
-  const transforming = !fmt.spaces || !fmt.punctuation || !fmt.accents;
-  let lines;
-  if (transforming) {
-    // formatEntryText is many-to-one under stripping (café/cafe, the IRS/theirs);
-    // collapse or the output file gets duplicate, conflicting entry lines.
-    const byText = new Map();
-    for (const e of entries) {
-      const text = formatEntryText(e, fmt);
-      const cur = byText.get(text);
-      if (!cur) byText.set(text, { text, score: e.score, comments: e.comment ? [{ comment: e.comment, score: e.score }] : [] });
-      else {
-        cur.score = Math.max(cur.score, e.score);
-        if (e.comment) cur.comments.push({ comment: e.comment, score: e.score });
-      }
-    }
-    lines = [...byText.values()].map(({ text, score, comments }) => {
-      if (!fmt.comments || !comments.length) return `${text};${score}`;
-      const combined = [...new Set(comments.sort((a, b) => b.score - a.score).map(c => c.comment))].join(' / ');
-      return `${text};${score};${combined}`;
-    });
-  } else {
-    lines = entries.map(e => {
-      const head = e.display ?? e.norm;
-      return (fmt.comments && e.comment) ? `${head};${e.score};${e.comment}` : `${head};${e.score}`;
-    });
-  }
-  return lines.join('\n') + (lines.length ? '\n' : '');
-}
-
-function getOutputFormat() {
-  return { ...AS_IS_FORMAT, ...(Storage.readMergedSettings().outputFormat || {}) };
-}
-
-function setOutputFormat(fmt) {
-  Storage.writeMergedSettings({ ...Storage.readMergedSettings(), outputFormat: fmt });
-}
-
 let _regenInFlight = false, _regenAgain = false;
 // My Edits is excluded — its file is always written as-is, never output-format-
 // stripped; including it here would silently destroy the user's rich entries.
@@ -2802,10 +2539,6 @@ async function regenerateFillOutputs() {
       if (syncTargets.has(MERGED_ID)) await MirrorSync._flush(MERGED_ID);
     } while (_regenAgain);
   } finally { _regenInFlight = false; }
-}
-
-function sortedEntries(entries) {
-  return [...entries].sort((a, b) => a.norm.localeCompare(b.norm));
 }
 
 async function persistEdits(edits) {
@@ -8508,7 +8241,7 @@ function exposeWindowGlobals() {
   window.__grawlixTest = __grawlixTest;
   // `_db` is reassigned after openDB() resolves; a static copy would freeze at its
   // boot-time null, so the suite (which polls `_db !== null`) needs a live read.
-  Object.defineProperty(window, '_db', { get: () => _db, configurable: true });
+  Object.defineProperty(window, '_db', { get: () => getDb(), configurable: true });
 }
 
 function mountSplitMenuDismiss() {
