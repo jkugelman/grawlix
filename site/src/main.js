@@ -29,7 +29,7 @@ import {
 } from './engine/segmenter.js';
 import { computeStatsRaw, invalidateStatsCache } from './engine/stats.js';
 import {
-  getHistogramLayout, bucketCounts, slotIntersectsRange,
+  bucketCounts, slotIntersectsRange,
   invalidateHistogramLayout,
 } from './engine/histogram.js';
 import {
@@ -44,7 +44,7 @@ import {
 } from './engine/executor.js';
 import {
   sources$, cacheVersion$, bumpCacheVersion,
-  state, wrapWordlist, newDbKey,
+  state, wrapWordlist, newDbKey, syncKey,
 } from './data/state.js';
 import {
   lsSave, lsLoad, lsDel,
@@ -65,6 +65,15 @@ import {
   maybeAutoSeedRescoreRules, reconcileEditsRulesAfterImport, makeRescoreRuleStub,
   getRescoredEntries, getRescoredByNorm, invalidateRescoredCache,
 } from './data/rescoring.js';
+import {
+  buildMergedWordlist, getActiveCorpus, mergeKey, mergedRowsForNorm,
+  invalidateSourceCounts, getSourceCounts, peekMergedCache, dropScopedCorpus,
+  snapshotMergedBuckets, patchMergedForNorms, _mergedStatsKey,
+} from './data/merge.js';
+import {
+  scopedHistogramLayout, allSourcesHistogramLayout,
+} from './data/derived.js';
+import { invalidateWordlistCaches } from './data/invalidate.js';
 
 const scopeKey = scope => scope === MERGED_ID ? MERGED_ID : scope.dbKey;
 let _mergedIcon = null;
@@ -977,7 +986,6 @@ const MIRROR_WRITE_DELAY      = 500;
 const syncTargets = new Map();
 const syncStatus  = new Map();
 
-function syncKey(list)       { return list === MERGED_ID ? MERGED_ID : list.dbKey; }
 function isMirrorList(list)  { return list === MERGED_ID || list.type !== 'edits'; }
 function editsSyncKey()      { const e = getEditsWordlist(); return e ? e.dbKey : null; }
 function listForSyncKey(key) { return key === MERGED_ID ? MERGED_ID : state.sources.find(s => s.dbKey === key) || null; }
@@ -1956,8 +1964,7 @@ const WordlistSelector = (() => {
   }
 
   function buildContribMap() {
-    if (!_sourceCountsCache) _sourceCountsCache = buildMergedWordlist().sourceCounts;
-    return new Map(_sourceCountsCache.map(s => [s.wordlist, s.count]));
+    return new Map(getSourceCounts().map(s => [s.wordlist, s.count]));
   }
 
   function renderMenu() {
@@ -2623,45 +2630,6 @@ async function clearEdits() {
     repaintAfterCacheChange();
   });
   await persistEdits(edits);
-}
-
-// ─── Stats ────────────────────────────────────────────────────────────────────
-
-const _mergedStatsKey = {};
-let _sourceCountsCache = null;
-let _mergedWordlistCache = null;
-let _scopedWordlistCache = new Map();
-
-function invalidateSourceCounts() {
-  _sourceCountsCache = null;
-  _mergedWordlistCache = null;
-  _scopedWordlistCache.clear();
-  invalidatePreSearchCache();
-  invalidateHistogramLayout();
-}
-function invalidateWordlistCaches(wordlist) {
-  invalidateRescoredCache(wordlist);
-  invalidateStatsCache(wordlist);
-  invalidateSourceCounts();
-  invalidateStatsCache(_mergedStatsKey);
-}
-
-// ─── Histogram layout ─────────────────────────────────────────────────────────
-
-function* allSourcesScores() {
-  for (const wl of state.sources) yield* getRescoredEntries(wl);
-}
-
-function scopedHistogramLayout() {
-  const scoreSource = state.selected === MERGED_ID ? allSourcesScores() : getActiveCorpus().entries;
-  return getHistogramLayout(scoreSource, 'scoped:' + syncKey(state.selected));
-}
-
-// A fixed all-sources axis, used by scoreColor's badge gradient: pointing it at
-// the scoped axis would shift badge colors on every scope change, a
-// regression no error would surface.
-function allSourcesHistogramLayout() {
-  return getHistogramLayout(allSourcesScores(), 'all');
 }
 
 // ─── Score colors ─────────────────────────────────────────────────────────────
@@ -5147,24 +5115,24 @@ function wordlistCardMeta(wordlist, contribMap) {
     : `${used.toLocaleString()} of ${pluralize(total, 'entry', 'entries')} used`;
 }
 
-// Reads `_sourceCountsCache` for "X used" meta — populated lazily here when
-// missing, so cosmetic-effect callers don't crash if a cache-affecting helper
-// invalidated the merged cache earlier in the same drain. The render effect's
-// cache branch has already rebuilt by the time it calls renderSources, so the
-// lazy path is only hit when no cache rebuild is in flight.
+// Warms the source-count cache for "X used" meta so cosmetic-effect callers
+// don't crash if a cache-affecting helper invalidated the merged cache earlier
+// in the same drain. The render effect's cache branch has already rebuilt by the
+// time it calls renderSources, so the lazy path is only hit when no cache
+// rebuild is in flight.
 function renderSources() {
-  if (!_sourceCountsCache) _sourceCountsCache = buildMergedWordlist().sourceCounts;
+  getSourceCounts();
 }
 
 
-// Pure cache rebuild — invalidate merged/override/stats caches and re-warm
-// `_sourceCountsCache` so the next renderSources sees fresh meta. Does no
-// rendering itself; the render effect's cache branch calls this and then
-// `renderSources` to paint with the rebuilt counts.
+// Pure cache rebuild — invalidate merged/override/stats caches and re-warm the
+// source counts so the next renderSources sees fresh meta. Does no rendering
+// itself; the render effect's cache branch calls this and then `renderSources`
+// to paint with the rebuilt counts.
 function refreshSourceCounts() {
   invalidateSourceCounts();
   invalidateStatsCache(_mergedStatsKey);
-  _sourceCountsCache = buildMergedWordlist().sourceCounts;
+  getSourceCounts();
 }
 
 function createScroller() {
@@ -7087,7 +7055,7 @@ function applyEditsChange(edits, norms, mutate) {
   patchMergedForNorms(snap);
   // When scoped to My Edits itself, its own view must rebuild to reflect the edit
   // (other scoped sources show only their own data, so they're unaffected).
-  if (state.selected !== MERGED_ID) _scopedWordlistCache.delete(state.selected);
+  if (state.selected !== MERGED_ID) dropScopedCorpus(state.selected);
   refreshDerivedDisplays();
 }
 
@@ -7097,174 +7065,6 @@ function applyEditsChange(edits, norms, mutate) {
 function refreshDerivedDisplays() {
   WordlistSelector.refreshMeta();
   renderScoringRules();
-}
-
-// `sourceList[0]` is highest priority; winner resolution depends on it.
-function bucketContributors(sourceList) {
-  const buckets = new Map();
-  for (const wordlist of sourceList) {
-    for (const wlE of getRescoredEntries(wordlist)) {
-      let b = buckets.get(wlE.norm);
-      if (!b) buckets.set(wlE.norm, b = { contributors: [], displays: new Set() });
-      b.contributors.push({ wordlist, score: wlE.score, rawScore: wlE.rawScore, comment: wlE.comment || '', display: wlE.display });
-      if (wlE.display != null) b.displays.add(wlE.display);
-    }
-  }
-  return buckets;
-}
-
-// #region nodetest:merge
-function resolveCorpus(buckets, sourceList) {
-  const entries = [];
-  const byNorm = new Map();
-  const byKey = new Map();
-  const sourceCountMap = new Map();
-  for (const [norm, { contributors, displays }] of buckets) {
-    const variants = displays.size > 0 ? [...displays].sort() : [null];
-    const countedContributors = new Set();
-    for (const variant of variants) {
-      const eligible = c => c.display === variant || c.display === null;
-      const winner = contributors.find(eligible);
-      if (!winner) continue;
-      const commenter = contributors.find(c => eligible(c) && c.comment) ?? winner;
-      const row = { norm, display: variant, score: winner.score, rawScore: winner.rawScore, comment: commenter.comment, wordlist: winner.wordlist };
-      entries.push(row);
-      if (!byNorm.has(norm)) byNorm.set(norm, row);
-      byKey.set(mergeKey(norm, variant), row);
-      if (!countedContributors.has(winner)) {
-        countedContributors.add(winner);
-        sourceCountMap.set(winner.wordlist, (sourceCountMap.get(winner.wordlist) || 0) + 1);
-      }
-    }
-  }
-
-  entries.sort((a, b) => a.norm.localeCompare(b.norm)
-    || (a.display ?? '').localeCompare(b.display ?? ''));
-
-  const sourceCounts = sourceList.map(wl => ({ wordlist: wl, count: sourceCountMap.get(wl) || 0 }));
-
-  return { entries, sourceCounts, byNorm, byKey };
-}
-// #endregion nodetest:merge
-
-function buildMergedWordlist() {
-  if (_mergedWordlistCache) return _mergedWordlistCache;
-  const enabled = state.sources.filter(wl => wl.enabled);
-  _mergedWordlistCache = resolveCorpus(bucketContributors(enabled), enabled);
-  return _mergedWordlistCache;
-}
-
-// Built independent of source.enabled so a disabled source stays viewable when
-// it's the scope.
-function buildScopedCorpus(source) {
-  const cached = _scopedWordlistCache.get(source);
-  if (cached) return cached;
-  const corpus = resolveCorpus(bucketContributors([source]), [source]);
-  _scopedWordlistCache.set(source, corpus);
-  return corpus;
-}
-
-function getActiveCorpus() {
-  return state.selected === MERGED_ID ? buildMergedWordlist() : buildScopedCorpus(state.selected);
-}
-
-// #region nodetest:merge
-function mergeKey(norm, display) {
-  return norm + '\0' + (display ?? '');
-}
-// #endregion nodetest:merge
-
-// Must reproduce buildMergedWordlist's per-bucket logic exactly — including
-// deduping winners by contributor, not wordlist — or the merged cache drifts
-// silently on the next edit.
-function computeMergedBucket(norm) {
-  const contributors = [];
-  const displays = new Set();
-  for (const wl of state.sources) {
-    if (!wl.enabled) continue;
-    const arr = getRescoredByNorm(wl).get(norm);
-    if (!arr) continue;
-    for (const e of arr) {
-      contributors.push({ wordlist: wl, score: e.score, comment: e.comment || '', display: e.display });
-      if (e.display != null) displays.add(e.display);
-    }
-  }
-  const rows = [];
-  const winners = [];
-  const counted = new Set();
-  const variants = displays.size > 0 ? [...displays].sort() : [null];
-  for (const variant of variants) {
-    const eligible = c => c.display === variant || c.display === null;
-    const winner = contributors.find(eligible);
-    if (!winner) continue;
-    const commenter = contributors.find(c => eligible(c) && c.comment) ?? winner;
-    rows.push({ norm, display: variant, score: winner.score, comment: commenter.comment, wordlist: winner.wordlist });
-    if (!counted.has(winner)) { counted.add(winner); winners.push(winner.wordlist); }
-  }
-  rows.sort((a, b) => (a.display ?? '').localeCompare(b.display ?? ''));
-  return { rows, winners };
-}
-
-// #region nodetest:merge
-function mergedNormLowerBound(entries, norm) {
-  let lo = 0, hi = entries.length;
-  while (lo < hi) {
-    const mid = (lo + hi) >> 1;
-    if (entries[mid].norm.localeCompare(norm) < 0) lo = mid + 1;
-    else hi = mid;
-  }
-  return lo;
-}
-
-function mergedRowsForNorm(merged, norm) {
-  const { entries } = merged;
-  const rows = [];
-  for (let i = mergedNormLowerBound(entries, norm); i < entries.length && entries[i].norm === norm; i++) {
-    rows.push(entries[i]);
-  }
-  return rows;
-}
-// #endregion nodetest:merge
-
-// Must run BEFORE My Edits is mutated: patchMergedForNorms diffs these winners
-// against the post-mutation ones, so a snapshot taken too late drifts the
-// source counts with no error.
-function snapshotMergedBuckets(norms) {
-  if (!_mergedWordlistCache) return null;
-  const snap = new Map();
-  for (const norm of norms) snap.set(norm, computeMergedBucket(norm).winners);
-  return snap;
-}
-
-// `_initialChains` is parallel to `entries`, so it must take the same splice —
-// otherwise the pipeline keeps seeding from rows that no longer exist.
-function patchMergedForNorms(snap) {
-  const cache = _mergedWordlistCache;
-  if (!cache || !snap) return;
-  const { entries, byNorm, byKey, sourceCounts } = cache;
-  const chains = cache._initialChains;
-  const countDelta = new Map();
-  for (const [norm, beforeWinners] of snap) {
-    const lo = mergedNormLowerBound(entries, norm);
-    let hi = lo;
-    while (hi < entries.length && entries[hi].norm === norm) hi++;
-    for (let i = lo; i < hi; i++) byKey.delete(mergeKey(norm, entries[i].display));
-
-    const { rows, winners } = computeMergedBucket(norm);
-    entries.splice(lo, hi - lo, ...rows);
-    if (chains) chains.splice(lo, hi - lo, ...rows.map(r => ({ atoms: [{ wlEntry: r, highlights: null, glyph: null }] })));
-    for (const r of rows) byKey.set(mergeKey(norm, r.display), r);
-    if (rows.length) byNorm.set(norm, rows[0]); else byNorm.delete(norm);
-
-    for (const wl of beforeWinners) countDelta.set(wl, (countDelta.get(wl) || 0) - 1);
-    for (const wl of winners)       countDelta.set(wl, (countDelta.get(wl) || 0) + 1);
-  }
-  for (const [wl, d] of countDelta) {
-    if (!d) continue;
-    const sc = sourceCounts.find(s => s.wordlist === wl);
-    if (sc) sc.count += d;
-    else sourceCounts.push({ wordlist: wl, count: d });
-  }
 }
 
 function downloadMergedWordlistFromPanel() {
@@ -7862,7 +7662,7 @@ const __grawlixTest = {
   // (in-place patch). A full rebuild — the regression we guard against —
   // discards the object and the stamp with it.
   markMergedCache(tag) { buildMergedWordlist()._testTag = tag; },
-  mergedCacheTag() { return _mergedWordlistCache ? (_mergedWordlistCache._testTag ?? null) : null; },
+  mergedCacheTag() { const c = peekMergedCache(); return c ? (c._testTag ?? null) : null; },
 
   // Drive a My Edits upsert/rename through the real saveEdit path — the patch
   // under test — without the popover DOM, so the cache-consistency test can

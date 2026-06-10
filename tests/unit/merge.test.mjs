@@ -1,9 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { extract } from './support/extract.mjs';
-
-const { mergedNormLowerBound, mergedRowsForNorm, resolveCorpus, mergeKey } =
-  extract('merge', ['mergedNormLowerBound', 'mergedRowsForNorm', 'resolveCorpus', 'mergeKey']);
+import {
+  mergedNormLowerBound, mergedRowsForNorm, resolveCorpus, mergeKey,
+} from '../../site/src/data/merge.js';
 
 test('mergeKey: joins norm and display with a NUL separator', () => {
   assert.equal(mergeKey('cat', 'Cat'), 'cat\0Cat');

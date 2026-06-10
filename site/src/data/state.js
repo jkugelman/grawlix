@@ -67,6 +67,8 @@ export function wrapWordlist(wl) {
   return wl;
 }
 
+export function syncKey(list) { return list === MERGED_ID ? MERGED_ID : list.dbKey; }
+
 // Opaque IDB key. Avoids crypto.randomUUID because WebKit gates it on
 // secure contexts, which breaks local-network mobile testing over HTTP.
 export function newDbKey() {

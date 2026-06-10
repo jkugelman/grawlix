@@ -67,6 +67,9 @@ function makeWorkingSetView(rows) {
   };
 }
 
+// Defines the `_initialChains` field and its per-atom shape on the merged cache.
+// data/merge.js's patchMergedForNorms splices this same array, so its atom
+// literal must stay in lockstep with the shape produced here.
 export async function buildInitialChains(mergedWordlist, y) {
   if (mergedWordlist._initialChains) return mergedWordlist._initialChains;
   const { entries } = mergedWordlist;
