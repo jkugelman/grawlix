@@ -4,11 +4,11 @@
 
 Grawlix is a browser-based wordlist manager for crossword constructors. Wordlists in the wild are each scored on their own arbitrary scales, making it hard to combine them. Grawlix solves this with per-wordlist rescoring rules that map everything to a common scale, then merges the results into a single unified view. It ships with curated default rules for four popular wordlists so most users get a good experience out of the box, with full customization available for those who want it.
 
-All code lives in a single file: `site/index.html`. Don't bother searching for other HTML, JS, or CSS files.
+Code lives in ES modules under `site/src/` (`site/index.html` is just the shell; CSS is in `site/css/`). See the *Architecture* section below and [`docs/design.md`](docs/design.md) § *Code structure* for the layout.
 
 `TODO.md` at the repo root is the user's personal scratchpad — never edit it. Reading it is fine but do not touch it.
 
-**Don't smoke-test by running `python -m http.server`.** It's a static HTML file with no build step or templating; serving it locally only verifies that the filesystem can read it, which is theatre. For real verification, syntax-check inline JS with `node ~/.claude/scripts/check-syntax.js site/index.html`, read the diff carefully, and say "I can't visually verify" when that's the truth — visual inspection requires the user's browser. Two test tiers: the Playwright browser suite ([`tests/browser/`](tests/browser/), `npm test`) covers user-visible behavior; a `node:test` unit tier ([`tests/unit/`](tests/unit/), `npm run test:unit`) covers pure logic extracted from `site/index.html` via `// #region nodetest:` markers. See [`docs/testing.md`](docs/testing.md) for what's covered and what isn't. **Don't re-run the suite just to recover results you already have** — the last run is saved under `test-results/` (`.last-run.json` for status + failed-test IDs, one folder per failed test). Read those instead of re-running, and prefer targeted runs (`npx playwright test <file> --project=chromium`) over the full matrix when verifying a fix. Known transient/flaky failures — a per-test tally, root causes, and reproduction — are tracked in [`tests/browser/flaky.md`](tests/browser/flaky.md).
+**Don't smoke-test by running `python -m http.server`.** Serving the module graph locally only verifies that the filesystem can read it, which is theatre. For real verification, syntax-check changed JS modules with `node --check <file>` (the pre-approved `check-syntax.js` is a classic-script parser and can't read ESM), read the diff carefully, and say "I can't visually verify" when that's the truth — visual inspection requires the user's browser. Two test tiers: the Playwright browser suite ([`tests/browser/`](tests/browser/), `npm test`) covers user-visible behavior; a `node:test` unit tier ([`tests/unit/`](tests/unit/), `npm run test:unit`) covers pure logic by importing the engine/data modules directly. See [`docs/testing.md`](docs/testing.md) for what's covered and what isn't. **Run the full matrix against the bundled `dist`** (`GRAWLIX_SITE_DIR=dist npm test`) — a full run against the unbundled `site/` flakes on webkit under the cold-load module waterfall. **Don't re-run the suite just to recover results you already have** — the last run is saved under `test-results/` (`.last-run.json` for status + failed-test IDs, one folder per failed test). Read those instead of re-running, and prefer targeted runs (`npx playwright test <file> --project=chromium`) over the full matrix when verifying a fix. Known transient/flaky failures — a per-test tally, root causes, and reproduction — are tracked in [`tests/browser/flaky.md`](tests/browser/flaky.md).
 
 **For tricky bugs, ask for dev-tools output.** If you're having difficulty reasoning through a complicated bug or feature, write a console snippet and ask the user to paste the result.
 
@@ -17,7 +17,7 @@ All code lives in a single file: `site/index.html`. Don't bother searching for o
 For any feature work, redesign, brainstorming, or structural change — **not** targeted bug fixes or small tweaks — open the docs that touch the area before proposing or implementing. Adjacent docs may share screen real estate or constrain the answer; treat the topical index below as a checklist, not a suggestion.
 
 Design and manual:
-- [`docs/design.md`](docs/design.md) — present-tense design + whys: shell, the single-screen app view, scope selector, disk sync, tool gallery & stack, entries table, URL state, caches & reactivity, non-features.
+- [`docs/design.md`](docs/design.md) — present-tense design + whys: shell, the single-screen app view, scope selector, disk sync, tool gallery & stack, entries table, URL state, code structure (the ES-module layering + dev/prod build), caches & reactivity, non-features.
 - [`docs/manual.md`](docs/manual.md) — user-facing manual. Update when shipping user-facing changes.
 - [`docs/style.md`](docs/style.md) — coding-style conventions: CSS, JS, Markdown, terminology, commit messages. Read before formatting changes.
 - [`docs/testing.md`](docs/testing.md) — two-tier test handbook (Playwright browser suite + `node:test` unit tier) + strategy. Read before adding/modifying tests.
@@ -37,9 +37,26 @@ When a plan ships, run the `distill-design-doc` skill to fold it into `design.md
 
 ## Architecture
 
-One HTML file: `<style>` block, a minimal HTML body (app shell only — no dialog or overlay elements), then one big `<script>` block. No dev build step, no frameworks — plain HTML/CSS/JS that runs directly in the browser. The deploy pipeline minifies the file via `npm run build` (`site/` → `dist/`, run by [`.github/workflows/ci.yml`](.github/workflows/ci.yml)); that's the only build step.
+ES modules under `site/src/`, organized by dependency layer — imports flow strictly **downward**, a lower layer never importing an upper one:
 
-Sections within the `<script>` block are delimited by banner comments like:
+```
+core  <  engine  <  data  <  model  <  ui  <  app
+```
+
+- `core/` — leaf utilities (constants, platform, the signals primitive, string helpers).
+- `engine/` — pure, DOM-free, worker-ready core: norm, range, search/regex, segmenter, the tool catalog (each tool its own `engine/tools/<slug>.js`; `engine/tools.js` is the thin assembler), the executor, pure stats/histogram cores.
+- `data/` — `state` and everything derived from it: storage, migrations, rescoring, merge, derived stats/histogram wrappers, disk-sync, persist, publishers.
+- `model/` — thin band: tier-label logic + state-coupled score-display.
+- `ui/` — components, dialogs, scrollers, rendering.
+- `app/` — router + action dispatcher.
+
+`main.js` is the thin boot entry; `test-api.js` is the only every-layer importer (imported last). `site/index.html` is just the shell (FOUC script + `<link>`s + `<script type="module" src="src/main.js">`); CSS lives in `site/css/`.
+
+**Importing a module only *defines*** — no DOM, no `effect()`, no `window` touch, no cross-layer reach at import time. All side effects run from one ordered `boot()` in `main.js`, whose mount/inject order is a load-bearing contract. Cross-layer calls that would point upward (ui→app, or into a not-yet-available dep) are inverted via `configureX({...})` injection seams wired at boot; disk-sync repaints route through a `syncStatus$` signal rather than calling ui directly. Intra-`ui` circular imports are permitted (the strict rule is cross-layer acyclicity). The whys for all of this live in [`docs/design.md`](docs/design.md) § *Code structure*.
+
+**Dev serves the raw module graph; deploy bundles it.** No build step in the local loop — serve `site/` statically and refresh. `npm run build` runs esbuild from `main.js` into one minified `dist/` bundle (run by [`.github/workflows/ci.yml`](.github/workflows/ci.yml)). CI tests the bundle (`GRAWLIX_SITE_DIR=dist`).
+
+Sections within a module are delimited by banner comments like:
 ```
 // ─── Parsing ──────────────────────────────────────────
 ```
@@ -110,7 +127,7 @@ After completing changes that are ready to commit, always output a suggested com
 ## Coding style
 
 - **Don't over-comment.** Well-named identifiers and short functions do the work; self-explanatory code doesn't need commentary. Comment the **why**, not the **what** — *why* vanishes silently and is expensive to reconstruct. A comment is earned by *stakes*, not by mere non-obviousness: before writing one, ask what breaks if it's missing. If the answer is a glitch someone would spot immediately, or a detail verifiable by looking at the running result — most CSS tuned by eye, a value that just matches a sibling — that's minutia; leave it bare. Reserve comments for what fails silently and is costly to rediscover, and keep them proportional: a clause, never a three-line block over one fiddly value. A hard-to-reconstruct *what* earns a comment only when getting it wrong is also costly — clever alone doesn't qualify.
-- **No inline styles.** Prefer adding CSS to the `<style>` block over `style="..."` attributes on elements.
+- **No inline styles.** Prefer adding CSS to `site/css/` over `style="..."` attributes on elements.
 - **Dark mode and light mode have equal weight.** Don't treat one as the default and the other as an override — both get first-class parallel treatment in the CSS.
 - **"Download" means output only.** Use "download" exclusively for saving a processed wordlist from Grawlix to disk (`downloadMergedWordlistFromPanel`, `downloadIndividualWordlist`, etc.). Use "fetch" for getting a wordlist into Grawlix from a URL (`fetchWordlist`), and "import" for the user loading a file. Template properties that refer to a third-party source page use `sourcePage` / `sourceNote`.
 
@@ -126,7 +143,7 @@ The JS is organized into two patterns:
 
 Every lifecycle component **creates its own DOM element** (`document.createElement(...)`) and appends it to the document at init time. Dialog and overlay elements are **never** baked into the static HTML body — if you're adding a dialog, create it in JS, not in HTML.
 
-All builders live in the `// ─── Components ───` section. Nothing outside a component should reach into its DOM subtree.
+Generic builders live in `ui/components.js`; domain builders live in their consumer module. Nothing outside a component should reach into its DOM subtree.
 
 **Dialog helpers** — `createDialog(id, opts)` returns `{el, body}` and delegates dismiss clicks (backdrop, `.dialog-close-btn`, `.dialog-cancel-btn`) to close the dialog. `showDialog(el, onClose?)` opens the dialog: captures the opener for refocus-on-close, clears `el.returnValue`, runs an optional close callback, and falls back to focusing the dialog body itself when no descendant has `autofocus`. Put `autofocus` on the primary input/button if there is one — otherwise the helper handles initial focus. Don't manually wire backdrop close, dismiss-button onclick, `tabIndex=-1`, or post-`showModal` `.focus()` calls.
 

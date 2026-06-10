@@ -1,8 +1,8 @@
 # Testing
 
-Two tiers. A **Playwright browser suite** ([`tests/browser/`](../tests/browser/)) covers user-visible behaviors whose breakage would survive a manual play-through — silent data corruption, cross-feature regressions, browser-specific quirks; visual and layout regressions stay manual. A **`node:test` unit tier** ([`tests/unit/`](../tests/unit/)) covers pure logic — parsing, rescoring, the 3-way merge, schema migrations — extracted from `site/index.html` and run with no browser, so branchy arithmetic and ordering that's awkward to reach through the DOM gets pinned directly.
+Two tiers. A **Playwright browser suite** ([`tests/browser/`](../tests/browser/)) covers user-visible behaviors whose breakage would survive a manual play-through — silent data corruption, cross-feature regressions, browser-specific quirks; visual and layout regressions stay manual. A **`node:test` unit tier** ([`tests/unit/`](../tests/unit/)) covers pure logic — parsing, rescoring, the 3-way merge, schema migrations — by importing the `engine/` and `data/` modules directly and running them with no browser, so branchy arithmetic and ordering that's awkward to reach through the DOM gets pinned directly.
 
-End-to-end smoke is the right shape for a single-file vanilla-JS app: subtle cross-feature breakage like "editing a score in My Edits patches the merged cache wrong" is exactly what it catches. Targeted tests at the seams beat comprehensive coverage. CI is a passive monitor, not a gate.
+End-to-end smoke is the right shape for this vanilla-JS app: subtle cross-feature breakage like "editing a score in My Edits patches the merged cache wrong" is exactly what it catches. Targeted tests at the seams beat comprehensive coverage. CI is a passive monitor, not a gate.
 
 ## What earns a test
 
@@ -27,7 +27,7 @@ The suite covers what manual testing structurally misses. Manual already catches
 
 **Hybrid setup-via-API, assert-via-DOM.** Constructing the data shapes the tests want (a custom wordlist with three specific scores, an existing wordlist with rules removed, a wordlist with an update available) through pure UI clicks would be slow, brittle, and tied to copy. Pure backend assertions miss what the user actually sees. So tests:
 
-1. Build preconditions via `window.__grawlixTest` — a tiny API exposed by `site/index.html` that wraps real internal helpers (`addNewWordlist`, `applyWordlistText`, `setWordlistRescoreRules`). It's a fixture builder, not a backdoor — the data flows through the same plumbing the UI uses.
+1. Build preconditions via `window.__grawlixTest` — a tiny API (assembled in [`site/src/test-api.js`](../site/src/test-api.js)) that wraps real internal helpers (`addNewWordlist`, `applyWordlistText`, `setWordlistRescoreRules`). It's a fixture builder, not a backdoor — the data flows through the same plumbing the UI uses.
 2. Drive user actions through the real DOM (click cards, type into rule inputs, click reset buttons).
 3. Assert against the DOM by default — the rendered bubbles, banners, badges, and badges-on-badges that the user sees. Fall back to state snapshots via `__grawlixTest.getWordlist()` when the DOM doesn't reasonably expose the thing being asserted (e.g. "which wordlist sourced this entry" lives in `rawEntries`, not visible markup). Never assert something the user can't observe — no private `_isBuggy` hooks.
 
@@ -53,17 +53,16 @@ The suite covers what manual testing structurally misses. Manual already catches
 
 ## Unit tier (`tests/unit/`)
 
-Pure logic — parsing, rescoring, the My Edits 3-way merge, schema migrations — lives in one closure inside `site/index.html`, so it isn't importable. The unit tier extracts it without a build step and without the shipped file changing shape:
+Pure logic — parsing, rescoring, the My Edits 3-way merge, schema migrations — lives in real `engine/` and `data/` modules, so the unit tier just **imports it directly**:
 
-- **Marker-fenced regions.** Pure functions are fenced inline in `site/index.html` with `// #region nodetest:<name>` / `// #endregion nodetest:<name>`. The markers are plain comments — zero runtime effect, they ship verbatim, and `npm run build`'s minifier strips them from `dist/`. A region may be fenced in several blocks to skip a `state`-coupled neighbour mid-section; same-named blocks concatenate in source order.
-- **The harness.** [`tests/unit/support/extract.mjs`](../tests/unit/support/extract.mjs) reads the source (never `dist/` — the markers only exist in source), slices the requested regions, and evaluates them as an IIFE in the host realm via `runInThisContext`. (Not a fresh `vm` context: that gives returned objects a foreign `Object.prototype` that `deepStrictEqual` rejects as "same structure but not reference-equal.") `extract(regions, names)` returns the named functions; pass a `globals` object for any stub a region needs.
+- **Direct imports.** A spec imports the functions under test straight from their module — `import { toNorm } from '../../site/src/engine/norm.js'`, `import { threeWayMergeEdits } from '../../site/src/data/disk-sync.js'`. No extraction harness, no source-text slicing; the `engine/` layer is DOM-free by construction (see [`design.md` § Code structure](design.md#code-structure)), so it loads in plain Node with nothing to stub. The few `data/` functions the unit tier reaches are pure, param-driven entry points (the 3-way merge, migration blob-transformers); anything `state`- or DOM-coupled stays in the browser tier.
 - **The runner.** `node:test` + `node:assert/strict`, no new dependencies. Specs are `tests/unit/*.test.mjs`; run `npm run test:unit` (or `node --test tests/unit/`). CI runs it in the build job, gating the browser matrix.
 
 **What belongs here:** deterministic transforms with no browser-specific behavior — string→string, score mapping, dedup, sort/priority ordering, serialization, the 3-way merge, migration blob-transformers. Especially the branchy paths that are awkward to reach through Playwright: rescore range-output scaling and N+ shift, the rule-priority tie-break with *overlapping* rules, malformed-line parsing, `detectCase`'s ratio threshold.
 
-**What stays in the browser tier:** anything touching `state`, the DOM, persistence, the pipeline, or rendering. When fencing, draw the markers to exclude `state`-reading wrappers (`editsLegend`, `getRescoredEntries`'s cache) — the harness throws a `ReferenceError` if a fenced function reaches outside its region, which is the signal you fenced too much. Schema migrations keep their mandated frozen before→after fixture, now in [`tests/unit/migrations.test.mjs`](../tests/unit/migrations.test.mjs) rather than through the browser.
+**What stays in the browser tier:** anything touching `state`, the DOM, persistence, the pipeline, or rendering — the `state`-reading wrappers (`editsLegend`, `getRescoredEntries`'s cache) and the whole `ui/`/`app/` surface. The layering is the guide: if a function lives in `engine/` or is a pure `data/` transform, it's unit-testable; if importing it would drag in `state` or DOM, it belongs in the browser tier. Schema migrations keep their mandated frozen before→after fixture in [`tests/unit/migrations.test.mjs`](../tests/unit/migrations.test.mjs).
 
-The tool predicates (`TOOLS[*].run/group`) are the next region to extract — they're the largest pure surface but live as methods inside one object literal, so fencing them means co-fencing the registry's helpers (skeletons, `buildSearchPattern`, the corpus); until then their contracts stay in `tests/browser/tools/`.
+The tool predicates (`TOOLS[*].run/group`) are now direct-importable too — each tool is its own `engine/tools/<slug>.js` — but their end-to-end contracts (params, highlights, group behavior) stay in `tests/browser/tools/` where the pipeline runs them against real data.
 
 ## Out of scope
 
@@ -111,7 +110,7 @@ WSL2 on Windows 11 ships with WSLg (X11/Wayland for free), so `npm run test:head
 
 ## `window.__grawlixTest` API
 
-Exposed unconditionally in `site/index.html` (see the *Test API* section near the bottom). Small and stable; routes through real internal codepaths.
+Assembled in [`site/src/test-api.js`](../site/src/test-api.js) — the one module that imports from every layer, loaded last by `main.js`, which assigns `window.__grawlixTest` unconditionally (the assignment survives bundling). Small and stable; routes through real internal codepaths.
 
 | Function | What it does |
 |---|---|
@@ -190,9 +189,11 @@ Playwright's own locator assertions (`expect(locator).toHaveText(...)`, `.toHave
 
 ## CI
 
-GitHub Actions runs the suite on push to `main` only — no PR gating. CI first builds the minified production bundle (`npm run build` → `dist/`) and runs the suite against *that*, not the `site/` source — so a minification-induced break fails the build before it can deploy. The deploy job ships the exact `dist/` artifact the tests ran against. Failed runs upload traces and screenshots as artifacts; download from the run page to inspect.
+GitHub Actions runs the suite on push to `main` only — no PR gating. CI first builds the bundled production artifact (`npm run build` → `dist/`, where esbuild bundles the module graph and minifies) and runs the suite against *that*, not the `site/` source — so a bundling- or minification-induced break fails the build before it can deploy. The deploy job ships the exact `dist/` artifact the tests ran against. Failed runs upload traces and screenshots as artifacts; download from the run page to inspect.
 
-To reproduce the minified build locally: `npm run build`, then `GRAWLIX_SITE_DIR=dist npm test`. Plain `npm test` serves the unminified `site/`.
+To reproduce the bundled build locally: `npm run build`, then `GRAWLIX_SITE_DIR=dist npm test`. Plain `npm test` serves the unbundled `site/` module graph.
+
+**Run the full matrix against `dist`, not `site/`.** Dev serves the raw module graph (~75 small files), and a full `npm test` against `site/` makes every page load waterfall through that graph — which flakes on **webkit** under parallel-worker load (`page.goto` "waiting until load" timeouts). The bundled `dist` is one request, no waterfall, and runs clean. So use `GRAWLIX_SITE_DIR=dist npm test` for the full three-browser matrix (CI does this already); single-browser chromium iteration against `site/` is fine.
 
 ## When a test breaks
 

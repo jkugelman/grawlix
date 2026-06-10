@@ -608,6 +608,74 @@ These are local-only:
 - **Dialogs** (settings, etc.) — transient UI state. Open them how you opened them; close them when you're done.
 - Scroll position, edit-in-progress state, transient popovers.
 
+## Code structure
+
+The app is authored as ES modules under [`site/src/`](../site/src/) — one entry, `main.js`, and a graph of ~75 small modules below it. `site/index.html` is now just a shell: a synchronous `<head>` FOUC script (sets the dark/light class before first paint — it must stay a plain non-module inline script, since module scripts are deferred and would reintroduce the flash), `<link>`s to `css/`, and a single `<script type="module" src="src/main.js">`.
+
+### Layering: imports flow strictly downward
+
+Modules are organized by **dependency layer**, and imports only ever flow *down* — a lower layer never imports an upper one:
+
+```
+core  <  engine  <  data  <  model  <  ui  <  app
+```
+
+- **`core/`** — leaf utilities with no app dependencies: constants, platform detection, the hand-rolled signals primitive, small string helpers.
+- **`engine/`** — the pure, DOM-free, worker-ready core: normalization, ranges, search/regex compilation, the phrase segmenter, the tool catalog (each of the ~23 tools in its own `engine/tools/<slug>.js`, see below), the pipeline executor, and the pure stats/histogram cores. Nothing here touches `document`, `window`, `localStorage`, or `navigator`.
+- **`data/`** — `state` plus *everything derived from it*: storage (IDB + localStorage), schema migrations, rescoring, merge, the state-reading stats/histogram wrappers, disk sync, persistence, publishers. The governing rule is that `data/` is state-and-derivations; `model/` is the thin band above it.
+- **`model/`** — the thin domain band: tier-label logic (`scoring.js`) and the state-coupled score-display helpers (`score-display.js`). Small on purpose (rescoring lives *below* it in `data/`, not above — see § *Cycle-breaking* below).
+- **`ui/`** — components, dialogs, scrollers, and rendering. Owns all DOM.
+- **`app/`** — orchestration: the URL router and the action dispatcher (fetch/import/update, My Edits add/delete, merge & download, export, rename).
+
+Two modules sit outside the layer stack. `main.js` is a thin boot entry (imports everything, runs the ordered `boot()` — below). `test-api.js` is the **only** every-layer importer: it assembles `window.__grawlixTest` from bindings across core/engine/data/model/ui/app, so `main.js` imports it *last*, after every layer it reaches into is initialized.
+
+### Dev serves modules; deploy bundles them
+
+The dev artifact and the shipped artifact are deliberately different, and that split is what keeps local development trivially simple. **Dev serves the raw module graph statically** — any static server hands the tree to the browser, which walks the `import` graph itself. There is no build step, no watch process, no bundler in the local loop: edit a file, refresh. **Deploy bundles.** `npm run build` runs esbuild from `main.js`, following every `import` into one tree-shaken, minified file, then minifies the HTML shell as before; esbuild touches `dist/` only. The reason to bundle is cold-load performance — the unbundled graph waterfalls through ~75 small HTTP requests, while the bundle is one cacheable request. The reason to bundle *only at deploy* is that dev doesn't pay the cold-load cost and benefits from editing the exact files the browser runs. Bundling is behavior-preserving (concatenation, renaming, dead-code removal — never a semantic change), and the seam is continuously verified: [`playwright.config.js`](../playwright.config.js) parameterizes the served directory via `GRAWLIX_SITE_DIR`, and **CI runs the full suite against the bundled `dist/`** (`GRAWLIX_SITE_DIR=dist`) — the divergence is tested, not trusted.
+
+The build was rejected from being a *dev-server* bundler (Vite et al.): in dev those transform files on request, so the workflow becomes "run the bundler" rather than "serve static files," colliding with the static-serve requirement. Native modules in dev cost nothing because Grawlix is always behind an HTTP server anyway (ES modules are blocked over `file://`, fine over `http://`).
+
+**The dev-waterfall gotcha:** a full `npm test` against the unbundled `site/` flakes on webkit under parallel-worker load — the cold-load module waterfall times out `page.goto`. The bundled `dist/` has no waterfall (one request) and runs clean. So the full matrix / stage gates use `GRAWLIX_SITE_DIR=dist npm test`; per-file chromium iteration against `site/` is fine.
+
+### Importing defines; `boot()` does
+
+The single load-bearing rule that makes the module graph work: **importing or evaluating a module only *defines* things.** Every DOM build, every event listener, every `effect()` registration, every `window` touch runs from one ordered `boot()` in `main.js`. (Pure, idempotent top-level computation — e.g. the `for` loops that backfill default `key`s on the tool params — is fine and stays put; the bar is *no DOM, no effect registration, no cross-layer reach at import*, not "no top-level statements.")
+
+This matters because under one shared scope nothing ran until `init()` at the bottom, but under modules every top-level statement runs *at import*, in dependency-graph order — so an import-time side effect becomes a fragile ordering constraint or a temporal-dead-zone error. With imports side-effect-free, import order stops being a correctness concern, and the worker can import the tool catalog without a `document` to throw on.
+
+The flip side: **the mount/boot order in `boot()` is now an explicit, load-bearing contract.** Each step assumes the prior ones ran — `configureX` injections before the components that call them, dialogs before `init()` opens them, app-shell components before `init()`'s first `renderAll` — so a wrong order surfaces as a runtime error rather than the hoisting non-issue it once was. The order is derived from the layer graph and commented at the one place it's wired (`boot()`).
+
+### Cycle-breaking and the injection seams
+
+Real module boundaries turn several couplings the single scope hid into illegal `import` loops. The seams that break them:
+
+- **Rescoring is `data/`, below merge — not `model/` above it.** The tempting split ("merge is data, rescoring is domain logic above it") inverts the real dependency: `buildMergedWordlist` *consumes* rescored entries to bucket contributors, so merge depends on rescore. Putting rescore in `model/` (data < model) would make `data/merge` import upward. Resolution: rescoring is a per-wordlist transform over `rawEntries` — it *is* derived-from-state data — and lives in `data/rescoring.js`, below `data/merge.js`. `editsLegend` / `getWordlistDefaultRules` live there too: they read `state.scoring` and `getPublisher` (both `data/`), so "reads `state.scoring`" — not "is about scoring" — decides the layer. `model/` shrinks to tier labels and the state-coupled display helpers; nothing in `data/` imports `model/`.
+- **The data⇄ui seam.** Disk sync needs to repaint the sync indicators (ui) and raise permission/conflict dialogs (ui), but `data/` must not import `ui/`. Two inversions: a targeted status repaint routes through a **dedicated `syncStatus$` signal** in `data/state.js` that the ui subscribes to in `boot()` (`effect(() => { syncStatus$.get(); renderSyncIndicators(); })`) — deliberately *not* `cacheVersion$`, which drives the full-table repaint and would be a sledgehammer for a status-dot change. And dialogs are raised through an **injected callback** (`configureSyncDialogs({ alert, resolveConflict })`), wired at boot. So `data/disk-sync.js` imports no ui.
+- **The `configureX` injection pattern, generally.** Wherever a lower module would otherwise need to call upward (a ui view reaching an `app/` action, or any module reaching a not-yet-carved dependency), the lower module exposes `configureFoo({...})` and `boot()` wires the real functions in. This is how ui views invoke `app/` actions without importing `app/`, and it's the same shape as the segmenter's I/O injection below.
+- **The invalidation graph.** What was one god-function fanning out across caches in several modules is now composed downward: each owning module exports its own narrow invalidator (`engine/executor` → `invalidatePreSearchCache`, `engine/stats` → `invalidateStatsCache`, `engine/histogram` → `invalidateHistogramLayout`, and `data/rescoring` / `data/merge` their own), and `data/invalidate.js` imports them all downward to compose `invalidateWordlistCaches`. (The caches themselves and their contracts are § *Caches*.)
+
+**Intra-`ui/` circular imports are permitted.** The strict rule is *cross-layer* acyclicity (ui ↛ app, data ↛ ui, engine stays pure), not intra-`ui` acyclicity. The ui core — scope-selector, rescore-editor, rendering, tool-stack, app-view, entries-table — is genuinely mutually recursive, and because imports are define-only they resolve as live bindings even in a cycle. Carving those together with circular imports is a deliberate choice over force-inverting every cycle into a callback seam; the cheap one-directional seams (e.g. the severity builders living in the leaf `ui/sync-indicators.js`, with `renderSyncIndicators` up in `ui/scope-selector.js`) are used where they're natural, and circular imports where they aren't.
+
+### The pure engine and the worker boundary
+
+The `engine/` layer being DOM-free is the prerequisite for [`planned/web-workers.md`](planned/web-workers.md), which moves the pipeline executor off the main thread. The one function that straddles the DOM line is the unigram-corpus loader: it mixes pure decode with I/O, and `localStorage` isn't worker-safe. Rather than let the engine reach into `data/storage` (an engine→data upward edge), `engine/segmenter.js` takes its I/O **injected** — `configureSegmenterIO({ idbGet, idbPut, onSize })`, a one-time boot call that stashes the deps in module state for the loader to close over. The phrase tool's `prepare` then calls the segmenter's own loader (an engine-internal call), never `data/`. The corpus *mutators* — `setUnigramCorpus` / `invalidateUnigramCorpus` / `getUnigramFetchedSize` — are a named seam shared by the production `checkForUpdates` path (which forces a corpus re-fetch) and the Test API (which stubs the corpus); ES modules forbid reassigning another module's `let` from outside, so the implicit cross-binding poke becomes an explicit exported setter.
+
+### Per-tool files
+
+Each tool is its own `engine/tools/<slug>.js` that `export default`s its definition and imports only down-layer modules plus `engine/tools/shared.js` (cross-tool helpers). `engine/tools.js` is a thin **assembler**: it imports all the per-tool definitions, builds the ordered `TOOLS` catalog and its metadata (`TOOL_CATEGORIES`, `FEATURED_TOOLS`), runs the param/column key-backfill, and exposes `makeToolRow` / `normalizeParams` / the pure `groupColumnCSS()`. Per-tool files never import the assembler, so there's no cycle. (The catalog *content* — every tool's icon, name, description, status — is owned by [`tools.md`](tools.md), not the code.)
+
+### Stored data is unchanged
+
+The module split is a pure code reorganization: no `meta`/IDB shape change, so no `SCHEMA_VERSION` bump and no migration. Every `localStorage` key keeps its exact `grawlix_` string; URL keys and tool slugs are untouched. Existing users notice nothing.
+
+### Open questions (build & worker era)
+
+Forward-looking decisions deferred to the worker era (when [`planned/web-workers.md`](planned/web-workers.md) lands):
+
+- **esbuild multi-entry for `engine/worker.js`.** The worker needs its own emitted bundle (it can't share the main bundle's scope). `build.mjs` is already structured for a second entry point so that's a drop-in rather than a retrofit.
+- **The corpus-loader seam vs. ship-the-map.** The injected-I/O loader is chosen now because it's the smaller, worker-agnostic move; whether the worker fetches+decodes the corpus itself or the main thread builds the frequency map and ships it is a worker-era decision.
+- **Source maps.** A production stack trace points into minified bundle code. esbuild emits source maps cheaply; whether to ship the `.map` is still open.
+
 ## Caches
 
 Wordlists can be hundreds of thousands of entries. Several caches keep wordlist switching, score editing, and merging snappy. They live either on the wordlist object (`wordlist._foo`) or as module-level variables, and they all derive their values from `state.sources` plus per-wordlist `rawEntries` and `rescoreRules`.
@@ -655,7 +723,7 @@ Structural state and the view layer are reactive (signals + effects); the perf-c
 
 A pure-reactive design — one big `merged$ = computed(() => buildMerged(sources$))` — re-derives the whole 1M-entry merged wordlist on every My Edits keystroke. The hybrid model keeps reactivity for the 90% of state where it doesn't fight performance, and leaves the cache layer alone where it earns its keep. Pushing further — replacing imperative caches with observable collections and the virtual scroller with per-row reactive components — is a possible future rewrite.
 
-**The signals primitive** is hand-rolled at ~50 lines (no external dependency, preserves "no build step, no npm"):
+**The signals primitive** is hand-rolled at ~50 lines (no runtime framework dependency — the only build-time tool is esbuild, which bundles but ships nothing into the page):
 
 - The API is the standard `get`/`set`/`effect` shape, plus two additions for the in-place-mutation case: `peek` reads without subscribing (used by the `state` proxy's getters so incidental reads inside effects don't accidentally subscribe), and `bump` notifies even when the reference is unchanged (for array/map mutations like reordering `sources`).
 - No automatic dependency cleanup on re-runs — effects accumulate subscriptions. Acceptable for grawlix's small, stable graph.

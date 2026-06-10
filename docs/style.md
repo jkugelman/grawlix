@@ -6,17 +6,24 @@ The line between style and architecture is sometimes blurry. When in doubt, the 
 
 ## File layout
 
-All code lives in [`site/index.html`](../site/index.html). Order inside the file:
+Code is ES modules under [`site/src/`](../site/src/), organized by dependency layer (`core < engine < data < model < ui < app`) — see [`design.md` § Code structure](design.md#code-structure) for the layering rules and whys. [`site/index.html`](../site/index.html) is just the shell:
 
-1. `<style>` block.
-2. Minimal HTML body — the app shell only. No dialogs or overlays — components create those in JS.
-3. `<script>` block.
+1. The synchronous `<head>` FOUC script — a plain non-module inline script, never converted to a module.
+2. `<link>`s to [`site/css/`](../site/css/).
+3. The app-shell HTML body only. No dialogs or overlays — components create those in JS.
+4. `<script type="module" src="src/main.js">`.
 
-No build step, no npm, no frameworks.
+Per-file conventions:
+
+- **Imports at the top**, before any other code. A module imports only from layers below its own (or sibling `ui/` modules, where circular imports are allowed); never from a layer above it.
+- **Importing a module only *defines*.** No DOM, no `effect()`, no `window` touch, no cross-layer reach at import time — all side effects run from `main.js`'s `boot()`. (Pure, idempotent top-level computation is fine.)
+- Each module is `'use strict';` and ends its exports as named exports (per-tool files in `engine/tools/` `export default` their definition).
+
+Dev serves the raw module graph statically (no build step in the local loop); `npm run build` bundles it with esbuild for deploy. No runtime framework.
 
 ## Banner comments
 
-Major sections of the `<script>` block are delimited by full-width banner comments at column 0:
+Major sections within a module are delimited by full-width banner comments at column 0:
 
 ```
 // ─── Parsing ─────────────────────────────────────────────────────────────────
@@ -28,7 +35,7 @@ Sub-sections inside a component or other indented scope use a shorter form, two 
   // ── Event delegation ─────────────────────────────────────────────────────
 ```
 
-These are anchors for grepping and for orientation; keep them stable.
+These are anchors for grepping and for orientation; keep them stable. A small single-purpose module needs no banner; use them where a file has several distinct sections.
 
 ## Comments
 
@@ -54,7 +61,7 @@ No line length limit.
 - `@keyframes` blocks — nested structure can't be compacted.
 - `@media` query wrappers — the wrapper stays multi-line; rules inside are still single-line.
 
-**No inline `style="..."` attributes** - add CSS to the `<style>` block instead. One exception: passing per-instance computed values (CSS custom properties for theming, pixel dimensions for sizing) into a class whose stylesheet rule reads them. The rule and any static declarations live in the `<style>` block; the inline attribute carries only the varying values. Use this for color-tinted atoms (`style="--score-bg:${bg}; --score-fg:${fg}"` on a `.score-badge`) and measured-out elements (histogram bar heights). Don't use it as a shortcut for declarations that could just be a class.
+**No inline `style="..."` attributes** - add CSS to [`site/css/`](../site/css/) instead. One exception: passing per-instance computed values (CSS custom properties for theming, pixel dimensions for sizing) into a class whose stylesheet rule reads them. The rule and any static declarations live in `site/css/`; the inline attribute carries only the varying values. Use this for color-tinted atoms (`style="--score-bg:${bg}; --score-fg:${fg}"` on a `.score-badge`) and measured-out elements (histogram bar heights). Don't use it as a shortcut for declarations that could just be a class.
 
 **Dark mode and light mode get equal weight.** Both palettes are first-class. Don't treat one as the default and the other as an override.
 

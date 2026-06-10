@@ -2,7 +2,7 @@
 
 ## Policy
 
-Grawlix is in beta with real users, so **stored data is migrated forward on every schema change — never wiped.** When you change the shape of `localStorage.meta` or an IndexedDB record, bump `SCHEMA_VERSION` (in `site/index.html`) *and* register a `MIGRATIONS` step that upgrades existing data in place. A bump with no migration is a bug.
+Grawlix is in beta with real users, so **stored data is migrated forward on every schema change — never wiped.** When you change the shape of `localStorage.meta` or an IndexedDB record, bump `SCHEMA_VERSION` (in `site/src/data/migrations.js`) *and* register a `MIGRATIONS` step that upgrades existing data in place. A bump with no migration is a bug.
 
 This reverses the pre-beta policy, under which a bump just triggered a confirm dialog offering to wipe all local data. That was the right call when no user had data worth keeping and writing migration code cost more than a wipe. The trigger we always named for flipping it — *the first user with data they'd be upset to lose* (a custom-rescored wordlist, hand-edited entries, a personalized rule set) — has fired. Beta testers have that data now.
 
@@ -107,7 +107,7 @@ No solution yet; this is documented so future-us recognizes it as distinct from 
 
 ## The runner
 
-`MIGRATIONS` (in `site/index.html` near `SCHEMA_VERSION`) maps a *from* version to a step that mutates a settings blob in place. `canMigrate(from)` checks every step from `from` up to current exists; `migrateSettings(blob, from)` walks them. One adapter drives it:
+`MIGRATIONS` (in `site/src/data/migrations.js` near `SCHEMA_VERSION`) maps a *from* version to a step that mutates a settings blob in place. `canMigrate(from)` checks every step from `from` up to current exists; `migrateSettings(blob, from)` walks them. One adapter drives it:
 
 - **`migrateLocalStorage(from)`**, called from the `init()` mismatch branch, assembles the blob from the separate localStorage keys, migrates, writes them back, and stamps the new version. On a thrown step it returns false untouched and the floor's reset confirm takes over.
 
