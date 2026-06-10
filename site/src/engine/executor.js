@@ -443,13 +443,24 @@ export function* rowSetAtoms(rows) {
 // blows up at small body sizes: 1K iterations of ~1μs work yields every ~1ms,
 // burning hundreds of ms of pure yield overhead on a 500K filter. Time-based
 // chunking keeps yield count proportional to wall-clock cost.
-const YIELD_INTERVAL_MS = 6;
+const DEFAULT_YIELD_INTERVAL_MS = 6;
 // scheduler.yield is the modern primitive (Chrome 129+); the setTimeout fallback
 // is universal and lands the browser back on the macrotask queue, which is what
 // we want — input events and paints get a turn before the tool resumes.
-const _yieldImpl = (typeof scheduler !== 'undefined' && typeof scheduler.yield === 'function')
+const defaultYieldImpl = (typeof scheduler !== 'undefined' && typeof scheduler.yield === 'function')
   ? () => scheduler.yield()
   : () => new Promise(r => setTimeout(r, 0));
+
+// Injectable so the worker realm can swap in a setTimeout(0) macrotask yielder:
+// the default scheduler.yield() starves the worker's cancel message (B1 spike),
+// silently breaking supersession with no visible symptom in the code.
+let _yieldImpl = defaultYieldImpl;
+let _yieldIntervalMs = DEFAULT_YIELD_INTERVAL_MS;
+
+export function configureExecutorYield({ yieldImpl, intervalMs } = {}) {
+  if (yieldImpl) _yieldImpl = yieldImpl;
+  if (intervalMs != null) _yieldIntervalMs = intervalMs;
+}
 
 function throwIfAborted(signal) {
   if (signal?.aborted) throw signal.reason ?? new DOMException('Aborted', 'AbortError');
@@ -472,7 +483,7 @@ function makeYielder(signal) {
       if (elapsed > 0) stride = Math.max(1, Math.min(YIELD_STRIDE_MAX, Math.round(stride * YIELD_CLOCK_TARGET_MS / elapsed)));
       lastClock = now;
       sinceCheck = 0;
-      return now - lastYield >= YIELD_INTERVAL_MS;
+      return now - lastYield >= _yieldIntervalMs;
     },
     async yield() {
       await _yieldImpl();
