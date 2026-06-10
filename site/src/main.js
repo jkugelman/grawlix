@@ -31,7 +31,7 @@ import {
   slotIntersectsRange,
 } from './engine/histogram.js';
 import {
-  FEATURED_TOOLS, TOOLS, makeToolRow,
+  TOOLS, makeToolRow,
 } from './engine/tools.js';
 import {
   isFilterOnlyChain, isGroupChain, buildInitialChains,
@@ -39,7 +39,7 @@ import {
   bottomLineAtoms, rowSetAtoms, rowLastEntry,
 } from './engine/executor.js';
 import {
-  sources$, cacheVersion$, syncStatus$,
+  sources$, syncStatus$,
   state, wrapWordlist, newDbKey, syncKey, getEditsWordlist,
 } from './data/state.js';
 import {
@@ -90,12 +90,11 @@ import {
 } from './model/score-display.js';
 import {
   buildInitialsIconHTML, buildIconHTML,
-  colorSeed, getWordlistIcon, getMergedIcon,
+  colorSeed, getWordlistIcon,
 } from './ui/icons.js';
 import { showToast, showActionToast, showUndoToast } from './ui/toasts.js';
 import {
-  buildSegCtrlHTML, buildOutputFormatControlsHTML, readOutputFormatControls,
-  wireOutputFormatControls, buildBadgeHTML, buildClearableInputHTML,
+  buildBadgeHTML, buildClearableInputHTML,
   syncClearButton, mountClearableInputs, buildTextInputHTML, buildParamHTML,
   buildSplitBtn, buildMoreMenuHTML, toggleSplitMenu, buildUrlInputHTML,
   buildEditHintHTML, buildTrashIconHTML, buildDragHandleHTML, makeReorderable,
@@ -108,6 +107,8 @@ import {
   showConfirm, showAlert, showMergeConflict, showEditsConflict,
 } from './ui/dialogs/confirm.js';
 import { openUpdateSummaryDialog } from './ui/dialogs/update-summary.js';
+import { SettingsDialog, configureSettings, cycleDarkMode } from './ui/dialogs/settings.js';
+import { WelcomeDialog } from './ui/dialogs/welcome.js';
 import { AppView } from './ui/app-view.js';
 import {
   configureEntriesTable, AtomPopover, GroupMorePopover, ErrorPopover,
@@ -115,7 +116,7 @@ import {
 } from './ui/entries-table.js';
 import {
   ToolStack, ToolPicker, configureToolStack, mountGroupColumnStyle,
-  pipelineIdle, buildToolCardHTML, buildToolLabelHTML,
+  pipelineIdle, buildToolLabelHTML,
   buildToolRowPartsHTML, buildSearchBarHTML, buildFindReplaceCaretHTML, allModeTooltip,
 } from './ui/tool-stack.js';
 import {
@@ -141,8 +142,6 @@ import {
 } from './ui/rendering.js';
 
 // ─── Components ──────────────────────────────────────────────────────────────
-
-const OUTPUT_FORMAT_REGEN_DELAY = 1000;
 
 // The × button carries no per-call wiring: clicking it empties the field and
 // dispatches an `input` event, so the field's own handler reacts as if the
@@ -279,224 +278,6 @@ const Router = (() => {
   }
 
   return { navigate, applyURL };
-})();
-
-// ─── Dark mode ────────────────────────────────────────────────────────────────
-
-const DARK_MODE_CYCLE = ['auto', 'light', 'dark'];
-const DARK_MODE_LABELS = { auto: 'Auto', light: 'Light', dark: 'Dark' };
-
-function applyDarkMode(val) {
-  const dark = val === 'dark' || (val !== 'light' && window.matchMedia('(prefers-color-scheme: dark)').matches);
-  document.documentElement.classList.toggle('dark-mode', dark);
-  document.documentElement.classList.toggle('light-mode', !dark);
-}
-
-function cycleDarkMode() {
-  const current = lsLoad('darkMode') || 'auto';
-  const next = DARK_MODE_CYCLE[(DARK_MODE_CYCLE.indexOf(current) + 1) % DARK_MODE_CYCLE.length];
-  lsSave('darkMode', next);
-  applyDarkMode(next);
-  const seg = document.getElementById('dark-mode-seg');
-  if (seg) seg.querySelectorAll('.seg-btn').forEach(b => b.classList.toggle('active', b.dataset.val === next));
-  showToast(`Dark mode: ${DARK_MODE_LABELS[next]}`);
-}
-
-// ─── Settings dialog ──────────────────────────────────────────────────────────
-
-const SettingsDialog = (() => {
-  let el, body, ofCtrls, resetSub;
-
-  function mount() {
-    ({ el, body } = createDialog('settings-dialog', { labelledby: 'settings-dialog-title' }));
-    body.innerHTML = `
-      <button class="dialog-close-btn" aria-label="Close">✕</button>
-      <h2 id="settings-dialog-title">Settings</h2>
-      <div class="dialog-row">
-        <span class="dialog-row-label">Dark mode</span>
-        <div id="dark-mode-seg"></div>
-      </div>
-      <div class="dialog-row">
-        <div>
-          <div class="dialog-row-label">Auto-update wordlists</div>
-          <div class="dialog-row-sub">Update wordlists without asking</div>
-        </div>
-        <div id="auto-update-seg"></div>
-      </div>
-      <div class="of-section">
-        <div class="dialog-row-label">Output format</div>
-        <div class="dialog-row-sub">How entries are written to files and downloads.</div>
-        <div id="output-format-ctrls" class="of-ctrls"></div>
-      </div>
-      <div class="dialog-row">
-        <div>
-          <div class="dialog-row-label">Reset browser data</div>
-          <div class="dialog-row-sub" id="reset-row-sub"></div>
-        </div>
-        <button id="btn-reset" class="danger" title="Reset browser data"><svg class="icon-trash"><use href="#icon-trash"/></svg> Reset</button>
-      </div>`;
-
-    const seg  = el.querySelector('#dark-mode-seg');
-
-    const darkSaved = lsLoad('darkMode') || 'auto';
-    applyDarkMode(darkSaved);
-    seg.innerHTML = buildSegCtrlHTML(null, [
-      { value: 'auto',  label: 'Auto' },
-      { value: 'light', label: '☀ Light' },
-      { value: 'dark',  label: '☽ Dark' },
-    ], darkSaved);
-    seg.querySelectorAll('.seg-btn').forEach(btn => {
-      btn.onclick = () => {
-        const val = btn.dataset.val;
-        lsSave('darkMode', val);
-        applyDarkMode(val);
-        seg.querySelectorAll('.seg-btn').forEach(b => b.classList.toggle('active', b === btn));
-      };
-    });
-    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
-      if ((lsLoad('darkMode') || 'auto') === 'auto') applyDarkMode('auto');
-    });
-
-    const autoSeg = el.querySelector('#auto-update-seg');
-    autoSeg.innerHTML = buildSegCtrlHTML(null, [
-      { value: 'off', label: 'Off' },
-      { value: 'on',  label: 'On' },
-    ], getAutoUpdate() ? 'on' : 'off');
-    autoSeg.querySelectorAll('.seg-btn').forEach(btn => {
-      btn.onclick = () => {
-        autoSeg.querySelectorAll('.seg-btn').forEach(b => b.classList.toggle('active', b === btn));
-        lsSave('autoUpdate', btn.dataset.val);
-        if (btn.dataset.val === 'on') checkForUpdates();
-      };
-    });
-
-    ofCtrls  = el.querySelector('#output-format-ctrls');
-    resetSub = el.querySelector('#reset-row-sub');
-
-    el.querySelector('#btn-reset').onclick = async () => {
-      if (!await showConfirm('Reset all wordlists and settings? This cannot be undone.', { confirmText: 'Reset' })) return;
-      await resetAllDataAndReload();
-    };
-  }
-
-  let ofRegenTimer = null;
-  function flushRegen() {
-    if (!ofRegenTimer) return;
-    clearTimeout(ofRegenTimer);
-    ofRegenTimer = null;
-    regenerateFillOutputs();
-  }
-
-  function open() {
-    resetSub.textContent = 'Reset all wordlists and settings';
-    ofCtrls.innerHTML = buildOutputFormatControlsHTML(getOutputFormat());
-    wireOutputFormatControls(ofCtrls, () => {
-      setOutputFormat(readOutputFormatControls(ofCtrls));
-      if (ofRegenTimer) clearTimeout(ofRegenTimer);
-      ofRegenTimer = setTimeout(() => { ofRegenTimer = null; regenerateFillOutputs(); }, OUTPUT_FORMAT_REGEN_DELAY);
-    });
-    showDialog(el, flushRegen);
-  }
-
-  return { mount, open };
-})();
-
-// ─── Welcome dialog ───────────────────────────────────────────────────────────
-
-const WelcomeDialog = (() => {
-  let el, body;
-
-  function mount() {
-    ({ el, body } = createDialog('welcome-dialog', { labelledby: 'welcome-title' }));
-    // Without this the All Wordlists count freezes at its open-time snapshot (~0 on a cold boot, before fetches populate the wordlists).
-    effect(() => {
-      sources$.get();
-      cacheVersion$.get();
-      if (!el.open) return;
-      const count = el.querySelector('.welcome-merge-count');
-      if (count) count.textContent = pluralize(buildMergedWordlist().entries.length, 'entry', 'entries');
-    });
-  }
-
-  function render() {
-    const toolsShot = FEATURED_TOOLS
-      .map(k => TOOLS[k] ? buildToolCardHTML(k, TOOLS[k], { allButton: false }) : '')
-      .join('');
-
-    const featuredToolNames = FEATURED_TOOLS
-      .filter(k => TOOLS[k])
-      .map(k => TOOLS[k].name)
-      .join(', ');
-
-    const byPop = [...WORDLIST_PUBLISHERS].sort((a, b) => a.popularity - b.popularity);
-    const names = byPop.map(p => p.name);
-    const nameList = `${names.slice(0, -1).join(', ')}, and ${names[names.length - 1]}`;
-
-    const sourceIcons = byPop
-      .map(p => buildIconHTML(p.icon, p.name, colorSeed(p)))
-      .join('');
-
-    const wordlistShot = `
-      <div class="welcome-merge-sources">${sourceIcons}</div>
-      <svg class="welcome-merge-arrow" width="16" height="10" viewBox="0 0 16 10" aria-hidden="true"><path d="M2 2l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-      <div class="welcome-merge-all">
-        <div class="welcome-merge-all-head">
-          ${getMergedIcon()}
-          <span class="welcome-merge-all-name">${MERGED_NAME}</span>
-        </div>
-        <span class="welcome-merge-count">${pluralize(buildMergedWordlist().entries.length, 'entry', 'entries')}</span>
-      </div>`;
-
-    const storageShot = `
-      <ul class="welcome-sync-files">
-        <li>📄 <strong>My Edits.txt</strong> <span class="welcome-sync-dir">⇄</span> Grawlix</li>
-        <li>Grawlix <span class="welcome-sync-dir">→</span> 📄 <strong>${MERGED_NAME} rescored.txt</strong></li>
-        <li>Grawlix <span class="welcome-sync-dir">→</span> 📄 Spread the Word(list).txt</li>
-      </ul>`;
-
-    const diskCaveat = Disk.isSupported() ? ''
-      : isMobile() ? ' (Desktop only)'
-      : ' (Chrome only)';
-
-    body.innerHTML = `
-      <button type="button" class="dialog-close-btn" aria-label="Close">✕</button>
-      <h2 id="welcome-title">Welcome to Grawlix</h2>
-
-      <section class="welcome-feature">
-        <div class="welcome-copy">
-          <h3>Hunt for puzzle ideas</h3>
-          <p>Comb the beach with ${featuredToolNames}, and a few dozen more tools. Combine them to unlock new wordplay possibilities.</p>
-        </div>
-        <div class="welcome-shot" inert><div class="welcome-shot-inner welcome-shot-tools">${toolsShot}</div></div>
-      </section>
-
-      <section class="welcome-feature">
-        <div class="welcome-copy">
-          <h3>Search multiple popular wordlists</h3>
-          <p>${nameList} are at your fingertips. Grawlix rescores each onto a common scale.</p>
-        </div>
-        <div class="welcome-shot" inert><div class="welcome-shot-inner welcome-shot-merge">${wordlistShot}</div></div>
-      </section>
-
-      <section class="welcome-feature">
-        <div class="welcome-copy">
-          <h3>Sync with your construction software</h3>
-          <p>Point Grawlix at a file you already feed to Ingrid, Crossfire, or Crossword Compiler. Your edits flow both ways, automatically.${diskCaveat}</p>
-        </div>
-        <div class="welcome-shot" inert><div class="welcome-shot-inner welcome-shot-storage">${storageShot}</div></div>
-      </section>
-
-      <div class="dialog-footer">
-        <button type="button" class="primary dialog-cancel-btn" autofocus>Get started</button>
-      </div>`;
-  }
-
-  function open() {
-    render();
-    showDialog(el, () => lsSave('welcomeSeen', '1'));
-  }
-
-  return { mount, open };
 })();
 
 // ─── Boot reconnect splash ────────────────────────────────────────────────────
@@ -2759,6 +2540,11 @@ function boot() {
   });
   configureDiscoveryBanner({
     runImport: () => WordlistActions.action('import'),
+  });
+  configureSettings({
+    checkForUpdates,
+    regenerateFillOutputs,
+    getAutoUpdate,
   });
 
   // Document-level / pure wiring — no dependency on the app-shell DOM existing.
