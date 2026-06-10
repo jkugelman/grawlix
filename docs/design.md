@@ -735,18 +735,20 @@ A pure-reactive design — one big `merged$ = computed(() => buildMerged(sources
 
 - `sources$` — the wordlist array. The cosmetic effect subscribes; reorder/add/remove call `sources$.bump()` after splicing.
 - Per-wordlist cosmetic fields: `name$`, `icon$`, `url$`, `publisherId$`. Each wordlist exposes both the signal (`wl.name$`) and a peek getter / set setter on the plain field (`wl.name`). `wrapWordlist(wl)` installs them at every wordlist-creation site.
-- `cacheVersion$` — the bridge between layers. Bumped by helpers that change cache-affecting state; the render effect subscribes.
+- `cacheVersion$` — the bridge between layers. Bumped by helpers that change cache-affecting state (a genuine source mutation: enable/disable, reorder, rescore-rule edit, import, delete); the render effect subscribes.
+- `pipelineVersion$` — bumped by tool-stack/search changes (a keystroke, a tool add/remove/reorder, a tool-param edit); the pipeline effect subscribes. These re-run the pipeline but don't touch the sources, so they stay off `cacheVersion$`, whose cache branch would needlessly rebuild the merged corpus.
 
-Search, sort, and score-range aren't on the global `state` object — they live inside `AppView`'s closure. The screen owns its own UI state; the input handlers it exposes update the closure variables and call the scroller directly. No effect needs to react. (Scope is the exception: `state.selected` is global, since the caches and the merge read it.)
+Sort and score-range aren't on the global `state` object — they live inside `AppView`'s closure. The screen owns its own UI state; the input handlers it exposes update the closure variables and call the scroller directly, no effect needed. The search query is the exception among the screen's own inputs: it rides in the Search bar's stack row, and a keystroke bumps `pipelineVersion$` so the pipeline effect re-runs (still without rebuilding the merge). (Scope is global too: `state.selected` drives the caches and the merge.)
 
 Per-wordlist field categories beyond the cosmetic four:
 
 - **Cache-affecting** (`enabled`, `rescoreRules`, `rawEntries`) — plain properties. Mutate via the helper (`setWordlistEnabled`, etc.) so the helper invalidates the right caches and bumps `cacheVersion$`. Never assign directly — there's no signal to fire and the caches will silently go stale.
 - **Transient** (`_loading`, `_updateAvailable`, `lastUpdated`, `fetchedSize`, `_rescored`, `_rescoredMap`, `_rescoredByNorm`, `originalFilename`) — plain properties. Set directly. Anything that displays them updates as a side effect of the surrounding flow (e.g. `applyWordlistText` ends with the render effect dispatching panel updates because it batched a `repaintAfterCacheChange`).
 
-**The two effects:**
+**The three effects:**
 
 - **Render effect** reads `cacheVersion$`. First run does the initial paint at the restored scope. Subsequent cache bumps refresh derived state in place: `refreshSourceCounts` rebuilds caches, `WordlistSelector.refresh` repaints the selector (rows, contribution counts, update dots), `refreshDerivedDisplays` updates the scroller's score-atom tier tooltips and the stats bar, then the scroller is updated via `refreshMergedScroller` (which shares its array-identity protocol with the patch path).
+- **Pipeline effect** reads `pipelineVersion$`. Re-runs the pipeline and refreshes the scroller (whose `onFilterChange` repaints the stats bar) for tool-stack/search changes. It deliberately omits `refreshSourceCounts`: those changes leave the sources untouched, so rebuilding the merged corpus would be pure waste — a per-keystroke re-merge freezes the UI for ~1s on a large list. That cost is the whole reason the split exists; folding the two signals back into one reintroduces it.
 - **Cosmetic effect** reads `sources$` and every wordlist's `name$`/`icon$`/`url$`/`publisherId$`. Any cosmetic change re-renders the selector and (on the All Wordlists view, where the merged scroller has a per-atom source column) the visible scroller rows. No cache touched — cache entries hold wordlist refs and read names live.
 
 **The patch path skips reactivity.** `applyEditsChange` doesn't bump `cacheVersion$`; the My Edits hot path mutates caches in place and calls `refreshDerivedDisplays` + scroller re-filter directly. Routing through the render effect would call `refreshSourceCounts`, which invalidates and rebuilds the merged cache — defeating the patch. This is the one explicit exception to the rule "any cache mutation bumps `cacheVersion$`".

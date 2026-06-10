@@ -12,7 +12,7 @@ import { bucketCounts, invalidateHistogramLayout } from '../engine/histogram.js'
 import { PARAM_HELP } from '../engine/tools.js';
 import { invalidatePreSearchCache } from '../engine/executor.js';
 import {
-  sources$, cacheVersion$, bumpCacheVersion, state, getEditsWordlist,
+  sources$, cacheVersion$, pipelineVersion$, bumpCacheVersion, state, getEditsWordlist,
 } from '../data/state.js';
 import { lsSave } from '../data/storage.js';
 import {
@@ -73,11 +73,14 @@ function buildStatItemHTML(label, value, title, extraClass) {
   </div>`;
 }
 
-// The render dispatcher is two effects:
+// The render dispatcher is three effects:
 //   - render effect — reads `cacheVersion$`, dispatches the panel render
 //     (full render on first run, in-place scroller update on subsequent
 //     cache bumps). The panel always shows the merged view, so there's no
 //     selection to dispatch on.
+//   - pipeline effect — reads `pipelineVersion$`, re-runs the pipeline and
+//     refreshes the scroller for tool-stack/search changes, skipping the cache
+//     branch's merge rebuild (the sources didn't change).
 //   - cosmetic effect — subscribes to per-wordlist `name$`/`icon$`/`url$`/
 //     `publisherId$` signals across all sources; cosmetic field changes
 //     re-render the list/dropdown/dialog and visible scroller rows without
@@ -91,6 +94,7 @@ function buildStatItemHTML(label, value, title, extraClass) {
 // `cacheVersion$` and let the effect dispatch.
 let _renderEffectActive = false;
 let _firstRenderDone = false;
+let _pipelineEffectFirstRun = true;
 let _cosmeticEffectFirstRun = true;
 
 let _signalFirstPaint;
@@ -118,6 +122,20 @@ export function setupRenderEffect() {
     WordlistSelector.refresh();   // add/remove/reorder/enable changes the list
     DiscoveryBanner.refresh();    // import can populate the scoped XWI source
     _refreshDerivedDisplays();    // scoring legend + main-panel stats bar
+    if (entriesScroller) refreshMergedScroller();
+  });
+
+  // Pipeline effect for tool-stack/search changes. Two things that look missing
+  // but aren't: the stats bar isn't repainted here — refreshMergedScroller's
+  // updateEntries fires onFilterChange, which does it; and refreshSourceCounts is
+  // deliberately absent — rebuilding the merge on a keystroke is the freeze this
+  // whole split exists to kill (see pipelineVersion$ in state.js).
+  effect(() => {
+    pipelineVersion$.get();
+    if (_pipelineEffectFirstRun) {
+      _pipelineEffectFirstRun = false;
+      return;            // render effect's first run already painted everything
+    }
     if (entriesScroller) refreshMergedScroller();
   });
 

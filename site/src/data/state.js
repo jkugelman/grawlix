@@ -17,6 +17,14 @@ export const sources$ = signal([]);
 export const cacheVersion$ = signal(0);
 export function bumpCacheVersion() { cacheVersion$.set(cacheVersion$.peek() + 1); }
 
+// `pipelineVersion$` is for changes that re-run the pipeline but leave the
+// sources untouched (a search keystroke, a tool edit). Routing these through
+// `cacheVersion$` instead — the tempting choice, since both just repaint — drags
+// in the cache branch's merge rebuild, silently turning every keystroke into a
+// full re-merge of the corpus (a ~1s freeze on large lists). Keep them separate.
+export const pipelineVersion$ = signal(0);
+export function bumpPipelineVersion() { pipelineVersion$.set(pipelineVersion$.peek() + 1); }
+
 // Disk-sync bumps this instead of calling the ui repaint directly; routing
 // through the signal is what keeps data/ from importing ui/ (the data⇄ui cycle).
 export const syncStatus$ = signal(0);

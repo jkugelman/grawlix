@@ -7,7 +7,7 @@
 // entries table, downloads).
 
 const { test, expect } = require('@playwright/test');
-const { stubPublisherFetches, gotoApp, openManagePanel } = require('./helpers');
+const { stubPublisherFetches, gotoApp, openManagePanel, expectVisible } = require('./helpers');
 
 test.beforeEach(async ({ page }) => {
   await stubPublisherFetches(page);
@@ -99,4 +99,26 @@ test('a plain ambient winner inherits the rich variant\'s comment', async ({ pag
   const agency  = await page.evaluate(() => window.__grawlixTest.getMergedEntry('theirs', 'the IRS'));
   expect(pronoun).toMatchObject({ score: 90, comment: 'pronoun',    wordlist: 'Plain' });
   expect(agency).toMatchObject({  score: 90, comment: 'tax agency', wordlist: 'Plain' });
+});
+
+// A search keystroke changes only the filter, not the sources, so it must reuse
+// the merged corpus, not rebuild it. The old bug routed the bar's input through
+// cacheVersion$, whose cache branch nulled and rebuilt the merge on every
+// keystroke — a ~1s freeze on a 750K-entry merge. The stamped cache surviving
+// the keystroke is the proof it wasn't rebuilt.
+test('a search keystroke filters without rebuilding the merged corpus', async ({ page }) => {
+  await gotoApp(page);
+  await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
+    name: 'Bakery', entries: ['BAGEL', 'CAKE', 'DONUT'], scores: [50, 60, 70],
+  }));
+  await expectVisible(page, ['BAGEL', 'CAKE', 'DONUT']);
+
+  await page.evaluate(() => window.__grawlixTest.markMergedCache('keep-me'));
+  await page.locator('input[data-key="pattern"]').fill('BAG');
+
+  // Both assertions matter: the filter result proves the keystroke wasn't a
+  // no-op (against which the cache trivially survives, a vacuous pass), and the
+  // surviving tag proves it filtered the existing merge instead of rebuilding.
+  await expectVisible(page, ['BAGEL']);
+  expect(await page.evaluate(() => window.__grawlixTest.mergedCacheTag())).toBe('keep-me');
 });

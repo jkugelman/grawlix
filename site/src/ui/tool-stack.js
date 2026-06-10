@@ -41,7 +41,7 @@ import {
 import {
   currentAtomCount, executePipeline, ToolStageError, invalidatePreSearchCache,
 } from '../engine/executor.js';
-import { bumpCacheVersion } from '../data/state.js';
+import { bumpPipelineVersion } from '../data/state.js';
 import {
   buildTextInputHTML, buildParamHTML, syncClearButton,
   buildDragHandleHTML, makeReorderable,
@@ -60,12 +60,13 @@ export function configureToolStack({ navigate, showRowError, attachHelpPopups })
   if (attachHelpPopups) _attachHelpPopups = attachHelpPopups;
 }
 
-// A stack mutation invalidates the tool-pipeline cache and bumps the cache
-// version; the render effect's cache branch re-runs the pipeline and refreshes
-// the scroller. Going through the signal keeps this view off the rendering layer.
+// A stack mutation re-runs the pipeline but doesn't touch the sources, so it
+// bumps pipelineVersion$, not cacheVersion$ — the latter would needlessly rebuild
+// the merged corpus. Going through the signal keeps this view off the rendering
+// layer.
 function repaintAfterStackChange() {
   invalidatePreSearchCache();
-  bumpCacheVersion();
+  bumpPipelineVersion();
   _navigate();
 }
 
@@ -610,7 +611,7 @@ export const ToolStack = (() => {
           delete row.params.replace;
         }
         if (token !== 'bar') invalidatePreSearchCache();
-        bumpCacheVersion();
+        bumpPipelineVersion();
         _navigate();
         return;
       }
@@ -631,7 +632,7 @@ export const ToolStack = (() => {
           row.params[key] = input.value;
         }
         if (rowAttr !== 'bar') invalidatePreSearchCache();
-        bumpCacheVersion();
+        bumpPipelineVersion();
         _navigate();
       }
     });
