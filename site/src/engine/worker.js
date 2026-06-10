@@ -109,7 +109,7 @@ async function drainRuns() {
   }
 }
 
-async function runOne({ runId, snapshotId: reqSnapshotId, stack: serialized }) {
+async function runOne({ runId, snapshotId: reqSnapshotId, stack: serialized, sort }) {
   const signal = makeSignalShim(runId);
   const stack = deserializeStack(serialized);
 
@@ -134,7 +134,7 @@ async function runOne({ runId, snapshotId: reqSnapshotId, stack: serialized }) {
   }
   if (signal.aborted) return;
 
-  postResult(runId, reqSnapshotId ?? snapshotId, out);
+  postResult(runId, reqSnapshotId ?? snapshotId, out, sort);
 }
 
 function stackRowIndex(stack, e) {
@@ -143,14 +143,11 @@ function stackRowIndex(stack, e) {
 }
 
 // ─── Result encoding ── three tiers, see docs/worker-protocol.md ──────────────
-// The flat path keeps only atoms[0]'s index + the per-atom highlights, dropping
-// glyphs and every other atom's identity — lossless ONLY when a row is a single
-// word (search/filter, every atom the same corpus entry). A transform spans
-// words (distinct norms, glyphs) or emits a synthetic, so any rich row forces
-// the atom-sequence encoding for the whole result. Only the flat tier transfers
-// a buffer; the heavily-filtered transform/grouped payloads ride structured
-// clone as objects.
-function postResult(runId, sid, { rows, atomCount, grouped }) {
+// The flat path's index+scores encoding is lossless only when every atom is the
+// same word; a rich row (glyph, distinct norms, or a synthetic) would silently
+// lose data through it, so any rich row forces the atom-sequence encoding for the
+// whole result.
+function postResult(runId, sid, { rows, atomCount, grouped }, sort) {
   const base = { type: 'result', runId, snapshotId: sid, grouped, atomCount };
 
   if (grouped) {
@@ -162,17 +159,72 @@ function postResult(runId, sid, { rows, atomCount, grouped }) {
     return;
   }
 
-  const indices = new Int32Array(rows.length);
-  const highlights = new Array(rows.length);
-  for (let i = 0; i < rows.length; i++) {
-    const row = rows[i];
-    indices[i] = entryToIndex.get(row.atoms[0].wlEntry);
-    highlights[i] = row.atoms.map(a => a.highlights);
+  const n = rows.length;
+  const indices = new Int32Array(n);
+  for (let i = 0; i < n; i++) indices[i] = entryToIndex.get(rows[i].atoms[0].wlEntry);
+
+  sortFlatIndices(indices, sort);
+
+  const scores = new Int32Array(n);
+  let maxDisplayLen = 0, maxScore = 0, hasNeg = false;
+  for (let i = 0; i < n; i++) {
+    const e = corpus.entries[indices[i]];
+    scores[i] = e.score;
+    const dispLen = (e.display ?? e.norm).length;
+    if (dispLen > maxDisplayLen) maxDisplayLen = dispLen;
+    if (e.score < 0) hasNeg = true;
+    const s = e.score < 0 ? -e.score : e.score;
+    if (s > maxScore) maxScore = s;
   }
+  const widthHints = {
+    maxDisplayLen,
+    maxLenDigits: maxDisplayLen > 0 ? String(maxDisplayLen).length : 1,
+    maxScoreDigits: String(maxScore).length + (hasNeg ? 1 : 0),
+  };
+
   postMessage(
-    { ...base, payload: { indices: indices.buffer, highlights } },
-    [indices.buffer],
+    { ...base, payload: { indices: indices.buffer, scores: scores.buffer, widthHints } },
+    [indices.buffer, scores.buffer],
   );
+}
+
+// Native (norm.localeCompare) order ties differently from the `entry` axis,
+// which falls to score — so even `entry`/asc is sorted, never left as-is, or the
+// main thread (which no longer sorts) would show a subtly wrong order.
+const FLAT_SORT_AXES = {
+  entry: {
+    primary: e => e.norm,
+    tiebreakers: [{ p: e => e.norm.length, dir: -1 }, { p: e => e.score, dir: -1 }],
+  },
+  length: {
+    primary: e => e.norm.length,
+    tiebreakers: [{ p: e => e.score, dir: -1 }, { p: e => e.norm, dir: 1 }],
+  },
+  score: {
+    primary: e => e.score,
+    tiebreakers: [{ p: e => e.norm.length, dir: -1 }, { p: e => e.norm, dir: 1 }],
+  },
+};
+function cmpVal(a, b) {
+  if (typeof a === 'number' && typeof b === 'number') return a - b;
+  return String(a).localeCompare(String(b));
+}
+function sortFlatIndices(indices, sort) {
+  const axis = FLAT_SORT_AXES[sort?.key] || FLAT_SORT_AXES.entry;
+  const primaryDir = sort?.dir === 'desc' ? -1 : 1;
+  const entries = corpus.entries;
+  const arr = Array.from(indices);
+  arr.sort((ia, ib) => {
+    const a = entries[ia], b = entries[ib];
+    const pc = cmpVal(axis.primary(a), axis.primary(b)) * primaryDir;
+    if (pc !== 0) return pc;
+    for (const tb of axis.tiebreakers) {
+      const c = cmpVal(tb.p(a), tb.p(b)) * tb.dir;
+      if (c !== 0) return c;
+    }
+    return 0;
+  });
+  indices.set(arr);
 }
 
 function encodeAtom(atom) {

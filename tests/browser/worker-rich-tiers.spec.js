@@ -106,17 +106,20 @@ function runRichStack(page, entries, stack, seedCorpus) {
         minScore: g._minScore, maxScore: g._maxScore, count: g._count,
         chains: g.chains.map(decodeChain),
       }));
-    } else {
+    } else if (result.payload.chains) {
       out.refChains = ref.rows.map(refChain);
-      // Flat tier still index-encodes (no synthetics); rich-chain payload only
-      // appears when a row carries a synthetic. Decode whichever shape arrived.
-      out.workerChains = result.payload.chains
-        ? result.payload.chains.map(decodeChain)
-        : [...new Int32Array(result.payload.indices)].map((i, n) => {
-            const e = lean(refCorpus.entries[i]);
-            return result.payload.highlights[n].map(h => ({ entry: e, highlights: h ?? null, glyph: null }));
-          });
-      out.hasSynthetic = !!result.payload.chains;
+      out.workerChains = result.payload.chains.map(decodeChain);
+      out.hasSynthetic = true;
+    } else {
+      // Folded to single-atom rows → the B5 flat index payload (no highlights),
+      // so this compares entries in the worker's entry/asc order, not chains.
+      out.hasSynthetic = false;
+      const cmp = (a, b) =>
+        a.norm.localeCompare(b.norm) || (b.norm.length - a.norm.length) || (b.score - a.score);
+      out.refEntries = ref.rows.map(r => lean(r.atoms[0].wlEntry)).sort(cmp);
+      out.workerEntries = [...new Int32Array(result.payload.indices)].map(i => lean(refCorpus.entries[i]));
+      out.workerScores = [...new Int32Array(result.payload.scores)];
+      out.refScores = out.refEntries.map(e => e.score);
     }
     return out;
   }, { entries, stack, seedCorpus });
@@ -196,7 +199,13 @@ test.describe('transform-chain tier matches the main-thread oracle', () => {
       const r = await runRichStack(page, CORPUS, stack);
       expect(r.grouped).toBe(false);
       expect(r.atomCount).toBe(r.refAtomCount);
-      expect(r.workerChains).toEqual(r.refChains);
+      if (r.workerChains) {
+        expect(r.workerChains).toEqual(r.refChains);
+      } else {
+        // Folded to single-atom rows → the flat index payload (B5).
+        expect(r.workerEntries).toEqual(r.refEntries);
+        expect(r.workerScores).toEqual(r.refScores);
+      }
     });
   }
 });

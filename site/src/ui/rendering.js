@@ -194,12 +194,16 @@ export function createScroller() {
   return entriesScroller;
 }
 
+function currentSort() {
+  return { key: AppView.sortKey, dir: AppView.sortDir };
+}
+
 export async function refreshMergedScroller() {
   reconcileSort(ToolStack.getStack());
   if (!entriesScroller) return;
-  const result = await runPipeline(getActiveCorpus(), ToolStack.getStack());
+  const result = await runPipeline(getActiveCorpus(), ToolStack.getStack(), currentSort());
   if (result.aborted || !entriesScroller) return;
-  entriesScroller.updateEntries(result.rows, result.atomCount, chainSortTier(ToolStack.getStack()));
+  entriesScroller.updateEntries(result, result.atomCount, chainSortTier(ToolStack.getStack()));
   ToolStack.refreshErrorMarks();
 }
 
@@ -397,10 +401,9 @@ export async function renderMergedDetail() {
     entriesScroller._onDeleteRow = entry => _deleteFromEdits(entry, refreshMergedScroller);
     _attachExternalEditHandlers(entriesScroller, refreshMergedScroller);
 
-    const result = await runPipeline(getActiveCorpus(), ToolStack.getStack());
+    const result = await runPipeline(getActiveCorpus(), ToolStack.getStack(), currentSort());
     if (result.aborted) return;
-    const { rows, atomCount } = result;
-    entriesScroller.setEntries(rows, atomCount, chainSortTier(ToolStack.getStack()));
+    entriesScroller.setEntries(result, result.atomCount, chainSortTier(ToolStack.getStack()));
     ToolStack.refreshErrorMarks();
   } finally {
     // In `finally` so a thrown/aborted pipeline still dismisses the splash

@@ -15,12 +15,12 @@
 import { ROW_HEIGHT, VS_BUFFER, MERGED_ID } from '../core/constants.js';
 import { esc } from '../core/util.js';
 import { displayOf, projectRangesToDisplay, toNorm, buildUserWlEntry } from '../engine/norm.js';
-import { parseRange } from '../engine/range.js';
+import { parseRange, matchesRange } from '../engine/range.js';
 import { renderHighlightedText } from '../engine/search.js';
-import { TOOLS } from '../engine/tools.js';
+import { TOOLS, normalizeParams } from '../engine/tools.js';
 import {
   isFilterOnlyChain, isGroupChain, rowLastEntry,
-  bottomLineAtoms, rowSetAtoms, applyScoreRangeToRows,
+  bottomLineAtoms, rowSetAtoms, applyScoreRangeToRows, collapseRepeatAtoms,
 } from '../engine/executor.js';
 import { state, getEditsWordlist } from '../data/state.js';
 import { getRescoredByNorm, rescoreEntry } from '../data/rescoring.js';
@@ -32,7 +32,7 @@ import { AppView } from './app-view.js';
 import { ToolStack } from './tool-stack.js';
 import { buildWordlistNameHTML } from './scope-selector.js';
 import {
-  getEntriesScroller, rescorePreviewActive, buildNoMatchQuipHTML,
+  getEntriesScroller, rescorePreviewActive, buildNoMatchQuipHTML, refreshMergedScroller,
 } from './rendering.js';
 
 let _navigate              = () => {};
@@ -341,6 +341,46 @@ export function compareValues(a, b) {
   return String(a).localeCompare(String(b));
 }
 const ENTRY_SLOT_CAP = 21;
+
+// ─── Flat-tier highlight re-derivation ──────────────────────────────────────
+// The flat result ships no highlights; the visible window re-derives them by
+// replaying each active highlighting filter. This and materializeFlatRow must
+// reproduce the executor's runToolStage + collapseRepeatAtoms exactly — any
+// divergence is a silent visual bug (wrong marks, or an atom count that mismatches
+// the row's reserved line height). A flat chain has no transforms, so the only
+// highlighting filters are Search/Regex in filter mode.
+function compileFlatHighlighters(stack) {
+  const out = [];
+  for (const row of stack) {
+    const { def } = row;
+    if (row.isInert() || row.kind() !== 'filter' || !def.inputHighlights) continue;
+    const params = normalizeParams(row.params, def.params);
+    // Sync prepare only — the render path can't await; Search/Regex prepare is
+    // sync and ignores ctx, so a future async-prepare highlighting filter would
+    // silently ship a Promise as `prepared` here.
+    const prepared = def.prepare ? def.prepare(params, {}) : params;
+    const coord = def.matchOn === 'display' ? 'display' : 'norm';
+    out.push({ def, prepared, coord });
+  }
+  return out;
+}
+
+function tagCoord(ranges, coord) {
+  return ranges.map(r => r.coord ? r : { ...r, coord });
+}
+
+function materializeFlatRow(wlEntry, highlighters) {
+  const atoms = [{ wlEntry, highlights: null, glyph: null }];
+  for (const { def, prepared, coord } of highlighters) {
+    const input = def.matchOn === 'both' ? wlEntry
+      : def.matchOn === 'display' ? displayOf(wlEntry)
+      : wlEntry.norm;
+    const result = def.run(input, prepared, null);
+    const highlights = Array.isArray(result) ? tagCoord(result, coord) : [];
+    atoms.push({ wlEntry, highlights, glyph: null });
+  }
+  return { atoms: collapseRepeatAtoms(atoms) };
+}
 
 // Off-screen pixel width of `text` rendered in style class `className`
 // (.text-probe positioning is layered on automatically). Memoized per
@@ -693,6 +733,16 @@ export class EntriesScroller extends BaseVirtualScroller {
     this.sortTier = 'single';
     this.allEntries = [];
     this.entries = [];
+    // When _flat (the filter-only tier), allEntries/entries hold Int32Array
+    // indices into _flatCorpus.entries, NOT ChainRow[] — _flatScores is parallel
+    // to allEntries, rows are materialized lazily for the visible window. The
+    // transform/group tiers leave _flat false and keep the row arrays above.
+    this._flat = false;
+    this._flatCorpus = null;
+    this._flatScores = null;
+    this._flatViewScores = null;
+    this._widthHints = null;
+    this._flatHighlighters = [];
     this.sortKey = AppView.sortKey;
     this.sortDir = AppView.sortDir;
     this.scoreRange = AppView.scoreRange;
@@ -741,8 +791,10 @@ export class EntriesScroller extends BaseVirtualScroller {
         row = target.closest('.entry-row');
         const atomEl = target.closest('.atom');
         if (!row || !atomEl) return;
-        wlEntry = this.entries[parseInt(row.dataset.idx, 10)]
-                  ?.atoms[parseInt(atomEl.dataset.atom, 10)]?.wlEntry;
+        const rowIdx = parseInt(row.dataset.idx, 10);
+        wlEntry = this._flat
+          ? this._flatCorpus.entries[this.entries[rowIdx]]
+          : this.entries[rowIdx]?.atoms[parseInt(atomEl.dataset.atom, 10)]?.wlEntry;
       }
       if (!wlEntry) return;
       const field = target.classList.contains('atom-score') ? 'score'
@@ -754,26 +806,37 @@ export class EntriesScroller extends BaseVirtualScroller {
     this._buildToolbar();
   }
 
-  // atomCount / sortTier default to the current values so callers that only
-  // update the rows (e.g. display-case re-render) don't need to know the
-  // pipeline shape. Search is a pipeline tool now; the scroller only filters
-  // by score range.
-  setEntries(allEntries, atomCount = this.atomCount, sortTier = this.sortTier) {
+  setEntries(result, atomCount = this.atomCount, sortTier = this.sortTier) {
     GroupMorePopover.close();
     this._setChainShape(atomCount, sortTier);
-    this.allEntries = allEntries;
+    this._ingestResult(result);
     this._invalidateSortCache();
     this._buildToolbar();
     this._sortAndRender();
   }
 
-  updateEntries(allEntries, atomCount = this.atomCount, sortTier = this.sortTier) {
+  updateEntries(result, atomCount = this.atomCount, sortTier = this.sortTier) {
     const tierChanged = this._setChainShape(atomCount, sortTier);
-    this.allEntries = allEntries;
+    this._ingestResult(result);
     this._invalidateSortCache();
     if (tierChanged) { this._buildToolbar(); rebuildEntryHeaders(); }
     this._sortAndRender();
     AtomPopover.rebindEntry(this);
+  }
+
+  _ingestResult(result) {
+    this._flat = !!result.flat;
+    if (this._flat) {
+      this._flatCorpus = result.corpus;
+      this._flatScores = result.scores;
+      this._widthHints = result.widthHints;
+      this._flatHighlighters = compileFlatHighlighters(ToolStack.getStack());
+      this.allEntries = result.indices;
+    } else {
+      this._flatCorpus = null;
+      this._flatScores = null;
+      this.allEntries = result.rows;
+    }
   }
 
   _setChainShape(atomCount, sortTier) {
@@ -824,7 +887,10 @@ export class EntriesScroller extends BaseVirtualScroller {
     AppView.setSort(key, dir);
     this._buildToolbar();
     rebuildEntryHeaders();
-    this._sortAndRender();
+    // The flat tier has no main-thread comparator (the worker pre-sorts), so an
+    // axis change must re-run the pipeline; sorting locally would silently misorder.
+    if (this._flat) refreshMergedScroller();
+    else this._sortAndRender();
     _navigate();
   }
 
@@ -857,16 +923,21 @@ export class EntriesScroller extends BaseVirtualScroller {
       return this._sortedSource;
     }
 
-    const filtered = applyScoreRangeToRows(this.allEntries, this._scoreIntervals, this.sortTier === 'group');
-
+    // Flat tier: the index array is already sorted (by the worker); a sort-axis
+    // change re-runs the pipeline (applySort), so don't re-sort here — only the
+    // score-range filter applies, order-preserving.
     let sorted;
-    const axis = sortAxes(this.sortTier)[this.sortKey];
-    if (!axis) {
-      sorted = filtered;
+    if (this._flat) {
+      sorted = this._filterFlatIndices();
     } else {
-      if (this.sortTier === 'group') this._sortGroupChains();
-      const dir = this.sortDir;
-      sorted = [...filtered].sort((a, b) => compareItems(a, b, axis, dir));
+      const filtered = applyScoreRangeToRows(this.allEntries, this._scoreIntervals, this.sortTier === 'group');
+      const axis = sortAxes(this.sortTier)[this.sortKey];
+      if (!axis) {
+        sorted = filtered;
+      } else {
+        if (this.sortTier === 'group') this._sortGroupChains();
+        sorted = [...filtered].sort((a, b) => compareItems(a, b, axis, this.sortDir));
+      }
     }
 
     this._sortedSource = sorted;
@@ -874,6 +945,23 @@ export class EntriesScroller extends BaseVirtualScroller {
     this._sortedSourceDir = this.sortDir;
     this._sortedSourceRange = this.scoreRange;
     return sorted;
+  }
+
+  _filterFlatIndices() {
+    if (!this._scoreIntervals) {
+      this._flatViewScores = this._flatScores;
+      return this.allEntries;
+    }
+    const all = this.allEntries, scores = this._flatScores;
+    const idxOut = [], scoreOut = [];
+    for (let i = 0; i < all.length; i++) {
+      if (matchesRange(scores[i], this._scoreIntervals)) {
+        idxOut.push(all[i]);
+        scoreOut.push(scores[i]);
+      }
+    }
+    this._flatViewScores = Int32Array.from(scoreOut);
+    return Int32Array.from(idxOut);
   }
 
   _sortGroupChains() {
@@ -894,6 +982,7 @@ export class EntriesScroller extends BaseVirtualScroller {
   // .sticky-stack, a sibling of the scroller's host) inherit the same values.
   _computeSlotWidths() {
     if (this.sortTier === 'group') { this._computeGroupSlotWidths(); return; }
+    if (this._flat) { this._computeFlatSlotWidths(); return; }
     // Count and entry slot widths track the unfiltered result so columns
     // don't shift sideways when a search or score filter cuts the visible
     // set down. Len/score slots stay tied to the filtered view since their
@@ -948,11 +1037,43 @@ export class EntriesScroller extends BaseVirtualScroller {
     target.style.setProperty('--source-max', `${22 * ch}px`);
   }
 
+  _computeFlatSlotWidths() {
+    const total = this.allEntries.length;
+    const countDigits = total > 0 ? String(total).length : 1;
+    const ch = measureMonoChPx();
+    const { maxDisplayLen, maxLenDigits, maxScoreDigits } = this._widthHints;
+    const hasHighlight = this._flatHighlighters.length > 0;
+
+    let maxRawDigits = 0;
+    if (rescorePreviewActive()) {
+      const corpus = this._flatCorpus.entries, view = this.entries;
+      for (let i = 0; i < view.length; i++) {
+        const { rawScore, score } = corpus[view[i]];
+        if (rawScore != null && rawScore !== score) {
+          maxRawDigits = Math.max(maxRawDigits, String(rawScore).length);
+        }
+      }
+    }
+
+    const entryContentW = Math.ceil(
+      Math.min(maxDisplayLen, ENTRY_SLOT_CAP) * ch + (hasHighlight ? ch : 0)
+    ) + 1;
+    const target = this.host.closest('#detail-panel') || this.sizer;
+    target.style.setProperty('--count-w', `${(countDigits + 1) * ch}px`);
+    target.style.setProperty('--entry-w', `${Math.max(entryContentW, sortableHeaderPx('Entry'))}px`);
+    target.style.setProperty('--len-w', `${Math.max(maxLenDigits * ch, sortableHeaderPx('Len'))}px`);
+    const arrowPrefixW = maxRawDigits ? maxRawDigits * ch + measureScoreArrowPx() : 0;
+    target.style.setProperty('--score-w', `${Math.max(badgeWidthPx(maxScoreDigits) + arrowPrefixW, sortableHeaderPx('Score'))}px`);
+    target.style.setProperty('--source-max', `${22 * ch}px`);
+  }
+
   _statsViewEntries() {
+    if (this._flat) return this._flatViewScores ?? this._flatScores;
     return bottomLineAtoms(this.entries);
   }
 
   _histogramEntries() {
+    if (this._flat) return this._flatScores;
     return bottomLineAtoms(this.allEntries);
   }
 
@@ -982,13 +1103,18 @@ export class EntriesScroller extends BaseVirtualScroller {
     let nextActiveRow = null;
     const frag = document.createDocumentFragment();
     for (let i = start; i < end; i++) {
-      const row = this._renderChainRow(this.entries[i], i, tierFor, activeNorm, preview);
+      const chainRow = this._flat ? this._flatRowAt(i) : this.entries[i];
+      const row = this._renderChainRow(chainRow, i, tierFor, activeNorm, preview);
       row.style.top = (i * stride) + 'px';
       if (row.classList.contains('active')) nextActiveRow = row;
       frag.appendChild(row);
     }
     this.sizer.appendChild(frag);
     if (nextActiveRow) AtomPopover.rebindRow(nextActiveRow);
+  }
+
+  _flatRowAt(i) {
+    return materializeFlatRow(this._flatCorpus.entries[this.entries[i]], this._flatHighlighters);
   }
 
   _renderChainRow(chainRow, i, tierFor, activeNorm, preview) {
@@ -1174,6 +1300,35 @@ export class EntriesScroller extends BaseVirtualScroller {
     this._groupChromeWidth = 32 + rownumW + countW + anchorW + columnsW + 14 * flexChildren;
     this._groupMonoCh = monoCh;
     this._groupGlyphPx = measureAtomGlyphPx();
+  }
+
+  exportRows() {
+    if (!this._flat) return this.entries;
+    const out = new Array(this.entries.length);
+    for (let i = 0; i < this.entries.length; i++) out[i] = this._flatRowAt(i);
+    return out;
+  }
+
+  resultHasEntry(wlEntry) {
+    if (this._flat) return this._flatCorpus.byNorm.has(wlEntry.norm);
+    for (const a of rowSetAtoms(this.allEntries)) {
+      if (a.wlEntry === wlEntry) return true;
+    }
+    return false;
+  }
+
+  findResultEntry(norm, display) {
+    if (this._flat) {
+      const byKey = this._flatCorpus.byKey.get(mergeKey(norm, display));
+      return byKey ?? this._flatCorpus.byNorm.get(norm) ?? null;
+    }
+    let normFallback = null;
+    for (const a of rowSetAtoms(this.allEntries)) {
+      if (a.wlEntry.norm !== norm) continue;
+      if (a.wlEntry.display === display) return a.wlEntry;
+      if (!normFallback) normFallback = a.wlEntry;
+    }
+    return normFallback;
   }
 }
 
@@ -1422,11 +1577,7 @@ export const AtomPopover = (() => {
   // score to comment) preserves focus and the just-typed value.
   function refresh({ resetInputs = false } = {}) {
     if (!isOpen()) return;
-    let stillPresent = false;
-    for (const a of rowSetAtoms(activeScroller.allEntries)) {
-      if (a.wlEntry === activeWlEntry) { stillPresent = true; break; }
-    }
-    if (!stillPresent) return;
+    if (!activeScroller.resultHasEntry(activeWlEntry)) return;
     if (resetInputs) {
       el.innerHTML = renderHTML(activeWlEntry, activeScroller);
       wireFields();
@@ -1579,13 +1730,7 @@ export const AtomPopover = (() => {
     if (!isOpen() || activeScroller !== scroller) return;
     const targetNorm = activeWlEntry.norm;
     const targetDisplay = activeWlEntry.display;
-    let found = null, normFallback = null;
-    for (const a of rowSetAtoms(scroller.allEntries)) {
-      if (a.wlEntry.norm !== targetNorm) continue;
-      if (a.wlEntry.display === targetDisplay) { found = a.wlEntry; break; }
-      if (!normFallback) normFallback = a.wlEntry;
-    }
-    found ??= normFallback;
+    const found = scroller.findResultEntry(targetNorm, targetDisplay);
     const wasPendingDelete = pendingDelete;
     pendingDelete = false;
     if (!found) {

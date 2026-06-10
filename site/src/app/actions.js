@@ -1019,14 +1019,15 @@ export async function exportCopy() {
   const scroller = getEntriesScroller();
   if (!scroller) return;
   const grouped = scroller.sortTier === 'group';
-  const text = buildCopyText(scroller.entries, grouped, ToolStack.getStack());
+  const rows = scroller.exportRows();
+  const text = buildCopyText(rows, grouped, ToolStack.getStack());
   try {
     await navigator.clipboard.writeText(text);
   } catch (e) {
     showToast('Copy failed — clipboard permission denied');
     return;
   }
-  const count = countExportEntries(scroller.entries, grouped);
+  const count = countExportEntries(rows, grouped);
   showToast(`Copied ${pluralize(count, 'entry', 'entries')}`);
 }
 
@@ -1053,7 +1054,7 @@ export async function exportWordlist() {
   const scroller = getEntriesScroller();
   if (!scroller) return;
   const grouped = scroller.sortTier === 'group';
-  const { text, count, skipped } = buildWordlistText(scroller.entries, grouped);
+  const { text, count, skipped } = buildWordlistText(scroller.exportRows(), grouped);
   triggerDownload(text, exportFilename(ToolStack.getStack(), 'txt'));
   let msg = `Downloaded ${pluralize(count, 'entry', 'entries')}`;
   if (skipped) msg += ` (${pluralize(skipped, 'entry', 'entries')} skipped due to semicolons)`;
@@ -1120,9 +1121,10 @@ export async function exportCSV() {
   const scroller = getEntriesScroller();
   if (!scroller) return;
   const grouped = scroller.sortTier === 'group';
-  const text = buildCSVText(scroller.entries, grouped, ToolStack.getStack());
+  const rows = scroller.exportRows();
+  const text = buildCSVText(rows, grouped, ToolStack.getStack());
   triggerDownload(text, exportFilename(ToolStack.getStack(), 'csv'));
-  const count = countExportEntries(scroller.entries, grouped);
+  const count = countExportEntries(rows, grouped);
   showToast(`Downloaded ${pluralize(count, 'entry', 'entries')}`);
 }
 
@@ -1164,8 +1166,9 @@ export async function exportJSON() {
   const scroller = getEntriesScroller();
   if (!scroller) return;
   const grouped = scroller.sortTier === 'group';
-  const obj = buildExportJSONObject(scroller.entries, grouped, ToolStack.getStack());
+  const rows = scroller.exportRows();
+  const obj = buildExportJSONObject(rows, grouped, ToolStack.getStack());
   triggerDownload(JSON.stringify(obj, null, 2) + '\n', exportFilename(ToolStack.getStack(), 'json'));
-  const count = countExportEntries(scroller.entries, grouped);
+  const count = countExportEntries(rows, grouped);
   showToast(`Downloaded ${pluralize(count, 'entry', 'entries')}`);
 }

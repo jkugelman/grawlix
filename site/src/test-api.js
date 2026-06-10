@@ -165,7 +165,9 @@ const __grawlixTest = {
     const mainNorms = ref.rows.map(r => r.atoms[0].wlEntry.norm);
 
     const result = await runOnWorker(corpus, rows);
-    const workerNorms = result.rows.map(r => r.atoms[0].wlEntry.norm);
+    const workerNorms = result.flat
+      ? [...result.indices].map(i => result.corpus.entries[i].norm)
+      : result.rows.map(r => r.atoms[0].wlEntry.norm);
 
     return { mainNorms, workerNorms, snapshotId: shippedSnapshot().snapshotId };
   },
@@ -215,6 +217,19 @@ const __grawlixTest = {
     });
   },
 
+  // Per visible entry-row: `{ text, marks }` where marks are the `<mark>`ed
+  // (search-highlighted) substrings.
+  async getVisibleRowMarks() {
+    await pipelineIdle();
+    return [...document.querySelectorAll('#vs-host .entry-row')].map(r => {
+      const entryEl = r.querySelector('.atom-entry');
+      return {
+        text: (entryEl?.textContent || '').trim(),
+        marks: [...r.querySelectorAll('.atom-entry .search-match')].map(m => m.textContent),
+      };
+    });
+  },
+
   async getVisibleGroups() {
     await pipelineIdle();
     const stripGlyph = el => {
@@ -259,7 +274,7 @@ const __grawlixTest = {
   async exportText(format) {
     await pipelineIdle();
     const scroller = getEntriesScroller();
-    const rows = scroller.entries;
+    const rows = scroller.exportRows();
     const grouped = scroller.sortTier === 'group';
     const stack = ToolStack.getStack();
     if (format === 'copy')     return buildCopyText(rows, grouped, stack);

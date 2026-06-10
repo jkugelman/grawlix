@@ -9,12 +9,18 @@ export const HIST_BINNED_BUCKETS = 11;
 const _layoutCache = new Map();
 export function invalidateHistogramLayout() { _layoutCache.clear(); }
 
+// Accepts rich rows OR a raw numeric scores array: the flat tier feeds the
+// latter so a million-entry histogram pass scans an Int32Array rather than
+// allocating a `{ score }` object per entry.
+const scoreOf = e => typeof e === 'number' ? e : e.score;
+
 export function getHistogramLayout(scoreSource, cacheKey) {
   const cached = _layoutCache.get(cacheKey);
   if (cached) return cached;
   const distinct = new Set();
   let min = Infinity, max = -Infinity;
-  for (const { score } of scoreSource) {
+  for (const e of scoreSource) {
+    const score = scoreOf(e);
     distinct.add(score);
     if (score < min) min = score;
     if (score > max) max = score;
@@ -53,16 +59,16 @@ export function bucketCounts(entries, layout) {
   const counts = layout.slots.map(() => 0);
   if (layout.mode === 'discrete') {
     const idxByScore = new Map(layout.slots.map((s, i) => [s.score, i]));
-    for (const { score } of entries) {
-      const idx = idxByScore.get(score);
+    for (const e of entries) {
+      const idx = idxByScore.get(scoreOf(e));
       if (idx !== undefined) counts[idx]++;
     }
   } else if (layout.slots.length) {
     const min0 = layout.slots[0].lo;
     const bs = layout.slots[0].hi - layout.slots[0].lo + 1;
     const last = layout.slots.length - 1;
-    for (const { score } of entries) {
-      const idx = Math.min(last, Math.max(0, Math.floor((score - min0) / bs)));
+    for (const e of entries) {
+      const idx = Math.min(last, Math.max(0, Math.floor((scoreOf(e) - min0) / bs)));
       counts[idx]++;
     }
   }

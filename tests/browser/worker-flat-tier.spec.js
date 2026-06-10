@@ -29,8 +29,11 @@ function runFlatStack(page, entries, stack) {
       return row;
     });
     const ref = await executePipeline(refCorpus, refStack, {});
-    const refEntries = ref.rows.map(r => r.atoms[0].wlEntry);
-    const refHighlights = ref.rows.map(r => r.atoms.map(a => a.highlights));
+    // Must mirror the worker's FLAT_SORT_AXES.entry exactly (norm asc, norm.length
+    // desc, score desc) — a silent divergence false-passes/fails the order check.
+    const cmp = (a, b) =>
+      a.norm.localeCompare(b.norm) || (b.norm.length - a.norm.length) || (b.score - a.score);
+    const refEntries = ref.rows.map(r => r.atoms[0].wlEntry).sort(cmp);
 
     const worker = new Worker(new URL('/src/engine/worker.js', location.origin), { type: 'module' });
     const result = await new Promise((resolve, reject) => {
@@ -38,12 +41,13 @@ function runFlatStack(page, entries, stack) {
       worker.onmessage = ({ data }) => { if (data.type === 'result') resolve(data); };
       const snap = packSnapshot(entries);
       worker.postMessage({ type: 'snapshot', snapshotId: 1, ...snap }, snapshotTransferables(snap));
-      worker.postMessage({ type: 'run', runId: 1, snapshotId: 1, stack });
+      worker.postMessage({ type: 'run', runId: 1, snapshotId: 1, stack, sort: { key: 'entry', dir: 'asc' } });
     });
     worker.terminate();
 
     const idx = [...new Int32Array(result.payload.indices)];
     const workerEntries = idx.map(i => refCorpus.entries[i]);
+    const workerScores = [...new Int32Array(result.payload.scores)];
 
     return {
       grouped: result.grouped,
@@ -52,8 +56,9 @@ function runFlatStack(page, entries, stack) {
       // By value, not identity: ref and worker entries are separate object graphs.
       refEntries: refEntries.map(e => ({ norm: e.norm, display: e.display, score: e.score })),
       workerEntries: workerEntries.map(e => ({ norm: e.norm, display: e.display, score: e.score })),
-      refHighlights,
-      workerHighlights: result.payload.highlights,
+      refScores: refEntries.map(e => e.score),
+      workerScores,
+      widthHints: result.payload.widthHints,
     };
   }, { entries, stack });
 }
@@ -105,7 +110,10 @@ test.describe('flat tier runs in the worker and matches the main-thread oracle',
       expect(r.grouped).toBe(false);
       expect(r.atomCount).toBe(r.refAtomCount);
       expect(r.workerEntries).toEqual(r.refEntries);
-      expect(r.workerHighlights).toEqual(r.refHighlights);
+      expect(r.workerScores).toEqual(r.refScores);
+      expect(r.widthHints).toHaveProperty('maxDisplayLen');
+      expect(r.widthHints).toHaveProperty('maxLenDigits');
+      expect(r.widthHints).toHaveProperty('maxScoreDigits');
     });
   }
 });

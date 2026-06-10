@@ -110,20 +110,19 @@ function materializeResult(data, stack) {
   const corpus = shippedCorpus;
   const { grouped, atomCount, payload } = data;
 
-  let rows;
-  if (grouped) {
-    rows = payload.groups.map(g => decodeGroup(g, corpus));
-  } else if (payload.chains) {
-    rows = payload.chains.map(c => decodeChain(c, corpus));
-  } else {
-    const idx = new Int32Array(payload.indices);
-    const { highlights } = payload;
-    rows = new Array(idx.length);
-    for (let i = 0; i < idx.length; i++) {
-      const wlEntry = corpus.entries[idx[i]];
-      rows[i] = { atoms: highlights[i].map(h => ({ wlEntry, highlights: h, glyph: null })) };
-    }
+  if (!grouped && payload.indices && !payload.chains) {
+    return {
+      flat: true, corpus,
+      indices: new Int32Array(payload.indices),
+      scores: new Int32Array(payload.scores),
+      widthHints: payload.widthHints,
+      atomCount, grouped: false, aborted: false,
+    };
   }
+
+  const rows = grouped
+    ? payload.groups.map(g => decodeGroup(g, corpus))
+    : payload.chains.map(c => decodeChain(c, corpus));
   return { rows, atomCount, grouped, aborted: false };
 }
 
