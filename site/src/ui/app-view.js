@@ -8,6 +8,7 @@ import { state } from '../data/state.js';
 import { lsSave, lsDel } from '../data/storage.js';
 import { ToolStack } from './tool-stack.js';
 import { repositionAllHistogramRects } from './histogram-view.js';
+import { reconcileSort, chainSortTier, DEFAULT_SORT_BY_TIER } from './entries-table.js';
 
 export const scopeKey = scope => scope === MERGED_ID ? MERGED_ID : scope.dbKey;
 
@@ -19,16 +20,11 @@ export function normalizeScoreRange(value, inputId) {
   return (trimmed && intervals) ? trimmed : '';
 }
 
-// Sort reconciliation and the entries scroller live in the rendering layer
-// (still in main.js). They're injected so this near-leaf view doesn't reach
-// upward; boot() supplies them via configureAppView.
-let _reconcileSort       = () => {};
-let _defaultSortAxis     = () => 'entry';
+// The entries-table import is circular; it resolves to undefined (not an
+// error) if reconcileSort ever moves from runtime use to module-init time.
 let _setScrollerScoreRange = () => {};
 
-export function configureAppView({ reconcileSort, defaultSortAxis, setScrollerScoreRange }) {
-  if (reconcileSort)         _reconcileSort = reconcileSort;
-  if (defaultSortAxis)       _defaultSortAxis = defaultSortAxis;
+export function configureAppView({ setScrollerScoreRange }) {
   if (setScrollerScoreRange) _setScrollerScoreRange = setScrollerScoreRange;
 }
 
@@ -75,9 +71,10 @@ export const AppView = (() => {
   // the tool stack (including the Search bar row), then hands us the sort
   // axis/direction. The search query itself rides in the stack, not here.
   function applyURLState({ sortKey, sortDir }) {
-    _sortKey = sortKey || _defaultSortAxis(ToolStack.getStack());
+    const stack = ToolStack.getStack();
+    _sortKey = sortKey || DEFAULT_SORT_BY_TIER[chainSortTier(stack)];
     _sortDir = sortDir || 'asc';
-    _reconcileSort(ToolStack.getStack());
+    reconcileSort(stack);
   }
 
   // Score-range is the lone state field that's localStorage-backed (it's a

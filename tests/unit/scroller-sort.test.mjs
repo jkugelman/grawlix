@@ -1,14 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { extract } from './support/extract.mjs';
-
-const {
+import {
   compareValues, compareItems, columnSortAxes, nextSortForColumn,
   rowMinScore, rowMaxScore,
-} = extract('scroller-sort', [
-  'compareValues', 'compareItems', 'columnSortAxes', 'nextSortForColumn',
-  'rowMinScore', 'rowMaxScore',
-]);
+} from '../../site/src/ui/entries-table.js';
 
 test('compareValues: numbers compare numerically (ascending), not lexically', () => {
   assert.ok(compareValues(2, 10) < 0);   // lexical would put "10" before "2"
