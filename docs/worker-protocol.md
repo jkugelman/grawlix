@@ -12,7 +12,7 @@ The worker is being built incrementally; this doc describes the full contract an
 - 🔶 **staged** — code exists (and is tested) but is not yet sent/used over the wire.
 - ⬜ **planned** — designed here, not yet built.
 
-> **Where we are now:** the worker bundle spawns and answers a `ping` (✅); the columnar snapshot pack/unpack and the shared `byNorm` builder exist as pure functions (🔶); the executor does **not** yet run in the worker — `runPipeline` is still main-thread, and no `snapshot`/`run`/`result` traffic flows yet (⬜). As the flip lands, flip these markers and reconcile the message tables against the real handlers.
+> **Where we are now:** the worker bundle spawns and answers a `ping` (✅); the columnar snapshot pack/unpack and the shared `byNorm` builder exist as pure functions (🔶). The worker host runs **all three result tiers** end-to-end — `snapshot` ingest, the `run` loop with macrotask-yield supersession, the flat/transform/grouped `result` encodings, segmenter I/O for transform tools that need the unigram corpus, and `cancel` are implemented and tested against a main-thread `executePipeline` oracle (🔶 — `engine/worker.js`, `tests/browser/worker-flat-tier.spec.js` + `worker-rich-tiers.spec.js`). What's still ⬜: the `patch` message, sort routing, and the live wiring — `runPipeline` is still main-thread and no client sends `snapshot`/`run` yet (B4). As the rest lands, flip these markers and reconcile the message tables against the real handlers.
 
 ---
 
@@ -42,6 +42,7 @@ The dividing line: **the worker owns letters and scores; the main thread owns pr
 | `_initialChains` | seed chain rows | lazily built by the executor's `buildInitialChains` over `entries` |
 | `_preSearchCache` | pipeline state up to just before the search row | mirrors today's main-thread cache, so a keystroke re-runs only the search row |
 | the executor + full tool catalog | `executePipeline` / `runToolStage` / `bucketize` / `unify` + every tool's `run`/`prepare`/`group` | imported directly from `engine/` (the worker runs the identical module text the main thread would) |
+| segmenter I/O (unigram corpus) | `configureIO({ idbGet, idbPut, onSize })`, called once at worker boot | `idbGet`/`idbPut` live in `data/storage.js` (not importable from `engine/`), so the worker opens the **same** IndexedDB DB/store (`grawlix`/`data`, v1) directly — the cached unigram corpus is per-origin, shared with main. `onSize` is a no-op (the LS corpus-size note is main-only). Lets transform tools that need the corpus (Space out's `prepare` → `loadUnigramCorpus`) run in the worker. |
 
 ### The relationship: index agreement
 
@@ -99,7 +100,7 @@ The bulk binary uses three column types:
 | display presence bitmap | `Uint8Array` | **transferred** |
 | filter/search result (survivor indices) | `Int32Array` | **transferred** |
 | highlights | parallel array (object); maybe binary later | structured clone |
-| transform-chain atoms / group objects | objects (inline indices + small synthetics) | structured clone (small) |
+| transform-chain atoms / group objects | tagged-atom objects (`{i}` index / `{s}` synthetic + `h`/`g`); groups add `key`/`anchor`/stats | structured clone (small) |
 
 The rule of thumb for a new message: **scalars and small/filtered structures go as the object; anything that scales with the corpus or the full result set gets packed into a transferable `ArrayBuffer`.**
 
@@ -114,12 +115,12 @@ Messages on one `Worker` are **FIFO**, which gives ordering for free (a `snapsho
 #### `ping` ✅
 `{ type: 'ping' }` — liveness / spawn check. Worker replies `pong`. The only message wired today; a useful health check that will likely stay.
 
-#### `snapshot` ⬜
+#### `snapshot` 🔶
 `{ type: 'snapshot', snapshotId, count, norms, displays, scores }` — **replace the worker's entire corpus.**
 - `snapshotId` — monotonic; identifies this corpus version. Bumps on a `patch` too.
 - `count` / `norms` / `displays` / `scores` — the columnar payload above; the buffers are **transferred**.
-- **Sent:** at boot, and after *every* merge-affecting mutation (reorder, enable/disable, import, scoring-rule edit) — i.e. anything that already rebuilds the merge on main — **except a My Edits in-place edit** (that's `patch`).
-- **On receipt:** worker `unpackSnapshot`s, replaces `entries` + `byNorm` wholesale, and invalidates `_preSearchCache` (and drops the lazy `_initialChains`). The next `run` rebuilds caches against the new corpus.
+- **Sent (planned, B4):** at boot, and after *every* merge-affecting mutation (reorder, enable/disable, import, scoring-rule edit) — i.e. anything that already rebuilds the merge on main — **except a My Edits in-place edit** (that's `patch`).
+- **On receipt (implemented):** worker `unpackSnapshot`s, replaces `entries` + `byNorm` wholesale, rebuilds the identity `entryToIndex` map (entry object → corpus index, the key to decoding results), records the `snapshotId`, and invalidates `_preSearchCache` (and drops the lazy `_initialChains`). The next `run` rebuilds caches against the new corpus.
 
 #### `patch` ⬜
 `{ type: 'patch', snapshotId, norms, rows }` — **the My Edits in-place exception** to whole-corpus resync.
@@ -128,36 +129,41 @@ Messages on one `Worker` are **FIFO**, which gives ordering for free (a `snapsho
 - **On receipt:** worker applies the *same* in-place splice to its `entries` array and re-indexes only those norms in `byNorm`/`_initialChains`. Because both sides apply the identical splice, **index agreement is preserved without reshipping.**
 - ⚠️ **Open divergence** — see *Invariants* and the plan doc: today `patchMergedForNorms` picks a norm's canonical `byNorm` row *localeCompare-first* while `resolveCorpus`/`buildByNorm` pick it *code-unit-first*. These must converge (route the patch through `buildByNorm`) before this message ships, or the worker's reindex disagrees with main.
 
-#### `run` ⬜
+#### `run` 🔶 (flat tier) / ⬜ (sort routing)
 `{ type: 'run', runId, snapshotId, stack, sort }` — **execute the pipeline.**
 - `runId` — monotonic; the supersession key (see *Cancellation*).
-- `snapshotId` — which corpus this run expects; a defensive cross-check (FIFO already guarantees the right corpus is loaded).
-- `stack` — the serialized tool stack: tool keys + params + `grouped` flags + the search row's pattern (≈ what the URL encodes). The worker looks up the tool **code** in its own copy of the catalog; functions never cross the boundary.
-- `sort` — sort axis + direction. The worker owns sort: it returns indices **already in display order**.
-- **On receipt:** worker sets `latestRunId = runId`, runs against its cached pre-/post-search state (caches keyed on `stack`, so a query-only change re-runs just search and a sort-only change just re-sorts), then posts `result` — unless superseded first.
+- `snapshotId` — which corpus this run expects; a defensive cross-check (FIFO already guarantees the right corpus is loaded). Echoed back on the `result` (falling back to the worker's current `snapshotId` if the run omits it).
+- `stack` — the serialized tool stack: an array of `{ tool, params, grouped }` descriptors (≈ what the URL encodes). The worker rebuilds each row via `makeToolRow(tool)` then overlays `params`/`grouped` — the same defaults-then-override order `router.js applyURL` uses, so the executor sees the identical row shape. The tool **code** is looked up in the worker's own copy of the catalog; functions never cross the boundary. An unknown `tool` key is skipped.
+- `sort` — sort axis + direction. **Not yet honored (B5):** the worker returns survivor indices in the executor's native row order. The worker will own sort and return indices already in display order.
+- **On receipt (implemented):** worker sets `latestRunId = runId`, stashes the request as `pending`, and drives a drain-to-latest run loop: `executePipeline(corpus, stack, signalShim)` against its cached pre-/post-search state, then posts `result` — unless superseded first. The signal shim's `aborted` is `thisRunId !== latestRunId`.
 
-#### `cancel` ⬜
+#### `cancel` 🔶
 `{ type: 'cancel' }` — explicit supersession, for teardown / search-cleared. Optional given that a newer `run` implicitly supersedes (see *Cancellation*).
+- **On receipt (implemented):** worker advances `latestRunId` past every live run and clears `pending`, so the in-flight shim aborts at its next yield and no run is queued. No reply.
 
 ### Worker → main
 
 #### `pong` ✅
 `{ type: 'pong' }` — reply to `ping`.
 
-#### `result` ⬜
-`{ type: 'result', runId, snapshotId, grouped, atomCount, payload }` — **pipeline output, expressed by index, never as entry objects.**
+#### `result` 🔶 (all three tiers)
+`{ type: 'result', runId, snapshotId, grouped, atomCount, payload }` — **pipeline output, expressed by index wherever it can be, never as corpus entry objects.**
 - `runId` / `snapshotId` — main **drops stale results** whose `runId` isn't the latest dispatched; `snapshotId` guards against a corpus mismatch.
 - `grouped` — whether the bottom row is grouped (shapes `payload`).
 - `atomCount` — atoms per row (the scroller also derives this from the stack alone, so row heights don't block on the result).
+- The **atom encoding** — the shared unit of the transform/grouped tiers. An atom is a small tagged object, exactly one of:
+  - `{ i: <index> }` — a corpus atom: `i` is `entryToIndex.get(wlEntry)`, the entry's index into the shared corpus order. Decode via main's rich row at that index.
+  - `{ s: { norm, display, score } }` — a **synthetic** atom: a tool output that exists in no wordlist (`wlEntry.wordlist === null`, the `[string, score]` tool-output form). Inline, **not** looked up in `byNorm` on receipt.
+  - plus optional `h` (the atom's `highlights`, omitted when null) and `g` (its `glyph`, one of `'→' | '↔' | '⊃'`, omitted when null).
 - `payload` — tiered:
-  - **filter/search** (the common, laggy case): a transferred `Int32Array` of survivor indices in display order + a parallel highlights array. The full survivor set, not a window — stats and the histogram consume the whole output; the main thread windows the table itself.
-  - **transform chains**: short atom sequences, each atom a merged-array **index** or an inline synthetic `{norm,display,score}` (a tool output that exists in no wordlist, `wlEntry.wordlist === null`).
-  - **grouped**: groups carrying precomputed column values, the anchor index, group Min/Max stats, and surviving chains.
-- **On receipt:** main maps indices → its rich rows, builds synthetic `wlEntry`s for inline atoms (these are **not** looked up in `byNorm`), feeds scroller/stats/histogram, settles the run's pending promise, and decrements the in-flight counter.
+  - **filter/search** 🔶 (the common, laggy case): a transferred `Int32Array` of survivor indices + a parallel `highlights` array. `payload = { indices: <ArrayBuffer>, highlights }`. The survivor index for a row is `entryToIndex.get(row.atoms[0].wlEntry)` — every atom in a flat row is the same word, so `atoms[0]` names the row. `highlights[i]` is that row's per-atom array (`row.atoms.map(a => a.highlights)`), one slot per displayed line, so a multi-search row's lines each carry their own ranges. The full survivor set, not a window — stats and the histogram consume the whole output; the main thread windows the table itself. (Order is the executor's native order until sort routing lands — B5.)
+  - **transform chains** 🔶: `payload = { chains: [{ atoms: [<atom>, ...] }, ...] }` — one chain per row, each atom in the encoding above. Fires when any row is *rich* — carries a glyph, spans more than one word (an atom whose `wlEntry` differs from `atoms[0]`'s), or holds a synthetic — i.e. the flat index encoding (which keeps only `atoms[0]`'s index + highlights) would be lossy. Structured-cloned, not transferred: this tier is heavily filtered, so it's small.
+  - **grouped** 🔶: `payload = { groups: [<group>, ...] }`. Each group is `{ key, anchor, _minScore, _maxScore, _count, chains: [{ atoms: [<atom>, ...] }, ...] }`. `key` is the tool-derived group key, structured-cloneable as-is (string/number/structured — no functions). `anchor` is `null` or the **atom encoding** (`{i}`/`{s}`, never `h`/`g`) for the group's anchor entry. `_minScore`/`_maxScore`/`_count` are the precomputed group stats. Structured-cloned, not transferred.
+- **On receipt (B4):** for the flat tier, main maps indices → its rich rows; for the transform/grouped tiers it walks each atom — `{i}` → its rich row at that index, `{s}` → a freshly built synthetic `wlEntry` (these are **not** looked up in `byNorm`) — reattaching `h`/`g` and the group `key`/`anchor`/stats, then feeds scroller/stats/histogram, settles the run's pending promise, and decrements the in-flight counter.
 
-#### `error` ⬜
-`{ type: 'error', runId, stackRowIndex, message }` — a tool threw (today's `ToolStageError`).
-- **On receipt:** main sets `stack[stackRowIndex]._error = message` → the red `⚠` row marker + `ErrorPopover`, and settles the run's promise. (Main owns the per-run `_error` *reset* now too — clear stale marks on each dispatch, since the executor's old per-run reset moved into the worker.)
+#### `error` 🔶
+`{ type: 'error', runId, stackRowIndex, message }` — a tool threw (a `ToolStageError`). `stackRowIndex` is the row's position in the run's stack (or `null` if it can't be located).
+- **On receipt (planned, B4):** main sets `stack[stackRowIndex]._error = message` → the red `⚠` row marker + `ErrorPopover`, and settles the run's promise. (Main owns the per-run `_error` *reset* now too — clear stale marks on each dispatch, since the executor's old per-run reset moved into the worker.)
 
 ---
 
