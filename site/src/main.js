@@ -86,6 +86,12 @@ import {
   threeWayMergeEdits, attachMirrorSync, attachEditsSync, detachSync,
   rescoredFilename, sanitizeFilenameStem, partitionSyncPermissions, activateSyncTarget,
 } from './data/disk-sync.js';
+import {
+  makeTierLookup, updateScoringDirty, propagateDefaults, makeScoringRowStub,
+} from './model/scoring.js';
+import {
+  scoreColor, buildScoreBadgeHTML, buildScoreCellHTML,
+} from './model/score-display.js';
 
 const scopeKey = scope => scope === MERGED_ID ? MERGED_ID : scope.dbKey;
 let _mergedIcon = null;
@@ -93,24 +99,10 @@ function getMergedIcon() { return _mergedIcon ??= buildEmojiIconHTML('⭐'); }
 
 // ─── Components ──────────────────────────────────────────────────────────────
 
-function buildScoreBadgeHTML(score) {
-  const { bg, fg } = scoreColor(score);
-  return `<span class="score-badge" style="--score-bg:${bg}; --score-fg:${fg}">${score}</span>`;
-}
-
 // Scoped-source-only: on All Wordlists the open editor edits tier labels, which don't
 // remap scores, so a raw → rescored arrow would be meaningless there.
 function rescorePreviewActive() {
   return state.selected !== MERGED_ID && WordlistSelector.isEditorOpen();
-}
-
-function buildScoreCellHTML(wlEntry) {
-  if (rescorePreviewActive() && wlEntry.rawScore != null && wlEntry.rawScore !== wlEntry.score) {
-    return `<span class="atom-score-raw">${wlEntry.rawScore}</span>`
-      + `<span class="atom-score-arrow">→</span>`
-      + buildScoreBadgeHTML(wlEntry.score);
-  }
-  return buildScoreBadgeHTML(wlEntry.score);
 }
 
 // options: array of { value, label }
@@ -2209,41 +2201,6 @@ async function clearEdits() {
   await persistEdits(edits);
 }
 
-// ─── Score colors ─────────────────────────────────────────────────────────────
-
-// t positions are hand-picked so that on the canonical 0–60 scale, scores
-// 30/40/50/60 land directly on stops (orange/yellow/green/blue).
-const SCORE_COLOR_STOPS = [
-  { t: 0,   bg: '--score-0-bg', fg: '--score-0-fg' },
-  { t: 1/6, bg: '--score-0-bg', fg: '--score-0-fg' },
-  { t: 1/3, bg: '--score-1-bg', fg: '--score-1-fg' },
-  { t: 1/2, bg: '--score-2-bg', fg: '--score-2-fg' },
-  { t: 2/3, bg: '--score-3-bg', fg: '--score-3-fg' },
-  { t: 5/6, bg: '--score-4-bg', fg: '--score-4-fg' },
-  { t: 1,   bg: '--score-5-bg', fg: '--score-5-fg' },
-];
-
-// Out-of-range scores clamp to the nearest endpoint. With no data loaded,
-// falls back to the middle stop (a gradient is meaningless without a range).
-function scoreColor(score) {
-  const { min, max } = allSourcesHistogramLayout();
-  if (min == null || max == null || max <= min) {
-    const s = SCORE_COLOR_STOPS[Math.floor(SCORE_COLOR_STOPS.length / 2)];
-    return { bg: `var(${s.bg})`, fg: `var(${s.fg})` };
-  }
-  const t = Math.max(0, Math.min(1, (score - min) / (max - min)));
-  let i = 0;
-  while (i < SCORE_COLOR_STOPS.length - 1 && SCORE_COLOR_STOPS[i + 1].t < t) i++;
-  const lo = SCORE_COLOR_STOPS[i];
-  const hi = SCORE_COLOR_STOPS[i + 1];
-  const localT = (t - lo.t) / (hi.t - lo.t);
-  const pct = (localT * 100).toFixed(1);
-  return {
-    bg: `color-mix(in lch, var(${lo.bg}), var(${hi.bg}) ${pct}%)`,
-    fg: `color-mix(in lch, var(${lo.fg}), var(${hi.fg}) ${pct}%)`,
-  };
-}
-
 // ─── Tool stack ───────────────────────────────────────────────────────────────
 // Tools are catalog records ({ name, icon, category, desc, example, params,
 // kind, inputHighlights, outputHighlights, glyph?, run?, group?, isInert? }).
@@ -3868,11 +3825,12 @@ class EntriesScroller extends BaseVirtualScroller {
     this._clearSizer();
 
     const tierFor = makeTierLookup();
+    const preview = rescorePreviewActive();
     const activeNorm = AtomPopover.activeNorm(this);
     let nextActiveRow = null;
     const frag = document.createDocumentFragment();
     for (let i = start; i < end; i++) {
-      const row = this._renderChainRow(this.entries[i], i, tierFor, activeNorm);
+      const row = this._renderChainRow(this.entries[i], i, tierFor, activeNorm, preview);
       row.style.top = (i * stride) + 'px';
       if (row.classList.contains('active')) nextActiveRow = row;
       frag.appendChild(row);
@@ -3881,7 +3839,7 @@ class EntriesScroller extends BaseVirtualScroller {
     if (nextActiveRow) AtomPopover.rebindRow(nextActiveRow);
   }
 
-  _renderChainRow(chainRow, i, tierFor, activeNorm) {
+  _renderChainRow(chainRow, i, tierFor, activeNorm, preview) {
     const atoms = chainRow.atoms;
     let isActive = false;
     let html = `<span class="atom-count">${i + 1}.</span>`;
@@ -3895,7 +3853,7 @@ class EntriesScroller extends BaseVirtualScroller {
       const truncTitle = displayed.length > ENTRY_SLOT_CAP ? ` title="${esc(displayed)}"` : '';
       const entryCell =
         `<span class="atom-entry"${truncTitle}>${glyphHTML}${renderHighlightedText(displayed, projected)}</span>`;
-      const scoreInner = buildScoreCellHTML(wlEntry);
+      const scoreInner = buildScoreCellHTML(wlEntry, preview);
       const tierLabel = tierFor(score);
       const scoreTitle = tierLabel ? ` title="${esc(tierLabel)}"` : '';
       const commentText = wlEntry.comment || '';
@@ -4567,36 +4525,6 @@ class UpdateSummaryScroller {
   }
 }
 
-// ─── Rescoring ────────────────────────────────────────────────────────────────
-
-function updateScoringDirty() {
-  state.scoringDirty = !scoringRulesEqual(state.scoring, DEFAULT_SCORING);
-}
-
-function propagateDefaults() {
-  if (!scoringRulesEqual(state.scoring, DEFAULT_SCORING) && !state.scoringDirty) {
-    state.scoring = DEFAULT_SCORING.map(r => ({ ...r }));
-    persistScoring();
-  }
-  let metaTouched = false;
-  for (const wordlist of state.sources) {
-    const defaults = getWordlistDefaultRules(wordlist);
-    if (defaults === null) continue;
-    if (!rescoreRulesEqual(wordlist.rescoreRules, defaults) && !wordlist.dirty) {
-      wordlist.rescoreRules = defaults.map(r => ({ ...r }));
-      compileRescoreRules(wordlist);
-      invalidateWordlistCaches(wordlist);
-      metaTouched = true;
-    }
-  }
-  if (metaTouched) {
-    persistMeta();
-    repaintAfterCacheChange();
-  }
-}
-
-function makeScoringRowStub(input = '') { return { input, note: '' }; }
-
 // ─── Rescoring / Scoring section ─────────────────────────────────────────────
 
 function renderRescoreSection() {
@@ -4931,18 +4859,6 @@ async function renderMergedDetail() {
 }
 
 // ─── Scoring (tier labels) ────────────────────────────────────────────────────
-
-// Returns a `score → tier label` function. First matching rule wins; an
-// empty note collapses to '' so callers can skip the tooltip entirely.
-function makeTierLookup() {
-  const rules = state.scoring
-    .map(r => ({ note: r.note || '', intervals: parseRange(r.input) }))
-    .filter(r => r.intervals);
-  return score => {
-    for (const r of rules) if (matchesRange(score, r.intervals)) return r.note;
-    return '';
-  };
-}
 
 // Sort tier labels into canonical priority order (highest max score first) so
 // makeTierLookup's first-match-wins resolves overlapping ranges consistently.
