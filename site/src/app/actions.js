@@ -65,18 +65,18 @@ import {
   getEntriesScroller, setScope, renderAll, renderSources, renderMergedDetail,
   firstPaint,
 } from '../ui/rendering.js';
+import { SyncDialog } from '../ui/dialogs/sync.js';
+import { ConfigureWordlistDialog } from '../ui/dialogs/configure-wordlist.js';
+import { ImportGuideDialog } from '../ui/dialogs/import-guide.js';
 import { Router } from './router.js';
 
-// The dialog singletons still live in main.js (a later carve). Importing them
-// here would be a cycle back into main.js — which evaluates boot() at load and
-// can't run DOM-less under node:test. boot() injects them through this seam, so
-// actions.js stays importable in isolation for the unit tier.
-let _syncDialog, _configureWordlistDialog, _importGuideDialog, _reconnectSplash;
-export function configureActions({ SyncDialog, ConfigureWordlistDialog, ImportGuideDialog, ReconnectSplash }) {
-  if (SyncDialog)              _syncDialog = SyncDialog;
-  if (ConfigureWordlistDialog) _configureWordlistDialog = ConfigureWordlistDialog;
-  if (ImportGuideDialog)       _importGuideDialog = ImportGuideDialog;
-  if (ReconnectSplash)         _reconnectSplash = ReconnectSplash;
+// ReconnectSplash still lives in main.js; importing it would be a cycle back
+// into main.js, which evaluates boot() at load and can't run DOM-less under
+// node:test. boot() injects it through this seam so actions.js stays importable
+// in isolation for the unit tier.
+let _reconnectSplash;
+export function configureActions({ ReconnectSplash }) {
+  if (ReconnectSplash) _reconnectSplash = ReconnectSplash;
 }
 
 // ─── Wordlist actions dispatcher ──────────────────────────────────────────────
@@ -90,7 +90,7 @@ export const WordlistActions = (() => {
     fetch:     () => fetchWordlist(getActionTargetWordlist()),
     import:    () => importToWordlist(getActionTargetWordlist()),
     delete:    async () => { await deleteWordlist(getActionTargetWordlist()); },
-    configure: () => _configureWordlistDialog.open(getActionTargetWordlist()),
+    configure: () => ConfigureWordlistDialog.open(getActionTargetWordlist()),
     clear:     () => clearEdits(),
     bakeRescoring: () => bakeRescoring(getActionTargetWordlist()),
     download:  () => {
@@ -99,7 +99,7 @@ export const WordlistActions = (() => {
       return downloadSourceWordlist(target);
     },
     downloadOriginal: () => downloadOriginalWordlist(getActionTargetWordlist()),
-    openSync:      () => _syncDialog.open(getActionTargetWordlist()),
+    openSync:      () => SyncDialog.open(getActionTargetWordlist()),
     syncExisting:  () => { const t = getActionTargetWordlist(); return syncThen(isMirrorList(t) ? attachMirrorSync(t, { existing: true })  : attachEditsSync({ existing: true })); },
     syncNew:       () => { const t = getActionTargetWordlist(); return syncThen(isMirrorList(t) ? attachMirrorSync(t, { existing: false }) : attachEditsSync({ existing: false })); },
     stopSync:      () => syncThen(detachSync(getActionTargetWordlist())),
@@ -575,7 +575,7 @@ export async function checkForUpdates() {
 
 export function importToWordlist(wordlist, event) {
   if (event) event.stopPropagation();
-  _importGuideDialog.open(wordlist);
+  ImportGuideDialog.open(wordlist);
 }
 
 export function ingestFile(file, wordlist, nameOverride) {
