@@ -38,9 +38,8 @@ import { HL_COLORS } from '../engine/search.js';
 import {
   TOOL_CATEGORIES, FEATURED_TOOLS, TOOLS, groupColumnCSS, makeToolRow,
 } from '../engine/tools.js';
-import {
-  currentAtomCount, executePipeline, ToolStageError, invalidatePreSearchCache,
-} from '../engine/executor.js';
+import { invalidatePreSearchCache } from '../engine/executor.js';
+import { runOnWorker } from './pipeline-worker.js';
 import { bumpPipelineVersion } from '../data/state.js';
 import {
   buildTextInputHTML, buildParamHTML, syncClearButton,
@@ -79,15 +78,7 @@ export function mountGroupColumnStyle() {
 }
 
 // ─── Pipeline runtime ─────────────────────────────────────────────────────────
-// The runtime wraps `executePipeline` with supersession (a new run aborts the
-// in-flight one) and a slow-pipeline indicator that dims the results table
-// when the whole run exceeds ~100ms.
 
-// Single-flight controller — every runPipeline call aborts the previous one's
-// signal before starting its own run. In-flight tools observe the abort at
-// their next `ctx.yield()` (or at the executor's per-row check, for sync tools)
-// and bail out; the aborted run's resolved value is discarded by its caller.
-let _pipelineController = null;
 let _pipelineRunning = 0;
 const _pipelineIdleWaiters = [];
 
@@ -98,7 +89,7 @@ export function pipelineIdle() {
   return new Promise(r => _pipelineIdleWaiters.push(r));
 }
 
-// Run the current stack against the merged wordlist. Returns
+// Run the current stack against the merged wordlist on the worker. Returns
 // `{ rows, atomCount }` on completion, or `{ aborted: true }` if a newer call
 // superseded this one. Callers drop their result on `aborted` rather than
 // touching the scroller — the superseding caller will produce the next update.
@@ -107,26 +98,15 @@ export function pipelineIdle() {
 // table when the whole run total crosses the threshold (not per-step — a long
 // pipeline of individually-fast tools still trips it).
 export async function runPipeline(mergedWordlist, stack) {
-  _pipelineController?.abort();
-  const ac = new AbortController();
-  _pipelineController = ac;
   _pipelineRunning++;
 
   const panel = document.getElementById('entries-table-panel');
   panel?.classList.add('pipeline-running');
 
   try {
-    const result = await executePipeline(mergedWordlist, stack, ac.signal);
-    return { ...result, aborted: false };
-  } catch (e) {
-    if (ac.signal.aborted) return { aborted: true };
-    if (e instanceof ToolStageError) {
-      return { aborted: false, errored: true, rows: [], atomCount: currentAtomCount(stack), grouped: false };
-    }
-    throw e;
+    return await runOnWorker(mergedWordlist, stack);
   } finally {
     panel?.classList.remove('pipeline-running');
-    if (_pipelineController === ac) _pipelineController = null;
     _pipelineRunning--;
     if (_pipelineRunning === 0) {
       const waiters = _pipelineIdleWaiters.splice(0);

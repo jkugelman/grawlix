@@ -62,6 +62,7 @@ let snapshotId = null;
 let latestRunId = -1;       // the supersession key; a `run`/`cancel` advances it
 let pending = null;
 let running = false;
+let lastUserStackSig = null;
 
 // ─── Stack deserialization ───────────────────────────────────────────────────
 // makeToolRow seeds param defaults; the wire params then overwrite. Reversed,
@@ -111,6 +112,18 @@ async function drainRuns() {
 async function runOne({ runId, snapshotId: reqSnapshotId, stack: serialized }) {
   const signal = makeSignalShim(runId);
   const stack = deserializeStack(serialized);
+
+  // The pre-search cache persists the user-stack result across runs for the
+  // keystroke fast-path; the caller must drop it when the user stack changes. On
+  // main that's ToolStack's mutation handlers — signals the worker never sees, so
+  // it must detect the change itself, else a tool add/remove/edit silently runs
+  // against the previous stack's cached pre-search state.
+  const userStackSig = JSON.stringify(serialized.slice(0, -1));
+  if (userStackSig !== lastUserStackSig) {
+    invalidatePreSearchCache();
+    lastUserStackSig = userStackSig;
+  }
+
   let out;
   try {
     out = await executePipeline(corpus, stack, signal);
@@ -219,5 +232,25 @@ onmessage = ({ data }) => {
       latestRunId++;
       pending = null;
       break;
+
+    // Test-only: the suite breaks a tool to exercise the error path, but the
+    // worker has its own TOOLS realm a page-side `TOOLS.x.run = …` can't reach,
+    // so it patches the worker's copy instead.
+    case '__testPatchTool':
+      patchToolForTest(data.tool, data.method, data.message);
+      break;
   }
 };
+
+const _toolOriginals = new Map();
+function patchToolForTest(tool, method, message) {
+  const def = TOOLS[tool];
+  if (!def) return;
+  const sig = `${tool}.${method}`;
+  if (!_toolOriginals.has(sig)) _toolOriginals.set(sig, def[method]);
+  if (message == null) {
+    def[method] = _toolOriginals.get(sig);
+  } else {
+    def[method] = () => { throw new Error(message); };
+  }
+}

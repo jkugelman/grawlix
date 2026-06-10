@@ -5,10 +5,11 @@ test.beforeEach(async ({ page }) => {
   await stubPublisherFetches(page);
 });
 
+// The pipeline runs in the worker, which has its own TOOLS realm a page-side
+// TOOLS.x.run = … can't reach — break the worker's copy instead.
 async function breakAnagrams(page) {
-  await page.evaluate(() => {
-    TOOLS.anagrams.run = () => { throw new Error('deliberate test failure'); };
-  });
+  await page.evaluate(() =>
+    window.__grawlixTest.patchWorkerToolForTest('anagrams', 'run', 'deliberate test failure'));
 }
 
 async function addLoaderFixture(page) {
@@ -84,33 +85,23 @@ test('fixing the broken tool clears the ⚠ icon on the next successful run', as
   await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'anagrams', params: { entry: 'CAT' } }]));
   await expect(page.locator('.tool-row-error-btn')).toBeVisible();
 
-  await page.evaluate(() => {
-    TOOLS.anagrams.run = (entry, target) => !target || (
-      entry.toLowerCase().split('').sort().join('') === target
-    );
-  });
+  await page.evaluate(() => window.__grawlixTest.patchWorkerToolForTest('anagrams', 'run', null));
   await page.locator('.tool-row input[data-key="entry"]').fill('CATX');
 
   await page.evaluate(() => window.__grawlixTest.pipelineIdle());
   await expect(page.locator('.tool-row-error-btn')).toBeHidden();
 });
 
-test('a throwing tool in the boot URL does not hang the splash', async ({ page }) => {
+test('a throwing tool prepare surfaces the error without hanging the splash', async ({ page }) => {
   await stubPublisherFetches(page);
-
-  await page.addInitScript(() => {
-    const installBreak = () => {
-      if (typeof TOOLS === 'undefined') return false;
-      TOOLS.anagrams.prepare = () => { throw new Error('boot-time failure'); };
-      return true;
-    };
-    if (!installBreak()) {
-      const iv = setInterval(() => { if (installBreak()) clearInterval(iv); }, 5);
-    }
-  });
-
   await page.goto('/?anagrams=CAT');
 
   await expect(page.locator('#splash-screen')).toHaveCount(0, { timeout: 10000 });
+
+  await page.evaluate(() => window.__grawlixTest.whenReady());
+  await page.evaluate(() => window.__grawlixTest.patchWorkerToolForTest('anagrams', 'prepare', 'boot-time failure'));
+  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'anagrams', params: { entry: 'CATX' } }]));
+
+  await expect(page.locator('#splash-screen')).toHaveCount(0);
   await expect(page.locator('.tool-row-error-btn')).toBeVisible();
 });

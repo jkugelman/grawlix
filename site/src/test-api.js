@@ -29,7 +29,8 @@ import {
 } from './data/disk-sync.js';
 import { WordlistSelector } from './ui/scope-selector.js';
 import { ToolStack, pipelineIdle } from './ui/tool-stack.js';
-import { pingWorker } from './ui/pipeline-worker.js';
+import { pingWorker, runOnWorker, shippedSnapshot, patchWorkerToolForTest } from './ui/pipeline-worker.js';
+import { executePipeline } from './engine/executor.js';
 import {
   getEntriesScroller, setScope, renderSources, renderMergedDetail, refreshMergedScroller,
 } from './ui/rendering.js';
@@ -153,6 +154,21 @@ const __grawlixTest = {
   },
 
   pingWorker,
+  patchWorkerToolForTest,
+
+  async workerMirrorsMain(stack) {
+    await this.pipelineIdle();
+    const corpus = getActiveCorpus();
+    const rows = stack.map(r => makeToolRow(r.tool, r.params || {}, !!r.grouped));
+
+    const ref = await executePipeline(corpus, rows, {});
+    const mainNorms = ref.rows.map(r => r.atoms[0].wlEntry.norm);
+
+    const result = await runOnWorker(corpus, rows);
+    const workerNorms = result.rows.map(r => r.atoms[0].wlEntry.norm);
+
+    return { mainNorms, workerNorms, snapshotId: shippedSnapshot().snapshotId };
+  },
 
   setUnigramCorpus: segmenterSetCorpus,
 

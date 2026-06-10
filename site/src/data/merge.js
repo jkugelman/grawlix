@@ -171,6 +171,10 @@ export function snapshotMergedBuckets(norms) {
 export function patchMergedForNorms(snap) {
   const cache = _mergedWordlistCache;
   if (!cache || !snap) return;
+  // In-place splice keeps the cache's identity, so the worker-snapshot trigger's
+  // identity check can't see this edit — bump a version it watches too, else the
+  // worker corpus silently diverges from main's after a My Edits change.
+  cache._snapVersion = (cache._snapVersion ?? 0) + 1;
   const { entries, byNorm, byKey, sourceCounts } = cache;
   const chains = cache._initialChains;
   const countDelta = new Map();
