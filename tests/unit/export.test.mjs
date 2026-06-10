@@ -1,17 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { extract } from './support/extract.mjs';
-import { displayOf } from '../../site/src/engine/norm.js';
-
-// buildWordlistText reaches displayOf for the serialized entry text; injecting the
-// real helper gives the REAL behavior rather than a stub.
-const {
+import {
   csvCell, exportFilenameSegment, exportFilename,
   flatCopyLines, chainContentEntries, buildWordlistText,
-} = extract(['export'], [
-  'csvCell', 'exportFilenameSegment', 'exportFilename',
-  'flatCopyLines', 'chainContentEntries', 'buildWordlistText',
-], { displayOf });
+} from '../../site/src/app/actions.js';
 
 // ─── Fixtures ───────────────────────────────────────────────────────────────
 
