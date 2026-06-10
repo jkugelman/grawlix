@@ -32,6 +32,7 @@ import { buildScoreBadgeHTML, buildScoreCellHTML } from '../model/score-display.
 import { showToast } from './toasts.js';
 import { AppView } from './app-view.js';
 import { ToolStack } from './tool-stack.js';
+import { buildWordlistNameHTML } from './scope-selector.js';
 
 // Rendering-layer hooks injected at boot (see configureEntriesTable). The
 // scroller instance and these collaborators live in main.js, which can't be
@@ -39,17 +40,15 @@ import { ToolStack } from './tool-stack.js';
 let _navigate              = () => {};
 let _getEntriesScroller    = () => null;
 let _rescorePreviewActive  = () => false;
-let _buildWordlistNameHTML = () => '';
 let _buildNoMatchQuipHTML  = () => '';
 
 export function configureEntriesTable({
   navigate, getEntriesScroller, rescorePreviewActive,
-  buildWordlistNameHTML, buildNoMatchQuipHTML,
+  buildNoMatchQuipHTML,
 }) {
   if (navigate)              _navigate = navigate;
   if (getEntriesScroller)    _getEntriesScroller = getEntriesScroller;
   if (rescorePreviewActive)  _rescorePreviewActive = rescorePreviewActive;
-  if (buildWordlistNameHTML) _buildWordlistNameHTML = buildWordlistNameHTML;
   if (buildNoMatchQuipHTML)  _buildNoMatchQuipHTML = buildNoMatchQuipHTML;
 }
 
@@ -1022,7 +1021,7 @@ export class EntriesScroller extends BaseVirtualScroller {
       const scoreTitle = tierLabel ? ` title="${esc(tierLabel)}"` : '';
       const commentText = wlEntry.comment || '';
       const sourceWl = wlEntry.wordlist;
-      const sourceHTML = sourceWl ? _buildWordlistNameHTML(sourceWl, { bold: false }) : '';
+      const sourceHTML = sourceWl ? buildWordlistNameHTML(sourceWl, { bold: false }) : '';
       const sourceTitle = sourceWl ? ` title="${esc(sourceWl.name)}"` : '';
       const sourceCell = this.showSource
         ? `<span class="atom-source"${sourceTitle}>${sourceHTML}</span>`
@@ -1284,7 +1283,7 @@ export const AtomPopover = (() => {
     const editsWordlist = scroller.editsWordlist || getEditsWordlist();
     const rowIsEdits = rowWordlist && rowWordlist === editsWordlist;
     const showDelete = scroller.showDeleteCol || (scroller.showEditDeleteCol && rowIsEdits);
-    const editsName = editsWordlist ? _buildWordlistNameHTML(editsWordlist, { bold: false }) : 'My Edits';
+    const editsName = editsWordlist ? buildWordlistNameHTML(editsWordlist, { bold: false }) : 'My Edits';
     const leftSlot = showDelete
       ? `<button class="atom-pop-delete" type="button">Delete edit</button>`
       : `<span class="atom-pop-saves">Saves to ${editsName}</span>`;
@@ -1321,7 +1320,7 @@ export const AtomPopover = (() => {
         + `<td class="atom-pop-prov-entry">${esc(displayOf(entry))}</td>`
         + `<td class="atom-pop-prov-score">${buildScoreBadgeHTML(entry.score)}</td>`
         + `<td class="atom-pop-prov-comment"${comment ? ` title="${esc(comment)}"` : ''}>${esc(comment)}</td>`
-        + `<td class="atom-pop-prov-source">${_buildWordlistNameHTML(wordlist, { bold: false })}</td>`
+        + `<td class="atom-pop-prov-source">${buildWordlistNameHTML(wordlist, { bold: false })}</td>`
         + `</tr>`;
     }).join('');
     return `<table class="atom-pop-prov">`

@@ -16,15 +16,15 @@ import {
 import { showUndoToast } from './toasts.js';
 import { showConfirm } from './dialogs/confirm.js';
 import { buildEditHintHTML, buildTrashIconHTML } from './components.js';
+import { WordlistSelector } from './scope-selector.js';
 
-// WordlistSelector, the scroller instance, and the bake-availability check
-// live upward (main.js); injected so this view imports nothing above ui.
-let _refreshEditor      = () => {};
+// The scroller instance and the bake-availability check live upward (main.js);
+// injected so this view imports nothing above ui. (WordlistSelector is a sibling
+// ui module — the import cycle is define-only and safe.)
 let _getEntriesScroller = () => null;
 let _bakeMenuOpts       = () => ({});
 
-export function configureRescoreEditor({ refreshEditor, getEntriesScroller, bakeMenuOpts }) {
-  if (refreshEditor)      _refreshEditor = refreshEditor;
+export function configureRescoreEditor({ getEntriesScroller, bakeMenuOpts }) {
   if (getEntriesScroller) _getEntriesScroller = getEntriesScroller;
   if (bakeMenuOpts)       _bakeMenuOpts = bakeMenuOpts;
 }
@@ -118,7 +118,7 @@ export function buildScoringSectionHTML(rulesId = 'scoring-rules') {
 // ─── Rescore section render ─────────────────────────────────────────────────
 
 export function renderRescoreSection() {
-  _refreshEditor();
+  WordlistSelector.refreshEditor();
 }
 
 // ─── Scoring (tier labels) ────────────────────────────────────────────────────
@@ -133,7 +133,7 @@ export function sortScoringRules() {
 // rows (they carry the label as a `title=`) is enough — no full rebuild.
 export function renderScoringRules() {
   sortScoringRules();
-  _refreshEditor();
+  WordlistSelector.refreshEditor();
   _getEntriesScroller()?._render?.();
 }
 

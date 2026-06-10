@@ -130,6 +130,12 @@ import {
   saveRuleField, deleteRule, addRule, resetRescoreRules, neutralizeRescoreRules,
   saveScoringField, deleteScoringRow, addScoringRow, resetScoringRules,
 } from './ui/rescore-editor.js';
+import {
+  configureScopeSelector, WordlistSelector, renderSyncIndicators,
+  buildWordlistNameHTML,
+} from './ui/scope-selector.js';
+import { configureManagePanel, ManagePanel } from './ui/manage-panel.js';
+import { configureDiscoveryBanner, DiscoveryBanner } from './ui/discovery-banner.js';
 
 // ─── Components ──────────────────────────────────────────────────────────────
 
@@ -149,77 +155,12 @@ function buildStatItemHTML(label, value, title, extraClass) {
   </div>`;
 }
 
-function buildWordlistCardHTML(icon, name, meta, opts = {}) {
-  const {
-    enabled       = true,
-    populated     = true,
-    selected      = false,
-    severity      = null,
-    severityTitle = '',
-    draggable     = true,
-    toggle        = true,
-  } = opts;
-
-  const classes = ['wordlist-card'];
-  if (selected)   classes.push('selected');
-  if (!enabled)   classes.push('disabled');
-  if (!populated) classes.push('no-data');
-
-  const dragHandle = draggable ? buildDragHandleHTML() : '';
-
-  const badge = buildBadgeHTML(severity, { title: severityTitle });
-
-  const cardInfo = `<div class="card-info">
-      <div class="card-name-row"><div class="card-name">${esc(name)}</div>${badge}</div>
-      <div class="card-meta">${meta}</div>
-    </div>`;
-
-  const toggleTitle = !populated ? 'Click to import'
-    : enabled ? 'Enabled — click to disable' : 'Disabled — click to enable';
-  const cardActions = toggle ? `<div class="card-actions">
-    <label class="toggle" title="${toggleTitle}" aria-label="Toggle ${esc(name)}">
-      <input type="checkbox"${populated && enabled ? ' checked' : ''}${populated ? '' : ' disabled'}>
-      <span class="toggle-slider"></span>
-    </label>
-  </div>` : '';
-
-  return `<div class="${classes.join(' ')}" data-wordlist tabindex="0" role="option">${dragHandle}${icon}${cardInfo}${cardActions}</div>`;
-}
-
-// Like a regular wordlist card but with no drag handle, no enable toggle, and
-// not reorderable.
-function buildMergedCardHTML(selected) {
-  const meta = pluralize(buildMergedWordlist().entries.length, 'entry', 'entries');
-  const cls = ['wordlist-card', 'merged-card'];
-  if (selected) cls.push('selected');
-  return `<div class="${cls.join(' ')}" data-merged tabindex="0" role="option">
-    <span class="drag-handle" aria-hidden="true">≡</span>
-    ${getMergedIcon()}
-    <div class="card-info">
-      <div class="card-name-row"><div class="card-name">${MERGED_NAME}</div></div>
-      <div class="card-meta">${esc(meta)}</div>
-    </div>
-    <span class="merged-card-spacer" aria-hidden="true"></span>
-  </div>`;
-}
-
 // The × button carries no per-call wiring: clicking it empties the field and
 // dispatches an `input` event, so the field's own handler reacts as if the
 // user erased the text by hand.
 function buildScoreRangeInputHTML(inputId, value, viewName) {
   const input = `<input type="text" id="${inputId}" autocapitalize="off" autocorrect="off" spellcheck="false" value="${esc(value)}" oninput="${viewName}.onScoreRange(this.value)">`;
   return `<label class="score-range-label" title="50, 50-59, or 50+ (Alt-C)">Score ${buildClearableInputHTML(input, !!value)}</label>`;
-}
-
-function buildWordlistNameHTML(wordlist, { bold = true } = {}) {
-  const merged = wordlist === MERGED_ID;
-  const icon = merged ? getMergedIcon() : getWordlistIcon(wordlist);
-  const text = esc(merged ? MERGED_NAME : wordlist.name);
-  const name = bold ? `<strong>${text}</strong>` : text;
-  // The trailing space inside the span is load-bearing: combined with `white-space: nowrap` on
-  // .wordlist-name-icon, it keeps the icon glued to the first word of the name. Move it outside
-  // the span and the icon can orphan at a line end.
-  return `<span class="wordlist-name-icon">${icon} </span>${name}`;
 }
 
 // ─── Router ───────────────────────────────────────────────────────────────────
@@ -674,458 +615,6 @@ const ReconnectSplash = (() => {
   return { show };
 })();
 
-// ─── Wordlist selector ─────────────────────────────────────────────────────────
-// Pure-scope: clicking a row drives setScope. Enable/disable toggling stays out
-// of here on purpose — it lives in the manage panel.
-
-function renderSyncIndicators() {
-  WordlistSelector.refreshSyncSign?.();
-}
-
-const WordlistSelector = (() => {
-  let bar, root, trigger, menu, actions, metaRow, dlSlot, kebabSlot;
-  let editorToggle, editor, editorInner;
-  let editorOpen = false;
-
-  function scopeIcon(scope)  { return scope === MERGED_ID ? getMergedIcon() : getWordlistIcon(scope); }
-  function scopeLabel(scope) { return scope === MERGED_ID ? MERGED_NAME : scope.name; }
-
-  function renderTrigger() {
-    const scope = state.selected;
-    trigger.querySelector('.wls-trigger-icon').innerHTML = scopeIcon(scope);
-    trigger.querySelector('.wls-trigger-label').textContent = scopeLabel(scope);
-    const severity = sourcesSeverity();
-    trigger.querySelector('.wls-trigger-badge').innerHTML =
-      buildBadgeHTML(severity, { title: severityTitle(severity) });
-  }
-
-  function downloadBtnHTML() {
-    const scope = state.selected;
-    if (scope === MERGED_ID) {
-      const hasData = buildMergedWordlist().entries.length > 0;
-      return hasData ? `<button id="download-btn" title="Download the merged wordlist" onclick="WordlistActions.action('download')">Download</button>` : '';
-    }
-    if (!scope.rawEntries.length) return '';
-    const hasRules = (scope.rescoreRules?.length ?? 0) > 0;
-    return hasRules
-      ? buildSplitBtn('Download', `WordlistActions.action('download')`,
-          [['Download original', `WordlistActions.action('downloadOriginal')`]], { id: 'download-btn', title: 'Download this wordlist (rescored)' })
-      : `<button id="download-btn" title="Download this wordlist" onclick="WordlistActions.action('download')">Download</button>`;
-  }
-
-  function kebabHTML() {
-    const scope = state.selected;
-    if (scope === MERGED_ID) return '';
-    let items;
-    if (scope.type === 'edits') {
-      items = [
-        ['Import', `WordlistActions.action('import')`],
-        ['Clear',  `WordlistActions.action('clear')`],
-      ];
-    } else {
-      const fetchItems = scope.url
-        ? [['Fetch', `WordlistActions.action('fetch')`], ['Import', `WordlistActions.action('import')`]]
-        : [['Import', `WordlistActions.action('import')`]];
-      items = [
-        ...fetchItems,
-        ['Configure', `WordlistActions.action('configure')`],
-        ['Delete',    `WordlistActions.action('delete')`],
-      ];
-    }
-    return buildMoreMenuHTML(items, { className: 'wls-kebab' });
-  }
-
-  let _dateTimer = null;
-  function renderActions() {
-    if (_dateTimer) { clearInterval(_dateTimer); _dateTimer = null; }
-    const scope = state.selected;
-    const hasDate = scope !== MERGED_ID && scope.rawEntries.length && scope.lastUpdated;
-    const dateSlot = hasDate ? '<span class="detail-date"></span>' : '';
-    dlSlot.innerHTML = `${dateSlot}${downloadBtnHTML()}`;
-    kebabSlot.innerHTML = kebabHTML();
-    if (hasDate) {
-      const setDate = () => {
-        const dEl = actions.querySelector('.detail-date');
-        if (!dEl) return;
-        dEl.textContent = `Last updated ${timeAgo(scope.lastUpdated)}`;
-        dEl.title = new Date(scope.lastUpdated).toLocaleString();
-      };
-      setDate();
-      _dateTimer = setInterval(setDate, 60_000);
-    }
-  }
-
-  function renderMeta() {
-    metaRow.innerHTML = syncSignHTML(state.selected);
-  }
-
-  // In-place patch, never a renderMeta: sync status flips on every debounced
-  // save, and re-rendering the bar mid-edit would steal focus and scroll.
-  function refreshSyncSign() {
-    const hang = metaRow.querySelector('.sync-hang');
-    if (hang) hang.outerHTML = syncSignHTML(state.selected);
-  }
-
-  function optionHTML(scope, contribMap) {
-    const selected = scope === state.selected;
-    if (scope === MERGED_ID) {
-      return buildWordlistCardHTML(getMergedIcon(), MERGED_NAME,
-        pluralize(buildMergedWordlist().entries.length, 'entry', 'entries'),
-        { draggable: false, toggle: false, selected });
-    }
-    const severity = wordlistSeverity(scope);
-    return buildWordlistCardHTML(getWordlistIcon(scope), scope.name,
-      wordlistCardMeta(scope, contribMap),
-      { draggable: false, toggle: false, selected, enabled: scope.enabled, populated: scope.populated,
-        severity, severityTitle: severityTitle(severity) });
-  }
-
-  function buildContribMap() {
-    return new Map(getSourceCounts().map(s => [s.wordlist, s.count]));
-  }
-
-  function renderMenu() {
-    const scopes = [MERGED_ID, ...state.sources];
-    const contribMap = buildContribMap();
-    menu.innerHTML =
-        `<div class="wls-menu-section">Merged</div>`
-      + optionHTML(MERGED_ID, contribMap)
-      + `<div class="wls-menu-section">Sources</div>`
-      + state.sources.map(s => optionHTML(s, contribMap)).join('')
-      + `<button type="button" class="wls-configure-footer">`
-      + `<svg aria-hidden="true"><use href="#icon-settings"/></svg>Manage wordlists</button>`;
-    menu.querySelectorAll('.wordlist-card').forEach((el, i) => {
-      el._scope = scopes[i];
-      el.setAttribute('aria-selected', String(scopes[i] === state.selected));
-    });
-  }
-
-  function open() {
-    renderMenu();
-    root.classList.add('open');
-    trigger.setAttribute('aria-expanded', 'true');
-    document.addEventListener('click', onOutsideClick);
-  }
-  function close() {
-    if (!root.classList.contains('open')) return;
-    root.classList.remove('open');
-    trigger.setAttribute('aria-expanded', 'false');
-    document.removeEventListener('click', onOutsideClick);
-  }
-  function onOutsideClick(e) { if (!e.target.closest('.wls')) close(); }
-
-  function editorLabel() {
-    return state.selected === MERGED_ID ? 'Scoring tiers' : 'Rescoring rules';
-  }
-  function syncToggleLabel() {
-    editorToggle.title = editorLabel();
-    editorToggle.setAttribute('aria-label', editorLabel());
-  }
-  function renderEditorContent() {
-    editorInner.innerHTML = state.selected === MERGED_ID
-      ? buildScoringSectionHTML('scoring-rules')
-      : buildRescoreSectionHTML(state.selected, 'rescore-rules');
-  }
-  function refreshEditor() {
-    syncToggleLabel();
-    if (editorOpen) renderEditorContent();
-  }
-  function setEditorOpen(open) {
-    editorOpen = open;
-    editorToggle.setAttribute('aria-expanded', String(open));
-    if (open) {
-      // Unhide before flipping .rescore-open so the grid-rows transition runs
-      // from 0fr; toggling both in one frame would skip the animation.
-      editor.hidden = false;
-      renderEditorContent();
-      requestAnimationFrame(() => bar.classList.add('rescore-open'));
-    } else {
-      bar.classList.remove('rescore-open');
-      hideAfterCollapse();
-    }
-    // The raw → rescored preview lives in the scroller rows, gated on the
-    // editor's open state, so toggling it must repaint the table — refreshEditor
-    // only touches the editor's own subtree.
-    if (entriesScroller) refreshMergedScroller();
-  }
-  function hideAfterCollapse() {
-    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    const finish = () => {
-      if (editorOpen) return; // reopened mid-transition
-      editor.hidden = true;
-      editorInner.innerHTML = '';
-    };
-    if (reduced) { finish(); return; }
-    editor.addEventListener('transitionend', function te(e) {
-      if (e.target !== editor || e.propertyName !== 'grid-template-rows') return;
-      editor.removeEventListener('transitionend', te);
-      finish();
-    });
-  }
-
-  function refresh() {
-    renderTrigger();
-    renderActions();
-    renderMeta();
-    if (root.classList.contains('open')) renderMenu();
-    refreshEditor();
-  }
-
-  function refreshMeta() {
-    if (root.classList.contains('open')) renderMenu();
-  }
-
-  function mount() {
-    bar = document.createElement('div');
-    bar.id = 'wordlist-bar';
-    bar.innerHTML = `
-      <div class="wls-bar-top">
-        <div class="wls">
-          <button type="button" class="wls-trigger" aria-haspopup="listbox" aria-expanded="false">
-            <span class="wls-trigger-icon"></span>
-            <span class="wls-trigger-label"></span>
-            <span class="wls-trigger-badge"></span>
-            <svg class="wls-trigger-chevron" width="10" height="6" aria-hidden="true"><use href="#icon-arrow"/></svg>
-          </button>
-          <div class="wls-menu" role="listbox" tabindex="-1"></div>
-        </div>
-        <div class="wls-actions">
-          <span class="wls-dl-slot"></span>
-          <button type="button" class="rescore-toggle" aria-expanded="false" aria-controls="rescore-editor">
-            <svg class="rescore-toggle-icon" width="18" height="18" aria-hidden="true"><use href="#icon-adjustments"/></svg>
-          </button>
-          <span class="wls-kebab-slot"></span>
-        </div>
-      </div>
-      <div class="wls-bar-meta"></div>
-      <div id="rescore-editor" hidden><div class="rescore-editor-inner"></div></div>`;
-    document.getElementById('app').prepend(bar);
-
-    root    = bar.querySelector('.wls');
-    trigger = bar.querySelector('.wls-trigger');
-    menu    = bar.querySelector('.wls-menu');
-    actions = bar.querySelector('.wls-actions');
-    metaRow = bar.querySelector('.wls-bar-meta');
-    dlSlot    = bar.querySelector('.wls-dl-slot');
-    kebabSlot = bar.querySelector('.wls-kebab-slot');
-
-    // The editor must stay inside #wordlist-bar: the sticky
-    // ResizeObserver watches the bar and cascades the table's offset from its
-    // height, so an editor mounted elsewhere would expand under the pinned
-    // headers instead of pushing them down.
-    editorToggle = bar.querySelector('.rescore-toggle');
-    editor       = bar.querySelector('#rescore-editor');
-    editorInner  = editor.querySelector('.rescore-editor-inner');
-
-    trigger.addEventListener('click', () => root.classList.contains('open') ? close() : open());
-    menu.addEventListener('click', e => {
-      if (e.target.closest('.wls-configure-footer')) {
-        close();
-        ManagePanel.open();
-        return;
-      }
-      const opt = e.target.closest('.wordlist-card');
-      if (!opt) return;
-      close();
-      setScope(opt._scope);
-    });
-    document.addEventListener('keydown', e => { if (e.key === 'Escape') close(); });
-    editorToggle.addEventListener('click', () => setEditorOpen(!editorOpen));
-
-    renderTrigger();
-    syncToggleLabel();
-  }
-
-  return { mount, refresh, refreshEditor, refreshSyncSign, refreshMeta, isEditorOpen: () => editorOpen };
-})();
-
-// ─── Discovery banner ───────────────────────────────────────────────────────────
-
-// Sibling above #detail-panel, not inside it: a banner mounted in the scroller's
-// fixed-row-height container would corrupt row layout, and a sticky one would
-// permanently consume vertical space for a one-time dismissable notice.
-const DiscoveryBanner = (() => {
-  let el;
-
-  const BANNERS = [
-    {
-      key: 'banner_myedits_dismissed',
-      when: scope => scope !== MERGED_ID && scope?.type === 'edits',
-      body: 'This is <strong>My Edits</strong> — your own corrections and additions, and they win over every other list. Already keep a word list of your own? Import it and it lands right here.',
-    },
-    {
-      // XWI is paywalled, so Grawlix ships only its default scores, never the
-      // list itself — gate on !populated so the nudge stops once a subscriber
-      // has brought their real copy in.
-      key: 'banner_xwi_dismissed',
-      when: scope => scope !== MERGED_ID && scope?.publisherId === 'xwi' && !scope.populated,
-      body: 'Got an <strong>XWord Info</strong> subscription? You can import your real XWI list here — Grawlix ships only XWI’s default scores, so the genuine list is a big step up.',
-    },
-  ];
-
-  function pick() {
-    return BANNERS.find(b => b.when(state.selected) && lsLoad(b.key) !== '1') || null;
-  }
-
-  function refresh() {
-    const banner = pick();
-    if (!banner) { el.hidden = true; el.innerHTML = ''; el.dataset.banner = ''; return; }
-    if (el.dataset.banner === banner.key) return;   // already showing this one
-    el.dataset.banner = banner.key;
-    el.innerHTML = `
-      <button type="button" class="discovery-banner-close" aria-label="Dismiss">✕</button>
-      <p>${banner.body}</p>
-      <div class="discovery-banner-actions">
-        <button type="button" class="discovery-banner-import primary">Import</button>
-      </div>`;
-    el.hidden = false;
-  }
-
-  function mount() {
-    el = document.createElement('div');
-    el.id = 'discovery-banner';
-    el.hidden = true;
-    document.getElementById('detail-panel').before(el);
-
-    el.addEventListener('click', e => {
-      if (e.target.closest('.discovery-banner-close')) {
-        const key = el.dataset.banner;
-        if (key) lsSave(key, '1');
-        el.hidden = true;
-        el.innerHTML = '';
-        el.dataset.banner = '';
-        return;
-      }
-      if (e.target.closest('.discovery-banner-import')) {
-        WordlistActions.action('import');
-      }
-    });
-  }
-
-  return { mount, refresh };
-})();
-
-// ─── Manage wordlists panel ─────────────────────────────────────────────────────
-
-const ManagePanel = (() => {
-  let el, listEl, closeBtn, applyBtn, addRow;
-  let shadow = null;
-
-  function rowHTML(wl) {
-    // Added-while-open lists are absent from shadow.enabled by design; falling
-    // back to live wl.enabled keeps their async force-enable from reading as a
-    // staged disable here, in isDirty, and in apply.
-    const enabled = shadow.enabled.get(wl) ?? wl.enabled;
-    return buildWordlistCardHTML(
-      getWordlistIcon(wl),
-      wl.name,
-      pluralize(wl.rawEntries.length, 'entry', 'entries'),
-      { enabled, populated: wl.populated },
-    );
-  }
-
-  function render() {
-    listEl.innerHTML = shadow.order.map(rowHTML).join('');
-    listEl.querySelectorAll('.wordlist-card').forEach((cardEl, i) => { cardEl._wordlist = shadow.order[i]; });
-  }
-
-  function absorb() {
-    let grew = false;
-    for (const wl of state.sources) {
-      // Stays out of shadow.enabled on purpose — see rowHTML's fallback note.
-      if (!shadow.order.includes(wl)) { shadow.order.push(wl); grew = true; }
-    }
-    if (grew) render();
-  }
-
-  function isDirty() {
-    if (shadow.order.length !== state.sources.length) return true;
-    if (shadow.order.some((wl, i) => wl !== state.sources[i])) return true;
-    return shadow.order.some(wl => (shadow.enabled.get(wl) ?? wl.enabled) !== wl.enabled);
-  }
-
-  function apply() {
-    if (isDirty()) {
-      batchUpdate(() => {
-        state.sources.splice(0, state.sources.length, ...shadow.order);
-        for (const wl of state.sources) wl.enabled = shadow.enabled.get(wl) ?? wl.enabled;
-        persistMeta();
-        repaintAfterCacheChange();
-      });
-    }
-    el.close();
-  }
-
-  function mount() {
-    let body;
-    ({ el, body } = createDialog('manage-dialog', { labelledby: 'manage-dialog-title', dismissOnBackdrop: false }));
-    body.innerHTML = `
-      <button type="button" class="manage-close-btn" aria-label="Close">✕</button>
-      <h2 id="manage-dialog-title">Manage wordlists</h2>
-      <div class="manage-list"></div>
-      <button type="button" class="manage-add-row"><span class="add-wordlist-icon">＋</span>Add wordlist</button>
-      <div class="dialog-footer">
-        <button type="button" class="manage-cancel-btn dialog-cancel-btn">Cancel</button>
-        <button type="button" class="manage-apply-btn primary">Apply</button>
-      </div>`;
-
-    listEl   = el.querySelector('.manage-list');
-    closeBtn = el.querySelector('.manage-close-btn');
-    applyBtn = el.querySelector('.manage-apply-btn');
-    addRow   = el.querySelector('.manage-add-row');
-
-    listEl.addEventListener('change', e => {
-      const input = e.target.closest('.toggle input[type="checkbox"]');
-      if (!input) return;
-      const card = input.closest('.wordlist-card');
-      // Must write the shadow map, never wl.enabled: touching wl.enabled here would
-      // silently mutate canonical state and rebuild the merge mid-staging, defeating
-      // the Apply gate while looking identical on screen.
-      shadow.enabled.set(card._wordlist, input.checked);
-      card.classList.toggle('disabled', !input.checked);
-    });
-
-    // Stage into shadow.order, never reorderSources: that canonical path would
-    // rebuild the merge mid-staging and defeat the Apply gate, looking identical
-    // on screen — the same trap as the enable toggle above.
-    makeReorderable(listEl, {
-      handleSelector: '.drag-handle:not([aria-hidden])',
-      itemSelector:   '.wordlist-card',
-      onReorder: (fromEl, beforeEl) => {
-        const from = shadow.order.indexOf(fromEl._wordlist);
-        let to = beforeEl ? shadow.order.indexOf(beforeEl._wordlist) : shadow.order.length;
-        if (to > from) to--;
-        const [item] = shadow.order.splice(from, 1);
-        shadow.order.splice(to, 0, item);
-        render();
-      },
-    });
-
-    applyBtn.addEventListener('click', apply);
-    closeBtn.addEventListener('click', async () => {
-      if (isDirty() && !await showConfirm('Discard changes?', { confirmText: 'Discard' })) return;
-      el.close();
-    });
-
-    addRow.addEventListener('click', () => ConfigureWordlistDialog.openAdd(absorb));
-
-    // Self-gates on shadow rather than subscribing only while open: the signals
-    // lib has no teardown, so this lifelong effect must no-op when closed.
-    effect(() => {
-      cacheVersion$.get();
-      if (shadow) { absorb(); render(); }
-    });
-  }
-
-  function open() {
-    shadow = { order: [...state.sources], enabled: new Map(state.sources.map(wl => [wl, wl.enabled])) };
-    render();
-    showDialog(el, () => { shadow = null; });
-  }
-
-  return { mount, open };
-})();
-
 // ─── Wordlist actions dispatcher ──────────────────────────────────────────────
 
 function getActionTargetWordlist() {
@@ -1526,16 +1015,6 @@ function setupRenderEffect() {
 function renderAll() {
   if (!_renderEffectActive) setupRenderEffect();
   else bumpCacheVersion();
-}
-
-function wordlistCardMeta(wordlist, contribMap) {
-  const total = wordlist.rawEntries.length;
-  if (!total) return 'No data';
-  if (!wordlist.enabled) return pluralize(total, 'entry', 'entries');
-  const used = contribMap.get(wordlist) ?? 0;
-  return used === total
-    ? `${pluralize(used, 'entry', 'entries')} used`
-    : `${used.toLocaleString()} of ${pluralize(total, 'entry', 'entries')} used`;
 }
 
 // Warms the source-count cache for "X used" meta so cosmetic-effect callers
@@ -3607,7 +3086,6 @@ function boot() {
     navigate: () => Router.navigate(),
     getEntriesScroller: () => entriesScroller,
     rescorePreviewActive,
-    buildWordlistNameHTML,
     buildNoMatchQuipHTML,
   });
   configureToolStack({
@@ -3616,9 +3094,19 @@ function boot() {
     attachHelpPopups,
   });
   configureRescoreEditor({
-    refreshEditor: () => WordlistSelector.refreshEditor(),
     getEntriesScroller: () => entriesScroller,
     bakeMenuOpts,
+  });
+  configureScopeSelector({
+    setScope,
+    refreshMergedScroller,
+    getEntriesScroller: () => entriesScroller,
+  });
+  configureManagePanel({
+    openAddWordlist: onAdded => ConfigureWordlistDialog.openAdd(onAdded),
+  });
+  configureDiscoveryBanner({
+    runImport: () => WordlistActions.action('import'),
   });
 
   // Document-level / pure wiring — no dependency on the app-shell DOM existing.
