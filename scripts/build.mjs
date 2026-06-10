@@ -17,6 +17,11 @@ const MINIFY_OPTS = {
 // resolves in both dev (site/) and prod (dist/) without rewriting the HTML.
 const JS_ENTRIES = [
   { entry: 'site/src/main.js', outfile: 'dist/src/main.js' },
+  // Its own entry rather than esbuild's new-Worker(new URL) auto-detection:
+  // that path needs outdir/splitting, but this build is one outfile per entry to
+  // keep each source's relative path. With the outfile mirroring the source's,
+  // the literal spawn URL resolves the same against dist/ and site/.
+  { entry: 'site/src/engine/worker.js', outfile: 'dist/src/engine/worker.js' },
 ];
 
 const CSS_ENTRIES = [

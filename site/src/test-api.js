@@ -29,6 +29,7 @@ import {
 } from './data/disk-sync.js';
 import { WordlistSelector } from './ui/scope-selector.js';
 import { ToolStack, pipelineIdle } from './ui/tool-stack.js';
+import { pingWorker } from './ui/pipeline-worker.js';
 import {
   getEntriesScroller, setScope, renderSources, renderMergedDetail, refreshMergedScroller,
 } from './ui/rendering.js';
@@ -150,6 +151,8 @@ const __grawlixTest = {
     const m = getEditsWordlist().rawEntries.find(e => e.norm === toNorm(raw));
     if (m) deleteFromEdits({ norm: m.norm, display: displayOf(m) }, refreshMergedScroller);
   },
+
+  pingWorker,
 
   setUnigramCorpus: segmenterSetCorpus,
 

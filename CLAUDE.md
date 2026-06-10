@@ -21,6 +21,7 @@ Design and manual:
 - [`docs/manual.md`](docs/manual.md) — user-facing manual. Update when shipping user-facing changes.
 - [`docs/style.md`](docs/style.md) — coding-style conventions: CSS, JS, Markdown, terminology, commit messages. Read before formatting changes.
 - [`docs/testing.md`](docs/testing.md) — two-tier test handbook (Playwright browser suite + `node:test` unit tier) + strategy. Read before adding/modifying tests.
+- [`docs/worker-protocol.md`](docs/worker-protocol.md) — the main↔pipeline-worker contract: data ownership, the message protocol, cancellation/supersession. Read before touching the worker boundary; keep it current in the same commit as any protocol change.
 - [`docs/migration.md`](docs/migration.md) — storage migration policy: every `SCHEMA_VERSION` bump registers a `MIGRATIONS` step that carries data forward (no more wipe-on-mismatch); the reset prompt survives only as the floor.
 - [`docs/tools.md`](docs/tools.md) — **single source of truth for the tool catalog**: every shipped and planned tool, with its card's icon, name, description, example, and implementation status. `design.md`, `manual.md`, and `planned/tools.md` all defer to it. Read before adding, renaming, or recategorizing any tool.
 - [`docs/wordlisted.md`](docs/wordlisted.md) — reference catalogue of Wordlisted's search modes; source material for the tool gallery.

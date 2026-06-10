@@ -28,6 +28,7 @@ import {
   configureRescoreEditor, startNoteEdit, onRuleInput, saveRuleField, deleteRule, addRule, resetRescoreRules, neutralizeRescoreRules, saveScoringField, deleteScoringRow, addScoringRow, resetScoringRules,
 } from './ui/rescore-editor.js';
 import { WordlistSelector, renderSyncIndicators } from './ui/scope-selector.js';
+import { configurePipelineWorker } from './ui/pipeline-worker.js';
 import { configureManagePanel, ManagePanel } from './ui/manage-panel.js';
 import { configureDiscoveryBanner, DiscoveryBanner } from './ui/discovery-banner.js';
 import {
@@ -103,6 +104,10 @@ function boot() {
       ? lsLoad(UNIGRAM_CORPUS_SIZE_KEY)
       : lsSave(UNIGRAM_CORPUS_SIZE_KEY, bytes),
   });
+
+  // import.meta.url must be main.js's specifically — the depth-stable anchor the
+  // worker URL resolves against in both builds (see pipeline-worker.js).
+  configurePipelineWorker({ baseURL: import.meta.url });
 
   configureSyncDialog({ WordlistActions });
   configureConfigureWordlist({ addNewWordlist, fetchWordlist, ingestFile });

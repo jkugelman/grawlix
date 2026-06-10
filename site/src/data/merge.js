@@ -7,6 +7,7 @@ import { state } from './state.js';
 import { getRescoredEntries, getRescoredByNorm } from './rescoring.js';
 import { invalidatePreSearchCache } from '../engine/executor.js';
 import { invalidateHistogramLayout } from '../engine/histogram.js';
+import { buildByNorm } from '../engine/snapshot.js';
 
 export const _mergedStatsKey = {};
 
@@ -49,7 +50,6 @@ export function bucketContributors(sourceList) {
 
 export function resolveCorpus(buckets, sourceList) {
   const entries = [];
-  const byNorm = new Map();
   const byKey = new Map();
   const sourceCountMap = new Map();
   for (const [norm, { contributors, displays }] of buckets) {
@@ -62,7 +62,6 @@ export function resolveCorpus(buckets, sourceList) {
       const commenter = contributors.find(c => eligible(c) && c.comment) ?? winner;
       const row = { norm, display: variant, score: winner.score, rawScore: winner.rawScore, comment: commenter.comment, wordlist: winner.wordlist };
       entries.push(row);
-      if (!byNorm.has(norm)) byNorm.set(norm, row);
       byKey.set(mergeKey(norm, variant), row);
       if (!countedContributors.has(winner)) {
         countedContributors.add(winner);
@@ -76,7 +75,7 @@ export function resolveCorpus(buckets, sourceList) {
 
   const sourceCounts = sourceList.map(wl => ({ wordlist: wl, count: sourceCountMap.get(wl) || 0 }));
 
-  return { entries, sourceCounts, byNorm, byKey };
+  return { entries, sourceCounts, byNorm: buildByNorm(entries), byKey };
 }
 
 export function buildMergedWordlist() {
