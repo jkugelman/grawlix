@@ -24,6 +24,17 @@ export function buildByNorm(entries) {
   return byNorm;
 }
 
+// One norm's canonical row. MUST match buildByNorm's rule (code-unit-min
+// display): main's patch and the worker's reindex both route through here, so a
+// divergent rule silently disagrees on case variants ('CAT' vs 'Cat') per thread.
+export function canonicalNormRow(rows) {
+  let best = null;
+  for (const row of rows) {
+    if (!best || (row.display ?? '') < (best.display ?? '')) best = row;
+  }
+  return best;
+}
+
 function packStrings(strings) {
   const enc = new TextEncoder();
   const encoded = strings.map(s => enc.encode(s));

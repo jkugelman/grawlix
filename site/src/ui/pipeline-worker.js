@@ -20,6 +20,9 @@ const MAX_CRASHES = 2;
 let crashCount = 0;
 let useMainThread = false;
 
+let snapshotsSent = 0;
+let patchesSent = 0;
+
 export function configurePipelineWorker({ baseURL }) {
   workerBaseURL = baseURL;
 }
@@ -91,7 +94,24 @@ export function sendSnapshot(corpus) {
   );
   shippedCorpus = corpus;
   lastShippedVersion = corpus._snapVersion ?? 0;
+  snapshotsSent++;
   return shippedSnapshotId;
+}
+
+export function sendPatch(corpus, descriptor) {
+  if (useMainThread) return;
+  if (!descriptor || !descriptor.norms?.length) return;
+  // Worker isn't holding this object (e.g. scoped to My Edits → it holds a scoped
+  // corpus). Returning is correct, not a bug: the next merged run's
+  // ensureSnapshot reships fresh. Reshipping here would mirror the wrong corpus.
+  if (corpus !== shippedCorpus) return;
+
+  shippedSnapshotId++;
+  getWorker().postMessage({ type: 'patch', snapshotId: shippedSnapshotId, norms: descriptor.norms });
+  // Move the version forward so the subsequent run's ensureSnapshot (same object)
+  // skips a full reship — the patch already carried this edit.
+  lastShippedVersion = corpus._snapVersion ?? 0;
+  patchesSent++;
 }
 
 export function shippedSnapshot() {
@@ -207,7 +227,7 @@ function decodeGroup(g, corpus) {
 }
 
 export function pipelineWorkerState() {
-  return { degraded: useMainThread, crashCount };
+  return { degraded: useMainThread, crashCount, snapshotsSent, patchesSent };
 }
 
 export function patchWorkerToolForTest(tool, method, message) {

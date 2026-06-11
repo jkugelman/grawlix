@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  packSnapshot, unpackSnapshot, buildByNorm, snapshotTransferables,
+  packSnapshot, unpackSnapshot, buildByNorm, canonicalNormRow, snapshotTransferables,
 } from '../../site/src/engine/snapshot.js';
 import { resolveCorpus } from '../../site/src/data/merge.js';
 
@@ -130,6 +130,22 @@ test('buildByNorm: picks the code-unit-first display among a norm\'s variants', 
 
 test('buildByNorm: a lone null-display row is the canonical row', () => {
   assert.equal(buildByNorm([entry('cat', null, 9)]).get('cat').display, null);
+});
+
+test('canonicalNormRow: picks the same code-unit-min row buildByNorm would', () => {
+  // The patch path (main) and the worker reindex both pick a norm's canonical row
+  // through canonicalNormRow; it must agree with buildByNorm or the threads drift.
+  const rows = [entry('cat', 'Cat', 3), entry('cat', 'CAT', 4), entry('cat', 'cAt', 5)];
+  assert.equal(canonicalNormRow(rows), buildByNorm(rows).get('cat'));
+  assert.equal(canonicalNormRow(rows).display, 'CAT');
+});
+
+test('canonicalNormRow: a lone null-display row is canonical', () => {
+  assert.equal(canonicalNormRow([entry('cat', null, 9)]).display, null);
+});
+
+test('canonicalNormRow: empty rows yield null', () => {
+  assert.equal(canonicalNormRow([]), null);
 });
 
 // Pins the shared builder against the live merge path: resolveCorpus's byNorm and

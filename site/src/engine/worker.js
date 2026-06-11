@@ -1,6 +1,6 @@
 // ─── Pipeline worker host ── see docs/worker-protocol.md ─────────────────────
 
-import { unpackSnapshot } from './snapshot.js';
+import { unpackSnapshot, canonicalNormRow } from './snapshot.js';
 import { TOOLS, makeToolRow } from './tools.js';
 import { executePipeline, configureExecutorYield, invalidatePreSearchCache } from './executor.js';
 import { configureIO as configureSegmenterIO } from './segmenter.js';
@@ -258,6 +258,47 @@ function rowIsRich(row) {
     a.glyph != null || a.wlEntry !== first || !entryToIndex.has(a.wlEntry));
 }
 
+// ─── My Edits patch ── see docs/worker-protocol.md ───────────────────────────
+// Mirrors data/merge.js's patchMergedForNorms splice. MUST search in main's
+// `norm.localeCompare` order, or the splice lands at the wrong index and silently
+// corrupts the corpus.
+function normLowerBound(entries, norm) {
+  let lo = 0, hi = entries.length;
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1;
+    if (entries[mid].norm.localeCompare(norm) < 0) lo = mid + 1;
+    else hi = mid;
+  }
+  return lo;
+}
+
+function applyPatch(data) {
+  // No base, or this patch doesn't sit directly atop the snapshot it was built on
+  // (id != next): applying it would corrupt the corpus — drop it, a later reship
+  // recovers.
+  if (!corpus || data.snapshotId !== snapshotId + 1) return;
+
+  const { entries, byNorm } = corpus;
+  const chains = corpus._initialChains;
+  for (const { norm, rows } of data.norms) {
+    const lo = normLowerBound(entries, norm);
+    let hi = lo;
+    while (hi < entries.length && entries[hi].norm === norm) hi++;
+
+    const newRows = rows.map(r => ({ norm: r.norm, display: r.display, score: r.score }));
+    entries.splice(lo, hi - lo, ...newRows);
+    if (chains) chains.splice(lo, hi - lo, ...newRows.map(r => ({ atoms: [{ wlEntry: r, highlights: null, glyph: null }] })));
+    if (newRows.length) byNorm.set(norm, canonicalNormRow(newRows)); else byNorm.delete(norm);
+  }
+
+  // A count-changing splice shifts every later index, so reindexing incrementally
+  // would silently misindex — full rebuild, still far cheaper than a reship.
+  entryToIndex = new Map();
+  for (let i = 0; i < entries.length; i++) entryToIndex.set(entries[i], i);
+  invalidatePreSearchCache();
+  snapshotId = data.snapshotId;
+}
+
 // ─── Message dispatch ────────────────────────────────────────────────────────
 
 onmessage = ({ data }) => {
@@ -272,6 +313,10 @@ onmessage = ({ data }) => {
       for (let i = 0; i < corpus.entries.length; i++) entryToIndex.set(corpus.entries[i], i);
       snapshotId = data.snapshotId;
       invalidatePreSearchCache();
+      break;
+
+    case 'patch':
+      applyPatch(data);
       break;
 
     case 'run':

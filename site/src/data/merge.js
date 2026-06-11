@@ -7,7 +7,7 @@ import { state } from './state.js';
 import { getRescoredEntries, getRescoredByNorm } from './rescoring.js';
 import { invalidatePreSearchCache } from '../engine/executor.js';
 import { invalidateHistogramLayout } from '../engine/histogram.js';
-import { buildByNorm } from '../engine/snapshot.js';
+import { buildByNorm, canonicalNormRow } from '../engine/snapshot.js';
 
 export const _mergedStatsKey = {};
 
@@ -170,7 +170,7 @@ export function snapshotMergedBuckets(norms) {
 // below must stay in lockstep with that definition.
 export function patchMergedForNorms(snap) {
   const cache = _mergedWordlistCache;
-  if (!cache || !snap) return;
+  if (!cache || !snap) return null;
   // In-place splice keeps the cache's identity, so the worker-snapshot trigger's
   // identity check can't see this edit — bump a version it watches too, else the
   // worker corpus silently diverges from main's after a My Edits change.
@@ -178,6 +178,7 @@ export function patchMergedForNorms(snap) {
   const { entries, byNorm, byKey, sourceCounts } = cache;
   const chains = cache._initialChains;
   const countDelta = new Map();
+  const patched = [];
   for (const [norm, beforeWinners] of snap) {
     const lo = mergedNormLowerBound(entries, norm);
     let hi = lo;
@@ -188,7 +189,9 @@ export function patchMergedForNorms(snap) {
     entries.splice(lo, hi - lo, ...rows);
     if (chains) chains.splice(lo, hi - lo, ...rows.map(r => ({ atoms: [{ wlEntry: r, highlights: null, glyph: null }] })));
     for (const r of rows) byKey.set(mergeKey(norm, r.display), r);
-    if (rows.length) byNorm.set(norm, rows[0]); else byNorm.delete(norm);
+    if (rows.length) byNorm.set(norm, canonicalNormRow(rows)); else byNorm.delete(norm);
+
+    patched.push({ norm, rows: rows.map(r => ({ norm: r.norm, display: r.display, score: r.score })) });
 
     for (const wl of beforeWinners) countDelta.set(wl, (countDelta.get(wl) || 0) - 1);
     for (const wl of winners)       countDelta.set(wl, (countDelta.get(wl) || 0) + 1);
@@ -199,4 +202,5 @@ export function patchMergedForNorms(snap) {
     if (sc) sc.count += d;
     else sourceCounts.push({ wordlist: wl, count: d });
   }
+  return { norms: patched };
 }

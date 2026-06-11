@@ -14,6 +14,7 @@
 
 import { MERGED_ID, MERGED_NAME } from './core/constants.js';
 import { toNorm, displayOf, parseWordlist, buildUserWlEntry } from './engine/norm.js';
+import { buildByNorm } from './engine/snapshot.js';
 import { setUnigramCorpus as segmenterSetCorpus } from './engine/segmenter.js';
 import { TOOLS, makeToolRow } from './engine/tools.js';
 import { state, newDbKey, syncKey, getEditsWordlist } from './data/state.js';
@@ -139,6 +140,22 @@ const __grawlixTest = {
   // discards the object and the stamp with it.
   markMergedCache(tag) { buildMergedWordlist()._testTag = tag; },
   mergedCacheTag() { const c = peekMergedCache(); return c ? (c._testTag ?? null) : null; },
+
+  // Does the in-place-patched cache's byNorm for `norm` point at the same row a
+  // full buildByNorm rebuild would pick? The case-variant landmine: a divergent
+  // rule silently disagrees here, drifting the worker's reindex from main.
+  byNormMatchesRebuild(rawNorm) {
+    const norm = toNorm(rawNorm);
+    const cache = peekMergedCache();
+    if (!cache) return null;
+    const patched = cache.byNorm.get(norm);
+    const rebuilt = buildByNorm(cache.entries).get(norm);
+    return {
+      same: patched === rebuilt,
+      patchedDisplay: patched ? patched.display : null,
+      rebuiltDisplay: rebuilt ? rebuilt.display : null,
+    };
+  },
 
   // Drive a My Edits upsert/rename through the real saveEdit path — the patch
   // under test — without the popover DOM, so the cache-consistency test can

@@ -34,7 +34,7 @@ import {
 } from '../data/rescoring.js';
 import {
   buildMergedWordlist, getActiveCorpus, mergeKey,
-  invalidateSourceCounts, dropScopedCorpus,
+  invalidateSourceCounts, dropScopedCorpus, peekMergedCache,
   snapshotMergedBuckets, patchMergedForNorms, _mergedStatsKey,
 } from '../data/merge.js';
 import { invalidateWordlistCaches } from '../data/invalidate.js';
@@ -65,6 +65,7 @@ import {
   getEntriesScroller, setScope, renderAll, renderSources, renderMergedDetail,
   firstPaint,
 } from '../ui/rendering.js';
+import { sendPatch } from '../ui/pipeline-worker.js';
 import { SyncDialog } from '../ui/dialogs/sync.js';
 import { ConfigureWordlistDialog } from '../ui/dialogs/configure-wordlist.js';
 import { ImportGuideDialog } from '../ui/dialogs/import-guide.js';
@@ -778,7 +779,10 @@ export function applyEditsChange(edits, norms, mutate) {
   invalidateStatsCache(edits);
   invalidateStatsCache(_mergedStatsKey);
   invalidatePreSearchCache();
-  patchMergedForNorms(snap);
+  const patch = patchMergedForNorms(snap);
+  // Patch must reach the worker before the caller's refresh posts its `run`
+  // (postMessage is FIFO): this runs synchronously, the refresh fires after.
+  sendPatch(peekMergedCache(), patch);
   // When scoped to My Edits itself, its own view must rebuild to reflect the edit
   // (other scoped sources show only their own data, so they're unaffected).
   if (state.selected !== MERGED_ID) dropScopedCorpus(state.selected);
