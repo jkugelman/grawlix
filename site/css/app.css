@@ -224,12 +224,13 @@ mark.search-match { border-radius: 2px; padding: 0 1px; margin: 0 -1px; font-sty
    on completion or abort. The visible effects each carry a 100ms
    animation-delay, so a quick run that adds and removes the class within the
    threshold cancels the animations before they ever start — nothing flashes
-   on fast keystrokes. CSS-driven rather than a JS setTimeout because
-   scheduler.yield()'s continuations outrank lower-priority tasks and starve
-   setTimeout on CPU-bound runs; CSS animations tick on the browser's render
-   pipeline, which runs between yields regardless of task priority. The dim
-   lands on #vs-host, not the panel, so the spinner overlay stays at full
-   opacity. */
+   on fast keystrokes. CSS-driven, not a JS setTimeout: the normal run is
+   off-main (the worker), but the main-thread fallback after a worker crash
+   runs the pipeline CPU-bound on main, where scheduler.yield()'s continuations
+   outrank lower-priority tasks and starve setTimeout — so don't "simplify"
+   this to a timer. CSS animations tick on the render pipeline between yields
+   regardless of task priority, firing in both modes. The dim lands on
+   #vs-host, not the panel, so the spinner overlay stays at full opacity. */
 #entries-table-panel.pipeline-running #vs-host {
   animation: pipeline-dim 0.15s ease 0.1s forwards;
 }
