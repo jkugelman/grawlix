@@ -2,7 +2,7 @@
 
 This is the **source-of-truth interface contract** between the main thread and the pipeline web worker: who owns which data, every message that crosses the boundary (fields + what each one *does* on receipt), and the cancellation/supersession rules. Code is not the only source of truth — when you add or change a message, a data structure, or the supersession policy, **update this doc in the same commit.**
 
-**Why a worker at all, and the deeper *why* behind each decision** live in [`planned/web-workers.md`](planned/web-workers.md) (benchmarks, the full-resync-baseline reasoning, the rejected alternatives). This doc is the *what the interface is*, present-tense; the status markers below track which pieces are wired.
+**Why a worker at all, and the deeper *why* behind each decision** live in [`design.md` § Cooperative runtime](design.md) (why the off-thread move, the lean-columnar-transfer reasoning, the merge-stays-on-main choice, the rejected alternatives). This doc is the *what the interface is*, present-tense; the status markers below track which pieces are wired.
 
 ## Status legend
 
@@ -215,5 +215,5 @@ When the protocol grows (new request/response/sync types are expected): pick a `
 
 ## Related
 
-- [`planned/web-workers.md`](planned/web-workers.md) — the design rationale (why a worker, benchmarks, the full-resync baseline, rejected alternatives). The *why* behind this *what*.
-- [`design.md` § Pipeline execution / § Cooperative runtime / § Caches / § The pure engine and the worker boundary](design.md) — the current main-thread architecture this relocates.
+- [`design.md` § Cooperative runtime](design.md) — the design rationale (why a worker, the lean-columnar-transfer reasoning, the merge-stays-on-main choice, rejected alternatives). The *why* behind this *what*.
+- [`design.md` § Pipeline execution / § Caches / § The pure engine and the worker boundary](design.md) — the main-thread architecture the worker relocates the pipeline out of.
