@@ -828,6 +828,7 @@ export class EntriesScroller extends BaseVirtualScroller {
     this._flat = !!result.flat;
     if (this._flat) {
       this._flatCorpus = result.corpus;
+      this._flatSnapVersion = result.corpus._snapVersion ?? 0;
       this._flatScores = result.scores;
       this._widthHints = result.widthHints;
       this._flatHighlighters = compileFlatHighlighters(ToolStack.getStack());
@@ -1089,6 +1090,9 @@ export class EntriesScroller extends BaseVirtualScroller {
 
   _render() {
     if (this.sortTier === 'group') return this._renderGroups();
+    // A My Edits patch splices _flatCorpus.entries in place; rendering before the
+    // always-following re-run repaints would index this.entries past the corpus and throw.
+    if (this._flat && this._flatCorpus && (this._flatCorpus._snapVersion ?? 0) !== this._flatSnapVersion) return;
     const n = this.entries.length;
     const stride = this._rowStride();
     this.sizer.style.height = this._sizerHeightFor(n * stride) + 'px';
