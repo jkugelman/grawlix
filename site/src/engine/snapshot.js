@@ -35,19 +35,24 @@ export function canonicalNormRow(rows) {
   return best;
 }
 
+// encodeInto fills one pre-sized buffer instead of allocating a Uint8Array per
+// string; N per-string encodes was the encode+GC that froze a scope re-pack.
 function packStrings(strings) {
   const enc = new TextEncoder();
-  const encoded = strings.map(s => enc.encode(s));
-  const offsets = new Uint32Array(encoded.length + 1);
-  let total = 0;
-  for (let i = 0; i < encoded.length; i++) {
-    offsets[i] = total;
-    total += encoded[i].length;
+  const n = strings.length;
+  const offsets = new Uint32Array(n + 1);
+  // 3 bytes per UTF-16 unit is UTF-8's max (surrogate pair = 2 units → 4 bytes), so
+  // units*3 can't under-allocate and encodeInto can't silently truncate.
+  let units = 0;
+  for (let i = 0; i < n; i++) units += strings[i].length;
+  const buf = new Uint8Array(units * 3);
+  let pos = 0;
+  for (let i = 0; i < n; i++) {
+    offsets[i] = pos;
+    pos += enc.encodeInto(strings[i], buf.subarray(pos)).written;
   }
-  offsets[encoded.length] = total;
-  const bytes = new Uint8Array(total);
-  for (let i = 0; i < encoded.length; i++) bytes.set(encoded[i], offsets[i]);
-  return { bytes: bytes.buffer, offsets: offsets.buffer };
+  offsets[n] = pos;
+  return { bytes: buf.buffer.slice(0, pos), offsets: offsets.buffer };
 }
 
 function decodeStrings({ bytes, offsets }, count) {
