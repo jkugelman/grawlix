@@ -281,7 +281,7 @@ export function buildStatsBarHTML() {
   const statsEntries = scroller ? scroller._statsViewEntries() : [];
   const histEntries = scroller ? scroller._histogramEntries() : [];
   const grouped = scroller ? scroller.sortTier === 'group' : false;
-  const groupCount = grouped ? scroller.entries.length : null;
+  const groupCount = grouped ? scroller._groupCount() : null;
   const countValue = grouped
     ? (scroller ? scroller._visibleGroupChainCount() : 0)
     : (scroller ? scroller.entries.length : statsEntries.length);

@@ -3,7 +3,8 @@
 import { MERGED_ID } from '../core/constants.js';
 import { canonicalNormRow } from './snapshot.js';
 import { TOOLS, makeToolRow } from './tools.js';
-import { executePipeline, configureExecutorYield, invalidatePreSearchCache } from './executor.js';
+import { executePipeline, configureExecutorYield, invalidatePreSearchCache, bottomLineAtoms, applyScoreRangeToRows } from './executor.js';
+import { sortGroups, activeGroupRow } from './group-sort.js';
 import { configureIO as configureSegmenterIO } from './segmenter.js';
 import { parseWordlist, toNorm, displayOf } from './norm.js';
 import { parseRange, matchesRange } from './range.js';
@@ -74,6 +75,7 @@ let latestRunId = -1;       // the supersession key; a `run`/`cancel` advances i
 let pending = null;
 let running = false;
 let lastFlatResult = null;  // { runId, indices, scores, scope, highlighters } retained to serve `fetchRows`
+let lastGroupedResult = null;  // { runId, groups, scope } — full sorted+filtered groups (all chains) retained to serve `fetchGroupChains`
 let lastUserStackSig = null;
 let lastRunCorpus = null;   // the corpus the live _preSearchCache was seeded from
 let selfConfig = null;
@@ -197,11 +199,29 @@ function postResult(runId, { rows, atomCount, grouped }, sort, scope, stack, exi
 
   if (grouped) {
     lastFlatResult = null;
-    postMessage({ ...base, payload: { groups: rows.map(g => encodeGroup(g)) } });
+    const intervals = scoreRange ? parseRange(scoreRange) : null;
+    // Filter BEFORE the group sort so the group axes read each group's post-filter
+    // _minScore/count; the unfiltered `rows` still feeds the histogram + width hints
+    // (the full distribution, so out-of-range bars stay clickable).
+    const visible = intervals ? applyScoreRangeToRows(rows, intervals, true) : rows;
+    const sorted = sortGroups(visible, sort?.key, sort?.dir, stack);
+    lastGroupedResult = { runId, groups: sorted, scope };
+    // Only the first window of group ROWS ships inline (main fetches later windows
+    // via fetchGroups). The shipped array length is NOT the group count — main must
+    // size from groupSummaries' groupCount, or it shows only the window and silently
+    // drops every later group.
+    postMessage({
+      ...base,
+      payload: {
+        groups: sorted.slice(0, GROUP_ROW_WINDOW).map(g => encodeGroup(g)),
+        ...groupSummaries(rows, sorted, scope, stack, !!intervals),
+      },
+    });
     return;
   }
   if (rows.some(rowIsRich)) {
     lastFlatResult = null;
+    lastGroupedResult = null;
     postMessage({ ...base, payload: { chains: rows.map(c => encodeChain(c)) } });
     return;
   }
@@ -249,6 +269,7 @@ function postResult(runId, { rows, atomCount, grouped }, sort, scope, stack, exi
     scope,
     highlighters: compileFlatHighlighters(stack),
   };
+  lastGroupedResult = null;
 
   const stats = computeStatsRaw(scores);
   // existsInScope answers "in the run's SCOPE"; existsInMerge always answers
@@ -361,6 +382,48 @@ function handleFetchAllRows({ requestId, runId }) {
   postMessage({
     type: 'allRows', requestId, runId,
     rows: buildFlatRows(0, lastFlatResult.indices.length),
+  });
+}
+
+// ─── Windowed grouped-chain fetch ── see docs/worker-protocol.md ─────────────
+// The grouped analogue of fetchResultFresh. lastGroupedResult.groups hold their
+// chains by reference to THAT run's corpus, so a scope/config change between the
+// run and the fetch makes them name the wrong rows — drop silently, mirroring the
+// flat path; main re-fetches on its next run rather than rendering garbage.
+function groupedResultFresh(runId) {
+  return !!lastGroupedResult && lastGroupedResult.runId === runId
+    && ownedCorpus && ownedCorpusFresh && ownedScope === lastGroupedResult.scope;
+}
+
+function handleFetchGroupChains({ requestId, runId, groupKey, start, end }) {
+  if (!groupedResultFresh(runId)) return;
+  const group = lastGroupedResult.groups.find(g => g.key === groupKey);
+  if (!group) return;
+  const lo = Math.max(0, start | 0);
+  const hi = Math.min(group.chains.length, end | 0);
+  postMessage({
+    type: 'groupChains', requestId, runId, groupKey, start: lo,
+    chains: group.chains.slice(lo, hi).map(encodeChain),
+  });
+}
+
+// ─── Windowed group-row fetch ── see docs/worker-protocol.md ─────────────────
+function handleFetchGroups({ requestId, runId, start, end }) {
+  if (!groupedResultFresh(runId)) return;
+  const lo = Math.max(0, start | 0);
+  const hi = Math.min(lastGroupedResult.groups.length, end | 0);
+  postMessage({
+    type: 'groups', requestId, runId, start: lo,
+    groups: lastGroupedResult.groups.slice(lo, hi).map(encodeGroup),
+  });
+}
+
+// ─── Full-result group fetch (export) ── see docs/worker-protocol.md ─────────
+function handleFetchAllGroups({ requestId, runId }) {
+  if (!groupedResultFresh(runId)) return;
+  postMessage({
+    type: 'allGroups', requestId, runId,
+    groups: lastGroupedResult.groups.map(encodeGroupFull),
   });
 }
 
@@ -503,15 +566,101 @@ function encodeChain(chain) {
   return { atoms: chain.atoms.map(encodeAtom) };
 }
 
-function encodeGroup(g) {
+// Must exceed the most chains a COLLAPSED group row can ever fit (the slot-fill
+// visibleCount in entries-table's _renderGroupRowHTML — ~25 for a wide desktop
+// slot of short chains): if the window is shorter, the collapsed row under-shows
+// and its "+N more" count is silently wrong, with no fetch to recover the rest.
+const GROUP_FIRST_WINDOW = 64;
+
+// The above-the-fold window of group ROWS shipped inline with every grouped
+// result (the group-list analogue of FIRST_WINDOW). Generous enough to cover a
+// tall viewport of group rows plus the scroller's prefetch buffer, so the first
+// paint shows no skeleton group rows for a result that fits on screen.
+const GROUP_ROW_WINDOW = 60;
+
+function encodeGroupEnvelope(g) {
   return {
     key: g.key,
     anchor: g.anchor ? encodeAtom({ wlEntry: g.anchor, highlights: null, glyph: null }) : null,
     _minScore: g._minScore,
     _maxScore: g._maxScore,
     _count: g._count,
+  };
+}
+
+function encodeGroup(g) {
+  return {
+    ...encodeGroupEnvelope(g),
+    firstChains: g.chains.slice(0, GROUP_FIRST_WINDOW).map(encodeChain),
+  };
+}
+
+function encodeGroupFull(g) {
+  return {
+    ...encodeGroupEnvelope(g),
     chains: g.chains.map(encodeChain),
   };
+}
+
+// Histogram buckets the UNFILTERED scores (out-of-range bars stay clickable to
+// widen the filter); stats + counts compute over the FILTERED set; `filtered`
+// pairs with main's _workerFiltered guard. The same split the flat branch makes —
+// collapsing it silently drops the out-of-range bars or mis-reports Min/Max under
+// a live filter. Width hints stay on the unfiltered set so columns don't shift
+// sideways when a filter cuts the view (main's non-flat slot-width rule).
+function groupSummaries(unfiltered, filtered, scope, stack, didFilter) {
+  const histScores = bottomLineAtoms(unfiltered).map(e => e.score);
+  const statScores = bottomLineAtoms(filtered).map(e => e.score);
+
+  let histogramCounts, histogramLayout = null;
+  if (scope === MERGED_ID) {
+    histogramCounts = bucketCounts(histScores, ownedAllSourcesAxis);
+  } else {
+    histogramLayout = getHistogramLayout(ownedCorpus.entries, 'scoped:' + scope);
+    histogramCounts = bucketCounts(histScores, histogramLayout);
+  }
+
+  let chainCount = 0;
+  for (const g of filtered) chainCount += g._count;
+
+  return {
+    stats: computeStatsRaw(statScores),
+    histogramCounts,
+    histogramLayout,
+    groupWidthHints: computeGroupWidthHints(unfiltered, stack),
+    chainCount,
+    groupCount: filtered.length,
+    filtered: didFilter,
+  };
+}
+
+// Pixel width measurement stays on main (it needs live font metrics), so the
+// proportional column/anchor widths can't reduce to a scalar here. Ships the
+// widest-by-CHARACTER-COUNT representative per column instead; main re-measures
+// just those — exact for the digit-string column values shipped today, but a
+// future proportional-text column could pick a non-pixel-widest string.
+function computeGroupWidthHints(rows, stack) {
+  let maxCount = 0;
+  let maxAnchorDisplayLen = 0, maxAnchorScoreDigits = 0;
+  const groupRow = activeGroupRow(stack);
+  const columns = groupRow?.def.group?.columns ?? [];
+  const columnWidest = columns.map(() => '');
+  for (const g of rows) {
+    if (g._count > maxCount) maxCount = g._count;
+    if (g.anchor) {
+      const dispLen = (g.anchor.display ?? g.anchor.norm).length;
+      if (dispLen > maxAnchorDisplayLen) maxAnchorDisplayLen = dispLen;
+      const digits = String(g.anchor.score).length;
+      if (digits > maxAnchorScoreDigits) maxAnchorScoreDigits = digits;
+    }
+    for (let c = 0; c < columns.length; c++) {
+      const v = String(columns[c].value(g));
+      if (v.length > columnWidest[c].length) columnWidest[c] = v;
+    }
+  }
+  const columnWidestByKey = {};
+  for (let c = 0; c < columns.length; c++) columnWidestByKey[columns[c].key] = columnWidest[c];
+  return { maxCount, groupCount: rows.length, maxAnchorDisplayLen, maxAnchorScoreDigits, columnWidestByKey };
 }
 
 function rowIsRich(row) {
@@ -871,8 +1020,20 @@ onmessage = ({ data }) => {
       handleFetchRows(data);
       break;
 
+    case 'fetchGroupChains':
+      handleFetchGroupChains(data);
+      break;
+
+    case 'fetchGroups':
+      handleFetchGroups(data);
+      break;
+
     case 'fetchAllRows':
       handleFetchAllRows(data);
+      break;
+
+    case 'fetchAllGroups':
+      handleFetchAllGroups(data);
       break;
 
     case 'fetchEditSeed':

@@ -1,11 +1,13 @@
 const { test, expect } = require('@playwright/test');
 const { stubPublisherFetches, gotoApp, scopeTo } = require('./helpers');
 
-// Flat-result export off the worker. exportRows() pulls the full flat result's
-// rich rows from the worker (fetchAllRows) and main keeps formatting. Post-flip
-// there's no local corpus, so the flat export ALWAYS round-trips the worker (one
-// fetchAllRows per format); grouped/transform export stays fully local (resident
-// ChainRow[]) and never touches the worker. See docs/worker-protocol.md.
+// Result export off the worker. exportRows() pulls the full result from the
+// worker and main keeps formatting. Post-flip there's no local corpus, so the
+// flat export ALWAYS round-trips the worker (one fetchAllRows per format); the
+// grouped export likewise round-trips (one fetchAllGroups per format) because the
+// grouped tier windows each group's chains, so the resident groups carry only a
+// firstChains window — exporting from them would silently truncate every group
+// over the window. Transform export stays fully local. See docs/worker-protocol.md.
 //
 // No flag-off local baseline survives the flip, so these assert the export is
 // non-vacuous (real rows formatted), round-trips the worker, and that the four
@@ -62,6 +64,8 @@ const ranAgainstOwned = page =>
   page.evaluate(() => window.__grawlixTest.windowedFlatDebug().ranAgainstOwned);
 const allRowsFetches = page =>
   page.evaluate(() => window.__grawlixTest.allRowsFetchesSent());
+const allGroupsFetches = page =>
+  page.evaluate(() => window.__grawlixTest.allGroupsFetchesSent());
 
 // The flat export round-trips the worker once per format and produces real rows.
 async function assertWorkerExport(page, setup, { minEntries }) {
@@ -108,9 +112,10 @@ test('scoped source: flat export round-trips the worker', async ({ page }) => {
   }, { minEntries: 24 });
 });
 
-// Grouped guard: a grouped result exports off resident rows and must NOT issue a
-// fetchAllRows even with a fresh owned corpus — grouped export stays fully local.
-test('grouped result: export never hits the worker', async ({ page }) => {
+// Grouped export round-trips the worker (fetchAllGroups), never fetchAllRows: the
+// grouped tier windows each group's chains, so resident groups carry only a
+// firstChains window — exporting from them must pull the full chains off the worker.
+test('grouped result: export round-trips the worker for full chains', async ({ page }) => {
   await gotoApp(page);
   // Anagram-able entries so the grouped run yields a non-empty group to export.
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
@@ -122,8 +127,10 @@ test('grouped result: export never hits the worker', async ({ page }) => {
   await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'anagrams', grouped: true }]));
   await page.evaluate(() => window.__grawlixTest.pipelineIdle());
 
-  const before = await allRowsFetches(page);
+  const beforeRows = await allRowsFetches(page);
+  const beforeGroups = await allGroupsFetches(page);
   const exports = await captureExports(page);
-  expect(await allRowsFetches(page) - before).toBe(0);   // grouped never calls fetchAllRows
+  expect(await allRowsFetches(page) - beforeRows).toBe(0);       // never the flat path
+  expect(await allGroupsFetches(page) - beforeGroups).toBe(4);   // 4 formats × the grouped round-trip
   expect(exports.wordlist.length).toBeGreaterThan(0);
 });

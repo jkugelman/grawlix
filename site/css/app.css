@@ -302,8 +302,8 @@ mark.search-match { border-radius: 2px; padding: 0 1px; margin: 0 -1px; font-sty
 .entry-row:hover { background: var(--row-hover); }
 .entry-row.active { background: color-mix(in srgb, var(--accent) 12%, transparent); }
 
-.entry-row.skeleton { display: flex; align-items: center; padding: 0 8px; }
-.entry-row.skeleton .skeleton-bar {
+.entry-row.skeleton, .group-row.skeleton { display: flex; align-items: center; padding: 0 8px; }
+.entry-row.skeleton .skeleton-bar, .group-row.skeleton .skeleton-bar {
   height: 10px;
   width: 40%;
   border-radius: 3px;
@@ -397,6 +397,16 @@ mark.search-match { border-radius: 2px; padding: 0 1px; margin: 0 -1px; font-sty
 .group-chain .atom-entry { cursor: pointer; }
 .group-chain .atom-score { cursor: pointer; }
 .group-chain .atom-noedit { cursor: default; }
+.group-chain.skeleton {
+  display: flex; align-items: center;
+  height: var(--row-height, 24px); width: 64px;
+}
+.group-chain.skeleton .skeleton-bar {
+  height: 10px; width: 100%; border-radius: 3px;
+  background: linear-gradient(90deg, var(--surface) 0%, var(--border2) 50%, var(--surface) 100%);
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.2s ease-in-out infinite;
+}
 .group-anchor {
   flex: none;
   min-width: var(--group-anchor-w, 0);

@@ -22,6 +22,10 @@ import {
   isFilterOnlyChain, isGroupChain, rowLastEntry,
   bottomLineAtoms, rowSetAtoms, applyScoreRangeToRows,
 } from '../engine/executor.js';
+import {
+  compareItems, compareValues, groupSortAxes, GROUP_SORT_AXES,
+  activeGroupColumns, activeGroupAnchorLabel,
+} from '../engine/group-sort.js';
 import { compileFlatHighlighters } from '../engine/flat-highlight.js';
 import { state, getEditsWordlist } from '../data/state.js';
 import { rescoreEntry } from '../engine/rescore.js';
@@ -34,7 +38,7 @@ import { buildWordlistNameHTML } from './scope-selector.js';
 import {
   getEntriesScroller, rescorePreviewActive, buildNoMatchQuipHTML, refreshMergedScroller,
 } from './rendering.js';
-import { fetchWorkerRows, fetchWorkerAllRows, lastCompletedRunId, fetchWorkerEditSeed, fetchWorkerProvenance } from './pipeline-worker.js';
+import { fetchWorkerRows, fetchWorkerGroups, fetchWorkerGroupChains, fetchWorkerAllRows, fetchWorkerAllGroups, lastCompletedRunId, fetchWorkerEditSeed, fetchWorkerProvenance } from './pipeline-worker.js';
 
 let _navigate              = () => {};
 
@@ -43,6 +47,10 @@ let _navigate              = () => {};
 let rebindAnswersConsumed = 0;
 export function rebindAnswersConsumedDebug() { return rebindAnswersConsumed; }
 export function resetRebindAnswersConsumedForTest() { rebindAnswersConsumed = 0; }
+
+let _groupWindowUnderfill = 0;
+export function groupWindowUnderfillDebug() { return _groupWindowUnderfill; }
+export function resetGroupWindowUnderfillForTest() { _groupWindowUnderfill = 0; }
 
 // _winCache rows kept beyond the viewport on each side before eviction prunes
 // the rest. Stakes: drop it under VS_BUFFER and eviction discards rows the next
@@ -59,6 +67,25 @@ export function windowedFlatDebug() {
     winCacheSize: s._winCache ? s._winCache.size : 0,
     richRowsConsumed: s._richRowsConsumed ?? 0,
     ranAgainstOwned: !!s._ranAgainstOwned,
+  };
+}
+
+export function workerGroupsDebug() {
+  const s = getEntriesScroller();
+  if (!s || s.sortTier !== 'group') return null;
+  return s.entries.map(g => ({
+    key: g.key,
+    count: g._count,
+    residentChains: g.chains.map(c => c.atoms.map(a => a.wlEntry.norm)),
+  }));
+}
+
+export function workerGroupListDebug() {
+  const s = getEntriesScroller();
+  if (!s || s.sortTier !== 'group') return null;
+  return {
+    groupCount: s._groupCount(),
+    residentKeys: (s._firstGroups ?? []).map(g => g.key),
   };
 }
 
@@ -135,10 +162,7 @@ export const rowMaxScore   = r => Math.max(...r.atoms.map(a => a.wlEntry.score))
 // Later atoms joined with a low separator: a string compare then orders them
 // atom-by-atom, since every row in a run carries the same atom count.
 const rowChainTail  = r => r.atoms.slice(1).map(a => a.wlEntry.norm).join('\u0000');
-const groupMinScore     = g => g._minScore;
-const groupMaxScore     = g => g._maxScore;
-const groupCount        = g => g._count;
-const groupChainEntries = g => g.chains.map(c => c.atoms[0].wlEntry.norm);
+export { compareItems, compareValues, activeGroupColumns };
 const SORT_AXES = {
   single: {
     entry: {
@@ -204,34 +228,6 @@ const SORT_AXES = {
       ],
     },
   },
-  group: {
-    entry: {
-      label: 'Entry',
-      primary: groupChainEntries,
-      tiebreakers: [{ project: groupCount, dir: 'desc' }],
-    },
-    count: {
-      label: 'Count',
-      primary: groupCount,
-      tiebreakers: [{ project: g => g.key, dir: 'asc' }],
-    },
-    'min-score': {
-      label: 'Min score',
-      primary: groupMinScore,
-      tiebreakers: [
-        { project: groupCount, dir: 'desc' },
-        { project: g => g.key, dir: 'asc'  },
-      ],
-    },
-    'max-score': {
-      label: 'Max score',
-      primary: groupMaxScore,
-      tiebreakers: [
-        { project: groupCount, dir: 'desc' },
-        { project: g => g.key, dir: 'asc'  },
-      ],
-    },
-  },
 };
 export const DEFAULT_SORT_BY_TIER = { single: 'entry', multi: 'entry', group: 'entry' };
 // An axis with no counterpart in the new tier maps across rather than
@@ -251,80 +247,12 @@ export function chainSortTier(stack) {
   if (isGroupChain(stack)) return 'group';
   return isFilterOnlyChain(stack) ? 'single' : 'multi';
 }
-function activeGroupRow(stack) {
-  return stack.find(r => r.kind() === 'group' && !r.isInert());
-}
-export function activeGroupColumns(stack) {
-  return activeGroupRow(stack)?.def.group?.columns || [];
-}
-export function activeGroupAnchorLabel(stack) {
-  return activeGroupRow(stack)?.def.group?.anchorLabel || null;
-}
-function buildColumnAxis(primaryCol, allColumns) {
-  const tiebreakers = primaryCol.tiebreakers ?? [
-    { project: groupCount,        dir: 'desc' },
-    { project: groupMinScore,     dir: 'desc' },
-    { project: groupMaxScore,     dir: 'desc' },
-    { project: groupChainEntries, dir: 'asc'  },
-  ];
-  return {
-    label: primaryCol.label,
-    primary: g => primaryCol.value(g),
-    tiebreakers,
-  };
-}
 export function sortAxes(tier, stack = ToolStack.getStack()) {
-  if (tier !== 'group') return SORT_AXES[tier];
-  const cols = activeGroupColumns(stack);
-  const spec = activeGroupRow(stack)?.def.group || null;
-  const anchorLabel = spec?.anchorLabel || null;
-  const extraTiebreakers = cols
-    .filter(c => c.tiebreaker !== false)
-    .map(c => ({ project: g => c.value(g), dir: 'desc' }));
-  const baseAxes = {};
-  for (const [key, axis] of Object.entries(SORT_AXES.group)) {
-    let updated = axis;
-    if (key === 'entry' && anchorLabel) {
-      updated = {
-        ...axis,
-        label: anchorLabel,
-        primary: g => g.anchor.norm,
-        tiebreakers: [{ project: groupCount, dir: 'desc' }],
-      };
-    }
-    baseAxes[key] = extraTiebreakers.length
-      ? { ...updated, tiebreakers: [...updated.tiebreakers, ...extraTiebreakers] }
-      : updated;
-  }
-  if (anchorLabel) {
-    baseAxes['length'] = {
-      label: `${anchorLabel} length`,
-      primary: g => g.anchor.norm.length,
-      tiebreakers: [
-        { project: g => g.anchor.norm, dir: 'asc' },
-        { project: groupCount,         dir: 'desc' },
-      ],
-    };
-    baseAxes['score'] = {
-      label: `${anchorLabel} score`,
-      primary: g => g.anchor.score,
-      tiebreakers: [
-        { project: g => g.anchor.norm, dir: 'asc' },
-        { project: groupCount,         dir: 'desc' },
-      ],
-    };
-  }
-  const columnAxes = {};
-  for (const col of cols) {
-    if (col.sort === false) continue;
-    if (baseAxes[col.key]) continue;
-    columnAxes[col.key] = buildColumnAxis(col, cols);
-  }
-  return { ...baseAxes, ...columnAxes };
+  return tier === 'group' ? groupSortAxes(stack) : SORT_AXES[tier];
 }
 export function isValidSortAxis(key) {
   if (key in SORT_AXES.single || key in SORT_AXES.multi
-      || key in SORT_AXES.group) return true;
+      || key in GROUP_SORT_AXES) return true;
   for (const tool of Object.values(TOOLS)) {
     for (const col of tool.group?.columns || []) {
       if (col.key === key) return true;
@@ -372,30 +300,6 @@ export function reconcileSort(stack) {
   AppView.setSort(key, dir);
 }
 
-// Compare two items along an axis, falling through tiebreakers when the
-// primary projection is equal. Primary direction is the user's pick;
-// tiebreakers keep their declared direction regardless.
-export function compareItems(a, b, axis, primaryDir) {
-  const primCmp = compareValues(axis.primary(a), axis.primary(b)) * (primaryDir === 'asc' ? 1 : -1);
-  if (primCmp !== 0) return primCmp;
-  for (const tb of axis.tiebreakers) {
-    const cmp = compareValues(tb.project(a), tb.project(b)) * (tb.dir === 'asc' ? 1 : -1);
-    if (cmp !== 0) return cmp;
-  }
-  return 0;
-}
-
-export function compareValues(a, b) {
-  if (Array.isArray(a) && Array.isArray(b)) {
-    for (let i = 0; i < Math.min(a.length, b.length); i++) {
-      const c = compareValues(a[i], b[i]);
-      if (c !== 0) return c;
-    }
-    return a.length - b.length;
-  }
-  if (typeof a === 'number' && typeof b === 'number') return a - b;
-  return String(a).localeCompare(String(b));
-}
 const ENTRY_SLOT_CAP = 21;
 
 // Off-screen pixel width of `text` rendered in style class `className`
@@ -636,9 +540,15 @@ export const GroupMorePopover = (() => {
   const POPOVER_CHUNK = 200;
   let el = null;
   let anchor = null;
-  let chains = null;
+  let group = null;       // the group whose chains this lists: { key, _count, chains: firstChains }
   let scroller = null;
-  let rendered = 0;
+  let runId = null;       // the result run this popover's chains belong to; a fetch reply for a different run is dropped
+  // Keyed by ABSOLUTE chain index — not a dense per-window array — so the
+  // atom-edit click handler resolves data-chain (also absolute) to the right chain
+  // no matter which window supplied it; a per-window remap would edit a wrong atom.
+  let chainCache = null;
+  let rendered = 0;       // count of absolute indices already laid out (resident + skeleton)
+  let fetchSeq = 0;
   let sentinel = null;
   let io = null;
 
@@ -657,7 +567,7 @@ export const GroupMorePopover = (() => {
       const chainEl = target.closest('.group-chain');
       const atomEl = target.closest('.atom');
       if (!chainEl || !atomEl) return;
-      const atom = chains?.[parseInt(chainEl.dataset.chain, 10)]
+      const atom = chainCache?.get(parseInt(chainEl.dataset.chain, 10))
                     ?.atoms[parseInt(atomEl.dataset.atom, 10)];
       if (!atom) return;
       const field = target.classList.contains('atom-score') ? 'score' : null;
@@ -668,8 +578,10 @@ export const GroupMorePopover = (() => {
   function close() {
     if (el.hidden) return;
     el.hidden = true;
-    anchor = chains = scroller = null;
+    anchor = group = scroller = chainCache = null;
+    runId = null;
     rendered = 0;
+    fetchSeq++;   // invalidate any in-flight fetch's fill so a late reply is a no-op
     if (io) { io.disconnect(); io = null; }
     sentinel = null;
     document.removeEventListener('keydown', onKey, true);
@@ -685,15 +597,30 @@ export const GroupMorePopover = (() => {
     close();
   }
 
+  function chainOrSkeletonHTML(i) {
+    const chain = chainCache.get(i);
+    return chain
+      ? buildGroupChainHTML(chain, i)
+      : `<div class="group-chain skeleton" data-chain="${i}"><span class="skeleton-bar"></span></div>`;
+  }
+
   function renderChunk() {
-    const end = Math.min(chains.length, rendered + POPOVER_CHUNK);
+    const total = group._count;
+    const end = Math.min(total, rendered + POPOVER_CHUNK);
+    if (end <= rendered) return;
     const html = [];
-    for (let i = rendered; i < end; i++) {
-      html.push(buildGroupChainHTML(chains[i], i));
-    }
+    for (let i = rendered; i < end; i++) html.push(chainOrSkeletonHTML(i));
     sentinel.insertAdjacentHTML('beforebegin', html.join(''));
+
+    // One span fetch covers the chunk's non-resident tail: cached indices form a
+    // prefix (firstChains 0..k-1 plus in-order fetched windows), so the first
+    // uncached index begins a contiguous run to `end` with no gap left behind.
+    let fetchLo = rendered;
+    while (fetchLo < end && chainCache.has(fetchLo)) fetchLo++;
     rendered = end;
-    if (rendered >= chains.length) {
+    if (fetchLo < end) fetchWindow(fetchLo, end);
+
+    if (rendered >= total) {
       io?.disconnect();
       io = null;
       sentinel.remove();
@@ -701,18 +628,36 @@ export const GroupMorePopover = (() => {
     }
   }
 
-  function toggle(nextChains, anchorEl, nextScroller) {
+  function fetchWindow(lo, hi) {
+    const seq = ++fetchSeq;
+    const groupKey = group.key;
+    const forRunId = runId;
+    fetchWorkerGroupChains(forRunId, groupKey, lo, hi).then(reply => {
+      if (seq !== fetchSeq || el.hidden || runId !== forRunId || !reply) return;
+      for (let k = 0; k < reply.chains.length; k++) {
+        const abs = reply.start + k;
+        chainCache.set(abs, reply.chains[k]);
+        const skel = el.querySelector(`.group-chain.skeleton[data-chain="${abs}"]`);
+        if (skel) skel.outerHTML = buildGroupChainHTML(reply.chains[k], abs);
+      }
+    });
+  }
+
+  function toggle(nextGroup, anchorEl, nextScroller) {
     if (anchor === anchorEl) { close(); return; }
     close();
-    chains = nextChains;
+    el.hidden = false;
+    group = nextGroup;
     scroller = nextScroller;
+    runId = lastCompletedRunId();
+    chainCache = new Map();
+    nextGroup.chains.forEach((c, i) => chainCache.set(i, c));   // resident firstChains seed indices 0..k-1
     el.innerHTML = '';
     sentinel = document.createElement('span');
     sentinel.className = 'group-popover-sentinel';
     el.appendChild(sentinel);
     rendered = 0;
     renderChunk();
-    el.hidden = false;
     anchor = anchorEl;
     const r = anchorEl.getBoundingClientRect();
     const w = el.offsetWidth;
@@ -759,6 +704,9 @@ export class EntriesScroller extends BaseVirtualScroller {
     this._flatViewScores = null;
     this._workerStats = null;
     this._workerHistogramCounts = null;
+    this._workerGroupWidthHints = null;
+    this._workerChainCount = null;
+    this._workerGroupCount = null;
     this._workerFiltered = false;
     this._ranAgainstOwned = false;
     this._existsInScope = null;
@@ -794,12 +742,19 @@ export class EntriesScroller extends BaseVirtualScroller {
     this._fetchOutstanding = 0;
     this._richRowsConsumed = 0;
 
+    // The grouped tier's _winCache: Map<absolute group index, decoded group>.
+    this._groupWinCache = new Map();
+    this._groupWinCacheRunId = null;
+    this._firstGroups = null;
+    this._groupReqSeq = 0;
+    this._groupFetchOutstanding = 0;
+
     this.sizer.addEventListener('click', e => {
       const moreBtn = e.target.closest('.group-more');
       if (moreBtn) {
         const gr = moreBtn.closest('.group-row');
-        const g = this.entries[parseInt(gr.dataset.idx, 10)];
-        if (g) GroupMorePopover.toggle(g.chains, moreBtn, this);
+        const g = this._groupAt(gr.dataset.idx);
+        if (g) GroupMorePopover.toggle(g, moreBtn, this);
         return;
       }
       const target = e.target.closest('.atom-entry, .atom-score, .atom-comment');
@@ -810,7 +765,7 @@ export class EntriesScroller extends BaseVirtualScroller {
         const atomEl = target.closest('.atom');
         if (!atomEl) return;
         row = groupRow;
-        const g = this.entries[parseInt(groupRow.dataset.idx, 10)];
+        const g = this._groupAt(groupRow.dataset.idx);
         if (atomEl.dataset.atomRole === 'anchor') {
           wlEntry = g?.anchor || null;
         } else {
@@ -874,16 +829,34 @@ export class EntriesScroller extends BaseVirtualScroller {
       this._firstRows = result.firstRows ?? null;
     } else {
       this._flatScores = null;
-      this._workerStats = null;
-      this._workerHistogramCounts = null;
-      this._workerFiltered = false;
+      // The grouped worker stats/counts are FILTERED (the worker applies the score
+      // range), and its histogram is UNFILTERED — _workerFiltered carries that to
+      // the rendering.js guard so it consumes the worker's filtered Min/Max under a
+      // range instead of recomputing.
+      const g = !!result.grouped;
+      this._workerStats = g ? (result.stats ?? null) : null;
+      this._workerHistogramCounts = g ? (result.histogramCounts ?? null) : null;
+      this._workerGroupWidthHints = g ? (result.groupWidthHints ?? null) : null;
+      this._workerChainCount = g ? (result.chainCount ?? null) : null;
+      this._workerGroupCount = g ? (result.groupCount ?? null) : null;
+      this._workerFiltered = g ? !!result.filtered : false;
       this._ranAgainstOwned = false;
       this._existsInScope = null;
       this._existsInMerge = null;
       this._rebindQuery = null;
       this._rebindEntry = null;
       this._rebindExists = null;
-      this.allEntries = result.rows;
+      if (g) {
+        // result.rows is only the first WINDOW of groups, not all of them. Leave
+        // allEntries empty so a consumer can't iterate a partial window as the full
+        // group list (silently wrong counts/rebind over a large result); the render
+        // and sync rebind read _groupWinCache (keyed by absolute index) instead.
+        this._firstGroups = result.rows;
+        this.allEntries = [];
+      } else {
+        this._firstGroups = null;
+        this.allEntries = result.rows;
+      }
     }
   }
 
@@ -902,10 +875,15 @@ export class EntriesScroller extends BaseVirtualScroller {
     this.scoreRange = next;
     this._scoreIntervals = next ? parseRange(next) : null;
     this._invalidateSortCache();
-    // The worker owns the flat-tier filter, so a range change re-runs the pipeline
-    // (it re-filters + re-windows); the transform/group tiers filter locally.
-    if (this._flat) refreshMergedScroller();
+    if (this._workerOwnsOrder()) refreshMergedScroller();
     else this._sortAndRender();
+  }
+
+  // The flat and grouped tiers arrive pre-sorted + pre-filtered from the worker, so
+  // a sort-axis or score-range change must re-run the pipeline rather than reorder
+  // locally — main holds no comparator that would reproduce the worker's order.
+  _workerOwnsOrder() {
+    return this._flat || this.sortTier === 'group';
   }
 
   _invalidateSortCache() {
@@ -938,9 +916,7 @@ export class EntriesScroller extends BaseVirtualScroller {
     AppView.setSort(key, dir);
     this._buildToolbar();
     rebuildEntryHeaders();
-    // The flat tier has no main-thread comparator (the worker pre-sorts), so an
-    // axis change must re-run the pipeline; sorting locally would silently misorder.
-    if (this._flat) refreshMergedScroller();
+    if (this._workerOwnsOrder()) refreshMergedScroller();
     else this._sortAndRender();
     _navigate();
   }
@@ -974,24 +950,24 @@ export class EntriesScroller extends BaseVirtualScroller {
       return this._sortedSource;
     }
 
-    // Flat tier: the index array is already sorted (by the worker); a sort-axis
-    // change re-runs the pipeline (applySort), so don't re-sort here — only the
-    // score-range filter applies, order-preserving.
+    // The worker pre-sorts AND pre-filters both the flat and the grouped tiers (a
+    // sort-axis or score-range change re-runs the pipeline), so they arrive in final
+    // order, ready to render. The single/multi tiers still sort + filter locally.
     let sorted;
     if (this._flat) {
-      // The worker pre-sorts AND pre-filters the flat result (a sort/range change
-      // re-runs the pipeline), so the index array arrives ready — no local pass.
       this._flatViewScores = this._flatScores;
       sorted = this.allEntries;
+    } else if (this.sortTier === 'group') {
+      // Only the inline first window — empty iff groupCount is 0, the invariant
+      // _sortAndRender's empty-state check keys on. The render sizes from groupCount
+      // and pulls visible groups from _groupWinCache.
+      sorted = this._firstGroups ?? [];
     } else {
-      const filtered = applyScoreRangeToRows(this.allEntries, this._scoreIntervals, this.sortTier === 'group');
+      const filtered = applyScoreRangeToRows(this.allEntries, this._scoreIntervals, false);
       const axis = sortAxes(this.sortTier)[this.sortKey];
-      if (!axis) {
-        sorted = filtered;
-      } else {
-        if (this.sortTier === 'group') this._sortGroupChains();
-        sorted = [...filtered].sort((a, b) => compareItems(a, b, axis, this.sortDir));
-      }
+      sorted = axis
+        ? [...filtered].sort((a, b) => compareItems(a, b, axis, this.sortDir))
+        : filtered;
     }
 
     this._sortedSource = sorted;
@@ -999,15 +975,6 @@ export class EntriesScroller extends BaseVirtualScroller {
     this._sortedSourceDir = this.sortDir;
     this._sortedSourceRange = this.scoreRange;
     return sorted;
-  }
-
-  _sortGroupChains() {
-    const seedEntry = c => c.atoms[0].wlEntry.norm;
-    const seedScore = c => c.atoms[0].wlEntry.score;
-    const byNorm = (a, b) => seedEntry(a).localeCompare(seedEntry(b));
-    const byScore = (a, b) => seedScore(b) - seedScore(a) || byNorm(a, b);
-    const cmp = this.sortKey === 'entry' ? byNorm : byScore;
-    for (const g of this.allEntries) g.chains.sort(cmp);
   }
 
   // Slot widths derived from the longest values across the full result set, then
@@ -1096,18 +1063,31 @@ export class EntriesScroller extends BaseVirtualScroller {
 
   _statsViewEntries() {
     if (this._flat) return this._flatViewScores ?? this._flatScores;
+    // The grouped tier ships stats off the worker; the entries here are only the
+    // window, so never bottom-line them as if they were the full result.
+    if (this.sortTier === 'group') return [];
     return bottomLineAtoms(this.entries);
   }
 
   _histogramEntries() {
     if (this._flat) return this._flatScores;
+    if (this.sortTier === 'group') return [];
     return bottomLineAtoms(this.allEntries);
   }
 
+  // The worker always ships these for a grouped result; the local re-derive is a
+  // null-safety fallback that must NOT iterate the now-partial window — return 0
+  // rather than undercount over a windowed list.
   _visibleGroupChainCount() {
-    let n = 0;
-    for (const g of this.entries) n += g.chains.length;
-    return n;
+    return this._workerChainCount ?? 0;
+  }
+
+  _groupCount() {
+    return this._workerGroupCount ?? 0;
+  }
+
+  _groupAt(idx) {
+    return this._groupWinCache.get(parseInt(idx, 10)) ?? null;
   }
 
   _rowStride() {
@@ -1296,12 +1276,15 @@ export class EntriesScroller extends BaseVirtualScroller {
   }
 
   _renderGroups() {
-    const n = this.entries.length;
+    // Size from the TOTAL group count (shipped), not the resident window — the
+    // worker ships only the first window of group rows and serves the rest on scroll.
+    const n = this._groupCount();
     const stride = this.atomCount * ROW_HEIGHT;
     this.sizer.style.height = this._sizerHeightFor(n * stride) + 'px';
     this._renderEmptyState(n, 'group');
     const { start, end } = this._visibleRange(n);
     this._clearSizer();
+    this._invalidateGroupWinCacheIfStale();
     const activeNorm = AtomPopover.activeNorm(this);
     let nextActiveRow = null;
     const stack = ToolStack.getStack();
@@ -1312,37 +1295,119 @@ export class EntriesScroller extends BaseVirtualScroller {
       glyphPx: this._groupGlyphPx || 0,
       slot: Math.max(0, this.host.clientWidth - (this._groupChromeWidth || 0)),
     };
+    let minMiss = -1, maxMiss = -1;
     const frag = document.createDocumentFragment();
     for (let i = start; i < end; i++) {
-      const g = this.entries[i];
-      const row = document.createElement('div');
-      row.className = 'group-row entry-row-font';
-      row.dataset.idx = i;
-      row.style.top = (i * stride) + 'px';
-      row.innerHTML = this._renderGroupRowHTML(g, i, columns, hasAnchor, ctx);
-      const matchesActive = activeNorm && (
-        (g.anchor && g.anchor.norm === activeNorm) ||
-        g.chains.some(c => c.atoms.some(a => a.wlEntry.norm === activeNorm))
-      );
-      if (matchesActive) {
-        row.classList.add('active');
-        nextActiveRow = row;
+      const g = this._groupWinCache.get(i) ?? null;
+      let row;
+      if (g) {
+        row = document.createElement('div');
+        row.className = 'group-row entry-row-font';
+        row.dataset.idx = i;
+        row.innerHTML = this._renderGroupRowHTML(g, i, columns, hasAnchor, ctx);
+        const matchesActive = activeNorm && (
+          (g.anchor && g.anchor.norm === activeNorm) ||
+          g.chains.some(c => c.atoms.some(a => a.wlEntry.norm === activeNorm))
+        );
+        if (matchesActive) {
+          row.classList.add('active');
+          nextActiveRow = row;
+        }
+      } else {
+        row = this._skeletonGroupRow();
+        if (minMiss < 0) minMiss = i;
+        maxMiss = i;
       }
+      row.style.top = (i * stride) + 'px';
       frag.appendChild(row);
     }
     this.sizer.appendChild(frag);
     if (nextActiveRow) AtomPopover.rebindRow(nextActiveRow);
+
+    if (minMiss >= 0) {
+      const lo = Math.max(0, minMiss - VS_BUFFER);
+      const hi = Math.min(n, maxMiss + 1 + VS_BUFFER);
+      this._fetchGroupWindow(lo, hi);
+    }
+    this._evictGroupWinCache(start, end);
+  }
+
+  // Mirrors _invalidateWinCacheIfStale: a run change re-orders the groups, so
+  // absolute-index-keyed cache entries name the wrong groups — drop them, then
+  // seed from the inline first window so above-the-fold rows render with no fetch.
+  _invalidateGroupWinCacheIfStale() {
+    const runId = lastCompletedRunId();
+    if (runId !== this._groupWinCacheRunId) {
+      this._groupWinCache.clear();
+      this._groupWinCacheRunId = runId;
+      if (this._firstGroups) {
+        this._firstGroups.forEach((g, i) => this._groupWinCache.set(i, g));
+      }
+    }
+  }
+
+  _evictGroupWinCache(start, end) {
+    const keepLo = start - WINDOW_CACHE_KEEP;
+    const keepHi = end + WINDOW_CACHE_KEEP;
+    if (this._groupWinCache.size <= (end - start) + WINDOW_CACHE_KEEP * 3) return;
+    for (const pos of this._groupWinCache.keys()) {
+      if (pos < keepLo || pos >= keepHi) this._groupWinCache.delete(pos);
+    }
+  }
+
+  _skeletonGroupRow() {
+    const row = document.createElement('div');
+    row.className = 'group-row entry-row-font skeleton';
+    row.innerHTML = '<span class="skeleton-bar"></span>';
+    return row;
+  }
+
+  _fetchGroupWindow(lo, hi) {
+    const runId = lastCompletedRunId();
+    const seq = ++this._groupReqSeq;
+    this._groupFetchOutstanding++;
+    fetchWorkerGroups(runId, lo, hi).then(reply => {
+      this._groupFetchOutstanding--;
+      if (seq !== this._groupReqSeq) return;          // superseded by a newer scroll
+      if (runId !== lastCompletedRunId()) return;     // superseded by a newer run
+      if (!reply) return;                             // timeout
+      for (let k = 0; k < reply.groups.length; k++) {
+        this._groupWinCache.set(reply.start + k, reply.groups[k]);
+      }
+      this._render();
+    });
+  }
+
+  groupWindowIdle(timeout = 5000) {
+    if (this._groupFetchOutstanding === 0) return Promise.resolve();
+    return new Promise(resolve => {
+      const deadline = performance.now() + timeout;
+      const tick = () => {
+        if (this._groupFetchOutstanding === 0 || performance.now() >= deadline) resolve();
+        else requestAnimationFrame(tick);
+      };
+      requestAnimationFrame(tick);
+    });
   }
 
   _renderGroupRowHTML(group, rowIdx, columns, hasAnchor, ctx) {
     const chains = group.chains;
-    const total = chains.length;
+    // _count is the group's true size (the badge / "+N more" count); chains.length
+    // is the resident firstChains window the collapsed row lays out from.
+    const total = group._count;
     let leftEdge = 0;
     let visibleCount = 0;
-    for (let ci = 0; ci < total; ci++) {
+    for (let ci = 0; ci < chains.length; ci++) {
       if (visibleCount > 0 && leftEdge >= ctx.slot) break;
       leftEdge += (ci > 0 ? 18 : 0) + estimateChainWidth(chains[ci], ctx);
       visibleCount = ci + 1;
+    }
+    // Tripwire: GROUP_FIRST_WINDOW must over-cover the slot. If the layout runs the
+    // resident window dry mid-slot while more chains exist, the collapsed row
+    // silently under-shows — a test asserts this never fires rather than letting a
+    // short row ship on an ultra-wide display the constant didn't anticipate.
+    if (visibleCount === chains.length && chains.length < total && leftEdge < ctx.slot) {
+      _groupWindowUnderfill++;
     }
     const hidden = total - visibleCount;
     const chainsHTML = [];
@@ -1396,15 +1461,12 @@ export class EntriesScroller extends BaseVirtualScroller {
   }
 
   _computeGroupSlotWidths() {
-    let maxCount = 0;
-    for (const g of this.allEntries) {
-      if (g.chains.length > maxCount) maxCount = g.chains.length;
-    }
+    const hints = this._workerGroupWidthHints;
     const target = this.host.closest('#detail-panel') || this.sizer;
     const countW = Math.max(
-      measureTextWidth(String(maxCount), 'entry-headers-font'),
+      measureTextWidth(String(hints.maxCount), 'entry-headers-font'),
       sortableHeaderPx('Count'));
-    const rownumW = measureTextWidth(this.allEntries.length + '.', 'entry-headers-font');
+    const rownumW = measureTextWidth(hints.groupCount + '.', 'entry-headers-font');
     target.style.setProperty('--group-count-w', `${countW}px`);
     target.style.setProperty('--group-rownum-w', `${rownumW}px`);
     const stack = ToolStack.getStack();
@@ -1412,25 +1474,16 @@ export class EntriesScroller extends BaseVirtualScroller {
     const anchorLabel = activeGroupAnchorLabel(stack);
     let anchorW = 0;
     if (anchorLabel) {
-      let maxEntryW = 0, maxBadgeW = 0;
-      for (const g of this.allEntries) {
-        if (!g.anchor) continue;
-        const entryW = displayOf(g.anchor).length * monoCh;
-        if (entryW > maxEntryW) maxEntryW = entryW;
-        const badgeW = badgeWidthPx(String(g.anchor.score).length);
-        if (badgeW > maxBadgeW) maxBadgeW = badgeW;
-      }
+      const maxEntryW = hints.maxAnchorDisplayLen * monoCh;
+      const maxBadgeW = hints.maxAnchorScoreDigits > 0 ? badgeWidthPx(hints.maxAnchorScoreDigits) : 0;
       anchorW = Math.max(maxEntryW + 5 + maxBadgeW, sortableHeaderPx(anchorLabel));
       target.style.setProperty('--group-anchor-w', `${anchorW}px`);
     }
     const columns = activeGroupColumns(stack);
     let columnsW = 0;
     for (const col of columns) {
-      let maxColW = 0;
-      for (const g of this.allEntries) {
-        const w = measureTextWidth(String(col.value(g)), 'entry-headers-font');
-        if (w > maxColW) maxColW = w;
-      }
+      const widest = hints.columnWidestByKey[col.key] ?? '';
+      const maxColW = measureTextWidth(widest, 'entry-headers-font');
       const colLabelW = col.sort === false ? headerLabelPx(col.label) : sortableHeaderPx(col.label);
       const colW = Math.max(maxColW, colLabelW);
       target.style.setProperty(`--group-col-${col.key}-w`, `${colW}px`);
@@ -1443,6 +1496,13 @@ export class EntriesScroller extends BaseVirtualScroller {
   }
 
   async exportRows() {
+    // Must be the full-chains fetch, not fetchWorkerGroups: that ships each group's
+    // firstChains window only, so any group over the window silently exports
+    // truncated — data loss on an explicit export with no visible symptom.
+    if (this.sortTier === 'group') {
+      const reply = await fetchWorkerAllGroups(lastCompletedRunId());
+      return reply ? reply.groups : [];
+    }
     if (!this._flat) return this.entries;
 
     // The flat tier holds only positions, so its rich rows come from the worker.
@@ -1467,12 +1527,19 @@ export class EntriesScroller extends BaseVirtualScroller {
     return applies;
   }
 
+  // The rows the synchronous rebind search walks. Grouped windows, so allEntries is
+  // empty there — search the cached groups instead. The popover only ever anchors
+  // on a rendered (hence cached) group, so its target is always reachable here.
+  _rebindSearchRows() {
+    return this.sortTier === 'group' ? this._groupWinCache.values() : this.allEntries;
+  }
+
   resultHasEntry(wlEntry) {
     if (this._flat) {
       if (this._rebindAnswerApplies(wlEntry.norm, wlEntry.display ?? null)) return this._rebindExists;
       return false;
     }
-    for (const a of rowSetAtoms(this.allEntries)) {
+    for (const a of rowSetAtoms(this._rebindSearchRows())) {
       if (a.wlEntry === wlEntry) return true;
     }
     return false;
@@ -1484,7 +1551,7 @@ export class EntriesScroller extends BaseVirtualScroller {
       return null;
     }
     let normFallback = null;
-    for (const a of rowSetAtoms(this.allEntries)) {
+    for (const a of rowSetAtoms(this._rebindSearchRows())) {
       if (a.wlEntry.norm !== norm) continue;
       if (a.wlEntry.display === display) return a.wlEntry;
       if (!normFallback) normFallback = a.wlEntry;

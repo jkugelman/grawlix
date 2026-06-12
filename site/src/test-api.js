@@ -33,15 +33,15 @@ import { ToolStack, pipelineIdle } from './ui/tool-stack.js';
 import {
   pingWorker, runOnWorker, patchWorkerToolForTest,
   pipelineWorkerState, crashWorkerForTest, forceWorkerCrashForTest, failNextWorkerBuildForTest,
-  syncWorkerConfig, dumpWorkerCorpus, queryWorkerEntry, fetchWorkerRows, fetchWorkerAllRows, lastCompletedRunId,
+  syncWorkerConfig, dumpWorkerCorpus, queryWorkerEntry, fetchWorkerRows, fetchWorkerGroups, fetchWorkerGroupChains, fetchWorkerAllRows, lastCompletedRunId,
   workerOwnsCorpus, sendEditEntry, sendDeleteEntry,
-  fetchWorkerProvenance, syncConfigsSent, allRowsFetchesSent, serializeFetchesSent,
+  fetchWorkerProvenance, syncConfigsSent, allRowsFetchesSent, allGroupsFetchesSent, serializeFetchesSent,
 } from './ui/pipeline-worker.js';
 import { allSourcesHistogramLayout, shippedAllSourcesAxisVersion, shippedScopedLayoutScopeKey } from './data/derived.js';
 import {
   getEntriesScroller, setScope, renderSources, renderMergedDetail, refreshMergedScroller,
 } from './ui/rendering.js';
-import { windowedFlatDebug, workerSummariesDebug, existsInScopeDebug, existsInMergeDebug, popoverSeedDebug, popoverProvenanceDebug, rebindAnswersConsumedDebug, resetRebindAnswersConsumedForTest } from './ui/entries-table.js';
+import { windowedFlatDebug, workerSummariesDebug, workerGroupsDebug, workerGroupListDebug, existsInScopeDebug, existsInMergeDebug, popoverSeedDebug, popoverProvenanceDebug, rebindAnswersConsumedDebug, resetRebindAnswersConsumedForTest, groupWindowUnderfillDebug, resetGroupWindowUnderfillForTest } from './ui/entries-table.js';
 import {
   addNewWordlist, applyWordlistText, bakeRescoring, saveEdit, deleteFromEdits, persistEdits,
   buildCopyText, buildWordlistText, buildCSVText, buildExportJSONObject, exportFilename, _ready,
@@ -219,10 +219,15 @@ const __grawlixTest = {
   dumpWorkerCorpus: (scope) => dumpWorkerCorpus(scope),
   fetchWorkerRows: (start, end, runId, timeout) =>
     fetchWorkerRows(runId ?? lastCompletedRunId(), start, end, timeout),
+  fetchWorkerGroupChains: (groupKey, start, end, runId, timeout) =>
+    fetchWorkerGroupChains(runId ?? lastCompletedRunId(), groupKey, start, end, timeout),
+  fetchWorkerGroups: (start, end, runId, timeout) =>
+    fetchWorkerGroups(runId ?? lastCompletedRunId(), start, end, timeout),
   sendWorkerEditEntry: (orig, next, timeout) => sendEditEntry(orig, next, timeout),
   sendWorkerDeleteEntry: (target, timeout) => sendDeleteEntry(target, timeout),
   syncConfigsSent,
   allRowsFetchesSent,
+  allGroupsFetchesSent,
   serializeFetchesSent,
   openWelcome: () => WelcomeDialog.open(),
   fetchWorkerProvenance: (typedRaw, previewRaw, clickedNorm, clickedDisplay, timeout) =>
@@ -300,12 +305,16 @@ const __grawlixTest = {
 
   windowedFlatDebug,
   workerSummariesDebug,
+  workerGroupsDebug,
+  workerGroupListDebug,
   existsInScopeDebug,
   existsInMergeDebug,
   popoverSeedDebug,
   popoverProvenanceDebug,
   rebindAnswersConsumedDebug,
   resetRebindAnswersConsumedForTest,
+  groupWindowUnderfillDebug,
+  resetGroupWindowUnderfillForTest,
 
   workerOwnsCorpus,
   allSourcesHistogramLayout: () => allSourcesHistogramLayout(),
@@ -320,6 +329,8 @@ const __grawlixTest = {
   // Resolves when the windowed-flat scroller has no fetchRows in flight. A
   // fetchRows isn't a pipeline run, so pipelineIdle can't see it.
   windowIdle() { return getEntriesScroller()?.windowIdle() ?? Promise.resolve(); },
+
+  groupWindowIdle() { return getEntriesScroller()?.groupWindowIdle() ?? Promise.resolve(); },
 
   // Resolves once init() has fully completed. gotoApp awaits this before the
   // test touches the UI, so init's boot tail can't reset the stack mid-test.

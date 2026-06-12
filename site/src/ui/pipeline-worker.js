@@ -257,6 +257,22 @@ function materializeResult(data, stack, scope) {
   const rows = grouped
     ? payload.groups.map(g => decodeGroup(g, sourceById))
     : payload.chains.map(c => decodeChain(c, sourceById));
+  if (grouped) {
+    // Stamp the holder so scopedHistogramLayout() returns the SAME axis the worker
+    // bucketed histogramCounts against; otherwise the scoped grouped histogram
+    // renders counts against a mismatched axis and silently mis-bins.
+    setShippedScopedLayout(payload.histogramLayout ?? null, scope);
+    return {
+      rows, atomCount, grouped, aborted: false,
+      stats: payload.stats ?? null,
+      histogramCounts: payload.histogramCounts ?? null,
+      histogramLayout: payload.histogramLayout ?? null,
+      groupWidthHints: payload.groupWidthHints ?? null,
+      chainCount: payload.chainCount ?? null,
+      groupCount: payload.groupCount ?? null,
+      filtered: !!payload.filtered,
+    };
+  }
   return { rows, atomCount, grouped, aborted: false };
 }
 
@@ -289,15 +305,22 @@ function decodeChain(chain, sourceById) {
   return { atoms: chain.atoms.map(a => decodeAtom(a, sourceById)) };
 }
 
-function decodeGroup(g, sourceById) {
+function decodeGroupEnvelope(g, sourceById) {
   return {
     key: g.key,
     anchor: g.anchor ? decodeAtom(g.anchor, sourceById).wlEntry : null,
-    chains: g.chains.map(c => decodeChain(c, sourceById)),
     _minScore: g._minScore,
     _maxScore: g._maxScore,
     _count: g._count,
   };
+}
+
+function decodeGroup(g, sourceById) {
+  return { ...decodeGroupEnvelope(g, sourceById), chains: g.firstChains.map(c => decodeChain(c, sourceById)) };
+}
+
+function decodeGroupFull(g, sourceById) {
+  return { ...decodeGroupEnvelope(g, sourceById), chains: g.chains.map(c => decodeChain(c, sourceById)) };
 }
 
 export function pipelineWorkerState() {
@@ -535,6 +558,47 @@ export function fetchWorkerRows(runId, start, end, timeout = 5000) {
   });
 }
 
+// ─── Windowed grouped-chain fetch bridge ── see docs/worker-protocol.md ──────
+let fetchGroupChainsRequestId = 0;
+export function fetchWorkerGroupChains(runId, groupKey, start, end, timeout = 5000) {
+  const w = getWorker();
+  const requestId = ++fetchGroupChainsRequestId;
+  return new Promise(resolve => {
+    const timer = setTimeout(() => { w.removeEventListener('message', onMessage); resolve(null); }, timeout);
+    function onMessage({ data }) {
+      if (data?.type !== 'groupChains' || data.requestId !== requestId
+          || data.runId !== runId || data.groupKey !== groupKey) return;
+      clearTimeout(timer);
+      w.removeEventListener('message', onMessage);
+      if (runId !== lastResultRunId) { resolve(null); return; }   // superseded run — drop
+      const sourceById = new Map(state.sources.map(s => [s.dbKey, s]));
+      resolve({ start: data.start, chains: data.chains.map(c => decodeChain(c, sourceById)) });
+    }
+    w.addEventListener('message', onMessage);
+    w.postMessage({ type: 'fetchGroupChains', requestId, runId, groupKey, start, end });
+  });
+}
+
+// ─── Windowed group-row fetch bridge ── see docs/worker-protocol.md ──────────
+let fetchGroupsRequestId = 0;
+export function fetchWorkerGroups(runId, start, end, timeout = 5000) {
+  const w = getWorker();
+  const requestId = ++fetchGroupsRequestId;
+  return new Promise(resolve => {
+    const timer = setTimeout(() => { w.removeEventListener('message', onMessage); resolve(null); }, timeout);
+    function onMessage({ data }) {
+      if (data?.type !== 'groups' || data.requestId !== requestId || data.runId !== runId) return;
+      clearTimeout(timer);
+      w.removeEventListener('message', onMessage);
+      if (runId !== lastResultRunId) { resolve(null); return; }   // superseded run — drop
+      const sourceById = new Map(state.sources.map(s => [s.dbKey, s]));
+      resolve({ start: data.start, groups: data.groups.map(g => decodeGroup(g, sourceById)) });
+    }
+    w.addEventListener('message', onMessage);
+    w.postMessage({ type: 'fetchGroups', requestId, runId, start, end });
+  });
+}
+
 // ─── Full-result row fetch bridge (export) ── see docs/worker-protocol.md ────
 let fetchAllRowsRequestId = 0;
 export function allRowsFetchesSent() { return fetchAllRowsRequestId; }
@@ -551,6 +615,26 @@ export function fetchWorkerAllRows(runId, timeout = 5000) {
     }
     w.addEventListener('message', onMessage);
     w.postMessage({ type: 'fetchAllRows', requestId, runId });
+  });
+}
+
+// ─── Full-result group fetch bridge (export) ── see docs/worker-protocol.md ──
+let fetchAllGroupsRequestId = 0;
+export function allGroupsFetchesSent() { return fetchAllGroupsRequestId; }
+export function fetchWorkerAllGroups(runId, timeout = 5000) {
+  const w = getWorker();
+  const requestId = ++fetchAllGroupsRequestId;
+  return new Promise(resolve => {
+    const timer = setTimeout(() => { w.removeEventListener('message', onMessage); resolve(null); }, timeout);
+    function onMessage({ data }) {
+      if (data?.type !== 'allGroups' || data.requestId !== requestId) return;
+      clearTimeout(timer);
+      w.removeEventListener('message', onMessage);
+      const sourceById = new Map(state.sources.map(s => [s.dbKey, s]));
+      resolve({ groups: data.groups.map(g => decodeGroupFull(g, sourceById)) });
+    }
+    w.addEventListener('message', onMessage);
+    w.postMessage({ type: 'fetchAllGroups', requestId, runId });
   });
 }
 
