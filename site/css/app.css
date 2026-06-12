@@ -12,7 +12,7 @@ header { background: var(--hdr-bg); color: white; padding: 6px 20px; display: fl
 .header-row-main { display: flex; align-items: center; justify-content: space-between; gap: 24px; min-height: 44px; }
 header h1 { font-size: 19px; font-weight: 600; letter-spacing: -0.01em; line-height: 1.1; flex-shrink: 1; min-width: 0; }
 .header-logo-link { color: inherit; text-decoration: none; }
-.header-byline-group { display: flex; align-items: center; justify-content: center; gap: 7px; flex: 1 1 auto; min-width: 0; color: rgba(255, 255, 255, 0.85); font-size: 12px; line-height: 1.2; flex-wrap: wrap; }
+.header-byline-group { display: flex; align-items: center; justify-content: center; gap: 7px; flex: 1 1 auto; min-width: 0; color: rgba(255, 255, 255, 0.85); font-size: 14px; line-height: 1.2; flex-wrap: wrap; }
 .header-sep { opacity: 0.5; }
 .header-byline-group a { color: inherit; text-decoration: none; }
 .header-byline a { border-bottom: 1px solid rgba(255,255,255,0.35); transition: border-color 0.15s; }
