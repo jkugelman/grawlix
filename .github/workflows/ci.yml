@@ -92,7 +92,9 @@ jobs:
         # Step-level, not job-level: an overrun here FAILS the job (run → failure
         # → GitHub emails). A job-level timeout CANCELS instead, which GitHub
         # never notifies on. Don't hoist this to the job. Verified on-runner.
-        timeout-minutes: 10
+        # 15m ≈ 2× webkit's ~6-7m single-worker baseline — headroom for a noisy
+        # runner while still catching a genuine hang.
+        timeout-minutes: 15
         run: npm test -- --project=${{ matrix.browser }}
         env:
           GRAWLIX_SITE_DIR: dist
