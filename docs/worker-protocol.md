@@ -144,6 +144,25 @@ Messages on one `Worker` are **FIFO**, which gives ordering for free (a `snapsho
 `{ type: 'cancel' }` — explicit supersession, for teardown / search-cleared. Optional given that a newer `run` implicitly supersedes (see *Cancellation*).
 - **On receipt (implemented):** worker advances `latestRunId` past every live run and clears `pending`, so the in-flight shim aborts at its next yield and no run is queued. No reply.
 
+#### `syncConfig` 🔶 (test-only, self-build)
+`{ type: 'syncConfig', sources }` — hand the worker the config it needs to **independently load+parse+rescore+merge** its own corpus (a "self-build"). The de-risking step of the worker-data-tier rearchitecture ([`planned/worker-data-tier.md`](planned/worker-data-tier.md) § *Staging*, stage 1) — purely additive, touches nothing in the run/snapshot/patch path.
+- `sources` — an array in **merge-priority order** (`sources[0]` highest). Each: `{ sourceId, enabled, rescoreRules }`, where `sourceId` is the wordlist's `dbKey` and `rescoreRules` are stripped to the **four editor fields** (`input`, `length`, `output`, `note`) — no compiled `_scoreIntervals`/`_output`; the worker recompiles them itself.
+- **Sent:** by the test bridge (`syncWorkerConfig`, defaulting to `state.sources`). **Not yet sent from production boot** (a later chunk).
+- **On receipt:** worker stores `selfConfig = data` and replies `selfReady`.
+
+#### `dumpCorpus` 🔶 (test-only, self-build)
+`{ type: 'dumpCorpus', scope }` — build a corpus from the synced `selfConfig` and post it back for fixture comparison.
+- `scope` — `MERGED_ID` (`'__merged__'`) for the merged build (enabled sources only), or a `sourceId` for a single-source scoped build (regardless of `enabled`, mirroring main's `buildScopedCorpus`).
+- **On receipt:** for each configured source the worker reads `data_<sourceId>` from IDB, `parseWordlist`s it (missing text → empty), builds a wordlist with the synced rules, `compileRescoreRules`, then `buildCorpus` over the scope's source list. Replies `corpusDump`. Requires a prior `syncConfig`.
+
+### Worker → main (self-build, test-only)
+
+#### `selfReady` 🔶
+`{ type: 'selfReady', count }` — reply to `syncConfig`; `count` is the number of synced sources.
+
+#### `corpusDump` 🔶
+`{ type: 'corpusDump', scope, entries, error? }` — reply to `dumpCorpus`. `entries` is an array of tuples `[norm, display, score, rawScore, comment, sourceId]` (the **oracle contract** — a later main-side dump must match this shape and order exactly). `rawScore` is `undefined` for a row no rescore rule changed (the entry carries no `rawScore` field; structuredClone preserves the `undefined` slot). On a build error, `entries` is `[]` and `error` carries the message.
+
 ### Worker → main
 
 #### `pong` ✅
@@ -205,7 +224,7 @@ The worker yields **coarsely** (~30–50 ms) — it has no UI to keep at 60 fps,
 
 1. **Index agreement.** Index *N* names the same entry on both threads. Main builds and ships the merge in order; the worker unpacks in order; results are by index. The `patch` message exists specifically to keep this true across an in-place My Edits splice. Breaking it silently corrupts every rendered row.
 2. **`byNorm` cannot drift.** Both threads build `byNorm` via the one shared `buildByNorm(entries)` ([`engine/snapshot.js`](../site/src/engine/snapshot.js)) — canonical row = the **code-unit-minimum** display per norm. The per-norm patch path uses the sibling `canonicalNormRow(rows)`, which applies the **same** rule to one norm's rows; `patchMergedForNorms` (main) and the worker's patch reindex both route through it, so they can't disagree on case variants (`'CAT'` vs `'Cat'`). Never reimplement the canonical-row selection on one side.
-3. **Worker = letters + scores; main = presentation.** The worker never holds `comment`, the `wordlist` ref, or DOM, and `engine/` stays DOM-free (enforced by `tests/unit/engine-dom-free.test.mjs`). Anything display-only is resolved on main.
+3. **Worker = letters + scores; main = presentation.** The worker's **run-path** corpus (the `snapshot`-unpacked `corpus` the pipeline executes against) holds only `norm`/`display`/`score` — never `comment`, the `wordlist` ref, or DOM — and `engine/` stays DOM-free (enforced by `tests/unit/engine-dom-free.test.mjs`). Anything display-only is resolved on main. *(Exception, test-only:* the self-build path (`buildSelfCorpus`/`dumpCorpus`, 🔶) transiently constructs **rich** entries with `comment` + source identity to diff against main's build; they never enter the run path and never render. The worker-data-tier rearchitecture broadens this to the run path in later stages.)*
 
 ---
 

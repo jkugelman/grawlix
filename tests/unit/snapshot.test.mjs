@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {
   packSnapshot, unpackSnapshot, buildByNorm, canonicalNormRow, snapshotTransferables,
 } from '../../site/src/engine/snapshot.js';
-import { resolveCorpus } from '../../site/src/data/merge.js';
+import { resolveCorpus } from '../../site/src/engine/corpus.js';
 
 const entry = (norm, display, score) => ({ norm, display, score });
 

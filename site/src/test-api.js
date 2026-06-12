@@ -21,8 +21,9 @@ import { state, newDbKey, syncKey, getEditsWordlist } from './data/state.js';
 import { getDb, Storage } from './data/storage.js';
 import { migrateSettings } from './data/migrations.js';
 import {
-  buildMergedWordlist, getActiveCorpus, mergeKey, invalidateSourceCounts, peekMergedCache,
+  buildMergedWordlist, buildScopedCorpus, getActiveCorpus, invalidateSourceCounts, peekMergedCache,
 } from './data/merge.js';
+import { mergeKey } from './engine/corpus.js';
 import { setWordlistRescoreRules, reorderSources } from './data/persist.js';
 import {
   syncTargets, syncFilename, threeWayMergeEdits,
@@ -33,13 +34,14 @@ import { ToolStack, pipelineIdle } from './ui/tool-stack.js';
 import {
   pingWorker, runOnWorker, shippedSnapshot, patchWorkerToolForTest,
   pipelineWorkerState, crashWorkerForTest, forceWorkerCrashForTest,
+  syncWorkerConfig, dumpWorkerCorpus,
 } from './ui/pipeline-worker.js';
 import { executePipeline } from './engine/executor.js';
 import {
   getEntriesScroller, setScope, renderSources, renderMergedDetail, refreshMergedScroller,
 } from './ui/rendering.js';
 import {
-  addNewWordlist, applyWordlistText, bakeRescoring, saveEdit, deleteFromEdits,
+  addNewWordlist, applyWordlistText, bakeRescoring, saveEdit, deleteFromEdits, persistEdits,
   buildCopyText, buildWordlistText, buildCSVText, buildExportJSONObject, exportFilename, _ready,
 } from './app/actions.js';
 
@@ -178,6 +180,29 @@ const __grawlixTest = {
   pipelineWorkerState,
   crashWorkerForTest,
   forceWorkerCrashForTest,
+  syncWorkerConfig: (sources = state.sources) => syncWorkerConfig(sources),
+  dumpWorkerCorpus: (scope) => dumpWorkerCorpus(scope),
+
+  // buildMergedWordlist/buildScopedCorpus, not getActiveCorpus (which keys off
+  // state.selected), so the oracle dumps the requested scope even when it isn't
+  // the current selection. rawScore is left as-is — undefined for unrescored
+  // rows — to match the worker; coercing it would silently mask real drift.
+  dumpMainCorpus(scope) {
+    const corpus = scope === MERGED_ID
+      ? buildMergedWordlist()
+      : buildScopedCorpus(state.sources.find(s => s.dbKey === scope));
+    return corpus.entries.map(e =>
+      [e.norm, e.display, e.score, e.rawScore, e.comment, e.wordlist.dbKey]);
+  },
+
+  // saveEdit fires persistEdits un-awaited, so the worker (which reads
+  // data_<dbKey> from IDB) can race a still-pending write; awaiting persistEdits
+  // here flushes the same path deterministically before a dumpWorkerCorpus.
+  async flushEditsToIdb() {
+    const edits = getEditsWordlist();
+    await persistEdits(edits);
+    return edits.dbKey;
+  },
 
   async workerMirrorsMain(stack) {
     await this.pipelineIdle();

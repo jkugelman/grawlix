@@ -6,8 +6,9 @@ import { DEFAULT_SCORING } from '../core/constants.js';
 import { parseRange, matchesRange } from '../engine/range.js';
 import { state } from '../data/state.js';
 import {
-  scoringRulesEqual, getWordlistDefaultRules, rescoreRulesEqual, compileRescoreRules,
-} from '../data/rescoring.js';
+  scoringRulesEqual, rescoreRulesEqual, compileRescoreRules,
+} from '../engine/rescore.js';
+import { getWordlistDefaultRules } from '../data/rescoring.js';
 import { invalidateWordlistCaches } from '../data/invalidate.js';
 import { persistMeta, persistScoring, repaintAfterCacheChange } from '../data/persist.js';
 

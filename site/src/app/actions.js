@@ -29,14 +29,17 @@ import {
   serializeEntries, sortedEntries, getOutputFormat,
 } from '../data/serialize.js';
 import {
-  compileRescoreRules, editsLegend, maybeAutoSeedRescoreRules,
-  reconcileEditsRulesAfterImport, getRescoredEntries, invalidateRescoredCache,
+  compileRescoreRules, maybeAutoSeedRescoreRules, getRescoredEntries,
+} from '../engine/rescore.js';
+import {
+  editsLegend, reconcileEditsRulesAfterImport, invalidateRescoredCache,
 } from '../data/rescoring.js';
 import {
-  buildMergedWordlist, getActiveCorpus, mergeKey,
+  buildMergedWordlist, getActiveCorpus,
   invalidateSourceCounts, dropScopedCorpus, peekMergedCache,
   snapshotMergedBuckets, patchMergedForNorms, _mergedStatsKey,
 } from '../data/merge.js';
+import { mergeKey } from '../engine/corpus.js';
 import { invalidateWordlistCaches } from '../data/invalidate.js';
 import {
   persistMeta, persistScoring, batchUpdate, repaintAfterCacheChange,

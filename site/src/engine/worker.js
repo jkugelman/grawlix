@@ -1,9 +1,13 @@
 // ─── Pipeline worker host ── see docs/worker-protocol.md ─────────────────────
 
+import { MERGED_ID } from '../core/constants.js';
 import { unpackSnapshot, canonicalNormRow } from './snapshot.js';
 import { TOOLS, makeToolRow } from './tools.js';
 import { executePipeline, configureExecutorYield, invalidatePreSearchCache } from './executor.js';
 import { configureIO as configureSegmenterIO } from './segmenter.js';
+import { parseWordlist } from './norm.js';
+import { compileRescoreRules } from './rescore.js';
+import { buildCorpus } from './corpus.js';
 
 // scheduler.yield() (the executor's default) starves the worker's run/cancel
 // message on Chromium and a microtask yield never delivers it — either silently
@@ -15,38 +19,43 @@ configureExecutorYield({
   intervalMs: 30,
 });
 
-// Segmenter I/O. idbGet/idbPut live in data/storage.js, a layer the engine
-// can't import, so the worker opens the SAME DB/store itself — name/version/store
-// MUST track storage.js's openDB, else it silently opens a different or
-// wrong-version DB and the shared unigram-corpus cache stops being shared (a
-// re-fetch, not an error). onSize is a no-op: the LS size note is main-only.
-const SEGMENTER_IDB_NAME = 'grawlix';
-const SEGMENTER_IDB_STORE = 'data';
-let _segmenterDb = null;
-function segmenterDb() {
-  if (_segmenterDb) return _segmenterDb;
-  _segmenterDb = new Promise((resolve, reject) => {
-    const req = indexedDB.open(SEGMENTER_IDB_NAME, 1);
-    req.onupgradeneeded = e => e.target.result.createObjectStore(SEGMENTER_IDB_STORE);
+// Data IDB access. idbGet/idbPut/readWordlist live in data/storage.js, a layer
+// the engine can't import, so the worker opens the SAME DB/store itself for both
+// the segmenter's unigram corpus and wordlist text. name/version/store MUST track
+// storage.js's openDB, else it silently opens a different or wrong-version DB and
+// the shared cache stops being shared (a re-fetch, not an error). onSize is a
+// no-op: the LS size note is main-only.
+const DATA_IDB_NAME = 'grawlix';
+const DATA_IDB_STORE = 'data';
+let _dataDb = null;
+function dataDb() {
+  if (_dataDb) return _dataDb;
+  _dataDb = new Promise((resolve, reject) => {
+    const req = indexedDB.open(DATA_IDB_NAME, 1);
+    req.onupgradeneeded = e => e.target.result.createObjectStore(DATA_IDB_STORE);
     req.onsuccess = e => resolve(e.target.result);
     req.onerror = () => reject(req.error);
   });
-  return _segmenterDb;
+  return _dataDb;
+}
+function idbGet(key) {
+  return dataDb().then(db => new Promise(resolve => {
+    const req = db.transaction(DATA_IDB_STORE, 'readonly').objectStore(DATA_IDB_STORE).get(key);
+    req.onsuccess = () => resolve(req.result ?? null);
+    req.onerror = () => resolve(null);
+  }));
+}
+// Mirrors storage.js's Storage.readWordlist: wordlist text is keyed 'data_' + dbKey.
+function readWordlistText(sourceId) {
+  return idbGet('data_' + sourceId);
 }
 configureSegmenterIO({
-  async idbGet(key) {
-    const db = await segmenterDb();
-    return new Promise(resolve => {
-      const req = db.transaction(SEGMENTER_IDB_STORE, 'readonly').objectStore(SEGMENTER_IDB_STORE).get(key);
-      req.onsuccess = () => resolve(req.result ?? null);
-      req.onerror = () => resolve(null);
-    });
-  },
+  idbGet,
   async idbPut(key, val) {
-    const db = await segmenterDb();
+    const db = await dataDb();
     return new Promise(resolve => {
-      const tx = db.transaction(SEGMENTER_IDB_STORE, 'readwrite');
-      tx.objectStore(SEGMENTER_IDB_STORE).put(val, key);
+      const tx = db.transaction(DATA_IDB_STORE, 'readwrite');
+      tx.objectStore(DATA_IDB_STORE).put(val, key);
       tx.oncomplete = resolve;
       tx.onerror = resolve;
     });
@@ -63,6 +72,7 @@ let latestRunId = -1;       // the supersession key; a `run`/`cancel` advances i
 let pending = null;
 let running = false;
 let lastUserStackSig = null;
+let selfConfig = null;
 
 // ─── Stack deserialization ───────────────────────────────────────────────────
 // makeToolRow seeds param defaults; the wire params then overwrite. Reversed,
@@ -299,6 +309,37 @@ function applyPatch(data) {
   snapshotId = data.snapshotId;
 }
 
+// ─── Self-build (test oracle) ── see docs/worker-protocol.md ─────────────────
+
+async function buildSelfCorpus(scope) {
+  const built = [];
+  for (const { sourceId, enabled, rescoreRules } of selfConfig.sources) {
+    const text = await readWordlistText(sourceId);
+    const rawEntries = text ? parseWordlist(text) : [];
+    const wl = { dbKey: sourceId, enabled, rescoreRules, rawEntries };
+    compileRescoreRules(wl);
+    built.push(wl);
+  }
+  // A scoped build takes the single matching source regardless of enabled,
+  // mirroring main's buildScopedCorpus — diverging on the enabled handling here
+  // would silently desync the worker's view from main's.
+  const list = scope === MERGED_ID
+    ? built.filter(w => w.enabled)
+    : built.filter(w => w.dbKey === scope);
+  return buildCorpus(list);
+}
+
+async function dumpCorpus(scope) {
+  try {
+    const corpus = await buildSelfCorpus(scope);
+    const entries = corpus.entries.map(e =>
+      [e.norm, e.display, e.score, e.rawScore, e.comment, e.wordlist.dbKey]);
+    postMessage({ type: 'corpusDump', scope, entries });
+  } catch (e) {
+    postMessage({ type: 'corpusDump', scope, entries: [], error: e?.message || String(e) });
+  }
+}
+
 // ─── Message dispatch ────────────────────────────────────────────────────────
 
 onmessage = ({ data }) => {
@@ -328,6 +369,15 @@ onmessage = ({ data }) => {
     case 'cancel':
       latestRunId++;
       pending = null;
+      break;
+
+    case 'syncConfig':
+      selfConfig = data;
+      postMessage({ type: 'selfReady', count: data.sources.length });
+      break;
+
+    case 'dumpCorpus':
+      dumpCorpus(data.scope);
       break;
 
     // Test-only: the suite breaks a tool to exercise the error path, but the

@@ -8,8 +8,9 @@ import { parseRange } from '../engine/range.js';
 import { state } from '../data/state.js';
 import { applyRescoreRulesChange, persistScoring } from '../data/persist.js';
 import {
-  getRuleMaxScore, parseRuleOutput, getWordlistDefaultRules, makeRescoreRuleStub,
-} from '../data/rescoring.js';
+  getRuleMaxScore, parseRuleOutput, makeRescoreRuleStub,
+} from '../engine/rescore.js';
+import { getWordlistDefaultRules } from '../data/rescoring.js';
 import {
   updateScoringDirty, propagateDefaults, makeScoringRowStub,
 } from '../model/scoring.js';

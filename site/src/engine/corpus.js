@@ -1,0 +1,108 @@
+'use strict';
+
+// ─── Corpus ──────────────────────────────────────────────────────────────────
+
+import { getRescoredEntries, getRescoredByNorm } from './rescore.js';
+import { buildByNorm } from './snapshot.js';
+
+// `sourceList[0]` is highest priority; winner resolution depends on it.
+export function bucketContributors(sourceList) {
+  const buckets = new Map();
+  for (const wordlist of sourceList) {
+    for (const wlE of getRescoredEntries(wordlist)) {
+      let b = buckets.get(wlE.norm);
+      if (!b) buckets.set(wlE.norm, b = { contributors: [], displays: new Set() });
+      b.contributors.push({ wordlist, score: wlE.score, rawScore: wlE.rawScore, comment: wlE.comment || '', display: wlE.display });
+      if (wlE.display != null) b.displays.add(wlE.display);
+    }
+  }
+  return buckets;
+}
+
+export function resolveCorpus(buckets, sourceList) {
+  const entries = [];
+  const byKey = new Map();
+  const sourceCountMap = new Map();
+  for (const [norm, { contributors, displays }] of buckets) {
+    const variants = displays.size > 0 ? [...displays].sort() : [null];
+    const countedContributors = new Set();
+    for (const variant of variants) {
+      const eligible = c => c.display === variant || c.display === null;
+      const winner = contributors.find(eligible);
+      if (!winner) continue;
+      const commenter = contributors.find(c => eligible(c) && c.comment) ?? winner;
+      const row = { norm, display: variant, score: winner.score, rawScore: winner.rawScore, comment: commenter.comment, wordlist: winner.wordlist };
+      entries.push(row);
+      byKey.set(mergeKey(norm, variant), row);
+      if (!countedContributors.has(winner)) {
+        countedContributors.add(winner);
+        sourceCountMap.set(winner.wordlist, (sourceCountMap.get(winner.wordlist) || 0) + 1);
+      }
+    }
+  }
+
+  entries.sort((a, b) => a.norm.localeCompare(b.norm)
+    || (a.display ?? '').localeCompare(b.display ?? ''));
+
+  const sourceCounts = sourceList.map(wl => ({ wordlist: wl, count: sourceCountMap.get(wl) || 0 }));
+
+  return { entries, sourceCounts, byNorm: buildByNorm(entries), byKey };
+}
+
+export function buildCorpus(sourceList) {
+  return resolveCorpus(bucketContributors(sourceList), sourceList);
+}
+
+export function mergeKey(norm, display) {
+  return norm + '\0' + (display ?? '');
+}
+
+// Must reproduce buildMergedWordlist's per-bucket logic exactly — including
+// deduping winners by contributor, not wordlist — or the merged cache drifts
+// silently on the next edit.
+export function computeMergedBucket(norm, sources) {
+  const contributors = [];
+  const displays = new Set();
+  for (const wl of sources) {
+    if (!wl.enabled) continue;
+    const arr = getRescoredByNorm(wl).get(norm);
+    if (!arr) continue;
+    for (const e of arr) {
+      contributors.push({ wordlist: wl, score: e.score, comment: e.comment || '', display: e.display });
+      if (e.display != null) displays.add(e.display);
+    }
+  }
+  const rows = [];
+  const winners = [];
+  const counted = new Set();
+  const variants = displays.size > 0 ? [...displays].sort() : [null];
+  for (const variant of variants) {
+    const eligible = c => c.display === variant || c.display === null;
+    const winner = contributors.find(eligible);
+    if (!winner) continue;
+    const commenter = contributors.find(c => eligible(c) && c.comment) ?? winner;
+    rows.push({ norm, display: variant, score: winner.score, comment: commenter.comment, wordlist: winner.wordlist });
+    if (!counted.has(winner)) { counted.add(winner); winners.push(winner.wordlist); }
+  }
+  rows.sort((a, b) => (a.display ?? '').localeCompare(b.display ?? ''));
+  return { rows, winners };
+}
+
+export function mergedNormLowerBound(entries, norm) {
+  let lo = 0, hi = entries.length;
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1;
+    if (entries[mid].norm.localeCompare(norm) < 0) lo = mid + 1;
+    else hi = mid;
+  }
+  return lo;
+}
+
+export function mergedRowsForNorm(merged, norm) {
+  const { entries } = merged;
+  const rows = [];
+  for (let i = mergedNormLowerBound(entries, norm); i < entries.length && entries[i].norm === norm; i++) {
+    rows.push(entries[i]);
+  }
+  return rows;
+}

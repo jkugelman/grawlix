@@ -5,7 +5,7 @@ import {
   parseRuleOutput, compileRescoreRules, rescoreEntry,
   rescoreRulesEqual, scoringRulesEqual, compareRescoreRulesForPriority,
   getRuleMaxScore, outputSortKey,
-} from '../../site/src/data/rescoring.js';
+} from '../../site/src/engine/rescore.js';
 
 const rule = (input, output, length = '') => ({ input, length, output, note: '' });
 const ruleN = (input, output = '', length = '', note = '') => ({ input, length, output, note });

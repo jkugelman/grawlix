@@ -4,7 +4,7 @@
 
 import { MERGED_ID } from '../core/constants.js';
 import { state, syncKey } from './state.js';
-import { getRescoredEntries } from './rescoring.js';
+import { getRescoredEntries } from '../engine/rescore.js';
 import { getActiveCorpus } from './merge.js';
 import { getHistogramLayout } from '../engine/histogram.js';
 

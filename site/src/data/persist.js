@@ -6,7 +6,8 @@ import { runBatched } from '../core/signals.js';
 import { Storage } from './storage.js';
 import { state, bumpCacheVersion } from './state.js';
 import { invalidateWordlistCaches } from './invalidate.js';
-import { compileRescoreRules, updateWordlistDirty } from './rescoring.js';
+import { compileRescoreRules } from '../engine/rescore.js';
+import { updateWordlistDirty } from './rescoring.js';
 import { MirrorSync } from './disk-sync.js';
 
 function persistMeta() {

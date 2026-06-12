@@ -23,8 +23,9 @@ import {
   bottomLineAtoms, rowSetAtoms, applyScoreRangeToRows, collapseRepeatAtoms,
 } from '../engine/executor.js';
 import { state, getEditsWordlist } from '../data/state.js';
-import { getRescoredByNorm, rescoreEntry } from '../data/rescoring.js';
-import { buildMergedWordlist, mergeKey, mergedRowsForNorm } from '../data/merge.js';
+import { getRescoredByNorm, rescoreEntry } from '../engine/rescore.js';
+import { buildMergedWordlist } from '../data/merge.js';
+import { mergeKey, mergedRowsForNorm } from '../engine/corpus.js';
 import { makeTierLookup } from '../model/scoring.js';
 import { buildScoreBadgeHTML, buildScoreCellHTML } from '../model/score-display.js';
 import { showToast } from './toasts.js';

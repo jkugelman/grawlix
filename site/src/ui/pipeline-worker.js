@@ -242,6 +242,47 @@ export function forceWorkerCrashForTest() {
   onWorkerCrash();
 }
 
+// ─── Self-build bridge (test oracle) ── see docs/worker-protocol.md ──────────
+export function syncWorkerConfig(sources) {
+  const w = getWorker();
+  const payload = {
+    type: 'syncConfig',
+    sources: sources.map(wl => ({
+      sourceId: wl.dbKey,
+      enabled: wl.enabled,
+      rescoreRules: (wl.rescoreRules || []).map(r => ({
+        input: r.input, length: r.length, output: r.output, note: r.note,
+      })),
+    })),
+  };
+  return new Promise(resolve => {
+    const timer = setTimeout(() => { w.removeEventListener('message', onMessage); resolve(false); }, 5000);
+    function onMessage({ data }) {
+      if (data?.type !== 'selfReady') return;
+      clearTimeout(timer);
+      w.removeEventListener('message', onMessage);
+      resolve(data.count);
+    }
+    w.addEventListener('message', onMessage);
+    w.postMessage(payload);
+  });
+}
+
+export function dumpWorkerCorpus(scope, timeout = 10000) {
+  const w = getWorker();
+  return new Promise(resolve => {
+    const timer = setTimeout(() => { w.removeEventListener('message', onMessage); resolve({ entries: [], error: 'timeout' }); }, timeout);
+    function onMessage({ data }) {
+      if (data?.type !== 'corpusDump' || data.scope !== scope) return;
+      clearTimeout(timer);
+      w.removeEventListener('message', onMessage);
+      resolve({ entries: data.entries, error: data.error });
+    }
+    w.addEventListener('message', onMessage);
+    w.postMessage({ type: 'dumpCorpus', scope });
+  });
+}
+
 export function pingWorker(timeout = 2000) {
   const w = getWorker();
   return new Promise(resolve => {

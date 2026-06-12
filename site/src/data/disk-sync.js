@@ -8,7 +8,7 @@ import { idbGet, idbPut, idbDel, Storage } from './storage.js';
 import { parseWordlist } from '../engine/norm.js';
 import { serializeEntries, sortedEntries, getOutputFormat } from './serialize.js';
 import { buildMergedWordlist } from './merge.js';
-import { applyRescoring, compileRescoreRules } from './rescoring.js';
+import { applyRescoring, compileRescoreRules } from '../engine/rescore.js';
 import { invalidateWordlistCaches } from './invalidate.js';
 import { batchUpdate, persistMeta, repaintAfterCacheChange } from './persist.js';
 
