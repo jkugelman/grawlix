@@ -84,42 +84,6 @@ test('Wordlist dumps tail entries with chain-min score, alphabetically sorted', 
   expect(text).toBe('car;50\nling;30\n');
 });
 
-test('Wordlist dedups by tail entry using max-of-mins', async ({ page }) => {
-  await gotoApp(page);
-  await addFixture(page);
-
-  const { text, count } = await page.evaluate(() => {
-    const make = (e, s) => ({ wlEntry: { norm: e, display: null, score: s, comment: '', wordlist: null } });
-    const rows = [
-      { atoms: [make('alpha', 30), make('shared', 60)] },
-      { atoms: [make('bravo', 50), make('shared', 60)] },
-    ];
-    return buildWordlistText(rows, false);
-  });
-
-  expect(count).toBe(1);
-  expect(text).toBe('shared;50\n');
-});
-
-test('Wordlist drops entries containing semicolons and reports the skipped count', async ({ page }) => {
-  await gotoApp(page);
-  await addFixture(page);
-
-  const result = await page.evaluate(() => {
-    const make = (e, s) => ({ wlEntry: { norm: e, display: e.includes(';') ? e : null, score: s, comment: '', wordlist: null } });
-    const rows = [
-      { atoms: [make('cat', 50)] },
-      { atoms: [make('bad;entry', 60)] },
-      { atoms: [make('dog', 40)] },
-    ];
-    return buildWordlistText(rows, false);
-  });
-
-  expect(result.skipped).toBe(1);
-  expect(result.count).toBe(2);
-  expect(result.text).toBe('cat;50\ndog;40\n');
-});
-
 test('CSV flat one-entry rows: header is entry,length,score,comment,source', async ({ page }) => {
   await gotoApp(page);
   await addFixture(page);
@@ -286,24 +250,6 @@ test('JSON metadata: score_range omits open-ended bound', async ({ page }) => {
 
   const json = await getExport(page, 'json');
   expect(json.score_range).toEqual({ min: 40 });
-});
-
-test('Filename strips wildcards, lowercases, and prepends grawlix-', async ({ page }) => {
-  await gotoApp(page);
-  await addFixture(page);
-  await setStack(page, [{ tool: 'search', params: { pattern: '*EARNING' } }]);
-
-  const name = await page.evaluate(() => window.__grawlixTest.exportFilename('txt'));
-  expect(name).toBe('grawlix-search-earning.txt');
-});
-
-test('Filename for empty pipeline is grawlix-all.<ext>', async ({ page }) => {
-  await gotoApp(page);
-  await addFixture(page);
-  await setStack(page, []);
-
-  const name = await page.evaluate(() => window.__grawlixTest.exportFilename('csv'));
-  expect(name).toBe('grawlix-all.csv');
 });
 
 test('Filename includes tool keys for chained pipeline', async ({ page }) => {

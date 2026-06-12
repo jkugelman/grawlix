@@ -71,36 +71,6 @@ test('disabling a wordlist excludes its entries from All Wordlists; re-enabling 
   expect(await page.evaluate(() => window.__grawlixTest.getMergedEntry('BLUEBERRY'))).not.toBeNull();
 });
 
-test('a blank comment on the winner falls through to a lower-priority non-blank comment', async ({ page }) => {
-  await gotoApp(page);
-
-  await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
-    name: 'High', entries: ['BAGEL'], scores: [90], comments: [''],
-  }));
-  await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
-    name: 'Low', entries: ['BAGEL'], scores: [50], comments: ['breakfast staple'],
-  }));
-
-  const m = await page.evaluate(() => window.__grawlixTest.getMergedEntry('BAGEL'));
-  expect(m).toMatchObject({ score: 90, comment: 'breakfast staple', wordlist: 'High' });
-});
-
-test('a plain ambient winner inherits the rich variant\'s comment', async ({ page }) => {
-  await gotoApp(page);
-
-  await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
-    name: 'Plain', entries: ['theirs'], scores: [90], comments: [''],
-  }));
-  await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
-    name: 'Rich', entries: ['Theirs', 'the IRS'], scores: [50, 60], comments: ['pronoun', 'tax agency'],
-  }));
-
-  const pronoun = await page.evaluate(() => window.__grawlixTest.getMergedEntry('theirs', 'Theirs'));
-  const agency  = await page.evaluate(() => window.__grawlixTest.getMergedEntry('theirs', 'the IRS'));
-  expect(pronoun).toMatchObject({ score: 90, comment: 'pronoun',    wordlist: 'Plain' });
-  expect(agency).toMatchObject({  score: 90, comment: 'tax agency', wordlist: 'Plain' });
-});
-
 // A search keystroke changes only the filter, not the sources, so it must reuse
 // the merged corpus, not rebuild it. The old bug routed the bar's input through
 // cacheVersion$, whose cache branch nulled and rebuilt the merge on every

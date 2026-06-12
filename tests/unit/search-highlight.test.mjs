@@ -92,6 +92,24 @@ test('buildSearchPattern: test() matches when either norm or display matches', (
   assert.equal(pat.test(wl('xyz', null)), false);
 });
 
+test('buildSearchPattern: query separators and accents force display-coordinate matching', () => {
+  const theirs = wl('theirs', 'the IRS'), bareTheirs = wl('theirs', null);
+  assert.equal(buildSearchPattern('theirs').test(theirs), true);
+  assert.equal(buildSearchPattern('theirs').test(bareTheirs), true);
+
+  assert.equal(buildSearchPattern('the IRS').test(theirs), true);
+  assert.equal(buildSearchPattern('the IRS').test(bareTheirs), false);
+
+  assert.equal(buildSearchPattern('co-op').test(wl('coop', 'co-op')), true);
+  assert.equal(buildSearchPattern('co-op').test(wl('coop', null)), false);
+
+  assert.equal(buildSearchPattern('resume').test(wl('resume', 'Resume')), true);
+  assert.equal(buildSearchPattern('resume').test(wl('resume', 'résumé')), true);
+
+  assert.equal(buildSearchPattern('résumé').test(wl('resume', 'résumé')), true);
+  assert.equal(buildSearchPattern('résumé').test(wl('resume', 'Resume')), false);
+});
+
 test('buildSearchPattern: searchRanges highlights the literal runs, skipping the wildcard gap', () => {
   const pat = buildSearchPattern('c*t');
   assert.deepEqual(pat.searchRanges(wl('cat', 'cat')), [

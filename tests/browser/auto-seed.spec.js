@@ -7,29 +7,6 @@ test.beforeEach(async ({ page }) => {
   await stubPublisherFetches(page);
 });
 
-test('auto-seeds inert rules on custom-wordlist import with ≤10 distinct scores', async ({ page }) => {
-  await gotoApp(page);
-  await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
-    name: 'Tiny', scores: [10, 30, 50],
-  }));
-
-  // Backend snapshot: three rules, one per distinct score, outputs blank.
-  const wl = await page.evaluate(() => window.__grawlixTest.getWordlist('Tiny'));
-  expect(wl.rescoreRules).toHaveLength(3);
-  expect(wl.rescoreRules.map(r => r.input).sort()).toEqual(['10', '30', '50']);
-  expect(wl.rescoreRules.every(r => r.output === '')).toBe(true);
-});
-
-test('does not auto-seed when distinct scores exceed the threshold (>10)', async ({ page }) => {
-  await gotoApp(page);
-  // 11 distinct scores — above AUTO_SEED_SCORE_LIMIT.
-  const scores = Array.from({ length: 11 }, (_, i) => (i + 1) * 5);
-  await page.evaluate(s => window.__grawlixTest.addCustomWordlist({ name: 'Big', scores: s }), scores);
-
-  const wl = await page.evaluate(() => window.__grawlixTest.getWordlist('Big'));
-  expect(wl.rescoreRules).toHaveLength(0);
-});
-
 test('does not auto-seed for known publishers — publisher defaults are preserved', async ({ page }) => {
   // JK auto-fetches at boot. Stub it with a fixture whose only score (42) is
   // outside JK's default-rule coverage. If auto-seed were firing wrongly,

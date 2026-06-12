@@ -34,6 +34,17 @@ test('parseWordlist drops malformed lines and keeps the valid records', () => {
   assert.equal(out[1].comment, 'pet');
 });
 
+test('parseWordlist: detectCase drives per-entry display across the whole file', () => {
+  const bigUpper = Array.from({ length: 1500 }, (_, i) => `WORD${i};50`).join('\n');
+  assert.equal(parseWordlist(bigUpper).every(e => e.display === null), true);
+
+  const tinyUpper = parseWordlist('BAGEL;50\nCAR;50\nDOG;50');
+  assert.deepEqual(tinyUpper.map(e => e.display), ['BAGEL', 'CAR', 'DOG']);
+
+  const lowerMix = parseWordlist('cat;50\nNEW YEAR;50\nMötley Crüe;50\nFBI;50\ncafé;50');
+  assert.deepEqual(lowerMix.map(e => e.display), [null, 'NEW YEAR', 'Mötley Crüe', 'FBI', 'café']);
+});
+
 test('detectCase: large mostly-uppercase file is upper, just-below-ratio is lower, tiny file is lower', () => {
   const mk = (n, raw) => Array.from({ length: n }, () => ({ raw }));
   assert.equal(detectCase([...mk(1600, 'ABC'), ...mk(200, 'abc')]), 'upper');

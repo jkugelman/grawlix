@@ -190,6 +190,25 @@ test('resolveCorpus: a null-display contributor is eligible for (and can win) an
   assert.deepEqual(sourceCounts.map(s => [s.wordlist.name, s.count]), [['A', 1], ['B', 0]]);
 });
 
+test('resolveCorpus: a null-display ambient winner takes every variant and inherits each variant\'s comment', () => {
+  const plain = { name: 'Plain' }, rich = { name: 'Rich' };
+  const buckets = new Map([
+    ['theirs', bucket(
+      contributor(plain, { score: 90, display: null,      comment: '' }),
+      contributor(rich,  { score: 50, display: 'Theirs',  comment: 'pronoun' }),
+      contributor(rich,  { score: 60, display: 'the IRS', comment: 'tax agency' }),
+    )],
+  ]);
+  const { entries } = resolveCorpus(buckets, [plain, rich]);
+  assert.equal(entries.length, 2);
+  const byDisplay = Object.fromEntries(entries.map(e =>
+    [e.display, { wordlist: e.wordlist.name, score: e.score, comment: e.comment }]));
+  assert.deepEqual(byDisplay, {
+    'Theirs':  { wordlist: 'Plain', score: 90, comment: 'pronoun' },
+    'the IRS': { wordlist: 'Plain', score: 90, comment: 'tax agency' },
+  });
+});
+
 test('resolveCorpus: entries are sorted by norm then display (localeCompare)', () => {
   const a = { name: 'A' };
   const buckets = new Map([

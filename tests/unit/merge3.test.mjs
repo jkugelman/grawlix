@@ -23,10 +23,34 @@ test('both sides making the same change is not a conflict', () => {
   assert.equal(conflicts.length, 0);
 });
 
-test('a true conflict keeps the device (idb) side and records it', () => {
+test('a true conflict keeps the device (idb) side and records both sides', () => {
   const { resolved, conflicts } = threeWayMergeEdits([mk('a', 10)], [mk('a', 99)], [mk('a', 50)]);
   assert.equal(resolved.get('a').score, 50);
   assert.deepEqual(conflicts.map(c => c.norm), ['a']);
+  assert.equal(conflicts[0].device.score, 50);
+  assert.equal(conflicts[0].file.score, 99);
+});
+
+test('a device-side deletion is not resurrected by the file leaving it untouched', () => {
+  const base = [mk('a', 1), mk('b', 2)];
+  const { resolved, conflicts } = threeWayMergeEdits(base, [mk('a', 1), mk('b', 2)], [mk('a', 1)]);
+  assert.equal(resolved.has('b'), false);
+  assert.equal(resolved.has('a'), true);
+  assert.equal(conflicts.length, 0);
+});
+
+test('a one-sided add applies silently', () => {
+  const { resolved, conflicts } = threeWayMergeEdits([mk('a', 1)], [mk('a', 1), mk('c', 3)], [mk('a', 1)]);
+  assert.equal(resolved.get('c').score, 3);
+  assert.equal(conflicts.length, 0);
+});
+
+test('delete-on-file vs modify-on-device is a conflict, not a silent delete', () => {
+  const { resolved, conflicts } = threeWayMergeEdits([mk('a', 1)], [], [mk('a', 9)]);
+  assert.equal(conflicts.length, 1);
+  assert.ok(!conflicts[0].file);
+  assert.equal(conflicts[0].device.score, 9);
+  assert.equal(resolved.get('a').score, 9);
 });
 
 test('deletion does not resurrect: file deletes an entry idb left untouched', () => {

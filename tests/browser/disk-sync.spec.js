@@ -51,54 +51,6 @@ test.beforeEach(async ({ page }) => {
   await installFakeFS(page);
 });
 
-test.describe('My Edits 3-way merge', () => {
-  const merge3 = (page, base, file, idb) =>
-    page.evaluate(([b, f, i]) => window.__grawlixTest.sync.merge3(b, f, i), [base, file, idb]);
-
-  test('a deletion on the file side is not resurrected', async ({ page }) => {
-    await gotoApp(page);
-    const { resolved, conflicts } = await merge3(page, 'A;1\nB;2', 'A;1', 'A;1\nB;2');
-    expect(conflicts).toEqual([]);
-    expect(resolved.map(e => e.entry)).toEqual(['a']);
-  });
-
-  test('a deletion on the device side is not resurrected', async ({ page }) => {
-    await gotoApp(page);
-    const { resolved, conflicts } = await merge3(page, 'A;1\nB;2', 'A;1\nB;2', 'A;1');
-    expect(conflicts).toEqual([]);
-    expect(resolved.map(e => e.entry)).toEqual(['a']);
-  });
-
-  test('one-sided add and one-sided rescore apply silently', async ({ page }) => {
-    await gotoApp(page);
-    const added = await merge3(page, 'A;1', 'A;1\nC;3', 'A;1');
-    expect(added.conflicts).toEqual([]);
-    expect(added.resolved.map(e => e.entry)).toEqual(['a', 'c']);
-
-    const rescored = await merge3(page, 'A;1', 'A;1', 'A;5');
-    expect(rescored.conflicts).toEqual([]);
-    expect(rescored.resolved.find(e => e.entry === 'a').score).toBe(5);
-  });
-
-  test('same entry changed differently on both sides is a conflict, defaulting to device', async ({ page }) => {
-    await gotoApp(page);
-    const { resolved, conflicts } = await merge3(page, 'A;1', 'A;2', 'A;3');
-    expect(conflicts).toHaveLength(1);
-    expect(conflicts[0].device.score).toBe(3);
-    expect(conflicts[0].file.score).toBe(2);
-    expect(resolved.find(e => e.entry === 'a').score).toBe(3);
-  });
-
-  test('delete-on-file vs modify-on-device is a conflict, not a silent delete', async ({ page }) => {
-    await gotoApp(page);
-    const { resolved, conflicts } = await merge3(page, 'A;1', '', 'A;9');
-    expect(conflicts).toHaveLength(1);
-    expect(conflicts[0].file).toBeNull();
-    expect(conflicts[0].device.score).toBe(9);
-    expect(resolved.find(e => e.entry === 'a').score).toBe(9);
-  });
-});
-
 test('a synced source mirrors its rescored output and rewrites on rule change', async ({ page }) => {
   await gotoApp(page);
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({

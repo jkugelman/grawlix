@@ -158,6 +158,22 @@ test('Cancel discards a staged reorder', async ({ page }) => {
   expect(await testListOrder(page)).toEqual(['TestFruits', 'TestBerries']);
 });
 
+test('a disabled row reorders just like an enabled one', async ({ page }) => {
+  await gotoApp(page);
+  await addTwoLists(page);
+
+  await openManagePanel(page);
+  await rowToggle(page, 'TestBerries').click();
+  await expect(page.locator('#manage-dialog .wordlist-card', { hasText: 'TestBerries' }).first())
+    .toHaveClass(/disabled/);
+
+  await dragRowBefore(page, 'TestBerries', 'TestFruits');
+  await page.locator('#manage-dialog .manage-apply-btn').click();
+  await expect(page.locator('#manage-dialog')).toBeHidden();
+
+  expect(await testListOrder(page)).toEqual(['TestBerries', 'TestFruits']);
+});
+
 // ─── Stage 5c-iii: add-wordlist into the open panel ─────────────────────────
 //
 // Adding is a real import — the new source lands in canonical state.sources

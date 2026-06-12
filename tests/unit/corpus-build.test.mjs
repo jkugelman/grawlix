@@ -99,6 +99,23 @@ test('buildCorpus: a rescored score feeds the merge and wins; rawScore keeps the
   assert.deepStrictEqual(counts(sourceCounts), [['E', 1], ['F', 0]]);
 });
 
+test('buildCorpus: a scoped single source mixes rescored (rawScore kept) and unmatched (rawScore undefined) rows, displays and comments preserved', () => {
+  const G = src('Golden', [
+    wlEntry('crane', 90, { display: 'CRANE', comment: 'corvid' }),
+    wlEntry('delta', 50, { display: 'DELTA' }),
+    wlEntry('eagle', 50, { display: 'EAGLE', comment: 'raptor' }),
+  ], { rescoreRules: [{ input: '50', length: '', output: '75', note: '' }] });
+  compileRescoreRules(G);
+
+  const { entries } = buildCorpus([G]);
+
+  assert.deepStrictEqual(project(entries), [
+    { norm: 'crane', display: 'CRANE', score: 90, rawScore: undefined, comment: 'corvid', source: 'Golden' },
+    { norm: 'delta', display: 'DELTA', score: 75, rawScore: 50,        comment: '',       source: 'Golden' },
+    { norm: 'eagle', display: 'EAGLE', score: 75, rawScore: 50,        comment: 'raptor', source: 'Golden' },
+  ]);
+});
+
 test('buildCorpus: an empty source list yields an empty corpus', () => {
   const { entries, sourceCounts, byNorm, byKey } = buildCorpus([]);
   assert.deepStrictEqual(entries, []);
