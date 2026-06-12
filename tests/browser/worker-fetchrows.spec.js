@@ -1,10 +1,11 @@
 const { test, expect } = require('@playwright/test');
 const { stubPublisherFetches, gotoApp } = require('./helpers');
 
-// Stage-2 (interim) worker-side `fetchRows`: the worker retains the sorted flat
-// result and serves a window of corpus indices on demand. The main-side window
-// cache is a later chunk; this exercises the worker half through the
-// `fetchWorkerRows` test bridge. See docs/worker-protocol.md § fetchRows.
+// Worker-side `fetchRows` windowing mechanics: the worker retains the sorted flat
+// result and serves a window of rich rows on demand (the row SHAPE — always rich,
+// never index-only — is frozen by worker-rich-golden.spec.js; this pins the
+// windowing: count, contiguity, clamp, and stale-runId drop). See
+// docs/worker-protocol.md § fetchRows.
 
 test.beforeEach(async ({ page }) => {
   await stubPublisherFetches(page);
@@ -17,6 +18,7 @@ async function seedAndRunFlat(page) {
   await page.evaluate(({ entries, scores }) => window.__grawlixTest.addCustomWordlist({
     name: 'Birds', scores, entries,
   }), { entries: ENTRIES, scores: SCORES });
+  await page.evaluate(() => window.__grawlixTest.syncWorkerConfig());
 
   // An empty search bar is the flat (filter-only) tier — the only tier the worker
   // retains for fetchRows; a transform/group would null lastFlatResult.
@@ -24,7 +26,7 @@ async function seedAndRunFlat(page) {
   await page.evaluate(() => window.__grawlixTest.pipelineIdle());
 }
 
-test('fetchRows returns the flat result window as corpus indices', async ({ page }) => {
+test('fetchRows returns the whole flat result as rich rows in sorted order', async ({ page }) => {
   await gotoApp(page);
   await seedAndRunFlat(page);
 
@@ -32,13 +34,18 @@ test('fetchRows returns the flat result window as corpus indices', async ({ page
   expect(wholeWindow).not.toBeNull();
   expect(wholeWindow.rows.length).toBe(ENTRIES.length);
   expect(wholeWindow.start).toBe(0);
-  for (const row of wholeWindow.rows) expect(typeof row.i).toBe('number');
+  for (const row of wholeWindow.rows) {
+    expect('i' in row).toBe(false);          // never index-only post-flip
+    expect(typeof row.norm).toBe('string');
+    expect(Array.isArray(row.atoms)).toBe(true);
+  }
 
-  const indices = wholeWindow.rows.map(r => r.i).sort((a, b) => a - b);
-  expect(indices).toEqual([...ENTRIES.keys()]);
+  // norm-sorted: the entries arrive in localeCompare order.
+  const norms = wholeWindow.rows.map(r => r.norm);
+  expect(norms).toEqual([...norms].sort());
 });
 
-test('a sub-window is a contiguous prefix/slice of the full result', async ({ page }) => {
+test('a sub-window is a contiguous slice of the full result', async ({ page }) => {
   await gotoApp(page);
   await seedAndRunFlat(page);
 
@@ -49,11 +56,11 @@ test('a sub-window is a contiguous prefix/slice of the full result', async ({ pa
   });
 
   expect(prefix.rows.length).toBe(5);
-  expect(prefix.rows.map(r => r.i)).toEqual(full.rows.slice(0, 5).map(r => r.i));
+  expect(prefix.rows.map(r => r.norm)).toEqual(full.rows.slice(0, 5).map(r => r.norm));
 
   const mid = await page.evaluate(() => window.__grawlixTest.fetchWorkerRows(3, 6));
   expect(mid.start).toBe(3);
-  expect(mid.rows.map(r => r.i)).toEqual(full.rows.slice(3, 6).map(r => r.i));
+  expect(mid.rows.map(r => r.norm)).toEqual(full.rows.slice(3, 6).map(r => r.norm));
 });
 
 test('a fetch past the end clamps to the result length', async ({ page }) => {
@@ -71,8 +78,6 @@ test('a fetch for a stale runId is dropped (no reply)', async ({ page }) => {
   await gotoApp(page);
   await seedAndRunFlat(page);
 
-  // Reach fetchWorkerRows via the bridge (not a /src/ import) with a stale runId:
-  // source-path imports pass under site/ but fail the bundled dist matrix.
   const stale = await page.evaluate(() => window.__grawlixTest.fetchWorkerRows(0, 10, -999, 800));
   expect(stale).toBeNull();
 });

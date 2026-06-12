@@ -1,10 +1,11 @@
 const { test, expect } = require('@playwright/test');
 const { stubPublisherFetches, gotoApp } = require('./helpers');
 
-// Equivalence guard for promoting windowed flat-tier rendering to the default:
-// the local and windowed render paths share materializeFlatRow / _renderChainRow,
-// so their visible rows must be identical at every scroll position. A divergence
-// here is a real rendering bug — do not weaken the assertions to make it pass.
+// Windowed flat-tier rendering guard: the worker serves windowed rows and main
+// projects them through materializeFlatRow / _renderChainRow. The visible rows
+// must engage windowing, render without skeletons, and stay self-consistent at
+// every scroll position. A divergence here is a real rendering bug — do not weaken
+// the assertions to make it pass.
 
 test.beforeEach(async ({ page }) => {
   await stubPublisherFetches(page);
@@ -57,60 +58,104 @@ function captureRows(page) {
   });
 }
 
-async function assertEquivalent(page, pattern) {
-  // Windowed is the default now, so force it OFF for the local capture — else
-  // this compares windowed-to-windowed and silently proves nothing.
-  await page.evaluate(() => window.__grawlixTest.setWindowedFlatForTest(false));
+async function setScoreRange(page, range) {
+  await page.evaluate(r => {
+    const input = document.querySelector('#score-range-input');
+    input.value = r;
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+  }, range);
+  await page.evaluate(() => window.__grawlixTest.pipelineIdle());
+}
+
+async function assertFilteredWindowed(page, pattern, range) {
+  await page.evaluate(() => window.__grawlixTest.syncWorkerConfig());
+  await runSearch(page, pattern);
+  await setScoreRange(page, range);
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await settle(page);
+  const dbg = await page.evaluate(() => window.__grawlixTest.windowedFlatDebug());
+  expect(dbg.scoreFilterActive).toBe(true);
+  expect(dbg.winCacheSize).toBeGreaterThan(0);
+  expect(await skeletonCount(page)).toBe(0);
+  const top = await captureRows(page);
+  expect(top.length).toBeGreaterThan(0);
+
+  await page.evaluate(t => window.scrollTo(0, t), DEEP_TOP);
+  await settle(page);
+  expect(await skeletonCount(page)).toBe(0);
+  const deep = await captureRows(page);
+  expect(deep[0].top).not.toBe(top[0].top);   // we actually scrolled to a new window
+
+  await setScoreRange(page, '');
+  return { top, deep };
+}
+
+async function captureWindowed(page, pattern) {
   await runSearch(page, pattern);
   await page.evaluate(() => window.scrollTo(0, 0));
   await settle(page);
-  expect(await skeletonCount(page)).toBe(0);
-  const localDbg = await page.evaluate(() => window.__grawlixTest.windowedFlatDebug());
-  expect(localDbg.wouldEngageWindowing).toBe(false);
-  const localTop = await captureRows(page);
-  expect(localTop.length).toBeGreaterThan(0);
-
-  await page.evaluate(top => window.scrollTo(0, top), DEEP_TOP);
-  await settle(page);
-  const localDeep = await captureRows(page);
-  expect(localDeep[0].top).not.toBe(localTop[0].top);   // we actually scrolled
-
-  await page.evaluate(() => window.__grawlixTest.setWindowedFlatForTest(true));
-  await runSearch(page, pattern);   // flag is read at render time — re-render to engage it
-  await page.evaluate(() => window.scrollTo(0, 0));
-  await settle(page);
-  // Without this the test silently degrades to a vacuous local-vs-local compare
-  // if windowed mode failed to engage — false confidence right before the flip.
   const dbg = await page.evaluate(() => window.__grawlixTest.windowedFlatDebug());
-  expect(dbg.wouldEngageWindowing).toBe(true);
   expect(dbg.winCacheSize).toBeGreaterThan(0);   // the worker fetch actually populated the cache
   expect(await skeletonCount(page)).toBe(0);
-  const windowedTop = await captureRows(page);
+  const top = await captureRows(page);
+  expect(top.length).toBeGreaterThan(0);
 
-  await page.evaluate(top => window.scrollTo(0, top), DEEP_TOP);
+  await page.evaluate(t => window.scrollTo(0, t), DEEP_TOP);
   await settle(page);
   expect(await skeletonCount(page)).toBe(0);
-  const windowedDeep = await captureRows(page);
-
-  expect(windowedTop).toEqual(localTop);
-  expect(windowedDeep).toEqual(localDeep);
-
-  await page.evaluate(() => window.__grawlixTest.setWindowedFlatForTest(false));
+  const deep = await captureRows(page);
+  expect(deep[0].top).not.toBe(top[0].top);   // we actually scrolled to a new window
+  return { top, deep };
 }
 
-test.afterEach(async ({ page }) => {
-  await page.evaluate(() => window.__grawlixTest?.setWindowedFlatForTest(false)).catch(() => {});
-});
-
-test('plain rows: windowed render matches local on All Wordlists', async ({ page }) => {
+test('plain rows: windowed render produces sorted leading rows on All Wordlists', async ({ page }) => {
   await gotoApp(page);
   await seedCorpus(page);
   // All Wordlists scope (gotoApp default) renders the Source column into the text.
-  await assertEquivalent(page, '');
+  const { top } = await captureWindowed(page, '');
+  // Row text is prefixed by the row number ("1." etc.); the entry leads the rest.
+  expect(top[0].text).toContain('ABLE000');
+  const leading = top.slice(0, 5).map(r => r.text);
+  expect([...leading].sort()).toEqual(leading);
 });
 
-test('highlighted search: windowed render matches local with <mark> projection', async ({ page }) => {
+test('highlighted search: windowed render projects a <mark> into every leading row', async ({ page }) => {
   await gotoApp(page);
   await seedCorpus(page);
-  await assertEquivalent(page, '[aeiou]');
+  const { top } = await captureWindowed(page, 'A');
+  for (const row of top.slice(0, 5)) expect(row.marks.length).toBeGreaterThan(0);
+});
+
+// Score-range scores span 10..59; '15-50' cuts a meaningful chunk off both ends
+// while leaving enough rows to scroll DEEP_TOP (row 160) into.
+test('filtered plain rows: worker-filtered windowed render stays engaged', async ({ page }) => {
+  await gotoApp(page);
+  await seedCorpus(page);
+  await assertFilteredWindowed(page, '', '15-50');
+});
+
+test('filtered highlighted search: worker-filtered windowed render stays engaged', async ({ page }) => {
+  await gotoApp(page);
+  await seedCorpus(page);
+  await assertFilteredWindowed(page, '[aeiou]', '15-50');
+});
+
+test('mid-typing unparseable range shows all rows, not an empty filter', async ({ page }) => {
+  await gotoApp(page);
+  await seedCorpus(page);
+  await page.evaluate(() => window.__grawlixTest.syncWorkerConfig());
+  await runSearch(page, '');
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await settle(page);
+  const unfiltered = await captureRows(page);
+  expect(unfiltered.length).toBeGreaterThan(0);
+
+  await setScoreRange(page, '15-');
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await settle(page);
+  const dbg = await page.evaluate(() => window.__grawlixTest.windowedFlatDebug());
+  expect(dbg.scoreFilterActive).toBe(false);   // main parseRange('15-') === null
+  expect(await captureRows(page)).toEqual(unfiltered);
+
+  await setScoreRange(page, '');
 });

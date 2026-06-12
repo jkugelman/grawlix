@@ -13,6 +13,8 @@ import { getEntriesScroller } from './rendering.js';
 
 export const scopeKey = scope => scope === MERGED_ID ? MERGED_ID : scope.dbKey;
 
+export function activeScoreRange() { return AppView.scoreRange; }
+
 export function normalizeScoreRange(value, inputId) {
   const trimmed = (value || '').trim();
   const intervals = trimmed === '' ? null : parseRange(trimmed);

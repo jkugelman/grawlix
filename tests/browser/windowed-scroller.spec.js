@@ -27,8 +27,7 @@ async function seedWindowedFlat(page) {
     return window.__grawlixTest.addCustomWordlist({ name: 'Seq', entries, scores });
   }, COUNT);
 
-  // Flag ON before the run so the first render already takes the windowed path.
-  await page.evaluate(() => window.__grawlixTest.setWindowedFlatForTest(true));
+  await page.evaluate(() => window.__grawlixTest.syncWorkerConfig());
   await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'search', params: { pattern: '' } }]));
   await page.evaluate(() => window.__grawlixTest.pipelineIdle());
 }
@@ -48,9 +47,6 @@ async function settle(page) {
   await page.evaluate(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))));
 }
 
-test.afterEach(async ({ page }) => {
-  await page.evaluate(() => window.__grawlixTest?.setWindowedFlatForTest(false)).catch(() => {});
-});
 
 test('windowed mode fills the top window with real entries (no skeleton left)', async ({ page }) => {
   await gotoApp(page);

@@ -116,6 +116,55 @@ test('a pass-through My Edits entry seeds the effective score with no rescore no
   await expect(page.locator('.atom-pop-rescore-note')).toHaveCount(0);
 });
 
+// The flat-tier click→edit path resolves the clicked row's wlEntry from a stash
+// set on the row element at render time. Flag-on (WORKER_OWNS_CORPUS + windowing)
+// that stash is the worker's reconstructed rich-row wlEntry (wordlist re-resolved
+// from sourceId); flag-off it's the resident corpus record. Both must seed the
+// popover identically.
+test('a windowed flat-row popover seeds from the worker-reconstructed row', async ({ page }) => {
+  await gotoApp(page);
+
+  await page.evaluate(() => {
+    const COUNT = 300;   // enough rows that windowing engages and re-fetches
+    const STEMS = ['ABLE', 'BIRD', 'CRANE', 'DELTA', 'EAGLE'];
+    const mk = (offset, scoreBase) => {
+      const entries = [], scores = [], comments = [];
+      for (let i = 0; i < COUNT; i++) {
+        entries.push(STEMS[(i + offset) % STEMS.length] + String(i).padStart(3, '0'));
+        scores.push(scoreBase + (i % 50));
+        comments.push(i % 3 === 0 ? 'note' + i : '');
+      }
+      return { entries, scores, comments };
+    };
+    window.__grawlixTest.addCustomWordlist({ name: 'Alpha', ...mk(0, 10) });
+    return window.__grawlixTest.addCustomWordlist({ name: 'Bravo', ...mk(3, 200) });
+  });
+
+  const ENTRY = 'ABLE000';   // Alpha's first norm-sorted row: score 10, comment note0
+
+  const captureSeed = () => page.evaluate(() => ({
+    entry: document.querySelector('#atom-pop-entry').value,
+    score: document.querySelector('#atom-pop-score').value,
+    comment: document.querySelector('#atom-pop-comment').value,
+  }));
+
+  await scopeTo(page, 'Alpha');
+  await page.evaluate(() => window.__grawlixTest.setStack([]));
+  await page.evaluate(() => window.__grawlixTest.pipelineIdle());
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await page.evaluate(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))));
+  await page.evaluate(() => window.__grawlixTest.windowIdle());
+
+  const dbg = await page.evaluate(() => window.__grawlixTest.windowedFlatDebug());
+  // Non-vacuous: rich worker rows were consumed, so the clicked top row's stash is
+  // the worker-reconstructed wlEntry — the only flat-row source post-flip.
+  expect(dbg.isFlatTier).toBe(true);
+  expect(dbg.richRowsConsumed).toBeGreaterThan(0);
+
+  await openPopoverOnEntry(page, ENTRY);
+  expect(await captureSeed()).toEqual({ entry: 'ABLE000', score: '10', comment: 'note0' });
+});
+
 test('editing a merged-seeded row still saves to My Edits', async ({ page }) => {
   await gotoApp(page);
 

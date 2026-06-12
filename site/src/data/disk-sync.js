@@ -6,8 +6,8 @@ import { MERGED_ID, MERGED_NAME } from '../core/constants.js';
 import { state, syncKey, getEditsWordlist, bumpSyncStatus } from './state.js';
 import { idbGet, idbPut, idbDel, Storage } from './storage.js';
 import { parseWordlist } from '../engine/norm.js';
-import { serializeEntries, sortedEntries, getOutputFormat } from './serialize.js';
-import { buildMergedWordlist } from './merge.js';
+import { serializeEntries, sortedEntries } from '../engine/serialize.js';
+import { getOutputFormat } from './serialize.js';
 import { applyRescoring, compileRescoreRules } from '../engine/rescore.js';
 import { invalidateWordlistCaches } from './invalidate.js';
 import { batchUpdate, persistMeta, repaintAfterCacheChange } from './persist.js';
@@ -27,6 +27,12 @@ export function configureSyncDialogs({ alert, resolveConflict }) {
   if (alert) _alert = alert;
   if (resolveConflict) _resolveConflict = resolveConflict;
 }
+
+// Injected by the app layer (configureMergedSerializer), like the dialog hooks
+// above: the worker-serialize attempt (text-or-null) for the merged mirror,
+// kept here so data/ avoids an upward edge to ui/.
+let _mergedSerializer = null;
+export function configureMergedSerializer(fn) { _mergedSerializer = fn; }
 
 // key → { handle, baseline? }. `baseline` (serialized as-is My Edits text) is the
 // common ancestor for My Edits' 3-way merge; without it, a two-way union can't
@@ -147,15 +153,18 @@ const MirrorSync = {
     if (!t) return;
     SyncStatus.set(key, 'writing');
     try {
-      await Disk.write(t.handle, this._serialize(key));
+      await Disk.write(t.handle, await this._serialize(key));
       SyncStatus.set(key, 'synced');
     } catch (err) {
       console.error('mirror write failed', err);
       SyncStatus.set(key, 'unavailable');
     }
   },
-  _serialize(key) {
-    if (key === MERGED_ID) return serializeEntries(sortedEntries(buildMergedWordlist().entries), getOutputFormat());
+  async _serialize(key) {
+    if (key === MERGED_ID) {
+      // Only the worker can serialize the merge post-flip; a null reply mirrors empty.
+      return (_mergedSerializer ? await _mergedSerializer(getOutputFormat()) : null) ?? '';
+    }
     const list = listForSyncKey(key);
     return serializeEntries(sortedEntries(applyRescoring(list.rawEntries, list.rescoreRules || [])), getOutputFormat());
   },

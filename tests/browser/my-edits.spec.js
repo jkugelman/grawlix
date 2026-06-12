@@ -359,13 +359,12 @@ test('a My Edits entry deletes via the popover after a reload reparses its displ
   expect(await page.evaluate(() => window.__grawlixTest.getMergedEntry('words'))).toBeNull();
 });
 
-test('editing My Edits patches the merged cache in place instead of rebuilding it', async ({ page }) => {
+test('editing My Edits is reflected in the merged view', async ({ page }) => {
   await gotoApp(page);
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
     name: 'Source', entries: ['bagel', 'carrot'], scores: [50, 60],
   }));
 
-  await page.evaluate(() => window.__grawlixTest.markMergedCache('keep-me'));
   await page.locator('.entry-row[data-entry="bagel"] .atom-score').click();
   await page.locator('#atom-pop-score').fill('75');
   await page.locator('#atom-pop-score').press('Enter');
@@ -373,12 +372,11 @@ test('editing My Edits patches the merged cache in place instead of rebuilding i
     page.evaluate(() => window.__grawlixTest.getWordlist('My Edits').entries.length)
   ).toBe(1);
 
-  // A full rebuild — the pre-patch behavior — would have discarded the stamped
-  // cache object. The in-place patch keeps it, and reflects the edit.
-  expect(await page.evaluate(() => window.__grawlixTest.mergedCacheTag())).toBe('keep-me');
-  expect(await page.evaluate(() => window.__grawlixTest.getMergedEntry('BAGEL'))).toMatchObject({
-    entry: 'bagel', score: 75, wordlist: 'My Edits',
-  });
+  // The worker splices its owned corpus in place for the edit; the merged view
+  // now sources BAGEL from My Edits (highest priority).
+  await expect.poll(async () =>
+    page.evaluate(() => window.__grawlixTest.getMergedEntry('BAGEL'))
+  ).toMatchObject({ entry: 'bagel', score: 75, wordlist: 'My Edits' });
 });
 
 test('the patched merged cache matches a full rebuild across override, add, rename, and delete', async ({ page }) => {

@@ -6,22 +6,30 @@
 // so anchoring there makes one relative path correct everywhere, deploy base
 // included (no leading-slash hardcoding).
 
-import { packSnapshot, snapshotTransferables } from '../engine/snapshot.js';
-import { currentAtomCount, executePipeline } from '../engine/executor.js';
+import { currentAtomCount } from '../engine/executor.js';
+import { state } from '../data/state.js';
+import { setShippedAllSourcesAxis, setShippedScopedLayout } from '../data/derived.js';
+import { setShippedConfigCounts } from '../data/merge.js';
+import { MERGED_ID } from '../core/constants.js';
+import { AppView, activeScoreRange } from './app-view.js';
+import { popoverRebindQuery } from './entries-table.js';
 
 let workerBaseURL = null;
 let worker = null;
 
-let shippedCorpus = null;
-let shippedSnapshotId = 0;
-let lastShippedVersion = null;
+function workerOwnsCorpus() { return true; }
+export { workerOwnsCorpus };
 
 const MAX_CRASHES = 2;
 let crashCount = 0;
-let useMainThread = false;
+let workerUnavailable = false;
 
-let snapshotsSent = 0;
-let patchesSent = 0;
+// Client-side mirror of which scope the worker's owned corpus is fresh for, so a
+// run decides synchronously whether to dispatch or defer. The sync read is what
+// makes deferred-run registration race-free (see runOnWorker). `null` ⇒ not fresh
+// for any scope, so every run defers until the first build's selfReady lands.
+let ownedFreshScope = null;
+function ownedFreshFor(scope) { return ownedFreshScope === scope; }
 
 export function configurePipelineWorker({ baseURL }) {
   workerBaseURL = baseURL;
@@ -45,103 +53,129 @@ function onWorkerCrash() {
     worker.terminate();
     worker = null;
   }
-  // A respawned worker boots with no corpus; nulling these makes ensureSnapshot
-  // reship rather than assume the dead worker's load carried over.
-  shippedCorpus = null;
-  lastShippedVersion = null;
+  // A respawned worker rebuilds from IDB, so nothing is fresh until its selfReady
+  // lands; clearing the mirror forces every in-flight/incoming run to defer until
+  // then (settle path 3) rather than dispatching against the dead worker.
+  ownedFreshScope = null;
 
   crashCount++;
-  if (crashCount >= MAX_CRASHES) useMainThread = true;
 
-  // The dead worker owes no reply, so re-run its in-flight stack on main and
-  // resolve the original awaiter — else that awaiter (and pipelineIdle) dangles.
-  // Supersession-safe: a newer run during the rescue advances runCounter, so the
-  // rescue's signal aborts and it resolves { aborted: true }, harmlessly dropped.
   const run = pendingRun;
   pendingRun = null;
-  if (run) runMainThread(run.corpus, run.stack).then(run.resolve);
-}
+  const deferred = deferredRun;
+  deferredRun = null;
 
-async function runMainThread(corpus, stack) {
-  for (const row of stack) row._error = null;
-
-  const runId = ++runCounter;
-  const signal = { get aborted() { return runId !== runCounter; } };
-
-  let out;
-  try {
-    out = await executePipeline(corpus, stack, signal);
-  } catch (e) {
-    if (e?.name === 'AbortError' || signal.aborted) return { aborted: true };
-    const idx = stack.indexOf(e?.stackRow);
-    if (idx !== -1) stack[idx]._error = e?.message || String(e);
-    return {
-      aborted: false, errored: true, rows: [],
-      atomCount: currentAtomCount(stack), grouped: false,
-    };
+  if (crashCount >= MAX_CRASHES) {
+    // There's no main corpus to rescue onto, so a run can't be re-run — latch
+    // unavailable and settle every in-flight AND deferred awaiter errored (and
+    // every future run via runOnWorker's short-circuit), or they dangle and wedge
+    // pipelineIdle. This is no-hang settle path 5 (crash-while-deferred, latched).
+    workerUnavailable = true;
+    if (run) run.resolve(erroredResult(run.stack));
+    if (deferred) deferred.resolve(erroredResult(deferred.stack));
+    if (deferredTimer) { clearTimeout(deferredTimer); deferredTimer = null; }
+    return;
   }
-  if (signal.aborted) return { aborted: true };
-  return { rows: out.rows, atomCount: out.atomCount, grouped: out.grouped, aborted: false };
+
+  // syncWorkerConfig respawns the worker (via getWorker) and has it rebuild its
+  // owned corpus from IDB; its selfReady drains the deferral. Re-dispatch the
+  // in-flight run AND re-register the deferred run through runOnWorker, not a
+  // bespoke post: that keeps supersession intact and lets the freshness mirror
+  // gate them (they defer until the rebuild's selfReady). No-hang settle path 5
+  // (crash-while-deferred, respawn).
+  syncWorkerConfig(state.sources);
+  if (run) runOnWorker(run.stack, run.sort).then(run.resolve);
+  if (deferred) runOnWorker(deferred.stack, deferred.sort).then(deferred.resolve);
 }
 
-export function sendSnapshot(corpus) {
-  const w = getWorker();
-  const snap = packSnapshot(corpus.entries);
-  shippedSnapshotId++;
-  w.postMessage(
-    { type: 'snapshot', snapshotId: shippedSnapshotId, ...snap },
-    snapshotTransferables(snap),
-  );
-  shippedCorpus = corpus;
-  lastShippedVersion = corpus._snapVersion ?? 0;
-  snapshotsSent++;
-  return shippedSnapshotId;
+export function sendWorkerScope(scope) {
+  getWorker().postMessage({ type: 'setScope', scope });
+  // The worker rebuilds ownedCorpus synchronously from ownedBuilt on this
+  // message (FIFO-before the scope's run), so once any build has landed the
+  // client can mirror the new fresh-scope immediately — that's what lets the
+  // scope's run dispatch rather than defer. Before the first build (mirror
+  // null) leave it: nothing is fresh yet and the run must still defer.
+  if (ownedFreshScope !== null) {
+    ownedFreshScope = scope;
+    drainDeferred();
+  }
 }
 
-export function sendPatch(corpus, descriptor) {
-  if (useMainThread) return;
-  if (!descriptor || !descriptor.norms?.length) return;
-  // Worker isn't holding this object (e.g. scoped to My Edits → it holds a scoped
-  // corpus). Returning is correct, not a bug: the next merged run's
-  // ensureSnapshot reships fresh. Reshipping here would mirror the wrong corpus.
-  if (corpus !== shippedCorpus) return;
-
-  shippedSnapshotId++;
-  getWorker().postMessage({ type: 'patch', snapshotId: shippedSnapshotId, norms: descriptor.norms });
-  // Move the version forward so the subsequent run's ensureSnapshot (same object)
-  // skips a full reship — the patch already carried this edit.
-  lastShippedVersion = corpus._snapVersion ?? 0;
-  patchesSent++;
-}
-
-export function shippedSnapshot() {
-  return { corpus: shippedCorpus, snapshotId: shippedSnapshotId };
-}
-
-// A My Edits splice mutates the corpus in place (same object), so identity alone
-// would leave the worker on stale data — `_snapVersion` is what catches it.
-function ensureSnapshot(corpus) {
-  const version = corpus._snapVersion ?? 0;
-  if (corpus === shippedCorpus && version === lastShippedVersion) return;
-  sendSnapshot(corpus);
-}
-
-// ─── Run dispatch & supersession ─────────────────────────────────────────────
+// ─── Run dispatch, supersession & the deferred-run queue ─────────────────────
+// Post-flip a run whose owned corpus isn't yet fresh for its scope (boot's
+// first paint before the build lands; a cacheVersion$ re-sync gap; a My-Edits
+// edit window; an import/fetch) has no snapshot to fall back on, so it can't
+// dispatch — it DEFERS and drains when the worker becomes fresh for that scope.
+// setScope needs no defer: the worker rebuilds ownedCorpus synchronously from
+// ownedBuilt, and the run that follows re-checks freshness.
 let runCounter = 0;
-let pendingRun = null;   // { runId, resolve, stack } for the latest dispatched run
+let pendingRun = null;   // { runId, resolve, stack, scope, sort } for the latest dispatched run
 let lastResultRunId = null;   // runId of the last `result` the worker delivered
 
-export function runOnWorker(corpus, stack, sort) {
-  if (useMainThread) return runMainThread(corpus, stack);
+// The single latest-wins deferred run. A NEW deferred run replaces it, settling
+// the replaced one aborted (settle path 2); a selfReady drains it (paths 1/3); a
+// build-failure selfReady or a crash settles it errored (paths 4/5); a timeout
+// backstop settles it aborted (path 6). Every one of those settles is wired —
+// a hung deferred promise wedges _pipelineRunning → pipelineIdle → the whole
+// suite, so this set MUST stay exhaustive.
+let deferredRun = null;   // { stack, sort, scope, resolve }
+let deferredTimer = null;
+const DEFERRED_TIMEOUT_MS = 5000;
 
-  ensureSnapshot(corpus);
+function erroredResult(stack) {
+  return {
+    aborted: false, errored: true, rows: [],
+    atomCount: currentAtomCount(stack), grouped: false,
+  };
+}
+
+export function runOnWorker(stack, sort) {
+  // Resolve errored, never hang: post-flip there's no main corpus, so a latched
+  // worker must settle every run (and any prior deferred run) gracefully.
+  if (workerUnavailable) {
+    if (deferredRun) { deferredRun.resolve({ aborted: true }); deferredRun = null; }
+    if (deferredTimer) { clearTimeout(deferredTimer); deferredTimer = null; }
+    return Promise.resolve(erroredResult(stack));
+  }
 
   // Main owns the per-run _error reset now that the executor runs off-thread —
   // without this an old ⚠ mark persists after the offending tool is fixed.
   for (const row of stack) row._error = null;
 
+  const scope = state.selected === MERGED_ID ? MERGED_ID : state.selected?.dbKey ?? null;
+
+  // A replacing run/defer supersedes any prior deferred run (settle path 2): the
+  // old deferral can never dispatch, so settle it aborted now or it dangles.
+  if (deferredRun) { deferredRun.resolve({ aborted: true }); deferredRun = null; }
+  if (deferredTimer) { clearTimeout(deferredTimer); deferredTimer = null; }
+
+  // The sync ownedFreshFor read is the race-free gate: either the build's
+  // selfReady has already set the mirror (dispatch now) or it hasn't (defer, and
+  // drainDeferred will fire on the next selfReady) — no window where both miss.
+  if (!ownedFreshFor(scope)) {
+    return new Promise(resolve => {
+      deferredRun = { stack, sort, scope, resolve };
+      // Backstop (settle path 6): if a selfReady/crash signal is somehow lost,
+      // resolve aborted rather than leave pipelineIdle wedged forever.
+      deferredTimer = setTimeout(() => {
+        if (deferredRun?.resolve === resolve) {
+          deferredRun = null; deferredTimer = null;
+          resolve({ aborted: true });
+        }
+      }, DEFERRED_TIMEOUT_MS);
+    });
+  }
+
+  return dispatchRun(stack, sort, scope);
+}
+
+function dispatchRun(stack, sort, scope) {
   const serialized = stack.map(r => ({ tool: r.tool, params: r.params, grouped: r.grouped }));
   const runId = ++runCounter;
+
+  const existsQuery = AppView.searchQuery.trim() || null;
+  const scoreRange = activeScoreRange() || null;
+  const rebindQuery = popoverRebindQuery();
 
   // A superseded run gets no worker reply — settle the prior one as aborted here
   // or its awaiter (and pipelineIdle, which the whole suite gates on) dangles.
@@ -149,9 +183,22 @@ export function runOnWorker(corpus, stack, sort) {
 
   const w = getWorker();
   return new Promise(resolve => {
-    pendingRun = { runId, resolve, stack, corpus };
-    w.postMessage({ type: 'run', runId, snapshotId: shippedSnapshotId, stack: serialized, sort });
+    pendingRun = { runId, resolve, stack, scope, sort };
+    w.postMessage({ type: 'run', runId, stack: serialized, sort, scope, existsQuery, scoreRange, rebindQuery });
   });
+}
+
+// Drains the deferred run when the worker reports fresh for its scope (settle
+// paths 1/3). Re-checks ownedFreshFor against the run's OWN scope — a selfReady
+// for a different scope leaves it deferred — so a stale-scope build can't drain
+// the wrong run. dispatchRun's resolve chains onto the deferred awaiter.
+function drainDeferred() {
+  if (!deferredRun) return;
+  const { stack, sort, scope, resolve } = deferredRun;
+  if (!ownedFreshFor(scope)) return;
+  deferredRun = null;
+  if (deferredTimer) { clearTimeout(deferredTimer); deferredTimer = null; }
+  dispatchRun(stack, sort, scope).then(resolve);
 }
 
 function onWorkerMessage({ data }) {
@@ -161,7 +208,7 @@ function onWorkerMessage({ data }) {
     const run = pendingRun;
     pendingRun = null;
     lastResultRunId = data.runId;
-    run.resolve(materializeResult(data, run.stack));
+    run.resolve(materializeResult(data, run.stack, run.scope));
     return;
   }
   if (data.type === 'error') {
@@ -171,57 +218,82 @@ function onWorkerMessage({ data }) {
     if (data.stackRowIndex != null && run.stack[data.stackRowIndex]) {
       run.stack[data.stackRowIndex]._error = data.message;
     }
-    run.resolve({
-      aborted: false, errored: true, rows: [],
-      atomCount: currentAtomCount(run.stack), grouped: false,
-    });
+    run.resolve(erroredResult(run.stack));
   }
 }
 
 // ─── Result materialization ── inverse of engine/worker.js's postResult ───────
-// A stale snapshotId means the worker answered against a corpus main no longer
-// holds — its indices name the wrong rich entries, so drop it rather than render
-// garbage.
-function materializeResult(data, stack) {
-  if (data.snapshotId !== shippedSnapshotId) return { aborted: true };
-  const corpus = shippedCorpus;
+function materializeResult(data, stack, scope) {
   const { grouped, atomCount, payload } = data;
 
   if (!grouped && payload.indices && !payload.chains) {
+    // Every flat result must re-stamp the holder — even a null-layout one — so a
+    // scope switch can't leave a previous scope's layout behind for the scope-key
+    // guard to wrongly accept.
+    setShippedScopedLayout(payload.histogramLayout ?? null, scope);
     return {
-      flat: true, corpus,
+      flat: true,
       indices: new Int32Array(payload.indices),
       scores: new Int32Array(payload.scores),
       widthHints: payload.widthHints,
+      stats: payload.stats ?? null,
+      histogramCounts: payload.histogramCounts ?? null,
+      histogramLayout: payload.histogramLayout ?? null,
+      existsInScope: payload.existsInScope ?? null,
+      existsInMerge: payload.existsInMerge ?? null,
+      rebindQuery: payload.rebindQuery ?? null,
+      rebindEntry: rebuildRebindEntry(payload.rebindEntry),
+      rebindExists: payload.rebindExists ?? null,
+      firstRows: payload.firstRows ?? null,
+      filtered: !!payload.filtered,
+      ranAgainstOwned: !!data.ranAgainstOwned,
       atomCount, grouped: false, aborted: false,
     };
   }
 
+  // Rebuilt each pass (not memoized) so an add/remove/reorder between runs can't
+  // resolve a rich atom's sourceId to a stale wordlist.
+  const sourceById = new Map(state.sources.map(w => [w.dbKey, w]));
   const rows = grouped
-    ? payload.groups.map(g => decodeGroup(g, corpus))
-    : payload.chains.map(c => decodeChain(c, corpus));
+    ? payload.groups.map(g => decodeGroup(g, sourceById))
+    : payload.chains.map(c => decodeChain(c, sourceById));
   return { rows, atomCount, grouped, aborted: false };
 }
 
-// A synthetic atom (`{ s }`) is a tool output present in no wordlist; it carries
-// its own norm/display/score inline and is deliberately NOT resolved through
-// byNorm (that would alias it to a real entry of the same norm).
-function decodeAtom(atom, corpus) {
-  const wlEntry = 'i' in atom
-    ? corpus.entries[atom.i]
-    : { norm: atom.s.norm, display: atom.s.display, score: atom.s.score, comment: '', wordlist: null };
+function rebuildRebindEntry(row) {
+  if (!row) return null;
+  return {
+    norm: row.norm, display: row.display ?? null, score: row.score, rawScore: row.rawScore,
+    comment: row.comment || '', wordlist: state.sources.find(w => w.dbKey === row.sourceId) ?? null,
+  };
+}
+
+// `{ s }` is a synthetic, deliberately NOT resolved through byNorm (that would
+// alias it to a real entry of the same norm); anything else is a rich
+// self-contained atom (the worker always ships rich post-flip).
+function decodeAtom(atom, sourceById) {
+  let wlEntry;
+  if ('s' in atom) {
+    const { norm, display, score } = atom.s;
+    wlEntry = { norm, display, score, comment: '', wordlist: null };
+  } else {
+    wlEntry = {
+      norm: atom.norm, display: atom.display, score: atom.score, rawScore: atom.rawScore,
+      comment: atom.comment, wordlist: sourceById.get(atom.sourceId) ?? null,
+    };
+  }
   return { wlEntry, highlights: atom.h ?? null, glyph: atom.g ?? null };
 }
 
-function decodeChain(chain, corpus) {
-  return { atoms: chain.atoms.map(a => decodeAtom(a, corpus)) };
+function decodeChain(chain, sourceById) {
+  return { atoms: chain.atoms.map(a => decodeAtom(a, sourceById)) };
 }
 
-function decodeGroup(g, corpus) {
+function decodeGroup(g, sourceById) {
   return {
     key: g.key,
-    anchor: g.anchor ? decodeAtom(g.anchor, corpus).wlEntry : null,
-    chains: g.chains.map(c => decodeChain(c, corpus)),
+    anchor: g.anchor ? decodeAtom(g.anchor, sourceById).wlEntry : null,
+    chains: g.chains.map(c => decodeChain(c, sourceById)),
     _minScore: g._minScore,
     _maxScore: g._maxScore,
     _count: g._count,
@@ -229,7 +301,7 @@ function decodeGroup(g, corpus) {
 }
 
 export function pipelineWorkerState() {
-  return { degraded: useMainThread, crashCount, snapshotsSent, patchesSent };
+  return { workerUnavailable, crashCount };
 }
 
 export function patchWorkerToolForTest(tool, method, message) {
@@ -244,14 +316,30 @@ export function forceWorkerCrashForTest() {
   onWorkerCrash();
 }
 
-// ─── Self-build bridge (test oracle) ── see docs/worker-protocol.md ──────────
+export function failNextWorkerBuildForTest() {
+  getWorker().postMessage({ type: '__testFailNextBuild' });
+}
+
+// ─── Self-build bridge ── boot handshake + test oracle ── see docs/worker-protocol.md ──
+let configRequestId = 0;
+export function syncConfigsSent() { return configRequestId; }
 export function syncWorkerConfig(sources) {
   const w = getWorker();
+  const scope = state.selected === MERGED_ID ? MERGED_ID : state.selected?.dbKey ?? MERGED_ID;
+  // Mirror the worker clearing ownedCorpusFresh synchronously at syncConfig start:
+  // a run dispatched in the rebuild gap would execute against the STALE corpus
+  // (e.g. a just-added source missing), so clear the mirror to force a defer until
+  // this sync's selfReady re-confirms freshness (settle paths 1/3 drain it).
+  ownedFreshScope = null;
+  const configId = ++configRequestId;
   const payload = {
     type: 'syncConfig',
+    configId,
+    scope,
     sources: sources.map(wl => ({
       sourceId: wl.dbKey,
       enabled: wl.enabled,
+      type: wl.type ?? null,
       rescoreRules: (wl.rescoreRules || []).map(r => ({
         input: r.input, length: r.length, output: r.output, note: r.note,
       })),
@@ -260,14 +348,43 @@ export function syncWorkerConfig(sources) {
   return new Promise(resolve => {
     const timer = setTimeout(() => { w.removeEventListener('message', onMessage); resolve(false); }, 5000);
     function onMessage({ data }) {
-      if (data?.type !== 'selfReady') return;
+      if (data?.type !== 'selfReady' || data.configId !== configId) return;
       clearTimeout(timer);
       w.removeEventListener('message', onMessage);
+      setShippedAllSourcesAxis(data.axis, data.version);
+      setShippedConfigCounts(data.sourceCounts ?? null, data.mergedCount ?? null, data.version);
+      applySelfReadyFreshness(data, scope, configId);
       resolve(data.count);
     }
     w.addEventListener('message', onMessage);
     w.postMessage(payload);
   });
+}
+
+// The build's selfReady is the deferred-run drain trigger. A SUCCESSFUL build
+// (built) marks the worker fresh for this sync's scope → drainDeferred dispatches
+// any matching deferral (settle paths 1/3). A genuinely FAILED build (the latest
+// sync, ownedCorpus null) must NOT mark fresh — it leaves the deferred run
+// undispatchable, the hang trap: settle it errored (settle path 4). A SUPERSEDED
+// build also reports built:false (its work was discarded for a newer sync), but a
+// newer syncConfig is in flight that WILL drain the deferral, so its selfReady is
+// ignored — settling errored here would prematurely fail a run a later build serves.
+function applySelfReadyFreshness(data, scope, configId) {
+  if (data.built) {
+    ownedFreshScope = scope;
+    drainDeferred();
+  } else if (configId === configRequestId && deferredRun && deferredRun.scope === scope) {
+    const { stack, resolve } = deferredRun;
+    deferredRun = null;
+    if (deferredTimer) { clearTimeout(deferredTimer); deferredTimer = null; }
+    resolve(erroredResult(stack));
+  }
+}
+
+// Every config change must re-sync, or ownedCorpus goes stale-but-fresh and the
+// worker enriches rows from stale data — silent corruption of every rendered row.
+export function resyncWorkerConfig() {
+  syncWorkerConfig(state.sources);
 }
 
 export function dumpWorkerCorpus(scope, timeout = 10000) {
@@ -285,6 +402,23 @@ export function dumpWorkerCorpus(scope, timeout = 10000) {
   });
 }
 
+let queryEntryRequestId = 0;
+export function queryWorkerEntry(scope, norm, display, timeout = 5000) {
+  const w = getWorker();
+  const requestId = ++queryEntryRequestId;
+  return new Promise(resolve => {
+    const timer = setTimeout(() => { w.removeEventListener('message', onMessage); resolve(null); }, timeout);
+    function onMessage({ data }) {
+      if (data?.type !== 'entry' || data.requestId !== requestId) return;
+      clearTimeout(timer);
+      w.removeEventListener('message', onMessage);
+      resolve(data.entry);
+    }
+    w.addEventListener('message', onMessage);
+    w.postMessage({ type: 'queryEntry', requestId, scope, norm, display });
+  });
+}
+
 export function pingWorker(timeout = 2000) {
   const w = getWorker();
   return new Promise(resolve => {
@@ -297,6 +431,88 @@ export function pingWorker(timeout = 2000) {
     }
     w.addEventListener('message', onMessage);
     w.postMessage({ type: 'ping' });
+  });
+}
+
+// ─── Edit-seed fetch bridge ── see docs/worker-protocol.md ───────────────────
+// Own requestId space, independent of the run's runId: a popover query must not
+// touch run supersession. A timeout resolves null so main falls back to its
+// local clicked seed rather than hanging the editor.
+let fetchEditSeedRequestId = 0;
+let editSeedFetches = 0;
+export function fetchEditSeedFetchCount() { return editSeedFetches; }
+export function fetchWorkerEditSeed(norm, display, timeout = 5000) {
+  const w = getWorker();
+  const requestId = ++fetchEditSeedRequestId;
+  editSeedFetches++;
+  return new Promise(resolve => {
+    const timer = setTimeout(() => { w.removeEventListener('message', onMessage); resolve(null); }, timeout);
+    function onMessage({ data }) {
+      if (data?.type !== 'editSeed' || data.requestId !== requestId) return;
+      clearTimeout(timer);
+      w.removeEventListener('message', onMessage);
+      resolve(data.winner ?? null);
+    }
+    w.addEventListener('message', onMessage);
+    w.postMessage({ type: 'fetchEditSeed', requestId, norm, display });
+  });
+}
+
+// ─── Provenance + preview fetch bridge ── see docs/worker-protocol.md ────────
+// Its own requestId space, independent of both the run's runId and the edit-seed
+// lane: a popover query must not touch run or seed supersession. A timeout resolves
+// {preview:null,rows:null} so main falls back to its local corpus reads.
+let fetchProvenanceRequestId = 0;
+let provenanceFetches = 0;
+export function fetchProvenanceFetchCount() { return provenanceFetches; }
+export function fetchWorkerProvenance(typedRaw, previewRaw, clickedNorm, clickedDisplay, timeout = 5000) {
+  const w = getWorker();
+  const requestId = ++fetchProvenanceRequestId;
+  provenanceFetches++;
+  return new Promise(resolve => {
+    const timer = setTimeout(() => { w.removeEventListener('message', onMessage); resolve({ preview: null, rows: null }); }, timeout);
+    function onMessage({ data }) {
+      if (data?.type !== 'provenance' || data.requestId !== requestId) return;
+      clearTimeout(timer);
+      w.removeEventListener('message', onMessage);
+      resolve({ preview: data.preview ?? null, rows: data.rows ?? null });
+    }
+    w.addEventListener('message', onMessage);
+    w.postMessage({ type: 'fetchProvenance', requestId, typedRaw, previewRaw, clickedNorm, clickedDisplay });
+  });
+}
+
+// ─── My Edits edit/add command bridge ── see docs/worker-protocol.md ─────────
+let editEntryId = 0;
+export function sendEditEntry(orig, next, timeout = 5000) {
+  const w = getWorker();
+  const editId = ++editEntryId;
+  return new Promise(resolve => {
+    const timer = setTimeout(() => { w.removeEventListener('message', onMessage); resolve(null); }, timeout);
+    function onMessage({ data }) {
+      if (data?.type !== 'editAck' || data.editId !== editId) return;
+      clearTimeout(timer);
+      w.removeEventListener('message', onMessage);
+      resolve({ norms: data.norms, edited: data.edited, axis: data.axis, counts: data.counts });
+    }
+    w.addEventListener('message', onMessage);
+    w.postMessage({ type: 'editEntry', editId, orig, next });
+  });
+}
+
+export function sendDeleteEntry({ norm, display }, timeout = 5000) {
+  const w = getWorker();
+  const editId = ++editEntryId;
+  return new Promise(resolve => {
+    const timer = setTimeout(() => { w.removeEventListener('message', onMessage); resolve(null); }, timeout);
+    function onMessage({ data }) {
+      if (data?.type !== 'editAck' || data.editId !== editId) return;
+      clearTimeout(timer);
+      w.removeEventListener('message', onMessage);
+      resolve({ norms: data.norms, edited: data.edited, axis: data.axis, counts: data.counts });
+    }
+    w.addEventListener('message', onMessage);
+    w.postMessage({ type: 'deleteEntry', editId, norm, display });
   });
 }
 
@@ -316,5 +532,43 @@ export function fetchWorkerRows(runId, start, end, timeout = 5000) {
     }
     w.addEventListener('message', onMessage);
     w.postMessage({ type: 'fetchRows', requestId, runId, start, end });
+  });
+}
+
+// ─── Full-result row fetch bridge (export) ── see docs/worker-protocol.md ────
+let fetchAllRowsRequestId = 0;
+export function allRowsFetchesSent() { return fetchAllRowsRequestId; }
+export function fetchWorkerAllRows(runId, timeout = 5000) {
+  const w = getWorker();
+  const requestId = ++fetchAllRowsRequestId;
+  return new Promise(resolve => {
+    const timer = setTimeout(() => { w.removeEventListener('message', onMessage); resolve(null); }, timeout);
+    function onMessage({ data }) {
+      if (data?.type !== 'allRows' || data.requestId !== requestId) return;
+      clearTimeout(timer);
+      w.removeEventListener('message', onMessage);
+      resolve({ rows: data.rows });
+    }
+    w.addEventListener('message', onMessage);
+    w.postMessage({ type: 'fetchAllRows', requestId, runId });
+  });
+}
+
+// ─── Merged-corpus serialize bridge ── see docs/worker-protocol.md ───────────
+let fetchSerializeRequestId = 0;
+export function serializeFetchesSent() { return fetchSerializeRequestId; }
+export function fetchWorkerSerialize(scope, format, sort, timeout = 5000) {
+  const w = getWorker();
+  const requestId = ++fetchSerializeRequestId;
+  return new Promise(resolve => {
+    const timer = setTimeout(() => { w.removeEventListener('message', onMessage); resolve(null); }, timeout);
+    function onMessage({ data }) {
+      if (data?.type !== 'serialized' || data.requestId !== requestId) return;
+      clearTimeout(timer);
+      w.removeEventListener('message', onMessage);
+      resolve(data.text ?? null);
+    }
+    w.addEventListener('message', onMessage);
+    w.postMessage({ type: 'serializeFor', requestId, scope, format, sort });
   });
 }

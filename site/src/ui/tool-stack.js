@@ -89,7 +89,7 @@ export function pipelineIdle() {
   return new Promise(r => _pipelineIdleWaiters.push(r));
 }
 
-// Run the current stack against the merged wordlist on the worker. Returns
+// Run the current stack against the active scope on the worker. Returns
 // `{ rows, atomCount }` on completion, or `{ aborted: true }` if a newer call
 // superseded this one. Callers drop their result on `aborted` rather than
 // touching the scroller — the superseding caller will produce the next update.
@@ -97,14 +97,14 @@ export function pipelineIdle() {
 // The slow-pipeline indicator is one global signal: a timer dims the results
 // table when the whole run total crosses the threshold (not per-step — a long
 // pipeline of individually-fast tools still trips it).
-export async function runPipeline(mergedWordlist, stack, sort) {
+export async function runPipeline(stack, sort) {
   _pipelineRunning++;
 
   const panel = document.getElementById('entries-table-panel');
   panel?.classList.add('pipeline-running');
 
   try {
-    return await runOnWorker(mergedWordlist, stack, sort);
+    return await runOnWorker(stack, sort);
   } finally {
     panel?.classList.remove('pipeline-running');
     _pipelineRunning--;

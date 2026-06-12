@@ -106,19 +106,15 @@ test('a plain ambient winner inherits the rich variant\'s comment', async ({ pag
 // cacheVersion$, whose cache branch nulled and rebuilt the merge on every
 // keystroke — a ~1s freeze on a 750K-entry merge. The stamped cache surviving
 // the keystroke is the proof it wasn't rebuilt.
-test('a search keystroke filters without rebuilding the merged corpus', async ({ page }) => {
+test('a search keystroke filters the merged view to the matching entry', async ({ page }) => {
   await gotoApp(page);
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
     name: 'Bakery', entries: ['BAGEL', 'CAKE', 'DONUT'], scores: [50, 60, 70],
   }));
   await expectVisible(page, ['BAGEL', 'CAKE', 'DONUT']);
 
-  await page.evaluate(() => window.__grawlixTest.markMergedCache('keep-me'));
+  // The worker owns the corpus, so a keystroke is just a `run` against the resident
+  // owned corpus — no main-side rebuild to guard against. The filter is the assertion.
   await page.locator('input[data-key="pattern"]').fill('BAG');
-
-  // Both assertions matter: the filter result proves the keystroke wasn't a
-  // no-op (against which the cache trivially survives, a vacuous pass), and the
-  // surviving tag proves it filtered the existing merge instead of rebuilding.
   await expectVisible(page, ['BAGEL']);
-  expect(await page.evaluate(() => window.__grawlixTest.mergedCacheTag())).toBe('keep-me');
 });

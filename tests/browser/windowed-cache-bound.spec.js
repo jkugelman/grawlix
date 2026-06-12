@@ -25,7 +25,7 @@ async function seedWindowedFlat(page) {
     return window.__grawlixTest.addCustomWordlist({ name: 'Big', entries, scores });
   }, COUNT);
 
-  await page.evaluate(() => window.__grawlixTest.setWindowedFlatForTest(true));
+  await page.evaluate(() => window.__grawlixTest.syncWorkerConfig());
   await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'search', params: { pattern: '' } }]));
   await page.evaluate(() => window.__grawlixTest.pipelineIdle());
 }
@@ -73,10 +73,6 @@ async function expectCorrectWindow(page) {
   expect(rows).toEqual(expected);
   return first;
 }
-
-test.afterEach(async ({ page }) => {
-  await page.evaluate(() => window.__grawlixTest?.setWindowedFlatForTest(false)).catch(() => {});
-});
 
 test('scrolling a 3000-row result keeps the row cache bounded with correct windows', async ({ page }) => {
   await gotoApp(page);

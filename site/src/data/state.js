@@ -30,6 +30,14 @@ export function bumpPipelineVersion() { pipelineVersion$.set(pipelineVersion$.pe
 export const syncStatus$ = signal(0);
 export function bumpSyncStatus() { syncStatus$.set(syncStatus$.peek() + 1); }
 
+// The worker ships the per-config summaries (merged count, source counts, axis)
+// asynchronously, AFTER the cacheVersion$ bump that triggered the re-sync. Count
+// displays subscribe to this so they repaint when the shipped values land —
+// bumping cacheVersion$ here instead would re-fire the render effect's re-sync and
+// loop. Bumped by the selfReady/editAck consumption, version-guarded upstream.
+export const configSummary$ = signal(0);
+export function bumpConfigSummary() { configSummary$.set(configSummary$.peek() + 1); }
+
 // Reads through `state.sources` are non-subscribing (peek). Effects that
 // need to re-run on changes read the underlying signal explicitly with
 // `.get()`. This keeps the imperative call sites unchanged while preventing

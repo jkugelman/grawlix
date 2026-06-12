@@ -14,37 +14,54 @@
 
 import { MERGED_ID, MERGED_NAME } from './core/constants.js';
 import { toNorm, displayOf, parseWordlist, buildUserWlEntry } from './engine/norm.js';
-import { buildByNorm } from './engine/snapshot.js';
 import { setUnigramCorpus as segmenterSetCorpus } from './engine/segmenter.js';
 import { TOOLS, makeToolRow } from './engine/tools.js';
 import { state, newDbKey, syncKey, getEditsWordlist } from './data/state.js';
 import { getDb, Storage } from './data/storage.js';
 import { migrateSettings } from './data/migrations.js';
 import {
-  buildMergedWordlist, buildScopedCorpus, getActiveCorpus, invalidateSourceCounts, peekMergedCache,
+  invalidateSourceCounts, getSourceCounts, mergedEntryCount, shippedConfigCountsVersion,
 } from './data/merge.js';
-import { mergeKey } from './engine/corpus.js';
-import { setWordlistRescoreRules, reorderSources } from './data/persist.js';
+import { setWordlistRescoreRules, setWordlistEnabled, reorderSources } from './data/persist.js';
 import {
   syncTargets, syncFilename, threeWayMergeEdits,
   attachMirrorSync, attachEditsSync, EditsSync, MirrorSync,
 } from './data/disk-sync.js';
 import { WordlistSelector } from './ui/scope-selector.js';
+import { WelcomeDialog } from './ui/dialogs/welcome.js';
 import { ToolStack, pipelineIdle } from './ui/tool-stack.js';
 import {
-  pingWorker, runOnWorker, shippedSnapshot, patchWorkerToolForTest,
-  pipelineWorkerState, crashWorkerForTest, forceWorkerCrashForTest,
-  syncWorkerConfig, dumpWorkerCorpus, fetchWorkerRows, lastCompletedRunId,
+  pingWorker, runOnWorker, patchWorkerToolForTest,
+  pipelineWorkerState, crashWorkerForTest, forceWorkerCrashForTest, failNextWorkerBuildForTest,
+  syncWorkerConfig, dumpWorkerCorpus, queryWorkerEntry, fetchWorkerRows, fetchWorkerAllRows, lastCompletedRunId,
+  workerOwnsCorpus, sendEditEntry, sendDeleteEntry,
+  fetchWorkerProvenance, syncConfigsSent, allRowsFetchesSent, serializeFetchesSent,
 } from './ui/pipeline-worker.js';
-import { executePipeline } from './engine/executor.js';
+import { allSourcesHistogramLayout, shippedAllSourcesAxisVersion, shippedScopedLayoutScopeKey } from './data/derived.js';
 import {
   getEntriesScroller, setScope, renderSources, renderMergedDetail, refreshMergedScroller,
 } from './ui/rendering.js';
-import { setWindowedFlatForTest, windowedFlatDebug } from './ui/entries-table.js';
+import { windowedFlatDebug, workerSummariesDebug, existsInScopeDebug, existsInMergeDebug, popoverSeedDebug, popoverProvenanceDebug, rebindAnswersConsumedDebug, resetRebindAnswersConsumedForTest } from './ui/entries-table.js';
 import {
   addNewWordlist, applyWordlistText, bakeRescoring, saveEdit, deleteFromEdits, persistEdits,
   buildCopyText, buildWordlistText, buildCSVText, buildExportJSONObject, exportFilename, _ready,
 } from './app/actions.js';
+import { serializeEntries, sortedEntries } from './engine/serialize.js';
+
+// The active scope's wire label — MERGED_ID for the merged view, else the scoped
+// source's dbKey — matching what `run`/`queryEntry` send to the worker.
+function activeScopeLabel() {
+  return state.selected === MERGED_ID ? MERGED_ID : state.selected?.dbKey ?? MERGED_ID;
+}
+
+// A saveEdit seed from My Edits' own rawEntries (main keeps raw post-flip), in the
+// {norm, display, score, comment} shape saveEdit expects. Null when absent.
+function editsRawSeed(norm, display) {
+  const edits = getEditsWordlist();
+  const e = edits?.rawEntries.find(r =>
+    r.norm === norm && (display === undefined || displayOf(r) === display));
+  return e ? { norm: e.norm, display: e.display ?? null, score: e.score, comment: e.comment || '' } : null;
+}
 
 const __grawlixTest = {
   // Add a populated custom wordlist (no publisherId). Entries are auto-named
@@ -79,12 +96,26 @@ const __grawlixTest = {
 
   // Replace a wordlist's rescore rules via the proper helper. Rules are the
   // editor's shape: { input, length, output, note? }.
-  setRescoreRules(name, rules) {
+  async setRescoreRules(name, rules) {
     const wl = this._lookup(name);
     setWordlistRescoreRules(wl, rules);
+    await this.syncWorkerConfig();
   },
 
-  bakeRescoring(name) { return bakeRescoring(this._lookup(name)); },
+  async bakeRescoring(name) {
+    const r = await bakeRescoring(this._lookup(name));
+    await this.syncWorkerConfig();   // settle the worker resync (see setEnabled)
+    return r;
+  },
+
+  // Real setter, not a bare wl.enabled write, so the cacheVersion$ bump fires.
+  // The bump's worker resync is fire-and-forget; the seemingly-redundant await
+  // settles it (latest config wins via supersession) so a following getMergedEntry
+  // can't read the pre-toggle corpus. Dropping it reintroduces an intermittent flake.
+  async setEnabled(name, enabled) {
+    setWordlistEnabled(this._lookup(name), enabled);
+    await this.syncWorkerConfig();
+  },
 
   setUpdateAvailable(name, value) {
     const wl = this._lookup(name);
@@ -95,26 +126,28 @@ const __grawlixTest = {
 
   // Reorder state.sources so `name` lands at `beforeName`'s position (and
   // `beforeName` shifts down). Routes through `reorderSources` so caches
-  // invalidate the same way a drag does.
-  moveBefore(name, beforeName) {
+  // invalidate the same way a drag does. Awaits the worker resync (see setEnabled)
+  // so a following getMergedEntry can't read the pre-reorder corpus.
+  async moveBefore(name, beforeName) {
     const fromIdx = state.sources.findIndex(w => w.name === name);
     const toIdx   = state.sources.findIndex(w => w.name === beforeName);
     if (fromIdx < 0) throw new Error(`No wordlist named "${name}"`);
     if (toIdx   < 0) throw new Error(`No wordlist named "${beforeName}"`);
     reorderSources(fromIdx, toIdx);
+    await this.syncWorkerConfig();
   },
 
-  // Read-only snapshot of the active corpus (All Wordlists by default, the scoped source
-  // after setScope) for a single entry. The sourcing wordlist is user-
-  // observable via the row's popover and via the `.atom-source` column, but
-  // that column is hidden below a 960px viewport. Exposing it here lets merge-
-  // correctness tests assert regardless of viewport width and without driving
-  // the popover.
-  getMergedEntry(entry, display) {
-    const cache = getActiveCorpus();
-    const m = display !== undefined ? cache.byKey.get(mergeKey(toNorm(entry), display)) : cache.byNorm.get(toNorm(entry));
-    if (!m) return null;
-    return { entry: m.norm, display: m.display, score: m.score, comment: m.comment, wordlist: m.wordlist.name };
+  // Read-only worker query for a single entry in the active scope (All Wordlists
+  // by default, the scoped source after setScope). The sourcing wordlist is
+  // user-observable via the row's popover and the `.atom-source` column (hidden
+  // below 960px); exposing it here lets merge-correctness tests assert regardless
+  // of viewport without driving the popover. Async — the worker owns the corpus.
+  async getMergedEntry(entry, display) {
+    const e = await queryWorkerEntry(activeScopeLabel(), toNorm(entry), display);
+    if (!e) return null;
+    const [norm, disp, score, , comment, sourceId] = e;
+    const wl = state.sources.find(s => s.dbKey === sourceId);
+    return { entry: norm, display: disp, score, comment: comment || '', wordlist: wl?.name ?? null };
   },
 
   // Pass a source name to scope, or 'All Wordlists'/nothing for the merged view.
@@ -122,52 +155,36 @@ const __grawlixTest = {
     await setScope(!name || name === MERGED_NAME ? MERGED_ID : this._lookup(name));
   },
 
-  // Stable, comparable dump of the merged cache: entries as ordered tuples
-  // plus per-source counts (sorted by name so map-order noise can't fail a
-  // comparison). Tests diff the live surgically-patched cache against a forced
-  // full rebuild to prove the My Edits patch stays faithful.
-  dumpMergedCache() {
-    const c = buildMergedWordlist();
+  // Stable, comparable dump of the worker's merged corpus: entries as ordered
+  // tuples plus per-source counts (sorted by name). Post-flip the worker owns the
+  // merge, so an edit and a forced rebuild produce the same dump — the patch-
+  // faithfulness the old main-cache version proved is now intrinsic to the worker.
+  async dumpMergedCache() {
+    await pipelineIdle();
+    const { entries } = await dumpWorkerCorpus(MERGED_ID);
+    const byKey = new Map(state.sources.map(s => [s.dbKey, s.name]));
+    const counts = new Map();
+    for (const [, , , , , sourceId] of entries) {
+      counts.set(sourceId, (counts.get(sourceId) || 0) + 1);
+    }
     return {
-      entries: c.entries.map(e => [e.norm, e.display, e.score, e.comment, e.wordlist.name]),
-      counts: c.sourceCounts.map(s => [s.wordlist.name, s.count]).sort((a, b) => a[0].localeCompare(b[0])),
+      entries: entries.map(([norm, disp, score, , comment, sourceId]) =>
+        [norm, disp, score, comment || '', byKey.get(sourceId)]),
+      counts: [...counts].map(([sourceId, n]) => [byKey.get(sourceId), n]).sort((a, b) => a[0].localeCompare(b[0])),
     };
   },
-  rebuildMergedCache() {
+  async rebuildMergedCache() {
     invalidateSourceCounts();
+    await this.syncWorkerConfig();
     return this.dumpMergedCache();
   },
 
-  // Stamp the live cache object; a My Edits edit must preserve the stamp
-  // (in-place patch). A full rebuild — the regression we guard against —
-  // discards the object and the stamp with it.
-  markMergedCache(tag) { buildMergedWordlist()._testTag = tag; },
-  mergedCacheTag() { const c = peekMergedCache(); return c ? (c._testTag ?? null) : null; },
-
-  // Does the in-place-patched cache's byNorm for `norm` point at the same row a
-  // full buildByNorm rebuild would pick? The case-variant landmine: a divergent
-  // rule silently disagrees here, drifting the worker's reindex from main.
-  byNormMatchesRebuild(rawNorm) {
-    const norm = toNorm(rawNorm);
-    const cache = peekMergedCache();
-    if (!cache) return null;
-    const patched = cache.byNorm.get(norm);
-    const rebuilt = buildByNorm(cache.entries).get(norm);
-    return {
-      same: patched === rebuilt,
-      patchedDisplay: patched ? patched.display : null,
-      rebuiltDisplay: rebuilt ? rebuilt.display : null,
-    };
-  },
-
-  // Drive a My Edits upsert/rename through the real saveEdit path — the patch
-  // under test — without the popover DOM, so the cache-consistency test can
-  // apply many mutations without choreographing popovers across search changes.
-  // origRaw === raw upserts; differing raw renames (a two-norm move).
+  // Drive a My Edits upsert/rename through the real saveEdit path without the
+  // popover DOM. origRaw === raw upserts; differing raw renames (a two-norm move).
+  // Seeds orig from My Edits' own rawEntries (main keeps raw post-flip); a
+  // not-yet-present entry gets a blank-score orig so saveEdit treats it as an add.
   saveMyEdit(origRaw, raw, score, comment = '') {
-    // Mirror openForCreate: a not-yet-present entry seeds a blank-score orig so
-    // saveEdit treats it as a genuine add, not a no-op against an equal score.
-    const orig = getActiveCorpus().byNorm.get(toNorm(origRaw)) || buildUserWlEntry(origRaw, '', '');
+    const orig = editsRawSeed(toNorm(origRaw)) ?? buildUserWlEntry(origRaw, '', '');
     saveEdit(orig, { raw, score, comment });
     return refreshMergedScroller();
   },
@@ -176,26 +193,48 @@ const __grawlixTest = {
     if (m) deleteFromEdits({ norm: m.norm, display: displayOf(m) }, refreshMergedScroller);
   },
 
+  // Explicit-variant delete — targets one display of a multi-variant norm, like
+  // the worker's deleteEntry.
+  deleteMyEditFrom(target) {
+    deleteFromEdits(target, refreshMergedScroller);
+  },
+
+  // saveEdit with an EXPLICIT orig (norm, display) — what the popover does for a
+  // clicked row. orig === null is an add. Seeds from My Edits' rawEntries.
+  saveMyEditFrom(orig, raw, score, comment = '') {
+    const origWlEntry = orig
+      ? (editsRawSeed(orig.norm, orig.display) ?? { norm: orig.norm, display: orig.display, score: 0, comment: '' })
+      : buildUserWlEntry(raw, '', '');
+    saveEdit(origWlEntry, { raw, score, comment });
+    return refreshMergedScroller();
+  },
+
   pingWorker,
   patchWorkerToolForTest,
   pipelineWorkerState,
   crashWorkerForTest,
   forceWorkerCrashForTest,
+  failNextWorkerBuildForTest,
   syncWorkerConfig: (sources = state.sources) => syncWorkerConfig(sources),
   dumpWorkerCorpus: (scope) => dumpWorkerCorpus(scope),
   fetchWorkerRows: (start, end, runId, timeout) =>
     fetchWorkerRows(runId ?? lastCompletedRunId(), start, end, timeout),
+  sendWorkerEditEntry: (orig, next, timeout) => sendEditEntry(orig, next, timeout),
+  sendWorkerDeleteEntry: (target, timeout) => sendDeleteEntry(target, timeout),
+  syncConfigsSent,
+  allRowsFetchesSent,
+  serializeFetchesSent,
+  openWelcome: () => WelcomeDialog.open(),
+  fetchWorkerProvenance: (typedRaw, previewRaw, clickedNorm, clickedDisplay, timeout) =>
+    fetchWorkerProvenance(typedRaw, previewRaw, clickedNorm, clickedDisplay, timeout),
 
-  // buildMergedWordlist/buildScopedCorpus, not getActiveCorpus (which keys off
-  // state.selected), so the oracle dumps the requested scope even when it isn't
-  // the current selection. rawScore is left as-is — undefined for unrescored
-  // rows — to match the worker; coercing it would silently mask real drift.
-  dumpMainCorpus(scope) {
-    const corpus = scope === MERGED_ID
-      ? buildMergedWordlist()
-      : buildScopedCorpus(state.sources.find(s => s.dbKey === scope));
-    return corpus.entries.map(e =>
-      [e.norm, e.display, e.score, e.rawScore, e.comment, e.wordlist.dbKey]);
+  // Post-flip there's no main corpus, so the oracle dumps the worker's corpus for
+  // the requested scope. Kept as `dumpMainCorpus` so the specs comparing two dumps
+  // (worker self-build vs this) read unchanged; both now come from the worker.
+  async dumpMainCorpus(scope) {
+    await pipelineIdle();
+    const { entries } = await dumpWorkerCorpus(scope);
+    return entries;
   },
 
   // saveEdit fires persistEdits un-awaited, so the worker (which reads
@@ -207,20 +246,38 @@ const __grawlixTest = {
     return edits.dbKey;
   },
 
+  // The exact data_<dbKey> text persistEdits / the worker's write produces for My
+  // Edits, for the byte-identical-write oracle.
+  expectedEditsIdbText() {
+    const edits = getEditsWordlist();
+    return { dbKey: edits.dbKey, text: serializeEntries(sortedEntries(edits.rawEntries)) };
+  },
+
+  // Awaited like flushEditsToIdb: applyWordlistText's post-write worker re-sync
+  // (and IDB write) has settled by the time this resolves.
+  async reimport(name, text) {
+    const wl = this._lookup(name);
+    await applyWordlistText(wl, text, { source: name, silent: true });
+    await pipelineIdle();
+    return wl.dbKey;
+  },
+
+  // Runs a stack on the worker and returns its survivor norms. Post-flip there's
+  // no main corpus to compare against, so the caller asserts the worker norms
+  // against an expected set. A flat result holds only positions, so its norms come
+  // from the worker's own fetchAllRows.
   async workerMirrorsMain(stack) {
     await this.pipelineIdle();
-    const corpus = getActiveCorpus();
     const rows = stack.map(r => makeToolRow(r.tool, r.params || {}, !!r.grouped));
-
-    const ref = await executePipeline(corpus, rows, {});
-    const mainNorms = ref.rows.map(r => r.atoms[0].wlEntry.norm);
-
-    const result = await runOnWorker(corpus, rows);
-    const workerNorms = result.flat
-      ? [...result.indices].map(i => result.corpus.entries[i].norm)
-      : result.rows.map(r => r.atoms[0].wlEntry.norm);
-
-    return { mainNorms, workerNorms, snapshotId: shippedSnapshot().snapshotId };
+    const result = await runOnWorker(rows);
+    let workerNorms;
+    if (result.flat) {
+      const reply = await fetchWorkerAllRows(lastCompletedRunId());
+      workerNorms = reply ? reply.rows.map(r => r.norm) : [];
+    } else {
+      workerNorms = result.rows.map(r => r.atoms[0].wlEntry.norm);
+    }
+    return { workerNorms };
   },
 
   setUnigramCorpus: segmenterSetCorpus,
@@ -241,8 +298,24 @@ const __grawlixTest = {
   // interactions (which fire-and-forget the refresh) before reading the DOM.
   pipelineIdle() { return pipelineIdle(); },
 
-  setWindowedFlatForTest,
   windowedFlatDebug,
+  workerSummariesDebug,
+  existsInScopeDebug,
+  existsInMergeDebug,
+  popoverSeedDebug,
+  popoverProvenanceDebug,
+  rebindAnswersConsumedDebug,
+  resetRebindAnswersConsumedForTest,
+
+  workerOwnsCorpus,
+  allSourcesHistogramLayout: () => allSourcesHistogramLayout(),
+  shippedAllSourcesAxisVersion,
+  shippedScopedLayoutScopeKey,
+
+  // Flattened because getSourceCounts's wordlist refs don't survive the page boundary.
+  sourceCounts: () => getSourceCounts().map(s => ({ dbKey: s.wordlist.dbKey, name: s.wordlist.name, count: s.count })),
+  mergedEntryCount: () => mergedEntryCount(),
+  shippedConfigCountsVersion,
 
   // Resolves when the windowed-flat scroller has no fetchRows in flight. A
   // fetchRows isn't a pipeline run, so pipelineIdle can't see it.
@@ -332,7 +405,7 @@ const __grawlixTest = {
   async exportText(format) {
     await pipelineIdle();
     const scroller = getEntriesScroller();
-    const rows = scroller.exportRows();
+    const rows = await scroller.exportRows();
     const grouped = scroller.sortTier === 'group';
     const stack = ToolStack.getStack();
     if (format === 'copy')     return buildCopyText(rows, grouped, stack);
@@ -367,6 +440,7 @@ const __grawlixTest = {
       for (const [key, id] of [...MirrorSync._timers]) { clearTimeout(id); MirrorSync._timers.delete(key); await MirrorSync._flush(key); }
       if (EditsSync._writeTimer) { clearTimeout(EditsSync._writeTimer); EditsSync._writeTimer = null; await EditsSync._flushWrite(); }
     },
+    flushMerged() { return MirrorSync._flush(MERGED_ID); },
   },
 
   _lookup(name) {

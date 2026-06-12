@@ -12,12 +12,11 @@ import { bucketCounts, invalidateHistogramLayout } from '../engine/histogram.js'
 import { PARAM_HELP } from '../engine/tools.js';
 import { invalidatePreSearchCache } from '../engine/executor.js';
 import {
-  sources$, cacheVersion$, pipelineVersion$, bumpCacheVersion, state, getEditsWordlist,
+  sources$, cacheVersion$, pipelineVersion$, configSummary$, bumpCacheVersion, state, getEditsWordlist,
 } from '../data/state.js';
 import { lsSave } from '../data/storage.js';
 import {
-  getActiveCorpus, getSourceCounts, invalidateSourceCounts,
-  dropScopedCorpus, _mergedStatsKey,
+  getSourceCounts, invalidateSourceCounts, _mergedStatsKey,
 } from '../data/merge.js';
 import { scopedHistogramLayout } from '../data/derived.js';
 import { scoreColor } from '../model/score-display.js';
@@ -33,6 +32,7 @@ import { ToolStack, runPipeline } from './tool-stack.js';
 import { repositionAllHistogramRects } from './histogram-view.js';
 import { WordlistSelector } from './scope-selector.js';
 import { DiscoveryBanner } from './discovery-banner.js';
+import { sendWorkerScope, resyncWorkerConfig } from './pipeline-worker.js';
 
 let _refreshDerivedDisplays    = () => {};
 let _deleteFromEdits           = () => {};
@@ -96,6 +96,7 @@ let _renderEffectActive = false;
 let _firstRenderDone = false;
 let _pipelineEffectFirstRun = true;
 let _cosmeticEffectFirstRun = true;
+let _configSummaryEffectFirstRun = true;
 
 let _signalFirstPaint;
 export const firstPaint = new Promise(r => { _signalFirstPaint = r; });
@@ -118,6 +119,10 @@ export function setupRenderEffect() {
     // Cache change — refresh derived state in place rather than rebuilding
     // the panel and the scroller.
     refreshSourceCounts();        // rebuild caches before any UI reads them
+    // Every cacheVersion$ bump is a config change (rules/enable/order/import/…);
+    // re-sync so the worker's owned state can't go stale-but-fresh (silent row
+    // corruption, since the snapshot no longer clears freshness).
+    resyncWorkerConfig();
     renderSources();              // list/dialog with fresh meta
     WordlistSelector.refresh();   // add/remove/reorder/enable changes the list
     DiscoveryBanner.refresh();    // import can populate the scoped XWI source
@@ -158,6 +163,23 @@ export function setupRenderEffect() {
     renderSources();
     WordlistSelector.refresh();   // a renamed/re-iconed source restyles the rows
     if (entriesScroller) entriesScroller._render();
+  });
+
+  // The worker's per-config summaries (X-of-Y counts, merged total, badge axis)
+  // arrive AFTER the cacheVersion$ bump that re-synced — the cache branch above
+  // already painted with the stale shipped values, so this repaints the count
+  // displays once the fresh ones land. Separate from cacheVersion$ so it can't
+  // re-trigger the re-sync (an infinite loop).
+  effect(() => {
+    configSummary$.get();
+    if (_configSummaryEffectFirstRun) {
+      _configSummaryEffectFirstRun = false;
+      return;
+    }
+    renderSources();
+    _refreshDerivedDisplays();
+    WordlistSelector.refresh();
+    refreshStatsBarFromScroller();
   });
 }
 
@@ -201,7 +223,7 @@ function currentSort() {
 export async function refreshMergedScroller() {
   reconcileSort(ToolStack.getStack());
   if (!entriesScroller) return;
-  const result = await runPipeline(getActiveCorpus(), ToolStack.getStack(), currentSort());
+  const result = await runPipeline(ToolStack.getStack(), currentSort());
   if (result.aborted || !entriesScroller) return;
   entriesScroller.updateEntries(result, result.atomCount, chainSortTier(ToolStack.getStack()));
   ToolStack.refreshErrorMarks();
@@ -218,6 +240,9 @@ export async function setScope(target) {
   invalidateHistogramLayout();
   WordlistSelector.refresh();
   DiscoveryBanner.refresh();
+  // Before the scope's run: FIFO must put the worker's ownedCorpus rebuild ahead
+  // of that run's fetchRows, or rich rows enrich from the prior scope's corpus.
+  sendWorkerScope(target === MERGED_ID ? MERGED_ID : target?.dbKey ?? MERGED_ID);
   await renderMergedDetail();
 }
 
@@ -254,19 +279,33 @@ export function mountPanel(panel) {
 export function buildStatsBarHTML() {
   const scroller = entriesScroller;
   const statsEntries = scroller ? scroller._statsViewEntries() : [];
-  const histEntries = scroller ? scroller._histogramEntries() : getActiveCorpus().entries;
+  const histEntries = scroller ? scroller._histogramEntries() : [];
   const grouped = scroller ? scroller.sortTier === 'group' : false;
   const groupCount = grouped ? scroller.entries.length : null;
   const countValue = grouped
     ? (scroller ? scroller._visibleGroupChainCount() : 0)
     : (scroller ? scroller.entries.length : statsEntries.length);
-  const stats = computeStatsRaw(statsEntries);
   const layout = scopedHistogramLayout();
+
+  // Under a filter the worker's stats are usable only when the worker itself
+  // filtered (_workerFiltered) — a locally-filtered run (the transform/group tiers,
+  // which carry no _workerStats) ships none, so Min/Max recompute over the local set.
+  const stats = (scroller && scroller._workerStats
+      && (!scroller._scoreIntervals || scroller._workerFiltered))
+    ? scroller._workerStats
+    : computeStatsRaw(statsEntries);
 
   const isEmpty = !countValue;
   const dash = '—';
   const fmt = v => isEmpty ? dash : v;
-  const counts = bucketCounts(histEntries || [], layout);
+  // The worker's counts pair with the layout its run bucketed against; during a
+  // scope switch the live layout updates a frame before the next run re-stamps the
+  // counts, so a length mismatch means they're from different runs — recompute
+  // locally rather than index past the stale array.
+  const workerCounts = scroller?._workerHistogramCounts;
+  const counts = (workerCounts && workerCounts.length === layout.slots.length)
+    ? workerCounts
+    : bucketCounts(histEntries || [], layout);
   const scale = Math.max(...counts, 1);
   const barH = c => c === 0 ? 0 : Math.max(2, Math.round((c / scale) * 34));
 
@@ -404,7 +443,7 @@ export async function renderMergedDetail() {
     entriesScroller._onDeleteRow = entry => _deleteFromEdits(entry, refreshMergedScroller);
     _attachExternalEditHandlers(entriesScroller, refreshMergedScroller);
 
-    const result = await runPipeline(getActiveCorpus(), ToolStack.getStack(), currentSort());
+    const result = await runPipeline(ToolStack.getStack(), currentSort());
     if (result.aborted) return;
     entriesScroller.setEntries(result, result.atomCount, chainSortTier(ToolStack.getStack()));
     ToolStack.refreshErrorMarks();

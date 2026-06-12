@@ -1,0 +1,218 @@
+const { test, expect } = require('@playwright/test');
+const { stubPublisherFetches, gotoApp } = require('./helpers');
+
+// P9 oracle: when a new pipeline result lands while the edit popover is open, the
+// table RE-ANCHORS the popover to its entry's row (EntriesScroller.updateEntries →
+// AtomPopover.rebindEntry → scroller.findResultEntry / resultHasEntry). The worker
+// resolves the open popover's target against its owned corpus and ships the answer
+// ON the run's result (rebindQuery/rebindEntry/rebindExists), mirroring
+// existsInScope — including for an entry filtered OUT of the visible view (the
+// worker's full-corpus byKey→byNorm lookup re-anchors to it anyway).
+//
+// Non-vacuity hinges on rebindAnswersConsumedDebug() advancing — without it a
+// regression that silently stopped consuming the worker's answer would still pass.
+
+test.beforeEach(async ({ page }) => {
+  await stubPublisherFetches(page);
+});
+
+const sync = page => page.evaluate(() => window.__grawlixTest.syncWorkerConfig());
+const rebindConsumed = page =>
+  page.evaluate(() => window.__grawlixTest.rebindAnswersConsumedDebug());
+const resetRebindConsumed = page =>
+  page.evaluate(() => window.__grawlixTest.resetRebindAnswersConsumedForTest());
+
+// Alpha > Bravo by priority. CRANE is Alpha-only (high), EAGLE is Alpha-only (mid),
+// GRAPE Alpha-only (low). OVER is in both (Alpha wins). The score spread feeds the
+// score-range-filter case (filter EAGLE out of view but keep it in the full corpus).
+async function seedCorpus(page) {
+  await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
+    name: 'Alpha',
+    entries: ['CRANE', 'EAGLE', 'GRAPE', 'OVER'],
+    scores: [90, 50, 20, 70],
+    comments: ['big bird', 'raptor', 'fruit', 'finished'],
+  }));
+  await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
+    name: 'Bravo',
+    entries: ['OVER', 'BIRD'],
+    scores: [40, 30],
+  }));
+}
+
+// Drive the REAL search-bar input (not setStack, which recreates the scroller and
+// closes the popover). Typing here re-runs via refreshMergedScroller → updateEntries
+// → rebindEntry, the path that keeps the popover open and re-anchors it.
+async function setSearch(page, pattern) {
+  await page.locator('.search-bar input[data-key="pattern"]').fill(pattern);
+  await page.evaluate(() => window.__grawlixTest.pipelineIdle());
+  await page.evaluate(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))));
+}
+
+async function setScoreRange(page, range) {
+  await page.evaluate(r => {
+    const input = document.querySelector('#score-range-input');
+    input.value = r;
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+  }, range);
+  await page.evaluate(() => window.__grawlixTest.pipelineIdle());
+  await page.evaluate(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))));
+}
+
+async function openPopoverOnEntry(page, entryText, field = 'score') {
+  const row = page.locator('#vs-host .entry-row', {
+    has: page.locator('.atom-entry', { hasText: new RegExp(`^${entryText}$`) }),
+  }).first();
+  await expect(row).toBeVisible();
+  // A neutral click first clears any lingering capture-phase document listener and
+  // moves focus off the search input. Without it, a real (Playwright) mousedown
+  // after a prior open → search → Escape choreography intermittently fails to
+  // re-open the popover — a test-harness quirk, not the behavior under test.
+  await page.mouse.click(5, 5);
+  const cell = field === 'comment' ? '.atom-comment' : field === 'entry' ? '.atom-entry' : '.atom-score';
+  await row.locator(cell).click();
+  await expect(page.locator('#atom-popover')).toBeVisible();
+}
+
+async function closePopover(page) {
+  await page.keyboard.press('Escape');
+  await expect(page.locator('#atom-popover')).toBeHidden();
+}
+
+// Everything the re-bind must reproduce: the popover is visible, anchored to the
+// same norm (via the seed/inputs), with byte-identical fields, footer, provenance.
+function captureRebound(page) {
+  return page.evaluate(() => ({
+    visible: !document.querySelector('#atom-popover')?.hasAttribute('hidden'),
+    entry: document.querySelector('#atom-pop-entry')?.value ?? null,
+    score: document.querySelector('#atom-pop-score')?.value ?? null,
+    comment: document.querySelector('#atom-pop-comment')?.value ?? null,
+    foot: document.querySelector('#atom-popover .atom-pop-foot')?.innerHTML ?? '',
+    prov: document.querySelector('#atom-popover .atom-pop-prov-wrap')?.innerHTML ?? '',
+  }));
+}
+
+async function syncWorker(page) {
+  await sync(page);
+  await page.evaluate(() => window.__grawlixTest.pipelineIdle());
+}
+
+// ─── Case 1: entry still present after the re-run → re-binds to it ────────────
+test('re-binds to an entry still present after the re-run', async ({ page }) => {
+  await gotoApp(page);
+  await seedCorpus(page);
+  await syncWorker(page);
+
+  // Open on CRANE, then narrow the search to a pattern CRANE still matches ('R') —
+  // the result changes (rows drop) but CRANE survives, so the popover re-anchors.
+  await openPopoverOnEntry(page, 'CRANE');
+  await resetRebindConsumed(page);
+  await setSearch(page, 'R');
+  const reb = await captureRebound(page);
+  expect(reb.visible).toBe(true);
+  expect(reb.entry).toBe('CRANE');
+  expect(await rebindConsumed(page)).toBeGreaterThan(0);   // non-vacuous: worker path taken
+  await closePopover(page);
+});
+
+// ─── Case 2: filtered OUT of the visible view but present in the FULL corpus ──
+// This is the case the worker's byKey→byNorm FULL-corpus resolution exists for:
+// a score-range filter hides EAGLE from the rendered rows, yet the popover must
+// still re-anchor to it (full-corpus lookup), not fall to the !found path.
+test('re-binds to an entry filtered OUT of the visible view (full-corpus lookup)', async ({ page }) => {
+  await gotoApp(page);
+  await seedCorpus(page);
+  await syncWorker(page);
+
+  await openPopoverOnEntry(page, 'EAGLE');
+  await resetRebindConsumed(page);
+  // EAGLE scores 50; filter to 80+ so it leaves the visible view but stays in the
+  // full corpus. The re-bind's full-corpus lookup must still find it.
+  await setScoreRange(page, '80+');
+  const reb = await captureRebound(page);
+  expect(reb.visible).toBe(true);
+  expect(reb.entry).toBe('EAGLE');
+  expect(reb.score).toBe('50');
+  expect(await rebindConsumed(page)).toBeGreaterThan(0);
+  // Sanity: EAGLE is genuinely filtered out of the rendered rows.
+  await expect(page.locator('#vs-host .entry-row', {
+    has: page.locator('.atom-entry', { hasText: /^EAGLE$/ }),
+  })).toHaveCount(0);
+  await closePopover(page);
+  await setScoreRange(page, '');
+});
+
+// ─── Case 3: entry no longer present (the !found path) ────────────────────────
+// Non-pendingDelete !found: the popover stays as it was (no re-render). With a
+// score search that excludes the open entry from BOTH the view and the corpus, the
+// re-bind finds nothing; rebindEntry's non-pendingDelete branch leaves it be.
+test('entry no longer present after a re-run (the !found path) holds the popover', async ({ page }) => {
+  await gotoApp(page);
+  await seedCorpus(page);
+
+  // Scope to My Edits and add GULL there, so a re-run that drops GULL from the
+  // result (search that excludes it) leaves it genuinely absent from the merged
+  // result — the !found path. Captured via the popover staying put.
+  await page.evaluate(() => window.__grawlixTest.reimport('My Edits', ['GULL;60;seabird'].join('\n')));
+  await page.evaluate(() => window.__grawlixTest.flushEditsToIdb());
+  await syncWorker(page);
+
+  await openPopoverOnEntry(page, 'GULL');
+  // 'CRANE' literal search → GULL is not in the result at all; the popover holds.
+  await setSearch(page, 'CRANE');
+  const reb = await captureRebound(page);
+  expect(reb.visible).toBe(true);
+  expect(reb.entry).toBe('GULL');   // unchanged: !found left it in place
+  await closePopover(page);
+  await setSearch(page, '');
+});
+
+// ─── Case 3b: pendingDelete !found re-seeds blank inputs ──────────────────────
+// After Delete, rebindEntry's pendingDelete+!found branch re-renders blank score/
+// comment inputs for the same norm.
+test('pendingDelete + !found re-seeds blank inputs', async ({ page }) => {
+  await gotoApp(page);
+  await seedCorpus(page);
+  await page.evaluate(() => window.__grawlixTest.reimport('My Edits', ['GULL;60;seabird'].join('\n')));
+  await page.evaluate(() => window.__grawlixTest.flushEditsToIdb());
+  await syncWorker(page);
+
+  async function deleteAndCapture(page) {
+    await page.evaluate(() => window.__grawlixTest.setScope('My Edits'));
+    await page.evaluate(() => window.__grawlixTest.pipelineIdle());
+    await openPopoverOnEntry(page, 'GULL');
+    // Delete the entry via the real footer Delete button; the re-run that follows
+    // hits rebindEntry's pendingDelete + !found branch.
+    await page.locator('#atom-popover .atom-pop-delete').click();
+    await page.evaluate(() => window.__grawlixTest.pipelineIdle());
+    await page.evaluate(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))));
+    return captureRebound(page);
+  }
+
+  const reb = await deleteAndCapture(page);
+  expect(reb.visible).toBe(true);
+  expect(reb.entry).toBe('GULL');
+  expect(reb.score).toBe('');   // re-seeded blank
+  await closePopover(page);
+});
+
+// ─── Case 4: the editTarget/save path resolves the same target ────────────────
+// Open the popover, type a new score, save; the edit's TARGET (what currentPreview
+// /editTarget resolves off the worker) must land in the merged corpus.
+test('the editTarget/save path resolves the right target', async ({ page }) => {
+  await gotoApp(page);
+  await seedCorpus(page);
+  await page.evaluate(() => window.__grawlixTest.reimport('My Edits', ['GULL;60;seabird'].join('\n')));
+  await page.evaluate(() => window.__grawlixTest.flushEditsToIdb());
+  await syncWorker(page);
+
+  await openPopoverOnEntry(page, 'OVER', 'score');
+  await page.locator('#atom-pop-score').fill('15');
+  await page.locator('#atom-popover .atom-pop-save').click();
+  await page.evaluate(() => window.__grawlixTest.pipelineIdle());
+  await expect(page.locator('#atom-popover')).toBeHidden();
+
+  const merged = await page.evaluate(() => window.__grawlixTest.dumpMainCorpus('__merged__'));
+  const over = merged.find(e => e[0] === 'over');
+  expect(over).toBeTruthy();
+  expect(over[2]).toBe(15);
+});

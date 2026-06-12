@@ -1,13 +1,18 @@
 // ─── Pipeline worker host ── see docs/worker-protocol.md ─────────────────────
 
 import { MERGED_ID } from '../core/constants.js';
-import { unpackSnapshot, canonicalNormRow } from './snapshot.js';
+import { canonicalNormRow } from './snapshot.js';
 import { TOOLS, makeToolRow } from './tools.js';
 import { executePipeline, configureExecutorYield, invalidatePreSearchCache } from './executor.js';
 import { configureIO as configureSegmenterIO } from './segmenter.js';
-import { parseWordlist } from './norm.js';
-import { compileRescoreRules } from './rescore.js';
-import { buildCorpus } from './corpus.js';
+import { parseWordlist, toNorm, displayOf } from './norm.js';
+import { parseRange, matchesRange } from './range.js';
+import { compileRescoreRules, getRescoredEntries, getRescoredByNorm } from './rescore.js';
+import { buildCorpus, resolveEditSeedWinner, mergeKey, mergedNormLowerBound, computeMergedBucket } from './corpus.js';
+import { getHistogramLayout, invalidateHistogramLayout, bucketCounts } from './histogram.js';
+import { computeStatsRaw } from './stats.js';
+import { compileFlatHighlighters, materializeFlatRow } from './flat-highlight.js';
+import { serializeEntries, sortedEntries } from './serialize.js';
 
 // scheduler.yield() (the executor's default) starves the worker's run/cancel
 // message on Chromium and a microtask yield never delivers it — either silently
@@ -45,35 +50,55 @@ function idbGet(key) {
     req.onerror = () => resolve(null);
   }));
 }
+// Must write the SAME record Storage.writeWordlist would (key 'data_' + dbKey,
+// the serialized text): main skips its own My Edits write, so any divergence here
+// silently becomes the persisted My Edits truth, surfacing only on reload.
+async function idbPut(key, val) {
+  const db = await dataDb();
+  return new Promise(resolve => {
+    const tx = db.transaction(DATA_IDB_STORE, 'readwrite');
+    tx.objectStore(DATA_IDB_STORE).put(val, key);
+    tx.oncomplete = resolve;
+    tx.onerror = resolve;
+  });
+}
 // Mirrors storage.js's Storage.readWordlist: wordlist text is keyed 'data_' + dbKey.
 function readWordlistText(sourceId) {
   return idbGet('data_' + sourceId);
 }
-configureSegmenterIO({
-  idbGet,
-  async idbPut(key, val) {
-    const db = await dataDb();
-    return new Promise(resolve => {
-      const tx = db.transaction(DATA_IDB_STORE, 'readwrite');
-      tx.objectStore(DATA_IDB_STORE).put(val, key);
-      tx.oncomplete = resolve;
-      tx.onerror = resolve;
-    });
-  },
-  onSize: () => null,
-});
+configureSegmenterIO({ idbGet, idbPut, onSize: () => null });
 
 // ─── State ───────────────────────────────────────────────────────────────────
 
-let corpus = null;          // { entries, byNorm } from unpackSnapshot
-let entryToIndex = null;    // Map(entryObject → corpus index)
-let snapshotId = null;
 let latestRunId = -1;       // the supersession key; a `run`/`cancel` advances it
 let pending = null;
 let running = false;
-let lastFlatResult = null;  // { runId, indices, scores } retained to serve `fetchRows`
+let lastFlatResult = null;  // { runId, indices, scores, scope, highlighters } retained to serve `fetchRows`
 let lastUserStackSig = null;
+let lastRunCorpus = null;   // the corpus the live _preSearchCache was seeded from
 let selfConfig = null;
+let ownedBuilt = null;      // the retained per-source rich wordlists from the last syncConfig
+let ownedMerged = null;     // eager self-built MERGED corpus; feeds the config summaries regardless of active scope
+let ownedCorpus = null;     // eager self-built ACTIVE-scope corpus; the run-path corpus when fresh + scope-matched, else enrichment-only
+let ownedEntryToIndex = null; // Map(ownedCorpus.entries[i] → i); built ONCE per ownedCorpus rebuild (never per run — a 1M-entry rebuild per keystroke is the lag this effort removes) and kept strictly paired with ownedCorpus so the two can't desync
+let ownedScope = null;      // the scope `ownedCorpus` is built for; paired with ownedCorpusFresh to gate enrichment
+// Union of EVERY configured source's rescored scores (enabled AND disabled, not
+// deduped). Must be recomputed ONLY per syncConfig — never per run, never from
+// the enabled-only/deduped ownedCorpus — or main's badge colors silently shift
+// on a scope switch or keystroke, a regression no error surfaces.
+let ownedAllSourcesAxis = { mode: 'empty', slots: [], min: null, max: null };
+let ownedConfigVersion = 0;
+// Supersession key for syncConfig builds. A config change can fire two re-syncs
+// (the completeness hook before an import's IDB write, the post-write one after);
+// only the LATEST build may commit, or the premature build — which read stale IDB
+// text — could set ownedCorpus + fresh=true with stale data and corrupt rows.
+let latestSyncToken = 0;
+// A false positive (enriching from a mismatched ownedCorpus) silently corrupts
+// every rendered row; a false negative just falls back to index-only — so this
+// guard stays conservative. Because a snapshot no longer clears it, the paired
+// ownedScope (scope-equality at the fetch site) is load-bearing: without it a
+// scoped run could enrich from a merged ownedCorpus and ship wrong rows.
+let ownedCorpusFresh = false;
 
 // ─── Stack deserialization ───────────────────────────────────────────────────
 // makeToolRow seeds param defaults; the wire params then overwrite. Reversed,
@@ -120,7 +145,7 @@ async function drainRuns() {
   }
 }
 
-async function runOne({ runId, snapshotId: reqSnapshotId, stack: serialized, sort }) {
+async function runOne({ runId, stack: serialized, sort, scope, existsQuery, scoreRange, rebindQuery }) {
   const signal = makeSignalShim(runId);
   const stack = deserializeStack(serialized);
 
@@ -135,9 +160,18 @@ async function runOne({ runId, snapshotId: reqSnapshotId, stack: serialized, sor
     lastUserStackSig = userStackSig;
   }
 
+  // The pre-search cache's chains hold ownedCorpus.entries objects by reference. A
+  // rebuilt ownedCorpus (scope switch, config re-sync) leaves the user stack
+  // unchanged, so the userStackSig guard above can't catch it — yet the cached
+  // chains now point at the previous corpus's entries, silently mis-encoding rows.
+  if (ownedCorpus !== lastRunCorpus) {
+    invalidatePreSearchCache();
+    lastRunCorpus = ownedCorpus;
+  }
+
   let out;
   try {
-    out = await executePipeline(corpus, stack, signal);
+    out = await executePipeline(ownedCorpus, stack, signal);
   } catch (e) {
     if (isAbortError(e) || signal.aborted) return;
     postMessage({ type: 'error', runId, stackRowIndex: stackRowIndex(stack, e), message: e?.message || String(e) });
@@ -145,7 +179,7 @@ async function runOne({ runId, snapshotId: reqSnapshotId, stack: serialized, sor
   }
   if (signal.aborted) return;
 
-  postResult(runId, reqSnapshotId ?? snapshotId, out, sort);
+  postResult(runId, out, sort, scope, stack, existsQuery, scoreRange, rebindQuery);
 }
 
 function stackRowIndex(stack, e) {
@@ -158,64 +192,252 @@ function stackRowIndex(stack, e) {
 // same word; a rich row (glyph, distinct norms, or a synthetic) would silently
 // lose data through it, so any rich row forces the atom-sequence encoding for the
 // whole result.
-function postResult(runId, sid, { rows, atomCount, grouped }, sort) {
-  const base = { type: 'result', runId, snapshotId: sid, grouped, atomCount };
+function postResult(runId, { rows, atomCount, grouped }, sort, scope, stack, existsQuery, scoreRange, rebindQuery) {
+  const base = { type: 'result', runId, grouped, atomCount, ranAgainstOwned: true };
 
   if (grouped) {
     lastFlatResult = null;
-    postMessage({ ...base, payload: { groups: rows.map(encodeGroup) } });
+    postMessage({ ...base, payload: { groups: rows.map(g => encodeGroup(g)) } });
     return;
   }
   if (rows.some(rowIsRich)) {
     lastFlatResult = null;
-    postMessage({ ...base, payload: { chains: rows.map(encodeChain) } });
+    postMessage({ ...base, payload: { chains: rows.map(c => encodeChain(c)) } });
     return;
   }
 
   const n = rows.length;
-  const indices = new Int32Array(n);
-  for (let i = 0; i < n; i++) indices[i] = entryToIndex.get(rows[i].atoms[0].wlEntry);
+  let indices = new Int32Array(n);
+  for (let i = 0; i < n; i++) indices[i] = ownedEntryToIndex.get(rows[i].atoms[0].wlEntry);
 
-  sortFlatIndices(indices, sort);
+  sortFlatIndices(indices, sort, ownedCorpus);
 
-  const scores = new Int32Array(n);
-  let maxDisplayLen = 0, maxScore = 0, hasNeg = false;
-  for (let i = 0; i < n; i++) {
-    const e = corpus.entries[indices[i]];
-    scores[i] = e.score;
+  let scores = new Int32Array(n);
+  for (let i = 0; i < n; i++) scores[i] = ownedCorpus.entries[indices[i]].score;
+
+  // Must bucket BEFORE filtering below — the histogram stays the full
+  // distribution so out-of-range bars remain clickable. ownedAllSourcesAxis is
+  // the merged axis; a scoped run buckets against its own scoped layout instead,
+  // since the merged axis would mis-bin a scoped distribution.
+  let histogramCounts = null, histogramLayout = null;
+  if (scope === MERGED_ID) {
+    histogramCounts = bucketCounts(scores, ownedAllSourcesAxis);
+  } else {
+    histogramLayout = getHistogramLayout(ownedCorpus.entries, 'scoped:' + scope);
+    histogramCounts = bucketCounts(scores, histogramLayout);
+  }
+
+  const intervals = scoreRange ? parseRange(scoreRange) : null;
+  const doFilter = !!intervals;
+  if (doFilter) {
+    const idxOut = [], scoreOut = [];
+    for (let i = 0; i < n; i++) {
+      if (matchesRange(scores[i], intervals)) { idxOut.push(indices[i]); scoreOut.push(scores[i]); }
+    }
+    indices = Int32Array.from(idxOut);
+    scores = Int32Array.from(scoreOut);
+  }
+
+  const widthHints = computeWidthHints(indices, ownedCorpus);
+
+  // .slice() is load-bearing: the postMessage below transfers (detaches)
+  // indices/scores, so the worker must retain its own copies to serve fetchRows.
+  lastFlatResult = {
+    runId,
+    indices: indices.slice(),
+    scores: scores.slice(),
+    scope,
+    highlighters: compileFlatHighlighters(stack),
+  };
+
+  const stats = computeStatsRaw(scores);
+  // existsInScope answers "in the run's SCOPE"; existsInMerge always answers
+  // against the merge — main's two consumers split (the add-FAB seed checks
+  // scope, the empty-state checks merge), so shipping both reproduces main's
+  // pre-flip behavior exactly even on a scoped run.
+  const existsInScope = existsQuery ? ownedCorpus.byNorm.has(toNorm(existsQuery)) : null;
+  const existsInMerge = existsQuery && ownedMerged
+    ? ownedMerged.byNorm.has(toNorm(existsQuery)) : null;
+
+  // Resolve the open popover's re-anchor target the SAME way main's flat
+  // findResultEntry+resultHasEntry do: a FULL-corpus byKey→byNorm lookup that
+  // re-anchors even to an entry filtered OUT of the visible (range-filtered) view.
+  let rebindEntry = null, rebindExists = null;
+  if (rebindQuery) {
+    const { norm, display } = rebindQuery;
+    const row = ownedCorpus.byKey.get(mergeKey(norm, display)) ?? ownedCorpus.byNorm.get(norm) ?? null;
+    rebindEntry = row && {
+      norm, display: row.display ?? null, score: row.score, rawScore: row.rawScore,
+      comment: row.comment || '', sourceId: row.wordlist.dbKey,
+    };
+    rebindExists = ownedCorpus.byNorm.has(norm);
+  }
+
+  // Ship the first window's rich rows inline so main paints above-the-fold rows
+  // instantly instead of flashing skeletons until a fetchRows round-trip lands —
+  // the instant first paint the resident-corpus render gave pre-flip. Built from
+  // the just-set lastFlatResult; the scroller seeds _winCache from it.
+  const firstRows = buildFlatRows(0, Math.min(FIRST_WINDOW, indices.length));
+
+  postMessage(
+    { ...base, payload: { indices: indices.buffer, scores: scores.buffer, widthHints, stats, histogramCounts, histogramLayout, existsInScope, existsInMerge, rebindQuery: rebindQuery || null, rebindEntry, rebindExists, filtered: doFilter, firstRows } },
+    [indices.buffer, scores.buffer],
+  );
+}
+
+// The above-the-fold window shipped inline with every flat result. Generous
+// enough to cover a tall viewport plus the scroller's prefetch buffer, so the
+// first paint never shows a skeleton for a result that fits on screen.
+const FIRST_WINDOW = 60;
+
+function computeWidthHints(indices, runCorpus) {
+  let maxDisplayLen = 0, maxScore = 0, hasNeg = false, maxRawDigits = 0;
+  for (let i = 0; i < indices.length; i++) {
+    const e = runCorpus.entries[indices[i]];
     const dispLen = (e.display ?? e.norm).length;
     if (dispLen > maxDisplayLen) maxDisplayLen = dispLen;
     if (e.score < 0) hasNeg = true;
     const s = e.score < 0 ? -e.score : e.score;
     if (s > maxScore) maxScore = s;
+    // Shipped because main can't scan the full result for the rescore-preview
+    // arrow's raw-score width post-flip (no corpus); main applies it only when
+    // the preview is active.
+    if (e.rawScore != null && e.rawScore !== e.score) {
+      const d = String(e.rawScore).length;
+      if (d > maxRawDigits) maxRawDigits = d;
+    }
   }
-  const widthHints = {
+  return {
     maxDisplayLen,
     maxLenDigits: maxDisplayLen > 0 ? String(maxDisplayLen).length : 1,
     maxScoreDigits: String(maxScore).length + (hasNeg ? 1 : 0),
+    maxRawDigits,
   };
-
-  // .slice() is load-bearing: the postMessage below transfers (detaches)
-  // indices/scores, so the worker must retain its own copies to serve fetchRows.
-  lastFlatResult = { runId, indices: indices.slice(), scores: scores.slice() };
-
-  postMessage(
-    { ...base, payload: { indices: indices.buffer, scores: scores.buffer, widthHints } },
-    [indices.buffer, scores.buffer],
-  );
 }
 
 // ─── Windowed row fetch ── see docs/worker-protocol.md ───────────────────────
-function handleFetchRows({ requestId, runId, start, end }) {
-  // A fetch for a superseded/non-flat result: drop silently — main re-fetches
-  // against the current result. (Same supersession discipline as runs.)
-  if (!lastFlatResult || lastFlatResult.runId !== runId) return;
-  const { indices } = lastFlatResult;
-  const lo = Math.max(0, start | 0);
-  const hi = Math.min(indices.length, end | 0);
+// Shared by windowed `fetchRows` and unwindowed `fetchAllRows` so the two can't
+// diverge — export bytes would silently drift from the rendered table otherwise.
+// Always rich post-flip: main has no corpus to decode an index against, so a fetch
+// for a window whose ownedCorpus is no longer fresh+scope-matched is dropped
+// upstream (fetchResultFresh) rather than shipping un-decodable indices here.
+function buildFlatRows(lo, hi) {
+  const { indices, highlighters } = lastFlatResult;
   const rows = [];
-  for (let i = lo; i < hi; i++) rows.push({ i: indices[i] });
-  postMessage({ type: 'rows', requestId, runId, start: lo, rows });
+  for (let i = lo; i < hi; i++) {
+    const e = ownedCorpus.entries[indices[i]];
+    // Multiple stacked highlighting searches materialize one atom slot each (all
+    // the same word), so ship the full atom sequence — taking only atoms[0] would
+    // silently drop the extra highlight lines a 3-search row renders.
+    const atoms = materializeFlatRow(e, highlighters).atoms
+      .map(a => ({ highlights: a.highlights, glyph: a.glyph }));
+    rows.push({
+      norm: e.norm, display: e.display, score: e.score, rawScore: e.rawScore,
+      comment: e.comment, sourceId: e.wordlist.dbKey, atoms,
+    });
+  }
+  return rows;
+}
+
+// A fetch is serveable only against a still-fresh, scope-matched ownedCorpus —
+// lastFlatResult's indices name THAT corpus's entries. A scope/config change
+// between the run and the fetch makes them name the wrong (or no) rows, so drop
+// silently; main re-fetches on the next run rather than rendering garbage.
+function fetchResultFresh(runId) {
+  return !!lastFlatResult && lastFlatResult.runId === runId
+    && ownedCorpus && ownedCorpusFresh && ownedScope === lastFlatResult.scope;
+}
+
+function handleFetchRows({ requestId, runId, start, end }) {
+  if (!fetchResultFresh(runId)) return;
+  const lo = Math.max(0, start | 0);
+  const hi = Math.min(lastFlatResult.indices.length, end | 0);
+  postMessage({ type: 'rows', requestId, runId, start: lo, rows: buildFlatRows(lo, hi) });
+}
+
+// ─── Full-result row fetch (export) ── see docs/worker-protocol.md ───────────
+function handleFetchAllRows({ requestId, runId }) {
+  if (!fetchResultFresh(runId)) return;
+  postMessage({
+    type: 'allRows', requestId, runId,
+    rows: buildFlatRows(0, lastFlatResult.indices.length),
+  });
+}
+
+// ─── Edit-seed fetch ── see docs/worker-protocol.md ──────────────────────────
+// The seed is ALWAYS the merged winner, even from a scoped view, so it resolves
+// against ownedMerged, never ownedCorpus. ownedMerged carries no freshness flag
+// of its own; ownedCorpusFresh stands in because a syncConfig clears it
+// synchronously and only a committed syncConfig (which rebuilds ownedMerged) or an
+// edit command re-sets it — so fresh ⇒ ownedMerged is current. A stale seed
+// silently saves a wrong value, so this guard must not loosen. A miss replies null.
+function handleFetchEditSeed({ requestId, norm, display }) {
+  let winner = null;
+  if (ownedMerged && ownedCorpusFresh) {
+    const row = resolveEditSeedWinner(ownedMerged, norm, display ?? null);
+    if (row) {
+      winner = {
+        norm: row.norm, display: row.display ?? null,
+        score: row.score, comment: row.comment || '', sourceId: row.wordlist.dbKey,
+      };
+    }
+  }
+  postMessage({ type: 'editSeed', requestId, winner });
+}
+
+// ─── Provenance + preview fetch ── see docs/worker-protocol.md ────────────────
+// ownedCorpusFresh stands in for an ownedMerged/ownedBuilt freshness flag (cleared
+// synchronously by syncConfig, re-set by a committed syncConfig or an edit command
+// — same reasoning as handleFetchEditSeed); a stale answer silently renders the
+// wrong table. A miss → {preview:null,rows:null}; main keeps its last-good render.
+function handleFetchProvenance({ requestId, typedRaw, previewRaw, clickedNorm, clickedDisplay }) {
+  if (!(ownedMerged && ownedBuilt && ownedCorpusFresh)) {
+    postMessage({ type: 'provenance', requestId, preview: null, rows: null });
+    return;
+  }
+
+  // previewRaw is independent of typedRaw because the initial render needs the
+  // footer preview for the seed text while deriving provTarget from the clicked
+  // atom (typedRaw ''); collapsing them would mis-pick the open-time table.
+  const previewSrc = previewRaw ?? typedRaw;
+  const preview = previewSrc && previewSrc.trim()
+    ? (ownedMerged.byNorm.get(toNorm(previewSrc)) || null)
+    : null;
+
+  const provPreview = typedRaw && typedRaw.trim()
+    ? (ownedMerged.byNorm.get(toNorm(typedRaw)) || null)
+    : null;
+  const target = provPreview ?? (typedRaw && typedRaw.trim()
+    ? { norm: toNorm(typedRaw), display: null }
+    : { norm: clickedNorm, display: clickedDisplay ?? null });
+
+  const rows = [];
+  if (target.norm != null) {
+    const display = target.display;
+    for (const wl of ownedBuilt) {
+      const arr = getRescoredByNorm(wl).get(target.norm);
+      if (!arr) continue;
+      for (const e of arr) {
+        // Asymmetric on purpose: a bare (null-display) entry applies to every
+        // spelling of its norm. Collapsing to e.display === display silently drops
+        // the bare row's contribution — never tighten this.
+        const include = display == null || e.display === display || e.display == null;
+        if (include) {
+          rows.push({
+            sourceId: wl.dbKey,
+            enabled: wl.enabled !== false,
+            entry: { norm: e.norm, display: e.display ?? null, score: e.score, comment: e.comment || '' },
+          });
+        }
+      }
+    }
+  }
+
+  const previewOut = preview && {
+    norm: preview.norm, display: preview.display ?? null,
+    score: preview.score, comment: preview.comment || '', sourceId: preview.wordlist.dbKey,
+  };
+  postMessage({ type: 'provenance', requestId, preview: previewOut ?? null, rows });
 }
 
 // Native (norm.localeCompare) order ties differently from the `entry` axis,
@@ -239,10 +461,10 @@ function cmpVal(a, b) {
   if (typeof a === 'number' && typeof b === 'number') return a - b;
   return String(a).localeCompare(String(b));
 }
-function sortFlatIndices(indices, sort) {
+function sortFlatIndices(indices, sort, runCorpus) {
   const axis = FLAT_SORT_AXES[sort?.key] || FLAT_SORT_AXES.entry;
   const primaryDir = sort?.dir === 'desc' ? -1 : 1;
-  const entries = corpus.entries;
+  const entries = runCorpus.entries;
   const arr = Array.from(indices);
   arr.sort((ia, ib) => {
     const a = entries[ia], b = entries[ib];
@@ -257,11 +479,21 @@ function sortFlatIndices(indices, sort) {
   indices.set(arr);
 }
 
+// The rich field set must stay identical to buildFlatRows' — a grouped/transform
+// atom and a flat row of the same entry both feed one render path, so a divergence
+// here silently renders the two tiers differently (e.g. a dropped rawScore/comment)
+// with no error to catch it.
 function encodeAtom(atom) {
   const { wlEntry, highlights, glyph } = atom;
-  const out = entryToIndex.has(wlEntry)
-    ? { i: entryToIndex.get(wlEntry) }
-    : { s: { norm: wlEntry.norm, display: wlEntry.display, score: wlEntry.score } };
+  let out;
+  if (wlEntry.wordlist == null) {
+    out = { s: { norm: wlEntry.norm, display: wlEntry.display, score: wlEntry.score } };
+  } else {
+    out = {
+      norm: wlEntry.norm, display: wlEntry.display, score: wlEntry.score,
+      rawScore: wlEntry.rawScore, comment: wlEntry.comment, sourceId: wlEntry.wordlist.dbKey,
+    };
+  }
   if (highlights != null) out.h = highlights;
   if (glyph != null) out.g = glyph;
   return out;
@@ -285,73 +517,306 @@ function encodeGroup(g) {
 function rowIsRich(row) {
   const first = row.atoms[0].wlEntry;
   return row.atoms.some(a =>
-    a.glyph != null || a.wlEntry !== first || !entryToIndex.has(a.wlEntry));
+    a.glyph != null || a.wlEntry !== first || a.wlEntry.wordlist == null);
 }
 
-// ─── My Edits patch ── see docs/worker-protocol.md ───────────────────────────
-// Mirrors data/merge.js's patchMergedForNorms splice. MUST search in main's
-// `norm.localeCompare` order, or the splice lands at the wrong index and silently
-// corrupts the corpus.
-function normLowerBound(entries, norm) {
-  let lo = 0, hi = entries.length;
-  while (lo < hi) {
-    const mid = (lo + hi) >> 1;
-    if (entries[mid].norm.localeCompare(norm) < 0) lo = mid + 1;
-    else hi = mid;
+// ─── My Edits in-place edit/add ── see docs/worker-protocol.md ───────────────
+
+function editsWordlist() {
+  return ownedBuilt?.find(wl => wl.type === 'edits') ?? null;
+}
+
+function invalidateRescoredCacheFor(wl) {
+  wl._rescored = null;
+  wl._rescoredMap = null;
+  wl._rescoredByNorm = null;
+}
+
+// The scoped (single-source) bucket recompute. Unlike computeMergedBucket it
+// ignores enabled (a scoped corpus shows its source regardless) and carries
+// `rawScore` — the scoped corpus keeps rawScore for the rescore-preview arrow, so
+// omitting it would silently diverge on rescored norms.
+function recomputeScopedBucket(norm, source) {
+  const arr = getRescoredByNorm(source).get(norm) || [];
+  const displays = new Set();
+  for (const e of arr) if (e.display != null) displays.add(e.display);
+  const rows = [];
+  const winners = [];
+  const variants = displays.size > 0 ? [...displays].sort() : [null];
+  for (const variant of variants) {
+    const eligible = c => c.display === variant || c.display === null;
+    const winner = arr.find(eligible);
+    if (!winner) continue;
+    const commenter = arr.find(c => eligible(c) && c.comment) ?? winner;
+    rows.push({ norm, display: variant, score: winner.score, rawScore: winner.rawScore, comment: commenter.comment || '', wordlist: source });
+    winners.push(source);
   }
-  return lo;
+  rows.sort((a, b) => (a.display ?? '').localeCompare(b.display ?? ''));
+  return { rows, winners };
 }
 
-function applyPatch(data) {
-  // No base, or this patch doesn't sit directly atop the snapshot it was built on
-  // (id != next): applying it would corrupt the corpus — drop it, a later reship
-  // recovers.
-  if (!corpus || data.snapshotId !== snapshotId + 1) return;
-
-  const { entries, byNorm } = corpus;
-  const chains = corpus._initialChains;
-  for (const { norm, rows } of data.norms) {
-    const lo = normLowerBound(entries, norm);
+// In-place per-norm splice of an owned corpus: entries/byKey/byNorm/_initialChains
+// all take the same splice or they silently desync, and sourceCounts shifts by
+// the winner delta. bucketFn recomputes one norm's resolved rows.
+function spliceOwnedCorpus(cache, affectedNorms, bucketFn) {
+  const { entries, byNorm, byKey, sourceCounts } = cache;
+  const chains = cache._initialChains;
+  const patched = [];
+  const countDelta = new Map();
+  for (const norm of affectedNorms) {
+    const lo = mergedNormLowerBound(entries, norm);
     let hi = lo;
     while (hi < entries.length && entries[hi].norm === norm) hi++;
+    // Per-row, not per distinct wordlist: a multi-variant norm one source wins
+    // several times contributes one merged entry PER variant, and `winners`
+    // (below) is likewise one per row — a Set here would undercount the decrement
+    // and drift sourceCounts from main's by the duplicate-winner count.
+    for (let i = lo; i < hi; i++) {
+      const wl = entries[i].wordlist;
+      countDelta.set(wl, (countDelta.get(wl) || 0) - 1);
+      byKey.delete(mergeKey(norm, entries[i].display));
+    }
 
-    const newRows = rows.map(r => ({ norm: r.norm, display: r.display, score: r.score }));
-    entries.splice(lo, hi - lo, ...newRows);
-    if (chains) chains.splice(lo, hi - lo, ...newRows.map(r => ({ atoms: [{ wlEntry: r, highlights: null, glyph: null }] })));
-    if (newRows.length) byNorm.set(norm, canonicalNormRow(newRows)); else byNorm.delete(norm);
+    const { rows, winners } = bucketFn(norm);
+    entries.splice(lo, hi - lo, ...rows);
+    if (chains) chains.splice(lo, hi - lo, ...rows.map(r => ({ atoms: [{ wlEntry: r, highlights: null, glyph: null }] })));
+    for (const r of rows) byKey.set(mergeKey(norm, r.display), r);
+    if (rows.length) byNorm.set(norm, canonicalNormRow(rows)); else byNorm.delete(norm);
+
+    patched.push({ norm, rows: rows.map(r => ({ norm: r.norm, display: r.display, score: r.score })) });
+
+    for (const wl of winners) countDelta.set(wl, (countDelta.get(wl) || 0) + 1);
+  }
+  for (const [wl, d] of countDelta) {
+    if (!d) continue;
+    const sc = sourceCounts.find(s => s.wordlist === wl);
+    if (sc) sc.count += d;
+    else sourceCounts.push({ wordlist: wl, count: d });
+  }
+  return patched;
+}
+
+// Must mirror actions.js's saveEdit mutation exactly (orig:null → add, else
+// edit/move) or the worker's My Edits diverges from main's with no error.
+function mutateEditsRawEntries(edits, orig, next) {
+  const entryChanged = next.norm !== orig?.norm || next.display !== orig?.display;
+  if (orig && entryChanged) {
+    const idx = edits.rawEntries.findIndex(e => e.norm === orig.norm && displayOf(e) === orig.display);
+    if (idx >= 0) edits.rawEntries.splice(idx, 1);
+  }
+  const existing = edits.rawEntries.find(e => e.norm === next.norm && displayOf(e) === next.display);
+  if (existing) {
+    existing.score = next.score;
+    existing.comment = next.comment;
+  } else {
+    edits.rawEntries.push({ norm: next.norm, display: next.display, score: next.score, comment: next.comment });
+  }
+}
+
+function leanRowFor(norm, display) {
+  if (!(ownedMerged && ownedMerged.byKey)) return null;
+  const row = ownedMerged.byKey.get(mergeKey(norm, display));
+  if (!row) return null;
+  const out = {
+    norm: row.norm, display: row.display ?? null, score: row.score,
+    rawScore: row.rawScore, comment: row.comment || '', sourceId: row.wordlist.dbKey,
+  };
+  // Only when ownedEntryToIndex indexes ownedMerged (MERGED scope); a scoped
+  // ownedCorpus would yield the wrong (scoped) position, so omit it there.
+  if (ownedCorpus === ownedMerged) out.index = ownedEntryToIndex.get(row);
+  return out;
+}
+
+function applyOwnedEdit(edits, affectedNorms, edited) {
+  // computeMergedBucket (not the rawScore-carrying scoped variant): the merged
+  // corpus drops rawScore on every entry (a full buildCorpus merge would too), so
+  // the in-place splice must drop it to stay byte-identical to a rebuild.
+  const mergedPatched = spliceOwnedCorpus(ownedMerged, affectedNorms, norm => computeMergedBucket(norm, ownedBuilt));
+
+  // For MERGED scope ownedCorpus === ownedMerged (spliced above). Scoped to My
+  // Edits it's a distinct single-source build — diverge from that and the scoped
+  // view drifts from main's with no error.
+  if (ownedScope === edits.dbKey && ownedCorpus !== ownedMerged) {
+    spliceOwnedCorpus(ownedCorpus, affectedNorms, norm => recomputeScopedBucket(norm, edits));
   }
 
-  // A count-changing splice shifts every later index, so reindexing incrementally
-  // would silently misindex — full rebuild, still far cheaper than a reship.
-  entryToIndex = new Map();
-  for (let i = 0; i < entries.length; i++) entryToIndex.set(entries[i], i);
+  // A count-changing splice shifts every later index, so reindex fully (mirrors
+  // setOwnedCorpus — an incremental reindex silently misindexes).
+  ownedEntryToIndex = new Map();
+  for (let i = 0; i < ownedCorpus.entries.length; i++) ownedEntryToIndex.set(ownedCorpus.entries[i], i);
+  // The pre-search cache's chains hold ownedCorpus.entries by reference; the
+  // splice replaced those objects, so stale chains would misindex on the next run.
   invalidatePreSearchCache();
-  snapshotId = data.snapshotId;
+
+  // The in-place splice leaves the owned corpus current, so (re)assert freshness:
+  // a concurrent stale syncConfig build that started before this edit must not be
+  // the one that wins — the latestSyncToken bumps in the handlers guard that.
+  ownedCorpusFresh = true;
+
+  // editEntry/deleteEntry skip the resync that recomputed these, so a stale
+  // axis/counts would silently outlive the edit unless refreshed here.
+  ownedConfigVersion++;
+  ownedAllSourcesAxis = computeAllSourcesAxis(ownedBuilt);
+  const counts = {
+    sourceCounts: ownedMerged.sourceCounts.map(s => ({ sourceId: s.wordlist.dbKey, count: s.count })),
+    mergedCount: ownedMerged.entries.length,
+    version: ownedConfigVersion,
+  };
+
+  return { norms: mergedPatched, edited, axis: ownedAllSourcesAxis, counts };
+}
+
+// The worker owns the My Edits IDB write (main holds no rawEntries to serialize
+// post-flip). Callers post the ack BEFORE awaiting this so ack consumption isn't
+// gated on disk I/O.
+async function persistEditsCorpus(edits) {
+  await idbPut('data_' + edits.dbKey, serializeEntries(sortedEntries(edits.rawEntries)));
+}
+
+function ownedCorpusReady(edits) {
+  return !!(edits && ownedMerged && ownedCorpus);
+}
+
+async function handleEditEntry(data) {
+  const { editId, orig, next } = data;
+  // Bump at the TOP so an older in-flight syncConfig build (started before this
+  // edit, reading pre-edit rawEntries) discards via its commit guard rather than
+  // overwriting the edit with stale data — half of the P6d edit-race harden.
+  latestSyncToken++;
+  const edits = editsWordlist();
+  // Reply even when there's nothing to splice, else the bridge's await hangs.
+  if (!ownedCorpusReady(edits)) {
+    postMessage({ type: 'editAck', editId, norms: [], edited: null, axis: ownedAllSourcesAxis, counts: null });
+    return;
+  }
+
+  mutateEditsRawEntries(edits, orig ?? null, next);
+  invalidateRescoredCacheFor(edits);
+
+  const affected = [...new Set([orig?.norm, next.norm].filter(n => n != null))];
+  const ack = applyOwnedEdit(edits, affected, leanRowFor(next.norm, next.display));
+  postMessage({ type: 'editAck', editId, ...ack });
+  await persistEditsCorpus(edits);
+  // Bump AGAIN after the IDB write so a syncConfig that read the pre-write text
+  // (started between the ack and the write landing) discards too — the second
+  // half of the edit-race harden.
+  latestSyncToken++;
+}
+
+async function handleDeleteEntry(data) {
+  const { editId, norm, display } = data;
+  latestSyncToken++;
+  const edits = editsWordlist();
+  if (!ownedCorpusReady(edits)) {
+    postMessage({ type: 'editAck', editId, norms: [], edited: null, axis: ownedAllSourcesAxis, counts: null });
+    return;
+  }
+
+  // Re-derive the index against the worker's OWN rawEntries — a caller-supplied
+  // array index would misindex (the worker owns its rawEntries order).
+  const idx = edits.rawEntries.findIndex(e => e.norm === norm && displayOf(e) === display);
+  if (idx === -1) {
+    postMessage({ type: 'editAck', editId, norms: [], edited: null, axis: ownedAllSourcesAxis, counts: null });
+    return;
+  }
+  edits.rawEntries.splice(idx, 1);
+  invalidateRescoredCacheFor(edits);
+
+  const ack = applyOwnedEdit(edits, [norm], null);
+  postMessage({ type: 'editAck', editId, ...ack });
+  await persistEditsCorpus(edits);
+  latestSyncToken++;   // post-write bump — see handleEditEntry
 }
 
 // ─── Self-build (test oracle) ── see docs/worker-protocol.md ─────────────────
 
-async function buildSelfCorpus(scope) {
+// Test-only: forces the NEXT syncConfig build to throw, so the suite can exercise
+// the build-failure selfReady (built:false → the client settles the deferred run
+// errored, no-hang settle path 4) without corrupting IDB.
+let _failNextBuild = false;
+
+async function buildAllSourcesWordlists() {
+  if (_failNextBuild) { _failNextBuild = false; throw new Error('forced build failure'); }
   const built = [];
-  for (const { sourceId, enabled, rescoreRules } of selfConfig.sources) {
+  for (const { sourceId, enabled, type, rescoreRules } of selfConfig.sources) {
     const text = await readWordlistText(sourceId);
     const rawEntries = text ? parseWordlist(text) : [];
-    const wl = { dbKey: sourceId, enabled, rescoreRules, rawEntries };
+    const wl = { dbKey: sourceId, enabled, type: type ?? null, rescoreRules, rawEntries };
     compileRescoreRules(wl);
     built.push(wl);
   }
-  // A scoped build takes the single matching source regardless of enabled,
-  // mirroring main's buildScopedCorpus — diverging on the enabled handling here
-  // would silently desync the worker's view from main's.
+  return built;
+}
+
+function buildScopeCorpus(built, scope) {
+  // A scoped build takes the single matching source regardless of enabled (a
+  // scoped view shows its source even when disabled); the merged build filters to
+  // enabled. Diverging on the enabled handling silently corrupts the scope's view.
   const list = scope === MERGED_ID
     ? built.filter(w => w.enabled)
     : built.filter(w => w.dbKey === scope);
   return buildCorpus(list);
 }
 
+async function buildSelfCorpus(scope) {
+  return buildScopeCorpus(await buildAllSourcesWordlists(), scope);
+}
+
+// ownedEntryToIndex is built here, once per rebuild, NOT per run: a per-run O(n)
+// rebuild over a 1M-entry corpus reintroduces the keystroke lag this whole effort
+// removes. The pairing with ownedCorpus must stay total — desync silently indexes
+// one corpus into the other and corrupts every rendered row.
+function setOwnedCorpus(corpus, scope) {
+  ownedCorpus = corpus;
+  ownedEntryToIndex = new Map();
+  for (let i = 0; i < corpus.entries.length; i++) ownedEntryToIndex.set(corpus.entries[i], i);
+  ownedScope = scope;
+  ownedCorpusFresh = true;
+}
+
+function clearOwnedCorpus() {
+  ownedCorpus = null;
+  ownedEntryToIndex = null;
+  ownedCorpusFresh = false;
+}
+
+// The cache key 'all' is reused across syncConfigs and the worker uses the
+// histogram cache for nothing else, so a stale prior axis would be returned for
+// changed scores — clear before computing.
+function computeAllSourcesAxis(built) {
+  invalidateHistogramLayout();
+  return getHistogramLayout(allSourcesScores(built), 'all');
+}
+
+function* allSourcesScores(built) {
+  for (const wl of built) yield* getRescoredEntries(wl);
+}
+
+function corpusForScope(scope) {
+  if (scope === MERGED_ID && ownedMerged) return Promise.resolve(ownedMerged);
+  // Reflect the live (in-place-spliced) owned corpus for the active scope, so an
+  // editEntry splice is observable; a stale build-from-IDB would mask it.
+  if (ownedCorpusFresh && ownedScope === scope && ownedCorpus) return Promise.resolve(ownedCorpus);
+  return buildSelfCorpus(scope);
+}
+
+// Test-only single-entry lookup against a scope's owned corpus.
+async function handleQueryEntry({ requestId, scope, norm, display }) {
+  try {
+    const corpus = await corpusForScope(scope);
+    const e = display !== undefined
+      ? corpus.byKey.get(mergeKey(norm, display))
+      : corpus.byNorm.get(norm);
+    const entry = e ? [e.norm, e.display, e.score, e.rawScore, e.comment, e.wordlist.dbKey] : null;
+    postMessage({ type: 'entry', requestId, entry });
+  } catch {
+    postMessage({ type: 'entry', requestId, entry: null });
+  }
+}
+
 async function dumpCorpus(scope) {
   try {
-    const corpus = await buildSelfCorpus(scope);
+    const corpus = await corpusForScope(scope);
     const entries = corpus.entries.map(e =>
       [e.norm, e.display, e.score, e.rawScore, e.comment, e.wordlist.dbKey]);
     postMessage({ type: 'corpusDump', scope, entries });
@@ -360,24 +825,26 @@ async function dumpCorpus(scope) {
   }
 }
 
+// ─── Merged-corpus serialize ── see docs/worker-protocol.md ──────────────────
+// The `sort` flag reproduces two distinct call sites: the merged download is
+// UNSORTED, the disk mirror SORTED. Unifying them silently diverges one path's
+// bytes with nothing to flag it.
+function handleSerializeFor({ requestId, scope, format, sort }) {
+  if (scope !== MERGED_ID || !(ownedMerged && ownedCorpusFresh)) {
+    postMessage({ type: 'serialized', requestId, text: null });
+    return;
+  }
+  const entries = sort ? sortedEntries(ownedMerged.entries) : ownedMerged.entries;
+  const text = serializeEntries(entries, format);
+  postMessage({ type: 'serialized', requestId, text });
+}
+
 // ─── Message dispatch ────────────────────────────────────────────────────────
 
 onmessage = ({ data }) => {
   switch (data?.type) {
     case 'ping':
       postMessage({ type: 'pong' });
-      break;
-
-    case 'snapshot':
-      corpus = unpackSnapshot(data);
-      entryToIndex = new Map();
-      for (let i = 0; i < corpus.entries.length; i++) entryToIndex.set(corpus.entries[i], i);
-      snapshotId = data.snapshotId;
-      invalidatePreSearchCache();
-      break;
-
-    case 'patch':
-      applyPatch(data);
       break;
 
     case 'run':
@@ -391,17 +858,100 @@ onmessage = ({ data }) => {
       pending = null;
       break;
 
+    case 'setScope':
+      if (ownedBuilt) {
+        const scopeCorpus = (data.scope == null || data.scope === MERGED_ID)
+          ? ownedMerged
+          : buildScopeCorpus(ownedBuilt, data.scope);
+        setOwnedCorpus(scopeCorpus, data.scope ?? MERGED_ID);
+      }
+      break;
+
     case 'fetchRows':
       handleFetchRows(data);
       break;
 
-    case 'syncConfig':
-      selfConfig = data;
-      postMessage({ type: 'selfReady', count: data.sources.length });
+    case 'fetchAllRows':
+      handleFetchAllRows(data);
       break;
+
+    case 'fetchEditSeed':
+      handleFetchEditSeed(data);
+      break;
+
+    case 'fetchProvenance':
+      handleFetchProvenance(data);
+      break;
+
+    case 'editEntry':
+      handleEditEntry(data);
+      break;
+
+    case 'deleteEntry':
+      handleDeleteEntry(data);
+      break;
+
+    case 'syncConfig': {
+      selfConfig = data;
+      // A newer syncConfig started while this one's async build was in flight —
+      // discard the older build (it read stale IDB text); only the latest commits.
+      const myToken = ++latestSyncToken;
+      // Fall back synchronously until the async (IDB-reading) rebuild settles, so
+      // a config change can't serve a stale ownedCorpus in the gap.
+      ownedCorpusFresh = false;
+      buildAllSourcesWordlists()
+        .then(built => {
+          if (myToken !== latestSyncToken) return;
+          ownedConfigVersion++;
+          ownedBuilt = built;
+          ownedAllSourcesAxis = computeAllSourcesAxis(built);
+          // ownedMerged is held separately from the active-scope ownedCorpus
+          // because the config summaries must stay MERGED even on a sync while a
+          // scoped view is selected — deriving them from ownedCorpus instead would
+          // silently ship the scoped source's counts as the merge's.
+          ownedMerged = buildScopeCorpus(built, MERGED_ID);
+          const scopeCorpus = (data.scope == null || data.scope === MERGED_ID)
+            ? ownedMerged
+            : buildScopeCorpus(built, data.scope);
+          setOwnedCorpus(scopeCorpus, data.scope ?? MERGED_ID);
+        })
+        .catch(() => {
+          if (myToken !== latestSyncToken) return;
+          ownedBuilt = null; ownedMerged = null; clearOwnedCorpus();
+        })
+        // Reply even on build failure, else the bridge's `await selfReady` hangs
+        // to its timeout; the error surfaces later via dumpCorpus. configId echoes
+        // the request so each concurrent syncConfig's listener awaits its OWN reply
+        // — without it a superseded build's stale-version reply can satisfy (and
+        // unregister) the listener waiting on the committed build, so the committed
+        // build's reply arrives unheard and the shipped axis silently stays stale.
+        // `built` is the deferred-run drain gate on the client: true ⇒ a usable
+        // owned corpus committed for THIS scope, so a deferred run can dispatch;
+        // false (build failed / superseded by a different scope) ⇒ the client
+        // settles the deferred run errored rather than waiting forever (the hang
+        // trap). Reads the committed state at settle, not this build's own outcome.
+        .finally(() => postMessage({
+          type: 'selfReady', configId: data.configId, count: data.sources.length,
+          built: ownedCorpusFresh && ownedScope === (data.scope ?? MERGED_ID),
+          axis: ownedAllSourcesAxis, version: ownedConfigVersion,
+          sourceCounts: ownedMerged
+            ? ownedMerged.sourceCounts.map(s => ({ sourceId: s.wordlist.dbKey, count: s.count }))
+            : null,
+          mergedCount: ownedMerged ? ownedMerged.entries.length : null,
+        }));
+      break;
+    }
 
     case 'dumpCorpus':
       dumpCorpus(data.scope);
+      break;
+
+    case 'queryEntry':
+      handleQueryEntry(data);
+      break;
+
+    case 'serializeFor':
+      handleSerializeFor(data);
       break;
 
     // Test-only: the suite breaks a tool to exercise the error path, but the
@@ -415,6 +965,10 @@ onmessage = ({ data }) => {
     // `error` event, the real crash signal the client's fallback path keys on.
     case '__testCrash':
       throw new Error('forced worker crash');
+
+    case '__testFailNextBuild':
+      _failNextBuild = true;
+      break;
   }
 };
 

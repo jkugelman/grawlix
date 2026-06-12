@@ -57,9 +57,9 @@ export function mergeKey(norm, display) {
   return norm + '\0' + (display ?? '');
 }
 
-// Must reproduce buildMergedWordlist's per-bucket logic exactly — including
-// deduping winners by contributor, not wordlist — or the merged cache drifts
-// silently on the next edit.
+// Must reproduce buildCorpus's per-bucket logic exactly — including deduping
+// winners by contributor, not wordlist — or the worker's in-place owned-corpus
+// splice (which calls this per affected norm) drifts from a full rebuild.
 export function computeMergedBucket(norm, sources) {
   const contributors = [];
   const displays = new Set();
@@ -105,4 +105,20 @@ export function mergedRowsForNorm(merged, norm) {
     rows.push(entries[i]);
   }
   return rows;
+}
+
+// Shared by main (resolveSeed) and the worker (fetchEditSeed); never inline this
+// resolution on one side or the two threads silently drift on the merge winner.
+// Returns null when the norm is absent from the merge — the caller must supply
+// the clicked-atom fallback (reachable only from a disabled-list scope).
+export function resolveEditSeedWinner(merged, norm, display) {
+  let row = merged.byKey.get(mergeKey(norm, display));
+  // A bare click with no bare merged row edits the first-alphabetical spelled
+  // variant — deterministic but arbitrary; don't "fix" the ordering.
+  if (!row && display == null) {
+    const variants = mergedRowsForNorm(merged, norm).filter(r => r.display != null);
+    variants.sort((a, b) => a.display.localeCompare(b.display));
+    row = variants[0] || merged.byNorm.get(norm) || null;
+  }
+  return row ?? null;
 }

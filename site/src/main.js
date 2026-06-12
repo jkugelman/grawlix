@@ -1,5 +1,6 @@
 'use strict';
 
+import { MERGED_ID } from './core/constants.js';
 import { esc } from './core/util.js';
 import { effect } from './core/signals.js';
 import {
@@ -8,10 +9,10 @@ import {
 import { TOOLS } from './engine/tools.js';
 import { syncStatus$, state, getEditsWordlist } from './data/state.js';
 import { lsSave, lsLoad, idbPut, idbGet, Storage } from './data/storage.js';
-import { serializeEntries, getOutputFormat, setOutputFormat } from './data/serialize.js';
-import { buildMergedWordlist } from './data/merge.js';
+import { serializeEntries } from './engine/serialize.js';
+import { getOutputFormat, setOutputFormat } from './data/serialize.js';
 import { persistMeta } from './data/persist.js';
-import { configureSyncDialogs } from './data/disk-sync.js';
+import { configureSyncDialogs, configureMergedSerializer } from './data/disk-sync.js';
 import { buildClearableInputHTML, mountClearableInputs, toggleSplitMenu } from './ui/components.js';
 import { showConfirm, showAlert, showMergeConflict, showEditsConflict } from './ui/dialogs/confirm.js';
 import { openUpdateSummaryDialog } from './ui/dialogs/update-summary.js';
@@ -28,7 +29,7 @@ import {
   configureRescoreEditor, startNoteEdit, onRuleInput, saveRuleField, deleteRule, addRule, resetRescoreRules, neutralizeRescoreRules, saveScoringField, deleteScoringRow, addScoringRow, resetScoringRules,
 } from './ui/rescore-editor.js';
 import { WordlistSelector, renderSyncIndicators } from './ui/scope-selector.js';
-import { configurePipelineWorker } from './ui/pipeline-worker.js';
+import { configurePipelineWorker, fetchWorkerSerialize } from './ui/pipeline-worker.js';
 import { configureManagePanel, ManagePanel } from './ui/manage-panel.js';
 import { configureDiscoveryBanner, DiscoveryBanner } from './ui/discovery-banner.js';
 import {
@@ -36,7 +37,7 @@ import {
 } from './ui/rendering.js';
 import { Router } from './app/router.js';
 import {
-  WordlistActions, init, regenerateFillOutputs, persistEdits, bakeMenuOpts, applyWordlistText, fetchWordlist, checkForUpdates, ingestFile, getAutoUpdate, addNewWordlist, deleteFromEdits, saveEdit, attachExternalEditHandlers, refreshDerivedDisplays, downloadSourceWordlist, downloadOriginalWordlist, buildExportMenuHTML, buildWordlistText, exportCopy, exportWordlist, exportCSV, exportJSON,
+  WordlistActions, init, regenerateFillOutputs, persistEdits, bakeMenuOpts, applyWordlistText, fetchWordlist, checkForUpdates, ingestFile, getAutoUpdate, addNewWordlist, deleteFromEdits, saveEdit, attachExternalEditHandlers, refreshDerivedDisplays, downloadSourceWordlist, downloadOriginalWordlist, downloadMergedWordlistFromPanel, buildExportMenuHTML, buildWordlistText, exportCopy, exportWordlist, exportCSV, exportJSON,
 } from './app/actions.js';
 
 // ─── Components ──────────────────────────────────────────────────────────────
@@ -64,8 +65,8 @@ function exposeWindowGlobals() {
     saveScoringField, deleteScoringRow, addScoringRow, resetScoringRules,
     exportCopy, exportWordlist, exportCSV, exportJSON,
     state, Router, ToolStack, SettingsDialog, Storage, TOOLS,
-    getOutputFormat, setOutputFormat, persistMeta, persistEdits, buildMergedWordlist,
-    downloadSourceWordlist, downloadOriginalWordlist, checkForUpdates, saveEdit,
+    getOutputFormat, setOutputFormat, persistMeta, persistEdits,
+    downloadSourceWordlist, downloadOriginalWordlist, downloadMergedWordlistFromPanel, checkForUpdates, saveEdit,
     serializeEntries, buildWordlistText, applyWordlistText, renderMergedDetail,
     getEditsWordlist,
   });
@@ -171,6 +172,9 @@ function boot() {
     alert: msg => showAlert(esc(msg)),
     resolveConflict: (filename, conflicts) => showEditsConflict(filename, conflicts),
   });
+
+  // The merged mirror serializes SORTED (sort:true), unlike the unsorted download.
+  configureMergedSerializer(fmt => fetchWorkerSerialize(MERGED_ID, fmt, true));
 
   // App-shell components must exist before init()'s renderAll: the render
   // effect's first run calls WordlistSelector.refresh() + DiscoveryBanner.refresh()

@@ -26,7 +26,10 @@ import {
   SCHEMA_VERSION, canMigrate, migrateLocalStorage, remapStoredUrls,
 } from '../data/migrations.js';
 import {
-  serializeEntries, sortedEntries, getOutputFormat,
+  serializeEntries, sortedEntries,
+} from '../engine/serialize.js';
+import {
+  getOutputFormat,
 } from '../data/serialize.js';
 import {
   compileRescoreRules, maybeAutoSeedRescoreRules, getRescoredEntries,
@@ -35,10 +38,10 @@ import {
   editsLegend, reconcileEditsRulesAfterImport, invalidateRescoredCache,
 } from '../data/rescoring.js';
 import {
-  buildMergedWordlist, getActiveCorpus,
-  invalidateSourceCounts, dropScopedCorpus, peekMergedCache,
-  snapshotMergedBuckets, patchMergedForNorms, _mergedStatsKey,
+  mergedEntryCount, invalidateSourceCounts, _mergedStatsKey,
+  setShippedConfigCounts,
 } from '../data/merge.js';
+import { setShippedAllSourcesAxis } from '../data/derived.js';
 import { mergeKey } from '../engine/corpus.js';
 import { invalidateWordlistCaches } from '../data/invalidate.js';
 import {
@@ -66,9 +69,12 @@ import { buildRulesListHTML, renderScoringRules } from '../ui/rescore-editor.js'
 import { WordlistSelector, buildWordlistNameHTML } from '../ui/scope-selector.js';
 import {
   getEntriesScroller, setScope, renderAll, renderSources, renderMergedDetail,
-  firstPaint,
+  refreshMergedScroller, firstPaint,
 } from '../ui/rendering.js';
-import { sendPatch } from '../ui/pipeline-worker.js';
+import {
+  syncWorkerConfig, resyncWorkerConfig,
+  sendEditEntry, sendDeleteEntry, fetchWorkerSerialize,
+} from '../ui/pipeline-worker.js';
 import { SyncDialog } from '../ui/dialogs/sync.js';
 import { ConfigureWordlistDialog } from '../ui/dialogs/configure-wordlist.js';
 import { ImportGuideDialog } from '../ui/dialogs/import-guide.js';
@@ -197,7 +203,12 @@ export async function init() {
   AppView.show();
   Router.navigate();
   renderAll();
-  await firstPaint;
+
+  // Must live here, not in boot(): state.sources is only fully built after
+  // propagateDefaults above, and the worker's self-build needs the final sources.
+  // The boot run defers until this syncConfig's selfReady drains it, so await both:
+  // firstPaint resolves only once that drained run lands.
+  await Promise.all([firstPaint, syncWorkerConfig(state.sources)]);
 
   await loadSyncTargets();
   const { granted, prompt } = await partitionSyncPermissions();
@@ -323,10 +334,31 @@ export async function regenerateFillOutputs() {
   } finally { _regenInFlight = false; }
 }
 
-export async function persistEdits(edits) {
-  await Storage.writeWordlist(edits, serializeEntries(sortedEntries(edits.rawEntries)));
+// The per-entry edit paths persist meta only: the worker owns the IDB write and
+// its editAck keeps ownedCorpus fresh, so main must do NEITHER — a resync here
+// would read IDB before the worker's write lands (a read-before-write race).
+export function persistEditsMetaOnly(edits) {
   persistMeta();
   EditsSync.scheduleWrite();
+}
+
+export async function persistEdits(edits) {
+  await Storage.writeWordlist(edits, serializeEntries(sortedEntries(edits.rawEntries)));
+  persistEditsMetaOnly(edits);
+  // My Edits mutations ship a `patch`, never a cacheVersion$ bump, so the
+  // completeness hook never fires for them — this post-write re-sync, reading the
+  // now-fresh IDB text, is their only path back to a fresh ownedCorpus.
+  resyncWorkerConfig();
+}
+
+// The per-entry edit's stand-in for a resync: the command already recomputed the
+// axis + config counts, so main adopts the shipped values instead of rebuilding.
+// Mirrors syncWorkerConfig's selfReady consumption.
+function applyEditAck(ack) {
+  if (!ack) return;
+  setShippedAllSourcesAxis(ack.axis, ack.counts?.version);
+  if (ack.counts) setShippedConfigCounts(ack.counts.sourceCounts, ack.counts.mergedCount, ack.counts.version);
+  refreshDerivedDisplays();
 }
 
 // Gated to user-owned, non-fetched lists: a fetch URL would re-pull the
@@ -383,6 +415,7 @@ export async function bakeRescoring(wordlist) {
     await Storage.writeWordlist(wordlist, serializeEntries(wordlist.rawEntries));
     persistMeta();
     MirrorSync.schedule(wordlist);
+    resyncWorkerConfig();
   }
 }
 
@@ -423,9 +456,8 @@ export function saveEdit(originalWlEntry, { raw, score, comment }) {
   }
 
   const entryChanged = newNorm !== origNorm || newDisplay !== origDisplay;
-  const norms = entryChanged && origNorm ? [origNorm, newNorm] : [newNorm];
 
-  applyEditsChange(edits, norms, () => {
+  applyEditsChange(edits, () => {
     if (entryChanged && origNorm) {
       const idx = edits.rawEntries.findIndex(e => e.norm === origNorm && displayOf(e) === origDisplay);
       if (idx >= 0) edits.rawEntries.splice(idx, 1);
@@ -438,7 +470,11 @@ export function saveEdit(originalWlEntry, { raw, score, comment }) {
       edits.rawEntries.push({ norm: newNorm, display: newDisplay, score, comment });
     }
   });
-  persistEdits(edits);
+
+  const origForCmd = origNorm ? { norm: origNorm, display: origDisplay } : null;
+  const nextForCmd = { norm: newNorm, display: newDisplay, score, comment };
+  sendEditEntry(origForCmd, nextForCmd).then(applyEditAck);
+  persistEditsMetaOnly(edits);
 }
 
 // ─── Fetch, import & update ───────────────────────────────────────────────────
@@ -470,9 +506,16 @@ export async function applyWordlistText(wordlist, text, { fetchedSize = null, or
   await Storage.writeWordlist(wordlist, text);
   if (wordlist.type === 'edits') EditsSync.scheduleWrite();
   else                           MirrorSync.schedule(wordlist);
-  // The render effect drained inside batchUpdate already updated the wordlist
-  // list, dropdown, scoring legend, stats bar, and active scroller for the
-  // current selection. Nothing else to repaint here.
+  // After the write: the worker rebuilds ownedCorpus from IDB text, so a re-sync
+  // before this point would read the pre-write text (see worker-protocol.md).
+  resyncWorkerConfig();
+  // Not redundant with the scroller run the cacheVersion$ effect already fired
+  // inside batchUpdate: that run's re-sync read pre-write IDB, so it can render
+  // the corpus WITHOUT this wordlist's new text. Only the post-write re-sync
+  // above sees the new text, and a run must be paired with it or — depending on
+  // which build wins the worker's supersession (a cross-engine timing toss-up) —
+  // the stale pre-write render can be the last one and never gets corrected.
+  refreshMergedScroller();
 
   if (wasEmpty) {
     if (!silent) showToast(`Loaded ${pluralize(wordlist.rawEntries.length, 'entry', 'entries')} from ${esc(source)}`);
@@ -627,6 +670,10 @@ export function ingestFile(file, wordlist, nameOverride) {
 
       await Storage.writeWordlist(wordlist, serializeEntries(wordlist.rawEntries));
       persistMeta();
+      // This My Edits combine path bumps no cacheVersion$ (it repaints directly),
+      // so the completeness hook never fires — this post-write re-sync is its only
+      // trigger, and reads the fresh IDB text the worker rebuilds from.
+      resyncWorkerConfig();
 
       renderSources();
       renderMergedDetail();
@@ -660,13 +707,15 @@ export function deleteFromEdits(target, refreshFn) {
   });
 
   let deleted;
-  applyEditsChange(edits, [norm], () => { [deleted] = edits.rawEntries.splice(idx, 1); });
-  persistEdits(edits);
+  applyEditsChange(edits, () => { [deleted] = edits.rawEntries.splice(idx, 1); });
+  sendDeleteEntry({ norm, display }).then(applyEditAck);
+  persistEditsMetaOnly(edits);
   refresh();
 
   showUndoToast(`Deleted ${esc(displayOf(deleted))} from ${buildWordlistNameHTML(edits)}`, () => {
-    applyEditsChange(edits, [norm], () => { edits.rawEntries.splice(idx, 0, deleted); });
-    persistEdits(edits);
+    applyEditsChange(edits, () => { edits.rawEntries.splice(idx, 0, deleted); });
+    sendEditEntry(null, { norm, display: displayOf(deleted), score: deleted.score, comment: deleted.comment }).then(applyEditAck);
+    persistEditsMetaOnly(edits);
     refresh();
   });
 }
@@ -698,8 +747,12 @@ export function addNewWordlist(wordlistDef) {
 
 function newEntrySeedQuery() {
   const q = AppView.searchQuery.trim();
-  if (!isLiteralQuery(q) || getActiveCorpus().byNorm.has(toNorm(q))) return '';
-  return q;
+  if (!isLiteralQuery(q)) return '';
+  // The add-FAB seed checks the run's SCOPE (existsInScope), the worker's answer
+  // for the active scope; a null answer (no run / blank query) defaults to seeding
+  // the query — main holds no corpus to check it against.
+  const exists = !!getEntriesScroller()?._existsInScope;
+  return exists ? '' : q;
 }
 
 // ─── Event wiring ─────────────────────────────────────────────────────────────
@@ -772,23 +825,14 @@ export function startInlineRename(inputEl, originalName, { onCommit, onCancel, o
 
 // ─── Merge & Download ─────────────────────────────────────────────────────────
 
-// `norms` must list every norm the mutation touches — an entry-text edit moves
-// an entry between two norms, and any omitted norm keeps a stale merged bucket
-// with no error.
-export function applyEditsChange(edits, norms, mutate) {
-  const snap = snapshotMergedBuckets(norms);
+// Main keeps only My Edits rawEntries; the merged-corpus splice is the worker's,
+// via the sendEditEntry/sendDeleteEntry command the caller fires alongside.
+export function applyEditsChange(edits, mutate) {
   mutate();
   invalidateRescoredCache(edits);
   invalidateStatsCache(edits);
   invalidateStatsCache(_mergedStatsKey);
   invalidatePreSearchCache();
-  const patch = patchMergedForNorms(snap);
-  // Patch must reach the worker before the caller's refresh posts its `run`
-  // (postMessage is FIFO): this runs synchronously, the refresh fires after.
-  sendPatch(peekMergedCache(), patch);
-  // When scoped to My Edits itself, its own view must rebuild to reflect the edit
-  // (other scoped sources show only their own data, so they're unaffected).
-  if (state.selected !== MERGED_ID) dropScopedCorpus(state.selected);
   refreshDerivedDisplays();
 }
 
@@ -800,10 +844,13 @@ export function refreshDerivedDisplays() {
   renderScoringRules();
 }
 
-export function downloadMergedWordlistFromPanel() {
-  const { entries } = buildMergedWordlist();
-  triggerDownload(serializeEntries(entries, getOutputFormat()), rescoredFilename(MERGED_ID));
-  showToast(`Downloaded ${pluralize(entries.length, 'entry', 'entries')}`);
+export async function downloadMergedWordlistFromPanel() {
+  // Unsorted (sort:false): the merged download ships entries in merge order, only
+  // the disk mirror sorts. The worker is the only corpus source post-flip; a null
+  // reply (timeout/not-fresh) downloads empty rather than throwing.
+  const text = (await fetchWorkerSerialize(MERGED_ID, getOutputFormat(), false)) ?? '';
+  triggerDownload(text, rescoredFilename(MERGED_ID));
+  showToast(`Downloaded ${pluralize(mergedEntryCount(), 'entry', 'entries')}`);
 }
 
 export function triggerDownload(text, filename) {
@@ -1026,7 +1073,7 @@ export async function exportCopy() {
   const scroller = getEntriesScroller();
   if (!scroller) return;
   const grouped = scroller.sortTier === 'group';
-  const rows = scroller.exportRows();
+  const rows = await scroller.exportRows();
   const text = buildCopyText(rows, grouped, ToolStack.getStack());
   try {
     await navigator.clipboard.writeText(text);
@@ -1061,7 +1108,7 @@ export async function exportWordlist() {
   const scroller = getEntriesScroller();
   if (!scroller) return;
   const grouped = scroller.sortTier === 'group';
-  const { text, count, skipped } = buildWordlistText(scroller.exportRows(), grouped);
+  const { text, count, skipped } = buildWordlistText(await scroller.exportRows(), grouped);
   triggerDownload(text, exportFilename(ToolStack.getStack(), 'txt'));
   let msg = `Downloaded ${pluralize(count, 'entry', 'entries')}`;
   if (skipped) msg += ` (${pluralize(skipped, 'entry', 'entries')} skipped due to semicolons)`;
@@ -1128,7 +1175,7 @@ export async function exportCSV() {
   const scroller = getEntriesScroller();
   if (!scroller) return;
   const grouped = scroller.sortTier === 'group';
-  const rows = scroller.exportRows();
+  const rows = await scroller.exportRows();
   const text = buildCSVText(rows, grouped, ToolStack.getStack());
   triggerDownload(text, exportFilename(ToolStack.getStack(), 'csv'));
   const count = countExportEntries(rows, grouped);
@@ -1173,7 +1220,7 @@ export async function exportJSON() {
   const scroller = getEntriesScroller();
   if (!scroller) return;
   const grouped = scroller.sortTier === 'group';
-  const rows = scroller.exportRows();
+  const rows = await scroller.exportRows();
   const obj = buildExportJSONObject(rows, grouped, ToolStack.getStack());
   triggerDownload(JSON.stringify(obj, null, 2) + '\n', exportFilename(ToolStack.getStack(), 'json'));
   const count = countExportEntries(rows, grouped);

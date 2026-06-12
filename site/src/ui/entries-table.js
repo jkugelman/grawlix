@@ -15,17 +15,16 @@
 import { ROW_HEIGHT, VS_BUFFER, MERGED_ID } from '../core/constants.js';
 import { esc } from '../core/util.js';
 import { displayOf, projectRangesToDisplay, toNorm, buildUserWlEntry } from '../engine/norm.js';
-import { parseRange, matchesRange } from '../engine/range.js';
+import { parseRange } from '../engine/range.js';
 import { renderHighlightedText } from '../engine/search.js';
-import { TOOLS, normalizeParams } from '../engine/tools.js';
+import { TOOLS } from '../engine/tools.js';
 import {
   isFilterOnlyChain, isGroupChain, rowLastEntry,
-  bottomLineAtoms, rowSetAtoms, applyScoreRangeToRows, collapseRepeatAtoms,
+  bottomLineAtoms, rowSetAtoms, applyScoreRangeToRows,
 } from '../engine/executor.js';
+import { compileFlatHighlighters } from '../engine/flat-highlight.js';
 import { state, getEditsWordlist } from '../data/state.js';
-import { getRescoredByNorm, rescoreEntry } from '../engine/rescore.js';
-import { buildMergedWordlist } from '../data/merge.js';
-import { mergeKey, mergedRowsForNorm } from '../engine/corpus.js';
+import { rescoreEntry } from '../engine/rescore.js';
 import { makeTierLookup } from '../model/scoring.js';
 import { buildScoreBadgeHTML, buildScoreCellHTML } from '../model/score-display.js';
 import { showToast } from './toasts.js';
@@ -35,15 +34,15 @@ import { buildWordlistNameHTML } from './scope-selector.js';
 import {
   getEntriesScroller, rescorePreviewActive, buildNoMatchQuipHTML, refreshMergedScroller,
 } from './rendering.js';
-import { fetchWorkerRows, lastCompletedRunId } from './pipeline-worker.js';
+import { fetchWorkerRows, fetchWorkerAllRows, lastCompletedRunId, fetchWorkerEditSeed, fetchWorkerProvenance } from './pipeline-worker.js';
 
 let _navigate              = () => {};
 
-// Fetches its window from the worker, not the local corpus main still holds —
-// stage 3 removes that corpus, so "optimizing" this to read _flatCorpus would
-// silently break the moment stage 3 lands.
-let WINDOWED_FLAT = true;
-export function setWindowedFlatForTest(on) { WINDOWED_FLAT = on; }
+// Counts each time the worker-shipped re-bind answer is consumed, so the rebind
+// A/B oracle can prove it isn't silently no-oping.
+let rebindAnswersConsumed = 0;
+export function rebindAnswersConsumedDebug() { return rebindAnswersConsumed; }
+export function resetRebindAnswersConsumedForTest() { rebindAnswersConsumed = 0; }
 
 // _winCache rows kept beyond the viewport on each side before eviction prunes
 // the rest. Stakes: drop it under VS_BUFFER and eviction discards rows the next
@@ -54,14 +53,44 @@ export function windowedFlatDebug() {
   const s = getEntriesScroller();
   if (!s) return { error: 'no entries scroller mounted' };
   return {
-    flagOn: WINDOWED_FLAT,
     isFlatTier: s._flat,
-    hasFlatCorpus: !!s._flatCorpus,
     scoreFilterActive: !!s._scoreIntervals,
     sortTier: s.sortTier,
-    wouldEngageWindowing: !!(s._flat && WINDOWED_FLAT && !s._scoreIntervals && s._flatCorpus),
     winCacheSize: s._winCache ? s._winCache.size : 0,
+    richRowsConsumed: s._richRowsConsumed ?? 0,
+    ranAgainstOwned: !!s._ranAgainstOwned,
   };
+}
+
+export function workerSummariesDebug() {
+  const s = getEntriesScroller();
+  if (!s) return { error: 'no entries scroller mounted' };
+  return {
+    hasWorkerStats: s._workerStats != null,
+    hasWorkerHistogramCounts: s._workerHistogramCounts != null,
+    workerStats: s._workerStats,
+    workerHistogramCounts: s._workerHistogramCounts ? [...s._workerHistogramCounts] : null,
+  };
+}
+
+export function existsInScopeDebug() {
+  const s = getEntriesScroller();
+  if (!s) return { error: 'no entries scroller mounted' };
+  return { existsInScope: s._existsInScope };
+}
+
+export function existsInMergeDebug() {
+  const s = getEntriesScroller();
+  if (!s) return { error: 'no entries scroller mounted' };
+  return { existsInMerge: s._existsInMerge };
+}
+
+export function popoverSeedDebug() {
+  return AtomPopover.seedDebug();
+}
+
+export function popoverProvenanceDebug() {
+  return AtomPopover.provenanceDebug();
 }
 
 export function configureEntriesTable({ navigate }) {
@@ -368,46 +397,6 @@ export function compareValues(a, b) {
   return String(a).localeCompare(String(b));
 }
 const ENTRY_SLOT_CAP = 21;
-
-// ─── Flat-tier highlight re-derivation ──────────────────────────────────────
-// The flat result ships no highlights; the visible window re-derives them by
-// replaying each active highlighting filter. This and materializeFlatRow must
-// reproduce the executor's runToolStage + collapseRepeatAtoms exactly — any
-// divergence is a silent visual bug (wrong marks, or an atom count that mismatches
-// the row's reserved line height). A flat chain has no transforms, so the only
-// highlighting filters are Search/Regex in filter mode.
-function compileFlatHighlighters(stack) {
-  const out = [];
-  for (const row of stack) {
-    const { def } = row;
-    if (row.isInert() || row.kind() !== 'filter' || !def.inputHighlights) continue;
-    const params = normalizeParams(row.params, def.params);
-    // Sync prepare only — the render path can't await; Search/Regex prepare is
-    // sync and ignores ctx, so a future async-prepare highlighting filter would
-    // silently ship a Promise as `prepared` here.
-    const prepared = def.prepare ? def.prepare(params, {}) : params;
-    const coord = def.matchOn === 'display' ? 'display' : 'norm';
-    out.push({ def, prepared, coord });
-  }
-  return out;
-}
-
-function tagCoord(ranges, coord) {
-  return ranges.map(r => r.coord ? r : { ...r, coord });
-}
-
-function materializeFlatRow(wlEntry, highlighters) {
-  const atoms = [{ wlEntry, highlights: null, glyph: null }];
-  for (const { def, prepared, coord } of highlighters) {
-    const input = def.matchOn === 'both' ? wlEntry
-      : def.matchOn === 'display' ? displayOf(wlEntry)
-      : wlEntry.norm;
-    const result = def.run(input, prepared, null);
-    const highlights = Array.isArray(result) ? tagCoord(result, coord) : [];
-    atoms.push({ wlEntry, highlights, glyph: null });
-  }
-  return { atoms: collapseRepeatAtoms(atoms) };
-}
 
 // Off-screen pixel width of `text` rendered in style class `className`
 // (.text-probe positioning is layered on automatically). Memoized per
@@ -760,14 +749,23 @@ export class EntriesScroller extends BaseVirtualScroller {
     this.sortTier = 'single';
     this.allEntries = [];
     this.entries = [];
-    // When _flat (the filter-only tier), allEntries/entries hold Int32Array
-    // indices into _flatCorpus.entries, NOT ChainRow[] — _flatScores is parallel
-    // to allEntries, rows are materialized lazily for the visible window. The
-    // transform/group tiers leave _flat false and keep the row arrays above.
+    // When _flat (the filter-only tier), allEntries/entries hold an Int32Array of
+    // the worker's corpus indices (positions for the windowed fetch), NOT
+    // ChainRow[]; _flatScores is parallel, and rows arrive rich from the worker's
+    // fetchRows for only the visible window. The transform/group tiers leave _flat
+    // false and keep the row arrays above.
     this._flat = false;
-    this._flatCorpus = null;
     this._flatScores = null;
     this._flatViewScores = null;
+    this._workerStats = null;
+    this._workerHistogramCounts = null;
+    this._workerFiltered = false;
+    this._ranAgainstOwned = false;
+    this._existsInScope = null;
+    this._existsInMerge = null;
+    this._rebindQuery = null;
+    this._rebindEntry = null;
+    this._rebindExists = null;
     this._widthHints = null;
     this._flatHighlighters = [];
     this.sortKey = AppView.sortKey;
@@ -791,9 +789,10 @@ export class EntriesScroller extends BaseVirtualScroller {
 
     this._winCache = new Map();
     this._winCacheRunId = null;
-    this._winCacheSnapVersion = null;
+    this._firstRows = null;
     this._winReqSeq = 0;
     this._fetchOutstanding = 0;
+    this._richRowsConsumed = 0;
 
     this.sizer.addEventListener('click', e => {
       const moreBtn = e.target.closest('.group-more');
@@ -824,10 +823,9 @@ export class EntriesScroller extends BaseVirtualScroller {
         row = target.closest('.entry-row');
         const atomEl = target.closest('.atom');
         if (!row || !atomEl) return;
-        const rowIdx = parseInt(row.dataset.idx, 10);
         wlEntry = this._flat
-          ? this._flatCorpus.entries[this.entries[rowIdx]]
-          : this.entries[rowIdx]?.atoms[parseInt(atomEl.dataset.atom, 10)]?.wlEntry;
+          ? row._wlEntry
+          : this.entries[parseInt(row.dataset.idx, 10)]?.atoms[parseInt(atomEl.dataset.atom, 10)]?.wlEntry;
       }
       if (!wlEntry) return;
       const field = target.classList.contains('atom-score') ? 'score'
@@ -860,15 +858,31 @@ export class EntriesScroller extends BaseVirtualScroller {
   _ingestResult(result) {
     this._flat = !!result.flat;
     if (this._flat) {
-      this._flatCorpus = result.corpus;
-      this._flatSnapVersion = result.corpus._snapVersion ?? 0;
       this._flatScores = result.scores;
+      this._workerStats = result.stats ?? null;
+      this._workerHistogramCounts = result.histogramCounts ?? null;
+      this._workerFiltered = !!result.filtered;
+      this._ranAgainstOwned = !!result.ranAgainstOwned;
+      this._existsInScope = result.existsInScope ?? null;
+      this._existsInMerge = result.existsInMerge ?? null;
+      this._rebindQuery = result.rebindQuery ?? null;
+      this._rebindEntry = result.rebindEntry ?? null;
+      this._rebindExists = result.rebindExists ?? null;
       this._widthHints = result.widthHints;
       this._flatHighlighters = compileFlatHighlighters(ToolStack.getStack());
       this.allEntries = result.indices;
+      this._firstRows = result.firstRows ?? null;
     } else {
-      this._flatCorpus = null;
       this._flatScores = null;
+      this._workerStats = null;
+      this._workerHistogramCounts = null;
+      this._workerFiltered = false;
+      this._ranAgainstOwned = false;
+      this._existsInScope = null;
+      this._existsInMerge = null;
+      this._rebindQuery = null;
+      this._rebindEntry = null;
+      this._rebindExists = null;
       this.allEntries = result.rows;
     }
   }
@@ -888,7 +902,10 @@ export class EntriesScroller extends BaseVirtualScroller {
     this.scoreRange = next;
     this._scoreIntervals = next ? parseRange(next) : null;
     this._invalidateSortCache();
-    this._sortAndRender();
+    // The worker owns the flat-tier filter, so a range change re-runs the pipeline
+    // (it re-filters + re-windows); the transform/group tiers filter locally.
+    if (this._flat) refreshMergedScroller();
+    else this._sortAndRender();
   }
 
   _invalidateSortCache() {
@@ -962,7 +979,10 @@ export class EntriesScroller extends BaseVirtualScroller {
     // score-range filter applies, order-preserving.
     let sorted;
     if (this._flat) {
-      sorted = this._filterFlatIndices();
+      // The worker pre-sorts AND pre-filters the flat result (a sort/range change
+      // re-runs the pipeline), so the index array arrives ready — no local pass.
+      this._flatViewScores = this._flatScores;
+      sorted = this.allEntries;
     } else {
       const filtered = applyScoreRangeToRows(this.allEntries, this._scoreIntervals, this.sortTier === 'group');
       const axis = sortAxes(this.sortTier)[this.sortKey];
@@ -979,23 +999,6 @@ export class EntriesScroller extends BaseVirtualScroller {
     this._sortedSourceDir = this.sortDir;
     this._sortedSourceRange = this.scoreRange;
     return sorted;
-  }
-
-  _filterFlatIndices() {
-    if (!this._scoreIntervals) {
-      this._flatViewScores = this._flatScores;
-      return this.allEntries;
-    }
-    const all = this.allEntries, scores = this._flatScores;
-    const idxOut = [], scoreOut = [];
-    for (let i = 0; i < all.length; i++) {
-      if (matchesRange(scores[i], this._scoreIntervals)) {
-        idxOut.push(all[i]);
-        scoreOut.push(scores[i]);
-      }
-    }
-    this._flatViewScores = Int32Array.from(scoreOut);
-    return Int32Array.from(idxOut);
   }
 
   _sortGroupChains() {
@@ -1075,19 +1078,9 @@ export class EntriesScroller extends BaseVirtualScroller {
     const total = this.allEntries.length;
     const countDigits = total > 0 ? String(total).length : 1;
     const ch = measureMonoChPx();
-    const { maxDisplayLen, maxLenDigits, maxScoreDigits } = this._widthHints;
+    const { maxDisplayLen, maxLenDigits, maxScoreDigits, maxRawDigits: rawHint } = this._widthHints;
     const hasHighlight = this._flatHighlighters.length > 0;
-
-    let maxRawDigits = 0;
-    if (rescorePreviewActive()) {
-      const corpus = this._flatCorpus.entries, view = this.entries;
-      for (let i = 0; i < view.length; i++) {
-        const { rawScore, score } = corpus[view[i]];
-        if (rawScore != null && rawScore !== score) {
-          maxRawDigits = Math.max(maxRawDigits, String(rawScore).length);
-        }
-      }
-    }
+    const maxRawDigits = rescorePreviewActive() ? (rawHint ?? 0) : 0;
 
     const entryContentW = Math.ceil(
       Math.min(maxDisplayLen, ENTRY_SLOT_CAP) * ch + (hasHighlight ? ch : 0)
@@ -1123,9 +1116,6 @@ export class EntriesScroller extends BaseVirtualScroller {
 
   _render() {
     if (this.sortTier === 'group') return this._renderGroups();
-    // A My Edits patch splices _flatCorpus.entries in place; rendering before the
-    // always-following re-run repaints would index this.entries past the corpus and throw.
-    if (this._flat && this._flatCorpus && (this._flatCorpus._snapVersion ?? 0) !== this._flatSnapVersion) return;
     const n = this.entries.length;
     const stride = this._rowStride();
     this.sizer.style.height = this._sizerHeightFor(n * stride) + 'px';
@@ -1134,10 +1124,10 @@ export class EntriesScroller extends BaseVirtualScroller {
     const { start, end } = this._visibleRange(n);
     this._clearSizer();
 
-    // With a score-range filter this.entries is a subset whose positions don't
-    // align with the worker's result array, so the position-based fetch can't
-    // window it — fall back to the local _flatRowAt path.
-    const windowed = this._flat && WINDOWED_FLAT && !this._scoreIntervals && this._flatCorpus;
+    // The flat tier is always windowed post-flip — main holds no corpus, so its
+    // rows arrive rich from the worker's fetchRows; the transform/group tiers keep
+    // their resident ChainRow[] and render directly.
+    const windowed = this._flat;
     if (windowed) this._invalidateWinCacheIfStale();
 
     const tierFor = makeTierLookup();
@@ -1158,8 +1148,7 @@ export class EntriesScroller extends BaseVirtualScroller {
           maxMiss = i;
         }
       } else {
-        const chainRow = this._flat ? this._flatRowAt(i) : this.entries[i];
-        row = this._renderChainRow(chainRow, i, tierFor, activeNorm, preview);
+        row = this._renderChainRow(this.entries[i], i, tierFor, activeNorm, preview);
       }
       row.style.top = (i * stride) + 'px';
       if (row.classList.contains('active')) nextActiveRow = row;
@@ -1176,15 +1165,20 @@ export class EntriesScroller extends BaseVirtualScroller {
     if (windowed) this._evictWinCache(start, end);
   }
 
-  // A run change or a My Edits patch (_snapVersion bump) reindexes the corpus,
-  // so index-keyed cache entries name the wrong rows — drop them. Mirrors the
-  // _render patch guard above.
+  // A run change reindexes the corpus, so position-keyed cache entries name the
+  // wrong rows — drop them when the run changes, then seed the cache from the
+  // result's inline first window so the above-the-fold rows render without a
+  // fetchRows round-trip (no skeleton flash for a result that fits on screen).
   _invalidateWinCacheIfStale() {
     const runId = lastCompletedRunId();
-    if (runId !== this._winCacheRunId || this._flatSnapVersion !== this._winCacheSnapVersion) {
+    if (runId !== this._winCacheRunId) {
       this._winCache.clear();
       this._winCacheRunId = runId;
-      this._winCacheSnapVersion = this._flatSnapVersion;
+      if (this._firstRows) {
+        const sourceById = new Map(state.sources.map(w => [w.dbKey, w]));
+        this._firstRows.forEach((row, i) =>
+          this._winCache.set(i, this._richRowToChain(row, sourceById)));
+      }
     }
   }
 
@@ -1201,8 +1195,23 @@ export class EntriesScroller extends BaseVirtualScroller {
   }
 
   _windowedRowOrNull(i) {
-    if (!this._winCache.has(i)) return null;
-    return materializeFlatRow(this._flatCorpus.entries[this._winCache.get(i)], this._flatHighlighters);
+    return this._winCache.get(i) ?? null;
+  }
+
+  _richRowToChain(row, sourceById) {
+    const wlEntry = {
+      norm: row.norm,
+      display: row.display,
+      score: row.score,
+      rawScore: row.rawScore,
+      comment: row.comment,
+      wordlist: sourceById.get(row.sourceId) ?? null,
+    };
+    // All atoms of a flat row are the same word (stacked highlighting searches),
+    // so they share one wlEntry; each carries its own highlights/glyph slot.
+    return {
+      atoms: row.atoms.map(a => ({ wlEntry, highlights: a.highlights, glyph: a.glyph })),
+    };
   }
 
   _skeletonRow() {
@@ -1221,7 +1230,13 @@ export class EntriesScroller extends BaseVirtualScroller {
       if (seq !== this._winReqSeq) return;            // superseded by a newer scroll
       if (runId !== lastCompletedRunId()) return;     // superseded by a newer run
       if (!reply) return;                             // timeout
-      for (let k = 0; k < reply.rows.length; k++) this._winCache.set(reply.start + k, reply.rows[k].i);
+      // Rebuilt per batch rather than memoized: an add/remove/reorder between
+      // fetches would otherwise resolve sourceId to a stale wordlist object.
+      const sourceById = new Map(state.sources.map(w => [w.dbKey, w]));
+      for (let k = 0; k < reply.rows.length; k++) {
+        this._richRowsConsumed++;
+        this._winCache.set(reply.start + k, this._richRowToChain(reply.rows[k], sourceById));
+      }
       this._render();
     });
   }
@@ -1236,10 +1251,6 @@ export class EntriesScroller extends BaseVirtualScroller {
       };
       requestAnimationFrame(tick);
     });
-  }
-
-  _flatRowAt(i) {
-    return materializeFlatRow(this._flatCorpus.entries[this.entries[i]], this._flatHighlighters);
   }
 
   _renderChainRow(chainRow, i, tierFor, activeNorm, preview) {
@@ -1280,6 +1291,7 @@ export class EntriesScroller extends BaseVirtualScroller {
     row.dataset.idx = i;
     row.dataset.entry = rowLastEntry(chainRow).norm;
     row.innerHTML = html;
+    if (this._flat) row._wlEntry = atoms[0].wlEntry;
     return row;
   }
 
@@ -1357,7 +1369,10 @@ export class EntriesScroller extends BaseVirtualScroller {
 
     const query = AppView.searchQuery.trim();
     const addable = kind === 'chain' && /\S/i.test(query);
-    const inMerge = addable && buildMergedWordlist().byNorm.has(toNorm(query));
+    // The empty-state checks the MERGE (existsInMerge), not the run's scope: the
+    // add-FAB seed and this message answer "exists?" against different corpora, so
+    // a scoped run where existsInScope differs must still use the merge answer here.
+    const inMerge = addable && !!this._existsInMerge;
     const key = `${kind}|${addable ? query.toLowerCase() : ''}|${addable ? inMerge : ''}`;
     if (existing && existing.dataset.key === key) return;
 
@@ -1427,15 +1442,36 @@ export class EntriesScroller extends BaseVirtualScroller {
     this._groupGlyphPx = measureAtomGlyphPx();
   }
 
-  exportRows() {
+  async exportRows() {
     if (!this._flat) return this.entries;
-    const out = new Array(this.entries.length);
-    for (let i = 0; i < this.entries.length; i++) out[i] = this._flatRowAt(i);
-    return out;
+
+    // The flat tier holds only positions, so its rich rows come from the worker.
+    // A null reply (timeout) leaves nothing to format — main has no corpus to
+    // fall back on — so export the empty set rather than throwing.
+    const reply = await fetchWorkerAllRows(lastCompletedRunId());
+    if (!reply) return [];
+
+    const sourceById = new Map(state.sources.map(w => [w.dbKey, w]));
+    return reply.rows.map(r => this._richRowToChain(r, sourceById));
+  }
+
+  // The match guard is load-bearing: the shipped answer resolves whatever target
+  // rode this run's dispatch, so on a mismatch (the popover re-targeted between
+  // dispatch and rebind) it names the wrong entry. Post-flip there's no local
+  // corpus to fall back to, so a mismatch returns the not-found answer and the
+  // popover reconciles on the next run's rebindEntry.
+  _rebindAnswerApplies(norm, display) {
+    const applies = !!(this._ranAgainstOwned && this._rebindQuery
+      && this._rebindQuery.norm === norm && (this._rebindQuery.display ?? null) === (display ?? null));
+    if (applies) rebindAnswersConsumed++;
+    return applies;
   }
 
   resultHasEntry(wlEntry) {
-    if (this._flat) return this._flatCorpus.byNorm.has(wlEntry.norm);
+    if (this._flat) {
+      if (this._rebindAnswerApplies(wlEntry.norm, wlEntry.display ?? null)) return this._rebindExists;
+      return false;
+    }
     for (const a of rowSetAtoms(this.allEntries)) {
       if (a.wlEntry === wlEntry) return true;
     }
@@ -1444,8 +1480,8 @@ export class EntriesScroller extends BaseVirtualScroller {
 
   findResultEntry(norm, display) {
     if (this._flat) {
-      const byKey = this._flatCorpus.byKey.get(mergeKey(norm, display));
-      return byKey ?? this._flatCorpus.byNorm.get(norm) ?? null;
+      if (this._rebindAnswerApplies(norm, display)) return this._rebindEntry;
+      return null;
     }
     let normFallback = null;
     for (const a of rowSetAtoms(this.allEntries)) {
@@ -1466,6 +1502,22 @@ export const AtomPopover = (() => {
   let activeSeed = null;
   let activeScroller = null;
   let pendingDelete = false;
+  // Monotonic token for an in-flight scoped-seed worker query; a re-open or close
+  // bumps it so a late reply for a stale popover is dropped rather than re-seeding
+  // the wrong row.
+  let seedQueryToken = 0;
+  let seedQueriesFired = 0;
+  let seedWinnersApplied = 0;
+  function seedDebug() { return { seedQueriesFired, seedWinnersApplied }; }
+  // Last-good-until-refined: held across an in-flight query and replaced only when
+  // a newer reply lands, never cleared to empty mid-flight, so the table/footer
+  // don't flash on a null (not-fresh) reply.
+  let provQueryToken = 0;
+  let shippedProvRows = null;
+  let shippedPreview = null;
+  let provQueriesFired = 0;
+  let provRepliesApplied = 0;
+  function provenanceDebug() { return { provQueriesFired, provRepliesApplied }; }
   // The popover element focus is in or transitioning to. Tracked via capture-
   // phase blur (relatedTarget says where focus is *headed*) because an
   // edit-commit re-render runs in a microtask between blur and focusin, when
@@ -1501,6 +1553,10 @@ export const AtomPopover = (() => {
     activeScroller = null;
     focusEl = null;
     pendingDelete = false;
+    seedQueryToken++;
+    provQueryToken++;
+    shippedProvRows = null;
+    shippedPreview = null;
     document.removeEventListener('mousedown', onDocMouseDown, true);
     document.removeEventListener('keydown', onKeydown, true);
   }
@@ -1520,6 +1576,13 @@ export const AtomPopover = (() => {
     if (e.key === 'Escape') { e.preventDefault(); close(); }
   }
 
+  // Only the scoped case needs the worker: the merge winner there can be a
+  // higher-priority list main can't read without its corpus. Merged (clicked IS
+  // the winner) seeds synchronously from the clicked row.
+  function needsWorkerSeed(clicked) {
+    return state.selected !== MERGED_ID && clicked?.norm != null;
+  }
+
   function open(wlEntry, rowEl, scroller, anchorEl, focusField = 'score') {
     const popover = ensureElement();
     if (activeRow) activeRow.classList.remove('active');
@@ -1527,11 +1590,21 @@ export const AtomPopover = (() => {
     activeRow = rowEl;
     activeScroller = scroller;
     if (rowEl) rowEl.classList.add('active');
+    shippedProvRows = null;
+    shippedPreview = null;
 
-    popover.innerHTML = renderHTML(wlEntry, scroller);
+    // Seed from the clicked row: in the merged view it IS the merge winner; a
+    // scoped view holds a losing value, refined below by refineScopedSeed.
+    const seed = seedFromWinnerRow(wlEntry, getEditsWordlist() != null && wlEntry.wordlist === getEditsWordlist());
+
+    popover.innerHTML = renderHTML(wlEntry, scroller, seed);
     popover.removeAttribute('hidden');
     position(anchorEl ?? rowEl);
     wireFields();
+
+    fireInitialProvenanceQuery(seed.entry);
+    if (needsWorkerSeed(wlEntry)) refineScopedSeed(wlEntry, focusField);
+
     const focusSel = focusField === 'entry'   ? '.entry-input'
                    : focusField === 'comment' ? '.comment-input'
                    : '.score-input';
@@ -1541,6 +1614,52 @@ export const AtomPopover = (() => {
 
     document.addEventListener('mousedown', onDocMouseDown, true);
     document.addEventListener('keydown', onKeydown, true);
+  }
+
+  // The seed is a correctness input — a save writes FROM it into My Edits — so the
+  // fields stay disabled until the worker's winner refines the placeholder; a save
+  // against the un-refined scoped value would be wrong. A null reply (stale/disabled
+  // scope) keeps the clicked placeholder.
+  function refineScopedSeed(clicked, focusField) {
+    const token = ++seedQueryToken;
+    seedQueriesFired++;
+    setFieldsDisabled(true);
+    fetchWorkerEditSeed(clicked.norm, clicked.display ?? null).then(winner => {
+      if (token !== seedQueryToken || !isOpen() || activeWlEntry !== clicked) return;
+      if (winner) {
+        const src = state.sources.find(s => s.dbKey === winner.sourceId) || null;
+        const row = { ...winner, wordlist: src };
+        activeSeed = seedFromWinnerRow(row, src != null && src === getEditsWordlist());
+        applySeedToFields(activeSeed, focusField);
+        seedWinnersApplied++;
+      }
+      setFieldsDisabled(false);
+      refreshSaveEnabled();
+    });
+  }
+
+  function setFieldsDisabled(disabled) {
+    for (const sel of ['.entry-input', '.score-input', '.comment-input', '.atom-pop-save']) {
+      const node = el?.querySelector(sel);
+      if (node) node.disabled = disabled;
+    }
+  }
+
+  function applySeedToFields(seed, focusField) {
+    const entryInp = el.querySelector('.entry-input');
+    const scoreInp = el.querySelector('.score-input');
+    const commentInp = el.querySelector('.comment-input');
+    if (entryInp) entryInp.value = seed.entry;
+    if (scoreInp) scoreInp.value = seed.score;
+    if (commentInp) commentInp.value = seed.comment;
+    refreshRescoreNote();
+    refreshSaveEnabled();
+    const focusSel = focusField === 'entry' ? '.entry-input'
+                   : focusField === 'comment' ? '.comment-input'
+                   : '.score-input';
+    const focusInp = el.querySelector(focusSel);
+    focusInp?.focus();
+    if (focusField !== null) focusInp?.select();
   }
 
   function openForCreate(entryStr, scroller, anchorEl) {
@@ -1562,29 +1681,21 @@ export const AtomPopover = (() => {
       + `<button class="atom-pop-save" type="button">Save</button>`;
   }
 
-  // Spans ALL sources, not the merge's enabled-only walk: filtering by `enabled`
-  // here would silently drop the disabled/non-winning lists this panel exists to
-  // surface. A null-display (bare) entry applies to every spelling of its norm, so
-  // the include test stays asymmetric — never collapse it to `e.display === display`.
-  function gatherProvenance(norm, display) {
+  function renderShippedProvenanceHTML(shipped) {
     const rows = [];
-    for (const wl of state.sources) {
-      const arr = getRescoredByNorm(wl).get(norm);
-      if (!arr) continue;
-      for (const e of arr) {
-        const include = display == null || e.display === display || e.display == null;
-        if (include) rows.push({ wordlist: wl, entry: e });
-      }
+    for (const { sourceId, enabled, entry } of shipped) {
+      const wordlist = state.sources.find(s => s.dbKey === sourceId);
+      if (!wordlist) continue;
+      rows.push({ wordlist, entry, enabled });
     }
-    return rows;
+    return renderProvenanceRowsHTML(rows);
   }
 
-  function renderProvenanceHTML(wlEntry) {
-    if (!wlEntry || wlEntry.norm == null) return '';
-    const rows = gatherProvenance(wlEntry.norm, wlEntry.display);
+  function renderProvenanceRowsHTML(rows) {
     if (!rows.length) return '';
-    const body = rows.map(({ wordlist, entry }) => {
-      const cls = wordlist.enabled === false ? ' atom-pop-prov-row--disabled' : '';
+    const body = rows.map(({ wordlist, entry, enabled }) => {
+      const disabled = wordlist ? wordlist.enabled === false : enabled === false;
+      const cls = disabled ? ' atom-pop-prov-row--disabled' : '';
       const comment = entry.comment || '';
       return `<tr class="atom-pop-prov-row${cls}">`
         + `<td class="atom-pop-prov-entry">${esc(displayOf(entry))}</td>`
@@ -1604,44 +1715,29 @@ export const AtomPopover = (() => {
       + `</table>`;
   }
 
-  function previewWlEntry(rawEntry) {
-    const raw = rawEntry?.trim();
-    if (!raw) return null;
-    return buildMergedWordlist().byNorm.get(toNorm(raw)) || null;
+  function shippedToPreview(preview) {
+    if (!preview) return null;
+    const wordlist = state.sources.find(s => s.dbKey === preview.sourceId) || null;
+    return {
+      norm: preview.norm, display: preview.display ?? null,
+      score: preview.score, comment: preview.comment || '', wordlist,
+    };
   }
 
   function currentPreview() {
-    const inp = el?.querySelector('.entry-input');
-    return previewWlEntry(inp ? inp.value : displayOf(activeWlEntry));
+    return shippedToPreview(shippedPreview);
   }
 
-  // Seed from the All Wordlists merge winner, never the clicked atom's own value: under a
-  // scoped lower-priority list the atom holds that list's losing value, but the
-  // editor must show what the merge actually serves — a regression invisible
-  // until you scope away from My Edits.
-  function resolveSeed(clicked) {
-    const merged = buildMergedWordlist();
-    const norm = clicked.norm;
-    let row = merged.byKey.get(mergeKey(norm, clicked.display));
-    // A bare click with no bare merged row edits the first-alphabetical spelled
-    // variant — deterministic but arbitrary; don't "fix" the ordering.
-    if (!row && clicked.display == null) {
-      const variants = mergedRowsForNorm(merged, norm).filter(r => r.display != null);
-      variants.sort((a, b) => a.display.localeCompare(b.display));
-      row = variants[0] || merged.byNorm.get(norm) || null;
-    }
-    if (!row) row = clicked; // norm absent from the merge (only in a disabled list)
-
+  function seedFromWinnerRow(row, winnerIsEdits) {
     let score = row.score;
     const edits = getEditsWordlist();
     // Seed the score field from My Edits' RAW score, not the displayed effective:
     // the field edits raw, so seeding effective would re-rescore it on every save
     // and silently drift My Edits.
-    if (edits && row.wordlist === edits) {
+    if (winnerIsEdits && edits) {
       const rawEntry = edits.rawEntries.find(e => e.norm === row.norm && displayOf(e) === displayOf(row));
       if (rawEntry) score = rawEntry.score;
     }
-
     return {
       entry: displayOf(row),
       score,
@@ -1671,9 +1767,11 @@ export const AtomPopover = (() => {
     if (wrap) wrap.innerHTML = rescoreNoteHTML();
   }
 
-  function renderHTML(wlEntry, scroller) {
-    const seed = activeSeed = resolveSeed(wlEntry);
-    const preview = previewWlEntry(seed.entry) ?? wlEntry;
+  function renderHTML(wlEntry, scroller, seedOverride) {
+    const seed = activeSeed = seedOverride
+      ?? seedFromWinnerRow(wlEntry, getEditsWordlist() != null && wlEntry.wordlist === getEditsWordlist());
+    const provHTML = shippedProvRows ? renderShippedProvenanceHTML(shippedProvRows) : '';
+    const preview = shippedToPreview(shippedPreview);
     return `
       <button class="dialog-close-btn" type="button" aria-label="Close">✕</button>
       <div class="atom-pop-fields">
@@ -1687,7 +1785,7 @@ export const AtomPopover = (() => {
         <label for="atom-pop-comment">Comment</label>
         <input id="atom-pop-comment" class="comment-input" type="text" value="${esc(seed.comment)}">
       </div>
-      <div class="atom-pop-prov-wrap">${renderProvenanceHTML(wlEntry)}</div>
+      <div class="atom-pop-prov-wrap">${provHTML}</div>
       <div class="atom-pop-foot">${renderFooterHTML(preview, scroller)}</div>`;
   }
 
@@ -1700,12 +1798,19 @@ export const AtomPopover = (() => {
   // inputs) — used after Delete, where the underlying values change. The
   // default leaves the inputs alone so an edit-commit (e.g. tabbing from
   // score to comment) preserves focus and the just-typed value.
-  function refresh({ resetInputs = false } = {}) {
+  function refresh({ resetInputs = false, skipExistsCheck = false } = {}) {
     if (!isOpen()) return;
-    if (!activeScroller.resultHasEntry(activeWlEntry)) return;
+    // rebindEntry already proved the entry is in the result (it re-anchored to it),
+    // and post-flip resultHasEntry can't re-confirm a re-bound entry whose display
+    // differs from the run's rebindQuery (no local corpus to fall back on) — so it
+    // would wrongly return false and skip the provenance refresh (a deleted-edit
+    // revert then keeps the stale provenance). Skip the re-check on a fresh rebind.
+    if (!skipExistsCheck && !activeScroller.resultHasEntry(activeWlEntry)) return;
     if (resetInputs) {
       el.innerHTML = renderHTML(activeWlEntry, activeScroller);
       wireFields();
+      const inp = el.querySelector('.entry-input');
+      fireProvenanceQuery('', inp ? inp.value : '');
       return;
     }
     refreshDynamicBits();
@@ -1713,9 +1818,28 @@ export const AtomPopover = (() => {
 
   function refreshDynamicBits() {
     if (!isOpen()) return;
-    const preview = currentPreview();
+    const inp = el.querySelector('.entry-input');
+    const typed = inp ? inp.value : '';
+    fireProvenanceQuery(typed, typed);
+    renderDynamicBitsFromShipped();
+  }
+
+  function renderDynamicBitsFromShipped() {
+    renderDynamicBits(
+      shippedToPreview(shippedPreview),
+      shippedProvRows ? renderShippedProvenanceHTML(shippedProvRows) : keepProvHTML(),
+    );
+  }
+
+  // Leaving the wrap untouched before the first reply lands is the no-flash path —
+  // re-rendering '' would blank a table the previous reply already painted.
+  function keepProvHTML() {
+    return el.querySelector('.atom-pop-prov-wrap')?.innerHTML ?? '';
+  }
+
+  function renderDynamicBits(preview, provHTML) {
     const provEl = el.querySelector('.atom-pop-prov-wrap');
-    if (provEl) provEl.innerHTML = renderProvenanceHTML(provenanceTarget());
+    if (provEl) provEl.innerHTML = provHTML;
     const footEl = el.querySelector('.atom-pop-foot');
     if (footEl) {
       footEl.innerHTML = renderFooterHTML(preview, activeScroller);
@@ -1723,13 +1847,40 @@ export const AtomPopover = (() => {
     }
   }
 
-  function provenanceTarget() {
-    const preview = currentPreview();
-    if (preview) return preview;
-    const inp = el?.querySelector('.entry-input');
-    const raw = inp ? inp.value.trim() : displayOf(activeWlEntry);
-    if (!raw) return activeWlEntry;
-    return { norm: toNorm(raw), display: null };
+  // No debounce: every keystroke (and the open) fires. The monotonic token drops
+  // all but the latest reply, so a fast typist's stale reply can't overwrite the
+  // live table/footer. typedRaw drives provTarget, previewRaw the footer preview —
+  // they diverge only at open (see fireInitialProvenanceQuery).
+  function fireProvenanceQuery(typedRaw, previewRaw) {
+    const token = ++provQueryToken;
+    provQueriesFired++;
+    const clicked = activeWlEntry;
+    const clickedNorm = clicked?.norm ?? null;
+    const clickedDisplay = clicked?.display ?? null;
+    fetchWorkerProvenance(typedRaw, previewRaw, clickedNorm, clickedDisplay)
+      .then(({ preview, rows }) => {
+        // Match by (norm, display), not object identity: each run rebuilds
+        // activeWlEntry as a fresh object (findResultEntry returns the shipped
+        // rebind row), so an identity check would drop every reply after a
+        // re-bind and the table would never refresh (e.g. a post-delete revert).
+        if (token !== provQueryToken || !isOpen()
+            || activeWlEntry?.norm !== clickedNorm
+            || (activeWlEntry?.display ?? null) !== clickedDisplay) return;
+        // A null reply (not-fresh) leaves the last-good in place — blanking it
+        // would flash; a later query refines once the worker is fresh.
+        if (rows == null) return;
+        shippedProvRows = rows;
+        shippedPreview = preview;
+        provRepliesApplied++;
+        renderDynamicBitsFromShipped();
+      });
+  }
+
+  // The open-time query: typedRaw '' so the worker's provTarget falls to the
+  // clicked atom, while previewRaw seeds the footer from seed.entry — the two
+  // targets the open uses, which a single typedRaw can't express.
+  function fireInitialProvenanceQuery(seedEntry) {
+    fireProvenanceQuery('', seedEntry);
   }
 
   function editTarget() {
@@ -1851,6 +2002,16 @@ export const AtomPopover = (() => {
     rowEl.classList.add('active');
   }
 
+  // Rides the run (mirrors existsInScope) instead of awaiting the worker at
+  // rebind time: rebindEntry runs in updateEntries' synchronous render, so
+  // async-ifying findResultEntry/resultHasEntry would ripple a dual path through
+  // it. The run resolves this target against the owned corpus and ships it back.
+  function rebindQuery() {
+    return isOpen() && activeWlEntry
+      ? { norm: activeWlEntry.norm, display: activeWlEntry.display ?? null }
+      : null;
+  }
+
   function rebindEntry(scroller) {
     if (!isOpen() || activeScroller !== scroller) return;
     const targetNorm = activeWlEntry.norm;
@@ -1863,17 +2024,24 @@ export const AtomPopover = (() => {
         activeWlEntry = { norm: targetNorm, display: targetDisplay, score: '', comment: '' };
         el.innerHTML = renderHTML(activeWlEntry, activeScroller);
         wireFields();
+        // renderHTML painted prov/footer from the pre-delete shipped state; re-query
+        // so they converge to the deleted (empty) state (mirrors refresh's tail).
+        fireProvenanceQuery('', '');
         el.querySelector('.score-input')?.focus();
       }
       return;
     }
     activeWlEntry = found;
     const editing = !wasPendingDelete && containsFocus() && focusEl.matches('.entry-input, .score-input, .comment-input');
-    refresh({ resetInputs: !editing });
+    refresh({ resetInputs: !editing, skipExistsCheck: true });
   }
 
-  return { open, openForCreate, close, isOpen, containsFocus, activeNorm, rebindRow, rebindEntry };
+  return { open, openForCreate, close, isOpen, containsFocus, activeNorm, rebindRow, rebindEntry, rebindQuery, seedDebug, provenanceDebug };
 })();
+
+export function popoverRebindQuery() {
+  return AtomPopover.rebindQuery();
+}
 
 export function buildEntriesTablePanelHTML() {
   return `<div id="entries-table-panel">

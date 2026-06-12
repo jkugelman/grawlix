@@ -7,9 +7,9 @@ import { pluralize } from '../../core/util.js';
 import { isMobile } from '../../core/platform.js';
 import { effect } from '../../core/signals.js';
 import { FEATURED_TOOLS, TOOLS } from '../../engine/tools.js';
-import { sources$, cacheVersion$ } from '../../data/state.js';
+import { sources$, cacheVersion$, configSummary$ } from '../../data/state.js';
 import { lsSave } from '../../data/storage.js';
-import { buildMergedWordlist } from '../../data/merge.js';
+import { mergedEntryCount } from '../../data/merge.js';
 import { Disk } from '../../data/disk-sync.js';
 import { buildIconHTML, colorSeed, getMergedIcon } from '../icons.js';
 import { buildToolCardHTML } from '../tool-stack.js';
@@ -24,9 +24,10 @@ export const WelcomeDialog = (() => {
     effect(() => {
       sources$.get();
       cacheVersion$.get();
+      configSummary$.get();   // the merged count ships async from the worker
       if (!el.open) return;
       const count = el.querySelector('.welcome-merge-count');
-      if (count) count.textContent = pluralize(buildMergedWordlist().entries.length, 'entry', 'entries');
+      if (count) count.textContent = pluralize(mergedEntryCount(), 'entry', 'entries');
     });
   }
 
@@ -56,7 +57,7 @@ export const WelcomeDialog = (() => {
           ${getMergedIcon()}
           <span class="welcome-merge-all-name">${MERGED_NAME}</span>
         </div>
-        <span class="welcome-merge-count">${pluralize(buildMergedWordlist().entries.length, 'entry', 'entries')}</span>
+        <span class="welcome-merge-count">${pluralize(mergedEntryCount(), 'entry', 'entries')}</span>
       </div>`;
 
     const storageShot = `

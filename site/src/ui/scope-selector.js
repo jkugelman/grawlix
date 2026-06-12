@@ -8,7 +8,7 @@
 import { MERGED_ID, MERGED_NAME } from '../core/constants.js';
 import { esc, pluralize, timeAgo } from '../core/util.js';
 import { state } from '../data/state.js';
-import { buildMergedWordlist, getSourceCounts } from '../data/merge.js';
+import { mergedEntryCount, getSourceCounts } from '../data/merge.js';
 import { getWordlistIcon, getMergedIcon } from './icons.js';
 import {
   buildBadgeHTML, buildDragHandleHTML, buildSplitBtn, buildMoreMenuHTML,
@@ -64,7 +64,7 @@ export function buildWordlistCardHTML(icon, name, meta, opts = {}) {
 // Like a regular wordlist card but with no drag handle, no enable toggle, and
 // not reorderable.
 export function buildMergedCardHTML(selected) {
-  const meta = pluralize(buildMergedWordlist().entries.length, 'entry', 'entries');
+  const meta = pluralize(mergedEntryCount(), 'entry', 'entries');
   const cls = ['wordlist-card', 'merged-card'];
   if (selected) cls.push('selected');
   return `<div class="${cls.join(' ')}" data-merged tabindex="0" role="option">
@@ -128,7 +128,7 @@ export const WordlistSelector = (() => {
   function downloadBtnHTML() {
     const scope = state.selected;
     if (scope === MERGED_ID) {
-      const hasData = buildMergedWordlist().entries.length > 0;
+      const hasData = mergedEntryCount() > 0;
       return hasData ? `<button id="download-btn" title="Download the merged wordlist" onclick="WordlistActions.action('download')">Download</button>` : '';
     }
     if (!scope.rawEntries.length) return '';
@@ -196,7 +196,7 @@ export const WordlistSelector = (() => {
     const selected = scope === state.selected;
     if (scope === MERGED_ID) {
       return buildWordlistCardHTML(getMergedIcon(), MERGED_NAME,
-        pluralize(buildMergedWordlist().entries.length, 'entry', 'entries'),
+        pluralize(mergedEntryCount(), 'entry', 'entries'),
         { draggable: false, toggle: false, selected });
     }
     const severity = wordlistSeverity(scope);
