@@ -358,7 +358,13 @@ export function mountStatsBarOverflowObservers() {
   const parent = document.getElementById('detail-panel');
   if (!parent) return;
   new ResizeObserver(refreshStatsBarOverflow).observe(parent);
-  new MutationObserver(refreshStatsBarOverflow).observe(parent, { childList: true, subtree: true });
+  // A scroll re-renders rows inside #vs-host — irrelevant to the stats bar's fit;
+  // skipping those keeps the overflow recompute (a forced reflow) off the scroll path.
+  new MutationObserver(records => {
+    const host = entriesScroller?.host;
+    if (host && records.every(r => host.contains(r.target))) return;
+    refreshStatsBarOverflow();
+  }).observe(parent, { childList: true, subtree: true });
 }
 
 export function mountHeaderHeightObserver() {
