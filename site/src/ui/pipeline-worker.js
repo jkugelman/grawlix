@@ -129,6 +129,7 @@ function ensureSnapshot(corpus) {
 // ─── Run dispatch & supersession ─────────────────────────────────────────────
 let runCounter = 0;
 let pendingRun = null;   // { runId, resolve, stack } for the latest dispatched run
+let lastResultRunId = null;   // runId of the last `result` the worker delivered
 
 export function runOnWorker(corpus, stack, sort) {
   if (useMainThread) return runMainThread(corpus, stack);
@@ -159,6 +160,7 @@ function onWorkerMessage({ data }) {
     if (!pendingRun || data.runId !== pendingRun.runId) return;   // stale — drop
     const run = pendingRun;
     pendingRun = null;
+    lastResultRunId = data.runId;
     run.resolve(materializeResult(data, run.stack));
     return;
   }
@@ -295,5 +297,24 @@ export function pingWorker(timeout = 2000) {
     }
     w.addEventListener('message', onMessage);
     w.postMessage({ type: 'ping' });
+  });
+}
+
+// ─── Windowed row fetch bridge (test) ── see docs/worker-protocol.md ─────────
+let fetchRowsRequestId = 0;
+export function lastCompletedRunId() { return lastResultRunId; }
+export function fetchWorkerRows(runId, start, end, timeout = 5000) {
+  const w = getWorker();
+  const requestId = ++fetchRowsRequestId;
+  return new Promise(resolve => {
+    const timer = setTimeout(() => { w.removeEventListener('message', onMessage); resolve(null); }, timeout);
+    function onMessage({ data }) {
+      if (data?.type !== 'rows' || data.requestId !== requestId) return;
+      clearTimeout(timer);
+      w.removeEventListener('message', onMessage);
+      resolve({ start: data.start, rows: data.rows });
+    }
+    w.addEventListener('message', onMessage);
+    w.postMessage({ type: 'fetchRows', requestId, runId, start, end });
   });
 }

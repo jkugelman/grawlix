@@ -71,6 +71,7 @@ let snapshotId = null;
 let latestRunId = -1;       // the supersession key; a `run`/`cancel` advances it
 let pending = null;
 let running = false;
+let lastFlatResult = null;  // { runId, indices, scores } retained to serve `fetchRows`
 let lastUserStackSig = null;
 let selfConfig = null;
 
@@ -161,10 +162,12 @@ function postResult(runId, sid, { rows, atomCount, grouped }, sort) {
   const base = { type: 'result', runId, snapshotId: sid, grouped, atomCount };
 
   if (grouped) {
+    lastFlatResult = null;
     postMessage({ ...base, payload: { groups: rows.map(encodeGroup) } });
     return;
   }
   if (rows.some(rowIsRich)) {
+    lastFlatResult = null;
     postMessage({ ...base, payload: { chains: rows.map(encodeChain) } });
     return;
   }
@@ -192,10 +195,27 @@ function postResult(runId, sid, { rows, atomCount, grouped }, sort) {
     maxScoreDigits: String(maxScore).length + (hasNeg ? 1 : 0),
   };
 
+  // .slice() is load-bearing: the postMessage below transfers (detaches)
+  // indices/scores, so the worker must retain its own copies to serve fetchRows.
+  lastFlatResult = { runId, indices: indices.slice(), scores: scores.slice() };
+
   postMessage(
     { ...base, payload: { indices: indices.buffer, scores: scores.buffer, widthHints } },
     [indices.buffer, scores.buffer],
   );
+}
+
+// ─── Windowed row fetch ── see docs/worker-protocol.md ───────────────────────
+function handleFetchRows({ requestId, runId, start, end }) {
+  // A fetch for a superseded/non-flat result: drop silently — main re-fetches
+  // against the current result. (Same supersession discipline as runs.)
+  if (!lastFlatResult || lastFlatResult.runId !== runId) return;
+  const { indices } = lastFlatResult;
+  const lo = Math.max(0, start | 0);
+  const hi = Math.min(indices.length, end | 0);
+  const rows = [];
+  for (let i = lo; i < hi; i++) rows.push({ i: indices[i] });
+  postMessage({ type: 'rows', requestId, runId, start: lo, rows });
 }
 
 // Native (norm.localeCompare) order ties differently from the `entry` axis,
@@ -369,6 +389,10 @@ onmessage = ({ data }) => {
     case 'cancel':
       latestRunId++;
       pending = null;
+      break;
+
+    case 'fetchRows':
+      handleFetchRows(data);
       break;
 
     case 'syncConfig':

@@ -301,6 +301,17 @@ mark.search-match { border-radius: 2px; padding: 0 1px; margin: 0 -1px; font-sty
 .entry-headers [data-sort-axes]:focus-visible, .group-headers [data-sort-axes]:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 .entry-row:hover { background: var(--row-hover); }
 .entry-row.active { background: color-mix(in srgb, var(--accent) 12%, transparent); }
+
+.entry-row.skeleton { display: flex; align-items: center; padding: 0 8px; }
+.entry-row.skeleton .skeleton-bar {
+  height: 10px;
+  width: 40%;
+  border-radius: 3px;
+  background: linear-gradient(90deg, var(--surface) 0%, var(--border2) 50%, var(--surface) 100%);
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.2s ease-in-out infinite;
+}
+@keyframes skeleton-shimmer { to { background-position: -200% 0; } }
 /* `.atom` is display:contents — its cells participate directly in the
    .entry-row grid. Explicit grid-column on each cell lets atoms past the
    first wrap onto their own grid row while staying column-aligned with the

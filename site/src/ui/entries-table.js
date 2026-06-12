@@ -35,8 +35,34 @@ import { buildWordlistNameHTML } from './scope-selector.js';
 import {
   getEntriesScroller, rescorePreviewActive, buildNoMatchQuipHTML, refreshMergedScroller,
 } from './rendering.js';
+import { fetchWorkerRows, lastCompletedRunId } from './pipeline-worker.js';
 
 let _navigate              = () => {};
+
+// Fetches its window from the worker, not the local corpus main still holds —
+// stage 3 removes that corpus, so "optimizing" this to read _flatCorpus would
+// silently break the moment stage 3 lands.
+let WINDOWED_FLAT = true;
+export function setWindowedFlatForTest(on) { WINDOWED_FLAT = on; }
+
+// _winCache rows kept beyond the viewport on each side before eviction prunes
+// the rest. Stakes: drop it under VS_BUFFER and eviction discards rows the next
+// scroll is about to need, re-fetching them in a thrash that surfaces only as
+// silent scroll jank.
+const WINDOW_CACHE_KEEP = VS_BUFFER * 6;
+export function windowedFlatDebug() {
+  const s = getEntriesScroller();
+  if (!s) return { error: 'no entries scroller mounted' };
+  return {
+    flagOn: WINDOWED_FLAT,
+    isFlatTier: s._flat,
+    hasFlatCorpus: !!s._flatCorpus,
+    scoreFilterActive: !!s._scoreIntervals,
+    sortTier: s.sortTier,
+    wouldEngageWindowing: !!(s._flat && WINDOWED_FLAT && !s._scoreIntervals && s._flatCorpus),
+    winCacheSize: s._winCache ? s._winCache.size : 0,
+  };
+}
 
 export function configureEntriesTable({ navigate }) {
   if (navigate)              _navigate = navigate;
@@ -763,6 +789,12 @@ export class EntriesScroller extends BaseVirtualScroller {
     this._sortedSourceKey = null;
     this._sortedSourceDir = null;
 
+    this._winCache = new Map();
+    this._winCacheRunId = null;
+    this._winCacheSnapVersion = null;
+    this._winReqSeq = 0;
+    this._fetchOutstanding = 0;
+
     this.sizer.addEventListener('click', e => {
       const moreBtn = e.target.closest('.group-more');
       if (moreBtn) {
@@ -1102,20 +1134,108 @@ export class EntriesScroller extends BaseVirtualScroller {
     const { start, end } = this._visibleRange(n);
     this._clearSizer();
 
+    // With a score-range filter this.entries is a subset whose positions don't
+    // align with the worker's result array, so the position-based fetch can't
+    // window it — fall back to the local _flatRowAt path.
+    const windowed = this._flat && WINDOWED_FLAT && !this._scoreIntervals && this._flatCorpus;
+    if (windowed) this._invalidateWinCacheIfStale();
+
     const tierFor = makeTierLookup();
     const preview = rescorePreviewActive();
     const activeNorm = AtomPopover.activeNorm(this);
     let nextActiveRow = null;
+    let minMiss = -1, maxMiss = -1;
     const frag = document.createDocumentFragment();
     for (let i = start; i < end; i++) {
-      const chainRow = this._flat ? this._flatRowAt(i) : this.entries[i];
-      const row = this._renderChainRow(chainRow, i, tierFor, activeNorm, preview);
+      let row;
+      if (windowed) {
+        const chainRow = this._windowedRowOrNull(i);
+        if (chainRow) {
+          row = this._renderChainRow(chainRow, i, tierFor, activeNorm, preview);
+        } else {
+          row = this._skeletonRow();
+          if (minMiss < 0) minMiss = i;
+          maxMiss = i;
+        }
+      } else {
+        const chainRow = this._flat ? this._flatRowAt(i) : this.entries[i];
+        row = this._renderChainRow(chainRow, i, tierFor, activeNorm, preview);
+      }
       row.style.top = (i * stride) + 'px';
       if (row.classList.contains('active')) nextActiveRow = row;
       frag.appendChild(row);
     }
     this.sizer.appendChild(frag);
     if (nextActiveRow) AtomPopover.rebindRow(nextActiveRow);
+
+    if (windowed && minMiss >= 0) {
+      const lo = Math.max(0, minMiss - VS_BUFFER);
+      const hi = Math.min(n, maxMiss + 1 + VS_BUFFER);
+      this._fetchWindow(lo, hi);
+    }
+    if (windowed) this._evictWinCache(start, end);
+  }
+
+  // A run change or a My Edits patch (_snapVersion bump) reindexes the corpus,
+  // so index-keyed cache entries name the wrong rows — drop them. Mirrors the
+  // _render patch guard above.
+  _invalidateWinCacheIfStale() {
+    const runId = lastCompletedRunId();
+    if (runId !== this._winCacheRunId || this._flatSnapVersion !== this._winCacheSnapVersion) {
+      this._winCache.clear();
+      this._winCacheRunId = runId;
+      this._winCacheSnapVersion = this._flatSnapVersion;
+    }
+  }
+
+  // The keep-window strictly contains [start, end): the render reads cache[i] for
+  // i in [start, end), so an entry evicted there would blank a visible row. Narrow
+  // it past the viewport and rows silently go blank — keep WINDOW_CACHE_KEEP > 0.
+  _evictWinCache(start, end) {
+    const keepLo = start - WINDOW_CACHE_KEEP;
+    const keepHi = end + WINDOW_CACHE_KEEP;
+    if (this._winCache.size <= (end - start) + WINDOW_CACHE_KEEP * 3) return;
+    for (const pos of this._winCache.keys()) {
+      if (pos < keepLo || pos >= keepHi) this._winCache.delete(pos);
+    }
+  }
+
+  _windowedRowOrNull(i) {
+    if (!this._winCache.has(i)) return null;
+    return materializeFlatRow(this._flatCorpus.entries[this._winCache.get(i)], this._flatHighlighters);
+  }
+
+  _skeletonRow() {
+    const row = document.createElement('div');
+    row.className = 'entry-row entry-row-font skeleton';
+    row.innerHTML = '<span class="skeleton-bar"></span>';
+    return row;
+  }
+
+  _fetchWindow(lo, hi) {
+    const runId = lastCompletedRunId();
+    const seq = ++this._winReqSeq;
+    this._fetchOutstanding++;
+    fetchWorkerRows(runId, lo, hi).then(reply => {
+      this._fetchOutstanding--;
+      if (seq !== this._winReqSeq) return;            // superseded by a newer scroll
+      if (runId !== lastCompletedRunId()) return;     // superseded by a newer run
+      if (!reply) return;                             // timeout
+      for (let k = 0; k < reply.rows.length; k++) this._winCache.set(reply.start + k, reply.rows[k].i);
+      this._render();
+    });
+  }
+
+  windowIdle(timeout = 5000) {
+    if (this._fetchOutstanding === 0) return Promise.resolve();
+    return new Promise(resolve => {
+      const deadline = performance.now() + timeout;
+      const tick = () => {
+        if (this._fetchOutstanding === 0 || performance.now() >= deadline) resolve();
+        else requestAnimationFrame(tick);
+      };
+      requestAnimationFrame(tick);
+    });
   }
 
   _flatRowAt(i) {

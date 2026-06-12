@@ -34,12 +34,13 @@ import { ToolStack, pipelineIdle } from './ui/tool-stack.js';
 import {
   pingWorker, runOnWorker, shippedSnapshot, patchWorkerToolForTest,
   pipelineWorkerState, crashWorkerForTest, forceWorkerCrashForTest,
-  syncWorkerConfig, dumpWorkerCorpus,
+  syncWorkerConfig, dumpWorkerCorpus, fetchWorkerRows, lastCompletedRunId,
 } from './ui/pipeline-worker.js';
 import { executePipeline } from './engine/executor.js';
 import {
   getEntriesScroller, setScope, renderSources, renderMergedDetail, refreshMergedScroller,
 } from './ui/rendering.js';
+import { setWindowedFlatForTest, windowedFlatDebug } from './ui/entries-table.js';
 import {
   addNewWordlist, applyWordlistText, bakeRescoring, saveEdit, deleteFromEdits, persistEdits,
   buildCopyText, buildWordlistText, buildCSVText, buildExportJSONObject, exportFilename, _ready,
@@ -182,6 +183,8 @@ const __grawlixTest = {
   forceWorkerCrashForTest,
   syncWorkerConfig: (sources = state.sources) => syncWorkerConfig(sources),
   dumpWorkerCorpus: (scope) => dumpWorkerCorpus(scope),
+  fetchWorkerRows: (start, end, runId, timeout) =>
+    fetchWorkerRows(runId ?? lastCompletedRunId(), start, end, timeout),
 
   // buildMergedWordlist/buildScopedCorpus, not getActiveCorpus (which keys off
   // state.selected), so the oracle dumps the requested scope even when it isn't
@@ -237,6 +240,13 @@ const __grawlixTest = {
   // Resolves when no pipeline run is in flight. Tests use this after keystroke
   // interactions (which fire-and-forget the refresh) before reading the DOM.
   pipelineIdle() { return pipelineIdle(); },
+
+  setWindowedFlatForTest,
+  windowedFlatDebug,
+
+  // Resolves when the windowed-flat scroller has no fetchRows in flight. A
+  // fetchRows isn't a pipeline run, so pipelineIdle can't see it.
+  windowIdle() { return getEntriesScroller()?.windowIdle() ?? Promise.resolve(); },
 
   // Resolves once init() has fully completed. gotoApp awaits this before the
   // test touches the UI, so init's boot tail can't reset the stack mid-test.
