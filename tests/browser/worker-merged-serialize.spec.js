@@ -220,3 +220,70 @@ test('C1 Welcome merge count: worker count matches the local fallback', async ({
   expect(workerText).toBe(localText);
   expect(workerText).not.toBe('0 entries');   // guard against both paths reading an empty merge
 });
+
+// ─── S1: individual source download (UNSORTED) ───────────────────────────────
+// The per-source sibling of M1: downloadSourceWordlist serializes ONE source's
+// full rescored entry list off the worker (sort:false, rawEntries order). The
+// bytes must be BYTE-IDENTICAL to main's local serialize fallback (reached when
+// the worker isn't fresh) across output formats. See docs/worker-protocol.md.
+
+async function captureSourceDownload(page, name) {
+  const dl = page.waitForEvent('download');
+  await page.evaluate(n => downloadSourceWordlist(state.sources.find(w => w.name === n)), name);
+  return readDownload(await dl);
+}
+
+test('S1 individual download: worker serialize is byte-identical to the local fallback across output formats', async ({ page }) => {
+  await gotoApp(page);
+  await seedCorpus(page);
+
+  // No syncWorkerConfig yet: ownedBuilt is null, so every download falls back to
+  // main's local serialize — the byte baseline, captured per format.
+  const local = {};
+  for (const [label, fmt] of Object.entries(FORMATS)) {
+    await setFormat(page, fmt);
+    local[label] = await captureSourceDownload(page, 'Alpha');
+  }
+
+  await makeFresh(page);
+  for (const [label, fmt] of Object.entries(FORMATS)) {
+    await setFormat(page, fmt);
+    const before = await serializeFetches(page);
+    const worker = await captureSourceDownload(page, 'Alpha');
+    expect(await serializeFetches(page) - before, `${label}: one worker round-trip`).toBe(1);
+    expect(worker, `format ${label}`).toBe(local[label]);
+  }
+});
+
+// ─── S2: individual source disk mirror (SORTED) ──────────────────────────────
+
+async function attachSourceMirror(page, name, file) {
+  await setNextName(page, file);
+  await page.evaluate(n => window.__grawlixTest.sync.attachMirror(n), name);
+}
+async function flushSourceAndRead(page, name, file) {
+  await page.evaluate(n => window.__grawlixTest.sync.flushSource(n), name);
+  return readFile(page, file);
+}
+
+test('S2 individual disk mirror: worker serialize is byte-identical to the local fallback across output formats', async ({ page }) => {
+  await gotoApp(page);
+  await seedCorpus(page);
+  await attachSourceMirror(page, 'Alpha', 'Alpha.txt');
+
+  // No sync yet: every flush falls back to main's local serialize — the baseline.
+  const local = {};
+  for (const [label, fmt] of Object.entries(FORMATS)) {
+    await setFormat(page, fmt);
+    local[label] = await flushSourceAndRead(page, 'Alpha', 'Alpha.txt');
+  }
+
+  await makeFresh(page);
+  for (const [label, fmt] of Object.entries(FORMATS)) {
+    await setFormat(page, fmt);
+    const before = await serializeFetches(page);
+    const worker = await flushSourceAndRead(page, 'Alpha', 'Alpha.txt');
+    expect(await serializeFetches(page) - before, `${label}: one worker round-trip`).toBe(1);
+    expect(worker, `format ${label}`).toBe(local[label]);
+  }
+});

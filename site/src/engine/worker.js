@@ -974,18 +974,27 @@ async function dumpCorpus(scope) {
   }
 }
 
-// ─── Merged-corpus serialize ── see docs/worker-protocol.md ──────────────────
-// The `sort` flag reproduces two distinct call sites: the merged download is
-// UNSORTED, the disk mirror SORTED. Unifying them silently diverges one path's
-// bytes with nothing to flag it.
+// ─── Corpus serialize ── see docs/worker-protocol.md ─────────────────────────
+// The `sort` flag reproduces two call sites per target: the download is UNSORTED,
+// the disk mirror SORTED. Unifying it silently diverges one path's bytes.
 function handleSerializeFor({ requestId, scope, format, sort }) {
-  if (scope !== MERGED_ID || !(ownedMerged && ownedCorpusFresh)) {
+  const entries = serializeEntriesForScope(scope);
+  if (!entries) {
     postMessage({ type: 'serialized', requestId, text: null });
     return;
   }
-  const entries = sort ? sortedEntries(ownedMerged.entries) : ownedMerged.entries;
-  const text = serializeEntries(entries, format);
+  const text = serializeEntries(sort ? sortedEntries(entries) : entries, format);
   postMessage({ type: 'serialized', requestId, text });
+}
+
+// A non-merged scope is a sourceId, serializing that source's FULL rescored entry
+// list — NOT buildScopeCorpus, whose dedup/variant-collapse would diverge from the
+// per-source download/mirror bytes.
+function serializeEntriesForScope(scope) {
+  if (!ownedCorpusFresh) return null;
+  if (scope === MERGED_ID) return ownedMerged ? ownedMerged.entries : null;
+  const wl = ownedBuilt?.find(w => w.dbKey === scope);
+  return wl ? getRescoredEntries(wl) : null;
 }
 
 // ─── Message dispatch ────────────────────────────────────────────────────────

@@ -865,9 +865,13 @@ export function triggerDownload(text, filename) {
   URL.revokeObjectURL(url);
 }
 
-export function downloadSourceWordlist(wordlist) {
+export async function downloadSourceWordlist(wordlist) {
   if (!wordlist || !wordlist.rawEntries.length) return;
-  triggerDownload(serializeEntries(getRescoredEntries(wordlist), getOutputFormat()), rescoredFilename(wordlist));
+  // Unsorted (sort:false): the individual download ships entries in rawEntries
+  // order, only the disk mirror sorts. Null reply (not-fresh) → local fallback.
+  const text = (await fetchWorkerSerialize(wordlist.dbKey, getOutputFormat(), false))
+    ?? serializeEntries(getRescoredEntries(wordlist), getOutputFormat());
+  triggerDownload(text, rescoredFilename(wordlist));
   showToast(`Downloaded ${pluralize(wordlist.rawEntries.length, 'entry', 'entries')}`);
 }
 

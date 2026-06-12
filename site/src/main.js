@@ -1,6 +1,5 @@
 'use strict';
 
-import { MERGED_ID } from './core/constants.js';
 import { esc } from './core/util.js';
 import { effect } from './core/signals.js';
 import {
@@ -12,7 +11,7 @@ import { lsSave, lsLoad, idbPut, idbGet, Storage } from './data/storage.js';
 import { serializeEntries } from './engine/serialize.js';
 import { getOutputFormat, setOutputFormat } from './data/serialize.js';
 import { persistMeta } from './data/persist.js';
-import { configureSyncDialogs, configureMergedSerializer } from './data/disk-sync.js';
+import { configureSyncDialogs, configureMirrorSerializer } from './data/disk-sync.js';
 import { buildClearableInputHTML, mountClearableInputs, toggleSplitMenu } from './ui/components.js';
 import { showConfirm, showAlert, showMergeConflict, showEditsConflict } from './ui/dialogs/confirm.js';
 import { openUpdateSummaryDialog } from './ui/dialogs/update-summary.js';
@@ -173,8 +172,8 @@ function boot() {
     resolveConflict: (filename, conflicts) => showEditsConflict(filename, conflicts),
   });
 
-  // The merged mirror serializes SORTED (sort:true), unlike the unsorted download.
-  configureMergedSerializer(fmt => fetchWorkerSerialize(MERGED_ID, fmt, true));
+  // Every disk mirror serializes SORTED (sort:true), unlike the unsorted download.
+  configureMirrorSerializer((scope, fmt) => fetchWorkerSerialize(scope, fmt, true));
 
   // App-shell components must exist before init()'s renderAll: the render
   // effect's first run calls WordlistSelector.refresh() + DiscoveryBanner.refresh()

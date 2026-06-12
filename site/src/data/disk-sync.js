@@ -28,11 +28,11 @@ export function configureSyncDialogs({ alert, resolveConflict }) {
   if (resolveConflict) _resolveConflict = resolveConflict;
 }
 
-// Injected by the app layer (configureMergedSerializer), like the dialog hooks
-// above: the worker-serialize attempt (text-or-null) for the merged mirror,
-// kept here so data/ avoids an upward edge to ui/.
-let _mergedSerializer = null;
-export function configureMergedSerializer(fn) { _mergedSerializer = fn; }
+// Injected by the app layer (configureMirrorSerializer), like the dialog hooks
+// above: the SORTED worker-serialize attempt (text-or-null) for a scope (MERGED_ID
+// or a source dbKey), kept here so data/ avoids an upward edge to ui/.
+let _mirrorSerializer = null;
+export function configureMirrorSerializer(fn) { _mirrorSerializer = fn; }
 
 // key → { handle, baseline? }. `baseline` (serialized as-is My Edits text) is the
 // common ancestor for My Edits' 3-way merge; without it, a two-way union can't
@@ -161,10 +161,11 @@ const MirrorSync = {
     }
   },
   async _serialize(key) {
-    if (key === MERGED_ID) {
-      // Only the worker can serialize the merge post-flip; a null reply mirrors empty.
-      return (_mergedSerializer ? await _mergedSerializer(getOutputFormat()) : null) ?? '';
-    }
+    const worker = _mirrorSerializer ? await _mirrorSerializer(key, getOutputFormat()) : null;
+    if (worker != null) return worker;
+    // Local fallback (worker not fresh). The merge has no resident main corpus, so
+    // it mirrors empty; a source still holds its rawEntries on main.
+    if (key === MERGED_ID) return '';
     const list = listForSyncKey(key);
     return serializeEntries(sortedEntries(applyRescoring(list.rawEntries, list.rescoreRules || [])), getOutputFormat());
   },

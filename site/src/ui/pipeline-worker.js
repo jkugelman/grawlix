@@ -638,7 +638,7 @@ export function fetchWorkerAllGroups(runId, timeout = 5000) {
   });
 }
 
-// ─── Merged-corpus serialize bridge ── see docs/worker-protocol.md ───────────
+// ─── Corpus serialize bridge ── see docs/worker-protocol.md ──────────────────
 let fetchSerializeRequestId = 0;
 export function serializeFetchesSent() { return fetchSerializeRequestId; }
 export function fetchWorkerSerialize(scope, format, sort, timeout = 5000) {
