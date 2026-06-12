@@ -399,8 +399,13 @@ class BaseVirtualScroller {
   }
 
   _sizerHeightFor(naturalHeight) {
-    if (this._isReservationActive() && !this._revealEmpty) {
-      this._reservedHeight = Math.max(this._reservedHeight, this.sizer.offsetHeight, naturalHeight);
+    // The reservation parks the empty-state quip below the fold; it must only
+    // floor an *empty* result. Flooring a non-empty one pins the sizer to the
+    // prior, taller view when a tool shrinks the set (its param input still
+    // focused), leaving a dead zone below the real rows that scrolls blank.
+    const empty = naturalHeight === 0;
+    if (empty && this._isReservationActive() && !this._revealEmpty) {
+      this._reservedHeight = Math.max(this._reservedHeight, this.sizer.offsetHeight);
     } else if (this._reservedHeight) {
       this._reservedHeight = 0;
     }
