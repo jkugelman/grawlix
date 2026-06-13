@@ -28,12 +28,6 @@ function routeJK(page, feed) {
   });
 }
 
-async function waitForJKPopulated(page) {
-  await expect.poll(() =>
-    page.evaluate(() => window.__grawlixTest.getWordlist('John Kugelman')?.entries.length)
-  ).toBe(3);
-}
-
 async function scopeJK(page) {
   await scopeViaSelector(page, 'John Kugelman');
 }
@@ -43,7 +37,6 @@ test('updating a wordlist applies the new version and summarizes the diff', asyn
   await stubPublisherFetches(page);
   await routeJK(page, feed);
   await gotoApp(page);
-  await waitForJKPopulated(page);
 
   feed.updated = true;
   await scopeJK(page);
@@ -66,7 +59,6 @@ test('re-fetching unchanged content reports no changes', async ({ page }) => {
   await stubPublisherFetches(page);
   await routeJK(page, feed);
   await gotoApp(page);
-  await waitForJKPopulated(page);
 
   await scopeJK(page);
   await barKebabAction(page, 'Fetch');
@@ -81,7 +73,6 @@ test('with auto-update off, the update check flags a changed wordlist with a gre
   await stubPublisherFetches(page);
   await routeJK(page, feed);
   await gotoApp(page);
-  await waitForJKPopulated(page);
 
   await page.locator('#btn-settings').click();
   await page.locator('#auto-update-seg .seg-btn[data-val="off"]').click();
@@ -108,7 +99,6 @@ test('with auto-update on, a changed wordlist is re-fetched and a toast shows th
   await stubPublisherFetches(page);
   await routeJK(page, feed);
   await gotoApp(page);
-  await waitForJKPopulated(page);
 
   // Toggling the setting on kicks an immediate update check — no manual
   // checkForUpdates() call needed.

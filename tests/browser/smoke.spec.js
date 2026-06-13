@@ -32,7 +32,7 @@ test('welcome popup persists until dismissed and reopens from ?', async ({ page 
   expect(await page.evaluate(() => localStorage.getItem('grawlix_welcomeSeen'))).toBe('1');
 
   await page.reload();
-  await expect.poll(() => page.evaluate(() => _db !== null), { timeout: 10000 }).toBe(true);
+  await page.evaluate(() => window.__grawlixTest.whenReady());
   await expect(page.locator('#app')).toBeVisible();
   await expect(dialog).toBeHidden();
 
