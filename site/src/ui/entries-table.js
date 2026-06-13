@@ -2040,6 +2040,13 @@ export const AtomPopover = (() => {
   }
 
   function position(anchorEl) {
+    // Mobile uses a CSS bottom sheet; clear inline top/left left by a prior
+    // desktop open, or they'd override the sheet's positioning after a resize.
+    if (window.matchMedia('(max-width: 759px)').matches) {
+      el.style.top = '';
+      el.style.left = '';
+      return;
+    }
     if (!anchorEl) {
       const pw = el.offsetWidth, ph = el.offsetHeight;
       el.style.left = Math.max(8, (window.innerWidth  - pw) / 2) + 'px';

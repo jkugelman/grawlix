@@ -535,8 +535,8 @@ button.header-icon-btn:hover:not(:disabled) { background: var(--hdr-bg-dark); co
 .help-circle { border-radius: 50%; background: white; color: var(--accent); font-size: 12px; font-weight: 800; }
 
 /* Settings dialog */
-#settings-dialog { width: 340px; }
-#edits-conflict-dialog { width: 460px; }
+#settings-dialog { --dialog-w: 340px; }
+#edits-conflict-dialog { --dialog-w: 460px; }
 .merge-entries-conflict { max-height: 200px; overflow: auto; margin: 4px 0 0; font-size: 12px; }
 .splash-reconnect { display: flex; flex-direction: column; gap: 8px; align-items: stretch; min-width: 280px; }
 .splash-reconnect.animated { opacity: 0; animation: splash-reconnect-reveal 0.4s ease-out 0.5s forwards; }
@@ -547,9 +547,9 @@ button.header-icon-btn:hover:not(:disabled) { background: var(--hdr-bg-dark); co
 .dialog-footer-split { justify-content: space-between; }
 .merge-entry-row { padding: 4px 0; color: var(--muted); }
 .merge-entry-row b { color: var(--text); margin-right: 6px; }
-#confirm-dialog, #alert-dialog { width: 320px; }
-#merge-conflict-dialog { width: 380px; }
-#sync-dialog { width: 440px; }
+#confirm-dialog, #alert-dialog { --dialog-w: 320px; }
+#merge-conflict-dialog { --dialog-w: 380px; }
+#sync-dialog { --dialog-w: 440px; }
 .sync-diagram { display: flex; align-items: center; justify-content: center; gap: 8px; margin: 6px 0 18px; }
 .sync-diagram-icon { width: 28px; height: 28px; flex-shrink: 0; }
 .sync-diagram-emoji { font-size: 24px; line-height: 1; flex-shrink: 0; }
@@ -588,7 +588,10 @@ button.header-icon-btn:hover:not(:disabled) { background: var(--hdr-bg-dark); co
 .import-zone.compact { padding: 14px; font-size: 13px; }
 
 /* Dialog */
-dialog { width: 420px; border-radius: 10px; border: none; box-shadow: var(--shadow); font-family: var(--font-sans); background: var(--bg); color: var(--text); position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); max-height: 90vh; overflow-y: auto; }
+/* Width is a custom property so the mobile bottom-sheet rule can override every
+   dialog's width in one place — a plain `width` on each #dialog-id would beat a
+   type-selector mobile override on specificity. */
+dialog { width: var(--dialog-w, 420px); border-radius: 10px; border: none; box-shadow: var(--shadow); font-family: var(--font-sans); background: var(--bg); color: var(--text); position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); max-height: 90vh; overflow-y: auto; }
 dialog:focus { outline: none; }
 .dialog-body { padding: 22px; }
 dialog::backdrop { background: var(--backdrop); }
@@ -601,7 +604,49 @@ dialog h2 { font-size: 16px; margin-bottom: 14px; padding-right: 24px; }
 .known-wordlist-sub  { font-size: 11px; color: var(--muted); margin-top: 2px; }
 .dialog-footer { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--border2); display: flex; justify-content: flex-end; gap: 8px; }
 
-#manage-dialog { width: 380px; }
+/* Mobile bottom sheets. dvh (not vh) keeps the sheet clear of the URL bar. */
+@media (max-width: 759px) {
+  dialog {
+    top: auto; bottom: 0; left: 0;
+    width: 100%; max-width: none;
+    max-height: 90dvh;
+    border-radius: 14px 14px 0 0;
+    transform: translateY(100%);
+    transition: transform 0.28s ease, overlay 0.28s allow-discrete, display 0.28s allow-discrete;
+  }
+  dialog[open] { transform: translateY(0); }
+  @starting-style { dialog[open] { transform: translateY(100%); } }
+
+  dialog::backdrop {
+    opacity: 0;
+    transition: opacity 0.28s ease, overlay 0.28s allow-discrete, display 0.28s allow-discrete;
+  }
+  dialog[open]::backdrop { opacity: 1; }
+  @starting-style { dialog[open]::backdrop { opacity: 0; } }
+
+  /* Counters this dialog's own overflow: visible (icon-picker escape), which
+     would trap its tall content above the viewport on a bottom sheet. */
+  #configure-wordlist-dialog { overflow-y: auto; }
+
+  /* These positions win only because position() leaves the inline top/left
+     unset on mobile. */
+  #atom-popover {
+    top: auto; right: 0; bottom: 0; left: 0;
+    width: auto; min-width: 0; max-width: none;
+    max-height: 90dvh; overflow-y: auto;
+    border-radius: 14px 14px 0 0;
+    transform: translateY(100%);
+    transition: transform 0.28s ease;
+  }
+  #atom-popover:not([hidden]) { transform: translateY(0); }
+  @starting-style { #atom-popover:not([hidden]) { transform: translateY(100%); } }
+}
+
+@media (max-width: 759px) and (prefers-reduced-motion: reduce) {
+  dialog, dialog::backdrop, #atom-popover { transition: none; }
+}
+
+#manage-dialog { --dialog-w: 380px; }
 .manage-list { max-height: 50vh; overflow-y: auto; margin: 4px 0; background: var(--surface); border: 1px solid var(--border2); border-radius: 6px; }
 .manage-list .wordlist-card:last-child { border-bottom: none; }
 .manage-add-row { width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px; margin-top: 8px; padding: 8px 10px; border: 1px dashed var(--border3); border-radius: 6px; background: none; color: var(--muted); font-size: 13px; font-weight: 600; cursor: pointer; transition: background 0.1s, color 0.1s, border-color 0.1s; }
@@ -609,7 +654,7 @@ dialog h2 { font-size: 16px; margin-bottom: 14px; padding-right: 24px; }
 .manage-add-row .add-wordlist-icon { font-size: 15px; line-height: 1; }
 
 /* Welcome dialog */
-#welcome-dialog { width: 700px; }
+#welcome-dialog { --dialog-w: 700px; }
 .welcome-feature { display: grid; grid-template-columns: 2fr 1fr; gap: 18px; align-items: center; margin-bottom: 20px; }
 .welcome-feature:last-of-type { margin-bottom: 0; }
 .welcome-feature:nth-of-type(even) { grid-template-columns: 1fr 2fr; }
@@ -637,7 +682,7 @@ dialog h2 { font-size: 16px; margin-bottom: 14px; padding-right: 24px; }
 .welcome-sync-dir { color: var(--accent); font-weight: 700; padding: 0 2px; }
 
 /* Import guide dialog */
-#import-guide-dialog { width: 480px; }
+#import-guide-dialog { --dialog-w: 480px; }
 .guide-intro { margin: 0 0 14px 0; font-size: 13px; color: var(--text); line-height: 1.5; }
 .subscription-note { background: var(--callout-bg); border: 1px solid var(--callout-border); border-radius: 5px; padding: 9px 12px; margin-bottom: 16px; font-size: 12px; color: var(--callout-fg); }
 .guide-steps { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 14px; counter-reset: guide-step; }
@@ -649,7 +694,7 @@ dialog h2 { font-size: 16px; margin-bottom: 14px; padding-right: 24px; }
 .guide-step-body a:hover { text-decoration: underline; }
 
 /* Configure / Add wordlist dialog */
-#configure-wordlist-dialog { width: 520px; overflow: visible; }
+#configure-wordlist-dialog { --dialog-w: 520px; overflow: visible; }
 .configure-section { margin-bottom: 18px; }
 .configure-section:last-child { margin-bottom: 0; }
 .configure-section-label { font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 8px; }
@@ -720,7 +765,7 @@ dialog h2 { font-size: 16px; margin-bottom: 14px; padding-right: 24px; }
 .ic-11 { fill: #0277BD; }
 
 /* Update Summary dialog */
-#update-summary-dialog { width: 480px; overflow: hidden; padding: 0; max-height: min(560px, 85vh); }
+#update-summary-dialog { --dialog-w: 480px; overflow: hidden; padding: 0; max-height: min(560px, 85vh); }
 #update-summary-dialog[open] { display: flex; flex-direction: column; }
 .usd-header { padding: 18px 22px 14px; flex-shrink: 0; }
 .usd-header h2 { margin-bottom: 4px; padding-right: 24px; }
