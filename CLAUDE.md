@@ -123,7 +123,7 @@ All colors are CSS variables on `html.dark-mode` / `html.light-mode`. The naming
 
 ## Commit messages
 
-After completing changes that are ready to commit, always output a suggested commit message in conventional commit format (`feat:`, `fix:`, `refactor:`, `chore:`, etc.). No parenthetical scope — just `fix:` not `fix(scope):`. Include a body unless the commit is trivial.
+After completing changes that are ready to commit, always output a suggested commit message in conventional commit format (`feat:`, `fix:`, `refactor:`, `chore:`, etc.). No parenthetical scope — just `fix:` not `fix(scope):`. Include a body unless the commit is trivial. Hard-wrap the message body at 72 columns — including when writing it to a file or heredoc, not only when suggesting it in chat.
 
 ## Coding style
 
