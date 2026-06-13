@@ -56,7 +56,15 @@ test('flat-tier search highlights stay correct after scrolling deep into a broad
   assertMarksMatchText(top);
 
   await page.evaluate(() => window.scrollTo(0, 7000));
-  await page.evaluate(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))));
+
+  // The virtual scroller repaints its window asynchronously after a deep scroll, so
+  // a one-shot read can catch a row mid-repaint (empty text); poll to a settle —
+  // new rows on screen and every visible mark resolved to QX.
+  await expect.poll(async () => {
+    const rows = await rowMarks(page);
+    return rows.length > 0 && rows[0].text !== top[0].text
+      && rows.every(r => r.text.includes('QX') && r.marks.length === 1 && r.marks[0] === 'QX');
+  }).toBe(true);
 
   const deep = await rowMarks(page);
   assertMarksMatchText(deep);
