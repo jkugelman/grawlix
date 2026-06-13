@@ -94,14 +94,15 @@ test('a non-pass-through My Edits entry seeds the raw score and shows the rescor
     .toMatchObject({ score: 90, wordlist: 'My Edits' });
 
   await openPopoverOnEntry(page, 'bagel');
-  // The score field edits raw, so it shows 5 (not the effective 90), and the
-  // raw → rescored mapping is surfaced so the lossy edit isn't silent.
+  // The score field edits raw, so it shows 5 (not the effective 90); the raw →
+  // rescored mapping surfaces in the My Edits provenance row's score cell.
   await expect(page.locator('#atom-pop-score')).toHaveValue('5');
-  await expect(page.locator('.atom-pop-rescore-note')).toBeVisible();
-  await expect(page.locator('.atom-pop-rescore-note')).toContainText('90');
+  const editsRow = page.locator('.atom-pop-prov-row', { hasText: 'My Edits' });
+  await expect(editsRow.locator('.atom-score-raw')).toHaveText('5');
+  await expect(editsRow.locator('.score-badge')).toHaveText('90');
 });
 
-test('a pass-through My Edits entry seeds the effective score with no rescore note', async ({ page }) => {
+test('a pass-through My Edits entry seeds the effective score with no rescore mapping', async ({ page }) => {
   await gotoApp(page);
 
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
@@ -113,7 +114,9 @@ test('a pass-through My Edits entry seeds the effective score with no rescore no
 
   await openPopoverOnEntry(page, 'bagel');
   await expect(page.locator('#atom-pop-score')).toHaveValue('77');
-  await expect(page.locator('.atom-pop-rescore-note')).toHaveCount(0);
+  const editsRow = page.locator('.atom-pop-prov-row', { hasText: 'My Edits' });
+  await expect(editsRow.locator('.score-badge')).toHaveText('77');
+  await expect(editsRow.locator('.atom-score-raw')).toHaveCount(0);
 });
 
 // The flat-tier click→edit path resolves the clicked row's wlEntry from a stash

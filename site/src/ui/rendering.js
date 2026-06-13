@@ -12,7 +12,7 @@ import { bucketCounts, invalidateHistogramLayout } from '../engine/histogram.js'
 import { PARAM_HELP } from '../engine/tools.js';
 import { invalidatePreSearchCache } from '../engine/executor.js';
 import {
-  sources$, cacheVersion$, pipelineVersion$, configSummary$, bumpCacheVersion, state, getEditsWordlist,
+  sources$, cacheVersion$, pipelineVersion$, configSummary$, bumpCacheVersion, state,
 } from '../data/state.js';
 import { lsSave } from '../data/storage.js';
 import {
@@ -448,8 +448,6 @@ export async function renderMergedDetail() {
     const showSource = state.selected === MERGED_ID;
     entriesScroller.showSource = showSource;
     panel.classList.toggle('no-source-col', !showSource);
-    entriesScroller.editsWordlist = getEditsWordlist() ?? null;
-    entriesScroller.showEditDeleteCol = true;
     entriesScroller._onDeleteRow = entry => _deleteFromEdits(entry, refreshMergedScroller);
     _attachExternalEditHandlers(entriesScroller, refreshMergedScroller);
 

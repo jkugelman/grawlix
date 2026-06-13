@@ -65,7 +65,10 @@ test('popover edits only commit when the user clicks Save', async ({ page }) => 
   await scoreInput.press('Tab');
   await expect(page.locator('#atom-pop-comment')).toBeFocused();
   await expect(page.locator('#atom-popover')).toBeVisible();
-  await expect(page.locator('.atom-pop-prov tbody .atom-pop-prov-source')).toContainText('Source');
+  // The pending edit previews as an added My Edits row above Source, but nothing
+  // is committed until Save — My Edits stays empty.
+  await expect(page.locator('.atom-pop-prov tbody .atom-pop-prov-source')).toContainText(['My Edits', 'Source']);
+  await expect(page.locator('.atom-pop-prov-row--added')).toBeVisible();
   expect(await page.evaluate(() => window.__grawlixTest.getWordlist('My Edits').entries)).toEqual([]);
 
   await page.locator('#atom-pop-comment').fill('tasty');
@@ -92,7 +95,7 @@ test('Cancel closes the popover without committing edits', async ({ page }) => {
   expect(await page.evaluate(() => window.__grawlixTest.getWordlist('My Edits').entries)).toEqual([]);
 });
 
-test('the provenance table and footer track the typed entry', async ({ page }) => {
+test('the provenance table tracks the typed entry and flags the My Edits contributor', async ({ page }) => {
   await gotoApp(page);
 
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
@@ -106,24 +109,25 @@ test('the provenance table and footer track the typed entry', async ({ page }) =
     page.evaluate(() => window.__grawlixTest.getWordlist('My Edits').entries.length)
   ).toBe(1);
 
+  // CARROT is Source-only: one row, no trash (My Edits has nothing to delete here).
   await page.locator('.entry-row[data-entry="carrot"] .atom-score').click();
   await expect(page.locator('.atom-pop-prov tbody .atom-pop-prov-source')).toHaveCount(1);
   await expect(page.locator('.atom-pop-prov tbody .atom-pop-prov-source')).toContainText('Source');
-  await expect(page.locator('.atom-pop-delete')).toHaveCount(0);
-  await expect(page.locator('.atom-pop-saves')).toBeVisible();
+  await expect(page.locator('.atom-pop-prov-trash')).toHaveCount(0);
 
-  // Retyping to BAGEL (carried by both Source and My Edits) lists both rows; the
-  // footer switches to Delete because the winning contributor is My Edits.
-  await page.locator('#atom-pop-entry').fill('BAGEL');
-  await expect(page.locator('.atom-pop-prov tbody .atom-pop-prov-source')).toHaveCount(2);
+  // Retyping to bagel (carried by both Source and My Edits) lists both rows; the
+  // My Edits row carries the delete trash.
+  await page.locator('#atom-pop-entry').fill('bagel');
   await expect(page.locator('.atom-pop-prov tbody .atom-pop-prov-source')).toContainText(['My Edits', 'Source']);
-  await expect(page.locator('.atom-pop-delete')).toBeVisible();
-  await expect(page.locator('.atom-pop-saves')).toHaveCount(0);
+  await expect(
+    page.locator('.atom-pop-prov-row', { hasText: 'My Edits' }).locator('.atom-pop-prov-trash')
+  ).toBeVisible();
 
+  // A brand-new word has no saved contributor, but the pending edit previews as
+  // an added My Edits row — with no trash, since there's nothing saved to delete.
   await page.locator('#atom-pop-entry').fill('NEWWORD');
-  await expect(page.locator('.atom-pop-prov tbody .atom-pop-prov-source')).toHaveCount(0);
-  await expect(page.locator('.atom-pop-delete')).toHaveCount(0);
-  await expect(page.locator('.atom-pop-saves')).toBeVisible();
+  await expect(page.locator('.atom-pop-prov-row--added')).toBeVisible();
+  await expect(page.locator('.atom-pop-prov-trash')).toHaveCount(0);
 });
 
 test('editing the entry text renames the My Edits record', async ({ page }) => {
@@ -149,7 +153,7 @@ test('editing the entry text renames the My Edits record', async ({ page }) => {
   ).toEqual([{ entry: 'bagels', display: 'Bagels', score: 75, comment: '' }]);
 });
 
-test('the Delete edit button keeps the popover open and reverts to the underlying source', async ({ page }) => {
+test('staging a delete via the row trash strikes it through and is reversible; Save commits it', async ({ page }) => {
   await gotoApp(page);
 
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
@@ -164,24 +168,37 @@ test('the Delete edit button keeps the popover open and reverts to the underlyin
     page.evaluate(() => window.__grawlixTest.getWordlist('My Edits').entries.length)
   ).toBe(1);
 
-  // Re-open the popover — BAGEL is now sourced from My Edits, so it carries a
-  // Delete edit button, and the provenance table lists both My Edits and Source.
+  // Re-open the popover; the provenance table lists both My Edits and Source.
   await page.locator('.entry-row[data-entry="bagel"] .atom-score').click();
   await expect(page.locator('.atom-pop-prov tbody .atom-pop-prov-source')).toContainText(['My Edits', 'Source']);
-  await page.locator('.atom-pop-delete').click();
 
-  // The popover stays open and re-points at the underlying Source entry: the
-  // score input shows Source's 50, the Delete button is gone (the row is no
-  // longer sourced from My Edits), and only Source remains in the table.
+  const editsTrash = page.locator('.atom-pop-prov-row', { hasText: 'My Edits' }).locator('.atom-pop-prov-trash');
+
+  // Stage: the My Edits row strikes through, the trash gains its slash, the
+  // inputs disable, and the popover stays open (nothing committed yet).
+  await editsTrash.click();
+  await expect(page.locator('.atom-pop-prov-row--deleted')).toBeVisible();
+  await expect(editsTrash).toHaveClass(/staged/);
+  await expect(page.locator('#atom-pop-score')).toBeDisabled();
   await expect(page.locator('#atom-popover')).toBeVisible();
-  await expect(page.locator('.atom-pop-prov tbody .atom-pop-prov-source')).toHaveCount(1);
-  await expect(page.locator('.atom-pop-prov tbody .atom-pop-prov-source')).toContainText('Source');
-  await expect(page.locator('#atom-pop-score')).toHaveValue('50');
-  await expect(page.locator('.atom-pop-delete')).toHaveCount(0);
+  expect(await page.evaluate(() => window.__grawlixTest.getWordlist('My Edits').entries.length)).toBe(1);
 
+  // Clicking again reverses the pending deletion.
+  await editsTrash.click();
+  await expect(page.locator('.atom-pop-prov-row--deleted')).toHaveCount(0);
+  await expect(page.locator('#atom-pop-score')).toBeEnabled();
+
+  // Stage again and Save commits it: My Edits empties, the popover closes, and
+  // merged BAGEL falls back to Source's score.
+  await editsTrash.click();
+  await page.locator('.atom-pop-save').click();
+  await expect(page.locator('#atom-popover')).toBeHidden();
   await expect.poll(async () =>
     page.evaluate(() => window.__grawlixTest.getWordlist('My Edits').entries)
   ).toEqual([]);
+  expect(await page.evaluate(() => window.__grawlixTest.getMergedEntry('BAGEL'))).toMatchObject({
+    entry: 'bagel', score: 50, comment: '', wordlist: 'Source',
+  });
 });
 
 test('searching for an unknown entry surfaces an Add-it affordance that lands the entry in My Edits', async ({ page }) => {
@@ -299,10 +316,10 @@ test('deleting a My Edits entry shows an undo toast that restores it', async ({ 
     page.evaluate(() => window.__grawlixTest.getWordlist('My Edits').entries.length)
   ).toBe(1);
 
-  // Now BAGEL is sourced from My Edits → re-clicking the row gives a
-  // popover with a Delete button.
+  // Re-open the popover, stage the My Edits row's deletion, and Save to commit.
   await page.locator('.entry-row[data-entry="bagel"] .atom-score').click();
-  await page.locator('.atom-pop-delete').click();
+  await page.locator('.atom-pop-prov-row', { hasText: 'My Edits' }).locator('.atom-pop-prov-trash').click();
+  await page.locator('.atom-pop-save').click();
 
   // My Edits is empty; merged BAGEL falls back to Source's score.
   await expect.poll(async () =>
@@ -331,8 +348,8 @@ test('a My Edits entry deletes via the popover after a reload reparses its displ
 
   // Create a My-Edits-only entry through the Add affordance. On reload it
   // rehydrates from IndexedDB text via parseWordlist, where an all-lowercase
-  // entry classifies as plain → display:null. The popover Delete used to
-  // compare that null against a norm-coalesced display and silently no-op.
+  // entry classifies as plain → display:null. The delete must match that null
+  // against the norm-coalesced display (displayOf), not the raw display.
   await page.locator('.search-bar input[data-key="pattern"]').fill('words');
   await page.locator('.entries-empty-add').click();
   await page.locator('#atom-pop-score').fill('40');
@@ -351,7 +368,8 @@ test('a My Edits entry deletes via the popover after a reload reparses its displ
   const scoreCell = page.locator('.entry-row[data-entry="words"] .atom-score');
   await expect(scoreCell).toBeVisible();
   await scoreCell.click();
-  await page.locator('.atom-pop-delete').click();
+  await page.locator('.atom-pop-prov-row', { hasText: 'My Edits' }).locator('.atom-pop-prov-trash').click();
+  await page.locator('.atom-pop-save').click();
 
   await expect.poll(async () =>
     page.evaluate(() => window.__grawlixTest.getWordlist('My Edits').entries)

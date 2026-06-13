@@ -142,9 +142,9 @@ test('re-binds to an entry filtered OUT of the visible view (full-corpus lookup)
 });
 
 // ─── Case 3: entry no longer present (the !found path) ────────────────────────
-// Non-pendingDelete !found: the popover stays as it was (no re-render). With a
-// score search that excludes the open entry from BOTH the view and the corpus, the
-// re-bind finds nothing; rebindEntry's non-pendingDelete branch leaves it be.
+// The popover stays as it was (no re-render): with a score search that excludes
+// the open entry from BOTH the view and the corpus, the re-bind finds nothing and
+// rebindEntry's !found branch leaves it be.
 test('entry no longer present after a re-run (the !found path) holds the popover', async ({ page }) => {
   await gotoApp(page);
   await seedCorpus(page);
@@ -166,39 +166,10 @@ test('entry no longer present after a re-run (the !found path) holds the popover
   await setSearch(page, '');
 });
 
-// ─── Case 3b: pendingDelete !found re-seeds blank inputs ──────────────────────
-// After Delete, rebindEntry's pendingDelete+!found branch re-renders blank score/
-// comment inputs for the same norm.
-test('pendingDelete + !found re-seeds blank inputs', async ({ page }) => {
-  await gotoApp(page);
-  await seedCorpus(page);
-  await page.evaluate(() => window.__grawlixTest.reimport('My Edits', ['GULL;60;seabird'].join('\n')));
-  await page.evaluate(() => window.__grawlixTest.flushEditsToIdb());
-  await syncWorker(page);
-
-  async function deleteAndCapture(page) {
-    await page.evaluate(() => window.__grawlixTest.setScope('My Edits'));
-    await page.evaluate(() => window.__grawlixTest.pipelineIdle());
-    await openPopoverOnEntry(page, 'GULL');
-    // Delete the entry via the real footer Delete button; the re-run that follows
-    // hits rebindEntry's pendingDelete + !found branch.
-    await page.locator('#atom-popover .atom-pop-delete').click();
-    await page.evaluate(() => window.__grawlixTest.pipelineIdle());
-    await page.evaluate(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))));
-    return captureRebound(page);
-  }
-
-  const reb = await deleteAndCapture(page);
-  expect(reb.visible).toBe(true);
-  expect(reb.entry).toBe('GULL');
-  expect(reb.score).toBe('');   // re-seeded blank
-  await closePopover(page);
-});
-
-// ─── Case 4: the editTarget/save path resolves the same target ────────────────
-// Open the popover, type a new score, save; the edit's TARGET (what currentPreview
-// /editTarget resolves off the worker) must land in the merged corpus.
-test('the editTarget/save path resolves the right target', async ({ page }) => {
+// ─── Case 4: the save path resolves the right target ──────────────────────────
+// Open the popover, type a new score, save; the edit's target (resolved from the
+// popover's seed) must land in the merged corpus.
+test('the save path resolves the right target', async ({ page }) => {
   await gotoApp(page);
   await seedCorpus(page);
   await page.evaluate(() => window.__grawlixTest.reimport('My Edits', ['GULL;60;seabird'].join('\n')));

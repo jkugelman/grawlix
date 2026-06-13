@@ -39,8 +39,8 @@ async function closePopover(page) {
   await expect(page.locator('#atom-popover')).toBeHidden();
 }
 
-// The provenance table HTML + the footer's "Saves to …" slot — the two surfaces
-// this sub-chunk moves to the worker. innerHTML so byte-identity is exact.
+// The provenance table HTML + the footer + the seed fields — captured as
+// innerHTML so byte-identity is exact.
 function captureSurfaces(page) {
   return page.evaluate(() => ({
     prov: document.querySelector('#atom-popover .atom-pop-prov-wrap')?.innerHTML ?? '',

@@ -35,6 +35,7 @@ import { showToast } from './toasts.js';
 import { AppView } from './app-view.js';
 import { ToolStack } from './tool-stack.js';
 import { buildWordlistNameHTML } from './scope-selector.js';
+import { buildTrashIconHTML } from './components.js';
 import {
   getEntriesScroller, rescorePreviewActive, buildNoMatchQuipHTML, refreshMergedScroller,
 } from './rendering.js';
@@ -726,10 +727,6 @@ export class EntriesScroller extends BaseVirtualScroller {
     this.scoreRange = AppView.scoreRange;
     this._scoreIntervals = this.scoreRange ? parseRange(this.scoreRange) : null;
     this.showSource = false;
-    this.showDeleteCol = false;
-    this.showEditDeleteCol = false;
-    this.editsWordlist = null;
-    this.currentWordlist = null;
     this._onSave = null;
     this._onDeleteRow = null;
     this.onFilterChange = null;
@@ -1573,7 +1570,7 @@ export const AtomPopover = (() => {
   let activeWlEntry = null;
   let activeSeed = null;
   let activeScroller = null;
-  let pendingDelete = false;
+  let stagedDelete = null;
   // Monotonic token for an in-flight scoped-seed worker query; a re-open or close
   // bumps it so a late reply for a stale popover is dropped rather than re-seeding
   // the wrong row.
@@ -1586,7 +1583,6 @@ export const AtomPopover = (() => {
   // don't flash on a null (not-fresh) reply.
   let provQueryToken = 0;
   let shippedProvRows = null;
-  let shippedPreview = null;
   let provQueriesFired = 0;
   let provRepliesApplied = 0;
   function provenanceDebug() { return { provQueriesFired, provRepliesApplied }; }
@@ -1603,7 +1599,9 @@ export const AtomPopover = (() => {
     el.id = 'atom-popover';
     el.setAttribute('hidden', '');
     el.addEventListener('click', e => {
-      if (e.target.closest('.dialog-close-btn')) close();
+      if (e.target.closest('.dialog-close-btn')) { close(); return; }
+      const trash = e.target.closest('.atom-pop-prov-trash');
+      if (trash) toggleStagedDelete(trash.dataset.norm, trash.dataset.display);
     });
     el.addEventListener('focus', e => { focusEl = e.target; }, true);
     el.addEventListener('blur', e => {
@@ -1624,11 +1622,10 @@ export const AtomPopover = (() => {
     activeSeed = null;
     activeScroller = null;
     focusEl = null;
-    pendingDelete = false;
+    stagedDelete = null;
     seedQueryToken++;
     provQueryToken++;
     shippedProvRows = null;
-    shippedPreview = null;
     document.removeEventListener('mousedown', onDocMouseDown, true);
     document.removeEventListener('keydown', onKeydown, true);
   }
@@ -1663,13 +1660,12 @@ export const AtomPopover = (() => {
     activeScroller = scroller;
     if (rowEl) rowEl.classList.add('active');
     shippedProvRows = null;
-    shippedPreview = null;
 
     // Seed from the clicked row: in the merged view it IS the merge winner; a
     // scoped view holds a losing value, refined below by refineScopedSeed.
     const seed = seedFromWinnerRow(wlEntry, getEditsWordlist() != null && wlEntry.wordlist === getEditsWordlist());
 
-    popover.innerHTML = renderHTML(wlEntry, scroller, seed);
+    popover.innerHTML = renderHTML(wlEntry, seed);
     popover.removeAttribute('hidden');
     position(anchorEl ?? rowEl);
     wireFields();
@@ -1724,7 +1720,7 @@ export const AtomPopover = (() => {
     if (entryInp) entryInp.value = seed.entry;
     if (scoreInp) scoreInp.value = seed.score;
     if (commentInp) commentInp.value = seed.comment;
-    refreshRescoreNote();
+    renderProvWrap();
     refreshSaveEnabled();
     const focusSel = focusField === 'entry' ? '.entry-input'
                    : focusField === 'comment' ? '.comment-input'
@@ -1739,65 +1735,115 @@ export const AtomPopover = (() => {
     open(buildUserWlEntry(entryStr, '', ''), null, scroller, anchorEl, focusField);
   }
 
-  function renderFooterHTML(preview, scroller) {
-    const rowWordlist = preview?.wordlist || scroller.currentWordlist;
-    const editsWordlist = scroller.editsWordlist || getEditsWordlist();
-    const rowIsEdits = rowWordlist && rowWordlist === editsWordlist;
-    const showDelete = scroller.showDeleteCol || (scroller.showEditDeleteCol && rowIsEdits);
-    const editsName = editsWordlist ? buildWordlistNameHTML(editsWordlist, { bold: false }) : 'My Edits';
-    const leftSlot = showDelete
-      ? `<button class="atom-pop-delete" type="button">Delete edit</button>`
-      : `<span class="atom-pop-saves">Saves to ${editsName}</span>`;
-    return leftSlot
-      + `<button class="atom-pop-cancel" type="button">Cancel</button>`
+  function renderFooterHTML() {
+    return `<button class="atom-pop-cancel" type="button">Cancel</button>`
       + `<button class="atom-pop-save" type="button">Save</button>`;
   }
 
-  function renderShippedProvenanceHTML(shipped) {
+  function renderProvenanceTableHTML() {
+    return renderProvenanceRowsHTML(applyPreviewOverlay(buildBaseRows()));
+  }
+
+  function buildBaseRows() {
+    const edits = getEditsWordlist();
     const rows = [];
-    for (const { sourceId, enabled, entry } of shipped) {
+    for (const { sourceId, enabled, entry } of (shippedProvRows ?? [])) {
       const wordlist = state.sources.find(s => s.dbKey === sourceId);
       if (!wordlist) continue;
-      rows.push({ wordlist, entry, enabled });
+      rows.push({ wordlist, entry, enabled, isEdits: wordlist === edits, saved: true });
     }
-    return renderProvenanceRowsHTML(rows);
+    return rows;
+  }
+
+  function applyPreviewOverlay(rows) {
+    const edits = getEditsWordlist();
+    if (!edits) return rows;
+    if (stagedDelete) {
+      const i = rows.findIndex(r => r.isEdits && r.entry.norm === stagedDelete.norm && displayOf(r.entry) === stagedDelete.display);
+      if (i >= 0) rows[i] = { ...rows[i], diff: 'deleted' };
+      return rows;
+    }
+    if (!el.querySelector('.entry-input')) return rows;
+    const vals = readNewValues();
+    if (!valuesValid(vals) || !pendingWritesChange(vals)) return rows;
+    const norm = toNorm(vals.raw);
+    const effective = rescoreEntry({ norm, score: vals.score }, edits.rescoreRules);
+    const entry = { norm, display: vals.raw, score: effective, rawScore: vals.score, comment: vals.comment };
+    const i = rows.findIndex(r => r.isEdits && displayOf(r.entry) === vals.raw);
+    if (i >= 0) rows[i] = { wordlist: edits, entry, enabled: true, isEdits: true, saved: true, diff: 'changed' };
+    else rows.unshift({ wordlist: edits, entry, enabled: true, isEdits: true, saved: false, diff: 'added' });
+    return rows;
+  }
+
+  // Mirror saveEdit's no-op check so an untouched popover shows no preview row.
+  function pendingWritesChange({ raw, score, comment }) {
+    const base = saveBaseline();
+    const baseDisplay = base.display ?? base.norm;
+    return !(base.norm === toNorm(raw) && baseDisplay === raw
+      && base.score === score && (base.comment ?? '') === comment);
   }
 
   function renderProvenanceRowsHTML(rows) {
     if (!rows.length) return '';
-    const body = rows.map(({ wordlist, entry, enabled }) => {
+    const anyRescore = rows.some(r => r.entry.rawScore != null && r.entry.rawScore !== r.entry.score);
+    const body = rows.map(({ wordlist, entry, enabled, diff, saved, isEdits }) => {
       const disabled = wordlist ? wordlist.enabled === false : enabled === false;
-      const cls = disabled ? ' atom-pop-prov-row--disabled' : '';
+      const cls = ['atom-pop-prov-row'];
+      if (disabled) cls.push('atom-pop-prov-row--disabled');
+      if (diff) cls.push(`atom-pop-prov-row--${diff}`);
       const comment = entry.comment || '';
-      return `<tr class="atom-pop-prov-row${cls}">`
-        + `<td class="atom-pop-prov-entry">${esc(displayOf(entry))}</td>`
+      const staged = diff === 'deleted';
+      const label = staged ? 'Restore this edit' : 'Delete this edit';
+      const trash = saved && isEdits
+        ? `<button class="atom-pop-prov-trash${staged ? ' staged' : ''}" type="button"`
+          + ` data-norm="${esc(entry.norm)}" data-display="${esc(displayOf(entry))}"`
+          + ` title="${label}" aria-label="${label}">${buildTrashIconHTML()}</button>`
+        : '';
+      return `<tr class="${cls.join(' ')}">`
+        + `<td class="atom-pop-prov-entry"${displayOf(entry).length > ENTRY_SLOT_CAP ? ` title="${esc(displayOf(entry))}"` : ''}>${esc(displayOf(entry))}</td>`
         + `<td class="atom-pop-prov-score">${buildScoreCellHTML(entry, true)}</td>`
         + `<td class="atom-pop-prov-comment"${comment ? ` title="${esc(comment)}"` : ''}>${esc(comment)}</td>`
         + `<td class="atom-pop-prov-source">${buildWordlistNameHTML(wordlist, { bold: false })}</td>`
+        + `<td class="atom-pop-prov-action">${trash}</td>`
         + `</tr>`;
     }).join('');
-    return `<table class="atom-pop-prov">`
+    return `<table class="atom-pop-prov${anyRescore ? ' atom-pop-prov--rescored' : ''}">`
       + `<thead><tr>`
       + `<th class="atom-pop-prov-entry">Entry</th>`
       + `<th class="atom-pop-prov-score">Score</th>`
       + `<th class="atom-pop-prov-comment">Comment</th>`
       + `<th class="atom-pop-prov-source">Source</th>`
+      + `<th class="atom-pop-prov-action"></th>`
       + `</tr></thead>`
       + `<tbody>${body}</tbody>`
       + `</table>`;
   }
 
-  function shippedToPreview(preview) {
-    if (!preview) return null;
-    const wordlist = state.sources.find(s => s.dbKey === preview.sourceId) || null;
-    return {
-      norm: preview.norm, display: preview.display ?? null,
-      score: preview.score, comment: preview.comment || '', wordlist,
-    };
+  function toggleStagedDelete(norm, display) {
+    const same = stagedDelete && stagedDelete.norm === norm && stagedDelete.display === display;
+    stagedDelete = same ? null : { norm, display };
+    setInputsDisabled(!!stagedDelete);
+    refreshSaveEnabled();
+    renderProvWrap();
   }
 
-  function currentPreview() {
-    return shippedToPreview(shippedPreview);
+  function setInputsDisabled(disabled) {
+    for (const sel of ['.entry-input', '.score-input', '.comment-input']) {
+      const node = el?.querySelector(sel);
+      if (node) node.disabled = disabled;
+    }
+  }
+
+  // Match the main table's Entry cutoff: its --entry-w is sized in the table's
+  // mono, so divide by that ch to recover the character count and re-express it
+  // in the popover's smaller ch — the same number of characters truncates, which
+  // copying the raw pixel width would not preserve across the two font sizes.
+  function syncEntryColWidth() {
+    const panel = document.getElementById('detail-panel');
+    const ch = measureMonoChPx();
+    const entryW = panel ? parseFloat(getComputedStyle(panel).getPropertyValue('--entry-w')) : NaN;
+    if (entryW > 0 && ch > 0) el.style.setProperty('--pop-entry-w', `${entryW / ch}ch`);
+    else el.style.removeProperty('--pop-entry-w');
   }
 
   function seedFromWinnerRow(row, winnerIsEdits) {
@@ -1819,57 +1865,26 @@ export const AtomPopover = (() => {
     };
   }
 
-  // The score field edits a raw score that My Edits' rules then rescore, so when
-  // they remap it the save is lossy; surface the gap rather than letting the
-  // typed number silently become something else.
-  function rescoreNoteHTML() {
-    const edits = getEditsWordlist();
-    if (!edits) return '';
-    const rawScore = parseInt(el.querySelector('.score-input').value, 10);
-    if (isNaN(rawScore)) return '';
-    const entryVal = el.querySelector('.entry-input')?.value;
-    const norm = entryVal != null ? toNorm(entryVal) : (activeSeed?.norm ?? activeWlEntry?.norm ?? '');
-    const effective = rescoreEntry({ norm, score: rawScore }, edits.rescoreRules);
-    if (effective === rawScore) return '';
-    return `<div class="atom-pop-rescore-note">rescores to ${buildScoreBadgeHTML(effective)}</div>`;
-  }
-
-  function refreshRescoreNote() {
-    const wrap = el?.querySelector('.atom-pop-rescore-wrap');
-    if (wrap) wrap.innerHTML = rescoreNoteHTML();
-  }
-
-  function renderHTML(wlEntry, scroller, seedOverride) {
+  function renderHTML(wlEntry, seedOverride) {
     const seed = activeSeed = seedOverride
       ?? seedFromWinnerRow(wlEntry, getEditsWordlist() != null && wlEntry.wordlist === getEditsWordlist());
-    const provHTML = shippedProvRows ? renderShippedProvenanceHTML(shippedProvRows) : '';
-    const preview = shippedToPreview(shippedPreview);
     return `
       <button class="dialog-close-btn" type="button" aria-label="Close">✕</button>
       <div class="atom-pop-fields">
         <label for="atom-pop-entry">Entry</label>
         <input id="atom-pop-entry" class="entry-input" type="text" value="${esc(seed.entry)}">
         <label for="atom-pop-score">Score</label>
-        <span class="atom-pop-score-cell">
-          <input id="atom-pop-score" class="score-input" type="number" min="0" value="${seed.score}">
-          <span class="atom-pop-rescore-wrap"></span>
-        </span>
+        <input id="atom-pop-score" class="score-input" type="number" min="0" value="${seed.score}">
         <label for="atom-pop-comment">Comment</label>
         <input id="atom-pop-comment" class="comment-input" type="text" value="${esc(seed.comment)}">
       </div>
-      <div class="atom-pop-prov-wrap">${provHTML}</div>
-      <div class="atom-pop-foot">${renderFooterHTML(preview, scroller)}</div>`;
+      <div class="atom-pop-prov-wrap">${renderProvenanceTableHTML()}</div>
+      <div class="atom-pop-foot">${renderFooterHTML()}</div>`;
   }
 
-  // Re-render after an edit/delete commits so the popover reflects the new
-  // state. If the entry has been fully removed from the underlying data (e.g.
-  // deleting an entry that only My Edits had, or any delete from the My Edits
-  // view), there's nothing left to show — close.
-  //
-  // `resetInputs: true` re-renders everything (including the score/comment
-  // inputs) — used after Delete, where the underlying values change. The
-  // default leaves the inputs alone so an edit-commit (e.g. tabbing from
-  // score to comment) preserves focus and the just-typed value.
+  // `resetInputs: true` re-renders the inputs too (when the user isn't mid-edit);
+  // the default leaves them alone so an edit-commit (e.g. tabbing from score to
+  // comment) preserves focus and the just-typed value.
   function refresh({ resetInputs = false, skipExistsCheck = false } = {}) {
     if (!isOpen()) return;
     // rebindEntry already proved the entry is in the result (it re-anchored to it),
@@ -1879,7 +1894,7 @@ export const AtomPopover = (() => {
     // revert then keeps the stale provenance). Skip the re-check on a fresh rebind.
     if (!skipExistsCheck && !activeScroller.resultHasEntry(activeWlEntry)) return;
     if (resetInputs) {
-      el.innerHTML = renderHTML(activeWlEntry, activeScroller);
+      el.innerHTML = renderHTML(activeWlEntry);
       wireFields();
       const inp = el.querySelector('.entry-input');
       fireProvenanceQuery('', inp ? inp.value : '');
@@ -1893,36 +1908,18 @@ export const AtomPopover = (() => {
     const inp = el.querySelector('.entry-input');
     const typed = inp ? inp.value : '';
     fireProvenanceQuery(typed, typed);
-    renderDynamicBitsFromShipped();
+    renderProvWrap();
   }
 
-  function renderDynamicBitsFromShipped() {
-    renderDynamicBits(
-      shippedToPreview(shippedPreview),
-      shippedProvRows ? renderShippedProvenanceHTML(shippedProvRows) : keepProvHTML(),
-    );
-  }
-
-  // Leaving the wrap untouched before the first reply lands is the no-flash path —
-  // re-rendering '' would blank a table the previous reply already painted.
-  function keepProvHTML() {
-    return el.querySelector('.atom-pop-prov-wrap')?.innerHTML ?? '';
-  }
-
-  function renderDynamicBits(preview, provHTML) {
+  function renderProvWrap() {
+    if (!isOpen()) return;
     const provEl = el.querySelector('.atom-pop-prov-wrap');
-    if (provEl) provEl.innerHTML = provHTML;
-    const footEl = el.querySelector('.atom-pop-foot');
-    if (footEl) {
-      footEl.innerHTML = renderFooterHTML(preview, activeScroller);
-      wireFooter();
-    }
+    if (provEl) provEl.innerHTML = renderProvenanceTableHTML();
   }
 
   // No debounce: every keystroke (and the open) fires. The monotonic token drops
   // all but the latest reply, so a fast typist's stale reply can't overwrite the
-  // live table/footer. typedRaw drives provTarget, previewRaw the footer preview —
-  // they diverge only at open (see fireInitialProvenanceQuery).
+  // live table.
   function fireProvenanceQuery(typedRaw, previewRaw) {
     const token = ++provQueryToken;
     provQueriesFired++;
@@ -1930,21 +1927,17 @@ export const AtomPopover = (() => {
     const clickedNorm = clicked?.norm ?? null;
     const clickedDisplay = clicked?.display ?? null;
     fetchWorkerProvenance(typedRaw, previewRaw, clickedNorm, clickedDisplay)
-      .then(({ preview, rows }) => {
-        // Match by (norm, display), not object identity: each run rebuilds
-        // activeWlEntry as a fresh object (findResultEntry returns the shipped
-        // rebind row), so an identity check would drop every reply after a
-        // re-bind and the table would never refresh (e.g. a post-delete revert).
+      .then(({ rows }) => {
+        // Match by (norm, display), not identity: each run rebuilds activeWlEntry
+        // fresh, so an identity check would drop every reply after a re-bind.
         if (token !== provQueryToken || !isOpen()
             || activeWlEntry?.norm !== clickedNorm
             || (activeWlEntry?.display ?? null) !== clickedDisplay) return;
-        // A null reply (not-fresh) leaves the last-good in place — blanking it
-        // would flash; a later query refines once the worker is fresh.
+        // A null (not-fresh) reply leaves the last-good in place; blanking flashes.
         if (rows == null) return;
         shippedProvRows = rows;
-        shippedPreview = preview;
         provRepliesApplied++;
-        renderDynamicBitsFromShipped();
+        renderProvWrap();
       });
   }
 
@@ -1953,12 +1946,6 @@ export const AtomPopover = (() => {
   // targets the open uses, which a single typedRaw can't express.
   function fireInitialProvenanceQuery(seedEntry) {
     fireProvenanceQuery('', seedEntry);
-  }
-
-  function editTarget() {
-    const preview = currentPreview();
-    if (preview) return { norm: preview.norm, display: preview.display ?? preview.norm };
-    return { norm: activeWlEntry.norm, display: activeWlEntry.display ?? activeWlEntry.norm };
   }
 
   function readNewValues() {
@@ -1984,6 +1971,13 @@ export const AtomPopover = (() => {
   }
 
   function submit() {
+    if (stagedDelete) {
+      const scroller = activeScroller;
+      const target = stagedDelete;
+      close();
+      scroller._onDeleteRow?.(target);
+      return;
+    }
     const newValues = readNewValues();
     if (!valuesValid(newValues)) {
       const focusTarget = newValues.raw.length === 0 ? '.entry-input' : '.score-input';
@@ -1995,38 +1989,31 @@ export const AtomPopover = (() => {
   }
 
   function wireFooter() {
-    const deleteBtn = el.querySelector('.atom-pop-delete');
-    if (deleteBtn) {
-      const target = editTarget();
-      const scroller = activeScroller;
-      deleteBtn.addEventListener('mousedown', e => e.preventDefault());
-      deleteBtn.addEventListener('click', () => {
-        pendingDelete = true;
-        scroller._onDeleteRow?.(target);
-      });
-    }
     el.querySelector('.atom-pop-cancel').addEventListener('click', close);
     el.querySelector('.atom-pop-save').addEventListener('click', submit);
     refreshSaveEnabled();
   }
 
+  // Save commits a staged deletion, so it stays enabled while one is pending
+  // (its inputs are disabled then, but the validity gate must not block it).
   function refreshSaveEnabled() {
     const saveBtn = el.querySelector('.atom-pop-save');
     if (!saveBtn) return;
-    saveBtn.disabled = !valuesValid(readNewValues());
+    saveBtn.disabled = stagedDelete ? false : !valuesValid(readNewValues());
   }
 
   function wireFields() {
-    const popover = el;
-    const entryInp = popover.querySelector('.entry-input');
-    const scoreInp = popover.querySelector('.score-input');
-    const commentInp = popover.querySelector('.comment-input');
+    const entryInp = el.querySelector('.entry-input');
+    const scoreInp = el.querySelector('.score-input');
+    const commentInp = el.querySelector('.comment-input');
 
     entryInp.addEventListener('beforeinput', blockSemicolon);
     commentInp.addEventListener('beforeinput', blockSemicolon);
+    // An entry edit changes the norm → re-query the worker for contributors;
+    // score/comment only move the local My Edits preview row.
     entryInp.addEventListener('input', refreshDynamicBits);
-    entryInp.addEventListener('input', refreshRescoreNote);
-    scoreInp.addEventListener('input', refreshRescoreNote);
+    scoreInp.addEventListener('input', renderProvWrap);
+    commentInp.addEventListener('input', renderProvWrap);
 
     for (const inp of [entryInp, scoreInp, commentInp]) {
       inp.addEventListener('input', refreshSaveEnabled);
@@ -2035,8 +2022,8 @@ export const AtomPopover = (() => {
       });
     }
 
-    refreshRescoreNote();
     wireFooter();
+    syncEntryColWidth();
   }
 
   function position(anchorEl) {
@@ -2093,25 +2080,10 @@ export const AtomPopover = (() => {
 
   function rebindEntry(scroller) {
     if (!isOpen() || activeScroller !== scroller) return;
-    const targetNorm = activeWlEntry.norm;
-    const targetDisplay = activeWlEntry.display;
-    const found = scroller.findResultEntry(targetNorm, targetDisplay);
-    const wasPendingDelete = pendingDelete;
-    pendingDelete = false;
-    if (!found) {
-      if (wasPendingDelete) {
-        activeWlEntry = { norm: targetNorm, display: targetDisplay, score: '', comment: '' };
-        el.innerHTML = renderHTML(activeWlEntry, activeScroller);
-        wireFields();
-        // renderHTML painted prov/footer from the pre-delete shipped state; re-query
-        // so they converge to the deleted (empty) state (mirrors refresh's tail).
-        fireProvenanceQuery('', '');
-        el.querySelector('.score-input')?.focus();
-      }
-      return;
-    }
+    const found = scroller.findResultEntry(activeWlEntry.norm, activeWlEntry.display);
+    if (!found) return;
     activeWlEntry = found;
-    const editing = !wasPendingDelete && containsFocus() && focusEl.matches('.entry-input, .score-input, .comment-input');
+    const editing = containsFocus() && focusEl.matches('.entry-input, .score-input, .comment-input');
     refresh({ resetInputs: !editing, skipExistsCheck: true });
   }
 
