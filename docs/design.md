@@ -493,7 +493,7 @@ Score/comment edits and the rescore/override explanation all live in the popover
 
 ## Entries-table export
 
-A kebab `⋮` menu at the right end of the stats bar offers four ways to get the current view out of Grawlix: **Copy to clipboard**, **Download as wordlist**, **Download as CSV**, **Download as JSON**. The four split by audience — Copy for paste-into-chat, wordlist for filling tools (Crossfire, Ingrid, Compiler, Crosserville), CSV for spreadsheets, JSON for scripters.
+A kebab `⋮` menu at the right end of the stats bar offers four ways to get the current view out of Grawlix: **Copy to clipboard**, **Export as wordlist**, **Export as CSV**, **Export as JSON**. The four split by audience — Copy for paste-into-chat, wordlist for filling tools (Crossfire, Ingrid, Compiler, Crosserville), CSV for spreadsheets, JSON for scripters.
 
 **Kebab over icon buttons or a dialog.** Two icon buttons (download + copy) was considered and rejected — icon mystery vs self-documenting named items, and the bar already collapses Min/Max on narrow viewports without room for more chrome. An "Export…" dialog with format chooser and live preview was considered and rejected as overcomplex for the common case; the kebab keeps the bar quiet and the per-format defaults are sensible enough.
 
@@ -511,7 +511,7 @@ Body: one row per line, chains rendered inline with their glyphs (`RELEARNING �
 
 Sort order = current table sort, no dedup needed (chains with glyphs are visibly distinct, so two journeys to the same tail are two distinct lines naturally).
 
-### Download as wordlist
+### Export as wordlist
 
 Strict `ENTRY;SCORE` per line, no header, no comments, `\n` line endings, trailing newline. Intended for filling tools that expect raw wordlist format.
 
@@ -529,7 +529,7 @@ Strict `ENTRY;SCORE` per line, no header, no comments, `\n` line endings, traili
 
 **Comments off by default.** The export's purpose is "snapshot for filling tool," not backup — comments are scoring metadata that mostly lives in Grawlix, and at least one consumer (Crossfire) chokes on them. Backup is the per-wordlist Download on the wordlist bar.
 
-### Download as CSV
+### Export as CSV
 
 Spreadsheet-oriented structured format (`.csv`). Header row, RFC 4180 `"` quoting (handles entries with `,`, `;`, `"`, newlines — no dropping needed), UTF-8, `\r\n` line endings (Excel-friendly).
 
@@ -541,7 +541,7 @@ Spreadsheet-oriented structured format (`.csv`). Header row, RFC 4180 `"` quotin
 
 **Comments + source mimic the display table** — present on flat pipelines, omitted on grouped (per `design.md`'s "no Length, Comment, or Source column on group chains" rule).
 
-### Download as JSON
+### Export as JSON
 
 Scripter-oriented structured format (`.json`). Pretty-printed (2-space indent), UTF-8. Mirrors the executor's `group → chains → entries` model directly.
 
