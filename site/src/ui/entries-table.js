@@ -1128,7 +1128,7 @@ export class EntriesScroller extends BaseVirtualScroller {
         if (chainRow) {
           row = this._renderChainRow(chainRow, i, tierFor, activeNorm, preview);
         } else {
-          row = this._skeletonRow();
+          row = this._skeletonRow(i);
           if (minMiss < 0) minMiss = i;
           maxMiss = i;
         }
@@ -1199,10 +1199,10 @@ export class EntriesScroller extends BaseVirtualScroller {
     };
   }
 
-  _skeletonRow() {
+  _skeletonRow(i) {
     const row = document.createElement('div');
     row.className = 'entry-row entry-row-font skeleton';
-    row.innerHTML = '<span class="skeleton-bar"></span>';
+    row.innerHTML = `<span class="atom-count">${i + 1}.</span>`;
     return row;
   }
 
@@ -1319,7 +1319,7 @@ export class EntriesScroller extends BaseVirtualScroller {
           nextActiveRow = row;
         }
       } else {
-        row = this._skeletonGroupRow();
+        row = this._skeletonGroupRow(i);
         if (minMiss < 0) minMiss = i;
         maxMiss = i;
       }
@@ -1360,10 +1360,10 @@ export class EntriesScroller extends BaseVirtualScroller {
     }
   }
 
-  _skeletonGroupRow() {
+  _skeletonGroupRow(i) {
     const row = document.createElement('div');
     row.className = 'group-row entry-row-font skeleton';
-    row.innerHTML = '<span class="skeleton-bar"></span>';
+    row.innerHTML = `<span class="group-rownum">${i + 1}.</span>`;
     return row;
   }
 
