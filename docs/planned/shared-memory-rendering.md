@@ -1,6 +1,6 @@
 # Shared-memory rendering — a synchronous corpus on the main thread
 
-A possible future alternative to the message-passing data tier ([`worker-data-tier.md`](worker-data-tier.md)). Not being pursued; recorded so the appeal and the blockers survive intact if the hosting situation ever changes.
+A possible future alternative to the message-passing data tier ([`design.md` § Cooperative runtime](../design.md)). Not being pursued; recorded so the appeal and the blockers survive intact if the hosting situation ever changes.
 
 ## The idea
 

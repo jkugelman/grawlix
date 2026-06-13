@@ -39,6 +39,7 @@ import {
   syncWorkerConfig, dumpWorkerCorpus, queryWorkerEntry, fetchWorkerRows, fetchWorkerGroups, fetchWorkerGroupChains, fetchWorkerAllRows, lastCompletedRunId,
   workerOwnsCorpus, sendEditEntry, sendDeleteEntry,
   fetchWorkerProvenance, syncConfigsSent, allRowsFetchesSent, allGroupsFetchesSent, serializeFetchesSent,
+  lastFetchAppliedMode$,
 } from './ui/pipeline-worker.js';
 import { allSourcesHistogramLayout, shippedAllSourcesAxisVersion, shippedScopedLayoutScopeKey } from './data/derived.js';
 import {
@@ -229,6 +230,8 @@ const __grawlixTest = {
   sendWorkerEditEntry: (orig, next, timeout) => sendEditEntry(orig, next, timeout),
   sendWorkerDeleteEntry: (target, timeout) => sendDeleteEntry(target, timeout),
   syncConfigsSent,
+  // 'splice' | 'rebuild' | null — how the last applyFetched resolved (threshold path).
+  lastFetchMode: () => lastFetchAppliedMode$(),
   allRowsFetchesSent,
   allGroupsFetchesSent,
   serializeFetchesSent,
@@ -261,8 +264,9 @@ const __grawlixTest = {
     return { dbKey: edits.dbKey, text: serializeEntries(sortedEntries(edits.rawEntries)) };
   },
 
-  // Awaited like flushEditsToIdb: applyWordlistText's post-write worker re-sync
-  // (and IDB write) has settled by the time this resolves.
+  // Awaited like flushEditsToIdb: applyWordlistText's worker command (the
+  // applyFetched diff, or a resync when the config changed) and IDB write have
+  // settled by the time this resolves.
   async reimport(name, text) {
     const wl = this._lookup(name);
     await applyWordlistText(wl, text, { source: name, silent: true });

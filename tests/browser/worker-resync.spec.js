@@ -2,16 +2,15 @@ const { test, expect } = require('@playwright/test');
 const { stubPublisherFetches, gotoApp } = require('./helpers');
 
 // Mutations-collapse oracle (scope-aware-build feature): the worker's owned state
-// stays fresh across config mutations WITHOUT any manual re-sync — main re-ships
-// the config on every config change (the cacheVersion$ completeness hook; the
-// post-IDB-write re-sync for importers / My Edits). syncWorkerConfig() is called
-// exactly ONCE at the start; every assertion afterward drives a real mutation and
-// proves the worker tracked it on its own.
+// stays fresh across config mutations WITHOUT any manual re-sync — a rescore-rule
+// edit or enable toggle re-ships the config via the cacheVersion$ completeness
+// hook; a My Edits add patches in place; a re-import diffs in place via
+// applyFetched. syncWorkerConfig() is called exactly ONCE at the start; every
+// assertion afterward drives a real mutation and proves the worker tracked it.
 //
-// The import case is the payoff: the worker rebuilds ownedMerged from IDB text, so
-// a re-sync that fired before the import's write (the premature cacheVersion$ hook)
-// would read stale text. If supersession (latestSyncToken) or the post-write
-// re-sync were wrong, the worker dump would still show the PRE-import entries.
+// The import case is the payoff: applyFetched re-merges the new text against the
+// worker's resident copy with no resync, so a freshness or supersession bug would
+// leave the worker dump showing the PRE-import entries.
 
 test.beforeEach(async ({ page }) => {
   await stubPublisherFetches(page);
@@ -128,17 +127,16 @@ test('a My Edits add re-syncs the worker merged corpus from fresh IDB', async ({
   expect(ibisRow.score).toBe(85);
 });
 
-test('an import of new text re-syncs the worker from FRESH IDB, not stale (the payoff)', async ({ page }) => {
+test('a re-import applies the new text in place via applyFetched (the payoff)', async ({ page }) => {
   await gotoApp(page);
   await seedCorpus(page);
   await syncOnce(page);
 
   expect((await dumpWorker(page, '__merged__')).entries.some(e => e[0] === 'zebra')).toBe(false);
 
-  // Re-import Alpha: ZEBRA replaces EAGLE. The completeness hook fires a re-sync
-  // BEFORE the IDB write (stale text); the post-write re-sync fires after and
-  // latestSyncToken supersedes the stale build. A stale-IDB rebuild would keep
-  // EAGLE and lack ZEBRA — this is the assertion that catches it.
+  // Re-import Alpha: ZEBRA replaces EAGLE. applyFetched diffs the new text against
+  // the worker's resident Alpha and re-merges with no resync — a freshness or
+  // supersession bug would keep EAGLE and lack ZEBRA, which these assertions catch.
   await page.evaluate(() => window.__grawlixTest.reimport('Alpha', 'ABLE;90\nCRANE;80\nZEBRA;65'));
   await settle(page);
   await pollWorkerMergedMatchesMain(page);

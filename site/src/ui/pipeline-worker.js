@@ -562,6 +562,30 @@ export function fetchWorkerMergeDisk(fileText, conflictChoice, timeout = 5000) {
   });
 }
 
+// ─── Fetch content-diff bridge ── see docs/worker-protocol.md ────────────────
+// A timeout resolves null so applyWordlistText falls back to a full resync rather
+// than wedging on a lost reply. Generous (10s): the worker parses the whole new
+// text synchronously before replying.
+let applyFetchedRequestId = 0;
+let lastFetchAppliedMode = null;
+export function lastFetchAppliedMode$() { return lastFetchAppliedMode; }
+export function sendApplyFetched(sourceId, text, timeout = 10000) {
+  const w = getWorker();
+  const requestId = ++applyFetchedRequestId;
+  return new Promise(resolve => {
+    const timer = setTimeout(() => { w.removeEventListener('message', onMessage); resolve(null); }, timeout);
+    function onMessage({ data }) {
+      if (data?.type !== 'fetchApplied' || data.requestId !== requestId) return;
+      clearTimeout(timer);
+      w.removeEventListener('message', onMessage);
+      lastFetchAppliedMode = data.mode ?? null;
+      resolve({ applied: data.applied, axis: data.axis, counts: data.counts });
+    }
+    w.addEventListener('message', onMessage);
+    w.postMessage({ type: 'applyFetched', requestId, sourceId, text });
+  });
+}
+
 let flushEditsRequestId = 0;
 export function fetchWorkerFlushEdits(timeout = 5000) {
   const w = getWorker();

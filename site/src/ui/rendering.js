@@ -119,14 +119,12 @@ export function setupRenderEffect() {
     // Cache change — refresh derived state in place rather than rebuilding
     // the panel and the scroller.
     refreshSourceCounts();        // rebuild caches before any UI reads them
-    // Every cacheVersion$ bump is a config change (rules/enable/order/import/…);
-    // re-sync so the worker's owned state can't go stale-but-fresh (silent row
-    // corruption, since the snapshot no longer clears freshness).
+    // Every cacheVersion$ bump is a config change (rules/enable/order/…); re-sync
+    // so the worker's owned state can't go stale-but-fresh (silent row corruption,
+    // since the snapshot no longer clears freshness). A fetch/import takes the
+    // in-place applyFetched diff path instead and never bumps cacheVersion$.
     resyncWorkerConfig();
-    renderSources();              // list/dialog with fresh meta
-    WordlistSelector.refresh();   // add/remove/reorder/enable changes the list
-    DiscoveryBanner.refresh();    // import can populate the scoped XWI source
-    _refreshDerivedDisplays();    // scoring legend + main-panel stats bar
+    repaintAfterConfigChange();
     if (entriesScroller) refreshMergedScroller();
   });
 
@@ -206,6 +204,18 @@ export function refreshSourceCounts() {
   invalidateSourceCounts();
   invalidateStatsCache(_mergedStatsKey);
   getSourceCounts();
+}
+
+// The non-worker repaints a config change needs (list, selector, discovery banner,
+// derived displays). Shared by the cacheVersion$ effect and the fetch/import path
+// so the two can't drift; each pairs it with its own worker sync (full resync vs
+// the in-place applyFetched diff).
+export function repaintAfterConfigChange() {
+  refreshSourceCounts();        // rebuild caches before any UI reads them
+  renderSources();              // list/dialog with fresh meta
+  WordlistSelector.refresh();   // add/remove/reorder/enable changes the list
+  DiscoveryBanner.refresh();    // import can populate the scoped XWI source
+  _refreshDerivedDisplays();    // scoring legend + main-panel stats bar
 }
 
 export function createScroller() {

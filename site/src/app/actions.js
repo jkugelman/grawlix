@@ -69,11 +69,11 @@ import { buildRulesListHTML, renderScoringRules } from '../ui/rescore-editor.js'
 import { WordlistSelector, buildWordlistNameHTML } from '../ui/scope-selector.js';
 import {
   getEntriesScroller, setScope, renderAll, renderSources, renderMergedDetail,
-  refreshMergedScroller, firstPaint,
+  refreshMergedScroller, repaintAfterConfigChange, firstPaint,
 } from '../ui/rendering.js';
 import {
   syncWorkerConfig, resyncWorkerConfig,
-  sendEditEntry, sendDeleteEntry, fetchWorkerSerialize,
+  sendEditEntry, sendDeleteEntry, sendApplyFetched, fetchWorkerSerialize,
 } from '../ui/pipeline-worker.js';
 import { SyncDialog } from '../ui/dialogs/sync.js';
 import { ConfigureWordlistDialog } from '../ui/dialogs/configure-wordlist.js';
@@ -359,10 +359,11 @@ export async function persistEdits(edits) {
   resyncWorkerConfig();
 }
 
-// The per-entry edit's stand-in for a resync: the command already recomputed the
-// axis + config counts, so main adopts the shipped values instead of rebuilding.
-// Mirrors syncWorkerConfig's selfReady consumption.
-function applyEditAck(ack) {
+// An in-place worker command's stand-in for a resync: the command (editEntry,
+// deleteEntry, or applyFetched) already recomputed the axis + config counts, so
+// main adopts the shipped values instead of rebuilding. Mirrors syncWorkerConfig's
+// selfReady consumption.
+function applyConfigAck(ack) {
   if (!ack) return;
   setShippedAllSourcesAxis(ack.axis, ack.counts?.version);
   if (ack.counts) setShippedConfigCounts(ack.counts.sourceCounts, ack.counts.mergedCount, ack.counts.version);
@@ -481,7 +482,7 @@ export function saveEdit(originalWlEntry, { raw, score, comment }) {
 
   const origForCmd = origNorm ? { norm: origNorm, display: origDisplay } : null;
   const nextForCmd = { norm: newNorm, display: newDisplay, score, comment };
-  sendEditEntry(origForCmd, nextForCmd).then(applyEditAck);
+  sendEditEntry(origForCmd, nextForCmd).then(applyConfigAck);
   persistEditsMetaOnly(edits);
 }
 
@@ -490,11 +491,17 @@ export function saveEdit(originalWlEntry, { raw, score, comment }) {
 export async function applyWordlistText(wordlist, text, { fetchedSize = null, originalFilename = null, nameOverride = null, source = null, clearUrl = false, silent = false, viaToast = false } = {}) {
   const wasEmpty = !wordlist.rawEntries.length;
   const oldEntries = wasEmpty ? null : wordlist.rawEntries;
+  // The worker keys its merge on each source's enabled flag + rescore rules. If
+  // either changes here (a first population flips enabled; an auto-seed adds rules)
+  // its resident copy is stale and the content-diff can't apply — fall back to a
+  // full resync that re-sends the config below.
+  const wasEnabled = wordlist.enabled;
+  const beforeRules = JSON.stringify(wordlist.rescoreRules ?? []);
 
-  // Invalidate first, then mutate — so signal writes (name/url) don't fire
-  // the cosmetic effect against still-stale caches mid-flight. Wrap in
-  // batchUpdate to coalesce all writes + the cache bump into one render
-  // effect run after the batch.
+  // Invalidate first, then mutate — so signal writes (name/url) don't fire the
+  // cosmetic effect against still-stale caches mid-flight. batchUpdate coalesces
+  // the writes + deferred persistMeta; no cacheVersion$ bump — the applyFetched
+  // diff + repaint below stand in for the render effect's full resync.
   batchUpdate(() => {
     invalidateWordlistCaches(wordlist);
     wordlist.rawEntries = parseWordlist(text);
@@ -508,21 +515,22 @@ export async function applyWordlistText(wordlist, text, { fetchedSize = null, or
     if (nameOverride) wordlist.name = nameOverride;
     if (clearUrl) { wordlist.url = null; wordlist.fetchedSize = null; wordlist._updateAvailable = false; }
     persistMeta();
-    repaintAfterCacheChange();
   });
 
   await Storage.writeWordlist(wordlist, text);
   if (wordlist.type === 'edits') EditsSync.scheduleWrite();
   else                           MirrorSync.schedule(wordlist);
-  // After the write: the worker rebuilds ownedCorpus from IDB text, so a re-sync
-  // before this point would read the pre-write text (see worker-protocol.md).
-  resyncWorkerConfig();
-  // Not redundant with the scroller run the cacheVersion$ effect already fired
-  // inside batchUpdate: that run's re-sync read pre-write IDB, so it can render
-  // the corpus WITHOUT this wordlist's new text. Only the post-write re-sync
-  // above sees the new text, and a run must be paired with it or — depending on
-  // which build wins the worker's supersession (a cross-engine timing toss-up) —
-  // the stale pre-write render can be the last one and never gets corrected.
+
+  const configChanged = wasEmpty
+    || wordlist.enabled !== wasEnabled
+    || JSON.stringify(wordlist.rescoreRules ?? []) !== beforeRules;
+  // applyFetched splices the changed norms in place; a config change or a worker
+  // with no build for this source yet (applied:false) falls back to the full
+  // resync, which must run AFTER the IDB write above so it reads the new text.
+  const ack = configChanged ? null : await sendApplyFetched(wordlist.dbKey, text);
+  if (ack?.applied) applyConfigAck(ack);
+  else              resyncWorkerConfig();
+  repaintAfterConfigChange();
   refreshMergedScroller();
 
   if (wasEmpty) {
@@ -716,13 +724,13 @@ export function deleteFromEdits(target, refreshFn) {
 
   let deleted;
   applyEditsChange(edits, () => { [deleted] = edits.rawEntries.splice(idx, 1); });
-  sendDeleteEntry({ norm, display }).then(applyEditAck);
+  sendDeleteEntry({ norm, display }).then(applyConfigAck);
   persistEditsMetaOnly(edits);
   refresh();
 
   showUndoToast(`Deleted ${esc(displayOf(deleted))} from ${buildWordlistNameHTML(edits)}`, () => {
     applyEditsChange(edits, () => { edits.rawEntries.splice(idx, 0, deleted); });
-    sendEditEntry(null, { norm, display: displayOf(deleted), score: deleted.score, comment: deleted.comment }).then(applyEditAck);
+    sendEditEntry(null, { norm, display: displayOf(deleted), score: deleted.score, comment: deleted.comment }).then(applyConfigAck);
     persistEditsMetaOnly(edits);
     refresh();
   });

@@ -4,7 +4,7 @@
 
 import { pluralize } from '../core/util.js';
 import { effect } from '../core/signals.js';
-import { state, cacheVersion$ } from '../data/state.js';
+import { state, cacheVersion$, configSummary$ } from '../data/state.js';
 import { persistMeta, batchUpdate, repaintAfterCacheChange } from '../data/persist.js';
 import { getWordlistIcon } from './icons.js';
 import { makeReorderable } from './components.js';
@@ -126,6 +126,7 @@ export const ManagePanel = (() => {
     // lib has no teardown, so this lifelong effect must no-op when closed.
     effect(() => {
       cacheVersion$.get();
+      configSummary$.get();   // a fetch content-diff bumps this, not cacheVersion$, but still changes the per-row entry count
       if (shadow) { absorb(); render(); }
     });
   }

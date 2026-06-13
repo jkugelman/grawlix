@@ -777,17 +777,20 @@ function leanRowFor(norm, display) {
   return out;
 }
 
-function applyOwnedEdit(edits, affectedNorms, edited) {
+// The affected norms are re-merged from ALL sources (computeMergedBucket over
+// ownedBuilt), not just `source` — narrowing to the changed source would silently
+// drop a higher-priority list's winner for a norm `source` no longer touches.
+function applyOwnedEdit(source, affectedNorms, edited) {
   // computeMergedBucket (not the rawScore-carrying scoped variant): the merged
   // corpus drops rawScore on every entry (a full buildCorpus merge would too), so
   // the in-place splice must drop it to stay byte-identical to a rebuild.
   const mergedPatched = spliceOwnedCorpus(ownedMerged, affectedNorms, norm => computeMergedBucket(norm, ownedBuilt));
 
-  // For MERGED scope ownedCorpus === ownedMerged (spliced above). Scoped to My
-  // Edits it's a distinct single-source build — diverge from that and the scoped
-  // view drifts from main's with no error.
-  if (ownedScope === edits.dbKey && ownedCorpus !== ownedMerged) {
-    spliceOwnedCorpus(ownedCorpus, affectedNorms, norm => recomputeScopedBucket(norm, edits));
+  // For MERGED scope ownedCorpus === ownedMerged (spliced above). Scoped to this
+  // source it's a distinct single-source build — diverge from that and the scoped
+  // view drifts from a rebuild with no error.
+  if (ownedScope === source.dbKey && ownedCorpus !== ownedMerged) {
+    spliceOwnedCorpus(ownedCorpus, affectedNorms, norm => recomputeScopedBucket(norm, source));
   }
 
   // A count-changing splice shifts every later index, so reindex fully (mirrors
@@ -969,6 +972,73 @@ async function handleFlushEdits({ requestId }) {
   }
   await idbPut(SYNC_WORKER_PREFIX + edits.dbKey, { baseline: text });
   postMessage({ type: 'flushResult', requestId, text, changed: true });
+}
+
+// ─── Fetch content-diff ── see docs/worker-protocol.md ──────────────────────
+
+// Only ADD/DELETE changes drive the cost: a rescore splices in place (equal-length
+// overwrite, no array shift, O(1)), but an add/delete shifts the merged array O(n),
+// so the splice batch is O(structuralChanges × n). The cap is absolute, not a
+// fraction of n — a fraction would allow O(n²) work and freeze on large lists.
+const ADD_DELETE_REBUILD_CAP = 256;
+
+// Bails to { rebuild: true } the instant adds+deletes exceed `cap`: past it the
+// caller rebuilds wholesale and never reads affectedNorms, so finishing the scan
+// and growing the Set would be wasted O(n) work ahead of an already-O(n log n)
+// rebuild. Otherwise { rebuild: false, affectedNorms } covers every changed norm —
+// rescores included, since the splice recomputes each one's bucket.
+function diffSourceEntries(oldEntries, newEntries, cap) {
+  const oldByKey = new Map();
+  for (const e of oldEntries) oldByKey.set(mergeKey(e.norm, e.display), e);
+  const affected = new Set();
+  let structuralChanges = 0;
+  for (const e of newEntries) {
+    const key = mergeKey(e.norm, e.display);
+    const prev = oldByKey.get(key);
+    if (!prev) {
+      if (++structuralChanges > cap) return { rebuild: true };          // add
+      affected.add(e.norm);
+    } else {
+      oldByKey.delete(key);
+      if (prev.score !== e.score || (prev.comment || '') !== (e.comment || '')) affected.add(e.norm);  // rescore
+    }
+  }
+  for (const e of oldByKey.values()) {                                  // delete
+    if (++structuralChanges > cap) return { rebuild: true };
+    affected.add(e.norm);
+  }
+  return { rebuild: false, affectedNorms: [...affected] };
+}
+
+// SYNCHRONOUS (no IDB write — main owns the data_ write of the raw text), so the
+// splice fully lands before the run main posts next; an await here would let the
+// run interleave against the un-spliced corpus and ship stale rows.
+function handleApplyFetched({ requestId, sourceId, text }) {
+  // Edit-race harden (as editEntry): an older in-flight syncConfig build, reading
+  // pre-fetch IDB text, must discard via its commit guard rather than clobber this.
+  latestSyncToken++;
+  const source = ownedBuilt?.find(w => w.dbKey === sourceId) ?? null;
+  // No resident build yet, or a brand-new source the last syncConfig didn't carry:
+  // applied=false routes main to a full resyncWorkerConfig.
+  if (!source || !ownedMerged || !ownedCorpus) {
+    postMessage({ type: 'fetchApplied', requestId, applied: false });
+    return;
+  }
+
+  const oldEntries = source.rawEntries;
+  const newEntries = parseWordlist(text);
+  const diff = oldEntries.length === 0 ? { rebuild: true } : diffSourceEntries(oldEntries, newEntries, ADD_DELETE_REBUILD_CAP);
+
+  source.rawEntries = newEntries;
+  invalidateRescoredCacheFor(source);
+
+  // Fallback rebuild is still cheaper than syncConfig — the OTHER sources stay
+  // resident in ownedBuilt rather than being re-read from IDB and re-parsed.
+  const ack = diff.rebuild
+    ? rebuildOwnedFromBuilt(ownedScope)
+    : applyOwnedEdit(source, diff.affectedNorms, null);
+
+  postMessage({ type: 'fetchApplied', requestId, applied: true, mode: diff.rebuild ? 'rebuild' : 'splice', axis: ack.axis, counts: ack.counts });
 }
 
 // ─── Self-build (test oracle) ── see docs/worker-protocol.md ─────────────────
@@ -1161,6 +1231,10 @@ onmessage = ({ data }) => {
 
     case 'flushEdits':
       handleFlushEdits(data);
+      break;
+
+    case 'applyFetched':
+      handleApplyFetched(data);
       break;
 
     case 'syncConfig': {
