@@ -120,6 +120,7 @@ Assembled in [`site/src/test-api.js`](../site/src/test-api.js) — the one modul
 |---|---|
 | `addCustomWordlist({name, scores, entries?, comments?, enabled?})` | Add a populated custom wordlist (no `publisherId`). Goes through `applyWordlistText`, so the auto-seed path fires. Pass `entries` to specify entry names (parallel to `scores`); defaults to auto-named `WORD001`, `WORD002`, … |
 | `setRescoreRules(name, rules)` | Replace a wordlist's rescore rules via `setWordlistRescoreRules`. Rules shape: `{input, length, output, note?}`. |
+| `setScoring(rules)` | Replace the tier scale (`state.scoring`) via the editor-Apply data path (persist + propagate to non-dirty legends), bypassing the draft the editor edits live. |
 | `setUpdateAvailable(name, value)` | Toggle the transient `_updateAvailable` flag and repaint. Used to put info + warning severities on the same wordlist. |
 | `moveBefore(name, beforeName)` | Reorder `state.sources` so `name` lands at `beforeName`'s position. Routes through `reorderSources` so caches invalidate the same way a drag does. |
 | `getMergedEntry(entry)` | Read-only snapshot of the merged `All Wordlists` view for a single entry: `{score, comment, wordlist}`. The sourcing wordlist is observable via the row's popover, but `.atom-source` is hidden at narrow viewport widths. |

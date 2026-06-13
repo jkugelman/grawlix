@@ -26,6 +26,7 @@ import { ToolStack, ToolPicker, configureToolStack, mountGroupColumnStyle } from
 import { mountHistogramPointer, onHistogramPointerDown } from './ui/histogram-view.js';
 import {
   configureRescoreEditor, startNoteEdit, onRuleInput, saveRuleField, deleteRule, addRule, resetRescoreRules, neutralizeRescoreRules, saveScoringField, deleteScoringRow, addScoringRow, resetScoringRules,
+  applyRescoreDraft, cancelRescoreDraft, makeRescorePermanent,
 } from './ui/rescore-editor.js';
 import { WordlistSelector, renderSyncIndicators } from './ui/scope-selector.js';
 import { configurePipelineWorker, fetchWorkerSerialize, fetchWorkerMergeDisk, fetchWorkerFlushEdits } from './ui/pipeline-worker.js';
@@ -62,6 +63,7 @@ function exposeWindowGlobals() {
     toggleSplitMenu, startNoteEdit, onRuleInput, onHistogramPointerDown,
     saveRuleField, deleteRule, addRule, resetRescoreRules, neutralizeRescoreRules,
     saveScoringField, deleteScoringRow, addScoringRow, resetScoringRules,
+    applyRescoreDraft, cancelRescoreDraft, makeRescorePermanent,
     exportCopy, exportWordlist, exportCSV, exportJSON,
     state, Router, ToolStack, SettingsDialog, Storage, TOOLS,
     getOutputFormat, setOutputFormat, persistMeta, persistEdits,
@@ -131,6 +133,7 @@ function boot() {
   });
   configureRescoreEditor({
     bakeMenuOpts,
+    bake: () => WordlistActions.action('bakeRescoring'),
   });
   configureManagePanel({
     openAddWordlist: onAdded => ConfigureWordlistDialog.openAdd(onAdded),

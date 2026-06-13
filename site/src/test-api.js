@@ -46,6 +46,7 @@ import {
   getEntriesScroller, setScope, renderSources, renderMergedDetail, refreshMergedScroller,
 } from './ui/rendering.js';
 import { windowedFlatDebug, workerSummariesDebug, workerGroupsDebug, workerGroupListDebug, existsInScopeDebug, existsInMergeDebug, popoverSeedDebug, popoverProvenanceDebug, rebindAnswersConsumedDebug, resetRebindAnswersConsumedForTest, groupWindowUnderfillDebug, resetGroupWindowUnderfillForTest } from './ui/entries-table.js';
+import { applyScoringChange } from './ui/rescore-editor.js';
 import {
   addNewWordlist, applyWordlistText, bakeRescoring, saveEdit, deleteFromEdits, persistEdits,
   buildCopyText, buildWordlistText, buildCSVText, buildExportJSONObject, exportFilename, _ready, loadIdle,
@@ -104,6 +105,11 @@ const __grawlixTest = {
     const wl = this._lookup(name);
     setWordlistRescoreRules(wl, rules);
     await this.syncWorkerConfig();
+  },
+
+  setScoring(rules) {
+    state.scoring = rules;
+    applyScoringChange();
   },
 
   async bakeRescoring(name) {

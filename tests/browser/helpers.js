@@ -95,6 +95,12 @@ async function openRescoreEditor(page) {
   await expect(page.locator('#rescore-editor')).toBeVisible();
 }
 
+// Edits in the rescore editor are batched into a draft; Apply commits them.
+async function applyRescoreEditor(page) {
+  await page.locator('#rescore-editor .rescore-apply').click();
+  await expect(page.locator('#rescore-editor')).toBeHidden();
+}
+
 async function openManagePanel(page) {
   await page.locator('#wordlist-bar .wls-trigger').click();
   await page.locator('#wordlist-bar .wls-configure-footer').click();
@@ -158,6 +164,7 @@ module.exports = {
   scopeTo,
   scopeViaSelector,
   openRescoreEditor,
+  applyRescoreEditor,
   openManagePanel,
   setEnabledViaPanel,
   barKebabAction,

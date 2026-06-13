@@ -35,6 +35,7 @@ import { showToast } from './toasts.js';
 import { AppView } from './app-view.js';
 import { ToolStack } from './tool-stack.js';
 import { buildWordlistNameHTML } from './scope-selector.js';
+import { getDraftRescoreRules } from './rescore-editor.js';
 import { buildTrashIconHTML } from './components.js';
 import {
   getEntriesScroller, rescorePreviewActive, buildNoMatchQuipHTML, refreshMergedScroller,
@@ -351,6 +352,16 @@ function sortableHeaderPx(label) {
 }
 
 const EMPTY_REVEAL_DELAY_MS = 450;
+
+// trueRaw is `rawScore ?? score`: rawScore is set only when a committed rule
+// moved the score (engine/rescore.js applyRescoring), else score is the raw.
+function previewedEntry(wlEntry, draftRules) {
+  const trueRaw = wlEntry.rawScore ?? wlEntry.score;
+  const ps = rescoreEntry({ norm: wlEntry.norm, score: trueRaw }, draftRules);
+  return ps === trueRaw
+    ? { ...wlEntry, score: trueRaw, rawScore: null }
+    : { ...wlEntry, score: ps, rawScore: trueRaw };
+}
 
 // Capture-mode scroll listener catches events from any ancestor — the page
 // scrolls the document, not the window, and scroll events don't bubble.
@@ -944,6 +955,11 @@ export class EntriesScroller extends BaseVirtualScroller {
     }
   }
 
+  previewRescore() {
+    this._computeSlotWidths();
+    this._render();
+  }
+
   _getSortedSource() {
     if (this._sortedSource
         && this._sortedSourceKey === this.sortKey
@@ -1009,17 +1025,17 @@ export class EntriesScroller extends BaseVirtualScroller {
         if (!hasHighlight && atom.highlights?.length) hasHighlight = true;
       }
     }
-    const preview = rescorePreviewActive();
+    const draftRules = rescorePreviewActive() ? getDraftRescoreRules() : null;
     let maxRawDigits = 0;
     for (const row of this.entries) {
       for (const atom of row.atoms) {
-        const d = String(atom.wlEntry.norm.length).length;
+        const we = draftRules ? previewedEntry(atom.wlEntry, draftRules) : atom.wlEntry;
+        const d = String(we.norm.length).length;
         if (d > maxLenDigits) maxLenDigits = d;
-        const sd = String(atom.wlEntry.score).length;
+        const sd = String(we.score).length;
         if (sd > maxScoreDigits) maxScoreDigits = sd;
-        const { rawScore, score } = atom.wlEntry;
-        if (preview && rawScore != null && rawScore !== score) {
-          maxRawDigits = Math.max(maxRawDigits, String(rawScore).length);
+        if (we.rawScore != null && we.rawScore !== we.score) {
+          maxRawDigits = Math.max(maxRawDigits, String(we.rawScore).length);
         }
       }
     }
@@ -1049,7 +1065,9 @@ export class EntriesScroller extends BaseVirtualScroller {
     const ch = measureMonoChPx();
     const { maxDisplayLen, maxLenDigits, maxScoreDigits, maxRawDigits: rawHint } = this._widthHints;
     const hasHighlight = this._flatHighlighters.length > 0;
-    const maxRawDigits = rescorePreviewActive() ? (rawHint ?? 0) : 0;
+    // rawHint is committed-only; a draft can show any row's true raw, up to
+    // maxScoreDigits wide, so take the max or a buffered arrow clips here.
+    const maxRawDigits = rescorePreviewActive() ? Math.max(rawHint ?? 0, maxScoreDigits) : 0;
 
     const entryContentW = Math.ceil(
       Math.min(maxDisplayLen, ENTRY_SLOT_CAP) * ch + (hasHighlight ? ch : 0)
@@ -1114,6 +1132,7 @@ export class EntriesScroller extends BaseVirtualScroller {
 
     const tierFor = makeTierLookup();
     const preview = rescorePreviewActive();
+    const draftRules = preview ? getDraftRescoreRules() : null;
     const activeNorm = AtomPopover.activeNorm(this);
     let nextActiveRow = null;
     let minMiss = -1, maxMiss = -1;
@@ -1123,14 +1142,14 @@ export class EntriesScroller extends BaseVirtualScroller {
       if (windowed) {
         const chainRow = this._windowedRowOrNull(i);
         if (chainRow) {
-          row = this._renderChainRow(chainRow, i, tierFor, activeNorm, preview);
+          row = this._renderChainRow(chainRow, i, tierFor, activeNorm, preview, draftRules);
         } else {
           row = this._skeletonRow(i);
           if (minMiss < 0) minMiss = i;
           maxMiss = i;
         }
       } else {
-        row = this._renderChainRow(this.entries[i], i, tierFor, activeNorm, preview);
+        row = this._renderChainRow(this.entries[i], i, tierFor, activeNorm, preview, draftRules);
       }
       row.style.top = (i * stride) + 'px';
       if (row.classList.contains('active')) nextActiveRow = row;
@@ -1235,12 +1254,13 @@ export class EntriesScroller extends BaseVirtualScroller {
     });
   }
 
-  _renderChainRow(chainRow, i, tierFor, activeNorm, preview) {
+  _renderChainRow(chainRow, i, tierFor, activeNorm, preview, draftRules) {
     const atoms = chainRow.atoms;
     let isActive = false;
     let html = `<span class="atom-count">${i + 1}.</span>`;
     atoms.forEach((atom, ai) => {
-      const { wlEntry, highlights, glyph } = atom;
+      const { highlights, glyph } = atom;
+      const wlEntry = draftRules ? previewedEntry(atom.wlEntry, draftRules) : atom.wlEntry;
       const { norm, score } = wlEntry;
       if (activeNorm && norm === activeNorm) isActive = true;
       const displayed = displayOf(wlEntry);

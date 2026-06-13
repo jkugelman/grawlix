@@ -153,7 +153,7 @@ test('a URL-backed source kebab offers Fetch, Import, Configure, Delete — neve
   expect(items).toContain('Import');
   expect(items).toContain('Configure');
   expect(items).toContain('Delete');
-  expect(items).not.toContain('Apply rescoring permanently');
+  expect(items).not.toContain('Make permanent');
 });
 
 test('an imported (file-based) source kebab offers Import, Configure, Delete — no Fetch, no bake', async ({ page }) => {
@@ -168,7 +168,7 @@ test('an imported (file-based) source kebab offers Import, Configure, Delete —
   expect(items).toContain('Import');
   expect(items).toContain('Configure');
   expect(items).toContain('Delete');
-  expect(items).not.toContain('Apply rescoring permanently');
+  expect(items).not.toContain('Make permanent');
 });
 
 test('the My Edits kebab offers only Import and Clear — no Fetch, no Delete, no bake', async ({ page }) => {
@@ -180,7 +180,7 @@ test('the My Edits kebab offers only Import and Clear — no Fetch, no Delete, n
   expect(items).toContain('Clear');
   expect(items).not.toContain('Fetch');
   expect(items).not.toContain('Delete');
-  expect(items).not.toContain('Apply rescoring permanently');
+  expect(items).not.toContain('Make permanent');
 });
 
 test('All Wordlists shows no kebab — only its Download', async ({ page }) => {

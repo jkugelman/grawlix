@@ -4,7 +4,7 @@
 // All Wordlists, where the editor edits tier labels, not scores — drops every arrow.
 
 const { test, expect } = require('@playwright/test');
-const { stubPublisherFetches, gotoApp, scopeViaSelector, openRescoreEditor } = require('./helpers');
+const { stubPublisherFetches, gotoApp, scopeViaSelector, openRescoreEditor, applyRescoreEditor } = require('./helpers');
 
 test.beforeEach(async ({ page }) => {
   await stubPublisherFetches(page);
@@ -56,6 +56,47 @@ test('closing the editor removes the arrow', async ({ page }) => {
 
   await expect(oceanScore(page).locator('.atom-score-arrow')).toHaveCount(0);
   await expect(oceanScore(page).locator('.score-badge')).toHaveText('80');
+});
+
+const ruleOutput = page => page.locator('#rescore-rules .rule-row .rule-out');
+
+test('editing a rule output previews live and only commits on Apply', async ({ page }) => {
+  await gotoApp(page);
+  await seedRemappedSource(page);
+  await openRescoreEditor(page);
+  await page.evaluate(() => window.__grawlixTest.pipelineIdle());
+  await expect(oceanScore(page).locator('.score-badge')).toHaveText('80');
+
+  await ruleOutput(page).fill('90');
+  await ruleOutput(page).blur();
+
+  await expect(oceanScore(page).locator('.score-badge')).toHaveText('90');
+  await expect(oceanScore(page).locator('.atom-score-raw')).toHaveText('350');
+  expect(await page.evaluate(() => window.__grawlixTest.getWordlist('Src').rescoreRules[0].output)).toBe('80');
+
+  await applyRescoreEditor(page);
+  await page.evaluate(() => window.__grawlixTest.pipelineIdle());
+  expect(await page.evaluate(() => window.__grawlixTest.getWordlist('Src').rescoreRules[0].output)).toBe('90');
+  await expect(oceanScore(page).locator('.score-badge')).toHaveText('90');
+});
+
+test('Cancel discards a rule edit, leaving the committed rules unchanged', async ({ page }) => {
+  await gotoApp(page);
+  await seedRemappedSource(page);
+  await openRescoreEditor(page);
+  await page.evaluate(() => window.__grawlixTest.pipelineIdle());
+
+  await ruleOutput(page).fill('90');
+  await ruleOutput(page).blur();
+  await expect(oceanScore(page).locator('.score-badge')).toHaveText('90');
+
+  await page.locator('#rescore-editor .rescore-cancel').click();
+  await expect(page.locator('#rescore-editor')).toBeHidden();
+  await page.evaluate(() => window.__grawlixTest.pipelineIdle());
+
+  expect(await page.evaluate(() => window.__grawlixTest.getWordlist('Src').rescoreRules[0].output)).toBe('80');
+  await expect(oceanScore(page).locator('.score-badge')).toHaveText('80');
+  await expect(oceanScore(page).locator('.atom-score-arrow')).toHaveCount(0);
 });
 
 test('on All Wordlists the editor edits tier labels, so no row shows an arrow', async ({ page }) => {
@@ -125,6 +166,11 @@ test('Neutralize blanks rule outputs, drops scoring:false rows, and clears the a
   const confirmDialog = page.locator('#confirm-dialog');
   await expect(confirmDialog).toBeVisible();
   await confirmDialog.locator('#btn-confirm-ok').click();
+
+  // Disable rescoring stages into the draft: the preview drops the arrow at
+  // once, but the committed rules only change on Apply.
+  await expect(oceanScore(page).locator('.atom-score-arrow')).toHaveCount(0);
+  await applyRescoreEditor(page);
   await page.evaluate(() => window.__grawlixTest.pipelineIdle());
 
   // Only the non-scoring:false rule survives, and its output is blanked. (The

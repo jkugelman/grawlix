@@ -835,13 +835,16 @@ a.get-file:hover { text-decoration: underline; }
 }
 .rule-del:hover { color: #e53935 !important; background: var(--del-hover); }
 
-.rule-actions { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 6px; }
-.rule-actions-right { display: flex; align-items: center; gap: 8px; margin-left: auto; }
-.rule-add-btn { padding: 2px 10px; border: 1px dashed var(--border); background: transparent; color: var(--muted); border-radius: 3px; font-size: 12px; cursor: pointer; font-family: inherit; }
+.rule-add-btn { margin-top: 4px; padding: 2px 10px; border: 1px dashed var(--border); background: transparent; color: var(--muted); border-radius: 3px; font-size: 12px; line-height: 1.4; cursor: pointer; font-family: inherit; }
 .rule-add-btn:hover { color: var(--text); border-color: var(--accent); }
-.rule-reset-btn, .rule-neutralize-btn, .rule-bake-btn { padding: 2px 10px; border: 1px solid var(--border); background: transparent; color: var(--muted); border-radius: 3px; font-size: 12px; cursor: pointer; font-family: inherit; }
-.rule-reset-btn:hover, .rule-neutralize-btn:hover, .rule-bake-btn:hover:not(:disabled) { color: var(--text); border-color: var(--accent); }
-.rule-bake-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.rescore-footer { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px 14px; margin-top: 10px; }
+.rescore-footer-rare { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 14px; }
+.rescore-footer-commit { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+.rescore-link { padding: 2px 0; border: none; background: none; color: var(--muted); font-size: 12px; font-family: inherit; cursor: pointer; }
+.rescore-link:hover:not(:disabled) { color: var(--text); text-decoration: underline; text-underline-offset: 2px; }
+.rescore-link:disabled { opacity: 0.5; cursor: not-allowed; }
+.rescore-cancel, .rescore-apply { font-size: 12px; padding: 5px 14px; }
 
 #featured-row { padding: 32px; border-bottom: 1px solid var(--border3); position: relative; background: var(--bg); z-index: 60; }
 #featured-row.expanded { border-bottom-color: transparent; }

@@ -18,7 +18,9 @@ import {
 } from './sync-indicators.js';
 import {
   buildRescoreSectionHTML, buildScoringSectionHTML,
+  beginEdit, discardDraft, isDraftDirty, draftScope,
 } from './rescore-editor.js';
+import { showConfirm } from './dialogs/confirm.js';
 import { ManagePanel } from './manage-panel.js';
 import { setScope, refreshMergedScroller, getEntriesScroller } from './rendering.js';
 
@@ -248,31 +250,42 @@ export const WordlistSelector = (() => {
     editorToggle.setAttribute('aria-label', editorLabel());
   }
   function renderEditorContent() {
+    if (!editorOpen) return;
     editorInner.innerHTML = state.selected === MERGED_ID
-      ? buildScoringSectionHTML('scoring-rules')
-      : buildRescoreSectionHTML(state.selected, 'rescore-rules');
+      ? buildScoringSectionHTML()
+      : buildRescoreSectionHTML();
   }
   function refreshEditor() {
     syncToggleLabel();
-    if (editorOpen) renderEditorContent();
+    if (!editorOpen) return;
+    if (draftScope() !== state.selected) beginEdit(state.selected);
+    renderEditorContent();
   }
-  function setEditorOpen(open) {
-    editorOpen = open;
-    editorToggle.setAttribute('aria-expanded', String(open));
-    if (open) {
-      // Unhide before flipping .rescore-open so the grid-rows transition runs
-      // from 0fr; toggling both in one frame would skip the animation.
-      editor.hidden = false;
-      renderEditorContent();
-      requestAnimationFrame(() => bar.classList.add('rescore-open'));
-    } else {
-      bar.classList.remove('rescore-open');
-      hideAfterCollapse();
-    }
+  function expandEditor() {
+    editorOpen = true;
+    editorToggle.setAttribute('aria-expanded', 'true');
+    beginEdit(state.selected);
+    // Unhide before flipping .rescore-open so the grid-rows transition runs
+    // from 0fr; toggling both in one frame would skip the animation.
+    editor.hidden = false;
+    renderEditorContent();
+    requestAnimationFrame(() => bar.classList.add('rescore-open'));
     // The raw → rescored preview lives in the scroller rows, gated on the
-    // editor's open state, so toggling it must repaint the table — refreshEditor
-    // only touches the editor's own subtree.
+    // editor's open state, so toggling it must repaint the table.
     if (getEntriesScroller()) refreshMergedScroller();
+  }
+  function collapseEditor() {
+    if (!editorOpen) return;
+    editorOpen = false;
+    editorToggle.setAttribute('aria-expanded', 'false');
+    bar.classList.remove('rescore-open');
+    hideAfterCollapse();
+    if (getEntriesScroller()) refreshMergedScroller();
+  }
+  async function attemptCloseEditor() {
+    if (isDraftDirty() && !await showConfirm('Discard your changes?', { confirmText: 'Discard' })) return;
+    discardDraft();
+    collapseEditor();
   }
   function hideAfterCollapse() {
     const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -344,7 +357,7 @@ export const WordlistSelector = (() => {
     editorInner  = editor.querySelector('.rescore-editor-inner');
 
     trigger.addEventListener('click', () => root.classList.contains('open') ? close() : open());
-    menu.addEventListener('click', e => {
+    menu.addEventListener('click', async e => {
       if (e.target.closest('.wls-configure-footer')) {
         close();
         ManagePanel.open();
@@ -352,15 +365,19 @@ export const WordlistSelector = (() => {
       }
       const opt = e.target.closest('.wordlist-card');
       if (!opt) return;
+      if (opt._scope !== state.selected && editorOpen && isDraftDirty()) {
+        if (!await showConfirm('Discard your changes?', { confirmText: 'Discard' })) return;
+        discardDraft();
+      }
       close();
       setScope(opt._scope);
     });
     document.addEventListener('keydown', e => { if (e.key === 'Escape') close(); });
-    editorToggle.addEventListener('click', () => setEditorOpen(!editorOpen));
+    editorToggle.addEventListener('click', () => editorOpen ? attemptCloseEditor() : expandEditor());
 
     renderTrigger();
     syncToggleLabel();
   }
 
-  return { mount, refresh, refreshEditor, refreshSyncSign, refreshMeta, isEditorOpen: () => editorOpen };
+  return { mount, refresh, refreshEditor, refreshSyncSign, refreshMeta, isEditorOpen: () => editorOpen, collapseEditor };
 })();
