@@ -171,7 +171,7 @@ function buildEditorFooterHTML(rareLinks) {
       <div class="rescore-footer-rare">${rareLinks.join('')}</div>
       <div class="rescore-footer-commit">
         <button type="button" class="rescore-cancel" onclick="cancelRescoreDraft()">Cancel</button>
-        <button type="button" class="primary rescore-apply" onclick="applyRescoreDraft()">Apply</button>
+        <button type="button" class="primary rescore-apply" onclick="applyRescoreDraft()"${isDraftDirty() ? '' : ' disabled'}>Apply</button>
       </div>
     </div>`;
 }
@@ -383,4 +383,25 @@ export function onRuleInput(el) {
   const container = el.closest('#rescore-rules, #scoring-rules');
   if (!container) return;
   validateRulesContainer(container);
+  liveEditDraftField(el);
+}
+
+function syncApplyDisabled() {
+  const apply = document.querySelector('#rescore-editor .rescore-apply');
+  if (apply) apply.disabled = !isDraftDirty();
+}
+
+function liveEditDraftField(el) {
+  if (!_draft) return;
+  const row = el.closest('.rule-row');
+  const field = el.classList.contains('rule-in') ? 'input'
+    : el.classList.contains('rule-len') ? 'length'
+    : el.classList.contains('rule-out') ? 'output' : null;
+  if (!row || field === null) return;
+  const i = parseInt(row.dataset.i, 10);
+  if (!_draft[i]) return;
+  _draft[i][field] = el.value;
+  if (!isScoringScope(_draftScope)) compileRule(_draft[i]);
+  syncApplyDisabled();
+  if (getDraftRescoreRules()) getEntriesScroller()?.previewRescore?.();
 }

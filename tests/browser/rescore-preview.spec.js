@@ -60,24 +60,42 @@ test('closing the editor removes the arrow', async ({ page }) => {
 
 const ruleOutput = page => page.locator('#rescore-rules .rule-row .rule-out');
 
-test('editing a rule output previews live and only commits on Apply', async ({ page }) => {
+const applyBtn = page => page.locator('#rescore-editor .rescore-apply');
+
+test('editing a rule output previews live on every keystroke and only commits on Apply', async ({ page }) => {
   await gotoApp(page);
   await seedRemappedSource(page);
   await openRescoreEditor(page);
   await page.evaluate(() => window.__grawlixTest.pipelineIdle());
   await expect(oceanScore(page).locator('.score-badge')).toHaveText('80');
+  await expect(applyBtn(page)).toBeDisabled();
 
+  // fill dispatches input but not change, so a passing preview here proves the
+  // keystroke (oninput) path drove it — no blur/commit yet.
   await ruleOutput(page).fill('90');
-  await ruleOutput(page).blur();
-
   await expect(oceanScore(page).locator('.score-badge')).toHaveText('90');
   await expect(oceanScore(page).locator('.atom-score-raw')).toHaveText('350');
+  await expect(applyBtn(page)).toBeEnabled();
   expect(await page.evaluate(() => window.__grawlixTest.getWordlist('Src').rescoreRules[0].output)).toBe('80');
 
+  await ruleOutput(page).blur();
   await applyRescoreEditor(page);
   await page.evaluate(() => window.__grawlixTest.pipelineIdle());
   expect(await page.evaluate(() => window.__grawlixTest.getWordlist('Src').rescoreRules[0].output)).toBe('90');
   await expect(oceanScore(page).locator('.score-badge')).toHaveText('90');
+});
+
+test('Apply is disabled with no changes and re-disables when an edit is reverted', async ({ page }) => {
+  await gotoApp(page);
+  await seedRemappedSource(page);
+  await openRescoreEditor(page);
+  await expect(applyBtn(page)).toBeDisabled();
+
+  await ruleOutput(page).fill('90');
+  await expect(applyBtn(page)).toBeEnabled();
+
+  await ruleOutput(page).fill('80');
+  await expect(applyBtn(page)).toBeDisabled();
 });
 
 test('Cancel discards a rule edit, leaving the committed rules unchanged', async ({ page }) => {

@@ -78,7 +78,10 @@ header h1 { font-size: 19px; font-weight: 600; letter-spacing: -0.01em; line-hei
 #rescore-editor { display: grid; grid-template-rows: 0fr; opacity: 0; overflow: hidden; transition: grid-template-rows 0.2s ease, opacity 0.2s ease; }
 #rescore-editor[hidden] { display: none; }
 #wordlist-bar.rescore-open #rescore-editor { grid-template-rows: 1fr; opacity: 1; }
-.rescore-editor-inner { min-height: 0; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border2); }
+/* min-width:0 lets this grid item shrink to the editor's width instead of
+   growing to the rule rows' min-content, which would push the footer's Apply
+   button past the viewport on a phone (overflow:hidden clips it off). */
+.rescore-editor-inner { min-width: 0; min-height: 0; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border2); }
 @media (prefers-reduced-motion: reduce) {
   #rescore-editor { transition: none; }
 }
@@ -838,9 +841,9 @@ a.get-file:hover { text-decoration: underline; }
 .rule-add-btn { margin-top: 4px; padding: 2px 10px; border: 1px dashed var(--border); background: transparent; color: var(--muted); border-radius: 3px; font-size: 12px; line-height: 1.4; cursor: pointer; font-family: inherit; }
 .rule-add-btn:hover { color: var(--text); border-color: var(--accent); }
 
-.rescore-footer { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px 14px; margin-top: 10px; }
-.rescore-footer-rare { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 14px; }
-.rescore-footer-commit { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+.rescore-footer { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 8px 14px; margin-top: 10px; }
+.rescore-footer-rare { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 14px; margin-right: auto; }
+.rescore-footer-commit { display: flex; align-items: center; gap: 8px; }
 .rescore-link { padding: 2px 0; border: none; background: none; color: var(--muted); font-size: 12px; font-family: inherit; cursor: pointer; }
 .rescore-link:hover:not(:disabled) { color: var(--text); text-decoration: underline; text-underline-offset: 2px; }
 .rescore-link:disabled { opacity: 0.5; cursor: not-allowed; }
