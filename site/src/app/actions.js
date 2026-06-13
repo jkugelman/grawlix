@@ -946,10 +946,10 @@ export async function downloadOriginalWordlist(wordlist) {
 
 export function buildExportMenuHTML() {
   return buildMoreMenuHTML([
-    ['Copy to clipboard',            'exportCopy()'],
-    ['Download results as wordlist', 'exportWordlist()'],
-    ['Download as CSV',              'exportCSV()'],
-    ['Download as JSON',             'exportJSON()'],
+    ['Copy to clipboard',    'exportCopy()'],
+    ['Download as wordlist', 'exportWordlist()'],
+    ['Download as CSV',      'exportCSV()'],
+    ['Download as JSON',     'exportJSON()'],
   ], { header: 'Export these results' });
 }
 
