@@ -161,6 +161,7 @@ button.danger:hover:not(:disabled) { background: #e74c3c; border-color: #c0392b;
 .stats-bar.stats-no-hist { padding-left: 10px; padding-right: 10px; gap: 8px; }
 .stats-bar.stats-no-hist .stats-bar-counts { margin-right: 0; }
 .stats-bar.stats-no-hist .stats-bar-controls { gap: 8px; }
+.stats-bar.stats-no-entries .stat-entries { display: none; }
 
 .sticky-stack { position: sticky; top: var(--header-h); z-index: 50; background: var(--surface); }
 #app .sticky-stack { top: calc(var(--header-h) + var(--wordlist-bar-h)); }

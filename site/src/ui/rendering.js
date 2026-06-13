@@ -327,7 +327,7 @@ export function buildStatsBarHTML() {
   }).join('');
 
   const countsHTML = groupCount != null
-    ? buildStatItemHTML('Entries', countValue.toLocaleString()) +
+    ? buildStatItemHTML('Entries', countValue.toLocaleString(), null, 'stat-entries') +
       buildStatItemHTML('Groups', groupCount.toLocaleString())
     : buildStatItemHTML('Entries', countValue.toLocaleString());
 
@@ -386,7 +386,7 @@ function stickyObserver() {
 
 export function refreshStatsBarOverflow() {
   for (const bar of document.querySelectorAll('.stats-bar')) {
-    bar.classList.remove('stats-narrow', 'stats-no-hist');
+    bar.classList.remove('stats-narrow', 'stats-no-hist', 'stats-no-entries');
     const overlapsControls = () => {
       const ctrls = bar.querySelector('.stats-bar-controls');
       if (!ctrls) return false;
@@ -400,6 +400,7 @@ export function refreshStatsBarOverflow() {
     if (overlapsControls()) {
       bar.classList.add('stats-narrow');
       if (overlapsControls()) bar.classList.add('stats-no-hist');
+      if (overlapsControls()) bar.classList.add('stats-no-entries');
     }
   }
 }
