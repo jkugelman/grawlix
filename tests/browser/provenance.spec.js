@@ -71,10 +71,10 @@ test('clicking a specific spelling shows that spelling plus a cross-source bare,
   // Rich spells the norm two ways; Plain (lower priority) carries only the bare
   // letter-run. A bare entry from a different list is still an ancestor of every
   // spelling, so 'the IRS' pulls in Plain's bare — but never the sibling 'Theirs'.
-  await page.evaluate(() => {
-    window.__grawlixTest.addCustomWordlist({ name: 'Rich',  entries: ['the IRS', 'Theirs'], scores: [90, 80] });
-    window.__grawlixTest.addCustomWordlist({ name: 'Plain', entries: ['theirs'],            scores: [70] });
-  });
+  // Await each add separately — addCustomWordlist is async, and two un-awaited in
+  // one evaluate races scopeTo ahead of the data (a hard webkit timeout).
+  await page.evaluate(() => window.__grawlixTest.addCustomWordlist({ name: 'Rich',  entries: ['the IRS', 'Theirs'], scores: [90, 80] }));
+  await page.evaluate(() => window.__grawlixTest.addCustomWordlist({ name: 'Plain', entries: ['theirs'],            scores: [70] }));
 
   await scopeTo(page, 'Rich');
   await openPopoverOnEntry(page, 'the IRS');
