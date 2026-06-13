@@ -15,9 +15,7 @@ const { stubPublisherFetches, gotoApp, scopeViaSelector, openRescoreEditor } = r
 const JK_FIXTURE = 'WORDA;60\nWORDB;50\nWORDC;30\n';
 
 async function populateJK(page) {
-  await expect.poll(async () =>
-    page.evaluate(() => window.__grawlixTest.getWordlist('John Kugelman')?.populated)
-  ).toBe(true);
+  await page.evaluate(() => window.__grawlixTest.loadIdle());
   await scopeViaSelector(page, 'John Kugelman');
   await openRescoreEditor(page);
 }

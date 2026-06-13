@@ -15,11 +15,9 @@ test('does not auto-seed for known publishers — publisher defaults are preserv
   await stubPublisherFetches(page, { jkugelman: 'TESTWORD;42\n' });
   await gotoApp(page);
 
-  // Boot kicks off the JK fetch fire-and-forget. Poll until the wordlist is
-  // populated rather than racing the network.
-  await expect.poll(async () =>
-    page.evaluate(() => window.__grawlixTest.getWordlist('John Kugelman')?.populated)
-  ).toBe(true);
+  // Boot kicks off the JK fetch fire-and-forget; await it settling rather than
+  // racing the network.
+  await page.evaluate(() => window.__grawlixTest.loadIdle());
 
   const wl = await page.evaluate(() => window.__grawlixTest.getWordlist('John Kugelman'));
   expect(wl.publisherId).toBe('jkugelman');

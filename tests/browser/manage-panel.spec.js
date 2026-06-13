@@ -194,10 +194,7 @@ async function addViaPanelDialog(page, { name, entries }) {
   await page.locator('#btn-cfg-save').click();
   await expect(page.locator('#configure-wordlist-dialog')).toBeHidden();
 
-  await expect.poll(() => page.evaluate(n => {
-    const wl = window.__grawlixTest.getWordlist(n);
-    return wl && wl.populated;
-  }, name)).toBe(true);
+  await page.evaluate(() => window.__grawlixTest.loadIdle());
 }
 
 function panelRowNames(page) {

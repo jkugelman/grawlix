@@ -44,20 +44,29 @@ async function gotoApp(page, route = '/') {
   // this helper to exercise the real first boot.
   await page.addInitScript(() => localStorage.setItem('grawlix_welcomeSeen', '1'));
   await page.goto(route);
+  await whenBootSettled(page);
+}
+
+// The reload counterpart to gotoApp (the addInitScript welcomeSeen persists across
+// the reload). Gate reload tests on this, not on polling a data property like
+// `populated`: keying off when a field happens to be set couples the test to boot
+// timing and breaks silently when that timing changes.
+async function reloadApp(page) {
+  await page.reload();
+  await whenBootSettled(page);
+}
+
+async function whenBootSettled(page) {
   // Wait for init() to fully complete before touching the app — NOT the old
   // `_db !== null` gate. `_db` goes true early (in openDB), before init's tail
   // runs Router.applyURL() + the boot first render; a test resuming on `_db`
   // mutates the stack mid-boot and init's tail then resets it over the test —
   // a stable wrong state polling can't rescue (a boot-vs-test race).
   await page.evaluate(() => window.__grawlixTest.whenReady());
-  // Then drain the boot publisher fetches: init() kicks them off fire-and-
+  // Then let the boot publisher fetches settle: init() kicks them off fire-and-
   // forget at its tail, and each re-renders the panel. Left pending, that
   // re-render lands mid-test on WebKit and races the test's setStack/edit.
-  // Wait for every URL-backed source to populate, then let the pipeline settle.
-  await expect.poll(
-    async () => page.evaluate(() => state.sources.every(w => !w.url || w.populated)),
-    { timeout: 10000 }
-  ).toBe(true);
+  await page.evaluate(() => window.__grawlixTest.loadIdle());
   await page.evaluate(() => window.__grawlixTest.pipelineIdle());
 }
 
@@ -145,6 +154,7 @@ function readGroups(page)  { return page.evaluate(() => window.__grawlixTest.get
 module.exports = {
   stubPublisherFetches,
   gotoApp,
+  reloadApp,
   scopeTo,
   scopeViaSelector,
   openRescoreEditor,

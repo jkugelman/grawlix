@@ -13,7 +13,7 @@
 //    link decodes to the wrong UI.
 
 const { test, expect } = require('@playwright/test');
-const { stubPublisherFetches, gotoApp } = require('./helpers');
+const { stubPublisherFetches, gotoApp, reloadApp } = require('./helpers');
 
 test.beforeEach(async ({ page }) => {
   await stubPublisherFetches(page);
@@ -35,13 +35,7 @@ test('a custom wordlist survives a page reload with its entries and rules intact
 
   // Reload. The page.route stub set up in beforeEach persists across the
   // reload (same browser context), so the publisher fetches stay empty.
-  await page.reload();
-  // Poll the wordlist, not _db: load-into-state.sources is a separate async
-  // step that lags _db on a slow WebKit reload, so getWordlist returns null.
-  await expect.poll(
-    async () => page.evaluate(() => window.__grawlixTest.getWordlist('Persist')?.populated ?? false),
-    { timeout: 10000 }
-  ).toBe(true);
+  await reloadApp(page);
 
   // Wordlist came back with the exact entries it had.
   const wl = await page.evaluate(() => window.__grawlixTest.getWordlist('Persist'));
@@ -114,6 +108,9 @@ test('SCHEMA_VERSION reset prompt does not re-arm itself after the user clicks R
   const loadPromise = page.waitForEvent('load');
   await confirmDialog.locator('#btn-confirm-ok').click();
   await loadPromise;
+  // Gate on the post-reset init() finishing: it stamps schemaVersion mid-init, and
+  // the read below otherwise races it (the firefox-timing flake this test hit).
+  await page.evaluate(() => window.__grawlixTest.whenReady());
 
   // Regression: location.reload() is asynchronous — JS keeps running until
   // the navigation actually fires. If anything in init() runs after the

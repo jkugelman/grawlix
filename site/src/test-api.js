@@ -48,7 +48,7 @@ import {
 import { windowedFlatDebug, workerSummariesDebug, workerGroupsDebug, workerGroupListDebug, existsInScopeDebug, existsInMergeDebug, popoverSeedDebug, popoverProvenanceDebug, rebindAnswersConsumedDebug, resetRebindAnswersConsumedForTest, groupWindowUnderfillDebug, resetGroupWindowUnderfillForTest } from './ui/entries-table.js';
 import {
   addNewWordlist, applyWordlistText, bakeRescoring, saveEdit, deleteFromEdits, persistEdits,
-  buildCopyText, buildWordlistText, buildCSVText, buildExportJSONObject, exportFilename, _ready,
+  buildCopyText, buildWordlistText, buildCSVText, buildExportJSONObject, exportFilename, _ready, loadIdle,
 } from './app/actions.js';
 import { serializeEntries, sortedEntries } from './engine/serialize.js';
 
@@ -309,6 +309,10 @@ const __grawlixTest = {
   // Resolves when no pipeline run is in flight. Tests use this after keystroke
   // interactions (which fire-and-forget the refresh) before reading the DOM.
   pipelineIdle() { return pipelineIdle(); },
+
+  // Resolves when no fetch/import is in flight. Tests await this for load
+  // completion instead of polling the `populated` content-flag's transition.
+  loadIdle() { return loadIdle(); },
 
   windowedFlatDebug,
   workerSummariesDebug,

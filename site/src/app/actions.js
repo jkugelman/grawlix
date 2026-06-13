@@ -508,6 +508,20 @@ export function saveEdit(originalWlEntry, { raw, score, comment }) {
 
 // ─── Fetch, import & update ───────────────────────────────────────────────────
 
+// loadIdle() resolves when no fetch/import is in flight — the awaitable callers
+// use to wait for a load, instead of gating on a side-effect like the `populated`
+// flag flipping (which couples them to when the flag is set; a boot reorder broke
+// a test that way). Only the test bridge consumes it today.
+let _loadsInFlight = 0;
+const _loadIdleWaiters = [];
+function loadStarted() { _loadsInFlight++; }
+function loadSettled() {
+  if (--_loadsInFlight <= 0) { _loadsInFlight = 0; _loadIdleWaiters.splice(0).forEach(resolve => resolve()); }
+}
+export function loadIdle() {
+  return _loadsInFlight === 0 ? Promise.resolve() : new Promise(resolve => _loadIdleWaiters.push(resolve));
+}
+
 export async function applyWordlistText(wordlist, text, { fetchedSize = null, originalFilename = null, nameOverride = null, source = null, clearUrl = false, silent = false, viaToast = false } = {}) {
   const wasEmpty = !wordlist.rawEntries.length;
   const oldEntries = wasEmpty ? null : wordlist.rawEntries;
@@ -588,6 +602,7 @@ export async function fetchWordlist(wordlist, event, { silent = false, viaToast 
 
   wordlist._loading = true;
   renderSources();
+  loadStarted();
 
   try {
     const resp = await fetch(wordlist.url);
@@ -602,6 +617,8 @@ export async function fetchWordlist(wordlist, event, { silent = false, viaToast 
     renderSources();
     const detail = err.message === 'Failed to fetch' ? '' : `: ${err.message}`;
     showToast(`Failed to fetch ${esc(wordlist.url)}${esc(detail)}`);
+  } finally {
+    loadSettled();
   }
 }
 
@@ -655,76 +672,78 @@ export function importToWordlist(wordlist, event) {
 }
 
 export function ingestFile(file, wordlist, nameOverride) {
+  loadStarted();
   const reader = new FileReader();
-  reader.onerror = () => showToast('Error reading file');
-  reader.onabort = () => showToast('File read cancelled');
-  reader.onload = async e => {
-    const text = e.target.result;
-    if (!wordlist) return;
-
-    const entries = parseWordlist(text);
-    if (!entries.length && text.trim()) {
-      showToast('No valid wordlist entries found — check the file format');
-      return;
-    }
-
-    // My Edits: always combine instead of replace
-    if (wordlist.type === 'edits' && wordlist.rawEntries.length > 0) {
-      const existingMap = new Map(wordlist.rawEntries.map(e => [mergeKey(e.norm, e.display), e]));
-      const newEntries = [], conflicts = [];
-      let unchanged = 0;
-
-      for (const wlEntry of entries) {
-        const existing = existingMap.get(mergeKey(wlEntry.norm, wlEntry.display));
-        if (!existing) {
-          newEntries.push(wlEntry);
-        } else if (existing.score !== wlEntry.score || existing.comment !== wlEntry.comment) {
-          conflicts.push({ existing, incoming: wlEntry });
-        } else {
-          unchanged++;
-        }
-      }
-
-      let conflictResolution = null;
-      if (conflicts.length > 0) {
-        conflictResolution = await showMergeConflict(conflicts.length);
-        if (conflictResolution === null) return; // cancelled
-
-        if (conflictResolution === 'file') {
-          for (const { existing, incoming } of conflicts) {
-            existing.score   = incoming.score;
-            existing.comment = incoming.comment;
-          }
-        }
-      }
-
-      wordlist.rawEntries.push(...newEntries);
-      wordlist.lastUpdated = Date.now();
-      reconcileEditsRulesAfterImport(wordlist);
-      invalidateWordlistCaches(wordlist);
-      compileRescoreRules(wordlist);
-
-      await Storage.writeWordlist(wordlist, serializeEntries(wordlist.rawEntries));
-      persistMeta();
-      // This My Edits combine path bumps no cacheVersion$ (it repaints directly),
-      // so the completeness hook never fires — this post-write re-sync is its only
-      // trigger, and reads the fresh IDB text the worker rebuilds from.
-      resyncWorkerConfig();
-
-      renderSources();
-      renderMergedDetail();
-
-      const parts = [];
-      if (newEntries.length) parts.push(`${newEntries.length.toLocaleString()} new`);
-      if (conflicts.length) parts.push(`${conflicts.length.toLocaleString()} ${conflictResolution === 'file' ? 'updated from file' : 'conflicts kept'}`);
-      if (unchanged)        parts.push(`${unchanged.toLocaleString()} unchanged`);
-      showToast(parts.length ? `Merged — ${parts.join(', ')}` : 'File already merged — no changes');
-      return;
-    }
-
-    await applyWordlistText(wordlist, text, { originalFilename: file.name, nameOverride, source: file.name });
-  };
+  reader.onerror = () => { showToast('Error reading file'); loadSettled(); };
+  reader.onabort = () => { showToast('File read cancelled'); loadSettled(); };
+  reader.onload = e => ingestText(e.target.result, file, wordlist, nameOverride).finally(loadSettled);
   reader.readAsText(file);
+}
+
+async function ingestText(text, file, wordlist, nameOverride) {
+  if (!wordlist) return;
+
+  const entries = parseWordlist(text);
+  if (!entries.length && text.trim()) {
+    showToast('No valid wordlist entries found — check the file format');
+    return;
+  }
+
+  // My Edits: always combine instead of replace
+  if (wordlist.type === 'edits' && wordlist.rawEntries.length > 0) {
+    const existingMap = new Map(wordlist.rawEntries.map(e => [mergeKey(e.norm, e.display), e]));
+    const newEntries = [], conflicts = [];
+    let unchanged = 0;
+
+    for (const wlEntry of entries) {
+      const existing = existingMap.get(mergeKey(wlEntry.norm, wlEntry.display));
+      if (!existing) {
+        newEntries.push(wlEntry);
+      } else if (existing.score !== wlEntry.score || existing.comment !== wlEntry.comment) {
+        conflicts.push({ existing, incoming: wlEntry });
+      } else {
+        unchanged++;
+      }
+    }
+
+    let conflictResolution = null;
+    if (conflicts.length > 0) {
+      conflictResolution = await showMergeConflict(conflicts.length);
+      if (conflictResolution === null) return; // cancelled
+
+      if (conflictResolution === 'file') {
+        for (const { existing, incoming } of conflicts) {
+          existing.score   = incoming.score;
+          existing.comment = incoming.comment;
+        }
+      }
+    }
+
+    wordlist.rawEntries.push(...newEntries);
+    wordlist.lastUpdated = Date.now();
+    reconcileEditsRulesAfterImport(wordlist);
+    invalidateWordlistCaches(wordlist);
+    compileRescoreRules(wordlist);
+
+    await Storage.writeWordlist(wordlist, serializeEntries(wordlist.rawEntries));
+    persistMeta();
+    // This My Edits combine path bumps no cacheVersion$ (it repaints directly),
+    // so the completeness hook never fires — this post-write re-sync is its only
+    // trigger, and reads the fresh IDB text the worker rebuilds from.
+    resyncWorkerConfig();
+
+    renderSources();
+    renderMergedDetail();
+
+    const parts = [];
+    if (newEntries.length) parts.push(`${newEntries.length.toLocaleString()} new`);
+    if (conflicts.length) parts.push(`${conflicts.length.toLocaleString()} ${conflictResolution === 'file' ? 'updated from file' : 'conflicts kept'}`);
+    if (unchanged)        parts.push(`${unchanged.toLocaleString()} unchanged`);
+    showToast(parts.length ? `Merged — ${parts.join(', ')}` : 'File already merged — no changes');
+    return;
+  }
+
+  await applyWordlistText(wordlist, text, { originalFilename: file.name, nameOverride, source: file.name });
 }
 
 // ─── My Edits: add entry & delete ────────────────────────────────────────────

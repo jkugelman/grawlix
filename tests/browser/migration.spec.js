@@ -140,11 +140,7 @@ test('an old v9 store migrates forward on boot and stamps the new version', asyn
     localStorage.setItem('grawlix_schemaVersion', '9');
   });
   await page.reload();
-
-  await expect.poll(
-    async () => page.evaluate(() => window.__grawlixTest.getWordlist('Aged')?.populated ?? false),
-    { timeout: 10000 },
-  ).toBe(true);
+  await page.evaluate(() => window.__grawlixTest.whenReady());
 
   await expect(page.locator('#confirm-dialog')).toBeHidden();
 
