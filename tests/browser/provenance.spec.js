@@ -65,18 +65,41 @@ test('clicking a bare entry shows every spelling of the norm across all wordlist
   ]);
 });
 
-test('clicking a specific spelling shows that spelling plus the bare, not sibling spellings', async ({ page }) => {
+test('clicking a specific spelling shows that spelling plus a cross-source bare, not sibling spellings', async ({ page }) => {
   await gotoApp(page);
 
-  await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
-    name: 'Rich', entries: ['the IRS', 'Theirs', 'theirs'], scores: [90, 80, 70],
-  }));
+  // Rich spells the norm two ways; Plain (lower priority) carries only the bare
+  // letter-run. A bare entry from a different list is still an ancestor of every
+  // spelling, so 'the IRS' pulls in Plain's bare — but never the sibling 'Theirs'.
+  await page.evaluate(() => {
+    window.__grawlixTest.addCustomWordlist({ name: 'Rich',  entries: ['the IRS', 'Theirs'], scores: [90, 80] });
+    window.__grawlixTest.addCustomWordlist({ name: 'Plain', entries: ['theirs'],            scores: [70] });
+  });
 
   await scopeTo(page, 'Rich');
   await openPopoverOnEntry(page, 'the IRS');
 
   const rows = await readProvenance(page);
   expect(rows.map(r => r.entry)).toEqual(['the IRS', 'theirs']);
+});
+
+test('a same-source bare sibling is its own row, not an ancestor of the spellings', async ({ page }) => {
+  await gotoApp(page);
+
+  // One list spells the norm three ways including the bare form, so the bare entry
+  // is concretized to its own 'theirs' row instead of leaking onto every spelling.
+  await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
+    name: 'Rich', entries: ['the IRS', 'Theirs', 'theirs'], scores: [90, 80, 70],
+  }));
+
+  await scopeTo(page, 'Rich');
+
+  await openPopoverOnEntry(page, 'the IRS');
+  expect((await readProvenance(page)).map(r => r.entry)).toEqual(['the IRS']);
+
+  await page.keyboard.press('Escape');
+  await openPopoverOnEntry(page, 'theirs');
+  expect((await readProvenance(page)).map(r => r.entry)).toEqual(['theirs']);
 });
 
 test('a disabled wordlist still contributes a (dimmed) provenance row', async ({ page }) => {

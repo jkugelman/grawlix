@@ -1,5 +1,5 @@
 const { test, expect } = require('@playwright/test');
-const { stubPublisherFetches, gotoApp, expectVisible } = require('./helpers');
+const { stubPublisherFetches, gotoApp, scopeTo, expectVisible } = require('./helpers');
 
 test.beforeEach(async ({ page }) => {
   await stubPublisherFetches(page);
@@ -18,10 +18,18 @@ test.describe('norm + display', () => {
     await expectVisible(page, ['Theirs', 'the IRS']);
   });
 
-  test('a bare lowercase entry collapses into a richer same-norm variant', async ({ page }) => {
+  test('a bare entry from a plain list collapses into a richer same-norm variant from another list', async ({ page }) => {
     await gotoApp(page);
-    await addRich(page, 'Collapse', ['helenoftroy', 'Helen of Troy'], [50, 60]);
+    await addRich(page, 'Plain', ['helenoftroy'], [50]);
+    await addRich(page, 'Rich', ['Helen of Troy'], [60]);
+    await scopeTo(page, 'All Wordlists');
     await expectVisible(page, ['Helen of Troy']);
+  });
+
+  test('a bare entry beside a richer same-source variant stays its own row', async ({ page }) => {
+    await gotoApp(page);
+    await addRich(page, 'OneList', ['helenoftroy', 'Helen of Troy'], [50, 60]);
+    await expectVisible(page, ['helenoftroy', 'Helen of Troy']);
   });
 
   test('length column counts norm letters, not display chars', async ({ page }) => {

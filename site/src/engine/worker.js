@@ -9,7 +9,7 @@ import { configureIO as configureSegmenterIO } from './segmenter.js';
 import { parseWordlist, toNorm, displayOf } from './norm.js';
 import { parseRange, matchesRange } from './range.js';
 import { compileRescoreRules, getRescoredEntries, getRescoredByNorm } from './rescore.js';
-import { buildCorpus, resolveEditSeedWinner, mergeKey, mergedNormLowerBound, computeMergedBucket } from './corpus.js';
+import { buildCorpus, resolveEditSeedWinner, mergeKey, mergedNormLowerBound, computeMergedBucket, isDistinguishing, concreteDisplay } from './corpus.js';
 import { getHistogramLayout, invalidateHistogramLayout, bucketCounts } from './histogram.js';
 import { computeStatsRaw } from './stats.js';
 import { compileFlatHighlighters, materializeFlatRow } from './flat-highlight.js';
@@ -481,11 +481,14 @@ function handleFetchProvenance({ requestId, typedRaw, previewRaw, clickedNorm, c
     for (const wl of ownedBuilt) {
       const arr = getRescoredByNorm(wl).get(target.norm);
       if (!arr) continue;
+      // Mirror the merge's eligibility (§ corpus.js) so the popover and the table
+      // agree on ancestry: a bare entry applies to every spelling of its norm —
+      // never collapse to e.display === display — UNLESS this same list also spells
+      // the sibling, which concretizes the bare one to its own row.
+      const distinguishing = isDistinguishing(arr);
       for (const e of arr) {
-        // Asymmetric on purpose: a bare (null-display) entry applies to every
-        // spelling of its norm. Collapsing to e.display === display silently drops
-        // the bare row's contribution — never tighten this.
-        const include = display == null || e.display === display || e.display == null;
+        const eff = concreteDisplay(e, target.norm, distinguishing);
+        const include = display == null || eff === display || eff == null;
         if (include) {
           rows.push({
             sourceId: wl.dbKey,

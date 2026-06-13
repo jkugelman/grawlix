@@ -86,6 +86,36 @@ test('buildCorpus: two display variants of one norm survive as separate rows', (
   assert.equal(byKey.size, 2);
 });
 
+test('buildCorpus: one wordlist holding a bare entry and a spelled sibling keeps them separate', () => {
+  // Same-list "theirs" + "the IRS" must NOT collapse: the bare entry's wildcard
+  // null display only unifies across lists, not with a sibling that proves intent.
+  const W = src('W', [
+    wlEntry('theirs', 50),
+    wlEntry('theirs', 60, { display: 'the IRS' }),
+  ]);
+
+  const { entries, byKey } = buildCorpus([W]);
+
+  assert.deepStrictEqual(project(entries), [
+    { norm: 'theirs', display: 'the IRS', score: 60, rawScore: undefined, comment: '', source: 'W' },
+    { norm: 'theirs', display: 'theirs',  score: 50, rawScore: undefined, comment: '', source: 'W' },
+  ]);
+  assert.equal(byKey.size, 2);
+});
+
+test('buildCorpus: a bare entry in a plain list still unifies with another list\'s spelled variant', () => {
+  // Flip side: across lists the bare entry IS a wildcard, so priority-winner
+  // Plain lends its score (50) to Rich's spelling and they collapse to one row.
+  const Plain = src('Plain', [wlEntry('theirs', 50)]);
+  const Rich  = src('Rich',  [wlEntry('theirs', 60, { display: 'the IRS' })]);
+
+  const { entries } = buildCorpus([Plain, Rich]);
+
+  assert.deepStrictEqual(project(entries), [
+    { norm: 'theirs', display: 'the IRS', score: 50, rawScore: undefined, comment: '', source: 'Plain' },
+  ]);
+});
+
 test('buildCorpus: a rescored score feeds the merge and wins; rawScore keeps the original', () => {
   const E = src('E', [wlEntry('delta', 5)], { rescoreRules: [{ input: '0-9', output: '80' }] });
   compileRescoreRules(E);

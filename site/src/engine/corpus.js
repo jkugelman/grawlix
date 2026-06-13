@@ -2,18 +2,34 @@
 
 // ─── Corpus ──────────────────────────────────────────────────────────────────
 
-import { getRescoredEntries, getRescoredByNorm } from './rescore.js';
+import { getRescoredByNorm } from './rescore.js';
 import { buildByNorm } from './snapshot.js';
+
+// A null display is a cross-wordlist wildcard (bare THEIRS unifies with another
+// list's spelled "the IRS"). But one list holding both the bare entry and a
+// spelled sibling distinguishes them on purpose — concretize the bare one or it
+// silently absorbs the sibling's spelling and they collapse to a single row.
+export function isDistinguishing(group) {
+  return group.length > 1 && group.some(e => e.display != null);
+}
+
+export function concreteDisplay(wlE, norm, distinguishing) {
+  return wlE.display ?? (distinguishing ? norm : null);
+}
 
 // `sourceList[0]` is highest priority; winner resolution depends on it.
 export function bucketContributors(sourceList) {
   const buckets = new Map();
   for (const wordlist of sourceList) {
-    for (const wlE of getRescoredEntries(wordlist)) {
-      let b = buckets.get(wlE.norm);
-      if (!b) buckets.set(wlE.norm, b = { contributors: [], displays: new Set() });
-      b.contributors.push({ wordlist, score: wlE.score, rawScore: wlE.rawScore, comment: wlE.comment || '', display: wlE.display });
-      if (wlE.display != null) b.displays.add(wlE.display);
+    for (const [norm, group] of getRescoredByNorm(wordlist)) {
+      const distinguishing = isDistinguishing(group);
+      let b = buckets.get(norm);
+      if (!b) buckets.set(norm, b = { contributors: [], displays: new Set() });
+      for (const wlE of group) {
+        const display = concreteDisplay(wlE, norm, distinguishing);
+        b.contributors.push({ wordlist, score: wlE.score, rawScore: wlE.rawScore, comment: wlE.comment || '', display });
+        if (display != null) b.displays.add(display);
+      }
     }
   }
   return buckets;
@@ -67,9 +83,11 @@ export function computeMergedBucket(norm, sources) {
     if (!wl.enabled) continue;
     const arr = getRescoredByNorm(wl).get(norm);
     if (!arr) continue;
+    const distinguishing = isDistinguishing(arr);
     for (const e of arr) {
-      contributors.push({ wordlist: wl, score: e.score, comment: e.comment || '', display: e.display });
-      if (e.display != null) displays.add(e.display);
+      const display = concreteDisplay(e, norm, distinguishing);
+      contributors.push({ wordlist: wl, score: e.score, comment: e.comment || '', display });
+      if (display != null) displays.add(display);
     }
   }
   const rows = [];

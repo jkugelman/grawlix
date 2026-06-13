@@ -100,7 +100,8 @@ test('typing into the entry field repaints provenance + preview off the worker',
   )).not.toBe('');
   const surfaces = await captureSurfaces(page);
   // Sanity: the retype rebuilt the table against the typed norm (provenanceTarget
-  // = the merged 'Theirs' canonical + the bare row), not the original OCEAN.
+  // = the merged 'Theirs' canonical; the same-source bare is its own row, excluded
+  // as a sibling), not the original OCEAN.
   expect(surfaces.prov).toContain('Theirs');
   expect(surfaces.prov).not.toContain('ocean');
 

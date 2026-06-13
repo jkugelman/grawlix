@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { buildCorpus } from '../../site/src/engine/corpus.js';
+import { buildCorpus, isDistinguishing, concreteDisplay } from '../../site/src/engine/corpus.js';
 import { compileRescoreRules, getRescoredByNorm } from '../../site/src/engine/rescore.js';
 import { displayOf, toNorm } from '../../site/src/engine/norm.js';
 
@@ -9,8 +9,9 @@ import { displayOf, toNorm } from '../../site/src/engine/norm.js';
 // Provenance lives in worker.js module scope (not importable), so this pins the
 // shared pure logic both sides run — the local (main) computation vs the worker's
 // projection — and asserts they deep-equal across the fidelity-critical quirks:
-// the bare-display include asymmetry, disabled-source inclusion, the provTarget
-// derivation (preview → typed-norm → clicked), and a My-Edits source.
+// the bare-display include asymmetry and its same-source concretize carve-out,
+// disabled-source inclusion, the provTarget derivation (preview → typed-norm →
+// clicked), and a My-Edits source.
 
 const wlEntry = (norm, score, { display = null, comment = '' } = {}) =>
   ({ norm, display, score, comment });
@@ -19,8 +20,10 @@ const src = (name, rawEntries, { enabled = true } = {}) =>
 
 function fixtureSources() {
   // Hi (highest priority) and Lo overlap on OCEAN; Off is disabled (must still
-  // appear in provenance). 'Rich' carries spelled variants + a bare row of
-  // THEIRS — the bare-display quirk. Edits stands in for My Edits.
+  // appear in provenance). On THEIRS, 'Rich' spells the norm two ways *and* holds
+  // its own bare row, while 'Plain' carries only a bare row — so a spelled click
+  // includes Plain's cross-source bare (still an ancestor) but excludes Rich's
+  // same-source bare (concretized to its own row). Edits stands in for My Edits.
   const Hi  = src('Hi',  [wlEntry('ocean', 90, { comment: 'big' })]);
   const Lo  = src('Lo',  [wlEntry('ocean', 60, { comment: 'small' })]);
   const Off = src('Off', [wlEntry('ocean', 50, { comment: 'off' })], { enabled: false });
@@ -29,8 +32,9 @@ function fixtureSources() {
     wlEntry('theirs', 80, { display: 'Theirs' }),
     wlEntry('theirs', 70),                              // bare display (null)
   ]);
+  const Plain = src('Plain', [wlEntry('theirs', 65)]);  // cross-source bare
   const Edits = src('My Edits', [wlEntry('bagel', 42, { comment: 'mine' })]);
-  const sources = [Hi, Lo, Off, Rich, Edits];
+  const sources = [Hi, Lo, Off, Rich, Plain, Edits];
   for (const s of sources) compileRescoreRules(s);
   return sources;
 }
@@ -42,8 +46,10 @@ function localGatherProvenance(sources, norm, display) {
   for (const wl of sources) {
     const arr = getRescoredByNorm(wl).get(norm);
     if (!arr) continue;
+    const distinguishing = isDistinguishing(arr);
     for (const e of arr) {
-      const include = display == null || e.display === display || e.display == null;
+      const eff = concreteDisplay(e, norm, distinguishing);
+      const include = display == null || eff === display || eff == null;
       if (include) rows.push({ wordlist: wl, entry: e });
     }
   }
@@ -80,8 +86,10 @@ function workerFetchProvenance(ownedBuilt, ownedMerged, { typedRaw, previewRaw, 
     for (const wl of ownedBuilt) {
       const arr = getRescoredByNorm(wl).get(target.norm);
       if (!arr) continue;
+      const distinguishing = isDistinguishing(arr);
       for (const e of arr) {
-        const include = display == null || e.display === display || e.display == null;
+        const eff = concreteDisplay(e, target.norm, distinguishing);
+        const include = display == null || eff === display || eff == null;
         if (include) rows.push({
           sourceId: wl.dbKey, enabled: wl.enabled !== false,
           entry: { norm: e.norm, display: e.display ?? null, score: e.score, rawScore: e.rawScore, comment: e.comment || '' },
@@ -138,7 +146,7 @@ test('per-keystroke: typed OCEAN — preview is the Hi winner, provenance spans 
     [['db_Hi', true], ['db_Lo', true], ['db_Off', false]]);
 });
 
-test('initial open of a spelled variant: typedRaw "" → provTarget falls to the clicked atom (the IRS), bare quirk applies', () => {
+test('initial open of a spelled variant: typedRaw "" → provTarget falls to the clicked atom (the IRS); a cross-source bare is an ancestor, the same-source bare is not', () => {
   const { sources, ownedBuilt, ownedMerged } = rigs();
   // Open-time: previewRaw = seed.entry, typedRaw = '' (so provTarget = clicked).
   const clicked = { norm: 'theirs', display: 'the IRS' };
@@ -153,7 +161,8 @@ test('initial open of a spelled variant: typedRaw "" → provTarget falls to the
   });
 
   assert.deepStrictEqual(worker, localToWire(localRows, localPrev));
-  // A spelled click pulls in that spelling + the bare row, NOT the sibling 'Theirs'.
+  // 'the IRS' pulls in Plain's cross-source bare (null) as an ancestor, but not
+  // Rich's same-source bare (concretized to its own row) nor the sibling 'Theirs'.
   assert.deepStrictEqual(worker.rows.map(r => r.entry.display), ['the IRS', null]);
 });
 
@@ -171,7 +180,9 @@ test('initial open of a bare click: provTarget is the bare norm → every spelli
   });
 
   assert.deepStrictEqual(worker, localToWire(localRows, localPrev));
-  assert.deepStrictEqual(worker.rows.map(r => r.entry.display), ['the IRS', 'Theirs', null]);
+  // A bare click shows the whole norm: both spellings plus both bare rows —
+  // Rich's own bare and Plain's — each rendered from its stored null display.
+  assert.deepStrictEqual(worker.rows.map(r => r.entry.display), ['the IRS', 'Theirs', null, null]);
 });
 
 test('My Edits norm: provenance carries the edits source row, preview wins from it', () => {
