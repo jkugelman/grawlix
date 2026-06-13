@@ -39,7 +39,7 @@ jobs:
         run: npm run build
 
       # The deployed artifact and the bytes the tests run against are the same
-      # upload — build once here, every test shard and deploy pulls this.
+      # upload — build once here, every test job and deploy pulls this.
       - name: Upload built site
         uses: actions/upload-artifact@v7
         with:
@@ -51,14 +51,25 @@ jobs:
     runs-on: ubuntu-latest
     # Backstop only — the real gate is the step-level timeout on "Run tests".
     timeout-minutes: 20
-    # One job per browser, each running Playwright single-worker (webkit flakes
-    # under parallel-worker load — see tests/browser/flaky.md). Sharding keeps that
-    # per-job determinism while the three engines run concurrently, so the full
-    # 777-test matrix finishes in ~one browser's wall-clock instead of 3× it.
+    # Each job runs Playwright single-worker (webkit flakes under parallel-worker
+    # load — see tests/browser/flaky.md). Playwright --shard splits a browser's
+    # suite across separate jobs that still run single-worker, so determinism is
+    # preserved while the engines run concurrently and the matrix finishes in
+    # ~the slowest shard's wall-clock, not the sum of all jobs. Shard counts are
+    # proportional to each engine's runtime — webkit is slowest, so it splits
+    # widest.
     strategy:
       fail-fast: false
       matrix:
-        browser: [chromium, firefox, webkit]
+        include:
+          - { browser: chromium, shard: 1, shards: 2 }
+          - { browser: chromium, shard: 2, shards: 2 }
+          - { browser: firefox,  shard: 1, shards: 2 }
+          - { browser: firefox,  shard: 2, shards: 2 }
+          - { browser: webkit,   shard: 1, shards: 4 }
+          - { browser: webkit,   shard: 2, shards: 4 }
+          - { browser: webkit,   shard: 3, shards: 4 }
+          - { browser: webkit,   shard: 4, shards: 4 }
     steps:
       - uses: actions/checkout@v6
 
@@ -69,7 +80,7 @@ jobs:
 
       - run: npm ci
 
-      # Cache Playwright browser binaries per engine — each shard installs only
+      # Cache Playwright browser binaries per engine — each job installs only
       # its own. Key on package-lock (Playwright version → browser ABI).
       - uses: actions/cache@v5
         with:
@@ -92,10 +103,10 @@ jobs:
         # Step-level, not job-level: an overrun here FAILS the job (run → failure
         # → GitHub emails). A job-level timeout CANCELS instead, which GitHub
         # never notifies on. Don't hoist this to the job. Verified on-runner.
-        # 15m ≈ 2× webkit's ~6-7m single-worker baseline — headroom for a noisy
-        # runner while still catching a genuine hang.
+        # Comfortably above a single shard's single-worker runtime — headroom
+        # for a noisy runner while still catching a genuine hang.
         timeout-minutes: 15
-        run: npm test -- --project=${{ matrix.browser }}
+        run: npm test -- --project=${{ matrix.browser }} --shard=${{ matrix.shard }}/${{ matrix.shards }}
         env:
           GRAWLIX_SITE_DIR: dist
 
@@ -103,7 +114,7 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v7
         with:
-          name: playwright-report-${{ matrix.browser }}
+          name: playwright-report-${{ matrix.browser }}-${{ matrix.shard }}
           path: playwright-report/
           retention-days: 14
 
