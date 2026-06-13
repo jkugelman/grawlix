@@ -12,7 +12,8 @@ import { applyRescoring, compileRescoreRules } from '../engine/rescore.js';
 import { invalidateWordlistCaches } from './invalidate.js';
 import { batchUpdate, persistMeta, repaintAfterCacheChange } from './persist.js';
 
-const SYNC_REC_PREFIX        = 'sync_';        // IDB record key: sync_<dbKey | MERGED_ID>
+const SYNC_MAIN_PREFIX       = 'sync_main_';
+const SYNC_WORKER_PREFIX     = 'sync_worker_';
 const EDITS_DEFAULT_FILENAME = 'My Edits.txt';
 const DISK_SYNC_POLL_INTERVAL = 2000;
 const MIRROR_WRITE_DELAY      = 500;
@@ -53,15 +54,25 @@ const SyncStatus = {
 
 async function loadSyncTargets() {
   for (const key of [MERGED_ID, ...state.sources.map(s => s.dbKey)]) {
-    const rec = await idbGet(SYNC_REC_PREFIX + key);
-    if (rec && rec.handle) syncTargets.set(key, { handle: rec.handle, baseline: rec.baseline });
+    const hrec = await idbGet(SYNC_MAIN_PREFIX + key);
+    // The handle record gates: a baseline left without a handle is dead, ignore it.
+    if (!hrec || !hrec.handle) continue;
+    const brec = await idbGet(SYNC_WORKER_PREFIX + key);
+    syncTargets.set(key, { handle: hrec.handle, baseline: brec?.baseline });
   }
 }
 
 async function persistSyncTarget(key) {
   const t = syncTargets.get(key);
-  if (t) await idbPut(SYNC_REC_PREFIX + key, { handle: t.handle, baseline: t.baseline });
-  else   await idbDel(SYNC_REC_PREFIX + key);
+  if (!t) {
+    await idbDel(SYNC_MAIN_PREFIX + key);
+    await idbDel(SYNC_WORKER_PREFIX + key);
+    return;
+  }
+  await idbPut(SYNC_MAIN_PREFIX + key, { handle: t.handle });
+  // '' is a real baseline (My Edits' empty ancestor); only `undefined` means none.
+  if (t.baseline !== undefined) await idbPut(SYNC_WORKER_PREFIX + key, { baseline: t.baseline });
+  else                         await idbDel(SYNC_WORKER_PREFIX + key);
 }
 
 // InvalidStateError means a cloud-sync client (Dropbox, OneDrive) touched the file
@@ -386,7 +397,7 @@ async function detachSync(list) {
   if (!isMirrorList(list)) EditsSync.stop();
   syncTargets.delete(key);
   syncStatus.delete(key);
-  await idbDel(SYNC_REC_PREFIX + key);
+  await persistSyncTarget(key);   // no-target branch deletes both records
   bumpSyncStatus();
   return true;
 }
@@ -430,7 +441,7 @@ async function activateSyncTarget(key) {
 }
 
 export {
-  SYNC_REC_PREFIX, EDITS_DEFAULT_FILENAME, DISK_SYNC_POLL_INTERVAL, MIRROR_WRITE_DELAY,
+  SYNC_MAIN_PREFIX, SYNC_WORKER_PREFIX, EDITS_DEFAULT_FILENAME, DISK_SYNC_POLL_INTERVAL, MIRROR_WRITE_DELAY,
   FS_RETRY_ATTEMPTS, FS_RETRY_BASE_MS, RESERVED_DEVICE_NAMES,
   syncTargets, syncStatus,
   isMirrorList, editsSyncKey, listForSyncKey, syncFilename,

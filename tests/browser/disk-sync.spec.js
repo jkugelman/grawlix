@@ -46,6 +46,19 @@ const writeFile = (page, name, content) =>
   }, [name, content]);
 const setNextName = (page, name) => page.evaluate(n => { window.__fakeFS.nextName = n; }, name);
 
+// Raw IDB access against the live DB (cf. worker-edit-persist.spec.js): the oracle
+// must seed and inspect records below the disk-sync API, at the bare IDB key level.
+const idbPutRaw = (page, key, val) => page.evaluate(([k, v]) => new Promise(resolve => {
+  const tx = window._db.transaction('data', 'readwrite');
+  tx.objectStore('data').put(v, k);
+  tx.oncomplete = resolve;
+}), [key, val]);
+const idbGetRaw = (page, key) => page.evaluate(k => new Promise(resolve => {
+  const req = window._db.transaction('data', 'readonly').objectStore('data').get(k);
+  req.onsuccess = () => resolve(req.result ?? null);
+  req.onerror = () => resolve(null);
+}), key);
+
 test.beforeEach(async ({ page }) => {
   await stubPublisherFetches(page);
   await installFakeFS(page);
@@ -138,4 +151,32 @@ test('an external deletion in the synced file deletes the entry without resurrec
   entries = await page.evaluate(() => window.__grawlixTest.getWordlist('My Edits').entries.map(e => e.entry));
   expect(entries).toEqual(['foo']);
   expect(await readFile(page, 'edits.txt')).toBe('FOO;10\n');
+});
+
+test('v10→v11 migration splits the old sync_ record in two, deletes the old, and reads back', async ({ page }) => {
+  await gotoApp(page);
+  await page.evaluate(() => window.__grawlixTest.addCustomWordlist({ name: 'Src', scores: [50], entries: ['ALPHA'] }));
+
+  const editsKey = await page.evaluate(() => window.__grawlixTest.sync.keyOf('My Edits'));
+  const srcKey   = await page.evaluate(() => window.__grawlixTest.sync.keyOf('Src'));
+
+  // A plain { name } object stands in for the FileSystemFileHandle here: it survives
+  // the IDB round-trip and loadSyncTargets only reads .name back off it.
+  await idbPutRaw(page, 'sync_' + editsKey, { handle: { name: 'mine.txt' }, baseline: 'FOO;10\n' });
+  await idbPutRaw(page, 'sync_' + srcKey,   { handle: { name: 'Src.txt' } });
+
+  await page.evaluate(() => window.__grawlixTest.sync.migrateIdbRecords(10));
+
+  expect(await idbGetRaw(page, 'sync_main_' + editsKey)).toEqual({ handle: { name: 'mine.txt' } });
+  expect(await idbGetRaw(page, 'sync_worker_' + editsKey)).toEqual({ baseline: 'FOO;10\n' });
+  expect(await idbGetRaw(page, 'sync_main_' + srcKey)).toEqual({ handle: { name: 'Src.txt' } });
+  expect(await idbGetRaw(page, 'sync_worker_' + srcKey)).toBe(null);   // mirror list: no baseline record
+  expect(await idbGetRaw(page, 'sync_' + editsKey)).toBe(null);         // old record deleted
+  expect(await idbGetRaw(page, 'sync_' + srcKey)).toBe(null);
+
+  await page.evaluate(() => window.__grawlixTest.sync.loadTargets());
+  expect(await page.evaluate(() => window.__grawlixTest.sync.targetFor('My Edits')))
+    .toEqual({ name: 'mine.txt', baseline: 'FOO;10\n' });
+  expect(await page.evaluate(() => window.__grawlixTest.sync.targetFor('Src')))
+    .toEqual({ name: 'Src.txt', baseline: undefined });
 });

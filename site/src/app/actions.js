@@ -23,7 +23,7 @@ import {
   lsLoad, idbGet, idbPut, Storage, openDB, resetAllDataAndReload,
 } from '../data/storage.js';
 import {
-  SCHEMA_VERSION, canMigrate, migrateLocalStorage, remapStoredUrls,
+  SCHEMA_VERSION, canMigrate, migrateLocalStorage, migrateIdbRecords, remapStoredUrls,
 } from '../data/migrations.js';
 import {
   serializeEntries, sortedEntries,
@@ -153,8 +153,10 @@ export const _ready = new Promise(r => { _signalReady = r; });
 export async function init() {
   const storedSchema = Storage.schemaVersion();
   const hasOldData   = Storage.hasData();
+  let schemaOk = true;   // false only if a needed migration couldn't run and the user declined reset
   if (hasOldData && storedSchema !== SCHEMA_VERSION) {
-    if (!(canMigrate(storedSchema) && migrateLocalStorage(storedSchema))) {
+    schemaOk = canMigrate(storedSchema) && migrateLocalStorage(storedSchema);
+    if (!schemaOk) {
       const reset = await showConfirm(
         `Grawlix's data format has changed since your last visit. The site may not work correctly until reset.`,
         { confirmText: 'Reset', cancelText: 'I\'ll take my chances' }
@@ -163,11 +165,17 @@ export async function init() {
         await resetAllDataAndReload();
       }
     }
-  } else if (!hasOldData) {
-    Storage.setSchemaVersion(SCHEMA_VERSION);
   }
 
   await openDB();
+
+  // Stamp only after BOTH phases (settings-blob pre-open, IDB-records here): a
+  // stamp between them would let a crash strand half-migrated IDB records on the
+  // new version, so neither idempotent phase re-runs to finish them next boot.
+  if (schemaOk) {
+    if (Number.isFinite(storedSchema) && storedSchema < SCHEMA_VERSION) await migrateIdbRecords(storedSchema);
+    if (storedSchema !== SCHEMA_VERSION) Storage.setSchemaVersion(SCHEMA_VERSION);
+  }
 
   // Commit the splash fade to the compositor before the synchronous parse
   // below blocks the main thread, else the logo reveal stalls mid-fade.

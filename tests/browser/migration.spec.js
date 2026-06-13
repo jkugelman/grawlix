@@ -152,5 +152,5 @@ test('an old v9 store migrates forward on boot and stamps the new version', asyn
   expect(wl.rescoreRules).toEqual([{ input: '70', length: '', output: '0' }]);
 
   const stamped = await page.evaluate(() => localStorage.getItem('grawlix_schemaVersion'));
-  expect(stamped).toBe('10');
+  expect(stamped).toBe('11');
 });

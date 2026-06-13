@@ -10,10 +10,10 @@ The reset prompt stays, but only as a last-resort *floor* — see below.
 
 ## How it works
 
-`SCHEMA_VERSION` is compared on load against the stored version — `localStorage.schemaVersion`. (Disk sync stores no schema-versioned blob: synced files are plain wordlist text, and per-list sync targets are additive/optional fields, so they don't participate in the version check — see *Disk sync* below.) The load path:
+`SCHEMA_VERSION` is compared on load against the stored version — `localStorage.schemaVersion`. Migration runs in **two version-keyed phases**: the settings-blob phase (`MIGRATIONS[v]`, synchronous, before `openDB`) walks the localStorage blob forward, and the IDB-records phase (`IDB_MIGRATIONS[v]`, async, after `openDB`) rewrites IndexedDB records. A given version may register a step in either phase or both; `canMigrate(v)` is satisfied when **either** `MIGRATIONS[v]` or `IDB_MIGRATIONS[v]` exists for every step from the stored version up to current. The single version stamp lands **after both phases complete** — so a crash mid-migration re-runs both idempotent phases next boot rather than stranding half-migrated records under a freshly-stamped version. The load path:
 
 1. Equal → proceed.
-2. Stored version older, within the migration horizon → run each `MIGRATIONS` step from the stored version up to current over the settings blob, stamp the new version, proceed. Both venues run the same chain.
+2. Stored version older, within the migration horizon → run each phase's steps from the stored version up to current (settings blob first, then IDB records once the DB is open), stamp the new version, proceed. Both venues run the same chain.
 3. Migration fails, the stored version predates the horizon, or the stored version is *newer* than this code → fall back to the floor.
 
 Migrations upgrade the stored blob *before* it's parsed, so `wordlistFromMeta` and the rest of the read path only ever see the current shape — no tolerate-then-drop branches scattered through the parser.
@@ -56,6 +56,8 @@ So, per version:
 - Assert `migrateSettings(structuredClone(before), v)` deep-equals `after`. Clone so a re-run doesn't mutate the fixture in place.
 
 Drive these through `window.__grawlixTest` (expose `migrateSettings` / `MIGRATIONS` there the way the bridge wraps other internals). This is the rare case where asserting the data shape directly — rather than a user-visible outcome, as the suite normally insists — is correct: a migration's entire contract *is* the stored shape, and a wrong shape fails silently.
+
+An **IDB-phase step** (`IDB_MIGRATIONS[v]`) can't be a pure settings-blob fixture — it reads and writes IndexedDB. Test it in two layers: factor the per-record transform into a pure helper (e.g. v11's `splitSyncRecord`) and freeze a before→after fixture on *that* in the unit tier, then add **one round-trip oracle** in the browser tier that seeds a real old-shape record in IDB, runs `migrateIdbRecords`, and asserts the new records exist with the right contents, the old record is gone, and the live read path (`loadSyncTargets`) reads the migrated target back. The oracle is what proves the real IDB read→write→delete, which the pure fixture can't reach.
 
 Add, separately, **one or two integration tests through the real boot** — seed an old-version `localStorage.meta`, reload, and assert the migrated state lands, persists, and stamps the new version; and that a *newer* or un-migratable version hits the floor instead. These cover the read path and the floor wiring — once, not per version.
 
@@ -115,11 +117,14 @@ To relocate a file: move it, update the `url` on its publisher in `WORDLIST_PUBL
 
 ## The runner
 
-`MIGRATIONS` (in `site/src/data/migrations.js` near `SCHEMA_VERSION`) maps a *from* version to a step that mutates a settings blob in place. `canMigrate(from)` checks every step from `from` up to current exists; `migrateSettings(blob, from)` walks them. One adapter drives it:
+Two version-keyed step tables live in `site/src/data/migrations.js` near `SCHEMA_VERSION`. `MIGRATIONS[v]` maps a *from* version to a step that mutates a settings blob in place; `IDB_MIGRATIONS[v]` maps a *from* version to an async step that rewrites IndexedDB records (kept separate because IDB steps must run post-`openDB` — folded into `MIGRATIONS` they'd execute against a null `_db`). `canMigrate(from)` checks every step from `from` up to current exists in *one* of the two tables; `migrateSettings(blob, from)` walks the settings phase and `migrateIdbRecords(from)` walks the IDB phase. The drivers:
 
-- **`migrateLocalStorage(from)`**, called from the `init()` mismatch branch, assembles the blob from the separate localStorage keys, migrates, writes them back, and stamps the new version. On a thrown step it returns false untouched and the floor's reset confirm takes over.
+- **`migrateLocalStorage(from)`** (settings phase), called from the `init()` mismatch branch before `openDB`, assembles the blob from the separate localStorage keys, migrates, and writes them back. On a thrown step it returns false untouched and the floor's reset confirm takes over. It no longer stamps the version — the stamp moved to `init()` so it can land after *both* phases.
+- **`migrateIdbRecords(from)`** (IDB phase), called from `init()` after `openDB`, walks the `IDB_MIGRATIONS` steps. Each step is idempotent (re-runnable after a mid-migration crash) and deletes its old record *last*, so a crash before that leaves the old record intact to re-split next boot rather than a half-migrated list with no source of truth.
 
-Disk sync needs no migration adapter: synced files are plain wordlist text, and the per-list sync targets in IDB (handle + My Edits baseline) are additive/optional — absent on existing users — so they're forward-compatible without a `SCHEMA_VERSION` bump. **Folder→per-file is deliberately not migrated**: a former folder-mode user boots into IDB-mode Grawlix with stale/default state (their real data lives in their folder files, since IDB dropped out under the old model) and manually re-attaches each file; first-attach merges the content back. The orphaned folder handle left in IDB is harmless and isn't garbage-collected. This was a conscious call — folder mode reached almost nobody, and handling a one-user scenario wasn't worth the code.
+The first IDB-only step is **v10→v11**: it splits each per-list disk-sync record `sync_<key> {handle, baseline}` into `sync_main_<key> {handle}` + `sync_worker_<key> {baseline}` (the baseline record written only when a baseline exists — mirror lists carry none; My Edits' `''` is a real baseline and gets one). No `MIGRATIONS[10]` settings step exists; `canMigrate(10)` is satisfied by the IDB step alone.
+
+**Folder→per-file is deliberately not migrated**: a former folder-mode user boots into IDB-mode Grawlix with stale/default state (their real data lives in their folder files, since IDB dropped out under the old model) and manually re-attaches each file; first-attach merges the content back. The orphaned folder handle left in IDB is harmless and isn't garbage-collected. This was a conscious call — folder mode reached almost nobody, and handling a one-user scenario wasn't worth the code.
 
 Two things the runner deliberately doesn't do:
 

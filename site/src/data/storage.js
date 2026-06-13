@@ -66,6 +66,15 @@ export function idbDel(key) {
   });
 }
 
+export function idbGetAllKeys() {
+  return new Promise(resolve => {
+    const tx  = _db.transaction(IDB_STORE, 'readonly');
+    const req = tx.objectStore(IDB_STORE).getAllKeys();
+    req.onsuccess = () => resolve(req.result ?? []);
+    req.onerror   = () => resolve([]);
+  });
+}
+
 export const Storage = {
   schemaVersion() { const v = parseInt(lsLoad('schemaVersion'), 10); return Number.isFinite(v) ? v : null; },
   setSchemaVersion(v) { lsSave('schemaVersion', String(v)); },

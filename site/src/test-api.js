@@ -25,8 +25,9 @@ import {
 import { setWordlistRescoreRules, setWordlistEnabled, reorderSources } from './data/persist.js';
 import {
   syncTargets, syncFilename, threeWayMergeEdits,
-  attachMirrorSync, attachEditsSync, EditsSync, MirrorSync,
+  attachMirrorSync, attachEditsSync, EditsSync, MirrorSync, loadSyncTargets,
 } from './data/disk-sync.js';
+import { migrateIdbRecords } from './data/migrations.js';
 import { WordlistSelector } from './ui/scope-selector.js';
 import { WelcomeDialog } from './ui/dialogs/welcome.js';
 import { ToolStack, pipelineIdle } from './ui/tool-stack.js';
@@ -453,6 +454,10 @@ const __grawlixTest = {
     },
     flushMerged() { return MirrorSync._flush(MERGED_ID); },
     flushSource(name) { return MirrorSync._flush(syncKey(this._list(name))); },
+    migrateIdbRecords(from) { return migrateIdbRecords(from); },
+    loadTargets() { syncTargets.clear(); return loadSyncTargets(); },
+    keyOf(name) { return syncKey(this._list(name)); },
+    targetFor(name) { const t = syncTargets.get(syncKey(this._list(name))); return t ? { name: t.handle?.name, baseline: t.baseline } : null; },
   },
 
   _lookup(name) {

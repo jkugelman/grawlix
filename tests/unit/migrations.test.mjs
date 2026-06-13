@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { canMigrate, migrateSettings, remapStoredUrls, SCHEMA_VERSION } from '../../site/src/data/migrations.js';
+import { canMigrate, migrateSettings, remapStoredUrls, splitSyncRecord, MIGRATIONS, SCHEMA_VERSION } from '../../site/src/data/migrations.js';
 import { URL_REMAPS } from '../../site/src/core/constants.js';
 
 test('v9 → v10 rewrites the dropped "ignore" rescore output to "0"', () => {
@@ -47,4 +47,37 @@ test('canMigrate gates future versions, non-finite input, and gaps in the step c
   assert.equal(canMigrate(SCHEMA_VERSION + 1), false);
   assert.equal(canMigrate(NaN), false);
   assert.equal(canMigrate(8), false);
+});
+
+// v10 → v11 (disk-sync IDB record split) is IDB-only. splitSyncRecord is its pure
+// core; the real IDB read/write/delete is the round-trip oracle in disk-sync.spec.js.
+
+// A real FileSystemFileHandle can't be reconstructed from serialized state, so the
+// split must pass it through by identity — this stand-in is asserted unchanged by ===.
+const HANDLE = { __handle: 'opaque' };
+
+test('v10 → v11 is IDB-only: canMigrate(10) holds but no MIGRATIONS[10] settings step', () => {
+  assert.equal(canMigrate(10), true);
+  assert.equal(MIGRATIONS[10], undefined);
+});
+
+test('splitSyncRecord splits an edits record (with baseline) into main + worker records', () => {
+  const before = structuredClone({ handle: HANDLE, baseline: 'FOO;50\n' });
+  before.handle = HANDLE;   // structuredClone can't carry the opaque handle; restore by reference
+  const after = splitSyncRecord(before);
+  assert.deepEqual(after, { main: { handle: HANDLE }, worker: { baseline: 'FOO;50\n' } });
+  assert.ok(after.main.handle === HANDLE, 'handle passes through by reference, not cloned');
+});
+
+test('splitSyncRecord splits a mirror record (no baseline) into a main record + null', () => {
+  // The mirror case — a one-way output list, and '__merged__' too: the splitter is
+  // key-agnostic, so the same shape covers a source dbKey and MERGED_ID alike.
+  const after = splitSyncRecord({ handle: HANDLE });
+  assert.deepEqual(after, { main: { handle: HANDLE }, worker: null });
+  assert.ok(after.main.handle === HANDLE, 'handle passes through by reference, not cloned');
+});
+
+test('splitSyncRecord treats an empty-string baseline as real (My Edits empty ancestor)', () => {
+  const after = splitSyncRecord({ handle: HANDLE, baseline: '' });
+  assert.deepEqual(after.worker, { baseline: '' });   // '' !== undefined → a record, not null
 });
