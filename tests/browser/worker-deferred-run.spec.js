@@ -12,10 +12,11 @@ test.beforeEach(async ({ page }) => {
   await stubPublisherFetches(page);
 });
 
-test('boot first-paint defers its run and drains on the build selfReady', async ({ page }) => {
+test('boot first-paint settles against the owned corpus, no hang', async ({ page }) => {
   // gotoApp awaits whenReady → Promise.all([firstPaint, syncWorkerConfig]).
-  // firstPaint resolves only once the boot run — deferred until the worker's first
-  // selfReady — drains and lands. Reaching here proves the boot defer drained;
+  // syncConfig now posts before the boot parse, so the boot run either defers until
+  // the worker's first selfReady and drains, or — if selfReady landed first —
+  // dispatches immediately; both settle firstPaint. Reaching here proves it settled;
   // a hung deferred run would have timed out gotoApp.
   await gotoApp(page);
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({

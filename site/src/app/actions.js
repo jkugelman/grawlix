@@ -120,7 +120,7 @@ export const WordlistActions = (() => {
   return { action };
 })();
 
-export function wordlistFromMeta(m, text) {
+export function wordlistFromMeta(m) {
   const wordlist = wrapWordlist({
     ...(m.type     ? { type: m.type }         : {}),
     dbKey:         m.dbKey || newDbKey(),
@@ -128,17 +128,24 @@ export function wordlistFromMeta(m, text) {
     publisherId:     m.publisherId || null,
     name: m.name, url: m.url || null,
     enabled: !!m.enabled,
-    populated: !!(m.populated || text || m.lastUpdated),
+    populated: false,
     lastUpdated: m.lastUpdated || null,
     fetchedSize: m.fetchedSize || null,
     rescoreRules: (m.rescoreRules || []).map(r => ({ length: '', ...r })),
     dirty: !!m.dirty,
     originalFilename: m.originalFilename || null,
-    rawEntries: text ? parseWordlist(text) : [],
+    rawEntries: [],
     _loading: false,
   });
   compileRescoreRules(wordlist);
   return wordlist;
+}
+
+export function parseInto(wordlist, text, m) {
+  wordlist.rawEntries = text ? parseWordlist(text) : [];
+  // Set populated AFTER rawEntries (and here, not at wrapper-build): consumers
+  // read it as "entries loaded," so a populated-but-empty window would race them.
+  wordlist.populated = !!(m.populated || text || m.lastUpdated);
 }
 
 // ─── Init ─────────────────────────────────────────────────────────────────────
@@ -177,20 +184,18 @@ export async function init() {
     if (storedSchema !== SCHEMA_VERSION) Storage.setSchemaVersion(SCHEMA_VERSION);
   }
 
-  // Commit the splash fade to the compositor before the synchronous parse
-  // below blocks the main thread, else the logo reveal stalls mid-fade.
-  await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
-
   const meta = Storage.readMeta();
+  let toParse = [];   // { wordlist, m } per source still owed a read + parse
   if (meta) {
     if (remapStoredUrls(meta)) Storage.writeMeta(meta);
     try {
-      state.sources = await Promise.all(meta.map(async m => {
+      state.sources = meta.map(m => {
         const m2 = { ...m, dbKey: m.dbKey || newDbKey() };
-        const text = await Storage.readWordlist(m2) ?? await idbGet('data_' + m.id);
-        return wordlistFromMeta(m2, text);
-      }));
-    } catch { state.sources = defaultSources(); }
+        const wordlist = wordlistFromMeta(m2);
+        toParse.push({ wordlist, m: m2 });
+        return wordlist;
+      });
+    } catch { state.sources = defaultSources(); toParse = []; }
   } else {
     state.sources = defaultSources();
     persistMeta();
@@ -208,15 +213,30 @@ export async function init() {
   ensureScoring();
   ensureEdits();
   propagateDefaults();
+
+  // Post syncConfig before the wordlist text is read: the payload is final (rules
+  // from propagateDefaults, scope from restoreSelectedScope) and the worker reads
+  // its own text from IDB, so its build runs concurrently with the reads + parse
+  // below. selfReady may now land before the first paint's run is registered; both
+  // orderings settle via the ownedFreshScope mirror — see docs/worker-protocol.md.
+  const workerReady = syncWorkerConfig(state.sources);
+
+  // Commit the splash fade to the compositor before the synchronous parse below
+  // blocks the main thread, else the logo reveal stalls mid-fade.
+  await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+
+  // Must finish before renderAll: the first render reads rawEntries through the
+  // merged histogram fallback, so parsing late would render empty stats.
+  await Promise.all(toParse.map(async ({ wordlist, m }) => {
+    const text = await Storage.readWordlist(m) ?? await idbGet('data_' + m.id);
+    parseInto(wordlist, text, m);
+  }));
+
   AppView.show();
   Router.navigate();
   renderAll();
 
-  // Must live here, not in boot(): state.sources is only fully built after
-  // propagateDefaults above, and the worker's self-build needs the final sources.
-  // The boot run defers until this syncConfig's selfReady drains it, so await both:
-  // firstPaint resolves only once that drained run lands.
-  await Promise.all([firstPaint, syncWorkerConfig(state.sources)]);
+  await Promise.all([firstPaint, workerReady]);
 
   await loadSyncTargets();
   const { granted, prompt } = await partitionSyncPermissions();
