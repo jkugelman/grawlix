@@ -210,7 +210,12 @@ test('the rescore panel bake button is enabled for a bakeable source and applies
   const bakeBtn = page.locator('#rescore-editor .rule-bake-btn');
   await expect(bakeBtn).toBeEnabled();
 
-  await bakeBtn.click();
+  // A rescore-editor repaint can swallow the bake click and leave the confirm
+  // dialog closed; retry the click until the dialog actually opens.
+  await expect(async () => {
+    await bakeBtn.click();
+    await expect(page.locator('#confirm-dialog')).toBeVisible({ timeout: 2000 });
+  }).toPass({ timeout: 15000 });
   await page.locator('#confirm-dialog #btn-confirm-ok').click();
 
   await expect.poll(() =>
