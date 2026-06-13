@@ -3,14 +3,12 @@ import assert from 'node:assert/strict';
 import { parseRange, matchesRange, rangeSpan } from '../../site/src/engine/range.js';
 import {
   parseRuleOutput, compileRescoreRules, rescoreEntry,
-  rescoreRulesEqual, scoringRulesEqual, compareRescoreRulesForPriority,
-  getRuleMaxScore, outputSortKey,
+  rescoreRulesEqual, scoringRulesEqual,
 } from '../../site/src/engine/rescore.js';
 
 const rule = (input, output, length = '') => ({ input, length, output, note: '' });
 const ruleN = (input, output = '', length = '', note = '') => ({ input, length, output, note });
 const entry = (score, norm = 'xxxxx') => ({ score, norm });
-const sign = n => (n < 0 ? -1 : n > 0 ? 1 : 0);
 
 test('parseRange reads exact, range, N+, and rejects junk', () => {
   assert.deepEqual(parseRange('50'), [{ min: 50, max: 50 }]);
@@ -48,20 +46,18 @@ test('rescoreEntry skips a degenerate range output (exact input maps to a range)
   assert.equal(rescoreEntry(entry(50), [rule('50', '0-100')]), 50);
 });
 
-test('compileRescoreRules orders a narrow rule ahead of a broad superset so it fires first', () => {
-  const wl = { rescoreRules: [rule('0-100', '10'), rule('40-100', '90')] };
+test('compileRescoreRules preserves order and compiles; rescoreEntry is first-match in that order', () => {
+  const wl = { rescoreRules: [rule('40-100', '90'), rule('0-100', '10')] };
   compileRescoreRules(wl);
   assert.deepEqual(wl.rescoreRules.map(r => r.input), ['40-100', '0-100']);
-  assert.equal(rescoreEntry(entry(50), wl.rescoreRules), 90);
-  assert.equal(rescoreEntry(entry(20), wl.rescoreRules), 10);
+  assert.equal(rescoreEntry(entry(50), wl.rescoreRules), 90);  // narrow rule, listed first, wins
+  assert.equal(rescoreEntry(entry(20), wl.rescoreRules), 10);  // only the broad rule matches
 });
 
-test('a length-filtered rule sorts ahead of an unfiltered rule at the same score', () => {
-  const wl = { rescoreRules: [rule('50', '10'), rule('50', '90', '5')] };
-  compileRescoreRules(wl);
-  assert.deepEqual(wl.rescoreRules.map(r => r.output), ['90', '10']);
-  assert.equal(rescoreEntry(entry(50, 'abcde'), wl.rescoreRules), 90);
-  assert.equal(rescoreEntry(entry(50, 'abc'), wl.rescoreRules), 10);
+test('reordering rules changes which one wins on overlap — no auto-sort rescues a bad order', () => {
+  const broadFirst = { rescoreRules: [rule('0-100', '10'), rule('40-100', '90')] };
+  compileRescoreRules(broadFirst);
+  assert.equal(rescoreEntry(entry(50), broadFirst.rescoreRules), 10);  // broad rule is first, so 90 never fires
 });
 
 test('rangeSpan: blank/junk/open-ended are Infinity, exact is 0, bounded is its width', () => {
@@ -71,26 +67,6 @@ test('rangeSpan: blank/junk/open-ended are Infinity, exact is 0, bounded is its 
   assert.equal(rangeSpan('50+'), Infinity);
   assert.equal(rangeSpan('50'), 0);
   assert.equal(rangeSpan('40-60'), 20);
-});
-
-test('getRuleMaxScore: exact/range read the upper bound, N+ is Infinity, junk is -1', () => {
-  assert.equal(getRuleMaxScore(ruleN('50')), 50);
-  assert.equal(getRuleMaxScore(ruleN('40-60')), 60);
-  assert.equal(getRuleMaxScore(ruleN('50+')), Infinity);
-  assert.equal(getRuleMaxScore(ruleN('')), -1);
-  assert.equal(getRuleMaxScore(ruleN('abc')), -1);
-});
-
-test('outputSortKey: number is itself, bounded range is its midpoint, N+ is its min', () => {
-  assert.equal(outputSortKey(ruleN('50', '90')), 90);
-  assert.equal(outputSortKey(ruleN('50', '0-100')), 50);
-  assert.equal(outputSortKey(ruleN('50', '40-60')), 50);
-  assert.equal(outputSortKey(ruleN('50', '70+')), 70);
-});
-
-test('outputSortKey: a blank (unchanged) output sorts by the input range max', () => {
-  assert.equal(outputSortKey(ruleN('40-60', '')), 60);
-  assert.equal(outputSortKey(ruleN('50', '')), 50);
 });
 
 test('matchesRange: bounded membership is inclusive of both endpoints', () => {
@@ -117,35 +93,6 @@ test('matchesRange: any one matching interval suffices', () => {
   assert.equal(matchesRange(5, []), false);
 });
 
-test('compare tier 1: a higher input-range max sorts first', () => {
-  assert.equal(sign(compareRescoreRulesForPriority(ruleN('40-60'), ruleN('50'))), -1);
-  assert.equal(sign(compareRescoreRulesForPriority(ruleN('50'), ruleN('40-60'))), 1);
-});
-
-test('compare tier 2: at equal max, the narrower input range sorts first', () => {
-  assert.equal(sign(compareRescoreRulesForPriority(ruleN('50'), ruleN('40-50'))), -1);
-  assert.equal(sign(compareRescoreRulesForPriority(ruleN('40-50'), ruleN('50'))), 1);
-});
-
-test('compare tier 3: at equal max and span, a length-filtered rule sorts first', () => {
-  assert.equal(sign(compareRescoreRulesForPriority(ruleN('50', '', '5'), ruleN('50'))), -1);
-  assert.equal(sign(compareRescoreRulesForPriority(ruleN('50'), ruleN('50', '', '5'))), 1);
-});
-
-test('compare tier 4: when both are length-filtered, the narrower length range sorts first', () => {
-  assert.equal(sign(compareRescoreRulesForPriority(ruleN('50', '', '5'), ruleN('50', '', '4-6'))), -1);
-  assert.equal(sign(compareRescoreRulesForPriority(ruleN('50', '', '4-6'), ruleN('50', '', '5'))), 1);
-});
-
-test('compare tier 5: all else equal, the higher output sort key sorts first', () => {
-  assert.equal(sign(compareRescoreRulesForPriority(ruleN('50', '90'), ruleN('50', '10'))), -1);
-  assert.equal(sign(compareRescoreRulesForPriority(ruleN('50', '10'), ruleN('50', '90'))), 1);
-});
-
-test('compare: two fully-identical rules compare equal (stable order)', () => {
-  assert.equal(compareRescoreRulesForPriority(ruleN('50', '90', '5', 'n'), ruleN('50', '90', '5', 'n')), 0);
-});
-
 test('rescoreRulesEqual: identical arrays are equal; differing length is not', () => {
   assert.equal(rescoreRulesEqual([ruleN('50', '90')], [ruleN('50', '90')]), true);
   assert.equal(rescoreRulesEqual([ruleN('50', '90'), ruleN('80', '10')], [ruleN('50', '90')]), false);
@@ -158,9 +105,9 @@ test('rescoreRulesEqual: any one differing field (input/length/output/note) brea
   assert.equal(rescoreRulesEqual([ruleN('50', '90', '', 'n1')], [ruleN('50', '90', '', 'n2')]), false);
 });
 
-test('rescoreRulesEqual is order-insensitive: it sorts both sides before comparing', () => {
+test('rescoreRulesEqual is order-sensitive: a reorder is not equal', () => {
   const a = ruleN('50', '90'), b = ruleN('80', '10');
-  assert.equal(rescoreRulesEqual([a, b], [b, a]), true);
+  assert.equal(rescoreRulesEqual([a, b], [b, a]), false);
 });
 
 test('rescoreRulesEqual normalizes missing length/output/note to empty string', () => {

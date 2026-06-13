@@ -46,12 +46,12 @@ test('a custom wordlist survives a page reload with its entries and rules intact
     { entry: 'carrot',   display: null, score: 90, comment: '' },
   ]);
 
-  // Rules came back intact — including the length filter, which lives in
-  // localStorage's meta. A pre-bump SCHEMA_VERSION change that broke the
-  // rule shape would corrupt this.
+  // Rules came back intact and in their stored order (no auto-sort) — including
+  // the length filter, which lives in localStorage's meta. A pre-bump
+  // SCHEMA_VERSION change that broke the rule shape would corrupt this.
   expect(wl.rescoreRules).toEqual([
-    { input: '90',    length: '5', output: '95' },
     { input: '10-50', length: '',  output: '40' },
+    { input: '90',    length: '5', output: '95' },
   ]);
 
   // Merged view still resolves the entries with the persisted rescore

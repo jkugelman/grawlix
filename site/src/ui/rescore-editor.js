@@ -11,15 +11,14 @@ import { parseRange } from '../engine/range.js';
 import { state } from '../data/state.js';
 import { applyRescoreRulesChange, persistScoring } from '../data/persist.js';
 import {
-  getRuleMaxScore, parseRuleOutput, makeRescoreRuleStub,
-  rescoreRulesEqual, scoringRulesEqual, compareRescoreRulesForPriority, compileRule,
+  parseRuleOutput, makeRescoreRuleStub, rescoreRulesEqual, scoringRulesEqual, compileRule,
 } from '../engine/rescore.js';
 import { getWordlistDefaultRules } from '../data/rescoring.js';
 import {
   updateScoringDirty, propagateDefaults, makeScoringRowStub,
 } from '../model/scoring.js';
 import { showConfirm } from './dialogs/confirm.js';
-import { buildEditHintHTML, buildTrashIconHTML } from './components.js';
+import { buildEditHintHTML, buildTrashIconHTML, buildDragHandleHTML, makeReorderable } from './components.js';
 import { WordlistSelector } from './scope-selector.js';
 import { getEntriesScroller } from './rendering.js';
 
@@ -46,16 +45,8 @@ export function beginEdit(scope) {
   recompileDraft();
 }
 
-// Sort+compile so the preview matches what Apply writes — rescoreEntry is
-// first-match-wins, so order changes the result.
 function recompileDraft() {
-  if (!_draft) return;
-  if (isScoringScope(_draftScope)) {
-    _draft.sort((a, b) => getRuleMaxScore(b) - getRuleMaxScore(a));
-  } else {
-    _draft.sort(compareRescoreRulesForPriority);
-    _draft.forEach(compileRule);
-  }
+  if (_draft && !isScoringScope(_draftScope)) _draft.forEach(compileRule);
 }
 
 export function discardDraft() { _draft = null; _draftScope = null; }
@@ -114,6 +105,27 @@ function focusNewRow(containerSelector) {
   inp?.focus();
 }
 
+function onDraftReorder(fromEl, beforeEl) {
+  if (!_draft) return;
+  const fromIdx = parseInt(fromEl.dataset.i, 10);
+  if (!_draft[fromIdx]) return;
+  let toIdx = beforeEl ? parseInt(beforeEl.dataset.i, 10) : _draft.length;
+  const [moved] = _draft.splice(fromIdx, 1);
+  if (toIdx > fromIdx) toIdx--;
+  _draft.splice(toIdx, 0, moved);
+  afterDraftChange();
+}
+
+// Wired after each editor render — renderEditorContent replaces the rules
+// container, so the listeners must re-attach to the fresh element.
+export function wireDraftReorder() {
+  makeReorderable(document.querySelector('#rescore-editor #rescore-rules, #rescore-editor #scoring-rules'), {
+    handleSelector: '.drag-handle',
+    itemSelector: '.rule-row',
+    onReorder: onDraftReorder,
+  });
+}
+
 // ─── Domain builders ──────────────────────────────────────────────────────────
 
 export function buildRuleRowHTML(i, fieldsHTML, note, onDeleteFn, readOnly = false) {
@@ -124,7 +136,9 @@ export function buildRuleRowHTML(i, fieldsHTML, note, onDeleteFn, readOnly = fal
         ${buildEditHintHTML('rule-note-pencil', 'startNoteEdit(this.parentElement)')}
       </span>`;
   const delBtn = readOnly ? '' : `<button class="icon rule-del" onclick="${onDeleteFn}(${i})" title="Delete row">${buildTrashIconHTML()}</button>`;
+  const handle = readOnly ? '' : buildDragHandleHTML();
   return `<div class="rule-row" data-i="${i}">
+      ${handle}
       ${fieldsHTML}
       ${noteWrap}
       ${delBtn}
@@ -210,16 +224,9 @@ export function buildScoringSectionHTML() {
 
 // ─── Scoring (tier labels) ────────────────────────────────────────────────────
 
-// Sort tier labels into canonical priority order (highest max score first) so
-// makeTierLookup's first-match-wins resolves overlapping ranges consistently.
-export function sortScoringRules() {
-  state.scoring.sort((a, b) => getRuleMaxScore(b) - getRuleMaxScore(a));
-}
-
 // Tier-label changes don't touch data, so a cheap re-render of the visible
 // rows (they carry the label as a `title=`) is enough — no full rebuild.
 export function renderScoringRules() {
-  sortScoringRules();
   WordlistSelector.refreshEditor();
   getEntriesScroller()?._render?.();
 }

@@ -18,7 +18,7 @@ import {
 } from './sync-indicators.js';
 import {
   buildRescoreSectionHTML, buildScoringSectionHTML,
-  beginEdit, discardDraft, isDraftDirty, draftScope,
+  beginEdit, discardDraft, isDraftDirty, draftScope, wireDraftReorder,
 } from './rescore-editor.js';
 import { showConfirm } from './dialogs/confirm.js';
 import { ManagePanel } from './manage-panel.js';
@@ -254,6 +254,7 @@ export const WordlistSelector = (() => {
     editorInner.innerHTML = state.selected === MERGED_ID
       ? buildScoringSectionHTML()
       : buildRescoreSectionHTML();
+    wireDraftReorder();
   }
   function refreshEditor() {
     syncToggleLabel();

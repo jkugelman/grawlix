@@ -119,3 +119,23 @@ test('neutralize flips dirty, blanks every output, drops scoring:false, keeps Re
   await openRescoreEditor(page);
   await expect(editor.locator('.rule-reset-btn')).toBeVisible();
 });
+
+// The migration guard: a pre-existing user whose pristine rules were stored in
+// the old auto-sorted order (which order-sensitive equality now reads as
+// "differs from defaults") must NOT be marked dirty — propagateDefaults
+// renormalizes the order off the persisted (false) flag.
+test('a pristine list with rules in a non-default order is renormalized, staying not-dirty', async ({ page }) => {
+  await gotoApp(page);
+  await populateJK(page);
+
+  const result = await page.evaluate(() => {
+    const wl = state.sources.find(s => s.name === 'John Kugelman');
+    wl.rescoreRules = [...wl.rescoreRules].reverse();   // a non-authored order, still pristine
+    wl.dirty = false;
+    window.__grawlixTest.propagateDefaults();
+    return { dirty: !!wl.dirty, inputs: wl.rescoreRules.map(r => r.input) };
+  });
+
+  expect(result.dirty).toBe(false);
+  expect(result.inputs).toEqual(['60', '50', '40', '30', '20', '10', '0']);
+});

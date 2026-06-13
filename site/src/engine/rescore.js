@@ -2,7 +2,7 @@
 
 // ─── Rescoring ────────────────────────────────────────────────────────────────
 
-import { parseRange, matchesRange, rangeSpan } from './range.js';
+import { parseRange, matchesRange } from './range.js';
 
 export function scoresToRangeStr(scores) {
   if (!scores.length) return '';
@@ -11,29 +11,11 @@ export function scoresToRangeStr(scores) {
   return min === max ? `${min}` : `${min}-${max}`;
 }
 
-export function getRuleMaxScore(rule) {
-  const intervals = parseRange(rule.input);
-  if (!intervals) return -1;
-  let max = -Infinity;
-  for (const { max: imax } of intervals) {
-    const m = imax === null ? Infinity : imax;
-    if (m > max) max = m;
-  }
-  return max;
-}
-
-export function outputSortKey(rule) {
-  const s = parseRuleOutput(rule.output);
-  if (typeof s === 'number') return s;
-  if (s && typeof s === 'object') return s.max === null ? s.min : (s.min + s.max) / 2;
-  return getRuleMaxScore(rule); // 'unchanged' sorts by input score
-}
-
-// Equality for rule arrays. Drives the dirty flag and the boot-time silent
-// propagation of dev-shipped default updates.
+// Order-sensitive: rules evaluate first-match-wins in their stored order (the
+// user owns it via drag), so a reorder is a real change — it must flip dirty
+// and survive default propagation.
 export function rescoreRulesEqual(a, b) {
-  const au = [...(a || [])].sort(compareRescoreRulesForPriority);
-  const bu = [...(b || [])].sort(compareRescoreRulesForPriority);
+  const au = a || [], bu = b || [];
   if (au.length !== bu.length) return false;
   return au.every((r, i) => {
     const o = bu[i];
@@ -73,25 +55,8 @@ export function maybeAutoSeedRescoreRules(wordlist) {
   wordlist.rescoreRules = scores.map(s => makeRescoreRuleStub(String(s)));
 }
 
-// First-match-wins: narrower rules must precede broader supersets or never fire.
-export function compareRescoreRulesForPriority(a, b) {
-  const am = getRuleMaxScore(a), bm = getRuleMaxScore(b);
-  if (am !== bm) return bm - am;
-  const ais = rangeSpan(a.input), bis = rangeSpan(b.input);
-  if (ais !== bis) return ais - bis;
-  const aLF = !!(a.length && a.length.trim()), bLF = !!(b.length && b.length.trim());
-  if (aLF !== bLF) return aLF ? -1 : 1;
-  if (aLF) {
-    const als = rangeSpan(a.length), bls = rangeSpan(b.length);
-    if (als !== bls) return als - bls;
-  }
-  return outputSortKey(b) - outputSortKey(a);
-}
-
 export function compileRescoreRules(wordlist) {
-  const rules = wordlist.rescoreRules;
-  rules.sort(compareRescoreRulesForPriority);
-  rules.forEach(compileRule);
+  wordlist.rescoreRules.forEach(compileRule);
 }
 
 export function parseRuleOutput(str) {

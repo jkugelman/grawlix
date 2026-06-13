@@ -117,6 +117,46 @@ test('Cancel discards a rule edit, leaving the committed rules unchanged', async
   await expect(oceanScore(page).locator('.atom-score-arrow')).toHaveCount(0);
 });
 
+// Same gesture as manage-panel's dragRowBefore: the +10px nudge clears
+// makeReorderable's drag-start threshold; releasing in the target's top quarter
+// selects insert-before.
+async function dragRuleBefore(page, fromIdx, beforeIdx) {
+  const rows = page.locator('#rescore-rules .rule-row');
+  const h = await rows.nth(fromIdx).locator('.drag-handle').boundingBox();
+  const t = await rows.nth(beforeIdx).boundingBox();
+  await page.mouse.move(h.x + h.width / 2, h.y + h.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(h.x + h.width / 2, h.y + h.height / 2 + 10);
+  await page.mouse.move(t.x + t.width / 2, t.y + t.height * 0.25, { steps: 12 });
+  await page.mouse.up();
+}
+
+test('dragging a rule to reorder it changes which rule wins (no auto-sort)', async ({ page }) => {
+  await gotoApp(page);
+  await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
+    name: 'Zinc', entries: ['wave'], scores: [50],
+  }));
+  await page.evaluate(() => window.__grawlixTest.setRescoreRules('Zinc', [
+    { input: '40-60', length: '', output: '30', note: '' },
+    { input: '50',    length: '', output: '70', note: '' },
+  ]));
+  await scopeViaSelector(page, 'Zinc');
+  await openRescoreEditor(page);
+  await page.evaluate(() => window.__grawlixTest.pipelineIdle());
+
+  const waveScore = page.locator('.entry-row[data-entry="wave"] .atom-score');
+  await expect(waveScore.locator('.score-badge')).toHaveText('30');  // broad rule is first, so 50 → 30
+
+  await dragRuleBefore(page, 1, 0);   // move the exact 50→70 rule above the broad one
+  await expect(waveScore.locator('.score-badge')).toHaveText('70');  // now the exact rule wins
+
+  await applyRescoreEditor(page);
+  await page.evaluate(() => window.__grawlixTest.pipelineIdle());
+  expect(await page.evaluate(() => window.__grawlixTest.getWordlist('Zinc').rescoreRules.map(r => r.input)))
+    .toEqual(['50', '40-60']);
+  await expect(waveScore.locator('.score-badge')).toHaveText('70');
+});
+
 test('on All Wordlists the editor edits tier labels, so no row shows an arrow', async ({ page }) => {
   await gotoApp(page);
   await seedRemappedSource(page);
