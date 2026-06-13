@@ -84,7 +84,7 @@ function workerFetchProvenance(ownedBuilt, ownedMerged, { typedRaw, previewRaw, 
         const include = display == null || e.display === display || e.display == null;
         if (include) rows.push({
           sourceId: wl.dbKey, enabled: wl.enabled !== false,
-          entry: { norm: e.norm, display: e.display ?? null, score: e.score, comment: e.comment || '' },
+          entry: { norm: e.norm, display: e.display ?? null, score: e.score, rawScore: e.rawScore, comment: e.comment || '' },
         });
       }
     }
@@ -105,7 +105,7 @@ function localToWire(localRows, localPrev) {
     } || null,
     rows: localRows.map(({ wordlist, entry }) => ({
       sourceId: wordlist.dbKey, enabled: wordlist.enabled !== false,
-      entry: { norm: entry.norm, display: entry.display ?? null, score: entry.score, comment: entry.comment || '' },
+      entry: { norm: entry.norm, display: entry.display ?? null, score: entry.score, rawScore: entry.rawScore, comment: entry.comment || '' },
     })),
   };
 }

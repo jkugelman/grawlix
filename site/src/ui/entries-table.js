@@ -1771,7 +1771,7 @@ export const AtomPopover = (() => {
       const comment = entry.comment || '';
       return `<tr class="atom-pop-prov-row${cls}">`
         + `<td class="atom-pop-prov-entry">${esc(displayOf(entry))}</td>`
-        + `<td class="atom-pop-prov-score">${buildScoreBadgeHTML(entry.score)}</td>`
+        + `<td class="atom-pop-prov-score">${buildScoreCellHTML(entry, true)}</td>`
         + `<td class="atom-pop-prov-comment"${comment ? ` title="${esc(comment)}"` : ''}>${esc(comment)}</td>`
         + `<td class="atom-pop-prov-source">${buildWordlistNameHTML(wordlist, { bold: false })}</td>`
         + `</tr>`;

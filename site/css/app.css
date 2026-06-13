@@ -454,7 +454,7 @@ mark.search-match { border-radius: 2px; padding: 0 1px; margin: 0 -1px; font-sty
 .atom-pop-prov td { padding: 3px 8px 3px 0; vertical-align: top; border-bottom: 1px solid var(--border3); }
 .atom-pop-prov tr:last-child td { border-bottom: none; }
 .atom-pop-prov-entry { font-family: var(--font-mono); color: var(--text); overflow-wrap: anywhere; }
-.atom-pop-prov-score { white-space: nowrap; }
+.atom-pop-prov-score { white-space: nowrap; text-align: right; }
 .atom-pop-prov-comment { color: var(--muted); max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .atom-pop-prov-source { white-space: nowrap; }
 .atom-pop-prov-row--disabled td { color: var(--faint); }

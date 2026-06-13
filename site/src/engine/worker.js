@@ -490,7 +490,7 @@ function handleFetchProvenance({ requestId, typedRaw, previewRaw, clickedNorm, c
           rows.push({
             sourceId: wl.dbKey,
             enabled: wl.enabled !== false,
-            entry: { norm: e.norm, display: e.display ?? null, score: e.score, comment: e.comment || '' },
+            entry: { norm: e.norm, display: e.display ?? null, score: e.score, rawScore: e.rawScore, comment: e.comment || '' },
           });
         }
       }
