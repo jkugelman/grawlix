@@ -1785,7 +1785,6 @@ export const AtomPopover = (() => {
 
   function renderProvenanceRowsHTML(rows) {
     if (!rows.length) return '';
-    const anyRescore = rows.some(r => r.entry.rawScore != null && r.entry.rawScore !== r.entry.score);
     const body = rows.map(({ wordlist, entry, enabled, diff, saved, isEdits }) => {
       const disabled = wordlist ? wordlist.enabled === false : enabled === false;
       const cls = ['atom-pop-prov-row'];
@@ -1800,14 +1799,14 @@ export const AtomPopover = (() => {
           + ` title="${label}" aria-label="${label}">${buildTrashIconHTML()}</button>`
         : '';
       return `<tr class="${cls.join(' ')}">`
-        + `<td class="atom-pop-prov-entry"${displayOf(entry).length > ENTRY_SLOT_CAP ? ` title="${esc(displayOf(entry))}"` : ''}>${esc(displayOf(entry))}</td>`
+        + `<td class="atom-pop-prov-entry">${esc(displayOf(entry))}</td>`
         + `<td class="atom-pop-prov-score">${buildScoreCellHTML(entry, true)}</td>`
         + `<td class="atom-pop-prov-comment"${comment ? ` title="${esc(comment)}"` : ''}>${esc(comment)}</td>`
         + `<td class="atom-pop-prov-source">${buildWordlistNameHTML(wordlist, { bold: false })}</td>`
         + `<td class="atom-pop-prov-action">${trash}</td>`
         + `</tr>`;
     }).join('');
-    return `<table class="atom-pop-prov${anyRescore ? ' atom-pop-prov--rescored' : ''}">`
+    return `<table class="atom-pop-prov">`
       + `<thead><tr>`
       + `<th class="atom-pop-prov-entry">Entry</th>`
       + `<th class="atom-pop-prov-score">Score</th>`
@@ -1832,18 +1831,6 @@ export const AtomPopover = (() => {
       const node = el?.querySelector(sel);
       if (node) node.disabled = disabled;
     }
-  }
-
-  // Match the main table's Entry cutoff: its --entry-w is sized in the table's
-  // mono, so divide by that ch to recover the character count and re-express it
-  // in the popover's smaller ch — the same number of characters truncates, which
-  // copying the raw pixel width would not preserve across the two font sizes.
-  function syncEntryColWidth() {
-    const panel = document.getElementById('detail-panel');
-    const ch = measureMonoChPx();
-    const entryW = panel ? parseFloat(getComputedStyle(panel).getPropertyValue('--entry-w')) : NaN;
-    if (entryW > 0 && ch > 0) el.style.setProperty('--pop-entry-w', `${entryW / ch}ch`);
-    else el.style.removeProperty('--pop-entry-w');
   }
 
   function seedFromWinnerRow(row, winnerIsEdits) {
@@ -2023,7 +2010,6 @@ export const AtomPopover = (() => {
     }
 
     wireFooter();
-    syncEntryColWidth();
   }
 
   function position(anchorEl) {

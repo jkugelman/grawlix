@@ -446,16 +446,16 @@ mark.search-match { border-radius: 2px; padding: 0 1px; margin: 0 -1px; font-sty
 .entries-empty-add { margin-top: 10px; background: transparent; border: 1px solid var(--border); border-radius: 4px; color: var(--accent); font: inherit; cursor: pointer; padding: 4px 12px; font-style: normal; }
 .entries-empty-add:hover { background: var(--hover); border-color: var(--accent); }
 
-#atom-popover { position: fixed; z-index: 600; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 6px 24px rgba(0,0,0,0.2); padding: 12px 14px; font-size: 12px; color: var(--text); min-width: 280px; max-width: 480px; }
+#atom-popover { position: fixed; z-index: 600; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 6px 24px rgba(0,0,0,0.2); padding: 12px 14px; font-size: 12px; color: var(--text); min-width: 280px; max-width: 440px; }
 .atom-pop-prov-wrap { margin-top: 10px; }
 .atom-pop-prov-wrap:empty { display: none; }
 .atom-pop-prov { width: 100%; border-collapse: collapse; font-size: 11px; }
 .atom-pop-prov th { text-align: left; font-weight: 600; color: var(--muted); padding: 2px 8px 4px 0; border-bottom: 1px solid var(--border3); white-space: nowrap; }
 .atom-pop-prov td { padding: 3px 8px 3px 0; vertical-align: top; border-bottom: 1px solid var(--border3); }
 .atom-pop-prov tr:last-child td { border-bottom: none; }
-.atom-pop-prov-entry { width: var(--pop-entry-w, 21ch); min-width: var(--pop-entry-w, 21ch); max-width: var(--pop-entry-w, 21ch); font-family: var(--font-mono); color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.atom-pop-prov-score { width: 1%; white-space: nowrap; text-align: left; }
-.atom-pop-prov--rescored td.atom-pop-prov-score { text-align: right; }
+.atom-pop-prov-entry { color: var(--text); overflow-wrap: anywhere; }
+td.atom-pop-prov-entry { font-family: var(--font-mono); }
+.atom-pop-prov-score { width: 1%; white-space: nowrap; text-align: right; }
 .atom-pop-prov-comment { width: 120px; min-width: 120px; max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .atom-pop-prov-source { white-space: nowrap; }
 .atom-pop-prov-row--disabled td { color: var(--faint); }
@@ -469,7 +469,7 @@ mark.search-match { border-radius: 2px; padding: 0 1px; margin: 0 -1px; font-sty
 .atom-pop-prov-trash:hover { color: #e53935; background: rgba(229, 57, 53, 0.1); }
 .atom-pop-prov-trash.staged { color: #e53935; }
 .atom-pop-prov-trash.staged::after { content: ''; position: absolute; left: 1px; right: 1px; top: 50%; height: 1.5px; border-radius: 1px; background: currentColor; transform: rotate(-45deg); }
-.atom-pop-fields { display: grid; grid-template-columns: auto 1fr; grid-auto-rows: minmax(26px, auto); gap: 8px 10px; align-items: center; padding-right: 32px; }
+.atom-pop-fields { display: grid; grid-template-columns: auto 1fr; grid-auto-rows: minmax(26px, auto); gap: 8px 10px; align-items: center; }
 .atom-pop-fields label { font-size: 11px; color: var(--muted); }
 .atom-pop-fields input { font: inherit; font-size: 12px; padding: 4px 7px; border: 1px solid var(--border); border-radius: 3px; background: var(--input-bg); color: var(--text); outline: none; width: 100%; box-sizing: border-box; }
 .atom-pop-fields input:focus { border-color: var(--accent); }
