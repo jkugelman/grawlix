@@ -24,9 +24,10 @@ import {
 } from './data/merge.js';
 import { setWordlistRescoreRules, setWordlistEnabled, reorderSources } from './data/persist.js';
 import {
-  syncTargets, syncFilename, threeWayMergeEdits,
+  syncTargets, syncFilename,
   attachMirrorSync, attachEditsSync, EditsSync, MirrorSync, loadSyncTargets,
 } from './data/disk-sync.js';
+import { threeWayMergeEdits } from './engine/edits-merge.js';
 import { migrateIdbRecords } from './data/migrations.js';
 import { WordlistSelector } from './ui/scope-selector.js';
 import { WelcomeDialog } from './ui/dialogs/welcome.js';

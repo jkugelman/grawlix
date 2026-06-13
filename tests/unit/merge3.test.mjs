@@ -1,8 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  threeWayMergeEdits, editsEntryEqual, sameEditsEntries, sanitizeFilenameStem,
-} from '../../site/src/data/disk-sync.js';
+  threeWayMergeEdits, editsEntryEqual, sameEditsEntries,
+} from '../../site/src/engine/edits-merge.js';
+import { sanitizeFilenameStem } from '../../site/src/data/disk-sync.js';
 import { serializeMetaEntry } from '../../site/src/data/persist.js';
 
 const mk = (norm, score, comment = '') => ({ norm, score, comment });
