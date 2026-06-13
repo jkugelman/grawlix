@@ -39,7 +39,19 @@ export function resolveCorpus(buckets, sourceList) {
   const entries = [];
   const byKey = new Map();
   const sourceCountMap = new Map();
+  const bumpCount = wl => sourceCountMap.set(wl, (sourceCountMap.get(wl) || 0) + 1);
   for (const [norm, { contributors, displays }] of buckets) {
+    // Single-contributor buckets (the common case) resolve to exactly that
+    // contributor on its display — must mirror the general path below, or these
+    // norms silently diverge from multi-contributor ones.
+    if (contributors.length === 1) {
+      const c = contributors[0];
+      const row = { norm, display: c.display, score: c.score, rawScore: c.rawScore, comment: c.comment, wordlist: c.wordlist };
+      entries.push(row);
+      byKey.set(mergeKey(norm, c.display), row);
+      bumpCount(c.wordlist);
+      continue;
+    }
     const variants = displays.size > 0 ? [...displays].sort() : [null];
     const countedContributors = new Set();
     for (const variant of variants) {
@@ -52,13 +64,16 @@ export function resolveCorpus(buckets, sourceList) {
       byKey.set(mergeKey(norm, variant), row);
       if (!countedContributors.has(winner)) {
         countedContributors.add(winner);
-        sourceCountMap.set(winner.wordlist, (sourceCountMap.get(winner.wordlist) || 0) + 1);
+        bumpCount(winner.wordlist);
       }
     }
   }
 
-  entries.sort((a, b) => a.norm.localeCompare(b.norm)
-    || (a.display ?? '').localeCompare(b.display ?? ''));
+  // Equivalence to localeCompare holds only because norm is strictly [a-z0-9];
+  // widen toNorm's alphabet and this silently mis-orders. The display tie-break
+  // must stay localeCompare — buildByNorm's canonical-row pick depends on it.
+  entries.sort((a, b) => a.norm < b.norm ? -1 : a.norm > b.norm ? 1
+    : (a.display ?? '').localeCompare(b.display ?? ''));
 
   const sourceCounts = sourceList.map(wl => ({ wordlist: wl, count: sourceCountMap.get(wl) || 0 }));
 

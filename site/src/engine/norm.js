@@ -16,6 +16,10 @@ export const FOLD_MAP = {
 export const FOLD_RE = new RegExp(`[${Object.keys(FOLD_MAP).join('')}]`, 'g');
 
 export function stripAccents(s) {
+  // ASCII is untouched by all three steps below — fold chars and combining marks
+  // are all > U+007F, and ASCII has no NFKD decomposition — so skip them. Getting
+  // this equivalence wrong silently corrupts every norm it shortcuts.
+  if (!/[^\x00-\x7f]/.test(s)) return s;
   return s.replace(FOLD_RE, c => FOLD_MAP[c])
           .normalize('NFKD')
           .replace(/\p{M}/gu, '');
