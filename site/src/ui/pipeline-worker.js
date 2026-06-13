@@ -73,7 +73,6 @@ function onWorkerCrash() {
     workerUnavailable = true;
     if (run) run.resolve(erroredResult(run.stack));
     if (deferred) deferred.resolve(erroredResult(deferred.stack));
-    if (deferredTimer) { clearTimeout(deferredTimer); deferredTimer = null; }
     return;
   }
 
@@ -89,16 +88,18 @@ function onWorkerCrash() {
 }
 
 export function sendWorkerScope(scope) {
-  getWorker().postMessage({ type: 'setScope', scope });
-  // The worker rebuilds ownedCorpus synchronously from ownedBuilt on this
-  // message (FIFO-before the scope's run), so once any build has landed the
-  // client can mirror the new fresh-scope immediately — that's what lets the
-  // scope's run dispatch rather than defer. Before the first build (mirror
-  // null) leave it: nothing is fresh yet and the run must still defer.
+  // Fresh state: the worker's setScope re-slices ownedCorpus synchronously,
+  // FIFO-before the scope's run, so the optimistic mirror can't outrun it.
   if (ownedFreshScope !== null) {
+    getWorker().postMessage({ type: 'setScope', scope });
     ownedFreshScope = scope;
     drainDeferred();
+    return;
   }
+  // Null mirror (a syncConfig is reshaping the corpus): the lightweight setScope
+  // leaves a deferred scoped run with no drain signal, so it hangs (no backstop).
+  // Escalate to a resync for the now-current scope; its selfReady drains the run.
+  syncWorkerConfig(state.sources);
 }
 
 // ─── Run dispatch, supersession & the deferred-run queue ─────────────────────
@@ -114,13 +115,13 @@ let lastResultRunId = null;   // runId of the last `result` the worker delivered
 
 // The single latest-wins deferred run. A NEW deferred run replaces it, settling
 // the replaced one aborted (settle path 2); a selfReady drains it (paths 1/3); a
-// build-failure selfReady or a crash settles it errored (paths 4/5); a timeout
-// backstop settles it aborted (path 6). Every one of those settles is wired —
-// a hung deferred promise wedges _pipelineRunning → pipelineIdle → the whole
-// suite, so this set MUST stay exhaustive.
+// build-failure selfReady or a crash settles it errored (paths 4/5). The set MUST
+// stay exhaustive — a dangling promise wedges pipelineIdle and the whole suite.
+// Deliberately NO wall-clock timeout: a timer that aborts a merely-slow build's
+// run re-parks the UI on an empty result with no error — the regression this
+// removed. A same-page worker goes silent only by crashing (handled) or
+// deadlocking (a bug we let surface, caught by Playwright's per-test timeout).
 let deferredRun = null;   // { stack, sort, scope, resolve }
-let deferredTimer = null;
-const DEFERRED_TIMEOUT_MS = 5000;
 
 function erroredResult(stack) {
   return {
@@ -134,7 +135,6 @@ export function runOnWorker(stack, sort) {
   // worker must settle every run (and any prior deferred run) gracefully.
   if (workerUnavailable) {
     if (deferredRun) { deferredRun.resolve({ aborted: true }); deferredRun = null; }
-    if (deferredTimer) { clearTimeout(deferredTimer); deferredTimer = null; }
     return Promise.resolve(erroredResult(stack));
   }
 
@@ -147,23 +147,12 @@ export function runOnWorker(stack, sort) {
   // A replacing run/defer supersedes any prior deferred run (settle path 2): the
   // old deferral can never dispatch, so settle it aborted now or it dangles.
   if (deferredRun) { deferredRun.resolve({ aborted: true }); deferredRun = null; }
-  if (deferredTimer) { clearTimeout(deferredTimer); deferredTimer = null; }
 
   // The sync ownedFreshFor read is the race-free gate: either the build's
   // selfReady has already set the mirror (dispatch now) or it hasn't (defer, and
-  // drainDeferred will fire on the next selfReady) — no window where both miss.
+  // drainDeferred fires on the build's selfReady) — no window where both miss.
   if (!ownedFreshFor(scope)) {
-    return new Promise(resolve => {
-      deferredRun = { stack, sort, scope, resolve };
-      // Backstop (settle path 6): if a selfReady/crash signal is somehow lost,
-      // resolve aborted rather than leave pipelineIdle wedged forever.
-      deferredTimer = setTimeout(() => {
-        if (deferredRun?.resolve === resolve) {
-          deferredRun = null; deferredTimer = null;
-          resolve({ aborted: true });
-        }
-      }, DEFERRED_TIMEOUT_MS);
-    });
+    return new Promise(resolve => { deferredRun = { stack, sort, scope, resolve }; });
   }
 
   return dispatchRun(stack, sort, scope);
@@ -197,12 +186,12 @@ function drainDeferred() {
   const { stack, sort, scope, resolve } = deferredRun;
   if (!ownedFreshFor(scope)) return;
   deferredRun = null;
-  if (deferredTimer) { clearTimeout(deferredTimer); deferredTimer = null; }
   dispatchRun(stack, sort, scope).then(resolve);
 }
 
 function onWorkerMessage({ data }) {
   if (!data) return;
+  if (data.type === 'selfReady') { handleSelfReady(data); return; }
   if (data.type === 'result') {
     if (!pendingRun || data.runId !== pendingRun.runId) return;   // stale — drop
     const run = pendingRun;
@@ -346,6 +335,13 @@ export function failNextWorkerBuildForTest() {
 // ─── Self-build bridge ── boot handshake + test oracle ── see docs/worker-protocol.md ──
 let configRequestId = 0;
 export function syncConfigsSent() { return configRequestId; }
+
+// configId → its workerReady resolver. selfReady MUST be consumed on the PERSISTENT
+// listener (handleSelfReady): the old per-call listener was torn down on a 5s timer,
+// so any slower build's selfReady was orphaned — worker fully built, UI parked on an
+// empty result with no error. Don't reintroduce a timed per-call listener.
+const _configWaiters = new Map();
+
 export function syncWorkerConfig(sources) {
   const w = getWorker();
   const scope = state.selected === MERGED_ID ? MERGED_ID : state.selected?.dbKey ?? MERGED_ID;
@@ -369,37 +365,35 @@ export function syncWorkerConfig(sources) {
     })),
   };
   return new Promise(resolve => {
-    const timer = setTimeout(() => { w.removeEventListener('message', onMessage); resolve(false); }, 5000);
-    function onMessage({ data }) {
-      if (data?.type !== 'selfReady' || data.configId !== configId) return;
-      clearTimeout(timer);
-      w.removeEventListener('message', onMessage);
-      setShippedAllSourcesAxis(data.axis, data.version);
-      setShippedConfigCounts(data.sourceCounts ?? null, data.mergedCount ?? null, data.version);
-      applySelfReadyFreshness(data, scope, configId);
-      resolve(data.count);
-    }
-    w.addEventListener('message', onMessage);
+    _configWaiters.set(configId, resolve);
     w.postMessage(payload);
   });
 }
 
+function handleSelfReady(data) {
+  setShippedAllSourcesAxis(data.axis, data.version);
+  setShippedConfigCounts(data.sourceCounts ?? null, data.mergedCount ?? null, data.version);
+  applySelfReadyFreshness(data);
+  const resolve = _configWaiters.get(data.configId);
+  if (resolve) { _configWaiters.delete(data.configId); resolve(data.count); }
+}
+
 // The build's selfReady is the deferred-run drain trigger. A SUCCESSFUL build
-// (built) marks the worker fresh for this sync's scope → drainDeferred dispatches
-// any matching deferral (settle paths 1/3). A genuinely FAILED build (the latest
+// (built) marks the worker fresh for its scope → drainDeferred dispatches any
+// matching deferral (settle paths 1/3). A genuinely FAILED build (the latest
 // sync, ownedCorpus null) must NOT mark fresh — it leaves the deferred run
 // undispatchable, the hang trap: settle it errored (settle path 4). A SUPERSEDED
 // build also reports built:false (its work was discarded for a newer sync), but a
 // newer syncConfig is in flight that WILL drain the deferral, so its selfReady is
 // ignored — settling errored here would prematurely fail a run a later build serves.
-function applySelfReadyFreshness(data, scope, configId) {
+function applySelfReadyFreshness(data) {
+  const scope = data.scope ?? MERGED_ID;
   if (data.built) {
     ownedFreshScope = scope;
     drainDeferred();
-  } else if (configId === configRequestId && deferredRun && deferredRun.scope === scope) {
+  } else if (data.configId === configRequestId && deferredRun && deferredRun.scope === scope) {
     const { stack, resolve } = deferredRun;
     deferredRun = null;
-    if (deferredTimer) { clearTimeout(deferredTimer); deferredTimer = null; }
     resolve(erroredResult(stack));
   }
 }

@@ -1281,6 +1281,7 @@ onmessage = ({ data }) => {
         // trap). Reads the committed state at settle, not this build's own outcome.
         .finally(() => postMessage({
           type: 'selfReady', configId: data.configId, count: data.sources.length,
+          scope: data.scope ?? MERGED_ID,
           built: ownedCorpusFresh && ownedScope === (data.scope ?? MERGED_ID),
           axis: ownedAllSourcesAxis, version: ownedConfigVersion,
           sourceCounts: ownedMerged
