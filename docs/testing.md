@@ -39,7 +39,7 @@ The suite covers what manual testing structurally misses. Manual already catches
 
 **Fresh browser context per test.** Playwright's default. Each test gets clean localStorage + IndexedDB, so test order doesn't matter and no teardown is needed.
 
-**Three browsers.** Chromium, Firefox, and WebKit. The full suite runs against all three on every push. Cross-browser catches the rare Chrome-only API leak; on a smoke suite the maintenance is cheap because tests target user-visible behavior, not browser-specific quirks. Run one browser at a time during local iteration: `npm test -- --project=chromium`.
+**Three browsers.** Chromium, Firefox, and WebKit. The full suite runs against all three on every push. Cross-browser catches the rare Chrome-only API leak; on a smoke suite the maintenance is cheap because tests target user-visible behavior, not browser-specific quirks. Run one browser at a time during local iteration: `npm run test:browser -- --project=chromium`.
 
 ## What stays manual
 
@@ -89,15 +89,19 @@ sudo npx playwright install-deps   # first time only — installs OS-level brows
 ## Cheat sheet
 
 ```sh
-npm test                              # browser suite, all engines — what CI runs
-npm run test:unit                     # node:test unit tier (fast, no browser)
-npm test -- --project=chromium        # one browser (fast)
-npm test -- tests/browser/smoke.spec.js       # one file
-npm test -- -g "auto-seed"            # one test by name (grep)
-CI=1 npm test                         # reproduce CI conditions (1 worker, 2 retries)
-npm run test:headed                   # opens a real browser window
-npm run test:ui                       # interactive runner with time-travel
-npm run test:report                   # serve the HTML report from the last run
+npm test              # both tiers: unit, then the browser suite
+npm run test:unit     # node:test unit tier (fast, no browser)
+npm run test:browser  # browser suite, all engines — what CI runs
+npm run test:dist     # build + browser suite against the bundled dist/
+npm run test:headed   # opens a real browser window
+npm run test:ui       # interactive runner with time-travel
+npm run test:report   # serve the HTML report from the last run
+
+# Targeted browser runs pass Playwright args through test:browser:
+npm run test:browser -- --project=chromium           # one browser (fast)
+npm run test:browser -- tests/browser/smoke.spec.js  # one file
+npm run test:browser -- -g "auto-seed"               # one test by name (grep)
+CI=1 npm run test:browser                            # reproduce CI (1 worker, 2 retries)
 ```
 
 `CI=1` is worth knowing: local runs default to parallel workers, but CI uses one worker, which surfaces timing races (e.g. a click handler that hands off async work that the next assertion reads too early). If a test passes locally but fails in CI, run with `CI=1` first.
@@ -193,9 +197,9 @@ Playwright's own locator assertions (`expect(locator).toHaveText(...)`, `.toHave
 
 GitHub Actions runs the suite on push to `main` only — no PR gating. CI first builds the bundled production artifact (`npm run build` → `dist/`, where esbuild bundles the module graph and minifies) and runs the suite against *that*, not the `site/` source — so a bundling- or minification-induced break fails the build before it can deploy. The deploy job ships the exact `dist/` artifact the tests ran against. Failed runs upload traces and screenshots as artifacts; download from the run page to inspect.
 
-To reproduce the bundled build locally: `npm run test:full` (it runs `npm run build`, then the suite against `dist/`). Plain `npm test` serves the unbundled `site/` module graph.
+To reproduce the bundled build locally: `npm run test:dist` (it runs `npm run build`, then the browser suite against `dist/`). `npm test` runs the unit tier then the unbundled `site/` browser matrix; `npm run test:browser` is the browser tier alone (what CI's matrix jobs invoke, with the unit tier gating them in the build job).
 
-**Run the full matrix against `dist`, not `site/`.** Dev serves the raw module graph (~75 small files), and a full `npm test` against `site/` makes every page load waterfall through that graph — which flakes on **webkit** under parallel-worker load (`page.goto` "waiting until load" timeouts). The bundled `dist` is one request, no waterfall, and runs clean. So use `npm run test:full` for the full three-browser matrix — it builds `dist/` and runs the suite against it (CI does the equivalent already); single-browser chromium iteration against `site/` is fine.
+**Run the full matrix against `dist`, not `site/`.** Dev serves the raw module graph (~75 small files), and the browser matrix against `site/` makes every page load waterfall through that graph — which flakes on **webkit** under parallel-worker load (`page.goto` "waiting until load" timeouts). The bundled `dist` is one request, no waterfall, and runs clean. So use `npm run test:dist` for the full three-browser matrix — it builds `dist/` and runs the suite against it (CI does the equivalent already); single-browser chromium iteration against `site/` is fine.
 
 ## When a test breaks
 

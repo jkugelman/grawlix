@@ -106,7 +106,7 @@ jobs:
         # Comfortably above a single shard's single-worker runtime — headroom
         # for a noisy runner while still catching a genuine hang.
         timeout-minutes: 15
-        run: npm test -- --project=${{ matrix.browser }} --shard=${{ matrix.shard }}/${{ matrix.shards }}
+        run: npm run test:browser -- --project=${{ matrix.browser }} --shard=${{ matrix.shard }}/${{ matrix.shards }}
         env:
           GRAWLIX_SITE_DIR: dist
 

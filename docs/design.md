@@ -651,7 +651,7 @@ The dev artifact and the shipped artifact are deliberately different, and that s
 
 The build was rejected from being a *dev-server* bundler (Vite et al.): in dev those transform files on request, so the workflow becomes "run the bundler" rather than "serve static files," colliding with the static-serve requirement. Native modules in dev cost nothing because Grawlix is always behind an HTTP server anyway (ES modules are blocked over `file://`, fine over `http://`).
 
-**The dev-waterfall gotcha:** a full `npm test` against the unbundled `site/` flakes on webkit under parallel-worker load — the cold-load module waterfall times out `page.goto`. The bundled `dist/` has no waterfall (one request) and runs clean. So the full matrix / stage gates use `GRAWLIX_SITE_DIR=dist npm test`; per-file chromium iteration against `site/` is fine.
+**The dev-waterfall gotcha:** the browser matrix against the unbundled `site/` flakes on webkit under parallel-worker load — the cold-load module waterfall times out `page.goto`. The bundled `dist/` has no waterfall (one request) and runs clean. So the full matrix / stage gates use `npm run test:dist`; per-file chromium iteration against `site/` is fine.
 
 ### Importing defines; `boot()` does
 

@@ -7,9 +7,10 @@
   "scripts": {
     "build": "node scripts/build.mjs",
     "dev": "python3 -m http.server 4173 --directory site",
-    "test": "playwright test",
+    "test": "npm run test:unit && npm run test:browser",
     "test:unit": "node --test tests/unit/",
-    "test:full": "npm run build && GRAWLIX_SITE_DIR=dist playwright test",
+    "test:browser": "playwright test",
+    "test:dist": "npm run build && GRAWLIX_SITE_DIR=dist npm run test:browser",
     "test:headed": "playwright test --headed",
     "test:ui": "playwright test --ui",
     "test:report": "playwright show-report"
