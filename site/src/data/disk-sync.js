@@ -4,12 +4,10 @@
 
 import { MERGED_ID, MERGED_NAME } from '../core/constants.js';
 import { state, syncKey, getEditsWordlist, bumpSyncStatus } from './state.js';
-import { idbGet, idbPut, idbDel, Storage } from './storage.js';
-import { parseWordlist } from '../engine/norm.js';
+import { idbGet, idbPut, idbDel } from './storage.js';
 import { serializeEntries, sortedEntries } from '../engine/serialize.js';
 import { getOutputFormat } from './serialize.js';
 import { applyRescoring, compileRescoreRules } from '../engine/rescore.js';
-import { threeWayMergeEdits, sameEditsEntries } from '../engine/edits-merge.js';
 import { invalidateWordlistCaches } from './invalidate.js';
 import { batchUpdate, persistMeta, repaintAfterCacheChange } from './persist.js';
 
@@ -36,9 +34,15 @@ export function configureSyncDialogs({ alert, resolveConflict }) {
 let _mirrorSerializer = null;
 export function configureMirrorSerializer(fn) { _mirrorSerializer = fn; }
 
-// key → { handle, baseline? }. `baseline` (serialized as-is My Edits text) is the
-// common ancestor for My Edits' 3-way merge; without it, a two-way union can't
-// tell "added here" from "deleted there" and silently resurrects deletions.
+// Injected like the dialog/serializer hooks above: the worker runs the My Edits
+// 3-way merge (it holds the corpus + baseline), and data/ can't import ui/, so the
+// app layer injects the bridge. mergeDisk = inbound (file → corpus); flushEdits =
+// outbound (corpus → file).
+let _editsMerger = { mergeDisk: async () => null, flushEdits: async () => null };
+export function configureEditsMerger(fns) { _editsMerger = fns; }
+
+// key → { handle }. The My Edits 3-way-merge baseline lives in the worker's
+// sync_worker_<editsKey> record, not in this map.
 const syncTargets = new Map();
 const syncStatus  = new Map();
 
@@ -56,24 +60,22 @@ const SyncStatus = {
 async function loadSyncTargets() {
   for (const key of [MERGED_ID, ...state.sources.map(s => s.dbKey)]) {
     const hrec = await idbGet(SYNC_MAIN_PREFIX + key);
-    // The handle record gates: a baseline left without a handle is dead, ignore it.
     if (!hrec || !hrec.handle) continue;
-    const brec = await idbGet(SYNC_WORKER_PREFIX + key);
-    syncTargets.set(key, { handle: hrec.handle, baseline: brec?.baseline });
+    syncTargets.set(key, { handle: hrec.handle });
   }
 }
 
 async function persistSyncTarget(key) {
   const t = syncTargets.get(key);
+  // Detach teardown deletes BOTH the handle and the worker's baseline. Main is the
+  // only deleter of sync_worker_; the worker (its only writer) never races, since a
+  // merge runs only while synced and this delete fires only on teardown.
   if (!t) {
     await idbDel(SYNC_MAIN_PREFIX + key);
     await idbDel(SYNC_WORKER_PREFIX + key);
     return;
   }
   await idbPut(SYNC_MAIN_PREFIX + key, { handle: t.handle });
-  // '' is a real baseline (My Edits' empty ancestor); only `undefined` means none.
-  if (t.baseline !== undefined) await idbPut(SYNC_WORKER_PREFIX + key, { baseline: t.baseline });
-  else                         await idbDel(SYNC_WORKER_PREFIX + key);
 }
 
 // InvalidStateError means a cloud-sync client (Dropbox, OneDrive) touched the file
@@ -183,17 +185,18 @@ const MirrorSync = {
   },
 };
 
-function applyReconciledEdits(edits, entries) {
+// Deliberately does NOT persist: the worker owns the data_<editsKey> IDB write, so
+// a main-side write here would race it and could clobber the worker's truth. This
+// only seeds main's resident copy (for the editor/legend) from the merged entries.
+function applyReconciledSeed(edits, mergedEntries) {
   batchUpdate(() => {
     invalidateWordlistCaches(edits);
-    edits.rawEntries = entries;
+    edits.rawEntries = mergedEntries;
     edits.lastUpdated = Date.now();
     compileRescoreRules(edits);
     persistMeta();
     repaintAfterCacheChange();
   });
-  Storage.writeWordlist(edits, serializeEntries(sortedEntries(entries)))
-    .catch(err => console.error('My Edits IDB write failed', err));
 }
 
 const EditsSync = {
@@ -209,7 +212,7 @@ const EditsSync = {
 
   async connect(handle) {
     const key = editsSyncKey();
-    syncTargets.set(key, { handle, baseline: '' });
+    syncTargets.set(key, { handle });
     await persistSyncTarget(key);
     SyncStatus.set(key, 'synced');
     await this.reconcile();
@@ -245,13 +248,11 @@ const EditsSync = {
     const key = editsSyncKey();
     const t = syncTargets.get(key);
     if (!t) return;
-    const text = serializeEntries(sortedEntries(getEditsWordlist().rawEntries));
-    if (text === t.baseline) return;
+    const res = await _editsMerger.flushEdits();
+    if (!res?.changed) return;
     SyncStatus.set(key, 'writing');
     try {
-      await this._ownWrite(text);
-      t.baseline = text;
-      await persistSyncTarget(key);
+      await this._ownWrite(res.text);
       SyncStatus.set(key, 'synced');
     } catch (err) {
       console.error('My Edits file write failed', err);
@@ -295,24 +296,23 @@ const EditsSync = {
     const fileText = await Disk.read(t.handle);
     if (fileText === null) { SyncStatus.set(key, 'unavailable'); return; }
 
-    const { resolved, conflicts } = threeWayMergeEdits(
-      parseWordlist(t.baseline || ''), parseWordlist(fileText), edits.rawEntries);
-
-    if (conflicts.length) {
+    // Two-phase on conflict: the first mergeDisk returns conflicts WITHOUT applying;
+    // the second re-runs deterministically with the user's choice. Statelessly safe
+    // because corpus/baseline/file are stable while the modal dialog is open — the
+    // worker holds no pending merge state between the two calls.
+    let res = await _editsMerger.mergeDisk(fileText);
+    if (res == null) { SyncStatus.set(key, 'unavailable'); return; }
+    if (res.conflicts?.length) {
       SyncStatus.set(key, 'conflict');
-      const choice = await _resolveConflict(t.handle.name, conflicts);
-      if (choice === 'file') {
-        for (const c of conflicts) { if (c.file) resolved.set(c.norm, c.file); else resolved.delete(c.norm); }
-      }
+      const choice = await _resolveConflict(t.handle.name, res.conflicts);
+      res = await _editsMerger.mergeDisk(fileText, choice);
+      if (res == null) { SyncStatus.set(key, 'unavailable'); return; }
     }
 
-    const merged = [...resolved.values()];
-    if (!sameEditsEntries(merged, edits.rawEntries)) applyReconciledEdits(edits, merged);
-
-    const outText = serializeEntries(sortedEntries(merged));
-    if (outText !== fileText) await this._ownWrite(outText);
-    t.baseline = outText;
-    await persistSyncTarget(key);
+    // A null mergedText is the worker's not-ready no-op: leave the file alone.
+    if (res.mergedText == null) { SyncStatus.set(key, 'unavailable'); return; }
+    if (res.corpusChanged) applyReconciledSeed(edits, res.rawEntries);
+    if (res.mergedText !== fileText) await this._ownWrite(res.mergedText);
     SyncStatus.set(key, 'synced');
   },
 };
@@ -409,7 +409,7 @@ export {
   syncTargets, syncStatus,
   isMirrorList, editsSyncKey, listForSyncKey, syncFilename,
   SyncStatus, loadSyncTargets, persistSyncTarget, withFsRetry, Disk, MirrorSync,
-  applyReconciledEdits, EditsSync,
+  applyReconciledSeed, EditsSync,
   attachMirrorSync, attachEditsSync, detachSync, rescoredFilename, sanitizeFilenameStem,
   partitionSyncPermissions, activateSyncTarget,
 };

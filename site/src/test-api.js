@@ -26,6 +26,7 @@ import { setWordlistRescoreRules, setWordlistEnabled, reorderSources } from './d
 import {
   syncTargets, syncFilename,
   attachMirrorSync, attachEditsSync, EditsSync, MirrorSync, loadSyncTargets,
+  configureSyncDialogs,
 } from './data/disk-sync.js';
 import { threeWayMergeEdits } from './engine/edits-merge.js';
 import { migrateIdbRecords } from './data/migrations.js';
@@ -447,6 +448,12 @@ const __grawlixTest = {
     attachEditsNew() { return attachEditsSync({ existing: false }); },
     reconcileEdits() { return EditsSync.reconcile(); },
     tickEdits() { return EditsSync._tick(); },
+    setConflictResolver(choice) { configureSyncDialogs({ resolveConflict: async () => choice }); },
+    trackConflict() {
+      window.__conflictRaised = false;
+      configureSyncDialogs({ resolveConflict: async () => { window.__conflictRaised = true; return 'device'; } });
+    },
+    scheduleEditsWrite() { return EditsSync.scheduleWrite(); },
     isSynced(name) { return syncTargets.has(syncKey(this._list(name))); },
     filename(name) { return syncFilename(syncKey(this._list(name))); },
     async flushWrites() {
@@ -458,7 +465,7 @@ const __grawlixTest = {
     migrateIdbRecords(from) { return migrateIdbRecords(from); },
     loadTargets() { syncTargets.clear(); return loadSyncTargets(); },
     keyOf(name) { return syncKey(this._list(name)); },
-    targetFor(name) { const t = syncTargets.get(syncKey(this._list(name))); return t ? { name: t.handle?.name, baseline: t.baseline } : null; },
+    targetFor(name) { const t = syncTargets.get(syncKey(this._list(name))); return t ? { name: t.handle?.name } : null; },
   },
 
   _lookup(name) {

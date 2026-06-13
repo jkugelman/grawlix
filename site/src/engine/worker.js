@@ -14,6 +14,7 @@ import { getHistogramLayout, invalidateHistogramLayout, bucketCounts } from './h
 import { computeStatsRaw } from './stats.js';
 import { compileFlatHighlighters, materializeFlatRow } from './flat-highlight.js';
 import { serializeEntries, sortedEntries } from './serialize.js';
+import { threeWayMergeEdits, sameEditsEntries } from './edits-merge.js';
 
 // scheduler.yield() (the executor's default) starves the worker's run/cancel
 // message on Chromium and a microtask yield never delivers it — either silently
@@ -877,6 +878,99 @@ async function handleDeleteEntry(data) {
   latestSyncToken++;   // post-write bump — see handleEditEntry
 }
 
+// ─── My Edits disk merge ── see docs/worker-protocol.md ──────────────────────
+// The worker owns this baseline record; the literal must match disk-sync.js's
+// SYNC_WORKER_PREFIX, or the two silently key different records and the 3-way
+// merge runs against an absent (empty) ancestor.
+const SYNC_WORKER_PREFIX = 'sync_worker_';
+
+// A reconcile may rewrite arbitrarily many norms, so it rebuilds the owned corpus
+// WHOLESALE (a per-norm splice silently desyncs against a merge that large).
+// Mirrors syncConfig's commit body but synchronous off the resident ownedBuilt.
+function rebuildOwnedFromBuilt(scope) {
+  ownedConfigVersion++;
+  ownedAllSourcesAxis = computeAllSourcesAxis(ownedBuilt);
+  ownedMerged = buildScopeCorpus(ownedBuilt, MERGED_ID);
+  const scopeCorpus = (scope == null || scope === MERGED_ID)
+    ? ownedMerged
+    : buildScopeCorpus(ownedBuilt, scope);
+  setOwnedCorpus(scopeCorpus, scope ?? MERGED_ID);
+  return {
+    axis: ownedAllSourcesAxis,
+    counts: {
+      sourceCounts: ownedMerged.sourceCounts.map(s => ({ sourceId: s.wordlist.dbKey, count: s.count })),
+      mergedCount: ownedMerged.entries.length,
+      version: ownedConfigVersion,
+    },
+  };
+}
+
+async function handleMergeDisk({ requestId, fileText, conflictChoice }) {
+  // Edit-race harden (as editEntry): an older in-flight syncConfig build must
+  // discard rather than overwrite the reconciled corpus with stale data.
+  latestSyncToken++;
+  const edits = editsWordlist();
+  if (!ownedCorpusReady(edits)) {
+    postMessage({ type: 'mergeResult', requestId, mergedText: null, corpusChanged: false, conflicts: [] });
+    return;
+  }
+
+  const brec = await idbGet(SYNC_WORKER_PREFIX + edits.dbKey);
+  const baseline = brec?.baseline ?? '';
+  const { resolved, conflicts } = threeWayMergeEdits(
+    parseWordlist(baseline), parseWordlist(fileText), edits.rawEntries);
+
+  // Phase 1 of the two-phase round-trip: report conflicts and apply NOTHING (no
+  // corpus mutation, no baseline write) — applying here would double-apply when
+  // phase 2 re-merges with the choice. Re-running statelessly is sound because
+  // baseline/fileText/corpus are stable while main's modal dialog is open.
+  if (conflicts.length && conflictChoice === undefined) {
+    postMessage({ type: 'mergeResult', requestId, conflicts, mergedText: null, corpusChanged: false });
+    return;
+  }
+  if (conflictChoice === 'file') {
+    for (const c of conflicts) { if (c.file) resolved.set(c.norm, c.file); else resolved.delete(c.norm); }
+  }
+
+  const merged = [...resolved.values()];
+  const outText = serializeEntries(sortedEntries(merged));
+  const corpusChanged = !sameEditsEntries(merged, edits.rawEntries);
+
+  let axis, counts;
+  if (corpusChanged) {
+    edits.rawEntries = merged;
+    invalidateRescoredCacheFor(edits);
+    ({ axis, counts } = rebuildOwnedFromBuilt(ownedScope));
+    await idbPut('data_' + edits.dbKey, outText);
+  }
+  await idbPut(SYNC_WORKER_PREFIX + edits.dbKey, { baseline: outText });
+  latestSyncToken++;   // post-write bump — see handleEditEntry
+
+  postMessage({
+    type: 'mergeResult', requestId, mergedText: outText, corpusChanged, conflicts: [],
+    rawEntries: corpusChanged ? merged : undefined, axis, counts,
+  });
+}
+
+async function handleFlushEdits({ requestId }) {
+  const edits = editsWordlist();
+  if (!edits) {
+    postMessage({ type: 'flushResult', requestId, text: null, changed: false });
+    return;
+  }
+  const text = serializeEntries(sortedEntries(edits.rawEntries));
+  const brec = await idbGet(SYNC_WORKER_PREFIX + edits.dbKey);
+  // `?? ''` preserves _flushWrite's dedup against the connect-seeded '' baseline:
+  // a no-change flush (text === baseline) writes nothing.
+  const baseline = brec?.baseline ?? '';
+  if (text === baseline) {
+    postMessage({ type: 'flushResult', requestId, text, changed: false });
+    return;
+  }
+  await idbPut(SYNC_WORKER_PREFIX + edits.dbKey, { baseline: text });
+  postMessage({ type: 'flushResult', requestId, text, changed: true });
+}
+
 // ─── Self-build (test oracle) ── see docs/worker-protocol.md ─────────────────
 
 // Test-only: forces the NEXT syncConfig build to throw, so the suite can exercise
@@ -1059,6 +1153,14 @@ onmessage = ({ data }) => {
 
     case 'deleteEntry':
       handleDeleteEntry(data);
+      break;
+
+    case 'mergeDisk':
+      handleMergeDisk(data);
+      break;
+
+    case 'flushEdits':
+      handleFlushEdits(data);
       break;
 
     case 'syncConfig': {

@@ -176,7 +176,111 @@ test('v10→v11 migration splits the old sync_ record in two, deletes the old, a
 
   await page.evaluate(() => window.__grawlixTest.sync.loadTargets());
   expect(await page.evaluate(() => window.__grawlixTest.sync.targetFor('My Edits')))
-    .toEqual({ name: 'mine.txt', baseline: 'FOO;10\n' });
+    .toEqual({ name: 'mine.txt' });
+  expect(await idbGetRaw(page, 'sync_worker_' + editsKey)).toEqual({ baseline: 'FOO;10\n' });
   expect(await page.evaluate(() => window.__grawlixTest.sync.targetFor('Src')))
-    .toEqual({ name: 'Src.txt', baseline: undefined });
+    .toEqual({ name: 'Src.txt' });
+  expect(await idbGetRaw(page, 'sync_worker_' + srcKey)).toBe(null);
+});
+
+// ─── Worker owns the baseline (sync_worker_) in BOTH directions ──────────────
+// Post-flip the worker runs the 3-way merge and is the sole writer of the
+// sync_worker_<editsKey> baseline; main only writes the file and seeds its
+// resident copy. The oracle proves all four observable surfaces stay byte-
+// identical: the file bytes, the worker-owned baseline record, the worker's
+// data_<editsKey> corpus, and main's shown My Edits entries.
+
+const editsKey = page => page.evaluate(() => window.__grawlixTest.sync.keyOf('My Edits'));
+const workerBaseline = (page, key) => idbGetRaw(page, 'sync_worker_' + key);
+const mainEntries = page => page.evaluate(() =>
+  window.__grawlixTest.getWordlist('My Edits').entries.map(e => e.entry).sort());
+
+test('inbound reconcile: the worker writes the baseline, the corpus IDB, and the file', async ({ page }) => {
+  await gotoApp(page);
+  await writeFile(page, 'edits.txt', 'FOO;10\n');
+  await setNextName(page, 'edits.txt');
+  await page.evaluate(() => window.__grawlixTest.sync.attachEditsExisting());
+
+  const key = await editsKey(page);
+  expect(await workerBaseline(page, key)).toEqual({ baseline: 'FOO;10\n' });
+
+  await writeFile(page, 'edits.txt', 'FOO;10\nBAR;20\n');   // external editor adds BAR
+  await page.evaluate(() => window.__grawlixTest.sync.reconcileEdits());
+
+  const mergedText = 'BAR;20\nFOO;10\n';                    // sorted serialize
+  expect(await readFile(page, 'edits.txt')).toBe(mergedText);                 // (a) file bytes
+  expect(await workerBaseline(page, key)).toEqual({ baseline: mergedText });  // (b) worker wrote the baseline
+  expect(await idbGetRaw(page, 'data_' + key)).toBe(mergedText);             // (c) worker wrote the corpus IDB
+  expect(await mainEntries(page)).toEqual(['bar', 'foo']);                    // (d) main's resident copy
+});
+
+// The reason the merge moved to the worker: with the baseline worker-owned, a
+// locally-edited-then-flushed entry that's later changed externally auto-merges
+// (takes the file) with NO spurious conflict. A stale/main-side baseline would
+// see both the device and file diverge from the ancestor and pop the dialog.
+test('no spurious conflict: local edit → flush → external edit auto-merges', async ({ page }) => {
+  await gotoApp(page);
+  await writeFile(page, 'edits.txt', 'ABLE;50\n');
+  await setNextName(page, 'edits.txt');
+  await page.evaluate(() => window.__grawlixTest.sync.attachEditsExisting());
+
+  await page.evaluate(() => window.__grawlixTest.sync.trackConflict());
+
+  // Local edit ABLE 50 → 80, then flush (file := corpus, baseline advances to it).
+  await page.evaluate(() => window.__grawlixTest.saveMyEdit('ABLE', 'ABLE', 80, ''));
+  await page.evaluate(() => window.__grawlixTest.sync.flushWrites());
+  expect(await readFile(page, 'edits.txt')).toBe('ABLE;80\n');
+
+  // External editor changes ABLE again (80 → 90). The baseline advanced past the
+  // flush, so only the file diverges from it → auto-merge, no conflict.
+  await writeFile(page, 'edits.txt', 'ABLE;90\n');
+  await page.evaluate(() => window.__grawlixTest.sync.reconcileEdits());
+
+  expect(await page.evaluate(() => window.__conflictRaised)).toBe(false);   // no dialog
+  expect(await page.evaluate(() => window.__grawlixTest.sync.isSynced('My Edits'))).toBe(true);
+  const able = await page.evaluate(() =>
+    window.__grawlixTest.getWordlist('My Edits').entries.find(e => e.entry === 'able'));
+  expect(able.score).toBe(90);                             // took the file
+});
+
+test('conflict two-phase: choosing file vs device resolves deterministically', async ({ page }) => {
+  for (const [choice, expectedScore, expectedFile] of [['file', 90, 'ABLE;90\n'], ['device', 80, 'ABLE;80\n']]) {
+    await gotoApp(page);
+    await writeFile(page, 'edits.txt', 'ABLE;50\n');
+    await setNextName(page, 'edits.txt');
+    await page.evaluate(() => window.__grawlixTest.sync.attachEditsExisting());
+
+    // Diverge BOTH sides from the baseline=ABLE;50 on the SAME norm → a real conflict.
+    await page.evaluate(() => window.__grawlixTest.saveMyEdit('ABLE', 'ABLE', 80, ''));  // device side
+    await writeFile(page, 'edits.txt', 'ABLE;90\n');                                     // file side
+    await page.evaluate(c => window.__grawlixTest.sync.setConflictResolver(c), choice);
+    await page.evaluate(() => window.__grawlixTest.sync.reconcileEdits());
+
+    const able = await page.evaluate(() =>
+      window.__grawlixTest.getWordlist('My Edits').entries.find(e => e.entry === 'able'));
+    expect(able.score).toBe(expectedScore);
+    expect(await readFile(page, 'edits.txt')).toBe(expectedFile);
+    const key = await editsKey(page);
+    expect(await workerBaseline(page, key)).toEqual({ baseline: expectedFile });
+  }
+});
+
+test('outbound flush: a local edit pushes to the file and advances the baseline; a no-op flush writes nothing', async ({ page }) => {
+  await gotoApp(page);
+  await writeFile(page, 'edits.txt', 'ABLE;50\n');
+  await setNextName(page, 'edits.txt');
+  await page.evaluate(() => window.__grawlixTest.sync.attachEditsExisting());
+  const key = await editsKey(page);
+
+  await page.evaluate(() => window.__grawlixTest.saveMyEdit('ABLE', 'ABLE', 80, ''));
+  await page.evaluate(() => window.__grawlixTest.sync.flushWrites());
+
+  expect(await readFile(page, 'edits.txt')).toBe('ABLE;80\n');
+  expect(await workerBaseline(page, key)).toEqual({ baseline: 'ABLE;80\n' });
+
+  // A redundant flush (no corpus change) writes nothing — file mtime is unchanged.
+  const mtimeBefore = await page.evaluate(() => window.__fakeFS.files.get('edits.txt').mtime);
+  await page.evaluate(() => window.__grawlixTest.sync.scheduleEditsWrite());
+  await page.evaluate(() => window.__grawlixTest.sync.flushWrites());
+  expect(await page.evaluate(() => window.__fakeFS.files.get('edits.txt').mtime)).toBe(mtimeBefore);
 });

@@ -539,6 +539,46 @@ export function sendDeleteEntry({ norm, display }, timeout = 5000) {
   });
 }
 
+// ─── My Edits disk-merge bridge ── see docs/worker-protocol.md ───────────────
+// A timeout resolves null so reconcile()/flush leave the file alone rather than
+// wedging the sync loop on a lost reply.
+let mergeDiskRequestId = 0;
+export function fetchWorkerMergeDisk(fileText, conflictChoice, timeout = 5000) {
+  const w = getWorker();
+  const requestId = ++mergeDiskRequestId;
+  return new Promise(resolve => {
+    const timer = setTimeout(() => { w.removeEventListener('message', onMessage); resolve(null); }, timeout);
+    function onMessage({ data }) {
+      if (data?.type !== 'mergeResult' || data.requestId !== requestId) return;
+      clearTimeout(timer);
+      w.removeEventListener('message', onMessage);
+      resolve({
+        mergedText: data.mergedText, corpusChanged: data.corpusChanged, conflicts: data.conflicts,
+        rawEntries: data.rawEntries, axis: data.axis, counts: data.counts,
+      });
+    }
+    w.addEventListener('message', onMessage);
+    w.postMessage({ type: 'mergeDisk', requestId, fileText, conflictChoice });
+  });
+}
+
+let flushEditsRequestId = 0;
+export function fetchWorkerFlushEdits(timeout = 5000) {
+  const w = getWorker();
+  const requestId = ++flushEditsRequestId;
+  return new Promise(resolve => {
+    const timer = setTimeout(() => { w.removeEventListener('message', onMessage); resolve(null); }, timeout);
+    function onMessage({ data }) {
+      if (data?.type !== 'flushResult' || data.requestId !== requestId) return;
+      clearTimeout(timer);
+      w.removeEventListener('message', onMessage);
+      resolve({ text: data.text, changed: data.changed });
+    }
+    w.addEventListener('message', onMessage);
+    w.postMessage({ type: 'flushEdits', requestId });
+  });
+}
+
 // ─── Windowed row fetch bridge (test) ── see docs/worker-protocol.md ─────────
 let fetchRowsRequestId = 0;
 export function lastCompletedRunId() { return lastResultRunId; }
