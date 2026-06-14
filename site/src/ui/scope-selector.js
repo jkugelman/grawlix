@@ -111,7 +111,7 @@ export function renderSyncIndicators() {
 }
 
 export const WordlistSelector = (() => {
-  let bar, root, trigger, menu, actions, metaRow, dlSlot, kebabSlot;
+  let bar, root, trigger, menu, actions, dlSlot, kebabSlot;
   let editorToggle, editor, editorInner;
   let editorOpen = false;
 
@@ -169,7 +169,7 @@ export const WordlistSelector = (() => {
     const scope = state.selected;
     const hasDate = scope !== MERGED_ID && scope.rawEntries.length && scope.lastUpdated;
     const dateSlot = hasDate ? '<span class="detail-date"></span>' : '';
-    dlSlot.innerHTML = `${dateSlot}${downloadBtnHTML()}`;
+    dlSlot.innerHTML = `${dateSlot}${syncSignHTML(scope)}${downloadBtnHTML()}`;
     kebabSlot.innerHTML = kebabHTML();
     if (hasDate) {
       const setDate = () => {
@@ -183,15 +183,12 @@ export const WordlistSelector = (() => {
     }
   }
 
-  function renderMeta() {
-    metaRow.innerHTML = syncSignHTML(state.selected);
-  }
-
-  // In-place patch, never a renderMeta: sync status flips on every debounced
-  // save, and re-rendering the bar mid-edit would steal focus and scroll.
+  // In-place patch, never a full renderActions: sync status flips on every
+  // debounced save, and rebuilding the action row mid-edit would steal focus
+  // and scroll.
   function refreshSyncSign() {
-    const hang = metaRow.querySelector('.sync-hang');
-    if (hang) hang.outerHTML = syncSignHTML(state.selected);
+    const cur = dlSlot.querySelector('#sync-sign');
+    if (cur) cur.outerHTML = syncSignHTML(state.selected);
   }
 
   function optionHTML(scope, contribMap) {
@@ -306,7 +303,6 @@ export const WordlistSelector = (() => {
   function refresh() {
     renderTrigger();
     renderActions();
-    renderMeta();
     if (root.classList.contains('open')) renderMenu();
     refreshEditor();
   }
@@ -337,7 +333,6 @@ export const WordlistSelector = (() => {
           <span class="wls-kebab-slot"></span>
         </div>
       </div>
-      <div class="wls-bar-meta"></div>
       <div id="rescore-editor" hidden><div class="rescore-editor-inner"></div></div>`;
     document.getElementById('app').prepend(bar);
 
@@ -345,7 +340,6 @@ export const WordlistSelector = (() => {
     trigger = bar.querySelector('.wls-trigger');
     menu    = bar.querySelector('.wls-menu');
     actions = bar.querySelector('.wls-actions');
-    metaRow = bar.querySelector('.wls-bar-meta');
     dlSlot    = bar.querySelector('.wls-dl-slot');
     kebabSlot = bar.querySelector('.wls-kebab-slot');
 

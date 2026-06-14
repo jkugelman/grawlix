@@ -68,10 +68,6 @@ header h1 { font-size: 19px; font-weight: 600; letter-spacing: -0.01em; line-hei
 .wls-actions, .wls-dl-slot { display: flex; align-items: center; gap: 8px; }
 .wls-actions { flex: 0 0 auto; margin-left: auto; flex-wrap: wrap; }
 .wls-actions:empty { display: none; }
-.wls-bar-meta { position: absolute; top: calc(100% + 1px); right: 32px; }
-.wls-bar-meta:empty { display: none; }
-#wordlist-bar .sync-hang { padding: 0; }
-#wordlist-bar .sync-sign { margin-top: 0; }
 /* grid 0fr is not display:none, so the collapsed editor stays in layout + the
    a11y tree; the hidden attribute (set after the close transition) is what
    actually removes it, keeping Playwright's toBeVisible/toBeHidden honest. */
@@ -1033,16 +1029,14 @@ body.picker-expanded #picker-backdrop { opacity: 1; }
   .picker-search-wrap > input { font-size: 16px; }
 }
 
-.sync-hang { padding: 0 22px; }
-.sync-sign { display: inline-flex; align-items: center; gap: 6px; max-width: 100%; margin-top: -3px;
-  padding: 6px 12px; background: var(--surface); border: 1px solid var(--border); border-top: none; border-radius: 0 0 8px 8px;
-  box-shadow: 0 3px 5px -1px rgba(0, 0, 0, 0.12); font-family: inherit; font-size: 12px; line-height: 1.5; color: var(--muted); cursor: pointer; }
-.sync-sign:hover { color: var(--text); background: var(--hover); }
+.sync-sign { display: inline-flex; align-items: center; gap: 6px; max-width: 220px;
+  padding: 6px 9px; background: none; border: none; border-radius: 4px;
+  font-family: inherit; font-size: 12px; line-height: 1.4; color: var(--text); cursor: pointer; }
+.sync-sign:hover { background: var(--hover); }
 .sync-sign.attention { color: var(--warn-fg); }
-.sync-line-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sync-line-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding-right: 1px; }
 .sync-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
 .sync-dot--ok { background: var(--ok-fg); }
-.sync-dot--off { background: none; border: 1.5px solid var(--faint); box-sizing: border-box; }
 .sync-dot--warn { background: var(--warn-fg); }
 .sync-dot--working { background: var(--accent); }
 

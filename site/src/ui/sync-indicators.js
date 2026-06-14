@@ -11,23 +11,23 @@ import { syncTargets, SyncStatus, syncFilename } from '../data/disk-sync.js';
 export function syncSignHTML(list) {
   if (isMobile()) return '';
   const key = syncKey(list);
-  const synced = syncTargets.has(key);
-  const status = synced ? SyncStatus.get(key) : null;
-  const file = synced ? esc(syncFilename(key)) : '';
 
+  if (!syncTargets.has(key)) {
+    return `<button type="button" id="sync-sign" class="primary" onclick="WordlistActions.action('openSync')">Sync to disk</button>`;
+  }
+
+  const status = SyncStatus.get(key);
+  const file = esc(syncFilename(key));
   let dot, text;
-  if (!synced)                       { dot = 'off';     text = 'Disk sync off'; }
-  else if (status === 'unavailable') { dot = 'warn';    text = `Can’t find ${file}`; }
+  if      (status === 'unavailable') { dot = 'warn';    text = `Can’t find ${file}`; }
   else if (status === 'conflict')    { dot = 'warn';    text = 'Sync conflict'; }
   else if (status === 'writing')     { dot = 'working'; text = 'Saving…'; }
   else                               { dot = 'ok';      text = `Syncing to ${file}`; }
 
-  return `<div class="sync-hang">
-      <button type="button" id="sync-sign" class="sync-sign${dot === 'warn' ? ' attention' : ''}" onclick="WordlistActions.action('openSync')" title="${synced ? 'Manage disk sync' : 'Disk sync'}">
-        <span class="sync-dot sync-dot--${dot}"></span>
-        <span class="sync-line-text">${text}</span>
-      </button>
-    </div>`;
+  return `<button type="button" id="sync-sign" class="sync-sign${dot === 'warn' ? ' attention' : ''}" onclick="WordlistActions.action('openSync')" title="Manage disk sync">
+      <span class="sync-dot sync-dot--${dot}"></span>
+      <span class="sync-line-text">${text}</span>
+    </button>`;
 }
 
 export function maxSeverity(...severities) {
