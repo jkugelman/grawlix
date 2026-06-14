@@ -449,7 +449,7 @@ mark.search-match { border-radius: 2px; padding: 0 1px; margin: 0 -1px; font-sty
 .entries-empty-add { margin-top: 10px; background: transparent; border: 1px solid var(--border); border-radius: 4px; color: var(--accent); font: inherit; cursor: pointer; padding: 4px 12px; font-style: normal; }
 .entries-empty-add:hover { background: var(--hover); border-color: var(--accent); }
 
-#atom-popover { position: fixed; z-index: 600; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 6px 24px rgba(0,0,0,0.2); padding: 12px 14px; font-size: 12px; color: var(--text); min-width: 280px; max-width: 440px; }
+#atom-popover { position: fixed; z-index: 600; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 6px 24px rgba(0,0,0,0.2); padding: 12px 14px; font-size: 12px; color: var(--text); min-width: 280px; max-width: 440px; max-height: calc(100dvh - 16px); overflow-y: auto; }
 .atom-pop-title { font-size: 13px; font-weight: 700; color: var(--text); margin: 0 0 10px; padding-right: 20px; }
 .atom-pop-prov-wrap { margin-top: 10px; }
 .atom-pop-prov-wrap:empty { display: none; }

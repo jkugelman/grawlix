@@ -1589,6 +1589,7 @@ export class EntriesScroller extends BaseVirtualScroller {
 export const AtomPopover = (() => {
   let el = null;
   let activeRow = null;
+  let activeAnchor = null;
   let activeWlEntry = null;
   let activeSeed = null;
   let activeScroller = null;
@@ -1641,6 +1642,7 @@ export const AtomPopover = (() => {
     el.setAttribute('hidden', '');
     if (activeRow) activeRow.classList.remove('active');
     activeRow = null;
+    activeAnchor = null;
     activeWlEntry = null;
     activeSeed = null;
     activeScroller = null;
@@ -1692,7 +1694,8 @@ export const AtomPopover = (() => {
 
     popover.innerHTML = renderHTML(wlEntry, seed);
     popover.removeAttribute('hidden');
-    position(anchorEl ?? rowEl);
+    activeAnchor = anchorEl ?? rowEl;
+    position(activeAnchor);
     wireFields();
 
     fireInitialProvenanceQuery(seed.entry);
@@ -1984,6 +1987,9 @@ export const AtomPopover = (() => {
     if (!isOpen()) return;
     const provEl = el.querySelector('.atom-pop-prov-wrap');
     if (provEl) provEl.innerHTML = renderProvenanceTableHTML() + renderNotesHTML();
+    // open() positions against the still-empty table (rows await the worker), so
+    // re-anchor as it grows or the popover spills off the bottom near the viewport edge.
+    position(activeAnchor);
   }
 
   // No debounce: every keystroke (and the open) fires. The monotonic token drops
@@ -2124,7 +2130,10 @@ export const AtomPopover = (() => {
       if (left + pw > window.innerWidth - 8) left = window.innerWidth - 8 - pw;
       if (left < 8) left = 8;
       let top = r.bottom + 4;
-      if (top + ph > window.innerHeight - 8) top = Math.max(8, r.top - ph - 4);
+      if (top + ph > window.innerHeight - 8) {
+        const above = r.top - ph - 4;
+        top = above >= 8 ? above : Math.max(8, window.innerHeight - 8 - ph);
+      }
       el.style.top = top + 'px';
       el.style.left = left + 'px';
     });
