@@ -4,7 +4,7 @@
 
 import { WORDLIST_PUBLISHERS, MERGED_NAME } from '../../core/constants.js';
 import { pluralize } from '../../core/util.js';
-import { isMobile } from '../../core/platform.js';
+import { getBrowser, isMobile } from '../../core/platform.js';
 import { effect } from '../../core/signals.js';
 import { FEATURED_TOOLS, TOOLS } from '../../engine/tools.js';
 import { sources$, cacheVersion$, configSummary$ } from '../../data/state.js';
@@ -60,12 +60,13 @@ export const WelcomeDialog = (() => {
         <span class="welcome-merge-count">${pluralize(mergedEntryCount(), 'entry', 'entries')}</span>
       </div>`;
 
+    const browserIcon = getBrowser().id === 'edge' ? 'icon-browser-edge' : 'icon-browser-chrome';
     const storageShot = `
-      <ul class="welcome-sync-files">
-        <li>📄 <strong>My Edits.txt</strong> <span class="welcome-sync-dir">⇄</span> Grawlix</li>
-        <li>Grawlix <span class="welcome-sync-dir">→</span> 📄 <strong>${MERGED_NAME} rescored.txt</strong></li>
-        <li>Grawlix <span class="welcome-sync-dir">→</span> 📄 Spread the Word(list).txt</li>
-      </ul>`;
+      <svg class="welcome-sync-icon" aria-hidden="true"><use href="#${browserIcon}"/></svg>
+      <span class="welcome-sync-arrow">⇄</span>
+      <span class="welcome-sync-emoji">📄</span>
+      <span class="welcome-sync-arrow">⇄</span>
+      <svg class="welcome-sync-icon" aria-hidden="true"><use href="#icon-crossword"/></svg>`;
 
     const diskCaveat = Disk.isSupported() ? ''
       : isMobile() ? ' (Desktop only)'
@@ -94,7 +95,7 @@ export const WelcomeDialog = (() => {
       <section class="welcome-feature">
         <div class="welcome-copy">
           <h3>Sync with your construction software</h3>
-          <p>Point Grawlix at a file you already feed to Ingrid, Crossfire, or Crossword Compiler. Your edits flow both ways, automatically.${diskCaveat}</p>
+          <p>Point Grawlix at files already loaded by Ingrid, Crossfire, or Crossword Compiler. Your edits flow both ways, automatically.${diskCaveat}</p>
         </div>
         <div class="welcome-shot" inert><div class="welcome-shot-inner welcome-shot-storage">${storageShot}</div></div>
       </section>

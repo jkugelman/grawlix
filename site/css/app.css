@@ -670,10 +670,10 @@ dialog h2 { font-size: 16px; margin-bottom: 14px; padding-right: 24px; }
 .welcome-copy h3 { font-size: 14px; margin: 0 0 5px; color: var(--text); }
 .welcome-copy p { font-size: 13px; line-height: 1.5; color: var(--muted); margin: 0; }
 .welcome-shot { position: relative; height: 132px; overflow: hidden; border: 1px solid var(--border2); border-radius: 8px; background: var(--surface); pointer-events: none; user-select: none; -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 30px), transparent); mask-image: linear-gradient(to bottom, #000 calc(100% - 30px), transparent); }
-.welcome-shot:has(.welcome-shot-tools), .welcome-shot:has(.welcome-shot-storage) { -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 44px), transparent); mask-image: linear-gradient(to right, #000 calc(100% - 44px), transparent); }
+.welcome-shot:has(.welcome-shot-tools) { -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 44px), transparent); mask-image: linear-gradient(to right, #000 calc(100% - 44px), transparent); }
 .welcome-shot-inner { padding: 10px; }
 .welcome-shot-tools { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(150px, 1fr); gap: 8px; }
-.welcome-shot:has(.welcome-shot-merge) { -webkit-mask-image: none; mask-image: none; }
+.welcome-shot:has(.welcome-shot-merge), .welcome-shot:has(.welcome-shot-storage) { -webkit-mask-image: none; mask-image: none; }
 .welcome-shot-merge { height: 100%; box-sizing: border-box; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 7px; padding: 8px; }
 .welcome-merge-sources { display: flex; flex-wrap: wrap; justify-content: center; gap: 7px; }
 .welcome-merge-sources .wordlist-icon { width: 20px; height: 20px; }
@@ -683,11 +683,10 @@ dialog h2 { font-size: 16px; margin-bottom: 14px; padding-right: 24px; }
 .welcome-merge-all .wordlist-icon { width: 22px; height: 22px; }
 .welcome-merge-all-name { font-weight: 600; color: var(--text); font-size: 13px; }
 .welcome-merge-count { color: var(--muted); font-size: 12px; }
-.welcome-shot-storage { font-size: 12px; line-height: 1.7; }
-.welcome-sync-files { list-style: none; margin: 0; padding-left: 4px; color: var(--muted); }
-.welcome-sync-files li { white-space: nowrap; }
-.welcome-sync-files strong { color: var(--text); }
-.welcome-sync-dir { color: var(--accent); font-weight: 700; padding: 0 2px; }
+.welcome-shot-storage { height: 100%; box-sizing: border-box; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 8px; }
+.welcome-sync-icon { width: 32px; height: 32px; flex-shrink: 0; }
+.welcome-sync-emoji { font-size: 28px; line-height: 1; flex-shrink: 0; }
+.welcome-sync-arrow { color: var(--accent); font-weight: 700; font-size: 22px; line-height: 1; flex-shrink: 0; }
 
 /* Import guide dialog */
 #import-guide-dialog { --dialog-w: 480px; }
