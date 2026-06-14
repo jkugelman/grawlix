@@ -77,7 +77,7 @@ export const SettingsDialog = (() => {
           <div class="dialog-row-label">Reset browser data</div>
           <div class="dialog-row-sub" id="reset-row-sub"></div>
         </div>
-        <button id="btn-reset" class="danger" title="Reset browser data"><svg class="icon-trash"><use href="#icon-trash"/></svg> Reset</button>
+        <button id="btn-reset" class="danger" title="Reset browser data">Reset</button>
       </div>`;
 
     const seg  = el.querySelector('#dark-mode-seg');
