@@ -3,6 +3,7 @@
 // ─── Discovery banner ───────────────────────────────────────────────────────
 
 import { MERGED_ID } from '../core/constants.js';
+import { isMobile } from '../core/platform.js';
 import { state } from '../data/state.js';
 import { lsSave, lsLoad } from '../data/storage.js';
 
@@ -15,9 +16,9 @@ export function configureDiscoveryBanner({ runImport }) {
   if (runImport) _import = runImport;
 }
 
-// Sibling above #detail-panel, not inside it: a banner mounted in the scroller's
-// fixed-row-height container would corrupt row layout, and a sticky one would
-// permanently consume vertical space for a one-time dismissable notice.
+// A plain sibling under #wordlist-bar, deliberately NOT mounted inside it: the
+// bar is sticky, so a dismissable one-time notice nested in it would permanently
+// eat pinned height via the --wordlist-bar-h cascade instead of scrolling away.
 export const DiscoveryBanner = (() => {
   let el;
 
@@ -38,6 +39,7 @@ export const DiscoveryBanner = (() => {
   ];
 
   function pick() {
+    if (isMobile()) return null;
     return BANNERS.find(b => b.when(state.selected) && lsLoad(b.key) !== '1') || null;
   }
 
@@ -47,10 +49,10 @@ export const DiscoveryBanner = (() => {
     if (el.dataset.banner === banner.key) return;   // already showing this one
     el.dataset.banner = banner.key;
     el.innerHTML = `
-      <button type="button" class="discovery-banner-close" aria-label="Dismiss">✕</button>
       <p>${banner.body}</p>
       <div class="discovery-banner-actions">
         <button type="button" class="discovery-banner-import primary">Import</button>
+        <button type="button" class="discovery-banner-close" aria-label="Dismiss">✕</button>
       </div>`;
     el.hidden = false;
   }
@@ -59,7 +61,7 @@ export const DiscoveryBanner = (() => {
     el = document.createElement('div');
     el.id = 'discovery-banner';
     el.hidden = true;
-    document.getElementById('detail-panel').before(el);
+    document.getElementById('featured-row').before(el);
 
     el.addEventListener('click', e => {
       if (e.target.closest('.discovery-banner-close')) {
