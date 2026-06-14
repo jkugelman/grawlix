@@ -22,7 +22,7 @@ export function syncSignHTML(list) {
   if      (status === 'unavailable') { dot = 'warn';    text = `Can’t find ${file}`; }
   else if (status === 'conflict')    { dot = 'warn';    text = 'Sync conflict'; }
   else if (status === 'writing')     { dot = 'working'; text = 'Saving…'; }
-  else                               { dot = 'ok';      text = `Syncing to ${file}`; }
+  else                               { dot = 'ok';      text = `Synced to ${file}`; }
 
   return `<button type="button" id="sync-sign" class="sync-sign${dot === 'warn' ? ' attention' : ''}" onclick="WordlistActions.action('openSync')" title="Manage disk sync">
       <span class="sync-dot sync-dot--${dot}"></span>
