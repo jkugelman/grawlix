@@ -36,8 +36,8 @@ header h1 { font-size: 19px; font-weight: 600; letter-spacing: -0.01em; line-hei
    which establishes its own stacking context. */
 #wordlist-bar { position: sticky; top: var(--header-h); z-index: 61; display: flex; flex-direction: column; padding: 8px 16px; background: var(--surface); border-bottom: 1px solid var(--border2); }
 .wls-bar-top { display: flex; align-items: center; gap: 12px; }
-.wls { position: relative; }
-.wls-trigger { display: flex; align-items: center; gap: 8px; max-width: 360px; padding: 0; font: inherit; font-size: 16px; font-weight: 600; line-height: 1.2; color: var(--text); background: none; border: none; cursor: pointer; }
+.wls { position: relative; min-width: 0; display: flex; }
+.wls-trigger { display: flex; align-items: center; gap: 8px; min-width: 0; max-width: 360px; padding: 0; font: inherit; font-size: 16px; font-weight: 600; line-height: 1.2; color: var(--text); background: none; border: none; cursor: pointer; }
 .wls-trigger:hover { color: var(--accent); }
 .wls-trigger:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
 .wls-trigger .wordlist-icon { width: 16px; height: 16px; }
@@ -60,14 +60,14 @@ header h1 { font-size: 19px; font-weight: 600; letter-spacing: -0.01em; line-hei
 .wls-configure-footer:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 .wls-configure-footer svg { width: 16px; height: 16px; flex-shrink: 0; }
 
-.rescore-toggle { padding: 4px 8px; color: var(--muted); transition: color 0.15s, background 0.15s, border-color 0.15s; }
-.rescore-toggle:hover { color: var(--text); }
+.rescore-toggle { transition: color 0.15s, background 0.15s, border-color 0.15s; }
 .rescore-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.rescore-toggle-icon { flex-shrink: 0; display: block; }
+.rescore-chevron { flex-shrink: 0; margin-left: 4px; transition: transform 0.15s; }
 #wordlist-bar.rescore-open .rescore-toggle { color: var(--accent); background: var(--sel); border-color: var(--accent); }
+#wordlist-bar.rescore-open .rescore-chevron { transform: rotate(180deg); }
 .wls-actions, .wls-dl-slot { display: flex; align-items: center; gap: 8px; }
 .wls-actions { flex: 0 0 auto; margin-left: auto; flex-wrap: wrap; }
-.wls-actions:empty { display: none; }
+.wls-actions:empty, .wls-dl-slot:empty, .wls-rescore-slot:empty, .wls-kebab-slot:empty { display: none; }
 /* grid 0fr is not display:none, so the collapsed editor stays in layout + the
    a11y tree; the hidden attribute (set after the close transition) is what
    actually removes it, keeping Playwright's toBeVisible/toBeHidden honest. */
@@ -810,8 +810,6 @@ a.get-file:hover { text-decoration: underline; }
 
 /* Rescore section */
 .rescore-section { background: var(--surface); border-bottom: 1px solid var(--border2); padding: 9px 18px; flex-shrink: 0; max-height: 240px; overflow-y: auto; }
-.rescore-top { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
-.rescore-lbl { font-size: 10px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
 .rule-row { display: flex; align-items: center; gap: 5px; margin-bottom: 3px; }
 .rule-in, .rule-len, .rule-out { padding: 2px 6px; border: 1px solid var(--border); border-radius: 3px; font-size: 12px; font-family: var(--font-mono); text-align: center; background: var(--input-bg); color: var(--text); }
 .rule-in  { width: 80px; }

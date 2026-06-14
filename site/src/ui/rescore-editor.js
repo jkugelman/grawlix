@@ -207,7 +207,7 @@ export function buildRescoreSectionHTML() {
       { title: "Keep this list's raw scores and notes — drop only Grawlix's rescoring" }));
   }
   rare.push(buildRareLinkHTML('rule-bake-btn', 'Make permanent', 'makeRescorePermanent()', bakeOpts));
-  return `<div class="rescore-top"><span class="rescore-lbl">Rescoring</span></div>${list}${buildEditorFooterHTML(rare)}`;
+  return `${list}${buildEditorFooterHTML(rare)}`;
 }
 
 export function buildScoringSectionHTML() {
@@ -219,7 +219,7 @@ export function buildScoringSectionHTML() {
   if (!scoringRulesEqual(rules, DEFAULT_SCORING)) {
     rare.push(buildRareLinkHTML('rule-reset-btn', 'Reset to defaults', 'resetScoringRules()'));
   }
-  return `<div class="rescore-top"><span class="rescore-lbl">Scoring</span></div>${list}${buildEditorFooterHTML(rare)}`;
+  return `${list}${buildEditorFooterHTML(rare)}`;
 }
 
 // ─── Scoring (tier labels) ────────────────────────────────────────────────────

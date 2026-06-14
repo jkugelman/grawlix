@@ -169,11 +169,13 @@ Defaults: **great** (≥60), **good** (≥50), **fair** (≥40), **meh** (≥30)
 When you've scoped to a wordlist, its actions sit on the right of the wordlist bar. The bar is calm by default — the selector on the left, a small adjustments cluster on the right — and the rest of the screen looks the same whatever you're scoped to.
 
 **Actions differ by scope:**
-- **A source** — a split **Download** button, the adjustments (sliders) icon, and a slim **⋮** kebab with **Fetch/Import** and **Configure**. Configure is the existing dialog (rename, change icon, publisher binding, auto-update URL, import, rules) and holds a quiet red **Delete** link in its footer.
-- **My Edits** — **Import** a personal wordlist, the adjustments icon, and a **⋮** kebab with **Clear**.
-- **All Wordlists** — just **Download** (the merged product) and the adjustments icon, no kebab.
+- **A source** — a split **Download** button, a **Rescoring** button (opens the rescore-rules editor), and a slim **⋮** kebab with **Fetch/Import** and **Configure**. Configure is the existing dialog (rename, change icon, publisher binding, auto-update URL, import, rules) and holds a quiet red **Delete** link in its footer.
+- **My Edits** — **Import** a personal wordlist, a **Rescoring** button, and a **⋮** kebab with **Clear**.
+- **All Wordlists** — just **Download** (the merged product) and a **Scoring** button (the tier-label editor), no kebab.
 
-The **sync sign** hangs below the bar on the right in every scope (see [Disk sync](#disk-sync)).
+On a narrow window the bar folds its buttons into the **⋮** menu to keep the wordlist name readable — **Download** moves in first, then **Rescoring** — so a phone shows a tidy menu instead of a crowded row. All Wordlists, with only two short controls, never needs to fold.
+
+The **sync sign** sits at the right of the bar in every scope (see [Disk sync](#disk-sync)).
 
 ## Rescoring and scoring rules
 

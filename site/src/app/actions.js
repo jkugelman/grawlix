@@ -94,6 +94,7 @@ export const WordlistActions = (() => {
     delete:    async () => { await deleteWordlist(getActionTargetWordlist()); },
     configure: () => ConfigureWordlistDialog.open(getActionTargetWordlist()),
     clear:     () => clearEdits(),
+    rescore:   () => WordlistSelector.toggleEditor(),
     bakeRescoring: () => bakeRescoring(getActionTargetWordlist()),
     download:  () => {
       const target = getActionTargetWordlist();
