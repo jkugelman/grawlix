@@ -127,7 +127,7 @@ The score range applies after the pipeline runs, dropping any chain whose journe
 
 ## Exporting the entries table
 
-The kebab `⋮` at the right end of the stats bar offers four ways to get the current view out:
+The **export** menu (an up-tray icon) at the right end of the stats bar offers four ways to get the current view out:
 
 - **Copy to clipboard** — plain text with a markdown link header. Chains render inline with their glyphs (`scar → car`); all-mode pipelines render the chain members per line, comma-separated. Designed for pasting into Discord, notes, or any chat/markdown surface.
 - **Export as wordlist** — `.txt` file in `ENTRY;SCORE` per line. Chain rows use the tail entry only with the chain's minimum score (the weak link caps the chain's quality); duplicates collapse to the better of the per-chain mins. Output is alphabetical regardless of your table sort. Comments are not included. Entries containing `;` are dropped with a toast notice.

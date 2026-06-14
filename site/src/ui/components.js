@@ -178,15 +178,16 @@ export function buildSplitBtn(mainLabel, mainOnclick, menuItems, { primary = fal
     `</div>`;
 }
 
-export function buildMoreMenuHTML(menuItems, { className = '', header = '' } = {}) {
+export function buildMoreMenuHTML(menuItems, { className = '', header = '', icon = '', title = 'More options' } = {}) {
   const items = menuItems.map(([lbl, fn, opts = {}]) => {
     const dis   = opts.disabled ? ' disabled' : '';
-    const title = opts.title ? ` title="${esc(opts.title)}"` : '';
-    return `<button onclick="${fn}"${dis}${title}>${lbl}</button>`;
+    const itemTitle = opts.title ? ` title="${esc(opts.title)}"` : '';
+    return `<button onclick="${fn}"${dis}${itemTitle}>${lbl}</button>`;
   }).join('');
   const headerHTML = header ? `<div class="split-btn-menu-header">${esc(header)}</div>` : '';
+  const trigger = icon ? `<svg aria-hidden="true"><use href="#icon-${icon}"/></svg>` : '⋮';
   return `<div class="split-btn${className ? ' ' + className : ''}">` +
-    `<button class="more-menu-btn" onclick="toggleSplitMenu(event)" title="More options">⋮</button>` +
+    `<button class="more-menu-btn" onclick="toggleSplitMenu(event)" title="${esc(title)}">${trigger}</button>` +
     `<div class="split-btn-menu">${headerHTML}${items}</div>` +
     `</div>`;
 }

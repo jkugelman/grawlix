@@ -134,6 +134,9 @@ button.danger:hover:not(:disabled) { background: #e74c3c; border-color: #c0392b;
 .split-btn-menu button { display: block; width: 100%; text-align: left; border: none; background: none; border-radius: 0; padding: 6px 13px; color: var(--text); }
 .split-btn-menu-header { padding: 4px 13px 5px; margin-bottom: 4px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: var(--faint); border-bottom: 1px solid var(--border2); }
 .more-menu-btn { padding-left: 8px; padding-right: 8px; }
+.more-menu-btn svg { width: 16px; height: 16px; display: block; }
+.more-menu-btn:has(svg) { background: none; border: none; color: var(--text); padding: 4px 6px; }
+.more-menu-btn:has(svg):hover:not(:disabled) { background: var(--hover); }
 
 #detail-panel { display: flex; flex-direction: column; min-width: 0; flex: 1 1 auto; }
 
