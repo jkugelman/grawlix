@@ -130,10 +130,12 @@ export const WordlistSelector = (() => {
   function downloadBtnHTML() {
     const scope = state.selected;
     if (scope === MERGED_ID) {
-      const hasData = mergedEntryCount() > 0;
-      return hasData ? `<button id="download-btn" title="Download the merged wordlist" onclick="WordlistActions.action('download')">Download</button>` : '';
+      const dis = mergedEntryCount() === 0 ? ' disabled' : '';
+      return `<button id="download-btn"${dis} title="Download the merged wordlist" onclick="WordlistActions.action('download')">Download</button>`;
     }
-    if (!scope.rawEntries.length) return '';
+    if (!scope.rawEntries.length) {
+      return `<button id="download-btn" disabled title="Download this wordlist" onclick="WordlistActions.action('download')">Download</button>`;
+    }
     const hasRules = (scope.rescoreRules?.length ?? 0) > 0;
     return hasRules
       ? buildSplitBtn('Download', `WordlistActions.action('download')`,

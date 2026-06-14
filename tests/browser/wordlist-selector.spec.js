@@ -212,6 +212,15 @@ test('All Wordlists shows no kebab — only its Download', async ({ page }) => {
   await expect(page.locator('#wordlist-bar .wls-actions .wls-kebab')).toHaveCount(1);
 });
 
+test('the Download button is disabled, not hidden, for an empty wordlist', async ({ page }) => {
+  await gotoApp(page);
+  await scopeTo(page, 'My Edits');   // no edits yet → empty
+
+  const dl = page.locator('#wordlist-bar #download-btn');
+  await expect(dl).toBeVisible();
+  await expect(dl).toBeDisabled();
+});
+
 test('the rescore panel bake button is enabled for a bakeable source and applies the rescoring', async ({ page }) => {
   await gotoApp(page);
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
