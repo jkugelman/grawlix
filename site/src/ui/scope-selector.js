@@ -167,7 +167,7 @@ export const WordlistSelector = (() => {
   function renderActions() {
     if (_dateTimer) { clearInterval(_dateTimer); _dateTimer = null; }
     const scope = state.selected;
-    const hasDate = scope !== MERGED_ID && scope.rawEntries.length && scope.lastUpdated;
+    const hasDate = scope !== MERGED_ID && scope.type !== 'edits' && scope.rawEntries.length && scope.lastUpdated;
     const dateSlot = hasDate ? '<span class="detail-date"></span>' : '';
     dlSlot.innerHTML = `${dateSlot}${syncSignHTML(scope)}${downloadBtnHTML()}`;
     kebabSlot.innerHTML = kebabHTML();
