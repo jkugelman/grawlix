@@ -501,7 +501,7 @@ export function fetchWorkerProvenance(typedRaw, previewRaw, clickedNorm, clicked
 
 // ─── My Edits edit/add command bridge ── see docs/worker-protocol.md ─────────
 let editEntryId = 0;
-export function sendEditEntry(orig, next, timeout = 5000) {
+export function sendEditEntry(writes, timeout = 5000) {
   const w = getWorker();
   const editId = ++editEntryId;
   return new Promise(resolve => {
@@ -513,7 +513,7 @@ export function sendEditEntry(orig, next, timeout = 5000) {
       resolve({ norms: data.norms, edited: data.edited, axis: data.axis, counts: data.counts });
     }
     w.addEventListener('message', onMessage);
-    w.postMessage({ type: 'editEntry', editId, orig, next });
+    w.postMessage({ type: 'editEntry', editId, writes });
   });
 }
 

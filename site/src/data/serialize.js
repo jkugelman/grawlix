@@ -12,3 +12,14 @@ export function getOutputFormat() {
 export function setOutputFormat(fmt) {
   Storage.writeMergedSettings({ ...Storage.readMergedSettings(), outputFormat: fmt });
 }
+
+export const DEFAULT_JUNK_SCORE = 0;
+
+export function getJunkScore() {
+  const v = Storage.readMergedSettings().junkScore;
+  return Number.isFinite(v) ? v : DEFAULT_JUNK_SCORE;
+}
+
+export function setJunkScore(score) {
+  Storage.writeMergedSettings({ ...Storage.readMergedSettings(), junkScore: score });
+}

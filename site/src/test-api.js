@@ -14,6 +14,8 @@
 
 import { MERGED_ID, MERGED_NAME } from './core/constants.js';
 import { toNorm, displayOf, parseWordlist, buildUserWlEntry } from './engine/norm.js';
+import { planEntryWrite } from './engine/edit-plan.js';
+import { getJunkScore } from './data/serialize.js';
 import { setUnigramCorpus as segmenterSetCorpus } from './engine/segmenter.js';
 import { TOOLS, makeToolRow } from './engine/tools.js';
 import { state, newDbKey, syncKey, getEditsWordlist } from './data/state.js';
@@ -49,7 +51,7 @@ import { windowedFlatDebug, workerSummariesDebug, workerGroupsDebug, workerGroup
 import { applyScoringChange } from './ui/rescore-editor.js';
 import { propagateDefaults as _propagateDefaults } from './model/scoring.js';
 import {
-  addNewWordlist, applyWordlistText, bakeRescoring, saveEdit, deleteFromEdits, persistEdits,
+  addNewWordlist, applyWordlistText, bakeRescoring, saveEdit, saveEntry, deleteFromEdits, persistEdits,
   buildCopyText, buildWordlistText, buildCSVText, buildExportJSONObject, exportFilename, _ready, loadIdle,
 } from './app/actions.js';
 import { serializeEntries, sortedEntries } from './engine/serialize.js';
@@ -222,6 +224,12 @@ const __grawlixTest = {
     return refreshMergedScroller();
   },
 
+  // The + button's create path — distinct from saveMyEditFrom's edit/rename.
+  createMyEntry(raw, score, comment = '') {
+    saveEntry('create', null, { raw, score, comment });
+    return refreshMergedScroller();
+  },
+
   pingWorker,
   patchWorkerToolForTest,
   pipelineWorkerState,
@@ -236,7 +244,19 @@ const __grawlixTest = {
     fetchWorkerGroupChains(runId ?? lastCompletedRunId(), groupKey, start, end, timeout),
   fetchWorkerGroups: (start, end, runId, timeout) =>
     fetchWorkerGroups(runId ?? lastCompletedRunId(), start, end, timeout),
-  sendWorkerEditEntry: (orig, next, timeout) => sendEditEntry(orig, next, timeout),
+  // Mirror saveMyEditFrom's planner path (not a passthrough) so the worker
+  // self-build and a main rebuild converge in the oracle specs.
+  sendWorkerEditEntry: (orig, next, timeout) => {
+    const clicked = orig
+      ? (editsRawSeed(orig.norm, orig.display) ?? { norm: orig.norm, display: orig.display, score: 0, comment: '' })
+      : buildUserWlEntry(next.display, '', '');
+    const plan = planEntryWrite({
+      mode: 'edit', clicked,
+      typed: { raw: next.display, score: next.score, comment: next.comment ?? '' },
+      sources: state.sources, junkScore: getJunkScore(),
+    });
+    return sendEditEntry({ deletes: plan.deletes, upserts: plan.upserts, primary: plan.primary }, timeout);
+  },
   sendWorkerDeleteEntry: (target, timeout) => sendDeleteEntry(target, timeout),
   syncConfigsSent,
   // 'splice' | 'rebuild' | null — how the last applyFetched resolved (threshold path).

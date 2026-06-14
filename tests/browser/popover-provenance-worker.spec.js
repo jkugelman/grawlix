@@ -98,12 +98,13 @@ test('typing into the entry field repaints provenance + preview off the worker',
   await expect.poll(() => page.evaluate(() =>
     document.querySelector('#atom-popover .atom-pop-prov-entry')?.textContent ?? ''
   )).not.toBe('');
-  const surfaces = await captureSurfaces(page);
-  // Sanity: the retype rebuilt the table against the typed norm (provenanceTarget
-  // = the merged 'Theirs' canonical; the same-source bare is its own row, excluded
-  // as a sibling), not the original OCEAN.
-  expect(surfaces.prov).toContain('Theirs');
-  expect(surfaces.prov).not.toContain('ocean');
+  // Sanity: the retype rebuilt the table against the typed norm (the merged
+  // 'Theirs' canonical; the same-source bare is its own row, excluded as a
+  // sibling). 'ocean' appears only as the rename's downscore preview row now.
+  const provTable = await page.evaluate(() =>
+    document.querySelector('#atom-popover .atom-pop-prov')?.innerHTML ?? '');
+  expect(provTable).toContain('Theirs');
+  expect(provTable).toContain('atom-pop-prov-row--added');
 
   // The worker answered the retype, not just the open.
   const after = await provDebug(page);

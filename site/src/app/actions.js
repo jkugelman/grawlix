@@ -7,6 +7,7 @@ import { esc, pluralize, nameFromPath } from '../core/util.js';
 import {
   toNorm, displayOf, parseWordlist, buildUserWlEntry,
 } from '../engine/norm.js';
+import { planEntryWrite, applyEditsWriteSet } from '../engine/edit-plan.js';
 import { parseRange } from '../engine/range.js';
 import { isLiteralQuery } from '../engine/search.js';
 import {
@@ -29,7 +30,7 @@ import {
   serializeEntries, sortedEntries,
 } from '../engine/serialize.js';
 import {
-  getOutputFormat,
+  getOutputFormat, getJunkScore,
 } from '../data/serialize.js';
 import {
   compileRescoreRules, maybeAutoSeedRescoreRules, getRescoredEntries,
@@ -466,46 +467,51 @@ export async function clearEdits() {
 // ─── Actions ──────────────────────────────────────────────────────────────────
 
 export function attachExternalEditHandlers(s, refreshFn) {
-  s._onSave = (originalWlEntry, newValues) => {
-    saveEdit(originalWlEntry, newValues);
-    refreshFn?.();
-  };
+  s._onSave = (mode, baseline, newValues) =>
+    saveEntry(mode, mode === 'edit' ? baseline : null, newValues, refreshFn);
 }
 
-export function saveEdit(originalWlEntry, { raw, score, comment }) {
+export function saveEdit(orig, newValues) {
+  saveEntry('edit', orig, newValues);
+}
+
+export function saveEntry(mode, clicked, { raw, score, comment }, refreshFn) {
   const edits = getEditsWordlist();
-  const newNorm = toNorm(raw);
-  const newDisplay = raw;
-  const origNorm = originalWlEntry.norm;
-  const origDisplay = originalWlEntry.display ?? origNorm;
-  const origScore = originalWlEntry.score;
-  const origComment = originalWlEntry.comment ?? '';
+  if (mode === 'edit' && clicked && noEditChange(clicked, raw, score, comment)) { refreshFn?.(); return; }
 
-  if (origNorm === newNorm && origDisplay === newDisplay
-      && origScore === score && origComment === comment) {
-    return;
-  }
+  const plan = planEntryWrite({ mode, clicked, typed: { raw, score, comment }, sources: state.sources, junkScore: getJunkScore() });
+  if (plan.blockedReason || (!plan.deletes.length && !plan.upserts.length)) { refreshFn?.(); return; }
 
-  const entryChanged = newNorm !== origNorm || newDisplay !== origDisplay;
-
-  applyEditsChange(edits, () => {
-    if (entryChanged && origNorm) {
-      const idx = edits.rawEntries.findIndex(e => e.norm === origNorm && displayOf(e) === origDisplay);
-      if (idx >= 0) edits.rawEntries.splice(idx, 1);
-    }
-    const existing = edits.rawEntries.find(e => e.norm === newNorm && displayOf(e) === newDisplay);
-    if (existing) {
-      existing.score = score;
-      existing.comment = comment;
-    } else {
-      edits.rawEntries.push({ norm: newNorm, display: newDisplay, score, comment });
-    }
-  });
-
-  const origForCmd = origNorm ? { norm: origNorm, display: origDisplay } : null;
-  const nextForCmd = { norm: newNorm, display: newDisplay, score, comment };
-  sendEditEntry(origForCmd, nextForCmd).then(applyConfigAck);
+  const writes = { deletes: plan.deletes, upserts: plan.upserts, primary: plan.primary };
+  let inverse;
+  applyEditsChange(edits, () => { inverse = applyEditsWriteSet(edits.rawEntries, writes); });
+  sendEditEntry(writes).then(applyConfigAck);
   persistEditsMetaOnly(edits);
+  refreshFn?.();
+
+  const msg = undoToastMessage(mode, plan, clicked);
+  if (msg) {
+    const undoWrites = { deletes: inverse.deletes, upserts: inverse.upserts, primary: plan.primary };
+    showUndoToast(msg, () => {
+      applyEditsChange(edits, () => applyEditsWriteSet(edits.rawEntries, undoWrites));
+      sendEditEntry(undoWrites).then(applyConfigAck);
+      persistEditsMetaOnly(edits);
+      refreshFn?.();
+    });
+  }
+}
+
+function noEditChange(clicked, raw, score, comment) {
+  return clicked.norm === toNorm(raw)
+    && (clicked.display ?? clicked.norm) === raw
+    && clicked.score === score
+    && (clicked.comment ?? '') === comment;
+}
+
+function undoToastMessage(mode, plan, clicked) {
+  if (mode === 'edit' && plan.deletes.length) return `Renamed ${esc(clicked.display ?? clicked.norm)} → ${esc(plan.primary.display)}`;
+  if (mode === 'create' && plan.notes.length) return `Added ${esc(plan.primary.display)}`;
+  return null;
 }
 
 // ─── Fetch, import & update ───────────────────────────────────────────────────
@@ -773,7 +779,11 @@ export function deleteFromEdits(target, refreshFn) {
 
   showUndoToast(`Deleted ${esc(displayOf(deleted))} from ${buildWordlistNameHTML(edits)}`, () => {
     applyEditsChange(edits, () => { edits.rawEntries.splice(idx, 0, deleted); });
-    sendEditEntry(null, { norm, display: displayOf(deleted), score: deleted.score, comment: deleted.comment }).then(applyConfigAck);
+    sendEditEntry({
+      deletes: [],
+      upserts: [{ norm, display: deleted.display ?? null, score: deleted.score, comment: deleted.comment ?? '' }],
+      primary: { norm, display: displayOf(deleted) },
+    }).then(applyConfigAck);
     persistEditsMetaOnly(edits);
     refresh();
   });

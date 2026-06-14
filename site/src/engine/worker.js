@@ -15,6 +15,7 @@ import { computeStatsRaw } from './stats.js';
 import { compileFlatHighlighters, materializeFlatRow } from './flat-highlight.js';
 import { serializeEntries, sortedEntries } from './serialize.js';
 import { threeWayMergeEdits, sameEditsEntries } from './edits-merge.js';
+import { applyEditsWriteSet } from './edit-plan.js';
 
 // scheduler.yield() (the executor's default) starves the worker's run/cancel
 // message on Chromium and a microtask yield never delivers it — either silently
@@ -749,23 +750,6 @@ function spliceOwnedCorpus(cache, affectedNorms, bucketFn) {
   return patched;
 }
 
-// Must mirror actions.js's saveEdit mutation exactly (orig:null → add, else
-// edit/move) or the worker's My Edits diverges from main's with no error.
-function mutateEditsRawEntries(edits, orig, next) {
-  const entryChanged = next.norm !== orig?.norm || next.display !== orig?.display;
-  if (orig && entryChanged) {
-    const idx = edits.rawEntries.findIndex(e => e.norm === orig.norm && displayOf(e) === orig.display);
-    if (idx >= 0) edits.rawEntries.splice(idx, 1);
-  }
-  const existing = edits.rawEntries.find(e => e.norm === next.norm && displayOf(e) === next.display);
-  if (existing) {
-    existing.score = next.score;
-    existing.comment = next.comment;
-  } else {
-    edits.rawEntries.push({ norm: next.norm, display: next.display, score: next.score, comment: next.comment });
-  }
-}
-
 function leanRowFor(norm, display) {
   if (!(ownedMerged && ownedMerged.byKey)) return null;
   const row = ownedMerged.byKey.get(mergeKey(norm, display));
@@ -834,7 +818,7 @@ function ownedCorpusReady(edits) {
 }
 
 async function handleEditEntry(data) {
-  const { editId, orig, next } = data;
+  const { editId, writes } = data;
   // Bump at the TOP so an older in-flight syncConfig build (started before this
   // edit, reading pre-edit rawEntries) discards via its commit guard rather than
   // overwriting the edit with stale data — half of the P6d edit-race harden.
@@ -846,11 +830,12 @@ async function handleEditEntry(data) {
     return;
   }
 
-  mutateEditsRawEntries(edits, orig ?? null, next);
+  applyEditsWriteSet(edits.rawEntries, writes);
   invalidateRescoredCacheFor(edits);
 
-  const affected = [...new Set([orig?.norm, next.norm].filter(n => n != null))];
-  const ack = applyOwnedEdit(edits, affected, leanRowFor(next.norm, next.display));
+  const affected = [...new Set([...(writes.deletes || []), ...(writes.upserts || [])].map(w => w.norm))];
+  const primary = writes.primary;
+  const ack = applyOwnedEdit(edits, affected, leanRowFor(primary.norm, primary.display));
   postMessage({ type: 'editAck', editId, ...ack });
   await persistEditsCorpus(edits);
   // Bump AGAIN after the IDB write so a syncConfig that read the pre-write text
@@ -935,7 +920,7 @@ async function handleMergeDisk({ requestId, fileText, conflictChoice }) {
     return;
   }
   if (conflictChoice === 'file') {
-    for (const c of conflicts) { if (c.file) resolved.set(c.norm, c.file); else resolved.delete(c.norm); }
+    for (const c of conflicts) { if (c.file) resolved.set(c.key, c.file); else resolved.delete(c.key); }
   }
 
   const merged = [...resolved.values()];

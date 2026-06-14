@@ -450,6 +450,7 @@ mark.search-match { border-radius: 2px; padding: 0 1px; margin: 0 -1px; font-sty
 .entries-empty-add:hover { background: var(--hover); border-color: var(--accent); }
 
 #atom-popover { position: fixed; z-index: 600; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 6px 24px rgba(0,0,0,0.2); padding: 12px 14px; font-size: 12px; color: var(--text); min-width: 280px; max-width: 440px; }
+.atom-pop-title { font-size: 13px; font-weight: 700; color: var(--text); margin: 0 0 10px; padding-right: 20px; }
 .atom-pop-prov-wrap { margin-top: 10px; }
 .atom-pop-prov-wrap:empty { display: none; }
 .atom-pop-prov { width: 100%; border-collapse: collapse; font-size: 11px; }
@@ -467,6 +468,8 @@ td.atom-pop-prov-entry { font-family: var(--font-mono); }
 .atom-pop-prov-row--added td, .atom-pop-prov-row--changed td { font-weight: 700; }
 .atom-pop-prov-row--deleted td { text-decoration: line-through; color: var(--faint); }
 .atom-pop-prov-row--deleted .score-badge { opacity: 0.55; }
+.atom-pop-note { font-size: 11px; color: var(--muted); margin-top: 8px; }
+.atom-pop-note--block { color: #e53935; font-weight: 600; }
 .atom-pop-prov-action { width: 1%; white-space: nowrap; text-align: right; }
 .atom-pop-prov-trash { position: relative; background: none; border: none; padding: 2px 4px; line-height: 0; border-radius: 4px; color: var(--muted); cursor: pointer; }
 .atom-pop-prov-trash:hover { color: #e53935; background: rgba(229, 57, 53, 0.1); }
@@ -575,6 +578,8 @@ button.header-icon-btn:hover:not(:disabled) { background: var(--hdr-bg-dark); co
 .dialog-row:last-child { margin-bottom: 0; }
 .dialog-row-label { font-size: 13px; font-weight: 600; }
 .dialog-row-sub { font-size: 12px; color: var(--muted); margin-top: 2px; }
+.junk-score-input { flex: none; width: 4.5em; padding: 5px 8px; border: 1px solid var(--border); border-radius: 4px; font-size: 13px; font-family: var(--font-mono); background: var(--input-bg); color: var(--text); box-sizing: border-box; outline: none; }
+.junk-score-input:focus { border-color: var(--accent); }
 
 /* Disabled wordlist */
 .wordlist-card.disabled .card-info { opacity: 0.45; }

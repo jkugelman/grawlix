@@ -115,18 +115,19 @@ test('the provenance table tracks the typed entry and flags the My Edits contrib
   await expect(page.locator('.atom-pop-prov tbody .atom-pop-prov-source')).toContainText('Source');
   await expect(page.locator('.atom-pop-prov-trash')).toHaveCount(0);
 
-  // Retyping to bagel (carried by both Source and My Edits) lists both rows; the
-  // My Edits row carries the delete trash.
+  // Retyping to bagel lists both contributors; the carrot→bagel rename also
+  // previews a bare downscore row for the Source carrot leftover, grouped right
+  // under the My Edits bagel row — hence two My Edits rows then Source.
   await page.locator('#atom-pop-entry').fill('bagel');
-  await expect(page.locator('.atom-pop-prov tbody .atom-pop-prov-source')).toContainText(['My Edits', 'Source']);
+  await expect(page.locator('.atom-pop-prov tbody .atom-pop-prov-source')).toContainText(['My Edits', 'My Edits', 'Source']);
   await expect(
-    page.locator('.atom-pop-prov-row', { hasText: 'My Edits' }).locator('.atom-pop-prov-trash')
+    page.locator('.atom-pop-prov-row', { hasText: 'My Edits' }).first().locator('.atom-pop-prov-trash')
   ).toBeVisible();
 
   // A brand-new word has no saved contributor, but the pending edit previews as
   // an added My Edits row — with no trash, since there's nothing saved to delete.
   await page.locator('#atom-pop-entry').fill('NEWWORD');
-  await expect(page.locator('.atom-pop-prov-row--added')).toBeVisible();
+  await expect(page.locator('.atom-pop-prov-row--added', { hasText: 'NEWWORD' })).toBeVisible();
   await expect(page.locator('.atom-pop-prov-trash')).toHaveCount(0);
 });
 
@@ -148,9 +149,14 @@ test('editing the entry text renames the My Edits record', async ({ page }) => {
   await page.locator('#atom-pop-entry').fill('Bagels');
   await page.locator('.atom-pop-save').click();
 
+  // The bagel record becomes bagels (a rename, not a second record). Source still
+  // lists 'bagel', so the rename also junks that leftover via a bare downscore.
   await expect.poll(async () =>
     page.evaluate(() => window.__grawlixTest.getWordlist('My Edits').entries)
-  ).toEqual([{ entry: 'bagels', display: 'Bagels', score: 75, comment: '' }]);
+  ).toEqual([
+    { entry: 'bagels', display: 'Bagels', score: 75, comment: '' },
+    { entry: 'bagel', display: null, score: 0, comment: '' },
+  ]);
 });
 
 test('staging a delete via the row trash strikes it through and is reversible; Save commits it', async ({ page }) => {

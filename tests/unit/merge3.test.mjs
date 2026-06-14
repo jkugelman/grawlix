@@ -8,25 +8,28 @@ import { serializeMetaEntry } from '../../site/src/data/persist.js';
 
 const mk = (norm, score, comment = '') => ({ norm, score, comment });
 
+const getN = (resolved, norm) => [...resolved.values()].find(e => e.norm === norm);
+const hasN = (resolved, norm) => getN(resolved, norm) !== undefined;
+
 test('a one-sided change applies without a conflict', () => {
   const base = [mk('a', 10), mk('b', 20)];
   const file = [mk('a', 99), mk('b', 20)];
   const idb  = [mk('a', 10), mk('b', 20)];
   const { resolved, conflicts } = threeWayMergeEdits(base, file, idb);
-  assert.equal(resolved.get('a').score, 99);
+  assert.equal(getN(resolved, 'a').score, 99);
   assert.equal(conflicts.length, 0);
 });
 
 test('both sides making the same change is not a conflict', () => {
   const base = [mk('a', 10)];
   const { resolved, conflicts } = threeWayMergeEdits(base, [mk('a', 50)], [mk('a', 50)]);
-  assert.equal(resolved.get('a').score, 50);
+  assert.equal(getN(resolved, 'a').score, 50);
   assert.equal(conflicts.length, 0);
 });
 
 test('a true conflict keeps the device (idb) side and records both sides', () => {
   const { resolved, conflicts } = threeWayMergeEdits([mk('a', 10)], [mk('a', 99)], [mk('a', 50)]);
-  assert.equal(resolved.get('a').score, 50);
+  assert.equal(getN(resolved, 'a').score, 50);
   assert.deepEqual(conflicts.map(c => c.norm), ['a']);
   assert.equal(conflicts[0].device.score, 50);
   assert.equal(conflicts[0].file.score, 99);
@@ -35,14 +38,14 @@ test('a true conflict keeps the device (idb) side and records both sides', () =>
 test('a device-side deletion is not resurrected by the file leaving it untouched', () => {
   const base = [mk('a', 1), mk('b', 2)];
   const { resolved, conflicts } = threeWayMergeEdits(base, [mk('a', 1), mk('b', 2)], [mk('a', 1)]);
-  assert.equal(resolved.has('b'), false);
-  assert.equal(resolved.has('a'), true);
+  assert.equal(hasN(resolved, 'b'), false);
+  assert.equal(hasN(resolved, 'a'), true);
   assert.equal(conflicts.length, 0);
 });
 
 test('a one-sided add applies silently', () => {
   const { resolved, conflicts } = threeWayMergeEdits([mk('a', 1)], [mk('a', 1), mk('c', 3)], [mk('a', 1)]);
-  assert.equal(resolved.get('c').score, 3);
+  assert.equal(getN(resolved, 'c').score, 3);
   assert.equal(conflicts.length, 0);
 });
 
@@ -51,7 +54,7 @@ test('delete-on-file vs modify-on-device is a conflict, not a silent delete', ()
   assert.equal(conflicts.length, 1);
   assert.ok(!conflicts[0].file);
   assert.equal(conflicts[0].device.score, 9);
-  assert.equal(resolved.get('a').score, 9);
+  assert.equal(getN(resolved, 'a').score, 9);
 });
 
 test('deletion does not resurrect: file deletes an entry idb left untouched', () => {
@@ -59,14 +62,27 @@ test('deletion does not resurrect: file deletes an entry idb left untouched', ()
   const file = [mk('b', 20)];
   const idb  = [mk('a', 10), mk('b', 20)];
   const { resolved } = threeWayMergeEdits(base, file, idb);
-  assert.equal(resolved.has('a'), false);
-  assert.equal(resolved.get('b').score, 20);
+  assert.equal(hasN(resolved, 'a'), false);
+  assert.equal(getN(resolved, 'b').score, 20);
 });
 
 test('both sides deleting the same entry leaves it deleted, no conflict', () => {
   const { resolved, conflicts } = threeWayMergeEdits([mk('a', 10)], [], []);
   assert.equal(resolved.size, 0);
   assert.equal(conflicts.length, 0);
+});
+
+test('same-norm siblings both survive — keyed by (norm, display), not norm', () => {
+  const sib = (display, score) => ({ norm: 'theirs', display, score, comment: '' });
+  const base = [sib('theirs', 10), sib('the IRS', 20)];
+  const file = [sib('theirs', 99), sib('the IRS', 20)];   // file bumps the bare sibling only
+  const idb  = [sib('theirs', 10), sib('the IRS', 20)];
+  const { resolved, conflicts } = threeWayMergeEdits(base, file, idb);
+  assert.equal(conflicts.length, 0);
+  const merged = [...resolved.values()];
+  assert.equal(merged.length, 2);
+  assert.equal(merged.find(e => e.display === 'theirs').score, 99);
+  assert.equal(merged.find(e => e.display === 'the IRS').score, 20);
 });
 
 test('editsEntryEqual: two records with matching score/comment/display are equal', () => {

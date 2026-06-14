@@ -15,6 +15,7 @@
 import { ROW_HEIGHT, VS_BUFFER, MERGED_ID } from '../core/constants.js';
 import { esc } from '../core/util.js';
 import { displayOf, projectRangesToDisplay, toNorm, buildUserWlEntry } from '../engine/norm.js';
+import { planEntryWrite } from '../engine/edit-plan.js';
 import { parseRange } from '../engine/range.js';
 import { renderHighlightedText } from '../engine/search.js';
 import { TOOLS } from '../engine/tools.js';
@@ -28,6 +29,7 @@ import {
 } from '../engine/group-sort.js';
 import { compileFlatHighlighters } from '../engine/flat-highlight.js';
 import { state, getEditsWordlist } from '../data/state.js';
+import { getJunkScore } from '../data/serialize.js';
 import { rescoreEntry } from '../engine/rescore.js';
 import { makeTierLookup } from '../model/scoring.js';
 import { buildScoreBadgeHTML, buildScoreCellHTML } from '../model/score-display.js';
@@ -1590,6 +1592,7 @@ export const AtomPopover = (() => {
   let activeWlEntry = null;
   let activeSeed = null;
   let activeScroller = null;
+  let activeMode = 'edit';
   let stagedDelete = null;
   // Monotonic token for an in-flight scoped-seed worker query; a re-open or close
   // bumps it so a late reply for a stale popover is dropped rather than re-seeding
@@ -1641,6 +1644,7 @@ export const AtomPopover = (() => {
     activeWlEntry = null;
     activeSeed = null;
     activeScroller = null;
+    activeMode = 'edit';
     focusEl = null;
     stagedDelete = null;
     seedQueryToken++;
@@ -1672,9 +1676,10 @@ export const AtomPopover = (() => {
     return state.selected !== MERGED_ID && clicked?.norm != null;
   }
 
-  function open(wlEntry, rowEl, scroller, anchorEl, focusField = 'score') {
+  function open(wlEntry, rowEl, scroller, anchorEl, focusField = 'score', mode = 'edit') {
     const popover = ensureElement();
     if (activeRow) activeRow.classList.remove('active');
+    activeMode = mode;
     activeWlEntry = wlEntry;
     activeRow = rowEl;
     activeScroller = scroller;
@@ -1742,6 +1747,7 @@ export const AtomPopover = (() => {
     if (commentInp) commentInp.value = seed.comment;
     renderProvWrap();
     refreshSaveEnabled();
+    updateModeLabels();
     const focusSel = focusField === 'entry' ? '.entry-input'
                    : focusField === 'comment' ? '.comment-input'
                    : '.score-input';
@@ -1752,12 +1758,12 @@ export const AtomPopover = (() => {
 
   function openForCreate(entryStr, scroller, anchorEl) {
     const focusField = entryStr.trim() ? 'score' : 'entry';
-    open(buildUserWlEntry(entryStr, '', ''), null, scroller, anchorEl, focusField);
+    open(buildUserWlEntry(entryStr, '', ''), null, scroller, anchorEl, focusField, 'create');
   }
 
   function renderFooterHTML() {
     return `<button class="atom-pop-cancel" type="button">Cancel</button>`
-      + `<button class="atom-pop-save" type="button">Save</button>`;
+      + `<button class="atom-pop-save" type="button">${esc(saveLabel())}</button>`;
   }
 
   function renderProvenanceTableHTML() {
@@ -1775,6 +1781,16 @@ export const AtomPopover = (() => {
     return rows;
   }
 
+  function previewPlan() {
+    const inp = el.querySelector('.entry-input');
+    if (!inp || inp.disabled || stagedDelete) return null;
+    const vals = readNewValues();
+    if (!valuesValid(vals)) return null;
+    if (activeMode === 'edit' && !pendingWritesChange(vals)) return null;
+    const clicked = activeMode === 'edit' ? saveBaseline() : null;
+    return planEntryWrite({ mode: activeMode, clicked, typed: vals, sources: state.sources, junkScore: getJunkScore() });
+  }
+
   function applyPreviewOverlay(rows) {
     const edits = getEditsWordlist();
     if (!edits) return rows;
@@ -1783,16 +1799,35 @@ export const AtomPopover = (() => {
       if (i >= 0) rows[i] = { ...rows[i], diff: 'deleted' };
       return rows;
     }
-    if (!el.querySelector('.entry-input')) return rows;
+    const plan = previewPlan();
+    if (!plan || plan.blockedReason) return rows;
     const vals = readNewValues();
-    if (!valuesValid(vals) || !pendingWritesChange(vals)) return rows;
-    const norm = toNorm(vals.raw);
-    const effective = rescoreEntry({ norm, score: vals.score }, edits.rescoreRules);
-    const entry = { norm, display: vals.raw, score: effective, rawScore: vals.score, comment: vals.comment };
-    const i = rows.findIndex(r => r.isEdits && displayOf(r.entry) === vals.raw);
-    if (i >= 0) rows[i] = { wordlist: edits, entry, enabled: true, isEdits: true, saved: true, diff: 'changed' };
-    else rows.unshift({ wordlist: edits, entry, enabled: true, isEdits: true, saved: false, diff: 'added' });
+    for (const d of plan.deletes) {
+      const i = rows.findIndex(r => r.isEdits && r.entry.norm === d.norm && displayOf(r.entry) === d.display && r.diff !== 'deleted');
+      if (i >= 0) rows[i] = { ...rows[i], diff: 'deleted' };
+    }
+    const p = plan.primary;
+    const effective = rescoreEntry({ norm: p.norm, score: vals.score }, edits.rescoreRules);
+    const entry = { norm: p.norm, display: p.display, score: effective, rawScore: vals.score, comment: vals.comment };
+    const i = rows.findIndex(r => r.isEdits && r.entry.norm === p.norm && displayOf(r.entry) === p.display && r.diff !== 'deleted');
+    let primaryIdx;
+    if (i >= 0) { rows[i] = { wordlist: edits, entry, enabled: true, isEdits: true, saved: true, diff: 'changed' }; primaryIdx = i; }
+    else { rows.unshift({ wordlist: edits, entry, enabled: true, isEdits: true, saved: false, diff: 'added' }); primaryIdx = 0; }
+    const dsRows = plan.notes.filter(n => n.kind === 'downscore').map(n => {
+      const dsScore = rescoreEntry({ norm: n.norm, score: n.score }, edits.rescoreRules);
+      return { wordlist: edits, entry: { norm: n.norm, display: n.display, score: dsScore, rawScore: n.score, comment: '' }, enabled: true, isEdits: true, saved: false, diff: 'added' };
+    });
+    if (dsRows.length) rows.splice(primaryIdx + 1, 0, ...dsRows);
     return rows;
+  }
+
+  function renderNotesHTML() {
+    const plan = previewPlan();
+    if (!plan) return '';
+    if (plan.blockedReason === 'exists') return `<div class="atom-pop-note atom-pop-note--block">That entry already exists.</div>`;
+    return plan.notes.map(n =>
+      n.kind === 'keep-bare' ? `<div class="atom-pop-note">Also keeps ${esc(n.norm)} as its own entry.</div>`
+      : '').join('');
   }
 
   // Mirror saveEdit's no-op check so an untouched popover shows no preview row.
@@ -1877,6 +1912,7 @@ export const AtomPopover = (() => {
       ?? seedFromWinnerRow(wlEntry, getEditsWordlist() != null && wlEntry.wordlist === getEditsWordlist());
     return `
       <button class="dialog-close-btn" type="button" aria-label="Close">✕</button>
+      <div class="atom-pop-title">${esc(headerText())}</div>
       <div class="atom-pop-fields">
         <label for="atom-pop-entry">Entry</label>
         <input id="atom-pop-entry" class="entry-input" type="text" value="${esc(seed.entry)}">
@@ -1885,8 +1921,33 @@ export const AtomPopover = (() => {
         <label for="atom-pop-comment">Comment</label>
         <input id="atom-pop-comment" class="comment-input" type="text" value="${esc(seed.comment)}">
       </div>
-      <div class="atom-pop-prov-wrap">${renderProvenanceTableHTML()}</div>
+      <div class="atom-pop-prov-wrap">${renderProvenanceTableHTML()}${renderNotesHTML()}</div>
       <div class="atom-pop-foot">${renderFooterHTML()}</div>`;
+  }
+
+  function isRenaming() {
+    if (activeMode !== 'edit') return false;
+    const inp = el && el.querySelector('.entry-input');
+    const raw = inp ? inp.value.trim() : '';
+    const seed = activeSeed;
+    return !!(seed && raw && (toNorm(raw) !== seed.norm || raw !== (seed.display ?? seed.norm)));
+  }
+
+  function headerText() {
+    if (activeMode === 'create') return 'Add entry';
+    return isRenaming() ? 'Rename entry' : 'Edit entry';
+  }
+
+  function saveLabel() {
+    if (activeMode === 'create') return 'Add';
+    return isRenaming() ? 'Rename' : 'Save';
+  }
+
+  function updateModeLabels() {
+    const t = el && el.querySelector('.atom-pop-title');
+    if (t) t.textContent = headerText();
+    const s = el && el.querySelector('.atom-pop-save');
+    if (s) s.textContent = saveLabel();
   }
 
   // `resetInputs: true` re-renders the inputs too (when the user isn't mid-edit);
@@ -1916,12 +1977,13 @@ export const AtomPopover = (() => {
     const typed = inp ? inp.value : '';
     fireProvenanceQuery(typed, typed);
     renderProvWrap();
+    updateModeLabels();
   }
 
   function renderProvWrap() {
     if (!isOpen()) return;
     const provEl = el.querySelector('.atom-pop-prov-wrap');
-    if (provEl) provEl.innerHTML = renderProvenanceTableHTML();
+    if (provEl) provEl.innerHTML = renderProvenanceTableHTML() + renderNotesHTML();
   }
 
   // No debounce: every keystroke (and the open) fires. The monotonic token drops
@@ -1991,7 +2053,9 @@ export const AtomPopover = (() => {
       el.querySelector(focusTarget).focus();
       return;
     }
-    activeScroller._onSave?.(saveBaseline(), newValues);
+    if (saveBlocked()) { el.querySelector('.entry-input')?.focus(); return; }
+    const baseline = activeMode === 'edit' ? saveBaseline() : null;
+    activeScroller._onSave?.(activeMode, baseline, newValues);
     close();
   }
 
@@ -2006,7 +2070,12 @@ export const AtomPopover = (() => {
   function refreshSaveEnabled() {
     const saveBtn = el.querySelector('.atom-pop-save');
     if (!saveBtn) return;
-    saveBtn.disabled = stagedDelete ? false : !valuesValid(readNewValues());
+    saveBtn.disabled = stagedDelete ? false : (!valuesValid(readNewValues()) || saveBlocked());
+  }
+
+  function saveBlocked() {
+    const plan = previewPlan();
+    return !!(plan && plan.blockedReason);
   }
 
   function wireFields() {
