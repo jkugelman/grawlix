@@ -78,6 +78,7 @@ import {
 import { SyncDialog } from '../ui/dialogs/sync.js';
 import { ConfigureWordlistDialog } from '../ui/dialogs/configure-wordlist.js';
 import { ImportGuideDialog } from '../ui/dialogs/import-guide.js';
+import { DiscoveryBanner } from '../ui/discovery-banner.js';
 import { ReconnectSplash } from '../ui/reconnect-splash.js';
 import { Router } from './router.js';
 
@@ -728,6 +729,7 @@ async function ingestText(text, file, wordlist, nameOverride) {
 
     await Storage.writeWordlist(wordlist, serializeEntries(wordlist.rawEntries));
     persistMeta();
+    DiscoveryBanner.dismissMyEdits();
     // This My Edits combine path bumps no cacheVersion$ (it repaints directly),
     // so the completeness hook never fires — this post-write re-sync is its only
     // trigger, and reads the fresh IDB text the worker rebuilds from.
@@ -744,6 +746,7 @@ async function ingestText(text, file, wordlist, nameOverride) {
     return;
   }
 
+  if (wordlist.type === 'edits') DiscoveryBanner.dismissMyEdits();
   await applyWordlistText(wordlist, text, { originalFilename: file.name, nameOverride, source: file.name });
 }
 

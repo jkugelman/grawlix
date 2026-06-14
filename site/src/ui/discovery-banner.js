@@ -19,12 +19,14 @@ export function configureDiscoveryBanner({ runImport }) {
 // A plain sibling under #wordlist-bar, deliberately NOT mounted inside it: the
 // bar is sticky, so a dismissable one-time notice nested in it would permanently
 // eat pinned height via the --wordlist-bar-h cascade instead of scrolling away.
+const MYEDITS_KEY = 'banner_myedits_dismissed';
+
 export const DiscoveryBanner = (() => {
   let el;
 
   const BANNERS = [
     {
-      key: 'banner_myedits_dismissed',
+      key: MYEDITS_KEY,
       when: scope => scope !== MERGED_ID && scope?.type === 'edits',
       body: 'This is <strong>My Edits</strong> — your own corrections and additions, and they win over every other list. Already keep a word list of your own? Import it and it lands right here.',
     },
@@ -43,9 +45,20 @@ export const DiscoveryBanner = (() => {
     return BANNERS.find(b => b.when(state.selected) && lsLoad(b.key) !== '1') || null;
   }
 
+  function hide() {
+    el.hidden = true;
+    el.innerHTML = '';
+    el.dataset.banner = '';
+  }
+
+  function dismiss(key) {
+    lsSave(key, '1');
+    if (el?.dataset.banner === key) hide();
+  }
+
   function refresh() {
     const banner = pick();
-    if (!banner) { el.hidden = true; el.innerHTML = ''; el.dataset.banner = ''; return; }
+    if (!banner) { hide(); return; }
     if (el.dataset.banner === banner.key) return;   // already showing this one
     el.dataset.banner = banner.key;
     el.innerHTML = `
@@ -65,11 +78,7 @@ export const DiscoveryBanner = (() => {
 
     el.addEventListener('click', e => {
       if (e.target.closest('.discovery-banner-close')) {
-        const key = el.dataset.banner;
-        if (key) lsSave(key, '1');
-        el.hidden = true;
-        el.innerHTML = '';
-        el.dataset.banner = '';
+        if (el.dataset.banner) dismiss(el.dataset.banner);
         return;
       }
       if (e.target.closest('.discovery-banner-import')) {
@@ -78,5 +87,5 @@ export const DiscoveryBanner = (() => {
     });
   }
 
-  return { mount, refresh };
+  return { mount, refresh, dismissMyEdits: () => dismiss(MYEDITS_KEY) };
 })();
