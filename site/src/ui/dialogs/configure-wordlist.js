@@ -17,10 +17,12 @@ import { bindDropZone } from './import-guide.js';
 let _addNewWordlist = () => {};
 let _fetchWordlist = () => {};
 let _ingestFile = () => {};
-export function configureConfigureWordlist({ addNewWordlist, fetchWordlist, ingestFile }) {
+let _deleteWordlist = async () => false;
+export function configureConfigureWordlist({ addNewWordlist, fetchWordlist, ingestFile, deleteWordlist }) {
   if (addNewWordlist) _addNewWordlist = addNewWordlist;
   if (fetchWordlist)  _fetchWordlist = fetchWordlist;
   if (ingestFile)     _ingestFile = ingestFile;
+  if (deleteWordlist) _deleteWordlist = deleteWordlist;
 }
 
 export const ConfigureWordlistDialog = (() => {
@@ -41,7 +43,7 @@ export const ConfigureWordlistDialog = (() => {
   // Elements
   let titleEl, publisherChipsEl, rulesOptionRow, rulesSelect, rulesPreviewWrap,
       iconPreview, pickerTrigger, imgUrlInput, nameInput, urlInput, urlCheckIcon,
-      urlMetaEl, importSection, btnSave, importZoneLabel;
+      urlMetaEl, importSection, btnSave, btnDelete, importZoneLabel;
 
   // ── Icon picker ──────────────────────────────────────────────────────────────
 
@@ -366,6 +368,10 @@ export const ConfigureWordlistDialog = (() => {
       }
     };
 
+    btnDelete.onclick = async () => {
+      if (await _deleteWordlist(_wordlist)) el.close();
+    };
+
     el.addEventListener('cancel', e => { if (_pickerOpen) { e.preventDefault(); closePicker(); } });
     el.addEventListener('close',  () => {
       closePicker();
@@ -390,6 +396,7 @@ export const ConfigureWordlistDialog = (() => {
 
     titleEl.textContent = 'Configure Wordlist';
     btnSave.textContent = 'Save';
+    btnDelete.hidden = false;
     pickerPopup.hidden = true;
     nameInput.classList.remove('invalid');
     iconPreview.innerHTML = buildIconHTML(wordlist.icon, wordlist.name, colorSeed(wordlist));
@@ -430,6 +437,7 @@ export const ConfigureWordlistDialog = (() => {
 
     titleEl.textContent = 'Add Wordlist';
     btnSave.textContent = 'Add';
+    btnDelete.hidden = true;
     pickerPopup.hidden = true;
     nameInput.classList.remove('invalid');
     iconPreview.innerHTML = buildInitialsIconHTML('', colorSeed({ name: '' }));
@@ -492,6 +500,7 @@ export const ConfigureWordlistDialog = (() => {
         </div>
       </div>
       <div class="dialog-footer">
+        <button id="btn-cfg-delete" class="delete-link" title="Delete this wordlist">Delete</button>
         <button id="btn-cfg-cancel" class="dialog-cancel-btn">Cancel</button>
         <button class="primary" id="btn-cfg-save"></button>
       </div>`;
@@ -530,6 +539,7 @@ export const ConfigureWordlistDialog = (() => {
     urlMetaEl        = el.querySelector('#source-url-meta');
     importSection    = el.querySelector('#source-import-section');
     btnSave          = el.querySelector('#btn-cfg-save');
+    btnDelete        = el.querySelector('#btn-cfg-delete');
     importZoneLabel  = el.querySelector('#cfg-import-zone-label');
 
     wireIconPicker();

@@ -144,7 +144,7 @@ test('a disabled source renders dimmed but is still selectable', async ({ page }
     .toMatchObject({ score: 70, wordlist: 'Off' });
 });
 
-test('a URL-backed source kebab offers Fetch, Import, Configure, Delete — never bake', async ({ page }) => {
+test('a URL-backed source kebab offers Fetch, Import, Configure — Delete lives in Configure, never bake', async ({ page }) => {
   await gotoApp(page);
   await scopeTo(page, 'John Kugelman');
 
@@ -152,11 +152,11 @@ test('a URL-backed source kebab offers Fetch, Import, Configure, Delete — neve
   expect(items).toContain('Fetch');
   expect(items).toContain('Import');
   expect(items).toContain('Configure');
-  expect(items).toContain('Delete');
+  expect(items).not.toContain('Delete');
   expect(items).not.toContain('Make permanent');
 });
 
-test('an imported (file-based) source kebab offers Import, Configure, Delete — no Fetch, no bake', async ({ page }) => {
+test('an imported (file-based) source kebab offers Import, Configure — no Delete, no Fetch, no bake', async ({ page }) => {
   await gotoApp(page);
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
     name: 'Mine', entries: ['ocean'], scores: [70],
@@ -167,8 +167,25 @@ test('an imported (file-based) source kebab offers Import, Configure, Delete —
   expect(items).not.toContain('Fetch');
   expect(items).toContain('Import');
   expect(items).toContain('Configure');
-  expect(items).toContain('Delete');
+  expect(items).not.toContain('Delete');
   expect(items).not.toContain('Make permanent');
+});
+
+test('Configure has a Delete button that removes the source and falls back to All Wordlists', async ({ page }) => {
+  await gotoApp(page);
+  await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
+    name: 'Doomed', entries: ['ocean'], scores: [70],
+  }));
+  await scopeTo(page, 'Doomed');
+
+  await page.evaluate(() => WordlistActions.action('configure'));
+  const del = page.locator('#configure-wordlist-dialog #btn-cfg-delete');
+  await expect(del).toBeVisible();
+  await del.click();
+  await page.locator('#confirm-dialog #btn-confirm-ok').click();
+
+  await expect(page.locator('#wordlist-bar .wls-trigger-label')).toHaveText('All Wordlists');
+  expect(await page.evaluate(() => state.sources.some(w => w.name === 'Doomed'))).toBe(false);
 });
 
 test('the My Edits kebab offers only Import and Clear — no Fetch, no Delete, no bake', async ({ page }) => {

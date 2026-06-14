@@ -37,7 +37,7 @@ import {
 } from './ui/rendering.js';
 import { Router } from './app/router.js';
 import {
-  WordlistActions, init, regenerateFillOutputs, persistEdits, bakeMenuOpts, applyWordlistText, fetchWordlist, checkForUpdates, ingestFile, getAutoUpdate, addNewWordlist, deleteFromEdits, saveEdit, attachExternalEditHandlers, refreshDerivedDisplays, downloadSourceWordlist, downloadOriginalWordlist, downloadMergedWordlistFromPanel, buildExportMenuHTML, buildWordlistText, exportCopy, exportWordlist, exportCSV, exportJSON,
+  WordlistActions, init, regenerateFillOutputs, persistEdits, bakeMenuOpts, applyWordlistText, fetchWordlist, checkForUpdates, ingestFile, getAutoUpdate, addNewWordlist, deleteWordlist, deleteFromEdits, saveEdit, attachExternalEditHandlers, refreshDerivedDisplays, downloadSourceWordlist, downloadOriginalWordlist, downloadMergedWordlistFromPanel, buildExportMenuHTML, buildWordlistText, exportCopy, exportWordlist, exportCSV, exportJSON,
 } from './app/actions.js';
 
 // ─── Components ──────────────────────────────────────────────────────────────
@@ -112,7 +112,7 @@ function boot() {
   configurePipelineWorker({ baseURL: import.meta.url });
 
   configureSyncDialog({ WordlistActions });
-  configureConfigureWordlist({ addNewWordlist, fetchWordlist, ingestFile });
+  configureConfigureWordlist({ addNewWordlist, fetchWordlist, ingestFile, deleteWordlist });
   configureImportGuide({ ingestFile });
 
   // Inject the app-layer callees the extracted ui views can't import upward.

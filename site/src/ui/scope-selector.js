@@ -157,7 +157,6 @@ export const WordlistSelector = (() => {
       items = [
         ...fetchItems,
         ['Configure', `WordlistActions.action('configure')`],
-        ['Delete',    `WordlistActions.action('delete')`],
       ];
     }
     return buildMoreMenuHTML(items, { className: 'wls-kebab' });

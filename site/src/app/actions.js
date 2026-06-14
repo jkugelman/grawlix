@@ -777,8 +777,8 @@ export function deleteFromEdits(target, refreshFn) {
 
 export async function deleteWordlist(wordlist, event) {
   if (event) event.stopPropagation();
-  if (!wordlist) return;
-  if (!await showConfirm('', { confirmText: 'Delete', html: `Delete ${buildWordlistNameHTML(wordlist)}?` })) return;
+  if (!wordlist) return false;
+  if (!await showConfirm('', { confirmText: 'Delete', html: `Delete ${buildWordlistNameHTML(wordlist)}?` })) return false;
   // Invalidate first so any reactive subscribers re-rendering on the
   // `state.sources` change below don't read a stale merged cache.
   invalidateWordlistCaches(wordlist);
@@ -786,7 +786,9 @@ export async function deleteWordlist(wordlist, event) {
   await detachSync(wordlist);
   await Storage.deleteWordlist(wordlist);
   persistMeta();
+  if (state.selected === wordlist) await setScope(MERGED_ID);
   renderAll();
+  return true;
 }
 
 export function addNewWordlist(wordlistDef) {
