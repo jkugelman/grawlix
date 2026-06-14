@@ -78,7 +78,7 @@ test.describe('output format UI', () => {
     expect(await readDownload(orig)).toContain('BLUE JAY;50');
   });
 
-  test('a source with rules gets a split Download with a Download-original door; one without is a plain button', async ({ page }) => {
+  test('a source with rules gets a split Download with Download-rescored and Download-original doors; one without is a plain button', async ({ page }) => {
     await gotoApp(page);
     await page.evaluate(() => window.__grawlixTest.addCustomWordlist({ name: 'Ruled', entries: ['cat'], scores: [50] }));
     await page.evaluate(() => window.__grawlixTest.setRescoreRules('Ruled', [{ input: '50', length: '', output: '80' }]));
@@ -86,16 +86,17 @@ test.describe('output format UI', () => {
     await page.evaluate(() => window.__grawlixTest.setRescoreRules('Plain', []));  // custom lists auto-seed rules; clear them
 
     const downloadBtn = page.locator('#wordlist-bar #download-btn');
-    const downloadOriginal = downloadBtn.locator('.split-btn-menu button');
+    const menuItems = downloadBtn.locator('.split-btn-menu button');
 
     await scopeTo(page, 'Ruled');
-    await expect(downloadOriginal).toHaveCount(1);
+    await expect(menuItems.filter({ hasText: 'Download rescored' })).toHaveCount(1);
+    await expect(menuItems.filter({ hasText: 'Download original' })).toHaveCount(1);
 
     await scopeTo(page, 'Plain');
-    await expect(downloadOriginal).toHaveCount(0);
+    await expect(menuItems).toHaveCount(0);
 
     await scopeTo(page, 'All Wordlists');
-    await expect(downloadOriginal).toHaveCount(0);
+    await expect(menuItems).toHaveCount(0);
   });
 
   test('Download original saves the imported file verbatim, not the rule output', async ({ page }) => {

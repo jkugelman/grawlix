@@ -139,7 +139,8 @@ export const WordlistSelector = (() => {
     const hasRules = (scope.rescoreRules?.length ?? 0) > 0;
     return hasRules
       ? buildSplitBtn('Download', `WordlistActions.action('download')`,
-          [['Download original', `WordlistActions.action('downloadOriginal')`]], { id: 'download-btn', title: 'Download this wordlist (rescored)' })
+          [['Download rescored', `WordlistActions.action('download')`],
+           ['Download original', `WordlistActions.action('downloadOriginal')`]], { id: 'download-btn', title: 'Download this wordlist (rescored)' })
       : `<button id="download-btn" title="Download this wordlist" onclick="WordlistActions.action('download')">Download</button>`;
   }
 
