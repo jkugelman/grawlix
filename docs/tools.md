@@ -35,10 +35,10 @@ Source material: shipped catalog lives in `TOOLS` in [`site/src/engine/tools.js`
 |   | Phonetic | 🔊 Phonetic substitution | Swap one phoneme for another across the wordlist | TBD |
 |   | Phonetic | 🎶 Sound shift | Move a phoneme between word positions (e.g. front → end) | TBD |
 | ✓ | Phrase | 🌌 Space out | Guess at where spaces go in multi-word entries | SPACEOUT → SPACE OUT |
+| ✓ | Phrase | 🔠 Initialisms | Starting letters spell a word | HOT → Helen of Troy |
 |   | Phrase | 👯 Double occupancy | Two-part entries where both halves compound with one reference term | GREEN LIGHT + HOUSE → GREENHOUSE, LIGHTHOUSE |
 |   | Required | ❗ Required letters | Contains every given letter (in any order) | TBD |
 | ✓ | Search | 🔍 Search | Search (and replace) with wildcards | un*ed · c?t |
-| ✓ | Search | 🔠 Initialisms | Starting letters spell a word | HOT → Helen of Troy |
 | ✓ | Search | 🪄 Regex | Search (and replace) with regular expressions | un.+ed · c.{2,4}t |
 | ✓ | Side | 🪓 Behead | Remove the first N letters | SWING → WING |
 |   | Side | 📥 Add prefix | Add a string prefix | TATA → CANTATA |
