@@ -766,7 +766,7 @@ test('a group member is individually editable through the atom popover', async (
   await addLetterSetFixture(page);
   await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'letter_bank', grouped: true }]));
 
-  await page.locator('.group-row .group-chain .atom', { hasText: 'opt' }).first().locator('.atom-score').click();
+  await page.locator('.group-row .group-chain .atom', { hasText: 'opt' }).first().locator('.atom-entry').click();
   await expect(page.locator('#atom-popover')).toBeVisible();
   await expect(page.locator('#atom-pop-score')).toHaveValue('50');
 

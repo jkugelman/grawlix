@@ -497,6 +497,30 @@ input.entry-input { font-family: var(--font-mono); font-size: 13px; }
 
 .score-badge { display: inline-block; padding: 1px 5px; border-radius: 3px; font-size: 11px; font-weight: 700; font-family: var(--font-mono); background: var(--score-bg); color: var(--score-fg); }
 
+/* Score quick-pick listbox */
+#score-picker { position: fixed; z-index: 600; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 6px 24px rgba(0,0,0,0.2); padding: 4px; font-size: 12px; color: var(--text); min-width: 200px; max-width: 340px; max-height: calc(100dvh - 16px); overflow-y: auto; }
+.score-picker-list { list-style: none; margin: 0; padding: 0; outline: none; }
+.score-picker-opt { display: flex; align-items: center; gap: 8px; padding: 5px 8px; border-radius: 5px; cursor: pointer; }
+.score-picker-opt.active { background: var(--accent); color: white; }
+.score-picker-badge { flex: none; }
+.score-picker-label { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.score-picker-check { flex: none; font-weight: 700; color: var(--accent); }
+.score-picker-opt.active .score-picker-check { color: white; }
+
+@media (max-width: 759px) {
+  #score-picker {
+    top: auto; right: 0; bottom: 0; left: 0;
+    width: auto; min-width: 0; max-width: none;
+    max-height: 70dvh; padding: 8px;
+    border-radius: 14px 14px 0 0;
+    transform: translateY(100%);
+    transition: transform 0.28s ease;
+  }
+  #score-picker:not([hidden]) { transform: translateY(0); }
+  @starting-style { #score-picker:not([hidden]) { transform: translateY(100%); } }
+  .score-picker-opt { padding: 11px 12px; }
+}
+
 .detail-date { font-size: 11px; color: var(--muted); white-space: nowrap; }
 /* On narrow viewports the actions bar is cramped; drop the "Last updated"
    label entirely. */
@@ -658,7 +682,7 @@ dialog h2 { font-size: 16px; margin-bottom: 14px; padding-right: 24px; }
 }
 
 @media (max-width: 759px) and (prefers-reduced-motion: reduce) {
-  dialog, dialog::backdrop, #atom-popover { transition: none; }
+  dialog, dialog::backdrop, #atom-popover, #score-picker { transition: none; }
 }
 
 #manage-dialog { --dialog-w: 380px; }

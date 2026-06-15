@@ -68,7 +68,9 @@ async function openPopoverOnEntry(page, entryText, field = 'score') {
   // after a prior open → search → Escape choreography intermittently fails to
   // re-open the popover — a test-harness quirk, not the behavior under test.
   await page.mouse.click(5, 5);
-  const cell = field === 'comment' ? '.atom-comment' : field === 'entry' ? '.atom-entry' : '.atom-score';
+  // These tests run in All Wordlists, where the score cell opens the quick picker;
+  // the popover opens from the entry cell in any scope, so default there.
+  const cell = field === 'comment' ? '.atom-comment' : '.atom-entry';
   await row.locator(cell).click();
   await expect(page.locator('#atom-popover')).toBeVisible();
 }
@@ -176,7 +178,7 @@ test('the save path resolves the right target', async ({ page }) => {
   await page.evaluate(() => window.__grawlixTest.flushEditsToIdb());
   await syncWorker(page);
 
-  await openPopoverOnEntry(page, 'OVER', 'score');
+  await openPopoverOnEntry(page, 'OVER');
   await page.locator('#atom-pop-score').fill('15');
   await page.locator('#atom-popover .atom-pop-save').click();
   await page.evaluate(() => window.__grawlixTest.pipelineIdle());

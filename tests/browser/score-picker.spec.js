@@ -1,0 +1,125 @@
+// Score quick-pick listbox. In the All Wordlists and My Edits scopes a score-cell
+// click opens a tier dropdown (one click to retier, routed into My Edits); in a
+// single-source scope it still opens the full AtomPopover. See the ScorePicker
+// component in site/src/ui/entries-table.js.
+
+import { test, expect } from '@playwright/test';
+import { stubPublisherFetches, gotoApp, scopeTo } from './helpers.js';
+
+test.beforeEach(async ({ page }) => {
+  await stubPublisherFetches(page);
+});
+
+const TIERS = [
+  { input: '90', note: 'Great' },
+  { input: '50', note: 'Okay' },
+  { input: '10', note: 'Weak' },
+];
+
+async function setup(page, { score = 50 } = {}) {
+  await gotoApp(page);
+  await page.evaluate(t => window.__grawlixTest.setScoring(t), TIERS);
+  await page.evaluate(s => window.__grawlixTest.addCustomWordlist({
+    name: 'Src', entries: ['bagel'], scores: [s],
+  }), score);
+}
+
+const picker = page => page.locator('#score-picker');
+
+async function openPicker(page) {
+  const cell = page.locator('.entry-row[data-entry="bagel"] .atom-score');
+  await expect(cell).toBeVisible();
+  await cell.click();
+  await expect(picker(page)).toBeVisible();
+}
+
+const myEdits = page => page.evaluate(() => window.__grawlixTest.getWordlist('My Edits').entries);
+const mergedBagel = page => page.evaluate(() => window.__grawlixTest.getMergedEntry('BAGEL'));
+
+test('a score click in All Wordlists opens the tier picker, not the popover', async ({ page }) => {
+  await setup(page);
+  await openPicker(page);
+  await expect(page.locator('#atom-popover')).toBeHidden();
+});
+
+test('the picker lists every tier high-to-low as score badges, marking the current one', async ({ page }) => {
+  await setup(page, { score: 50 });
+  await openPicker(page);
+
+  await expect(page.locator('#score-picker .score-picker-badge')).toHaveText(['90', '50', '10']);
+  await expect(page.locator('#score-picker .score-picker-label')).toHaveText(['Great', 'Okay', 'Weak']);
+
+  await expect(page.locator('#score-picker .score-picker-check')).toHaveCount(1);
+  await expect(
+    page.locator('#score-picker .score-picker-opt', { hasText: 'Okay' }).locator('.score-picker-check')
+  ).toBeVisible();
+});
+
+test('picking a tier sets the score, routes it into My Edits, and leaves the source untouched', async ({ page }) => {
+  await setup(page, { score: 50 });
+  await openPicker(page);
+  await page.locator('#score-picker .score-picker-opt', { hasText: 'Great' }).click();
+  await expect(picker(page)).toBeHidden();
+
+  await expect.poll(() => myEdits(page))
+    .toEqual([{ entry: 'bagel', display: 'bagel', score: 90, comment: '' }]);
+  await expect.poll(() => mergedBagel(page)).toMatchObject({ score: 90, wordlist: 'My Edits' });
+
+  const src = await page.evaluate(() => window.__grawlixTest.getWordlist('Src'));
+  expect(src.entries).toEqual([{ entry: 'bagel', display: null, score: 50, comment: '' }]);
+});
+
+test('arrow keys move the selection and Enter commits it', async ({ page }) => {
+  await setup(page, { score: 50 });   // opens with Okay active
+  await openPicker(page);
+  await page.keyboard.press('ArrowUp');   // → Great
+  await page.keyboard.press('Enter');
+  await expect(picker(page)).toBeHidden();
+  await expect.poll(() => mergedBagel(page)).toMatchObject({ score: 90, wordlist: 'My Edits' });
+});
+
+test('Escape closes the picker without writing anything', async ({ page }) => {
+  await setup(page);
+  await openPicker(page);
+  await page.keyboard.press('Escape');
+  await expect(picker(page)).toBeHidden();
+  expect(await myEdits(page)).toEqual([]);
+});
+
+test('a between-tiers score starts on the next-lowest tier with nothing checked', async ({ page }) => {
+  await setup(page, { score: 22 });   // tiers 90/50/10 → falls between, nearest below is 10
+  await openPicker(page);
+  await expect(page.locator('#score-picker .score-picker-check')).toHaveCount(0);
+  await expect(page.locator('#score-picker .score-picker-opt', { hasText: 'Weak' }))
+    .toHaveAttribute('aria-selected', 'true');
+  await page.keyboard.press('Enter');
+  await expect.poll(() => mergedBagel(page)).toMatchObject({ score: 10, wordlist: 'My Edits' });
+});
+
+test('picking the tier the entry is already in is a no-op', async ({ page }) => {
+  await setup(page, { score: 50 });
+  await openPicker(page);
+  await page.locator('#score-picker .score-picker-opt', { hasText: 'Okay' }).click();
+  await expect(picker(page)).toBeHidden();
+  expect(await myEdits(page)).toEqual([]);
+});
+
+test('in a single-source scope the score cell opens the popover, not the picker', async ({ page }) => {
+  await setup(page);
+  await scopeTo(page, 'Src');
+  await page.locator('.entry-row[data-entry="bagel"] .atom-score').click();
+  await expect(page.locator('#atom-popover')).toBeVisible();
+  await expect(picker(page)).toBeHidden();
+});
+
+test('the picker works in the My Edits scope too', async ({ page }) => {
+  await setup(page);
+  await page.evaluate(() => window.__grawlixTest.saveMyEdit('bagel', 'bagel', 50));
+  await scopeTo(page, 'My Edits');
+
+  await openPicker(page);
+  await page.locator('#score-picker .score-picker-opt', { hasText: 'Great' }).click();
+  await expect(picker(page)).toBeHidden();
+  await expect.poll(() => myEdits(page))
+    .toEqual([{ entry: 'bagel', display: 'bagel', score: 90, comment: '' }]);
+});

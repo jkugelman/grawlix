@@ -14,13 +14,15 @@ test.beforeEach(async ({ page }) => {
 });
 
 // Open the popover on a row by its visible entry text (the display string),
-// clicking the score cell. data-entry is the norm, which collides across
-// spellings, so match the row by its rendered entry instead.
+// clicking the entry cell. (In All Wordlists / My Edits the score cell opens the
+// quick picker, not the popover; the entry cell opens the popover in any scope.)
+// data-entry is the norm, which collides across spellings, so match the row by
+// its rendered entry instead.
 async function openPopoverOnEntry(page, entryText) {
   const row = page.locator('#vs-host .entry-row', {
     has: page.locator('.atom-entry', { hasText: new RegExp(`^${entryText}$`) }),
   }).first();
-  await row.locator('.atom-score').click();
+  await row.locator('.atom-entry').click();
   await expect(page.locator('#atom-popover')).toBeVisible();
 }
 

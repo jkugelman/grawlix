@@ -30,7 +30,7 @@ async function openPopoverOnEntry(page, entryText) {
   const row = page.locator('#vs-host .entry-row', {
     has: page.locator('.atom-entry', { hasText: new RegExp(`^${entryText}$`) }),
   }).first();
-  await row.locator('.atom-score').click();
+  await row.locator('.atom-entry').click();
   await expect(page.locator('#atom-popover')).toBeVisible();
 }
 

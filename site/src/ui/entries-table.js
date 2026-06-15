@@ -16,7 +16,7 @@ import { ROW_HEIGHT, VS_BUFFER, MERGED_ID, MERGED_NAME } from '../core/constants
 import { esc } from '../core/util.js';
 import { displayOf, projectRangesToDisplay, toNorm, buildUserWlEntry } from '../engine/norm.js';
 import { planEntryWrite } from '../engine/edit-plan.js';
-import { parseRange } from '../engine/range.js';
+import { parseRange, matchesRange } from '../engine/range.js';
 import { renderHighlightedText } from '../engine/search.js';
 import { TOOLS } from '../engine/tools.js';
 import {
@@ -794,6 +794,10 @@ export class EntriesScroller extends BaseVirtualScroller {
       const field = target.classList.contains('atom-score') ? 'score'
                   : target.classList.contains('atom-comment') ? 'comment'
                   : null;
+      if (field === 'score' && scoreQuickPickable()) {
+        ScorePicker.open(wlEntry, row, this, target);
+        return;
+      }
       AtomPopover.open(wlEntry, row, this, target, field);
     });
 
@@ -802,6 +806,7 @@ export class EntriesScroller extends BaseVirtualScroller {
 
   setEntries(result, atomCount = this.atomCount, sortTier = this.sortTier) {
     GroupMorePopover.close();
+    ScorePicker.close();
     this._setChainShape(atomCount, sortTier);
     this._ingestResult(result);
     this._invalidateSortCache();
@@ -810,6 +815,7 @@ export class EntriesScroller extends BaseVirtualScroller {
   }
 
   updateEntries(result, atomCount = this.atomCount, sortTier = this.sortTier) {
+    ScorePicker.close();
     const tierChanged = this._setChainShape(atomCount, sortTier);
     this._ingestResult(result);
     this._invalidateSortCache();
@@ -1567,6 +1573,48 @@ export class EntriesScroller extends BaseVirtualScroller {
   }
 }
 
+// ─── Shared popover helpers ───────────────────────────────────────────────────
+
+// Desktop only — callers guard the mobile case, where CSS docks the panel as a
+// bottom sheet and inline coordinates must be left unset.
+function anchorDropdown(panel, anchorEl) {
+  const r = anchorEl.getBoundingClientRect();
+  panel.style.top = (r.bottom + 4) + 'px';
+  panel.style.left = r.left + 'px';
+  requestAnimationFrame(() => {
+    const pw = panel.offsetWidth, ph = panel.offsetHeight;
+    let left = r.left;
+    if (left + pw > window.innerWidth - 8) left = window.innerWidth - 8 - pw;
+    if (left < 8) left = 8;
+    let top = r.bottom + 4;
+    if (top + ph > window.innerHeight - 8) {
+      const above = r.top - ph - 4;
+      top = above >= 8 ? above : Math.max(8, window.innerHeight - 8 - ph);
+    }
+    panel.style.top = top + 'px';
+    panel.style.left = left + 'px';
+  });
+}
+
+function seedFromWinnerRow(row, winnerIsEdits) {
+  let score = row.score;
+  const edits = getEditsWordlist();
+  // Seed the score field from My Edits' RAW score, not the displayed effective:
+  // the field edits raw, so seeding effective would re-rescore it on every save
+  // and silently drift My Edits.
+  if (winnerIsEdits && edits) {
+    const rawEntry = edits.rawEntries.find(e => e.norm === row.norm && displayOf(e) === displayOf(row));
+    if (rawEntry) score = rawEntry.score;
+  }
+  return {
+    entry: displayOf(row),
+    score,
+    comment: row.comment || '',
+    norm: row.norm,
+    display: row.display ?? null,
+  };
+}
+
 // ─── Atom popover ─────────────────────────────────────────────────────────────
 
 export const AtomPopover = (() => {
@@ -1662,6 +1710,7 @@ export const AtomPopover = (() => {
   }
 
   function open(wlEntry, rowEl, scroller, anchorEl, focusField = 'score', mode = 'edit') {
+    ScorePicker.close();
     const popover = ensureElement();
     if (activeRow) activeRow.classList.remove('active');
     activeMode = mode;
@@ -1882,25 +1931,6 @@ export const AtomPopover = (() => {
     }
   }
 
-  function seedFromWinnerRow(row, winnerIsEdits) {
-    let score = row.score;
-    const edits = getEditsWordlist();
-    // Seed the score field from My Edits' RAW score, not the displayed effective:
-    // the field edits raw, so seeding effective would re-rescore it on every save
-    // and silently drift My Edits.
-    if (winnerIsEdits && edits) {
-      const rawEntry = edits.rawEntries.find(e => e.norm === row.norm && displayOf(e) === displayOf(row));
-      if (rawEntry) score = rawEntry.score;
-    }
-    return {
-      entry: displayOf(row),
-      score,
-      comment: row.comment || '',
-      norm: row.norm,
-      display: row.display ?? null,
-    };
-  }
-
   function renderHTML(wlEntry, seedOverride) {
     const seed = activeSeed = seedOverride
       ?? seedFromWinnerRow(wlEntry, getEditsWordlist() != null && wlEntry.wordlist === getEditsWordlist());
@@ -2115,22 +2145,7 @@ export const AtomPopover = (() => {
       el.style.top  = Math.max(8, (window.innerHeight - ph) / 2) + 'px';
       return;
     }
-    const r = anchorEl.getBoundingClientRect();
-    el.style.top = (r.bottom + 4) + 'px';
-    el.style.left = r.left + 'px';
-    requestAnimationFrame(() => {
-      const pw = el.offsetWidth, ph = el.offsetHeight;
-      let left = r.left;
-      if (left + pw > window.innerWidth - 8) left = window.innerWidth - 8 - pw;
-      if (left < 8) left = 8;
-      let top = r.bottom + 4;
-      if (top + ph > window.innerHeight - 8) {
-        const above = r.top - ph - 4;
-        top = above >= 8 ? above : Math.max(8, window.innerHeight - 8 - ph);
-      }
-      el.style.top = top + 'px';
-      el.style.left = left + 'px';
-    });
+    anchorDropdown(el, anchorEl);
   }
 
   function activeNorm(scroller) {
@@ -2171,6 +2186,189 @@ export const AtomPopover = (() => {
 export function popoverRebindQuery() {
   return AtomPopover.rebindQuery();
 }
+
+// ─── Score quick-pick ─────────────────────────────────────────────────────────
+
+function scoreQuickPickable() {
+  const edits = getEditsWordlist();
+  return state.selected === MERGED_ID || (edits != null && state.selected === edits);
+}
+
+// Offered only in the All Wordlists and My Edits scopes: there the clicked row
+// holds the value a save writes, so the picked tier shows in place. A single-
+// source scope would write the edit into My Edits while still showing the
+// source's score — silently appearing to do nothing — so it uses the AtomPopover.
+export const ScorePicker = (() => {
+  let el = null;
+  let activeRow = null;
+  let activeAnchor = null;
+  let activeWlEntry = null;
+  let activeScroller = null;
+  let options = [];
+  let activeIndex = 0;
+  let currentIndex = -1;
+  let startIndex = 0;
+
+  function buildOptions() {
+    return state.scoring
+      .map(r => {
+        const intervals = parseRange(r.input);
+        if (!intervals) return null;
+        return { note: r.note || '', intervals, score: intervals[0].min };
+      })
+      .filter(Boolean)
+      .sort((a, b) => b.score - a.score);
+  }
+
+  function ensureElement() {
+    if (el) return el;
+    el = document.createElement('div');
+    el.id = 'score-picker';
+    el.setAttribute('hidden', '');
+    el.addEventListener('click', e => {
+      const opt = e.target.closest('.score-picker-opt');
+      if (opt) commit(parseInt(opt.dataset.i, 10));
+    });
+    el.addEventListener('mousemove', e => {
+      const opt = e.target.closest('.score-picker-opt');
+      if (opt) setActive(parseInt(opt.dataset.i, 10), false);
+    });
+    document.body.appendChild(el);
+    return el;
+  }
+
+  function isOpen() { return el && !el.hasAttribute('hidden'); }
+
+  function open(wlEntry, rowEl, scroller, anchorEl) {
+    AtomPopover.close();
+    options = buildOptions();
+    if (!options.length) { AtomPopover.open(wlEntry, rowEl, scroller, anchorEl, 'score'); return; }
+
+    const picker = ensureElement();
+    if (activeRow) activeRow.classList.remove('active');
+    activeWlEntry = wlEntry;
+    activeRow = rowEl;
+    activeScroller = scroller;
+    activeAnchor = anchorEl ?? rowEl;
+    if (rowEl) rowEl.classList.add('active');
+
+    const score = wlEntry.score;
+    // Two indices on purpose: the checkmark marks only the exact tier the score
+    // sits in (none, for a between-tiers score), while the cursor/overlay start
+    // on the next tier down in that gap (22 → the 20 tier), floored at the lowest.
+    currentIndex = options.findIndex(o => matchesRange(score, o.intervals));
+    startIndex = options.findIndex(o => o.score <= score);
+    if (startIndex < 0) startIndex = options.length - 1;
+    activeIndex = startIndex;
+
+    picker.innerHTML = renderHTML();
+    picker.removeAttribute('hidden');
+    position();
+    picker.querySelector('.score-picker-list')?.focus();
+    syncActive();
+
+    document.addEventListener('mousedown', onDocMouseDown, true);
+    document.addEventListener('keydown', onKeydown, true);
+  }
+
+  function close() {
+    if (!el || el.hasAttribute('hidden')) return;
+    el.setAttribute('hidden', '');
+    if (activeRow) activeRow.classList.remove('active');
+    activeRow = activeAnchor = activeWlEntry = activeScroller = null;
+    options = [];
+    document.removeEventListener('mousedown', onDocMouseDown, true);
+    document.removeEventListener('keydown', onKeydown, true);
+  }
+
+  function renderHTML() {
+    const opts = options.map((o, i) =>
+      `<li id="score-picker-opt-${i}" class="score-picker-opt" role="option" data-i="${i}"`
+      + ` aria-selected="${i === activeIndex}" title="${esc(o.note)}">`
+      + `<span class="score-picker-badge">${buildScoreBadgeHTML(o.score)}</span>`
+      + `<span class="score-picker-label">${esc(o.note)}</span>`
+      + (i === currentIndex ? `<span class="score-picker-check" aria-hidden="true">✓</span>` : '')
+      + `</li>`
+    ).join('');
+    return `<ul class="score-picker-list" role="listbox" aria-label="Set score" tabindex="-1">${opts}</ul>`;
+  }
+
+  function setActive(i, scroll = true) {
+    if (i === activeIndex) return;
+    activeIndex = i;
+    syncActive(scroll);
+  }
+
+  function syncActive(scroll = true) {
+    const lis = el.querySelectorAll('.score-picker-opt');
+    lis.forEach((li, j) => {
+      li.classList.toggle('active', j === activeIndex);
+      li.setAttribute('aria-selected', j === activeIndex);
+    });
+    if (scroll) lis[activeIndex]?.scrollIntoView({ block: 'nearest' });
+    el.querySelector('.score-picker-list')
+      ?.setAttribute('aria-activedescendant', lis[activeIndex]?.id ?? '');
+  }
+
+  function commit(i) {
+    const opt = options[i];
+    const scroller = activeScroller;
+    const w = activeWlEntry;
+    if (!opt || !scroller || !w) { close(); return; }
+    const winnerIsEdits = getEditsWordlist() != null && w.wordlist === getEditsWordlist();
+    const baseline = seedFromWinnerRow(w, winnerIsEdits);
+    close();
+    // Re-picking the score already in place is a true no-op (only the score can
+    // differ — entry and comment ride from the baseline). The save path would no-op
+    // it too, but still re-renders the table; bail here so it doesn't flash.
+    if (opt.score === baseline.score) return;
+    scroller._onSave?.('edit', baseline, { raw: baseline.entry, score: opt.score, comment: baseline.comment });
+  }
+
+  function onDocMouseDown(e) {
+    if (!isOpen()) return;
+    if (el.contains(e.target)) return;
+    if (activeRow && activeRow.contains(e.target)) return;
+    close();
+  }
+
+  function onKeydown(e) {
+    switch (e.key) {
+      case 'Escape':    e.preventDefault(); close(); break;
+      case 'ArrowDown': e.preventDefault(); setActive(Math.min(options.length - 1, activeIndex + 1)); break;
+      case 'ArrowUp':   e.preventDefault(); setActive(Math.max(0, activeIndex - 1)); break;
+      case 'Home':      e.preventDefault(); setActive(0); break;
+      case 'End':       e.preventDefault(); setActive(options.length - 1); break;
+      case 'Enter':     e.preventDefault(); commit(activeIndex); break;
+    }
+  }
+
+  // Overlay the starting tier's option badge directly on the clicked score badge,
+  // so the value being changed stays put under the cursor (a native-select feel)
+  // rather than dropping the list below the row.
+  function position() {
+    if (window.matchMedia('(max-width: 759px)').matches) {
+      el.style.top = '';
+      el.style.left = '';
+      return;
+    }
+    const anchorBadge = activeAnchor.querySelector('.score-badge') ?? activeAnchor;
+    const optBadge = el.querySelectorAll('.score-picker-opt')[startIndex]?.querySelector('.score-badge');
+    if (!optBadge) { anchorDropdown(el, activeAnchor); return; }
+    const a = anchorBadge.getBoundingClientRect();
+    const e = el.getBoundingClientRect();
+    const b = optBadge.getBoundingClientRect();
+    const pw = el.offsetWidth, ph = el.offsetHeight;
+    let left = a.left - (b.left - e.left);
+    let top  = a.top  - (b.top  - e.top);
+    left = Math.max(8, Math.min(left, window.innerWidth  - 8 - pw));
+    top  = Math.max(8, Math.min(top,  window.innerHeight - 8 - ph));
+    el.style.left = left + 'px';
+    el.style.top  = top + 'px';
+  }
+
+  return { open, close, isOpen };
+})();
 
 export function buildEntriesTablePanelHTML() {
   return `<div id="entries-table-panel">

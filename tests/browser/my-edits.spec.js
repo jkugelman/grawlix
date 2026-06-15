@@ -29,8 +29,9 @@ test('editing a row sourced from another wordlist routes the edit into My Edits'
   const editsBefore = await page.evaluate(() => window.__grawlixTest.getWordlist('My Edits'));
   expect(editsBefore.entries).toEqual([]);
 
-  // Click the BAGEL row's score cell to open the popover, edit, Enter.
-  await page.locator('.entry-row[data-entry="bagel"] .atom-score').click();
+  // Click the BAGEL row's entry cell to open the popover, edit, Enter. (The score
+  // cell opens the quick picker in this All Wordlists scope, not the popover.)
+  await page.locator('.entry-row[data-entry="bagel"] .atom-entry').click();
   const scoreInput = page.locator('#atom-pop-score');
   await expect(scoreInput).toBeVisible();
   await scoreInput.fill('75');
@@ -57,7 +58,7 @@ test('popover edits only commit when the user clicks Save', async ({ page }) => 
     name: 'Source', entries: ['bagel'], scores: [50],
   }));
 
-  await page.locator('.entry-row[data-entry="bagel"] .atom-score').click();
+  await page.locator('.entry-row[data-entry="bagel"] .atom-entry').click();
   const scoreInput = page.locator('#atom-pop-score');
   await expect(scoreInput).toBeVisible();
   await scoreInput.fill('75');
@@ -87,7 +88,7 @@ test('Cancel closes the popover without committing edits', async ({ page }) => {
     name: 'Source', entries: ['bagel'], scores: [50],
   }));
 
-  await page.locator('.entry-row[data-entry="bagel"] .atom-score').click();
+  await page.locator('.entry-row[data-entry="bagel"] .atom-entry').click();
   await page.locator('#atom-pop-score').fill('99');
   await page.locator('.atom-pop-cancel').click();
   await expect(page.locator('#atom-popover')).toBeHidden();
@@ -102,7 +103,7 @@ test('the provenance table tracks the typed entry and flags the My Edits contrib
     name: 'Source', entries: ['bagel', 'carrot'], scores: [50, 50],
   }));
 
-  await page.locator('.entry-row[data-entry="bagel"] .atom-score').click();
+  await page.locator('.entry-row[data-entry="bagel"] .atom-entry').click();
   await page.locator('#atom-pop-score').fill('75');
   await page.locator('.atom-pop-save').click();
   await expect.poll(async () =>
@@ -110,7 +111,7 @@ test('the provenance table tracks the typed entry and flags the My Edits contrib
   ).toBe(1);
 
   // CARROT is Source-only: one row, no trash (My Edits has nothing to delete here).
-  await page.locator('.entry-row[data-entry="carrot"] .atom-score').click();
+  await page.locator('.entry-row[data-entry="carrot"] .atom-entry').click();
   await expect(page.locator('.atom-pop-prov tbody .atom-pop-prov-source')).toHaveCount(1);
   await expect(page.locator('.atom-pop-prov tbody .atom-pop-prov-source')).toContainText('Source');
   await expect(page.locator('.atom-pop-prov-trash')).toHaveCount(0);
@@ -138,14 +139,14 @@ test('editing the entry text renames the My Edits record', async ({ page }) => {
     name: 'Source', entries: ['bagel'], scores: [50],
   }));
 
-  await page.locator('.entry-row[data-entry="bagel"] .atom-score').click();
+  await page.locator('.entry-row[data-entry="bagel"] .atom-entry').click();
   await page.locator('#atom-pop-score').fill('75');
   await page.locator('.atom-pop-save').click();
   await expect.poll(async () =>
     page.evaluate(() => window.__grawlixTest.getWordlist('My Edits').entries)
   ).toEqual([{ entry: 'bagel', display: 'bagel', score: 75, comment: '' }]);
 
-  await page.locator('.entry-row[data-entry="bagel"] .atom-score').click();
+  await page.locator('.entry-row[data-entry="bagel"] .atom-entry').click();
   await page.locator('#atom-pop-entry').fill('Bagels');
   await page.locator('.atom-pop-save').click();
 
@@ -164,7 +165,7 @@ test('staging a delete via the row trash strikes it through and is reversible; S
   }));
 
   // Create a My Edits override by editing BAGEL's score.
-  await page.locator('.entry-row[data-entry="bagel"] .atom-score').click();
+  await page.locator('.entry-row[data-entry="bagel"] .atom-entry').click();
   await page.locator('#atom-pop-score').fill('75');
   await page.locator('#atom-pop-score').press('Enter');
   await expect.poll(async () =>
@@ -172,7 +173,7 @@ test('staging a delete via the row trash strikes it through and is reversible; S
   ).toBe(1);
 
   // Re-open the popover; the provenance table lists both My Edits and Source.
-  await page.locator('.entry-row[data-entry="bagel"] .atom-score').click();
+  await page.locator('.entry-row[data-entry="bagel"] .atom-entry').click();
   await expect(page.locator('.atom-pop-prov tbody .atom-pop-prov-source')).toContainText(['My Edits', 'Source']);
 
   const editsTrash = page.locator('.atom-pop-prov-row', { hasText: 'My Edits' }).locator('.atom-pop-prov-trash');
@@ -283,7 +284,7 @@ test('deleting a My Edits entry shows an undo toast that restores it', async ({ 
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
     name: 'Source', entries: ['bagel'], scores: [50],
   }));
-  await page.locator('.entry-row[data-entry="bagel"] .atom-score').click();
+  await page.locator('.entry-row[data-entry="bagel"] .atom-entry').click();
   await page.locator('#atom-pop-score').fill('75');
   await page.locator('#atom-pop-score').press('Enter');
 
@@ -292,7 +293,7 @@ test('deleting a My Edits entry shows an undo toast that restores it', async ({ 
   ).toBe(1);
 
   // Re-open the popover, stage the My Edits row's deletion, and Save to commit.
-  await page.locator('.entry-row[data-entry="bagel"] .atom-score').click();
+  await page.locator('.entry-row[data-entry="bagel"] .atom-entry').click();
   await page.locator('.atom-pop-prov-row', { hasText: 'My Edits' }).locator('.atom-pop-prov-trash').click();
   await page.locator('.atom-pop-save').click();
 
@@ -341,9 +342,9 @@ test('a My Edits entry deletes via the popover after a reload reparses its displ
     { timeout: 10000 }
   ).toEqual([{ entry: 'words', display: null, score: 40, comment: '' }]);
 
-  const scoreCell = page.locator('.entry-row[data-entry="words"] .atom-score');
-  await expect(scoreCell).toBeVisible();
-  await scoreCell.click();
+  const entryCell = page.locator('.entry-row[data-entry="words"] .atom-entry');
+  await expect(entryCell).toBeVisible();
+  await entryCell.click();
   await page.locator('.atom-pop-prov-row', { hasText: 'My Edits' }).locator('.atom-pop-prov-trash').click();
   await page.locator('.atom-pop-save').click();
 
@@ -359,7 +360,7 @@ test('editing My Edits is reflected in the merged view', async ({ page }) => {
     name: 'Source', entries: ['bagel', 'carrot'], scores: [50, 60],
   }));
 
-  await page.locator('.entry-row[data-entry="bagel"] .atom-score').click();
+  await page.locator('.entry-row[data-entry="bagel"] .atom-entry').click();
   await page.locator('#atom-pop-score').fill('75');
   await page.locator('#atom-pop-score').press('Enter');
   await expect.poll(async () =>
