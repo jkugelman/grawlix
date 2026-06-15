@@ -114,7 +114,7 @@ test('the replaced row previews struck through with no trash icon', async ({ pag
   await expect(deletedRow.locator('.atom-pop-prov-trash')).toHaveCount(0);
 });
 
-test('renaming over a foreign leftover downscores the original to the junk score', async ({ page }) => {
+test('renaming over a foreign leftover downscores the original to the trash score', async ({ page }) => {
   await gotoApp(page);
   await addList(page, { name: 'W', entries: ['oceam'], scores: [40] });
   await openPopoverOnEntry(page, 'oceam');
@@ -159,12 +159,12 @@ test('renaming shows an undo toast that restores the original', async ({ page })
   await expect.poll(() => displaysForNorm(page, 'ocean')).toEqual(['ocean']);
 });
 
-test('the junk score setting drives the downscore amount', async ({ page }) => {
+test('the trash score setting drives the downscore amount', async ({ page }) => {
   await gotoApp(page);
   await addList(page, { name: 'W', entries: ['oceam'], scores: [40] });
   await page.locator('#btn-settings').click();
-  await page.locator('#junk-score-input').fill('7');
-  await page.locator('#junk-score-input').blur();
+  await page.locator('#trash-score-input').fill('7');
+  await page.locator('#trash-score-input').blur();
   await page.locator('#settings-dialog .dialog-close-btn').click();
   await openPopoverOnEntry(page, 'oceam');
   await page.locator('#atom-pop-entry').fill('ocean');

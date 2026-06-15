@@ -3,7 +3,7 @@
 // ─── Dark mode ────────────────────────────────────────────────────────────────
 
 import { lsSave, lsLoad, resetAllDataAndReload } from '../../data/storage.js';
-import { getOutputFormat, setOutputFormat, getJunkScore, setJunkScore } from '../../data/serialize.js';
+import { getOutputFormat, setOutputFormat, getTrashScore, setTrashScore } from '../../data/serialize.js';
 import { showToast } from '../toasts.js';
 import {
   buildSegCtrlHTML, buildOutputFormatControlsHTML,
@@ -69,10 +69,10 @@ export const SettingsDialog = (() => {
       </div>
       <div class="dialog-row">
         <div>
-          <div class="dialog-row-label">Junk score</div>
+          <div class="dialog-row-label">Trash score</div>
           <div class="dialog-row-sub">Score given to deleted entries</div>
         </div>
-        <input id="junk-score-input" class="junk-score-input" type="number" min="0">
+        <input id="trash-score-input" class="trash-score-input" type="number" min="0">
       </div>
       <div class="of-section">
         <div class="dialog-row-label">Output format</div>
@@ -129,12 +129,12 @@ export const SettingsDialog = (() => {
       await resetAllDataAndReload();
     };
 
-    const junkInp = el.querySelector('#junk-score-input');
-    junkInp.onchange = () => {
-      const n = parseInt(junkInp.value, 10);
+    const trashInp = el.querySelector('#trash-score-input');
+    trashInp.onchange = () => {
+      const n = parseInt(trashInp.value, 10);
       const v = Number.isFinite(n) && n >= 0 ? n : 0;
-      setJunkScore(v);
-      junkInp.value = v;
+      setTrashScore(v);
+      trashInp.value = v;
     };
   }
 
@@ -148,7 +148,7 @@ export const SettingsDialog = (() => {
 
   function open() {
     resetSub.textContent = 'Reset all wordlists and settings';
-    el.querySelector('#junk-score-input').value = getJunkScore();
+    el.querySelector('#trash-score-input').value = getTrashScore();
     ofCtrls.innerHTML = buildOutputFormatControlsHTML(getOutputFormat());
     wireOutputFormatControls(ofCtrls, () => {
       setOutputFormat(readOutputFormatControls(ofCtrls));

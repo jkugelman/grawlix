@@ -30,7 +30,7 @@ import {
   serializeEntries, sortedEntries,
 } from '../engine/serialize.js';
 import {
-  getOutputFormat, getJunkScore,
+  getOutputFormat, getTrashScore,
 } from '../data/serialize.js';
 import {
   compileRescoreRules, maybeAutoSeedRescoreRules, getRescoredEntries,
@@ -479,7 +479,7 @@ export function saveEntry(mode, clicked, { raw, score, comment }, refreshFn) {
   const edits = getEditsWordlist();
   if (mode === 'edit' && clicked && noEditChange(clicked, raw, score, comment)) { refreshFn?.(); return; }
 
-  const plan = planEntryWrite({ mode, clicked, typed: { raw, score, comment }, sources: state.sources, junkScore: getJunkScore() });
+  const plan = planEntryWrite({ mode, clicked, typed: { raw, score, comment }, sources: state.sources, trashScore: getTrashScore() });
   if (plan.blockedReason || (!plan.deletes.length && !plan.upserts.length)) { refreshFn?.(); return; }
 
   const writes = { deletes: plan.deletes, upserts: plan.upserts, primary: plan.primary };

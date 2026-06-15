@@ -15,7 +15,7 @@
 import { MERGED_ID, MERGED_NAME } from './core/constants.js';
 import { toNorm, displayOf, parseWordlist, buildUserWlEntry } from './engine/norm.js';
 import { planEntryWrite } from './engine/edit-plan.js';
-import { getJunkScore } from './data/serialize.js';
+import { getTrashScore } from './data/serialize.js';
 import { setUnigramCorpus as segmenterSetCorpus } from './engine/segmenter.js';
 import { TOOLS, makeToolRow } from './engine/tools.js';
 import { state, newDbKey, syncKey, getEditsWordlist } from './data/state.js';
@@ -253,7 +253,7 @@ const __grawlixTest = {
     const plan = planEntryWrite({
       mode: 'edit', clicked,
       typed: { raw: next.display, score: next.score, comment: next.comment ?? '' },
-      sources: state.sources, junkScore: getJunkScore(),
+      sources: state.sources, trashScore: getTrashScore(),
     });
     return sendEditEntry({ deletes: plan.deletes, upserts: plan.upserts, primary: plan.primary }, timeout);
   },

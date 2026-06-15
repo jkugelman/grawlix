@@ -151,7 +151,7 @@ test('editing the entry text renames the My Edits record', async ({ page }) => {
   await page.locator('.atom-pop-save').click();
 
   // Renaming a My Edits entry just deletes the original — no second record, and the
-  // foreign Source 'bagel' is left untouched (only a foreign rename junks a leftover).
+  // foreign Source 'bagel' is left untouched (only a foreign rename trashes a leftover).
   await expect.poll(async () =>
     page.evaluate(() => window.__grawlixTest.getWordlist('My Edits').entries)
   ).toEqual([{ entry: 'bagels', display: 'Bagels', score: 75, comment: '' }]);

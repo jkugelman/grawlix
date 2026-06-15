@@ -86,10 +86,10 @@ test('edit: same-norm enrich deletes the plain and upserts the rich, no downscor
   assert.deepStrictEqual(p.notes, []);
 });
 
-test('edit: renaming a foreign entry to a new norm junks the leftover', () => {
+test('edit: renaming a foreign entry to a new norm trashes the leftover', () => {
   const sources = [edits([]), src('XWI', [wlEntry('oceam', 40)])];   // clicked oceam is foreign-only
   const clicked = { norm: 'oceam', display: null, score: 40, comment: '' };
-  const p = planEntryWrite({ mode: 'edit', clicked, typed: typed('ocean', 60), sources, junkScore: 0 });
+  const p = planEntryWrite({ mode: 'edit', clicked, typed: typed('ocean', 60), sources, trashScore: 0 });
   assert.deepStrictEqual(p.upserts, [
     { norm: 'ocean', display: 'ocean', score: 60, comment: '' },
     { norm: 'oceam', display: null, score: 0, comment: '' },
@@ -106,7 +106,7 @@ test('edit: renaming a My Edits entry to a new norm deletes it — no downscore 
   assert.deepStrictEqual(p.notes, []);
 });
 
-test('edit: renaming with no foreign leftover does not junk', () => {
+test('edit: renaming with no foreign leftover does not trash', () => {
   const sources = [edits([wlEntry('oceam', 60)])];
   const clicked = { norm: 'oceam', display: null, score: 60, comment: '' };
   const p = planEntryWrite({ mode: 'edit', clicked, typed: typed('ocean', 60), sources });
@@ -115,10 +115,10 @@ test('edit: renaming with no foreign leftover does not junk', () => {
   assert.deepStrictEqual(p.notes, []);
 });
 
-test('edit: the foreign-rename downscore respects a custom junk score', () => {
+test('edit: the foreign-rename downscore respects a custom trash score', () => {
   const sources = [edits([]), src('XWI', [wlEntry('oceam', 40)])];
   const clicked = { norm: 'oceam', display: null, score: 40, comment: '' };
-  const p = planEntryWrite({ mode: 'edit', clicked, typed: typed('ocean', 60), sources, junkScore: 5 });
+  const p = planEntryWrite({ mode: 'edit', clicked, typed: typed('ocean', 60), sources, trashScore: 5 });
   assert.deepStrictEqual(p.upserts[1], { norm: 'oceam', display: null, score: 5, comment: '' });
 });
 

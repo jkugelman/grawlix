@@ -14,7 +14,7 @@ const isEdits = wl => wl.type === 'edits';
 const isLive = wl => wl.enabled !== false;
 const editsOf = sources => sources.find(isEdits) || null;
 
-// Non-edits only: gating on a My Edits sibling would junk the user's own
+// Non-edits only: gating on a My Edits sibling would trash the user's own
 // deliberate variant during the downscore.
 function foreignHasNorm(sources, norm) {
   return sources.some(wl => isLive(wl) && !isEdits(wl) && getRescoredByNorm(wl).has(norm));
@@ -32,7 +32,7 @@ function foreignBare(sources, norm) {
   return null;
 }
 
-export function planEntryWrite({ mode, clicked, typed, sources, junkScore = 0 }) {
+export function planEntryWrite({ mode, clicked, typed, sources, trashScore = 0 }) {
   const newNorm = toNorm(typed.raw);
   const newDisplay = typed.raw;            // literal, non-null — see norm.js buildUserWlEntry
   const score = typed.score;
@@ -69,11 +69,11 @@ export function planEntryWrite({ mode, clicked, typed, sources, junkScore = 0 })
   }
   upserts.push({ norm: newNorm, display: newDisplay, score, comment });
   // Downscore only a foreign original (not in My Edits) — renaming your own entry
-  // just deletes it. The bare null wildcard junks every spelling of the old norm.
+  // just deletes it. The bare null wildcard trashes every spelling of the old norm.
   const origInEdits = !!edits && (getRescoredByNorm(edits).get(origNorm) || []).some(e => displayOf(e) === origDisplay);
   if (newNorm !== origNorm && !origInEdits && foreignHasNorm(sources, origNorm)) {
-    upserts.push({ norm: origNorm, display: null, score: junkScore, comment: '' });
-    notes.push({ kind: 'downscore', norm: origNorm, display: origDisplay, score: junkScore });
+    upserts.push({ norm: origNorm, display: null, score: trashScore, comment: '' });
+    notes.push({ kind: 'downscore', norm: origNorm, display: origDisplay, score: trashScore });
   }
   return { blockedReason: null, primary, deletes, upserts, notes };
 }

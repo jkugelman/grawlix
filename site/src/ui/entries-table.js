@@ -29,7 +29,7 @@ import {
 } from '../engine/group-sort.js';
 import { compileFlatHighlighters } from '../engine/flat-highlight.js';
 import { state, getEditsWordlist } from '../data/state.js';
-import { getJunkScore } from '../data/serialize.js';
+import { getTrashScore } from '../data/serialize.js';
 import { rescoreEntry } from '../engine/rescore.js';
 import { buildScoreBadgeHTML, buildScoreCellHTML } from '../model/score-display.js';
 import { showToast } from './toasts.js';
@@ -1819,7 +1819,7 @@ export const AtomPopover = (() => {
     if (!valuesValid(vals)) return null;
     if (activeMode === 'edit' && !pendingWritesChange(vals)) return null;
     const clicked = activeMode === 'edit' ? saveBaseline() : null;
-    return planEntryWrite({ mode: activeMode, clicked, typed: vals, sources: state.sources, junkScore: getJunkScore() });
+    return planEntryWrite({ mode: activeMode, clicked, typed: vals, sources: state.sources, trashScore: getTrashScore() });
   }
 
   function applyPreviewOverlay(rows) {

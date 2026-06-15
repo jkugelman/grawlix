@@ -13,13 +13,13 @@ export function setOutputFormat(fmt) {
   Storage.writeMergedSettings({ ...Storage.readMergedSettings(), outputFormat: fmt });
 }
 
-export const DEFAULT_JUNK_SCORE = 0;
+export const DEFAULT_TRASH_SCORE = 0;
 
-export function getJunkScore() {
-  const v = Storage.readMergedSettings().junkScore;
-  return Number.isFinite(v) ? v : DEFAULT_JUNK_SCORE;
+export function getTrashScore() {
+  const v = Storage.readMergedSettings().trashScore;
+  return Number.isFinite(v) ? v : DEFAULT_TRASH_SCORE;
 }
 
-export function setJunkScore(score) {
-  Storage.writeMergedSettings({ ...Storage.readMergedSettings(), junkScore: score });
+export function setTrashScore(score) {
+  Storage.writeMergedSettings({ ...Storage.readMergedSettings(), trashScore: score });
 }
