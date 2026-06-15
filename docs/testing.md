@@ -89,10 +89,10 @@ sudo npx playwright install-deps   # first time only — installs OS-level brows
 ## Cheat sheet
 
 ```sh
-npm test              # both tiers: unit, then the browser suite
+npm test              # both tiers: unit, then the browser suite against the bundled dist/
 npm run test:unit     # node:test unit tier (fast, no browser)
-npm run test:browser  # browser suite, all engines — what CI runs
-npm run test:dist     # build + browser suite against the bundled dist/
+npm run test:browser  # browser suite against the unbundled site/ — what CI's matrix jobs run
+npm run test:dist     # build + browser suite against the bundled dist/ (what npm test invokes)
 npm run test:headed   # opens a real browser window
 npm run test:ui       # interactive runner with time-travel
 npm run test:report   # serve the HTML report from the last run
@@ -199,7 +199,7 @@ Playwright's own locator assertions (`expect(locator).toHaveText(...)`, `.toHave
 
 GitHub Actions runs the suite on push to `main` only — no PR gating. CI first builds the bundled production artifact (`npm run build` → `dist/`, where esbuild bundles the module graph and minifies) and runs the suite against *that*, not the `site/` source — so a bundling- or minification-induced break fails the build before it can deploy. The deploy job ships the exact `dist/` artifact the tests ran against. Failed runs upload traces and screenshots as artifacts; download from the run page to inspect.
 
-To reproduce the bundled build locally: `npm run test:dist` (it runs `npm run build`, then the browser suite against `dist/`). `npm test` runs the unit tier then the unbundled `site/` browser matrix; `npm run test:browser` is the browser tier alone (what CI's matrix jobs invoke, with the unit tier gating them in the build job).
+To reproduce the bundled build locally: `npm run test:dist` (it runs `npm run build`, then the browser suite against `dist/`). `npm test` runs the unit tier then `test:dist`, so its full matrix runs against the bundle — not the raw `site/`. `npm run test:browser` is the browser tier alone against the unbundled `site/` (what CI's matrix jobs invoke, with the unit tier gating them in the build job); reach for it only for single-browser chromium iteration, since the unbundled matrix flakes on webkit (below).
 
 **Run the full matrix against `dist`, not `site/`.** Dev serves the raw module graph (~75 small files), and the browser matrix against `site/` makes every page load waterfall through that graph — which flakes on **webkit** under parallel-worker load (`page.goto` "waiting until load" timeouts). The bundled `dist` is one request, no waterfall, and runs clean. So use `npm run test:dist` for the full three-browser matrix — it builds `dist/` and runs the suite against it (CI does the equivalent already); single-browser chromium iteration against `site/` is fine.
 
