@@ -169,7 +169,7 @@ Scope to My Edits and its wordlist bar lets you Import a personal wordlist, Down
 
 ## Score tiers
 
-Defaults: **great** (≥60), **good** (≥50), **fair** (≥40), **meh** (≥30), **bad** (<30). Score badges color by tier. Hover any score in the entries table to see its tier label. Customize the tier labels via **All Wordlists**' scoring rules (see *Rescoring and scoring rules*).
+Defaults: **great** (≥60), **good** (≥50), **fair** (≥40), **meh** (≥30), **bad** (<30). Score badges color by tier. Hover any score badge — in the entries table, the entry popover, or the tier picker — to see its tier label. Customize the tier labels via **All Wordlists**' scoring rules (see *Rescoring and scoring rules*).
 
 ## The wordlist bar
 

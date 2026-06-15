@@ -200,6 +200,18 @@ test('an unrescored source shows a single score in the popover provenance', asyn
   await expect(provScore(page, 'tide').locator('.atom-score-raw')).toHaveCount(0);
 });
 
+test('score badges carry the tier-label tooltip in the popover, not just the table', async ({ page }) => {
+  await gotoApp(page);
+  await seedRemappedSource(page);
+
+  const tableTitle = await tideScore(page).locator('.score-badge').getAttribute('title');
+  expect(tableTitle).toBeTruthy();
+
+  await tideScore(page).click();
+  await expect(page.locator('#atom-popover')).toBeVisible();
+  await expect(provScore(page, 'tide').locator('.score-badge')).toHaveAttribute('title', tableTitle);
+});
+
 const neutralizeBtn = page => page.locator('#rescore-editor .rule-neutralize-btn');
 
 // Neutralize keeps a source's raw scores but strips Grawlix's remapping: surviving

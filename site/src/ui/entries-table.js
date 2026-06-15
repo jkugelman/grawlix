@@ -31,7 +31,6 @@ import { compileFlatHighlighters } from '../engine/flat-highlight.js';
 import { state, getEditsWordlist } from '../data/state.js';
 import { getJunkScore } from '../data/serialize.js';
 import { rescoreEntry } from '../engine/rescore.js';
-import { makeTierLookup } from '../model/scoring.js';
 import { buildScoreBadgeHTML, buildScoreCellHTML } from '../model/score-display.js';
 import { showToast } from './toasts.js';
 import { AppView } from './app-view.js';
@@ -1129,7 +1128,6 @@ export class EntriesScroller extends BaseVirtualScroller {
     const windowed = this._flat;
     if (windowed) this._invalidateWinCacheIfStale();
 
-    const tierFor = makeTierLookup();
     const preview = rescorePreviewActive();
     const draftRules = preview ? getDraftRescoreRules() : null;
     const activeNorm = AtomPopover.activeNorm(this);
@@ -1141,14 +1139,14 @@ export class EntriesScroller extends BaseVirtualScroller {
       if (windowed) {
         const chainRow = this._windowedRowOrNull(i);
         if (chainRow) {
-          row = this._renderChainRow(chainRow, i, tierFor, activeNorm, preview, draftRules);
+          row = this._renderChainRow(chainRow, i, activeNorm, preview, draftRules);
         } else {
           row = this._skeletonRow(i);
           if (minMiss < 0) minMiss = i;
           maxMiss = i;
         }
       } else {
-        row = this._renderChainRow(this.entries[i], i, tierFor, activeNorm, preview, draftRules);
+        row = this._renderChainRow(this.entries[i], i, activeNorm, preview, draftRules);
       }
       row.style.top = (i * stride) + 'px';
       if (row.classList.contains('active')) nextActiveRow = row;
@@ -1253,14 +1251,14 @@ export class EntriesScroller extends BaseVirtualScroller {
     });
   }
 
-  _renderChainRow(chainRow, i, tierFor, activeNorm, preview, draftRules) {
+  _renderChainRow(chainRow, i, activeNorm, preview, draftRules) {
     const atoms = chainRow.atoms;
     let isActive = false;
     let html = `<span class="atom-count">${i + 1}.</span>`;
     atoms.forEach((atom, ai) => {
       const { highlights, glyph } = atom;
       const wlEntry = draftRules ? previewedEntry(atom.wlEntry, draftRules) : atom.wlEntry;
-      const { norm, score } = wlEntry;
+      const { norm } = wlEntry;
       if (activeNorm && norm === activeNorm) isActive = true;
       const displayed = displayOf(wlEntry);
       const projected = projectRangesToDisplay(highlights, wlEntry);
@@ -1269,8 +1267,6 @@ export class EntriesScroller extends BaseVirtualScroller {
       const entryCell =
         `<span class="atom-entry"${truncTitle}>${glyphHTML}${renderHighlightedText(displayed, projected)}</span>`;
       const scoreInner = buildScoreCellHTML(wlEntry, preview);
-      const tierLabel = tierFor(score);
-      const scoreTitle = tierLabel ? ` title="${esc(tierLabel)}"` : '';
       const commentText = wlEntry.comment || '';
       const sourceWl = wlEntry.wordlist;
       const sourceHTML = sourceWl ? buildWordlistNameHTML(sourceWl, { bold: false }) : '';
@@ -1281,7 +1277,7 @@ export class EntriesScroller extends BaseVirtualScroller {
       html += `<span class="atom" data-atom="${ai}">` +
         entryCell +
         `<span class="atom-len">${norm.length}</span>` +
-        `<span class="atom-score"${scoreTitle}>${scoreInner}</span>` +
+        `<span class="atom-score">${scoreInner}</span>` +
         `<span class="atom-comment"${commentText ? ` title="${esc(commentText)}"` : ''}>${esc(commentText)}</span>` +
         sourceCell +
         `</span>`;

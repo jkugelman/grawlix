@@ -3,6 +3,9 @@
 // ─── Score colors ───────────────────────────────────────────────────────────
 
 import { allSourcesHistogramLayout } from '../data/derived.js';
+import { state } from '../data/state.js';
+import { esc } from '../core/util.js';
+import { makeTierLookup } from './scoring.js';
 
 // t positions are hand-picked so that on the canonical 0–60 scale, scores
 // 30/40/50/60 land directly on stops (orange/yellow/green/blue).
@@ -37,9 +40,22 @@ export function scoreColor(score) {
   };
 }
 
+// Cache keyed on state.scoring identity — load-bearing only because tiers are
+// always reassigned, never mutated in place; an in-place edit would stale this.
+let _tierLookup = null, _tierLookupFor = null;
+function tierLabelFor(score) {
+  if (state.scoring !== _tierLookupFor) {
+    _tierLookupFor = state.scoring;
+    _tierLookup = makeTierLookup();
+  }
+  return _tierLookup(score);
+}
+
 export function buildScoreBadgeHTML(score) {
   const { bg, fg } = scoreColor(score);
-  return `<span class="score-badge" style="--score-bg:${bg}; --score-fg:${fg}">${score}</span>`;
+  const tier = tierLabelFor(score);
+  const title = tier ? ` title="${esc(tier)}"` : '';
+  return `<span class="score-badge"${title} style="--score-bg:${bg}; --score-fg:${fg}">${score}</span>`;
 }
 
 export function buildScoreCellHTML(wlEntry, preview) {
