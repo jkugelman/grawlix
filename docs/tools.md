@@ -40,7 +40,7 @@ Source material: shipped catalog lives in `TOOLS` in [`site/src/engine/tools.js`
 | ✓ | Search | 🔍 Search | Search (and replace) with wildcards | un*ed · c?t |
 | ✓ | Search | 🔠 Initialisms | Starting letters spell a word | HOT → Helen of Troy |
 | ✓ | Search | 🪄 Regex | Search (and replace) with regular expressions | un.+ed · c.{2,4}t |
-| ✓ | Side | 🪓 Behead | Remove the first N letters | SLING → LING |
+| ✓ | Side | 🪓 Behead | Remove the first N letters | SWING → WING |
 |   | Side | 📥 Add prefix | Add a string prefix | TATA → CANTATA |
 |   | Side | 📥 Remove prefix | Remove a string prefix | CANTATA → TATA |
 | ✓ | Side | ✂️ Curtail | Remove the last N letters | PARTY → PART |

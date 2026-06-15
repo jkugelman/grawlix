@@ -3,19 +3,19 @@ import assert from 'node:assert/strict';
 import { visible, sameVisible, run, rowByFirst, highlightTexts } from './harness.js';
 
 const LIB = [
-  { entry: 'sling', score: 50 }, { entry: 'ling', score: 40 },
+  { entry: 'swing', score: 50 }, { entry: 'wing', score: 40 },
   { entry: 'bread', score: 60 }, { entry: 'read', score: 55 },
   { entry: 'dog', score: 40 },
 ];
 
 test('chains an entry with its first-letter-dropped form, dropping entries with no beheaded match', async () => {
   sameVisible(await visible(LIB, [{ tool: 'behead' }]),
-    [['bread', 'read'], ['sling', 'ling']]);
+    [['bread', 'read'], ['swing', 'wing']]);
 });
 
 test('marks the dropped first letter on the originator atom only', async () => {
   const { rows } = await run(LIB, [{ tool: 'behead' }]);
-  const row = rowByFirst(rows, 'sling');
+  const row = rowByFirst(rows, 'swing');
   assert.deepEqual(highlightTexts(row.atoms[0]), ['s']);
   assert.equal(row.atoms[0].highlights[0].kind, 'removed');
   assert.equal(row.atoms[1].highlights, null);

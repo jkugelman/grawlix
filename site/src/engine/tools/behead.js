@@ -3,7 +3,7 @@
 export default {
   name: 'Behead', icon: '🪓', category: 'side',
   desc: 'Remove the first N letters',
-  example: 'SLING → LING',
+  example: 'SWING → WING',
   params: [{ label: 'Count', default: '1', type: 'number' }],
   kind: 'transform', inputHighlights: true, outputHighlights: false,
   glyph: () => '→',

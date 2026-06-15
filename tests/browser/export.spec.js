@@ -8,7 +8,7 @@ test.beforeEach(async ({ page }) => {
 async function addFixture(page) {
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
     name: 'ExportTest',
-    entries: ['scar', 'car', 'sling', 'ling', 'post', 'stop', 'spot', 'tops', 'cat', 'cot'],
+    entries: ['scar', 'car', 'swing', 'wing', 'post', 'stop', 'spot', 'tops', 'cat', 'cot'],
     scores:  [50,     60,    70,      30,     50,     60,     55,     40,     70,    30],
     comments:['',     'auto', '',     '',     '',     '',     '',     '',     '',    ''],
   }));
@@ -38,7 +38,7 @@ test('Copy renders multi-entry chains inline with their glyphs', async ({ page }
 
   const text = await getExport(page, 'copy');
   expect(text).toContain('4 SCAR  → 3 CAR');
-  expect(text).toContain('5 SLING → 4 LING');
+  expect(text).toContain('5 SWING → 4 WING');
 });
 
 test('Copy lists group members per line, no group key', async ({ page }) => {
@@ -81,7 +81,7 @@ test('Wordlist dumps tail entries with chain-min score, alphabetically sorted', 
   const { text, count, skipped } = await getExport(page, 'wordlist');
   expect(skipped).toBe(0);
   expect(count).toBe(2);
-  expect(text).toBe('car;50\nling;30\n');
+  expect(text).toBe('car;50\nwing;30\n');
 });
 
 test('CSV flat one-entry rows: header is entry,length,score,comment,source', async ({ page }) => {
@@ -136,11 +136,11 @@ test('CSV quotes cells containing commas or quotes per RFC 4180', async ({ page 
 test('CSV body row matches the declared chain shape (entry,length,score,comment,source)', async ({ page }) => {
   await gotoApp(page);
   await addFixture(page);
-  await setStack(page, [{ tool: 'search', params: { pattern: 'sling' } }]);
+  await setStack(page, [{ tool: 'search', params: { pattern: 'swing' } }]);
 
   const text = await getExport(page, 'csv');
   const lines = text.split('\r\n');
-  expect(lines[1]).toBe('sling,5,70,,ExportTest');
+  expect(lines[1]).toBe('swing,5,70,,ExportTest');
 });
 
 test('JSON has uniform shape: groups → chains → entries (flat is one mega-group)', async ({ page }) => {
