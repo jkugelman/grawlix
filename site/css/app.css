@@ -504,8 +504,6 @@ input.entry-input { font-family: var(--font-mono); font-size: 13px; }
 .score-picker-opt.active { background: var(--accent); color: white; }
 .score-picker-badge { flex: none; }
 .score-picker-label { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.score-picker-check { flex: none; font-weight: 700; color: var(--accent); }
-.score-picker-opt.active .score-picker-check { color: white; }
 
 @media (max-width: 759px) {
   #score-picker {

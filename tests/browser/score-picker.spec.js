@@ -42,17 +42,15 @@ test('a score click in All Wordlists opens the tier picker, not the popover', as
   await expect(page.locator('#atom-popover')).toBeHidden();
 });
 
-test('the picker lists every tier high-to-low as score badges, marking the current one', async ({ page }) => {
+test('the picker lists every tier high-to-low as score badges, starting on the current one', async ({ page }) => {
   await setup(page, { score: 50 });
   await openPicker(page);
 
   await expect(page.locator('#score-picker .score-picker-badge')).toHaveText(['90', '50', '10']);
   await expect(page.locator('#score-picker .score-picker-label')).toHaveText(['Great', 'Okay', 'Weak']);
 
-  await expect(page.locator('#score-picker .score-picker-check')).toHaveCount(1);
-  await expect(
-    page.locator('#score-picker .score-picker-opt', { hasText: 'Okay' }).locator('.score-picker-check')
-  ).toBeVisible();
+  await expect(page.locator('#score-picker .score-picker-opt', { hasText: 'Okay' }))
+    .toHaveAttribute('aria-selected', 'true');
 });
 
 test('picking a tier sets the score, routes it into My Edits, and leaves the source untouched', async ({ page }) => {
@@ -86,10 +84,9 @@ test('Escape closes the picker without writing anything', async ({ page }) => {
   expect(await myEdits(page)).toEqual([]);
 });
 
-test('a between-tiers score starts on the next-lowest tier with nothing checked', async ({ page }) => {
+test('a between-tiers score starts on the next-lowest tier', async ({ page }) => {
   await setup(page, { score: 22 });   // tiers 90/50/10 → falls between, nearest below is 10
   await openPicker(page);
-  await expect(page.locator('#score-picker .score-picker-check')).toHaveCount(0);
   await expect(page.locator('#score-picker .score-picker-opt', { hasText: 'Weak' }))
     .toHaveAttribute('aria-selected', 'true');
   await page.keyboard.press('Enter');

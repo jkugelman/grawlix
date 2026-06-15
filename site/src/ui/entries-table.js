@@ -16,7 +16,7 @@ import { ROW_HEIGHT, VS_BUFFER, MERGED_ID, MERGED_NAME } from '../core/constants
 import { esc } from '../core/util.js';
 import { displayOf, projectRangesToDisplay, toNorm, buildUserWlEntry } from '../engine/norm.js';
 import { planEntryWrite } from '../engine/edit-plan.js';
-import { parseRange, matchesRange } from '../engine/range.js';
+import { parseRange } from '../engine/range.js';
 import { renderHighlightedText } from '../engine/search.js';
 import { TOOLS } from '../engine/tools.js';
 import {
@@ -2209,7 +2209,6 @@ export const ScorePicker = (() => {
   let activeScroller = null;
   let options = [];
   let activeIndex = 0;
-  let currentIndex = -1;
   let startIndex = 0;
 
   function buildOptions() {
@@ -2256,10 +2255,8 @@ export const ScorePicker = (() => {
     if (rowEl) rowEl.classList.add('active');
 
     const score = wlEntry.score;
-    // Two indices on purpose: the checkmark marks only the exact tier the score
-    // sits in (none, for a between-tiers score), while the cursor/overlay start
-    // on the next tier down in that gap (22 → the 20 tier), floored at the lowest.
-    currentIndex = options.findIndex(o => matchesRange(score, o.intervals));
+    // The cursor/overlay start on the tier the score sits in, or the next tier
+    // down in a between-tiers gap (22 → the 20 tier), floored at the lowest.
     startIndex = options.findIndex(o => o.score <= score);
     if (startIndex < 0) startIndex = options.length - 1;
     activeIndex = startIndex;
@@ -2290,7 +2287,6 @@ export const ScorePicker = (() => {
       + ` aria-selected="${i === activeIndex}" title="${esc(o.note)}">`
       + `<span class="score-picker-badge">${buildScoreBadgeHTML(o.score)}</span>`
       + `<span class="score-picker-label">${esc(o.note)}</span>`
-      + (i === currentIndex ? `<span class="score-picker-check" aria-hidden="true">✓</span>` : '')
       + `</li>`
     ).join('');
     return `<ul class="score-picker-list" role="listbox" aria-label="Set score" tabindex="-1">${opts}</ul>`;
