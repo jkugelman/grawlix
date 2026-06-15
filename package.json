@@ -8,7 +8,7 @@
     "build": "node scripts/build.mjs",
     "dev": "python3 -m http.server 4173 --directory site",
     "test": "npm run test:unit && npm run test:dist",
-    "test:unit": "node --test tests/unit/",
+    "test:unit": "node --test --test-reporter=dot tests/unit/",
     "test:browser": "playwright test",
     "test:dist": "npm run build && GRAWLIX_SITE_DIR=dist npm run test:browser",
     "test:headed": "playwright test --headed",
