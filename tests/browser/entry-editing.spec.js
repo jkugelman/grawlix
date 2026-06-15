@@ -102,3 +102,48 @@ test('renaming over a foreign leftover downscores the original to the junk score
   await expect.poll(() => page.evaluate(() => window.__grawlixTest.getMergedEntry('oceam').then(e => e?.score))).toBe(0);
   expect(await page.evaluate(() => window.__grawlixTest.getMergedEntry('ocean'))).not.toBeNull();
 });
+
+test('renaming a My Edits entry to a new norm shows a struck delete, not a downscore', async ({ page }) => {
+  await gotoApp(page);
+  await addList(page, { name: 'W', entries: ['aaateam'], scores: [50] });
+  await page.evaluate(() => window.__grawlixTest.saveMyEdit('AAA team', 'AAA team', 50));
+  await openPopoverOnEntry(page, 'AAA team');
+  await page.locator('#atom-pop-entry').fill('AAAx team');
+  const deleted = page.locator('#atom-popover .atom-pop-prov-row--deleted', {
+    has: page.locator('.atom-pop-prov-entry', { hasText: /^AAA team$/ }),
+  });
+  await expect(deleted).toBeVisible();
+  await expect(deleted.locator('.atom-pop-prov-trash')).toHaveCount(0);
+  await expect(page.locator('#atom-popover .atom-pop-prov-row--added', {
+    has: page.locator('.atom-pop-prov-entry', { hasText: /^AAAx team$/ }),
+  })).toBeVisible();
+  await expect(page.locator('#atom-popover .atom-pop-prov-row--added', {
+    has: page.locator('.atom-pop-prov-entry', { hasText: /^AAA team$/ }),
+  })).toHaveCount(0);
+});
+
+test('renaming shows an undo toast that restores the original', async ({ page }) => {
+  await gotoApp(page);
+  await page.evaluate(() => window.__grawlixTest.saveMyEdit('ocean', 'ocean', 50));
+  await openPopoverOnEntry(page, 'ocean');
+  await page.locator('#atom-pop-entry').fill('Ocean');
+  await page.locator('#atom-popover .atom-pop-save').click();
+  await expect.poll(() => displaysForNorm(page, 'ocean')).toEqual(['Ocean']);
+  const undo = page.locator('.toast .toast-action');
+  await expect(undo).toBeVisible();
+  await undo.click();
+  await expect.poll(() => displaysForNorm(page, 'ocean')).toEqual(['ocean']);
+});
+
+test('the junk score setting drives the downscore amount', async ({ page }) => {
+  await gotoApp(page);
+  await addList(page, { name: 'W', entries: ['oceam'], scores: [40] });
+  await page.locator('#btn-settings').click();
+  await page.locator('#junk-score-input').fill('7');
+  await page.locator('#junk-score-input').blur();
+  await page.locator('#settings-dialog .dialog-close-btn').click();
+  await openPopoverOnEntry(page, 'oceam');
+  await page.locator('#atom-pop-entry').fill('ocean');
+  await page.locator('#atom-popover .atom-pop-save').click();
+  await expect.poll(() => page.evaluate(() => window.__grawlixTest.getMergedEntry('oceam').then(e => e?.score))).toBe(7);
+});

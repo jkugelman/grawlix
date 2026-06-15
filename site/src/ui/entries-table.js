@@ -1805,9 +1805,15 @@ export const AtomPopover = (() => {
     const plan = previewPlan();
     if (!plan || plan.blockedReason) return rows;
     const vals = readNewValues();
+    const extras = [];
     for (const d of plan.deletes) {
       const i = rows.findIndex(r => r.isEdits && r.entry.norm === d.norm && displayOf(r.entry) === d.display && r.diff !== 'deleted');
-      if (i >= 0) rows[i] = { ...rows[i], diff: 'deleted' };
+      if (i >= 0) { rows[i] = { ...rows[i], diff: 'deleted' }; continue; }
+      const orig = edits.rawEntries.find(e => e.norm === d.norm && displayOf(e) === d.display);
+      if (orig) {
+        const eff = rescoreEntry({ norm: orig.norm, score: orig.score }, edits.rescoreRules);
+        extras.push({ wordlist: edits, entry: { norm: orig.norm, display: orig.display ?? null, score: eff, rawScore: orig.score, comment: orig.comment || '' }, enabled: true, isEdits: true, saved: true, diff: 'deleted' });
+      }
     }
     const p = plan.primary;
     const effective = rescoreEntry({ norm: p.norm, score: vals.score }, edits.rescoreRules);
@@ -1816,11 +1822,12 @@ export const AtomPopover = (() => {
     let primaryIdx;
     if (i >= 0) { rows[i] = { wordlist: edits, entry, enabled: true, isEdits: true, saved: true, diff: 'changed' }; primaryIdx = i; }
     else { rows.unshift({ wordlist: edits, entry, enabled: true, isEdits: true, saved: false, diff: 'added' }); primaryIdx = 0; }
-    const dsRows = plan.notes.filter(n => n.kind === 'downscore').map(n => {
+    for (const n of plan.notes) {
+      if (n.kind !== 'downscore') continue;
       const dsScore = rescoreEntry({ norm: n.norm, score: n.score }, edits.rescoreRules);
-      return { wordlist: edits, entry: { norm: n.norm, display: n.display, score: dsScore, rawScore: n.score, comment: '' }, enabled: true, isEdits: true, saved: false, diff: 'added' };
-    });
-    if (dsRows.length) rows.splice(primaryIdx + 1, 0, ...dsRows);
+      extras.push({ wordlist: edits, entry: { norm: n.norm, display: n.display, score: dsScore, rawScore: n.score, comment: '' }, enabled: true, isEdits: true, saved: false, diff: 'added' });
+    }
+    if (extras.length) rows.splice(primaryIdx + 1, 0, ...extras);
     return rows;
   }
 

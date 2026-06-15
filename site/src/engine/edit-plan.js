@@ -68,9 +68,10 @@ export function planEntryWrite({ mode, clicked, typed, sources, junkScore = 0 })
     deletes.push({ norm: origNorm, display: origDisplay });
   }
   upserts.push({ norm: newNorm, display: newDisplay, score, comment });
-  // A foreign original can't be deleted; the bare (null) wildcard shadows every
-  // spelling of the old norm at the junk score, not just origDisplay.
-  if (newNorm !== origNorm && foreignHasNorm(sources, origNorm)) {
+  // Downscore only a foreign original (not in My Edits) — renaming your own entry
+  // just deletes it. The bare null wildcard junks every spelling of the old norm.
+  const origInEdits = !!edits && (getRescoredByNorm(edits).get(origNorm) || []).some(e => displayOf(e) === origDisplay);
+  if (newNorm !== origNorm && !origInEdits && foreignHasNorm(sources, origNorm)) {
     upserts.push({ norm: origNorm, display: null, score: junkScore, comment: '' });
     notes.push({ kind: 'downscore', norm: origNorm, display: origDisplay, score: junkScore });
   }

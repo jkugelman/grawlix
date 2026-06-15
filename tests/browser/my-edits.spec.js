@@ -149,14 +149,11 @@ test('editing the entry text renames the My Edits record', async ({ page }) => {
   await page.locator('#atom-pop-entry').fill('Bagels');
   await page.locator('.atom-pop-save').click();
 
-  // The bagel record becomes bagels (a rename, not a second record). Source still
-  // lists 'bagel', so the rename also junks that leftover via a bare downscore.
+  // Renaming a My Edits entry just deletes the original — no second record, and the
+  // foreign Source 'bagel' is left untouched (only a foreign rename junks a leftover).
   await expect.poll(async () =>
     page.evaluate(() => window.__grawlixTest.getWordlist('My Edits').entries)
-  ).toEqual([
-    { entry: 'bagels', display: 'Bagels', score: 75, comment: '' },
-    { entry: 'bagel', display: null, score: 0, comment: '' },
-  ]);
+  ).toEqual([{ entry: 'bagels', display: 'Bagels', score: 75, comment: '' }]);
 });
 
 test('staging a delete via the row trash strikes it through and is reversible; Save commits it', async ({ page }) => {
