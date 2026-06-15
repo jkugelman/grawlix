@@ -3,8 +3,7 @@
 import { displayOf } from '../norm.js';
 import { buildSearchPattern } from '../search.js';
 import { runSearchReplace } from '../regex.js';
-import { buildHelpHTML } from '../../core/util.js';
-import { WHOLE_WORD_PARAM } from './shared.js';
+import { WHOLE_WORD_PARAM, SEARCH_HELP } from './shared.js';
 
 export default {
   name: 'Search', icon: '<svg width="16" height="16" aria-hidden="true"><use href="#icon-search"/></svg>', category: 'search',
@@ -12,15 +11,7 @@ export default {
   example: 'UN*ED · C?T',
   findReplace: true,
   params: [
-    { placeholder: 'pattern', help: buildHelpHTML([
-      ['*', 'any string'],
-      ['?', 'any character'],
-      ['#', 'any consonant'],
-      ['@', 'any vowel'],
-      ['[abc]', 'any of a, b, c'],
-      ['[^abc]', 'none of a, b, c'],
-      ['[a-m]', 'letter range'],
-    ]) },
+    { placeholder: 'pattern', help: SEARCH_HELP },
     { key: 'replace', placeholder: 'replace', raw: true },
     WHOLE_WORD_PARAM,
   ],

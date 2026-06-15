@@ -43,7 +43,7 @@ import { runOnWorker } from './pipeline-worker.js';
 import { bumpPipelineVersion } from '../data/state.js';
 import {
   buildTextInputHTML, buildParamHTML, syncClearButton,
-  buildDragHandleHTML, makeReorderable,
+  buildDragHandleHTML, makeReorderable, positionPopover,
 } from './components.js';
 
 // Router (URL persistence), the tool-row error popover, and help-popup
@@ -123,7 +123,29 @@ export function buildFindReplaceCaretHTML(expanded, rowToken) {
     + `<svg class="find-replace-caret-glyph" width="11" height="11" aria-hidden="true"><use href="#icon-chevron-right"/></svg></button>`;
 }
 
+export function buildPairListHTML(params, values, toolKey, rowToken) {
+  const stringP = params.find(p => p.key === 'string');
+  const symbolP = params.find(p => p.key === 'symbol');
+  const strings = (values.string && values.string.length) ? values.string : [''];
+  const n = Math.max(strings.length, (values.symbol || []).length, 1);
+  let rows = '';
+  for (let i = 0; i < n; i++) {
+    const stringHTML = buildTextInputHTML(stringP, strings[i] || '', toolKey,
+      ` data-row="${rowToken}" data-key="string" data-pair="${i}"`);
+    const symbolHTML = buildTextInputHTML(symbolP, (values.symbol || [])[i] || '', toolKey,
+      ` data-row="${rowToken}" data-key="symbol" data-pair="${i}" data-symbol-suggest`);
+    const control = i === 0
+      ? `<button type="button" class="rebus-pair-add" data-row="${rowToken}" title="Add replacement" aria-label="Add replacement"><svg width="13" height="13"><use href="#icon-plus"/></svg></button>`
+      : `<button type="button" class="rebus-pair-remove" data-row="${rowToken}" data-pair="${i}" title="Remove" aria-label="Remove replacement"><svg width="10" height="10"><use href="#icon-x"/></svg></button>`;
+    rows += `<div class="rebus-pair">${stringHTML}<span class="rebus-arrow" aria-hidden="true">→</span>${symbolHTML}${control}</div>`;
+  }
+  return `<div class="rebus-pairs">${rows}</div>`;
+}
+
 export function buildToolRowPartsHTML(params, values, toolKey, wiringFn, opts = {}) {
+  if (params.some(p => p.repeat)) {
+    return { caret: '', main: buildPairListHTML(params, values, toolKey, opts.rowToken), asides: '', replace: '' };
+  }
   const asideEls = [];
   let main = '';
   let caret = '';
@@ -153,6 +175,53 @@ export function buildToolRowPartsHTML(params, values, toolKey, wiringFn, opts = 
   const asides = asideEls.length ? `<div class="tool-row-asides">${asideEls.join('')}</div>` : '';
   return { caret, main, asides, replace };
 }
+
+export const SymbolSuggest = (() => {
+  let el = null, activeInput = null;
+  const CIRCLED = [
+    ...Array.from({ length: 26 }, (_, i) => String.fromCodePoint(0x24B6 + i)),   // Ⓐ..Ⓩ
+    String.fromCodePoint(0x24EA),                                                // ⓪
+    ...Array.from({ length: 9 }, (_, i) => String.fromCodePoint(0x2460 + i)),    // ①..⑨
+  ];
+  const SYMBOLS = ['@', '#', '$', '%', '&', '*', '+', '=', '~', '^', '!', '?', '/', '|', '<', '>', '(', ')'];
+
+  const reflow = () => { if (el?.classList.contains('open') && activeInput) positionPopover(el, activeInput, { placement: 'below' }); };
+
+  function ensure() {
+    if (el) return el;
+    el = document.createElement('div');
+    el.className = 'popup-help symbol-suggest';
+    el.innerHTML = `<div class="symbol-grid">`
+      + [...SYMBOLS, ...CIRCLED].map(s => `<button type="button" class="symbol-cell" data-symbol="${esc(s)}">${esc(s)}</button>`).join('')
+      + `</div>`;
+    // Keep the symbol input focused on click — otherwise blur closes the popover
+    // before the symbol click lands and nothing is inserted.
+    el.addEventListener('mousedown', e => e.preventDefault());
+    el.addEventListener('click', (e) => {
+      const cell = e.target.closest('.symbol-cell');
+      if (!cell || !activeInput) return;
+      activeInput.value = cell.dataset.symbol;
+      syncClearButton(activeInput);
+      activeInput.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    document.body.appendChild(el);
+    window.addEventListener('resize', reflow);
+    window.addEventListener('scroll', reflow, true);
+    return el;
+  }
+
+  return {
+    open(input) {
+      activeInput = input;
+      ensure().classList.add('open');
+      positionPopover(el, input, { placement: 'below' });
+    },
+    close() {
+      el?.classList.remove('open');
+      activeInput = null;
+    },
+  };
+})();
 
 export function buildSearchBarHTML() {
   const row = ToolStack.getSearchBarRow();
@@ -567,6 +636,31 @@ export const ToolStack = (() => {
         removeAt(parseInt(removeBtn.dataset.remove, 10));
         return;
       }
+      const addPair = e.target.closest('.rebus-pair-add[data-row]');
+      if (addPair) {
+        const idx = parseInt(addPair.dataset.row, 10);
+        const row = stack[idx];
+        if (row) {
+          (row.params.string ||= ['']).push('');
+          (row.params.symbol ||= ['']).push('');
+          rerenderRows();
+          stackEl()?.querySelectorAll('.tool-row')[idx]?.querySelector('.rebus-pair:last-child input[data-key="string"]')?.focus();
+          invalidatePreSearchCache(); bumpPipelineVersion(); _navigate();
+        }
+        return;
+      }
+      const removePair = e.target.closest('.rebus-pair-remove[data-row]');
+      if (removePair) {
+        const row = stack[parseInt(removePair.dataset.row, 10)];
+        const i = parseInt(removePair.dataset.pair, 10);
+        if (row) {
+          (row.params.string || []).splice(i, 1);
+          (row.params.symbol || []).splice(i, 1);
+          rerenderRows();
+          invalidatePreSearchCache(); bumpPipelineVersion(); _navigate();
+        }
+        return;
+      }
       const allBtn = e.target.closest('.tool-row-all-toggle[data-all-toggle]');
       if (allBtn) {
         if (allBtn.classList.contains('disabled')) return;
@@ -602,6 +696,13 @@ export const ToolStack = (() => {
       const rowAttr = input.dataset.row;
       const row = rowAttr === 'bar' ? getSearchBarRow() : stack[parseInt(rowAttr, 10)];
       const key = input.dataset.key;
+      if (row && input.dataset.pair !== undefined) {
+        (row.params[key] ||= [])[parseInt(input.dataset.pair, 10)] = input.value;
+        invalidatePreSearchCache();
+        bumpPipelineVersion();
+        _navigate();
+        return;
+      }
       if (row) {
         if (input.type === 'checkbox') {
           row.params[key] = input.checked;
@@ -615,6 +716,15 @@ export const ToolStack = (() => {
         bumpPipelineVersion();
         _navigate();
       }
+    });
+    p?.addEventListener('focusin', (e) => {
+      if (e.target.closest('input[data-symbol-suggest]')) SymbolSuggest.open(e.target);
+    });
+    p?.addEventListener('focusout', (e) => {
+      if (e.target.closest('input[data-symbol-suggest]')) SymbolSuggest.close();
+    });
+    p?.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && e.target.closest('input[data-symbol-suggest]')) SymbolSuggest.close();
     });
 
     makeReorderable(p, {

@@ -148,3 +148,13 @@ test('normalizeParams: a null/absent schema means no param is raw (all lowercase
 test('normalizeParams: null params yields an empty object', () => {
   assert.deepEqual(normalizeParams(null, [{ key: 'word' }]), {});
 });
+
+test('normalizeParams: an array param lowercases element-wise unless raw', () => {
+  assert.deepEqual(
+    normalizeParams(
+      { from: ['Tool', 'BAR'], to: ['Ⓣ', '★'] },
+      [{ key: 'from', repeat: true }, { key: 'to', repeat: true, raw: true }],
+    ),
+    { from: ['tool', 'bar'], to: ['Ⓣ', '★'] },
+  );
+});

@@ -1,10 +1,22 @@
 'use strict';
 
+import { buildHelpHTML } from '../../core/util.js';
+
 // ─── Cross-tool helpers ──────────────────────────────────────────────────────
 // Only helpers used by 2+ tools belong here; single-use helpers live in their
 // tool's own file.
 
 export const WHOLE_WORD_PARAM = { key: 'whole-word', type: 'checkbox', label: 'Whole word', title: 'Whole word (Alt-W)' };
+
+export const SEARCH_HELP = buildHelpHTML([
+  ['*', 'any string'],
+  ['?', 'any character'],
+  ['#', 'any consonant'],
+  ['@', 'any vowel'],
+  ['[abc]', 'any of a, b, c'],
+  ['[^abc]', 'none of a, b, c'],
+  ['[a-m]', 'letter range'],
+]);
 
 export function reverseString(s) {
   let out = '';

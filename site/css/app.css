@@ -958,6 +958,11 @@ body.picker-expanded #picker-backdrop { opacity: 1; }
 .tool-row, .search-bar { min-height: 42px; --tool-control-h: 30px; }
 .tool-row { position: relative; display: grid; grid-template-columns: auto auto auto minmax(80px, auto) auto 1fr auto; align-items: center; padding: 8px 14px; border-bottom: 1px solid var(--border2); column-gap: 0; row-gap: 6px; overflow: hidden; }
 .tool-row > .tool-label { margin-left: 12px; }
+/* The tool name and its handle sit on the first control line, not centered
+   against a multi-line body (e.g. a Rebus row with several pairs). */
+.tool-row > .tool-label, .tool-row > .drag-handle,
+.search-bar > .tool-label, .search-bar > .drag-handle { align-self: start; min-height: var(--tool-control-h); }
+.tool-row > .drag-handle, .search-bar > .drag-handle { display: inline-flex; align-items: center; }
 .tool-row > .find-replace-caret { margin-left: 12px; }
 .tool-row > .tool-row-param-text { padding-left: 12px; }
 .tool-row > .find-replace-caret ~ .tool-row-param-text { padding-left: 6px; }
@@ -1036,6 +1041,23 @@ body.picker-expanded #picker-backdrop { opacity: 1; }
 .tool-row-remove:hover { color: var(--text); background: var(--hover); }
 .tool-row-remove-placeholder { width: 24px; height: 24px; }
 .tool-row > .tool-row-error-btn { grid-column: -3 / -2; justify-self: end; margin-right: 0.25em; }
+
+/* Rebus pair list */
+.tool-row > .rebus-pairs { margin-left: 12px; }
+.rebus-pairs { display: flex; flex-direction: column; gap: 6px; padding: 2px 0; }
+.rebus-pair { display: flex; align-items: center; gap: 6px; }
+.rebus-pair .clearable-input { flex: 0 1 120px; }
+.rebus-pair input.entry-input { width: 100%; min-width: 0; padding: 5px 24px 5px 8px; }
+.rebus-arrow { color: var(--muted); flex: 0 0 auto; }
+.rebus-pair-add, .rebus-pair-remove { background: none; border: none; color: var(--faint); cursor: pointer; padding: 4px; border-radius: 4px; line-height: 1; display: flex; align-items: center; justify-content: center; flex: 0 0 auto; }
+.rebus-pair-add { padding: 2px; }
+.rebus-pair-add:hover, .rebus-pair-remove:hover { color: var(--text); background: var(--hover); }
+
+/* Rebus symbol suggestions popup */
+.symbol-suggest { padding: 6px; }
+.symbol-grid { display: grid; grid-template-columns: repeat(9, 28px); gap: 2px; }
+.symbol-cell { font-size: 16px; line-height: 1; height: 28px; padding: 0; display: flex; align-items: center; justify-content: center; background: none; border: 1px solid transparent; border-radius: 4px; cursor: pointer; color: var(--text); }
+.symbol-cell:hover { background: var(--hover); border-color: var(--border2); }
 .tool-row-error-btn { background: none; border: none; padding: 0; cursor: default; font-size: 16px; line-height: 1; }
 .tool-row-error-btn[hidden] { display: none; }
 .tool-row-error-popover { position: fixed; z-index: 220; max-width: 320px; padding: 8px 11px; background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: 6px; font-size: 12px; line-height: 1.4; box-shadow: 0 4px 14px rgba(0,0,0,0.25); overflow-wrap: anywhere; }

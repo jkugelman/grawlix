@@ -96,6 +96,19 @@ export function buildParamHTML(param, value, toolKey, wiring) {
   return `<span class="tool-row-param tool-row-param-text">${labelHTML}${buildTextInputHTML(param, value, toolKey, wiring)}</span>`;
 }
 
+export function positionPopover(el, anchor, { placement = 'above', offset = 6 } = {}) {
+  const aRect = anchor.getBoundingClientRect();
+  const eRect = el.getBoundingClientRect();
+  let above = placement === 'above';
+  if (above && aRect.top - eRect.height - offset < 8) above = false;
+  else if (!above && aRect.bottom + offset + eRect.height > window.innerHeight - 8) above = true;
+  const top = above ? aRect.top - eRect.height - offset : aRect.bottom + offset;
+  const maxLeft = window.innerWidth - eRect.width - 8;
+  const left = Math.max(8, Math.min(aRect.left, maxLeft));
+  el.style.top  = top  + 'px';
+  el.style.left = left + 'px';
+}
+
 export class PopupHelp {
   constructor(anchor, contentHTML, opts = {}) {
     this.anchor = anchor;
@@ -141,18 +154,7 @@ export class PopupHelp {
   }
 
   _position() {
-    const aRect = this.anchor.getBoundingClientRect();
-    const eRect = this.el.getBoundingClientRect();
-    let above = this.placement === 'above';
-    if (above && aRect.top - eRect.height - this.offset < 8) above = false;
-    else if (!above && aRect.bottom + this.offset + eRect.height > window.innerHeight - 8) above = true;
-    const top = above
-      ? aRect.top - eRect.height - this.offset
-      : aRect.bottom + this.offset;
-    const maxLeft = window.innerWidth - eRect.width - 8;
-    const left = Math.max(8, Math.min(aRect.left, maxLeft));
-    this.el.style.top  = top  + 'px';
-    this.el.style.left = left + 'px';
+    positionPopover(this.el, this.anchor, { placement: this.placement, offset: this.offset });
   }
 
   destroy() {

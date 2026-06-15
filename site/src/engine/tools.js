@@ -25,6 +25,7 @@ import regex from './tools/regex.js';
 import initialisms, { wordSplits } from './tools/initialisms.js';
 import behead from './tools/behead.js';
 import curtail from './tools/curtail.js';
+import rebus from './tools/rebus.js';
 import { WHOLE_WORD_PARAM, reverseString, sortLetters } from './tools/shared.js';
 
 export { WHOLE_WORD_PARAM, reverseString, sortLetters, consonantSkeleton, vowelSkeleton, wordSplits };
@@ -37,11 +38,12 @@ export const TOOL_CATEGORIES = [
   { id: 'pairs',      label: 'Pairs' },
   { id: 'palindrome', label: 'Palindrome' },
   { id: 'phrase',     label: 'Phrase' },
+  { id: 'rebus',      label: 'Rebus' },
   { id: 'search',     label: 'Search' },
   { id: 'side',       label: 'Side' },
 ];
 
-export const FEATURED_TOOLS = ['regex', 'anagrams', 'letter_bank', 'palindromes', 'initialisms', 'behead'];
+export const FEATURED_TOOLS = ['regex', 'rebus', 'anagrams', 'letter_bank', 'initialisms', 'behead'];
 
 export const TOOLS = {
   anagrams,
@@ -67,6 +69,7 @@ export const TOOLS = {
   initialisms,
   behead,
   curtail,
+  rebus,
 };
 
 // A param's `key` defaults to a slug of its label (or placeholder); declare
@@ -110,9 +113,11 @@ for (const [toolKey, tool] of Object.entries(TOOLS)) {
 // classes and group names corrupted by lowercasing.
 export function normalizeParams(params, schema) {
   const raw = new Set((schema || []).filter(p => p.raw).map(p => p.key));
+  const lower = v => (typeof v === 'string' ? v.toLowerCase() : v);
   const out = {};
   for (const [k, v] of Object.entries(params || {})) {
-    out[k] = (typeof v === 'string' && !raw.has(k)) ? v.toLowerCase() : v;
+    if (Array.isArray(v)) out[k] = raw.has(k) ? v.slice() : v.map(lower);
+    else out[k] = (typeof v === 'string' && !raw.has(k)) ? lower(v) : v;
   }
   return out;
 }
@@ -121,7 +126,11 @@ export function makeToolRow(tool, params = {}, grouped = false) {
   const def = TOOLS[tool];
   if (!grouped) {
     for (const p of def.params) {
-      if (p.default !== undefined && params[p.key] === undefined) params[p.key] = p.default;
+      if (p.repeat) {
+        if (!Array.isArray(params[p.key])) params[p.key] = [''];
+      } else if (p.default !== undefined && params[p.key] === undefined) {
+        params[p.key] = p.default;
+      }
     }
   }
   const row = {

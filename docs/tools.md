@@ -37,6 +37,7 @@ Source material: shipped catalog lives in `TOOLS` in [`site/src/engine/tools.js`
 | ✓ | Phrase | 🌌 Space out | Guess at where spaces go in multi-word entries | SPACEOUT → SPACE OUT |
 | ✓ | Phrase | 🔠 Initialisms | Starting letters spell a word | HOT → Helen of Troy |
 |   | Phrase | 👯 Double occupancy | Two-part entries where both halves compound with one reference term | GREEN LIGHT + HOUSE → GREENHOUSE, LIGHTHOUSE |
+| ✓ | Rebus | 🚌 Rebus | Squeeze a letter string into one rebus cell | IMBUSY → IMⒷY |
 |   | Required | ❗ Required letters | Contains every given letter (in any order) | TBD |
 | ✓ | Search | 🔍 Search | Search (and replace) with wildcards | un*ed · c?t |
 | ✓ | Search | 🪄 Regex | Search (and replace) with regular expressions | un.+ed · c.{2,4}t |
