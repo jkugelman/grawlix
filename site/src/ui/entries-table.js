@@ -1796,9 +1796,9 @@ export const AtomPopover = (() => {
     open(buildUserWlEntry(entryStr, '', ''), null, scroller, anchorEl, focusField, 'create');
   }
 
-  function renderFooterHTML() {
+  function renderFooterHTML(entryText) {
     return `<button class="atom-pop-cancel" type="button">Cancel</button>`
-      + `<button class="atom-pop-save" type="button">${esc(saveLabel())}</button>`;
+      + `<button class="atom-pop-save" type="button">${esc(saveLabel(entryText))}</button>`;
   }
 
   function renderProvenanceTableHTML() {
@@ -1936,7 +1936,7 @@ export const AtomPopover = (() => {
       ?? seedFromWinnerRow(wlEntry, getEditsWordlist() != null && wlEntry.wordlist === getEditsWordlist());
     return `
       <button class="dialog-close-btn" type="button" aria-label="Close">✕</button>
-      <div class="atom-pop-title">${esc(headerText())}</div>
+      <div class="atom-pop-title">${esc(headerText(seed.entry))}</div>
       <div class="atom-pop-fields">
         <label for="atom-pop-entry">Entry</label>
         <input id="atom-pop-entry" class="entry-input" type="text" value="${esc(seed.entry)}">
@@ -1946,32 +1946,39 @@ export const AtomPopover = (() => {
         <input id="atom-pop-comment" class="comment-input" type="text" value="${esc(seed.comment)}">
       </div>
       <div class="atom-pop-prov-wrap">${renderProvenanceTableHTML()}${renderNotesHTML()}</div>
-      <div class="atom-pop-foot">${renderFooterHTML()}</div>`;
+      <div class="atom-pop-foot">${renderFooterHTML(seed.entry)}</div>`;
   }
 
-  function isRenaming() {
+  // Entry text is passed in, not read from `.entry-input`: during renderHTML `el`
+  // still holds the previous popover's input, which would mis-flag a fresh open.
+  function isRenaming(entryText) {
     if (activeMode !== 'edit') return false;
-    const inp = el && el.querySelector('.entry-input');
-    const raw = inp ? inp.value.trim() : '';
+    const raw = entryText.trim();
     const seed = activeSeed;
     return !!(seed && raw && (toNorm(raw) !== seed.norm || raw !== (seed.display ?? seed.norm)));
   }
 
-  function headerText() {
-    if (activeMode === 'create') return 'Add entry';
-    return isRenaming() ? 'Rename entry' : 'Edit entry';
+  function entryInputValue() {
+    const inp = el && el.querySelector('.entry-input');
+    return inp ? inp.value : '';
   }
 
-  function saveLabel() {
+  function headerText(entryText) {
+    if (activeMode === 'create') return 'Add entry';
+    return isRenaming(entryText) ? 'Rename entry' : 'Edit entry';
+  }
+
+  function saveLabel(entryText) {
     if (activeMode === 'create') return 'Add';
-    return isRenaming() ? 'Rename' : 'Save';
+    return isRenaming(entryText) ? 'Rename' : 'Save';
   }
 
   function updateModeLabels() {
+    const entryText = entryInputValue();
     const t = el && el.querySelector('.atom-pop-title');
-    if (t) t.textContent = headerText();
+    if (t) t.textContent = headerText(entryText);
     const s = el && el.querySelector('.atom-pop-save');
-    if (s) s.textContent = saveLabel();
+    if (s) s.textContent = saveLabel(entryText);
   }
 
   // `resetInputs: true` re-renders the inputs too (when the user isn't mid-edit);

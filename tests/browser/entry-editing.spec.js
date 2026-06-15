@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { stubPublisherFetches, gotoApp } from './helpers.js';
+import { stubPublisherFetches, gotoApp, scopeTo } from './helpers.js';
 
 test.beforeEach(async ({ page }) => {
   await stubPublisherFetches(page);
@@ -32,6 +32,18 @@ test('header and Save button read Edit/Save, flipping to Rename/Rename as the te
   await expect(page.locator('#atom-popover .atom-pop-title')).toHaveText('Rename entry');
   await expect(page.locator('#atom-popover .atom-pop-save')).toHaveText('Rename');
   await page.locator('#atom-pop-entry').fill('ocean');
+  await expect(page.locator('#atom-popover .atom-pop-title')).toHaveText('Edit entry');
+  await expect(page.locator('#atom-popover .atom-pop-save')).toHaveText('Save');
+});
+
+test('reopening on a different entry reads Edit entry, not Rename', async ({ page }) => {
+  await gotoApp(page);
+  await addList(page, { name: 'W', entries: ['ocean', 'river'], scores: [50, 50] });
+  await scopeTo(page, 'All Wordlists');
+  await openPopoverOnEntry(page, 'ocean');
+  await expect(page.locator('#atom-popover .atom-pop-title')).toHaveText('Edit entry');
+  await page.keyboard.press('Escape');
+  await openPopoverOnEntry(page, 'river');
   await expect(page.locator('#atom-popover .atom-pop-title')).toHaveText('Edit entry');
   await expect(page.locator('#atom-popover .atom-pop-save')).toHaveText('Save');
 });
