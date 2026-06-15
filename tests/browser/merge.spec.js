@@ -6,8 +6,8 @@
 // downstream of this seam (cache invalidation, popover sourcing, the
 // entries table, downloads).
 
-const { test, expect } = require('@playwright/test');
-const { stubPublisherFetches, gotoApp, openManagePanel, expectVisible } = require('./helpers');
+import { test, expect } from '@playwright/test';
+import { stubPublisherFetches, gotoApp, openManagePanel, expectVisible } from './helpers.js';
 
 test.beforeEach(async ({ page }) => {
   await stubPublisherFetches(page);

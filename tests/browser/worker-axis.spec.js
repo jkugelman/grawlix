@@ -1,5 +1,5 @@
-const { test, expect } = require('@playwright/test');
-const { stubPublisherFetches, gotoApp } = require('./helpers');
+import { test, expect } from '@playwright/test';
+import { stubPublisherFetches, gotoApp } from './helpers.js';
 
 // ch6α oracle: the worker computes the scope-stable badge-gradient axis and
 // ships it on selfReady; main substitutes it for the local all-sources axis.

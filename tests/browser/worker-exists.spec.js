@@ -1,5 +1,5 @@
-const { test, expect } = require('@playwright/test');
-const { stubPublisherFetches, gotoApp } = require('./helpers');
+import { test, expect } from '@playwright/test';
+import { stubPublisherFetches, gotoApp } from './helpers.js';
 
 // For a fresh flat run the worker ships a per-result existence boolean — does the
 // run's literal query already exist in the active scope? The add-entry FAB seed

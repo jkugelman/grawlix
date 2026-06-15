@@ -1,5 +1,5 @@
-const { test, expect } = require('@playwright/test');
-const { stubPublisherFetches, gotoApp } = require('./helpers');
+import { test, expect } from '@playwright/test';
+import { stubPublisherFetches, gotoApp } from './helpers.js';
 
 // Stage-3 (ch5) regression net that OUTLIVES the A/B specs. worker-rich-rows and
 // worker-rich-windowed prove the worker's rich fetchRows by comparing against

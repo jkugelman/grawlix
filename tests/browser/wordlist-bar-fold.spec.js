@@ -2,8 +2,8 @@
 // layout-test exception (cf. testing.md's delete-geometry-tests default) — it
 // resizes the viewport to prove the action cluster folds into the kebab.
 
-const { test, expect } = require('@playwright/test');
-const { stubPublisherFetches, gotoApp, scopeTo } = require('./helpers');
+import { test, expect } from '@playwright/test';
+import { stubPublisherFetches, gotoApp, scopeTo } from './helpers.js';
 
 test.beforeEach(async ({ page }) => {
   await stubPublisherFetches(page);

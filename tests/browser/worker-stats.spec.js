@@ -1,5 +1,5 @@
-const { test, expect } = require('@playwright/test');
-const { stubPublisherFetches, gotoApp } = require('./helpers');
+import { test, expect } from '@playwright/test';
+import { stubPublisherFetches, gotoApp } from './helpers.js';
 
 // Stage-3 (ch6β) oracle: for a fresh merged flat run the worker ships per-result
 // `stats` (Min/Max) and `histogramCounts`; main's stats bar consumes them instead

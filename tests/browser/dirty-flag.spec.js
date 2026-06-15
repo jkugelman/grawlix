@@ -11,8 +11,8 @@
 // set it through the setRescoreRules backdoor before opening the editor (so the
 // draft snapshots it), then drive the UI and Apply.
 
-const { test, expect } = require('@playwright/test');
-const { stubPublisherFetches, gotoApp, scopeViaSelector, openRescoreEditor, applyRescoreEditor } = require('./helpers');
+import { test, expect } from '@playwright/test';
+import { stubPublisherFetches, gotoApp, scopeViaSelector, openRescoreEditor, applyRescoreEditor } from './helpers.js';
 
 // Tiny JK fixture: scores that all fall within JK's default-rule coverage
 // (60, 50, 40, 30, 20, 10, 0), so rescoring is a clean passthrough and the

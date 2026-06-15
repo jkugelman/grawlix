@@ -1,5 +1,5 @@
-const { test, expect } = require('@playwright/test');
-const { stubPublisherFetches, gotoApp } = require('./helpers');
+import { test, expect } from '@playwright/test';
+import { stubPublisherFetches, gotoApp } from './helpers.js';
 
 // P9 oracle: when a new pipeline result lands while the edit popover is open, the
 // table RE-ANCHORS the popover to its entry's row (EntriesScroller.updateEntries →

@@ -1,6 +1,6 @@
 // Real-render atom-count contract — the end-to-end counterpart to the unit
 // suite's currentAtomCount ↔ collapseRepeatAtoms agreement
-// (tests/unit/pipeline-shape.test.mjs). STAKES: that unit test pins the
+// (tests/unit/pipeline-shape.test.js). STAKES: that unit test pins the
 // predictor against a hand-written COPY of the executor's atom-emission logic.
 // If the real runToolStage and currentAtomCount ever drift together while that
 // copy stays stale, the unit test still passes but the app miscounts atom-lines
@@ -11,8 +11,8 @@
 // recomputed from currentAtomCount: doing so would make the test a tautology
 // that passes through any together-drift.
 
-const { test, expect } = require('@playwright/test');
-const { stubPublisherFetches, gotoApp, expectVisible } = require('./helpers');
+import { test, expect } from '@playwright/test';
+import { stubPublisherFetches, gotoApp, expectVisible } from './helpers.js';
 
 test.beforeEach(async ({ page }) => {
   await stubPublisherFetches(page);

@@ -1,5 +1,5 @@
-const { test, expect } = require('@playwright/test');
-const { stubPublisherFetches, gotoApp } = require('./helpers');
+import { test, expect } from '@playwright/test';
+import { stubPublisherFetches, gotoApp } from './helpers.js';
 
 // B5: the flat tier ships no highlights — the main thread re-derives them for the
 // visible window only. This guards that the re-derivation is correct AFTER

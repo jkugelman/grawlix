@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { visible, sameVisible, groups, groupSeeds } from './harness.mjs';
+import { visible, sameVisible, groups, groupSeeds } from './harness.js';
 
 const LETTER_SET = [
   { entry: 'opt', score: 50 }, { entry: 'pot', score: 40 }, { entry: 'top', score: 30 },

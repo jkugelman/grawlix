@@ -3,8 +3,8 @@
 // shows only while the field has text, and clicking it empties the field and
 // fires `input` so the field's own handler reacts.
 
-const { test, expect } = require('@playwright/test');
-const { stubPublisherFetches, gotoApp } = require('./helpers');
+import { test, expect } from '@playwright/test';
+import { stubPublisherFetches, gotoApp } from './helpers.js';
 
 test.beforeEach(async ({ page }) => {
   await stubPublisherFetches(page);

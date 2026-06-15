@@ -3,8 +3,8 @@
 // entry — including disabled and non-winning lists — since scoped views now
 // show only their own data, leaving the popover the one place to compare lists.
 
-const { test, expect } = require('@playwright/test');
-const { stubPublisherFetches, gotoApp, scopeTo, setEnabledViaPanel } = require('./helpers');
+import { test, expect } from '@playwright/test';
+import { stubPublisherFetches, gotoApp, scopeTo, setEnabledViaPanel } from './helpers.js';
 
 test.beforeEach(async ({ page }) => {
   await stubPublisherFetches(page);

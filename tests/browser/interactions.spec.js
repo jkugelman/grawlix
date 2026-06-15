@@ -4,8 +4,8 @@
 // document-level listeners mounted at boot. An unexposed histogram pointer
 // handler once stayed green through exactly this gap.
 
-const { test, expect } = require('@playwright/test');
-const { stubPublisherFetches, gotoApp, scopeTo, expectVisible } = require('./helpers');
+import { test, expect } from '@playwright/test';
+import { stubPublisherFetches, gotoApp, scopeTo, expectVisible } from './helpers.js';
 
 test.beforeEach(async ({ page }) => {
   await stubPublisherFetches(page);

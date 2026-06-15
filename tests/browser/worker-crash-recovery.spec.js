@@ -1,5 +1,5 @@
-const { test, expect } = require('@playwright/test');
-const { stubPublisherFetches, gotoApp } = require('./helpers');
+import { test, expect } from '@playwright/test';
+import { stubPublisherFetches, gotoApp } from './helpers.js';
 
 // Crash recovery: a crashed worker has no main-thread corpus to fall back onto, so
 // the client respawns the worker, has it rebuild its owned corpus from IDB, and

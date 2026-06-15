@@ -1,5 +1,5 @@
-const { test, expect } = require('@playwright/test');
-const { stubPublisherFetches, gotoApp } = require('./helpers');
+import { test, expect } from '@playwright/test';
+import { stubPublisherFetches, gotoApp } from './helpers.js';
 
 // P6d oracle: the REAL My Edits per-entry UI paths (saveEdit / deleteFromEdits /
 // delete-undo) drive the worker command instead of persistEdits — the worker

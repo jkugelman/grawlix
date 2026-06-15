@@ -1,5 +1,5 @@
 import { test } from 'node:test';
-import { visible, sameVisible } from './harness.mjs';
+import { visible, sameVisible } from './harness.js';
 
 test('keeps entries that read the same forwards and backwards', async () => {
   sameVisible(await visible(['racecar', 'kayak', 'noon', 'hello', 'test'],

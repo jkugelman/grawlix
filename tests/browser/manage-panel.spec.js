@@ -4,8 +4,8 @@
 // contract: nothing canonical moves until Apply, Cancel discards, and a dirty X
 // guards with a confirm.
 
-const { test, expect } = require('@playwright/test');
-const { stubPublisherFetches, gotoApp, openManagePanel } = require('./helpers');
+import { test, expect } from '@playwright/test';
+import { stubPublisherFetches, gotoApp, openManagePanel } from './helpers.js';
 
 // Taller viewport so every card fits without scrolling — else makeReorderable's
 // drag auto-scroll flakes the reorder tests (as in wordlist-reorder.spec).

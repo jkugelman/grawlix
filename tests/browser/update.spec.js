@@ -5,8 +5,8 @@
 // the hourly check either flags `_updateAvailable` (auto-update off) or
 // silently re-fetches and toasts the counts (auto-update on).
 
-const { test, expect } = require('@playwright/test');
-const { stubPublisherFetches, gotoApp, scopeViaSelector, barKebabAction } = require('./helpers');
+import { test, expect } from '@playwright/test';
+import { stubPublisherFetches, gotoApp, scopeViaSelector, barKebabAction } from './helpers.js';
 
 // The two bodies must differ in byte length — checkForUpdates' HEAD poll
 // detects updates by Content-Length, so equal-length bodies look unchanged.

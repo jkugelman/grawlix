@@ -1,5 +1,5 @@
-const { test, expect } = require('@playwright/test');
-const { stubPublisherFetches, gotoApp, scopeTo } = require('./helpers');
+import { test, expect } from '@playwright/test';
+import { stubPublisherFetches, gotoApp, scopeTo } from './helpers.js';
 
 // P7d/P7e/P7a oracle: the merged-corpus serialize + count off the worker. The
 // merged download (M1, UNSORTED), the merged disk mirror (M2, SORTED), and the

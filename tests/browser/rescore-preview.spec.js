@@ -3,8 +3,8 @@
 // cell; unaffected rows show a single badge. Closing the editor — or scoping to
 // All Wordlists, where the editor edits tier labels, not scores — drops every arrow.
 
-const { test, expect } = require('@playwright/test');
-const { stubPublisherFetches, gotoApp, scopeViaSelector, openRescoreEditor, applyRescoreEditor } = require('./helpers');
+import { test, expect } from '@playwright/test';
+import { stubPublisherFetches, gotoApp, scopeViaSelector, openRescoreEditor, applyRescoreEditor } from './helpers.js';
 
 test.beforeEach(async ({ page }) => {
   await stubPublisherFetches(page);

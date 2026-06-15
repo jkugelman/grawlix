@@ -1,5 +1,5 @@
-const { test, expect } = require('@playwright/test');
-const { stubPublisherFetches, gotoApp } = require('./helpers');
+import { test, expect } from '@playwright/test';
+import { stubPublisherFetches, gotoApp } from './helpers.js';
 
 // P4 oracle: a SCOPED view under a score filter stays worker-filtered + windowed.
 // Two overlapping lists, scoped to ONE: a single-list corpus makes scoped == merged

@@ -1,5 +1,5 @@
 import { test } from 'node:test';
-import { visible, sameVisible } from './harness.mjs';
+import { visible, sameVisible } from './harness.js';
 
 test('keeps entries where each of A E I O U appears exactly once', async () => {
   sameVisible(await visible(['sequoia', 'education', 'hello', 'banana'],

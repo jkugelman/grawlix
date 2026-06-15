@@ -1,5 +1,5 @@
-const { test, expect } = require('@playwright/test');
-const { stubPublisherFetches, gotoApp } = require('./helpers');
+import { test, expect } from '@playwright/test';
+import { stubPublisherFetches, gotoApp } from './helpers.js';
 
 // Stage-2.1b: the flat-tier scroller's windowed render mode (flag-gated, default
 // OFF). It serves the visible window from a cache populated by the worker's

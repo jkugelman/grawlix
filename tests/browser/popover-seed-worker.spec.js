@@ -5,8 +5,8 @@
 // higher-priority list than the scoped one. The merged view stays fully local (the
 // clicked row IS the winner), so it fires no worker query.
 
-const { test, expect } = require('@playwright/test');
-const { stubPublisherFetches, gotoApp, scopeTo } = require('./helpers');
+import { test, expect } from '@playwright/test';
+import { stubPublisherFetches, gotoApp, scopeTo } from './helpers.js';
 
 test.beforeEach(async ({ page }) => {
   await stubPublisherFetches(page);

@@ -2,8 +2,8 @@
 // A column owns an ordered set of axes (canonical first); a click flips when
 // already on one of them, else jumps to the canonical axis ascending.
 
-const { test, expect } = require('@playwright/test');
-const { stubPublisherFetches, gotoApp, expectVisible } = require('./helpers');
+import { test, expect } from '@playwright/test';
+import { stubPublisherFetches, gotoApp, expectVisible } from './helpers.js';
 
 test.beforeEach(async ({ page }) => {
   await stubPublisherFetches(page);

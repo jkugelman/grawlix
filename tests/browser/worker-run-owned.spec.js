@@ -1,5 +1,5 @@
-const { test, expect } = require('@playwright/test');
-const { stubPublisherFetches, gotoApp } = require('./helpers');
+import { test, expect } from '@playwright/test';
+import { stubPublisherFetches, gotoApp } from './helpers.js';
 
 // P1 oracle: a run whose ownedCorpus is fresh and scope-matched executes the
 // pipeline against ownedCorpus, shipping indices into it. The rows render in

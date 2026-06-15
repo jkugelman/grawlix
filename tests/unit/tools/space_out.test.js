@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { setUnigramCorpus } from '../../../site/src/engine/segmenter.js';
-import { visible, sameVisible, run, rowByFirst, atomWord } from './harness.mjs';
+import { visible, sameVisible, run, rowByFirst, atomWord } from './harness.js';
 
 const corpus = freqs => setUnigramCorpus(freqs);
 const splitsOf = (rows, first) =>

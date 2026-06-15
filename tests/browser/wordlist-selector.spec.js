@@ -3,8 +3,8 @@
 // each source as rows, that clicking one scopes the table, and that a disabled
 // source renders dimmed yet stays selectable (scope ≠ merge).
 
-const { test, expect } = require('@playwright/test');
-const { stubPublisherFetches, gotoApp, scopeTo, scopeViaSelector, expectVisible, openRescoreEditor, setEnabledViaPanel } = require('./helpers');
+import { test, expect } from '@playwright/test';
+import { stubPublisherFetches, gotoApp, scopeTo, scopeViaSelector, expectVisible, openRescoreEditor, setEnabledViaPanel } from './helpers.js';
 
 test.beforeEach(async ({ page }) => {
   await stubPublisherFetches(page);

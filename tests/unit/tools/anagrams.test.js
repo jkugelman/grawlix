@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { visible, sameVisible, groups, groupSeeds } from './harness.mjs';
+import { visible, sameVisible, groups, groupSeeds } from './harness.js';
 
 // EERIE/EYRIE share four letters but not their multiset — the near-miss that
 // keeps the count-sensitivity test honest. Don't simplify it to a plain pair.

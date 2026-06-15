@@ -3,8 +3,8 @@
 // Switch to All Wordlists" whenever the scope isn't All Wordlists. Either,
 // both, or neither — see entries-table.js `_renderFooter`.
 
-const { test, expect } = require('@playwright/test');
-const { stubPublisherFetches, gotoApp, scopeTo } = require('./helpers');
+import { test, expect } from '@playwright/test';
+import { stubPublisherFetches, gotoApp, scopeTo } from './helpers.js';
 
 const search = (page, pattern) => page.evaluate(
   p => window.__grawlixTest.setStack([{ tool: 'search', params: { pattern: p } }]), pattern);

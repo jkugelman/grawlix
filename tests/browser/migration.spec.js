@@ -5,8 +5,8 @@
 // silently starts producing wrong output, only a frozen fixture catches it.
 // Editing a fixture to make a test pass defeats the test.
 
-const { test, expect } = require('@playwright/test');
-const { stubPublisherFetches, gotoApp } = require('./helpers');
+import { test, expect } from '@playwright/test';
+import { stubPublisherFetches, gotoApp } from './helpers.js';
 
 test.beforeEach(async ({ page }) => {
   await stubPublisherFetches(page);

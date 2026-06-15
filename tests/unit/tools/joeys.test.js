@@ -1,5 +1,5 @@
 import { test } from 'node:test';
-import { visible, sameVisible } from './harness.mjs';
+import { visible, sameVisible } from './harness.js';
 
 test('keeps entries that appear as a subsequence of the input', async () => {
   sameVisible(await visible(['joey', 'joke', 'key', 'major', 'zebra'],

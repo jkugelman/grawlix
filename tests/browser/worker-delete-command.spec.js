@@ -1,5 +1,5 @@
-const { test, expect } = require('@playwright/test');
-const { stubPublisherFetches, gotoApp } = require('./helpers');
+import { test, expect } from '@playwright/test';
+import { stubPublisherFetches, gotoApp } from './helpers.js';
 
 // P6b/P6c oracle: the worker's in-place `deleteEntry` command removes one My
 // Edits entry by (norm, display) and runs the SAME owned-corpus splice an edit

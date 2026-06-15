@@ -1,5 +1,5 @@
-const { test, expect } = require('@playwright/test');
-const { stubPublisherFetches, gotoApp } = require('./helpers');
+import { test, expect } from '@playwright/test';
+import { stubPublisherFetches, gotoApp } from './helpers.js';
 
 // Fetch content-diff oracle: a re-fetch/re-import of an already-populated source
 // posts the in-place `applyFetched` command instead of a full resyncWorkerConfig.

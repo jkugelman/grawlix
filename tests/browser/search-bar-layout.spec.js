@@ -5,8 +5,8 @@
 // vertical centering) is pinned here on purpose. Do NOT delete these as
 // philosophy drift — see docs/testing.md § "What stays manual".
 
-const { test, expect } = require('@playwright/test');
-const { stubPublisherFetches, gotoApp } = require('./helpers');
+import { test, expect } from '@playwright/test';
+import { stubPublisherFetches, gotoApp } from './helpers.js';
 
 test.beforeEach(async ({ page }) => {
   await stubPublisherFetches(page);

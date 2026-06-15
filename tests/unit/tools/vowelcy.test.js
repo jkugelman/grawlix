@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { visible, sameVisible, groups, groupSeeds } from './harness.mjs';
+import { visible, sameVisible, groups, groupSeeds } from './harness.js';
 
 test('matches entries sharing the same vowel sequence in order', async () => {
   sameVisible(await visible(['poem', 'node', 'hole', 'zone', 'peel', 'code'],

@@ -1,5 +1,5 @@
-const { test, expect } = require('@playwright/test');
-const { stubPublisherFetches, gotoApp } = require('./helpers');
+import { test, expect } from '@playwright/test';
+import { stubPublisherFetches, gotoApp } from './helpers.js';
 
 // ch7γ oracle: the worker ships per-config `sourceCounts` (each source's
 // merged-contribution tally — the "X" in the scope selector's "X of Y entries")

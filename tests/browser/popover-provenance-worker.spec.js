@@ -5,8 +5,8 @@
 // field (async, so assert after a settle). The merged-view seed comes from the
 // clicked row (no fetchEditSeed), so the popover does no corpus read for the seed.
 
-const { test, expect } = require('@playwright/test');
-const { stubPublisherFetches, gotoApp, scopeTo, setEnabledViaPanel } = require('./helpers');
+import { test, expect } from '@playwright/test';
+import { stubPublisherFetches, gotoApp, scopeTo, setEnabledViaPanel } from './helpers.js';
 
 test.beforeEach(async ({ page }) => {
   await stubPublisherFetches(page);

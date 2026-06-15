@@ -1,5 +1,5 @@
 import { test } from 'node:test';
-import { visible, sameVisible } from './harness.mjs';
+import { visible, sameVisible } from './harness.js';
 
 test('keeps entries whose letters all belong to the input alphabet', async () => {
   sameVisible(await visible(['pop', 'top', 'stoop', 'pear', 'cat'],

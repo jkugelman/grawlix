@@ -1,7 +1,7 @@
 // My Edits' rescore-rule legend + import reconciliation — see docs/design.md § Rescore rules.
 
-const { test, expect } = require('@playwright/test');
-const { stubPublisherFetches, gotoApp } = require('./helpers');
+import { test, expect } from '@playwright/test';
+import { stubPublisherFetches, gotoApp } from './helpers.js';
 
 test.beforeEach(async ({ page }) => {
   await stubPublisherFetches(page);

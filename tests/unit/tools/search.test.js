@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { visible, sameVisible, run, rowByFirst, highlightTexts } from './harness.mjs';
+import { visible, sameVisible, run, rowByFirst, highlightTexts } from './harness.js';
 
 const LIB = ['untested', 'united', 'retested', 'cat', 'cot', 'cart', 'cats', 'scat'];
 const search = (pattern, p = {}) => [{ tool: 'search', params: { pattern, ...p } }];

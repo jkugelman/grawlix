@@ -2,8 +2,8 @@
 // bar. The XWI cases lean on XWI being subscriber-import-only, so it boots
 // unpopulated and its banner is eligible from first paint.
 
-const { test, expect } = require('@playwright/test');
-const { stubPublisherFetches, gotoApp, scopeTo } = require('./helpers');
+import { test, expect } from '@playwright/test';
+import { stubPublisherFetches, gotoApp, scopeTo } from './helpers.js';
 
 test.beforeEach(async ({ page }) => {
   await stubPublisherFetches(page);

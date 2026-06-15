@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { visible, sameVisible, run, rowByFirst, highlightTexts } from './harness.mjs';
+import { visible, sameVisible, run, rowByFirst, highlightTexts } from './harness.js';
 
 test('keeps entries that contain the input as a subsequence with gaps', async () => {
   sameVisible(await visible(['milkandsugar', 'kangaroo', 'hello', 'bangalore'],

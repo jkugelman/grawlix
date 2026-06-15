@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { visible, sameVisible, run, rowByFirst, highlightTexts } from './harness.mjs';
+import { visible, sameVisible, run, rowByFirst, highlightTexts } from './harness.js';
 
 // CATS/CAT and PRESS/PRES are load-bearing: curtail skips a single trailing s
 // (plural → singular) but NOT a double-s ending. CATS must not chain to CAT even

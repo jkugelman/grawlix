@@ -2,8 +2,8 @@
 // in-memory fake for the file pickers and run the app's real attach/reconcile
 // code against it. See site/index.html § Disk sync and docs/design.md § Disk sync.
 
-const { test, expect } = require('@playwright/test');
-const { gotoApp, stubPublisherFetches, scopeTo } = require('./helpers');
+import { test, expect } from '@playwright/test';
+import { gotoApp, stubPublisherFetches, scopeTo } from './helpers.js';
 
 async function installFakeFS(page) {
   await page.addInitScript(() => {

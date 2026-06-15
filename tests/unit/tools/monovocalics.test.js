@@ -1,5 +1,5 @@
 import { test } from 'node:test';
-import { visible, sameVisible } from './harness.mjs';
+import { visible, sameVisible } from './harness.js';
 
 test('keeps entries whose vowels are all the same letter', async () => {
   sameVisible(await visible(['toocoolforschool', 'strengths', 'banana', 'hello'],

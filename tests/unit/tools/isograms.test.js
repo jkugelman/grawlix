@@ -1,5 +1,5 @@
 import { test } from 'node:test';
-import { visible, sameVisible } from './harness.mjs';
+import { visible, sameVisible } from './harness.js';
 
 test('keeps entries with every letter unique', async () => {
   sameVisible(await visible(['dialogue', 'cyberpunk', 'hello', 'eccentric'],

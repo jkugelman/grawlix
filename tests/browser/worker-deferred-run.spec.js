@@ -1,5 +1,5 @@
-const { test, expect } = require('@playwright/test');
-const { stubPublisherFetches, gotoApp } = require('./helpers');
+import { test, expect } from '@playwright/test';
+import { stubPublisherFetches, gotoApp } from './helpers.js';
 
 // The deferred-run queue's no-hang guarantee: post-flip a run whose owned corpus
 // isn't yet fresh for its scope DEFERS (no snapshot to fall back on) and drains

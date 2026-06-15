@@ -1,4 +1,4 @@
-const { defineConfig, devices } = require('@playwright/test');
+import { defineConfig, devices } from '@playwright/test';
 
 // Three projects: Chromium, Firefox, WebKit. Each runs the full suite.
 // Tests run against a static server hosting site/. __grawlixTest is exposed
@@ -8,7 +8,7 @@ const { defineConfig, devices } = require('@playwright/test');
 // minified bundle; drop this indirection and CI silently tests the source.
 const siteDir = process.env.GRAWLIX_SITE_DIR || 'site';
 
-module.exports = defineConfig({
+export default defineConfig({
   testDir: './tests/browser',
   fullyParallel: true,
   forbidOnly: !!process.env.CI,

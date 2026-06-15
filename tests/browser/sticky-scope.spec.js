@@ -4,8 +4,8 @@
 // and no migration. These tests pin: the active scope survives a reload, each
 // scope keeps its own score range, and a vanished scope falls back to All Wordlists.
 
-const { test, expect } = require('@playwright/test');
-const { stubPublisherFetches, gotoApp, scopeTo, scopeViaSelector } = require('./helpers');
+import { test, expect } from '@playwright/test';
+import { stubPublisherFetches, gotoApp, scopeTo, scopeViaSelector } from './helpers.js';
 
 test.beforeEach(async ({ page }) => {
   await stubPublisherFetches(page);

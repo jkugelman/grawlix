@@ -1,5 +1,5 @@
-const { test, expect } = require('@playwright/test');
-const { stubPublisherFetches, gotoApp } = require('./helpers');
+import { test, expect } from '@playwright/test';
+import { stubPublisherFetches, gotoApp } from './helpers.js';
 
 // Scope-aware-build oracle (setScope): scoping away from merged and back must NOT
 // permanently disable merged rich rows. The pre-setScope model cleared freshness

@@ -2,7 +2,7 @@
 // is for individual tests to read top-to-bottom without indirection. Helpers
 // here exist only when several tests would otherwise repeat the same setup.
 
-const { expect } = require('@playwright/test');
+import { expect } from '@playwright/test';
 
 // Stub the publisher wordlist fetches so the app boots in CI without touching
 // the real network. Four publisher wordlists fetch on boot:
@@ -157,7 +157,7 @@ async function expectGroups(page, project, expected) {
 function readVisible(page) { return page.evaluate(() => window.__grawlixTest.getVisibleEntries()); }
 function readGroups(page)  { return page.evaluate(() => window.__grawlixTest.getVisibleGroups()); }
 
-module.exports = {
+export {
   stubPublisherFetches,
   gotoApp,
   reloadApp,

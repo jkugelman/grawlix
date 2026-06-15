@@ -704,7 +704,7 @@ The module split is a pure code reorganization: no `meta`/IDB shape change, so n
 
 ### Build settings that the worker forced
 
-- **esbuild multi-entry for `engine/worker.js`.** The worker can't share the main bundle's scope, so `build.mjs` emits it as a second entry point, its outfile mirroring the source path so the literal `new Worker(new URL(...))` spawn URL resolves the same against `site/` and `dist/`.
+- **esbuild multi-entry for `engine/worker.js`.** The worker can't share the main bundle's scope, so `build.js` emits it as a second entry point, its outfile mirroring the source path so the literal `new Worker(new URL(...))` spawn URL resolves the same against `site/` and `dist/`.
 - **The corpus loader fetches its own data.** The unigram-corpus seam landed as injected-I/O rather than ship-the-map: the worker opens the same per-origin IndexedDB store directly and decodes the corpus itself (`configureSegmenterIO`, above), instead of the main thread building the frequency map and shipping it.
 - **Source maps ship.** esbuild emits them cheaply (`sourcemap: true`), so a production stack trace points back into source rather than minified bundle code.
 

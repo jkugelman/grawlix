@@ -1,5 +1,5 @@
 import { test } from 'node:test';
-import { visible, sameVisible } from './harness.mjs';
+import { visible, sameVisible } from './harness.js';
 
 test('keeps entries whose first and second halves are identical', async () => {
   sameVisible(await visible(['tartar', 'hotshots', 'bonbon', 'cocoa', 'hello'],

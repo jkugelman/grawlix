@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { visible, sameVisible, groups } from './harness.mjs';
+import { visible, sameVisible, groups } from './harness.js';
 
 const LIB = ['what the fuck', 'world tour finals', 'cat', 'co-op', "don't", 'big easy'];
 

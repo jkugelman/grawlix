@@ -1,5 +1,5 @@
-const { test, expect } = require('@playwright/test');
-const { stubPublisherFetches, gotoApp } = require('./helpers');
+import { test, expect } from '@playwright/test';
+import { stubPublisherFetches, gotoApp } from './helpers.js';
 
 // Worker-side `fetchRows` windowing mechanics: the worker retains the sorted flat
 // result and serves a window of rich rows on demand (the row SHAPE — always rich,

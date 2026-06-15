@@ -1,5 +1,5 @@
 import { test } from 'node:test';
-import { visible, sameVisible } from './harness.mjs';
+import { visible, sameVisible } from './harness.js';
 
 test('chains an entry with its reversed form, dropping entries with no reverse', async () => {
   sameVisible(await visible(

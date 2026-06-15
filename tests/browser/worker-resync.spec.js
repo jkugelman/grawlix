@@ -1,5 +1,5 @@
-const { test, expect } = require('@playwright/test');
-const { stubPublisherFetches, gotoApp } = require('./helpers');
+import { test, expect } from '@playwright/test';
+import { stubPublisherFetches, gotoApp } from './helpers.js';
 
 // Mutations-collapse oracle (scope-aware-build feature): the worker's owned state
 // stays fresh across config mutations WITHOUT any manual re-sync — a rescore-rule

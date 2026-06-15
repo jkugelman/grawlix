@@ -1,5 +1,5 @@
-const { test, expect } = require('@playwright/test');
-const { stubPublisherFetches, gotoApp } = require('./helpers');
+import { test, expect } from '@playwright/test';
+import { stubPublisherFetches, gotoApp } from './helpers.js';
 
 // P6a oracle: the worker's in-place `editEntry` command (My Edits edit AND add)
 // mutates ONLY the worker's owned corpus — no full resyncWorkerConfig — and the

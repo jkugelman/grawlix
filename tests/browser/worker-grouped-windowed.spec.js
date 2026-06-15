@@ -1,5 +1,5 @@
-const { test, expect } = require('@playwright/test');
-const { stubPublisherFetches, gotoApp } = require('./helpers');
+import { test, expect } from '@playwright/test';
+import { stubPublisherFetches, gotoApp } from './helpers.js';
 
 // Equivalence net for grouped-tier windowing, outliving the pre-windowing
 // all-chains path: the worker ships per-group summaries + a firstChains window

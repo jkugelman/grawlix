@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { visible, sameVisible, run, rowByFirst, highlightTexts } from './harness.mjs';
+import { visible, sameVisible, run, rowByFirst, highlightTexts } from './harness.js';
 
 const LIB = ['cat', 'cats', 'scat', 'cot', 'dog', 'cog', 'bell', 'teen'];
 const REPLACE_LIB = ['cat', 'cats', 'scat', 'dog', 'dogs', 'bell', 'bel', 'teen', 'ten'];

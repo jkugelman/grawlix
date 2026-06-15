@@ -4,8 +4,8 @@
 // All Wordlists restores the merged view. A My Edits edit therefore appears only in All Wordlists or
 // when scoped to My Edits itself.
 
-const { test, expect } = require('@playwright/test');
-const { stubPublisherFetches, gotoApp, scopeTo, expectVisible, setEnabledViaPanel } = require('./helpers');
+import { test, expect } from '@playwright/test';
+import { stubPublisherFetches, gotoApp, scopeTo, expectVisible, setEnabledViaPanel } from './helpers.js';
 
 test.beforeEach(async ({ page }) => {
   await stubPublisherFetches(page);

@@ -11,8 +11,8 @@
 // `getVisibleEntries` returns a string per 1-atom row and an array of atom
 // entry strings per multi-atom chain row.
 
-const { test, expect } = require('@playwright/test');
-const { stubPublisherFetches, gotoApp, addTool, expectVisible, expectGroups, readVisible, readGroups } = require('./helpers');
+import { test, expect } from '@playwright/test';
+import { stubPublisherFetches, gotoApp, addTool, expectVisible, expectGroups, readVisible, readGroups } from './helpers.js';
 
 test.beforeEach(async ({ page }) => {
   await stubPublisherFetches(page);

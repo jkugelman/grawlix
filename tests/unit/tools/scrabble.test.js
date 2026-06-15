@@ -1,5 +1,5 @@
 import { test } from 'node:test';
-import { visible, sameVisible } from './harness.mjs';
+import { visible, sameVisible } from './harness.js';
 
 test('keeps entries spelled from any subset of the input tiles', async () => {
   sameVisible(await visible(['plane', 'rent', 'pear', 'tiger'],

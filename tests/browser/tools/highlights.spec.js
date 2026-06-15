@@ -3,8 +3,8 @@
 // tests here; tool logic and highlight ranges live in the unit tier. See
 // docs/testing.md § Tool specs.
 
-const { test, expect } = require('@playwright/test');
-const { stubPublisherFetches, gotoApp, expectVisible } = require('../helpers');
+import { test, expect } from '@playwright/test';
+import { stubPublisherFetches, gotoApp, expectVisible } from '../helpers.js';
 
 test.beforeEach(async ({ page }) => {
   await stubPublisherFetches(page);

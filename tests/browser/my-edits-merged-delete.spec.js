@@ -1,5 +1,5 @@
-const { test, expect } = require('@playwright/test');
-const { stubPublisherFetches, gotoApp, scopeTo } = require('./helpers');
+import { test, expect } from '@playwright/test';
+import { stubPublisherFetches, gotoApp, scopeTo } from './helpers.js';
 
 // Regression: deleting a My Edits entry while scoped to All Wordlists crashed the
 // flat scroller — the merged corpus shrinks in place, and the repaint then read

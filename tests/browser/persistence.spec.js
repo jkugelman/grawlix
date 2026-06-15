@@ -12,8 +12,8 @@
 //    Router's encode/decode pair has to round-trip cleanly or a shared
 //    link decodes to the wrong UI.
 
-const { test, expect } = require('@playwright/test');
-const { stubPublisherFetches, gotoApp, reloadApp } = require('./helpers');
+import { test, expect } from '@playwright/test';
+import { stubPublisherFetches, gotoApp, reloadApp } from './helpers.js';
 
 test.beforeEach(async ({ page }) => {
   await stubPublisherFetches(page);

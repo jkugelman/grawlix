@@ -1,5 +1,5 @@
-const { test, expect } = require('@playwright/test');
-const { stubPublisherFetches, gotoApp } = require('./helpers');
+import { test, expect } from '@playwright/test';
+import { stubPublisherFetches, gotoApp } from './helpers.js';
 
 // Chunk oracle: GROUPED and TRANSFORM-CHAIN results ship their corpus atoms RICH
 // (self-contained: norm/display/score/rawScore/comment/sourceId) — mirroring what
