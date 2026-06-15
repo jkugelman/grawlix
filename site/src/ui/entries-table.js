@@ -2326,8 +2326,13 @@ export const ScorePicker = (() => {
 
   function onDocMouseDown(e) {
     if (!isOpen()) return;
-    if (el.contains(e.target)) return;
-    if (activeRow && activeRow.contains(e.target)) return;
+    if (el.contains(e.target) || (activeRow && activeRow.contains(e.target))) {
+      // The picker overlays its start option on the clicked badge, so a quick
+      // second click there completes a native double-click; suppress its default
+      // text selection so the score doesn't flash selected before the commit.
+      e.preventDefault();
+      return;
+    }
     close();
   }
 
