@@ -204,7 +204,7 @@ test('staging a delete via the row trash strikes it through and is reversible; S
   });
 });
 
-test('searching for an unknown entry surfaces an Add-it affordance that lands the entry in My Edits', async ({ page }) => {
+test('the add FAB seeds an unknown search query and lands it in My Edits and the merge', async ({ page }) => {
   await gotoApp(page);
 
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
@@ -212,10 +212,9 @@ test('searching for an unknown entry surfaces an Add-it affordance that lands th
   }));
 
   await page.locator('.search-bar input[data-key="pattern"]').fill('NEWWORD');
-  await expect(page.locator('.entries-empty-add')).toBeVisible();
-  await expect(page.locator('.entries-empty-term')).toHaveText(/newword/i);
+  await page.evaluate(() => window.__grawlixTest.pipelineIdle());
 
-  await page.locator('.entries-empty-add').click();
+  await page.locator('#add-fab').click();
   await expect(page.locator('#atom-popover')).toBeVisible();
   await expect(page.locator('#atom-pop-entry')).toHaveValue('NEWWORD');
   await page.locator('#atom-pop-score').fill('60');
@@ -227,33 +226,6 @@ test('searching for an unknown entry surfaces an Add-it affordance that lands th
   expect(await page.evaluate(() => window.__grawlixTest.getMergedEntry('NEWWORD'))).toMatchObject({
     entry: 'newword', score: 60, comment: '', wordlist: 'My Edits',
   });
-});
-
-test('the no-match affordance switches on merge membership: link when the word is in the merge, button when it is not', async ({ page }) => {
-  await gotoApp(page);
-
-  await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
-    name: 'Has', entries: ['phantom'], scores: [50],
-  }));
-  await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
-    name: 'Other', entries: ['existing'], scores: [50],
-  }));
-  await scopeTo(page, 'Other');
-
-  const search = page.locator('.search-bar input[data-key="pattern"]');
-
-  await search.fill('phantom');
-  await expect(page.locator('.entries-empty-add')).toHaveCount(0);
-  await expect(page.locator('.entries-empty-link').first()).toHaveText(/phantom/i);
-
-  await search.fill('ghost');
-  await expect(page.locator('.entries-empty-link')).toHaveCount(0);
-  await expect(page.locator('.entries-empty-add')).toBeVisible();
-
-  await search.fill('phantom');
-  await page.locator('.entries-empty-link').first().click();
-  await expect(page.locator('#atom-popover')).toBeVisible();
-  await expect(page.locator('#atom-pop-entry')).toHaveValue('phantom');
 });
 
 test('the floating + button opens a blank create popover that lands the entry in My Edits', async ({ page }) => {
@@ -349,12 +321,13 @@ test('deleting a My Edits entry shows an undo toast that restores it', async ({ 
 test('a My Edits entry deletes via the popover after a reload reparses its display to null', async ({ page }) => {
   await gotoApp(page);
 
-  // Create a My-Edits-only entry through the Add affordance. On reload it
-  // rehydrates from IndexedDB text via parseWordlist, where an all-lowercase
-  // entry classifies as plain → display:null. The delete must match that null
-  // against the norm-coalesced display (displayOf), not the raw display.
+  // Create a My-Edits-only entry through the add FAB. On reload it rehydrates
+  // from IndexedDB text via parseWordlist, where an all-lowercase entry
+  // classifies as plain → display:null. The delete must match that null against
+  // the norm-coalesced display (displayOf), not the raw display.
   await page.locator('.search-bar input[data-key="pattern"]').fill('words');
-  await page.locator('.entries-empty-add').click();
+  await page.evaluate(() => window.__grawlixTest.pipelineIdle());
+  await page.locator('#add-fab').click();
   await page.locator('#atom-pop-score').fill('40');
   await page.locator('#atom-pop-score').press('Enter');
   await expect.poll(async () =>

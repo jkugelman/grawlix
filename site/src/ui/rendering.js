@@ -5,7 +5,7 @@
 // arrive through `configureRendering`, sibling-ui cycles are define-only.
 
 import { MERGED_ID } from '../core/constants.js';
-import { esc, pluralize } from '../core/util.js';
+import { pluralize } from '../core/util.js';
 import { effect } from '../core/signals.js';
 import { invalidateStatsCache, computeStatsRaw } from '../engine/stats.js';
 import { bucketCounts, invalidateHistogramLayout } from '../engine/histogram.js';
@@ -20,7 +20,6 @@ import {
 } from '../data/merge.js';
 import { scopedHistogramLayout } from '../data/derived.js';
 import { scoreColor } from '../model/score-display.js';
-import { hashStringMod } from './icons.js';
 import { PopupHelp } from './components.js';
 import { AppView, scopeKey } from './app-view.js';
 import {
@@ -462,27 +461,4 @@ export async function renderMergedDetail() {
     // empty spinner; in `finally` so a broken boot-URL tool still dismisses it.
     _signalFirstPaint();
   }
-}
-
-const NO_MATCH_QUIPS = [
-  q => `"The ${q} is in another castle."`,
-  q => `"This is not the ${q} you are looking for."`,
-  q => `"${q} has left the chat."`,
-  q => `"${q}? We're gonna need a bigger wordlist."`,
-  q => `"We don't talk about ${q}."`,
-  q => `"${q} has left the building."`,
-  q => `"Nobody puts ${q} in the corner."`,
-  q => `"${q}? Where we're going, we don't need ${q}."`,
-  q => `"${q}? Inconceivable!"`,
-  q => `"Hasta la vista, ${q}."`,
-  q => `"Sorry, ${q} can't come to the phone right now."`,
-  q => `"Show me the ${q}!"`,
-  q => `"${q}? You can't handle the ${q}!"`,
-];
-
-export function buildNoMatchQuipHTML(term, asLink = false) {
-  const wrapped = asLink
-    ? `<button type="button" class="entries-empty-link">${esc(term)}</button>`
-    : `<span class="entries-empty-term">${esc(term)}</span>`;
-  return NO_MATCH_QUIPS[hashStringMod(term.toLowerCase(), NO_MATCH_QUIPS.length)](wrapped);
 }

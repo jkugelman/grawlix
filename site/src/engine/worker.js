@@ -274,13 +274,7 @@ function postResult(runId, { rows, atomCount, grouped }, sort, scope, stack, exi
   lastGroupedResult = null;
 
   const stats = computeStatsRaw(scores);
-  // existsInScope answers "in the run's SCOPE"; existsInMerge always answers
-  // against the merge — main's two consumers split (the add-FAB seed checks
-  // scope, the empty-state checks merge), so shipping both reproduces main's
-  // pre-flip behavior exactly even on a scoped run.
   const existsInScope = existsQuery ? ownedCorpus.byNorm.has(toNorm(existsQuery)) : null;
-  const existsInMerge = existsQuery && ownedMerged
-    ? ownedMerged.byNorm.has(toNorm(existsQuery)) : null;
 
   // Resolve the open popover's re-anchor target the SAME way main's flat
   // findResultEntry+resultHasEntry do: a FULL-corpus byKey→byNorm lookup that
@@ -303,7 +297,7 @@ function postResult(runId, { rows, atomCount, grouped }, sort, scope, stack, exi
   const firstRows = buildFlatRows(0, Math.min(FIRST_WINDOW, indices.length));
 
   postMessage(
-    { ...base, payload: { indices: indices.buffer, scores: scores.buffer, widthHints, stats, histogramCounts, histogramLayout, existsInScope, existsInMerge, rebindQuery: rebindQuery || null, rebindEntry, rebindExists, filtered: doFilter, firstRows } },
+    { ...base, payload: { indices: indices.buffer, scores: scores.buffer, widthHints, stats, histogramCounts, histogramLayout, existsInScope, rebindQuery: rebindQuery || null, rebindEntry, rebindExists, filtered: doFilter, firstRows } },
     [indices.buffer, scores.buffer],
   );
 }

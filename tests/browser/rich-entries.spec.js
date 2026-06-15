@@ -42,10 +42,11 @@ test.describe('norm + display', () => {
 });
 
 test.describe('UI-typed entries preserve case', () => {
-  test('Add-it from the search empty state lands a verbatim display', async ({ page }) => {
+  test('the add FAB seeds the search query verbatim, preserving case', async ({ page }) => {
     await gotoApp(page);
     await page.locator('.search-bar input[data-key="pattern"]').fill('Helen of Troy');
-    await page.locator('.entries-empty-add').click();
+    await page.evaluate(() => window.__grawlixTest.pipelineIdle());
+    await page.locator('#add-fab').click();
     await expect(page.locator('#atom-pop-entry')).toHaveValue('Helen of Troy');
     await page.locator('#atom-pop-score').fill('70');
     await page.locator('#atom-pop-score').press('Enter');

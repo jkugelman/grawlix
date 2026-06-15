@@ -115,6 +115,8 @@ The full tool catalog — every shipped and planned tool, with its icon, name, d
 
 The entries table below the stats bar shows every entry in your current scope — the merged `All Wordlists` view, or the selected wordlist's own entries — one row per entry, in your current sort order. Each row reads as `1. CARE 4 50` — count, entry, length, score badge. Click on the entry or score to edit it (see *Editing entries*). When you've scoped to a single wordlist, the Source column drops out — every row comes from the one wordlist.
 
+A quiet footer can appear at the end of the table. When the current view has no entries it reads **No matches.** When you're scoped to a single wordlist (anything other than All Wordlists), it reads **Expecting more? Switch to All Wordlists** — a one-click link back to the merged view, a reminder that a narrow scope caps what search and tools can turn up. Both lines can show together.
+
 ## Stats bar
 
 A single sticky band above the entries table, carrying every readout about the visible result set and the two controls that shape it. Left to right:
@@ -153,7 +155,7 @@ Press Enter to save and close, or Tab to chain edits between score and comment. 
 
 **Where your edits show up.** An edit lands in My Edits and surfaces wherever My Edits participates: in **All Wordlists** (My Edits is top priority and wins there) and when you scope to **My Edits** itself. A scoped wordlist always shows its *own* values, so an edit you make while scoped to, say, XWI won't change the XWI-scoped view — it's in My Edits now, visible in All Wordlists and in My Edits' own view. The provenance panel still shows your My Edits value alongside the others.
 
-**Adding new entries.** A floating **＋** button in the bottom-right corner opens the entry editor in the center of the screen. If you've just searched for a plain word that no wordlist has, it starts with that word filled in (a wildcard search, or one that already matches something, opens blank). Type a score and an optional comment, press Enter, and the entry lands in My Edits. The ＋ only ever creates: if you type an entry that already exists anywhere in your enabled wordlists, Save stays disabled and the editor says it already exists — edit the existing one instead. When a search finds nothing, the empty-results quip adapts to whether the word exists anywhere in **All Wordlists**: if it does (it's just not in the list you've scoped to), its name in the quip is a link that opens the editor on the existing entry; if it exists nowhere, an **Add it** button appears beneath the quip instead. Either opens the same editor, pre-populated, and a saved entry lands in My Edits.
+**Adding new entries.** A floating **＋** button in the bottom-right corner opens the entry editor in the center of the screen. If you've just searched for a plain word that no wordlist has, it starts with that word filled in (a wildcard search, or one that already matches something, opens blank). Type a score and an optional comment, press Enter, and the entry lands in My Edits. The ＋ only ever creates: if you type an entry that already exists anywhere in your enabled wordlists, Save stays disabled and the editor says it already exists — edit the existing one instead.
 
 ## My Edits
 

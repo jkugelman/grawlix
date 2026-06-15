@@ -12,7 +12,7 @@
 // classes. The router callback can't be imported (it lives in app/main), so it
 // arrives via configureEntriesTable.
 
-import { ROW_HEIGHT, VS_BUFFER, MERGED_ID } from '../core/constants.js';
+import { ROW_HEIGHT, VS_BUFFER, MERGED_ID, MERGED_NAME } from '../core/constants.js';
 import { esc } from '../core/util.js';
 import { displayOf, projectRangesToDisplay, toNorm, buildUserWlEntry } from '../engine/norm.js';
 import { planEntryWrite } from '../engine/edit-plan.js';
@@ -40,7 +40,7 @@ import { buildWordlistNameHTML } from './scope-selector.js';
 import { getDraftRescoreRules } from './rescore-editor.js';
 import { buildTrashIconHTML } from './components.js';
 import {
-  getEntriesScroller, rescorePreviewActive, buildNoMatchQuipHTML, refreshMergedScroller,
+  getEntriesScroller, rescorePreviewActive, refreshMergedScroller, setScope,
 } from './rendering.js';
 import { fetchWorkerRows, fetchWorkerGroups, fetchWorkerGroupChains, fetchWorkerAllRows, fetchWorkerAllGroups, lastCompletedRunId, fetchWorkerEditSeed, fetchWorkerProvenance } from './pipeline-worker.js';
 
@@ -108,12 +108,6 @@ export function existsInScopeDebug() {
   const s = getEntriesScroller();
   if (!s) return { error: 'no entries scroller mounted' };
   return { existsInScope: s._existsInScope };
-}
-
-export function existsInMergeDebug() {
-  const s = getEntriesScroller();
-  if (!s) return { error: 'no entries scroller mounted' };
-  return { existsInMerge: s._existsInMerge };
 }
 
 export function popoverSeedDebug() {
@@ -729,7 +723,6 @@ export class EntriesScroller extends BaseVirtualScroller {
     this._workerFiltered = false;
     this._ranAgainstOwned = false;
     this._existsInScope = null;
-    this._existsInMerge = null;
     this._rebindQuery = null;
     this._rebindEntry = null;
     this._rebindExists = null;
@@ -834,7 +827,6 @@ export class EntriesScroller extends BaseVirtualScroller {
       this._workerFiltered = !!result.filtered;
       this._ranAgainstOwned = !!result.ranAgainstOwned;
       this._existsInScope = result.existsInScope ?? null;
-      this._existsInMerge = result.existsInMerge ?? null;
       this._rebindQuery = result.rebindQuery ?? null;
       this._rebindEntry = result.rebindEntry ?? null;
       this._rebindExists = result.rebindExists ?? null;
@@ -857,7 +849,6 @@ export class EntriesScroller extends BaseVirtualScroller {
       this._workerFiltered = g ? !!result.filtered : false;
       this._ranAgainstOwned = false;
       this._existsInScope = null;
-      this._existsInMerge = null;
       this._rebindQuery = null;
       this._rebindEntry = null;
       this._rebindExists = null;
@@ -1121,7 +1112,7 @@ export class EntriesScroller extends BaseVirtualScroller {
     const n = this.entries.length;
     const stride = this._rowStride();
     this.sizer.style.height = this._sizerHeightFor(n * stride) + 'px';
-    this._renderEmptyState(n, 'chain');
+    this._renderFooter(n);
 
     const { start, end } = this._visibleRange(n);
     this._clearSizer();
@@ -1305,7 +1296,7 @@ export class EntriesScroller extends BaseVirtualScroller {
     const n = this._groupCount();
     const stride = this.atomCount * ROW_HEIGHT;
     this.sizer.style.height = this._sizerHeightFor(n * stride) + 'px';
-    this._renderEmptyState(n, 'group');
+    this._renderFooter(n);
     const { start, end } = this._visibleRange(n);
     this._clearSizer();
     this._invalidateGroupWinCacheIfStale();
@@ -1450,36 +1441,28 @@ export class EntriesScroller extends BaseVirtualScroller {
       `<button type="button" class="group-more"${hidden > 0 ? `>+${hidden} more` : ' hidden>'}</button>`;
   }
 
-  _renderEmptyState(n, kind) {
-    const existing = this.host.querySelector('.entries-empty');
-    if (n > 0) { existing?.remove(); return; }
+  _renderFooter(n) {
+    const empty = n === 0;
+    const scoped = state.selected !== MERGED_ID;
+    const existing = this.host.querySelector('.entries-footer');
+    if (!empty && !scoped) { existing?.remove(); return; }
 
-    if (existing && this._isReservationActive() && !this._revealEmpty) return;
+    // While a search/tool input is focused an empty result is usually transient —
+    // hold the parked footer (below the fold) rather than rebuild it each keystroke;
+    // _sortAndRender's reveal timer un-parks it on the typing pause.
+    if (empty && existing && this._isReservationActive() && !this._revealEmpty) return;
 
-    const query = AppView.searchQuery.trim();
-    const addable = kind === 'chain' && /\S/i.test(query);
-    // The empty-state checks the MERGE (existsInMerge), not the run's scope: the
-    // add-FAB seed and this message answer "exists?" against different corpora, so
-    // a scoped run where existsInScope differs must still use the merge answer here.
-    const inMerge = addable && !!this._existsInMerge;
-    const key = `${kind}|${addable ? query.toLowerCase() : ''}|${addable ? inMerge : ''}`;
+    const key = `${empty}|${scoped}`;
     if (existing && existing.dataset.key === key) return;
 
     const el = existing || document.createElement('div');
-    el.className = 'entries-empty';
+    el.className = 'entries-footer';
     el.dataset.key = key;
-
-    if (kind === 'group') {
-      el.textContent = 'No groups match.';
-    } else if (addable) {
-      el.innerHTML = `<div class="entries-empty-msg">${buildNoMatchQuipHTML(query, inMerge)}</div>`
-        + (inMerge ? '' : `<button type="button" class="entries-empty-add">＋ Add it</button>`);
-      el.querySelectorAll('.entries-empty-link, .entries-empty-add').forEach(t => {
-        t.onclick = e => AtomPopover.openForCreate(query, this, e.currentTarget);
-      });
-    } else {
-      el.textContent = 'No matches.';
-    }
+    const switchBtn = `<button type="button" class="entries-footer-btn">Switch to ${MERGED_NAME}</button>`;
+    el.innerHTML =
+      (empty ? '<p>No matches.</p>' : '')
+      + (scoped ? `<p>Expecting more? ${switchBtn}</p>` : '');
+    if (scoped) el.querySelector('.entries-footer-btn').onclick = () => setScope(MERGED_ID);
 
     if (!existing) this.host.appendChild(el);
   }

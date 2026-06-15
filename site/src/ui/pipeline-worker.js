@@ -229,7 +229,6 @@ function materializeResult(data, stack, scope) {
       histogramCounts: payload.histogramCounts ?? null,
       histogramLayout: payload.histogramLayout ?? null,
       existsInScope: payload.existsInScope ?? null,
-      existsInMerge: payload.existsInMerge ?? null,
       rebindQuery: payload.rebindQuery ?? null,
       rebindEntry: rebuildRebindEntry(payload.rebindEntry),
       rebindExists: payload.rebindExists ?? null,
