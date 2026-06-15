@@ -2084,7 +2084,10 @@ export const AtomPopover = (() => {
   function refreshSaveEnabled() {
     const saveBtn = el.querySelector('.atom-pop-save');
     if (!saveBtn) return;
-    saveBtn.disabled = stagedDelete ? false : (!valuesValid(readNewValues()) || saveBlocked());
+    if (stagedDelete) { saveBtn.disabled = false; return; }
+    const vals = readNewValues();
+    saveBtn.disabled = !valuesValid(vals) || saveBlocked()
+      || (activeMode === 'edit' && !pendingWritesChange(vals));
   }
 
   function saveBlocked() {

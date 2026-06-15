@@ -43,6 +43,18 @@ test('header and Save button read Add entry / Add from the + button', async ({ p
   await expect(page.locator('#atom-popover .atom-pop-save')).toHaveText('Add');
 });
 
+test('Save is disabled until an edit diverges from the entry, and re-disables on revert', async ({ page }) => {
+  await gotoApp(page);
+  await addList(page, { name: 'W', entries: ['ocean'], scores: [50] });
+  await openPopoverOnEntry(page, 'ocean');
+  const save = page.locator('#atom-popover .atom-pop-save');
+  await expect(save).toBeDisabled();
+  await page.locator('#atom-pop-score').fill('60');
+  await expect(save).toBeEnabled();
+  await page.locator('#atom-pop-score').fill('50');
+  await expect(save).toBeDisabled();
+});
+
 // ─── Create ────────────────────────────────────────────────────────────────
 
 test('creating an entry that already exists is hard-blocked', async ({ page }) => {
