@@ -1799,7 +1799,7 @@ export const AtomPopover = (() => {
     if (!edits) return rows;
     if (stagedDelete) {
       const i = rows.findIndex(r => r.isEdits && r.entry.norm === stagedDelete.norm && displayOf(r.entry) === stagedDelete.display);
-      if (i >= 0) rows[i] = { ...rows[i], diff: 'deleted' };
+      if (i >= 0) rows[i] = { ...rows[i], diff: 'deleted', isStaged: true };
       return rows;
     }
     const plan = previewPlan();
@@ -1843,16 +1843,17 @@ export const AtomPopover = (() => {
 
   function renderProvenanceRowsHTML(rows) {
     if (!rows.length) return '';
-    const body = rows.map(({ wordlist, entry, enabled, diff, saved, isEdits }) => {
+    const body = rows.map(({ wordlist, entry, enabled, diff, saved, isEdits, isStaged }) => {
       const disabled = wordlist ? wordlist.enabled === false : enabled === false;
       const cls = ['atom-pop-prov-row'];
       if (disabled) cls.push('atom-pop-prov-row--disabled');
       if (diff) cls.push(`atom-pop-prov-row--${diff}`);
       const comment = entry.comment || '';
-      const staged = diff === 'deleted';
-      const label = staged ? 'Restore this edit' : 'Delete this edit';
-      const trash = saved && isEdits
-        ? `<button class="atom-pop-prov-trash${staged ? ' staged' : ''}" type="button"`
+      const label = isStaged ? 'Restore this edit' : 'Delete this edit';
+      // A rename's predicted-delete row (diff 'deleted', not user-staged) gets no
+      // trash — only a genuinely saved row, or the staged-delete row to restore it.
+      const trash = saved && isEdits && (diff !== 'deleted' || isStaged)
+        ? `<button class="atom-pop-prov-trash${isStaged ? ' staged' : ''}" type="button"`
           + ` data-norm="${esc(entry.norm)}" data-display="${esc(displayOf(entry))}"`
           + ` title="${label}" aria-label="${label}">${buildTrashIconHTML()}</button>`
         : '';

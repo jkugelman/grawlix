@@ -80,6 +80,16 @@ test('renaming an entry replaces it — no second row', async ({ page }) => {
   await expect.poll(() => displaysForNorm(page, 'aaateams')).toEqual(['AAA teams']);
 });
 
+test('the replaced row previews struck through with no trash icon', async ({ page }) => {
+  await gotoApp(page);
+  await page.evaluate(() => window.__grawlixTest.saveMyEdit('ocean', 'ocean', 50));
+  await openPopoverOnEntry(page, 'ocean');
+  await page.locator('#atom-pop-entry').fill('Ocean');
+  const deletedRow = page.locator('#atom-popover .atom-pop-prov-row--deleted');
+  await expect(deletedRow).toBeVisible();
+  await expect(deletedRow.locator('.atom-pop-prov-trash')).toHaveCount(0);
+});
+
 test('renaming over a foreign leftover downscores the original to the junk score', async ({ page }) => {
   await gotoApp(page);
   await addList(page, { name: 'W', entries: ['oceam'], scores: [40] });
