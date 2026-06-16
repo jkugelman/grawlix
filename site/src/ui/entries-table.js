@@ -706,6 +706,9 @@ export class EntriesScroller extends BaseVirtualScroller {
     this.sortTier = 'single';
     this.allEntries = [];
     this.entries = [];
+    // The ResizeObserver renders the empty scroller before the first setEntries,
+    // so the footer needs to tell pending from empty — false until a run lands.
+    this._resolved = false;
     // When _flat (the filter-only tier), allEntries/entries hold an Int32Array of
     // the worker's corpus indices (positions for the windowed fetch), NOT
     // ChainRow[]; _flatScores is parallel, and rows arrive rich from the worker's
@@ -877,6 +880,7 @@ export class EntriesScroller extends BaseVirtualScroller {
     this.sortTier = sortTier;
     this.sortKey = AppView.sortKey;
     this.sortDir = AppView.sortDir;
+    this._resolved = true;
     return tierChanged;
   }
 
@@ -1444,7 +1448,7 @@ export class EntriesScroller extends BaseVirtualScroller {
   }
 
   _renderFooter(n) {
-    const empty = n === 0;
+    const empty = n === 0 && this._resolved;
     const scoped = state.selected !== MERGED_ID;
     const existing = this.host.querySelector('.entries-footer');
     if (!empty && !scoped) { existing?.remove(); return; }

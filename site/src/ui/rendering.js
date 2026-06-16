@@ -441,6 +441,7 @@ export function attachHelpPopups() {
 }
 
 export async function renderMergedDetail() {
+  let run;
   try {
     const panel = document.getElementById('detail-panel');
     reconcileSort(ToolStack.getStack());
@@ -450,15 +451,16 @@ export async function renderMergedDetail() {
     panel.classList.toggle('no-source-col', !showSource);
     entriesScroller._onDeleteRow = entry => _deleteFromEdits(entry, refreshMergedScroller);
     _attachExternalEditHandlers(entriesScroller, refreshMergedScroller);
-
-    const result = await runPipeline(ToolStack.getStack(), currentSort());
-    if (result.aborted) return;
-    entriesScroller.setEntries(result, result.atomCount, chainSortTier(ToolStack.getStack()));
-    ToolStack.refreshErrorMarks();
+    run = runPipeline(ToolStack.getStack(), currentSort());
   } finally {
-    // Sole firstPaint signal — gating on the real result (not an early timer)
-    // holds the splash through the worker round-trip instead of flashing an
-    // empty spinner; in `finally` so a broken boot-URL tool still dismisses it.
+    // Release the splash once the run is dispatched, before awaiting it: the
+    // splash covers the corpus build (gated with workerReady), not the pipeline,
+    // so awaiting the result would strand it behind a slow/broken boot-URL tool.
+    // `finally` so a setup throw dismisses it too.
     _signalFirstPaint();
   }
+  const result = await run;
+  if (result.aborted) return;
+  entriesScroller.setEntries(result, result.atomCount, chainSortTier(ToolStack.getStack()));
+  ToolStack.refreshErrorMarks();
 }
