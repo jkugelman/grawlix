@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { rhymingPart, parseCmuDict, rhymingPartsOf, setCmuDict } from '../../site/src/engine/phonetics.js';
+import { rhymingPart, parseCmuDict, rhymingPartsOf, lastWordKey, setCmuDict } from '../../site/src/engine/phonetics.js';
 
 test('rhymingPart returns from the last STRESSED vowel to the end', () => {
   assert.equal(rhymingPart('K AE1 T'), 'AE1 T');
@@ -26,6 +26,12 @@ test('parseCmuDict parses entries + alternates, skips comments, strips (N)', () 
   assert.deepEqual(map.get('CAT'), ['K AE1 T']);
   assert.deepEqual(map.get('READ'), ['R EH1 D', 'R IY1 D']);
   assert.deepEqual(map.get('WONKY'), ['W AA1 NG K IY0']);
+});
+
+test('lastWordKey canonicalizes the last word — uppercase, letters-only', () => {
+  assert.equal(lastWordKey('Aunt Agatha'), 'AGATHA');
+  assert.equal(lastWordKey('agatha'), 'AGATHA');
+  assert.equal(lastWordKey('scaredy-cat'), 'CAT');
 });
 
 test('rhymingPartsOf collects every pronunciation’s part and bridges the last word', () => {

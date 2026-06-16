@@ -5,7 +5,7 @@ import { stubPublisherFetches, gotoApp, expectVisible, expectGroups } from './he
 // family appears only if this stub (not the network) served the worker. Swap them
 // for real words and the suite silently passes against the live dict instead.
 const DICT = [
-  'cat K AE1 T', 'bat B AE1 T', 'hat HH AE1 T', 'dog D AO1 G',
+  'cat K AE1 T', 'bat B AE1 T', 'hat HH AE1 T', 'mat M AE1 T', 'dog D AO1 G',
   'zelph Z EH1 L F', 'delph D EH1 L F', '',
 ].join('\n');
 
@@ -30,7 +30,7 @@ async function seed(page) {
 test('filters the merged view to entries that rhyme with the target', async ({ page }) => {
   await gotoApp(page);
   await seed(page);
-  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'rhymes', params: { entry: 'cat' } }]));
+  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'rhymes', params: { entry: 'mat' } }]));
   await expectVisible(page, ['cat', 'bat', 'hat']);
 });
 

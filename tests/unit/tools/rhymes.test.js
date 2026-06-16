@@ -4,7 +4,7 @@ import { setCmuDict } from '../../../site/src/engine/phonetics.js';
 import { visible, sameVisible, groups } from './harness.js';
 
 const seed = () => setCmuDict({
-  CAT: ['K AE1 T'], BAT: ['B AE1 T'], HAT: ['HH AE1 T'], DOG: ['D AO1 G'],
+  CAT: ['K AE1 T'], BAT: ['B AE1 T'], HAT: ['HH AE1 T'], MAT: ['M AE1 T'], DOG: ['D AO1 G'],
   OUT: ['AW1 T'], ABOUT: ['AH0 B AW1 T'],
   LIVES: ['L AY1 V Z', 'L IH1 V Z'], FIVES: ['F AY1 V Z'], GIVES: ['G IH1 V Z'],
 });
@@ -12,8 +12,15 @@ const seed = () => setCmuDict({
 test('filters the wordlist to entries that rhyme with the target', async () => {
   seed();
   const out = await visible(['cat', 'bat', 'hat', 'dog'],
-    [{ tool: 'rhymes', params: { entry: 'cat' } }]);
+    [{ tool: 'rhymes', params: { entry: 'mat' } }]);
   sameVisible(out, ['cat', 'bat', 'hat']);
+});
+
+test('filter mode drops entries that share the target’s last word', async () => {
+  seed();
+  const out = await visible(['cat', 'bat', { entry: 'scaredy cat' }, { entry: 'fat cat' }],
+    [{ tool: 'rhymes', params: { entry: 'cat' } }]);
+  sameVisible(out, ['bat']);  // cat (itself), scaredy cat, fat cat all end in "cat"
 });
 
 test('rhymes a multi-word entry on its last word', async () => {
@@ -26,9 +33,9 @@ test('rhymes a multi-word entry on its last word', async () => {
 test('matches across any of the target’s pronunciations', async () => {
   seed();
   sameVisible(await visible(['lives', 'fives'], [{ tool: 'rhymes', params: { entry: 'fives' } }]),
-    ['lives', 'fives']);
+    ['lives']);
   sameVisible(await visible(['lives', 'gives'], [{ tool: 'rhymes', params: { entry: 'gives' } }]),
-    ['lives', 'gives']);
+    ['lives']);
 });
 
 test('drops everything when the target has no pronunciation', async () => {
@@ -42,6 +49,21 @@ test('group mode buckets the wordlist into rhyme families (singletons dropped)',
   assert.equal(fams.length, 1);
   assert.equal(fams[0].key, 'AE1 T');
   sameVisible(fams[0].chains.map(c => c[0]), ['cat', 'bat', 'hat']);
+});
+
+test('group mode drops a family whose members all share one last word', async () => {
+  seed();
+  const fams = await groups(['cat', { entry: 'scaredy cat' }, { entry: 'fat cat' }],
+    [{ tool: 'rhymes', grouped: true }]);
+  assert.equal(fams.length, 0);
+});
+
+test('group mode keeps a mixed family, trivial members and all', async () => {
+  seed();
+  const fams = await groups(['cat', 'bat', { entry: 'scaredy cat' }],
+    [{ tool: 'rhymes', grouped: true }]);
+  assert.equal(fams.length, 1);
+  sameVisible(fams[0].chains.map(c => c[0]), ['cat', 'bat', 'scaredy cat']);
 });
 
 test('a two-pronunciation word appears in both rhyme families (multi-key grouping)', async () => {

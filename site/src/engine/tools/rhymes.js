@@ -1,6 +1,6 @@
 'use strict';
 
-import { loadCmuDict, hasCmuDict, rhymingPartsOf } from '../phonetics.js';
+import { loadCmuDict, hasCmuDict, rhymingPartsOf, lastWordKey } from '../phonetics.js';
 
 async function ensureDict() {
   try {
@@ -21,10 +21,13 @@ export default {
   isInert: params => !(params.entry || '').trim(),
   async prepare(params) {
     await ensureDict();
-    return { targetParts: rhymingPartsOf((params.entry || '').trim()) };
+    const entry = (params.entry || '').trim();
+    return { targetParts: rhymingPartsOf(entry), targetLastWord: lastWordKey(entry) };
   },
   run(display, prepared) {
     if (!hasCmuDict() || !prepared.targetParts.length) return false;
+    // Same last word is a repeat, not a rhyme — "Agatha"/"Aunt Agatha", or a word with itself.
+    if (lastWordKey(display) === prepared.targetLastWord) return false;
     for (const part of rhymingPartsOf(display)) {
       if (prepared.targetParts.includes(part)) return true;
     }
@@ -33,5 +36,7 @@ export default {
   group: {
     prepare: ensureDict,
     key: display => rhymingPartsOf(display),
+    // All one word ("Agatha"/"Aunt Agatha") is a repeat; a real family needs ≥2 distinct rhyming words.
+    keepGroup: members => new Set(members.map(lastWordKey)).size >= 2,
   },
 };

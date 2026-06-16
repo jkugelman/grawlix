@@ -276,9 +276,17 @@ export async function bucketize(chains, def, ctx) {
     }
   });
   const anchorFn = def.group.anchor;
+  const keepGroup = def.group.keepGroup;
   const groups = [];
   for (const [key, groupChains] of buckets) {
     if (groupChains.length < 2) continue;
+    if (keepGroup) {
+      const members = groupChains.map(c => {
+        const tail = rowLastEntry(c);
+        return useDisplay ? displayOf(tail) : tail.norm;
+      });
+      if (!keepGroup(members)) continue;
+    }
     const anchor = anchorFn ? anchorFn(key, ctx.wordlist) : null;
     if (anchorFn && !anchor) continue;
     groupChains.sort((a, b) => {
