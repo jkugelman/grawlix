@@ -2,7 +2,7 @@
 
 export default {
   name: 'Isograms', icon: '1️⃣', category: 'letters',
-  desc: 'No repeated letter',
+  desc: 'No repeated letters',
   example: 'CYBERPUNK · JUXTAPOSE',
   params: [],
   kind: 'filter', inputHighlights: false, outputHighlights: false,
