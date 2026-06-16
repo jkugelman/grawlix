@@ -184,6 +184,7 @@ async function runStackRow(stackRow, state, mergedWordlist, signal, y) {
   try {
     if (stackRow.kind() === 'group') {
       const ctx = makeCtx(mergedWordlist, state.groups[0].chains, signal, y);
+      if (def.group.prepare) await def.group.prepare(ctx);
       state.groups = await bucketize(state.groups[0].chains, def, ctx);
       state.grouped = true;
       return;
@@ -266,11 +267,13 @@ export async function bucketize(chains, def, ctx) {
   await ctx.forEach(chains, chain => {
     const tail = rowLastEntry(chain);
     const input = useDisplay ? displayOf(tail) : tail.norm;
-    const key = def.group.key(input);
-    if (!key) return;
-    let bucket = buckets.get(key);
-    if (!bucket) buckets.set(key, bucket = []);
-    bucket.push(chain);
+    const keys = def.group.key(input);
+    for (const key of (Array.isArray(keys) ? keys : [keys])) {
+      if (!key) continue;
+      let bucket = buckets.get(key);
+      if (!bucket) buckets.set(key, bucket = []);
+      bucket.push(chain);
+    }
   });
   const anchorFn = def.group.anchor;
   const groups = [];

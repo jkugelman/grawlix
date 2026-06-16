@@ -4,7 +4,7 @@ One place to see every tool — shipped and planned — with the card content th
 
 Source material: shipped catalog lives in `TOOLS` in [`site/src/engine/tools.js`](../site/src/engine/tools.js) (assembled from the per-tool files in [`site/src/engine/tools/`](../site/src/engine/tools/)); planned items come from [`planned/tools.md`](planned/tools.md) (catalog + capability families) and [`wordlisted.md`](wordlisted.md) (Wordlisted's search modes, the reference inspiration).
 
-**Status** — `✓` = shipped (gallery card renders and `run` produces results). Blank = planned (no card, or a card with no `run` yet). `TBD` in any field = not yet specified; fill in when the design firms up. **Phonetics** is gated on bundling the CMU Pronouncing Dictionary; **Thesaurus** is gated on bundling Roget's Thesaurus (XML) — see [`planned/tools.md`](planned/tools.md#capability-families) for the family rationale. Tool lists in those two categories are provisional.
+**Status** — `✓` = shipped (gallery card renders and `run` produces results). Blank = planned (no card, or a card with no `run` yet). `TBD` in any field = not yet specified; fill in when the design firms up. **Phonetics** loads the CMU Pronouncing Dictionary at runtime — the worker fetches and caches it on first use (no bundling); Rhymes ships, the rest are planned. **Thesaurus** is gated on bundling Roget's Thesaurus (XML) — see [`planned/tools.md`](planned/tools.md#capability-families) for the family rationale. Tool lists in those two categories are provisional.
 
 | Status | Category | Tool | Description | Example |
 |---|---|---|---|---|
@@ -31,7 +31,7 @@ Source material: shipped catalog lives in `TOOLS` in [`site/src/engine/tools.js`
 |   | Pairs | 🪺 Nested | One word inside another | MARI(JUAN)A |
 | ✓ | Palindrome | 🪞 Palindromes | Read the same when mirrored | RACECAR · CIVIC |
 | ✓ | Palindrome | ⬅️ Semordnilap | Reverse to get a different word | STRESSED ↔ DESSERTS |
-|   | Phonetic | 🎵 Rhymes | Same end-of-word phoneme sequence | TBD |
+| ✓ | Phonetic | 🎵 Rhymes | Words that rhyme | RHYME → CLIMB, KEYLIME |
 |   | Phonetic | 🔊 Phonetic substitution | Swap one phoneme for another across the wordlist | TBD |
 |   | Phonetic | 🎶 Sound shift | Move a phoneme between word positions (e.g. front → end) | TBD |
 | ✓ | Phrase | 🌌 Space out | Guess at where spaces go in multi-word entries | SPACEOUT → SPACE OUT |

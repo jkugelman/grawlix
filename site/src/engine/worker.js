@@ -6,6 +6,7 @@ import { TOOLS, makeToolRow } from './tools.js';
 import { executePipeline, configureExecutorYield, invalidatePreSearchCache, bottomLineAtoms, applyScoreRangeToRows } from './executor.js';
 import { sortGroups, activeGroupRow } from './group-sort.js';
 import { configureIO as configureSegmenterIO } from './segmenter.js';
+import { configureIO as configurePhoneticsIO } from './phonetics.js';
 import { DATA_ASSETS, getDataAsset } from './assets.js';
 import { parseWordlist, toNorm, displayOf } from './norm.js';
 import { parseRange, matchesRange } from './range.js';
@@ -87,6 +88,7 @@ function readWordlistText(sourceId) {
   return idbGet('data_' + sourceId);
 }
 configureSegmenterIO({ idbGet, idbPut });
+configurePhoneticsIO({ idbGet, idbPut });
 
 async function handleCheckAssets() {
   for (const asset of DATA_ASSETS) {
@@ -647,9 +649,19 @@ function encodeGroupFull(g) {
 // collapsing it silently drops the out-of-range bars or mis-reports Min/Max under
 // a live filter. Width hints stay on the unfiltered set so columns don't shift
 // sideways when a filter cuts the view (main's non-flat slot-width rule).
+// A multi-key group tool (Rhymes) puts one chain in several groups, so the
+// per-chain aggregates count distinct chains, not memberships.
+function distinctChains(groups) {
+  const seen = new Set();
+  const out = [];
+  for (const g of groups) for (const c of g.chains) if (!seen.has(c)) { seen.add(c); out.push(c); }
+  return out;
+}
+
 function groupSummaries(unfiltered, filtered, scope, stack, didFilter) {
-  const histScores = bottomLineAtoms(unfiltered).map(e => e.score);
-  const statScores = bottomLineAtoms(filtered).map(e => e.score);
+  const distinctFiltered = distinctChains(filtered);
+  const histScores = bottomLineAtoms(distinctChains(unfiltered)).map(e => e.score);
+  const statScores = bottomLineAtoms(distinctFiltered).map(e => e.score);
 
   let histogramCounts, histogramLayout = null;
   if (scope === MERGED_ID) {
@@ -659,8 +671,7 @@ function groupSummaries(unfiltered, filtered, scope, stack, didFilter) {
     histogramCounts = bucketCounts(histScores, histogramLayout);
   }
 
-  let chainCount = 0;
-  for (const g of filtered) chainCount += g._count;
+  const chainCount = distinctFiltered.length;
 
   return {
     stats: computeStatsRaw(statScores),

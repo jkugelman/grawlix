@@ -19,6 +19,7 @@ import kangaroos from './tools/kangaroos.js';
 import joeys from './tools/joeys.js';
 import palindromes from './tools/palindromes.js';
 import semordnilap from './tools/semordnilap.js';
+import rhymes from './tools/rhymes.js';
 import space_out from './tools/space_out.js';
 import search from './tools/search.js';
 import regex from './tools/regex.js';
@@ -37,13 +38,14 @@ export const TOOL_CATEGORIES = [
   { id: 'letters',    label: 'Letters' },
   { id: 'pairs',      label: 'Pairs' },
   { id: 'palindrome', label: 'Palindrome' },
+  { id: 'phonetic',   label: 'Phonetic' },
   { id: 'phrase',     label: 'Phrase' },
   { id: 'rebus',      label: 'Rebus' },
   { id: 'search',     label: 'Search' },
   { id: 'side',       label: 'Side' },
 ];
 
-export const FEATURED_TOOLS = ['regex', 'rebus', 'anagrams', 'letter_bank', 'initialisms', 'behead'];
+export const FEATURED_TOOLS = ['regex', 'rebus', 'anagrams', 'initialisms', 'behead', 'rhymes'];
 
 export const TOOLS = {
   anagrams,
@@ -63,6 +65,7 @@ export const TOOLS = {
   joeys,
   palindromes,
   semordnilap,
+  rhymes,
   space_out,
   search,
   regex,
