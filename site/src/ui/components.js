@@ -44,7 +44,7 @@ export function buildBadgeHTML(severity, opts = {}) {
 
 export function buildClearableInputHTML(inputHTML, hasValue) {
   return `<span class="clearable-input">${inputHTML}` +
-    `<button type="button" class="clear-btn" title="Clear" aria-label="Clear"${hasValue ? '' : ' hidden'}>` +
+    `<button type="button" class="clear-btn" tabindex="-1" title="Clear" aria-label="Clear"${hasValue ? '' : ' hidden'}>` +
     `<svg width="10" height="10" aria-hidden="true"><use href="#icon-x"/></svg></button></span>`;
 }
 export function syncClearButton(input) {
