@@ -46,7 +46,7 @@ export const WORDLIST_PUBLISHERS = [
   },
   {
     id: 'nediger',
-    popularity: 4,
+    popularity: 3,
     name: 'Will Nediger',
     url: 'https://grawlix.wtf/wordlists/Nediger list.txt',
     homepage: 'https://github.com/bewilderingly/Nediger-list/',
@@ -103,7 +103,7 @@ export const WORDLIST_PUBLISHERS = [
   },
   {
     id: 'broda',
-    popularity: 3,
+    popularity: 4,
     name: 'Peter Broda',
     url: 'https://grawlix.wtf/wordlists/peter-broda-wordlist.txt',
     homepage: 'http://www.peterbroda.me/crosswords/wordlist/',
