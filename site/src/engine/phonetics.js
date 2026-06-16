@@ -44,9 +44,10 @@ export function rhymingPart(pron) {
   const toks = pron.split(' ');
   for (let i = toks.length - 1; i >= 0; i--) {
     const last = toks[i][toks[i].length - 1];
-    if (last === '1' || last === '2') return toks.slice(i).join(' ');
+    // Strip stress so 1≡2: dynamite's secondary -mite (AY2) rhymes with kite (AY1).
+    if (last === '1' || last === '2') return toks.slice(i).join(' ').replace(/\d/g, '');
   }
-  return pron;
+  return pron.replace(/\d/g, '');
 }
 
 export function rhymingPartsOf(text) {

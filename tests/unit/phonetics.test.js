@@ -2,17 +2,18 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { rhymingPart, parseCmuDict, rhymingPartsOf, lastWordKey, setCmuDict } from '../../site/src/engine/phonetics.js';
 
-test('rhymingPart returns from the last STRESSED vowel to the end', () => {
-  assert.equal(rhymingPart('K AE1 T'), 'AE1 T');
-  assert.equal(rhymingPart('B AH0 N AE1 N AH0'), 'AE1 N AH0');
+test('rhymingPart returns from the last stressed vowel to the end, stress stripped', () => {
+  assert.equal(rhymingPart('K AE1 T'), 'AE T');
+  assert.equal(rhymingPart('B AH0 N AE1 N AH0'), 'AE N AH');
 });
 
-test('rhymingPart honors secondary stress (2) as well as primary (1)', () => {
-  assert.equal(rhymingPart('AH0 K AE2 T'), 'AE2 T');
+test('rhymingPart normalizes stress so secondary rhymes with primary', () => {
+  assert.equal(rhymingPart('D AY1 N AH0 M AY2 T'), 'AY T');  // dynamite's secondary -mite
+  assert.equal(rhymingPart('K AY1 T'), 'AY T');              // …rhymes with kite's primary
 });
 
 test('rhymingPart with no stressed vowel falls back to the whole pronunciation', () => {
-  assert.equal(rhymingPart('DH AH0'), 'DH AH0');
+  assert.equal(rhymingPart('DH AH0'), 'DH AH');
 });
 
 test('parseCmuDict parses entries + alternates, skips comments, strips (N)', () => {
@@ -36,7 +37,7 @@ test('lastWordKey canonicalizes the last word — uppercase, letters-only', () =
 
 test('rhymingPartsOf collects every pronunciation’s part and bridges the last word', () => {
   setCmuDict({ LIVES: ['L AY1 V Z', 'L IH1 V Z'], OUT: ['AW1 T'] });
-  assert.deepEqual(rhymingPartsOf('lives').sort(), ['AY1 V Z', 'IH1 V Z']);
-  assert.deepEqual(rhymingPartsOf('space out'), ['AW1 T']);  // last word of the phrase
+  assert.deepEqual(rhymingPartsOf('lives').sort(), ['AY V Z', 'IH V Z']);
+  assert.deepEqual(rhymingPartsOf('space out'), ['AW T']);  // last word of the phrase
   assert.deepEqual(rhymingPartsOf('x-ray'), []);             // last word RAY not in dict
 });

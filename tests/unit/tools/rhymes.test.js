@@ -47,7 +47,7 @@ test('group mode buckets the wordlist into rhyme families (singletons dropped)',
   seed();
   const fams = await groups(['cat', 'bat', 'hat', 'dog'], [{ tool: 'rhymes', grouped: true }]);
   assert.equal(fams.length, 1);
-  assert.equal(fams[0].key, 'AE1 T');
+  assert.equal(fams[0].key, 'AE T');
   sameVisible(fams[0].chains.map(c => c[0]), ['cat', 'bat', 'hat']);
 });
 
@@ -70,6 +70,6 @@ test('a two-pronunciation word appears in both rhyme families (multi-key groupin
   seed();
   const fams = await groups(['lives', 'fives', 'gives'], [{ tool: 'rhymes', grouped: true }]);
   const byKey = Object.fromEntries(fams.map(f => [f.key, f.chains.map(c => c[0]).sort()]));
-  assert.deepEqual(byKey['AY1 V Z'], ['fives', 'lives']);
-  assert.deepEqual(byKey['IH1 V Z'], ['gives', 'lives']);
+  assert.deepEqual(byKey['AY V Z'], ['fives', 'lives']);
+  assert.deepEqual(byKey['IH V Z'], ['gives', 'lives']);
 });
