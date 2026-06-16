@@ -8,6 +8,17 @@ import { TOOLS, makeToolRow } from '../engine/tools.js';
 
 const RESERVED = new Set(['sort', 'sort-dir']);
 
+function encodeTailParams(row, schema) {
+  const parts = [];
+  for (const p of schema.slice(1)) {
+    if (p.repeat) continue;
+    const v = row.params[p.key];
+    if (p.type === 'checkbox') { if (v) parts.push(encodeURIComponent(p.key)); }
+    else if (v)                parts.push(encodeURIComponent(p.key) + '=' + encodeURIComponent(v));
+  }
+  return parts;
+}
+
 function encodeRepeatRow(row, schema, slug) {
   const reps = schema.filter(p => p.repeat);
   const n = Math.max(1, ...reps.map(p => (row.params[p.key] || []).length));
@@ -21,31 +32,21 @@ function encodeRepeatRow(row, schema, slug) {
       parts.push(encodeURIComponent(p.key) + '=' + encodeURIComponent(v));
     }
   }
-  for (const p of schema.slice(1)) {
-    if (p.repeat) continue;
-    const v = row.params[p.key];
-    if (p.type === 'checkbox') { if (v) parts.push(encodeURIComponent(p.key)); }
-    else if (v)                parts.push(encodeURIComponent(p.key) + '=' + encodeURIComponent(v));
-  }
-  return parts;
+  return parts.concat(encodeTailParams(row, schema));
 }
 
 // One tool row → its URL key(s). The first param rides on the tool-name key so
 // the row always has an anchor (kept even when empty, so an unfilled row
-// survives reload); a param-less tool is a bare tool key.
+// survives reload); a param-less tool is a bare tool key. Grouped rows keep their
+// secondary params (the `all` toggle drops only the irrelevant first/entry param).
 export function encodeRow(row) {
-  if (row.grouped) return [encodeURIComponent(row.tool), 'all'];
   const { params: schema } = row.def;
+  if (row.grouped) return [encodeURIComponent(row.tool), 'all', ...encodeTailParams(row, schema)];
   const slug = encodeURIComponent(row.tool);
   if (!schema.length) return [slug];
   if (schema.some(p => p.repeat)) return encodeRepeatRow(row, schema, slug);
   const parts = [slug + '=' + encodeURIComponent(row.params[schema[0].key] || '')];
-  for (const p of schema.slice(1)) {
-    const v = row.params[p.key];
-    if (p.type === 'checkbox') { if (v) parts.push(encodeURIComponent(p.key)); }
-    else if (v)                parts.push(encodeURIComponent(p.key) + '=' + encodeURIComponent(v));
-  }
-  return parts;
+  return parts.concat(encodeTailParams(row, schema));
 }
 
 // Decode the pipeline rows from a URLSearchParams. Returns the rows plus a flag

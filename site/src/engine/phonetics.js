@@ -40,22 +40,26 @@ function lastWord(text) {
   return '';
 }
 
-export function rhymingPart(pron) {
+// 'loose' anchors the rhyme on the last stress of either rank, 'strict' only on the
+// primary — so cumberbatch's secondary -batch rhymes with match under loose, not strict.
+// Stress stripped so a secondary anchor still matches a primary under loose (dynamite ~ kite).
+export function rhymingPart(pron, mode = 'loose') {
   const toks = pron.split(' ');
+  let start = -1;
   for (let i = toks.length - 1; i >= 0; i--) {
     const last = toks[i][toks[i].length - 1];
-    // Strip stress so 1≡2: dynamite's secondary -mite (AY2) rhymes with kite (AY1).
-    if (last === '1' || last === '2') return toks.slice(i).join(' ').replace(/\d/g, '');
+    if (last === '1' || (mode !== 'strict' && last === '2')) { start = i; break; }
   }
-  return pron.replace(/\d/g, '');
+  const tail = start >= 0 ? toks.slice(start) : toks;
+  return tail.join(' ').replace(/\d/g, '');
 }
 
-export function rhymingPartsOf(text) {
+export function rhymingPartsOf(text, mode = 'loose') {
   if (!cmuDict) return [];
   const prons = cmuDict.get(cmuKey(lastWord(text)));
   if (!prons) return [];
   const parts = new Set();
-  for (const pron of prons) parts.add(rhymingPart(pron));
+  for (const pron of prons) parts.add(rhymingPart(pron, mode));
   return [...parts];
 }
 

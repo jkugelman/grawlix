@@ -38,6 +38,19 @@ test('matches across any of the target’s pronunciations', async () => {
     ['lives']);
 });
 
+test('strict anchors on primary stress; loose (default) allows secondary', async () => {
+  setCmuDict({
+    CUMBERBATCH: ['K AH1 M B ER0 B AE2 CH'], MATCH: ['M AE1 CH'], BATCH: ['B AE1 CH'],
+    MISMATCH: ['M IH0 S M AE1 CH', 'M IH1 S M AE2 CH'],
+  });
+  sameVisible(await visible(['match', 'batch', 'cumberbatch'],
+    [{ tool: 'rhymes', params: { entry: 'match', match: 'strict' } }]), ['batch']);
+  sameVisible(await visible(['cumberbatch', 'match', 'mismatch'],
+    [{ tool: 'rhymes', params: { entry: 'cumberbatch' } }]), ['match', 'mismatch']);
+  sameVisible(await visible(['cumberbatch', 'match', 'mismatch'],
+    [{ tool: 'rhymes', params: { entry: 'cumberbatch', match: 'strict' } }]), []);
+});
+
 test('drops everything when the target has no pronunciation', async () => {
   seed();
   sameVisible(await visible(['cat', 'bat'], [{ tool: 'rhymes', params: { entry: 'xyzzy' } }]), []);

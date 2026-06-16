@@ -16,6 +16,12 @@ test('rhymingPart with no stressed vowel falls back to the whole pronunciation',
   assert.equal(rhymingPart('DH AH0'), 'DH AH');
 });
 
+test('rhymingPart loose counts secondary stress, strict only primary', () => {
+  assert.equal(rhymingPart('K AH1 M B ER0 B AE2 CH', 'loose'), 'AE CH');              // ~ match
+  assert.equal(rhymingPart('K AH1 M B ER0 B AE2 CH', 'strict'), 'AH M B ER B AE CH'); // not ~ match
+  assert.equal(rhymingPart('M AE1 CH', 'strict'), 'AE CH');
+});
+
 test('parseCmuDict parses entries + alternates, skips comments, strips (N)', () => {
   const map = parseCmuDict([
     ';;; a header comment',

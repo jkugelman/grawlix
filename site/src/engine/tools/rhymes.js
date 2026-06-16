@@ -15,27 +15,35 @@ export default {
   desc: 'Words that rhyme',
   example: 'RHYME → CLIMB, KEYLIME',
   asset: 'cmudict',
-  params: [{ placeholder: 'entry' }],
+  params: [
+    { placeholder: 'entry' },
+    { key: 'match', type: 'range', default: 'loose',
+      choices: [
+        { value: 'strict', label: 'Strict' },
+        { value: 'loose', label: 'Loose' },
+      ] },
+  ],
   kind: 'filter', inputHighlights: false, outputHighlights: false,
   matchOn: 'display',
   isInert: params => !(params.entry || '').trim(),
   async prepare(params) {
     await ensureDict();
     const entry = (params.entry || '').trim();
-    return { targetParts: rhymingPartsOf(entry), targetLastWord: lastWordKey(entry) };
+    const mode = params.match || 'loose';
+    return { targetParts: rhymingPartsOf(entry, mode), targetLastWord: lastWordKey(entry), mode };
   },
   run(display, prepared) {
     if (!hasCmuDict() || !prepared.targetParts.length) return false;
     // Same last word is a repeat, not a rhyme — "Agatha"/"Aunt Agatha", or a word with itself.
     if (lastWordKey(display) === prepared.targetLastWord) return false;
-    for (const part of rhymingPartsOf(display)) {
+    for (const part of rhymingPartsOf(display, prepared.mode)) {
       if (prepared.targetParts.includes(part)) return true;
     }
     return false;
   },
   group: {
-    prepare: ensureDict,
-    key: display => rhymingPartsOf(display),
+    async prepare(params) { await ensureDict(); return { mode: params.match || 'loose' }; },
+    key: (display, prepared) => rhymingPartsOf(display, prepared.mode),
     // All one word ("Agatha"/"Aunt Agatha") is a repeat; a real family needs ≥2 distinct rhyming words.
     keepGroup: members => new Set(members.map(lastWordKey)).size >= 2,
   },

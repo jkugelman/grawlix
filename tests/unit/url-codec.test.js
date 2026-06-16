@@ -47,6 +47,14 @@ test('scalar tools still round-trip (regression)', () => {
   assert.equal(rows[0].params['whole-word'], true);
 });
 
+test('a grouped row keeps its secondary params through the `all` toggle', () => {
+  const row = makeToolRow('rhymes', { match: 'strict' }, true);
+  assert.equal(query(row), 'rhymes&all&match=strict');
+  const { rows } = decode('rhymes&all&match=strict');
+  assert.equal(rows[0].grouped, true);
+  assert.equal(rows[0].params.match, 'strict');
+});
+
 test('an unknown key flags droppedUnknown', () => {
   assert.equal(decode('notatool=x').droppedUnknown, true);
   assert.equal(decode('rebus=tool&symbol=' + enc('Ⓣ')).droppedUnknown, false);

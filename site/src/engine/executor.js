@@ -183,9 +183,10 @@ async function runStackRow(stackRow, state, mergedWordlist, signal, y) {
 
   try {
     if (stackRow.kind() === 'group') {
+      const params = normalizeParams(stackRow.params, def.params);
       const ctx = makeCtx(mergedWordlist, state.groups[0].chains, signal, y);
-      if (def.group.prepare) await def.group.prepare(ctx);
-      state.groups = await bucketize(state.groups[0].chains, def, ctx);
+      const prepared = def.group.prepare ? await def.group.prepare(params, ctx) : params;
+      state.groups = await bucketize(state.groups[0].chains, def, ctx, prepared);
       state.grouped = true;
       return;
     }
@@ -261,13 +262,13 @@ async function runToolStage(rows, stackRow, prepared, mergedWordlist, y) {
   return next;
 }
 
-export async function bucketize(chains, def, ctx) {
+export async function bucketize(chains, def, ctx, prepared) {
   const useDisplay = def.matchOn === 'display';
   const buckets = new Map();
   await ctx.forEach(chains, chain => {
     const tail = rowLastEntry(chain);
     const input = useDisplay ? displayOf(tail) : tail.norm;
-    const keys = def.group.key(input);
+    const keys = def.group.key(input, prepared);
     for (const key of (Array.isArray(keys) ? keys : [keys])) {
       if (!key) continue;
       let bucket = buckets.get(key);
