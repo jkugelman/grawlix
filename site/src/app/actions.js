@@ -56,11 +56,12 @@ import {
 } from '../data/disk-sync.js';
 import { propagateDefaults } from '../model/scoring.js';
 import { showToast, showActionToast, showUndoToast } from '../ui/toasts.js';
-import { buildMoreMenuHTML } from '../ui/components.js';
+import { buildMoreMenuHTML, toggleSplitMenu } from '../ui/components.js';
 import { showConfirm, showAlert, showMergeConflict } from '../ui/dialogs/confirm.js';
 import { openUpdateSummaryDialog } from '../ui/dialogs/update-summary.js';
 import { SettingsDialog, cycleDarkMode } from '../ui/dialogs/settings.js';
 import { WelcomeDialog } from '../ui/dialogs/welcome.js';
+import { AcknowledgementsDialog } from '../ui/dialogs/acknowledgements.js';
 import { AppView } from '../ui/app-view.js';
 import {
   activeGroupColumns, AtomPopover,
@@ -832,7 +833,9 @@ export function bindEvents() {
   // Header chrome
   document.querySelector('.header-logo-link').href = location.pathname;
   document.getElementById('btn-settings').onclick = () => SettingsDialog.open();
-  document.getElementById('btn-help').onclick     = () => WelcomeDialog.open();
+  document.getElementById('btn-help').onclick = e => toggleSplitMenu(e);
+  document.getElementById('menu-welcome').onclick = () => WelcomeDialog.open();
+  document.getElementById('menu-acknowledgements').onclick = () => AcknowledgementsDialog.open();
   document.getElementById('add-fab').onclick = () =>
     AtomPopover.openForCreate(newEntrySeedQuery(), getEntriesScroller(), null);
 

@@ -34,6 +34,7 @@ import { threeWayMergeEdits } from './engine/edits-merge.js';
 import { migrateIdbRecords } from './data/migrations.js';
 import { WordlistSelector } from './ui/scope-selector.js';
 import { WelcomeDialog } from './ui/dialogs/welcome.js';
+import { AcknowledgementsDialog } from './ui/dialogs/acknowledgements.js';
 import { ToolStack, pipelineIdle } from './ui/tool-stack.js';
 import {
   pingWorker, runOnWorker, patchWorkerToolForTest,
@@ -265,6 +266,7 @@ const __grawlixTest = {
   allGroupsFetchesSent,
   serializeFetchesSent,
   openWelcome: () => WelcomeDialog.open(),
+  openAcknowledgements: () => AcknowledgementsDialog.open(),
   fetchWorkerProvenance: (typedRaw, previewRaw, clickedNorm, clickedDisplay, timeout) =>
     fetchWorkerProvenance(typedRaw, previewRaw, clickedNorm, clickedDisplay, timeout),
 

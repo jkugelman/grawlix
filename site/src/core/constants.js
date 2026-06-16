@@ -49,6 +49,7 @@ export const WORDLIST_PUBLISHERS = [
     popularity: 4,
     name: 'Will Nediger',
     url: 'https://grawlix.wtf/wordlists/Nediger list.txt',
+    homepage: 'https://github.com/bewilderingly/Nediger-list/',
     icon: null,
     defaultRules: [
       { input:'99', length:'8+',  output:'60', note:'Asset' },
@@ -65,10 +66,12 @@ export const WORDLIST_PUBLISHERS = [
     id: 'xwi',
     popularity: 2,
     name: 'XWord Info',
+    author: 'Jim Horne & Jeff Chen',
     url: null,
     sourcePage: 'https://www.xwordinfo.com/WordList',
     sourceNote: 'Sign in and download the <strong>plain-text (.txt)</strong> version.',
     subscriptionNote: 'XWord Info\'s wordlist requires a paid subscription.',
+    homepage: 'https://www.xwordinfo.com/WordList',
     icon: { type: 'img', url: 'https://www.xwordinfo.com/favicon.ico' },
     defaultRules: [
       { input:'60', length:'', output:'',   note:'Entries considered "assets" to a puzzle' },
@@ -85,7 +88,9 @@ export const WORDLIST_PUBLISHERS = [
     id: 'stwl',
     popularity: 1,
     name: 'Spread the Word(list)',
+    author: 'Brooke Husic & Enrique Henestroza Anguiano',
     url: 'https://grawlix.wtf/wordlists/spreadthewordlist.txt',
+    homepage: 'https://www.spreadthewordlist.com',
     icon: { type: 'img', url: 'https://www.spreadthewordlist.com/favicon.ico' },
     defaultRules: [
       { input:'50', length:'', output:'50', note:'Clean' },
@@ -101,6 +106,7 @@ export const WORDLIST_PUBLISHERS = [
     popularity: 3,
     name: 'Peter Broda',
     url: 'https://grawlix.wtf/wordlists/peter-broda-wordlist.txt',
+    homepage: 'http://www.peterbroda.me/crosswords/wordlist/',
     icon: null,
     defaultRules: [
       { input:'76-100', length:'7+', output:'60',     scoring:false },

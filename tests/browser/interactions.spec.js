@@ -56,13 +56,27 @@ test('the gear button opens Settings', async ({ page }) => {
   await expect(dialog.locator('#dark-mode-seg .seg-btn', { hasText: 'Dark' })).toBeVisible();
 });
 
-test('the ? button opens the Welcome dialog', async ({ page }) => {
+test('the ? menu opens the Welcome dialog', async ({ page }) => {
   await gotoApp(page);
   await page.locator('#btn-help').click();
+  await page.locator('#menu-welcome').click();
   const dialog = page.locator('#welcome-dialog');
   await expect(dialog).toBeVisible();
   await expect(dialog.locator('#welcome-title')).toContainText('Welcome to Grawlix');
   await dialog.getByRole('button', { name: 'Get started' }).click();
+  await expect(dialog).toBeHidden();
+});
+
+test('the ? menu opens the Acknowledgements dialog', async ({ page }) => {
+  await gotoApp(page);
+  await page.locator('#btn-help').click();
+  await page.locator('#menu-acknowledgements').click();
+  const dialog = page.locator('#acknowledgements-dialog');
+  await expect(dialog).toBeVisible();
+  await expect(dialog.locator('#acks-title')).toContainText('Acknowledgements');
+  await expect(dialog.getByRole('link', { name: 'Spread the Word(list)' })).toBeVisible();
+  await expect(dialog.getByRole('link', { name: 'Wordlisted' })).toBeVisible();
+  await dialog.getByRole('button', { name: 'Done' }).click();
   await expect(dialog).toBeHidden();
 });
 

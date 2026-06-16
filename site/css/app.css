@@ -717,6 +717,20 @@ dialog h2 { font-size: 16px; margin-bottom: 14px; padding-right: 24px; }
 .welcome-sync-emoji { font-size: 28px; line-height: 1; flex-shrink: 0; }
 .welcome-sync-arrow { color: var(--accent); font-weight: 700; font-size: 22px; line-height: 1; flex-shrink: 0; }
 
+/* Acknowledgements dialog */
+#acknowledgements-dialog { --dialog-w: 460px; }
+.acks-section { margin-bottom: 20px; }
+.acks-section:last-of-type { margin-bottom: 0; }
+.acks-section h3 { font-size: 14px; margin: 0 0 6px; color: var(--text); }
+.acks-section p { font-size: 13px; line-height: 1.5; color: var(--text); margin: 0 0 10px; }
+.acks-section a { color: var(--accent); text-decoration: none; }
+.acks-section a:hover { text-decoration: underline; }
+.acks-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 9px; }
+.acks-credit { display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--text); }
+.acks-credit .wordlist-icon { width: 20px; height: 20px; }
+.acks-credit-text { display: flex; flex-direction: column; line-height: 1.3; }
+.acks-credit-by { font-size: 12px; }
+
 /* Import guide dialog */
 #import-guide-dialog { --dialog-w: 480px; }
 .guide-intro { margin: 0 0 14px 0; font-size: 13px; color: var(--text); line-height: 1.5; }

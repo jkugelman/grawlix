@@ -28,6 +28,8 @@ This doc is more discussion than design — the conversation is just getting sta
 
 6. **Wordlists.** Importing, updating, downloading multiple wordlists. May get merged into the rescoring page (related — both cover managing wordlists) or stay separate. Decide when we write it.
 
+7. **Acknowledgements.** *(Shipped.)* Credits the third-party wordlist authors (rendered from the publisher catalog) and Wordlisted, whose search catalog shaped the tool gallery. The first concrete help page — a plain modal reached from the `?` menu (`AcknowledgementsDialog`).
+
 ## Explicitly not doing
 
 - **Wordlist file format page.** Not needed.
@@ -36,7 +38,7 @@ This doc is more discussion than design — the conversation is just getting sta
 
 ## Open questions
 
-- **In-app delivery shape.** Multi-page works as a content model, but how does it show up inside Grawlix? Modal with tabs, slide-out panel with a TOC, sidebar nav, etc. Punt until we know the content.
+- **In-app delivery shape.** Multi-page works as a content model, but how does it show up inside Grawlix? Modal with tabs, slide-out panel with a TOC, sidebar nav, etc. Punt on the full system until we know the content. The first pieces ship as plain modals reached from a `?`-button menu (Welcome + Acknowledgements); whether the larger system keeps that menu or grows a TOC/nav is still open.
 - **Welcome surface shape.** First-boot slide deck (with animated demos, as the earlier plan described) vs. a single static Getting Started page vs. both. Probably easier to answer after we draft one of the other pages and see what voice/format emerges.
 - **Wordlists** as its own page vs. merged into Rescoring.
 - **In-app text dependency.** The "fix the in-app text first" principle assumes the gallery's blurbs and the app's labels are already where they need to be. The tool gallery is on a separate redesign track ([`tools.md`](tools.md)) — its outcome shapes what the Tool-explainer page is left to cover.

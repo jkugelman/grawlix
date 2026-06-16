@@ -17,6 +17,7 @@ import { showConfirm, showAlert, showMergeConflict, showEditsConflict } from './
 import { openUpdateSummaryDialog } from './ui/dialogs/update-summary.js';
 import { SettingsDialog, configureSettings } from './ui/dialogs/settings.js';
 import { WelcomeDialog } from './ui/dialogs/welcome.js';
+import { AcknowledgementsDialog } from './ui/dialogs/acknowledgements.js';
 import { SyncDialog, configureSyncDialog } from './ui/dialogs/sync.js';
 import { ConfigureWordlistDialog, configureConfigureWordlist } from './ui/dialogs/configure-wordlist.js';
 import { ImportGuideDialog, configureImportGuide } from './ui/dialogs/import-guide.js';
@@ -157,6 +158,7 @@ function boot() {
   // init() (init's migration path calls it); the rest before any UI opens them.
   SettingsDialog.mount();
   WelcomeDialog.mount();
+  AcknowledgementsDialog.mount();
   showEditsConflict.mount();
   showConfirm.mount();
   showAlert.mount();

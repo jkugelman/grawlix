@@ -37,6 +37,7 @@ test('welcome popup persists until dismissed and reopens from ?', async ({ page 
   await expect(dialog).toBeHidden();
 
   await page.locator('#btn-help').click();
+  await page.locator('#menu-welcome').click();
   await expect(dialog).toBeVisible();
 });
 

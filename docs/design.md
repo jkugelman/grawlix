@@ -583,7 +583,12 @@ Across all three Download formats: `grawlix-<tool>-<param>-<tool>-<param>.<ext>`
 
 ## Help
 
-The header `?` button opens `WelcomeDialog`, a short first-boot-and-on-demand welcome popup (what Grawlix is, the pre-loaded publisher wordlists, a few featured tools). It is a placeholder for a real help surface, not the help surface itself: a fuller reference/onboarding system is a separate, still-undesigned track ([`planned/help.md`](planned/help.md)), to land once [`planned/tools.md`](planned/tools.md) settles. See § *Open questions* for that split.
+The header `?` button opens a small menu (the shared `.split-btn` dropdown) with two entries:
+
+- **Welcome** — `WelcomeDialog`, a short on-demand welcome popup (what Grawlix is, the pre-loaded publisher wordlists, a few featured tools). It also opens automatically on first boot, before the menu is ever used.
+- **Acknowledgements** — `AcknowledgementsDialog`, crediting the third-party wordlist authors (rendered from the publisher catalog, minus John's own list) and Wordlisted, whose search catalog charted much of the tool gallery.
+
+The menu is a placeholder for a real help surface, not the help surface itself: a fuller reference/onboarding system is a separate, still-undesigned track ([`planned/help.md`](planned/help.md)), to land once [`planned/tools.md`](planned/tools.md) settles. See § *Open questions* for that split.
 
 ## URL state
 
@@ -814,7 +819,7 @@ The alternative — sprinkling `invalidateX()` and `repaintY()` calls at every m
 
 ### A help system, separate from the welcome popup
 
-The header `?` opens `WelcomeDialog` — a short first-boot-and-on-demand welcome (§ *Help*). That is a placeholder, not the help system. A real reference/onboarding surface — separating a one-time welcome tour from a returning-user manual — is its own undesigned track ([`planned/help.md`](planned/help.md)), to land once [`planned/tools.md`](planned/tools.md) settles. Until then the welcome popup is all there is, and the in-app manual doesn't exist (the user-facing doc lives in [`manual.md`](manual.md)).
+The header `?` opens a small menu (§ *Help*) — a short first-boot-and-on-demand **Welcome** popup and an **Acknowledgements** page. Those aside, the help *system* — a real reference/onboarding surface separating a one-time welcome tour from a returning-user manual — is its own undesigned track ([`planned/help.md`](planned/help.md)), to land once [`planned/tools.md`](planned/tools.md) settles. The in-app manual doesn't exist yet (the user-facing doc lives in [`manual.md`](manual.md)).
 
 ### Routes for Settings, Help?
 
