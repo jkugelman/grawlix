@@ -47,6 +47,12 @@ test('scalar tools still round-trip (regression)', () => {
   assert.equal(rows[0].params['whole-word'], true);
 });
 
+test('a param at its default value stays out of the URL', () => {
+  assert.equal(query(makeToolRow('rhymes', { entry: 'cat' })), 'rhymes=cat');   // match=loose is the default
+  assert.equal(decode('rhymes=cat').rows[0].params.match, 'loose');   // absence decodes to the default
+  assert.equal(query(makeToolRow('rhymes', { entry: 'cat', match: 'strict' })), 'rhymes=cat&match=strict');
+});
+
 test('a grouped row keeps its secondary params through the `all` toggle', () => {
   const row = makeToolRow('rhymes', { match: 'strict' }, true);
   assert.equal(query(row), 'rhymes&all&match=strict');
