@@ -31,7 +31,7 @@ Source material: shipped catalog lives in `TOOLS` in [`site/src/engine/tools.js`
 |   | Pairs | 🪺 Nested | One word inside another | MARI(JUAN)A |
 | ✓ | Palindrome | 🪞 Palindromes | Read the same when mirrored | RACECAR · CIVIC |
 | ✓ | Palindrome | ⬅️ Semordnilap | Reverse to get a different word | STRESSED ↔ DESSERTS |
-| ✓ | Phonetic | 🎵 Rhymes | Words that rhyme | RHYME → CLIMB, KEYLIME |
+| ✓ | Phonetic | 🎵 Rhymes | Rhyming words and phrases | RHYME → CLIMB, KEYLIME |
 |   | Phonetic | 🔊 Phonetic substitution | Swap one phoneme for another across the wordlist | TBD |
 |   | Phonetic | 🎶 Sound shift | Move a phoneme between word positions (e.g. front → end) | TBD |
 | ✓ | Phrase | 🌌 Space out | Guess at where spaces go in multi-word entries | SPACEOUT → SPACE OUT |

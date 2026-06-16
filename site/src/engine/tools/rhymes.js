@@ -12,7 +12,7 @@ async function ensureDict() {
 
 export default {
   name: 'Rhymes', icon: '🎵', category: 'phonetic',
-  desc: 'Words that rhyme',
+  desc: 'Rhyming words and phrases',
   example: 'RHYME → CLIMB, KEYLIME',
   asset: 'cmudict',
   params: [
