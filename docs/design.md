@@ -586,7 +586,7 @@ Across all three Download formats: `grawlix-<tool>-<param>-<tool>-<param>.<ext>`
 The header `?` button opens a small menu (the shared `.split-btn` dropdown) with two entries:
 
 - **Welcome** — `WelcomeDialog`, a short on-demand welcome popup (what Grawlix is, the pre-loaded publisher wordlists, a few featured tools). It also opens automatically on first boot, before the menu is ever used.
-- **Acknowledgements** — `AcknowledgementsDialog`, crediting the third-party wordlist authors (rendered from the publisher catalog, minus John's own list) and Wordlisted, whose search catalog charted much of the tool gallery.
+- **Acknowledgements** — `AcknowledgementsDialog`, crediting the third-party wordlist authors (rendered from the publisher catalog, minus John's own list) and Wordlisted, whose search catalog charted much of the tool gallery. This is the user-facing credit; the fuller, maintainer-facing license inventory (third-party deps, wordlist terms, verbatim MIT texts for the bundled icons) lives in [`THIRD-PARTY-NOTICES`](../THIRD-PARTY-NOTICES) at the repo root, kept there deliberately and not shipped with the deployed site.
 
 The menu is a placeholder for a real help surface, not the help surface itself: a fuller reference/onboarding system is a separate, still-undesigned track ([`planned/help.md`](planned/help.md)), to land once [`planned/tools.md`](planned/tools.md) settles. See § *Open questions* for that split.
 
