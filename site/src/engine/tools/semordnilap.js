@@ -5,7 +5,7 @@ import { reverseString } from './shared.js';
 export default {
   name: 'Semordnilap', icon: '⬅️', category: 'palindrome',
   desc: 'Reverse to get a different word',
-  example: 'STRESSED → DESSERTS',
+  example: 'stressed → desserts',
   params: [],
   kind: 'transform', inputHighlights: false, outputHighlights: false,
   glyph: () => '→',

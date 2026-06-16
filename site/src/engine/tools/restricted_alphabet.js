@@ -3,7 +3,7 @@
 export default {
   name: 'Restricted alphabet', icon: '🔡', category: 'bank',
   desc: 'Uses only the given letters',
-  example: 'SPOT → STOOP, TOP, POP',
+  example: 'spot → stoop, top, pop',
   params: [{ placeholder: 'letters' }],
   kind: 'filter', inputHighlights: false, outputHighlights: false,
   isInert: params => !((params && params.letters || '').trim()),

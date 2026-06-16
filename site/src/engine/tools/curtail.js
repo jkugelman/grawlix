@@ -3,7 +3,7 @@
 export default {
   name: 'Curtail', icon: '✂️', category: 'side',
   desc: 'Remove the last N letters',
-  example: 'PARTY → PART',
+  example: 'party → part',
   params: [{ label: 'Count', default: '1', type: 'number' }],
   kind: 'transform', inputHighlights: true, outputHighlights: false,
   glyph: () => '→',

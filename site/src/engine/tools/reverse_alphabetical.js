@@ -3,7 +3,7 @@
 export default {
   name: 'Reverse alphabetical', icon: '📉', category: 'letters',
   desc: 'Letters in reverse alphabetical order',
-  example: 'SPOOFED · YUPPIE',
+  example: 'spoofed · yuppie',
   params: [],
   kind: 'filter', inputHighlights: false, outputHighlights: false,
   run(entry) {

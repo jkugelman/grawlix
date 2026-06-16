@@ -3,7 +3,7 @@
 export default {
   name: 'Supervocalics', icon: '🌈', category: 'letters',
   desc: 'Each of A E I O U exactly once',
-  example: 'AIRQUOTE · EUPHORIA',
+  example: 'air quote · euphoria',
   params: [],
   kind: 'filter', inputHighlights: false, outputHighlights: false,
   run(entry) {

@@ -3,7 +3,7 @@
 export default {
   name: 'Isograms', icon: '1️⃣', category: 'letters',
   desc: 'No repeated letters',
-  example: 'CYBERPUNK · JUXTAPOSE',
+  example: 'cyberpunk · juxtapose',
   params: [],
   kind: 'filter', inputHighlights: false, outputHighlights: false,
   run(entry) {

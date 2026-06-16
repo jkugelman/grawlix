@@ -43,7 +43,7 @@ function matchSpans(globalRe, text) {
 export default {
   name: 'Rebus', icon: '🚌', category: 'rebus',
   desc: 'Squeeze a letter string into one rebus cell',
-  example: 'IMBUSY → IMⒷY',
+  example: 'I\'m busy → I\'m Ⓑy',
   params: [
     { key: 'string', placeholder: 'string', repeat: true, help: SEARCH_HELP },
     { key: 'symbol', placeholder: 'symbol', repeat: true, raw: true },

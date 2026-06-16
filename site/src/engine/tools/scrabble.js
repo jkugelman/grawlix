@@ -3,7 +3,7 @@
 export default {
   name: 'Scrabble', icon: '🧱', category: 'bank',
   desc: 'Can be spelled with the given tiles',
-  example: 'PARENTAL → PLANE, RENT',
+  example: 'parental → plane, rent',
   params: [{ key: 'tiles', placeholder: 'tiles' }],
   kind: 'filter', inputHighlights: false, outputHighlights: false,
   isInert: params => !((params && params.tiles || '').trim()),

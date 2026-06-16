@@ -5,7 +5,7 @@ export const vowelSkeleton = s => (s || '').replace(/[^aeiou]/g, '');
 export default {
   name: 'Vowelcy', icon: '🅰️', category: 'letters',
   desc: 'Same vowels in order; consonants may differ',
-  example: 'OUTHOUSE → OUTOFUSE',
+  example: 'outhouse → out of use',
   params: [{ placeholder: 'entry' }],
   kind: 'filter', inputHighlights: false, outputHighlights: false,
   prepare(params) { return vowelSkeleton(params.entry); },

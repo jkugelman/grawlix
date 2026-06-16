@@ -3,7 +3,7 @@
 export default {
   name: 'Kangaroos', icon: '🦘', category: 'pairs',
   desc: 'Words containing the input spread out',
-  example: 'KANGA → MILKANDSUGAR',
+  example: 'kanga → milk and sugar',
   params: [{ placeholder: 'entry' }],
   kind: 'filter', inputHighlights: true, outputHighlights: false,
   isInert: params => !((params && params.entry || '').trim()),

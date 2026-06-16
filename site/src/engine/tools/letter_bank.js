@@ -3,7 +3,7 @@
 export default {
   name: 'Letter bank', icon: '🏦', category: 'bank',
   desc: 'Uses every letter at least once',
-  example: 'SPOT → STOOPS, TOPS, POSTOP',
+  example: 'spot → stoops, tops, postop',
   params: [{ placeholder: 'letters' }],
   kind: 'filter', inputHighlights: false, outputHighlights: false,
   isInert: params => !((params && params.letters || '').trim()),

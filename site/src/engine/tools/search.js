@@ -8,7 +8,7 @@ import { WHOLE_WORD_PARAM, SEARCH_HELP } from './shared.js';
 export default {
   name: 'Search', icon: '<svg width="16" height="16" aria-hidden="true"><use href="#icon-search"/></svg>', category: 'search',
   desc: 'Search (and replace) with wildcards',
-  example: 'UN*ED · C?T',
+  example: 'un*ed · c?t',
   findReplace: true,
   params: [
     { placeholder: 'pattern', help: SEARCH_HELP },

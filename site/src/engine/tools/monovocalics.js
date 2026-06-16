@@ -3,7 +3,7 @@
 export default {
   name: 'Monovocalics', icon: '👩‍🎤', category: 'letters',
   desc: 'Only one distinct vowel',
-  example: 'TOOCOOLFORSCHOOL',
+  example: 'too cool for school',
   params: [],
   kind: 'filter', inputHighlights: false, outputHighlights: false,
   run(entry) {

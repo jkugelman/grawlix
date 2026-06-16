@@ -5,7 +5,7 @@ import { sortLetters } from './shared.js';
 export default {
   name: 'Neckouts', icon: '🦒', category: 'halves',
   desc: 'Left and right halves are anagrams',
-  example: 'STUCKONESNECKOUT',
+  example: 'stuck one\'s neck out',
   params: [],
   kind: 'filter', inputHighlights: false, outputHighlights: false,
   run(entry) {

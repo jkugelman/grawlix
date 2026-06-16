@@ -3,7 +3,7 @@
 export default {
   name: 'Alphabetical', icon: '📈', category: 'letters',
   desc: 'Letters in alphabetical order',
-  example: 'CHINTZ · KNOTTY',
+  example: 'chintz · knotty',
   params: [],
   kind: 'filter', inputHighlights: false, outputHighlights: false,
   run(entry) {

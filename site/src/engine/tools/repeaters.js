@@ -3,7 +3,7 @@
 export default {
   name: 'Repeaters', icon: '🔂', category: 'halves',
   desc: 'Left and right halves are the same',
-  example: 'TARTAR · HOTSHOTS',
+  example: 'tartar · hotshots',
   params: [],
   kind: 'filter', inputHighlights: false, outputHighlights: false,
   run(entry) {

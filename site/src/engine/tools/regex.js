@@ -10,7 +10,7 @@ import { WHOLE_WORD_PARAM } from './shared.js';
 export default {
   name: 'Regex', icon: '🪄', category: 'search',
   desc: 'Search (and replace) with regular expressions',
-  example: 'UN.+ED · C.{2,4}T',
+  example: 'un.+ed · c.{2,4}t',
   findReplace: true,
   params: [
     { key: 'pattern', raw: true, placeholder: 'pattern', help: buildHelpHTML([

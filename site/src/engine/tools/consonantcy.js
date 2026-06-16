@@ -5,7 +5,7 @@ export const consonantSkeleton = s => (s || '').replace(/[^bcdfghjklmnpqrstvwxyz
 export default {
   name: 'Consonantcy', icon: '🦴', category: 'letters',
   desc: 'Same consonants in order; vowels may differ',
-  example: 'ISAIDNO → SODONE',
+  example: 'I said no → so done',
   params: [{ placeholder: 'entry' }],
   kind: 'filter', inputHighlights: false, outputHighlights: false,
   prepare(params) { return consonantSkeleton(params.entry); },

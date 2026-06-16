@@ -12,7 +12,7 @@ export function wordSplits(display) {
 export default {
   name: 'Initialisms', icon: '🔠', category: 'phrase',
   desc: 'Starting letters spell a word',
-  example: 'HOT → Helen of Troy',
+  example: 'hot → Helen of Troy',
   params: [{ placeholder: 'word' }],
   kind: 'filter', inputHighlights: false, outputHighlights: false,
   matchOn: 'display',

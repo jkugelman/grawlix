@@ -8,7 +8,7 @@ import {
 export default {
   name: 'Space out', icon: '🌌', category: 'phrase',
   desc: 'Guess at where spaces go in multi-word entries',
-  example: 'SPACEOUT → SPACE OUT',
+  example: 'spaceout → space out',
   asset: 'unigrams',
   params: [
     { key: 'splits', label: 'Splits', type: 'range', default: 'few',

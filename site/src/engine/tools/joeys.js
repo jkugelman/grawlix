@@ -3,7 +3,7 @@
 export default {
   name: 'Joeys', icon: '🍼', category: 'pairs',
   desc: 'Words contained in the input spread out',
-  example: 'MAJORKEY → JOEY',
+  example: 'major key → joey',
   params: [{ placeholder: 'entry' }],
   kind: 'filter', inputHighlights: false, outputHighlights: false,
   isInert: params => !((params && params.entry || '').trim()),

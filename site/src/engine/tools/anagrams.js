@@ -5,7 +5,7 @@ import { sortLetters } from './shared.js';
 export default {
   name: 'Anagrams', icon: '🔀', category: 'anagram',
   desc: 'Same letters, rearranged',
-  example: 'ELVIS → LIVES',
+  example: 'elvis → lives',
   params: [{ placeholder: 'entry' }],
   kind: 'filter', inputHighlights: false, outputHighlights: false,
   prepare(params) { return sortLetters(params.entry); },
