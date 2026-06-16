@@ -39,7 +39,7 @@ import {
   TOOL_CATEGORIES, FEATURED_TOOLS, TOOLS, groupColumnCSS, makeToolRow,
 } from '../engine/tools.js';
 import { invalidatePreSearchCache } from '../engine/executor.js';
-import { runOnWorker } from './pipeline-worker.js';
+import { runOnWorker, preloadWorkerAsset } from './pipeline-worker.js';
 import { bumpPipelineVersion } from '../data/state.js';
 import {
   buildTextInputHTML, buildParamHTML, syncClearButton,
@@ -503,6 +503,7 @@ export const ToolStack = (() => {
     if (grouped && stack.some(r => r.grouped)) return;
     const idx = stack.length - 1;            // insert just above the Search bar
     stack.splice(idx, 0, makeToolRow(toolKey, {}, grouped));
+    if (TOOLS[toolKey].asset) preloadWorkerAsset(TOOLS[toolKey].asset);
     rerenderRows();
     focusRowInput(idx);
     flashRow(idx);

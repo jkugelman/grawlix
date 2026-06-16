@@ -2,12 +2,9 @@
 
 import { esc } from './core/util.js';
 import { effect } from './core/signals.js';
-import {
-  configureIO as configureSegmenterIO,
-} from './engine/segmenter.js';
 import { TOOLS } from './engine/tools.js';
 import { syncStatus$, state, getEditsWordlist } from './data/state.js';
-import { lsSave, lsLoad, idbPut, idbGet, Storage } from './data/storage.js';
+import { Storage } from './data/storage.js';
 import { serializeEntries } from './engine/serialize.js';
 import { getOutputFormat, setOutputFormat } from './data/serialize.js';
 import { persistMeta } from './data/persist.js';
@@ -85,8 +82,6 @@ function maybeRemoveSplashEarly() {
   if (!meta.some(l => l.lastUpdated)) document.getElementById('splash-screen')?.remove();
 }
 
-const UNIGRAM_CORPUS_SIZE_KEY = 'corpus_unigrams_size';
-
 // Module evaluation only *defines*; the side effects run here, and their order
 // is a load-bearing contract — each step below assumes the prior ones already
 // ran (configureX injections before the components that call them, dialogs
@@ -98,15 +93,6 @@ function boot() {
   // Window exposure first: components below render HTML with inline on*= handlers
   // that resolve through `window`.
   exposeWindowGlobals();
-
-  // Inject the segmenter's I/O before init() runs loadUnigramCorpus / checkForUpdates.
-  // onSize() with no arg reads the persisted corpus-size note; onSize(bytes) writes it.
-  configureSegmenterIO({
-    idbGet, idbPut,
-    onSize: bytes => bytes === undefined
-      ? lsLoad(UNIGRAM_CORPUS_SIZE_KEY)
-      : lsSave(UNIGRAM_CORPUS_SIZE_KEY, bytes),
-  });
 
   // import.meta.url must be main.js's specifically — the depth-stable anchor the
   // worker URL resolves against in both builds (see pipeline-worker.js).

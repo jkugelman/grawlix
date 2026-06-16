@@ -10,10 +10,6 @@ import {
 import { planEntryWrite, applyEditsWriteSet } from '../engine/edit-plan.js';
 import { parseRange } from '../engine/range.js';
 import { isLiteralQuery } from '../engine/search.js';
-import {
-  UNIGRAM_CORPUS_URL, UNIGRAM_CORPUS_IDB_KEY,
-  loadUnigramCorpus, invalidateUnigramCorpus, getUnigramFetchedSize,
-} from '../engine/segmenter.js';
 import { invalidateStatsCache } from '../engine/stats.js';
 import { invalidatePreSearchCache } from '../engine/executor.js';
 import { TOOLS } from '../engine/tools.js';
@@ -21,7 +17,7 @@ import {
   sources$, state, wrapWordlist, newDbKey, getEditsWordlist,
 } from '../data/state.js';
 import {
-  lsLoad, idbGet, idbPut, Storage, openDB, resetAllDataAndReload,
+  lsLoad, idbGet, Storage, openDB, resetAllDataAndReload,
 } from '../data/storage.js';
 import {
   SCHEMA_VERSION, canMigrate, migrateLocalStorage, migrateIdbRecords, remapStoredUrls,
@@ -76,6 +72,7 @@ import {
 import {
   syncWorkerConfig, resyncWorkerConfig,
   sendEditEntry, sendDeleteEntry, sendApplyFetched, fetchWorkerSerialize,
+  checkWorkerAssets,
 } from '../ui/pipeline-worker.js';
 import { SyncDialog } from '../ui/dialogs/sync.js';
 import { ConfigureWordlistDialog } from '../ui/dialogs/configure-wordlist.js';
@@ -256,13 +253,13 @@ export async function init() {
   bindEvents();
   if (!lsLoad('welcomeSeen')) WelcomeDialog.open();
   checkForUpdates();
-  setInterval(checkForUpdates, UPDATE_CHECK_INTERVAL);
+  checkWorkerAssets();
+  setInterval(() => { checkForUpdates(); checkWorkerAssets(); }, UPDATE_CHECK_INTERVAL);
 
   state.sources
     .filter(l => l.url && !l.populated)
     .forEach(l => fetchWordlist(l, null, { silent: true }));
 
-  loadUnigramCorpus().catch(() => { /* surfaced when the tool is used */ });
   _signalReady();
 }
 
@@ -659,19 +656,6 @@ export async function checkForUpdates() {
   if (anyChanged) {
     renderSources();
     WordlistSelector.refresh();
-  }
-
-  const fetchedSize = getUnigramFetchedSize();
-  if (fetchedSize) {
-    try {
-      const resp = await fetch(UNIGRAM_CORPUS_URL, { method: 'HEAD' });
-      const size = resp.ok ? resp.headers.get('content-length') : null;
-      if (size && size !== fetchedSize) {
-        invalidateUnigramCorpus();
-        await idbPut(UNIGRAM_CORPUS_IDB_KEY, '');
-        await loadUnigramCorpus();
-      }
-    } catch { /* offline or network error — silently ignore */ }
   }
 }
 

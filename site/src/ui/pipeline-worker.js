@@ -102,6 +102,14 @@ export function sendWorkerScope(scope) {
   syncWorkerConfig(state.sources);
 }
 
+export function checkWorkerAssets() {
+  getWorker().postMessage({ type: 'check-assets' });
+}
+
+export function preloadWorkerAsset(asset) {
+  getWorker().postMessage({ type: 'preload-asset', asset });
+}
+
 // ─── Run dispatch, supersession & the deferred-run queue ─────────────────────
 // Post-flip a run whose owned corpus isn't yet fresh for its scope (boot's
 // first paint before the build lands; a cacheVersion$ re-sync gap; a My-Edits

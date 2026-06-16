@@ -6,6 +6,7 @@ import { TOOLS, makeToolRow } from './tools.js';
 import { executePipeline, configureExecutorYield, invalidatePreSearchCache, bottomLineAtoms, applyScoreRangeToRows } from './executor.js';
 import { sortGroups, activeGroupRow } from './group-sort.js';
 import { configureIO as configureSegmenterIO } from './segmenter.js';
+import { DATA_ASSETS, getDataAsset } from './assets.js';
 import { parseWordlist, toNorm, displayOf } from './norm.js';
 import { parseRange, matchesRange } from './range.js';
 import { compileRescoreRules, getRescoredEntries, getRescoredByNorm } from './rescore.js';
@@ -31,8 +32,7 @@ configureExecutorYield({
 // the engine can't import, so the worker opens the SAME DB/store itself for both
 // the segmenter's unigram corpus and wordlist text. name/version/store MUST track
 // storage.js's openDB, else it silently opens a different or wrong-version DB and
-// the shared cache stops being shared (a re-fetch, not an error). onSize is a
-// no-op: the LS size note is main-only.
+// the shared cache stops being shared (a re-fetch, not an error).
 const DATA_IDB_NAME = 'grawlix';
 const DATA_IDB_STORE = 'data';
 let _dataDb = null;
@@ -65,11 +65,51 @@ async function idbPut(key, val) {
     tx.onerror = resolve;
   });
 }
+function idbDelete(key) {
+  return dataDb().then(db => new Promise(resolve => {
+    const tx = db.transaction(DATA_IDB_STORE, 'readwrite');
+    tx.objectStore(DATA_IDB_STORE).delete(key);
+    tx.oncomplete = resolve;
+    tx.onerror = resolve;
+  }));
+}
+// getKey reports presence without deserializing the value — the asset record can
+// be megabytes, and the freshness check must not pull it just to ask "is it cached?"
+function idbHasKey(key) {
+  return dataDb().then(db => new Promise(resolve => {
+    const req = db.transaction(DATA_IDB_STORE, 'readonly').objectStore(DATA_IDB_STORE).getKey(key);
+    req.onsuccess = () => resolve(req.result !== undefined);
+    req.onerror = () => resolve(false);
+  }));
+}
 // Mirrors storage.js's Storage.readWordlist: wordlist text is keyed 'data_' + dbKey.
 function readWordlistText(sourceId) {
   return idbGet('data_' + sourceId);
 }
-configureSegmenterIO({ idbGet, idbPut, onSize: () => null });
+configureSegmenterIO({ idbGet, idbPut });
+
+async function handleCheckAssets() {
+  for (const asset of DATA_ASSETS) {
+    try {
+      if (!(await idbHasKey(asset.dataIdbKey))) continue;   // never loaded → skip
+      const resp = await fetch(asset.url, { method: 'HEAD' });
+      const remote = resp.ok ? resp.headers.get('content-length') : null;
+      if (!remote) continue;
+      const stored = await idbGet(asset.sizeIdbKey);
+      // A cache from before the size key existed has no baseline — establish one
+      // now rather than reading its absence as a change and re-downloading.
+      if (!stored) { await idbPut(asset.sizeIdbKey, remote); continue; }
+      if (remote === stored) continue;
+      const wasLoaded = asset.has();
+      asset.invalidate();
+      await idbDelete(asset.dataIdbKey);
+      await idbDelete(asset.sizeIdbKey);
+      // Refetch now only when it was in active use; otherwise leave it cleared so
+      // the next on-demand load fetches it, rather than forcing an unused download.
+      if (wasLoaded) await asset.load();
+    } catch { /* offline — leave the cached asset in place */ }
+  }
+}
 
 // ─── State ───────────────────────────────────────────────────────────────────
 
@@ -1170,6 +1210,16 @@ onmessage = ({ data }) => {
         setOwnedCorpus(scopeCorpus, data.scope ?? MERGED_ID);
       }
       break;
+
+    case 'check-assets':
+      handleCheckAssets();
+      break;
+
+    case 'preload-asset': {
+      const asset = getDataAsset(data.asset);
+      if (asset) asset.load().catch(() => {});
+      break;
+    }
 
     case 'fetchRows':
       handleFetchRows(data);

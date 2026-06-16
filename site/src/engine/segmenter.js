@@ -4,6 +4,7 @@
 
 export const UNIGRAM_CORPUS_URL = 'https://raw.githubusercontent.com/rspeer/wordfreq/master/wordfreq/data/large_en.msgpack.gz';
 export const UNIGRAM_CORPUS_IDB_KEY = 'corpus_unigrams_decoded';
+export const UNIGRAM_CORPUS_SIZE_KEY = 'corpus_unigrams_size';
 
 export const SPACE_OUT_WINDOWS = { one: 2, few: 5, many: 10 };
 export const SPACE_OUT_PART_PENALTY = 7;
@@ -14,17 +15,14 @@ export const SPACE_OUT_SUFFIXES = ['s', 'es', 'ed', 'ied', 'ing', 'er', 'est', '
 // Injected so this engine module never imports the data layer (IDB/localStorage).
 let _idbGet = null;
 let _idbPut = null;
-let _onSize = null;
 
-export function configureIO({ idbGet, idbPut, onSize }) {
+export function configureIO({ idbGet, idbPut }) {
   _idbGet = idbGet;
   _idbPut = idbPut;
-  _onSize = onSize;
 }
 
 let unigramLogFreqs = null;
 let unigramMinLogFreq = -Infinity;
-let unigramFetchedSize = null;
 let unigramLoadPromise = null;
 
 export function setUnigramCorpus(freqs, minLog) {
@@ -38,10 +36,6 @@ export function setUnigramCorpus(freqs, minLog) {
 export function invalidateUnigramCorpus() {
   unigramLogFreqs = null;
   unigramLoadPromise = null;
-}
-
-export function getUnigramFetchedSize() {
-  return unigramFetchedSize;
 }
 
 export function morphemeStemLogFreq(word) {
@@ -132,19 +126,18 @@ export async function loadUnigramCorpus() {
     if (cached && cached.map) {
       unigramLogFreqs = cached.map;
       unigramMinLogFreq = cached.minLog;
-      unigramFetchedSize = _onSize();
       return;
     }
     const resp = await fetch(UNIGRAM_CORPUS_URL);
     if (!resp.ok) throw new Error(`HTTP ${resp.status} ${resp.statusText}`);
     const gz = await resp.arrayBuffer();
-    unigramFetchedSize = resp.headers.get('content-length') || null;
     const decompressed = await gunzipBytes(new Uint8Array(gz));
     const { map, minLog } = buildCorpusFromMsgpack(msgpackDecode(decompressed));
     unigramLogFreqs = map;
     unigramMinLogFreq = minLog;
     await _idbPut(UNIGRAM_CORPUS_IDB_KEY, { map, minLog });
-    if (unigramFetchedSize) _onSize(unigramFetchedSize);
+    const size = resp.headers.get('content-length');
+    if (size) await _idbPut(UNIGRAM_CORPUS_SIZE_KEY, size);
   })();
   try {
     await unigramLoadPromise;
