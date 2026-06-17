@@ -643,7 +643,7 @@ test('score range trims junk before the grouped tool clusters', async ({ page })
   await expectGroups(page, gs => gs.flatMap(g => g.chains.map(c => c[0])).sort(), ['opt', 'pot', 'top']);
 });
 
-test('search chained after the grouped tool keeps only matching chains, highlighted', async ({ page }) => {
+test('search chained after the grouped tool keeps the whole cluster, highlighting the matches', async ({ page }) => {
   await gotoApp(page);
   await addLetterSetFixture(page);
   await page.evaluate(() => window.__grawlixTest.setStack([
@@ -653,10 +653,10 @@ test('search chained after the grouped tool keeps only matching chains, highligh
 
   await expectGroups(page, gs => gs.length, 1);
   const groups = await readGroups(page);
-  expect(groups[0].count).toBe(1);
-  expect(groups[0].chains).toEqual([['opt']]);
+  expect(groups[0].count).toBe(3);
+  expect(groups[0].chains).toEqual([['opt'], ['pot'], ['top']]);
 
-  await expect(page.locator('#vs-host .group-chain .atom-entry mark').first()).toBeVisible();
+  await expect(page.locator('#vs-host .group-chain .atom-entry mark')).toHaveCount(1);
 });
 
 test('a transform chained after the grouped tool emits a pair atom per surviving chain', async ({ page }) => {

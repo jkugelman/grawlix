@@ -199,8 +199,11 @@ async function runStackRow(stackRow, state, mergedWordlist, signal, y) {
     const prepared = def.prepare
       ? await def.prepare(params, makeCtx(mergedWordlist, prepareInput, signal, y, stackRow.grouped))
       : params;
+    const groupFilter = state.grouped && stackRow.kind() === 'filter';
     for (const g of state.groups) {
-      g.chains = await runToolStage(g.chains, stackRow, prepared, mergedWordlist, y);
+      g.chains = groupFilter
+        ? await runGroupFilterStage(g.chains, stackRow, prepared, mergedWordlist, y)
+        : await runToolStage(g.chains, stackRow, prepared, mergedWordlist, y);
       if (y.due()) await y.yield();
     }
   } catch (e) {
@@ -258,6 +261,43 @@ async function runToolStage(rows, stackRow, prepared, mergedWordlist, y) {
         next.push({ atoms });
       }
     }
+    if (y.due()) await y.yield();
+  }
+  return next;
+}
+
+// A filter over grouped state keeps the WHOLE cluster when any member matches,
+// rather than trimming to the matchers as runToolStage does for a flat chain.
+// Trimming here would silently strip a searched cluster to a lone member, which
+// the worker's <2 score-range guard then drops entirely — the bug this avoids.
+// Non-matchers still get an empty highlight slot so every member keeps the atom
+// height currentAtomCount reserves; omit it and matched rows gain a line the
+// rest lack, misaligning the grid with no error.
+async function runGroupFilterStage(rows, stackRow, prepared, mergedWordlist, y) {
+  const { def } = stackRow;
+  const glyph = stackRow.glyph();
+  const matchOn = def.matchOn || 'norm';
+  const coord = matchOn === 'display' ? 'display' : 'norm';
+  const results = new Array(rows.length);
+  let anyMatch = false;
+  for (let i = 0; i < rows.length; i++) {
+    const tail = rows[i].atoms[rows[i].atoms.length - 1];
+    const inputText = matchOn === 'both' ? tail.wlEntry
+      : matchOn === 'display' ? displayOf(tail.wlEntry)
+      : tail.wlEntry.norm;
+    const result = def.run(inputText, prepared, mergedWordlist);
+    results[i] = result;
+    if (result) anyMatch = true;
+    if (y.due()) await y.yield();
+  }
+  if (!anyMatch) return [];
+  if (!def.inputHighlights) return rows.slice();
+  const next = new Array(rows.length);
+  for (let i = 0; i < rows.length; i++) {
+    const row = rows[i];
+    const tail = row.atoms[row.atoms.length - 1];
+    const highlights = Array.isArray(results[i]) ? tagCoord(results[i], coord) : [];
+    next[i] = { atoms: [...row.atoms, { wlEntry: tail.wlEntry, highlights, glyph }] };
     if (y.due()) await y.yield();
   }
   return next;
