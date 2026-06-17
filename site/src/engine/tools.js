@@ -7,6 +7,7 @@ import letter_bank from './tools/letter_bank.js';
 import restricted_alphabet from './tools/restricted_alphabet.js';
 import scrabble from './tools/scrabble.js';
 import caesar, { caesarKey, caesarShift } from './tools/caesar.js';
+import cryptogram, { patternKey } from './tools/cryptogram.js';
 import repeaters from './tools/repeaters.js';
 import neckouts from './tools/neckouts.js';
 import isograms from './tools/isograms.js';
@@ -30,7 +31,7 @@ import curtail from './tools/curtail.js';
 import rebus from './tools/rebus.js';
 import { WHOLE_WORD_PARAM, reverseString, sortLetters } from './tools/shared.js';
 
-export { WHOLE_WORD_PARAM, reverseString, sortLetters, consonantSkeleton, vowelSkeleton, wordSplits, caesarKey, caesarShift };
+export { WHOLE_WORD_PARAM, reverseString, sortLetters, consonantSkeleton, vowelSkeleton, wordSplits, caesarKey, caesarShift, patternKey };
 
 export const TOOL_CATEGORIES = [
   { id: 'anagram',    label: 'Anagram' },
@@ -55,6 +56,7 @@ export const TOOLS = {
   restricted_alphabet,
   scrabble,
   caesar,
+  cryptogram,
   repeaters,
   neckouts,
   isograms,

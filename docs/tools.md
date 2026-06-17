@@ -16,7 +16,7 @@ Source material: shipped catalog lives in `TOOLS` in [`site/src/engine/tools.js`
 | ✓ | Bank | 🧱 Scrabble | Can be spelled with the given tiles | parental → plane, rent |
 |   | Bank | 🐝 Spelling bee | Made from a restricted alphabet, must include the center letter | TBD |
 | ✓ | Cipher | 🥗 Caesar shift | Shift each letter by *n* | steeds → tuffet |
-|   | Cipher | 🔐 Cryptogram | Same letter-pattern shape | abba · noon · deed |
+| ✓ | Cipher | 🔐 Cryptogram | Same letter-pattern shape | level · rotor |
 | ✓ | Halves | 🔂 Repeaters | Left and right halves are the same | tartar · hotshots |
 | ✓ | Halves | 🦒 Neckouts | Left and right halves are anagrams | stuck one's neck out |
 | ✓ | Letters | 1️⃣ Isograms | No repeated letters | cyberpunk · juxtapose |

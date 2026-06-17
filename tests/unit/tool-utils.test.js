@@ -5,6 +5,7 @@ import { sortLetters } from '../../site/src/engine/tools/shared.js';
 import { consonantSkeleton } from '../../site/src/engine/tools/consonantcy.js';
 import { vowelSkeleton } from '../../site/src/engine/tools/vowelcy.js';
 import { caesarShift, caesarKey } from '../../site/src/engine/tools/caesar.js';
+import { patternKey } from '../../site/src/engine/tools/cryptogram.js';
 import { wordSplits } from '../../site/src/engine/tools/initialisms.js';
 
 test('sortLetters: returns the letters in ascending code-unit order', () => {
@@ -99,6 +100,24 @@ test('caesarKey: anchors the first letter to a', () => {
 
 test('caesarKey: empty input yields the empty string', () => {
   assert.equal(caesarKey(''), '');
+});
+
+test('patternKey: same-shape words collapse to the same key', () => {
+  assert.equal(patternKey('level'), patternKey('rotor'));
+  assert.equal(patternKey('noon'), patternKey('peep'));
+});
+
+test('patternKey: relabels letters a, b, c… by first appearance', () => {
+  assert.equal(patternKey('level'), 'abcba');
+  assert.equal(patternKey('puppy'), 'abaac');
+});
+
+test('patternKey: digits are literal anchors, not enciphered', () => {
+  assert.equal(patternKey('k9k9'), 'a9a9');
+});
+
+test('patternKey: empty input yields the empty string', () => {
+  assert.equal(patternKey(''), '');
 });
 
 test('wordSplits: a single word yields one space-split candidate', () => {
