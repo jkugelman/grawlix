@@ -6,6 +6,7 @@ import anagrams from './tools/anagrams.js';
 import letter_bank from './tools/letter_bank.js';
 import restricted_alphabet from './tools/restricted_alphabet.js';
 import scrabble from './tools/scrabble.js';
+import caesar, { caesarKey, caesarShift } from './tools/caesar.js';
 import repeaters from './tools/repeaters.js';
 import neckouts from './tools/neckouts.js';
 import isograms from './tools/isograms.js';
@@ -29,11 +30,12 @@ import curtail from './tools/curtail.js';
 import rebus from './tools/rebus.js';
 import { WHOLE_WORD_PARAM, reverseString, sortLetters } from './tools/shared.js';
 
-export { WHOLE_WORD_PARAM, reverseString, sortLetters, consonantSkeleton, vowelSkeleton, wordSplits };
+export { WHOLE_WORD_PARAM, reverseString, sortLetters, consonantSkeleton, vowelSkeleton, wordSplits, caesarKey, caesarShift };
 
 export const TOOL_CATEGORIES = [
   { id: 'anagram',    label: 'Anagram' },
   { id: 'bank',       label: 'Bank' },
+  { id: 'cipher',     label: 'Cipher' },
   { id: 'halves',     label: 'Halves' },
   { id: 'letters',    label: 'Letters' },
   { id: 'pairs',      label: 'Pairs' },
@@ -52,6 +54,7 @@ export const TOOLS = {
   letter_bank,
   restricted_alphabet,
   scrabble,
+  caesar,
   repeaters,
   neckouts,
   isograms,
@@ -139,8 +142,10 @@ export function makeToolRow(tool, params = {}, grouped = false) {
   const row = {
     tool, params, def, grouped,
     kind() {
-      if (row.grouped) return 'group';
-      return typeof def.kind === 'function' ? def.kind(row.params) : def.kind;
+      // A function `kind` decides the all-mode (`*`) case itself, rather than
+      // defaulting to group: Caesar's `*` is a transform when a shift is set.
+      if (typeof def.kind === 'function') return def.kind(row.params, row.grouped);
+      return row.grouped ? 'group' : def.kind;
     },
     isInert() {
       if (row.grouped) return false;

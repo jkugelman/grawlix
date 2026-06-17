@@ -4,6 +4,7 @@ import { normalizeParams } from '../../site/src/engine/tools.js';
 import { sortLetters } from '../../site/src/engine/tools/shared.js';
 import { consonantSkeleton } from '../../site/src/engine/tools/consonantcy.js';
 import { vowelSkeleton } from '../../site/src/engine/tools/vowelcy.js';
+import { caesarShift, caesarKey } from '../../site/src/engine/tools/caesar.js';
 import { wordSplits } from '../../site/src/engine/tools/initialisms.js';
 
 test('sortLetters: returns the letters in ascending code-unit order', () => {
@@ -68,6 +69,36 @@ test('vowelSkeleton: only matches lowercase aeiou; uppercase is stripped', () =>
 test('vowelSkeleton: falsy input yields the empty string', () => {
   assert.equal(vowelSkeleton(''), '');
   assert.equal(vowelSkeleton(null), '');
+});
+
+test('caesarShift: shifts a-z by n', () => {
+  assert.equal(caesarShift('cat', 1), 'dbu');
+});
+
+test('caesarShift: wraps past z', () => {
+  assert.equal(caesarShift('xyz', 3), 'abc');
+});
+
+test('caesarShift: a negative shift wraps the other way', () => {
+  assert.equal(caesarShift('abc', -1), 'zab');
+});
+
+test('caesarShift: non-letters stay in place', () => {
+  assert.equal(caesarShift('a-b c', 1), 'b-c d');
+});
+
+test('caesarKey: Caesar-relatives collapse to the same key', () => {
+  assert.equal(caesarKey('steeds'), caesarKey('tuffet'));
+  assert.equal(caesarKey('cat'), caesarKey('png'));
+});
+
+test('caesarKey: anchors the first letter to a', () => {
+  assert.equal(caesarKey('steeds'), 'abmmla');
+  assert.equal(caesarKey('cat'), 'ayr');
+});
+
+test('caesarKey: empty input yields the empty string', () => {
+  assert.equal(caesarKey(''), '');
 });
 
 test('wordSplits: a single word yields one space-split candidate', () => {

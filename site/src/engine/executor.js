@@ -82,10 +82,11 @@ export async function buildInitialChains(mergedWordlist, y) {
 
 // The `prepare` context — see docs/design.md § Pipeline execution.
 // Rebuilt per stage so `ctx.input` reflects that stage's input rows.
-function makeCtx(mergedWordlist, rows, signal, y) {
+function makeCtx(mergedWordlist, rows, signal, y, grouped = false) {
   return {
     wordlist: mergedWordlist,
     input: makeWorkingSetView(rows),
+    grouped,
     throwIfAborted: () => throwIfAborted(signal),
     due: y.due,
     yield: y.yield,
@@ -184,7 +185,7 @@ async function runStackRow(stackRow, state, mergedWordlist, signal, y) {
   try {
     if (stackRow.kind() === 'group') {
       const params = normalizeParams(stackRow.params, def.params);
-      const ctx = makeCtx(mergedWordlist, state.groups[0].chains, signal, y);
+      const ctx = makeCtx(mergedWordlist, state.groups[0].chains, signal, y, stackRow.grouped);
       const prepared = def.group.prepare ? await def.group.prepare(params, ctx) : params;
       state.groups = await bucketize(state.groups[0].chains, def, ctx, prepared);
       state.grouped = true;
@@ -196,7 +197,7 @@ async function runStackRow(stackRow, state, mergedWordlist, signal, y) {
       ? state.groups.flatMap(g => g.chains)
       : state.groups[0].chains;
     const prepared = def.prepare
-      ? await def.prepare(params, makeCtx(mergedWordlist, prepareInput, signal, y))
+      ? await def.prepare(params, makeCtx(mergedWordlist, prepareInput, signal, y, stackRow.grouped))
       : params;
     for (const g of state.groups) {
       g.chains = await runToolStage(g.chains, stackRow, prepared, mergedWordlist, y);

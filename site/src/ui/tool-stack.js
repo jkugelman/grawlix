@@ -12,8 +12,9 @@
 //
 // `kind` is 'filter' (keeps/drops an entry), 'transform' (emits 0+ new entries
 // per input), or 'group' (clusters all input rows into GroupRow[] via `group`).
-// It may instead be a `(params) => kind` function for a tool that switches
-// between filter and transform on its params — resolved per row by `kind()`.
+// It may instead be a `(params, allMode) => kind` function: such a tool reads
+// the `✱` flag and decides its own all-mode kind, rather than a grouped row
+// defaulting to 'group' (Caesar's all-mode is a transform when a shift is set).
 // `inputHighlights` / `outputHighlights` are static booleans: each one means
 // the tool highlights the atom it reads / the atom it creates. `currentAtomCount`
 // reads them to derive the static atom count; transforms also carry a relation
@@ -252,7 +253,7 @@ export function buildToolLabelHTML({ icon, name }, suffix) {
 
 export function allModeTooltip({ blocked, active, kind }) {
   if (active) return kind === 'corner' ? 'Already showing all' : 'Show one';
-  if (blocked) return 'Only one tool can show all at a time';
+  if (blocked) return 'Only one ✱ tool at a time';
   return 'Show all';
 }
 
