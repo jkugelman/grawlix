@@ -53,7 +53,7 @@ Source material: shipped catalog lives in `TOOLS` in [`site/src/engine/tools.js`
 |   | Thesaurus | 🤝 Synonyms | Words with similar meaning to a target | TBD |
 |   | Thesaurus | ⚔️ Antonyms | Words opposite in meaning | TBD |
 |   | Thesaurus | 📚 Category | Words in the same Roget semantic category | TBD |
-|   | Thesaurus | 🧠 Synonym kangaroo | Kangaroo whose joey is a synonym of the kangaroo | TBD |
+|   | Thesaurus | 🧠 Synonym kangaroo | Kangaroo whose joey is a synonym | TBD |
 |   | Transform | 🃏 Replace anything | Insert *with* in place of any deleted substring | TBD |
 |   | Transform | 🔀 Letter changes | Differs from input by exactly *n* single-letter substitutions | TBD |
 |   | Transform | 🔁 Letter swap | Swap two letters throughout | TBD |
