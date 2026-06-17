@@ -13,7 +13,15 @@ function toastContainer() {
   document.body.appendChild(_toastContainerEl);
   return _toastContainerEl;
 }
+let _suppressed = false;
+let _suppressedQueue = [];
+export function setToastsSuppressed(on) {
+  _suppressed = on;
+  if (!on) { const q = _suppressedQueue; _suppressedQueue = []; q.forEach(fn => fn()); }
+}
+
 function _mountToast(el, duration) {
+  if (_suppressed) { _suppressedQueue.push(() => _mountToast(el, duration)); return; }
   let hovered = false;
   const arm = () => { clearTimeout(el._timer); el._timer = setTimeout(() => _dismissToast(el), duration); };
   // Without this gate, touch's sticky mouseenter (no mouseleave) pins the toast open forever.

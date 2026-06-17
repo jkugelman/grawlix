@@ -3,6 +3,7 @@
 // here exist only when several tests would otherwise repeat the same setup.
 
 import { expect } from '@playwright/test';
+import { TOOLS } from '../../site/src/engine/tools.js';
 
 // Stub the publisher wordlist fetches so the app boots in CI without touching
 // the real network. Four publisher wordlists fetch on boot:
@@ -43,6 +44,9 @@ async function gotoApp(page, route = '/') {
   // would swallow clicks in every test. The welcome test in smoke.spec.js skips
   // this helper to exercise the real first boot.
   await page.addInitScript(() => localStorage.setItem('grawlix_welcomeSeen', '1'));
+  // Mark every tool seen so the new-tools reveal doesn't fire — its full-screen
+  // overlay would intercept clicks in every test, like the welcome modal above.
+  await page.addInitScript(slugs => localStorage.setItem('grawlix_seenTools', JSON.stringify(slugs)), Object.keys(TOOLS));
   await page.goto(route);
   await whenBootSettled(page);
 }

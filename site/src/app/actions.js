@@ -13,6 +13,8 @@ import { isLiteralQuery } from '../engine/search.js';
 import { invalidateStatsCache } from '../engine/stats.js';
 import { invalidatePreSearchCache } from '../engine/executor.js';
 import { TOOLS } from '../engine/tools.js';
+import { pendingNewTools, markToolsSeen } from '../data/new-tools.js';
+import { NewToolsReveal } from '../ui/new-tools-reveal.js';
 import {
   sources$, state, wrapWordlist, newDbKey, getEditsWordlist,
 } from '../data/state.js';
@@ -241,12 +243,24 @@ export async function init() {
 
   await loadSyncTargets();
   const { granted, prompt } = await partitionSyncPermissions();
+  // welcomeSeen is only set on Welcome-dialog close, so it's still absent here for
+  // a first-time visitor — the new-vs-returning signal the launch baseline needs.
+  const isReturning = !!lsLoad('welcomeSeen');
+  const newToolSlugs = pendingNewTools(isReturning);
+  const revealNewTools = () => {
+    if (!newToolSlugs.length) return;
+    markToolsSeen(newToolSlugs);
+    NewToolsReveal.show(newToolSlugs.map(k => [k, TOOLS[k]]));
+  };
+
   const _overlay = document.getElementById('splash-screen');
   if (prompt.length) {
     ReconnectSplash.show(prompt);
   } else if (_overlay) {
     _overlay.classList.add('done');
-    _overlay.addEventListener('transitionend', () => _overlay.remove(), { once: true });
+    _overlay.addEventListener('transitionend', () => { _overlay.remove(); revealNewTools(); }, { once: true });
+  } else {
+    revealNewTools();
   }
   Promise.all(granted.map(activateSyncTarget)).catch(err => console.error('sync resume failed', err));
 
