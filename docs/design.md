@@ -598,7 +598,7 @@ A small `Router` IIFE owns parse, serialize, and `history.replaceState`.
 
 ### Query-string URLs
 
-Grawlix is one screen, so the query string carries the whole pipeline — `grawlix.wtf` bare, `grawlix.wtf/?anagram=CAT` with state. Per the pre-launch-clean URL policy (§ *Stable links*), an unrecognized query isn't remapped through an alias table — it just yields an empty pipeline, which can't lose data; a user re-shares their own link if they care.
+Grawlix is one screen, so the query string carries the whole pipeline — `grawlix.wtf` bare, `grawlix.wtf/?anagram=CAT` with state. By default an unrecognized query isn't remapped through an alias table — it just yields an empty pipeline, which can't lose data; whether a specific dropped key earns an alias instead is a per-change call (§ *Stable links*).
 
 ### Tool stack encoding
 
@@ -624,15 +624,15 @@ The two-key form keeps each piece independently minimizable, so the common cases
 
 Unknown values for either key are dropped without a toast (no churn risk — the axes are a closed set, unlike the tool catalog). The parser accepts any axis valid in either tier; the scroller remaps the parsed axis (§ Sort axes per chain tier) if it isn't valid for the current tier. Sort persists across scope switches inside a session: it's a view-config preference of the user, not of the scoped wordlist.
 
-### Stable links: don't rename, don't remove
+### Stable links: decide breakage case-by-case
 
-Once URL keys are public, removing or renaming them breaks shared links. The rule:
+URL keys are public now, so renaming or removing a tool key breaks links already shared in the wild. But a broken link costs a re-share, never data — so neither freezing every key forever nor breaking them freely is forced. Breakage is a per-change judgment call, made by the user, not a blanket rule:
 
-- **Don't remove tools.** A superseded tool stays as a thin alias to its replacement, or stays indefinitely.
-- **Don't rename tool keys.** If a tool's display name changes, its URL key stays.
-- **If a rename or removal is unavoidable**, register the old key in an alias table that maps to the new key (or to a sensible fallback) and `replaceState` to the canonical form on load.
+- **Flag every break.** When a change would rename or drop a tool slug or URL key, surface it before proceeding rather than deciding unilaterally.
+- **The user picks the outcome** — keep the old form working or let it rot — case by case, weighing how likely that link is to be out there against the cost of carrying the alias.
+- **To keep an old form working**, register its key in an alias table that maps to the new key (or to a sensible fallback) and `replaceState` to the canonical form on load.
 
-No aliases exist today — this is forward-looking guidance for when the catalog churns.
+No aliases exist today; the alias table is the mechanism for when the user judges a particular break worth absorbing.
 
 ### Router policies
 

@@ -17,7 +17,7 @@ The suite covers what manual testing structurally misses. Manual already catches
 
 **Skip when** the change is purely visual, localized to code with no neighbors that affect it, or experimental code about to be rewritten.
 
-**Regression budget — not automatic.** When a bug is fixed, ask: seam, or typo in bounded code? Seam earns a test; typo doesn't. Pre-launch refactor-heavy phase makes "every bug gets a test" the wrong default — it locks the codebase against changes that need to happen.
+**Regression budget — not automatic.** When a bug is fixed, ask: seam, or typo in bounded code? Seam earns a test; typo doesn't. A refactor-heavy codebase makes "every bug gets a test" the wrong default — it locks the codebase against changes that need to happen.
 
 **The one always-test exception: schema migrations.** Every `MIGRATIONS` step ships a permanent before→after fixture test, no judgment call. A migration must keep transforming *historical* data correctly forever, and only a frozen old-version fixture catches a step that later code churn silently breaks. See [`migration.md` § Testing migrations](migration.md#testing-migrations).
 
@@ -66,7 +66,7 @@ Each tool's full contract lives in the unit tier. Every tool is its own `engine/
 
 ## Out of scope
 
-- **PR gating / branch protection.** CI runs on push to `main` only. For a solo pre-launch project, automation is a regression *signal*, not a release gate.
+- **PR gating / branch protection.** CI runs on push to `main` only. For a solo project, automation is a regression *signal*, not a release gate.
 - **Coverage metrics.** Smoke is the target, not comprehensive coverage. A coverage number would invite chasing it rather than chasing the bugs.
 
 ## First-time setup
