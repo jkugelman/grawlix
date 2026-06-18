@@ -19,7 +19,7 @@ It also doubles as a search tool while you're constructing: filter by substring,
 ## Features
 
 **Known publishers** for four popular wordlists — one-click setup with sensible default rescore rules:
-- [John Kugelman](https://github.com/jkugelman/crossword)
+- [John Kugelman](https://github.com/jkugelman/wordlist)
 - [XWord Info](https://www.xwordinfo.com/WordList)
 - [Spread the Word(list)](https://www.spreadthewordlist.com)
 - [Peter Broda](https://peterbroda.me/crosswords/wordlist/)

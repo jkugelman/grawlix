@@ -32,7 +32,7 @@ export const WORDLIST_PUBLISHERS = [
     id: 'jkugelman',
     popularity: 5,
     name: 'John Kugelman',
-    url: 'https://raw.githubusercontent.com/jkugelman/crossword/refs/heads/main/wordlists/jkugelman-wordlist.txt',
+    url: 'https://raw.githubusercontent.com/jkugelman/wordlist/refs/heads/main/jkugelman-wordlist.txt',
     icon: null,
     defaultRules: [
       { input:'60', length:'', output:'', note:'Good (colorful phrases, interesting full names)' },
@@ -121,6 +121,8 @@ export const URL_REMAPS = [
   { from: 'https://grawlix.wtf/Nediger list.txt',         to: 'https://grawlix.wtf/wordlists/Nediger list.txt' },
   { from: 'https://grawlix.wtf/spreadthewordlist.txt',    to: 'https://grawlix.wtf/wordlists/spreadthewordlist.txt' },
   { from: 'https://grawlix.wtf/peter-broda-wordlist.txt', to: 'https://grawlix.wtf/wordlists/peter-broda-wordlist.txt' },
+  { from: 'https://raw.githubusercontent.com/jkugelman/crossword/refs/heads/main/wordlists/jkugelman-wordlist.txt',
+    to:   'https://raw.githubusercontent.com/jkugelman/wordlist/refs/heads/main/jkugelman-wordlist.txt' },
 ];
 
 // Derived from JK's rules, not duplicated: the unified scale IS JK's scoring
