@@ -323,21 +323,25 @@ export async function bucketize(chains, def, ctx, prepared) {
   });
   const anchorFn = def.group.anchor;
   const keepGroup = def.group.keepGroup;
+  // The two-member floor counts distinct *words*, not merged rows: the merge emits
+  // one row per (norm, display), so one entry's spellings (`going ape`/`goingape`/
+  // `GOINGAPE!`) are one word and an all-one-word bucket is no cluster. Only this
+  // gate dedups — a surviving cluster still shows every spelling. Whole-chain key,
+  // not the tail: a transform upstream can land two distinct words on one tail
+  // (wheat/cheat → heat), which must stay separate members.
+  const identity = chain =>
+    chain.atoms.map(a => useDisplay ? displayOf(a.wlEntry) : a.wlEntry.norm).join('\0');
+  const memberKey = c => useDisplay ? displayOf(rowLastEntry(c)) : rowLastEntry(c).norm;
   const groups = [];
   for (const [key, groupChains] of buckets) {
-    if (groupChains.length < 2) continue;
-    if (keepGroup) {
-      const members = groupChains.map(c => {
-        const tail = rowLastEntry(c);
-        return useDisplay ? displayOf(tail) : tail.norm;
-      });
-      if (!keepGroup(members)) continue;
-    }
+    if (new Set(groupChains.map(identity)).size < 2) continue;
+    if (keepGroup && !keepGroup(groupChains.map(memberKey))) continue;
     const anchor = anchorFn ? anchorFn(key, ctx.wordlist) : null;
     if (anchorFn && !anchor) continue;
     groupChains.sort((a, b) => {
       const ae = rowLastEntry(a), be = rowLastEntry(b);
-      return be.score - ae.score || ae.norm.localeCompare(be.norm);
+      return be.score - ae.score || ae.norm.localeCompare(be.norm)
+        || displayOf(ae).localeCompare(displayOf(be));
     });
     groups.push({ key, chains: groupChains, anchor });
   }

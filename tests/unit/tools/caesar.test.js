@@ -53,3 +53,18 @@ test('all-mode + no shift: clusters every entry by its Caesar key, dropping lone
   assert.deepEqual(gs.map(g => groupSeeds(g).sort()).sort(),
     [['cat', 'png'], ['steeds', 'tuffet']]);
 });
+
+test('all-mode: spelling variants of one word are one member, not a cluster', async () => {
+  const gs = await groups(
+    [{ entry: 'going ape', score: 50 }, { entry: 'goingape', score: 50 }, { entry: 'GOINGAPE!', score: 50 }],
+    [{ tool: 'caesar', grouped: true }]);
+  assert.deepEqual(gs, []);
+});
+
+test('all-mode: a real pair survives extra spellings of one member, and shows them all', async () => {
+  const gs = await groups(
+    [{ entry: 'steeds', score: 50 }, { entry: 'tuffet', score: 40 }, { entry: 'TUFFET!', score: 35 }],
+    [{ tool: 'caesar', grouped: true }]);
+  assert.equal(gs.length, 1);
+  assert.deepEqual(groupSeeds(gs[0]).sort(), ['TUFFET!', 'steeds', 'tuffet']);
+});
