@@ -273,6 +273,10 @@ async function runToolStage(rows, stackRow, prepared, mergedWordlist, y) {
 // Non-matchers still get an empty highlight slot so every member keeps the atom
 // height currentAtomCount reserves; omit it and matched rows gain a line the
 // rest lack, misaligning the grid with no error.
+//
+// Each member also carries `matched`. Its only reader is the worker's score-range
+// gate (drop a cluster the range has stripped of every match), so it looks unused
+// here — prune it and that gate silently goes dead, reviving the orphan cluster.
 async function runGroupFilterStage(rows, stackRow, prepared, mergedWordlist, y) {
   const { def } = stackRow;
   const glyph = stackRow.glyph();
@@ -291,13 +295,13 @@ async function runGroupFilterStage(rows, stackRow, prepared, mergedWordlist, y) 
     if (y.due()) await y.yield();
   }
   if (!anyMatch) return [];
-  if (!def.inputHighlights) return rows.slice();
+  if (!def.inputHighlights) return rows.map((row, i) => ({ ...row, matched: !!results[i] }));
   const next = new Array(rows.length);
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i];
     const tail = row.atoms[row.atoms.length - 1];
     const highlights = Array.isArray(results[i]) ? tagCoord(results[i], coord) : [];
-    next[i] = { atoms: [...row.atoms, { wlEntry: tail.wlEntry, highlights, glyph }] };
+    next[i] = { atoms: [...row.atoms, { wlEntry: tail.wlEntry, highlights, glyph }], matched: !!results[i] };
     if (y.due()) await y.yield();
   }
   return next;
@@ -374,7 +378,7 @@ export async function unify(rows, y) {
   const seen = new Map();   // entry-chain key → { row, index } of its slot in `out`
   const out = [];
   for (let i = 0; i < rows.length; i++) {
-    const row = { atoms: collapseRepeatAtoms(rows[i].atoms) };
+    const row = { atoms: collapseRepeatAtoms(rows[i].atoms), matched: rows[i].matched };
     const entries = row.atoms.map(a => a.wlEntry.norm);
     const fwd = entries.join('\0');
     const rev = [...entries].reverse().join('\0');
@@ -472,6 +476,11 @@ export function applyScoreRangeToRows(rows, intervals, grouped) {
       if (g.anchor && !matchesRange(g.anchor.score, intervals)) continue;
       const chains = g.chains.filter(chainOk);
       if (chains.length < 2) continue;
+      // A grouped filter tags its matches; once the range trims members, the
+      // cluster is a result only while an in-range member is still one of them.
+      // Skip and it survives on a match the range hid — a cluster showing none
+      // of the words the search found. Untagged chains (no grouped filter) opt out.
+      if (chains[0].matched !== undefined && !chains.some(c => c.matched)) continue;
       const ng = { ...g, chains };
       cacheGroupStats(ng);
       out.push(ng);

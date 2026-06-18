@@ -377,6 +377,31 @@ test('applyScoreRangeToRows (grouped): an out-of-range anchor drops the group', 
   assert.equal(applyScoreRangeToRows([g], range(0, 50), true).length, 0);
 });
 
+test('applyScoreRangeToRows (grouped): drops a group whose in-range survivors are all non-matchers', () => {
+  const g = { key: 'a', anchor: null, chains: [
+    { ...chain(atom('ccccc', { score: 40 })), matched: false },
+    { ...chain(atom('uuuuu', { score: 40 })), matched: false },
+    { ...chain(atom('zzzzz', { score: 10 })), matched: true },   // the match, below range
+  ] };
+  assert.equal(applyScoreRangeToRows([g], range(30, 99), true).length, 0);
+});
+
+test('applyScoreRangeToRows (grouped): keeps a group with an in-range matcher', () => {
+  const g = { key: 'a', anchor: null, chains: [
+    { ...chain(atom('zzzemoji', { score: 60 })), matched: true },
+    { ...chain(atom('bbbemoji', { score: 50 })), matched: false },
+  ] };
+  assert.equal(applyScoreRangeToRows([g], range(30, 99), true).length, 1);
+});
+
+test('applyScoreRangeToRows (grouped): untagged chains (no grouped filter) are not gated', () => {
+  const g = { key: 'a', anchor: null, chains: [
+    chain(atom('ant', { score: 40 })),
+    chain(atom('axe', { score: 50 })),
+  ] };
+  assert.equal(applyScoreRangeToRows([g], range(30, 99), true).length, 1);
+});
+
 // ─── chain predicates ──────────────────────────────────────────────────────────
 
 test('isFilterOnlyChain: true with only filters, false once a live transform appears', () => {

@@ -43,3 +43,13 @@ test('grouped: a non-highlighting filter also keeps the whole cluster, untouched
   assert.equal(abcba.chains.length, 2);
   for (const c of abcba.chains) assert.equal(c.atoms.length, 1);
 });
+
+test('grouped: members are tagged matched/unmatched for the score gate, surviving unify', async () => {
+  const { rows } = await run(['level', 'rotor'], [
+    { tool: 'cryptogram', grouped: true },
+    { tool: 'search', params: { pattern: 'level' } },
+  ]);
+  const tag = Object.fromEntries(rows[0].chains.map(c => [c.atoms[0].wlEntry.norm, c.matched]));
+  assert.equal(tag.level, true);
+  assert.equal(tag.rotor, false);
+});

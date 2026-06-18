@@ -659,6 +659,25 @@ test('search chained after the grouped tool keeps the whole cluster, highlightin
   await expect(page.locator('#vs-host .group-chain .atom-entry mark')).toHaveCount(1);
 });
 
+test('a grouped search drops a cluster whose only match falls below the score range', async ({ page }) => {
+  await gotoApp(page);
+  await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
+    name: 'OrphanTest',
+    entries: ['ccccc', 'uuuuu', 'zzzzz', 'zzz emoji', 'bbb emoji'],
+    scores: [40, 40, 10, 60, 50],
+  }));
+  await page.evaluate(() => window.__grawlixTest.setStack([
+    { tool: 'cryptogram', grouped: true },
+    { tool: 'search', params: { pattern: 'zzz' } },
+  ]));
+  await page.locator('#score-range-input').fill('30+');
+
+  await expectGroups(page, gs => gs.length, 1);
+  const groups = await readGroups(page);
+  expect(groups[0].chains.flat()).toContain('zzz emoji');
+  expect(groups[0].chains.flat()).not.toContain('ccccc');
+});
+
 test('a transform chained after the grouped tool emits a pair atom per surviving chain', async ({ page }) => {
   await gotoApp(page);
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
