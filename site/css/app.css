@@ -1373,7 +1373,13 @@ html.light-mode .nt-banner { background: #63606a; }
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--glow) 40%, transparent), 0 0 22px color-mix(in srgb, var(--glow) 35%, transparent);
 }
 /* Narrower on phones so two fit per row (matches CARD_W in buildLoot). */
-@media (max-width: 759px) { .nt-overlay .tool-card { flex: 0 0 160px; } }
+@media (max-width: 759px) {
+  .nt-overlay .tool-card { flex: 0 0 160px; }
+  /* Override the desktop centering: on short phone viewports it drops the loot
+     and dismiss button below the fold. Pin the scene high and trim its height. */
+  .nt-scroll { padding-top: 80px; }
+  .nt-scene { height: 280px; }
+}
 
 @media (prefers-reduced-motion: reduce) {
   .nt-rays, .nt-aura, .nt-glow { animation: none !important; }
