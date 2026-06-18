@@ -46,9 +46,9 @@ test('whole-word forgives separators at the entry edges, not just between letter
   sameVisible(await visible(lib, search('usa', { 'whole-word': true })), ['U.S.A.']);
 });
 
-test('`?` fills exactly one character of any kind — letter, symbol, or space — never nothing', async () => {
+test('`?` fills exactly one non-whitespace character — letter or symbol — never a space or nothing', async () => {
   const lib = ['hisc', 'hi-c', 'hi c', 'hic'];
-  sameVisible(await visible(lib, search('hi?c')), ['hisc', 'hi-c', 'hi c']);
+  sameVisible(await visible(lib, search('hi?c')), ['hisc', 'hi-c']);
 });
 
 test('whole-word matches an entry whose letters equal the query across its separators', async () => {

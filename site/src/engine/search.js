@@ -30,7 +30,7 @@ export function buildSearchPattern(query, wholeWord = false) {
   for (let i = 0; i < q.length; i++) {
     const ch = q[i];
     if (ch === '*')      tokens.push({ kind: 'wild', re: '.*' });
-    else if (ch === '?') tokens.push({ kind: 'wild', re: '.' });
+    else if (ch === '?') tokens.push({ kind: 'wild', re: '\\S' });
     else if (ch === '#') tokens.push({ kind: 'wild', re: `[${CONSONANTS}]` });
     else if (ch === '@') tokens.push({ kind: 'wild', re: `[${VOWELS}]` });
     else if (ch === '[') {

@@ -22,11 +22,12 @@ test('buildSearchPattern: `*` matches any run including empty', () => {
   assert.equal(matches(pat, 'cb'), false);
 });
 
-test('buildSearchPattern: `?` matches exactly one character', () => {
+test('buildSearchPattern: `?` matches exactly one non-whitespace character', () => {
   const pat = buildSearchPattern('c?t');
   assert.equal(matches(pat, 'cat'), true);
   assert.equal(matches(pat, 'ct'), false);
   assert.equal(matches(pat, 'caat'), false);
+  assert.equal(matches(pat, 'c t'), false);
 });
 
 test('buildSearchPattern: `#` matches a single consonant (y included, vowels excluded)', () => {
