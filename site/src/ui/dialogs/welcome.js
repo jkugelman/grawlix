@@ -42,7 +42,7 @@ export const WelcomeDialog = (() => {
       .join(', ');
 
     const byPop = [...WORDLIST_PUBLISHERS].sort((a, b) => a.popularity - b.popularity);
-    const names = byPop.map(p => p.name);
+    const names = byPop.map(p => p.id === 'xwi' ? `${p.name}*` : p.name);
     const nameList = `${names.slice(0, -1).join(', ')}, and ${names[names.length - 1]}`;
 
     const sourceIcons = byPop
@@ -87,7 +87,8 @@ export const WelcomeDialog = (() => {
       <section class="welcome-feature">
         <div class="welcome-copy">
           <h3>Search multiple popular wordlists</h3>
-          <p>${nameList} are at your fingertips. Grawlix rescores each onto a common scale.</p>
+          <p>Have ${nameList} at your fingertips. Grawlix rescores each onto a common scale.</p>
+          <p class="welcome-footnote">* paid subscribers only</p>
         </div>
         <div class="welcome-shot" inert><div class="welcome-shot-inner welcome-shot-merge">${wordlistShot}</div></div>
       </section>

@@ -36,7 +36,7 @@ export const DiscoveryBanner = (() => {
       // has brought their real copy in.
       key: 'banner_xwi_dismissed',
       when: scope => scope !== MERGED_ID && scope?.publisherId === 'xwi' && !scope.populated,
-      body: 'Got an <strong>XWord Info</strong> subscription? You can import your real XWI list here — Grawlix ships only XWI’s default scores, so the genuine list is a big step up.',
+      body: 'Got an <strong>XWord Info</strong> subscription? Import your XWI list here to add it to your searches.',
     },
   ];
 

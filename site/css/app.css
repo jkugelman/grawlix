@@ -698,6 +698,7 @@ dialog h2 { font-size: 16px; margin-bottom: 14px; padding-right: 24px; }
 .welcome-feature:nth-of-type(even) .welcome-shot { order: -1; }
 .welcome-copy h3 { font-size: 14px; margin: 0 0 5px; color: var(--text); }
 .welcome-copy p { font-size: 13px; line-height: 1.5; color: var(--muted); margin: 0; }
+.welcome-copy .welcome-footnote { font-size: 11px; color: var(--faint); margin: 4px 0 0; text-align: right; }
 .welcome-shot { position: relative; height: 132px; overflow: hidden; border: 1px solid var(--border2); border-radius: 8px; background: var(--surface); pointer-events: none; user-select: none; -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 30px), transparent); mask-image: linear-gradient(to bottom, #000 calc(100% - 30px), transparent); }
 .welcome-shot:has(.welcome-shot-tools) { -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 44px), transparent); mask-image: linear-gradient(to right, #000 calc(100% - 44px), transparent); }
 .welcome-shot-inner { padding: 10px; }
