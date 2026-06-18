@@ -47,6 +47,8 @@ Per-wordlist scope is the organizing idea, and it's the load-bearing reason the 
 
 **No side panel.** The tool gallery sits as a top section of the screen, and disk sync's signals live where the scoped list lives — the sync sign in the wordlist bar (see § *Disk sync* below) — rather than in the global chrome. A collapsible side panel was considered and rejected: it would pull these surfaces off the main vertical flow into a persistent secondary region, working against the single-screen layout.
 
+**Installable as a PWA.** A web app manifest (`site/manifest.webmanifest`) plus icons (`site/icons/`) and a `theme-color` make Grawlix installable through the browser's own install affordance (the address-bar install icon, "Add to Home Screen", etc.) — there is no in-app install button. No service worker: Grawlix is online-only by choice, which trades offline support for a much smaller blast radius — it sidesteps the failure mode where a stale cached service worker bricks installed users after a deploy.
+
 **Mechanics worth knowing:**
 
 - The screen uses `overflow: clip`, not `overflow: hidden`. The latter establishes a scroll container that breaks `position: sticky` for descendants, trapping the sticky region. `overflow: clip` contains stray child overflow without that side effect.
