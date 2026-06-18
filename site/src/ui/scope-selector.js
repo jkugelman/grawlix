@@ -22,7 +22,7 @@ import {
 } from './rescore-editor.js';
 import { showConfirm } from './dialogs/confirm.js';
 import { ManagePanel } from './manage-panel.js';
-import { setScope, refreshMergedScroller, getEntriesScroller } from './rendering.js';
+import { setScope, refreshMergedScroller, getEntriesScroller, attachHelpPopups } from './rendering.js';
 
 // ─── Wordlist-card domain builders ──────────────────────────────────────────
 
@@ -290,6 +290,7 @@ export const WordlistSelector = (() => {
       ? buildScoringSectionHTML()
       : buildRescoreSectionHTML();
     wireDraftReorder();
+    attachHelpPopups();
   }
   function refreshEditor() {
     if (!editorOpen) return;

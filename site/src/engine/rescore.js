@@ -3,6 +3,12 @@
 // ─── Rescoring ────────────────────────────────────────────────────────────────
 
 import { parseRange, matchesRange } from './range.js';
+import { buildHelpHTML } from '../core/util.js';
+
+export const OUTPUT_HELP = buildHelpHTML([
+  ['blank', 'unchanged', { ghost: true }],
+  ['50', 'new score'],
+], { cols: 1 });
 
 export function scoresToRangeStr(scores) {
   if (!scores.length) return '';

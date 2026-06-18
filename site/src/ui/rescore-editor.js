@@ -155,7 +155,7 @@ export function buildRulesListHTML(rules, { rulesId, saveFn, deleteFn, addFn = '
       const disabled = readOnly ? ' disabled' : '';
       const inputHandlers = readOnly ? '' : ` oninput="onRuleInput(this)" onchange="${saveFn}(${i},'input',this.value)"`;
       let fieldsHTML = `<input class="rule-in${inputInvalid ? ' invalid' : ''}" autocapitalize="off" autocorrect="off" spellcheck="false" value="${esc(r.input)}"
-            title="Score range: 50, 50-59, or 50+"${disabled}${inputHandlers}>`;
+            data-help="rule/score" title="Score range"${disabled}${inputHandlers}>`;
       if (rescore) {
         const lenVal = (r.length || '').trim();
         const lenInvalid = !readOnly && lenVal !== '' && parseRange(lenVal) === null;
@@ -164,10 +164,10 @@ export function buildRulesListHTML(rules, { rulesId, saveFn, deleteFn, addFn = '
         const outHandlers = readOnly ? '' : ` oninput="onRuleInput(this)" onchange="${saveFn}(${i},'output',this.value)"`;
         fieldsHTML += `
           <span class="rule-field-lbl">length</span><input class="rule-len${lenInvalid ? ' invalid' : ''}" autocapitalize="off" autocorrect="off" spellcheck="false" value="${esc(r.length||'')}" placeholder="any"
-            title="Entry length filter: 7, 7-10, or 7+ (blank = any length)"${disabled}${lenHandlers}>
+            data-help="rule/length" title="Entry length filter"${disabled}${lenHandlers}>
           <span class="rule-arrow">→</span>
           <input class="rule-out${outInvalid ? ' invalid' : ''}" autocapitalize="off" autocorrect="off" spellcheck="false" value="${esc(r.output)}" placeholder="unchanged"
-            title="Output score, or blank for unchanged"${disabled}${outHandlers}>`;
+            data-help="rule/output" title="Output score"${disabled}${outHandlers}>`;
       }
       return buildRuleRowHTML(i, fieldsHTML, r.note, deleteFn, readOnly);
     }).join('');

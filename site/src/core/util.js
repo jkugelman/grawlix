@@ -37,8 +37,12 @@ export function timeAgo(ts) {
 }
 
 export function buildHelpHTML(rows, opts = {}) {
-  const items = rows.map(([code, desc]) =>
-    `<span><kbd>${esc(code)}</kbd> ${esc(desc)}</span>`).join('');
+  const items = rows.map(([code, desc, rowOpts]) => {
+    const token = rowOpts?.ghost
+      ? `<i class="help-ghost">${esc(code)}</i>`
+      : `<kbd>${esc(code)}</kbd>`;
+    return `<span>${token} ${esc(desc)}</span>`;
+  }).join('');
   const oneCol = opts.cols === 1 ? ' one-col' : '';
   const footer = opts.link
     ? `<div class="help-link"><a href="${esc(opts.link.url)}" target="_blank" rel="noopener">${esc(opts.link.text)}</a></div>`

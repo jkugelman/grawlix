@@ -1139,6 +1139,7 @@ html.dark-mode #discovery-banner { background: color-mix(in srgb, var(--accent) 
 .popup-help .help-grid.one-col { column-count: 1; }
 .popup-help span { display: flex; align-items: baseline; gap: 5px; margin-bottom: 2px; break-inside: avoid; }
 .popup-help kbd { font-family: var(--font-mono); font-size: 11px; color: var(--text); white-space: nowrap; }
+.popup-help .help-ghost { font-style: italic; font-weight: 400; color: var(--text); }
 .popup-help .help-link { margin-top: 6px; padding-top: 6px; border-top: 1px solid var(--border); }
 .popup-help .help-link a { color: var(--accent); text-decoration: none; }
 .popup-help .help-link a:hover { text-decoration: underline; }

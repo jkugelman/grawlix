@@ -2,6 +2,8 @@
 
 // ─── Tool catalog & tool helpers ─────────────────────────────────────────────
 
+import { SCORE_RANGE_HELP, LENGTH_HELP } from './range.js';
+import { OUTPUT_HELP } from './rescore.js';
 import anagrams from './tools/anagrams.js';
 import letter_bank from './tools/letter_bank.js';
 import restricted_alphabet from './tools/restricted_alphabet.js';
@@ -113,6 +115,13 @@ for (const [toolKey, tool] of Object.entries(TOOLS)) {
     if (p.help) PARAM_HELP[`${toolKey}/${p.key}`] = p.help;
   }
 }
+// Non-tool inputs share the same data-help mechanism; each key must match the
+// `data-help` its input builder emits — the score-range filter in
+// buildScoreRangeInputHTML, the rescore/scoring rule fields in buildRulesListHTML.
+PARAM_HELP['filter/score'] = SCORE_RANGE_HELP;
+PARAM_HELP['rule/score']   = SCORE_RANGE_HELP;
+PARAM_HELP['rule/length']  = LENGTH_HELP;
+PARAM_HELP['rule/output']  = OUTPUT_HELP;
 
 // Normalize tool param strings: lowercase only. Same rule as wlEntry.norm —
 // the executor runs this on every param before handing to `run`, so tools see

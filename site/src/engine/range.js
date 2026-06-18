@@ -1,5 +1,7 @@
 'use strict';
 
+import { buildHelpHTML } from '../core/util.js';
+
 export function parseRange(str) {
   str = (str || '').trim();
   if (!str) return null;
@@ -8,6 +10,19 @@ export function parseRange(str) {
   const mExact = str.match(/^(\d+)$/);          if (mExact) return [{ min: +mExact[1], max: +mExact[1] }];
   return null;
 }
+
+export const SCORE_RANGE_HELP = buildHelpHTML([
+  ['50', 'exact score'],
+  ['30+', 'minimum score'],
+  ['30-50', 'score range'],
+], { cols: 1 });
+
+export const LENGTH_HELP = buildHelpHTML([
+  ['blank', 'any length', { ghost: true }],
+  ['7', 'exact length'],
+  ['5+', 'minimum length'],
+  ['5-7', 'length range'],
+], { cols: 1 });
 
 export function matchesRange(value, intervals) {
   for (const { min, max } of intervals) {
