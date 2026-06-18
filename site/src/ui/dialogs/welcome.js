@@ -79,7 +79,7 @@ export const WelcomeDialog = (() => {
       <section class="welcome-feature">
         <div class="welcome-copy">
           <h3>Hunt for puzzle ideas</h3>
-          <p>Comb the beach with ${featuredToolNames}, and a few dozen more tools. Combine them to unlock new wordplay possibilities.</p>
+          <p>Search for buried treasure with ${featuredToolNames}, and a few dozen more tools. Combine them to unlock new wordplay possibilities.</p>
         </div>
         <div class="welcome-shot" inert><div class="welcome-shot-inner welcome-shot-tools">${toolsShot}</div></div>
       </section>
