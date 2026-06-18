@@ -43,6 +43,17 @@ async function expectStatsShape(page, shape) {
   }).toEqual(shape);
 }
 
+async function settledStatsVisibility(page) {
+  let last = null, stable = 0;
+  await expect.poll(async () => {
+    const b = await statsBarBoxes(page);
+    const cur = JSON.stringify({ min: b.min !== null, max: b.max !== null, histogram: b.histogram !== null });
+    if (cur === last) stable++; else { stable = 0; last = cur; }
+    return stable;
+  }).toBeGreaterThanOrEqual(2);
+  return JSON.parse(last);
+}
+
 test.describe('Stats bar layout', () => {
   test('at iPhone width: stats-bar sections do not overlap', async ({ page }) => {
     await page.setViewportSize({ width: 375, height: 667 });
@@ -60,17 +71,30 @@ test.describe('Stats bar layout', () => {
     expect(b.controls.right).toBeLessThanOrEqual(b.bar.right + 1);
   });
 
-  test('shrinking the viewport hides Min/Max first, then the histogram', async ({ page }) => {
-    await page.setViewportSize({ width: 1200, height: 800 });
+  test('Min/Max hide before the histogram as the viewport narrows', async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 800 });
     await gotoApp(page);
     await seedWordlist(page);
 
-    await expectStatsShape(page, { min: true, max: true, histogram: true });
+    // Breakpoint widths are font-metric-dependent — they shift between rendering
+    // environments. Assert the hide priority, never a specific width; pinning one
+    // reintroduces a flake that only surfaces under a different font.
+    const widths = [1280, 1040, 880, 760, 680, 620, 560, 500, 460, 420, 380, 340];
+    const samples = [];
+    for (const width of widths) {
+      await page.setViewportSize({ width, height: 800 });
+      samples.push({ width, ...(await settledStatsVisibility(page)) });
+    }
 
-    await page.setViewportSize({ width: 600, height: 800 });
-    await expectStatsShape(page, { min: false, max: false, histogram: true });
+    expect(samples.at(0)).toMatchObject({ min: true, max: true, histogram: true });
+    expect(samples.at(-1)).toMatchObject({ min: false, max: false, histogram: false });
 
-    await page.setViewportSize({ width: 375, height: 667 });
-    await expectStatsShape(page, { min: false, max: false, histogram: false });
+    for (const s of samples) {
+      expect(s.min).toBe(s.max);
+      if (s.min) expect(s.histogram).toBe(true);
+    }
+
+    const hiddenBelow = (key) => Math.max(...samples.filter((s) => !s[key]).map((s) => s.width));
+    expect(hiddenBelow('min')).toBeGreaterThan(hiddenBelow('histogram'));
   });
 });

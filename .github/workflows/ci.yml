@@ -49,6 +49,13 @@ jobs:
   test:
     needs: build
     runs-on: ubuntu-latest
+    # The image tag pins a Playwright version that must match package-lock.json —
+    # the guard step below fails the job loudly if they drift.
+    container:
+      image: mcr.microsoft.com/playwright:v1.60.0-noble
+      # Chromium crashes intermittently under load with the default container
+      # /dev/shm; host IPC gives it a large enough shared-memory segment.
+      options: --ipc=host
     # Backstop only — the real gate is the step-level timeout on "Run tests".
     timeout-minutes: 20
     # Each job runs Playwright single-worker (webkit flakes under parallel-worker
@@ -70,6 +77,14 @@ jobs:
           - { browser: webkit,   shard: 2, shards: 4 }
           - { browser: webkit,   shard: 3, shards: 4 }
           - { browser: webkit,   shard: 4, shards: 4 }
+    env:
+      # Firefox won't launch when $HOME is owned by another user — in the
+      # container GitHub's HOME=/github/home is owned by the image's pwuser, so
+      # point it at root's own home. (Chromium/WebKit don't care.)
+      HOME: /root
+      # Keep in sync with the container image tag above; the guard step enforces
+      # it against the installed @playwright/test.
+      PW_VERSION: 1.60.0
     steps:
       - uses: actions/checkout@v6
 
@@ -80,18 +95,17 @@ jobs:
 
       - run: npm ci
 
-      # Cache Playwright browser binaries per engine — each job installs only
-      # its own. Key on package-lock (Playwright version → browser ABI).
-      - uses: actions/cache@v5
-        with:
-          path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ matrix.browser }}-${{ hashFiles('package-lock.json') }}
-
-      # Always run install — idempotent (skips already-cached binaries) and
-      # self-healing if the cache key ever lies. System deps aren't cached and
-      # always need apt-get, so --with-deps stays on every run.
-      - name: Install Playwright browser + system deps
-        run: npx playwright install --with-deps ${{ matrix.browser }}
+      # The container bakes in browsers for one specific Playwright version; if
+      # package-lock drifts from the image tag, browser lookup fails later with a
+      # cryptic "executable doesn't exist". Catch it here with a clear message —
+      # bump PW_VERSION and the container image tag together.
+      - name: Guard — Playwright version matches the container image
+        run: |
+          installed=$(node -p "require('@playwright/test/package.json').version")
+          if [ "$installed" != "$PW_VERSION" ]; then
+            echo "::error::@playwright/test is $installed but the container image is pinned to v$PW_VERSION — bump the container image tag and PW_VERSION in ci.yml together."
+            exit 1
+          fi
 
       - name: Download built site
         uses: actions/download-artifact@v7
