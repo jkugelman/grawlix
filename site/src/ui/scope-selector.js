@@ -300,6 +300,14 @@ export const WordlistSelector = (() => {
     if (draftScope() !== state.selected) beginEdit(state.selected);
     renderEditorContent();
   }
+  // Like refreshEditor but reseeds the draft even when the scope is unchanged —
+  // for when committed rules are rewritten under an open editor (baking resets
+  // them), which refreshEditor's scope guard would otherwise leave stale.
+  function reseedEditor() {
+    if (!editorOpen) return;
+    beginEdit(state.selected);
+    renderEditorContent();
+  }
   function expandEditor() {
     editorOpen = true;
     setToggleExpanded(true);
@@ -417,5 +425,5 @@ export const WordlistSelector = (() => {
     renderTrigger();
   }
 
-  return { mount, refresh, refreshEditor, refreshSyncSign, refreshMeta, toggleEditor, isEditorOpen: () => editorOpen, collapseEditor };
+  return { mount, refresh, refreshEditor, reseedEditor, refreshSyncSign, refreshMeta, toggleEditor, isEditorOpen: () => editorOpen, collapseEditor };
 })();

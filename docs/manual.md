@@ -199,7 +199,7 @@ The **adjustments (sliders) icon** beside the selector opens an inline editor th
 
 **The table is the live preview.** While the editor is open on a source, the rows below show a `350 → 80` arrow on any entry a rule remaps, updating as you type so you tune a rule and watch its effect immediately.
 
-**Your edits are batched — Apply to save.** Changes in the editor are staged: the table previews them live, but nothing is saved until you click **Apply** (the editor closes then), and **Cancel** throws them away. This keeps editing snappy on big wordlists — the rescore runs once when you Apply, not on every keystroke. Closing the editor with unsaved changes asks before discarding them.
+**Your edits are batched — Save to keep them.** Changes in the editor are staged: the table previews them live, but nothing is saved until you click **Save** (the editor closes then), and **Cancel** throws them away. This keeps editing snappy on big wordlists — the rescore runs once when you Save, not on every keystroke. Closing the editor with unsaved changes asks before discarding them.
 
 **Rescoring rules** map an input score range — and an optional entry-length filter — to an output score; focus any of those fields for a syntax cheat sheet. Rules are checked **top to bottom and the first match wins**, so order matters when ranges overlap — a broad rule placed above a narrow one shadows it. You control the order: **drag any rule by its handle (`≡`) to reorder it** (tier labels reorder the same way), and rules never re-sort themselves. Each source and My Edits carries them; My Edits' typed scores are stored raw and run through its rules just like any source. Custom wordlists with up to 10 distinct scores get auto-seeded with one inert rule per score on first import, so you see the wordlist's scale laid out next to All Wordlists' — fill in output mappings, or leave them blank to pass the scores through.
 
@@ -207,9 +207,9 @@ Rescoring is entirely optional. If a wordlist's scores don't line up with Grawli
 
 **Scoring rules** (the All Wordlists editor) are your tier labels for the merged scale ("60 = great, 50 = good, …"). They feed the hover tooltip on each score badge. Labeling is optional too — unlabeled scores still appear, just without a tier name in the tooltip.
 
-Below the rules, the editor's footer holds the **Cancel** / **Apply** buttons, with a few rarer actions as quiet links on the left:
+Below the rules, the editor's footer holds the **Cancel** / **Save** buttons, with a few rarer actions as quiet links on the left:
 
-- **Reset to defaults** appears once your rules differ from their shipped defaults — rescore on a publisher source or My Edits, scoring on All Wordlists. It confirms, then restores the defaults into the editor (Apply still saves). Visible only when there's something to undo.
+- **Reset to defaults** appears once your rules differ from their shipped defaults — rescore on a publisher source or My Edits, scoring on All Wordlists. It confirms, then restores the defaults into the editor — you still Save to commit. Visible only when there's something to undo.
 - **Disable rescoring** (sources only) keeps a wordlist's raw scores and notes but drops Grawlix's remapping: the input ranges and notes survive as a documenting legend, only the score remapping goes away. It makes the list dirty, so Reset stays available to undo it. (On All Wordlists it has no place — tier labels already remap nothing.)
 - **Make permanent** (My Edits and imported wordlists) rewrites every entry's stored score to its rescored value, then resets the rules. Use it once you've translated a personal list onto Grawlix's scale and want to stop maintaining the translation — afterward the scores *are* Grawlix-scale, so new scores you type are taken at face value. The originals are lost, so grab **Download original** first if you want a backup. Disabled when there's no rescoring to apply, and on auto-fetched or publisher wordlists.
 

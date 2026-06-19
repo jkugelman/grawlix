@@ -31,7 +31,7 @@ import {
   getOutputFormat, getTrashScore,
 } from '../data/serialize.js';
 import {
-  compileRescoreRules, maybeAutoSeedRescoreRules, getRescoredEntries,
+  compileRescoreRules, maybeAutoSeedRescoreRules, getRescoredEntries, rescoreEntry,
 } from '../engine/rescore.js';
 import {
   editsLegend, reconcileEditsRulesAfterImport, invalidateRescoredCache,
@@ -409,16 +409,16 @@ function applyConfigAck(ack) {
 // original-scale data and clobber the bake, and a publisher's defaultRules are a
 // live transform, so resetting a baked publisher list to them would re-rescore
 // the already-baked scores.
-export function canBakeRescoring(wordlist) {
-  return !wordlist.publisherId && !wordlist.url && bakingWouldChangeScores(wordlist);
+export function canBakeRescoring(wordlist, rules = wordlist.rescoreRules) {
+  return !wordlist.publisherId && !wordlist.url && rescoringChangesScores(wordlist, rules);
 }
 
-export function bakingWouldChangeScores(wordlist) {
-  return getRescoredEntries(wordlist).some((e, i) => e.score !== wordlist.rawEntries[i].score);
+export function rescoringChangesScores(wordlist, rules = wordlist.rescoreRules) {
+  return wordlist.rawEntries.some(e => rescoreEntry(e, rules) !== e.score);
 }
 
-export function bakeMenuOpts(wordlist) {
-  if (canBakeRescoring(wordlist)) return {};
+export function bakeMenuOpts(wordlist, rules = wordlist.rescoreRules) {
+  if (canBakeRescoring(wordlist, rules)) return {};
   const reason = (wordlist.publisherId || wordlist.url)
     ? 'Only available for My Edits and imported lists'
     : 'No rescoring to apply';

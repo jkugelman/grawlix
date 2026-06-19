@@ -86,10 +86,11 @@ export function cancelRescoreDraft() {
   discardDraft();
 }
 
-// Bake reads committed rules, so apply the draft first or it bakes stale rules.
-export function makeRescorePermanent() {
-  applyRescoreDraft();
-  _bake();
+// Bake reads committed rules, so commit the draft first or it bakes stale ones.
+export async function makeRescorePermanent() {
+  commitDraft();
+  await _bake();
+  WordlistSelector.reseedEditor();
 }
 
 // Local re-preview only — no worker round-trip, since only the preview rules
@@ -185,7 +186,7 @@ function buildEditorFooterHTML(rareLinks) {
       <div class="rescore-footer-rare">${rareLinks.join('')}</div>
       <div class="rescore-footer-commit">
         <button type="button" class="rescore-cancel" onclick="cancelRescoreDraft()">Cancel</button>
-        <button type="button" class="primary rescore-apply" onclick="applyRescoreDraft()"${isDraftDirty() ? '' : ' disabled'}>Apply</button>
+        <button type="button" class="primary rescore-apply" onclick="applyRescoreDraft()"${isDraftDirty() ? '' : ' disabled'}>Save</button>
       </div>
     </div>`;
 }
@@ -193,33 +194,40 @@ function buildEditorFooterHTML(rareLinks) {
 export function buildRescoreSectionHTML() {
   const wl = _draftScope;
   if (!wl || isScoringScope(wl)) return '';
-  const rules = _draft;
-  const list = buildRulesListHTML(rules, {
+  const list = buildRulesListHTML(_draft, {
     rulesId: 'rescore-rules', saveFn: 'saveRuleField', deleteFn: 'deleteRule', addFn: 'addRule', rescore: true,
   });
+  return `${list}${buildRescoreFooterHTML()}`;
+}
+
+function buildRescoreFooterHTML() {
+  const wl = _draftScope;
+  const rules = _draft;
   const defaults = getWordlistDefaultRules(wl);
   const draftDirty = defaults !== null && !rescoreRulesEqual(rules, defaults);
-  const bakeOpts = _bakeMenuOpts(wl);
   const rare = [];
   if (draftDirty) rare.push(buildRareLinkHTML('rule-reset-btn', 'Reset to defaults', 'resetRescoreRules()'));
   if (rescoringIsNeutralizable(rules)) {
     rare.push(buildRareLinkHTML('rule-neutralize-btn', 'Disable rescoring', 'neutralizeRescoreRules()',
       { title: "Keep this list's raw scores and notes — drop only Grawlix's rescoring" }));
   }
-  rare.push(buildRareLinkHTML('rule-bake-btn', 'Make permanent', 'makeRescorePermanent()', bakeOpts));
-  return `${list}${buildEditorFooterHTML(rare)}`;
+  rare.push(buildRareLinkHTML('rule-bake-btn', 'Make permanent', 'makeRescorePermanent()', _bakeMenuOpts(wl, rules)));
+  return buildEditorFooterHTML(rare);
 }
 
 export function buildScoringSectionHTML() {
-  const rules = _draft || [];
-  const list = buildRulesListHTML(rules, {
+  const list = buildRulesListHTML(_draft || [], {
     rulesId: 'scoring-rules', saveFn: 'saveScoringField', deleteFn: 'deleteScoringRow', addFn: 'addScoringRow', rescore: false,
   });
+  return `${list}${buildScoringFooterHTML()}`;
+}
+
+function buildScoringFooterHTML() {
   const rare = [];
-  if (!scoringRulesEqual(rules, DEFAULT_SCORING)) {
+  if (!scoringRulesEqual(_draft || [], DEFAULT_SCORING)) {
     rare.push(buildRareLinkHTML('rule-reset-btn', 'Reset to defaults', 'resetScoringRules()'));
   }
-  return `${list}${buildEditorFooterHTML(rare)}`;
+  return buildEditorFooterHTML(rare);
 }
 
 // ─── Scoring (tier labels) ────────────────────────────────────────────────────
@@ -301,9 +309,9 @@ function rescoringIsNeutralizable(rules) {
   return (rules || []).some(r => r.scoring === false || (r.output ?? '').trim() !== '');
 }
 
-export async function neutralizeRescoreRules() {
+// No confirm: this only stages into the draft, which Cancel discards and Apply commits.
+export function neutralizeRescoreRules() {
   if (!_draft || isScoringScope(_draftScope) || !_draft.length) return;
-  if (!await showConfirm('Disable rescoring? The input ranges and notes are kept as a legend — only the score remapping is removed.', { confirmText: 'Disable rescoring' })) return;
   _draft = _draft.filter(r => r.scoring !== false).map(r => ({ ...r, output: '' }));
   afterDraftChange();
 }
@@ -393,9 +401,12 @@ export function onRuleInput(el) {
   liveEditDraftField(el);
 }
 
-function syncApplyDisabled() {
-  const apply = document.querySelector('#rescore-editor .rescore-apply');
-  if (apply) apply.disabled = !isDraftDirty();
+// Safe to swap on every keystroke only because the footer holds no inputs —
+// the focused rule field lives in the rules list, untouched by this.
+function refreshFooter() {
+  const footer = document.querySelector('#rescore-editor .rescore-footer');
+  if (!footer || !_draft) return;
+  footer.outerHTML = isScoringScope(_draftScope) ? buildScoringFooterHTML() : buildRescoreFooterHTML();
 }
 
 function liveEditDraftField(el) {
@@ -409,6 +420,6 @@ function liveEditDraftField(el) {
   if (!_draft[i]) return;
   _draft[i][field] = el.value;
   if (!isScoringScope(_draftScope)) compileRule(_draft[i]);
-  syncApplyDisabled();
+  refreshFooter();
   if (getDraftRescoreRules()) getEntriesScroller()?.previewRescore?.();
 }

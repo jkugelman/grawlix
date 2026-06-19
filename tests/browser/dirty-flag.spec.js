@@ -106,9 +106,6 @@ test('neutralize flips dirty, blanks every output, drops scoring:false, keeps Re
 
   const editor = page.locator('#rescore-editor');
   await editor.locator('.rule-neutralize-btn').click();
-  const confirmDialog = page.locator('#confirm-dialog');
-  await expect(confirmDialog).toBeVisible();
-  await confirmDialog.locator('#btn-confirm-ok').click();
   await applyRescoreEditor(page);
 
   const wl = await page.evaluate(() => window.__grawlixTest.getWordlist('John Kugelman'));

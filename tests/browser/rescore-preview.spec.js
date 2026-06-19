@@ -233,9 +233,6 @@ test('Neutralize blanks rule outputs, drops scoring:false rows, and clears the a
   await expect(oceanScore(page).locator('.atom-score-arrow')).toHaveCount(1);
 
   await neutralizeBtn(page).click();
-  const confirmDialog = page.locator('#confirm-dialog');
-  await expect(confirmDialog).toBeVisible();
-  await confirmDialog.locator('#btn-confirm-ok').click();
 
   // Disable rescoring stages into the draft: the preview drops the arrow at
   // once, but the committed rules only change on Apply.
@@ -274,4 +271,49 @@ test('Disable rescoring is hidden when every rule is already pass-through (a no-
   await openRescoreEditor(page);
   await expect(page.locator('#rescore-rules .rule-row')).toHaveCount(2);
   await expect(neutralizeBtn(page)).toHaveCount(0);
+});
+
+const bakeBtn = page => page.locator('#rescore-editor .rule-bake-btn');
+
+async function seedBakeable(page) {
+  await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
+    name: 'Mine', entries: ['ocean'], scores: [350],
+  }));
+  await page.evaluate(() => window.__grawlixTest.setRescoreRules('Mine', [
+    { input: '350', length: '', output: '', note: '' },
+  ]));
+  await scopeViaSelector(page, 'Mine');
+  await openRescoreEditor(page);
+}
+
+test('Make permanent enables live as you type, before any blur or Apply', async ({ page }) => {
+  await gotoApp(page);
+  await seedBakeable(page);
+  await expect(bakeBtn(page)).toBeDisabled();  // committed rule is pass-through
+
+  // fill dispatches input but not blur, so this proves the live (oninput) path
+  // lights the button without a focus shift.
+  await ruleOutput(page).fill('80');
+  await expect(applyBtn(page)).toBeEnabled();  // still uncommitted
+  await expect(bakeBtn(page)).toBeEnabled();   // yet bakeable already
+});
+
+test('Make permanent bakes an unsaved draft and leaves the editor open', async ({ page }) => {
+  await gotoApp(page);
+  await seedBakeable(page);
+  await ruleOutput(page).fill('80');
+
+  // A rescore-editor repaint can swallow the bake click; retry until the confirm
+  // dialog opens (same race as wordlist-selector's bake-button test).
+  await expect(async () => {
+    await bakeBtn(page).click();
+    await expect(page.locator('#confirm-dialog')).toBeVisible({ timeout: 2000 });
+  }).toPass({ timeout: 15000 });
+  await page.locator('#confirm-dialog #btn-confirm-ok').click();
+  await page.evaluate(() => window.__grawlixTest.pipelineIdle());
+
+  await expect(page.locator('#rescore-editor')).toBeVisible();  // unlike Apply, stays open
+  await expect.poll(() => page.evaluate(() =>
+    window.__grawlixTest.getWordlist('Mine').entries.map(e => e.score))).toEqual([80]);
+  await expect(bakeBtn(page)).toBeDisabled();  // rules reset → nothing left to bake
 });
