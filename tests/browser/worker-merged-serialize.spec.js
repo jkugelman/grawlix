@@ -196,25 +196,25 @@ test('M2 mirror not-fresh: the flush replies null and main serializes locally', 
   expect(text.length).toBeGreaterThan(0);
 });
 
-// ─── C1: Welcome All-Wordlists count ─────────────────────────────────────────
+// ─── C1: Help All-Wordlists count ────────────────────────────────────────────
 
-test('C1 Welcome merge count: worker count matches the local fallback', async ({ page }) => {
+test('C1 Help merge count: worker count matches the local fallback', async ({ page }) => {
   await gotoApp(page);
   await seedCorpus(page);
   await scopeTo(page, 'All Wordlists');
 
-  const countText = page.locator('#welcome-dialog .welcome-merge-count');
-  const openWelcome = () => page.evaluate(() => window.__grawlixTest.openWelcome());
-  const closeWelcome = () => page.evaluate(() => document.getElementById('welcome-dialog').close());
+  const countText = page.locator('#help-dialog .faq-merge-count');
+  const openHelp = () => page.evaluate(() => window.__grawlixTest.openHelp());
+  const closeHelp = () => page.evaluate(() => document.getElementById('help-dialog').close());
 
   // No sync yet: the count comes from main's local merge — the baseline. Read via
   // the rendered dialog text so we exercise the real render path.
-  await openWelcome();
+  await openHelp();
   const localText = await countText.textContent();
-  await closeWelcome();
+  await closeHelp();
 
   await makeFresh(page);
-  await openWelcome();
+  await openHelp();
   const workerText = await countText.textContent();
 
   expect(workerText).toBe(localText);

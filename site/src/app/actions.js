@@ -19,7 +19,7 @@ import {
   sources$, state, wrapWordlist, newDbKey, getEditsWordlist,
 } from '../data/state.js';
 import {
-  lsLoad, idbGet, Storage, openDB, resetAllDataAndReload,
+  lsLoad, lsSave, idbGet, Storage, openDB, resetAllDataAndReload,
 } from '../data/storage.js';
 import {
   SCHEMA_VERSION, canMigrate, migrateLocalStorage, migrateIdbRecords, remapStoredUrls,
@@ -54,13 +54,11 @@ import {
 } from '../data/disk-sync.js';
 import { propagateDefaults } from '../model/scoring.js';
 import { showToast, showActionToast, showUndoToast } from '../ui/toasts.js';
-import { buildMoreMenuHTML, toggleSplitMenu } from '../ui/components.js';
+import { buildMoreMenuHTML } from '../ui/components.js';
 import { showConfirm, showAlert, showMergeConflict } from '../ui/dialogs/confirm.js';
 import { openUpdateSummaryDialog } from '../ui/dialogs/update-summary.js';
 import { SettingsDialog, cycleDarkMode } from '../ui/dialogs/settings.js';
-import { WelcomeDialog } from '../ui/dialogs/welcome.js';
-import { FaqDialog } from '../ui/dialogs/faq.js';
-import { AcknowledgementsDialog } from '../ui/dialogs/acknowledgements.js';
+import { HelpDialog } from '../ui/dialogs/help.js';
 import { AppView } from '../ui/app-view.js';
 import {
   activeGroupColumns, AtomPopover,
@@ -244,9 +242,8 @@ export async function init() {
 
   await loadSyncTargets();
   const { granted, prompt } = await partitionSyncPermissions();
-  // welcomeSeen is only set on Welcome-dialog close, so it's still absent here for
-  // a first-time visitor — the new-vs-returning signal the launch baseline needs.
-  const isReturning = !!lsLoad('welcomeSeen');
+  const isReturning = !!lsLoad('returningVisitor');
+  lsSave('returningVisitor', '1');
   const newToolSlugs = pendingNewTools(isReturning);
   const revealNewTools = () => {
     if (!newToolSlugs.length) return;
@@ -266,7 +263,7 @@ export async function init() {
   Promise.all(granted.map(activateSyncTarget)).catch(err => console.error('sync resume failed', err));
 
   bindEvents();
-  if (!lsLoad('welcomeSeen')) WelcomeDialog.open();
+  syncHelp();
   checkForUpdates();
   checkWorkerAssets();
   setInterval(() => { checkForUpdates(); checkWorkerAssets(); }, UPDATE_CHECK_INTERVAL);
@@ -833,14 +830,17 @@ function newEntrySeedQuery() {
 
 // ─── Event wiring ─────────────────────────────────────────────────────────────
 
+function syncHelp() {
+  if (location.hash === '#help') HelpDialog.open();
+  else if (HelpDialog.isOpen()) HelpDialog.close();
+}
+
 export function bindEvents() {
   // Header chrome
   document.querySelector('.header-logo-link').href = location.pathname;
   document.getElementById('btn-settings').onclick = () => SettingsDialog.open();
-  document.getElementById('btn-help').onclick = e => toggleSplitMenu(e);
-  document.getElementById('menu-welcome').onclick = () => WelcomeDialog.open();
-  document.getElementById('menu-faq').onclick = () => FaqDialog.open();
-  document.getElementById('menu-acknowledgements').onclick = () => AcknowledgementsDialog.open();
+  document.getElementById('btn-help').onclick = () => { location.hash = 'help'; };
+  window.addEventListener('hashchange', syncHelp);
   document.getElementById('add-fab').onclick = () =>
     AtomPopover.openForCreate(newEntrySeedQuery(), getEntriesScroller(), null);
 

@@ -1,8 +1,59 @@
 'use strict';
 
-// ─── FAQ dialog ───────────────────────────────────────────────────────────────
+// ─── Help dialog ──────────────────────────────────────────────────────────────
 
+import { WORDLIST_PUBLISHERS, MERGED_NAME } from '../../core/constants.js';
+import { esc, pluralize } from '../../core/util.js';
+import { getBrowser } from '../../core/platform.js';
+import { FEATURED_TOOLS, TOOLS } from '../../engine/tools.js';
+import { mergedEntryCount } from '../../data/merge.js';
+import { buildIconHTML, colorSeed, getMergedIcon } from '../icons.js';
+import { buildToolCardHTML } from '../tool-stack.js';
 import { createDialog, showDialog } from './dialog.js';
+
+function mergeDiagram() {
+  const byPop = [...WORDLIST_PUBLISHERS].sort((a, b) => a.popularity - b.popularity);
+  const sourceIcons = byPop.map(p => buildIconHTML(p.icon, p.name, colorSeed(p))).join('');
+  return `<div class="faq-diagram faq-diagram--merge">
+      <div class="faq-merge-sources">${sourceIcons}</div>
+      <svg class="faq-merge-arrow" width="16" height="10" viewBox="0 0 16 10" aria-hidden="true"><path d="M2 2l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <div class="faq-merge-all">
+        <div class="faq-merge-all-head">${getMergedIcon()}<span class="faq-merge-all-name">${MERGED_NAME}</span></div>
+        <span class="faq-merge-count">${pluralize(mergedEntryCount(), 'entry', 'entries')}</span>
+      </div>
+    </div>`;
+}
+
+function syncDiagram() {
+  return `<div class="faq-diagram faq-diagram--sync">
+      <svg class="faq-sync-icon" aria-hidden="true"><use href="#${getBrowser().icon}"/></svg>
+      <span class="faq-sync-arrow">⇄</span>
+      <span class="faq-sync-emoji">📄</span>
+      <span class="faq-sync-arrow">⇄</span>
+      <svg class="faq-sync-icon" aria-hidden="true"><use href="#icon-crossword"/></svg>
+    </div>`;
+}
+
+function toolsDiagram() {
+  const cards = FEATURED_TOOLS.map(k => TOOLS[k] ? buildToolCardHTML(k, TOOLS[k], { allButton: false }) : '').join('');
+  return `<div class="faq-diagram faq-diagram--tools" inert><div class="faq-tools-strip">${cards}</div></div>`;
+}
+
+function wordlistCreditsHTML() {
+  return [...WORDLIST_PUBLISHERS]
+    // John's own list — Grawlix's author, not a third party.
+    .filter(p => p.id !== 'jkugelman')
+    .sort((a, b) => a.popularity - b.popularity)
+    .map(p => {
+      const icon = buildIconHTML(p.icon, p.name, colorSeed(p));
+      const name = p.homepage
+        ? `<a href="${p.homepage}" target="_blank" rel="noopener">${esc(p.name)}</a>`
+        : esc(p.name);
+      const byline = p.author ? `<span class="acks-credit-by">by ${esc(p.author)}</span>` : '';
+      return `<li class="acks-credit">${icon}<div class="acks-credit-text"><span>${name}</span>${byline}</div></li>`;
+    })
+    .join('');
+}
 
 const SECTIONS = [
   {
@@ -36,8 +87,9 @@ const SECTIONS = [
       },
       {
         q: `What is "All Wordlists"?`,
-        a: `
+        a: () => `
           <p>It's the headline view: every wordlist you've enabled, rescored onto the common scale and merged into one deduped list. It's what you're looking at by default, and it's what you download or sync and hand to your construction software.</p>
+          ${mergeDiagram()}
           <p>When the same word shows up in several lists, the highest-priority list that has it wins. Priority is just the order your lists sit in, which you set under <strong>Manage wordlists</strong>. Search, the tools, the histogram, all of it runs against this merged view unless you deliberately switch to a single list.</p>`,
       },
       {
@@ -59,8 +111,9 @@ const SECTIONS = [
     items: [
       {
         q: 'What is disk sync, and why do I want it?',
-        a: `
+        a: () => `
           <p>Grawlix keeps everything in your browser. Disk sync adds a bridge: it ties one of your lists to one file on your hard drive (ideally the exact file your construction software already loads) and keeps the two matched automatically.</p>
+          ${syncDiagram()}
           <p>Why bother? Without it, every time you rescore a word you'd re-download the merged list and re-import it into your grid software by hand. With sync, you edit in Grawlix and the file just updates underneath. Two flavors, depending on the list:</p>
           <ul>
             <li><strong>All Wordlists and individual sources sync one way.</strong> Grawlix writes the file, your software reads it. Point your software at All Wordlists for the unified list.</li>
@@ -71,12 +124,8 @@ const SECTIONS = [
       {
         q: 'How do I set it up?',
         a: `
-          <p>Switch to the list you want, then click on <strong>Sync to disk</strong>. Wherever you are, you get the same two doors:</p>
-          <ul>
-            <li><strong>Use an existing file</strong> (a one-way list calls it <strong>Overwrite an existing file</strong>) points sync at a file you already have, ideally the exact one your construction software reads. For My Edits, Grawlix loads it in and keeps both sides matched. For All Wordlists or a single source, it overwrites that file with the rescored output.</li>
-            <li><strong>Create a new file</strong> starts a fresh one to write to.</li>
-          </ul>
-          <p>That's it. Once connected, the button becomes a <strong>Synced to <em>filename</em></strong> pill. Click it again any time to open the dialog and <strong>Turn off</strong> sync, which disconnects but leaves the file on disk untouched.</p>`,
+          <p>Switch to the list you want, then click on <strong>Sync to disk</strong>. Pick an existing file on your computer, or create a new one. That's it.</p>
+          <p>Changes you make will be written to that file automatically. If your construction software reads from there, changes you make in Grawlix will show up when gridding. It's that easy.</p>`
       },
       {
         q: 'Can I use the same wordlist across two computers?',
@@ -107,43 +156,70 @@ const SECTIONS = [
       },
       {
         q: `What's the deal with stacking tools?`,
-        a: `
+        a: () => `
           <p>Tools chain. The gallery sits at the top of the screen; click a tool's card and it drops onto a <strong>stack</strong>. Click another and it stacks below. The stack runs top to bottom like a pipeline: the first tool reads whatever you're looking at (usually All Wordlists), and each tool after it works on the output of the one above. Search is always pinned as the last step.</p>
+          ${toolsDiagram()}
           <p>So you can type a set of letters into <strong>Anagram</strong>, then type a few known crossing letters in the search bar to narrow the anagrams down, live, to the ones that actually fit. The search filters Anagram's output as you type. Drag a row by its handle to reorder the pipeline, or hit the ✕ to drop a tool. Stacking is what turns a pile of one-trick tools into combinations.</p>
-          <p>What's that good for? Heck if I know. Try it, let me know what you come up with.`,
+          <p>What's that good for? Heck if I know. Try it, let me know what you come up with.</p>`,
+      },
+    ],
+  },
+  {
+    title: 'Other',
+    items: [
+      {
+        q: 'Who can I thank for this?',
+        a: () => `
+          <p>Grawlix is made by me, John Kugelman. It's a solo project, built to share my pile of bespoke Python scripts and duct tape.</p>
+          <p>It would be useless without other people's wordlists. Thank you to the constructors who make and share them:</p>
+          <ul class="acks-list">${wordlistCreditsHTML()}</ul>
+          <p>The tools are heavily inspired by <a href="https://aaronson.org/wordlisted/" target="_blank" rel="noopener">Wordlisted</a> by Adam Aaronson. Kudos to Adam for putting wordlist searching in everyone's hands.</p>`,
       },
     ],
   },
 ];
 
-export const FaqDialog = (() => {
+export const HelpDialog = (() => {
   let el, body;
 
   function mount() {
-    ({ el, body } = createDialog('faq-dialog', { labelledby: 'faq-title' }));
+    ({ el, body } = createDialog('help-dialog', { labelledby: 'help-title' }));
   }
 
   function sectionHTML(section) {
-    const items = section.items
-      .map(it => `<details class="faq-item"><summary>${it.q}</summary><div class="faq-answer">${it.a}</div></details>`)
-      .join('');
+    const items = section.items.map(it => {
+      const answer = typeof it.a === 'function' ? it.a() : it.a;
+      return `<details class="faq-item"><summary>${it.q}</summary><div class="faq-answer">${answer}</div></details>`;
+    }).join('');
     return `<section class="faq-section"><h3>${section.title}</h3>${items}</section>`;
   }
 
   function render() {
     body.innerHTML = `
       <button type="button" class="dialog-close-btn" aria-label="Close">✕</button>
-      <h2 id="faq-title">FAQ</h2>
+      <h2 id="help-title">Help</h2>
       ${SECTIONS.map(sectionHTML).join('')}
       <div class="dialog-footer">
         <button type="button" class="primary dialog-cancel-btn">Done</button>
       </div>`;
   }
 
-  function open() {
-    render();
-    showDialog(el);
+  // The dialog mirrors the #help hash so it's deep-linkable: closing strips the
+  // hash, and the boot/hashchange sync (in actions) drives open/close from it.
+  function clearHash() {
+    if (location.hash === '#help') history.replaceState(null, '', location.pathname + location.search);
   }
 
-  return { mount, open };
+  function open() {
+    if (el.open) return;
+    render();
+    showDialog(el, clearHash);
+  }
+
+  return {
+    mount,
+    open,
+    close: () => el.close(),
+    isOpen: () => el.open,
+  };
 })();

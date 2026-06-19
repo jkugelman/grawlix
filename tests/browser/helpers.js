@@ -40,18 +40,15 @@ async function stubPublisherFetches(page, bodies = {}) {
 // Polls until init() has finished opening the IndexedDB so callers can
 // immediately call test-API functions that persist data.
 async function gotoApp(page, route = '/') {
-  // Suppress the first-boot welcome modal: as a showModal() dialog its backdrop
-  // would swallow clicks in every test. The welcome test in smoke.spec.js skips
-  // this helper to exercise the real first boot.
-  await page.addInitScript(() => localStorage.setItem('grawlix_welcomeSeen', '1'));
-  // Mark every tool seen so the new-tools reveal doesn't fire — its full-screen
-  // overlay would intercept clicks in every test, like the welcome modal above.
+  // Mark the visitor returning and every tool already seen, so the new-tools
+  // reveal — a full-screen overlay — never fires and swallows clicks in tests.
+  await page.addInitScript(() => localStorage.setItem('grawlix_returningVisitor', '1'));
   await page.addInitScript(slugs => localStorage.setItem('grawlix_seenTools', JSON.stringify(slugs)), Object.keys(TOOLS));
   await page.goto(route);
   await whenBootSettled(page);
 }
 
-// The reload counterpart to gotoApp (the addInitScript welcomeSeen persists across
+// The reload counterpart to gotoApp (the addInitScript returningVisitor persists across
 // the reload). Gate reload tests on this, not on polling a data property like
 // `populated`: keying off when a field happens to be set couples the test to boot
 // timing and breaks silently when that timing changes.

@@ -16,39 +16,18 @@ test('page loads into the unified screen', async ({ page }) => {
   await expect(page.locator('#wordlist-bar .wls-trigger-label')).toHaveText('All Wordlists');
 });
 
-test('welcome popup persists until dismissed and reopens from ?', async ({ page }) => {
-  // Direct goto, not gotoApp (which seeds welcomeSeen): exercise the real first boot.
+test('Help does not auto-open on first boot, and the ? button opens it', async ({ page }) => {
   await page.goto('/');
-
-  const dialog = page.locator('#welcome-dialog');
-  await expect(dialog).toBeVisible();
-  await expect(dialog.locator('#welcome-title')).toContainText('Welcome to Grawlix');
-
-  await page.reload();
-  await expect(dialog).toBeVisible();
-
-  await dialog.getByRole('button', { name: 'Get started' }).click();
-  await expect(dialog).toBeHidden();
-  expect(await page.evaluate(() => localStorage.getItem('grawlix_welcomeSeen'))).toBe('1');
-
-  await page.reload();
   await page.evaluate(() => window.__grawlixTest.whenReady());
   await expect(page.locator('#app')).toBeVisible();
+
+  const dialog = page.locator('#help-dialog');
   await expect(dialog).toBeHidden();
 
   await page.locator('#btn-help').click();
-  await page.locator('#menu-welcome').click();
   await expect(dialog).toBeVisible();
-});
-
-test('welcome All Wordlists count updates live while the dialog is open', async ({ page }) => {
-  await page.goto('/');
-  const meta = page.locator('#welcome-dialog .welcome-merge-count');
-  await expect(meta).toBeVisible();
-  await expect(meta).toHaveText('0 entries');
-
-  await page.evaluate(() => window.__grawlixTest.addCustomWordlist({ name: 'Live', scores: [50, 60, 40] }));
-  await expect(meta).toHaveText('3 entries');
+  await expect(dialog.locator('#help-title')).toContainText('Help');
+  await expect(page).toHaveURL(/#help$/);
 });
 
 test('test API is exposed on window', async ({ page }) => {

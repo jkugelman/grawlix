@@ -2,7 +2,7 @@
 
 ## Policy
 
-Grawlix is live with real users, so **stored data is migrated forward on every schema change — never wiped.** When you change the shape of `localStorage.meta` or an IndexedDB record, bump `SCHEMA_VERSION` (in `site/src/data/migrations.js`) *and* register a `MIGRATIONS` step that upgrades existing data in place. A bump with no migration is a bug.
+Grawlix is live with real users, so **stored data is migrated forward on every schema change — never wiped.** When you change the shape of anything in localStorage (the `meta` blob or a standalone key) or an IndexedDB record, bump `SCHEMA_VERSION` (in `site/src/data/migrations.js`) *and* register a `MIGRATIONS[v]` entry — an `ls` step (localStorage) and/or an `idb` step (IDB records) — that upgrades existing data in place. A bump with no migration is a bug.
 
 This reverses the pre-beta policy, under which a bump just triggered a confirm dialog offering to wipe all local data. That was the right call when no user had data worth keeping and writing migration code cost more than a wipe. The trigger we always named for flipping it — *the first user with data they'd be upset to lose* (a custom-rescored wordlist, hand-edited entries, a personalized rule set) — has fired. Beta testers have that data now.
 
@@ -10,7 +10,7 @@ The reset prompt stays, but only as a last-resort *floor* — see below.
 
 ## How it works
 
-`SCHEMA_VERSION` is compared on load against the stored version — `localStorage.schemaVersion`. Migration runs in **two version-keyed phases**: the settings-blob phase (`MIGRATIONS[v]`, synchronous, before `openDB`) walks the localStorage blob forward, and the IDB-records phase (`IDB_MIGRATIONS[v]`, async, after `openDB`) rewrites IndexedDB records. A given version may register a step in either phase or both; `canMigrate(v)` is satisfied when **either** `MIGRATIONS[v]` or `IDB_MIGRATIONS[v]` exists for every step from the stored version up to current. The single version stamp lands **after both phases complete** — so a crash mid-migration re-runs both idempotent phases next boot rather than stranding half-migrated records under a freshly-stamped version. The load path:
+`SCHEMA_VERSION` is compared on load against the stored version — `localStorage.schemaVersion`. There's one version-keyed table, `MIGRATIONS`, each entry holding an optional `ls` step and/or `idb` step. The table is walked in **two phases** at different boot points: the **localStorage phase** (`MIGRATIONS[v].ls`, synchronous, before `openDB`) walks localStorage forward — reshaping the settings blob, renaming standalone keys, or both — and the **IDB phase** (`MIGRATIONS[v].idb`, async, after `openDB`) rewrites IndexedDB records. The two run at different times because an `idb` step needs the open `_db`, while the `ls` step runs early enough to gate the reset prompt. A given version may register `ls`, `idb`, or both; `canMigrate(v)` is satisfied when **either** an `ls` or `idb` step exists for every version from the stored one up to current. The single version stamp lands **after both phases complete** — so a crash mid-migration re-runs the idempotent phases next boot rather than stranding half-migrated records under a freshly-stamped version. The load path:
 
 1. Equal → proceed.
 2. Stored version older, within the migration horizon → run each phase's steps from the stored version up to current (settings blob first, then IDB records once the DB is open), stamp the new version, proceed. Both venues run the same chain.
@@ -31,7 +31,7 @@ When `canMigrate` returns false the load path falls to the floor: `init()` shows
 ## Cost of migrations
 
 Per bump:
-- Add a `MIGRATIONS[v]` step, keyed by the *from* version.
+- Add a `MIGRATIONS[v]` entry (an `ls` and/or `idb` step), keyed by the *from* version.
 - Add its before→after fixture test (see *Testing migrations*). Buggy migrations *silently corrupt* data, which is worse than losing it — the reset prompt at least announces itself.
 - Keep both until squashed (below).
 
@@ -47,17 +47,17 @@ Be especially conservative with the *shape* of nested objects (rescore rules, ic
 
 **Every migration ships with a permanent before→after test, and those tests aren't deleted casually — only when their version is squashed.** This is the one place Grawlix's otherwise-lean *[regression budget — not automatic](testing.md)* policy flips to *always test*: a migration must transform real historical data correctly *forever*, long after the code around it has moved on.
 
-The trap a normal test misses: a `MIGRATIONS[v]` step leans on the blob shape current at the time, and often on shared helpers. When those churn later — a field renamed, a helper's behavior changed, the blob restructured — an old step can silently start producing wrong output, and nothing notices, because no current code path feeds it old data anymore. A test that builds *current* data and migrates it proves nothing about the step that runs on *v-era* data. Only a **frozen fixture** catches the regression.
+The trap a normal test misses: a `MIGRATIONS[v]` `ls` step leans on the blob shape current at the time, and often on shared helpers. When those churn later — a field renamed, a helper's behavior changed, the blob restructured — an old step can silently start producing wrong output, and nothing notices, because no current code path feeds it old data anymore. A test that builds *current* data and migrates it proves nothing about the step that runs on *v-era* data. Only a **frozen fixture** catches the regression.
 
 So, per version:
 
 - **Before** — a real settings blob captured at version `v`, the exact shape that version persisted, pasted in verbatim and never edited again. Capture it from an actual `localStorage.meta` at that version; don't synthesize it from current code, or it drifts with the code and stops testing anything.
 - **After** — the expected blob once walked to the current schema.
-- Assert `migrateSettings(structuredClone(before), v)` deep-equals `after`. Clone so a re-run doesn't mutate the fixture in place.
+- Assert `migrateLs(structuredClone(before), v)` deep-equals `after`. Clone so a re-run doesn't mutate the fixture in place.
 
-Drive these through `window.__grawlixTest` (expose `migrateSettings` / `MIGRATIONS` there the way the bridge wraps other internals). This is the rare case where asserting the data shape directly — rather than a user-visible outcome, as the suite normally insists — is correct: a migration's entire contract *is* the stored shape, and a wrong shape fails silently.
+Drive these through `window.__grawlixTest` (expose `migrateLs` / `MIGRATIONS` there the way the bridge wraps other internals). This is the rare case where asserting the data shape directly — rather than a user-visible outcome, as the suite normally insists — is correct: a migration's entire contract *is* the stored shape, and a wrong shape fails silently.
 
-An **IDB-phase step** (`IDB_MIGRATIONS[v]`) can't be a pure settings-blob fixture — it reads and writes IndexedDB. Test it in two layers: factor the per-record transform into a pure helper (e.g. v11's `splitSyncRecord`) and freeze a before→after fixture on *that* in the unit tier, then add **one round-trip oracle** in the browser tier that seeds a real old-shape record in IDB, runs `migrateIdbRecords`, and asserts the new records exist with the right contents, the old record is gone, and the live read path (`loadSyncTargets`) reads the migrated target back. The oracle is what proves the real IDB read→write→delete, which the pure fixture can't reach.
+An **`idb` step** can't be a pure settings-blob fixture — it reads and writes IndexedDB. Test it in two layers: factor the per-record transform into a pure helper (e.g. v11's `splitSyncRecord`) and freeze a before→after fixture on *that* in the unit tier, then add **one round-trip oracle** in the browser tier that seeds a real old-shape record in IDB, runs `migrateIdbRecords`, and asserts the new records exist with the right contents, the old record is gone, and the live read path (`loadSyncTargets`) reads the migrated target back. The oracle is what proves the real IDB read→write→delete, which the pure fixture can't reach.
 
 Add, separately, **one or two integration tests through the real boot** — seed an old-version `localStorage.meta`, reload, and assert the migrated state lands, persists, and stamps the new version; and that a *newer* or un-migratable version hits the floor instead. These cover the read path and the floor wiring — once, not per version.
 
@@ -117,12 +117,12 @@ To relocate a file: move it, update the `url` on its publisher in `WORDLIST_PUBL
 
 ## The runner
 
-Two version-keyed step tables live in `site/src/data/migrations.js` near `SCHEMA_VERSION`. `MIGRATIONS[v]` maps a *from* version to a step that mutates a settings blob in place; `IDB_MIGRATIONS[v]` maps a *from* version to an async step that rewrites IndexedDB records (kept separate because IDB steps must run post-`openDB` — folded into `MIGRATIONS` they'd execute against a null `_db`). `canMigrate(from)` checks every step from `from` up to current exists in *one* of the two tables; `migrateSettings(blob, from)` walks the settings phase and `migrateIdbRecords(from)` walks the IDB phase. The drivers:
+One version-keyed table, `MIGRATIONS`, lives in `site/src/data/migrations.js` near `SCHEMA_VERSION`. `MIGRATIONS[v]` maps a *from* version to an `{ ls, idb }` entry: the optional `ls` step mutates the settings blob in place and/or touches standalone localStorage keys; the optional async `idb` step rewrites IndexedDB records. The two run in separate phases — an `idb` step must run post-`openDB` (folded into the `ls` phase it'd execute against a null `_db`), and the `ls` phase runs early enough to gate the reset prompt. `canMigrate(from)` checks every version from `from` up to current has an `ls` or `idb` step; `migrateLs(blob, from)` walks the `ls` phase and `migrateIdbRecords(from)` walks the `idb` phase. The drivers:
 
-- **`migrateLocalStorage(from)`** (settings phase), called from the `init()` mismatch branch before `openDB`, assembles the blob from the separate localStorage keys, migrates, and writes them back. On a thrown step it returns false untouched and the floor's reset confirm takes over. It no longer stamps the version — the stamp moved to `init()` so it can land after *both* phases.
-- **`migrateIdbRecords(from)`** (IDB phase), called from `init()` after `openDB`, walks the `IDB_MIGRATIONS` steps. Each step is idempotent (re-runnable after a mid-migration crash) and deletes its old record *last*, so a crash before that leaves the old record intact to re-split next boot rather than a half-migrated list with no source of truth.
+- **`migrateLocalStorage(from)`** (`ls` phase), called from the `init()` mismatch branch before `openDB`, assembles the blob from the separate localStorage keys, runs `migrateLs`, and writes them back. On a thrown step it returns false untouched and the floor's reset confirm takes over. It no longer stamps the version — the stamp moved to `init()` so it can land after *both* phases.
+- **`migrateIdbRecords(from)`** (`idb` phase), called from `init()` after `openDB`, walks each entry's `idb` step. Each step is idempotent (re-runnable after a mid-migration crash) and deletes its old record *last*, so a crash before that leaves the old record intact to re-split next boot rather than a half-migrated list with no source of truth.
 
-The first IDB-only step is **v10→v11**: it splits each per-list disk-sync record `sync_<key> {handle, baseline}` into `sync_main_<key> {handle}` + `sync_worker_<key> {baseline}` (the baseline record written only when a baseline exists — mirror lists carry none; My Edits' `''` is a real baseline and gets one). No `MIGRATIONS[10]` settings step exists; `canMigrate(10)` is satisfied by the IDB step alone.
+The first IDB-only step is **v10→v11**: it splits each per-list disk-sync record `sync_<key> {handle, baseline}` into `sync_main_<key> {handle}` + `sync_worker_<key> {baseline}` (the baseline record written only when a baseline exists — mirror lists carry none; My Edits' `''` is a real baseline and gets one). `MIGRATIONS[10]` has no `ls` step (it's `idb`-only); `canMigrate(10)` is satisfied by the `idb` step alone.
 
 **Folder→per-file is deliberately not migrated**: a former folder-mode user boots into IDB-mode Grawlix with stale/default state (their real data lives in their folder files, since IDB dropped out under the old model) and manually re-attaches each file; first-attach merges the content back. The orphaned folder handle left in IDB is harmless and isn't garbage-collected. This was a conscious call — folder mode reached almost nobody, and handling a one-user scenario wasn't worth the code.
 

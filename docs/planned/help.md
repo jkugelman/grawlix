@@ -16,9 +16,9 @@ This doc is more discussion than design — the conversation is just getting sta
 
 ## Pages
 
-1. **Welcome / Getting started.** Tiny orientation surface. May be a first-boot in-app slide deck, a static page, or both. Open question whether it stays as the slide-deck-tour shape from the earlier plan, or collapses into a single short page in Crosserville's GettingStarted style.
+1. **Welcome / Getting started.** *(Welcome dropped.)* The first-boot welcome slide deck was removed; the shipped FAQ (the Help dialog) subsumes the "what is this" orientation. A dedicated Getting Started page could still be worth it, but it's no longer blocking.
 
-2. **FAQ.** Q&A format. Covers things people would actually ask: mental-model questions (*"What is rescoring?"*), dark-corner explainers (*"Why does the same word show up twice?"*), data questions (*"Where does my stuff live?"*), philosophy questions (*"Why doesn't Grawlix include wordlists out of the box?"*).
+2. **FAQ.** *(Shipped, as the Help dialog reached from the header `?`.)* Q&A format. Covers things people would actually ask: mental-model questions (*"What is rescoring?"*), dark-corner explainers (*"Why does the same word show up twice?"*), data questions (*"Where does my stuff live?"*), philosophy questions (*"Why doesn't Grawlix include wordlists out of the box?"*). Acknowledgements (item 7) are folded in as a question.
 
 3. **Tips & tricks.** Discovery format. Did-you-know one-liners: *"Click a histogram bar to filter by score range," "Press F2 to rename a wordlist," "Stack URLs are shareable."* For things users wouldn't think to ask about because they don't know the feature exists.
 
@@ -28,7 +28,7 @@ This doc is more discussion than design — the conversation is just getting sta
 
 6. **Wordlists.** Importing, updating, downloading multiple wordlists. May get merged into the rescoring page (related — both cover managing wordlists) or stay separate. Decide when we write it.
 
-7. **Acknowledgements.** *(Shipped.)* Credits the third-party wordlist authors (rendered from the publisher catalog) and Wordlisted, whose search catalog shaped the tool gallery. The first concrete help page — a plain modal reached from the `?` menu (`AcknowledgementsDialog`).
+7. **Acknowledgements.** *(Shipped, folded into the Help/FAQ dialog.)* Credits the third-party wordlist authors (rendered from the publisher catalog) and Wordlisted, whose search catalog shaped the tool gallery. It's a question in the Help dialog (`FaqDialog`), not a separate modal.
 
 ## Explicitly not doing
 
@@ -38,8 +38,8 @@ This doc is more discussion than design — the conversation is just getting sta
 
 ## Open questions
 
-- **In-app delivery shape.** Multi-page works as a content model, but how does it show up inside Grawlix? Modal with tabs, slide-out panel with a TOC, sidebar nav, etc. Punt on the full system until we know the content. The first pieces ship as plain modals reached from a `?`-button menu (Welcome + Acknowledgements); whether the larger system keeps that menu or grows a TOC/nav is still open.
-- **Welcome surface shape.** First-boot slide deck (with animated demos, as the earlier plan described) vs. a single static Getting Started page vs. both. Probably easier to answer after we draft one of the other pages and see what voice/format emerges.
+- **In-app delivery shape.** Multi-page works as a content model, but how does it show up inside Grawlix? Modal with tabs, slide-out panel with a TOC, sidebar nav, etc. Punt on the full system until we know the content. Today the `?` button opens a single Help dialog (the FAQ, with acknowledgements folded in, deep-linkable at `#help`); whether the larger system stays one dialog or grows a TOC/nav is still open.
+- **Getting Started surface.** The first-boot welcome was dropped (the FAQ covers orientation). Whether a dedicated Getting Started page is still worth it — and in what shape — is open, easier to answer after drafting more of the other pages.
 - **Wordlists** as its own page vs. merged into Rescoring.
 - **In-app text dependency.** The "fix the in-app text first" principle assumes the gallery's blurbs and the app's labels are already where they need to be. The tool gallery is on a separate redesign track ([`tools.md`](tools.md)) — its outcome shapes what the Tool-explainer page is left to cover.
 

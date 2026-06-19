@@ -20,7 +20,7 @@ import { setUnigramCorpus as segmenterSetCorpus } from './engine/segmenter.js';
 import { TOOLS, makeToolRow } from './engine/tools.js';
 import { state, newDbKey, syncKey, getEditsWordlist } from './data/state.js';
 import { getDb, Storage } from './data/storage.js';
-import { migrateSettings } from './data/migrations.js';
+import { migrateLs } from './data/migrations.js';
 import {
   invalidateSourceCounts, getSourceCounts, mergedEntryCount, shippedConfigCountsVersion,
 } from './data/merge.js';
@@ -33,9 +33,7 @@ import {
 import { threeWayMergeEdits } from './engine/edits-merge.js';
 import { migrateIdbRecords } from './data/migrations.js';
 import { WordlistSelector } from './ui/scope-selector.js';
-import { WelcomeDialog } from './ui/dialogs/welcome.js';
-import { FaqDialog } from './ui/dialogs/faq.js';
-import { AcknowledgementsDialog } from './ui/dialogs/acknowledgements.js';
+import { HelpDialog } from './ui/dialogs/help.js';
 import { ToolStack, pipelineIdle } from './ui/tool-stack.js';
 import {
   pingWorker, runOnWorker, patchWorkerToolForTest,
@@ -266,9 +264,7 @@ const __grawlixTest = {
   allRowsFetchesSent,
   allGroupsFetchesSent,
   serializeFetchesSent,
-  openWelcome: () => WelcomeDialog.open(),
-  openFaq: () => FaqDialog.open(),
-  openAcknowledgements: () => AcknowledgementsDialog.open(),
+  openHelp: () => HelpDialog.open(),
   fetchWorkerProvenance: (typedRaw, previewRaw, clickedNorm, clickedDisplay, timeout) =>
     fetchWorkerProvenance(typedRaw, previewRaw, clickedNorm, clickedDisplay, timeout),
 
@@ -514,7 +510,7 @@ const __grawlixTest = {
     return wl;
   },
 
-  migrateSettings,
+  migrateLs,
 };
 
 window.__grawlixTest = __grawlixTest;

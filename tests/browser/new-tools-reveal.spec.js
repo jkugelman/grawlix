@@ -12,7 +12,7 @@ test.beforeEach(async ({ page }) => {
 });
 
 async function bootReturning(page, seen) {
-  await page.addInitScript(() => localStorage.setItem('grawlix_welcomeSeen', '1'));
+  await page.addInitScript(() => localStorage.setItem('grawlix_returningVisitor', '1'));
   if (seen) await page.addInitScript(s => localStorage.setItem('grawlix_seenTools', JSON.stringify(s)), seen);
   await page.goto('/');
   await page.evaluate(() => window.__grawlixTest.whenReady());
@@ -44,7 +44,7 @@ test('a returning user who has seen everything gets no reveal', async ({ page })
 });
 
 test('a brand-new visitor is silently baselined and sees no reveal', async ({ page }) => {
-  // No welcomeSeen → first-time visitor (the welcome modal opens, the reveal must not).
+  // No returningVisitor → first-time visitor; the reveal must not fire.
   await page.goto('/');
   await page.evaluate(() => window.__grawlixTest.whenReady());
 

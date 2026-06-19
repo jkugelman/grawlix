@@ -13,10 +13,8 @@ import { buildClearableInputHTML, mountClearableInputs, toggleSplitMenu } from '
 import { showConfirm, showAlert, showMergeConflict, showEditsConflict } from './ui/dialogs/confirm.js';
 import { openUpdateSummaryDialog } from './ui/dialogs/update-summary.js';
 import { SettingsDialog, configureSettings } from './ui/dialogs/settings.js';
-import { WelcomeDialog } from './ui/dialogs/welcome.js';
-import { FaqDialog } from './ui/dialogs/faq.js';
+import { HelpDialog } from './ui/dialogs/help.js';
 import { NewToolsReveal } from './ui/new-tools-reveal.js';
-import { AcknowledgementsDialog } from './ui/dialogs/acknowledgements.js';
 import { SyncDialog, configureSyncDialog } from './ui/dialogs/sync.js';
 import { ConfigureWordlistDialog, configureConfigureWordlist } from './ui/dialogs/configure-wordlist.js';
 import { ImportGuideDialog, configureImportGuide } from './ui/dialogs/import-guide.js';
@@ -145,10 +143,8 @@ function boot() {
   // Dialog/overlay singletons append to <body>. showConfirm must exist before
   // init() (init's migration path calls it); the rest before any UI opens them.
   SettingsDialog.mount();
-  WelcomeDialog.mount();
-  FaqDialog.mount();
+  HelpDialog.mount();
   NewToolsReveal.mount();
-  AcknowledgementsDialog.mount();
   showEditsConflict.mount();
   showConfirm.mount();
   showAlert.mount();

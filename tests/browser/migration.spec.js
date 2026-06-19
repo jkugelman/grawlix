@@ -91,7 +91,7 @@ const V10_AFTER = {
 test('migration v9→v10 rewrites every "ignore" rescore output to "0"', async ({ page }) => {
   await gotoApp(page);
   const result = await page.evaluate(
-    (before) => window.__grawlixTest.migrateSettings(structuredClone(before), 9),
+    (before) => window.__grawlixTest.migrateLs(structuredClone(before), 9),
     V9_BEFORE,
   );
   expect(result).toEqual(V10_AFTER);
@@ -126,7 +126,7 @@ test('a relocated wordlist URL is remapped in stored data on boot', async ({ pag
 
 test('an old v9 store migrates forward on boot and stamps the new version', async ({ page }) => {
   // Downgrade a freshly-seeded meta to a v9 shape so the reload drives the real
-  // load-path migration, not a direct migrateSettings call (the first test's job).
+  // load-path migration, not a direct migrateLs call (the first test's job).
   await gotoApp(page);
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
     name: 'Aged', entries: ['KEEP', 'JUNK'], scores: [50, 70],
@@ -148,5 +148,5 @@ test('an old v9 store migrates forward on boot and stamps the new version', asyn
   expect(wl.rescoreRules).toEqual([{ input: '70', length: '', output: '0' }]);
 
   const stamped = await page.evaluate(() => localStorage.getItem('grawlix_schemaVersion'));
-  expect(stamped).toBe('11');
+  expect(stamped).toBe('12');
 });

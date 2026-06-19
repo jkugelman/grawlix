@@ -2,12 +2,12 @@
 
 // ─── Migrations ─────────────────────────────────────────────────────────────
 
-import { Storage, idbGet, idbPut, idbDel, idbGetAllKeys } from './storage.js';
+import { Storage, lsLoad, lsSave, lsDel, idbGet, idbPut, idbDel, idbGetAllKeys } from './storage.js';
 import { URL_REMAPS } from '../core/constants.js';
 
-// Bump when the shape of stored data (localStorage `meta` or IDB records)
-// changes, and register a step in the same commit — a MIGRATIONS[N] (settings
-// blob) and/or an IDB_MIGRATIONS[N] (IDB records). A bump with neither for some
+// Bump when the shape of stored data (anything in localStorage, or an IDB
+// record) changes, and register a step in the same commit — a MIGRATIONS[N]
+// entry with an `ls` and/or `idb` function. A bump with neither for some
 // version routes every existing user to the reset floor. See docs/migration.md.
 //
 // Schema version history:
@@ -17,48 +17,59 @@ import { URL_REMAPS } from '../core/constants.js';
 //   v11 (2026-06-12): split the per-list disk-sync IDB record
 //                     sync_<key> {handle, baseline} into
 //                     sync_main_<key> {handle} + sync_worker_<key> {baseline}.
-export const SCHEMA_VERSION = 11;
+//   v12 (2026-06-19): renamed the standalone returning-visitor flag
+//                     welcomeSeen → returningVisitor.
+export const SCHEMA_VERSION = 12;
 
-// MIGRATIONS[v] upgrades a settings blob from schema v to v+1, mutating it in
-// place (a returned value is ignored). The blob is the
-// { sources, scoring, scoringDirty, mergedSettings } shape that migrateLocalStorage
-// assembles from the separate localStorage keys; migrations target that, never raw storage.
+// MIGRATIONS[v] upgrades stored data from schema v to v+1 via an optional `ls`
+// step and/or `idb` step. The two run in separate boot phases (the array is
+// iterated twice): `ls` synchronously before openDB (migrateLs), `idb` async
+// after openDB (migrateIdbRecords) — an idb step needs the open `_db`, and the
+// ls step runs early enough to gate the reset prompt. The `ls` step gets the
+// settings blob ({ sources, scoring, scoringDirty, mergedSettings } that
+// migrateLocalStorage assembles): it reshapes the blob, touches other standalone
+// keys via lsLoad/lsSave/lsDel, or both.
 export const MIGRATIONS = {
-  9: blob => {
-    for (const w of blob.sources || []) {
-      for (const r of w.rescoreRules || []) {
-        if ((r.output || '').trim().toLowerCase() === 'ignore') r.output = '0';
+  9: {
+    ls: blob => {                               // dropped the 'ignore' rescore output
+      for (const w of blob.sources || []) {
+        for (const r of w.rescoreRules || []) {
+          if ((r.output || '').trim().toLowerCase() === 'ignore') r.output = '0';
+        }
       }
-    }
+    },
   },
-};
-
-// Separate from MIGRATIONS because IDB steps must run post-openDB; the
-// settings-blob phase runs before the DB is open. Fold an IDB step into
-// MIGRATIONS and it executes against a null `_db`.
-export const IDB_MIGRATIONS = {
-  10: async () => {
-    const keys = await idbGetAllKeys();
-    // 'sync_' is a strict prefix of both new prefixes — without this guard the
-    // sweep re-splits its own output (sync_main_/sync_worker_) and corrupts it.
-    const oldKeys = keys.filter(k =>
-      typeof k === 'string'
-      && k.startsWith('sync_')
-      && !k.startsWith('sync_main_')
-      && !k.startsWith('sync_worker_'));
-    for (const oldKey of oldKeys) {
-      const rec = await idbGet(oldKey);
-      if (!rec) { await idbDel(oldKey); continue; }
-      const suffix = oldKey.slice('sync_'.length);
-      // These literals must match disk-sync.js's SYNC_MAIN_PREFIX / SYNC_WORKER_PREFIX —
-      // kept as literals here to avoid pulling disk-sync's dependency graph into migrations.
-      const { main, worker } = splitSyncRecord(rec);
-      await idbPut('sync_main_' + suffix, main);
-      if (worker) await idbPut('sync_worker_' + suffix, worker);
-      // Delete-old-last: a crash before this leaves the old record intact to
-      // re-split next boot, never a half-migrated list with no source of truth.
-      await idbDel(oldKey);
-    }
+  10: {
+    idb: async () => {                          // split the per-list disk-sync record
+      const keys = await idbGetAllKeys();
+      // 'sync_' is a strict prefix of both new prefixes — without this guard the
+      // sweep re-splits its own output (sync_main_/sync_worker_) and corrupts it.
+      const oldKeys = keys.filter(k =>
+        typeof k === 'string'
+        && k.startsWith('sync_')
+        && !k.startsWith('sync_main_')
+        && !k.startsWith('sync_worker_'));
+      for (const oldKey of oldKeys) {
+        const rec = await idbGet(oldKey);
+        if (!rec) { await idbDel(oldKey); continue; }
+        const suffix = oldKey.slice('sync_'.length);
+        // These literals must match disk-sync.js's SYNC_MAIN_PREFIX / SYNC_WORKER_PREFIX —
+        // kept as literals here to avoid pulling disk-sync's dependency graph into migrations.
+        const { main, worker } = splitSyncRecord(rec);
+        await idbPut('sync_main_' + suffix, main);
+        if (worker) await idbPut('sync_worker_' + suffix, worker);
+        // Delete-old-last: a crash before this leaves the old record intact to
+        // re-split next boot, never a half-migrated list with no source of truth.
+        await idbDel(oldKey);
+      }
+    },
+  },
+  11: {
+    ls: () => {                                 // welcomeSeen → returningVisitor
+      const v = lsLoad('welcomeSeen');
+      if (v !== null) lsSave('returningVisitor', v);
+      lsDel('welcomeSeen');
+    },
   },
 };
 
@@ -74,17 +85,17 @@ export function splitSyncRecord(rec) {
 
 export function canMigrate(from) {
   if (!Number.isFinite(from) || from > SCHEMA_VERSION) return false;
-  for (let v = from; v < SCHEMA_VERSION; v++) if (!MIGRATIONS[v] && !IDB_MIGRATIONS[v]) return false;
+  for (let v = from; v < SCHEMA_VERSION; v++) if (!MIGRATIONS[v]?.ls && !MIGRATIONS[v]?.idb) return false;
   return true;
 }
 
-export function migrateSettings(blob, from) {
-  for (let v = from; v < SCHEMA_VERSION; v++) MIGRATIONS[v]?.(blob); // canMigrate(from) must hold; a version may have only an IDB step
+export function migrateLs(blob, from) {
+  for (let v = from; v < SCHEMA_VERSION; v++) MIGRATIONS[v]?.ls?.(blob); // canMigrate(from) must hold; a version may have only an idb step
   return blob;
 }
 
 export async function migrateIdbRecords(from) {
-  for (let v = from; v < SCHEMA_VERSION; v++) await IDB_MIGRATIONS[v]?.();
+  for (let v = from; v < SCHEMA_VERSION; v++) await MIGRATIONS[v]?.idb?.();
 }
 
 // ─── URL remaps ─────────────────────────────────────────────────────────────
@@ -113,7 +124,7 @@ export function migrateLocalStorage(from) {
     scoringDirty:   scoring?.dirty ?? false,
     mergedSettings: Storage.readMergedSettings(),
   };
-  try { migrateSettings(blob, from); }
+  try { migrateLs(blob, from); }
   catch (err) { console.error('migration failed', err); return false; }
   Storage.writeMeta(blob.sources);
   if (blob.scoring) Storage.writeScoring(blob.scoring, blob.scoringDirty);

@@ -208,7 +208,7 @@ Disk sync lets the user point an individual list at an individual file they alre
 
 **Boot resume is non-blocking.** The app loads from IDB immediately and renders before sync is touched. After first paint, `partitionSyncPermissions` calls `queryPermission` (the only silent check — it needs no gesture) on each stored handle: `granted` targets reactivate silently (a mirror schedules a write to bring the file current; My Edits reconciles), zero UI. Targets in `'prompt'` state go to the **reconnect splash** — the loading splash, repurposed (`ReconnectSplash`, reusing the `_hasAnimatedIn` entrance), showing one **`Open <filename>`** button per file (FSA ties one permission request to one gesture, so it's one click per file; a stale handle escalates to a re-pick) plus a muted **Skip for now** link set far apart. Skip is *safe* — the full app already runs from IDB, sync just stays paused — but not *ideal* (the file drifts), so it's deliberately demoted, not a peer button. The harm guarded against is a user not realizing sync stopped; the splash and the per-list pill make it noticeable, never silent. A mid-session lapse is per-list, surfaced on the pill as **Can't find _filename_** (the user turns sync off and re-sets-up, or the boot splash re-grants on next launch) — there is no inline mid-session reconnect.
 
-**Detection: feature + media query.** Sync needs `showOpenFilePicker` *and* `showSaveFilePicker`; `Disk.isSupported()` gates the dialog's *setup* affordances on both. The control is **desktop-only** — `syncSignHTML` returns nothing on mobile (`isMobile()`), so phones and tablets show no sync control at all. On the desktop it always renders (even on Firefox/Safari, where it's a **Sync to disk** button whose dialog explains sync is unavailable) — Download remains the universal escape hatch everywhere. The welcome dialog's caveat still uses `(hover: hover) and (pointer: fine)` to distinguish "desktop, wrong browser" from "phone/tablet."
+**Detection: feature + media query.** Sync needs `showOpenFilePicker` *and* `showSaveFilePicker`; `Disk.isSupported()` gates the dialog's *setup* affordances on both. The control is **desktop-only** — `syncSignHTML` returns nothing on mobile (`isMobile()`), so phones and tablets show no sync control at all. On the desktop it always renders (even on Firefox/Safari, where it's a **Sync to disk** button whose dialog explains sync is unavailable) — Download remains the universal escape hatch everywhere.
 
 **One sync control + an explain-first dialog.** All sync — status *and* control — lives in a single always-present element (`#sync-sign`) that hangs off the wordlist bar on the right. Unconnected, it's a primary **Sync to disk** button. Once connected it becomes a status **pill**: a colored dot plus **Synced to _filename_**, **Saving…** mid-write, **Sync conflict**, or **Can't find _filename_** when the file is gone. The conflict and missing states escalate the dot to an attention tint (`var(--warn-fg)`) and a bordered chip. The browser logo (a Chrome/Firefox/Safari/Edge mark via `BROWSER` UA-sniff, falling back to a generic globe for un-pinnable Chromium forks like Brave/Arc) and the `→`/`⇄` direction arrows live in the *dialog's* diagram, not the bar control — the bar stays a terse button-or-pill.
 
@@ -587,12 +587,15 @@ Across all three Download formats: `grawlix-<tool>-<param>-<tool>-<param>.<ext>`
 
 ## Help
 
-The header `?` button opens a small menu (the shared `.split-btn` dropdown) with two entries:
+The header `?` button opens the **Help** dialog (`FaqDialog`) directly — there is no menu. It is one scrollable dialog that gathers everything help-shaped:
 
-- **Welcome** — `WelcomeDialog`, a short on-demand welcome popup (what Grawlix is, the pre-loaded publisher wordlists, a few featured tools). It also opens automatically on first boot, before the menu is ever used.
-- **Acknowledgements** — `AcknowledgementsDialog`, crediting the third-party wordlist authors (rendered from the publisher catalog, minus John's own list) and Wordlisted, whose search catalog charted much of the tool gallery. This is the user-facing credit; the fuller, maintainer-facing license inventory (third-party deps, wordlist terms, verbatim MIT texts for the bundled icons) lives in [`THIRD-PARTY-NOTICES`](../THIRD-PARTY-NOTICES) at the repo root, kept there deliberately and not shipped with the deployed site.
+- An **FAQ** of collapsible (`<details>`) questions grouped into sections, content authored inline in the module (it can't be sourced from `docs/`: dev serves the raw module graph and `docs/` sits outside `site/`).
+- A couple of small **diagrams** embedded in the relevant answers — the source wordlists merging into All Wordlists (with the live merged count), and the browser ⇄ file ⇄ construction-software sync bridge — plus a featured-tools strip, all rendered at open time from the live catalog.
+- An **Acknowledgements** question (folded into the first section) crediting the third-party wordlist authors (rendered from the publisher catalog, minus John's own list) and Wordlisted, whose search catalog charted much of the tool gallery. The fuller, maintainer-facing license inventory (third-party deps, wordlist terms, verbatim MIT texts for the bundled icons) lives in [`THIRD-PARTY-NOTICES`](../THIRD-PARTY-NOTICES) at the repo root, kept there deliberately and not shipped with the deployed site.
 
-The menu is a placeholder for a real help surface, not the help surface itself: a fuller reference/onboarding system is a separate, still-undesigned track ([`planned/help.md`](planned/help.md)), to land once [`planned/tools.md`](planned/tools.md) settles. See § *Open questions* for that split.
+Help is **deep-linkable at the `#help` hash**: the `?` button sets the hash, a boot/hashchange sync (in `actions`) opens or closes the dialog to match, and closing strips the hash (`history.replaceState`). A hash rather than a `/help` path because GitHub Pages serves no path routes without the SPA 404 trick (§ *URL state*). The dialog never opens on its own — there is no first-boot popup.
+
+The Help dialog is the only help surface today; a fuller multi-page reference/onboarding system remains a separate, undesigned track ([`planned/help.md`](planned/help.md)), to land once [`planned/tools.md`](planned/tools.md) settles.
 
 ## URL state
 
@@ -821,13 +824,13 @@ The alternative — sprinkling `invalidateX()` and `repaintY()` calls at every m
 
 ## Open questions
 
-### A help system, separate from the welcome popup
+### A fuller help system
 
-The header `?` opens a small menu (§ *Help*) — a short first-boot-and-on-demand **Welcome** popup and an **Acknowledgements** page. Those aside, the help *system* — a real reference/onboarding surface separating a one-time welcome tour from a returning-user manual — is its own undesigned track ([`planned/help.md`](planned/help.md)), to land once [`planned/tools.md`](planned/tools.md) settles. The in-app manual doesn't exist yet (the user-facing doc lives in [`manual.md`](manual.md)).
+The header `?` opens the **Help** dialog (§ *Help*) — an FAQ with diagrams and a folded-in Acknowledgements question. Beyond that single dialog, a real multi-page reference/onboarding surface is its own undesigned track ([`planned/help.md`](planned/help.md)), to land once [`planned/tools.md`](planned/tools.md) settles. The in-app manual doesn't exist yet (the user-facing doc lives in [`manual.md`](manual.md)).
 
-### Routes for Settings, Help?
+### Routes for Settings?
 
-Grawlix has no routes beyond the pipeline query string (§ *URL state*); setup-style dialogs (Settings, Help) aren't routed either. Confirms/alerts/downloads stay as dialogs regardless — those really are transient.
+Grawlix has no path routes (§ *URL state*); state lives in the query string. **Help** is the one routed dialog — deep-linkable at the `#help` hash (§ *Help*) — chosen because a help page is something people share and bookmark. Settings and the transient confirms/alerts/downloads stay unrouted; whether Settings should also route is the open question here.
 
 Arguments in favor of routes for setup: setup screens are *places* users spend real time, URL-addressable means deep-linkable and reload-safe, narrow viewports turn modals into full-screen routes anyway. Currently sticking with dialogs because they match the existing codebase idiom. Worth revisiting if the dialog-as-workspace feel becomes a friction point — particularly at narrow viewport widths, where a full-screen modal is essentially a route in disguise. Notes for that revisit: bookmark/share-setup-state is unlikely (so deep-linking isn't a strong driver, just reload-safety); the back button does default browser behavior; the header stays a fixture with no dynamic content (no breadcrumbs). *"Routes for everything" — including confirms — was considered and dropped as too heavy-handed.*
 

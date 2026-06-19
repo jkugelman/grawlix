@@ -1,6 +1,6 @@
 # Grawlix FAQ — candidate questions
 
-The backlog of FAQ questions still to write. As questions get answered they move into the in-app FAQ ([`site/src/ui/dialogs/faq.js`](../../site/src/ui/dialogs/faq.js), reached from the header `?` menu); what's left here is up for grabs.
+The backlog of FAQ questions still to write. As questions get answered they move into the in-app FAQ ([`site/src/ui/dialogs/help.js`](../../site/src/ui/dialogs/help.js), reached from the header `?` menu); what's left here is up for grabs.
 
 Markers: **[★ advertise]** = shows off a feature / nook. **[deep]** = needs a real walkthrough, not a one-liner. **[fun]** = personality, not utility.
 

@@ -143,8 +143,8 @@ test('deleting the scoped source then reloading falls back to All Wordlists', as
 });
 
 test('first run (cleared storage) lands on All Wordlists', async ({ page }) => {
-  // gotoApp seeds welcomeSeen but nothing else; no selectedScope is stored, so
-  // boot must default to All Wordlists.
+  // gotoApp seeds returningVisitor but nothing else; no selectedScope is stored,
+  // so boot must default to All Wordlists.
   await gotoApp(page);
   await expect(page.locator('#wordlist-bar .wls-trigger-label')).toHaveText('All Wordlists');
   // And no selectedScope key was written until the user actually scopes.

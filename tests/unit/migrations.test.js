@@ -1,7 +1,17 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { canMigrate, migrateSettings, remapStoredUrls, splitSyncRecord, MIGRATIONS, SCHEMA_VERSION } from '../../site/src/data/migrations.js';
+import { canMigrate, migrateLs, remapStoredUrls, splitSyncRecord, MIGRATIONS, SCHEMA_VERSION } from '../../site/src/data/migrations.js';
 import { URL_REMAPS } from '../../site/src/core/constants.js';
+
+// Migrations can touch localStorage (the v11 `ls` step renames a key), and a
+// settings fixture runs the whole chain from its version — so the node env needs
+// a localStorage. Minimal in-memory stand-in.
+const _ls = {};
+globalThis.localStorage = {
+  getItem: k => (k in _ls ? _ls[k] : null),
+  setItem: (k, v) => { _ls[k] = String(v); },
+  removeItem: k => { delete _ls[k]; },
+};
 
 test('v9 → v10 rewrites the dropped "ignore" rescore output to "0"', () => {
   const blob = {
@@ -10,10 +20,18 @@ test('v9 → v10 rewrites the dropped "ignore" rescore output to "0"', () => {
       { name: 'B', rescoreRules: [{ input: '0', output: ' Ignore ' }] },
     ],
   };
-  migrateSettings(blob, 9);
+  migrateLs(blob, 9);
   assert.equal(blob.sources[0].rescoreRules[0].output, '0');
   assert.equal(blob.sources[0].rescoreRules[1].output, '80');
   assert.equal(blob.sources[1].rescoreRules[0].output, '0');
+});
+
+test('v11 → v12 renames the standalone welcomeSeen flag to returningVisitor and drops the old key', () => {
+  _ls.grawlix_welcomeSeen = '1';
+  delete _ls.grawlix_returningVisitor;
+  migrateLs({}, 11);
+  assert.equal(_ls.grawlix_returningVisitor, '1');
+  assert.equal('grawlix_welcomeSeen' in _ls, false);
 });
 
 test('remapStoredUrls rewrites a relocated url, reports the change, and no-ops otherwise', () => {
@@ -56,9 +74,9 @@ test('canMigrate gates future versions, non-finite input, and gaps in the step c
 // split must pass it through by identity — this stand-in is asserted unchanged by ===.
 const HANDLE = { __handle: 'opaque' };
 
-test('v10 → v11 is IDB-only: canMigrate(10) holds but no MIGRATIONS[10] settings step', () => {
+test('v10 → v11 is IDB-only: canMigrate(10) holds but its MIGRATIONS entry has no ls step', () => {
   assert.equal(canMigrate(10), true);
-  assert.equal(MIGRATIONS[10], undefined);
+  assert.equal(MIGRATIONS[10].ls, undefined);
 });
 
 test('splitSyncRecord splits an edits record (with baseline) into main + worker records', () => {

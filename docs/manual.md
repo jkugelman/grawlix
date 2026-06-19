@@ -8,7 +8,7 @@ This is the user-facing manual. Eventually it'll be turned into an in-app manual
 
 ## The app shell
 
-**Header.** Wordmark, the personal "Made with…" byline, settings, and a `?` menu (a short welcome popup and an Acknowledgements page). Sticks at the top while you scroll.
+**Header.** Wordmark, the personal "Made with…" byline, settings, and a `?` button that opens Help (an FAQ with acknowledgements). Sticks at the top while you scroll.
 
 **One screen.** Everything lives on a single screen. The page itself scrolls — there's only one scrollbar.
 
@@ -230,7 +230,7 @@ Each carries an **Import** button and a ✕ to dismiss; once dismissed, a banner
 
 ## Help
 
-The header `?` button opens a menu with two entries. **Welcome** is a short popup — what Grawlix is, the pre-loaded wordlists, and a few featured tools. **Acknowledgements** credits the constructors whose wordlists Grawlix is built to combine, and Wordlisted, whose search catalog inspired the tools. A fuller help surface is planned.
+The header `?` button opens **Help** — an FAQ covering what Grawlix is, rescoring and merging, disk sync, and the tools, with a few small diagrams along the way. An **Acknowledgements** question credits the constructors whose wordlists Grawlix is built to combine, and Wordlisted, whose search catalog inspired the tools. Help is deep-linkable: opening it puts `#help` in the URL, so `grawlix.wtf/#help` opens straight to it. A fuller multi-page help surface is still planned.
 
 ## Sharing & links
 
