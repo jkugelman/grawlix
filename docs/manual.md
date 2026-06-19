@@ -53,22 +53,22 @@ You sync each list from its wordlist bar, list by list. Two kinds of sync, depen
 - **My Edits is two-way.** The file is the one your construction software (Ingrid, Crossfire, Crossword Compiler) reads *and* writes. Edit in Grawlix and the file updates; edit the file and Grawlix picks the change up within a couple of seconds. Grawlix's copy in the browser stays the source of truth, so it keeps working even when the file isn't reachable.
 - **Every other list is one-way out.** **All Wordlists** and each source write their rescored output to their file whenever the list or its rescore rules change. These are generated outputs — if you hand-edit one of these files, your changes are overwritten the next time Grawlix rewrites it. Point your construction software at **All Wordlists** for the unified wordlist.
 
-**The sync sign.** When you've scoped to a wordlist, its sync sign sits at the right of the wordlist bar, by the Download button. Until the list is connected to a file it's a **Sync to disk** button; once connected it becomes a status pill — a dot plus **Synced to _filename_**, briefly **Saving…** while writing, or a red **Sync conflict** / **Can't find _filename_** when something needs your attention. Clicking it opens a dialog that explains what sync is and lets you set it up or turn it off — no surprise file pickers.
+**The sync button.** When you've scoped to a wordlist, a sync control sits at the right of the wordlist bar, by the Download button. Until the list is connected to a file it's a **Sync to disk** button; once connected it becomes a status pill — a dot plus **Synced to _filename_**, briefly **Saving…** while writing, or a red **Sync conflict** / **Can't find _filename_** when something needs your attention. Clicking it opens a dialog that explains what sync is and lets you set it up or turn it off — no surprise file pickers.
 
-**Setting up sync.** Click the sign and choose:
+**Setting up sync.** Click **Sync to disk** and you get the same two doors wherever you are:
 
-- For **My Edits**, two doors: **Use a file I already have** (point at the file your software opens — Grawlix loads it and keeps both in sync, the common case) or **Create a new file**.
-- For **All Wordlists** or a **source**, a single **Choose file…** — pick or name the file Grawlix writes the rescored output to.
+- **Use an existing file** (a one-way list calls it **Overwrite an existing file**) — point at the file your software already reads. For My Edits, Grawlix loads it in and keeps both in sync; for a one-way list it overwrites that file with the rescored output.
+- **Create a new file** — name a fresh file for Grawlix to write to.
 
-**While synced.** The sign names the synced file. Clicking it again shows **Stop syncing**; stopping leaves the file on disk untouched — it just disconnects. To point a list at a different file, stop syncing and set it up again. **Download** is always there too, in every state.
+**While synced.** The pill names the synced file. Clicking it again offers **Turn off**; turning sync off leaves the file on disk untouched — it just disconnects. To point a list at a different file, turn sync off and set it up again. **Download** is always there too, in every state.
 
 **When edits collide (My Edits only).** If the same entry was changed both in Grawlix and in the file since they last agreed, Grawlix asks which to keep — **Keep this device** or **Keep the file** — and applies your choice. Changes that touched different entries merge silently; this prompt appears only on a true conflict, so it's rare. Deleting an entry on either side stays deleted — it isn't resurrected by the merge.
 
-**Reconnecting.** Browsers don't always remember file permission across sessions. On boot, files whose permission is remembered resume silently — straight to the app. For any file the browser has forgotten, the loading splash shows an **Open _filename_** button (one click per file to re-grant) and a muted **Skip for now**. Skip is always safe: the full app runs from your browser data, and the un-granted files just stay paused until the next launch reconnects them. If a file goes missing mid-session (moved or deleted), its sign turns attention-colored and reads **⤫ _filename_ · File missing** — stop syncing and set it up again to recover.
+**Reconnecting.** Browsers don't always remember file permission across sessions. On boot, files whose permission is remembered resume silently — straight to the app. For any file the browser has forgotten, the loading splash shows an **Open _filename_** button (one click per file to re-grant) and a muted **Skip for now**. Skip is always safe: the full app runs from your browser data, and the un-granted files just stay paused until the next launch reconnects them. If a file goes missing mid-session (moved or deleted), its pill turns attention-colored and reads **Can't find _filename_** — turn sync off and set it up again to recover.
 
 **Cross-device.** Put a synced file in Dropbox, iCloud Drive, OneDrive, or Google Drive, and on your other device sync the same list to that same file. Your cloud client moves the bytes; Grawlix has no cloud code of its own. (For My Edits this merges both devices' edits; for a one-way list the latest writer wins.)
 
-**Browser support.** Disk sync uses the File System Access API — Chrome, Edge, and other Chromium-based desktop browsers. In Firefox, Safari, and on phones and tablets, the sign stays on **Saved in browser** and its dialog explains that sync needs a Chromium browser; **Download** is the way to get a file out there. Chrome's "Always allow" on a file grant means most users reconnect once and then never again.
+**Browser support.** Disk sync uses the File System Access API — Chrome, Edge, and other Chromium-based desktop browsers. On Firefox and Safari the **Sync to disk** button still appears, but clicking it just explains that sync needs a Chromium browser; on phones and tablets the button doesn't appear at all. Either way, **Download** is the way to get a file out there. Chrome's "Always allow" on a file grant means most users reconnect once and then never again.
 
 ## Keyboard shortcuts
 
@@ -188,7 +188,7 @@ When you've scoped to a wordlist, its actions sit on the right of the wordlist b
 
 On a narrow window the bar folds its buttons into the **⋮** menu to keep the wordlist name readable — **Download** moves in first, then **Rescoring** — so a phone shows a tidy menu instead of a crowded row. All Wordlists, with only two short controls, never needs to fold.
 
-The **sync sign** sits at the right of the bar in every scope (see [Disk sync](#disk-sync)).
+The **sync button** (a status pill once connected) sits at the right of the bar in every scope (see [Disk sync](#disk-sync)).
 
 ## Rescoring and scoring rules
 

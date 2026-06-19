@@ -80,6 +80,24 @@ test('the ? menu opens the Acknowledgements dialog', async ({ page }) => {
   await expect(dialog).toBeHidden();
 });
 
+test('the ? menu opens the FAQ dialog with collapsible questions', async ({ page }) => {
+  await gotoApp(page);
+  await page.locator('#btn-help').click();
+  await page.locator('#menu-faq').click();
+  const dialog = page.locator('#faq-dialog');
+  await expect(dialog).toBeVisible();
+  await expect(dialog.locator('#faq-title')).toContainText('FAQ');
+
+  const item = dialog.locator('.faq-item').filter({ hasText: 'What is disk sync' });
+  const answer = item.locator('.faq-answer');
+  await expect(answer).toBeHidden();
+  await item.locator('summary').click();
+  await expect(answer).toBeVisible();
+
+  await dialog.getByRole('button', { name: 'Done' }).click();
+  await expect(dialog).toBeHidden();
+});
+
 test('the sync sign opens the Sync dialog', async ({ page }) => {
   await gotoApp(page);
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({

@@ -59,6 +59,7 @@ import { showConfirm, showAlert, showMergeConflict } from '../ui/dialogs/confirm
 import { openUpdateSummaryDialog } from '../ui/dialogs/update-summary.js';
 import { SettingsDialog, cycleDarkMode } from '../ui/dialogs/settings.js';
 import { WelcomeDialog } from '../ui/dialogs/welcome.js';
+import { FaqDialog } from '../ui/dialogs/faq.js';
 import { AcknowledgementsDialog } from '../ui/dialogs/acknowledgements.js';
 import { AppView } from '../ui/app-view.js';
 import {
@@ -838,6 +839,7 @@ export function bindEvents() {
   document.getElementById('btn-settings').onclick = () => SettingsDialog.open();
   document.getElementById('btn-help').onclick = e => toggleSplitMenu(e);
   document.getElementById('menu-welcome').onclick = () => WelcomeDialog.open();
+  document.getElementById('menu-faq').onclick = () => FaqDialog.open();
   document.getElementById('menu-acknowledgements').onclick = () => AcknowledgementsDialog.open();
   document.getElementById('add-fab').onclick = () =>
     AtomPopover.openForCreate(newEntrySeedQuery(), getEntriesScroller(), null);
