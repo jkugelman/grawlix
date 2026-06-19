@@ -32,7 +32,7 @@ The selector is a pure picker — icons and labels, no checkboxes. A disabled wo
 
 Scope is **sticky** — Grawlix reopens to the wordlist you were last looking at (All Wordlists on first run). It stays on your device and never travels in a shared link.
 
-**Managing wordlists.** A **Manage wordlists** footer at the bottom of the selector dropdown opens the manage panel — where you reorder wordlists (order is merge priority), enable or disable them, and add new ones. Reordering and toggling stage up as you go and apply all at once when you click **Apply** (or discard on **Cancel**); the merge rebuilds once, on Apply, rather than on every change. **Add wordlist** runs the usual import/fetch flow and returns you to the panel with the new list in place.
+**Managing wordlists.** A **Manage wordlists** footer at the bottom of the selector dropdown opens the manage panel — where you reorder wordlists (order is merge priority), enable or disable them, and add new ones. Reordering and toggling stage up as you go and commit all at once when you click **Save** (or discard on **Cancel**); the merge rebuilds once, on Save, rather than on every change. **Add wordlist** runs the usual import/fetch flow and returns you to the panel with the new list in place.
 
 ## Settings
 

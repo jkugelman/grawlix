@@ -79,7 +79,7 @@ export const ManagePanel = (() => {
       <button type="button" class="manage-add-row"><span class="add-wordlist-icon">＋</span>Add wordlist</button>
       <div class="dialog-footer">
         <button type="button" class="manage-cancel-btn dialog-cancel-btn">Cancel</button>
-        <button type="button" class="manage-apply-btn primary">Apply</button>
+        <button type="button" class="manage-apply-btn primary">Save</button>
       </div>`;
 
     listEl   = el.querySelector('.manage-list');
