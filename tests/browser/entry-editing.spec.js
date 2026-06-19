@@ -79,14 +79,26 @@ test('Save is disabled until an edit diverges from the entry, and re-disables on
 
 // ─── Create ────────────────────────────────────────────────────────────────
 
-test('creating an entry that already exists is hard-blocked', async ({ page }) => {
+test('creating an entry that already exists in My Edits is hard-blocked', async ({ page }) => {
   await gotoApp(page);
-  await addList(page, { name: 'W', entries: ['ocean'], scores: [50] });
+  await page.evaluate(() => window.__grawlixTest.createMyEntry('ocean', 50));
   await page.locator('#add-fab').click();
   await page.locator('#atom-pop-entry').fill('ocean');
   await page.locator('#atom-pop-score').fill('50');
   await expect(page.locator('#atom-popover .atom-pop-note--block')).toBeVisible();
   await expect(page.locator('#atom-popover .atom-pop-save')).toBeDisabled();
+});
+
+test('creating an entry that exists only on another wordlist is allowed', async ({ page }) => {
+  await gotoApp(page);
+  await addList(page, { name: 'W', entries: ['ocean'], scores: [50] });
+  await page.locator('#add-fab').click();
+  await page.locator('#atom-pop-entry').fill('ocean');
+  await page.locator('#atom-pop-score').fill('70');
+  await expect(page.locator('#atom-popover .atom-pop-note--block')).toHaveCount(0);
+  await expect(page.locator('#atom-popover .atom-pop-save')).toBeEnabled();
+  await page.locator('#atom-popover .atom-pop-save').click();
+  await expect.poll(() => myEditsForNorm(page, 'ocean')).toEqual(['ocean']);
 });
 
 test('creating a same-norm sibling coexists with the existing entry', async ({ page }) => {

@@ -27,16 +27,23 @@ test('create: a fresh plain entry is a lone upsert, no delete', () => {
   assert.deepStrictEqual(p.notes, []);
 });
 
-test('create: exact (norm, displayOf) anywhere enabled blocks — plain matches a foreign bare', () => {
-  const sources = [edits(), src('XWI', [wlEntry('ocean', 30)])];   // XWI bare ocean
+test('create: a foreign-only match does NOT block — adding it to My Edits is legitimate', () => {
+  const sources = [edits(), src('XWI', [wlEntry('ocean', 30)])];   // XWI bare ocean, not in My Edits
+  const p = planEntryWrite({ mode: 'create', clicked: null, typed: typed('ocean'), sources });
+  assert.equal(p.blockedReason, null);
+  assert.deepStrictEqual(p.upserts, [{ norm: 'ocean', display: 'ocean', score: 50, comment: '' }]);
+});
+
+test('create: an exact (norm, displayOf) match in My Edits blocks', () => {
+  const sources = [edits([wlEntry('ocean', 30)]), src('XWI', [wlEntry('apple', 30)])];   // My Edits bare ocean
   const p = planEntryWrite({ mode: 'create', clicked: null, typed: typed('ocean'), sources });
   assert.equal(p.blockedReason, 'exists');
   assert.deepStrictEqual(p.upserts, []);
 });
 
-test('create: a disabled source does not block', () => {
-  const sources = [edits(), src('Off', [wlEntry('ocean', 30)], { enabled: false })];
-  const p = planEntryWrite({ mode: 'create', clicked: null, typed: typed('ocean'), sources });
+test('create: a My Edits norm match with a different display does NOT block', () => {
+  const sources = [edits([wlEntry('ocean', 30, { display: 'Ocean' })])];   // My Edits "Ocean"
+  const p = planEntryWrite({ mode: 'create', clicked: null, typed: typed('ocean'), sources });   // typing "ocean"
   assert.equal(p.blockedReason, null);
   assert.deepStrictEqual(p.upserts, [{ norm: 'ocean', display: 'ocean', score: 50, comment: '' }]);
 });

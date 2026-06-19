@@ -8,7 +8,6 @@
 
 import { toNorm, displayOf } from './norm.js';
 import { getRescoredByNorm } from './rescore.js';
-import { computeMergedBucket } from './corpus.js';
 
 const isEdits = wl => wl.type === 'edits';
 const isLive = wl => wl.enabled !== false;
@@ -44,15 +43,16 @@ export function planEntryWrite({ mode, clicked, typed, sources, trashScore = 0 }
   const notes = [];
 
   if (mode === 'create') {
-    const bucket = computeMergedBucket(newNorm, sources);
-    if (bucket.rows.some(r => displayOf(r) === newDisplay)) {
+    // Create writes into My Edits, so a foreign-only match is a legitimate add
+    // (own score/priority) — only a My Edits duplicate blocks.
+    const editsRows = edits ? (getRescoredByNorm(edits).get(newNorm) || []) : [];
+    if (editsRows.some(r => displayOf(r) === newDisplay)) {
       return { blockedReason: 'exists', primary, deletes, upserts, notes };
     }
     upserts.push({ norm: newNorm, display: newDisplay, score, comment });
     // Without the copy a foreign bare of this norm collapses into the new rich
     // display and silently vanishes; copying it makes My Edits distinguishing.
-    const editsCount = edits ? (getRescoredByNorm(edits).get(newNorm)?.length ?? 0) : 0;
-    if (newDisplay !== newNorm && editsCount === 0) {
+    if (newDisplay !== newNorm && editsRows.length === 0) {
       const bare = foreignBare(sources, newNorm);
       if (bare) {
         upserts.push({ norm: newNorm, display: null, score: bare.score, comment: bare.comment || '' });
