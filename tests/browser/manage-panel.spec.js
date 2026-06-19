@@ -80,6 +80,21 @@ test('toggling off in the panel changes nothing until Apply', async ({ page }) =
   expect(await page.evaluate(() => window.__grawlixTest.getMergedEntry('APPLE'))).not.toBeNull();
 });
 
+test('Save is disabled until something is staged, and re-disables on revert', async ({ page }) => {
+  await gotoApp(page);
+  await addTwoLists(page);
+
+  await openManagePanel(page);
+  const saveBtn = page.locator('#manage-dialog .manage-apply-btn');
+  await expect(saveBtn).toBeDisabled();          // nothing staged on open
+
+  await rowToggle(page, 'TestBerries').click();
+  await expect(saveBtn).toBeEnabled();
+
+  await rowToggle(page, 'TestBerries').click();   // back to the canonical state
+  await expect(saveBtn).toBeDisabled();
+});
+
 test('Cancel discards the staged change', async ({ page }) => {
   await gotoApp(page);
   await addTwoLists(page);
@@ -202,7 +217,7 @@ function panelRowNames(page) {
     [...document.querySelectorAll('#manage-dialog .wordlist-card .card-name')].map(n => n.textContent));
 }
 
-test('adding via the panel absorbs the list; Apply keeps it enabled and merged', async ({ page }) => {
+test('adding via the panel commits immediately; the list stays after closing', async ({ page }) => {
   await gotoApp(page);
   await addTwoLists(page);
 
@@ -212,7 +227,9 @@ test('adding via the panel absorbs the list; Apply keeps it enabled and merged',
   await expect.poll(() => panelRowNames(page)).toContain('TestGrains');
   expect(await page.evaluate(() => window.__grawlixTest.getMergedEntry('WHEAT'))).not.toBeNull();
 
-  await page.locator('#manage-dialog .manage-apply-btn').click();
+  // The add already committed to canonical, so the shadow matches it — nothing to save.
+  await expect(page.locator('#manage-dialog .manage-apply-btn')).toBeDisabled();
+  await page.locator('#manage-dialog .manage-close-btn').click();
   await expect(page.locator('#manage-dialog')).toBeHidden();
 
   const wl = await page.evaluate(() => window.__grawlixTest.getWordlist('TestGrains'));
@@ -274,7 +291,7 @@ test('a source added while the panel is open is absorbed via the cacheVersion ef
 
   await expect.poll(() => panelRowNames(page)).toContain('TestGrains');
 
-  await page.locator('#manage-dialog .manage-apply-btn').click();
+  await page.locator('#manage-dialog .manage-close-btn').click();
   await expect(page.locator('#manage-dialog')).toBeHidden();
 
   expect(await page.evaluate(() => window.__grawlixTest.getWordlist('TestGrains').enabled)).toBe(true);

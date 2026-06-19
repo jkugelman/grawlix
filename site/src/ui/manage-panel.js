@@ -40,6 +40,7 @@ export const ManagePanel = (() => {
   function render() {
     listEl.innerHTML = shadow.order.map(rowHTML).join('');
     listEl.querySelectorAll('.wordlist-card').forEach((cardEl, i) => { cardEl._wordlist = shadow.order[i]; });
+    syncApplyDisabled();
   }
 
   function absorb() {
@@ -55,6 +56,10 @@ export const ManagePanel = (() => {
     if (shadow.order.length !== state.sources.length) return true;
     if (shadow.order.some((wl, i) => wl !== state.sources[i])) return true;
     return shadow.order.some(wl => (shadow.enabled.get(wl) ?? wl.enabled) !== wl.enabled);
+  }
+
+  function syncApplyDisabled() {
+    applyBtn.disabled = !isDirty();
   }
 
   function apply() {
@@ -96,6 +101,7 @@ export const ManagePanel = (() => {
       // the Apply gate while looking identical on screen.
       shadow.enabled.set(card._wordlist, input.checked);
       card.classList.toggle('disabled', !input.checked);
+      syncApplyDisabled();
     });
 
     // Stage into shadow.order, never reorderSources: that canonical path would
