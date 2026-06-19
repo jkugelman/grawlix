@@ -34,7 +34,7 @@ export const SyncDialog = (() => {
     const synced = syncTargets.has(key);
     const mirror = isMirrorList(target);
     const name = esc(syncFilename(key));
-    const listLabel = buildWordlistNameHTML(target, { bold: false });
+    const listLabel = buildWordlistNameHTML(target);
 
     let title, inner;
     if (!Disk.isSupported()) {

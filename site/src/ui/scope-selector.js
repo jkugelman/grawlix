@@ -81,10 +81,13 @@ export function buildMergedCardHTML(selected) {
 }
 
 export function buildWordlistNameHTML(wordlist, { bold = true } = {}) {
-  const merged = wordlist === MERGED_ID;
-  const icon = merged ? getMergedIcon() : getWordlistIcon(wordlist);
-  const text = esc(merged ? MERGED_NAME : wordlist.name);
-  const name = bold ? `<strong>${text}</strong>` : text;
+  const text = esc(wordlist === MERGED_ID ? MERGED_NAME : wordlist.name);
+  return bold ? `<strong>${text}</strong>` : text;
+}
+
+export function buildWordlistNameIconHTML(wordlist, { bold = true } = {}) {
+  const icon = wordlist === MERGED_ID ? getMergedIcon() : getWordlistIcon(wordlist);
+  const name = buildWordlistNameHTML(wordlist, { bold });
   // The trailing space inside the span is load-bearing: combined with `white-space: nowrap` on
   // .wordlist-name-icon, it keeps the icon glued to the first word of the name. Move it outside
   // the span and the icon can orphan at a line end.

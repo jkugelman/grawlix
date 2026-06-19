@@ -35,7 +35,7 @@ import { buildScoreBadgeHTML, buildScoreCellHTML } from '../model/score-display.
 import { showToast } from './toasts.js';
 import { AppView } from './app-view.js';
 import { ToolStack } from './tool-stack.js';
-import { buildWordlistNameHTML } from './scope-selector.js';
+import { buildWordlistNameIconHTML } from './scope-selector.js';
 import { getDraftRescoreRules } from './rescore-editor.js';
 import { buildTrashIconHTML } from './components.js';
 import {
@@ -1273,7 +1273,7 @@ export class EntriesScroller extends BaseVirtualScroller {
       const scoreInner = buildScoreCellHTML(wlEntry, preview);
       const commentText = wlEntry.comment || '';
       const sourceWl = wlEntry.wordlist;
-      const sourceHTML = sourceWl ? buildWordlistNameHTML(sourceWl, { bold: false }) : '';
+      const sourceHTML = sourceWl ? buildWordlistNameIconHTML(sourceWl, { bold: false }) : '';
       const sourceTitle = sourceWl ? ` title="${esc(sourceWl.name)}"` : '';
       const sourceCell = this.showSource
         ? `<span class="atom-source"${sourceTitle}>${sourceHTML}</span>`
@@ -1910,7 +1910,7 @@ export const AtomPopover = (() => {
         + `<td class="atom-pop-prov-entry">${esc(displayOf(entry))}</td>`
         + `<td class="atom-pop-prov-score">${buildScoreCellHTML(entry, true)}</td>`
         + `<td class="atom-pop-prov-comment"${comment ? ` title="${esc(comment)}"` : ''}>${esc(comment)}</td>`
-        + `<td class="atom-pop-prov-source">${buildWordlistNameHTML(wordlist, { bold: false })}</td>`
+        + `<td class="atom-pop-prov-source">${buildWordlistNameIconHTML(wordlist, { bold: false })}</td>`
         + `<td class="atom-pop-prov-action">${trash}</td>`
         + `</tr>`;
     }).join('');
