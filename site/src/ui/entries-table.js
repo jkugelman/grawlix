@@ -1626,6 +1626,7 @@ export const AtomPopover = (() => {
   let activeScroller = null;
   let activeMode = 'edit';
   let stagedDelete = null;
+  let stagedAdopt = false;
   // Monotonic token for an in-flight scoped-seed worker query; a re-open or close
   // bumps it so a late reply for a stale popover is dropped rather than re-seeding
   // the wrong row.
@@ -1655,8 +1656,10 @@ export const AtomPopover = (() => {
     el.setAttribute('hidden', '');
     el.addEventListener('click', e => {
       if (e.target.closest('.dialog-close-btn')) { close(); return; }
+      if (e.target.closest('.atom-pop-prov-untrash')) { toggleStagedAdopt(); return; }
       const trash = e.target.closest('.atom-pop-prov-trash');
-      if (trash) toggleStagedDelete(trash.dataset.norm, trash.dataset.display);
+      if (trash) { toggleStagedDelete(trash.dataset.norm, trash.dataset.display); return; }
+      if (e.target.closest('.atom-pop-adopt-btn')) toggleStagedAdopt();
     });
     el.addEventListener('focus', e => { focusEl = e.target; }, true);
     el.addEventListener('blur', e => {
@@ -1680,6 +1683,7 @@ export const AtomPopover = (() => {
     activeMode = 'edit';
     focusEl = null;
     stagedDelete = null;
+    stagedAdopt = false;
     seedQueryToken++;
     provQueryToken++;
     shippedProvRows = null;
@@ -1719,6 +1723,7 @@ export const AtomPopover = (() => {
     activeScroller = scroller;
     if (rowEl) rowEl.classList.add('active');
     shippedProvRows = null;
+    stagedAdopt = false;
 
     // Seed from the clicked row: in the merged view it IS the merge winner; a
     // scoped view holds a losing value, refined below by refineScopedSeed.
@@ -1797,7 +1802,8 @@ export const AtomPopover = (() => {
   }
 
   function renderFooterHTML(entryText) {
-    return `<button class="atom-pop-cancel" type="button">Cancel</button>`
+    return `<span class="atom-pop-adopt"></span>`
+      + `<button class="atom-pop-cancel" type="button">Cancel</button>`
       + `<button class="atom-pop-save" type="button">${esc(saveLabel(entryText))}</button>`;
   }
 
@@ -1821,8 +1827,8 @@ export const AtomPopover = (() => {
     if (!inp || inp.disabled || stagedDelete) return null;
     const vals = readNewValues();
     if (!valuesValid(vals)) return null;
-    if (activeMode === 'edit' && !pendingWritesChange(vals)) return null;
-    const clicked = activeMode === 'edit' ? saveBaseline() : null;
+    if (activeMode === 'edit' && !stagedAdopt && !pendingWritesChange(vals)) return null;
+    const clicked = activeMode === 'edit' ? (stagedAdopt ? adoptBaseline() : saveBaseline()) : null;
     return planEntryWrite({ mode: activeMode, clicked, typed: vals, sources: state.sources, trashScore: getTrashScore() });
   }
 
@@ -1852,8 +1858,8 @@ export const AtomPopover = (() => {
     const entry = { norm: p.norm, display: p.display, score: effective, rawScore: vals.score, comment: vals.comment };
     const i = rows.findIndex(r => r.isEdits && r.entry.norm === p.norm && displayOf(r.entry) === p.display && r.diff !== 'deleted');
     let primaryIdx;
-    if (i >= 0) { rows[i] = { wordlist: edits, entry, enabled: true, isEdits: true, saved: true, diff: 'changed' }; primaryIdx = i; }
-    else { rows.unshift({ wordlist: edits, entry, enabled: true, isEdits: true, saved: false, diff: 'added' }); primaryIdx = 0; }
+    if (i >= 0) { rows[i] = { wordlist: edits, entry, enabled: true, isEdits: true, saved: true, diff: 'changed', adoptStaged: stagedAdopt }; primaryIdx = i; }
+    else { rows.unshift({ wordlist: edits, entry, enabled: true, isEdits: true, saved: false, diff: 'added', adoptStaged: stagedAdopt }); primaryIdx = 0; }
     for (const n of plan.notes) {
       if (n.kind !== 'downscore') continue;
       const dsScore = rescoreEntry({ norm: n.norm, score: n.score }, edits.rescoreRules);
@@ -1882,7 +1888,8 @@ export const AtomPopover = (() => {
 
   function renderProvenanceRowsHTML(rows) {
     if (!rows.length) return '';
-    const body = rows.map(({ wordlist, entry, enabled, diff, saved, isEdits, isStaged }) => {
+    const adoptLabel = `Don't ${adoptWillReplace() ? 'update' : 'add to'} My Edits`;
+    const body = rows.map(({ wordlist, entry, enabled, diff, saved, isEdits, isStaged, adoptStaged }) => {
       const disabled = wordlist ? wordlist.enabled === false : enabled === false;
       const cls = ['atom-pop-prov-row'];
       if (disabled) cls.push('atom-pop-prov-row--disabled');
@@ -1891,7 +1898,10 @@ export const AtomPopover = (() => {
       const label = isStaged ? 'Restore this edit' : 'Delete this edit';
       // A rename's predicted-delete row (diff 'deleted', not user-staged) gets no
       // trash — only a genuinely saved row, or the staged-delete row to restore it.
-      const trash = saved && isEdits && (diff !== 'deleted' || isStaged)
+      const trash = adoptStaged
+        ? `<button class="atom-pop-prov-trash atom-pop-prov-untrash" type="button"`
+          + ` title="${adoptLabel}" aria-label="${adoptLabel}">${buildTrashIconHTML()}</button>`
+        : saved && isEdits && (diff !== 'deleted' || isStaged)
         ? `<button class="atom-pop-prov-trash${isStaged ? ' staged' : ''}" type="button"`
           + ` data-norm="${esc(entry.norm)}" data-display="${esc(displayOf(entry))}"`
           + ` title="${label}" aria-label="${label}">${buildTrashIconHTML()}</button>`
@@ -1922,6 +1932,52 @@ export const AtomPopover = (() => {
     setInputsDisabled(!!stagedDelete);
     refreshSaveEnabled();
     renderProvWrap();
+  }
+
+  function toggleStagedAdopt() {
+    stagedAdopt = !stagedAdopt;
+    renderProvWrap();
+    refreshSaveEnabled();
+  }
+
+  function unstageAdopt() { stagedAdopt = false; }
+
+  // Baseline against My Edits' bare entry, not the merge winner: feeding the
+  // winner's rich display as the planner's "clicked" reads as no rename, silently
+  // leaving the bare behind as a same-norm sibling instead of upgrading it.
+  function adoptBaseline() {
+    const base = saveBaseline();
+    const bare = getEditsWordlist()?.rawEntries.find(e => e.norm === base.norm && e.display == null);
+    return bare
+      ? { norm: bare.norm, display: bare.display ?? null, score: bare.score, comment: bare.comment ?? '' }
+      : base;
+  }
+
+  function adoptWillReplace() {
+    const base = saveBaseline();
+    return !!getEditsWordlist()?.rawEntries.some(e => e.norm === base.norm && e.display == null);
+  }
+
+  function adoptable() {
+    if (activeMode !== 'edit' || stagedDelete) return false;
+    const edits = getEditsWordlist();
+    if (!edits) return false;
+    const inp = el?.querySelector('.entry-input');
+    if (!inp || inp.disabled) return false;
+    const vals = readNewValues();
+    if (!valuesValid(vals) || pendingWritesChange(vals)) return false;
+    const base = saveBaseline();
+    const display = base.display ?? base.norm;
+    return !edits.rawEntries.some(e => e.norm === base.norm && displayOf(e) === display);
+  }
+
+  function refreshAdoptLink() {
+    const slot = el?.querySelector('.atom-pop-adopt');
+    if (!slot) return;
+    slot.innerHTML = adoptable() && !stagedAdopt
+      ? `<button class="atom-pop-adopt-btn" type="button">`
+        + `${esc(adoptWillReplace() ? 'Update My Edits' : 'Add to My Edits')}</button>`
+      : '';
   }
 
   function setInputsDisabled(disabled) {
@@ -2088,8 +2144,9 @@ export const AtomPopover = (() => {
       return;
     }
     if (saveBlocked()) { el.querySelector('.entry-input')?.focus(); return; }
-    const baseline = activeMode === 'edit' ? saveBaseline() : null;
-    activeScroller._onSave?.(activeMode, baseline, newValues);
+    const mode = stagedAdopt ? 'adopt' : activeMode;
+    const baseline = mode === 'create' ? null : (stagedAdopt ? adoptBaseline() : saveBaseline());
+    activeScroller._onSave?.(mode, baseline, newValues);
     close();
   }
 
@@ -2103,11 +2160,15 @@ export const AtomPopover = (() => {
   // (its inputs are disabled then, but the validity gate must not block it).
   function refreshSaveEnabled() {
     const saveBtn = el.querySelector('.atom-pop-save');
-    if (!saveBtn) return;
-    if (stagedDelete) { saveBtn.disabled = false; return; }
-    const vals = readNewValues();
-    saveBtn.disabled = !valuesValid(vals) || saveBlocked()
-      || (activeMode === 'edit' && !pendingWritesChange(vals));
+    if (saveBtn) {
+      if (stagedDelete || stagedAdopt) saveBtn.disabled = false;
+      else {
+        const vals = readNewValues();
+        saveBtn.disabled = !valuesValid(vals) || saveBlocked()
+          || (activeMode === 'edit' && !pendingWritesChange(vals));
+      }
+    }
+    refreshAdoptLink();
   }
 
   function saveBlocked() {
@@ -2122,6 +2183,9 @@ export const AtomPopover = (() => {
 
     entryInp.addEventListener('beforeinput', blockSemicolon);
     commentInp.addEventListener('beforeinput', blockSemicolon);
+    for (const inp of [entryInp, scoreInp, commentInp]) {
+      inp.addEventListener('input', unstageAdopt);
+    }
     // An entry edit changes the norm → re-query the worker for contributors;
     // score/comment only move the local My Edits preview row.
     entryInp.addEventListener('input', refreshDynamicBits);

@@ -480,7 +480,7 @@ export async function clearEdits() {
 
 export function attachExternalEditHandlers(s, refreshFn) {
   s._onSave = (mode, baseline, newValues) =>
-    saveEntry(mode, mode === 'edit' ? baseline : null, newValues, refreshFn);
+    saveEntry(mode, mode === 'create' ? null : baseline, newValues, refreshFn);
 }
 
 export function saveEdit(orig, newValues) {
@@ -491,7 +491,9 @@ export function saveEntry(mode, clicked, { raw, score, comment }, refreshFn) {
   const edits = getEditsWordlist();
   if (mode === 'edit' && clicked && noEditChange(clicked, raw, score, comment)) { refreshFn?.(); return; }
 
-  const plan = planEntryWrite({ mode, clicked, typed: { raw, score, comment }, sources: state.sources, trashScore: getTrashScore() });
+  // Adopt deliberately writes values equal to the winner, so it must stay out of
+  // the no-op guard above; it plans through the edit branch.
+  const plan = planEntryWrite({ mode: mode === 'adopt' ? 'edit' : mode, clicked, typed: { raw, score, comment }, sources: state.sources, trashScore: getTrashScore() });
   if (plan.blockedReason || (!plan.deletes.length && !plan.upserts.length)) { refreshFn?.(); return; }
 
   const writes = { deletes: plan.deletes, upserts: plan.upserts, primary: plan.primary };
@@ -523,6 +525,9 @@ function noEditChange(clicked, raw, score, comment) {
 function undoToastMessage(mode, plan, clicked) {
   if (mode === 'edit' && plan.deletes.length) return `Renamed ${esc(clicked.display ?? clicked.norm)} → ${esc(plan.primary.display)}`;
   if (mode === 'create' && plan.notes.length) return `Added ${esc(plan.primary.display)}`;
+  if (mode === 'adopt') return plan.deletes.length
+    ? `Updated ${esc(plan.primary.display)} in My Edits`
+    : `Added ${esc(plan.primary.display)} to My Edits`;
   return null;
 }
 

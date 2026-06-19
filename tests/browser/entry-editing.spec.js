@@ -20,6 +20,16 @@ const displaysForNorm = (page, norm) => page.evaluate(async n => {
   return entries.filter(e => e[0] === n).map(e => e[1]).sort();
 }, norm);
 
+const myEditsForNorm = (page, norm) => page.evaluate(n =>
+  window.__grawlixTest.getWordlist('My Edits').entries
+    .filter(e => e.entry === n).map(e => e.display).sort(),
+  norm);
+
+const importIntoEdits = (page, text) =>
+  page.evaluate(t => applyWordlistText(getEditsWordlist(), t, { source: 'mine.txt', silent: true }), text);
+
+const adoptLink = page => page.locator('#atom-popover .atom-pop-adopt-btn');
+
 // ─── Header ──────────────────────────────────────────────────────────────────
 
 test('header and Save button read Edit/Save, flipping to Rename/Rename as the text diverges', async ({ page }) => {
@@ -157,6 +167,88 @@ test('renaming shows an undo toast that restores the original', async ({ page })
   await expect(undo).toBeVisible();
   await undo.click();
   await expect.poll(() => displaysForNorm(page, 'ocean')).toEqual(['ocean']);
+});
+
+// ─── Adopt (claim into My Edits) ─────────────────────────────────────────────
+
+test('adopt link adds an unowned entry to My Edits without any edit', async ({ page }) => {
+  await gotoApp(page);
+  await addList(page, { name: 'W', entries: ['AAA battery'], scores: [50] });
+  await scopeTo(page, 'All Wordlists');
+  await openPopoverOnEntry(page, 'AAA battery');
+  await expect(adoptLink(page)).toHaveText('Add to My Edits');
+  await expect(page.locator('#atom-popover .atom-pop-save')).toBeDisabled();
+  await adoptLink(page).click();
+  await expect(adoptLink(page)).toHaveCount(0);   // link hides once staged
+  await expect(page.locator('#atom-popover .atom-pop-save')).toBeEnabled();
+  await expect(page.locator('#atom-popover .atom-pop-prov-row--added', {
+    has: page.locator('.atom-pop-prov-entry', { hasText: /^AAA battery$/ }),
+  })).toBeVisible();
+  await page.locator('#atom-popover .atom-pop-save').click();
+  await expect.poll(() => myEditsForNorm(page, 'aaabattery')).toEqual(['AAA battery']);
+});
+
+test('the staged adopt row carries a trash that un-stages it, restoring the link', async ({ page }) => {
+  await gotoApp(page);
+  await addList(page, { name: 'W', entries: ['AAA battery'], scores: [50] });
+  await scopeTo(page, 'All Wordlists');
+  await openPopoverOnEntry(page, 'AAA battery');
+  await adoptLink(page).click();
+  const added = page.locator('#atom-popover .atom-pop-prov-row--added', {
+    has: page.locator('.atom-pop-prov-entry', { hasText: /^AAA battery$/ }),
+  });
+  await added.locator('.atom-pop-prov-untrash').click();
+  await expect(added).toHaveCount(0);
+  await expect(adoptLink(page)).toHaveText('Add to My Edits');
+  await expect(page.locator('#atom-popover .atom-pop-save')).toBeDisabled();
+});
+
+test('adopt upgrades a bare My Edits entry to the displayed spelling — no sibling left behind', async ({ page }) => {
+  await gotoApp(page);
+  await importIntoEdits(page, 'aaabond;50\n');
+  await addList(page, { name: 'W', entries: ['AAA bond'], scores: [50] });
+  await scopeTo(page, 'All Wordlists');
+  await openPopoverOnEntry(page, 'AAA bond');
+  await expect(adoptLink(page)).toHaveText('Update My Edits');
+  await adoptLink(page).click();
+  await expect(page.locator('#atom-popover .atom-pop-prov-row--deleted', {
+    has: page.locator('.atom-pop-prov-entry', { hasText: /^aaabond$/ }),
+  })).toBeVisible();
+  await page.locator('#atom-popover .atom-pop-save').click();
+  await expect.poll(() => myEditsForNorm(page, 'aaabond')).toEqual(['AAA bond']);
+});
+
+test('no adopt link when My Edits already owns the displayed entry', async ({ page }) => {
+  await gotoApp(page);
+  await page.evaluate(() => window.__grawlixTest.createMyEntry('AAA team', 50));
+  await scopeTo(page, 'All Wordlists');
+  await openPopoverOnEntry(page, 'AAA team');
+  await expect(adoptLink(page)).toHaveCount(0);
+});
+
+test('editing a field replaces the adopt link with a normal enabled Save', async ({ page }) => {
+  await gotoApp(page);
+  await addList(page, { name: 'W', entries: ['AAA battery'], scores: [50] });
+  await scopeTo(page, 'All Wordlists');
+  await openPopoverOnEntry(page, 'AAA battery');
+  await expect(adoptLink(page)).toBeVisible();
+  await page.locator('#atom-pop-score').fill('60');
+  await expect(adoptLink(page)).toHaveCount(0);
+  await expect(page.locator('#atom-popover .atom-pop-save')).toBeEnabled();
+});
+
+test('adopt shows an undo toast that restores the prior My Edits state', async ({ page }) => {
+  await gotoApp(page);
+  await addList(page, { name: 'W', entries: ['AAA battery'], scores: [50] });
+  await scopeTo(page, 'All Wordlists');
+  await openPopoverOnEntry(page, 'AAA battery');
+  await adoptLink(page).click();
+  await page.locator('#atom-popover .atom-pop-save').click();
+  await expect.poll(() => myEditsForNorm(page, 'aaabattery')).toEqual(['AAA battery']);
+  const undo = page.locator('.toast .toast-action');
+  await expect(undo).toBeVisible();
+  await undo.click();
+  await expect.poll(() => myEditsForNorm(page, 'aaabattery')).toEqual([]);
 });
 
 test('the trash score setting drives the downscore amount', async ({ page }) => {

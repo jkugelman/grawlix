@@ -485,6 +485,9 @@ td.atom-pop-prov-entry { font-family: var(--font-mono); }
 .atom-pop-fields input.score-input { font-family: var(--font-mono); max-width: 8ch; }
 .atom-pop-fields input.entry-input { max-width: 25ch; }
 .atom-pop-foot { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; padding-top: 10px; border-top: 1px solid var(--border3); margin-top: 10px; }
+.atom-pop-adopt:empty { display: none; }
+.atom-pop-adopt-btn { padding: 2px 0; border: none; background: none; color: var(--muted); font: inherit; font-size: 11px; cursor: pointer; }
+.atom-pop-adopt-btn:hover { color: var(--text); text-decoration: underline; text-underline-offset: 2px; }
 .atom-pop-cancel { margin-left: auto; }
 .atom-pop-cancel, .atom-pop-save { font: inherit; font-size: 11px; padding: 4px 12px; border-radius: 4px; cursor: pointer; }
 .atom-pop-cancel { background: none; border: 1px solid var(--border); color: var(--text); }
