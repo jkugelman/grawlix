@@ -1947,6 +1947,7 @@ export const AtomPopover = (() => {
     setInputsDisabled(!!stagedDelete);
     refreshSaveEnabled();
     renderProvWrap();
+    updateModeLabels();
   }
 
   function toggleStagedAdopt() {
@@ -2024,11 +2025,13 @@ export const AtomPopover = (() => {
   }
 
   function headerText(entryText) {
+    if (stagedDelete) return 'Delete entry';
     if (activeMode === 'create') return 'Add entry';
     return isRenaming(entryText) ? 'Rename entry' : 'Edit entry';
   }
 
   function saveLabel(entryText) {
+    if (stagedDelete) return 'Delete';
     if (activeMode === 'create') return 'Add';
     return isRenaming(entryText) ? 'Rename' : 'Save';
   }

@@ -89,6 +89,23 @@ test('creating an entry that already exists in My Edits is hard-blocked', async 
   await expect(page.locator('#atom-popover .atom-pop-save')).toBeDisabled();
 });
 
+test('staging the existing row for deletion relabels the create popover as Delete', async ({ page }) => {
+  await gotoApp(page);
+  await page.evaluate(() => window.__grawlixTest.createMyEntry('ocean', 50));
+  await page.locator('#add-fab').click();
+  await page.locator('#atom-pop-entry').fill('ocean');
+  await page.locator('#atom-pop-score').fill('50');
+
+  await page.locator('.atom-pop-prov-row', { hasText: 'My Edits' }).locator('.atom-pop-prov-trash').click();
+  await expect(page.locator('#atom-popover .atom-pop-title')).toHaveText('Delete entry');
+  const save = page.locator('#atom-popover .atom-pop-save');
+  await expect(save).toHaveText('Delete');
+  await expect(save).toBeEnabled();
+
+  await save.click();
+  await expect.poll(() => myEditsForNorm(page, 'ocean')).toEqual([]);
+});
+
 test('creating an entry that exists only on another wordlist is allowed', async ({ page }) => {
   await gotoApp(page);
   await addList(page, { name: 'W', entries: ['ocean'], scores: [50] });
