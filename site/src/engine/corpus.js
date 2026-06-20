@@ -14,7 +14,12 @@ export function isDistinguishing(group) {
 }
 
 export function concreteDisplay(wlE, norm, distinguishing) {
-  return wlE.display ?? (distinguishing ? norm : null);
+  // A display equal to its norm is bare. The worker re-parses such a typed entry
+  // to null on a config sync; main keeps it verbatim. Normalize here so both
+  // threads' merge — and the planner's view of it — agree on what a lowercase
+  // entry shows, whether or not a re-parse has happened yet.
+  const display = wlE.display === norm ? null : wlE.display;
+  return display ?? (distinguishing ? norm : null);
 }
 
 // `sourceList[0]` is highest priority; winner resolution depends on it.

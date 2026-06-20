@@ -30,13 +30,6 @@ function foreignBare(sources, norm) {
   return null;
 }
 
-// Through the shared per-norm bucket, not an inline scan, so the concretize
-// carve-out stays in lockstep with the real merge. Winner of a spelling can be a
-// bare wildcard — keep-rich snapshots the displayed score, not the speller's.
-function displayedSpellings(sources, norm) {
-  return computeMergedBucket(norm, sources).rows.filter(r => r.display != null);
-}
-
 export function planEntryWrite({ mode, clicked, typed, sources, trashScore = 0 }) {
   const newNorm = toNorm(typed.raw);
   const newDisplay = typed.raw;            // literal, non-null — see norm.js buildUserWlEntry
@@ -49,31 +42,34 @@ export function planEntryWrite({ mode, clicked, typed, sources, trashScore = 0 }
   const notes = [];
 
   if (mode === 'create') {
-    // Create writes into My Edits, so a foreign-only match is a legitimate add
-    // (own score/priority) — only a My Edits duplicate blocks.
     const editsRows = edits ? (getRescoredByNorm(edits).get(newNorm) || []) : [];
-    if (editsRows.some(r => displayOf(r) === newDisplay)) {
+    // Resolved through the shared bucket (concretize carve-out in lockstep with the
+    // real merge); a spelling's winner can be a bare, so its score is what's shown.
+    const shown = computeMergedBucket(newNorm, sources).rows;
+    // Block only a spelling My Edits already SHOWS. A bare hidden under a foreign
+    // spelling shows as that spelling, so typing the bare splits it out (below).
+    if (shown.some(r => r.wordlist === edits && displayOf(r) === newDisplay)) {
       return { blockedReason: 'exists', primary, deletes, upserts, notes };
     }
+    // Rescores an existing hidden bare (matched by displayOf), else adds fresh.
     upserts.push({ norm: newNorm, display: newDisplay, score, comment });
-    // A copied foreign sibling makes My Edits distinguishing for the norm, so the
-    // typed entry and the sibling render as two rows, neither absorbing the other.
-    if (editsRows.length === 0) {
-      if (newDisplay !== newNorm) {
-        // keep-bare: else the created rich absorbs a foreign bare and hides it.
+    const hasRichSibling = editsRows.some(r => r.display && r.display !== newNorm);
+    if (newDisplay !== newNorm) {
+      // keep-bare: else the created rich absorbs a foreign bare and hides it.
+      if (editsRows.length === 0) {
         const bare = foreignBare(sources, newNorm);
         if (bare) {
           upserts.push({ norm: newNorm, display: null, score: bare.score, comment: bare.comment || '' });
           notes.push({ kind: 'keep-bare', norm: newNorm, display: null, score: bare.score, comment: bare.comment || '' });
         }
-      } else {
-        // keep-rich: a typed bare is authoritative, but a reload re-parses it to a
-        // wildcard that would coalesce into a foreign spelling — the copies keep it
-        // its own row across the re-parse.
-        for (const r of displayedSpellings(sources, newNorm)) {
-          upserts.push({ norm: newNorm, display: r.display, score: r.score, comment: r.comment || '' });
-          notes.push({ kind: 'keep-rich', norm: newNorm, display: r.display, score: r.score, comment: r.comment || '' });
-        }
+      }
+    } else if (!hasRichSibling) {
+      // keep-rich: the merge folds a typed lowercase into a foreign spelling (it's
+      // bare); copy each shown spelling so it keeps its own row (fresh add or split).
+      for (const r of shown) {
+        if (r.display == null) continue;
+        upserts.push({ norm: newNorm, display: r.display, score: r.score, comment: r.comment || '' });
+        notes.push({ kind: 'keep-rich', norm: newNorm, display: r.display, score: r.score, comment: r.comment || '' });
       }
     }
     return { blockedReason: null, primary, deletes, upserts, notes };

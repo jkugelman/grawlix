@@ -432,3 +432,42 @@ test('a bare My Edits add keeps a foreign rich spelling as its own row, survivin
     { timeout: 10000 }
   ).toEqual(expected);
 });
+
+test('typing a bare over a hidden bare splits it — rescores the bare, adds the shown spelling', async ({ page }) => {
+  await gotoApp(page);
+  // A My Edits bare hidden under a foreign spelling: create `theirs` before the
+  // foreign `the IRS` exists (so keep-rich has nothing to copy), then reload so the
+  // re-parse turns the typed `theirs` into a bare wildcard that borrows `the IRS`.
+  await page.evaluate(() => window.__grawlixTest.createMyEntry('theirs', 20));
+  await page.evaluate(() => window.__grawlixTest.addCustomWordlist({ name: 'W', entries: ['the IRS'], scores: [50] }));
+
+  const rows = dump => dump.entries.filter(([norm]) => norm === 'theirs').sort();
+  const hidden = [['theirs', 'the IRS', 20, '', 'My Edits']];
+  await expect.poll(async () =>
+    rows(await page.evaluate(() => window.__grawlixTest.dumpMergedCache()))
+  ).toEqual(hidden);
+  // The split decision runs on main, which keeps the literal `theirs` until a full
+  // reload re-parses it to the bare wildcard the worker already resolved.
+  await page.reload();
+  await expect.poll(
+    async () => rows(await page.evaluate(() => window.__grawlixTest.dumpMergedCache())),
+    { timeout: 10000 }
+  ).toEqual(hidden);
+
+  await page.locator('#add-fab').click();
+  await page.locator('#atom-pop-entry').fill('theirs');
+  await page.locator('#atom-pop-score').fill('30');
+
+  await expect(page.locator('#atom-popover .atom-pop-note--block')).toHaveCount(0);
+  await expect(page.locator('#atom-popover .atom-pop-save')).toBeEnabled();
+  await expect(page.locator('#atom-popover .atom-pop-prov-row--changed .atom-pop-prov-entry', { hasText: /^theirs$/ })).toHaveCount(1);
+  await expect(page.locator('#atom-popover .atom-pop-prov-row--added .atom-pop-prov-entry', { hasText: /^the IRS$/ })).toHaveCount(1);
+
+  await page.locator('#atom-popover .atom-pop-save').click();
+  await expect.poll(async () =>
+    rows(await page.evaluate(() => window.__grawlixTest.dumpMergedCache()))
+  ).toEqual([
+    ['theirs', 'the IRS', 20, '', 'My Edits'],
+    ['theirs', 'theirs', 30, '', 'My Edits'],
+  ]);
+});

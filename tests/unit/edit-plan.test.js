@@ -98,6 +98,39 @@ test('create: keep-rich does NOT copy when My Edits already has the norm', () =>
   assert.deepStrictEqual(p.notes, []);
 });
 
+test('create: a typed bare over a hidden bare rescores it and splits out the shown spelling', () => {
+  const sources = [
+    edits([wlEntry('pgs', 20)]),                              // My Edits bare pgs, shown as PGs
+    src('Nediger', [wlEntry('pgs', 50, { display: 'PGs' })]),
+  ];
+  const p = planEntryWrite({ mode: 'create', clicked: null, typed: typed('pgs', 30, 'Pages'), sources });
+  assert.equal(p.blockedReason, null);
+  assert.deepStrictEqual(p.upserts, [
+    { norm: 'pgs', display: 'pgs', score: 30, comment: 'Pages' },
+    { norm: 'pgs', display: 'PGs', score: 20, comment: '' },
+  ]);
+  assert.deepStrictEqual(p.notes, [{ kind: 'keep-rich', norm: 'pgs', display: 'PGs', score: 20, comment: '' }]);
+});
+
+test('create: a typed bare still blocks when nothing hides the existing bare', () => {
+  const sources = [edits([wlEntry('pgs', 20)])];   // bare pgs shows as pgs — no foreign spelling
+  const p = planEntryWrite({ mode: 'create', clicked: null, typed: typed('pgs', 30), sources });
+  assert.equal(p.blockedReason, 'exists');
+});
+
+test('create: the split fires the same when My Edits still holds the literal display (pre-reload)', () => {
+  const sources = [
+    edits([wlEntry('pgs', 20, { display: 'pgs' })]),   // literal, as main holds it before a reload
+    src('Nediger', [wlEntry('pgs', 50, { display: 'PGs' })]),
+  ];
+  const p = planEntryWrite({ mode: 'create', clicked: null, typed: typed('pgs', 30, 'Pages'), sources });
+  assert.equal(p.blockedReason, null);
+  assert.deepStrictEqual(p.upserts, [
+    { norm: 'pgs', display: 'pgs', score: 30, comment: 'Pages' },
+    { norm: 'pgs', display: 'PGs', score: 20, comment: '' },
+  ]);
+});
+
 // ─── edit / rename ───────────────────────────────────────────────────────────
 
 test('edit: score-only change is an in-place upsert, no delete', () => {

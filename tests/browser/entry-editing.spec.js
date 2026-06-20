@@ -216,7 +216,7 @@ test('renaming shows an undo toast that restores the original', async ({ page })
   const undo = page.locator('.toast .toast-action');
   await expect(undo).toBeVisible();
   await undo.click();
-  await expect.poll(() => displaysForNorm(page, 'ocean')).toEqual(['ocean']);
+  await expect.poll(() => displaysForNorm(page, 'ocean')).toEqual([null]);
 });
 
 // ─── Adopt (claim into My Edits) ─────────────────────────────────────────────
