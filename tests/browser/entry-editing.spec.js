@@ -115,7 +115,9 @@ test('creating an entry that exists only on another wordlist is allowed', async 
   await expect(page.locator('#atom-popover .atom-pop-note--block')).toHaveCount(0);
   await expect(page.locator('#atom-popover .atom-pop-save')).toBeEnabled();
   await page.locator('#atom-popover .atom-pop-save').click();
-  await expect.poll(() => myEditsForNorm(page, 'ocean')).toEqual(['ocean']);
+  // Typed lowercase stores bare (round-trip-stable): the file can't tell it from
+  // a bare import, so we reflect that immediately rather than keep a literal.
+  await expect.poll(() => myEditsForNorm(page, 'ocean')).toEqual([null]);
 });
 
 test('creating a same-norm sibling coexists with the existing entry', async ({ page }) => {

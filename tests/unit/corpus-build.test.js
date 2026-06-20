@@ -116,6 +116,22 @@ test('buildCorpus: a bare entry in a plain list still unifies with another list\
   ]);
 });
 
+test('buildCorpus: a deliberate lowercase entry (display === norm) keeps its own row, not re-bared', () => {
+  // An UPPER-convention file's off-convention lowercase 'ebay' parses rich
+  // (display === norm). The resolver must trust that display and never re-bare it,
+  // or the entry collapses into another list's 'eBay' and loses its own row.
+  const Caps  = src('Caps',  [wlEntry('ebay', 20, { display: 'ebay' })]);
+  const Mixed = src('Mixed', [wlEntry('ebay', 40, { display: 'eBay' })]);
+
+  const { entries, byKey } = buildCorpus([Caps, Mixed]);
+
+  assert.deepStrictEqual(project(entries), [
+    { norm: 'ebay', display: 'ebay', score: 20, rawScore: undefined, comment: '', source: 'Caps' },
+    { norm: 'ebay', display: 'eBay', score: 40, rawScore: undefined, comment: '', source: 'Mixed' },
+  ]);
+  assert.equal(byKey.size, 2);
+});
+
 test('buildCorpus: a rescored score feeds the merge and wins; rawScore keeps the original', () => {
   const E = src('E', [wlEntry('delta', 5)], { rescoreRules: [{ input: '0-9', output: '80' }] });
   compileRescoreRules(E);

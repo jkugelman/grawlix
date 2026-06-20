@@ -521,11 +521,11 @@ function noEditChange(clicked, raw, score, comment) {
 }
 
 function undoToastMessage(mode, plan, clicked) {
-  if (mode === 'edit' && plan.deletes.length) return `Renamed ${esc(clicked.display ?? clicked.norm)} → ${esc(plan.primary.display)}`;
-  if (mode === 'create' && plan.notes.length) return `Added ${esc(plan.primary.display)}`;
+  if (mode === 'edit' && plan.deletes.length) return `Renamed ${esc(clicked.display ?? clicked.norm)} → ${esc(displayOf(plan.primary))}`;
+  if (mode === 'create' && plan.notes.length) return `Added ${esc(displayOf(plan.primary))}`;
   if (mode === 'adopt') return plan.deletes.length
-    ? `Updated ${esc(plan.primary.display)} in My Edits`
-    : `Added ${esc(plan.primary.display)} to My Edits`;
+    ? `Updated ${esc(displayOf(plan.primary))} in My Edits`
+    : `Added ${esc(displayOf(plan.primary))} to My Edits`;
   return null;
 }
 

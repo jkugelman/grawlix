@@ -6,13 +6,32 @@
 // The worker applies this write-set verbatim and never re-plans, so main's merge
 // view alone decides an edit — re-deriving worker-side would silently diverge.
 
-import { toNorm, displayOf } from './norm.js';
+import { toNorm, displayOf, buildWlEntry, detectCase } from './norm.js';
 import { getRescoredByNorm } from './rescore.js';
 import { computeMergedBucket } from './corpus.js';
 
 const isEdits = wl => wl.type === 'edits';
 const isLive = wl => wl.enabled !== false;
 const editsOf = sources => sources.find(isEdits) || null;
+
+// My Edits' detected case, cached on the rawEntries array identity — bulk replaces
+// (import, load, disk-sync) swap the array so the cache refreshes; in-place edits
+// keep it, and one typed entry can't move the ratio, so skipping that refresh is safe.
+function editsFileCase(edits) {
+  if (!edits) return 'lower';
+  const raw = edits.rawEntries;
+  if (edits._fileCaseFor !== raw) {
+    edits._fileCase = detectCase(raw.map(e => ({ raw: displayOf(e) })));
+    edits._fileCaseFor = raw;
+  }
+  return edits._fileCase;
+}
+
+// Decide bare-vs-rich the way the worker's re-parse will, not by keeping the
+// literal: a kept literal diverges silently and re-bares on the next reload.
+function typedDisplay(raw, edits) {
+  return buildWlEntry(raw, 0, '', editsFileCase(edits)).display;
+}
 
 // Non-edits only: gating on a My Edits sibling would trash the user's own
 // deliberate variant during the downscore.
@@ -32,10 +51,11 @@ function foreignBare(sources, norm) {
 
 export function planEntryWrite({ mode, clicked, typed, sources, trashScore = 0 }) {
   const newNorm = toNorm(typed.raw);
-  const newDisplay = typed.raw;            // literal, non-null — see norm.js buildUserWlEntry
+  const edits = editsOf(sources);
+  const newDisplay = typedDisplay(typed.raw, edits);
+  const newRendered = newDisplay ?? newNorm;
   const score = typed.score;
   const comment = typed.comment ?? '';
-  const edits = editsOf(sources);
   const primary = { norm: newNorm, display: newDisplay };
   const deletes = [];
   const upserts = [];
@@ -48,13 +68,13 @@ export function planEntryWrite({ mode, clicked, typed, sources, trashScore = 0 }
     const shown = computeMergedBucket(newNorm, sources).rows;
     // Block only a spelling My Edits already SHOWS. A bare hidden under a foreign
     // spelling shows as that spelling, so typing the bare splits it out (below).
-    if (shown.some(r => r.wordlist === edits && displayOf(r) === newDisplay)) {
+    if (shown.some(r => r.wordlist === edits && displayOf(r) === newRendered)) {
       return { blockedReason: 'exists', primary, deletes, upserts, notes };
     }
     // Rescores an existing hidden bare (matched by displayOf), else adds fresh.
     upserts.push({ norm: newNorm, display: newDisplay, score, comment });
     const hasRichSibling = editsRows.some(r => r.display && r.display !== newNorm);
-    if (newDisplay !== newNorm) {
+    if (newDisplay != null) {
       // keep-bare: else the created rich absorbs a foreign bare and hides it.
       if (editsRows.length === 0) {
         const bare = foreignBare(sources, newNorm);
@@ -67,7 +87,9 @@ export function planEntryWrite({ mode, clicked, typed, sources, trashScore = 0 }
       // keep-rich: the merge folds a typed lowercase into a foreign spelling (it's
       // bare); copy each shown spelling so it keeps its own row (fresh add or split).
       for (const r of shown) {
-        if (r.display == null) continue;
+        // Skip a row the bare primary already renders: copying its display === norm
+        // would re-bare on reload and clobber the typed score via the upsert dedup.
+        if (r.display == null || r.display === newRendered) continue;
         upserts.push({ norm: newNorm, display: r.display, score: r.score, comment: r.comment || '' });
         notes.push({ kind: 'keep-rich', norm: newNorm, display: r.display, score: r.score, comment: r.comment || '' });
       }
@@ -77,7 +99,7 @@ export function planEntryWrite({ mode, clicked, typed, sources, trashScore = 0 }
 
   const origNorm = clicked.norm;
   const origDisplay = clicked.display ?? clicked.norm;
-  if (newNorm !== origNorm || newDisplay !== origDisplay) {
+  if (newNorm !== origNorm || newRendered !== origDisplay) {
     deletes.push({ norm: origNorm, display: origDisplay });
   }
   upserts.push({ norm: newNorm, display: newDisplay, score, comment });

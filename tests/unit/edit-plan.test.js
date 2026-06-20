@@ -23,7 +23,7 @@ test('create: a fresh plain entry is a lone upsert, no delete', () => {
   const p = planEntryWrite({ mode: 'create', clicked: null, typed: typed('banana', 60), sources });
   assert.equal(p.blockedReason, null);
   assert.deepStrictEqual(p.deletes, []);
-  assert.deepStrictEqual(p.upserts, [{ norm: 'banana', display: 'banana', score: 60, comment: '' }]);
+  assert.deepStrictEqual(p.upserts, [{ norm: 'banana', display: null, score: 60, comment: '' }]);
   assert.deepStrictEqual(p.notes, []);
 });
 
@@ -31,7 +31,7 @@ test('create: a foreign-only match does NOT block — adding it to My Edits is l
   const sources = [edits(), src('XWI', [wlEntry('ocean', 30)])];   // XWI bare ocean, not in My Edits
   const p = planEntryWrite({ mode: 'create', clicked: null, typed: typed('ocean'), sources });
   assert.equal(p.blockedReason, null);
-  assert.deepStrictEqual(p.upserts, [{ norm: 'ocean', display: 'ocean', score: 50, comment: '' }]);
+  assert.deepStrictEqual(p.upserts, [{ norm: 'ocean', display: null, score: 50, comment: '' }]);
 });
 
 test('create: an exact (norm, displayOf) match in My Edits blocks', () => {
@@ -45,7 +45,7 @@ test('create: a My Edits norm match with a different display does NOT block', ()
   const sources = [edits([wlEntry('ocean', 30, { display: 'Ocean' })])];   // My Edits "Ocean"
   const p = planEntryWrite({ mode: 'create', clicked: null, typed: typed('ocean'), sources });   // typing "ocean"
   assert.equal(p.blockedReason, null);
-  assert.deepStrictEqual(p.upserts, [{ norm: 'ocean', display: 'ocean', score: 50, comment: '' }]);
+  assert.deepStrictEqual(p.upserts, [{ norm: 'ocean', display: null, score: 50, comment: '' }]);
 });
 
 test('create: rich over a foreign bare copies the bare down (snapshotting its score)', () => {
@@ -71,7 +71,7 @@ test('create: plain over a foreign rich copies the spelling up (keep-rich)', () 
   const p = planEntryWrite({ mode: 'create', clicked: null, typed: typed('theirs'), sources });
   assert.equal(p.blockedReason, null);
   assert.deepStrictEqual(p.upserts, [
-    { norm: 'theirs', display: 'theirs', score: 50, comment: '' },
+    { norm: 'theirs', display: null, score: 50, comment: '' },
     { norm: 'theirs', display: 'the IRS', score: 30, comment: '' },
   ]);
   assert.deepStrictEqual(p.notes, [{ kind: 'keep-rich', norm: 'theirs', display: 'the IRS', score: 30, comment: '' }]);
@@ -86,7 +86,7 @@ test('create: keep-rich snapshots the displayed score — a higher bare wins the
   const p = planEntryWrite({ mode: 'create', clicked: null, typed: typed('pdfs', 20), sources });
   // The displayed `PDFs` row is won by JK's bare (30), not Nediger's spelling (50).
   assert.deepStrictEqual(p.upserts, [
-    { norm: 'pdfs', display: 'pdfs', score: 20, comment: '' },
+    { norm: 'pdfs', display: null, score: 20, comment: '' },
     { norm: 'pdfs', display: 'PDFs', score: 30, comment: '' },
   ]);
 });
@@ -106,7 +106,7 @@ test('create: a typed bare over a hidden bare rescores it and splits out the sho
   const p = planEntryWrite({ mode: 'create', clicked: null, typed: typed('pgs', 30, 'Pages'), sources });
   assert.equal(p.blockedReason, null);
   assert.deepStrictEqual(p.upserts, [
-    { norm: 'pgs', display: 'pgs', score: 30, comment: 'Pages' },
+    { norm: 'pgs', display: null, score: 30, comment: 'Pages' },
     { norm: 'pgs', display: 'PGs', score: 20, comment: '' },
   ]);
   assert.deepStrictEqual(p.notes, [{ kind: 'keep-rich', norm: 'pgs', display: 'PGs', score: 20, comment: '' }]);
@@ -118,17 +118,21 @@ test('create: a typed bare still blocks when nothing hides the existing bare', (
   assert.equal(p.blockedReason, 'exists');
 });
 
-test('create: the split fires the same when My Edits still holds the literal display (pre-reload)', () => {
+test('create: a typed bare skips a foreign source\'s concretized bare, keeping the typed score', () => {
+  // X holds both a bare and a rich of 'ebay', so its bare concretizes to a
+  // display === norm row. Copying that into My Edits would re-bare on reload and
+  // overwrite the typed score (30 → 20) via the (norm, displayOf) upsert dedup.
   const sources = [
-    edits([wlEntry('pgs', 20, { display: 'pgs' })]),   // literal, as main holds it before a reload
-    src('Nediger', [wlEntry('pgs', 50, { display: 'PGs' })]),
+    edits(),
+    src('X', [wlEntry('ebay', 20), wlEntry('ebay', 40, { display: 'eBay' })]),
   ];
-  const p = planEntryWrite({ mode: 'create', clicked: null, typed: typed('pgs', 30, 'Pages'), sources });
+  const p = planEntryWrite({ mode: 'create', clicked: null, typed: typed('ebay', 30), sources });
   assert.equal(p.blockedReason, null);
   assert.deepStrictEqual(p.upserts, [
-    { norm: 'pgs', display: 'pgs', score: 30, comment: 'Pages' },
-    { norm: 'pgs', display: 'PGs', score: 20, comment: '' },
+    { norm: 'ebay', display: null, score: 30, comment: '' },
+    { norm: 'ebay', display: 'eBay', score: 40, comment: '' },
   ]);
+  assert.deepStrictEqual(p.notes, [{ kind: 'keep-rich', norm: 'ebay', display: 'eBay', score: 40, comment: '' }]);
 });
 
 // ─── edit / rename ───────────────────────────────────────────────────────────
@@ -138,7 +142,7 @@ test('edit: score-only change is an in-place upsert, no delete', () => {
   const clicked = { norm: 'ocean', display: null, score: 50, comment: '' };
   const p = planEntryWrite({ mode: 'edit', clicked, typed: typed('ocean', 80), sources });
   assert.deepStrictEqual(p.deletes, []);
-  assert.deepStrictEqual(p.upserts, [{ norm: 'ocean', display: 'ocean', score: 80, comment: '' }]);
+  assert.deepStrictEqual(p.upserts, [{ norm: 'ocean', display: null, score: 80, comment: '' }]);
 });
 
 test('edit: same-norm enrich deletes the plain and upserts the rich, no downscore', () => {
@@ -155,7 +159,7 @@ test('edit: renaming a foreign entry to a new norm trashes the leftover', () => 
   const clicked = { norm: 'oceam', display: null, score: 40, comment: '' };
   const p = planEntryWrite({ mode: 'edit', clicked, typed: typed('ocean', 60), sources, trashScore: 0 });
   assert.deepStrictEqual(p.upserts, [
-    { norm: 'ocean', display: 'ocean', score: 60, comment: '' },
+    { norm: 'ocean', display: null, score: 60, comment: '' },
     { norm: 'oceam', display: null, score: 0, comment: '' },
   ]);
   assert.deepStrictEqual(p.notes, [{ kind: 'downscore', norm: 'oceam', display: 'oceam', score: 0 }]);
@@ -166,7 +170,7 @@ test('edit: renaming a My Edits entry to a new norm deletes it — no downscore 
   const clicked = { norm: 'oceam', display: null, score: 60, comment: '' };
   const p = planEntryWrite({ mode: 'edit', clicked, typed: typed('ocean', 60), sources });
   assert.deepStrictEqual(p.deletes, [{ norm: 'oceam', display: 'oceam' }]);
-  assert.deepStrictEqual(p.upserts, [{ norm: 'ocean', display: 'ocean', score: 60, comment: '' }]);
+  assert.deepStrictEqual(p.upserts, [{ norm: 'ocean', display: null, score: 60, comment: '' }]);
   assert.deepStrictEqual(p.notes, []);
 });
 
@@ -175,7 +179,7 @@ test('edit: renaming with no foreign leftover does not trash', () => {
   const clicked = { norm: 'oceam', display: null, score: 60, comment: '' };
   const p = planEntryWrite({ mode: 'edit', clicked, typed: typed('ocean', 60), sources });
   assert.deepStrictEqual(p.deletes, [{ norm: 'oceam', display: 'oceam' }]);
-  assert.deepStrictEqual(p.upserts, [{ norm: 'ocean', display: 'ocean', score: 60, comment: '' }]);
+  assert.deepStrictEqual(p.upserts, [{ norm: 'ocean', display: null, score: 60, comment: '' }]);
   assert.deepStrictEqual(p.notes, []);
 });
 

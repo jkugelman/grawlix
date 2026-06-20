@@ -1871,7 +1871,7 @@ export const AtomPopover = (() => {
     const p = plan.primary;
     const effective = rescoreEntry({ norm: p.norm, score: vals.score }, edits.rescoreRules);
     const entry = { norm: p.norm, display: p.display, score: effective, rawScore: vals.score, comment: vals.comment };
-    const i = rows.findIndex(r => r.isEdits && r.entry.norm === p.norm && displayOf(r.entry) === p.display && r.diff !== 'deleted');
+    const i = rows.findIndex(r => r.isEdits && r.entry.norm === p.norm && displayOf(r.entry) === (p.display ?? p.norm) && r.diff !== 'deleted');
     let primaryIdx;
     if (i >= 0) { rows[i] = { wordlist: edits, entry, enabled: true, isEdits: true, saved: true, diff: 'changed', adoptStaged: stagedAdopt }; primaryIdx = i; }
     else { rows.unshift({ wordlist: edits, entry, enabled: true, isEdits: true, saved: false, diff: 'added', adoptStaged: stagedAdopt }); primaryIdx = 0; }

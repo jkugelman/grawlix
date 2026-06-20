@@ -176,7 +176,7 @@ test('an edit made through the popover still lands in My Edits', async ({ page }
 
   await expect.poll(async () =>
     page.evaluate(() => window.__grawlixTest.getWordlist('My Edits').entries)
-  ).toEqual([{ entry: 'bagel', display: 'bagel', score: 77, comment: '' }]);
+  ).toEqual([{ entry: 'bagel', display: null, score: 77, comment: '' }]);
   expect(await page.evaluate(() => window.__grawlixTest.getMergedEntry('BAGEL')))
     .toMatchObject({ entry: 'bagel', score: 77, wordlist: 'My Edits' });
 });

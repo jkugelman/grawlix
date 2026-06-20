@@ -60,7 +60,7 @@ test('picking a tier sets the score, routes it into My Edits, and leaves the sou
   await expect(picker(page)).toBeHidden();
 
   await expect.poll(() => myEdits(page))
-    .toEqual([{ entry: 'bagel', display: 'bagel', score: 90, comment: '' }]);
+    .toEqual([{ entry: 'bagel', display: null, score: 90, comment: '' }]);
   await expect.poll(() => mergedBagel(page)).toMatchObject({ score: 90, wordlist: 'My Edits' });
 
   const src = await page.evaluate(() => window.__grawlixTest.getWordlist('Src'));
@@ -118,7 +118,7 @@ test('the picker works in the My Edits scope too', async ({ page }) => {
   await page.locator('#score-picker .score-picker-opt', { hasText: 'Great' }).click();
   await expect(picker(page)).toBeHidden();
   await expect.poll(() => myEdits(page))
-    .toEqual([{ entry: 'bagel', display: 'bagel', score: 90, comment: '' }]);
+    .toEqual([{ entry: 'bagel', display: null, score: 90, comment: '' }]);
 });
 
 // Regression: a bare My Edits entry (parta) unifies via its null-display wildcard

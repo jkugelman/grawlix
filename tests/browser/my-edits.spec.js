@@ -42,7 +42,7 @@ test('editing a row sourced from another wordlist routes the edit into My Edits'
   // at index 0 = highest priority).
   await expect.poll(async () =>
     page.evaluate(() => window.__grawlixTest.getWordlist('My Edits').entries)
-  ).toEqual([{ entry: 'bagel', display: 'bagel', score: 75, comment: '' }]);
+  ).toEqual([{ entry: 'bagel', display: null, score: 75, comment: '' }]);
 
   const source = await page.evaluate(() => window.__grawlixTest.getWordlist('Source'));
   expect(source.entries).toEqual([{ entry: 'bagel', display: null, score: 50, comment: '' }]);
@@ -78,7 +78,7 @@ test('popover edits only commit when the user clicks Save', async ({ page }) => 
 
   await expect.poll(async () =>
     page.evaluate(() => window.__grawlixTest.getWordlist('My Edits').entries)
-  ).toEqual([{ entry: 'bagel', display: 'bagel', score: 75, comment: 'tasty' }]);
+  ).toEqual([{ entry: 'bagel', display: null, score: 75, comment: 'tasty' }]);
 });
 
 test('Cancel closes the popover without committing edits', async ({ page }) => {
@@ -144,7 +144,7 @@ test('editing the entry text renames the My Edits record', async ({ page }) => {
   await page.locator('.atom-pop-save').click();
   await expect.poll(async () =>
     page.evaluate(() => window.__grawlixTest.getWordlist('My Edits').entries)
-  ).toEqual([{ entry: 'bagel', display: 'bagel', score: 75, comment: '' }]);
+  ).toEqual([{ entry: 'bagel', display: null, score: 75, comment: '' }]);
 
   await page.locator('.entry-row[data-entry="bagel"] .atom-entry').click();
   await page.locator('#atom-pop-entry').fill('Bagels');
@@ -313,19 +313,18 @@ test('deleting a My Edits entry shows an undo toast that restores it', async ({ 
   // My Edits' BAGEL is back at 75, merged view follows.
   await expect.poll(async () =>
     page.evaluate(() => window.__grawlixTest.getWordlist('My Edits').entries)
-  ).toEqual([{ entry: 'bagel', display: 'bagel', score: 75, comment: '' }]);
+  ).toEqual([{ entry: 'bagel', display: null, score: 75, comment: '' }]);
   expect(await page.evaluate(() => window.__grawlixTest.getMergedEntry('BAGEL'))).toMatchObject({
     entry: 'bagel', score: 75, comment: '', wordlist: 'My Edits',
   });
 });
 
-test('a My Edits entry deletes via the popover after a reload reparses its display to null', async ({ page }) => {
+test('a My Edits entry deletes via the popover after a reload, matching its bare null display', async ({ page }) => {
   await gotoApp(page);
 
-  // Create a My-Edits-only entry through the add FAB. On reload it rehydrates
-  // from IndexedDB text via parseWordlist, where an all-lowercase entry
-  // classifies as plain → display:null. The delete must match that null against
-  // the norm-coalesced display (displayOf), not the raw display.
+  // A typed all-lowercase entry stores bare (display:null) at the source and
+  // stays bare across the reload's reparse. The delete must match that null
+  // against the norm-coalesced display (displayOf), not a raw literal.
   await page.locator('.search-bar input[data-key="pattern"]').fill('words');
   await page.evaluate(() => window.__grawlixTest.pipelineIdle());
   await page.locator('#add-fab').click();
@@ -333,7 +332,7 @@ test('a My Edits entry deletes via the popover after a reload reparses its displ
   await page.locator('#atom-pop-score').press('Enter');
   await expect.poll(async () =>
     page.evaluate(() => window.__grawlixTest.getWordlist('My Edits').entries)
-  ).toEqual([{ entry: 'words', display: 'words', score: 40, comment: '' }]);
+  ).toEqual([{ entry: 'words', display: null, score: 40, comment: '' }]);
 
   await page.reload();
   // Longer than the 5s default: a post-reload poll absorbs full boot + IDB reparse.
@@ -436,8 +435,8 @@ test('a bare My Edits add keeps a foreign rich spelling as its own row, survivin
 test('typing a bare over a hidden bare splits it — rescores the bare, adds the shown spelling', async ({ page }) => {
   await gotoApp(page);
   // A My Edits bare hidden under a foreign spelling: create `theirs` before the
-  // foreign `the IRS` exists (so keep-rich has nothing to copy), then reload so the
-  // re-parse turns the typed `theirs` into a bare wildcard that borrows `the IRS`.
+  // foreign `the IRS` exists (so keep-rich has nothing to copy). It stores bare at
+  // the source and borrows the foreign spelling; the reload proves that survives.
   await page.evaluate(() => window.__grawlixTest.createMyEntry('theirs', 20));
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({ name: 'W', entries: ['the IRS'], scores: [50] }));
 
@@ -446,8 +445,8 @@ test('typing a bare over a hidden bare splits it — rescores the bare, adds the
   await expect.poll(async () =>
     rows(await page.evaluate(() => window.__grawlixTest.dumpMergedCache()))
   ).toEqual(hidden);
-  // The split decision runs on main, which keeps the literal `theirs` until a full
-  // reload re-parses it to the bare wildcard the worker already resolved.
+  // The reload proves the bare survives a round-trip; main and the worker already
+  // agree it's a wildcard borrowing `the IRS`, with no reload needed.
   await page.reload();
   await expect.poll(
     async () => rows(await page.evaluate(() => window.__grawlixTest.dumpMergedCache())),
