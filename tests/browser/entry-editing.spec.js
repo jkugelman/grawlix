@@ -132,6 +132,27 @@ test('creating a rich entry over a foreign bare keeps the bare visible', async (
   await expect.poll(() => displaysForNorm(page, 'theirs')).toEqual(['the IRS', 'theirs']);
 });
 
+test('creating a bare entry over a foreign rich keeps the rich visible', async ({ page }) => {
+  await gotoApp(page);
+  await addList(page, { name: 'W', entries: ['the IRS'], scores: [40] });
+  await page.evaluate(() => window.__grawlixTest.createMyEntry('theirs', 90));
+  await expect.poll(() => displaysForNorm(page, 'theirs')).toEqual(['the IRS', 'theirs']);
+});
+
+test('the keep-rich copy previews as a second added My Edits row, not a note', async ({ page }) => {
+  await gotoApp(page);
+  await addList(page, { name: 'W', entries: ['the IRS'], scores: [40] });
+  await page.locator('#add-fab').click();
+  await page.locator('#atom-pop-entry').fill('theirs');
+  await page.locator('#atom-pop-score').fill('90');
+
+  const added = page.locator('#atom-popover .atom-pop-prov-row--added');
+  await expect(added).toHaveCount(2);
+  await expect(added.locator('.atom-pop-prov-entry', { hasText: /^the IRS$/ })).toHaveCount(1);
+  await expect(added.locator('.atom-pop-prov-entry', { hasText: /^theirs$/ })).toHaveCount(1);
+  await expect(page.locator('#atom-popover .atom-pop-note')).toHaveCount(0);
+});
+
 // ─── Rename ────────────────────────────────────────────────────────────────
 
 test('renaming an entry replaces it — no second row', async ({ page }) => {

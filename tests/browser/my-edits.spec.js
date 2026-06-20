@@ -405,3 +405,30 @@ test('the patched merged cache matches a full rebuild across override, add, rena
   const fresh = await page.evaluate(() => window.__grawlixTest.rebuildMergedCache());
   expect(patched).toEqual(fresh);
 });
+
+test('a bare My Edits add keeps a foreign rich spelling as its own row, surviving a reload', async ({ page }) => {
+  await gotoApp(page);
+  await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
+    name: 'Source', entries: ['PDFs'], scores: [50],
+  }));
+
+  await page.evaluate(() => window.__grawlixTest.createMyEntry('pdfs', 30));
+
+  const expected = [
+    ['pdfs', 'PDFs', 50, '', 'My Edits'],
+    ['pdfs', 'pdfs', 30, '', 'My Edits'],
+  ];
+  const pdfsRows = dump => dump.entries.filter(([norm]) => norm === 'pdfs').sort();
+
+  const patched = await page.evaluate(() => window.__grawlixTest.dumpMergedCache());
+  expect(pdfsRows(patched)).toEqual(expected);
+
+  const fresh = await page.evaluate(() => window.__grawlixTest.rebuildMergedCache());
+  expect(patched).toEqual(fresh);
+
+  await page.reload();
+  await expect.poll(
+    async () => pdfsRows(await page.evaluate(() => window.__grawlixTest.dumpMergedCache())),
+    { timeout: 10000 }
+  ).toEqual(expected);
+});

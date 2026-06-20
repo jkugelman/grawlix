@@ -1876,21 +1876,17 @@ export const AtomPopover = (() => {
     if (i >= 0) { rows[i] = { wordlist: edits, entry, enabled: true, isEdits: true, saved: true, diff: 'changed', adoptStaged: stagedAdopt }; primaryIdx = i; }
     else { rows.unshift({ wordlist: edits, entry, enabled: true, isEdits: true, saved: false, diff: 'added', adoptStaged: stagedAdopt }); primaryIdx = 0; }
     for (const n of plan.notes) {
-      if (n.kind !== 'downscore') continue;
-      const dsScore = rescoreEntry({ norm: n.norm, score: n.score }, edits.rescoreRules);
-      extras.push({ wordlist: edits, entry: { norm: n.norm, display: n.display, score: dsScore, rawScore: n.score, comment: '' }, enabled: true, isEdits: true, saved: false, diff: 'added' });
+      const eff = rescoreEntry({ norm: n.norm, score: n.score }, edits.rescoreRules);
+      extras.push({ wordlist: edits, entry: { norm: n.norm, display: n.display, score: eff, rawScore: n.score, comment: n.comment || '' }, enabled: true, isEdits: true, saved: false, diff: 'added' });
     }
     if (extras.length) rows.splice(primaryIdx + 1, 0, ...extras);
     return rows;
   }
 
   function renderNotesHTML() {
-    const plan = previewPlan();
-    if (!plan) return '';
-    if (plan.blockedReason === 'exists') return `<div class="atom-pop-note atom-pop-note--block">That entry already exists.</div>`;
-    return plan.notes.map(n =>
-      n.kind === 'keep-bare' ? `<div class="atom-pop-note">Also keeps ${esc(n.norm)} as its own entry.</div>`
-      : '').join('');
+    return previewPlan()?.blockedReason === 'exists'
+      ? `<div class="atom-pop-note atom-pop-note--block">That entry already exists.</div>`
+      : '';
   }
 
   // Mirror saveEdit's no-op check so an untouched popover shows no preview row.

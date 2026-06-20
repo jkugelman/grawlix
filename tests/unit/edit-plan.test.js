@@ -56,7 +56,7 @@ test('create: rich over a foreign bare copies the bare down (snapshotting its sc
     { norm: 'theirs', display: 'the IRS', score: 90, comment: '' },
     { norm: 'theirs', display: null, score: 30, comment: 'pron' },
   ]);
-  assert.deepStrictEqual(p.notes, [{ kind: 'keep-bare', norm: 'theirs' }]);
+  assert.deepStrictEqual(p.notes, [{ kind: 'keep-bare', norm: 'theirs', display: null, score: 30, comment: 'pron' }]);
 });
 
 test('create: rich over a foreign bare does NOT copy when My Edits already has the norm', () => {
@@ -66,11 +66,35 @@ test('create: rich over a foreign bare does NOT copy when My Edits already has t
   assert.deepStrictEqual(p.notes, []);
 });
 
-test('create: plain over a foreign rich coexists naturally — no copy, not blocked', () => {
+test('create: plain over a foreign rich copies the spelling up (keep-rich)', () => {
   const sources = [edits(), src('XWI', [wlEntry('theirs', 30, { display: 'the IRS' })])];
   const p = planEntryWrite({ mode: 'create', clicked: null, typed: typed('theirs'), sources });
   assert.equal(p.blockedReason, null);
-  assert.deepStrictEqual(p.upserts, [{ norm: 'theirs', display: 'theirs', score: 50, comment: '' }]);
+  assert.deepStrictEqual(p.upserts, [
+    { norm: 'theirs', display: 'theirs', score: 50, comment: '' },
+    { norm: 'theirs', display: 'the IRS', score: 30, comment: '' },
+  ]);
+  assert.deepStrictEqual(p.notes, [{ kind: 'keep-rich', norm: 'theirs', display: 'the IRS', score: 30, comment: '' }]);
+});
+
+test('create: keep-rich snapshots the displayed score — a higher bare wins the spelling', () => {
+  const sources = [
+    edits(),
+    src('JK', [wlEntry('pdfs', 30)]),                          // bare, top of the foreign stack
+    src('Nediger', [wlEntry('pdfs', 50, { display: 'PDFs' })]),
+  ];
+  const p = planEntryWrite({ mode: 'create', clicked: null, typed: typed('pdfs', 20), sources });
+  // The displayed `PDFs` row is won by JK's bare (30), not Nediger's spelling (50).
+  assert.deepStrictEqual(p.upserts, [
+    { norm: 'pdfs', display: 'pdfs', score: 20, comment: '' },
+    { norm: 'pdfs', display: 'PDFs', score: 30, comment: '' },
+  ]);
+});
+
+test('create: keep-rich does NOT copy when My Edits already has the norm', () => {
+  const sources = [edits([wlEntry('theirs', 70)]), src('XWI', [wlEntry('theirs', 30, { display: 'the IRS' })])];
+  const p = planEntryWrite({ mode: 'create', clicked: null, typed: typed('Theirs', 80), sources });
+  assert.deepStrictEqual(p.upserts, [{ norm: 'theirs', display: 'Theirs', score: 80, comment: '' }]);
   assert.deepStrictEqual(p.notes, []);
 });
 
@@ -165,12 +189,24 @@ test('applyEditsWriteSet: inverse round-trips a rename-with-downscore back to th
   assert.deepStrictEqual(after, before);
 });
 
-test('applyEditsWriteSet: inverse round-trips a copy-down create back to the start', () => {
+test('applyEditsWriteSet: inverse round-trips a keep-bare create back to the start', () => {
   const raw = [];
   const writes = {
     upserts: [
       { norm: 'theirs', display: 'the IRS', score: 90, comment: '' },
       { norm: 'theirs', display: null, score: 30, comment: 'pron' },
+    ],
+  };
+  const { after, before } = roundTrip(raw, writes);
+  assert.deepStrictEqual(after, before);
+});
+
+test('applyEditsWriteSet: inverse round-trips a keep-rich create back to the start', () => {
+  const raw = [];
+  const writes = {
+    upserts: [
+      { norm: 'theirs', display: 'theirs', score: 50, comment: '' },
+      { norm: 'theirs', display: 'the IRS', score: 30, comment: '' },
     ],
   };
   const { after, before } = roundTrip(raw, writes);

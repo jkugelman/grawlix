@@ -8,6 +8,7 @@
 
 import { toNorm, displayOf } from './norm.js';
 import { getRescoredByNorm } from './rescore.js';
+import { computeMergedBucket } from './corpus.js';
 
 const isEdits = wl => wl.type === 'edits';
 const isLive = wl => wl.enabled !== false;
@@ -19,8 +20,6 @@ function foreignHasNorm(sources, norm) {
   return sources.some(wl => isLive(wl) && !isEdits(wl) && getRescoredByNorm(wl).has(norm));
 }
 
-// A foreign `display: null` bare is the only thing a created rich entry can
-// absorb — UI entries always carry a non-null display — so copy-down is one-way.
 function foreignBare(sources, norm) {
   for (const wl of sources) {
     if (!isLive(wl) || isEdits(wl)) continue;
@@ -29,6 +28,13 @@ function foreignBare(sources, norm) {
     if (bare) return bare;
   }
   return null;
+}
+
+// Through the shared per-norm bucket, not an inline scan, so the concretize
+// carve-out stays in lockstep with the real merge. Winner of a spelling can be a
+// bare wildcard — keep-rich snapshots the displayed score, not the speller's.
+function displayedSpellings(sources, norm) {
+  return computeMergedBucket(norm, sources).rows.filter(r => r.display != null);
 }
 
 export function planEntryWrite({ mode, clicked, typed, sources, trashScore = 0 }) {
@@ -50,13 +56,24 @@ export function planEntryWrite({ mode, clicked, typed, sources, trashScore = 0 }
       return { blockedReason: 'exists', primary, deletes, upserts, notes };
     }
     upserts.push({ norm: newNorm, display: newDisplay, score, comment });
-    // Without the copy a foreign bare of this norm collapses into the new rich
-    // display and silently vanishes; copying it makes My Edits distinguishing.
-    if (newDisplay !== newNorm && editsRows.length === 0) {
-      const bare = foreignBare(sources, newNorm);
-      if (bare) {
-        upserts.push({ norm: newNorm, display: null, score: bare.score, comment: bare.comment || '' });
-        notes.push({ kind: 'keep-bare', norm: newNorm });
+    // A copied foreign sibling makes My Edits distinguishing for the norm, so the
+    // typed entry and the sibling render as two rows, neither absorbing the other.
+    if (editsRows.length === 0) {
+      if (newDisplay !== newNorm) {
+        // keep-bare: else the created rich absorbs a foreign bare and hides it.
+        const bare = foreignBare(sources, newNorm);
+        if (bare) {
+          upserts.push({ norm: newNorm, display: null, score: bare.score, comment: bare.comment || '' });
+          notes.push({ kind: 'keep-bare', norm: newNorm, display: null, score: bare.score, comment: bare.comment || '' });
+        }
+      } else {
+        // keep-rich: a typed bare is authoritative, but a reload re-parses it to a
+        // wildcard that would coalesce into a foreign spelling — the copies keep it
+        // its own row across the re-parse.
+        for (const r of displayedSpellings(sources, newNorm)) {
+          upserts.push({ norm: newNorm, display: r.display, score: r.score, comment: r.comment || '' });
+          notes.push({ kind: 'keep-rich', norm: newNorm, display: r.display, score: r.score, comment: r.comment || '' });
+        }
       }
     }
     return { blockedReason: null, primary, deletes, upserts, notes };
