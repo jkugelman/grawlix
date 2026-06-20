@@ -77,7 +77,7 @@ You sync each list from its wordlist bar, list by list. Two kinds of sync, depen
 - **Alt-W** — toggle the whole-word checkbox. If a Search or Regex tool row has focus, toggles that row's; otherwise toggles the permanent search bar's.
 - **Alt-C** — focus the score-range input.
 - **Alt-M** — cycle dark mode (Auto / Light / Dark).
-- **Alt-0 … Alt-9** — retier a score, in **All Wordlists** or **My Edits**: hover a score badge (or open its tier picker) and press Alt with a digit. **Alt-0** is the lowest tier, counting up — the digit shows beside each tier in the picker — and the new score lands in My Edits. The fastest path: point at a score, one keypress, done.
+- **Alt-0 … Alt-9** — retier a score, in **All Wordlists** or **My Edits**: hover a score badge (or open its tier picker) and press Alt with a digit. **Alt-0** is the lowest tier, counting up — the digit shows beside each tier in the picker — and the new score lands in My Edits. A toast confirms the new score and offers an Undo, whether you pick by click or by keypress. The fastest path: point at a score, one keypress, done.
 
 ## Search syntax
 

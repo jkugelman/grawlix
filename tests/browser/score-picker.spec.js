@@ -25,6 +25,7 @@ async function setup(page, { score = 50 } = {}) {
 }
 
 const picker = page => page.locator('#score-picker');
+const toast = page => page.locator('#toast-container .toast');
 
 async function openPicker(page) {
   const cell = page.locator('.entry-row[data-entry="bagel"] .atom-score');
@@ -58,6 +59,7 @@ test('picking a tier sets the score, routes it into My Edits, and leaves the sou
   await openPicker(page);
   await page.locator('#score-picker .score-picker-opt', { hasText: 'Great' }).click();
   await expect(picker(page)).toBeHidden();
+  await expect(toast(page)).toContainText(/Rescored .* to 90/);
 
   await expect.poll(() => myEdits(page))
     .toEqual([{ entry: 'bagel', display: null, score: 90, comment: '' }]);
@@ -65,6 +67,18 @@ test('picking a tier sets the score, routes it into My Edits, and leaves the sou
 
   const src = await page.evaluate(() => window.__grawlixTest.getWordlist('Src'));
   expect(src.entries).toEqual([{ entry: 'bagel', display: null, score: 50, comment: '' }]);
+});
+
+test('the rescore toast undoes the change', async ({ page }) => {
+  await setup(page, { score: 50 });
+  await openPicker(page);
+  await page.locator('#score-picker .score-picker-opt', { hasText: 'Great' }).click();
+  await expect.poll(() => mergedBagel(page)).toMatchObject({ score: 90, wordlist: 'My Edits' });
+
+  // bagel came from Src, so undo must delete the created My Edits entry, not write Src's score back.
+  await page.locator('#toast-container .toast-action', { hasText: 'Undo' }).click();
+  await expect.poll(() => myEdits(page)).toEqual([]);
+  await expect.poll(() => mergedBagel(page)).toMatchObject({ score: 50, wordlist: 'Src' });
 });
 
 test('arrow keys move the selection and Enter commits it', async ({ page }) => {
@@ -99,6 +113,7 @@ test('Alt+digit commits the matching tier while the picker is open', async ({ pa
   await openPicker(page);
   await page.keyboard.press('Alt+Digit2');   // top tier, 90
   await expect(picker(page)).toBeHidden();
+  await expect(toast(page)).toContainText(/Rescored .* to 90/);
   await expect.poll(() => mergedBagel(page)).toMatchObject({ score: 90, wordlist: 'My Edits' });
 });
 
@@ -110,6 +125,7 @@ test('Alt+digit while hovering a score rescores it with no picker', async ({ pag
   await page.keyboard.press('Alt+Digit0');   // bottom tier, 10
   await expect(picker(page)).toBeHidden();
   await expect(page.locator('#atom-popover')).toBeHidden();
+  await expect(toast(page)).toContainText(/Rescored .* to 10/);
   await expect.poll(() => mergedBagel(page)).toMatchObject({ score: 10, wordlist: 'My Edits' });
 });
 
@@ -131,6 +147,7 @@ test('picking the tier the entry is already in is a no-op', async ({ page }) => 
   await page.locator('#score-picker .score-picker-opt', { hasText: 'Okay' }).click();
   await expect(picker(page)).toBeHidden();
   expect(await myEdits(page)).toEqual([]);
+  await expect(toast(page)).toHaveCount(0);
 });
 
 test('in a single-source scope the score cell opens the popover, not the picker', async ({ page }) => {

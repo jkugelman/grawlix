@@ -2337,7 +2337,7 @@ function commitRescore(scroller, wlEntry, score) {
   // Re-applying the score already in place is a true no-op; bail before _onSave
   // so the table doesn't flash a rebuild for nothing.
   if (score === seed.score) return;
-  scroller._onSave?.('edit', editBaselineFor(seed), { raw: seed.entry, score, comment: seed.comment });
+  scroller._onSave?.('rescore', editBaselineFor(seed), { raw: seed.entry, score, comment: seed.comment });
 }
 
 export function handleScoreDigitShortcut(digit) {
