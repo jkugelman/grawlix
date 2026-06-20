@@ -723,7 +723,7 @@ dialog h2 { font-size: 16px; margin-bottom: 14px; padding-right: 24px; }
 .faq-section:last-of-type { margin-bottom: 0; }
 .faq-section > h3 { font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--faint); margin: 0 0 4px; }
 .faq-item { border-top: 1px solid var(--border2); }
-.faq-section > .faq-item:last-child { border-bottom: 1px solid var(--border2); }
+.faq-section:not(:last-of-type) > .faq-item:last-child { border-bottom: 1px solid var(--border2); }
 .faq-item > summary { display: flex; align-items: baseline; gap: 9px; padding: 11px 2px; font-size: 13px; font-weight: 600; color: var(--text); cursor: pointer; list-style: none; }
 .faq-item > summary::-webkit-details-marker { display: none; }
 .faq-item > summary::before { content: '▸'; flex-shrink: 0; color: var(--muted); font-size: 11px; transition: transform 0.12s; }
