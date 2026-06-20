@@ -226,6 +226,18 @@ test('edit: a same-norm enrich does not keep-copy, even with a foreign sibling',
   assert.deepStrictEqual(p.notes, []);
 });
 
+test('edit: respelling a foreign entry within its norm (adding an accent) trashes the old spelling only', () => {
+  const sources = [edits([]), src('Nediger', [wlEntry('reneerapp', 50, { display: 'Renee Rapp' })])];
+  const clicked = { norm: 'reneerapp', display: 'Renee Rapp', score: 50, comment: '' };
+  const p = planEntryWrite({ mode: 'edit', clicked, typed: typed('Reneé Rapp', 50, 'Singer/actress'), sources, trashScore: 0 });
+  assert.deepStrictEqual(p.deletes, [{ norm: 'reneerapp', display: 'Renee Rapp' }]);
+  assert.deepStrictEqual(p.upserts, [
+    { norm: 'reneerapp', display: 'Reneé Rapp', score: 50, comment: 'Singer/actress' },
+    { norm: 'reneerapp', display: 'Renee Rapp', score: 0, comment: '' },
+  ]);
+  assert.deepStrictEqual(p.notes, [{ kind: 'downscore', norm: 'reneerapp', display: 'Renee Rapp', score: 0 }]);
+});
+
 // ─── applyEditsWriteSet + inverse round-trip ─────────────────────────────────
 
 const snapshot = arr => arr.map(e => ({ norm: e.norm, display: e.display ?? null, score: e.score, comment: e.comment ?? '' }));

@@ -104,7 +104,8 @@ export function planEntryWrite({ mode, clicked, typed, sources, trashScore = 0 }
 
   const origNorm = clicked.norm;
   const origDisplay = clicked.display ?? clicked.norm;
-  if (newNorm !== origNorm || newRendered !== origDisplay) {
+  const renamed = newNorm !== origNorm || newRendered !== origDisplay;
+  if (renamed) {
     deletes.push({ norm: origNorm, display: origDisplay });
   }
   upserts.push({ norm: newNorm, display: newDisplay, score, comment });
@@ -112,10 +113,13 @@ export function planEntryWrite({ mode, clicked, typed, sources, trashScore = 0 }
   // against any foreign spelling of that norm, exactly as create does.
   if (newNorm !== origNorm) keepCopies(newNorm, newDisplay, sources, edits, upserts, notes);
   // Downscore only a foreign original (not in My Edits) — renaming your own entry
-  // just deletes it. The bare null wildcard trashes every spelling of the old norm.
+  // just deletes it. A new-norm rename trashes every spelling of the old norm via the
+  // bare null wildcard; a same-norm respelling (e.g. adding an accent) must trash only
+  // the old spelling, since the wildcard wins every variant and would bury the new one.
   const origInEdits = !!edits && (getRescoredByNorm(edits).get(origNorm) || []).some(e => displayOf(e) === origDisplay);
-  if (newNorm !== origNorm && !origInEdits && foreignHasNorm(sources, origNorm)) {
-    upserts.push({ norm: origNorm, display: null, score: trashScore, comment: '' });
+  if (renamed && !origInEdits && foreignHasNorm(sources, origNorm)) {
+    const trashDisplay = newNorm !== origNorm ? null : origDisplay;
+    upserts.push({ norm: origNorm, display: trashDisplay, score: trashScore, comment: '' });
     notes.push({ kind: 'downscore', norm: origNorm, display: origDisplay, score: trashScore });
   }
   return { blockedReason: null, primary, deletes, upserts, notes };
