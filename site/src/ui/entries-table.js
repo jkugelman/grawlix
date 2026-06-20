@@ -37,7 +37,7 @@ import { AppView } from './app-view.js';
 import { ToolStack } from './tool-stack.js';
 import { buildWordlistNameIconHTML } from './scope-selector.js';
 import { getDraftRescoreRules } from './rescore-editor.js';
-import { buildTrashIconHTML } from './components.js';
+import { buildTrashIconHTML, positionPopover } from './components.js';
 import {
   getEntriesScroller, rescorePreviewActive, refreshMergedScroller, setScope,
 } from './rendering.js';
@@ -266,7 +266,10 @@ const COLUMN_AXIS_CANDIDATES = {
   'col-score':     ['score', 'min-score', 'max-score'],
   'group-count':   ['count'],
   'group-anchor':  ['entry', 'length', 'score'],
-  'group-entries': ['entry'],
+  // 'entry' is conditional: an anchor owns the entry axis, so the group branch
+  // drops it from this column then (see buildEntryHeadersHTML) — else both columns
+  // double-own it.
+  'group-entries': ['entry', 'min-score', 'max-score'],
 };
 export function columnSortAxes(colKind, tierAxes) {
   return (COLUMN_AXIS_CANDIDATES[colKind] || []).filter(k => k in tierAxes);
@@ -697,7 +700,6 @@ export const GroupMorePopover = (() => {
 export class EntriesScroller extends BaseVirtualScroller {
   constructor(host) {
     super(host, 'entries-table-rows');
-    this.toolbar = document.getElementById('stats-bar-sort');
     // `allEntries` / `entries` hold ChainRow[] — `{ atoms: Atom[] }`, where an
     // Atom is `{ wlEntry, highlights, glyph }`. `atomCount` is the (static,
     // catalog-derived) atom count every row in the pipeline shares — the row's
@@ -783,8 +785,6 @@ export class EntriesScroller extends BaseVirtualScroller {
       this._hoveredScoreEl = sc && this.sizer.contains(sc) ? sc : null;
     });
     this.sizer.addEventListener('mouseleave', () => { this._hoveredScoreEl = null; });
-
-    this._buildToolbar();
   }
 
   _resolveAtomTarget(node) {
@@ -837,19 +837,20 @@ export class EntriesScroller extends BaseVirtualScroller {
   setEntries(result, atomCount = this.atomCount, sortTier = this.sortTier) {
     GroupMorePopover.close();
     ScorePicker.close();
+    SortMenu.close();
     this._setChainShape(atomCount, sortTier);
     this._ingestResult(result);
     this._invalidateSortCache();
-    this._buildToolbar();
     this._sortAndRender();
   }
 
   updateEntries(result, atomCount = this.atomCount, sortTier = this.sortTier) {
     ScorePicker.close();
+    SortMenu.close();
     const tierChanged = this._setChainShape(atomCount, sortTier);
     this._ingestResult(result);
     this._invalidateSortCache();
-    if (tierChanged) { this._buildToolbar(); rebuildEntryHeaders(); }
+    if (tierChanged) rebuildEntryHeaders();
     this._sortAndRender();
     AtomPopover.rebindEntry(this);
   }
@@ -933,31 +934,12 @@ export class EntriesScroller extends BaseVirtualScroller {
     this._sortedSource = null;
   }
 
-  _buildToolbar() {
-    if (!this.toolbar) return;
-    const arrow = this.sortDir === 'asc' ? '↑' : '↓';
-    const options = Object.entries(sortAxes(this.sortTier))
-      .map(([key, { label }]) => `<option value="${key}"${key === this.sortKey ? ' selected' : ''}>${label}</option>`)
-      .join('');
-    this.toolbar.innerHTML = `
-      Sort by
-      <select class="sort-axis-select">${options}</select>
-      <button class="sort-dir-btn" type="button" title="Toggle direction" aria-label="Toggle direction">${arrow}</button>`;
-    this.toolbar.querySelector('.sort-axis-select').addEventListener('change', e => {
-      if (this.sortKey !== e.target.value) this.applySort(e.target.value, this.sortDir);
-    });
-    this.toolbar.querySelector('.sort-dir-btn').addEventListener('click', () => {
-      this.applySort(this.sortKey, this.sortDir === 'asc' ? 'desc' : 'asc');
-    });
-  }
-
   // rebuildEntryHeaders looks redundant here — its only other caller fires on a
   // tier flip — but it's what re-syncs the header arrow on same-tier sort changes.
   applySort(key, dir) {
     this.sortKey = key;
     this.sortDir = dir;
     AppView.setSort(key, dir);
-    this._buildToolbar();
     rebuildEntryHeaders();
     if (this._workerOwnsOrder()) refreshMergedScroller();
     else this._sortAndRender();
@@ -2511,6 +2493,131 @@ export const ScorePicker = (() => {
   return { open, close, isOpen, pickDigit };
 })();
 
+export const SortMenu = (() => {
+  let el = null;
+  let anchorBtn = null;
+  let options = [];      // [{ key, label, active }]
+  let cursor = 0;        // keyboard cursor index
+
+  function ensureElement() {
+    if (el) return el;
+    el = document.createElement('div');
+    el.id = 'sort-menu';
+    el.setAttribute('hidden', '');
+    el.addEventListener('click', e => {
+      const opt = e.target.closest('.sort-menu-opt');
+      if (opt) commit(opt.dataset.key, false);
+    });
+    el.addEventListener('mousemove', e => {
+      const opt = e.target.closest('.sort-menu-opt');
+      if (opt) setCursor(parseInt(opt.dataset.i, 10), false);
+    });
+    document.body.appendChild(el);
+    return el;
+  }
+
+  function isOpen() { return el && !el.hasAttribute('hidden'); }
+
+  function open(trigger, axisKeys) {
+    ScorePicker.close();
+    AtomPopover.close();
+    const stack = ToolStack.getStack();
+    const tierAxes = sortAxes(chainSortTier(stack), stack);
+    // Label by axis name (Min score / Max score), never the column label, or the
+    // active sub-axis stops being distinguishable — the gap this menu exists to close.
+    options = axisKeys
+      .filter(k => k in tierAxes)
+      .map(k => ({ key: k, label: tierAxes[k].label, active: k === AppView.sortKey }));
+    if (!options.length) return;
+
+    const menu = ensureElement();
+    anchorBtn = trigger;
+    cursor = Math.max(0, options.findIndex(o => o.active));
+    menu.innerHTML = renderHTML();
+    menu.removeAttribute('hidden');
+    // The mobile bottom-sheet is pinned by CSS; inline coords would override it.
+    if (window.matchMedia('(max-width: 759px)').matches) {
+      menu.style.top = menu.style.left = '';
+    } else {
+      positionPopover(menu, trigger, { placement: 'below', offset: 4 });
+    }
+    menu.querySelector('.menu-list')?.focus();
+    syncCursor(false);
+
+    document.addEventListener('mousedown', onDocMouseDown, true);
+    document.addEventListener('keydown', onKeydown, true);
+  }
+
+  function close(refocusTrigger = false) {
+    if (!el || el.hasAttribute('hidden')) return;
+    const btn = anchorBtn;
+    el.setAttribute('hidden', '');
+    anchorBtn = null;
+    options = [];
+    document.removeEventListener('mousedown', onDocMouseDown, true);
+    document.removeEventListener('keydown', onKeydown, true);
+    if (refocusTrigger) btn?.focus();
+  }
+
+  function renderHTML() {
+    const opts = options.map((o, i) => {
+      const arrow = o.active ? (AppView.sortDir === 'asc' ? '↑' : '↓') : '';
+      return `<li id="sort-menu-opt-${i}" class="sort-menu-opt" role="option" data-key="${esc(o.key)}" data-i="${i}"`
+        + ` aria-selected="${o.active}"><span class="sort-menu-label">${esc(o.label)}</span>`
+        + `<span class="sort-menu-arrow">${arrow}</span></li>`;
+    }).join('');
+    return `<div class="menu-header">Sort by</div>`
+      + `<ul class="menu-list" role="listbox" aria-label="Sort by" tabindex="-1">${opts}</ul>`;
+  }
+
+  function setCursor(i, scroll = true) {
+    if (i === cursor) return;
+    cursor = i;
+    syncCursor(scroll);
+  }
+
+  function syncCursor(scroll = true) {
+    const lis = el.querySelectorAll('.sort-menu-opt');
+    lis.forEach((li, j) => li.classList.toggle('active', j === cursor));
+    if (scroll) lis[cursor]?.scrollIntoView({ block: 'nearest' });
+    el.querySelector('.menu-list')
+      ?.setAttribute('aria-activedescendant', lis[cursor]?.id ?? '');
+  }
+
+  function commit(key, keyboard) {
+    const o = options.find(x => x.key === key);
+    const kind = anchorBtn?.dataset.sortCol;
+    close();
+    if (!o) return;
+    const dir = o.active ? (AppView.sortDir === 'asc' ? 'desc' : 'asc') : 'asc';
+    getEntriesScroller()?.applySort(o.key, dir);
+    // applySort rebuilds the header, replacing the trigger — refocus the new one
+    // so keyboard focus isn't dropped to <body>.
+    if (keyboard && kind) document.querySelector(`.sticky-stack [data-sort-col="${CSS.escape(kind)}"]`)?.focus();
+  }
+
+  function onDocMouseDown(e) {
+    if (!isOpen()) return;
+    if (el.contains(e.target) || (anchorBtn && anchorBtn.contains(e.target))) return;
+    close();
+  }
+
+  function onKeydown(e) {
+    if (e.altKey || e.ctrlKey || e.metaKey) return;
+    switch (e.key) {
+      case 'Escape':    e.preventDefault(); close(true); break;
+      case 'ArrowDown': e.preventDefault(); setCursor(Math.min(options.length - 1, cursor + 1)); break;
+      case 'ArrowUp':   e.preventDefault(); setCursor(Math.max(0, cursor - 1)); break;
+      case 'Home':      e.preventDefault(); setCursor(0); break;
+      case 'End':       e.preventDefault(); setCursor(options.length - 1); break;
+      case 'Enter':
+      case ' ':         e.preventDefault(); commit(options[cursor]?.key, true); break;
+    }
+  }
+
+  return { open, close, isOpen };
+})();
+
 export function buildEntriesTablePanelHTML() {
   return `<div id="entries-table-panel">
       <div class="pipeline-spinner" aria-hidden="true"></div>
@@ -2526,46 +2633,47 @@ export function buildEntryHeadersHTML() {
   const stack = ToolStack.getStack();
   const tier = chainSortTier(stack);
   const tierAxes = sortAxes(tier, stack);
-  const hdr = (label, ownedAxes) => {
-    if (!ownedAxes.length) return { attrs: '', inner: esc(label) };
+  const hdr = (label, ownedAxes, colKind) => {
+    if (!ownedAxes.length) return esc(label);
     const active = ownedAxes.includes(AppView.sortKey);
     const asc = AppView.sortDir === 'asc';
     const arrow = active ? (asc ? ' ↑' : ' ↓') : '';
     const state = active ? (asc ? ', ascending' : ', descending') : '';
-    return {
-      attrs: ` data-sort-axes="${ownedAxes.join(' ')}" role="button" tabindex="0" aria-label="Sort by ${esc(label)}${state}"`,
-      inner: `${esc(label)}${arrow}`,
-    };
+    const aria = ownedAxes.length > 1
+      ? ` aria-haspopup="listbox" aria-label="Sort by ${esc(label)}"`
+      : ` aria-label="Sort by ${esc(label)}${state}"`;
+    return `<span class="col-sort" data-sort-axes="${ownedAxes.join(' ')}" data-sort-col="${esc(colKind)}"`
+      + ` role="button" tabindex="0"${aria}>${esc(label)}${arrow}</span>`;
   };
   if (isGroupChain(stack)) {
     const cols = activeGroupColumns(stack);
     const anchorLabel = activeGroupAnchorLabel(stack);
-    const countH = hdr('Count', columnSortAxes('group-count', tierAxes));
-    const anchorH = anchorLabel ? hdr(anchorLabel, columnSortAxes('group-anchor', tierAxes)) : null;
-    const anchorHeader = anchorH ? `<span class="group-anchor"${anchorH.attrs}>${anchorH.inner}</span>` : '';
+    const countInner  = hdr('Count', columnSortAxes('group-count', tierAxes), 'group-count');
+    const anchorInner = anchorLabel ? hdr(anchorLabel, columnSortAxes('group-anchor', tierAxes), 'group-anchor') : null;
+    const anchorHeader = anchorInner != null ? `<span class="group-anchor">${anchorInner}</span>` : '';
     const colHeaders = cols.map(c => {
       const owned = (c.sort !== false && c.key in tierAxes) ? [c.key] : [];
-      const h = hdr(c.label, owned);
-      return `<span class="group-col" data-col="${esc(c.key)}"${h.attrs}>${h.inner}</span>`;
+      return `<span class="group-col" data-col="${esc(c.key)}">${hdr(c.label, owned, c.key)}</span>`;
     }).join('');
-    const entriesH = hdr('Entries', anchorLabel ? [] : columnSortAxes('group-entries', tierAxes));
+    // An anchor owns the entry axis, so the Entries column drops it (keeping just
+    // its min/max-score axes) to avoid both columns offering an Entry sort.
+    const entriesAxes = anchorLabel
+      ? columnSortAxes('group-entries', tierAxes).filter(k => k !== 'entry')
+      : columnSortAxes('group-entries', tierAxes);
     return `<div class="group-headers entry-headers-font">
       <span class="group-rownum"></span>
-      <span class="group-count"${countH.attrs}>${countH.inner}</span>
+      <span class="group-count">${countInner}</span>
       ${anchorHeader}
       ${colHeaders}
-      <span class="group-entries-label"${entriesH.attrs}>${entriesH.inner}</span>
+      <span class="group-entries-label">${hdr('Entries', entriesAxes, 'group-entries')}</span>
     </div>`;
   }
-  const entryH = hdr('Entry', columnSortAxes('col-entry', tierAxes));
-  const lenH   = hdr('Len',   columnSortAxes('col-len', tierAxes));
-  const scoreH = hdr('Score', columnSortAxes('col-score', tierAxes));
   const sourceHeader = state.selected === MERGED_ID ? '<span class="col-source">Source</span>' : '';
   return `<div class="entry-headers entry-headers-font">
       <span></span>
-      <span class="col-entry"${entryH.attrs}>${entryH.inner}</span>
-      <span class="col-len"${lenH.attrs}>${lenH.inner}</span>
-      <span class="col-score"${scoreH.attrs}>${scoreH.inner}</span>
+      <span class="col-entry">${hdr('Entry', columnSortAxes('col-entry', tierAxes), 'col-entry')}</span>
+      <span class="col-len">${hdr('Len', columnSortAxes('col-len', tierAxes), 'col-len')}</span>
+      <span class="col-score">${hdr('Score', columnSortAxes('col-score', tierAxes), 'col-score')}</span>
       <span class="col-comment">Comment</span>
       ${sourceHeader}
     </div>`;
@@ -2579,14 +2687,15 @@ export function onSortHeaderActivate(e) {
     e.preventDefault();
   }
   const owned = cell.dataset.sortAxes.split(' ');
+  if (owned.length > 1) {
+    SortMenu.open(cell, owned);
+    return;
+  }
   const { key, dir } = nextSortForColumn(owned, AppView.sortKey, AppView.sortDir);
-  const sel = cell.dataset.col
-    ? `.sticky-stack [data-col="${CSS.escape(cell.dataset.col)}"]`
-    : `.sticky-stack .${cell.classList[0]}`;
   getEntriesScroller()?.applySort(key, dir);
   // applySort rebuilds the header, destroying the activated cell — refocus its
   // replacement so keyboard focus isn't silently dropped to <body>.
-  if (e.type === 'keydown') document.querySelector(sel)?.focus();
+  if (e.type === 'keydown') document.querySelector(`.sticky-stack [data-sort-col="${CSS.escape(cell.dataset.sortCol)}"]`)?.focus();
 }
 
 // rerenderRows rebuilds only the tool rows, so a stack edit that flips chain

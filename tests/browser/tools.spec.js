@@ -14,6 +14,10 @@
 import { test, expect } from '@playwright/test';
 import { stubPublisherFetches, gotoApp, addTool, expectVisible, expectGroups, readVisible, readGroups } from './helpers.js';
 
+const applySort = (page, key, dir = 'asc') =>
+  page.evaluate(([k, d]) => window.__grawlixTest.applySort(k, d), [key, dir]);
+const sortKey = page => page.evaluate(() => AppView.sortKey);
+
 test.beforeEach(async ({ page }) => {
   await stubPublisherFetches(page);
 });
@@ -191,8 +195,7 @@ test('semordnilap unifies mirror rows into one chain in min-score-desc order', a
   await gotoApp(page);
   await addSemordnilapFixture(page);
   await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'semordnilap' }]));
-  await page.locator('#stats-bar-sort .sort-axis-select').selectOption('min-score');
-  await page.locator('#stats-bar-sort .sort-dir-btn').click();
+  await applySort(page, 'min-score', 'desc');
 
   // Semordnilap emits both DEVIL→LIVED and LIVED→DEVIL; unify
   // collapses each mirror pair to one row, keeping the executor's first
@@ -463,8 +466,7 @@ test('1-atom: score desc tiebreaks by length desc, then entry asc', async ({ pag
     scores:  [  50,    50,      50,    50,     50],
   }));
   await page.evaluate(() => window.__grawlixTest.setStack([]));
-  await page.locator('#stats-bar-sort .sort-axis-select').selectOption('score');
-  await page.locator('#stats-bar-sort .sort-dir-btn').click();
+  await applySort(page, 'score', 'desc');
 
   await expectVisible(page, ['bagel', 'cake', 'aaa', 'cat', 'dog'], { ordered: true });
 });
@@ -480,7 +482,7 @@ test('1-atom: score asc keeps length desc tiebreaker (no junk-float)', async ({ 
     scores:  [  50,    50,      50,    50,     50],
   }));
   await page.evaluate(() => window.__grawlixTest.setStack([]));
-  await page.locator('#stats-bar-sort .sort-axis-select').selectOption('score');
+  await applySort(page, 'score');
 
   await expectVisible(page, ['bagel', 'cake', 'aaa', 'cat', 'dog'], { ordered: true });
 });
@@ -499,7 +501,7 @@ test('chains: min-score desc tiebreaks by length desc, then last-atom asc', asyn
     scores:  [50, 50, 50, 50, 50, 50, 50, 50],
   }));
   await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'semordnilap' }]));
-  await page.locator('#stats-bar-sort .sort-axis-select').selectOption('min-score');
+  await applySort(page, 'min-score');
 
   // length desc surfaces the 11-letter chain first; the three 4-letter chains
   // tiebreak by the last atom's entry ascending (sega < soda < tuba).
@@ -515,8 +517,7 @@ test('chain sort axis swap: min-score → max-score reorders rows', async ({ pag
   await gotoApp(page);
   await addSemordnilapFixture(page);
   await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'semordnilap' }]));
-  await page.locator('#stats-bar-sort .sort-axis-select').selectOption('min-score');
-  await page.locator('#stats-bar-sort .sort-dir-btn').click();
+  await applySort(page, 'min-score', 'desc');
 
   // EVIL/LIVE: EVIL=99, LIVE=10 ⇒ chain min=10, max=99. By min it sorts last
   // (10 < 20 < 40 < 70); by max it sorts first (99 > 80 > 60 > 30). Swapping
@@ -530,7 +531,7 @@ test('chain sort axis swap: min-score → max-score reorders rows', async ({ pag
     return [rows[0], rows[rows.length - 1]];
   }).toEqual([['devil', 'lived'], ['evil', 'live']]);                   // min 70 top, min 10 bottom
 
-  await page.locator('#stats-bar-sort .sort-axis-select').selectOption('max-score');
+  await applySort(page, 'max-score', 'desc');
   await expect.poll(async () => (await readVisible(page))[0]).toEqual(['evil', 'live']);   // max 99 (top, desc carries over)
 });
 
@@ -543,28 +544,27 @@ test('chain sort axis swap: min-score → max-score reorders rows', async ({ pag
 test('sort axis carries across the tool tier boundary', async ({ page }) => {
   await gotoApp(page);
   await addSemordnilapFixture(page);
-  const axis = page.locator('#stats-bar-sort .sort-axis-select');
 
   // Length exists in both tiers — adding then removing a tool keeps it.
-  await axis.selectOption('length');
+  await applySort(page, 'length');
   await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'semordnilap' }]));
-  await expect(axis).toHaveValue('length');
+  expect(await sortKey(page)).toBe('length');
   await page.evaluate(() => window.__grawlixTest.setStack([]));
-  await expect(axis).toHaveValue('length');
+  expect(await sortKey(page)).toBe('length');
 
   // Score has no multi-atom counterpart — it maps to Min score when a tool is
   // added and back to Score when the tool is removed.
-  await axis.selectOption('score');
+  await applySort(page, 'score');
   await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'semordnilap' }]));
-  await expect(axis).toHaveValue('min-score');
+  expect(await sortKey(page)).toBe('min-score');
   await page.evaluate(() => window.__grawlixTest.setStack([]));
-  await expect(axis).toHaveValue('score');
+  expect(await sortKey(page)).toBe('score');
 
   // Max score also collapses to Score on removal.
   await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'semordnilap' }]));
-  await axis.selectOption('max-score');
+  await applySort(page, 'max-score');
   await page.evaluate(() => window.__grawlixTest.setStack([]));
-  await expect(axis).toHaveValue('score');
+  expect(await sortKey(page)).toBe('score');
 });
 
 // Entry and Length sort project off the *first* atom — the merged-wordlist
@@ -763,19 +763,18 @@ test('group rows sort by Count and the axis round-trips through the URL', async 
 test('sort axis crosses the group tier boundary', async ({ page }) => {
   await gotoApp(page);
   await addLetterSetFixture(page);
-  const axis = page.locator('#stats-bar-sort .sort-axis-select');
 
   await page.evaluate(() => window.__grawlixTest.setStack([]));
-  await expect(axis).toHaveValue('entry');
+  expect(await sortKey(page)).toBe('entry');
   await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'letter_bank', grouped: true }]));
-  await expect(axis).toHaveValue('entry');
+  expect(await sortKey(page)).toBe('entry');
   await page.evaluate(() => Router.navigate());
   expect(page.url()).not.toContain('sort=');
 
   await page.evaluate(() => window.__grawlixTest.setStack([]));
-  await axis.selectOption('score');
+  await applySort(page, 'score');
   await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'letter_bank', grouped: true }]));
-  await expect(axis).toHaveValue('min-score');
+  expect(await sortKey(page)).toBe('min-score');
   await page.evaluate(() => Router.navigate());
   expect(page.url()).toContain('sort=min-score');
 });
@@ -819,10 +818,10 @@ test('grouped tool exposes its tool-defined sort axis', async ({ page }) => {
   await addLetterSetFixture(page);
   await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'letter_bank', grouped: true }]));
 
-  const axis = page.locator('#stats-bar-sort .sort-axis-select');
-  await expect(axis.locator('option', { hasText: 'Letters' })).toHaveCount(1);
+  const lettersCol = page.locator('.group-headers .group-col[data-col="letters"] .col-sort');
+  await expect(lettersCol).toContainText('Letters');
 
-  await axis.selectOption('letters');
+  await lettersCol.click();
   await expectGroups(page, gs => gs.map(g => g.chains.map(c => c[0]).sort()), [
     ['opt', 'pot', 'top'],
     ['act', 'cat'],
@@ -837,7 +836,7 @@ test('grouped column sort tiebreaks by count desc before min score', async ({ pa
     scores: [30, 30, 30, 80, 70],
   }));
   await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'letter_bank', grouped: true }]));
-  await page.locator('#stats-bar-sort .sort-axis-select').selectOption('letters');
+  await applySort(page, 'letters');
 
   await expectGroups(page, gs => gs.map(g => g.chains.map(c => c[0]).sort()), [
     ['opt', 'pot', 'top'],

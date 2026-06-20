@@ -980,7 +980,7 @@ export function buildExportMenuHTML() {
     ['Export as wordlist', 'exportWordlist()'],
     ['Export as CSV',      'exportCSV()'],
     ['Export as JSON',     'exportJSON()'],
-  ], { header: 'Export results', icon: 'export', title: 'Export results' });
+  ], { label: 'Export', title: 'Export results' });
 }
 
 export function chainContentEntries(chain) {

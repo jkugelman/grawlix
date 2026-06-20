@@ -331,7 +331,6 @@ export function buildStatsBarHTML() {
     : buildStatItemHTML('Entries', countValue.toLocaleString());
 
   const rangeHTML = _buildScoreRangeInputHTML('score-range-input', AppView.scoreRange, 'AppView');
-  const sortSlotHTML = `<span class="stats-bar-sort" id="stats-bar-sort"></span>`;
   const exportHTML = _buildExportMenuHTML();
   const exportSlotHTML = exportHTML ? `<span class="stats-bar-export">${exportHTML}</span>` : '';
 
@@ -344,7 +343,7 @@ export function buildStatsBarHTML() {
         </div>
         <div class="histogram" title="Histogram • Click to filter" onpointerdown="onHistogramPointerDown(event)">${bars}<div class="histogram-rect" hidden></div></div>
       </div>
-      <div class="stats-bar-controls">${rangeHTML}${sortSlotHTML}${exportSlotHTML}</div>
+      <div class="stats-bar-controls">${rangeHTML}${exportSlotHTML}</div>
     </div>`;
 }
 

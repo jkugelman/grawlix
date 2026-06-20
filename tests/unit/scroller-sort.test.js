@@ -143,6 +143,13 @@ test('columnSortAxes: group-anchor maps to entry/length/score (whichever are liv
   assert.deepEqual(columnSortAxes('group-anchor', { length: 1 }), ['length']);
 });
 
+test('columnSortAxes: group-entries owns the cluster min/max-score axes', () => {
+  assert.deepEqual(
+    columnSortAxes('group-entries', { entry: 1, 'min-score': 1, 'max-score': 1 }),
+    ['entry', 'min-score', 'max-score'],
+  );
+});
+
 test('nextSortForColumn: clicking the currently-sorted axis toggles its direction', () => {
   assert.deepEqual(nextSortForColumn(['score'], 'score', 'asc'), { key: 'score', dir: 'desc' });
   assert.deepEqual(nextSortForColumn(['score'], 'score', 'desc'), { key: 'score', dir: 'asc' });

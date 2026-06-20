@@ -113,7 +113,7 @@ The full tool catalog — every shipped and planned tool, with its icon, name, d
 
 **Sort.** Axes depend on whether the stack has a transforming tool. With none — a flat list, or just searches — rows sort by Entry / Length / Score. Once a transforming tool is in play, rows sort by Entry / Length / Min score / Max score — Min and Max read across every atom of the row. Adding or removing a transforming tool keeps your sort choice rather than resetting it: Entry and Length stay put, Score becomes Min score, and Min or Max score becomes Score. When the primary axis ties, tiebreakers surface the most interesting entry first: longer over shorter, higher-scoring over lower, with alphabetical as the final stable fallback. Flipping asc/desc reverses only the primary axis; tiebreakers keep their direction, so short low-scoring entries don't float to the top of a tied bucket on `score asc`. With a tool in all-mode, rows sort by Entry / Count / Min score / Max score (Min/Max read across every atom of every chain in the cluster).
 
-**Click a column header to sort by it.** Entry, Len, and Score headers — or Count and the cluster columns in all-mode — are clickable; the column you're sorted by shows a ↑/↓ arrow, and clicking it again flips direction. Clicking a different column sorts by it ascending. The Sort-by dropdown stays the complete control — it's how you reach axes a header doesn't map to, like Max score (the Score header always starts at Min score once a transform is in play), or Min/Max score in all-mode, where group rows have no score column to click.
+**Click a column header to sort by it.** Entry, Len, and Score headers — or Count and the cluster columns in all-mode — are clickable, and the column you're sorted by shows a ↑/↓ arrow. A column that sorts only one way sorts the moment you click it, and clicking again flips direction. A column that can sort more than one way opens a small **menu** of its axes instead — pick one to sort by it, or pick the active one again to flip direction. That's how you reach **Max score** (the Score column, once a transform is in play) and, in all-mode, **Min / Max score** (group rows have no score column, so those live on the Entries column's menu).
 
 **Sharing the stack.** The URL captures your tool stack and inputs — pasting a Grawlix link reproduces what you were looking at. See *Sharing & links*.
 
@@ -125,18 +125,18 @@ A quiet footer can appear at the end of the table. When the current view has no 
 
 ## Stats bar
 
-A single sticky band above the entries table, carrying every readout about the visible result set and the two controls that shape it. Left to right:
+A single sticky band above the entries table, carrying every readout about the visible result set, the score-range control that shapes it, and the export menu. Left to right:
 
 - **Counts.** `Entries N`; with a tool in all-mode, `Groups N` rides alongside. The Entries count reflects what made it to the end of the pipeline — chain rows for flat pipelines, surviving member chains across every visible group for all-mode pipelines.
-- **Stats numbers and histogram.** `Min · Max` of the score-range-filtered output, followed by the histogram. On narrow screens `Min · Max` drops out, but counts, histogram, range, and sort always hold.
+- **Stats numbers and histogram.** `Min · Max` of the score-range-filtered output, followed by the histogram. On narrow screens `Min · Max` drops out, but counts, histogram, and range always hold.
 - **Score range.** A `lo-hi` / `lo+` / `n` text input — focus it for a syntax cheat sheet, the same way the search boxes show theirs — or drag-select across the histogram. The histogram itself shows the full pipeline output regardless of range; bars outside the bracket fade in place so you can see what you're trimming as you drag the range narrower. The filter is remembered across visits, per scope — each wordlist (and All Wordlists) keeps its own range.
-- **Sort.** "Sort by [Entry ▾] [↑]". Click the arrow to toggle direction, or click a column header in the table below to sort by that column (see *Tools → Sort*).
+- **Export.** A labeled **Export ▾** menu — four ways to get the current view out (see *Exporting the entries table*). Sorting isn't in this bar: click a column header in the table below (see *Tools → Sort*).
 
 The score range applies after the pipeline runs, dropping any chain whose journey touched an out-of-range atom. All-mode pipelines drop chains per group; a group stays visible as long as at least one chain survives.
 
 ## Exporting the entries table
 
-The **export** menu (an up-tray icon) at the right end of the stats bar offers four ways to get the current view out:
+The labeled **Export ▾** menu at the right end of the stats bar offers four ways to get the current view out:
 
 - **Copy to clipboard** — plain text with a markdown link header. Chains render inline with their glyphs (`scar → car`); all-mode pipelines render the chain members per line, comma-separated. Designed for pasting into Discord, notes, or any chat/markdown surface.
 - **Export as wordlist** — `.txt` file in `ENTRY;SCORE` per line. Chain rows use the tail entry only with the chain's minimum score (the weak link caps the chain's quality); duplicates collapse to the better of the per-chain mins. Output is alphabetical regardless of your table sort. Comments are not included. Entries containing `;` are dropped with a toast notice.

@@ -73,15 +73,14 @@ test('URL search/sort/whole-word state applies on boot and updates as the UI cha
   // UI reflects the URL.
   await expect(page.locator('input[data-key="pattern"]')).toHaveValue('BAGEL');
   await expect(page.locator('input[data-key="whole-word"]')).toBeChecked();
-  await expect(page.locator('.sort-axis-select')).toHaveValue('length');
+  await expect(page.locator('.col-len .col-sort')).toHaveAttribute('aria-label', 'Sort by Len, ascending');
 
   // The other half of the round-trip: drive the UI, watch the URL update.
   // Changing the search query is debounced (250ms), so poll the hash.
   await page.locator('input[data-key="pattern"]').fill('CARROT');
   await expect.poll(async () => page.evaluate(() => location.search)).toContain('search=CARROT');
 
-  // Sort axis change is immediate.
-  await page.locator('.sort-axis-select').selectOption('score');
+  await page.locator('.col-score .col-sort').click();
   await expect.poll(async () => page.evaluate(() => location.search)).toContain('sort=score');
 });
 

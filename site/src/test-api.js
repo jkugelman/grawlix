@@ -335,6 +335,14 @@ const __grawlixTest = {
     await p;
   },
 
+  // Drive a sort axis/direction change through the real scroller path — the
+  // behavior specs that used the removed Sort-by control go through here so
+  // they assert ordering, not the control. Awaits the resulting re-sort.
+  async applySort(key, dir = 'asc') {
+    getEntriesScroller()?.applySort(key, dir);
+    await pipelineIdle();
+  },
+
   // Resolves when no pipeline run is in flight. Tests use this after keystroke
   // interactions (which fire-and-forget the refresh) before reading the DOM.
   pipelineIdle() { return pipelineIdle(); },
