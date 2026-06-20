@@ -190,6 +190,42 @@ test('edit: the foreign-rename downscore respects a custom trash score', () => {
   assert.deepStrictEqual(p.upserts[1], { norm: 'oceam', display: null, score: 5, comment: '' });
 });
 
+test('edit: renaming to a plain norm a foreign list spells richly copies the spelling (keep-rich)', () => {
+  const sources = [edits([wlEntry('xyz', 50)]),                            // My Edits bare xyz
+                   src('XWI', [wlEntry('pdfs', 50, { display: 'PDFs' })])];
+  const clicked = { norm: 'xyz', display: null, score: 50, comment: '' };
+  const p = planEntryWrite({ mode: 'edit', clicked, typed: typed('pdfs', 40), sources });
+  assert.deepStrictEqual(p.deletes, [{ norm: 'xyz', display: 'xyz' }]);
+  assert.deepStrictEqual(p.upserts, [
+    { norm: 'pdfs', display: null, score: 40, comment: '' },
+    { norm: 'pdfs', display: 'PDFs', score: 50, comment: '' },
+  ]);
+  assert.deepStrictEqual(p.notes, [{ kind: 'keep-rich', norm: 'pdfs', display: 'PDFs', score: 50, comment: '' }]);
+});
+
+test('edit: renaming to a rich form over a foreign bare copies the bare (keep-bare)', () => {
+  const sources = [edits([wlEntry('xyz', 50)]),                            // My Edits bare xyz
+                   src('XWI', [wlEntry('theirs', 30, { comment: 'pron' })])];   // foreign bare
+  const clicked = { norm: 'xyz', display: null, score: 50, comment: '' };
+  const p = planEntryWrite({ mode: 'edit', clicked, typed: typed('the IRS', 90), sources });
+  assert.deepStrictEqual(p.deletes, [{ norm: 'xyz', display: 'xyz' }]);
+  assert.deepStrictEqual(p.upserts, [
+    { norm: 'theirs', display: 'the IRS', score: 90, comment: '' },
+    { norm: 'theirs', display: null, score: 30, comment: 'pron' },
+  ]);
+  assert.deepStrictEqual(p.notes, [{ kind: 'keep-bare', norm: 'theirs', display: null, score: 30, comment: 'pron' }]);
+});
+
+test('edit: a same-norm enrich does not keep-copy, even with a foreign sibling', () => {
+  const sources = [edits([wlEntry('ocean', 50)]),                          // My Edits bare ocean
+                   src('XWI', [wlEntry('ocean', 30, { display: 'OCEAN' })])];
+  const clicked = { norm: 'ocean', display: null, score: 50, comment: '' };
+  const p = planEntryWrite({ mode: 'edit', clicked, typed: typed('Ocean', 70), sources });
+  assert.deepStrictEqual(p.deletes, [{ norm: 'ocean', display: 'ocean' }]);
+  assert.deepStrictEqual(p.upserts, [{ norm: 'ocean', display: 'Ocean', score: 70, comment: '' }]);
+  assert.deepStrictEqual(p.notes, []);
+});
+
 // ─── applyEditsWriteSet + inverse round-trip ─────────────────────────────────
 
 const snapshot = arr => arr.map(e => ({ norm: e.norm, display: e.display ?? null, score: e.score, comment: e.comment ?? '' }));

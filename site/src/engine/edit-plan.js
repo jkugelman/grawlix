@@ -49,6 +49,34 @@ function foreignBare(sources, norm) {
   return null;
 }
 
+// Shared by create and rename so the two gestures stay symmetric: a typed entry
+// that would hide under (or absorb) a foreign spelling of its norm copies the other
+// form in. A My Edits sibling already at this norm is distinguishing — no copy.
+function keepCopies(newNorm, newDisplay, sources, edits, upserts, notes) {
+  const editsRows = edits ? (getRescoredByNorm(edits).get(newNorm) || []) : [];
+  if (newDisplay != null) {
+    // keep-bare: else the typed rich absorbs a foreign bare and hides it.
+    if (editsRows.length === 0) {
+      const bare = foreignBare(sources, newNorm);
+      if (bare) {
+        upserts.push({ norm: newNorm, display: null, score: bare.score, comment: bare.comment || '' });
+        notes.push({ kind: 'keep-bare', norm: newNorm, display: null, score: bare.score, comment: bare.comment || '' });
+      }
+    }
+    return;
+  }
+  if (editsRows.some(r => r.display && r.display !== newNorm)) return;
+  // keep-rich: the typed bare folds into a foreign spelling; copy each shown one at
+  // the displayed winner's score (a bare can win a spelling — not the speller's score).
+  for (const r of computeMergedBucket(newNorm, sources).rows) {
+    // Skip a row the bare primary already renders: copying its display === norm
+    // would re-bare on reload and clobber the typed score via the upsert dedup.
+    if (r.display == null || r.display === newNorm) continue;
+    upserts.push({ norm: newNorm, display: r.display, score: r.score, comment: r.comment || '' });
+    notes.push({ kind: 'keep-rich', norm: newNorm, display: r.display, score: r.score, comment: r.comment || '' });
+  }
+}
+
 export function planEntryWrite({ mode, clicked, typed, sources, trashScore = 0 }) {
   const newNorm = toNorm(typed.raw);
   const edits = editsOf(sources);
@@ -62,38 +90,15 @@ export function planEntryWrite({ mode, clicked, typed, sources, trashScore = 0 }
   const notes = [];
 
   if (mode === 'create') {
-    const editsRows = edits ? (getRescoredByNorm(edits).get(newNorm) || []) : [];
-    // Resolved through the shared bucket (concretize carve-out in lockstep with the
-    // real merge); a spelling's winner can be a bare, so its score is what's shown.
     const shown = computeMergedBucket(newNorm, sources).rows;
     // Block only a spelling My Edits already SHOWS. A bare hidden under a foreign
-    // spelling shows as that spelling, so typing the bare splits it out (below).
+    // spelling shows as that spelling, so typing the bare splits it out via keepCopies.
     if (shown.some(r => r.wordlist === edits && displayOf(r) === newRendered)) {
       return { blockedReason: 'exists', primary, deletes, upserts, notes };
     }
     // Rescores an existing hidden bare (matched by displayOf), else adds fresh.
     upserts.push({ norm: newNorm, display: newDisplay, score, comment });
-    const hasRichSibling = editsRows.some(r => r.display && r.display !== newNorm);
-    if (newDisplay != null) {
-      // keep-bare: else the created rich absorbs a foreign bare and hides it.
-      if (editsRows.length === 0) {
-        const bare = foreignBare(sources, newNorm);
-        if (bare) {
-          upserts.push({ norm: newNorm, display: null, score: bare.score, comment: bare.comment || '' });
-          notes.push({ kind: 'keep-bare', norm: newNorm, display: null, score: bare.score, comment: bare.comment || '' });
-        }
-      }
-    } else if (!hasRichSibling) {
-      // keep-rich: the merge folds a typed lowercase into a foreign spelling (it's
-      // bare); copy each shown spelling so it keeps its own row (fresh add or split).
-      for (const r of shown) {
-        // Skip a row the bare primary already renders: copying its display === norm
-        // would re-bare on reload and clobber the typed score via the upsert dedup.
-        if (r.display == null || r.display === newRendered) continue;
-        upserts.push({ norm: newNorm, display: r.display, score: r.score, comment: r.comment || '' });
-        notes.push({ kind: 'keep-rich', norm: newNorm, display: r.display, score: r.score, comment: r.comment || '' });
-      }
-    }
+    keepCopies(newNorm, newDisplay, sources, edits, upserts, notes);
     return { blockedReason: null, primary, deletes, upserts, notes };
   }
 
@@ -103,6 +108,9 @@ export function planEntryWrite({ mode, clicked, typed, sources, trashScore = 0 }
     deletes.push({ norm: origNorm, display: origDisplay });
   }
   upserts.push({ norm: newNorm, display: newDisplay, score, comment });
+  // A rename to a new norm lands like a fresh create there — keep it distinguishing
+  // against any foreign spelling of that norm, exactly as create does.
+  if (newNorm !== origNorm) keepCopies(newNorm, newDisplay, sources, edits, upserts, notes);
   // Downscore only a foreign original (not in My Edits) — renaming your own entry
   // just deletes it. The bare null wildcard trashes every spelling of the old norm.
   const origInEdits = !!edits && (getRescoredByNorm(edits).get(origNorm) || []).some(e => displayOf(e) === origDisplay);

@@ -432,6 +432,34 @@ test('a bare My Edits add keeps a foreign rich spelling as its own row, survivin
   ).toEqual(expected);
 });
 
+test('renaming a My Edits entry to a plain norm a foreign list spells richly keeps both rows, surviving a reload', async ({ page }) => {
+  await gotoApp(page);
+  await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
+    name: 'Source', entries: ['PDFs'], scores: [50],
+  }));
+  // Rename an unrelated My Edits entry onto `pdfs`; without keep-rich (the create
+  // gesture's protection, now shared) the renamed bare would hide under `PDFs`.
+  await page.evaluate(() => window.__grawlixTest.createMyEntry('xyz', 30));
+  await page.evaluate(() => window.__grawlixTest.saveMyEditFrom({ norm: 'xyz', display: null }, 'pdfs', 30));
+
+  const expected = [
+    ['pdfs', 'PDFs', 50, '', 'My Edits'],
+    ['pdfs', 'pdfs', 30, '', 'My Edits'],
+  ];
+  const pdfsRows = dump => dump.entries.filter(([norm]) => norm === 'pdfs').sort();
+
+  const patched = await page.evaluate(() => window.__grawlixTest.dumpMergedCache());
+  expect(pdfsRows(patched)).toEqual(expected);
+  const fresh = await page.evaluate(() => window.__grawlixTest.rebuildMergedCache());
+  expect(patched).toEqual(fresh);
+
+  await page.reload();
+  await expect.poll(
+    async () => pdfsRows(await page.evaluate(() => window.__grawlixTest.dumpMergedCache())),
+    { timeout: 10000 }
+  ).toEqual(expected);
+});
+
 test('typing a bare over a hidden bare splits it — rescores the bare, adds the shown spelling', async ({ page }) => {
   await gotoApp(page);
   // A My Edits bare hidden under a foreign spelling: create `theirs` before the
