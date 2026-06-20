@@ -249,6 +249,24 @@ test('the floating + button opens a blank create popover that lands the entry in
   ).toEqual([{ entry: 'fresh', display: 'FRESH', score: 55, comment: '' }]);
 });
 
+test('Alt-A opens the create popover, same as the floating + button', async ({ page }) => {
+  await gotoApp(page);
+
+  await page.keyboard.press('Alt+a');
+
+  const entryInput = page.locator('#atom-pop-entry');
+  await expect(entryInput).toBeFocused();
+  await expect(entryInput).toHaveValue('');
+
+  await entryInput.fill('FRESH');
+  await page.locator('#atom-pop-score').fill('55');
+  await page.locator('#atom-pop-score').press('Enter');
+
+  await expect.poll(async () =>
+    page.evaluate(() => window.__grawlixTest.getWordlist('My Edits').entries)
+  ).toEqual([{ entry: 'fresh', display: 'FRESH', score: 55, comment: '' }]);
+});
+
 test('the floating + button seeds the search term only for a literal word that is missing', async ({ page }) => {
   await gotoApp(page);
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({

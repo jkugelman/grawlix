@@ -842,8 +842,7 @@ export function bindEvents() {
   document.getElementById('btn-settings').onclick = () => SettingsDialog.open();
   document.getElementById('btn-help').onclick = () => { location.hash = 'help'; };
   window.addEventListener('hashchange', syncHelp);
-  document.getElementById('add-fab').onclick = () =>
-    AtomPopover.openForCreate(newEntrySeedQuery(), getEntriesScroller(), null);
+  document.getElementById('add-fab').onclick = openCreateEntry;
 
   ToolStack.init();
 
@@ -858,10 +857,15 @@ export function bindEvents() {
       case 'KeyS': focusPermanentSearch();   break;
       case 'KeyW': toggleWholeWord();        break;
       case 'KeyC': focusScoreRange();        break;
+      case 'KeyA': openCreateEntry();        break;
       default: handled = false;
     }
     if (handled) e.preventDefault();
   });
+}
+
+function openCreateEntry() {
+  AtomPopover.openForCreate(newEntrySeedQuery(), getEntriesScroller(), null);
 }
 
 function focusPermanentSearch() {
