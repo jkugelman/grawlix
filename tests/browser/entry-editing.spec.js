@@ -230,6 +230,21 @@ test('adopt upgrades a bare My Edits entry to the displayed spelling — no sibl
   await expect.poll(() => myEditsForNorm(page, 'aaabond')).toEqual(['AAA bond']);
 });
 
+// Regression: the same bare-rename the adopt link does must also happen on a plain
+// score edit that bypasses the link, or it appends a concrete same-norm sibling and
+// silently leaves the bare (pdfs) behind as a second My Edits entry.
+test('a direct score edit on a bare My Edits entry renames it, not duplicates', async ({ page }) => {
+  await gotoApp(page);
+  await importIntoEdits(page, 'pdfs;40\n');
+  await addList(page, { name: 'W', entries: ['PDFs'], scores: [20] });
+  await scopeTo(page, 'All Wordlists');
+  await openPopoverOnEntry(page, 'PDFs');
+  await expect(page.locator('#atom-pop-score')).toHaveValue('40');   // My Edits' bare raw, not W's 20
+  await page.locator('#atom-pop-score').fill('30');
+  await page.locator('#atom-popover .atom-pop-save').click();
+  await expect.poll(() => myEditsForNorm(page, 'pdfs')).toEqual(['PDFs']);
+});
+
 test('no adopt link when My Edits already owns the displayed entry', async ({ page }) => {
   await gotoApp(page);
   await page.evaluate(() => window.__grawlixTest.createMyEntry('AAA team', 50));

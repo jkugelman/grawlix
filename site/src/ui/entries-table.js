@@ -1601,10 +1601,12 @@ function seedFromWinnerRow(row, winnerIsEdits) {
   const edits = getEditsWordlist();
   // Seed the score field from My Edits' RAW score, not the displayed effective:
   // the field edits raw, so seeding effective would re-rescore it on every save
-  // and silently drift My Edits.
+  // and silently drift My Edits. A bare My Edits winner (display null, unified with
+  // a foreign spelling) backs the row too, so fall back to it.
   if (winnerIsEdits && edits) {
-    const rawEntry = edits.rawEntries.find(e => e.norm === row.norm && displayOf(e) === displayOf(row));
-    if (rawEntry) score = rawEntry.score;
+    const backing = edits.rawEntries.find(e => e.norm === row.norm && displayOf(e) === displayOf(row))
+                 ?? edits.rawEntries.find(e => e.norm === row.norm && e.display == null);
+    if (backing) score = backing.score;
   }
   return {
     entry: displayOf(row),
@@ -1613,6 +1615,19 @@ function seedFromWinnerRow(row, winnerIsEdits) {
     norm: row.norm,
     display: row.display ?? null,
   };
+}
+
+// The My Edits entry an edit/rescore should rewrite. When a row is owned only
+// through a bare wildcard (display null, unified with a foreign spelling), feeding
+// that rich spelling as the planner's "clicked" reads as no rename and silently
+// leaves the bare behind as a concrete same-norm sibling — so rewrite the bare.
+function editBaselineFor(base) {
+  const edits = getEditsWordlist();
+  if (!edits) return base;
+  const baseDisplay = base.display ?? base.norm;
+  if (edits.rawEntries.some(e => e.norm === base.norm && displayOf(e) === baseDisplay)) return base;
+  const bare = edits.rawEntries.find(e => e.norm === base.norm && e.display == null);
+  return bare ? { norm: bare.norm, display: null, score: bare.score, comment: bare.comment ?? '' } : base;
 }
 
 // ─── Atom popover ─────────────────────────────────────────────────────────────
@@ -1828,7 +1843,7 @@ export const AtomPopover = (() => {
     const vals = readNewValues();
     if (!valuesValid(vals)) return null;
     if (activeMode === 'edit' && !stagedAdopt && !pendingWritesChange(vals)) return null;
-    const clicked = activeMode === 'edit' ? (stagedAdopt ? adoptBaseline() : saveBaseline()) : null;
+    const clicked = activeMode === 'edit' ? editBaselineFor(saveBaseline()) : null;
     return planEntryWrite({ mode: activeMode, clicked, typed: vals, sources: state.sources, trashScore: getTrashScore() });
   }
 
@@ -1941,17 +1956,6 @@ export const AtomPopover = (() => {
   }
 
   function unstageAdopt() { stagedAdopt = false; }
-
-  // Baseline against My Edits' bare entry, not the merge winner: feeding the
-  // winner's rich display as the planner's "clicked" reads as no rename, silently
-  // leaving the bare behind as a same-norm sibling instead of upgrading it.
-  function adoptBaseline() {
-    const base = saveBaseline();
-    const bare = getEditsWordlist()?.rawEntries.find(e => e.norm === base.norm && e.display == null);
-    return bare
-      ? { norm: bare.norm, display: bare.display ?? null, score: bare.score, comment: bare.comment ?? '' }
-      : base;
-  }
 
   function adoptWillReplace() {
     const base = saveBaseline();
@@ -2145,7 +2149,7 @@ export const AtomPopover = (() => {
     }
     if (saveBlocked()) { el.querySelector('.entry-input')?.focus(); return; }
     const mode = stagedAdopt ? 'adopt' : activeMode;
-    const baseline = mode === 'create' ? null : (stagedAdopt ? adoptBaseline() : saveBaseline());
+    const baseline = mode === 'create' ? null : editBaselineFor(saveBaseline());
     activeScroller._onSave?.(mode, baseline, newValues);
     close();
   }
@@ -2383,13 +2387,13 @@ export const ScorePicker = (() => {
     const w = activeWlEntry;
     if (!opt || !scroller || !w) { close(); return; }
     const winnerIsEdits = getEditsWordlist() != null && w.wordlist === getEditsWordlist();
-    const baseline = seedFromWinnerRow(w, winnerIsEdits);
+    const seed = seedFromWinnerRow(w, winnerIsEdits);
     close();
     // Re-picking the score already in place is a true no-op (only the score can
-    // differ — entry and comment ride from the baseline). The save path would no-op
+    // differ — entry and comment ride from the seed). The save path would no-op
     // it too, but still re-renders the table; bail here so it doesn't flash.
-    if (opt.score === baseline.score) return;
-    scroller._onSave?.('edit', baseline, { raw: baseline.entry, score: opt.score, comment: baseline.comment });
+    if (opt.score === seed.score) return;
+    scroller._onSave?.('edit', editBaselineFor(seed), { raw: seed.entry, score: opt.score, comment: seed.comment });
   }
 
   function onDocMouseDown(e) {

@@ -120,3 +120,33 @@ test('the picker works in the My Edits scope too', async ({ page }) => {
   await expect.poll(() => myEdits(page))
     .toEqual([{ entry: 'bagel', display: 'bagel', score: 90, comment: '' }]);
 });
+
+// Regression: a bare My Edits entry (parta) unifies via its null-display wildcard
+// with a foreign list's richer spelling (Part A) and wins the merge on that
+// spelling. A quick rescore must RENAME the bare to the spelling, not append a
+// concrete same-norm sibling that silently leaves the bare behind as a second entry.
+test('rescoring a bare My Edits entry shown as a foreign spelling renames it, not duplicates', async ({ page }) => {
+  await gotoApp(page);
+  // Both scores sit on default tiers so the My Edits import stays pass-through; an
+  // off-tier score would auto-seed a rescore rule and remap the merged score.
+  await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
+    name: 'Src', entries: ['Part A'], scores: [20],
+  }));
+  await page.evaluate(() => window.__grawlixTest.reimport('My Edits', 'parta;40\n'));
+
+  await expect.poll(() => page.evaluate(() => window.__grawlixTest.getMergedEntry('Part A', 'Part A')))
+    .toMatchObject({ display: 'Part A', score: 40, wordlist: 'My Edits' });
+
+  const cell = page.locator('.entry-row[data-entry="parta"] .atom-score');
+  await expect(cell).toBeVisible();
+  await cell.click();
+  await expect(picker(page)).toBeVisible();
+  await page.keyboard.press('ArrowDown');   // 40 → next tier down, 30
+  await page.keyboard.press('Enter');
+  await expect(picker(page)).toBeHidden();
+
+  await expect.poll(() => myEdits(page))
+    .toEqual([{ entry: 'parta', display: 'Part A', score: 30, comment: '' }]);
+  await expect.poll(() => page.evaluate(() => window.__grawlixTest.getMergedEntry('Part A', 'Part A')))
+    .toMatchObject({ display: 'Part A', score: 30, wordlist: 'My Edits' });
+});
