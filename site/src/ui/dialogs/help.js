@@ -9,6 +9,7 @@ import { FEATURED_TOOLS, TOOLS } from '../../engine/tools.js';
 import { mergedEntryCount } from '../../data/merge.js';
 import { buildIconHTML, colorSeed, getMergedIcon } from '../icons.js';
 import { buildToolCardHTML } from '../tool-stack.js';
+import { buildScoreOptions } from '../entries-table.js';
 import { createDialog, showDialog } from './dialog.js';
 
 function mergeDiagram() {
@@ -86,6 +87,22 @@ const SECTIONS = [
           <p>Pop open the <strong>Rescoring</strong> panel on any wordlist if you want to change the rules.</p>`,
       },
       {
+        q: 'What do the score colors and tiers mean?',
+        a: `
+          <p>Scores show up as colored badges, and the color is the tier. Out of the box: <strong>great</strong> (60+), <strong>good</strong> (50+), <strong>fair</strong> (40+), <strong>meh</strong> (30+), <strong>bad</strong> (below 30). Hover any badge, whether in the table, the edit popover, or the tier picker, and it names the tier.</p>
+          <p>Don't like the cutoffs or the labels? They're yours. Switch to All Wordlists and open <strong>Scoring</strong> to rename a tier or move a line. It's optional decoration, though. Unlabeled scores still display fine, you just won't get a name on hover.</p>`,
+      },
+      {
+        q: 'How do I rescore entries?',
+        a: () => {
+          const maxDigit = Math.max(0, ...buildScoreOptions().map(o => o.hint).filter(h => h != null));
+          const shortcuts = maxDigit > 0 ? `<kbd>Alt</kbd>+<kbd>0</kbd> through <kbd>Alt</kbd>+<kbd>${maxDigit}</kbd>` : 'Alt+<kbd>0</kbd>';
+          return `
+          <p>Click an entry's <em>score</em> to pop up a score picker and change it to one of the predefined tiers. Want to save a click? Use ${shortcuts} to do it in one key press. You needn't open the picker at all, just hover a score badge and press one of the shortcuts. Point, press, on to the next one.</p>
+          <p>Want a score that isn't one of your tiers, or to fix a comment or rename the entry? Click the entry's <em>text</em> instead for the full editor.</p>`;
+        },
+      },
+      {
         q: `What is "All Wordlists"?`,
         a: () => `
           <p>It's the headline view: every wordlist you've enabled, rescored onto the common scale and merged into one deduped list. It's what you're looking at by default, and it's what you download or sync and hand to your construction software.</p>
@@ -97,12 +114,6 @@ const SECTIONS = [
         a: `
           <p>My Edits is your personal layer, created for you automatically the first time you open Grawlix. Any time you change a score, fix a comment, rename an entry, or add a word, it lands here, never in the original wordlist.</p>
           <p>That's deliberate. The source lists stay pristine. They update from their authors, and you don't want your edits clobbered when they do.</p>`,
-      },
-      {
-        q: 'What do the score colors and tiers mean?',
-        a: `
-          <p>Scores show up as colored badges, and the color is the tier. Out of the box: <strong>great</strong> (60+), <strong>good</strong> (50+), <strong>fair</strong> (40+), <strong>meh</strong> (30+), <strong>bad</strong> (below 30). Hover any badge, whether in the table, the edit popover, or the tier picker, and it names the tier.</p>
-          <p>Don't like the cutoffs or the labels? They're yours. Switch to All Wordlists and open <strong>Scoring</strong> to rename a tier or move a line. It's optional decoration, though. Unlabeled scores still display fine, you just won't get a name on hover.</p>`,
       },
     ],
   },

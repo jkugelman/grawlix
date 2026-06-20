@@ -61,7 +61,7 @@ import { SettingsDialog, cycleDarkMode } from '../ui/dialogs/settings.js';
 import { HelpDialog } from '../ui/dialogs/help.js';
 import { AppView } from '../ui/app-view.js';
 import {
-  activeGroupColumns, AtomPopover,
+  activeGroupColumns, AtomPopover, handleScoreDigitShortcut,
 } from '../ui/entries-table.js';
 import { ToolStack } from '../ui/tool-stack.js';
 import { buildRulesListHTML, renderScoringRules } from '../ui/rescore-editor.js';
@@ -849,7 +849,10 @@ export function bindEvents() {
   document.addEventListener('keydown', e => {
     if (!e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
     let handled = true;
-    switch (e.code) {
+    const digit = /^(?:Digit|Numpad)(\d)$/.exec(e.code);
+    if (digit) {
+      handled = handleScoreDigitShortcut(parseInt(digit[1], 10));
+    } else switch (e.code) {
       case 'KeyM': cycleDarkMode();          break;
       case 'KeyS': focusPermanentSearch();   break;
       case 'KeyW': toggleWholeWord();        break;

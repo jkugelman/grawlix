@@ -93,6 +93,38 @@ test('a between-tiers score starts on the next-lowest tier', async ({ page }) =>
   await expect.poll(() => mergedBagel(page)).toMatchObject({ score: 10, wordlist: 'My Edits' });
 });
 
+// Tiers 90/50/10 → hints count up from the bottom: 10→Alt-0, 50→Alt-1, 90→Alt-2.
+test('Alt+digit commits the matching tier while the picker is open', async ({ page }) => {
+  await setup(page, { score: 50 });
+  await openPicker(page);
+  await page.keyboard.press('Alt+Digit2');   // top tier, 90
+  await expect(picker(page)).toBeHidden();
+  await expect.poll(() => mergedBagel(page)).toMatchObject({ score: 90, wordlist: 'My Edits' });
+});
+
+test('Alt+digit while hovering a score rescores it with no picker', async ({ page }) => {
+  await setup(page, { score: 50 });
+  const cell = page.locator('.entry-row[data-entry="bagel"] .atom-score');
+  await expect(cell).toBeVisible();
+  await cell.hover();
+  await page.keyboard.press('Alt+Digit0');   // bottom tier, 10
+  await expect(picker(page)).toBeHidden();
+  await expect(page.locator('#atom-popover')).toBeHidden();
+  await expect.poll(() => mergedBagel(page)).toMatchObject({ score: 10, wordlist: 'My Edits' });
+});
+
+test('Alt+digit in the edit popover fills the score field without saving', async ({ page }) => {
+  await setup(page, { score: 50 });
+  await scopeTo(page, 'Src');
+  await page.locator('.entry-row[data-entry="bagel"] .atom-score').click();
+  await expect(page.locator('#atom-popover')).toBeVisible();
+  await expect(page.locator('#atom-popover .score-input')).toBeEnabled();
+
+  await page.keyboard.press('Alt+Digit2');   // 90
+  await expect(page.locator('#atom-popover .score-input')).toHaveValue('90');
+  expect(await myEdits(page)).toEqual([]);   // not committed until Save
+});
+
 test('picking the tier the entry is already in is a no-op', async ({ page }) => {
   await setup(page, { score: 50 });
   await openPicker(page);
