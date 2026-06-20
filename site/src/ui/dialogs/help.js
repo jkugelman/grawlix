@@ -170,7 +170,7 @@ const SECTIONS = [
       {
         q: 'Who can I thank for this?',
         a: () => `
-          <p>Grawlix is made by me, John Kugelman. It's a solo project, built to share my pile of bespoke Python scripts and duct tape.</p>
+          <p>Grawlix is made with ♥ by John Kugelman. Got feedback? <a href="mailto:john@kugelman.name?subject=Grawlix">E-mail me</a>.</p>
           <p>It would be useless without other people's wordlists. Thank you to the constructors who make and share them:</p>
           <ul class="acks-list">${wordlistCreditsHTML()}</ul>
           <p>The tools are heavily inspired by <a href="https://aaronson.org/wordlisted/" target="_blank" rel="noopener">Wordlisted</a> by Adam Aaronson. Kudos to Adam for putting wordlist searching in everyone's hands.</p>`,
