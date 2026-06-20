@@ -163,8 +163,7 @@ function boot() {
     resolveConflict: (filename, conflicts) => showEditsConflict(filename, conflicts),
   });
 
-  // Every disk mirror serializes SORTED (sort:true), unlike the unsorted download.
-  configureMirrorSerializer((scope, fmt) => fetchWorkerSerialize(scope, fmt, true));
+  configureMirrorSerializer((scope, fmt) => fetchWorkerSerialize(scope, fmt));
 
   // Injected (not imported) so data/disk-sync stays off the ui/ worker client.
   configureEditsMerger({

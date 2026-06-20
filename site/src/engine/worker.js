@@ -1172,15 +1172,13 @@ async function dumpCorpus(scope) {
 }
 
 // ─── Corpus serialize ── see docs/worker-protocol.md ─────────────────────────
-// The `sort` flag reproduces two call sites per target: the download is UNSORTED,
-// the disk mirror SORTED. Unifying it silently diverges one path's bytes.
-function handleSerializeFor({ requestId, scope, format, sort }) {
+function handleSerializeFor({ requestId, scope, format }) {
   const entries = serializeEntriesForScope(scope);
   if (!entries) {
     postMessage({ type: 'serialized', requestId, text: null });
     return;
   }
-  const text = serializeEntries(sort ? sortedEntries(entries) : entries, format);
+  const text = serializeEntries(sortedEntries(entries), format);
   postMessage({ type: 'serialized', requestId, text });
 }
 

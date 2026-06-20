@@ -2,11 +2,12 @@ import { test, expect } from '@playwright/test';
 import { stubPublisherFetches, gotoApp, scopeTo } from './helpers.js';
 
 // P7d/P7e/P7a oracle: the merged-corpus serialize + count off the worker. The
-// merged download (M1, UNSORTED), the merged disk mirror (M2, SORTED), and the
-// Welcome All-Wordlists count (C1) read the worker's ownedMerged (or its shipped
-// count); the produced bytes/count must be BYTE-IDENTICAL to main's local serialize
-// fallback (reached when ownedMerged is null) across output-format settings. See
-// docs/worker-protocol.md § serializeFor.
+// merged download (M1), the merged disk mirror (M2), and the Welcome All-Wordlists
+// count (C1) read the worker's ownedMerged (or its shipped count); the produced
+// bytes/count must be BYTE-IDENTICAL to main's local serialize fallback (reached
+// when ownedMerged is null) across output-format settings. Download and mirror are
+// the same artifact, so they also serialize identically to each other (section D).
+// See docs/worker-protocol.md § serializeFor.
 
 // Fake File System Access API so the merged disk mirror can be driven headless
 // and the written text captured. Mirrors disk-sync.spec.js's installFakeFS.
@@ -111,7 +112,7 @@ async function makeFresh(page) {
   await page.evaluate(() => window.__grawlixTest.syncWorkerConfig());
 }
 
-// ─── M1: merged download (UNSORTED) ──────────────────────────────────────────
+// ─── M1: merged download ─────────────────────────────────────────────────────
 
 test('M1 merged download: worker serialize is byte-identical to the local fallback across output formats', async ({ page }) => {
   await gotoApp(page);
@@ -151,7 +152,7 @@ test('M1 not-fresh: the worker round-trip replies null and main serializes local
   expect(text.length).toBeGreaterThan(0);
 });
 
-// ─── M2: merged disk mirror (SORTED) ─────────────────────────────────────────
+// ─── M2: merged disk mirror ──────────────────────────────────────────────────
 
 async function attachMergedMirror(page) {
   await setNextName(page, 'Merged.txt');
@@ -221,11 +222,11 @@ test('C1 Help merge count: worker count matches the local fallback', async ({ pa
   expect(workerText).not.toBe('0 entries');   // guard against both paths reading an empty merge
 });
 
-// ─── S1: individual source download (UNSORTED) ───────────────────────────────
+// ─── S1: individual source download ──────────────────────────────────────────
 // The per-source sibling of M1: downloadSourceWordlist serializes ONE source's
-// full rescored entry list off the worker (sort:false, rawEntries order). The
-// bytes must be BYTE-IDENTICAL to main's local serialize fallback (reached when
-// the worker isn't fresh) across output formats. See docs/worker-protocol.md.
+// full rescored entry list off the worker. The bytes must be BYTE-IDENTICAL to
+// main's local serialize fallback (reached when the worker isn't fresh) across
+// output formats. See docs/worker-protocol.md.
 
 async function captureSourceDownload(page, name) {
   const dl = page.waitForEvent('download');
@@ -255,7 +256,7 @@ test('S1 individual download: worker serialize is byte-identical to the local fa
   }
 });
 
-// ─── S2: individual source disk mirror (SORTED) ──────────────────────────────
+// ─── S2: individual source disk mirror ───────────────────────────────────────
 
 async function attachSourceMirror(page, name, file) {
   await setNextName(page, file);
@@ -285,5 +286,40 @@ test('S2 individual disk mirror: worker serialize is byte-identical to the local
     const worker = await flushSourceAndRead(page, 'Alpha', 'Alpha.txt');
     expect(await serializeFetches(page) - before, `${label}: one worker round-trip`).toBe(1);
     expect(worker, `format ${label}`).toBe(local[label]);
+  }
+});
+
+// ─── D: download === disk mirror ─────────────────────────────────────────────
+// M1/M2 and S1/S2 each prove worker == local-fallback WITHIN one path; these prove
+// the download and the disk mirror produce the same bytes ACROSS paths — a distinct
+// invariant, not a duplicate of those. They are the same wordlist file for one
+// scope + format, so a sort divergence between the two paths fails here.
+
+test('D merged: the download and the disk mirror serialize identically across formats', async ({ page }) => {
+  await gotoApp(page);
+  await seedCorpus(page);
+  await scopeTo(page, 'All Wordlists');
+  await attachMergedMirror(page);
+  await makeFresh(page);
+
+  for (const [label, fmt] of Object.entries(FORMATS)) {
+    await setFormat(page, fmt);
+    const download = await captureMergedDownload(page);
+    const mirror = await flushAndRead(page);
+    expect(download, `merged ${label}: download === mirror`).toBe(mirror);
+  }
+});
+
+test('D individual: the download and the disk mirror serialize identically across formats', async ({ page }) => {
+  await gotoApp(page);
+  await seedCorpus(page);
+  await attachSourceMirror(page, 'Alpha', 'Alpha.txt');
+  await makeFresh(page);
+
+  for (const [label, fmt] of Object.entries(FORMATS)) {
+    await setFormat(page, fmt);
+    const download = await captureSourceDownload(page, 'Alpha');
+    const mirror = await flushSourceAndRead(page, 'Alpha', 'Alpha.txt');
+    expect(download, `source ${label}: download === mirror`).toBe(mirror);
   }
 });

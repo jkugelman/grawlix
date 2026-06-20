@@ -45,5 +45,7 @@ export function serializeEntries(entries, fmt = AS_IS_FORMAT) {
 }
 
 export function sortedEntries(entries) {
-  return [...entries].sort((a, b) => a.norm.localeCompare(b.norm));
+  // Within a norm group, highest score first: downstream consumers (e.g. Ingrid)
+  // keep the first entry for a given norm, so the best-scored variant must lead.
+  return [...entries].sort((a, b) => a.norm.localeCompare(b.norm) || b.score - a.score);
 }

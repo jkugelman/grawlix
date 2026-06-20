@@ -924,10 +924,9 @@ export function refreshDerivedDisplays() {
 }
 
 export async function downloadMergedWordlistFromPanel() {
-  // Unsorted (sort:false): the merged download ships entries in merge order, only
-  // the disk mirror sorts. The worker is the only corpus source post-flip; a null
-  // reply (timeout/not-fresh) downloads empty rather than throwing.
-  const text = (await fetchWorkerSerialize(MERGED_ID, getOutputFormat(), false)) ?? '';
+  // The worker is the only corpus source post-flip; a null reply (timeout/not-fresh)
+  // downloads empty rather than throwing.
+  const text = (await fetchWorkerSerialize(MERGED_ID, getOutputFormat())) ?? '';
   triggerDownload(text, rescoredFilename(MERGED_ID));
   showToast(`Downloaded ${pluralize(mergedEntryCount(), 'entry', 'entries')}`);
 }
@@ -946,10 +945,9 @@ export function triggerDownload(text, filename) {
 
 export async function downloadSourceWordlist(wordlist) {
   if (!wordlist || !wordlist.rawEntries.length) return;
-  // Unsorted (sort:false): the individual download ships entries in rawEntries
-  // order, only the disk mirror sorts. Null reply (not-fresh) → local fallback.
-  const text = (await fetchWorkerSerialize(wordlist.dbKey, getOutputFormat(), false))
-    ?? serializeEntries(getRescoredEntries(wordlist), getOutputFormat());
+  // The not-fresh fallback must sort too, or its bytes diverge from the worker path.
+  const text = (await fetchWorkerSerialize(wordlist.dbKey, getOutputFormat()))
+    ?? serializeEntries(sortedEntries(getRescoredEntries(wordlist)), getOutputFormat());
   triggerDownload(text, rescoredFilename(wordlist));
   showToast(`Downloaded ${pluralize(wordlist.rawEntries.length, 'entry', 'entries')}`);
 }

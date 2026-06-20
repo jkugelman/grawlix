@@ -86,3 +86,12 @@ test('sortedEntries: orders by norm via localeCompare, leaving the input untouch
   assert.deepStrictEqual(sortedEntries(input).map(e => e.norm), ['apple', 'mango', 'zebra']);
   assert.deepStrictEqual(input.map(e => e.norm), ['zebra', 'apple', 'mango']);
 });
+
+test('sortedEntries: ties on norm break by score descending', () => {
+  const input = [
+    { norm: 'cafe', display: 'cafe', score: 30 },
+    { norm: 'cafe', display: 'café', score: 70 },
+    { norm: 'cafe', display: 'CAFE', score: 50 },
+  ];
+  assert.deepStrictEqual(sortedEntries(input).map(e => e.score), [70, 50, 30]);
+});

@@ -706,7 +706,7 @@ export function fetchWorkerAllGroups(runId, timeout = 5000) {
 // ─── Corpus serialize bridge ── see docs/worker-protocol.md ──────────────────
 let fetchSerializeRequestId = 0;
 export function serializeFetchesSent() { return fetchSerializeRequestId; }
-export function fetchWorkerSerialize(scope, format, sort, timeout = 5000) {
+export function fetchWorkerSerialize(scope, format, timeout = 5000) {
   const w = getWorker();
   const requestId = ++fetchSerializeRequestId;
   return new Promise(resolve => {
@@ -718,6 +718,6 @@ export function fetchWorkerSerialize(scope, format, sort, timeout = 5000) {
       resolve(data.text ?? null);
     }
     w.addEventListener('message', onMessage);
-    w.postMessage({ type: 'serializeFor', requestId, scope, format, sort });
+    w.postMessage({ type: 'serializeFor', requestId, scope, format });
   });
 }
