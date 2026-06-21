@@ -1,9 +1,13 @@
 # Grawlix
 
-[![CI](https://github.com/jkugelman/grawlix/actions/workflows/ci.yml/badge.svg)](https://github.com/jkugelman/grawlix/actions/workflows/ci.yml)
+<div align="center">
+
+[![Test and deploy](https://github.com/jkugelman/grawlix/actions/workflows/ci.yml/badge.svg)](https://github.com/jkugelman/grawlix/actions/workflows/ci.yml)
 [![Live site](https://img.shields.io/website?url=https%3A%2F%2Fgrawlix.wtf&label=grawlix.wtf&up_message=online&down_message=offline)](https://grawlix.wtf)
-[![Runtime dependencies](https://img.shields.io/badge/runtime%20deps-0-brightgreen)](package.json)
+[![Runtime deps: 0](https://img.shields.io/badge/runtime%20deps-0-brightgreen)](package.json)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
+</div>
 
 **[grawlix.wtf](https://grawlix.wtf)** — a browser-based wordlist manager for crossword constructors.
 
