@@ -250,16 +250,14 @@ function materializeResult(data, stack, scope) {
   // Rebuilt each pass (not memoized) so an add/remove/reorder between runs can't
   // resolve a rich atom's sourceId to a stale wordlist.
   const sourceById = new Map(state.sources.map(w => [w.dbKey, w]));
-  const rows = grouped
-    ? payload.groups.map(g => decodeGroup(g, sourceById))
-    : payload.chains.map(c => decodeChain(c, sourceById));
+  // Stamp the holder so scopedHistogramLayout() returns the SAME axis the worker
+  // bucketed histogramCounts against; otherwise the scoped histogram renders counts
+  // against a mismatched axis and silently mis-bins. Both windowed tiers need it.
+  setShippedScopedLayout(payload.histogramLayout ?? null, scope);
   if (grouped) {
-    // Stamp the holder so scopedHistogramLayout() returns the SAME axis the worker
-    // bucketed histogramCounts against; otherwise the scoped grouped histogram
-    // renders counts against a mismatched axis and silently mis-bins.
-    setShippedScopedLayout(payload.histogramLayout ?? null, scope);
     return {
-      rows, atomCount, grouped, aborted: false,
+      rows: payload.groups.map(g => decodeGroup(g, sourceById)),
+      atomCount, grouped, aborted: false,
       stats: payload.stats ?? null,
       histogramCounts: payload.histogramCounts ?? null,
       histogramLayout: payload.histogramLayout ?? null,
@@ -269,7 +267,22 @@ function materializeResult(data, stack, scope) {
       filtered: !!payload.filtered,
     };
   }
-  return { rows, atomCount, grouped, aborted: false };
+  return {
+    transform: true,
+    firstChains: payload.firstChains.map(c => decodeChain(c, sourceById)),
+    chainCount: payload.chainCount ?? 0,
+    atomCount, grouped: false, aborted: false,
+    stats: payload.stats ?? null,
+    histogramCounts: payload.histogramCounts ?? null,
+    histogramLayout: payload.histogramLayout ?? null,
+    widthHints: payload.widthHints ?? null,
+    existsInScope: payload.existsInScope ?? null,
+    rebindQuery: payload.rebindQuery ?? null,
+    rebindEntry: rebuildRebindEntry(payload.rebindEntry),
+    rebindExists: payload.rebindExists ?? null,
+    filtered: !!payload.filtered,
+    ranAgainstOwned: !!data.ranAgainstOwned,
+  };
 }
 
 function rebuildRebindEntry(row) {
@@ -680,6 +693,47 @@ export function fetchWorkerAllRows(runId, timeout = 5000) {
     }
     w.addEventListener('message', onMessage);
     w.postMessage({ type: 'fetchAllRows', requestId, runId });
+  });
+}
+
+// ─── Windowed transform-chain fetch bridge ── see docs/worker-protocol.md ────
+// Drops a reply for a superseded run (like the grouped bridges) so a stale window
+// can't paint over the current result.
+let fetchTransformRowsRequestId = 0;
+export function fetchWorkerTransformRows(runId, start, end, timeout = 5000) {
+  const w = getWorker();
+  const requestId = ++fetchTransformRowsRequestId;
+  return new Promise(resolve => {
+    const timer = setTimeout(() => { w.removeEventListener('message', onMessage); resolve(null); }, timeout);
+    function onMessage({ data }) {
+      if (data?.type !== 'transformRows' || data.requestId !== requestId || data.runId !== runId) return;
+      clearTimeout(timer);
+      w.removeEventListener('message', onMessage);
+      if (runId !== lastResultRunId) { resolve(null); return; }   // superseded run — drop
+      const sourceById = new Map(state.sources.map(s => [s.dbKey, s]));
+      resolve({ start: data.start, rows: data.chains.map(c => decodeChain(c, sourceById)) });
+    }
+    w.addEventListener('message', onMessage);
+    w.postMessage({ type: 'fetchTransformRows', requestId, runId, start, end });
+  });
+}
+
+// ─── Full-result transform fetch bridge (export) ── see docs/worker-protocol.md ──
+let fetchAllTransformRowsRequestId = 0;
+export function fetchWorkerAllTransformRows(runId, timeout = 5000) {
+  const w = getWorker();
+  const requestId = ++fetchAllTransformRowsRequestId;
+  return new Promise(resolve => {
+    const timer = setTimeout(() => { w.removeEventListener('message', onMessage); resolve(null); }, timeout);
+    function onMessage({ data }) {
+      if (data?.type !== 'allTransformRows' || data.requestId !== requestId) return;
+      clearTimeout(timer);
+      w.removeEventListener('message', onMessage);
+      const sourceById = new Map(state.sources.map(s => [s.dbKey, s]));
+      resolve({ rows: data.chains.map(c => decodeChain(c, sourceById)) });
+    }
+    w.addEventListener('message', onMessage);
+    w.postMessage({ type: 'fetchAllTransformRows', requestId, runId });
   });
 }
 

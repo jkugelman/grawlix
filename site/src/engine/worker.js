@@ -4,7 +4,7 @@ import { MERGED_ID } from '../core/constants.js';
 import { canonicalNormRow } from './snapshot.js';
 import { TOOLS, makeToolRow } from './tools.js';
 import { executePipeline, configureExecutorYield, invalidatePreSearchCache, bottomLineAtoms, applyScoreRangeToRows } from './executor.js';
-import { sortGroups, activeGroupRow } from './group-sort.js';
+import { sortGroups, sortChainRows, activeGroupRow } from './sort.js';
 import { configureIO as configureSegmenterIO } from './segmenter.js';
 import { configureIO as configurePhoneticsIO } from './phonetics.js';
 import { DATA_ASSETS, getDataAsset } from './assets.js';
@@ -120,6 +120,7 @@ let pending = null;
 let running = false;
 let lastFlatResult = null;  // { runId, indices, scores, scope, highlighters } retained to serve `fetchRows`
 let lastGroupedResult = null;  // { runId, groups, scope } — full sorted+filtered groups (all chains) retained to serve `fetchGroupChains`
+let lastTransformResult = null;  // { runId, chains, scope } — full sorted+filtered transform chains retained to serve `fetchTransformRows`
 let lastUserStackSig = null;
 let lastRunCorpus = null;   // the corpus the live _preSearchCache was seeded from
 let selfConfig = null;
@@ -243,6 +244,7 @@ function postResult(runId, { rows, atomCount, grouped }, sort, scope, stack, exi
 
   if (grouped) {
     lastFlatResult = null;
+    lastTransformResult = null;
     const intervals = scoreRange ? parseRange(scoreRange) : null;
     // Filter BEFORE the group sort so the group axes read each group's post-filter
     // _minScore/count; the unfiltered `rows` still feeds the histogram + width hints
@@ -266,7 +268,22 @@ function postResult(runId, { rows, atomCount, grouped }, sort, scope, stack, exi
   if (rows.some(rowIsRich)) {
     lastFlatResult = null;
     lastGroupedResult = null;
-    postMessage({ ...base, payload: { chains: rows.map(c => encodeChain(c)) } });
+    const intervals = scoreRange ? parseRange(scoreRange) : null;
+    // transformSummaries gets the UNFILTERED rows so the histogram keeps out-of-range
+    // bars clickable; the sorted+filtered `visible` is what ships and is retained.
+    const visible = intervals ? applyScoreRangeToRows(rows, intervals, false) : rows;
+    const sorted = sortChainRows(visible, sort, stack);
+    lastTransformResult = { runId, chains: sorted, scope };
+    postMessage({
+      ...base,
+      payload: {
+        firstChains: sorted.slice(0, FIRST_WINDOW).map(encodeChain),
+        chainCount: sorted.length,
+        ...transformSummaries(rows, sorted, scope, !!intervals),
+        ...resolveRebindExists(existsQuery, rebindQuery),
+        rebindQuery: rebindQuery || null,
+      },
+    });
     return;
   }
 
@@ -314,23 +331,10 @@ function postResult(runId, { rows, atomCount, grouped }, sort, scope, stack, exi
     highlighters: compileFlatHighlighters(stack),
   };
   lastGroupedResult = null;
+  lastTransformResult = null;
 
   const stats = computeStatsRaw(scores);
-  const existsInScope = existsQuery ? ownedCorpus.byNorm.has(toNorm(existsQuery)) : null;
-
-  // Resolve the open popover's re-anchor target the SAME way main's flat
-  // findResultEntry+resultHasEntry do: a FULL-corpus byKey→byNorm lookup that
-  // re-anchors even to an entry filtered OUT of the visible (range-filtered) view.
-  let rebindEntry = null, rebindExists = null;
-  if (rebindQuery) {
-    const { norm, display } = rebindQuery;
-    const row = ownedCorpus.byKey.get(mergeKey(norm, display)) ?? ownedCorpus.byNorm.get(norm) ?? null;
-    rebindEntry = row && {
-      norm, display: row.display ?? null, score: row.score, rawScore: row.rawScore,
-      comment: row.comment || '', sourceId: row.wordlist.dbKey,
-    };
-    rebindExists = ownedCorpus.byNorm.has(norm);
-  }
+  const { existsInScope, rebindEntry, rebindExists } = resolveRebindExists(existsQuery, rebindQuery);
 
   // Ship the first window's rich rows inline so main paints above-the-fold rows
   // instantly instead of flashing skeletons until a fetchRows round-trip lands —
@@ -462,6 +466,33 @@ function handleFetchAllGroups({ requestId, runId }) {
   postMessage({
     type: 'allGroups', requestId, runId,
     groups: lastGroupedResult.groups.map(encodeGroupFull),
+  });
+}
+
+// ─── Windowed / full transform-chain fetch ── see docs/worker-protocol.md ────
+// The transform analogue of fetchResultFresh: lastTransformResult.chains hold their
+// atoms by reference to THAT run's corpus, so a scope/config change between the run
+// and the fetch makes them name the wrong rows — drop silently; main re-fetches.
+function transformResultFresh(runId) {
+  return !!lastTransformResult && lastTransformResult.runId === runId
+    && ownedCorpus && ownedCorpusFresh && ownedScope === lastTransformResult.scope;
+}
+
+function handleFetchTransformRows({ requestId, runId, start, end }) {
+  if (!transformResultFresh(runId)) return;
+  const lo = Math.max(0, start | 0);
+  const hi = Math.min(lastTransformResult.chains.length, end | 0);
+  postMessage({
+    type: 'transformRows', requestId, runId, start: lo,
+    chains: lastTransformResult.chains.slice(lo, hi).map(encodeChain),
+  });
+}
+
+function handleFetchAllTransformRows({ requestId, runId }) {
+  if (!transformResultFresh(runId)) return;
+  postMessage({
+    type: 'allTransformRows', requestId, runId,
+    chains: lastTransformResult.chains.map(encodeChain),
   });
 }
 
@@ -718,6 +749,75 @@ function computeGroupWidthHints(rows, stack) {
   const columnWidestByKey = {};
   for (let c = 0; c < columns.length; c++) columnWidestByKey[columns[c].key] = columnWidest[c];
   return { maxCount, groupCount: rows.length, maxAnchorDisplayLen, maxAnchorScoreDigits, columnWidestByKey };
+}
+
+// Shared by the flat and transform branches so their popover re-anchor + exists
+// answers can't drift: a FULL-corpus byKey→byNorm lookup that re-anchors even to an
+// entry filtered OUT of the visible (range-filtered) view.
+function resolveRebindExists(existsQuery, rebindQuery) {
+  const existsInScope = existsQuery ? ownedCorpus.byNorm.has(toNorm(existsQuery)) : null;
+  let rebindEntry = null, rebindExists = null;
+  if (rebindQuery) {
+    const { norm, display } = rebindQuery;
+    const row = ownedCorpus.byKey.get(mergeKey(norm, display)) ?? ownedCorpus.byNorm.get(norm) ?? null;
+    rebindEntry = row && {
+      norm, display: row.display ?? null, score: row.score, rawScore: row.rawScore,
+      comment: row.comment || '', sourceId: row.wordlist.dbKey,
+    };
+    rebindExists = ownedCorpus.byNorm.has(norm);
+  }
+  return { existsInScope, rebindEntry, rebindExists };
+}
+
+// The transform-tier analogue of groupSummaries: histogram over the UNFILTERED
+// bottom-line scores (out-of-range bars stay clickable), stats over the filtered.
+function transformSummaries(unfiltered, filtered, scope, didFilter) {
+  const histScores = bottomLineAtoms(unfiltered).map(e => e.score);
+  const statScores = bottomLineAtoms(filtered).map(e => e.score);
+  let histogramCounts, histogramLayout = null;
+  if (scope === MERGED_ID) {
+    histogramCounts = bucketCounts(histScores, ownedAllSourcesAxis);
+  } else {
+    histogramLayout = getHistogramLayout(ownedCorpus.entries, 'scoped:' + scope);
+    histogramCounts = bucketCounts(histScores, histogramLayout);
+  }
+  return {
+    stats: computeStatsRaw(statScores),
+    histogramCounts,
+    histogramLayout,
+    widthHints: computeTransformWidthHints(unfiltered, filtered),
+    filtered: didFilter,
+  };
+}
+
+// Char-count hints for the entry/len/score slots (main re-measures pixels). The
+// glyph prefix needs a pixel width main owns, so ship the widest glyph atom's text
+// length SEPARATELY from the overall widest — main adds the measured glyph width to
+// the former and maxes the two, reproducing the per-atom slot need.
+function computeTransformWidthHints(unfiltered, filtered) {
+  let maxDisplayLen = 0, maxGlyphDisplayLen = 0, hasHighlight = false;
+  for (const row of unfiltered) {
+    for (const a of row.atoms) {
+      const dl = displayOf(a.wlEntry).length;
+      if (dl > maxDisplayLen) maxDisplayLen = dl;
+      if (a.glyph != null && dl > maxGlyphDisplayLen) maxGlyphDisplayLen = dl;
+      if (!hasHighlight && a.highlights?.length) hasHighlight = true;
+    }
+  }
+  let maxLenDigits = 1, maxScoreDigits = 1, maxRawDigits = 0;
+  for (const row of filtered) {
+    for (const a of row.atoms) {
+      const e = a.wlEntry;
+      const ld = String(e.norm.length).length;
+      if (ld > maxLenDigits) maxLenDigits = ld;
+      const sd = String(e.score).length;
+      if (sd > maxScoreDigits) maxScoreDigits = sd;
+      if (e.rawScore != null && e.rawScore !== e.score) {
+        maxRawDigits = Math.max(maxRawDigits, String(e.rawScore).length);
+      }
+    }
+  }
+  return { maxDisplayLen, maxGlyphDisplayLen, hasHighlight, maxLenDigits, maxScoreDigits, maxRawDigits };
 }
 
 function rowIsRich(row) {
@@ -1255,6 +1355,14 @@ onmessage = ({ data }) => {
 
     case 'fetchAllGroups':
       handleFetchAllGroups(data);
+      break;
+
+    case 'fetchTransformRows':
+      handleFetchTransformRows(data);
+      break;
+
+    case 'fetchAllTransformRows':
+      handleFetchAllTransformRows(data);
       break;
 
     case 'fetchEditSeed':

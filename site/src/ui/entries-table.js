@@ -20,13 +20,13 @@ import { parseRange } from '../engine/range.js';
 import { renderHighlightedText } from '../engine/search.js';
 import { TOOLS } from '../engine/tools.js';
 import {
-  isFilterOnlyChain, isGroupChain, rowLastEntry,
-  bottomLineAtoms, rowSetAtoms, applyScoreRangeToRows,
+  isGroupChain, rowLastEntry, rowSetAtoms,
 } from '../engine/executor.js';
 import {
-  compareItems, compareValues, composeSortAxis, groupSortAxes, GROUP_SORT_AXES,
-  activeGroupColumns, activeGroupAnchorLabel,
-} from '../engine/group-sort.js';
+  compareItems, compareValues, activeGroupColumns, activeGroupAnchorLabel,
+  sortAxes, chainSortTier, DEFAULT_SORT_BY_TIER, isValidSortAxis,
+  rowMinScore, rowMaxScore,
+} from '../engine/sort.js';
 import { compileFlatHighlighters } from '../engine/flat-highlight.js';
 import { state, getEditsWordlist } from '../data/state.js';
 import { getTrashScore } from '../data/serialize.js';
@@ -41,7 +41,7 @@ import { buildTrashIconHTML, positionPopover } from './components.js';
 import {
   getEntriesScroller, rescorePreviewActive, refreshMergedScroller, setScope,
 } from './rendering.js';
-import { fetchWorkerRows, fetchWorkerGroups, fetchWorkerGroupChains, fetchWorkerAllRows, fetchWorkerAllGroups, lastCompletedRunId, fetchWorkerEditSeed, fetchWorkerProvenance } from './pipeline-worker.js';
+import { fetchWorkerRows, fetchWorkerGroups, fetchWorkerGroupChains, fetchWorkerAllRows, fetchWorkerAllGroups, fetchWorkerTransformRows, fetchWorkerAllTransformRows, lastCompletedRunId, fetchWorkerEditSeed, fetchWorkerProvenance } from './pipeline-worker.js';
 
 let _navigate              = () => {};
 
@@ -136,97 +136,13 @@ function blockSemicolon(e) {
 
 // ─── Virtual Scroller ─────────────────────────────────────────────────────────
 
-// Entry sort axes, split by sort tier — filter-only chains (empty stack or
-// searches) sort by Entry / Length / Score; chains with a transform swap Score
-// for Min score / Max score. Entry and Length project off the *first* atom —
-// the merged-wordlist entry the row grew from — so the table keeps its order when
-// a tool is added: a filter or 1-output transform leaves every first atom in
-// place, so the rows can't reshuffle. Min/Max project across every atom.
-//
-// Each axis declares its primary projection and a fixed-direction tiebreaker
-// chain — when the primary ties, fall to whichever direction surfaces the
-// most interesting rows first (longer > shorter, higher score > lower), with
-// alphabetical asc as the final stable tiebreaker. Flipping the user-level
-// asc/desc toggle reverses only the primary; tiebreakers keep their declared
-// direction, so "score asc" still shows the longest among the lowest-scoring
-// rows first instead of letting short junk float to the top of a tied bucket.
-//
-// A multi-output transform (anagram) branches one input into rows that share
-// their whole first atom; rowChainTail breaks those ties by the later atoms.
-const rowFirstEntry = r => r.atoms[0].wlEntry;
-export const rowMinScore   = r => Math.min(...r.atoms.map(a => a.wlEntry.score));
-export const rowMaxScore   = r => Math.max(...r.atoms.map(a => a.wlEntry.score));
-// Later atoms joined with a low separator: a string compare then orders them
-// atom-by-atom, since every row in a run carries the same atom count.
-const rowChainTail  = r => r.atoms.slice(1).map(a => a.wlEntry.norm).join('\u0000');
-export { compareItems, compareValues, activeGroupColumns };
-const SORT_AXES = {
-  single: {
-    entry: {
-      label: 'Entry',
-      primary: r => rowFirstEntry(r).norm,
-      tiebreakers: [
-        { project: r => rowFirstEntry(r).norm.length, dir: 'desc' },
-        { project: r => rowFirstEntry(r).score,        dir: 'desc' },
-      ],
-    },
-    length: {
-      label: 'Length',
-      primary: r => rowFirstEntry(r).norm.length,
-      tiebreakers: [
-        { project: r => rowFirstEntry(r).score, dir: 'desc' },
-        { project: r => rowFirstEntry(r).norm, dir: 'asc'  },
-      ],
-    },
-    score: {
-      label: 'Score',
-      primary: r => rowFirstEntry(r).score,
-      tiebreakers: [
-        { project: r => rowFirstEntry(r).norm.length, dir: 'desc' },
-        { project: r => rowFirstEntry(r).norm,        dir: 'asc'  },
-      ],
-    },
-  },
-  multi: {
-    entry: {
-      label: 'Entry',
-      primary: r => rowFirstEntry(r).norm,
-      // First-atom entries are unique per input, so the only ties are a
-      // multi-output transform's branches — settled by the chain tail.
-      tiebreakers: [
-        { project: rowChainTail, dir: 'asc' },
-      ],
-    },
-    length: {
-      label: 'Length',
-      primary: r => rowFirstEntry(r).norm.length,
-      // First-atom score then entry replays the tool-less Length order; the
-      // chain tail then separates a multi-output transform's branches.
-      tiebreakers: [
-        { project: r => rowFirstEntry(r).score, dir: 'desc' },
-        { project: r => rowFirstEntry(r).norm, dir: 'asc'  },
-        { project: rowChainTail,                dir: 'asc'  },
-      ],
-    },
-    'min-score': {
-      label: 'Min score',
-      primary: rowMinScore,
-      tiebreakers: [
-        { project: r => rowLastEntry(r).norm.length, dir: 'desc' },
-        { project: r => rowLastEntry(r).norm,        dir: 'asc'  },
-      ],
-    },
-    'max-score': {
-      label: 'Max score',
-      primary: rowMaxScore,
-      tiebreakers: [
-        { project: r => rowLastEntry(r).norm.length, dir: 'desc' },
-        { project: r => rowLastEntry(r).norm,        dir: 'asc'  },
-      ],
-    },
-  },
+// Sort axes, tier resolution, and chain projections live in engine/sort.js so the
+// worker sorts every tier the same way main labels its headers. Re-exported here
+// for the router and tests that reach them through this module.
+export {
+  compareItems, compareValues, activeGroupColumns,
+  chainSortTier, DEFAULT_SORT_BY_TIER, isValidSortAxis, rowMinScore, rowMaxScore,
 };
-export const DEFAULT_SORT_BY_TIER = { single: 'entry', multi: 'entry', group: 'entry' };
 // An axis with no counterpart in the new tier maps across rather than
 // snapping to the tier default, so a sort survives a tier round-trip.
 // Length↔Count are deliberately paired despite measuring different things —
@@ -236,27 +152,6 @@ const SORT_AXIS_TIER_MAP = {
   'score': 'min-score', 'min-score': 'score', 'max-score': 'score',
   'length': 'count', 'count': 'length',
 };
-// The sort tier is single-atom when the chain is filter-only and multi-atom
-// once a transform is in play — transforms are what give a row genuinely
-// distinct atoms to sort across. Highlight-only repeat atoms don't promote the
-// tier: they're all the same word and score.
-export function chainSortTier(stack) {
-  if (isGroupChain(stack)) return 'group';
-  return isFilterOnlyChain(stack) ? 'single' : 'multi';
-}
-export function sortAxes(tier, stack = ToolStack.getStack()) {
-  return tier === 'group' ? groupSortAxes(stack) : SORT_AXES[tier];
-}
-export function isValidSortAxis(key) {
-  if (key in SORT_AXES.single || key in SORT_AXES.multi
-      || key in GROUP_SORT_AXES) return true;
-  for (const tool of Object.values(TOOLS)) {
-    for (const col of tool.group?.columns || []) {
-      if (col.key === key) return true;
-    }
-  }
-  return false;
-}
 
 // Order is load-bearing: the first surviving axis is the column's canonical
 // pick, consumed far away as nextSortForColumn's ownedAxes[0].
@@ -751,6 +646,7 @@ export class EntriesScroller extends BaseVirtualScroller {
     this._rebindEntry = null;
     this._rebindExists = null;
     this._widthHints = null;
+    this._errored = false;
     this._flatHighlighters = [];
     this.sortList = AppView.sortList;
     this.scoreRange = AppView.scoreRange;
@@ -827,9 +723,12 @@ export class EntriesScroller extends BaseVirtualScroller {
       row = target.closest('.entry-row');
       const atomEl = target.closest('.atom');
       if (!row || !atomEl) return null;
+      // A rendered row is always in the window cache (it was pulled from there);
+      // this.entries holds only the inline first window, so it can't resolve a
+      // clicked atom past it.
       wlEntry = this._flat
         ? row._wlEntry
-        : this.entries[parseInt(row.dataset.idx, 10)]?.atoms[parseInt(atomEl.dataset.atom, 10)]?.wlEntry;
+        : this._winCache.get(parseInt(row.dataset.idx, 10))?.atoms[parseInt(atomEl.dataset.atom, 10)]?.wlEntry;
     }
     if (!wlEntry) return null;
     const field = target.classList.contains('atom-score') ? 'score'
@@ -874,7 +773,9 @@ export class EntriesScroller extends BaseVirtualScroller {
   }
 
   _ingestResult(result) {
+    this._errored = !!result.errored;
     this._flat = !!result.flat;
+    this._transform = !!result.transform;
     if (this._flat) {
       this._flatScores = result.scores;
       this._workerStats = result.stats ?? null;
@@ -889,35 +790,52 @@ export class EntriesScroller extends BaseVirtualScroller {
       this._flatHighlighters = compileFlatHighlighters(ToolStack.getStack());
       this.allEntries = result.indices;
       this._firstRows = result.firstRows ?? null;
-    } else {
+      this._firstChains = null;
+      this._firstGroups = null;
+    } else if (this._transform) {
+      // Windowed like flat: allEntries stays empty, so stats / histogram / width
+      // hints / rebind all come from the worker (recomputing locally would see no
+      // rows). Only a first window of chains ships inline.
       this._flatScores = null;
+      this._workerStats = result.stats ?? null;
+      this._workerHistogramCounts = result.histogramCounts ?? null;
+      this._workerGroupWidthHints = null;
+      this._workerChainCount = result.chainCount ?? 0;
+      this._workerGroupCount = null;
+      this._workerFiltered = !!result.filtered;
+      this._ranAgainstOwned = !!result.ranAgainstOwned;
+      this._existsInScope = result.existsInScope ?? null;
+      this._rebindQuery = result.rebindQuery ?? null;
+      this._rebindEntry = result.rebindEntry ?? null;
+      this._rebindExists = result.rebindExists ?? null;
+      this._widthHints = result.widthHints;
+      this._firstChains = result.firstChains ?? [];
+      this._firstGroups = null;
+      this.allEntries = [];
+    } else {
       // The grouped worker stats/counts are FILTERED (the worker applies the score
       // range), and its histogram is UNFILTERED — _workerFiltered carries that to
       // the rendering.js guard so it consumes the worker's filtered Min/Max under a
       // range instead of recomputing.
-      const g = !!result.grouped;
-      this._workerStats = g ? (result.stats ?? null) : null;
-      this._workerHistogramCounts = g ? (result.histogramCounts ?? null) : null;
-      this._workerGroupWidthHints = g ? (result.groupWidthHints ?? null) : null;
-      this._workerChainCount = g ? (result.chainCount ?? null) : null;
-      this._workerGroupCount = g ? (result.groupCount ?? null) : null;
-      this._workerFiltered = g ? !!result.filtered : false;
+      this._flatScores = null;
+      this._workerStats = result.stats ?? null;
+      this._workerHistogramCounts = result.histogramCounts ?? null;
+      this._workerGroupWidthHints = result.groupWidthHints ?? null;
+      this._workerChainCount = result.chainCount ?? null;
+      this._workerGroupCount = result.groupCount ?? null;
+      this._workerFiltered = !!result.filtered;
       this._ranAgainstOwned = false;
       this._existsInScope = null;
       this._rebindQuery = null;
       this._rebindEntry = null;
       this._rebindExists = null;
-      if (g) {
-        // result.rows is only the first WINDOW of groups, not all of them. Leave
-        // allEntries empty so a consumer can't iterate a partial window as the full
-        // group list (silently wrong counts/rebind over a large result); the render
-        // and sync rebind read _groupWinCache (keyed by absolute index) instead.
-        this._firstGroups = result.rows;
-        this.allEntries = [];
-      } else {
-        this._firstGroups = null;
-        this.allEntries = result.rows;
-      }
+      // result.rows is only the first WINDOW of groups, not all of them. Leave
+      // allEntries empty so a consumer can't iterate a partial window as the full
+      // group list (silently wrong counts/rebind over a large result); the render
+      // and sync rebind read _groupWinCache (keyed by absolute index) instead.
+      this._firstGroups = result.rows;
+      this._firstChains = null;
+      this.allEntries = [];
     }
   }
 
@@ -930,21 +848,16 @@ export class EntriesScroller extends BaseVirtualScroller {
     return tierChanged;
   }
 
+  // Every tier arrives pre-sorted + pre-filtered from the worker, so a sort-axis or
+  // score-range change re-runs the pipeline rather than reordering locally — main
+  // holds no comparator that would reproduce the worker's order.
   setScoreRange(range) {
     const next = range || '';
     if (next === this.scoreRange) return;
     this.scoreRange = next;
     this._scoreIntervals = next ? parseRange(next) : null;
     this._invalidateSortCache();
-    if (this._workerOwnsOrder()) refreshMergedScroller();
-    else this._sortAndRender();
-  }
-
-  // The flat and grouped tiers arrive pre-sorted + pre-filtered from the worker, so
-  // a sort-axis or score-range change must re-run the pipeline rather than reorder
-  // locally — main holds no comparator that would reproduce the worker's order.
-  _workerOwnsOrder() {
-    return this._flat || this.sortTier === 'group';
+    refreshMergedScroller();
   }
 
   _invalidateSortCache() {
@@ -959,8 +872,7 @@ export class EntriesScroller extends BaseVirtualScroller {
     AppView.setSortList(list);
     this.sortList = AppView.sortList;
     rebuildEntryHeaders();
-    if (this._workerOwnsOrder()) refreshMergedScroller();
-    else this._sortAndRender();
+    refreshMergedScroller();
     _navigate();
   }
 
@@ -998,24 +910,19 @@ export class EntriesScroller extends BaseVirtualScroller {
       return this._sortedSource;
     }
 
-    // The worker pre-sorts AND pre-filters both the flat and the grouped tiers (a
-    // sort-axis or score-range change re-runs the pipeline), so they arrive in final
-    // order, ready to render. The single/multi tiers still sort + filter locally.
+    // Every tier arrives pre-sorted + pre-filtered from the worker. The flat tier's
+    // `entries` is its index list; the windowed transform and grouped tiers carry
+    // only the inline first window here — empty iff the result is empty, the
+    // invariant _sortAndRender's empty-state check keys on. The render sizes from the
+    // worker's count and pulls visible rows from the window cache.
     let sorted;
     if (this._flat) {
       this._flatViewScores = this._flatScores;
       sorted = this.allEntries;
     } else if (this.sortTier === 'group') {
-      // Only the inline first window — empty iff groupCount is 0, the invariant
-      // _sortAndRender's empty-state check keys on. The render sizes from groupCount
-      // and pulls visible groups from _groupWinCache.
       sorted = this._firstGroups ?? [];
     } else {
-      const filtered = applyScoreRangeToRows(this.allEntries, this._scoreIntervals, false);
-      const axis = composeSortAxis(this.sortList, sortAxes(this.sortTier));
-      sorted = axis
-        ? [...filtered].sort((a, b) => compareItems(a, b, axis, this.sortList[0].dir))
-        : filtered;
+      sorted = this._firstChains ?? [];
     }
 
     this._sortedSource = sorted;
@@ -1032,60 +939,12 @@ export class EntriesScroller extends BaseVirtualScroller {
   // to #detail-panel so both .entry-row and the .entry-headers (which lives in
   // .sticky-stack, a sibling of the scroller's host) inherit the same values.
   _computeSlotWidths() {
+    // An errored result carries no width hints; the transform/group sizers would
+    // destructure null. Nothing to size anyway — it has no rows.
+    if (this._errored) return;
     if (this.sortTier === 'group') { this._computeGroupSlotWidths(); return; }
     if (this._flat) { this._computeFlatSlotWidths(); return; }
-    // Count and entry slot widths track the unfiltered result so columns
-    // don't shift sideways when a search or score filter cuts the visible
-    // set down. Len/score slots stay tied to the filtered view since their
-    // widths are tiny and effectively constant in practice. Every atom of
-    // every row measures against the same tracks so the eye reads down them.
-    const total = this.allEntries.length;
-    const countDigits = total > 0 ? String(total).length : 1;
-    const ch = measureMonoChPx();
-    // A glyph atom renders `<glyph> ` ahead of its entry, so its slot need is
-    // entry chars + the glyph prefix. Cap the entry text at ENTRY_SLOT_CAP but
-    // let the glyph spill past the cap — it's fixed overhead, not entry text.
-    const glyphCh = measureAtomGlyphPx() / ch;
-    let maxLen = 0, maxLenDigits = 1, maxScoreDigits = 1, hasHighlight = false;
-    for (const row of this.allEntries) {
-      for (const atom of row.atoms) {
-        const len = displayOf(atom.wlEntry).length + (atom.glyph ? glyphCh : 0);
-        if (len > maxLen) maxLen = len;
-        if (!hasHighlight && atom.highlights?.length) hasHighlight = true;
-      }
-    }
-    const draftRules = rescorePreviewActive() ? getDraftRescoreRules() : null;
-    let maxRawDigits = 0;
-    for (const row of this.entries) {
-      for (const atom of row.atoms) {
-        const we = draftRules ? previewedEntry(atom.wlEntry, draftRules) : atom.wlEntry;
-        const d = String(we.norm.length).length;
-        if (d > maxLenDigits) maxLenDigits = d;
-        const sd = String(we.score).length;
-        if (sd > maxScoreDigits) maxScoreDigits = sd;
-        if (we.rawScore != null && we.rawScore !== we.score) {
-          maxRawDigits = Math.max(maxRawDigits, String(we.rawScore).length);
-        }
-      }
-    }
-    // A `<mark>` highlight splits the entry into separate text runs, each
-    // rounded to a whole pixel independently — the rounding can accumulate
-    // past a column sized to the bare text. Reserve a character of slack
-    // whenever the result carries highlights so it never clips a fitting entry.
-    // Then round up and pad a pixel: length × average-char-width lands a
-    // sub-pixel under the real rendered string, which Safari/iPad clips at the
-    // grid track's sub-pixel boundary (Chrome rounds the other way and fits).
-    const entryContentW = Math.ceil(
-      Math.min(maxLen, ENTRY_SLOT_CAP + glyphCh) * ch + (hasHighlight ? ch : 0)
-    ) + 1;
-    const target = this.host.closest('#detail-panel') || this.sizer;
-    target.style.setProperty('--count-w', `${(countDigits + 1) * ch}px`);
-    // Floored to the header label so it never overflows its column.
-    target.style.setProperty('--entry-w', `${Math.max(entryContentW, sortableHeaderPx('Entry'))}px`);
-    target.style.setProperty('--len-w', `${Math.max(maxLenDigits * ch, sortableHeaderPx('Len'))}px`);
-    const arrowPrefixW = maxRawDigits ? maxRawDigits * ch + measureScoreArrowPx() : 0;
-    target.style.setProperty('--score-w', `${Math.max(badgeWidthPx(maxScoreDigits) + arrowPrefixW, sortableHeaderPx('Score'))}px`);
-    target.style.setProperty('--source-max', `${22 * ch}px`);
+    this._computeTransformSlotWidths();
   }
 
   _computeFlatSlotWidths() {
@@ -1110,18 +969,38 @@ export class EntriesScroller extends BaseVirtualScroller {
     target.style.setProperty('--source-max', `${22 * ch}px`);
   }
 
+  _computeTransformSlotWidths() {
+    const total = this._workerChainCount ?? 0;
+    const countDigits = total > 0 ? String(total).length : 1;
+    const ch = measureMonoChPx();
+    const glyphCh = measureAtomGlyphPx() / ch;
+    const { maxDisplayLen, maxGlyphDisplayLen, hasHighlight, maxLenDigits, maxScoreDigits, maxRawDigits: rawHint } = this._widthHints;
+    // The worker ships the widest glyph atom's text length apart from the overall
+    // widest (it can't measure the glyph prefix); add the measured glyph width back
+    // and max the two, or a glyph row's prefix drops out of the entry slot.
+    const maxLen = Math.max(maxDisplayLen, maxGlyphDisplayLen > 0 ? maxGlyphDisplayLen + glyphCh : 0);
+    const maxRawDigits = rescorePreviewActive() ? Math.max(rawHint ?? 0, maxScoreDigits) : 0;
+    const entryContentW = Math.ceil(
+      Math.min(maxLen, ENTRY_SLOT_CAP + glyphCh) * ch + (hasHighlight ? ch : 0)
+    ) + 1;
+    const target = this.host.closest('#detail-panel') || this.sizer;
+    target.style.setProperty('--count-w', `${(countDigits + 1) * ch}px`);
+    target.style.setProperty('--entry-w', `${Math.max(entryContentW, sortableHeaderPx('Entry'))}px`);
+    target.style.setProperty('--len-w', `${Math.max(maxLenDigits * ch, sortableHeaderPx('Len'))}px`);
+    const arrowPrefixW = maxRawDigits ? maxRawDigits * ch + measureScoreArrowPx() : 0;
+    target.style.setProperty('--score-w', `${Math.max(badgeWidthPx(maxScoreDigits) + arrowPrefixW, sortableHeaderPx('Score'))}px`);
+    target.style.setProperty('--source-max', `${22 * ch}px`);
+  }
+
+  // The grouped and transform tiers both ship stats + histogram off the worker and
+  // hold only a window here, so never bottom-line the resident rows as if they were
+  // the full result — return [] and let rendering.js use the worker's counts.
   _statsViewEntries() {
-    if (this._flat) return this._flatViewScores ?? this._flatScores;
-    // The grouped tier ships stats off the worker; the entries here are only the
-    // window, so never bottom-line them as if they were the full result.
-    if (this.sortTier === 'group') return [];
-    return bottomLineAtoms(this.entries);
+    return this._flat ? (this._flatViewScores ?? this._flatScores) : [];
   }
 
   _histogramEntries() {
-    if (this._flat) return this._flatScores;
-    if (this.sortTier === 'group') return [];
-    return bottomLineAtoms(this.allEntries);
+    return this._flat ? this._flatScores : [];
   }
 
   // The worker always ships these for a grouped result; the local re-derive is a
@@ -1143,9 +1022,15 @@ export class EntriesScroller extends BaseVirtualScroller {
     return this.atomCount * ROW_HEIGHT;
   }
 
+  // Transform holds only a window, so size from the worker's count, NOT a resident
+  // array length — the latter would silently cap the scroll at the first window.
+  _renderRowCount() {
+    return this._flat ? this.allEntries.length : (this._workerChainCount ?? 0);
+  }
+
   _render() {
     if (this.sortTier === 'group') return this._renderGroups();
-    const n = this.entries.length;
+    const n = this._renderRowCount();
     const stride = this._rowStride();
     this.sizer.style.height = this._sizerHeightFor(n * stride) + 'px';
     this._renderFooter(n);
@@ -1153,11 +1038,7 @@ export class EntriesScroller extends BaseVirtualScroller {
     const { start, end } = this._visibleRange(n);
     this._clearSizer();
 
-    // The flat tier is always windowed post-flip — main holds no corpus, so its
-    // rows arrive rich from the worker's fetchRows; the transform/group tiers keep
-    // their resident ChainRow[] and render directly.
-    const windowed = this._flat;
-    if (windowed) this._invalidateWinCacheIfStale();
+    this._invalidateWinCacheIfStale();
 
     const preview = rescorePreviewActive();
     const draftRules = preview ? getDraftRescoreRules() : null;
@@ -1167,17 +1048,13 @@ export class EntriesScroller extends BaseVirtualScroller {
     const frag = document.createDocumentFragment();
     for (let i = start; i < end; i++) {
       let row;
-      if (windowed) {
-        const chainRow = this._windowedRowOrNull(i);
-        if (chainRow) {
-          row = this._renderChainRow(chainRow, i, activeNorm, preview, draftRules);
-        } else {
-          row = this._skeletonRow(i);
-          if (minMiss < 0) minMiss = i;
-          maxMiss = i;
-        }
+      const chainRow = this._windowedRowOrNull(i);
+      if (chainRow) {
+        row = this._renderChainRow(chainRow, i, activeNorm, preview, draftRules);
       } else {
-        row = this._renderChainRow(this.entries[i], i, activeNorm, preview, draftRules);
+        row = this._skeletonRow(i);
+        if (minMiss < 0) minMiss = i;
+        maxMiss = i;
       }
       row.style.top = (i * stride) + 'px';
       if (row.classList.contains('active')) nextActiveRow = row;
@@ -1186,12 +1063,12 @@ export class EntriesScroller extends BaseVirtualScroller {
     this.sizer.appendChild(frag);
     if (nextActiveRow) AtomPopover.rebindRow(nextActiveRow);
 
-    if (windowed && minMiss >= 0) {
+    if (minMiss >= 0) {
       const lo = Math.max(0, minMiss - VS_BUFFER);
       const hi = Math.min(n, maxMiss + 1 + VS_BUFFER);
       this._fetchWindow(lo, hi);
     }
-    if (windowed) this._evictWinCache(start, end);
+    this._evictWinCache(start, end);
   }
 
   // A run change reindexes the corpus, so position-keyed cache entries name the
@@ -1200,14 +1077,17 @@ export class EntriesScroller extends BaseVirtualScroller {
   // fetchRows round-trip (no skeleton flash for a result that fits on screen).
   _invalidateWinCacheIfStale() {
     const runId = lastCompletedRunId();
-    if (runId !== this._winCacheRunId) {
-      this._winCache.clear();
-      this._winCacheRunId = runId;
+    if (runId === this._winCacheRunId) return;
+    this._winCache.clear();
+    this._winCacheRunId = runId;
+    if (this._flat) {
       if (this._firstRows) {
         const sourceById = new Map(state.sources.map(w => [w.dbKey, w]));
         this._firstRows.forEach((row, i) =>
           this._winCache.set(i, this._richRowToChain(row, sourceById)));
       }
+    } else if (this._firstChains) {
+      this._firstChains.forEach((row, i) => this._winCache.set(i, row));
     }
   }
 
@@ -1254,17 +1134,24 @@ export class EntriesScroller extends BaseVirtualScroller {
     const runId = lastCompletedRunId();
     const seq = ++this._winReqSeq;
     this._fetchOutstanding++;
-    fetchWorkerRows(runId, lo, hi).then(reply => {
+    const fetch = this._flat ? fetchWorkerRows : fetchWorkerTransformRows;
+    fetch(runId, lo, hi).then(reply => {
       this._fetchOutstanding--;
       if (seq !== this._winReqSeq) return;            // superseded by a newer scroll
       if (runId !== lastCompletedRunId()) return;     // superseded by a newer run
       if (!reply) return;                             // timeout
-      // Rebuilt per batch rather than memoized: an add/remove/reorder between
-      // fetches would otherwise resolve sourceId to a stale wordlist object.
-      const sourceById = new Map(state.sources.map(w => [w.dbKey, w]));
-      for (let k = 0; k < reply.rows.length; k++) {
-        this._richRowsConsumed++;
-        this._winCache.set(reply.start + k, this._richRowToChain(reply.rows[k], sourceById));
+      if (this._flat) {
+        // Rebuilt per batch rather than memoized: an add/remove/reorder between
+        // fetches would otherwise resolve sourceId to a stale wordlist object.
+        const sourceById = new Map(state.sources.map(w => [w.dbKey, w]));
+        for (let k = 0; k < reply.rows.length; k++) {
+          this._richRowsConsumed++;
+          this._winCache.set(reply.start + k, this._richRowToChain(reply.rows[k], sourceById));
+        }
+      } else {
+        for (let k = 0; k < reply.rows.length; k++) {
+          this._winCache.set(reply.start + k, reply.rows[k]);
+        }
       }
       this._render();
     });
@@ -1543,7 +1430,10 @@ export class EntriesScroller extends BaseVirtualScroller {
       const reply = await fetchWorkerAllGroups(lastCompletedRunId());
       return reply ? reply.groups : [];
     }
-    if (!this._flat) return this.entries;
+    if (this._transform) {
+      const reply = await fetchWorkerAllTransformRows(lastCompletedRunId());
+      return reply ? reply.rows : [];
+    }
 
     // The flat tier holds only positions, so its rich rows come from the worker.
     // A null reply (timeout) leaves nothing to format — main has no corpus to
@@ -1575,7 +1465,9 @@ export class EntriesScroller extends BaseVirtualScroller {
   }
 
   resultHasEntry(wlEntry) {
-    if (this._flat) {
+    // Flat and transform both window — no resident rows to walk, so use the worker's
+    // shipped answer. Only the grouped tier still searches its cached rows.
+    if (this._flat || this._transform) {
       if (this._rebindAnswerApplies(wlEntry.norm, wlEntry.display ?? null)) return this._rebindExists;
       return false;
     }
@@ -1586,7 +1478,7 @@ export class EntriesScroller extends BaseVirtualScroller {
   }
 
   findResultEntry(norm, display) {
-    if (this._flat) {
+    if (this._flat || this._transform) {
       if (this._rebindAnswerApplies(norm, display)) return this._rebindEntry;
       return null;
     }

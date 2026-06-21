@@ -293,12 +293,13 @@ export function buildStatsBarHTML() {
   const groupCount = grouped ? scroller._groupCount() : null;
   const countValue = grouped
     ? (scroller ? scroller._visibleGroupChainCount() : 0)
-    : (scroller ? scroller.entries.length : statsEntries.length);
+    : (scroller ? scroller._renderRowCount() : statsEntries.length);
   const layout = scopedHistogramLayout();
 
   // Under a filter the worker's stats are usable only when the worker itself
-  // filtered (_workerFiltered) — a locally-filtered run (the transform/group tiers,
-  // which carry no _workerStats) ships none, so Min/Max recompute over the local set.
+  // filtered (_workerFiltered); otherwise recompute over the local set. Only the
+  // flat tier has resident scores to recompute from — the windowed grouped/transform
+  // tiers ship _workerStats and a sort/range change re-runs to keep it fresh.
   const stats = (scroller && scroller._workerStats
       && (!scroller._scoreIntervals || scroller._workerFiltered))
     ? scroller._workerStats

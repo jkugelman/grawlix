@@ -1,8 +1,124 @@
 'use strict';
 
-// Shared (not worker-copied) so main and the worker can't drift the grouped
-// group/chain order — a divergence no error would catch. `stack` is explicit, not
-// a ToolStack default, because the engine has no ToolStack.
+// Shared (not worker-copied) so main and the worker can't drift the sort order —
+// a divergence no error would catch. Lives in engine/ (not ui/) so the worker
+// sorts every tier exactly the way main labels its headers. `stack` is always an
+// explicit argument, never a ToolStack default, because the engine has no ToolStack.
+
+import { rowLastEntry, isGroupChain, isFilterOnlyChain } from './executor.js';
+import { TOOLS } from './tools.js';
+
+// ─── Chain-tier sort axes (single / multi) ───────────────────────────────────
+//
+// The chain tiers sort materialized chain rows (object-shaped axes), unlike the
+// flat tier's index-shaped FLAT_SORT_AXES copy in the worker. Each axis declares
+// a primary projection and a fixed-direction tiebreaker chain — when the primary
+// ties, fall to whichever direction surfaces the most interesting rows first
+// (longer > shorter, higher score > lower), alphabetical asc as the final stable
+// tiebreaker. Flipping the asc/desc toggle reverses only the primary; tiebreakers
+// keep their declared direction, so "score asc" still shows the longest among the
+// lowest-scoring rows first instead of letting short junk float up a tied bucket.
+//
+// A multi-output transform (anagram) branches one input into rows that share
+// their whole first atom; rowChainTail breaks those ties by the later atoms.
+const rowFirstEntry = r => r.atoms[0].wlEntry;
+export const rowMinScore = r => Math.min(...r.atoms.map(a => a.wlEntry.score));
+export const rowMaxScore = r => Math.max(...r.atoms.map(a => a.wlEntry.score));
+// Later atoms joined with a low separator: a string compare then orders them
+// atom-by-atom, since every row in a run carries the same atom count.
+const rowChainTail = r => r.atoms.slice(1).map(a => a.wlEntry.norm).join('\u0000');
+
+const SORT_AXES = {
+  single: {
+    entry: {
+      label: 'Entry',
+      primary: r => rowFirstEntry(r).norm,
+      tiebreakers: [
+        { project: r => rowFirstEntry(r).norm.length, dir: 'desc' },
+        { project: r => rowFirstEntry(r).score,        dir: 'desc' },
+      ],
+    },
+    length: {
+      label: 'Length',
+      primary: r => rowFirstEntry(r).norm.length,
+      tiebreakers: [
+        { project: r => rowFirstEntry(r).score, dir: 'desc' },
+        { project: r => rowFirstEntry(r).norm, dir: 'asc'  },
+      ],
+    },
+    score: {
+      label: 'Score',
+      primary: r => rowFirstEntry(r).score,
+      tiebreakers: [
+        { project: r => rowFirstEntry(r).norm.length, dir: 'desc' },
+        { project: r => rowFirstEntry(r).norm,        dir: 'asc'  },
+      ],
+    },
+  },
+  multi: {
+    entry: {
+      label: 'Entry',
+      primary: r => rowFirstEntry(r).norm,
+      // First-atom entries are unique per input, so the only ties are a
+      // multi-output transform's branches — settled by the chain tail.
+      tiebreakers: [
+        { project: rowChainTail, dir: 'asc' },
+      ],
+    },
+    length: {
+      label: 'Length',
+      primary: r => rowFirstEntry(r).norm.length,
+      // First-atom score then entry replays the tool-less Length order; the
+      // chain tail then separates a multi-output transform's branches.
+      tiebreakers: [
+        { project: r => rowFirstEntry(r).score, dir: 'desc' },
+        { project: r => rowFirstEntry(r).norm, dir: 'asc'  },
+        { project: rowChainTail,                dir: 'asc'  },
+      ],
+    },
+    'min-score': {
+      label: 'Min score',
+      primary: rowMinScore,
+      tiebreakers: [
+        { project: r => rowLastEntry(r).norm.length, dir: 'desc' },
+        { project: r => rowLastEntry(r).norm,        dir: 'asc'  },
+      ],
+    },
+    'max-score': {
+      label: 'Max score',
+      primary: rowMaxScore,
+      tiebreakers: [
+        { project: r => rowLastEntry(r).norm.length, dir: 'desc' },
+        { project: r => rowLastEntry(r).norm,        dir: 'asc'  },
+      ],
+    },
+  },
+};
+export const DEFAULT_SORT_BY_TIER = { single: 'entry', multi: 'entry', group: 'entry' };
+
+// The sort tier is single-atom when the chain is filter-only and multi-atom once
+// a transform is in play — transforms are what give a row genuinely distinct
+// atoms to sort across. Highlight-only repeat atoms don't promote the tier:
+// they're all the same word and score.
+export function chainSortTier(stack) {
+  if (isGroupChain(stack)) return 'group';
+  return isFilterOnlyChain(stack) ? 'single' : 'multi';
+}
+export function sortAxes(tier, stack) {
+  return tier === 'group' ? groupSortAxes(stack) : SORT_AXES[tier];
+}
+export function isValidSortAxis(key) {
+  if (key in SORT_AXES.single || key in SORT_AXES.multi
+      || key in GROUP_SORT_AXES) return true;
+  for (const tool of Object.values(TOOLS)) {
+    for (const col of tool.group?.columns || []) {
+      if (col.key === key) return true;
+    }
+  }
+  return false;
+}
+
+// ─── Group-tier sort axes ────────────────────────────────────────────────────
 
 export const groupMinScore     = g => g._minScore;
 export const groupMaxScore     = g => g._maxScore;
@@ -168,4 +284,10 @@ export function sortGroups(groups, sortList, stack) {
   if (!axis) return groups;
   sortGroupChains(groups, sortList[0].key);
   return [...groups].sort((a, b) => compareItems(a, b, axis, sortList[0].dir));
+}
+
+export function sortChainRows(rows, sortList, stack) {
+  const axis = composeSortAxis(sortList, sortAxes(chainSortTier(stack), stack));
+  if (!axis) return rows;
+  return [...rows].sort((a, b) => compareItems(a, b, axis, sortList[0].dir));
 }

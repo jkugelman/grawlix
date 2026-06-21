@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { sortGroups, composeSortAxis, compareItems } from '../../site/src/engine/group-sort.js';
+import { sortGroups, composeSortAxis, compareItems } from '../../site/src/engine/sort.js';
 import { applyScoreRangeToRows, cacheGroupStats } from '../../site/src/engine/executor.js';
 import { parseRange } from '../../site/src/engine/range.js';
 
