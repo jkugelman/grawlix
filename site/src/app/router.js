@@ -39,10 +39,13 @@ export const Router = (() => {
       if (isBar && rowIsDefault(row) && stack[i - 1]?.tool !== 'search') return;
       parts.push(...encodeRow(row));
     });
-    const tier = chainSortTier(stack);
-    const defaultAxis = DEFAULT_SORT_BY_TIER[tier];
-    if (AppView.sortKey !== defaultAxis)                  parts.push('sort=' + AppView.sortKey);
-    if (AppView.sortDir !== 'asc') parts.push('sort-dir=' + AppView.sortDir);
+    const defaultAxis = DEFAULT_SORT_BY_TIER[chainSortTier(stack)];
+    const list = AppView.sortList;
+    const isDefault = list.length === 1 && list[0].key === defaultAxis && list[0].dir === 'asc';
+    if (!isDefault) {
+      const enc = list.map(s => s.dir === 'asc' ? s.key : `${s.key}:${s.dir}`).join(',');
+      parts.push('sort=' + enc);
+    }
     return parts.join('&');
   }
 
@@ -58,16 +61,33 @@ export const Router = (() => {
     }
   }
 
+  // Old links carried one axis in `sort=` and its direction in a separate
+  // `sort-dir=`; that legacy direction rides out as `legacyDir` so a pre-multi-sort
+  // shared link still decodes to the same order instead of silently dropping it.
+  function parseSortParam(sortRaw, legacyDir) {
+    if (!sortRaw) return null;
+    const list = [];
+    for (const tok of sortRaw.split(',')) {
+      const [key, dir] = tok.split(':');
+      if (!isValidSortAxis(key)) continue;
+      list.push({ key, dir: dir === 'desc' ? 'desc' : 'asc' });
+    }
+    if (!list.length) return null;
+    if (legacyDir && !sortRaw.includes(':')) list[0].dir = legacyDir;
+    return list;
+  }
+
   // Applies URL state (tool stack, search) as a side effect. The score filter
   // is loaded from localStorage in init() and doesn't participate in URL routing.
   function applyURL() {
     const params = new URLSearchParams(location.search);
-    let sortKey = null;
-    let sortDir = null;
+    let sortRaw = null;
+    let legacyDir = null;
     for (const [key, value] of params) {
-      if (key === 'sort')          { if (isValidSortAxis(value)) sortKey = value; }
-      else if (key === 'sort-dir') { if (value === 'asc' || value === 'desc') sortDir = value; }
+      if (key === 'sort')          sortRaw = value;
+      else if (key === 'sort-dir') { if (value === 'asc' || value === 'desc') legacyDir = value; }
     }
+    const sortList = parseSortParam(sortRaw, legacyDir);
     const { rows, droppedUnknown } = decodeRows(params);
     // The decoded rows are the full pipeline; ToolStack keeps the trailing
     // Search row as the permanent bar (appending an empty one if absent).
@@ -75,7 +95,7 @@ export const Router = (() => {
     // when picking the sort default (a stacked-output URL with no explicit
     // sort= should pick min-score, not the 1-atom default entry).
     ToolStack.setStack(rows);
-    AppView.applyURLState({ sortKey, sortDir });
+    AppView.applyURLState({ sortList, legacyDir });
     if (droppedUnknown) {
       // Defer: showToast appends to the toast container which may not be in
       // the DOM yet during initial load.

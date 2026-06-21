@@ -1046,7 +1046,10 @@ function exportScoreRangeMetadata() {
 }
 
 function exportSortMetadata() {
-  return { by: AppView.sortKey, dir: AppView.sortDir };
+  const list = AppView.sortList;
+  const out = { by: list[0].key, dir: list[0].dir };
+  if (list.length > 1) out.levels = list.map(s => ({ by: s.key, dir: s.dir }));
+  return out;
 }
 
 export function exportFilenameSegment(s) {

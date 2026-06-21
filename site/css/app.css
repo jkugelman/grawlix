@@ -305,6 +305,7 @@ mark.search-match { border-radius: 2px; padding: 0 1px; margin: 0 -1px; font-sty
 .entry-headers .col-sort, .group-headers .col-sort { cursor: pointer; border-radius: 3px; }
 .entry-headers .col-sort:hover, .group-headers .col-sort:hover { color: var(--text); }
 .entry-headers .col-sort:focus-visible, .group-headers .col-sort:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.col-sort .sort-rank { margin-left: 2px; font-size: 9px; font-weight: 700; vertical-align: super; color: var(--accent); font-variant-numeric: tabular-nums; }
 .entry-row:hover { background: var(--row-hover); }
 .entry-row.active { background: color-mix(in srgb, var(--accent) 12%, transparent); }
 

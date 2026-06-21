@@ -226,7 +226,7 @@ export function createScroller() {
 }
 
 function currentSort() {
-  return { key: AppView.sortKey, dir: AppView.sortDir };
+  return AppView.sortList;
 }
 
 export async function refreshMergedScroller() {

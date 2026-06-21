@@ -248,7 +248,7 @@ function postResult(runId, { rows, atomCount, grouped }, sort, scope, stack, exi
     // _minScore/count; the unfiltered `rows` still feeds the histogram + width hints
     // (the full distribution, so out-of-range bars stay clickable).
     const visible = intervals ? applyScoreRangeToRows(rows, intervals, true) : rows;
-    const sorted = sortGroups(visible, sort?.key, sort?.dir, stack);
+    const sorted = sortGroups(visible, sort, stack);
     lastGroupedResult = { runId, groups: sorted, scope };
     // Only the first window of group ROWS ships inline (main fetches later windows
     // via fetchGroups). The shipped array length is NOT the group count — main must
@@ -566,15 +566,22 @@ function cmpVal(a, b) {
   return String(a).localeCompare(String(b));
 }
 function sortFlatIndices(indices, sort, runCorpus) {
-  const axis = FLAT_SORT_AXES[sort?.key] || FLAT_SORT_AXES.entry;
-  const primaryDir = sort?.dir === 'desc' ? -1 : 1;
+  // Parallel copy of composeSortAxis's composition (FLAT_SORT_AXES has a
+  // different axis shape): drift from it and the flat tier sorts unlike the
+  // group/single tiers with no error to catch it.
+  const picks = (sort || []).filter(s => s && FLAT_SORT_AXES[s.key]);
+  const list = picks.length ? picks : [{ key: 'entry', dir: 'asc' }];
+  const keyed = list.map(s => ({ p: FLAT_SORT_AXES[s.key].primary, dir: s.dir === 'desc' ? -1 : 1 }));
+  const tiebreakers = FLAT_SORT_AXES[list[0].key].tiebreakers;
   const entries = runCorpus.entries;
   const arr = Array.from(indices);
   arr.sort((ia, ib) => {
     const a = entries[ia], b = entries[ib];
-    const pc = cmpVal(axis.primary(a), axis.primary(b)) * primaryDir;
-    if (pc !== 0) return pc;
-    for (const tb of axis.tiebreakers) {
+    for (const k of keyed) {
+      const c = cmpVal(k.p(a), k.p(b)) * k.dir;
+      if (c !== 0) return c;
+    }
+    for (const tb of tiebreakers) {
       const c = cmpVal(tb.p(a), tb.p(b)) * tb.dir;
       if (c !== 0) return c;
     }

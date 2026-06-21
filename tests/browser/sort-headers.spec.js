@@ -3,7 +3,7 @@
 // every axis a tier has is reachable from some column header.
 
 import { test, expect } from '@playwright/test';
-import { stubPublisherFetches, gotoApp, expectVisible } from './helpers.js';
+import { stubPublisherFetches, gotoApp, reloadApp, expectVisible } from './helpers.js';
 
 test.beforeEach(async ({ page }) => {
   await stubPublisherFetches(page);
@@ -126,4 +126,72 @@ test('a header click is reflected in the URL', async ({ page }) => {
 
   await page.locator('.col-score .col-sort').click();
   await expect(page).toHaveURL(/sort=score/);
+});
+
+// The len-5 cluster (delta/alpha/bravo) splits on Score ASC — the secondary —
+// giving delta<bravo<alpha, the OPPOSITE of a lone Length sort's score-desc
+// tiebreak. So the visible order is what proves the secondary axis took effect.
+test('a modifier-click adds a secondary sort axis with numbered rank badges', async ({ page }) => {
+  await gotoApp(page);
+  await addFixture(page);
+
+  await page.locator('.col-len .col-sort').click();
+  await page.locator('.col-score .col-sort').click({ modifiers: ['Shift'] });
+
+  expect(await sortState(page)).toEqual({ key: 'length', dir: 'asc' });
+  expect(await page.evaluate(() => AppView.sortList))
+    .toEqual([{ key: 'length', dir: 'asc' }, { key: 'score', dir: 'asc' }]);
+
+  await expect(page.locator('.col-len .sort-rank')).toHaveText('1');
+  await expect(page.locator('.col-score .sort-rank')).toHaveText('2');
+
+  await expectVisible(page, ['delta', 'bravo', 'alpha', 'charlie'], { ordered: true });
+});
+
+for (const mod of ['Control', 'Alt', 'Meta']) {
+  test(`${mod}-click extends the sort the same as Shift`, async ({ page }) => {
+    await gotoApp(page);
+    await addFixture(page);
+
+    await page.locator('.col-len .col-sort').click();
+    await page.locator('.col-score .col-sort').click({ modifiers: [mod] });
+
+    expect(await page.evaluate(() => AppView.sortList))
+      .toEqual([{ key: 'length', dir: 'asc' }, { key: 'score', dir: 'asc' }]);
+  });
+}
+
+test('re-extending a level flips its direction; a plain click collapses to a single sort', async ({ page }) => {
+  await gotoApp(page);
+  await addFixture(page);
+
+  await page.locator('.col-len .col-sort').click();
+  await page.locator('.col-score .col-sort').click({ modifiers: ['Shift'] });
+  await page.locator('.col-score .col-sort').click({ modifiers: ['Shift'] });
+  expect(await page.evaluate(() => AppView.sortList))
+    .toEqual([{ key: 'length', dir: 'asc' }, { key: 'score', dir: 'desc' }]);
+
+  await page.locator('.col-score .col-sort').click();
+  expect(await page.evaluate(() => AppView.sortList)).toEqual([{ key: 'score', dir: 'asc' }]);
+  await expect(page.locator('.sort-rank')).toHaveCount(0);
+});
+
+test('a multi-sort round-trips through the URL', async ({ page }) => {
+  await gotoApp(page);
+  await addFixture(page);
+
+  await page.locator('.col-score .col-sort').click();
+  await page.locator('.col-score .col-sort').click();              // Score desc
+  await page.locator('.col-len .col-sort').click({ modifiers: ['Alt'] });   // + Length asc
+  await expect(page).toHaveURL(/sort=score/);
+
+  await reloadApp(page);
+  expect(await page.evaluate(() => AppView.sortList))
+    .toEqual([{ key: 'score', dir: 'desc' }, { key: 'length', dir: 'asc' }]);
+});
+
+test('a legacy sort=key&sort-dir=desc link still decodes', async ({ page }) => {
+  await gotoApp(page, '/?sort=score&sort-dir=desc');
+  await addFixture(page);
+  expect(await page.evaluate(() => AppView.sortList)).toEqual([{ key: 'score', dir: 'desc' }]);
 });

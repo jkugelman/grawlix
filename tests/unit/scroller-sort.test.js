@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  compareValues, compareItems, columnSortAxes, nextSortForColumn,
+  compareValues, compareItems, columnSortAxes, nextSortForColumn, extendSortList,
   rowMinScore, rowMaxScore,
 } from '../../site/src/ui/entries-table.js';
 
@@ -166,6 +166,37 @@ test('nextSortForColumn: clicking a DIFFERENT column resets to its first owned a
   // curKey not owned here => jump to ownedAxes[0] at asc, discarding curDir.
   assert.deepEqual(nextSortForColumn(['entry'], 'score', 'desc'), { key: 'entry', dir: 'asc' });
   assert.deepEqual(nextSortForColumn(['score', 'min-score'], 'length', 'desc'), { key: 'score', dir: 'asc' });
+});
+
+test('extendSortList: a new axis appends as the next level, ascending', () => {
+  assert.deepEqual(
+    extendSortList([{ key: 'count', dir: 'desc' }], 'length', ['length']),
+    [{ key: 'count', dir: 'desc' }, { key: 'length', dir: 'asc' }],
+  );
+});
+
+test('extendSortList: re-extending an axis already in the list flips its direction in place', () => {
+  assert.deepEqual(
+    extendSortList([{ key: 'count', dir: 'desc' }, { key: 'length', dir: 'asc' }], 'length', ['length']),
+    [{ key: 'count', dir: 'desc' }, { key: 'length', dir: 'desc' }],
+  );
+});
+
+test('extendSortList: a sibling axis of the same column swaps in place (one axis per column)', () => {
+  assert.deepEqual(
+    extendSortList(
+      [{ key: 'count', dir: 'desc' }, { key: 'min-score', dir: 'desc' }],
+      'max-score',
+      ['score', 'min-score', 'max-score'],
+    ),
+    [{ key: 'count', dir: 'desc' }, { key: 'max-score', dir: 'asc' }],
+  );
+});
+
+test('extendSortList: does not mutate the input list', () => {
+  const input = [{ key: 'count', dir: 'desc' }];
+  extendSortList(input, 'length', ['length']);
+  assert.deepEqual(input, [{ key: 'count', dir: 'desc' }]);
 });
 
 const rowAtom = score => ({ wlEntry: { score } });

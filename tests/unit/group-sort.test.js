@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { sortGroups } from '../../site/src/engine/group-sort.js';
+import { sortGroups, composeSortAxis, compareItems } from '../../site/src/engine/group-sort.js';
 import { applyScoreRangeToRows, cacheGroupStats } from '../../site/src/engine/executor.js';
 import { parseRange } from '../../site/src/engine/range.js';
 
@@ -20,7 +20,7 @@ function freshGroup() {
 }
 
 test('sortGroups: within-group chains take the designed Entry seed order (norm asc)', () => {
-  const sorted = sortGroups([freshGroup()], 'entry', 'asc', GROUP_STACK);
+  const sorted = sortGroups([freshGroup()], [{ key: 'entry', dir: 'asc' }], GROUP_STACK);
   assert.deepEqual(norms(sorted[0]), ['apple', 'mango', 'zebra']);
 });
 
@@ -30,6 +30,43 @@ test('sortGroups: within-group chains take the designed Entry seed order (norm a
 // silent reorder — invisible until a user filters a multi-chain group.
 test('sortGroups: chains stay in the designed seed order under a score filter', () => {
   const filtered = applyScoreRangeToRows([freshGroup()], parseRange('40-100'), true);
-  const sorted = sortGroups(filtered, 'entry', 'asc', GROUP_STACK);
+  const sorted = sortGroups(filtered, [{ key: 'entry', dir: 'asc' }], GROUP_STACK);
   assert.deepEqual(norms(sorted[0]), ['mango', 'zebra']); // not ['zebra','mango']
+});
+
+const AXES = {
+  count:  { primary: x => x.count, tiebreakers: [{ project: x => x.k, dir: 'asc' }] },
+  letters:{ primary: x => x.letters, tiebreakers: [{ project: x => x.count, dir: 'desc' }] },
+};
+
+test('composeSortAxis: a single-entry list reproduces the bare axis', () => {
+  const axis = composeSortAxis([{ key: 'count', dir: 'desc' }], AXES);
+  assert.equal(axis.primary, AXES.count.primary);
+  assert.deepEqual(axis.tiebreakers, AXES.count.tiebreakers);
+});
+
+test('composeSortAxis: later picks ride as fixed-direction tiebreakers before the primary built-ins', () => {
+  const axis = composeSortAxis([{ key: 'count', dir: 'desc' }, { key: 'letters', dir: 'asc' }], AXES);
+  assert.equal(axis.primary, AXES.count.primary);
+  assert.equal(axis.tiebreakers[0].dir, 'asc');
+  assert.equal(axis.tiebreakers[0].project, AXES.letters.primary);
+  assert.deepEqual(axis.tiebreakers.slice(1), AXES.count.tiebreakers);
+});
+
+test('composeSortAxis: Count desc → Letters asc orders a tied-count cluster by letters', () => {
+  const rows = [
+    { count: 5, letters: 'zzz', k: 'a' },
+    { count: 9, letters: 'aaa', k: 'b' },
+    { count: 5, letters: 'aaa', k: 'c' },
+  ];
+  const axis = composeSortAxis([{ key: 'count', dir: 'desc' }, { key: 'letters', dir: 'asc' }], AXES);
+  const out = rows.slice().sort((a, b) => compareItems(a, b, axis, 'desc')).map(r => r.k);
+  assert.deepEqual(out, ['b', 'c', 'a']); // count 9 first, then count-5 by letters asc (aaa<zzz)
+});
+
+test('composeSortAxis: unknown keys are dropped; an all-unknown list is null', () => {
+  const axis = composeSortAxis([{ key: 'nope', dir: 'asc' }, { key: 'count', dir: 'asc' }], AXES);
+  assert.equal(axis.primary, AXES.count.primary); // 'nope' filtered, count promoted to primary
+  assert.equal(composeSortAxis([{ key: 'nope', dir: 'asc' }], AXES), null);
+  assert.equal(composeSortAxis([], AXES), null);
 });

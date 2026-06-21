@@ -24,7 +24,7 @@ import {
   bottomLineAtoms, rowSetAtoms, applyScoreRangeToRows,
 } from '../engine/executor.js';
 import {
-  compareItems, compareValues, groupSortAxes, GROUP_SORT_AXES,
+  compareItems, compareValues, composeSortAxis, groupSortAxes, GROUP_SORT_AXES,
   activeGroupColumns, activeGroupAnchorLabel,
 } from '../engine/group-sort.js';
 import { compileFlatHighlighters } from '../engine/flat-highlight.js';
@@ -279,6 +279,20 @@ export function nextSortForColumn(ownedAxes, curKey, curDir) {
   return { key: ownedAxes[0], dir: 'asc' };
 }
 
+export function extendSortList(sortList, key, siblingAxes) {
+  const list = sortList.map(s => ({ ...s }));
+  const at = list.findIndex(s => s.key === key);
+  if (at >= 0) { list[at].dir = list[at].dir === 'asc' ? 'desc' : 'asc'; return list; }
+  // Swap, not stack, a sibling axis of the same column: a column shows one arrow,
+  // so two of its axes active at once would render an ambiguous sort state.
+  const sib = list.findIndex(s => siblingAxes.includes(s.key));
+  if (sib >= 0) list[sib] = { key, dir: 'asc' };
+  else list.push({ key, dir: 'asc' });
+  return list;
+}
+
+const sortSig = list => list.map(s => s.key + ':' + s.dir).join(',');
+
 // Run synchronously on stack mutation and URL load: the sort tier follows
 // the stack, and settling it lazily in the async render let the URL builder
 // read a stale axis. A real cross-tier counterpart (Score ⇄ Min score) keeps
@@ -286,18 +300,20 @@ export function nextSortForColumn(ownedAxes, curKey, curDir) {
 export function reconcileSort(stack) {
   const tier = chainSortTier(stack);
   const axes = sortAxes(tier, stack);
-  let key = AppView.sortKey;
-  let dir = AppView.sortDir;
-  if (!(key in axes)) {
-    const mapped = SORT_AXIS_TIER_MAP[key];
-    if (mapped && mapped in axes) {
-      key = mapped;
-    } else {
-      key = DEFAULT_SORT_BY_TIER[tier];
-      dir = 'asc';
+  const out = [];
+  const seen = new Set();
+  for (let { key, dir } of AppView.sortList) {
+    if (!(key in axes)) {
+      const mapped = SORT_AXIS_TIER_MAP[key];
+      if (mapped && mapped in axes) key = mapped;
+      else continue;   // no counterpart in this tier — drop this level
     }
+    if (seen.has(key)) continue;   // a tier mapping can collapse two levels onto one
+    seen.add(key);
+    out.push({ key, dir });
   }
-  AppView.setSort(key, dir);
+  if (!out.length) out.push({ key: DEFAULT_SORT_BY_TIER[tier], dir: 'asc' });
+  AppView.setSortList(out);
 }
 
 const ENTRY_SLOT_CAP = 21;
@@ -346,7 +362,11 @@ function headerLabelPx(text) {
   return measureTextWidth(text, 'entry-headers-font');
 }
 function sortableHeaderPx(label) {
-  return headerLabelPx(label + ' ↑');
+  let w = headerLabelPx(label + ' ↑');
+  // A multi-column sort appends a rank badge after the arrow; reserve a digit plus
+  // its margin, or a tight track (Len) clips it under the headers' overflow:hidden.
+  if (AppView.sortList.length > 1) w += headerLabelPx('9') + 6;
+  return w;
 }
 
 const EMPTY_REVEAL_DELAY_MS = 450;
@@ -732,8 +752,7 @@ export class EntriesScroller extends BaseVirtualScroller {
     this._rebindExists = null;
     this._widthHints = null;
     this._flatHighlighters = [];
-    this.sortKey = AppView.sortKey;
-    this.sortDir = AppView.sortDir;
+    this.sortList = AppView.sortList;
     this.scoreRange = AppView.scoreRange;
     this._scoreIntervals = this.scoreRange ? parseRange(this.scoreRange) : null;
     this.showSource = false;
@@ -745,8 +764,7 @@ export class EntriesScroller extends BaseVirtualScroller {
     // order, so a sorted source means the filter result is already sorted —
     // no per-keystroke re-sort needed. Invalidated when allEntries change.
     this._sortedSource = null;
-    this._sortedSourceKey = null;
-    this._sortedSourceDir = null;
+    this._sortedSourceSig = null;
 
     this._winCache = new Map();
     this._winCacheRunId = null;
@@ -907,8 +925,7 @@ export class EntriesScroller extends BaseVirtualScroller {
     const tierChanged = sortTier !== this.sortTier;
     this.atomCount = atomCount;
     this.sortTier = sortTier;
-    this.sortKey = AppView.sortKey;
-    this.sortDir = AppView.sortDir;
+    this.sortList = AppView.sortList;
     this._resolved = true;
     return tierChanged;
   }
@@ -934,12 +951,13 @@ export class EntriesScroller extends BaseVirtualScroller {
     this._sortedSource = null;
   }
 
+  applySort(key, dir) { this.applySortList([{ key, dir }]); }
+
   // rebuildEntryHeaders looks redundant here — its only other caller fires on a
-  // tier flip — but it's what re-syncs the header arrow on same-tier sort changes.
-  applySort(key, dir) {
-    this.sortKey = key;
-    this.sortDir = dir;
-    AppView.setSort(key, dir);
+  // tier flip — but it's what re-syncs the header arrows on same-tier sort changes.
+  applySortList(list) {
+    AppView.setSortList(list);
+    this.sortList = AppView.sortList;
     rebuildEntryHeaders();
     if (this._workerOwnsOrder()) refreshMergedScroller();
     else this._sortAndRender();
@@ -973,9 +991,9 @@ export class EntriesScroller extends BaseVirtualScroller {
   }
 
   _getSortedSource() {
+    const sig = sortSig(this.sortList);
     if (this._sortedSource
-        && this._sortedSourceKey === this.sortKey
-        && this._sortedSourceDir === this.sortDir
+        && this._sortedSourceSig === sig
         && this._sortedSourceRange === this.scoreRange) {
       return this._sortedSource;
     }
@@ -994,15 +1012,14 @@ export class EntriesScroller extends BaseVirtualScroller {
       sorted = this._firstGroups ?? [];
     } else {
       const filtered = applyScoreRangeToRows(this.allEntries, this._scoreIntervals, false);
-      const axis = sortAxes(this.sortTier)[this.sortKey];
+      const axis = composeSortAxis(this.sortList, sortAxes(this.sortTier));
       sorted = axis
-        ? [...filtered].sort((a, b) => compareItems(a, b, axis, this.sortDir))
+        ? [...filtered].sort((a, b) => compareItems(a, b, axis, this.sortList[0].dir))
         : filtered;
     }
 
     this._sortedSource = sorted;
-    this._sortedSourceKey = this.sortKey;
-    this._sortedSourceDir = this.sortDir;
+    this._sortedSourceSig = sig;
     this._sortedSourceRange = this.scoreRange;
     return sorted;
   }
@@ -2498,6 +2515,8 @@ export const SortMenu = (() => {
   let anchorBtn = null;
   let options = [];      // [{ key, label, active }]
   let cursor = 0;        // keyboard cursor index
+  let extendMode = false;   // opened via a modifier-click → picks extend the sort
+  let menuAxisKeys = [];    // the column's sibling axes, for extend's swap-not-stack
 
   function ensureElement() {
     if (el) return el;
@@ -2518,16 +2537,18 @@ export const SortMenu = (() => {
 
   function isOpen() { return el && !el.hasAttribute('hidden'); }
 
-  function open(trigger, axisKeys) {
+  function open(trigger, axisKeys, extend = false) {
     ScorePicker.close();
     AtomPopover.close();
+    extendMode = extend;
+    menuAxisKeys = axisKeys;
     const stack = ToolStack.getStack();
     const tierAxes = sortAxes(chainSortTier(stack), stack);
     // Label by axis name (Min score / Max score), never the column label, or the
     // active sub-axis stops being distinguishable — the gap this menu exists to close.
     options = axisKeys
       .filter(k => k in tierAxes)
-      .map(k => ({ key: k, label: tierAxes[k].label, active: k === AppView.sortKey }));
+      .map(k => ({ key: k, label: tierAxes[k].label, active: AppView.sortList.some(s => s.key === k) }));
     if (!options.length) return;
 
     const menu = ensureElement();
@@ -2554,6 +2575,8 @@ export const SortMenu = (() => {
     el.setAttribute('hidden', '');
     anchorBtn = null;
     options = [];
+    extendMode = false;
+    menuAxisKeys = [];
     document.removeEventListener('mousedown', onDocMouseDown, true);
     document.removeEventListener('keydown', onKeydown, true);
     if (refocusTrigger) btn?.focus();
@@ -2561,7 +2584,8 @@ export const SortMenu = (() => {
 
   function renderHTML() {
     const opts = options.map((o, i) => {
-      const arrow = o.active ? (AppView.sortDir === 'asc' ? '↑' : '↓') : '';
+      const inList = AppView.sortList.find(s => s.key === o.key);
+      const arrow = inList ? (inList.dir === 'asc' ? '↑' : '↓') : '';
       return `<li id="sort-menu-opt-${i}" class="sort-menu-opt" role="option" data-key="${esc(o.key)}" data-i="${i}"`
         + ` aria-selected="${o.active}"><span class="sort-menu-label">${esc(o.label)}</span>`
         + `<span class="sort-menu-arrow">${arrow}</span></li>`;
@@ -2587,10 +2611,17 @@ export const SortMenu = (() => {
   function commit(key, keyboard) {
     const o = options.find(x => x.key === key);
     const kind = anchorBtn?.dataset.sortCol;
+    const extend = extendMode;
+    const siblings = menuAxisKeys;
     close();
     if (!o) return;
-    const dir = o.active ? (AppView.sortDir === 'asc' ? 'desc' : 'asc') : 'asc';
-    getEntriesScroller()?.applySort(o.key, dir);
+    const scroller = getEntriesScroller();
+    if (extend) {
+      scroller?.applySortList(extendSortList(AppView.sortList, key, siblings));
+    } else {
+      const dir = key === AppView.sortKey ? (AppView.sortDir === 'asc' ? 'desc' : 'asc') : 'asc';
+      scroller?.applySort(key, dir);
+    }
     // applySort rebuilds the header, replacing the trigger — refocus the new one
     // so keyboard focus isn't dropped to <body>.
     if (keyboard && kind) document.querySelector(`.sticky-stack [data-sort-col="${CSS.escape(kind)}"]`)?.focus();
@@ -2633,17 +2664,22 @@ export function buildEntryHeadersHTML() {
   const stack = ToolStack.getStack();
   const tier = chainSortTier(stack);
   const tierAxes = sortAxes(tier, stack);
+  const sortList = AppView.sortList;
   const hdr = (label, ownedAxes, colKind) => {
     if (!ownedAxes.length) return esc(label);
-    const active = ownedAxes.includes(AppView.sortKey);
-    const asc = AppView.sortDir === 'asc';
+    const pos = sortList.findIndex(s => ownedAxes.includes(s.key));
+    const active = pos >= 0;
+    const asc = active && sortList[pos].dir === 'asc';
     const arrow = active ? (asc ? ' ↑' : ' ↓') : '';
+    const ranked = active && sortList.length > 1;
+    const badge = ranked ? `<span class="sort-rank">${pos + 1}</span>` : '';
     const state = active ? (asc ? ', ascending' : ', descending') : '';
+    const rankAria = ranked ? `, sort priority ${pos + 1}` : '';
     const aria = ownedAxes.length > 1
       ? ` aria-haspopup="listbox" aria-label="Sort by ${esc(label)}"`
-      : ` aria-label="Sort by ${esc(label)}${state}"`;
+      : ` aria-label="Sort by ${esc(label)}${state}${rankAria}"`;
     return `<span class="col-sort" data-sort-axes="${ownedAxes.join(' ')}" data-sort-col="${esc(colKind)}"`
-      + ` role="button" tabindex="0"${aria}>${esc(label)}${arrow}</span>`;
+      + ` role="button" tabindex="0"${aria}>${esc(label)}${arrow}${badge}</span>`;
   };
   if (isGroupChain(stack)) {
     const cols = activeGroupColumns(stack);
@@ -2686,13 +2722,19 @@ export function onSortHeaderActivate(e) {
     if (e.key !== 'Enter' && e.key !== ' ') return;
     e.preventDefault();
   }
+  const extend = e.shiftKey || e.ctrlKey || e.altKey || e.metaKey;
   const owned = cell.dataset.sortAxes.split(' ');
   if (owned.length > 1) {
-    SortMenu.open(cell, owned);
+    SortMenu.open(cell, owned, extend);
     return;
   }
-  const { key, dir } = nextSortForColumn(owned, AppView.sortKey, AppView.sortDir);
-  getEntriesScroller()?.applySort(key, dir);
+  const scroller = getEntriesScroller();
+  if (extend) {
+    scroller?.applySortList(extendSortList(AppView.sortList, owned[0], owned));
+  } else {
+    const { key, dir } = nextSortForColumn(owned, AppView.sortKey, AppView.sortDir);
+    scroller?.applySort(key, dir);
+  }
   // applySort rebuilds the header, destroying the activated cell — refocus its
   // replacement so keyboard focus isn't silently dropped to <body>.
   if (e.type === 'keydown') document.querySelector(`.sticky-stack [data-sort-col="${CSS.escape(cell.dataset.sortCol)}"]`)?.focus();

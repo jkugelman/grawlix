@@ -111,6 +111,22 @@ export function groupSortAxes(stack) {
   return { ...baseAxes, ...columnAxes };
 }
 
+// Each non-primary sort pick rides as a fixed-direction tiebreaker — its own dir,
+// never flipped by primaryDir — ahead of the primary axis's built-in tiebreakers.
+// Get that order or those directions wrong and ties resolve subtly off, no error.
+export function composeSortAxis(sortList, axes) {
+  const list = (sortList || []).filter(s => s && axes[s.key]);
+  if (!list.length) return null;
+  const base = axes[list[0].key];
+  return {
+    primary: base.primary,
+    tiebreakers: [
+      ...list.slice(1).map(s => ({ project: axes[s.key].primary, dir: s.dir })),
+      ...base.tiebreakers,
+    ],
+  };
+}
+
 // primaryDir flips only the primary; tiebreakers keep their declared direction,
 // so flipping asc/desc can't reshuffle within a tied bucket.
 export function compareItems(a, b, axis, primaryDir) {
@@ -147,9 +163,9 @@ export function sortGroupChains(groups, sortKey) {
 // Chains sort before the groups (the Entry group axis projects off chain seed
 // order via groupChainEntries) and unconditionally — gating the chain sort on the
 // score range silently reorders chains off the designed seed order under a filter.
-export function sortGroups(groups, sortKey, sortDir, stack) {
-  const axis = groupSortAxes(stack)[sortKey];
+export function sortGroups(groups, sortList, stack) {
+  const axis = composeSortAxis(sortList, groupSortAxes(stack));
   if (!axis) return groups;
-  sortGroupChains(groups, sortKey);
-  return [...groups].sort((a, b) => compareItems(a, b, axis, sortDir));
+  sortGroupChains(groups, sortList[0].key);
+  return [...groups].sort((a, b) => compareItems(a, b, axis, sortList[0].dir));
 }

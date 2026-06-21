@@ -115,6 +115,8 @@ The full tool catalog — every shipped and planned tool, with its icon, name, d
 
 **Click a column header to sort by it.** Entry, Len, and Score headers — or Count and the cluster columns in all-mode — are clickable, and the column you're sorted by shows a ↑/↓ arrow. A column that sorts only one way sorts the moment you click it, and clicking again flips direction. A column that can sort more than one way opens a small **menu** of its axes instead — pick one to sort by it, or pick the active one again to flip direction. That's how you reach **Max score** (the Score column, once a transform is in play) and, in all-mode, **Min / Max score** (group rows have no score column, so those live on the Entries column's menu).
 
+**Sort by more than one column at once.** Hold **Shift, Ctrl, or Alt** (Cmd on a Mac) while you click a header to add it as a *secondary* sort instead of replacing the current one — so you can sort by Count and then break ties by Letters, or list long entries first and read down them by score. Each column you've added shows a small **rank number** (①②…) next to its arrow once two or more are active, telling you the priority order; a single sort shows just the arrow. Modifier-click a column that's already in the sort to flip that one column's direction; a plain (no-modifier) click on any header clears the stack back to a single sort. This is a power-user shortcut — it's desktop-only (there's no touch equivalent) and there's no on-screen button for it; the rank badges are the only hint it's in play.
+
 **Sharing the stack.** The URL captures your tool stack and inputs — pasting a Grawlix link reproduces what you were looking at. See *Sharing & links*.
 
 ## Entries table
