@@ -8,6 +8,7 @@ import { getPublisher } from '../../data/publishers.js';
 import {
   batchUpdate, setWordlistName, setWordlistIcon, setWordlistUrl, setWordlistPublisher, setWordlistRescoreRules,
 } from '../../data/persist.js';
+import { setWorkerSourceName } from '../pipeline-worker.js';
 import { buildInitialsIconHTML, buildIconHTML, colorSeed } from '../icons.js';
 import { buildUrlInputHTML } from '../components.js';
 import { buildRulesListHTML } from '../rescore-editor.js';
@@ -357,6 +358,7 @@ export const ConfigureWordlistDialog = (() => {
           _ingestFile(_pendingFile, wordlist, name);
         }
       } else {
+        const renamed = name !== _wordlist.name;
         batchUpdate(() => {
           setWordlistName(_wordlist, name);
           setWordlistIcon(_wordlist, _pendingIcon);
@@ -364,6 +366,9 @@ export const ConfigureWordlistDialog = (() => {
           setWordlistPublisher(_wordlist, _selectedPublisher?.id ?? null);
           if (rules !== null) setWordlistRescoreRules(_wordlist, rules);
         });
+        // A name-only edit doesn't bump cacheVersion, so the config-change re-sync
+        // never fires — push the new name to the worker's Source axis directly.
+        if (renamed) setWorkerSourceName(_wordlist.dbKey, name);
         el.close();
       }
     };

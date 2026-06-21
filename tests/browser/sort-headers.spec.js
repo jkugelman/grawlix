@@ -116,7 +116,9 @@ test('the sort menu dismisses on Escape and on an outside click', async ({ page 
 
   await openColMenu(page, '.col-score');
   await expect(page.locator('#sort-menu')).toBeVisible();
-  await page.locator('.entry-headers .col-comment').click();
+  // The stats-bar count is an always-present, inert outside target (no sort
+  // affordance, no click handler) — unlike the now-sortable header cells.
+  await page.locator('.stats-bar-counts').click();
   await expect(page.locator('#sort-menu')).toBeHidden();
 });
 
@@ -194,4 +196,37 @@ test('a legacy sort=key&sort-dir=desc link still decodes', async ({ page }) => {
   await gotoApp(page, '/?sort=score&sort-dir=desc');
   await addFixture(page);
   expect(await page.evaluate(() => AppView.sortList)).toEqual([{ key: 'score', dir: 'desc' }]);
+});
+
+test('the Comment header sorts on click and flips direction', async ({ page }) => {
+  await gotoApp(page);
+  await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
+    name: 'Commented',
+    entries:  ['alpha', 'bravo', 'charlie', 'delta'],
+    scores:   [10, 20, 30, 40],
+    comments: ['zebra', 'yak', 'xerus', 'wolf'],
+  }));
+
+  await page.locator('.col-comment .col-sort').click();
+  expect(await sortState(page)).toEqual({ key: 'comment', dir: 'asc' });
+  // comment asc: wolf < xerus < yak < zebra → delta, charlie, bravo, alpha.
+  await expectVisible(page, ['delta', 'charlie', 'bravo', 'alpha'], { ordered: true });
+
+  await page.locator('.col-comment .col-sort').click();
+  expect(await sortState(page)).toEqual({ key: 'comment', dir: 'desc' });
+  await expectVisible(page, ['alpha', 'bravo', 'charlie', 'delta'], { ordered: true });
+});
+
+test('the Source header sorts alphabetically by source name in the merged view', async ({ page }) => {
+  await gotoApp(page);
+  // Two sources with disjoint entries so each row's source is unambiguous; names
+  // chosen so alphabetical (Alpha < Zeta) is the OPPOSITE of insertion order.
+  await page.evaluate(() => window.__grawlixTest.addCustomWordlist({ name: 'Zeta',  entries: ['aaa', 'bbb'], scores: [10, 20] }));
+  await page.evaluate(() => window.__grawlixTest.addCustomWordlist({ name: 'Alpha', entries: ['ccc', 'ddd'], scores: [30, 40] }));
+
+  await expect(page.locator('.col-source .col-sort')).toBeVisible();
+  await page.locator('.col-source .col-sort').click();
+  expect(await sortState(page)).toEqual({ key: 'source', dir: 'asc' });
+  // Source asc by NAME (not insertion order, not score): Alpha's rows then Zeta's.
+  await expectVisible(page, ['ccc', 'ddd', 'aaa', 'bbb'], { ordered: true });
 });

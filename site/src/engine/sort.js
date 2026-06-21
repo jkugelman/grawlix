@@ -28,6 +28,12 @@ export const rowMaxScore = r => Math.max(...r.atoms.map(a => a.wlEntry.score));
 // atom-by-atom, since every row in a run carries the same atom count.
 const rowChainTail = r => r.atoms.slice(1).map(a => a.wlEntry.norm).join('\u0000');
 
+// Source sorts alphabetically by name. Reading `.wordlist.name` (a runtime property)
+// keeps this engine-pure — sorting by merge position would need `state.sources`, an
+// upward import the engine layer forbids. The worker learns names via syncConfig so
+// its corpus rows carry `.wordlist.name` too.
+const rowSourceName = r => rowFirstEntry(r).wordlist?.name || '';
+
 const SORT_AXES = {
   single: {
     entry: {
@@ -52,6 +58,20 @@ const SORT_AXES = {
       tiebreakers: [
         { project: r => rowFirstEntry(r).norm.length, dir: 'desc' },
         { project: r => rowFirstEntry(r).norm,        dir: 'asc'  },
+      ],
+    },
+    comment: {
+      label: 'Comment',
+      primary: r => rowFirstEntry(r).comment || '',
+      tiebreakers: [
+        { project: r => rowFirstEntry(r).norm, dir: 'asc' },
+      ],
+    },
+    source: {
+      label: 'Source',
+      primary: rowSourceName,
+      tiebreakers: [
+        { project: r => rowFirstEntry(r).norm, dir: 'asc' },
       ],
     },
   },
@@ -90,6 +110,22 @@ const SORT_AXES = {
       tiebreakers: [
         { project: r => rowLastEntry(r).norm.length, dir: 'desc' },
         { project: r => rowLastEntry(r).norm,        dir: 'asc'  },
+      ],
+    },
+    comment: {
+      label: 'Comment',
+      primary: r => rowFirstEntry(r).comment || '',
+      tiebreakers: [
+        { project: r => rowFirstEntry(r).norm, dir: 'asc' },
+        { project: rowChainTail,                dir: 'asc' },
+      ],
+    },
+    source: {
+      label: 'Source',
+      primary: rowSourceName,
+      tiebreakers: [
+        { project: r => rowFirstEntry(r).norm, dir: 'asc' },
+        { project: rowChainTail,                dir: 'asc' },
       ],
     },
   },

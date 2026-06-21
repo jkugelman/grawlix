@@ -159,6 +159,8 @@ const COLUMN_AXIS_CANDIDATES = {
   'col-entry':     ['entry'],
   'col-len':       ['length'],
   'col-score':     ['score', 'min-score', 'max-score'],
+  'col-comment':   ['comment'],
+  'col-source':    ['source'],
   'group-count':   ['count'],
   'group-anchor':  ['entry', 'length', 'score'],
   // 'entry' is conditional: an anchor owns the entry axis, so the group branch
@@ -2596,13 +2598,15 @@ export function buildEntryHeadersHTML() {
       <span class="group-entries-label">${hdr('Entries', entriesAxes, 'group-entries')}</span>
     </div>`;
   }
-  const sourceHeader = state.selected === MERGED_ID ? '<span class="col-source">Source</span>' : '';
+  const sourceHeader = state.selected === MERGED_ID
+    ? `<span class="col-source">${hdr('Source', columnSortAxes('col-source', tierAxes), 'col-source')}</span>`
+    : '';
   return `<div class="entry-headers entry-headers-font">
       <span></span>
       <span class="col-entry">${hdr('Entry', columnSortAxes('col-entry', tierAxes), 'col-entry')}</span>
       <span class="col-len">${hdr('Len', columnSortAxes('col-len', tierAxes), 'col-len')}</span>
       <span class="col-score">${hdr('Score', columnSortAxes('col-score', tierAxes), 'col-score')}</span>
-      <span class="col-comment">Comment</span>
+      <span class="col-comment">${hdr('Comment', columnSortAxes('col-comment', tierAxes), 'col-comment')}</span>
       ${sourceHeader}
     </div>`;
 }
