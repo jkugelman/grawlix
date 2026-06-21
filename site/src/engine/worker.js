@@ -1256,9 +1256,11 @@ function* allSourcesScores(built) {
 }
 
 function corpusForScope(scope) {
-  if (scope === MERGED_ID && ownedMerged) return Promise.resolve(ownedMerged);
-  // Reflect the live (in-place-spliced) owned corpus for the active scope, so an
-  // editEntry splice is observable; a stale build-from-IDB would mask it.
+  // Both fast-paths gate on ownedCorpusFresh: a syncConfig clears it synchronously
+  // but leaves ownedMerged/ownedCorpus stale-non-null until the async rebuild
+  // commits, so an ungated read in that gap answers from the pre-config corpus.
+  // The scoped path also reflects in-place editEntry splices a rebuild would mask.
+  if (scope === MERGED_ID && ownedCorpusFresh && ownedMerged) return Promise.resolve(ownedMerged);
   if (ownedCorpusFresh && ownedScope === scope && ownedCorpus) return Promise.resolve(ownedCorpus);
   return buildSelfCorpus(scope);
 }
