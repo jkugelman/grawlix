@@ -350,6 +350,17 @@ mark.search-match { border-radius: 2px; padding: 0 1px; margin: 0 -1px; font-sty
   }
 }
 
+@media (max-width: 480px) {
+  .entry-row, .entry-headers {
+    grid-template-columns: var(--entry-w, 12ch) var(--len-w, 3ch) var(--score-w, calc(5ch + 12px));
+  }
+  .entry-row .atom-count, .entry-headers > *:nth-child(1) { display: none; }
+  .entry-row .atom-entry { grid-column: 1; }
+  .entry-row .atom-len   { grid-column: 2; }
+  .entry-row .atom-score { grid-column: 3; }
+  .group-rownum { display: none; }
+}
+
 .group-row, .group-headers {
   display: flex; align-items: flex-start;
   gap: 14px;

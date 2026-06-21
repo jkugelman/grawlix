@@ -214,7 +214,7 @@ export function reconcileSort(stack) {
   AppView.setSortList(out);
 }
 
-const ENTRY_SLOT_CAP = 21;
+const ENTRY_SLOT_CAP = 28;
 
 // Off-screen pixel width of `text` rendered in style class `className`
 // (.text-probe positioning is layered on automatically). Memoized per
