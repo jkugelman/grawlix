@@ -976,11 +976,11 @@ export async function downloadOriginalWordlist(wordlist) {
 
 export function buildExportMenuHTML() {
   return buildMoreMenuHTML([
-    ['Copy to clipboard',  'exportCopy()'],
-    ['Export as wordlist', 'exportWordlist()'],
-    ['Export as CSV',      'exportCSV()'],
-    ['Export as JSON',     'exportJSON()'],
-  ], { label: 'Export', title: 'Export results' });
+    ['Copy to clipboard',    'exportCopy()'],
+    ['Download as wordlist', 'exportWordlist()'],
+    ['Download as CSV',      'exportCSV()'],
+    ['Download as JSON',     'exportJSON()'],
+  ], { label: 'Share', title: 'Share results' });
 }
 
 export function chainContentEntries(chain) {

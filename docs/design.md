@@ -43,7 +43,7 @@ Per-wordlist scope is the organizing idea, and it's the load-bearing reason the 
 
 **Sticky region: tool stack → stats bar → entry headers.** Three pinned bands, in pipeline-output order: the stack the user is editing, the readout describing its output, and the column headers labelling the rows. The tool stack always ends with the permanent search bar as its last row, and shows just that bar before the user adds a tool, so pre-tool-use Grawlix looks unchanged — see *Tool gallery & stack* below.
 
-**One bar, one story.** The stats bar carries every readout about the visible result set (counts, stats numbers, histogram), the score-range control that shapes it, and the export menu. Counts and stats describe the score-range-filtered output; the histogram projects the unfiltered pipeline output with the bracket overlaid, so dragging the range narrower shows what's being trimmed instead of bars disappearing past the bracket. Left → right: `Entries N   Groups N` · `Min Max + histogram` · `Score [range] · Export ▾`. Counts hold; `Min · Max` collapses when the bar would overflow. Sorting lives on the column headers below, not in this bar — see *Sort axes per tier*.
+**One bar, one story.** The stats bar carries every readout about the visible result set (counts, stats numbers, histogram), the score-range control that shapes it, and the export menu. Counts and stats describe the score-range-filtered output; the histogram projects the unfiltered pipeline output with the bracket overlaid, so dragging the range narrower shows what's being trimmed instead of bars disappearing past the bracket. Left → right: `Entries N   Groups N` · `Min Max + histogram` · `Score [range] · Share ▾`. Counts hold; `Min · Max` collapses when the bar would overflow. Sorting lives on the column headers below, not in this bar — see *Sort axes per tier*.
 
 **No side panel.** The tool gallery sits as a top section of the screen, and disk sync's signals live where the scoped list lives — the sync button in the wordlist bar (see § *Disk sync* below) — rather than in the global chrome. A collapsible side panel was considered and rejected: it would pull these surfaces off the main vertical flow into a persistent secondary region, working against the single-screen layout.
 
@@ -533,9 +533,9 @@ Entry, comment, arbitrary-score edits and the rescore mapping live in the popove
 
 ## Entries-table export
 
-A labeled **Export ▾** menu at the right end of the stats bar offers four ways to get the current view out of Grawlix: **Copy to clipboard**, **Export as wordlist**, **Export as CSV**, **Export as JSON**. The four split by audience — Copy for paste-into-chat, wordlist for filling tools (Crossfire, Ingrid, Compiler, Crosserville), CSV for spreadsheets, JSON for scripters.
+A labeled **Share ▾** menu at the right end of the stats bar offers four ways to get the current view out of Grawlix: **Copy to clipboard**, **Download as wordlist**, **Download as CSV**, **Download as JSON**. The four split by audience — Copy for paste-into-chat, wordlist for filling tools (Crossfire, Ingrid, Compiler, Crosserville), CSV for spreadsheets, JSON for scripters.
 
-**A labeled menu over icon buttons or a dialog.** Two icon buttons (download + copy) was considered and rejected — icon mystery vs a self-documenting named menu. An "Export…" dialog with format chooser and live preview was considered and rejected as overcomplex for the common case; one **Export ▾** button keeps the bar quiet and the per-format defaults are sensible enough. With sorting moved onto the column headers, the bar has the room to label the trigger rather than hide it behind an icon.
+**A labeled menu over icon buttons or a dialog.** Two icon buttons (download + copy) was considered and rejected — icon mystery vs a self-documenting named menu. An "Export…" dialog with format chooser and live preview was considered and rejected as overcomplex for the common case; one **Share ▾** button keeps the bar quiet and the per-format defaults are sensible enough. With sorting moved onto the column headers, the bar has the room to label the trigger rather than hide it behind an icon.
 
 **Scope is the visible view.** Every format reflects the current filter, sort, and pipeline output. Score range applies (WYSIWYG). Grouped pipelines export every surviving member chain — the `+N more` cap is a display artifact, not a filter. Synthetic atoms (tool-supplied `[string, score]` with no wordlist backing) are included.
 
@@ -551,7 +551,7 @@ Body: one row per line, chains rendered inline with their glyphs (`RELEARNING �
 
 Sort order = current table sort, no dedup needed (chains with glyphs are visibly distinct, so two journeys to the same tail are two distinct lines naturally).
 
-### Export as wordlist
+### Download as wordlist
 
 Strict `ENTRY;SCORE` per line, no header, no comments, `\n` line endings, trailing newline. Intended for filling tools that expect raw wordlist format.
 
@@ -569,7 +569,7 @@ Strict `ENTRY;SCORE` per line, no header, no comments, `\n` line endings, traili
 
 **Comments off by default.** The export's purpose is "snapshot for filling tool," not backup — comments are scoring metadata that mostly lives in Grawlix, and at least one consumer (Crossfire) chokes on them. Backup is the per-wordlist Download on the wordlist bar.
 
-### Export as CSV
+### Download as CSV
 
 Spreadsheet-oriented structured format (`.csv`). Header row, RFC 4180 `"` quoting (handles entries with `,`, `;`, `"`, newlines — no dropping needed), UTF-8, `\r\n` line endings (Excel-friendly).
 
@@ -581,7 +581,7 @@ Spreadsheet-oriented structured format (`.csv`). Header row, RFC 4180 `"` quotin
 
 **Comments + source mimic the display table** — present on flat pipelines, omitted on grouped (per `design.md`'s "no Length, Comment, or Source column on group chains" rule).
 
-### Export as JSON
+### Download as JSON
 
 Scripter-oriented structured format (`.json`). Pretty-printed (2-space indent), UTF-8. Mirrors the executor's `group → chains → entries` model directly.
 
