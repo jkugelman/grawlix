@@ -112,12 +112,12 @@ export function planEntryWrite({ mode, clicked, typed, sources, trashScore = 0 }
   // A rename to a new norm lands like a fresh create there — keep it distinguishing
   // against any foreign spelling of that norm, exactly as create does.
   if (newNorm !== origNorm) keepCopies(newNorm, newDisplay, sources, edits, upserts, notes);
-  // Downscore only a foreign original (not in My Edits) — renaming your own entry
-  // just deletes it. A new-norm rename trashes every spelling of the old norm via the
-  // bare null wildcard; a same-norm respelling (e.g. adding an accent) must trash only
-  // the old spelling, since the wildcard wins every variant and would bury the new one.
+  // Downscore a foreign original so the old spelling doesn't linger (renaming your own
+  // just deletes it) — but NOT a same-norm bare original: its null wildcard already
+  // unifies under the new rich spelling, so trashing it resurrects a spurious score-0 row.
   const origInEdits = !!edits && (getRescoredByNorm(edits).get(origNorm) || []).some(e => displayOf(e) === origDisplay);
-  if (renamed && !origInEdits && foreignHasNorm(sources, origNorm)) {
+  const sameNormBareOrig = newNorm === origNorm && clicked.display == null;
+  if (renamed && !origInEdits && !sameNormBareOrig && foreignHasNorm(sources, origNorm)) {
     const trashDisplay = newNorm !== origNorm ? null : origDisplay;
     upserts.push({ norm: origNorm, display: trashDisplay, score: trashScore, comment: '' });
     notes.push({ kind: 'downscore', norm: origNorm, display: origDisplay, score: trashScore });

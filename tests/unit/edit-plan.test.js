@@ -226,6 +226,14 @@ test('edit: a same-norm enrich does not keep-copy, even with a foreign sibling',
   assert.deepStrictEqual(p.notes, []);
 });
 
+test('edit: respelling a foreign BARE entry within its norm (case/spacing) does NOT downscore — it enriches', () => {
+  const sources = [edits([]), src('Broda', [wlEntry('gabrielknight', 20)])];   // foreign bare
+  const clicked = { norm: 'gabrielknight', display: null, score: 20, comment: '' };
+  const p = planEntryWrite({ mode: 'edit', clicked, typed: typed('Gabriel Knight', 50, 'Sierra series'), sources, trashScore: 0 });
+  assert.deepStrictEqual(p.upserts, [{ norm: 'gabrielknight', display: 'Gabriel Knight', score: 50, comment: 'Sierra series' }]);
+  assert.deepStrictEqual(p.notes, []);
+});
+
 test('edit: respelling a foreign entry within its norm (adding an accent) trashes the old spelling only', () => {
   const sources = [edits([]), src('Nediger', [wlEntry('reneerapp', 50, { display: 'Renee Rapp' })])];
   const clicked = { norm: 'reneerapp', display: 'Renee Rapp', score: 50, comment: '' };
