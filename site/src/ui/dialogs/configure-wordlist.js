@@ -76,20 +76,20 @@ export const ConfigureWordlistDialog = (() => {
   }
 
   function openPicker() {
-    _pickerOpen = true;
+    if (_pickerOpen) return;
     pickerPopup.querySelector('[data-auto]').innerHTML = buildInitialsIconHTML(_pendingName, colorSeed(colorSeedObj()));
     const tr = pickerTrigger.getBoundingClientRect();
-    const dr = el.getBoundingClientRect();
-    pickerPopup.style.top  = (tr.bottom - dr.top + 4) + 'px';
-    pickerPopup.style.left = (tr.left - dr.left) + 'px';
-    pickerPopup.hidden = false;
+    pickerPopup.style.top  = (tr.bottom + 4) + 'px';
+    pickerPopup.style.left = tr.left + 'px';
+    pickerPopup.showPopover();
+    _pickerOpen = true;
     if (_pendingIcon?.type === 'img') { imgUrlInput.value = _pendingIcon.url; showPickerMode('url'); }
     else                              { imgUrlInput.value = '';                showPickerMode('emoji'); }
   }
 
   function closePicker() {
     _pickerOpen = false;
-    pickerPopup.hidden = true;
+    if (pickerPopup.matches(':popover-open')) pickerPopup.hidePopover();
   }
 
   function wireIconPicker() {
@@ -402,7 +402,7 @@ export const ConfigureWordlistDialog = (() => {
     titleEl.textContent = 'Configure Wordlist';
     btnSave.textContent = 'Save';
     btnDelete.hidden = false;
-    pickerPopup.hidden = true;
+    closePicker();
     nameInput.classList.remove('invalid');
     iconPreview.innerHTML = buildIconHTML(wordlist.icon, wordlist.name, colorSeed(wordlist));
     nameInput.value = wordlist.name || '';
@@ -443,7 +443,7 @@ export const ConfigureWordlistDialog = (() => {
     titleEl.textContent = 'Add Wordlist';
     btnSave.textContent = 'Add';
     btnDelete.hidden = true;
-    pickerPopup.hidden = true;
+    closePicker();
     nameInput.classList.remove('invalid');
     iconPreview.innerHTML = buildInitialsIconHTML('', colorSeed({ name: '' }));
     nameInput.value = '';
@@ -510,10 +510,12 @@ export const ConfigureWordlistDialog = (() => {
         <button class="primary" id="btn-cfg-save"></button>
       </div>`;
 
-    // Popup lives inside the dialog so it's in the top layer with it
+    // A native popover so it paints in the top layer, outside the dialog's
+    // overflow-y:auto scroll box. The alternative — an in-dialog child — forces
+    // overflow:visible, which silently hides the footer off-screen on short viewports.
     pickerPopup = document.createElement('div');
     pickerPopup.id = 'icon-picker-popup';
-    pickerPopup.hidden = true;
+    pickerPopup.setAttribute('popover', 'manual');
     pickerPopup.innerHTML = `
       <div class="icon-picker-tabs">
         <button class="icon-picker-tab active" data-mode="emoji">Emoji</button>

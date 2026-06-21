@@ -700,10 +700,6 @@ dialog h2 { font-size: 16px; margin-bottom: 14px; padding-right: 24px; }
   dialog[open]::backdrop { opacity: 1; }
   @starting-style { dialog[open]::backdrop { opacity: 0; } }
 
-  /* Counters this dialog's own overflow: visible (icon-picker escape), which
-     would trap its tall content above the viewport on a bottom sheet. */
-  #configure-wordlist-dialog { overflow-y: auto; }
-
   /* These positions win only because position() leaves the inline top/left
      unset on mobile. */
   #atom-popover {
@@ -791,7 +787,7 @@ dialog h2 { font-size: 16px; margin-bottom: 14px; padding-right: 24px; }
 .guide-step-body a:hover { text-decoration: underline; }
 
 /* Configure / Add wordlist dialog */
-#configure-wordlist-dialog { --dialog-w: 520px; overflow: visible; }
+#configure-wordlist-dialog { --dialog-w: 520px; }
 .configure-section { margin-bottom: 18px; }
 .configure-section:last-child { margin-bottom: 0; }
 .configure-section-label { font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 8px; }
@@ -825,7 +821,7 @@ dialog h2 { font-size: 16px; margin-bottom: 14px; padding-right: 24px; }
 .icon-picker-trigger:hover { background: var(--hover); }
 .icon-picker-trigger:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .icon-preview-box { width: 22px; height: 22px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
-#icon-picker-popup { position: absolute; z-index: 10; width: 280px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); box-shadow: 0 4px 20px rgba(0,0,0,0.18); overflow: hidden; }
+#icon-picker-popup { position: fixed; inset: auto; margin: 0; padding: 0; width: 280px; color: var(--text); border: 1px solid var(--border); border-radius: 8px; background: var(--surface); box-shadow: 0 4px 20px rgba(0,0,0,0.18); overflow: hidden; }
 .icon-picker-tabs { display: flex; border-bottom: 1px solid var(--border); }
 .icon-picker-tab { flex: 1; border: none; border-radius: 0; padding: 6px; font-size: 12px; font-weight: 600; color: var(--muted); background: var(--surface); cursor: pointer; font-family: inherit; }
 .icon-picker-tab.active { color: var(--accent); background: var(--sel); }
