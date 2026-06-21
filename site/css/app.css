@@ -301,6 +301,7 @@ mark.search-match { border-radius: 2px; padding: 0 1px; margin: 0 -1px; font-sty
   user-select: none;
 }
 .entry-headers > * { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.entry-headers .col-len, .entry-headers .col-score { text-align: right; }
 .entry-headers .col-comment, .entry-headers .col-source { display: none; }
 .entry-headers .col-sort, .group-headers .col-sort { cursor: pointer; border-radius: 3px; }
 .entry-headers .col-sort:hover, .group-headers .col-sort:hover { color: var(--text); }

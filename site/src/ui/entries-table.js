@@ -14,6 +14,7 @@
 
 import { ROW_HEIGHT, VS_BUFFER, MERGED_ID, MERGED_NAME } from '../core/constants.js';
 import { esc } from '../core/util.js';
+import { isMobile } from '../core/platform.js';
 import { displayOf, projectRangesToDisplay, toNorm, buildUserWlEntry } from '../engine/norm.js';
 import { planEntryWrite } from '../engine/edit-plan.js';
 import { parseRange } from '../engine/range.js';
@@ -260,9 +261,10 @@ function headerLabelPx(text) {
 }
 function sortableHeaderPx(label) {
   let w = headerLabelPx(label + ' ↑');
-  // A multi-column sort appends a rank badge after the arrow; reserve a digit plus
-  // its margin, or a tight track (Len) clips it under the headers' overflow:hidden.
-  if (AppView.sortList.length > 1) w += headerLabelPx('9') + 6;
+  // The rank badge needs a modifier-click to appear, so on touch it never can;
+  // reserve its width (a digit + margin) only where it's reachable, or a tight
+  // track clips the badge under the headers' overflow:hidden.
+  if (!isMobile()) w += headerLabelPx('9') + 6;
   return w;
 }
 
