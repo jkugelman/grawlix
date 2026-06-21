@@ -1,55 +1,28 @@
 # Grawlix
 
+[![CI](https://github.com/jkugelman/grawlix/actions/workflows/ci.yml/badge.svg)](https://github.com/jkugelman/grawlix/actions/workflows/ci.yml)
+[![Live site](https://img.shields.io/website?url=https%3A%2F%2Fgrawlix.wtf&label=grawlix.wtf&up_message=online&down_message=offline)](https://grawlix.wtf)
+[![Runtime dependencies](https://img.shields.io/badge/runtime%20deps-0-brightgreen)](package.json)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
 **[grawlix.wtf](https://grawlix.wtf)** — a browser-based wordlist manager for crossword constructors.
 
-## The problem
+Popular wordlists each score on their own private scale, so combining them is a mess — a 50 means something different in every list. Grawlix rescores every list onto one common scale and merges them into a single deduped list you download (or sync to disk) and feed to your construction software.
 
-Popular crossword wordlists each use their own scoring scale. John Kugelman scores on 0–60, XWord Info on 5–60, Spread the Word(list) on 0–50, Peter Broda on 0–100. Combining them into a single list is a mess — the numbers mean different things across sources.
+It doubles as a word-finding playground: search the merged list and stack tools on it — anagrams, rhymes, beheadments, rebus forms, a couple dozen more — to mine for theme material or shake loose the one entry that fits a stubborn corner.
 
-## What Grawlix does
-
-Grawlix lets you pull in wordlists from multiple sources, normalize their scores with **rescore rules**, and merge everything into a single unified list you can load into your construction software (Ingrid, Crossfire, etc.).
-
-It also doubles as a search tool while you're constructing: filter by substring, pattern, score, and more to quickly find the best word for a tricky slot.
-
-## Goals
-
-**Democratize wordlist manipulation.** Constructors who program can write Python to mine their wordlists for theme material, surface unusual letter patterns, generate phonetic substitutions, and so on. Constructors who don't program get to use whatever tools someone else has built. [Wordlisted](https://aaronson.org/wordlisted/) made a big stride toward closing that gap by putting fancy tools in the hands of non-programmers; Grawlix continues the work — with a broader tool set, scored results, and rescoring on top.
-
-## Features
-
-**Known publishers** for four popular wordlists — one-click setup with sensible default rescore rules:
-- [John Kugelman](https://github.com/jkugelman/wordlist)
-- [XWord Info](https://www.xwordinfo.com/WordList)
-- [Spread the Word(list)](https://www.spreadthewordlist.com)
-- [Peter Broda](https://peterbroda.me/crosswords/wordlist/)
-
-**Rescore rules** map a source list's score range to your preferred output scale, so your merged list has consistent scoring regardless of where each entry came from.
-
-**Priority merging** — lists merge in the order you arrange them. Drag to reorder. The highest-priority list's score wins when the same word appears in multiple lists.
-
-**My Edits** — your personal override layer. Click any score or comment to change it. Add words that don't appear in any source list. Your changes are never overwritten when a list updates.
-
-**Search** — wildcard patterns (`?`, `*`, `#` for consonant, `@` for vowel, `[abc]` for character class), minimum score filter, whole-word toggle, and highlighted matches.
-
-**Download** — export your merged list in standard `WORD;SCORE` format, ready to import into any construction software that accepts a text wordlist.
-
-## Getting started
-
-Just visit **[grawlix.wtf](https://grawlix.wtf)**. No account, no install. All data stays in your browser (localStorage + IndexedDB).
-
-To add a wordlist from a known publisher: click **Add list** and pick from the built-in options. To use your own file: click **Add list → Import file**.
+No account, no install, nothing to sign into. Your wordlists, edits, and settings live entirely in your browser, on your device — just visit the site and start. See [`docs/manual.md`](docs/manual.md) for the full user guide, or the in-app **?** for Help.
 
 ## Contributing
 
-All code lives in a single file: [`site/index.html`](site/index.html). No dev build step, no frameworks — plain HTML/CSS/JS that runs directly in the browser. Open it locally in any browser and you're developing. (Deploys are minified via `npm run build`; the source stays as-is.)
+Grawlix is plain HTML/CSS/JS — ES modules under [`site/src/`](site/src/), no runtime dependencies and no framework. There's no build step in the dev loop: serve `site/` statically and refresh. Deploys bundle to `dist/` with `npm run build` (run by CI).
 
-See [CLAUDE.md](CLAUDE.md) for architecture notes and coding conventions.
+Start with [CLAUDE.md](CLAUDE.md) and [`docs/design.md`](docs/design.md) for the architecture (a strict `core < engine < data < model < ui < app` module layering) and coding conventions.
 
 ## Tests
 
-A small Playwright smoke suite runs on push to `main`. Setup, strategy, and a command cheat sheet are in [`docs/testing.md`](docs/testing.md).
+Two tiers: a [`node:test`](tests/unit/) unit suite over the pure engine/data modules, and a [Playwright](tests/browser/) browser suite for user-visible behavior. `npm test` runs both against the bundled output; CI runs them on every push to `main`. See [`docs/testing.md`](docs/testing.md).
 
-## License
+## Copyright
 
-[MIT](LICENSE) © John Kugelman
+Copyright © John Kugelman
