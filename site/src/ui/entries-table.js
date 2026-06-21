@@ -1519,6 +1519,23 @@ function anchorDropdown(panel, anchorEl) {
   });
 }
 
+function anchorSelectorWithin(rowEl, anchorEl) {
+  if (!rowEl || !anchorEl || rowEl === anchorEl || !rowEl.contains(anchorEl)) return null;
+  const field = ['atom-entry', 'atom-score', 'atom-comment'].find(c => anchorEl.classList.contains(c));
+  if (!field) return null;
+  const parts = [];
+  const chain = anchorEl.closest('.group-chain');
+  if (chain && rowEl.contains(chain)) parts.push(`.group-chain[data-chain="${chain.dataset.chain}"]`);
+  const atom = anchorEl.closest('.atom');
+  if (atom && rowEl.contains(atom)) {
+    parts.push(atom.dataset.atomRole === 'anchor'
+      ? '.atom[data-atom-role="anchor"]'
+      : `.atom[data-atom="${atom.dataset.atom}"]`);
+  }
+  parts.push('.' + field);
+  return parts.join(' ');
+}
+
 function seedFromWinnerRow(row, winnerIsEdits) {
   let score = row.score;
   const edits = getEditsWordlist();
@@ -1559,6 +1576,7 @@ export const AtomPopover = (() => {
   let el = null;
   let activeRow = null;
   let activeAnchor = null;
+  let activeAnchorSel = null;
   let activeWlEntry = null;
   let activeSeed = null;
   let activeScroller = null;
@@ -1615,6 +1633,7 @@ export const AtomPopover = (() => {
     if (activeRow) activeRow.classList.remove('active');
     activeRow = null;
     activeAnchor = null;
+    activeAnchorSel = null;
     activeWlEntry = null;
     activeSeed = null;
     activeScroller = null;
@@ -1670,6 +1689,7 @@ export const AtomPopover = (() => {
     popover.innerHTML = renderHTML(wlEntry, seed);
     popover.removeAttribute('hidden');
     activeAnchor = anchorEl ?? rowEl;
+    activeAnchorSel = anchorEl && rowEl ? anchorSelectorWithin(rowEl, anchorEl) : null;
     position(activeAnchor);
     wireFields();
 
@@ -2142,6 +2162,9 @@ export const AtomPopover = (() => {
       el.style.top  = Math.max(8, (window.innerHeight - ph) / 2) + 'px';
       return;
     }
+    // A detached anchor's rect is all zeros; re-anchoring would jump to the corner.
+    // Hold the last good position instead (e.g. the active row scrolled out of view).
+    if (!anchorEl.isConnected) return;
     anchorDropdown(el, anchorEl);
   }
 
@@ -2171,6 +2194,10 @@ export const AtomPopover = (() => {
     if (activeRow) activeRow.classList.remove('active');
     activeRow = rowEl;
     rowEl.classList.add('active');
+    // Re-bind the anchor: the rebuilt row detached the old node, whose zero rect
+    // a later reposition would read as the origin and fling the popover to the corner.
+    if (activeAnchorSel) activeAnchor = rowEl.querySelector(activeAnchorSel) || rowEl;
+    else if (activeAnchor && !activeAnchor.isConnected) activeAnchor = rowEl;
   }
 
   // Rides the run (mirrors existsInScope) instead of awaiting the worker at
