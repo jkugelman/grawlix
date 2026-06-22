@@ -13,7 +13,7 @@ Constructors use Grawlix in two modes that share one UI:
 
 Neither mode is primary. The workspace-leaning design accommodates sidekick mode for free as long as load is fast and chrome isn't loud — sidekick is just "brief use, leave."
 
-Lookup features (definitions, NYT crossword history, semantic search; see [`future/lookup.md`](future/lookup.md)) are differentially valuable to constructors using grid software without built-in lookup. Crossfire and Crossword Compiler are the populations that benefit most; Ingrid has Google integration and Crosserville has clue lookup, so those populations need Grawlix-side lookup less.
+Entry lookups (definitions, Wikipedia, and thesaurus inline, plus link-outs to Google, OneLook, and XWord Info) are differentially valuable to constructors using grid software without built-in lookup. Crossfire and Crossword Compiler are the populations that benefit most; Ingrid has Google integration and Crosserville has clue lookup, so those populations need Grawlix-side lookup less.
 
 Mobile is a third mode — theme research on the go (subway, Discord), where a constructor wants to act on an idea before it evaporates. It runs the same UI as desktop, responsively narrowed — no control is recomposed for mobile, only narrowed. The one exception is overlays: below 760px, modal dialogs and the edit popover dock to the bottom as full-width sheets that slide up (a `@starting-style`/`allow-discrete` transition, disabled under reduced-motion). A centered dialog at its fixed pixel width overflows a phone, and anchoring the popover to the tapped cell is meaningless there; the popover, not being a `<dialog>`, gets the same sheet treatment via CSS plus a `position()` guard that skips its inline coordinates on mobile.
 

@@ -31,7 +31,6 @@ Plans (forward-looking, not yet shipped):
 - [`docs/planned/tools.md`](docs/planned/tools.md) — runtime support sequencing, gallery polish (category picker, search), result download, tool API extensions (indexed lookups, annotations, escape hatches), open questions. The chain-row pipeline (executor, per-row tool API, symmetric unification, search-as-tool, per-atom-count sort, highlights) and the group-row model (group tools, group rows, the +N-more reveal) are shipped — see `design.md`. The tool catalog itself lives in `docs/tools.md`.
 
 Future (longer-horizon ideas, not actively planned):
-- [`docs/future/lookup.md`](docs/future/lookup.md) — click-a-word lookup (definitions, Wikipedia, NYT history, semantic search).
 - [`docs/future/puz-to-pdf.md`](docs/future/puz-to-pdf.md) — feasibility sketch for in-browser .PUZ → printable PDF rendering.
 
 When a plan ships, run the `distill-design-doc` skill to fold it into `design.md` and/or `manual.md`. (The header `?` button opens the in-app Help dialog (`FaqDialog`) — an FAQ with a folded-in Acknowledgements section, deep-linkable at `#help`, that renders its diagrams and credits from the live catalog. A broader multi-page help system is still planned — see [`docs/planned/help.md`](docs/planned/help.md).)
