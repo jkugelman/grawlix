@@ -1586,11 +1586,11 @@ export const EntryPanel = (() => {
   // document.activeElement is transiently <body> — reading it then would
   // wrongly close the panel or clobber an input mid-tab.
   let focusEl = null;
-  // The panel parks a history entry while open so Back closes it instead of
-  // navigating the app away (the narrow overlay's Back is the OS edge-swipe the
-  // user reaches for). ignorePop swallows the popstate our own back() raises.
+  // The open panel rides the URL (?entry=…), so Back/Forward, reload, and shared
+  // links all drive it. ownsHistoryEntry is true only for a panel WE pushed (a
+  // fresh open): closing that pops the entry, but a deep-linked or navigated-into
+  // panel has no entry of ours to pop, so it strips the param in place instead.
   let ownsHistoryEntry = false;
-  let ignorePop = false;
 
   function ensureElement() {
     if (el) return el;
@@ -1613,33 +1613,28 @@ export const EntryPanel = (() => {
     return el;
   }
 
-  function pushHistoryEntry() {
-    if (ownsHistoryEntry) return;
-    history.pushState({ grawlixEntryPanel: true }, '');
-    ownsHistoryEntry = true;
+  function routeValue() {
+    // null in create mode: a not-yet-existing entry has nothing to name in the URL.
+    if (!isOpen() || activeMode === 'create' || !activeWlEntry) return null;
+    return displayOf(activeWlEntry);
   }
 
-  // Pop our parked entry on a UI close (X / Esc / Cancel / Save / click-away), so
-  // Back afterwards navigates the app rather than spending a press on a stale entry.
-  function popHistoryEntry() {
-    if (!ownsHistoryEntry) return;
-    ownsHistoryEntry = false;
-    ignorePop = true;
-    history.back();
-  }
-
+  // Reconcile the panel to the URL on Back/Forward. Idempotent on purpose — our own
+  // close()→back() and the help-hash both fire popstate, and both must no-op here.
   function onPopState() {
-    if (ignorePop) { ignorePop = false; return; }
-    // A real Back already popped our entry; close without popping again.
-    if (isOpen()) { ownsHistoryEntry = false; close(); }
+    const value = new URLSearchParams(location.search).get('entry');
+    if (!value) { if (isOpen()) hideAndClear(); return; }
+    const norm = toNorm(value);
+    if (isOpen() && activeWlEntry && activeWlEntry.norm === norm && displayOf(activeWlEntry) === value) return;
+    openFromRoute({ norm, display: value });
   }
 
   function isOpen() { return el && !el.hasAttribute('hidden'); }
 
-  function close() {
-    if (!el || el.hasAttribute('hidden')) return;
+  // No history ops here: close() and the popstate reconcile both call this and
+  // each handles history itself — touching it here would double up with close().
+  function hideAndClear() {
     el.setAttribute('hidden', '');
-    popHistoryEntry();
     if (activeRow) activeRow.classList.remove('active');
     activeRow = null;
     activeWlEntry = null;
@@ -1649,11 +1644,20 @@ export const EntryPanel = (() => {
     focusEl = null;
     stagedDelete = null;
     stagedAdopt = false;
+    ownsHistoryEntry = false;
     seedQueryToken++;
     provQueryToken++;
     shippedProvRows = null;
     document.removeEventListener('mousedown', onDocMouseDown, true);
     document.removeEventListener('keydown', onKeydown, true);
+  }
+
+  function close() {
+    if (!isOpen()) return;
+    const owned = ownsHistoryEntry;
+    hideAndClear();
+    if (owned) history.back();
+    else _navigate();
   }
 
   function containsFocus() {
@@ -1663,11 +1667,13 @@ export const EntryPanel = (() => {
   function onDocMouseDown(e) {
     if (!isOpen()) return;
     if (el.contains(e.target)) return;
-    if (activeRow && activeRow.contains(e.target)) return;
-    // Don't close on a mousedown over another editable atom cell: the click
-    // re-targets this panel (reusing its one history entry). Closing here would
-    // pop that entry while the reopen pushes a new one, racing the two history
-    // ops across the mousedown/click boundary — an intermittent dismiss flake.
+    // Keep open inside the +N-more group list: it hosts editable words that
+    // re-target the panel, and its own padding/scrollbar shouldn't dismiss.
+    if (e.target.closest?.('.group-popover')) return;
+    // Don't close on a mousedown over an editable atom cell — the click re-targets
+    // the panel (reusing its one history entry). Closing here would pop that entry
+    // while the reopen pushes a new one, racing the two history ops across the
+    // mousedown/click boundary. Everything else is a true outside click → dismiss.
     const cell = e.target.closest?.('.atom-entry, .atom-score, .atom-comment');
     if (cell && !cell.classList.contains('atom-noedit')) return;
     close();
@@ -1677,14 +1683,17 @@ export const EntryPanel = (() => {
     if (e.key === 'Escape') { e.preventDefault(); close(); }
   }
 
-  // Only the scoped case needs the worker: the merge winner there can be a
-  // higher-priority list main can't read without its corpus. Merged (clicked IS
-  // the winner) seeds synchronously from the clicked row.
-  function needsWorkerSeed(clicked) {
-    return state.selected !== MERGED_ID && clicked?.norm != null;
+  // The scoped case needs the worker: the merge winner there can be a higher-
+  // priority list main can't read without its corpus. Merged (clicked IS the
+  // winner) seeds synchronously from the clicked row — except a deep-link open
+  // (route) has no clicked row at all, so it always asks the worker.
+  function needsWorkerSeed(clicked, route) {
+    return route || (state.selected !== MERGED_ID && clicked?.norm != null);
   }
 
-  function open(wlEntry, rowEl, scroller, focusField = 'score', mode = 'edit') {
+  // Set up the panel DOM + state for a target. Does NOT touch history — open()
+  // and openFromRoute() wrap it and own that.
+  function doOpen(wlEntry, rowEl, scroller, focusField, mode, route) {
     ScorePicker.close();
     const panel = ensureElement();
     if (activeRow) activeRow.classList.remove('active');
@@ -1695,31 +1704,47 @@ export const EntryPanel = (() => {
     if (rowEl) rowEl.classList.add('active');
     shippedProvRows = null;
     // Reset per-target state here, not only in close(): a re-target (click another
-    // atom while open) now reuses the panel without closing, so a stale staged
-    // delete or focus ref from the previous target must clear on open too.
+    // atom while open) reuses the panel without closing, so a stale staged delete
+    // or focus ref from the previous target must clear on open too.
     stagedAdopt = false;
     stagedDelete = null;
     focusEl = null;
 
     // Seed from the clicked row: in the merged view it IS the merge winner; a
-    // scoped view holds a losing value, refined below by refineScopedSeed.
+    // scoped view (or a route open) holds no winner, refined below from the worker.
     const seed = seedFromWinnerRow(wlEntry, getEditsWordlist() != null && wlEntry.wordlist === getEditsWordlist());
 
     panel.innerHTML = renderHTML(wlEntry, seed);
     panel.removeAttribute('hidden');
-    pushHistoryEntry();
     wireFields();
 
     fireInitialProvenanceQuery(seed.entry);
-    if (needsWorkerSeed(wlEntry)) refineScopedSeed(wlEntry, focusField);
+    if (needsWorkerSeed(wlEntry, route)) refineScopedSeed(wlEntry, focusField);
 
-    // Don't auto-focus the entry box when opening an existing entry — that's
-    // view-first, and grabbing it implies a rename and pops the mobile keyboard.
-    // Score/comment cells are clear edits, and create types a new entry; both focus.
-    if (activeMode === 'create' || focusField !== 'entry') focusSeedField(focusField);
+    // Don't auto-focus when opening an existing entry view-first (a route open, or
+    // a non-score/comment click): grabbing the entry box implies a rename and pops
+    // the mobile keyboard. Score/comment cells and create are clear edits — focus.
+    if (!route && (activeMode === 'create' || focusField !== 'entry')) focusSeedField(focusField);
 
     document.addEventListener('mousedown', onDocMouseDown, true);
     document.addEventListener('keydown', onKeydown, true);
+  }
+
+  function open(wlEntry, rowEl, scroller, focusField = 'score', mode = 'edit') {
+    const reopening = isOpen();
+    doOpen(wlEntry, rowEl, scroller, focusField, mode, false);
+    if (reopening) _navigate();
+    else { ownsHistoryEntry = true; _navigate({ push: true }); }
+  }
+
+  // Open from the URL (deep link, or Back/Forward into an entry): synthesize a
+  // target, let the worker seed it, and DON'T navigate — the URL is already there.
+  function openFromRoute({ norm, display }) {
+    // A value equal to its own norm is a bare entry rendered as the norm; seed it
+    // as bare (display null) so the worker's bare fallback resolves the winner.
+    const seedDisplay = display === norm ? null : display;
+    doOpen({ norm, display: seedDisplay, score: '', comment: '', wordlist: null }, null, getEntriesScroller(), 'score', 'edit', true);
+    ownsHistoryEntry = false;
   }
 
   // The seed is a correctness input — a save writes FROM it into My Edits — so the
@@ -2232,11 +2257,15 @@ export const EntryPanel = (() => {
     refresh({ resetInputs: !editing, skipExistsCheck: true });
   }
 
-  return { open, openForCreate, close, isOpen, containsFocus, activeNorm, rebindRow, rebindEntry, rebindQuery, setScoreByDigit, seedDebug, provenanceDebug };
+  return { open, openForCreate, openFromRoute, close, isOpen, containsFocus, activeNorm, rebindRow, rebindEntry, rebindQuery, routeValue, setScoreByDigit, seedDebug, provenanceDebug };
 })();
 
 export function entryPanelRebindQuery() {
   return EntryPanel.rebindQuery();
+}
+
+export function entryPanelRouteValue() {
+  return EntryPanel.routeValue();
 }
 
 // ─── Score quick-pick ─────────────────────────────────────────────────────────

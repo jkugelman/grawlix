@@ -111,7 +111,7 @@ function boot() {
     buildExportMenuHTML,
   });
   configureEntriesTable({
-    navigate: () => Router.navigate(),
+    navigate: (opts) => Router.navigate(opts),
   });
   configureToolStack({
     navigate: () => Router.navigate(),

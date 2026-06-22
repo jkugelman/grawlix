@@ -1,8 +1,9 @@
 'use strict';
 
+import { toNorm } from '../engine/norm.js';
 import { showToast } from '../ui/toasts.js';
 import { AppView } from '../ui/app-view.js';
-import { chainSortTier, DEFAULT_SORT_BY_TIER, isValidSortAxis } from '../ui/entries-table.js';
+import { chainSortTier, DEFAULT_SORT_BY_TIER, isValidSortAxis, EntryPanel, entryPanelRouteValue } from '../ui/entries-table.js';
 import { ToolStack } from '../ui/tool-stack.js';
 import { encodeRow, decodeRows } from './url-codec.js';
 
@@ -21,6 +22,11 @@ import { encodeRow, decodeRows } from './url-codec.js';
 // *not* in the URL — it's per-user (scores aren't portable across wordlist
 // setups) and lives in localStorage.
 export const Router = (() => {
+  // A deep-linked entry param, held from applyURL until openPendingEntry opens the
+  // panel (deferred until the worker can seed). buildQuery must read it so boot's
+  // navigate() doesn't strip the param off the URL before the panel claims it.
+  let pendingEntry = null;
+
   function rowIsDefault(row) {
     return row.def.params.every(p => !row.params[p.key]);
   }
@@ -34,6 +40,8 @@ export const Router = (() => {
     // stays at a bare URL while an added Search tool still round-trips.
     const stack = ToolStack.getStack();
     const parts = [];
+    const entry = entryPanelRouteValue() ?? pendingEntry;
+    if (entry) parts.push('entry=' + encodeURIComponent(entry));   // leads, for shareable `?entry=BAGEL&…`
     stack.forEach((row, i) => {
       const isBar = i === stack.length - 1;
       if (isBar && rowIsDefault(row) && stack[i - 1]?.tool !== 'search') return;
@@ -54,11 +62,10 @@ export const Router = (() => {
     return query ? '?' + query : '';
   }
 
-  function navigate() {
+  function navigate({ push = false } = {}) {
     const target = location.pathname + buildSearch();
-    if (location.pathname + location.search !== target) {
-      history.replaceState(null, '', target);
-    }
+    if (push) history.pushState(null, '', target);
+    else if (location.pathname + location.search !== target) history.replaceState(null, '', target);
   }
 
   // Old links carried one axis in `sort=` and its direction in a separate
@@ -81,6 +88,7 @@ export const Router = (() => {
   // is loaded from localStorage in init() and doesn't participate in URL routing.
   function applyURL() {
     const params = new URLSearchParams(location.search);
+    pendingEntry = params.get('entry') || null;
     let sortRaw = null;
     let legacyDir = null;
     for (const [key, value] of params) {
@@ -103,5 +111,14 @@ export const Router = (() => {
     }
   }
 
-  return { navigate, applyURL };
+  // Call only once the worker is ready: openFromRoute seeds the panel off a worker
+  // query, which silently yields nothing if the corpus isn't built yet.
+  function openPendingEntry() {
+    if (!pendingEntry) return;
+    const display = pendingEntry;
+    pendingEntry = null;
+    EntryPanel.openFromRoute({ norm: toNorm(display), display });
+  }
+
+  return { navigate, applyURL, openPendingEntry };
 })();

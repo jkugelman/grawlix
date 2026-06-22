@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { stubPublisherFetches, gotoApp, scopeTo } from './helpers.js';
+import { stubPublisherFetches, gotoApp, reloadApp, scopeTo } from './helpers.js';
 
 // Pixel-geometry of the entry panel's docked and full-screen shells. These read
 // boundingBox, not computed style: geometry is the contract under test, unlike
@@ -96,6 +96,78 @@ test('re-targeting then Back closes the panel with a single Back', async ({ page
   await expect(page.locator('#entry-panel-entry')).toHaveValue('river');
   await page.goBack();
   await expect(page.locator('#entry-panel')).toBeHidden();
+});
+
+test('clicking the open row’s own number (a non-editable cell) closes the panel', async ({ page }) => {
+  await gotoApp(page);
+  await addList(page, { name: 'W', entries: ['ocean', 'river'], scores: [50, 50] });
+  await scopeTo(page, 'All Wordlists');
+  await openPanelOnEntry(page, 'ocean');
+  // The active row's count cell has no click action of its own; it must dismiss.
+  await page.locator('#vs-host .entry-row.active .atom-count').click();
+  await expect(page.locator('#entry-panel')).toBeHidden();
+});
+
+test('clicking another entry re-targets rather than closing', async ({ page }) => {
+  await gotoApp(page);
+  await addList(page, { name: 'W', entries: ['ocean', 'river'], scores: [50, 50] });
+  await scopeTo(page, 'All Wordlists');
+  await openPanelOnEntry(page, 'ocean');
+  await page.locator('#vs-host .entry-row', { hasText: 'river' }).locator('.atom-entry').click();
+  await expect(page.locator('#entry-panel')).toBeVisible();
+  await expect(page.locator('#entry-panel-entry')).toHaveValue('river');
+});
+
+// ─── Routable URL ─────────────────────────────────────────────────────────────
+
+test('opening writes ?entry= to the URL and closing strips it', async ({ page }) => {
+  await gotoApp(page);
+  await addList(page, { name: 'W', entries: ['BAGEL'], scores: [50] });
+  await scopeTo(page, 'All Wordlists');
+  await openPanelOnEntry(page, 'BAGEL');
+  await expect(page).toHaveURL(/[?&]entry=BAGEL(&|$)/);
+  await page.keyboard.press('Escape');
+  await expect(page.locator('#entry-panel')).toBeHidden();
+  await expect(page).not.toHaveURL(/entry=/);
+});
+
+test('the entry param leads and coexists with the pipeline', async ({ page }) => {
+  await gotoApp(page);
+  await addList(page, { name: 'W', entries: ['BAGEL', 'BAGELS'], scores: [50, 50] });
+  await scopeTo(page, 'All Wordlists');
+  await page.locator('.search-bar .tool-row-param-text input').first().fill('BAGEL*');
+  await page.waitForFunction(() => location.search.includes('search='));
+  await openPanelOnEntry(page, 'BAGEL');
+  await expect(page).toHaveURL(/\?entry=BAGEL&.*search=BAGEL/);
+});
+
+test('a re-target replaces the entry param (one Back still closes), no unknown-tool toast', async ({ page }) => {
+  await gotoApp(page);
+  await addList(page, { name: 'W', entries: ['ocean', 'river'], scores: [50, 50] });
+  await scopeTo(page, 'All Wordlists');
+  await openPanelOnEntry(page, 'ocean');
+  await expect(page).toHaveURL(/entry=ocean/);
+  await openPanelOnEntry(page, 'river');
+  await expect(page).toHaveURL(/entry=river/);
+  await page.goBack();
+  await expect(page.locator('#entry-panel')).toBeHidden();
+  await expect(page).not.toHaveURL(/entry=/);
+  // The reserved `entry` key must not read as a removed tool.
+  await expect(page.locator('.toast', { hasText: 'no longer available' })).toHaveCount(0);
+});
+
+test('reloading a ?entry= URL re-opens the panel on that entry', async ({ page }) => {
+  await gotoApp(page);
+  await addList(page, { name: 'W', entries: ['ocean'], scores: [50] });
+  await scopeTo(page, 'All Wordlists');
+  await openPanelOnEntry(page, 'ocean');
+  await expect(page).toHaveURL(/entry=ocean/);
+
+  await reloadApp(page);
+  await expect(page.locator('#entry-panel')).toBeVisible();
+  await expect(page.locator('#entry-panel-entry')).toHaveValue('ocean');
+  // The deep-link open seeds off the worker (no clicked row), so the score lands too.
+  await expect(page.locator('#entry-panel-score')).toHaveValue('50');
 });
 
 test('a UI close pops its history entry, so Back afterward does not just re-consume it', async ({ page }) => {

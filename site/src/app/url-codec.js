@@ -6,7 +6,11 @@ import { TOOLS, makeToolRow } from '../engine/tools.js';
 // Must stay UI-free: node unit tests import this directly, so folding it back
 // into the Router (UI layer) would break them. URL shape: docs/design.md § URL state.
 
-const RESERVED = new Set(['sort', 'sort-dir']);
+// `entry` is the open entry-panel target (parsed by the Router, not a tool row).
+// It's safe to reserve even though several tools have an `entry`-keyed first
+// param: a first param always rides its tool-slug key, so `entry=` is never
+// emitted as a standalone key by tool encoding — only the panel emits it.
+const RESERVED = new Set(['sort', 'sort-dir', 'entry']);
 
 function encodeTailParams(row, schema) {
   const parts = [];

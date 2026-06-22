@@ -240,6 +240,8 @@ export async function init() {
 
   await Promise.all([firstPaint, workerReady]);
 
+  Router.openPendingEntry();   // deep-linked entry panel — needs the worker ready (above)
+
   await loadSyncTargets();
   const { granted, prompt } = await partitionSyncPermissions();
   const isReturning = !!lsLoad('returningVisitor');
