@@ -119,9 +119,15 @@ All colors are CSS variables on `html.dark-mode` / `html.light-mode`. The naming
 - `--accent`, `--accent-hover` — brand purple
 - `--score-{tier}-bg/fg` — score badge colors
 
-## Commit messages
+## Committing
 
-After completing changes that are ready to commit, always output a suggested commit message in conventional commit format (`feat:`, `fix:`, `refactor:`, `chore:`, etc.). No parenthetical scope — just `fix:` not `fix(scope):`. Include a body unless the commit is trivial. Hard-wrap the message body at 72 columns — including when writing it to a file or heredoc, not only when suggesting it in chat.
+When changes reach a complete, shippable point, commit them — don't stop at proposing a message. Group work into atomic, independently-shippable commits.
+
+When I ask for tweaks to something you just committed, prefer amending over a new commit whenever the changes belong with the original — especially bug fixes to code that hasn't been pushed yet. When several commits from this session are in play, that can mean rebasing and squashing a fix back into the older commit it fixes, not just amending the latest one.
+
+If amending is the right call but the target commit has already been pushed, ask me first rather than rewriting published history on your own. Sometimes I'll want a fresh commit; other times I'll approve amending and force-pushing to fix a buggy commit that got deployed — I'm the only developer, so rewriting recent published history is fine when I okay it.
+
+Message format: conventional commit prefix (`feat:`, `fix:`, `refactor:`, `chore:`, etc.), no parenthetical scope — just `fix:` not `fix(scope):`. Include a body unless the commit is trivial. Hard-wrap the body at 72 columns — including when writing it to a file or heredoc, not only when suggesting it in chat.
 
 ## Coding style
 
