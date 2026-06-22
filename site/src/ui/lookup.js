@@ -11,26 +11,60 @@ import { toNorm } from '../engine/norm.js';
 import { esc } from '../core/util.js';
 
 const INLINE = LOOKUP_SOURCES.filter(s => s.fetch);
+const LOOKUP_DEBOUNCE_MS = 1000;
 
 export const LookupSection = (() => {
   let hostEl = null;
-  let entry = '';
+  let entry = '';        // live entry text — drives the (free) links immediately
   let norm = '';
+  let shownEntry = '';   // entry whose inline results are on screen — swaps lazily
   let reposition = () => {};
+  let debounceTimer = null;
   const cache = new Map();
 
   function key(entryStr, id) { return `${entryStr} ${id}`; }
+
+  function inlineSettled(e) {
+    return INLINE.every(s => {
+      const cell = cache.get(key(e, s.id));
+      return cell && cell.status !== 'loading';
+    });
+  }
 
   // AtomPopover rebuilds its innerHTML wholesale on open and on resetInputs, so
   // the host is a fresh node each time; remounting re-grabs it while the result
   // cache persists at module scope.
   function mount(host, entryStr, repositionFn) {
     hostEl = host;
-    entry = (entryStr || '').trim();
+    entry = shownEntry = (entryStr || '').trim();
     norm = toNorm(entry);
     reposition = repositionFn || (() => {});
+    clearTimeout(debounceTimer);
+    debounceTimer = null;
     for (const s of INLINE) ensureLoaded(s.id);
     render();
+  }
+
+  // The links repoint immediately, but the inline results keep showing the
+  // previous entry until the new entry's fetches all settle — swapping early to a
+  // spinner or blank makes the popover jump on every keystroke.
+  function setEntry(entryStr) {
+    const next = (entryStr || '').trim();
+    if (next === entry) return;
+    entry = next;
+    norm = toNorm(entry);
+    clearTimeout(debounceTimer);
+    debounceTimer = null;
+    if (!entry) shownEntry = '';
+    else if (inlineSettled(entry)) shownEntry = entry;   // already fetched — show at once
+    else debounceTimer = setTimeout(runInlineLookups, LOOKUP_DEBOUNCE_MS);
+    render();
+    reposition();
+  }
+
+  function runInlineLookups() {
+    debounceTimer = null;
+    for (const s of INLINE) ensureLoaded(s.id);
   }
 
   function ensureLoaded(id) {
@@ -38,16 +72,22 @@ export const LookupSection = (() => {
     const k = key(entry, id);
     if (cache.has(k)) return;
     cache.set(k, { status: 'loading' });
-    // Guard the re-render on the entry, not the host node: a remount for the same
-    // entry swaps hostEl but reuses this in-flight fetch (it's already cached as
-    // loading), so the resolved reply must still paint into the current host. A
-    // rename moves `entry`, dropping the now-stale reply instead.
+    // Guard on the entry, not the host node: a remount for the same entry reuses
+    // this in-flight fetch, so its reply must still land; a later edit moves `entry`
+    // on, dropping the now-stale reply.
     const myEntry = entry;
     getLookupSource(id).fetch(entry).then(
       data => cache.set(k, { status: 'ok', data }),
       err => cache.set(k, { status: 'err', error: err }),
     ).then(() => {
-      if (hostEl && entry === myEntry) { render(); reposition(); }
+      if (entry !== myEntry || !hostEl) return;
+      // Render once this is the shown entry (open/initial load, fill in as replies
+      // arrive) or once it has fully settled and can replace the stale content.
+      if (shownEntry === myEntry || inlineSettled(myEntry)) {
+        shownEntry = myEntry;
+        render();
+        reposition();
+      }
     });
   }
 
@@ -56,11 +96,11 @@ export const LookupSection = (() => {
   }
 
   function build() {
-    if (!entry) return '';
-    const sections = INLINE.map(s => sectionHTML(s.id)).filter(Boolean);
-    const pending = INLINE.some(s => cache.get(key(entry, s.id))?.status === 'loading');
+    if (!entry && !shownEntry) return '';
+    const sections = shownEntry ? INLINE.map(s => sectionHTML(s.id)).filter(Boolean) : [];
+    const loading = shownEntry && !inlineSettled(shownEntry);
     const info = sections.length ? sections.join('')
-      : pending ? `<div class="lookup-empty">Looking up “${esc(entry)}”…</div>`
+      : loading ? `<div class="lookup-empty">Looking up “${esc(shownEntry)}”…</div>`
       : '';
     const links = LOOKUP_SOURCES.map(s =>
       `<a class="lookup-link" href="${esc(s.url(entry, norm))}" target="_blank" rel="noopener">${esc(s.name)} ↗</a>`,
@@ -70,7 +110,7 @@ export const LookupSection = (() => {
   }
 
   function sectionHTML(id) {
-    const cell = cache.get(key(entry, id));
+    const cell = cache.get(key(shownEntry, id));
     if (!cell || cell.status !== 'ok') return '';
     const inner = renderData(cell.data);
     return inner ? `<div class="lookup-sec"><div class="lookup-sec-head">${esc(getLookupSource(id).name)}</div>${inner}</div>` : '';
@@ -104,5 +144,5 @@ export const LookupSection = (() => {
     return head + body;
   }
 
-  return { mount };
+  return { mount, setEntry };
 })();

@@ -83,6 +83,18 @@ test('Save is disabled until an edit diverges from the entry, and re-disables on
   await expect(save).toBeDisabled();
 });
 
+// ─── Lookup ──────────────────────────────────────────────────────────────────
+
+test('the lookup search links regenerate as the entry text changes', async ({ page }) => {
+  await gotoApp(page);
+  await addList(page, { name: 'W', entries: ['ocean'], scores: [50] });
+  await openPopoverOnEntry(page, 'ocean');
+  const googleLink = page.locator('#atom-popover .lookup-link', { hasText: 'Google' });
+  await expect(googleLink).toHaveAttribute('href', /q=ocean$/);
+  await page.locator('#atom-pop-entry').fill('oceanic');
+  await expect(googleLink).toHaveAttribute('href', /q=oceanic$/);
+});
+
 // ─── Create ────────────────────────────────────────────────────────────────
 
 test('creating an entry that already exists in My Edits is hard-blocked', async ({ page }) => {

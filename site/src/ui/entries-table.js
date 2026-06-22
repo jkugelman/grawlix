@@ -1747,6 +1747,7 @@ export const AtomPopover = (() => {
     if (entryInp) entryInp.value = seed.entry;
     if (scoreInp) scoreInp.value = seed.score;
     if (commentInp) commentInp.value = seed.comment;
+    LookupSection.setEntry(seed.entry);
     renderProvWrap();
     refreshSaveEnabled();
     updateModeLabels();
@@ -2148,6 +2149,7 @@ export const AtomPopover = (() => {
     // An entry edit changes the norm → re-query the worker for contributors;
     // score/comment only move the local My Edits preview row.
     entryInp.addEventListener('input', refreshDynamicBits);
+    entryInp.addEventListener('input', () => LookupSection.setEntry(entryInp.value));
     for (const inp of [scoreInp, commentInp]) {
       inp.addEventListener('input', renderProvWrap);
       inp.addEventListener('input', updateModeLabels);
