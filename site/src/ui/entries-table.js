@@ -2099,16 +2099,13 @@ export const EntryPanel = (() => {
   function fireProvenanceQuery(typedRaw, previewRaw) {
     const token = ++provQueryToken;
     provQueriesFired++;
-    const clicked = activeWlEntry;
-    const clickedNorm = clicked?.norm ?? null;
-    const clickedDisplay = clicked?.display ?? null;
-    fetchWorkerProvenance(typedRaw, previewRaw, clickedNorm, clickedDisplay)
+    const clickedNorm = activeWlEntry?.norm ?? null;
+    fetchWorkerProvenance(typedRaw, previewRaw, clickedNorm)
       .then(({ rows }) => {
-        // Match by (norm, display), not identity: each run rebuilds activeWlEntry
-        // fresh, so an identity check would drop every reply after a re-bind.
+        // Match by norm, not identity: each run rebuilds activeWlEntry fresh, so an
+        // identity check would drop every reply after a re-bind.
         if (token !== provQueryToken || !isOpen()
-            || activeWlEntry?.norm !== clickedNorm
-            || (activeWlEntry?.display ?? null) !== clickedDisplay) return;
+            || activeWlEntry?.norm !== clickedNorm) return;
         // A null (not-fresh) reply leaves the last-good in place; blanking flashes.
         if (rows == null) return;
         shippedProvRows = rows;

@@ -1,17 +1,12 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { buildCorpus, isDistinguishing, concreteDisplay } from '../../site/src/engine/corpus.js';
+import { buildCorpus } from '../../site/src/engine/corpus.js';
 import { compileRescoreRules, getRescoredByNorm } from '../../site/src/engine/rescore.js';
-import { displayOf, toNorm } from '../../site/src/engine/norm.js';
+import { toNorm } from '../../site/src/engine/norm.js';
 
-// The worker's handleFetchProvenance reproduces main's previewWlEntry +
-// provenanceTarget + gatherProvenance off ownedMerged / ownedBuilt. handleFetch-
-// Provenance lives in worker.js module scope (not importable), so this pins the
-// shared pure logic both sides run — the local (main) computation vs the worker's
-// projection — and asserts they deep-equal across the fidelity-critical quirks:
-// the bare-display include asymmetry and its same-source concretize carve-out,
-// disabled-source inclusion, the provTarget derivation (preview → typed-norm →
-// clicked), and a My-Edits source.
+// handleFetchProvenance isn't importable (worker.js module scope), so this
+// transcribes it (workerFetchProvenance) and pins it against an independent local
+// reference — keep the two in lockstep rather than collapsing the duplication.
 
 const wlEntry = (norm, score, { display = null, comment = '' } = {}) =>
   ({ norm, display, score, comment });
@@ -21,9 +16,8 @@ const src = (name, rawEntries, { enabled = true } = {}) =>
 function fixtureSources() {
   // Hi (highest priority) and Lo overlap on OCEAN; Off is disabled (must still
   // appear in provenance). On THEIRS, 'Rich' spells the norm two ways *and* holds
-  // its own bare row, while 'Plain' carries only a bare row — so a spelled click
-  // includes Plain's cross-source bare (still an ancestor) but excludes Rich's
-  // same-source bare (concretized to its own row). Edits stands in for My Edits.
+  // its own bare row, while 'Plain' carries only a bare row — a click on any of
+  // them surfaces all four (the whole norm). Edits stands in for My Edits.
   const Hi  = src('Hi',  [wlEntry('ocean', 90, { comment: 'big' })]);
   const Lo  = src('Lo',  [wlEntry('ocean', 60, { comment: 'small' })]);
   const Off = src('Off', [wlEntry('ocean', 50, { comment: 'off' })], { enabled: false });
@@ -41,17 +35,12 @@ function fixtureSources() {
 
 // ── main-thread reference (entries-table.js) ──────────────────────────────────
 
-function localGatherProvenance(sources, norm, display) {
+function localGatherProvenance(sources, norm) {
   const rows = [];
   for (const wl of sources) {
     const arr = getRescoredByNorm(wl).get(norm);
     if (!arr) continue;
-    const distinguishing = isDistinguishing(arr);
-    for (const e of arr) {
-      const eff = concreteDisplay(e, norm, distinguishing);
-      const include = display == null || eff === display || eff == null;
-      if (include) rows.push({ wordlist: wl, entry: e });
-    }
+    for (const e of arr) rows.push({ wordlist: wl, entry: e });
   }
   return rows;
 }
@@ -68,7 +57,7 @@ function localProvTarget(merged, typedRaw, clicked) {
 
 // ── worker projection (worker.js handleFetchProvenance) ───────────────────────
 
-function workerFetchProvenance(ownedBuilt, ownedMerged, { typedRaw, previewRaw, clickedNorm, clickedDisplay }) {
+function workerFetchProvenance(ownedBuilt, ownedMerged, { typedRaw, previewRaw, clickedNorm }) {
   const previewSrc = previewRaw ?? typedRaw;
   const preview = previewSrc && previewSrc.trim()
     ? (ownedMerged.byNorm.get(toNorm(previewSrc)) || null)
@@ -76,25 +65,19 @@ function workerFetchProvenance(ownedBuilt, ownedMerged, { typedRaw, previewRaw, 
   const provPreview = typedRaw && typedRaw.trim()
     ? (ownedMerged.byNorm.get(toNorm(typedRaw)) || null)
     : null;
-  const target = provPreview ?? (typedRaw && typedRaw.trim()
-    ? { norm: toNorm(typedRaw), display: null }
-    : { norm: clickedNorm, display: clickedDisplay ?? null });
+  const targetNorm = provPreview ? provPreview.norm
+    : typedRaw && typedRaw.trim() ? toNorm(typedRaw)
+    : clickedNorm;
 
   const rows = [];
-  if (target.norm != null) {
-    const display = target.display;
+  if (targetNorm != null) {
     for (const wl of ownedBuilt) {
-      const arr = getRescoredByNorm(wl).get(target.norm);
+      const arr = getRescoredByNorm(wl).get(targetNorm);
       if (!arr) continue;
-      const distinguishing = isDistinguishing(arr);
-      for (const e of arr) {
-        const eff = concreteDisplay(e, target.norm, distinguishing);
-        const include = display == null || eff === display || eff == null;
-        if (include) rows.push({
-          sourceId: wl.dbKey, enabled: wl.enabled !== false,
-          entry: { norm: e.norm, display: e.display ?? null, score: e.score, rawScore: e.rawScore, comment: e.comment || '' },
-        });
-      }
+      for (const e of arr) rows.push({
+        sourceId: wl.dbKey, enabled: wl.enabled !== false,
+        entry: { norm: e.norm, display: e.display ?? null, score: e.score, rawScore: e.rawScore, comment: e.comment || '' },
+      });
     }
   }
   const previewOut = preview && {
@@ -133,10 +116,10 @@ test('per-keystroke: typed OCEAN — preview is the Hi winner, provenance spans 
 
   const localPrev = localPreview(ownedMerged, previewRaw);
   const target = localProvTarget(ownedMerged, typedRaw, clicked);
-  const localRows = localGatherProvenance(sources, target.norm, target.display);
+  const localRows = localGatherProvenance(sources, target.norm);
 
   const worker = workerFetchProvenance(ownedBuilt, ownedMerged, {
-    typedRaw, previewRaw, clickedNorm: clicked.norm, clickedDisplay: clicked.display,
+    typedRaw, previewRaw, clickedNorm: clicked.norm,
   });
 
   assert.deepStrictEqual(worker, localToWire(localRows, localPrev));
@@ -146,7 +129,7 @@ test('per-keystroke: typed OCEAN — preview is the Hi winner, provenance spans 
     [['db_Hi', true], ['db_Lo', true], ['db_Off', false]]);
 });
 
-test('initial open of a spelled variant: typedRaw "" → provTarget falls to the clicked atom (the IRS); a cross-source bare is an ancestor, the same-source bare is not', () => {
+test('initial open of a spelled variant: typedRaw "" → target norm falls to the clicked atom (the IRS); a spelled click still shows the whole norm', () => {
   const { sources, ownedBuilt, ownedMerged } = rigs();
   // Open-time: previewRaw = seed.entry, typedRaw = '' (so provTarget = clicked).
   const clicked = { norm: 'theirs', display: 'the IRS' };
@@ -154,16 +137,14 @@ test('initial open of a spelled variant: typedRaw "" → provTarget falls to the
 
   const localPrev = localPreview(ownedMerged, previewRaw);
   const target = localProvTarget(ownedMerged, typedRaw, clicked);   // = clicked
-  const localRows = localGatherProvenance(sources, target.norm, target.display);
+  const localRows = localGatherProvenance(sources, target.norm);
 
   const worker = workerFetchProvenance(ownedBuilt, ownedMerged, {
-    typedRaw, previewRaw, clickedNorm: clicked.norm, clickedDisplay: clicked.display,
+    typedRaw, previewRaw, clickedNorm: clicked.norm,
   });
 
   assert.deepStrictEqual(worker, localToWire(localRows, localPrev));
-  // 'the IRS' pulls in Plain's cross-source bare (null) as an ancestor, but not
-  // Rich's same-source bare (concretized to its own row) nor the sibling 'Theirs'.
-  assert.deepStrictEqual(worker.rows.map(r => r.entry.display), ['the IRS', null]);
+  assert.deepStrictEqual(worker.rows.map(r => r.entry.display), ['the IRS', 'Theirs', null, null]);
 });
 
 test('initial open of a bare click: provTarget is the bare norm → every spelling included', () => {
@@ -173,10 +154,10 @@ test('initial open of a bare click: provTarget is the bare norm → every spelli
 
   const localPrev = localPreview(ownedMerged, previewRaw);
   const target = localProvTarget(ownedMerged, typedRaw, clicked);
-  const localRows = localGatherProvenance(sources, target.norm, target.display);
+  const localRows = localGatherProvenance(sources, target.norm);
 
   const worker = workerFetchProvenance(ownedBuilt, ownedMerged, {
-    typedRaw, previewRaw, clickedNorm: clicked.norm, clickedDisplay: clicked.display,
+    typedRaw, previewRaw, clickedNorm: clicked.norm,
   });
 
   assert.deepStrictEqual(worker, localToWire(localRows, localPrev));
@@ -192,10 +173,10 @@ test('My Edits norm: provenance carries the edits source row, preview wins from 
 
   const localPrev = localPreview(ownedMerged, previewRaw);
   const target = localProvTarget(ownedMerged, typedRaw, clicked);
-  const localRows = localGatherProvenance(sources, target.norm, target.display);
+  const localRows = localGatherProvenance(sources, target.norm);
 
   const worker = workerFetchProvenance(ownedBuilt, ownedMerged, {
-    typedRaw, previewRaw, clickedNorm: clicked.norm, clickedDisplay: clicked.display,
+    typedRaw, previewRaw, clickedNorm: clicked.norm,
   });
 
   assert.deepStrictEqual(worker, localToWire(localRows, localPrev));
@@ -210,10 +191,10 @@ test('a norm absent from every source: empty rows, null preview', () => {
 
   const localPrev = localPreview(ownedMerged, previewRaw);
   const target = localProvTarget(ownedMerged, typedRaw, clicked);
-  const localRows = localGatherProvenance(sources, target.norm, target.display);
+  const localRows = localGatherProvenance(sources, target.norm);
 
   const worker = workerFetchProvenance(ownedBuilt, ownedMerged, {
-    typedRaw, previewRaw, clickedNorm: clicked.norm, clickedDisplay: clicked.display,
+    typedRaw, previewRaw, clickedNorm: clicked.norm,
   });
 
   assert.deepStrictEqual(worker, localToWire(localRows, localPrev));

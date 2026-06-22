@@ -265,8 +265,8 @@ const __grawlixTest = {
   allGroupsFetchesSent,
   serializeFetchesSent,
   openHelp: () => HelpDialog.open(),
-  fetchWorkerProvenance: (typedRaw, previewRaw, clickedNorm, clickedDisplay, timeout) =>
-    fetchWorkerProvenance(typedRaw, previewRaw, clickedNorm, clickedDisplay, timeout),
+  fetchWorkerProvenance: (typedRaw, previewRaw, clickedNorm, timeout) =>
+    fetchWorkerProvenance(typedRaw, previewRaw, clickedNorm, timeout),
 
   // Post-flip there's no main corpus, so the oracle dumps the worker's corpus for
   // the requested scope. Kept as `dumpMainCorpus` so the specs comparing two dumps

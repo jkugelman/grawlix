@@ -67,12 +67,9 @@ test('clicking a bare entry shows every spelling of the norm across all wordlist
   ]);
 });
 
-test('clicking a specific spelling shows that spelling plus a cross-source bare, not sibling spellings', async ({ page }) => {
+test('clicking a specific spelling shows the whole norm — every spelling plus a cross-source bare', async ({ page }) => {
   await gotoApp(page);
 
-  // Rich spells the norm two ways; Plain (lower priority) carries only the bare
-  // letter-run. A bare entry from a different list is still an ancestor of every
-  // spelling, so 'the IRS' pulls in Plain's bare — but never the sibling 'Theirs'.
   // Await each add separately — addCustomWordlist is async, and two un-awaited in
   // one evaluate races scopeTo ahead of the data (a hard webkit timeout).
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({ name: 'Rich',  entries: ['the IRS', 'Theirs'], scores: [90, 80] }));
@@ -82,14 +79,12 @@ test('clicking a specific spelling shows that spelling plus a cross-source bare,
   await openPanelOnEntry(page, 'the IRS');
 
   const rows = await readProvenance(page);
-  expect(rows.map(r => r.entry)).toEqual(['the IRS', 'theirs']);
+  expect(rows.map(r => r.entry)).toEqual(['the IRS', 'Theirs', 'theirs']);
 });
 
-test('a same-source bare sibling is its own row, not an ancestor of the spellings', async ({ page }) => {
+test("clicking any of a norm's spellings shows the whole family (display-independent)", async ({ page }) => {
   await gotoApp(page);
 
-  // One list spells the norm three ways including the bare form, so the bare entry
-  // is concretized to its own 'theirs' row instead of leaking onto every spelling.
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
     name: 'Rich', entries: ['the IRS', 'Theirs', 'theirs'], scores: [90, 80, 70],
   }));
@@ -97,11 +92,11 @@ test('a same-source bare sibling is its own row, not an ancestor of the spelling
   await scopeTo(page, 'Rich');
 
   await openPanelOnEntry(page, 'the IRS');
-  expect((await readProvenance(page)).map(r => r.entry)).toEqual(['the IRS']);
+  expect((await readProvenance(page)).map(r => r.entry)).toEqual(['the IRS', 'Theirs', 'theirs']);
 
   await page.keyboard.press('Escape');
   await openPanelOnEntry(page, 'theirs');
-  expect((await readProvenance(page)).map(r => r.entry)).toEqual(['theirs']);
+  expect((await readProvenance(page)).map(r => r.entry)).toEqual(['the IRS', 'Theirs', 'theirs']);
 });
 
 test('a disabled wordlist still contributes a (dimmed) provenance row', async ({ page }) => {

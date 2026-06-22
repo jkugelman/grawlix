@@ -98,9 +98,6 @@ test('typing into the entry field repaints provenance + preview off the worker',
   await expect.poll(() => page.evaluate(() =>
     document.querySelector('#entry-panel .entry-panel-prov-entry')?.textContent ?? ''
   )).not.toBe('');
-  // Sanity: the retype rebuilt the table against the typed norm (the merged
-  // 'Theirs' canonical; the same-source bare is its own row, excluded as a
-  // sibling). 'ocean' appears only as the rename's downscore preview row now.
   const provTable = await page.evaluate(() =>
     document.querySelector('#entry-panel .entry-panel-prov')?.innerHTML ?? '');
   expect(provTable).toContain('Theirs');

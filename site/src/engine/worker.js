@@ -11,7 +11,7 @@ import { DATA_ASSETS, getDataAsset } from './assets.js';
 import { parseWordlist, toNorm, displayOf } from './norm.js';
 import { parseRange, matchesRange } from './range.js';
 import { compileRescoreRules, getRescoredEntries, getRescoredByNorm } from './rescore.js';
-import { buildCorpus, resolveEditSeedWinner, mergeKey, mergedNormLowerBound, computeMergedBucket, isDistinguishing, concreteDisplay } from './corpus.js';
+import { buildCorpus, resolveEditSeedWinner, mergeKey, mergedNormLowerBound, computeMergedBucket } from './corpus.js';
 import { getHistogramLayout, invalidateHistogramLayout, bucketCounts } from './histogram.js';
 import { computeStatsRaw } from './stats.js';
 import { compileFlatHighlighters, materializeFlatRow } from './flat-highlight.js';
@@ -522,15 +522,15 @@ function handleFetchEditSeed({ requestId, norm, display }) {
 // synchronously by syncConfig, re-set by a committed syncConfig or an edit command
 // — same reasoning as handleFetchEditSeed); a stale answer silently renders the
 // wrong table. A miss → {preview:null,rows:null}; main keeps its last-good render.
-function handleFetchProvenance({ requestId, typedRaw, previewRaw, clickedNorm, clickedDisplay }) {
+function handleFetchProvenance({ requestId, typedRaw, previewRaw, clickedNorm }) {
   if (!(ownedMerged && ownedBuilt && ownedCorpusFresh)) {
     postMessage({ type: 'provenance', requestId, preview: null, rows: null });
     return;
   }
 
   // previewRaw is independent of typedRaw because the initial render needs the
-  // footer preview for the seed text while deriving provTarget from the clicked
-  // atom (typedRaw ''); collapsing them would mis-pick the open-time table.
+  // footer preview for the seed text while deriving the provenance target from
+  // the clicked atom (typedRaw ''); collapsing them would mis-pick the open table.
   const previewSrc = previewRaw ?? typedRaw;
   const preview = previewSrc && previewSrc.trim()
     ? (ownedMerged.byNorm.get(toNorm(previewSrc)) || null)
@@ -539,31 +539,21 @@ function handleFetchProvenance({ requestId, typedRaw, previewRaw, clickedNorm, c
   const provPreview = typedRaw && typedRaw.trim()
     ? (ownedMerged.byNorm.get(toNorm(typedRaw)) || null)
     : null;
-  const target = provPreview ?? (typedRaw && typedRaw.trim()
-    ? { norm: toNorm(typedRaw), display: null }
-    : { norm: clickedNorm, display: clickedDisplay ?? null });
+  const targetNorm = provPreview ? provPreview.norm
+    : typedRaw && typedRaw.trim() ? toNorm(typedRaw)
+    : clickedNorm;
 
   const rows = [];
-  if (target.norm != null) {
-    const display = target.display;
+  if (targetNorm != null) {
     for (const wl of ownedBuilt) {
-      const arr = getRescoredByNorm(wl).get(target.norm);
+      const arr = getRescoredByNorm(wl).get(targetNorm);
       if (!arr) continue;
-      // Mirror the merge's eligibility (§ corpus.js) so the entry panel and the table
-      // agree on ancestry: a bare entry applies to every spelling of its norm —
-      // never collapse to e.display === display — UNLESS this same list also spells
-      // the sibling, which concretizes the bare one to its own row.
-      const distinguishing = isDistinguishing(arr);
       for (const e of arr) {
-        const eff = concreteDisplay(e, target.norm, distinguishing);
-        const include = display == null || eff === display || eff == null;
-        if (include) {
-          rows.push({
-            sourceId: wl.dbKey,
-            enabled: wl.enabled !== false,
-            entry: { norm: e.norm, display: e.display ?? null, score: e.score, rawScore: e.rawScore, comment: e.comment || '' },
-          });
-        }
+        rows.push({
+          sourceId: wl.dbKey,
+          enabled: wl.enabled !== false,
+          entry: { norm: e.norm, display: e.display ?? null, score: e.score, rawScore: e.rawScore, comment: e.comment || '' },
+        });
       }
     }
   }
