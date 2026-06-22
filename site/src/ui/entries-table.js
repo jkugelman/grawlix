@@ -737,7 +737,7 @@ export class EntriesScroller extends BaseVirtualScroller {
     if (!wlEntry) return null;
     const field = target.classList.contains('atom-score') ? 'score'
                 : target.classList.contains('atom-comment') ? 'comment'
-                : null;
+                : 'entry';
     return { row, wlEntry, field, anchor: target };
   }
 
@@ -1696,12 +1696,7 @@ export const AtomPopover = (() => {
     fireInitialProvenanceQuery(seed.entry);
     if (needsWorkerSeed(wlEntry)) refineScopedSeed(wlEntry, focusField);
 
-    const focusSel = focusField === 'entry'   ? '.entry-input'
-                   : focusField === 'comment' ? '.comment-input'
-                   : '.score-input';
-    const input = popover.querySelector(focusSel);
-    input?.focus();
-    if (focusField !== null) input?.select();
+    focusSeedField(focusField);
 
     document.addEventListener('mousedown', onDocMouseDown, true);
     document.addEventListener('keydown', onKeydown, true);
@@ -1746,17 +1741,22 @@ export const AtomPopover = (() => {
     renderProvWrap();
     refreshSaveEnabled();
     updateModeLabels();
-    const focusSel = focusField === 'entry' ? '.entry-input'
-                   : focusField === 'comment' ? '.comment-input'
-                   : '.score-input';
-    const focusInp = el.querySelector(focusSel);
-    focusInp?.focus();
-    if (focusField !== null) focusInp?.select();
+    focusSeedField(focusField);
+  }
+
+  // The entry name is focus-only (no select): a click on a word is rarely a
+  // rename, so selecting the name risks a stray keystroke renaming the entry.
+  function focusSeedField(focusField) {
+    const sel = focusField === 'entry'   ? '.entry-input'
+              : focusField === 'comment' ? '.comment-input'
+              : '.score-input';
+    const input = el?.querySelector(sel);
+    input?.focus();
+    if (focusField !== null && focusField !== 'entry') input?.select();
   }
 
   function openForCreate(entryStr, scroller, anchorEl) {
-    const focusField = entryStr.trim() ? 'score' : 'entry';
-    open(buildUserWlEntry(entryStr, '', ''), null, scroller, anchorEl, focusField, 'create');
+    open(buildUserWlEntry(entryStr, '', ''), null, scroller, anchorEl, 'entry', 'create');
   }
 
   function renderFooterHTML(entryText) {

@@ -280,7 +280,7 @@ test('the floating + button seeds the search term only for a literal word that i
   await search.fill('ZYMURGY');
   await fab.click();
   await expect(entryInput).toHaveValue('ZYMURGY');
-  await expect(page.locator('#atom-pop-score')).toBeFocused();
+  await expect(entryInput).toBeFocused();
   await page.keyboard.press('Escape');
 
   await search.fill('BAGEL');
