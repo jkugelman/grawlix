@@ -8,7 +8,7 @@
 
 import { toNorm, displayOf, buildWlEntry, detectCase } from './norm.js';
 import { getRescoredByNorm } from './rescore.js';
-import { computeMergedBucket } from './corpus.js';
+import { computeMergedBucket, isDistinguishing, concreteDisplay } from './corpus.js';
 
 const isEdits = wl => wl.type === 'edits';
 const isLive = wl => wl.enabled !== false;
@@ -47,6 +47,20 @@ function foreignBare(sources, norm) {
     if (bare) return bare;
   }
   return null;
+}
+
+function foreignHasSpelling(sources, norm, display) {
+  for (const wl of sources) {
+    if (!isLive(wl) || isEdits(wl)) continue;
+    const arr = getRescoredByNorm(wl).get(norm);
+    if (!arr) continue;
+    const distinguishing = isDistinguishing(arr);
+    // A plain foreign bare (concreteDisplay null) never matches: it re-bares under the
+    // new rich spelling rather than surfacing on its own, so junking it would leave a
+    // spurious score-0 row.
+    if (arr.some(e => concreteDisplay(e, norm, distinguishing) === display)) return true;
+  }
+  return false;
 }
 
 // Shared by create and rename so the two gestures stay symmetric: a typed entry
@@ -112,15 +126,28 @@ export function planEntryWrite({ mode, clicked, typed, sources, trashScore = 0 }
   // A rename to a new norm lands like a fresh create there — keep it distinguishing
   // against any foreign spelling of that norm, exactly as create does.
   if (newNorm !== origNorm) keepCopies(newNorm, newDisplay, sources, edits, upserts, notes);
-  // Downscore a foreign original so the old spelling doesn't linger (renaming your own
-  // just deletes it) — but NOT a same-norm bare original: its null wildcard already
-  // unifies under the new rich spelling, so trashing it resurrects a spurious score-0 row.
-  const origInEdits = !!edits && (getRescoredByNorm(edits).get(origNorm) || []).some(e => displayOf(e) === origDisplay);
-  const sameNormBareOrig = newNorm === origNorm && clicked.display == null;
-  if (renamed && !origInEdits && !sameNormBareOrig && foreignHasNorm(sources, origNorm)) {
-    const trashDisplay = newNorm !== origNorm ? null : origDisplay;
-    upserts.push({ norm: origNorm, display: trashDisplay, score: trashScore, comment: '' });
-    notes.push({ kind: 'downscore', norm: origNorm, display: origDisplay, score: trashScore });
+  // A rename should replace the old spelling, not sit beside a foreign copy of it.
+  if (renamed && foreignHasNorm(sources, origNorm)) {
+    const junk = (display, noted = display) => {
+      upserts.push({ norm: origNorm, display, score: trashScore, comment: '' });
+      notes.push({ kind: 'downscore', norm: origNorm, display: noted, score: trashScore });
+    };
+    if (newNorm !== origNorm) {
+      // My Edits has vacated origNorm, so a bare wildcard (not origDisplay) junks every
+      // foreign spelling still left there — without it they'd resurface un-replaced.
+      junk(null, origDisplay);
+    } else {
+      // Deleting a My Edits bare un-unifies the foreign spellings it was covering, which
+      // re-emerge — so junk every concrete foreign sibling this respelling orphans.
+      const spellings = new Set();
+      if (origDisplay !== newRendered && foreignHasSpelling(sources, origNorm, origDisplay)) spellings.add(origDisplay);
+      for (const r of computeMergedBucket(origNorm, sources).rows) {
+        if (r.wordlist === edits && r.display != null && r.display !== newRendered && foreignHasSpelling(sources, origNorm, r.display)) {
+          spellings.add(r.display);
+        }
+      }
+      for (const display of spellings) junk(display);
+    }
   }
   return { blockedReason: null, primary, deletes, upserts, notes };
 }

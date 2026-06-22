@@ -165,13 +165,16 @@ test('edit: renaming a foreign entry to a new norm trashes the leftover', () => 
   assert.deepStrictEqual(p.notes, [{ kind: 'downscore', norm: 'oceam', display: 'oceam', score: 0 }]);
 });
 
-test('edit: renaming a My Edits entry to a new norm deletes it — no downscore even with a foreign norm-mate', () => {
+test('edit: renaming a My Edits entry to a new norm junks the foreign norm-mate it leaves behind', () => {
   const sources = [edits([wlEntry('oceam', 60)]), src('XWI', [wlEntry('oceam', 40)])];
   const clicked = { norm: 'oceam', display: null, score: 60, comment: '' };
-  const p = planEntryWrite({ mode: 'edit', clicked, typed: typed('ocean', 60), sources });
+  const p = planEntryWrite({ mode: 'edit', clicked, typed: typed('ocean', 60), sources, trashScore: 0 });
   assert.deepStrictEqual(p.deletes, [{ norm: 'oceam', display: 'oceam' }]);
-  assert.deepStrictEqual(p.upserts, [{ norm: 'ocean', display: null, score: 60, comment: '' }]);
-  assert.deepStrictEqual(p.notes, []);
+  assert.deepStrictEqual(p.upserts, [
+    { norm: 'ocean', display: null, score: 60, comment: '' },
+    { norm: 'oceam', display: null, score: 0, comment: '' },
+  ]);
+  assert.deepStrictEqual(p.notes, [{ kind: 'downscore', norm: 'oceam', display: 'oceam', score: 0 }]);
 });
 
 test('edit: renaming with no foreign leftover does not trash', () => {
@@ -216,14 +219,36 @@ test('edit: renaming to a rich form over a foreign bare copies the bare (keep-ba
   assert.deepStrictEqual(p.notes, [{ kind: 'keep-bare', norm: 'theirs', display: null, score: 30, comment: 'pron' }]);
 });
 
-test('edit: a same-norm enrich does not keep-copy, even with a foreign sibling', () => {
-  const sources = [edits([wlEntry('ocean', 50)]),                          // My Edits bare ocean
+test('edit: a same-norm enrich does not keep-copy, but junks the foreign sibling it un-unifies', () => {
+  const sources = [edits([wlEntry('ocean', 50)]),                          // My Edits bare ocean, shown as OCEAN
                    src('XWI', [wlEntry('ocean', 30, { display: 'OCEAN' })])];
   const clicked = { norm: 'ocean', display: null, score: 50, comment: '' };
-  const p = planEntryWrite({ mode: 'edit', clicked, typed: typed('Ocean', 70), sources });
+  const p = planEntryWrite({ mode: 'edit', clicked, typed: typed('Ocean', 70), sources, trashScore: 0 });
   assert.deepStrictEqual(p.deletes, [{ norm: 'ocean', display: 'ocean' }]);
-  assert.deepStrictEqual(p.upserts, [{ norm: 'ocean', display: 'Ocean', score: 70, comment: '' }]);
-  assert.deepStrictEqual(p.notes, []);
+  assert.deepStrictEqual(p.upserts, [
+    { norm: 'ocean', display: 'Ocean', score: 70, comment: '' },
+    { norm: 'ocean', display: 'OCEAN', score: 0, comment: '' },
+  ]);
+  assert.deepStrictEqual(p.notes, [{ kind: 'downscore', norm: 'ocean', display: 'OCEAN', score: 0 }]);
+});
+
+test('edit: respelling a My Edits bare junks a foreign rich sibling but leaves foreign bares alone', () => {
+  // My Edits bare standupguy is shown via Nediger's spelling "standup guy"; renaming to
+  // "stand-up guy" must junk "standup guy" or it lingers beside the new spelling.
+  const sources = [
+    edits([wlEntry('standupguy', 60)]),                                    // My Edits bare
+    src('Nediger', [wlEntry('standupguy', 60, { display: 'standup guy' })]),
+    src('XWI', [wlEntry('standupguy', 50)]),                              // bare
+    src('Broda', [wlEntry('standupguy', 20)]),                           // bare
+  ];
+  const clicked = { norm: 'standupguy', display: null, score: 60, comment: '' };
+  const p = planEntryWrite({ mode: 'edit', clicked, typed: typed('stand-up guy', 60), sources, trashScore: 0 });
+  assert.deepStrictEqual(p.deletes, [{ norm: 'standupguy', display: 'standupguy' }]);
+  assert.deepStrictEqual(p.upserts, [
+    { norm: 'standupguy', display: 'stand-up guy', score: 60, comment: '' },
+    { norm: 'standupguy', display: 'standup guy', score: 0, comment: '' },
+  ]);
+  assert.deepStrictEqual(p.notes, [{ kind: 'downscore', norm: 'standupguy', display: 'standup guy', score: 0 }]);
 });
 
 test('edit: respelling a foreign BARE entry within its norm (case/spacing) does NOT downscore — it enriches', () => {

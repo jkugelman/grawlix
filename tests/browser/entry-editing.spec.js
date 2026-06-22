@@ -207,7 +207,19 @@ test('renaming over a foreign leftover downscores the original to the trash scor
   expect(await page.evaluate(() => window.__grawlixTest.getMergedEntry('ocean'))).not.toBeNull();
 });
 
-test('renaming a My Edits entry to a new norm shows a struck delete, not a downscore', async ({ page }) => {
+test('respelling a My Edits entry junks the foreign spelling it was covering — no duplicate', async ({ page }) => {
+  await gotoApp(page);
+  await addList(page, { name: 'W', entries: ['AAA team'], scores: [50] });
+  await page.evaluate(() => window.__grawlixTest.saveMyEdit('aaateam', 'aaateam', 60));
+  await openPopoverOnEntry(page, 'AAA team');
+  await page.locator('#atom-pop-entry').fill('AAA. team');
+  await page.locator('#atom-popover .atom-pop-save').click();
+  await expect.poll(() => displaysForNorm(page, 'aaateam')).toEqual(['AAA team', 'AAA. team']);
+  expect(await page.evaluate(() => window.__grawlixTest.getMergedEntry('AAA. team', 'AAA. team'))).toMatchObject({ score: 60 });
+  expect(await page.evaluate(() => window.__grawlixTest.getMergedEntry('AAA team', 'AAA team'))).toMatchObject({ score: 0, wordlist: 'My Edits' });
+});
+
+test('renaming a My Edits entry to a new norm junks the foreign norm-mate it leaves behind', async ({ page }) => {
   await gotoApp(page);
   await addList(page, { name: 'W', entries: ['aaateam'], scores: [50] });
   await page.evaluate(() => window.__grawlixTest.saveMyEdit('AAA team', 'AAA team', 50));
@@ -221,9 +233,9 @@ test('renaming a My Edits entry to a new norm shows a struck delete, not a downs
   await expect(page.locator('#atom-popover .atom-pop-prov-row--added', {
     has: page.locator('.atom-pop-prov-entry', { hasText: /^AAAx team$/ }),
   })).toBeVisible();
-  await expect(page.locator('#atom-popover .atom-pop-prov-row--added', {
-    has: page.locator('.atom-pop-prov-entry', { hasText: /^AAA team$/ }),
-  })).toHaveCount(0);
+  await page.locator('#atom-popover .atom-pop-save').click();
+  await expect.poll(() => page.evaluate(() => window.__grawlixTest.getMergedEntry('aaateam').then(e => e?.score))).toBe(0);
+  expect(await page.evaluate(() => window.__grawlixTest.getMergedEntry('AAAx team'))).not.toBeNull();
 });
 
 test('renaming shows an undo toast that restores the original', async ({ page }) => {

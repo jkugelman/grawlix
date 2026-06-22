@@ -136,12 +136,11 @@ test('edit — multi-variant norm', async ({ page }) => {
 // patchMergedForNorms (which drops rawScore on patched norms) and the worker's
 // merged splice uses computeMergedBucket (also rawScore-dropping), so the two
 // stay byte-identical; a rawScore-carrying worker splice would diverge here.
-test('edit — rescored two-norm move of a My Edits entry hands the winner to a rescored source', async ({ page }) => {
+test('edit — moving a My Edits entry to a new norm junks the vacated norm, suppressing a foreign rescored row', async ({ page }) => {
   await gotoApp(page);
   await seed(page);
-  // Alpha rescores CRANE (60 → 85). Renaming My Edits' own CRANE away just deletes
-  // it (no downscore — that's only for a foreign original), so Alpha's rescored
-  // row wins the vacated bucket.
+  // Alpha rescores CRANE (60 → 85), but moving My Edits' own CRANE away junks the vacated
+  // norm, so My Edits' highest-priority trash entry wins the crane bucket at 0 — not Alpha.
   await page.evaluate(() => window.__grawlixTest.setRescoreRules('Alpha', [
     { input: '60', length: '', output: '85', note: '' },
   ]));
@@ -156,9 +155,9 @@ test('edit — rescored two-norm move of a My Edits entry hands the winner to a 
   });
   assertConverged(r);
   const crane = r.workerPost.find(e => e[0] === 'crane');
-  const alpha = await page.evaluate(() => state.sources.find(s => s.name === 'Alpha').dbKey);
-  expect(crane[5]).toBe(alpha);
-  expect(crane[2]).toBe(85);
+  const editsKey = await page.evaluate(() => window.__grawlixTest.flushEditsToIdb());
+  expect(crane[5]).toBe(editsKey);
+  expect(crane[2]).toBe(0);
   expect(r.workerPost.some(e => e[0] === 'cranex')).toBe(true);
 });
 
