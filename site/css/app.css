@@ -516,7 +516,7 @@ td.atom-pop-prov-entry { font-family: var(--font-mono); }
 .lookup-thumb { width: 56px; height: 56px; object-fit: cover; border-radius: 4px; flex-shrink: 0; }
 .lookup-prose-body { min-width: 0; }
 .lookup-prose-desc { color: var(--muted); font-size: 10px; margin-bottom: 2px; }
-.lookup-prose p { margin: 4px 0; max-height: 7.5em; overflow-y: auto; }
+.lookup-prose p { margin: 4px 0; }
 .lookup-phon { color: var(--muted); font-weight: 400; font-family: var(--font-mono); }
 .lookup-def { margin-bottom: 6px; }
 .lookup-pos { font-style: italic; color: var(--muted); }
