@@ -64,8 +64,11 @@ export const Router = (() => {
 
   function navigate({ push = false } = {}) {
     const target = location.pathname + buildSearch();
+    // Replace preserves history.state: the entry panel tags its pushed entry there
+    // (EntryPanel.open) to drive close-time history, and a stray replace while it's
+    // open must not silently wipe that tag.
     if (push) history.pushState(null, '', target);
-    else if (location.pathname + location.search !== target) history.replaceState(null, '', target);
+    else if (location.pathname + location.search !== target) history.replaceState(history.state, '', target);
   }
 
   // Old links carried one axis in `sort=` and its direction in a separate

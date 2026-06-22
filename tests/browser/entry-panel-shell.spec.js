@@ -87,6 +87,45 @@ test('the browser Back gesture closes the panel without navigating away', async 
   expect(page.url()).toBe(url);
 });
 
+test('a Forward-reopened panel closes consistently, leaving it Forward-reachable again', async ({ page }) => {
+  await gotoApp(page);
+  await addList(page, { name: 'W', entries: ['ocean'], scores: [50] });
+  await scopeTo(page, 'All Wordlists');
+
+  await openPanelOnEntry(page, 'ocean');                 // push
+  await page.keyboard.press('Escape');                    // close pops it → entry is now Forward
+  await expect(page.locator('#entry-panel')).toBeHidden();
+
+  await page.goForward();                                 // re-open via the lit Forward button
+  await expect(page.locator('#entry-panel')).toBeVisible();
+  await expect(page).toHaveURL(/entry=ocean/);
+
+  await page.keyboard.press('Escape');                    // must pop again, not strip in place
+  await expect(page.locator('#entry-panel')).toBeHidden();
+  await expect(page).not.toHaveURL(/entry=/);
+
+  await page.goForward();
+  await expect(page.locator('#entry-panel')).toBeVisible();
+  await expect(page).toHaveURL(/entry=ocean/);
+});
+
+test('a Forward-reopened panel is view-first: it does not steal focus into the score box', async ({ page }) => {
+  await gotoApp(page);
+  await addList(page, { name: 'W', entries: ['ocean'], scores: [50] });
+  await scopeTo(page, 'All Wordlists');
+
+  await openPanelOnEntry(page, 'ocean');
+  await page.keyboard.press('Escape');
+  await expect(page.locator('#entry-panel')).toBeHidden();
+
+  await page.goForward();
+  await expect(page.locator('#entry-panel')).toBeVisible();
+  // The score fills from an async worker seed; assert focus only after it lands, or
+  // the check runs before any focus could fire and passes vacuously.
+  await expect(page.locator('#entry-panel-score')).toHaveValue('50');
+  await expect(page.locator('#entry-panel-score')).not.toBeFocused();
+});
+
 test('the open panel is modal: it covers the page and an outside click closes it', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 800 });
   await gotoApp(page);

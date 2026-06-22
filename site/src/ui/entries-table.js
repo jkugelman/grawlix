@@ -1585,9 +1585,10 @@ export const EntryPanel = (() => {
   // wrongly close the panel or clobber an input mid-tab.
   let focusEl = null;
   // The open panel rides the URL (?entry=…), so Back/Forward, reload, and shared
-  // links all drive it. ownsHistoryEntry is true only for a panel WE pushed (a
-  // fresh open): closing that pops the entry, but a deep-linked or navigated-into
-  // panel has no entry of ours to pop, so it strips the param in place instead.
+  // links all drive it. ownsHistoryEntry is true for any entry WE pushed — a fresh
+  // open, or a Back/Forward that lands back on one (recognized by its history.state
+  // tag). Closing those pops the entry; a cold deep link has nothing of ours behind
+  // it, so it strips the param in place instead.
   let ownsHistoryEntry = false;
 
   function ensureElement() {
@@ -1628,7 +1629,7 @@ export const EntryPanel = (() => {
     if (!value) { if (isOpen()) hideAndClear(); return; }
     const norm = toNorm(value);
     if (isOpen() && activeWlEntry && activeWlEntry.norm === norm && displayOf(activeWlEntry) === value) return;
-    openFromRoute({ norm, display: value });
+    openFromRoute({ norm, display: value }, { animate: true });
   }
 
   function isOpen() { return el != null && el.classList.contains('open'); }
@@ -1678,15 +1679,15 @@ export const EntryPanel = (() => {
     return route || (state.selected !== MERGED_ID && clicked?.norm != null);
   }
 
-  // A click-driven open slides in; a route open (deep link, reload, Back/Forward)
-  // appears in place — restoring saved state shouldn't animate. The forced reflow
-  // is load-bearing: without it the add/remove of no-anim coalesces into one style
-  // pass and the slide fires anyway. Removing it after lets a later close slide out.
-  function revealModal(route) {
-    if (route) { el.classList.add('no-anim'); scrim.classList.add('no-anim'); }
+  // A click or an in-session Back/Forward slides the panel in; a cold-load restore
+  // (deep link, reload) appears in place — re-painting saved state shouldn't animate.
+  // The forced reflow is load-bearing: without it the add/remove of no-anim coalesces
+  // into one style pass and the slide fires anyway. Removing it lets a later close slide.
+  function revealModal(animate) {
+    if (!animate) { el.classList.add('no-anim'); scrim.classList.add('no-anim'); }
     el.classList.add('open');
     scrim.classList.add('open');
-    if (route) {
+    if (!animate) {
       void el.offsetWidth;
       el.classList.remove('no-anim');
       scrim.classList.remove('no-anim');
@@ -1695,7 +1696,7 @@ export const EntryPanel = (() => {
 
   // Set up the panel DOM + state for a target. Does NOT touch history — open()
   // and openFromRoute() wrap it and own that.
-  function doOpen(wlEntry, rowEl, scroller, focusField, mode, route) {
+  function doOpen(wlEntry, rowEl, scroller, focusField, mode, route, animate) {
     // The panel is modal — its scrim covers the page. Dismiss the other floating
     // surfaces (all z-600, so they'd float above the scrim and stay live).
     ScorePicker.close();
@@ -1721,11 +1722,11 @@ export const EntryPanel = (() => {
     const seed = seedFromWinnerRow(wlEntry, getEditsWordlist() != null && wlEntry.wordlist === getEditsWordlist());
 
     panel.innerHTML = renderHTML(wlEntry, seed);
-    revealModal(route);
+    revealModal(animate);
     wireFields();
 
     fireInitialProvenanceQuery(seed.entry);
-    if (needsWorkerSeed(wlEntry, route)) refineScopedSeed(wlEntry, focusField);
+    if (needsWorkerSeed(wlEntry, route)) refineScopedSeed(wlEntry, focusField, route);
 
     // Don't auto-focus when opening an existing entry view-first (a route open, or
     // a non-score/comment click): grabbing the entry box implies a rename and pops
@@ -1737,26 +1738,35 @@ export const EntryPanel = (() => {
 
   function open(wlEntry, rowEl, scroller, focusField = 'score', mode = 'edit') {
     const reopening = isOpen();
-    doOpen(wlEntry, rowEl, scroller, focusField, mode, false);
+    doOpen(wlEntry, rowEl, scroller, focusField, mode, false, true);
     if (reopening) _navigate();
-    else { ownsHistoryEntry = true; _navigate({ push: true }); }
+    else {
+      ownsHistoryEntry = true;
+      _navigate({ push: true });
+      // Tag the pushed entry so a Back/Forward that later lands back on it knows we
+      // own it and closes by popping — untagged, the re-entered panel would strip
+      // its param instead, lighting the Forward button on one close but not the next.
+      history.replaceState({ ...history.state, entryPanel: true }, '');
+    }
   }
 
   // Open from the URL (deep link, or Back/Forward into an entry): synthesize a
   // target, let the worker seed it, and DON'T navigate — the URL is already there.
-  function openFromRoute({ norm, display }) {
+  function openFromRoute({ norm, display }, { animate = false } = {}) {
     // A value equal to its own norm is a bare entry rendered as the norm; seed it
     // as bare (display null) so the worker's bare fallback resolves the winner.
     const seedDisplay = display === norm ? null : display;
-    doOpen({ norm, display: seedDisplay, score: '', comment: '', wordlist: null }, null, getEntriesScroller(), 'score', 'edit', true);
-    ownsHistoryEntry = false;
+    doOpen({ norm, display: seedDisplay, score: '', comment: '', wordlist: null }, null, getEntriesScroller(), 'score', 'edit', true, animate);
+    // Tagged → an entry we pushed (Back/Forward re-entered it), ours to pop on close.
+    // Untagged → a cold deep link with nothing of ours behind it, so close strips.
+    ownsHistoryEntry = !!history.state?.entryPanel;
   }
 
   // The seed is a correctness input — a save writes FROM it into My Edits — so the
   // fields stay disabled until the worker's winner refines the placeholder; a save
   // against the un-refined scoped value would be wrong. A null reply (stale/disabled
   // scope) keeps the clicked placeholder.
-  function refineScopedSeed(clicked, focusField) {
+  function refineScopedSeed(clicked, focusField, route) {
     const token = ++seedQueryToken;
     seedQueriesFired++;
     setFieldsDisabled(true);
@@ -1769,7 +1779,7 @@ export const EntryPanel = (() => {
         const src = state.sources.find(s => s.dbKey === winner.sourceId) || null;
         const row = { ...winner, wordlist: src };
         activeSeed = seedFromWinnerRow(row, src != null && src === getEditsWordlist());
-        applySeedToFields(activeSeed, focusField);
+        applySeedToFields(activeSeed, focusField, route);
         seedWinnersApplied++;
       }
       refreshSaveEnabled();
@@ -1783,7 +1793,7 @@ export const EntryPanel = (() => {
     }
   }
 
-  function applySeedToFields(seed, focusField) {
+  function applySeedToFields(seed, focusField, route) {
     const entryInp = el.querySelector('.entry-input');
     const scoreInp = el.querySelector('.score-input');
     const commentInp = el.querySelector('.comment-input');
@@ -1794,7 +1804,7 @@ export const EntryPanel = (() => {
     renderProvWrap();
     refreshSaveEnabled();
     updateModeLabels();
-    if (activeMode === 'create' || focusField !== 'entry') focusSeedField(focusField);
+    if (!route && (activeMode === 'create' || focusField !== 'entry')) focusSeedField(focusField);
   }
 
   // The entry name is focus-only (no select): a click on a word is rarely a
