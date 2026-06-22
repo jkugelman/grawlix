@@ -39,16 +39,6 @@ function foreignHasNorm(sources, norm) {
   return sources.some(wl => isLive(wl) && !isEdits(wl) && getRescoredByNorm(wl).has(norm));
 }
 
-function foreignBare(sources, norm) {
-  for (const wl of sources) {
-    if (!isLive(wl) || isEdits(wl)) continue;
-    const arr = getRescoredByNorm(wl).get(norm);
-    const bare = arr && arr.find(e => e.display == null);
-    if (bare) return bare;
-  }
-  return null;
-}
-
 function foreignHasSpelling(sources, norm, display) {
   for (const wl of sources) {
     if (!isLive(wl) || isEdits(wl)) continue;
@@ -69,12 +59,14 @@ function foreignHasSpelling(sources, norm, display) {
 function keepCopies(newNorm, newDisplay, sources, edits, upserts, notes) {
   const editsRows = edits ? (getRescoredByNorm(edits).get(newNorm) || []) : [];
   if (newDisplay != null) {
-    // keep-bare: else the typed rich absorbs a foreign bare and hides it.
+    // keep-bare: a bare shown as the plain spelling vanishes once the typed rich absorbs
+    // it, so copy it in. Match the merged plain row, not any raw bare — a bare already
+    // hidden under a foreign rich spelling has no row to preserve and must not resurface.
     if (editsRows.length === 0) {
-      const bare = foreignBare(sources, newNorm);
-      if (bare) {
-        upserts.push({ norm: newNorm, display: null, score: bare.score, comment: bare.comment || '' });
-        notes.push({ kind: 'keep-bare', norm: newNorm, display: null, score: bare.score, comment: bare.comment || '' });
+      const plain = computeMergedBucket(newNorm, sources).rows.find(r => r.display == null);
+      if (plain) {
+        upserts.push({ norm: newNorm, display: null, score: plain.score, comment: plain.comment || '' });
+        notes.push({ kind: 'keep-bare', norm: newNorm, display: null, score: plain.score, comment: plain.comment || '' });
       }
     }
     return;

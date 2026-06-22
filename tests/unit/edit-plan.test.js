@@ -59,6 +59,18 @@ test('create: rich over a foreign bare copies the bare down (snapshotting its sc
   assert.deepStrictEqual(p.notes, [{ kind: 'keep-bare', norm: 'theirs', display: null, score: 30, comment: 'pron' }]);
 });
 
+test('create: rich over a foreign bare does NOT copy the bare when a foreign rich already hides it', () => {
+  const sources = [
+    edits(),
+    src('Nediger', [wlEntry('secondstomach', 60, { display: 'second stomach' })]),
+    src('Broda', [wlEntry('secondstomach', 20)]),   // bare, already hidden under Nediger's spelling
+  ];
+  const p = planEntryWrite({ mode: 'create', clicked: null, typed: typed('second stomach', 60), sources });
+  assert.equal(p.blockedReason, null);
+  assert.deepStrictEqual(p.upserts, [{ norm: 'secondstomach', display: 'second stomach', score: 60, comment: '' }]);
+  assert.deepStrictEqual(p.notes, []);
+});
+
 test('create: rich over a foreign bare does NOT copy when My Edits already has the norm', () => {
   const sources = [edits([wlEntry('theirs', 70, { display: 'Theirs' })]), src('XWI', [wlEntry('theirs', 30)])];
   const p = planEntryWrite({ mode: 'create', clicked: null, typed: typed('the IRS', 90), sources });

@@ -159,6 +159,14 @@ test('creating a bare entry over a foreign rich keeps the rich visible', async (
   await expect.poll(() => displaysForNorm(page, 'theirs')).toEqual(['the IRS', 'theirs']);
 });
 
+test('adding a rich entry does not copy a foreign bare already hidden by a foreign rich spelling', async ({ page }) => {
+  await gotoApp(page);
+  await addList(page, { name: 'Nediger', entries: ['second stomach'], scores: [60] });
+  await addList(page, { name: 'Broda', entries: ['secondstomach'], scores: [20] });
+  await page.evaluate(() => window.__grawlixTest.createMyEntry('second stomach', 60));
+  await expect.poll(() => myEditsForNorm(page, 'secondstomach')).toEqual(['second stomach']);
+});
+
 test('the keep-rich copy previews as a second added My Edits row, not a note', async ({ page }) => {
   await gotoApp(page);
   await addList(page, { name: 'W', entries: ['the IRS'], scores: [40] });
