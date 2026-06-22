@@ -2,7 +2,7 @@
 
 // ─── Entries table ─────────────────────────────────────────────────────────────
 //
-// The virtual scroller, atom/group popovers, and the sort/projection logic that
+// The virtual scroller, the entry panel and group popover, and the sort/projection logic that
 // orders the entries table. The sort tier follows the tool stack (single-atom
 // filter chains, multi-atom transform chains, group chains); each tier owns a
 // set of sort axes with fixed-direction tiebreaker chains.
@@ -111,12 +111,12 @@ export function existsInScopeDebug() {
   return { existsInScope: s._existsInScope };
 }
 
-export function popoverSeedDebug() {
-  return AtomPopover.seedDebug();
+export function entryPanelSeedDebug() {
+  return EntryPanel.seedDebug();
 }
 
-export function popoverProvenanceDebug() {
-  return AtomPopover.provenanceDebug();
+export function entryPanelProvenanceDebug() {
+  return EntryPanel.provenanceDebug();
 }
 
 export function configureEntriesTable({ navigate }) {
@@ -493,7 +493,7 @@ export const GroupMorePopover = (() => {
     el.hidden = true;
     document.body.appendChild(el);
 
-    // AtomPopover is passed `el` as its row so its dismiss logic treats clicks
+    // EntryPanel is passed `el` as its row so its dismiss logic treats clicks
     // within this list as in-bounds — letting you edit one hidden word, then
     // another, without it closing between.
     el.addEventListener('click', e => {
@@ -506,7 +506,7 @@ export const GroupMorePopover = (() => {
                     ?.atoms[parseInt(atomEl.dataset.atom, 10)];
       if (!atom) return;
       const field = target.classList.contains('atom-score') ? 'score' : null;
-      AtomPopover.open(atom.wlEntry, el, scroller, target, field);
+      EntryPanel.open(atom.wlEntry, el, scroller, field);
     });
   }
 
@@ -524,11 +524,11 @@ export const GroupMorePopover = (() => {
   }
   function onKey(e) { if (e.key === 'Escape') close(); }
   // Neither a chip re-click (routed through toggle) nor a click into the
-  // AtomPopover anchored on a word here should dismiss this list. mousedown,
+  // EntryPanel anchored on a word here should dismiss this list. mousedown,
   // not pointerdown, so a touch-drag that scrolls the table leaves it open.
   function onOutside(e) {
     if (el.contains(e.target)) return;
-    if (e.target.closest('.group-more, #atom-popover')) return;
+    if (e.target.closest('.group-more, #entry-panel')) return;
     close();
   }
 
@@ -696,7 +696,7 @@ export class EntriesScroller extends BaseVirtualScroller {
         ScorePicker.open(wlEntry, row, this, anchor);
         return;
       }
-      AtomPopover.open(wlEntry, row, this, anchor, field);
+      EntryPanel.open(wlEntry, row, this, field);
     });
 
     this.sizer.addEventListener('mouseover', e => {
@@ -774,7 +774,7 @@ export class EntriesScroller extends BaseVirtualScroller {
     this._invalidateSortCache();
     if (tierChanged) rebuildEntryHeaders();
     this._sortAndRender();
-    AtomPopover.rebindEntry(this);
+    EntryPanel.rebindEntry(this);
   }
 
   _ingestResult(result) {
@@ -1047,7 +1047,7 @@ export class EntriesScroller extends BaseVirtualScroller {
 
     const preview = rescorePreviewActive();
     const draftRules = preview ? getDraftRescoreRules() : null;
-    const activeNorm = AtomPopover.activeNorm(this);
+    const activeNorm = EntryPanel.activeNorm(this);
     let nextActiveRow = null;
     let minMiss = -1, maxMiss = -1;
     const frag = document.createDocumentFragment();
@@ -1066,7 +1066,7 @@ export class EntriesScroller extends BaseVirtualScroller {
       frag.appendChild(row);
     }
     this.sizer.appendChild(frag);
-    if (nextActiveRow) AtomPopover.rebindRow(nextActiveRow);
+    if (nextActiveRow) EntryPanel.rebindRow(nextActiveRow);
 
     if (minMiss >= 0) {
       const lo = Math.max(0, minMiss - VS_BUFFER);
@@ -1225,7 +1225,7 @@ export class EntriesScroller extends BaseVirtualScroller {
     const { start, end } = this._visibleRange(n);
     this._clearSizer();
     this._invalidateGroupWinCacheIfStale();
-    const activeNorm = AtomPopover.activeNorm(this);
+    const activeNorm = EntryPanel.activeNorm(this);
     let nextActiveRow = null;
     const stack = ToolStack.getStack();
     const columns = activeGroupColumns(stack);
@@ -1262,7 +1262,7 @@ export class EntriesScroller extends BaseVirtualScroller {
       frag.appendChild(row);
     }
     this.sizer.appendChild(frag);
-    if (nextActiveRow) AtomPopover.rebindRow(nextActiveRow);
+    if (nextActiveRow) EntryPanel.rebindRow(nextActiveRow);
 
     if (minMiss >= 0) {
       const lo = Math.max(0, minMiss - VS_BUFFER);
@@ -1451,10 +1451,10 @@ export class EntriesScroller extends BaseVirtualScroller {
   }
 
   // The match guard is load-bearing: the shipped answer resolves whatever target
-  // rode this run's dispatch, so on a mismatch (the popover re-targeted between
+  // rode this run's dispatch, so on a mismatch (the panel re-targeted between
   // dispatch and rebind) it names the wrong entry. Post-flip there's no local
   // corpus to fall back to, so a mismatch returns the not-found answer and the
-  // popover reconciles on the next run's rebindEntry.
+  // panel reconciles on the next run's rebindEntry.
   _rebindAnswerApplies(norm, display) {
     const applies = !!(this._ranAgainstOwned && this._rebindQuery
       && this._rebindQuery.norm === norm && (this._rebindQuery.display ?? null) === (display ?? null));
@@ -1463,7 +1463,7 @@ export class EntriesScroller extends BaseVirtualScroller {
   }
 
   // The rows the synchronous rebind search walks. Grouped windows, so allEntries is
-  // empty there — search the cached groups instead. The popover only ever anchors
+  // empty there — search the cached groups instead. The panel only ever opens
   // on a rendered (hence cached) group, so its target is always reachable here.
   _rebindSearchRows() {
     return this.sortTier === 'group' ? this._groupWinCache.values() : this.allEntries;
@@ -1497,10 +1497,10 @@ export class EntriesScroller extends BaseVirtualScroller {
   }
 }
 
-// ─── Shared popover helpers ───────────────────────────────────────────────────
+// ─── Shared editor helpers ───────────────────────────────────────────────────
 
-// Desktop only — callers guard the mobile case, where CSS docks the panel as a
-// bottom sheet and inline coordinates must be left unset.
+// Desktop only — the caller (ScorePicker) guards the mobile case, where CSS docks
+// the picker as a bottom sheet and inline coordinates must be left unset.
 function anchorDropdown(panel, anchorEl) {
   const r = anchorEl.getBoundingClientRect();
   panel.style.top = (r.bottom + 4) + 'px';
@@ -1518,23 +1518,6 @@ function anchorDropdown(panel, anchorEl) {
     panel.style.top = top + 'px';
     panel.style.left = left + 'px';
   });
-}
-
-function anchorSelectorWithin(rowEl, anchorEl) {
-  if (!rowEl || !anchorEl || rowEl === anchorEl || !rowEl.contains(anchorEl)) return null;
-  const field = ['atom-entry', 'atom-score', 'atom-comment'].find(c => anchorEl.classList.contains(c));
-  if (!field) return null;
-  const parts = [];
-  const chain = anchorEl.closest('.group-chain');
-  if (chain && rowEl.contains(chain)) parts.push(`.group-chain[data-chain="${chain.dataset.chain}"]`);
-  const atom = anchorEl.closest('.atom');
-  if (atom && rowEl.contains(atom)) {
-    parts.push(atom.dataset.atomRole === 'anchor'
-      ? '.atom[data-atom-role="anchor"]'
-      : `.atom[data-atom="${atom.dataset.atom}"]`);
-  }
-  parts.push('.' + field);
-  return parts.join(' ');
 }
 
 function seedFromWinnerRow(row, winnerIsEdits) {
@@ -1571,13 +1554,11 @@ function editBaselineFor(base) {
   return bare ? { norm: bare.norm, display: null, score: bare.score, comment: bare.comment ?? '' } : base;
 }
 
-// ─── Atom popover ─────────────────────────────────────────────────────────────
+// ─── Entry panel ─────────────────────────────────────────────────────────────
 
-export const AtomPopover = (() => {
+export const EntryPanel = (() => {
   let el = null;
   let activeRow = null;
-  let activeAnchor = null;
-  let activeAnchorSel = null;
   let activeWlEntry = null;
   let activeSeed = null;
   let activeScroller = null;
@@ -1585,7 +1566,7 @@ export const AtomPopover = (() => {
   let stagedDelete = null;
   let stagedAdopt = false;
   // Monotonic token for an in-flight scoped-seed worker query; a re-open or close
-  // bumps it so a late reply for a stale popover is dropped rather than re-seeding
+  // bumps it so a late reply for a stale panel is dropped rather than re-seeding
   // the wrong row.
   let seedQueryToken = 0;
   let seedQueriesFired = 0;
@@ -1599,31 +1580,58 @@ export const AtomPopover = (() => {
   let provQueriesFired = 0;
   let provRepliesApplied = 0;
   function provenanceDebug() { return { provQueriesFired, provRepliesApplied }; }
-  // The popover element focus is in or transitioning to. Tracked via capture-
+  // The panel element focus is in or transitioning to. Tracked via capture-
   // phase blur (relatedTarget says where focus is *headed*) because an
   // edit-commit re-render runs in a microtask between blur and focusin, when
   // document.activeElement is transiently <body> — reading it then would
-  // wrongly close the popover or clobber an input mid-tab.
+  // wrongly close the panel or clobber an input mid-tab.
   let focusEl = null;
+  // The panel parks a history entry while open so Back closes it instead of
+  // navigating the app away (the narrow overlay's Back is the OS edge-swipe the
+  // user reaches for). ignorePop swallows the popstate our own back() raises.
+  let ownsHistoryEntry = false;
+  let ignorePop = false;
 
   function ensureElement() {
     if (el) return el;
     el = document.createElement('div');
-    el.id = 'atom-popover';
+    el.id = 'entry-panel';
     el.setAttribute('hidden', '');
     el.addEventListener('click', e => {
       if (e.target.closest('.dialog-close-btn')) { close(); return; }
-      if (e.target.closest('.atom-pop-prov-untrash')) { toggleStagedAdopt(); return; }
-      const trash = e.target.closest('.atom-pop-prov-trash');
+      if (e.target.closest('.entry-panel-prov-untrash')) { toggleStagedAdopt(); return; }
+      const trash = e.target.closest('.entry-panel-prov-trash');
       if (trash) { toggleStagedDelete(trash.dataset.norm, trash.dataset.display); return; }
-      if (e.target.closest('.atom-pop-adopt-btn')) toggleStagedAdopt();
+      if (e.target.closest('.entry-panel-adopt-btn')) toggleStagedAdopt();
     });
     el.addEventListener('focus', e => { focusEl = e.target; }, true);
     el.addEventListener('blur', e => {
       focusEl = e.relatedTarget && el.contains(e.relatedTarget) ? e.relatedTarget : null;
     }, true);
+    window.addEventListener('popstate', onPopState);
     document.body.appendChild(el);
     return el;
+  }
+
+  function pushHistoryEntry() {
+    if (ownsHistoryEntry) return;
+    history.pushState({ grawlixEntryPanel: true }, '');
+    ownsHistoryEntry = true;
+  }
+
+  // Pop our parked entry on a UI close (X / Esc / Cancel / Save / click-away), so
+  // Back afterwards navigates the app rather than spending a press on a stale entry.
+  function popHistoryEntry() {
+    if (!ownsHistoryEntry) return;
+    ownsHistoryEntry = false;
+    ignorePop = true;
+    history.back();
+  }
+
+  function onPopState() {
+    if (ignorePop) { ignorePop = false; return; }
+    // A real Back already popped our entry; close without popping again.
+    if (isOpen()) { ownsHistoryEntry = false; close(); }
   }
 
   function isOpen() { return el && !el.hasAttribute('hidden'); }
@@ -1631,10 +1639,9 @@ export const AtomPopover = (() => {
   function close() {
     if (!el || el.hasAttribute('hidden')) return;
     el.setAttribute('hidden', '');
+    popHistoryEntry();
     if (activeRow) activeRow.classList.remove('active');
     activeRow = null;
-    activeAnchor = null;
-    activeAnchorSel = null;
     activeWlEntry = null;
     activeSeed = null;
     activeScroller = null;
@@ -1657,6 +1664,12 @@ export const AtomPopover = (() => {
     if (!isOpen()) return;
     if (el.contains(e.target)) return;
     if (activeRow && activeRow.contains(e.target)) return;
+    // Don't close on a mousedown over another editable atom cell: the click
+    // re-targets this panel (reusing its one history entry). Closing here would
+    // pop that entry while the reopen pushes a new one, racing the two history
+    // ops across the mousedown/click boundary — an intermittent dismiss flake.
+    const cell = e.target.closest?.('.atom-entry, .atom-score, .atom-comment');
+    if (cell && !cell.classList.contains('atom-noedit')) return;
     close();
   }
 
@@ -1671,9 +1684,9 @@ export const AtomPopover = (() => {
     return state.selected !== MERGED_ID && clicked?.norm != null;
   }
 
-  function open(wlEntry, rowEl, scroller, anchorEl, focusField = 'score', mode = 'edit') {
+  function open(wlEntry, rowEl, scroller, focusField = 'score', mode = 'edit') {
     ScorePicker.close();
-    const popover = ensureElement();
+    const panel = ensureElement();
     if (activeRow) activeRow.classList.remove('active');
     activeMode = mode;
     activeWlEntry = wlEntry;
@@ -1681,17 +1694,20 @@ export const AtomPopover = (() => {
     activeScroller = scroller;
     if (rowEl) rowEl.classList.add('active');
     shippedProvRows = null;
+    // Reset per-target state here, not only in close(): a re-target (click another
+    // atom while open) now reuses the panel without closing, so a stale staged
+    // delete or focus ref from the previous target must clear on open too.
     stagedAdopt = false;
+    stagedDelete = null;
+    focusEl = null;
 
     // Seed from the clicked row: in the merged view it IS the merge winner; a
     // scoped view holds a losing value, refined below by refineScopedSeed.
     const seed = seedFromWinnerRow(wlEntry, getEditsWordlist() != null && wlEntry.wordlist === getEditsWordlist());
 
-    popover.innerHTML = renderHTML(wlEntry, seed);
-    popover.removeAttribute('hidden');
-    activeAnchor = anchorEl ?? rowEl;
-    activeAnchorSel = anchorEl && rowEl ? anchorSelectorWithin(rowEl, anchorEl) : null;
-    position(activeAnchor);
+    panel.innerHTML = renderHTML(wlEntry, seed);
+    panel.removeAttribute('hidden');
+    pushHistoryEntry();
     wireFields();
 
     fireInitialProvenanceQuery(seed.entry);
@@ -1701,9 +1717,6 @@ export const AtomPopover = (() => {
     // view-first, and grabbing it implies a rename and pops the mobile keyboard.
     // Score/comment cells are clear edits, and create types a new entry; both focus.
     if (activeMode === 'create' || focusField !== 'entry') focusSeedField(focusField);
-    // Reset to the top: the element is reused and the lookup section can overflow
-    // the mobile sheet, so a fresh open must not inherit a prior scroll position.
-    popover.scrollTop = 0;
 
     document.addEventListener('mousedown', onDocMouseDown, true);
     document.addEventListener('keydown', onKeydown, true);
@@ -1734,7 +1747,7 @@ export const AtomPopover = (() => {
   }
 
   function setFieldsDisabled(disabled) {
-    for (const sel of ['.entry-input', '.score-input', '.comment-input', '.atom-pop-save']) {
+    for (const sel of ['.entry-input', '.score-input', '.comment-input', '.entry-panel-save']) {
       const node = el?.querySelector(sel);
       if (node) node.disabled = disabled;
     }
@@ -1761,20 +1774,20 @@ export const AtomPopover = (() => {
               : focusField === 'comment' ? '.comment-input'
               : '.score-input';
     const input = el?.querySelector(sel);
-    // preventScroll: on the tall mobile sheet the browser's focus-into-view can
-    // scroll the focused field off-screen; open() shows the top explicitly instead.
+    // preventScroll: the field sits in the pinned header, so focus-into-view has
+    // nothing to do but yank the page when the mobile keyboard opens.
     input?.focus({ preventScroll: true });
     if (focusField !== null && focusField !== 'entry') input?.select();
   }
 
-  function openForCreate(entryStr, scroller, anchorEl) {
-    open(buildUserWlEntry(entryStr, '', ''), null, scroller, anchorEl, 'entry', 'create');
+  function openForCreate(entryStr, scroller) {
+    open(buildUserWlEntry(entryStr, '', ''), null, scroller, 'entry', 'create');
   }
 
   function renderFooterHTML(entryText) {
-    return `<span class="atom-pop-adopt"></span>`
-      + `<button class="atom-pop-cancel" type="button">Cancel</button>`
-      + `<button class="atom-pop-save" type="button">${esc(saveLabel(entryText))}</button>`;
+    return `<span class="entry-panel-adopt"></span>`
+      + `<button class="entry-panel-cancel" type="button">Cancel</button>`
+      + `<button class="entry-panel-save" type="button">${esc(saveLabel(entryText))}</button>`;
   }
 
   function renderProvenanceTableHTML() {
@@ -1840,11 +1853,11 @@ export const AtomPopover = (() => {
 
   function renderNotesHTML() {
     return previewPlan()?.blockedReason === 'exists'
-      ? `<div class="atom-pop-note atom-pop-note--block">That entry already exists.</div>`
+      ? `<div class="entry-panel-note entry-panel-note--block">That entry already exists.</div>`
       : '';
   }
 
-  // Mirror saveEdit's no-op check so an untouched popover shows no preview row.
+  // Mirror saveEdit's no-op check so an untouched panel shows no preview row.
   function pendingWritesChange({ raw, score, comment }) {
     const base = saveBaseline();
     const baseDisplay = base.display ?? base.norm;
@@ -1857,36 +1870,36 @@ export const AtomPopover = (() => {
     const adoptLabel = `Don't ${adoptWillReplace() ? 'update' : 'add to'} My Edits`;
     const body = rows.map(({ wordlist, entry, enabled, diff, saved, isEdits, isStaged, adoptStaged }) => {
       const disabled = wordlist ? wordlist.enabled === false : enabled === false;
-      const cls = ['atom-pop-prov-row'];
-      if (disabled) cls.push('atom-pop-prov-row--disabled');
-      if (diff) cls.push(`atom-pop-prov-row--${diff}`);
+      const cls = ['entry-panel-prov-row'];
+      if (disabled) cls.push('entry-panel-prov-row--disabled');
+      if (diff) cls.push(`entry-panel-prov-row--${diff}`);
       const comment = entry.comment || '';
       const label = isStaged ? 'Restore this edit' : 'Delete this edit';
       // A rename's predicted-delete row (diff 'deleted', not user-staged) gets no
       // trash — only a genuinely saved row, or the staged-delete row to restore it.
       const trash = adoptStaged
-        ? `<button class="atom-pop-prov-trash atom-pop-prov-untrash" type="button"`
+        ? `<button class="entry-panel-prov-trash entry-panel-prov-untrash" type="button"`
           + ` title="${adoptLabel}" aria-label="${adoptLabel}">${buildTrashIconHTML()}</button>`
         : saved && isEdits && (diff !== 'deleted' || isStaged)
-        ? `<button class="atom-pop-prov-trash${isStaged ? ' staged' : ''}" type="button"`
+        ? `<button class="entry-panel-prov-trash${isStaged ? ' staged' : ''}" type="button"`
           + ` data-norm="${esc(entry.norm)}" data-display="${esc(displayOf(entry))}"`
           + ` title="${label}" aria-label="${label}">${buildTrashIconHTML()}</button>`
         : '';
       return `<tr class="${cls.join(' ')}">`
-        + `<td class="atom-pop-prov-entry">${esc(displayOf(entry))}</td>`
-        + `<td class="atom-pop-prov-score">${buildScoreCellHTML(entry, true)}</td>`
-        + `<td class="atom-pop-prov-comment"${comment ? ` title="${esc(comment)}"` : ''}>${esc(comment)}</td>`
-        + `<td class="atom-pop-prov-source">${buildWordlistNameIconHTML(wordlist, { bold: false })}</td>`
-        + `<td class="atom-pop-prov-action">${trash}</td>`
+        + `<td class="entry-panel-prov-entry">${esc(displayOf(entry))}</td>`
+        + `<td class="entry-panel-prov-score">${buildScoreCellHTML(entry, true)}</td>`
+        + `<td class="entry-panel-prov-comment"${comment ? ` title="${esc(comment)}"` : ''}>${esc(comment)}</td>`
+        + `<td class="entry-panel-prov-source">${buildWordlistNameIconHTML(wordlist, { bold: false })}</td>`
+        + `<td class="entry-panel-prov-action">${trash}</td>`
         + `</tr>`;
     }).join('');
-    return `<table class="atom-pop-prov">`
+    return `<table class="entry-panel-prov">`
       + `<thead><tr>`
-      + `<th class="atom-pop-prov-entry">Entry</th>`
-      + `<th class="atom-pop-prov-score">Score</th>`
-      + `<th class="atom-pop-prov-comment">Comment</th>`
-      + `<th class="atom-pop-prov-source">Source</th>`
-      + `<th class="atom-pop-prov-action"></th>`
+      + `<th class="entry-panel-prov-entry">Entry</th>`
+      + `<th class="entry-panel-prov-score">Score</th>`
+      + `<th class="entry-panel-prov-comment">Comment</th>`
+      + `<th class="entry-panel-prov-source">Source</th>`
+      + `<th class="entry-panel-prov-action"></th>`
       + `</tr></thead>`
       + `<tbody>${body}</tbody>`
       + `</table>`;
@@ -1928,10 +1941,10 @@ export const AtomPopover = (() => {
   }
 
   function refreshAdoptLink() {
-    const slot = el?.querySelector('.atom-pop-adopt');
+    const slot = el?.querySelector('.entry-panel-adopt');
     if (!slot) return;
     slot.innerHTML = adoptable() && !stagedAdopt
-      ? `<button class="atom-pop-adopt-btn" type="button">`
+      ? `<button class="entry-panel-adopt-btn" type="button">`
         + `${esc(adoptWillReplace() ? 'Update My Edits' : 'Add to My Edits')}</button>`
       : '';
   }
@@ -1947,23 +1960,30 @@ export const AtomPopover = (() => {
     const seed = activeSeed = seedOverride
       ?? seedFromWinnerRow(wlEntry, getEditsWordlist() != null && wlEntry.wordlist === getEditsWordlist());
     return `
-      <button class="dialog-close-btn" type="button" aria-label="Close">✕</button>
-      <div class="atom-pop-title">${esc(headerText(seed.entry))}</div>
-      <div class="atom-pop-fields">
-        <label for="atom-pop-entry">Entry</label>
-        <input id="atom-pop-entry" class="entry-input" type="text" autocapitalize="off" autocorrect="off" spellcheck="false" value="${esc(seed.entry)}">
-        <label for="atom-pop-score">Score</label>
-        <input id="atom-pop-score" class="score-input" type="number" min="0" value="${seed.score}">
-        <label for="atom-pop-comment">Comment</label>
-        <input id="atom-pop-comment" class="comment-input" type="text" value="${esc(seed.comment)}">
+      <div class="entry-panel-header">
+        <button class="dialog-close-btn" type="button" aria-label="Close">
+          <span class="entry-panel-close-x" aria-hidden="true">✕</span>
+          <span class="entry-panel-close-back" aria-hidden="true">←</span>
+        </button>
+        <div class="entry-panel-title">${esc(headerText(seed.entry))}</div>
+        <div class="entry-panel-fields">
+          <label for="entry-panel-entry">Entry</label>
+          <input id="entry-panel-entry" class="entry-input" type="text" autocapitalize="off" autocorrect="off" spellcheck="false" value="${esc(seed.entry)}">
+          <label for="entry-panel-score">Score</label>
+          <input id="entry-panel-score" class="score-input" type="number" min="0" value="${seed.score}">
+          <label for="entry-panel-comment">Comment</label>
+          <input id="entry-panel-comment" class="comment-input" type="text" value="${esc(seed.comment)}">
+        </div>
       </div>
-      <div class="atom-pop-prov-wrap">${renderProvenanceTableHTML()}${renderNotesHTML()}</div>
-      <div class="atom-pop-lookup"></div>
-      <div class="atom-pop-foot">${renderFooterHTML(seed.entry)}</div>`;
+      <div class="entry-panel-body">
+        <div class="entry-panel-prov-wrap">${renderProvenanceTableHTML()}${renderNotesHTML()}</div>
+        <div class="entry-panel-lookup"></div>
+      </div>
+      <div class="entry-panel-foot">${renderFooterHTML(seed.entry)}</div>`;
   }
 
   // Entry text is passed in, not read from `.entry-input`: during renderHTML `el`
-  // still holds the previous popover's input, which would mis-flag a fresh open.
+  // still holds the previous panel's input, which would mis-flag a fresh open.
   function isRenaming(entryText) {
     if (activeMode !== 'edit') return false;
     const raw = entryText.trim();
@@ -1991,9 +2011,9 @@ export const AtomPopover = (() => {
 
   function updateModeLabels() {
     const entryText = entryInputValue();
-    const t = el && el.querySelector('.atom-pop-title');
+    const t = el && el.querySelector('.entry-panel-title');
     if (t) t.textContent = headerText(entryText, pendingWritesChange(readNewValues()));
-    const s = el && el.querySelector('.atom-pop-save');
+    const s = el && el.querySelector('.entry-panel-save');
     if (s) s.textContent = saveLabel(entryText);
   }
 
@@ -2029,11 +2049,8 @@ export const AtomPopover = (() => {
 
   function renderProvWrap() {
     if (!isOpen()) return;
-    const provEl = el.querySelector('.atom-pop-prov-wrap');
+    const provEl = el.querySelector('.entry-panel-prov-wrap');
     if (provEl) provEl.innerHTML = renderProvenanceTableHTML() + renderNotesHTML();
-    // open() positions against the still-empty table (rows await the worker), so
-    // re-anchor as it grows or the popover spills off the bottom near the viewport edge.
-    position(activeAnchor);
   }
 
   // No debounce: every keystroke (and the open) fires. The monotonic token drops
@@ -2111,15 +2128,15 @@ export const AtomPopover = (() => {
   }
 
   function wireFooter() {
-    el.querySelector('.atom-pop-cancel').addEventListener('click', close);
-    el.querySelector('.atom-pop-save').addEventListener('click', submit);
+    el.querySelector('.entry-panel-cancel').addEventListener('click', close);
+    el.querySelector('.entry-panel-save').addEventListener('click', submit);
     refreshSaveEnabled();
   }
 
   // Save commits a staged deletion, so it stays enabled while one is pending
   // (its inputs are disabled then, but the validity gate must not block it).
   function refreshSaveEnabled() {
-    const saveBtn = el.querySelector('.atom-pop-save');
+    const saveBtn = el.querySelector('.entry-panel-save');
     if (saveBtn) {
       if (stagedDelete || stagedAdopt) saveBtn.disabled = false;
       else {
@@ -2164,28 +2181,8 @@ export const AtomPopover = (() => {
 
     wireFooter();
 
-    const lookupHost = el.querySelector('.atom-pop-lookup');
-    if (lookupHost) LookupSection.mount(lookupHost, entryInp.value, () => position(activeAnchor));
-  }
-
-  function position(anchorEl) {
-    // Mobile uses a CSS bottom sheet; clear inline top/left left by a prior
-    // desktop open, or they'd override the sheet's positioning after a resize.
-    if (window.matchMedia('(max-width: 759px)').matches) {
-      el.style.top = '';
-      el.style.left = '';
-      return;
-    }
-    if (!anchorEl) {
-      const pw = el.offsetWidth, ph = el.offsetHeight;
-      el.style.left = Math.max(8, (window.innerWidth  - pw) / 2) + 'px';
-      el.style.top  = Math.max(8, (window.innerHeight - ph) / 2) + 'px';
-      return;
-    }
-    // A detached anchor's rect is all zeros; re-anchoring would jump to the corner.
-    // Hold the last good position instead (e.g. the active row scrolled out of view).
-    if (!anchorEl.isConnected) return;
-    anchorDropdown(el, anchorEl);
+    const lookupHost = el.querySelector('.entry-panel-lookup');
+    if (lookupHost) LookupSection.mount(lookupHost, entryInp.value);
   }
 
   function setScoreByDigit(digit) {
@@ -2214,10 +2211,6 @@ export const AtomPopover = (() => {
     if (activeRow) activeRow.classList.remove('active');
     activeRow = rowEl;
     rowEl.classList.add('active');
-    // Re-bind the anchor: the rebuilt row detached the old node, whose zero rect
-    // a later reposition would read as the origin and fling the popover to the corner.
-    if (activeAnchorSel) activeAnchor = rowEl.querySelector(activeAnchorSel) || rowEl;
-    else if (activeAnchor && !activeAnchor.isConnected) activeAnchor = rowEl;
   }
 
   // Rides the run (mirrors existsInScope) instead of awaiting the worker at
@@ -2242,8 +2235,8 @@ export const AtomPopover = (() => {
   return { open, openForCreate, close, isOpen, containsFocus, activeNorm, rebindRow, rebindEntry, rebindQuery, setScoreByDigit, seedDebug, provenanceDebug };
 })();
 
-export function popoverRebindQuery() {
-  return AtomPopover.rebindQuery();
+export function entryPanelRebindQuery() {
+  return EntryPanel.rebindQuery();
 }
 
 // ─── Score quick-pick ─────────────────────────────────────────────────────────
@@ -2284,14 +2277,14 @@ function commitRescore(scroller, wlEntry, score) {
 
 export function handleScoreDigitShortcut(digit) {
   if (ScorePicker.isOpen()) return ScorePicker.pickDigit(digit);
-  if (AtomPopover.isOpen()) return AtomPopover.setScoreByDigit(digit);
+  if (EntryPanel.isOpen()) return EntryPanel.setScoreByDigit(digit);
   return getEntriesScroller()?.hoverRescoreByDigit(digit) ?? false;
 }
 
 // Offered only in the All Wordlists and My Edits scopes: there the clicked row
 // holds the value a save writes, so the picked tier shows in place. A single-
 // source scope would write the edit into My Edits while still showing the
-// source's score — silently appearing to do nothing — so it uses the AtomPopover.
+// source's score — silently appearing to do nothing — so it uses the EntryPanel.
 export const ScorePicker = (() => {
   let el = null;
   let activeRow = null;
@@ -2322,9 +2315,9 @@ export const ScorePicker = (() => {
   function isOpen() { return el && !el.hasAttribute('hidden'); }
 
   function open(wlEntry, rowEl, scroller, anchorEl) {
-    AtomPopover.close();
+    EntryPanel.close();
     options = buildScoreOptions();
-    if (!options.length) { AtomPopover.open(wlEntry, rowEl, scroller, anchorEl, 'score'); return; }
+    if (!options.length) { EntryPanel.open(wlEntry, rowEl, scroller, 'score'); return; }
 
     const picker = ensureElement();
     if (activeRow) activeRow.classList.remove('active');
@@ -2482,7 +2475,7 @@ export const SortMenu = (() => {
 
   function open(trigger, axisKeys, extend = false) {
     ScorePicker.close();
-    AtomPopover.close();
+    EntryPanel.close();
     extendMode = extend;
     menuAxisKeys = axisKeys;
     const stack = ToolStack.getStack();

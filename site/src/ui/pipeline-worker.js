@@ -12,7 +12,7 @@ import { setShippedAllSourcesAxis, setShippedScopedLayout } from '../data/derive
 import { setShippedConfigCounts } from '../data/merge.js';
 import { MERGED_ID } from '../core/constants.js';
 import { AppView, activeScoreRange } from './app-view.js';
-import { popoverRebindQuery } from './entries-table.js';
+import { entryPanelRebindQuery } from './entries-table.js';
 
 let workerBaseURL = null;
 let worker = null;
@@ -172,7 +172,7 @@ function dispatchRun(stack, sort, scope) {
 
   const existsQuery = AppView.searchQuery.trim() || null;
   const scoreRange = activeScoreRange() || null;
-  const rebindQuery = popoverRebindQuery();
+  const rebindQuery = entryPanelRebindQuery();
 
   // A superseded run gets no worker reply — settle the prior one as aborted here
   // or its awaiter (and pipelineIdle, which the whole suite gates on) dangles.
@@ -479,7 +479,7 @@ export function pingWorker(timeout = 2000) {
 }
 
 // ─── Edit-seed fetch bridge ── see docs/worker-protocol.md ───────────────────
-// Own requestId space, independent of the run's runId: a popover query must not
+// Own requestId space, independent of the run's runId: an entry-panel query must not
 // touch run supersession. A timeout resolves null so main falls back to its
 // local clicked seed rather than hanging the editor.
 let fetchEditSeedRequestId = 0;
@@ -504,7 +504,7 @@ export function fetchWorkerEditSeed(norm, display, timeout = 5000) {
 
 // ─── Provenance + preview fetch bridge ── see docs/worker-protocol.md ────────
 // Its own requestId space, independent of both the run's runId and the edit-seed
-// lane: a popover query must not touch run or seed supersession. A timeout resolves
+// lane: an entry-panel query must not touch run or seed supersession. A timeout resolves
 // {preview:null,rows:null} so main falls back to its local corpus reads.
 let fetchProvenanceRequestId = 0;
 let provenanceFetches = 0;

@@ -34,10 +34,10 @@ async function runSearch(page, pattern) {
 
 async function fabSeed(page) {
   await page.locator('#add-fab').click();
-  await expect(page.locator('#atom-popover')).toBeVisible();
-  const seed = await page.locator('#atom-pop-entry').inputValue();
+  await expect(page.locator('#entry-panel')).toBeVisible();
+  const seed = await page.locator('#entry-panel-entry').inputValue();
   await page.keyboard.press('Escape');
-  await expect(page.locator('#atom-popover')).toBeHidden();
+  await expect(page.locator('#entry-panel')).toBeHidden();
   return seed;
 }
 

@@ -549,7 +549,7 @@ function handleFetchProvenance({ requestId, typedRaw, previewRaw, clickedNorm, c
     for (const wl of ownedBuilt) {
       const arr = getRescoredByNorm(wl).get(target.norm);
       if (!arr) continue;
-      // Mirror the merge's eligibility (§ corpus.js) so the popover and the table
+      // Mirror the merge's eligibility (§ corpus.js) so the entry panel and the table
       // agree on ancestry: a bare entry applies to every spelling of its norm —
       // never collapse to e.display === display — UNLESS this same list also spells
       // the sibling, which concretizes the bare one to its own row.
@@ -759,7 +759,7 @@ function computeGroupWidthHints(rows, stack) {
   return { maxCount, groupCount: rows.length, maxAnchorDisplayLen, maxAnchorScoreDigits, columnWidestByKey };
 }
 
-// Shared by the flat and transform branches so their popover re-anchor + exists
+// Shared by the flat and transform branches so their entry-panel re-anchor + exists
 // answers can't drift: a FULL-corpus byKey→byNorm lookup that re-anchors even to an
 // entry filtered OUT of the visible (range-filtered) view.
 function resolveRebindExists(existsQuery, rebindQuery) {

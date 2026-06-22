@@ -5,12 +5,12 @@ test.beforeEach(async ({ page }) => {
   await stubPublisherFetches(page);
 });
 
-async function openPopoverOnEntry(page, entryText) {
+async function openPanelOnEntry(page, entryText) {
   const row = page.locator('#vs-host .entry-row', {
     has: page.locator('.atom-entry', { hasText: new RegExp(`^${entryText}$`) }),
   }).first();
   await row.locator('.atom-entry').click();
-  await expect(page.locator('#atom-popover')).toBeVisible();
+  await expect(page.locator('#entry-panel')).toBeVisible();
 }
 
 const addList = (page, opts) => page.evaluate(o => window.__grawlixTest.addCustomWordlist(o), opts);
@@ -28,26 +28,26 @@ const myEditsForNorm = (page, norm) => page.evaluate(n =>
 const importIntoEdits = (page, text) =>
   page.evaluate(t => applyWordlistText(getEditsWordlist(), t, { source: 'mine.txt', silent: true }), text);
 
-const adoptLink = page => page.locator('#atom-popover .atom-pop-adopt-btn');
+const adoptLink = page => page.locator('#entry-panel .entry-panel-adopt-btn');
 
 // ─── Header ──────────────────────────────────────────────────────────────────
 
 test('header and Save button track View / Edit / Rename as fields diverge', async ({ page }) => {
   await gotoApp(page);
   await addList(page, { name: 'W', entries: ['ocean'], scores: [50] });
-  await openPopoverOnEntry(page, 'ocean');
-  const title = page.locator('#atom-popover .atom-pop-title');
-  const save = page.locator('#atom-popover .atom-pop-save');
+  await openPanelOnEntry(page, 'ocean');
+  const title = page.locator('#entry-panel .entry-panel-title');
+  const save = page.locator('#entry-panel .entry-panel-save');
   await expect(title).toHaveText('View entry');
   await expect(save).toHaveText('Save');
-  await page.locator('#atom-pop-score').fill('60');
+  await page.locator('#entry-panel-score').fill('60');
   await expect(title).toHaveText('Edit entry');
-  await page.locator('#atom-pop-score').fill('50');
+  await page.locator('#entry-panel-score').fill('50');
   await expect(title).toHaveText('View entry');
-  await page.locator('#atom-pop-entry').fill('oceans');
+  await page.locator('#entry-panel-entry').fill('oceans');
   await expect(title).toHaveText('Rename entry');
   await expect(save).toHaveText('Rename');
-  await page.locator('#atom-pop-entry').fill('ocean');
+  await page.locator('#entry-panel-entry').fill('ocean');
   await expect(title).toHaveText('View entry');
   await expect(save).toHaveText('Save');
 });
@@ -56,30 +56,30 @@ test('reopening on a different entry reads View entry, not Rename', async ({ pag
   await gotoApp(page);
   await addList(page, { name: 'W', entries: ['ocean', 'river'], scores: [50, 50] });
   await scopeTo(page, 'All Wordlists');
-  await openPopoverOnEntry(page, 'ocean');
-  await expect(page.locator('#atom-popover .atom-pop-title')).toHaveText('View entry');
+  await openPanelOnEntry(page, 'ocean');
+  await expect(page.locator('#entry-panel .entry-panel-title')).toHaveText('View entry');
   await page.keyboard.press('Escape');
-  await openPopoverOnEntry(page, 'river');
-  await expect(page.locator('#atom-popover .atom-pop-title')).toHaveText('View entry');
-  await expect(page.locator('#atom-popover .atom-pop-save')).toHaveText('Save');
+  await openPanelOnEntry(page, 'river');
+  await expect(page.locator('#entry-panel .entry-panel-title')).toHaveText('View entry');
+  await expect(page.locator('#entry-panel .entry-panel-save')).toHaveText('Save');
 });
 
 test('header and Save button read Add entry / Add from the + button', async ({ page }) => {
   await gotoApp(page);
   await page.locator('#add-fab').click();
-  await expect(page.locator('#atom-popover .atom-pop-title')).toHaveText('Add entry');
-  await expect(page.locator('#atom-popover .atom-pop-save')).toHaveText('Add');
+  await expect(page.locator('#entry-panel .entry-panel-title')).toHaveText('Add entry');
+  await expect(page.locator('#entry-panel .entry-panel-save')).toHaveText('Add');
 });
 
 test('Save is disabled until an edit diverges from the entry, and re-disables on revert', async ({ page }) => {
   await gotoApp(page);
   await addList(page, { name: 'W', entries: ['ocean'], scores: [50] });
-  await openPopoverOnEntry(page, 'ocean');
-  const save = page.locator('#atom-popover .atom-pop-save');
+  await openPanelOnEntry(page, 'ocean');
+  const save = page.locator('#entry-panel .entry-panel-save');
   await expect(save).toBeDisabled();
-  await page.locator('#atom-pop-score').fill('60');
+  await page.locator('#entry-panel-score').fill('60');
   await expect(save).toBeEnabled();
-  await page.locator('#atom-pop-score').fill('50');
+  await page.locator('#entry-panel-score').fill('50');
   await expect(save).toBeDisabled();
 });
 
@@ -88,10 +88,10 @@ test('Save is disabled until an edit diverges from the entry, and re-disables on
 test('the lookup search links regenerate as the entry text changes', async ({ page }) => {
   await gotoApp(page);
   await addList(page, { name: 'W', entries: ['ocean'], scores: [50] });
-  await openPopoverOnEntry(page, 'ocean');
-  const googleLink = page.locator('#atom-popover .lookup-link', { hasText: 'Google' });
+  await openPanelOnEntry(page, 'ocean');
+  const googleLink = page.locator('#entry-panel .lookup-link', { hasText: 'Google' });
   await expect(googleLink).toHaveAttribute('href', /q=ocean$/);
-  await page.locator('#atom-pop-entry').fill('oceanic');
+  await page.locator('#entry-panel-entry').fill('oceanic');
   await expect(googleLink).toHaveAttribute('href', /q=oceanic$/);
 });
 
@@ -101,22 +101,22 @@ test('creating an entry that already exists in My Edits is hard-blocked', async 
   await gotoApp(page);
   await page.evaluate(() => window.__grawlixTest.createMyEntry('ocean', 50));
   await page.locator('#add-fab').click();
-  await page.locator('#atom-pop-entry').fill('ocean');
-  await page.locator('#atom-pop-score').fill('50');
-  await expect(page.locator('#atom-popover .atom-pop-note--block')).toBeVisible();
-  await expect(page.locator('#atom-popover .atom-pop-save')).toBeDisabled();
+  await page.locator('#entry-panel-entry').fill('ocean');
+  await page.locator('#entry-panel-score').fill('50');
+  await expect(page.locator('#entry-panel .entry-panel-note--block')).toBeVisible();
+  await expect(page.locator('#entry-panel .entry-panel-save')).toBeDisabled();
 });
 
-test('staging the existing row for deletion relabels the create popover as Delete', async ({ page }) => {
+test('staging the existing row for deletion relabels the create panel as Delete', async ({ page }) => {
   await gotoApp(page);
   await page.evaluate(() => window.__grawlixTest.createMyEntry('ocean', 50));
   await page.locator('#add-fab').click();
-  await page.locator('#atom-pop-entry').fill('ocean');
-  await page.locator('#atom-pop-score').fill('50');
+  await page.locator('#entry-panel-entry').fill('ocean');
+  await page.locator('#entry-panel-score').fill('50');
 
-  await page.locator('.atom-pop-prov-row', { hasText: 'My Edits' }).locator('.atom-pop-prov-trash').click();
-  await expect(page.locator('#atom-popover .atom-pop-title')).toHaveText('Delete entry');
-  const save = page.locator('#atom-popover .atom-pop-save');
+  await page.locator('.entry-panel-prov-row', { hasText: 'My Edits' }).locator('.entry-panel-prov-trash').click();
+  await expect(page.locator('#entry-panel .entry-panel-title')).toHaveText('Delete entry');
+  const save = page.locator('#entry-panel .entry-panel-save');
   await expect(save).toHaveText('Delete');
   await expect(save).toBeEnabled();
 
@@ -128,11 +128,11 @@ test('creating an entry that exists only on another wordlist is allowed', async 
   await gotoApp(page);
   await addList(page, { name: 'W', entries: ['ocean'], scores: [50] });
   await page.locator('#add-fab').click();
-  await page.locator('#atom-pop-entry').fill('ocean');
-  await page.locator('#atom-pop-score').fill('70');
-  await expect(page.locator('#atom-popover .atom-pop-note--block')).toHaveCount(0);
-  await expect(page.locator('#atom-popover .atom-pop-save')).toBeEnabled();
-  await page.locator('#atom-popover .atom-pop-save').click();
+  await page.locator('#entry-panel-entry').fill('ocean');
+  await page.locator('#entry-panel-score').fill('70');
+  await expect(page.locator('#entry-panel .entry-panel-note--block')).toHaveCount(0);
+  await expect(page.locator('#entry-panel .entry-panel-save')).toBeEnabled();
+  await page.locator('#entry-panel .entry-panel-save').click();
   // Typed lowercase stores bare (round-trip-stable): the file can't tell it from
   // a bare import, so we reflect that immediately rather than keep a literal.
   await expect.poll(() => myEditsForNorm(page, 'ocean')).toEqual([null]);
@@ -171,14 +171,14 @@ test('the keep-rich copy previews as a second added My Edits row, not a note', a
   await gotoApp(page);
   await addList(page, { name: 'W', entries: ['the IRS'], scores: [40] });
   await page.locator('#add-fab').click();
-  await page.locator('#atom-pop-entry').fill('theirs');
-  await page.locator('#atom-pop-score').fill('90');
+  await page.locator('#entry-panel-entry').fill('theirs');
+  await page.locator('#entry-panel-score').fill('90');
 
-  const added = page.locator('#atom-popover .atom-pop-prov-row--added');
+  const added = page.locator('#entry-panel .entry-panel-prov-row--added');
   await expect(added).toHaveCount(2);
-  await expect(added.locator('.atom-pop-prov-entry', { hasText: /^the IRS$/ })).toHaveCount(1);
-  await expect(added.locator('.atom-pop-prov-entry', { hasText: /^theirs$/ })).toHaveCount(1);
-  await expect(page.locator('#atom-popover .atom-pop-note')).toHaveCount(0);
+  await expect(added.locator('.entry-panel-prov-entry', { hasText: /^the IRS$/ })).toHaveCount(1);
+  await expect(added.locator('.entry-panel-prov-entry', { hasText: /^theirs$/ })).toHaveCount(1);
+  await expect(page.locator('#entry-panel .entry-panel-note')).toHaveCount(0);
 });
 
 // ─── Rename ────────────────────────────────────────────────────────────────
@@ -186,31 +186,31 @@ test('the keep-rich copy previews as a second added My Edits row, not a note', a
 test('renaming an entry replaces it — no second row', async ({ page }) => {
   await gotoApp(page);
   await page.evaluate(() => window.__grawlixTest.saveMyEdit('aaateams', 'aaateams', 50));
-  await openPopoverOnEntry(page, 'aaateams');
-  await page.locator('#atom-pop-entry').fill('AAA teams');
-  await page.locator('#atom-popover .atom-pop-save').click();
+  await openPanelOnEntry(page, 'aaateams');
+  await page.locator('#entry-panel-entry').fill('AAA teams');
+  await page.locator('#entry-panel .entry-panel-save').click();
   await expect.poll(() => displaysForNorm(page, 'aaateams')).toEqual(['AAA teams']);
 });
 
 test('the replaced row previews struck through with no trash icon', async ({ page }) => {
   await gotoApp(page);
   await page.evaluate(() => window.__grawlixTest.saveMyEdit('ocean', 'ocean', 50));
-  await openPopoverOnEntry(page, 'ocean');
-  await page.locator('#atom-pop-entry').fill('Ocean');
-  const deletedRow = page.locator('#atom-popover .atom-pop-prov-row--deleted');
+  await openPanelOnEntry(page, 'ocean');
+  await page.locator('#entry-panel-entry').fill('Ocean');
+  const deletedRow = page.locator('#entry-panel .entry-panel-prov-row--deleted');
   await expect(deletedRow).toBeVisible();
-  await expect(deletedRow.locator('.atom-pop-prov-trash')).toHaveCount(0);
+  await expect(deletedRow.locator('.entry-panel-prov-trash')).toHaveCount(0);
 });
 
 test('renaming over a foreign leftover downscores the original to the trash score', async ({ page }) => {
   await gotoApp(page);
   await addList(page, { name: 'W', entries: ['oceam'], scores: [40] });
-  await openPopoverOnEntry(page, 'oceam');
-  await page.locator('#atom-pop-entry').fill('ocean');
-  await expect(page.locator('#atom-popover .atom-pop-prov-row--added', {
-    has: page.locator('.atom-pop-prov-entry', { hasText: /^oceam$/ }),
+  await openPanelOnEntry(page, 'oceam');
+  await page.locator('#entry-panel-entry').fill('ocean');
+  await expect(page.locator('#entry-panel .entry-panel-prov-row--added', {
+    has: page.locator('.entry-panel-prov-entry', { hasText: /^oceam$/ }),
   })).toBeVisible();
-  await page.locator('#atom-popover .atom-pop-save').click();
+  await page.locator('#entry-panel .entry-panel-save').click();
   await expect.poll(() => page.evaluate(() => window.__grawlixTest.getMergedEntry('oceam').then(e => e?.score))).toBe(0);
   expect(await page.evaluate(() => window.__grawlixTest.getMergedEntry('ocean'))).not.toBeNull();
 });
@@ -219,9 +219,9 @@ test('respelling a My Edits entry junks the foreign spelling it was covering —
   await gotoApp(page);
   await addList(page, { name: 'W', entries: ['AAA team'], scores: [50] });
   await page.evaluate(() => window.__grawlixTest.saveMyEdit('aaateam', 'aaateam', 60));
-  await openPopoverOnEntry(page, 'AAA team');
-  await page.locator('#atom-pop-entry').fill('AAA. team');
-  await page.locator('#atom-popover .atom-pop-save').click();
+  await openPanelOnEntry(page, 'AAA team');
+  await page.locator('#entry-panel-entry').fill('AAA. team');
+  await page.locator('#entry-panel .entry-panel-save').click();
   await expect.poll(() => displaysForNorm(page, 'aaateam')).toEqual(['AAA team', 'AAA. team']);
   expect(await page.evaluate(() => window.__grawlixTest.getMergedEntry('AAA. team', 'AAA. team'))).toMatchObject({ score: 60 });
   expect(await page.evaluate(() => window.__grawlixTest.getMergedEntry('AAA team', 'AAA team'))).toMatchObject({ score: 0, wordlist: 'My Edits' });
@@ -231,17 +231,17 @@ test('renaming a My Edits entry to a new norm junks the foreign norm-mate it lea
   await gotoApp(page);
   await addList(page, { name: 'W', entries: ['aaateam'], scores: [50] });
   await page.evaluate(() => window.__grawlixTest.saveMyEdit('AAA team', 'AAA team', 50));
-  await openPopoverOnEntry(page, 'AAA team');
-  await page.locator('#atom-pop-entry').fill('AAAx team');
-  const deleted = page.locator('#atom-popover .atom-pop-prov-row--deleted', {
-    has: page.locator('.atom-pop-prov-entry', { hasText: /^AAA team$/ }),
+  await openPanelOnEntry(page, 'AAA team');
+  await page.locator('#entry-panel-entry').fill('AAAx team');
+  const deleted = page.locator('#entry-panel .entry-panel-prov-row--deleted', {
+    has: page.locator('.entry-panel-prov-entry', { hasText: /^AAA team$/ }),
   });
   await expect(deleted).toBeVisible();
-  await expect(deleted.locator('.atom-pop-prov-trash')).toHaveCount(0);
-  await expect(page.locator('#atom-popover .atom-pop-prov-row--added', {
-    has: page.locator('.atom-pop-prov-entry', { hasText: /^AAAx team$/ }),
+  await expect(deleted.locator('.entry-panel-prov-trash')).toHaveCount(0);
+  await expect(page.locator('#entry-panel .entry-panel-prov-row--added', {
+    has: page.locator('.entry-panel-prov-entry', { hasText: /^AAAx team$/ }),
   })).toBeVisible();
-  await page.locator('#atom-popover .atom-pop-save').click();
+  await page.locator('#entry-panel .entry-panel-save').click();
   await expect.poll(() => page.evaluate(() => window.__grawlixTest.getMergedEntry('aaateam').then(e => e?.score))).toBe(0);
   expect(await page.evaluate(() => window.__grawlixTest.getMergedEntry('AAAx team'))).not.toBeNull();
 });
@@ -249,9 +249,9 @@ test('renaming a My Edits entry to a new norm junks the foreign norm-mate it lea
 test('renaming shows an undo toast that restores the original', async ({ page }) => {
   await gotoApp(page);
   await page.evaluate(() => window.__grawlixTest.saveMyEdit('ocean', 'ocean', 50));
-  await openPopoverOnEntry(page, 'ocean');
-  await page.locator('#atom-pop-entry').fill('Ocean');
-  await page.locator('#atom-popover .atom-pop-save').click();
+  await openPanelOnEntry(page, 'ocean');
+  await page.locator('#entry-panel-entry').fill('Ocean');
+  await page.locator('#entry-panel .entry-panel-save').click();
   await expect.poll(() => displaysForNorm(page, 'ocean')).toEqual(['Ocean']);
   const undo = page.locator('.toast .toast-action');
   await expect(undo).toBeVisible();
@@ -265,16 +265,16 @@ test('adopt link adds an unowned entry to My Edits without any edit', async ({ p
   await gotoApp(page);
   await addList(page, { name: 'W', entries: ['AAA battery'], scores: [50] });
   await scopeTo(page, 'All Wordlists');
-  await openPopoverOnEntry(page, 'AAA battery');
+  await openPanelOnEntry(page, 'AAA battery');
   await expect(adoptLink(page)).toHaveText('Add to My Edits');
-  await expect(page.locator('#atom-popover .atom-pop-save')).toBeDisabled();
+  await expect(page.locator('#entry-panel .entry-panel-save')).toBeDisabled();
   await adoptLink(page).click();
   await expect(adoptLink(page)).toHaveCount(0);   // link hides once staged
-  await expect(page.locator('#atom-popover .atom-pop-save')).toBeEnabled();
-  await expect(page.locator('#atom-popover .atom-pop-prov-row--added', {
-    has: page.locator('.atom-pop-prov-entry', { hasText: /^AAA battery$/ }),
+  await expect(page.locator('#entry-panel .entry-panel-save')).toBeEnabled();
+  await expect(page.locator('#entry-panel .entry-panel-prov-row--added', {
+    has: page.locator('.entry-panel-prov-entry', { hasText: /^AAA battery$/ }),
   })).toBeVisible();
-  await page.locator('#atom-popover .atom-pop-save').click();
+  await page.locator('#entry-panel .entry-panel-save').click();
   await expect.poll(() => myEditsForNorm(page, 'aaabattery')).toEqual(['AAA battery']);
 });
 
@@ -282,15 +282,15 @@ test('the staged adopt row carries a trash that un-stages it, restoring the link
   await gotoApp(page);
   await addList(page, { name: 'W', entries: ['AAA battery'], scores: [50] });
   await scopeTo(page, 'All Wordlists');
-  await openPopoverOnEntry(page, 'AAA battery');
+  await openPanelOnEntry(page, 'AAA battery');
   await adoptLink(page).click();
-  const added = page.locator('#atom-popover .atom-pop-prov-row--added', {
-    has: page.locator('.atom-pop-prov-entry', { hasText: /^AAA battery$/ }),
+  const added = page.locator('#entry-panel .entry-panel-prov-row--added', {
+    has: page.locator('.entry-panel-prov-entry', { hasText: /^AAA battery$/ }),
   });
-  await added.locator('.atom-pop-prov-untrash').click();
+  await added.locator('.entry-panel-prov-untrash').click();
   await expect(added).toHaveCount(0);
   await expect(adoptLink(page)).toHaveText('Add to My Edits');
-  await expect(page.locator('#atom-popover .atom-pop-save')).toBeDisabled();
+  await expect(page.locator('#entry-panel .entry-panel-save')).toBeDisabled();
 });
 
 test('adopt upgrades a bare My Edits entry to the displayed spelling — no sibling left behind', async ({ page }) => {
@@ -298,13 +298,13 @@ test('adopt upgrades a bare My Edits entry to the displayed spelling — no sibl
   await importIntoEdits(page, 'aaabond;50\n');
   await addList(page, { name: 'W', entries: ['AAA bond'], scores: [50] });
   await scopeTo(page, 'All Wordlists');
-  await openPopoverOnEntry(page, 'AAA bond');
+  await openPanelOnEntry(page, 'AAA bond');
   await expect(adoptLink(page)).toHaveText('Update My Edits');
   await adoptLink(page).click();
-  await expect(page.locator('#atom-popover .atom-pop-prov-row--deleted', {
-    has: page.locator('.atom-pop-prov-entry', { hasText: /^aaabond$/ }),
+  await expect(page.locator('#entry-panel .entry-panel-prov-row--deleted', {
+    has: page.locator('.entry-panel-prov-entry', { hasText: /^aaabond$/ }),
   })).toBeVisible();
-  await page.locator('#atom-popover .atom-pop-save').click();
+  await page.locator('#entry-panel .entry-panel-save').click();
   await expect.poll(() => myEditsForNorm(page, 'aaabond')).toEqual(['AAA bond']);
 });
 
@@ -316,10 +316,10 @@ test('a direct score edit on a bare My Edits entry renames it, not duplicates', 
   await importIntoEdits(page, 'pdfs;40\n');
   await addList(page, { name: 'W', entries: ['PDFs'], scores: [20] });
   await scopeTo(page, 'All Wordlists');
-  await openPopoverOnEntry(page, 'PDFs');
-  await expect(page.locator('#atom-pop-score')).toHaveValue('40');   // My Edits' bare raw, not W's 20
-  await page.locator('#atom-pop-score').fill('30');
-  await page.locator('#atom-popover .atom-pop-save').click();
+  await openPanelOnEntry(page, 'PDFs');
+  await expect(page.locator('#entry-panel-score')).toHaveValue('40');   // My Edits' bare raw, not W's 20
+  await page.locator('#entry-panel-score').fill('30');
+  await page.locator('#entry-panel .entry-panel-save').click();
   await expect.poll(() => myEditsForNorm(page, 'pdfs')).toEqual(['PDFs']);
 });
 
@@ -327,7 +327,7 @@ test('no adopt link when My Edits already owns the displayed entry', async ({ pa
   await gotoApp(page);
   await page.evaluate(() => window.__grawlixTest.createMyEntry('AAA team', 50));
   await scopeTo(page, 'All Wordlists');
-  await openPopoverOnEntry(page, 'AAA team');
+  await openPanelOnEntry(page, 'AAA team');
   await expect(adoptLink(page)).toHaveCount(0);
 });
 
@@ -335,20 +335,20 @@ test('editing a field replaces the adopt link with a normal enabled Save', async
   await gotoApp(page);
   await addList(page, { name: 'W', entries: ['AAA battery'], scores: [50] });
   await scopeTo(page, 'All Wordlists');
-  await openPopoverOnEntry(page, 'AAA battery');
+  await openPanelOnEntry(page, 'AAA battery');
   await expect(adoptLink(page)).toBeVisible();
-  await page.locator('#atom-pop-score').fill('60');
+  await page.locator('#entry-panel-score').fill('60');
   await expect(adoptLink(page)).toHaveCount(0);
-  await expect(page.locator('#atom-popover .atom-pop-save')).toBeEnabled();
+  await expect(page.locator('#entry-panel .entry-panel-save')).toBeEnabled();
 });
 
 test('adopt shows an undo toast that restores the prior My Edits state', async ({ page }) => {
   await gotoApp(page);
   await addList(page, { name: 'W', entries: ['AAA battery'], scores: [50] });
   await scopeTo(page, 'All Wordlists');
-  await openPopoverOnEntry(page, 'AAA battery');
+  await openPanelOnEntry(page, 'AAA battery');
   await adoptLink(page).click();
-  await page.locator('#atom-popover .atom-pop-save').click();
+  await page.locator('#entry-panel .entry-panel-save').click();
   await expect.poll(() => myEditsForNorm(page, 'aaabattery')).toEqual(['AAA battery']);
   const undo = page.locator('.toast .toast-action');
   await expect(undo).toBeVisible();
@@ -363,8 +363,8 @@ test('the trash score setting drives the downscore amount', async ({ page }) => 
   await page.locator('#trash-score-input').fill('7');
   await page.locator('#trash-score-input').blur();
   await page.locator('#settings-dialog .dialog-close-btn').click();
-  await openPopoverOnEntry(page, 'oceam');
-  await page.locator('#atom-pop-entry').fill('ocean');
-  await page.locator('#atom-popover .atom-pop-save').click();
+  await openPanelOnEntry(page, 'oceam');
+  await page.locator('#entry-panel-entry').fill('ocean');
+  await page.locator('#entry-panel .entry-panel-save').click();
   await expect.poll(() => page.evaluate(() => window.__grawlixTest.getMergedEntry('oceam').then(e => e?.score))).toBe(7);
 });

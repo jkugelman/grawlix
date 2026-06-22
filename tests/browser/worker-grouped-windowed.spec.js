@@ -274,9 +274,9 @@ test('+N more popover fetches later windows in order; a fetched chain is editabl
   await expect(fetchedChain).toHaveCount(1);
   const fetchedNorm = (await fetchedChain.locator('.atom-entry').first().innerText()).toLowerCase();
   await fetchedChain.locator('.atom-score').first().click();
-  await expect(page.locator('#atom-popover')).toBeVisible();
-  const editingText = (await page.locator('#atom-popover').innerText()).toLowerCase();
-  const editingInputs = await page.locator('#atom-popover input').evaluateAll(els =>
+  await expect(page.locator('#entry-panel')).toBeVisible();
+  const editingText = (await page.locator('#entry-panel').innerText()).toLowerCase();
+  const editingInputs = await page.locator('#entry-panel input').evaluateAll(els =>
     els.map(e => (e.value || '').toLowerCase()));
   expect(editingText.includes(fetchedNorm) || editingInputs.some(v => v.includes(fetchedNorm))).toBe(true);
 });

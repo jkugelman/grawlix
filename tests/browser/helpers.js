@@ -36,9 +36,9 @@ async function stubPublisherFetches(page, bodies = {}) {
   });
 }
 
-// Stub the external entry-lookup APIs the edit popover auto-fires on open
+// Stub the external entry-lookup APIs the edit panel auto-fires on open
 // (Datamuse, Wikipedia, Dictionary) so tests never reach the real network.
-// Empty/404 bodies leave every inline section hidden — all the popover tests
+// Empty/404 bodies leave every inline section hidden — all the panel tests
 // need — while the link row still renders.
 async function stubLookupFetches(page) {
   await page.route(/api\.datamuse\.com/, route =>

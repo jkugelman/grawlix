@@ -1,7 +1,7 @@
-// Provenance panel (unify redesign, Stage 3b). The atom popover's info section
+// Provenance panel (unify redesign, Stage 3b). The atom panel's info section
 // is a cross-wordlist provenance table: every wordlist's take on the clicked
 // entry — including disabled and non-winning lists — since scoped views now
-// show only their own data, leaving the popover the one place to compare lists.
+// show only their own data, leaving the panel the one place to compare lists.
 
 import { test, expect } from '@playwright/test';
 import { stubPublisherFetches, gotoApp, scopeTo, setEnabledViaPanel } from './helpers.js';
@@ -10,17 +10,17 @@ test.beforeEach(async ({ page }) => {
   await stubPublisherFetches(page);
 });
 
-// Open the popover on a row by its visible entry text (the display string),
+// Open the panel on a row by its visible entry text (the display string),
 // clicking the entry cell. (In All Wordlists / My Edits the score cell opens the
-// quick picker, not the popover; the entry cell opens the popover in any scope.)
+// quick picker, not the panel; the entry cell opens the panel in any scope.)
 // `data-entry` is the norm, which collides across spellings, so match the row by
 // its rendered entry instead.
-async function openPopoverOnEntry(page, entryText) {
+async function openPanelOnEntry(page, entryText) {
   const row = page.locator('#vs-host .entry-row', {
     has: page.locator('.atom-entry', { hasText: new RegExp(`^${entryText}$`) }),
   }).first();
   await row.locator('.atom-entry').click();
-  await expect(page.locator('#atom-popover')).toBeVisible();
+  await expect(page.locator('#entry-panel')).toBeVisible();
 }
 
 // The provenance table as ordered [entry, score, comment, source] tuples,
@@ -29,15 +29,15 @@ async function openPopoverOnEntry(page, entryText) {
 // just the name.
 async function readProvenance(page) {
   return page.evaluate(() =>
-    [...document.querySelectorAll('.atom-pop-prov tbody tr')].map(tr => {
-      const src = tr.querySelector('.atom-pop-prov-source').cloneNode(true);
+    [...document.querySelectorAll('.entry-panel-prov tbody tr')].map(tr => {
+      const src = tr.querySelector('.entry-panel-prov-source').cloneNode(true);
       src.querySelector('.wordlist-name-icon')?.remove();
       return {
-        entry:   tr.querySelector('.atom-pop-prov-entry').textContent,
-        score:   tr.querySelector('.atom-pop-prov-score').textContent,
-        comment: tr.querySelector('.atom-pop-prov-comment').textContent,
+        entry:   tr.querySelector('.entry-panel-prov-entry').textContent,
+        score:   tr.querySelector('.entry-panel-prov-score').textContent,
+        comment: tr.querySelector('.entry-panel-prov-comment').textContent,
         source:  src.textContent.trim(),
-        disabled: tr.classList.contains('atom-pop-prov-row--disabled'),
+        disabled: tr.classList.contains('entry-panel-prov-row--disabled'),
       };
     })
   );
@@ -57,7 +57,7 @@ test('clicking a bare entry shows every spelling of the norm across all wordlist
 
   // Scope to W2 and click its bare entry — a bare click pulls in the whole norm.
   await scopeTo(page, 'W2');
-  await openPopoverOnEntry(page, 'seeingashow');
+  await openPanelOnEntry(page, 'seeingashow');
 
   const rows = await readProvenance(page);
   expect(rows.map(r => ({ entry: r.entry, source: r.source }))).toEqual([
@@ -79,7 +79,7 @@ test('clicking a specific spelling shows that spelling plus a cross-source bare,
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({ name: 'Plain', entries: ['theirs'],            scores: [70] }));
 
   await scopeTo(page, 'Rich');
-  await openPopoverOnEntry(page, 'the IRS');
+  await openPanelOnEntry(page, 'the IRS');
 
   const rows = await readProvenance(page);
   expect(rows.map(r => r.entry)).toEqual(['the IRS', 'theirs']);
@@ -96,11 +96,11 @@ test('a same-source bare sibling is its own row, not an ancestor of the spelling
 
   await scopeTo(page, 'Rich');
 
-  await openPopoverOnEntry(page, 'the IRS');
+  await openPanelOnEntry(page, 'the IRS');
   expect((await readProvenance(page)).map(r => r.entry)).toEqual(['the IRS']);
 
   await page.keyboard.press('Escape');
-  await openPopoverOnEntry(page, 'theirs');
+  await openPanelOnEntry(page, 'theirs');
   expect((await readProvenance(page)).map(r => r.entry)).toEqual(['theirs']);
 });
 
@@ -116,8 +116,8 @@ test('a disabled wordlist still contributes a (dimmed) provenance row', async ({
   await setEnabledViaPanel(page, 'Off', false);
 
   // From All Wordlists, OCEAN comes only from On (Off is excluded from the merge), but the
-  // popover still lists Off as a contributor — dimmed.
-  await openPopoverOnEntry(page, 'ocean');
+  // panel still lists Off as a contributor — dimmed.
+  await openPanelOnEntry(page, 'ocean');
   const rows = await readProvenance(page);
   expect(rows).toEqual([
     expect.objectContaining({ source: 'On',  disabled: false }),
@@ -125,7 +125,7 @@ test('a disabled wordlist still contributes a (dimmed) provenance row', async ({
   ]);
 });
 
-test('scoped to one source, the popover still lists other wordlists', async ({ page }) => {
+test('scoped to one source, the panel still lists other wordlists', async ({ page }) => {
   await gotoApp(page);
 
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
@@ -135,9 +135,9 @@ test('scoped to one source, the popover still lists other wordlists', async ({ p
     name: 'Beta',  entries: ['ocean'], scores: [60],
   }));
 
-  // Scoped to Beta the table shows only Beta's data, yet the popover spans both.
+  // Scoped to Beta the table shows only Beta's data, yet the panel spans both.
   await scopeTo(page, 'Beta');
-  await openPopoverOnEntry(page, 'ocean');
+  await openPanelOnEntry(page, 'ocean');
   const rows = await readProvenance(page);
   expect(rows.map(r => r.source)).toEqual(['Alpha', 'Beta']);
 });
@@ -154,7 +154,7 @@ test('the table columns are Entry · Score · Comment · Source in that order, r
     name: 'Lo', entries: ['ocean'], scores: [60], comments: ['small'],
   }));
 
-  await openPopoverOnEntry(page, 'ocean');
+  await openPanelOnEntry(page, 'ocean');
 
   const rows = await readProvenance(page);
   expect(rows).toEqual([
@@ -163,16 +163,16 @@ test('the table columns are Entry · Score · Comment · Source in that order, r
   ]);
 });
 
-test('an edit made through the popover still lands in My Edits', async ({ page }) => {
+test('an edit made through the panel still lands in My Edits', async ({ page }) => {
   await gotoApp(page);
 
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
     name: 'Source', entries: ['bagel'], scores: [50],
   }));
 
-  await openPopoverOnEntry(page, 'bagel');
-  await page.locator('#atom-pop-score').fill('77');
-  await page.locator('#atom-pop-score').press('Enter');
+  await openPanelOnEntry(page, 'bagel');
+  await page.locator('#entry-panel-score').fill('77');
+  await page.locator('#entry-panel-score').press('Enter');
 
   await expect.poll(async () =>
     page.evaluate(() => window.__grawlixTest.getWordlist('My Edits').entries)

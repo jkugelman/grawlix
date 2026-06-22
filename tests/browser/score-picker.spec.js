@@ -1,6 +1,6 @@
 // Score quick-pick listbox. In the All Wordlists and My Edits scopes a score-cell
 // click opens a tier dropdown (one click to retier, routed into My Edits); in a
-// single-source scope it still opens the full AtomPopover. See the ScorePicker
+// single-source scope it still opens the full EntryPanel. See the ScorePicker
 // component in site/src/ui/entries-table.js.
 
 import { test, expect } from '@playwright/test';
@@ -37,10 +37,10 @@ async function openPicker(page) {
 const myEdits = page => page.evaluate(() => window.__grawlixTest.getWordlist('My Edits').entries);
 const mergedBagel = page => page.evaluate(() => window.__grawlixTest.getMergedEntry('BAGEL'));
 
-test('a score click in All Wordlists opens the tier picker, not the popover', async ({ page }) => {
+test('a score click in All Wordlists opens the tier picker, not the panel', async ({ page }) => {
   await setup(page);
   await openPicker(page);
-  await expect(page.locator('#atom-popover')).toBeHidden();
+  await expect(page.locator('#entry-panel')).toBeHidden();
 });
 
 test('the picker lists every tier high-to-low as score badges, starting on the current one', async ({ page }) => {
@@ -124,20 +124,20 @@ test('Alt+digit while hovering a score rescores it with no picker', async ({ pag
   await cell.hover();
   await page.keyboard.press('Alt+Digit0');   // bottom tier, 10
   await expect(picker(page)).toBeHidden();
-  await expect(page.locator('#atom-popover')).toBeHidden();
+  await expect(page.locator('#entry-panel')).toBeHidden();
   await expect(toast(page)).toContainText(/Rescored .* to 10/);
   await expect.poll(() => mergedBagel(page)).toMatchObject({ score: 10, wordlist: 'My Edits' });
 });
 
-test('Alt+digit in the edit popover fills the score field without saving', async ({ page }) => {
+test('Alt+digit in the edit panel fills the score field without saving', async ({ page }) => {
   await setup(page, { score: 50 });
   await scopeTo(page, 'Src');
   await page.locator('.entry-row[data-entry="bagel"] .atom-score').click();
-  await expect(page.locator('#atom-popover')).toBeVisible();
-  await expect(page.locator('#atom-popover .score-input')).toBeEnabled();
+  await expect(page.locator('#entry-panel')).toBeVisible();
+  await expect(page.locator('#entry-panel .score-input')).toBeEnabled();
 
   await page.keyboard.press('Alt+Digit2');   // 90
-  await expect(page.locator('#atom-popover .score-input')).toHaveValue('90');
+  await expect(page.locator('#entry-panel .score-input')).toHaveValue('90');
   expect(await myEdits(page)).toEqual([]);   // not committed until Save
 });
 
@@ -150,11 +150,11 @@ test('picking the tier the entry is already in is a no-op', async ({ page }) => 
   await expect(toast(page)).toHaveCount(0);
 });
 
-test('in a single-source scope the score cell opens the popover, not the picker', async ({ page }) => {
+test('in a single-source scope the score cell opens the panel, not the picker', async ({ page }) => {
   await setup(page);
   await scopeTo(page, 'Src');
   await page.locator('.entry-row[data-entry="bagel"] .atom-score').click();
-  await expect(page.locator('#atom-popover')).toBeVisible();
+  await expect(page.locator('#entry-panel')).toBeVisible();
   await expect(picker(page)).toBeHidden();
 });
 

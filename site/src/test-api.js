@@ -47,7 +47,7 @@ import { allSourcesHistogramLayout, shippedAllSourcesAxisVersion, shippedScopedL
 import {
   getEntriesScroller, setScope, renderSources, renderMergedDetail, refreshMergedScroller,
 } from './ui/rendering.js';
-import { windowedFlatDebug, workerSummariesDebug, workerGroupsDebug, workerGroupListDebug, existsInScopeDebug, popoverSeedDebug, popoverProvenanceDebug, rebindAnswersConsumedDebug, resetRebindAnswersConsumedForTest, groupWindowUnderfillDebug, resetGroupWindowUnderfillForTest } from './ui/entries-table.js';
+import { windowedFlatDebug, workerSummariesDebug, workerGroupsDebug, workerGroupListDebug, existsInScopeDebug, entryPanelSeedDebug, entryPanelProvenanceDebug, rebindAnswersConsumedDebug, resetRebindAnswersConsumedForTest, groupWindowUnderfillDebug, resetGroupWindowUnderfillForTest } from './ui/entries-table.js';
 import { applyScoringChange } from './ui/rescore-editor.js';
 import { propagateDefaults as _propagateDefaults } from './model/scoring.js';
 import {
@@ -154,9 +154,9 @@ const __grawlixTest = {
 
   // Read-only worker query for a single entry in the active scope (All Wordlists
   // by default, the scoped source after setScope). The sourcing wordlist is
-  // user-observable via the row's popover and the `.atom-source` column (hidden
+  // user-observable via the row's entry panel and the `.atom-source` column (hidden
   // below 960px); exposing it here lets merge-correctness tests assert regardless
-  // of viewport without driving the popover. Async — the worker owns the corpus.
+  // of viewport without driving the entry panel. Async — the worker owns the corpus.
   async getMergedEntry(entry, display) {
     const e = await queryWorkerEntry(activeScopeLabel(), toNorm(entry), display);
     if (!e) return null;
@@ -195,7 +195,7 @@ const __grawlixTest = {
   },
 
   // Drive a My Edits upsert/rename through the real saveEdit path without the
-  // popover DOM. origRaw === raw upserts; differing raw renames (a two-norm move).
+  // entry-panel DOM. origRaw === raw upserts; differing raw renames (a two-norm move).
   // Seeds orig from My Edits' own rawEntries (main keeps raw post-flip); a
   // not-yet-present entry gets a blank-score orig so saveEdit treats it as an add.
   saveMyEdit(origRaw, raw, score, comment = '') {
@@ -214,7 +214,7 @@ const __grawlixTest = {
     deleteFromEdits(target, refreshMergedScroller);
   },
 
-  // saveEdit with an EXPLICIT orig (norm, display) — what the popover does for a
+  // saveEdit with an EXPLICIT orig (norm, display) — what the entry panel does for a
   // clicked row. orig === null is an add. Seeds from My Edits' rawEntries.
   saveMyEditFrom(orig, raw, score, comment = '') {
     const origWlEntry = orig
@@ -356,8 +356,8 @@ const __grawlixTest = {
   workerGroupsDebug,
   workerGroupListDebug,
   existsInScopeDebug,
-  popoverSeedDebug,
-  popoverProvenanceDebug,
+  entryPanelSeedDebug,
+  entryPanelProvenanceDebug,
   rebindAnswersConsumedDebug,
   resetRebindAnswersConsumedForTest,
   groupWindowUnderfillDebug,

@@ -17,7 +17,7 @@ Markers: **[★ advertise]** = shows off a feature / nook. **[deep]** = needs a 
 6. **Four wordlists all score the same word differently. Now what?** — *the problem Grawlix exists to solve; rescore-to-common-scale then merge.* **[★]**
 7. **When I merge, why did the lower-scoring list win?** — *merge picks the highest-*priority* enabled list that has the word, not the highest score; priority = your list order. Common surprise.*
 8. **The same word shows up twice — bug?** — *no: rich lists deliberately split spellings (theirs vs. "the IRS"); dark-corner explainer.*
-9. **Can I see every list a word came from, even disabled ones?** — *the provenance popover: click an entry, see every wordlist's score/spelling/comment in priority order. A genuinely cool nook.* **[★]**
+9. **Can I see every list a word came from, even disabled ones?** — *the provenance panel: click an entry, see every wordlist's score/spelling/comment in priority order. A genuinely cool nook.* **[★]**
 
 ## My Edits
 

@@ -61,7 +61,7 @@ import { SettingsDialog, cycleDarkMode } from '../ui/dialogs/settings.js';
 import { HelpDialog } from '../ui/dialogs/help.js';
 import { AppView } from '../ui/app-view.js';
 import {
-  activeGroupColumns, AtomPopover, handleScoreDigitShortcut,
+  activeGroupColumns, EntryPanel, handleScoreDigitShortcut,
 } from '../ui/entries-table.js';
 import { ToolStack } from '../ui/tool-stack.js';
 import { buildRulesListHTML, renderScoringRules } from '../ui/rescore-editor.js';
@@ -865,7 +865,7 @@ export function bindEvents() {
 }
 
 function openCreateEntry() {
-  AtomPopover.openForCreate(newEntrySeedQuery(), getEntriesScroller(), null);
+  EntryPanel.openForCreate(newEntrySeedQuery(), getEntriesScroller());
 }
 
 function focusPermanentSearch() {

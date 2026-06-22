@@ -47,9 +47,9 @@ test.describe('UI-typed entries preserve case', () => {
     await page.locator('.search-bar input[data-key="pattern"]').fill('Helen of Troy');
     await page.evaluate(() => window.__grawlixTest.pipelineIdle());
     await page.locator('#add-fab').click();
-    await expect(page.locator('#atom-pop-entry')).toHaveValue('Helen of Troy');
-    await page.locator('#atom-pop-score').fill('70');
-    await page.locator('#atom-pop-score').press('Enter');
+    await expect(page.locator('#entry-panel-entry')).toHaveValue('Helen of Troy');
+    await page.locator('#entry-panel-score').fill('70');
+    await page.locator('#entry-panel-score').press('Enter');
     await expect.poll(async () =>
       page.evaluate(() => window.__grawlixTest.getWordlist('My Edits').entries)
     ).toEqual([{ entry: 'helenoftroy', display: 'Helen of Troy', score: 70, comment: '' }]);

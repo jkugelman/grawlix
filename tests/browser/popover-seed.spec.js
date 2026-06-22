@@ -1,4 +1,4 @@
-// Atom-popover seeding (unify redesign, Stage 3c). The editor seeds its three
+// Atom-panel seeding (unify redesign, Stage 3c). The editor seeds its three
 // fields from the All Wordlists merge winner for the clicked entry — never the
 // viewed/scoped wordlist's own value. Decision A: the score field edits My
 // Edits' RAW score, so a non-pass-through My Edits entry seeds from raw and
@@ -13,17 +13,17 @@ test.beforeEach(async ({ page }) => {
   await stubPublisherFetches(page);
 });
 
-// Open the popover on a row by its visible entry text (the display string),
+// Open the panel on a row by its visible entry text (the display string),
 // clicking the entry cell. (In All Wordlists / My Edits the score cell opens the
-// quick picker, not the popover; the entry cell opens the popover in any scope.)
+// quick picker, not the panel; the entry cell opens the panel in any scope.)
 // data-entry is the norm, which collides across spellings, so match the row by
 // its rendered entry instead.
-async function openPopoverOnEntry(page, entryText) {
+async function openPanelOnEntry(page, entryText) {
   const row = page.locator('#vs-host .entry-row', {
     has: page.locator('.atom-entry', { hasText: new RegExp(`^${entryText}$`) }),
   }).first();
   await row.locator('.atom-entry').click();
-  await expect(page.locator('#atom-popover')).toBeVisible();
+  await expect(page.locator('#entry-panel')).toBeVisible();
 }
 
 test('seeds the score from the merged winner, not the lower-priority scoped list', async ({ page }) => {
@@ -39,8 +39,8 @@ test('seeds the score from the merged winner, not the lower-priority scoped list
   }));
 
   await scopeTo(page, 'Lo');
-  await openPopoverOnEntry(page, 'ocean');
-  await expect(page.locator('#atom-pop-score')).toHaveValue('90');
+  await openPanelOnEntry(page, 'ocean');
+  await expect(page.locator('#entry-panel-score')).toHaveValue('90');
 });
 
 test('seeds entry/score/comment from the merged winner across all three fields', async ({ page }) => {
@@ -54,10 +54,10 @@ test('seeds entry/score/comment from the merged winner across all three fields',
   }));
 
   await scopeTo(page, 'Lo');
-  await openPopoverOnEntry(page, 'ocean');
-  await expect(page.locator('#atom-pop-entry')).toHaveValue('ocean');
-  await expect(page.locator('#atom-pop-score')).toHaveValue('90');
-  await expect(page.locator('#atom-pop-comment')).toHaveValue('big');
+  await openPanelOnEntry(page, 'ocean');
+  await expect(page.locator('#entry-panel-entry')).toHaveValue('ocean');
+  await expect(page.locator('#entry-panel-score')).toHaveValue('90');
+  await expect(page.locator('#entry-panel-comment')).toHaveValue('big');
 });
 
 test('a bare click with no bare merged row edits the first-alphabetical spelled variant', async ({ page }) => {
@@ -74,9 +74,9 @@ test('a bare click with no bare merged row edits the first-alphabetical spelled 
   }));
 
   await scopeTo(page, 'W2');
-  await openPopoverOnEntry(page, 'seeingashow');
-  await expect(page.locator('#atom-pop-entry')).toHaveValue('seeing a show');
-  await expect(page.locator('#atom-pop-score')).toHaveValue('80');
+  await openPanelOnEntry(page, 'seeingashow');
+  await expect(page.locator('#entry-panel-entry')).toHaveValue('seeing a show');
+  await expect(page.locator('#entry-panel-score')).toHaveValue('80');
 });
 
 test('a non-pass-through My Edits entry seeds the raw score and shows the rescore mapping', async ({ page }) => {
@@ -95,11 +95,11 @@ test('a non-pass-through My Edits entry seeds the raw score and shows the rescor
   expect(await page.evaluate(() => window.__grawlixTest.getMergedEntry('BAGEL')))
     .toMatchObject({ score: 90, wordlist: 'My Edits' });
 
-  await openPopoverOnEntry(page, 'bagel');
+  await openPanelOnEntry(page, 'bagel');
   // The score field edits raw, so it shows 5 (not the effective 90); the raw →
   // rescored mapping surfaces in the My Edits provenance row's score cell.
-  await expect(page.locator('#atom-pop-score')).toHaveValue('5');
-  const editsRow = page.locator('.atom-pop-prov-row', { hasText: 'My Edits' });
+  await expect(page.locator('#entry-panel-score')).toHaveValue('5');
+  const editsRow = page.locator('.entry-panel-prov-row', { hasText: 'My Edits' });
   await expect(editsRow.locator('.atom-score-raw')).toHaveText('5');
   await expect(editsRow.locator('.score-badge')).toHaveText('90');
 });
@@ -114,9 +114,9 @@ test('a pass-through My Edits entry seeds the effective score with no rescore ma
   // effective — no rescore surprise.
   await page.evaluate(() => window.__grawlixTest.saveMyEdit('bagel', 'bagel', 77));
 
-  await openPopoverOnEntry(page, 'bagel');
-  await expect(page.locator('#atom-pop-score')).toHaveValue('77');
-  const editsRow = page.locator('.atom-pop-prov-row', { hasText: 'My Edits' });
+  await openPanelOnEntry(page, 'bagel');
+  await expect(page.locator('#entry-panel-score')).toHaveValue('77');
+  const editsRow = page.locator('.entry-panel-prov-row', { hasText: 'My Edits' });
   await expect(editsRow.locator('.score-badge')).toHaveText('77');
   await expect(editsRow.locator('.atom-score-raw')).toHaveCount(0);
 });
@@ -125,8 +125,8 @@ test('a pass-through My Edits entry seeds the effective score with no rescore ma
 // set on the row element at render time. Flag-on (WORKER_OWNS_CORPUS + windowing)
 // that stash is the worker's reconstructed rich-row wlEntry (wordlist re-resolved
 // from sourceId); flag-off it's the resident corpus record. Both must seed the
-// popover identically.
-test('a windowed flat-row popover seeds from the worker-reconstructed row', async ({ page }) => {
+// panel identically.
+test('a windowed flat-row panel seeds from the worker-reconstructed row', async ({ page }) => {
   await gotoApp(page);
 
   await page.evaluate(() => {
@@ -148,9 +148,9 @@ test('a windowed flat-row popover seeds from the worker-reconstructed row', asyn
   const ENTRY = 'ABLE000';   // Alpha's first norm-sorted row: score 10, comment note0
 
   const captureSeed = () => page.evaluate(() => ({
-    entry: document.querySelector('#atom-pop-entry').value,
-    score: document.querySelector('#atom-pop-score').value,
-    comment: document.querySelector('#atom-pop-comment').value,
+    entry: document.querySelector('#entry-panel-entry').value,
+    score: document.querySelector('#entry-panel-score').value,
+    comment: document.querySelector('#entry-panel-comment').value,
   }));
 
   await scopeTo(page, 'Alpha');
@@ -166,7 +166,7 @@ test('a windowed flat-row popover seeds from the worker-reconstructed row', asyn
   expect(dbg.isFlatTier).toBe(true);
   expect(dbg.richRowsConsumed).toBeGreaterThan(0);
 
-  await openPopoverOnEntry(page, ENTRY);
+  await openPanelOnEntry(page, ENTRY);
   expect(await captureSeed()).toEqual({ entry: 'ABLE000', score: '10', comment: 'note0' });
 });
 
@@ -183,9 +183,9 @@ test('editing a merged-seeded row still saves to My Edits', async ({ page }) => 
   // Seeded from Hi's 90 (the merge winner); the saved edit must land in My
   // Edits, leaving the scoped Lo source untouched.
   await scopeTo(page, 'Lo');
-  await openPopoverOnEntry(page, 'ocean');
-  await page.locator('#atom-pop-score').fill('95');
-  await page.locator('#atom-pop-score').press('Enter');
+  await openPanelOnEntry(page, 'ocean');
+  await page.locator('#entry-panel-score').fill('95');
+  await page.locator('#entry-panel-score').press('Enter');
 
   await expect.poll(async () =>
     page.evaluate(() => window.__grawlixTest.getWordlist('My Edits').entries)

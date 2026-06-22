@@ -98,18 +98,18 @@ test('removing the tool row reverts to the full merged view', async ({ page }) =
   await expectVisible(page, ['act', 'cat', 'dog', 'lindsey', 'snidely']);
 });
 
-test('pipeline output preserves wlEntry refs (popover opens, source/score intact)', async ({ page }) => {
+test('pipeline output preserves wlEntry refs (panel opens, source/score intact)', async ({ page }) => {
   await gotoApp(page);
   await addAnagramFixture(page);
   await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'anagrams', params: { entry: 'LINDSEY' } }]));
 
-  // Open the popover on an entry produced by the pipeline.
+  // Open the panel on an entry produced by the pipeline.
   await page.locator('.entry-row .atom-entry', { hasText: 'snidely' }).click();
-  await expect(page.locator('#atom-popover')).toBeVisible();
+  await expect(page.locator('#entry-panel')).toBeVisible();
   // The score input reflects the entry's actual score from the merged view,
   // confirming the pipeline handed back the original wlEntry rather than a
   // synthesized lookalike.
-  await expect(page.locator('#atom-pop-score')).toHaveValue('50');
+  await expect(page.locator('#entry-panel-score')).toHaveValue('50');
 });
 
 // ─── Search rows below the permanent bar ────────────────────────────────────
@@ -434,17 +434,17 @@ test('stats bar counts chain rows as entries', async ({ page }) => {
   await expect(page.locator('#stats .stats-bar')).toContainText('9');
 });
 
-test('clicking an atom in a chain row opens the popover for that atom', async ({ page }) => {
+test('clicking an atom in a chain row opens the panel for that atom', async ({ page }) => {
   await gotoApp(page);
   await addSemordnilapFixture(page);
   await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'semordnilap' }]));
 
   // Click STRESSED specifically (the second atom of the DESSERTS↔STRESSED
-  // chain). The popover's score input must show STRESSED's score (60), not
+  // chain). The panel's score input must show STRESSED's score (60), not
   // DESSERTS's (40) — that's the data-atom wiring on the click handler.
   await page.locator('.entry-row .atom', { hasText: 'stressed' }).locator('.atom-entry').click();
-  await expect(page.locator('#atom-popover')).toBeVisible();
-  await expect(page.locator('#atom-pop-score')).toHaveValue('60');
+  await expect(page.locator('#entry-panel')).toBeVisible();
+  await expect(page.locator('#entry-panel-score')).toHaveValue('60');
 });
 
 // ─── Sort tiebreakers ───────────────────────────────────────────────────────
@@ -779,17 +779,17 @@ test('sort axis crosses the group tier boundary', async ({ page }) => {
   expect(page.url()).toContain('sort=min-score');
 });
 
-test('a group member is individually editable through the atom popover', async ({ page }) => {
+test('a group member is individually editable through the atom panel', async ({ page }) => {
   await gotoApp(page);
   await addLetterSetFixture(page);
   await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'letter_bank', grouped: true }]));
 
   await page.locator('.group-row .group-chain .atom', { hasText: 'opt' }).first().locator('.atom-entry').click();
-  await expect(page.locator('#atom-popover')).toBeVisible();
-  await expect(page.locator('#atom-pop-score')).toHaveValue('50');
+  await expect(page.locator('#entry-panel')).toBeVisible();
+  await expect(page.locator('#entry-panel-score')).toHaveValue('50');
 
-  await page.locator('#atom-pop-score').fill('15');
-  await page.locator('#atom-pop-score').press('Enter');
+  await page.locator('#entry-panel-score').fill('15');
+  await page.locator('#entry-panel-score').press('Enter');
   const edited = await page.evaluate(() => window.__grawlixTest.getMergedEntry('opt'));
   expect(edited.score).toBe(15);
 });

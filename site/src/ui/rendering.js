@@ -23,7 +23,7 @@ import { scoreColor } from '../model/score-display.js';
 import { PopupHelp } from './components.js';
 import { AppView, scopeKey } from './app-view.js';
 import {
-  EntriesScroller, AtomPopover, GroupMorePopover,
+  EntriesScroller, EntryPanel, GroupMorePopover,
   reconcileSort, chainSortTier,
   buildEntriesTablePanelHTML, buildEntryHeadersHTML, onSortHeaderActivate,
 } from './entries-table.js';
@@ -218,7 +218,7 @@ export function repaintAfterConfigChange() {
 }
 
 export function createScroller() {
-  AtomPopover.close();
+  EntryPanel.close();
   GroupMorePopover.close();
   entriesScroller?.destroy();
   entriesScroller = new EntriesScroller(document.getElementById('vs-host'));

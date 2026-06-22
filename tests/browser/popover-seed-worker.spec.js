@@ -1,4 +1,4 @@
-// P5b — the edit popover's seed resolves off the worker in a scoped view.
+// P5b — the edit panel's seed resolves off the worker in a scoped view.
 // resolveSeed must find the All Wordlists merge winner without main reading the
 // corpus, so a scoped click queries the worker (fetchEditSeed) for the winner —
 // including a scoped-lower-priority overlap, where the winner is a different,
@@ -33,28 +33,28 @@ async function seedCorpus(page) {
   }, { count: COUNT });
 }
 
-async function openPopoverOnEntry(page, entryText) {
+async function openPanelOnEntry(page, entryText) {
   const row = page.locator('#vs-host .entry-row', {
     has: page.locator('.atom-entry', { hasText: new RegExp(`^${entryText}$`) }),
   }).first();
   await row.locator('.atom-entry').click();
-  await expect(page.locator('#atom-popover')).toBeVisible();
+  await expect(page.locator('#entry-panel')).toBeVisible();
 }
 
 function captureSeed(page) {
   return page.evaluate(() => ({
-    entry: document.querySelector('#atom-pop-entry').value,
-    score: document.querySelector('#atom-pop-score').value,
-    comment: document.querySelector('#atom-pop-comment').value,
+    entry: document.querySelector('#entry-panel-entry').value,
+    score: document.querySelector('#entry-panel-score').value,
+    comment: document.querySelector('#entry-panel-comment').value,
   }));
 }
 
-async function closePopover(page) {
+async function closePanel(page) {
   await page.keyboard.press('Escape');
-  await expect(page.locator('#atom-popover')).toBeHidden();
+  await expect(page.locator('#entry-panel')).toBeHidden();
 }
 
-const seedDebug = page => page.evaluate(() => window.__grawlixTest.popoverSeedDebug());
+const seedDebug = page => page.evaluate(() => window.__grawlixTest.entryPanelSeedDebug());
 
 async function enterScopedRichMode(page, scopeName) {
   await page.evaluate(n => window.__grawlixTest.setScope(n), scopeName);
@@ -72,9 +72,9 @@ test('scoped seed comes from the worker; winner is the higher-priority list', as
   await enterScopedRichMode(page, 'Lo');
   const before = await seedDebug(page);
 
-  await openPopoverOnEntry(page, ENTRY);
+  await openPanelOnEntry(page, ENTRY);
   // Playwright polls toHaveValue, so it waits through the brief disabled refine window.
-  await expect(page.locator('#atom-pop-score')).toHaveValue('200');
+  await expect(page.locator('#entry-panel-score')).toHaveValue('200');
   // The winner is Hi (higher priority), not the scoped Lo — proves resolveSeed seeds the merge.
   expect(await captureSeed(page)).toEqual({ entry: 'WORD000', score: '200', comment: 'hi0' });
 
@@ -82,7 +82,7 @@ test('scoped seed comes from the worker; winner is the higher-priority list', as
   const after = await seedDebug(page);
   expect(after.seedQueriesFired).toBeGreaterThan(before.seedQueriesFired);
   expect(after.seedWinnersApplied).toBeGreaterThan(before.seedWinnersApplied);
-  await closePopover(page);
+  await closePanel(page);
 });
 
 test('a scoped score-cell click focuses the score field after the worker refine', async ({ page }) => {
@@ -94,11 +94,11 @@ test('a scoped score-cell click focuses the score field after the worker refine'
     has: page.locator('.atom-entry', { hasText: /^WORD000$/ }),
   }).first();
   await row.locator('.atom-score').click();
-  await expect(page.locator('#atom-popover')).toBeVisible();
-  await expect(page.locator('#atom-pop-score')).toBeFocused();
+  await expect(page.locator('#entry-panel')).toBeVisible();
+  await expect(page.locator('#entry-panel-score')).toBeFocused();
 });
 
-test('the merged view opens the popover with no worker query (local path)', async ({ page }) => {
+test('the merged view opens the panel with no worker query (local path)', async ({ page }) => {
   await gotoApp(page);
   await seedCorpus(page);
 
@@ -108,10 +108,10 @@ test('the merged view opens the popover with no worker query (local path)', asyn
   await page.evaluate(() => window.__grawlixTest.syncWorkerConfig());
 
   const before = await seedDebug(page);
-  await openPopoverOnEntry(page, 'WORD000');
-  await expect(page.locator('#atom-pop-score')).toHaveValue('200');   // Hi wins the merge
+  await openPanelOnEntry(page, 'WORD000');
+  await expect(page.locator('#entry-panel-score')).toHaveValue('200');   // Hi wins the merge
   const after = await seedDebug(page);
   // No worker query: the merged path is fully local + synchronous.
   expect(after.seedQueriesFired).toBe(before.seedQueriesFired);
-  await closePopover(page);
+  await closePanel(page);
 });

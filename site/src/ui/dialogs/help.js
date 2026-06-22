@@ -89,7 +89,7 @@ const SECTIONS = [
       {
         q: 'What do the score colors and tiers mean?',
         a: `
-          <p>Scores show up as colored badges, and the color is the tier. Out of the box: <strong>great</strong> (60+), <strong>good</strong> (50+), <strong>fair</strong> (40+), <strong>meh</strong> (30+), <strong>bad</strong> (below 30). Hover any badge, whether in the table, the edit popover, or the tier picker, and it names the tier.</p>
+          <p>Scores show up as colored badges, and the color is the tier. Out of the box: <strong>great</strong> (60+), <strong>good</strong> (50+), <strong>fair</strong> (40+), <strong>meh</strong> (30+), <strong>bad</strong> (below 30). Hover any badge, whether in the table, the entry panel, or the tier picker, and it names the tier.</p>
           <p>Don't like the cutoffs or the labels? They're yours. Switch to All Wordlists and open <strong>Scoring</strong> to rename a tier or move a line. It's optional decoration, though. Unlabeled scores still display fine, you just won't get a name on hover.</p>`,
       },
       {

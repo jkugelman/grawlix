@@ -71,7 +71,7 @@ const readEditsIdb = (page, dbKey) => page.evaluate(key => new Promise(resolve =
   req.onerror = () => resolve(null);
 }), dbKey);
 
-// Drives the real UI edit path (the same saveEdit the popover calls), then polls
+// Drives the real UI edit path (the same saveEdit the panel calls), then polls
 // every property to a settle: the ack has landed when the shipped counts match the
 // local rebuild and the IDB record matches the edited rawEntries.
 async function runRealEdit(page, fn) {

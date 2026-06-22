@@ -3,8 +3,8 @@
 // ─── Lookup section ───────────────────────────────────────────────────────────
 //
 // Unlike a standard lifecycle component, this one renders into a host element
-// AtomPopover provides rather than creating its own — it lives inside the
-// popover's churny innerHTML, so the popover owns the node and re-mounts it.
+// the entry panel provides rather than creating its own — it lives inside the
+// panel's churny innerHTML, so the panel owns the node and re-mounts it.
 
 import { LOOKUP_SOURCES, getLookupSource } from '../engine/lookup.js';
 import { toNorm } from '../engine/norm.js';
@@ -18,7 +18,6 @@ export const LookupSection = (() => {
   let entry = '';        // live entry text — drives the (free) links immediately
   let norm = '';
   let shownEntry = '';   // entry whose inline results are on screen — swaps lazily
-  let reposition = () => {};
   let debounceTimer = null;
   const cache = new Map();
 
@@ -31,14 +30,13 @@ export const LookupSection = (() => {
     });
   }
 
-  // AtomPopover rebuilds its innerHTML wholesale on open and on resetInputs, so
+  // EntryPanel rebuilds its innerHTML wholesale on open and on resetInputs, so
   // the host is a fresh node each time; remounting re-grabs it while the result
   // cache persists at module scope.
-  function mount(host, entryStr, repositionFn) {
+  function mount(host, entryStr) {
     hostEl = host;
     entry = shownEntry = (entryStr || '').trim();
     norm = toNorm(entry);
-    reposition = repositionFn || (() => {});
     clearTimeout(debounceTimer);
     debounceTimer = null;
     for (const s of INLINE) ensureLoaded(s.id);
@@ -47,7 +45,7 @@ export const LookupSection = (() => {
 
   // The links repoint immediately, but the inline results keep showing the
   // previous entry until the new entry's fetches all settle — swapping early to a
-  // spinner or blank makes the popover jump on every keystroke.
+  // spinner or blank flickers the results region on every keystroke.
   function setEntry(entryStr) {
     const next = (entryStr || '').trim();
     if (next === entry) return;
@@ -59,7 +57,6 @@ export const LookupSection = (() => {
     else if (inlineSettled(entry)) shownEntry = entry;   // already fetched — show at once
     else debounceTimer = setTimeout(runInlineLookups, LOOKUP_DEBOUNCE_MS);
     render();
-    reposition();
   }
 
   function runInlineLookups() {
@@ -86,7 +83,6 @@ export const LookupSection = (() => {
       if (shownEntry === myEntry || inlineSettled(myEntry)) {
         shownEntry = myEntry;
         render();
-        reposition();
       }
     });
   }

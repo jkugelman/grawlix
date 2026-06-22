@@ -173,34 +173,34 @@ test('on All Wordlists the editor edits tier labels, so no row shows an arrow', 
 });
 
 const provScore = (page, entry) => page
-  .locator('.atom-pop-prov tbody tr', { has: page.locator('.atom-pop-prov-entry', { hasText: new RegExp(`^${entry}$`) }) })
-  .locator('.atom-pop-prov-score');
+  .locator('.entry-panel-prov tbody tr', { has: page.locator('.entry-panel-prov-entry', { hasText: new RegExp(`^${entry}$`) }) })
+  .locator('.entry-panel-prov-score');
 
-test('the popover provenance shows raw → rescored without opening the editor', async ({ page }) => {
+test('the panel provenance shows raw → rescored without opening the editor', async ({ page }) => {
   await gotoApp(page);
   await seedRemappedSource(page);
 
   await oceanScore(page).click();
-  await expect(page.locator('#atom-popover')).toBeVisible();
+  await expect(page.locator('#entry-panel')).toBeVisible();
 
   await expect(provScore(page, 'ocean').locator('.atom-score-raw')).toHaveText('350');
   await expect(provScore(page, 'ocean').locator('.atom-score-arrow')).toHaveCount(1);
   await expect(provScore(page, 'ocean').locator('.score-badge')).toHaveText('80');
 });
 
-test('an unrescored source shows a single score in the popover provenance', async ({ page }) => {
+test('an unrescored source shows a single score in the panel provenance', async ({ page }) => {
   await gotoApp(page);
   await seedRemappedSource(page);
 
   await tideScore(page).click();
-  await expect(page.locator('#atom-popover')).toBeVisible();
+  await expect(page.locator('#entry-panel')).toBeVisible();
 
   await expect(provScore(page, 'tide').locator('.score-badge')).toHaveText('40');
   await expect(provScore(page, 'tide').locator('.atom-score-arrow')).toHaveCount(0);
   await expect(provScore(page, 'tide').locator('.atom-score-raw')).toHaveCount(0);
 });
 
-test('score badges carry the tier-label tooltip in the popover, not just the table', async ({ page }) => {
+test('score badges carry the tier-label tooltip in the panel, not just the table', async ({ page }) => {
   await gotoApp(page);
   await seedRemappedSource(page);
 
@@ -208,7 +208,7 @@ test('score badges carry the tier-label tooltip in the popover, not just the tab
   expect(tableTitle).toBeTruthy();
 
   await tideScore(page).click();
-  await expect(page.locator('#atom-popover')).toBeVisible();
+  await expect(page.locator('#entry-panel')).toBeVisible();
   await expect(provScore(page, 'tide').locator('.score-badge')).toHaveAttribute('title', tableTitle);
 });
 

@@ -3,7 +3,7 @@
 // These tests pin the central contract of the app: when multiple enabled
 // wordlists share an entry, which one wins, and what does the merged All Wordlists
 // view show. Most cross-feature regressions in Grawlix land somewhere
-// downstream of this seam (cache invalidation, popover sourcing, the
+// downstream of this seam (cache invalidation, panel sourcing, the
 // entries table, downloads).
 
 import { test, expect } from '@playwright/test';
