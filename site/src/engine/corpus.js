@@ -91,6 +91,33 @@ export function mergeKey(norm, display) {
   return norm + '\0' + (display ?? '');
 }
 
+// Keyed by mergeKey, not bare norm: entries sharing a norm but differing in
+// display ("pgs"/"PGs") are distinct. Norm-keying collapses them last-wins and
+// fabricates phantom rescores — fails silently, only visible in the update dialog.
+export function diffWordlistEntries(oldEntries, newEntries) {
+  const keyer = entries => {
+    const m = new Map();
+    for (const e of entries) m.set(mergeKey(e.norm, e.display), e);
+    return m;
+  };
+  const oldByKey = keyer(oldEntries);
+  const newByKey = keyer(newEntries);
+
+  const byNorm = (a, b) => a.norm.localeCompare(b.norm);
+  const added = [], rescored = [];
+  for (const [key, e] of newByKey) {
+    const prev = oldByKey.get(key);
+    if (!prev) added.push(e);
+    else if (prev.score !== e.score) rescored.push({ entry: e, oldScore: prev.score, score: e.score });
+  }
+  const deleted = [...oldByKey].filter(([key]) => !newByKey.has(key)).map(([, e]) => e);
+
+  added.sort(byNorm);
+  deleted.sort(byNorm);
+  rescored.sort((a, b) => byNorm(a.entry, b.entry));
+  return { added, deleted, rescored };
+}
+
 // Must reproduce buildCorpus's per-bucket logic exactly — including deduping
 // winners by contributor, not wordlist — or the worker's in-place owned-corpus
 // splice (which calls this per affected norm) drifts from a full rebuild.

@@ -41,7 +41,7 @@ import {
   setShippedConfigCounts,
 } from '../data/merge.js';
 import { setShippedAllSourcesAxis } from '../data/derived.js';
-import { mergeKey } from '../engine/corpus.js';
+import { mergeKey, diffWordlistEntries } from '../engine/corpus.js';
 import { invalidateWordlistCaches } from '../data/invalidate.js';
 import {
   persistMeta, persistScoring, batchUpdate, repaintAfterCacheChange,
@@ -596,14 +596,7 @@ export async function applyWordlistText(wordlist, text, { fetchedSize = null, or
   if (wasEmpty) {
     if (!silent) showToast(`Loaded ${pluralize(wordlist.rawEntries.length, 'entry', 'entries')} from ${esc(source)}`);
   } else {
-    const oldMap = new Map(oldEntries.map(e => [e.norm, e.score]));
-    const newMap = new Map(wordlist.rawEntries.map(e => [e.norm, e.score]));
-    const added   = wordlist.rawEntries.filter(e => !oldMap.has(e.norm)).sort((a, b) => a.norm.localeCompare(b.norm));
-    const deleted = oldEntries.filter(e => !newMap.has(e.norm)).sort((a, b) => a.norm.localeCompare(b.norm));
-    const rescored = oldEntries
-      .filter(e => newMap.has(e.norm) && newMap.get(e.norm) !== e.score)
-      .map(e => ({ entry: e, oldScore: e.score, score: newMap.get(e.norm) }))
-      .sort((a, b) => a.entry.norm.localeCompare(b.entry.norm));
+    const { added, deleted, rescored } = diffWordlistEntries(oldEntries, wordlist.rawEntries);
     if (!added.length && !deleted.length && !rescored.length) {
       if (!viaToast) showAlert(`${buildWordlistNameHTML(wordlist)} is already up to date — no changes.`);
     } else if (viaToast) {
