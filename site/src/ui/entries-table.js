@@ -1951,7 +1951,7 @@ export const AtomPopover = (() => {
       <div class="atom-pop-title">${esc(headerText(seed.entry))}</div>
       <div class="atom-pop-fields">
         <label for="atom-pop-entry">Entry</label>
-        <input id="atom-pop-entry" class="entry-input" type="text" value="${esc(seed.entry)}">
+        <input id="atom-pop-entry" class="entry-input" type="text" autocapitalize="off" autocorrect="off" spellcheck="false" value="${esc(seed.entry)}">
         <label for="atom-pop-score">Score</label>
         <input id="atom-pop-score" class="score-input" type="number" min="0" value="${seed.score}">
         <label for="atom-pop-comment">Comment</label>
