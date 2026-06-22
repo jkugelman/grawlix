@@ -36,10 +36,22 @@ async function stubPublisherFetches(page, bodies = {}) {
   });
 }
 
+// Stub the external entry-lookup APIs the edit popover auto-fires on open
+// (Datamuse, Wikipedia, Dictionary) so tests never reach the real network.
+// Empty/404 bodies leave every inline section hidden — all the popover tests
+// need — while the link row still renders.
+async function stubLookupFetches(page) {
+  await page.route(/api\.datamuse\.com/, route =>
+    route.fulfill({ status: 200, contentType: 'application/json', body: '[]' }));
+  await page.route(/wikipedia\.org|dictionaryapi\.dev/, route =>
+    route.fulfill({ status: 404, contentType: 'application/json', body: '{}' }));
+}
+
 // Navigate to the app with the given route. Defaults to the bare URL.
 // Polls until init() has finished opening the IndexedDB so callers can
 // immediately call test-API functions that persist data.
 async function gotoApp(page, route = '/') {
+  await stubLookupFetches(page);
   // Mark the visitor returning and every tool already seen, so the new-tools
   // reveal — a full-screen overlay — never fires and swallows clicks in tests.
   await page.addInitScript(() => localStorage.setItem('grawlix_returningVisitor', '1'));

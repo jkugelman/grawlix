@@ -505,6 +505,27 @@ td.atom-pop-prov-entry { font-family: var(--font-mono); }
 .atom-pop-save:hover:not(:disabled) { background: var(--accent-hover); border-color: var(--accent-hover); }
 .atom-pop-save:disabled { opacity: 0.5; cursor: not-allowed; }
 
+.atom-pop-lookup { margin-top: 10px; border-top: 1px solid var(--border3); padding-top: 8px; font-size: 11px; color: var(--text); line-height: 1.45; }
+.atom-pop-lookup:empty { display: none; }
+.lookup-empty { color: var(--muted); font-style: italic; }
+.lookup-sec { margin-bottom: 10px; }
+.lookup-sec:last-child { margin-bottom: 0; }
+.lookup-sec-head { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); margin-bottom: 3px; }
+.lookup-prose-title, .lookup-def-head { font-weight: 700; margin-bottom: 4px; }
+.lookup-prose { display: flex; gap: 10px; }
+.lookup-thumb { width: 56px; height: 56px; object-fit: cover; border-radius: 4px; flex-shrink: 0; }
+.lookup-prose-body { min-width: 0; }
+.lookup-prose-desc { color: var(--muted); font-size: 10px; margin-bottom: 2px; }
+.lookup-prose p { margin: 4px 0; max-height: 7.5em; overflow-y: auto; }
+.lookup-phon { color: var(--muted); font-weight: 400; font-family: var(--font-mono); }
+.lookup-def { margin-bottom: 6px; }
+.lookup-pos { font-style: italic; color: var(--muted); }
+.lookup-def ol { margin: 2px 0 0; padding-left: 18px; }
+.lookup-def li { margin-bottom: 2px; }
+.lookup-links { display: flex; flex-wrap: wrap; gap: 10px; }
+.lookup-more, .lookup-link { color: var(--accent); text-decoration: none; }
+.lookup-more:hover, .lookup-link:hover { text-decoration: underline; }
+
 input.entry-input { font-family: var(--font-mono); font-size: 13px; }
 
 .score-badge { display: inline-block; padding: 1px 5px; border-radius: 3px; font-size: 11px; font-weight: 700; font-family: var(--font-mono); background: var(--score-bg); color: var(--score-fg); }

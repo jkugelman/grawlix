@@ -39,6 +39,7 @@ import { ToolStack } from './tool-stack.js';
 import { buildWordlistNameIconHTML } from './scope-selector.js';
 import { getDraftRescoreRules } from './rescore-editor.js';
 import { buildTrashIconHTML, positionPopover } from './components.js';
+import { LookupSection } from './lookup.js';
 import {
   getEntriesScroller, rescorePreviewActive, refreshMergedScroller, setScope,
 } from './rendering.js';
@@ -1946,6 +1947,7 @@ export const AtomPopover = (() => {
         <input id="atom-pop-comment" class="comment-input" type="text" value="${esc(seed.comment)}">
       </div>
       <div class="atom-pop-prov-wrap">${renderProvenanceTableHTML()}${renderNotesHTML()}</div>
+      <div class="atom-pop-lookup"></div>
       <div class="atom-pop-foot">${renderFooterHTML(seed.entry)}</div>`;
   }
 
@@ -1963,10 +1965,11 @@ export const AtomPopover = (() => {
     return inp ? inp.value : '';
   }
 
-  function headerText(entryText) {
+  function headerText(entryText, changed = false) {
     if (stagedDelete) return 'Delete entry';
     if (activeMode === 'create') return 'Add entry';
-    return isRenaming(entryText) ? 'Rename entry' : 'Edit entry';
+    if (isRenaming(entryText)) return 'Rename entry';
+    return changed ? 'Edit entry' : 'View entry';
   }
 
   function saveLabel(entryText) {
@@ -1978,7 +1981,7 @@ export const AtomPopover = (() => {
   function updateModeLabels() {
     const entryText = entryInputValue();
     const t = el && el.querySelector('.atom-pop-title');
-    if (t) t.textContent = headerText(entryText);
+    if (t) t.textContent = headerText(entryText, pendingWritesChange(readNewValues()));
     const s = el && el.querySelector('.atom-pop-save');
     if (s) s.textContent = saveLabel(entryText);
   }
@@ -2135,8 +2138,10 @@ export const AtomPopover = (() => {
     // An entry edit changes the norm → re-query the worker for contributors;
     // score/comment only move the local My Edits preview row.
     entryInp.addEventListener('input', refreshDynamicBits);
-    scoreInp.addEventListener('input', renderProvWrap);
-    commentInp.addEventListener('input', renderProvWrap);
+    for (const inp of [scoreInp, commentInp]) {
+      inp.addEventListener('input', renderProvWrap);
+      inp.addEventListener('input', updateModeLabels);
+    }
 
     for (const inp of [entryInp, scoreInp, commentInp]) {
       inp.addEventListener('input', refreshSaveEnabled);
@@ -2146,6 +2151,9 @@ export const AtomPopover = (() => {
     }
 
     wireFooter();
+
+    const lookupHost = el.querySelector('.atom-pop-lookup');
+    if (lookupHost) LookupSection.mount(lookupHost, entryInp.value, () => position(activeAnchor));
   }
 
   function position(anchorEl) {

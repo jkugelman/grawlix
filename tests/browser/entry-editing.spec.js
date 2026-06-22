@@ -32,29 +32,35 @@ const adoptLink = page => page.locator('#atom-popover .atom-pop-adopt-btn');
 
 // ─── Header ──────────────────────────────────────────────────────────────────
 
-test('header and Save button read Edit/Save, flipping to Rename/Rename as the text diverges', async ({ page }) => {
+test('header and Save button track View / Edit / Rename as fields diverge', async ({ page }) => {
   await gotoApp(page);
   await addList(page, { name: 'W', entries: ['ocean'], scores: [50] });
   await openPopoverOnEntry(page, 'ocean');
-  await expect(page.locator('#atom-popover .atom-pop-title')).toHaveText('Edit entry');
-  await expect(page.locator('#atom-popover .atom-pop-save')).toHaveText('Save');
+  const title = page.locator('#atom-popover .atom-pop-title');
+  const save = page.locator('#atom-popover .atom-pop-save');
+  await expect(title).toHaveText('View entry');
+  await expect(save).toHaveText('Save');
+  await page.locator('#atom-pop-score').fill('60');
+  await expect(title).toHaveText('Edit entry');
+  await page.locator('#atom-pop-score').fill('50');
+  await expect(title).toHaveText('View entry');
   await page.locator('#atom-pop-entry').fill('oceans');
-  await expect(page.locator('#atom-popover .atom-pop-title')).toHaveText('Rename entry');
-  await expect(page.locator('#atom-popover .atom-pop-save')).toHaveText('Rename');
+  await expect(title).toHaveText('Rename entry');
+  await expect(save).toHaveText('Rename');
   await page.locator('#atom-pop-entry').fill('ocean');
-  await expect(page.locator('#atom-popover .atom-pop-title')).toHaveText('Edit entry');
-  await expect(page.locator('#atom-popover .atom-pop-save')).toHaveText('Save');
+  await expect(title).toHaveText('View entry');
+  await expect(save).toHaveText('Save');
 });
 
-test('reopening on a different entry reads Edit entry, not Rename', async ({ page }) => {
+test('reopening on a different entry reads View entry, not Rename', async ({ page }) => {
   await gotoApp(page);
   await addList(page, { name: 'W', entries: ['ocean', 'river'], scores: [50, 50] });
   await scopeTo(page, 'All Wordlists');
   await openPopoverOnEntry(page, 'ocean');
-  await expect(page.locator('#atom-popover .atom-pop-title')).toHaveText('Edit entry');
+  await expect(page.locator('#atom-popover .atom-pop-title')).toHaveText('View entry');
   await page.keyboard.press('Escape');
   await openPopoverOnEntry(page, 'river');
-  await expect(page.locator('#atom-popover .atom-pop-title')).toHaveText('Edit entry');
+  await expect(page.locator('#atom-popover .atom-pop-title')).toHaveText('View entry');
   await expect(page.locator('#atom-popover .atom-pop-save')).toHaveText('Save');
 });
 
