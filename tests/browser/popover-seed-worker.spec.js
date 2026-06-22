@@ -85,6 +85,19 @@ test('scoped seed comes from the worker; winner is the higher-priority list', as
   await closePopover(page);
 });
 
+test('a scoped score-cell click focuses the score field after the worker refine', async ({ page }) => {
+  await gotoApp(page);
+  await seedCorpus(page);
+  await enterScopedRichMode(page, 'Lo');
+
+  const row = page.locator('#vs-host .entry-row', {
+    has: page.locator('.atom-entry', { hasText: /^WORD000$/ }),
+  }).first();
+  await row.locator('.atom-score').click();
+  await expect(page.locator('#atom-popover')).toBeVisible();
+  await expect(page.locator('#atom-pop-score')).toBeFocused();
+});
+
 test('the merged view opens the popover with no worker query (local path)', async ({ page }) => {
   await gotoApp(page);
   await seedCorpus(page);

@@ -1697,7 +1697,13 @@ export const AtomPopover = (() => {
     fireInitialProvenanceQuery(seed.entry);
     if (needsWorkerSeed(wlEntry)) refineScopedSeed(wlEntry, focusField);
 
-    focusSeedField(focusField);
+    // Don't auto-focus the entry box when opening an existing entry — that's
+    // view-first, and grabbing it implies a rename and pops the mobile keyboard.
+    // Score/comment cells are clear edits, and create types a new entry; both focus.
+    if (activeMode === 'create' || focusField !== 'entry') focusSeedField(focusField);
+    // Reset to the top: the element is reused and the lookup section can overflow
+    // the mobile sheet, so a fresh open must not inherit a prior scroll position.
+    popover.scrollTop = 0;
 
     document.addEventListener('mousedown', onDocMouseDown, true);
     document.addEventListener('keydown', onKeydown, true);
@@ -1713,6 +1719,9 @@ export const AtomPopover = (() => {
     setFieldsDisabled(true);
     fetchWorkerEditSeed(clicked.norm, clicked.display ?? null).then(winner => {
       if (token !== seedQueryToken || !isOpen() || activeWlEntry !== clicked) return;
+      // Re-enable before applySeedToFields: focus/select no-op on a disabled input,
+      // so deferring this until after would drop the score-cell auto-focus.
+      setFieldsDisabled(false);
       if (winner) {
         const src = state.sources.find(s => s.dbKey === winner.sourceId) || null;
         const row = { ...winner, wordlist: src };
@@ -1720,7 +1729,6 @@ export const AtomPopover = (() => {
         applySeedToFields(activeSeed, focusField);
         seedWinnersApplied++;
       }
-      setFieldsDisabled(false);
       refreshSaveEnabled();
     });
   }
@@ -1742,7 +1750,7 @@ export const AtomPopover = (() => {
     renderProvWrap();
     refreshSaveEnabled();
     updateModeLabels();
-    focusSeedField(focusField);
+    if (activeMode === 'create' || focusField !== 'entry') focusSeedField(focusField);
   }
 
   // The entry name is focus-only (no select): a click on a word is rarely a
@@ -1752,7 +1760,9 @@ export const AtomPopover = (() => {
               : focusField === 'comment' ? '.comment-input'
               : '.score-input';
     const input = el?.querySelector(sel);
-    input?.focus();
+    // preventScroll: on the tall mobile sheet the browser's focus-into-view can
+    // scroll the focused field off-screen; open() shows the top explicitly instead.
+    input?.focus({ preventScroll: true });
     if (focusField !== null && focusField !== 'entry') input?.select();
   }
 
