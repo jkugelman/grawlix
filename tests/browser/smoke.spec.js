@@ -27,7 +27,7 @@ test('Help does not auto-open on first boot, and the ? button opens it', async (
   await page.locator('#btn-help').click();
   await expect(dialog).toBeVisible();
   await expect(dialog.locator('#help-title')).toContainText('Help');
-  await expect(page).toHaveURL(/#help$/);
+  await expect(page).toHaveURL(/#\/help$/);
 });
 
 test('test API is exposed on window', async ({ page }) => {

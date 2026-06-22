@@ -605,7 +605,7 @@ The header `?` button opens the **Help** dialog (`FaqDialog`) directly — there
 - A couple of small **diagrams** embedded in the relevant answers — the source wordlists merging into All Wordlists (with the live merged count), and the browser ⇄ file ⇄ construction-software sync bridge — plus a featured-tools strip, all rendered at open time from the live catalog.
 - An **Acknowledgements** question (folded into the first section) crediting the third-party wordlist authors (rendered from the publisher catalog, minus John's own list) and Wordlisted, whose search catalog charted much of the tool gallery. The fuller, maintainer-facing license inventory (third-party deps, wordlist terms, verbatim MIT texts for the bundled icons) lives in [`THIRD-PARTY-NOTICES`](../THIRD-PARTY-NOTICES) at the repo root, kept there deliberately and not shipped with the deployed site.
 
-Help is **deep-linkable at the `#help` hash**: the `?` button sets the hash, a boot/hashchange sync (in `actions`) opens or closes the dialog to match, and closing strips the hash (`history.replaceState`). A hash rather than a `/help` path because GitHub Pages serves no path routes without the SPA 404 trick (§ *URL state*). The dialog never opens on its own — there is no first-boot popup.
+Help is **deep-linkable at the `#/help` hash**: the `?` button sets the hash, a boot/hashchange sync (in `actions`) opens or closes the dialog to match, and closing strips the hash (`history.replaceState`). A hash rather than a `/help` path because GitHub Pages serves no path routes without the SPA 404 trick (§ *URL state*). The dialog never opens on its own — there is no first-boot popup.
 
 The Help dialog is the only help surface, deliberately so: one scrollable dialog gathering everything help-shaped rather than a multi-page reference/onboarding system, and its FAQ coverage is treated as sufficient.
 
@@ -839,7 +839,7 @@ The alternative — sprinkling `invalidateX()` and `repaintY()` calls at every m
 
 ### Routes for Settings?
 
-Grawlix has no path routes (§ *URL state*); state lives in the query string. **Help** is the one routed dialog — deep-linkable at the `#help` hash (§ *Help*) — chosen because a help page is something people share and bookmark. Settings and the transient confirms/alerts/downloads stay unrouted; whether Settings should also route is the open question here.
+Grawlix has no path routes (§ *URL state*); state lives in the query string. **Help** is the one routed dialog — deep-linkable at the `#/help` hash (§ *Help*) — chosen because a help page is something people share and bookmark. Settings and the transient confirms/alerts/downloads stay unrouted; whether Settings should also route is the open question here.
 
 Arguments in favor of routes for setup: setup screens are *places* users spend real time, URL-addressable means deep-linkable and reload-safe, narrow viewports turn modals into full-screen routes anyway. Currently sticking with dialogs because they match the existing codebase idiom. Worth revisiting if the dialog-as-workspace feel becomes a friction point — particularly at narrow viewport widths, where a full-screen modal is essentially a route in disguise. Notes for that revisit: bookmark/share-setup-state is unlikely (so deep-linking isn't a strong driver, just reload-safety); the back button does default browser behavior; the header stays a fixture with no dynamic content (no breadcrumbs). *"Routes for everything" — including confirms — was considered and dropped as too heavy-handed.*
 

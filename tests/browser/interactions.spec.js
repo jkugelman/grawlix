@@ -56,13 +56,13 @@ test('the gear button opens Settings', async ({ page }) => {
   await expect(dialog.locator('#dark-mode-seg .seg-btn', { hasText: 'Dark' })).toBeVisible();
 });
 
-test('the ? button opens Help: collapsible questions, folded-in acknowledgements, #help hash', async ({ page }) => {
+test('the ? button opens Help: collapsible questions, folded-in acknowledgements, #/help hash', async ({ page }) => {
   await gotoApp(page);
   await page.locator('#btn-help').click();
   const dialog = page.locator('#help-dialog');
   await expect(dialog).toBeVisible();
   await expect(dialog.locator('#help-title')).toContainText('Help');
-  await expect(page).toHaveURL(/#help$/);
+  await expect(page).toHaveURL(/#\/help$/);
 
   const item = dialog.locator('.faq-item').filter({ hasText: 'What is disk sync' });
   const answer = item.locator('.faq-answer');
@@ -80,8 +80,8 @@ test('the ? button opens Help: collapsible questions, folded-in acknowledgements
   expect(await page.evaluate(() => location.hash)).toBe('');
 });
 
-test('a #help deep link opens Help on load', async ({ page }) => {
-  await page.goto('/#help');
+test('a #/help deep link opens Help on load', async ({ page }) => {
+  await page.goto('/#/help');
   await page.evaluate(() => window.__grawlixTest.whenReady());
   await expect(page.locator('#help-dialog')).toBeVisible();
 });

@@ -215,10 +215,10 @@ export const HelpDialog = (() => {
       </div>`;
   }
 
-  // The dialog mirrors the #help hash so it's deep-linkable: closing strips the
+  // The dialog mirrors the #/help hash so it's deep-linkable: closing strips the
   // hash, and the boot/hashchange sync (in actions) drives open/close from it.
   function clearHash() {
-    if (location.hash === '#help') history.replaceState(null, '', location.pathname + location.search);
+    if (location.hash === '#/help') history.replaceState(null, '', location.pathname + location.search);
   }
 
   function open() {

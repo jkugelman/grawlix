@@ -832,7 +832,7 @@ function newEntrySeedQuery() {
 // ─── Event wiring ─────────────────────────────────────────────────────────────
 
 function syncHelp() {
-  if (location.hash === '#help') HelpDialog.open();
+  if (location.hash === '#/help') HelpDialog.open();
   else if (HelpDialog.isOpen()) HelpDialog.close();
 }
 
@@ -840,7 +840,7 @@ export function bindEvents() {
   // Header chrome
   document.querySelector('.header-logo-link').href = location.pathname;
   document.getElementById('btn-settings').onclick = () => SettingsDialog.open();
-  document.getElementById('btn-help').onclick = () => { location.hash = 'help'; };
+  document.getElementById('btn-help').onclick = () => { location.hash = '/help'; };
   window.addEventListener('hashchange', syncHelp);
   document.getElementById('add-fab').onclick = openCreateEntry;
 

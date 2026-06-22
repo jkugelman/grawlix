@@ -32,7 +32,7 @@ Plans (forward-looking, not yet shipped). `docs/planned/` is for plans that stay
 Future (longer-horizon ideas, not actively planned):
 - [`docs/future/puz-to-pdf.md`](docs/future/puz-to-pdf.md) — feasibility sketch for in-browser .PUZ → printable PDF rendering.
 
-When a plan ships, run the `distill-design-doc` skill to fold it into `design.md` and/or `manual.md`. (The header `?` button opens the in-app Help dialog (`FaqDialog`) — an FAQ with a folded-in Acknowledgements section, deep-linkable at `#help`, that renders its diagrams and credits from the live catalog.)
+When a plan ships, run the `distill-design-doc` skill to fold it into `design.md` and/or `manual.md`. (The header `?` button opens the in-app Help dialog (`FaqDialog`) — an FAQ with a folded-in Acknowledgements section, deep-linkable at `#/help`, that renders its diagrams and credits from the live catalog.)
 
 ## Architecture
 
