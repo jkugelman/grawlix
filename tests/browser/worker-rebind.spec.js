@@ -84,7 +84,7 @@ async function closePanel(page) {
 // same norm (via the seed/inputs), with byte-identical fields, footer, provenance.
 function captureRebound(page) {
   return page.evaluate(() => ({
-    visible: !document.querySelector('#entry-panel')?.hasAttribute('hidden'),
+    visible: !!document.querySelector('#entry-panel')?.classList.contains('open'),
     entry: document.querySelector('#entry-panel-entry')?.value ?? null,
     score: document.querySelector('#entry-panel-score')?.value ?? null,
     comment: document.querySelector('#entry-panel-comment')?.value ?? null,

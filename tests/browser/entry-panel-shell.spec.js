@@ -87,35 +87,26 @@ test('the browser Back gesture closes the panel without navigating away', async 
   expect(page.url()).toBe(url);
 });
 
-test('re-targeting then Back closes the panel with a single Back', async ({ page }) => {
+test('the open panel is modal: it covers the page and an outside click closes it', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
   await gotoApp(page);
   await addList(page, { name: 'W', entries: ['ocean', 'river'], scores: [50, 50] });
   await scopeTo(page, 'All Wordlists');
   await openPanelOnEntry(page, 'ocean');
-  await openPanelOnEntry(page, 'river');
-  await expect(page.locator('#entry-panel-entry')).toHaveValue('river');
-  await page.goBack();
-  await expect(page.locator('#entry-panel')).toBeHidden();
-});
 
-test('clicking the open row’s own number (a non-editable cell) closes the panel', async ({ page }) => {
-  await gotoApp(page);
-  await addList(page, { name: 'W', entries: ['ocean', 'river'], scores: [50, 50] });
-  await scopeTo(page, 'All Wordlists');
-  await openPanelOnEntry(page, 'ocean');
-  // The active row's count cell has no click action of its own; it must dismiss.
-  await page.locator('#vs-host .entry-row.active .atom-count').click();
-  await expect(page.locator('#entry-panel')).toBeHidden();
-});
+  // elementFromPoint over another row returns the scrim, proving it intercepts
+  // the click: there is no re-targeting and the page behind stays inert.
+  const river = page.locator('#vs-host .entry-row', { hasText: 'river' }).locator('.atom-entry');
+  const box = await river.boundingBox();
+  const hit = await page.evaluate(
+    ([x, y]) => document.elementFromPoint(x, y)?.id,
+    [box.x + box.width / 2, box.y + box.height / 2],
+  );
+  expect(hit).toBe('entry-panel-backdrop');
 
-test('clicking another entry re-targets rather than closing', async ({ page }) => {
-  await gotoApp(page);
-  await addList(page, { name: 'W', entries: ['ocean', 'river'], scores: [50, 50] });
-  await scopeTo(page, 'All Wordlists');
-  await openPanelOnEntry(page, 'ocean');
-  await page.locator('#vs-host .entry-row', { hasText: 'river' }).locator('.atom-entry').click();
-  await expect(page.locator('#entry-panel')).toBeVisible();
-  await expect(page.locator('#entry-panel-entry')).toHaveValue('river');
+  await page.locator('#entry-panel-backdrop').click({ position: { x: 5, y: 5 } });
+  await expect(page.locator('#entry-panel')).toBeHidden();
+  await expect(page).not.toHaveURL(/entry=/);
 });
 
 // ─── Routable URL ─────────────────────────────────────────────────────────────
@@ -141,18 +132,15 @@ test('the entry param leads and coexists with the pipeline', async ({ page }) =>
   await expect(page).toHaveURL(/\?entry=BAGEL&.*search=BAGEL/);
 });
 
-test('a re-target replaces the entry param (one Back still closes), no unknown-tool toast', async ({ page }) => {
+test('the reserved entry key is not parsed as a removed tool', async ({ page }) => {
   await gotoApp(page);
-  await addList(page, { name: 'W', entries: ['ocean', 'river'], scores: [50, 50] });
+  await addList(page, { name: 'W', entries: ['ocean'], scores: [50] });
   await scopeTo(page, 'All Wordlists');
   await openPanelOnEntry(page, 'ocean');
   await expect(page).toHaveURL(/entry=ocean/);
-  await openPanelOnEntry(page, 'river');
-  await expect(page).toHaveURL(/entry=river/);
-  await page.goBack();
-  await expect(page.locator('#entry-panel')).toBeHidden();
-  await expect(page).not.toHaveURL(/entry=/);
-  // The reserved `entry` key must not read as a removed tool.
+  // Reload re-parses the URL from scratch — the path where a stray tool slug toasts.
+  await reloadApp(page);
+  await expect(page.locator('#entry-panel')).toBeVisible();
   await expect(page.locator('.toast', { hasText: 'no longer available' })).toHaveCount(0);
 });
 

@@ -155,7 +155,7 @@ Click an entry in a row to open the entry panel, titled **Edit entry**. Change t
 
 Because edits live in My Edits, renaming an entry that comes from another wordlist can't remove that wordlist's own copy. So a rename to a different word adds your version and quietly **downscores** the original to the trash score (a number you set in Settings, default 0) so it drops out of your good results. The preview shows this before you save, and a single undo reverts both.
 
-Press Enter to save and close, or Tab to chain edits between score and comment. Escape reverts. Clicking another entry switches the panel to it; clicking anywhere else outside (or changing the search) closes it; scrolling leaves it open. On a phone the panel fills the screen, and your phone's Back gesture (or button) closes it.
+Press Enter to save and close, or Tab to chain edits between score and comment. Escape reverts. The panel is modal: it dims the rest of the page, which stays inert until you're done — any click outside it, or the browser Back gesture/button, closes it, while scrolling leaves it open. On a phone the panel fills the screen, and your phone's Back gesture (or button) closes it.
 
 The open entry shows in the address bar (`?entry=BAGEL`), so it's bookmarkable and shareable — send someone a link straight to an entry, and Back/Forward step in and out of it. The link also carries whatever tools you had running; trim it to just `?entry=BAGEL` to share the entry alone.
 

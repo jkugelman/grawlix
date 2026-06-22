@@ -493,9 +493,6 @@ export const GroupMorePopover = (() => {
     el.hidden = true;
     document.body.appendChild(el);
 
-    // EntryPanel is passed `el` as its row so its dismiss logic treats clicks
-    // within this list as in-bounds — letting you edit one hidden word, then
-    // another, without it closing between.
     el.addEventListener('click', e => {
       const target = e.target.closest('.atom-score, .atom-entry');
       if (!target || target.classList.contains('atom-noedit')) return;
@@ -506,7 +503,7 @@ export const GroupMorePopover = (() => {
                     ?.atoms[parseInt(atomEl.dataset.atom, 10)];
       if (!atom) return;
       const field = target.classList.contains('atom-score') ? 'score' : null;
-      EntryPanel.open(atom.wlEntry, el, scroller, field);
+      EntryPanel.open(atom.wlEntry, null, scroller, field);
     });
   }
 
@@ -523,12 +520,12 @@ export const GroupMorePopover = (() => {
     document.removeEventListener('mousedown', onOutside, true);
   }
   function onKey(e) { if (e.key === 'Escape') close(); }
-  // Neither a chip re-click (routed through toggle) nor a click into the
-  // EntryPanel anchored on a word here should dismiss this list. mousedown,
-  // not pointerdown, so a touch-drag that scrolls the table leaves it open.
+  // A chip re-click is routed through toggle, so don't double-dismiss it here.
+  // mousedown, not pointerdown, so a touch-drag that scrolls the table leaves
+  // this open.
   function onOutside(e) {
     if (el.contains(e.target)) return;
-    if (e.target.closest('.group-more, #entry-panel')) return;
+    if (e.target.closest('.group-more')) return;
     close();
   }
 
@@ -1558,6 +1555,7 @@ function editBaselineFor(base) {
 
 export const EntryPanel = (() => {
   let el = null;
+  let scrim = null;
   let activeRow = null;
   let activeWlEntry = null;
   let activeSeed = null;
@@ -1594,9 +1592,13 @@ export const EntryPanel = (() => {
 
   function ensureElement() {
     if (el) return el;
+    scrim = document.createElement('div');
+    scrim.id = 'entry-panel-backdrop';
+    scrim.addEventListener('click', close);
+    document.body.appendChild(scrim);
+
     el = document.createElement('div');
     el.id = 'entry-panel';
-    el.setAttribute('hidden', '');
     el.addEventListener('click', e => {
       if (e.target.closest('.dialog-close-btn')) { close(); return; }
       if (e.target.closest('.entry-panel-prov-untrash')) { toggleStagedAdopt(); return; }
@@ -1629,12 +1631,13 @@ export const EntryPanel = (() => {
     openFromRoute({ norm, display: value });
   }
 
-  function isOpen() { return el && !el.hasAttribute('hidden'); }
+  function isOpen() { return el != null && el.classList.contains('open'); }
 
   // No history ops here: close() and the popstate reconcile both call this and
   // each handles history itself — touching it here would double up with close().
   function hideAndClear() {
-    el.setAttribute('hidden', '');
+    el.classList.remove('open');
+    scrim.classList.remove('open');
     if (activeRow) activeRow.classList.remove('active');
     activeRow = null;
     activeWlEntry = null;
@@ -1648,7 +1651,6 @@ export const EntryPanel = (() => {
     seedQueryToken++;
     provQueryToken++;
     shippedProvRows = null;
-    document.removeEventListener('mousedown', onDocMouseDown, true);
     document.removeEventListener('keydown', onKeydown, true);
   }
 
@@ -1664,21 +1666,6 @@ export const EntryPanel = (() => {
     return isOpen() && focusEl !== null && el.contains(focusEl);
   }
 
-  function onDocMouseDown(e) {
-    if (!isOpen()) return;
-    if (el.contains(e.target)) return;
-    // Keep open inside the +N-more group list: it hosts editable words that
-    // re-target the panel, and its own padding/scrollbar shouldn't dismiss.
-    if (e.target.closest?.('.group-popover')) return;
-    // Don't close on a mousedown over an editable atom cell — the click re-targets
-    // the panel (reusing its one history entry). Closing here would pop that entry
-    // while the reopen pushes a new one, racing the two history ops across the
-    // mousedown/click boundary. Everything else is a true outside click → dismiss.
-    const cell = e.target.closest?.('.atom-entry, .atom-score, .atom-comment');
-    if (cell && !cell.classList.contains('atom-noedit')) return;
-    close();
-  }
-
   function onKeydown(e) {
     if (e.key === 'Escape') { e.preventDefault(); close(); }
   }
@@ -1691,10 +1678,29 @@ export const EntryPanel = (() => {
     return route || (state.selected !== MERGED_ID && clicked?.norm != null);
   }
 
+  // A click-driven open slides in; a route open (deep link, reload, Back/Forward)
+  // appears in place — restoring saved state shouldn't animate. The forced reflow
+  // is load-bearing: without it the add/remove of no-anim coalesces into one style
+  // pass and the slide fires anyway. Removing it after lets a later close slide out.
+  function revealModal(route) {
+    if (route) { el.classList.add('no-anim'); scrim.classList.add('no-anim'); }
+    el.classList.add('open');
+    scrim.classList.add('open');
+    if (route) {
+      void el.offsetWidth;
+      el.classList.remove('no-anim');
+      scrim.classList.remove('no-anim');
+    }
+  }
+
   // Set up the panel DOM + state for a target. Does NOT touch history — open()
   // and openFromRoute() wrap it and own that.
   function doOpen(wlEntry, rowEl, scroller, focusField, mode, route) {
+    // The panel is modal — its scrim covers the page. Dismiss the other floating
+    // surfaces (all z-600, so they'd float above the scrim and stay live).
     ScorePicker.close();
+    SortMenu.close();
+    GroupMorePopover.close();
     const panel = ensureElement();
     if (activeRow) activeRow.classList.remove('active');
     activeMode = mode;
@@ -1703,9 +1709,9 @@ export const EntryPanel = (() => {
     activeScroller = scroller;
     if (rowEl) rowEl.classList.add('active');
     shippedProvRows = null;
-    // Reset per-target state here, not only in close(): a re-target (click another
-    // atom while open) reuses the panel without closing, so a stale staged delete
-    // or focus ref from the previous target must clear on open too.
+    // Reset per-target state here, not only in close(): a route reopen (Back/Forward
+    // or a deep link landing on a different entry) reuses the panel without closing,
+    // so a stale staged delete or focus ref from the previous target must clear here.
     stagedAdopt = false;
     stagedDelete = null;
     focusEl = null;
@@ -1715,7 +1721,7 @@ export const EntryPanel = (() => {
     const seed = seedFromWinnerRow(wlEntry, getEditsWordlist() != null && wlEntry.wordlist === getEditsWordlist());
 
     panel.innerHTML = renderHTML(wlEntry, seed);
-    panel.removeAttribute('hidden');
+    revealModal(route);
     wireFields();
 
     fireInitialProvenanceQuery(seed.entry);
@@ -1726,7 +1732,6 @@ export const EntryPanel = (() => {
     // the mobile keyboard. Score/comment cells and create are clear edits — focus.
     if (!route && (activeMode === 'create' || focusField !== 'entry')) focusSeedField(focusField);
 
-    document.addEventListener('mousedown', onDocMouseDown, true);
     document.addEventListener('keydown', onKeydown, true);
   }
 
