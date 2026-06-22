@@ -14,7 +14,7 @@
   --wordlist-bar-h: 39px;
   --sticky-stack-h: 138px;
   --header-h: 84px;
-  --entry-panel-w: 400px;
+  --entry-panel-w: 500px;
 }
 html.dark-mode {
   color-scheme: dark;

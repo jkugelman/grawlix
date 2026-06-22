@@ -34,8 +34,8 @@ test('wide: the panel docks to the right edge and floats over the table without 
   const panel = await page.locator('#entry-panel').boundingBox();
   const vw = page.viewportSize().width;
   expect(panel.x + panel.width).toBeGreaterThan(vw - 20);   // flush to the right edge
-  expect(panel.width).toBeGreaterThan(300);
-  expect(panel.width).toBeLessThan(460);
+  expect(panel.width).toBeGreaterThan(400);
+  expect(panel.width).toBeLessThan(600);
 
   const tableAfter = await page.locator('#detail-panel').boundingBox();
   expect(Math.abs(tableAfter.width - tableBefore.width)).toBeLessThan(2);   // no reflow

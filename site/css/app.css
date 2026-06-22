@@ -480,8 +480,9 @@ mark.search-match { border-radius: 2px; padding: 0 1px; margin: 0 -1px; font-sty
 .entry-panel-prov-entry { color: var(--text); overflow-wrap: anywhere; }
 td.entry-panel-prov-entry { font-family: var(--font-mono); }
 .entry-panel-prov-score { width: 1%; white-space: nowrap; text-align: right; }
-.entry-panel-prov-comment { width: 120px; min-width: 120px; max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.entry-panel-prov-source { white-space: nowrap; }
+.entry-panel-prov th.entry-panel-prov-score { text-align: right; }
+.entry-panel-prov-comment { width: 150px; min-width: 150px; max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.entry-panel-prov-source { width: 1%; white-space: nowrap; }
 .entry-panel-prov-row--disabled td { color: var(--faint); }
 .entry-panel-prov-row--disabled .wordlist-icon { filter: grayscale(1); opacity: 0.6; }
 .entry-panel-prov-row--disabled .score-badge { opacity: 0.55; }
