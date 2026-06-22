@@ -27,13 +27,12 @@ Design and manual:
 - [`docs/wordlisted.md`](docs/wordlisted.md) — reference catalogue of Wordlisted's search modes; source material for the tool gallery.
 
 Plans (forward-looking, not yet shipped). `docs/planned/` is for plans that stay in version control for a while and aren't about to be implemented. A plan written to think through imminent work — one you'll implement right away and then discard — is ephemeral: write it to `/tmp`, not `docs/planned/`, and don't commit it. For a substantial rearchitecture whose feasibility is hard to judge up front, write the plan as a standalone doc (ephemeral → `/tmp`, long-lived → `docs/planned/`) and have an independent agent vet it before writing code; structure it so a reviewer can check the reasoning — load-bearing claims with `file:line` anchors, validated separated from uncertain, and a closing list of what to verify during implementation.
-- [`docs/planned/help.md`](docs/planned/help.md) — planned multi-page help system (tips, tool/rescoring explainers); the in-app Help dialog (an FAQ with acknowledgements folded in) already ships.
 - [`docs/planned/tools.md`](docs/planned/tools.md) — runtime support sequencing, gallery polish (category picker, search), result download, tool API extensions (indexed lookups, annotations, escape hatches), open questions. The chain-row pipeline (executor, per-row tool API, symmetric unification, search-as-tool, per-atom-count sort, highlights) and the group-row model (group tools, group rows, the +N-more reveal) are shipped — see `design.md`. The tool catalog itself lives in `docs/tools.md`.
 
 Future (longer-horizon ideas, not actively planned):
 - [`docs/future/puz-to-pdf.md`](docs/future/puz-to-pdf.md) — feasibility sketch for in-browser .PUZ → printable PDF rendering.
 
-When a plan ships, run the `distill-design-doc` skill to fold it into `design.md` and/or `manual.md`. (The header `?` button opens the in-app Help dialog (`FaqDialog`) — an FAQ with a folded-in Acknowledgements section, deep-linkable at `#help`, that renders its diagrams and credits from the live catalog. A broader multi-page help system is still planned — see [`docs/planned/help.md`](docs/planned/help.md).)
+When a plan ships, run the `distill-design-doc` skill to fold it into `design.md` and/or `manual.md`. (The header `?` button opens the in-app Help dialog (`FaqDialog`) — an FAQ with a folded-in Acknowledgements section, deep-linkable at `#help`, that renders its diagrams and credits from the live catalog.)
 
 ## Architecture
 

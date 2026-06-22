@@ -107,11 +107,9 @@ A crossword pattern-matching tool whose key differentiator over regex is a **var
 
 ## Help documentation
 
-The help redesign (see `help.md`) will happen after the tool gallery is built — tool docs are not needed before then. During development, treat this document as the living record.
+Tool docs are not needed before the gallery is built. Each tool's gallery card carries its own blurb and examples — that's the primary documentation, and if a card falls short the fix is the card, not prose elsewhere. During development, treat this document as the living record.
 
-**As each tool group ships:** add a note here summarizing what it does and anything a user would need to know that isn't obvious from the tool card itself. These notes become the raw material for the reference guide section and the welcome tour slide.
-
-**When the tool gallery is complete:** the welcome tour gains one or more slides after the current Slide 4 (Searching), and the reference guide gains a tool-gallery section. `help.md` already anticipates this expansion.
+**As each tool group ships:** if there's something a user needs to know that the card can't convey, note it here. Only the genuinely complex tools (regex today, Umiaq if it ships) earn a long-form explainer — in the Help dialog's FAQ or [`../manual.md`](../manual.md) — and these notes are its raw material. Not a tour of every tool.
 
 ---
 

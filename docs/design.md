@@ -607,7 +607,7 @@ The header `?` button opens the **Help** dialog (`FaqDialog`) directly — there
 
 Help is **deep-linkable at the `#help` hash**: the `?` button sets the hash, a boot/hashchange sync (in `actions`) opens or closes the dialog to match, and closing strips the hash (`history.replaceState`). A hash rather than a `/help` path because GitHub Pages serves no path routes without the SPA 404 trick (§ *URL state*). The dialog never opens on its own — there is no first-boot popup.
 
-The Help dialog is the only help surface today; a fuller multi-page reference/onboarding system remains a separate, undesigned track ([`planned/help.md`](planned/help.md)), to land once [`planned/tools.md`](planned/tools.md) settles.
+The Help dialog is the only help surface, deliberately so: one scrollable dialog gathering everything help-shaped rather than a multi-page reference/onboarding system, and its FAQ coverage is treated as sufficient.
 
 ## URL state
 
@@ -836,10 +836,6 @@ The alternative — sprinkling `invalidateX()` and `repaintY()` calls at every m
 `batchUpdate(fn)` coalesces a multi-field save (the configure-wordlist dialog can change up to five fields at once, and `applyWordlistText` batches its prelude similarly) into one effect run per subscriber. Signal writes inside a batch queue their subscribers in `_batchedEffects`; any `repaintAfterCacheChange` calls inside set a deferred bump flag, and `persistMeta()` calls set a deferred persist flag. At the end of the batch persistence runs once, the cache bump fires once, and the queued effects each run once.
 
 ## Open questions
-
-### A fuller help system
-
-The header `?` opens the **Help** dialog (§ *Help*) — an FAQ with diagrams and a folded-in Acknowledgements question. Beyond that single dialog, a real multi-page reference/onboarding surface is its own undesigned track ([`planned/help.md`](planned/help.md)), to land once [`planned/tools.md`](planned/tools.md) settles. The in-app manual doesn't exist yet (the user-facing doc lives in [`manual.md`](manual.md)).
 
 ### Routes for Settings?
 
