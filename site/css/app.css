@@ -1205,7 +1205,7 @@ html.dark-mode #discovery-banner { background: color-mix(in srgb, var(--accent) 
 .stats-bar.stats-empty .histogram { visibility: hidden; }
 
 /* Wordlist icons */
-.wordlist-icon { width: 16px; height: 16px; flex-shrink: 0; vertical-align: middle; }
+.wordlist-icon { width: 16px; height: 16px; flex-shrink: 0; vertical-align: middle; cursor: default; }
 .wordlist-icon-img { border-radius: 3px; display: inline-block; }
 .wordlist-name-icon { display: inline; white-space: nowrap; }
 .wordlist-name-icon .wordlist-icon { width: 1em; height: 1em; vertical-align: -0.1em; }
