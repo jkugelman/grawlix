@@ -87,7 +87,7 @@ test('the browser Back gesture closes the panel without navigating away', async 
   expect(page.url()).toBe(url);
 });
 
-test('browser Back out of a dirty panel confirms; cancelling restores the panel and its URL', async ({ page }) => {
+test('browser Back closes a dirty panel outright, discarding the edit without a prompt', async ({ page }) => {
   await gotoApp(page);
   await addList(page, { name: 'W', entries: ['ocean'], scores: [50] });
   await scopeTo(page, 'All Wordlists');
@@ -95,15 +95,8 @@ test('browser Back out of a dirty panel confirms; cancelling restores the panel 
   await page.locator('#entry-panel-score').fill('60');
 
   await page.goBack();
-  await expect(page.locator('#confirm-dialog')).toBeVisible();
-  await page.locator('#confirm-dialog #btn-confirm-cancel').click();
-  await expect(page.locator('#entry-panel')).toBeVisible();
-  await expect(page.locator('#entry-panel-score')).toHaveValue('60');
-  await expect(page).toHaveURL(/entry=ocean/);
-
-  await page.goBack();
-  await page.locator('#confirm-dialog #btn-confirm-ok').click();
   await expect(page.locator('#entry-panel')).toBeHidden();
+  await expect(page.locator('#confirm-dialog')).toBeHidden();
   await expect(page).not.toHaveURL(/entry=/);
 });
 

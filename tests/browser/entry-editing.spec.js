@@ -371,15 +371,17 @@ test('the trash score setting drives the downscore amount', async ({ page }) => 
 
 // ─── Discard confirmation ──────────────────────────────────────────────────────
 
-const dismissals = {
+// The asymmetry below is deliberate, not an oversight to unify: every explicit cancel
+// (Escape, the X, Cancel, and browser Back — last in entry-panel-shell.spec.js)
+// discards outright; only an outside click, a possible misclick, confirms first.
+const explicitCancels = {
   Escape:    page => page.keyboard.press('Escape'),
   'the X':   page => page.locator('#entry-panel .dialog-close-btn').click(),
   Cancel:    page => page.locator('#entry-panel .entry-panel-cancel').click(),
-  backdrop:  page => page.locator('#entry-panel-backdrop').click({ position: { x: 5, y: 5 } }),
 };
 
-for (const [name, dismiss] of Object.entries(dismissals)) {
-  test(`dismissing a dirty entry panel via ${name} prompts to discard`, async ({ page }) => {
+for (const [name, dismiss] of Object.entries(explicitCancels)) {
+  test(`dismissing a dirty entry panel via ${name} discards without prompting`, async ({ page }) => {
     await gotoApp(page);
     await addList(page, { name: 'W', entries: ['ocean'], scores: [50] });
     await openPanelOnEntry(page, 'ocean');
@@ -390,9 +392,22 @@ for (const [name, dismiss] of Object.entries(dismissals)) {
     await page.locator('#entry-panel-score').blur();
 
     await dismiss(page);
-    await expect(page.locator('#confirm-dialog')).toBeVisible();
+    await expect(page.locator('#entry-panel')).toBeHidden();
+    await expect(page.locator('#confirm-dialog')).toBeHidden();
+    await expect.poll(() => myEditsForNorm(page, 'ocean')).toEqual([]);
   });
 }
+
+test('an outside click on a dirty entry panel prompts to discard', async ({ page }) => {
+  await gotoApp(page);
+  await addList(page, { name: 'W', entries: ['ocean'], scores: [50] });
+  await openPanelOnEntry(page, 'ocean');
+  await page.locator('#entry-panel-score').fill('60');
+  await page.locator('#entry-panel-score').blur();   // close the auto-opened tier combo (see above)
+
+  await page.locator('#entry-panel-backdrop').click({ position: { x: 5, y: 5 } });
+  await expect(page.locator('#confirm-dialog')).toBeVisible();
+});
 
 test('cancelling the discard keeps the panel open with the edit intact', async ({ page }) => {
   await gotoApp(page);
@@ -401,7 +416,7 @@ test('cancelling the discard keeps the panel open with the edit intact', async (
   await page.locator('#entry-panel-score').fill('60');
   await page.locator('#entry-panel-score').blur();   // close the auto-opened tier combo (see above)
 
-  await page.keyboard.press('Escape');
+  await page.locator('#entry-panel-backdrop').click({ position: { x: 5, y: 5 } });
   await page.locator('#confirm-dialog #btn-confirm-cancel').click();
   await expect(page.locator('#confirm-dialog')).toBeHidden();
   await expect(page.locator('#entry-panel')).toBeVisible();
@@ -413,8 +428,9 @@ test('confirming the discard closes the panel and saves nothing', async ({ page 
   await addList(page, { name: 'W', entries: ['ocean'], scores: [50] });
   await openPanelOnEntry(page, 'ocean');
   await page.locator('#entry-panel-score').fill('60');
+  await page.locator('#entry-panel-score').blur();   // close the auto-opened tier combo (see above)
 
-  await page.locator('#entry-panel .entry-panel-cancel').click();
+  await page.locator('#entry-panel-backdrop').click({ position: { x: 5, y: 5 } });
   await page.locator('#confirm-dialog #btn-confirm-ok').click();
   await expect(page.locator('#entry-panel')).toBeHidden();
   await expect.poll(() => myEditsForNorm(page, 'ocean')).toEqual([]);

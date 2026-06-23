@@ -1591,9 +1591,9 @@ export const EntryPanel = (() => {
   // tag). Closing those pops the entry; a cold deep link has nothing of ours behind
   // it, so it strips the param in place instead.
   let ownsHistoryEntry = false;
-  // Guards against stacking a second discard confirm: our capture-phase keydown
-  // listener sees Escape before the open confirm dialog does, so without this it
-  // would re-enter requestClose and prompt again behind the first.
+  // True while the scrim-click discard confirm is open. The capture-phase Escape
+  // listener and onPopState both honor it so a keypress or a Back fired during the
+  // confirm can't close the panel out from under the still-open dialog.
   let confirmingClose = false;
   let scoreCombo = null;
 
@@ -1607,7 +1607,7 @@ export const EntryPanel = (() => {
     el = document.createElement('div');
     el.id = 'entry-panel';
     el.addEventListener('click', e => {
-      if (e.target.closest('.dialog-close-btn')) { requestClose(); return; }
+      if (e.target.closest('.dialog-close-btn')) { close(); return; }
       if (e.target.closest('.entry-panel-prov-untrash')) { toggleStagedAdopt(); return; }
       const trash = e.target.closest('.entry-panel-prov-trash');
       if (trash) { toggleStagedDelete(trash.dataset.norm, trash.dataset.display); return; }
@@ -1630,18 +1630,11 @@ export const EntryPanel = (() => {
 
   // Reconcile the panel to the URL on Back/Forward. Idempotent on purpose — our own
   // close()→back() and the help-hash both fire popstate, and both must no-op here.
-  async function onPopState() {
+  // No discard confirm here by design: Back is explicit like Cancel/✕/Esc — only the
+  // scrim click second-guesses unsaved edits (requestClose).
+  function onPopState() {
     if (confirmingClose) return;
     const value = new URLSearchParams(location.search).get('entry');
-    // Browser Back already moved the URL off the entry; on keep, redo it (forward)
-    // to restore the panel's URL — that popstate no-ops via the same-entry check
-    // below, so don't hideAndClear or re-push instead.
-    if (!value && isOpen() && hasUnsavedChanges()) {
-      confirmingClose = true;
-      const discard = await showConfirm('You have unsaved changes.', { confirmText: 'Discard' });
-      confirmingClose = false;
-      if (!discard) { history.forward(); return; }
-    }
     if (!value) { if (isOpen()) hideAndClear(); return; }
     const norm = toNorm(value);
     if (isOpen() && activeWlEntry && activeWlEntry.norm === norm && displayOf(activeWlEntry) === value) return;
@@ -1709,7 +1702,7 @@ export const EntryPanel = (() => {
     if (confirmingClose) return;
     if (scoreCombo?.isOpen()) { e.preventDefault(); e.stopPropagation(); scoreCombo.close(); return; }
     e.preventDefault();
-    requestClose();
+    close();
   }
 
   // The scoped case needs the worker: the merge winner there can be a higher-
@@ -2212,7 +2205,7 @@ export const EntryPanel = (() => {
   }
 
   function wireFooter() {
-    el.querySelector('.entry-panel-cancel').addEventListener('click', requestClose);
+    el.querySelector('.entry-panel-cancel').addEventListener('click', close);
     el.querySelector('.entry-panel-save').addEventListener('click', submit);
     refreshSaveEnabled();
   }

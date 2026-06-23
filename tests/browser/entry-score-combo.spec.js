@@ -116,5 +116,6 @@ test('Escape dismisses the open list first, regardless of unsaved changes', asyn
   await expect(scoreInput(page)).toHaveValue('60');   // the edit survives
 
   await page.keyboard.press('Escape');
-  await expect(confirm(page)).toBeVisible();
+  await expect(panel(page)).toBeHidden();   // an explicit cancel: closes outright, no prompt
+  await expect(confirm(page)).toBeHidden();
 });
