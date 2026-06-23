@@ -37,6 +37,7 @@ import { showToast } from './toasts.js';
 import { AppView } from './app-view.js';
 import { ToolStack } from './tool-stack.js';
 import { buildWordlistNameIconHTML } from './scope-selector.js';
+import { getWordlistIcon } from './icons.js';
 import { getDraftRescoreRules } from './rescore-editor.js';
 import { buildTrashIconHTML, positionPopover } from './components.js';
 import { LookupSection } from './lookup.js';
@@ -217,6 +218,37 @@ export function reconcileSort(stack) {
 }
 
 const ENTRY_SLOT_CAP = 28;
+
+// Must match .src-slot width / .atom-source gap in app.css — sourceColMaxPx sizes
+// --source-max from these, so a drift silently clips the matrix or leaves dead space.
+const SRC_SLOT_W = 16;
+const SRC_SLOT_GAP = 5;
+
+// The slot universe must mirror the worker's contributor universe (shipContributors,
+// worker.js): a row's sourceId with no slot here renders nowhere, silently dropping it.
+function sourceMatrixSlots() {
+  const scopedKey = state.selected !== MERGED_ID ? state.selected.dbKey : null;
+  return state.sources.filter(w => w.enabled || w.dbKey === scopedKey);
+}
+
+function sourceColMaxPx(slotCount) {
+  const matrixW = slotCount > 0 ? slotCount * SRC_SLOT_W + (slotCount - 1) * SRC_SLOT_GAP : 0;
+  return Math.max(matrixW, sortableHeaderPx('Sources'));
+}
+
+function buildSourcesMatrixHTML(sourceIds, activeIds, slots) {
+  if (!slots) return '';
+  const present = new Set(sourceIds || []);
+  const active = new Set(activeIds || []);
+  const html = slots.map(wl => {
+    const has = present.has(wl.dbKey);
+    const cls = 'src-slot' + (!has ? ' src-slot--empty' : active.has(wl.dbKey) ? '' : ' src-slot--muted');
+    return has
+      ? `<span class="${cls}" title="${esc(wl.name)}">${getWordlistIcon(wl)}</span>`
+      : `<span class="${cls}"></span>`;
+  }).join('');
+  return `<span class="atom-source">${html}</span>`;
+}
 
 // Off-screen pixel width of `text` rendered in style class `className`
 // (.text-probe positioning is layered on automatically). Memoized per
@@ -654,7 +686,6 @@ export class EntriesScroller extends BaseVirtualScroller {
     this.sortList = AppView.sortList;
     this.scoreRange = AppView.scoreRange;
     this._scoreIntervals = this.scoreRange ? parseRange(this.scoreRange) : null;
-    this.showSource = false;
     this._onSave = null;
     this._onDeleteRow = null;
     this._hoveredScoreEl = null;
@@ -969,7 +1000,7 @@ export class EntriesScroller extends BaseVirtualScroller {
     target.style.setProperty('--len-w', `${Math.max(maxLenDigits * ch, sortableHeaderPx('Len'))}px`);
     const arrowPrefixW = maxRawDigits ? maxRawDigits * ch + measureScoreArrowPx() : 0;
     target.style.setProperty('--score-w', `${Math.max(badgeWidthPx(maxScoreDigits) + arrowPrefixW, sortableHeaderPx('Score'))}px`);
-    target.style.setProperty('--source-max', `${22 * ch}px`);
+    target.style.setProperty('--source-max', `${sourceColMaxPx(sourceMatrixSlots().length)}px`);
   }
 
   _computeTransformSlotWidths() {
@@ -992,7 +1023,7 @@ export class EntriesScroller extends BaseVirtualScroller {
     target.style.setProperty('--len-w', `${Math.max(maxLenDigits * ch, sortableHeaderPx('Len'))}px`);
     const arrowPrefixW = maxRawDigits ? maxRawDigits * ch + measureScoreArrowPx() : 0;
     target.style.setProperty('--score-w', `${Math.max(badgeWidthPx(maxScoreDigits) + arrowPrefixW, sortableHeaderPx('Score'))}px`);
-    target.style.setProperty('--source-max', `${22 * ch}px`);
+    target.style.setProperty('--source-max', `${sourceColMaxPx(sourceMatrixSlots().length)}px`);
   }
 
   // The grouped and transform tiers both ship stats + histogram off the worker and
@@ -1046,6 +1077,7 @@ export class EntriesScroller extends BaseVirtualScroller {
     const preview = rescorePreviewActive();
     const draftRules = preview ? getDraftRescoreRules() : null;
     const activeNorm = EntryPanel.activeNorm(this);
+    this._sourceSlots = sourceMatrixSlots();
     let nextActiveRow = null;
     let minMiss = -1, maxMiss = -1;
     const frag = document.createDocumentFragment();
@@ -1118,6 +1150,8 @@ export class EntriesScroller extends BaseVirtualScroller {
       rawScore: row.rawScore,
       comment: row.comment,
       wordlist: sourceById.get(row.sourceId) ?? null,
+      sourceIds: row.sourceIds ?? (row.sourceId ? [row.sourceId] : []),
+      activeIds: row.activeIds ?? (row.sourceId ? [row.sourceId] : []),
     };
     // All atoms of a flat row are the same word (stacked highlighting searches),
     // so they share one wlEntry; each carries its own highlights/glyph slot.
@@ -1189,12 +1223,7 @@ export class EntriesScroller extends BaseVirtualScroller {
         `<span class="atom-entry"${truncTitle}>${glyphHTML}${renderHighlightedText(displayed, projected)}</span>`;
       const scoreInner = buildScoreCellHTML(wlEntry, preview);
       const commentText = wlEntry.comment || '';
-      const sourceWl = wlEntry.wordlist;
-      const sourceHTML = sourceWl ? buildWordlistNameIconHTML(sourceWl, { bold: false }) : '';
-      const sourceTitle = sourceWl ? ` title="${esc(sourceWl.name)}"` : '';
-      const sourceCell = this.showSource
-        ? `<span class="atom-source"${sourceTitle}>${sourceHTML}</span>`
-        : '';
+      const sourceCell = buildSourcesMatrixHTML(wlEntry.sourceIds, wlEntry.activeIds, this._sourceSlots);
       html += `<span class="atom" data-atom="${ai}">` +
         entryCell +
         `<span class="atom-len">${norm.length}</span>` +
@@ -2865,16 +2894,13 @@ export function buildEntryHeadersHTML() {
       <span class="group-entries-label">${hdr('Entries', entriesAxes, 'group-entries')}</span>
     </div>`;
   }
-  const sourceHeader = state.selected === MERGED_ID
-    ? `<span class="col-source">${hdr('Source', columnSortAxes('col-source', tierAxes), 'col-source')}</span>`
-    : '';
   return `<div class="entry-headers entry-headers-font">
       <span></span>
       <span class="col-entry">${hdr('Entry', columnSortAxes('col-entry', tierAxes), 'col-entry')}</span>
       <span class="col-len">${hdr('Len', columnSortAxes('col-len', tierAxes), 'col-len')}</span>
       <span class="col-score">${hdr('Score', columnSortAxes('col-score', tierAxes), 'col-score')}</span>
       <span class="col-comment">${hdr('Comment', columnSortAxes('col-comment', tierAxes), 'col-comment')}</span>
-      ${sourceHeader}
+      <span class="col-source">${hdr('Sources', columnSortAxes('col-source', tierAxes), 'col-source')}</span>
     </div>`;
 }
 

@@ -446,9 +446,6 @@ export async function renderMergedDetail() {
     const panel = document.getElementById('detail-panel');
     reconcileSort(ToolStack.getStack());
     mountPanel(panel);
-    const showSource = state.selected === MERGED_ID;
-    entriesScroller.showSource = showSource;
-    panel.classList.toggle('no-source-col', !showSource);
     entriesScroller._onDeleteRow = entry => _deleteFromEdits(entry, refreshMergedScroller);
     _attachExternalEditHandlers(entriesScroller, refreshMergedScroller);
     run = runPipeline(ToolStack.getStack(), currentSort());

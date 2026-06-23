@@ -72,7 +72,7 @@ const PLAIN_DEEP = [
 ];
 
 const PLAIN_SHARED = [
-  { norm: 'shared', display: 'SHARED', score: 90, rawScore: undefined, comment: 'applewins', wl: 'Apple', atoms: PLAIN_ATOMS },
+  { norm: 'shared', display: 'SHARED', score: 90, rawScore: undefined, comment: 'applewins', wl: 'Apple', wls: ['Apple', 'Berry'], atoms: PLAIN_ATOMS },
 ];
 
 const HL_TOP = PLAIN_TOP.map(r => ({ ...r, atoms: HL_ATOMS }));
@@ -86,7 +86,7 @@ const SCOPED_APPLE_TOP = [
   { norm: 'itema02', display: 'ITEMA02', score: 52, rawScore: undefined, comment: '',        wl: 'Apple', atoms: PLAIN_ATOMS },
 ];
 const SCOPED_APPLE_SHARED = [
-  { norm: 'shared', display: 'SHARED', score: 90, rawScore: undefined, comment: 'applewins', wl: 'Apple', atoms: PLAIN_ATOMS },
+  { norm: 'shared', display: 'SHARED', score: 90, rawScore: undefined, comment: 'applewins', wl: 'Apple', wls: ['Apple', 'Berry'], atoms: PLAIN_ATOMS },
 ];
 
 async function seedFreshMergedRun(page, stack) {
@@ -99,7 +99,9 @@ async function seedFreshMergedRun(page, stack) {
   return page.evaluate(() => Object.fromEntries(state.sources.map(s => [s.name, s.dbKey])));
 }
 
-const resolve = (rows, dbKeys) => rows.map(({ wl, ...rest }) => ({ ...rest, sourceId: dbKeys[wl] }));
+const resolve = (rows, dbKeys) => rows.map(({ wl, wls, act, ...rest }) =>
+  ({ ...rest, sourceId: dbKeys[wl], sourceIds: (wls ?? [wl]).map(n => dbKeys[n]),
+     activeIds: (act ?? [wl]).map(n => dbKeys[n]) }));
 
 function isRich(row) {
   return 'norm' in row && 'sourceId' in row && Array.isArray(row.atoms);

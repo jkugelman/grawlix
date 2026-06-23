@@ -11,7 +11,7 @@ import { DATA_ASSETS, getDataAsset } from './assets.js';
 import { parseWordlist, toNorm, displayOf } from './norm.js';
 import { parseRange, matchesRange } from './range.js';
 import { compileRescoreRules, getRescoredEntries, getRescoredByNorm } from './rescore.js';
-import { buildCorpus, resolveEditSeedWinner, mergeKey, mergedNormLowerBound, computeMergedBucket } from './corpus.js';
+import { buildCorpus, scopeSourceIds, mergedContributors, resolveEditSeedWinner, mergeKey, mergedNormLowerBound, computeMergedBucket } from './corpus.js';
 import { getHistogramLayout, invalidateHistogramLayout, bucketCounts } from './histogram.js';
 import { computeStatsRaw } from './stats.js';
 import { compileFlatHighlighters, materializeFlatRow } from './flat-highlight.js';
@@ -378,6 +378,12 @@ function computeWidthHints(indices, runCorpus) {
   };
 }
 
+function shipContributors(e) {
+  return ownedCorpus === ownedMerged
+    ? mergedContributors(e.norm, e.display, ownedBuilt)
+    : { sourceIds: scopeSourceIds(e.norm, ownedBuilt, ownedScope), activeIds: [e.wordlist.dbKey] };
+}
+
 // ─── Windowed row fetch ── see docs/worker-protocol.md ───────────────────────
 // Shared by windowed `fetchRows` and unwindowed `fetchAllRows` so the two can't
 // diverge — export bytes would silently drift from the rendered table otherwise.
@@ -394,9 +400,10 @@ function buildFlatRows(lo, hi) {
     // silently drop the extra highlight lines a 3-search row renders.
     const atoms = materializeFlatRow(e, highlighters).atoms
       .map(a => ({ highlights: a.highlights, glyph: a.glyph }));
+    const { sourceIds, activeIds } = shipContributors(e);
     rows.push({
       norm: e.norm, display: e.display, score: e.score, rawScore: e.rawScore,
-      comment: e.comment, sourceId: e.wordlist.dbKey, atoms,
+      comment: e.comment, sourceId: e.wordlist.dbKey, sourceIds, activeIds, atoms,
     });
   }
   return rows;
@@ -629,9 +636,11 @@ function encodeAtom(atom) {
   if (wlEntry.wordlist == null) {
     out = { s: { norm: wlEntry.norm, display: wlEntry.display, score: wlEntry.score } };
   } else {
+    const { sourceIds, activeIds } = shipContributors(wlEntry);
     out = {
       norm: wlEntry.norm, display: wlEntry.display, score: wlEntry.score,
       rawScore: wlEntry.rawScore, comment: wlEntry.comment, sourceId: wlEntry.wordlist.dbKey,
+      sourceIds, activeIds,
     };
   }
   if (highlights != null) out.h = highlights;

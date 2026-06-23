@@ -305,6 +305,8 @@ function decodeAtom(atom, sourceById) {
     wlEntry = {
       norm: atom.norm, display: atom.display, score: atom.score, rawScore: atom.rawScore,
       comment: atom.comment, wordlist: sourceById.get(atom.sourceId) ?? null,
+      sourceIds: atom.sourceIds ?? (atom.sourceId ? [atom.sourceId] : []),
+      activeIds: atom.activeIds ?? (atom.sourceId ? [atom.sourceId] : []),
     };
   }
   return { wlEntry, highlights: atom.h ?? null, glyph: atom.g ?? null };

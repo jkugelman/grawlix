@@ -323,7 +323,9 @@ mark.search-match { border-radius: 2px; padding: 0 1px; margin: 0 -1px; font-sty
 .atom-score-raw { color: var(--muted); }
 .atom-score-arrow { color: var(--faint); padding: 0 4px; }
 .entry-row .atom-comment { grid-column: 5; overflow: hidden; text-overflow: ellipsis; min-width: 0; font-family: var(--font-sans); font-size: 12px; cursor: pointer; }
-.entry-row .atom-source  { grid-column: 6; overflow: hidden; text-overflow: ellipsis; min-width: 0; font-family: var(--font-sans); font-size: 12px; }
+.entry-row .atom-source  { grid-column: 6; min-width: 0; align-self: stretch; align-items: stretch; gap: 5px; }
+.src-slot { flex: 0 0 16px; display: inline-flex; align-items: center; justify-content: center; }
+.src-slot--muted .wordlist-icon { filter: grayscale(1); opacity: 0.4; }
 /* Relation glyph (→, ↔, ⊃) prefixing every non-originator atom's entry. */
 .atom-glyph { color: var(--faint); user-select: none; }
 .entry-row .atom-comment, .entry-row .atom-source { display: none; }
@@ -332,8 +334,8 @@ mark.search-match { border-radius: 2px; padding: 0 1px; margin: 0 -1px; font-sty
    stacked multi-atom row alike — when the viewport has room. They render
    per-atom: each atom line carries its own comment and source, so a chain row
    reads top-to-bottom as where every word in the journey comes from. The two
-   columns drop staggered as the viewport narrows: source goes first (it eats
-   ~22ch), leaving the more informative comment column longer. */
+   columns drop staggered as the viewport narrows: source goes first, leaving the
+   more informative comment column longer. */
 @media (min-width: 760px) {
   .entry-row, .entry-headers {
     grid-template-columns: var(--count-w, 2ch) var(--entry-w, 12ch) var(--len-w, 3ch) var(--score-w, calc(5ch + 12px)) minmax(0, 1fr);
@@ -344,10 +346,8 @@ mark.search-match { border-radius: 2px; padding: 0 1px; margin: 0 -1px; font-sty
   .entry-row, .entry-headers {
     grid-template-columns: var(--count-w, 2ch) var(--entry-w, 12ch) var(--len-w, 3ch) var(--score-w, calc(5ch + 12px)) minmax(0, 1fr) minmax(0, var(--source-max, 22ch));
   }
-  .entry-row .atom-source, .entry-headers .col-source { display: block; }
-  #detail-panel.no-source-col .entry-row, #detail-panel.no-source-col .entry-headers {
-    grid-template-columns: var(--count-w, 2ch) var(--entry-w, 12ch) var(--len-w, 3ch) var(--score-w, calc(5ch + 12px)) minmax(0, 1fr);
-  }
+  .entry-headers .col-source { display: block; }
+  .entry-row .atom-source { display: flex; }
 }
 
 @media (max-width: 480px) {

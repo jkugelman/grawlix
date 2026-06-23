@@ -187,10 +187,7 @@ test('a tool runs against the scoped corpus, not All Wordlists', async ({ page }
   await expectVisible(page, ['act', 'cat']);
 });
 
-// The source column tells you which list a merged row came from. Scoped to one
-// source every row shares it, so the column is dropped — header and cells both.
-// Asserted via the cells' absence (and the header class), never computed CSS.
-test('the source column is shown for All Wordlists and hidden when scoped', async ({ page }) => {
+test('the Sources matrix shows cross-list presence and colors only contributing lists', async ({ page }) => {
   await gotoApp(page);
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
     name: 'Hi', entries: ['ocean', 'zebra'], scores: [90, 60],
@@ -199,22 +196,22 @@ test('the source column is shown for All Wordlists and hidden when scoped', asyn
     name: 'Lo', entries: ['ocean', 'tide'], scores: [70, 40],
   }));
 
-  // The default 1280px viewport clears the 960px breakpoint that gates the
-  // column, so at All Wordlists the header and per-row cells are present.
+  // The default 1280px viewport clears the 960px breakpoint that gates the column.
   await expectVisible(page, ['ocean', 'tide', 'zebra']);
-  await expect(page.locator('#detail-panel')).not.toHaveClass(/no-source-col/);
   await expect(page.locator('.entry-headers .col-source')).toHaveCount(1);
   expect(await page.locator('.entry-row .atom-source').count()).toBeGreaterThan(0);
 
   await scopeTo(page, 'Lo');
   await expectVisible(page, ['ocean', 'tide']);
-  await expect(page.locator('#detail-panel')).toHaveClass(/no-source-col/);
-  await expect(page.locator('.entry-headers .col-source')).toHaveCount(0);
-  await expect(page.locator('.entry-row .atom-source')).toHaveCount(0);
+  await expect(page.locator('.entry-headers .col-source')).toHaveCount(1);
+  // 'ocean' is in both lists → Hi's slot is filled; 'tide' is Lo-only → Hi's isn't.
+  await expect(page.locator('.entry-row[data-entry="ocean"] .src-slot[title="Hi"]')).toHaveCount(1);
+  await expect(page.locator('.entry-row[data-entry="tide"] .src-slot[title="Hi"]')).toHaveCount(0);
+  await expect(page.locator('.entry-row[data-entry="ocean"] .src-slot[title="Lo"]')).not.toHaveClass(/src-slot--muted/);
+  await expect(page.locator('.entry-row[data-entry="ocean"] .src-slot[title="Hi"]')).toHaveClass(/src-slot--muted/);
 
   await scopeTo(page, 'All Wordlists');
   await expectVisible(page, ['ocean', 'tide', 'zebra']);
-  await expect(page.locator('#detail-panel')).not.toHaveClass(/no-source-col/);
   await expect(page.locator('.entry-headers .col-source')).toHaveCount(1);
-  expect(await page.locator('.entry-row .atom-source').count()).toBeGreaterThan(0);
+  expect(await page.locator('.entry-row .src-slot--muted').count()).toBeGreaterThan(0);
 });

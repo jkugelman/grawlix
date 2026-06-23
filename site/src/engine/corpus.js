@@ -87,6 +87,50 @@ export function buildCorpus(sourceList) {
   return resolveCorpus(bucketContributors(sourceList), sourceList);
 }
 
+// The Sources-matrix contributor set per row. Call these per *shipped* row, never
+// over the whole corpus: eagerly attaching to every entry made load O(corpus).
+
+// Scoped: norm-level, like the provenance panel — matching on (norm,display) would
+// silently drop a list that spells the word its own way.
+export function scopeSourceIds(norm, built, scopeKey) {
+  const ids = [];
+  for (const wl of built) {
+    if ((wl.enabled || wl.dbKey === scopeKey) && getRescoredByNorm(wl).has(norm)) ids.push(wl.dbKey);
+  }
+  return ids;
+}
+
+// Merged: display-aware, kept in lockstep with resolveCorpus's `eligible` (drift and
+// the matrix silently mis-lists). `activeIds` are the lists *sourcing* a shown value —
+// the score winner, the displayed spelling, the comment — each the ONE highest-priority
+// holder, so a duplicate with the same value is muted. Spelling source and winner differ
+// only when a bare winner takes the score while a richer list supplies the spelling.
+export function mergedContributors(norm, display, built) {
+  const sourceIds = [];
+  let winner = null, commentWl = null, displayWl = null;
+  for (const wl of built) {
+    if (!wl.enabled) continue;
+    const arr = getRescoredByNorm(wl).get(norm);
+    if (!arr) continue;
+    const distinguishing = isDistinguishing(arr);
+    let contributes = false;
+    for (const e of arr) {
+      const d = concreteDisplay(e, norm, distinguishing);
+      if (d !== display && d !== null) continue;
+      contributes = true;
+      if (!displayWl && display !== null && d === display) displayWl = wl;
+      if (!commentWl && e.comment) commentWl = wl;
+    }
+    if (contributes) {
+      sourceIds.push(wl.dbKey);
+      if (!winner) winner = wl;
+    }
+  }
+  const active = new Set([winner, displayWl, commentWl].filter(Boolean).map(wl => wl.dbKey));
+  const activeIds = sourceIds.filter(id => active.has(id));
+  return { sourceIds, activeIds };
+}
+
 export function mergeKey(norm, display) {
   return norm + '\0' + (display ?? '');
 }

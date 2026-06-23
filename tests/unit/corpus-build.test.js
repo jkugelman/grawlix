@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { buildCorpus } from '../../site/src/engine/corpus.js';
+import { buildCorpus, scopeSourceIds, mergedContributors } from '../../site/src/engine/corpus.js';
 import { compileRescoreRules } from '../../site/src/engine/rescore.js';
 
 // rawScore is absent from raw entries; bucketContributors carries it through, so
@@ -12,7 +12,7 @@ const wlEntry = (norm, score, { display = null, comment = '' } = {}) =>
 // Snapshots assert winner identity via `wordlist.name`; the source objects
 // themselves aren't deep-equalled.
 const src = (name, rawEntries, { enabled = true, rescoreRules = [] } = {}) =>
-  ({ name, enabled, rescoreRules, rawEntries });
+  ({ name, dbKey: name, enabled, rescoreRules, rawEntries });
 
 const project = entries => entries.map(e => ({
   norm: e.norm, display: e.display, score: e.score,
@@ -160,6 +160,100 @@ test('buildCorpus: a scoped single source mixes rescored (rawScore kept) and unm
     { norm: 'delta', display: 'DELTA', score: 75, rawScore: 50,        comment: '',       source: 'Golden' },
     { norm: 'eagle', display: 'EAGLE', score: 75, rawScore: 50,        comment: 'raptor', source: 'Golden' },
   ]);
+});
+
+test('mergedContributors: sourceIds lists every enabled contributing source, priority order', () => {
+  const A = src('A', [wlEntry('able', 30), wlEntry('crane', 10)]);
+  const B = src('B', [wlEntry('crane', 88), wlEntry('delta', 20)]);
+  const built = [A, B];
+
+  assert.deepStrictEqual(mergedContributors('crane', null, built).sourceIds, ['A', 'B']);
+  assert.deepStrictEqual(mergedContributors('able', null, built).sourceIds, ['A']);
+  assert.deepStrictEqual(mergedContributors('delta', null, built).sourceIds, ['B']);
+});
+
+test('mergedContributors: sourceIds is display-aware — a spelled variant lists only the lists that spell it that way', () => {
+  const C = src('C', [wlEntry('eagle', 50, { display: 'EAGLE' })]);
+  const D = src('D', [
+    wlEntry('eagle', 60, { display: 'Eagle' }),
+    wlEntry('eagle', 70, { display: 'EAGLE' }),
+  ]);
+  const built = [C, D];
+
+  assert.deepStrictEqual(mergedContributors('eagle', 'Eagle', built).sourceIds, ['D']);
+  assert.deepStrictEqual(mergedContributors('eagle', 'EAGLE', built).sourceIds, ['C', 'D']);
+});
+
+test('mergedContributors: a bare ambient contributor still counts toward a spelled row', () => {
+  const Plain = src('Plain', [wlEntry('theirs', 50)]);
+  const Rich  = src('Rich',  [wlEntry('theirs', 60, { display: 'the IRS' })]);
+
+  assert.deepStrictEqual(mergedContributors('theirs', 'the IRS', [Plain, Rich]).sourceIds, ['Plain', 'Rich']);
+});
+
+test('mergedContributors: a disabled source never contributes', () => {
+  const A = src('A', [wlEntry('crane', 10)]);
+  const B = src('B', [wlEntry('crane', 20)], { enabled: false });
+
+  assert.deepStrictEqual(mergedContributors('crane', null, [A, B]).sourceIds, ['A']);
+});
+
+test('mergedContributors: activeIds is the winner alone when it supplies the comment', () => {
+  const A = src('A', [wlEntry('crane', 10, { comment: 'a-crane' })]);
+  const B = src('B', [wlEntry('crane', 88, { comment: 'b-crane' })]);
+
+  const { sourceIds, activeIds } = mergedContributors('crane', null, [A, B]);
+  assert.deepStrictEqual(sourceIds, ['A', 'B']);
+  assert.deepStrictEqual(activeIds, ['A']);
+});
+
+test('mergedContributors: activeIds adds the comment fall-through source when the winner has none', () => {
+  const A = src('A', [wlEntry('crane', 10)]);
+  const B = src('B', [wlEntry('crane', 88, { comment: 'b-crane' })]);
+
+  const { sourceIds, activeIds } = mergedContributors('crane', null, [A, B]);
+  assert.deepStrictEqual(sourceIds, ['A', 'B']);
+  assert.deepStrictEqual(activeIds, ['A', 'B']);
+});
+
+test('mergedContributors: a list supplying the shown spelling lights up alongside a bare winner', () => {
+  const JK = src('JK', [wlEntry('willnediger', 60)]);                              // bare → score winner
+  const WN = src('WN', [wlEntry('willnediger', 50, { display: 'Will Nediger' })]); // supplies the spelling
+
+  const { sourceIds, activeIds } = mergedContributors('willnediger', 'Will Nediger', [JK, WN]);
+  assert.deepStrictEqual(sourceIds, ['JK', 'WN']);
+  assert.deepStrictEqual(activeIds, ['JK', 'WN']);
+});
+
+test('mergedContributors: a bare lower-priority duplicate shows nothing and stays muted', () => {
+  const WN = src('WN', [wlEntry('willnediger', 60, { display: 'Will Nediger' })]); // winner + spelling
+  const JK = src('JK', [wlEntry('willnediger', 50)]);                              // bare, loses
+
+  const { sourceIds, activeIds } = mergedContributors('willnediger', 'Will Nediger', [WN, JK]);
+  assert.deepStrictEqual(sourceIds, ['WN', 'JK']);
+  assert.deepStrictEqual(activeIds, ['WN']);
+});
+
+test('mergedContributors: a lower-priority list spelling the entry the same way stays muted', () => {
+  const ME = src('ME', [wlEntry('bonnieclyde', 50, { display: "'03 Bonnie & Clyde", comment: '2002 Jay-Z song' })]);
+  const JK = src('JK', [wlEntry('bonnieclyde', 60, { display: "'03 Bonnie & Clyde", comment: '2002 Jay-Z song' })]);
+
+  const { sourceIds, activeIds } = mergedContributors('bonnieclyde', "'03 Bonnie & Clyde", [ME, JK]);
+  assert.deepStrictEqual(sourceIds, ['ME', 'JK']);
+  assert.deepStrictEqual(activeIds, ['ME']);
+});
+
+test('scopeSourceIds: norm-level cross-list set — enabled lists plus the scoped source, never disabled others', () => {
+  const A = src('A', [wlEntry('crane', 10), wlEntry('apple', 5)]);
+  const B = src('B', [wlEntry('crane', 20)]);
+  const C = src('C', [wlEntry('crane', 30), wlEntry('apple', 9)], { enabled: false });
+  const built = [A, B, C];
+
+  assert.deepStrictEqual(scopeSourceIds('crane', built, 'A'), ['A', 'B']);
+  assert.deepStrictEqual(scopeSourceIds('apple', built, 'A'), ['A']);
+
+  assert.deepStrictEqual(scopeSourceIds('crane', built, 'C'), ['A', 'B', 'C']);
+  assert.deepStrictEqual(scopeSourceIds('apple', built, 'C'), ['A', 'C']);
 });
 
 test('buildCorpus: an empty source list yields an empty corpus', () => {
