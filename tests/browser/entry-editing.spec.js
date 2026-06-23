@@ -384,6 +384,10 @@ for (const [name, dismiss] of Object.entries(dismissals)) {
     await addList(page, { name: 'W', entries: ['ocean'], scores: [50] });
     await openPanelOnEntry(page, 'ocean');
     await page.locator('#entry-panel-score').fill('60');
+    // The score field's tier combo auto-opens on focus and eats the first Escape;
+    // blur it so the dismissal reaches the panel (the combo's own Escape is covered
+    // in entry-score-combo.spec.js).
+    await page.locator('#entry-panel-score').blur();
 
     await dismiss(page);
     await expect(page.locator('#confirm-dialog')).toBeVisible();
@@ -395,6 +399,7 @@ test('cancelling the discard keeps the panel open with the edit intact', async (
   await addList(page, { name: 'W', entries: ['ocean'], scores: [50] });
   await openPanelOnEntry(page, 'ocean');
   await page.locator('#entry-panel-score').fill('60');
+  await page.locator('#entry-panel-score').blur();   // close the auto-opened tier combo (see above)
 
   await page.keyboard.press('Escape');
   await page.locator('#confirm-dialog #btn-confirm-cancel').click();

@@ -500,6 +500,11 @@ td.entry-panel-prov-entry { font-family: var(--font-mono); }
 .entry-panel-fields label { font-size: 11px; color: var(--muted); }
 .entry-panel-fields input { font-size: 12px; padding: 4px 7px; border-radius: 3px; width: 100%; box-sizing: border-box; }
 .entry-panel-fields input.score-input { font-family: var(--font-mono); max-width: 8ch; }
+.score-combo { position: relative; display: inline-flex; }
+.entry-panel-fields .score-combo .score-input { flex: none; width: 8ch; max-width: none; }
+.score-combo--bare .score-combo-list { display: none; }
+.score-combo-list { position: absolute; top: calc(100% + 4px); left: 0; z-index: 5; margin: 0; padding: 4px; list-style: none; min-width: 200px; max-width: min(320px, calc(100dvw - 28px)); max-height: 240px; overflow-y: auto; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 6px 24px rgba(0,0,0,0.2); }
+.score-combo-list[hidden] { display: none; }
 .entry-panel-foot { flex: none; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; padding: 10px 14px; border-top: 1px solid var(--border2); }
 .entry-panel-adopt:empty { display: none; }
 .entry-panel-adopt-btn { padding: 2px 0; border: none; background: none; color: var(--muted); font: inherit; font-size: 11px; cursor: pointer; }

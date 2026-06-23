@@ -1595,6 +1595,7 @@ export const EntryPanel = (() => {
   // listener sees Escape before the open confirm dialog does, so without this it
   // would re-enter requestClose and prompt again behind the first.
   let confirmingClose = false;
+  let scoreCombo = null;
 
   function ensureElement() {
     if (el) return el;
@@ -1664,6 +1665,7 @@ export const EntryPanel = (() => {
     stagedDelete = null;
     stagedAdopt = false;
     ownsHistoryEntry = false;
+    scoreCombo = null;
     seedQueryToken++;
     provQueryToken++;
     shippedProvRows = null;
@@ -1705,6 +1707,7 @@ export const EntryPanel = (() => {
   function onKeydown(e) {
     if (e.key !== 'Escape') return;
     if (confirmingClose) return;
+    if (scoreCombo?.isOpen()) { e.preventDefault(); e.stopPropagation(); scoreCombo.close(); return; }
     e.preventDefault();
     requestClose();
   }
@@ -1829,6 +1832,7 @@ export const EntryPanel = (() => {
       const node = el?.querySelector(sel);
       if (node) node.disabled = disabled;
     }
+    if (disabled) scoreCombo?.close();
   }
 
   function applySeedToFields(seed, focusField, route) {
@@ -2032,6 +2036,7 @@ export const EntryPanel = (() => {
       const node = el?.querySelector(sel);
       if (node) node.disabled = disabled;
     }
+    if (disabled) scoreCombo?.close();
   }
 
   function renderHTML(wlEntry, seedOverride) {
@@ -2048,7 +2053,11 @@ export const EntryPanel = (() => {
           <label for="entry-panel-entry">Entry</label>
           <input id="entry-panel-entry" class="entry-input" type="text" autocapitalize="off" autocorrect="off" spellcheck="false" value="${esc(seed.entry)}">
           <label for="entry-panel-score">Score</label>
-          <input id="entry-panel-score" class="score-input" type="number" min="0" value="${seed.score}">
+          <div class="score-combo">
+            <input id="entry-panel-score" class="score-input" type="number" min="0" value="${seed.score}"
+              role="combobox" aria-expanded="false" aria-controls="entry-panel-score-list" aria-autocomplete="list" autocomplete="off">
+            <ul id="entry-panel-score-list" class="score-combo-list" role="listbox" aria-label="Score tiers" hidden></ul>
+          </div>
           <label for="entry-panel-comment">Comment</label>
           <input id="entry-panel-comment" class="comment-input" type="text" value="${esc(seed.comment)}">
         </div>
@@ -2249,10 +2258,15 @@ export const EntryPanel = (() => {
 
     for (const inp of [entryInp, scoreInp, commentInp]) {
       inp.addEventListener('input', refreshSaveEnabled);
+    }
+    // The score field's Enter is owned by its combobox (pick a tier or submit);
+    // the other two submit directly.
+    for (const inp of [entryInp, commentInp]) {
       inp.addEventListener('keydown', e => {
         if (e.key === 'Enter') { e.preventDefault(); submit(); }
       });
     }
+    scoreCombo = new ScoreCombo(scoreInp, { onSubmit: submit });
 
     wireFooter();
 
@@ -2344,6 +2358,18 @@ function optionForDigit(options, digit) {
   return options.find(o => o.hint === digit) || null;
 }
 
+function buildScoreOptionItemsHTML(options, activeIndex, idPrefix) {
+  const colW = badgeWidthPx(Math.max(...options.map(o => String(o.score).length), 1));
+  const html = options.map((o, i) => {
+    const hint = o.hint != null ? `<span class="score-picker-hint">Alt+${o.hint}</span>` : '';
+    return `<li id="${idPrefix}-${i}" class="score-picker-opt" role="option" data-i="${i}"`
+      + ` aria-selected="${i === activeIndex}" title="${esc(o.note)}">`
+      + `<span class="score-picker-badge">${buildScoreBadgeHTML(o.score)}</span>`
+      + `<span class="score-picker-label">${esc(o.note)}</span>${hint}</li>`;
+  }).join('');
+  return { html, colW };
+}
+
 function commitRescore(scroller, wlEntry, score) {
   if (!scroller || !wlEntry || !Number.isFinite(score) || score < 0) return;
   const winnerIsEdits = getEditsWordlist() != null && wlEntry.wordlist === getEditsWordlist();
@@ -2433,16 +2459,9 @@ export const ScorePicker = (() => {
   }
 
   function renderHTML() {
-    const colW = badgeWidthPx(Math.max(...options.map(o => String(o.score).length), 1));
-    const opts = options.map((o, i) => {
-      const hint = o.hint != null ? `<span class="score-picker-hint">Alt+${o.hint}</span>` : '';
-      return `<li id="score-picker-opt-${i}" class="score-picker-opt" role="option" data-i="${i}"`
-        + ` aria-selected="${i === activeIndex}" title="${esc(o.note)}">`
-        + `<span class="score-picker-badge">${buildScoreBadgeHTML(o.score)}</span>`
-        + `<span class="score-picker-label">${esc(o.note)}</span>${hint}</li>`;
-    }).join('');
+    const { html, colW } = buildScoreOptionItemsHTML(options, activeIndex, 'score-picker-opt');
     return `<ul class="score-picker-list" role="listbox" aria-label="Set score"`
-      + ` style="--badge-col: ${colW}px" tabindex="-1">${opts}</ul>`;
+      + ` style="--badge-col: ${colW}px" tabindex="-1">${html}</ul>`;
   }
 
   function setActive(i, scroll = true) {
@@ -2524,6 +2543,140 @@ export const ScorePicker = (() => {
 
   return { open, close, isOpen, pickDigit };
 })();
+
+class ScoreCombo {
+  constructor(input, { onSubmit } = {}) {
+    this.input = input;
+    this.onSubmit = onSubmit;
+    this.combo = input.closest('.score-combo');
+    this.list = this.combo.querySelector('.score-combo-list');
+    this.idPrefix = `${input.id}-opt`;
+    this.options = buildScoreOptions();
+    this.opened = false;
+    this.activeIndex = -1;
+    // Gates Enter: the highlight tracks the typed value, but Enter snaps to a tier
+    // only after an arrow key — else a typed 55 in the ≥50 tier silently becomes 50.
+    this.navigated = false;
+
+    if (!this.options.length) { this.combo.classList.add('score-combo--bare'); return; }
+
+    this.input.addEventListener('focus', () => this.open());
+    this.input.addEventListener('blur', () => this.close());
+    this.input.addEventListener('input', () => this.onInput());
+    this.input.addEventListener('keydown', e => this.onKeydown(e));
+    // Keep focus in the input so an option click isn't pre-empted by a blur that
+    // closes the list first.
+    this.list.addEventListener('mousedown', e => e.preventDefault());
+    this.list.addEventListener('click', e => {
+      const li = e.target.closest('.score-picker-opt');
+      if (li) this.pick(parseInt(li.dataset.i, 10));
+    });
+    this.list.addEventListener('mousemove', e => {
+      const li = e.target.closest('.score-picker-opt');
+      if (li) this.setActive(parseInt(li.dataset.i, 10), false, false);
+    });
+  }
+
+  isOpen() { return this.opened; }
+
+  indexForValue() {
+    const v = parseInt(this.input.value, 10);
+    if (isNaN(v)) return -1;
+    const i = this.options.findIndex(o => o.score <= v);
+    return i < 0 ? this.options.length - 1 : i;
+  }
+
+  open({ navigated = false } = {}) {
+    if (this.opened || !this.options.length || this.input.disabled) return;
+    this.opened = true;
+    this.navigated = navigated;
+    this.activeIndex = this.indexForValue();
+    this.input.setAttribute('aria-expanded', 'true');
+    this.list.hidden = false;
+    this.renderItems();
+    this.syncActive(true);
+  }
+
+  close() {
+    if (!this.opened) return;
+    this.opened = false;
+    this.navigated = false;
+    this.input.setAttribute('aria-expanded', 'false');
+    this.input.removeAttribute('aria-activedescendant');
+    this.list.hidden = true;
+  }
+
+  onInput() {
+    if (!this.opened) return;
+    this.navigated = false;
+    this.activeIndex = this.indexForValue();
+    this.renderItems();
+    this.syncActive(false);
+  }
+
+  onKeydown(e) {
+    if (e.altKey || e.ctrlKey || e.metaKey) return;   // Alt+digit is routed globally
+    switch (e.key) {
+      case 'ArrowDown':
+        e.preventDefault();
+        if (!this.opened) this.open({ navigated: true });
+        else this.setActive(this.activeIndex < 0 ? 0 : this.activeIndex + 1);
+        break;
+      case 'ArrowUp':
+        e.preventDefault();
+        if (!this.opened) this.open({ navigated: true });
+        else this.setActive(this.activeIndex < 0 ? this.options.length - 1 : this.activeIndex - 1);
+        break;
+      case 'Home': if (this.opened) { e.preventDefault(); this.setActive(0); } break;
+      case 'End':  if (this.opened) { e.preventDefault(); this.setActive(this.options.length - 1); } break;
+      case 'Enter':
+        e.preventDefault();
+        if (this.opened && this.navigated && this.activeIndex >= 0) this.pick(this.activeIndex);
+        else this.onSubmit?.();
+        break;
+      // Escape: handled by EntryPanel.onKeydown (combo-close when open, else panel
+      // close), deliberately not here — so don't add an Escape case.
+    }
+  }
+
+  setActive(i, scroll = true, navigated = true) {
+    this.activeIndex = Math.max(0, Math.min(this.options.length - 1, i));
+    if (navigated) this.navigated = true;
+    this.syncActive(scroll);
+  }
+
+  syncActive(scroll = true) {
+    const lis = this.list.querySelectorAll('.score-picker-opt');
+    lis.forEach((li, j) => {
+      const on = j === this.activeIndex;
+      li.classList.toggle('active', on);
+      li.setAttribute('aria-selected', on);
+    });
+    if (this.activeIndex >= 0) {
+      if (scroll) lis[this.activeIndex]?.scrollIntoView({ block: 'nearest' });
+      this.input.setAttribute('aria-activedescendant', lis[this.activeIndex]?.id ?? '');
+    } else {
+      this.input.removeAttribute('aria-activedescendant');
+    }
+  }
+
+  renderItems() {
+    const { html, colW } = buildScoreOptionItemsHTML(this.options, this.activeIndex, this.idPrefix);
+    this.list.innerHTML = html;
+    this.list.style.setProperty('--badge-col', `${colW}px`);
+  }
+
+  pick(i) {
+    const opt = this.options[i];
+    if (!opt) return;
+    this.input.value = String(opt.score);
+    this.close();
+    // Drives the panel's preview/save wiring as a typed digit would; without it a
+    // pick wouldn't refresh the preview or re-enable Save.
+    this.input.dispatchEvent(new Event('input', { bubbles: true }));
+    this.input.focus();
+  }
+}
 
 export const SortMenu = (() => {
   let el = null;
