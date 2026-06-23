@@ -110,6 +110,12 @@ const SECTIONS = [
           <p>When the same word shows up in several lists, the highest-priority list that has it wins. Priority is just the order your lists sit in, which you set under <strong>Manage wordlists</strong>. Search, the tools, the histogram, all of it runs against this merged view unless you deliberately switch to a single list.</p>`,
       },
       {
+        q: `What's the Sources column?`,
+        a: `
+          <p>Over on the right of the table, each row shows little icons for the wordlists that have that entry: one slot per list, with a gap where a list doesn't have it. A single icon means the entry is unique to that list; several mean it's shared.</p>
+          <p>The lists in full color are the ones whose spelling, score, or comment you're actually seeing; any dimmed ones have the entry too, but a higher-priority list won. Click the entry for the full rundown.</p>`,
+      },
+      {
         q: `What is "My Edits"?`,
         a: `
           <p>My Edits is your personal layer, created for you automatically the first time you open Grawlix. Any time you change a score, fix a comment, rename an entry, or add a word, it lands here, never in the original wordlist.</p>
