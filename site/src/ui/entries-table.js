@@ -40,6 +40,7 @@ import { buildWordlistNameIconHTML } from './scope-selector.js';
 import { getDraftRescoreRules } from './rescore-editor.js';
 import { buildTrashIconHTML, positionPopover } from './components.js';
 import { LookupSection } from './lookup.js';
+import { showConfirm } from './dialogs/confirm.js';
 import {
   getEntriesScroller, rescorePreviewActive, refreshMergedScroller, setScope,
 } from './rendering.js';
@@ -1590,18 +1591,22 @@ export const EntryPanel = (() => {
   // tag). Closing those pops the entry; a cold deep link has nothing of ours behind
   // it, so it strips the param in place instead.
   let ownsHistoryEntry = false;
+  // Guards against stacking a second discard confirm: our capture-phase keydown
+  // listener sees Escape before the open confirm dialog does, so without this it
+  // would re-enter requestClose and prompt again behind the first.
+  let confirmingClose = false;
 
   function ensureElement() {
     if (el) return el;
     scrim = document.createElement('div');
     scrim.id = 'entry-panel-backdrop';
-    scrim.addEventListener('click', close);
+    scrim.addEventListener('click', requestClose);
     document.body.appendChild(scrim);
 
     el = document.createElement('div');
     el.id = 'entry-panel';
     el.addEventListener('click', e => {
-      if (e.target.closest('.dialog-close-btn')) { close(); return; }
+      if (e.target.closest('.dialog-close-btn')) { requestClose(); return; }
       if (e.target.closest('.entry-panel-prov-untrash')) { toggleStagedAdopt(); return; }
       const trash = e.target.closest('.entry-panel-prov-trash');
       if (trash) { toggleStagedDelete(trash.dataset.norm, trash.dataset.display); return; }
@@ -1624,8 +1629,18 @@ export const EntryPanel = (() => {
 
   // Reconcile the panel to the URL on Back/Forward. Idempotent on purpose — our own
   // close()→back() and the help-hash both fire popstate, and both must no-op here.
-  function onPopState() {
+  async function onPopState() {
+    if (confirmingClose) return;
     const value = new URLSearchParams(location.search).get('entry');
+    // Browser Back already moved the URL off the entry; on keep, redo it (forward)
+    // to restore the panel's URL — that popstate no-ops via the same-entry check
+    // below, so don't hideAndClear or re-push instead.
+    if (!value && isOpen() && hasUnsavedChanges()) {
+      confirmingClose = true;
+      const discard = await showConfirm('You have unsaved changes.', { confirmText: 'Discard' });
+      confirmingClose = false;
+      if (!discard) { history.forward(); return; }
+    }
     if (!value) { if (isOpen()) hideAndClear(); return; }
     const norm = toNorm(value);
     if (isOpen() && activeWlEntry && activeWlEntry.norm === norm && displayOf(activeWlEntry) === value) return;
@@ -1663,12 +1678,35 @@ export const EntryPanel = (() => {
     else _navigate();
   }
 
+  function hasUnsavedChanges() {
+    if (!isOpen()) return false;
+    if (stagedDelete || stagedAdopt) return true;
+    const inp = el.querySelector('.entry-input');
+    if (!inp || inp.disabled) return false;
+    const vals = readNewValues();
+    return activeMode === 'create' ? valuesValid(vals) : pendingWritesChange(vals);
+  }
+
+  async function requestClose() {
+    if (confirmingClose) return;
+    if (hasUnsavedChanges()) {
+      confirmingClose = true;
+      const discard = await showConfirm('You have unsaved changes.', { confirmText: 'Discard' });
+      confirmingClose = false;
+      if (!discard) return;
+    }
+    close();
+  }
+
   function containsFocus() {
     return isOpen() && focusEl !== null && el.contains(focusEl);
   }
 
   function onKeydown(e) {
-    if (e.key === 'Escape') { e.preventDefault(); close(); }
+    if (e.key !== 'Escape') return;
+    if (confirmingClose) return;
+    e.preventDefault();
+    requestClose();
   }
 
   // The scoped case needs the worker: the merge winner there can be a higher-
@@ -2165,7 +2203,7 @@ export const EntryPanel = (() => {
   }
 
   function wireFooter() {
-    el.querySelector('.entry-panel-cancel').addEventListener('click', close);
+    el.querySelector('.entry-panel-cancel').addEventListener('click', requestClose);
     el.querySelector('.entry-panel-save').addEventListener('click', submit);
     refreshSaveEnabled();
   }

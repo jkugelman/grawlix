@@ -368,3 +368,69 @@ test('the trash score setting drives the downscore amount', async ({ page }) => 
   await page.locator('#entry-panel .entry-panel-save').click();
   await expect.poll(() => page.evaluate(() => window.__grawlixTest.getMergedEntry('oceam').then(e => e?.score))).toBe(7);
 });
+
+// ─── Discard confirmation ──────────────────────────────────────────────────────
+
+const dismissals = {
+  Escape:    page => page.keyboard.press('Escape'),
+  'the X':   page => page.locator('#entry-panel .dialog-close-btn').click(),
+  Cancel:    page => page.locator('#entry-panel .entry-panel-cancel').click(),
+  backdrop:  page => page.locator('#entry-panel-backdrop').click({ position: { x: 5, y: 5 } }),
+};
+
+for (const [name, dismiss] of Object.entries(dismissals)) {
+  test(`dismissing a dirty entry panel via ${name} prompts to discard`, async ({ page }) => {
+    await gotoApp(page);
+    await addList(page, { name: 'W', entries: ['ocean'], scores: [50] });
+    await openPanelOnEntry(page, 'ocean');
+    await page.locator('#entry-panel-score').fill('60');
+
+    await dismiss(page);
+    await expect(page.locator('#confirm-dialog')).toBeVisible();
+  });
+}
+
+test('cancelling the discard keeps the panel open with the edit intact', async ({ page }) => {
+  await gotoApp(page);
+  await addList(page, { name: 'W', entries: ['ocean'], scores: [50] });
+  await openPanelOnEntry(page, 'ocean');
+  await page.locator('#entry-panel-score').fill('60');
+
+  await page.keyboard.press('Escape');
+  await page.locator('#confirm-dialog #btn-confirm-cancel').click();
+  await expect(page.locator('#confirm-dialog')).toBeHidden();
+  await expect(page.locator('#entry-panel')).toBeVisible();
+  await expect(page.locator('#entry-panel-score')).toHaveValue('60');
+});
+
+test('confirming the discard closes the panel and saves nothing', async ({ page }) => {
+  await gotoApp(page);
+  await addList(page, { name: 'W', entries: ['ocean'], scores: [50] });
+  await openPanelOnEntry(page, 'ocean');
+  await page.locator('#entry-panel-score').fill('60');
+
+  await page.locator('#entry-panel .entry-panel-cancel').click();
+  await page.locator('#confirm-dialog #btn-confirm-ok').click();
+  await expect(page.locator('#entry-panel')).toBeHidden();
+  await expect.poll(() => myEditsForNorm(page, 'ocean')).toEqual([]);
+});
+
+test('an unedited entry panel closes immediately with no discard prompt', async ({ page }) => {
+  await gotoApp(page);
+  await addList(page, { name: 'W', entries: ['ocean'], scores: [50] });
+  await openPanelOnEntry(page, 'ocean');
+
+  await page.keyboard.press('Escape');
+  await expect(page.locator('#entry-panel')).toBeHidden();
+  await expect(page.locator('#confirm-dialog')).toBeHidden();
+});
+
+test('an untouched Add entry panel closes without nagging', async ({ page }) => {
+  await gotoApp(page);
+  await page.locator('#add-fab').click();
+  await expect(page.locator('#entry-panel')).toBeVisible();
+
+  await page.keyboard.press('Escape');
+  await expect(page.locator('#entry-panel')).toBeHidden();
+  await expect(page.locator('#confirm-dialog')).toBeHidden();
+});

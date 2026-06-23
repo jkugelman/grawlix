@@ -91,6 +91,7 @@ test('Cancel closes the panel without committing edits', async ({ page }) => {
   await page.locator('.entry-row[data-entry="bagel"] .atom-entry').click();
   await page.locator('#entry-panel-score').fill('99');
   await page.locator('.entry-panel-cancel').click();
+  await page.locator('#confirm-dialog #btn-confirm-ok').click();
   await expect(page.locator('#entry-panel')).toBeHidden();
 
   expect(await page.evaluate(() => window.__grawlixTest.getWordlist('My Edits').entries)).toEqual([]);
