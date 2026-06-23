@@ -1727,11 +1727,20 @@ export const EntryPanel = (() => {
   }
 
   function onKeydown(e) {
-    if (e.key !== 'Escape') return;
     if (confirmingClose) return;
-    if (scoreCombo?.isOpen()) { e.preventDefault(); e.stopPropagation(); scoreCombo.close(); return; }
-    e.preventDefault();
-    close();
+    if (e.key === 'Escape') {
+      if (scoreCombo?.isOpen()) { e.preventDefault(); e.stopPropagation(); scoreCombo.close(); return; }
+      e.preventDefault();
+      close();
+      return;
+    }
+    // The exclusion defers to controls that own Enter: without it this capture-phase
+    // handler would preempt the combobox's tier-pick and turn Enter on Cancel into a
+    // save. Left over is the unfocused panel (a view-first open), where Enter saves.
+    if (e.key === 'Enter' && !e.target.closest('input, textarea, select, button, a[href], [role="button"]')) {
+      e.preventDefault();
+      submit();
+    }
   }
 
   // The scoped case needs the worker: the merge winner there can be a higher-
