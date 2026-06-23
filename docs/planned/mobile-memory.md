@@ -15,10 +15,11 @@ All anchors are against the worker, [`../../site/src/engine/worker.js`](../../si
 Default load is four auto-fetched wordlists — Broda (~527K entries), Nediger (~345K), STWL (~280K), JK (fetched, size unmeasured) — plus XWI (~281K) if a subscriber has imported it. The worker holds, simultaneously:
 
 1. **`ownedBuilt`** — every source, *enabled and disabled*, each as an array of `{ norm, display, score, comment }` wordlist-entry objects, built in `buildAllSourcesWordlists` ([worker.js:1198-1211](../../site/src/engine/worker.js#L1198-L1211)). ~1.25M+ objects before the merge even runs.
-2. **Per-source derived indexes** — each source additionally caches `_rescored` (a second array, with fresh objects wherever a rescore rule changed the score) and `_rescoredByNorm` (a `Map` of norm → array of entries), in `getRescoredEntries` / `getRescoredByNorm` ([rescore.js:92-116](../../site/src/engine/rescore.js#L92-L116)). The `_rescoredByNorm` maps across all sources are one of the single largest line items.
+2. **Per-source derived indexes** — each source additionally caches `_rescored` (a second array, with fresh objects wherever a rescore rule changed the score) and `_rescoredByNorm` (a `Map` of norm → *array* of entries), in `getRescoredEntries` / `getRescoredByNorm` ([rescore.js:92-116](../../site/src/engine/rescore.js#L92-L116)). The measured `byNormGroups` ≈ `byNormEntries` 1:1 for every source (e.g. XWI 280776 / 280776), so **nearly every one of those ~1.5M arrays holds a single element** — almost pure per-array header overhead. The `_rescored` arrays also duplicate every entry whose score a rule changed into a fresh object (measured: ~1.07M such `{ …, rawScore }` objects).
 3. **`ownedMerged`** — the deduped union: a fresh `entries` array of all merged rows (new objects, *not* shared with the per-source arrays), plus a `byKey` Map whose keys are freshly-allocated `norm\0display` strings, plus a `byNorm` Map, built in `resolveCorpus` ([corpus.js:41-84](../../site/src/engine/corpus.js#L41-L84)).
 4. **`ownedEntryToIndex`** — a `Map` of *every* merged entry object → its integer index, existing only to encode the flat result's survivor indices, built in `setOwnedCorpus` ([worker.js:1231-1237](../../site/src/engine/worker.js#L1231-L1237)).
-5. **Lazy data assets, never freed in normal use** — the unigram corpus (wordfreq `large_en`, a ~1M-key word→float `Map`) and the CMU pronunciation dict load on first use of Space-out / Rhymes (`loadUnigramCorpus` [segmenter.js:121](../../site/src/engine/segmenter.js#L121), `loadCmuDict` [phonetics.js:88](../../site/src/engine/phonetics.js#L88)). They are evicted *only* on a detected remote refresh in `handleCheckAssets` ([worker.js:106](../../site/src/engine/worker.js#L106)) — never when the tool leaves the stack, never under pressure. Once loaded they stay resident.
+5. **`_initialChains`** — the executor seeds each pipeline run from `new Array(entries.length)` of `{ atoms: [{ wlEntry, highlights, glyph }] }`, one chain + one single-element `atoms` array + one atom object **per corpus entry**, cached on the merged corpus in `buildInitialChains` ([executor.js:72-80](../../site/src/engine/executor.js#L72-L80)). Built lazily, but the first pipeline run happens at boot (the table renders), so the full-corpus materialization is effectively always resident — measured ~70 MB of objects plus its share of the array pile.
+6. **Lazy data assets, never freed in normal use** — the unigram corpus (wordfreq `large_en`, a ~1M-key word→float `Map`) and the CMU pronunciation dict load on first use of Space-out / Rhymes (`loadUnigramCorpus` [segmenter.js:121](../../site/src/engine/segmenter.js#L121), `loadCmuDict` [phonetics.js:88](../../site/src/engine/phonetics.js#L88)). They are evicted *only* on a detected remote refresh in `handleCheckAssets` ([worker.js:106](../../site/src/engine/worker.js#L106)) — never when the tool leaves the stack, never under pressure. Once loaded they stay resident. (Both were *unloaded* in the measurement below, so the figures are a floor.)
 
 The main thread is lean by comparison: it holds only My Edits' `rawEntries` and the windowed summaries the worker ships, so the worker is where essentially all of the budget is spent.
 
@@ -30,17 +31,20 @@ The main thread is lean by comparison: it holds only My Edits' `rawEntries` and 
 
 `getRescoredMap` / `_rescoredMap` ([rescore.js:96-102](../../site/src/engine/rescore.js#L96-L102)) is never called anywhere — it costs no memory (never populated) but is invalidated in two places and should be removed for clarity, not for footprint.
 
-## Estimates (unverified)
+## Measured (2026-06-23)
 
-These are reasoned from JSC object/string/Map overhead, not measured on device. They establish the order of magnitude, not a precise figure.
+Measured in desktop Chrome (V8) against the five real lists a subscriber runs — JK (73,651 entries), Nediger (346,936), XWI (280,776), STWL (314,822), Broda (527,347), plus My Edits — via a temporary worker readout (`__grawlixTest.measureMemory`, [`mobile-memory.md`](mobile-memory.md) instrumentation, uncommitted) cross-checked against a Chrome heap snapshot. V8 ≠ iOS's JSC, but object/string/Map/array overhead is the same order of magnitude, and the *counts* are device-independent (same lists everywhere). The two methods agreed: **readout estimate 476.8 MB, heap snapshot 489 MB retained** — within 3%, so the per-structure split below is trustworthy. **Both tool assets were unloaded**, so this is a floor; Space-out / Rhymes add ~100 MB+ on top.
 
-- Per wordlist-entry object: ~48 bytes (4-slot object header) + the norm string (~24–32 bytes, mostly unique so not interned). Display is `null` for bare entries (no allocation); comment is usually `''` (shared).
-- Across the structures above, steady-state worker footprint with the four default lists is plausibly **a few hundred MB** (rough split: per-source objects ~90 MB, rescored new objects ~40–60 MB, `_rescoredByNorm` maps ~100 MB, merged `entries` ~45 MB, `byKey` ~50 MB, `byNorm` ~35 MB, `ownedEntryToIndex` ~35 MB).
-- The merge is estimated at ~600–800K deduped rows; the exact count is unmeasured.
-- The unigram + CMU assets add ~100 MB+ when their tools are used.
-- The iOS jetsam threshold itself is device- and pressure-dependent; "a few hundred MB" is a working assumption, not a measured ceiling.
+Per-structure (from the readout, MB):
 
-**Measurement should precede any optimization.** Footprint scales with entry counts, which are device-independent, so a temporary worker-side readout (entry counts + estimated bytes per structure, logged for reading via Safari Web Inspector with the iPhone tethered to a Mac) would confirm which structure dominates before we optimize blind. The crash is not directly reproducible in this repo's test tiers — it is an on-device memory-pressure event — so device numbers are the ground truth.
+- **Merged corpus — 155 MB** (`entries`/`byKey`/`byNorm`, 751,441 rows each). The single biggest named structure.
+- **Per-source — ~281 MB total**: Broda 94, Nediger 69, STWL 56, XWI 50, JK 13. Each is rawEntries + the rescored-duplicate objects + the `_rescoredByNorm` map and its per-norm arrays.
+- **`ownedEntryToIndex` — 40 MB** (751,441-entry Map).
+- **`_initialChains` — ~70 MB** of objects (not in the readout's total; seen in the snapshot as `{atoms} ×751,443` + `{wlEntry, highlights, glyph} ×751,443`).
+
+The heap snapshot's **biggest single category is arrays**: `(array) ×2,295,773`, ~222 MB shallow. That count is ~1.5M single-element `_rescoredByNorm` wrappers + ~751K single-element `_initialChains` `atoms` arrays + a handful of huge backing arrays (the `_rescored` / `entries` arrays). The per-entry *array wrapping* — not the entry objects, not the Maps — is the largest lever. Strings are next at ~67 MB (`(string) ×2,770,655`).
+
+The takeaway: at **~490 MB resident with no assets loaded**, the steady state alone is already in iOS jetsam range on most iPhones, and the `syncConfig` transient 2× (below) momentarily doubles it to ~950 MB — which exceeds even generous per-tab limits, making a crash on any wordlist toggle / rescore Save close to guaranteed.
 
 ## Options, by impact ÷ effort
 
@@ -52,6 +56,8 @@ These are reasoned from JSC object/string/Map overhead, not measured on device. 
 
 ### Medium effort
 
+- **Collapse single-element `_rescoredByNorm` arrays** (measured #1 array lever). With ~1.5M of these arrays nearly all holding one element, store `norm → entry | entry[]` (scalar when one, array only for the rare multi-display norm) — or restructure consumers to read the flat `_rescored` with a norm→index map. The merge resolver iterates `for (const wlE of group)` ([corpus.js:31](../../site/src/engine/corpus.js#L31), and the worker's per-norm `computeMergedBucket`), so every consumer must handle the scalar-or-array shape in lockstep; that coupling is the cost. Reclaims a large fraction of the ~222 MB array pile.
+- **Don't materialize `_initialChains` for the whole corpus** (measured #2 array lever, ~70 MB of objects + ~751K arrays). The executor seeds every run from one chain per corpus entry ([executor.js:72-80](../../site/src/engine/executor.js#L72-L80)); seeding lazily per window, or from indices rather than pre-wrapped `{ atoms: [...] }` objects, removes a full-corpus resident copy. This is the executor's input model, so it is the most invasive of the medium tier — but the payoff is large and it compounds with the array-collapse above.
 - **Don't fully build disabled sources.** `ownedBuilt` keeps disabled wordlists' `rawEntries` and indexes resident so a re-enable is instant and the provenance panel can show them. Building a disabled list's `_rescoredByNorm` lazily — only when the provenance walk asks for it — frees a disabled list's bulk while it sits out of the merge. Re-enable then pays a one-time build, which is acceptable for an infrequent action.
 - **Stream the parser.** `parseWordlist` does `text.split('\n')` ([norm.js:101-109](../../site/src/engine/norm.js#L101-L109)), materializing ~500K substrings on top of the entry array during boot. An index-based line scan removes that boot-window transient. Modest, but it lands during the most memory-vulnerable window (first load, before anything has settled).
 - **Mobile-aware defaults.** On `isMobile()` ([../../site/src/core/platform.js](../../site/src/core/platform.js)), auto-fetch fewer or smaller default wordlists, or defer building the merge until first interaction. This is the largest baseline cut, but it touches the "All Wordlists on first run" product tenet ([`../design.md`](../design.md) § Landing) — a deliberate product call, not a pure optimization.
@@ -62,15 +68,16 @@ These are reasoned from JSC object/string/Map overhead, not measured on device. 
 
 ## Recommended sequencing
 
-1. **Measure** — wire the temporary worker-side readout; get real device numbers.
-2. **Fix the `syncConfig` 2×** and **evict assets on tool-removal** — surgical, low-risk, hit the most probable trigger plus the worst secondary spike, and touch no product behavior.
-3. Drop `ownedEntryToIndex` to an `_i` slot.
-4. If the phone still struggles: lazy disabled-source indexes, then the streaming parser.
-5. Only then weigh the product-level mobile-defaults question and the columnar rearchitecture.
+1. **Measure** — done (see *Measured* above). Keep the `__grawlixTest.measureMemory` instrumentation in place to re-measure after each fix, then remove it.
+2. **Fix the `syncConfig` 2×** — surgical, low-risk, kills the transient that makes config changes near-certain crashes; touches no product behavior. First priority because the 2× spike is the worst single moment.
+3. **Collapse the single-element `_rescoredByNorm` arrays** and **drop `ownedEntryToIndex` to an `_i` slot** — the largest measured steady-state levers that don't touch the executor.
+4. **Evict assets on tool-removal** — keeps the assets from compounding the floor once a user touches Space-out / Rhymes.
+5. If the phone still struggles: de-materialize `_initialChains`, then lazy disabled-source indexes, then the streaming parser.
+6. Only then weigh the product-level mobile-defaults question and the columnar rearchitecture (the columnar move would subsume the array and rescored-duplicate levers — re-evaluate once the cheaper wins land).
 
 ## To verify during implementation
 
-- Confirm on-device (Web Inspector, tethered) that worker footprint drops by roughly the predicted amount after the `syncConfig` fix and asset eviction — the estimates above are unverified.
+- Re-run `__grawlixTest.measureMemory` (and a heap snapshot) after each fix to confirm the structure's MB actually drops by the predicted amount; the per-fix savings are projected, not yet measured.
 - Confirm the "serve stale until commit" path still answers correctly when the old index maps are dropped early (a fetch landing in the rebuild gap must not read a half-freed corpus).
 - Confirm asset eviction on tool-removal doesn't thrash: adding then removing then re-adding Space-out should not re-fetch the corpus from the network each time (the IDB cache should still serve it).
 - Confirm the `_i`-slot change keeps `ownedEntryToIndex`'s pairing invariant — every flat-result index must still decode to the correct merged row after a corpus rebuild.
