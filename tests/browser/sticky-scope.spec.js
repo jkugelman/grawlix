@@ -1,8 +1,9 @@
-// Sticky scope + per-scope score range (unify redesign § Persistence). Both
+// Sticky scope + global score range (unify redesign § Persistence). Both
 // ride standalone read-time-default localStorage keys — `selectedScope` and
-// `scoreRanges` — outside the versioned `meta` blob, so no SCHEMA_VERSION bump
-// and no migration. These tests pin: the active scope survives a reload, each
-// scope keeps its own score range, and a vanished scope falls back to All Wordlists.
+// `scoreRange` — outside the versioned `meta` blob, so no SCHEMA_VERSION bump
+// and no migration. These tests pin: the active scope survives a reload, the
+// score range is one global filter that stays put across scope switches, and a
+// vanished scope falls back to All Wordlists.
 
 import { test, expect } from '@playwright/test';
 import { stubPublisherFetches, gotoApp, scopeTo, scopeViaSelector } from './helpers.js';
@@ -28,7 +29,7 @@ async function reloadReady(page) {
   await page.evaluate(() => window.__grawlixTest.pipelineIdle());
 }
 
-test('a score range is per-scope: set on A, B is independent, A persists across reload', async ({ page }) => {
+test('the score range is global: it stays put across scope switches and a reload', async ({ page }) => {
   await gotoApp(page);
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
     name: 'Alpha', entries: ['ocean', 'tide', 'reef'], scores: [80, 50, 20],
@@ -42,32 +43,25 @@ test('a score range is per-scope: set on A, B is independent, A persists across 
   await setRange(page, '50-90');
   await expect(rangeInput(page)).toHaveValue('50-90');
 
-  // Switch to Beta: it has no range of its own, so the input is blank and the
-  // filter is off — Alpha's range did not leak across the scope boundary.
+  // The regression guard: switching scope no longer makes the filter disappear.
   await scopeTo(page, 'Beta');
-  await expect(rangeInput(page)).toHaveValue('');
+  await expect(rangeInput(page)).toHaveValue('50-90');
+  await scopeTo(page, 'All Wordlists');
+  await expect(rangeInput(page)).toHaveValue('50-90');
 
+  // Editing from any scope rewrites the one global filter the others read.
   await setRange(page, '60+');
+  await scopeTo(page, 'Alpha');
   await expect(rangeInput(page)).toHaveValue('60+');
 
-  // All Wordlists keeps its own (still empty) range independent of both sources.
-  await scopeTo(page, 'All Wordlists');
-  await expect(rangeInput(page)).toHaveValue('');
-
-  // Back to Alpha: its range is restored, not Beta's nor All Wordlists' blank.
-  await scopeTo(page, 'Alpha');
-  await expect(rangeInput(page)).toHaveValue('50-90');
-
-  // Reload: sticky scope lands back on Alpha (the last scope) with its range
-  // intact, and Beta still carries its own when we switch to it.
   await reloadReady(page);
   await expect(page.locator('#wordlist-bar .wls-trigger-label')).toHaveText('Alpha');
-  await expect(rangeInput(page)).toHaveValue('50-90');
+  await expect(rangeInput(page)).toHaveValue('60+');
   await scopeTo(page, 'Beta');
   await expect(rangeInput(page)).toHaveValue('60+');
 });
 
-test('clearing a scope\'s range drops only that scope\'s entry', async ({ page }) => {
+test('clearing the range clears the global filter for every scope', async ({ page }) => {
   await gotoApp(page);
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
     name: 'Alpha', entries: ['ocean', 'tide'], scores: [80, 20],
@@ -76,18 +70,16 @@ test('clearing a scope\'s range drops only that scope\'s entry', async ({ page }
   await scopeTo(page, 'All Wordlists');
   await setRange(page, '10-90');
   await scopeTo(page, 'Alpha');
-  await setRange(page, '50-90');
+  await expect(rangeInput(page)).toHaveValue('10-90');
 
-  // Clear Alpha's range. All Wordlists' range must survive.
+  // Clear it from Alpha; the global filter is gone everywhere.
   await setRange(page, '');
   await expect(rangeInput(page)).toHaveValue('');
   await scopeTo(page, 'All Wordlists');
-  await expect(rangeInput(page)).toHaveValue('10-90');
+  await expect(rangeInput(page)).toHaveValue('');
 
   await reloadReady(page);
-  // Sticky scope returned us to All Wordlists; its range persisted, Alpha's stayed cleared.
-  await expect(rangeInput(page)).toHaveValue('10-90');
-  await scopeTo(page, 'Alpha');
+  // Sticky scope returned us to All Wordlists; the cleared range stays cleared.
   await expect(rangeInput(page)).toHaveValue('');
 });
 

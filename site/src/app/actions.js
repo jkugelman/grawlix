@@ -208,7 +208,7 @@ export async function init() {
   // state.selected). Scope is localStorage-only, never the URL, so it's
   // independent of Router.applyURL below.
   restoreSelectedScope();
-  AppView.restoreScoreRanges(restoreScoreRanges());
+  AppView.restoreScoreRange(restoreScoreRange());
 
   Router.applyURL();
 
@@ -306,16 +306,11 @@ function restoreSelectedScope() {
   if (source) state.selected = source;
 }
 
-function restoreScoreRanges() {
-  let parsed;
-  try { parsed = JSON.parse(lsLoad('scoreRanges') || '{}'); }
-  catch { return {}; }
-  if (!parsed || typeof parsed !== 'object') return {};
-  const out = {};
-  for (const [key, range] of Object.entries(parsed)) {
-    if (typeof range === 'string' && parseRange(range.trim()) !== null) out[key] = range.trim();
-  }
-  return out;
+function restoreScoreRange() {
+  const stored = lsLoad('scoreRange');
+  if (typeof stored !== 'string') return '';
+  const trimmed = stored.trim();
+  return (trimmed && parseRange(trimmed) !== null) ? trimmed : '';
 }
 
 // ─── My Edits helpers ─────────────────────────────────────────────────────────

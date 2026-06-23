@@ -4,7 +4,6 @@
 
 import { MERGED_ID } from '../core/constants.js';
 import { parseRange } from '../engine/range.js';
-import { state } from '../data/state.js';
 import { lsSave, lsDel } from '../data/storage.js';
 import { ToolStack } from './tool-stack.js';
 import { repositionAllHistogramRects } from './histogram-view.js';
@@ -26,15 +25,12 @@ export function normalizeScoreRange(value, inputId) {
 export const AppView = (() => {
   // View-private state. Read externally via the getters in the returned
   // object; written either through the handlers below or through
-  // `applyURLState` (Router) / `restoreScoreRanges` (boot). The sort state
+  // `applyURLState` (Router) / `restoreScoreRange` (boot). The sort state
   // is mutated by EntriesScroller's toolbar via `setSortList`.
   // Search query / whole-word are *not* here — they live in the permanent
   // Search bar's ToolStack row params; the getters below read them from it.
-  let _scoreRanges     = {};
+  let _scoreRange      = '';
   let _sortList        = [{ key: 'entry', dir: 'asc' }];
-
-  function activeScopeKey() { return scopeKey(state.selected); }
-  function activeScoreRange() { return _scoreRanges[activeScopeKey()] || ''; }
 
   function show() {
     // Reposition once the bars are laid out: rect positioning reads live
@@ -44,17 +40,15 @@ export const AppView = (() => {
   }
 
   function onScoreRange(value) {
-    const range = normalizeScoreRange(value, 'score-range-input');
-    if (range) _scoreRanges[activeScopeKey()] = range;
-    else       delete _scoreRanges[activeScopeKey()];
-    persistScoreRanges();
-    getEntriesScroller()?.setScoreRange(range);
+    _scoreRange = normalizeScoreRange(value, 'score-range-input');
+    persistScoreRange();
+    getEntriesScroller()?.setScoreRange(_scoreRange);
     repositionAllHistogramRects();
   }
 
-  function persistScoreRanges() {
-    if (Object.keys(_scoreRanges).length) lsSave('scoreRanges', JSON.stringify(_scoreRanges));
-    else                                  lsDel('scoreRanges');
+  function persistScoreRange() {
+    if (_scoreRange) lsSave('scoreRange', _scoreRange);
+    else             lsDel('scoreRange');
   }
   // Canonical sort write. No filter call here — the scroller re-applies sort
   // itself; this just holds the source of truth the getters and URL read.
@@ -71,17 +65,17 @@ export const AppView = (() => {
     reconcileSort(stack);
   }
 
-  // Score-range is the lone state field that's localStorage-backed (it's a
-  // standing preference, not a shared URL parameter — see design.md § Out of
-  // scope for the URL). Boot hands the validated per-scope map to this setter.
-  function restoreScoreRanges(map) { _scoreRanges = map; }
+  // Score-range is the lone state field that's localStorage-backed — a single
+  // global filter (a standing preference, not a shared URL parameter — see
+  // design.md § Out of scope for the URL). Boot hands the validated range here.
+  function restoreScoreRange(range) { _scoreRange = range; }
 
   return {
     show,
     onScoreRange,
-    setSortList, applyURLState, restoreScoreRanges,
+    setSortList, applyURLState, restoreScoreRange,
     get searchQuery()     { return ToolStack.getSearchBarRow().params.pattern || ''; },
-    get scoreRange()      { return activeScoreRange(); },
+    get scoreRange()      { return _scoreRange; },
     get sortKey()         { return _sortList[0].key; },
     get sortDir()         { return _sortList[0].dir; },
     get sortList()        { return _sortList.map(s => ({ ...s })); },
