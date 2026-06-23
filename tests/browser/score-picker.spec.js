@@ -129,6 +129,18 @@ test('Alt+digit while hovering a score rescores it with no picker', async ({ pag
   await expect.poll(() => mergedBagel(page)).toMatchObject({ score: 10, wordlist: 'My Edits' });
 });
 
+test('Alt+digit rescores while hovering anywhere in the row, not just the score', async ({ page }) => {
+  await setup(page, { score: 50 });
+  const entryCell = page.locator('.entry-row[data-entry="bagel"] .atom-entry');
+  await expect(entryCell).toBeVisible();
+  await entryCell.hover();
+  await page.keyboard.press('Alt+Digit0');   // bottom tier, 10
+  await expect(picker(page)).toBeHidden();
+  await expect(page.locator('#entry-panel')).toBeHidden();
+  await expect(toast(page)).toContainText(/Rescored .* to 10/);
+  await expect.poll(() => mergedBagel(page)).toMatchObject({ score: 10, wordlist: 'My Edits' });
+});
+
 test('Alt+digit in the edit panel fills the score field without saving', async ({ page }) => {
   await setup(page, { score: 50 });
   await scopeTo(page, 'Src');

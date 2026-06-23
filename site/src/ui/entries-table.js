@@ -688,7 +688,7 @@ export class EntriesScroller extends BaseVirtualScroller {
     this._scoreIntervals = this.scoreRange ? parseRange(this.scoreRange) : null;
     this._onSave = null;
     this._onDeleteRow = null;
-    this._hoveredScoreEl = null;
+    this._hoveredAtomEl = null;
     this.onFilterChange = null;
     // Sorted view of allEntries cached across keystrokes. Filter preserves
     // order, so a sorted source means the filter result is already sorted —
@@ -729,10 +729,10 @@ export class EntriesScroller extends BaseVirtualScroller {
     });
 
     this.sizer.addEventListener('mouseover', e => {
-      const sc = e.target.closest('.atom-score');
-      this._hoveredScoreEl = sc && this.sizer.contains(sc) ? sc : null;
+      const atom = e.target.closest('.atom');
+      this._hoveredAtomEl = atom && this.sizer.contains(atom) ? atom : null;
     });
-    this.sizer.addEventListener('mouseleave', () => { this._hoveredScoreEl = null; });
+    this.sizer.addEventListener('mouseleave', () => { this._hoveredAtomEl = null; });
   }
 
   _resolveAtomTarget(node) {
@@ -771,14 +771,14 @@ export class EntriesScroller extends BaseVirtualScroller {
     return { row, wlEntry, field, anchor: target };
   }
 
-  // Rescore the hovered score straight into My Edits, no picker. Returns whether
-  // it acted, so the global key handler knows whether to swallow the keystroke.
+  // Returns whether it acted, so the global key handler knows whether to swallow
+  // the keystroke.
   hoverRescoreByDigit(digit) {
     if (!scoreQuickPickable()) return false;
-    const el = this._hoveredScoreEl;
-    if (!el || !el.isConnected) return false;
-    const resolved = this._resolveAtomTarget(el);
-    if (resolved?.field !== 'score') return false;
+    const atom = this._hoveredAtomEl;
+    if (!atom?.isConnected) return false;
+    const resolved = this._resolveAtomTarget(atom.querySelector('.atom-score'));
+    if (!resolved) return false;
     const opt = optionForDigit(buildScoreOptions(), digit);
     if (!opt) return false;
     commitRescore(this, resolved.wlEntry, opt.score);
