@@ -242,9 +242,11 @@ function buildSourcesMatrixHTML(sourceIds, activeIds, slots) {
   const active = new Set(activeIds || []);
   const html = slots.map(wl => {
     const has = present.has(wl.dbKey);
-    const cls = 'src-slot' + (!has ? ' src-slot--empty' : active.has(wl.dbKey) ? '' : ' src-slot--muted');
+    const muted = has && !active.has(wl.dbKey);
+    const cls = 'src-slot' + (!has ? ' src-slot--empty' : muted ? ' src-slot--muted' : '');
+    const title = muted ? `${wl.name} (overridden)` : wl.name;
     return has
-      ? `<span class="${cls}" title="${esc(wl.name)}">${getWordlistIcon(wl)}</span>`
+      ? `<span class="${cls}" title="${esc(title)}">${getWordlistIcon(wl)}</span>`
       : `<span class="${cls}"></span>`;
   }).join('');
   return `<span class="atom-source">${html}</span>`;

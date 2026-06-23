@@ -205,10 +205,10 @@ test('the Sources matrix shows cross-list presence and colors only contributing 
   await expectVisible(page, ['ocean', 'tide']);
   await expect(page.locator('.entry-headers .col-source')).toHaveCount(1);
   // 'ocean' is in both lists → Hi's slot is filled; 'tide' is Lo-only → Hi's isn't.
-  await expect(page.locator('.entry-row[data-entry="ocean"] .src-slot[title="Hi"]')).toHaveCount(1);
-  await expect(page.locator('.entry-row[data-entry="tide"] .src-slot[title="Hi"]')).toHaveCount(0);
+  await expect(page.locator('.entry-row[data-entry="ocean"] .src-slot[title^="Hi"]')).toHaveCount(1);
+  await expect(page.locator('.entry-row[data-entry="tide"] .src-slot[title^="Hi"]')).toHaveCount(0);
   await expect(page.locator('.entry-row[data-entry="ocean"] .src-slot[title="Lo"]')).not.toHaveClass(/src-slot--muted/);
-  await expect(page.locator('.entry-row[data-entry="ocean"] .src-slot[title="Hi"]')).toHaveClass(/src-slot--muted/);
+  await expect(page.locator('.entry-row[data-entry="ocean"] .src-slot[title="Hi (overridden)"]')).toHaveClass(/src-slot--muted/);
 
   await scopeTo(page, 'All Wordlists');
   await expectVisible(page, ['ocean', 'tide', 'zebra']);

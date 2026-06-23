@@ -325,7 +325,7 @@ mark.search-match { border-radius: 2px; padding: 0 1px; margin: 0 -1px; font-sty
 .entry-row .atom-comment { grid-column: 5; overflow: hidden; text-overflow: ellipsis; min-width: 0; font-family: var(--font-sans); font-size: 12px; cursor: pointer; }
 .entry-row .atom-source  { grid-column: 6; min-width: 0; align-self: stretch; align-items: stretch; gap: 5px; }
 .src-slot { flex: 0 0 16px; display: inline-flex; align-items: center; justify-content: center; }
-.src-slot--muted .wordlist-icon { filter: grayscale(1); opacity: 0.4; }
+.src-slot--muted .wordlist-icon { filter: grayscale(1); opacity: 0.2; }
 /* Relation glyph (→, ↔, ⊃) prefixing every non-originator atom's entry. */
 .atom-glyph { color: var(--faint); user-select: none; }
 .entry-row .atom-comment, .entry-row .atom-source { display: none; }
