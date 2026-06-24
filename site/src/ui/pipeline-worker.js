@@ -31,6 +31,20 @@ let workerUnavailable = false;
 let ownedFreshScope = null;
 function ownedFreshFor(scope) { return ownedFreshScope === scope; }
 
+// Resolves on the next COMMITTED build (selfReady with built:true), or immediately
+// when one already stands. A save whose plan came back null (the pre-first-sync
+// ownedBuilt===null window) awaits this before retrying, so it never silently drops
+// the edit. A timeout resolves false so a wedged/absent worker bails, not hangs.
+let _committedWaiters = [];
+export function whenWorkerCommitted(timeout = 5000) {
+  if (ownedFreshScope !== null) return Promise.resolve(true);
+  return new Promise(resolve => {
+    const entry = ok => { clearTimeout(timer); _committedWaiters = _committedWaiters.filter(w => w !== entry); resolve(ok); };
+    const timer = setTimeout(() => entry(false), timeout);
+    _committedWaiters.push(entry);
+  });
+}
+
 export function configurePipelineWorker({ baseURL }) {
   workerBaseURL = baseURL;
 }
@@ -413,6 +427,8 @@ function applySelfReadyFreshness(data) {
   const scope = data.scope ?? MERGED_ID;
   if (data.built) {
     ownedFreshScope = scope;
+    const waiters = _committedWaiters; _committedWaiters = [];
+    waiters.forEach(w => w(true));
     drainDeferred();
   } else if (data.configId === configRequestId && deferredRun && deferredRun.scope === scope) {
     const { stack, resolve } = deferredRun;
@@ -525,6 +541,34 @@ export function fetchWorkerProvenance(typedRaw, previewRaw, clickedNorm, timeout
     }
     w.addEventListener('message', onMessage);
     w.postMessage({ type: 'fetchProvenance', requestId, typedRaw, previewRaw, clickedNorm });
+  });
+}
+
+// ─── Entry-edit plan fetch bridge ── see docs/worker-protocol.md ─────────────
+// Its own requestId space; the worker owns every source's rescore index, so it
+// plans the edit. A timeout resolves null so the caller falls back rather than
+// hanging — the preview keeps its last-good plan, a save retries then bails.
+let fetchEditPlanRequestId = 0;
+let editPlanFetches = 0;
+export function fetchEditPlanFetchCount() { return editPlanFetches; }
+export function fetchWorkerEditPlan({ mode, clicked, typed, trashScore }, timeout = 5000) {
+  const w = getWorker();
+  const requestId = ++fetchEditPlanRequestId;
+  editPlanFetches++;
+  return new Promise(resolve => {
+    const timer = setTimeout(() => { w.removeEventListener('message', onMessage); resolve(null); }, timeout);
+    function onMessage({ data }) {
+      if (data?.type !== 'editPlan' || data.requestId !== requestId) return;
+      clearTimeout(timer);
+      w.removeEventListener('message', onMessage);
+      resolve(data.plan ?? null);
+    }
+    w.addEventListener('message', onMessage);
+    // Lean `clicked` to the two fields planEntryWrite reads: a raw wlEntry carries a
+    // `wordlist` back-reference (the whole source + its rawEntries) that would
+    // structured-clone across the boundary — megabytes for a two-field read.
+    const leanClicked = clicked && { norm: clicked.norm, display: clicked.display ?? null };
+    w.postMessage({ type: 'planEdit', requestId, mode, clicked: leanClicked, typed, trashScore });
   });
 }
 

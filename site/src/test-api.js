@@ -14,7 +14,6 @@
 
 import { MERGED_ID, MERGED_NAME } from './core/constants.js';
 import { toNorm, displayOf, parseWordlist, buildUserWlEntry } from './engine/norm.js';
-import { planEntryWrite } from './engine/edit-plan.js';
 import { getTrashScore } from './data/serialize.js';
 import { setUnigramCorpus as segmenterSetCorpus } from './engine/segmenter.js';
 import { TOOLS, makeToolRow } from './engine/tools.js';
@@ -40,7 +39,7 @@ import {
   pipelineWorkerState, crashWorkerForTest, forceWorkerCrashForTest, failNextWorkerBuildForTest,
   syncWorkerConfig, dumpWorkerCorpus, queryWorkerEntry, fetchWorkerRows, fetchWorkerGroups, fetchWorkerGroupChains, fetchWorkerAllRows, lastCompletedRunId,
   workerOwnsCorpus, sendEditEntry, sendDeleteEntry,
-  fetchWorkerProvenance, syncConfigsSent, allRowsFetchesSent, allGroupsFetchesSent, serializeFetchesSent,
+  fetchWorkerProvenance, fetchWorkerEditPlan, syncConfigsSent, allRowsFetchesSent, allGroupsFetchesSent, serializeFetchesSent,
   lastFetchAppliedMode$,
 } from './ui/pipeline-worker.js';
 import { allSourcesHistogramLayout, shippedAllSourcesAxisVersion, shippedScopedLayoutScopeKey } from './data/derived.js';
@@ -198,9 +197,9 @@ const __grawlixTest = {
   // entry-panel DOM. origRaw === raw upserts; differing raw renames (a two-norm move).
   // Seeds orig from My Edits' own rawEntries (main keeps raw post-flip); a
   // not-yet-present entry gets a blank-score orig so saveEdit treats it as an add.
-  saveMyEdit(origRaw, raw, score, comment = '') {
+  async saveMyEdit(origRaw, raw, score, comment = '') {
     const orig = editsRawSeed(toNorm(origRaw)) ?? buildUserWlEntry(origRaw, '', '');
-    saveEdit(orig, { raw, score, comment });
+    await saveEdit(orig, { raw, score, comment });
     return refreshMergedScroller();
   },
   deleteMyEdit(raw) {
@@ -216,17 +215,17 @@ const __grawlixTest = {
 
   // saveEdit with an EXPLICIT orig (norm, display) — what the entry panel does for a
   // clicked row. orig === null is an add. Seeds from My Edits' rawEntries.
-  saveMyEditFrom(orig, raw, score, comment = '') {
+  async saveMyEditFrom(orig, raw, score, comment = '') {
     const origWlEntry = orig
       ? (editsRawSeed(orig.norm, orig.display) ?? { norm: orig.norm, display: orig.display, score: 0, comment: '' })
       : buildUserWlEntry(raw, '', '');
-    saveEdit(origWlEntry, { raw, score, comment });
+    await saveEdit(origWlEntry, { raw, score, comment });
     return refreshMergedScroller();
   },
 
   // The + button's create path — distinct from saveMyEditFrom's edit/rename.
-  createMyEntry(raw, score, comment = '') {
-    saveEntry('create', null, { raw, score, comment });
+  async createMyEntry(raw, score, comment = '') {
+    await saveEntry('create', null, { raw, score, comment });
     return refreshMergedScroller();
   },
 
@@ -246,15 +245,16 @@ const __grawlixTest = {
     fetchWorkerGroups(runId ?? lastCompletedRunId(), start, end, timeout),
   // Mirror saveMyEditFrom's planner path (not a passthrough) so the worker
   // self-build and a main rebuild converge in the oracle specs.
-  sendWorkerEditEntry: (orig, next, timeout) => {
+  sendWorkerEditEntry: async (orig, next, timeout) => {
     const clicked = orig
       ? (editsRawSeed(orig.norm, orig.display) ?? { norm: orig.norm, display: orig.display, score: 0, comment: '' })
       : buildUserWlEntry(next.display, '', '');
-    const plan = planEntryWrite({
+    const plan = await fetchWorkerEditPlan({
       mode: 'edit', clicked,
       typed: { raw: next.display, score: next.score, comment: next.comment ?? '' },
-      sources: state.sources, trashScore: getTrashScore(),
+      trashScore: getTrashScore(),
     });
+    if (!plan) return null;
     return sendEditEntry({ deletes: plan.deletes, upserts: plan.upserts, primary: plan.primary }, timeout);
   },
   sendWorkerDeleteEntry: (target, timeout) => sendDeleteEntry(target, timeout),

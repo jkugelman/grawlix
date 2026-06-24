@@ -17,7 +17,7 @@ import { computeStatsRaw } from './stats.js';
 import { compileFlatHighlighters, materializeFlatRow } from './flat-highlight.js';
 import { serializeEntries, sortedEntries } from './serialize.js';
 import { threeWayMergeEdits, sameEditsEntries } from './edits-merge.js';
-import { applyEditsWriteSet } from './edit-plan.js';
+import { applyEditsWriteSet, planEntryWrite } from './edit-plan.js';
 
 // scheduler.yield() (the executor's default) starves the worker's run/cancel
 // message on Chromium and a microtask yield never delivers it — either silently
@@ -570,6 +570,17 @@ function handleFetchProvenance({ requestId, typedRaw, previewRaw, clickedNorm })
     score: preview.score, comment: preview.comment || '', sourceId: preview.wordlist.dbKey,
   };
   postMessage({ type: 'provenance', requestId, preview: previewOut ?? null, rows });
+}
+
+// ─── Entry-edit plan ── see docs/worker-protocol.md ──────────────────────────
+// Guard on ownedBuilt ALONE, not ownedCorpusFresh: planEntryWrite reads only the
+// per-source rescore indexes (getRescoredByNorm/computeMergedBucket over ownedBuilt),
+// never ownedMerged/ownedCorpus, and releasePriorCorpus spares ownedBuilt across a
+// syncConfig gap — so a null plan means only the genuine pre-first-sync window.
+function handlePlanEdit({ requestId, mode, clicked, typed, trashScore }) {
+  if (!ownedBuilt) { postMessage({ type: 'editPlan', requestId, plan: null }); return; }
+  const plan = planEntryWrite({ mode, clicked, typed, sources: ownedBuilt, trashScore });
+  postMessage({ type: 'editPlan', requestId, plan });
 }
 
 // Native (norm.localeCompare) order ties differently from the `entry` axis,
@@ -1430,6 +1441,10 @@ onmessage = ({ data }) => {
 
     case 'fetchProvenance':
       handleFetchProvenance(data);
+      break;
+
+    case 'planEdit':
+      handlePlanEdit(data);
       break;
 
     case 'editEntry':

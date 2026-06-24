@@ -404,11 +404,13 @@ test('the patched merged cache matches a full rebuild across override, add, rena
   // Each mutation hits a different patch branch: override an entry two lists
   // share (BAGEL ∈ A, B), rename one (two-norm move donut→donuts), add a
   // brand-new entry, then delete it.
-  await page.evaluate(() => {
-    window.__grawlixTest.saveMyEdit('BAGEL', 'BAGEL', 99);
-    window.__grawlixTest.saveMyEdit('DONUT', 'DONUTS', 70);
-    window.__grawlixTest.saveMyEdit('ZEBRA', 'ZEBRA', 42);
-    window.__grawlixTest.deleteMyEdit('ZEBRA');
+  // Awaited sequentially: saveMyEdit plans through the worker (async), and the
+  // ZEBRA delete must land after its add — un-awaited, the four would race.
+  await page.evaluate(async () => {
+    await window.__grawlixTest.saveMyEdit('BAGEL', 'BAGEL', 99);
+    await window.__grawlixTest.saveMyEdit('DONUT', 'DONUTS', 70);
+    await window.__grawlixTest.saveMyEdit('ZEBRA', 'ZEBRA', 42);
+    await window.__grawlixTest.deleteMyEdit('ZEBRA');
   });
 
   expect(await page.evaluate(() => window.__grawlixTest.getMergedEntry('BAGEL')))

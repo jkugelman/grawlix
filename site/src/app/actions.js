@@ -7,7 +7,7 @@ import { esc, pluralize, nameFromPath } from '../core/util.js';
 import {
   toNorm, displayOf, parseWordlist, buildUserWlEntry,
 } from '../engine/norm.js';
-import { planEntryWrite, applyEditsWriteSet } from '../engine/edit-plan.js';
+import { applyEditsWriteSet } from '../engine/edit-plan.js';
 import { parseRange } from '../engine/range.js';
 import { isLiteralQuery } from '../engine/search.js';
 import { invalidateStatsCache } from '../engine/stats.js';
@@ -73,6 +73,7 @@ import {
 import {
   syncWorkerConfig, resyncWorkerConfig,
   sendEditEntry, sendDeleteEntry, sendApplyFetched, fetchWorkerSerialize,
+  fetchWorkerEditPlan, whenWorkerCommitted,
   checkWorkerAssets,
 } from '../ui/pipeline-worker.js';
 import { SyncDialog } from '../ui/dialogs/sync.js';
@@ -479,18 +480,28 @@ export function attachExternalEditHandlers(s, refreshFn) {
 }
 
 export function saveEdit(orig, newValues) {
-  saveEntry('edit', orig, newValues);
+  return saveEntry('edit', orig, newValues);
 }
 
-export function saveEntry(mode, clicked, { raw, score, comment }, refreshFn) {
+// The worker owns the foreign rescore indexes, so it plans the edit. A null reply
+// is only the pre-first-sync window (ownedBuilt===null): wait for a committed build
+// and retry ONCE rather than silently dropping the edit; bail if still unavailable.
+async function planForSave(args) {
+  const plan = await fetchWorkerEditPlan(args);
+  if (plan) return plan;
+  await whenWorkerCommitted();
+  return fetchWorkerEditPlan(args);
+}
+
+export async function saveEntry(mode, clicked, { raw, score, comment }, refreshFn) {
   const edits = getEditsWordlist();
   if ((mode === 'edit' || mode === 'rescore') && clicked && noEditChange(clicked, raw, score, comment)) { refreshFn?.(); return; }
 
   // Adopt deliberately writes values equal to the winner, so it must stay out of
   // the no-op guard above; it plans through the edit branch.
   const planMode = mode === 'adopt' || mode === 'rescore' ? 'edit' : mode;
-  const plan = planEntryWrite({ mode: planMode, clicked, typed: { raw, score, comment }, sources: state.sources, trashScore: getTrashScore() });
-  if (plan.blockedReason || (!plan.deletes.length && !plan.upserts.length)) { refreshFn?.(); return; }
+  const plan = await planForSave({ mode: planMode, clicked, typed: { raw, score, comment }, trashScore: getTrashScore() });
+  if (!plan || plan.blockedReason || (!plan.deletes.length && !plan.upserts.length)) { refreshFn?.(); return; }
 
   const writes = { deletes: plan.deletes, upserts: plan.upserts, primary: plan.primary };
   let inverse;

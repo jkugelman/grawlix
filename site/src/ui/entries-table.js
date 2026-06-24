@@ -16,7 +16,6 @@ import { ROW_HEIGHT, VS_BUFFER, MERGED_ID, MERGED_NAME } from '../core/constants
 import { esc } from '../core/util.js';
 import { isMobile } from '../core/platform.js';
 import { displayOf, projectRangesToDisplay, toNorm, buildUserWlEntry } from '../engine/norm.js';
-import { planEntryWrite } from '../engine/edit-plan.js';
 import { parseRange } from '../engine/range.js';
 import { renderHighlightedText } from '../engine/search.js';
 import { TOOLS } from '../engine/tools.js';
@@ -45,7 +44,7 @@ import { showConfirm } from './dialogs/confirm.js';
 import {
   getEntriesScroller, rescorePreviewActive, refreshMergedScroller, setScope,
 } from './rendering.js';
-import { fetchWorkerRows, fetchWorkerGroups, fetchWorkerGroupChains, fetchWorkerAllRows, fetchWorkerAllGroups, fetchWorkerTransformRows, fetchWorkerAllTransformRows, lastCompletedRunId, fetchWorkerEditSeed, fetchWorkerProvenance } from './pipeline-worker.js';
+import { fetchWorkerRows, fetchWorkerGroups, fetchWorkerGroupChains, fetchWorkerAllRows, fetchWorkerAllGroups, fetchWorkerTransformRows, fetchWorkerAllTransformRows, lastCompletedRunId, fetchWorkerEditSeed, fetchWorkerProvenance, fetchWorkerEditPlan } from './pipeline-worker.js';
 
 let _navigate              = () => {};
 
@@ -1610,6 +1609,14 @@ export const EntryPanel = (() => {
   let provQueriesFired = 0;
   let provRepliesApplied = 0;
   function provenanceDebug() { return { provQueriesFired, provRepliesApplied }; }
+
+  // The worker plans the edit; previewPlan reads this cache synchronously. The
+  // STRUCTURAL plan depends only on entry text / mode / seed — never score or
+  // comment (planEntryWrite folds those into upserts but never branches on them) —
+  // so a score/comment keystroke re-renders from the cache + local vals with no
+  // re-fetch. Held last-good so a null (not-fresh) reply doesn't flash the table.
+  let planQueryToken = 0;
+  let _cachedPlan = null;
   // The panel element focus is in or transitioning to. Tracked via capture-
   // phase blur (relatedTarget says where focus is *headed*) because an
   // edit-commit re-render runs in a microtask between blur and focusin, when
@@ -1692,7 +1699,9 @@ export const EntryPanel = (() => {
     scoreCombo = null;
     seedQueryToken++;
     provQueryToken++;
+    planQueryToken++;
     shippedProvRows = null;
+    _cachedPlan = null;
     document.removeEventListener('keydown', onKeydown, true);
   }
 
@@ -1784,6 +1793,7 @@ export const EntryPanel = (() => {
     activeScroller = scroller;
     if (rowEl) rowEl.classList.add('active');
     shippedProvRows = null;
+    _cachedPlan = null;
     // Reset per-target state here, not only in close(): a route reopen (Back/Forward
     // or a deep link landing on a different entry) reuses the panel without closing,
     // so a stale staged delete or focus ref from the previous target must clear here.
@@ -1876,6 +1886,7 @@ export const EntryPanel = (() => {
     if (scoreInp) scoreInp.value = seed.score;
     if (commentInp) commentInp.value = seed.comment;
     LookupSection.setEntry(seed.entry);
+    firePlanQuery();   // the refined winner is the new `clicked` baseline
     renderProvWrap();
     refreshSaveEnabled();
     updateModeLabels();
@@ -1920,14 +1931,49 @@ export const EntryPanel = (() => {
     return rows;
   }
 
-  function previewPlan() {
+  // Display gate (requires a valid score) vs hasEditToPlan's fetch gate (does not):
+  // collapsing the two reintroduces the bug where a create panel — entry typed, score
+  // not yet — never fetches its plan, so the "already exists" block never appears.
+  function planGuardsPass() {
     const inp = el.querySelector('.entry-input');
-    if (!inp || inp.disabled || stagedDelete) return null;
+    if (!inp || inp.disabled || stagedDelete) return false;
     const vals = readNewValues();
-    if (!valuesValid(vals)) return null;
-    if (activeMode === 'edit' && !stagedAdopt && !pendingWritesChange(vals)) return null;
+    if (!valuesValid(vals)) return false;
+    if (activeMode === 'edit' && !stagedAdopt && !pendingWritesChange(vals)) return false;
+    return true;
+  }
+
+  function previewPlan() {
+    return planGuardsPass() ? _cachedPlan : null;
+  }
+
+  // Fetch gate. Deliberately broader than the display gate: it does NOT check
+  // pendingWritesChange, so the plan is cached at open and ready the instant a
+  // score-only change (or adopt staging) makes the edit displayable — neither fires
+  // firePlanQuery, and the structural plan is identical whether or not values changed.
+  function hasEditToPlan() {
+    const inp = el.querySelector('.entry-input');
+    if (!inp || inp.disabled || stagedDelete) return false;
+    return !!readNewValues().raw;
+  }
+
+  // Must fire on every input to the structural plan: open, reset, entry-text edit,
+  // staged-delete toggle, AND seed refine (the refined winner changes `clicked`). NOT
+  // score/comment/adopt — those re-render from the cached plan (see _cachedPlan).
+  function firePlanQuery() {
+    const token = ++planQueryToken;
+    if (!hasEditToPlan()) { _cachedPlan = null; return; }
+    const vals = readNewValues();
     const clicked = activeMode === 'edit' ? editBaselineFor(saveBaseline()) : null;
-    return planEntryWrite({ mode: activeMode, clicked, typed: vals, sources: state.sources, trashScore: getTrashScore() });
+    const typed = { raw: vals.raw, score: isNaN(vals.score) ? 0 : vals.score, comment: vals.comment };
+    fetchWorkerEditPlan({ mode: activeMode, clicked, typed, trashScore: getTrashScore() })
+      .then(plan => {
+        if (token !== planQueryToken || !isOpen()) return;
+        if (plan == null) return;   // not-fresh/timeout: keep last-good
+        _cachedPlan = plan;
+        renderProvWrap();
+        refreshSaveEnabled();
+      });
   }
 
   function applyPreviewOverlay(rows) {
@@ -2024,6 +2070,7 @@ export const EntryPanel = (() => {
     const same = stagedDelete && stagedDelete.norm === norm && stagedDelete.display === display;
     stagedDelete = same ? null : { norm, display };
     setInputsDisabled(!!stagedDelete);
+    firePlanQuery();   // staging/unstaging flips hasEditToPlan
     refreshSaveEnabled();
     renderProvWrap();
     updateModeLabels();
@@ -2031,7 +2078,7 @@ export const EntryPanel = (() => {
 
   function toggleStagedAdopt() {
     stagedAdopt = !stagedAdopt;
-    renderProvWrap();
+    renderProvWrap();   // the plan is already cached (fetched at open); just re-show it
     refreshSaveEnabled();
   }
 
@@ -2177,6 +2224,7 @@ export const EntryPanel = (() => {
   // all but the latest reply, so a fast typist's stale reply can't overwrite the
   // live table.
   function fireProvenanceQuery(typedRaw, previewRaw) {
+    firePlanQuery();   // the structural plan rides the same entry-text/open triggers
     const token = ++provQueryToken;
     provQueriesFired++;
     const clickedNorm = activeWlEntry?.norm ?? null;
