@@ -74,7 +74,7 @@ import {
   syncWorkerConfig, resyncWorkerConfig,
   sendEditEntry, sendDeleteEntry, sendApplyFetched, fetchWorkerSerialize,
   fetchWorkerEditPlan, whenWorkerCommitted,
-  checkWorkerAssets,
+  checkWorkerAssets, sendFreeDiff,
 } from '../ui/pipeline-worker.js';
 import { SyncDialog } from '../ui/dialogs/sync.js';
 import { ConfigureWordlistDialog } from '../ui/dialogs/configure-wordlist.js';
@@ -633,6 +633,7 @@ export async function applyWordlistText(wordlist, text, { fetchedSize = null, or
         `${esc(wordlist.name)} auto-updated: ${parts.join(', ')}`,
         'Details',
         () => openUpdateSummaryDialog(wordlist, ack),
+        () => sendFreeDiff(ack.diffId),
       );
     } else {
       openUpdateSummaryDialog(wordlist, ack);

@@ -33,6 +33,7 @@ import { threeWayMergeEdits } from './engine/edits-merge.js';
 import { migrateIdbRecords } from './data/migrations.js';
 import { WordlistSelector } from './ui/scope-selector.js';
 import { HelpDialog } from './ui/dialogs/help.js';
+import { openUpdateSummaryDialog } from './ui/dialogs/update-summary.js';
 import { ToolStack, pipelineIdle } from './ui/tool-stack.js';
 import {
   pingWorker, runOnWorker, patchWorkerToolForTest,
@@ -40,7 +41,7 @@ import {
   syncWorkerConfig, dumpWorkerCorpus, queryWorkerEntry, fetchWorkerRows, fetchWorkerGroups, fetchWorkerGroupChains, fetchWorkerAllRows, lastCompletedRunId,
   workerOwnsCorpus, sendEditEntry, sendDeleteEntry,
   fetchWorkerProvenance, fetchWorkerEditPlan, syncConfigsSent, allRowsFetchesSent, allGroupsFetchesSent, serializeFetchesSent,
-  lastFetchAppliedMode$,
+  lastFetchAppliedMode$, diffFetchesSent, fetchWorkerDiffRows,
 } from './ui/pipeline-worker.js';
 import { allSourcesHistogramLayout, shippedAllSourcesAxisVersion, shippedScopedLayoutScopeKey } from './data/derived.js';
 import {
@@ -264,6 +265,9 @@ const __grawlixTest = {
   allRowsFetchesSent,
   allGroupsFetchesSent,
   serializeFetchesSent,
+  diffFetchesSent,
+  fetchWorkerDiffRows: (diffId, section, start, end, timeout) => fetchWorkerDiffRows(diffId, section, start, end, timeout),
+  updateDialogDiffId: () => openUpdateSummaryDialog.ownedDiffId(),
   openHelp: () => HelpDialog.open(),
   fetchWorkerProvenance: (typedRaw, previewRaw, clickedNorm, timeout) =>
     fetchWorkerProvenance(typedRaw, previewRaw, clickedNorm, timeout),

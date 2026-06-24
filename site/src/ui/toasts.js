@@ -20,10 +20,10 @@ export function setToastsSuppressed(on) {
   if (!on) { const q = _suppressedQueue; _suppressedQueue = []; q.forEach(fn => fn()); }
 }
 
-function _mountToast(el, duration) {
-  if (_suppressed) { _suppressedQueue.push(() => _mountToast(el, duration)); return; }
+function _mountToast(el, duration, onExpire = null) {
+  if (_suppressed) { _suppressedQueue.push(() => _mountToast(el, duration, onExpire)); return; }
   let hovered = false;
-  const arm = () => { clearTimeout(el._timer); el._timer = setTimeout(() => _dismissToast(el), duration); };
+  const arm = () => { clearTimeout(el._timer); el._timer = setTimeout(() => { onExpire?.(); _dismissToast(el); }, duration); };
   // Without this gate, touch's sticky mouseenter (no mouseleave) pins the toast open forever.
   if (hoverCapable().matches) {
     el.addEventListener('mouseenter', () => { hovered = true; clearTimeout(el._timer); });
@@ -41,7 +41,10 @@ export function showToast(msg) {
   el.innerHTML = msg;
   _mountToast(el, 5000);
 }
-export function showActionToast(msg, actionLabel, onAction) {
+// onExpire fires only on a timer/non-action dismissal, never when the action is
+// taken — so "Details" hands the diff to the dialog without also freeing it (a
+// double-free that would yank the diff out from under the dialog about to show it).
+export function showActionToast(msg, actionLabel, onAction, onExpire = null) {
   const el = document.createElement('div');
   el.className = 'toast';
   el.innerHTML = msg + `<span class="toast-action">${esc(actionLabel)}</span>`;
@@ -50,7 +53,7 @@ export function showActionToast(msg, actionLabel, onAction) {
     _dismissToast(el);
     onAction();
   };
-  _mountToast(el, 10000);
+  _mountToast(el, 10000, onExpire);
 }
 export function showUndoToast(msg, onUndo) {
   showActionToast(msg, 'Undo', onUndo);

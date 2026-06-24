@@ -138,6 +138,10 @@ export function mergeKey(norm, display) {
 // Keyed by mergeKey, not bare norm: entries sharing a norm but differing in
 // display ("pgs"/"PGs") are distinct. Norm-keying collapses them last-wins and
 // fabricates phantom rescores — fails silently, only visible in the update dialog.
+//
+// A comment-only change joins `affectedNorms` (the worker re-splices it so the
+// shown comment updates) but NOT `rescored` (which counts score changes only —
+// the dialog's notion); dropping either silently corrupts one consumer.
 export function diffWordlistEntries(oldEntries, newEntries) {
   const keyer = entries => {
     const m = new Map();
@@ -148,18 +152,25 @@ export function diffWordlistEntries(oldEntries, newEntries) {
   const newByKey = keyer(newEntries);
 
   const byNorm = (a, b) => a.norm.localeCompare(b.norm);
-  const added = [], rescored = [];
+  const added = [], rescored = [], affected = new Set();
   for (const [key, e] of newByKey) {
     const prev = oldByKey.get(key);
-    if (!prev) added.push(e);
-    else if (prev.score !== e.score) rescored.push({ entry: e, oldScore: prev.score, score: e.score });
+    if (!prev) { added.push(e); affected.add(e.norm); }
+    else {
+      const scoreChanged = prev.score !== e.score;
+      if (scoreChanged) rescored.push({ entry: e, oldScore: prev.score, score: e.score });
+      if (scoreChanged || (prev.comment || '') !== (e.comment || '')) affected.add(e.norm);
+    }
   }
-  const deleted = [...oldByKey].filter(([key]) => !newByKey.has(key)).map(([, e]) => e);
+  const deleted = [];
+  for (const [key, e] of oldByKey) {
+    if (!newByKey.has(key)) { deleted.push(e); affected.add(e.norm); }
+  }
 
   added.sort(byNorm);
   deleted.sort(byNorm);
   rescored.sort((a, b) => byNorm(a.entry, b.entry));
-  return { added, deleted, rescored };
+  return { added, deleted, rescored, affectedNorms: [...affected] };
 }
 
 // Must reproduce buildCorpus's per-bucket logic exactly — including deduping

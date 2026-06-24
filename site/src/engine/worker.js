@@ -121,6 +121,12 @@ let running = false;
 let lastFlatResult = null;  // { runId, indices, scores, scope, highlighters } retained to serve `fetchRows`
 let lastGroupedResult = null;  // { runId, groups, scope } — full sorted+filtered groups (all chains) retained to serve `fetchGroupChains`
 let lastTransformResult = null;  // { runId, chains, scope } — full sorted+filtered transform chains retained to serve `fetchTransformRows`
+let diffCounter = 0;
+// diffId -> { added, deleted, rescored } (lean, full, sorted) — retained to serve
+// `fetchDiffRows`. Unlike lastFlatResult et al., it must NOT be cleared on a run or
+// syncConfig: it holds lean copies (names no corpus) and outlives runs; main frees
+// each entry by UI reachability (`freeDiff`).
+const retainedDiffs = new Map();
 let lastUserStackSig = null;
 let lastRunCorpus = null;   // the corpus the live _preSearchCache was seeded from
 let selfConfig = null;
@@ -1165,40 +1171,19 @@ const DIFF_SHIP_CAP = 500;
 
 const leanDiffEntry = e => ({ norm: e.norm, display: e.display ?? null, score: e.score, comment: e.comment || '' });
 
-// affectedNorms must include comment-only changes (they shift the shown comment, so
-// the merge bucket must recompute) — but `rescored` counts SCORE changes only, the
-// dialog's notion of a rescore. Dropping either silently corrupts one consumer.
+// Lean-copy diffWordlistEntries' arrays for the wire + retention. The copies must
+// be lean, not the raw entries: `deleted` holds OLD entries, and retaining those by
+// reference in retainedDiffs would pin the whole prior corpus generation that
+// `source.rawEntries = newEntries` is meant to drop (a silent iOS-fatal leak).
 function diffForFetch(oldEntries, newEntries) {
-  const oldByKey = new Map();
-  for (const e of oldEntries) oldByKey.set(mergeKey(e.norm, e.display), e);
-  const added = [], rescored = [], affected = new Set();
-  let addedCount = 0, rescoredCount = 0;
-  for (const e of newEntries) {
-    const key = mergeKey(e.norm, e.display);
-    const prev = oldByKey.get(key);
-    if (!prev) {
-      addedCount++; affected.add(e.norm);
-      if (added.length < DIFF_SHIP_CAP) added.push(leanDiffEntry(e));
-    } else {
-      oldByKey.delete(key);
-      const scoreChanged = prev.score !== e.score;
-      if (scoreChanged || (prev.comment || '') !== (e.comment || '')) affected.add(e.norm);
-      if (scoreChanged) {
-        rescoredCount++;
-        if (rescored.length < DIFF_SHIP_CAP) rescored.push({ entry: leanDiffEntry(e), oldScore: prev.score, score: e.score });
-      }
-    }
-  }
-  const deleted = [];
-  let deletedCount = 0;
-  for (const e of oldByKey.values()) {
-    deletedCount++; affected.add(e.norm);
-    if (deleted.length < DIFF_SHIP_CAP) deleted.push(leanDiffEntry(e));
-  }
-  const byNorm = (a, b) => a.norm.localeCompare(b.norm);
-  added.sort(byNorm); deleted.sort(byNorm);
-  rescored.sort((a, b) => byNorm(a.entry, b.entry));
-  return { added, deleted, rescored, addedCount, deletedCount, rescoredCount, affectedNorms: [...affected] };
+  const { added, deleted, rescored, affectedNorms } = diffWordlistEntries(oldEntries, newEntries);
+  return {
+    added: added.map(leanDiffEntry),
+    deleted: deleted.map(leanDiffEntry),
+    rescored: rescored.map(r => ({ entry: leanDiffEntry(r.entry), oldScore: r.oldScore, score: r.score })),
+    addedCount: added.length, deletedCount: deleted.length, rescoredCount: rescored.length,
+    affectedNorms,
+  };
 }
 
 // SYNCHRONOUS (no IDB write — main owns the data_ write of the raw text), so the
@@ -1219,25 +1204,66 @@ function handleApplyFetched({ requestId, sourceId, text }) {
   const oldEntries = source.rawEntries;
   const newEntries = parseWordlist(text);
   const wasEmpty = oldEntries.length === 0;
-  const diff = diffForFetch(oldEntries, newEntries);
 
   source.rawEntries = newEntries;
   invalidateRescoredCacheFor(source);
 
+  // Skip the diff entirely on a first population: nothing downstream reads it (the
+  // rebuild ignores affectedNorms, main shows only "Loaded N"), so running it would
+  // be an O(n) scan over ~600k entries for output no one consumes.
+  if (wasEmpty) {
+    const ack = rebuildOwnedFromBuilt(ownedScope);
+    postMessage({
+      type: 'fetchApplied', requestId, applied: true, mode: 'rebuild',
+      axis: ack.axis, counts: ack.counts, rescoreInputs: sourceRescoreInputsFrom(ownedBuilt),
+      wasEmpty: true, oldCount: 0, newCount: newEntries.length, diffId: null,
+    });
+    return;
+  }
+
+  const diff = diffForFetch(oldEntries, newEntries);
+
   // Fallback rebuild is still cheaper than syncConfig — the OTHER sources stay
   // resident in ownedBuilt rather than being re-read from IDB and re-parsed.
-  const rebuild = wasEmpty || (diff.addedCount + diff.deletedCount) > ADD_DELETE_REBUILD_CAP;
+  const rebuild = (diff.addedCount + diff.deletedCount) > ADD_DELETE_REBUILD_CAP;
   const ack = rebuild
     ? rebuildOwnedFromBuilt(ownedScope)
     : applyOwnedEdit(source, diff.affectedNorms, null);
 
+  // Mint a diffId only for a viewable change: main frees it via its toast/dialog, so
+  // a diffId with no such owner (a no-op re-import → "up to date" alert) would never
+  // be freed — a permanent Map entry. No change ⇒ null, nothing retained.
+  let diffId = null;
+  if (diff.addedCount || diff.deletedCount || diff.rescoredCount) {
+    diffId = ++diffCounter;
+    retainedDiffs.set(diffId, { added: diff.added, deleted: diff.deleted, rescored: diff.rescored });
+  }
+
   postMessage({
     type: 'fetchApplied', requestId, applied: true, mode: rebuild ? 'rebuild' : 'splice',
     axis: ack.axis, counts: ack.counts, rescoreInputs: sourceRescoreInputsFrom(ownedBuilt),
-    wasEmpty, oldCount: oldEntries.length, newCount: newEntries.length,
-    added: diff.added, deleted: diff.deleted, rescored: diff.rescored,
+    wasEmpty: false, oldCount: oldEntries.length, newCount: newEntries.length, diffId,
+    added: diff.added.slice(0, DIFF_SHIP_CAP),
+    deleted: diff.deleted.slice(0, DIFF_SHIP_CAP),
+    rescored: diff.rescored.slice(0, DIFF_SHIP_CAP),
     addedCount: diff.addedCount, deletedCount: diff.deletedCount, rescoredCount: diff.rescoredCount,
   });
+}
+
+// A missing diffId (freed, or lost on respawn) drops with no reply rather than
+// erroring — like fetchResultFresh, main falls back to its inline window.
+function handleFetchDiffRows({ requestId, diffId, section, start, end }) {
+  const d = retainedDiffs.get(diffId);
+  if (!d) return;
+  const arr = d[section];
+  if (!arr) return;
+  const lo = Math.max(0, start | 0);
+  const hi = Math.min(arr.length, end | 0);
+  postMessage({ type: 'diffRows', requestId, diffId, section, start: lo, rows: arr.slice(lo, hi) });
+}
+
+function freeDiff({ diffId }) {
+  retainedDiffs.delete(diffId);
 }
 
 // ─── Self-build (test oracle) ── see docs/worker-protocol.md ─────────────────
@@ -1450,6 +1476,14 @@ onmessage = ({ data }) => {
 
     case 'fetchRows':
       handleFetchRows(data);
+      break;
+
+    case 'fetchDiffRows':
+      handleFetchDiffRows(data);
+      break;
+
+    case 'freeDiff':
+      freeDiff(data);
       break;
 
     case 'fetchGroupChains':

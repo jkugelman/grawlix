@@ -916,6 +916,13 @@ dialog h2 { font-size: 16px; margin-bottom: 14px; padding-right: 24px; }
 .usd-deleted .usd-entry-col { text-decoration: line-through; color: var(--muted); }
 .usd-old-score { color: var(--muted); font-size: 12px; }
 .usd-arrow { color: var(--faint); font-size: 11px; }
+.usd-skel { padding: 0 22px 0 19px; }
+.usd-skel-bar {
+  height: 10px; width: 40%; border-radius: 3px;
+  background: linear-gradient(90deg, var(--surface) 0%, var(--border2) 50%, var(--surface) 100%);
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.2s ease-in-out infinite;
+}
 
 /* Toast */
 #toast-container { position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%); display: flex; flex-direction: column; gap: 8px; z-index: 1000; pointer-events: none; align-items: center; }

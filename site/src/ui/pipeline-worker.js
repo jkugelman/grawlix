@@ -641,11 +641,17 @@ export function sendApplyFetched(sourceId, text, timeout = 10000) {
   const w = getWorker();
   const requestId = ++applyFetchedRequestId;
   return new Promise(resolve => {
-    const timer = setTimeout(() => { w.removeEventListener('message', onMessage); resolve(null); }, timeout);
+    // Keep the listener alive past the timeout: a late fetchApplied still carries a
+    // diffId whose toast/dialog owner main already abandoned (it took the resync
+    // branch), so free that orphan rather than dropping the reply and leaking the
+    // diff in the worker's retainedDiffs forever.
+    let settled = false;
+    const timer = setTimeout(() => { settled = true; resolve(null); }, timeout);
     function onMessage({ data }) {
       if (data?.type !== 'fetchApplied' || data.requestId !== requestId) return;
-      clearTimeout(timer);
       w.removeEventListener('message', onMessage);
+      clearTimeout(timer);
+      if (settled) { sendFreeDiff(data.diffId); return; }
       lastFetchAppliedMode = data.mode ?? null;
       // Forward the whole ack: applyWordlistText/applyConfigAck read wasEmpty, the
       // capped diff + true counts, and rescoreInputs off it (main holds no old entries).
@@ -654,6 +660,31 @@ export function sendApplyFetched(sourceId, text, timeout = 10000) {
     w.addEventListener('message', onMessage);
     w.postMessage({ type: 'applyFetched', requestId, sourceId, text });
   });
+}
+
+// ─── Update-summary diff-row bridges ── see docs/worker-protocol.md ──────────
+// A timeout resolves null so the update dialog stays on its inline first window
+// rather than wedging on a lost reply.
+let fetchDiffRowsRequestId = 0;
+export function diffFetchesSent() { return fetchDiffRowsRequestId; }
+export function fetchWorkerDiffRows(diffId, section, start, end, timeout = 5000) {
+  const w = getWorker();
+  const requestId = ++fetchDiffRowsRequestId;
+  return new Promise(resolve => {
+    const timer = setTimeout(() => { w.removeEventListener('message', onMessage); resolve(null); }, timeout);
+    function onMessage({ data }) {
+      if (data?.type !== 'diffRows' || data.requestId !== requestId) return;
+      clearTimeout(timer);
+      w.removeEventListener('message', onMessage);
+      resolve({ start: data.start, rows: data.rows });
+    }
+    w.addEventListener('message', onMessage);
+    w.postMessage({ type: 'fetchDiffRows', requestId, diffId, section, start, end });
+  });
+}
+
+export function sendFreeDiff(diffId) {
+  if (diffId != null) getWorker().postMessage({ type: 'freeDiff', diffId });
 }
 
 let flushEditsRequestId = 0;
