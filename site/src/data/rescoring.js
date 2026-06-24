@@ -45,7 +45,6 @@ export function reconcileEditsRulesAfterImport(edits) {
 
 export function invalidateRescoredCache(wordlist) {
   wordlist._rescored = null;
-  wordlist._rescoredMap = null;
   wordlist._rescoredByNorm = null;
   invalidateHistogramLayout();
 }

@@ -875,7 +875,6 @@ function editsWordlist() {
 
 function invalidateRescoredCacheFor(wl) {
   wl._rescored = null;
-  wl._rescoredMap = null;
   wl._rescoredByNorm = null;
 }
 

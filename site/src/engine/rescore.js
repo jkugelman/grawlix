@@ -95,17 +95,8 @@ export function getRescoredEntries(wordlist) {
   return wordlist._rescored ??= applyRescoring(wordlist.rawEntries, wordlist.rescoreRules);
 }
 
-export function getRescoredMap(wordlist) {
-  if (wordlist._rescoredMap) return wordlist._rescoredMap;
-  const map = new Map();
-  for (const e of getRescoredEntries(wordlist)) map.set(e.norm, e);
-  wordlist._rescoredMap = map;
-  return map;
-}
-
-// norm → the rescored entries for that norm. Distinct from `getRescoredMap`,
-// which keeps one entry per norm: a faithful single-norm merged rebuild must
-// see every display variant a wordlist holds, not just the last.
+// norm → the rescored entries for that norm — every display variant a wordlist
+// holds, so a faithful single-norm merged rebuild sees them all, not just the last.
 //
 // The value is a BARE entry for the ~99.99% of norms with one rescored entry, and
 // an entry[] ONLY for the rare norm carrying display variants (e.g. one list with

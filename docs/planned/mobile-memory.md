@@ -34,10 +34,6 @@ Default load is four auto-fetched wordlists — Broda (~527K entries), Nediger (
 5. **`_initialChains`** — the executor seeds each pipeline run from `new Array(entries.length)` of `{ atoms: [{ wlEntry, highlights, glyph }] }`, one chain + one single-element `atoms` array + one atom object **per corpus entry**, cached on the merged corpus in `buildInitialChains` ([executor.js:71-79](../../site/src/engine/executor.js#L71-L79)). Built lazily, but the first pipeline run happens at boot (the table renders), so the full-corpus materialization is effectively always resident — measured ~70 MB of objects plus its share of the array pile.
 6. **Lazy data assets** — the unigram corpus (wordfreq `large_en`, a ~1M-key word→float `Map`) and the CMU pronunciation dict load on first use of Space-out / Rhymes (`loadUnigramCorpus` [segmenter.js:121](../../site/src/engine/segmenter.js#L121), `loadCmuDict` [phonetics.js:88](../../site/src/engine/phonetics.js#L88)). **(Shipped — now evicted when their tool leaves the stack, not only on a remote refresh; see *Shipped*.)** (Both were *unloaded* in the measurement below, so the figures are a floor.)
 
-### Dead weight worth noting
-
-`getRescoredMap` / `_rescoredMap` ([rescore.js:98-104](../../site/src/engine/rescore.js#L98-L104)) is never called anywhere — it costs no memory (never populated) but is invalidated in two places and should be removed for clarity, not for footprint.
-
 ## Measured (2026-06-23)
 
 Measured in desktop Chrome (V8) against the five real lists a subscriber runs — JK (73,651 entries), Nediger (346,936), XWI (280,776), STWL (314,822), Broda (527,347), plus My Edits — via a temporary worker readout cross-checked against a Chrome heap snapshot. V8 ≠ iOS's JSC, but object/string/Map/array overhead is the same order of magnitude, and the *counts* are device-independent (same lists everywhere). The two methods agreed: **readout estimate 476.8 MB, heap snapshot 489 MB retained** — within 3%, so the per-structure split below is trustworthy. **Both tool assets were unloaded**, so this is a floor; Space-out / Rhymes add ~100 MB+ on top.
