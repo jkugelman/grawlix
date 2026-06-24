@@ -3,6 +3,8 @@
 export const HIST_DISCRETE_THRESHOLD = 12;
 export const HIST_BINNED_BUCKETS = 11;
 
+export const EMPTY_HISTOGRAM_LAYOUT = { mode: 'empty', slots: [], min: null, max: null };
+
 // Keyed, not a single slot: two distinct axes coexist — the scope-aware stats
 // histogram and the scope-stable all-sources badge-color gradient. A shared
 // slot would let the selected scope silently leak into the badge colors.
@@ -29,7 +31,7 @@ export function getHistogramLayout(scoreSource, cacheKey) {
     // No data → empty layout. Don't cache: as soon as data arrives, the next
     // call should recompute. (Caching here would also burn the cache if
     // anything calls into the layout before sources finish loading.)
-    return { mode: 'empty', slots: [], min: null, max: null };
+    return EMPTY_HISTOGRAM_LAYOUT;
   }
   const distinctScores = [...distinct].sort((a, b) => a - b);
   let layout;

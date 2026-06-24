@@ -3,13 +3,8 @@
 // ─── Derived layouts ──────────────────────────────────────────────────────────
 
 import { MERGED_ID } from '../core/constants.js';
-import { state, syncKey, bumpConfigSummary } from './state.js';
-import { getRescoredEntries } from '../engine/rescore.js';
-import { getHistogramLayout } from '../engine/histogram.js';
-
-export function* allSourcesScores() {
-  for (const wl of state.sources) yield* getRescoredEntries(wl);
-}
+import { state, bumpConfigSummary } from './state.js';
+import { EMPTY_HISTOGRAM_LAYOUT } from '../engine/histogram.js';
 
 // The worker ships this axis on selfReady; it's the badge-gradient axis
 // scoreColor reads, over the same all-sources score union the worker builds.
@@ -34,20 +29,20 @@ export function shippedScopedLayoutScopeKey() { return _shippedScopedScopeKey; }
 
 export function scopedHistogramLayout() {
   // MERGED uses the shipped all-sources axis; a scoped view uses the worker's
-  // scope-keyed layout. The transient fall-through (before either lands) recomputes
-  // over the all-sources scores — main holds no scoped corpus to bucket, and the
-  // value is replaced the instant the run's layout arrives.
+  // scope-keyed layout. Until the worker's layout lands (cold boot, a scope-switch
+  // transient) main has no scoped corpus to bucket, so it shows the empty layout;
+  // the value is replaced the instant the run's layout arrives.
   if (state.selected === MERGED_ID) {
     if (_shippedAxis) return _shippedAxis;
   } else if (_shippedScopedLayout && _shippedScopedScopeKey === state.selected?.dbKey) {
     return _shippedScopedLayout;
   }
-  return getHistogramLayout(allSourcesScores(), 'scoped:' + syncKey(state.selected));
+  return EMPTY_HISTOGRAM_LAYOUT;
 }
 
 // A fixed all-sources axis, used by scoreColor's badge gradient: pointing it at
 // the scoped axis would shift badge colors on every scope change, a
 // regression no error would surface.
 export function allSourcesHistogramLayout() {
-  return _shippedAxis ?? getHistogramLayout(allSourcesScores(), 'all');
+  return _shippedAxis ?? EMPTY_HISTOGRAM_LAYOUT;
 }
