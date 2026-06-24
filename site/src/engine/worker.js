@@ -958,6 +958,7 @@ function applyOwnedEdit(source, affectedNorms, edited) {
   ownedAllSourcesAxis = computeAllSourcesAxis(ownedBuilt);
   const counts = {
     sourceCounts: ownedMerged.sourceCounts.map(s => ({ sourceId: s.wordlist.dbKey, count: s.count })),
+    sourceTotals: sourceTotalsFrom(ownedBuilt),
     mergedCount: ownedMerged.entries.length,
     version: ownedConfigVersion,
   };
@@ -1061,6 +1062,7 @@ function rebuildOwnedFromBuilt(scope) {
     axis: ownedAllSourcesAxis,
     counts: {
       sourceCounts: ownedMerged.sourceCounts.map(s => ({ sourceId: s.wordlist.dbKey, count: s.count })),
+      sourceTotals: sourceTotalsFrom(ownedBuilt),
       mergedCount: ownedMerged.entries.length,
       version: ownedConfigVersion,
     },
@@ -1284,6 +1286,13 @@ function* allSourcesScores(built) {
   for (const wl of built) yield* getRescoredEntries(wl);
 }
 
+// Distinct from ownedMerged.sourceCounts: that counts merge WINNERS, so a disabled
+// or fully-shadowed source is absent from it entirely — folding totals there would
+// silently drop those sources' counts. Totals come from ownedBuilt (every source).
+function sourceTotalsFrom(built) {
+  return built ? built.map(wl => ({ sourceId: wl.dbKey, total: wl.rawEntries.length })) : null;
+}
+
 function corpusForScope(scope) {
   // Both fast-paths gate on ownedCorpusFresh: a syncConfig clears it synchronously
   // but leaves ownedMerged/ownedCorpus stale-non-null until the async rebuild
@@ -1488,6 +1497,7 @@ onmessage = ({ data }) => {
           sourceCounts: ownedMerged
             ? ownedMerged.sourceCounts.map(s => ({ sourceId: s.wordlist.dbKey, count: s.count }))
             : null,
+          sourceTotals: sourceTotalsFrom(ownedBuilt),
           mergedCount: ownedMerged ? ownedMerged.entries.length : null,
         }));
       break;

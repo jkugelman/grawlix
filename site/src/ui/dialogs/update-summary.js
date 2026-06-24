@@ -83,9 +83,9 @@ let _updateScroller = null;
 export const openUpdateSummaryDialog = (() => {
   let el, titleEl, countEl, pillsEl, scrollEl;
 
-  const show = function(wordlist, oldCount, added, deleted, rescored) {
+  const show = function(wordlist, oldCount, newCount, added, deleted, rescored) {
     titleEl.textContent = `${wordlist.name} Updated`;
-    countEl.textContent = `${oldCount.toLocaleString()} → ${wordlist.rawEntries.length.toLocaleString()} entries`;
+    countEl.textContent = `${oldCount.toLocaleString()} → ${newCount.toLocaleString()} entries`;
 
     const rows = [];
     const sectionIndices = {};

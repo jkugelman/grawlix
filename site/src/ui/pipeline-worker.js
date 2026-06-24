@@ -395,7 +395,7 @@ export function syncWorkerConfig(sources) {
 
 function handleSelfReady(data) {
   setShippedAllSourcesAxis(data.axis, data.version);
-  setShippedConfigCounts(data.sourceCounts ?? null, data.mergedCount ?? null, data.version);
+  setShippedConfigCounts(data.sourceCounts ?? null, data.sourceTotals ?? null, data.mergedCount ?? null, data.version);
   applySelfReadyFreshness(data);
   const resolve = _configWaiters.get(data.configId);
   if (resolve) { _configWaiters.delete(data.configId); resolve(data.count); }

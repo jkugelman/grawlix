@@ -8,7 +8,7 @@
 import { MERGED_ID, MERGED_NAME } from '../core/constants.js';
 import { esc, pluralize, timeAgo } from '../core/util.js';
 import { state } from '../data/state.js';
-import { mergedEntryCount, getSourceCounts } from '../data/merge.js';
+import { mergedEntryCount, getSourceCounts, sourceTotal } from '../data/merge.js';
 import { getWordlistIcon, getMergedIcon } from './icons.js';
 import {
   buildBadgeHTML, buildDragHandleHTML, buildSplitBtn, buildMoreMenuHTML,
@@ -95,7 +95,8 @@ export function buildWordlistNameIconHTML(wordlist, { bold = true } = {}) {
 }
 
 function wordlistCardMeta(wordlist, contribMap) {
-  const total = wordlist.rawEntries.length;
+  const total = sourceTotal(wordlist);
+  if (total == null) return '…';
   if (!total) return 'No data';
   if (!wordlist.enabled) return pluralize(total, 'entry', 'entries');
   const used = contribMap.get(wordlist) ?? 0;
@@ -137,7 +138,7 @@ export const WordlistSelector = (() => {
       const dis = mergedEntryCount() === 0 ? ' disabled' : '';
       return `<button id="download-btn"${dis} title="Download the merged wordlist" onclick="WordlistActions.action('download')">Download</button>`;
     }
-    if (!scope.rawEntries.length) {
+    if (!sourceTotal(scope)) {
       return `<button id="download-btn" disabled title="Download this wordlist" onclick="WordlistActions.action('download')">Download</button>`;
     }
     const hasRules = (scope.rescoreRules?.length ?? 0) > 0;
@@ -149,7 +150,7 @@ export const WordlistSelector = (() => {
   }
 
   function downloadMenuItems(scope) {
-    if (!scope.rawEntries.length) return [['Download', `WordlistActions.action('download')`, { disabled: true }]];
+    if (!sourceTotal(scope)) return [['Download', `WordlistActions.action('download')`, { disabled: true }]];
     const hasRules = (scope.rescoreRules?.length ?? 0) > 0;
     return hasRules
       ? [['Download rescored', `WordlistActions.action('download')`],
@@ -190,7 +191,7 @@ export const WordlistSelector = (() => {
   function renderActions(level) {
     if (_dateTimer) { clearInterval(_dateTimer); _dateTimer = null; }
     const scope = state.selected;
-    const hasDate = scope !== MERGED_ID && scope.type !== 'edits' && scope.rawEntries.length && scope.lastUpdated;
+    const hasDate = scope !== MERGED_ID && scope.type !== 'edits' && sourceTotal(scope) && scope.lastUpdated;
     const dateSlot = hasDate ? '<span class="detail-date"></span>' : '';
     dlSlot.innerHTML = `${dateSlot}${syncSignHTML(scope)}${level === 0 ? downloadBtnHTML() : ''}`;
     rescoreSlot.innerHTML = level < 2 ? rescoreBtnHTML() : '';

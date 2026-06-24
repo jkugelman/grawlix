@@ -6,6 +6,7 @@ import { pluralize } from '../core/util.js';
 import { effect } from '../core/signals.js';
 import { state, cacheVersion$, configSummary$ } from '../data/state.js';
 import { persistMeta, batchUpdate, repaintAfterCacheChange } from '../data/persist.js';
+import { sourceTotal } from '../data/merge.js';
 import { getWordlistIcon } from './icons.js';
 import { makeReorderable } from './components.js';
 import { createDialog, showDialog } from './dialogs/dialog.js';
@@ -29,10 +30,11 @@ export const ManagePanel = (() => {
     // back to live wl.enabled keeps their async force-enable from reading as a
     // staged disable here, in isDirty, and in apply.
     const enabled = shadow.enabled.get(wl) ?? wl.enabled;
+    const total = sourceTotal(wl);
     return buildWordlistCardHTML(
       getWordlistIcon(wl),
       wl.name,
-      pluralize(wl.rawEntries.length, 'entry', 'entries'),
+      total == null ? '…' : pluralize(total, 'entry', 'entries'),
       { enabled, populated: wl.populated },
     );
   }

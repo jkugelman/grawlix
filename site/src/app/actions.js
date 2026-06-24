@@ -38,7 +38,7 @@ import {
 } from '../data/rescoring.js';
 import {
   mergedEntryCount, invalidateSourceCounts, _mergedStatsKey,
-  setShippedConfigCounts,
+  setShippedConfigCounts, sourceTotal,
 } from '../data/merge.js';
 import { setShippedAllSourcesAxis } from '../data/derived.js';
 import { mergeKey, diffWordlistEntries } from '../engine/corpus.js';
@@ -396,7 +396,7 @@ export async function persistEdits(edits) {
 function applyConfigAck(ack) {
   if (!ack) return;
   setShippedAllSourcesAxis(ack.axis, ack.counts?.version);
-  if (ack.counts) setShippedConfigCounts(ack.counts.sourceCounts, ack.counts.mergedCount, ack.counts.version);
+  if (ack.counts) setShippedConfigCounts(ack.counts.sourceCounts, ack.counts.sourceTotals, ack.counts.mergedCount, ack.counts.version);
   refreshDerivedDisplays();
 }
 
@@ -602,10 +602,10 @@ export async function applyWordlistText(wordlist, text, { fetchedSize = null, or
       showActionToast(
         `${esc(wordlist.name)} auto-updated: ${parts.join(', ')}`,
         'Details',
-        () => openUpdateSummaryDialog(wordlist, oldEntries.length, added, deleted, rescored),
+        () => openUpdateSummaryDialog(wordlist, oldEntries.length, wordlist.rawEntries.length, added, deleted, rescored),
       );
     } else {
-      openUpdateSummaryDialog(wordlist, oldEntries.length, added, deleted, rescored);
+      openUpdateSummaryDialog(wordlist, oldEntries.length, wordlist.rawEntries.length, added, deleted, rescored);
     }
   }
 }
@@ -641,7 +641,14 @@ const UPDATE_CHECK_INTERVAL = 60 * 60 * 1000; // 1 hour
 export function getAutoUpdate() { return lsLoad('autoUpdate') !== 'off'; }
 
 export async function checkForUpdates() {
-  const candidates = state.sources.filter(l => l.url && l.rawEntries.length > 0 && l.fetchedSize);
+  // A null shipped total means "not yet known" (selfReady pending, or a build that
+  // failed), NOT "empty" — requiring total > 0 there would silently exclude a
+  // populated source from update checks indefinitely, so fall back to `populated`.
+  const candidates = state.sources.filter(l => {
+    if (!l.url || !l.fetchedSize) return false;
+    const total = sourceTotal(l);
+    return total == null ? l.populated : total > 0;
+  });
   if (!candidates.length) return;
 
   const autoUpdate = getAutoUpdate();
@@ -942,23 +949,23 @@ export function triggerDownload(text, filename) {
 }
 
 export async function downloadSourceWordlist(wordlist) {
-  if (!wordlist || !wordlist.rawEntries.length) return;
+  if (!wordlist || !sourceTotal(wordlist)) return;
   // The not-fresh fallback must sort too, or its bytes diverge from the worker path.
   const text = (await fetchWorkerSerialize(wordlist.dbKey, getOutputFormat()))
     ?? serializeEntries(sortedEntries(getRescoredEntries(wordlist)), getOutputFormat());
   triggerDownload(text, rescoredFilename(wordlist));
-  showToast(`Downloaded ${pluralize(wordlist.rawEntries.length, 'entry', 'entries')}`);
+  showToast(`Downloaded ${pluralize(sourceTotal(wordlist), 'entry', 'entries')}`);
 }
 
 export async function downloadOriginalWordlist(wordlist) {
-  if (!wordlist || !wordlist.rawEntries.length) return;
+  if (!wordlist || !sourceTotal(wordlist)) return;
   // Serve the imported file verbatim from IndexedDB — reconstructing from parsed
   // wlEntries would lose the comment formatting, line endings, and ordering the
   // user's file had, none of which round-trip through serializeEntries.
   const text = await Storage.readWordlist(wordlist);
   if (!text) { showToast('Original file not available'); return; }
   triggerDownload(text, `${sanitizeFilenameStem(wordlist.name)}.txt`);
-  showToast(`Downloaded ${pluralize(wordlist.rawEntries.length, 'entry', 'entries')}`);
+  showToast(`Downloaded ${pluralize(sourceTotal(wordlist), 'entry', 'entries')}`);
 }
 
 // ─── Export ──────────────────────────────────────────────────────────

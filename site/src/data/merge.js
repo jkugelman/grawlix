@@ -16,10 +16,14 @@ export function invalidateSourceCounts() {
 }
 
 let _shippedSourceCounts = null, _shippedMergedCount = null, _shippedCountsVersion = -1;
-export function setShippedConfigCounts(sourceCounts, mergedCount, version) {
+let _shippedSourceTotals = null;   // Map(dbKey → per-source total entry count)
+export function setShippedConfigCounts(sourceCounts, sourceTotals, mergedCount, version) {
   if (version === _shippedCountsVersion) return;
   _shippedSourceCounts = sourceCounts;
   _shippedMergedCount = mergedCount;
+  // A build-failure ack ships null totals; keep the last-good map rather than
+  // blanking every count display until the next successful build.
+  if (sourceTotals) _shippedSourceTotals = new Map(sourceTotals.map(s => [s.sourceId, s.total]));
   _shippedCountsVersion = version;
   bumpConfigSummary();   // async-arriving counts repaint their displays
 }
@@ -31,6 +35,15 @@ export function getSourceCounts() {
   return _shippedSourceCounts
     .map(({ sourceId, count }) => ({ wordlist: byKey.get(sourceId), count }))
     .filter(s => s.wordlist);
+}
+
+// A source's total entry count. My Edits stays on its live length, NOT the shipped
+// total: it's main-owned and mutates optimistically per edit, so the shipped total
+// would lag every edit by a worker round-trip. Others read the worker total.
+export function sourceTotal(wordlist) {
+  if (wordlist.type === 'edits') return wordlist.rawEntries.length;
+  if (!_shippedSourceTotals) return null;
+  return _shippedSourceTotals.get(wordlist.dbKey) ?? null;
 }
 
 export function mergedEntryCount() {
