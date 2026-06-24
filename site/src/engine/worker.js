@@ -972,8 +972,17 @@ async function persistEditsCorpus(edits) {
   await idbPut('data_' + edits.dbKey, serializeEntries(sortedEntries(edits.rawEntries)));
 }
 
+// Gate on ownedBuilt, NOT ownedMerged/ownedCorpus: releasePriorCorpus frees the latter
+// for a syncConfig's async-rebuild gap, and gating on them there made edit/merge handlers
+// silently no-op and drop the change. ownedBuilt is spared, so ensureOwnedCorpus rebuilds.
 function ownedCorpusReady(edits) {
-  return !!(edits && ownedMerged && ownedCorpus);
+  return !!(edits && ownedBuilt);
+}
+
+// Rebuild from the resident ownedBuilt if a syncConfig gap freed the corpus. Safe because
+// the handlers bump latestSyncToken first, so the superseded in-flight build then discards.
+function ensureOwnedCorpus() {
+  if (ownedBuilt && (!ownedMerged || !ownedCorpus)) rebuildOwnedFromBuilt(ownedScope);
 }
 
 async function handleEditEntry(data) {
@@ -988,6 +997,7 @@ async function handleEditEntry(data) {
     postMessage({ type: 'editAck', editId, norms: [], edited: null, axis: ownedAllSourcesAxis, counts: null });
     return;
   }
+  ensureOwnedCorpus();
 
   applyEditsWriteSet(edits.rawEntries, writes);
   invalidateRescoredCacheFor(edits);
@@ -1011,6 +1021,8 @@ async function handleDeleteEntry(data) {
     postMessage({ type: 'editAck', editId, norms: [], edited: null, axis: ownedAllSourcesAxis, counts: null });
     return;
   }
+
+  ensureOwnedCorpus();
 
   // Re-derive the index against the worker's OWN rawEntries — a caller-supplied
   // array index would misindex (the worker owns its rawEntries order).
@@ -1092,6 +1104,10 @@ async function handleMergeDisk({ requestId, fileText, conflictChoice }) {
     invalidateRescoredCacheFor(edits);
     ({ axis, counts } = rebuildOwnedFromBuilt(ownedScope));
     await idbPut('data_' + edits.dbKey, outText);
+  } else {
+    // The top-of-handler token bump discarded any in-flight syncConfig, so an
+    // unchanged merge in its gap must still leave the corpus rebuilt, not freed.
+    ensureOwnedCorpus();
   }
   await idbPut(SYNC_WORKER_PREFIX + edits.dbKey, { baseline: outText });
   latestSyncToken++;   // post-write bump — see handleEditEntry

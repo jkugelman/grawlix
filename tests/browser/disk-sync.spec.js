@@ -265,6 +265,36 @@ test('conflict two-phase: choosing file vs device resolves deterministically', a
   }
 });
 
+// The case above hit a syncConfig's async-rebuild gap (corpus freed, not yet rebuilt)
+// only on slow webkit; this forces it deterministically — keep both. Pre-fix the merge
+// no-opped in the gap and `able` kept the device 80.
+test('a conflict reconcile in a syncConfig rebuild gap still applies the file choice', async ({ page }) => {
+  await gotoApp(page);
+  await page.evaluate(() => window.__grawlixTest.addCustomWordlist({ name: 'Src', scores: [50], entries: ['ZEBRA'] }));
+  await writeFile(page, 'edits.txt', 'ABLE;50\n');
+  await setNextName(page, 'edits.txt');
+  await page.evaluate(() => window.__grawlixTest.sync.attachEditsExisting());
+
+  await page.evaluate(() => window.__grawlixTest.saveMyEdit('ABLE', 'ABLE', 80, ''));   // device side
+  await writeFile(page, 'edits.txt', 'ABLE;90\n');                                       // file side
+  await page.evaluate(() => window.__grawlixTest.sync.setConflictResolver('file'));
+
+  // Fire a syncConfig (enable toggle) WITHOUT awaiting it, then reconcile in the same
+  // turn: signal effects are synchronous, so the syncConfig is posted before the
+  // reconcile's mergeDisk, and FIFO runs mergeDisk inside that build's async gap.
+  await page.evaluate(() => {
+    window.__grawlixTest.setEnabled('Src', false);
+    return window.__grawlixTest.sync.reconcileEdits();
+  });
+
+  const able = await page.evaluate(() =>
+    window.__grawlixTest.getWordlist('My Edits').entries.find(e => e.entry === 'able'));
+  expect(able.score).toBe(90);
+  expect(await readFile(page, 'edits.txt')).toBe('ABLE;90\n');
+  const key = await editsKey(page);
+  expect(await workerBaseline(page, key)).toEqual({ baseline: 'ABLE;90\n' });
+});
+
 test('outbound flush: a local edit pushes to the file and advances the baseline; a no-op flush writes nothing', async ({ page }) => {
   await gotoApp(page);
   await writeFile(page, 'edits.txt', 'ABLE;50\n');
