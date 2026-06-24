@@ -103,18 +103,32 @@ export function getRescoredMap(wordlist) {
   return map;
 }
 
-// norm → all rescored entries for that norm. Distinct from `getRescoredMap`,
+// norm → the rescored entries for that norm. Distinct from `getRescoredMap`,
 // which keeps one entry per norm: a faithful single-norm merged rebuild must
 // see every display variant a wordlist holds, not just the last.
+//
+// The value is a BARE entry for the ~99.99% of norms with one rescored entry, and
+// an entry[] ONLY for the rare norm carrying display variants (e.g. one list with
+// both "the IRS" and "THEIRS"). A wrapper array per norm cost ~44 MB resident on
+// the worker heap at ~1.2M norms — fatal on iOS's shared budget; the scalar shape
+// removes it. Read through `groupEntries`, which normalizes both shapes.
 export function getRescoredByNorm(wordlist) {
   if (wordlist._rescoredByNorm) return wordlist._rescoredByNorm;
   const map = new Map();
   for (const e of getRescoredEntries(wordlist)) {
-    let arr = map.get(e.norm);
-    if (!arr) map.set(e.norm, arr = []);
-    arr.push(e);
+    const cur = map.get(e.norm);
+    if (cur === undefined) map.set(e.norm, e);
+    else if (Array.isArray(cur)) cur.push(e);
+    else map.set(e.norm, [cur, e]);
   }
   return wordlist._rescoredByNorm = map;
+}
+
+// The entries at one norm, scalar-or-array transparent. The scalar's wrapper is
+// transient — never retained, so it can't reconstitute the array pile.
+export function groupEntries(group) {
+  if (group === undefined) return [];
+  return Array.isArray(group) ? group : [group];
 }
 
 export function rescoreEntry(wlEntry, rules) {

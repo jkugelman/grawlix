@@ -2,7 +2,7 @@
 
 // ─── Corpus ──────────────────────────────────────────────────────────────────
 
-import { getRescoredByNorm } from './rescore.js';
+import { getRescoredByNorm, groupEntries } from './rescore.js';
 import { buildByNorm } from './snapshot.js';
 
 // A null display is a cross-wordlist wildcard (bare THEIRS unifies with another
@@ -10,7 +10,7 @@ import { buildByNorm } from './snapshot.js';
 // spelled sibling distinguishes them on purpose — concretize the bare one or it
 // silently absorbs the sibling's spelling and they collapse to a single row.
 export function isDistinguishing(group) {
-  return group.length > 1 && group.some(e => e.display != null);
+  return Array.isArray(group) && group.length > 1 && group.some(e => e.display != null);
 }
 
 export function concreteDisplay(wlE, norm, distinguishing) {
@@ -28,7 +28,7 @@ export function bucketContributors(sourceList) {
       const distinguishing = isDistinguishing(group);
       let b = buckets.get(norm);
       if (!b) buckets.set(norm, b = { contributors: [], displays: new Set() });
-      for (const wlE of group) {
+      for (const wlE of groupEntries(group)) {
         const display = concreteDisplay(wlE, norm, distinguishing);
         b.contributors.push({ wordlist, score: wlE.score, rawScore: wlE.rawScore, comment: wlE.comment || '', display });
         if (display != null) b.displays.add(display);
@@ -113,11 +113,11 @@ export function mergedContributors(norm, display, built) {
   let winner = null, commentWl = null, displayWl = null;
   for (const wl of built) {
     if (!wl.enabled) continue;
-    const arr = getRescoredByNorm(wl).get(norm);
-    if (!arr) continue;
-    const distinguishing = isDistinguishing(arr);
+    const group = getRescoredByNorm(wl).get(norm);
+    if (group === undefined) continue;
+    const distinguishing = isDistinguishing(group);
     let contributes = false;
-    for (const e of arr) {
+    for (const e of groupEntries(group)) {
       const d = concreteDisplay(e, norm, distinguishing);
       if (d !== display && d !== null) continue;
       contributes = true;
@@ -184,10 +184,10 @@ export function computeMergedBucket(norm, sources) {
   const displays = new Set();
   for (const wl of sources) {
     if (!wl.enabled) continue;
-    const arr = getRescoredByNorm(wl).get(norm);
-    if (!arr) continue;
-    const distinguishing = isDistinguishing(arr);
-    for (const e of arr) {
+    const group = getRescoredByNorm(wl).get(norm);
+    if (group === undefined) continue;
+    const distinguishing = isDistinguishing(group);
+    for (const e of groupEntries(group)) {
       const display = concreteDisplay(e, norm, distinguishing);
       contributors.push({ wordlist: wl, score: e.score, comment: e.comment || '', display });
       if (display != null) displays.add(display);

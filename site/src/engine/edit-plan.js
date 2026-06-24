@@ -7,7 +7,7 @@
 // view alone decides an edit — re-deriving worker-side would silently diverge.
 
 import { toNorm, displayOf, buildWlEntry, detectCase } from './norm.js';
-import { getRescoredByNorm } from './rescore.js';
+import { getRescoredByNorm, groupEntries } from './rescore.js';
 import { computeMergedBucket, isDistinguishing, concreteDisplay } from './corpus.js';
 
 const isEdits = wl => wl.type === 'edits';
@@ -42,13 +42,13 @@ function foreignHasNorm(sources, norm) {
 function foreignHasSpelling(sources, norm, display) {
   for (const wl of sources) {
     if (!isLive(wl) || isEdits(wl)) continue;
-    const arr = getRescoredByNorm(wl).get(norm);
-    if (!arr) continue;
-    const distinguishing = isDistinguishing(arr);
+    const group = getRescoredByNorm(wl).get(norm);
+    if (group === undefined) continue;
+    const distinguishing = isDistinguishing(group);
     // A plain foreign bare (concreteDisplay null) never matches: it re-bares under the
     // new rich spelling rather than surfacing on its own, so junking it would leave a
     // spurious score-0 row.
-    if (arr.some(e => concreteDisplay(e, norm, distinguishing) === display)) return true;
+    if (groupEntries(group).some(e => concreteDisplay(e, norm, distinguishing) === display)) return true;
   }
   return false;
 }
@@ -57,7 +57,7 @@ function foreignHasSpelling(sources, norm, display) {
 // that would hide under (or absorb) a foreign spelling of its norm copies the other
 // form in. A My Edits sibling already at this norm is distinguishing — no copy.
 function keepCopies(newNorm, newDisplay, sources, edits, upserts, notes) {
-  const editsRows = edits ? (getRescoredByNorm(edits).get(newNorm) || []) : [];
+  const editsRows = edits ? groupEntries(getRescoredByNorm(edits).get(newNorm)) : [];
   if (newDisplay != null) {
     // keep-bare: a bare shown as the plain spelling vanishes once the typed rich absorbs
     // it, so copy it in. Match the merged plain row, not any raw bare — a bare already

@@ -10,7 +10,7 @@ import { configureIO as configurePhoneticsIO } from './phonetics.js';
 import { DATA_ASSETS, getDataAsset } from './assets.js';
 import { parseWordlist, toNorm, displayOf } from './norm.js';
 import { parseRange, matchesRange } from './range.js';
-import { compileRescoreRules, getRescoredEntries, getRescoredByNorm } from './rescore.js';
+import { compileRescoreRules, getRescoredEntries, getRescoredByNorm, groupEntries } from './rescore.js';
 import { buildCorpus, scopeSourceIds, mergedContributors, resolveEditSeedWinner, mergeKey, mergedNormLowerBound, computeMergedBucket, diffWordlistEntries } from './corpus.js';
 import { getHistogramLayout, invalidateHistogramLayout, bucketCounts } from './histogram.js';
 import { computeStatsRaw } from './stats.js';
@@ -576,9 +576,9 @@ function handleFetchProvenance({ requestId, typedRaw, previewRaw, clickedNorm })
   const rows = [];
   if (targetNorm != null) {
     for (const wl of ownedBuilt) {
-      const arr = getRescoredByNorm(wl).get(targetNorm);
-      if (!arr) continue;
-      for (const e of arr) {
+      const group = getRescoredByNorm(wl).get(targetNorm);
+      if (group === undefined) continue;
+      for (const e of groupEntries(group)) {
         rows.push({
           sourceId: wl.dbKey,
           enabled: wl.enabled !== false,
@@ -884,7 +884,7 @@ function invalidateRescoredCacheFor(wl) {
 // `rawScore` — the scoped corpus keeps rawScore for the rescore-preview arrow, so
 // omitting it would silently diverge on rescored norms.
 function recomputeScopedBucket(norm, source) {
-  const arr = getRescoredByNorm(source).get(norm) || [];
+  const arr = groupEntries(getRescoredByNorm(source).get(norm));
   const displays = new Set();
   for (const e of arr) if (e.display != null) displays.add(e.display);
   const rows = [];

@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { buildCorpus } from '../../site/src/engine/corpus.js';
-import { compileRescoreRules, getRescoredByNorm } from '../../site/src/engine/rescore.js';
+import { compileRescoreRules, getRescoredByNorm, groupEntries } from '../../site/src/engine/rescore.js';
 import { toNorm } from '../../site/src/engine/norm.js';
 
 // handleFetchProvenance isn't importable (worker.js module scope), so this
@@ -38,9 +38,9 @@ function fixtureSources() {
 function localGatherProvenance(sources, norm) {
   const rows = [];
   for (const wl of sources) {
-    const arr = getRescoredByNorm(wl).get(norm);
-    if (!arr) continue;
-    for (const e of arr) rows.push({ wordlist: wl, entry: e });
+    const group = getRescoredByNorm(wl).get(norm);
+    if (group === undefined) continue;
+    for (const e of groupEntries(group)) rows.push({ wordlist: wl, entry: e });
   }
   return rows;
 }
@@ -72,9 +72,9 @@ function workerFetchProvenance(ownedBuilt, ownedMerged, { typedRaw, previewRaw, 
   const rows = [];
   if (targetNorm != null) {
     for (const wl of ownedBuilt) {
-      const arr = getRescoredByNorm(wl).get(targetNorm);
-      if (!arr) continue;
-      for (const e of arr) rows.push({
+      const group = getRescoredByNorm(wl).get(targetNorm);
+      if (group === undefined) continue;
+      for (const e of groupEntries(group)) rows.push({
         sourceId: wl.dbKey, enabled: wl.enabled !== false,
         entry: { norm: e.norm, display: e.display ?? null, score: e.score, rawScore: e.rawScore, comment: e.comment || '' },
       });
