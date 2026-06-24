@@ -190,6 +190,6 @@ test('editing a merged-seeded row still saves to My Edits', async ({ page }) => 
   await expect.poll(async () =>
     page.evaluate(() => window.__grawlixTest.getWordlist('My Edits').entries)
   ).toEqual([{ entry: 'ocean', display: null, score: 95, comment: '' }]);
-  const lo = await page.evaluate(() => window.__grawlixTest.getWordlist('Lo'));
-  expect(lo.entries).toEqual([{ entry: 'ocean', display: null, score: 60, comment: '' }]);
+  const loEntries = await page.evaluate(() => window.__grawlixTest.dumpSourceEntries('Lo'));
+  expect(loEntries).toEqual([{ entry: 'ocean', display: null, score: 60, comment: '' }]);
 });

@@ -65,8 +65,8 @@ test('picking a tier sets the score, routes it into My Edits, and leaves the sou
     .toEqual([{ entry: 'bagel', display: null, score: 90, comment: '' }]);
   await expect.poll(() => mergedBagel(page)).toMatchObject({ score: 90, wordlist: 'My Edits' });
 
-  const src = await page.evaluate(() => window.__grawlixTest.getWordlist('Src'));
-  expect(src.entries).toEqual([{ entry: 'bagel', display: null, score: 50, comment: '' }]);
+  const srcEntries = await page.evaluate(() => window.__grawlixTest.dumpSourceEntries('Src'));
+  expect(srcEntries).toEqual([{ entry: 'bagel', display: null, score: 50, comment: '' }]);
 });
 
 test('the rescore toast undoes the change', async ({ page }) => {

@@ -46,6 +46,18 @@ export function sourceTotal(wordlist) {
   return _shippedSourceTotals.get(wordlist.dbKey) ?? null;
 }
 
+// Distinct (rawScore, normLength) pairs per source, for the local bake gate. NOT
+// version-gated like the counts: it rides only full-content events (selfReady /
+// fetchApplied), never the per-edit editAck, so "update when present" can't be a
+// stale overwrite — and an editAck omitting it must keep the last-good map.
+let _shippedRescoreInputs = null;   // Map(dbKey → [[score, len], …])
+export function setShippedRescoreInputs(inputs) {
+  if (inputs) _shippedRescoreInputs = new Map(inputs.map(s => [s.sourceId, s.pairs]));
+}
+export function sourceRescoreInputs(wordlist) {
+  return _shippedRescoreInputs?.get(wordlist.dbKey) ?? null;
+}
+
 export function mergedEntryCount() {
   return _shippedMergedCount ?? 0;
 }

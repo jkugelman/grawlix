@@ -40,7 +40,8 @@ test('a custom wordlist survives a page reload with its entries and rules intact
   // Wordlist came back with the exact entries it had.
   const wl = await page.evaluate(() => window.__grawlixTest.getWordlist('Persist'));
   expect(wl.populated).toBe(true);
-  expect(wl.entries).toEqual([
+  const entries = await page.evaluate(() => window.__grawlixTest.dumpSourceEntries('Persist'));
+  expect(entries).toEqual([
     { entry: 'aardvark', display: null, score: 10, comment: '' },
     { entry: 'bagel',    display: null, score: 50, comment: '' },
     { entry: 'carrot',   display: null, score: 90, comment: '' },

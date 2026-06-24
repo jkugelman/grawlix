@@ -9,7 +9,7 @@
 import { currentAtomCount } from '../engine/executor.js';
 import { state } from '../data/state.js';
 import { setShippedAllSourcesAxis, setShippedScopedLayout } from '../data/derived.js';
-import { setShippedConfigCounts } from '../data/merge.js';
+import { setShippedConfigCounts, setShippedRescoreInputs } from '../data/merge.js';
 import { MERGED_ID } from '../core/constants.js';
 import { AppView, activeScoreRange } from './app-view.js';
 import { entryPanelRebindQuery } from './entries-table.js';
@@ -410,6 +410,7 @@ export function syncWorkerConfig(sources) {
 function handleSelfReady(data) {
   setShippedAllSourcesAxis(data.axis, data.version);
   setShippedConfigCounts(data.sourceCounts ?? null, data.sourceTotals ?? null, data.mergedCount ?? null, data.version);
+  setShippedRescoreInputs(data.rescoreInputs);
   applySelfReadyFreshness(data);
   const resolve = _configWaiters.get(data.configId);
   if (resolve) { _configWaiters.delete(data.configId); resolve(data.count); }
@@ -646,7 +647,9 @@ export function sendApplyFetched(sourceId, text, timeout = 10000) {
       clearTimeout(timer);
       w.removeEventListener('message', onMessage);
       lastFetchAppliedMode = data.mode ?? null;
-      resolve({ applied: data.applied, axis: data.axis, counts: data.counts });
+      // Forward the whole ack: applyWordlistText/applyConfigAck read wasEmpty, the
+      // capped diff + true counts, and rescoreInputs off it (main holds no old entries).
+      resolve(data);
     }
     w.addEventListener('message', onMessage);
     w.postMessage({ type: 'applyFetched', requestId, sourceId, text });

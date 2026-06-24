@@ -790,8 +790,8 @@ test('a group member is individually editable through the atom panel', async ({ 
 
   await page.locator('#entry-panel-score').fill('15');
   await page.locator('#entry-panel-score').press('Enter');
-  const edited = await page.evaluate(() => window.__grawlixTest.getMergedEntry('opt'));
-  expect(edited.score).toBe(15);
+  // The save plans through the worker (async), so poll rather than one-shot-read.
+  await expect.poll(() => page.evaluate(() => window.__grawlixTest.getMergedEntry('opt').then(e => e?.score))).toBe(15);
 });
 
 test('only one group tool per pipeline — all-toggle disabled on others, URL dedups', async ({ page }) => {

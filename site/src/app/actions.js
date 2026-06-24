@@ -31,17 +31,17 @@ import {
   getOutputFormat, getTrashScore,
 } from '../data/serialize.js';
 import {
-  compileRescoreRules, maybeAutoSeedRescoreRules, getRescoredEntries, rescoreEntry,
+  compileRescoreRules, maybeAutoSeedRescoreRules, getRescoredEntries, rescoreEntry, applyRescoring,
 } from '../engine/rescore.js';
 import {
   editsLegend, reconcileEditsRulesAfterImport, invalidateRescoredCache,
 } from '../data/rescoring.js';
 import {
   mergedEntryCount, invalidateSourceCounts, _mergedStatsKey,
-  setShippedConfigCounts, sourceTotal,
+  setShippedConfigCounts, setShippedRescoreInputs, sourceTotal, sourceRescoreInputs,
 } from '../data/merge.js';
 import { setShippedAllSourcesAxis } from '../data/derived.js';
-import { mergeKey, diffWordlistEntries } from '../engine/corpus.js';
+import { mergeKey } from '../engine/corpus.js';
 import { invalidateWordlistCaches } from '../data/invalidate.js';
 import {
   persistMeta, persistScoring, batchUpdate, repaintAfterCacheChange,
@@ -228,9 +228,12 @@ export async function init() {
   // blocks the main thread, else the logo reveal stalls mid-fade.
   await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
 
-  // Must finish before renderAll: the first render reads rawEntries through the
-  // merged histogram fallback, so parsing late would render empty stats.
+  // Only My Edits parses on main (it seeds edits + the legend); the worker reads every
+  // other source's text from its own IDB. The skip branch MUST still set `populated`
+  // from meta — left false, the boot re-fetch gate below re-fetches every URL source
+  // on every boot, and the source/manage cards mis-render.
   await Promise.all(toParse.map(async ({ wordlist, m }) => {
+    if (wordlist.type !== 'edits') { wordlist.populated = !!(m.populated || m.lastUpdated); return; }
     const text = await Storage.readWordlist(m) ?? await idbGet('data_' + m.id);
     parseInto(wordlist, text, m);
   }));
@@ -398,6 +401,7 @@ function applyConfigAck(ack) {
   if (!ack) return;
   setShippedAllSourcesAxis(ack.axis, ack.counts?.version);
   if (ack.counts) setShippedConfigCounts(ack.counts.sourceCounts, ack.counts.sourceTotals, ack.counts.mergedCount, ack.counts.version);
+  setShippedRescoreInputs(ack.rescoreInputs);   // present on fetchApplied, absent on editAck (kept)
   refreshDerivedDisplays();
 }
 
@@ -410,7 +414,12 @@ export function canBakeRescoring(wordlist, rules = wordlist.rescoreRules) {
 }
 
 export function rescoringChangesScores(wordlist, rules = wordlist.rescoreRules) {
-  return wordlist.rawEntries.some(e => rescoreEntry(e, rules) !== e.score);
+  // My Edits is main-resident; every other source applies `rules` to the worker-shipped
+  // distinct (score, length) pairs — the only inputs rescoreEntry reads — so this stays
+  // synchronous against the live editor draft. Null pairs (pre-selfReady) close the gate.
+  if (wordlist.type === 'edits') return wordlist.rawEntries.some(e => rescoreEntry(e, rules) !== e.score);
+  const pairs = sourceRescoreInputs(wordlist);
+  return !!pairs && pairs.some(([score, len]) => rescoreEntry({ score, norm: { length: len } }, rules) !== score);
 }
 
 export function bakeMenuOpts(wordlist, rules = wordlist.rescoreRules) {
@@ -424,14 +433,14 @@ export function bakeMenuOpts(wordlist, rules = wordlist.rescoreRules) {
 // Reset like a fresh import. The dirty = false is load-bearing: reconcile
 // early-returns on a dirty list, so without it a prior translation setup would
 // survive the bake and silently re-impose the dual scale baking just resolved.
-function resetRescoreRulesAfterBake(wordlist) {
+function resetRescoreRulesAfterBake(wordlist, baked) {
   if (wordlist.type === 'edits') {
     wordlist.rescoreRules = editsLegend();
     wordlist.dirty = false;
     reconcileEditsRulesAfterImport(wordlist);
   } else {
     wordlist.rescoreRules = [];
-    maybeAutoSeedRescoreRules(wordlist);
+    maybeAutoSeedRescoreRules(wordlist, baked);
   }
 }
 
@@ -440,11 +449,16 @@ export async function bakeRescoring(wordlist) {
   const html = `Permanently rescore ${buildWordlistNameHTML(wordlist)}? This will rewrite every entry's score using the current rules, then reset the rules. The original scores will be lost — use <strong>Download original</strong> first if you want a backup.`;
   if (!await showConfirm('', { confirmText: 'Rescore', html })) return;
 
-  const baked = getRescoredEntries(wordlist).map(e => ({ ...e }));
+  // My Edits is resident; a non-Edits source's rawEntries aren't, so re-read its text
+  // from IDB and rescore the transient parse (bake is a rare, deliberate action).
+  const source = wordlist.type === 'edits'
+    ? getRescoredEntries(wordlist)
+    : applyRescoring(parseWordlist(await Storage.readWordlist(wordlist) ?? ''), wordlist.rescoreRules);
+  const baked = source.map(e => ({ ...e }));
   batchUpdate(() => {
     invalidateWordlistCaches(wordlist);
-    wordlist.rawEntries = baked;
-    resetRescoreRulesAfterBake(wordlist);
+    if (wordlist.type === 'edits') wordlist.rawEntries = baked;   // only My Edits retains entries
+    resetRescoreRulesAfterBake(wordlist, baked);
     compileRescoreRules(wordlist);
     repaintAfterCacheChange();
   });
@@ -452,7 +466,7 @@ export async function bakeRescoring(wordlist) {
   if (wordlist.type === 'edits') {
     await persistEdits(wordlist);
   } else {
-    await Storage.writeWordlist(wordlist, serializeEntries(wordlist.rawEntries));
+    await Storage.writeWordlist(wordlist, serializeEntries(baked));
     persistMeta();
     MirrorSync.schedule(wordlist);
     resyncWorkerConfig();
@@ -555,12 +569,13 @@ export function loadIdle() {
 }
 
 export async function applyWordlistText(wordlist, text, { fetchedSize = null, originalFilename = null, nameOverride = null, source = null, clearUrl = false, silent = false, viaToast = false } = {}) {
-  const wasEmpty = !wordlist.rawEntries.length;
-  const oldEntries = wasEmpty ? null : wordlist.rawEntries;
-  // The worker keys its merge on each source's enabled flag + rescore rules. If
-  // either changes here (a first population flips enabled; an auto-seed adds rules)
-  // its resident copy is stale and the content-diff can't apply — fall back to a
-  // full resync that re-sends the config below.
+  const isEdits = wordlist.type === 'edits';
+  const parsed = parseWordlist(text);   // transient for a non-Edits source; only My Edits retains it
+  // The worker keys its merge on each source's enabled flag + rescore rules. A change
+  // to either (a first population flips enabled; an auto-seed adds rules) makes the
+  // worker's resident copy stale, so the content-diff can't apply — fall back to the
+  // full resync below. wasEmpty is no longer a main-side signal: the worker holds the
+  // old entries, handles empty→full via its rebuild path, and reports it on the ack.
   const wasEnabled = wordlist.enabled;
   const beforeRules = JSON.stringify(wordlist.rescoreRules ?? []);
 
@@ -570,13 +585,13 @@ export async function applyWordlistText(wordlist, text, { fetchedSize = null, or
   // diff + repaint below stand in for the render effect's full resync.
   batchUpdate(() => {
     invalidateWordlistCaches(wordlist);
-    wordlist.rawEntries = parseWordlist(text);
+    if (isEdits) wordlist.rawEntries = parsed;   // only My Edits retains its entries on main
     wordlist.lastUpdated = Date.now();
     if (fetchedSize !== null) { wordlist.fetchedSize = fetchedSize; wordlist._updateAvailable = false; }
     if (originalFilename !== null) wordlist.originalFilename = originalFilename;
     if (!wordlist.populated) { wordlist.populated = true; wordlist.enabled = true; }
-    maybeAutoSeedRescoreRules(wordlist);
-    if (wordlist.type === 'edits') reconcileEditsRulesAfterImport(wordlist);
+    maybeAutoSeedRescoreRules(wordlist, parsed);
+    if (isEdits) reconcileEditsRulesAfterImport(wordlist);
     compileRescoreRules(wordlist);
     if (nameOverride) wordlist.name = nameOverride;
     if (clearUrl) { wordlist.url = null; wordlist.fetchedSize = null; wordlist._updateAvailable = false; }
@@ -584,39 +599,43 @@ export async function applyWordlistText(wordlist, text, { fetchedSize = null, or
   });
 
   await Storage.writeWordlist(wordlist, text);
-  if (wordlist.type === 'edits') EditsSync.scheduleWrite();
-  else                           MirrorSync.schedule(wordlist);
+  if (isEdits) EditsSync.scheduleWrite();
+  else         MirrorSync.schedule(wordlist);
 
-  const configChanged = wasEmpty
-    || wordlist.enabled !== wasEnabled
+  const configChanged = wordlist.enabled !== wasEnabled
     || JSON.stringify(wordlist.rescoreRules ?? []) !== beforeRules;
-  // applyFetched splices the changed norms in place; a config change or a worker
-  // with no build for this source yet (applied:false) falls back to the full
-  // resync, which must run AFTER the IDB write above so it reads the new text.
+  // applyFetched splices the changed norms in place AND ships wasEmpty + the
+  // entry-level diff (the worker holds the old entries; main no longer does). A
+  // config change, or a worker with no build for this source yet (applied:false),
+  // falls back to the resync — which must run AFTER the IDB write so it reads new text.
   const ack = configChanged ? null : await sendApplyFetched(wordlist.dbKey, text);
   if (ack?.applied) applyConfigAck(ack);
   else              resyncWorkerConfig();
   repaintAfterConfigChange();
   refreshMergedScroller();
 
-  if (wasEmpty) {
-    if (!silent) showToast(`Loaded ${pluralize(wordlist.rawEntries.length, 'entry', 'entries')} from ${esc(source)}`);
+  // The applyFetched path reads wasEmpty/counts off the ack — the worker is the only
+  // holder of the old entries now; the resync path counts the transient parse.
+  if (!ack?.applied) {
+    if (!silent) showToast(`Loaded ${pluralize(parsed.length, 'entry', 'entries')} from ${esc(source)}`);
+  } else if (ack.wasEmpty) {
+    if (!silent) showToast(`Loaded ${pluralize(ack.newCount, 'entry', 'entries')} from ${esc(source)}`);
   } else {
-    const { added, deleted, rescored } = diffWordlistEntries(oldEntries, wordlist.rawEntries);
-    if (!added.length && !deleted.length && !rescored.length) {
+    const { addedCount, deletedCount, rescoredCount } = ack;
+    if (!addedCount && !deletedCount && !rescoredCount) {
       if (!viaToast) showAlert(`${buildWordlistNameHTML(wordlist)} is already up to date — no changes.`);
     } else if (viaToast) {
       const parts = [];
-      if (added.length)    parts.push(`${added.length.toLocaleString()} added`);
-      if (deleted.length)  parts.push(`${deleted.length.toLocaleString()} deleted`);
-      if (rescored.length) parts.push(`${rescored.length.toLocaleString()} rescored`);
+      if (addedCount)    parts.push(`${addedCount.toLocaleString()} added`);
+      if (deletedCount)  parts.push(`${deletedCount.toLocaleString()} deleted`);
+      if (rescoredCount) parts.push(`${rescoredCount.toLocaleString()} rescored`);
       showActionToast(
         `${esc(wordlist.name)} auto-updated: ${parts.join(', ')}`,
         'Details',
-        () => openUpdateSummaryDialog(wordlist, oldEntries.length, wordlist.rawEntries.length, added, deleted, rescored),
+        () => openUpdateSummaryDialog(wordlist, ack),
       );
     } else {
-      openUpdateSummaryDialog(wordlist, oldEntries.length, wordlist.rawEntries.length, added, deleted, rescored);
+      openUpdateSummaryDialog(wordlist, ack);
     }
   }
 }
@@ -961,9 +980,15 @@ export function triggerDownload(text, filename) {
 
 export async function downloadSourceWordlist(wordlist) {
   if (!wordlist || !sourceTotal(wordlist)) return;
-  // The not-fresh fallback must sort too, or its bytes diverge from the worker path.
-  const text = (await fetchWorkerSerialize(wordlist.dbKey, getOutputFormat()))
-    ?? serializeEntries(sortedEntries(getRescoredEntries(wordlist)), getOutputFormat());
+  // The worker serialize is primary; only on a miss does the fallback re-read the IDB
+  // text for a non-Edits source (no resident rawEntries) — else a miss downloads empty.
+  let text = await fetchWorkerSerialize(wordlist.dbKey, getOutputFormat());
+  if (text == null) {
+    const entries = wordlist.type === 'edits'
+      ? getRescoredEntries(wordlist)
+      : applyRescoring(parseWordlist(await Storage.readWordlist(wordlist) ?? ''), wordlist.rescoreRules || []);
+    text = serializeEntries(sortedEntries(entries), getOutputFormat());
+  }
   triggerDownload(text, rescoredFilename(wordlist));
   showToast(`Downloaded ${pluralize(sourceTotal(wordlist), 'entry', 'entries')}`);
 }

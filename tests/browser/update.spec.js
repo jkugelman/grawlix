@@ -49,9 +49,9 @@ test('updating a wordlist applies the new version and summarizes the diff', asyn
   await expect(dialog.locator('.usd-pill-deleted')).toHaveText('1 deleted');
   await expect(dialog.locator('.usd-pill-rescored')).toHaveText('1 rescored');
 
-  const wl = await page.evaluate(() => window.__grawlixTest.getWordlist('John Kugelman'));
-  expect(wl.entries.map(e => e.entry).sort()).toEqual(['alpha', 'beta', 'epsilon']);
-  expect(wl.entries.find(e => e.entry === 'beta').score).toBe(60);
+  const entries = await page.evaluate(() => window.__grawlixTest.dumpSourceEntries('John Kugelman'));
+  expect(entries.map(e => e.entry).sort()).toEqual(['alpha', 'beta', 'epsilon']);
+  expect(entries.find(e => e.entry === 'beta').score).toBe(60);
 });
 
 test('re-fetching unchanged content reports no changes', async ({ page }) => {
@@ -82,7 +82,8 @@ test('with auto-update off, the update check flags a changed wordlist with a gre
   await page.evaluate(() => checkForUpdates());
 
   const wl = await page.evaluate(() => window.__grawlixTest.getWordlist('John Kugelman'));
-  expect(wl.entries.map(e => e.entry).sort()).toEqual(['alpha', 'beta', 'delta']);
+  const entries = await page.evaluate(() => window.__grawlixTest.dumpSourceEntries('John Kugelman'));
+  expect(entries.map(e => e.entry).sort()).toEqual(['alpha', 'beta', 'delta']);
   expect(wl.updateAvailable).toBe(true);
   await expect(page.locator('.toast')).toHaveCount(0);
 
@@ -110,8 +111,9 @@ test('with auto-update on, a changed wordlist is re-fetched and a toast shows th
   await expect(page.locator('.toast')).toContainText('John Kugelman');
 
   const wl = await page.evaluate(() => window.__grawlixTest.getWordlist('John Kugelman'));
-  expect(wl.entries.map(e => e.entry).sort()).toEqual(['alpha', 'beta', 'epsilon']);
-  expect(wl.entries.find(e => e.entry === 'beta').score).toBe(60);
+  const entries = await page.evaluate(() => window.__grawlixTest.dumpSourceEntries('John Kugelman'));
+  expect(entries.map(e => e.entry).sort()).toEqual(['alpha', 'beta', 'epsilon']);
+  expect(entries.find(e => e.entry === 'beta').score).toBe(60);
   expect(wl.updateAvailable).toBe(false);
 
   await page.locator('.toast .toast-action').click();

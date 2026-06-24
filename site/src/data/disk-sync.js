@@ -8,6 +8,7 @@ import { idbGet, idbPut, idbDel } from './storage.js';
 import { serializeEntries, sortedEntries } from '../engine/serialize.js';
 import { getOutputFormat } from './serialize.js';
 import { applyRescoring, compileRescoreRules } from '../engine/rescore.js';
+import { parseWordlist } from '../engine/norm.js';
 import { invalidateWordlistCaches } from './invalidate.js';
 import { batchUpdate, persistMeta, repaintAfterCacheChange } from './persist.js';
 
@@ -177,11 +178,15 @@ const MirrorSync = {
   async _serialize(key) {
     const worker = _mirrorSerializer ? await _mirrorSerializer(key, getOutputFormat()) : null;
     if (worker != null) return worker;
-    // Local fallback (worker not fresh). The merge has no resident main corpus, so
-    // it mirrors empty; a source still holds its rawEntries on main.
+    // Local fallback (worker not fresh). The merge has no resident main corpus → empty.
     if (key === MERGED_ID) return '';
     const list = listForSyncKey(key);
-    return serializeEntries(sortedEntries(applyRescoring(list.rawEntries, list.rescoreRules || [])), getOutputFormat());
+    // My Edits holds its entries; a non-Edits source doesn't, so re-read its IDB text
+    // transiently — mirroring empty here would clobber the synced file with nothing.
+    const entries = list.type === 'edits'
+      ? list.rawEntries
+      : parseWordlist(await idbGet('data_' + list.dbKey) ?? '');
+    return serializeEntries(sortedEntries(applyRescoring(entries, list.rescoreRules || [])), getOutputFormat());
   },
 };
 

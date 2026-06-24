@@ -52,10 +52,12 @@ const AUTO_SEED_SCORE_LIMIT = 10;
 
 export function makeRescoreRuleStub(input = '') { return { input, length: '', output: '', note: '' }; }
 
-export function maybeAutoSeedRescoreRules(wordlist) {
+// Takes the entries explicitly (not wordlist.rawEntries): main doesn't retain a
+// non-Edits source's rawEntries, so the caller passes its transient parse.
+export function maybeAutoSeedRescoreRules(wordlist, entries) {
   if (wordlist.publisherId) return;
   if (wordlist.rescoreRules?.length) return;
-  const scores = [...new Set(wordlist.rawEntries.map(e => e.score))];
+  const scores = [...new Set(entries.map(e => e.score))];
   if (!scores.length || scores.length > AUTO_SEED_SCORE_LIMIT) return;
   scores.sort((a, b) => a - b);
   wordlist.rescoreRules = scores.map(s => makeRescoreRuleStub(String(s)));

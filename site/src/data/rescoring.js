@@ -39,7 +39,7 @@ export function reconcileEditsRulesAfterImport(edits) {
   const aligned = edits.rawEntries.every(e => tierIntervals.some(iv => matchesRange(e.score, iv)));
   if (aligned) return;
   edits.rescoreRules = [];
-  maybeAutoSeedRescoreRules(edits);
+  maybeAutoSeedRescoreRules(edits, edits.rawEntries);   // My Edits' entries are resident
   updateWordlistDirty(edits);
 }
 

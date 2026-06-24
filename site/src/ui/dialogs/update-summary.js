@@ -83,34 +83,37 @@ let _updateScroller = null;
 export const openUpdateSummaryDialog = (() => {
   let el, titleEl, countEl, pillsEl, scrollEl;
 
-  const show = function(wordlist, oldCount, newCount, added, deleted, rescored) {
+  // Counts are the TRUE totals (addedCount/…); the added/deleted/rescored arrays are
+  // the worker's capped row samples, so headers and pills must read the counts — never
+  // the array lengths — or a large re-import under-reports its change totals.
+  const show = function(wordlist, { oldCount, newCount, added, deleted, rescored, addedCount, deletedCount, rescoredCount }) {
     titleEl.textContent = `${wordlist.name} Updated`;
     countEl.textContent = `${oldCount.toLocaleString()} → ${newCount.toLocaleString()} entries`;
 
     const rows = [];
     const sectionIndices = {};
 
-    if (added.length) {
+    if (addedCount) {
       sectionIndices.added = rows.length;
-      rows.push({ type: 'header', label: `Added (${added.length.toLocaleString()})` });
+      rows.push({ type: 'header', label: `Added (${addedCount.toLocaleString()})` });
       for (const e of added) rows.push({ type: 'entry', display: displayOf(e), score: e.score, kind: 'added' });
     }
-    if (deleted.length) {
+    if (deletedCount) {
       sectionIndices.deleted = rows.length;
-      rows.push({ type: 'header', label: `Deleted (${deleted.length.toLocaleString()})` });
+      rows.push({ type: 'header', label: `Deleted (${deletedCount.toLocaleString()})` });
       for (const e of deleted) rows.push({ type: 'entry', display: displayOf(e), score: e.score, kind: 'deleted' });
     }
-    if (rescored.length) {
+    if (rescoredCount) {
       sectionIndices.rescored = rows.length;
-      rows.push({ type: 'header', label: `Rescored (${rescored.length.toLocaleString()})` });
+      rows.push({ type: 'header', label: `Rescored (${rescoredCount.toLocaleString()})` });
       for (const e of rescored) rows.push({ type: 'entry', display: displayOf(e.entry), score: e.score, kind: 'rescored', oldScore: e.oldScore });
     }
 
     pillsEl.innerHTML = '';
     const pillDefs = [
-      { key: 'added',    label: `${added.length.toLocaleString()} added`,    cls: 'usd-pill-added'   },
-      { key: 'deleted',  label: `${deleted.length.toLocaleString()} deleted`,  cls: 'usd-pill-deleted'  },
-      { key: 'rescored', label: `${rescored.length.toLocaleString()} rescored`, cls: 'usd-pill-rescored' },
+      { key: 'added',    label: `${addedCount.toLocaleString()} added`,    cls: 'usd-pill-added'   },
+      { key: 'deleted',  label: `${deletedCount.toLocaleString()} deleted`,  cls: 'usd-pill-deleted'  },
+      { key: 'rescored', label: `${rescoredCount.toLocaleString()} rescored`, cls: 'usd-pill-rescored' },
     ];
     for (const { key, label, cls } of pillDefs) {
       if (sectionIndices[key] == null) continue;

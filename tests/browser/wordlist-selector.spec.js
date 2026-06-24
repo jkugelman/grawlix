@@ -245,7 +245,7 @@ test('the rescore panel bake button is enabled for a bakeable source and applies
   await page.locator('#confirm-dialog #btn-confirm-ok').click();
 
   await expect.poll(() =>
-    page.evaluate(() => window.__grawlixTest.getWordlist('Mine').entries.map(e => e.score).sort((a, b) => a - b))
+    page.evaluate(async () => (await window.__grawlixTest.dumpSourceEntries('Mine')).map(e => e.score).sort((a, b) => a - b))
   ).toEqual([50, 60]);
 });
 

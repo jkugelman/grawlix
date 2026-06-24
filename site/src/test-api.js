@@ -453,11 +453,22 @@ const __grawlixTest = {
       publisherId: wl.publisherId,
       enabled: wl.enabled,
       populated: wl.populated,
+      // Resident only for My Edits; a non-Edits source's rawEntries aren't held on
+      // main — read its entries via the async dumpSourceEntries instead.
       entries: wl.rawEntries.map(e => ({ entry: e.norm, display: e.display, score: e.score, comment: e.comment || '' })),
       rescoreRules: wl.rescoreRules.map(r => ({ input: r.input, length: r.length || '', output: r.output })),
       dirty: !!wl.dirty,
       updateAvailable: !!wl._updateAvailable,
     };
+  },
+
+  // A source's entries as stored (raw scores), read from IDB — a non-Edits source's
+  // rawEntries aren't resident on main. My Edits is resident, so read it directly.
+  async dumpSourceEntries(name) {
+    const wl = state.sources.find(w => w.name === name);
+    if (!wl) return null;
+    const entries = wl.type === 'edits' ? wl.rawEntries : parseWordlist(await Storage.readWordlist(wl) ?? '');
+    return entries.map(e => ({ entry: e.norm, display: e.display, score: e.score, comment: e.comment || '' }));
   },
 
   async exportText(format) {

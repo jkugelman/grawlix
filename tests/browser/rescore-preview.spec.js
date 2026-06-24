@@ -313,7 +313,7 @@ test('Make permanent bakes an unsaved draft and leaves the editor open', async (
   await page.evaluate(() => window.__grawlixTest.pipelineIdle());
 
   await expect(page.locator('#rescore-editor')).toBeVisible();  // unlike Apply, stays open
-  await expect.poll(() => page.evaluate(() =>
-    window.__grawlixTest.getWordlist('Mine').entries.map(e => e.score))).toEqual([80]);
+  await expect.poll(() => page.evaluate(async () =>
+    (await window.__grawlixTest.dumpSourceEntries('Mine')).map(e => e.score))).toEqual([80]);
   await expect(bakeBtn(page)).toBeDisabled();  // rules reset → nothing left to bake
 });

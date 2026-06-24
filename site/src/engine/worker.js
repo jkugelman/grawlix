@@ -11,7 +11,7 @@ import { DATA_ASSETS, getDataAsset } from './assets.js';
 import { parseWordlist, toNorm, displayOf } from './norm.js';
 import { parseRange, matchesRange } from './range.js';
 import { compileRescoreRules, getRescoredEntries, getRescoredByNorm } from './rescore.js';
-import { buildCorpus, scopeSourceIds, mergedContributors, resolveEditSeedWinner, mergeKey, mergedNormLowerBound, computeMergedBucket } from './corpus.js';
+import { buildCorpus, scopeSourceIds, mergedContributors, resolveEditSeedWinner, mergeKey, mergedNormLowerBound, computeMergedBucket, diffWordlistEntries } from './corpus.js';
 import { getHistogramLayout, invalidateHistogramLayout, bucketCounts } from './histogram.js';
 import { computeStatsRaw } from './stats.js';
 import { compileFlatHighlighters, materializeFlatRow } from './flat-highlight.js';
@@ -1158,32 +1158,47 @@ async function handleFlushEdits({ requestId }) {
 // fraction of n — a fraction would allow O(n²) work and freeze on large lists.
 const ADD_DELETE_REBUILD_CAP = 256;
 
-// Bails to { rebuild: true } the instant adds+deletes exceed `cap`: past it the
-// caller rebuilds wholesale and never reads affectedNorms, so finishing the scan
-// and growing the Set would be wasted O(n) work ahead of an already-O(n log n)
-// rebuild. Otherwise { rebuild: false, affectedNorms } covers every changed norm —
-// rescores included, since the splice recomputes each one's bucket.
-function diffSourceEntries(oldEntries, newEntries, cap) {
+// Per-section cap on the shipped rows. Uncapped, a full-replace re-import would ship
+// ~600k entry objects and re-materialize them on main — silently defeating the very
+// retention this stage removes. Counts stay true; the dialog virtual-scrolls.
+const DIFF_SHIP_CAP = 500;
+
+const leanDiffEntry = e => ({ norm: e.norm, display: e.display ?? null, score: e.score, comment: e.comment || '' });
+
+// affectedNorms must include comment-only changes (they shift the shown comment, so
+// the merge bucket must recompute) — but `rescored` counts SCORE changes only, the
+// dialog's notion of a rescore. Dropping either silently corrupts one consumer.
+function diffForFetch(oldEntries, newEntries) {
   const oldByKey = new Map();
   for (const e of oldEntries) oldByKey.set(mergeKey(e.norm, e.display), e);
-  const affected = new Set();
-  let structuralChanges = 0;
+  const added = [], rescored = [], affected = new Set();
+  let addedCount = 0, rescoredCount = 0;
   for (const e of newEntries) {
     const key = mergeKey(e.norm, e.display);
     const prev = oldByKey.get(key);
     if (!prev) {
-      if (++structuralChanges > cap) return { rebuild: true };          // add
-      affected.add(e.norm);
+      addedCount++; affected.add(e.norm);
+      if (added.length < DIFF_SHIP_CAP) added.push(leanDiffEntry(e));
     } else {
       oldByKey.delete(key);
-      if (prev.score !== e.score || (prev.comment || '') !== (e.comment || '')) affected.add(e.norm);  // rescore
+      const scoreChanged = prev.score !== e.score;
+      if (scoreChanged || (prev.comment || '') !== (e.comment || '')) affected.add(e.norm);
+      if (scoreChanged) {
+        rescoredCount++;
+        if (rescored.length < DIFF_SHIP_CAP) rescored.push({ entry: leanDiffEntry(e), oldScore: prev.score, score: e.score });
+      }
     }
   }
-  for (const e of oldByKey.values()) {                                  // delete
-    if (++structuralChanges > cap) return { rebuild: true };
-    affected.add(e.norm);
+  const deleted = [];
+  let deletedCount = 0;
+  for (const e of oldByKey.values()) {
+    deletedCount++; affected.add(e.norm);
+    if (deleted.length < DIFF_SHIP_CAP) deleted.push(leanDiffEntry(e));
   }
-  return { rebuild: false, affectedNorms: [...affected] };
+  const byNorm = (a, b) => a.norm.localeCompare(b.norm);
+  added.sort(byNorm); deleted.sort(byNorm);
+  rescored.sort((a, b) => byNorm(a.entry, b.entry));
+  return { added, deleted, rescored, addedCount, deletedCount, rescoredCount, affectedNorms: [...affected] };
 }
 
 // SYNCHRONOUS (no IDB write — main owns the data_ write of the raw text), so the
@@ -1203,18 +1218,26 @@ function handleApplyFetched({ requestId, sourceId, text }) {
 
   const oldEntries = source.rawEntries;
   const newEntries = parseWordlist(text);
-  const diff = oldEntries.length === 0 ? { rebuild: true } : diffSourceEntries(oldEntries, newEntries, ADD_DELETE_REBUILD_CAP);
+  const wasEmpty = oldEntries.length === 0;
+  const diff = diffForFetch(oldEntries, newEntries);
 
   source.rawEntries = newEntries;
   invalidateRescoredCacheFor(source);
 
   // Fallback rebuild is still cheaper than syncConfig — the OTHER sources stay
   // resident in ownedBuilt rather than being re-read from IDB and re-parsed.
-  const ack = diff.rebuild
+  const rebuild = wasEmpty || (diff.addedCount + diff.deletedCount) > ADD_DELETE_REBUILD_CAP;
+  const ack = rebuild
     ? rebuildOwnedFromBuilt(ownedScope)
     : applyOwnedEdit(source, diff.affectedNorms, null);
 
-  postMessage({ type: 'fetchApplied', requestId, applied: true, mode: diff.rebuild ? 'rebuild' : 'splice', axis: ack.axis, counts: ack.counts });
+  postMessage({
+    type: 'fetchApplied', requestId, applied: true, mode: rebuild ? 'rebuild' : 'splice',
+    axis: ack.axis, counts: ack.counts, rescoreInputs: sourceRescoreInputsFrom(ownedBuilt),
+    wasEmpty, oldCount: oldEntries.length, newCount: newEntries.length,
+    added: diff.added, deleted: diff.deleted, rescored: diff.rescored,
+    addedCount: diff.addedCount, deletedCount: diff.deletedCount, rescoredCount: diff.rescoredCount,
+  });
 }
 
 // ─── Self-build (test oracle) ── see docs/worker-protocol.md ─────────────────
@@ -1302,6 +1325,24 @@ function* allSourcesScores(built) {
 // silently drop those sources' counts. Totals come from ownedBuilt (every source).
 function sourceTotalsFrom(built) {
   return built ? built.map(wl => ({ sourceId: wl.dbKey, total: wl.rawEntries.length })) : null;
+}
+
+// Distinct (rawScore, normLength) pairs per source — the minimal sufficient input
+// for main's rescoringChangesScores (rescoreEntry reads only score + norm length).
+// Main applies the LIVE editor draft to these locally, so the bake gate stays correct
+// while the user edits rules the worker hasn't been re-synced with. Shipped only on
+// config builds / content fetches (never per-edit), so the O(corpus) pass is cheap.
+function sourceRescoreInputsFrom(built) {
+  if (!built) return null;
+  return built.map(wl => {
+    const seen = new Set();
+    const pairs = [];
+    for (const e of wl.rawEntries) {
+      const key = e.score + ':' + e.norm.length;
+      if (!seen.has(key)) { seen.add(key); pairs.push([e.score, e.norm.length]); }
+    }
+    return { sourceId: wl.dbKey, pairs };
+  });
 }
 
 function corpusForScope(scope) {
@@ -1513,6 +1554,7 @@ onmessage = ({ data }) => {
             ? ownedMerged.sourceCounts.map(s => ({ sourceId: s.wordlist.dbKey, count: s.count }))
             : null,
           sourceTotals: sourceTotalsFrom(ownedBuilt),
+          rescoreInputs: sourceRescoreInputsFrom(ownedBuilt),
           mergedCount: ownedMerged ? ownedMerged.entries.length : null,
         }));
       break;

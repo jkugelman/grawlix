@@ -44,8 +44,8 @@ test('editing a row sourced from another wordlist routes the edit into My Edits'
     page.evaluate(() => window.__grawlixTest.getWordlist('My Edits').entries)
   ).toEqual([{ entry: 'bagel', display: null, score: 75, comment: '' }]);
 
-  const source = await page.evaluate(() => window.__grawlixTest.getWordlist('Source'));
-  expect(source.entries).toEqual([{ entry: 'bagel', display: null, score: 50, comment: '' }]);
+  const sourceEntries = await page.evaluate(() => window.__grawlixTest.dumpSourceEntries('Source'));
+  expect(sourceEntries).toEqual([{ entry: 'bagel', display: null, score: 50, comment: '' }]);
 
   const merged = await page.evaluate(() => window.__grawlixTest.getMergedEntry('BAGEL'));
   expect(merged).toMatchObject({ entry: 'bagel', score: 75, comment: '', wordlist: 'My Edits' });
