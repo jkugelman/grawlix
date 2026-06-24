@@ -482,6 +482,21 @@ export function queryWorkerEntry(scope, norm, display, timeout = 5000) {
   });
 }
 
+export function workerAssetStateForTest(timeout = 2000) {
+  const w = getWorker();
+  return new Promise(resolve => {
+    const timer = setTimeout(() => { w.removeEventListener('message', onMessage); resolve({}); }, timeout);
+    function onMessage({ data }) {
+      if (data?.type !== '__testAssetState') return;
+      clearTimeout(timer);
+      w.removeEventListener('message', onMessage);
+      resolve(data.state);
+    }
+    w.addEventListener('message', onMessage);
+    w.postMessage({ type: '__testAssetState' });
+  });
+}
+
 export function pingWorker(timeout = 2000) {
   const w = getWorker();
   return new Promise(resolve => {

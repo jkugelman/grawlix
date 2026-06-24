@@ -15,6 +15,8 @@ These landed already and are folded into the codebase; they are not open work.
 - **Free the prior corpus before a `syncConfig` rebuild** (`releasePriorCorpus`). Eliminated the transient 2× where the worker briefly held two complete corpora during a rebuild — **770 MB → 402 MB** at the rebuild peak (measured, 6-list corpus). The follow-up `ownedCorpusReady`-on-`ownedBuilt` fix keeps edit/merge handlers working in the post-free rebuild gap.
 - **The main-thread inversion** — main now holds only My Edits' `rawEntries`; every other source is metadata-only, built by the worker from its own IDB. **~200 MB → ~30 MB on main.** This subsumed freeing the main-thread `_rescored` / `_rescoredByNorm` caches, dropping the main-thread histogram fallback, planning My Edits writes in the worker, and shipping per-source totals from the worker. Main and the worker share the one iOS budget, so this stacks with the worker-side levers below.
 - **Update-summary diff windowing** — a full-replace re-import no longer re-materializes its ~600k diff rows on main: the worker retains the full diff and the dialog virtual-scrolls it (`fetchDiffRows`/`freeDiff`; see [`../worker-protocol.md`](../worker-protocol.md)). Bounded by the few live update affordances, each freed when its toast/dialog ends.
+- **`ownedEntryToIndex` → per-entry `_i` slot.** The `Map(entry → index)` (~30 MB at the measured 663K-row merge) is gone; each merged row carries its position in `ownedCorpus.entries` as an `_i` slot, stamped once per corpus build/splice by `indexCorpusEntries`. Same O(1) flat-result encoding; the scoped-vs-merged read guard (`leanRowFor` reads `_i` only when `ownedCorpus === ownedMerged`) is preserved. **Measured ~10 MB at the in-object step** (440 → 430 MB), short of the Map's full size — the rest never showed cleanly against a noisy ~440 MB total, the reason a per-structure readout (below) is wanted before the bigger levers. **Lesson for those levers:** `_i` must be declared in the corpus-row *literal*, not added post-construction — adding a 7th property to a fully-packed 6-property object spills one `PropertyArray` per row (heap-snapshot-confirmed: PropertyArray count rose by exactly the `_i`-stamped row count, then fell back when the slot was moved into the literal). Any new per-entry field on these hot objects has the same trap.
+- **Evict tool assets when their tool leaves the stack** (`evictUnusedAssets`). The unigram corpus / CMU dict (~100 MB+) no longer sit resident for the whole session: every run frees any loaded asset its stack no longer references. `invalidate()` keeps the IDB record, so a re-add reloads locally without a network re-fetch. (Confirmed: assets load lazily on tool-add / first `prepare()`, never eagerly at boot, so there's nothing to evict on a fresh load.)
 
 Everything remaining below is **worker-side**, where essentially all of the budget is now spent.
 
@@ -27,9 +29,9 @@ Default load is four auto-fetched wordlists — Broda (~527K entries), Nediger (
 1. **`ownedBuilt`** — every source, *enabled and disabled*, each as an array of `{ norm, display, score, comment }` wordlist-entry objects, built in `buildAllSourcesWordlists` ([worker.js:1276](../../site/src/engine/worker.js#L1276)). ~1.25M+ objects before the merge even runs.
 2. **Per-source derived indexes** — each source additionally caches `_rescored` (a second array, with fresh objects wherever a rescore rule changed the score) and `_rescoredByNorm` (a `Map` of norm → *array* of entries), in `getRescoredEntries` / `getRescoredByNorm` ([rescore.js:94-117](../../site/src/engine/rescore.js#L94-L117)). The measured `byNormGroups` ≈ `byNormEntries` 1:1 for every source (e.g. XWI 280776 / 280776), so **nearly every one of those ~1.5M arrays holds a single element** — almost pure per-array header overhead. The `_rescored` arrays also duplicate every entry whose score a rule changed into a fresh object (measured: ~1.07M such `{ …, rawScore }` objects).
 3. **`ownedMerged`** — the deduped union: a fresh `entries` array of all merged rows (new objects, *not* shared with the per-source arrays), plus a `byKey` Map whose keys are freshly-allocated `norm\0display` strings, plus a `byNorm` Map, built in `resolveCorpus` ([corpus.js:41-84](../../site/src/engine/corpus.js#L41-L84)).
-4. **`ownedEntryToIndex`** — a `Map` of *every* merged entry object → its integer index, existing only to encode the flat result's survivor indices, built in `setOwnedCorpus` ([worker.js:1309](../../site/src/engine/worker.js#L1309)).
+4. **`ownedEntryToIndex`** — a `Map` of *every* merged entry object → its integer index, existing only to encode the flat result's survivor indices, built in `setOwnedCorpus` ([worker.js:1309](../../site/src/engine/worker.js#L1309)). **(Shipped — now a per-entry `_i` slot; see *Shipped*.)**
 5. **`_initialChains`** — the executor seeds each pipeline run from `new Array(entries.length)` of `{ atoms: [{ wlEntry, highlights, glyph }] }`, one chain + one single-element `atoms` array + one atom object **per corpus entry**, cached on the merged corpus in `buildInitialChains` ([executor.js:71-79](../../site/src/engine/executor.js#L71-L79)). Built lazily, but the first pipeline run happens at boot (the table renders), so the full-corpus materialization is effectively always resident — measured ~70 MB of objects plus its share of the array pile.
-6. **Lazy data assets, never freed in normal use** — the unigram corpus (wordfreq `large_en`, a ~1M-key word→float `Map`) and the CMU pronunciation dict load on first use of Space-out / Rhymes (`loadUnigramCorpus` [segmenter.js:121](../../site/src/engine/segmenter.js#L121), `loadCmuDict` [phonetics.js:88](../../site/src/engine/phonetics.js#L88)). They are evicted *only* on a detected remote refresh in `handleCheckAssets` — never when the tool leaves the stack, never under pressure. Once loaded they stay resident. (Both were *unloaded* in the measurement below, so the figures are a floor.)
+6. **Lazy data assets** — the unigram corpus (wordfreq `large_en`, a ~1M-key word→float `Map`) and the CMU pronunciation dict load on first use of Space-out / Rhymes (`loadUnigramCorpus` [segmenter.js:121](../../site/src/engine/segmenter.js#L121), `loadCmuDict` [phonetics.js:88](../../site/src/engine/phonetics.js#L88)). **(Shipped — now evicted when their tool leaves the stack, not only on a remote refresh; see *Shipped*.)** (Both were *unloaded* in the measurement below, so the figures are a floor.)
 
 ### Dead weight worth noting
 
@@ -63,8 +65,9 @@ The instrumentation behind the numbers above was temporary and has been removed;
 
 ### Low effort, high value
 
-- **Evict the unigram / CMU assets when their tool leaves the stack** (and/or on `pagehide`). The eviction primitive already exists (`asset.invalidate()`, used by `handleCheckAssets`); this just adds a second trigger. Reclaims ~100 MB+ deterministically when the user moves off Space-out / Rhymes.
-- **Replace `ownedEntryToIndex` (a full Map) with an `_i` slot written onto each entry object** during `setOwnedCorpus`. Same O(1) lookup, one structure's worth of Map overhead removed (~40 MB). The pairing discipline (`ownedEntryToIndex` must stay total with `ownedCorpus`) is preserved automatically because the index then lives on the entry itself.
+The two original entries here — evicting assets on tool-removal and dropping `ownedEntryToIndex` to an `_i` slot — have both shipped (see *Shipped*). One small follow-on remains:
+
+- **Also evict assets on `pagehide`.** The tool-leaves-stack trigger covers the in-use case; a `pagehide` trigger would additionally free assets when iOS keeps the page+worker alive in the back/forward cache after a navigation. Marginal next to the stack trigger — it only helps the bfcache-retained case, and the much larger corpus stays resident regardless — so weigh it against the bigger move of freeing the whole owned corpus on `pagehide` (a bfcache-restore-sensitive change: the restored page would need a full rebuild).
 
 ### Medium effort
 
@@ -80,15 +83,14 @@ The instrumentation behind the numbers above was temporary and has been removed;
 
 ## Recommended sequencing
 
-1. **Collapse the single-element `_rescoredByNorm` arrays** and **drop `ownedEntryToIndex` to an `_i` slot** — the largest measured steady-state levers that don't touch the executor.
-2. **Evict assets on tool-removal** — keeps the assets from compounding the floor once a user touches Space-out / Rhymes.
-3. If the phone still struggles: de-materialize `_initialChains`, then lazy disabled-source indexes, then the streaming parser.
-4. Only then weigh the product-level mobile-defaults question and the columnar rearchitecture.
+The `_i`-slot drop and asset-eviction have shipped (see *Shipped*). What remains, in order:
+
+1. **Collapse the single-element `_rescoredByNorm` arrays** — the largest remaining steady-state lever that doesn't touch the executor.
+2. If the phone still struggles: de-materialize `_initialChains`, then lazy disabled-source indexes, then the streaming parser.
+3. Only then weigh the product-level mobile-defaults question and the columnar rearchitecture.
 
 ## To verify during implementation
 
-- Re-measure after each fix (rebuild the readout + a worker heap snapshot per *Measurement methodology*) to confirm the structure's MB drops by the predicted amount; the per-fix savings are projected, not yet measured.
-- Confirm the `_i`-slot change keeps `ownedEntryToIndex`'s pairing invariant — every flat-result index must still decode to the correct merged row after a corpus rebuild.
+- Re-measure after each fix (rebuild the readout + a worker heap snapshot per *Measurement methodology*) to confirm the structure's MB drops by the predicted amount; the per-fix savings are projected, not yet measured. **Still outstanding for the two shipped levers** — they were verified for *correctness* (the worker golden/fetchrows/edit specs for `_i`; [`tests/browser/asset-eviction.spec.js`](../../tests/browser/asset-eviction.spec.js) for eviction + no-refetch) but the byte savings haven't been measured on-device.
 - If lazy disabled-source indexes are built: confirm the provenance panel and a re-enable both still produce byte-identical merges to a full rebuild (the lockstep discipline the worker already keeps for in-place edits).
-- Confirm asset eviction on tool-removal doesn't thrash: adding then removing then re-adding Space-out should not re-fetch the corpus from the network each time (the IDB cache should still serve it).
 - Re-check every `file:line` anchor in this doc against the code before acting on it; they are a snapshot.

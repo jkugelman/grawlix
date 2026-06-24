@@ -133,7 +133,9 @@ let selfConfig = null;
 let ownedBuilt = null;      // the retained per-source rich wordlists from the last syncConfig
 let ownedMerged = null;     // eager self-built MERGED corpus; feeds the config summaries regardless of active scope
 let ownedCorpus = null;     // eager self-built ACTIVE-scope corpus; the run-path corpus when fresh + scope-matched, else enrichment-only
-let ownedEntryToIndex = null; // Map(ownedCorpus.entries[i] → i); built ONCE per ownedCorpus rebuild (never per run — a 1M-entry rebuild per keystroke is the lag this effort removes) and kept strictly paired with ownedCorpus so the two can't desync
+// An entry's index in ownedCorpus.entries lives on the entry as `_i` (see
+// indexCorpusEntries), not a side Map: the Map cost ~40 MB of pure overhead at ~750K
+// rows — invisible on desktop, fatal on iOS's shared jetsam budget, so don't reintroduce it.
 let ownedScope = null;      // the scope `ownedCorpus` is built for; paired with ownedCorpusFresh to gate enrichment
 // Union of EVERY configured source's rescored scores (enabled AND disabled, not
 // deduped). Must be recomputed ONLY per syncConfig — never per run, never from
@@ -167,6 +169,20 @@ function deserializeStack(serialized) {
     rows.push(row);
   }
   return rows;
+}
+
+// Frees ~100 MB+ the moment a tool stops needing it; that resident weight can tip
+// iOS's shared jetsam budget into a reload. Don't "tidy" invalidate() into also
+// deleting the IDB key (as handleCheckAssets does) — re-adding would then re-fetch.
+function evictUnusedAssets(serialized) {
+  const needed = new Set();
+  for (const { tool } of serialized) {
+    const asset = TOOLS[tool]?.asset;
+    if (asset) needed.add(asset);
+  }
+  for (const asset of DATA_ASSETS) {
+    if (asset.has() && !needed.has(asset.key)) asset.invalidate();
+  }
 }
 
 // ─── Run loop & supersession ─────────────────────────────────────────────────
@@ -210,6 +226,7 @@ async function runOne({ runId, stack: serialized, sort, scope, existsQuery, scor
   const userStackSig = JSON.stringify(serialized.slice(0, -1));
   if (userStackSig !== lastUserStackSig) {
     invalidatePreSearchCache();
+    evictUnusedAssets(serialized);
     lastUserStackSig = userStackSig;
   }
 
@@ -295,7 +312,7 @@ function postResult(runId, { rows, atomCount, grouped }, sort, scope, stack, exi
 
   const n = rows.length;
   let indices = new Int32Array(n);
-  for (let i = 0; i < n; i++) indices[i] = ownedEntryToIndex.get(rows[i].atoms[0].wlEntry);
+  for (let i = 0; i < n; i++) indices[i] = rows[i].atoms[0].wlEntry._i;
 
   sortFlatIndices(indices, sort, ownedCorpus);
 
@@ -878,7 +895,7 @@ function recomputeScopedBucket(norm, source) {
     const winner = arr.find(eligible);
     if (!winner) continue;
     const commenter = arr.find(c => eligible(c) && c.comment) ?? winner;
-    rows.push({ norm, display: variant, score: winner.score, rawScore: winner.rawScore, comment: commenter.comment || '', wordlist: source });
+    rows.push({ norm, display: variant, score: winner.score, rawScore: winner.rawScore, comment: commenter.comment || '', wordlist: source, _i: -1 });
     winners.push(source);
   }
   rows.sort((a, b) => (a.display ?? '').localeCompare(b.display ?? ''));
@@ -934,9 +951,9 @@ function leanRowFor(norm, display) {
     norm: row.norm, display: row.display ?? null, score: row.score,
     rawScore: row.rawScore, comment: row.comment || '', sourceId: row.wordlist.dbKey,
   };
-  // Only when ownedEntryToIndex indexes ownedMerged (MERGED scope); a scoped
-  // ownedCorpus would yield the wrong (scoped) position, so omit it there.
-  if (ownedCorpus === ownedMerged) out.index = ownedEntryToIndex.get(row);
+  // Only when ownedCorpus IS ownedMerged (MERGED scope): a scoped ownedCorpus
+  // restamped `_i` for its own rows, leaving these merged rows' `_i` stale.
+  if (ownedCorpus === ownedMerged) out.index = row._i;
   return out;
 }
 
@@ -956,10 +973,9 @@ function applyOwnedEdit(source, affectedNorms, edited) {
     spliceOwnedCorpus(ownedCorpus, affectedNorms, norm => recomputeScopedBucket(norm, source));
   }
 
-  // A count-changing splice shifts every later index, so reindex fully (mirrors
-  // setOwnedCorpus — an incremental reindex silently misindexes).
-  ownedEntryToIndex = new Map();
-  for (let i = 0; i < ownedCorpus.entries.length; i++) ownedEntryToIndex.set(ownedCorpus.entries[i], i);
+  // A count-changing splice shifts every later index, so restamp fully (mirrors
+  // setOwnedCorpus — an incremental restamp silently misindexes).
+  indexCorpusEntries(ownedCorpus);
   // The pre-search cache's chains hold ownedCorpus.entries by reference; the
   // splice replaced those objects, so stale chains would misindex on the next run.
   invalidatePreSearchCache();
@@ -1302,21 +1318,24 @@ async function buildSelfCorpus(scope) {
   return buildScopeCorpus(await buildAllSourcesWordlists(), scope);
 }
 
-// ownedEntryToIndex is built here, once per rebuild, NOT per run: a per-run O(n)
-// rebuild over a 1M-entry corpus reintroduces the keystroke lag this whole effort
-// removes. The pairing with ownedCorpus must stay total — desync silently indexes
-// one corpus into the other and corrupts every rendered row.
+// Stamps each entry's `_i` once per rebuild, NOT per run: a per-run O(n) restamp
+// over a 1M-entry corpus reintroduces the keystroke lag this whole effort removes.
+// The stamp must stay total with ownedCorpus — a desync silently indexes one corpus
+// into the other and corrupts every rendered row.
+function indexCorpusEntries(corpus) {
+  const { entries } = corpus;
+  for (let i = 0; i < entries.length; i++) entries[i]._i = i;
+}
+
 function setOwnedCorpus(corpus, scope) {
   ownedCorpus = corpus;
-  ownedEntryToIndex = new Map();
-  for (let i = 0; i < corpus.entries.length; i++) ownedEntryToIndex.set(corpus.entries[i], i);
+  indexCorpusEntries(corpus);
   ownedScope = scope;
   ownedCorpusFresh = true;
 }
 
 function clearOwnedCorpus() {
   ownedCorpus = null;
-  ownedEntryToIndex = null;
   ownedCorpusFresh = false;
 }
 
@@ -1620,6 +1639,12 @@ onmessage = ({ data }) => {
 
     case '__testFailNextBuild':
       _failNextBuild = true;
+      break;
+
+    // Test-only: a page-side hasCmuDict() reads main's realm (never loaded), not the
+    // worker's, so the eviction suite must ask the worker for the true loaded state.
+    case '__testAssetState':
+      postMessage({ type: '__testAssetState', state: Object.fromEntries(DATA_ASSETS.map(a => [a.key, a.has()])) });
       break;
   }
 };

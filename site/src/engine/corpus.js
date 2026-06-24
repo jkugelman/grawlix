@@ -49,7 +49,10 @@ export function resolveCorpus(buckets, sourceList) {
     // norms silently diverge from multi-contributor ones.
     if (contributors.length === 1) {
       const c = contributors[0];
-      const row = { norm, display: c.display, score: c.score, rawScore: c.rawScore, comment: c.comment, wordlist: c.wordlist };
+      // `_i` (the worker's index into ownedCorpus.entries) is declared in the literal,
+      // not added later, so V8 keeps it in-object; a post-construction add spills one
+      // PropertyArray per row (~13 MB at ~660K rows). The worker overwrites the -1.
+      const row = { norm, display: c.display, score: c.score, rawScore: c.rawScore, comment: c.comment, wordlist: c.wordlist, _i: -1 };
       entries.push(row);
       byKey.set(mergeKey(norm, c.display), row);
       bumpCount(c.wordlist);
@@ -62,7 +65,7 @@ export function resolveCorpus(buckets, sourceList) {
       const winner = contributors.find(eligible);
       if (!winner) continue;
       const commenter = contributors.find(c => eligible(c) && c.comment) ?? winner;
-      const row = { norm, display: variant, score: winner.score, rawScore: winner.rawScore, comment: commenter.comment, wordlist: winner.wordlist };
+      const row = { norm, display: variant, score: winner.score, rawScore: winner.rawScore, comment: commenter.comment, wordlist: winner.wordlist, _i: -1 };
       entries.push(row);
       byKey.set(mergeKey(norm, variant), row);
       if (!countedContributors.has(winner)) {
@@ -199,7 +202,7 @@ export function computeMergedBucket(norm, sources) {
     const winner = contributors.find(eligible);
     if (!winner) continue;
     const commenter = contributors.find(c => eligible(c) && c.comment) ?? winner;
-    rows.push({ norm, display: variant, score: winner.score, comment: commenter.comment, wordlist: winner.wordlist });
+    rows.push({ norm, display: variant, score: winner.score, comment: commenter.comment, wordlist: winner.wordlist, _i: -1 });
     if (!counted.has(winner)) { counted.add(winner); winners.push(winner.wordlist); }
   }
   rows.sort((a, b) => (a.display ?? '').localeCompare(b.display ?? ''));

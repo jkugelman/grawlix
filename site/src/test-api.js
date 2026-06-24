@@ -36,7 +36,7 @@ import { HelpDialog } from './ui/dialogs/help.js';
 import { openUpdateSummaryDialog } from './ui/dialogs/update-summary.js';
 import { ToolStack, pipelineIdle } from './ui/tool-stack.js';
 import {
-  pingWorker, runOnWorker, patchWorkerToolForTest,
+  pingWorker, runOnWorker, patchWorkerToolForTest, workerAssetStateForTest,
   pipelineWorkerState, crashWorkerForTest, forceWorkerCrashForTest, failNextWorkerBuildForTest,
   syncWorkerConfig, dumpWorkerCorpus, queryWorkerEntry, fetchWorkerRows, fetchWorkerGroups, fetchWorkerGroupChains, fetchWorkerAllRows, lastCompletedRunId,
   workerOwnsCorpus, sendEditEntry, sendDeleteEntry,
@@ -332,6 +332,8 @@ const __grawlixTest = {
   // `renderMergedDetail`), so tests exercise the executor with the
   // same plumbing the user does. Pass an array of `{tool, params}`.
   // Returns the render promise — tests `await` it before reading the DOM.
+  workerAssetState: () => workerAssetStateForTest(),
+
   async setStack(stack) {
     ToolStack.setStack(stack.filter(r => TOOLS[r.tool]).map(r => makeToolRow(r.tool, r.params || {}, !!r.grouped)));
     const p = renderMergedDetail();
