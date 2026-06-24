@@ -1242,6 +1242,20 @@ function clearOwnedCorpus() {
   ownedCorpusFresh = false;
 }
 
+// Free the prior corpus before a rebuild so the worker never holds two at once —
+// the transient that doubled the iOS footprint and crashed config changes. Every
+// pin must go together or the old corpus stays alive and the spike persists. Safe
+// ONLY because ownedCorpusFresh is false here: reads are fresh-gated and rebuild,
+// runs defer until selfReady, so freeing now can't mis-encode rows against a
+// half-gone corpus. ownedBuilt is spared — edit/merge handlers read it in the gap.
+function releasePriorCorpus() {
+  ownedMerged = null;
+  clearOwnedCorpus();
+  lastRunCorpus = null;
+  invalidatePreSearchCache();
+  lastFlatResult = lastGroupedResult = lastTransformResult = null;
+}
+
 // The cache key 'all' is reused across syncConfigs and the worker uses the
 // histogram cache for nothing else, so a stale prior axis would be returned for
 // changed scores — clear before computing.
@@ -1418,9 +1432,7 @@ onmessage = ({ data }) => {
       // A newer syncConfig started while this one's async build was in flight —
       // discard the older build (it read stale IDB text); only the latest commits.
       const myToken = ++latestSyncToken;
-      // Fall back synchronously until the async (IDB-reading) rebuild settles, so
-      // a config change can't serve a stale ownedCorpus in the gap.
-      ownedCorpusFresh = false;
+      releasePriorCorpus();
       buildAllSourcesWordlists()
         .then(built => {
           if (myToken !== latestSyncToken) return;
