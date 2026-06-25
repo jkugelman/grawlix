@@ -8,7 +8,7 @@ import { normalizeParams } from './tools.js';
 // straight off the merged corpus — OR a { atoms } chain, once a tool highlights,
 // transforms, or group-tags it. Seeding bare (the steady-state filter-only run
 // never decorates) is what keeps the ~663K-entry corpus from materializing a chain
-// object + atoms array + atom object per row (~45 MB; docs/planned/mobile-memory.md).
+// object + atoms array + atom object per row (~45 MB).
 // Every reader that can see a pre-decoration row goes through these two accessors;
 // unify/collapse run only post-decoration, so they read `.atoms` directly.
 export const rowLastEntry = r => r.atoms ? r.atoms[r.atoms.length - 1].wlEntry : r;
