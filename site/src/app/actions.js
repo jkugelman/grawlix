@@ -4,6 +4,7 @@ import {
   MERGED_ID, MERGED_NAME, EDITS_ICON, WORDLIST_PUBLISHERS, DEFAULT_SCORING,
 } from '../core/constants.js';
 import { esc, pluralize, nameFromPath } from '../core/util.js';
+import { putFetchHandle, dropFetchHandle, bumpFetchStatus } from '../data/fetch-status.js';
 import {
   toNorm, displayOf, parseWordlist, buildUserWlEntry,
 } from '../engine/norm.js';
@@ -641,7 +642,14 @@ export async function applyWordlistText(wordlist, text, { fetchedSize = null, or
   }
 }
 
-export async function fetchWordlist(wordlist, event, { silent = false, viaToast = false } = {}) {
+// Reveal is timer-driven, not progress-driven: a fully stalled fetch produces
+// zero chunks to bump on, so only a wall-clock timer surfaces it — and that
+// stall is the case this whole indicator exists to show.
+let _fetchRevealDelay = 5000;
+export function setFetchRevealDelayForTest(ms) { _fetchRevealDelay = ms; }
+const FETCH_PROGRESS_THROTTLE = 150;  // ms between progress repaints
+
+export async function fetchWordlist(wordlist, event, { silent = false, viaToast = false, immediate = !silent } = {}) {
   if (event) event.stopPropagation();
   if (!wordlist || !wordlist.url || wordlist._loading) return;
 
@@ -649,22 +657,55 @@ export async function fetchWordlist(wordlist, event, { silent = false, viaToast 
   renderSources();
   loadStarted();
 
+  // A user-initiated fetch reveals at once; only the silent background fetches
+  // (boot, auto-update) wait out the threshold, so quick ones stay invisible.
+  const handle = { key: wordlist.dbKey, wordlist, bytesLoaded: 0, revealed: immediate };
+  putFetchHandle(handle);
+  const revealTimer = immediate ? null : setTimeout(() => {
+    handle.revealed = true; bumpFetchStatus();
+  }, _fetchRevealDelay);
+
   try {
     const resp = await fetch(wordlist.url);
     if (!resp.ok) throw new Error(`HTTP ${resp.status} ${resp.statusText}`);
-    const text = await resp.text();
+    const text = await readBodyWithProgress(resp, handle);
     const fetchedSize = resp.headers.get('content-length') || null;
     const originalFilename = new URL(wordlist.url).pathname.split('/').pop() || null;
+    clearTimeout(revealTimer);
+    dropFetchHandle(handle.key);
     wordlist._loading = false;
     await applyWordlistText(wordlist, text, { fetchedSize, originalFilename, source: wordlist.url, silent, viaToast });
   } catch (err) {
+    clearTimeout(revealTimer);
+    dropFetchHandle(handle.key);
     wordlist._loading = false;
     renderSources();
     const detail = err.message === 'Failed to fetch' ? '' : `: ${err.message}`;
-    showToast(`Failed to fetch ${esc(wordlist.url)}${esc(detail)}`);
+    showActionToast(`Couldn't load ${esc(wordlist.name)}${esc(detail)}`, 'Retry', () => fetchWordlist(wordlist));
   } finally {
     loadSettled();
   }
+}
+
+async function readBodyWithProgress(resp, handle) {
+  if (!resp.body) return resp.text();   // no readable stream: no progress, but still load
+  const reader = resp.body.getReader();
+  const chunks = [];
+  let received = 0;
+  let lastPaint = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    chunks.push(value);
+    received += value.length;
+    handle.bytesLoaded = received;
+    const now = Date.now();
+    if (now - lastPaint > FETCH_PROGRESS_THROTTLE) { lastPaint = now; bumpFetchStatus(); }
+  }
+  const buf = new Uint8Array(received);
+  let off = 0;
+  for (const c of chunks) { buf.set(c, off); off += c.length; }
+  return new TextDecoder().decode(buf);
 }
 
 const UPDATE_CHECK_INTERVAL = 60 * 60 * 1000; // 1 hour

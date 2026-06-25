@@ -4,6 +4,7 @@ import { esc } from './core/util.js';
 import { effect } from './core/signals.js';
 import { TOOLS } from './engine/tools.js';
 import { syncStatus$, state, getEditsWordlist } from './data/state.js';
+import { fetchStatus$ } from './data/fetch-status.js';
 import { Storage } from './data/storage.js';
 import { serializeEntries } from './engine/serialize.js';
 import { getOutputFormat, setOutputFormat } from './data/serialize.js';
@@ -27,6 +28,7 @@ import {
   applyRescoreDraft, cancelRescoreDraft, makeRescorePermanent,
 } from './ui/rescore-editor.js';
 import { WordlistSelector, renderSyncIndicators } from './ui/scope-selector.js';
+import { renderFetchStatus } from './ui/fetch-status.js';
 import { configurePipelineWorker, fetchWorkerSerialize, fetchWorkerMergeDisk, fetchWorkerFlushEdits } from './ui/pipeline-worker.js';
 import { configureManagePanel, ManagePanel } from './ui/manage-panel.js';
 import { configureDiscoveryBanner, DiscoveryBanner } from './ui/discovery-banner.js';
@@ -182,6 +184,7 @@ function boot() {
   // The signal hop (vs. disk-sync calling renderSyncIndicators directly) is what
   // keeps data/ off ui/; without this effect, sync-status changes never repaint.
   effect(() => { syncStatus$.get(); renderSyncIndicators(); });
+  effect(() => { fetchStatus$.get(); renderFetchStatus(); });
 
   mountStatsBarOverflowObservers();
   mountHeaderHeightObserver();

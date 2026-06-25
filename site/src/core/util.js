@@ -36,6 +36,12 @@ export function timeAgo(ts) {
   return `${yr} year${yr === 1 ? '' : 's'} ago`;
 }
 
+export function formatBytes(n) {
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
+  return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+}
+
 export function buildHelpHTML(rows, opts = {}) {
   const items = rows.map(([code, desc, rowOpts]) => {
     const token = rowOpts?.ghost

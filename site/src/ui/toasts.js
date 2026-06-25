@@ -4,13 +4,14 @@
 
 import { esc } from '../core/util.js';
 import { hoverCapable } from '../core/platform.js';
+import { notifyStack } from './notify-stack.js';
 
 let _toastContainerEl = null;
 function toastContainer() {
   if (_toastContainerEl) return _toastContainerEl;
   _toastContainerEl = document.createElement('div');
   _toastContainerEl.id = 'toast-container';
-  document.body.appendChild(_toastContainerEl);
+  notifyStack().appendChild(_toastContainerEl);
   return _toastContainerEl;
 }
 let _suppressed = false;

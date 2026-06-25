@@ -53,6 +53,7 @@ import { propagateDefaults as _propagateDefaults } from './model/scoring.js';
 import {
   addNewWordlist, applyWordlistText, bakeRescoring, saveEdit, saveEntry, deleteFromEdits, persistEdits,
   buildCopyText, buildWordlistText, buildCSVText, buildExportJSONObject, exportFilename, _ready, loadIdle,
+  setFetchRevealDelayForTest,
 } from './app/actions.js';
 import { serializeEntries, sortedEntries } from './engine/serialize.js';
 
@@ -534,6 +535,8 @@ const __grawlixTest = {
     if (!wl) throw new Error(`No wordlist named "${name}"`);
     return wl;
   },
+
+  setFetchRevealDelay(ms) { setFetchRevealDelayForTest(ms); },
 
   migrateLs,
 };

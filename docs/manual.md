@@ -34,6 +34,8 @@ Scope is **sticky** — Grawlix reopens to the wordlist you were last looking at
 
 **Managing wordlists.** A **Manage wordlists** footer at the bottom of the selector dropdown opens the manage panel — where you reorder wordlists (order is merge priority), enable or disable them, and add new ones. Reordering and toggling stage up as you go and commit all at once when you click **Save** (or discard on **Cancel**); the merge rebuilds once, on Save, rather than on every change. **Add wordlist** runs the usual import/fetch flow and returns you to the panel with the new list in place.
 
+**When a fetch is slow.** The built-in wordlists download in the background — usually they're ready in a second or two and just appear, with nothing in your way. If one is taking a while (more than about five seconds), a small panel slides in at the bottom of the screen showing how much has downloaded so far and a progress bar. The bar moves with the download — it sweeps across as data arrives and freezes when it stalls, so a stuck fetch is obvious instead of being hidden behind a bar that animates regardless. The panel is just a status display, with no buttons; a download that finishes drops off on its own. If one **fails**, you get a toast with a **Retry** instead. Several downloads at once stack as rows in the one panel. A fetch you start yourself — **Fetch** from a wordlist's **⋮** menu — shows right away instead of waiting.
+
 ## Settings
 
 The gear in the header opens **Settings**:
