@@ -10,7 +10,8 @@ import { configureIO as configurePhoneticsIO } from './phonetics.js';
 import { DATA_ASSETS, getDataAsset } from './assets.js';
 import { parseWordlist, toNorm, displayOf } from './norm.js';
 import { parseRange, matchesRange } from './range.js';
-import { compileRescoreRules, getRescoredEntries, getRescoredByNorm, groupEntries } from './rescore.js';
+import { compileRescoreRules } from './rescore.js';
+import { sourceAccessor, invalidateSourceAccessor } from './sources.js';
 import { buildCorpus, scopeSourceIds, mergedContributors, resolveEditSeedWinner, mergeKey, mergedNormLowerBound, computeMergedBucket, diffWordlistEntries } from './corpus.js';
 import { getHistogramLayout, invalidateHistogramLayout, bucketCounts } from './histogram.js';
 import { computeStatsRaw } from './stats.js';
@@ -576,9 +577,9 @@ function handleFetchProvenance({ requestId, typedRaw, previewRaw, clickedNorm })
   const rows = [];
   if (targetNorm != null) {
     for (const wl of ownedBuilt) {
-      const group = getRescoredByNorm(wl).get(targetNorm);
+      const group = sourceAccessor(wl).rescoredForNorm(targetNorm);
       if (group === undefined) continue;
-      for (const e of groupEntries(group)) {
+      for (const e of group) {
         rows.push({
           sourceId: wl.dbKey,
           enabled: wl.enabled !== false,
@@ -597,7 +598,7 @@ function handleFetchProvenance({ requestId, typedRaw, previewRaw, clickedNorm })
 
 // ─── Entry-edit plan ── see docs/worker-protocol.md ──────────────────────────
 // Guard on ownedBuilt ALONE, not ownedCorpusFresh: planEntryWrite reads only the
-// per-source rescore indexes (getRescoredByNorm/computeMergedBucket over ownedBuilt),
+// per-source rescore indexes (sourceAccessor/computeMergedBucket over ownedBuilt),
 // never ownedMerged/ownedCorpus, and releasePriorCorpus spares ownedBuilt across a
 // syncConfig gap — so a null plan means only the genuine pre-first-sync window.
 function handlePlanEdit({ requestId, mode, clicked, typed, trashScore }) {
@@ -877,6 +878,7 @@ function editsWordlist() {
 function invalidateRescoredCacheFor(wl) {
   wl._rescored = null;
   wl._rescoredByNorm = null;
+  invalidateSourceAccessor(wl);
 }
 
 // The scoped (single-source) bucket recompute. Unlike computeMergedBucket it
@@ -884,7 +886,7 @@ function invalidateRescoredCacheFor(wl) {
 // `rawScore` — the scoped corpus keeps rawScore for the rescore-preview arrow, so
 // omitting it would silently diverge on rescored norms.
 function recomputeScopedBucket(norm, source) {
-  const arr = groupEntries(getRescoredByNorm(source).get(norm));
+  const arr = sourceAccessor(source).rescoredForNorm(norm) ?? [];
   const displays = new Set();
   for (const e of arr) if (e.display != null) displays.add(e.display);
   const rows = [];
@@ -1216,7 +1218,7 @@ function handleApplyFetched({ requestId, sourceId, text }) {
     return;
   }
 
-  const oldEntries = source.rawEntries;
+  const oldEntries = sourceAccessor(source).collectRaw();
   const newEntries = parseWordlist(text);
   const wasEmpty = oldEntries.length === 0;
 
@@ -1361,14 +1363,14 @@ function computeAllSourcesAxis(built) {
 }
 
 function* allSourcesScores(built) {
-  for (const wl of built) yield* getRescoredEntries(wl);
+  for (const wl of built) yield* sourceAccessor(wl).scores();
 }
 
 // Distinct from ownedMerged.sourceCounts: that counts merge WINNERS, so a disabled
 // or fully-shadowed source is absent from it entirely — folding totals there would
 // silently drop those sources' counts. Totals come from ownedBuilt (every source).
 function sourceTotalsFrom(built) {
-  return built ? built.map(wl => ({ sourceId: wl.dbKey, total: wl.rawEntries.length })) : null;
+  return built ? built.map(wl => ({ sourceId: wl.dbKey, total: sourceAccessor(wl).count })) : null;
 }
 
 // Distinct (rawScore, normLength) pairs per source — the minimal sufficient input
@@ -1381,7 +1383,7 @@ function sourceRescoreInputsFrom(built) {
   return built.map(wl => {
     const seen = new Set();
     const pairs = [];
-    for (const e of wl.rawEntries) {
+    for (const e of sourceAccessor(wl).collectRaw()) {
       const key = e.score + ':' + e.norm.length;
       if (!seen.has(key)) { seen.add(key); pairs.push([e.score, e.norm.length]); }
     }
@@ -1442,7 +1444,7 @@ function serializeEntriesForScope(scope) {
   if (!ownedCorpusFresh) return null;
   if (scope === MERGED_ID) return ownedMerged ? ownedMerged.entries : null;
   const wl = ownedBuilt?.find(w => w.dbKey === scope);
-  return wl ? getRescoredEntries(wl) : null;
+  return wl ? sourceAccessor(wl).collectRescored() : null;
 }
 
 // ─── Message dispatch ────────────────────────────────────────────────────────

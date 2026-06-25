@@ -123,28 +123,32 @@ export function groupEntries(group) {
 }
 
 export function rescoreEntry(wlEntry, rules) {
+  return rescoreScore(wlEntry.score, wlEntry.norm.length, rules);
+}
+
+export function rescoreScore(score, normLen, rules) {
   for (const rule of rules) {
     const scoreIntervals = rule._scoreIntervals !== undefined ? rule._scoreIntervals : parseRange(rule.input);
-    if (!scoreIntervals || !matchesRange(wlEntry.score, scoreIntervals)) continue;
+    if (!scoreIntervals || !matchesRange(score, scoreIntervals)) continue;
     if (rule.length && rule.length.trim()) {
       const lenIntervals = rule._lenIntervals !== undefined ? rule._lenIntervals : parseRange(rule.length);
-      if (!lenIntervals || !matchesRange(wlEntry.norm.length, lenIntervals)) continue;
+      if (!lenIntervals || !matchesRange(normLen, lenIntervals)) continue;
     }
     const s = rule._output !== undefined ? rule._output : parseRuleOutput(rule.output);
     if (s === null) continue;
-    if (s === 'unchanged') return wlEntry.score;
+    if (s === 'unchanged') return score;
     if (s && typeof s === 'object') {
       const iv = scoreIntervals[0];
       if (iv.max === null && s.max === null) {
         // Both N+: shift by the difference
-        return wlEntry.score + (s.min - iv.min);
+        return score + (s.min - iv.min);
       }
       // Bounded range: linearly scale; skip if shapes don't match or input is degenerate
       if (iv.min === null || iv.max === null || s.max === null || iv.min === iv.max) continue;
-      const t = (wlEntry.score - iv.min) / (iv.max - iv.min);
+      const t = (score - iv.min) / (iv.max - iv.min);
       return Math.round(s.min + t * (s.max - s.min));
     }
     return s; // first matching rule wins
   }
-  return wlEntry.score;
+  return score;
 }
