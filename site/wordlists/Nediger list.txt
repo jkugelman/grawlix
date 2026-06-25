@@ -532,6 +532,7 @@ A Night at the Roxbury;51
 A Night in Tunisia;51
 A Night to Remember;51
 A Nightmare on Elm Street;51
+a noble spirit embiggens the smallest man;51
 a nod is as good as a wink;51
 A Noiseless Patient Spider;51
 A Nos Amours;51
@@ -1068,7 +1069,7 @@ Abby Sciuto;51
 Abby Wambach;51
 Abby;99
 ABC book;99
-ABC books;99
+ABC books;51
 abc conjecture;51
 ABC islands;51
 ABC juice;51
@@ -1121,6 +1122,7 @@ Abdul-Jabbar;51
 Abdul-Mateen;51
 Abdul;99
 Abdullah I;51
+Abdullah Ibrahim;51
 Abdullah II;51
 Abdullah;51
 Abdulrazak Gurnah;51
@@ -1507,16 +1509,20 @@ abseil;51
 abseiled;51
 abseiling;51
 abseils;51
+absence of blade;51
 Absence of Malice;51
 absence;99
 absences;51
+absent oneself;25
 absent without leave;51
+absent yourself;51
 absent-minded professor;51
 absent-minded professors;51
 absent-minded;51
 absent-mindedly;51
 absent-mindedness;51
 absent;99
+absented oneself;25
 absented;51
 absentee ballot;51
 absentee ballots;51
@@ -1533,8 +1539,12 @@ absentee;51
 absenteeism;51
 absentees;51
 absentia;25
+absenting oneself;25
+absenting yourself;51
 absenting;51
 absently;51
+absents oneself;25
+absents;51
 absinthe spoon;51
 absinthe spoons;51
 absinthe;51
@@ -1557,6 +1567,7 @@ absolute humidity;51
 absolute immunity;51
 absolute mad lad;51
 absolute mad lads;51
+absolute magnitude;51
 absolute magnitudes;51
 absolute majorities;51
 absolute majority;51
@@ -2021,6 +2032,7 @@ accept credit;51
 accept defeat;51
 accept it;51
 accept no substitutes;51
+accept on faith;51
 accept responsibility;51
 accept the consequences;51
 accept the inevitable;51
@@ -2045,6 +2057,7 @@ accepted as gospel;51
 accepted blame;51
 accepted credit;51
 accepted defeat;51
+accepted on faith;51
 accepted practice;51
 accepted practices;51
 accepted responsibility;51
@@ -2056,6 +2069,7 @@ accepting as gospel;51
 accepting blame;51
 accepting credit;51
 accepting defeat;51
+accepting on faith;51
 accepting responsibility;51
 accepting the consequences;51
 accepting the inevitable;51
@@ -2064,6 +2078,7 @@ accepts as gospel;51
 accepts blame;51
 accepts credit;51
 accepts defeat;51
+accepts on faith;51
 accepts responsibility;51
 accepts the consequences;51
 accepts the inevitable;51
@@ -2089,6 +2104,8 @@ access panel;51
 access panels;51
 access point;51
 access points;51
+access provider;51
+access providers;51
 access road;51
 access roads;51
 access time;51
@@ -2140,6 +2157,7 @@ accident investigators;51
 accident lawyer;51
 accident lawyers;51
 accident of birth;51
+accident of nature;51
 accident report;51
 accident reports;51
 accident waiting to happen;51
@@ -2160,6 +2178,7 @@ accidentally;51
 accidentals;51
 accidents happen;99
 accidents of birth;51
+accidents of nature;51
 accidents waiting to happen;51
 accidents will happen;51
 accidents;51
@@ -2255,6 +2274,7 @@ account book;51
 account books;51
 account executive;51
 account executives;51
+account for;51
 account history;51
 account holder;51
 account holders;51
@@ -2652,6 +2672,7 @@ acoustic covers;51
 acoustic guitar;51
 acoustic guitars;51
 acoustic impedance;51
+acoustic quieting;51
 acoustic tweezers;51
 acoustic;51
 acoustical engineer;51
@@ -2685,14 +2706,18 @@ acquihire;51
 acquihired;51
 acquihires;51
 acquihiring;51
+acquire a reputation;51
 acquire;99
+acquired a reputation;51
 acquired characteristic;51
 acquired characteristics;51
 acquired immunity;51
 acquired taste;99
 acquired tastes;99
 acquired;51
+acquires a reputation;51
 acquires;51
+acquiring a reputation;51
 acquiring;51
 acquisition;51
 acquisitions;51
@@ -2812,6 +2837,7 @@ act out;99
 ACT prep;51
 act strange;51
 act surprised;51
+act the fool;51
 act the part;51
 Act Three;25
 act tough;51
@@ -2850,6 +2876,7 @@ acted out of turn;51
 acted out;51
 acted strange;51
 acted surprised;51
+acted the fool;51
 acted the part;51
 acted tough;51
 acted up a storm;51
@@ -2902,6 +2929,7 @@ acting prime minister;51
 acting prime ministers;51
 acting strange;51
 acting surprised;51
+acting the fool;51
 acting the part;51
 acting tough;51
 acting up a storm;51
@@ -3000,6 +3028,7 @@ active camouflage;51
 active duty;51
 active galactic nuclei;51
 active galactic nucleus;51
+active immunity;51
 active ingredient;51
 active ingredients;51
 active interest;51
@@ -3018,6 +3047,9 @@ active role;51
 active roles;51
 active roster;51
 active rosters;51
+active service;51
+active site;51
+active sites;51
 active transport;51
 active user;51
 active users;51
@@ -3107,6 +3139,7 @@ acts out of turn;51
 acts out;99
 acts strange;51
 acts surprised;51
+acts the fool;51
 acts the part;51
 acts tough;51
 acts up a storm;51
@@ -3114,6 +3147,7 @@ acts up;99
 acts upon;51
 acts weird;51
 acts;99
+actual cash value;51
 actual cost;51
 actual LOL;51
 actual name;51
@@ -3262,6 +3296,8 @@ ad reps;99
 ad revenue;51
 ad sale;51
 ad sales;51
+ad server;51
+ad servers;51
 ad slogan;51
 ad slogans;51
 ad space;99
@@ -3329,6 +3365,7 @@ Adam Elliot;51
 Adam Friedland;51
 Adam Gilchrist;51
 Adam Gopnik;51
+Adam had 'em;51
 Adam Hochschild;51
 Adam Lambert;51
 Adam Levine;51
@@ -3533,6 +3570,7 @@ address book;51
 address books;51
 address label;51
 address labels;51
+address not found;51
 address the ball;51
 address the crowd;51
 Address to a Haggis;51
@@ -3889,6 +3927,8 @@ admission of guilt;51
 admission;51
 admissions of guilt;51
 admissions office;51
+admissions officer;51
+admissions officers;51
 admissions offices;51
 admissions;51
 admit defeat;99
@@ -6701,6 +6741,7 @@ Alan Walker;51
 Alan Watts;51
 Alan-a-Dale;51
 Alan;99
+Alana Beard;51
 Alana de la Garza;51
 Alana Haim;51
 Alana;51
@@ -8286,6 +8327,7 @@ alley;99
 alleys;99
 alleyway;51
 alleyways;51
+allez cuisine;51
 allez;51
 Allfather;51
 Allhallowtide;51
@@ -10882,6 +10924,7 @@ andante moderato;51
 andante;99
 andantes;51
 andantino;51
+Andean Community;51
 Andean condor;51
 Andean condors;51
 Andean;99
@@ -11093,6 +11136,7 @@ ands;99
 Andy Bernard;51
 Andy Beshear;51
 Andy Borowitz;51
+Andy Burnham;51
 Andy Capp;51
 Andy Cohen;51
 Andy Daly;51
@@ -12673,6 +12717,7 @@ anthroposophy;51
 anthurium;51
 anthuriums;51
 anti-abortion;51
+anti-academic;51
 anti-acne;51
 anti-ageing cream;25
 anti-ageing creams;25
@@ -13340,6 +13385,7 @@ anxiety-ridden;51
 anxiety;99
 anxiolytic;51
 anxiolytics;51
+anxious attachment;51
 anxious;99
 anxiously;51
 anxiousness;51
@@ -14199,7 +14245,11 @@ apple-pie order;51
 apple;99
 Applebaum;51
 Applebee's;51
+AppleBottom jeans;51
+AppleBottom;51
+AppleBottoms;51
 Applebroog;51
+Applebum;51
 Appleby;51
 AppleCare;51
 Applegate;51
@@ -20422,6 +20472,7 @@ avoidable;51
 avoidably;51
 avoidance speech;51
 avoidance;51
+avoidant attachment;51
 avoidant personality disorder;51
 avoidant personality;51
 avoidant;51
@@ -20486,6 +20537,7 @@ aw gee;51
 aw geez;51
 aw heck;51
 aw hell;51
+aw here it goes;51
 aw how sweet;51
 aw jeez;51
 aw man;51
@@ -21813,6 +21865,8 @@ backrest;51
 backrests;51
 backronym;99
 backronyms;99
+backroom deal;51
+backroom deals;51
 backroom;51
 backrooms;51
 backrub;99
@@ -27787,6 +27841,7 @@ beeves;51
 Beez in the Trap;51
 Beez;25
 Beezus and Ramona;51
+Beezus Quimby;51
 Beezus;51
 befall;99
 befallen;51
@@ -32385,6 +32440,7 @@ black bag;51
 black bags;51
 Black Bart;51
 Black Bat;51
+black bean paste;51
 black bean;51
 black beans;51
 black bear;51
@@ -35891,6 +35947,7 @@ boning knives;51
 boning up on;51
 boning up;51
 boning;51
+Bonita Applebum;51
 bonita;51
 bonito flakes;51
 bonito;99
@@ -38524,6 +38581,8 @@ bratty;99
 bratwurst;51
 bratwursts;51
 Bratz;51
+Bratzilla;51
+Bratzillaz;51
 Bratzooka;51
 Brau;25
 Braudel;51
@@ -38762,6 +38821,7 @@ break containment;51
 break down;51
 break even;51
 Break Every Rule;51
+break eye contact;51
 break free;51
 break ground;51
 break in;99
@@ -38913,6 +38973,7 @@ breaking containment;51
 Breaking Dawn;51
 breaking down;51
 breaking even;51
+breaking eye contact;51
 breaking free;51
 breaking ground;51
 breaking in;51
@@ -38998,6 +39059,7 @@ breaks character;51
 breaks containment;51
 breaks down;51
 breaks even;51
+breaks eye contact;51
 breaks free;51
 breaks ground;51
 breaks in;51
@@ -40422,6 +40484,7 @@ broke character;51
 broke containment;51
 broke down;51
 broke even;51
+broke eye contact;51
 broke free;51
 broke ground;51
 broke in;51
@@ -41614,6 +41677,8 @@ budding artist;99
 budding artists;99
 budding genius;51
 budding geniuses;51
+budding romance;99
+budding romances;99
 budding;99
 Buddleia;51
 buddy boy;51
@@ -45608,6 +45673,7 @@ came close;51
 came correct;51
 came down on;51
 came down the pike;51
+came down to earth;51
 came down with;51
 came down;51
 came due;99
@@ -49474,6 +49540,8 @@ cat owner;51
 cat owners;51
 cat parent;51
 cat parents;51
+cat paw;99
+cat paws;99
 Cat People Putting Out Fire;51
 cat people;51
 cat person;51
@@ -55432,6 +55500,8 @@ chooses wisely;51
 chooses;99
 choosier;51
 choosiest;51
+Choosin' Texas;51
+Choosin';25
 choosiness;51
 choosing at random;51
 choosing one's fighter;25
@@ -57515,6 +57585,7 @@ clarions;51
 Clarissa Dalloway;51
 Clarissa Eden;51
 Clarissa Explains It All;51
+Clarissa or The History of a Young Lady;51
 Clarissa;51
 Claritin;51
 clarity;99
@@ -58961,6 +59032,8 @@ close encounters;51
 close enough for government work;51
 close enough for jazz;51
 close enough;99
+close finish;51
+close finishes;51
 close friend;51
 close friends;51
 close friendship;51
@@ -60764,6 +60837,7 @@ cold shower;51
 cold showers;51
 cold snap;51
 cold snaps;51
+cold soba;51
 cold sore;51
 cold sores;51
 cold spell;51
@@ -60781,6 +60855,7 @@ cold temperature;51
 cold temperatures;51
 cold to the touch;51
 cold turkey;51
+cold udon;51
 cold virus;51
 Cold War era;51
 Cold War Kids;51
@@ -61740,6 +61815,7 @@ come correct;51
 Come Dancing;51
 come down on;51
 come down the pike;51
+come down to earth;51
 come down with;51
 come down;51
 come due;99
@@ -62043,6 +62119,7 @@ comes close;51
 comes correct;51
 comes down on;51
 comes down the pike;51
+comes down to earth;51
 comes down with;51
 comes down;51
 comes due;99
@@ -62296,6 +62373,7 @@ coming close;51
 coming correct;51
 coming down on;51
 coming down the pike;51
+coming down to earth;51
 coming down with;51
 coming down;51
 coming due;99
@@ -66652,6 +66730,10 @@ core beliefs;51
 core business;51
 core competencies;51
 core competency;51
+core component;51
+core components;51
+core constituencies;51
+core constituency;51
 core curriculum;51
 core drill;51
 core drills;51
@@ -68761,6 +68843,12 @@ covetousness;51
 covets;99
 covey;51
 coveys;51
+COVID booster;51
+COVID boosters;51
+COVID shot;51
+COVID shots;51
+COVID vaccine;51
+COVID vaccines;51
 COVID;25
 Covina;25
 Covington Kentucky;51
@@ -71087,6 +71175,8 @@ croupiness;51
 croupy;51
 crouton;99
 croutons;51
+crow hop;51
+crow hops;51
 Crow language;51
 crow pose;51
 Crow T Robot;51
@@ -79874,6 +79964,7 @@ desperate measures;51
 desperate times call for desperate measures;51
 desperate times;51
 desperate;51
+desperately needed;51
 desperately;51
 desperation pie;51
 desperation pies;51
@@ -80176,6 +80267,8 @@ detour ahead;51
 detour;99
 detoured;51
 detouring;51
+detournement;51
+detournements;51
 detours;99
 detox diet;51
 detox diets;51
@@ -81223,6 +81316,7 @@ did one's best;25
 did one's business;25
 did one's damnedest;25
 did one's darnedest;25
+did one's job;25
 did one's level best;25
 did one's part;25
 did one's thing;25
@@ -81722,6 +81816,7 @@ digital dark age;51
 digital darkroom;51
 digital data;51
 digital deaging;51
+digital democracy;51
 digital detox;51
 digital detoxes;51
 digital display;51
@@ -82379,6 +82474,8 @@ dire;99
 direct action;51
 direct billing;51
 direct cinema;51
+direct consequence;51
+direct consequences;51
 direct contact;51
 direct contrast;51
 direct contrasts;51
@@ -82762,7 +82859,9 @@ disapprovingly;51
 disarm;99
 disarmament;51
 disarmed;51
+disarming honesty;51
 disarming;51
+disarmingly honest;51
 disarmingly;51
 disarms;99
 Disaronno;51
@@ -83530,6 +83629,7 @@ Disney princess;51
 Disney princesses;51
 Disney Renaissance;51
 Disney University;51
+Disney Vault;51
 Disney villain;51
 Disney villains;51
 Disney World;51
@@ -84673,6 +84773,7 @@ do one's best;25
 do one's business;25
 do one's damnedest;25
 do one's darnedest;25
+do one's job;25
 do one's level best;25
 do one's part;25
 do one's thing;25
@@ -84814,6 +84915,7 @@ do your business;51
 do your damnedest;51
 do your darnedest;51
 do your homework;51
+do your job;51
 do your level best;51
 do your part;51
 do your stuff;51
@@ -85145,6 +85247,7 @@ does one's best;25
 does one's business;25
 does one's damnedest;25
 does one's darnedest;25
+does one's job;25
 does one's level best;25
 does one's part;25
 does one's thing;25
@@ -85566,6 +85669,7 @@ doing one's best;25
 doing one's business;25
 doing one's damnedest;25
 doing one's darnedest;25
+doing one's job;25
 doing one's level best;25
 doing one's part;25
 doing one's thing;25
@@ -85615,6 +85719,7 @@ doing your best;51
 doing your business;51
 doing your damnedest;51
 doing your darnedest;51
+doing your job;51
 doing your level best;51
 doing your part;51
 doing your thing;51
@@ -86045,6 +86150,7 @@ don't bother;51
 don't breathe a word;51
 Don't Breathe;51
 Don't Bring Me Down;51
+don't call it a comeback;51
 don't call us we'll call you;51
 don't care didn't ask;51
 don't care;51
@@ -86052,6 +86158,7 @@ Don't Cha;51
 don't change the subject;51
 don't come a-knockin';51
 don't come back;51
+Don't Copy That Floppy;51
 don't count on it;51
 don't cramp my style;51
 Don't Cry for Me Argentina;51
@@ -86425,6 +86532,7 @@ Donna Haraway;51
 Donna Hayward;51
 Donna Karan;51
 Donna Kelce;51
+Donna Lee;51
 Donna Lewis;51
 Donna Mills;51
 Donna Murphy;51
@@ -86827,6 +86935,8 @@ Dostoevskian;51
 Dostoevsky;51
 dot bomb;51
 dot bombs;51
+dot cake;99
+dot cakes;51
 dot dot dot;51
 dot matrix printer;51
 dot matrix printers;51
@@ -86905,6 +87015,10 @@ Double Asteroid Redirection Test;51
 double axel;51
 double axels;51
 double back;51
+double bag;51
+double bagged;51
+double bagging;51
+double bags;51
 double bass;51
 double basses;51
 double bed;51
@@ -88111,6 +88225,7 @@ dragonet;51
 dragonets;51
 dragonfire;51
 dragonflies;51
+Dragonfly Inn;51
 dragonfly;51
 DragonForce;51
 Dragonheart;51
@@ -88304,6 +88419,7 @@ draw a blank;51
 draw a crowd;51
 draw a line;51
 draw a picture;51
+draw ahead;51
 draw and quarter;25
 draw attention to;51
 draw away;51
@@ -88344,6 +88460,7 @@ drawback;51
 drawbacks;51
 drawbar;51
 drawbars;51
+drawbridge ahead;51
 drawbridge;51
 drawbridges;51
 drawdowns;51
@@ -88357,6 +88474,7 @@ drawing a blank;51
 drawing a crowd;51
 drawing a line;51
 drawing a picture;51
+drawing ahead;51
 drawing and quartering;25
 drawing attention to;51
 drawing away;51
@@ -88427,6 +88545,7 @@ draws a blank;51
 draws a crowd;51
 draws a line;51
 draws a picture;51
+draws ahead;51
 draws and quarters;25
 draws attention to;51
 draws away;51
@@ -88727,6 +88846,7 @@ drew a blank;51
 drew a crowd;51
 drew a line;51
 drew a picture;51
+drew ahead;51
 drew and quartered;25
 drew attention to;51
 drew away;51
@@ -89297,6 +89417,7 @@ drop cookie;51
 drop cookies;51
 drop D tuning;51
 drop D;25
+Drop Dead Fred;51
 drop dead gorgeous;51
 drop dead;51
 drop down;51
@@ -89343,6 +89464,7 @@ drop the bass;51
 drop the formalities;51
 drop the gloves;51
 drop the hammer;51
+drop the L-bomb;51
 drop the mic;99
 Drop the Pilot;51
 drop the subject;51
@@ -89415,6 +89537,7 @@ dropped the bass;51
 dropped the formalities;51
 dropped the gloves;51
 dropped the hammer;51
+dropped the L-bomb;51
 dropped the mic;51
 dropped the subject;51
 dropped trou;51
@@ -89454,6 +89577,7 @@ dropping the bass;51
 dropping the formalities;51
 dropping the gloves;51
 dropping the hammer;51
+dropping the L-bomb;51
 dropping the mic;51
 dropping the subject;51
 dropping trou;51
@@ -89495,6 +89619,7 @@ drops the bass;51
 drops the formalities;51
 drops the gloves;51
 drops the hammer;51
+drops the L-bomb;51
 drops the mic;51
 drops the subject;51
 drops trou;51
@@ -90198,6 +90323,8 @@ duck tacos;51
 duck test;51
 duck the issue;51
 duck the question;51
+duck tour;51
+duck tours;51
 Duck You Sucker;51
 duck-billed platypi;51
 duck-billed platypus;51
@@ -93137,6 +93264,7 @@ Edwin Land;51
 Edwin Lutyens;51
 Edwin Meese;51
 Edwin Moses;51
+Edwin S Porter;51
 Edwin Stanton;51
 Edwin;99
 Edwina;51
@@ -94766,6 +94894,7 @@ Ella Enchanted;51
 Ella Fitzgerald;51
 Ella Grasso;51
 Ella Henderson;51
+Ella Langley;51
 Ella Mae;51
 Ella Mai;51
 Ella Minnow Pea;51
@@ -96233,6 +96362,7 @@ end user;99
 end users;51
 end uses;99
 end well;99
+end with a bang;51
 end zone;99
 end zones;51
 end-all;51
@@ -96281,6 +96411,7 @@ ended on a high note;51
 ended on;25
 ended up;99
 ended well;51
+ended with a bang;51
 ended;99
 endemic;99
 endemism;51
@@ -96310,6 +96441,7 @@ ending on a high note;51
 ending on;25
 ending up;51
 ending well;51
+ending with a bang;51
 ending;99
 endings;99
 endive salad;51
@@ -96435,6 +96567,7 @@ ends on a high note;51
 ends on;25
 ends up;99
 ends well;51
+ends with a bang;51
 ends;99
 Endtroducing;51
 endue;25
@@ -96821,7 +96954,6 @@ enjoys life;51
 enjoys oneself;25
 enjoys responsibly;51
 enjoys;99
-Enkidu;51
 Enkidu;51
 enkindle;51
 enkindled;51
@@ -98324,6 +98456,8 @@ escape acts;51
 escape artist;51
 escape artistry;51
 escape artists;51
+escape attempt;51
+escape attempts;51
 escape capsule;51
 escape capsules;51
 escape character;51
@@ -98385,6 +98519,7 @@ eschatological;51
 eschatologically;51
 eschatologies;51
 eschatology;51
+eschaton;51
 Escher;51
 Escheresque;51
 Escherichia coli;51
@@ -98508,7 +98643,7 @@ ESPNU;51
 Espo;51
 Espoo Finland;51
 Espoo;51
-Espookys;51
+Espookys;25
 esport;99
 esports league;51
 esports leagues;51
@@ -102454,6 +102589,8 @@ fair complexion;51
 fair complexions;51
 fair copies;51
 fair copy;51
+fair crack of the whip;51
+fair cracks of the whip;51
 Fair Deal;51
 fair dealing;51
 fair dinkum;51
@@ -104473,6 +104610,7 @@ favicons;51
 faving;99
 favor;99
 favorability;51
+favorable circumstances;51
 favorable position;51
 favorable positions;51
 favorable reception;51
@@ -104497,6 +104635,7 @@ favoritism;51
 favors;99
 favour;25
 favourability;25
+favourable circumstances;25
 favourable position;25
 favourable positions;25
 favourable reception;25
@@ -104598,6 +104737,8 @@ FB Story;51
 FB;51
 FBI agent;51
 FBI agents;51
+FBI director;51
+FBI directors;51
 FBI Most Wanted;51
 FBI open up;51
 FBI surveillance van;51
@@ -108469,6 +108610,7 @@ fiscally;51
 Fischer;51
 Fischerspooner;51
 Fischler;51
+fish 'n' chips;51
 fish allergies;51
 fish allergy;51
 fish and chips;51
@@ -108698,6 +108840,7 @@ fit the bill;51
 fit the mold;51
 fit the mould;25
 fit the narrative;51
+fit the profile;51
 fit to a T;51
 fit to a tee;51
 fit to be tied;51
@@ -108746,6 +108889,7 @@ fits the bill;51
 fits the mold;51
 fits the mould;25
 fits the narrative;51
+fits the profile;51
 fits to a T;51
 fits to a tee;51
 fits together;51
@@ -108768,6 +108912,7 @@ fitting the bill;51
 fitting the mold;51
 fitting the mould;25
 fitting the narrative;51
+fitting the profile;51
 fitting to a T;51
 fitting to a tee;51
 fitting together;51
@@ -112061,6 +112206,7 @@ for no reason at all;51
 for no reason;51
 for nothing;51
 for now;99
+for obvious reasons;51
 for official use only;51
 for old times' sake;99
 for once and for all;51
@@ -113159,6 +113305,8 @@ forums;99
 Forvo;51
 forward compatibility;51
 forward compatible;51
+forward lunge;51
+forward lunges;51
 forward march;51
 forward motion;51
 forward pass;51
@@ -114455,6 +114603,8 @@ free runner;51
 free runners;51
 free running;51
 free runs;51
+free safeties;51
+free safety;51
 free sample;51
 free samples;51
 free shipping;51
@@ -116094,6 +116244,7 @@ fuck y'all;49
 fuck yeah;49
 fuck yes;49
 fuck you I got mine;49
+fuck you I won't do what you tell me;49
 fuck you money;49
 fuck you very much;49
 fuck you;49
@@ -117987,6 +118138,7 @@ game warden;51
 game wardens;51
 game winner;51
 game winners;51
+game within a game;51
 game-changing;51
 game-day decision;51
 game-day decisions;51
@@ -120721,6 +120873,7 @@ get ideas;51
 get in here;51
 get in hot water;51
 get in line;51
+get in on the action;51
 get in on the ground floor;51
 get in on;51
 get in one's own way;25
@@ -120839,6 +120992,7 @@ get out while the getting's good;51
 get out;99
 get outta here;51
 Get Outta My Dreams Get into My Car;51
+get over here;51
 get over it;51
 get over oneself;25
 get over the line;51
@@ -121122,6 +121276,7 @@ gets hype;51
 gets ideas;51
 gets in hot water;51
 gets in line;51
+gets in on the action;51
 gets in on the ground floor;51
 gets in on;51
 gets in one's own way;25
@@ -121424,6 +121579,7 @@ getting hype;51
 getting ideas;51
 getting in hot water;51
 getting in line;51
+getting in on the action;51
 getting in on the ground floor;51
 getting in on;51
 getting in one's own way;25
@@ -122093,6 +122249,7 @@ gigawatts;51
 Giger;51
 gigged;99
 gigging;99
+giggity;51
 giggle fit;99
 giggle fits;99
 giggle;99
@@ -123866,6 +124023,7 @@ go against;51
 go ahead I can take it;51
 go ahead laugh;51
 go ahead make my day;51
+go ahead shoot;51
 go ahead with;51
 go ahead;99
 go all in;99
@@ -124329,6 +124487,8 @@ Goans;51
 goat butter;51
 goat cheese;51
 goat cheeses;51
+GOAT debate;51
+GOAT debates;51
 goat farm;51
 goat farmer;51
 goat farmers;51
@@ -125513,6 +125673,8 @@ Golden Leopards;51
 Golden Lion;51
 Golden Lions;51
 golden mean;51
+golden mole;51
+golden moles;51
 golden nightjar;51
 golden nightjars;51
 Golden Nugget;51
@@ -126747,6 +126909,7 @@ got hype;99
 got ideas;51
 got in hot water;51
 got in line;51
+got in on the action;51
 got in on the ground floor;51
 got in on;99
 got in one's own way;25
@@ -127450,6 +127613,8 @@ grammatical case;51
 grammatical cases;51
 grammatical categories;51
 grammatical category;51
+grammatical constituent;51
+grammatical constituents;51
 grammatical error;51
 grammatical errors;51
 grammatical gender;51
@@ -128904,6 +129069,7 @@ greenscreens;51
 greenskeeper;51
 greenskeepers;51
 Greensleeves;51
+Greenspan put;51
 Greenspan;51
 Greenstreet;51
 greentext;51
@@ -130230,14 +130396,20 @@ guerrilla forces;51
 Guerrilla Girls;51
 guerrilla marketing;51
 guerrilla tactics;51
+guerrilla testing;51
 guerrilla theater;51
 guerrilla theatre;51
+guerrilla usability test;51
+guerrilla usability testing;51
+guerrilla usability tests;51
 guerrilla warfare;51
 guerrilla;51
 guerrillas;51
 Guerrillero Heroico;51
 Guerrillero;51
 guess again;99
+guess it wasn't meant to be;51
+guess it's not meant to be;51
 Guess Jeans;51
 guess not;51
 guess so;99
@@ -132371,6 +132543,9 @@ hallucinogenic drugs;51
 hallucinogenic;51
 hallucinogens;51
 hallux;51
+hallway test;51
+hallway testing;51
+hallway tests;51
 hallway;99
 hallways;51
 Hallyday;51
@@ -136047,8 +136222,6 @@ heatable;51
 heated argument;51
 heated arguments;51
 heated blanket;51
-heated blanket;51
-heated blankets;51
 heated blankets;51
 heated rivalries;51
 heated rivalry;51
@@ -136870,6 +137043,8 @@ help page;51
 help pages;51
 help up;99
 help us;99
+help wanted ad;51
+help wanted ads;51
 help wanted sign;51
 help wanted signs;51
 help wanted;51
@@ -137169,6 +137344,7 @@ Henry Wadsworth Longfellow;51
 Henry Wallace;51
 Henry Ward Beecher;51
 Henry Winkler;51
+Henry Winston;51
 Henry's law;51
 Henry's;25
 Henry;99
@@ -138472,6 +138648,7 @@ higher purpose;51
 higher-grossing;51
 higher-level;51
 higher-order logic;51
+higher-order thinking;51
 higher-order;51
 higher-pitched;51
 higher-priority;51
@@ -145106,6 +145283,7 @@ I feel great;99
 I Feel It Coming;51
 I feel it in my bones;51
 I feel like a kid again;51
+I feel like chicken tonight;51
 I feel like such an asshole;49
 I feel like;99
 I Feel Love;51
@@ -145524,6 +145702,7 @@ I Loves You Porgy;51
 I lucked out;99
 I luv U;51
 I M Pei;51
+I made a funny;51
 I made it up;99
 I made it;99
 I made that part up;99
@@ -146286,6 +146465,7 @@ I'll give it a shot;99
 I'll give you an example;51
 I'll give you one guess;51
 I'll give you that;99
+I'll gladly pay you Tuesday for a hamburger today;51
 I'll go first;99
 I'll go next;99
 I'll go;99
@@ -148390,6 +148570,7 @@ illumined;51
 illumines;51
 illumining;51
 illusion of choice;51
+illusion of depth;51
 illusion;51
 illusionism;51
 illusionist;51
@@ -151215,6 +151396,8 @@ indagated;51
 indagates;51
 indagating;51
 indagation;51
+Inde Navarrette;51
+Inde;51
 indebted to;51
 indebted;51
 indebtedness;51
@@ -151264,6 +151447,10 @@ indefinitely;51
 indefiniteness;51
 indelibility;51
 indelible ink;51
+indelible mark;51
+indelible marks;51
+indelible pencil;51
+indelible pencils;51
 indelible;51
 indelibly;51
 indelicacy;51
@@ -151352,6 +151539,8 @@ index fund;51
 index funds;51
 index futures;51
 Index Librorum Prohibitorum;51
+index number;51
+index numbers;51
 Index of Economic Freedom;51
 index of refraction;51
 index;99
@@ -156102,6 +156291,7 @@ Ishmael Reed;51
 Ishmael;51
 Ishmaelite;51
 Ishmaelites;51
+IShowSpeed;51
 ishq;51
 Ishtar Gate;51
 Ishtar;51
@@ -156974,7 +157164,10 @@ it's Greek to me;99
 it's growing on me;99
 it's handled;51
 It's Hard Out Here for a Pimp;51
+it's hard to explain;51
 it's hard to imagine;51
+it's hard to say;51
+it's hard to tell;51
 it's hard;99
 it's here;99
 it's high time;99
@@ -157087,10 +157280,18 @@ it's not going to happen;51
 it's not gonna happen;51
 it's not here;51
 it's not ideal;99
+it's not if but when;51
 it's not important;99
 it's not just you;99
+it's not like that;99
+it's not meant to be;51
+it's not much to look at;51
 it's not my business;51
+it's not my cup of tea;51
+it's not my day;51
+it's not my department;51
 it's not my fault;99
+it's not my finest work;51
 it's not my first rodeo;51
 it's not my place to say;51
 it's not my problem;99
@@ -157102,11 +157303,14 @@ it's not personal;99
 it's not polite to stare;51
 it's not possible;99
 It's Not Right But It's Okay;51
+it's not right;51
 it's not rocket science;51
 it's not rocket surgery;51
 it's not safe;99
+it's not set in stone;51
 it's not so bad is it;99
 it's not so bad;51
+it's not that bad;51
 it's not that big a deal;51
 it's not that complicated;51
 it's not that deep;99
@@ -157129,7 +157333,9 @@ it's not you it's me;99
 it's not you;99
 it's not your fault;99
 it's not your imagination;51
+it's not your problem;51
 it's nothing fancy;51
+it's nothing new;51
 it's nothing personal;51
 it's nothing really;51
 it's nothing;99
@@ -157169,6 +157375,7 @@ it's open;99
 it's our song;99
 it's our year;99
 it's out of my hands;99
+it's out of our hands;51
 it's outta here;99
 it's over already;51
 it's over;99
@@ -157194,7 +157401,9 @@ it's right up your alley;51
 it's sad;99
 it's safe;99
 it's satire;99
+it's self-expanatory;51
 it's serious;99
+it's settled;51
 it's shocking;99
 it's showtime folks;51
 it's showtime;99
@@ -157645,6 +157854,7 @@ J Smith-Cameron;51
 J T Walsh;51
 J to tha L-O the Remixes;51
 J to tha L-O;51
+J Wellington Wimpy;51
 j'accuse;99
 J'adore Dior;51
 J'adore;51
@@ -160006,6 +160216,7 @@ jiggety-jig;51
 jiggety-jog;51
 jigging;51
 jiggle mode;51
+jiggle physics;51
 jiggle;99
 jiggled;99
 jiggles;99
@@ -160339,6 +160550,8 @@ Joaquin Sorolla;51
 Joaquin;99
 Joaquina Kalukango;51
 Joaquina;51
+job action;51
+job actions;51
 job advertisement;51
 job advertisements;51
 job app;99
@@ -161375,6 +161588,8 @@ Joplin;51
 Jor-El;51
 Jordache;51
 Jordaens;51
+Jordan almond;51
+Jordan almonds;51
 Jordan Baker;51
 Jordan Belfort;51
 Jordan Eberle;51
@@ -163308,6 +163523,7 @@ Kamal Haasan;51
 Kamal;51
 Kamala Harris;51
 Kamala Khan;51
+Kamala Markandaya;51
 Kamala;51
 Kamali;51
 Kamasi Washington;51
@@ -164130,6 +164346,7 @@ keep talking;99
 keep telling yourself that;51
 keep the ball rolling;51
 Keep the Car Running;51
+keep the change ya filthy animal;51
 keep the change;99
 Keep the Customer Satisfied;51
 keep the dream alive;51
@@ -166340,6 +166557,7 @@ King Richard I;51
 King Richard II;51
 King Richard III;51
 King Richard;51
+King Roger;51
 king salmon;51
 king shit;49
 king snake;51
@@ -168154,6 +168372,7 @@ Krasner;51
 Krasnoyarsk Russia;51
 Krasnoyarsk;51
 Krasznahorkai;51
+kratom;51
 Kratos;51
 Kraus;51
 Krause;51
@@ -173937,6 +174156,7 @@ Lego person;51
 Lego set;99
 Lego sets;51
 Lego Star Wars;51
+Lego Technic;51
 Lego;99
 Legoland;51
 Legolas;51
@@ -174125,6 +174345,7 @@ lemon square;51
 lemon squares;51
 lemon squeezer;99
 lemon squeezers;99
+lemon squeezy;51
 lemon tart;51
 lemon tarts;51
 lemon tea;51
@@ -174449,6 +174670,8 @@ Leppard;51
 leprechaun;99
 leprechauns;99
 leprosy;25
+Leptis Magna;51
+Leptis;25
 lepton;51
 leptons;51
 Lepus;25
@@ -175670,6 +175893,7 @@ library fines;51
 Library Genesis;51
 Library of Alexandria;51
 Library of Congress;51
+library paste;51
 library science;51
 library stacks;51
 library;99
@@ -175690,6 +175914,7 @@ librocubicularists;51
 libros;51
 libs out;99
 libs;99
+Libsyn;51
 Libya;99
 Libyan Airlines;51
 Libyan American;51
@@ -177381,6 +177606,7 @@ lines of thought;51
 lines of verse;51
 lines of vision;51
 lines of work;51
+Lines on the Antiquity of Microbes;51
 lines one's pockets;25
 lines out;51
 lines per minute;51
@@ -177756,6 +177982,8 @@ lipstick feminism;51
 lipstick feminist;51
 lipstick feminists;51
 Lipstick Jungle;51
+lipstick kiss;51
+lipstick kisses;51
 lipstick lesbian;99
 lipstick lesbians;51
 Lipstick Lover;51
@@ -178254,6 +178482,8 @@ litter bearers;51
 litter size;51
 litter tray;51
 litter trays;51
+Litter-Robot;51
+Litter-Robots;51
 litter;99
 litterateur;51
 litterateurs;51
@@ -180233,6 +180463,7 @@ long position;51
 long positions;51
 long rallies;51
 long rally;51
+long reach;51
 long reliever;51
 long relievers;51
 long run;51
@@ -180244,6 +180475,8 @@ long since;51
 long skirt;51
 long skirts;51
 long sleeves;51
+long snapper;51
+long snappers;51
 Long Soldier;51
 long stories;51
 long story short;99
@@ -180382,6 +180615,7 @@ long-term relationship;51
 long-term relationships;51
 long-term solution;51
 long-term solutions;51
+long-unreleased;51
 long-winded;99
 long-windedness;51
 long;99
@@ -184829,6 +185063,7 @@ made ends meet;51
 made excellent time;51
 made excuses for;51
 made excuses;51
+made eye contact;51
 made eyes at;51
 made faces;51
 made famous;51
@@ -184892,6 +185127,7 @@ made it;99
 made known;51
 made landfall;51
 made laugh;51
+made life worth living;51
 made light of;51
 made light work of;51
 made like;51
@@ -185817,14 +186053,18 @@ mainstreamed;51
 mainstreaming;51
 mainstreams;51
 maintain control;51
+maintain eye contact;51
 maintain;51
 maintainability;51
 maintainable;51
 maintained control;51
+maintained eye contact;51
 maintained;51
 maintaining control;51
+maintaining eye contact;51
 maintaining;51
 maintains control;51
+maintains eye contact;51
 maintains;51
 maintenance crew;51
 maintenance crews;51
@@ -186189,6 +186429,7 @@ make ends meet;51
 make excellent time;51
 make excuses for;51
 make excuses;51
+make eye contact;51
 make eyes at;51
 make faces;51
 make famous;51
@@ -186252,6 +186493,7 @@ make it;99
 make known;51
 make landfall;51
 make laugh;51
+make life worth living;51
 make light of;51
 make light work of;51
 make like a banana and split;51
@@ -186569,6 +186811,7 @@ makes ends meet;51
 makes excellent time;51
 makes excuses for;51
 makes excuses;51
+makes eye contact;51
 makes eyes at;51
 makes faces;51
 makes famous;51
@@ -186620,6 +186863,7 @@ makes it;99
 makes known;51
 makes landfall;51
 makes laugh;51
+makes life worth living;51
 makes light of;51
 makes light work of;51
 makes like;51
@@ -186942,6 +187186,7 @@ making ends meet;51
 making excellent time;51
 making excuses for;51
 making excuses;51
+making eye contact;51
 making eyes at;51
 making faces;51
 making famous;51
@@ -186995,6 +187240,7 @@ making it;51
 making known;51
 making landfall;51
 making laugh;51
+making life worth living;51
 making light of;51
 making light work of;51
 making like;51
@@ -188929,6 +189175,7 @@ Marillion;51
 Marilu Henner;51
 Marilu;51
 Marilyn Chambers;51
+Marilyn Diptych;51
 Marilyn French;51
 Marilyn Hacker;51
 Marilyn Horne;51
@@ -189159,6 +189406,7 @@ Mark-Paul;51
 mark-to-market accounting;51
 mark-to-market;51
 mark;99
+Markandaya;51
 markdown;51
 markdowns;51
 marked as read;51
@@ -191917,6 +192165,8 @@ mechitza;51
 mechitzas;51
 Mecklenburg;51
 mecum;25
+med bay;99
+med bays;99
 Med Hondo;51
 med school;51
 med schools;51
@@ -192062,6 +192312,8 @@ medical assistants;51
 medical attention;51
 medical bag;51
 medical bags;51
+medical bay;51
+medical bays;51
 medical bill;51
 medical bills;51
 medical cannabis;51
@@ -194633,7 +194885,6 @@ mickeys;51
 Mickiewicz;51
 Micklin;51
 Micky Dolenz;51
-Micky Dolenz;51
 Micky;51
 micro bangs;51
 micro IPA;51
@@ -195271,6 +195522,7 @@ miffed;99
 miffing;99
 Mifflin;51
 miffs;99
+Miffy;51
 Mifune;51
 MiG;51
 migas;51
@@ -196042,6 +196294,7 @@ Mina Harker;51
 Mina Kimes;51
 Mina Loy;51
 Mina Murray;51
+Mina the Hollower;51
 Mina;51
 Minaj;51
 Minamoto clan;51
@@ -198087,6 +198340,8 @@ mixed with;51
 mixed-breed dog;51
 mixed-breed dogs;51
 mixed-breed;51
+mixed-gender education;51
+mixed-gender;51
 Mixed-ish;51
 mixed-sex education;51
 mixed-sex;51
@@ -204666,6 +204921,7 @@ Naruhito;51
 Naruse;51
 Naruto run;99
 Naruto;51
+narutomaki;51
 Narvaez;51
 narwhal tusk;51
 narwhal tusks;51
@@ -205367,6 +205623,7 @@ Navalny;51
 Navaratri;51
 Navarone;51
 Navarre;51
+Navarrette;51
 Navarro;51
 navbar;51
 navbars;51
@@ -205494,6 +205751,8 @@ NBA draft;51
 NBA drafts;51
 NBA dynasties;51
 NBA dynasty;51
+NBA Finals MVP;51
+NBA Finals MVPs;51
 NBA finals;51
 NBA game;99
 NBA games;51
@@ -205815,6 +206074,7 @@ necromantic;51
 necropolis;51
 necropolises;51
 necros;51
+Nectar in a Sieve;51
 nectar of the gods;99
 nectar;99
 nectarine juice;51
@@ -206625,6 +206885,7 @@ neurodivergence;51
 neurodivergent;51
 neurodiverse;99
 neurodiversity;99
+neurofeedback;51
 neuroglia;51
 neuroimaging;51
 neurolinguist;51
@@ -208281,6 +208542,8 @@ Nilla Wafer;51
 Nilla Wafers;51
 Nilla;51
 nilly;25
+nilometer;51
+nilometers;51
 Nils Lofgren;51
 Nils;51
 Nilsson;51
@@ -208462,6 +208725,7 @@ Nintendo Wiis;51
 Nintendo;51
 Nintendocore;51
 Nintendogs;51
+Nintendon't;51
 Nintendos;51
 Ninth Amendment;51
 ninth commandment;51
@@ -212336,6 +212600,8 @@ Obadiah;51
 Obama era;51
 Obama;99
 Obamacare;51
+Obamacrat;51
+Obamacrats;51
 Obamalisk;51
 Obamas;99
 obbligati;51
@@ -213627,6 +213893,8 @@ offshore rig;51
 offshore rigs;51
 offshore;51
 offshoring;51
+offside trap;51
+offside traps;51
 offside;99
 offspring;51
 offstage;51
@@ -214741,6 +215009,7 @@ omissible;51
 omission;51
 omissions;51
 omissive;51
+omit needless words;51
 omit;99
 omits;99
 omitted;99
@@ -216086,6 +216355,7 @@ Only God Forgives;51
 Only Happy When It Rains;51
 only human;99
 only if you want to;51
+Only in Dreams;51
 Only in My Dreams;51
 only in New York;99
 only joking;51
@@ -220989,6 +221259,7 @@ pad Thai;99
 pad;99
 Padalecki;51
 Padam Padam;51
+Padam;25
 Padawan;51
 Padawans;51
 padded bra;51
@@ -221868,6 +222139,7 @@ Pamela Des Barres;51
 Pamela Hayden;51
 Pamela Long;51
 Pamela Mitford;51
+Pamela or Virtue Rewarded;51
 Pamela Sue Martin;51
 Pamela Sue;51
 Pamela Voorhees;51
@@ -224166,6 +224438,7 @@ password policy;51
 password protection;51
 password reset;51
 password resets;51
+password sharing;51
 password strength;51
 password-protected;51
 password;51
@@ -228815,6 +229088,8 @@ Philippian;51
 Philippians;51
 philippic;51
 philippics;51
+Philippine eagle;51
+Philippine eagles;51
 Philippine peso;51
 Philippine pesos;51
 Philippine Revolution;51
@@ -230748,6 +231023,8 @@ Pink Moon;51
 Pink Narcissus;51
 pink noise;51
 Pink Panther;51
+pink pineapple;51
+pink pineapples;51
 Pink Pony Club;51
 pink ribbon;51
 pink ribbons;51
@@ -230779,6 +231056,9 @@ Pinkett Smith;51
 Pinkett;51
 pinkeye;99
 Pinkfong;51
+Pinkglow pineapple;51
+Pinkglow pineapples;51
+Pinkglow;51
 pinkie finger;51
 pinkie fingers;51
 pinkie ring;51
@@ -232348,6 +232628,9 @@ play with yourself;49
 play with;51
 play within a play;51
 play your cards right;51
+play-action pass;51
+play-action passes;51
+play-action;51
 play-by-play announcer;51
 play-by-play announcers;51
 play-by-play commentary;51
@@ -232936,6 +233219,7 @@ please RSVP;51
 please say yes;99
 please sir I want some more;51
 please sir;51
+please stand as you are able;51
 please stand by;99
 please stand;51
 please stay;51
@@ -233036,6 +233320,7 @@ pledged;99
 pledges;99
 pledging;51
 Pleiades;51
+plein air painting;51
 plein air;51
 plein;25
 Pleistocene Epoch;51
@@ -234438,6 +234723,8 @@ Polish Boy;51
 Polish Boys;51
 Polish cuisine;51
 Polish food;51
+Polish ham;51
+Polish hams;51
 Polish language;51
 Polish notation;51
 polish off;51
@@ -234557,6 +234844,7 @@ political view;51
 political views;51
 political will;99
 political;51
+politically active;51
 politically conservative;51
 politically correct;51
 politically;51
@@ -235464,6 +235752,7 @@ popping;99
 Poppins;99
 Poppy Day;51
 Poppy Delevingne;51
+Poppy Liu;51
 Poppy Montgomery;51
 Poppy Z Brite;51
 poppy;99
@@ -237313,6 +237602,7 @@ PR agencies;51
 PR agency;51
 PR blitz;99
 PR blitzes;99
+PR buzz;99
 PR campaign;51
 PR campaigns;51
 PR consultant;51
@@ -237651,6 +237941,7 @@ preadjust;51
 preadjusted;51
 preadjusting;51
 preadjusts;51
+preadmission;51
 preadolescence;51
 preadolescent;51
 preagricultural;51
@@ -240348,6 +240639,7 @@ Professor Layton;51
 Professor Longhair;51
 Professor Marvel;51
 Professor Moriarty;51
+Professor Oak;51
 Professor of Poetry;51
 Professor Plum;51
 Professor X;51
@@ -241226,6 +241518,11 @@ protest movement;51
 protest movements;51
 protest permit;51
 protest permits;51
+protest poem;51
+protest poems;51
+protest poet;51
+protest poetry;51
+protest poets;51
 protest sign;99
 protest signs;99
 protest song;99
@@ -241851,6 +242148,8 @@ puberty blockers;51
 Puberty Blues;51
 puberty;99
 pubescent;51
+PUBG Battlegrounds;51
+PUBG;51
 pubic bone;49
 pubic bones;49
 pubic hair;49
@@ -241858,6 +242157,7 @@ pubic hairs;49
 Pubic Wars;49
 pubic;49
 pubis;49
+public access;51
 public address system;51
 public address systems;51
 public address;51
@@ -242108,6 +242408,7 @@ puddled;99
 puddles;99
 puddling;51
 puddy tat;51
+puddy;25
 pudenda;51
 pudendum;51
 Pudi;51
@@ -242248,6 +242549,7 @@ pull a fast one;99
 pull a few strings;99
 pull a muscle;51
 pull a rabbit out of a hat;51
+pull a vanishing act;51
 pull ahead;51
 pull an all-nighter;51
 pull apart;51
@@ -242320,6 +242622,7 @@ pulled a fast one on;51
 pulled a fast one;51
 pulled a few strings;51
 pulled a rabbit out of a hat;51
+pulled a vanishing act;51
 pulled ahead;51
 pulled an all-nighter;51
 pulled apart;51
@@ -242379,6 +242682,7 @@ pulling a fast one on;51
 pulling a fast one;51
 pulling a few strings;51
 pulling a rabbit out of a hat;51
+pulling a vanishing act;51
 pulling ahead;51
 pulling an all-nighter;51
 pulling apart;51
@@ -242440,6 +242744,7 @@ pulls a fast one on;51
 pulls a fast one;51
 pulls a few strings;51
 pulls a rabbit out of a hat;51
+pulls a vanishing act;51
 pulls ahead;51
 pulls an all-nighter;51
 pulls apart;51
@@ -246088,6 +246393,7 @@ ragdoll physics;51
 ragdoll;99
 ragdolls;51
 Rage Against the Machine;51
+rage cage;51
 rage comic;51
 rage comics;51
 rage on;51
@@ -246431,6 +246737,8 @@ Rainy Days and Mondays;51
 rainy days;51
 rainy season;51
 rainy seasons;51
+rainy spell;51
+rainy spells;51
 rainy weather;51
 rainy;99
 Raisa Gorbacheva;51
@@ -248062,6 +248370,7 @@ reaccustoming;51
 reaccustoms;51
 reach a compromise;51
 reach a conclusion;51
+reach a consensus;51
 reach a crescendo;51
 reach a dead end;51
 reach a decision;51
@@ -248070,6 +248379,7 @@ reach a quorum;51
 reach a verdict;51
 reach across;51
 reach an agreement;51
+reach an understanding;51
 reach down;51
 reach for the sky;51
 reach for the stars;51
@@ -248077,7 +248387,9 @@ Reach for the Top;51
 reach for;51
 reach home;51
 reach in;99
+reach new depths;51
 reach new heights;51
+reach one's limit;25
 reach out and touch faith;51
 Reach Out and Touch Somebody's Hand;51
 Reach Out I'll Be There;51
@@ -248085,12 +248397,14 @@ reach out to;51
 reach out;51
 reach the end;51
 reach up;99
+reach your limit;51
 reach-around;51
 reach-arounds;51
 reach;99
 reachable;51
 reached a compromise;51
 reached a conclusion;51
+reached a consensus;51
 reached a crescendo;51
 reached a dead end;51
 reached a decision;51
@@ -248099,6 +248413,7 @@ reached a quorum;51
 reached a verdict;51
 reached across;51
 reached an agreement;51
+reached an understanding;51
 reached around;51
 reached down;51
 reached for the sky;51
@@ -248106,7 +248421,9 @@ reached for the stars;51
 reached for;51
 reached home;51
 reached in;51
+reached new depths;51
 reached new heights;51
+reached one's limit;25
 reached out to;51
 reached out;51
 reached the end;51
@@ -248115,6 +248432,7 @@ reached;99
 Reacher;51
 reaches a compromise;51
 reaches a conclusion;51
+reaches a consensus;51
 reaches a crescendo;51
 reaches a dead end;51
 reaches a decision;51
@@ -248122,6 +248440,7 @@ reaches a quorum;51
 reaches a verdict;51
 reaches across;51
 reaches an agreement;51
+reaches an understanding;51
 reaches around;51
 reaches down;51
 reaches for the sky;51
@@ -248129,7 +248448,9 @@ reaches for the stars;51
 reaches for;51
 reaches home;51
 reaches in;51
+reaches new depths;51
 reaches new heights;51
+reaches one's limit;25
 reaches out to;51
 reaches out;51
 reaches the end;51
@@ -248137,6 +248458,7 @@ reaches up;51
 reaches;99
 reaching a compromise;51
 reaching a conclusion;51
+reaching a consensus;51
 reaching a crescendo;51
 reaching a dead end;51
 reaching a decision;51
@@ -248144,6 +248466,7 @@ reaching a quorum;51
 reaching a verdict;51
 reaching across;51
 reaching an agreement;51
+reaching an understanding;51
 reaching around;51
 reaching down;51
 reaching for the sky;51
@@ -248151,11 +248474,14 @@ reaching for the stars;51
 reaching for;51
 reaching home;51
 reaching in;51
+reaching new depths;51
 reaching new heights;51
+reaching one's limit;25
 reaching out to;51
 reaching out;51
 reaching the end;51
 reaching up;51
+reaching your limit;51
 reaching;51
 reacquaint;51
 reacquainted;51
@@ -249880,6 +250206,9 @@ red dress parties;51
 red dress party;51
 red dress;51
 red dresses;51
+red drink;51
+red drinks;51
+Red Dust;51
 red dwarf star;51
 red dwarf stars;51
 red dwarf;51
@@ -249944,6 +250273,8 @@ red light cameras;51
 red light district;51
 red light districts;51
 red light green light;51
+red light mask;51
+red light masks;51
 red light;51
 red lights;51
 Red List;51
@@ -250814,6 +251145,8 @@ reflected upon;51
 reflected;51
 reflecting badly on;51
 reflecting on;51
+reflecting pool;51
+reflecting pools;51
 reflecting poorly on;51
 reflecting telescope;51
 reflecting telescopes;51
@@ -252970,6 +253303,7 @@ republic;51
 Republican Party;51
 republican;51
 republicanism;51
+Republicans buy sneakers too;51
 republicans;51
 republication;51
 republications;51
@@ -254475,6 +254809,8 @@ reverse image search;51
 reverse image searches;51
 reverse jinx;99
 reverse jinxes;99
+reverse lunge;51
+reverse lunges;51
 reverse mortgage;51
 reverse mortgages;51
 reverse motion;51
@@ -256242,6 +256578,7 @@ riparian zones;51
 riparian;51
 ripcord;99
 ripcords;51
+ripe for abuse;51
 ripe old age;99
 ripe;99
 ripen into;51
@@ -256819,17 +257156,22 @@ Roanoke Virginia;51
 Roanoke;51
 roans;99
 roar at;25
+roar back to life;51
 roar of the crowd;51
 roar off;99
 roar past;51
+roar to life;51
 roar with laughter;51
 roar;99
 roared at;25
+roared back to life;51
 roared off;51
 roared past;51
+roared to life;51
 roared with laughter;51
 roared;99
 roaring at;25
+roaring back to life;51
 roaring drunk;51
 roaring fire;51
 roaring fires;51
@@ -256838,13 +257180,16 @@ roaring off;51
 roaring past;51
 roaring success;51
 roaring successes;51
+roaring to life;51
 Roaring Twenties;51
 roaring with laughter;51
 roaring;99
 Roark;51
 roars at;25
+roars back to life;51
 roars off;51
 roars past;51
+roars to life;51
 roars with laughter;51
 roars;99
 roast beast;51
@@ -267583,6 +267928,7 @@ secularize;51
 secularized;51
 secularizes;51
 secularizing;51
+secure attachment;51
 secure footing;51
 secure footings;51
 secure job;51
@@ -268230,6 +268576,7 @@ sel;51
 Sela Ward;51
 Sela;51
 selah;51
+Selanne;51
 Selassie;51
 Selavy;51
 Selby;51
@@ -270612,6 +270959,9 @@ sex hormone;51
 sex hormones;51
 sex hotline;51
 sex hotlines;51
+sex hygiene film;51
+sex hygiene films;51
+sex hygiene;51
 sex industry;51
 sex joke;51
 sex jokes;51
@@ -273665,8 +274015,10 @@ show more;51
 show no mercy;51
 show notes;99
 show of force;51
+show of gratitude;51
 show of hands;99
 show of strength;51
+show of support;51
 show one's age;25
 show one's ass;25
 show one's true colors;25
@@ -273902,8 +274254,10 @@ shows initiative;51
 shows mercy;51
 shows no mercy;51
 shows of force;51
+shows of gratitude;51
 shows of hands;51
 shows of strength;51
+shows of support;51
 shows off;51
 shows one's age;25
 shows one's ass;25
@@ -274839,6 +275193,7 @@ sign of the cross;51
 sign of the times;99
 sign of the zodiac;51
 sign of weakness;51
+sign of what's to come;51
 sign off on;51
 sign off;99
 sign on the dotted line;51
@@ -275003,6 +275358,7 @@ signs of life;99
 signs of the times;51
 signs of the zodiac;51
 signs of weakness;51
+signs of what's to come;51
 signs off on;51
 signs off;51
 signs on the dotted line;51
@@ -277144,6 +277500,8 @@ skunk ape;51
 skunk apes;51
 skunk cabbage;51
 Skunk Hour;51
+skunk line;51
+skunk lines;51
 skunk spray;51
 Skunk Works;51
 skunk;99
@@ -278770,12 +279128,15 @@ small print;51
 small role;51
 small roles;51
 small sample size;51
+small sample sizes;51
 small screen;51
 small screens;51
 small slam;51
 small slams;51
 Small Soldiers;51
 small stuff;51
+small sword;51
+small swords;51
 small talk;99
 Small Things Like These;51
 small town;51
@@ -282043,6 +282404,8 @@ Sonic Adventure;51
 sonic barrier;51
 sonic boom;51
 sonic booms;51
+sonic depth finder;51
+sonic depth finders;51
 sonic screwdriver;51
 sonic screwdrivers;51
 Sonic the Hedgehog;51
@@ -282070,6 +282433,7 @@ Sonny Bono;51
 Sonny Boy;51
 Sonny Chiba;51
 Sonny Corleone;51
+Sonny Crockett;51
 Sonny Liston;51
 Sonny Rollins;51
 sonny;99
@@ -282113,6 +282477,10 @@ Sony Interactive Entertainment;51
 Sony Music;51
 Sony Pictures Classics;51
 Sony Pictures;51
+Sony PlayStation;51
+Sony PlayStations;51
+Sony PSP;51
+Sony PSPs;51
 Sony Reader;25
 Sony Readers;25
 Sony;99
@@ -283924,6 +284292,8 @@ speculations;51
 speculative bubble;51
 speculative bubbles;51
 speculative fiction;51
+speculative frenzies;51
+speculative frenzy;51
 speculative risk;51
 speculative;51
 speculatively;51
@@ -285901,9 +286271,13 @@ spurts;99
 Sputnik Sweetheart;51
 Sputnik;51
 Sputnikmusic;51
+sputter to life;51
 sputter;99
+sputtered to life;51
 sputtered;51
+sputtering to life;51
 sputtering;51
+sputters to life;51
 sputters;51
 sputum;51
 spy agencies;51
@@ -286109,9 +286483,13 @@ squash racket;51
 squash rackets;51
 squash racquet;25
 squash racquets;25
+squash the beef;51
 squash;99
+squashed the beef;51
 squashed;51
+squashes the beef;51
 squashes;51
+squashing the beef;51
 squashing;51
 squat down;51
 squat jump;51
@@ -287139,6 +287517,7 @@ stand to reason;51
 stand together;51
 stand trial;51
 stand up for;51
+stand up in court;51
 stand up straight;51
 stand up to;51
 stand up;99
@@ -287269,6 +287648,7 @@ standing to reason;51
 standing together;51
 standing trial;51
 standing up for;51
+standing up in court;51
 standing up straight;51
 standing up to;51
 standing up;51
@@ -287328,6 +287708,7 @@ stands to reason;51
 stands together;51
 stands trial;51
 stands up for;51
+stands up in court;51
 stands up straight;51
 stands up to;51
 stands up;51
@@ -287830,6 +288211,8 @@ started up;51
 started with a bang;51
 started with;51
 started;99
+starter bra;51
+starter bras;51
 starter culture;51
 starter cultures;51
 starter earring;51
@@ -290441,6 +290824,7 @@ stood to reason;51
 stood together;51
 stood trial;51
 stood up for;51
+stood up in court;51
 stood up straight;51
 stood up to;51
 stood up;99
@@ -292017,6 +292401,8 @@ strong reaction;51
 strong reactions;51
 strong room;51
 strong rooms;51
+strong safeties;51
+strong safety;51
 strong silent type;51
 strong silent types;51
 strong smell;51
@@ -292578,6 +292964,7 @@ Stupid Love;51
 stupid me;51
 stupid question;51
 stupid questions;51
+Stupid Song;51
 stupid;99
 stupider;51
 stupidest;51
@@ -293665,6 +294052,7 @@ suffragettes;51
 suffragist;51
 suffragists;51
 suffrajitsu;99
+Suffs;51
 suffuse;99
 suffused;51
 suffuses;51
@@ -293682,6 +294070,7 @@ Sufjan;51
 Suga Mama;51
 Suga;51
 Sugababes;51
+sugar and spice and everything nice;51
 sugar and spice;51
 sugar apple;51
 sugar apples;51
@@ -294359,6 +294748,9 @@ sunk cost;51
 sunk costs;51
 sunk in;99
 sunk;99
+sunken eyes;51
+sunken living room;51
+sunken living rooms;51
 sunken ship;51
 sunken ships;51
 sunken treasure;51
@@ -294555,6 +294947,7 @@ super suit;51
 super suits;51
 super tampon;51
 super tampons;51
+Super Tofu Boy;51
 Super Troopers;51
 Super Trouper;51
 Super Tuesday;51
@@ -295823,6 +296216,8 @@ swatter;99
 swatters;51
 swatting at;51
 swatting;51
+sway bar;99
+sway bars;51
 sway;99
 swayed;99
 swaying;99
@@ -296465,6 +296860,8 @@ Swiss Guard;51
 Swiss Miss;51
 Swiss roll;51
 Swiss rolls;51
+Swiss steak;51
+Swiss steaks;51
 Swiss system;51
 Swiss tournament;51
 Swiss tournaments;51
@@ -297472,6 +297869,7 @@ taco bowls;51
 taco de lengua;51
 taco de sal;51
 taco dorado;51
+Taco John's;51
 Taco Liberty Bell;51
 taco meat;51
 taco mix;99
@@ -297482,6 +297880,8 @@ taco pie;99
 taco pies;51
 taco salad;51
 taco salads;51
+taco sauce;51
+taco sauces;51
 taco seasoning;51
 taco shell;51
 taco shells;51
@@ -300049,6 +300449,7 @@ tarpaulin;51
 tarpaulins;51
 tarpon;51
 tarpons;51
+tarps off;51
 tarps;99
 Tarquin the Proud;51
 Tarquin;51
@@ -301346,6 +301747,8 @@ teeming with;51
 teeming;99
 teems with;51
 teems;99
+Teemu Selanne;51
+Teemu;51
 Teen Age Riot;51
 Teen Angel;51
 teen angst;51
@@ -302756,6 +303159,7 @@ Tess Harper;51
 Tess Holliday;51
 Tess Ocean;51
 Tess of the d'Urbervilles;51
+Tess of the Storm Country;51
 Tess Trueheart;51
 Tess;99
 Tessa Hadley;51
@@ -303228,6 +303632,7 @@ Thank U Next;51
 Thank U;51
 thank you card;51
 thank you cards;51
+thank you come again;51
 Thank You Falettinme Be Mice Elf Agin;51
 thank you for being you;51
 thank you for not smoking;51
@@ -305646,7 +306051,7 @@ The King and I;51
 the King is dead long live the King;51
 the King is dead;51
 The King Must Die;51
-The King of clay;51
+The King of Clay;51
 The King of Comedy;51
 The King of Fighters;51
 The King of Kong;51
@@ -306442,6 +306847,7 @@ The Overcoat;51
 The Overstory;51
 The Owl and the Pussy-Cat;51
 The Owl House;51
+the owls are not what they seem;51
 The Ox-Bow Incident;51
 The Oxbow;51
 The Pains of Being Pure at Heart;51
@@ -308265,6 +308671,7 @@ there's more where that came from;51
 there's more;51
 there's no accounting for taste;51
 there's no comparison;51
+there's no crying in baseball;51
 there's no denying;51
 there's no doubt in my mind;51
 there's no easy way to say this;51
@@ -308783,6 +309190,7 @@ thinning out;51
 thinning;51
 thins out;51
 thins;99
+Thinsulate;51
 thiol;25
 thiols;25
 thiomersal;25
@@ -308922,18 +309330,31 @@ thirst trap;99
 thirst traps;99
 thirst-quenching;99
 thirst;99
+thirsted for blood;51
+thirsted for knowledge;51
+thirsted for power;51
 thirsted for;51
 thirsted;51
 thirstier;51
 thirstiest;51
 thirstily;51
 thirstiness;51
+thirsting for blood;51
+thirsting for knowledge;51
+thirsting for power;51
 thirsting for;51
 thirsting;51
+thirsts for blood;51
+thirsts for knowledge;51
+thirsts for power;51
 thirsts for;51
 thirsts;99
+thirsty for blood;51
+thirsty for knowledge;51
+thirsty for power;51
 Thirsty Thursday;99
 Thirsty Thursdays;51
+thirsty work;51
 thirsty;99
 Thirteen Colonies;51
 thirteen;51
@@ -309158,6 +309579,7 @@ this time around;51
 This Time I Know It's for Real;51
 this time it's personal;51
 this time next year;51
+this time of year;51
 this time;51
 this too shall pass;51
 this town ain't big enough for the both of us;51
@@ -311296,6 +311718,7 @@ Times Square Ball;51
 Times Square;51
 times table;51
 times tables;51
+times two;51
 times;99
 timesed by;51
 timesed;51
@@ -316782,6 +317205,7 @@ trestle;51
 trestles;51
 trestlework;51
 Trethewey;51
+tretinoin;51
 Tretyakov Gallery;51
 Tretyakov;51
 Trevante Rhodes;51
@@ -319407,6 +319831,7 @@ tusked;99
 Tuskegee Airmen;51
 Tuskegee Alabama;51
 Tuskegee Institute;51
+Tuskegee Machine;51
 Tuskegee University;51
 Tuskegee;51
 Tusken Raider;51
@@ -323109,6 +323534,8 @@ union representatives;51
 union reps;51
 union shop;51
 union shops;51
+Union soldier;51
+Union soldiers;51
 Union Square;51
 Union State;51
 union station;51
@@ -325130,6 +325557,7 @@ up for reelection;51
 up for sale;51
 up for whatever;99
 up for;99
+Up from Slavery;51
 up here;99
 up high;99
 up ice;51
@@ -325165,6 +325593,7 @@ up the wazoo;51
 up the yin-yang;51
 up there;99
 up to a point;99
+up to and including;51
 up to bat;99
 up to code;51
 up to date;51
@@ -331234,6 +331663,7 @@ wait a second;99
 wait a while;51
 wait actually;99
 wait and see;51
+wait around for;51
 wait around;51
 wait for it;99
 wait for me;99
@@ -331274,6 +331704,7 @@ wait your turn;99
 wait;99
 Waitangi Day;51
 Waitangi;51
+waited around for;51
 waited around;51
 waited for the other shoe to drop;51
 waited for;51
@@ -331297,6 +331728,8 @@ waiters;99
 Waithe;51
 waiting area;51
 waiting areas;51
+waiting around for;51
+waiting around;51
 Waiting for Godot;51
 Waiting for Guffman;51
 Waiting for Lefty;51
@@ -331342,6 +331775,7 @@ waitresses;51
 waitressing;51
 waitron;51
 waitrons;51
+waits around for;51
 waits around;51
 waits for the other shoe to drop;51
 waits for;51
@@ -331900,6 +332334,8 @@ wallowing in the mire;51
 wallowing;51
 wallows in the mire;51
 wallows;99
+wallpaper adhesive;51
+wallpaper paste;51
 wallpaper;51
 wallpapered;51
 wallpapering;51
@@ -332762,6 +333198,8 @@ washes;99
 washeteria;51
 washeterias;51
 washi paper;51
+washi tape;51
+washi tapes;51
 washi;51
 washing down;51
 Washing Machine Heart;51
@@ -334076,6 +334514,7 @@ we're live;51
 we're lost;51
 We're Not Gonna Take It;51
 we're not in Kansas anymore;51
+we're not worthy we're not worthy;51
 we're not worthy;99
 we're number one;99
 We're Off to See the Wizard;51
@@ -336543,6 +336982,7 @@ What Price Hollywood;51
 what say you;51
 what seems to be the issue;51
 what seems to be the problem;51
+what she said;51
 what should I bring;51
 what should I do;51
 what the actual fuck;49
@@ -337046,6 +337486,7 @@ where do you draw the line;51
 where do you get off;51
 where do you live;51
 where do you think you're going;51
+where do you want to go today;51
 where does it hurt;51
 where does the time go;51
 where does this go;51
@@ -338414,6 +338855,7 @@ widgets;99
 widish;99
 Widmark;51
 Widor;51
+Widow's Bay;51
 widow's peak;51
 widow's peaks;51
 widow's weeds;51
@@ -340331,6 +340773,7 @@ withholds;51
 within bounds;51
 within driving distance;51
 within earshot;51
+within easy reach;51
 within eyeshot;51
 within one's rights;51
 Within Our Gates;51
@@ -342206,6 +342649,7 @@ Wozzeck;51
 WPA mural;51
 WPA murals;51
 WPA;25
+WPATH;51
 WPM;51
 WR;51
 wrack and ruin;51
@@ -342454,6 +342898,7 @@ write home;51
 write in;99
 write off;51
 write on;99
+write once run anywhere;51
 write out;51
 write that down;99
 write this down;99
@@ -342746,6 +343191,7 @@ WWII vets;51
 WWII;51
 WWIII;51
 WWJD;51
+WWTBAM;51
 WWW;99
 WY;51
 Wyandot;51
@@ -342938,6 +343384,8 @@ Xbox network;51
 Xbox One X;51
 Xbox One;51
 Xbox Ones;51
+Xbox Series S;51
+Xbox Series X;51
 Xbox;99
 Xboxes;99
 Xcel Energy Center;51
@@ -343776,14 +344224,17 @@ Yelena Belova;51
 Yelena;51
 Yelich;51
 yell at;51
+yell for help;51
 yell if you need me;99
 yell;99
 Yelle;51
 yelled at;51
+yelled for help;51
 yelled;99
 Yellen;51
 Yeller;51
 yelling at;51
+yelling for help;51
 yelling;99
 Yello;25
 yellow admiral;51
@@ -343922,6 +344373,7 @@ yellowthroats;51
 yellowwood;51
 yellowy;99
 yells at;51
+yells for help;51
 yells;99
 Yelnats;51
 yelp for help;51
@@ -344644,6 +345096,7 @@ you did your best;99
 you didn't build that;51
 you didn't hear that;51
 you didn't know;51
+you didn't say the magic word;51
 you didn't see that;51
 you didn't specify;51
 you died;99
@@ -344898,6 +345351,7 @@ you owe me big time;51
 you owe me one;51
 you owe me;51
 you passed the test;51
+you passed;99
 you people;51
 you pick;99
 you played yourself;51
@@ -346325,7 +346779,6 @@ zigzag pattern;51
 zigzag patterns;51
 zigzag;99
 zigzagged;51
-zigzagged;51
 zigzagging;51
 zigzaggy;99
 zigzags;99
@@ -346845,6 +347298,8 @@ Zulema;51
 Zulfikar Ali Bhutto;51
 Zulfikar;51
 Zulily;51
+Zulu coconut;51
+Zulu coconuts;51
 Zulu Dawn;51
 Zulu Empire;51
 Zulu Kingdom;51
