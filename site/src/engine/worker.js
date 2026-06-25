@@ -11,7 +11,7 @@ import { DATA_ASSETS, getDataAsset } from './assets.js';
 import { parseWordlist, toNorm, displayOf } from './norm.js';
 import { parseRange, matchesRange } from './range.js';
 import { compileRescoreRules } from './rescore.js';
-import { sourceAccessor, invalidateSourceAccessor } from './sources.js';
+import { sourceAccessor, invalidateSourceAccessor, parseWordlistColumns, columnsFromEntries } from './sources.js';
 import { buildCorpus, scopeSourceIds, mergedContributors, resolveEditSeedWinner, mergeKey, mergedNormLowerBound, computeMergedBucket, diffWordlistEntries } from './corpus.js';
 import { getHistogramLayout, invalidateHistogramLayout, bucketCounts } from './histogram.js';
 import { computeStatsRaw } from './stats.js';
@@ -1218,11 +1218,16 @@ function handleApplyFetched({ requestId, sourceId, text }) {
     return;
   }
 
+  // Materialize the OLD raw entries (transient views over the current store) before
+  // rebuilding — the diff reads them while the new store is built.
   const oldEntries = sourceAccessor(source).collectRaw();
   const newEntries = parseWordlist(text);
   const wasEmpty = oldEntries.length === 0;
 
-  source.rawEntries = newEntries;
+  // Re-importing My Edits keeps it object-backed (the edit splice mutates
+  // rawEntries); a non-Edits re-import rebuilds the columnar store.
+  if (source.type === 'edits') source.rawEntries = newEntries;
+  else source.cols = columnsFromEntries(newEntries, source.rescoreRules);
   invalidateRescoredCacheFor(source);
 
   // Skip the diff entirely on a first population: nothing downstream reads it (the
@@ -1295,11 +1300,14 @@ async function buildAllSourcesWordlists() {
   const built = [];
   for (const { sourceId, name, enabled, type, rescoreRules } of selfConfig.sources) {
     const text = await readWordlistText(sourceId);
-    const rawEntries = text ? parseWordlist(text) : [];
     // `name` is the worker's one non-dbKey source field — the Source axis sorts by it
     // (entry.wordlist.name); nothing else reads it.
-    const wl = { dbKey: sourceId, name, enabled, type: type ?? null, rescoreRules, rawEntries };
+    const wl = { dbKey: sourceId, name, enabled, type: type ?? null, rescoreRules };
     compileRescoreRules(wl);
+    // My Edits stays object-backed because the edit splice mutates rawEntries in
+    // place each keystroke; every other source is the lean columnar cold store.
+    if (wl.type === 'edits') wl.rawEntries = text ? parseWordlist(text) : [];
+    else wl.cols = parseWordlistColumns(text ?? '', wl.rescoreRules);
     built.push(wl);
   }
   return built;

@@ -85,17 +85,26 @@ export const UPPER_ABSOLUTE_MAX = 10000;
 export const UPPER_RATIO_MAX = 0.80;
 export const UPPER_RATIO_THRESHOLD = 1000;
 
-export function detectCase(rawEntries) {
-  let upper = 0, lower = 0, mixed = 0;
-  for (const { raw } of rawEntries) {
-    const hasUpper = /[A-Z]/.test(raw), hasLower = /[a-z]/.test(raw);
-    if (hasUpper && hasLower) mixed++;
-    else if (hasUpper) upper++;
-    else if (hasLower) lower++;
-  }
+export function caseOfRaw(raw) {
+  const hasUpper = /[A-Z]/.test(raw), hasLower = /[a-z]/.test(raw);
+  return hasUpper && hasLower ? 'mixed' : hasUpper ? 'upper' : hasLower ? 'lower' : 'none';
+}
+
+export function caseFromCounts(upper, lower, mixed) {
   if (upper > UPPER_ABSOLUTE_MAX) return 'upper';
   if (upper > UPPER_RATIO_THRESHOLD && upper / (upper + lower + mixed) > UPPER_RATIO_MAX) return 'upper';
   return 'lower';
+}
+
+export function detectCase(rawEntries) {
+  let upper = 0, lower = 0, mixed = 0;
+  for (const { raw } of rawEntries) {
+    const c = caseOfRaw(raw);
+    if (c === 'mixed') mixed++;
+    else if (c === 'upper') upper++;
+    else if (c === 'lower') lower++;
+  }
+  return caseFromCounts(upper, lower, mixed);
 }
 
 export function parseWordlist(text) {
@@ -112,12 +121,14 @@ export function parseWordlist(text) {
 // case — those render as lowercase norm. Anything carrying extra information
 // (spaces, accents, punctuation, or an off-convention case like an FBI in a
 // lowercase file) keeps its display verbatim.
-export function buildWlEntry(raw, score, comment, fileCase) {
-  const norm = toNorm(raw);
+export function displayForRaw(raw, fileCase) {
   const letterOnly = /^[A-Za-z0-9]+$/.test(raw);
   const offCase = fileCase === 'upper' ? /[a-z]/.test(raw) : /[A-Z]/.test(raw);
-  const display = letterOnly && !offCase ? null : raw;
-  return { norm, display, score, comment };
+  return letterOnly && !offCase ? null : raw;
+}
+
+export function buildWlEntry(raw, score, comment, fileCase) {
+  return { norm: toNorm(raw), display: displayForRaw(raw, fileCase), score, comment };
 }
 
 export function buildUserWlEntry(raw, score, comment) {
