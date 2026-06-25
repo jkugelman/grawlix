@@ -4,7 +4,15 @@ import { matchesRange } from './range.js';
 import { displayOf, toNorm, synthWlEntry } from './norm.js';
 import { normalizeParams } from './tools.js';
 
-export const rowLastEntry = r => r.atoms[r.atoms.length - 1].wlEntry;
+// A pipeline row is EITHER a bare wlEntry — the undecorated, single-atom seed
+// straight off the merged corpus — OR a { atoms } chain, once a tool highlights,
+// transforms, or group-tags it. Seeding bare (the steady-state filter-only run
+// never decorates) is what keeps the ~663K-entry corpus from materializing a chain
+// object + atoms array + atom object per row (~45 MB; docs/planned/mobile-memory.md).
+// Every reader that can see a pre-decoration row goes through these two accessors;
+// unify/collapse run only post-decoration, so they read `.atoms` directly.
+export const rowLastEntry = r => r.atoms ? r.atoms[r.atoms.length - 1].wlEntry : r;
+export const rowAtoms = r => r.atoms ?? [{ wlEntry: r, highlights: null, glyph: null }];
 
 // The chain shape is derivable from the catalog records alone — no per-row
 // runtime inspection. Simulate the executor's emit-then-unify on the active
@@ -63,21 +71,6 @@ function makeWorkingSetView(rows) {
     at(i) { return rowLastEntry(rows[i]).norm; },
     *[Symbol.iterator]() { for (const row of rows) yield rowLastEntry(row).norm; },
   };
-}
-
-// Defines the `_initialChains` field and its per-atom shape on the merged cache.
-// The worker's in-place owned-corpus splice splices this same array, so its atom
-// literal must stay in lockstep with the shape produced here.
-export async function buildInitialChains(mergedWordlist, y) {
-  if (mergedWordlist._initialChains) return mergedWordlist._initialChains;
-  const { entries } = mergedWordlist;
-  const chains = new Array(entries.length);
-  for (let i = 0; i < entries.length; i++) {
-    chains[i] = { atoms: [{ wlEntry: entries[i], highlights: null, glyph: null }] };
-    if (y.due()) await y.yield();
-  }
-  mergedWordlist._initialChains = chains;
-  return chains;
 }
 
 // The `prepare` context — see docs/design.md § Pipeline execution.
@@ -147,8 +140,11 @@ export async function executePipeline(mergedWordlist, stack, signal) {
   if (_preSearchCache) {
     state = clonePreSearchState(_preSearchCache);
   } else {
+    // The seed is the bare corpus entries — no per-entry chain wrappers. Stages
+    // never mutate their input array (each returns a fresh `next`), so handing them
+    // the live `entries` is safe; a filter-only run carries them through untouched.
     state = {
-      groups: [{ key: undefined, chains: await buildInitialChains(mergedWordlist, y) }],
+      groups: [{ key: undefined, chains: mergedWordlist.entries }],
       grouped: false,
     };
     for (const stackRow of userStack) {
@@ -228,26 +224,26 @@ async function runToolStage(rows, stackRow, prepared, mergedWordlist, y) {
   const next = [];
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i];
-    const tail = row.atoms[row.atoms.length - 1];
-    const inputText = matchOn === 'both' ? tail.wlEntry
-      : matchOn === 'display' ? displayOf(tail.wlEntry)
-      : tail.wlEntry.norm;
+    const tailEntry = rowLastEntry(row);
+    const inputText = matchOn === 'both' ? tailEntry
+      : matchOn === 'display' ? displayOf(tailEntry)
+      : tailEntry.norm;
     const result = def.run(inputText, prepared, mergedWordlist);
     if (kind === 'filter') {
       if (result) {
         if (def.inputHighlights) {
           const highlights = Array.isArray(result) ? tagCoord(result, coord) : [];
-          next.push({ atoms: [...row.atoms,
-            { wlEntry: tail.wlEntry, highlights, glyph }] });
+          next.push({ atoms: [...rowAtoms(row),
+            { wlEntry: tailEntry, highlights, glyph }] });
         } else {
           next.push(row);
         }
       }
     } else {
       for (const out of (result || [])) {
-        const atoms = row.atoms.slice();
+        const atoms = rowAtoms(row).slice();
         if (def.inputHighlights) {
-          atoms.push({ wlEntry: tail.wlEntry, highlights: tagCoord(out.inputHighlights || [], coord), glyph: null });
+          atoms.push({ wlEntry: tailEntry, highlights: tagCoord(out.inputHighlights || [], coord), glyph: null });
         }
         const synthetic = Array.isArray(out.entry);
         const text = synthetic ? out.entry[0] : out.entry;
@@ -285,23 +281,25 @@ async function runGroupFilterStage(rows, stackRow, prepared, mergedWordlist, y) 
   const results = new Array(rows.length);
   let anyMatch = false;
   for (let i = 0; i < rows.length; i++) {
-    const tail = rows[i].atoms[rows[i].atoms.length - 1];
-    const inputText = matchOn === 'both' ? tail.wlEntry
-      : matchOn === 'display' ? displayOf(tail.wlEntry)
-      : tail.wlEntry.norm;
+    const tailEntry = rowLastEntry(rows[i]);
+    const inputText = matchOn === 'both' ? tailEntry
+      : matchOn === 'display' ? displayOf(tailEntry)
+      : tailEntry.norm;
     const result = def.run(inputText, prepared, mergedWordlist);
     results[i] = result;
     if (result) anyMatch = true;
     if (y.due()) await y.yield();
   }
   if (!anyMatch) return [];
-  if (!def.inputHighlights) return rows.map((row, i) => ({ ...row, matched: !!results[i] }));
+  // `matched` has no home on a bare row, so promote every member to a chain here —
+  // the grouped path is off the steady-state hot path, so the wrapper is affordable.
+  if (!def.inputHighlights) return rows.map((row, i) => ({ atoms: rowAtoms(row), matched: !!results[i] }));
   const next = new Array(rows.length);
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i];
-    const tail = row.atoms[row.atoms.length - 1];
+    const tailEntry = rowLastEntry(row);
     const highlights = Array.isArray(results[i]) ? tagCoord(results[i], coord) : [];
-    next[i] = { atoms: [...row.atoms, { wlEntry: tail.wlEntry, highlights, glyph }], matched: !!results[i] };
+    next[i] = { atoms: [...rowAtoms(row), { wlEntry: tailEntry, highlights, glyph }], matched: !!results[i] };
     if (y.due()) await y.yield();
   }
   return next;
@@ -330,7 +328,7 @@ export async function bucketize(chains, def, ctx, prepared) {
   // not the tail: a transform upstream can land two distinct words on one tail
   // (wheat/cheat → heat), which must stay separate members.
   const identity = chain =>
-    chain.atoms.map(a => useDisplay ? displayOf(a.wlEntry) : a.wlEntry.norm).join('\0');
+    rowAtoms(chain).map(a => useDisplay ? displayOf(a.wlEntry) : a.wlEntry.norm).join('\0');
   const memberKey = c => useDisplay ? displayOf(rowLastEntry(c)) : rowLastEntry(c).norm;
   const groups = [];
   for (const [key, groupChains] of buckets) {
@@ -351,7 +349,7 @@ export async function bucketize(chains, def, ctx, prepared) {
 export function cacheGroupStats(g) {
   let min = Infinity, max = -Infinity;
   for (const chain of g.chains) {
-    for (const atom of chain.atoms) {
+    for (const atom of rowAtoms(chain)) {
       const s = atom.wlEntry.score;
       if (s < min) min = s;
       if (s > max) max = s;
@@ -445,7 +443,7 @@ export function flattenAtoms(rows) {
   const out = [];
   const pushChain = chain => {
     let prev = null;
-    for (const atom of chain.atoms) {
+    for (const atom of rowAtoms(chain)) {
       if (atom.wlEntry.norm === prev) continue;
       out.push(atom.wlEntry);
       prev = atom.wlEntry.norm;
@@ -463,9 +461,9 @@ export function bottomLineAtoms(rows) {
   const out = [];
   for (const row of rows) {
     if (row.chains) {
-      for (const chain of row.chains) out.push(chain.atoms[chain.atoms.length - 1].wlEntry);
+      for (const chain of row.chains) out.push(rowLastEntry(chain));
     } else {
-      out.push(row.atoms[row.atoms.length - 1].wlEntry);
+      out.push(rowLastEntry(row));
     }
   }
   return out;
@@ -473,7 +471,7 @@ export function bottomLineAtoms(rows) {
 
 export function applyScoreRangeToRows(rows, intervals, grouped) {
   if (!intervals) return rows;
-  const chainOk = chain => chain.atoms.every(a => matchesRange(a.wlEntry.score, intervals));
+  const chainOk = chain => rowAtoms(chain).every(a => matchesRange(a.wlEntry.score, intervals));
   if (grouped) {
     const out = [];
     for (const g of rows) {
@@ -497,8 +495,8 @@ export function applyScoreRangeToRows(rows, intervals, grouped) {
 export function* rowSetAtoms(rows) {
   for (const row of rows) {
     if (row.chains) {
-      for (const chain of row.chains) yield* chain.atoms;
-    } else yield* row.atoms;
+      for (const chain of row.chains) yield* rowAtoms(chain);
+    } else yield* rowAtoms(row);
   }
 }
 

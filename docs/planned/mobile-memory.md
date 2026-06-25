@@ -2,7 +2,7 @@
 
 Grawlix crashed intermittently on iPhone. The cause is memory: it builds and holds four full wordlists — well over a million wordlist entries — plus a deduped merge of them in the pipeline worker, and on iOS that worker heap counts against the same per-tab limit Safari jetsams. The symptom is the tab reloading itself ("this webpage was reloaded because it was using significant memory"). It does not reproduce on desktop, where there are gigabytes of headroom.
 
-A 2026-06 series of commits took the worker from a ~770 MB rebuild peak (and ~440 MB steady state) down to **~317 MB** with no tool assets loaded — the shipped levers are in `git log` (corpus-free-before-rebuild, the main-thread inversion, diff windowing, the per-entry `_i` slot, asset eviction, and the `_rescoredByNorm` scalar collapse). This doc is what **remains**.
+A 2026-06 series of commits cut the worker's steady state to **~281 MB** on the full default load (no tool assets), down from a ~770 MB rebuild peak — both full-corpus figures; see `git log` for the shipped levers. This doc is what **remains**.
 
 ## Why iPhone specifically
 
@@ -13,19 +13,18 @@ On iOS, a page's Web Worker runs as a thread inside the same WebContent process 
 Anchors are against the worker, [`../../site/src/engine/worker.js`](../../site/src/engine/worker.js), and the engine modules it imports; line numbers drift, structure names are stable. Default load is four auto-fetched wordlists — Broda (~527K entries), Nediger (~345K), STWL (~280K), JK — plus XWI (~281K) for a subscriber. After the shipped levers, the worker's resident bulk is:
 
 1. **Per-source entry objects** — `ownedBuilt` holds every source (enabled *and* disabled) as `{ norm, display, score, comment }` objects (`buildAllSourcesWordlists`), and `_rescored` duplicates every entry whose score a rule changed into a fresh `{ …, rawScore }` object (~1.07M such objects). ~2.5M entry objects across all sources before the merge.
-2. **`ownedMerged`** — the deduped union: a fresh `entries` array of all ~663K merged rows (new objects), a `byKey` Map keyed by freshly-allocated `norm\0display` strings, and a `byNorm` Map (`resolveCorpus`, [corpus.js](../../site/src/engine/corpus.js)).
-3. **`_initialChains`** — the executor seeds every run from one `{ atoms: [{ wlEntry, highlights, glyph }] }` per merged entry, cached on the merged corpus ([`buildInitialChains`](../../site/src/engine/executor.js#L71-L81)). Built lazily, but the first run is at boot, so it is effectively always resident: ~45 MB (a chain object + a single-element `atoms` array + an atom object, ×663K).
-4. **Strings** — norm/display/comment content, ~66 MB, shared across `rawEntries` / `_rescored` / merged. A floor that nothing short of a columnar string pool touches.
-5. **Tool assets** — the unigram corpus + CMU dict (~100 MB+) load on first use of Space-out / Rhymes; now evicted when the tool leaves the stack, so resident only while in use.
+2. **`ownedMerged`** — the deduped union: a fresh `entries` array of all merged rows (new objects), a `byKey` Map keyed by freshly-allocated `norm\0display` strings, and a `byNorm` Map (`resolveCorpus`, [corpus.js](../../site/src/engine/corpus.js)). The pipeline seeds straight off this `entries` array, so no per-entry seed chain is materialized.
+3. **Strings** — norm/display/comment content, ~66 MB, shared across `rawEntries` / `_rescored` / merged. A floor that nothing short of a columnar string pool touches.
+4. **Tool assets** — the unigram corpus + CMU dict (~100 MB+) load on first use of Space-out / Rhymes; now evicted when the tool leaves the stack, so resident only while in use.
 
-Current total is **~317 MB** resident with no assets loaded (worker heap snapshot). The merged corpus plus the per-source entry/rescored-duplicate objects are the bulk; `_initialChains` (~45 MB) is the largest still-reducible *array* pile; the strings and per-object headers are the floor only a columnar rewrite moves.
+Current total is **~281 MB** resident with no assets loaded (worker heap snapshot). The merged corpus plus the per-source entry/rescored-duplicate objects are now the bulk; the strings and per-object headers are the floor only a columnar rewrite moves.
 
 ## Measurement methodology
 
 Rebuild a temporary readout per fix (it's worth it — several techniques are non-obvious), driven from `__grawlixTest` via a worker message + reply pair routed through [`pipeline-worker.js`](../../site/src/ui/pipeline-worker.js), mirroring the `dumpWorkerCorpus` bridge. Run against the dev server (`/dev-server`), not `dist`.
 
 - **Measure the worker, not the page.** The corpus lives in the pipeline worker — a *separate* JS realm. In Chrome DevTools → Memory → Heap snapshot, pick the **`worker.js`** instance in the "Select JavaScript VM instance" list; a page-context snapshot misses the corpus entirely.
-- **Counts are exact; treat the readout's byte estimate as a lower bound.** A single-element `[]`-then-`.push` array is ~92 B in V8 (wrapper + a backing store grown to capacity ≥4), ~2.5× the naive `header + 4·len` a readout assumes — so the `_rescoredByNorm` collapse came in at −113 MB on the heap against a −42 MB estimate. Whenever a lever changes an *array* count, confirm bytes against a heap snapshot, not the readout.
+- **Counts are exact; treat the readout's byte estimate as a lower bound.** A single-element `[]`-then-`.push` array is ~92 B in V8 (wrapper + a backing store grown to capacity ≥4), ~2.5× the naive `header + 4·len` a readout assumes — array-collapse levers have run well under their readout estimates on the real heap. Whenever a lever changes an *array* count, confirm bytes against a heap snapshot, not the readout.
 - **Heap snapshots force a GC**, so they report *retained* bytes (the structural peak), not the higher total-heap figure a live graph shows. Use snapshots for apples-to-apples before/after; the live graph is noisy.
 
 ## Remaining options, by impact ÷ effort
@@ -36,7 +35,6 @@ Rebuild a temporary readout per fix (it's worth it — several techniques are no
 
 ### Medium effort
 
-- **De-materialize `_initialChains`** (the #1 remaining array lever, ~45 MB — the `{ atoms } ×663K` chain + atom-object pile). The executor seeds every run from one chain per corpus entry ([executor.js:71-81](../../site/src/engine/executor.js#L71-L81)); making a row a `wlEntry | Atom[]` union (a bare entry for the common single-atom, undecorated row; an atom array once a tool adds highlights or a transform fires) drops the wrapper object, the single-element array, *and* the atom object in the filter-only steady state. Most invasive of the tier — it reworks the executor's input model, read by every stage in lockstep — and the one snag is the grouped-filter `matched` flag, which needs a home off the bare row (a parallel array), but only on the grouped path, never the steady state. The wire shape (`{ atoms }` to main) is unaffected, so the blast radius is worker-internal.
 - **Don't fully build disabled sources.** `ownedBuilt` keeps disabled wordlists' `rawEntries` and indexes resident so a re-enable is instant and the provenance panel can show them. Building a disabled list's `_rescoredByNorm` lazily — only when the provenance walk asks for it — frees a disabled list's bulk while it sits out of the merge. Re-enable then pays a one-time build, acceptable for an infrequent action.
 - **Stream the parser.** `parseWordlist` does `text.split('\n')` ([norm.js:103](../../site/src/engine/norm.js#L103)), materializing ~500K substrings on top of the entry array during boot. An index-based line scan removes that boot-window transient. Modest, but it lands during the most memory-vulnerable window (first load, before anything has settled).
 - **Mobile-aware defaults.** On `isMobile()` ([../../site/src/core/platform.js](../../site/src/core/platform.js)), auto-fetch fewer or smaller default wordlists, or defer building the merge until first interaction. This is the largest baseline cut, but it touches the "All Wordlists on first run" product tenet ([`../design.md`](../design.md) § Landing) — a deliberate product call, not a pure optimization.
@@ -47,12 +45,13 @@ Rebuild a temporary readout per fix (it's worth it — several techniques are no
 
 ## Recommended sequencing
 
-1. **De-materialize `_initialChains`** if the phone still struggles — the largest remaining array lever, but the most invasive (it reworks the executor's input model).
-2. Then lazy disabled-source indexes and the streaming parser.
-3. Only then weigh the product-level mobile-defaults question and the columnar rearchitecture.
+The big per-entry array piles are already gone; what remains is mostly per-object and string overhead, which only the columnar rewrite moves in bulk. If the phone still struggles:
+
+1. Lazy disabled-source indexes and the streaming parser (the two cheap remaining wins).
+2. Then weigh the product-level mobile-defaults question and the columnar rearchitecture.
 
 ## To verify
 
-- **Validate on a real iPhone** under jetsam pressure. The shipped wins were confirmed in desktop heap snapshots, not on-device — that gates whether `_initialChains` and the rest are even needed.
+- **Validate on a real iPhone** under jetsam pressure. The shipped wins were confirmed in desktop heap snapshots, not on-device — that gates whether the remaining levers are even needed.
 - If lazy disabled-source indexes are built: confirm the provenance panel and a re-enable both produce byte-identical merges to a full rebuild (the lockstep discipline the worker already keeps for in-place edits).
 - Re-check every `file:line` anchor against the code before acting on it; they are a snapshot.

@@ -21,12 +21,14 @@ import { TOOLS } from './tools.js';
 //
 // A multi-output transform (anagram) branches one input into rows that share
 // their whole first atom; rowChainTail breaks those ties by the later atoms.
-const rowFirstEntry = r => r.atoms[0].wlEntry;
-export const rowMinScore = r => Math.min(...r.atoms.map(a => a.wlEntry.score));
-export const rowMaxScore = r => Math.max(...r.atoms.map(a => a.wlEntry.score));
+// A bare seed row (no `.atoms`) is a single undecorated entry: its own first entry,
+// its only score, with no later atoms to tie-break on.
+const rowFirstEntry = r => r.atoms ? r.atoms[0].wlEntry : r;
+export const rowMinScore = r => r.atoms ? Math.min(...r.atoms.map(a => a.wlEntry.score)) : r.score;
+export const rowMaxScore = r => r.atoms ? Math.max(...r.atoms.map(a => a.wlEntry.score)) : r.score;
 // Later atoms joined with a low separator: a string compare then orders them
 // atom-by-atom, since every row in a run carries the same atom count.
-const rowChainTail = r => r.atoms.slice(1).map(a => a.wlEntry.norm).join('\u0000');
+const rowChainTail = r => !r.atoms ? '' : r.atoms.slice(1).map(a => a.wlEntry.norm).join('\u0000');
 
 // Source sorts alphabetically by name. Reading `.wordlist.name` (a runtime property)
 // keeps this engine-pure — sorting by merge position would need `state.sources`, an
@@ -159,7 +161,7 @@ export function isValidSortAxis(key) {
 export const groupMinScore     = g => g._minScore;
 export const groupMaxScore     = g => g._maxScore;
 export const groupCount        = g => g._count;
-export const groupChainEntries = g => g.chains.map(c => c.atoms[0].wlEntry.norm);
+export const groupChainEntries = g => g.chains.map(c => rowFirstEntry(c).norm);
 
 export const GROUP_SORT_AXES = {
   entry: {
@@ -304,8 +306,8 @@ export function compareValues(a, b) {
 }
 
 export function sortGroupChains(groups, sortKey) {
-  const seedEntry = c => c.atoms[0].wlEntry.norm;
-  const seedScore = c => c.atoms[0].wlEntry.score;
+  const seedEntry = c => rowFirstEntry(c).norm;
+  const seedScore = c => rowFirstEntry(c).score;
   const byNorm = (a, b) => seedEntry(a).localeCompare(seedEntry(b));
   const byScore = (a, b) => seedScore(b) - seedScore(a) || byNorm(a, b);
   const cmp = sortKey === 'entry' ? byNorm : byScore;

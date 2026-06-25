@@ -3,7 +3,7 @@
 import { MERGED_ID } from '../core/constants.js';
 import { canonicalNormRow } from './snapshot.js';
 import { TOOLS, makeToolRow } from './tools.js';
-import { executePipeline, configureExecutorYield, invalidatePreSearchCache, bottomLineAtoms, applyScoreRangeToRows } from './executor.js';
+import { executePipeline, configureExecutorYield, invalidatePreSearchCache, bottomLineAtoms, applyScoreRangeToRows, rowLastEntry, rowAtoms } from './executor.js';
 import { sortGroups, sortChainRows, activeGroupRow } from './sort.js';
 import { configureIO as configureSegmenterIO } from './segmenter.js';
 import { configureIO as configurePhoneticsIO } from './phonetics.js';
@@ -312,7 +312,7 @@ function postResult(runId, { rows, atomCount, grouped }, sort, scope, stack, exi
 
   const n = rows.length;
   let indices = new Int32Array(n);
-  for (let i = 0; i < n; i++) indices[i] = rows[i].atoms[0].wlEntry._i;
+  for (let i = 0; i < n; i++) indices[i] = rowLastEntry(rows[i])._i;
 
   sortFlatIndices(indices, sort, ownedCorpus);
 
@@ -683,7 +683,7 @@ function encodeAtom(atom) {
 }
 
 function encodeChain(chain) {
-  return { atoms: chain.atoms.map(encodeAtom) };
+  return { atoms: rowAtoms(chain).map(encodeAtom) };
 }
 
 // Must exceed the most chains a COLLAPSED group row can ever fit (the slot-fill
@@ -862,6 +862,7 @@ function computeTransformWidthHints(unfiltered, filtered) {
 }
 
 function rowIsRich(row) {
+  if (!row.atoms) return false;   // a bare seed entry is a plain, single-atom flat row
   const first = row.atoms[0].wlEntry;
   return row.atoms.some(a =>
     a.glyph != null || a.wlEntry !== first || a.wlEntry.wordlist == null);
@@ -901,12 +902,12 @@ function recomputeScopedBucket(norm, source) {
   return { rows, winners };
 }
 
-// In-place per-norm splice of an owned corpus: entries/byKey/byNorm/_initialChains
-// all take the same splice or they silently desync, and sourceCounts shifts by
-// the winner delta. bucketFn recomputes one norm's resolved rows.
+// In-place per-norm splice of an owned corpus: entries/byKey/byNorm all take the
+// same splice or they silently desync, and sourceCounts shifts by the winner delta.
+// bucketFn recomputes one norm's resolved rows. (The pipeline seeds straight off
+// `entries`, so there is no separate chain array to keep in lockstep.)
 function spliceOwnedCorpus(cache, affectedNorms, bucketFn) {
   const { entries, byNorm, byKey, sourceCounts } = cache;
-  const chains = cache._initialChains;
   const patched = [];
   const countDelta = new Map();
   for (const norm of affectedNorms) {
@@ -925,7 +926,6 @@ function spliceOwnedCorpus(cache, affectedNorms, bucketFn) {
 
     const { rows, winners } = bucketFn(norm);
     entries.splice(lo, hi - lo, ...rows);
-    if (chains) chains.splice(lo, hi - lo, ...rows.map(r => ({ atoms: [{ wlEntry: r, highlights: null, glyph: null }] })));
     for (const r of rows) byKey.set(mergeKey(norm, r.display), r);
     if (rows.length) byNorm.set(norm, canonicalNormRow(rows)); else byNorm.delete(norm);
 
