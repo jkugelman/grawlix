@@ -2133,7 +2133,7 @@ export const EntryPanel = (() => {
           <div class="score-combo">
             <input id="entry-panel-score" class="score-input" type="number" min="0" value="${seed.score}"
               role="combobox" aria-expanded="false" aria-controls="entry-panel-score-list" aria-autocomplete="list" autocomplete="off">
-            <ul id="entry-panel-score-list" class="score-combo-list" role="listbox" aria-label="Score tiers" hidden></ul>
+            <ul id="entry-panel-score-list" class="score-listbox score-combo-list" role="listbox" aria-label="Score tiers" hidden></ul>
           </div>
           <label for="entry-panel-comment">Comment</label>
           <input id="entry-panel-comment" class="comment-input" type="text" value="${esc(seed.comment)}">
@@ -2480,8 +2480,12 @@ export const ScorePicker = (() => {
 
   function ensureElement() {
     if (el) return el;
-    el = document.createElement('div');
+    el = document.createElement('ul');
     el.id = 'score-picker';
+    el.className = 'score-listbox';
+    el.setAttribute('role', 'listbox');
+    el.setAttribute('aria-label', 'Set score');
+    el.tabIndex = -1;
     el.setAttribute('hidden', '');
     el.addEventListener('click', e => {
       const opt = e.target.closest('.score-picker-opt');
@@ -2516,10 +2520,10 @@ export const ScorePicker = (() => {
     if (startIndex < 0) startIndex = options.length - 1;
     activeIndex = startIndex;
 
-    picker.innerHTML = renderHTML();
+    renderItems();
     picker.removeAttribute('hidden');
     position();
-    picker.querySelector('.score-picker-list')?.focus();
+    picker.focus();
     syncActive();
 
     document.addEventListener('mousedown', onDocMouseDown, true);
@@ -2536,10 +2540,10 @@ export const ScorePicker = (() => {
     document.removeEventListener('keydown', onKeydown, true);
   }
 
-  function renderHTML() {
+  function renderItems() {
     const { html, colW } = buildScoreOptionItemsHTML(options, activeIndex, 'score-picker-opt');
-    return `<ul class="score-picker-list" role="listbox" aria-label="Set score"`
-      + ` style="--badge-col: ${colW}px" tabindex="-1">${html}</ul>`;
+    el.innerHTML = html;
+    el.style.setProperty('--badge-col', `${colW}px`);
   }
 
   function setActive(i, scroll = true) {
@@ -2555,8 +2559,7 @@ export const ScorePicker = (() => {
       li.setAttribute('aria-selected', j === activeIndex);
     });
     if (scroll) lis[activeIndex]?.scrollIntoView({ block: 'nearest' });
-    el.querySelector('.score-picker-list')
-      ?.setAttribute('aria-activedescendant', lis[activeIndex]?.id ?? '');
+    el.setAttribute('aria-activedescendant', lis[activeIndex]?.id ?? '');
   }
 
   function commit(i) {
