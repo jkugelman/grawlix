@@ -29,7 +29,6 @@ const scoreInput = page => page.locator('#entry-panel-score');
 const list = page => page.locator('#entry-panel-score-list');
 const opts = page => page.locator('#entry-panel-score-list .score-picker-opt');
 const save = page => page.locator('#entry-panel .entry-panel-save');
-const confirm = page => page.locator('#confirm-dialog');
 const myEdits = page => page.evaluate(() => window.__grawlixTest.getWordlist('My Edits').entries);
 
 async function openPanel(page) {
@@ -111,11 +110,9 @@ test('Escape dismisses the open list first, regardless of unsaved changes', asyn
 
   await page.keyboard.press('Escape');
   await expect(list(page)).toBeHidden();
-  await expect(confirm(page)).toBeHidden();
   await expect(panel(page)).toBeVisible();
   await expect(scoreInput(page)).toHaveValue('60');   // the edit survives
 
   await page.keyboard.press('Escape');
-  await expect(panel(page)).toBeHidden();   // an explicit cancel: closes outright, no prompt
-  await expect(confirm(page)).toBeHidden();
+  await expect(panel(page)).toBeHidden();   // an explicit cancel: closes outright, no ceremony
 });

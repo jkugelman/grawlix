@@ -35,9 +35,7 @@ async function openPanelOnEntry(page, entryText) {
 }
 
 async function closePanel(page) {
-  await page.keyboard.press('Escape');
-  const confirm = page.locator('#confirm-dialog');
-  if (await confirm.isVisible()) await confirm.locator('#btn-confirm-ok').click();
+  await page.keyboard.press('Escape');   // an explicit close: discards any edit silently
   await expect(page.locator('#entry-panel')).toBeHidden();
 }
 

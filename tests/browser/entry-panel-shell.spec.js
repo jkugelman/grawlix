@@ -96,7 +96,6 @@ test('browser Back closes a dirty panel outright, discarding the edit without a 
 
   await page.goBack();
   await expect(page.locator('#entry-panel')).toBeHidden();
-  await expect(page.locator('#confirm-dialog')).toBeHidden();
   await expect(page).not.toHaveURL(/entry=/);
 });
 

@@ -40,7 +40,6 @@ import { getWordlistIcon } from './icons.js';
 import { getDraftRescoreRules } from './rescore-editor.js';
 import { buildTrashIconHTML, positionPopover } from './components.js';
 import { LookupSection } from './lookup.js';
-import { showConfirm } from './dialogs/confirm.js';
 import {
   getEntriesScroller, rescorePreviewActive, refreshMergedScroller, setScope,
 } from './rendering.js';
@@ -1629,10 +1628,6 @@ export const EntryPanel = (() => {
   // tag). Closing those pops the entry; a cold deep link has nothing of ours behind
   // it, so it strips the param in place instead.
   let ownsHistoryEntry = false;
-  // True while the scrim-click discard confirm is open. The capture-phase Escape
-  // listener and onPopState both honor it so a keypress or a Back fired during the
-  // confirm can't close the panel out from under the still-open dialog.
-  let confirmingClose = false;
   let scoreCombo = null;
 
   function ensureElement() {
@@ -1668,10 +1663,9 @@ export const EntryPanel = (() => {
 
   // Reconcile the panel to the URL on Back/Forward. Idempotent on purpose — our own
   // close()→back() and the help-hash both fire popstate, and both must no-op here.
-  // No discard confirm here by design: Back is explicit like Cancel/✕/Esc — only the
-  // scrim click second-guesses unsaved edits (requestClose).
+  // No misclick guard here by design: Back is explicit like Cancel/✕/Esc and discards
+  // outright — only the scrim's possibly-accidental click is held back (requestClose).
   function onPopState() {
-    if (confirmingClose) return;
     const value = new URLSearchParams(location.search).get('entry');
     if (!value) { if (isOpen()) hideAndClear(); return; }
     const norm = toNorm(value);
@@ -1722,15 +1716,19 @@ export const EntryPanel = (() => {
     return activeMode === 'create' ? valuesValid(vals) : pendingWritesChange(vals);
   }
 
-  async function requestClose() {
-    if (confirmingClose) return;
-    if (hasUnsavedChanges()) {
-      confirmingClose = true;
-      const discard = await showConfirm('You have unsaved changes.', { confirmText: 'Discard' });
-      confirmingClose = false;
-      if (!discard) return;
-    }
+  // Only the scrim's click can be a misclick, so a dirty panel refuses it where every
+  // explicit close — Cancel, ✕, Escape, Back — discards outright (see close()).
+  function requestClose() {
+    if (hasUnsavedChanges()) { nudgeFooter(); return; }
     close();
+  }
+
+  function nudgeFooter() {
+    const foot = el.querySelector('.entry-panel-foot');
+    if (!foot) return;
+    foot.classList.remove('nudge');
+    void foot.offsetWidth;   // reflow so a repeat click replays the animation
+    foot.classList.add('nudge');
   }
 
   function containsFocus() {
@@ -1738,7 +1736,6 @@ export const EntryPanel = (() => {
   }
 
   function onKeydown(e) {
-    if (confirmingClose) return;
     if (e.key === 'Escape') {
       if (scoreCombo?.isOpen()) { e.preventDefault(); e.stopPropagation(); scoreCombo.close(); return; }
       e.preventDefault();
