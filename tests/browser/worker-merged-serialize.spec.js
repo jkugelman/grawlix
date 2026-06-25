@@ -112,6 +112,22 @@ async function makeFresh(page) {
   await page.evaluate(() => window.__grawlixTest.syncWorkerConfig());
 }
 
+// Drive the worker corpus-less (next build throws, config frees the corpus and never
+// rebuilds), so serialize replies `retry`. The search run rides along to give
+// pipelineIdle a deferred run to await the failing build on — without it the test
+// races the async build and flakes.
+async function makeNotFresh(page) {
+  await page.evaluate(() => window.__grawlixTest.failNextWorkerBuildForTest());
+  await page.evaluate(() => {
+    window.__grawlixTest.syncWorkerConfig();
+    window.__grawlixTest.setStack([{ tool: 'search', params: { pattern: 'a' } }]);
+  });
+  await expect.poll(
+    () => page.evaluate(async () => { await window.__grawlixTest.pipelineIdle(); return true; }),
+    { timeout: 5000 }
+  ).toBe(true);
+}
+
 // ─── M1: merged download ─────────────────────────────────────────────────────
 
 test('M1 merged download: worker serialize is byte-identical to the local fallback across output formats', async ({ page }) => {
@@ -137,19 +153,18 @@ test('M1 merged download: worker serialize is byte-identical to the local fallba
   }
 });
 
-// The not-fresh fallback: ownedMerged was never built (no syncWorkerConfig after
-// seeding), so the worker replies text:null and main serializes locally. The
-// round-trip still fires; it just replies null.
-test('M1 not-fresh: the worker round-trip replies null and main serializes locally', async ({ page }) => {
+// M1 guard: a merged download with no fresh corpus must never save a 0-byte file —
+// every serialize replies `retry`, so the download is suppressed, not saved empty.
+test('M1 not-fresh: a not-ready merged download saves no empty file', async ({ page }) => {
   await gotoApp(page);
   await seedCorpus(page);
   await scopeTo(page, 'All Wordlists');
-  await setFormat(page, FORMATS.stripped);
+  await makeNotFresh(page);
 
-  const before = await serializeFetches(page);
-  const text = await captureMergedDownload(page);
-  expect(await serializeFetches(page) - before).toBe(1);   // the round-trip happens; it just replies null
-  expect(text.length).toBeGreaterThan(0);
+  let downloaded = false;
+  page.on('download', () => { downloaded = true; });
+  await page.evaluate(() => downloadMergedWordlistFromPanel());
+  expect(downloaded, 'no empty file is saved when the merge is not ready').toBe(false);
 });
 
 // ─── M2: merged disk mirror ──────────────────────────────────────────────────
@@ -186,15 +201,23 @@ test('M2 merged disk mirror: worker serialize is byte-identical to the local fal
   }
 });
 
-test('M2 mirror not-fresh: the flush replies null and main serializes locally', async ({ page }) => {
+// M2 guard: the regression. A merged-mirror flush with no fresh corpus must skip the
+// write and leave the last-good file intact — never truncate it to 0 bytes, the failure
+// that silently zeroed users' All-Wordlists files during a rebuild.
+test('M2 mirror not-fresh: a not-ready flush never truncates the synced file', async ({ page }) => {
   await gotoApp(page);
   await seedCorpus(page);
   await scopeTo(page, 'All Wordlists');
   await setFormat(page, FORMATS.rich);
   await attachMergedMirror(page);
+  await makeFresh(page);
 
-  const text = await flushAndRead(page);
-  expect(text.length).toBeGreaterThan(0);
+  const good = await flushAndRead(page);
+  expect(good.length).toBeGreaterThan(0);
+
+  await makeNotFresh(page);
+  await page.evaluate(() => window.__grawlixTest.sync.flushMerged());
+  expect(await readFile(page, 'Merged.txt'), 'file survives a not-ready flush').toBe(good);
 });
 
 // ─── C1: Help All-Wordlists count ────────────────────────────────────────────

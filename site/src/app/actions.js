@@ -959,10 +959,24 @@ export function refreshDerivedDisplays() {
   renderScoringRules();
 }
 
+// The merged download has no main-side fallback, so never save empty: a retry reply
+// (merge mid-rebuild) waits and re-asks a bounded number of times; a null reply (dead
+// worker) gives up at once. Returns text, or null for the caller to toast on.
+const MERGED_DOWNLOAD_RETRIES = 6;
+const MERGED_DOWNLOAD_RETRY_MS = 300;
+async function fetchMergedSerialize() {
+  for (let attempt = 0; attempt < MERGED_DOWNLOAD_RETRIES; attempt++) {
+    const res = await fetchWorkerSerialize(MERGED_ID, getOutputFormat());
+    if (res == null) return null;
+    if (res.text != null) return res.text;
+    await new Promise(r => setTimeout(r, MERGED_DOWNLOAD_RETRY_MS));
+  }
+  return null;
+}
+
 export async function downloadMergedWordlistFromPanel() {
-  // The worker is the only corpus source post-flip; a null reply (timeout/not-fresh)
-  // downloads empty rather than throwing.
-  const text = (await fetchWorkerSerialize(MERGED_ID, getOutputFormat())) ?? '';
+  const text = await fetchMergedSerialize();
+  if (text == null) { showToast('The merged list is still preparing. Try again in a moment.'); return; }
   triggerDownload(text, rescoredFilename(MERGED_ID));
   showToast(`Downloaded ${pluralize(mergedEntryCount(), 'entry', 'entries')}`);
 }
@@ -981,9 +995,9 @@ export function triggerDownload(text, filename) {
 
 export async function downloadSourceWordlist(wordlist) {
   if (!wordlist || !sourceTotal(wordlist)) return;
-  // The worker serialize is primary; only on a miss does the fallback re-read the IDB
-  // text for a non-Edits source (no resident rawEntries) — else a miss downloads empty.
-  let text = await fetchWorkerSerialize(wordlist.dbKey, getOutputFormat());
+  // The worker serialize is primary; on a miss (retry/timeout) the fallback re-reads the
+  // IDB text for a non-Edits source (no resident rawEntries) — else a miss downloads empty.
+  let text = (await fetchWorkerSerialize(wordlist.dbKey, getOutputFormat()))?.text;
   if (text == null) {
     const entries = wordlist.type === 'edits'
       ? getRescoredEntries(wordlist)

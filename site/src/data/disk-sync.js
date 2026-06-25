@@ -30,8 +30,8 @@ export function configureSyncDialogs({ alert, resolveConflict }) {
 }
 
 // Injected by the app layer (configureMirrorSerializer), like the dialog hooks
-// above: the SORTED worker-serialize attempt (text-or-null) for a scope (MERGED_ID
-// or a source dbKey), kept here so data/ avoids an upward edge to ui/.
+// above: the SORTED worker-serialize attempt ({ text } | { retry } | null) for a scope
+// (MERGED_ID or a source dbKey), kept here so data/ avoids an upward edge to ui/.
 let _mirrorSerializer = null;
 export function configureMirrorSerializer(fn) { _mirrorSerializer = fn; }
 
@@ -166,9 +166,16 @@ const MirrorSync = {
   async _flush(key) {
     const t = syncTargets.get(key);
     if (!t) return;
+    const res = await this._serialize(key);
+    // Never write a retry as empty: that zeroes the synced file. Re-arm instead, so a
+    // later refresh writes real content rather than leaving the file stale.
+    if (res.retry) {
+      this._debounce(key, () => this._flush(key));
+      return;
+    }
     SyncStatus.set(key, 'writing');
     try {
-      await Disk.write(t.handle, await this._serialize(key));
+      await Disk.write(t.handle, res.text);
       SyncStatus.set(key, 'synced');
     } catch (err) {
       console.error('mirror write failed', err);
@@ -176,17 +183,14 @@ const MirrorSync = {
     }
   },
   async _serialize(key) {
-    const worker = _mirrorSerializer ? await _mirrorSerializer(key, getOutputFormat()) : null;
-    if (worker != null) return worker;
-    // Local fallback (worker not fresh). The merge has no resident main corpus → empty.
-    if (key === MERGED_ID) return '';
+    const res = _mirrorSerializer ? await _mirrorSerializer(key, getOutputFormat()) : null;
+    if (res?.text != null) return res;              // worker shipped text (possibly "")
+    if (key === MERGED_ID) return { retry: true };  // no resident main corpus to fall back to
     const list = listForSyncKey(key);
-    // My Edits holds its entries; a non-Edits source doesn't, so re-read its IDB text
-    // transiently — mirroring empty here would clobber the synced file with nothing.
     const entries = list.type === 'edits'
       ? list.rawEntries
       : parseWordlist(await idbGet('data_' + list.dbKey) ?? '');
-    return serializeEntries(sortedEntries(applyRescoring(entries, list.rescoreRules || [])), getOutputFormat());
+    return { text: serializeEntries(sortedEntries(applyRescoring(entries, list.rescoreRules || [])), getOutputFormat()) };
   },
 };
 

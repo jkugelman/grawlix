@@ -1437,8 +1437,10 @@ async function dumpCorpus(scope) {
 // ─── Corpus serialize ── see docs/worker-protocol.md ─────────────────────────
 function handleSerializeFor({ requestId, scope, format }) {
   const entries = serializeEntriesForScope(scope);
-  if (!entries) {
-    postMessage({ type: 'serialized', requestId, text: null });
+  // null ⇒ not fresh: ask main to retry, never to write. A text reply (even "") tells
+  // main to write; collapsing the two reintroduces the 0-byte clobber of the synced file.
+  if (entries === null) {
+    postMessage({ type: 'serialized', requestId, retry: true });
     return;
   }
   const text = serializeEntries(sortedEntries(entries), format);

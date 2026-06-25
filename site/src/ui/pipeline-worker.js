@@ -862,6 +862,9 @@ export function fetchWorkerAllGroups(runId, timeout = 5000) {
 // ─── Corpus serialize bridge ── see docs/worker-protocol.md ──────────────────
 let fetchSerializeRequestId = 0;
 export function serializeFetchesSent() { return fetchSerializeRequestId; }
+// Resolves { text } on success (text may be ""), { retry: true } when the worker's
+// owned corpus isn't fresh yet, or null on timeout / dead worker. Mishandling a branch
+// writes/downloads empty silently, and `retry` is decided across the worker boundary.
 export function fetchWorkerSerialize(scope, format, timeout = 5000) {
   const w = getWorker();
   const requestId = ++fetchSerializeRequestId;
@@ -871,7 +874,7 @@ export function fetchWorkerSerialize(scope, format, timeout = 5000) {
       if (data?.type !== 'serialized' || data.requestId !== requestId) return;
       clearTimeout(timer);
       w.removeEventListener('message', onMessage);
-      resolve(data.text ?? null);
+      resolve(data.retry ? { retry: true } : { text: data.text });
     }
     w.addEventListener('message', onMessage);
     w.postMessage({ type: 'serializeFor', requestId, scope, format });
