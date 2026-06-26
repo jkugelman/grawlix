@@ -6,58 +6,21 @@
 // still reduces to a base that actually appears in the list.
 
 import { toNorm } from './norm.js';
+import { WORDNET_IRREGULARS } from './irregulars-data.js';
 
 // ─── Irregulars ──────────────────────────────────────────────────────────────
-// base → its irregular surface forms (the regular ones are derived by rule).
-const IRREGULAR_VERBS = {
-  be: ['am', 'is', 'are', 'was', 'were', 'been', 'being'],
-  have: ['has', 'had'], do: ['does', 'did', 'done'], go: ['goes', 'went', 'gone'],
-  say: ['said'], make: ['made'], take: ['took', 'taken'], come: ['came'],
-  see: ['saw', 'seen'], know: ['knew', 'known'], get: ['got', 'gotten'],
-  give: ['gave', 'given'], find: ['found'], think: ['thought'], tell: ['told'],
-  become: ['became'], show: ['shown'], leave: ['left'], feel: ['felt'],
-  bring: ['brought'], begin: ['began', 'begun'], keep: ['kept'], hold: ['held'],
-  write: ['wrote', 'written'], stand: ['stood'], hear: ['heard'], mean: ['meant'],
-  meet: ['met'], run: ['ran'], pay: ['paid'], sit: ['sat'],
-  speak: ['spoke', 'spoken'], lead: ['led'], grow: ['grew', 'grown'],
-  lose: ['lost'], fall: ['fell', 'fallen'], send: ['sent'], build: ['built'],
-  understand: ['understood'], draw: ['drew', 'drawn'], break: ['broke', 'broken'],
-  spend: ['spent'], rise: ['rose', 'risen'], drive: ['drove', 'driven'],
-  buy: ['bought'], wear: ['wore', 'worn'], choose: ['chose', 'chosen'],
-  seek: ['sought'], throw: ['threw', 'thrown'], catch: ['caught'], deal: ['dealt'],
-  win: ['won'], forget: ['forgot', 'forgotten'], eat: ['ate', 'eaten'],
-  fight: ['fought'], fly: ['flew', 'flown'], hang: ['hung'], sell: ['sold'],
-  shoot: ['shot'], sing: ['sang', 'sung'], sink: ['sank', 'sunk'],
-  swim: ['swam', 'swum'], teach: ['taught'], drink: ['drank', 'drunk'],
-  ring: ['rang', 'rung'], swear: ['swore', 'sworn'], tear: ['tore', 'torn'],
-  blow: ['blew', 'blown'], freeze: ['froze', 'frozen'], steal: ['stole', 'stolen'],
-  ride: ['rode', 'ridden'], bite: ['bit', 'bitten'], hide: ['hid', 'hidden'],
-  shake: ['shook', 'shaken'], wake: ['woke', 'woken'], beat: ['beaten'],
-  bend: ['bent'], feed: ['fed'], flee: ['fled'], shine: ['shone'],
-  shrink: ['shrank', 'shrunk'], slide: ['slid'], spin: ['spun'],
-  spring: ['sprang', 'sprung'], stick: ['stuck'], sting: ['stung'],
-  strike: ['struck'], sweep: ['swept'], weep: ['wept'], bleed: ['bled'],
-  breed: ['bred'], cling: ['clung'], dig: ['dug'], kneel: ['knelt'],
-  light: ['lit'], slay: ['slew', 'slain'], spit: ['spat'], weave: ['wove', 'woven'],
-};
-const IRREGULAR_NOUNS = {
-  child: ['children'], man: ['men'], woman: ['women'], person: ['people'],
-  foot: ['feet'], tooth: ['teeth'], goose: ['geese'], mouse: ['mice'],
-  louse: ['lice'], ox: ['oxen'], die: ['dice'], penny: ['pence'],
-  leaf: ['leaves'], loaf: ['loaves'], knife: ['knives'], wife: ['wives'],
-  life: ['lives'], half: ['halves'], calf: ['calves'], shelf: ['shelves'],
-  wolf: ['wolves'], thief: ['thieves'], cactus: ['cacti'], fungus: ['fungi'],
-  nucleus: ['nuclei'], radius: ['radii'], stimulus: ['stimuli'],
-  analysis: ['analyses'], basis: ['bases'], crisis: ['crises'], thesis: ['theses'],
-  diagnosis: ['diagnoses'], phenomenon: ['phenomena'], criterion: ['criteria'],
-  datum: ['data'], medium: ['media'], bacterium: ['bacteria'],
-  curriculum: ['curricula'],
-};
 const IRREGULARS = new Map();
-for (const table of [IRREGULAR_VERBS, IRREGULAR_NOUNS]) {
-  for (const [base, forms] of Object.entries(table)) {
-    for (const form of forms) IRREGULARS.set(form, base);
-  }
+for (const line of WORDNET_IRREGULARS.trim().split('\n')) {
+  const sp = line.indexOf(' ');
+  IRREGULARS.set(line.slice(0, sp), line.slice(sp + 1));
+}
+// Forms WordNet's exception lists omit: the suppletions it models as separate
+// lemmas (people, women) and a couple of irregular plurals it lacks. Without
+// these they silently split from their singulars.
+for (const [base, forms] of Object.entries({
+  woman: ['women'], person: ['people'], die: ['dice'], bacterium: ['bacteria'],
+})) {
+  for (const form of forms) IRREGULARS.set(form, base);
 }
 
 const ARTICLES = new Set(['a', 'an', 'the']);

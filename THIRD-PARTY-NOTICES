@@ -10,6 +10,12 @@ Wordlists
 - Will Nediger's list — Will Nediger — https://github.com/bewilderingly/Nediger-list/
 
 
+Linguistic data
+---------------
+
+- Open English WordNet — inflectional exception lists (noun.exc, verb.exc), reduced to irregular base forms — CC BY 4.0 — https://en-word.net/
+
+
 Fetched at runtime
 ------------------
 
@@ -85,3 +91,17 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
+
+
+Open English WordNet — https://en-word.net/
+-------------------------------------------------------------------------------
+
+Copyright (c) the Open English WordNet contributors.
+
+Licensed under the Creative Commons Attribution 4.0 International License
+(CC BY 4.0): https://creativecommons.org/licenses/by/4.0/
+
+Grawlix bundles a modified form of the noun.exc and verb.exc inflectional
+exception lists from the 2025 release: reduced to lines mapping an irregular
+surface form to its base, with forms a suffix rule already reaches removed. No
+other WordNet data is used.

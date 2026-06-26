@@ -15,6 +15,15 @@ const GROUPS = [
   ['eat up', 'ate up', 'eats up', 'eating up'],
   ['best', 'the best'],
   ['bit', 'a bit'],
+  ['octopus', 'octopi', 'octopuses'],
+  ['focus', 'foci', 'focused', 'focusing'],
+  ['cherub', 'cherubim'],
+  ['alumnus', 'alumni'],
+  ['brother', 'brethren'],
+  ['seraph', 'seraphim'],
+  ['passerby', 'passersby'],
+  ['man-at-arms', 'men-at-arms'],
+  ['aide-de-camp', 'aides-de-camp'],
 ];
 const vocab = collectVocab(GROUPS.flat());
 
@@ -24,6 +33,25 @@ for (const group of GROUPS) {
     assert.equal(keys.size, 1, `expected one key, got: ${[...keys].join(', ')}`);
   });
 }
+
+test('ambiguous plurals reduce to the noun, not the homographic verb', () => {
+  const v = collectVocab(['leaf', 'leaves', 'basis', 'bases']);
+  assert.equal(familyKey('leaves', v), 'leaf');
+  assert.equal(familyKey('bases', v), 'basis');
+});
+
+test('suppletive plurals group via the curated overrides', () => {
+  const v = collectVocab(['person', 'people', 'woman', 'women', 'die', 'dice']);
+  assert.equal(familyKey('people', v), familyKey('person', v));
+  assert.equal(familyKey('women', v), familyKey('woman', v));
+  assert.equal(familyKey('dice', v), familyKey('die', v));
+});
+
+test('adjective degree forms stay distinct (no adj/adv exceptions shipped)', () => {
+  const v = collectVocab(['good', 'better', 'best', 'dry', 'drier', 'driest']);
+  assert.notEqual(familyKey('better', v), familyKey('good', v));
+  assert.notEqual(familyKey('drier', v), familyKey('dry', v));
+});
 
 test('derivation is not collapsed (red / redness / redden stay distinct)', () => {
   const v = collectVocab(['red', 'redness', 'redden']);
