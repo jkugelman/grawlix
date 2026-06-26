@@ -43,7 +43,17 @@ async function readProvenance(page) {
   );
 }
 
-test('clicking a bare entry shows every spelling of the norm across all wordlists', async ({ page }) => {
+// The Related-entries display strings, in DOM order. Polls: the worker answers async.
+async function readRelated(page) {
+  await expect.poll(() => page.evaluate(() =>
+    document.querySelectorAll('#entry-panel .entry-family-item').length
+  )).toBeGreaterThan(0);
+  return page.evaluate(() =>
+    [...document.querySelectorAll('#entry-panel .entry-family-item .entry-family-entry')]
+      .map(s => s.textContent));
+}
+
+test('provenance scopes to the clicked spelling; other spellings of the norm go to Related entries', async ({ page }) => {
   await gotoApp(page);
 
   // W1 carries two spaced spellings of SEEINGASHOW; W2 carries the bare
@@ -55,19 +65,20 @@ test('clicking a bare entry shows every spelling of the norm across all wordlist
     name: 'W2', entries: ['seeingashow'], scores: [60],
   }));
 
-  // Scope to W2 and click its bare entry — a bare click pulls in the whole norm.
+  // Scope to W2 and click its entry. Provenance shows only that spelling; the
+  // siblings ride Related entries, which ignores scope, so W1's forms show too.
   await scopeTo(page, 'W2');
   await openPanelOnEntry(page, 'seeingashow');
 
-  const rows = await readProvenance(page);
-  expect(rows.map(r => ({ entry: r.entry, source: r.source }))).toEqual([
-    { entry: 'seeing a show', source: 'W1' },
-    { entry: 'seeing as how', source: 'W1' },
-    { entry: 'seeingashow',   source: 'W2' },
-  ]);
+  expect((await readProvenance(page)).map(r => ({ entry: r.entry, source: r.source })))
+    .toEqual([{ entry: 'seeingashow', source: 'W2' }]);
+  // The merge absorbs W2's bare form into W1's spellings, so Related lists those.
+  // Order-independent: the worker's localeCompare may order differently per engine.
+  expect((await readRelated(page)).sort())
+    .toEqual(['seeing a show', 'seeing as how']);
 });
 
-test('clicking a specific spelling shows the whole norm — every spelling plus a cross-source bare', async ({ page }) => {
+test('clicking a specific spelling shows it plus a cross-source bare; siblings go to Related', async ({ page }) => {
   await gotoApp(page);
 
   // Await each add separately — addCustomWordlist is async, and two un-awaited in
@@ -78,11 +89,13 @@ test('clicking a specific spelling shows the whole norm — every spelling plus 
   await scopeTo(page, 'Rich');
   await openPanelOnEntry(page, 'the IRS');
 
-  const rows = await readProvenance(page);
-  expect(rows.map(r => r.entry)).toEqual(['the IRS', 'Theirs', 'theirs']);
+  // 'the IRS' plus Plain's bare 'theirs' (a bare unifies with any spelling); the
+  // 'Theirs' sibling moves to Related entries.
+  expect((await readProvenance(page)).map(r => r.entry)).toEqual(['the IRS', 'theirs']);
+  expect(await readRelated(page)).toEqual(['the IRS', 'Theirs']);
 });
 
-test("clicking any of a norm's spellings shows the whole family (display-independent)", async ({ page }) => {
+test('each spelling scopes provenance to itself, but Related lists the whole norm', async ({ page }) => {
   await gotoApp(page);
 
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
@@ -92,11 +105,13 @@ test("clicking any of a norm's spellings shows the whole family (display-indepen
   await scopeTo(page, 'Rich');
 
   await openPanelOnEntry(page, 'the IRS');
-  expect((await readProvenance(page)).map(r => r.entry)).toEqual(['the IRS', 'Theirs', 'theirs']);
+  expect((await readProvenance(page)).map(r => r.entry)).toEqual(['the IRS']);
+  expect((await readRelated(page)).sort()).toEqual(['Theirs', 'the IRS', 'theirs']);
 
   await page.keyboard.press('Escape');
   await openPanelOnEntry(page, 'theirs');
-  expect((await readProvenance(page)).map(r => r.entry)).toEqual(['the IRS', 'Theirs', 'theirs']);
+  expect((await readProvenance(page)).map(r => r.entry)).toEqual(['theirs']);
+  expect((await readRelated(page)).sort()).toEqual(['Theirs', 'the IRS', 'theirs']);
 });
 
 test('a disabled wordlist still contributes a (dimmed) provenance row', async ({ page }) => {

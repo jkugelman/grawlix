@@ -12,7 +12,7 @@ import { parseWordlist, toNorm, displayOf } from './norm.js';
 import { parseRange, matchesRange } from './range.js';
 import { compileRescoreRules } from './rescore.js';
 import { sourceAccessor, invalidateSourceAccessor, parseWordlistColumns, columnsFromEntries } from './sources.js';
-import { buildCorpus, assignFamilies, scopeSourceIds, mergedContributors, resolveEditSeedWinner, mergeKey, mergedNormLowerBound, computeMergedBucket, diffWordlistEntries } from './corpus.js';
+import { buildCorpus, assignFamilies, scopeSourceIds, mergedContributors, resolveEditSeedWinner, mergeKey, mergedNormLowerBound, computeMergedBucket, diffWordlistEntries, isDistinguishing, concreteDisplay } from './corpus.js';
 import { familyKey } from './morphology.js';
 import { getHistogramLayout, invalidateHistogramLayout, bucketCounts } from './histogram.js';
 import { computeStatsRaw } from './stats.js';
@@ -565,22 +565,24 @@ function handleFetchEditSeed({ requestId, norm, display }) {
   postMessage({ type: 'editSeed', requestId, winner });
 }
 
-// ─── Family fetch ── see docs/worker-protocol.md ─────────────────────────────
-// Scanned from the active-scope ownedCorpus, not ownedMerged: the panel shows a
-// clicked entry's word-family siblings as they appear in the view the user is on.
+// ─── Related-entries fetch ── see docs/worker-protocol.md ────────────────────
+// Scanned from ownedMerged (the full enabled merge), NOT the active-scope
+// ownedCorpus: Related entries ignores scope, so a single-list scope still surfaces
+// every relative across the merged wordlist. Membership is family ∪ same-norm — the
+// differently-spelled same-norm siblings (Boney M. / Boney M) have no other home,
+// since provenance now scopes to one spelling. ownedCorpusFresh gates ownedMerged
+// the same way the edit-seed fetch does (see its note).
 function handleFetchFamily({ requestId, norm, display }) {
   let members = [];
-  if (ownedCorpus && ownedCorpusFresh) {
-    const clicked = ownedCorpus.byKey.get(mergeKey(norm, display ?? null)) ?? ownedCorpus.byNorm.get(norm) ?? null;
+  if (ownedMerged && ownedCorpusFresh) {
+    const clicked = ownedMerged.byKey.get(mergeKey(norm, display ?? null)) ?? ownedMerged.byNorm.get(norm) ?? null;
     const family = clicked?.family;
-    if (family) {
-      for (const e of ownedCorpus.entries) {
-        if (e.family === family) {
-          members.push({ norm: e.norm, display: e.display ?? null, score: e.score, current: e === clicked });
-        }
+    for (const e of ownedMerged.entries) {
+      if (e.norm === norm || (family && e.family === family)) {
+        members.push({ norm: e.norm, display: e.display ?? null, score: e.score, current: e === clicked });
       }
-      members.sort((a, b) => (a.display ?? a.norm).localeCompare(b.display ?? b.norm) || a.norm.localeCompare(b.norm));
     }
+    members.sort((a, b) => (a.display ?? a.norm).localeCompare(b.display ?? b.norm) || a.norm.localeCompare(b.norm));
   }
   postMessage({ type: 'family', requestId, members });
 }
@@ -590,7 +592,7 @@ function handleFetchFamily({ requestId, norm, display }) {
 // synchronously by syncConfig, re-set by a committed syncConfig or an edit command
 // — same reasoning as handleFetchEditSeed); a stale answer silently renders the
 // wrong table. A miss → {preview:null,rows:null}; main keeps its last-good render.
-function handleFetchProvenance({ requestId, typedRaw, previewRaw, clickedNorm }) {
+function handleFetchProvenance({ requestId, typedRaw, previewRaw, clickedNorm, clickedDisplay }) {
   if (!(ownedMerged && ownedBuilt && ownedCorpusFresh)) {
     postMessage({ type: 'provenance', requestId, preview: null, rows: null });
     return;
@@ -610,13 +612,21 @@ function handleFetchProvenance({ requestId, typedRaw, previewRaw, clickedNorm })
   const targetNorm = provPreview ? provPreview.norm
     : typedRaw && typedRaw.trim() ? toNorm(typedRaw)
     : clickedNorm;
+  // A click scopes provenance to the one clicked spelling (other spellings ride
+  // Related entries); typing a rename stays norm-scoped as a collision check.
+  const targetDisplay = typedRaw && typedRaw.trim() ? null : clickedDisplay ?? null;
 
   const rows = [];
   if (targetNorm != null) {
     for (const wl of ownedBuilt) {
       const group = sourceAccessor(wl).rescoredForNorm(targetNorm);
       if (group === undefined) continue;
+      // Mirror the merge's display eligibility (mergedContributors) or the table
+      // drifts from it: a bare entry unifies with any spelling, a concrete one must match.
+      const distinguishing = isDistinguishing(group);
       for (const e of group) {
+        const d = concreteDisplay(e, targetNorm, distinguishing);
+        if (targetDisplay != null && d != null && d !== targetDisplay) continue;
         rows.push({
           sourceId: wl.dbKey,
           enabled: wl.enabled !== false,

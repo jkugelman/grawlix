@@ -270,8 +270,8 @@ const __grawlixTest = {
   fetchWorkerDiffRows: (diffId, section, start, end, timeout) => fetchWorkerDiffRows(diffId, section, start, end, timeout),
   updateDialogDiffId: () => openUpdateSummaryDialog.ownedDiffId(),
   openHelp: () => HelpDialog.open(),
-  fetchWorkerProvenance: (typedRaw, previewRaw, clickedNorm, timeout) =>
-    fetchWorkerProvenance(typedRaw, previewRaw, clickedNorm, timeout),
+  fetchWorkerProvenance: (typedRaw, previewRaw, clickedNorm, clickedDisplay, timeout) =>
+    fetchWorkerProvenance(typedRaw, previewRaw, clickedNorm, clickedDisplay, timeout),
 
   // Post-flip there's no main corpus, so the oracle dumps the worker's corpus for
   // the requested scope. Kept as `dumpMainCorpus` so the specs comparing two dumps

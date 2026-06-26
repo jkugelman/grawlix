@@ -3,7 +3,7 @@
 // and navigates to a relative on click.
 
 import { test, expect } from '@playwright/test';
-import { stubPublisherFetches, gotoApp, expectVisible } from './helpers.js';
+import { stubPublisherFetches, gotoApp, expectVisible, scopeTo } from './helpers.js';
 
 test.beforeEach(async ({ page }) => {
   await stubPublisherFetches(page);
@@ -64,4 +64,18 @@ test('clicking a relative navigates the panel, keeping the family list stable', 
   await expect(items(page)).toHaveCount(2);            // same family, highlight moved
   await expect(current(page)).toContainText('cats');
   await expect(sibling(page)).toContainText('cat');
+});
+
+test('Related entries ignores scope: a relative in another wordlist still shows', async ({ page }) => {
+  await gotoApp(page);
+  await page.evaluate(() => window.__grawlixTest.addCustomWordlist({ name: 'A', entries: ['cat'],  scores: [50] }));
+  await page.evaluate(() => window.__grawlixTest.addCustomWordlist({ name: 'B', entries: ['cats'], scores: [30] }));
+
+  // Scope the table to A (no 'cats'), then open 'cat'. Related still lists 'cats'
+  // from B: the section reflects the whole merged wordlist, not the scoped view.
+  await scopeTo(page, 'A');
+  await openPanelFor(page, 'cat');
+  await expect(items(page)).toHaveCount(2);
+  await expect(current(page)).toContainText('cat');
+  await expect(sibling(page)).toContainText('cats');
 });

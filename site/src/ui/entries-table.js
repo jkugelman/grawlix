@@ -2250,7 +2250,10 @@ export const EntryPanel = (() => {
     const token = ++provQueryToken;
     provQueriesFired++;
     const clickedNorm = activeWlEntry?.norm ?? null;
-    fetchWorkerProvenance(typedRaw, previewRaw, clickedNorm)
+    // displayOf (norm fallback), not the raw display: a bare/route open scopes to
+    // the norm spelling, matching a direct click on that row.
+    const clickedDisplay = activeWlEntry ? displayOf(activeWlEntry) : null;
+    fetchWorkerProvenance(typedRaw, previewRaw, clickedNorm, clickedDisplay)
       .then(({ rows }) => {
         // Match by norm, not identity: each run rebuilds activeWlEntry fresh, so an
         // identity check would drop every reply after a re-bind.

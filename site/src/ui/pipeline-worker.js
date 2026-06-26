@@ -564,7 +564,7 @@ export function fetchWorkerFamily(norm, display, timeout = 5000) {
 let fetchProvenanceRequestId = 0;
 let provenanceFetches = 0;
 export function fetchProvenanceFetchCount() { return provenanceFetches; }
-export function fetchWorkerProvenance(typedRaw, previewRaw, clickedNorm, timeout = 5000) {
+export function fetchWorkerProvenance(typedRaw, previewRaw, clickedNorm, clickedDisplay, timeout = 5000) {
   const w = getWorker();
   const requestId = ++fetchProvenanceRequestId;
   provenanceFetches++;
@@ -577,7 +577,7 @@ export function fetchWorkerProvenance(typedRaw, previewRaw, clickedNorm, timeout
       resolve({ preview: data.preview ?? null, rows: data.rows ?? null });
     }
     w.addEventListener('message', onMessage);
-    w.postMessage({ type: 'fetchProvenance', requestId, typedRaw, previewRaw, clickedNorm });
+    w.postMessage({ type: 'fetchProvenance', requestId, typedRaw, previewRaw, clickedNorm, clickedDisplay });
   });
 }
 
