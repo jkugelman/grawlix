@@ -12,7 +12,8 @@ import { parseWordlist, toNorm, displayOf } from './norm.js';
 import { parseRange, matchesRange } from './range.js';
 import { compileRescoreRules } from './rescore.js';
 import { sourceAccessor, invalidateSourceAccessor, parseWordlistColumns, columnsFromEntries } from './sources.js';
-import { buildCorpus, scopeSourceIds, mergedContributors, resolveEditSeedWinner, mergeKey, mergedNormLowerBound, computeMergedBucket, diffWordlistEntries } from './corpus.js';
+import { buildCorpus, assignFamilies, scopeSourceIds, mergedContributors, resolveEditSeedWinner, mergeKey, mergedNormLowerBound, computeMergedBucket, diffWordlistEntries } from './corpus.js';
+import { familyKey } from './morphology.js';
 import { getHistogramLayout, invalidateHistogramLayout, bucketCounts } from './histogram.js';
 import { computeStatsRaw } from './stats.js';
 import { compileFlatHighlighters, materializeFlatRow } from './flat-highlight.js';
@@ -345,6 +346,20 @@ function postResult(runId, { rows, atomCount, grouped }, sort, scope, stack, exi
 
   const widthHints = computeWidthHints(indices, ownedCorpus);
 
+  // Family-boundary flags parallel to the final (sorted+filtered) indices, for
+  // the table's demarcation bracket — shipped only under the Entry sort, the one
+  // order where same-family rows are contiguous; any other would draw false runs.
+  const famSort = ((sort || []).filter(s => s && FLAT_SORT_AXES[s.key])[0]?.key ?? 'entry') === 'entry';
+  let familyStarts = null;
+  if (famSort) {
+    familyStarts = new Uint8Array(indices.length);
+    let prev = null;
+    for (let i = 0; i < indices.length; i++) {
+      const fam = ownedCorpus.entries[indices[i]].family;
+      if (fam !== prev) { familyStarts[i] = 1; prev = fam; }
+    }
+  }
+
   // .slice() is load-bearing: the postMessage below transfers (detaches)
   // indices/scores, so the worker must retain its own copies to serve fetchRows.
   lastFlatResult = {
@@ -366,9 +381,11 @@ function postResult(runId, { rows, atomCount, grouped }, sort, scope, stack, exi
   // the just-set lastFlatResult; the scroller seeds _winCache from it.
   const firstRows = buildFlatRows(0, Math.min(FIRST_WINDOW, indices.length));
 
+  const transfer = [indices.buffer, scores.buffer];
+  if (familyStarts) transfer.push(familyStarts.buffer);
   postMessage(
-    { ...base, payload: { indices: indices.buffer, scores: scores.buffer, widthHints, stats, histogramCounts, histogramLayout, existsInScope, rebindQuery: rebindQuery || null, rebindEntry, rebindExists, filtered: doFilter, firstRows } },
-    [indices.buffer, scores.buffer],
+    { ...base, payload: { indices: indices.buffer, scores: scores.buffer, familyStarts: familyStarts ? familyStarts.buffer : null, widthHints, stats, histogramCounts, histogramLayout, existsInScope, rebindQuery: rebindQuery || null, rebindEntry, rebindExists, filtered: doFilter, firstRows } },
+    transfer,
   );
 }
 
@@ -548,6 +565,26 @@ function handleFetchEditSeed({ requestId, norm, display }) {
   postMessage({ type: 'editSeed', requestId, winner });
 }
 
+// ─── Family fetch ── see docs/worker-protocol.md ─────────────────────────────
+// Scanned from the active-scope ownedCorpus, not ownedMerged: the panel shows a
+// clicked entry's word-family siblings as they appear in the view the user is on.
+function handleFetchFamily({ requestId, norm, display }) {
+  let members = [];
+  if (ownedCorpus && ownedCorpusFresh) {
+    const clicked = ownedCorpus.byKey.get(mergeKey(norm, display ?? null)) ?? ownedCorpus.byNorm.get(norm) ?? null;
+    const family = clicked?.family;
+    if (family) {
+      for (const e of ownedCorpus.entries) {
+        if (e.family === family) {
+          members.push({ norm: e.norm, display: e.display ?? null, score: e.score, current: e === clicked });
+        }
+      }
+      members.sort((a, b) => a.norm < b.norm ? -1 : a.norm > b.norm ? 1 : (a.display ?? '').localeCompare(b.display ?? ''));
+    }
+  }
+  postMessage({ type: 'family', requestId, members });
+}
+
 // ─── Provenance + preview fetch ── see docs/worker-protocol.md ────────────────
 // ownedCorpusFresh stands in for an ownedMerged/ownedBuilt freshness flag (cleared
 // synchronously by syncConfig, re-set by a committed syncConfig or an edit command
@@ -612,8 +649,8 @@ function handlePlanEdit({ requestId, mode, clicked, typed, trashScore }) {
 // main thread (which no longer sorts) would show a subtly wrong order.
 const FLAT_SORT_AXES = {
   entry: {
-    primary: e => e.norm,
-    tiebreakers: [{ p: e => e.norm.length, dir: -1 }, { p: e => e.score, dir: -1 }],
+    primary: e => e.family || e.norm,
+    tiebreakers: [{ p: e => e.norm, dir: 1 }, { p: e => e.score, dir: -1 }],
   },
   length: {
     primary: e => e.norm.length,
@@ -897,7 +934,7 @@ function recomputeScopedBucket(norm, source) {
     const winner = arr.find(eligible);
     if (!winner) continue;
     const commenter = arr.find(c => eligible(c) && c.comment) ?? winner;
-    rows.push({ norm, display: variant, score: winner.score, rawScore: winner.rawScore, comment: commenter.comment || '', wordlist: source, _i: -1 });
+    rows.push({ norm, display: variant, score: winner.score, rawScore: winner.rawScore, comment: commenter.comment || '', wordlist: source, family: '', _i: -1 });
     winners.push(source);
   }
   rows.sort((a, b) => (a.display ?? '').localeCompare(b.display ?? ''));
@@ -958,6 +995,13 @@ function leanRowFor(norm, display) {
   return out;
 }
 
+// Spliced rows key against the last full build's vocab; an edit's own new tokens
+// are absent until the next rebuild, affecting only that entry's anchoring.
+function withFamilies(bucket, vocab) {
+  for (const row of bucket.rows) row.family = familyKey(displayOf(row), vocab);
+  return bucket;
+}
+
 // The affected norms are re-merged from ALL sources (computeMergedBucket over
 // ownedBuilt), not just `source` — narrowing to the changed source would silently
 // drop a higher-priority list's winner for a norm `source` no longer touches.
@@ -965,13 +1009,13 @@ function applyOwnedEdit(source, affectedNorms, edited) {
   // computeMergedBucket (not the rawScore-carrying scoped variant): the merged
   // corpus drops rawScore on every entry (a full buildCorpus merge would too), so
   // the in-place splice must drop it to stay byte-identical to a rebuild.
-  const mergedPatched = spliceOwnedCorpus(ownedMerged, affectedNorms, norm => computeMergedBucket(norm, ownedBuilt));
+  const mergedPatched = spliceOwnedCorpus(ownedMerged, affectedNorms, norm => withFamilies(computeMergedBucket(norm, ownedBuilt), ownedMerged.vocab));
 
   // For MERGED scope ownedCorpus === ownedMerged (spliced above). Scoped to this
   // source it's a distinct single-source build — diverge from that and the scoped
   // view drifts from a rebuild with no error.
   if (ownedScope === source.dbKey && ownedCorpus !== ownedMerged) {
-    spliceOwnedCorpus(ownedCorpus, affectedNorms, norm => recomputeScopedBucket(norm, source));
+    spliceOwnedCorpus(ownedCorpus, affectedNorms, norm => withFamilies(recomputeScopedBucket(norm, source), ownedCorpus.vocab));
   }
 
   // A count-changing splice shifts every later index, so restamp fully (mirrors
@@ -1320,7 +1364,9 @@ function buildScopeCorpus(built, scope) {
   const list = scope === MERGED_ID
     ? built.filter(w => w.enabled)
     : built.filter(w => w.dbKey === scope);
-  return buildCorpus(list);
+  const corpus = buildCorpus(list);
+  assignFamilies(corpus);
+  return corpus;
 }
 
 async function buildSelfCorpus(scope) {
@@ -1542,6 +1588,10 @@ onmessage = ({ data }) => {
 
     case 'fetchEditSeed':
       handleFetchEditSeed(data);
+      break;
+
+    case 'fetchFamily':
+      handleFetchFamily(data);
       break;
 
     case 'fetchProvenance':

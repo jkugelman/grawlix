@@ -43,7 +43,7 @@ import { LookupSection } from './lookup.js';
 import {
   getEntriesScroller, rescorePreviewActive, refreshMergedScroller, setScope,
 } from './rendering.js';
-import { fetchWorkerRows, fetchWorkerGroups, fetchWorkerGroupChains, fetchWorkerAllRows, fetchWorkerAllGroups, fetchWorkerTransformRows, fetchWorkerAllTransformRows, lastCompletedRunId, fetchWorkerEditSeed, fetchWorkerProvenance, fetchWorkerEditPlan } from './pipeline-worker.js';
+import { fetchWorkerRows, fetchWorkerGroups, fetchWorkerGroupChains, fetchWorkerAllRows, fetchWorkerAllGroups, fetchWorkerTransformRows, fetchWorkerAllTransformRows, lastCompletedRunId, fetchWorkerEditSeed, fetchWorkerFamily, fetchWorkerProvenance, fetchWorkerEditPlan } from './pipeline-worker.js';
 
 let _navigate              = () => {};
 
@@ -824,6 +824,7 @@ export class EntriesScroller extends BaseVirtualScroller {
       this._flatHighlighters = compileFlatHighlighters(ToolStack.getStack());
       this.allEntries = result.indices;
       this._firstRows = result.firstRows ?? null;
+      this._familyStarts = result.familyStarts ?? null;
       this._firstChains = null;
       this._firstGroups = null;
     } else if (this._transform) {
@@ -845,6 +846,7 @@ export class EntriesScroller extends BaseVirtualScroller {
       this._widthHints = result.widthHints;
       this._firstChains = result.firstChains ?? [];
       this._firstGroups = null;
+      this._familyStarts = null;
       this.allEntries = [];
     } else {
       // The grouped worker stats/counts are FILTERED (the worker applies the score
@@ -869,6 +871,7 @@ export class EntriesScroller extends BaseVirtualScroller {
       // and sync rebind read _groupWinCache (keyed by absolute index) instead.
       this._firstGroups = result.rows;
       this._firstChains = null;
+      this._familyStarts = null;
       this.allEntries = [];
     }
   }
@@ -1091,6 +1094,7 @@ export class EntriesScroller extends BaseVirtualScroller {
         if (minMiss < 0) minMiss = i;
         maxMiss = i;
       }
+      if (this._flat && this._familyStarts) this._applyFamilyBracket(row, i);
       row.style.top = (i * stride) + 'px';
       if (row.classList.contains('active')) nextActiveRow = row;
       frag.appendChild(row);
@@ -1165,6 +1169,16 @@ export class EntriesScroller extends BaseVirtualScroller {
     row.className = 'entry-row entry-row-font skeleton';
     row.innerHTML = `<span class="atom-count">${i + 1}.</span>`;
     return row;
+  }
+
+  _applyFamilyBracket(row, i) {
+    const fs = this._familyStarts;
+    const isStart = fs[i] === 1;
+    const isEnd = i + 1 >= this.allEntries.length || fs[i + 1] === 1;
+    if (isStart && isEnd) return;
+    row.classList.add('fam-member');
+    if (isStart) row.classList.add('fam-start');
+    if (isEnd) row.classList.add('fam-end');
   }
 
   _fetchWindow(lo, hi) {
@@ -1587,6 +1601,8 @@ export const EntryPanel = (() => {
   let el = null;
   let scrim = null;
   let activeRow = null;
+  let familyMembers = [];
+  let familyToken = 0;
   let activeWlEntry = null;
   let activeSeed = null;
   let activeScroller = null;
@@ -1644,6 +1660,12 @@ export const EntryPanel = (() => {
       if (e.target.closest('.entry-panel-prov-untrash')) { toggleStagedAdopt(); return; }
       const trash = e.target.closest('.entry-panel-prov-trash');
       if (trash) { toggleStagedDelete(trash.dataset.norm, trash.dataset.display); return; }
+      const famItem = e.target.closest('.entry-family-item');
+      if (famItem) {
+        const m = familyMembers[+famItem.dataset.famIdx];
+        if (m && !m.current) open({ norm: m.norm, display: m.display, score: '', comment: '', wordlist: null }, null, getEntriesScroller(), 'score');
+        return;
+      }
       if (e.target.closest('.entry-panel-adopt-btn')) toggleStagedAdopt();
     });
     el.addEventListener('focus', e => { focusEl = e.target; }, true);
@@ -1805,6 +1827,7 @@ export const EntryPanel = (() => {
     panel.innerHTML = renderHTML(wlEntry, seed);
     revealModal(animate);
     wireFields();
+    renderFamily(wlEntry.norm, wlEntry.display ?? null);
 
     fireInitialProvenanceQuery(seed.entry);
     if (needsWorkerSeed(wlEntry, route)) refineScopedSeed(wlEntry, focusField, route);
@@ -2142,6 +2165,7 @@ export const EntryPanel = (() => {
       <div class="entry-panel-body">
         <div class="entry-panel-prov-wrap">${renderProvenanceTableHTML()}${renderNotesHTML()}</div>
         <div class="entry-panel-lookup"></div>
+        <div class="entry-panel-family"></div>
       </div>
       <div class="entry-panel-foot">${renderFooterHTML(seed.entry)}</div>`;
   }
@@ -2195,6 +2219,7 @@ export const EntryPanel = (() => {
     if (resetInputs) {
       el.innerHTML = renderHTML(activeWlEntry);
       wireFields();
+      renderFamily(activeWlEntry.norm, activeWlEntry.display ?? null);
       const inp = el.querySelector('.entry-input');
       fireProvenanceQuery('', inp ? inp.value : '');
       return;
@@ -2350,6 +2375,31 @@ export const EntryPanel = (() => {
 
     const lookupHost = el.querySelector('.entry-panel-lookup');
     if (lookupHost) LookupSection.mount(lookupHost, entryInp.value);
+  }
+
+  function renderFamily(norm, display) {
+    const token = ++familyToken;
+    familyMembers = [];
+    const host = el?.querySelector('.entry-panel-family');
+    if (host) host.innerHTML = '';
+    fetchWorkerFamily(norm, display ?? null).then(members => {
+      if (token !== familyToken || !isOpen()) return;
+      const h = el?.querySelector('.entry-panel-family');
+      if (!h) return;
+      familyMembers = members;
+      h.innerHTML = buildFamilyHTML(members);
+    });
+  }
+
+  function buildFamilyHTML(members) {
+    if (members.length <= 1) return '';   // members includes the current entry; <=1 means no relatives
+    const items = members.map((m, i) => {
+      const cls = m.current ? 'entry-family-item entry-family-item--current' : 'entry-family-item';
+      return `<span class="${cls}" data-fam-idx="${i}" tabindex="0">`
+        + `<span class="entry-family-entry">${esc(displayOf(m))}</span> ${buildScoreBadgeHTML(m.score)}</span>`;
+    }).join(' · ');
+    return `<div class="lookup-sec"><div class="lookup-sec-head">Related entries</div>`
+      + `<div class="entry-family-list">${items}</div></div>`;
   }
 
   function setScoreByDigit(digit) {

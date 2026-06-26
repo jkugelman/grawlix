@@ -4,6 +4,8 @@
 
 import { sourceAccessor } from './sources.js';
 import { buildByNorm } from './snapshot.js';
+import { displayOf } from './norm.js';
+import { familyKey, collectVocab } from './morphology.js';
 
 // A null display is a cross-wordlist wildcard (bare THEIRS unifies with another
 // list's spelled "the IRS"). But one list holding both the bare entry and a
@@ -52,7 +54,7 @@ export function resolveCorpus(buckets, sourceList) {
       // `_i` (the worker's index into ownedCorpus.entries) is declared in the literal,
       // not added later, so V8 keeps it in-object; a post-construction add spills one
       // PropertyArray per row (~13 MB at ~660K rows). The worker overwrites the -1.
-      const row = { norm, display: c.display, score: c.score, rawScore: c.rawScore, comment: c.comment, wordlist: c.wordlist, _i: -1 };
+      const row = { norm, display: c.display, score: c.score, rawScore: c.rawScore, comment: c.comment, wordlist: c.wordlist, family: '', _i: -1 };
       entries.push(row);
       byKey.set(mergeKey(norm, c.display), row);
       bumpCount(c.wordlist);
@@ -65,7 +67,7 @@ export function resolveCorpus(buckets, sourceList) {
       const winner = contributors.find(eligible);
       if (!winner) continue;
       const commenter = contributors.find(c => eligible(c) && c.comment) ?? winner;
-      const row = { norm, display: variant, score: winner.score, rawScore: winner.rawScore, comment: commenter.comment, wordlist: winner.wordlist, _i: -1 };
+      const row = { norm, display: variant, score: winner.score, rawScore: winner.rawScore, comment: commenter.comment, wordlist: winner.wordlist, family: '', _i: -1 };
       entries.push(row);
       byKey.set(mergeKey(norm, variant), row);
       if (!countedContributors.has(winner)) {
@@ -88,6 +90,14 @@ export function resolveCorpus(buckets, sourceList) {
 
 export function buildCorpus(sourceList) {
   return resolveCorpus(bucketContributors(sourceList), sourceList);
+}
+
+// Assigned after resolution, not in the row literal: the key anchors against the
+// whole list's vocabulary, which isn't known until every entry exists.
+export function assignFamilies(corpus) {
+  const vocab = collectVocab(corpus.entries.map(displayOf));
+  corpus.vocab = vocab;
+  for (const e of corpus.entries) e.family = familyKey(displayOf(e), vocab);
 }
 
 // The Sources-matrix contributor set per row. Call these per *shipped* row, never
@@ -202,7 +212,7 @@ export function computeMergedBucket(norm, sources) {
     const winner = contributors.find(eligible);
     if (!winner) continue;
     const commenter = contributors.find(c => eligible(c) && c.comment) ?? winner;
-    rows.push({ norm, display: variant, score: winner.score, comment: commenter.comment, wordlist: winner.wordlist, _i: -1 });
+    rows.push({ norm, display: variant, score: winner.score, comment: commenter.comment, wordlist: winner.wordlist, family: '', _i: -1 });
     if (!counted.has(winner)) { counted.add(winner); winners.push(winner.wordlist); }
   }
   rows.sort((a, b) => (a.display ?? '').localeCompare(b.display ?? ''));

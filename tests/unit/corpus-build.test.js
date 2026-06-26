@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { buildCorpus, scopeSourceIds, mergedContributors } from '../../site/src/engine/corpus.js';
+import { buildCorpus, assignFamilies, scopeSourceIds, mergedContributors } from '../../site/src/engine/corpus.js';
 import { compileRescoreRules } from '../../site/src/engine/rescore.js';
 
 // rawScore is absent from raw entries; bucketContributors carries it through, so
@@ -262,4 +262,17 @@ test('buildCorpus: an empty source list yields an empty corpus', () => {
   assert.deepStrictEqual(sourceCounts, []);
   assert.equal(byNorm.size, 0);
   assert.equal(byKey.size, 0);
+});
+
+test('assignFamilies: stamps each row a family key and stores the corpus vocab', () => {
+  const corpus = buildCorpus([src('A', [
+    wlEntry('cat', 50), wlEntry('cats', 40), wlEntry('bus', 30),
+  ])]);
+  assignFamilies(corpus);
+
+  const fam = Object.fromEntries(corpus.entries.map(e => [e.norm, e.family]));
+  assert.equal(fam.cat, fam.cats, 'cat and cats share a family');
+  assert.notEqual(fam.bus, fam.cat, 'bus is its own family');
+  assert.equal(fam.bus, 'bus', 'an irreducible word keys to itself');
+  assert.ok(corpus.vocab.has('cats') && corpus.vocab.has('bus'));
 });

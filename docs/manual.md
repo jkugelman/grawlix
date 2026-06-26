@@ -129,6 +129,14 @@ The **Sources** column is a presence matrix: every enabled wordlist gets a fixed
 
 A quiet footer can appear at the end of the table. When the current view has no entries it reads **No matches.** When you're scoped to a single wordlist (anything other than All Wordlists), it reads **Expecting more? Switch to All Wordlists** — a one-click link back to the merged view, a reminder that a narrow scope caps what search and tools can turn up. Both lines can show together.
 
+### Family grouping
+
+When the table is sorted by **Entry** (the default), related entries are grouped together rather than sorted in strict alphabetical order. Inflections of the same word sit side by side — `cat` with `cats`, `eat` with `eats`, `eating`, `ate`, and `eaten` — and the same holds for phrases, so `have a go at`, `had a go at`, and `having a go at` cluster instead of scattering across the list. It reads like a smarter alphabetical: forms that would already land near each other now line up exactly, so when you rescore one you can see and fix its siblings right there.
+
+A thin bracket down the left edge marks each group of two or more related entries; an entry with no relatives in the list is left unmarked, so only the clusters stand out. The grouping covers plurals, verb conjugations, and leading articles (`the best` groups with `best`); it does not chase word-derivations like `red` / `redness` / `redden`. Sorting by any other column returns to that column's plain order with no grouping.
+
+When you click an entry to edit it, the panel also lists its family at the bottom — the whole group inline with their scores, the entry you're on shown in bold. Click any relative to jump straight to its editor. It's built for working through a set of related entries together: open one, and its siblings are right there with their scores side by side, a click away.
+
 ## Stats bar
 
 A single sticky band above the entries table, carrying every readout about the visible result set, the score-range control that shapes it, and the export menu. Left to right:

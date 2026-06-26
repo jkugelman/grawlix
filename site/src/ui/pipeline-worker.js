@@ -255,6 +255,7 @@ function materializeResult(data, stack, scope) {
       rebindEntry: rebuildRebindEntry(payload.rebindEntry),
       rebindExists: payload.rebindExists ?? null,
       firstRows: payload.firstRows ?? null,
+      familyStarts: payload.familyStarts ? new Uint8Array(payload.familyStarts) : null,
       filtered: !!payload.filtered,
       ranAgainstOwned: !!data.ranAgainstOwned,
       atomCount, grouped: false, aborted: false,
@@ -533,6 +534,26 @@ export function fetchWorkerEditSeed(norm, display, timeout = 5000) {
     }
     w.addEventListener('message', onMessage);
     w.postMessage({ type: 'fetchEditSeed', requestId, norm, display });
+  });
+}
+
+// ─── Family fetch bridge ── see docs/worker-protocol.md ──────────────────────
+// Its own requestId space; a timeout resolves [] so the panel simply shows no
+// related entries rather than hanging.
+let fetchFamilyRequestId = 0;
+export function fetchWorkerFamily(norm, display, timeout = 5000) {
+  const w = getWorker();
+  const requestId = ++fetchFamilyRequestId;
+  return new Promise(resolve => {
+    const timer = setTimeout(() => { w.removeEventListener('message', onMessage); resolve([]); }, timeout);
+    function onMessage({ data }) {
+      if (data?.type !== 'family' || data.requestId !== requestId) return;
+      clearTimeout(timer);
+      w.removeEventListener('message', onMessage);
+      resolve(data.members ?? []);
+    }
+    w.addEventListener('message', onMessage);
+    w.postMessage({ type: 'fetchFamily', requestId, norm, display });
   });
 }
 

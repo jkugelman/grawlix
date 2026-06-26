@@ -40,10 +40,10 @@ const SORT_AXES = {
   single: {
     entry: {
       label: 'Entry',
-      primary: r => rowFirstEntry(r).norm,
+      primary: r => rowFirstEntry(r).family || rowFirstEntry(r).norm,
       tiebreakers: [
-        { project: r => rowFirstEntry(r).norm.length, dir: 'desc' },
-        { project: r => rowFirstEntry(r).score,        dir: 'desc' },
+        { project: r => rowFirstEntry(r).norm,  dir: 'asc'  },
+        { project: r => rowFirstEntry(r).score, dir: 'desc' },
       ],
     },
     length: {
@@ -80,11 +80,10 @@ const SORT_AXES = {
   multi: {
     entry: {
       label: 'Entry',
-      primary: r => rowFirstEntry(r).norm,
-      // First-atom entries are unique per input, so the only ties are a
-      // multi-output transform's branches — settled by the chain tail.
+      primary: r => rowFirstEntry(r).family || rowFirstEntry(r).norm,
       tiebreakers: [
-        { project: rowChainTail, dir: 'asc' },
+        { project: r => rowFirstEntry(r).norm, dir: 'asc' },
+        { project: rowChainTail,               dir: 'asc' },
       ],
     },
     length: {

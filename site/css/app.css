@@ -310,6 +310,17 @@ mark.search-match { border-radius: 2px; padding: 0 1px; margin: 0 -1px; font-sty
 .entry-row:hover { background: var(--row-hover); }
 .entry-row.active { background: color-mix(in srgb, var(--accent) 12%, transparent); }
 
+.entry-row.fam-member::before {
+  content: '';
+  position: absolute;
+  left: 6px; top: 0; bottom: 0;
+  width: 2px;
+  background: var(--accent);
+  opacity: 0.4;
+}
+.entry-row.fam-start::before { top: 4px; border-top-left-radius: 2px; border-top-right-radius: 2px; }
+.entry-row.fam-end::before { bottom: 4px; border-bottom-left-radius: 2px; border-bottom-right-radius: 2px; }
+
 @keyframes skeleton-shimmer { to { background-position: -200% 0; } }
 /* `.atom` is display:contents — its cells participate directly in the
    .entry-row grid. Explicit grid-column on each cell lets atoms past the
@@ -533,6 +544,15 @@ td.entry-panel-prov-entry { font-family: var(--font-mono); }
 .entry-panel-lookup { margin-top: 10px; border-top: 1px solid var(--border3); padding-top: 8px; color: var(--text); line-height: 1.45; }
 .entry-panel-lookup:empty { display: none; }
 .entry-panel-prov-wrap:empty + .entry-panel-lookup { margin-top: 0; border-top: none; padding-top: 0; }
+
+.entry-panel-family { margin-top: 10px; border-top: 1px solid var(--border3); padding-top: 8px; }
+.entry-panel-family:empty { display: none; }
+.entry-family-list { line-height: 1.9; }
+.entry-family-item { cursor: pointer; white-space: nowrap; }
+.entry-family-item:hover .entry-family-entry { color: var(--accent); text-decoration: underline; }
+.entry-family-item:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; border-radius: 3px; }
+.entry-family-item--current { font-weight: 700; cursor: default; }
+.entry-family-item--current:hover .entry-family-entry { color: inherit; text-decoration: none; }
 .lookup-empty { color: var(--muted); font-style: italic; }
 .lookup-sec { margin-bottom: 10px; }
 .lookup-sec:last-child { margin-bottom: 0; }
