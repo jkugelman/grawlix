@@ -16,7 +16,7 @@ When the next tool needs runtime support that doesn't exist yet, land the runtim
 
 - **Letter-bank family** (`anagram_families`, and similar) — no runtime gate. Each builds whatever letter-keyed index it needs in its own `prepare` (see *Indexed lookups* below). If a per-keystroke rebuild proves too slow on large wordlists, promote the index onto the merged-wordlist cache — but that's a one-liner, not a prerequisite runtime.
 - **Membership family** (`kangaroo`, `joey`, `sandwich`, `nested_words`, `double_occupancy`) — `wordlist.byEntry` already exists on the merged-wordlist cache. No runtime gate.
-- **Thesaurus family** — waits for the bundled data dependency: until Roget XML is available at runtime, the tools can't run. (Phonetics is unblocked — Rhymes ships, loading the CMU dict at runtime via the worker; see *Capability families*.)
+- **Thesaurus family** — waits for the bundled data dependency: until a semantic dataset (WordNet, preferred; or Roget XML) is available at runtime, the tools can't run. (Phonetics is unblocked — Rhymes ships, loading the CMU dict at runtime via the worker; see *Capability families*.)
 
 For tools that fit the runtime as-is (`palindrome`, `isogram`, `supervocalic`, etc. — purely letter-pattern checks over `entry`), no gate; just add the `run` and ship.
 
@@ -90,7 +90,11 @@ The CMU Pronouncing Dictionary maps words to phoneme sequences, opening up an en
 
 ### Thesaurus / semantics
 
-Roget's Thesaurus (available as structured XML) enables meaning-based searches: synonyms, antonyms, words in the same semantic category. Unlocks tools Wordlisted can't do at all — semantic relationships layered on top of the letter-pattern moves. An undertapped gold mine. Requires bundling Roget data.
+Meaning-based searches — synonyms, antonyms, words in the same semantic category — that unlock tools Wordlisted can't do at all: semantic relationships layered on top of the letter-pattern moves. An undertapped gold mine, gated on bundling a semantic dataset.
+
+**WordNet (preferred).** Princeton's lexical database — ~155K words in ~120K synsets, BSD-style licensed (the community-maintained [Open English WordNet](https://en-word.net/) fork is CC BY 4.0 and ships JSON). Synsets give synonyms directly, antonym pointers give antonyms, and hypernym/hyponym links give broader/narrower/category searches. Two extra draws: its derivationally-related-form links (`red`↔`redness`↔`redden`) could revive the derivational grouping a morphology layer otherwise skips, and its morphological exception lists + lemma inventory can back that same morphology layer — so one dataset serves both families.
+
+**Roget's Thesaurus (fallback).** Also available as structured XML, covering the same synonym/antonym/category ground; less structured and more awkwardly licensed than WordNet, so it's the alternative if WordNet doesn't pan out.
 
 ---
 
@@ -120,7 +124,7 @@ Tool docs are not needed before the gallery is built. Each tool's gallery card c
   - *(b) Registered.* User-named custom tools show up as gallery cards alongside builtins, persisted to localStorage, optionally exportable as a JSON file. Heavier — needs naming, conflict handling, deletion, possibly versioning. Sandboxing concerns (no rogue `fetch` to `localhost`, clear "user-loaded" badging in the gallery) belong here too.
 
   Start with (a); it proves the API against real user code without committing to the registry surface. Move to (b) only if users surface "I keep retyping this." Real demand is unknown today.
-- **Thesaurus data bundling.** Roget XML — static asset, CDN, or runtime fetch? (Phonetics resolved: the CMU dict is a runtime fetch from a remote URL, worker-owned — see `engine/assets.js`.)
+- **Thesaurus data bundling.** WordNet (or Open English WordNet) is now the leading dataset over Roget (see *Capability families*) — static asset, CDN, or runtime fetch? (Phonetics resolved: the CMU dict is a runtime fetch from a remote URL, worker-owned — see `engine/assets.js`.)
 - **Multi-input URL encoding** — *decided.* Rebus's repeatable `string`/`symbol` pairs are the first multi-input tool; rather than a value-internal delimiter, each input is its own adjacent key and repeats append onto parallel arrays (`rebus=tool&symbol=Ⓣ&string=star&symbol=★`). See [`../design.md` § URL state](../design.md#url-state) (Repeatable params). A fixed-arity multi-input (regex min-length, anagram bank letters) is the same named-subkey form without the array.
 - **Whole-word per Search row.** Search rows can be chained from the gallery, but `whole-word` is a bare top-level URL key tied to the permanent search bar — a gallery-added Search is substring-only. Per-row whole-word is now just another successive param (`search=CAT` + a bare `whole-word` key already round-trips on a Search row). Revisit the UI when a chained Search workflow actually wants it.
 - **Synthetic-atom downstream behavior.** What does `[phrase_parsing, behead]` mean? The synthetic "hot to trot" goes into behead, which tries to look up "ot to trot" in `wordlist.byEntry`, finds nothing, drops the row. Probably degenerates harmlessly but the chained semantic is fuzzy. Rebus (shipped) is now a synthetic emitter too — `[rebus, behead]` beheads a glyph form that exists in no wordlist, so it drops the same way. Revisit if a real workflow surfaces.

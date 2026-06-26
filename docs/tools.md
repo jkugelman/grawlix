@@ -4,7 +4,7 @@ One place to see every tool — shipped and planned — with the card content th
 
 Source material: shipped catalog lives in `TOOLS` in [`site/src/engine/tools.js`](../site/src/engine/tools.js) (assembled from the per-tool files in [`site/src/engine/tools/`](../site/src/engine/tools/)); planned items come from [`planned/tools.md`](planned/tools.md) (catalog + capability families) and [`wordlisted.md`](wordlisted.md) (Wordlisted's search modes, the reference inspiration).
 
-**Status** — `✓` = shipped (gallery card renders and `run` produces results). Blank = planned (no card, or a card with no `run` yet). `TBD` in any field = not yet specified; fill in when the design firms up. **Phonetics** loads the CMU Pronouncing Dictionary at runtime — the worker fetches and caches it on first use (no bundling); Rhymes ships, the rest are planned. **Thesaurus** is gated on bundling Roget's Thesaurus (XML) — see [`planned/tools.md`](planned/tools.md#capability-families) for the family rationale. Tool lists in those two categories are provisional.
+**Status** — `✓` = shipped (gallery card renders and `run` produces results). Blank = planned (no card, or a card with no `run` yet). `TBD` in any field = not yet specified; fill in when the design firms up. **Phonetics** loads the CMU Pronouncing Dictionary at runtime — the worker fetches and caches it on first use (no bundling); Rhymes ships, the rest are planned. **Thesaurus** is gated on bundling a semantic dataset — WordNet (preferred) ahead of Roget's Thesaurus (XML): WordNet is permissively licensed, ships structured synonym/antonym/hypernym relations, and the same dataset can back a prospective morphology layer — see [`planned/tools.md`](planned/tools.md#capability-families) for the family rationale. Tool lists in those two categories are provisional.
 
 | Status | Category | Tool | Description | Example |
 |---|---|---|---|---|
@@ -52,7 +52,7 @@ Source material: shipped catalog lives in `TOOLS` in [`site/src/engine/tools.js`
 |   | Side | 🥪 Sandwich | TBD | TBD |
 |   | Thesaurus | 🤝 Synonyms | Words with similar meaning to a target | TBD |
 |   | Thesaurus | ⚔️ Antonyms | Words opposite in meaning | TBD |
-|   | Thesaurus | 📚 Category | Words in the same Roget semantic category | TBD |
+|   | Thesaurus | 📚 Category | Words in the same semantic category | TBD |
 |   | Thesaurus | 🧠 Synonym kangaroo | Kangaroo whose joey is a synonym | TBD |
 |   | Transform | 🃏 Replace anything | Insert *with* in place of any deleted substring | TBD |
 |   | Transform | 🔀 Letter changes | Differs from input by exactly *n* single-letter substitutions | TBD |
