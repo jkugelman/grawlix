@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { sortGroups, composeSortAxis, compareItems } from '../../site/src/engine/sort.js';
+import { sortGroups, composeSortAxis, compareItems, sortAxes } from '../../site/src/engine/sort.js';
 import { applyScoreRangeToRows, cacheGroupStats } from '../../site/src/engine/executor.js';
 import { parseRange } from '../../site/src/engine/range.js';
 
@@ -32,6 +32,16 @@ test('sortGroups: chains stay in the designed seed order under a score filter', 
   const filtered = applyScoreRangeToRows([freshGroup()], parseRange('40-100'), true);
   const sorted = sortGroups(filtered, [{ key: 'entry', dir: 'asc' }], GROUP_STACK);
   assert.deepEqual(norms(sorted[0]), ['mango', 'zebra']); // not ['zebra','mango']
+});
+
+test('single Entry sort: a multi-word base leads its inflections, collated on display not stripped norm', () => {
+  // Regression: norm "latherup" collates after "lathersup", burying the base at
+  // the family tail; the display's space sorts ahead of any letter, so it leads.
+  const e = display => ({ norm: display.replace(/[^a-z]/g, ''), display, score: 50, family: 'lather up' });
+  const rows = [e('lathers up'), e('lathering up'), e('lather up'), e('lathered up')];
+  const axis = composeSortAxis([{ key: 'entry', dir: 'asc' }], sortAxes('single', null));
+  const out = rows.slice().sort((a, b) => compareItems(a, b, axis, 'asc')).map(r => r.display);
+  assert.deepEqual(out, ['lather up', 'lathered up', 'lathering up', 'lathers up']);
 });
 
 const AXES = {

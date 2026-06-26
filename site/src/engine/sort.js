@@ -6,6 +6,7 @@
 // explicit argument, never a ToolStack default, because the engine has no ToolStack.
 
 import { rowLastEntry, isGroupChain, isFilterOnlyChain } from './executor.js';
+import { displayOf } from './norm.js';
 import { TOOLS } from './tools.js';
 
 // ─── Chain-tier sort axes (single / multi) ───────────────────────────────────
@@ -26,6 +27,10 @@ import { TOOLS } from './tools.js';
 const rowFirstEntry = r => r.atoms ? r.atoms[0].wlEntry : r;
 export const rowMinScore = r => r.atoms ? Math.min(...r.atoms.map(a => a.wlEntry.score)) : r.score;
 export const rowMaxScore = r => r.atoms ? Math.max(...r.atoms.map(a => a.wlEntry.score)) : r.score;
+// Collate alphabetically on displayOf, not norm: toNorm strips spaces, so a
+// multi-word base ("lather up") would silently sort after its inflections.
+const rowFirstDisplay = r => displayOf(rowFirstEntry(r));
+const rowLastDisplay = r => displayOf(rowLastEntry(r));
 // Later atoms joined with a low separator: a string compare then orders them
 // atom-by-atom, since every row in a run carries the same atom count.
 const rowChainTail = r => !r.atoms ? '' : r.atoms.slice(1).map(a => a.wlEntry.norm).join('\u0000');
@@ -40,9 +45,9 @@ const SORT_AXES = {
   single: {
     entry: {
       label: 'Entry',
-      primary: r => rowFirstEntry(r).family || rowFirstEntry(r).norm,
+      primary: r => rowFirstEntry(r).family || rowFirstDisplay(r),
       tiebreakers: [
-        { project: r => rowFirstEntry(r).norm,  dir: 'asc'  },
+        { project: rowFirstDisplay,             dir: 'asc'  },
         { project: r => rowFirstEntry(r).score, dir: 'desc' },
       ],
     },
@@ -51,7 +56,7 @@ const SORT_AXES = {
       primary: r => rowFirstEntry(r).norm.length,
       tiebreakers: [
         { project: r => rowFirstEntry(r).score, dir: 'desc' },
-        { project: r => rowFirstEntry(r).norm, dir: 'asc'  },
+        { project: rowFirstDisplay,             dir: 'asc'  },
       ],
     },
     score: {
@@ -59,31 +64,31 @@ const SORT_AXES = {
       primary: r => rowFirstEntry(r).score,
       tiebreakers: [
         { project: r => rowFirstEntry(r).norm.length, dir: 'desc' },
-        { project: r => rowFirstEntry(r).norm,        dir: 'asc'  },
+        { project: rowFirstDisplay,                   dir: 'asc'  },
       ],
     },
     comment: {
       label: 'Comment',
       primary: r => rowFirstEntry(r).comment || '',
       tiebreakers: [
-        { project: r => rowFirstEntry(r).norm, dir: 'asc' },
+        { project: rowFirstDisplay, dir: 'asc' },
       ],
     },
     source: {
       label: 'Source',
       primary: rowSourceName,
       tiebreakers: [
-        { project: r => rowFirstEntry(r).norm, dir: 'asc' },
+        { project: rowFirstDisplay, dir: 'asc' },
       ],
     },
   },
   multi: {
     entry: {
       label: 'Entry',
-      primary: r => rowFirstEntry(r).family || rowFirstEntry(r).norm,
+      primary: r => rowFirstEntry(r).family || rowFirstDisplay(r),
       tiebreakers: [
-        { project: r => rowFirstEntry(r).norm, dir: 'asc' },
-        { project: rowChainTail,               dir: 'asc' },
+        { project: rowFirstDisplay, dir: 'asc' },
+        { project: rowChainTail,    dir: 'asc' },
       ],
     },
     length: {
@@ -93,7 +98,7 @@ const SORT_AXES = {
       // chain tail then separates a multi-output transform's branches.
       tiebreakers: [
         { project: r => rowFirstEntry(r).score, dir: 'desc' },
-        { project: r => rowFirstEntry(r).norm, dir: 'asc'  },
+        { project: rowFirstDisplay,             dir: 'asc'  },
         { project: rowChainTail,                dir: 'asc'  },
       ],
     },
@@ -102,7 +107,7 @@ const SORT_AXES = {
       primary: rowMinScore,
       tiebreakers: [
         { project: r => rowLastEntry(r).norm.length, dir: 'desc' },
-        { project: r => rowLastEntry(r).norm,        dir: 'asc'  },
+        { project: rowLastDisplay,                   dir: 'asc'  },
       ],
     },
     'max-score': {
@@ -110,23 +115,23 @@ const SORT_AXES = {
       primary: rowMaxScore,
       tiebreakers: [
         { project: r => rowLastEntry(r).norm.length, dir: 'desc' },
-        { project: r => rowLastEntry(r).norm,        dir: 'asc'  },
+        { project: rowLastDisplay,                   dir: 'asc'  },
       ],
     },
     comment: {
       label: 'Comment',
       primary: r => rowFirstEntry(r).comment || '',
       tiebreakers: [
-        { project: r => rowFirstEntry(r).norm, dir: 'asc' },
-        { project: rowChainTail,                dir: 'asc' },
+        { project: rowFirstDisplay, dir: 'asc' },
+        { project: rowChainTail,    dir: 'asc' },
       ],
     },
     source: {
       label: 'Source',
       primary: rowSourceName,
       tiebreakers: [
-        { project: r => rowFirstEntry(r).norm, dir: 'asc' },
-        { project: rowChainTail,                dir: 'asc' },
+        { project: rowFirstDisplay, dir: 'asc' },
+        { project: rowChainTail,    dir: 'asc' },
       ],
     },
   },
@@ -160,7 +165,7 @@ export function isValidSortAxis(key) {
 export const groupMinScore     = g => g._minScore;
 export const groupMaxScore     = g => g._maxScore;
 export const groupCount        = g => g._count;
-export const groupChainEntries = g => g.chains.map(c => rowFirstEntry(c).norm);
+export const groupChainEntries = g => g.chains.map(c => rowFirstDisplay(c));
 
 export const GROUP_SORT_AXES = {
   entry: {
@@ -229,7 +234,7 @@ export function groupSortAxes(stack) {
       updated = {
         ...axis,
         label: anchorLabel,
-        primary: g => g.anchor.norm,
+        primary: g => displayOf(g.anchor),
         tiebreakers: [{ project: groupCount, dir: 'desc' }],
       };
     }
@@ -242,16 +247,16 @@ export function groupSortAxes(stack) {
       label: `${anchorLabel} length`,
       primary: g => g.anchor.norm.length,
       tiebreakers: [
-        { project: g => g.anchor.norm, dir: 'asc' },
-        { project: groupCount,         dir: 'desc' },
+        { project: g => displayOf(g.anchor), dir: 'asc' },
+        { project: groupCount,               dir: 'desc' },
       ],
     };
     baseAxes['score'] = {
       label: `${anchorLabel} score`,
       primary: g => g.anchor.score,
       tiebreakers: [
-        { project: g => g.anchor.norm, dir: 'asc' },
-        { project: groupCount,         dir: 'desc' },
+        { project: g => displayOf(g.anchor), dir: 'asc' },
+        { project: groupCount,               dir: 'desc' },
       ],
     };
   }
@@ -305,7 +310,7 @@ export function compareValues(a, b) {
 }
 
 export function sortGroupChains(groups, sortKey) {
-  const seedEntry = c => rowFirstEntry(c).norm;
+  const seedEntry = c => rowFirstDisplay(c);
   const seedScore = c => rowFirstEntry(c).score;
   const byNorm = (a, b) => seedEntry(a).localeCompare(seedEntry(b));
   const byScore = (a, b) => seedScore(b) - seedScore(a) || byNorm(a, b);

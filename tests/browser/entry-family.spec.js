@@ -3,10 +3,26 @@
 // and navigates to a relative on click.
 
 import { test, expect } from '@playwright/test';
-import { stubPublisherFetches, gotoApp } from './helpers.js';
+import { stubPublisherFetches, gotoApp, expectVisible } from './helpers.js';
 
 test.beforeEach(async ({ page }) => {
   await stubPublisherFetches(page);
+});
+
+test('the entries table sorts a multi-word base ahead of its inflections', async ({ page }) => {
+  await gotoApp(page);
+  await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
+    name: 'Src',
+    entries: ['lather', 'lathered', 'lathering', 'lathers',
+              'lather up', 'lathered up', 'lathering up', 'lathers up'],
+    scores: [50, 50, 50, 50, 50, 50, 50, 50],
+  }));
+  // The base leads each family: "lather up" sorts ahead of its inflections, the
+  // way "lather" leads its own — entries collate by display, so the space wins.
+  await expectVisible(page, [
+    'lather', 'lathered', 'lathering', 'lathers',
+    'lather up', 'lathered up', 'lathering up', 'lathers up',
+  ], { ordered: true });
 });
 
 const TIERS = [{ input: '50', note: 'Good' }, { input: '30', note: 'Meh' }, { input: '0', note: 'Junk' }];

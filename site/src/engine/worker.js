@@ -579,7 +579,7 @@ function handleFetchFamily({ requestId, norm, display }) {
           members.push({ norm: e.norm, display: e.display ?? null, score: e.score, current: e === clicked });
         }
       }
-      members.sort((a, b) => a.norm < b.norm ? -1 : a.norm > b.norm ? 1 : (a.display ?? '').localeCompare(b.display ?? ''));
+      members.sort((a, b) => (a.display ?? a.norm).localeCompare(b.display ?? b.norm) || a.norm.localeCompare(b.norm));
     }
   }
   postMessage({ type: 'family', requestId, members });
@@ -649,24 +649,24 @@ function handlePlanEdit({ requestId, mode, clicked, typed, trashScore }) {
 // main thread (which no longer sorts) would show a subtly wrong order.
 const FLAT_SORT_AXES = {
   entry: {
-    primary: e => e.family || e.norm,
-    tiebreakers: [{ p: e => e.norm, dir: 1 }, { p: e => e.score, dir: -1 }],
+    primary: e => e.family || displayOf(e),
+    tiebreakers: [{ p: e => displayOf(e), dir: 1 }, { p: e => e.score, dir: -1 }],
   },
   length: {
     primary: e => e.norm.length,
-    tiebreakers: [{ p: e => e.score, dir: -1 }, { p: e => e.norm, dir: 1 }],
+    tiebreakers: [{ p: e => e.score, dir: -1 }, { p: e => displayOf(e), dir: 1 }],
   },
   score: {
     primary: e => e.score,
-    tiebreakers: [{ p: e => e.norm.length, dir: -1 }, { p: e => e.norm, dir: 1 }],
+    tiebreakers: [{ p: e => e.norm.length, dir: -1 }, { p: e => displayOf(e), dir: 1 }],
   },
   comment: {
     primary: e => e.comment || '',
-    tiebreakers: [{ p: e => e.norm, dir: 1 }],
+    tiebreakers: [{ p: e => displayOf(e), dir: 1 }],
   },
   source: {
     primary: e => e.wordlist?.name || '',
-    tiebreakers: [{ p: e => e.norm, dir: 1 }],
+    tiebreakers: [{ p: e => displayOf(e), dir: 1 }],
   },
 };
 function cmpVal(a, b) {
