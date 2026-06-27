@@ -1918,8 +1918,9 @@ export const EntryPanel = (() => {
     if (!route && (activeMode === 'create' || focusField !== 'entry')) focusSeedField(focusField);
   }
 
-  // The entry name is focus-only (no select): a click on a word is rarely a
-  // rename, so selecting the name risks a stray keystroke renaming the entry.
+  // Editing, the entry name is focus-only: selecting it would let a stray
+  // keystroke silently rename the entry. Create has nothing to rename, so it
+  // selects the seed too, leaving a pre-filled search string ready to overtype.
   function focusSeedField(focusField) {
     const sel = focusField === 'entry'   ? '.entry-input'
               : focusField === 'comment' ? '.comment-input'
@@ -1928,7 +1929,7 @@ export const EntryPanel = (() => {
     // preventScroll: the field sits in the pinned header, so focus-into-view has
     // nothing to do but yank the page when the mobile keyboard opens.
     input?.focus({ preventScroll: true });
-    if (focusField !== null && focusField !== 'entry') input?.select();
+    if (focusField !== null && (focusField !== 'entry' || activeMode === 'create')) input?.select();
   }
 
   function openForCreate(entryStr, scroller) {
