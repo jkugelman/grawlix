@@ -71,6 +71,15 @@ test('header and Save button read Add entry / Add from the + button', async ({ p
   await expect(page.locator('#entry-panel .entry-panel-save')).toHaveText('Add');
 });
 
+test('Alt-A is inert while the create panel is already open, preserving in-progress text', async ({ page }) => {
+  await gotoApp(page);
+  await page.keyboard.press('Alt+a');
+  await expect(page.locator('#entry-panel')).toBeVisible();
+  await page.locator('#entry-panel-entry').fill('halfTypedEntry');
+  await page.keyboard.press('Alt+a');
+  await expect(page.locator('#entry-panel-entry')).toHaveValue('halfTypedEntry');
+});
+
 test('Save is disabled until an edit diverges from the entry, and re-disables on revert', async ({ page }) => {
   await gotoApp(page);
   await addList(page, { name: 'W', entries: ['ocean'], scores: [50] });

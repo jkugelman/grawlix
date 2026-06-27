@@ -934,6 +934,8 @@ export function bindEvents() {
 }
 
 function openCreateEntry() {
+  // Already up: don't re-open, which would discard what's being typed.
+  if (EntryPanel.isOpen()) return;
   EntryPanel.openForCreate(newEntrySeedQuery(), getEntriesScroller());
 }
 
