@@ -534,7 +534,7 @@ export function fetchWorkerEditSeed(norm, display, timeout = 5000) {
 // Its own requestId space; a timeout resolves [] so the panel simply shows no
 // related entries rather than hanging.
 let fetchFamilyRequestId = 0;
-export function fetchWorkerFamily(norm, display, timeout = 5000) {
+export function fetchWorkerFamily(norm, display, boundNorm, boundDisplay, timeout = 5000) {
   const w = getWorker();
   const requestId = ++fetchFamilyRequestId;
   return new Promise(resolve => {
@@ -546,7 +546,7 @@ export function fetchWorkerFamily(norm, display, timeout = 5000) {
       resolve(data.members ?? []);
     }
     w.addEventListener('message', onMessage);
-    w.postMessage({ type: 'fetchFamily', requestId, norm, display });
+    w.postMessage({ type: 'fetchFamily', requestId, norm, display, boundNorm, boundDisplay });
   });
 }
 

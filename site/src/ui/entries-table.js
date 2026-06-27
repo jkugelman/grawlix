@@ -2385,7 +2385,12 @@ export const EntryPanel = (() => {
   // At open the host is freshly empty anyway (renderHTML rebuilt it).
   function renderFamily(norm, display) {
     const token = ++familyToken;
-    fetchWorkerFamily(norm, display ?? null).then(members => {
+    // The bound entry (what the panel is on) rides alongside the query so the
+    // worker can drop it once a live rename's query text diverges from it — the
+    // old spelling isn't a relative of the new one (§ worker-protocol fetchFamily).
+    const boundNorm = activeWlEntry?.norm ?? norm;
+    const boundDisplay = activeWlEntry ? activeWlEntry.display ?? null : display ?? null;
+    fetchWorkerFamily(norm, display ?? null, boundNorm, boundDisplay).then(members => {
       if (token !== familyToken || !isOpen()) return;
       const h = el?.querySelector('.entry-panel-family');
       if (!h) return;
@@ -2395,7 +2400,9 @@ export const EntryPanel = (() => {
   }
 
   function buildFamilyHTML(members) {
-    if (members.length <= 1) return '';   // members includes the current entry; <=1 means no relatives
+    // Show only when a relative is present. The current entry may be absent — a
+    // live rename drops it — so test for a non-current member, not the count.
+    if (members.every(m => m.current)) return '';
     const items = members.map((m, i) => {
       const cls = m.current ? 'entry-family-item entry-family-item--current' : 'entry-family-item';
       return `<span class="${cls}" data-fam-idx="${i}" tabindex="0">`

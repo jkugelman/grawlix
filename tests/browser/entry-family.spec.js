@@ -93,3 +93,17 @@ test('Related entries update live as the entry is retyped', async ({ page }) => 
   await panel(page).locator('.entry-input').fill('primary care centers');
   await expect(sibling(page)).toContainText('primary care center');
 });
+
+test('a live rename drops the entry being renamed from its own Related list', async ({ page }) => {
+  await gotoApp(page);
+  await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
+    name: 'Src', entries: ['7layerdips', '7-layer dip'], scores: [20, 60],
+  }));
+  await openPanelFor(page, '7layerdips');
+
+  await panel(page).locator('.entry-input').fill('7-layer dips');
+
+  // The singular relative shows; the bare entry being renamed does NOT — it would
+  // unify into the new spelling on save, so it's not a sibling of it.
+  await expect(page.locator('.entry-family-item .entry-family-entry')).toHaveText(['7-layer dip']);
+});

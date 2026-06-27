@@ -572,17 +572,23 @@ function handleFetchEditSeed({ requestId, norm, display }) {
 // differently-spelled same-norm siblings (Boney M. / Boney M) have no other home,
 // since provenance now scopes to one spelling. ownedCorpusFresh gates ownedMerged
 // the same way the edit-seed fetch does (see its note).
-function handleFetchFamily({ requestId, norm, display }) {
+function handleFetchFamily({ requestId, norm, display, boundNorm = norm, boundDisplay = display ?? null }) {
   let members = [];
   if (ownedMerged && ownedCorpusFresh) {
-    const clicked = ownedMerged.byKey.get(mergeKey(norm, display ?? null)) ?? ownedMerged.byNorm.get(norm) ?? null;
-    // Re-key from the query text, not clicked.family: a live rename types a spelling
-    // not yet in the corpus, whose family must pull the relatives. Equals the stamped
-    // family on a real click (that is familyKey(displayOf(e)) too), so clicks are unchanged.
+    // `bound` is the entry the panel is on: the bold `current` while the query
+    // still names it, but dropped from its own relatives once a live rename types a
+    // different spelling — the old spelling unifies into the new one on save, so it
+    // is not a sibling of it.
+    const bound = ownedMerged.byKey.get(mergeKey(boundNorm, boundDisplay ?? null)) ?? ownedMerged.byNorm.get(boundNorm) ?? null;
+    const renaming = norm !== boundNorm || (display ?? null) !== (boundDisplay ?? null);
+    // Re-key family from the query text, not bound.family: a live rename types a
+    // spelling not yet in the corpus, whose family must pull the relatives. Equals
+    // the stamped family on a real click (familyKey(displayOf(e))), so clicks are unchanged.
     const family = familyKey(display ?? norm, ownedMerged.vocab);
     for (const e of ownedMerged.entries) {
+      if (e === bound && renaming) continue;
       if (e.norm === norm || (family && e.family === family)) {
-        members.push({ norm: e.norm, display: e.display ?? null, score: e.score, current: e === clicked });
+        members.push({ norm: e.norm, display: e.display ?? null, score: e.score, current: e === bound });
       }
     }
     members.sort((a, b) => (a.display ?? a.norm).localeCompare(b.display ?? b.norm) || a.norm.localeCompare(b.norm));
