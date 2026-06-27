@@ -588,7 +588,10 @@ function handleFetchFamily({ requestId, norm, display, boundNorm = norm, boundDi
     for (const e of ownedMerged.entries) {
       if (e === bound && renaming) continue;
       if (e.norm === norm || (family && e.family === family)) {
-        members.push({ norm: e.norm, display: e.display ?? null, score: e.score, current: e === bound });
+        members.push({
+          norm: e.norm, display: e.display ?? null, score: e.score,
+          comment: e.comment || '', sourceId: e.wordlist.dbKey, current: e === bound,
+        });
       }
     }
     members.sort((a, b) => (a.display ?? a.norm).localeCompare(b.display ?? b.norm) || a.norm.localeCompare(b.norm));

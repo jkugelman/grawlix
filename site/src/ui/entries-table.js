@@ -1662,7 +1662,13 @@ export const EntryPanel = (() => {
       const famItem = e.target.closest('.entry-family-item');
       if (famItem) {
         const m = familyMembers[+famItem.dataset.famIdx];
-        if (m && !m.current) open({ norm: m.norm, display: m.display, score: '', comment: '', wordlist: null }, null, getEntriesScroller(), 'entry');
+        // Pass the sibling's full merged winner (score, comment, source): in the
+        // merged scope the panel doesn't refetch the seed, so what's passed here IS
+        // it — a partial seed blanks the score and suppresses the My Edits adopt link.
+        if (m && !m.current) {
+          const wordlist = state.sources.find(s => s.dbKey === m.sourceId) ?? null;
+          open({ norm: m.norm, display: m.display, score: m.score, comment: m.comment, wordlist }, null, getEntriesScroller(), 'entry');
+        }
         return;
       }
       if (e.target.closest('.entry-panel-adopt-btn')) toggleStagedAdopt();

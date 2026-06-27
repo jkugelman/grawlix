@@ -107,3 +107,18 @@ test('a live rename drops the entry being renamed from its own Related list', as
   // unify into the new spelling on save, so it's not a sibling of it.
   await expect(page.locator('.entry-family-item .entry-family-entry')).toHaveText(['7-layer dip']);
 });
+
+test('navigating to a relative seeds its winner score and offers My Edits adopt', async ({ page }) => {
+  await gotoApp(page);
+  await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
+    name: 'Src', entries: ['cat', 'cats'], scores: [50, 40],
+  }));
+  await openPanelFor(page, 'cat');
+  await sibling(page).click();
+
+  // The sibling opens on its real winner — score seeded, adopt offered — exactly
+  // like clicking that row in the table.
+  await expect(panel(page).locator('.entry-input')).toHaveValue('cats');
+  await expect(page.locator('#entry-panel-score')).toHaveValue('40');
+  await expect(panel(page).locator('.entry-panel-adopt-btn')).toBeVisible();
+});
