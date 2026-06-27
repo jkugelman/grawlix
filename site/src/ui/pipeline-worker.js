@@ -394,7 +394,6 @@ export function syncWorkerConfig(sources) {
     scope,
     sources: sources.map(wl => ({
       sourceId: wl.dbKey,
-      name: wl.name,
       enabled: wl.enabled,
       type: wl.type ?? null,
       rescoreRules: (wl.rescoreRules || []).map(r => ({
@@ -443,12 +442,6 @@ function applySelfReadyFreshness(data) {
 // worker enriches rows from stale data — silent corruption of every rendered row.
 export function resyncWorkerConfig() {
   syncWorkerConfig(state.sources);
-}
-
-// A rename only affects the Source sort axis, so patch the name in the worker in
-// place rather than re-syncing (which would rebuild the whole owned corpus).
-export function setWorkerSourceName(sourceId, name) {
-  getWorker().postMessage({ type: 'setSourceName', sourceId, name });
 }
 
 export function dumpWorkerCorpus(scope, timeout = 10000) {

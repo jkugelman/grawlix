@@ -677,10 +677,6 @@ const FLAT_SORT_AXES = {
     primary: e => e.comment || '',
     tiebreakers: [{ p: e => displayOf(e), dir: 1 }],
   },
-  source: {
-    primary: e => e.wordlist?.name || '',
-    tiebreakers: [{ p: e => displayOf(e), dir: 1 }],
-  },
 };
 function cmpVal(a, b) {
   if (typeof a === 'number' && typeof b === 'number') return a - b;
@@ -1355,11 +1351,9 @@ let _failNextBuild = false;
 async function buildAllSourcesWordlists() {
   if (_failNextBuild) { _failNextBuild = false; throw new Error('forced build failure'); }
   const built = [];
-  for (const { sourceId, name, enabled, type, rescoreRules } of selfConfig.sources) {
+  for (const { sourceId, enabled, type, rescoreRules } of selfConfig.sources) {
     const text = await readWordlistText(sourceId);
-    // `name` is the worker's one non-dbKey source field — the Source axis sorts by it
-    // (entry.wordlist.name); nothing else reads it.
-    const wl = { dbKey: sourceId, name, enabled, type: type ?? null, rescoreRules };
+    const wl = { dbKey: sourceId, enabled, type: type ?? null, rescoreRules };
     compileRescoreRules(wl);
     // My Edits stays object-backed because the edit splice mutates rawEntries in
     // place each keystroke; every other source is the lean columnar cold store.
@@ -1543,15 +1537,6 @@ onmessage = ({ data }) => {
         setOwnedCorpus(scopeCorpus, data.scope ?? MERGED_ID);
       }
       break;
-
-    case 'setSourceName': {
-      // A rename patches the live source object in place — corpus rows hold it by
-      // reference, so entry.wordlist.name updates with no rebuild and the Source axis
-      // sorts by the new name. Avoids a full re-sync for a cosmetic change.
-      const wl = ownedBuilt?.find(w => w.dbKey === data.sourceId);
-      if (wl) wl.name = data.name;
-      break;
-    }
 
     case 'check-assets':
       handleCheckAssets();

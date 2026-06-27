@@ -162,7 +162,6 @@ const COLUMN_AXIS_CANDIDATES = {
   'col-len':       ['length'],
   'col-score':     ['score', 'min-score', 'max-score'],
   'col-comment':   ['comment'],
-  'col-source':    ['source'],
   'group-count':   ['count'],
   'group-anchor':  ['entry', 'length', 'score'],
   // 'entry' is conditional: an anchor owns the entry axis, so the group branch
@@ -231,7 +230,7 @@ function sourceMatrixSlots() {
 
 function sourceColMaxPx(slotCount) {
   const matrixW = slotCount > 0 ? slotCount * SRC_SLOT_W + (slotCount - 1) * SRC_SLOT_GAP : 0;
-  return Math.max(matrixW, sortableHeaderPx('Sources'));
+  return Math.max(matrixW, headerLabelPx('Sources'));
 }
 
 function buildSourcesMatrixHTML(sourceIds, activeIds, slots) {
@@ -3013,7 +3012,7 @@ export function buildEntryHeadersHTML() {
       <span class="col-len">${hdr('Len', columnSortAxes('col-len', tierAxes), 'col-len')}</span>
       <span class="col-score">${hdr('Score', columnSortAxes('col-score', tierAxes), 'col-score')}</span>
       <span class="col-comment">${hdr('Comment', columnSortAxes('col-comment', tierAxes), 'col-comment')}</span>
-      <span class="col-source">${hdr('Sources', columnSortAxes('col-source', tierAxes), 'col-source')}</span>
+      <span class="col-source">Sources</span>
     </div>`;
 }
 

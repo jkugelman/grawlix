@@ -217,16 +217,11 @@ test('the Comment header sorts on click and flips direction', async ({ page }) =
   await expectVisible(page, ['alpha', 'bravo', 'charlie', 'delta'], { ordered: true });
 });
 
-test('the Source header sorts alphabetically by source name in the merged view', async ({ page }) => {
+test('the Sources header is not sortable (it holds per-row icons, not one name)', async ({ page }) => {
   await gotoApp(page);
-  // Two sources with disjoint entries so each row's source is unambiguous; names
-  // chosen so alphabetical (Alpha < Zeta) is the OPPOSITE of insertion order.
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({ name: 'Zeta',  entries: ['aaa', 'bbb'], scores: [10, 20] }));
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({ name: 'Alpha', entries: ['ccc', 'ddd'], scores: [30, 40] }));
 
-  await expect(page.locator('.col-source .col-sort')).toBeVisible();
-  await page.locator('.col-source .col-sort').click();
-  expect(await sortState(page)).toEqual({ key: 'source', dir: 'asc' });
-  // Source asc by NAME (not insertion order, not score): Alpha's rows then Zeta's.
-  await expectVisible(page, ['ccc', 'ddd', 'aaa', 'bbb'], { ordered: true });
+  await expect(page.locator('.entry-headers .col-source')).toHaveCount(1);
+  await expect(page.locator('.col-source .col-sort')).toHaveCount(0);
 });

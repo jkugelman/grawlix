@@ -35,12 +35,6 @@ const rowLastDisplay = r => displayOf(rowLastEntry(r));
 // atom-by-atom, since every row in a run carries the same atom count.
 const rowChainTail = r => !r.atoms ? '' : r.atoms.slice(1).map(a => a.wlEntry.norm).join('\u0000');
 
-// Source sorts alphabetically by name. Reading `.wordlist.name` (a runtime property)
-// keeps this engine-pure — sorting by merge position would need `state.sources`, an
-// upward import the engine layer forbids. The worker learns names via syncConfig so
-// its corpus rows carry `.wordlist.name` too.
-const rowSourceName = r => rowFirstEntry(r).wordlist?.name || '';
-
 const SORT_AXES = {
   single: {
     entry: {
@@ -70,13 +64,6 @@ const SORT_AXES = {
     comment: {
       label: 'Comment',
       primary: r => rowFirstEntry(r).comment || '',
-      tiebreakers: [
-        { project: rowFirstDisplay, dir: 'asc' },
-      ],
-    },
-    source: {
-      label: 'Source',
-      primary: rowSourceName,
       tiebreakers: [
         { project: rowFirstDisplay, dir: 'asc' },
       ],
@@ -121,14 +108,6 @@ const SORT_AXES = {
     comment: {
       label: 'Comment',
       primary: r => rowFirstEntry(r).comment || '',
-      tiebreakers: [
-        { project: rowFirstDisplay, dir: 'asc' },
-        { project: rowChainTail,    dir: 'asc' },
-      ],
-    },
-    source: {
-      label: 'Source',
-      primary: rowSourceName,
       tiebreakers: [
         { project: rowFirstDisplay, dir: 'asc' },
         { project: rowChainTail,    dir: 'asc' },
