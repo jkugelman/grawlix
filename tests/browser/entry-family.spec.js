@@ -79,3 +79,17 @@ test('Related entries ignores scope: a relative in another wordlist still shows'
   await expect(current(page)).toContainText('cat');
   await expect(sibling(page)).toContainText('cats');
 });
+
+test('Related entries update live as the entry is retyped', async ({ page }) => {
+  await gotoApp(page);
+  await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
+    name: 'Src', entries: ['primary care center', 'primarycarecenters'], scores: [50, 50],
+  }));
+  await openPanelFor(page, 'primarycarecenters');
+  await expect(items(page)).toHaveCount(0);   // the solid spelling shares no family yet
+
+  // Retyping with spaces reduces 'centers' → 'center', joining that family — live,
+  // before any save.
+  await panel(page).locator('.entry-input').fill('primary care centers');
+  await expect(sibling(page)).toContainText('primary care center');
+});

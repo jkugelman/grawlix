@@ -576,7 +576,10 @@ function handleFetchFamily({ requestId, norm, display }) {
   let members = [];
   if (ownedMerged && ownedCorpusFresh) {
     const clicked = ownedMerged.byKey.get(mergeKey(norm, display ?? null)) ?? ownedMerged.byNorm.get(norm) ?? null;
-    const family = clicked?.family;
+    // Re-key from the query text, not clicked.family: a live rename types a spelling
+    // not yet in the corpus, whose family must pull the relatives. Equals the stamped
+    // family on a real click (that is familyKey(displayOf(e)) too), so clicks are unchanged.
+    const family = familyKey(display ?? norm, ownedMerged.vocab);
     for (const e of ownedMerged.entries) {
       if (e.norm === norm || (family && e.family === family)) {
         members.push({ norm: e.norm, display: e.display ?? null, score: e.score, current: e === clicked });

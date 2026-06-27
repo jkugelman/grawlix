@@ -2232,6 +2232,7 @@ export const EntryPanel = (() => {
     const inp = el.querySelector('.entry-input');
     const typed = inp ? inp.value : '';
     fireProvenanceQuery(typed, typed);
+    renderFamily(toNorm(typed), typed);
     renderProvWrap();
     updateModeLabels();
   }
@@ -2380,11 +2381,11 @@ export const EntryPanel = (() => {
     if (lookupHost) LookupSection.mount(lookupHost, entryInp.value);
   }
 
+  // Last-good held until the reply lands (not cleared up front): re-fired per
+  // keystroke as the entry is retyped, blanking each time would flash the section.
+  // At open the host is freshly empty anyway (renderHTML rebuilt it).
   function renderFamily(norm, display) {
     const token = ++familyToken;
-    familyMembers = [];
-    const host = el?.querySelector('.entry-panel-family');
-    if (host) host.innerHTML = '';
     fetchWorkerFamily(norm, display ?? null).then(members => {
       if (token !== familyToken || !isOpen()) return;
       const h = el?.querySelector('.entry-panel-family');
