@@ -89,6 +89,7 @@ You sync each list from its wordlist bar, list by list. Two kinds of sync, depen
 - `@` — vowel
 - `*` — any substring
 - `[abc]` — character class
+- `[a-m]` — character range (`[0-9]` works too)
 - Whole-word toggle anchors the pattern.
 
 Every pattern is matched two ways, and an entry counts as a hit if *either* matches: against the entry **as written** — so a space, hyphen, or accent you type has to be there (`co-op` matches `co-op` but not `coop`; `the IRS` matches `the IRS`; `résumé` matches only `résumé`) — and against its **letters alone**, lowercased with accents, spaces, and punctuation stripped (so `theirs` matches `the IRS`, and a bare `resume` matches both `resume` and `résumé`). The letters-only pass means you rarely need to type separators; the as-written pass means typing them narrows the match to exactly that form. A `?` fills exactly one character of any kind — a letter, or a symbol or space in the as-written form — never nothing.

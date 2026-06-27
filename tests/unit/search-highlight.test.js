@@ -65,6 +65,25 @@ test('buildSearchPattern: `#`/`@` expand inside a `[…]` class body', () => {
   assert.equal(matches(pat, 'aea'), false);
 });
 
+test('buildSearchPattern: `[a-m]` is a character range, not just its endpoints', () => {
+  const pat = buildSearchPattern('h[a-e]t');
+  assert.equal(matches(pat, 'hat'), true);   // endpoint
+  assert.equal(matches(pat, 'hct'), true);   // interior — the range, not a literal class
+  assert.equal(matches(pat, 'het'), true);   // endpoint
+  assert.equal(matches(pat, 'hit'), false);  // outside the range
+});
+
+test('buildSearchPattern: ranges span any characters, including digits', () => {
+  const pat = buildSearchPattern('[0-9]');
+  assert.equal(matches(pat, '7up'), true);
+  assert.equal(matches(pat, 'cat'), false);
+});
+
+test('buildSearchPattern: a reversed range compiles to null (treated as no pattern)', () => {
+  assert.equal(buildSearchPattern('[m-a]'), null);
+  assert.equal(buildSearchPattern('[9-0]'), null);
+});
+
 test('buildSearchPattern: an unclosed `[` is treated as a literal bracket', () => {
   const pat = buildSearchPattern('a[b');
   assert.equal(matches(pat, 'a[b'), true);

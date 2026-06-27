@@ -7,7 +7,9 @@ import { esc } from '../core/util.js';
 export const CONSONANTS = 'bcdfghjklmnpqrstvwxyz';
 export const VOWELS = 'aeiou';
 export function escapeRegex(s)        { return s.replace(/[.+*?^${}()|[\]\\]/g, '\\$&'); }
-export function escapeRegexClass(s)   { return s.replace(/[\]\\^-]/g, '\\$&'); }
+// Omitting `-` is load-bearing: it's what makes `[a-m]`/`[0-9]` ranges work.
+// Re-adding it (it reads as an oversight) silently kills every range.
+export function escapeRegexClass(s)   { return s.replace(/[\]\\^]/g, '\\$&'); }
 
 // Wildcards buildSearchPattern recognizes — keep this list in sync with it.
 export const SEARCH_WILDCARD_RE = /[*?#@[]/;
@@ -54,9 +56,14 @@ export function buildSearchPattern(query, wholeWord = false) {
   closeRun();
 
   const anchor = p => wholeWord ? '^(?:' + p + ')$' : p;
-  const filterRe = new RegExp(anchor(pat),   'iu');
-  const hlRe     = new RegExp(anchor(hlPat), 'giud');
-  const globalRe = new RegExp(anchor(pat),   'giud');
+  let filterRe, hlRe, globalRe;
+  try {
+    filterRe = new RegExp(anchor(pat),   'iu');
+    hlRe     = new RegExp(anchor(hlPat), 'giud');
+    globalRe = new RegExp(anchor(pat),   'giud');
+  } catch {
+    return null;   // invalid class (e.g. reversed range `[m-a]`) — no usable pattern
+  }
 
   const tag = (ranges, coord) => ranges.map(r => ({ ...r, coord }));
   return {

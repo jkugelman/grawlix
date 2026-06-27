@@ -18,9 +18,13 @@ export default {
   kind: params => (params.replace ? 'transform' : 'filter'),
   inputHighlights: true, outputHighlights: true,
   glyph: params => (params.replace ? '→' : null),
-  // An empty query is a no-op: the row is transparent — no filtering, no
-  // lens — so an empty permanent search bar costs nothing.
-  isInert: params => !((params && params.pattern || '').trim()),
+  // An empty (or invalid, e.g. a reversed range) query is a no-op: the row is
+  // transparent — no filtering, no lens — so an empty permanent search bar
+  // costs nothing and a half-typed pattern doesn't blank the view.
+  isInert: params => {
+    const pattern = (params && params.pattern || '').trim();
+    return !pattern || !buildSearchPattern(pattern);
+  },
   matchOn: 'both',
   prepare(params) {
     const matcher = buildSearchPattern((params.pattern || '').trim(), !!params['whole-word']);

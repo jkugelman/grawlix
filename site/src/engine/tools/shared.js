@@ -15,7 +15,7 @@ export const SEARCH_HELP = buildHelpHTML([
   ['@', 'any vowel'],
   ['[abc]', 'any of a, b, c'],
   ['[^abc]', 'none of a, b, c'],
-  ['[a-m]', 'letter range'],
+  ['[a-m]', 'character range'],
 ]);
 
 export function reverseString(s) {
