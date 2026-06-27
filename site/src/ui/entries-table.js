@@ -1663,7 +1663,7 @@ export const EntryPanel = (() => {
       const famItem = e.target.closest('.entry-family-item');
       if (famItem) {
         const m = familyMembers[+famItem.dataset.famIdx];
-        if (m && !m.current) open({ norm: m.norm, display: m.display, score: '', comment: '', wordlist: null }, null, getEntriesScroller(), 'score');
+        if (m && !m.current) open({ norm: m.norm, display: m.display, score: '', comment: '', wordlist: null }, null, getEntriesScroller(), 'entry');
         return;
       }
       if (e.target.closest('.entry-panel-adopt-btn')) toggleStagedAdopt();
