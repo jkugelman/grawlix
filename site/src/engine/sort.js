@@ -5,7 +5,7 @@
 // sorts every tier exactly the way main labels its headers. `stack` is always an
 // explicit argument, never a ToolStack default, because the engine has no ToolStack.
 
-import { rowLastEntry, isGroupChain, isFilterOnlyChain } from './executor.js';
+import { rowLastEntry, rowAtoms, isGroupChain, isTupleChain, isFilterOnlyChain } from './executor.js';
 import { displayOf } from './norm.js';
 import { TOOLS } from './tools.js';
 
@@ -115,7 +115,12 @@ const SORT_AXES = {
     },
   },
 };
-export const DEFAULT_SORT_BY_TIER = { single: 'entry', multi: 'entry', group: 'entry' };
+export const DEFAULT_SORT_BY_TIER = { single: 'entry', multi: 'entry', group: 'entry', tuple: 'entry' };
+
+// Group and tuple rows share the multi-lane render/window machinery; they differ
+// only in chrome (a group has a key/anchor/columns and can overflow; a tuple is
+// bare fixed-N lanes). Callers branch on this where the shared machinery applies.
+export function isMultiLaneTier(tier) { return tier === 'group' || tier === 'tuple'; }
 
 // The sort tier is single-atom when the chain is filter-only and multi-atom once
 // a transform is in play — transforms are what give a row genuinely distinct
@@ -123,10 +128,11 @@ export const DEFAULT_SORT_BY_TIER = { single: 'entry', multi: 'entry', group: 'e
 // they're all the same word and score.
 export function chainSortTier(stack) {
   if (isGroupChain(stack)) return 'group';
+  if (isTupleChain(stack)) return 'tuple';
   return isFilterOnlyChain(stack) ? 'single' : 'multi';
 }
 export function sortAxes(tier, stack) {
-  return tier === 'group' ? groupSortAxes(stack) : SORT_AXES[tier];
+  return isMultiLaneTier(tier) ? groupSortAxes(stack) : SORT_AXES[tier];
 }
 export function isValidSortAxis(key) {
   if (key in SORT_AXES.single || key in SORT_AXES.multi
@@ -297,18 +303,46 @@ export function sortGroupChains(groups, sortKey) {
   for (const g of groups) g.chains.sort(cmp);
 }
 
+// A tuple's group comparator must be a TOTAL order, or the streaming emitter's
+// incremental merge wouldn't equal a from-scratch sort and completion would
+// reshuffle: the group axes tiebreak down to groupCount, constant N for a
+// fixed-arity tuple. g.key (the joined norms) is unique per tuple, so it's the
+// total tiebreak — and it only fixes otherwise-arbitrary ties, so the buffered
+// path's order is unchanged. The worker's stream merge imports this so the two
+// orders can't drift.
+export function groupRowComparator(sortList, stack) {
+  const axis = composeSortAxis(sortList, groupSortAxes(stack));
+  if (!axis) return null;
+  const dir = sortList[0].dir;
+  if (!isTupleChain(stack)) return (a, b) => compareItems(a, b, axis, dir);
+  return (a, b) => compareItems(a, b, axis, dir) || String(a.key).localeCompare(String(b.key));
+}
+
 // Chains sort before the groups (the Entry group axis projects off chain seed
 // order via groupChainEntries) and unconditionally — gating the chain sort on the
 // score range silently reorders chains off the designed seed order under a filter.
 export function sortGroups(groups, sortList, stack) {
-  const axis = composeSortAxis(sortList, groupSortAxes(stack));
-  if (!axis) return groups;
-  sortGroupChains(groups, sortList[0].key);
-  return [...groups].sort((a, b) => compareItems(a, b, axis, sortList[0].dir));
+  const cmp = groupRowComparator(sortList, stack);
+  if (!cmp) return groups;
+  // A group's members are an unordered set, so the chain sort seeds their display
+  // order; a tuple's lanes are positional (APE/PEA ≠ PEA/APE), so reordering them
+  // would collapse distinct solutions — sort the rows, never a tuple's lanes.
+  if (!isTupleChain(stack)) sortGroupChains(groups, sortList[0].key);
+  return [...groups].sort(cmp);
+}
+
+// Total order (like groupRowComparator): the joined atom-norm key breaks chain-axis
+// ties so the streamed transform merge equals a from-scratch sort. Drop the tiebreak
+// and completion silently reshuffles tied rows out from under the stream.
+export function chainRowComparator(sortList, stack) {
+  const axis = composeSortAxis(sortList, sortAxes(chainSortTier(stack), stack));
+  if (!axis) return null;
+  const dir = sortList[0].dir;
+  const key = r => rowAtoms(r).map(a => a.wlEntry.norm).join('\0');
+  return (a, b) => compareItems(a, b, axis, dir) || key(a).localeCompare(key(b));
 }
 
 export function sortChainRows(rows, sortList, stack) {
-  const axis = composeSortAxis(sortList, sortAxes(chainSortTier(stack), stack));
-  if (!axis) return rows;
-  return [...rows].sort((a, b) => compareItems(a, b, axis, sortList[0].dir));
+  const cmp = chainRowComparator(sortList, stack);
+  return cmp ? [...rows].sort(cmp) : rows;
 }

@@ -3,9 +3,13 @@
 
 import { test, expect } from '@playwright/test';
 import { TOOLS } from '../../site/src/engine/tools.js';
+import { RETURNING_BASELINE } from '../../site/src/data/new-tools.js';
 import { stubPublisherFetches } from './helpers.js';
 
 const ALL_SLUGS = Object.keys(TOOLS);
+// Derived, not hardcoded, so registering a new tool extends this expectation
+// rather than breaking the spec.
+const POST_BASELINE = ALL_SLUGS.filter(s => !RETURNING_BASELINE.includes(s));
 
 test.beforeEach(async ({ page }) => {
   await stubPublisherFetches(page);
@@ -18,13 +22,14 @@ async function bootReturning(page, seen) {
   await page.evaluate(() => window.__grawlixTest.whenReady());
 }
 
-test('returning user with no record sees the launch baseline reveal (caesar + cryptogram only)', async ({ page }) => {
+test('returning user with no record sees every post-baseline tool revealed', async ({ page }) => {
   await bootReturning(page, null);
 
   await expect(page.locator('.nt-overlay.show')).toHaveCount(1);
-  await expect(page.locator('.nt-overlay .tool-card')).toHaveCount(2);
-  await expect(page.locator('.nt-overlay .tool-card[data-tool="caesar"]')).toHaveCount(1);
-  await expect(page.locator('.nt-overlay .tool-card[data-tool="cryptogram"]')).toHaveCount(1);
+  await expect(page.locator('.nt-overlay .tool-card')).toHaveCount(POST_BASELINE.length);
+  for (const slug of POST_BASELINE) {
+    await expect(page.locator(`.nt-overlay .tool-card[data-tool="${slug}"]`)).toHaveCount(1);
+  }
 
   const seen = await page.evaluate(() => JSON.parse(localStorage.getItem('grawlix_seenTools')));
   expect(new Set(seen)).toEqual(new Set(ALL_SLUGS));

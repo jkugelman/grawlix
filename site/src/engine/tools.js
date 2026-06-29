@@ -27,6 +27,7 @@ import rhymes from './tools/rhymes.js';
 import space_out from './tools/space_out.js';
 import search from './tools/search.js';
 import regex from './tools/regex.js';
+import umiaq from './tools/umiaq.js';
 import initialisms, { wordSplits } from './tools/initialisms.js';
 import behead from './tools/behead.js';
 import curtail from './tools/curtail.js';
@@ -50,7 +51,7 @@ export const TOOL_CATEGORIES = [
   { id: 'side',       label: 'Side' },
 ];
 
-export const FEATURED_TOOLS = ['regex', 'rebus', 'anagrams', 'initialisms', 'behead', 'rhymes'];
+export const FEATURED_TOOLS = ['regex', 'umiaq', 'rebus', 'anagrams', 'initialisms', 'rhymes'];
 
 export const TOOLS = {
   anagrams,
@@ -76,6 +77,7 @@ export const TOOLS = {
   space_out,
   search,
   regex,
+  umiaq,
   initialisms,
   behead,
   curtail,
@@ -161,6 +163,12 @@ export function makeToolRow(tool, params = {}, grouped = false) {
     isInert() {
       if (row.grouped) return false;
       return def.isInert ? def.isInert(row.params) : false;
+    },
+    // Parse-time error, known synchronously from params — a separate channel
+    // from the `_error` a tool throws mid-run (set async by the executor).
+    error() {
+      if (row.grouped) return null;
+      return def.error ? def.error(row.params) : null;
     },
     glyph() {
       return def.glyph ? def.glyph(row.params) : null;

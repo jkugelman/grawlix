@@ -5,7 +5,7 @@ import { stubPublisherFetches, gotoApp } from './helpers.js';
 // rows fetched from the worker. Without eviction that cache grows unbounded as you
 // scroll a large result — a main-thread leak that partly defeats windowing. This
 // spec scrolls a LARGE result end to end and asserts the cache stays bounded while
-// every visible window still renders correctly. See entries-table.js _evictWinCache.
+// every visible window still renders correctly. See entries-table.js _evictCache.
 
 test.beforeEach(async ({ page }) => {
   await stubPublisherFetches(page);

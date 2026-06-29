@@ -105,3 +105,29 @@ test('a throwing tool prepare surfaces the error without hanging the splash', as
   await expect(page.locator('#splash-screen')).toHaveCount(0);
   await expect(page.locator('.tool-row-error-btn')).toBeVisible();
 });
+
+test('an invalid Umiaq query surfaces its parse error and clears on a fix', async ({ page }) => {
+  await gotoApp(page);
+
+  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'umiaq', params: { patterns: 'A;1>' } }]));
+  const errBtn = page.locator('.tool-row-error-btn');
+  await expect(errBtn).toBeVisible();
+  await expect(errBtn).toHaveAttribute('title', 'unexpected character ">"');
+
+  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'umiaq', params: { patterns: 'AB' } }]));
+  await expect(errBtn).toBeHidden();
+});
+
+// The reason wording is engine-specific (V8 "Unterminated group", JSC "missing
+// )", SpiderMonkey "unterminated parenthetical"), so assert only that a reason
+// shows stripped of the "Invalid regular expression:" prefix V8 and JSC add.
+test('an invalid regex surfaces the reason without the engine boilerplate', async ({ page }) => {
+  await gotoApp(page);
+
+  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'regex', params: { pattern: 'a(b' } }]));
+  const errBtn = page.locator('.tool-row-error-btn');
+  await expect(errBtn).toBeVisible();
+  const title = await errBtn.getAttribute('title');
+  expect(title?.trim()).toBeTruthy();
+  expect(title).not.toContain('Invalid regular expression');
+});

@@ -2,10 +2,10 @@ import { test, expect } from '@playwright/test';
 import { stubPublisherFetches, gotoApp } from './helpers.js';
 
 // Stage-3 (ch6β) oracle: for a fresh merged flat run the worker ships per-result
-// `stats` (Min/Max) and `histogramCounts`; main's stats bar consumes them instead
-// of recomputing from the resident _flatScores. Filter correctness: a score-range
-// filter shrinks the Min/Max readout (the worker filters the merged result itself
-// and ships filtered stats) while the histogram stays unfiltered.
+// `stats` (Min/Max) and `histogramCounts`; main's stats bar consumes them rather
+// than recomputing locally. Filter correctness: a score-range filter shrinks the
+// Min/Max readout (the worker filters the merged result itself and ships filtered
+// stats) while the histogram stays unfiltered.
 //
 // Non-vacuity hinges on workerSummariesDebug().hasWorkerStats: without it a
 // regression that silently dropped the shipped fields would still pass.

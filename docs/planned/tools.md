@@ -104,16 +104,11 @@ Tool-result memoization is plausible — input identity is tracked by `cacheVers
 
 ---
 
-## Umiaq (crosswordnexus.github.io/umiaq)
-A crossword pattern-matching tool whose key differentiator over regex is a **variable system**: capital letters represent consistent characters across positions. `ABBA` matches any word where position 1 = position 4 and position 2 = position 3 (NOON, DEED, TOOT). A semicolon separates multi-word patterns: `AB;BA` finds word *pairs* where the letter variables are consistent across both words simultaneously — something regex can't express at all. Results in under a second. Has both a browser UI and a Python CLI. Not a candidate for direct integration or syntax copying, but the variable/multi-pattern concept is worth borrowing from for Grawlix's own search language.
-
----
-
 ## Help documentation
 
 Tool docs are not needed before the gallery is built. Each tool's gallery card carries its own blurb and examples — that's the primary documentation, and if a card falls short the fix is the card, not prose elsewhere. During development, treat this document as the living record.
 
-**As each tool group ships:** if there's something a user needs to know that the card can't convey, note it here. Only the genuinely complex tools (regex today, Umiaq if it ships) earn a long-form explainer — in the Help dialog's FAQ or [`../manual.md`](../manual.md) — and these notes are its raw material. Not a tour of every tool.
+**As each tool group ships:** if there's something a user needs to know that the card can't convey, note it here. Only the genuinely complex tools (regex and Umiaq) earn a long-form explainer — in the Help dialog's FAQ or [`../manual.md`](../manual.md) — and these notes are its raw material. Not a tour of every tool.
 
 ---
 

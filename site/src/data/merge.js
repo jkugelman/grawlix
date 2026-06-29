@@ -17,10 +17,12 @@ export function invalidateSourceCounts() {
 
 let _shippedSourceCounts = null, _shippedMergedCount = null, _shippedCountsVersion = -1;
 let _shippedSourceTotals = null;   // Map(dbKey → per-source total entry count)
-export function setShippedConfigCounts(sourceCounts, sourceTotals, mergedCount, version) {
+let _shippedMergedWidthBound = null;   // merged corpus's column-width maxes (the floor)
+export function setShippedConfigCounts(sourceCounts, sourceTotals, mergedCount, mergedWidthBound, version) {
   if (version === _shippedCountsVersion) return;
   _shippedSourceCounts = sourceCounts;
   _shippedMergedCount = mergedCount;
+  _shippedMergedWidthBound = mergedWidthBound;
   // A build-failure ack ships null totals; keep the last-good map rather than
   // blanking every count display until the next successful build.
   if (sourceTotals) _shippedSourceTotals = new Map(sourceTotals.map(s => [s.sourceId, s.total]));
@@ -60,4 +62,10 @@ export function sourceRescoreInputs(wordlist) {
 
 export function mergedEntryCount() {
   return _shippedMergedCount ?? 0;
+}
+
+// Null until the first config build's selfReady lands; callers floor against it, so
+// they must tolerate that gap (cold boot) rather than assume a bound.
+export function mergedWidthBound() {
+  return _shippedMergedWidthBound;
 }

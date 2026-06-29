@@ -12,7 +12,7 @@ import { setShippedAllSourcesAxis, setShippedScopedLayout } from '../data/derive
 import { setShippedConfigCounts, setShippedRescoreInputs } from '../data/merge.js';
 import { MERGED_ID } from '../core/constants.js';
 import { AppView, activeScoreRange } from './app-view.js';
-import { entryPanelRebindQuery } from './entries-table.js';
+import { entryPanelRebindQuery, streamFlatBatchToScroller, streamGroupBatchToScroller, streamTransformBatchToScroller } from './entries-table.js';
 
 let workerBaseURL = null;
 let worker = null;
@@ -116,6 +116,13 @@ export function sendWorkerScope(scope) {
   syncWorkerConfig(state.sources);
 }
 
+// The scroller reports its visible window so a streaming run ships THAT window in
+// each snapshot (viewport-driven streaming) rather than a fixed top — keyed by
+// runId so a stale viewport from the prior run is ignored. See worker-protocol.md.
+export function sendViewport(runId, start, end) {
+  getWorker().postMessage({ type: 'viewport', runId, start, end });
+}
+
 export function checkWorkerAssets() {
   getWorker().postMessage({ type: 'check-assets' });
 }
@@ -148,7 +155,7 @@ let deferredRun = null;   // { stack, sort, scope, resolve }
 function erroredResult(stack) {
   return {
     aborted: false, errored: true, rows: [],
-    atomCount: currentAtomCount(stack), grouped: false,
+    atomCount: currentAtomCount(stack),
   };
 }
 
@@ -214,6 +221,72 @@ function drainDeferred() {
 function onWorkerMessage({ data }) {
   if (!data) return;
   if (data.type === 'selfReady') { handleSelfReady(data); return; }
+  if (data.type === 'partial') {
+    // Same supersession gate as `result`: a partial from a stale stream must
+    // never paint over the live run. Crucially it does NOT settle pendingRun —
+    // only `result`/supersession do — or pipelineIdle() would resolve mid-stream
+    // and the whole pipeline-idle contract (the suite gates on it) would break.
+    if (!pendingRun || data.runId !== pendingRun.runId) return;
+    // Stash the scoped layout so scopedHistogramLayout() returns the axis the worker
+    // bucketed histogramCounts against, mirroring the partialGroups handler.
+    setShippedScopedLayout(data.histogramLayout ?? null, pendingRun.scope);
+    streamFlatBatchToScroller({
+      runId: data.runId,
+      version: data.version,
+      windowStart: data.windowStart ?? 0,
+      total: data.total,
+      firstRows: data.firstRows ?? null,
+      widthHints: data.widthHints,
+      stats: data.stats ?? null,
+      histogramCounts: data.histogramCounts ?? null,
+      histogramLayout: data.histogramLayout ?? null,
+      filtered: !!data.filtered,
+    });
+    return;
+  }
+  if (data.type === 'partialGroups') {
+    // Same supersession + never-settle-pendingRun discipline as the flat `partial`.
+    if (!pendingRun || data.runId !== pendingRun.runId) return;
+    // Stash the scoped layout so scopedHistogramLayout() returns the axis the worker
+    // bucketed histogramCounts against, mirroring materializeResult's grouped path.
+    setShippedScopedLayout(data.histogramLayout ?? null, pendingRun.scope);
+    const sourceById = new Map(state.sources.map(w => [w.dbKey, w]));
+    streamGroupBatchToScroller({
+      runId: data.runId,
+      version: data.version,
+      windowStart: data.windowStart ?? 0,
+      atomCount: data.atomCount,
+      total: data.total,
+      chainCount: data.chainCount,
+      firstGroups: (data.firstGroups ?? []).map(g => decodeGroup(g, sourceById)),
+      groupWidthHints: data.groupWidthHints ?? null,
+      stats: data.stats ?? null,
+      histogramCounts: data.histogramCounts ?? null,
+      histogramLayout: data.histogramLayout ?? null,
+      filtered: !!data.filtered,
+    });
+    return;
+  }
+  if (data.type === 'partialChains') {
+    // Same supersession + never-settle-pendingRun discipline as the flat `partial`.
+    if (!pendingRun || data.runId !== pendingRun.runId) return;
+    setShippedScopedLayout(data.histogramLayout ?? null, pendingRun.scope);
+    const sourceById = new Map(state.sources.map(w => [w.dbKey, w]));
+    streamTransformBatchToScroller({
+      runId: data.runId,
+      version: data.version,
+      windowStart: data.windowStart ?? 0,
+      atomCount: data.atomCount,
+      total: data.total,
+      firstChains: (data.firstChains ?? []).map(c => decodeChain(c, sourceById)),
+      widthHints: data.widthHints ?? null,
+      stats: data.stats ?? null,
+      histogramCounts: data.histogramCounts ?? null,
+      histogramLayout: data.histogramLayout ?? null,
+      filtered: !!data.filtered,
+    });
+    return;
+  }
   if (data.type === 'result') {
     if (!pendingRun || data.runId !== pendingRun.runId) return;   // stale — drop
     const run = pendingRun;
@@ -235,17 +308,16 @@ function onWorkerMessage({ data }) {
 
 // ─── Result materialization ── inverse of engine/worker.js's postResult ───────
 function materializeResult(data, stack, scope) {
-  const { grouped, atomCount, payload } = data;
+  const { laneKind, atomCount, payload } = data;
 
-  if (!grouped && payload.indices && !payload.chains) {
+  if (laneKind === 'single' && !payload.firstChains) {
     // Every flat result must re-stamp the holder — even a null-layout one — so a
     // scope switch can't leave a previous scope's layout behind for the scope-key
     // guard to wrongly accept.
     setShippedScopedLayout(payload.histogramLayout ?? null, scope);
     return {
       flat: true,
-      indices: new Int32Array(payload.indices),
-      scores: new Int32Array(payload.scores),
+      count: payload.count,
       widthHints: payload.widthHints,
       stats: payload.stats ?? null,
       histogramCounts: payload.histogramCounts ?? null,
@@ -255,10 +327,9 @@ function materializeResult(data, stack, scope) {
       rebindEntry: rebuildRebindEntry(payload.rebindEntry),
       rebindExists: payload.rebindExists ?? null,
       firstRows: payload.firstRows ?? null,
-      familyStarts: payload.familyStarts ? new Uint8Array(payload.familyStarts) : null,
       filtered: !!payload.filtered,
       ranAgainstOwned: !!data.ranAgainstOwned,
-      atomCount, grouped: false, aborted: false,
+      atomCount, aborted: false,
     };
   }
 
@@ -269,16 +340,17 @@ function materializeResult(data, stack, scope) {
   // bucketed histogramCounts against; otherwise the scoped histogram renders counts
   // against a mismatched axis and silently mis-bins. Both windowed tiers need it.
   setShippedScopedLayout(payload.histogramLayout ?? null, scope);
-  if (grouped) {
+  if (laneKind !== 'single') {
     return {
       rows: payload.groups.map(g => decodeGroup(g, sourceById)),
-      atomCount, grouped, aborted: false,
+      atomCount, aborted: false,
       stats: payload.stats ?? null,
       histogramCounts: payload.histogramCounts ?? null,
       histogramLayout: payload.histogramLayout ?? null,
       groupWidthHints: payload.groupWidthHints ?? null,
       chainCount: payload.chainCount ?? null,
       groupCount: payload.groupCount ?? null,
+      capped: !!data.capped,
       filtered: !!payload.filtered,
     };
   }
@@ -286,7 +358,7 @@ function materializeResult(data, stack, scope) {
     transform: true,
     firstChains: payload.firstChains.map(c => decodeChain(c, sourceById)),
     chainCount: payload.chainCount ?? 0,
-    atomCount, grouped: false, aborted: false,
+    atomCount, aborted: false,
     stats: payload.stats ?? null,
     histogramCounts: payload.histogramCounts ?? null,
     histogramLayout: payload.histogramLayout ?? null,
@@ -369,6 +441,76 @@ export function failNextWorkerBuildForTest() {
   getWorker().postMessage({ type: '__testFailNextBuild' });
 }
 
+// Test-only: a small corpus finishes before the worker's ~30ms yield, so it never
+// streams `partial`s; shrinking the interval makes it cross many yield boundaries.
+export function setWorkerYieldIntervalForTest(intervalMs) {
+  getWorker().postMessage({ type: '__testYieldInterval', intervalMs });
+}
+
+// Test-only: collect streamed `partial`s for assertion against the final result.
+export function captureWorkerPartialsForTest() {
+  const w = getWorker();
+  const partials = [];
+  function onMessage({ data }) {
+    if (data?.type !== 'partial') return;
+    partials.push({
+      runId: data.runId,
+      version: data.version,
+      total: data.total,
+      stats: data.stats ?? null,
+      firstRows: data.firstRows ?? null,
+    });
+  }
+  w.addEventListener('message', onMessage);
+  return {
+    peek() { return partials.slice(); },
+    stop() { w.removeEventListener('message', onMessage); return partials; },
+  };
+}
+
+// Test-only: collect streamed `partialGroups` (tuple tier) for assertion.
+export function captureWorkerGroupPartialsForTest() {
+  const w = getWorker();
+  const partials = [];
+  function onMessage({ data }) {
+    if (data?.type !== 'partialGroups') return;
+    partials.push({
+      runId: data.runId,
+      version: data.version,
+      total: data.total,
+      chainCount: data.chainCount,
+      laneKind: data.laneKind,
+      groupKeys: (data.firstGroups ?? []).map(g => g.key),
+    });
+  }
+  w.addEventListener('message', onMessage);
+  return {
+    peek() { return partials.slice(); },
+    stop() { w.removeEventListener('message', onMessage); return partials; },
+  };
+}
+
+// Test-only: collect streamed `partialChains` (transform tier) for assertion.
+export function captureWorkerChainPartialsForTest() {
+  const w = getWorker();
+  const partials = [];
+  function onMessage({ data }) {
+    if (data?.type !== 'partialChains') return;
+    partials.push({
+      runId: data.runId,
+      version: data.version,
+      total: data.total,
+      laneKind: data.laneKind,
+      entries: (data.firstChains ?? []).map(c => c.atoms.map(a => a.s?.display ?? a.display ?? a.norm)),
+    });
+  }
+  w.addEventListener('message', onMessage);
+  return {
+    peek() { return partials.slice(); },
+    stop() { w.removeEventListener('message', onMessage); return partials; },
+  };
+}
+
 // ─── Self-build bridge ── boot handshake + test oracle ── see docs/worker-protocol.md ──
 let configRequestId = 0;
 export function syncConfigsSent() { return configRequestId; }
@@ -409,7 +551,7 @@ export function syncWorkerConfig(sources) {
 
 function handleSelfReady(data) {
   setShippedAllSourcesAxis(data.axis, data.version);
-  setShippedConfigCounts(data.sourceCounts ?? null, data.sourceTotals ?? null, data.mergedCount ?? null, data.version);
+  setShippedConfigCounts(data.sourceCounts ?? null, data.sourceTotals ?? null, data.mergedCount ?? null, data.mergedWidthBound ?? null, data.version);
   setShippedRescoreInputs(data.rescoreInputs);
   applySelfReadyFreshness(data);
   const resolve = _configWaiters.get(data.configId);
@@ -745,7 +887,7 @@ export function fetchWorkerRows(runId, start, end, timeout = 5000) {
       if (data?.type !== 'rows' || data.requestId !== requestId) return;
       clearTimeout(timer);
       w.removeEventListener('message', onMessage);
-      resolve({ start: data.start, rows: data.rows });
+      resolve({ start: data.start, rows: data.rows, version: data.version });
     }
     w.addEventListener('message', onMessage);
     w.postMessage({ type: 'fetchRows', requestId, runId, start, end });
@@ -784,9 +926,12 @@ export function fetchWorkerGroups(runId, start, end, timeout = 5000) {
       if (data?.type !== 'groups' || data.requestId !== requestId || data.runId !== runId) return;
       clearTimeout(timer);
       w.removeEventListener('message', onMessage);
-      if (runId !== lastResultRunId) { resolve(null); return; }   // superseded run — drop
+      // Supersession (and mid-stream version-drop) moves to the scroller — a
+      // streaming run's window targets _streamRunId, which lastResultRunId (advanced
+      // only at `result`) hasn't reached yet, so a guard here would drop every
+      // mid-stream group window. Mirrors the flat fetchWorkerRows bridge.
       const sourceById = new Map(state.sources.map(s => [s.dbKey, s]));
-      resolve({ start: data.start, groups: data.groups.map(g => decodeGroup(g, sourceById)) });
+      resolve({ start: data.start, version: data.version, groups: data.groups.map(g => decodeGroup(g, sourceById)) });
     }
     w.addEventListener('message', onMessage);
     w.postMessage({ type: 'fetchGroups', requestId, runId, start, end });

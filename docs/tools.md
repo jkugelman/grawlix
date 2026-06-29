@@ -41,6 +41,7 @@ Source material: shipped catalog lives in `TOOLS` in [`site/src/engine/tools.js`
 |   | Required | ❗ Required letters | Contains every given letter (in any order) | TBD |
 | ✓ | Search | 🔍 Search | Search (and replace) with wildcards | un*ed · c?t |
 | ✓ | Search | 🪄 Regex | Search (and replace) with regular expressions | un.+ed · c.{2,4}t |
+| ✓ | Search | 🛶 Umiaq | Advanced search with variables and constraints | ABBA · AB;BA |
 | ✓ | Side | 🪓 Behead | Remove the first N letters | swing → wing |
 |   | Side | 📥 Add prefix | Add a string prefix | tata → cantata |
 |   | Side | 📥 Remove prefix | Remove a string prefix | cantata → tata |

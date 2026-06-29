@@ -29,7 +29,13 @@ export function currentAtomCount(stack) {
   let tailSlot = false;   // is the tail atom a highlight slot?
   for (const row of stack) {
     if (row.isInert()) continue;   // transparent rows
-    if (row.kind() === 'transform') {
+    if (row.kind() === 'tuple') {
+      // Re-seeds one-atom lanes (upstream atoms dropped) whose variables are colored,
+      // so the tail is a highlight slot: a downstream search adds a line instead of
+      // folding in. Miss this and the row is an atom too short and overlaps the next.
+      count = 1;
+      tailSlot = true;
+    } else if (row.kind() === 'transform') {
       if (row.def.inputHighlights && tailSlot) count++;   // input mark can't fold into a slot tail
       count++;                                            // output atom (new word)
       tailSlot = !!row.def.outputHighlights;
@@ -53,6 +59,85 @@ export function isGroupChain(stack) {
   return stack.some(row => row.kind() === 'group' && !row.isInert());
 }
 
+export function isTupleChain(stack) {
+  return stack.some(row => row.kind() === 'tuple' && !row.isInert());
+}
+
+function lastNonInert(stack) {
+  for (let i = stack.length - 1; i >= 0; i--) if (!stack[i].isInert()) return stack[i];
+  return null;
+}
+
+export function streamPlan(stack) {
+  const last = lastNonInert(stack);
+  if (!last) return { tier: null, producer: null, downstream: [] };
+  const tail = tupleWithFilterTail(stack);
+  if (tail) return { tier: 'tuple', producer: tail.producer, downstream: tail.filters };
+  if (last.kind() === 'filter' && isFilterOnlyChain(stack) && !isGroupChain(stack) && !isTupleChain(stack)) {
+    return { tier: 'flat', producer: last, downstream: [] };
+  }
+  if (last.kind() === 'transform' && !isGroupChain(stack) && !isTupleChain(stack)) {
+    return { tier: 'transform', producer: last, downstream: [] };
+  }
+  return { tier: null, producer: null, downstream: [] };
+}
+
+// Downstream filters here run per-batch in the emit path, so their `prepare` runs
+// before the tuple producer's input exists. The input is prepare's third arg, so
+// a prepare that takes it (arity 3) is excluded: feeding it a stand-in input would
+// diverge the streamed result from the terminal pass with no error.
+function tupleWithFilterTail(stack) {
+  let si = -1;
+  for (let i = stack.length - 1; i >= 0; i--) {
+    if (!stack[i].isInert() && stack[i].kind() === 'tuple') { si = i; break; }
+  }
+  if (si === -1) return null;
+  const filters = [];
+  for (let i = si + 1; i < stack.length; i++) {
+    const row = stack[i];
+    if (row.isInert()) continue;
+    if (row.kind() !== 'filter' || (row.def.prepare && row.def.prepare.length >= 3)) return null;
+    filters.push(row);
+  }
+  return { producer: stack[si], filters };
+}
+
+// Keyed by joined norms: that key is unique per tuple, so it addresses one tuple
+// for the worker's per-group fetch and is the total tiebreak the streaming merge
+// needs (see sort.js groupRowComparator). Each lane carries the tuple producer's
+// per-variable highlight ranges, so the rendered tuple colors its shared chunks.
+function tupleToGroup(tuple) {
+  return {
+    key: tuple.map(lane => lane.entry.norm).join(' '),
+    chains: tuple.map(lane => ({ atoms: [{ wlEntry: lane.entry, highlights: lane.highlights, glyph: null }] })),
+  };
+}
+
+async function makeTupleEmit(emit, downstream, mergedWordlist, signal, y) {
+  const stages = await Promise.all(downstream.map(async row => ({
+    row,
+    prepared: row.def.prepare
+      ? await row.def.prepare(normalizeParams(row.params, row.def.params), makeCtx(mergedWordlist, signal, y, row.grouped))
+      : normalizeParams(row.params, row.def.params),
+  })));
+  return async batch => {
+    let groups = batch.map(tupleToGroup);
+    for (const { row, prepared } of stages) {
+      const kept = [];
+      for (const g of groups) {
+        const chains = await runGroupFilterStage(g.chains, row, prepared, mergedWordlist, y);
+        if (chains.length) kept.push({ ...g, chains });
+      }
+      groups = kept;
+      if (!groups.length) break;
+    }
+    if (!groups.length) return;
+    // Collapse per lane as the terminal pass does: an uncollapsed lane carries more
+    // atoms than currentAtomCount reserves, so the streamed rows would overlap.
+    emit(groups.map(g => ({ ...g, chains: g.chains.map(c => ({ ...c, atoms: collapseRepeatAtoms(c.atoms) })) })));
+  };
+}
+
 // Gates the `unify` skip: a transform or a highlighting filter is what makes
 // `unify` do real work. With neither active, every row is a lone atom and
 // `unify` would only copy them, so the executor returns its rows as-is.
@@ -63,8 +148,11 @@ export function chainProducesMultiAtom(stack) {
   });
 }
 
-// `ctx.input` — chain tail entries as strings, resolved lazily so a tool that
-// ignores it pays nothing and the O(N)-per-stage materialization stays avoided.
+// The stage-input view, passed to `prepare` as its third arg and kept OUT of ctx:
+// a prepare that reads the input must declare that param, and streamPlan reads its
+// arity to keep an input-dependent prepare out of a tuple producer's streaming emit path
+// (where the input doesn't exist yet). Fold it into ctx and that gate goes silently
+// dead — an input-reading prepare would stream and diverge from the terminal pass.
 function makeWorkingSetView(rows) {
   return {
     get length() { return rows.length; },
@@ -73,12 +161,9 @@ function makeWorkingSetView(rows) {
   };
 }
 
-// The `prepare` context — see docs/design.md § Pipeline execution.
-// Rebuilt per stage so `ctx.input` reflects that stage's input rows.
-function makeCtx(mergedWordlist, rows, signal, y, grouped = false) {
+function makeCtx(mergedWordlist, signal, y, grouped = false) {
   return {
     wordlist: mergedWordlist,
-    input: makeWorkingSetView(rows),
     grouped,
     throwIfAborted: () => throwIfAborted(signal),
     due: y.due,
@@ -126,15 +211,21 @@ function clonePreSearchState(state) {
   return {
     groups: state.groups.map(g => ({ ...g })),
     grouped: state.grouped,
+    laneKind: state.laneKind,
+    capped: state.capped,
   };
 }
 
-export async function executePipeline(mergedWordlist, stack, signal) {
+export async function executePipeline(mergedWordlist, stack, signal, emit = null) {
   const y = makeYielder(signal);
   for (const stackRow of stack) stackRow._error = null;
 
   const userStack = stack.slice(0, -1);
   const searchRow = stack[stack.length - 1];
+
+  const plan = emit ? streamPlan(stack) : null;
+  const producer = plan ? plan.producer : null;
+  const downstream = plan ? plan.downstream : [];
 
   let state;
   if (_preSearchCache) {
@@ -146,34 +237,47 @@ export async function executePipeline(mergedWordlist, stack, signal) {
     state = {
       groups: [{ key: undefined, chains: mergedWordlist.entries }],
       grouped: false,
+      laneKind: 'single',
+      capped: false,
     };
     for (const stackRow of userStack) {
-      await runStackRow(stackRow, state, mergedWordlist, signal, y);
+      await runStackRow(stackRow, state, mergedWordlist, signal, y, stackRow === producer ? emit : null, downstream);
     }
     _preSearchCache = clonePreSearchState(state);
   }
 
-  await runStackRow(searchRow, state, mergedWordlist, signal, y);
+  await runStackRow(searchRow, state, mergedWordlist, signal, y, searchRow === producer ? emit : null, downstream);
 
-  const { groups, grouped } = state;
+  const { groups, laneKind } = state;
+  const multiLane = laneKind !== 'single';
+  const isRecord = laneKind === 'record';
   const multiAtom = chainProducesMultiAtom(stack);
   const result = [];
   for (const g of groups) {
-    if (grouped && g.chains.length === 0) { if (y.due()) await y.yield(); continue; }
-    if (multiAtom) g.chains = await unify(g.chains, y);
-    if (grouped) cacheGroupStats(g);
+    if (multiLane && g.chains.length === 0) { if (y.due()) await y.yield(); continue; }
+    // A record's lanes are positional, not an equivalence class: unify's cross-row
+    // mirror-fold (APE/PEA → one ↔ row) would collapse distinct solutions, so a
+    // record only collapses repeat atoms *within* each lane (a downstream highlight
+    // re-emits the lane's word) — never across lanes.
+    if (multiAtom) {
+      g.chains = isRecord
+        ? g.chains.map(c => ({ ...c, atoms: collapseRepeatAtoms(c.atoms) }))
+        : await unify(g.chains, y);
+    }
+    if (multiLane) cacheGroupStats(g);
     result.push(g);
     if (y.due()) await y.yield();
   }
 
   return {
-    rows: grouped ? result : (result[0]?.chains ?? []),
+    rows: multiLane ? result : (result[0]?.chains ?? []),
     atomCount: currentAtomCount(stack),
-    grouped,
+    laneKind,
+    capped: state.capped,
   };
 }
 
-async function runStackRow(stackRow, state, mergedWordlist, signal, y) {
+async function runStackRow(stackRow, state, mergedWordlist, signal, y, emit = null, downstream = []) {
   if (stackRow.isInert()) return;
   const { def } = stackRow;
   throwIfAborted(signal);
@@ -181,10 +285,26 @@ async function runStackRow(stackRow, state, mergedWordlist, signal, y) {
   try {
     if (stackRow.kind() === 'group') {
       const params = normalizeParams(stackRow.params, def.params);
-      const ctx = makeCtx(mergedWordlist, state.groups[0].chains, signal, y, stackRow.grouped);
-      const prepared = def.group.prepare ? await def.group.prepare(params, ctx) : params;
+      const ctx = makeCtx(mergedWordlist, signal, y, stackRow.grouped);
+      const prepared = def.group.prepare
+        ? await def.group.prepare(params, ctx, makeWorkingSetView(state.groups[0].chains))
+        : params;
       state.groups = await bucketize(state.groups[0].chains, def, ctx, prepared);
       state.grouped = true;
+      state.laneKind = 'set';
+      return;
+    }
+
+    if (stackRow.kind() === 'tuple') {
+      const params = normalizeParams(stackRow.params, def.params);
+      const poolRows = state.grouped ? state.groups.flatMap(g => g.chains) : state.groups[0].chains;
+      const prepared = def.prepare(params);
+      const onBatch = emit ? await makeTupleEmit(emit, downstream, mergedWordlist, signal, y) : null;
+      const { tuples, capped } = await def.findTuples(poolRows.map(rowLastEntry), prepared, { wordlist: mergedWordlist, y, signal, onBatch });
+      state.groups = tuples.map(tupleToGroup);
+      state.grouped = true;
+      state.laneKind = 'record';
+      state.capped = !!capped;
       return;
     }
 
@@ -193,13 +313,13 @@ async function runStackRow(stackRow, state, mergedWordlist, signal, y) {
       ? state.groups.flatMap(g => g.chains)
       : state.groups[0].chains;
     const prepared = def.prepare
-      ? await def.prepare(params, makeCtx(mergedWordlist, prepareInput, signal, y, stackRow.grouped))
+      ? await def.prepare(params, makeCtx(mergedWordlist, signal, y, stackRow.grouped), makeWorkingSetView(prepareInput))
       : params;
     const groupFilter = state.grouped && stackRow.kind() === 'filter';
     for (const g of state.groups) {
       g.chains = groupFilter
         ? await runGroupFilterStage(g.chains, stackRow, prepared, mergedWordlist, y)
-        : await runToolStage(g.chains, stackRow, prepared, mergedWordlist, y);
+        : await runToolStage(g.chains, stackRow, prepared, mergedWordlist, y, emit);
       if (y.due()) await y.yield();
     }
   } catch (e) {
@@ -215,13 +335,14 @@ function tagCoord(ranges, coord) {
   return ranges.map(r => r.coord ? r : { ...r, coord });
 }
 
-async function runToolStage(rows, stackRow, prepared, mergedWordlist, y) {
+async function runToolStage(rows, stackRow, prepared, mergedWordlist, y, emit = null) {
   const { def } = stackRow;
   const kind = stackRow.kind();
   const glyph = stackRow.glyph();
   const matchOn = def.matchOn || 'norm';
   const coord = matchOn === 'display' ? 'display' : 'norm';
   const next = [];
+  let flushed = 0;
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i];
     const tailEntry = rowLastEntry(row);
@@ -257,8 +378,15 @@ async function runToolStage(rows, stackRow, prepared, mergedWordlist, y) {
         next.push({ atoms });
       }
     }
-    if (y.due()) await y.yield();
+    if (y.due()) {
+      // Flush before y.yield(), not after: y.yield() is where a superseded run
+      // throws AbortError, so flushing below it would silently swallow the last
+      // batch. Emitting a tail that abort then strips is harmless (consumer drops it).
+      if (emit && next.length > flushed) { emit(next.slice(flushed)); flushed = next.length; }
+      await y.yield();
+    }
   }
+  if (emit && next.length > flushed) emit(next.slice(flushed));
   return next;
 }
 
@@ -469,10 +597,23 @@ export function bottomLineAtoms(rows) {
   return out;
 }
 
-export function applyScoreRangeToRows(rows, intervals, grouped) {
+export function applyScoreRangeToRows(rows, intervals, laneKind) {
   if (!intervals) return rows;
   const chainOk = chain => rowAtoms(chain).every(a => matchesRange(a.wlEntry.score, intervals));
-  if (grouped) {
+  if (laneKind === 'record') {
+    // A record's lanes are positional — each is part of one solution, so the range
+    // can't trim a lane the way it trims a cluster member without rendering a row
+    // below its arity. Keep a record only when every lane is in range, else drop it
+    // whole (the §Umiaq "all lanes in range" rule).
+    const out = [];
+    for (const g of rows) {
+      if (!g.chains.every(chainOk)) continue;
+      cacheGroupStats(g);
+      out.push(g);
+    }
+    return out;
+  }
+  if (laneKind === 'set') {
     const out = [];
     for (const g of rows) {
       if (g.anchor && !matchesRange(g.anchor.score, intervals)) continue;

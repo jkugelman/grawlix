@@ -103,6 +103,11 @@ const resolve = (rows, dbKeys) => rows.map(({ wl, wls, act, ...rest }) =>
   ({ ...rest, sourceId: dbKeys[wl], sourceIds: (wls ?? [wl]).map(n => dbKeys[n]),
      activeIds: (act ?? [wl]).map(n => dbKeys[n]) }));
 
+// The golden freezes row CONTENT; the per-row familyStart flag (Entry sort) is a
+// derived presentation cue whose correctness lives in streaming-render.spec.js,
+// so strip it here rather than couple the golden to morphology family assignment.
+const rowsOf = reply => reply.rows.map(({ familyStart, ...r }) => r);
+
 function isRich(row) {
   return 'norm' in row && 'sourceId' in row && Array.isArray(row.atoms);
 }
@@ -118,15 +123,15 @@ test('plain merged flat rows match the frozen golden at top and deep offsets', a
 
   const top = await page.evaluate(() => window.__grawlixTest.fetchWorkerRows(0, 6));
   expect(top.start).toBe(0);
-  expect(top.rows).toEqual(resolve(PLAIN_TOP, dbKeys));
+  expect(rowsOf(top)).toEqual(resolve(PLAIN_TOP, dbKeys));
 
   // Offset 110 is past VS_BUFFER (60): a genuine deep window, distinct fetch.
   const deep = await page.evaluate(() => window.__grawlixTest.fetchWorkerRows(110, 116));
   expect(deep.start).toBe(110);
-  expect(deep.rows).toEqual(resolve(PLAIN_DEEP, dbKeys));
+  expect(rowsOf(deep)).toEqual(resolve(PLAIN_DEEP, dbKeys));
 
   const shared = await page.evaluate(() => window.__grawlixTest.fetchWorkerRows(120, 121));
-  expect(shared.rows).toEqual(resolve(PLAIN_SHARED, dbKeys));
+  expect(rowsOf(shared)).toEqual(resolve(PLAIN_SHARED, dbKeys));
   expect(shared.rows[0].sourceId).toBe(dbKeys.Apple);   // priority winner, not Berry
 });
 
@@ -141,11 +146,11 @@ test('highlighted search flat rows match the frozen golden with match ranges', a
 
   const top = await page.evaluate(() => window.__grawlixTest.fetchWorkerRows(0, 6));
   expect(top.start).toBe(0);
-  expect(top.rows).toEqual(resolve(HL_TOP, dbKeys));
+  expect(rowsOf(top)).toEqual(resolve(HL_TOP, dbKeys));
 
   const deep = await page.evaluate(() => window.__grawlixTest.fetchWorkerRows(110, 116));
   expect(deep.start).toBe(110);
-  expect(deep.rows).toEqual(resolve(HL_DEEP, dbKeys));
+  expect(rowsOf(deep)).toEqual(resolve(HL_DEEP, dbKeys));
 });
 
 test('scoped (Apple) flat rows match a frozen golden', async ({ page }) => {
@@ -166,10 +171,10 @@ test('scoped (Apple) flat rows match a frozen golden', async ({ page }) => {
 
   const top = await page.evaluate(() => window.__grawlixTest.fetchWorkerRows(0, 3));
   expect(top.start).toBe(0);
-  expect(top.rows).toEqual(resolve(SCOPED_APPLE_TOP, dbKeys));
+  expect(rowsOf(top)).toEqual(resolve(SCOPED_APPLE_TOP, dbKeys));
 
   // SHARED sorts last (norm 'shared' > 'itema..'); its score is Apple's 90, not
   // Berry's 10 — a scoped Apple corpus never sees Berry's entry.
   const last = await page.evaluate(() => window.__grawlixTest.fetchWorkerRows(60, 61));
-  expect(last.rows).toEqual(resolve(SCOPED_APPLE_SHARED, dbKeys));
+  expect(rowsOf(last)).toEqual(resolve(SCOPED_APPLE_SHARED, dbKeys));
 });

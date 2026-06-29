@@ -10,13 +10,13 @@ import { effect } from '../core/signals.js';
 import { invalidateStatsCache, computeStatsRaw } from '../engine/stats.js';
 import { bucketCounts, invalidateHistogramLayout } from '../engine/histogram.js';
 import { PARAM_HELP } from '../engine/tools.js';
-import { invalidatePreSearchCache } from '../engine/executor.js';
+import { invalidatePreSearchCache, streamPlan } from '../engine/executor.js';
 import {
   sources$, cacheVersion$, pipelineVersion$, configSummary$, bumpCacheVersion, state,
 } from '../data/state.js';
 import { lsSave } from '../data/storage.js';
 import {
-  getSourceCounts, invalidateSourceCounts, _mergedStatsKey,
+  getSourceCounts, invalidateSourceCounts, _mergedStatsKey, mergedEntryCount,
 } from '../data/merge.js';
 import { scopedHistogramLayout } from '../data/derived.js';
 import { scoreColor } from '../model/score-display.js';
@@ -230,11 +230,16 @@ function currentSort() {
 }
 
 export async function refreshMergedScroller() {
-  reconcileSort(ToolStack.getStack());
+  const stack = ToolStack.getStack();
+  reconcileSort(stack);
   if (!entriesScroller) return;
-  const result = await runPipeline(ToolStack.getStack(), currentSort());
+  // Not redundant with the first batch's pipeline-streaming class: a tuple run's first
+  // tuple is ~1s late, so without this the prior result sits on screen looking current
+  // for that gap.
+  if (streamPlan(stack).tier === 'tuple') entriesScroller.beginStreamPending();
+  const result = await runPipeline(stack, currentSort());
   if (result.aborted || !entriesScroller) return;
-  entriesScroller.updateEntries(result, result.atomCount, chainSortTier(ToolStack.getStack()));
+  entriesScroller.updateEntries(result, result.atomCount, chainSortTier(stack));
   ToolStack.refreshErrorMarks();
 }
 
@@ -283,39 +288,36 @@ export function mountPanel(panel) {
   stickyStack.addEventListener('keydown', onSortHeaderActivate);
 }
 
-// histEntries stays the pre-score-range set (not the filtered statsEntries) so the
-// histogram keeps out-of-range bars — clickable to widen the filter — while the readouts shrink.
 export function buildStatsBarHTML() {
   const scroller = entriesScroller;
-  const statsEntries = scroller ? scroller._statsViewEntries() : [];
-  const histEntries = scroller ? scroller._histogramEntries() : [];
   const grouped = scroller ? scroller.sortTier === 'group' : false;
+  const tuple = scroller ? scroller.sortTier === 'tuple' : false;
   const groupCount = grouped ? scroller._groupCount() : null;
   const countValue = grouped
     ? (scroller ? scroller._visibleGroupChainCount() : 0)
-    : (scroller ? scroller._renderRowCount() : statsEntries.length);
+    : tuple ? scroller._groupCount()
+    : (scroller ? scroller._renderRowCount() : 0);
   const layout = scopedHistogramLayout();
 
-  // Under a filter the worker's stats are usable only when the worker itself
-  // filtered (_workerFiltered); otherwise recompute over the local set. Only the
-  // flat tier has resident scores to recompute from — the windowed grouped/transform
-  // tiers ship _workerStats and a sort/range change re-runs to keep it fresh.
+  // Under a score range the worker's stats apply only if the worker itself
+  // filtered (_workerFiltered); otherwise the empty fallback shows dashes for the
+  // transient frame until the re-run's filtered summaries land.
   const stats = (scroller && scroller._workerStats
       && (!scroller._scoreIntervals || scroller._workerFiltered))
     ? scroller._workerStats
-    : computeStatsRaw(statsEntries);
+    : computeStatsRaw([]);
 
   const isEmpty = !countValue;
   const dash = '—';
   const fmt = v => isEmpty ? dash : v;
   // The worker's counts pair with the layout its run bucketed against; during a
   // scope switch the live layout updates a frame before the next run re-stamps the
-  // counts, so a length mismatch means they're from different runs — recompute
-  // locally rather than index past the stale array.
+  // counts, so a length mismatch means they're from different runs — show zero bars
+  // for that frame rather than index past the stale array.
   const workerCounts = scroller?._workerHistogramCounts;
   const counts = (workerCounts && workerCounts.length === layout.slots.length)
     ? workerCounts
-    : bucketCounts(histEntries || [], layout);
+    : bucketCounts([], layout);
   const scale = Math.max(...counts, 1);
   const barH = c => c === 0 ? 0 : Math.max(2, Math.round((c / scale) * 34));
 
@@ -326,10 +328,11 @@ export function buildStatsBarHTML() {
     return `<div class="histogram-col" title="${title}"><div class="histogram-bar" data-lo="${s.lo}" data-hi="${s.hi}" style="--score-bg:${bg}; height:${barH(c)}px"></div></div>`;
   }).join('');
 
+  const countText = countValue.toLocaleString() + (tuple && scroller?._capped ? '+' : '');
   const countsHTML = groupCount != null
     ? buildStatItemHTML('Entries', countValue.toLocaleString(), null, 'stat-entries') +
       buildStatItemHTML('Groups', groupCount.toLocaleString())
-    : buildStatItemHTML('Entries', countValue.toLocaleString());
+    : buildStatItemHTML(tuple ? 'Results' : 'Entries', countText, null, 'stat-entries');
 
   const rangeHTML = _buildScoreRangeInputHTML('score-range-input', AppView.scoreRange, 'AppView');
   const exportHTML = _buildExportMenuHTML();
@@ -352,7 +355,11 @@ export function refreshStatsBarFromScroller() {
   if (!entriesScroller) return;
   const bar = document.querySelector('#stats .stats-bar');
   if (!bar) return;
+  // Floor the Entries readout's width to the merged-corpus count, so the live count
+  // climbing through a stream can't widen it and shove Min/Max sideways.
+  bar.style.setProperty('--entries-ch', String(Math.max(1, mergedEntryCount().toLocaleString().length)));
   swapStatsBarReadouts(bar, buildStatsBarHTML());
+  syncStreamDots(bar, entriesScroller.isStreaming());
   repositionAllHistogramRects();
 }
 
@@ -362,8 +369,31 @@ function swapStatsBarReadouts(bar, html) {
   const next = tmp.querySelector('.stats-bar');
   if (!next) return;
   bar.querySelector('.stats-bar-counts')?.replaceWith(next.querySelector('.stats-bar-counts'));
-  bar.querySelector('.stats-bar-distribution')?.replaceWith(next.querySelector('.stats-bar-distribution'));
+  // Swap the readouts in place, not the cell: a wholesale replaceWith would detach
+  // the persistent .stream-dots child, silently restarting its CSS animation.
+  const dist = bar.querySelector('.stats-bar-distribution');
+  const nextDist = next.querySelector('.stats-bar-distribution');
+  if (dist && nextDist) {
+    dist.querySelector('.stats-bar-numbers')?.replaceWith(nextDist.querySelector('.stats-bar-numbers'));
+    dist.querySelector('.histogram')?.replaceWith(nextDist.querySelector('.histogram'));
+  }
   bar.className = next.className;
+}
+
+function syncStreamDots(bar, streaming) {
+  const dist = bar.querySelector('.stats-bar-distribution');
+  if (!dist) return;
+  const existing = dist.querySelector('.stream-dots');
+  if (streaming && !existing) {
+    const dots = document.createElement('span');
+    dots.className = 'stream-dots worm-spinner';
+    dots.setAttribute('role', 'status');
+    dots.setAttribute('aria-label', 'Still finding entries');
+    dots.innerHTML = '<span></span><span></span><span></span>';
+    dist.append(dots);
+  } else if (!streaming) {
+    existing?.remove();
+  }
 }
 
 export function publishBarHeights() {
@@ -442,13 +472,15 @@ export function attachHelpPopups() {
 
 export async function renderMergedDetail() {
   let run;
+  const stack = ToolStack.getStack();
   try {
     const panel = document.getElementById('detail-panel');
-    reconcileSort(ToolStack.getStack());
+    reconcileSort(stack);
     mountPanel(panel);
     entriesScroller._onDeleteRow = entry => _deleteFromEdits(entry, refreshMergedScroller);
     _attachExternalEditHandlers(entriesScroller, refreshMergedScroller);
-    run = runPipeline(ToolStack.getStack(), currentSort());
+    if (streamPlan(stack).tier === 'tuple') entriesScroller.beginStreamPending();
+    run = runPipeline(stack, currentSort());
   } finally {
     // Release the splash once the run is dispatched, before awaiting it: the
     // splash covers the corpus build (gated with workerReady), not the pipeline,
@@ -458,6 +490,6 @@ export async function renderMergedDetail() {
   }
   const result = await run;
   if (result.aborted) return;
-  entriesScroller.setEntries(result, result.atomCount, chainSortTier(ToolStack.getStack()));
+  entriesScroller.setEntries(result, result.atomCount, chainSortTier(stack));
   ToolStack.refreshErrorMarks();
 }

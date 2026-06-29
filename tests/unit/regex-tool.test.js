@@ -4,6 +4,7 @@ import {
   analyzeRegexPattern, isCapturingGroup, matchingParen, wrapRuns,
   parseReplacement, kindForGroup, regexExecAll, runRegexReplace, runSearchReplace,
 } from '../../site/src/engine/regex.js';
+import regexTool from '../../site/src/engine/tools/regex.js';
 
 const corpus = keys => ({ byNorm: new Map(keys.map(k => [k, true])) });
 
@@ -207,4 +208,13 @@ test('runSearchReplace: a zero-width matcher terminates (advance guard)', () => 
   // empty-match loop would hang the test. (Output is dropped: "-c-a-" norms to "ca".)
   const prepared = { matcher: { globalRe: /b*/gd }, replacement: '-' };
   assert.deepEqual(runSearchReplace('ca', prepared, corpus(['ca'])), []);
+});
+
+test('error: an invalid pattern reports the reason, stripped of V8 boilerplate', () => {
+  const msg = regexTool.error({ pattern: 'a(b' });
+  assert.match(msg, /group/i);
+  assert.doesNotMatch(msg, /Invalid regular expression/);
+  assert.equal(regexTool.error({ pattern: '[' }).includes('/'), false);
+  assert.equal(regexTool.error({ pattern: 'abc' }), null);
+  assert.equal(regexTool.error({ pattern: '' }), null);
 });

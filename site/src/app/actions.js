@@ -61,6 +61,7 @@ import { openUpdateSummaryDialog } from '../ui/dialogs/update-summary.js';
 import { SettingsDialog, cycleDarkMode } from '../ui/dialogs/settings.js';
 import { HelpDialog } from '../ui/dialogs/help.js';
 import { AppView } from '../ui/app-view.js';
+import { isMultiLaneTier } from '../engine/sort.js';
 import {
   activeGroupColumns, EntryPanel, handleScoreDigitShortcut,
 } from '../ui/entries-table.js';
@@ -401,7 +402,7 @@ export async function persistEdits(edits) {
 function applyConfigAck(ack) {
   if (!ack) return;
   setShippedAllSourcesAxis(ack.axis, ack.counts?.version);
-  if (ack.counts) setShippedConfigCounts(ack.counts.sourceCounts, ack.counts.sourceTotals, ack.counts.mergedCount, ack.counts.version);
+  if (ack.counts) setShippedConfigCounts(ack.counts.sourceCounts, ack.counts.sourceTotals, ack.counts.mergedCount, ack.counts.mergedWidthBound, ack.counts.version);
   setShippedRescoreInputs(ack.rescoreInputs);   // present on fetchApplied, absent on editAck (kept)
   refreshDerivedDisplays();
 }
@@ -1255,7 +1256,7 @@ export function flatCopyLines(chains) {
 export async function exportCopy() {
   const scroller = getEntriesScroller();
   if (!scroller) return;
-  const grouped = scroller.sortTier === 'group';
+  const grouped = isMultiLaneTier(scroller.sortTier);
   const rows = await scroller.exportRows();
   const text = buildCopyText(rows, grouped, ToolStack.getStack());
   try {
@@ -1290,7 +1291,7 @@ export function buildWordlistText(rows, grouped) {
 export async function exportWordlist() {
   const scroller = getEntriesScroller();
   if (!scroller) return;
-  const grouped = scroller.sortTier === 'group';
+  const grouped = isMultiLaneTier(scroller.sortTier);
   const { text, count, skipped } = buildWordlistText(await scroller.exportRows(), grouped);
   triggerDownload(text, exportFilename(ToolStack.getStack(), 'txt'));
   let msg = `Downloaded ${pluralize(count, 'entry', 'entries')}`;
@@ -1307,7 +1308,28 @@ export function csvCell(v) {
 }
 function csvRow(cells) { return cells.map(csvCell).join(','); }
 
-export function buildCSVText(rows, grouped, stack) {
+// A solution reads across (entry_1 beside entry_2), so a tuple gets its own shape:
+// one row per tuple with the lanes spread into columns, not the grouped shape's
+// one-row-per-member.
+export function buildTupleCSV(rows) {
+  const laneCount = rows[0]?.chains.length ?? 0;
+  const header = [];
+  for (let i = 1; i <= laneCount; i++) header.push(`entry_${i}`, `length_${i}`, `score_${i}`, `comment_${i}`, `source_${i}`);
+  const out = [csvRow(header)];
+  for (const tuple of rows) {
+    const cells = [];
+    for (const lane of tuple.chains) {
+      const wlE = chainContentEntries(lane)[0];
+      if (!wlE) cells.push('', '', '', '', '');
+      else cells.push(displayOf(wlE), wlE.norm.length, wlE.score, wlE.comment || '', wlE.wordlist?.name ?? '');
+    }
+    out.push(csvRow(cells));
+  }
+  return out.join('\r\n') + '\r\n';
+}
+
+export function buildCSVText(rows, grouped, stack, tuple = false) {
+  if (tuple) return buildTupleCSV(rows);
   const atomCount = currentContentAtomCount(stack);
   const isMulti = atomCount > 1;
   const groupCols = grouped ? activeGroupColumns(stack) : [];
@@ -1357,9 +1379,9 @@ export function buildCSVText(rows, grouped, stack) {
 export async function exportCSV() {
   const scroller = getEntriesScroller();
   if (!scroller) return;
-  const grouped = scroller.sortTier === 'group';
+  const grouped = isMultiLaneTier(scroller.sortTier);
   const rows = await scroller.exportRows();
-  const text = buildCSVText(rows, grouped, ToolStack.getStack());
+  const text = buildCSVText(rows, grouped, ToolStack.getStack(), scroller.sortTier === 'tuple');
   triggerDownload(text, exportFilename(ToolStack.getStack(), 'csv'));
   const count = countExportEntries(rows, grouped);
   showToast(`Downloaded ${pluralize(count, 'entry', 'entries')}`);
@@ -1367,7 +1389,7 @@ export async function exportCSV() {
 
 // ── JSON ──
 
-export function buildExportJSONObject(rows, grouped, stack) {
+export function buildExportJSONObject(rows, grouped, stack, tuple = false) {
   const obj = { url: location.href, tools: exportToolsMetadata(stack) };
   const range = exportScoreRangeMetadata();
   if (range) obj.score_range = range;
@@ -1386,6 +1408,16 @@ export function buildExportJSONObject(rows, grouped, stack) {
     return { entries };
   }
 
+  if (tuple) {
+    obj.tuples = rows.map(t => ({
+      words: t.chains.map(lane => {
+        const wlE = chainContentEntries(lane)[0];
+        return wlE ? { entry: displayOf(wlE), score: wlE.score, comment: wlE.comment || '', source: wlE.wordlist?.name ?? null } : null;
+      }),
+    }));
+    return obj;
+  }
+
   if (grouped) {
     obj.groups = rows.map(g => {
       const out = { group_key: g.key };
@@ -1402,9 +1434,9 @@ export function buildExportJSONObject(rows, grouped, stack) {
 export async function exportJSON() {
   const scroller = getEntriesScroller();
   if (!scroller) return;
-  const grouped = scroller.sortTier === 'group';
+  const grouped = isMultiLaneTier(scroller.sortTier);
   const rows = await scroller.exportRows();
-  const obj = buildExportJSONObject(rows, grouped, ToolStack.getStack());
+  const obj = buildExportJSONObject(rows, grouped, ToolStack.getStack(), scroller.sortTier === 'tuple');
   triggerDownload(JSON.stringify(obj, null, 2) + '\n', exportFilename(ToolStack.getStack(), 'json'));
   const count = countExportEntries(rows, grouped);
   showToast(`Downloaded ${pluralize(count, 'entry', 'entries')}`);

@@ -45,7 +45,7 @@ export const ReconnectSplash = (() => {
     if (overlay) return overlay;
     overlay = document.createElement('div');
     overlay.id = 'splash-screen';
-    overlay.innerHTML = `<div class="splash-logo">Grawlix <span class="bubble">!@#$</span></div><div class="splash-spinner"><span></span><span></span><span></span></div>`;
+    overlay.innerHTML = `<div class="splash-logo">Grawlix <span class="bubble">!@#$</span></div><div class="splash-spinner worm-spinner"><span></span><span></span><span></span></div>`;
     document.body.appendChild(overlay);
     return overlay;
   }

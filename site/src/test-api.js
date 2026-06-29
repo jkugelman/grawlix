@@ -38,16 +38,19 @@ import { ToolStack, pipelineIdle } from './ui/tool-stack.js';
 import {
   pingWorker, runOnWorker, patchWorkerToolForTest, workerAssetStateForTest,
   pipelineWorkerState, crashWorkerForTest, forceWorkerCrashForTest, failNextWorkerBuildForTest,
-  syncWorkerConfig, dumpWorkerCorpus, queryWorkerEntry, fetchWorkerRows, fetchWorkerGroups, fetchWorkerGroupChains, fetchWorkerAllRows, lastCompletedRunId,
+  setWorkerYieldIntervalForTest, captureWorkerPartialsForTest, captureWorkerGroupPartialsForTest, captureWorkerChainPartialsForTest,
+  syncWorkerConfig, dumpWorkerCorpus, queryWorkerEntry, fetchWorkerRows, fetchWorkerGroups, fetchWorkerGroupChains, fetchWorkerAllGroups, fetchWorkerAllRows, fetchWorkerAllTransformRows, lastCompletedRunId,
   workerOwnsCorpus, sendEditEntry, sendDeleteEntry,
   fetchWorkerProvenance, fetchWorkerEditPlan, syncConfigsSent, allRowsFetchesSent, allGroupsFetchesSent, serializeFetchesSent,
   lastFetchAppliedMode$, diffFetchesSent, fetchWorkerDiffRows,
 } from './ui/pipeline-worker.js';
-import { allSourcesHistogramLayout, shippedAllSourcesAxisVersion, shippedScopedLayoutScopeKey } from './data/derived.js';
+import { allSourcesHistogramLayout, shippedAllSourcesAxisVersion, shippedScopedLayoutScopeKey, scopedHistogramLayout } from './data/derived.js';
+import { bucketCounts } from './engine/histogram.js';
+import { computeStatsRaw } from './engine/stats.js';
 import {
   getEntriesScroller, setScope, renderSources, renderMergedDetail, refreshMergedScroller,
 } from './ui/rendering.js';
-import { windowedFlatDebug, workerSummariesDebug, workerGroupsDebug, workerGroupListDebug, existsInScopeDebug, entryPanelSeedDebug, entryPanelProvenanceDebug, rebindAnswersConsumedDebug, resetRebindAnswersConsumedForTest, groupWindowUnderfillDebug, resetGroupWindowUnderfillForTest } from './ui/entries-table.js';
+import { streamFlatBatchToScroller, windowedFlatDebug, workerSummariesDebug, workerGroupsDebug, workerGroupListDebug, existsInScopeDebug, entryPanelSeedDebug, entryPanelProvenanceDebug, rebindAnswersConsumedDebug, resetRebindAnswersConsumedForTest, groupWindowUnderfillDebug, resetGroupWindowUnderfillForTest } from './ui/entries-table.js';
 import { applyScoringChange } from './ui/rescore-editor.js';
 import { propagateDefaults as _propagateDefaults } from './model/scoring.js';
 import {
@@ -56,6 +59,7 @@ import {
   setFetchRevealDelayForTest,
 } from './app/actions.js';
 import { serializeEntries, sortedEntries } from './engine/serialize.js';
+import { isMultiLaneTier } from './engine/sort.js';
 
 // The active scope's wire label — MERGED_ID for the merged view, else the scoped
 // source's dbKey — matching what `run`/`queryEntry` send to the worker.
@@ -237,6 +241,34 @@ const __grawlixTest = {
   crashWorkerForTest,
   forceWorkerCrashForTest,
   failNextWorkerBuildForTest,
+  setWorkerYieldIntervalForTest,
+  captureWorkerPartialsForTest,
+  captureWorkerGroupPartialsForTest,
+  captureWorkerChainPartialsForTest,
+  fetchWorkerAllTransformRows,
+  // Drive the streaming render with synthetic snapshot batches. No worker backs the
+  // synthetic runId, so a row past `firstRows` can't be fetched and shows a skeleton
+  // — each snapshot's firstRows must cover the visible window. `version` climbs per
+  // snapshot. `scores`, when given, is the snapshot's CUMULATIVE survivor scores
+  // (not a delta): the worker ships cumulative stats/histogram per snapshot, so this
+  // stand-in computes them the same way against the live layout. Omit it for specs
+  // that don't assert the stats bar.
+  streamSyntheticBatch: (spec) => {
+    const scores = spec.scores ? new Int32Array(spec.scores) : null;
+    const layout = scopedHistogramLayout();
+    streamFlatBatchToScroller({
+      runId: spec.runId,
+      version: spec.version ?? 1,
+      windowStart: spec.windowStart ?? 0,
+      total: spec.total,
+      firstRows: spec.firstRows ?? null,
+      widthHints: spec.widthHints,
+      stats: scores ? computeStatsRaw(scores) : null,
+      histogramCounts: scores ? bucketCounts(scores, layout) : null,
+      histogramLayout: layout,
+      filtered: spec.filtered ?? false,
+    });
+  },
   syncWorkerConfig: (sources = state.sources) => syncWorkerConfig(sources),
   dumpWorkerCorpus: (scope) => dumpWorkerCorpus(scope),
   fetchWorkerRows: (start, end, runId, timeout) =>
@@ -245,6 +277,8 @@ const __grawlixTest = {
     fetchWorkerGroupChains(runId ?? lastCompletedRunId(), groupKey, start, end, timeout),
   fetchWorkerGroups: (start, end, runId, timeout) =>
     fetchWorkerGroups(runId ?? lastCompletedRunId(), start, end, timeout),
+  fetchWorkerAllGroups: (runId, timeout) =>
+    fetchWorkerAllGroups(runId ?? lastCompletedRunId(), timeout),
   // Mirror saveMyEditFrom's planner path (not a passthrough) so the worker
   // self-build and a main rebuild converge in the oracle specs.
   sendWorkerEditEntry: async (orig, next, timeout) => {
@@ -261,6 +295,7 @@ const __grawlixTest = {
   },
   sendWorkerDeleteEntry: (target, timeout) => sendDeleteEntry(target, timeout),
   syncConfigsSent,
+  lastCompletedRunId,
   // 'splice' | 'rebuild' | null — how the last applyFetched resolved (threshold path).
   lastFetchMode: () => lastFetchAppliedMode$(),
   allRowsFetchesSent,
@@ -384,6 +419,10 @@ const __grawlixTest = {
   // fetchRows isn't a pipeline run, so pipelineIdle can't see it.
   windowIdle() { return getEntriesScroller()?.windowIdle() ?? Promise.resolve(); },
 
+  // The scroller's live laid-out row count. Read mid-stream (NOT after
+  // pipelineIdle, which would only ever see the settled count) to observe the climb.
+  scrollerRowCount() { return getEntriesScroller()?._renderRowCount() ?? 0; },
+
   groupWindowIdle() { return getEntriesScroller()?.groupWindowIdle() ?? Promise.resolve(); },
 
   // Resolves once init() has fully completed. gotoApp awaits this before the
@@ -482,12 +521,13 @@ const __grawlixTest = {
     await pipelineIdle();
     const scroller = getEntriesScroller();
     const rows = await scroller.exportRows();
-    const grouped = scroller.sortTier === 'group';
+    const grouped = isMultiLaneTier(scroller.sortTier);
+    const tuple = scroller.sortTier === 'tuple';
     const stack = ToolStack.getStack();
     if (format === 'copy')     return buildCopyText(rows, grouped, stack);
     if (format === 'wordlist') return buildWordlistText(rows, grouped);
-    if (format === 'csv')      return buildCSVText(rows, grouped, stack);
-    if (format === 'json')     return buildExportJSONObject(rows, grouped, stack);
+    if (format === 'csv')      return buildCSVText(rows, grouped, stack, tuple);
+    if (format === 'json')     return buildExportJSONObject(rows, grouped, stack, tuple);
     throw new Error(`Unknown export format: ${format}`);
   },
 

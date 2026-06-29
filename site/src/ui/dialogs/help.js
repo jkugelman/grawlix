@@ -179,6 +179,13 @@ const SECTIONS = [
           <p>So you can type a set of letters into <strong>Anagram</strong>, then type a few known crossing letters in the search bar to narrow the anagrams down, live, to the ones that actually fit. The search filters Anagram's output as you type. Drag a row by its handle to reorder the pipeline, or hit the ✕ to drop a tool. Stacking is what turns a pile of one-trick tools into combinations.</p>
           <p>What's that good for? Heck if I know. Try it, let me know what you come up with.</p>`,
       },
+      {
+        q: 'What are Umiaq and those capital-letter patterns?',
+        a: `
+          <p>Umiaq is search with <strong>variables</strong>. A capital letter stands for a chunk of letters that has to come out the same everywhere it appears. So <code>ABBA</code> finds words whose halves mirror, like NOON and DEED, and <code>AA</code> finds doubled words like MAMA and TUTU.</p>
+          <p>The real trick is reusing a variable across several words, separated by a semicolon. <code>AB;BA</code> finds pairs where the same two chunks swap places, like APE and PEA, and the matches come back as side-by-side tuples. That cross-word link is the thing plain search and regex cannot express.</p>
+          <p>Everything else works like the search bar: lowercase is literal, <code>?</code> is any character, <code>*</code> any run, <code>#</code> and <code>@</code> a consonant and a vowel. The one quirk is that capitals are variables here, so unlike the search bar, case matters.</p>`,
+      },
     ],
   },
   {
@@ -190,7 +197,8 @@ const SECTIONS = [
           <p>Grawlix is made with ♥ by John Kugelman. Got feedback? <a href="mailto:john@kugelman.name?subject=Grawlix">E-mail me</a>.</p>
           <p>It would be useless without other people's wordlists. Thank you to the constructors who make and share them:</p>
           <ul class="acks-list">${wordlistCreditsHTML()}</ul>
-          <p>The tools are heavily inspired by <a href="https://aaronson.org/wordlisted/" target="_blank" rel="noopener">Wordlisted</a> by Adam Aaronson. Kudos to Adam for putting wordlist searching in everyone's hands.</p>`,
+          <p>The tools are heavily inspired by <a href="https://aaronson.org/wordlisted/" target="_blank" rel="noopener">Wordlisted</a> by Adam Aaronson. Kudos to Adam for putting wordlist searching in everyone's hands.</p>
+          <p>The Umiaq tool's variable-and-pattern language comes from <a href="https://www.quinapalus.com/qat.html" target="_blank" rel="noopener">Qat</a> by Mark Owen, and its matcher is a reimplementation of <a href="https://github.com/crosswordnexus/umiaq" target="_blank" rel="noopener">Umiaq</a> by Alex Boisvert (Crossword Nexus), used under the MIT license.</p>`,
       },
     ],
   },

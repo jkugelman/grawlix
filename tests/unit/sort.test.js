@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { sortGroups, composeSortAxis, compareItems, sortAxes } from '../../site/src/engine/sort.js';
+import { sortGroups, composeSortAxis, compareItems, sortAxes, chainRowComparator } from '../../site/src/engine/sort.js';
 import { applyScoreRangeToRows, cacheGroupStats } from '../../site/src/engine/executor.js';
 import { parseRange } from '../../site/src/engine/range.js';
 
@@ -19,6 +19,24 @@ function freshGroup() {
   return g;
 }
 
+// The transform tier streams an incremental merge, which equals a from-scratch sort
+// only if the comparator is total. Two rows can tie on every chain axis (same first
+// display, same tail) yet be distinct — here only the first atom's norm differs — so
+// the joined-atom-norm tiebreak must give a stable, input-order-independent order.
+test('chainRowComparator: ties on the chain axes break to a total, stable order', () => {
+  const TX_STACK = [{ kind: () => 'transform', isInert: () => false, def: {} }];
+  const row = (n0, d0, n1) => ({ atoms: [
+    { wlEntry: { norm: n0, display: d0, score: 5 } },
+    { wlEntry: { norm: n1, display: n1, score: 5 } },
+  ] });
+  const cmp = chainRowComparator([{ key: 'entry', dir: 'asc' }], TX_STACK);
+  const A = row('cat', 'cat', 'x');
+  const B = row('kat', 'cat', 'x');
+  assert.notEqual(cmp(A, B), 0);
+  assert.equal(Math.sign(cmp(A, B)), -Math.sign(cmp(B, A)));
+  assert.deepEqual([A, B].sort(cmp), [B, A].sort(cmp));   // order independent of input order
+});
+
 test('sortGroups: within-group chains take the designed Entry seed order (norm asc)', () => {
   const sorted = sortGroups([freshGroup()], [{ key: 'entry', dir: 'asc' }], GROUP_STACK);
   assert.deepEqual(norms(sorted[0]), ['apple', 'mango', 'zebra']);
@@ -29,7 +47,7 @@ test('sortGroups: within-group chains take the designed Entry seed order (norm a
 // filter-gated chain sort (the kind that reads the unfiltered bucketize order) is a
 // silent reorder — invisible until a user filters a multi-chain group.
 test('sortGroups: chains stay in the designed seed order under a score filter', () => {
-  const filtered = applyScoreRangeToRows([freshGroup()], parseRange('40-100'), true);
+  const filtered = applyScoreRangeToRows([freshGroup()], parseRange('40-100'), 'set');
   const sorted = sortGroups(filtered, [{ key: 'entry', dir: 'asc' }], GROUP_STACK);
   assert.deepEqual(norms(sorted[0]), ['mango', 'zebra']); // not ['zebra','mango']
 });

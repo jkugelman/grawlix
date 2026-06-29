@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   csvCell, exportFilenameSegment, exportFilename,
-  flatCopyLines, chainContentEntries, buildWordlistText,
+  flatCopyLines, chainContentEntries, buildWordlistText, buildTupleCSV,
 } from '../../site/src/app/actions.js';
 
 // ─── Fixtures ───────────────────────────────────────────────────────────────
@@ -306,4 +306,16 @@ test('buildWordlistText (grouped): fans out across each group\'s chains', () => 
   const { text, count } = buildWordlistText(groups, true);
   assert.equal(text, 'ant;4\nape;8\nbat;6\n');
   assert.equal(count, 3);
+});
+
+// ─── Tuple CSV (Umiaq results) ───────────────────────────────────────────────
+
+test('buildTupleCSV: one row per tuple, lanes spread into per-lane columns', () => {
+  const tup = (...lanes) => ({ chains: lanes.map(([n, s]) => chain(atom(n, { score: s }))) });
+  const rows = [tup(['ape', 60], ['pea', 50]), tup(['bro', 40], ['rob', 30])];
+  const lines = buildTupleCSV(rows).trim().split('\r\n');
+  assert.equal(lines[0], 'entry_1,length_1,score_1,comment_1,source_1,entry_2,length_2,score_2,comment_2,source_2');
+  assert.equal(lines[1], 'ape,3,60,,,pea,3,50,,');
+  assert.equal(lines[2], 'bro,3,40,,,rob,3,30,,');
+  assert.equal(lines.length, 3);
 });

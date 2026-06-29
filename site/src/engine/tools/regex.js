@@ -7,6 +7,17 @@ import {
 import { buildHelpHTML } from '../../core/util.js';
 import { WHOLE_WORD_PARAM } from './shared.js';
 
+// The SyntaxError prefix is engine-specific: V8 echoes the pattern ("Invalid
+// regular expression: /<src>/<flags>: "), JSC bares it ("Invalid regular
+// expression: "), SpiderMonkey omits it. Strip the prefix and its optional
+// echo so the ⚠ shows just the reason, whatever the engine.
+function regexError(pattern) {
+  const src = (pattern || '').trim();
+  if (!src) return null;
+  try { new RegExp(src); return null; }
+  catch (e) { return String(e.message).replace(/^Invalid regular expression:\s*(?:\/.*\/[a-z]*:\s*)?/, ''); }
+}
+
 export default {
   name: 'Regex', icon: '🪄', category: 'search',
   desc: 'Search (and replace) with regular expressions',
@@ -42,9 +53,9 @@ export default {
   // neither blanks nor churns mid-keystroke.
   isInert(params) {
     const pattern = (params && params.pattern || '').trim();
-    if (!pattern) return true;
-    try { new RegExp(pattern); return false; } catch { return true; }
+    return !pattern || !!regexError(pattern);
   },
+  error: params => regexError(params && params.pattern),
   matchOn: 'both',
   prepare(params) {
     const replacement = params.replace || '';

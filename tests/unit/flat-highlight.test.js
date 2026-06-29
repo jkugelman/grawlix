@@ -37,7 +37,7 @@ const projectRow = row => row.atoms.map(a => ({
 async function executorFlatRows(corpus, stack) {
   invalidatePreSearchCache();
   const result = await executePipeline(corpus, stack, null);
-  assert.equal(result.grouped, false, 'fixture stack must be a flat (ungrouped) chain');
+  assert.equal(result.laneKind, 'single', 'fixture stack must be a flat (ungrouped) chain');
   return result.rows;
 }
 

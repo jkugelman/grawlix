@@ -25,11 +25,11 @@ import {
 import {
   compareItems, compareValues, activeGroupColumns, activeGroupAnchorLabel,
   sortAxes, chainSortTier, DEFAULT_SORT_BY_TIER, isValidSortAxis,
-  rowMinScore, rowMaxScore,
+  isMultiLaneTier, rowMinScore, rowMaxScore,
 } from '../engine/sort.js';
-import { compileFlatHighlighters } from '../engine/flat-highlight.js';
 import { state, getEditsWordlist } from '../data/state.js';
 import { getTrashScore } from '../data/serialize.js';
+import { mergedEntryCount, mergedWidthBound } from '../data/merge.js';
 import { rescoreEntry } from '../engine/rescore.js';
 import { buildScoreBadgeHTML, buildScoreCellHTML } from '../model/score-display.js';
 import { showToast } from './toasts.js';
@@ -43,7 +43,7 @@ import { LookupSection } from './lookup.js';
 import {
   getEntriesScroller, rescorePreviewActive, refreshMergedScroller, setScope,
 } from './rendering.js';
-import { fetchWorkerRows, fetchWorkerGroups, fetchWorkerGroupChains, fetchWorkerAllRows, fetchWorkerAllGroups, fetchWorkerTransformRows, fetchWorkerAllTransformRows, lastCompletedRunId, fetchWorkerEditSeed, fetchWorkerFamily, fetchWorkerProvenance, fetchWorkerEditPlan } from './pipeline-worker.js';
+import { fetchWorkerRows, fetchWorkerGroups, fetchWorkerGroupChains, fetchWorkerAllRows, fetchWorkerAllGroups, fetchWorkerTransformRows, fetchWorkerAllTransformRows, lastCompletedRunId, fetchWorkerEditSeed, fetchWorkerFamily, fetchWorkerProvenance, fetchWorkerEditPlan, sendViewport } from './pipeline-worker.js';
 
 let _navigate              = () => {};
 
@@ -121,6 +121,18 @@ export function entryPanelProvenanceDebug() {
 
 export function configureEntriesTable({ navigate }) {
   if (navigate)              _navigate = navigate;
+}
+
+export function streamFlatBatchToScroller(batch) {
+  getEntriesScroller()?.appendStreamBatch(batch);
+}
+
+export function streamGroupBatchToScroller(batch) {
+  getEntriesScroller()?.appendGroupStreamBatch(batch);
+}
+
+export function streamTransformBatchToScroller(batch) {
+  getEntriesScroller()?.appendTransformStreamBatch(batch);
 }
 
 // ─── Input helpers ────────────────────────────────────────────────────────────
@@ -392,9 +404,6 @@ class BaseVirtualScroller {
     return { start, end };
   }
 
-  _clearSizer() {
-    while (this.sizer.firstChild) this.sizer.removeChild(this.sizer.firstChild);
-  }
 
   destroy() {
     clearTimeout(this._emptyRevealTimer);
@@ -660,19 +669,14 @@ export class EntriesScroller extends BaseVirtualScroller {
     // The ResizeObserver renders the empty scroller before the first setEntries,
     // so the footer needs to tell pending from empty — false until a run lands.
     this._resolved = false;
-    // When _flat (the filter-only tier), allEntries/entries hold an Int32Array of
-    // the worker's corpus indices (positions for the windowed fetch), NOT
-    // ChainRow[]; _flatScores is parallel, and rows arrive rich from the worker's
-    // fetchRows for only the visible window. The transform/group tiers leave _flat
-    // false and keep the row arrays above.
     this._flat = false;
-    this._flatScores = null;
-    this._flatViewScores = null;
     this._workerStats = null;
     this._workerHistogramCounts = null;
     this._workerGroupWidthHints = null;
     this._workerChainCount = null;
     this._workerGroupCount = null;
+    this._workerFlatCount = null;
+    this._capped = false;
     this._workerFiltered = false;
     this._ranAgainstOwned = false;
     this._existsInScope = null;
@@ -681,13 +685,13 @@ export class EntriesScroller extends BaseVirtualScroller {
     this._rebindExists = null;
     this._widthHints = null;
     this._errored = false;
-    this._flatHighlighters = [];
     this.sortList = AppView.sortList;
     this.scoreRange = AppView.scoreRange;
     this._scoreIntervals = this.scoreRange ? parseRange(this.scoreRange) : null;
     this._onSave = null;
     this._onDeleteRow = null;
     this._hoveredAtomEl = null;
+    this._sentViewport = null;
     this.onFilterChange = null;
     // Sorted view of allEntries cached across keystrokes. Filter preserves
     // order, so a sorted source means the filter result is already sorted —
@@ -701,6 +705,23 @@ export class EntriesScroller extends BaseVirtualScroller {
     this._winReqSeq = 0;
     this._fetchOutstanding = 0;
     this._richRowsConsumed = 0;
+
+    // Don't "simplify" _render back to clear-and-rebuild: wiping the sizer each frame
+    // swaps a row's node out between a click's mousedown and mouseup mid-stream, so the
+    // click fires on the sizer and silently resolves to nothing.
+    this._mounted = new Map();
+
+    this._streamTotal = null;
+    // The in-flight run a mid-stream fetch must name — lastCompletedRunId() only
+    // advances at completion, so a fetch keyed off it would target the prior run
+    // and serve wrong rows. Null when not streaming; the terminal result clears it.
+    this._streamRunId = null;
+    this._streamPending = false;
+    // The current sorted-snapshot version; a fetched window whose version no
+    // longer matches names a snapshot the order has moved past, so it's dropped
+    // rather than painted into the live (newer) snapshot — see _fetchWindow.
+    this._streamVersion = null;
+    this._streamStatsRaf = 0;
 
     // The grouped tier's _winCache: Map<absolute group index, decoded group>.
     this._groupWinCache = new Map();
@@ -731,7 +752,9 @@ export class EntriesScroller extends BaseVirtualScroller {
       const atom = e.target.closest('.atom');
       this._hoveredAtomEl = atom && this.sizer.contains(atom) ? atom : null;
     });
-    this.sizer.addEventListener('mouseleave', () => { this._hoveredAtomEl = null; });
+    this.sizer.addEventListener('mouseleave', () => {
+      this._hoveredAtomEl = null;
+    });
   }
 
   _resolveAtomTarget(node) {
@@ -805,32 +828,275 @@ export class EntriesScroller extends BaseVirtualScroller {
     EntryPanel.rebindEntry(this);
   }
 
+  // Empties the table to the tuple-streaming shape with the dots up, ahead of the
+  // first batch. Leaves _streamRunId null on purpose: the first batch's fresh branch
+  // re-inits off the mismatch, and the terminal result settles a no-result run.
+  beginStreamPending() {
+    GroupMorePopover.close();
+    ScorePicker.close();
+    SortMenu.close();
+    this._streamPending = true;
+    this._streamRunId = null;
+    this._streamVersion = null;
+    this._cancelStreamStatsRefresh();
+    const tierChanged = this._setChainShape(this.atomCount || 1, 'tuple');
+    // _setChainShape marks the result resolved; unset it so an empty table reads as
+    // "searching" (dots, no quip), not "No matches", until the first batch/result.
+    this._resolved = false;
+    if (tierChanged) rebuildEntryHeaders();
+    this._flat = false;
+    this._transform = false;
+    this._streamTotal = null;
+    this._workerGroupCount = 0;
+    this._capped = false;
+    this._workerChainCount = 0;
+    this._workerStats = null;
+    this._workerHistogramCounts = null;
+    this._workerGroupWidthHints = null;
+    this._workerFiltered = !!this._scoreIntervals;
+    this._firstGroups = null;
+    this._firstChains = null;
+    this._firstRows = null;
+    this.allEntries = [];
+    this._groupWinCache.clear();
+    this._groupWinCacheRunId = null;
+    this._winCache.clear();
+    this._winCacheRunId = null;
+    this._existsInScope = null;
+    this._rebindQuery = null;
+    this._rebindEntry = null;
+    this._rebindExists = null;
+    this._panel()?.classList.add('pipeline-streaming');
+    this._invalidateSortCache();
+    // _sortAndRender repaints the stats bar (and so the dots) because _streamRunId
+    // is null here — the active-stream rAF-coalesce path it otherwise routes through.
+    this._sortAndRender();
+  }
+
+  // Each batch is a SORTED snapshot, not an append: positions reshuffle as better
+  // matches arrive, so the position-keyed win-cache is wholly rebuilt per batch
+  // (top window re-seeded from firstRows; scrolled-away windows re-fetch against
+  // _streamVersion).
+  appendStreamBatch(batch) {
+    const { runId, version, windowStart = 0, total, firstRows, widthHints,
+            stats, histogramCounts, filtered } = batch;
+    const fresh = this._streamRunId !== runId;
+    if (fresh) {
+      GroupMorePopover.close();
+      ScorePicker.close();
+      SortMenu.close();
+      this._streamPending = false;
+      const tierChanged = this._setChainShape(1, 'single');
+      if (tierChanged) rebuildEntryHeaders();
+      this._flat = true;
+      this._transform = false;
+      this._streamRunId = runId;
+      this._streamTotal = 0;
+      this.allEntries = [];
+      this._firstRows = null;
+      this._firstChains = null;
+      this._firstGroups = null;
+      this._ranAgainstOwned = true;
+      // No streamed rebind answer; null these so a mid-stream findResultEntry can't
+      // consult the prior run's stale answer. The terminal result rebinds the panel.
+      this._existsInScope = null;
+      this._rebindQuery = null;
+      this._rebindEntry = null;
+      this._rebindExists = null;
+      this._winCacheRunId = runId;
+      this._panel()?.classList.add('pipeline-streaming');
+    }
+
+    this._streamVersion = version;
+    this._streamTotal = total;
+    this._workerStats = stats ?? null;
+    this._workerHistogramCounts = histogramCounts ?? null;
+    this._workerFiltered = !!filtered;
+
+    // A new run clears; a continuing one keeps its windows so a scrolled-away
+    // position holds its rows (stale-while-revalidate) instead of blanking to a
+    // skeleton each batch. The worker ships the viewport window at windowStart.
+    if (fresh) this._winCache.clear();
+    if (firstRows && firstRows.length) {
+      const sourceById = new Map(state.sources.map(w => [w.dbKey, w]));
+      firstRows.forEach((row, k) =>
+        this._winCache.set(windowStart + k, this._richRowToChain(row, sourceById)));
+    }
+
+    this._widthHints = widthHints;
+    this._invalidateSortCache();
+    this._sortAndRender();
+    // First batch: paint the dots + initial readouts synchronously so the panel
+    // class and the dots can't disagree mid-frame; later batches coalesce to rAF.
+    if (fresh) this.onFilterChange?.();
+    else this._scheduleStreamStatsRefresh();
+  }
+
+  // Each batch is a SORTED snapshot (positions reshuffle), so the group window
+  // cache is rebuilt per batch and a scrolled-away window re-fetches against
+  // _streamVersion — a window served at a version the order moved past is dropped.
+  // The worker ships cumulative stats/histogram because main holds no resident lane
+  // scores to recompute from.
+  appendGroupStreamBatch(batch) {
+    const { runId, version, windowStart = 0, atomCount, total, chainCount, firstGroups,
+            groupWidthHints, stats, histogramCounts, filtered } = batch;
+    const fresh = this._streamRunId !== runId;
+    if (fresh) {
+      GroupMorePopover.close();
+      ScorePicker.close();
+      SortMenu.close();
+      this._streamPending = false;
+      const tierChanged = this._setChainShape(atomCount, 'tuple');
+      if (tierChanged) rebuildEntryHeaders();
+      this._flat = false;
+      this._transform = false;
+      this._streamRunId = runId;
+      this._streamTotal = null;
+      this._firstRows = null;
+      this._firstChains = null;
+      this._ranAgainstOwned = false;
+      this._existsInScope = null;
+      this._rebindQuery = null;
+      this._rebindEntry = null;
+      this._rebindExists = null;
+      this._groupWinCacheRunId = runId;
+      this._panel()?.classList.add('pipeline-streaming');
+    }
+
+    this._streamVersion = version;
+    this._workerGroupCount = total;
+    this._workerChainCount = chainCount;
+    this._workerStats = stats ?? null;
+    this._workerHistogramCounts = histogramCounts ?? null;
+    this._workerGroupWidthHints = groupWidthHints ?? null;
+    this._workerFiltered = !!filtered;
+    this._firstGroups = firstGroups;
+
+    // Clear only on a new run; a continuing one keeps scrolled-away windows so they
+    // hold their rows instead of strobing to skeletons (see appendStreamBatch). The
+    // worker ships the viewport window at windowStart.
+    if (fresh) this._groupWinCache.clear();
+    firstGroups.forEach((g, i) => this._groupWinCache.set(windowStart + i, g));
+
+    this._invalidateSortCache();
+    this._sortAndRender();
+    if (fresh) this.onFilterChange?.();
+    else this._scheduleStreamStatsRefresh();
+  }
+
+  // Setting _winCacheRunId here is load-bearing: it makes _invalidateWinCacheIfStale a
+  // no-op so the windowStart-keyed seed below isn't clobbered by a 0-keyed _firstChains
+  // re-seed. firstChains arrive already decoded (pipeline-worker), unlike the flat tier.
+  appendTransformStreamBatch(batch) {
+    const { runId, version, windowStart = 0, atomCount, total, firstChains,
+            widthHints, stats, histogramCounts, filtered } = batch;
+    const fresh = this._streamRunId !== runId;
+    if (fresh) {
+      GroupMorePopover.close();
+      ScorePicker.close();
+      SortMenu.close();
+      this._streamPending = false;
+      const tierChanged = this._setChainShape(atomCount, 'multi');
+      if (tierChanged) rebuildEntryHeaders();
+      this._flat = false;
+      this._transform = true;
+      this._streamRunId = runId;
+      this._streamTotal = null;
+      this._firstRows = null;
+      this._firstGroups = null;
+      this._firstChains = null;
+      this._workerGroupCount = null;
+      this._workerGroupWidthHints = null;
+      this._ranAgainstOwned = true;
+      this._existsInScope = null;
+      this._rebindQuery = null;
+      this._rebindEntry = null;
+      this._rebindExists = null;
+      this.allEntries = [];
+      this._winCacheRunId = runId;
+      this._panel()?.classList.add('pipeline-streaming');
+    }
+
+    this._streamVersion = version;
+    this._workerChainCount = total;
+    this._workerStats = stats ?? null;
+    this._workerHistogramCounts = histogramCounts ?? null;
+    this._workerFiltered = !!filtered;
+    this._widthHints = widthHints;
+
+    if (fresh) this._winCache.clear();
+    if (firstChains && firstChains.length) {
+      firstChains.forEach((row, k) => this._winCache.set(windowStart + k, row));
+    }
+
+    this._invalidateSortCache();
+    this._sortAndRender();
+    if (fresh) this.onFilterChange?.();
+    else this._scheduleStreamStatsRefresh();
+  }
+
+  _panel() {
+    return this.host.closest('#entries-table-panel');
+  }
+
+  _scheduleStreamStatsRefresh() {
+    if (this._streamStatsRaf) return;
+    this._streamStatsRaf = requestAnimationFrame(() => {
+      this._streamStatsRaf = 0;
+      this.onFilterChange?.();
+    });
+  }
+
+  _cancelStreamStatsRefresh() {
+    if (!this._streamStatsRaf) return;
+    cancelAnimationFrame(this._streamStatsRaf);
+    this._streamStatsRaf = 0;
+  }
+
   _ingestResult(result) {
+    // Clear the streaming scalars or a completed result keeps sizing from the
+    // stale _streamTotal and keying fetches off the stream's runId forever.
+    const wasStreaming = this._streamRunId != null || this._streamPending;
+    this._streamTotal = null;
+    this._streamRunId = null;
+    this._streamPending = false;
+    this._streamVersion = null;
     this._errored = !!result.errored;
     this._flat = !!result.flat;
     this._transform = !!result.transform;
+    // Every tier paints final order while streaming (flat/tuple by a total
+    // comparator, transform by folding online to the canonical survivor), and
+    // completion adopts that order — so KEEP the stream's win-cache: leaving the
+    // runId set makes the next render's _invalidate*WinCacheIfStale a no-op, so a
+    // scrolled-away viewport doesn't blank to skeletons (the completion flash this
+    // change removes). The seq bumps still run: once _streamRunId clears,
+    // _fetchWindow's seq guard is the only thing left to drop an in-flight fetch
+    // caching a stale row.
+    if (wasStreaming) {
+      this._winReqSeq++;
+      this._groupReqSeq++;
+      this._cancelStreamStatsRefresh();
+      this._panel()?.classList.remove('pipeline-streaming');
+    }
     if (this._flat) {
-      this._flatScores = result.scores;
       this._workerStats = result.stats ?? null;
       this._workerHistogramCounts = result.histogramCounts ?? null;
       this._workerFiltered = !!result.filtered;
+      this._workerFlatCount = result.count ?? 0;
       this._ranAgainstOwned = !!result.ranAgainstOwned;
       this._existsInScope = result.existsInScope ?? null;
       this._rebindQuery = result.rebindQuery ?? null;
       this._rebindEntry = result.rebindEntry ?? null;
       this._rebindExists = result.rebindExists ?? null;
       this._widthHints = result.widthHints;
-      this._flatHighlighters = compileFlatHighlighters(ToolStack.getStack());
-      this.allEntries = result.indices;
+      this.allEntries = [];
       this._firstRows = result.firstRows ?? null;
-      this._familyStarts = result.familyStarts ?? null;
       this._firstChains = null;
       this._firstGroups = null;
     } else if (this._transform) {
       // Windowed like flat: allEntries stays empty, so stats / histogram / width
       // hints / rebind all come from the worker (recomputing locally would see no
       // rows). Only a first window of chains ships inline.
-      this._flatScores = null;
       this._workerStats = result.stats ?? null;
       this._workerHistogramCounts = result.histogramCounts ?? null;
       this._workerGroupWidthHints = null;
@@ -845,19 +1111,18 @@ export class EntriesScroller extends BaseVirtualScroller {
       this._widthHints = result.widthHints;
       this._firstChains = result.firstChains ?? [];
       this._firstGroups = null;
-      this._familyStarts = null;
       this.allEntries = [];
     } else {
       // The grouped worker stats/counts are FILTERED (the worker applies the score
       // range), and its histogram is UNFILTERED — _workerFiltered carries that to
       // the rendering.js guard so it consumes the worker's filtered Min/Max under a
       // range instead of recomputing.
-      this._flatScores = null;
       this._workerStats = result.stats ?? null;
       this._workerHistogramCounts = result.histogramCounts ?? null;
       this._workerGroupWidthHints = result.groupWidthHints ?? null;
       this._workerChainCount = result.chainCount ?? null;
       this._workerGroupCount = result.groupCount ?? null;
+      this._capped = !!result.capped;
       this._workerFiltered = !!result.filtered;
       this._ranAgainstOwned = false;
       this._existsInScope = null;
@@ -870,7 +1135,6 @@ export class EntriesScroller extends BaseVirtualScroller {
       // and sync rebind read _groupWinCache (keyed by absolute index) instead.
       this._firstGroups = result.rows;
       this._firstChains = null;
-      this._familyStarts = null;
       this.allEntries = [];
     }
   }
@@ -919,7 +1183,10 @@ export class EntriesScroller extends BaseVirtualScroller {
     this.entries = this._getSortedSource();
     this._computeSlotWidths();
     this._render();
-    this.onFilterChange?.();
+    // Not a suppression: while streaming the stats bar still refreshes, but via
+    // _scheduleStreamStatsRefresh's rAF coalesce — firing it here too would
+    // rebuild the histogram on every partial.
+    if (this._streamRunId == null) this.onFilterChange?.();
     // _sizerHeightFor parks the no-match quip below the fold while a search
     // input is focused. Reveal it after a typing pause — debounced so the quip
     // settles on the final query rather than re-rolling each keystroke (blur,
@@ -946,16 +1213,14 @@ export class EntriesScroller extends BaseVirtualScroller {
       return this._sortedSource;
     }
 
-    // Every tier arrives pre-sorted + pre-filtered from the worker. The flat tier's
-    // `entries` is its index list; the windowed transform and grouped tiers carry
-    // only the inline first window here — empty iff the result is empty, the
-    // invariant _sortAndRender's empty-state check keys on. The render sizes from the
-    // worker's count and pulls visible rows from the window cache.
+    // Every tier arrives pre-sorted + pre-filtered from the worker and is windowed:
+    // `entries` here is only the inline first window — non-empty iff the result is
+    // non-empty, the invariant _sortAndRender's empty-state check keys on. The render
+    // sizes from the worker's count and pulls visible rows from the window cache.
     let sorted;
     if (this._flat) {
-      this._flatViewScores = this._flatScores;
-      sorted = this.allEntries;
-    } else if (this.sortTier === 'group') {
+      sorted = this._firstRows ?? [];
+    } else if (isMultiLaneTier(this.sortTier)) {
       sorted = this._firstGroups ?? [];
     } else {
       sorted = this._firstChains ?? [];
@@ -975,27 +1240,36 @@ export class EntriesScroller extends BaseVirtualScroller {
   // to #detail-panel so both .entry-row and the .entry-headers (which lives in
   // .sticky-stack, a sibling of the scroller's host) inherit the same values.
   _computeSlotWidths() {
-    // An errored result carries no width hints; the transform/group sizers would
-    // destructure null. Nothing to size anyway — it has no rows.
-    if (this._errored) return;
-    if (this.sortTier === 'group') { this._computeGroupSlotWidths(); return; }
+    // An errored or not-yet-streamed result carries no width hints; the
+    // transform/group sizers would destructure null. Nothing to size — no rows.
+    if (this._errored || this._streamPending) return;
+    if (isMultiLaneTier(this.sortTier)) { this._computeGroupSlotWidths(); return; }
     if (this._flat) { this._computeFlatSlotWidths(); return; }
     this._computeTransformSlotWidths();
   }
 
   _computeFlatSlotWidths() {
-    const total = this.allEntries.length;
-    const countDigits = total > 0 ? String(total).length : 1;
+    // The merged corpus's maxes floor every column so the table holds one width
+    // across scopes/filters/streams; a result that truly exceeds the floor (a
+    // multiplying tool, a disabled-list scope) still grows past it.
+    const floor = mergedWidthBound();
+    const countCeil = Math.max(this._streamTotal ?? this._workerFlatCount ?? 0, mergedEntryCount());
+    const countDigits = countCeil > 0 ? String(countCeil).length : 1;
     const ch = measureMonoChPx();
-    const { maxDisplayLen, maxLenDigits, maxScoreDigits, maxRawDigits: rawHint } = this._widthHints;
-    const hasHighlight = this._flatHighlighters.length > 0;
+    const h = this._widthHints;
+    const maxDisplayLen = Math.max(h.maxDisplayLen, floor?.maxDisplayLen ?? 0);
+    const maxLenDigits = Math.max(h.maxLenDigits, floor?.maxLenDigits ?? 1);
+    const maxScoreDigits = Math.max(h.maxScoreDigits, floor?.maxScoreDigits ?? 1);
+    const rawHint = Math.max(h.maxRawDigits ?? 0, floor?.maxRawDigits ?? 0);
     // rawHint is committed-only; a draft can show any row's true raw, up to
     // maxScoreDigits wide, so take the max or a buffered arrow clips here.
-    const maxRawDigits = rescorePreviewActive() ? Math.max(rawHint ?? 0, maxScoreDigits) : 0;
+    const maxRawDigits = rescorePreviewActive() ? Math.max(rawHint, maxScoreDigits) : 0;
 
-    const entryContentW = Math.ceil(
-      Math.min(maxDisplayLen, ENTRY_SLOT_CAP) * ch + (hasHighlight ? ch : 0)
-    ) + 1;
+    // The +1 char is rounding slack: a <mark> splits a highlighted entry into
+    // separately pixel-rounded text runs whose widths can overshoot the bare string
+    // and trip a false ellipsis. Reserved unconditionally (not just when a search
+    // highlights) so the column holds one width browse vs search.
+    const entryContentW = Math.ceil((Math.min(maxDisplayLen, ENTRY_SLOT_CAP) + 1) * ch) + 1;
     const target = this.host.closest('#detail-panel') || this.sizer;
     target.style.setProperty('--count-w', `${(countDigits + 1) * ch}px`);
     target.style.setProperty('--entry-w', `${Math.max(entryContentW, sortableHeaderPx('Entry'))}px`);
@@ -1006,18 +1280,25 @@ export class EntriesScroller extends BaseVirtualScroller {
   }
 
   _computeTransformSlotWidths() {
-    const total = this._workerChainCount ?? 0;
-    const countDigits = total > 0 ? String(total).length : 1;
+    const floor = mergedWidthBound();
+    const countCeil = Math.max(this._workerChainCount ?? 0, mergedEntryCount());
+    const countDigits = countCeil > 0 ? String(countCeil).length : 1;
     const ch = measureMonoChPx();
     const glyphCh = measureAtomGlyphPx() / ch;
-    const { maxDisplayLen, maxGlyphDisplayLen, hasHighlight, maxLenDigits, maxScoreDigits, maxRawDigits: rawHint } = this._widthHints;
+    const h = this._widthHints;
+    const maxDisplayLen = Math.max(h.maxDisplayLen, floor?.maxDisplayLen ?? 0);
+    const maxLenDigits = Math.max(h.maxLenDigits, floor?.maxLenDigits ?? 1);
+    const maxScoreDigits = Math.max(h.maxScoreDigits, floor?.maxScoreDigits ?? 1);
+    const rawHint = Math.max(h.maxRawDigits ?? 0, floor?.maxRawDigits ?? 0);
     // The worker ships the widest glyph atom's text length apart from the overall
     // widest (it can't measure the glyph prefix); add the measured glyph width back
     // and max the two, or a glyph row's prefix drops out of the entry slot.
-    const maxLen = Math.max(maxDisplayLen, maxGlyphDisplayLen > 0 ? maxGlyphDisplayLen + glyphCh : 0);
-    const maxRawDigits = rescorePreviewActive() ? Math.max(rawHint ?? 0, maxScoreDigits) : 0;
+    const maxLen = Math.max(maxDisplayLen, h.maxGlyphDisplayLen > 0 ? h.maxGlyphDisplayLen + glyphCh : 0);
+    const maxRawDigits = rescorePreviewActive() ? Math.max(rawHint, maxScoreDigits) : 0;
+    // +1 char of rounding slack for a <mark>'s split text runs (see
+    // _computeFlatSlotWidths), reserved unconditionally for a stable column width.
     const entryContentW = Math.ceil(
-      Math.min(maxLen, ENTRY_SLOT_CAP + glyphCh) * ch + (hasHighlight ? ch : 0)
+      (Math.min(maxLen, ENTRY_SLOT_CAP + glyphCh) + 1) * ch
     ) + 1;
     const target = this.host.closest('#detail-panel') || this.sizer;
     target.style.setProperty('--count-w', `${(countDigits + 1) * ch}px`);
@@ -1026,17 +1307,6 @@ export class EntriesScroller extends BaseVirtualScroller {
     const arrowPrefixW = maxRawDigits ? maxRawDigits * ch + measureScoreArrowPx() : 0;
     target.style.setProperty('--score-w', `${Math.max(badgeWidthPx(maxScoreDigits) + arrowPrefixW, sortableHeaderPx('Score'))}px`);
     target.style.setProperty('--source-max', `${sourceColMaxPx(sourceMatrixSlots().length)}px`);
-  }
-
-  // The grouped and transform tiers both ship stats + histogram off the worker and
-  // hold only a window here, so never bottom-line the resident rows as if they were
-  // the full result — return [] and let rendering.js use the worker's counts.
-  _statsViewEntries() {
-    return this._flat ? (this._flatViewScores ?? this._flatScores) : [];
-  }
-
-  _histogramEntries() {
-    return this._flat ? this._flatScores : [];
   }
 
   // The worker always ships these for a grouped result; the local re-derive is a
@@ -1058,55 +1328,205 @@ export class EntriesScroller extends BaseVirtualScroller {
     return this.atomCount * ROW_HEIGHT;
   }
 
+  isStreaming() {
+    return this._streamRunId != null || this._streamPending;
+  }
+
   // Transform holds only a window, so size from the worker's count, NOT a resident
   // array length — the latter would silently cap the scroll at the first window.
   _renderRowCount() {
-    return this._flat ? this.allEntries.length : (this._workerChainCount ?? 0);
+    if (this._flat) return this._streamTotal ?? this._workerFlatCount ?? 0;
+    // A tuple renders one row per tuple (_groupCount); _workerChainCount counts
+    // lanes, which double-counts since each lane is its own chain object.
+    if (this.sortTier === 'tuple') return this._groupCount();
+    return this._workerChainCount ?? 0;
+  }
+
+  // Using lastCompletedRunId() during a stream would name the prior run and serve
+  // its rows — the in-flight stream's runId must win while one is active. Shared by
+  // the flat and grouped/tuple fetch paths (a run streams in exactly one tier).
+  _currentStreamRunId() {
+    return this._streamRunId ?? lastCompletedRunId();
+  }
+
+  // Tell the worker which window to ship in each streaming snapshot. Deduped so a
+  // batch-driven re-render at an unchanged scroll position doesn't re-post; only
+  // active while streaming (a settled result serves scrolls via fetch).
+  _reportViewport(start, end) {
+    const runId = this._streamRunId;
+    if (runId == null) return;
+    const v = this._sentViewport;
+    if (v && v.runId === runId && v.start === start && v.end === end) return;
+    this._sentViewport = { runId, start, end };
+    sendViewport(runId, start, end);
   }
 
   _render() {
-    if (this.sortTier === 'group') return this._renderGroups();
-    const n = this._renderRowCount();
+    const plan = this._renderPlan();
+    const n = plan.rowCount();
     const stride = this._rowStride();
     this.sizer.style.height = this._sizerHeightFor(n * stride) + 'px';
     this._renderFooter(n);
 
     const { start, end } = this._visibleRange(n);
-    this._clearSizer();
+    this._reportViewport(start, end);
 
-    this._invalidateWinCacheIfStale();
+    plan.invalidateCache();
 
-    const preview = rescorePreviewActive();
-    const draftRules = preview ? getDraftRescoreRules() : null;
-    const activeNorm = EntryPanel.activeNorm(this);
-    this._sourceSlots = sourceMatrixSlots();
+    const ctx = plan.buildRenderCtx();
     let nextActiveRow = null;
     let minMiss = -1, maxMiss = -1;
-    const frag = document.createDocumentFragment();
+    let prev = null;
     for (let i = start; i < end; i++) {
-      let row;
-      const chainRow = this._windowedRowOrNull(i);
-      if (chainRow) {
-        row = this._renderChainRow(chainRow, i, activeNorm, preview, draftRules);
+      const decoded = plan.cache.get(i) ?? null;
+      let cls, html, built = null;
+      if (decoded) {
+        built = plan.buildRow(decoded, i, ctx);
+        html = built.html;
+        cls = plan.rowClass;
       } else {
-        row = this._skeletonRow(i);
+        html = plan.skeletonHTML(i);
+        cls = plan.skeletonClass;
         if (minMiss < 0) minMiss = i;
         maxMiss = i;
       }
-      if (this._flat && this._familyStarts) this._applyFamilyBracket(row, i);
-      row.style.top = (i * stride) + 'px';
-      if (row.classList.contains('active')) nextActiveRow = row;
-      frag.appendChild(row);
+      const sig = cls + '\0' + html;
+
+      const mounted = this._mounted.get(i);
+      let node;
+      if (mounted && mounted.sig === sig) {
+        node = mounted.node;
+      } else {
+        if (mounted) mounted.node.remove();
+        node = document.createElement('div');
+        node.className = cls;
+        node.dataset.idx = i;
+        node.innerHTML = html;
+        this._mounted.set(i, { node, sig });
+      }
+
+      // Re-derived every render even on a kept node — position, active, and the
+      // family bracket key off stride/active-entry/neighbors, not row content.
+      node.style.top = (i * stride) + 'px';
+      if (built) {
+        if (built.dataEntry !== undefined) node.dataset.entry = built.dataEntry;
+        if (built.wlEntry !== undefined) node._wlEntry = built.wlEntry;
+      }
+      node.classList.toggle('active', !!built?.active);
+      plan.decorateRow(node, i);
+      if (built?.active) nextActiveRow = node;
+
+      if (prev ? prev.nextSibling !== node : this.sizer.firstChild !== node) {
+        prev ? prev.after(node) : this.sizer.prepend(node);
+      }
+      prev = node;
     }
-    this.sizer.appendChild(frag);
+
+    for (const [i, m] of this._mounted) {
+      if (i < start || i >= end) { m.node.remove(); this._mounted.delete(i); }
+    }
+
     if (nextActiveRow) EntryPanel.rebindRow(nextActiveRow);
 
     if (minMiss >= 0) {
       const lo = Math.max(0, minMiss - VS_BUFFER);
       const hi = Math.min(n, maxMiss + 1 + VS_BUFFER);
-      this._fetchWindow(lo, hi);
+      plan.fetchWindow(lo, hi);
     }
-    this._evictWinCache(start, end);
+    this._evictCache(plan.cache, start, end);
+  }
+
+  _renderPlan() {
+    if (this.sortTier === 'group') return this._groupRenderPlan();
+    if (this.sortTier === 'tuple') return this._tupleRenderPlan();
+    return this._chainRenderPlan();
+  }
+
+  _chainRenderPlan() {
+    const preview = rescorePreviewActive();
+    const draftRules = preview ? getDraftRescoreRules() : null;
+    const activeNorm = EntryPanel.activeNorm(this);
+    return {
+      cache: this._winCache,
+      rowClass: 'entry-row entry-row-font',
+      skeletonClass: 'entry-row entry-row-font skeleton',
+      rowCount: () => this._renderRowCount(),
+      buildRenderCtx: () => {
+        this._sourceSlots = sourceMatrixSlots();
+        return { activeNorm, preview, draftRules };
+      },
+      buildRow: (chainRow, i, ctx) =>
+        this._buildChainRow(chainRow, i, ctx.activeNorm, ctx.preview, ctx.draftRules),
+      skeletonHTML: i => `<span class="atom-count">${i + 1}.</span>`,
+      decorateRow: (row, i) => {
+        if (this._flat) this._applyFamilyBracket(row, i);
+      },
+      invalidateCache: () => this._invalidateWinCacheIfStale(),
+      fetchWindow: (lo, hi) => this._fetchWindow(lo, hi),
+    };
+  }
+
+  _groupRenderPlan() {
+    const activeNorm = EntryPanel.activeNorm(this);
+    const stack = ToolStack.getStack();
+    const columns = activeGroupColumns(stack);
+    const hasAnchor = !!activeGroupAnchorLabel(stack);
+    return {
+      cache: this._groupWinCache,
+      rowClass: 'group-row entry-row-font',
+      skeletonClass: 'group-row entry-row-font skeleton',
+      rowCount: () => this._groupCount(),
+      buildRenderCtx: () => ({
+        activeNorm, columns, hasAnchor,
+        monoCh: this._groupMonoCh || measureMonoChPx(),
+        glyphPx: this._groupGlyphPx || 0,
+        slot: Math.max(0, this.host.clientWidth - (this._groupChromeWidth || 0)),
+      }),
+      buildRow: (g, i, ctx) => ({
+        html: this._renderGroupRowHTML(g, i, ctx.columns, ctx.hasAnchor, ctx),
+        active: !!(ctx.activeNorm && (
+          (g.anchor && g.anchor.norm === ctx.activeNorm) ||
+          g.chains.some(c => c.atoms.some(a => a.wlEntry.norm === ctx.activeNorm))
+        )),
+      }),
+      skeletonHTML: i => `<span class="group-rownum">${i + 1}.</span>`,
+      decorateRow: () => {},
+      invalidateCache: () => this._invalidateGroupWinCacheIfStale(),
+      fetchWindow: (lo, hi) => this._fetchGroupWindow(lo, hi),
+    };
+  }
+
+  // A tuple shares the grouped result's window machinery (cache, fetch, count) but
+  // renders as bare fixed-N lanes: no key/anchor/columns and never an overflow
+  // chip — every lane of a solution must show, so unlike a group row it can't clip.
+  _tupleRenderPlan() {
+    const activeNorm = EntryPanel.activeNorm(this);
+    return {
+      cache: this._groupWinCache,
+      rowClass: 'group-row tuple-row entry-row-font',
+      skeletonClass: 'group-row entry-row-font skeleton',
+      rowCount: () => this._groupCount(),
+      buildRenderCtx: () => ({
+        activeNorm,
+        monoCh: this._groupMonoCh || measureMonoChPx(),
+        glyphPx: this._groupGlyphPx || 0,
+      }),
+      buildRow: (tuple, i, ctx) => ({
+        html: this._renderTupleRowHTML(tuple, i),
+        active: !!(ctx.activeNorm &&
+          tuple.chains.some(c => c.atoms.some(a => a.wlEntry.norm === ctx.activeNorm))),
+      }),
+      skeletonHTML: i => `<span class="group-rownum">${i + 1}.</span>`,
+      decorateRow: () => {},
+      invalidateCache: () => this._invalidateGroupWinCacheIfStale(),
+      fetchWindow: (lo, hi) => this._fetchGroupWindow(lo, hi),
+    };
+  }
+
+  _renderTupleRowHTML(tuple, rowIdx) {
+    const chainsHTML = tuple.chains.map((c, ci) => buildGroupChainHTML(c, ci)).join('');
+    return `<span class="group-rownum">${rowIdx + 1}.</span>` +
+      `<div class="group-chains">${chainsHTML}</div>`;
   }
 
   // A run change reindexes the corpus, so position-keyed cache entries name the
@@ -1114,35 +1534,50 @@ export class EntriesScroller extends BaseVirtualScroller {
   // result's inline first window so the above-the-fold rows render without a
   // fetchRows round-trip (no skeleton flash for a result that fits on screen).
   _invalidateWinCacheIfStale() {
-    const runId = lastCompletedRunId();
+    const runId = this._currentStreamRunId();
     if (runId === this._winCacheRunId) return;
-    this._winCache.clear();
     this._winCacheRunId = runId;
-    if (this._flat) {
-      if (this._firstRows) {
+    this._seedWinCache(this._winCache, () => {
+      if (this._flat) {
+        if (!this._firstRows) return;
         const sourceById = new Map(state.sources.map(w => [w.dbKey, w]));
         this._firstRows.forEach((row, i) =>
           this._winCache.set(i, this._richRowToChain(row, sourceById)));
+      } else if (this._firstChains) {
+        this._firstChains.forEach((row, i) => this._winCache.set(i, row));
       }
-    } else if (this._firstChains) {
-      this._firstChains.forEach((row, i) => this._winCache.set(i, row));
-    }
+    });
+  }
+
+  // Mirrors _invalidateWinCacheIfStale: a run change re-orders the groups, so
+  // absolute-index-keyed cache entries name the wrong groups — drop them, then
+  // seed from the inline first window so above-the-fold rows render with no fetch.
+  _invalidateGroupWinCacheIfStale() {
+    const runId = this._currentStreamRunId();
+    if (runId === this._groupWinCacheRunId) return;
+    this._groupWinCacheRunId = runId;
+    this._seedWinCache(this._groupWinCache, () => {
+      if (this._firstGroups) {
+        this._firstGroups.forEach((g, i) => this._groupWinCache.set(i, g));
+      }
+    });
+  }
+
+  _seedWinCache(cache, seed) {
+    cache.clear();
+    seed();
   }
 
   // The keep-window strictly contains [start, end): the render reads cache[i] for
   // i in [start, end), so an entry evicted there would blank a visible row. Narrow
   // it past the viewport and rows silently go blank — keep WINDOW_CACHE_KEEP > 0.
-  _evictWinCache(start, end) {
+  _evictCache(cache, start, end) {
     const keepLo = start - WINDOW_CACHE_KEEP;
     const keepHi = end + WINDOW_CACHE_KEEP;
-    if (this._winCache.size <= (end - start) + WINDOW_CACHE_KEEP * 3) return;
-    for (const pos of this._winCache.keys()) {
-      if (pos < keepLo || pos >= keepHi) this._winCache.delete(pos);
+    if (cache.size <= (end - start) + WINDOW_CACHE_KEEP * 3) return;
+    for (const pos of cache.keys()) {
+      if (pos < keepLo || pos >= keepHi) cache.delete(pos);
     }
-  }
-
-  _windowedRowOrNull(i) {
-    return this._winCache.get(i) ?? null;
   }
 
   _richRowToChain(row, sourceById) {
@@ -1160,20 +1595,21 @@ export class EntriesScroller extends BaseVirtualScroller {
     // so they share one wlEntry; each carries its own highlights/glyph slot.
     return {
       atoms: row.atoms.map(a => ({ wlEntry, highlights: a.highlights, glyph: a.glyph })),
+      familyStart: row.familyStart,
     };
   }
 
-  _skeletonRow(i) {
-    const row = document.createElement('div');
-    row.className = 'entry-row entry-row-font skeleton';
-    row.innerHTML = `<span class="atom-count">${i + 1}.</span>`;
-    return row;
-  }
-
+  // Reads each row's familyStart flag off the cached chain (worker-stamped under
+  // the Entry sort), so the bracket renders mid-stream too. A non-Entry sort ships
+  // no flag → bail. A miss on the next row (off-window) defers the end cap to the
+  // render that caches it — a transient, not a wrong run.
   _applyFamilyBracket(row, i) {
-    const fs = this._familyStarts;
-    const isStart = fs[i] === 1;
-    const isEnd = i + 1 >= this.allEntries.length || fs[i + 1] === 1;
+    row.classList.remove('fam-member', 'fam-start', 'fam-end');
+    const cur = this._winCache.get(i);
+    if (!cur || cur.familyStart === undefined) return;
+    const next = this._winCache.get(i + 1);
+    const isStart = cur.familyStart === true;
+    const isEnd = i + 1 >= this._renderRowCount() || next?.familyStart === true;
     if (isStart && isEnd) return;
     row.classList.add('fam-member');
     if (isStart) row.classList.add('fam-start');
@@ -1181,15 +1617,18 @@ export class EntriesScroller extends BaseVirtualScroller {
   }
 
   _fetchWindow(lo, hi) {
-    const runId = lastCompletedRunId();
+    const runId = this._currentStreamRunId();
     const seq = ++this._winReqSeq;
     this._fetchOutstanding++;
     const fetch = this._flat ? fetchWorkerRows : fetchWorkerTransformRows;
     fetch(runId, lo, hi).then(reply => {
       this._fetchOutstanding--;
       if (seq !== this._winReqSeq) return;            // superseded by a newer scroll
-      if (runId !== lastCompletedRunId()) return;     // superseded by a newer run
+      if (runId !== this._currentStreamRunId()) return; // superseded by a newer run
       if (!reply) return;                             // timeout
+      // Mid-stream the sort reshuffles per snapshot; a window served at a version
+      // we've moved past would paint stale-order rows mixed into the live snapshot.
+      if (this._streamRunId != null && reply.version !== this._streamVersion) return;
       if (this._flat) {
         // Rebuilt per batch rather than memoized: an add/remove/reorder between
         // fetches would otherwise resolve sourceId to a stale wordlist object.
@@ -1219,15 +1658,15 @@ export class EntriesScroller extends BaseVirtualScroller {
     });
   }
 
-  _renderChainRow(chainRow, i, activeNorm, preview, draftRules) {
+  _buildChainRow(chainRow, i, activeNorm, preview, draftRules) {
     const atoms = chainRow.atoms;
-    let isActive = false;
+    let active = false;
     let html = `<span class="atom-count">${i + 1}.</span>`;
     atoms.forEach((atom, ai) => {
       const { highlights, glyph } = atom;
       const wlEntry = draftRules ? previewedEntry(atom.wlEntry, draftRules) : atom.wlEntry;
       const { norm } = wlEntry;
-      if (activeNorm && norm === activeNorm) isActive = true;
+      if (activeNorm && norm === activeNorm) active = true;
       const displayed = displayOf(wlEntry);
       const projected = projectRangesToDisplay(highlights, wlEntry);
       const glyphHTML = glyph ? `<span class="atom-glyph">${glyph} </span>` : '';
@@ -1246,111 +1685,25 @@ export class EntriesScroller extends BaseVirtualScroller {
         `</span>`;
     });
 
-    const row = document.createElement('div');
-    row.className = isActive ? 'entry-row entry-row-font active' : 'entry-row entry-row-font';
-    row.dataset.idx = i;
-    row.dataset.entry = rowLastEntry(chainRow).norm;
-    row.innerHTML = html;
-    if (this._flat) row._wlEntry = atoms[0].wlEntry;
-    return row;
-  }
-
-  _renderGroups() {
-    // Size from the TOTAL group count (shipped), not the resident window — the
-    // worker ships only the first window of group rows and serves the rest on scroll.
-    const n = this._groupCount();
-    const stride = this.atomCount * ROW_HEIGHT;
-    this.sizer.style.height = this._sizerHeightFor(n * stride) + 'px';
-    this._renderFooter(n);
-    const { start, end } = this._visibleRange(n);
-    this._clearSizer();
-    this._invalidateGroupWinCacheIfStale();
-    const activeNorm = EntryPanel.activeNorm(this);
-    let nextActiveRow = null;
-    const stack = ToolStack.getStack();
-    const columns = activeGroupColumns(stack);
-    const hasAnchor = !!activeGroupAnchorLabel(stack);
-    const ctx = {
-      monoCh: this._groupMonoCh || measureMonoChPx(),
-      glyphPx: this._groupGlyphPx || 0,
-      slot: Math.max(0, this.host.clientWidth - (this._groupChromeWidth || 0)),
+    return {
+      html, active,
+      dataEntry: rowLastEntry(chainRow).norm,
+      wlEntry: this._flat ? atoms[0].wlEntry : undefined,
     };
-    let minMiss = -1, maxMiss = -1;
-    const frag = document.createDocumentFragment();
-    for (let i = start; i < end; i++) {
-      const g = this._groupWinCache.get(i) ?? null;
-      let row;
-      if (g) {
-        row = document.createElement('div');
-        row.className = 'group-row entry-row-font';
-        row.dataset.idx = i;
-        row.innerHTML = this._renderGroupRowHTML(g, i, columns, hasAnchor, ctx);
-        const matchesActive = activeNorm && (
-          (g.anchor && g.anchor.norm === activeNorm) ||
-          g.chains.some(c => c.atoms.some(a => a.wlEntry.norm === activeNorm))
-        );
-        if (matchesActive) {
-          row.classList.add('active');
-          nextActiveRow = row;
-        }
-      } else {
-        row = this._skeletonGroupRow(i);
-        if (minMiss < 0) minMiss = i;
-        maxMiss = i;
-      }
-      row.style.top = (i * stride) + 'px';
-      frag.appendChild(row);
-    }
-    this.sizer.appendChild(frag);
-    if (nextActiveRow) EntryPanel.rebindRow(nextActiveRow);
-
-    if (minMiss >= 0) {
-      const lo = Math.max(0, minMiss - VS_BUFFER);
-      const hi = Math.min(n, maxMiss + 1 + VS_BUFFER);
-      this._fetchGroupWindow(lo, hi);
-    }
-    this._evictGroupWinCache(start, end);
-  }
-
-  // Mirrors _invalidateWinCacheIfStale: a run change re-orders the groups, so
-  // absolute-index-keyed cache entries name the wrong groups — drop them, then
-  // seed from the inline first window so above-the-fold rows render with no fetch.
-  _invalidateGroupWinCacheIfStale() {
-    const runId = lastCompletedRunId();
-    if (runId !== this._groupWinCacheRunId) {
-      this._groupWinCache.clear();
-      this._groupWinCacheRunId = runId;
-      if (this._firstGroups) {
-        this._firstGroups.forEach((g, i) => this._groupWinCache.set(i, g));
-      }
-    }
-  }
-
-  _evictGroupWinCache(start, end) {
-    const keepLo = start - WINDOW_CACHE_KEEP;
-    const keepHi = end + WINDOW_CACHE_KEEP;
-    if (this._groupWinCache.size <= (end - start) + WINDOW_CACHE_KEEP * 3) return;
-    for (const pos of this._groupWinCache.keys()) {
-      if (pos < keepLo || pos >= keepHi) this._groupWinCache.delete(pos);
-    }
-  }
-
-  _skeletonGroupRow(i) {
-    const row = document.createElement('div');
-    row.className = 'group-row entry-row-font skeleton';
-    row.innerHTML = `<span class="group-rownum">${i + 1}.</span>`;
-    return row;
   }
 
   _fetchGroupWindow(lo, hi) {
-    const runId = lastCompletedRunId();
+    const runId = this._currentStreamRunId();
     const seq = ++this._groupReqSeq;
     this._groupFetchOutstanding++;
     fetchWorkerGroups(runId, lo, hi).then(reply => {
       this._groupFetchOutstanding--;
-      if (seq !== this._groupReqSeq) return;          // superseded by a newer scroll
-      if (runId !== lastCompletedRunId()) return;     // superseded by a newer run
-      if (!reply) return;                             // timeout
+      if (seq !== this._groupReqSeq) return;            // superseded by a newer scroll
+      if (runId !== this._currentStreamRunId()) return; // superseded by a newer run
+      if (!reply) return;                               // timeout
+      // Mid-stream the order reshuffles per snapshot; drop a window served at a
+      // version the live snapshot has moved past (mirrors the flat _fetchWindow).
+      if (this._streamRunId != null && reply.version !== this._streamVersion) return;
       for (let k = 0; k < reply.groups.length; k++) {
         this._groupWinCache.set(reply.start + k, reply.groups[k]);
       }
@@ -1438,7 +1791,10 @@ export class EntriesScroller extends BaseVirtualScroller {
     const countW = Math.max(
       measureTextWidth(String(hints.maxCount), 'entry-headers-font'),
       sortableHeaderPx('Count'));
-    const rownumW = measureTextWidth(hints.groupCount + '.', 'entry-headers-font');
+    // Floor the row-number width at the merged-corpus size, as the flat tier does
+    // for --count-w, so it doesn't widen as the streamed count climbs 1 -> 10 -> 100.
+    const rownumCeil = Math.max(hints.groupCount, mergedEntryCount());
+    const rownumW = measureTextWidth(rownumCeil + '.', 'entry-headers-font');
     target.style.setProperty('--group-count-w', `${countW}px`);
     target.style.setProperty('--group-rownum-w', `${rownumW}px`);
     const stack = ToolStack.getStack();
@@ -1471,7 +1827,7 @@ export class EntriesScroller extends BaseVirtualScroller {
     // Must be the full-chains fetch, not fetchWorkerGroups: that ships each group's
     // firstChains window only, so any group over the window silently exports
     // truncated — data loss on an explicit export with no visible symptom.
-    if (this.sortTier === 'group') {
+    if (isMultiLaneTier(this.sortTier)) {
       const reply = await fetchWorkerAllGroups(lastCompletedRunId());
       return reply ? reply.groups : [];
     }
@@ -1502,11 +1858,12 @@ export class EntriesScroller extends BaseVirtualScroller {
     return applies;
   }
 
-  // The rows the synchronous rebind search walks. Grouped windows, so allEntries is
-  // empty there — search the cached groups instead. The panel only ever opens
-  // on a rendered (hence cached) group, so its target is always reachable here.
+  // The rows the synchronous rebind search walks. Only reached for the grouped/tuple
+  // tier — flat and transform short-circuit on the worker's shipped answer above.
+  // Those are windowed, so search the cached groups; the panel only ever opens on a
+  // rendered (hence cached) group, so its target is always reachable here.
   _rebindSearchRows() {
-    return this.sortTier === 'group' ? this._groupWinCache.values() : this.allEntries;
+    return this._groupWinCache.values();
   }
 
   resultHasEntry(wlEntry) {
@@ -2997,6 +3354,12 @@ export function buildEntryHeadersHTML() {
     return `<span class="col-sort" data-sort-axes="${ownedAxes.join(' ')}" data-sort-col="${esc(colKind)}"`
       + ` role="button" tabindex="0"${aria}>${esc(label)}${arrow}${badge}</span>`;
   };
+  if (tier === 'tuple') {
+    return `<div class="group-headers tuple-headers entry-headers-font">
+      <span class="group-rownum"></span>
+      <span class="group-entries-label">${hdr('Entries', columnSortAxes('group-entries', tierAxes), 'group-entries')}</span>
+    </div>`;
+  }
   if (isGroupChain(stack)) {
     const cols = activeGroupColumns(stack);
     const anchorLabel = activeGroupAnchorLabel(stack);

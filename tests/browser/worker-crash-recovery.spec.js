@@ -32,7 +32,7 @@ async function workerNorms(page, stack) {
   return page.evaluate(async (s) => {
     const { makeToolRow } = await import('/src/engine/tools.js');
     const { runOnWorker } = await import('/src/ui/pipeline-worker.js');
-    const { fetchWorkerAllRows, lastCompletedRunId } = await import('/src/ui/pipeline-worker.js');
+    const { fetchWorkerAllRows, fetchWorkerAllTransformRows, lastCompletedRunId } = await import('/src/ui/pipeline-worker.js');
     const rows = s.map(r => makeToolRow(r.tool, r.params || {}, false));
     const result = await runOnWorker(rows);
     if (result.aborted || result.errored) return { aborted: !!result.aborted, errored: !!result.errored, norms: [] };
@@ -40,6 +40,9 @@ async function workerNorms(page, stack) {
     if (result.flat) {
       const reply = await fetchWorkerAllRows(lastCompletedRunId());
       norms = reply ? reply.rows.map(r => r.norm) : [];
+    } else if (result.transform) {
+      const reply = await fetchWorkerAllTransformRows(lastCompletedRunId());
+      norms = reply ? reply.rows.map(c => c.atoms[0].wlEntry.norm) : [];
     } else {
       norms = result.rows.map(r => r.atoms[0].wlEntry.norm);
     }

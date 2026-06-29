@@ -629,7 +629,7 @@ export const ToolStack = (() => {
         e.stopPropagation();
         if (window.matchMedia('(hover: hover)').matches) return;
         const idx = parseInt(errBtn.dataset.errorRow, 10);
-        const msg = stack[idx]?._error || '';
+        const msg = stack[idx]?._error || stack[idx]?.error() || '';
         _showRowError(errBtn, msg);
         return;
       }
@@ -775,9 +775,10 @@ export const ToolStack = (() => {
     rowEls().forEach((rowEl, idx) => {
       const btn = rowEl.querySelector('.tool-row-error-btn');
       if (!btn) return;
-      const err = userRows[idx]?._error;
-      btn.hidden = !err;
-      if (err) btn.title = err;
+      const row = userRows[idx];
+      const msg = row?._error || row?.error();
+      btn.hidden = !msg;
+      if (msg) btn.title = msg;
       else btn.removeAttribute('title');
     });
   }
