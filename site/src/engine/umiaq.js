@@ -20,7 +20,7 @@ const VAR_HL_COLORS = 9;
 // ─── Parsing ─────────────────────────────────────────────────────────────────
 
 const LEN_CONSTRAINT_RE = /^\|([A-Z])\|(<=|>=|<|>|=)(\d+)$/;
-const NEQ_CONSTRAINT_RE = /^!=([A-Z]{2,})$/;
+const NEQ_CONSTRAINT_RE = /^([A-Z])!=([A-Z])$/;
 
 function classToken(body) {
   const expanded = body.replace(/#/g, CONSONANTS).replace(/@/g, VOWELS);
@@ -122,8 +122,9 @@ export function parseUmiaqQuery(query) {
       }
       const nm = NEQ_CONSTRAINT_RE.exec(clause);
       if (nm) {
-        const vars = [...new Set(nm[1])];
-        for (const v of vars) (notEqual[v] ??= []).push(...vars.filter(o => o !== v));
+        const [, a, b] = nm;
+        (notEqual[a] ??= []).push(b);
+        (notEqual[b] ??= []).push(a);
         continue;
       }
       return { ok: false, error: `unsupported constraint "${clause}"` };

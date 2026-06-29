@@ -19,7 +19,7 @@ export const UMIAQ_HELP = buildHelpHTML([
   ['A–Z', 'a variable'],
   ['~A', 'the reverse of A'],
   ['|A|=n', 'A is exactly n long (also < <= > >=)'],
-  ['!=AB', 'A and B differ'],
+  ['A!=B', 'A and B differ'],
   [';', 'separates patterns'],
 ]);
 

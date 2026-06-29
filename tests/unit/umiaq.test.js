@@ -41,7 +41,7 @@ test('parse: a plain literal is arity 1 with no variables', () => {
 
 test('parse: arity is the pattern count, ignoring constraint clauses', () => {
   assert.equal(parseUmiaqQuery('AB;BA').arity, 2);
-  assert.equal(parseUmiaqQuery('AB;BA;|A|=2;!=AB').arity, 2);
+  assert.equal(parseUmiaqQuery('AB;BA;|A|=2;A!=B').arity, 2);
   assert.equal(parseUmiaqQuery('AA;|A|=3').arity, 1);
 });
 
@@ -51,11 +51,11 @@ test('parse: collects variables across all patterns', () => {
 });
 
 test('parse: length and not-equal constraints', () => {
-  const p = parseUmiaqQuery('AB;|A|=2;!=ABC');
+  const p = parseUmiaqQuery('ABC;|A|=2;A!=B;B!=C');
   assert.deepEqual(p.constraints.length, { A: { min: 2, max: 2 } });
-  assert.deepEqual(p.constraints.notEqual.A.sort(), ['B', 'C']);
+  assert.deepEqual(p.constraints.notEqual.A, ['B']);
   assert.deepEqual(p.constraints.notEqual.B.sort(), ['A', 'C']);
-  assert.deepEqual(p.constraints.notEqual.C.sort(), ['A', 'B']);
+  assert.deepEqual(p.constraints.notEqual.C, ['B']);
 });
 
 test('parse: token kinds', () => {
@@ -92,7 +92,7 @@ test('parse: errors', () => {
 });
 
 test('parse: a query of only constraints, or a trailing ;, is inert', () => {
-  assert.deepEqual(parseUmiaqQuery('!=AB'), { ok: false, empty: true });
+  assert.deepEqual(parseUmiaqQuery('A!=B'), { ok: false, empty: true });
   assert.deepEqual(parseUmiaqQuery('AB;'), { ok: false, empty: true });
 });
 
@@ -132,8 +132,8 @@ test('match: length comparison operators bound a variable', () => {
 });
 
 test('match: not-equal forbids equal bindings', () => {
-  assert.deepEqual(bindings('AB;!=AB', 'ab'), [{ A: 'a', B: 'b' }]);
-  assert.deepEqual(bindings('AB;!=AB', 'aa'), []);
+  assert.deepEqual(bindings('AB;A!=B', 'ab'), [{ A: 'a', B: 'b' }]);
+  assert.deepEqual(bindings('AB;A!=B', 'aa'), []);
 });
 
 test('match: literals, dots and stars', () => {
@@ -206,8 +206,8 @@ test('find: ABC;CBA finds reversed triples across the whole pool, exhaustively',
   assert.equal(truncated, false);
 });
 
-test('find: ABC;CBA;!=AC drops palindromic self-joins, keeps cross pairs', async () => {
-  const tuples = await tupleNorms('ABC;CBA;!=AC', ['tip', 'pit', 'nan', 'cat', 'tac']);
+test('find: ABC;CBA;A!=C drops palindromic self-joins, keeps cross pairs', async () => {
+  const tuples = await tupleNorms('ABC;CBA;A!=C', ['tip', 'pit', 'nan', 'cat', 'tac']);
   assert.deepEqual(tuples, [['cat', 'tac'], ['pit', 'tip'], ['tac', 'cat'], ['tip', 'pit']]);
 });
 
@@ -264,7 +264,7 @@ test('worked: ?A;A finds beheadings — drop the first letter to reach another w
 
 test('worked: AB;BA over a multiply-divisible word enumerates every split and dedups', async () => {
   // The self-pairs aren't a bug: the ab·ab split sets A=B, so BA==AB and the word
-  // is its own valid swap-partner — emitted absent a !=AB constraint to forbid it.
+  // is its own valid swap-partner — emitted absent an A!=B constraint to forbid it.
   const tuples = await tupleNorms('AB;BA', ['abab', 'baba']);
   assert.deepEqual(tuples, [
     ['abab', 'abab'], ['abab', 'baba'], ['baba', 'abab'], ['baba', 'baba'],
