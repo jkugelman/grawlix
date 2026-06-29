@@ -4,7 +4,7 @@ import { MERGED_ID } from '../core/constants.js';
 import { canonicalNormRow } from './snapshot.js';
 import { TOOLS, makeToolRow } from './tools.js';
 import { executePipeline, configureExecutorYield, invalidatePreSearchCache, bottomLineAtoms, applyScoreRangeToRows, rowLastEntry, rowAtoms, collapseRepeatAtoms, streamPlan, cacheGroupStats, currentAtomCount } from './executor.js';
-import { sortGroups, sortChainRows, activeGroupRow, groupRowComparator, chainRowComparator } from './sort.js';
+import { sortGroups, sortChainRows, activeGroupRow, groupRowComparator, chainRowComparator, chainSortTier, DEFAULT_SORT_BY_TIER } from './sort.js';
 import { configureIO as configureSegmenterIO } from './segmenter.js';
 import { configureIO as configurePhoneticsIO } from './phonetics.js';
 import { DATA_ASSETS, getDataAsset } from './assets.js';
@@ -220,6 +220,10 @@ async function drainRuns() {
 async function runOne({ runId, stack: serialized, sort, scope, existsQuery, scoreRange, rebindQuery }) {
   const signal = makeSignalShim(runId);
   const stack = deserializeStack(serialized);
+
+  // The UI always supplies a sort; a direct runOnWorker caller may not. Unlike the
+  // flat emitter, the transform/tuple emitters crash on a null comparator (`.sort(null)`).
+  if (!sort?.length) sort = [{ key: DEFAULT_SORT_BY_TIER[chainSortTier(stack)], dir: 'asc' }];
 
   // The pre-search cache persists the user-stack result across runs for the
   // keystroke fast-path; the caller must drop it when the user stack changes. On
