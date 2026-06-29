@@ -625,7 +625,7 @@ export async function applyWordlistText(wordlist, text, { fetchedSize = null, or
   } else {
     const { addedCount, deletedCount, rescoredCount } = ack;
     if (!addedCount && !deletedCount && !rescoredCount) {
-      if (!viaToast) showAlert(`${buildWordlistNameHTML(wordlist)} is already up to date — no changes.`);
+      if (!silent && !viaToast) showAlert(`${buildWordlistNameHTML(wordlist)} is already up to date — no changes.`);
     } else if (viaToast) {
       const parts = [];
       if (addedCount)    parts.push(`${addedCount.toLocaleString()} added`);
