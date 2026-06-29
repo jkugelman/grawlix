@@ -19,7 +19,7 @@ const VAR_HL_COLORS = 9;
 
 // ─── Parsing ─────────────────────────────────────────────────────────────────
 
-const LEN_CONSTRAINT_RE = /^\|([A-Z])\|=(\d+)$/;
+const LEN_CONSTRAINT_RE = /^\|([A-Z])\|(<=|>=|<|>|=)(\d+)$/;
 const NEQ_CONSTRAINT_RE = /^!=([A-Z]{2,})$/;
 
 function classToken(body) {
@@ -82,7 +82,9 @@ function compilePrefilter(tokens, length) {
     else if (part.t === 'class') body += part.src;
     else {
       const lc = length[part.name];
-      body += lc ? `.{${lc.min},${lc.max}}` : '.+';
+      if (!lc) body += '.+';
+      else if (lc.max === Infinity) body += `.{${lc.min},}`;
+      else body += `.{${lc.min},${lc.max}}`;
     }
   }
   return new RegExp(`^(?:${body})$`, 'u');
@@ -98,12 +100,24 @@ export function parseUmiaqQuery(query) {
   const patternClauses = [];
 
   for (const clause of clauses) {
-    if (clause.includes('=')) {
+    if (clause.includes('=') || clause.startsWith('|')) {
       const lm = LEN_CONSTRAINT_RE.exec(clause);
       if (lm) {
-        const n = +lm[2];
-        if (n < 1) return { ok: false, error: `|${lm[1]}|=${lm[2]} — length must be at least 1` };
-        length[lm[1]] = { min: n, max: n };
+        const v = lm[1], op = lm[2], n = +lm[3];
+        let min = 1, max = Infinity;
+        if (op === '=') min = max = n;
+        else if (op === '>') min = n + 1;
+        else if (op === '>=') min = n;
+        else if (op === '<') max = n - 1;
+        else if (op === '<=') max = n;
+        min = Math.max(1, min);
+        if (max < 1) return { ok: false, error: `${clause} — length must be at least 1` };
+        // Two operator constraints on one variable intersect into a range
+        // (|A|>=2;|A|<=5), so a later clause narrows rather than replaces.
+        const prev = length[v];
+        if (prev) { min = Math.max(min, prev.min); max = Math.min(max, prev.max); }
+        if (min > max) return { ok: false, error: `${clause} — contradicts an earlier |${v}| constraint` };
+        length[v] = { min, max };
         continue;
       }
       const nm = NEQ_CONSTRAINT_RE.exec(clause);

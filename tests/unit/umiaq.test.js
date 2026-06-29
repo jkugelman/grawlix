@@ -70,8 +70,20 @@ test('parse: ? is the any-char token; . is not a wildcard', () => {
   assert.match(parseUmiaqQuery('a.b').error, /unexpected character/);
 });
 
+test('parse: length comparison operators map to {min,max}', () => {
+  const len = q => parseUmiaqQuery('A;' + q).constraints.length.A;
+  assert.deepEqual(len('|A|=3'),  { min: 3, max: 3 });
+  assert.deepEqual(len('|A|>3'),  { min: 4, max: Infinity });
+  assert.deepEqual(len('|A|>=3'), { min: 3, max: Infinity });
+  assert.deepEqual(len('|A|<3'),  { min: 1, max: 2 });
+  assert.deepEqual(len('|A|<=3'), { min: 1, max: 3 });
+  assert.deepEqual(len('|A|>=2;|A|<=4'), { min: 2, max: 4 });
+});
+
 test('parse: errors', () => {
   assert.match(parseUmiaqQuery('|A|=0').error, /at least 1/);
+  assert.match(parseUmiaqQuery('|A|<1').error, /at least 1/);
+  assert.match(parseUmiaqQuery('A;|A|>=5;|A|<=3').error, /contradicts/);
   assert.match(parseUmiaqQuery('a[bc').error, /unclosed/);
   assert.match(parseUmiaqQuery('~').error, /variable/);
   assert.match(parseUmiaqQuery('/abc').error, /anagram/);
@@ -107,6 +119,16 @@ test('match: enumerates every binding', () => {
 test('match: length constraint bounds a variable', () => {
   assert.deepEqual(bindings('AA;|A|=1', 'aa'), [{ A: 'a' }]);
   assert.deepEqual(bindings('AA;|A|=1', 'gaga'), []);
+});
+
+test('match: length comparison operators bound a variable', () => {
+  assert.deepEqual(bindings('A;|A|>=3', 'cat'), [{ A: 'cat' }]);
+  assert.deepEqual(bindings('A;|A|>=3', 'at'),  []);
+  assert.deepEqual(bindings('A;|A|<=2', 'at'),  [{ A: 'at' }]);
+  assert.deepEqual(bindings('A;|A|<=2', 'cat'), []);
+  assert.deepEqual(bindings('A;|A|>=2;|A|<=3', 'at'),   [{ A: 'at' }]);
+  assert.deepEqual(bindings('A;|A|>=2;|A|<=3', 'a'),    []);
+  assert.deepEqual(bindings('A;|A|>=2;|A|<=3', 'cats'), []);
 });
 
 test('match: not-equal forbids equal bindings', () => {

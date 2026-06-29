@@ -45,6 +45,12 @@ test('a length constraint narrows a single pattern', async ({ page }) => {
   expect(await entries(page)).toEqual(['gaga', 'mama', 'tutu']);
 });
 
+test('a comparison operator bounds a single pattern length', async ({ page }) => {
+  await setup(page);
+  await run(page, 'A;|A|<=3');
+  expect(await entries(page)).toEqual(['ape', 'bro', 'cat', 'dog', 'pea', 'rob']);
+});
+
 test('a single pattern highlights its variables in the flat row', async ({ page }) => {
   await setup(page);
   await run(page, 'ABCBA');                         // matches only 'level' (l·e·v·e·l)
