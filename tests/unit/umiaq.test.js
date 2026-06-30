@@ -80,10 +80,17 @@ test('parse: length comparison operators map to {min,max}', () => {
   assert.deepEqual(len('|A|>=2;|A|<=4'), { min: 2, max: 4 });
 });
 
+test('parse: zero-length is opt-in via an explicit lower bound', () => {
+  const len = q => parseUmiaqQuery('A;' + q).constraints.length.A;
+  assert.deepEqual(len('|A|>=0'), { min: 0, max: Infinity });   // empty or longer
+  assert.deepEqual(len('|A|=0'),  { min: 0, max: 0 });          // forced empty
+  assert.deepEqual(len('|A|>=0;|A|<=3'), { min: 0, max: 3 });   // empty up to 3
+  assert.deepEqual(len('|A|<=0'), { min: 0, max: 0 });          // ceiling 0 ⇒ empty
+  assert.deepEqual(len('|A|<=5'), { min: 1, max: 5 });          // upper bound alone keeps floor 1
+});
+
 test('parse: errors', () => {
-  assert.match(parseUmiaqQuery('|A|=0').error, /at least 1/);
-  assert.match(parseUmiaqQuery('|A|<1').error, /at least 1/);
-  assert.match(parseUmiaqQuery('A;|A|>=5;|A|<=3').error, /contradicts/);
+  assert.match(parseUmiaqQuery('A;|A|>=5;|A|<=3').error, /contradict/);
   assert.match(parseUmiaqQuery('a[bc').error, /unclosed/);
   assert.match(parseUmiaqQuery('~').error, /variable/);
   assert.match(parseUmiaqQuery('/abc').error, /anagram/);
@@ -129,6 +136,22 @@ test('match: length comparison operators bound a variable', () => {
   assert.deepEqual(bindings('A;|A|>=2;|A|<=3', 'at'),   [{ A: 'at' }]);
   assert.deepEqual(bindings('A;|A|>=2;|A|<=3', 'a'),    []);
   assert.deepEqual(bindings('A;|A|>=2;|A|<=3', 'cats'), []);
+});
+
+test('match: a variable is non-empty by default — no empty binding', () => {
+  assert.deepEqual(bindings('AB', 'go'), [{ A: 'g', B: 'o' }]);
+});
+
+test('match: |A|>=0 lets a variable bind the empty string', () => {
+  assert.deepEqual(bindings('AB;|A|>=0', 'go'),
+    [{ A: '', B: 'go' }, { A: 'g', B: 'o' }]);
+  assert.deepEqual(bindings('AB;|A|>=0;|B|>=0', 'go'),
+    [{ A: '', B: 'go' }, { A: 'g', B: 'o' }, { A: 'go', B: '' }]);
+});
+
+test('match: |A|=0 forces a variable to the empty string', () => {
+  assert.deepEqual(bindings('Aat;|A|=0', 'at'),  [{ A: '' }]);   // A empty before the literal 'at'
+  assert.deepEqual(bindings('Aat;|A|=0', 'cat'), []);            // 'c' can't precede an empty A
 });
 
 test('match: not-equal forbids equal bindings', () => {
@@ -253,6 +276,13 @@ test('worked: @A;#A pairs a vowel-initial word with a consonant-initial one shar
 test('worked: ?A;A finds beheadings — drop the first letter to reach another word', async () => {
   const tuples = await tupleNorms('?A;A', ['scat', 'cat', 'spot', 'pot', 'slot']);
   assert.deepEqual(tuples, [['scat', 'cat'], ['spot', 'pot']]);
+});
+
+test('worked: zero-length variables let the differing letter reach the word edge', async () => {
+  // AaB;AeB with empty A,B admits AT/ET (A='' at the front) alongside BAD/BED —
+  // the single-query answer to Qat's vowel-anywhere example.
+  const tuples = await tupleNorms('AaB;AeB;|A|>=0;|B|>=0', ['at', 'et', 'bad', 'bed', 'zzz']);
+  assert.deepEqual(tuples, [['at', 'et'], ['bad', 'bed']]);
 });
 
 test('worked: AB;BA over a multiply-divisible word enumerates every split and dedups', async () => {

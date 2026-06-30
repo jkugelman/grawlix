@@ -95,7 +95,7 @@ export function parseUmiaqQuery(query) {
   if (!q) return { ok: false, empty: true };
 
   const clauses = q.split(';').map(c => c.trim());
-  const length = {};
+  const bounds = {};   // var → { lo, hi }: explicit lower bound (null = none) and upper bound
   const notEqual = {};
   const patternClauses = [];
 
@@ -104,20 +104,20 @@ export function parseUmiaqQuery(query) {
       const lm = LEN_CONSTRAINT_RE.exec(clause);
       if (lm) {
         const v = lm[1], op = lm[2], n = +lm[3];
-        let min = 1, max = Infinity;
-        if (op === '=') min = max = n;
-        else if (op === '>') min = n + 1;
-        else if (op === '>=') min = n;
-        else if (op === '<') max = n - 1;
-        else if (op === '<=') max = n;
-        min = Math.max(1, min);
-        if (max < 1) return { ok: false, error: `${clause} — length must be at least 1` };
-        // Two operator constraints on one variable intersect into a range
-        // (|A|>=2;|A|<=5), so a later clause narrows rather than replaces.
-        const prev = length[v];
-        if (prev) { min = Math.max(min, prev.min); max = Math.min(max, prev.max); }
-        if (min > max) return { ok: false, error: `${clause} — contradicts an earlier |${v}| constraint` };
-        length[v] = { min, max };
+        let lo = null, hi = Infinity;
+        if (op === '=') lo = hi = n;
+        else if (op === '>') lo = n + 1;
+        else if (op === '>=') lo = n;
+        else if (op === '<') hi = n - 1;
+        else if (op === '<=') hi = n;
+        // A null lower bound must stay null (not default to 1) until every clause is
+        // seen, or an upper-bound-only clause like |A|<=5 silently re-imposes the
+        // floor of 1 and defeats a later |A|>=0.
+        const prev = bounds[v] || { lo: null, hi: Infinity };
+        bounds[v] = {
+          lo: lo === null ? prev.lo : prev.lo === null ? lo : Math.max(lo, prev.lo),
+          hi: Math.min(hi, prev.hi),
+        };
         continue;
       }
       const nm = NEQ_CONSTRAINT_RE.exec(clause);
@@ -133,6 +133,16 @@ export function parseUmiaqQuery(query) {
     // so stay inert rather than erroring while the user composes the next pattern.
     if (!clause) return { ok: false, empty: true };
     patternClauses.push(clause);
+  }
+
+  // Zero-length is opt-in (|A|>=0, |A|=0); capping the default floor at the upper
+  // bound is what lets |A|<=0 mean "empty" instead of erroring as 1 > 0.
+  const length = {};
+  for (const v in bounds) {
+    const { lo, hi } = bounds[v];
+    const min = lo === null ? Math.min(1, hi) : lo;
+    if (min > hi) return { ok: false, error: `|${v}| length constraints contradict each other` };
+    length[v] = { min, max: hi };
   }
 
   if (!patternClauses.length) return { ok: false, empty: true };
@@ -157,8 +167,9 @@ export function parseUmiaqQuery(query) {
 // ─── Matching ────────────────────────────────────────────────────────────────
 // Enumerate every binding map (var → bound substring) by which `pattern` matches
 // `word`. Memoized backtracker over (word index, token index, bindings), faithful
-// to Umiaq's matcher except for the prefilter and the result-dedupe. Variables
-// bind non-empty substrings (min length 1); `*` spans zero or more characters.
+// to Umiaq's matcher except for the prefilter and the result-dedupe. A variable
+// binds a non-empty substring by default — |A|>=0 (or |A|=0) lets it bind the empty
+// string; `*` always spans zero or more characters.
 
 function canonical(bindings) {
   const keys = Object.keys(bindings);
@@ -229,7 +240,7 @@ export function matchPattern(word, pattern, constraints = { length: {}, notEqual
         } else {
           let min = 1, max = W - i;
           const lc = length[name];
-          if (lc) { min = Math.max(min, lc.min); max = Math.min(max, lc.max); }
+          if (lc) { min = lc.min; max = Math.min(max, lc.max); }
           const neq = notEqual[name];
           for (let L = min; L <= max; L++) {
             const sub = word.slice(i, i + L);
@@ -295,6 +306,7 @@ export function variableColors(variables) {
 
 export function variableHighlights(word, pattern, bindings, varColor) {
   return variableRanges(word, pattern, bindings)
+    .filter(r => r.len > 0)   // a zero-length variable spans nothing to color
     .map(r => ({ start: r.start, end: r.start + r.len, kind: 'umiaq-var-' + varColor[r.name] }));
 }
 
