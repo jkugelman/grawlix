@@ -15,10 +15,9 @@ test.beforeEach(async ({ page }) => {
 const STREAM_MS = 1;
 const SHIPPED_MS = 30;
 
-// Big filler (no reverse present, so none fold) forces a multi-yield stream; the
-// few pairs keep the result under one window, so the last snapshot's window IS the
-// whole streamed result and is directly comparable to the settled fetch. Shrinking
-// the filler or adding pairs past the window silently breaks that comparison.
+// Big filler (no reverse present, so none fold) forces a multi-yield stream so the
+// run actually emits snapshots; without it the run settles in one batch and never
+// streams. The few real pairs keep the settled result small.
 async function seedCorpus(page) {
   await page.evaluate(() => {
     const entries = [], scores = [];
@@ -49,13 +48,23 @@ async function streamThenSettle(page) {
     T.setWorkerYieldIntervalForTest(SHIPPED_MS);
 
     const last = partials[partials.length - 1];
-    const streamed = last ? last.entries : [];
-
     const reply = await T.fetchWorkerAllTransformRows(T.lastCompletedRunId());
     const settled = reply ? reply.rows.map(c => c.atoms.map(a => a.wlEntry.display ?? a.wlEntry.norm)) : [];
 
-    return { streamedCount: partials.length, streamed, settled };
+    return { streamedCount: partials.length, streamed: last ? last.entries : [], lastTotal: last ? last.total : 0, settled };
   }, { STREAM_MS, SHIPPED_MS });
+}
+
+// A snapshot's `entries` is the viewport WINDOW, not the whole result — under load a
+// transient narrow viewport report ships fewer rows than `total`. So the exact-final
+// invariant is: the window is settled's sorted PREFIX, and the window-independent
+// `total` equals the full settled count. Comparing the raw window to all of settled
+// false-fails whenever the window is short (the flake this replaced).
+function expectStreamConverged({ streamedCount, streamed, lastTotal, settled }) {
+  expect(streamedCount).toBeGreaterThanOrEqual(1);
+  expect(settled.length).toBeGreaterThan(0);
+  expect(lastTotal).toBe(settled.length);
+  expect(streamed).toEqual(settled.slice(0, streamed.length));
 }
 
 test('entry sort: the last streamed snapshot equals the settled result', async ({ page }) => {
@@ -63,11 +72,7 @@ test('entry sort: the last streamed snapshot equals the settled result', async (
   await seedCorpus(page);
   await page.evaluate(() => window.__grawlixTest.applySort('entry', 'asc'));
 
-  const { streamedCount, streamed, settled } = await streamThenSettle(page);
-
-  expect(streamedCount).toBeGreaterThanOrEqual(1);
-  expect(settled.length).toBeGreaterThan(0);
-  expect(streamed).toEqual(settled);
+  expectStreamConverged(await streamThenSettle(page));
 });
 
 test('score sort: the last streamed snapshot equals the settled result', async ({ page }) => {
@@ -75,11 +80,7 @@ test('score sort: the last streamed snapshot equals the settled result', async (
   await seedCorpus(page);
   await page.evaluate(() => window.__grawlixTest.applySort('score', 'desc'));
 
-  const { streamedCount, streamed, settled } = await streamThenSettle(page);
-
-  expect(streamedCount).toBeGreaterThanOrEqual(1);
-  expect(settled.length).toBeGreaterThan(0);
-  expect(streamed).toEqual(settled);
+  expectStreamConverged(await streamThenSettle(page));
 });
 
 test('filtered (score range): the last streamed snapshot equals the settled result', async ({ page }) => {
@@ -92,9 +93,5 @@ test('filtered (score range): the last streamed snapshot equals the settled resu
   });
   await page.evaluate(() => window.__grawlixTest.pipelineIdle());
 
-  const { streamedCount, streamed, settled } = await streamThenSettle(page);
-
-  expect(streamedCount).toBeGreaterThanOrEqual(1);
-  expect(settled.length).toBeGreaterThan(0);
-  expect(streamed).toEqual(settled);
+  expectStreamConverged(await streamThenSettle(page));
 });
