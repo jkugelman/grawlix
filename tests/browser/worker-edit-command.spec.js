@@ -277,3 +277,41 @@ test('after editEntry (no resync) an immediate run still serves FRESH rich rows'
     expect(row).toHaveProperty('sourceId');
   }
 });
+
+// ─── Live synthetic score across a kept pre-search cache ──────────────────────
+
+// A transform above the search bar caches its (synthetic) output in the pre-search
+// cache. A score edit reconciles the corpus entry in place — the cache is KEPT, not
+// rebuilt — so the kept cache must surface the edited score, not the one baked when
+// it was built. Guards the in-place reconcile + live-getter pair end to end.
+test('a kept pre-search cache surfaces a live synthetic score after a score edit', async ({ page }) => {
+  await gotoApp(page);
+  await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
+    name: 'Alpha', entries: ['BARSTOOL'], scores: [70],
+  }));
+
+  // rebus 'tool' → Ⓣ turns BARSTOOL into the synthetic "barsⓉ"; the empty search
+  // bar leaves rebus the producer, so its output lands in the pre-search cache.
+  await page.evaluate(() => window.__grawlixTest.setStack([
+    { tool: 'rebus', params: { string: ['tool'], symbol: ['Ⓣ'] } },
+    { tool: 'search', params: { pattern: '' } },
+  ]));
+  await page.evaluate(() => window.__grawlixTest.pipelineIdle());
+
+  const synthScore = () => page.evaluate(async () => {
+    const T = window.__grawlixTest;
+    const reply = await T.fetchWorkerAllTransformRows(T.lastCompletedRunId());
+    const row = reply.rows.find(c => c.atoms[0].wlEntry.norm === 'barstool');
+    return row.atoms.at(-1).wlEntry.score;   // the synthetic output atom
+  });
+
+  expect(await synthScore()).toBe(70);
+
+  // Key-stable score edit → in-place reconcile keeps the cache; refreshMergedScroller
+  // re-runs and re-encodes the cached chains, so the synthetic output reads live.
+  await page.evaluate(() => window.__grawlixTest.saveMyEditFrom(
+    { norm: 'barstool', display: 'BARSTOOL' }, 'BARSTOOL', 5, ''));
+  await page.evaluate(() => window.__grawlixTest.pipelineIdle());
+
+  expect(await synthScore()).toBe(5);
+});

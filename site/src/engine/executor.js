@@ -4,6 +4,8 @@ import { matchesRange } from './range.js';
 import { displayOf, toNorm, synthWlEntry } from './norm.js';
 import { normalizeParams } from './tools.js';
 
+const ZERO_SCORE = { score: 0 };
+
 // A pipeline row is EITHER a bare wlEntry — the undecorated, single-atom seed
 // straight off the merged corpus — OR a { atoms } chain, once a tool highlights,
 // transforms, or group-tags it. Seeding bare (the steady-state filter-only run
@@ -369,7 +371,7 @@ async function runToolStage(rows, stackRow, prepared, mergedWordlist, y, emit = 
         const synthetic = Array.isArray(out.entry);
         const text = synthetic ? out.entry[0] : out.entry;
         const lookup = synthetic ? null : mergedWordlist.byNorm.get(toNorm(text));
-        const wlEntry = lookup || synthWlEntry(text, synthetic ? out.entry[1] : 0);
+        const wlEntry = lookup || synthWlEntry(text, synthetic ? tailEntry : ZERO_SCORE);
         atoms.push({
           wlEntry,
           highlights: def.outputHighlights ? tagCoord(out.outputHighlights || [], coord) : null,

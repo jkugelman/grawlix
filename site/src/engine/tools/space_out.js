@@ -31,14 +31,13 @@ export default {
     if (existing && displayOf(existing).includes(' ')) return [{ entry }];
     const splits = rankedSplits(entry, prepared.window, wordlist);
     if (splits.length === 0) return [];
-    const inputScore = existing?.score ?? 0;
     const picks = prepared.onlyTop ? splits.slice(0, 1) : splits;
     return picks.map(parts => {
       const joined = parts.join(' ');
       if (joined === entry) return { entry };
       const hit = wordlist.byNorm.get(toNorm(joined));
       const hitIsJoined = hit && (hit.display || '').toLowerCase() === joined;
-      return { entry: hitIsJoined ? hit.norm : [joined, inputScore] };
+      return { entry: hitIsJoined ? hit.norm : [joined] };
     });
   },
 };

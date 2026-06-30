@@ -13,6 +13,16 @@ test('splices the glyph and emits a synthetic entry, inheriting the input score'
   assert.equal(out.wordlist, null);  // synthetic, not a real entry
 });
 
+test('the synthetic output score tracks the source entry live, not a frozen copy', async () => {
+  const { rows, wordlist } = await run([{ entry: 'barstool', score: 70 }], rebus(['tool'], ['Ⓣ']));
+  const out = rowByFirst(rows, 'barstool').atoms.at(-1).wlEntry;
+  assert.equal(out.score, 70);
+  // The worker's in-place score edit mutates the corpus entry object; a frozen copy
+  // would strand a kept pre-search cache on the old value, so the output must follow.
+  wordlist.byNorm.get('barstool').score = 5;
+  assert.equal(out.score, 5);
+});
+
 test('emits even when the result is absent from the corpus (no existence check)', async () => {
   const { rows, wordlist } = await run([{ entry: 'barstool', score: 70 }], rebus(['tool'], ['Ⓣ']));
   assert.equal(wordlist.byNorm.has('bars'), false);

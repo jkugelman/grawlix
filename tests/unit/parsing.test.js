@@ -119,7 +119,7 @@ test('buildUserWlEntry: trims, always keeps a verbatim display, and norms the tr
 });
 
 test('synthWlEntry: display is null only when the text already equals its norm', () => {
-  assert.deepEqual(synthWlEntry('cat', 1), { norm: 'cat', display: null, score: 1, comment: '', wordlist: null });
-  assert.deepEqual(synthWlEntry('CAT', 1), { norm: 'cat', display: 'CAT', score: 1, comment: '', wordlist: null });
-  assert.deepEqual(synthWlEntry('new york', 1), { norm: 'newyork', display: 'new york', score: 1, comment: '', wordlist: null });
+  assert.deepEqual(synthWlEntry('cat', { score: 1 }), { norm: 'cat', display: null, score: 1, comment: '', wordlist: null });
+  assert.deepEqual(synthWlEntry('CAT', { score: 1 }), { norm: 'cat', display: 'CAT', score: 1, comment: '', wordlist: null });
+  assert.deepEqual(synthWlEntry('new york', { score: 1 }), { norm: 'newyork', display: 'new york', score: 1, comment: '', wordlist: null });
 });

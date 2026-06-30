@@ -136,10 +136,14 @@ export function buildUserWlEntry(raw, score, comment) {
   return { norm: toNorm(trimmed), display: trimmed, score, comment };
 }
 
-export function synthWlEntry(text, score) {
+// `score` is a live getter onto `source` (the entry this output was transformed
+// from), not a copy: a synthetic output carries its own display but borrows the
+// input's score, so an in-place score edit shows through a kept pre-search cache
+// instead of a frozen value. `source` is any object exposing `.score`.
+export function synthWlEntry(text, source) {
   const norm = toNorm(text);
   const display = text === norm ? null : text;
-  return { norm, display, score, comment: '', wordlist: null };
+  return { norm, display, comment: '', wordlist: null, get score() { return source.score; } };
 }
 
 // Validates a chunk from a Range GET. Drops the last line (may be truncated

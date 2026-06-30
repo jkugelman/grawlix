@@ -80,6 +80,6 @@ export default {
       pos = s.end;
     }
     out += display.slice(pos);
-    return [{ entry: [out, wlEntry.score], inputHighlights, outputHighlights }];
+    return [{ entry: [out], inputHighlights, outputHighlights }];
   },
 };

@@ -1184,32 +1184,49 @@ function recomputeScopedBucket(norm, source) {
 // same splice or they silently desync, and sourceCounts shifts by the winner delta.
 // bucketFn recomputes one norm's resolved rows. (The pipeline seeds straight off
 // `entries`, so there is no separate chain array to keep in lockstep.)
+//
+// `replaced` is true when any norm swapped its row objects; the caller keeps the
+// pre-search cache (its chains hold those objects) only while it stays false.
 function spliceOwnedCorpus(cache, affectedNorms, bucketFn) {
   const { entries, byNorm, byKey, sourceCounts } = cache;
   const patched = [];
   const countDelta = new Map();
+  let replaced = false;
   for (const norm of affectedNorms) {
     const lo = mergedNormLowerBound(entries, norm);
     let hi = lo;
     while (hi < entries.length && entries[hi].norm === norm) hi++;
-    // Per-row, not per distinct wordlist: a multi-variant norm one source wins
-    // several times contributes one merged entry PER variant, and `winners`
-    // (below) is likewise one per row — a Set here would undercount the decrement
-    // and drift sourceCounts from main's by the duplicate-winner count.
-    for (let i = lo; i < hi; i++) {
-      const wl = entries[i].wordlist;
-      countDelta.set(wl, (countDelta.get(wl) || 0) - 1);
-      byKey.delete(mergeKey(norm, entries[i].display));
-    }
 
     const { rows, winners } = bucketFn(norm);
-    entries.splice(lo, hi - lo, ...rows);
-    for (const r of rows) byKey.set(mergeKey(norm, r.display), r);
-    if (rows.length) byNorm.set(norm, canonicalNormRow(rows)); else byNorm.delete(norm);
+
+    // Per-row, not per distinct wordlist: a multi-variant norm one source wins
+    // several times contributes one merged entry PER variant — a Set here would
+    // undercount the decrement and drift sourceCounts from main's.
+    for (let i = lo; i < hi; i++) countDelta.set(entries[i].wordlist, (countDelta.get(entries[i].wordlist) || 0) - 1);
+    for (const wl of winners) countDelta.set(wl, (countDelta.get(wl) || 0) + 1);
+
+    // Reconcile onto the existing row objects when the edit leaves this norm's
+    // (norm, display) set intact: preserving their identity is what lets the caller
+    // keep the pre-search cache. A replacing splice would strand the cache's chains.
+    const inPlace = rows.length === hi - lo
+      && rows.every((r, k) => (r.display ?? null) === (entries[lo + k].display ?? null));
+    if (inPlace) {
+      for (let k = 0; k < rows.length; k++) {
+        const old = entries[lo + k], r = rows[k];
+        old.score = r.score; old.comment = r.comment;
+        old.wordlist = r.wordlist; old.family = r.family;
+        if ('rawScore' in r) old.rawScore = r.rawScore;
+      }
+      byNorm.set(norm, canonicalNormRow(entries.slice(lo, hi)));
+    } else {
+      replaced = true;
+      for (let i = lo; i < hi; i++) byKey.delete(mergeKey(norm, entries[i].display));
+      entries.splice(lo, hi - lo, ...rows);
+      for (const r of rows) byKey.set(mergeKey(norm, r.display), r);
+      if (rows.length) byNorm.set(norm, canonicalNormRow(rows)); else byNorm.delete(norm);
+    }
 
     patched.push({ norm, rows: rows.map(r => ({ norm: r.norm, display: r.display, score: r.score })) });
-
-    for (const wl of winners) countDelta.set(wl, (countDelta.get(wl) || 0) + 1);
   }
   for (const [wl, d] of countDelta) {
     if (!d) continue;
@@ -1217,7 +1234,7 @@ function spliceOwnedCorpus(cache, affectedNorms, bucketFn) {
     if (sc) sc.count += d;
     else sourceCounts.push({ wordlist: wl, count: d });
   }
-  return patched;
+  return { patched, replaced };
 }
 
 function leanRowFor(norm, display) {
@@ -1248,21 +1265,25 @@ function applyOwnedEdit(source, affectedNorms, edited) {
   // computeMergedBucket (not the rawScore-carrying scoped variant): the merged
   // corpus drops rawScore on every entry (a full buildCorpus merge would too), so
   // the in-place splice must drop it to stay byte-identical to a rebuild.
-  const mergedPatched = spliceOwnedCorpus(ownedMerged, affectedNorms, norm => withFamilies(computeMergedBucket(norm, ownedBuilt), ownedMerged.vocab));
+  const merged = spliceOwnedCorpus(ownedMerged, affectedNorms, norm => withFamilies(computeMergedBucket(norm, ownedBuilt), ownedMerged.vocab));
+  let replaced = merged.replaced;
 
   // For MERGED scope ownedCorpus === ownedMerged (spliced above). Scoped to this
   // source it's a distinct single-source build — diverge from that and the scoped
   // view drifts from a rebuild with no error.
   if (ownedScope === source.dbKey && ownedCorpus !== ownedMerged) {
-    spliceOwnedCorpus(ownedCorpus, affectedNorms, norm => withFamilies(recomputeScopedBucket(norm, source), ownedCorpus.vocab));
+    replaced = spliceOwnedCorpus(ownedCorpus, affectedNorms, norm => withFamilies(recomputeScopedBucket(norm, source), ownedCorpus.vocab)).replaced || replaced;
   }
 
-  // A count-changing splice shifts every later index, so restamp fully (mirrors
-  // setOwnedCorpus — an incremental restamp silently misindexes).
-  indexCorpusEntries(ownedCorpus);
-  // The pre-search cache's chains hold ownedCorpus.entries by reference; the
-  // splice replaced those objects, so stale chains would misindex on the next run.
-  invalidatePreSearchCache();
+  // Both gate on a row-OBJECT swap. A replacing splice shifts later indices (so
+  // restamp `_i`, mirroring setOwnedCorpus) and strands the pre-search cache's
+  // chains on the old objects (so drop it). A pure in-place reconcile — a
+  // score/comment edit reshaping no norm's variant set — leaves positions and
+  // identities, so both can be skipped and the next run reuses the cached stack.
+  if (replaced) {
+    indexCorpusEntries(ownedCorpus);
+    invalidatePreSearchCache();
+  }
 
   // The in-place splice leaves the owned corpus current, so (re)assert freshness:
   // a concurrent stale syncConfig build that started before this edit must not be
@@ -1281,7 +1302,7 @@ function applyOwnedEdit(source, affectedNorms, edited) {
     version: ownedConfigVersion,
   };
 
-  return { norms: mergedPatched, edited, axis: ownedAllSourcesAxis, counts };
+  return { norms: merged.patched, edited, axis: ownedAllSourcesAxis, counts };
 }
 
 // The worker owns the My Edits IDB write (main holds no rawEntries to serialize
