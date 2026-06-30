@@ -86,7 +86,12 @@ async function whenBootSettled(page) {
 // Scope the table + tools to a source by name (or 'All Wordlists' / omit for the
 // merged view) via the test API, then wait for the re-rendered pipeline to settle.
 async function scopeTo(page, name) {
-  await page.evaluate(n => window.__grawlixTest.setScope(n), name);
+  // setScope no-ops when the scope is unchanged — re-entering All Wordlists, the
+  // boot-default scope, forces no fresh run. A seed-then-read test then trusts
+  // seedCorpus's one-shot scroller paint, which an under-load strand can leave
+  // empty; force a re-pull from the settled worker so the read can't race it.
+  const changed = await page.evaluate(n => window.__grawlixTest.setScope(n), name);
+  if (!changed) await page.evaluate(() => window.__grawlixTest.refreshScroller());
   await page.evaluate(() => window.__grawlixTest.pipelineIdle());
 }
 

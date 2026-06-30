@@ -171,8 +171,12 @@ const __grawlixTest = {
   },
 
   // Pass a source name to scope, or 'All Wordlists'/nothing for the merged view.
+  // Returns whether the scope changed — the scopeTo helper refreshes on a no-op.
   async setScope(name) {
-    await setScope(!name || name === MERGED_NAME ? MERGED_ID : this._lookup(name));
+    const target = !name || name === MERGED_NAME ? MERGED_ID : this._lookup(name);
+    const changed = state.selected !== target;
+    await setScope(target);
+    return changed;
   },
 
   // Stable, comparable dump of the worker's merged corpus: entries as ordered
@@ -388,6 +392,9 @@ const __grawlixTest = {
   // Resolves when no pipeline run is in flight. Tests use this after keystroke
   // interactions (which fire-and-forget the refresh) before reading the DOM.
   pipelineIdle() { return pipelineIdle(); },
+
+  // Lets the scopeTo helper re-pull a no-op scope change off the settled worker.
+  refreshScroller() { return refreshMergedScroller(); },
 
   // Resolves when no fetch/import is in flight. Tests await this for load
   // completion instead of polling the `populated` content-flag's transition.
