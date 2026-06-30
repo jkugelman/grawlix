@@ -207,5 +207,14 @@ To reproduce the bundled build locally: `npm run test:dist` (it runs `npm run bu
 
 - **Intentional behavior change**: update the test in the same commit. Don't leave a stale test sitting in `.skip()`.
 - **Assertion no longer matches but the contract didn't change**: rewrite the assertion at a user-visible level, don't just nudge numbers. Over-specified assertions break on harmless refactors and are at risk of being silently watered down to make the suite green.
-- **Flake**: don't paper over with `waitForTimeout` — fix the root cause (an assertion that races a render, a missing `await`, an unstubbed network call).
+- **Flake**: don't paper over with `waitForTimeout` — fix the root cause (an assertion that races a render, a missing `await`, an unstubbed network call). See *Debugging a flake* below for how to find it.
 - **More trouble than it's worth**: delete it. A smoke suite is allowed to shrink.
+
+### Debugging a flake
+
+Re-running to *induce* a flake rarely works. A load-dependent one often surfaces only under the full parallel matrix: a local `npm test` runs fully parallel with no retries, while CI runs serial with 2 retries — so a flake you hit locally is often load contention, not a logic bug, and won't reproduce in isolation no matter how many times you re-run.
+
+Instead, **form a theory about the race, then surgically modify code to trigger it deterministically** — inject a delay, force the suspect state, add the missing `await`. Confirm the theory by reproducing the *exact* failure, confirm the fix by checking it passes with the artificial trigger still in place, then revert the trigger. Two worked examples:
+
+- *A streamed snapshot mismatched the settled result on webkit.* Theory: a snapshot's `entries` is the viewport window, not the whole result, and a transient narrow viewport shrank it. Forcing the emitter's window to `[0,1]` reproduced the failure byte-for-byte; the fix compares the window as a sorted prefix plus the window-independent `total`. (`streaming-transform-exact`)
+- *`whenBootSettled` timed out on webkit ("browser has been closed").* Theory: a cold boot under contention exceeds the 30s default. Injecting a 33s delay before `_signalReady()` reproduced the timeout; re-running above 30s passed, proving the boot is slow-not-hung — so the fix is timeout headroom, not code. (`playwright.config.js` `timeout`)
