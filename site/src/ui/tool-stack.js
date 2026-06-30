@@ -485,6 +485,7 @@ export const ToolStack = (() => {
     });
     bar?.classList.toggle('solo', userStack.length === 0);
     _attachHelpPopups();
+    refreshErrorMarks();
   }
 
   // Counterpart to rerenderRows for when a reorder changes which row *is* the
@@ -496,6 +497,7 @@ export const ToolStack = (() => {
     removeCursor();
     e.innerHTML = buildRowsHTML();
     _attachHelpPopups();
+    refreshErrorMarks();
   }
 
   function add(toolKey, { grouped = false } = {}) {
@@ -697,27 +699,24 @@ export const ToolStack = (() => {
       if (!input) return;
       const rowAttr = input.dataset.row;
       const row = rowAttr === 'bar' ? getSearchBarRow() : stack[parseInt(rowAttr, 10)];
+      if (!row) return;
       const key = input.dataset.key;
-      if (row && input.dataset.pair !== undefined) {
+      if (input.dataset.pair !== undefined) {
         (row.params[key] ||= [])[parseInt(input.dataset.pair, 10)] = input.value;
-        invalidatePreSearchCache();
-        bumpPipelineVersion();
-        _navigate();
-        return;
+      } else if (input.type === 'checkbox') {
+        row.params[key] = input.checked;
+      } else if (input.type === 'range' && input.dataset.rangeValues) {
+        const values = input.dataset.rangeValues.split(',');
+        row.params[key] = values[parseInt(input.value, 10)] || '';
+      } else {
+        row.params[key] = input.value;
       }
-      if (row) {
-        if (input.type === 'checkbox') {
-          row.params[key] = input.checked;
-        } else if (input.type === 'range' && input.dataset.rangeValues) {
-          const values = input.dataset.rangeValues.split(',');
-          row.params[key] = values[parseInt(input.value, 10)] || '';
-        } else {
-          row.params[key] = input.value;
-        }
-        if (rowAttr !== 'bar') invalidatePreSearchCache();
-        bumpPipelineVersion();
-        _navigate();
-      }
+      // Drop the edited row's async error — it described the old input. The ⚠ mark
+      // itself repaints reactively off the bumpPipelineVersion() below.
+      row._error = null;
+      if (rowAttr !== 'bar') invalidatePreSearchCache();
+      bumpPipelineVersion();
+      _navigate();
     });
     p?.addEventListener('focusin', (e) => {
       if (e.target.closest('input[data-symbol-suggest]')) SymbolSuggest.open(e.target);

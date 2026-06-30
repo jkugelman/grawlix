@@ -118,6 +118,30 @@ test('an invalid Umiaq query surfaces its parse error and clears on a fix', asyn
   await expect(errBtn).toBeHidden();
 });
 
+// Read the mark in the same tick the input changes — NOT via a retrying
+// `expect().toBeHidden()`, which would pass even with the bug present, since the
+// run settles fast here and clears the mark before the poll gives up. The
+// synchronous read is what proves the mark comes from the input, not the settle.
+test('the Umiaq parse-error mark tracks the query live, not at run settle', async ({ page }) => {
+  await gotoApp(page);
+  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'umiaq', params: { patterns: 'AB' } }]));
+  await page.evaluate(() => window.__grawlixTest.pipelineIdle());
+  await expect(page.locator('.tool-row-error-btn')).toBeHidden();
+
+  const marks = await page.evaluate(() => {
+    const input = document.querySelector('.tool-row input[data-key="patterns"]');
+    const btn = document.querySelector('.tool-row-error-btn');
+    const typeAndRead = (value) => {
+      input.value = value;
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      return btn.hidden;
+    };
+    return { afterBreak: typeAndRead('A;1>'), afterFix: typeAndRead('AB') };
+  });
+  expect(marks.afterBreak).toBe(false);   // ⚠ the instant the query breaks
+  expect(marks.afterFix).toBe(true);      // gone the instant it's fixed
+});
+
 // The reason wording is engine-specific (V8 "Unterminated group", JSC "missing
 // )", SpiderMonkey "unterminated parenthetical"), so assert only that a reason
 // shows stripped of the "Invalid regular expression:" prefix V8 and JSC add.

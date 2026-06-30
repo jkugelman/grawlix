@@ -7,7 +7,7 @@
 // included (no leading-slash hardcoding).
 
 import { currentAtomCount } from '../engine/executor.js';
-import { state } from '../data/state.js';
+import { state, bumpErrorMarks } from '../data/state.js';
 import { setShippedAllSourcesAxis, setShippedScopedLayout } from '../data/derived.js';
 import { setShippedConfigCounts, setShippedRescoreInputs } from '../data/merge.js';
 import { MERGED_ID } from '../core/constants.js';
@@ -169,7 +169,9 @@ export function runOnWorker(stack, sort) {
 
   // Main owns the per-run _error reset now that the executor runs off-thread —
   // without this an old ⚠ mark persists after the offending tool is fixed.
-  for (const row of stack) row._error = null;
+  let hadError = false;
+  for (const row of stack) { if (row._error != null) hadError = true; row._error = null; }
+  if (hadError) bumpErrorMarks();
 
   const scope = state.selected === MERGED_ID ? MERGED_ID : state.selected?.dbKey ?? null;
 
@@ -301,6 +303,7 @@ function onWorkerMessage({ data }) {
     pendingRun = null;
     if (data.stackRowIndex != null && run.stack[data.stackRowIndex]) {
       run.stack[data.stackRowIndex]._error = data.message;
+      bumpErrorMarks();
     }
     run.resolve(erroredResult(run.stack));
   }

@@ -38,6 +38,12 @@ export function bumpSyncStatus() { syncStatus$.set(syncStatus$.peek() + 1); }
 export const configSummary$ = signal(0);
 export function bumpConfigSummary() { configSummary$.set(configSummary$.peek() + 1); }
 
+// The worker owns the async `_error` channel; it bumps this when it writes one so
+// the ⚠ marks repaint. Separate from pipelineVersion$ — routing through that would
+// make an `_error` write spuriously re-run the pipeline.
+export const errorMarks$ = signal(0);
+export function bumpErrorMarks() { errorMarks$.set(errorMarks$.peek() + 1); }
+
 // Reads through `state.sources` are non-subscribing (peek). Effects that
 // need to re-run on changes read the underlying signal explicitly with
 // `.get()`. This keeps the imperative call sites unchanged while preventing

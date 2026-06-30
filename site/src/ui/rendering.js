@@ -12,7 +12,7 @@ import { bucketCounts, invalidateHistogramLayout } from '../engine/histogram.js'
 import { PARAM_HELP } from '../engine/tools.js';
 import { invalidatePreSearchCache, streamPlan } from '../engine/executor.js';
 import {
-  sources$, cacheVersion$, pipelineVersion$, configSummary$, bumpCacheVersion, state,
+  sources$, cacheVersion$, pipelineVersion$, configSummary$, errorMarks$, bumpCacheVersion, state,
 } from '../data/state.js';
 import { lsSave } from '../data/storage.js';
 import {
@@ -141,6 +141,16 @@ export function setupRenderEffect() {
     if (entriesScroller) refreshMergedScroller();
   });
 
+  // Two error channels, two signals: parse errors (pipelineVersion$, every
+  // keystroke/stack edit) and async runtime errors (errorMarks$, from the worker).
+  // Reacting to these — never to a run resolving — is what stops a ⚠ from lagging
+  // behind a superseded run, the failure mode that gating on the run produced.
+  effect(() => {
+    pipelineVersion$.get();
+    errorMarks$.get();
+    ToolStack.refreshErrorMarks();
+  });
+
   // Cosmetic effect: re-renders the wordlist list and the merged scroller's
   // per-row source column when any wordlist's name/icon/url/publisher
   // changes. Cache-affecting fields (enabled, rescoreRules) route through
@@ -240,7 +250,6 @@ export async function refreshMergedScroller() {
   const result = await runPipeline(stack, currentSort());
   if (result.aborted || !entriesScroller) return;
   entriesScroller.updateEntries(result, result.atomCount, chainSortTier(stack));
-  ToolStack.refreshErrorMarks();
 }
 
 // The pre-search and histogram caches assume one corpus, so a scope change
@@ -270,6 +279,7 @@ export function mountPanel(panel) {
     ${buildEntriesTablePanelHTML()}
   `;
   ToolStack.refreshGalleryActive();
+  ToolStack.refreshErrorMarks();
   repositionAllHistogramRects();
   createScroller();
   entriesScroller.onFilterChange = refreshStatsBarFromScroller;
@@ -491,5 +501,4 @@ export async function renderMergedDetail() {
   const result = await run;
   if (result.aborted) return;
   entriesScroller.setEntries(result, result.atomCount, chainSortTier(stack));
-  ToolStack.refreshErrorMarks();
 }
