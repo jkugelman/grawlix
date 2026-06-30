@@ -55,6 +55,16 @@ test('grouped: clusters longer words by a dead-center core that is itself an ent
        chains: ['alphabetize', 'babel', 'label'] }]);
 });
 
+test('grouped: highlights the dead-center span in each member', async () => {
+  const { rows } = await run(
+    [{ entry: 'abe', score: 50 }, 'alphabetize', 'babel', 'label'],
+    [{ tool: 'dead_center', grouped: true }]);
+  const g = rows.find(r => r.key === 'abe');
+  for (const chain of g.chains) {
+    assert.deepEqual(highlightTexts(chain.atoms[chain.atoms.length - 1]), ['abe']);
+  }
+});
+
 test('grouped: drops a core that is not an entry in the wordlist', async () => {
   assert.deepEqual(await groups(['years', 'bears', 'sears'], [{ tool: 'dead_center', grouped: true }]), []);
 });

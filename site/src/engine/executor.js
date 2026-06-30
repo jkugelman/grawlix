@@ -42,9 +42,13 @@ export function currentAtomCount(stack) {
       count++;                                            // output atom (new word)
       tailSlot = !!row.def.outputHighlights;
     } else if (row.kind() === 'group') {
-      // A group producer emits bare members carrying the upstream atoms unchanged.
-      // Its inputHighlights is filter-mode-only, so it stamps no slot here — else a
-      // grouped highlighting filter (Dead center) makes a downstream search over-count.
+      // A bare group producer emits members carrying the upstream atoms unchanged —
+      // no atom of its own. One that highlights members (group.memberHighlights)
+      // stamps a slot per member, so a downstream search adds its own line.
+      if (row.def.group.memberHighlights) {
+        if (tailSlot) count++;
+        tailSlot = true;
+      }
     } else if (row.def.inputHighlights) {                 // highlighting filter (search)
       if (tailSlot) count++;
       tailSlot = true;
@@ -442,6 +446,8 @@ async function runGroupFilterStage(rows, stackRow, prepared, mergedWordlist, y) 
 
 export async function bucketize(chains, def, ctx, prepared) {
   const useDisplay = def.matchOn === 'display';
+  const coord = useDisplay ? 'display' : 'norm';
+  const memberHighlights = def.group.memberHighlights;
   const buckets = new Map();
   await ctx.forEach(chains, chain => {
     const tail = rowLastEntry(chain);
@@ -476,7 +482,16 @@ export async function bucketize(chains, def, ctx, prepared) {
       return be.score - ae.score || ae.norm.localeCompare(be.norm)
         || displayOf(ae).localeCompare(displayOf(be));
     });
-    groups.push({ key, chains: groupChains, anchor });
+    // Pre-collapse here, not via the later unify pass: members are an equivalence
+    // set, and unify's cross-row mirror-fold would silently merge reverse members
+    // (`rat`/`tar` in one cluster). Single atom = the pure-group path skips unify.
+    const chains = memberHighlights ? groupChains.map(chain => {
+      const tail = rowLastEntry(chain);
+      const text = useDisplay ? displayOf(tail) : tail.norm;
+      const hl = { wlEntry: tail, highlights: tagCoord(memberHighlights(text, key), coord), glyph: null };
+      return { atoms: collapseRepeatAtoms([...rowAtoms(chain), hl]) };
+    }) : groupChains;
+    groups.push({ key, chains, anchor });
   }
   return groups;
 }

@@ -33,5 +33,9 @@ export default {
     key: entry => centeredCores(entry),
     anchor: (key, wordlist) => wordlist.byNorm.get(key) || null,
     anchorLabel: 'Center',
+    memberHighlights: (member, key) => {
+      const start = (member.length - key.length) / 2;
+      return [{ start, end: start + key.length, kind: 'search:0' }];
+    },
   },
 };

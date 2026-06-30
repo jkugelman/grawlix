@@ -24,6 +24,7 @@ test.beforeEach(async ({ page }) => {
 // covered round-tripping by worker-rich-tiers.spec.js).
 //   - Anagram groups (string key): elvis/lives/evils/veils (4), stressed/desserts (2).
 //   - Behead→Curtail chain: scare → care → car (each a corpus entry, 3 atoms).
+//   - Dead-center group (anchored + highlighted members): abe centers babel/label.
 const PRIMARY = [
   ['elvis', 70, 'king'],
   ['lives', 65, ''],
@@ -35,6 +36,9 @@ const PRIMARY = [
   ['care', 40, 'tend'],   // behead('scare',1) → 'care'
   ['car', 35, ''],        // curtail('care',1) → 'car'
   ['hot', 20, ''],        // initialism anchor for the colliding phrases below
+  ['abe', 45, ''],        // dead-center anchor for babel/label below
+  ['babel', 40, ''],      // b·abe·l
+  ['label', 38, ''],      // l·abe·l
 ];
 
 // Three phrases whose initialisms all collide on "hot" (so the group has >= 2
@@ -158,6 +162,22 @@ test('grouped initialisms (display-keyed, with anchor) ship rich atoms', async (
   for (const phrase of ['Helen of Troy', 'Heart of Texas', 'House of Tudor']) {
     expect(members).toContain(phrase);
   }
+});
+
+test('grouped dead center (anchored, highlighted members) ships rich atoms with center marks', async ({ page }) => {
+  await gotoApp(page);
+  await seedCorpus(page);
+  await renderRich(page, [{ tool: 'dead_center', grouped: true }], undefined);
+
+  const groups = await page.evaluate(() => window.__grawlixTest.getVisibleGroups());
+  const abe = groups.find(g => g.anchor?.entry === 'abe');
+  expect(abe).toBeTruthy();
+  const members = abe.chains.flat();
+  for (const word of ['babel', 'label']) expect(members).toContain(word);
+
+  const rows = await captureRows(page);
+  const abeRow = rows.find(r => r.text.includes('babel'));
+  expect(abeRow.marks).toContain('abe');
 });
 
 // ─── Scoped (single-source) view ──────────────────────────────────────────────
