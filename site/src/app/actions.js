@@ -1103,9 +1103,16 @@ export function* iterDisplayChains(rows, grouped) {
   }
 }
 
-function countExportEntries(rows, grouped) {
-  if (grouped) { let n = 0; for (const g of rows) n += g.chains.length; return n; }
-  return rows.length;
+// A tuple row is one result; summing its lanes over-counts by the tuple arity
+// (the Umiaq ×4 bug this fixes).
+export function exportCountPhrase(rows, tier) {
+  if (tier === 'tuple') return pluralize(rows.length, 'result', 'results');
+  if (tier === 'group') {
+    let n = 0;
+    for (const g of rows) n += g.chains.length;
+    return pluralize(n, 'entry', 'entries');
+  }
+  return pluralize(rows.length, 'entry', 'entries');
 }
 
 function exportToolsMetadata(stack) {
@@ -1265,8 +1272,7 @@ export async function exportCopy() {
     showToast('Copy failed — clipboard permission denied');
     return;
   }
-  const count = countExportEntries(rows, grouped);
-  showToast(`Copied ${pluralize(count, 'entry', 'entries')}`);
+  showToast(`Copied ${exportCountPhrase(rows, scroller.sortTier)}`);
 }
 
 // ── Wordlist ──
@@ -1383,8 +1389,7 @@ export async function exportCSV() {
   const rows = await scroller.exportRows();
   const text = buildCSVText(rows, grouped, ToolStack.getStack(), scroller.sortTier === 'tuple');
   triggerDownload(text, exportFilename(ToolStack.getStack(), 'csv'));
-  const count = countExportEntries(rows, grouped);
-  showToast(`Downloaded ${pluralize(count, 'entry', 'entries')}`);
+  showToast(`Downloaded ${exportCountPhrase(rows, scroller.sortTier)}`);
 }
 
 // ── JSON ──
@@ -1438,6 +1443,5 @@ export async function exportJSON() {
   const rows = await scroller.exportRows();
   const obj = buildExportJSONObject(rows, grouped, ToolStack.getStack(), scroller.sortTier === 'tuple');
   triggerDownload(JSON.stringify(obj, null, 2) + '\n', exportFilename(ToolStack.getStack(), 'json'));
-  const count = countExportEntries(rows, grouped);
-  showToast(`Downloaded ${pluralize(count, 'entry', 'entries')}`);
+  showToast(`Downloaded ${exportCountPhrase(rows, scroller.sortTier)}`);
 }

@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
   csvCell, exportFilenameSegment, exportFilename,
   flatCopyLines, chainContentEntries, buildWordlistText, buildTupleCSV,
+  exportCountPhrase,
 } from '../../site/src/app/actions.js';
 
 // ─── Fixtures ───────────────────────────────────────────────────────────────
@@ -236,6 +237,34 @@ test('flatCopyLines: consecutive same-norm atoms (multi-search row) collapse to 
 
 test('flatCopyLines: an empty chain list returns no lines', () => {
   assert.deepEqual(flatCopyLines([]), []);
+});
+
+// ─── exportCountPhrase — toast count by tier ─────────────────────────────────
+
+const group = (...chains) => ({ chains });
+
+test('exportCountPhrase: flat counts one entry per row', () => {
+  const rows = [chain(atom('cat')), chain(atom('dog')), chain(atom('emu'))];
+  assert.equal(exportCountPhrase(rows, 'flat'), '3 entries');
+});
+
+test('exportCountPhrase: group counts member entries across all groups', () => {
+  const rows = [
+    group(chain(atom('a')), chain(atom('b'))),
+    group(chain(atom('c')), chain(atom('d')), chain(atom('e'))),
+  ];
+  assert.equal(exportCountPhrase(rows, 'group'), '5 entries');
+});
+
+test('exportCountPhrase: tuple counts one result per row, not its lanes', () => {
+  // Each 4-lane tuple is ONE result; summing lanes here is the Umiaq ×4 over-count.
+  const tuple4 = () => group(chain(atom('a')), chain(atom('b')), chain(atom('c')), chain(atom('d')));
+  assert.equal(exportCountPhrase([tuple4(), tuple4()], 'tuple'), '2 results');
+});
+
+test('exportCountPhrase: a single result/entry is singular', () => {
+  assert.equal(exportCountPhrase([chain(atom('cat'))], 'flat'), '1 entry');
+  assert.equal(exportCountPhrase([group(chain(atom('a')), chain(atom('b')))], 'tuple'), '1 result');
 });
 
 // ─── buildWordlistText — ENTRY;SCORE serialization ───────────────────────────
