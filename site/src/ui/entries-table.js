@@ -1824,22 +1824,25 @@ export class EntriesScroller extends BaseVirtualScroller {
   }
 
   async exportRows() {
+    // Name the in-flight run, not lastCompletedRunId(): mid-stream the latter points
+    // at the prior run, whose snapshot the worker dropped, so the export silently empties.
+    const runId = this._currentStreamRunId();
     // Must be the full-chains fetch, not fetchWorkerGroups: that ships each group's
     // firstChains window only, so any group over the window silently exports
     // truncated — data loss on an explicit export with no visible symptom.
     if (isMultiLaneTier(this.sortTier)) {
-      const reply = await fetchWorkerAllGroups(lastCompletedRunId());
+      const reply = await fetchWorkerAllGroups(runId);
       return reply ? reply.groups : [];
     }
     if (this._transform) {
-      const reply = await fetchWorkerAllTransformRows(lastCompletedRunId());
+      const reply = await fetchWorkerAllTransformRows(runId);
       return reply ? reply.rows : [];
     }
 
     // The flat tier holds only positions, so its rich rows come from the worker.
     // A null reply (timeout) leaves nothing to format — main has no corpus to
     // fall back on — so export the empty set rather than throwing.
-    const reply = await fetchWorkerAllRows(lastCompletedRunId());
+    const reply = await fetchWorkerAllRows(runId);
     if (!reply) return [];
 
     const sourceById = new Map(state.sources.map(w => [w.dbKey, w]));
