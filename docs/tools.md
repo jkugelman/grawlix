@@ -49,7 +49,7 @@ Source material: shipped catalog lives in `TOOLS` in [`site/src/engine/tools.js`
 | ✓ | Side | ➕ Add suffix | Add a string suffix | pets → pet scan |
 | ✓ | Side | ➖ Remove suffix | Remove a string suffix | pet scan → pets |
 |   | Side | 🪚 Side splitting | Remove both sides | if at all → fatal |
-|   | Side | 🎯 Dead center | Input sits at the exact center of a longer word | TBD |
+| ✓ | Side | 🎯 Dead center | Input sits at the exact center of a longer word | abe → alphabetize |
 |   | Side | 🥪 Sandwich | TBD | TBD |
 |   | Thesaurus | 🤝 Synonyms | Words with similar meaning to a target | TBD |
 |   | Thesaurus | ⚔️ Antonyms | Words opposite in meaning | TBD |

@@ -41,6 +41,10 @@ export function currentAtomCount(stack) {
       if (row.def.inputHighlights && tailSlot) count++;   // input mark can't fold into a slot tail
       count++;                                            // output atom (new word)
       tailSlot = !!row.def.outputHighlights;
+    } else if (row.kind() === 'group') {
+      // A group producer emits bare members carrying the upstream atoms unchanged.
+      // Its inputHighlights is filter-mode-only, so it stamps no slot here — else a
+      // grouped highlighting filter (Dead center) makes a downstream search over-count.
     } else if (row.def.inputHighlights) {                 // highlighting filter (search)
       if (tailSlot) count++;
       tailSlot = true;
@@ -146,6 +150,7 @@ async function makeTupleEmit(emit, downstream, mergedWordlist, signal, y) {
 export function chainProducesMultiAtom(stack) {
   return stack.some(row => {
     if (row.isInert()) return false;
+    if (row.kind() === 'group') return false;   // bare members — unify would throw on them
     return row.kind() === 'transform' || !!row.def.inputHighlights;
   });
 }
