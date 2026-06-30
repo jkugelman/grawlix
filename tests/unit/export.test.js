@@ -197,9 +197,9 @@ test('flatCopyLines: single-column lines are "<len> <ENTRY>" with no trailing pa
   assert.deepEqual(out, ['3 CAT', '8 ELEPHANT']);
 });
 
-test('flatCopyLines: a display value is shown verbatim (not uppercased)', () => {
+test('flatCopyLines: a display value is uppercased (sharing convention)', () => {
   const out = flatCopyLines([chain(atom('mcjob', { display: 'McJob' }))]);
-  assert.deepEqual(out, ['5 McJob']);
+  assert.deepEqual(out, ['5 MCJOB']);
 });
 
 test('flatCopyLines: non-last columns pad the entry to the column width; the last column does not', () => {

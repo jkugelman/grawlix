@@ -1180,7 +1180,7 @@ function chainCopyText(chain) {
   for (const atom of chain.atoms) {
     const wlE = atom.wlEntry;
     if (wlE.norm === prevNorm) continue;
-    const shown = wlE.display ?? wlE.norm.toUpperCase();
+    const shown = displayOf(wlE).toUpperCase();
     const piece = `${wlE.norm.length} ${shown}`;
     parts.push(atom.glyph ? `${atom.glyph} ${piece}` : piece);
     prevNorm = wlE.norm;
@@ -1228,7 +1228,7 @@ export function flatCopyLines(chains) {
     for (const atom of chain.atoms) {
       const wlE = atom.wlEntry;
       if (wlE.norm === prevNorm) continue;
-      const shown = wlE.display ?? wlE.norm.toUpperCase();
+      const shown = displayOf(wlE).toUpperCase();
       pieces.push({ glyph: atom.glyph || '', len: String(wlE.norm.length), entry: shown });
       prevNorm = wlE.norm;
     }
