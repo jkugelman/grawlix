@@ -758,7 +758,7 @@ export function sendEditEntry(writes, timeout = 5000) {
       if (data?.type !== 'editAck' || data.editId !== editId) return;
       clearTimeout(timer);
       w.removeEventListener('message', onMessage);
-      resolve({ norms: data.norms, edited: data.edited, axis: data.axis, counts: data.counts });
+      resolve({ norms: data.norms, edited: data.edited, replaced: data.replaced, axis: data.axis, counts: data.counts });
     }
     w.addEventListener('message', onMessage);
     w.postMessage({ type: 'editEntry', editId, writes });

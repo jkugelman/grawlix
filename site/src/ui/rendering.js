@@ -252,6 +252,14 @@ export async function refreshMergedScroller() {
   entriesScroller.updateEntries(result, result.atomCount, chainSortTier(stack));
 }
 
+// Tuple-only, not any streaming run: tuple completion re-sorts from the worker's
+// live corpus, so a key-stable edit's new scores land in order. Flat/transform adopt
+// the streamed result instead, so riding one of those would strand a stale order.
+export function mergedStreamingTuple() {
+  return !!entriesScroller && entriesScroller.isStreaming()
+    && streamPlan(ToolStack.getStack()).tier === 'tuple';
+}
+
 // The pre-search and histogram caches assume one corpus, so a scope change
 // must drop both before the pipeline re-runs — otherwise the prior scope's
 // memoized seed rows leak into the new view with no error.

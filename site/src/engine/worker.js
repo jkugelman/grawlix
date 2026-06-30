@@ -1302,7 +1302,10 @@ function applyOwnedEdit(source, affectedNorms, edited) {
     version: ownedConfigVersion,
   };
 
-  return { norms: merged.patched, edited, axis: ownedAllSourcesAxis, counts };
+  // `replaced` looks redundant with its local use above, but main also reads it off
+  // the editAck to ride a streaming tuple run through a key-stable edit (replaced
+  // false) instead of restarting it — prune it from the return and that silently breaks.
+  return { norms: merged.patched, edited, replaced, axis: ownedAllSourcesAxis, counts };
 }
 
 // The worker owns the My Edits IDB write (main holds no rawEntries to serialize

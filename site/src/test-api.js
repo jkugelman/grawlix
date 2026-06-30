@@ -233,6 +233,15 @@ const __grawlixTest = {
     return refreshMergedScroller();
   },
 
+  // Unlike saveMyEditFrom (bare saveEdit + an explicit refresh, which bypasses
+  // refreshAfterEdit), this drives saveEntry WITH refreshFn like the entry panel's
+  // _onSave — the only path that exercises the mid-stream stream-ride suppression.
+  rescoreFrom(orig, score) {
+    const seed = editsRawSeed(orig.norm, orig.display) ?? { norm: orig.norm, display: orig.display ?? orig.norm, score: 0, comment: '' };
+    const clicked = { norm: orig.norm, display: orig.display ?? null, score: seed.score, comment: seed.comment ?? '' };
+    return saveEntry('rescore', clicked, { raw: orig.display ?? orig.norm, score, comment: seed.comment ?? '' }, refreshMergedScroller);
+  },
+
   // The + button's create path — distinct from saveMyEditFrom's edit/rename.
   async createMyEntry(raw, score, comment = '') {
     await saveEntry('create', null, { raw, score, comment });

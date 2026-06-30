@@ -70,7 +70,7 @@ import { buildRulesListHTML, renderScoringRules } from '../ui/rescore-editor.js'
 import { WordlistSelector, buildWordlistNameHTML } from '../ui/scope-selector.js';
 import {
   getEntriesScroller, setScope, renderAll, renderSources, renderMergedDetail,
-  refreshMergedScroller, repaintAfterConfigChange, firstPaint,
+  refreshMergedScroller, mergedStreamingTuple, repaintAfterConfigChange, firstPaint,
 } from '../ui/rendering.js';
 import {
   syncWorkerConfig, resyncWorkerConfig,
@@ -509,6 +509,21 @@ async function planForSave(args) {
   return fetchWorkerEditPlan(args);
 }
 
+// A key-stable edit (ack.replaced === false) under a streaming tuple run rides the
+// in-flight run instead of re-running it: the corpus was spliced in place, so the
+// run already reflects it. The post-ack re-check is load-bearing, not belt-and-
+// suspenders — the worker posts `result` before the editAck (FIFO), so a run that
+// finished in the gap reads not-streaming here and re-runs; drop the re-check and a
+// tail-of-stream edit silently strands on a pre-splice result.
+function refreshAfterEdit(refreshFn, ackPromise) {
+  if (!refreshFn) return;
+  if (!mergedStreamingTuple()) { refreshFn(); return; }
+  ackPromise.then(ack => {
+    if (ack?.replaced === false && mergedStreamingTuple()) return;
+    refreshFn();
+  });
+}
+
 export async function saveEntry(mode, clicked, { raw, score, comment }, refreshFn) {
   const edits = getEditsWordlist();
   if ((mode === 'edit' || mode === 'rescore') && clicked && noEditChange(clicked, raw, score, comment)) { refreshFn?.(); return; }
@@ -522,18 +537,18 @@ export async function saveEntry(mode, clicked, { raw, score, comment }, refreshF
   const writes = { deletes: plan.deletes, upserts: plan.upserts, primary: plan.primary };
   let inverse;
   applyEditsChange(edits, () => { inverse = applyEditsWriteSet(edits.rawEntries, writes); });
-  sendEditEntry(writes).then(applyConfigAck);
+  const ack = sendEditEntry(writes).then(a => { applyConfigAck(a); return a; });
   persistEditsMetaOnly(edits);
-  refreshFn?.();
+  refreshAfterEdit(refreshFn, ack);
 
   const msg = mode === 'rescore' ? `Rescored ${esc(raw)} to ${score}` : undoToastMessage(mode, plan, clicked);
   if (msg) {
     const undoWrites = { deletes: inverse.deletes, upserts: inverse.upserts, primary: plan.primary };
     showUndoToast(msg, () => {
       applyEditsChange(edits, () => applyEditsWriteSet(edits.rawEntries, undoWrites));
-      sendEditEntry(undoWrites).then(applyConfigAck);
+      const undoAck = sendEditEntry(undoWrites).then(a => { applyConfigAck(a); return a; });
       persistEditsMetaOnly(edits);
-      refreshFn?.();
+      refreshAfterEdit(refreshFn, undoAck);
     });
   }
 }
