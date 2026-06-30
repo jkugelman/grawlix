@@ -11,6 +11,11 @@ const ALL_SLUGS = Object.keys(TOOLS);
 // rather than breaking the spec.
 const POST_BASELINE = ALL_SLUGS.filter(s => !RETURNING_BASELINE.includes(s));
 
+// Pin the dismiss tests to a fixed two-tool reveal. Revealing the whole post-baseline
+// set would tie the build-up animation — and the wait for the dismiss button to arm —
+// to the catalog size, which is what crept past the expect timeout and flaked CI.
+const SEEN_BUT_TWO = ALL_SLUGS.slice(2);
+
 test.beforeEach(async ({ page }) => {
   await stubPublisherFetches(page);
 });
@@ -59,7 +64,7 @@ test('a brand-new visitor is silently baselined and sees no reveal', async ({ pa
 });
 
 test('it cannot be dismissed early, then Esc closes it', async ({ page }) => {
-  await bootReturning(page, null);
+  await bootReturning(page, SEEN_BUT_TWO);
   await expect(page.locator('.nt-overlay.show')).toHaveCount(1);
 
   // During the build-up the dismiss affordance is inert — Esc is ignored.
@@ -72,7 +77,7 @@ test('it cannot be dismissed early, then Esc closes it', async ({ page }) => {
 });
 
 test('the dismiss button closes it and restores scrolling', async ({ page }) => {
-  await bootReturning(page, null);
+  await bootReturning(page, SEEN_BUT_TWO);
   await expect(page.locator('html.nt-scroll-lock')).toHaveCount(1);
   await expect(page.locator('.nt-dismiss.show')).toBeVisible();
   await page.locator('.nt-dismiss').click();
