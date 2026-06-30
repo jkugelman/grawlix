@@ -13,12 +13,14 @@ import { TOOLS } from './tools.js';
 //
 // The chain tiers sort materialized chain rows (object-shaped axes), unlike the
 // flat tier's index-shaped FLAT_SORT_AXES copy in the worker. Each axis declares
-// a primary projection and a fixed-direction tiebreaker chain — when the primary
-// ties, fall to whichever direction surfaces the most interesting rows first
-// (longer > shorter, higher score > lower), alphabetical asc as the final stable
-// tiebreaker. Flipping the asc/desc toggle reverses only the primary; tiebreakers
-// keep their declared direction, so "score asc" still shows the longest among the
+// a primary projection and a tiebreaker chain — when the primary ties, fall to
+// whichever direction surfaces the most interesting rows first (longer > shorter,
+// higher score > lower), alphabetical asc as the final stable tiebreaker.
+// Flipping the asc/desc toggle reverses only the primary; a tiebreaker with a
+// declared `dir` keeps it, so "score asc" still shows the longest among the
 // lowest-scoring rows first instead of letting short junk float up a tied bucket.
+// A tiebreaker that OMITS `dir` instead follows the toggle — for axes (Entry)
+// whose tiebreaker continues the primary's own ordering rather than ranking ties.
 //
 // A multi-output transform (anagram) branches one input into rows that share
 // their whole first atom; rowChainTail breaks those ties by the later atoms.
@@ -40,8 +42,12 @@ const SORT_AXES = {
     entry: {
       label: 'Entry',
       primary: r => rowFirstEntry(r).family || rowFirstDisplay(r),
+      // Display omits dir to follow the toggle: within a family it's the same
+      // alphabetical axis as the primary, so giving it a fixed dir would silently
+      // leave Entry desc with reversed clusters but members still ascending.
+      // Score keeps a fixed dir — a genuine most-interesting tie.
       tiebreakers: [
-        { project: rowFirstDisplay,             dir: 'asc'  },
+        { project: rowFirstDisplay                         },
         { project: r => rowFirstEntry(r).score, dir: 'desc' },
       ],
     },
@@ -73,9 +79,11 @@ const SORT_AXES = {
     entry: {
       label: 'Entry',
       primary: r => rowFirstEntry(r).family || rowFirstDisplay(r),
+      // Both omit dir so Entry desc mirrors a transform's output branches too,
+      // not just the family interior (see single): seed display, then chain tail.
       tiebreakers: [
-        { project: rowFirstDisplay, dir: 'asc' },
-        { project: rowChainTail,    dir: 'asc' },
+        { project: rowFirstDisplay },
+        { project: rowChainTail    },
       ],
     },
     length: {
@@ -270,13 +278,15 @@ export function composeSortAxis(sortList, axes) {
   };
 }
 
-// primaryDir flips only the primary; tiebreakers keep their declared direction,
-// so flipping asc/desc can't reshuffle within a tied bucket.
+// primaryDir flips the primary and any dir-less tiebreaker (which rides along with
+// the primary's ordering); a tiebreaker with its own dir stays put, so flipping
+// asc/desc can't reshuffle the genuine tie-rankers within a bucket.
 export function compareItems(a, b, axis, primaryDir) {
-  const primCmp = compareValues(axis.primary(a), axis.primary(b)) * (primaryDir === 'asc' ? 1 : -1);
+  const sign = dir => dir === 'asc' ? 1 : -1;
+  const primCmp = compareValues(axis.primary(a), axis.primary(b)) * sign(primaryDir);
   if (primCmp !== 0) return primCmp;
   for (const tb of axis.tiebreakers) {
-    const cmp = compareValues(tb.project(a), tb.project(b)) * (tb.dir === 'asc' ? 1 : -1);
+    const cmp = compareValues(tb.project(a), tb.project(b)) * sign(tb.dir ?? primaryDir);
     if (cmp !== 0) return cmp;
   }
   return 0;

@@ -62,6 +62,31 @@ test('single Entry sort: a multi-word base leads its inflections, collated on di
   assert.deepEqual(out, ['lather up', 'lathered up', 'lathering up', 'lathers up']);
 });
 
+test('single Entry desc reverses members within a family, not just the cluster order', () => {
+  const e = (display, family) => ({ norm: display, display, score: 50, family });
+  const rows = [e('cat', 'cat'), e('cats', 'cat'), e('dog', 'dog'), e('dogs', 'dog')];
+  const axis = composeSortAxis([{ key: 'entry', dir: 'asc' }], sortAxes('single', null));
+  const asc  = rows.slice().sort((a, b) => compareItems(a, b, axis, 'asc')).map(r => r.display);
+  const desc = rows.slice().sort((a, b) => compareItems(a, b, axis, 'desc')).map(r => r.display);
+  assert.deepEqual(asc,  ['cat', 'cats', 'dog', 'dogs']);
+  // Without `follow` on the display tiebreaker this regresses to ['dog','dogs','cat','cats'].
+  assert.deepEqual(desc, ['dogs', 'dog', 'cats', 'cat']);
+});
+
+test('multi Entry desc mirrors a transform output branch too, down to the chain tail', () => {
+  const seed = { wlEntry: { norm: 'least', display: 'least', score: 50, family: 'least' } };
+  const row = out => ({ atoms: [seed, { wlEntry: { norm: out, display: out, score: 50 } }] });
+  const rows = [row('slate'), row('stale'), row('steal')];
+  const tail = r => r.atoms[1].wlEntry.norm;
+  const axis = composeSortAxis([{ key: 'entry', dir: 'asc' }], sortAxes('multi', null));
+  const asc  = rows.slice().sort((a, b) => compareItems(a, b, axis, 'asc')).map(tail);
+  const desc = rows.slice().sort((a, b) => compareItems(a, b, axis, 'desc')).map(tail);
+  assert.deepEqual(asc,  ['slate', 'stale', 'steal']);
+  // The branches share an input, so they tie down to the chain tail — which must
+  // ride the toggle, else desc leaves them ['slate','stale','steal'] mid-mirror.
+  assert.deepEqual(desc, ['steal', 'stale', 'slate']);
+});
+
 const AXES = {
   count:  { primary: x => x.count, tiebreakers: [{ project: x => x.k, dir: 'asc' }] },
   letters:{ primary: x => x.letters, tiebreakers: [{ project: x => x.count, dir: 'desc' }] },

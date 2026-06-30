@@ -25,6 +25,18 @@ test('the entries table sorts a multi-word base ahead of its inflections', async
   ], { ordered: true });
 });
 
+test('Entry desc reverses families fully — clusters and the members inside each', async ({ page }) => {
+  await gotoApp(page);
+  await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
+    name: 'Src', entries: ['cat', 'cats', 'dog', 'dogs'], scores: [50, 50, 50, 50],
+  }));
+  await expectVisible(page, ['cat', 'cats', 'dog', 'dogs'], { ordered: true });
+
+  await page.locator('.col-entry .col-sort').click();
+  expect(await page.evaluate(() => AppView.sortDir)).toBe('desc');
+  await expectVisible(page, ['dogs', 'dog', 'cats', 'cat'], { ordered: true });
+});
+
 const TIERS = [{ input: '50', note: 'Good' }, { input: '30', note: 'Meh' }, { input: '0', note: 'Junk' }];
 
 async function setup(page) {

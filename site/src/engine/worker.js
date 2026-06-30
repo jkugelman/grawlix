@@ -882,8 +882,10 @@ function handlePlanEdit({ requestId, mode, clicked, typed, trashScore }) {
 // main thread (which no longer sorts) would show a subtly wrong order.
 const FLAT_SORT_AXES = {
   entry: {
+    // display omits dir → follows the primary toggle (see sort.js's entry axis):
+    // the within-family order continues the family-clustered alphabetical sort.
     primary: e => e.family || displayOf(e),
-    tiebreakers: [{ p: e => displayOf(e), dir: 1 }, { p: e => e.score, dir: -1 }],
+    tiebreakers: [{ p: e => displayOf(e) }, { p: e => e.score, dir: -1 }],
   },
   length: {
     primary: e => e.norm.length,
@@ -911,6 +913,7 @@ function flatComparator(sort, runCorpus) {
   const picks = (sort || []).filter(s => s && FLAT_SORT_AXES[s.key]);
   const list = picks.length ? picks : [{ key: 'entry', dir: 'asc' }];
   const keyed = list.map(s => ({ p: FLAT_SORT_AXES[s.key].primary, dir: s.dir === 'desc' ? -1 : 1 }));
+  const primaryDir = list[0].dir === 'desc' ? -1 : 1;
   const tiebreakers = FLAT_SORT_AXES[list[0].key].tiebreakers;
   const entries = runCorpus.entries;
   return (ia, ib) => {
@@ -920,7 +923,7 @@ function flatComparator(sort, runCorpus) {
       if (c !== 0) return c;
     }
     for (const tb of tiebreakers) {
-      const c = cmpVal(tb.p(a), tb.p(b)) * tb.dir;
+      const c = cmpVal(tb.p(a), tb.p(b)) * (tb.dir ?? primaryDir);
       if (c !== 0) return c;
     }
     return ia - ib;
