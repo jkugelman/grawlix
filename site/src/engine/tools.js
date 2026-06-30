@@ -31,6 +31,10 @@ import umiaq from './tools/umiaq.js';
 import initialisms, { wordSplits } from './tools/initialisms.js';
 import behead from './tools/behead.js';
 import curtail from './tools/curtail.js';
+import add_prefix from './tools/add_prefix.js';
+import remove_prefix from './tools/remove_prefix.js';
+import add_suffix from './tools/add_suffix.js';
+import remove_suffix from './tools/remove_suffix.js';
 import rebus from './tools/rebus.js';
 import { WHOLE_WORD_PARAM, reverseString, sortLetters } from './tools/shared.js';
 
@@ -81,6 +85,10 @@ export const TOOLS = {
   initialisms,
   behead,
   curtail,
+  add_prefix,
+  remove_prefix,
+  add_suffix,
+  remove_suffix,
   rebus,
 };
 

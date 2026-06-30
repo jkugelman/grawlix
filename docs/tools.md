@@ -43,11 +43,11 @@ Source material: shipped catalog lives in `TOOLS` in [`site/src/engine/tools.js`
 | ✓ | Search | 🪄 Regex | Search (and replace) with regular expressions | un.+ed · c.{2,4}t |
 | ✓ | Search | 🛶 Umiaq | Advanced search with variables and constraints | ABBA · AB;BA |
 | ✓ | Side | 🪓 Behead | Remove the first N letters | swing → wing |
-|   | Side | 📥 Add prefix | Add a string prefix | tata → cantata |
-|   | Side | 📥 Remove prefix | Remove a string prefix | cantata → tata |
 | ✓ | Side | ✂️ Curtail | Remove the last N letters | party → part |
-|   | Side | 📤 Add suffix | Add a string suffix | pets → pet scan |
-|   | Side | 📤 Remove suffix | Remove a string suffix | pet scan → pets |
+| ✓ | Side | ➕ Add prefix | Add a string prefix | tata → cantata |
+| ✓ | Side | ➖ Remove prefix | Remove a string prefix | cantata → tata |
+| ✓ | Side | ➕ Add suffix | Add a string suffix | pets → pet scan |
+| ✓ | Side | ➖ Remove suffix | Remove a string suffix | pet scan → pets |
 |   | Side | 🪚 Side splitting | Remove both sides | if at all → fatal |
 |   | Side | 🎯 Dead center | Input sits at the exact center of a longer word | TBD |
 |   | Side | 🥪 Sandwich | TBD | TBD |
