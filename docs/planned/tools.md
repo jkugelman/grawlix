@@ -1,84 +1,8 @@
 # Tools (gallery & mining)
 
-Grawlix's mining side: anagrams, regex, beheadments, curtailments, and a long tail of letter/sound/meaning tricks for both **filling** (looking up words and noting score corrections while you work a grid) and **theme generation** (mining the wordlist for ideas).
-
-Inspiration: [Wordlisted](https://aaronson.org/wordlisted/) by Adam Aaronson. See [`../wordlisted.md`](../wordlisted.md) for a full breakdown of its search modes. Grawlix will cover similar ground and add its own tools.
-
-The gallery is where Grawlix's [project goal](../../README.md#goals) — democratize wordlist manipulation — does most of its work. Constructors who program can write Python to anagram, behead, phonetic-substitute, semantic-filter against their wordlists. The gallery's job is to put those moves in non-programmers' hands. Filter when evaluating a candidate tool: *would a programmer reach for this often enough to write a script?* If yes, it probably belongs.
-
-This doc tracks what's still planned for the gallery: the rest of the tool catalog (records without a `run` yet) and gallery polish (category picker, search). The pipeline that runs it all — the chain-row model, the group-row model, the per-row tool API, the executor — is built; see [`../design.md` § Tool gallery & stack](../design.md#tool-gallery--stack). Result download/copy is shipped — see [`../design.md` § Entries-table export](../design.md#entries-table-export).
-
----
-
-## Sequencing — runtime support before the family
-
-When the next tool needs runtime support that doesn't exist yet, land the runtime first, then the tool.
-
-- **Letter-bank family** (`anagram_families`, and similar) — no runtime gate. Each builds whatever letter-keyed index it needs in its own `prepare` (see *Indexed lookups* below). If a per-keystroke rebuild proves too slow on large wordlists, promote the index onto the merged-wordlist cache — but that's a one-liner, not a prerequisite runtime.
-- **Membership family** (`kangaroo`, `joey`, `sandwich`, `nested_words`, `double_occupancy`) — `wordlist.byEntry` already exists on the merged-wordlist cache. No runtime gate.
-- **Thesaurus family** — waits for the bundled data dependency: until a semantic dataset (WordNet, preferred; or Roget XML) is available at runtime, the tools can't run. (Phonetics is unblocked — Rhymes ships, loading the CMU dict at runtime via the worker; see *Capability families*.)
-
-For tools that fit the runtime as-is (`palindrome`, `isogram`, `supervocalic`, etc. — purely letter-pattern checks over `entry`), no gate; just add the `run` and ship.
-
----
-
-## Gallery — unshipped pieces
-
-**Category picker.** A fixed category menu at the top of the gallery (Anagrams & letter banks, Letter patterns, Pairs, Oddities, etc.). Clicking a category swaps the cards displayed below; the menu itself never moves. Spatial stability — categories live in the same place every time, cards stay visible while working, and the gallery's full width goes to tools. Matches the user's settle-into-a-tool-set pattern: a constructor with a theme idea picks the relevant category once and stays there.
-
-*Alternatives evaluated:*
-
-- *Inline accordion* (rejected) — categories collapsed; clicking a header expands cards in place, pushing others down. Items shifting under the cursor as sections open/close fights spatial recall and muscle memory.
-- *Card list* (viable fallback) — plain vertical scroll of all tool cards with a pinned filter input at the top. Most conservative option; scrolling past viewport required but not painful.
-- *Icon strip* (viable fallback) — VS Code activity-bar style: a thin (~50px) strip of category icons at rest; clicking one slides out a side panel with that category's cards. Wins on main-pane width. Loses on interaction count (two-step to reach a tool) and on panel-open state.
-
-**Gallery search input.** A filter/search input at the top of the panel lets users find tools by name or keyword across categories. **Alt+T** focuses it. The DOM is in place but disabled.
-
----
-
-## Tool API extensions
-
-The catalog record shape (`name`, `icon`, `category`, `desc`, `example`, `params`, `kind`, `inputHighlights`, `outputHighlights`, optional `glyph` / `prepare` / `run`) is documented in [`../design.md` § Tool gallery & stack](../design.md#tool-gallery--stack). A few subsystems sit around it.
-
-### Indexed lookups
-
-`run`'s third argument `wordlist`, and `ctx.wordlist` inside `prepare`, is the merged-wordlist cache — a plain object `{ entries, sourceCounts, byEntry }`. `byEntry` is a `Map<entry, wlEntry>` keyed by the lowercased entry; membership checks (kangaroo, joey, sandwich, nested_words) and beheading/curtailing lookups use it.
-
-`byEntry` is not a view *system*. It's the dedup map `buildMergedWordlist` already builds to merge sources, exposed as a field on the cache for free. It's built once when the merged cache is built and discarded wholesale when the cache is invalidated. There is no lazy-per-view machinery and no per-view invalidation — `cacheVersion$` is a generic "caches changed, repaint" signal, not a view tracker.
-
-Other letter-keyed indexes — `byLetterBank` (`Map<sortedLetters, wlEntry[]>` for anagram / made_from / anagram_families), `byLength` — don't exist. When a tool needs one, there are two places to build it, in increasing cost:
-
-- **In the tool's own `prepare`.** `prepare(params, ctx)` runs once per stage and receives `ctx.wordlist`, so the tool indexes it there and reads the index in `run`. No runtime changes. A run fires on every keystroke, so the index rebuilds per keystroke — but the rebuild is cooperative, chunked through `ctx` (see [`../design.md` § Pipeline execution](../design.md#pipeline-execution)), so it degrades to slower-but-responsive, never a frozen tab.
-- **As another field on the merged cache.** If that per-keystroke rebuild bites, build the index inside `buildMergedWordlist` next to `byEntry`. Then it's built once per wordlist change and invalidated wholesale with the rest of the cache. One more line — still not a "system."
-
-The declarative `requires: [...]` mechanism and the lazy-property-on-Wordlist form are both parked; neither is needed. Default to `prepare`; promote an index onto the merged cache only when profiling says so. Cross-tool sharing within one pipeline (a stack that hits `byLetterBank` from three tools) is served by the same merged-cache field — revisit then, not before.
-
-New indexes land as new tools demand them. Don't predict.
-
-### Annotations
-
-Numeric / string annotations declared at the catalog level (something like `output.annotations: [{ key, label, display }]`) for tools that want to attach extra data to each output: phrase_parsing's parse-quality score, almost_anagram's edit distance, letter_changes' actual `n`. The renderer reads the declaration and renders the value as an inline badge, hover tooltip, or popover detail.
-
-Annotations are display-only — downstream tools see only the chain-row's entries, not annotations. They're a separate channel from the synthesized-score escape hatch (which is for tool-supplied wlEntry scores, not arbitrary metadata).
-
-Highlights — character-range markings inside an atom — are part of the core API (see [`../design.md` § Highlights pipeline](../design.md#highlights-pipeline)). New highlight kinds extend the same `{ kind, start, end }` shape that Behead and Curtail use today.
-
-### Escape hatches
-
-Params are covered by the default renderer dispatch (`type: 'string'` → text input, `'bool'` → checkbox, `'int'` → number, `'enum'` → dropdown, `'char'` → single-letter input). Multi-field tools just declare multiple params; nothing custom needed.
-
-Output is covered by `kind` / highlights / synthesized-score / annotations. No current-catalog tool needs a deeper escape hatch. Two optional fields stay in the spec as a safety valve for hypothetical futures (interactive per-row widget, non-textual visualization, input that genuinely doesn't fit the param-type system):
-
-- `renderItem(atom)` — custom result-line HTML for one atom.
-- `renderParams(params, onChange)` — custom stack-row params UI.
-
-Both default to the standard renderers. Add a real motivating case before adding either to a tool.
-
----
-
 ## Catalog
 
-The list of shipped and planned tools — with their cards' icon, name, description, and example — lives in [`../tools.md`](../tools.md). Highlight kinds and annotation hooks for individual planned tools (e.g. `matched` over the hidden-anagram span, `editDistance` annotation on Almost anagram) are negotiable per-tool implementation details and will be settled when each tool lands; this doc focuses on the runtime support, gallery polish, and API extensions around them.
+The list of shipped and planned tools — with their cards' icon, name, description, and example — lives in [`../tools.md`](../tools.md).
 
 ## Capability families
 
@@ -98,20 +22,6 @@ Meaning-based searches — synonyms, antonyms, words in the same semantic catego
 
 ---
 
-## Result caching: deferred
-
-Tool-result memoization is plausible — input identity is tracked by `cacheVersion$`, and tool params are known — but premature without profiling. The `prepare` step — and a merged-cache index behind it, if one lands — is the load-bearing optimization; per-call result caches are a layer above that.
-
----
-
-## Help documentation
-
-Tool docs are not needed before the gallery is built. Each tool's gallery card carries its own blurb and examples — that's the primary documentation, and if a card falls short the fix is the card, not prose elsewhere. During development, treat this document as the living record.
-
-**As each tool group ships:** if there's something a user needs to know that the card can't convey, note it here. Only the genuinely complex tools (regex and Umiaq) earn a long-form explainer — in the Help dialog's FAQ or [`../manual.md`](../manual.md) — and these notes are its raw material. Not a tour of every tool.
-
----
-
 ## Open questions
 
 - **Custom JS tools.** Two paths:
@@ -120,6 +30,4 @@ Tool docs are not needed before the gallery is built. Each tool's gallery card c
 
   Start with (a); it proves the API against real user code without committing to the registry surface. Move to (b) only if users surface "I keep retyping this." Real demand is unknown today.
 - **Thesaurus data bundling.** WordNet (or Open English WordNet) is now the leading dataset over Roget (see *Capability families*) — static asset, CDN, or runtime fetch? (Phonetics resolved: the CMU dict is a runtime fetch from a remote URL, worker-owned — see `engine/assets.js`.)
-- **Multi-input URL encoding** — *decided.* Rebus's repeatable `string`/`symbol` pairs are the first multi-input tool; rather than a value-internal delimiter, each input is its own adjacent key and repeats append onto parallel arrays (`rebus=tool&symbol=Ⓣ&string=star&symbol=★`). See [`../design.md` § URL state](../design.md#url-state) (Repeatable params). A fixed-arity multi-input (regex min-length, anagram bank letters) is the same named-subkey form without the array.
-- **Whole-word per Search row.** Search rows can be chained from the gallery, but `whole-word` is a bare top-level URL key tied to the permanent search bar — a gallery-added Search is substring-only. Per-row whole-word is now just another successive param (`search=CAT` + a bare `whole-word` key already round-trips on a Search row). Revisit the UI when a chained Search workflow actually wants it.
 - **Synthetic-atom downstream behavior.** What does `[phrase_parsing, behead]` mean? The synthetic "hot to trot" goes into behead, which tries to look up "ot to trot" in `wordlist.byEntry`, finds nothing, drops the row. Probably degenerates harmlessly but the chained semantic is fuzzy. Rebus (shipped) is now a synthetic emitter too — `[rebus, behead]` beheads a glyph form that exists in no wordlist, so it drops the same way. Revisit if a real workflow surfaces.
