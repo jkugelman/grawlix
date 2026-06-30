@@ -363,7 +363,6 @@ function probeExpansion(pattern) {
 export async function findTuples(parsed, pool, {
   numResults = 100,
   maxMatchesPerPattern = 200_000,
-  bestFirst = true,
   onBatch = null,
   y = NOOP_Y,
   signal = null,
@@ -373,7 +372,6 @@ export async function findTuples(parsed, pool, {
   const N = ordered.length;
   const indexOrder = ordered.map(o => o.idx);
   const varColor = variableColors(parsed.variables);
-  const candidates = bestFirst ? [...pool].sort((a, b) => b.score - a.score) : pool;
 
   const tuples = [];
   const seenTuples = new Set();
@@ -401,7 +399,7 @@ export async function findTuples(parsed, pool, {
   // ── Probe path ─────────────────────────────────────────────────────────────
   if (probeable) {
     const normIndex = new Map();
-    for (const e of candidates) if (!normIndex.has(e.norm)) normIndex.set(e.norm, e);
+    for (const e of pool) if (!normIndex.has(e.norm)) normIndex.set(e.norm, e);
 
     const genCandidates = (oi, b) => {
       let strs = [''];
@@ -416,7 +414,7 @@ export async function findTuples(parsed, pool, {
     };
 
     outer:
-    for (const entry of candidates) {
+    for (const entry of pool) {
       if (signal?.aborted) throw signal.reason ?? new DOMException('Aborted', 'AbortError');
       for (const bindings of matchPattern(entry.norm, ordered[0].p, constraints)) {
         const laneLists = new Array(N);
@@ -452,7 +450,7 @@ export async function findTuples(parsed, pool, {
   const buckets = ordered.map(() => new Map());
   const counts = new Array(N).fill(0);
   let truncated = false;
-  for (const entry of candidates) {
+  for (const entry of pool) {
     if (signal?.aborted) throw signal.reason ?? new DOMException('Aborted', 'AbortError');
     for (let oi = 0; oi < N; oi++) {
       if (counts[oi] >= maxMatchesPerPattern) { truncated = true; continue; }

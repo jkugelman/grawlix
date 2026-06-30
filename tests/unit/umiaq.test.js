@@ -188,13 +188,6 @@ test('find: numResults caps output and flags capped', async () => {
   assert.equal(capped, true);
 });
 
-test('find: best-first biases toward higher-scoring first words', async () => {
-  const parsed = parseUmiaqQuery('AB;BA');
-  const pool = [entry('ape', 1), entry('pea', 2), entry('bro', 3), entry('rob', 9)];
-  const { tuples } = await findTuples(parsed, pool, { numResults: 1 });
-  assert.deepEqual(tuples.map(t => t.map(l => l.entry.norm)), [['rob', 'bro']]);
-});
-
 test('find: ABC;CBA finds reversed triples across the whole pool, exhaustively', async () => {
   const parsed = parseUmiaqQuery('ABC;CBA');
   const pool = ['tip', 'pit', 'cat', 'tac', 'dog', 'god'].map((n, i) => entry(n, 100 - i));
