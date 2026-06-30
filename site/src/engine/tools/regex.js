@@ -12,7 +12,7 @@ import { WHOLE_WORD_PARAM } from './shared.js';
 // expression: "), SpiderMonkey omits it. Strip the prefix and its optional
 // echo so the ⚠ shows just the reason, whatever the engine.
 function regexError(pattern) {
-  const src = (pattern || '').trim();
+  const src = pattern || '';
   if (!src) return null;
   try { new RegExp(src); return null; }
   catch (e) { return String(e.message).replace(/^Invalid regular expression:\s*(?:\/.*\/[a-z]*:\s*)?/, ''); }
@@ -52,14 +52,16 @@ export default {
   // A half-typed, invalid pattern is inert like an empty one, so the view
   // neither blanks nor churns mid-keystroke.
   isInert(params) {
-    const pattern = (params && params.pattern || '').trim();
+    const pattern = params && params.pattern || '';
     return !pattern || !!regexError(pattern);
   },
   error: params => regexError(params && params.pattern),
   matchOn: 'both',
   prepare(params) {
     const replacement = params.replace || '';
-    const body = params.pattern.trim();
+    // Don't trim: in a regex a leading/trailing space is a literal that must
+    // match. Re-adding `.trim()` reads as cleanup but silently drops it.
+    const body = params.pattern;
     // Flags `gid`: `i` lets a raw (un-lowercased, so `\D \S \B` survive)
     // pattern match case-insensitively; `d` exposes match indices for
     // highlighting. The pattern runs against both norm and display (see run),

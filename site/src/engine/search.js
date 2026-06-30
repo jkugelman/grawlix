@@ -19,7 +19,10 @@ export function isLiteralQuery(query) { return query !== '' && !SEARCH_WILDCARD_
 // stripped) and its verbatim display, matching if either does — norm forgives
 // separators (`theirs` finds "the IRS"); display requires a typed space/accent.
 export function buildSearchPattern(query, wholeWord = false) {
-  const q = query.normalize('NFC').trim();
+  // Don't trim: a typed space is a literal that anchors to a word boundary in
+  // the display arm. Re-adding `.trim()` reads as an oversight but silently
+  // kills that — even an all-whitespace query is a real space search.
+  const q = query.normalize('NFC');
   if (!q) return null;
 
   function customClass(body) {

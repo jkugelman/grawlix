@@ -8,10 +8,15 @@ import {
 const wl = (norm, display = null) => ({ norm, display });
 const matches = (pat, s) => { pat.globalRe.lastIndex = 0; return pat.globalRe.test(s); };
 
-test('buildSearchPattern: an empty or blank query compiles to null', () => {
+test('buildSearchPattern: only the empty query compiles to null', () => {
   assert.equal(buildSearchPattern(''), null);
-  assert.equal(buildSearchPattern('   '), null);
-  assert.equal(buildSearchPattern('\t\n'), null);
+});
+
+test('buildSearchPattern: whitespace is a literal space search, not inert', () => {
+  const pat = buildSearchPattern(' ');
+  assert.notEqual(pat, null);
+  assert.equal(matches(pat, 'new york'), true);
+  assert.equal(matches(pat, 'newyork'), false);
 });
 
 test('buildSearchPattern: `*` matches any run including empty', () => {

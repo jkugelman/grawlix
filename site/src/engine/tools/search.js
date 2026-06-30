@@ -21,13 +21,10 @@ export default {
   // An empty (or invalid, e.g. a reversed range) query is a no-op: the row is
   // transparent — no filtering, no lens — so an empty permanent search bar
   // costs nothing and a half-typed pattern doesn't blank the view.
-  isInert: params => {
-    const pattern = (params && params.pattern || '').trim();
-    return !pattern || !buildSearchPattern(pattern);
-  },
+  isInert: params => !buildSearchPattern(params && params.pattern || ''),
   matchOn: 'both',
   prepare(params) {
-    const matcher = buildSearchPattern((params.pattern || '').trim(), !!params['whole-word']);
+    const matcher = buildSearchPattern(params.pattern || '', !!params['whole-word']);
     if (!matcher) return null;
     const replacement = params.replace || '';
     return replacement ? { mode: 'replace', matcher, replacement } : { mode: 'filter', matcher };
