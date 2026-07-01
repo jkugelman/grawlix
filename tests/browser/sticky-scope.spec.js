@@ -17,6 +17,8 @@ test.beforeEach(async ({ page }) => {
 // The score-range input. Filling it fires its oninput =>
 // AppView.onScoreRange, the same path the user drives.
 const rangeInput = page => page.locator('#score-range-input');
+const rangeBtn = page => page.locator('.score-range-btn');
+const lsRange = page => page.evaluate(() => localStorage.getItem('grawlix_scoreRange'));
 
 async function setRange(page, value) {
   await rangeInput(page).fill(value);
@@ -93,6 +95,59 @@ test('a brand-new visitor gets the 20+ default score filter', async ({ page }) =
   // Untouched, the default isn't written — the key stays unset so the user keeps
   // getting it, and a later clear (stored '') can still read as deliberate.
   expect(await page.evaluate(() => localStorage.getItem('grawlix_scoreRange'))).toBeNull();
+});
+
+test('off the default, the button is a reset that restores 20+ and drops the key', async ({ page }) => {
+  await gotoApp(page, '/', { seedScoreRange: false });
+  await expect(rangeInput(page)).toHaveValue('20+');
+  await expect(rangeBtn(page)).toHaveAttribute('data-mode', 'clear');
+  await expect(rangeBtn(page).locator('use')).toHaveAttribute('href', '#icon-x');
+
+  await setRange(page, '50+');
+  await expect(rangeBtn(page)).toHaveAttribute('data-mode', 'reset');
+  await expect(rangeBtn(page).locator('use')).toHaveAttribute('href', '#icon-reset');
+  expect(await lsRange(page)).toBe('50+');
+
+  await rangeBtn(page).click();
+  await page.evaluate(() => window.__grawlixTest.pipelineIdle());
+  await expect(rangeInput(page)).toHaveValue('20+');
+  // Reset drops the key rather than persisting 20+, so the user keeps following
+  // the default — that's why this asserts null, not '20+'.
+  expect(await lsRange(page)).toBeNull();
+  await expect(rangeBtn(page)).toHaveAttribute('data-mode', 'clear');
+});
+
+test('at the default the X clears to empty; an empty box still offers a reset', async ({ page }) => {
+  await gotoApp(page, '/', { seedScoreRange: false });
+  await expect(rangeBtn(page)).toHaveAttribute('data-mode', 'clear');
+
+  await rangeBtn(page).click();
+  await page.evaluate(() => window.__grawlixTest.pipelineIdle());
+  await expect(rangeInput(page)).toHaveValue('');
+  // A deliberate clear persists '' — distinct from the untouched absent key.
+  expect(await lsRange(page)).toBe('');
+  await expect(rangeBtn(page)).toBeVisible();
+  await expect(rangeBtn(page)).toHaveAttribute('data-mode', 'reset');
+
+  await rangeBtn(page).click();
+  await page.evaluate(() => window.__grawlixTest.pipelineIdle());
+  await expect(rangeInput(page)).toHaveValue('20+');
+  expect(await lsRange(page)).toBeNull();
+});
+
+test('customized tiers drop the 20+ regime: plain clear, hidden when empty, empty default', async ({ page }) => {
+  await gotoApp(page, '/', { seedScoreRange: false });
+  await expect(rangeInput(page)).toHaveValue('20+');
+
+  await page.evaluate(() => window.__grawlixTest.setScoring([{ input: '0-100', note: 'everything' }]));
+  await expect(rangeBtn(page)).toHaveAttribute('data-mode', 'clear');
+  await expect(rangeBtn(page).locator('use')).toHaveAttribute('href', '#icon-x');
+
+  // Reload before any clear so the scoreRange key stays absent — otherwise this
+  // would test the stored-'' path, not the missing-key default under dirty tiers.
+  await reloadReady(page);
+  await expect(rangeInput(page)).toHaveValue('');
+  await expect(rangeBtn(page)).toBeHidden();
 });
 
 test('the selected scope persists across a reload', async ({ page }) => {

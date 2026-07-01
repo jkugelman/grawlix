@@ -211,11 +211,13 @@ export async function init() {
   // state.selected). Scope is localStorage-only, never the URL, so it's
   // independent of Router.applyURL below.
   restoreSelectedScope();
+  // Scoring must load before the score range: the missing-key default (20+ vs
+  // blank) turns on whether the tiers are still the shipped defaults.
+  ensureScoring();
   AppView.restoreScoreRange(restoreScoreRange());
 
   Router.applyURL();
 
-  ensureScoring();
   ensureEdits();
   propagateDefaults();
 
@@ -316,11 +318,14 @@ function restoreSelectedScope() {
 // stay distinct: collapse them and everyone who cleared the filter silently gets
 // DEFAULT_SCORE_RANGE forced back on.
 function restoreScoreRange() {
+  // 20+ is only the default while the tiers are unchanged; a custom-tier user
+  // falls back to no filter, since 20+ may not map to any of their tiers.
+  const dflt = state.scoringDirty ? '' : DEFAULT_SCORE_RANGE;
   const stored = lsLoad('scoreRange');
-  if (stored === null) return DEFAULT_SCORE_RANGE;
+  if (stored === null) return dflt;
   const trimmed = stored.trim();
   if (trimmed === '') return '';
-  return parseRange(trimmed) !== null ? trimmed : DEFAULT_SCORE_RANGE;
+  return parseRange(trimmed) !== null ? trimmed : dflt;
 }
 
 // ─── My Edits helpers ─────────────────────────────────────────────────────────

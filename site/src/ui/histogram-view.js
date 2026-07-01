@@ -5,8 +5,7 @@
 import { parseRange, matchesRange } from '../engine/range.js';
 import { slotIntersectsRange } from '../engine/histogram.js';
 import { scopedHistogramLayout } from '../data/derived.js';
-import { syncClearButton } from './components.js';
-import { AppView } from './app-view.js';
+import { AppView, syncScoreRangeButton } from './app-view.js';
 
 let _histDrag = null;
 
@@ -73,7 +72,7 @@ function _onHistogramPointerUp(event) {
   } else {
     next = rangeStrFromBounds(Math.min(ds.startLo, ds.curLo), Math.max(ds.startHi, ds.curHi), layout);
   }
-  document.querySelectorAll('#score-range-input').forEach(inp => { inp.value = next; syncClearButton(inp); });
+  document.querySelectorAll('#score-range-input').forEach(inp => { inp.value = next; syncScoreRangeButton(inp); });
   AppView.onScoreRange(next);
 }
 

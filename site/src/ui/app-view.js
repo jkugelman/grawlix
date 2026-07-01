@@ -2,9 +2,10 @@
 
 // ─── App view ─────────────────────────────────────────────────────────────────
 
-import { MERGED_ID } from '../core/constants.js';
+import { MERGED_ID, DEFAULT_SCORE_RANGE } from '../core/constants.js';
 import { parseRange } from '../engine/range.js';
-import { lsSave } from '../data/storage.js';
+import { lsSave, lsDel } from '../data/storage.js';
+import { state } from '../data/state.js';
 import { ToolStack } from './tool-stack.js';
 import { repositionAllHistogramRects } from './histogram-view.js';
 import { reconcileSort, chainSortTier, DEFAULT_SORT_BY_TIER } from './entries-table.js';
@@ -51,6 +52,15 @@ export const AppView = (() => {
   function persistScoreRange() {
     lsSave('scoreRange', _scoreRange);
   }
+
+  // Reset drops the stored key (not lsSave) so an untouched user keeps following
+  // DEFAULT_SCORE_RANGE; persisting '20+' would freeze them if the default moves.
+  function resetScoreRange() {
+    _scoreRange = DEFAULT_SCORE_RANGE;
+    lsDel('scoreRange');
+    getEntriesScroller()?.setScoreRange(_scoreRange);
+    repositionAllHistogramRects();
+  }
   // Canonical sort write. No filter call here — the scroller re-applies sort
   // itself; this just holds the source of truth the getters and URL read.
   function setSortList(list) { _sortList = list.length ? list.map(s => ({ ...s })) : [{ key: 'entry', dir: 'asc' }]; }
@@ -73,7 +83,7 @@ export const AppView = (() => {
 
   return {
     show,
-    onScoreRange,
+    onScoreRange, resetScoreRange,
     setSortList, applyURLState, restoreScoreRange,
     get searchQuery()     { return ToolStack.getSearchBarRow().params.pattern || ''; },
     get scoreRange()      { return _scoreRange; },
@@ -82,3 +92,59 @@ export const AppView = (() => {
     get sortList()        { return _sortList.map(s => ({ ...s })); },
   };
 })();
+
+// ─── Score-range clear / reset button ─────────────────────────────────────────
+
+// Reset-to-20+ is only offered while the tiers are the defaults: with customized
+// tiers, 20+ may map to no tier at all, so the box falls back to a plain clear.
+function scoreRangeButtonMode(value) {
+  const v = (value || '').trim();
+  if (state.scoringDirty) return v ? 'clear' : 'hidden';
+  return v === DEFAULT_SCORE_RANGE ? 'clear' : 'reset';
+}
+
+export function buildScoreRangeButtonHTML(value) {
+  const mode = scoreRangeButtonMode(value);
+  const reset = mode === 'reset';
+  const label = reset ? `Reset to ${DEFAULT_SCORE_RANGE}` : 'Clear';
+  return `<button type="button" class="score-range-btn" data-mode="${mode}" tabindex="-1"` +
+    ` title="${label}" aria-label="${label}"${mode === 'hidden' ? ' hidden' : ''}>` +
+    `<svg width="10" height="10" aria-hidden="true"><use href="#icon-${reset ? 'reset' : 'x'}"/></svg></button>`;
+}
+
+export function syncScoreRangeButton(input) {
+  const btn = input.closest('.clearable-input')?.querySelector('.score-range-btn');
+  if (!btn) return;
+  const mode = scoreRangeButtonMode(input.value);
+  const reset = mode === 'reset';
+  const label = reset ? `Reset to ${DEFAULT_SCORE_RANGE}` : 'Clear';
+  btn.hidden = mode === 'hidden';
+  btn.dataset.mode = mode;
+  btn.title = label;
+  btn.setAttribute('aria-label', label);
+  btn.querySelector('use').setAttribute('href', `#icon-${reset ? 'reset' : 'x'}`);
+}
+
+export function refreshScoreRangeButtons() {
+  document.querySelectorAll('#score-range-input').forEach(syncScoreRangeButton);
+}
+
+export function mountScoreRangeControl() {
+  document.addEventListener('input', e => {
+    if (e.target.id === 'score-range-input') syncScoreRangeButton(e.target);
+  });
+  document.addEventListener('click', e => {
+    const btn = e.target.closest('.score-range-btn');
+    if (!btn) return;
+    const input = btn.closest('.clearable-input').querySelector('input');
+    if (btn.dataset.mode === 'reset') {
+      AppView.resetScoreRange();
+      input.value = AppView.scoreRange;
+    } else {
+      AppView.onScoreRange('');
+      input.value = '';
+    }
+    input.focus();
+    syncScoreRangeButton(input);
+  });
+}

@@ -10,7 +10,7 @@ import { serializeEntries } from './engine/serialize.js';
 import { getOutputFormat, setOutputFormat } from './data/serialize.js';
 import { persistMeta } from './data/persist.js';
 import { configureSyncDialogs, configureMirrorSerializer, configureEditsMerger } from './data/disk-sync.js';
-import { buildClearableInputHTML, mountClearableInputs, toggleSplitMenu } from './ui/components.js';
+import { mountClearableInputs, toggleSplitMenu } from './ui/components.js';
 import { showConfirm, showAlert, showMergeConflict, showEditsConflict } from './ui/dialogs/confirm.js';
 import { openUpdateSummaryDialog } from './ui/dialogs/update-summary.js';
 import { SettingsDialog, configureSettings } from './ui/dialogs/settings.js';
@@ -19,7 +19,7 @@ import { NewToolsReveal } from './ui/new-tools-reveal.js';
 import { SyncDialog, configureSyncDialog } from './ui/dialogs/sync.js';
 import { ConfigureWordlistDialog, configureConfigureWordlist } from './ui/dialogs/configure-wordlist.js';
 import { ImportGuideDialog, configureImportGuide } from './ui/dialogs/import-guide.js';
-import { AppView } from './ui/app-view.js';
+import { AppView, buildScoreRangeButtonHTML, mountScoreRangeControl } from './ui/app-view.js';
 import { configureEntriesTable, GroupMorePopover, ErrorPopover } from './ui/entries-table.js';
 import { ToolStack, ToolPicker, configureToolStack, mountGroupColumnStyle } from './ui/tool-stack.js';
 import { mountHistogramPointer, onHistogramPointerDown } from './ui/histogram-view.js';
@@ -47,7 +47,7 @@ import {
 // user erased the text by hand.
 function buildScoreRangeInputHTML(inputId, value, viewName) {
   const input = `<input type="text" id="${inputId}" data-help="filter/score" autocapitalize="off" autocorrect="off" spellcheck="false" value="${esc(value)}" oninput="${viewName}.onScoreRange(this.value)">`;
-  return `<label class="stat score-range-label" title="Filter by score (Alt-C)"><span class="stat-label">Scores</span>${buildClearableInputHTML(input, !!value)}</label>`;
+  return `<label class="stat score-range-label" title="Filter by score (Alt-C)"><span class="stat-label">Scores</span><span class="clearable-input">${input}${buildScoreRangeButtonHTML(value)}</span></label>`;
 }
 
 // ─── Boot ─────────────────────────────────────────────────────────────────────
@@ -139,6 +139,7 @@ function boot() {
   // Document-level / pure wiring — no dependency on the app-shell DOM existing.
   mountGroupColumnStyle();
   mountClearableInputs();
+  mountScoreRangeControl();
   mountHistogramPointer();
   mountSplitMenuDismiss();
 

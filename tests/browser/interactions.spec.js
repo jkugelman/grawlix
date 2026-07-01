@@ -46,6 +46,7 @@ test('dragging across the histogram applies the score-range filter', async ({ pa
   await expect(page.locator('#score-range-input')).toHaveValue('30-70');
   await expectVisible(page, ['bbb', 'ccc', 'ddd']);
   await expect(page.locator('#stats .histogram .histogram-rect')).toBeVisible();
+  await expect(page.locator('.score-range-btn')).toHaveAttribute('data-mode', 'reset');
 });
 
 test('the gear button opens Settings', async ({ page }) => {
