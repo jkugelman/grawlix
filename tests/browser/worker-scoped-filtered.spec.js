@@ -67,16 +67,13 @@ function captureRows(page) {
 function captureStatsBar(page) {
   return page.evaluate(() => {
     const bar = document.querySelector('#stats .stats-bar');
-    const readout = label => [...bar.querySelectorAll('.stat-far')]
-      .find(el => el.querySelector('.stat-label')?.textContent === label)
-      ?.querySelector('.stat-value')?.textContent ?? null;
     // The col's title encodes the bucket's count ("N entries scored …"), so
     // capturing it asserts the counts byte-for-byte, not just the bar-height ratio.
     const bars = [...bar.querySelectorAll('.histogram-col')].map(col => {
       const b = col.querySelector('.histogram-bar');
       return { lo: b.dataset.lo, hi: b.dataset.hi, height: b.style.height, title: col.title };
     });
-    return { min: readout('Min'), max: readout('Max'), bars };
+    return { bars };
   });
 }
 
@@ -155,8 +152,7 @@ test('scoped filtered: the histogram stays the unfiltered scoped distribution', 
   const filtered = await captureStatsBar(page);
 
   // Histogram bars (ranges + heights + the count-bearing titles) are unchanged by
-  // the filter: out-of-range bars survive. Min/Max readouts DO follow the filter,
-  // so they're intentionally excluded from this equality.
+  // the filter: out-of-range bars survive, since the worker buckets before filtering.
   expect(filtered.bars).toEqual(unfiltered.bars);
 
   await setScoreRange(page, '');

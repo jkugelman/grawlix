@@ -367,7 +367,7 @@ export const WordlistSelector = (() => {
     bar.innerHTML = `
       <div class="wls-bar-top">
         <div class="wls">
-          <button type="button" class="wls-trigger" aria-haspopup="listbox" aria-expanded="false">
+          <button type="button" class="wls-trigger bar-headline" aria-haspopup="listbox" aria-expanded="false">
             <span class="wls-trigger-icon"></span>
             <span class="wls-trigger-label"></span>
             <span class="wls-trigger-badge"></span>

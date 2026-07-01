@@ -85,9 +85,10 @@ test('a disabled source is still viewable when scoped to it', async ({ page }) =
     .toMatchObject({ score: 70, wordlist: 'Off' });
 });
 
-// Read the stats bar's label→value readouts (Entries, Min, Max). The
-// histogram + these numbers must reflect whatever corpus is in scope, so a
-// scoped source with a narrower score range reads a different Max than All Wordlists.
+// Entries comes off the stats bar; Min/Max are no longer displayed but the worker
+// still computes them per scoped run, so read those from workerSummariesDebug. The
+// histogram + these numbers must reflect whatever corpus is in scope, so a scoped
+// source with a narrower score range reports a different Max than All Wordlists.
 async function readStats(page) {
   return page.evaluate(() => {
     const out = {};
@@ -96,6 +97,9 @@ async function readStats(page) {
       const value = stat.querySelector('.stat-value')?.textContent;
       if (label) out[label] = value;
     }
+    const ws = window.__grawlixTest.workerSummariesDebug().workerStats;
+    out.Min = ws ? String(ws.min) : null;
+    out.Max = ws ? String(ws.max) : null;
     return out;
   });
 }

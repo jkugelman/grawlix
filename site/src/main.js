@@ -47,7 +47,7 @@ import {
 // user erased the text by hand.
 function buildScoreRangeInputHTML(inputId, value, viewName) {
   const input = `<input type="text" id="${inputId}" data-help="filter/score" autocapitalize="off" autocorrect="off" spellcheck="false" value="${esc(value)}" oninput="${viewName}.onScoreRange(this.value)">`;
-  return `<label class="score-range-label" title="Filter by score (Alt-C)">Score ${buildClearableInputHTML(input, !!value)}</label>`;
+  return `<label class="stat score-range-label" title="Filter by score (Alt-C)"><span class="stat-label">Scores</span>${buildClearableInputHTML(input, !!value)}</label>`;
 }
 
 // ─── Boot ─────────────────────────────────────────────────────────────────────

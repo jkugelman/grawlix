@@ -7,7 +7,7 @@
 import { MERGED_ID } from '../core/constants.js';
 import { pluralize } from '../core/util.js';
 import { effect } from '../core/signals.js';
-import { invalidateStatsCache, computeStatsRaw } from '../engine/stats.js';
+import { invalidateStatsCache } from '../engine/stats.js';
 import { bucketCounts, invalidateHistogramLayout } from '../engine/histogram.js';
 import { PARAM_HELP } from '../engine/tools.js';
 import { invalidatePreSearchCache, streamPlan } from '../engine/executor.js';
@@ -68,7 +68,7 @@ function buildStatItemHTML(label, value, title, extraClass) {
   const cls = 'stat' + (extraClass ? ' ' + extraClass : '');
   return `<div class="${cls}"${title ? ` title="${title}"` : ''}>
     <span class="stat-label">${label}</span>
-    <span class="stat-value">${value}</span>
+    <span class="stat-value bar-headline">${value}</span>
   </div>`;
 }
 
@@ -317,17 +317,7 @@ export function buildStatsBarHTML() {
     : (scroller ? scroller._renderRowCount() : 0);
   const layout = scopedHistogramLayout();
 
-  // Under a score range the worker's stats apply only if the worker itself
-  // filtered (_workerFiltered); otherwise the empty fallback shows dashes for the
-  // transient frame until the re-run's filtered summaries land.
-  const stats = (scroller && scroller._workerStats
-      && (!scroller._scoreIntervals || scroller._workerFiltered))
-    ? scroller._workerStats
-    : computeStatsRaw([]);
-
   const isEmpty = !countValue;
-  const dash = '—';
-  const fmt = v => isEmpty ? dash : v;
   // The worker's counts pair with the layout its run bucketed against; during a
   // scope switch the live layout updates a frame before the next run re-stamps the
   // counts, so a length mismatch means they're from different runs — show zero bars
@@ -359,13 +349,10 @@ export function buildStatsBarHTML() {
   return `<div class="stats-bar${isEmpty ? ' stats-empty' : ''}">
       <div class="stats-bar-counts">${countsHTML}</div>
       <div class="stats-bar-distribution">
-        <div class="stats-bar-numbers">
-          ${buildStatItemHTML('Min', fmt(stats.min), null, 'stat-far')}
-          ${buildStatItemHTML('Max', fmt(stats.max), null, 'stat-far')}
-        </div>
         <div class="histogram" title="Histogram • Click to filter" onpointerdown="onHistogramPointerDown(event)">${bars}<div class="histogram-rect" hidden></div></div>
+        ${rangeHTML}
       </div>
-      <div class="stats-bar-controls">${rangeHTML}${exportSlotHTML}</div>
+      <div class="stats-bar-controls">${exportSlotHTML}</div>
     </div>`;
 }
 
@@ -387,12 +374,12 @@ function swapStatsBarReadouts(bar, html) {
   const next = tmp.querySelector('.stats-bar');
   if (!next) return;
   bar.querySelector('.stats-bar-counts')?.replaceWith(next.querySelector('.stats-bar-counts'));
-  // Swap the readouts in place, not the cell: a wholesale replaceWith would detach
-  // the persistent .stream-dots child, silently restarting its CSS animation.
+  // Replace only the histogram, not the whole cell: a wholesale replaceWith would
+  // detach the persistent .stream-dots child (restarting its CSS animation) and the
+  // .score-range-label (dropping the user's focus/typing mid-edit).
   const dist = bar.querySelector('.stats-bar-distribution');
   const nextDist = next.querySelector('.stats-bar-distribution');
   if (dist && nextDist) {
-    dist.querySelector('.stats-bar-numbers')?.replaceWith(nextDist.querySelector('.stats-bar-numbers'));
     dist.querySelector('.histogram')?.replaceWith(nextDist.querySelector('.histogram'));
   }
   bar.className = next.className;
@@ -433,20 +420,19 @@ function stickyObserver() {
 
 export function refreshStatsBarOverflow() {
   for (const bar of document.querySelectorAll('.stats-bar')) {
-    bar.classList.remove('stats-narrow', 'stats-no-hist', 'stats-no-entries');
+    bar.classList.remove('stats-no-hist', 'stats-no-entries');
     const overlapsControls = () => {
       const ctrls = bar.querySelector('.stats-bar-controls');
       if (!ctrls) return false;
       const ctrlsLeft = ctrls.getBoundingClientRect().left;
-      for (const el of bar.querySelectorAll('.stats-bar-counts, .stat-far, .histogram')) {
+      for (const el of bar.querySelectorAll('.stats-bar-counts, .histogram, .score-range-label')) {
         if (!el.offsetWidth) continue;
         if (el.getBoundingClientRect().right > ctrlsLeft + 0.5) return true;
       }
       return false;
     };
     if (overlapsControls()) {
-      bar.classList.add('stats-narrow');
-      if (overlapsControls()) bar.classList.add('stats-no-hist');
+      bar.classList.add('stats-no-hist');
       if (overlapsControls()) bar.classList.add('stats-no-entries');
     }
   }
