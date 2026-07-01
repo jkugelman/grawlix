@@ -206,6 +206,45 @@ test('staging a delete via the row trash strikes it through and is reversible; S
   });
 });
 
+// Regression: under parallel load a late worker reply repaints the provenance
+// table between the trash click's mousedown and mouseup; a repaint that detaches
+// the trash node makes the browser fire no click, silently dropping the stage.
+// Force that repaint mid-click deterministically. See renderProvWrap in
+// ui/entries-table.js.
+test('staging a delete survives a provenance re-render firing mid-click', async ({ page }) => {
+  await gotoApp(page);
+
+  await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
+    name: 'Source', entries: ['bagel'], scores: [50],
+  }));
+
+  await page.locator('.entry-row[data-entry="bagel"] .atom-entry').click();
+  await page.locator('#entry-panel-score').fill('75');
+  await page.locator('#entry-panel-score').press('Enter');
+  await expect.poll(async () =>
+    page.evaluate(() => window.__grawlixTest.getWordlist('My Edits').entries.length)
+  ).toBe(1);
+
+  await page.locator('.entry-row[data-entry="bagel"] .atom-entry').click();
+  await expect(page.locator('.entry-panel-prov tbody .entry-panel-prov-source')).toContainText(['My Edits', 'Source']);
+
+  await page.evaluate(() => {
+    window.__triggerFired = false;
+    document.querySelector('.entry-panel-prov-trash').addEventListener('mousedown', () => {
+      window.__triggerFired = true;
+      document.querySelector('#entry-panel-entry').dispatchEvent(new Event('input', { bubbles: true }));
+    }, { capture: true, once: true });
+  });
+
+  const editsTrash = page.locator('.entry-panel-prov-row', { hasText: 'My Edits' }).locator('.entry-panel-prov-trash');
+  await editsTrash.click();
+
+  // Guard against a false green: the repaint must actually have fired mid-click.
+  expect(await page.evaluate(() => window.__triggerFired)).toBe(true);
+  await expect(page.locator('.entry-panel-prov-row--deleted')).toBeVisible();
+  await expect(page.locator('#entry-panel-score')).toBeDisabled();
+});
+
 test('the add FAB seeds an unknown search query and lands it in My Edits and the merge', async ({ page }) => {
   await gotoApp(page);
 

@@ -2038,6 +2038,7 @@ export const EntryPanel = (() => {
   // don't flash on a null (not-fresh) reply.
   let provQueryToken = 0;
   let shippedProvRows = null;
+  let lastProvHTML = null;
   let provQueriesFired = 0;
   let provRepliesApplied = 0;
   function provenanceDebug() { return { provQueriesFired, provRepliesApplied }; }
@@ -2140,6 +2141,7 @@ export const EntryPanel = (() => {
     provQueryToken++;
     planQueryToken++;
     shippedProvRows = null;
+    lastProvHTML = null;
     _cachedPlan = null;
     document.removeEventListener('keydown', onKeydown, true);
   }
@@ -2248,6 +2250,7 @@ export const EntryPanel = (() => {
     const seed = seedFromWinnerRow(wlEntry, getEditsWordlist() != null && wlEntry.wordlist === getEditsWordlist());
 
     panel.innerHTML = renderHTML(wlEntry, seed);
+    lastProvHTML = provWrapHTML();
     revealModal(animate);
     wireFields();
     renderFamily(wlEntry.norm, wlEntry.display ?? null);
@@ -2587,7 +2590,7 @@ export const EntryPanel = (() => {
         </div>
       </div>
       <div class="entry-panel-body">
-        <div class="entry-panel-prov-wrap">${renderProvenanceTableHTML()}${renderNotesHTML()}</div>
+        <div class="entry-panel-prov-wrap">${provWrapHTML()}</div>
         <div class="entry-panel-lookup"></div>
         <div class="entry-panel-family"></div>
       </div>
@@ -2642,6 +2645,7 @@ export const EntryPanel = (() => {
     if (!skipExistsCheck && !activeScroller.resultHasEntry(activeWlEntry)) return;
     if (resetInputs) {
       el.innerHTML = renderHTML(activeWlEntry);
+      lastProvHTML = provWrapHTML();
       wireFields();
       renderFamily(activeWlEntry.norm, activeWlEntry.display ?? null);
       const inp = el.querySelector('.entry-input');
@@ -2661,10 +2665,22 @@ export const EntryPanel = (() => {
     updateModeLabels();
   }
 
+  function provWrapHTML() {
+    return renderProvenanceTableHTML() + renderNotesHTML();
+  }
+
+  // Skip the rewrite when the markup is unchanged. An identical rewrite still
+  // detaches the trash node, and a detach between a click's mousedown and mouseup
+  // makes the browser fire no click at all — silently dropping the staged-delete
+  // toggle when an async reply (a plan/prov fetch) lands mid-click.
   function renderProvWrap() {
     if (!isOpen()) return;
     const provEl = el.querySelector('.entry-panel-prov-wrap');
-    if (provEl) provEl.innerHTML = renderProvenanceTableHTML() + renderNotesHTML();
+    if (!provEl) return;
+    const html = provWrapHTML();
+    if (html === lastProvHTML) return;
+    lastProvHTML = html;
+    provEl.innerHTML = html;
   }
 
   // No debounce: every keystroke (and the open) fires. The monotonic token drops
