@@ -12,7 +12,7 @@ import { bucketCounts, invalidateHistogramLayout } from '../engine/histogram.js'
 import { PARAM_HELP } from '../engine/tools.js';
 import { invalidatePreSearchCache, streamPlan } from '../engine/executor.js';
 import {
-  sources$, cacheVersion$, pipelineVersion$, configSummary$, errorMarks$, bumpCacheVersion, state,
+  sources$, cacheVersion$, pipelineVersion$, configSummary$, errorMarks$, resultsStale$, bumpCacheVersion, state,
 } from '../data/state.js';
 import { lsSave } from '../data/storage.js';
 import {
@@ -31,7 +31,7 @@ import { ToolStack, runPipeline } from './tool-stack.js';
 import { repositionAllHistogramRects } from './histogram-view.js';
 import { WordlistSelector } from './scope-selector.js';
 import { DiscoveryBanner } from './discovery-banner.js';
-import { sendWorkerScope, resyncWorkerConfig, reprojectPipeline } from './pipeline-worker.js';
+import { sendWorkerScope, resyncWorkerConfig, reprojectPipeline, repatchPipeline } from './pipeline-worker.js';
 
 let _refreshDerivedDisplays    = () => {};
 let _deleteFromEdits           = () => {};
@@ -188,6 +188,11 @@ export function setupRenderEffect() {
     WordlistSelector.refresh();
     refreshStatsBarFromScroller();
   });
+
+  effect(() => {
+    resultsStale$.get();
+    syncResultsStaleChip();
+  });
 }
 
 export function renderAll() {
@@ -264,6 +269,18 @@ export async function reprojectMergedScroller(recomputeHistogram = false) {
   if (stale) refreshMergedScroller();
 }
 
+// Refresh a FLAT result in place after a background structural auto-update, no chip
+// (§ Fetching & updates). Unlike reprojectMergedScroller it rebindEntry's afterward: a
+// repatch changes the SET, so an open panel bound to a now-deleted row must re-bind.
+export async function repatchMergedScroller() {
+  const stack = ToolStack.getStack();
+  reconcileSort(stack);
+  if (!entriesScroller) return;
+  const { stale } = await repatchPipeline(stack, currentSort(), activeScoreRange() || null);
+  if (stale) { refreshMergedScroller(); return; }
+  EntryPanel.rebindEntry(entriesScroller);
+}
+
 
 // The pre-search and histogram caches assume one corpus, so a scope change
 // must drop both before the pipeline re-runs — otherwise the prior scope's
@@ -296,6 +313,9 @@ export function mountPanel(panel) {
   repositionAllHistogramRects();
   createScroller();
   entriesScroller.onFilterChange = refreshStatsBarFromScroller;
+  document.getElementById('stats')?.addEventListener('click', e => {
+    if (e.target.closest('[data-action="refresh-results"]')) refreshMergedScroller();
+  });
   attachHelpPopups();
   publishBarHeights();
   const stickyStack = panel.querySelector('.sticky-stack');
@@ -355,9 +375,24 @@ export function buildStatsBarHTML() {
       <div class="stats-bar-distribution">
         <div class="histogram" title="Histogram • Click to filter" onpointerdown="onHistogramPointerDown(event)">${bars}<div class="histogram-rect" hidden></div></div>
         ${rangeHTML}
+        ${buildResultsStaleChipHTML()}
       </div>
       <div class="stats-bar-controls">${exportHTML}</div>
     </div>`;
+}
+
+function buildResultsStaleChipHTML() {
+  return `<button type="button" class="results-stale-chip primary" data-action="refresh-results"${resultsStale$.peek() ? '' : ' hidden'}`
+    + ` title="A wordlist changed in the background. Refresh to apply the added and removed entries.">`
+    + `<svg class="results-stale-icon" width="12" height="12" aria-hidden="true"><use href="#icon-reset"/></svg>Refresh</button>`;
+}
+
+// swapStatsBarReadouts replaces only the .histogram in .stats-bar-distribution, not the
+// chip beside the score-range box, so the chip survives scroller repaints and its
+// visibility rides resultsStale$ alone.
+export function syncResultsStaleChip() {
+  const chip = document.querySelector('#stats .results-stale-chip');
+  if (chip) chip.hidden = !resultsStale$.peek();
 }
 
 export function refreshStatsBarFromScroller() {

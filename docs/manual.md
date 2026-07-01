@@ -41,7 +41,7 @@ Scope is **sticky** — Grawlix reopens to the wordlist you were last looking at
 The gear in the header opens **Settings**:
 
 - **Dark mode** — Auto (follow your OS), Light, or Dark.
-- **Auto-update wordlists** — Update wordlists without asking. On by default.
+- **Auto-update wordlists** — Update wordlists without asking. On by default. When an update lands while you're viewing results, it won't reshuffle them out from under you: score changes apply right away, and for a plain list or search so do added and removed entries. In a grouped or multi-word view (an all-mode tool, a multi-pattern Umiaq, or a transform like Anagrams), added and removed entries instead wait behind a small **Refresh** button on the stats bar — click it, or just start a new search, to apply them.
 - **Output format** — How entries are written to downloads and to synced files, so they match what your construction software can read: checkboxes to keep or strip **spaces**, **punctuation**, **accents**, and **comments**. Defaults to fully rich (everything kept). The two-way My Edits file is always written as-is regardless — it's the file your construction software edits in place. This is the one place the format is set — downloads and synced files both follow it.
 - **Trash score** — The score given to an entry's leftover when you rename it but a copy still lives in another wordlist Grawlix can't delete (see *Editing entries*). Defaults to 0.
 - **Reset all data** — Wipes all wordlists and settings and reloads the app.

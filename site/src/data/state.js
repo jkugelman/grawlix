@@ -44,6 +44,12 @@ export function bumpConfigSummary() { configSummary$.set(configSummary$.peek() +
 export const errorMarks$ = signal(0);
 export function bumpErrorMarks() { errorMarks$.set(errorMarks$.peek() + 1); }
 
+// True while a background auto-update has pinned the displayed result (its
+// membership changes wait behind a refresh affordance). Set by the update fork,
+// cleared when any full re-run adopts the fresh corpus.
+export const resultsStale$ = signal(false);
+export function setResultsStale(v) { resultsStale$.set(v); }
+
 // Reads through `state.sources` are non-subscribing (peek). Effects that
 // need to re-run on changes read the underlying signal explicitly with
 // `.get()`. This keeps the imperative call sites unchanged while preventing

@@ -41,7 +41,7 @@ import {
 } from '../engine/tools.js';
 import { invalidatePreSearchCache } from '../engine/executor.js';
 import { runOnWorker, preloadWorkerAsset } from './pipeline-worker.js';
-import { bumpPipelineVersion } from '../data/state.js';
+import { bumpPipelineVersion, setResultsStale } from '../data/state.js';
 import {
   buildTextInputHTML, buildParamHTML, syncClearButton,
   buildDragHandleHTML, makeReorderable, positionPopover,
@@ -99,6 +99,9 @@ export function pipelineIdle() {
 // table when the whole run total crosses the threshold (not per-step — a long
 // pipeline of individually-fast tools still trips it).
 export async function runPipeline(stack, sort) {
+  // A full re-run adopts the fresh corpus, so it flushes any refresh-on-consent pin
+  // (a reproject deliberately does NOT — it re-derives the pinned result in place).
+  setResultsStale(false);
   _pipelineRunning++;
 
   const panel = document.getElementById('entries-table-panel');

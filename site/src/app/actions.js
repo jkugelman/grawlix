@@ -17,7 +17,7 @@ import { TOOLS } from '../engine/tools.js';
 import { pendingNewTools, markToolsSeen } from '../data/new-tools.js';
 import { NewToolsReveal } from '../ui/new-tools-reveal.js';
 import {
-  sources$, state, wrapWordlist, newDbKey, getEditsWordlist,
+  sources$, state, wrapWordlist, newDbKey, getEditsWordlist, setResultsStale,
 } from '../data/state.js';
 import {
   lsLoad, lsSave, idbGet, Storage, openDB, resetAllDataAndReload,
@@ -70,7 +70,7 @@ import { buildRulesListHTML, renderScoringRules } from '../ui/rescore-editor.js'
 import { WordlistSelector, buildWordlistNameHTML } from '../ui/scope-selector.js';
 import {
   getEntriesScroller, setScope, renderAll, renderSources, renderMergedDetail,
-  refreshMergedScroller, reprojectMergedScroller, repaintAfterConfigChange, firstPaint,
+  refreshMergedScroller, reprojectMergedScroller, repatchMergedScroller, repaintAfterConfigChange, firstPaint,
 } from '../ui/rendering.js';
 import {
   syncWorkerConfig, resyncWorkerConfig,
@@ -631,11 +631,23 @@ export async function applyWordlistText(wordlist, text, { fetchedSize = null, or
   // entry-level diff (the worker holds the old entries; main no longer does). A
   // config change, or a worker with no build for this source yet (applied:false),
   // falls back to the resync — which must run AFTER the IDB write so it reads new text.
-  const ack = configChanged ? null : await sendApplyFetched(wordlist.dbKey, text);
+  const ack = configChanged ? null : await sendApplyFetched(wordlist.dbKey, text, viaToast);
   if (ack?.applied) applyConfigAck(ack);
   else              resyncWorkerConfig();
   repaintAfterConfigChange();
-  refreshMergedScroller();
+
+  // refresh-on-consent: a background auto-update never yanks the result. A flat structural
+  // change repatches in place (worker re-derives the join, no chip); a combination-tier
+  // structural change is held behind the refresh chip (pinned); score-only changes
+  // reproject live. A user-initiated fetch/import re-runs.
+  if (!ack?.applied || !viaToast) {
+    refreshMergedScroller();
+  } else if (ack.repatch) {
+    repatchMergedScroller();
+  } else {
+    if (ack.stale) setResultsStale(true);
+    if (ack.mode === 'splice' && (ack.addedCount || ack.deletedCount || ack.rescoredCount)) reprojectMergedScroller(true);
+  }
 
   // The applyFetched path reads wasEmpty/counts off the ack — the worker is the only
   // holder of the old entries now; the resync path counts the transient parse.

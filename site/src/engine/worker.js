@@ -210,10 +210,31 @@ async function drainRuns() {
     while (pending) {
       const req = pending;
       pending = null;
-      await runOne(req);
+      await (req.type === 'repatch' ? runRepatch(req) : runOne(req));
     }
   } finally {
     running = false;
+  }
+}
+
+// The pre-search cache persists the user-stack result across runs for the keystroke
+// fast-path; the caller must drop it when the user stack changes. On main that's
+// ToolStack's mutation handlers — signals the worker never sees, so it detects the
+// change itself, else a tool add/remove/edit silently runs against the previous
+// stack's cached pre-search state. Second guard: the cache's chains hold
+// ownedCorpus.entries objects by reference, so a rebuilt corpus (scope switch, config
+// re-sync, background splice) with an unchanged user stack must also drop it, or the
+// cached chains point at the previous corpus's entries and silently mis-encode rows.
+function preRunInvalidate(serialized) {
+  const userStackSig = JSON.stringify(serialized.slice(0, -1));
+  if (userStackSig !== lastUserStackSig) {
+    invalidatePreSearchCache();
+    evictUnusedAssets(serialized);
+    lastUserStackSig = userStackSig;
+  }
+  if (ownedCorpus !== lastRunCorpus) {
+    invalidatePreSearchCache();
+    lastRunCorpus = ownedCorpus;
   }
 }
 
@@ -225,26 +246,7 @@ async function runOne({ runId, stack: serialized, sort, scope, existsQuery, scor
   // flat emitter, the transform/tuple emitters crash on a null comparator (`.sort(null)`).
   if (!sort?.length) sort = [{ key: DEFAULT_SORT_BY_TIER[chainSortTier(stack)], dir: 'asc' }];
 
-  // The pre-search cache persists the user-stack result across runs for the
-  // keystroke fast-path; the caller must drop it when the user stack changes. On
-  // main that's ToolStack's mutation handlers — signals the worker never sees, so
-  // it must detect the change itself, else a tool add/remove/edit silently runs
-  // against the previous stack's cached pre-search state.
-  const userStackSig = JSON.stringify(serialized.slice(0, -1));
-  if (userStackSig !== lastUserStackSig) {
-    invalidatePreSearchCache();
-    evictUnusedAssets(serialized);
-    lastUserStackSig = userStackSig;
-  }
-
-  // The pre-search cache's chains hold ownedCorpus.entries objects by reference. A
-  // rebuilt ownedCorpus (scope switch, config re-sync) leaves the user stack
-  // unchanged, so the userStackSig guard above can't catch it — yet the cached
-  // chains now point at the previous corpus's entries, silently mis-encoding rows.
-  if (ownedCorpus !== lastRunCorpus) {
-    invalidatePreSearchCache();
-    lastRunCorpus = ownedCorpus;
-  }
+  preRunInvalidate(serialized);
 
   let out;
   const streamState = { streamed: false };
@@ -267,6 +269,53 @@ async function runOne({ runId, stack: serialized, sort, scope, existsQuery, scor
   if (signal.aborted) return;
 
   postResult(runId, out, viewSpec, scope, stack, existsQuery, rebindQuery, streamState.streamed);
+}
+
+// Refresh-on-consent's fast path for a FLAT displayed result: re-derive the join over
+// the freshly-spliced corpus and ship a `reprojected` snapshot — a background structural
+// update refreshes the set in place, no chip. Only flat qualifies: its rows match
+// per-entry, so an add/delete is a cheap re-scan; a combination tier (tuple/group/
+// transform) can gain a result from an added entry PARTNERING an existing one — a
+// re-scan misses that, so those still freeze + chip. Rides drainRuns because running its
+// executePipeline concurrently with a real run corrupts the shared _preSearchCache and
+// retained result, both silently.
+async function runRepatch({ runId, reprojectId, stack: serialized, sort, scoreRange }) {
+  // A scope/config change since the run would make the retained rows name the wrong
+  // entries (the handleReproject guard); reply stale so main re-runs instead of tearing.
+  if (!lastFlatResult || lastFlatResult.runId !== runId || !ownedCorpus || !ownedCorpusFresh || ownedScope !== lastFlatResult.scope) {
+    postMessage({ type: 'reprojectStale', runId, reprojectId });
+    return;
+  }
+  const signal = makeSignalShim(runId);
+  const stack = deserializeStack(serialized);
+  if (!sort?.length) sort = [{ key: DEFAULT_SORT_BY_TIER[chainSortTier(stack)], dir: 'asc' }];
+  preRunInvalidate(serialized);
+
+  let out;
+  try {
+    out = await executePipeline(ownedCorpus, stack, signal);   // buffered (no emit): one atomic snapshot, not a strobing re-stream
+  } catch (e) {
+    // Aborted ⇒ a newer run superseded us and refreshes the display, so reply nothing
+    // (main's pending reproject self-heals); a real error re-runs.
+    if (isAbortError(e) || signal.aborted) return;
+    postMessage({ type: 'reprojectStale', runId, reprojectId });
+    return;
+  }
+  if (signal.aborted) return;
+  if (out.laneKind !== 'single' || out.rows.some(rowIsRich)) {
+    postMessage({ type: 'reprojectStale', runId, reprojectId });
+    return;
+  }
+
+  const { scope } = lastFlatResult;
+  const prevVersion = lastFlatResult.version;
+  const join = new Array(out.rows.length);
+  for (let i = 0; i < out.rows.length; i++) join[i] = rowLastEntry(out.rows[i])._i;
+  lastFlatResult = deriveFlatResult(runId, join, { sort, scoreRange }, scope, stack);   // fresh join, live corpus — drops the gap-cover pin
+  lastGroupedResult = null;
+  lastTransformResult = null;
+  lastFlatResult.version = prevVersion + 1;   // keep the shared counter monotonic so a late fetchRows still drops
+  postFlatSnapshot('reprojected', runId, reprojectId);
 }
 
 // The client's latest reported viewport for the active streaming run. The
@@ -1555,6 +1604,15 @@ function pinFlatSnapshot(snapshot) {
   if (snapshot && lastFlatResult && !lastFlatResult.pinnedCorpus) lastFlatResult.pinnedCorpus = { entries: snapshot };
 }
 
+// Refresh-on-consent's per-tier fork. Flat REPATCHES (runRepatch); the pin only bridges
+// the gap until that lands — a fetchRows against the shifted positions between the splice
+// and the repatch would silently tear. Grouped/transform freeze on their object refs + chip.
+function refreshFork(structural, preSplice) {
+  const repatch = structural && !!lastFlatResult;
+  if (repatch) pinFlatSnapshot(preSplice);
+  return { repatch, stale: structural && !lastFlatResult };
+}
+
 // SYNCHRONOUS (no IDB write — main owns the data_ write of the raw text), so the
 // splice fully lands before the run main posts next; an await here would let the
 // run interleave against the un-spliced corpus and ship stale rows.
@@ -1594,10 +1652,9 @@ function handleApplyFetched({ requestId, sourceId, text, background }) {
   // be an O(n) scan over ~600k entries for output no one consumes.
   if (wasEmpty) {
     const ack = rebuildOwnedFromBuilt(ownedScope);
-    const stale = background && scopeAffected;
-    if (stale) pinFlatSnapshot(preSplice);
+    const { stale, repatch } = refreshFork(background && scopeAffected, preSplice);
     postMessage({
-      type: 'fetchApplied', requestId, applied: true, mode: 'rebuild', stale,
+      type: 'fetchApplied', requestId, applied: true, mode: 'rebuild', stale, repatch,
       axis: ack.axis, counts: ack.counts, rescoreInputs: sourceRescoreInputsFrom(ownedBuilt),
       wasEmpty: true, oldCount: 0, newCount: newEntries.length, diffId: null,
     });
@@ -1613,8 +1670,7 @@ function handleApplyFetched({ requestId, sourceId, text, background }) {
     ? rebuildOwnedFromBuilt(ownedScope)
     : applyOwnedEdit(source, diff.affectedNorms);
 
-  const stale = background && scopeAffected && (rebuild || ack.replaced);
-  if (stale) pinFlatSnapshot(preSplice);
+  const { stale, repatch } = refreshFork(background && scopeAffected && (rebuild || ack.replaced), preSplice);
 
   // Mint a diffId only for a viewable change: main frees it via its toast/dialog, so
   // a diffId with no such owner (a no-op re-import → "up to date" alert) would never
@@ -1626,7 +1682,7 @@ function handleApplyFetched({ requestId, sourceId, text, background }) {
   }
 
   postMessage({
-    type: 'fetchApplied', requestId, applied: true, mode: rebuild ? 'rebuild' : 'splice', stale,
+    type: 'fetchApplied', requestId, applied: true, mode: rebuild ? 'rebuild' : 'splice', stale, repatch,
     axis: ack.axis, counts: ack.counts, rescoreInputs: sourceRescoreInputsFrom(ownedBuilt),
     wasEmpty: false, oldCount: oldEntries.length, newCount: newEntries.length, diffId,
     added: diff.added.slice(0, DIFF_SHIP_CAP),
@@ -1846,6 +1902,13 @@ onmessage = ({ data }) => {
 
     case 'reproject':
       handleReproject(data);
+      break;
+
+    case 'repatch':
+      // Idle only: a live or queued run already recomputes everything, so the repatch is
+      // moot — drop it (main's pending reproject self-heals on its next view op). Queuing
+      // it would let it clobber, or run against, that run's shared pipeline state.
+      if (!running && !pending) { pending = data; drainRuns(); }
       break;
 
     case 'setScope':

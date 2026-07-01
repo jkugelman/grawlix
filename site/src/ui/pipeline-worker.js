@@ -189,8 +189,10 @@ export function runOnWorker(stack, sort) {
   return dispatchRun(stack, sort, scope);
 }
 
+const serializeStack = stack => stack.map(r => ({ tool: r.tool, params: r.params, grouped: r.grouped }));
+
 function dispatchRun(stack, sort, scope) {
-  const serialized = stack.map(r => ({ tool: r.tool, params: r.params, grouped: r.grouped }));
+  const serialized = serializeStack(stack);
   const runId = ++runCounter;
 
   const existsQuery = AppView.searchQuery.trim() || null;
@@ -236,6 +238,22 @@ export function reprojectPipeline(sort, scoreRange, recomputeHistogram = false) 
   return new Promise(resolve => {
     pendingReproject = { reprojectId, resolve };
     getWorker().postMessage({ type: 'reproject', runId, reprojectId, sort, scoreRange, recomputeHistogram });
+  });
+}
+
+// Re-derive a FLAT result's join over the freshly-spliced corpus (a background structural
+// auto-update), shipped as a `reprojected` snapshot for in-place ingest, no chip. Unlike
+// reprojectPipeline it re-runs the pipeline, so it carries the stack; it shares the
+// pendingReproject slot + reprojected/reprojectStale replies (so it must clear a prior one
+// first, as reprojectPipeline does), and a stale reply falls the caller back to a re-run.
+export function repatchPipeline(stack, sort, scoreRange) {
+  const runId = pendingRun?.runId ?? lastResultRunId;
+  if (runId == null || workerUnavailable) return Promise.resolve({ stale: true });
+  if (pendingReproject) { pendingReproject.resolve({ stale: false }); pendingReproject = null; }
+  const reprojectId = ++reprojectCounter;
+  return new Promise(resolve => {
+    pendingReproject = { reprojectId, resolve };
+    getWorker().postMessage({ type: 'repatch', runId, reprojectId, stack: serializeStack(stack), sort, scoreRange });
   });
 }
 
@@ -310,9 +328,14 @@ function onWorkerMessage({ data }) {
   }
   if (data.type === 'reprojected') {
     // A view re-derive for the displayed run: ingest to the scroller WITHOUT settling
-    // pendingRun or the deferred queue — a reproject is not a run. The histogram layout
-    // is invariant under a reproject, so main keeps its stashed one (no setShippedScopedLayout).
+    // pendingRun or the deferred queue — a reproject is not a run.
     const sourceById = new Map(state.sources.map(w => [w.dbKey, w]));
+    // A sort/filter reproject leaves the scoped histogram layout invariant, but a rescore
+    // or refresh-on-consent reproject re-buckets over a CHANGED corpus whose layout can
+    // gain/lose slots — adopt the shipped one (scoped runs only; merged ships null and
+    // rides the ack's axis), or the stats bar buckets fresh counts against a stale-length
+    // layout, trips its length-mismatch guard, and blanks every bar.
+    if (data.histogramLayout) setShippedScopedLayout(data.histogramLayout, state.selected?.dbKey);
     ingestReprojectToScroller({
       ...data,
       firstGroups: data.firstGroups && data.firstGroups.map(g => decodeGroup(g, sourceById)),
@@ -847,7 +870,7 @@ export function fetchWorkerMergeDisk(fileText, conflictChoice, timeout = 5000) {
 let applyFetchedRequestId = 0;
 let lastFetchAppliedMode = null;
 export function lastFetchAppliedMode$() { return lastFetchAppliedMode; }
-export function sendApplyFetched(sourceId, text, timeout = 10000) {
+export function sendApplyFetched(sourceId, text, background = false, timeout = 10000) {
   const w = getWorker();
   const requestId = ++applyFetchedRequestId;
   return new Promise(resolve => {
@@ -868,7 +891,7 @@ export function sendApplyFetched(sourceId, text, timeout = 10000) {
       resolve(data);
     }
     w.addEventListener('message', onMessage);
-    w.postMessage({ type: 'applyFetched', requestId, sourceId, text });
+    w.postMessage({ type: 'applyFetched', requestId, sourceId, text, background });
   });
 }
 
