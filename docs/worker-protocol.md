@@ -14,6 +14,16 @@ The flat scroller windows by default: it requests its visible rows from the work
 
 A worker crash respawns a fresh worker, has it rebuild the owned corpus from IDB, and re-dispatches the in-flight (and any deferred) run; after `MAX_CRASHES` it latches `workerUnavailable` and settles every run gracefully errored. There is no main-thread engine fallback — the flip left no main corpus to run against.
 
+### Streaming is authoritative — completion is bookkeeping, never a recompute
+
+**Hard rule.** When a run streams, the streamed snapshots (`partial` / `partialGroups` / `partialChains`) *are* the result. The terminal `result` message exists to do end-of-stream **bookkeeping** — flip the scroller out of its busy/streaming state, ship the final window if one is needed, and **adopt** the already-streamed order, histogram, and stats. It must **not** recompute, re-sort, re-filter, or otherwise re-derive a *streamed* result "for real."
+
+**Why this is a rule and not a nicety.** The streaming emitter and a terminal recompute are *different code paths* (incremental `mergeSortedGroups` vs. a full `sortGroups`; per-batch accumulated `histScores` vs. a full pass over `rows`). If they ever diverge, a terminal recompute silently overwrites the streamed result with the "correct" one — so a streaming bug is **masked** rather than surfaced. Adopting the streamed result instead means any such bug shows up as a visible wrong result, which is what you want: fix the streaming path, don't paper over it at the end. There must be **no observable "post-streaming state" that differs from the last streamed frame** beyond the busy indicator turning off.
+
+**The one legitimate compute-at-completion** is the **non-streamed** path: a result small/fast enough that it never streamed (`streamState.streamed === false`) has no authoritative stream to adopt, so `postResult` filters + sorts it from scratch there. That branch is fine; the streamed branch must adopt.
+
+The transform terminal follows this (adopts `lastTransformResult.chains` when `streamed`). **Known debt:** the tuple/group terminal ([`postResult`, worker.js](../site/src/engine/worker.js) `laneKind !== 'single'`) still re-filters + re-sorts + rebuilds `lastGroupedResult` unconditionally — a recompute this rule forbids (its own emitter comment proves the streamed set already byte-matches it). Closing that gap is a bug fix, not a pattern to copy.
+
 ---
 
 ## Data ownership
