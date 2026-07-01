@@ -50,12 +50,19 @@ async function stubLookupFetches(page) {
 // Navigate to the app with the given route. Defaults to the bare URL.
 // Polls until init() has finished opening the IndexedDB so callers can
 // immediately call test-API functions that persist data.
-async function gotoApp(page, route = '/') {
+async function gotoApp(page, route = '/', { seedScoreRange = true } = {}) {
   await stubLookupFetches(page);
   // Mark the visitor returning and every tool already seen, so the new-tools
   // reveal — a full-screen overlay — never fires and swallows clicks in tests.
   await page.addInitScript(() => localStorage.setItem('grawlix_returningVisitor', '1'));
   await page.addInitScript(slugs => localStorage.setItem('grawlix_seenTools', JSON.stringify(slugs)), Object.keys(TOOLS));
+  // The suite asserts against an unfiltered corpus, but new users now default to
+  // 20+, so seed the filter off. Seed only when absent: addInitScript re-runs on
+  // every navigation, so an unconditional set would clobber a range the test set
+  // and silently break reloadApp persistence. seedScoreRange:false → real default.
+  if (seedScoreRange) await page.addInitScript(() => {
+    if (localStorage.getItem('grawlix_scoreRange') === null) localStorage.setItem('grawlix_scoreRange', '');
+  });
   await page.goto(route);
   await whenBootSettled(page);
 }

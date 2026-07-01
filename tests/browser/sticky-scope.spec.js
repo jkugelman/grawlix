@@ -1,9 +1,11 @@
-// Sticky scope + global score range (unify redesign § Persistence). Both
-// ride standalone read-time-default localStorage keys — `selectedScope` and
-// `scoreRange` — outside the versioned `meta` blob, so no SCHEMA_VERSION bump
-// and no migration. These tests pin: the active scope survives a reload, the
-// score range is one global filter that stays put across scope switches, and a
-// vanished scope falls back to All Wordlists.
+// Sticky scope + global score range (unify redesign § Persistence). Both ride
+// standalone localStorage keys — `selectedScope` and `scoreRange` — outside the
+// versioned `meta` blob, so no SCHEMA_VERSION bump and no migration. `scoreRange`
+// is three-state: absent → the 20+ new-user default, '' → deliberately cleared,
+// else the stored range. These tests pin: scope survives a reload, the range is
+// one global filter that stays put across scope switches and stays cleared once
+// cleared, a brand-new visitor gets 20+, and a vanished scope falls back to All
+// Wordlists.
 
 import { test, expect } from '@playwright/test';
 import { stubPublisherFetches, gotoApp, scopeTo, scopeViaSelector } from './helpers.js';
@@ -83,6 +85,16 @@ test('clearing the range clears the global filter for every scope', async ({ pag
   await expect(rangeInput(page)).toHaveValue('');
 });
 
+test('a brand-new visitor gets the 20+ default score filter', async ({ page }) => {
+  // seedScoreRange:false leaves the key unset, exercising the real new-user
+  // default rather than the suite's unfiltered baseline.
+  await gotoApp(page, '/', { seedScoreRange: false });
+  await expect(rangeInput(page)).toHaveValue('20+');
+  // Untouched, the default isn't written — the key stays unset so the user keeps
+  // getting it, and a later clear (stored '') can still read as deliberate.
+  expect(await page.evaluate(() => localStorage.getItem('grawlix_scoreRange'))).toBeNull();
+});
+
 test('the selected scope persists across a reload', async ({ page }) => {
   await gotoApp(page);
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
@@ -135,8 +147,8 @@ test('deleting the scoped source then reloading falls back to All Wordlists', as
 });
 
 test('first run (cleared storage) lands on All Wordlists', async ({ page }) => {
-  // gotoApp seeds returningVisitor but nothing else; no selectedScope is stored,
-  // so boot must default to All Wordlists.
+  // gotoApp seeds returningVisitor and an empty scoreRange; no selectedScope is
+  // stored, so boot must default to All Wordlists.
   await gotoApp(page);
   await expect(page.locator('#wordlist-bar .wls-trigger-label')).toHaveText('All Wordlists');
   // And no selectedScope key was written until the user actually scopes.

@@ -1,7 +1,7 @@
 'use strict';
 
 import {
-  MERGED_ID, MERGED_NAME, EDITS_ICON, WORDLIST_PUBLISHERS, DEFAULT_SCORING,
+  MERGED_ID, MERGED_NAME, EDITS_ICON, WORDLIST_PUBLISHERS, DEFAULT_SCORING, DEFAULT_SCORE_RANGE,
 } from '../core/constants.js';
 import { esc, pluralize, nameFromPath } from '../core/util.js';
 import { putFetchHandle, dropFetchHandle, bumpFetchStatus } from '../data/fetch-status.js';
@@ -312,11 +312,15 @@ function restoreSelectedScope() {
   if (source) state.selected = source;
 }
 
+// null (never-set / pre-default user) and a stored '' (deliberately cleared) must
+// stay distinct: collapse them and everyone who cleared the filter silently gets
+// DEFAULT_SCORE_RANGE forced back on.
 function restoreScoreRange() {
   const stored = lsLoad('scoreRange');
-  if (typeof stored !== 'string') return '';
+  if (stored === null) return DEFAULT_SCORE_RANGE;
   const trimmed = stored.trim();
-  return (trimmed && parseRange(trimmed) !== null) ? trimmed : '';
+  if (trimmed === '') return '';
+  return parseRange(trimmed) !== null ? trimmed : DEFAULT_SCORE_RANGE;
 }
 
 // ─── My Edits helpers ─────────────────────────────────────────────────────────

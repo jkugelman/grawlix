@@ -4,7 +4,7 @@
 
 import { MERGED_ID } from '../core/constants.js';
 import { parseRange } from '../engine/range.js';
-import { lsSave, lsDel } from '../data/storage.js';
+import { lsSave } from '../data/storage.js';
 import { ToolStack } from './tool-stack.js';
 import { repositionAllHistogramRects } from './histogram-view.js';
 import { reconcileSort, chainSortTier, DEFAULT_SORT_BY_TIER } from './entries-table.js';
@@ -46,9 +46,10 @@ export const AppView = (() => {
     repositionAllHistogramRects();
   }
 
+  // Stores '' too (not lsDel on blank): absence means "apply the default", so a
+  // cleared filter must persist explicitly or reload re-applies it. See restoreScoreRange.
   function persistScoreRange() {
-    if (_scoreRange) lsSave('scoreRange', _scoreRange);
-    else             lsDel('scoreRange');
+    lsSave('scoreRange', _scoreRange);
   }
   // Canonical sort write. No filter call here — the scroller re-applies sort
   // itself; this just holds the source of truth the getters and URL read.
