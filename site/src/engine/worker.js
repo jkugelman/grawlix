@@ -248,11 +248,15 @@ async function runOne({ runId, stack: serialized, sort, scope, existsQuery, scor
 
   let out;
   const streamState = { streamed: false };
+  // The view spec is a MUTABLE object shared with the retained result: a mid-stream
+  // `reproject` mutates it in place, and the emitter re-reads it each batch, so a
+  // sort/filter change re-derives the view without re-running the join.
+  const viewSpec = { sort, scoreRange };
   try {
     const { tier } = streamPlan(stack);
-    const emit = tier === 'flat' ? makeStreamEmitter(runId, sort, scope, scoreRange, stack, signal, streamState)
-      : tier === 'tuple' ? makeTupleStreamEmitter(runId, sort, scope, scoreRange, stack, signal, streamState)
-      : tier === 'transform' ? makeTransformStreamEmitter(runId, sort, scope, scoreRange, stack, signal, streamState)
+    const emit = tier === 'flat' ? makeStreamEmitter(runId, viewSpec, scope, stack, signal, streamState)
+      : tier === 'tuple' ? makeTupleStreamEmitter(runId, viewSpec, scope, stack, signal, streamState)
+      : tier === 'transform' ? makeTransformStreamEmitter(runId, viewSpec, scope, stack, signal, streamState)
       : null;
     out = await executePipeline(ownedCorpus, stack, signal, emit);
   } catch (e) {
@@ -262,7 +266,7 @@ async function runOne({ runId, stack: serialized, sort, scope, existsQuery, scor
   }
   if (signal.aborted) return;
 
-  postResult(runId, out, sort, scope, stack, existsQuery, scoreRange, rebindQuery, streamState.streamed);
+  postResult(runId, out, viewSpec, scope, stack, existsQuery, rebindQuery, streamState.streamed);
 }
 
 // The client's latest reported viewport for the active streaming run. The
@@ -283,65 +287,93 @@ function streamWindow(runId, total, defaultSize) {
   return { lo: 0, hi: Math.min(defaultSize, total) };
 }
 
-// Each batch merges into lastFlatResult's running SORTED array and posts a
-// versioned snapshot. The version is load-bearing: the client drops a fetched
-// window whose snapshot the order has moved past, so a mid-stream scroll can't
-// paint a torn mixed-snapshot view. Summaries are CUMULATIVE, not per-batch
-// deltas: main keeps no resident scores, so a delta it can't accumulate would
-// leave the stats/histogram stale.
-function makeStreamEmitter(runId, sort, scope, scoreRange, stack, signal, streamState) {
-  const intervals = scoreRange ? parseRange(scoreRange) : null;
+// Reading `viewSpec` per batch (not captured constants) is what lets a mid-stream
+// reproject change the sort/filter. `version` is load-bearing: the client drops a
+// fetched window the order has moved past, else a mid-stream scroll paints a torn
+// mixed-snapshot view. Summaries are CUMULATIVE — main keeps no resident scores, so a
+// per-batch delta it can't accumulate would leave the stats/histogram stale.
+function makeStreamEmitter(runId, viewSpec, scope, stack, signal, streamState) {
   const widthAcc = makeWidthHintAcc();
-  const cmp = flatComparator(sort, ownedCorpus);
-  const familySort = isFamilySort(sort);
-  const histScores = [];   // every produced score, unfiltered → histogram distribution
-  const statScores = [];   // in-range survivors → stats readouts
-  let version = 0;
+  const join = [];         // every produced _i, unfiltered — the retained join
   return batchRows => {
     if (signal.aborted) return;
+    const intervals = viewSpec.scoreRange ? parseRange(viewSpec.scoreRange) : null;
+    const cmp = flatComparator(viewSpec.sort, ownedCorpus);
     const batchIdx = [];
     for (const row of batchRows) {
       const e = rowLastEntry(row);
-      histScores.push(e.score);
+      join.push(e._i);
       if (intervals && !matchesRange(e.score, intervals)) continue;
       batchIdx.push(e._i);
-      statScores.push(e.score);
       widthAcc.add(e);
     }
-    if (batchIdx.length === 0) return;
+    if (batchIdx.length === 0) return;   // join grew but nothing in-range — no snapshot (join.push already ran)
 
     batchIdx.sort(cmp);
     const batchIndices = Int32Array.from(batchIdx);
 
     if (!streamState.streamed) {
       streamState.streamed = true;
-      lastFlatResult = { runId, version: 0, indices: batchIndices, scope, highlighters: compileFlatHighlighters(stack), familySort };
+      lastFlatResult = { runId, version: 0, indices: batchIndices, join, scope, viewSpec, highlighters: compileFlatHighlighters(stack), familySort: isFamilySort(viewSpec.sort) };
       lastGroupedResult = null;
       lastTransformResult = null;
     } else {
       lastFlatResult.indices = mergeSortedIndices(lastFlatResult.indices, batchIndices, cmp);
     }
-    lastFlatResult.version = ++version;
+    lastFlatResult.version++;   // one monotonic counter shared with reproject, so a mid-stream reproject can't collide the version a fetch drops on
+    lastFlatResult.familySort = isFamilySort(viewSpec.sort);
+    lastFlatResult.histogram = flatHistogram(join, scope);
+    lastFlatResult.widthHints = widthAcc.hints();
+    lastFlatResult.stats = flatViewStats(lastFlatResult.indices);
 
-    const total = lastFlatResult.indices.length;
-    const { lo, hi } = streamWindow(runId, total, FIRST_WINDOW);
-    const firstRows = buildFlatRows(lo, hi);
-
-    let histogramCounts, histogramLayout = null;
-    if (scope === MERGED_ID) {
-      histogramCounts = bucketCounts(histScores, ownedAllSourcesAxis);
-    } else {
-      histogramLayout = getHistogramLayout(ownedCorpus.entries, 'scoped:' + scope);
-      histogramCounts = bucketCounts(histScores, histogramLayout);
-    }
-
-    postMessage({
-      type: 'partial', runId, version, total, windowStart: lo, firstRows,
-      widthHints: widthAcc.hints(),
-      stats: computeStatsRaw(statScores),
-      histogramCounts, histogramLayout, filtered: !!intervals,
-    });
+    postFlatSnapshot('partial', runId);
   };
+}
+
+// Shared by the streaming `partial` and the reprojected snapshot so the two can't drift.
+function postFlatSnapshot(type, runId, reprojectId) {
+  const r = lastFlatResult;
+  const { lo, hi } = streamWindow(runId, r.indices.length, FIRST_WINDOW);
+  postMessage({
+    type, runId, reprojectId, version: r.version, total: r.indices.length, windowStart: lo,
+    firstRows: buildFlatRows(lo, hi),
+    widthHints: r.widthHints,
+    stats: r.stats,
+    histogramCounts: r.histogram.counts, histogramLayout: r.histogram.layout,
+    filtered: !!(r.viewSpec.scoreRange && parseRange(r.viewSpec.scoreRange)),
+  });
+}
+
+// The join is UNFILTERED, which is what lets a widening filter re-admit rows the
+// narrower view had dropped — filter the join itself and widening can't recover them.
+function flatViewIndices(join, viewSpec) {
+  const intervals = viewSpec.scoreRange ? parseRange(viewSpec.scoreRange) : null;
+  const entries = ownedCorpus.entries;
+  const arr = [];
+  for (const i of join) {
+    if (intervals && !matchesRange(entries[i].score, intervals)) continue;
+    arr.push(i);
+  }
+  arr.sort(flatComparator(viewSpec.sort, ownedCorpus));
+  return Int32Array.from(arr);
+}
+
+// Histogram over the UNFILTERED join scores (out-of-range bars stay clickable), so
+// it is invariant under a sort/filter reproject — only a join change moves it.
+function flatHistogram(join, scope) {
+  const entries = ownedCorpus.entries;
+  const scores = new Int32Array(join.length);
+  for (let i = 0; i < join.length; i++) scores[i] = entries[join[i]].score;
+  if (scope === MERGED_ID) return { counts: bucketCounts(scores, ownedAllSourcesAxis), layout: null };
+  const layout = getHistogramLayout(entries, 'scoped:' + scope);
+  return { counts: bucketCounts(scores, layout), layout };
+}
+
+function flatViewStats(view) {
+  const entries = ownedCorpus.entries;
+  const scores = new Int32Array(view.length);
+  for (let i = 0; i < view.length; i++) scores[i] = entries[view[i]].score;
+  return computeStatsRaw(scores);
 }
 
 function mergeSortedIndices(a, b, cmp) {
@@ -353,81 +385,67 @@ function mergeSortedIndices(a, b, cmp) {
   return out;
 }
 
-// The grouped-tier sibling of makeStreamEmitter: the tuple producer streams batches of
-// tuple groups, which merge into a running SORTED filtered list posted as
-// `partialGroups` snapshots. The comparator is TOTAL (groupRowComparator's g.key
-// tiebreak) so the incremental merge equals the terminal sortGroups — completion
-// adopts the same order with no reshuffle. The per-batch score-range filter reuses
-// applyScoreRangeToRows so the streamed set byte-matches the terminal's filtered
-// set (its per-group rule is batch-order independent).
-function makeTupleStreamEmitter(runId, sort, scope, scoreRange, stack, signal, streamState) {
-  const intervals = scoreRange ? parseRange(scoreRange) : null;
-  const cmp = groupRowComparator(sort, stack);
-  const histScores = [];   // every lane's score, unfiltered — the histogram distribution
-  const statScores = [];   // surviving tuples' lane scores — the stats readouts
-  let version = 0;
+// The grouped-tier sibling of makeStreamEmitter. The g.key tiebreak makes the
+// incremental merge a total order equal to a from-scratch sortGroups, so completion
+// adopts it. Reads `viewSpec` per batch so a mid-stream reproject re-sorts/re-filters.
+function makeTupleStreamEmitter(runId, viewSpec, scope, stack, signal, streamState) {
+  const join = [];   // every produced tuple group, unfiltered — the retained join
   return batchGroups => {
     if (signal.aborted) return;
-    for (const g of batchGroups) for (const c of g.chains) histScores.push(rowLastEntry(c).score);
+    const intervals = viewSpec.scoreRange ? parseRange(viewSpec.scoreRange) : null;
+    const cmp = groupRowComparator(viewSpec.sort, stack);
+    // Stats on EVERY join group, not just the visible ones: groupSummaries reads
+    // _count off the unfiltered join for its width hints.
+    for (const g of batchGroups) { cacheGroupStats(g); join.push(g); }
 
     const visible = intervals ? applyScoreRangeToRows(batchGroups, intervals, 'record') : batchGroups;
-    if (visible.length === 0) return;   // all out of range this batch — no snapshot change
-    if (!intervals) for (const g of visible) cacheGroupStats(g);
-    for (const g of visible) for (const c of g.chains) statScores.push(rowLastEntry(c).score);
+    if (visible.length === 0) return;   // join grew but no in-range tuple — no view change
 
     const sortedBatch = cmp ? [...visible].sort(cmp) : visible;
     if (!streamState.streamed) {
       streamState.streamed = true;
       lastFlatResult = null;
       lastTransformResult = null;
-      lastGroupedResult = { runId, groups: sortedBatch, scope, version: 0 };
+      lastGroupedResult = { runId, version: 0, groups: sortedBatch, join, scope, viewSpec, stack, laneKind: 'record', summaries: null };
     } else {
       lastGroupedResult.groups = cmp
         ? mergeSortedGroups(lastGroupedResult.groups, sortedBatch, cmp)
         : lastGroupedResult.groups.concat(sortedBatch);
     }
-    lastGroupedResult.version = ++version;
-
-    const groups = lastGroupedResult.groups;
-    const { lo, hi } = streamWindow(runId, groups.length, GROUP_ROW_WINDOW);
-    let histogramCounts, histogramLayout = null;
-    if (scope === MERGED_ID) {
-      histogramCounts = bucketCounts(histScores, ownedAllSourcesAxis);
-    } else {
-      histogramLayout = getHistogramLayout(ownedCorpus.entries, 'scoped:' + scope);
-      histogramCounts = bucketCounts(histScores, histogramLayout);
-    }
-
-    postMessage({
-      type: 'partialGroups', runId, version,
-      laneKind: 'record', atomCount: currentAtomCount(stack),
-      total: groups.length, chainCount: statScores.length,
-      windowStart: lo,
-      firstGroups: groups.slice(lo, hi).map(encodeGroup),
-      groupWidthHints: computeGroupWidthHints(groups, stack),
-      stats: computeStatsRaw(statScores),
-      histogramCounts, histogramLayout, filtered: !!intervals,
-    });
+    lastGroupedResult.version++;
+    lastGroupedResult.summaries = groupSummaries(join, lastGroupedResult.groups, scope, stack, !!intervals);
+    postGroupSnapshot('partialGroups', runId);
   };
 }
 
-// The transform tier's stream emitter (sibling of makeTupleStreamEmitter). It folds
-// mirror pairs online so the painted set never snaps smaller. Two non-obvious calls:
-// it keeps the first-arrived direction (promoting only the glyph) rather than swapping
-// to the lexicographically-smaller survivor — a swap would move the row and force a
-// reposition; the smaller direction is settled at completion when postResult
-// re-derives from the executor's unify'd rows. And it rebuilds the atoms array for the
-// ↔ promotion rather than mutating atom objects, which are shared with the batch the
-// executor's terminal unify still reads — an in-place mutation would corrupt it.
-function makeTransformStreamEmitter(runId, sort, scope, scoreRange, stack, signal, streamState) {
-  const intervals = scoreRange ? parseRange(scoreRange) : null;
-  const cmp = chainRowComparator(sort, stack);
-  const chainOk = chain => rowAtoms(chain).every(a => matchesRange(a.wlEntry.score, intervals));
-  const seen = new Map();   // fwd-key → survivor row (every direction, for mirror detection)
-  let arr = [];             // sorted, in-range survivors — shipped + retained as lastTransformResult
-  let version = 0;
+// Shared by the streaming `partialGroups` and the reprojected snapshot so the two
+// can't drift; the version is the retained result's, monotonic across both.
+function postGroupSnapshot(type, runId, reprojectId) {
+  const r = lastGroupedResult;
+  const { lo, hi } = streamWindow(runId, r.groups.length, GROUP_ROW_WINDOW);
+  postMessage({
+    type, runId, reprojectId, version: r.version,
+    laneKind: r.laneKind, atomCount: currentAtomCount(r.stack),
+    total: r.groups.length, windowStart: lo,
+    firstGroups: r.groups.slice(lo, hi).map(encodeGroup),
+    ...r.summaries,
+  });
+}
+
+// The transform tier's stream emitter (sibling of makeTupleStreamEmitter), folding
+// mirror pairs online into `seen` — the retained UNFILTERED join. It keeps the
+// first-arrived direction (only promoting the glyph): the corpus emits in norm order,
+// so the lower-norm-join direction arrives first and is the canonical survivor. It
+// rebuilds the atoms array for the ↔ promotion rather than mutating atoms the
+// executor's terminal unify still reads — in-place mutation would corrupt them. Reads
+// `viewSpec` per batch so a mid-stream reproject re-sorts/re-filters.
+function makeTransformStreamEmitter(runId, viewSpec, scope, stack, signal, streamState) {
+  const seen = new Map();   // fwd-key → survivor row (every direction) — the retained join
   return batchRows => {
     if (signal.aborted) return;
+    const intervals = viewSpec.scoreRange ? parseRange(viewSpec.scoreRange) : null;
+    const cmp = chainRowComparator(viewSpec.sort, stack);
+    const chainOk = chain => rowAtoms(chain).every(a => matchesRange(a.wlEntry.score, intervals));
     const newInRange = [];
     for (const raw of batchRows) {
       const row = { atoms: collapseRepeatAtoms(raw.atoms), matched: raw.matched };
@@ -451,27 +469,81 @@ function makeTransformStreamEmitter(runId, sort, scope, scoreRange, stack, signa
         if (!intervals || chainOk(row)) newInRange.push(row);
       }
     }
-    if (newInRange.length) {
-      newInRange.sort(cmp);
-      arr = mergeSortedGroups(arr, newInRange, cmp);
-    }
     if (!streamState.streamed) {
       streamState.streamed = true;
       lastFlatResult = null;
       lastGroupedResult = null;
+      lastTransformResult = { runId, version: 0, chains: [], join: seen, scope, viewSpec, stack, summaries: null };
     }
-    lastTransformResult = { runId, chains: arr, scope, version: ++version };
-
-    const all = [...seen.values()];
-    const { lo, hi } = streamWindow(runId, arr.length, FIRST_WINDOW);
-    postMessage({
-      type: 'partialChains', runId, version,
-      laneKind: 'single', atomCount: currentAtomCount(stack),
-      total: arr.length, windowStart: lo,
-      firstChains: arr.slice(lo, hi).map(encodeChain),
-      ...transformSummaries(all, arr, scope, !!intervals),
-    });
+    if (newInRange.length) {
+      newInRange.sort(cmp);
+      lastTransformResult.chains = mergeSortedGroups(lastTransformResult.chains, newInRange, cmp);
+    }
+    lastTransformResult.version++;
+    lastTransformResult.summaries = transformSummaries([...seen.values()], lastTransformResult.chains, scope, !!intervals);
+    postTransformSnapshot('partialChains', runId);
   };
+}
+
+// Shared by the streaming `partialChains` and the reprojected snapshot so the two
+// can't drift; the version is the retained result's, monotonic across both.
+function postTransformSnapshot(type, runId, reprojectId) {
+  const r = lastTransformResult;
+  const { lo, hi } = streamWindow(runId, r.chains.length, FIRST_WINDOW);
+  postMessage({
+    type, runId, reprojectId, version: r.version,
+    laneKind: 'single', atomCount: currentAtomCount(r.stack),
+    total: r.chains.length, windowStart: lo,
+    firstChains: r.chains.slice(lo, hi).map(encodeChain),
+    ...r.summaries,
+  });
+}
+
+// A view-only change (sort / score-range) re-derives the view over the RETAINED join,
+// never re-running the pipeline. Same freshness discipline as fetchRows: a scope/config
+// change since the run makes the retained rows name the wrong entries, so reply
+// `reprojectStale` and let main re-run. Otherwise mutate the shared viewSpec IN PLACE —
+// a still-streaming emitter reads it next batch — and re-derive in place, keeping `join`
+// growing (a fresh object would strand rows produced after the reproject).
+function handleReproject({ runId, reprojectId, sort, scoreRange }) {
+  const r = lastFlatResult || lastGroupedResult || lastTransformResult;
+  if (!r || r.runId !== runId || !ownedCorpus || !ownedCorpusFresh || ownedScope !== r.scope) {
+    postMessage({ type: 'reprojectStale', runId, reprojectId });
+    return;
+  }
+  r.viewSpec.sort = sort;
+  r.viewSpec.scoreRange = scoreRange;
+  if (r === lastFlatResult) reprojectFlat(r, reprojectId);
+  else if (r === lastGroupedResult) reprojectGroup(r, reprojectId);
+  else reprojectTransform(r, reprojectId);
+}
+
+function reprojectFlat(r, reprojectId) {
+  r.indices = flatViewIndices(r.join, r.viewSpec);
+  r.familySort = isFamilySort(r.viewSpec.sort);
+  r.stats = flatViewStats(r.indices);
+  r.widthHints = computeWidthHints(r.indices, ownedCorpus);
+  r.version++;   // histogram is invariant under sort/filter — deliberately not recomputed
+  postFlatSnapshot('reprojected', r.runId, reprojectId);
+}
+
+function reprojectGroup(r, reprojectId) {
+  const intervals = r.viewSpec.scoreRange ? parseRange(r.viewSpec.scoreRange) : null;
+  const view = intervals ? applyScoreRangeToRows(r.join, intervals, r.laneKind) : r.join;
+  r.groups = sortGroups(view, r.viewSpec.sort, r.stack);
+  r.summaries = groupSummaries(r.join, r.groups, r.scope, r.stack, !!intervals);
+  r.version++;
+  postGroupSnapshot('reprojected', r.runId, reprojectId);
+}
+
+function reprojectTransform(r, reprojectId) {
+  const intervals = r.viewSpec.scoreRange ? parseRange(r.viewSpec.scoreRange) : null;
+  const rows = transformJoinRows(r.join);
+  const view = intervals ? applyScoreRangeToRows(rows, intervals, 'single') : rows;
+  r.chains = sortChainRows(view, r.viewSpec.sort, r.stack);
+  r.summaries = transformSummaries(rows, r.chains, r.scope, !!intervals);
+  r.version++;
+  postTransformSnapshot('reprojected', r.runId, reprojectId);
 }
 
 function mergeSortedGroups(a, b, cmp) {
@@ -493,57 +565,42 @@ function stackRowIndex(stack, e) {
 // same word; a rich row (glyph, distinct norms, or a synthetic) would silently
 // lose data through it, so any rich row forces the atom-sequence encoding for the
 // whole result.
-function postResult(runId, { rows, atomCount, laneKind, capped }, sort, scope, stack, existsQuery, scoreRange, rebindQuery, streamed) {
+function postResult(runId, { rows, atomCount, laneKind, capped }, viewSpec, scope, stack, existsQuery, rebindQuery, streamed) {
   const base = { type: 'result', runId, laneKind, atomCount, capped: !!capped, ranAgainstOwned: true };
 
   if (laneKind !== 'single') {
     lastFlatResult = null;
     lastTransformResult = null;
-    const intervals = scoreRange ? parseRange(scoreRange) : null;
-    // Filter BEFORE the group sort so the group axes read each group's post-filter
-    // _minScore/count; the unfiltered `rows` still feeds the histogram + width hints
-    // (the full distribution, so out-of-range bars stay clickable).
-    const visible = intervals ? applyScoreRangeToRows(rows, intervals, laneKind) : rows;
-    const sorted = sortGroups(visible, sort, stack);
-    lastGroupedResult = { runId, groups: sorted, scope, version: 0 };
-    // Only the first window of group ROWS ships inline (main fetches later windows
-    // via fetchGroups). The shipped array length is NOT the group count — main must
-    // size from groupSummaries' groupCount, or it shows only the window and silently
-    // drops every later group.
-    postMessage({
-      ...base,
-      payload: {
-        groups: sorted.slice(0, GROUP_ROW_WINDOW).map(g => encodeGroup(g)),
-        ...groupSummaries(rows, sorted, scope, stack, !!intervals),
-      },
-    });
+    if (streamed) {
+      // Adopt, don't re-derive: the emitter merged with a total comparator, so a
+      // recompute here could only mask a streaming bug (worker-protocol.md forbids it).
+      lastGroupedResult.version++;
+    } else {
+      lastGroupedResult = deriveGroupResult(runId, rows, viewSpec, scope, stack, laneKind);
+    }
+    const r = lastGroupedResult;
+    // The shipped length is NOT the group count — main sizes from summaries, else it
+    // silently drops every group past the inline window.
+    postMessage({ ...base, payload: { groups: r.groups.slice(0, GROUP_ROW_WINDOW).map(encodeGroup), ...r.summaries } });
     return;
   }
+
   if (rows.some(rowIsRich)) {
     lastFlatResult = null;
     lastGroupedResult = null;
-    const intervals = scoreRange ? parseRange(scoreRange) : null;
-    // A streamed run already holds the exact-final chains in lastTransformResult:
-    // each mirror folds online to the same canonical survivor unify would pick (the
-    // corpus emits in norm order, so the lower-norm-join direction always arrives
-    // first), merged by the same total comparator. Adopt them — completion is
-    // bookkeeping, not a recompute. A non-streamed run filters then sorts from
-    // scratch. transformSummaries gets the UNFILTERED rows so the histogram keeps
-    // out-of-range bars clickable; `sorted` (filtered) drives the stats.
-    let sorted;
     if (streamed) {
-      sorted = lastTransformResult.chains;
+      lastTransformResult.join = transformJoinRows(lastTransformResult.join);   // freeze the seen Map
+      lastTransformResult.version++;
     } else {
-      const visible = intervals ? applyScoreRangeToRows(rows, intervals, 'single') : rows;
-      sorted = sortChainRows(visible, sort, stack);
+      lastTransformResult = deriveTransformResult(runId, rows, viewSpec, scope, stack);
     }
-    lastTransformResult = { runId, chains: sorted, scope, version: (streamed ? lastTransformResult.version : 0) + 1 };
+    const r = lastTransformResult;
     postMessage({
       ...base,
       payload: {
-        firstChains: sorted.slice(0, FIRST_WINDOW).map(encodeChain),
-        chainCount: sorted.length,
-        ...transformSummaries(rows, sorted, scope, !!intervals),
+        firstChains: r.chains.slice(0, FIRST_WINDOW).map(encodeChain),
+        chainCount: r.chains.length,
+        ...r.summaries,
         ...resolveRebindExists(existsQuery, rebindQuery),
         rebindQuery: rebindQuery || null,
       },
@@ -551,72 +608,67 @@ function postResult(runId, { rows, atomCount, laneKind, capped }, sort, scope, s
     return;
   }
 
-  const intervals = scoreRange ? parseRange(scoreRange) : null;
-  const doFilter = !!intervals;
-
-  // Histogram over the UNFILTERED distribution (every produced row), so
-  // out-of-range bars stay clickable. A scoped run bins against its own layout —
-  // the merged axis would mis-bin a scoped distribution.
-  const allScores = new Int32Array(rows.length);
-  for (let i = 0; i < rows.length; i++) allScores[i] = rowLastEntry(rows[i]).score;
-  let histogramCounts = null, histogramLayout = null;
-  if (scope === MERGED_ID) {
-    histogramCounts = bucketCounts(allScores, ownedAllSourcesAxis);
-  } else {
-    histogramLayout = getHistogramLayout(ownedCorpus.entries, 'scoped:' + scope);
-    histogramCounts = bucketCounts(allScores, histogramLayout);
-  }
-
-  // A streamed run already holds the final survivor set in lastFlatResult: sorted
-  // incrementally in the emitter (total comparator → identical to a from-scratch
-  // sort) and filtered per batch. Adopt it so completion shows the exact order the
-  // stream painted. A non-streamed run builds, sorts, then filters here.
-  let indices, scores;
   if (streamed) {
-    indices = lastFlatResult.indices;
-    scores = new Int32Array(indices.length);
-    for (let i = 0; i < indices.length; i++) scores[i] = ownedCorpus.entries[indices[i]].score;
+    lastFlatResult.version++;
   } else {
-    const n = rows.length;
-    indices = new Int32Array(n);
-    for (let i = 0; i < n; i++) indices[i] = rowLastEntry(rows[i])._i;
-    sortFlatIndices(indices, sort, ownedCorpus);
-    scores = new Int32Array(n);
-    for (let i = 0; i < n; i++) scores[i] = ownedCorpus.entries[indices[i]].score;
-    if (doFilter) {
-      const idxOut = [], scoreOut = [];
-      for (let i = 0; i < n; i++) {
-        if (matchesRange(scores[i], intervals)) { idxOut.push(indices[i]); scoreOut.push(scores[i]); }
-      }
-      indices = Int32Array.from(idxOut);
-      scores = Int32Array.from(scoreOut);
-    }
+    const join = new Array(rows.length);
+    for (let i = 0; i < rows.length; i++) join[i] = rowLastEntry(rows[i])._i;
+    lastFlatResult = deriveFlatResult(runId, join, viewSpec, scope, stack);
   }
-
-  const widthHints = computeWidthHints(indices, ownedCorpus);
-
-  lastFlatResult = {
-    runId,
-    version: (streamed ? lastFlatResult.version : 0) + 1,
-    indices,
-    scope,
-    highlighters: compileFlatHighlighters(stack),
-    familySort: isFamilySort(sort),
-  };
   lastGroupedResult = null;
   lastTransformResult = null;
-
-  const stats = computeStatsRaw(scores);
+  const r = lastFlatResult;
   const { existsInScope, rebindEntry, rebindExists } = resolveRebindExists(existsQuery, rebindQuery);
+  postMessage({ ...base, payload: {
+    count: r.indices.length, widthHints: r.widthHints, stats: r.stats,
+    histogramCounts: r.histogram.counts, histogramLayout: r.histogram.layout,
+    existsInScope, rebindQuery: rebindQuery || null, rebindEntry, rebindExists,
+    filtered: !!(viewSpec.scoreRange && parseRange(viewSpec.scoreRange)),
+    firstRows: buildFlatRows(0, Math.min(FIRST_WINDOW, r.indices.length)),
+  } });
+}
 
-  // Ship the first window's rich rows inline so main paints above-the-fold rows
-  // instantly instead of flashing skeletons until a fetchRows round-trip lands.
-  // Built from the just-set lastFlatResult; the scroller seeds _winCache from it.
-  const firstRows = buildFlatRows(0, Math.min(FIRST_WINDOW, indices.length));
+// Shared by the non-streamed terminal and reproject so a re-derived flat result is
+// structurally identical to a streamed one (else the two paths silently drift).
+function deriveFlatResult(runId, join, viewSpec, scope, stack) {
+  const indices = flatViewIndices(join, viewSpec);
+  return {
+    runId, version: 1, indices, join, scope, viewSpec,
+    highlighters: compileFlatHighlighters(stack), familySort: isFamilySort(viewSpec.sort),
+    histogram: flatHistogram(join, scope), stats: flatViewStats(indices),
+    widthHints: computeWidthHints(indices, ownedCorpus),
+  };
+}
 
-  postMessage(
-    { ...base, payload: { count: indices.length, widthHints, stats, histogramCounts, histogramLayout, existsInScope, rebindQuery: rebindQuery || null, rebindEntry, rebindExists, filtered: doFilter, firstRows } },
-  );
+function deriveGroupResult(runId, join, viewSpec, scope, stack, laneKind) {
+  const intervals = viewSpec.scoreRange ? parseRange(viewSpec.scoreRange) : null;
+  // Filter with the RESULT's laneKind: a record (tuple) drops out-of-range rows whole
+  // (never trims a positional lane), a set trims cluster members. Filter BEFORE the
+  // sort so the group axes read post-filter _minScore/count; groupSummaries bins the
+  // histogram over the unfiltered join, stats over the view.
+  const view = intervals ? applyScoreRangeToRows(join, intervals, laneKind) : join;
+  const groups = sortGroups(view, viewSpec.sort, stack);
+  return {
+    runId, version: 0, groups, join, scope, viewSpec, stack, laneKind,
+    summaries: groupSummaries(join, groups, scope, stack, !!intervals),
+  };
+}
+
+function deriveTransformResult(runId, join, viewSpec, scope, stack) {
+  const intervals = viewSpec.scoreRange ? parseRange(viewSpec.scoreRange) : null;
+  const rows = transformJoinRows(join);
+  const view = intervals ? applyScoreRangeToRows(rows, intervals, 'single') : rows;
+  const chains = sortChainRows(view, viewSpec.sort, stack);
+  return {
+    runId, version: 1, chains, join: rows, scope, viewSpec, stack,
+    summaries: transformSummaries(rows, chains, scope, !!intervals),
+  };
+}
+
+// The transform join is the emitter's `seen` Map mid-stream, an array once frozen; a
+// caller must not assume one shape.
+function transformJoinRows(join) {
+  return join instanceof Map ? [...join.values()] : join;
 }
 
 // The above-the-fold window shipped inline with every flat result. Generous
@@ -928,13 +980,6 @@ function flatComparator(sort, runCorpus) {
     }
     return ia - ib;
   };
-}
-
-function sortFlatIndices(indices, sort, runCorpus) {
-  const cmp = flatComparator(sort, runCorpus);
-  const arr = Array.from(indices);
-  arr.sort(cmp);
-  indices.set(arr);
 }
 
 function isFamilySort(sort) {
@@ -1790,6 +1835,10 @@ onmessage = ({ data }) => {
 
     case 'viewport':
       pendingViewport = data;
+      break;
+
+    case 'reproject':
+      handleReproject(data);
       break;
 
     case 'setScope':

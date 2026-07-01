@@ -12,7 +12,7 @@ import { setShippedAllSourcesAxis, setShippedScopedLayout } from '../data/derive
 import { setShippedConfigCounts, setShippedRescoreInputs } from '../data/merge.js';
 import { MERGED_ID } from '../core/constants.js';
 import { AppView, activeScoreRange } from './app-view.js';
-import { entryPanelRebindQuery, streamFlatBatchToScroller, streamGroupBatchToScroller, streamTransformBatchToScroller } from './entries-table.js';
+import { entryPanelRebindQuery, streamFlatBatchToScroller, streamGroupBatchToScroller, streamTransformBatchToScroller, ingestReprojectToScroller } from './entries-table.js';
 
 let workerBaseURL = null;
 let worker = null;
@@ -220,6 +220,25 @@ function drainDeferred() {
   dispatchRun(stack, sort, scope).then(resolve);
 }
 
+let reprojectCounter = 0;
+let pendingReproject = null;   // { reprojectId, resolve } for the latest in-flight reproject
+
+// A sort / score-range change re-derives the view over the worker's RETAINED join for
+// the currently-displayed run — no re-run. Resolves { stale } so the caller re-runs when
+// the worker no longer holds that run fresh (a scope/config change since). reprojectId
+// disambiguates rapid reprojects, which all target the same displayed runId.
+export function reprojectPipeline(sort, scoreRange) {
+  const runId = pendingRun?.runId ?? lastResultRunId;
+  if (runId == null || workerUnavailable) return Promise.resolve({ stale: true });
+  if (pendingRun) pendingRun.sort = sort;   // a crash re-dispatch must use the current sort
+  if (pendingReproject) { pendingReproject.resolve({ stale: false }); pendingReproject = null; }
+  const reprojectId = ++reprojectCounter;
+  return new Promise(resolve => {
+    pendingReproject = { reprojectId, resolve };
+    getWorker().postMessage({ type: 'reproject', runId, reprojectId, sort, scoreRange });
+  });
+}
+
 function onWorkerMessage({ data }) {
   if (!data) return;
   if (data.type === 'selfReady') { handleSelfReady(data); return; }
@@ -287,6 +306,23 @@ function onWorkerMessage({ data }) {
       histogramLayout: data.histogramLayout ?? null,
       filtered: !!data.filtered,
     });
+    return;
+  }
+  if (data.type === 'reprojected') {
+    // A view re-derive for the displayed run: ingest to the scroller WITHOUT settling
+    // pendingRun or the deferred queue — a reproject is not a run. The histogram layout
+    // is invariant under a reproject, so main keeps its stashed one (no setShippedScopedLayout).
+    const sourceById = new Map(state.sources.map(w => [w.dbKey, w]));
+    ingestReprojectToScroller({
+      ...data,
+      firstGroups: data.firstGroups && data.firstGroups.map(g => decodeGroup(g, sourceById)),
+      firstChains: data.firstChains && data.firstChains.map(c => decodeChain(c, sourceById)),
+    });
+    if (pendingReproject?.reprojectId === data.reprojectId) { pendingReproject.resolve({ stale: false }); pendingReproject = null; }
+    return;
+  }
+  if (data.type === 'reprojectStale') {
+    if (pendingReproject?.reprojectId === data.reprojectId) { pendingReproject.resolve({ stale: true }); pendingReproject = null; }
     return;
   }
   if (data.type === 'result') {

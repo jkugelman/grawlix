@@ -1,11 +1,11 @@
 import { test, expect } from '@playwright/test';
 import { stubPublisherFetches, gotoApp } from './helpers.js';
 
-// A key-stable My Edits edit (score/comment, no variant reshape) landing while a
-// tuple search (Umiaq) streams must RIDE the in-flight run, not restart it: the
-// worker splices the corpus in place, so the live run already reflects the new
-// score and tuple completion re-sorts from scratch. The discriminator is the runId
-// — a restart supersedes with a fresh one. See refreshAfterEdit + mergedStreamingTuple.
+// A key-stable My Edits edit (score/comment, no variant reshape) leaves the displayed
+// result's retained join valid, so it REPROJECTS — the worker re-derives the view with
+// the spliced-in-place score, no re-run — whether the run is mid-stream or settled. The
+// discriminator is the runId: a reproject never advances it; a re-run supersedes with a
+// fresh one. See refreshAfterEdit.
 
 test.beforeEach(async ({ page }) => {
   await stubPublisherFetches(page);
@@ -72,10 +72,10 @@ test('a key-stable rescore mid-stream rides the tuple run instead of restarting 
   expect(out.abcdeScore).toBe(7);                    // the in-place splice took (live getters carry it)
 });
 
-// Counterpart: the same key-stable edit AFTER the stream settles takes the ordinary
-// re-run path (no in-flight run to ride), so the runId advances. Guards that the
-// suppression is gated on streaming, not always-on.
-test('a key-stable rescore after the stream settles re-runs (advances the runId)', async ({ page }) => {
+// Counterpart: the same key-stable edit AFTER the stream settles REPROJECTS the retained
+// join (re-derives the view with the new score) rather than re-running, so the runId is
+// unchanged and the spliced score shows. Guards that a set-preserving edit never re-joins.
+test('a key-stable rescore after the stream settles reprojects (runId unchanged)', async ({ page }) => {
   await gotoApp(page);
   await seedHeavyMerge(page);
 
@@ -86,6 +86,12 @@ test('a key-stable rescore after the stream settles re-runs (advances the runId)
   await page.evaluate(() => window.__grawlixTest.rescoreFrom({ norm: 'abcde', display: 'ABCDE' }, 9));
   await page.evaluate(() => window.__grawlixTest.pipelineIdle());
   const after = await page.evaluate(() => window.__grawlixTest.lastCompletedRunId());
+  const abcdeScore = await page.evaluate(async () => {
+    const dump = await window.__grawlixTest.dumpWorkerCorpus('__merged__');
+    const e = dump.entries.find(x => x[0] === 'abcde');
+    return e ? e[2] : null;
+  });
 
-  expect(after).toBeGreaterThan(before);             // settled → ordinary re-run, not a ride
+  expect(after).toBe(before);     // settled → reproject, not a re-run: the runId is unchanged
+  expect(abcdeScore).toBe(9);     // the spliced score took (the reproject re-derives with it)
 });

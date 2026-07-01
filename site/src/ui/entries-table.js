@@ -41,7 +41,7 @@ import { getDraftRescoreRules } from './rescore-editor.js';
 import { buildTrashIconHTML, positionPopover } from './components.js';
 import { LookupSection } from './lookup.js';
 import {
-  getEntriesScroller, rescorePreviewActive, refreshMergedScroller, setScope,
+  getEntriesScroller, rescorePreviewActive, refreshMergedScroller, reprojectMergedScroller, setScope,
 } from './rendering.js';
 import { fetchWorkerRows, fetchWorkerGroups, fetchWorkerGroupChains, fetchWorkerAllRows, fetchWorkerAllGroups, fetchWorkerTransformRows, fetchWorkerAllTransformRows, lastCompletedRunId, fetchWorkerEditSeed, fetchWorkerFamily, fetchWorkerProvenance, fetchWorkerEditPlan, sendViewport } from './pipeline-worker.js';
 
@@ -133,6 +133,10 @@ export function streamGroupBatchToScroller(batch) {
 
 export function streamTransformBatchToScroller(batch) {
   getEntriesScroller()?.appendTransformStreamBatch(batch);
+}
+
+export function ingestReprojectToScroller(batch) {
+  getEntriesScroller()?.ingestReproject(batch);
 }
 
 // ─── Input helpers ────────────────────────────────────────────────────────────
@@ -1035,6 +1039,60 @@ export class EntriesScroller extends BaseVirtualScroller {
     else this._scheduleStreamStatsRefresh();
   }
 
+  // Mid-stream a reprojected snapshot rides the continuing-batch path (same runId → the
+  // append's `fresh` guard stays false). Settled it must NOT flow through _ingestResult —
+  // that clears the stream scalars and strobes skeletons — so refresh the view in place.
+  ingestReproject(batch) {
+    if (batch.runId !== this._currentStreamRunId()) return;
+    const tier = batch.firstRows !== undefined ? 'flat'
+      : batch.firstGroups !== undefined ? 'grouped' : 'transform';
+    if (this._streamRunId === batch.runId) {
+      if (tier === 'flat') this.appendStreamBatch(batch);
+      else if (tier === 'grouped') this.appendGroupStreamBatch(batch);
+      else this.appendTransformStreamBatch(batch);
+      return;
+    }
+    this._ingestReprojectSettled(tier, batch);
+  }
+
+  // The order moved but the runId didn't, so the cache's runId-keyed staleness check
+  // won't fire; clear + re-seed here or stale-order rows persist. _sortAndRender then
+  // re-fetches the rest of the visible window at the new order.
+  _ingestReprojectSettled(tier, batch) {
+    this._workerStats = batch.stats ?? null;
+    this._workerHistogramCounts = batch.histogramCounts ?? null;
+    this._workerFiltered = !!batch.filtered;
+    const windowStart = batch.windowStart ?? 0;
+    if (tier === 'flat') {
+      this._workerFlatCount = batch.total ?? 0;
+      this._widthHints = batch.widthHints;
+      this._firstRows = batch.firstRows ?? null;
+      this._winCache.clear();
+      if (batch.firstRows?.length) {
+        const sourceById = new Map(state.sources.map(w => [w.dbKey, w]));
+        batch.firstRows.forEach((row, k) => this._winCache.set(windowStart + k, this._richRowToChain(row, sourceById)));
+      }
+      this._winCacheRunId = batch.runId;
+    } else if (tier === 'grouped') {
+      this._workerGroupCount = batch.total ?? 0;
+      this._workerChainCount = batch.chainCount ?? null;
+      this._workerGroupWidthHints = batch.groupWidthHints ?? null;
+      this._firstGroups = batch.firstGroups ?? null;
+      this._groupWinCache.clear();
+      (batch.firstGroups ?? []).forEach((g, i) => this._groupWinCache.set(windowStart + i, g));
+      this._groupWinCacheRunId = batch.runId;
+    } else {
+      this._workerChainCount = batch.total ?? 0;
+      this._widthHints = batch.widthHints;
+      this._firstChains = batch.firstChains ?? null;
+      this._winCache.clear();
+      (batch.firstChains ?? []).forEach((row, k) => this._winCache.set(windowStart + k, row));
+      this._winCacheRunId = batch.runId;
+    }
+    this._invalidateSortCache();
+    this._sortAndRender();
+  }
+
   _panel() {
     return this.host.closest('#entries-table-panel');
   }
@@ -1148,16 +1206,16 @@ export class EntriesScroller extends BaseVirtualScroller {
     return tierChanged;
   }
 
-  // Every tier arrives pre-sorted + pre-filtered from the worker, so a sort-axis or
-  // score-range change re-runs the pipeline rather than reordering locally — main
-  // holds no comparator that would reproduce the worker's order.
+  // Sort and score-range are VIEW ops: the worker re-derives the view over its retained
+  // join (reprojectMergedScroller) rather than re-running the join. Main holds no
+  // comparator to reorder locally, so the reprojected snapshot ships the new window.
   setScoreRange(range) {
     const next = range || '';
     if (next === this.scoreRange) return;
     this.scoreRange = next;
     this._scoreIntervals = next ? parseRange(next) : null;
     this._invalidateSortCache();
-    refreshMergedScroller();
+    reprojectMergedScroller();
   }
 
   _invalidateSortCache() {
@@ -1172,7 +1230,7 @@ export class EntriesScroller extends BaseVirtualScroller {
     AppView.setSortList(list);
     this.sortList = AppView.sortList;
     rebuildEntryHeaders();
-    refreshMergedScroller();
+    reprojectMergedScroller();
     _navigate();
   }
 

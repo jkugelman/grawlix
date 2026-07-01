@@ -21,7 +21,7 @@ import {
 import { scopedHistogramLayout } from '../data/derived.js';
 import { scoreColor } from '../model/score-display.js';
 import { PopupHelp } from './components.js';
-import { AppView, scopeKey } from './app-view.js';
+import { AppView, scopeKey, activeScoreRange } from './app-view.js';
 import {
   EntriesScroller, EntryPanel, GroupMorePopover,
   reconcileSort, chainSortTier,
@@ -31,7 +31,7 @@ import { ToolStack, runPipeline } from './tool-stack.js';
 import { repositionAllHistogramRects } from './histogram-view.js';
 import { WordlistSelector } from './scope-selector.js';
 import { DiscoveryBanner } from './discovery-banner.js';
-import { sendWorkerScope, resyncWorkerConfig } from './pipeline-worker.js';
+import { sendWorkerScope, resyncWorkerConfig, reprojectPipeline } from './pipeline-worker.js';
 
 let _refreshDerivedDisplays    = () => {};
 let _deleteFromEdits           = () => {};
@@ -252,13 +252,18 @@ export async function refreshMergedScroller() {
   entriesScroller.updateEntries(result, result.atomCount, chainSortTier(stack));
 }
 
-// Tuple-only, not any streaming run: tuple completion re-sorts from the worker's
-// live corpus, so a key-stable edit's new scores land in order. Flat/transform adopt
-// the streamed result instead, so riding one of those would strand a stale order.
-export function mergedStreamingTuple() {
-  return !!entriesScroller && entriesScroller.isStreaming()
-    && streamPlan(ToolStack.getStack()).tier === 'tuple';
+// A sort / score-range change is a VIEW change: re-derive the view over the worker's
+// retained join (no re-join). reconcileSort first so an invalid sort key for the tier
+// isn't sent. Falls back to a full re-run only when the worker no longer holds the
+// displayed run fresh (reprojectStale — a scope/config change since it settled).
+export async function reprojectMergedScroller() {
+  const stack = ToolStack.getStack();
+  reconcileSort(stack);
+  if (!entriesScroller) return;
+  const { stale } = await reprojectPipeline(currentSort(), activeScoreRange() || null);
+  if (stale) refreshMergedScroller();
 }
+
 
 // The pre-search and histogram caches assume one corpus, so a scope change
 // must drop both before the pipeline re-runs — otherwise the prior scope's

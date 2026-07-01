@@ -70,7 +70,7 @@ import { buildRulesListHTML, renderScoringRules } from '../ui/rescore-editor.js'
 import { WordlistSelector, buildWordlistNameHTML } from '../ui/scope-selector.js';
 import {
   getEntriesScroller, setScope, renderAll, renderSources, renderMergedDetail,
-  refreshMergedScroller, mergedStreamingTuple, repaintAfterConfigChange, firstPaint,
+  refreshMergedScroller, reprojectMergedScroller, repaintAfterConfigChange, firstPaint,
 } from '../ui/rendering.js';
 import {
   syncWorkerConfig, resyncWorkerConfig,
@@ -518,17 +518,14 @@ async function planForSave(args) {
   return fetchWorkerEditPlan(args);
 }
 
-// A key-stable edit (ack.replaced === false) under a streaming tuple run rides the
-// in-flight run instead of re-running it: the corpus was spliced in place, so the
-// run already reflects it. The post-ack re-check is load-bearing, not belt-and-
-// suspenders — the worker posts `result` before the editAck (FIFO), so a run that
-// finished in the gap reads not-streaming here and re-runs; drop the re-check and a
-// tail-of-stream edit silently strands on a pre-splice result.
+// A set-preserving edit (replaced === false) keeps the retained join valid — the corpus
+// was spliced in place — so a reproject re-derives the view with the new scores, no
+// re-join, any tier, mid-stream. A structural edit (replaced) shifts the join → re-run.
+// Riding the ack (not pre-edit state) reprojects even a run that settled in the FIFO gap.
 function refreshAfterEdit(refreshFn, ackPromise) {
   if (!refreshFn) return;
-  if (!mergedStreamingTuple()) { refreshFn(); return; }
   ackPromise.then(ack => {
-    if (ack?.replaced === false && mergedStreamingTuple()) return;
+    if (ack?.replaced === false) { reprojectMergedScroller(); return; }
     refreshFn();
   });
 }

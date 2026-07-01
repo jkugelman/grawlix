@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { stubPublisherFetches, gotoApp, scopeTo } from './helpers.js';
+import { stubPublisherFetches, gotoApp, scopeTo, expectVisible } from './helpers.js';
 
 test.beforeEach(async ({ page }) => {
   await stubPublisherFetches(page);
@@ -376,6 +376,55 @@ test('the trash score setting drives the downscore amount', async ({ page }) => 
   await page.locator('#entry-panel-entry').fill('ocean');
   await page.locator('#entry-panel .entry-panel-save').click();
   await expect.poll(() => page.evaluate(() => window.__grawlixTest.getMergedEntry('oceam').then(e => e?.score))).toBe(7);
+});
+
+// ─── In-place rescore refresh ────────────────────────────────────────────────
+
+const runId = page => page.evaluate(() => window.__grawlixTest.lastCompletedRunId());
+
+// seedScoreRange:false keeps the real 20+ default filter — the actual default
+// view, where an in-range rescore must still patch (not re-run).
+test('a merged-view rescore under the default filter repaints in place, no re-run', async ({ page }) => {
+  await gotoApp(page, '/', { seedScoreRange: false });
+  await addList(page, { name: 'W', entries: ['alpha', 'bravo', 'charlie'], scores: [30, 50, 80] });
+  await scopeTo(page, 'All Wordlists');
+  const bravoScore = page.locator('.entry-row[data-entry="bravo"] .atom-score');
+  await expect(bravoScore).toHaveText('50');
+
+  const before = await runId(page);
+  await openPanelOnEntry(page, 'bravo');
+  await page.locator('#entry-panel-score').fill('80');
+  await page.locator('#entry-panel .entry-panel-save').click();
+
+  await expect(bravoScore).toHaveText('80');
+  expect(await runId(page)).toBe(before);
+});
+
+test('a rescore that crosses the filter threshold re-runs and drops the row', async ({ page }) => {
+  await gotoApp(page, '/', { seedScoreRange: false });
+  await addList(page, { name: 'W', entries: ['alpha', 'bravo', 'charlie'], scores: [50, 50, 50] });
+  await scopeTo(page, 'All Wordlists');
+  await expectVisible(page, ['alpha', 'bravo', 'charlie']);
+
+  await openPanelOnEntry(page, 'alpha');
+  await page.locator('#entry-panel-score').fill('10');
+  await page.locator('#entry-panel .entry-panel-save').click();
+
+  await expectVisible(page, ['bravo', 'charlie']);
+});
+
+test('a rescore under a score sort re-runs so the row re-orders', async ({ page }) => {
+  await gotoApp(page);
+  await addList(page, { name: 'W', entries: ['alpha', 'bravo', 'charlie'], scores: [20, 50, 80] });
+  await scopeTo(page, 'All Wordlists');
+  await page.evaluate(() => window.__grawlixTest.applySort('score', 'asc'));
+  await expectVisible(page, ['alpha', 'bravo', 'charlie'], { ordered: true });
+
+  await openPanelOnEntry(page, 'alpha');
+  await page.locator('#entry-panel-score').fill('99');
+  await page.locator('#entry-panel .entry-panel-save').click();
+
+  await expectVisible(page, ['bravo', 'charlie', 'alpha'], { ordered: true });
 });
 
 // ─── Dismissal & the misclick guard ─────────────────────────────────────────────
