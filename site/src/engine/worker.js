@@ -1237,7 +1237,6 @@ function recomputeScopedBucket(norm, source) {
 // pre-search cache (its chains hold those objects) only while it stays false.
 function spliceOwnedCorpus(cache, affectedNorms, bucketFn) {
   const { entries, byNorm, byKey, sourceCounts } = cache;
-  const patched = [];
   const countDelta = new Map();
   let replaced = false;
   for (const norm of affectedNorms) {
@@ -1273,8 +1272,6 @@ function spliceOwnedCorpus(cache, affectedNorms, bucketFn) {
       for (const r of rows) byKey.set(mergeKey(norm, r.display), r);
       if (rows.length) byNorm.set(norm, canonicalNormRow(rows)); else byNorm.delete(norm);
     }
-
-    patched.push({ norm, rows: rows.map(r => ({ norm: r.norm, display: r.display, score: r.score })) });
   }
   for (const [wl, d] of countDelta) {
     if (!d) continue;
@@ -1282,21 +1279,7 @@ function spliceOwnedCorpus(cache, affectedNorms, bucketFn) {
     if (sc) sc.count += d;
     else sourceCounts.push({ wordlist: wl, count: d });
   }
-  return { patched, replaced };
-}
-
-function leanRowFor(norm, display) {
-  if (!(ownedMerged && ownedMerged.byKey)) return null;
-  const row = ownedMerged.byKey.get(mergeKey(norm, display));
-  if (!row) return null;
-  const out = {
-    norm: row.norm, display: row.display ?? null, score: row.score,
-    rawScore: row.rawScore, comment: row.comment || '', sourceId: row.wordlist.dbKey,
-  };
-  // Only when ownedCorpus IS ownedMerged (MERGED scope): a scoped ownedCorpus
-  // restamped `_i` for its own rows, leaving these merged rows' `_i` stale.
-  if (ownedCorpus === ownedMerged) out.index = row._i;
-  return out;
+  return replaced;
 }
 
 // Spliced rows key against the last full build's vocab; an edit's own new tokens
@@ -1309,18 +1292,17 @@ function withFamilies(bucket, vocab) {
 // The affected norms are re-merged from ALL sources (computeMergedBucket over
 // ownedBuilt), not just `source` — narrowing to the changed source would silently
 // drop a higher-priority list's winner for a norm `source` no longer touches.
-function applyOwnedEdit(source, affectedNorms, edited) {
+function applyOwnedEdit(source, affectedNorms) {
   // computeMergedBucket (not the rawScore-carrying scoped variant): the merged
   // corpus drops rawScore on every entry (a full buildCorpus merge would too), so
   // the in-place splice must drop it to stay byte-identical to a rebuild.
-  const merged = spliceOwnedCorpus(ownedMerged, affectedNorms, norm => withFamilies(computeMergedBucket(norm, ownedBuilt), ownedMerged.vocab));
-  let replaced = merged.replaced;
+  let replaced = spliceOwnedCorpus(ownedMerged, affectedNorms, norm => withFamilies(computeMergedBucket(norm, ownedBuilt), ownedMerged.vocab));
 
   // For MERGED scope ownedCorpus === ownedMerged (spliced above). Scoped to this
   // source it's a distinct single-source build — diverge from that and the scoped
   // view drifts from a rebuild with no error.
   if (ownedScope === source.dbKey && ownedCorpus !== ownedMerged) {
-    replaced = spliceOwnedCorpus(ownedCorpus, affectedNorms, norm => withFamilies(recomputeScopedBucket(norm, source), ownedCorpus.vocab)).replaced || replaced;
+    replaced = spliceOwnedCorpus(ownedCorpus, affectedNorms, norm => withFamilies(recomputeScopedBucket(norm, source), ownedCorpus.vocab)) || replaced;
   }
 
   // Both gate on a row-OBJECT swap. A replacing splice shifts later indices (so
@@ -1353,7 +1335,7 @@ function applyOwnedEdit(source, affectedNorms, edited) {
   // `replaced` looks redundant with its local use above, but main also reads it off
   // the editAck to ride a streaming tuple run through a key-stable edit (replaced
   // false) instead of restarting it — prune it from the return and that silently breaks.
-  return { norms: merged.patched, edited, replaced, axis: ownedAllSourcesAxis, counts };
+  return { replaced, axis: ownedAllSourcesAxis, counts };
 }
 
 // The worker owns the My Edits IDB write (main holds no rawEntries to serialize
@@ -1385,7 +1367,7 @@ async function handleEditEntry(data) {
   const edits = editsWordlist();
   // Reply even when there's nothing to splice, else the bridge's await hangs.
   if (!ownedCorpusReady(edits)) {
-    postMessage({ type: 'editAck', editId, norms: [], edited: null, axis: ownedAllSourcesAxis, counts: null });
+    postMessage({ type: 'editAck', editId, axis: ownedAllSourcesAxis, counts: null });
     return;
   }
   ensureOwnedCorpus();
@@ -1394,8 +1376,7 @@ async function handleEditEntry(data) {
   invalidateRescoredCacheFor(edits);
 
   const affected = [...new Set([...(writes.deletes || []), ...(writes.upserts || [])].map(w => w.norm))];
-  const primary = writes.primary;
-  const ack = applyOwnedEdit(edits, affected, leanRowFor(primary.norm, primary.display));
+  const ack = applyOwnedEdit(edits, affected);
   postMessage({ type: 'editAck', editId, ...ack });
   await persistEditsCorpus(edits);
   // Bump AGAIN after the IDB write so a syncConfig that read the pre-write text
@@ -1409,7 +1390,7 @@ async function handleDeleteEntry(data) {
   latestSyncToken++;
   const edits = editsWordlist();
   if (!ownedCorpusReady(edits)) {
-    postMessage({ type: 'editAck', editId, norms: [], edited: null, axis: ownedAllSourcesAxis, counts: null });
+    postMessage({ type: 'editAck', editId, axis: ownedAllSourcesAxis, counts: null });
     return;
   }
 
@@ -1419,13 +1400,13 @@ async function handleDeleteEntry(data) {
   // array index would misindex (the worker owns its rawEntries order).
   const idx = edits.rawEntries.findIndex(e => e.norm === norm && displayOf(e) === display);
   if (idx === -1) {
-    postMessage({ type: 'editAck', editId, norms: [], edited: null, axis: ownedAllSourcesAxis, counts: null });
+    postMessage({ type: 'editAck', editId, axis: ownedAllSourcesAxis, counts: null });
     return;
   }
   edits.rawEntries.splice(idx, 1);
   invalidateRescoredCacheFor(edits);
 
-  const ack = applyOwnedEdit(edits, [norm], null);
+  const ack = applyOwnedEdit(edits, [norm]);
   postMessage({ type: 'editAck', editId, ...ack });
   await persistEditsCorpus(edits);
   latestSyncToken++;   // post-write bump — see handleEditEntry
