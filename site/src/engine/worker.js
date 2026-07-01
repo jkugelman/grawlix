@@ -324,7 +324,7 @@ function makeStreamEmitter(runId, viewSpec, scope, stack, signal, streamState) {
     lastFlatResult.familySort = isFamilySort(viewSpec.sort);
     lastFlatResult.histogram = flatHistogram(join, scope);
     lastFlatResult.widthHints = widthAcc.hints();
-    lastFlatResult.stats = flatViewStats(lastFlatResult.indices);
+    lastFlatResult.stats = flatViewStats(lastFlatResult.indices, ownedCorpus);
 
     postFlatSnapshot('partial', runId);
   };
@@ -344,17 +344,23 @@ function postFlatSnapshot(type, runId, reprojectId) {
   });
 }
 
+// Resolve against a pinned result's frozen snapshot, not live `ownedCorpus`: inlining
+// this to `ownedCorpus` would silently tear a pin once a background splice shifts positions.
+function corpusFor(r) {
+  return r?.pinnedCorpus ?? ownedCorpus;
+}
+
 // The join is UNFILTERED, which is what lets a widening filter re-admit rows the
 // narrower view had dropped — filter the join itself and widening can't recover them.
-function flatViewIndices(join, viewSpec) {
+function flatViewIndices(join, viewSpec, corpus) {
   const intervals = viewSpec.scoreRange ? parseRange(viewSpec.scoreRange) : null;
-  const entries = ownedCorpus.entries;
+  const entries = corpus.entries;
   const arr = [];
   for (const i of join) {
     if (intervals && !matchesRange(entries[i].score, intervals)) continue;
     arr.push(i);
   }
-  arr.sort(flatComparator(viewSpec.sort, ownedCorpus));
+  arr.sort(flatComparator(viewSpec.sort, corpus));
   return Int32Array.from(arr);
 }
 
@@ -369,8 +375,8 @@ function flatHistogram(join, scope) {
   return { counts: bucketCounts(scores, layout), layout };
 }
 
-function flatViewStats(view) {
-  const entries = ownedCorpus.entries;
+function flatViewStats(view, corpus) {
+  const entries = corpus.entries;
   const scores = new Int32Array(view.length);
   for (let i = 0; i < view.length; i++) scores[i] = entries[view[i]].score;
   return computeStatsRaw(scores);
@@ -519,10 +525,11 @@ function handleReproject({ runId, reprojectId, sort, scoreRange }) {
 }
 
 function reprojectFlat(r, reprojectId) {
-  r.indices = flatViewIndices(r.join, r.viewSpec);
+  const corpus = corpusFor(r);
+  r.indices = flatViewIndices(r.join, r.viewSpec, corpus);
   r.familySort = isFamilySort(r.viewSpec.sort);
-  r.stats = flatViewStats(r.indices);
-  r.widthHints = computeWidthHints(r.indices, ownedCorpus);
+  r.stats = flatViewStats(r.indices, corpus);
+  r.widthHints = computeWidthHints(r.indices, corpus);
   r.version++;   // histogram is invariant under sort/filter — deliberately not recomputed
   postFlatSnapshot('reprojected', r.runId, reprojectId);
 }
@@ -631,11 +638,11 @@ function postResult(runId, { rows, atomCount, laneKind, capped }, viewSpec, scop
 // Shared by the non-streamed terminal and reproject so a re-derived flat result is
 // structurally identical to a streamed one (else the two paths silently drift).
 function deriveFlatResult(runId, join, viewSpec, scope, stack) {
-  const indices = flatViewIndices(join, viewSpec);
+  const indices = flatViewIndices(join, viewSpec, ownedCorpus);
   return {
     runId, version: 1, indices, join, scope, viewSpec,
     highlighters: compileFlatHighlighters(stack), familySort: isFamilySort(viewSpec.sort),
-    histogram: flatHistogram(join, scope), stats: flatViewStats(indices),
+    histogram: flatHistogram(join, scope), stats: flatViewStats(indices, ownedCorpus),
     widthHints: computeWidthHints(indices, ownedCorpus),
   };
 }
@@ -690,7 +697,7 @@ function shipContributors(e) {
 // upstream (fetchResultFresh) rather than shipping un-decodable indices here.
 function buildFlatRows(lo, hi) {
   const { indices, highlighters, familySort } = lastFlatResult;
-  const entries = ownedCorpus.entries;
+  const entries = corpusFor(lastFlatResult).entries;
   const rows = [];
   for (let i = lo; i < hi; i++) {
     const e = entries[indices[i]];
@@ -1541,10 +1548,14 @@ function diffForFetch(oldEntries, newEntries) {
   };
 }
 
+function pinFlatSnapshot(snapshot) {
+  if (snapshot && lastFlatResult && !lastFlatResult.pinnedCorpus) lastFlatResult.pinnedCorpus = { entries: snapshot };
+}
+
 // SYNCHRONOUS (no IDB write — main owns the data_ write of the raw text), so the
 // splice fully lands before the run main posts next; an await here would let the
 // run interleave against the un-spliced corpus and ship stale rows.
-function handleApplyFetched({ requestId, sourceId, text }) {
+function handleApplyFetched({ requestId, sourceId, text, background }) {
   // Edit-race harden (as editEntry): an older in-flight syncConfig build, reading
   // pre-fetch IDB text, must discard via its commit guard rather than clobber this.
   latestSyncToken++;
@@ -1555,6 +1566,13 @@ function handleApplyFetched({ requestId, sourceId, text }) {
     postMessage({ type: 'fetchApplied', requestId, applied: false });
     return;
   }
+
+  // refresh-on-consent: snapshot the flat result's backing array BEFORE the splice
+  // shifts positions (a later slice would capture the shifted array → silent tear).
+  // Flat pins by position; grouped/transform hold object refs and freeze on their own.
+  const displayed = lastFlatResult || lastGroupedResult || lastTransformResult;
+  const scopeAffected = !!displayed && (displayed.scope === MERGED_ID || displayed.scope === sourceId);
+  const preSplice = background && scopeAffected && lastFlatResult ? ownedCorpus.entries.slice() : null;
 
   // Materialize the OLD raw entries (transient views over the current store) before
   // rebuilding — the diff reads them while the new store is built.
@@ -1573,8 +1591,10 @@ function handleApplyFetched({ requestId, sourceId, text }) {
   // be an O(n) scan over ~600k entries for output no one consumes.
   if (wasEmpty) {
     const ack = rebuildOwnedFromBuilt(ownedScope);
+    const stale = background && scopeAffected;
+    if (stale) pinFlatSnapshot(preSplice);
     postMessage({
-      type: 'fetchApplied', requestId, applied: true, mode: 'rebuild',
+      type: 'fetchApplied', requestId, applied: true, mode: 'rebuild', stale,
       axis: ack.axis, counts: ack.counts, rescoreInputs: sourceRescoreInputsFrom(ownedBuilt),
       wasEmpty: true, oldCount: 0, newCount: newEntries.length, diffId: null,
     });
@@ -1588,7 +1608,10 @@ function handleApplyFetched({ requestId, sourceId, text }) {
   const rebuild = (diff.addedCount + diff.deletedCount) > ADD_DELETE_REBUILD_CAP;
   const ack = rebuild
     ? rebuildOwnedFromBuilt(ownedScope)
-    : applyOwnedEdit(source, diff.affectedNorms, null);
+    : applyOwnedEdit(source, diff.affectedNorms);
+
+  const stale = background && scopeAffected && (rebuild || ack.replaced);
+  if (stale) pinFlatSnapshot(preSplice);
 
   // Mint a diffId only for a viewable change: main frees it via its toast/dialog, so
   // a diffId with no such owner (a no-op re-import → "up to date" alert) would never
@@ -1600,7 +1623,7 @@ function handleApplyFetched({ requestId, sourceId, text }) {
   }
 
   postMessage({
-    type: 'fetchApplied', requestId, applied: true, mode: rebuild ? 'rebuild' : 'splice',
+    type: 'fetchApplied', requestId, applied: true, mode: rebuild ? 'rebuild' : 'splice', stale,
     axis: ack.axis, counts: ack.counts, rescoreInputs: sourceRescoreInputsFrom(ownedBuilt),
     wasEmpty: false, oldCount: oldEntries.length, newCount: newEntries.length, diffId,
     added: diff.added.slice(0, DIFF_SHIP_CAP),
