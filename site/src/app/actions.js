@@ -525,7 +525,7 @@ async function planForSave(args) {
 function refreshAfterEdit(refreshFn, ackPromise) {
   if (!refreshFn) return;
   ackPromise.then(ack => {
-    if (ack?.replaced === false) { reprojectMergedScroller(); return; }
+    if (ack?.replaced === false) { reprojectMergedScroller(true); return; }
     refreshFn();
   });
 }

@@ -227,7 +227,7 @@ let pendingReproject = null;   // { reprojectId, resolve } for the latest in-fli
 // the currently-displayed run — no re-run. Resolves { stale } so the caller re-runs when
 // the worker no longer holds that run fresh (a scope/config change since). reprojectId
 // disambiguates rapid reprojects, which all target the same displayed runId.
-export function reprojectPipeline(sort, scoreRange) {
+export function reprojectPipeline(sort, scoreRange, recomputeHistogram = false) {
   const runId = pendingRun?.runId ?? lastResultRunId;
   if (runId == null || workerUnavailable) return Promise.resolve({ stale: true });
   if (pendingRun) pendingRun.sort = sort;   // a crash re-dispatch must use the current sort
@@ -235,7 +235,7 @@ export function reprojectPipeline(sort, scoreRange) {
   const reprojectId = ++reprojectCounter;
   return new Promise(resolve => {
     pendingReproject = { reprojectId, resolve };
-    getWorker().postMessage({ type: 'reproject', runId, reprojectId, sort, scoreRange });
+    getWorker().postMessage({ type: 'reproject', runId, reprojectId, sort, scoreRange, recomputeHistogram });
   });
 }
 

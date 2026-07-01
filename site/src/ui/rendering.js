@@ -256,11 +256,11 @@ export async function refreshMergedScroller() {
 // retained join (no re-join). reconcileSort first so an invalid sort key for the tier
 // isn't sent. Falls back to a full re-run only when the worker no longer holds the
 // displayed run fresh (reprojectStale — a scope/config change since it settled).
-export async function reprojectMergedScroller() {
+export async function reprojectMergedScroller(recomputeHistogram = false) {
   const stack = ToolStack.getStack();
   reconcileSort(stack);
   if (!entriesScroller) return;
-  const { stale } = await reprojectPipeline(currentSort(), activeScoreRange() || null);
+  const { stale } = await reprojectPipeline(currentSort(), activeScoreRange() || null, recomputeHistogram);
   if (stale) refreshMergedScroller();
 }
 

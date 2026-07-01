@@ -61,6 +61,29 @@ test('a settled score-range change reprojects (runId unchanged) and refilters th
   expect(filtered.every(s => s >= 60 && s <= 80)).toBe(true);   // only in-range survive
 });
 
+// A set-preserving rescore reprojects (no re-join), and the flat histogram must re-bucket
+// over the new scores — before the fix it kept the run's histogram and silently lagged.
+test('a set-preserving rescore re-buckets the flat histogram (no lag)', async ({ page }) => {
+  await gotoApp(page);
+  await seedCorpus(page);                                                  // Big: scores 10..69
+  await page.evaluate(() => window.__grawlixTest.createMyEntry('WZZZZ', 40));   // a My Edits entry to rescore
+  const runId = await runFlat(page);
+
+  const before = await page.evaluate(() => window.__grawlixTest.resultHistogramCounts());
+  await page.evaluate(() => window.__grawlixTest.rescoreFrom({ norm: 'WZZZZ', display: 'WZZZZ' }, 12));
+  await page.waitForFunction(
+    b => { const c = window.__grawlixTest.resultHistogramCounts(); return c && JSON.stringify(c) !== b; },
+    JSON.stringify(before), { timeout: 3000 });
+
+  const after = await page.evaluate(() => window.__grawlixTest.resultHistogramCounts());
+  const runIdAfter = await page.evaluate(() => window.__grawlixTest.lastCompletedRunId());
+  const sum = a => a.reduce((s, x) => s + x, 0);
+
+  expect(runIdAfter).toBe(runId);         // reprojected, not re-run
+  expect(sum(after)).toBe(sum(before));   // set-preserving: total unchanged
+  expect(after).not.toEqual(before);      // the moved score re-bucketed
+});
+
 // The sharpest case: changing the filter WHILE a slow tuple join (Umiaq) streams must not
 // restart the join — the reproject re-derives the view mid-stream and the run streams on.
 test('a score-range change mid-stream reprojects, not restarts (one run, no new partials)', async ({ page }) => {

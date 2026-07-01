@@ -322,7 +322,7 @@ function makeStreamEmitter(runId, viewSpec, scope, stack, signal, streamState) {
     }
     lastFlatResult.version++;   // one monotonic counter shared with reproject, so a mid-stream reproject can't collide the version a fetch drops on
     lastFlatResult.familySort = isFamilySort(viewSpec.sort);
-    lastFlatResult.histogram = flatHistogram(join, scope);
+    lastFlatResult.histogram = flatHistogram(join, scope, ownedCorpus);
     lastFlatResult.widthHints = widthAcc.hints();
     lastFlatResult.stats = flatViewStats(lastFlatResult.indices, ownedCorpus);
 
@@ -366,8 +366,8 @@ function flatViewIndices(join, viewSpec, corpus) {
 
 // Histogram over the UNFILTERED join scores (out-of-range bars stay clickable), so
 // it is invariant under a sort/filter reproject — only a join change moves it.
-function flatHistogram(join, scope) {
-  const entries = ownedCorpus.entries;
+function flatHistogram(join, scope, corpus) {
+  const entries = corpus.entries;
   const scores = new Int32Array(join.length);
   for (let i = 0; i < join.length; i++) scores[i] = entries[join[i]].score;
   if (scope === MERGED_ID) return { counts: bucketCounts(scores, ownedAllSourcesAxis), layout: null };
@@ -511,7 +511,7 @@ function postTransformSnapshot(type, runId, reprojectId) {
 // `reprojectStale` and let main re-run. Otherwise mutate the shared viewSpec IN PLACE —
 // a still-streaming emitter reads it next batch — and re-derive in place, keeping `join`
 // growing (a fresh object would strand rows produced after the reproject).
-function handleReproject({ runId, reprojectId, sort, scoreRange }) {
+function handleReproject({ runId, reprojectId, sort, scoreRange, recomputeHistogram }) {
   const r = lastFlatResult || lastGroupedResult || lastTransformResult;
   if (!r || r.runId !== runId || !ownedCorpus || !ownedCorpusFresh || ownedScope !== r.scope) {
     postMessage({ type: 'reprojectStale', runId, reprojectId });
@@ -519,18 +519,21 @@ function handleReproject({ runId, reprojectId, sort, scoreRange }) {
   }
   r.viewSpec.sort = sort;
   r.viewSpec.scoreRange = scoreRange;
-  if (r === lastFlatResult) reprojectFlat(r, reprojectId);
+  if (r === lastFlatResult) reprojectFlat(r, reprojectId, recomputeHistogram);
   else if (r === lastGroupedResult) reprojectGroup(r, reprojectId);
   else reprojectTransform(r, reprojectId);
 }
 
-function reprojectFlat(r, reprojectId) {
+// A rescore reproject changes the join's scores, so recompute or the flat histogram
+// silently lags the edit; sort/filter leave it (invariant over the unfiltered join).
+function reprojectFlat(r, reprojectId, recomputeHistogram) {
   const corpus = corpusFor(r);
   r.indices = flatViewIndices(r.join, r.viewSpec, corpus);
   r.familySort = isFamilySort(r.viewSpec.sort);
   r.stats = flatViewStats(r.indices, corpus);
   r.widthHints = computeWidthHints(r.indices, corpus);
-  r.version++;   // histogram is invariant under sort/filter — deliberately not recomputed
+  if (recomputeHistogram) r.histogram = flatHistogram(r.join, r.scope, corpus);
+  r.version++;
   postFlatSnapshot('reprojected', r.runId, reprojectId);
 }
 
@@ -642,7 +645,7 @@ function deriveFlatResult(runId, join, viewSpec, scope, stack) {
   return {
     runId, version: 1, indices, join, scope, viewSpec,
     highlighters: compileFlatHighlighters(stack), familySort: isFamilySort(viewSpec.sort),
-    histogram: flatHistogram(join, scope), stats: flatViewStats(indices, ownedCorpus),
+    histogram: flatHistogram(join, scope, ownedCorpus), stats: flatViewStats(indices, ownedCorpus),
     widthHints: computeWidthHints(indices, ownedCorpus),
   };
 }

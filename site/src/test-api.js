@@ -441,6 +441,8 @@ const __grawlixTest = {
 
   groupWindowIdle() { return getEntriesScroller()?.groupWindowIdle() ?? Promise.resolve(); },
 
+  resultHistogramCounts() { const c = getEntriesScroller()?._workerHistogramCounts; return c ? [...c] : null; },
+
   // Resolves once init() has fully completed. gotoApp awaits this before the
   // test touches the UI, so init's boot tail can't reset the stack mid-test.
   whenReady() { return _ready; },
