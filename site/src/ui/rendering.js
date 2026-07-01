@@ -344,7 +344,6 @@ export function buildStatsBarHTML() {
 
   const rangeHTML = _buildScoreRangeInputHTML('score-range-input', AppView.scoreRange, 'AppView');
   const exportHTML = _buildExportMenuHTML();
-  const exportSlotHTML = exportHTML ? `<span class="stats-bar-export">${exportHTML}</span>` : '';
 
   return `<div class="stats-bar${isEmpty ? ' stats-empty' : ''}">
       <div class="stats-bar-counts">${countsHTML}</div>
@@ -352,7 +351,7 @@ export function buildStatsBarHTML() {
         <div class="histogram" title="Histogram • Click to filter" onpointerdown="onHistogramPointerDown(event)">${bars}<div class="histogram-rect" hidden></div></div>
         ${rangeHTML}
       </div>
-      <div class="stats-bar-controls">${exportSlotHTML}</div>
+      <div class="stats-bar-controls">${exportHTML}</div>
     </div>`;
 }
 

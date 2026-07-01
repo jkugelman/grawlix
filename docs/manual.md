@@ -142,22 +142,22 @@ When you click an entry to edit it, the panel also lists its relatives at the bo
 
 ## Stats bar
 
-A single sticky band above the entries table, carrying the counts, the score-range control and the histogram it pairs with, and the export menu. Left to right:
+A single sticky band above the entries table, carrying the counts, the score-range control and the histogram it pairs with, and the Share and Export menus. Left to right:
 
 - **Counts.** `Entries N`; with a tool in all-mode, `Groups N` rides alongside. The Entries count reflects what made it to the end of the pipeline — chain rows for flat pipelines, surviving member chains across every visible group for all-mode pipelines.
 - **Histogram and score range.** The histogram sits between the counts and a `lo-hi` / `lo+` / `n` text box labeled **Scores** — it's stats about the entries on one side and the filter's visual twin on the other, so it belongs in the middle. The box and the histogram are one filter, one exact and one visual. Focus the box for a syntax cheat sheet, the same way the search boxes show theirs, or drag-select across the histogram. The histogram shows the full pipeline output regardless of range; bars outside the bracket fade in place so you can see what you're trimming as you drag the range narrower. On a narrow window the histogram drops out first, but the counts and the box always hold. The filter is global and remembered across visits — it applies to whichever wordlist you're scoped to, so switching scope keeps it in place rather than clearing it. New here, you start at `20+`, so the junk tiers (below 20) stay hidden until you ask for them; clear the box (or its ×) to see everything, and that choice sticks.
-- **Share.** A labeled **Share ▾** menu — four ways to get the current view out (see *Exporting the entries table*). Sorting isn't in this bar: click a column header in the table below (see *Tools → Sort*).
+- **Share and Export.** Two labeled menus — **Share ▾** to copy the current view to the clipboard, **Export ▾** to download it as a file (see *Exporting the entries table*). Sorting isn't in this bar: click a column header in the table below (see *Tools → Sort*).
 
 The score range applies after the pipeline runs, dropping any chain whose journey touched an out-of-range atom. All-mode pipelines drop chains per group; a group stays visible as long as at least one chain survives.
 
 ## Exporting the entries table
 
-The labeled **Share ▾** menu at the right end of the stats bar offers four ways to get the current view out:
+Two labeled menus at the right end of the stats bar get the current view out. **Share ▾** copies it to the clipboard; **Export ▾** writes it to a file in one of three formats:
 
-- **Copy to clipboard** — plain text with a markdown link header. Chains render inline with their glyphs (`scar → car`); all-mode pipelines render the chain members per line, comma-separated. Designed for pasting into Discord, notes, or any chat/markdown surface.
-- **Download as wordlist** — `.txt` file in `ENTRY;SCORE` per line. Chain rows use the tail entry only with the chain's minimum score (the weak link caps the chain's quality); duplicates collapse to the better of the per-chain mins. Output is alphabetical regardless of your table sort. Comments are not included. Entries containing `;` are dropped with a toast notice.
-- **Download as CSV** — `.csv` file for spreadsheet use. Columns mirror what's on screen (entry, length, score, comment, source on flat pipelines; group_key, count, and the catalog group columns on all-mode pipelines). Chain rows interleave columns per atom and prefix with min/max score. Sort matches your current table sort.
-- **Download as JSON** — `.json` file for scripters. Mirrors the pipeline's group → chains → entries shape uniformly. Includes the URL that reproduces the view, the parsed tool stack, your current score range, and your current sort. Drops computed fields (length, count, min/max score) since a script can derive them.
+- **Copy to clipboard** (under Share) — plain text with a markdown link header. Chains render inline with their glyphs (`scar → car`); all-mode pipelines render the chain members per line, comma-separated. Designed for pasting into Discord, notes, or any chat/markdown surface.
+- **Results as wordlist** (under Export) — `.txt` file in `ENTRY;SCORE` per line. Chain rows use the tail entry only with the chain's minimum score (the weak link caps the chain's quality); duplicates collapse to the better of the per-chain mins. Output is alphabetical regardless of your table sort. Comments are not included. Entries containing `;` are dropped with a toast notice.
+- **Results as CSV** (under Export) — `.csv` file for spreadsheet use. Columns mirror what's on screen (entry, length, score, comment, source on flat pipelines; group_key, count, and the catalog group columns on all-mode pipelines). Chain rows interleave columns per atom and prefix with min/max score. Sort matches your current table sort.
+- **Results as JSON** (under Export) — `.json` file for scripters. Mirrors the pipeline's group → chains → entries shape uniformly. Includes the URL that reproduces the view, the parsed tool stack, your current score range, and your current sort. Drops computed fields (length, count, min/max score) since a script can derive them.
 
 All four reflect the current view — search, score range, sort, every active tool. Files are named after the pipeline (`grawlix-behead-1-search-earning.json`); wildcards are stripped from filenames since they're invalid on Windows.
 

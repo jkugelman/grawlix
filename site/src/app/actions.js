@@ -1087,11 +1087,13 @@ export async function downloadOriginalWordlist(wordlist) {
 
 export function buildExportMenuHTML() {
   return buildMoreMenuHTML([
-    ['Copy to clipboard',    'exportCopy()'],
-    ['Download as wordlist', 'exportWordlist()'],
-    ['Download as CSV',      'exportCSV()'],
-    ['Download as JSON',     'exportJSON()'],
-  ], { label: 'Share', title: 'Share results' });
+    ['Copy to clipboard', 'exportCopy()'],
+  ], { label: 'Share', title: 'Share results' }) +
+  buildMoreMenuHTML([
+    ['Results as wordlist', 'exportWordlist()'],
+    ['Results as CSV',      'exportCSV()'],
+    ['Results as JSON',     'exportJSON()'],
+  ], { label: 'Export', title: 'Export results' });
 }
 
 export function chainContentEntries(chain) {

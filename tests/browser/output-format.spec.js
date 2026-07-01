@@ -113,3 +113,19 @@ test.describe('output format UI', () => {
     expect(text).not.toContain('80');
   });
 });
+
+test.describe('stats-bar Share and Export menus', () => {
+  test('Share holds only Copy; Export holds the three file downloads', async ({ page }) => {
+    await gotoApp(page);
+    const controls = page.locator('#stats .stats-bar-controls');
+    await expect(controls.locator('.more-menu-labeled')).toHaveCount(2);
+
+    const share  = controls.locator('.split-btn', { has: page.locator('.more-menu-labeled', { hasText: 'Share' }) });
+    const exportM = controls.locator('.split-btn', { has: page.locator('.more-menu-labeled', { hasText: 'Export' }) });
+
+    await expect(share.locator('.split-btn-menu button')).toHaveText(['Copy to clipboard']);
+    await expect(exportM.locator('.split-btn-menu button')).toHaveText([
+      'Results as wordlist', 'Results as CSV', 'Results as JSON',
+    ]);
+  });
+});
