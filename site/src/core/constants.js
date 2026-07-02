@@ -90,7 +90,7 @@ export const WORDLIST_PUBLISHERS = [
     popularity: 1,
     name: 'Spread the Word(list)',
     author: 'Brooke Husic & Enrique Henestroza Anguiano',
-    url: 'https://grawlix.wtf/wordlists/spreadthewordlist.txt',
+    url: 'https://raw.githubusercontent.com/jkugelman/wordlist/refs/heads/main/spreadthewordlist.txt',
     homepage: 'https://www.spreadthewordlist.com',
     icon: { type: 'img', url: 'https://www.spreadthewordlist.com/favicon.ico' },
     defaultRules: [
@@ -106,7 +106,7 @@ export const WORDLIST_PUBLISHERS = [
     id: 'broda',
     popularity: 4,
     name: 'Peter Broda',
-    url: 'https://grawlix.wtf/wordlists/peter-broda-wordlist.txt',
+    url: 'https://raw.githubusercontent.com/jkugelman/wordlist/refs/heads/main/peter-broda-wordlist.txt',
     homepage: 'http://www.peterbroda.me/crosswords/wordlist/',
     icon: null,
     defaultRules: [
@@ -127,12 +127,18 @@ export const URL_REMAPS = [
     ],
   },
   {
-    to: 'https://grawlix.wtf/wordlists/spreadthewordlist.txt',
-    from: ['https://grawlix.wtf/spreadthewordlist.txt'],
+    to: 'https://raw.githubusercontent.com/jkugelman/wordlist/refs/heads/main/spreadthewordlist.txt',
+    from: [
+      'https://grawlix.wtf/spreadthewordlist.txt',
+      'https://grawlix.wtf/wordlists/spreadthewordlist.txt',
+    ],
   },
   {
-    to: 'https://grawlix.wtf/wordlists/peter-broda-wordlist.txt',
-    from: ['https://grawlix.wtf/peter-broda-wordlist.txt'],
+    to: 'https://raw.githubusercontent.com/jkugelman/wordlist/refs/heads/main/peter-broda-wordlist.txt',
+    from: [
+      'https://grawlix.wtf/peter-broda-wordlist.txt',
+      'https://grawlix.wtf/wordlists/peter-broda-wordlist.txt',
+    ],
   },
   {
     to: 'https://raw.githubusercontent.com/jkugelman/wordlist/refs/heads/main/jkugelman-wordlist.txt',

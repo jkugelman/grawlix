@@ -70,6 +70,22 @@ test('the live URL_REMAPS resolve the original Nediger url to its current home',
   assert.equal(metas[0].url, nedigerUrl);
 });
 
+test('the live URL_REMAPS resolve both old STWL and Broda hosts to their current homes', () => {
+  const stwl  = WORDLIST_PUBLISHERS.find(p => p.id === 'stwl').url;
+  const broda = WORDLIST_PUBLISHERS.find(p => p.id === 'broda').url;
+  const metas = [
+    { name: 'stwl-root',    url: 'https://grawlix.wtf/spreadthewordlist.txt' },
+    { name: 'stwl-hosted',  url: 'https://grawlix.wtf/wordlists/spreadthewordlist.txt' },
+    { name: 'broda-root',   url: 'https://grawlix.wtf/peter-broda-wordlist.txt' },
+    { name: 'broda-hosted', url: 'https://grawlix.wtf/wordlists/peter-broda-wordlist.txt' },
+  ];
+  remapStoredUrls(metas);
+  assert.equal(metas[0].url, stwl);
+  assert.equal(metas[1].url, stwl);
+  assert.equal(metas[2].url, broda);
+  assert.equal(metas[3].url, broda);
+});
+
 test('canMigrate gates future versions, non-finite input, and gaps in the step chain', () => {
   assert.equal(canMigrate(9), true);
   assert.equal(canMigrate(SCHEMA_VERSION), true);

@@ -9,9 +9,9 @@ import { TOOLS } from '../../site/src/engine/tools.js';
 // the real network. Four publisher wordlists fetch on boot:
 //
 //   jkugelman → raw.githubusercontent.com
-//   stwl      → grawlix.wtf
+//   stwl      → raw.githubusercontent.com
 //   nediger   → raw.codeberg.page
-//   broda     → grawlix.wtf
+//   broda     → raw.githubusercontent.com
 //
 // (XWI has no auto-fetch URL — it's subscriber-import-only.) The fetch
 // happens after init() completes, fire-and-forget. By default each publisher
@@ -20,7 +20,7 @@ import { TOOLS } from '../../site/src/engine/tools.js';
 //
 // Call from a test's `beforeEach` before navigation.
 async function stubPublisherFetches(page, bodies = {}) {
-  await page.route(/raw\.githubusercontent\.com|grawlix\.wtf|raw\.codeberg\.page/, route => {
+  await page.route(/raw\.githubusercontent\.com|raw\.codeberg\.page/, route => {
     const url = route.request().url();
     let body = '';
     if (url.includes('jkugelman-wordlist.txt'))        body = bodies.jkugelman ?? '';

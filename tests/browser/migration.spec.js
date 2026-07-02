@@ -113,7 +113,7 @@ test('a relocated wordlist URL is remapped in stored data on boot', async ({ pag
   await page.reload();
   await page.evaluate(() => window.__grawlixTest.whenReady());
 
-  const NEW_URL = 'https://grawlix.wtf/wordlists/peter-broda-wordlist.txt';
+  const NEW_URL = 'https://raw.githubusercontent.com/jkugelman/wordlist/refs/heads/main/peter-broda-wordlist.txt';
   const live = await page.evaluate(() => state.sources.find(w => w.name === 'Relo')?.url);
   expect(live).toBe(NEW_URL);
 
