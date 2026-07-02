@@ -111,9 +111,26 @@ test('creating an entry that already exists in My Edits is hard-blocked', async 
   await page.evaluate(() => window.__grawlixTest.createMyEntry('ocean', 50));
   await page.locator('#add-fab').click();
   await page.locator('#entry-panel-entry').fill('ocean');
-  await page.locator('#entry-panel-score').fill('50');
   await expect(page.locator('#entry-panel .entry-panel-note--block')).toBeVisible();
+  await page.locator('#entry-panel-score').fill('50');
   await expect(page.locator('#entry-panel .entry-panel-save')).toBeDisabled();
+});
+
+test('the already-exists note links to the existing entry for editing', async ({ page }) => {
+  await gotoApp(page);
+  await page.evaluate(() => window.__grawlixTest.createMyEntry('ocean', 50, 'the deep'));
+  await page.locator('#add-fab').click();
+  await page.locator('#entry-panel-entry').fill('ocean');
+  const note = page.locator('#entry-panel .entry-panel-note--block');
+  await expect(note).toBeVisible();
+  await note.locator('.entry-panel-note-link').click();
+
+  await expect(page.locator('#entry-panel .entry-panel-title')).toHaveText('View entry');
+  await expect(page.locator('#entry-panel-entry')).toHaveValue('ocean');
+  await expect(page.locator('#entry-panel-score')).toHaveValue('50');
+  await expect(page.locator('#entry-panel-comment')).toHaveValue('the deep');
+  await expect(page.locator('#entry-panel .entry-panel-note--block')).toHaveCount(0);
+  await expect(page.locator('#entry-panel-score')).not.toBeFocused();
 });
 
 test('staging the existing row for deletion relabels the create panel as Delete', async ({ page }) => {

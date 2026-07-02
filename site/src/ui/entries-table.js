@@ -749,7 +749,7 @@ export class EntriesScroller extends BaseVirtualScroller {
         ScorePicker.open(wlEntry, row, this, anchor);
         return;
       }
-      EntryPanel.open(wlEntry, row, this, field);
+      EntryPanel.open(wlEntry, row, this, field === 'entry' ? null : field);
     });
 
     this.sizer.addEventListener('mouseover', e => {
@@ -2039,6 +2039,7 @@ export const EntryPanel = (() => {
   let provQueryToken = 0;
   let shippedProvRows = null;
   let lastProvHTML = null;
+  let lastNoteHTML = null;
   let provQueriesFired = 0;
   let provRepliesApplied = 0;
   function provenanceDebug() { return { provQueriesFired, provRepliesApplied }; }
@@ -2075,6 +2076,7 @@ export const EntryPanel = (() => {
     el.id = 'entry-panel';
     el.addEventListener('click', e => {
       if (e.target.closest('.dialog-close-btn')) { close(); return; }
+      if (e.target.closest('.entry-panel-note-link')) { editExisting(); return; }
       if (e.target.closest('.entry-panel-prov-untrash')) { toggleStagedAdopt(); return; }
       const trash = e.target.closest('.entry-panel-prov-trash');
       if (trash) { toggleStagedDelete(trash.dataset.norm, trash.dataset.display); return; }
@@ -2086,7 +2088,7 @@ export const EntryPanel = (() => {
         // it — a partial seed blanks the score and suppresses the My Edits adopt link.
         if (m && !m.current) {
           const wordlist = state.sources.find(s => s.dbKey === m.sourceId) ?? null;
-          open({ norm: m.norm, display: m.display, score: m.score, comment: m.comment, wordlist }, null, getEntriesScroller(), 'entry');
+          open({ norm: m.norm, display: m.display, score: m.score, comment: m.comment, wordlist }, null, getEntriesScroller(), null);
         }
         return;
       }
@@ -2142,6 +2144,7 @@ export const EntryPanel = (() => {
     planQueryToken++;
     shippedProvRows = null;
     lastProvHTML = null;
+    lastNoteHTML = null;
     _cachedPlan = null;
     document.removeEventListener('keydown', onKeydown, true);
   }
@@ -2223,7 +2226,10 @@ export const EntryPanel = (() => {
 
   // Set up the panel DOM + state for a target. Does NOT touch history — open()
   // and openFromRoute() wrap it and own that.
-  function doOpen(wlEntry, rowEl, scroller, focusField, mode, route, animate) {
+  // `focus` names the field to focus and select, or is null for a view-first open:
+  // entry-cell clicks, navigation, and deep links pass null because auto-focusing
+  // there only pops the mobile keyboard for what is really a read.
+  function doOpen(wlEntry, rowEl, scroller, focus, mode, route, animate) {
     // The panel is modal — its scrim covers the page. Dismiss the other floating
     // surfaces (all z-600, so they'd float above the scrim and stay live).
     ScorePicker.close();
@@ -2251,24 +2257,22 @@ export const EntryPanel = (() => {
 
     panel.innerHTML = renderHTML(wlEntry, seed);
     lastProvHTML = provWrapHTML();
+    lastNoteHTML = renderNotesHTML();
     revealModal(animate);
     wireFields();
     renderFamily(wlEntry.norm, wlEntry.display ?? null);
 
     fireInitialProvenanceQuery(seed.entry);
-    if (needsWorkerSeed(wlEntry, route)) refineScopedSeed(wlEntry, focusField, route);
+    if (needsWorkerSeed(wlEntry, route)) refineScopedSeed(wlEntry, focus);
 
-    // Don't auto-focus when opening an existing entry view-first (a route open, or
-    // a non-score/comment click): grabbing the entry box implies a rename and pops
-    // the mobile keyboard. Score/comment cells and create are clear edits — focus.
-    if (!route && (activeMode === 'create' || focusField !== 'entry')) focusSeedField(focusField);
+    if (focus) focusSeedField(focus);
 
     document.addEventListener('keydown', onKeydown, true);
   }
 
-  function open(wlEntry, rowEl, scroller, focusField = 'score', mode = 'edit') {
+  function open(wlEntry, rowEl, scroller, focus = 'score', mode = 'edit') {
     const reopening = isOpen();
-    doOpen(wlEntry, rowEl, scroller, focusField, mode, false, true);
+    doOpen(wlEntry, rowEl, scroller, focus, mode, false, true);
     if (reopening) _navigate();
     else {
       ownsHistoryEntry = true;
@@ -2286,7 +2290,7 @@ export const EntryPanel = (() => {
     // A value equal to its own norm is a bare entry rendered as the norm; seed it
     // as bare (display null) so the worker's bare fallback resolves the winner.
     const seedDisplay = display === norm ? null : display;
-    doOpen({ norm, display: seedDisplay, score: '', comment: '', wordlist: null }, null, getEntriesScroller(), 'score', 'edit', true, animate);
+    doOpen({ norm, display: seedDisplay, score: '', comment: '', wordlist: null }, null, getEntriesScroller(), null, 'edit', true, animate);
     // Tagged → an entry we pushed (Back/Forward re-entered it), ours to pop on close.
     // Untagged → a cold deep link with nothing of ours behind it, so close strips.
     ownsHistoryEntry = !!history.state?.entryPanel;
@@ -2296,7 +2300,7 @@ export const EntryPanel = (() => {
   // fields stay disabled until the worker's winner refines the placeholder; a save
   // against the un-refined scoped value would be wrong. A null reply (stale/disabled
   // scope) keeps the clicked placeholder.
-  function refineScopedSeed(clicked, focusField, route) {
+  function refineScopedSeed(clicked, focus) {
     const token = ++seedQueryToken;
     seedQueriesFired++;
     setFieldsDisabled(true);
@@ -2309,7 +2313,7 @@ export const EntryPanel = (() => {
         const src = state.sources.find(s => s.dbKey === winner.sourceId) || null;
         const row = { ...winner, wordlist: src };
         activeSeed = seedFromWinnerRow(row, src != null && src === getEditsWordlist());
-        applySeedToFields(activeSeed, focusField, route);
+        applySeedToFields(activeSeed, focus);
         seedWinnersApplied++;
       }
       refreshSaveEnabled();
@@ -2324,7 +2328,7 @@ export const EntryPanel = (() => {
     if (disabled) scoreCombo?.close();
   }
 
-  function applySeedToFields(seed, focusField, route) {
+  function applySeedToFields(seed, focus) {
     const entryInp = el.querySelector('.entry-input');
     const scoreInp = el.querySelector('.score-input');
     const commentInp = el.querySelector('.comment-input');
@@ -2336,21 +2340,18 @@ export const EntryPanel = (() => {
     renderProvWrap();
     refreshSaveEnabled();
     updateModeLabels();
-    if (!route && (activeMode === 'create' || focusField !== 'entry')) focusSeedField(focusField);
+    if (focus) focusSeedField(focus);
   }
 
-  // Editing, the entry name is focus-only: selecting it would let a stray
-  // keystroke silently rename the entry. Create has nothing to rename, so it
-  // selects the seed too, leaving a pre-filled search string ready to overtype.
-  function focusSeedField(focusField) {
-    const sel = focusField === 'entry'   ? '.entry-input'
-              : focusField === 'comment' ? '.comment-input'
+  function focusSeedField(focus) {
+    const sel = focus === 'entry'   ? '.entry-input'
+              : focus === 'comment' ? '.comment-input'
               : '.score-input';
     const input = el?.querySelector(sel);
     // preventScroll: the field sits in the pinned header, so focus-into-view has
     // nothing to do but yank the page when the mobile keyboard opens.
     input?.focus({ preventScroll: true });
-    if (focusField !== null && (focusField !== 'entry' || activeMode === 'create')) input?.select();
+    input?.select();
   }
 
   function openForCreate(entryStr, scroller) {
@@ -2378,9 +2379,10 @@ export const EntryPanel = (() => {
     return rows;
   }
 
-  // Display gate (requires a valid score) vs hasEditToPlan's fetch gate (does not):
-  // collapsing the two reintroduces the bug where a create panel — entry typed, score
-  // not yet — never fetches its plan, so the "already exists" block never appears.
+  // Gate for the preview overlay and the Save button — both need a valid score.
+  // Distinct from hasEditToPlan, the score-free gate for the plan fetch and the
+  // duplicate-block note: the block is structural, so it must surface from a typed
+  // entry before any score exists.
   function planGuardsPass() {
     const inp = el.querySelector('.entry-input');
     if (!inp || inp.disabled || stagedDelete) return false;
@@ -2459,10 +2461,31 @@ export const EntryPanel = (() => {
     return rows;
   }
 
+  // Gated on the fetched plan, NOT previewPlan (as saveBlocked/the preview are):
+  // the duplicate block is structural, so it must show before a score is typed;
+  // previewPlan would re-couple it to the score field being valid.
   function renderNotesHTML() {
-    return previewPlan()?.blockedReason === 'exists'
-      ? `<div class="entry-panel-note entry-panel-note--block">That entry already exists.</div>`
+    return hasEditToPlan() && _cachedPlan?.blockedReason === 'exists'
+      ? `<div class="entry-panel-note entry-panel-note--block">That entry already exists. `
+        + `<button type="button" class="entry-panel-note-link">Edit it instead.</button></div>`
       : '';
+  }
+
+  // Pass the backing row's full seed, not just {norm, display}: seedFromWinnerRow
+  // re-derives the score from rawEntries but not the comment, so a partial seed
+  // would silently blank a commented entry's comment field.
+  function editExisting() {
+    if (_cachedPlan?.blockedReason !== 'exists') return;
+    const edits = getEditsWordlist();
+    if (!edits) return;
+    const { norm, display } = _cachedPlan.primary;
+    const rendered = display ?? norm;
+    const backing = edits.rawEntries.find(e => e.norm === norm && displayOf(e) === rendered)
+                 ?? edits.rawEntries.find(e => e.norm === norm && e.display == null);
+    if (!backing) return;
+    open({ norm: backing.norm, display: backing.display ?? null, score: backing.score,
+           comment: backing.comment ?? '', wordlist: edits },
+      null, activeScroller, null, 'edit');
   }
 
   // Mirror saveEdit's no-op check so an untouched panel shows no preview row.
@@ -2579,6 +2602,7 @@ export const EntryPanel = (() => {
         <div class="entry-panel-fields">
           <label for="entry-panel-entry">Entry</label>
           <input id="entry-panel-entry" class="entry-input" type="text" autocapitalize="off" autocorrect="off" spellcheck="false" value="${esc(seed.entry)}">
+          <div class="entry-panel-note-slot">${renderNotesHTML()}</div>
           <label for="entry-panel-score">Score</label>
           <div class="score-combo">
             <input id="entry-panel-score" class="score-input" type="number" min="0" value="${seed.score}"
@@ -2646,6 +2670,7 @@ export const EntryPanel = (() => {
     if (resetInputs) {
       el.innerHTML = renderHTML(activeWlEntry);
       lastProvHTML = provWrapHTML();
+      lastNoteHTML = renderNotesHTML();
       wireFields();
       renderFamily(activeWlEntry.norm, activeWlEntry.display ?? null);
       const inp = el.querySelector('.entry-input');
@@ -2666,7 +2691,19 @@ export const EntryPanel = (() => {
   }
 
   function provWrapHTML() {
-    return renderProvenanceTableHTML() + renderNotesHTML();
+    return renderProvenanceTableHTML();
+  }
+
+  // The note lives above the Score field, clear of the score combo's drop zone —
+  // in the body it sat under the open combo and its Edit-it link was unclickable.
+  function renderNoteSlot() {
+    if (!isOpen()) return;
+    const slot = el.querySelector('.entry-panel-note-slot');
+    if (!slot) return;
+    const html = renderNotesHTML();
+    if (html === lastNoteHTML) return;
+    lastNoteHTML = html;
+    slot.innerHTML = html;
   }
 
   // Skip the rewrite when the markup is unchanged. An identical rewrite still
@@ -2675,6 +2712,7 @@ export const EntryPanel = (() => {
   // toggle when an async reply (a plan/prov fetch) lands mid-click.
   function renderProvWrap() {
     if (!isOpen()) return;
+    renderNoteSlot();
     const provEl = el.querySelector('.entry-panel-prov-wrap');
     if (!provEl) return;
     const html = provWrapHTML();
