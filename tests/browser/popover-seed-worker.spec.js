@@ -1,9 +1,8 @@
-// P5b — the edit panel's seed resolves off the worker in a scoped view.
-// resolveSeed must find the All Wordlists merge winner without main reading the
-// corpus, so a scoped click queries the worker (fetchEditSeed) for the winner —
-// including a scoped-lower-priority overlap, where the winner is a different,
-// higher-priority list than the scoped one. The merged view stays fully local (the
-// clicked row IS the winner), so it fires no worker query.
+// The edit panel's seed across scopes. A foreign single-list scope is a read-only
+// inspector: it shows the scoped list's own value and fires NO worker seed query. The
+// merged view is editable but stays fully local (the clicked row IS the winner), so it
+// also fires no fetchEditSeed. (My Edits — the one editable non-merged scope — still
+// refines off the worker; covered by the seed tests elsewhere.)
 
 import { test, expect } from '@playwright/test';
 import { stubPublisherFetches, gotoApp, scopeTo } from './helpers.js';
@@ -62,30 +61,29 @@ async function enterScopedRichMode(page, scopeName) {
   await page.evaluate(() => window.__grawlixTest.syncWorkerConfig());
 }
 
-test('scoped seed comes from the worker; winner is the higher-priority list', async ({ page }) => {
+test('a foreign scope shows the scoped list value and fires no worker seed query', async ({ page }) => {
   await gotoApp(page);
   await seedCorpus(page);
 
   const ENTRY = 'WORD000';   // Hi: score 200, comment hi0 ; Lo: score 10, comment lo0
 
-  // Scoped to Lo: the seed comes from the worker (fetchEditSeed → ownedMerged winner).
   await enterScopedRichMode(page, 'Lo');
   const before = await seedDebug(page);
 
   await openPanelOnEntry(page, ENTRY);
-  // Playwright polls toHaveValue, so it waits through the brief disabled refine window.
-  await expect(page.locator('#entry-panel-score')).toHaveValue('200');
-  // The winner is Hi (higher priority), not the scoped Lo — proves resolveSeed seeds the merge.
-  expect(await captureSeed(page)).toEqual({ entry: 'WORD000', score: '200', comment: 'hi0' });
+  // Read-only: shows Lo's own 10/lo0, not the merge winner (Hi 200/hi0).
+  await expect(page.locator('#entry-panel-score')).toHaveValue('10');
+  await expect(page.locator('#entry-panel-score')).not.toBeEditable();
+  expect(await captureSeed(page)).toEqual({ entry: 'WORD000', score: '10', comment: 'lo0' });
 
-  // Non-vacuous: the worker actually answered this seed (query fired AND a winner applied).
+  // A read-only scope resolves its seed locally — no worker query, no winner applied.
   const after = await seedDebug(page);
-  expect(after.seedQueriesFired).toBeGreaterThan(before.seedQueriesFired);
-  expect(after.seedWinnersApplied).toBeGreaterThan(before.seedWinnersApplied);
+  expect(after.seedQueriesFired).toBe(before.seedQueriesFired);
+  expect(after.seedWinnersApplied).toBe(before.seedWinnersApplied);
   await closePanel(page);
 });
 
-test('a scoped score-cell click focuses the score field after the worker refine', async ({ page }) => {
+test('a foreign scope score-cell click opens the read-only panel with the score field locked', async ({ page }) => {
   await gotoApp(page);
   await seedCorpus(page);
   await enterScopedRichMode(page, 'Lo');
@@ -95,7 +93,8 @@ test('a scoped score-cell click focuses the score field after the worker refine'
   }).first();
   await row.locator('.atom-score').click();
   await expect(page.locator('#entry-panel')).toBeVisible();
-  await expect(page.locator('#entry-panel-score')).toBeFocused();
+  await expect(page.locator('#entry-panel-score')).not.toBeEditable();
+  await expect(page.locator('#entry-panel-score')).not.toBeFocused();
 });
 
 test('the merged view opens the panel with no worker query (local path)', async ({ page }) => {

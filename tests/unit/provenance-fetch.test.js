@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { buildCorpus, isDistinguishing, concreteDisplay } from '../../site/src/engine/corpus.js';
 import { compileRescoreRules, getRescoredByNorm, groupEntries } from '../../site/src/engine/rescore.js';
-import { toNorm, displayOf } from '../../site/src/engine/norm.js';
+import { toNorm } from '../../site/src/engine/norm.js';
 
 // handleFetchProvenance isn't importable (worker.js module scope), so this
 // transcribes it (workerFetchProvenance) and pins it against an independent local
@@ -16,9 +16,9 @@ const src = (name, rawEntries, { enabled = true } = {}) =>
 function fixtureSources() {
   // Hi (highest priority) and Lo overlap on OCEAN; Off is disabled (must still
   // appear in provenance). On THEIRS, 'Rich' spells the norm two ways *and* holds
-  // its own bare row, while 'Plain' carries only a bare row — a click scopes to
-  // the clicked spelling; the other spellings ride the panel's Related entries.
-  // Edits stands in for My Edits.
+  // its own bare row, while 'Plain' carries only a bare row — a concrete click scopes
+  // to that spelling (rivals ride Related entries); a bare click is a wildcard and
+  // lists them all. Edits stands in for My Edits.
   const Hi  = src('Hi',  [wlEntry('ocean', 90, { comment: 'big' })]);
   const Lo  = src('Lo',  [wlEntry('ocean', 60, { comment: 'small' })]);
   const Off = src('Off', [wlEntry('ocean', 50, { comment: 'off' })], { enabled: false });
@@ -34,9 +34,9 @@ function fixtureSources() {
   return sources;
 }
 
-// Provenance scopes to one spelling, mirroring corpus.js mergedContributors: a
-// bare entry (null concrete display) unifies with any spelling, a concrete one
-// must match. A null targetDisplay (the typed case) scopes to the whole norm.
+// Provenance display eligibility, mirroring corpus.js mergedContributors: a bare
+// entry (null concrete display) unifies with any spelling, a concrete one must match.
+// A null targetDisplay (typed text, or a bare click) scopes to the whole norm.
 const displayEligible = (d, targetDisplay) =>
   targetDisplay == null || d == null || d === targetDisplay;
 
@@ -60,14 +60,14 @@ const localPreview = (merged, raw) =>
   raw && raw.trim() ? (merged.byNorm.get(toNorm(raw)) || null) : null;
 
 // provenanceTarget(): preview for typed text, else typed norm, else clicked. The
-// display scopes to the clicked spelling (displayOf, so a bare click takes the
-// norm spelling), or null (whole norm) while typing.
+// display is the clicked entry's raw display — a bare click stays null (whole norm) —
+// or null while typing.
 function localProvTarget(merged, typedRaw, clicked) {
   const preview = localPreview(merged, typedRaw);
   const norm = preview ? preview.norm
     : typedRaw && typedRaw.trim() ? toNorm(typedRaw)
     : clicked.norm;
-  const display = typedRaw && typedRaw.trim() ? null : displayOf(clicked);
+  const display = typedRaw && typedRaw.trim() ? null : clicked.display ?? null;
   return { norm, display };
 }
 
@@ -137,7 +137,7 @@ function runFetch(rig, { typedRaw, previewRaw, clicked }) {
   const localPrev = localPreview(ownedMerged, previewRaw);
   const localRows = localGatherProvenance(sources, target.norm, target.display);
   const worker = workerFetchProvenance(ownedBuilt, ownedMerged, {
-    typedRaw, previewRaw, clickedNorm: clicked.norm, clickedDisplay: displayOf(clicked),
+    typedRaw, previewRaw, clickedNorm: clicked.norm, clickedDisplay: clicked.display ?? null,
   });
   // Worker projection and the independent reference must agree, every case.
   assert.deepStrictEqual(worker, localToWire(localRows, localPrev));
@@ -165,15 +165,14 @@ test('initial open of a spelled variant (the IRS): provenance scopes to that spe
     [['db_Rich', 'the IRS'], ['db_Plain', null]]);
 });
 
-test('initial open of the bare/norm spelling: provenance scopes to the bare rows, not the spelled variants', () => {
+test('initial open of the bare/norm spelling: a bare click is a wildcard, so provenance lists every spelling', () => {
   const worker = runFetch(rigs(), {
     typedRaw: '', previewRaw: 'theirs', clicked: { norm: 'theirs', display: null },
   });
-  // A bare click takes the norm spelling: Rich's concretized-bare row and Plain's
-  // bare row, each rendered from its stored null display. 'the IRS' / 'Theirs' go
-  // to Related entries.
+  // A bare entry unifies with every spelling, so all of Rich's rows (both spellings
+  // plus its own bare) and Plain's bare row show — nothing is held back for Related.
   assert.deepStrictEqual(worker.rows.map(r => [r.sourceId, r.entry.display]),
-    [['db_Rich', null], ['db_Plain', null]]);
+    [['db_Rich', 'the IRS'], ['db_Rich', 'Theirs'], ['db_Rich', null], ['db_Plain', null]]);
 });
 
 test('My Edits norm: provenance carries the edits source row, preview wins from it', () => {

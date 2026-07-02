@@ -890,10 +890,10 @@ function handleFetchEditSeed({ requestId, norm, display }) {
 // ─── Related-entries fetch ── see docs/worker-protocol.md ────────────────────
 // Scanned from ownedMerged (the full enabled merge), NOT the active-scope
 // ownedCorpus: Related entries ignores scope, so a single-list scope still surfaces
-// every relative across the merged wordlist. Membership is family ∪ same-norm — the
-// differently-spelled same-norm siblings (Boney M. / Boney M) have no other home,
-// since provenance now scopes to one spelling. ownedCorpusFresh gates ownedMerged
-// the same way the edit-seed fetch does (see its note).
+// every relative across the merged wordlist. Membership is family ∪ same-norm: the
+// differently-spelled same-norm siblings (Boney M. / Boney M) stay navigable here even
+// when a concrete click keeps them out of the provenance table. ownedCorpusFresh gates
+// ownedMerged the same way the edit-seed fetch does (see its note).
 function handleFetchFamily({ requestId, norm, display, boundNorm = norm, boundDisplay = display ?? null }) {
   let members = [];
   if (ownedMerged && ownedCorpusFresh) {
@@ -946,8 +946,9 @@ function handleFetchProvenance({ requestId, typedRaw, previewRaw, clickedNorm, c
   const targetNorm = provPreview ? provPreview.norm
     : typedRaw && typedRaw.trim() ? toNorm(typedRaw)
     : clickedNorm;
-  // A click scopes provenance to the one clicked spelling (other spellings ride
-  // Related entries); typing a rename stays norm-scoped as a collision check.
+  // A concrete click scopes provenance to that spelling (rival spellings ride
+  // Related entries); a bare click (clickedDisplay null) is a wildcard, so it lists
+  // every spelling it unified with. Typing a rename stays norm-scoped as a collision check.
   const targetDisplay = typedRaw && typedRaw.trim() ? null : clickedDisplay ?? null;
 
   const rows = [];

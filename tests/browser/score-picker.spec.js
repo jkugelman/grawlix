@@ -143,8 +143,9 @@ test('Alt+digit rescores while hovering anywhere in the row, not just the score'
 
 test('Alt+digit in the edit panel fills the score field without saving', async ({ page }) => {
   await setup(page, { score: 50 });
-  await scopeTo(page, 'Src');
-  await page.locator('.entry-row[data-entry="bagel"] .atom-score').click();
+  // The entry cell opens the editable panel in All Wordlists (a foreign scope's panel
+  // is read-only, so the score field there would be disabled and Alt+digit a no-op).
+  await page.locator('.entry-row[data-entry="bagel"] .atom-entry').click();
   await expect(page.locator('#entry-panel')).toBeVisible();
   await expect(page.locator('#entry-panel .score-input')).toBeEnabled();
 

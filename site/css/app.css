@@ -529,9 +529,12 @@ td.entry-panel-prov-entry { font-family: var(--font-mono); }
 .entry-panel-prov th.entry-panel-prov-score { text-align: right; }
 .entry-panel-prov-comment { width: 150px; min-width: 150px; max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .entry-panel-prov-source { width: 1%; white-space: nowrap; }
-.entry-panel-prov-row--disabled td { color: var(--faint); }
-.entry-panel-prov-row--disabled .wordlist-icon { filter: grayscale(1); opacity: 0.6; }
-.entry-panel-prov-row--disabled .score-badge { opacity: 0.55; }
+.entry-panel-prov-row--disabled td,
+.entry-panel-prov-row--muted td { color: var(--faint); }
+.entry-panel-prov-row--disabled .wordlist-icon,
+.entry-panel-prov-row--muted .wordlist-icon { filter: grayscale(1); opacity: 0.6; }
+.entry-panel-prov-row--disabled .score-badge,
+.entry-panel-prov-row--muted .score-badge { opacity: 0.55; }
 .entry-panel-prov-row--added td, .entry-panel-prov-row--changed td { font-weight: 700; }
 .entry-panel-prov-row--deleted td { text-decoration: line-through; color: var(--faint); }
 .entry-panel-prov-row--deleted .score-badge { opacity: 0.55; }
@@ -549,6 +552,7 @@ td.entry-panel-prov-entry { font-family: var(--font-mono); }
 .entry-panel-fields { display: grid; grid-template-columns: auto 1fr; grid-auto-rows: minmax(26px, auto); gap: 8px 10px; align-items: center; }
 .entry-panel-fields label { color: var(--muted); }
 .entry-panel-fields input { padding: 4px 7px; border-radius: 3px; width: 100%; box-sizing: border-box; }
+.entry-panel-fields input:read-only { background: var(--bg); color: var(--text); cursor: default; }
 .entry-panel-fields input.score-input { font-family: var(--font-mono); max-width: 8ch; }
 .score-combo { position: relative; display: inline-flex; }
 .entry-panel-fields .score-combo .score-input { flex: none; width: 8ch; max-width: none; }

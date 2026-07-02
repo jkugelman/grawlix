@@ -53,7 +53,7 @@ async function readRelated(page) {
       .map(s => s.textContent));
 }
 
-test('provenance scopes to the clicked spelling; other spellings of the norm go to Related entries', async ({ page }) => {
+test('a bare click is a wildcard: provenance lists every spelling of the norm', async ({ page }) => {
   await gotoApp(page);
 
   // W1 carries two spaced spellings of SEEINGASHOW; W2 carries the bare
@@ -65,14 +65,18 @@ test('provenance scopes to the clicked spelling; other spellings of the norm go 
     name: 'W2', entries: ['seeingashow'], scores: [60],
   }));
 
-  // Scope to W2 and click its entry. Provenance shows only that spelling; the
-  // siblings ride Related entries, which ignores scope, so W1's forms show too.
+  // Scope to W2 and click its bare entry. A bare entry unifies with every spelling,
+  // so provenance spans W1's two forms plus W2's own bare row; Related still offers
+  // the concrete siblings to navigate to.
   await scopeTo(page, 'W2');
   await openPanelOnEntry(page, 'seeingashow');
 
   expect((await readProvenance(page)).map(r => ({ entry: r.entry, source: r.source })))
-    .toEqual([{ entry: 'seeingashow', source: 'W2' }]);
-  // The merge absorbs W2's bare form into W1's spellings, so Related lists those.
+    .toEqual([
+      { entry: 'seeing a show', source: 'W1' },
+      { entry: 'seeing as how', source: 'W1' },
+      { entry: 'seeingashow',   source: 'W2' },
+    ]);
   // Order-independent: the worker's localeCompare may order differently per engine.
   expect((await readRelated(page)).sort())
     .toEqual(['seeing a show', 'seeing as how']);
@@ -95,9 +99,11 @@ test('clicking a specific spelling shows it plus a cross-source bare; siblings g
   expect(await readRelated(page)).toEqual(['the IRS', 'Theirs']);
 });
 
-test('each spelling scopes provenance to itself, but Related lists the whole norm', async ({ page }) => {
+test('each concrete spelling scopes provenance to itself, but Related lists the whole norm', async ({ page }) => {
   await gotoApp(page);
 
+  // Rich's mixed-case file makes even lowercase 'theirs' a concrete (off-convention)
+  // display, so every one of these is a distinct spelling that scopes to itself.
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
     name: 'Rich', entries: ['the IRS', 'Theirs', 'theirs'], scores: [90, 80, 70],
   }));
@@ -150,6 +156,31 @@ test('scoped to one source, the panel still lists other wordlists', async ({ pag
   await openPanelOnEntry(page, 'ocean');
   const rows = await readProvenance(page);
   expect(rows.map(r => r.source)).toEqual(['Alpha', 'Beta']);
+});
+
+test('a read-only foreign scope dims every row but the scoped one', async ({ page }) => {
+  await gotoApp(page);
+
+  await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
+    name: 'Alpha', entries: ['ocean'], scores: [90],
+  }));
+  await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
+    name: 'Beta',  entries: ['ocean'], scores: [60],
+  }));
+
+  // Scoped to Beta, every other row is muted so Beta's own row reads as the focus.
+  await scopeTo(page, 'Beta');
+  await openPanelOnEntry(page, 'ocean');
+  const marks = await page.evaluate(() =>
+    [...document.querySelectorAll('.entry-panel-prov tbody tr')].map(tr => {
+      const src = tr.querySelector('.entry-panel-prov-source').cloneNode(true);
+      src.querySelector('.wordlist-name-icon')?.remove();
+      return { source: src.textContent.trim(), muted: tr.classList.contains('entry-panel-prov-row--muted') };
+    }));
+  expect(marks).toEqual([
+    { source: 'Alpha', muted: true },
+    { source: 'Beta',  muted: false },
+  ]);
 });
 
 test('the table columns are Entry · Score · Comment · Source in that order, rows in priority order', async ({ page }) => {

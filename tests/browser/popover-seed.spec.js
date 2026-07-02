@@ -1,10 +1,8 @@
-// Atom-panel seeding (unify redesign, Stage 3c). The editor seeds its three
-// fields from the All Wordlists merge winner for the clicked entry — never the
-// viewed/scoped wordlist's own value. Decision A: the score field edits My
-// Edits' RAW score, so a non-pass-through My Edits entry seeds from raw and
-// shows the raw → rescored mapping. Decision B: a bare click whose norm has no
-// bare merged row but does have spelled variants edits the first-alphabetical
-// variant, seeded from its merged row.
+// Atom-panel seeding. A foreign single-list scope is a read-only inspector: the
+// panel shows that list's own entry/score/comment, never the merged winner. In an
+// editable scope (All Wordlists, My Edits) the fields seed the winner and edits route
+// into My Edits. Decision A: the score field edits My Edits' RAW score, so a
+// non-pass-through My Edits entry seeds from raw and shows the raw → rescored mapping.
 
 import { test, expect } from '@playwright/test';
 import { stubPublisherFetches, gotoApp, scopeTo } from './helpers.js';
@@ -26,11 +24,11 @@ async function openPanelOnEntry(page, entryText) {
   await expect(page.locator('#entry-panel')).toBeVisible();
 }
 
-test('seeds the score from the merged winner, not the lower-priority scoped list', async ({ page }) => {
+test('a foreign scope is read-only and shows the scoped list value, not the merged winner', async ({ page }) => {
   await gotoApp(page);
 
-  // Hi added first = higher priority; both carry OCEAN. Scoped to Lo the table
-  // shows Lo's 60, but the editor must seed the merge winner's 90 (from Hi).
+  // Hi added first = higher priority; both carry OCEAN. Scoped to Lo the panel must
+  // show Lo's own 60 (a read-only inspector), NOT the merge winner's 90 (from Hi).
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
     name: 'Hi', entries: ['ocean'], scores: [90],
   }));
@@ -40,10 +38,18 @@ test('seeds the score from the merged winner, not the lower-priority scoped list
 
   await scopeTo(page, 'Lo');
   await openPanelOnEntry(page, 'ocean');
-  await expect(page.locator('#entry-panel-score')).toHaveValue('90');
+  await expect(page.locator('#entry-panel-score')).toHaveValue('60');
+  // Read-only: fields not editable (readonly, still readable), title flagged, no Save
+  // button, a Close button instead.
+  await expect(page.locator('#entry-panel .entry-panel-title')).toHaveText('View entry (read-only)');
+  await expect(page.locator('#entry-panel-entry')).not.toBeEditable();
+  await expect(page.locator('#entry-panel-score')).not.toBeEditable();
+  await expect(page.locator('#entry-panel-comment')).not.toBeEditable();
+  await expect(page.locator('.entry-panel-save')).toHaveCount(0);
+  await expect(page.locator('.entry-panel-cancel')).toHaveText('Close');
 });
 
-test('seeds entry/score/comment from the merged winner across all three fields', async ({ page }) => {
+test('a read-only foreign scope shows the scoped entry/score/comment across all three fields', async ({ page }) => {
   await gotoApp(page);
 
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
@@ -56,16 +62,16 @@ test('seeds entry/score/comment from the merged winner across all three fields',
   await scopeTo(page, 'Lo');
   await openPanelOnEntry(page, 'ocean');
   await expect(page.locator('#entry-panel-entry')).toHaveValue('ocean');
-  await expect(page.locator('#entry-panel-score')).toHaveValue('90');
-  await expect(page.locator('#entry-panel-comment')).toHaveValue('big');
+  await expect(page.locator('#entry-panel-score')).toHaveValue('60');
+  await expect(page.locator('#entry-panel-comment')).toHaveValue('small');
 });
 
-test('a bare click with no bare merged row edits the first-alphabetical spelled variant', async ({ page }) => {
+test('a bare foreign-scope entry shows its own value, not a merged spelling', async ({ page }) => {
   await gotoApp(page);
 
-  // W1 carries two spaced spellings of SEEINGASHOW; W2 carries the bare
-  // lowercase form. Scoped to W2, clicking its bare entry seeds the editor from
-  // the first-alphabetical spelled variant in the merge ('seeing a show').
+  // W1 carries two spaced spellings of SEEINGASHOW; W2 carries the bare lowercase
+  // form. Scoped to W2, its bare entry shows verbatim (rendered as the norm) at W2's
+  // own 60 — it does not inherit W1's spelling or score.
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
     name: 'W1', entries: ['seeing a show', 'seeing as how'], scores: [80, 70],
   }));
@@ -75,8 +81,8 @@ test('a bare click with no bare merged row edits the first-alphabetical spelled 
 
   await scopeTo(page, 'W2');
   await openPanelOnEntry(page, 'seeingashow');
-  await expect(page.locator('#entry-panel-entry')).toHaveValue('seeing a show');
-  await expect(page.locator('#entry-panel-score')).toHaveValue('80');
+  await expect(page.locator('#entry-panel-entry')).toHaveValue('seeingashow');
+  await expect(page.locator('#entry-panel-score')).toHaveValue('60');
 });
 
 test('a non-pass-through My Edits entry seeds the raw score and shows the rescore mapping', async ({ page }) => {
@@ -170,7 +176,7 @@ test('a windowed flat-row panel seeds from the worker-reconstructed row', async 
   expect(await captureSeed()).toEqual({ entry: 'ABLE000', score: '10', comment: 'note0' });
 });
 
-test('editing a merged-seeded row still saves to My Edits', async ({ page }) => {
+test('editing from an editable scope saves to My Edits, leaving the source untouched', async ({ page }) => {
   await gotoApp(page);
 
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
@@ -180,9 +186,8 @@ test('editing a merged-seeded row still saves to My Edits', async ({ page }) => 
     name: 'Lo', entries: ['ocean'], scores: [60],
   }));
 
-  // Seeded from Hi's 90 (the merge winner); the saved edit must land in My
-  // Edits, leaving the scoped Lo source untouched.
-  await scopeTo(page, 'Lo');
+  // From All Wordlists (editable) the clicked row is the merge winner (Hi 90); the
+  // saved edit must land in My Edits, leaving the source lists untouched.
   await openPanelOnEntry(page, 'ocean');
   await page.locator('#entry-panel-score').fill('95');
   await page.locator('#entry-panel-score').press('Enter');

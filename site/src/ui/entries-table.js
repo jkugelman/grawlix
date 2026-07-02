@@ -30,7 +30,7 @@ import {
 import { state, getEditsWordlist } from '../data/state.js';
 import { getTrashScore } from '../data/serialize.js';
 import { mergedEntryCount, mergedWidthBound } from '../data/merge.js';
-import { rescoreEntry } from '../engine/rescore.js';
+import { rescoreEntry, getRescoredByNorm, groupEntries } from '../engine/rescore.js';
 import { buildScoreBadgeHTML, buildScoreCellHTML } from '../model/score-display.js';
 import { showToast } from './toasts.js';
 import { AppView } from './app-view.js';
@@ -1999,6 +1999,15 @@ function seedFromWinnerRow(row, winnerIsEdits) {
   };
 }
 
+function resolveScopedEntry(norm, display) {
+  const wl = state.selected;
+  if (wl === MERGED_ID) return null;
+  const group = groupEntries(getRescoredByNorm(wl).get(norm));
+  return group.find(e => (e.display ?? null) === (display ?? null))
+      ?? group.find(e => e.display == null)
+      ?? group[0] ?? null;
+}
+
 // The My Edits entry an edit/rescore should rewrite. When a row is owned only
 // through a bare wildcard (display null, unified with a foreign spelling), feeding
 // that rich spelling as the planner's "clicked" reads as no rename and silently
@@ -2024,6 +2033,7 @@ export const EntryPanel = (() => {
   let activeSeed = null;
   let activeScroller = null;
   let activeMode = 'edit';
+  let activeReadOnly = false;
   let stagedDelete = null;
   let stagedAdopt = false;
   // Monotonic token for an in-flight scoped-seed worker query; a re-open or close
@@ -2134,6 +2144,7 @@ export const EntryPanel = (() => {
     activeSeed = null;
     activeScroller = null;
     activeMode = 'edit';
+    activeReadOnly = false;
     focusEl = null;
     stagedDelete = null;
     stagedAdopt = false;
@@ -2161,7 +2172,7 @@ export const EntryPanel = (() => {
     if (!isOpen()) return false;
     if (stagedDelete || stagedAdopt) return true;
     const inp = el.querySelector('.entry-input');
-    if (!inp || inp.disabled) return false;
+    if (!inp || inp.disabled || activeReadOnly) return false;
     const vals = readNewValues();
     return activeMode === 'create' ? valuesValid(vals) : pendingWritesChange(vals);
   }
@@ -2201,10 +2212,11 @@ export const EntryPanel = (() => {
     }
   }
 
-  // The scoped case needs the worker: the merge winner there can be a higher-
-  // priority list main can't read without its corpus. Merged (clicked IS the
-  // winner) seeds synchronously from the clicked row — except a deep-link open
-  // (route) has no clicked row at all, so it always asks the worker.
+  // Reached only in an editable scope — a read-only foreign scope resolves its seed
+  // locally before this. My Edits (editable, non-merged) still needs the worker: the
+  // merge winner can be a higher-priority list main can't read without its corpus.
+  // Merged seeds synchronously (clicked IS the winner); a route open has no clicked
+  // row, so it asks the worker too.
   function needsWorkerSeed(clicked, route) {
     return route || (state.selected !== MERGED_ID && clicked?.norm != null);
   }
@@ -2238,6 +2250,13 @@ export const EntryPanel = (() => {
     const panel = ensureElement();
     if (activeRow) activeRow.classList.remove('active');
     activeMode = mode;
+    activeReadOnly = mode === 'edit' && !scopeIsEditable();
+    // Read-only shows the scoped list's own entry, not the merged winner. A route open
+    // or Related click hands us some other list's row (or none), so rebuild from scope.
+    if (activeReadOnly && wlEntry.wordlist !== state.selected) {
+      const scoped = resolveScopedEntry(wlEntry.norm, wlEntry.display ?? null);
+      if (scoped) wlEntry = { ...scoped, wordlist: state.selected };
+    }
     activeWlEntry = wlEntry;
     activeRow = rowEl;
     activeScroller = scroller;
@@ -2251,7 +2270,7 @@ export const EntryPanel = (() => {
     stagedDelete = null;
     focusEl = null;
 
-    // Seed from the clicked row: in the merged view it IS the merge winner; a
+    // Seed from the clicked row: in the merged view it IS the merge winner; an editable
     // scoped view (or a route open) holds no winner, refined below from the worker.
     const seed = seedFromWinnerRow(wlEntry, getEditsWordlist() != null && wlEntry.wordlist === getEditsWordlist());
 
@@ -2263,9 +2282,9 @@ export const EntryPanel = (() => {
     renderFamily(wlEntry.norm, wlEntry.display ?? null);
 
     fireInitialProvenanceQuery(seed.entry);
-    if (needsWorkerSeed(wlEntry, route)) refineScopedSeed(wlEntry, focus);
+    if (!activeReadOnly && needsWorkerSeed(wlEntry, route)) refineScopedSeed(wlEntry, focus);
 
-    if (focus) focusSeedField(focus);
+    if (focus && !activeReadOnly) focusSeedField(focus);
 
     document.addEventListener('keydown', onKeydown, true);
   }
@@ -2359,6 +2378,7 @@ export const EntryPanel = (() => {
   }
 
   function renderFooterHTML(entryText) {
+    if (activeReadOnly) return `<button class="entry-panel-cancel" type="button">Close</button>`;
     return `<span class="entry-panel-adopt"></span>`
       + `<button class="entry-panel-cancel" type="button">Cancel</button>`
       + `<button class="entry-panel-save" type="button">${esc(saveLabel(entryText))}</button>`;
@@ -2385,7 +2405,7 @@ export const EntryPanel = (() => {
   // entry before any score exists.
   function planGuardsPass() {
     const inp = el.querySelector('.entry-input');
-    if (!inp || inp.disabled || stagedDelete) return false;
+    if (!inp || inp.disabled || stagedDelete || activeReadOnly) return false;
     const vals = readNewValues();
     if (!valuesValid(vals)) return false;
     if (activeMode === 'edit' && !stagedAdopt && !pendingWritesChange(vals)) return false;
@@ -2402,7 +2422,7 @@ export const EntryPanel = (() => {
   // firePlanQuery, and the structural plan is identical whether or not values changed.
   function hasEditToPlan() {
     const inp = el.querySelector('.entry-input');
-    if (!inp || inp.disabled || stagedDelete) return false;
+    if (!inp || inp.disabled || stagedDelete || activeReadOnly) return false;
     return !!readNewValues().raw;
   }
 
@@ -2500,15 +2520,19 @@ export const EntryPanel = (() => {
     if (!rows.length) return '';
     const adoptLabel = `Don't ${adoptWillReplace() ? 'update' : 'add to'} My Edits`;
     const body = rows.map(({ wordlist, entry, enabled, diff, saved, isEdits, isStaged, adoptStaged }) => {
+      const isScopedRow = activeReadOnly && wordlist === state.selected;
       const disabled = wordlist ? wordlist.enabled === false : enabled === false;
       const cls = ['entry-panel-prov-row'];
-      if (disabled) cls.push('entry-panel-prov-row--disabled');
+      if (disabled && !isScopedRow) cls.push('entry-panel-prov-row--disabled');
       if (diff) cls.push(`entry-panel-prov-row--${diff}`);
+      // Read-only scope: keep the scoped list's own row at full strength as the focus
+      // and recede the rest (same dim as a disabled row / an out-of-scope Source icon).
+      if (activeReadOnly && !isScopedRow) cls.push('entry-panel-prov-row--muted');
       const comment = entry.comment || '';
       const label = isStaged ? 'Restore this edit' : 'Delete this edit';
       // A rename's predicted-delete row (diff 'deleted', not user-staged) gets no
       // trash — only a genuinely saved row, or the staged-delete row to restore it.
-      const trash = adoptStaged
+      const trash = activeReadOnly ? '' : adoptStaged
         ? `<button class="entry-panel-prov-trash entry-panel-prov-untrash" type="button"`
           + ` title="${adoptLabel}" aria-label="${adoptLabel}">${buildTrashIconHTML()}</button>`
         : saved && isEdits && (diff !== 'deleted' || isStaged)
@@ -2560,7 +2584,7 @@ export const EntryPanel = (() => {
   }
 
   function adoptable() {
-    if (activeMode !== 'edit' || stagedDelete) return false;
+    if (activeMode !== 'edit' || stagedDelete || activeReadOnly) return false;
     const edits = getEditsWordlist();
     if (!edits) return false;
     const inp = el?.querySelector('.entry-input');
@@ -2592,6 +2616,7 @@ export const EntryPanel = (() => {
   function renderHTML(wlEntry, seedOverride) {
     const seed = activeSeed = seedOverride
       ?? seedFromWinnerRow(wlEntry, getEditsWordlist() != null && wlEntry.wordlist === getEditsWordlist());
+    const ro = activeReadOnly ? ' readonly' : '';
     return `
       <div class="entry-panel-header">
         <button class="dialog-close-btn" type="button" aria-label="Close">
@@ -2601,16 +2626,16 @@ export const EntryPanel = (() => {
         <div class="entry-panel-title">${esc(headerText(seed.entry))}</div>
         <div class="entry-panel-fields">
           <label for="entry-panel-entry">Entry</label>
-          <input id="entry-panel-entry" class="entry-input" type="text" autocapitalize="off" autocorrect="off" spellcheck="false" value="${esc(seed.entry)}">
-          <div class="entry-panel-note-slot">${renderNotesHTML()}</div>
+          <input id="entry-panel-entry" class="entry-input" type="text" autocapitalize="off" autocorrect="off" spellcheck="false" value="${esc(seed.entry)}"${ro}>
+          <div class="entry-panel-note-slot">${activeReadOnly ? '' : renderNotesHTML()}</div>
           <label for="entry-panel-score">Score</label>
           <div class="score-combo">
             <input id="entry-panel-score" class="score-input" type="number" min="0" value="${seed.score}"
-              role="combobox" aria-expanded="false" aria-controls="entry-panel-score-list" aria-autocomplete="list" autocomplete="off">
+              role="combobox" aria-expanded="false" aria-controls="entry-panel-score-list" aria-autocomplete="list" autocomplete="off"${ro}>
             <ul id="entry-panel-score-list" class="score-listbox score-combo-list" role="listbox" aria-label="Score tiers" hidden></ul>
           </div>
           <label for="entry-panel-comment">Comment</label>
-          <input id="entry-panel-comment" class="comment-input" type="text" value="${esc(seed.comment)}">
+          <input id="entry-panel-comment" class="comment-input" type="text" value="${esc(seed.comment)}"${ro}>
         </div>
       </div>
       <div class="entry-panel-body">
@@ -2636,6 +2661,7 @@ export const EntryPanel = (() => {
   }
 
   function headerText(entryText, changed = false) {
+    if (activeReadOnly) return 'View entry (read-only)';
     if (stagedDelete) return 'Delete entry';
     if (activeMode === 'create') return 'Add entry';
     if (isRenaming(entryText)) return 'Rename entry';
@@ -2729,9 +2755,9 @@ export const EntryPanel = (() => {
     const token = ++provQueryToken;
     provQueriesFired++;
     const clickedNorm = activeWlEntry?.norm ?? null;
-    // displayOf (norm fallback), not the raw display: a bare/route open scopes to
-    // the norm spelling, matching a direct click on that row.
-    const clickedDisplay = activeWlEntry ? displayOf(activeWlEntry) : null;
+    // Raw display, not displayOf's norm fallback: collapsing a bare entry to its norm
+    // makes the worker filter drop the concrete siblings it unified with, with no error.
+    const clickedDisplay = activeWlEntry?.display ?? null;
     fetchWorkerProvenance(typedRaw, previewRaw, clickedNorm, clickedDisplay)
       .then(({ rows }) => {
         // Match by norm, not identity: each run rebuilds activeWlEntry fresh, so an
@@ -2776,6 +2802,7 @@ export const EntryPanel = (() => {
   }
 
   function submit() {
+    if (activeReadOnly) return;
     if (stagedDelete) {
       const scroller = activeScroller;
       const target = stagedDelete;
@@ -2798,6 +2825,7 @@ export const EntryPanel = (() => {
 
   function wireFooter() {
     el.querySelector('.entry-panel-cancel').addEventListener('click', close);
+    if (activeReadOnly) return;
     el.querySelector('.entry-panel-save').addEventListener('click', submit);
     refreshSaveEnabled();
   }
@@ -2826,6 +2854,14 @@ export const EntryPanel = (() => {
     const entryInp = el.querySelector('.entry-input');
     const scoreInp = el.querySelector('.score-input');
     const commentInp = el.querySelector('.comment-input');
+
+    if (activeReadOnly) {
+      scoreCombo = null;
+      wireFooter();
+      const host = el.querySelector('.entry-panel-lookup');
+      if (host) LookupSection.mount(host, entryInp.value);
+      return;
+    }
 
     entryInp.addEventListener('beforeinput', blockSemicolon);
     commentInp.addEventListener('beforeinput', blockSemicolon);
@@ -2896,9 +2932,10 @@ export const EntryPanel = (() => {
     const opt = optionForDigit(buildScoreOptions(), digit);
     if (!opt) return false;
     const scoreInp = el.querySelector('.score-input');
-    // The disabled guard is load-bearing: the field is locked while the scoped seed
-    // is in flight, and writing then would clobber the un-refined value.
-    if (!scoreInp || scoreInp.disabled) return false;
+    // The lock guards are load-bearing: `disabled` while the scoped seed is in flight
+    // (writing then clobbers the un-refined value); `readonly` in a foreign scope,
+    // where the field is a read-only value that Alt+digit must not overwrite.
+    if (!scoreInp || scoreInp.disabled || activeReadOnly) return false;
     scoreInp.value = opt.score;
     scoreInp.dispatchEvent(new Event('input', { bubbles: true }));
     scoreInp.focus();
@@ -2951,9 +2988,15 @@ export function entryPanelRouteValue() {
 
 // ─── Score quick-pick ─────────────────────────────────────────────────────────
 
-function scoreQuickPickable() {
+// Editable scopes are All Wordlists (edits route into My Edits) and My Edits itself;
+// a foreign single-list scope is read-only — not ours to change.
+function scopeIsEditable() {
   const edits = getEditsWordlist();
   return state.selected === MERGED_ID || (edits != null && state.selected === edits);
+}
+
+function scoreQuickPickable() {
+  return scopeIsEditable();
 }
 
 // `hint` (the Alt+digit accelerator) counts up from 0 = lowest tier rather than
