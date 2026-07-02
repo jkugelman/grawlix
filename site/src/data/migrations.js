@@ -108,10 +108,8 @@ export function remapStoredUrls(sourceMetas, remaps = URL_REMAPS) {
   let changed = false;
   for (const m of sourceMetas || []) {
     if (!m.url) continue;
-    // Re-test, don't break: chains forward (A→B then B→C) for a far-behind user.
-    for (const { from, to } of remaps) {
-      if (m.url === from) { m.url = to; changed = true; }
-    }
+    const home = remaps.find(r => r.from.includes(m.url));
+    if (home) { m.url = home.to; changed = true; }
   }
   return changed;
 }

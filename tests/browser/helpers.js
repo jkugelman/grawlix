@@ -10,7 +10,7 @@ import { TOOLS } from '../../site/src/engine/tools.js';
 //
 //   jkugelman → raw.githubusercontent.com
 //   stwl      → grawlix.wtf
-//   nediger   → grawlix.wtf
+//   nediger   → raw.codeberg.page
 //   broda     → grawlix.wtf
 //
 // (XWI has no auto-fetch URL — it's subscriber-import-only.) The fetch
@@ -20,7 +20,7 @@ import { TOOLS } from '../../site/src/engine/tools.js';
 //
 // Call from a test's `beforeEach` before navigation.
 async function stubPublisherFetches(page, bodies = {}) {
-  await page.route(/raw\.githubusercontent\.com|grawlix\.wtf/, route => {
+  await page.route(/raw\.githubusercontent\.com|grawlix\.wtf|raw\.codeberg\.page/, route => {
     const url = route.request().url();
     let body = '';
     if (url.includes('jkugelman-wordlist.txt'))        body = bodies.jkugelman ?? '';

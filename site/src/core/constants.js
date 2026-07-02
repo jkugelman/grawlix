@@ -71,7 +71,7 @@ export const WORDLIST_PUBLISHERS = [
     id: 'nediger',
     popularity: 3,
     name: 'Will Nediger',
-    url: 'https://grawlix.wtf/wordlists/Nediger list.txt',
+    url: 'https://raw.codeberg.page/bewilderingly/Nediger-list/@main/nediger list.txt',
     homepage: 'https://github.com/bewilderingly/Nediger-list/',
     icon: null,
     defaultRules: [
@@ -119,11 +119,25 @@ export const WORDLIST_PUBLISHERS = [
 // Not a SCHEMA_VERSION bump: that counter tracks stored *shape*, and a relocated
 // file is the same shape with a drifted value. See docs/migration.md § Remapping moved URLs.
 export const URL_REMAPS = [
-  { from: 'https://grawlix.wtf/Nediger list.txt',         to: 'https://grawlix.wtf/wordlists/Nediger list.txt' },
-  { from: 'https://grawlix.wtf/spreadthewordlist.txt',    to: 'https://grawlix.wtf/wordlists/spreadthewordlist.txt' },
-  { from: 'https://grawlix.wtf/peter-broda-wordlist.txt', to: 'https://grawlix.wtf/wordlists/peter-broda-wordlist.txt' },
-  { from: 'https://raw.githubusercontent.com/jkugelman/crossword/refs/heads/main/wordlists/jkugelman-wordlist.txt',
-    to:   'https://raw.githubusercontent.com/jkugelman/wordlist/refs/heads/main/jkugelman-wordlist.txt' },
+  {
+    to: 'https://raw.codeberg.page/bewilderingly/Nediger-list/@main/nediger list.txt',
+    from: [
+      'https://grawlix.wtf/Nediger list.txt',
+      'https://grawlix.wtf/wordlists/Nediger list.txt',
+    ],
+  },
+  {
+    to: 'https://grawlix.wtf/wordlists/spreadthewordlist.txt',
+    from: ['https://grawlix.wtf/spreadthewordlist.txt'],
+  },
+  {
+    to: 'https://grawlix.wtf/wordlists/peter-broda-wordlist.txt',
+    from: ['https://grawlix.wtf/peter-broda-wordlist.txt'],
+  },
+  {
+    to: 'https://raw.githubusercontent.com/jkugelman/wordlist/refs/heads/main/jkugelman-wordlist.txt',
+    from: ['https://raw.githubusercontent.com/jkugelman/crossword/refs/heads/main/wordlists/jkugelman-wordlist.txt'],
+  },
 ];
 
 // Derived from JK's rules, not duplicated: the unified scale IS JK's scoring

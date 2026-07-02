@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { canMigrate, migrateLs, remapStoredUrls, splitSyncRecord, MIGRATIONS, SCHEMA_VERSION } from '../../site/src/data/migrations.js';
-import { URL_REMAPS } from '../../site/src/core/constants.js';
+import { WORDLIST_PUBLISHERS } from '../../site/src/core/constants.js';
 
 // Migrations can touch localStorage (the v11 `ls` step renames a key), and a
 // settings fixture runs the whole chain from its version — so the node env needs
@@ -35,28 +35,39 @@ test('v11 → v12 renames the standalone welcomeSeen flag to returningVisitor an
 });
 
 test('remapStoredUrls rewrites a relocated url, reports the change, and no-ops otherwise', () => {
-  const { from, to } = URL_REMAPS[0];
+  const remaps = [{ to: 'https://grawlix.wtf/wordlists/new.txt', from: ['https://grawlix.wtf/old.txt'] }];
   const metas = [
-    { name: 'moved', url: from },
+    { name: 'moved', url: remaps[0].from[0] },
     { name: 'unrelated', url: 'https://example.com/keep.txt' },
     { name: 'imported', url: null },
   ];
-  assert.equal(remapStoredUrls(metas), true);
-  assert.equal(metas[0].url, to);                              // relocated → rewritten
+  assert.equal(remapStoredUrls(metas, remaps), true);
+  assert.equal(metas[0].url, remaps[0].to);                    // relocated → rewritten
   assert.equal(metas[1].url, 'https://example.com/keep.txt');  // unrelated → untouched
   assert.equal(metas[2].url, null);                            // file-based → untouched
 
-  assert.equal(remapStoredUrls(metas), false);                 // idempotent: nothing left to remap
+  assert.equal(remapStoredUrls(metas, remaps), false);         // idempotent: nothing left to remap
 });
 
-test('remapStoredUrls chains a far-behind url all the way forward in one pass', () => {
-  const remaps = [
-    { from: 'https://grawlix.wtf/a.txt', to: 'https://grawlix.wtf/b.txt' },
-    { from: 'https://grawlix.wtf/b.txt', to: 'https://grawlix.wtf/c.txt' },
+test('remapStoredUrls sends every historical url for a destination straight to it', () => {
+  const remaps = [{
+    to: 'https://grawlix.wtf/c.txt',
+    from: ['https://grawlix.wtf/a.txt', 'https://grawlix.wtf/b.txt'],
+  }];
+  const metas = [
+    { name: 'oldest', url: 'https://grawlix.wtf/a.txt' },
+    { name: 'newer',  url: 'https://grawlix.wtf/b.txt' },
   ];
-  const metas = [{ name: 'stale', url: 'https://grawlix.wtf/a.txt' }];
   assert.equal(remapStoredUrls(metas, remaps), true);
   assert.equal(metas[0].url, 'https://grawlix.wtf/c.txt');
+  assert.equal(metas[1].url, 'https://grawlix.wtf/c.txt');
+});
+
+test('the live URL_REMAPS resolve the original Nediger url to its current home', () => {
+  const nedigerUrl = WORDLIST_PUBLISHERS.find(p => p.id === 'nediger').url;
+  const metas = [{ name: 'nediger', url: 'https://grawlix.wtf/Nediger list.txt' }];
+  remapStoredUrls(metas);
+  assert.equal(metas[0].url, nedigerUrl);
 });
 
 test('canMigrate gates future versions, non-finite input, and gaps in the step chain', () => {
