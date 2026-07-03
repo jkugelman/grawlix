@@ -246,6 +246,17 @@ async function runOne({ runId, stack: serialized, sort, scope, existsQuery, scor
   // flat emitter, the transform/tuple emitters crash on a null comparator (`.sort(null)`).
   if (!sort?.length) sort = [{ key: DEFAULT_SORT_BY_TIER[chainSortTier(stack)], dir: 'asc' }];
 
+  // Cross-run cache probe. The whole serve is synchronous (no yield), so no run can
+  // supersede between probe and post — hence no abort re-check inside serveCacheHit.
+  const cacheKey = resultCacheKey(serialized, scope);
+  const hit = resultCache.get(cacheKey);
+  if (hit && cacheEntryValid(hit)) {
+    serveCacheHit(runId, hit, stack, sort, scoreRange, existsQuery, rebindQuery);
+    return;
+  }
+  cacheMisses++;
+
+  const t0 = performance.now();
   preRunInvalidate(serialized);
 
   let out;
@@ -268,7 +279,8 @@ async function runOne({ runId, stack: serialized, sort, scope, existsQuery, scor
   }
   if (signal.aborted) return;
 
-  postResult(runId, out, viewSpec, scope, stack, existsQuery, rebindQuery, streamState.streamed);
+  const { tier, r } = postResult(runId, out, viewSpec, scope, stack, existsQuery, rebindQuery, streamState.streamed);
+  admitResultToCache(cacheKey, tier, r, out, scope, performance.now() - t0);
 }
 
 // Refresh-on-consent's fast path for a FLAT displayed result: re-derive the join over
@@ -624,59 +636,75 @@ function stackRowIndex(stack, e) {
 // same word; a rich row (glyph, distinct norms, or a synthetic) would silently
 // lose data through it, so any rich row forces the atom-sequence encoding for the
 // whole result.
-function postResult(runId, { rows, atomCount, laneKind, capped }, viewSpec, scope, stack, existsQuery, rebindQuery, streamed) {
-  const base = { type: 'result', runId, laneKind, atomCount, capped: !!capped, ranAgainstOwned: true };
 
-  if (laneKind !== 'single') {
-    lastFlatResult = null;
-    lastTransformResult = null;
-    if (streamed) {
-      // Adopt, don't re-derive: the emitter merged with a total comparator, so a
-      // recompute here could only mask a streaming bug (worker-protocol.md forbids it).
-      lastGroupedResult.version++;
-    } else {
-      lastGroupedResult = deriveGroupResult(runId, rows, viewSpec, scope, stack, laneKind);
-    }
-    const r = lastGroupedResult;
+function resultTier({ rows, laneKind }) {
+  return laneKind !== 'single' ? 'group' : rows.some(rowIsRich) ? 'transform' : 'flat';
+}
+
+function flatJoinFromRows(rows) {
+  const join = new Array(rows.length);
+  for (let i = 0; i < rows.length; i++) join[i] = rowLastEntry(rows[i])._i;
+  return join;
+}
+
+// Shared by the non-streamed terminal and a cache hit — drift here makes a served
+// result silently differ from a fresh run.
+function deriveSlot(runId, tier, join, viewSpec, scope, stack, laneKind) {
+  if (tier === 'group') {
+    lastFlatResult = lastTransformResult = null;
+    lastGroupedResult = deriveGroupResult(runId, join, viewSpec, scope, stack, laneKind);
+    return lastGroupedResult;
+  }
+  if (tier === 'transform') {
+    lastFlatResult = lastGroupedResult = null;
+    lastTransformResult = deriveTransformResult(runId, join, viewSpec, scope, stack);
+    return lastTransformResult;
+  }
+  lastGroupedResult = lastTransformResult = null;
+  lastFlatResult = deriveFlatResult(runId, join, viewSpec, scope, stack);
+  return lastFlatResult;
+}
+
+// Adopt the streamed slot, never re-derive: the emitter merged with a total
+// comparator, so a recompute here would only mask a streaming bug (worker-protocol.md).
+function adoptStreamedSlot(tier) {
+  if (tier === 'group') {
+    lastFlatResult = lastTransformResult = null;
+    lastGroupedResult.version++;
+    return lastGroupedResult;
+  }
+  if (tier === 'transform') {
+    lastFlatResult = lastGroupedResult = null;
+    lastTransformResult.join = transformJoinRows(lastTransformResult.join);   // freeze the seen Map
+    lastTransformResult.version++;
+    return lastTransformResult;
+  }
+  lastGroupedResult = lastTransformResult = null;
+  lastFlatResult.version++;
+  return lastFlatResult;
+}
+
+// The single place the three tiers' terminal payloads are built — shared by the
+// terminals and a cache hit, so a hit carries `capped` + the existsInScope/rebind
+// echoes identically rather than dropping them as a reproject snapshot would.
+function shipResult(runId, tier, r, laneKind, atomCount, capped, viewSpec, existsQuery, rebindQuery) {
+  const base = { type: 'result', runId, laneKind, atomCount, capped: !!capped, ranAgainstOwned: true };
+  if (tier === 'group') {
     // The shipped length is NOT the group count — main sizes from summaries, else it
     // silently drops every group past the inline window.
     postMessage({ ...base, payload: { groups: r.groups.slice(0, GROUP_ROW_WINDOW).map(encodeGroup), ...r.summaries } });
     return;
   }
-
-  if (rows.some(rowIsRich)) {
-    lastFlatResult = null;
-    lastGroupedResult = null;
-    if (streamed) {
-      lastTransformResult.join = transformJoinRows(lastTransformResult.join);   // freeze the seen Map
-      lastTransformResult.version++;
-    } else {
-      lastTransformResult = deriveTransformResult(runId, rows, viewSpec, scope, stack);
-    }
-    const r = lastTransformResult;
-    postMessage({
-      ...base,
-      payload: {
-        firstChains: r.chains.slice(0, FIRST_WINDOW).map(encodeChain),
-        chainCount: r.chains.length,
-        ...r.summaries,
-        ...resolveRebindExists(existsQuery, rebindQuery),
-        rebindQuery: rebindQuery || null,
-      },
-    });
+  if (tier === 'transform') {
+    postMessage({ ...base, payload: {
+      firstChains: r.chains.slice(0, FIRST_WINDOW).map(encodeChain),
+      chainCount: r.chains.length,
+      ...r.summaries,
+      ...resolveRebindExists(existsQuery, rebindQuery),
+      rebindQuery: rebindQuery || null,
+    } });
     return;
   }
-
-  if (streamed) {
-    lastFlatResult.version++;
-  } else {
-    const join = new Array(rows.length);
-    for (let i = 0; i < rows.length; i++) join[i] = rowLastEntry(rows[i])._i;
-    lastFlatResult = deriveFlatResult(runId, join, viewSpec, scope, stack);
-  }
-  lastGroupedResult = null;
-  lastTransformResult = null;
-  const r = lastFlatResult;
   const { existsInScope, rebindEntry, rebindExists } = resolveRebindExists(existsQuery, rebindQuery);
   postMessage({ ...base, payload: {
     count: r.indices.length, widthHints: r.widthHints, stats: r.stats,
@@ -685,6 +713,16 @@ function postResult(runId, { rows, atomCount, laneKind, capped }, viewSpec, scop
     filtered: !!(viewSpec.scoreRange && parseRange(viewSpec.scoreRange)),
     firstRows: buildFlatRows(0, Math.min(FIRST_WINDOW, r.indices.length)),
   } });
+}
+
+function postResult(runId, out, viewSpec, scope, stack, existsQuery, rebindQuery, streamed) {
+  const { atomCount, laneKind, capped } = out;
+  const tier = resultTier(out);
+  const r = streamed
+    ? adoptStreamedSlot(tier)
+    : deriveSlot(runId, tier, tier === 'flat' ? flatJoinFromRows(out.rows) : out.rows, viewSpec, scope, stack, laneKind);
+  shipResult(runId, tier, r, laneKind, atomCount, capped, viewSpec, existsQuery, rebindQuery);
+  return { tier, r };
 }
 
 // Shared by the non-streamed terminal and reproject so a re-derived flat result is
@@ -728,6 +766,128 @@ function deriveTransformResult(runId, join, viewSpec, scope, stack) {
 // caller must not assume one shape.
 function transformJoinRows(join) {
   return join instanceof Map ? [...join.values()] : join;
+}
+
+// ─── Cross-run result cache ── see docs/worker-protocol.md § resultCache ─────
+// Retains FINISHED joins across runs, keyed so re-entering an identical (stack, scope)
+// serves instantly instead of re-joining. Separate from the three transient display
+// slots a hit re-populates; in-memory only, so it's disposable (invalidation just
+// drops, never migrates). Tuning knobs are `let` so a test can drop the floor.
+let RESULT_CACHE_MIN_MS = 1000;                     // below this, regenerating beats retaining — also the only force keeping the cache from filling just because slots are free
+let RESULT_CACHE_MAX_ENTRY_BYTES = 8 * 1024 * 1024; // jetsam prices peak bytes not time saved, so refuse any single join too large regardless of how valuable
+let RESULT_CACHE_MAX_BYTES = 32 * 1024 * 1024;      // total budget, counted beside the ~100MB corpus + ~100MB assets
+const BYTES_PER_FLAT_INDEX = 8;                     // a flat join row is one index into the shared corpus
+const BYTES_PER_JOIN_ATOM = 80;                     // an atom wrapper + amortized chain/group overhead; the wlEntry it points at is shared with the corpus, uncounted
+
+const resultCache = new Map();   // key -> { join, tier, laneKind, atomCount, capped, scope, corpus, elapsed, bytes, H }
+let cacheBytes = 0;              // running sum of every entry's estimated join bytes
+let cacheClock = 0;             // GreedyDual aging clock, advanced to each evicted entry's H
+let cacheHits = 0, cacheMisses = 0;   // test-visible (__testResultCacheState)
+
+// Excludes the view fields (sort, score-range) — they reproject on a hit — and, unlike
+// the pre-search cache's lastUserStackSig, KEEPS the trailing search row.
+function resultCacheKey(serialized, scope) {
+  return scope + '\n' + JSON.stringify(serialized);
+}
+
+// Prices the whole retained join (a transform's frozen seen-set, a grouped result's
+// every chain), NOT the shipped window — the ceiling caps peak RAM, which is the join.
+function estimateJoinBytes(tier, join) {
+  if (tier === 'flat') return join.length * BYTES_PER_FLAT_INDEX;
+  let atoms = 0;
+  if (tier === 'group') {
+    for (const g of join) for (const c of g.chains) atoms += rowAtoms(c).length;
+  } else {
+    for (const row of join) atoms += rowAtoms(row).length;
+  }
+  return atoms * BYTES_PER_JOIN_ATOM;
+}
+
+function cacheDelete(key) {
+  const e = resultCache.get(key);
+  if (!e) return;
+  cacheBytes -= e.bytes;
+  resultCache.delete(key);
+}
+
+// The scope-freshness gate is necessary but NOT sufficient — an in-scope rebuild passes
+// it while swapping the corpus object — so the object-identity test is what actually
+// proves the corpus is unchanged under the entry. Merged entries bind ownedMerged
+// (stable across scope detours), scoped entries ownedCorpus.
+function cacheEntryValid(entry) {
+  if (!ownedCorpusFresh || ownedScope !== entry.scope) return false;
+  const resident = entry.scope === MERGED_ID ? ownedMerged : ownedCorpus;
+  return !!resident && entry.corpus === resident;
+}
+
+// GreedyDual-Size: H = clock + elapsed/bytes. Advancing the clock to each victim's H is
+// what ages a never-revisited entry down over time (a re-access re-bases it). Eviction
+// is never a correctness concern — a bad choice only forces a recompute — so the linear
+// min-scan and simple comparator are fine.
+function evictForCache(incomingBytes) {
+  while (cacheBytes + incomingBytes > RESULT_CACHE_MAX_BYTES && resultCache.size > 0) {
+    let victim = null, minH = Infinity;
+    for (const [k, e] of resultCache) if (e.H < minH) { minH = e.H; victim = k; }
+    if (victim === null) break;
+    cacheClock = minH;
+    cacheDelete(victim);
+  }
+}
+
+// Terminal-only (finished, non-superseded). The floor and ceiling are irreducible: the
+// floor is a question about recompute time alone, the ceiling about peak bytes alone.
+// `corpus` is the serve-time identity anchor — the sole proof of non-staleness.
+function admitResultToCache(key, tier, r, out, scope, elapsed) {
+  if (elapsed < RESULT_CACHE_MIN_MS) return;
+  if (!ownedCorpusFresh || ownedScope !== scope) return;   // only bind a resident, scope-matched corpus
+  const corpus = scope === MERGED_ID ? ownedMerged : ownedCorpus;
+  if (!corpus) return;
+  const join = r.join;
+  const bytes = estimateJoinBytes(tier, join);
+  if (bytes > RESULT_CACHE_MAX_ENTRY_BYTES) return;
+  cacheDelete(key);   // a re-admitted key replaces its prior entry
+  evictForCache(bytes);
+  resultCache.set(key, {
+    join, tier, laneKind: out.laneKind, atomCount: out.atomCount, capped: !!out.capped,
+    // max(bytes,1) floors the GDS denominator so a 0-byte (empty) join can't mint an
+    // Infinity H that makes it un-evictable; byte accounting keeps the true 0.
+    scope, corpus, elapsed, bytes, H: cacheClock + elapsed / Math.max(bytes, 1),
+  });
+  cacheBytes += bytes;
+}
+
+// A hit takes the non-streamed-terminal path: rehydrate the slot from the retained join,
+// recomputing the view AND every score-derived summary — NOT reusing a stored histogram,
+// which a replaced===false score edit may have invalidated by mutating the join's scores
+// in place. `stack` equals the cached one (the key matched), so it's the right one.
+function serveCacheHit(runId, entry, stack, sort, scoreRange, existsQuery, rebindQuery) {
+  cacheHits++;
+  const viewSpec = { sort, scoreRange };
+  const r = deriveSlot(runId, entry.tier, entry.join, viewSpec, entry.scope, stack, entry.laneKind);
+  shipResult(runId, entry.tier, r, entry.laneKind, entry.atomCount, entry.capped, viewSpec, existsQuery, rebindQuery);
+  entry.H = cacheClock + entry.elapsed / Math.max(entry.bytes, 1);   // GDS re-base on access
+}
+
+// After a rebuild swaps a corpus object, proactively drop entries no longer bound to a
+// resident corpus (else they linger on the budget and skew GDS until an identity-miss).
+// A merged entry survives a scope detour (ownedMerged is stable); a left single-list
+// scope's does not. ownedMerged is already the new build at every setOwnedCorpus site.
+function purgeDiscardedCacheEntries() {
+  for (const [k, e] of resultCache) {
+    if (e.corpus !== ownedMerged && e.corpus !== ownedCorpus) cacheDelete(k);
+  }
+}
+
+// An in-place splice that swapped row objects (replaced===true) leaves the corpus OBJECT
+// identical, so the identity test can't catch it — purge that corpus's entries directly.
+function purgeCacheForCorpus(corpus) {
+  for (const [k, e] of resultCache) if (e.corpus === corpus) cacheDelete(k);
+}
+
+function clearResultCache() {
+  resultCache.clear();
+  cacheBytes = 0;
+  cacheClock = 0;
 }
 
 // The above-the-fold window shipped inline with every flat result. Generous
@@ -1356,13 +1516,20 @@ function applyOwnedEdit(source, affectedNorms) {
   // computeMergedBucket (not the rawScore-carrying scoped variant): the merged
   // corpus drops rawScore on every entry (a full buildCorpus merge would too), so
   // the in-place splice must drop it to stay byte-identical to a rebuild.
-  let replaced = spliceOwnedCorpus(ownedMerged, affectedNorms, norm => withFamilies(computeMergedBucket(norm, ownedBuilt), ownedMerged.vocab));
+  const mergedReplaced = spliceOwnedCorpus(ownedMerged, affectedNorms, norm => withFamilies(computeMergedBucket(norm, ownedBuilt), ownedMerged.vocab));
+  // replaced===true strands a retained join's indices/refs on the swapped-out rows;
+  // replaced===false only mutated scores in place, so the entry stays valid and its
+  // next hit recomputes the score-derived view.
+  if (mergedReplaced) purgeCacheForCorpus(ownedMerged);
+  let replaced = mergedReplaced;
 
   // For MERGED scope ownedCorpus === ownedMerged (spliced above). Scoped to this
   // source it's a distinct single-source build — diverge from that and the scoped
   // view drifts from a rebuild with no error.
   if (ownedScope === source.dbKey && ownedCorpus !== ownedMerged) {
-    replaced = spliceOwnedCorpus(ownedCorpus, affectedNorms, norm => withFamilies(recomputeScopedBucket(norm, source), ownedCorpus.vocab)) || replaced;
+    const scopedReplaced = spliceOwnedCorpus(ownedCorpus, affectedNorms, norm => withFamilies(recomputeScopedBucket(norm, source), ownedCorpus.vocab));
+    if (scopedReplaced) purgeCacheForCorpus(ownedCorpus);
+    replaced = scopedReplaced || replaced;
   }
 
   // Both gate on a row-OBJECT swap. A replacing splice shifts later indices (so
@@ -1762,6 +1929,7 @@ function setOwnedCorpus(corpus, scope) {
   indexCorpusEntries(corpus);
   ownedScope = scope;
   ownedCorpusFresh = true;
+  purgeDiscardedCacheEntries();   // this rebuild discarded corpus objects some cache entries bound
 }
 
 function clearOwnedCorpus() {
@@ -1781,6 +1949,7 @@ function releasePriorCorpus() {
   lastRunCorpus = null;
   invalidatePreSearchCache();
   lastFlatResult = lastGroupedResult = lastTransformResult = null;
+  clearResultCache();   // a syncConfig rebuilds every scope from IDB — every retained join is stale
 }
 
 // The cache key 'all' is reused across syncConfigs and the worker uses the
@@ -2095,6 +2264,21 @@ onmessage = ({ data }) => {
     // worker's, so the eviction suite must ask the worker for the true loaded state.
     case '__testAssetState':
       postMessage({ type: '__testAssetState', state: Object.fromEntries(DATA_ASSETS.map(a => [a.key, a.has()])) });
+      break;
+
+    // Test-only: drop the recompute floor (and optionally the byte budgets) so a fast
+    // run is cacheable — the real 5s floor makes the cache inert under the suite's
+    // sub-second queries. Resets the cache + counters to a clean baseline.
+    case '__testResultCacheConfig':
+      if (data.minMs != null) RESULT_CACHE_MIN_MS = data.minMs;
+      if (data.maxBytes != null) RESULT_CACHE_MAX_BYTES = data.maxBytes;
+      if (data.maxEntryBytes != null) RESULT_CACHE_MAX_ENTRY_BYTES = data.maxEntryBytes;
+      clearResultCache();
+      cacheHits = cacheMisses = 0;
+      break;
+
+    case '__testResultCacheState':
+      postMessage({ type: '__testResultCacheState', size: resultCache.size, bytes: cacheBytes, hits: cacheHits, misses: cacheMisses, keys: [...resultCache.keys()] });
       break;
   }
 };

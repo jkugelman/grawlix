@@ -680,6 +680,27 @@ export function queryWorkerEntry(scope, norm, display, timeout = 5000) {
   });
 }
 
+// Test-only: the real 5s recompute floor makes the cross-run result cache inert
+// under sub-second test queries; drop it so a fast run is cacheable. Fire-and-forget.
+export function configureResultCacheForTest(opts) {
+  getWorker().postMessage({ type: '__testResultCacheConfig', ...opts });
+}
+
+export function resultCacheStateForTest(timeout = 2000) {
+  const w = getWorker();
+  return new Promise(resolve => {
+    const timer = setTimeout(() => { w.removeEventListener('message', onMessage); resolve(null); }, timeout);
+    function onMessage({ data }) {
+      if (data?.type !== '__testResultCacheState') return;
+      clearTimeout(timer);
+      w.removeEventListener('message', onMessage);
+      resolve({ size: data.size, bytes: data.bytes, hits: data.hits, misses: data.misses, keys: data.keys });
+    }
+    w.addEventListener('message', onMessage);
+    w.postMessage({ type: '__testResultCacheState' });
+  });
+}
+
 export function workerAssetStateForTest(timeout = 2000) {
   const w = getWorker();
   return new Promise(resolve => {
