@@ -10,7 +10,7 @@ import { effect } from '../core/signals.js';
 import { invalidateStatsCache } from '../engine/stats.js';
 import { bucketCounts, invalidateHistogramLayout } from '../engine/histogram.js';
 import { PARAM_HELP } from '../engine/tools.js';
-import { invalidatePreSearchCache, streamPlan } from '../engine/executor.js';
+import { streamPlan } from '../engine/executor.js';
 import {
   sources$, cacheVersion$, pipelineVersion$, configSummary$, errorMarks$, resultsStale$, bumpCacheVersion, state,
 } from '../data/state.js';
@@ -282,14 +282,14 @@ export async function repatchMergedScroller() {
 }
 
 
-// The pre-search and histogram caches assume one corpus, so a scope change
-// must drop both before the pipeline re-runs — otherwise the prior scope's
-// memoized seed rows leak into the new view with no error.
+// The histogram layout cache assumes one corpus, so a scope change must drop it
+// before the pipeline re-runs — otherwise the prior scope's memoized axis leaks
+// into the new view with no error. (The worker's prefix cache needs no hook: its
+// corpus-identity test invalidates the old scope's tiles on the rebuild.)
 export async function setScope(target) {
   if (state.selected === target) return;
   state.selected = target;
   lsSave('selectedScope', scopeKey(target));
-  invalidatePreSearchCache();
   invalidateHistogramLayout();
   WordlistSelector.refresh();
   DiscoveryBanner.refresh();

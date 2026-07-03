@@ -3,7 +3,8 @@
 import { MERGED_ID } from '../core/constants.js';
 import { canonicalNormRow } from './snapshot.js';
 import { TOOLS, makeToolRow } from './tools.js';
-import { executePipeline, configureExecutorYield, invalidatePreSearchCache, bottomLineAtoms, applyScoreRangeToRows, rowLastEntry, rowAtoms, collapseRepeatAtoms, streamPlan, cacheGroupStats, currentAtomCount } from './executor.js';
+import { executePipeline, configureExecutorYield, lastPipelineSeedFrom, bottomLineAtoms, applyScoreRangeToRows, rowLastEntry, rowAtoms, collapseRepeatAtoms, streamPlan, cacheGroupStats, currentAtomCount } from './executor.js';
+import { GdsCache } from './gds-cache.js';
 import { sortGroups, sortChainRows, activeGroupRow, groupRowComparator, chainRowComparator, chainSortTier, DEFAULT_SORT_BY_TIER } from './sort.js';
 import { configureIO as configureSegmenterIO } from './segmenter.js';
 import { configureIO as configurePhoneticsIO } from './phonetics.js';
@@ -131,7 +132,6 @@ let diffCounter = 0;
 // each entry by UI reachability (`freeDiff`).
 const retainedDiffs = new Map();
 let lastUserStackSig = null;
-let lastRunCorpus = null;   // the corpus the live _preSearchCache was seeded from
 let selfConfig = null;
 let ownedBuilt = null;      // the retained per-source rich wordlists from the last syncConfig
 let ownedMerged = null;     // eager self-built MERGED corpus; feeds the config summaries regardless of active scope
@@ -217,24 +217,16 @@ async function drainRuns() {
   }
 }
 
-// The pre-search cache persists the user-stack result across runs for the keystroke
-// fast-path; the caller must drop it when the user stack changes. On main that's
-// ToolStack's mutation handlers — signals the worker never sees, so it detects the
-// change itself, else a tool add/remove/edit silently runs against the previous
-// stack's cached pre-search state. Second guard: the cache's chains hold
-// ownedCorpus.entries objects by reference, so a rebuilt corpus (scope switch, config
-// re-sync, background splice) with an unchanged user stack must also drop it, or the
-// cached chains point at the previous corpus's entries and silently mis-encode rows.
-function preRunInvalidate(serialized) {
+// When the user stack changes, free any large data asset the new stack no longer
+// references (~100 MB+ that can tip iOS's jetsam budget). Cache freshness needs no
+// hook here: the prefix cache keys by prefix (a changed row keys a different prefix)
+// and gates every seed on the corpus-object identity test, so a stale tile is dropped
+// at probe time rather than proactively.
+function reapUnusedAssets(serialized) {
   const userStackSig = JSON.stringify(serialized.slice(0, -1));
   if (userStackSig !== lastUserStackSig) {
-    invalidatePreSearchCache();
     evictUnusedAssets(serialized);
     lastUserStackSig = userStackSig;
-  }
-  if (ownedCorpus !== lastRunCorpus) {
-    invalidatePreSearchCache();
-    lastRunCorpus = ownedCorpus;
   }
 }
 
@@ -249,7 +241,7 @@ async function runOne({ runId, stack: serialized, sort, scope, existsQuery, scor
   // Cross-run cache probe. The whole serve is synchronous (no yield), so no run can
   // supersede between probe and post — hence no abort re-check inside serveCacheHit.
   const cacheKey = resultCacheKey(serialized, scope);
-  const hit = resultCache.get(cacheKey);
+  const hit = finishedCache.peek(cacheKey);
   if (hit && cacheEntryValid(hit)) {
     serveCacheHit(runId, hit, stack, sort, scoreRange, existsQuery, rebindQuery);
     return;
@@ -257,7 +249,8 @@ async function runOne({ runId, stack: serialized, sort, scope, existsQuery, scor
   cacheMisses++;
 
   const t0 = performance.now();
-  preRunInvalidate(serialized);
+  reapUnusedAssets(serialized);
+  const resume = makePrefixResume(serialized, scope);
 
   let out;
   const streamState = { streamed: false };
@@ -271,7 +264,7 @@ async function runOne({ runId, stack: serialized, sort, scope, existsQuery, scor
       : tier === 'tuple' ? makeTupleStreamEmitter(runId, viewSpec, scope, stack, signal, streamState)
       : tier === 'transform' ? makeTransformStreamEmitter(runId, viewSpec, scope, stack, signal, streamState)
       : null;
-    out = await executePipeline(ownedCorpus, stack, signal, emit);
+    out = await executePipeline(ownedCorpus, stack, signal, emit, resume);
   } catch (e) {
     if (isAbortError(e) || signal.aborted) return;
     postMessage({ type: 'error', runId, stackRowIndex: stackRowIndex(stack, e), message: e?.message || String(e) });
@@ -289,8 +282,8 @@ async function runOne({ runId, stack: serialized, sort, scope, existsQuery, scor
 // per-entry, so an add/delete is a cheap re-scan; a combination tier (tuple/group/
 // transform) can gain a result from an added entry PARTNERING an existing one — a
 // re-scan misses that, so those still freeze + chip. Rides drainRuns because running its
-// executePipeline concurrently with a real run corrupts the shared _preSearchCache and
-// retained result, both silently.
+// executePipeline concurrently with a real run corrupts the shared retained result and
+// the prefix cache it seeds/offers into, both silently.
 async function runRepatch({ runId, reprojectId, stack: serialized, sort, scoreRange }) {
   // A scope/config change since the run would make the retained rows name the wrong
   // entries (the handleReproject guard); reply stale so main re-runs instead of tearing.
@@ -301,11 +294,11 @@ async function runRepatch({ runId, reprojectId, stack: serialized, sort, scoreRa
   const signal = makeSignalShim(runId);
   const stack = deserializeStack(serialized);
   if (!sort?.length) sort = [{ key: DEFAULT_SORT_BY_TIER[chainSortTier(stack)], dir: 'asc' }];
-  preRunInvalidate(serialized);
+  reapUnusedAssets(serialized);
 
   let out;
   try {
-    out = await executePipeline(ownedCorpus, stack, signal);   // buffered (no emit): one atomic snapshot, not a strobing re-stream
+    out = await executePipeline(ownedCorpus, stack, signal, null, makePrefixResume(serialized, lastFlatResult.scope));   // buffered (no emit): one atomic snapshot, not a strobing re-stream
   } catch (e) {
     // Aborted ⇒ a newer run superseded us and refreshes the display, so reply nothing
     // (main's pending reproject self-heals); a real error re-runs.
@@ -768,24 +761,30 @@ function transformJoinRows(join) {
   return join instanceof Map ? [...join.values()] : join;
 }
 
-// ─── Cross-run result cache ── see docs/worker-protocol.md § resultCache ─────
-// Retains FINISHED joins across runs, keyed so re-entering an identical (stack, scope)
-// serves instantly instead of re-joining. Separate from the three transient display
-// slots a hit re-populates; in-memory only, so it's disposable (invalidation just
-// drops, never migrates). Tuning knobs are `let` so a test can drop the floor.
-let RESULT_CACHE_MIN_MS = 1000;                     // below this, regenerating beats retaining — also the only force keeping the cache from filling just because slots are free
-let RESULT_CACHE_MAX_ENTRY_BYTES = 8 * 1024 * 1024; // jetsam prices peak bytes not time saved, so refuse any single join too large regardless of how valuable
-let RESULT_CACHE_MAX_BYTES = 32 * 1024 * 1024;      // total budget, counted beside the ~100MB corpus + ~100MB assets
+// ─── Pipeline caches ── see docs/worker-protocol.md § result & prefix caches ─
+// Two in-memory GreedyDual-Size caches over the shared GdsCache substrate. The
+// FINISHED cache retains a completed join so re-entering an identical (stack, scope)
+// against an unchanged corpus serves instantly — REVISIT a query. The PREFIX cache
+// retains a mid-pipeline executor state so editing a non-trailing tool row reuses its
+// untouched prefix and reruns only the suffix — REFINE a pipeline. Disposable in-memory
+// only: invalidation just drops, never migrates. Each has its own budget (worst case 2×
+// the constant, still small beside the ~100MB corpus + ~100MB assets).
+const RESULT_CACHE_MIN_MS = 1000;                     // below this, regenerating beats retaining
+const RESULT_CACHE_MAX_ENTRY_BYTES = 8 * 1024 * 1024; // jetsam prices peak bytes not time saved, so refuse any single entry too large
+const RESULT_CACHE_MAX_BYTES = 32 * 1024 * 1024;      // per-cache byte budget
 const BYTES_PER_FLAT_INDEX = 8;                     // a flat join row is one index into the shared corpus
 const BYTES_PER_JOIN_ATOM = 80;                     // an atom wrapper + amortized chain/group overhead; the wlEntry it points at is shared with the corpus, uncounted
 
-const resultCache = new Map();   // key -> { join, tier, laneKind, atomCount, capped, scope, corpus, elapsed, bytes, H }
-let cacheBytes = 0;              // running sum of every entry's estimated join bytes
-let cacheClock = 0;             // GreedyDual aging clock, advanced to each evicted entry's H
-let cacheHits = 0, cacheMisses = 0;   // test-visible (__testResultCacheState)
+const cacheOpts = { minMs: RESULT_CACHE_MIN_MS, maxEntryBytes: RESULT_CACHE_MAX_ENTRY_BYTES, maxBytes: RESULT_CACHE_MAX_BYTES };
+const finishedCache = new GdsCache(cacheOpts);
+const prefixCache = new GdsCache(cacheOpts);
+let cacheHits = 0, cacheMisses = 0;       // finished-cache telemetry (__testResultCacheState)
+let prefixHits = 0, prefixMisses = 0;     // prefix-cache telemetry (__testPrefixCacheState)
 
-// Excludes the view fields (sort, score-range) — they reproject on a hit — and, unlike
-// the pre-search cache's lastUserStackSig, KEEPS the trailing search row.
+// Keys BOTH caches. Excludes the view fields (sort, score-range) — they reproject on a
+// hit — and KEEPS the trailing search row (a prefix key is a stack SLICE, so the search
+// row is present when the slice reaches it). A finished key spans the full stack; the two
+// live in separate maps so an equal-string full-stack and prefix key never collide.
 function resultCacheKey(serialized, scope) {
   return scope + '\n' + JSON.stringify(serialized);
 }
@@ -803,57 +802,35 @@ function estimateJoinBytes(tier, join) {
   return atoms * BYTES_PER_JOIN_ATOM;
 }
 
-function cacheDelete(key) {
-  const e = resultCache.get(key);
-  if (!e) return;
-  cacheBytes -= e.bytes;
-  resultCache.delete(key);
+// Prices a snapshot executor state (prefix cache): a bare-entry chain costs one
+// reference slot, a decorated chain its atoms — mirroring estimateJoinBytes' weights.
+function estimateStateBytes(state) {
+  let bytes = 0;
+  for (const g of state.groups) {
+    for (const c of g.chains) bytes += c.atoms ? c.atoms.length * BYTES_PER_JOIN_ATOM : BYTES_PER_FLAT_INDEX;
+  }
+  return bytes;
 }
 
 // The scope-freshness gate is necessary but NOT sufficient — an in-scope rebuild passes
 // it while swapping the corpus object — so the object-identity test is what actually
 // proves the corpus is unchanged under the entry. Merged entries bind ownedMerged
-// (stable across scope detours), scoped entries ownedCorpus.
+// (stable across scope detours), scoped entries ownedCorpus. Governs BOTH caches.
 function cacheEntryValid(entry) {
   if (!ownedCorpusFresh || ownedScope !== entry.scope) return false;
   const resident = entry.scope === MERGED_ID ? ownedMerged : ownedCorpus;
   return !!resident && entry.corpus === resident;
 }
 
-// GreedyDual-Size: H = clock + elapsed/bytes. Advancing the clock to each victim's H is
-// what ages a never-revisited entry down over time (a re-access re-bases it). Eviction
-// is never a correctness concern — a bad choice only forces a recompute — so the linear
-// min-scan and simple comparator are fine.
-function evictForCache(incomingBytes) {
-  while (cacheBytes + incomingBytes > RESULT_CACHE_MAX_BYTES && resultCache.size > 0) {
-    let victim = null, minH = Infinity;
-    for (const [k, e] of resultCache) if (e.H < minH) { minH = e.H; victim = k; }
-    if (victim === null) break;
-    cacheClock = minH;
-    cacheDelete(victim);
-  }
-}
-
-// Terminal-only (finished, non-superseded). The floor and ceiling are irreducible: the
-// floor is a question about recompute time alone, the ceiling about peak bytes alone.
-// `corpus` is the serve-time identity anchor — the sole proof of non-staleness.
+// Terminal-only (finished, non-superseded). `corpus` is the serve-time identity anchor —
+// the sole proof of non-staleness; the floor/ceiling/eviction live in GdsCache.admit.
 function admitResultToCache(key, tier, r, out, scope, elapsed) {
-  if (elapsed < RESULT_CACHE_MIN_MS) return;
   if (!ownedCorpusFresh || ownedScope !== scope) return;   // only bind a resident, scope-matched corpus
   const corpus = scope === MERGED_ID ? ownedMerged : ownedCorpus;
   if (!corpus) return;
-  const join = r.join;
-  const bytes = estimateJoinBytes(tier, join);
-  if (bytes > RESULT_CACHE_MAX_ENTRY_BYTES) return;
-  cacheDelete(key);   // a re-admitted key replaces its prior entry
-  evictForCache(bytes);
-  resultCache.set(key, {
-    join, tier, laneKind: out.laneKind, atomCount: out.atomCount, capped: !!out.capped,
-    // max(bytes,1) floors the GDS denominator so a 0-byte (empty) join can't mint an
-    // Infinity H that makes it un-evictable; byte accounting keeps the true 0.
-    scope, corpus, elapsed, bytes, H: cacheClock + elapsed / Math.max(bytes, 1),
-  });
-  cacheBytes += bytes;
+  finishedCache.admit(key, {
+    join: r.join, tier, laneKind: out.laneKind, atomCount: out.atomCount, capped: !!out.capped, scope, corpus,
+  }, elapsed, () => estimateJoinBytes(tier, r.join));
 }
 
 // A hit takes the non-streamed-terminal path: rehydrate the slot from the retained join,
@@ -865,7 +842,42 @@ function serveCacheHit(runId, entry, stack, sort, scoreRange, existsQuery, rebin
   const viewSpec = { sort, scoreRange };
   const r = deriveSlot(runId, entry.tier, entry.join, viewSpec, entry.scope, stack, entry.laneKind);
   shipResult(runId, entry.tier, r, entry.laneKind, entry.atomCount, entry.capped, viewSpec, existsQuery, rebindQuery);
-  entry.H = cacheClock + entry.elapsed / Math.max(entry.bytes, 1);   // GDS re-base on access
+  finishedCache.touch(entry);   // GDS re-base on access
+}
+
+// The executor's prefix-cache seam for one run. `seed` returns the longest cached prefix
+// state to resume from (or null → bare); `offer` admits an inter-stage snapshot. Probes
+// prefix lengths userStackLen..1 — the full user stack (a keystroke reuses it) down to a
+// single row (length 0 is the free bare seed). A stale entry (corpus swapped under it) is
+// dropped, not served — the same identity proof the finished cache demands.
+function makePrefixResume(serialized, scope) {
+  const userStackLen = serialized.length - 1;
+  // A mid-run corpus mutation (a My Edits splice, a committed re-sync) makes any tile
+  // this run snapshots span two corpus states — a poisoned prefix a later run would
+  // seed from. The finished cache dodges this by admitting only at the terminal
+  // (post-abort-check); an offer fires mid-run, so gate it on the generation being
+  // unchanged since run start. Offering is availability-only (a skip just forces a
+  // recompute), so a false skip is free.
+  const genAtStart = ownedConfigVersion;
+  let seedState = null, seedFrom = 0;
+  for (let len = userStackLen; len >= 1; len--) {
+    const key = resultCacheKey(serialized.slice(0, len), scope);
+    const e = prefixCache.peek(key);
+    if (!e) continue;
+    if (cacheEntryValid(e)) { prefixCache.touch(e); seedState = e.state; seedFrom = len; break; }
+    prefixCache.delete(key);
+  }
+  if (userStackLen >= 1) { if (seedState) prefixHits++; else prefixMisses++; }
+  return {
+    seedState, seedFrom, floorMs: prefixCache.minMs,
+    offer(prefixLen, state, elapsed) {
+      if (!ownedCorpusFresh || ownedScope !== scope || ownedConfigVersion !== genAtStart) return;
+      const corpus = scope === MERGED_ID ? ownedMerged : ownedCorpus;
+      if (!corpus) return;
+      prefixCache.admit(resultCacheKey(serialized.slice(0, prefixLen), scope),
+        { state, scope, corpus }, elapsed, () => estimateStateBytes(state));
+    },
+  };
 }
 
 // After a rebuild swaps a corpus object, proactively drop entries no longer bound to a
@@ -873,21 +885,22 @@ function serveCacheHit(runId, entry, stack, sort, scoreRange, existsQuery, rebin
 // A merged entry survives a scope detour (ownedMerged is stable); a left single-list
 // scope's does not. ownedMerged is already the new build at every setOwnedCorpus site.
 function purgeDiscardedCacheEntries() {
-  for (const [k, e] of resultCache) {
-    if (e.corpus !== ownedMerged && e.corpus !== ownedCorpus) cacheDelete(k);
-  }
+  const gone = e => e.corpus !== ownedMerged && e.corpus !== ownedCorpus;
+  finishedCache.purge(gone);
+  prefixCache.purge(gone);
 }
 
 // An in-place splice that swapped row objects (replaced===true) leaves the corpus OBJECT
 // identical, so the identity test can't catch it — purge that corpus's entries directly.
 function purgeCacheForCorpus(corpus) {
-  for (const [k, e] of resultCache) if (e.corpus === corpus) cacheDelete(k);
+  const bound = e => e.corpus === corpus;
+  finishedCache.purge(bound);
+  prefixCache.purge(bound);
 }
 
 function clearResultCache() {
-  resultCache.clear();
-  cacheBytes = 0;
-  cacheClock = 0;
+  finishedCache.clear();
+  prefixCache.clear();
 }
 
 // The above-the-fold window shipped inline with every flat result. Generous
@@ -1454,7 +1467,7 @@ function recomputeScopedBucket(norm, source) {
 // `entries`, so there is no separate chain array to keep in lockstep.)
 //
 // `replaced` is true when any norm swapped its row objects; the caller keeps the
-// pre-search cache (its chains hold those objects) only while it stays false.
+// prefix cache's tiles (their chains hold those objects) only while it stays false.
 function spliceOwnedCorpus(cache, affectedNorms, bucketFn) {
   const { entries, byNorm, byKey, sourceCounts } = cache;
   const countDelta = new Map();
@@ -1474,7 +1487,7 @@ function spliceOwnedCorpus(cache, affectedNorms, bucketFn) {
 
     // Reconcile onto the existing row objects when the edit leaves this norm's
     // (norm, display) set intact: preserving their identity is what lets the caller
-    // keep the pre-search cache. A replacing splice would strand the cache's chains.
+    // keep the prefix cache's tiles. A replacing splice would strand their chains.
     const inPlace = rows.length === hi - lo
       && rows.every((r, k) => (r.display ?? null) === (entries[lo + k].display ?? null));
     if (inPlace) {
@@ -1532,15 +1545,12 @@ function applyOwnedEdit(source, affectedNorms) {
     replaced = scopedReplaced || replaced;
   }
 
-  // Both gate on a row-OBJECT swap. A replacing splice shifts later indices (so
-  // restamp `_i`, mirroring setOwnedCorpus) and strands the pre-search cache's
-  // chains on the old objects (so drop it). A pure in-place reconcile — a
-  // score/comment edit reshaping no norm's variant set — leaves positions and
-  // identities, so both can be skipped and the next run reuses the cached stack.
-  if (replaced) {
-    indexCorpusEntries(ownedCorpus);
-    invalidatePreSearchCache();
-  }
+  // A replacing splice shifts later indices, so restamp `_i` (mirroring setOwnedCorpus);
+  // it also stranded the prefix cache's chains on the swapped-out objects, but the
+  // purgeCacheForCorpus calls above already dropped those tiles. A pure in-place reconcile
+  // — a score/comment edit reshaping no norm's variant set — leaves positions and
+  // identities, so this is skipped and the next run reuses the cached prefixes.
+  if (replaced) indexCorpusEntries(ownedCorpus);
 
   // The in-place splice leaves the owned corpus current, so (re)assert freshness:
   // a concurrent stale syncConfig build that started before this edit must not be
@@ -1946,10 +1956,8 @@ function clearOwnedCorpus() {
 function releasePriorCorpus() {
   ownedMerged = null;
   clearOwnedCorpus();
-  lastRunCorpus = null;
-  invalidatePreSearchCache();
   lastFlatResult = lastGroupedResult = lastTransformResult = null;
-  clearResultCache();   // a syncConfig rebuilds every scope from IDB — every retained join is stale
+  clearResultCache();   // a syncConfig rebuilds every scope from IDB — every retained result AND prefix tile is stale
 }
 
 // The cache key 'all' is reused across syncConfigs and the worker uses the
@@ -2270,15 +2278,21 @@ onmessage = ({ data }) => {
     // run is cacheable — the real 5s floor makes the cache inert under the suite's
     // sub-second queries. Resets the cache + counters to a clean baseline.
     case '__testResultCacheConfig':
-      if (data.minMs != null) RESULT_CACHE_MIN_MS = data.minMs;
-      if (data.maxBytes != null) RESULT_CACHE_MAX_BYTES = data.maxBytes;
-      if (data.maxEntryBytes != null) RESULT_CACHE_MAX_ENTRY_BYTES = data.maxEntryBytes;
-      clearResultCache();
+      finishedCache.configure({ minMs: data.minMs, maxBytes: data.maxBytes, maxEntryBytes: data.maxEntryBytes });
       cacheHits = cacheMisses = 0;
       break;
 
+    case '__testPrefixCacheConfig':
+      prefixCache.configure({ minMs: data.minMs, maxBytes: data.maxBytes, maxEntryBytes: data.maxEntryBytes });
+      prefixHits = prefixMisses = 0;
+      break;
+
     case '__testResultCacheState':
-      postMessage({ type: '__testResultCacheState', size: resultCache.size, bytes: cacheBytes, hits: cacheHits, misses: cacheMisses, keys: [...resultCache.keys()] });
+      postMessage({ type: '__testResultCacheState', size: finishedCache.size, bytes: finishedCache.bytes, hits: cacheHits, misses: cacheMisses, keys: finishedCache.keys() });
+      break;
+
+    case '__testPrefixCacheState':
+      postMessage({ type: '__testPrefixCacheState', size: prefixCache.size, bytes: prefixCache.bytes, hits: prefixHits, misses: prefixMisses, keys: prefixCache.keys(), seedFrom: lastPipelineSeedFrom() });
       break;
   }
 };

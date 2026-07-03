@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { makeToolRow } from '../../site/src/engine/tools.js';
-import { executePipeline, invalidatePreSearchCache } from '../../site/src/engine/executor.js';
+import { executePipeline } from '../../site/src/engine/executor.js';
 import { compileFlatHighlighters, materializeFlatRow } from '../../site/src/engine/flat-highlight.js';
 
 // Oracle for the relocated materializeFlatRow: it must reproduce the executor's
@@ -35,7 +35,6 @@ const projectRow = row => row.atoms.map(a => ({
 }));
 
 async function executorFlatRows(corpus, stack) {
-  invalidatePreSearchCache();
   const result = await executePipeline(corpus, stack, null);
   assert.equal(result.laneKind, 'single', 'fixture stack must be a flat (ungrouped) chain');
   return result.rows;

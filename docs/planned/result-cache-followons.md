@@ -1,16 +1,15 @@
-# Planned: result-cache follow-ons — partial runs, intermediate steps, coroutine resume
+# Planned: result-cache follow-ons — partial runs, coroutine resume
 
-Three forward-looking extensions of the shipped **in-memory result cache** (see [`design.md`](../design.md) § *Streaming results*, "Finished joins survive across runs", and the `Cross-run result cache` section of [`worker.js`](../../site/src/engine/worker.js)). None is being built now; this records the thinking so it isn't lost.
+Forward-looking extensions of the shipped **in-memory pipeline caches** (see [`design.md`](../design.md) § *Streaming results* and the `Pipeline caches` section of [`worker.js`](../../site/src/engine/worker.js)). None is being built now; this records the thinking so it isn't lost. (The third idea once tracked here — **§2 intermediate-step reuse**, a keyed prefix-state cache — has since shipped as the `prefixCache`; see `design.md` § *Streaming results*, "Editing a non-trailing tool row reuses its untouched prefix".)
 
-They share one insight: **all three reuse the shipped cache's substrate** — a worker-owned keyed `Map`, a byte budget with GreedyDual-Size / investment-weighted eviction, and corpus-**object-identity** invalidation (bind an entry to the corpus object it was built against; a rebuild swaps the object and the identity test misses; an in-place splice's `replaced` flag drives a keep-or-purge). What differs is *what* each caches and *how* it resumes:
+They share one insight: **both reuse the shipped caches' substrate** — the `GdsCache` (a worker-owned keyed map, a byte budget with GreedyDual-Size / investment-weighted eviction) and corpus-**object-identity** invalidation (bind an entry to the corpus object it was built against; a rebuild swaps the object and the identity test misses; an in-place splice's `replaced` flag drives a keep-or-purge). What differs is *what* each caches and *how* it resumes:
 
 | Idea | What it caches | Resume mechanism |
 |---|---|---|
 | §1 Partial-run retention | an **incomplete** final join | re-run from start + catch up (cheap, deterministic) |
-| §2 Intermediate-step reuse | a **complete intermediate** (inter-stage row set) | seed the suffix from the longest cached prefix; only the uncached tools run |
 | §3 Coroutine resume (parked) | a suspended **continuation** | resume the scan from its yield point (no redo) |
 
-§1 and §3 are two answers to the same question (continue an unfinished run); §1 is the pragmatic 80%, §3 the expensive "actually skip the redo" 20%. §2 is orthogonal and probably the highest-value for the construction-aid workflow.
+§1 and §3 are two answers to the same question (continue an unfinished run); §1 is the pragmatic 80%, §3 the expensive "actually skip the redo" 20%.
 
 Anchors below were valid at writing (post-`feat: retain finished pipeline results across runs`); code moves — re-verify before building.
 
@@ -36,24 +35,6 @@ The **tuple** tier gets the same one-join treatment (validated): both Umiaq solv
 
 **Cost/benefit.** Saves **perceived** latency (instant paint, no count-rewind), **not** compute — the re-run pays the full scan; the catch-up is redundant work hidden behind the frozen display. Narrower than the finished cache, which saves the whole recompute.
 
-## §2. Intermediate-step reuse (prefix cache)
-
-**What it's for — pipeline editing, not query typing.** The reuse target is the user iterating on the **tool rows themselves**: a chain of regex filters, several stacked Search rows, an Umiaq used as a filter — adding, removing, reordering, or reverting a row and wanting the untouched expensive prefix reused. It is **not** about typing into the Search box: the Search bar is always the permanent trailing row ([tool-stack.js:278](../../site/src/ui/tool-stack.js#L278)), and `_preSearchCache` already caches the whole pre-search `state` and re-runs **only** the search row per keystroke ([executor.js:242](../../site/src/engine/executor.js#L242): if `_preSearchCache` exists, `clonePreSearchState` it and run just `searchRow`). So a slow `[Umiaq]` followed by typing a query is *already* fast — §2 adds nothing there. What §2 uniquely adds is (a) reuse when the user edits a **non-trailing** row, which blows away `_preSearchCache`'s single slot via the user-stack signature ([preRunInvalidate, worker.js:228](../../site/src/engine/worker.js#L228)), and (b) holding **many** prefixes at once so reverting an edit is instant.
-
-**One cache, not two — the finished entry IS the intermediate seed.** Don't stand up a parallel intermediate store. A finished `[Umiaq]` result's join is already "every produced group, untrimmed chains" ([deriveGroupResult, worker.js:740](../../site/src/engine/worker.js#L740)) — essentially the executor's post-Umiaq `state.groups`. So on a full-key **miss**, walk progressively shorter prefixes of the current stack, probe each, and **seed the executor from the longest cached hit**, running only the suffix. `[Umiaq, f1, f2]` after editing `f2` seeds from cached `[Umiaq, f1]`; editing `f1` seeds from `[Umiaq]`. The load-bearing correctness item: a suffix seeded from a cached join's reconstructed `state` must produce a result **byte-identical** to a cold run (the finished join is post-`collapse`/`cacheGroupStats`, so the reconstruction is not free — verify it, §6).
-
-**Incremental building populates the prefixes for free.** When the user assembles a stack by pausing at each state — run `[Umiaq]`, look, add a filter, look — each prefix's finished result is cached as it passes through. So the prefix tiles largely **self-populate** through ordinary use; deliberate mid-run materialization only earns its keep for **cold arrival** at a long stack (URL load, or typing through the stack too fast to run the intermediates).
-
-**Placement nearly evaporates — the executor already materializes every boundary.** The authoritative executor is **buffered stage-by-stage**: each `runStackRow` replaces `state.groups` with a fresh array ([executor.js:254](../../site/src/engine/executor.js#L254)), so the inter-stage `state` after every stage exists mid-run and a `clonePreSearchState` snapshot **shares the chain arrays by reference** ([executor.js:221](../../site/src/engine/executor.js#L221)) — cheap, the entry objects uncounted. Streaming is a **display-only** side-channel (the tuple producer's per-batch `onBatch` filters for early paint); the authoritative pass still runs the tuple stage and each downstream filter as its own buffered `runStackRow`, so `state.groups` right after the tuple stage ([executor.js:316](../../site/src/engine/executor.js#L316)) is the unfiltered `[Umiaq]` intermediate even when the screen showed a fused stream. Two consequences: **per-stage timing is clean for every stage** (wrap each `runStackRow` in a timer — the whole plumbing), and there is no separate "which boundary to materialize" engine, because every boundary is a free candidate. Placement collapses into admission.
-
-**Admission — one substitution: marginal cost, not absolute.** Feed the cache the **marginal** cost to reproduce an entry *from the longest already-cached prefix*, rather than the whole-run time it uses today ([admitResultToCache … `performance.now() - t0`, worker.js:283](../../site/src/engine/worker.js#L283)). That single change makes both the floor and GDS do the right thing:
-- the **floor** ([`RESULT_CACHE_MIN_MS`, worker.js:841](../../site/src/engine/worker.js#L841)) auto-excludes cheap follow-ons — `[Umiaq, cheapRegex]`'s marginal cost given cached `[Umiaq]` is just the regex time, below the floor, so it's never admitted;
-- **GDS** ([`H = clock + elapsed/bytes`, worker.js:854](../../site/src/engine/worker.js#L854)) auto-evicts redundant tails **before** the shared prefix — a tail's low marginal cost gives it low `H`, so dependents die before the dependency they'd seed from. (Stale `H` when a prefix is later evicted only ever costs a recompute; `serveCacheHit` re-bases `H` on access — [worker.js:868](../../site/src/engine/worker.js#L868).)
-
-**The placement heuristic: greedy 1D tiling.** Accumulate stage time since the last cut; when it crosses the floor, snapshot `state`, offer it with `elapsed` = the accumulated marginal cost, reset the accumulator. This cuts *after* an expensive stage, **coalesces a run of individually-cheap stages that together exceed the floor into one cached tile**, and refuses to cut again for a cheap trailing segment (its accumulator never re-crosses the floor). Not globally optimal — a DP over stage costs packs tiles better, and editing a cheap stage *inside* a coalesced tile gets no reuse — but placement is never correctness-bearing (a bad cut only forces a recompute), so greedy-O(stages) matches the linear-eviction-scan spirit. This also subsumes the old "cache after every step": cheap steps never clear the floor, so "every step" self-prunes to "every expensive boundary."
-
-**Value.** Still probably the highest-value caching idea for the **construction-aid** activity: build one expensive pipeline, then edit the tool rows on top with every change snappy. The finished cache helps you *revisit* a query; this helps you *refine the pipeline*.
-
 ## §3. Parked: coroutine resumption
 
 The expensive alternative to §1. Suspend the tool's continuation at a cooperative yield point — JS async functions/generators already capture their full internal state for free — and resume it later. The **only** mechanism that continues an unfinished expensive scan **without redo** (§1 re-does the catch-up work invisibly; a coroutine skips it entirely).
@@ -78,14 +59,11 @@ Separate from the three above: an IDB layer beneath the in-memory L1 for **reloa
 - The flat join is stored in scan order ([worker.js:356](../../site/src/engine/worker.js#L356)), making it a position-wise prefix, so §1's cursor validation is sound for flat.
 - The **tuple** tier gets the same one-join cursor trick: both Umiaq solver paths ([probe umiaq.js:428](../../site/src/engine/umiaq.js#L428), [bucket umiaq.js:485](../../site/src/engine/umiaq.js#L485)) emit deterministically and append-only, `emit`'s dedup Set only skips ([umiaq.js:402](../../site/src/engine/umiaq.js#L402)), and a group is never mutated after push. Validate on the group `key`.
 - The **transform** tier does *not* get the one-join trick (its join is the post-fold survivor set, and folds mutate already-inserted rows' glyphs — [worker.js:529](../../site/src/engine/worker.js#L529)), but its survivor *sequence* is deterministic ([worker.js:504](../../site/src/engine/worker.js#L504)), so the rebuild-and-swap fallback is seamless. §1 therefore branches: one-join for flat/tuple, rebuild-and-swap for transform.
-- The authoritative executor **buffers between user-stack stages** ([executor.js:254](../../site/src/engine/executor.js#L254)), so every stage boundary's inter-stage `state` is materialized mid-run and cheap to snapshot (`clonePreSearchState` shares chain arrays by reference — [executor.js:221](../../site/src/engine/executor.js#L221)); streaming is display-only, so per-stage timing is clean for every stage. §2's placement therefore reduces to admission over free candidates, and the finished join doubles as the seed.
-- The corpus-object-identity + `replaced`-hook invalidation substrate applies unchanged to all three (a partial or an intermediate is bound to the corpus object like a finished join).
+- The authoritative executor **buffers between user-stack stages**, so every stage boundary's inter-stage `state` is materialized mid-run and cheap to snapshot (`cloneState` shares chain arrays by reference). This is what the shipped `prefixCache` snapshots — and it means a `state` a §1 catch-up rebuilds is likewise cheap.
+- The corpus-object-identity + `replaced`-hook invalidation substrate (now the shared `GdsCache`) applies unchanged to both remaining ideas (a partial or a continuation binds the corpus object like a finished join or a prefix tile).
 
 **Uncertain — decide during implementation:**
 - §1's admission gate: explicit "set aside" gesture vs heuristic thresholds (N rows / T seconds), and whether both.
-- §2's seed reconstruction: rebuilding executor `state` from a cached join (post-`collapse`/`cacheGroupStats`) and proving a suffix seeded from it is byte-identical to a cold run — the load-bearing correctness item (§6).
-- §2's marginal-cost accounting: pricing `elapsed` from the longest cached prefix rather than from zero, and whether a prefix eviction needs eager `H` refresh on its dependents or lazy re-base-on-access suffices.
-- §2's prefix-probe key: the serialized **prefix** stack + scope, with the same per-tool param fingerprinting the finished key uses; and how coarse the greedy tiles may get before a real workflow wants finer cuts.
 
 ## §6. Verify during implementation
 
@@ -94,7 +72,3 @@ Separate from the three above: an IDB layer beneath the in-memory L1 for **reloa
 - **§1 no skeletons:** scrolling the frozen partial during catch-up always serves real rows (from the cached partial's `indices`), never skeletons.
 - **§1 invalidation:** a corpus change between stash and resume purges the partial (identity), and a mid-catch-up divergence purges + falls back to a normal run cleanly.
 - **§1 gate:** the keystroke-transient flood never stashes (assert ~99% of superseded runs produce no partial entry).
-- **§2 suffix-only:** `[Umiaq, f]` after a cached `[Umiaq]` seeds from the prefix and runs **only** `f` (assert via a per-stage execution counter), and its result is byte-identical to a cold `[Umiaq, f]` — the seed-reconstruction fidelity check.
-- **§2 tiling:** a run of individually-sub-floor stages summing over `RESULT_CACHE_MIN_MS` caches exactly one tile at the segment end; a cheap stage *after* an expensive one mints no separate entry (its marginal cost is below the floor).
-- **§2 marginal eviction:** under budget pressure a redundant cheap-tail entry is evicted **before** the shared prefix it seeds from.
-- **§2 invalidation:** an intermediate is dropped by the same corpus changes as a finished entry.

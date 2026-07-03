@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { executePipeline, invalidatePreSearchCache, rowLastEntry } from '../../site/src/engine/executor.js';
+import { executePipeline, rowLastEntry } from '../../site/src/engine/executor.js';
 import umiaqTool from '../../site/src/engine/tools/umiaq.js';
 
 function toolRow(def, params) {
@@ -23,7 +23,6 @@ function mergedWordlist(norms) {
 }
 
 async function run(query, norms) {
-  invalidatePreSearchCache();
   const wl = mergedWordlist(norms);
   return executePipeline(wl, [toolRow(umiaqTool, { patterns: query }), inertSearch], null, null);
 }
@@ -73,7 +72,6 @@ test('pipeline: a non-capped tuple run reports capped false', async () => {
 });
 
 test('pipeline: a tuple run that hit its ceiling propagates capped through the result', async () => {
-  invalidatePreSearchCache();
   const wl = mergedWordlist(['ape', 'pea']);
   const stubTupleTool = {
     kind: () => 'tuple', isInert: () => false,

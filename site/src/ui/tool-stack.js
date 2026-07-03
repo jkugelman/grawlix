@@ -39,7 +39,6 @@ import { HL_COLORS } from '../engine/search.js';
 import {
   TOOL_CATEGORIES, FEATURED_TOOLS, TOOLS, groupColumnCSS, makeToolRow,
 } from '../engine/tools.js';
-import { invalidatePreSearchCache } from '../engine/executor.js';
 import { runOnWorker, preloadWorkerAsset } from './pipeline-worker.js';
 import { bumpPipelineVersion, setResultsStale } from '../data/state.js';
 import {
@@ -65,7 +64,6 @@ export function configureToolStack({ navigate, showRowError, attachHelpPopups })
 // the merged corpus. Going through the signal keeps this view off the rendering
 // layer.
 function repaintAfterStackChange() {
-  invalidatePreSearchCache();
   bumpPipelineVersion();
   _navigate();
 }
@@ -652,7 +650,7 @@ export const ToolStack = (() => {
           (row.params.symbol ||= ['']).push('');
           rerenderRows();
           stackEl()?.querySelectorAll('.tool-row')[idx]?.querySelector('.rebus-pair:last-child input[data-key="string"]')?.focus();
-          invalidatePreSearchCache(); bumpPipelineVersion(); _navigate();
+          bumpPipelineVersion(); _navigate();
         }
         return;
       }
@@ -664,7 +662,7 @@ export const ToolStack = (() => {
           (row.params.string || []).splice(i, 1);
           (row.params.symbol || []).splice(i, 1);
           rerenderRows();
-          invalidatePreSearchCache(); bumpPipelineVersion(); _navigate();
+          bumpPipelineVersion(); _navigate();
         }
         return;
       }
@@ -691,7 +689,6 @@ export const ToolStack = (() => {
         } else {
           delete row.params.replace;
         }
-        if (token !== 'bar') invalidatePreSearchCache();
         bumpPipelineVersion();
         _navigate();
         return;
@@ -717,7 +714,6 @@ export const ToolStack = (() => {
       // Drop the edited row's async error — it described the old input. The ⚠ mark
       // itself repaints reactively off the bumpPipelineVersion() below.
       row._error = null;
-      if (rowAttr !== 'bar') invalidatePreSearchCache();
       bumpPipelineVersion();
       _navigate();
     });
@@ -768,7 +764,6 @@ export const ToolStack = (() => {
       rows.push(makeToolRow('search'));
     }
     stack = rows;
-    invalidatePreSearchCache();
   }
   function getStack() { return stack; }
 

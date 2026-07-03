@@ -12,7 +12,6 @@ import { applyEditsWriteSet } from '../engine/edit-plan.js';
 import { parseRange } from '../engine/range.js';
 import { isLiteralQuery } from '../engine/search.js';
 import { invalidateStatsCache } from '../engine/stats.js';
-import { invalidatePreSearchCache } from '../engine/executor.js';
 import { TOOLS } from '../engine/tools.js';
 import { pendingNewTools, markToolsSeen } from '../data/new-tools.js';
 import { NewToolsReveal } from '../ui/new-tools-reveal.js';
@@ -1020,7 +1019,6 @@ export function applyEditsChange(edits, mutate) {
   invalidateRescoredCache(edits);
   invalidateStatsCache(edits);
   invalidateStatsCache(_mergedStatsKey);
-  invalidatePreSearchCache();
   refreshDerivedDisplays();
 }
 

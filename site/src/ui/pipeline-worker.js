@@ -701,6 +701,25 @@ export function resultCacheStateForTest(timeout = 2000) {
   });
 }
 
+export function configurePrefixCacheForTest(opts) {
+  getWorker().postMessage({ type: '__testPrefixCacheConfig', ...opts });
+}
+
+export function prefixCacheStateForTest(timeout = 2000) {
+  const w = getWorker();
+  return new Promise(resolve => {
+    const timer = setTimeout(() => { w.removeEventListener('message', onMessage); resolve(null); }, timeout);
+    function onMessage({ data }) {
+      if (data?.type !== '__testPrefixCacheState') return;
+      clearTimeout(timer);
+      w.removeEventListener('message', onMessage);
+      resolve({ size: data.size, bytes: data.bytes, hits: data.hits, misses: data.misses, keys: data.keys, seedFrom: data.seedFrom });
+    }
+    w.addEventListener('message', onMessage);
+    w.postMessage({ type: '__testPrefixCacheState' });
+  });
+}
+
 export function workerAssetStateForTest(timeout = 2000) {
   const w = getWorker();
   return new Promise(resolve => {

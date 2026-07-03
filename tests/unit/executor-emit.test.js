@@ -4,7 +4,6 @@ import { makeToolRow } from '../../site/src/engine/tools.js';
 import { toNorm } from '../../site/src/engine/norm.js';
 import {
   executePipeline,
-  invalidatePreSearchCache,
   configureExecutorYield,
   rowLastEntry,
   streamPlan,
@@ -38,12 +37,10 @@ function forceDeterministicYields() {
 const defaultYield = () => new Promise(r => setTimeout(r, 0));
 afterEach(() => {
   configureExecutorYield({ yieldImpl: defaultYield, intervalMs: 6 });
-  invalidatePreSearchCache();
 });
 
 test('emit: a flat search streams disjoint batches that concatenate to the returned rows in order', async () => {
   forceDeterministicYields();
-  invalidatePreSearchCache();
 
   const batches = [];
   const result = await executePipeline(
@@ -63,7 +60,6 @@ test('emit: a flat search streams disjoint batches that concatenate to the retur
 
 test('emit: a transform stack (behead) streams its rows', async () => {
   forceDeterministicYields();
-  invalidatePreSearchCache();
 
   // scat→cat, brat→rat, plice→lice behead into corpus members. Behead produces no
   // mirror pairs, so the raw emitted rows union exactly to the unify'd result.
@@ -85,7 +81,6 @@ test('emit: a transform stack (behead) streams its rows', async () => {
 
 test('emit: a tuple run streams tuple-group batches that union to the returned groups', async () => {
   forceDeterministicYields();
-  invalidatePreSearchCache();
 
   const corpus = makeCorpus(['ape', 'pea', 'bro', 'rob', 'sky', 'sly', 'gaga']);
   const batches = [];
@@ -143,11 +138,9 @@ test('emit: a tuple run with a downstream filter streams ONLY the filtered tuple
   const corpus = () => makeCorpus(['ape', 'pea', 'bro', 'rob', 'gaga']);
   const umiaq = () => makeToolRow('umiaq', { patterns: 'AB;BA' });
 
-  invalidatePreSearchCache();
   const unfiltered = await executePipeline(corpus(), [umiaq()], null);
   const unfilteredKeys = new Set(unfiltered.rows.map(g => g.key));
 
-  invalidatePreSearchCache();
   const batches = [];
   const result = await executePipeline(
     corpus(), [umiaq(), makeToolRow('search', { pattern: 'pea' })], null,
@@ -169,7 +162,6 @@ test('emit: a tuple run with a downstream filter streams ONLY the filtered tuple
 
 test('emit: a ctx-reading filter (caesar) streams after a tuple run, matching the buffered result', async () => {
   forceDeterministicYields();
-  invalidatePreSearchCache();
 
   const corpus = makeCorpus(['bcd', 'cdb', 'pqr', 'qrp']);
   const batches = [];
@@ -189,7 +181,6 @@ test('emit: a ctx-reading filter (caesar) streams after a tuple run, matching th
 
 test('emit: a grouped stack is gated off — emit is never called', async () => {
   forceDeterministicYields();
-  invalidatePreSearchCache();
 
   const corpus = makeCorpus(['scat', 'cat', 'brat', 'rat', 'plice', 'lice']);
   const batches = [];
@@ -207,10 +198,8 @@ test('no-emit: the returned rows are identical to those of an emitting run (addi
 
   const stack = () => [makeToolRow('search', { pattern: 'UN*ED' })];
 
-  invalidatePreSearchCache();
   const buffered = await executePipeline(makeCorpus(MATCHING), stack(), null);
 
-  invalidatePreSearchCache();
   const streamed = await executePipeline(makeCorpus(MATCHING), stack(), null, () => {});
 
   assert.equal(buffered.rows.length, MATCHING.length, 'no-emit run must return the full flat result');

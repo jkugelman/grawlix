@@ -5,13 +5,11 @@
 // summaries (source counts + merged total) the worker ships.
 
 import { state, bumpConfigSummary } from './state.js';
-import { invalidatePreSearchCache } from '../engine/executor.js';
 import { invalidateHistogramLayout } from '../engine/histogram.js';
 
 export const _mergedStatsKey = {};
 
 export function invalidateSourceCounts() {
-  invalidatePreSearchCache();
   invalidateHistogramLayout();
 }
 

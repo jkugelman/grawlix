@@ -215,10 +215,17 @@ export class ToolStageError extends Error {
   }
 }
 
-let _preSearchCache = null;
-export function invalidatePreSearchCache() { _preSearchCache = null; }
+// The user-stack index the last run resumed from (0 = cold from the bare corpus,
+// userStackLen = the whole user stack reused from its cached prefix tile). Test-visible
+// ground truth for "an edit reran only the suffix" — the worker echoes it in its cache state.
+let _lastSeedFrom = 0;
+export function lastPipelineSeedFrom() { return _lastSeedFrom; }
 
-function clonePreSearchState(state) {
+// A shallow clone of the inter-stage state: new group objects sharing the chain arrays by
+// reference. Safe because a downstream stage REPLACES g.chains rather than mutating it in
+// place, so the clone never sees a later stage's edits — the discipline that lets a cached
+// prefix tile be reused (and offered) without a deep copy.
+function cloneState(state) {
   return {
     groups: state.groups.map(g => ({ ...g })),
     grouped: state.grouped,
@@ -227,20 +234,27 @@ function clonePreSearchState(state) {
   };
 }
 
-export async function executePipeline(mergedWordlist, stack, signal, emit = null) {
+// `resume` (worker-supplied) is the prefix-cache seam: it resumes from the longest cached
+// prefix — the whole user stack on a keystroke, a shorter prefix on a tool-row edit — and
+// snapshots each inter-stage state back as a tile. Absent (a direct caller) → cold from the
+// bare corpus. Its seedState is shared with the cache, so it is CLONED before the suffix
+// mutates it (drop the clone and a suffix run silently corrupts the cached prefix under a
+// later reuse). Every boundary is a uniform tile candidate — no stage gets special caching.
+export async function executePipeline(mergedWordlist, stack, signal, emit = null, resume = null) {
   const y = makeYielder(signal);
   for (const stackRow of stack) stackRow._error = null;
 
-  const userStack = stack.slice(0, -1);
-  const searchRow = stack[stack.length - 1];
+  const userStackLen = stack.length - 1;   // stack[userStackLen] is the trailing search row
+  const searchRow = stack[userStackLen];
 
   const plan = emit ? streamPlan(stack) : null;
   const producer = plan ? plan.producer : null;
   const downstream = plan ? plan.downstream : [];
 
-  let state;
-  if (_preSearchCache) {
-    state = clonePreSearchState(_preSearchCache);
+  let state, from;
+  if (resume?.seedState) {
+    state = cloneState(resume.seedState);
+    from = resume.seedFrom;
   } else {
     // The seed is the bare corpus entries — no per-entry chain wrappers. Stages
     // never mutate their input array (each returns a fresh `next`), so handing them
@@ -251,10 +265,25 @@ export async function executePipeline(mergedWordlist, stack, signal, emit = null
       laneKind: 'single',
       capped: false,
     };
-    for (const stackRow of userStack) {
-      await runStackRow(stackRow, state, mergedWordlist, signal, y, stackRow === producer ? emit : null, downstream);
+    from = 0;
+  }
+  _lastSeedFrom = from;
+
+  // Run the user-stack suffix [from, userStackLen), offering each inter-stage state as a
+  // prefix tile once the time since the last cut clears the floor (greedy marginal-cost
+  // tiling). The loop reaches the pre-search boundary (prefixLen userStackLen) like any
+  // other, so a keystroke reuses the whole user stack and adding a row on top reuses it too.
+  let acc = 0;
+  for (let i = from; i < userStackLen; i++) {
+    const stackRow = stack[i];
+    const t0 = performance.now();
+    await runStackRow(stackRow, state, mergedWordlist, signal, y, stackRow === producer ? emit : null, downstream);
+    if (stackRow.isInert()) continue;
+    acc += performance.now() - t0;
+    if (resume?.offer && acc >= resume.floorMs) {
+      resume.offer(i + 1, cloneState(state), acc);
+      acc = 0;
     }
-    _preSearchCache = clonePreSearchState(state);
   }
 
   await runStackRow(searchRow, state, mergedWordlist, signal, y, searchRow === producer ? emit : null, downstream);

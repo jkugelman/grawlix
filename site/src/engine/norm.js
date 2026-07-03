@@ -138,7 +138,7 @@ export function buildUserWlEntry(raw, score, comment) {
 
 // `score` is a live getter onto `source` (the entry this output was transformed
 // from), not a copy: a synthetic output carries its own display but borrows the
-// input's score, so an in-place score edit shows through a kept pre-search cache
+// input's score, so an in-place score edit shows through a kept prefix tile
 // instead of a frozen value. `source` is any object exposing `.score`.
 export function synthWlEntry(text, source) {
   const norm = toNorm(text);
