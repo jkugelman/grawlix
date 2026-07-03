@@ -399,7 +399,7 @@ test('the trash score setting drives the downscore amount', async ({ page }) => 
 
 const runId = page => page.evaluate(() => window.__grawlixTest.lastCompletedRunId());
 
-// seedScoreRange:false keeps the real 20+ default filter — the actual default
+// seedScoreRange:false keeps the real default filter (`1+`) — the actual default
 // view, where an in-range rescore must still patch (not re-run).
 test('a merged-view rescore under the default filter repaints in place, no re-run', async ({ page }) => {
   await gotoApp(page, '/', { seedScoreRange: false });
@@ -424,7 +424,7 @@ test('a rescore that crosses the filter threshold re-runs and drops the row', as
   await expectVisible(page, ['alpha', 'bravo', 'charlie']);
 
   await openPanelOnEntry(page, 'alpha');
-  await page.locator('#entry-panel-score').fill('10');
+  await page.locator('#entry-panel-score').fill('0');
   await page.locator('#entry-panel .entry-panel-save').click();
 
   await expectVisible(page, ['bravo', 'charlie']);

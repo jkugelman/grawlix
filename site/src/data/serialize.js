@@ -23,3 +23,7 @@ export function getTrashScore() {
 export function setTrashScore(score) {
   Storage.writeMergedSettings({ ...Storage.readMergedSettings(), trashScore: score });
 }
+
+export function defaultScoreRange() {
+  return `${getTrashScore() + 1}+`;
+}

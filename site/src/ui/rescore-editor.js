@@ -21,7 +21,6 @@ import { showConfirm } from './dialogs/confirm.js';
 import { buildEditHintHTML, buildTrashIconHTML, buildDragHandleHTML, makeReorderable } from './components.js';
 import { WordlistSelector } from './scope-selector.js';
 import { getEntriesScroller } from './rendering.js';
-import { refreshScoreRangeButtons } from './app-view.js';
 
 // Injected so this view imports nothing above ui (bake lives in the app layer).
 let _bakeMenuOpts = () => ({});
@@ -245,7 +244,6 @@ export function applyScoringChange() {
   persistScoring();
   propagateDefaults();
   renderScoringRules();
-  refreshScoreRangeButtons();
 }
 
 export function deleteScoringRow(i) {

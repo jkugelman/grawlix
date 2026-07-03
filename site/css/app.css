@@ -1220,7 +1220,7 @@ body.picker-expanded #picker-backdrop { opacity: 1; }
 .clearable-input.all-on .clear-btn { display: none; }
 .clear-btn, .score-range-btn { background: none; border: none; padding: 2px 3px; cursor: pointer; color: var(--muted); display: flex; align-items: center; line-height: 1; border-radius: 3px; flex-shrink: 0; }
 .clear-btn:hover, .score-range-btn:hover { color: var(--text); background: var(--hover); }
-.clear-btn[hidden], .score-range-btn[hidden] { display: none; }
+.clear-btn[hidden] { display: none; }
 
 .tool-row-all-toggle { position: absolute; right: 4px; top: 50%; transform: translateY(-50%); background: none; border: none; padding: 0; width: 22px; height: 22px; border-radius: 4px; cursor: pointer; color: var(--muted); display: flex; align-items: center; justify-content: center; line-height: 1; transition: color 0.15s, background 0.15s; }
 .tool-row-all-toggle:hover { color: var(--accent); background: var(--hover); }

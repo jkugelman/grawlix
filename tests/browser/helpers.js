@@ -57,9 +57,10 @@ async function gotoApp(page, route = '/', { seedScoreRange = true } = {}) {
   await page.addInitScript(() => localStorage.setItem('grawlix_returningVisitor', '1'));
   await page.addInitScript(slugs => localStorage.setItem('grawlix_seenTools', JSON.stringify(slugs)), Object.keys(TOOLS));
   // The suite asserts against an unfiltered corpus, but new users now default to
-  // 20+, so seed the filter off. Seed only when absent: addInitScript re-runs on
-  // every navigation, so an unconditional set would clobber a range the test set
-  // and silently break reloadApp persistence. seedScoreRange:false → real default.
+  // the trash-tier filter (`1+`), so seed the filter off. Seed only when absent:
+  // addInitScript re-runs on every navigation, so an unconditional set would
+  // clobber a range the test set and silently break reloadApp persistence.
+  // seedScoreRange:false → real default.
   if (seedScoreRange) await page.addInitScript(() => {
     if (localStorage.getItem('grawlix_scoreRange') === null) localStorage.setItem('grawlix_scoreRange', '');
   });

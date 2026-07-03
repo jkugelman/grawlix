@@ -2,10 +2,10 @@
 
 // ─── App view ─────────────────────────────────────────────────────────────────
 
-import { MERGED_ID, DEFAULT_SCORE_RANGE } from '../core/constants.js';
+import { MERGED_ID } from '../core/constants.js';
 import { parseRange } from '../engine/range.js';
 import { lsSave, lsDel } from '../data/storage.js';
-import { state } from '../data/state.js';
+import { defaultScoreRange } from '../data/serialize.js';
 import { ToolStack } from './tool-stack.js';
 import { repositionAllHistogramRects } from './histogram-view.js';
 import { reconcileSort, chainSortTier, DEFAULT_SORT_BY_TIER } from './entries-table.js';
@@ -54,9 +54,9 @@ export const AppView = (() => {
   }
 
   // Reset drops the stored key (not lsSave) so an untouched user keeps following
-  // DEFAULT_SCORE_RANGE; persisting '20+' would freeze them if the default moves.
+  // defaultScoreRange(); persisting the value would freeze them if the default moves.
   function resetScoreRange() {
-    _scoreRange = DEFAULT_SCORE_RANGE;
+    _scoreRange = defaultScoreRange();
     lsDel('scoreRange');
     getEntriesScroller()?.setScoreRange(_scoreRange);
     repositionAllHistogramRects();
@@ -95,31 +95,24 @@ export const AppView = (() => {
 
 // ─── Score-range clear / reset button ─────────────────────────────────────────
 
-// Reset-to-20+ is only offered while the tiers are the defaults: with customized
-// tiers, 20+ may map to no tier at all, so the box falls back to a plain clear.
 function scoreRangeButtonMode(value) {
-  const v = (value || '').trim();
-  if (state.scoringDirty) return v ? 'clear' : 'hidden';
-  return v === DEFAULT_SCORE_RANGE ? 'clear' : 'reset';
+  return (value || '').trim() === defaultScoreRange() ? 'clear' : 'reset';
 }
 
 export function buildScoreRangeButtonHTML(value) {
-  const mode = scoreRangeButtonMode(value);
-  const reset = mode === 'reset';
-  const label = reset ? `Reset to ${DEFAULT_SCORE_RANGE}` : 'Clear';
-  return `<button type="button" class="score-range-btn" data-mode="${mode}" tabindex="-1"` +
-    ` title="${label}" aria-label="${label}"${mode === 'hidden' ? ' hidden' : ''}>` +
+  const reset = scoreRangeButtonMode(value) === 'reset';
+  const label = reset ? `Reset to ${defaultScoreRange()}` : 'Clear';
+  return `<button type="button" class="score-range-btn" data-mode="${reset ? 'reset' : 'clear'}" tabindex="-1"` +
+    ` title="${label}" aria-label="${label}">` +
     `<svg width="10" height="10" aria-hidden="true"><use href="#icon-${reset ? 'reset' : 'x'}"/></svg></button>`;
 }
 
 export function syncScoreRangeButton(input) {
   const btn = input.closest('.clearable-input')?.querySelector('.score-range-btn');
   if (!btn) return;
-  const mode = scoreRangeButtonMode(input.value);
-  const reset = mode === 'reset';
-  const label = reset ? `Reset to ${DEFAULT_SCORE_RANGE}` : 'Clear';
-  btn.hidden = mode === 'hidden';
-  btn.dataset.mode = mode;
+  const reset = scoreRangeButtonMode(input.value) === 'reset';
+  const label = reset ? `Reset to ${defaultScoreRange()}` : 'Clear';
+  btn.dataset.mode = reset ? 'reset' : 'clear';
   btn.title = label;
   btn.setAttribute('aria-label', label);
   btn.querySelector('use').setAttribute('href', `#icon-${reset ? 'reset' : 'x'}`);

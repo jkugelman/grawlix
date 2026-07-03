@@ -11,6 +11,7 @@ import {
 } from '../components.js';
 import { createDialog, showDialog } from './dialog.js';
 import { showConfirm } from './confirm.js';
+import { refreshScoreRangeButtons } from '../app-view.js';
 
 const OUTPUT_FORMAT_REGEN_DELAY = 1000;
 
@@ -135,6 +136,8 @@ export const SettingsDialog = (() => {
       const v = Number.isFinite(n) && n >= 0 ? n : 0;
       setTrashScore(v);
       trashInp.value = v;
+      // The default filter is trash-score + 1, so the reset button's target moved.
+      refreshScoreRangeButtons();
     };
   }
 

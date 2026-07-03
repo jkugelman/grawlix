@@ -10,7 +10,6 @@ export const LS_PREFIX    = 'grawlix_';
 export const MERGED_ID    = '__merged__';
 export const MERGED_NAME  = 'All Wordlists';
 export const EDITS_ICON   = { type: 'emoji', value: '✏️' };
-export const DEFAULT_SCORE_RANGE = '20+';
 
 export const INITIALS_PALETTE = [
   '#5C6BC0', '#1E88E5', '#00ACC1', '#00897B',

@@ -1,7 +1,7 @@
 'use strict';
 
 import {
-  MERGED_ID, MERGED_NAME, EDITS_ICON, WORDLIST_PUBLISHERS, DEFAULT_SCORING, DEFAULT_SCORE_RANGE,
+  MERGED_ID, MERGED_NAME, EDITS_ICON, WORDLIST_PUBLISHERS, DEFAULT_SCORING,
 } from '../core/constants.js';
 import { esc, pluralize, nameFromPath } from '../core/util.js';
 import { putFetchHandle, dropFetchHandle, bumpFetchStatus } from '../data/fetch-status.js';
@@ -29,7 +29,7 @@ import {
   serializeEntries, sortedEntries,
 } from '../engine/serialize.js';
 import {
-  getOutputFormat, getTrashScore,
+  getOutputFormat, getTrashScore, defaultScoreRange,
 } from '../data/serialize.js';
 import {
   compileRescoreRules, maybeAutoSeedRescoreRules, getRescoredEntries, rescoreEntry, applyRescoring,
@@ -211,8 +211,6 @@ export async function init() {
   // state.selected). Scope is localStorage-only, never the URL, so it's
   // independent of Router.applyURL below.
   restoreSelectedScope();
-  // Scoring must load before the score range: the missing-key default (20+ vs
-  // blank) turns on whether the tiers are still the shipped defaults.
   ensureScoring();
   AppView.restoreScoreRange(restoreScoreRange());
 
@@ -316,11 +314,9 @@ function restoreSelectedScope() {
 
 // null (never-set / pre-default user) and a stored '' (deliberately cleared) must
 // stay distinct: collapse them and everyone who cleared the filter silently gets
-// DEFAULT_SCORE_RANGE forced back on.
+// the default forced back on.
 function restoreScoreRange() {
-  // 20+ is only the default while the tiers are unchanged; a custom-tier user
-  // falls back to no filter, since 20+ may not map to any of their tiers.
-  const dflt = state.scoringDirty ? '' : DEFAULT_SCORE_RANGE;
+  const dflt = defaultScoreRange();
   const stored = lsLoad('scoreRange');
   if (stored === null) return dflt;
   const trimmed = stored.trim();
