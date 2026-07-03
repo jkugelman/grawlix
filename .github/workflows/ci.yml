@@ -38,12 +38,21 @@ jobs:
       - name: Build minified site
         run: npm run build
 
-      # The deployed artifact and the bytes the tests run against are the same
-      # upload — build once here, every test job and deploy pulls this.
+      # Build once; both the tests and the deploy consume it. The test jobs pull
+      # this raw dist artifact.
       - name: Upload built site
         uses: actions/upload-artifact@v7
         with:
           name: dist
+          path: dist/
+
+      # Package dist as the Pages artifact HERE in build, not the deploy job:
+      # re-running just the deploy job would otherwise add a SECOND github-pages
+      # artifact to the run, and deploy-pages fails on the duplicate. Keeping it
+      # here lets a failed deploy be re-run on its own instead of re-running CI.
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v5
+        with:
           path: dist/
 
   test:
@@ -146,13 +155,5 @@ jobs:
       cancel-in-progress: false
     steps:
       - uses: actions/configure-pages@v6
-      - name: Download built site
-        uses: actions/download-artifact@v7
-        with:
-          name: dist
-          path: dist
-      - uses: actions/upload-pages-artifact@v5
-        with:
-          path: ./dist
       - id: deployment
         uses: actions/deploy-pages@v5
