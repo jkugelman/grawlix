@@ -203,6 +203,21 @@ function isAbortError(e) {
   return e?.name === 'AbortError';
 }
 
+class PartialDivergence extends Error {}
+// The executor rewraps a mid-tool emit throw as ToolStageError, so unwrap `.cause` too —
+// miss it and a PartialDivergence goes uncaught, silently serving the corrupt partial.
+function divergenceError(e) {
+  return e instanceof PartialDivergence ? e : (e?.cause instanceof PartialDivergence ? e.cause : null);
+}
+let lastPartialResumeLen = 0;
+
+// Test-only: a run self-supersedes by bumping its OWN latestRunId once its total crosses the armed
+// depth, aborting + stashing through the real path at a deterministic depth — no abort-vs-completion race.
+let _testStopAfterTotal = 0;
+function maybeTestStopAfterTotal(total) {
+  if (_testStopAfterTotal > 0 && total >= _testStopAfterTotal) { _testStopAfterTotal = 0; latestRunId++; }
+}
+
 async function drainRuns() {
   if (running) return;
   running = true;
@@ -230,9 +245,10 @@ function reapUnusedAssets(serialized) {
   }
 }
 
-async function runOne({ runId, stack: serialized, sort, scope, existsQuery, scoreRange, rebindQuery }) {
+async function runOne({ runId, stack: serialized, sort, scope, existsQuery, scoreRange, rebindQuery }, noResume = false) {
   const signal = makeSignalShim(runId);
   const stack = deserializeStack(serialized);
+  lastPartialResumeLen = 0;
 
   // The UI always supplies a sort; a direct runOnWorker caller may not. Unlike the
   // flat emitter, the transform/tuple emitters crash on a null comparator (`.sort(null)`).
@@ -249,6 +265,10 @@ async function runOne({ runId, stack: serialized, sort, scope, existsQuery, scor
   cacheMisses++;
 
   const t0 = performance.now();
+  // Stamped for the stash-on-abort's poisoned-partial guard: a reshaping splice that
+  // supersedes this run mutates the corpus in place (same object, so cacheEntryValid can't
+  // catch it), so a stash spanning it would serve corruption unless this generation held.
+  const genAtStart = ownedConfigVersion;
   reapUnusedAssets(serialized);
   const resume = makePrefixResume(serialized, scope);
 
@@ -258,22 +278,32 @@ async function runOne({ runId, stack: serialized, sort, scope, existsQuery, scor
   // `reproject` mutates it in place, and the emitter re-reads it each batch, so a
   // sort/filter change re-derives the view without re-running the join.
   const viewSpec = { sort, scoreRange };
+  const { tier } = streamPlan(stack);
+  // See docs/design.md § Streaming results. `noResume` re-enters cold after a divergence.
+  const resumeCtx = noResume ? null : armPartialResume(runId, cacheKey, tier, viewSpec, scope, stack, streamState);
   try {
-    const { tier } = streamPlan(stack);
-    const emit = tier === 'flat' ? makeStreamEmitter(runId, viewSpec, scope, stack, signal, streamState)
-      : tier === 'tuple' ? makeTupleStreamEmitter(runId, viewSpec, scope, stack, signal, streamState)
-      : tier === 'transform' ? makeTransformStreamEmitter(runId, viewSpec, scope, stack, signal, streamState)
+    const emit = tier === 'flat' ? makeStreamEmitter(runId, viewSpec, scope, stack, signal, streamState, resumeCtx)
+      : tier === 'tuple' ? makeTupleStreamEmitter(runId, viewSpec, scope, stack, signal, streamState, resumeCtx)
+      : tier === 'transform' ? makeTransformStreamEmitter(runId, viewSpec, scope, stack, signal, streamState, resumeCtx)
       : null;
     out = await executePipeline(ownedCorpus, stack, signal, emit, resume);
   } catch (e) {
-    if (isAbortError(e) || signal.aborted) return;
+    if (isAbortError(e) || signal.aborted) { stashPartialOnAbort(runId, serialized, scope, t0, genAtStart); return; }
+    if (divergenceError(e)) {
+      lastFlatResult = lastGroupedResult = lastTransformResult = null;   // drop the painted (corrupt) partial
+      return runOne({ runId, stack: serialized, sort, scope, existsQuery, scoreRange, rebindQuery }, true);
+    }
     postMessage({ type: 'error', runId, stackRowIndex: stackRowIndex(stack, e), message: e?.message || String(e) });
     return;
   }
-  if (signal.aborted) return;
+  if (signal.aborted) { stashPartialOnAbort(runId, serialized, scope, t0, genAtStart); return; }
+  if (streamState.resuming) {   // re-run finished without reaching the stash length — determinism broke, redo cold
+    lastFlatResult = lastGroupedResult = lastTransformResult = null;
+    return runOne({ runId, stack: serialized, sort, scope, existsQuery, scoreRange, rebindQuery }, true);
+  }
 
-  const { tier, r } = postResult(runId, out, viewSpec, scope, stack, existsQuery, rebindQuery, streamState.streamed);
-  admitResultToCache(cacheKey, tier, r, out, scope, performance.now() - t0);
+  const { tier: rtier, r } = postResult(runId, out, viewSpec, scope, stack, existsQuery, rebindQuery, streamState.streamed);
+  admitResultToCache(cacheKey, rtier, r, out, scope, performance.now() - t0);
 }
 
 // Refresh-on-consent's fast path for a FLAT displayed result: re-derive the join over
@@ -346,11 +376,26 @@ function streamWindow(runId, total, defaultSize) {
 // fetched window the order has moved past, else a mid-stream scroll paints a torn
 // mixed-snapshot view. Summaries are CUMULATIVE — main keeps no resident scores, so a
 // per-batch delta it can't accumulate would leave the stats/histogram stale.
-function makeStreamEmitter(runId, viewSpec, scope, stack, signal, streamState) {
+function makeStreamEmitter(runId, viewSpec, scope, stack, signal, streamState, resumeCtx = null) {
   const widthAcc = makeWidthHintAcc();
-  const join = [];         // every produced _i, unfiltered — the retained join
+  const join = resumeCtx ? resumeCtx.join : [];   // resumed: append past catch-up to the painted join
+  let cursor = 0, caughtUp = !resumeCtx;
+  if (resumeCtx) {   // seed width hints from the painted prefix so post-crossover snapshots match a cold run
+    const seed = viewSpec.scoreRange ? parseRange(viewSpec.scoreRange) : null;
+    for (const i of join) { const e = ownedCorpus.entries[i]; if (!seed || matchesRange(e.score, seed)) widthAcc.add(e); }
+  }
   return batchRows => {
     if (signal.aborted) return;
+    if (!caughtUp) {
+      let k = 0;
+      for (; k < batchRows.length; k++) {
+        if (rowLastEntry(batchRows[k])._i !== resumeCtx.join[cursor]) throw new PartialDivergence();
+        if (++cursor === resumeCtx.len) { caughtUp = true; streamState.resuming = false; k++; break; }
+      }
+      if (!caughtUp) return;
+      batchRows = batchRows.slice(k);
+      if (batchRows.length === 0) return;
+    }
     const intervals = viewSpec.scoreRange ? parseRange(viewSpec.scoreRange) : null;
     const cmp = flatComparator(viewSpec.sort, ownedCorpus);
     const batchIdx = [];
@@ -381,6 +426,7 @@ function makeStreamEmitter(runId, viewSpec, scope, stack, signal, streamState) {
     lastFlatResult.stats = flatViewStats(lastFlatResult.indices, ownedCorpus);
 
     postFlatSnapshot('partial', runId);
+    maybeTestStopAfterTotal(lastFlatResult.indices.length);
   };
 }
 
@@ -448,10 +494,21 @@ function mergeSortedIndices(a, b, cmp) {
 // The grouped-tier sibling of makeStreamEmitter. The g.key tiebreak makes the
 // incremental merge a total order equal to a from-scratch sortGroups, so completion
 // adopts it. Reads `viewSpec` per batch so a mid-stream reproject re-sorts/re-filters.
-function makeTupleStreamEmitter(runId, viewSpec, scope, stack, signal, streamState) {
-  const join = [];   // every produced tuple group, unfiltered — the retained join
+function makeTupleStreamEmitter(runId, viewSpec, scope, stack, signal, streamState, resumeCtx = null) {
+  const join = resumeCtx ? resumeCtx.join : [];   // resumed: append past catch-up to the painted join
+  let cursor = 0, caughtUp = !resumeCtx;
   return batchGroups => {
     if (signal.aborted) return;
+    if (!caughtUp) {
+      let k = 0;
+      for (; k < batchGroups.length; k++) {
+        if (batchGroups[k].key !== resumeCtx.join[cursor].key) throw new PartialDivergence();
+        if (++cursor === resumeCtx.len) { caughtUp = true; streamState.resuming = false; k++; break; }
+      }
+      if (!caughtUp) return;
+      batchGroups = batchGroups.slice(k);
+      if (batchGroups.length === 0) return;
+    }
     const intervals = viewSpec.scoreRange ? parseRange(viewSpec.scoreRange) : null;
     const cmp = groupRowComparator(viewSpec.sort, stack);
     // Stats on EVERY join group, not just the visible ones: groupSummaries reads
@@ -475,6 +532,7 @@ function makeTupleStreamEmitter(runId, viewSpec, scope, stack, signal, streamSta
     lastGroupedResult.version++;
     lastGroupedResult.summaries = groupSummaries(join, lastGroupedResult.groups, scope, stack, !!intervals);
     postGroupSnapshot('partialGroups', runId);
+    maybeTestStopAfterTotal(lastGroupedResult.groups.length);
   };
 }
 
@@ -499,8 +557,9 @@ function postGroupSnapshot(type, runId, reprojectId) {
 // rebuilds the atoms array for the ↔ promotion rather than mutating atoms the
 // executor's terminal unify still reads — in-place mutation would corrupt them. Reads
 // `viewSpec` per batch so a mid-stream reproject re-sorts/re-filters.
-function makeTransformStreamEmitter(runId, viewSpec, scope, stack, signal, streamState) {
+function makeTransformStreamEmitter(runId, viewSpec, scope, stack, signal, streamState, resumeCtx = null) {
   const seen = new Map();   // fwd-key → survivor row (every direction) — the retained join
+  let caughtUp = !resumeCtx;
   return batchRows => {
     if (signal.aborted) return;
     const intervals = viewSpec.scoreRange ? parseRange(viewSpec.scoreRange) : null;
@@ -524,11 +583,27 @@ function makeTransformStreamEmitter(runId, viewSpec, scope, stack, signal, strea
           }
         }
       }
-      if (!folded) {
-        seen.set(fwd, row);
-        if (!intervals || chainOk(row)) newInRange.push(row);
+      if (folded) continue;
+      seen.set(fwd, row);
+      if (!caughtUp) {
+        // Rebuild-and-swap: transform's join is the post-fold survivor SET, not scan order, so
+        // it can't cursor-validate — instead rebuild `seen` while the frozen stash paints, and
+        // at the survivor-count crossover verify the set matches (a mismatch — e.g. a kept score
+        // edit that flipped a mirror fold — is corruption: drop and run cold) then swap to live.
+        if (seen.size >= resumeCtx.len) {
+          if (!sameKeySet(seen, resumeCtx.keys)) throw new PartialDivergence();
+          caughtUp = true;
+          streamState.resuming = false;
+          const rows = [...seen.values()];
+          const view = intervals ? applyScoreRangeToRows(rows, intervals, 'single') : rows;
+          lastTransformResult.join = seen;
+          lastTransformResult.chains = sortChainRows(view, viewSpec.sort, stack);
+        }
+        continue;
       }
+      if (!intervals || chainOk(row)) newInRange.push(row);
     }
+    if (!caughtUp) return;   // still catching up — the frozen stash keeps painting, count frozen
     if (!streamState.streamed) {
       streamState.streamed = true;
       lastFlatResult = null;
@@ -542,6 +617,7 @@ function makeTransformStreamEmitter(runId, viewSpec, scope, stack, signal, strea
     lastTransformResult.version++;
     lastTransformResult.summaries = transformSummaries([...seen.values()], lastTransformResult.chains, scope, !!intervals);
     postTransformSnapshot('partialChains', runId);
+    maybeTestStopAfterTotal(lastTransformResult.chains.length);
   };
 }
 
@@ -761,14 +837,7 @@ function transformJoinRows(join) {
   return join instanceof Map ? [...join.values()] : join;
 }
 
-// ─── Pipeline caches ── see docs/worker-protocol.md § result & prefix caches ─
-// Two in-memory GreedyDual-Size caches over the shared GdsCache substrate. The
-// FINISHED cache retains a completed join so re-entering an identical (stack, scope)
-// against an unchanged corpus serves instantly — REVISIT a query. The PREFIX cache
-// retains a mid-pipeline executor state so editing a non-trailing tool row reuses its
-// untouched prefix and reruns only the suffix — REFINE a pipeline. Disposable in-memory
-// only: invalidation just drops, never migrates. Each has its own budget (worst case 2×
-// the constant, still small beside the ~100MB corpus + ~100MB assets).
+// ─── Pipeline caches ── see docs/worker-protocol.md § result, prefix & partial caches ─
 const RESULT_CACHE_MIN_MS = 1000;                     // below this, regenerating beats retaining
 const RESULT_CACHE_MAX_ENTRY_BYTES = 8 * 1024 * 1024; // jetsam prices peak bytes not time saved, so refuse any single entry too large
 const RESULT_CACHE_MAX_BYTES = 32 * 1024 * 1024;      // per-cache byte budget
@@ -778,13 +847,17 @@ const BYTES_PER_JOIN_ATOM = 80;                     // an atom wrapper + amortiz
 const cacheOpts = { minMs: RESULT_CACHE_MIN_MS, maxEntryBytes: RESULT_CACHE_MAX_ENTRY_BYTES, maxBytes: RESULT_CACHE_MAX_BYTES };
 const finishedCache = new GdsCache(cacheOpts);
 const prefixCache = new GdsCache(cacheOpts);
+// The shared 1s floor doubles as the partial cache's admission gate — a keystroke-transient
+// aborts below it, so admit() refuses the per-keystroke flood. Don't add a rows/time heuristic.
+const partialCache = new GdsCache(cacheOpts);
 let cacheHits = 0, cacheMisses = 0;       // finished-cache telemetry (__testResultCacheState)
 let prefixHits = 0, prefixMisses = 0;     // prefix-cache telemetry (__testPrefixCacheState)
+let partialHits = 0, partialStashes = 0;  // partial-cache telemetry (__testPartialCacheState)
 
-// Keys BOTH caches. Excludes the view fields (sort, score-range) — they reproject on a
+// Keys all three caches. Excludes the view fields (sort, score-range) — they reproject on a
 // hit — and KEEPS the trailing search row (a prefix key is a stack SLICE, so the search
-// row is present when the slice reaches it). A finished key spans the full stack; the two
-// live in separate maps so an equal-string full-stack and prefix key never collide.
+// row is present when the slice reaches it). A finished/partial key spans the full stack; the
+// three live in separate maps so an equal-string full-stack and prefix key never collide.
 function resultCacheKey(serialized, scope) {
   return scope + '\n' + JSON.stringify(serialized);
 }
@@ -880,6 +953,69 @@ function makePrefixResume(serialized, scope) {
   };
 }
 
+// Deletes the consumed entry so the join it hands the resuming emitter (which appends past
+// catch-up) is never also aliased by a live cache entry.
+function armPartialResume(runId, cacheKey, tier, viewSpec, scope, stack, streamState) {
+  const pe = partialCache.peek(cacheKey);
+  if (!pe) return null;
+  if (!cacheEntryValid(pe)) { partialCache.delete(cacheKey); return null; }
+  partialCache.delete(cacheKey);
+  partialHits++;
+  lastPartialResumeLen = pe.join.length;
+  streamState.streamed = true;
+  streamState.resuming = true;   // cleared at crossover; still set at completion ⇒ never caught up (see runOne)
+  if (tier === 'flat') {
+    lastFlatResult = deriveFlatResult(runId, pe.join, viewSpec, scope, stack);
+    lastGroupedResult = lastTransformResult = null;
+    postFlatSnapshot('partial', runId);
+    return { join: pe.join, len: pe.join.length };
+  }
+  if (tier === 'tuple') {
+    lastGroupedResult = deriveGroupResult(runId, pe.join, viewSpec, scope, stack, pe.laneKind);
+    lastFlatResult = lastTransformResult = null;
+    postGroupSnapshot('partialGroups', runId);
+    return { join: pe.join, len: pe.join.length };
+  }
+  lastTransformResult = deriveTransformResult(runId, pe.join, viewSpec, scope, stack);
+  lastFlatResult = lastGroupedResult = null;
+  postTransformSnapshot('partialChains', runId);
+  return { len: pe.join.length, keys: transformSurvivorKeys(pe.join) };
+}
+
+function transformSurvivorKeys(rows) {
+  const keys = new Set();
+  for (const row of rows) keys.add(rowAtoms(row).map(a => a.wlEntry.norm).join('\0'));
+  return keys;
+}
+
+function sameKeySet(map, keySet) {
+  if (map.size !== keySet.size) return false;
+  for (const k of map.keys()) if (!keySet.has(k)) return false;
+  return true;
+}
+
+// admit()'s 1s floor is the admission gate. Two non-obvious skips: `r.runId !== runId` means
+// nothing streamed for THIS run (the slot holds a prior run's data — e.g. a bucket-path Umiaq
+// aborted in Phase 1, which streams nothing), and `genAtStart` mismatch means a splice mutated
+// the corpus under the run, so its join spans two states and must not be stashed.
+function stashPartialOnAbort(runId, serialized, scope, t0, genAtStart) {
+  if (ownedConfigVersion !== genAtStart) return;
+  const r = lastFlatResult || lastGroupedResult || lastTransformResult;
+  if (!r || r.runId !== runId) return;
+  if (!ownedCorpusFresh || ownedScope !== scope) return;
+  const corpus = scope === MERGED_ID ? ownedMerged : ownedCorpus;
+  if (!corpus) return;
+  // Freeze transform's live `seen` Map to a survivor array — the key-set + byte estimate below
+  // iterate rows, not Map pairs, so storing the Map would silently break resume.
+  const tier = r === lastFlatResult ? 'flat' : r === lastGroupedResult ? 'tuple' : 'transform';
+  const join = tier === 'transform' ? transformJoinRows(r.join) : r.join;
+  const byteTier = tier === 'tuple' ? 'group' : tier;   // estimateJoinBytes: 'flat' | 'group' | else (transform)
+  const admitted = partialCache.admit(resultCacheKey(serialized, scope),
+    { join, tier, laneKind: r.laneKind ?? 'single', scope, corpus },
+    performance.now() - t0, () => estimateJoinBytes(byteTier, join));
+  if (admitted) partialStashes++;
+}
+
 // After a rebuild swaps a corpus object, proactively drop entries no longer bound to a
 // resident corpus (else they linger on the budget and skew GDS until an identity-miss).
 // A merged entry survives a scope detour (ownedMerged is stable); a left single-list
@@ -888,6 +1024,7 @@ function purgeDiscardedCacheEntries() {
   const gone = e => e.corpus !== ownedMerged && e.corpus !== ownedCorpus;
   finishedCache.purge(gone);
   prefixCache.purge(gone);
+  partialCache.purge(gone);
 }
 
 // An in-place splice that swapped row objects (replaced===true) leaves the corpus OBJECT
@@ -896,11 +1033,13 @@ function purgeCacheForCorpus(corpus) {
   const bound = e => e.corpus === corpus;
   finishedCache.purge(bound);
   prefixCache.purge(bound);
+  partialCache.purge(bound);
 }
 
 function clearResultCache() {
   finishedCache.clear();
   prefixCache.clear();
+  partialCache.clear();
 }
 
 // The above-the-fold window shipped inline with every flat result. Generous
@@ -2268,6 +2407,10 @@ onmessage = ({ data }) => {
       configureExecutorYield({ intervalMs: data.intervalMs });
       break;
 
+    case '__testStopRunAfterTotal':
+      _testStopAfterTotal = data.total;
+      break;
+
     // Test-only: a page-side hasCmuDict() reads main's realm (never loaded), not the
     // worker's, so the eviction suite must ask the worker for the true loaded state.
     case '__testAssetState':
@@ -2287,12 +2430,21 @@ onmessage = ({ data }) => {
       prefixHits = prefixMisses = 0;
       break;
 
+    case '__testPartialCacheConfig':
+      partialCache.configure({ minMs: data.minMs, maxBytes: data.maxBytes, maxEntryBytes: data.maxEntryBytes });
+      partialHits = partialStashes = 0;
+      break;
+
     case '__testResultCacheState':
       postMessage({ type: '__testResultCacheState', size: finishedCache.size, bytes: finishedCache.bytes, hits: cacheHits, misses: cacheMisses, keys: finishedCache.keys() });
       break;
 
     case '__testPrefixCacheState':
       postMessage({ type: '__testPrefixCacheState', size: prefixCache.size, bytes: prefixCache.bytes, hits: prefixHits, misses: prefixMisses, keys: prefixCache.keys(), seedFrom: lastPipelineSeedFrom() });
+      break;
+
+    case '__testPartialCacheState':
+      postMessage({ type: '__testPartialCacheState', size: partialCache.size, bytes: partialCache.bytes, hits: partialHits, stashes: partialStashes, resumedFrom: lastPartialResumeLen, keys: partialCache.keys() });
       break;
   }
 };

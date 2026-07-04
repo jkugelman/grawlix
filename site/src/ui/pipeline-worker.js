@@ -509,6 +509,10 @@ export function setWorkerYieldIntervalForTest(intervalMs) {
   getWorker().postMessage({ type: '__testYieldInterval', intervalMs });
 }
 
+export function stopRunAfterTotalForTest(total) {
+  getWorker().postMessage({ type: '__testStopRunAfterTotal', total });
+}
+
 // Test-only: collect streamed `partial`s for assertion against the final result.
 export function captureWorkerPartialsForTest() {
   const w = getWorker();
@@ -717,6 +721,25 @@ export function prefixCacheStateForTest(timeout = 2000) {
     }
     w.addEventListener('message', onMessage);
     w.postMessage({ type: '__testPrefixCacheState' });
+  });
+}
+
+export function configurePartialCacheForTest(opts) {
+  getWorker().postMessage({ type: '__testPartialCacheConfig', ...opts });
+}
+
+export function partialCacheStateForTest(timeout = 2000) {
+  const w = getWorker();
+  return new Promise(resolve => {
+    const timer = setTimeout(() => { w.removeEventListener('message', onMessage); resolve(null); }, timeout);
+    function onMessage({ data }) {
+      if (data?.type !== '__testPartialCacheState') return;
+      clearTimeout(timer);
+      w.removeEventListener('message', onMessage);
+      resolve({ size: data.size, bytes: data.bytes, hits: data.hits, stashes: data.stashes, resumedFrom: data.resumedFrom, keys: data.keys });
+    }
+    w.addEventListener('message', onMessage);
+    w.postMessage({ type: '__testPartialCacheState' });
   });
 }
 
