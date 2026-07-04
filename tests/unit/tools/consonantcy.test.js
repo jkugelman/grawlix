@@ -14,10 +14,10 @@ test('consonant order matters — same consonants in a different order do not ma
     ['star']);
 });
 
-test('Y counts as a consonant', async () => {
-  sameVisible(await visible(['cry', 'cray'],
+test('Y counts as a vowel — CRY skeleton is CR, matching consonant-only CAR', async () => {
+  sameVisible(await visible(['car', 'core', 'cry', 'city'],
     [{ tool: 'consonantcy', params: { entry: 'CRY' } }]),
-    ['cray', 'cry']);
+    ['car', 'core', 'cry']);
 });
 
 test('empty param is inert — the full merged view passes through', async () => {

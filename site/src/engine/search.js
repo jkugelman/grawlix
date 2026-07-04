@@ -4,8 +4,11 @@ import { esc } from '../core/util.js';
 
 // ─── Search ───────────────────────────────────────────────────────────────────
 
-export const CONSONANTS = 'bcdfghjklmnpqrstvwxyz';
-export const VOWELS = 'aeiou';
+// Y is a vowel (matching Umiaq, OneLook, Ingrid). One shared definition backs
+// both the `#`/`@` search classes and the Vowelcy/Consonantcy tools, so flipping
+// it can't leave the two disagreeing on Y — the drift copyqat has.
+export const CONSONANTS = 'bcdfghjklmnpqrstvwxz';
+export const VOWELS = 'aeiouy';
 export function escapeRegex(s)        { return s.replace(/[.+*?^${}()|[\]\\]/g, '\\$&'); }
 // Omitting `-` is load-bearing: it's what makes `[a-m]`/`[0-9]` ranges work.
 // Re-adding it (it reads as an oversight) silently kills every range.

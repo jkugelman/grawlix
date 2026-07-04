@@ -1,6 +1,9 @@
 'use strict';
 
-export const consonantSkeleton = s => (s || '').replace(/[^bcdfghjklmnpqrstvwxyz]/g, '');
+import { CONSONANTS } from '../search.js';
+
+const NON_CONSONANT = new RegExp(`[^${CONSONANTS}]`, 'g');
+export const consonantSkeleton = s => (s || '').replace(NON_CONSONANT, '');
 
 export default {
   name: 'Consonantcy', icon: '🦴', category: 'letters',

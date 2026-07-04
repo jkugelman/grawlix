@@ -176,12 +176,13 @@ test('match: character classes and ranges behave like Search', () => {
   assert.equal(m('[a-c]t')('dt'), false);
 });
 
-test('match: # is a consonant including Y, @ a vowel excluding Y', () => {
+test('match: # is a consonant excluding Y, @ a vowel including Y', () => {
   const m = q => w => matchesPattern(w, parseUmiaqQuery(q).patterns[0]);
-  assert.equal(m('#')('y'), true,  '# matches Y');
-  assert.equal(m('@')('y'), false, '@ rejects Y');
+  assert.equal(m('#')('y'), false, '# rejects Y');
+  assert.equal(m('@')('y'), true,  '@ matches Y');
   assert.equal(m('@')('a'), true);
   assert.equal(m('#')('a'), false);
+  assert.equal(m('#')('b'), true);
 });
 
 // ─── Finding tuples ────────────────────────────────────────────────────────────

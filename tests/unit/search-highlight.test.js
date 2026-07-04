@@ -35,18 +35,18 @@ test('buildSearchPattern: `?` matches exactly one non-whitespace character', () 
   assert.equal(matches(pat, 'c t'), false);
 });
 
-test('buildSearchPattern: `#` matches a single consonant (y included, vowels excluded)', () => {
+test('buildSearchPattern: `#` matches a single consonant (y excluded, vowels excluded)', () => {
   const pat = buildSearchPattern('a#a');
   assert.equal(matches(pat, 'aba'), true);
-  assert.equal(matches(pat, 'aya'), true);
+  assert.equal(matches(pat, 'aya'), false);
   assert.equal(matches(pat, 'aea'), false);
 });
 
-test('buildSearchPattern: `@` matches a single vowel (y excluded)', () => {
+test('buildSearchPattern: `@` matches a single vowel (y included)', () => {
   const pat = buildSearchPattern('b@d');
   assert.equal(matches(pat, 'bad'), true);
   assert.equal(matches(pat, 'bed'), true);
-  assert.equal(matches(pat, 'byd'), false);
+  assert.equal(matches(pat, 'byd'), true);
   assert.equal(matches(pat, 'bzd'), false);
 });
 
@@ -66,7 +66,7 @@ test('buildSearchPattern: a `^`-led class negates', () => {
 test('buildSearchPattern: `#`/`@` expand inside a `[…]` class body', () => {
   const pat = buildSearchPattern('a[#]a');
   assert.equal(matches(pat, 'aba'), true);
-  assert.equal(matches(pat, 'aya'), true);
+  assert.equal(matches(pat, 'aya'), false);
   assert.equal(matches(pat, 'aea'), false);
 });
 

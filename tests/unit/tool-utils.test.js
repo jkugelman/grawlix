@@ -35,9 +35,9 @@ test('consonantSkeleton: keeps only consonants, dropping vowels', () => {
   assert.equal(consonantSkeleton('beautiful'), 'btfl');
 });
 
-test('consonantSkeleton: Y counts as a CONSONANT (kept, not stripped)', () => {
-  assert.equal(consonantSkeleton('rhythm'), 'rhythm');
-  assert.equal(consonantSkeleton('syzygy'), 'syzygy');
+test('consonantSkeleton: Y counts as a VOWEL (stripped, not kept)', () => {
+  assert.equal(consonantSkeleton('rhythm'), 'rhthm');
+  assert.equal(consonantSkeleton('syzygy'), 'szg');
 });
 
 test('consonantSkeleton: only matches lowercase a-z; uppercase is stripped', () => {
@@ -53,18 +53,19 @@ test('consonantSkeleton: falsy input yields the empty string', () => {
   assert.equal(consonantSkeleton(null), '');
 });
 
-test('vowelSkeleton: keeps only A E I O U in order', () => {
+test('vowelSkeleton: keeps A E I O U Y in order', () => {
   assert.equal(vowelSkeleton('beautiful'), 'eauiu');
   assert.equal(vowelSkeleton('queue'), 'ueue');
 });
 
-test('vowelSkeleton: Y is NOT a vowel (stripped)', () => {
-  assert.equal(vowelSkeleton('rhythm'), '');
-  assert.equal(vowelSkeleton('syzygy'), '');
+test('vowelSkeleton: Y counts as a vowel (kept)', () => {
+  assert.equal(vowelSkeleton('rhythm'), 'y');
+  assert.equal(vowelSkeleton('syzygy'), 'yyy');
 });
 
-test('vowelSkeleton: only matches lowercase aeiou; uppercase is stripped', () => {
+test('vowelSkeleton: only matches lowercase aeiouy; uppercase is stripped', () => {
   assert.equal(vowelSkeleton('CAT'), '');
+  assert.equal(vowelSkeleton('CRY'), '');
 });
 
 test('vowelSkeleton: falsy input yields the empty string', () => {

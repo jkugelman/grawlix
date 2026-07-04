@@ -17,10 +17,10 @@ test('`?` matches exactly one character', async () => {
   sameVisible(await visible(LIB, search('c?t')), ['cat', 'cats', 'cot', 'scat']);
 });
 
-test('`#` matches any consonant and `@` matches any vowel', async () => {
-  const lib = ['bad', 'bed', 'bid', 'bod', 'bud', 'byd'];
-  sameVisible(await visible(lib, search('b@d')), ['bad', 'bed', 'bid', 'bod', 'bud']);
-  sameVisible(await visible(lib, search('b#d')), ['byd']);
+test('`#` matches any consonant and `@` matches any vowel (Y is a vowel)', async () => {
+  const lib = ['bad', 'bed', 'bid', 'bod', 'bud', 'byd', 'bzd'];
+  sameVisible(await visible(lib, search('b@d')), ['bad', 'bed', 'bid', 'bod', 'bud', 'byd']);
+  sameVisible(await visible(lib, search('b#d')), ['bzd']);
 });
 
 test('`[abc]` matches any listed letter and `[^abc]` matches any unlisted letter', async () => {

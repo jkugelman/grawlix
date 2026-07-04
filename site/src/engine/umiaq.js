@@ -4,12 +4,11 @@ import { CONSONANTS, VOWELS, escapeRegex, escapeRegexClass } from './search.js';
 
 // ─── Umiaq — variable/pattern search ────────────────────────────────────────
 // A JS reimplementation of Umiaq's pattern language (Alex Boisvert / Crossword
-// Nexus, MIT), written against its source as the reference spec. Two deliberate
-// departures, each of which silently diverges from intent if "corrected":
-// matching binds over `norm` (variables capture accent/space-stripped lowercase
-// substrings — the only representation where a binding stays consistent across a
-// word's spellings), and `#`/`@`/`[…]` are Grawlix's search classes, so `#`
-// includes Y and `@` excludes it — the opposite of Umiaq's own classes.
+// Nexus, MIT), written against its source as the reference spec. One deliberate
+// departure that silently diverges from intent if "corrected": matching binds
+// over `norm` (variables capture accent/space-stripped lowercase substrings —
+// the only representation where a binding stays consistent across a word's
+// spellings).
 
 const reverse = s => { let o = ''; for (let i = s.length - 1; i >= 0; i--) o += s[i]; return o; };
 

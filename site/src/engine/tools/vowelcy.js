@@ -1,6 +1,9 @@
 'use strict';
 
-export const vowelSkeleton = s => (s || '').replace(/[^aeiou]/g, '');
+import { VOWELS } from '../search.js';
+
+const NON_VOWEL = new RegExp(`[^${VOWELS}]`, 'g');
+export const vowelSkeleton = s => (s || '').replace(NON_VOWEL, '');
 
 export default {
   name: 'Vowelcy', icon: '🅰️', category: 'letters',

@@ -14,8 +14,8 @@ test('vowel order matters — same vowels in a different order do not match', as
     ['pains', 'tails']);
 });
 
-test('Y does not count as a vowel', async () => {
-  sameVisible(await visible(['cry', 'try'],
+test('Y counts as a vowel — CRY has skeleton Y and filters out non-Y entries', async () => {
+  sameVisible(await visible(['cry', 'try', 'cat'],
     [{ tool: 'vowelcy', params: { entry: 'CRY' } }]),
     ['cry', 'try']);
 });
