@@ -1,16 +1,19 @@
 'use strict';
 
 import { CONSONANTS, VOWELS, escapeRegex, escapeRegexClass } from './search.js';
+import { parseRange } from './range.js';
 
 // ─── Umiaq — variable/pattern search ────────────────────────────────────────
 // A JS reimplementation of Umiaq's pattern language (Alex Boisvert / Crossword
 // Nexus, MIT), written against its source as the reference spec. One deliberate
 // departure that silently diverges from intent if "corrected": matching binds
 // over `norm` (variables capture accent/space-stripped lowercase substrings —
-// the only representation where a binding stays consistent across a word's
-// spellings).
+// the only representation where a variable's assignment stays consistent across a
+// word's spellings).
 
 const reverse = s => { let o = ''; for (let i = s.length - 1; i >= 0; i--) o += s[i]; return o; };
+
+const NORM_CHARS = 'abcdefghijklmnopqrstuvwxyz0123456789';
 
 // Variable highlight palette size — cycles the shared --hl0..N colors (CSS
 // .hl-umiaq-var-N) so a query with more variables than colors still renders.
@@ -18,8 +21,25 @@ const VAR_HL_COLORS = 9;
 
 // ─── Parsing ─────────────────────────────────────────────────────────────────
 
-const LEN_CONSTRAINT_RE = /^\|([A-Z])\|(<=|>=|<|>|=)(\d+)$/;
-const NEQ_CONSTRAINT_RE = /^([A-Z])!=([A-Z])$/;
+const LEN_CONSTRAINT_RE = /^\|([^|]+)\|(<=|>=|<|>|=)(\d+)$/;
+const VAR_OP_RE = /^([A-Z])(!?=)(.+)$/;
+const EQUATION_RE = /^([A-Za-z0-9]+)(!?=)(.+)$/;
+
+function boundsFromOp(op, n) {
+  if (op === '=')  return { lo: n, hi: n };
+  if (op === '>')  return { lo: n + 1, hi: Infinity };
+  if (op === '>=') return { lo: n, hi: Infinity };
+  if (op === '<')  return { lo: null, hi: n - 1 };
+  return { lo: null, hi: n };   // '<='
+}
+
+function stripLenPrefix(clause) {
+  const i = clause.indexOf(':');
+  if (i === -1) return { wordLen: null, body: clause };
+  const intervals = parseRange(clause.slice(0, i));
+  if (!intervals) throw `invalid length prefix "${clause.slice(0, i)}"`;
+  return { wordLen: intervals[0], body: clause.slice(i + 1) };
+}
 
 function classToken(body) {
   const expanded = body.replace(/#/g, CONSONANTS).replace(/@/g, VOWELS);
@@ -58,7 +78,7 @@ function tokenizePattern(clause) {
       if (!tok) throw 'invalid [ character class';
       tokens.push(tok); i = end;
     } else if (ch === '/') {
-      throw 'anagram (/) is not supported yet';
+      throw 'anagram (/) is not supported';
     } else if (ch === ' ') {
       continue;
     } else {
@@ -89,6 +109,64 @@ function compilePrefilter(tokens, length) {
   return new RegExp(`^(?:${body})$`, 'u');
 }
 
+function compileVarPattern(name, spec) {
+  const { wordLen, body } = stripLenPrefix(spec);
+  const parsed = tokenizePattern(body);
+  if (parsed.variables.size) throw `sub-pattern for ${name} cannot contain variables`;
+  if (!parsed.tokens.length) throw `empty sub-pattern for ${name}`;
+  let min = 0, max = 0;
+  for (const t of parsed.tokens) {
+    if (t.t === 'lit') { min += t.s.length; max += t.s.length; }
+    else if (t.t === 'star') max = Infinity;
+    else { min += 1; if (max !== Infinity) max += 1; }   // dot | class
+  }
+  if (wordLen) {
+    min = Math.max(min, wordLen.min);
+    if (wordLen.max !== null) max = Math.min(max, wordLen.max);
+  }
+  if (min > max) throw `sub-pattern for ${name} has contradictory lengths`;
+  return { re: compilePrefilter(parsed.tokens, {}), min, max };
+}
+
+// A wide fixed-width RHS (`AB=????`) is a length constraint in disguise; expanding it
+// would blow up memory silently, so cap it and reject rather than materialize.
+const RHS_EXPANSION_CAP = 4096;
+
+function expandPattern(tokens) {
+  let strs = [''];
+  for (const t of tokens) {
+    if (t.t === 'lit') strs = strs.map(s => s + t.s);
+    else if (t.t === 'dot') strs = strs.flatMap(s => [...NORM_CHARS].map(c => s + c));
+    else if (t.t === 'class') strs = strs.flatMap(s => classMembers(t).map(c => s + c));
+    if (strs.length > RHS_EXPANSION_CAP) throw 'the right side of = is too broad — narrow it or use a length constraint';
+  }
+  return strs;
+}
+
+// A positive equation's `rhsEntries` is the target expanded into a synthetic pool the
+// term matches against — it *drives* the join (generating the term's partitions) rather
+// than filtering the cross-product, which is what keeps `A;B;AB=boardroom` out of O(n²).
+function compileEquation(lhs, op, rhs) {
+  const term = tokenizePattern(lhs);
+  for (const t of term.tokens) {
+    if (t.t !== 'var' && t.t !== 'lit') throw `the left side of ${op} takes only variables and literals`;
+  }
+  if (/^[A-Z]$/.test(rhs)) throw `comparing two terms (${lhs}${op}${rhs}) is not supported`;
+  const rp = tokenizePattern(rhs);
+  if (rp.variables.size) throw `the right side of ${op} cannot contain variables`;
+  if (!rp.tokens.length) throw `empty right side of ${op}`;
+  for (const t of rp.tokens) if (t.t === 'star') throw `* on the right side of ${op} is not supported`;
+  const negate = op === '!=';
+  return {
+    term,
+    vars: [...term.variables].sort(),
+    rhsRe: compilePrefilter(rp.tokens, {}),
+    rhsEntries: negate ? null : expandPattern(rp.tokens).map(norm => ({ norm })),
+    negate,
+    src: `${lhs}${op}${rhs}`,
+  };
+}
+
 export function parseUmiaqQuery(query) {
   const q = (query || '').normalize('NFC').trim();
   if (!q) return { ok: false, empty: true };
@@ -96,34 +174,64 @@ export function parseUmiaqQuery(query) {
   const clauses = q.split(';').map(c => c.trim());
   const bounds = {};   // var → { lo, hi }: explicit lower bound (null = none) and upper bound
   const notEqual = {};
-  const patternClauses = [];
+  const varPattern = {};
+  const varNotPattern = {};
+  const sumLen = [];
+  const equations = [];
+  const bindingSrcs = [];
 
   for (const clause of clauses) {
-    if (clause.includes('=') || clause.startsWith('|')) {
-      const lm = LEN_CONSTRAINT_RE.exec(clause);
-      if (lm) {
-        const v = lm[1], op = lm[2], n = +lm[3];
-        let lo = null, hi = Infinity;
-        if (op === '=') lo = hi = n;
-        else if (op === '>') lo = n + 1;
-        else if (op === '>=') lo = n;
-        else if (op === '<') hi = n - 1;
-        else if (op === '<=') hi = n;
-        // A null lower bound must stay null (not default to 1) until every clause is
-        // seen, or an upper-bound-only clause like |A|<=5 silently re-imposes the
-        // floor of 1 and defeats a later |A|>=0.
-        const prev = bounds[v] || { lo: null, hi: Infinity };
-        bounds[v] = {
-          lo: lo === null ? prev.lo : prev.lo === null ? lo : Math.max(lo, prev.lo),
-          hi: Math.min(hi, prev.hi),
-        };
+    const vd = VAR_OP_RE.exec(clause);
+    if (vd) {
+      const [, name, op, rhs] = vd;
+      if (op === '!=' && /^[A-Z]$/.test(rhs)) {
+        (notEqual[name] ??= []).push(rhs);
+        (notEqual[rhs] ??= []).push(name);
         continue;
       }
-      const nm = NEQ_CONSTRAINT_RE.exec(clause);
-      if (nm) {
-        const [, a, b] = nm;
-        (notEqual[a] ??= []).push(b);
-        (notEqual[b] ??= []).push(a);
+      try {
+        const compiled = compileVarPattern(name, rhs);
+        if (op === '=') varPattern[name] = compiled;
+        else (varNotPattern[name] ??= []).push(compiled);
+      } catch (msg) { return { ok: false, error: typeof msg === 'string' ? msg : String(msg) }; }
+      continue;
+    }
+    if (clause.startsWith('|')) {
+      const lm = LEN_CONSTRAINT_RE.exec(clause);
+      if (lm) {
+        const { lo, hi } = boundsFromOp(lm[2], +lm[3]);
+        let termTokens;
+        try { termTokens = tokenizePattern(lm[1]).tokens; }
+        catch { return { ok: false, error: `invalid length term "|${lm[1]}|"` }; }
+        const vars = [];
+        let lit = 0;
+        for (const t of termTokens) {
+          if (t.t === 'var') vars.push(t.name);
+          else if (t.t === 'lit') lit += t.s.length;
+          else return { ok: false, error: `|${lm[1]}| takes only variables and literals` };
+        }
+        if (vars.length === 1 && lit === 0) {
+          const v = vars[0];
+          // A null lower bound must stay null (not default to 1) until every clause is
+          // seen, or an upper-bound-only clause like |A|<=5 silently re-imposes the
+          // floor of 1 and defeats a later |A|>=0.
+          const prev = bounds[v] || { lo: null, hi: Infinity };
+          bounds[v] = {
+            lo: lo === null ? prev.lo : prev.lo === null ? lo : Math.max(lo, prev.lo),
+            hi: Math.min(hi, prev.hi),
+          };
+        } else {
+          sumLen.push({ vars, lit, min: lo === null ? 0 : lo, max: hi });
+        }
+        continue;
+      }
+      return { ok: false, error: `unsupported constraint "${clause}"` };
+    }
+    if (clause.includes('=')) {
+      const eq = EQUATION_RE.exec(clause);
+      if (eq && /[A-Z]/.test(eq[1])) {
+        try { equations.push(compileEquation(eq[1], eq[2], eq[3])); }
+        catch (msg) { return { ok: false, error: typeof msg === 'string' ? msg : String(msg) }; }
         continue;
       }
       return { ok: false, error: `unsupported constraint "${clause}"` };
@@ -131,7 +239,7 @@ export function parseUmiaqQuery(query) {
     // A trailing or doubled `;` leaves an empty clause — almost always mid-typing,
     // so stay inert rather than erroring while the user composes the next pattern.
     if (!clause) return { ok: false, empty: true };
-    patternClauses.push(clause);
+    bindingSrcs.push(clause);
   }
 
   // Zero-length is opt-in (|A|>=0, |A|=0); capping the default floor at the upper
@@ -144,73 +252,115 @@ export function parseUmiaqQuery(query) {
     length[v] = { min, max: hi };
   }
 
-  if (!patternClauses.length) return { ok: false, empty: true };
+  if (!bindingSrcs.length) return { ok: false, empty: true };
 
-  const patterns = [];
+  const bindings = [];
   const variables = new Set();
-  for (const clause of patternClauses) {
-    let parsed;
-    try { parsed = tokenizePattern(clause); }
+  for (const clause of bindingSrcs) {
+    let wordLen, parsed;
+    try {
+      let body;
+      ({ wordLen, body } = stripLenPrefix(clause));
+      parsed = tokenizePattern(body);
+    }
     catch (msg) { return { ok: false, error: typeof msg === 'string' ? msg : String(msg) }; }
     if (!parsed.tokens.length) return { ok: false, empty: true };
+    if (wordLen && wordLen.max !== null && wordLen.min > wordLen.max) return { ok: false, error: 'length prefix range is empty' };
     for (const v of parsed.variables) variables.add(v);
     const stars = parsed.tokens.reduce((n, t) => n + (t.t === 'star' ? 1 : 0), 0);
-    patterns.push({ ...parsed, src: clause, stars, prefilter: compilePrefilter(parsed.tokens, length) });
+    bindings.push({ ...parsed, src: clause, wordLen, stars, prefilter: compilePrefilter(parsed.tokens, length) });
   }
 
   for (const v of Object.keys(notEqual)) notEqual[v] = [...new Set(notEqual[v])];
 
-  return { ok: true, patterns, constraints: { length, notEqual }, arity: patterns.length, variables };
+  for (const eq of equations) {
+    for (const v of eq.vars) if (!variables.has(v)) return { ok: false, error: `${eq.src}: ${v} must appear in a binding` };
+    eq.pattern = { tokens: eq.term.tokens, variables: eq.term.variables, wordLen: null, stars: 0, prefilter: compilePrefilter(eq.term.tokens, length) };
+  }
+
+  return { ok: true, bindings, constraints: { length, notEqual, sumLen, varPattern, varNotPattern, equations }, arity: bindings.length, variables };
 }
 
 // ─── Matching ────────────────────────────────────────────────────────────────
-// Enumerate every binding map (var → bound substring) by which `pattern` matches
-// `word`. Memoized backtracker over (word index, token index, bindings), faithful
+// Enumerate every assignment (var → bound substring) by which `pattern` matches
+// `word`. Memoized backtracker over (word index, token index, assignment), faithful
 // to Umiaq's matcher except for the prefilter and the result-dedupe. A variable
 // binds a non-empty substring by default — |A|>=0 (or |A|=0) lets it bind the empty
 // string; `*` always spans zero or more characters.
 
-function canonical(bindings) {
-  const keys = Object.keys(bindings);
+function canonical(assignment) {
+  const keys = Object.keys(assignment);
   if (!keys.length) return '';
   keys.sort();
   let s = '';
-  for (const k of keys) s += k + '=' + bindings[k] + ',';
+  for (const k of keys) s += k + '=' + assignment[k] + ',';
   return s;
 }
 
+// Must fail *open* on a not-yet-bound variable (skip, don't reject): the same guard
+// runs inside a single binding's match and again at the tuple join, and a |AB|=n whose
+// A and B sit in different bindings is only whole at the join — reject-on-missing there
+// would drop every cross-binding tuple silently.
+function sumLenOK(sumLen, assignment) {
+  for (const { vars, lit, min, max } of sumLen) {
+    if (!vars.every(v => v in assignment)) continue;
+    let total = lit;
+    for (const v of vars) total += assignment[v].length;
+    if (total < min || total > max) return false;
+  }
+  return true;
+}
+
+function equationOK(equations, assignment) {
+  for (const eq of equations) {
+    if (!eq.vars.every(v => v in assignment)) continue;
+    let s = '';
+    for (const t of eq.term.tokens) s += t.t === 'var' ? assignment[t.name] : t.s;
+    if (eq.rhsRe.test(s) === eq.negate) return false;
+  }
+  return true;
+}
+
 export function matchPattern(word, pattern, constraints = { length: {}, notEqual: {} }) {
+  const W = word.length;
+  const wl = pattern.wordLen;
+  if (wl && (W < wl.min || (wl.max !== null && W > wl.max))) return [];
   if (!pattern.prefilter.test(word)) return [];
 
   const parts = pattern.tokens;
-  const W = word.length;
   const length = constraints.length || {};
   const notEqual = constraints.notEqual || {};
+  const sumLen = constraints.sumLen || [];
+  const equations = constraints.equations || [];
+  const varPattern = constraints.varPattern || {};
+  const varNotPattern = constraints.varNotPattern || {};
   const results = [];
   // Paths reconverge — and the per-node `canonical()` memo/dedup that costs ~200µs
   // a word earns its keep — only with ≥2 stars (`**`, `*a*`): a single star or
   // any number of variables advance the position uniquely, so distinct paths can't
-  // collide on (i, pi, bindings). Skipping it for the star-light common case
+  // collide on (i, pi, assignment). Skipping it for the star-light common case
   // (ABC;CBA, AB;BA, …) is the difference between a snappy run and a 40s one.
   const needDedup = (pattern.stars ?? parts.reduce((n, t) => n + (t.t === 'star' ? 1 : 0), 0)) >= 2;
   const seen = needDedup ? new Set() : null;
   const memo = needDedup ? new Set() : null;
 
-  function helper(i, pi, bindings) {
+  function helper(i, pi, assignment) {
     let key;
     if (needDedup) {
-      key = i + '|' + pi + '|' + canonical(bindings);
+      key = i + '|' + pi + '|' + canonical(assignment);
       if (memo.has(key)) return;
     }
 
     if (pi === parts.length) {
       if (i === W) {
+        if (sumLen.length && !sumLenOK(sumLen, assignment)) return;
+        if (equations.length && !equationOK(equations, assignment)) return;
         if (needDedup) {
-          const c = canonical(bindings);
+          const c = canonical(assignment);
           if (seen.has(c)) return;
           seen.add(c);
         }
-        results.push({ ...bindings });
+        results.push({ ...assignment });
       }
       return;
     }
@@ -218,36 +368,41 @@ export function matchPattern(word, pattern, constraints = { length: {}, notEqual
     const part = parts[pi];
     switch (part.t) {
       case 'dot':
-        if (i < W) helper(i + 1, pi + 1, bindings);
+        if (i < W) helper(i + 1, pi + 1, assignment);
         break;
       case 'lit':
-        if (word.startsWith(part.s, i)) helper(i + part.s.length, pi + 1, bindings);
+        if (word.startsWith(part.s, i)) helper(i + part.s.length, pi + 1, assignment);
         break;
       case 'class':
-        if (i < W && part.re.test(word[i])) helper(i + 1, pi + 1, bindings);
+        if (i < W && part.re.test(word[i])) helper(i + 1, pi + 1, assignment);
         break;
       case 'star':
-        for (let j = i; j <= W; j++) helper(j, pi + 1, bindings);
+        for (let j = i; j <= W; j++) helper(j, pi + 1, assignment);
         break;
       case 'var':
       case 'rev': {
         const name = part.name;
-        if (name in bindings) {
-          let val = bindings[name];
+        if (name in assignment) {
+          let val = assignment[name];
           if (part.t === 'rev') val = reverse(val);
-          if (word.startsWith(val, i)) helper(i + val.length, pi + 1, bindings);
+          if (word.startsWith(val, i)) helper(i + val.length, pi + 1, assignment);
         } else {
           let min = 1, max = W - i;
           const lc = length[name];
           if (lc) { min = lc.min; max = Math.min(max, lc.max); }
+          const vp = varPattern[name];
+          if (vp) { min = Math.max(min, vp.min); if (vp.max !== Infinity) max = Math.min(max, vp.max); }
+          const vnp = varNotPattern[name];
           const neq = notEqual[name];
           for (let L = min; L <= max; L++) {
             const sub = word.slice(i, i + L);
             const boundVal = part.t === 'rev' ? reverse(sub) : sub;
-            if (neq && neq.some(o => bindings[o] === boundVal)) continue;
-            bindings[name] = boundVal;
-            helper(i + L, pi + 1, bindings);
-            delete bindings[name];
+            if (vp && !vp.re.test(boundVal)) continue;
+            if (vnp && vnp.some(n => L >= n.min && (n.max === Infinity || L <= n.max) && n.re.test(boundVal))) continue;
+            if (neq && neq.some(o => assignment[o] === boundVal)) continue;
+            assignment[name] = boundVal;
+            helper(i + L, pi + 1, assignment);
+            delete assignment[name];
           }
         }
         break;
@@ -267,14 +422,14 @@ export function matchesPattern(word, pattern, constraints) {
 // Where each variable occurrence sits in a matched word (`[{ name, start, len }]`),
 // for Umiaq's per-variable highlight colors. A pattern with more than one `*`
 // leaves the offsets under-determined — the stars' split isn't recoverable from the
-// bindings — so it yields no ranges rather than wrong ones; a single `*` takes the slack.
-export function variableRanges(word, pattern, bindings) {
+// assignment — so it yields no ranges rather than wrong ones; a single `*` takes the slack.
+export function variableRanges(word, pattern, assignment) {
   const tokens = pattern.tokens;
   let stars = 0, fixed = 0;
   for (const t of tokens) {
     if (t.t === 'star') stars++;
     else if (t.t === 'lit') fixed += t.s.length;
-    else if (t.t === 'var' || t.t === 'rev') fixed += bindings[t.name].length;
+    else if (t.t === 'var' || t.t === 'rev') fixed += assignment[t.name].length;
     else fixed += 1;   // dot | class
   }
   if (stars > 1) return [];
@@ -286,7 +441,7 @@ export function variableRanges(word, pattern, bindings) {
     if (t.t === 'star') off += starLen;
     else if (t.t === 'lit') off += t.s.length;
     else if (t.t === 'var' || t.t === 'rev') {
-      const len = bindings[t.name].length;
+      const len = assignment[t.name].length;
       ranges.push({ name: t.name, start: off, len });
       off += len;
     } else off += 1;   // dot | class
@@ -303,20 +458,22 @@ export function variableColors(variables) {
   return varColor;
 }
 
-export function variableHighlights(word, pattern, bindings, varColor) {
-  return variableRanges(word, pattern, bindings)
+export function variableHighlights(word, pattern, assignment, varColor) {
+  return variableRanges(word, pattern, assignment)
     .filter(r => r.len > 0)   // a zero-length variable spans nothing to color
     .map(r => ({ start: r.start, end: r.start + r.len, kind: 'umiaq-var-' + varColor[r.name] }));
 }
 
 // ─── Finding tuples ──────────────────────────────────────────────────────────
-// Order the patterns most-variables-first, then by greatest overlap with what's
-// already ordered, so each later pattern shares variables ("lookup keys") with an
-// earlier one. Phase 1 buckets every pattern's matches keyed by its lookup-key
-// bindings; Phase 2 walks the first bucket and hash-joins down the chain.
+// A *solver* is a pattern plus the pool it matches: a binding matches the corpus and
+// emits a result word; a positive equation matches its synthetic RHS pool and emits
+// nothing (bind-and-prune only). Order solvers most-variables-first, then by greatest
+// overlap with what's already ordered, so each later solver shares variables ("lookup
+// keys") with an earlier one. Phase 1 buckets every solver's matches keyed by its
+// lookup-key assignment; Phase 2 walks the first bucket and hash-joins down the chain.
 
-function orderPatterns(patterns) {
-  const remaining = patterns.map((p, idx) => ({ p, idx, lookupKeys: [] }));
+function orderSolvers(solvers) {
+  const remaining = solvers.map(s => ({ ...s, lookupKeys: [] }));
   let best = 0;
   for (let k = 1; k < remaining.length; k++) {
     if (remaining[k].p.variables.size > remaining[best].p.variables.size) best = k;
@@ -340,9 +497,7 @@ function orderPatterns(patterns) {
 
 const NOOP_Y = { due: () => false, yield: async () => {} };
 
-const NORM_CHARS = 'abcdefghijklmnopqrstuvwxyz0123456789';
-
-// Past this many candidates per binding, enumerate-and-probe costs more than the
+// Past this many candidates per assignment, enumerate-and-probe costs more than the
 // hash join it replaces, so such a query falls back to the bucket path.
 const PROBE_CANDIDATE_CAP = 4096;
 
@@ -365,7 +520,7 @@ function probeExpansion(pattern) {
 
 // Two strategies, chosen by `probeable` below. The probe path is exhaustive
 // over the corpus; the bucket path truncates at `maxMatchesPerPattern` (reporting
-// `truncated`) to bound a free-variable pattern's runaway bindings, so it can miss
+// `truncated`) to bound a free-variable pattern's runaway assignments, so it can miss
 // matches past the cap. Collapsing the two back into one reintroduces that
 // truncation for the queries the probe path covers exactly — the bug this fixes.
 // The budget params aren't redundant with `numResults`: a search with few
@@ -378,10 +533,17 @@ export async function findTuples(parsed, pool, {
   y = NOOP_Y,
   signal = null,
 } = {}) {
-  const { patterns, constraints } = parsed;
-  const ordered = orderPatterns(patterns);
+  const { bindings, constraints } = parsed;
+  const sumLen = constraints.sumLen || [];
+  const equations = constraints.equations || [];
+
+  const solvers = [
+    ...bindings.map((p, i) => ({ p, pool, emit: true, outIdx: i })),
+    ...equations.filter(e => !e.negate).map(e => ({ p: e.pattern, pool: e.rhsEntries, emit: false, outIdx: -1 })),
+  ];
+  const ordered = orderSolvers(solvers);
   const N = ordered.length;
-  const indexOrder = ordered.map(o => o.idx);
+  const emittingCount = bindings.length;
   const varColor = variableColors(parsed.variables);
 
   const tuples = [];
@@ -389,14 +551,17 @@ export async function findTuples(parsed, pool, {
   const pending = onBatch ? [] : null;
   const flush = async () => { if (pending?.length) await onBatch(pending.splice(0)); };
 
-  const makeLane = (oi, entry, bindings) => {
-    const highlights = variableHighlights(entry.norm, ordered[oi].p, bindings, varColor);
+  const makeLane = (k, entry, assignment) => {
+    const highlights = variableHighlights(entry.norm, ordered[k].p, assignment, varColor);
     return { entry, highlights: highlights.length ? highlights : null };
   };
-  // orderPatterns reordered the lanes; map them back to the user's order.
-  const emit = orderedLanes => {
-    const lanes = new Array(N);
-    for (let k = 0; k < N; k++) lanes[indexOrder[k]] = orderedLanes[k];
+  // Drop the non-emitting equation solvers and restore the user's binding order.
+  const emit = orderedParts => {
+    const lanes = new Array(emittingCount);
+    for (let k = 0; k < N; k++) {
+      const s = ordered[k];
+      if (s.emit) lanes[s.outIdx] = makeLane(k, orderedParts[k].entry, orderedParts[k].assignment);
+    }
     const dedupeKey = lanes.map(l => l.entry.norm).join('\0');
     if (seenTuples.has(dedupeKey)) return;
     seenTuples.add(dedupeKey);
@@ -409,8 +574,16 @@ export async function findTuples(parsed, pool, {
 
   // ── Probe path ─────────────────────────────────────────────────────────────
   if (probeable) {
-    const normIndex = new Map();
-    for (const e of pool) if (!normIndex.has(e.norm)) normIndex.set(e.norm, e);
+    const corpusIndex = new Map();
+    for (const e of pool) if (!corpusIndex.has(e.norm)) corpusIndex.set(e.norm, e);
+    // A solver resolves its candidates against its own pool — a binding against the
+    // corpus, an equation against its synthetic RHS set, not the corpus.
+    const lookups = ordered.map(s => {
+      if (s.emit) return corpusIndex;
+      const m = new Map();
+      for (const e of s.pool) if (!m.has(e.norm)) m.set(e.norm, e);
+      return m;
+    });
 
     const genCandidates = (oi, b) => {
       let strs = [''];
@@ -425,27 +598,29 @@ export async function findTuples(parsed, pool, {
     };
 
     outer:
-    for (const entry of pool) {
+    for (const entry of ordered[0].pool) {
       if (signal?.aborted) throw signal.reason ?? new DOMException('Aborted', 'AbortError');
-      for (const bindings of matchPattern(entry.norm, ordered[0].p, constraints)) {
-        const laneLists = new Array(N);
-        laneLists[0] = [makeLane(0, entry, bindings)];
+      for (const assignment of matchPattern(entry.norm, ordered[0].p, constraints)) {
+        const partLists = new Array(N);
+        partLists[0] = [{ entry, assignment }];
         let ok = true;
         for (let oi = 1; oi < N; oi++) {
-          const lanes = [];
-          for (const nrm of genCandidates(oi, bindings)) {
-            const e2 = normIndex.get(nrm);
-            if (e2) lanes.push(makeLane(oi, e2, bindings));
+          const wl = ordered[oi].p.wordLen;
+          const parts = [];
+          for (const nrm of genCandidates(oi, assignment)) {
+            if (wl && (nrm.length < wl.min || (wl.max !== null && nrm.length > wl.max))) continue;
+            const e2 = lookups[oi].get(nrm);
+            if (e2) parts.push({ entry: e2, assignment });
           }
-          if (!lanes.length) { ok = false; break; }
-          laneLists[oi] = lanes;
+          if (!parts.length) { ok = false; break; }
+          partLists[oi] = parts;
         }
         if (ok) {
           const combo = new Array(N);
           const build = oi => {
             if (tuples.length >= numResults) return;
             if (oi === N) { emit(combo); return; }
-            for (const lane of laneLists[oi]) { combo[oi] = lane; build(oi + 1); }
+            for (const part of partLists[oi]) { combo[oi] = part; build(oi + 1); }
           };
           build(0);
         }
@@ -461,20 +636,20 @@ export async function findTuples(parsed, pool, {
   const buckets = ordered.map(() => new Map());
   const counts = new Array(N).fill(0);
   let truncated = false;
-  for (const entry of pool) {
-    if (signal?.aborted) throw signal.reason ?? new DOMException('Aborted', 'AbortError');
-    for (let oi = 0; oi < N; oi++) {
-      if (counts[oi] >= maxMatchesPerPattern) { truncated = true; continue; }
-      const { p, lookupKeys } = ordered[oi];
-      for (const bindings of matchPattern(entry.norm, p, constraints)) {
-        const key = lookupKeys.length ? lookupKeys.map(v => v + '=' + bindings[v]).join('\0') : '';
+  for (let oi = 0; oi < N; oi++) {
+    const { p, pool: solverPool, lookupKeys } = ordered[oi];
+    for (const entry of solverPool) {
+      if (signal?.aborted) throw signal.reason ?? new DOMException('Aborted', 'AbortError');
+      if (counts[oi] >= maxMatchesPerPattern) { truncated = true; break; }
+      for (const assignment of matchPattern(entry.norm, p, constraints)) {
+        const key = lookupKeys.length ? lookupKeys.map(v => v + '=' + assignment[v]).join('\0') : '';
         let bucket = buckets[oi].get(key);
         if (!bucket) buckets[oi].set(key, bucket = []);
-        bucket.push({ bindings, entry });
+        bucket.push({ assignment, entry });
         if (++counts[oi] >= maxMatchesPerPattern) { truncated = true; break; }
       }
+      if (y.due()) await y.yield();
     }
-    if (y.due()) await y.yield();
   }
 
   // Phase 2 is an explicit DFS work-stack, not native recursion: making the
@@ -486,11 +661,14 @@ export async function findTuples(parsed, pool, {
     if (tuples.length >= numResults) break;
     if (signal?.aborted) throw signal.reason ?? new DOMException('Aborted', 'AbortError');
     const f = frames[frames.length - 1];
-    if (f.index === N) { emit(f.selected.map((part, oi) => makeLane(oi, part.entry, part.bindings))); frames.pop(); continue; }
+    if (f.index === N) {
+      if (sumLenOK(sumLen, f.dict) && equationOK(equations, f.dict)) emit(f.selected);
+      frames.pop(); continue;
+    }
     if (f.i >= f.list.length) { frames.pop(); continue; }
     const part = f.list[f.i++];
     const merged = { ...f.dict };
-    for (const v of ordered[f.index].p.variables) if (!(v in merged)) merged[v] = part.bindings[v];
+    for (const v of ordered[f.index].p.variables) if (!(v in merged)) merged[v] = part.assignment[v];
     const nextList = f.index + 1 < N
       ? (buckets[f.index + 1].get(ordered[f.index + 1].lookupKeys.map(v => v + '=' + merged[v]).join('\0')) || [])
       : [];

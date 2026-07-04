@@ -22,8 +22,8 @@ async function setup(page) {
   await page.evaluate(() => window.__grawlixTest.pipelineIdle());
 }
 
-async function run(page, patterns) {
-  await page.evaluate(p => window.__grawlixTest.setStack([{ tool: 'umiaq', params: { patterns: p } }]), patterns);
+async function run(page, query) {
+  await page.evaluate(p => window.__grawlixTest.setStack([{ tool: 'umiaq', params: { query: p } }]), query);
   await page.evaluate(() => window.__grawlixTest.pipelineIdle());
 }
 
@@ -93,6 +93,13 @@ test('a multi-pattern query yields side-by-side tuples, lane order preserved', a
   expect(more).toBe(0);
 });
 
+test('an equation splits a target word into side-by-side lanes', async ({ page }) => {
+  await setup(page);
+  await run(page, 'A;B;AB=apepea');            // the only split with both halves in the list
+  expect(await tier(page)).toBe('tuple');
+  expect(await tuples(page)).toEqual([['ape', 'pea']]);
+});
+
 test('a score sort reorders tuples without reordering their lanes', async ({ page }) => {
   await setup(page);
   await run(page, 'AB;BA');
@@ -156,7 +163,7 @@ test('an invalid query keeps results transparent but flags the error', async ({ 
   expect((await entries(page)).length).toBe(WORDS.entries.length);
   const errBtn = page.locator('.tool-row-error-btn');
   await expect(errBtn).toBeVisible();
-  await expect(errBtn).toHaveAttribute('title', 'anagram (/) is not supported yet');
+  await expect(errBtn).toHaveAttribute('title', 'anagram (/) is not supported');
 });
 
 // Guards against the range trimming an out-of-range lane and keeping the rest, which

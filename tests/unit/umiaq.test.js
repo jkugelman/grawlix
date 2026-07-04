@@ -11,8 +11,14 @@ import {
 function bindings(query, word) {
   const parsed = parseUmiaqQuery(query);
   assert.ok(parsed.ok, `query "${query}" should parse: ${parsed.error || ''}`);
-  return matchPattern(word, parsed.patterns[0], parsed.constraints)
+  return matchPattern(word, parsed.bindings[0], parsed.constraints)
     .map(b => Object.fromEntries(Object.keys(b).sort().map(k => [k, b[k]])));
+}
+
+function matches(query, word) {
+  const parsed = parseUmiaqQuery(query);
+  assert.ok(parsed.ok, `query "${query}" should parse: ${parsed.error || ''}`);
+  return matchesPattern(word, parsed.bindings[0], parsed.constraints);
 }
 
 const entry = (norm, score = 100) => ({ norm, score });
@@ -36,7 +42,7 @@ test('parse: a plain literal is arity 1 with no variables', () => {
   assert.equal(p.ok, true);
   assert.equal(p.arity, 1);
   assert.equal(p.variables.size, 0);
-  assert.deepEqual(p.patterns[0].tokens, [{ t: 'lit', s: 'cat' }]);
+  assert.deepEqual(p.bindings[0].tokens, [{ t: 'lit', s: 'cat' }]);
 });
 
 test('parse: arity is the pattern count, ignoring constraint clauses', () => {
@@ -45,7 +51,7 @@ test('parse: arity is the pattern count, ignoring constraint clauses', () => {
   assert.equal(parseUmiaqQuery('AA;|A|=3').arity, 1);
 });
 
-test('parse: collects variables across all patterns', () => {
+test('parse: collects variables across all bindings', () => {
   const p = parseUmiaqQuery('AxB;C~A');
   assert.deepEqual([...p.variables].sort(), ['A', 'B', 'C']);
 });
@@ -60,12 +66,12 @@ test('parse: length and not-equal constraints', () => {
 
 test('parse: token kinds', () => {
   const p = parseUmiaqQuery('a?b*~A[cd]#@');
-  assert.deepEqual(p.patterns[0].tokens.map(t => t.t),
+  assert.deepEqual(p.bindings[0].tokens.map(t => t.t),
     ['lit', 'dot', 'lit', 'star', 'rev', 'class', 'class', 'class']);
 });
 
 test('parse: ? is the any-char token; . is not a wildcard', () => {
-  assert.deepEqual(parseUmiaqQuery('a?b').patterns[0].tokens.map(t => t.t),
+  assert.deepEqual(parseUmiaqQuery('a?b').bindings[0].tokens.map(t => t.t),
                    ['lit', 'dot', 'lit']);
   assert.match(parseUmiaqQuery('a.b').error, /unexpected character/);
 });
@@ -94,8 +100,10 @@ test('parse: errors', () => {
   assert.match(parseUmiaqQuery('a[bc').error, /unclosed/);
   assert.match(parseUmiaqQuery('~').error, /variable/);
   assert.match(parseUmiaqQuery('/abc').error, /anagram/);
-  assert.match(parseUmiaqQuery('A=(3:a*)').error, /unsupported constraint/);
   assert.match(parseUmiaqQuery('a=b').error, /unsupported constraint/);
+  assert.match(parseUmiaqQuery('A=B?').error, /cannot contain variables/);
+  assert.match(parseUmiaqQuery('9-3:ab').error, /length prefix range is empty/);
+  assert.match(parseUmiaqQuery('7-:ab').error, /invalid length prefix/);
 });
 
 test('parse: a query of only constraints, or a trailing ;, is inert', () => {
@@ -161,14 +169,14 @@ test('match: not-equal forbids equal bindings', () => {
 
 test('match: literals, dots and stars', () => {
   assert.deepEqual(bindings('c?t', 'cat'), [{}]);
-  assert.equal(matchesPattern('cat', parseUmiaqQuery('c?t').patterns[0]), true);
-  assert.equal(matchesPattern('coat', parseUmiaqQuery('c?t').patterns[0]), false);
-  assert.equal(matchesPattern('cat', parseUmiaqQuery('c*t').patterns[0]), true);
-  assert.equal(matchesPattern('ct', parseUmiaqQuery('c*t').patterns[0]), true);
+  assert.equal(matchesPattern('cat', parseUmiaqQuery('c?t').bindings[0]), true);
+  assert.equal(matchesPattern('coat', parseUmiaqQuery('c?t').bindings[0]), false);
+  assert.equal(matchesPattern('cat', parseUmiaqQuery('c*t').bindings[0]), true);
+  assert.equal(matchesPattern('ct', parseUmiaqQuery('c*t').bindings[0]), true);
 });
 
 test('match: character classes and ranges behave like Search', () => {
-  const m = q => w => matchesPattern(w, parseUmiaqQuery(q).patterns[0]);
+  const m = q => w => matchesPattern(w, parseUmiaqQuery(q).bindings[0]);
   assert.equal(m('[bc]at')('cat'), true);
   assert.equal(m('[bc]at')('hat'), false);
   assert.equal(m('[^bc]at')('hat'), true);
@@ -177,7 +185,7 @@ test('match: character classes and ranges behave like Search', () => {
 });
 
 test('match: # is a consonant excluding Y, @ a vowel including Y', () => {
-  const m = q => w => matchesPattern(w, parseUmiaqQuery(q).patterns[0]);
+  const m = q => w => matchesPattern(w, parseUmiaqQuery(q).bindings[0]);
   assert.equal(m('#')('y'), false, '# rejects Y');
   assert.equal(m('@')('y'), true,  '@ matches Y');
   assert.equal(m('@')('a'), true);
@@ -199,7 +207,7 @@ test('find: a length constraint makes AB;BA directional', async () => {
   assert.deepEqual(tuples, [['ape', 'pea'], ['bro', 'rob']]);
 });
 
-test('find: shared variables across patterns must agree (AkB;AlB)', async () => {
+test('find: shared variables across bindings must agree (AkB;AlB)', async () => {
   const tuples = await tupleNorms('AkB;AlB', ['sky', 'sly', 'bake', 'bale', 'skz']);
   assert.deepEqual(tuples, [['bake', 'bale'], ['sky', 'sly']]);
 });
@@ -298,7 +306,7 @@ test('worked: AB;BA over a multiply-divisible word enumerates every split and de
 // ─── Variable highlighting ───────────────────────────────────────────────────
 
 const rangesFor = (query, word, binds) =>
-  variableRanges(word, parseUmiaqQuery(query).patterns[0], binds);
+  variableRanges(word, parseUmiaqQuery(query).bindings[0], binds);
 
 test('variableRanges: locates each variable occurrence', () => {
   // ape = A('a') + B('pe')
@@ -333,4 +341,170 @@ test('find: tuples carry per-variable highlight ranges, stable color per variabl
   assert.ok(aColor && bColor && aColor !== bColor, 'A and B get distinct colors');
   assert.equal(kindAt(pea, 2), aColor, 'A is the same color in both lanes');   // 'a' at end of pea
   assert.equal(kindAt(pea, 0), bColor, 'B is the same color in both lanes');   // 'pe' at start of pea
+});
+
+// ─── Length prefix, sum-length, and variable sub-patterns ────────────────────
+
+test('parse: a length prefix reads the score-range syntax into wordLen', () => {
+  const wl = q => parseUmiaqQuery(q).bindings[0].wordLen;
+  assert.deepEqual(wl('7:a*'),   { min: 7,  max: 7 });
+  assert.deepEqual(wl('7-9:a*'), { min: 7,  max: 9 });
+  assert.deepEqual(wl('0-6:a*'), { min: 0,  max: 6 });
+  assert.deepEqual(wl('10+:a*'), { min: 10, max: null });
+  assert.equal(wl('a*'), null);
+});
+
+test('match: a length prefix bounds the whole matched word', () => {
+  assert.deepEqual(bindings('4:A~A', 'abba'), [{ A: 'ab' }]);
+  assert.deepEqual(bindings('5:A~A', 'abba'), []);            // right shape, wrong length
+  assert.equal(matches('3-4:a*', 'abc'),   true);
+  assert.equal(matches('3-4:a*', 'abcde'), false);
+  assert.equal(matches('4+:a*',  'abcd'),  true);
+  assert.equal(matches('4+:a*',  'abc'),   false);
+  assert.equal(matches('0-1:a*', 'a'),     true);
+});
+
+test('find: a length prefix filters a probe-path partner lane by length', async () => {
+  // 4: drops the 3-letter tea/eat swap, keeps the 4-letter stop/tops.
+  const got = await tupleNorms('AB;4:BA', ['tea', 'eat', 'stop', 'tops']);
+  assert.deepEqual(got, [['stop', 'tops'], ['tops', 'stop']]);
+});
+
+test('parse: a multi-variable length constraint parses into sumLen', () => {
+  assert.deepEqual(parseUmiaqQuery('AB;|AB|=9').constraints.sumLen,  [{ vars: ['A', 'B'], lit: 0, min: 9, max: 9 }]);
+  assert.deepEqual(parseUmiaqQuery('AB;|AB|>=5').constraints.sumLen, [{ vars: ['A', 'B'], lit: 0, min: 5, max: Infinity }]);
+  assert.deepEqual(parseUmiaqQuery('AB;|AB|<=5').constraints.sumLen, [{ vars: ['A', 'B'], lit: 0, min: 0, max: 5 }]);
+  assert.deepEqual(parseUmiaqQuery('AB;|A|=9').constraints.sumLen, []);   // single var stays off sumLen
+  assert.deepEqual(parseUmiaqQuery('AB;|A|=9').constraints.length, { A: { min: 9, max: 9 } });
+});
+
+test('parse: a length term may mix variables and literals in any arrangement', () => {
+  assert.deepEqual(parseUmiaqQuery('AxB;|AxB|=9').constraints.sumLen, [{ vars: ['A', 'B'], lit: 1, min: 9, max: 9 }]);
+  assert.deepEqual(parseUmiaqQuery('A;|Afoo|=8').constraints.sumLen, [{ vars: ['A'], lit: 3, min: 8, max: 8 }]);
+  assert.deepEqual(parseUmiaqQuery('B;|barB|<=6').constraints.sumLen, [{ vars: ['B'], lit: 3, min: 0, max: 6 }]);
+  assert.deepEqual(parseUmiaqQuery('A;B;C;|fooAbarBbazCquux|=20').constraints.sumLen,
+    [{ vars: ['A', 'B', 'C'], lit: 13, min: 20, max: 20 }]);
+  // A single var *with* literals rides the sumLen join, not the per-var pruning path.
+  assert.deepEqual(parseUmiaqQuery('A;|Afoo|=8').constraints.length, {});
+  assert.match(parseUmiaqQuery('A;|A*|=4').error, /variables and literals/);
+  assert.match(parseUmiaqQuery('A;|A#B|=4').error, /variables and literals/);
+});
+
+test('match: a length term counts its literals', () => {
+  assert.deepEqual(bindings('AxB;|AxB|=5', 'aaxbb'), [{ A: 'aa', B: 'bb' }]);   // 2 + x + 2
+  assert.deepEqual(bindings('AxB;|AxB|=4', 'aaxbb'), []);                       // 5 ≠ 4
+  assert.deepEqual(bindings('A;|Afoo|=6', 'cat'), [{ A: 'cat' }]);              // 3 + 3
+  assert.deepEqual(bindings('A;|Afoo|=6', 'at'),  []);                          // 2 + 3 ≠ 6
+  assert.deepEqual(bindings('B;|barB|=5', 'be'),  [{ B: 'be' }]);               // 3 + 2
+  assert.deepEqual(bindings('B;|barB|=5', 'bee'), []);                          // 3 + 3 ≠ 5
+});
+
+test('find: a mixed length term filters cross-binding tuples by combined length', async () => {
+  const got = await tupleNorms('A;B;|xAyB|=5', ['ab', 'cat', 'dog', 'x']);      // len(A) + len(B) + 2 = 5
+  assert.deepEqual(got, [['ab', 'x'], ['x', 'ab']]);
+});
+
+test('find: a sum-length constraint filters tuples by combined length', async () => {
+  // A and B sit in different bindings, so |AB| is only whole at the join (the fail-open path).
+  const got = await tupleNorms('A;B;|AB|=5', ['ab', 'cat', 'dog', 'x']);
+  assert.deepEqual(got, [['ab', 'cat'], ['ab', 'dog'], ['cat', 'ab'], ['dog', 'ab']]);
+});
+
+test('parse: a variable sub-pattern compiles into varPattern', () => {
+  const vp = parseUmiaqQuery('A;A=#@#').constraints.varPattern.A;
+  assert.deepEqual([vp.min, vp.max], [3, 3]);
+  assert.ok(vp.re.test('cat'));
+  assert.ok(!vp.re.test('aaa'));
+  const vp2 = parseUmiaqQuery('A;A=2-4:*').constraints.varPattern.A;
+  assert.deepEqual([vp2.min, vp2.max], [2, 4]);
+});
+
+test('match: a variable sub-pattern constrains the binding', () => {
+  assert.deepEqual(bindings('AA;A=#@#', 'catcat'), [{ A: 'cat' }]);   // 'cat' is consonant-vowel-consonant
+  assert.deepEqual(bindings('AA;A=#@#', 'gaga'), []);                 // 'ga' is not
+  assert.deepEqual(bindings('A;A=??s', 'bus'), [{ A: 'bus' }]);       // ends in s
+  assert.deepEqual(bindings('A;A=??s', 'bun'), []);
+  assert.deepEqual(bindings('A;A=2-4:*', 'ok'), [{ A: 'ok' }]);
+  assert.deepEqual(bindings('A;A=2-4:*', 'a'), []);                   // shorter than the sub-pattern allows
+});
+
+test('parse: A!=sub-pattern is a negation; A!=B stays variable inequality', () => {
+  const p = parseUmiaqQuery('A;A!=#@#');
+  assert.equal(p.constraints.varNotPattern.A.length, 1);
+  assert.ok(p.constraints.varNotPattern.A[0].re.test('cat'));
+  const q = parseUmiaqQuery('AB;BA;A!=B');
+  assert.deepEqual(q.constraints.varNotPattern, {});
+  assert.deepEqual(q.constraints.notEqual.A, ['B']);
+});
+
+test('match: a negated sub-pattern rejects bindings that fit it', () => {
+  assert.deepEqual(bindings('A;A!=#@#', 'cat'), []);                  // 'cat' is consonant-vowel-consonant
+  assert.deepEqual(bindings('A;A!=#@#', 'ai'),  [{ A: 'ai' }]);       // not, so kept
+  assert.deepEqual(bindings('A;A=*s;A!=???', 'buns'), [{ A: 'buns' }]);   // ends in s, 4 letters → kept
+  assert.deepEqual(bindings('A;A=*s;A!=???', 'bus'),  []);               // ends in s but exactly 3 → rejected
+});
+
+// ─── Equations ─────────────────────────────────────────────────────────────────
+
+test('parse: an equation compiles into constraints.equations', () => {
+  const eqs = parseUmiaqQuery('A;B;AB=boardroom').constraints.equations;
+  assert.equal(eqs.length, 1);
+  assert.deepEqual(eqs[0].vars, ['A', 'B']);
+  assert.equal(eqs[0].negate, false);
+  assert.deepEqual(eqs[0].rhsEntries.map(e => e.norm), ['boardroom']);   // a literal target → one string
+});
+
+test('parse: a fixed-width RHS expands into a synthetic pool; != never drives', () => {
+  assert.equal(parseUmiaqQuery('A;B;AB=bo?').constraints.equations[0].rhsEntries.length, 36);
+  const neg = parseUmiaqQuery('AB;BA;AB!=stop').constraints.equations[0];
+  assert.equal(neg.negate, true);
+  assert.equal(neg.rhsEntries, null);
+});
+
+test('parse: equation errors', () => {
+  assert.match(parseUmiaqQuery('A;AB=boardroom').error, /B must appear in a binding/);
+  assert.match(parseUmiaqQuery('A;B;AB=bo*m').error, /\* on the right side/);
+  assert.match(parseUmiaqQuery('A;B;AB=C').error, /comparing two terms/);
+  assert.match(parseUmiaqQuery('A;B;AB=????????????????').error, /too broad/);
+});
+
+test('match: an equation filters a single binding to words that spell the target', () => {
+  assert.equal(matches('AB;AB=boardroom', 'boardroom'), true);
+  assert.equal(matches('AB;AB=boardroom', 'board'),      false);
+  assert.equal(matches('ABC;AB=boardroom', 'boardrooms'), true);    // A+B = boardroom, C = s
+  assert.equal(matches('ABC;AB=boardroom', 'boardroom'),  false);   // C would have to be empty
+});
+
+test('match: a negated equation drops words that spell the target', () => {
+  assert.equal(matches('AB;AB!=boardroom', 'boardroom'), false);
+  assert.equal(matches('AB;AB!=boardroom', 'boardgame'), true);
+});
+
+test('find: a positive equation splits its target across bindings (probe path)', async () => {
+  const got = await tupleNorms('A;B;AB=boardroom', ['board', 'room', 'boa', 'rdroom', 'bo', 'ardroom', 'x']);
+  assert.deepEqual(got, [['bo', 'ardroom'], ['boa', 'rdroom'], ['board', 'room']]);
+});
+
+test('find: an equation constrains a cross-binding tuple (bucket path)', async () => {
+  // C is free, so the driver lacks a variable and the join can't probe — exercises buckets.
+  const got = await tupleNorms('A;B;C;AB=boardroom', ['board', 'room', 'x']);
+  assert.deepEqual(got, [['board', 'room', 'board'], ['board', 'room', 'room'], ['board', 'room', 'x']]);
+});
+
+test('find: a fixed-width RHS matches every expansion of the target', async () => {
+  const got = await tupleNorms('A;B;AB=b?ard?oom', ['bo', 'be', 'ardroom', 'board', 'room']);
+  assert.deepEqual(got, [['be', 'ardroom'], ['bo', 'ardroom'], ['board', 'room']]);
+});
+
+test('find: a length constraint narrows an equation split', async () => {
+  const got = await tupleNorms('A;B;AB=boardroom;|A|=5', ['board', 'room', 'bo', 'ardroom']);
+  assert.deepEqual(got, [['board', 'room']]);
+});
+
+test('find: a negated equation drops the tuple whose term spells the target', async () => {
+  const pool = ['abc', 'bca', 'xy', 'yx'];
+  assert.deepEqual(await tupleNorms('AB;BA', pool),
+    [['abc', 'bca'], ['bca', 'abc'], ['xy', 'yx'], ['yx', 'xy']]);
+  assert.deepEqual(await tupleNorms('AB;BA;AB!=abc', pool),   // AB-lane "abc" tuple removed
+    [['bca', 'abc'], ['xy', 'yx'], ['yx', 'xy']]);
 });

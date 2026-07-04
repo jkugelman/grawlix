@@ -24,7 +24,7 @@ function mergedWordlist(norms) {
 
 async function run(query, norms) {
   const wl = mergedWordlist(norms);
-  return executePipeline(wl, [toolRow(umiaqTool, { patterns: query }), inertSearch], null, null);
+  return executePipeline(wl, [toolRow(umiaqTool, { query: query }), inertSearch], null, null);
 }
 
 test('pipeline: a single-pattern query is an arity-1 filter', async () => {
@@ -82,9 +82,9 @@ test('pipeline: a tuple run that hit its ceiling propagates capped through the r
 });
 
 test('error: a broken query reports its message; a valid or half-typed one is silent', () => {
-  assert.match(umiaqTool.error({ patterns: 'a.b' }), /unexpected character/);
-  assert.match(umiaqTool.error({ patterns: 'a[bc' }), /unclosed/);
-  assert.equal(umiaqTool.error({ patterns: 'AB' }), null);
-  assert.equal(umiaqTool.error({ patterns: '' }), null);
-  assert.equal(umiaqTool.error({ patterns: 'AB;' }), null);
+  assert.match(umiaqTool.error({ query: 'a.b' }), /unexpected character/);
+  assert.match(umiaqTool.error({ query: 'a[bc' }), /unclosed/);
+  assert.equal(umiaqTool.error({ query: 'AB' }), null);
+  assert.equal(umiaqTool.error({ query: '' }), null);
+  assert.equal(umiaqTool.error({ query: 'AB;' }), null);
 });

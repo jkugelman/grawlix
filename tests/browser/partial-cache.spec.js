@@ -271,7 +271,7 @@ async function seedQuads(page) {
   await page.evaluate(() => window.__grawlixTest.pipelineIdle());
 }
 
-const tuple = patterns => [{ tool: 'umiaq', params: { patterns } }];
+const tuple = query => [{ tool: 'umiaq', params: { query } }];
 
 async function coldTupleGroups(page, stack) {
   await page.evaluate(s => window.__grawlixTest.setStack(s), stack);
@@ -310,7 +310,7 @@ test('workflow: abandon a slow tuple run, detour, re-enter — resumes the stash
   const out = await page.evaluate(async ({ SHIPPED_MS }) => {
     const T = window.__grawlixTest;
     const capture = T.captureWorkerGroupPartialsForTest();
-    await T.setStack([{ tool: 'umiaq', params: { patterns: 'AB;BA' } }]);
+    await T.setStack([{ tool: 'umiaq', params: { query: 'AB;BA' } }]);
     await T.pipelineIdle();
     const parts = capture.stop().map(p => p.total);
     T.setWorkerYieldIntervalForTest(SHIPPED_MS);

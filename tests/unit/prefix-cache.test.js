@@ -111,7 +111,7 @@ test('tuple: seeding from a mid-pipeline group state is byte-identical to a cold
   forceDeterministicYields();
   const corpus = makeCorpus(['ape', 'pea', 'bro', 'rob', 'sky', 'sly', 'are', 'era']);
   const stack = () => [
-    makeToolRow('umiaq', { patterns: 'AB;BA' }),
+    makeToolRow('umiaq', { query: 'AB;BA' }),
     makeToolRow('search', { pattern: 'PEA' }),
     makeToolRow('search', { pattern: 'AP*' }),
   ];

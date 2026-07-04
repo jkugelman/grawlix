@@ -101,7 +101,7 @@ test('a score-range change mid-stream reprojects, not restarts (one run, no new 
     const T = window.__grawlixTest;
     T.setWorkerYieldIntervalForTest(1);
     const cap = T.captureWorkerGroupPartialsForTest();
-    const started = T.setStack([{ tool: 'umiaq', params: { patterns: 'ABCDE;EDCBA' } }]);
+    const started = T.setStack([{ tool: 'umiaq', params: { query: 'ABCDE;EDCBA' } }]);
 
     let streamRunId = null;
     for (let i = 0; i < 400 && streamRunId == null; i++) {

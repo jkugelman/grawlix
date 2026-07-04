@@ -43,7 +43,7 @@ test('a key-stable rescore mid-stream rides the tuple run instead of restarting 
     const T = window.__grawlixTest;
     T.setWorkerYieldIntervalForTest(1);
     const cap = T.captureWorkerGroupPartialsForTest();
-    const started = T.setStack([{ tool: 'umiaq', params: { patterns: 'ABCDE;EDCBA' } }]);   // dispatches the run; ride it mid-stream
+    const started = T.setStack([{ tool: 'umiaq', params: { query: 'ABCDE;EDCBA' } }]);   // dispatches the run; ride it mid-stream
 
     let streamRunId = null;
     for (let i = 0; i < 400 && streamRunId == null; i++) {
@@ -79,7 +79,7 @@ test('a key-stable rescore after the stream settles reprojects (runId unchanged)
   await gotoApp(page);
   await seedHeavyMerge(page);
 
-  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'umiaq', params: { patterns: 'ABCDE;EDCBA' } }]));
+  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'umiaq', params: { query: 'ABCDE;EDCBA' } }]));
   await page.evaluate(() => window.__grawlixTest.pipelineIdle());
 
   const before = await page.evaluate(() => window.__grawlixTest.lastCompletedRunId());

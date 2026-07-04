@@ -47,8 +47,8 @@ async function runStack(page, stack, { stream } = {}) {
   }, { stack, stream, STREAM_MS, SHIPPED_MS });
 }
 
-async function runTuple(page, patterns, opts = {}) {
-  return runStack(page, [{ tool: 'umiaq', params: { patterns } }], opts);
+async function runTuple(page, query, opts = {}) {
+  return runStack(page, [{ tool: 'umiaq', params: { query } }], opts);
 }
 
 test('a forced-stream tuple run streams many tuple partials', async ({ page }) => {
@@ -79,7 +79,7 @@ test('a tuple run with a downstream filter streams only the filtered tuples', as
   // the same user stack `[umiaq]`, so a prior run would warm the cache, skip the
   // rerun, and stream nothing (0 partials).
   const streamed = await runStack(page, [
-    { tool: 'umiaq', params: { patterns: 'AB;BA' } },
+    { tool: 'umiaq', params: { query: 'AB;BA' } },
     { tool: 'search', params: { pattern: 'a' } },
   ], { stream: true });
   const unfiltered = await runTuple(page, 'AB;BA');
@@ -105,7 +105,7 @@ test('a streamed run hands off cleanly to a settled tuple render', async ({ page
   await seedCorpus(page);
 
   await page.evaluate(() => window.__grawlixTest.setWorkerYieldIntervalForTest(1));
-  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'umiaq', params: { patterns: 'AB;BA' } }]));
+  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'umiaq', params: { query: 'AB;BA' } }]));
   await page.evaluate(() => window.__grawlixTest.pipelineIdle());
   await page.evaluate(() => window.__grawlixTest.setWorkerYieldIntervalForTest(30));
 
@@ -158,7 +158,7 @@ test('a tuple-run dispatch shows the streaming state at once, before the first t
   const snap = await page.evaluate(() => {
     const T = window.__grawlixTest;
     const before = T.scrollerRowCount();
-    const settle = T.setStack([{ tool: 'umiaq', params: { patterns: 'AB;BA' } }]);
+    const settle = T.setStack([{ tool: 'umiaq', params: { query: 'AB;BA' } }]);
     const panel = document.getElementById('entries-table-panel');
     const pending = {
       before,

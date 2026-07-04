@@ -109,12 +109,12 @@ test('a throwing tool prepare surfaces the error without hanging the splash', as
 test('an invalid Umiaq query surfaces its parse error and clears on a fix', async ({ page }) => {
   await gotoApp(page);
 
-  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'umiaq', params: { patterns: 'A;1>' } }]));
+  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'umiaq', params: { query: 'A;1>' } }]));
   const errBtn = page.locator('.tool-row-error-btn');
   await expect(errBtn).toBeVisible();
   await expect(errBtn).toHaveAttribute('title', 'unexpected character ">"');
 
-  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'umiaq', params: { patterns: 'AB' } }]));
+  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'umiaq', params: { query: 'AB' } }]));
   await expect(errBtn).toBeHidden();
 });
 
@@ -124,12 +124,12 @@ test('an invalid Umiaq query surfaces its parse error and clears on a fix', asyn
 // synchronous read is what proves the mark comes from the input, not the settle.
 test('the Umiaq parse-error mark tracks the query live, not at run settle', async ({ page }) => {
   await gotoApp(page);
-  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'umiaq', params: { patterns: 'AB' } }]));
+  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'umiaq', params: { query: 'AB' } }]));
   await page.evaluate(() => window.__grawlixTest.pipelineIdle());
   await expect(page.locator('.tool-row-error-btn')).toBeHidden();
 
   const marks = await page.evaluate(() => {
-    const input = document.querySelector('.tool-row input[data-key="patterns"]');
+    const input = document.querySelector('.tool-row input[data-key="query"]');
     const btn = document.querySelector('.tool-row-error-btn');
     const typeAndRead = (value) => {
       input.value = value;

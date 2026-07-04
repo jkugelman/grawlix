@@ -49,7 +49,7 @@ test('the tuple tier reuses an unchanged row node across a re-render', async ({ 
   });
   await page.evaluate(() => window.__grawlixTest.setScope('Quads'));
   await page.evaluate(() => window.__grawlixTest.pipelineIdle());
-  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'umiaq', params: { patterns: 'AB;BA' } }]));
+  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'umiaq', params: { query: 'AB;BA' } }]));
   await page.evaluate(() => window.__grawlixTest.pipelineIdle());
   await expect(page.locator('#vs-host .group-row').first()).toBeVisible();
 

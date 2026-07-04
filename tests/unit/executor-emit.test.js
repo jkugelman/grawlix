@@ -85,7 +85,7 @@ test('emit: a tuple run streams tuple-group batches that union to the returned g
   const corpus = makeCorpus(['ape', 'pea', 'bro', 'rob', 'sky', 'sly', 'gaga']);
   const batches = [];
   const result = await executePipeline(
-    corpus, [makeToolRow('umiaq', { patterns: 'AB;BA' })], null,
+    corpus, [makeToolRow('umiaq', { query: 'AB;BA' })], null,
     b => batches.push(b),
   );
 
@@ -98,7 +98,7 @@ test('emit: a tuple run streams tuple-group batches that union to the returned g
 });
 
 test('streamPlan: a tuple run streams as a tuple, with a filter tail as downstream stages', () => {
-  const umiaq = makeToolRow('umiaq', { patterns: 'AB;BA' });
+  const umiaq = makeToolRow('umiaq', { query: 'AB;BA' });
   const filter = makeToolRow('search', { pattern: 'pea' });
   const transform = makeToolRow('behead', { count: '1' });
   const group = makeToolRow('cryptogram', {}, true);
@@ -136,7 +136,7 @@ test('emit: a tuple run with a downstream filter streams ONLY the filtered tuple
   forceDeterministicYields();
 
   const corpus = () => makeCorpus(['ape', 'pea', 'bro', 'rob', 'gaga']);
-  const umiaq = () => makeToolRow('umiaq', { patterns: 'AB;BA' });
+  const umiaq = () => makeToolRow('umiaq', { query: 'AB;BA' });
 
   const unfiltered = await executePipeline(corpus(), [umiaq()], null);
   const unfilteredKeys = new Set(unfiltered.rows.map(g => g.key));
@@ -166,7 +166,7 @@ test('emit: a ctx-reading filter (caesar) streams after a tuple run, matching th
   const corpus = makeCorpus(['bcd', 'cdb', 'pqr', 'qrp']);
   const batches = [];
   const result = await executePipeline(
-    corpus, [makeToolRow('umiaq', { patterns: 'AB;BA' }), makeToolRow('caesar', { entry: 'abc', shift: '1' })], null,
+    corpus, [makeToolRow('umiaq', { query: 'AB;BA' }), makeToolRow('caesar', { entry: 'abc', shift: '1' })], null,
     b => batches.push(b),
   );
 
