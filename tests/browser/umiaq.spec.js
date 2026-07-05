@@ -100,6 +100,14 @@ test('an equation splits a target word into side-by-side lanes', async ({ page }
   expect(await tuples(page)).toEqual([['ape', 'pea']]);
 });
 
+test('an anagram equation finds every rearranged split (index solver)', async ({ page }) => {
+  await setup(page);
+  await run(page, 'A;B;AB=/apepea');           // order-independent: any pair whose letters make apepea
+  expect(await tier(page)).toBe('tuple');
+  const got = (await tuples(page)).map(t => t.join('+')).sort();
+  expect(got).toEqual(['ape+ape', 'ape+pea', 'pea+ape', 'pea+pea']);
+});
+
 test('a score sort reorders tuples without reordering their lanes', async ({ page }) => {
   await setup(page);
   await run(page, 'AB;BA');

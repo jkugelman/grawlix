@@ -232,7 +232,9 @@ function compileEquation(lhs, op, rhs) {
   const ana = anagramFromBody(rhs);
   if (ana) {
     if (ana.anyCount || ana.hasStar) throw `? and * aren't supported in an anagram target (${lhs}${op}${rhs})`;
-    return { ...common, test: s => anagramMatches(ana, s), rhsEntries: negate ? null : anagramPermutations(ana).map(norm => ({ norm })) };
+    // rhsEntries (the permutation pool) is deferred to parseUmiaqQuery: the clean multi-word
+    // form is index-solved and never expands, so only the exotic fallback pays the cap.
+    return { ...common, anagram: ana, test: s => anagramMatches(ana, s), rhsEntries: negate ? null : undefined };
   }
 
   const rp = tokenizePattern(rhs);
@@ -354,7 +356,21 @@ export function parseUmiaqQuery(query) {
     eq.pattern = { tokens: eq.term.tokens, variables: eq.term.variables, wordLen: null, stars: 0, prefilter: compilePrefilter(eq.term.tokens, length) };
   }
 
-  return { ok: true, bindings, constraints: { length, notEqual, sumLen, varPattern, varNotPattern, equations }, arity: bindings.length, variables };
+  const constraints = { length, notEqual, sumLen, varPattern, varNotPattern, equations };
+  const anagramSolve = planAnagramSolve(bindings, equations, variables);
+  if (!anagramSolve) {
+    // Exotic anagram forms fall back to the permutation pool. This is its only expansion
+    // site, so the letter cap still surfaces here as a parse error (the tail doesn't
+    // otherwise throw — keep the try/catch or an over-broad target escapes uncaught).
+    for (const eq of equations) {
+      if (eq.anagram && !eq.negate && eq.rhsEntries === undefined) {
+        try { eq.rhsEntries = anagramPermutations(eq.anagram).map(norm => ({ norm })); }
+        catch (msg) { return { ok: false, error: typeof msg === 'string' ? msg : String(msg) }; }
+      }
+    }
+  }
+
+  return { ok: true, bindings, constraints, arity: bindings.length, variables, anagramSolve };
 }
 
 // ─── Matching ────────────────────────────────────────────────────────────────
@@ -598,6 +614,172 @@ function probeExpansion(pattern) {
   return prod;
 }
 
+// ─── Anagram equation solver ──────────────────────────────────────────────────
+// The unbounded path for `A;B;AB=/random`: index the corpus by letter-multiset and split
+// the target by recursive subtraction (how online anagram finders work), instead of
+// enumerating rearrangements. Only the clean multi-word form (each variable its own
+// whole-word binding) routes here; exotic forms keep the capped permutation path.
+
+function charIdx(c) {
+  const code = c.charCodeAt(0);
+  return code >= 97 ? code - 97 : 26 + (code - 48);   // a-z → 0..25, 0-9 → 26..35
+}
+
+function countsOf(norm) {
+  const c = new Int16Array(36);
+  for (let i = 0; i < norm.length; i++) c[charIdx(norm[i])]++;
+  return c;
+}
+
+function sigOfCounts(counts) {
+  let s = '';
+  for (let i = 0; i < 36; i++) if (counts[i]) s += NORM_CHARS[i].repeat(counts[i]);
+  return s;
+}
+
+function planAnagramSolve(bindings, equations, variables) {
+  if (equations.length !== 1) return null;
+  const eq = equations[0];
+  if (!eq.anagram || eq.negate) return null;
+  const termVars = [];
+  const litCounts = new Int16Array(36);
+  for (const t of eq.term.tokens) {
+    if (t.t === 'var') { if (termVars.includes(t.name)) return null; termVars.push(t.name); }
+    else if (t.t === 'lit') { for (const ch of t.s) litCounts[charIdx(ch)]++; }
+    else return null;
+  }
+  if (bindings.length !== termVars.length || variables.size !== termVars.length) return null;
+  const laneByVar = {};
+  for (const b of bindings) {
+    if (b.tokens.length !== 1 || b.tokens[0].t !== 'var') return null;
+    const name = b.tokens[0].name;
+    if (!termVars.includes(name) || laneByVar[name]) return null;
+    laneByVar[name] = b;
+  }
+  // A term literal the target lacks drives a coordinate negative → no solutions, not an error.
+  const target = new Int16Array(36);
+  for (const ch in eq.anagram.required) target[charIdx(ch)] = eq.anagram.required[ch];
+  let feasible = true;
+  for (let i = 0; i < 36; i++) { target[i] -= litCounts[i]; if (target[i] < 0) feasible = false; }
+  const lanes = bindings.map(b => ({ varName: b.tokens[0].name, binding: b }));
+  return { lanes, vars: lanes.map(l => l.varName), target, feasible };
+}
+
+async function solveAnagramEquation(parsed, pool, { numResults, maxMatchesPerPattern, onBatch, y, signal }) {
+  const plan = parsed.anagramSolve;
+  const { length, notEqual, varPattern, varNotPattern, sumLen } = parsed.constraints;
+  const k = plan.vars.length;
+  const varColor = variableColors(parsed.variables);
+  const target = plan.target;
+  let targetLen = 0;
+  for (let i = 0; i < 36; i++) targetLen += target[i];
+
+  const tuples = [];
+  const seen = new Set();
+  const pending = onBatch ? [] : null;
+  const flush = async () => { if (pending?.length) await onBatch(pending.splice(0)); };
+
+  if (!plan.feasible) { await flush(); return { tuples, truncated: false, capped: false }; }
+
+  const laneBounds = plan.lanes.map(({ varName, binding }) => {
+    let min = 1, max = Infinity;
+    const lc = length[varName]; if (lc) { min = lc.min; max = lc.max; }
+    const wl = binding.wordLen; if (wl) { min = Math.max(min, wl.min); if (wl.max !== null) max = Math.min(max, wl.max); }
+    const vp = varPattern[varName]; if (vp) { min = Math.max(min, vp.min); if (vp.max !== Infinity) max = Math.min(max, vp.max); }
+    return { min, max };
+  });
+  const laneOfVar = {};
+  plan.vars.forEach((v, i) => { laneOfVar[v] = i; });
+
+  const bySig = new Map();
+  const sigList = [];
+  const seenNorm = new Set();
+  for (const entry of pool) {
+    if (signal?.aborted) throw signal.reason ?? new DOMException('Aborted', 'AbortError');
+    const w = entry.norm;
+    if (!w.length || w.length > targetLen || seenNorm.has(w)) continue;
+    const counts = countsOf(w);
+    let fits = true;
+    for (let i = 0; i < 36; i++) if (counts[i] > target[i]) { fits = false; break; }
+    if (!fits) continue;
+    seenNorm.add(w);
+    const sig = sigOfCounts(counts);
+    let arr = bySig.get(sig);
+    if (!arr) { bySig.set(sig, arr = []); sigList.push({ sig, counts, len: w.length }); }
+    arr.push(entry);
+  }
+
+  // Must stay in lockstep with matchPattern's per-variable filtering (umiaq.js var/rev case),
+  // or a constraint silently means something different here than on the flat path: the length
+  // window, sub-pattern test, the length-guarded varNotPattern array, and A!=B vs chosen lanes.
+  const accepts = (i, entry, chosen) => {
+    const name = plan.vars[i];
+    const w = entry.norm;
+    const L = w.length;
+    const b = laneBounds[i];
+    if (L < b.min || L > b.max) return false;
+    const vp = varPattern[name]; if (vp && !vp.test(w)) return false;
+    const vnp = varNotPattern[name];
+    if (vnp && vnp.some(n => L >= n.min && (n.max === Infinity || L <= n.max) && n.test(w))) return false;
+    const neq = notEqual[name];
+    if (neq) for (const o of neq) { const j = laneOfVar[o]; if (j !== undefined && j < i && chosen[j].norm === w) return false; }
+    return true;
+  };
+
+  const emit = chosen => {
+    const assignment = {};
+    for (let i = 0; i < k; i++) assignment[plan.vars[i]] = chosen[i].norm;
+    if (sumLen.length && !sumLenOK(sumLen, assignment)) return;
+    const lanes = chosen.map((entry, i) => {
+      const hl = variableHighlights(entry.norm, plan.lanes[i].binding, { [plan.vars[i]]: entry.norm }, varColor);
+      return { entry, highlights: hl.length ? hl : null };
+    });
+    const key = lanes.map(l => l.entry.norm).join('\0');
+    if (seen.has(key)) return;
+    seen.add(key);
+    tuples.push(lanes);
+    pending?.push(lanes);
+  };
+
+  let truncated = false;
+  let probes = 0;
+  const dfs = async (i, remaining, chosen) => {
+    if (tuples.length >= numResults || truncated) return;
+    if (i === k - 1) {
+      // Last lane: the remainder must itself be a whole word — one complement lookup.
+      const entries = bySig.get(sigOfCounts(remaining));
+      if (entries) for (const e of entries) {
+        if (accepts(i, e, chosen)) { chosen.push(e); emit(chosen); chosen.pop(); if (tuples.length >= numResults) return; }
+      }
+      return;
+    }
+    for (const { sig, counts, len } of sigList) {
+      if (signal?.aborted) throw signal.reason ?? new DOMException('Aborted', 'AbortError');
+      if (tuples.length >= numResults) return;
+      if (++probes > maxMatchesPerPattern) { truncated = true; return; }
+      const b = laneBounds[i];
+      if (len < b.min || len > b.max) continue;
+      let fits = true;
+      for (let x = 0; x < 36; x++) if (counts[x] > remaining[x]) { fits = false; break; }
+      if (!fits) continue;
+      const next = remaining.slice();
+      for (let x = 0; x < 36; x++) next[x] -= counts[x];
+      for (const e of bySig.get(sig)) {
+        if (!accepts(i, e, chosen)) continue;
+        chosen.push(e);
+        await dfs(i + 1, next, chosen);
+        chosen.pop();
+        if (tuples.length >= numResults || truncated) return;
+      }
+      if (y.due()) { await flush(); await y.yield(); }
+    }
+  };
+
+  await dfs(0, target.slice(), []);
+  await flush();
+  return { tuples, truncated, capped: tuples.length >= numResults };
+}
+
 // Two strategies, chosen by `probeable` below. The probe path is exhaustive
 // over the corpus; the bucket path truncates at `maxMatchesPerPattern` (reporting
 // `truncated`) to bound a free-variable pattern's runaway assignments, so it can miss
@@ -613,6 +795,7 @@ export async function findTuples(parsed, pool, {
   y = NOOP_Y,
   signal = null,
 } = {}) {
+  if (parsed.anagramSolve) return solveAnagramEquation(parsed, pool, { numResults, maxMatchesPerPattern, onBatch, y, signal });
   const { bindings, constraints } = parsed;
   const sumLen = constraints.sumLen || [];
   const equations = constraints.equations || [];

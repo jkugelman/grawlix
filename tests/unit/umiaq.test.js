@@ -566,13 +566,17 @@ test('find: anagram bindings cross-join in a tuple (bucket path)', async () => {
   assert.deepEqual(got, [['act', 'dog'], ['act', 'god'], ['cat', 'dog'], ['cat', 'god']]);
 });
 
-test('parse: an anagram equation expands its target to permutations', () => {
-  const eq = parseUmiaqQuery('A;B;AB=/random').constraints.equations[0];
-  assert.equal(eq.negate, false);
-  assert.equal(eq.rhsEntries.length, 720);   // 6 distinct letters → 6!
+test('parse: a clean anagram equation plans an index solve; an exotic one expands', () => {
+  const clean = parseUmiaqQuery('A;B;AB=/random');
+  assert.ok(clean.anagramSolve);                                    // routed to the index solver
+  assert.equal(clean.constraints.equations[0].rhsEntries, undefined);   // no permutation pool built
+  const exotic = parseUmiaqQuery('A;B;C;AB=/random');   // an extra binding → not the clean form
+  assert.equal(exotic.anagramSolve, null);
+  const eq = exotic.constraints.equations[0];
   const key = s => [...s].sort().join('');
+  assert.equal(eq.rhsEntries.length, 720);   // 6 distinct letters → 6!
   assert.ok(eq.rhsEntries.every(e => key(e.norm) === key('random')));
-  assert.equal(parseUmiaqQuery('A;B;AB=/level').constraints.equations[0].rhsEntries.length, 30);   // l,e ×2 → 5!/(2!2!)
+  assert.equal(parseUmiaqQuery('A;B;C;AB=/level').constraints.equations[0].rhsEntries.length, 30);   // l,e ×2 → 5!/(2!2!)
 });
 
 test('match: an anagram equation keeps words that rearrange to the target', () => {
@@ -595,6 +599,32 @@ test('find: an anagram equation splits an anagram of the target across bindings'
 test('parse: anagram-equation errors', () => {
   assert.match(parseUmiaqQuery('A;B;AB=/rand?m').error, /aren't supported in an anagram target/);
   assert.match(parseUmiaqQuery('A;B;AB=/rand*').error,  /aren't supported in an anagram target/);
-  assert.match(parseUmiaqQuery('A;B;AB=/abcdefghij').error, /too many letters/);
+  assert.match(parseUmiaqQuery('A;B;C;AB=/abcdefghij').error, /too many letters/);   // exotic → capped fallback
   assert.match(parseUmiaqQuery('A;B;AB=//random').error, /letter-bank anagram/);
+});
+
+test('find: the index solver splits a long target the permutation cap rejected', async () => {
+  // TRIANGLE — 8 distinct letters — overflows the permutation cap; the index solver handles it.
+  const got = await tupleNorms('A;B;AB=/triangle', ['gnat', 'rile', 'ring', 'tale', 'gait', 'x']);
+  assert.deepEqual(got, [['gnat', 'rile'], ['rile', 'gnat'], ['ring', 'tale'], ['tale', 'ring']]);
+});
+
+test('find: the index solver handles 3-way splits and composes with |A|', async () => {
+  const pool = ['ran', 'do', 'm', 'and', 'or', 'nd', 'rom', 'a', 'r', 'x'];
+  const key = s => [...s].sort().join('');
+  const three = await tupleNorms('A;B;C;ABC=/random', pool);
+  assert.ok(three.length > 0);
+  assert.ok(three.every(t => t.length === 3 && key(t.join('')) === key('random')));
+  const bounded = await tupleNorms('A;B;C;ABC=/random;|A|=3', pool);
+  assert.ok(bounded.length > 0);
+  assert.ok(bounded.every(t => t[0].length === 3));
+});
+
+test('find: a sub-pattern and A!=B filter anagram-split lanes', async () => {
+  // A must be consonant-vowel-consonant (ran, dom, rom all qualify; and does not).
+  assert.deepEqual(await tupleNorms('A;B;AB=/random;A=#@#', ['ran', 'dom', 'rom', 'and']),
+    [['dom', 'ran'], ['ran', 'dom'], ['rom', 'and']]);
+  const all = await tupleNorms('A;B;AB=/aabb', ['ab', 'ba', 'aa', 'bb']);
+  assert.ok(all.some(([a, b]) => a === b));                          // ab+ab, ba+ba present
+  assert.ok((await tupleNorms('A;B;AB=/aabb;A!=B', ['ab', 'ba', 'aa', 'bb'])).every(([a, b]) => a !== b));
 });
