@@ -25,6 +25,7 @@ export const UMIAQ_HELP = buildHelpHTML([
   ['|AB|=n', 'length check (also < <= > >=)'],
   ['|A|>=0', 'A may be empty'],
   ['7-9:…', 'only 7-to-9-letter matches'],
+  ['/word', 'an anagram of word'],
 ]);
 
 export default {

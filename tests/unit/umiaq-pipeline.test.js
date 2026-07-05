@@ -59,7 +59,7 @@ test('pipeline: each tuple is a multi-lane row, one single-atom chain per lane',
 });
 
 test('pipeline: an empty or invalid query is inert (transparent)', async () => {
-  for (const q of ['', '/abc']) {
+  for (const q of ['', '//abc']) {
     const res = await run(q, ['cat', 'dog']);
     assert.equal(res.laneKind, 'single');
     assert.deepEqual(res.rows.map(r => rowLastEntry(r).norm).sort(), ['cat', 'dog']);

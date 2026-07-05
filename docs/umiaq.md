@@ -36,6 +36,19 @@ The building blocks of a pattern:
 
 **Y is a vowel.** `@` matches it and `#` does not — matching upstream Umiaq, OneLook, and Ingrid. These are Grawlix's shared search-bar classes, so `#`, `@`, and `[…]` behave identically here and in the search bar.
 
+## Anagram — `/letters`
+
+A pattern that begins with `/` is an **anagram**: it matches any rearrangement of the letters that follow. `/triangle` finds every word whose letters are exactly a permutation of `triangle`. The `/` reinterprets the whole body as an unordered bag of letters — unlike the rest of Umiaq's syntax, which is positional.
+
+`?` and `*` inside the bag loosen the exact anagram into a "must contain these letters" search:
+
+- `/act` — exactly an anagram of A, C, T (CAT, ACT).
+- `/act?` — those three letters plus one more of anything (four-letter words that contain A, C, T).
+- `/act*` — those three letters plus any number more (TACTIC, ACROBAT).
+- `8:/tral*` — a [length prefix](#length-prefix) caps the whole word: eight-letter words containing T, R, A, L.
+
+The bag holds only letters, digits, `?`, and `*`; variables and character classes (`#`, `@`, `[…]`) can't appear inside it. An anagram works as a binding (contributing a word to the result), as a [sub-pattern](#sub-pattern--apattern-and-apattern) body (`A=/lilac` requires A to be an anagram of LILAC), and as an [equation](#equation--abword-and-abword) target (`AB=/random` finds two words whose letters together rearrange to RANDOM).
+
 ## Variables
 
 A capital letter `A`–`Z` is a **variable**: it stands for a run of characters that must come out **the same everywhere it appears** — within one word and across the whole query. This cross-word consistency is what a plain regex can't express, and it's the heart of Umiaq.
@@ -64,7 +77,7 @@ A variable is non-empty by default. `|A|>=0` lets it bind the empty string; `|A|
 
 ### Sub-pattern — `A=pattern` and `A!=pattern`
 
-`A=#@#` requires whatever A binds to itself match a sub-pattern — here a consonant-vowel-consonant. The body is any non-variable pattern and may carry a [length prefix](#length-prefix): `A=2-4:*` (2–4 of anything), `A=??s` (ends in s), `A=*z*` (contains z), `A=??[rz]` (three letters ending r or z).
+`A=#@#` requires whatever A binds to itself match a sub-pattern — here a consonant-vowel-consonant. The body is any non-variable pattern and may carry a [length prefix](#length-prefix): `A=2-4:*` (2–4 of anything), `A=??s` (ends in s), `A=*z*` (contains z), `A=??[rz]` (three letters ending r or z). It may also be an [anagram](#anagram--letters): `A=/lilac` requires A to be a rearrangement of LILAC.
 
 `A!=#@#` is the negation: A must *not* fit the sub-pattern. Positive and negative compose — `A=*s;A!=???` reads "ends in s but isn't a bare three-letter string." A sub-pattern body can't contain variables (`A=B?` is an error).
 
@@ -72,7 +85,7 @@ A variable is non-empty by default. `|A|>=0` lets it bind the empty string; `|A|
 
 When the left side of `=` is a **term of more than one element**, it becomes an **equation**: the string the term spells out, once its variables are bound, must equal the right-hand target. `A;B;AB=boardroom` finds pairs of real words that concatenate to BOARDROOM — BOARD + ROOM, BOA + RDROOM, and so on. The equation binds its variables and prunes the search but contributes no result word of its own, so every variable it names must also appear in a binding.
 
-The target is a literal (`boardroom`) or a fixed-width pattern (`b?ard?oom`, `bo[oa]t`); an unbounded `*` on the right is [not yet supported](#not-yet-supported). `AB!=boardroom` is the negation, dropping any tuple whose term spells the target. A single-variable left side stays a sub-pattern (`A=#@#`), and comparing a term against another variable (`AB=C`) is not yet supported.
+The target is a literal (`boardroom`), a fixed-width pattern (`b?ard?oom`, `bo[oa]t`), or an [anagram](#anagram--letters): `AB=/random` finds two words whose letters together rearrange to RANDOM. An anagram target is expanded to every rearrangement of its letters, so it must be short — a handful of distinct letters. An unbounded `*` on the right is [not yet supported](#not-yet-supported). `AB!=boardroom` is the negation, dropping any tuple whose term spells the target. A single-variable left side stays a sub-pattern (`A=#@#`), and comparing a term against another variable (`AB=C`) is not yet supported.
 
 ### Inequality — `A!=B`
 
@@ -105,8 +118,7 @@ Things the reference tools do that Grawlix's dialect can't yet express. Several 
 
 | Feature | Reference syntax | Where | Notes |
 |---|---|---|---|
-| **Anagram / jumble** | `/triangle`, `/triangle.`, `8:/tral*` | Qat, CopyQat, Umiaq | Explicitly stubbed — [`umiaq.js:81`](../site/src/engine/umiaq.js#L81) errors on `/`. Unblocks anagram-defined sub-patterns (`A=/lilac`) too. |
-| **Subset anagram / letter bank** | `/(triangle)`, `//triangle` | Qat, CopyQat | Waits on `/`. |
+| **Subset anagram / letter bank** | `/(triangle)`, `//triangle` | Qat, CopyQat | The plain [anagram](#anagram--letters) `/word` ships; the subset `/(…)` and letter-bank `//…` variants don't yet. |
 | **`*` in an equation RHS** | `AB=a*z` | — | The [equation](#equation--abword-and-abword) takes a literal or fixed-width target; an unbounded RHS needs generative solving, not the finite-pool path, and is reported as an error. |
 | **`EXCLUDE` letters** | `A=(EXCLUDE:ds)` — A contains no d or s | CopyQat | A distinct keyword mechanism; its `:` also collides with the length-prefix colon. |
 | **Multi-variable / ordered difference** | `!=ABCDEF` (all differ), `!=A<B<C` (ordered) | Qat | `A!=B` is pairwise only; no ordering. |
@@ -118,8 +130,8 @@ Things the reference tools do that Grawlix's dialect can't yet express. Several 
 
 ## Roadmap
 
-With the [term](#terms) generalization complete — every operator now takes a full term of variables and literals, up through the [equation](#equation--abword-and-abword) `AB=boardroom` — the next primitive is anagram.
+With [anagram](#anagram--letters) now shipped — `/word` as a binding and `A=/word` as a sub-pattern — the notation covers ordinary wildcards, variables, terms, the [equation](#equation--abword-and-abword) `AB=boardroom`, and rearrangement. What's left:
 
-1. **Anagram `/`** and its flavors (subset `/(…)`, bank `//…`) — the most-requested crossword primitive; also unblocks `A=/lilac`.
+1. **Anagram flavors** — subset `/(…)` (an anagram of *some* of the letters) and letter bank `//…` (each letter reusable). The plain anagram shipped; these two variants build on it.
 2. **`EXCLUDE`** — small, but wants a spelling that avoids the length-prefix colon.
 3. **Longer tail:** neighbor/misprint, subsequence, consonantcy, n-ary/ordered difference, term-vs-variable equality (`AB=C`, the symmetric completion of `A!=B`), `*` in an equation RHS, dictionary-word tokens, boolean algebra. Qategories need external data and are likely out of scope.

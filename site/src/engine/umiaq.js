@@ -78,7 +78,7 @@ function tokenizePattern(clause) {
       if (!tok) throw 'invalid [ character class';
       tokens.push(tok); i = end;
     } else if (ch === '/') {
-      throw 'anagram (/) is not supported';
+      throw 'anagram (/) must start a binding, sub-pattern, or equation target';
     } else if (ch === ' ') {
       continue;
     } else {
@@ -86,6 +86,50 @@ function tokenizePattern(clause) {
     }
   }
   return { tokens, variables };
+}
+
+// ─── Anagram ─────────────────────────────────────────────────────────────────
+// `/letters` is a whole-pattern mode, not an inline element: it's unordered, so it
+// sits outside the positional token stream as one token whose match is a multiset
+// test — don't try to thread it through the backtracker's ordered walk.
+
+function compileAnagram(bag) {
+  const required = {};
+  let fixed = 0, anyCount = 0, hasStar = false;
+  for (const ch of bag) {
+    if (ch >= 'a' && ch <= 'z' || ch >= '0' && ch <= '9') { required[ch] = (required[ch] || 0) + 1; fixed++; }
+    else if (ch === '?') anyCount++;
+    else if (ch === '*') hasStar = true;
+    else if (ch === ' ') continue;
+    else if (ch >= 'A' && ch <= 'Z') throw 'an anagram (/) cannot contain variables';
+    else throw `an anagram (/) takes only letters, digits, ? and * (not "${ch}")`;
+  }
+  if (!fixed && !anyCount && !hasStar) throw 'empty anagram (/)';
+  const min = fixed + anyCount;
+  return { t: 'anagram', required, anyCount, hasStar, min, max: hasStar ? Infinity : min, src: '/' + bag };
+}
+
+// The length bounds carry the whole count: any surplus over the required letters is
+// exactly what fills the `?`/`*` slots, so a containment check plus [min, max] is the
+// full test — no separate wildcard accounting.
+function anagramMatches(a, s) {
+  if (s.length < a.min || s.length > a.max) return false;
+  const counts = {};
+  for (let i = 0; i < s.length; i++) counts[s[i]] = (counts[s[i]] || 0) + 1;
+  for (const c in a.required) if ((counts[c] || 0) < a.required[c]) return false;
+  return true;
+}
+
+function anagramFromBody(body) {
+  if (body.startsWith('//')) throw 'letter-bank anagram (//) is not supported';
+  if (body.startsWith('/(')) throw 'subset anagram /(…) is not supported';
+  if (body[0] === '/') return compileAnagram(body.slice(1));
+  return null;
+}
+
+function tokenizeBody(body) {
+  const ana = anagramFromBody(body);
+  return ana ? { tokens: [ana], variables: new Set() } : tokenizePattern(body);
 }
 
 // Cheap full-word reject run before the backtracker. Each variable becomes `.+`
@@ -99,6 +143,7 @@ function compilePrefilter(tokens, length) {
     else if (part.t === 'dot') body += '.';
     else if (part.t === 'star') body += '.*';
     else if (part.t === 'class') body += part.src;
+    else if (part.t === 'anagram') body += part.max === Infinity ? `.{${part.min},}` : `.{${part.min},${part.max}}`;
     else {
       const lc = length[part.name];
       if (!lc) body += '.+';
@@ -111,13 +156,15 @@ function compilePrefilter(tokens, length) {
 
 function compileVarPattern(name, spec) {
   const { wordLen, body } = stripLenPrefix(spec);
-  const parsed = tokenizePattern(body);
+  const ana = anagramFromBody(body);
+  const parsed = ana ? { tokens: [ana], variables: new Set() } : tokenizePattern(body);
   if (parsed.variables.size) throw `sub-pattern for ${name} cannot contain variables`;
   if (!parsed.tokens.length) throw `empty sub-pattern for ${name}`;
   let min = 0, max = 0;
   for (const t of parsed.tokens) {
     if (t.t === 'lit') { min += t.s.length; max += t.s.length; }
     else if (t.t === 'star') max = Infinity;
+    else if (t.t === 'anagram') { min += t.min; if (t.max === Infinity) max = Infinity; else max += t.max; }
     else { min += 1; if (max !== Infinity) max += 1; }   // dot | class
   }
   if (wordLen) {
@@ -125,7 +172,10 @@ function compileVarPattern(name, spec) {
     if (wordLen.max !== null) max = Math.min(max, wordLen.max);
   }
   if (min > max) throw `sub-pattern for ${name} has contradictory lengths`;
-  return { re: compilePrefilter(parsed.tokens, {}), min, max };
+  let test;
+  if (ana) test = s => anagramMatches(ana, s);
+  else { const re = compilePrefilter(parsed.tokens, {}); test = s => re.test(s); }
+  return { test, min, max };
 }
 
 // A wide fixed-width RHS (`AB=????`) is a length constraint in disguise; expanding it
@@ -143,6 +193,30 @@ function expandPattern(tokens) {
   return strs;
 }
 
+// The synthetic pool an anagram equation drives with: every distinct rearrangement of the
+// target's letters. Capped like `expandPattern` — too many arrangements is rejected, not
+// materialized, or a long target blows up memory silently.
+function anagramPermutations(ana) {
+  const chars = Object.keys(ana.required).sort();
+  const counts = chars.map(c => ana.required[c]);
+  const n = counts.reduce((a, b) => a + b, 0);
+  let arrangements = 1;
+  for (let i = 2; i <= n; i++) arrangements *= i;
+  for (const k of counts) for (let i = 2; i <= k; i++) arrangements /= i;
+  if (arrangements > RHS_EXPANSION_CAP) throw 'the anagram target has too many letters to rearrange — use a shorter target';
+  const out = [];
+  const buf = new Array(n);
+  const rec = depth => {
+    if (depth === n) { out.push(buf.join('')); return; }
+    for (let i = 0; i < chars.length; i++) {
+      if (!counts[i]) continue;
+      counts[i]--; buf[depth] = chars[i]; rec(depth + 1); counts[i]++;
+    }
+  };
+  rec(0);
+  return out;
+}
+
 // A positive equation's `rhsEntries` is the target expanded into a synthetic pool the
 // term matches against — it *drives* the join (generating the term's partitions) rather
 // than filtering the cross-product, which is what keeps `A;B;AB=boardroom` out of O(n²).
@@ -152,19 +226,21 @@ function compileEquation(lhs, op, rhs) {
     if (t.t !== 'var' && t.t !== 'lit') throw `the left side of ${op} takes only variables and literals`;
   }
   if (/^[A-Z]$/.test(rhs)) throw `comparing two terms (${lhs}${op}${rhs}) is not supported`;
+  const negate = op === '!=';
+  const common = { term, vars: [...term.variables].sort(), negate, src: `${lhs}${op}${rhs}` };
+
+  const ana = anagramFromBody(rhs);
+  if (ana) {
+    if (ana.anyCount || ana.hasStar) throw `? and * aren't supported in an anagram target (${lhs}${op}${rhs})`;
+    return { ...common, test: s => anagramMatches(ana, s), rhsEntries: negate ? null : anagramPermutations(ana).map(norm => ({ norm })) };
+  }
+
   const rp = tokenizePattern(rhs);
   if (rp.variables.size) throw `the right side of ${op} cannot contain variables`;
   if (!rp.tokens.length) throw `empty right side of ${op}`;
   for (const t of rp.tokens) if (t.t === 'star') throw `* on the right side of ${op} is not supported`;
-  const negate = op === '!=';
-  return {
-    term,
-    vars: [...term.variables].sort(),
-    rhsRe: compilePrefilter(rp.tokens, {}),
-    rhsEntries: negate ? null : expandPattern(rp.tokens).map(norm => ({ norm })),
-    negate,
-    src: `${lhs}${op}${rhs}`,
-  };
+  const rhsRe = compilePrefilter(rp.tokens, {});
+  return { ...common, test: s => rhsRe.test(s), rhsEntries: negate ? null : expandPattern(rp.tokens).map(norm => ({ norm })) };
 }
 
 export function parseUmiaqQuery(query) {
@@ -261,7 +337,7 @@ export function parseUmiaqQuery(query) {
     try {
       let body;
       ({ wordLen, body } = stripLenPrefix(clause));
-      parsed = tokenizePattern(body);
+      parsed = tokenizeBody(body);
     }
     catch (msg) { return { ok: false, error: typeof msg === 'string' ? msg : String(msg) }; }
     if (!parsed.tokens.length) return { ok: false, empty: true };
@@ -316,7 +392,7 @@ function equationOK(equations, assignment) {
     if (!eq.vars.every(v => v in assignment)) continue;
     let s = '';
     for (const t of eq.term.tokens) s += t.t === 'var' ? assignment[t.name] : t.s;
-    if (eq.rhsRe.test(s) === eq.negate) return false;
+    if (eq.test(s) === eq.negate) return false;
   }
   return true;
 }
@@ -379,6 +455,9 @@ export function matchPattern(word, pattern, constraints = { length: {}, notEqual
       case 'star':
         for (let j = i; j <= W; j++) helper(j, pi + 1, assignment);
         break;
+      case 'anagram':
+        if (anagramMatches(part, word.slice(i))) helper(W, pi + 1, assignment);
+        break;
       case 'var':
       case 'rev': {
         const name = part.name;
@@ -397,8 +476,8 @@ export function matchPattern(word, pattern, constraints = { length: {}, notEqual
           for (let L = min; L <= max; L++) {
             const sub = word.slice(i, i + L);
             const boundVal = part.t === 'rev' ? reverse(sub) : sub;
-            if (vp && !vp.re.test(boundVal)) continue;
-            if (vnp && vnp.some(n => L >= n.min && (n.max === Infinity || L <= n.max) && n.re.test(boundVal))) continue;
+            if (vp && !vp.test(boundVal)) continue;
+            if (vnp && vnp.some(n => L >= n.min && (n.max === Infinity || L <= n.max) && n.test(boundVal))) continue;
             if (neq && neq.some(o => assignment[o] === boundVal)) continue;
             assignment[name] = boundVal;
             helper(i + L, pi + 1, assignment);
@@ -425,6 +504,7 @@ export function matchesPattern(word, pattern, constraints) {
 // assignment — so it yields no ranges rather than wrong ones; a single `*` takes the slack.
 export function variableRanges(word, pattern, assignment) {
   const tokens = pattern.tokens;
+  if (tokens.length === 1 && tokens[0].t === 'anagram') return [];
   let stars = 0, fixed = 0;
   for (const t of tokens) {
     if (t.t === 'star') stars++;
@@ -506,11 +586,11 @@ function classMembers(token) {
   return token._members;
 }
 
-// Infinity = not enumerable (`*`) or past the cap, i.e. disqualified from the probe path.
+// Infinity = not enumerable (`*`, anagram) or past the cap, i.e. disqualified from the probe path.
 function probeExpansion(pattern) {
   let prod = 1;
   for (const t of pattern.tokens) {
-    if (t.t === 'star') return Infinity;
+    if (t.t === 'star' || t.t === 'anagram') return Infinity;
     if (t.t === 'dot') prod *= NORM_CHARS.length;
     else if (t.t === 'class') prod *= classMembers(t).length || 1;
     if (prod > PROBE_CANDIDATE_CAP) return Infinity;

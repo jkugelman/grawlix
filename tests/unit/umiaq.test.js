@@ -99,7 +99,10 @@ test('parse: errors', () => {
   assert.match(parseUmiaqQuery('A;|A|>=5;|A|<=3').error, /contradict/);
   assert.match(parseUmiaqQuery('a[bc').error, /unclosed/);
   assert.match(parseUmiaqQuery('~').error, /variable/);
-  assert.match(parseUmiaqQuery('/abc').error, /anagram/);
+  assert.match(parseUmiaqQuery('a/bc').error, /must start a binding/);
+  assert.match(parseUmiaqQuery('//abc').error, /letter-bank anagram/);
+  assert.match(parseUmiaqQuery('/(abc)').error, /subset anagram/);
+  assert.match(parseUmiaqQuery('/a#c').error, /letters, digits/);
   assert.match(parseUmiaqQuery('a=b').error, /unsupported constraint/);
   assert.match(parseUmiaqQuery('A=B?').error, /cannot contain variables/);
   assert.match(parseUmiaqQuery('9-3:ab').error, /length prefix range is empty/);
@@ -252,8 +255,9 @@ test('find: respects a pre-aborted signal', async () => {
 });
 
 // ─── Worked examples (Umiaq / Qat style) ─────────────────────────────────────
-// Realistic queries, hand-computed. Kept to the supported subset — /anagram and
-// =(…) subpatterns parse-error, so there's no worked example for them.
+// Realistic queries, hand-computed. Kept to the supported subset — parenthesized
+// sub-patterns (=(…)) and subset/bank anagram (/(…), //…) parse-error, so there's
+// no worked example for them.
 
 test('worked: A;~A finds semordnilaps — a word and its reversal', async () => {
   const tuples = await tupleNorms('A;~A', ['stop', 'pots', 'star', 'rats', 'time']);
@@ -413,8 +417,8 @@ test('find: a sum-length constraint filters tuples by combined length', async ()
 test('parse: a variable sub-pattern compiles into varPattern', () => {
   const vp = parseUmiaqQuery('A;A=#@#').constraints.varPattern.A;
   assert.deepEqual([vp.min, vp.max], [3, 3]);
-  assert.ok(vp.re.test('cat'));
-  assert.ok(!vp.re.test('aaa'));
+  assert.ok(vp.test('cat'));
+  assert.ok(!vp.test('aaa'));
   const vp2 = parseUmiaqQuery('A;A=2-4:*').constraints.varPattern.A;
   assert.deepEqual([vp2.min, vp2.max], [2, 4]);
 });
@@ -431,7 +435,7 @@ test('match: a variable sub-pattern constrains the binding', () => {
 test('parse: A!=sub-pattern is a negation; A!=B stays variable inequality', () => {
   const p = parseUmiaqQuery('A;A!=#@#');
   assert.equal(p.constraints.varNotPattern.A.length, 1);
-  assert.ok(p.constraints.varNotPattern.A[0].re.test('cat'));
+  assert.ok(p.constraints.varNotPattern.A[0].test('cat'));
   const q = parseUmiaqQuery('AB;BA;A!=B');
   assert.deepEqual(q.constraints.varNotPattern, {});
   assert.deepEqual(q.constraints.notEqual.A, ['B']);
@@ -507,4 +511,90 @@ test('find: a negated equation drops the tuple whose term spells the target', as
     [['abc', 'bca'], ['bca', 'abc'], ['xy', 'yx'], ['yx', 'xy']]);
   assert.deepEqual(await tupleNorms('AB;BA;AB!=abc', pool),   // AB-lane "abc" tuple removed
     [['bca', 'abc'], ['xy', 'yx'], ['yx', 'xy']]);
+});
+
+// ─── Anagram ─────────────────────────────────────────────────────────────────
+
+test('parse: an anagram binding compiles to a single anagram token', () => {
+  const p = parseUmiaqQuery('/triangle');
+  assert.equal(p.arity, 1);
+  const t = p.bindings[0].tokens;
+  assert.equal(t.length, 1);
+  assert.equal(t[0].t, 'anagram');
+  assert.deepEqual([t[0].min, t[0].max], [8, 8]);
+});
+
+test('match: /letters matches any rearrangement, extras and gaps rejected', () => {
+  assert.equal(matches('/act', 'cat'),  true);
+  assert.equal(matches('/act', 'act'),  true);
+  assert.equal(matches('/act', 'cot'),  false);   // wrong letter
+  assert.equal(matches('/act', 'ac'),   false);   // missing a letter
+  assert.equal(matches('/act', 'cats'), false);   // an extra letter, no wildcard
+  assert.equal(matches('/less', 'sels'), true);    // repeated letters counted (s twice)
+  assert.equal(matches('/less', 'seal'), false);   // only one s
+  assert.deepEqual(bindings('/act', 'cat'), [{}]);   // an anagram binds no variables
+});
+
+test('match: ? adds a wildcard slot, * an open-ended run', () => {
+  assert.equal(matches('/act?', 'acts'), true);    // act + one more
+  assert.equal(matches('/act?', 'cart'), true);
+  assert.equal(matches('/act?', 'act'),  false);   // one short
+  assert.equal(matches('/act?', 'catty'), false);  // one too many
+  assert.equal(matches('/act*', 'act'),    true);
+  assert.equal(matches('/act*', 'cats'),   true);
+  assert.equal(matches('/act*', 'tactic'), true);  // contains a, c, t
+  assert.equal(matches('/act*', 'at'),     false); // missing c
+});
+
+test('match: a length prefix caps an anagram binding', () => {
+  assert.equal(matches('4:/act*', 'acts'),   true);
+  assert.equal(matches('4:/act*', 'act'),    false);   // 3 letters, under the prefix
+  assert.equal(matches('4:/act*', 'tactic'), false);   // 6 letters, over the prefix
+});
+
+test('match: a sub-pattern anagram constrains a bound variable', () => {
+  assert.deepEqual(bindings('A;A=/act', 'cat'),  [{ A: 'cat' }]);
+  assert.deepEqual(bindings('A;A=/act', 'act'),  [{ A: 'act' }]);
+  assert.deepEqual(bindings('A;A=/act', 'cats'), []);          // not an anagram of act
+  assert.deepEqual(bindings('A;A=/act', 'dog'),  []);
+  assert.deepEqual(bindings('A;A=/ac*', 'cab'),  [{ A: 'cab' }]);   // contains a and c
+  assert.deepEqual(bindings('A;A=/ac*', 'dab'),  []);              // no c
+});
+
+test('find: anagram bindings cross-join in a tuple (bucket path)', async () => {
+  const got = await tupleNorms('/act;/dog', ['cat', 'act', 'god', 'dog', 'x']);
+  assert.deepEqual(got, [['act', 'dog'], ['act', 'god'], ['cat', 'dog'], ['cat', 'god']]);
+});
+
+test('parse: an anagram equation expands its target to permutations', () => {
+  const eq = parseUmiaqQuery('A;B;AB=/random').constraints.equations[0];
+  assert.equal(eq.negate, false);
+  assert.equal(eq.rhsEntries.length, 720);   // 6 distinct letters → 6!
+  const key = s => [...s].sort().join('');
+  assert.ok(eq.rhsEntries.every(e => key(e.norm) === key('random')));
+  assert.equal(parseUmiaqQuery('A;B;AB=/level').constraints.equations[0].rhsEntries.length, 30);   // l,e ×2 → 5!/(2!2!)
+});
+
+test('match: an anagram equation keeps words that rearrange to the target', () => {
+  assert.equal(matches('AB;AB=/random', 'random'),  true);
+  assert.equal(matches('AB;AB=/random', 'nomdar'),  true);    // an anagram of random
+  assert.equal(matches('AB;AB=/random', 'rando'),   false);   // missing a letter
+  assert.equal(matches('AB;AB=/random', 'randoms'), false);   // an extra letter
+  assert.equal(matches('AB;AB!=/random', 'random'), false);   // negated: the anagram is dropped
+  assert.equal(matches('AB;AB!=/random', 'attend'), true);
+});
+
+test('find: an anagram equation splits an anagram of the target across bindings', async () => {
+  const pool = ['ran', 'dom', 'mad', 'nor', 'or', 'damn', 'road', 'man'];
+  assert.deepEqual(await tupleNorms('A;B;AB=/random', pool),
+    [['damn', 'or'], ['dom', 'ran'], ['mad', 'nor'], ['nor', 'mad'], ['or', 'damn'], ['ran', 'dom']]);
+  assert.deepEqual(await tupleNorms('A;B;AB=/random;|A|=3', pool),   // a length constraint composes
+    [['dom', 'ran'], ['mad', 'nor'], ['nor', 'mad'], ['ran', 'dom']]);
+});
+
+test('parse: anagram-equation errors', () => {
+  assert.match(parseUmiaqQuery('A;B;AB=/rand?m').error, /aren't supported in an anagram target/);
+  assert.match(parseUmiaqQuery('A;B;AB=/rand*').error,  /aren't supported in an anagram target/);
+  assert.match(parseUmiaqQuery('A;B;AB=/abcdefghij').error, /too many letters/);
+  assert.match(parseUmiaqQuery('A;B;AB=//random').error, /letter-bank anagram/);
 });

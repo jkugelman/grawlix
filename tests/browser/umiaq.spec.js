@@ -157,13 +157,20 @@ test('tuple lanes highlight each variable in a stable color across lanes', async
   expect(clsOf(colors.pea, 'pe')).toBe(bColor);    // B keeps its color in the other lane
 });
 
+test('an anagram pattern is a flat per-word filter', async ({ page }) => {
+  await setup(page);
+  await run(page, '/ape');   // anagram of a, p, e
+  expect(await tier(page)).toBe('single');
+  expect(await entries(page)).toEqual(['ape', 'pea']);
+});
+
 test('an invalid query keeps results transparent but flags the error', async ({ page }) => {
   await setup(page);
-  await run(page, '/abc');   // anagram token — unsupported in v1
+  await run(page, '//abc');   // letter-bank anagram — not yet supported
   expect((await entries(page)).length).toBe(WORDS.entries.length);
   const errBtn = page.locator('.tool-row-error-btn');
   await expect(errBtn).toBeVisible();
-  await expect(errBtn).toHaveAttribute('title', 'anagram (/) is not supported');
+  await expect(errBtn).toHaveAttribute('title', 'letter-bank anagram (//) is not supported');
 });
 
 // Guards against the range trimming an out-of-range lane and keeping the rest, which
