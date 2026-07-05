@@ -23,7 +23,7 @@ const VAR_HL_COLORS = 9;
 
 const LEN_CONSTRAINT_RE = /^\|([^|]+)\|(<=|>=|<|>|=)(\d+)$/;
 const VAR_OP_RE = /^([A-Z])(!?=)(.+)$/;
-const EQUATION_RE = /^([A-Za-z0-9]+)(!?=)(.+)$/;
+const TERM_OP_RE = /^([A-Za-z0-9]+)(!?=)(.+)$/;
 
 function boundsFromOp(op, n) {
   if (op === '=')  return { lo: n, hi: n };
@@ -78,7 +78,7 @@ function tokenizePattern(clause) {
       if (!tok) throw 'invalid [ character class';
       tokens.push(tok); i = end;
     } else if (ch === '/') {
-      throw 'anagram (/) must start a binding, sub-pattern, or equation target';
+      throw 'anagram (/) must start a binding, sub-pattern, or term target';
     } else if (ch === ' ') {
       continue;
     } else {
@@ -193,7 +193,7 @@ function expandPattern(tokens) {
   return strs;
 }
 
-// The synthetic pool an anagram equation drives with: every distinct rearrangement of the
+// The synthetic pool an anagram termEquals drives with: every distinct rearrangement of the
 // target's letters. Capped like `expandPattern` — too many arrangements is rejected, not
 // materialized, or a long target blows up memory silently.
 function anagramPermutations(ana) {
@@ -217,17 +217,18 @@ function anagramPermutations(ana) {
   return out;
 }
 
-// A positive equation's `rhsEntries` is the target expanded into a synthetic pool the
-// term matches against — it *drives* the join (generating the term's partitions) rather
-// than filtering the cross-product, which is what keeps `A;B;AB=boardroom` out of O(n²).
-function compileEquation(lhs, op, rhs) {
+// A termEquals clause's `rhsEntries` is the target expanded into a synthetic pool the term
+// matches against — it *drives* the join (generating the term's partitions) rather than
+// filtering the cross-product, which is what keeps `A;B;AB=boardroom` out of O(n²). (A
+// termNotEquals clause only filters, so it never expands — hence `rhsEntries: null`.)
+function compileTermOp(lhs, op, rhs) {
   const term = tokenizePattern(lhs);
   for (const t of term.tokens) {
     if (t.t !== 'var' && t.t !== 'lit') throw `the left side of ${op} takes only variables and literals`;
   }
   if (/^[A-Z]$/.test(rhs)) throw `comparing two terms (${lhs}${op}${rhs}) is not supported`;
   const negate = op === '!=';
-  const common = { term, vars: [...term.variables].sort(), negate, src: `${lhs}${op}${rhs}` };
+  const common = { term, vars: [...term.variables].sort(), src: `${lhs}${op}${rhs}` };
 
   const ana = anagramFromBody(rhs);
   if (ana) {
@@ -251,11 +252,12 @@ export function parseUmiaqQuery(query) {
 
   const clauses = q.split(';').map(c => c.trim());
   const bounds = {};   // var → { lo, hi }: explicit lower bound (null = none) and upper bound
-  const notEqual = {};
-  const varPattern = {};
-  const varNotPattern = {};
+  const varNotEqualsVar = {};
+  const varEqualsPattern = {};
+  const varNotEqualsPattern = {};
   const sumLen = [];
-  const equations = [];
+  const termEquals = [];
+  const termNotEquals = [];
   const bindingSrcs = [];
 
   for (const clause of clauses) {
@@ -263,14 +265,14 @@ export function parseUmiaqQuery(query) {
     if (vd) {
       const [, name, op, rhs] = vd;
       if (op === '!=' && /^[A-Z]$/.test(rhs)) {
-        (notEqual[name] ??= []).push(rhs);
-        (notEqual[rhs] ??= []).push(name);
+        (varNotEqualsVar[name] ??= []).push(rhs);
+        (varNotEqualsVar[rhs] ??= []).push(name);
         continue;
       }
       try {
         const compiled = compileVarPattern(name, rhs);
-        if (op === '=') varPattern[name] = compiled;
-        else (varNotPattern[name] ??= []).push(compiled);
+        if (op === '=') varEqualsPattern[name] = compiled;
+        else (varNotEqualsPattern[name] ??= []).push(compiled);
       } catch (msg) { return { ok: false, error: typeof msg === 'string' ? msg : String(msg) }; }
       continue;
     }
@@ -306,9 +308,9 @@ export function parseUmiaqQuery(query) {
       return { ok: false, error: `unsupported constraint "${clause}"` };
     }
     if (clause.includes('=')) {
-      const eq = EQUATION_RE.exec(clause);
-      if (eq && /[A-Z]/.test(eq[1])) {
-        try { equations.push(compileEquation(eq[1], eq[2], eq[3])); }
+      const m = TERM_OP_RE.exec(clause);
+      if (m && /[A-Z]/.test(m[1])) {
+        try { (m[2] === '!=' ? termNotEquals : termEquals).push(compileTermOp(m[1], m[2], m[3])); }
         catch (msg) { return { ok: false, error: typeof msg === 'string' ? msg : String(msg) }; }
         continue;
       }
@@ -349,22 +351,24 @@ export function parseUmiaqQuery(query) {
     bindings.push({ ...parsed, src: clause, wordLen, stars, prefilter: compilePrefilter(parsed.tokens, length) });
   }
 
-  for (const v of Object.keys(notEqual)) notEqual[v] = [...new Set(notEqual[v])];
+  for (const v of Object.keys(varNotEqualsVar)) varNotEqualsVar[v] = [...new Set(varNotEqualsVar[v])];
 
-  for (const eq of equations) {
-    for (const v of eq.vars) if (!variables.has(v)) return { ok: false, error: `${eq.src}: ${v} must appear in a binding` };
-    eq.pattern = { tokens: eq.term.tokens, variables: eq.term.variables, wordLen: null, stars: 0, prefilter: compilePrefilter(eq.term.tokens, length) };
+  for (const tc of [...termEquals, ...termNotEquals]) {
+    for (const v of tc.vars) if (!variables.has(v)) return { ok: false, error: `${tc.src}: ${v} must appear in a binding` };
+  }
+  for (const tc of termEquals) {
+    tc.pattern = { tokens: tc.term.tokens, variables: tc.term.variables, wordLen: null, stars: 0, prefilter: compilePrefilter(tc.term.tokens, length) };
   }
 
-  const constraints = { length, notEqual, sumLen, varPattern, varNotPattern, equations };
-  const anagramSolve = planAnagramSolve(bindings, equations, variables);
+  const constraints = { length, varNotEqualsVar, sumLen, varEqualsPattern, varNotEqualsPattern, termEquals, termNotEquals };
+  const anagramSolve = planAnagramSolve(bindings, termEquals, termNotEquals, variables);
   if (!anagramSolve) {
     // Exotic anagram forms fall back to the permutation pool. This is its only expansion
     // site, so the letter cap still surfaces here as a parse error (the tail doesn't
     // otherwise throw — keep the try/catch or an over-broad target escapes uncaught).
-    for (const eq of equations) {
-      if (eq.anagram && !eq.negate && eq.rhsEntries === undefined) {
-        try { eq.rhsEntries = anagramPermutations(eq.anagram).map(norm => ({ norm })); }
+    for (const tc of termEquals) {
+      if (tc.anagram && tc.rhsEntries === undefined) {
+        try { tc.rhsEntries = anagramPermutations(tc.anagram).map(norm => ({ norm })); }
         catch (msg) { return { ok: false, error: typeof msg === 'string' ? msg : String(msg) }; }
       }
     }
@@ -403,17 +407,23 @@ function sumLenOK(sumLen, assignment) {
   return true;
 }
 
-function equationOK(equations, assignment) {
-  for (const eq of equations) {
-    if (!eq.vars.every(v => v in assignment)) continue;
-    let s = '';
-    for (const t of eq.term.tokens) s += t.t === 'var' ? assignment[t.name] : t.s;
-    if (eq.test(s) === eq.negate) return false;
-  }
+// The string a term spells once its variables are bound, or null when some variable it
+// names isn't bound yet — the fail-open case the callers skip (a cross-binding term is
+// only whole at the join).
+function spellTerm(tc, assignment) {
+  if (!tc.vars.every(v => v in assignment)) return null;
+  let s = '';
+  for (const t of tc.term.tokens) s += t.t === 'var' ? assignment[t.name] : t.s;
+  return s;
+}
+
+function termsOK(termEquals, termNotEquals, assignment) {
+  for (const tc of termEquals) { const s = spellTerm(tc, assignment); if (s !== null && !tc.test(s)) return false; }
+  for (const tc of termNotEquals) { const s = spellTerm(tc, assignment); if (s !== null && tc.test(s)) return false; }
   return true;
 }
 
-export function matchPattern(word, pattern, constraints = { length: {}, notEqual: {} }) {
+export function matchPattern(word, pattern, constraints = { length: {}, varNotEqualsVar: {} }) {
   const W = word.length;
   const wl = pattern.wordLen;
   if (wl && (W < wl.min || (wl.max !== null && W > wl.max))) return [];
@@ -421,11 +431,12 @@ export function matchPattern(word, pattern, constraints = { length: {}, notEqual
 
   const parts = pattern.tokens;
   const length = constraints.length || {};
-  const notEqual = constraints.notEqual || {};
+  const varNotEqualsVar = constraints.varNotEqualsVar || {};
   const sumLen = constraints.sumLen || [];
-  const equations = constraints.equations || [];
-  const varPattern = constraints.varPattern || {};
-  const varNotPattern = constraints.varNotPattern || {};
+  const termEquals = constraints.termEquals || [];
+  const termNotEquals = constraints.termNotEquals || [];
+  const varEqualsPattern = constraints.varEqualsPattern || {};
+  const varNotEqualsPattern = constraints.varNotEqualsPattern || {};
   const results = [];
   // Paths reconverge — and the per-node `canonical()` memo/dedup that costs ~200µs
   // a word earns its keep — only with ≥2 stars (`**`, `*a*`): a single star or
@@ -446,7 +457,7 @@ export function matchPattern(word, pattern, constraints = { length: {}, notEqual
     if (pi === parts.length) {
       if (i === W) {
         if (sumLen.length && !sumLenOK(sumLen, assignment)) return;
-        if (equations.length && !equationOK(equations, assignment)) return;
+        if ((termEquals.length || termNotEquals.length) && !termsOK(termEquals, termNotEquals, assignment)) return;
         if (needDedup) {
           const c = canonical(assignment);
           if (seen.has(c)) return;
@@ -485,10 +496,10 @@ export function matchPattern(word, pattern, constraints = { length: {}, notEqual
           let min = 1, max = W - i;
           const lc = length[name];
           if (lc) { min = lc.min; max = Math.min(max, lc.max); }
-          const vp = varPattern[name];
+          const vp = varEqualsPattern[name];
           if (vp) { min = Math.max(min, vp.min); if (vp.max !== Infinity) max = Math.min(max, vp.max); }
-          const vnp = varNotPattern[name];
-          const neq = notEqual[name];
+          const vnp = varNotEqualsPattern[name];
+          const neq = varNotEqualsVar[name];
           for (let L = min; L <= max; L++) {
             const sub = word.slice(i, i + L);
             const boundVal = part.t === 'rev' ? reverse(sub) : sub;
@@ -562,7 +573,7 @@ export function variableHighlights(word, pattern, assignment, varColor) {
 
 // ─── Finding tuples ──────────────────────────────────────────────────────────
 // A *solver* is a pattern plus the pool it matches: a binding matches the corpus and
-// emits a result word; a positive equation matches its synthetic RHS pool and emits
+// emits a result word; a termEquals matches its synthetic RHS pool and emits
 // nothing (bind-and-prune only). Order solvers most-variables-first, then by greatest
 // overlap with what's already ordered, so each later solver shares variables ("lookup
 // keys") with an earlier one. Phase 1 buckets every solver's matches keyed by its
@@ -614,7 +625,7 @@ function probeExpansion(pattern) {
   return prod;
 }
 
-// ─── Anagram equation solver ──────────────────────────────────────────────────
+// ─── Anagram solver ───────────────────────────────────────────────────────────
 // The unbounded path for `A;B;AB=/random`: index the corpus by letter-multiset and split
 // the target by recursive subtraction (how online anagram finders work), instead of
 // enumerating rearrangements. Only the clean multi-word form (each variable its own
@@ -637,13 +648,13 @@ function sigOfCounts(counts) {
   return s;
 }
 
-function planAnagramSolve(bindings, equations, variables) {
-  if (equations.length !== 1) return null;
-  const eq = equations[0];
-  if (!eq.anagram || eq.negate) return null;
+function planAnagramSolve(bindings, termEquals, termNotEquals, variables) {
+  if (termEquals.length !== 1 || termNotEquals.length) return null;
+  const tc = termEquals[0];
+  if (!tc.anagram) return null;
   const termVars = [];
   const litCounts = new Int16Array(36);
-  for (const t of eq.term.tokens) {
+  for (const t of tc.term.tokens) {
     if (t.t === 'var') { if (termVars.includes(t.name)) return null; termVars.push(t.name); }
     else if (t.t === 'lit') { for (const ch of t.s) litCounts[charIdx(ch)]++; }
     else return null;
@@ -658,16 +669,16 @@ function planAnagramSolve(bindings, equations, variables) {
   }
   // A term literal the target lacks drives a coordinate negative → no solutions, not an error.
   const target = new Int16Array(36);
-  for (const ch in eq.anagram.required) target[charIdx(ch)] = eq.anagram.required[ch];
+  for (const ch in tc.anagram.required) target[charIdx(ch)] = tc.anagram.required[ch];
   let feasible = true;
   for (let i = 0; i < 36; i++) { target[i] -= litCounts[i]; if (target[i] < 0) feasible = false; }
   const lanes = bindings.map(b => ({ varName: b.tokens[0].name, binding: b }));
   return { lanes, vars: lanes.map(l => l.varName), target, feasible };
 }
 
-async function solveAnagramEquation(parsed, pool, { numResults, maxMatchesPerPattern, onBatch, y, signal }) {
+async function solveAnagram(parsed, pool, { numResults, maxMatchesPerPattern, onBatch, y, signal }) {
   const plan = parsed.anagramSolve;
-  const { length, notEqual, varPattern, varNotPattern, sumLen } = parsed.constraints;
+  const { length, varNotEqualsVar, varEqualsPattern, varNotEqualsPattern, sumLen } = parsed.constraints;
   const k = plan.vars.length;
   const varColor = variableColors(parsed.variables);
   const target = plan.target;
@@ -685,7 +696,7 @@ async function solveAnagramEquation(parsed, pool, { numResults, maxMatchesPerPat
     let min = 1, max = Infinity;
     const lc = length[varName]; if (lc) { min = lc.min; max = lc.max; }
     const wl = binding.wordLen; if (wl) { min = Math.max(min, wl.min); if (wl.max !== null) max = Math.min(max, wl.max); }
-    const vp = varPattern[varName]; if (vp) { min = Math.max(min, vp.min); if (vp.max !== Infinity) max = Math.min(max, vp.max); }
+    const vp = varEqualsPattern[varName]; if (vp) { min = Math.max(min, vp.min); if (vp.max !== Infinity) max = Math.min(max, vp.max); }
     return { min, max };
   });
   const laneOfVar = {};
@@ -711,17 +722,17 @@ async function solveAnagramEquation(parsed, pool, { numResults, maxMatchesPerPat
 
   // Must stay in lockstep with matchPattern's per-variable filtering (umiaq.js var/rev case),
   // or a constraint silently means something different here than on the flat path: the length
-  // window, sub-pattern test, the length-guarded varNotPattern array, and A!=B vs chosen lanes.
+  // window, sub-pattern test, the length-guarded varNotEqualsPattern array, and A!=B vs chosen lanes.
   const accepts = (i, entry, chosen) => {
     const name = plan.vars[i];
     const w = entry.norm;
     const L = w.length;
     const b = laneBounds[i];
     if (L < b.min || L > b.max) return false;
-    const vp = varPattern[name]; if (vp && !vp.test(w)) return false;
-    const vnp = varNotPattern[name];
+    const vp = varEqualsPattern[name]; if (vp && !vp.test(w)) return false;
+    const vnp = varNotEqualsPattern[name];
     if (vnp && vnp.some(n => L >= n.min && (n.max === Infinity || L <= n.max) && n.test(w))) return false;
-    const neq = notEqual[name];
+    const neq = varNotEqualsVar[name];
     if (neq) for (const o of neq) { const j = laneOfVar[o]; if (j !== undefined && j < i && chosen[j].norm === w) return false; }
     return true;
   };
@@ -795,14 +806,15 @@ export async function findTuples(parsed, pool, {
   y = NOOP_Y,
   signal = null,
 } = {}) {
-  if (parsed.anagramSolve) return solveAnagramEquation(parsed, pool, { numResults, maxMatchesPerPattern, onBatch, y, signal });
+  if (parsed.anagramSolve) return solveAnagram(parsed, pool, { numResults, maxMatchesPerPattern, onBatch, y, signal });
   const { bindings, constraints } = parsed;
   const sumLen = constraints.sumLen || [];
-  const equations = constraints.equations || [];
+  const termEquals = constraints.termEquals || [];
+  const termNotEquals = constraints.termNotEquals || [];
 
   const solvers = [
     ...bindings.map((p, i) => ({ p, pool, emit: true, outIdx: i })),
-    ...equations.filter(e => !e.negate).map(e => ({ p: e.pattern, pool: e.rhsEntries, emit: false, outIdx: -1 })),
+    ...termEquals.map(e => ({ p: e.pattern, pool: e.rhsEntries, emit: false, outIdx: -1 })),
   ];
   const ordered = orderSolvers(solvers);
   const N = ordered.length;
@@ -818,7 +830,7 @@ export async function findTuples(parsed, pool, {
     const highlights = variableHighlights(entry.norm, ordered[k].p, assignment, varColor);
     return { entry, highlights: highlights.length ? highlights : null };
   };
-  // Drop the non-emitting equation solvers and restore the user's binding order.
+  // Drop the non-emitting term-equals solvers and restore the user's binding order.
   const emit = orderedParts => {
     const lanes = new Array(emittingCount);
     for (let k = 0; k < N; k++) {
@@ -840,7 +852,7 @@ export async function findTuples(parsed, pool, {
     const corpusIndex = new Map();
     for (const e of pool) if (!corpusIndex.has(e.norm)) corpusIndex.set(e.norm, e);
     // A solver resolves its candidates against its own pool — a binding against the
-    // corpus, an equation against its synthetic RHS set, not the corpus.
+    // corpus, a termEquals against its synthetic RHS set, not the corpus.
     const lookups = ordered.map(s => {
       if (s.emit) return corpusIndex;
       const m = new Map();
@@ -925,7 +937,7 @@ export async function findTuples(parsed, pool, {
     if (signal?.aborted) throw signal.reason ?? new DOMException('Aborted', 'AbortError');
     const f = frames[frames.length - 1];
     if (f.index === N) {
-      if (sumLenOK(sumLen, f.dict) && equationOK(equations, f.dict)) emit(f.selected);
+      if (sumLenOK(sumLen, f.dict) && termsOK(termEquals, termNotEquals, f.dict)) emit(f.selected);
       frames.pop(); continue;
     }
     if (f.i >= f.list.length) { frames.pop(); continue; }

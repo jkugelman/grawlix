@@ -93,14 +93,14 @@ test('a multi-pattern query yields side-by-side tuples, lane order preserved', a
   expect(more).toBe(0);
 });
 
-test('an equation splits a target word into side-by-side lanes', async ({ page }) => {
+test('a term-equals splits a target word into side-by-side lanes', async ({ page }) => {
   await setup(page);
   await run(page, 'A;B;AB=apepea');            // the only split with both halves in the list
   expect(await tier(page)).toBe('tuple');
   expect(await tuples(page)).toEqual([['ape', 'pea']]);
 });
 
-test('an anagram equation finds every rearranged split (index solver)', async ({ page }) => {
+test('an anagram term-equals finds every rearranged split (index solver)', async ({ page }) => {
   await setup(page);
   await run(page, 'A;B;AB=/apepea');           // order-independent: any pair whose letters make apepea
   expect(await tier(page)).toBe('tuple');

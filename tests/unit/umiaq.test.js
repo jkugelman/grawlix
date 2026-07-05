@@ -59,9 +59,9 @@ test('parse: collects variables across all bindings', () => {
 test('parse: length and not-equal constraints', () => {
   const p = parseUmiaqQuery('ABC;|A|=2;A!=B;B!=C');
   assert.deepEqual(p.constraints.length, { A: { min: 2, max: 2 } });
-  assert.deepEqual(p.constraints.notEqual.A, ['B']);
-  assert.deepEqual(p.constraints.notEqual.B.sort(), ['A', 'C']);
-  assert.deepEqual(p.constraints.notEqual.C, ['B']);
+  assert.deepEqual(p.constraints.varNotEqualsVar.A, ['B']);
+  assert.deepEqual(p.constraints.varNotEqualsVar.B.sort(), ['A', 'C']);
+  assert.deepEqual(p.constraints.varNotEqualsVar.C, ['B']);
 });
 
 test('parse: token kinds', () => {
@@ -415,11 +415,11 @@ test('find: a sum-length constraint filters tuples by combined length', async ()
 });
 
 test('parse: a variable sub-pattern compiles into varPattern', () => {
-  const vp = parseUmiaqQuery('A;A=#@#').constraints.varPattern.A;
+  const vp = parseUmiaqQuery('A;A=#@#').constraints.varEqualsPattern.A;
   assert.deepEqual([vp.min, vp.max], [3, 3]);
   assert.ok(vp.test('cat'));
   assert.ok(!vp.test('aaa'));
-  const vp2 = parseUmiaqQuery('A;A=2-4:*').constraints.varPattern.A;
+  const vp2 = parseUmiaqQuery('A;A=2-4:*').constraints.varEqualsPattern.A;
   assert.deepEqual([vp2.min, vp2.max], [2, 4]);
 });
 
@@ -434,11 +434,11 @@ test('match: a variable sub-pattern constrains the binding', () => {
 
 test('parse: A!=sub-pattern is a negation; A!=B stays variable inequality', () => {
   const p = parseUmiaqQuery('A;A!=#@#');
-  assert.equal(p.constraints.varNotPattern.A.length, 1);
-  assert.ok(p.constraints.varNotPattern.A[0].test('cat'));
+  assert.equal(p.constraints.varNotEqualsPattern.A.length, 1);
+  assert.ok(p.constraints.varNotEqualsPattern.A[0].test('cat'));
   const q = parseUmiaqQuery('AB;BA;A!=B');
-  assert.deepEqual(q.constraints.varNotPattern, {});
-  assert.deepEqual(q.constraints.notEqual.A, ['B']);
+  assert.deepEqual(q.constraints.varNotEqualsPattern, {});
+  assert.deepEqual(q.constraints.varNotEqualsVar.A, ['B']);
 });
 
 test('match: a negated sub-pattern rejects bindings that fit it', () => {
@@ -448,48 +448,50 @@ test('match: a negated sub-pattern rejects bindings that fit it', () => {
   assert.deepEqual(bindings('A;A=*s;A!=???', 'bus'),  []);               // ends in s but exactly 3 → rejected
 });
 
-// ─── Equations ─────────────────────────────────────────────────────────────────
+// ─── Term equals / not-equals ────────────────────────────────────────────────
 
-test('parse: an equation compiles into constraints.equations', () => {
-  const eqs = parseUmiaqQuery('A;B;AB=boardroom').constraints.equations;
-  assert.equal(eqs.length, 1);
-  assert.deepEqual(eqs[0].vars, ['A', 'B']);
-  assert.equal(eqs[0].negate, false);
-  assert.deepEqual(eqs[0].rhsEntries.map(e => e.norm), ['boardroom']);   // a literal target → one string
+test('parse: AB=word compiles into constraints.termEquals', () => {
+  const p = parseUmiaqQuery('A;B;AB=boardroom');
+  assert.equal(p.constraints.termEquals.length, 1);
+  assert.equal(p.constraints.termNotEquals.length, 0);
+  const tc = p.constraints.termEquals[0];
+  assert.deepEqual(tc.vars, ['A', 'B']);
+  assert.deepEqual(tc.rhsEntries.map(e => e.norm), ['boardroom']);   // a literal target → one string
 });
 
-test('parse: a fixed-width RHS expands into a synthetic pool; != never drives', () => {
-  assert.equal(parseUmiaqQuery('A;B;AB=bo?').constraints.equations[0].rhsEntries.length, 36);
-  const neg = parseUmiaqQuery('AB;BA;AB!=stop').constraints.equations[0];
-  assert.equal(neg.negate, true);
-  assert.equal(neg.rhsEntries, null);
+test('parse: = expands a synthetic pool; != lands in termNotEquals and never drives', () => {
+  assert.equal(parseUmiaqQuery('A;B;AB=bo?').constraints.termEquals[0].rhsEntries.length, 36);
+  const p = parseUmiaqQuery('AB;BA;AB!=stop');
+  assert.equal(p.constraints.termEquals.length, 0);
+  assert.equal(p.constraints.termNotEquals.length, 1);
+  assert.equal(p.constraints.termNotEquals[0].rhsEntries, null);
 });
 
-test('parse: equation errors', () => {
+test('parse: term-clause errors', () => {
   assert.match(parseUmiaqQuery('A;AB=boardroom').error, /B must appear in a binding/);
   assert.match(parseUmiaqQuery('A;B;AB=bo*m').error, /\* on the right side/);
   assert.match(parseUmiaqQuery('A;B;AB=C').error, /comparing two terms/);
   assert.match(parseUmiaqQuery('A;B;AB=????????????????').error, /too broad/);
 });
 
-test('match: an equation filters a single binding to words that spell the target', () => {
+test('match: AB=word filters a single binding to words that spell the target', () => {
   assert.equal(matches('AB;AB=boardroom', 'boardroom'), true);
   assert.equal(matches('AB;AB=boardroom', 'board'),      false);
   assert.equal(matches('ABC;AB=boardroom', 'boardrooms'), true);    // A+B = boardroom, C = s
   assert.equal(matches('ABC;AB=boardroom', 'boardroom'),  false);   // C would have to be empty
 });
 
-test('match: a negated equation drops words that spell the target', () => {
+test('match: AB!=word drops words that spell the target', () => {
   assert.equal(matches('AB;AB!=boardroom', 'boardroom'), false);
   assert.equal(matches('AB;AB!=boardroom', 'boardgame'), true);
 });
 
-test('find: a positive equation splits its target across bindings (probe path)', async () => {
+test('find: AB=word splits its target across bindings (probe path)', async () => {
   const got = await tupleNorms('A;B;AB=boardroom', ['board', 'room', 'boa', 'rdroom', 'bo', 'ardroom', 'x']);
   assert.deepEqual(got, [['bo', 'ardroom'], ['boa', 'rdroom'], ['board', 'room']]);
 });
 
-test('find: an equation constrains a cross-binding tuple (bucket path)', async () => {
+test('find: a term-equals constrains a cross-binding tuple (bucket path)', async () => {
   // C is free, so the driver lacks a variable and the join can't probe — exercises buckets.
   const got = await tupleNorms('A;B;C;AB=boardroom', ['board', 'room', 'x']);
   assert.deepEqual(got, [['board', 'room', 'board'], ['board', 'room', 'room'], ['board', 'room', 'x']]);
@@ -500,12 +502,12 @@ test('find: a fixed-width RHS matches every expansion of the target', async () =
   assert.deepEqual(got, [['be', 'ardroom'], ['bo', 'ardroom'], ['board', 'room']]);
 });
 
-test('find: a length constraint narrows an equation split', async () => {
+test('find: a length constraint narrows a term-equals split', async () => {
   const got = await tupleNorms('A;B;AB=boardroom;|A|=5', ['board', 'room', 'bo', 'ardroom']);
   assert.deepEqual(got, [['board', 'room']]);
 });
 
-test('find: a negated equation drops the tuple whose term spells the target', async () => {
+test('find: AB!=word drops the tuple whose term spells the target', async () => {
   const pool = ['abc', 'bca', 'xy', 'yx'];
   assert.deepEqual(await tupleNorms('AB;BA', pool),
     [['abc', 'bca'], ['bca', 'abc'], ['xy', 'yx'], ['yx', 'xy']]);
@@ -566,20 +568,20 @@ test('find: anagram bindings cross-join in a tuple (bucket path)', async () => {
   assert.deepEqual(got, [['act', 'dog'], ['act', 'god'], ['cat', 'dog'], ['cat', 'god']]);
 });
 
-test('parse: a clean anagram equation plans an index solve; an exotic one expands', () => {
+test('parse: a clean anagram term-equals plans an index solve; an exotic one expands', () => {
   const clean = parseUmiaqQuery('A;B;AB=/random');
   assert.ok(clean.anagramSolve);                                    // routed to the index solver
-  assert.equal(clean.constraints.equations[0].rhsEntries, undefined);   // no permutation pool built
+  assert.equal(clean.constraints.termEquals[0].rhsEntries, undefined);   // no permutation pool built
   const exotic = parseUmiaqQuery('A;B;C;AB=/random');   // an extra binding → not the clean form
   assert.equal(exotic.anagramSolve, null);
-  const eq = exotic.constraints.equations[0];
+  const eq = exotic.constraints.termEquals[0];
   const key = s => [...s].sort().join('');
   assert.equal(eq.rhsEntries.length, 720);   // 6 distinct letters → 6!
   assert.ok(eq.rhsEntries.every(e => key(e.norm) === key('random')));
-  assert.equal(parseUmiaqQuery('A;B;C;AB=/level').constraints.equations[0].rhsEntries.length, 30);   // l,e ×2 → 5!/(2!2!)
+  assert.equal(parseUmiaqQuery('A;B;C;AB=/level').constraints.termEquals[0].rhsEntries.length, 30);   // l,e ×2 → 5!/(2!2!)
 });
 
-test('match: an anagram equation keeps words that rearrange to the target', () => {
+test('match: an anagram term-equals keeps words that rearrange to the target', () => {
   assert.equal(matches('AB;AB=/random', 'random'),  true);
   assert.equal(matches('AB;AB=/random', 'nomdar'),  true);    // an anagram of random
   assert.equal(matches('AB;AB=/random', 'rando'),   false);   // missing a letter
@@ -588,7 +590,7 @@ test('match: an anagram equation keeps words that rearrange to the target', () =
   assert.equal(matches('AB;AB!=/random', 'attend'), true);
 });
 
-test('find: an anagram equation splits an anagram of the target across bindings', async () => {
+test('find: an anagram term-equals splits an anagram of the target across bindings', async () => {
   const pool = ['ran', 'dom', 'mad', 'nor', 'or', 'damn', 'road', 'man'];
   assert.deepEqual(await tupleNorms('A;B;AB=/random', pool),
     [['damn', 'or'], ['dom', 'ran'], ['mad', 'nor'], ['nor', 'mad'], ['or', 'damn'], ['ran', 'dom']]);
@@ -596,7 +598,7 @@ test('find: an anagram equation splits an anagram of the target across bindings'
     [['dom', 'ran'], ['mad', 'nor'], ['nor', 'mad'], ['ran', 'dom']]);
 });
 
-test('parse: anagram-equation errors', () => {
+test('parse: anagram term-equals errors', () => {
   assert.match(parseUmiaqQuery('A;B;AB=/rand?m').error, /aren't supported in an anagram target/);
   assert.match(parseUmiaqQuery('A;B;AB=/rand*').error,  /aren't supported in an anagram target/);
   assert.match(parseUmiaqQuery('A;B;C;AB=/abcdefghij').error, /too many letters/);   // exotic → capped fallback
