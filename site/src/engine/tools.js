@@ -5,6 +5,7 @@
 import { SCORE_RANGE_HELP, LENGTH_HELP } from './range.js';
 import { OUTPUT_HELP } from './rescore.js';
 import anagrams from './tools/anagrams.js';
+import hidden_anagram from './tools/hidden_anagram.js';
 import letter_bank from './tools/letter_bank.js';
 import restricted_alphabet from './tools/restricted_alphabet.js';
 import scrabble from './tools/scrabble.js';
@@ -60,6 +61,7 @@ export const FEATURED_TOOLS = ['regex', 'umiaq', 'rebus', 'anagrams', 'initialis
 
 export const TOOLS = {
   anagrams,
+  hidden_anagram,
   letter_bank,
   restricted_alphabet,
   scrabble,
