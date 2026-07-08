@@ -219,19 +219,35 @@ export function columnsFromEntries(entries, rules) {
 }
 
 function gatherColumns(norms, displays, comments, rawScoresArr, rules) {
-  const n = norms.length;
+  const total = norms.length;
 
   // Stable argsort by (norm code-units, original file index): the within-norm
   // variant order must stay file order or the merge picks the wrong winner/comment.
-  const order = new Array(n);
-  for (let i = 0; i < n; i++) order[i] = i;
+  const order = new Array(total);
+  for (let i = 0; i < total; i++) order[i] = i;
   order.sort((a, b) => {
     const na = norms[a], nb = norms[b];
     return na < nb ? -1 : na > nb ? 1 : a - b;
   });
 
+  // Drop repeats of an exact (norm, display) entry, keeping the first. Post-sort a
+  // norm's variants are contiguous and in file order, so a display set reset on the
+  // norm boundary retains each one's earliest occurrence. Keying on norm alone would
+  // silently collapse variants meant to coexist (eta/ETA, hic/Hi-C).
+  const kept = [];
+  let runNorm = null, runDisplays = null;
+  for (const src of order) {
+    const norm = norms[src];
+    if (norm !== runNorm) { runNorm = norm; runDisplays = new Set(); }
+    const disp = displays[src] ?? '';
+    if (runDisplays.has(disp)) continue;
+    runDisplays.add(disp);
+    kept.push(src);
+  }
+  const n = kept.length;
+
   let nb = 0;
-  for (let i = 0; i < n; i++) nb += norms[i].length;
+  for (const src of kept) nb += norms[src].length;
   const normBytes = new Uint8Array(nb);
   const normOffsets = new Uint32Array(n + 1);
   const rawScores = new Int32Array(n);
@@ -239,7 +255,7 @@ function gatherColumns(norms, displays, comments, rawScoresArr, rules) {
   const dispEnc = new Array(n), commentEnc = new Array(n);
   let noff = 0, db = 0, cb = 0;
   for (let k = 0; k < n; k++) {
-    const src = order[k];
+    const src = kept[k];
     const s = norms[src];
     normOffsets[k] = noff;
     for (let j = 0; j < s.length; j++) normBytes[noff++] = s.charCodeAt(j);

@@ -83,6 +83,8 @@ ENTRY;SCORE
 ENTRY;SCORE;COMMENT
 ```
 
+Parsing dedupes exact `(norm, display)` repeats, keeping the first (`parseWordlist` / the columnar `gatherColumns`) — so a doubly-listed entry collapses to one row while distinct spellings (`eta`/`ETA`, `theirs`/`the IRS`) coexist. Enforced at the parse boundary, so the merge, entries table, counts, and provenance panel all see one entry with no special-casing. The stored IDB text is untouched, so **Download original** still emits the file verbatim; the rescored **Download** and disk mirror reflect the dedupe.
+
 **Rescore rules** (every wordlist, including My Edits) map an input score range + optional entry-length filter to an output score. First matching rule wins; rescoring is total — every raw entry maps to exactly one rescored entry, never dropped. Rescoring is optional: raw scores not matched by any rule pass through unchanged, and nothing nags the user about the gap.
 
 **Scoring rules** (`state.scoring`) are the user's tier labels for the unified score scale: single source of truth for what each score range means. Edited from the inline editor on the wordlist bar when the `All Wordlists` scope is selected (the same editor slot shows the rescore editor for any other scope). Labeling is optional too — merged scores with no tier label still display, just without a tooltip name.

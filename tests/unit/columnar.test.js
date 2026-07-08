@@ -130,6 +130,25 @@ test('columnsFromEntries equals parseWordlistColumns over the same text', () => 
   }
 });
 
+test('both parse paths dedupe exact (norm, display) repeats, first wins, variants survive', () => {
+  const DUP = [
+    'HELLO;50;greet',
+    'HELLO;20',            // exact repeat — dropped, score/comment ignored
+    'eta;10',
+    'ETA;20',              // case variant of eta — NOT a duplicate
+    'HELLO;99;other',      // exact repeat again — dropped
+  ].join('\n') + '\n';
+  const { obj, col } = pair('D', DUP);
+  const objRows = project(buildCorpus([obj]).entries);
+  const colRows = project(buildCorpus([col]).entries);
+  assert.deepStrictEqual(colRows, objRows);
+
+  const hello = objRows.filter(r => r.norm === 'hello');
+  assert.equal(hello.length, 1);
+  assert.deepEqual([hello[0].score, hello[0].comment], [50, 'greet']);
+  assert.equal(objRows.filter(r => r.norm === 'eta').length, 2);
+});
+
 test('an empty source builds an empty columnar store', () => {
   const cols = parseWordlistColumns('', []);
   assert.equal(cols.n, 0);

@@ -45,6 +45,18 @@ test('parseWordlist: detectCase drives per-entry display across the whole file',
   assert.deepEqual(lowerMix.map(e => e.display), [null, 'NEW YEAR', 'Mötley Crüe', 'FBI', 'café']);
 });
 
+test('parseWordlist dedupes exact (norm, display) repeats, keeping the first', () => {
+  const out = parseWordlist('HELLO;50;greet\nHELLO;20\nHELLO;99;other\n');
+  assert.equal(out.length, 1);
+  assert.deepEqual([out[0].norm, out[0].display, out[0].score, out[0].comment],
+    ['hello', 'HELLO', 50, 'greet']);
+});
+
+test('parseWordlist keeps case/spelling variants that share a norm', () => {
+  const out = parseWordlist('eta;10\nETA;20\ntheirs;30\nthe irs;40;tax\n');
+  assert.deepEqual(out.map(e => e.display), [null, 'ETA', null, 'the irs']);
+});
+
 test('detectCase: large mostly-uppercase file is upper, just-below-ratio is lower, tiny file is lower', () => {
   const mk = (n, raw) => Array.from({ length: n }, () => ({ raw }));
   assert.equal(detectCase([...mk(1600, 'ABC'), ...mk(200, 'abc')]), 'upper');

@@ -114,7 +114,19 @@ export function parseWordlist(text) {
     if (parsed) rawEntries.push(parsed);
   }
   const fileCase = detectCase(rawEntries);
-  return rawEntries.map(({ raw, score, comment }) => buildWlEntry(raw, score, comment, fileCase));
+  // Drop repeats of an exact (norm, display) entry, keeping the first. Keying on
+  // norm alone would silently collapse case/spelling variants meant to coexist
+  // (eta/ETA, hic/Hi-C) — the display must be in the key.
+  const seen = new Set();
+  const entries = [];
+  for (const { raw, score, comment } of rawEntries) {
+    const e = buildWlEntry(raw, score, comment, fileCase);
+    const key = e.norm + '\0' + (e.display ?? '');
+    if (seen.has(key)) continue;
+    seen.add(key);
+    entries.push(e);
+  }
+  return entries;
 }
 
 // display is null only for bare letter-runs already in the file's convention
