@@ -16,6 +16,9 @@ import { stubPublisherFetches, gotoApp } from './helpers.js';
 test.describe.configure({ mode: 'serial' });
 
 test.beforeEach(async ({ page }) => {
+  // Every test scans a 40k corpus several times; a local fully-parallel run (workers>1,
+  // unlike CI's serial+retries) can starve the CPU enough to blow the 60s budget. Triple it.
+  test.slow();
   await stubPublisherFetches(page);
   // Every mid-stream poll waits on this: it resolves the instant the predicate is truthy, up to
   // a generous deadline — never a fixed iteration count that CPU starvation could exhaust. So the
