@@ -27,8 +27,8 @@ async function searchBarBoxes(page) {
       drag: pick('.drag-handle'),
       label: pick('.tool-label'),
       caret: pick('.find-replace-caret'),
-      pattern: pick('.tool-row-param-text:not(.tool-row-replace) input'),
-      replace: pick('.tool-row-replace input'),
+      pattern: pick(':scope > .tool-row-param-text input'),
+      replace: pick('.tool-row-replace .tool-row-param-text input'),
       wholeWord: pick('.tool-row-asides input[type="checkbox"]'),
     };
   });

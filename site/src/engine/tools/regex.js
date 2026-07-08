@@ -5,7 +5,7 @@ import {
   regexExecAll, runRegexReplace,
 } from '../regex.js';
 import { buildHelpHTML } from '../../core/util.js';
-import { WHOLE_WORD_PARAM } from './shared.js';
+import { WHOLE_WORD_PARAM, ALLOW_UNLISTED_PARAM } from './shared.js';
 
 // The SyntaxError prefix is engine-specific: V8 echoes the pattern ("Invalid
 // regular expression: /<src>/<flags>: "), JSC bares it ("Invalid regular
@@ -43,6 +43,7 @@ export default {
       ['$$', 'a literal $'],
     ], { cols: 1, link: { url: 'https://regexone.com/', text: 'Learn regex at regexone.com →' } }) },
     WHOLE_WORD_PARAM,
+    ALLOW_UNLISTED_PARAM,
   ],
   // Blank replacement reads as filter mode, not "delete the match" — a blank
   // field is indistinguishable from one that was never touched.
@@ -74,7 +75,7 @@ export default {
       // The functional `re` can't be wrapped for highlighting — synthetic
       // groups would renumber the user's `$N`; `hlRe` is the wrapped copy.
       const hlRe = capturing ? null : new RegExp(wrap(wrapRuns(body, runs)), 'gid');
-      return { mode: 'replace', re: new RegExp(wrap(body), 'gid'), hlRe, tokens: parseReplacement(replacement) };
+      return { mode: 'replace', re: new RegExp(wrap(body), 'gid'), hlRe, tokens: parseReplacement(replacement), allowUnlisted: !!params['unlisted'] };
     }
     return { mode: 'filter', re: new RegExp(wrap(capturing ? body : wrapRuns(body, runs)), 'gid') };
   },

@@ -3,7 +3,7 @@
 import { displayOf } from '../norm.js';
 import { buildSearchPattern } from '../search.js';
 import { runSearchReplace } from '../regex.js';
-import { WHOLE_WORD_PARAM, SEARCH_HELP } from './shared.js';
+import { WHOLE_WORD_PARAM, ALLOW_UNLISTED_PARAM, SEARCH_HELP } from './shared.js';
 
 export default {
   name: 'Search', icon: '<svg width="16" height="16" aria-hidden="true"><use href="#icon-search"/></svg>', category: 'search',
@@ -14,6 +14,7 @@ export default {
     { placeholder: 'pattern', help: SEARCH_HELP },
     { key: 'replace', placeholder: 'replace', raw: true },
     WHOLE_WORD_PARAM,
+    ALLOW_UNLISTED_PARAM,
   ],
   kind: params => (params.replace ? 'transform' : 'filter'),
   inputHighlights: true, outputHighlights: true,
@@ -27,7 +28,7 @@ export default {
     const matcher = buildSearchPattern(params.pattern || '', !!params['whole-word']);
     if (!matcher) return null;
     const replacement = params.replace || '';
-    return replacement ? { mode: 'replace', matcher, replacement } : { mode: 'filter', matcher };
+    return replacement ? { mode: 'replace', matcher, replacement, allowUnlisted: !!params['unlisted'] } : { mode: 'filter', matcher };
   },
   run(wlEntry, prepared, wordlist) {
     if (!prepared) return true;

@@ -145,7 +145,7 @@ export function regexExecAll(re, text) {
 }
 
 export function runRegexReplace(entry, prepared, wordlist) {
-  const { re, hlRe, tokens } = prepared;
+  const { re, hlRe, tokens, allowUnlisted } = prepared;
   re.lastIndex = 0;
   let out = '', inPos = 0, m;
   const inputHighlights = [], outputHighlights = [];
@@ -176,12 +176,16 @@ export function runRegexReplace(entry, prepared, wordlist) {
     if (m[0].length === 0) re.lastIndex++;   // a zero-width match leaves lastIndex put; step it or loop forever
   }
   out += entry.slice(inPos);
-  if (out === entry || !wordlist.byNorm.has(out)) return [];
-  return [{ entry: out, inputHighlights, outputHighlights }];
+  if (out === entry) return [];
+  const inList = wordlist.byNorm.has(out);
+  if (!inList && !allowUnlisted) return [];
+  // Array-wrap is load-bearing: it's the executor's synthetic-entry signal, so
+  // an off-list result inherits the source score. Unwrap it and scores zero out.
+  return [{ entry: inList ? out : [out], inputHighlights, outputHighlights }];
 }
 
 export function runSearchReplace(entry, prepared, wordlist) {
-  const { matcher, replacement } = prepared;
+  const { matcher, replacement, allowUnlisted } = prepared;
   const re = matcher.globalRe;
   re.lastIndex = 0;
   let out = '', inPos = 0, m, colorIdx = 0;
@@ -198,6 +202,8 @@ export function runSearchReplace(entry, prepared, wordlist) {
   }
   out += entry.slice(inPos);
   const outNorm = toNorm(out);
-  if (outNorm === toNorm(entry) || !wordlist.byNorm.has(outNorm)) return [];
-  return [{ entry: out, inputHighlights, outputHighlights }];
+  if (outNorm === toNorm(entry)) return [];
+  const inList = wordlist.byNorm.has(outNorm);
+  if (!inList && !allowUnlisted) return [];
+  return [{ entry: inList ? out : [out], inputHighlights, outputHighlights }];
 }

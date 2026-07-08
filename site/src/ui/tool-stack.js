@@ -149,6 +149,7 @@ export function buildToolRowPartsHTML(params, values, toolKey, wiringFn, opts = 
     return { caret: '', main: buildPairListHTML(params, values, toolKey, opts.rowToken), asides: '', replace: '' };
   }
   const asideEls = [];
+  const replaceAsideEls = [];
   let main = '';
   let caret = '';
   let replace = '';
@@ -157,12 +158,9 @@ export function buildToolRowPartsHTML(params, values, toolKey, wiringFn, opts = 
     frPattern = params.find(p => p.type !== 'checkbox' && p.key !== 'replace');
     frReplace = params.find(p => p.key === 'replace');
     if (frPattern && frReplace) {
-      const expanded = !!opts.expanded;
-      caret = buildFindReplaceCaretHTML(expanded, opts.rowToken);
+      caret = buildFindReplaceCaretHTML(!!opts.expanded, opts.rowToken);
       const patternInput = buildTextInputHTML(frPattern, values?.[frPattern.key], toolKey, wiringFn(frPattern));
       main = `<span class="tool-row-param tool-row-param-text">${patternInput}</span>`;
-      const replaceInput = buildTextInputHTML(frReplace, values?.[frReplace.key], toolKey, wiringFn(frReplace));
-      replace = `<span class="tool-row-param tool-row-param-text tool-row-replace"${expanded ? '' : ' hidden'}>${replaceInput}</span>`;
     } else {
       frPattern = frReplace = null;
     }
@@ -170,9 +168,16 @@ export function buildToolRowPartsHTML(params, values, toolKey, wiringFn, opts = 
   for (const p of params) {
     if (p === frPattern || p === frReplace) continue;
     const html = buildParamHTML(p, values?.[p.key], toolKey, wiringFn(p));
-    if (p.type === 'checkbox') asideEls.push(html);
+    if (frReplace && p.replaceScoped) replaceAsideEls.push(html);
+    else if (p.type === 'checkbox') asideEls.push(html);
     else if (!main) main = html;
     else asideEls.push(html);
+  }
+  if (frReplace) {
+    const replaceInput = buildTextInputHTML(frReplace, values?.[frReplace.key], toolKey, wiringFn(frReplace));
+    const replaceAsides = replaceAsideEls.length ? `<div class="tool-row-asides">${replaceAsideEls.join('')}</div>` : '';
+    replace = `<div class="tool-row-replace"${opts.expanded ? '' : ' hidden'}>`
+      + `<span class="tool-row-param tool-row-param-text">${replaceInput}</span>${replaceAsides}</div>`;
   }
   const asides = asideEls.length ? `<div class="tool-row-asides">${asideEls.join('')}</div>` : '';
   return { caret, main, asides, replace };

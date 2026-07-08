@@ -183,6 +183,26 @@ test('runRegexReplace: an output equal to the input is dropped even if in the co
   assert.deepEqual(runRegexReplace('cat', prepared, corpus(['cat'])), []);
 });
 
+test('runRegexReplace: allowUnlisted keeps an off-list result, array-wrapped for a synthetic score', () => {
+  const prepared = { re: /(cat)/gid, hlRe: null, tokens: parseReplacement('$1z'), allowUnlisted: true };
+  const out = runRegexReplace('cat', prepared, corpus([]));
+  assert.deepEqual(out, [{
+    entry: ['catz'],
+    inputHighlights: [{ start: 0, end: 3, kind: 'search:0' }],
+    outputHighlights: [{ start: 0, end: 3, kind: 'search:0' }],
+  }]);
+});
+
+test('runRegexReplace: allowUnlisted leaves an in-list result a plain string (keeps the real lookup)', () => {
+  const prepared = { re: /(cat)/gid, hlRe: null, tokens: parseReplacement('$1z'), allowUnlisted: true };
+  assert.equal(runRegexReplace('cat', prepared, corpus(['catz']))[0].entry, 'catz');
+});
+
+test('runRegexReplace: allowUnlisted still drops an output equal to the input', () => {
+  const prepared = { re: /cat/gid, hlRe: /(cat)/gid, tokens: parseReplacement('$&'), allowUnlisted: true };
+  assert.deepEqual(runRegexReplace('cat', prepared, corpus([])), []);
+});
+
 test('runSearchReplace: rewrites a literal match and highlights with display coords', () => {
   const prepared = { matcher: { globalRe: /a/gd }, replacement: 'o' };
   const out = runSearchReplace('cat', prepared, corpus(['cot']));
@@ -195,6 +215,21 @@ test('runSearchReplace: rewrites a literal match and highlights with display coo
 
 test('runSearchReplace: drops a result whose norm is absent from the corpus', () => {
   const prepared = { matcher: { globalRe: /a/gd }, replacement: 'o' };
+  assert.deepEqual(runSearchReplace('cat', prepared, corpus([])), []);
+});
+
+test('runSearchReplace: allowUnlisted keeps an off-list result, array-wrapped', () => {
+  const prepared = { matcher: { globalRe: /a/gd }, replacement: 'o', allowUnlisted: true };
+  const out = runSearchReplace('cat', prepared, corpus([]));
+  assert.deepEqual(out, [{
+    entry: ['cot'],
+    inputHighlights: [{ start: 1, end: 2, kind: 'search:0', coord: 'display' }],
+    outputHighlights: [{ start: 1, end: 2, kind: 'search:0', coord: 'display' }],
+  }]);
+});
+
+test('runSearchReplace: allowUnlisted still drops a result that norms back to the input', () => {
+  const prepared = { matcher: { globalRe: /a/gd }, replacement: 'A', allowUnlisted: true };
   assert.deepEqual(runSearchReplace('cat', prepared, corpus([])), []);
 });
 

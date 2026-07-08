@@ -212,7 +212,8 @@ html.light-mode .histogram-rect { opacity: 0.11; }
 .search-bar > .find-replace-caret ~ .tool-row-param-text { padding-left: 6px; }
 .search-bar > .tool-row-param:not(.tool-row-param-text) { margin-left: 12px; }
 .search-bar > .tool-row-asides { margin-left: 12px; }
-.search-bar > .tool-row-replace { grid-column: 4; grid-row: 2; }
+.search-bar > .tool-row-replace > .tool-row-param-text { grid-column: 4; grid-row: 2; padding-left: 6px; }
+.search-bar > .tool-row-replace > .tool-row-asides { grid-column: 5; grid-row: 2; margin-left: 12px; }
 /* Collapse, don't remove: dropping this handle from the grid reshuffles the
    auto-placed columns and misaligns the find-replace row under the input. */
 .search-bar.solo > .drag-handle { width: 0; padding: 0; overflow: hidden; }
@@ -1160,7 +1161,8 @@ body.picker-expanded #picker-backdrop { opacity: 1; }
 .tool-row > .tool-row-param:not(.tool-row-param-text) { margin-left: 12px; }
 .tool-row > .tool-row-asides { margin-left: 12px; }
 .tool-row > .tool-row-remove { grid-column: -2 / -1; margin-left: 12px; }
-.tool-row > .tool-row-replace { grid-column: 4; grid-row: 2; }
+.tool-row > .tool-row-replace > .tool-row-param-text { grid-column: 4; grid-row: 2; padding-left: 6px; }
+.tool-row > .tool-row-replace > .tool-row-asides { grid-column: 5; grid-row: 2; margin-left: 12px; }
 .tool-row:last-child { border-bottom: none; }
 .tool-row.dragging { opacity: 0.4; }
 /* One-shot accent pulse on a newly added tool row — draws the eye to it.
@@ -1187,6 +1189,10 @@ body.picker-expanded #picker-backdrop { opacity: 1; }
 .tool-row-name { font-size: 13px; font-weight: 600; color: var(--text); }
 .tool-row-name-suffix { font-weight: 400; color: var(--muted); }
 .tool-row-asides { display: flex; align-items: center; gap: 6px; }
+/* contents, not a flex box: the replace input must be a grid item in the
+   pattern's own column so their widths track together — a wrapper sizes it
+   independently and it drifts from the pattern by font environment. */
+.tool-row-replace { display: contents; }
 .tool-row-replace[hidden] { display: none; }
 .tool-row-param { display: flex; align-items: center; gap: 4px; min-height: var(--tool-control-h); font-size: 12px; color: var(--muted); }
 .tool-row-param label { display: flex; align-items: center; gap: 5px; white-space: nowrap; cursor: pointer; user-select: none; }

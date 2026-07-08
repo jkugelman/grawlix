@@ -7,6 +7,7 @@ import { buildHelpHTML } from '../../core/util.js';
 // tool's own file.
 
 export const WHOLE_WORD_PARAM = { key: 'whole-word', type: 'checkbox', label: 'Whole word', title: 'Whole word (Alt-W)' };
+export const ALLOW_UNLISTED_PARAM = { key: 'unlisted', type: 'checkbox', replaceScoped: true, label: 'Allow unlisted', title: "Keep replacements that aren't in the wordlist" };
 
 export const SEARCH_HELP = buildHelpHTML([
   ['*', 'any string'],
