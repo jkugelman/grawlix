@@ -1401,6 +1401,8 @@ function encodeGroupEnvelope(g) {
     anchor: g.anchor ? encodeAtom({ wlEntry: g.anchor, highlights: null, glyph: null }) : null,
     _minScore: g._minScore,
     _maxScore: g._maxScore,
+    _minLength: g._minLength,
+    _maxLength: g._maxLength,
     _count: g._count,
   };
 }

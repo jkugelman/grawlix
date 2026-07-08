@@ -64,6 +64,20 @@ test('transform tier: clicking Score opens a menu reaching Min and Max score', a
   expect(await sortState(page)).toEqual({ key: 'max-score', dir: 'desc' });
 });
 
+test('transform tier: the Len column keeps Length and adds the Min/Max length spread', async ({ page }) => {
+  await gotoApp(page);
+  await addFixture(page);
+  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'behead' }]));
+
+  await openColMenu(page, '.col-len');
+  await expect(page.locator('#sort-menu')).toBeVisible();
+  await expect(page.locator('#sort-menu .sort-menu-label')).toHaveText(['Length', 'Min length', 'Max length']);
+
+  await page.locator('#sort-menu .sort-menu-opt[data-key="min-length"]').click();
+  expect(await sortState(page)).toEqual({ key: 'min-length', dir: 'asc' });
+  await expect(page.locator('.col-len .col-sort')).toContainText('↑');
+});
+
 test('group tier: Min/Max score live on the Entries menu; Count sorts on click', async ({ page }) => {
   await gotoApp(page);
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
@@ -79,12 +93,36 @@ test('group tier: Min/Max score live on the Entries menu; Count sorts on click',
   await page.locator('.group-headers .group-count .col-sort').click();
   expect((await sortState(page)).key).toBe('count');
 
-  // A grouped pipeline has no score column, so Min/Max score live on the Entries
-  // menu — guards that the menus cover every axis the tier has.
+  // The group tier has no score/length column, so those aggregate axes live on the
+  // Entries menu — guards that every axis the tier has stays reachable from a column.
   await openColMenu(page, '.group-entries-label');
-  await expect(page.locator('#sort-menu .sort-menu-label')).toHaveText(['Entry', 'Min score', 'Max score']);
+  await expect(page.locator('#sort-menu .sort-menu-label'))
+    .toHaveText(['Entry', 'Min score', 'Max score', 'Min length', 'Max length']);
   await page.locator('#sort-menu .sort-menu-opt[data-key="min-score"]').click();
   expect((await sortState(page)).key).toBe('min-score');
+
+  await openColMenu(page, '.group-entries-label');
+  await page.locator('#sort-menu .sort-menu-opt[data-key="max-length"]').click();
+  expect((await sortState(page)).key).toBe('max-length');
+});
+
+test('tier remap: a Length sort becomes Min length across the group boundary, then back', async ({ page }) => {
+  await gotoApp(page);
+  await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
+    name: 'RemapSort',
+    entries: ['opt', 'pot', 'top', 'act', 'cat', 'dog'],
+    scores:  [50, 40, 30, 60, 20, 70],
+  }));
+
+  await page.locator('.col-len .col-sort').click();
+  expect((await sortState(page)).key).toBe('length');
+
+  // The anchorless group tier has no first-atom Length; the sort lands on its
+  // across-the-row twin Min length, not Count — then collapses back on removal.
+  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'letter_bank', grouped: true }]));
+  expect((await sortState(page)).key).toBe('min-length');
+  await page.evaluate(() => window.__grawlixTest.setStack([]));
+  expect((await sortState(page)).key).toBe('length');
 });
 
 test('keyboard: Enter sorts a single-axis header and opens the menu on a multi-axis one', async ({ page }) => {

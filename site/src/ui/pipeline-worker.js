@@ -471,6 +471,8 @@ function decodeGroupEnvelope(g, sourceById) {
     anchor: g.anchor ? decodeAtom(g.anchor, sourceById).wlEntry : null,
     _minScore: g._minScore,
     _maxScore: g._maxScore,
+    _minLength: g._minLength,
+    _maxLength: g._maxLength,
     _count: g._count,
   };
 }

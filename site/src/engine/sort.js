@@ -29,6 +29,8 @@ import { TOOLS } from './tools.js';
 const rowFirstEntry = r => r.atoms ? r.atoms[0].wlEntry : r;
 export const rowMinScore = r => r.atoms ? Math.min(...r.atoms.map(a => a.wlEntry.score)) : r.score;
 export const rowMaxScore = r => r.atoms ? Math.max(...r.atoms.map(a => a.wlEntry.score)) : r.score;
+export const rowMinLength = r => r.atoms ? Math.min(...r.atoms.map(a => a.wlEntry.norm.length)) : r.norm.length;
+export const rowMaxLength = r => r.atoms ? Math.max(...r.atoms.map(a => a.wlEntry.norm.length)) : r.norm.length;
 // Collate alphabetically on displayOf, not norm: toNorm strips spaces, so a
 // multi-word base ("lather up") would silently sort after its inflections.
 const rowFirstDisplay = r => displayOf(rowFirstEntry(r));
@@ -97,6 +99,22 @@ const SORT_AXES = {
         { project: rowChainTail,                dir: 'asc'  },
       ],
     },
+    'min-length': {
+      label: 'Min length',
+      primary: rowMinLength,
+      tiebreakers: [
+        { project: r => rowLastEntry(r).score, dir: 'desc' },
+        { project: rowLastDisplay,             dir: 'asc'  },
+      ],
+    },
+    'max-length': {
+      label: 'Max length',
+      primary: rowMaxLength,
+      tiebreakers: [
+        { project: r => rowLastEntry(r).score, dir: 'desc' },
+        { project: rowLastDisplay,             dir: 'asc'  },
+      ],
+    },
     'min-score': {
       label: 'Min score',
       primary: rowMinScore,
@@ -157,6 +175,8 @@ export function isValidSortAxis(key) {
 
 export const groupMinScore     = g => g._minScore;
 export const groupMaxScore     = g => g._maxScore;
+export const groupMinLength    = g => g._minLength;
+export const groupMaxLength    = g => g._maxLength;
 export const groupCount        = g => g._count;
 export const groupChainEntries = g => g.chains.map(c => rowFirstDisplay(c));
 
@@ -182,6 +202,22 @@ export const GROUP_SORT_AXES = {
   'max-score': {
     label: 'Max score',
     primary: groupMaxScore,
+    tiebreakers: [
+      { project: groupCount, dir: 'desc' },
+      { project: g => g.key, dir: 'asc'  },
+    ],
+  },
+  'min-length': {
+    label: 'Min length',
+    primary: groupMinLength,
+    tiebreakers: [
+      { project: groupCount, dir: 'desc' },
+      { project: g => g.key, dir: 'asc'  },
+    ],
+  },
+  'max-length': {
+    label: 'Max length',
+    primary: groupMaxLength,
     tiebreakers: [
       { project: groupCount, dir: 'desc' },
       { project: g => g.key, dir: 'asc'  },

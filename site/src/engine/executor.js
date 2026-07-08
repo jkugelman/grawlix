@@ -537,15 +537,21 @@ export async function bucketize(chains, def, ctx, prepared) {
 
 export function cacheGroupStats(g) {
   let min = Infinity, max = -Infinity;
+  let minLen = Infinity, maxLen = -Infinity;
   for (const chain of g.chains) {
     for (const atom of rowAtoms(chain)) {
       const s = atom.wlEntry.score;
       if (s < min) min = s;
       if (s > max) max = s;
+      const len = atom.wlEntry.norm.length;
+      if (len < minLen) minLen = len;
+      if (len > maxLen) maxLen = len;
     }
   }
   g._minScore = min;
   g._maxScore = max;
+  g._minLength = minLen;
+  g._maxLength = maxLen;
   g._count = g.chains.length;
 }
 

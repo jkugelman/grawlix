@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   compareValues, compareItems, columnSortAxes, nextSortForColumn, extendSortList,
-  rowMinScore, rowMaxScore,
+  rowMinScore, rowMaxScore, rowMinLength, rowMaxLength,
 } from '../../site/src/ui/entries-table.js';
 
 test('compareValues: numbers compare numerically (ascending), not lexically', () => {
@@ -143,10 +143,23 @@ test('columnSortAxes: group-anchor maps to entry/length/score (whichever are liv
   assert.deepEqual(columnSortAxes('group-anchor', { length: 1 }), ['length']);
 });
 
-test('columnSortAxes: group-entries owns the cluster min/max-score axes', () => {
+test('columnSortAxes: group-entries owns the cluster min/max score AND length axes', () => {
   assert.deepEqual(
-    columnSortAxes('group-entries', { entry: 1, 'min-score': 1, 'max-score': 1 }),
-    ['entry', 'min-score', 'max-score'],
+    columnSortAxes('group-entries', {
+      entry: 1, 'min-score': 1, 'max-score': 1, 'min-length': 1, 'max-length': 1,
+    }),
+    ['entry', 'min-score', 'max-score', 'min-length', 'max-length'],
+  );
+});
+
+test('columnSortAxes: col-len offers the min/max length spread when the tier has it', () => {
+  assert.deepEqual(
+    columnSortAxes('col-len', { 'min-length': 1, 'max-length': 1 }),
+    ['min-length', 'max-length'],
+  );
+  assert.deepEqual(
+    columnSortAxes('col-len', { length: 1, 'min-length': 1, 'max-length': 1 }),
+    ['length', 'min-length', 'max-length'],
   );
 });
 
@@ -201,6 +214,8 @@ test('extendSortList: does not mutate the input list', () => {
 
 const rowAtom = score => ({ wlEntry: { score } });
 const row = (...scores) => ({ atoms: scores.map(rowAtom) });
+const lenAtom = norm => ({ wlEntry: { norm } });
+const lenRow = (...norms) => ({ atoms: norms.map(lenAtom) });
 
 test('rowMinScore / rowMaxScore: a multi-atom row reduces across every atom', () => {
   const r = row(5, -3, 20, 12);
@@ -220,4 +235,16 @@ test('rowMinScore / rowMaxScore: an empty-atom row degenerates to the Math.min/m
   const r = { atoms: [] };
   assert.equal(rowMinScore(r), Infinity);
   assert.equal(rowMaxScore(r), -Infinity);
+});
+
+test('rowMinLength / rowMaxLength: a multi-atom row reduces norm length across every atom', () => {
+  const r = lenRow('cat', 'anagram', 'be');
+  assert.equal(rowMinLength(r), 2);   // 'be'
+  assert.equal(rowMaxLength(r), 7);   // 'anagram'
+});
+
+test('rowMinLength / rowMaxLength: a bare seed row reads its own norm length for both', () => {
+  const r = { norm: 'crossword' };
+  assert.equal(rowMinLength(r), 9);
+  assert.equal(rowMaxLength(r), 9);
 });

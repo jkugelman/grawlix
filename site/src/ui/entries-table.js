@@ -25,7 +25,7 @@ import {
 import {
   compareItems, compareValues, activeGroupColumns, activeGroupAnchorLabel,
   sortAxes, chainSortTier, DEFAULT_SORT_BY_TIER, isValidSortAxis,
-  isMultiLaneTier, rowMinScore, rowMaxScore,
+  isMultiLaneTier, rowMinScore, rowMaxScore, rowMinLength, rowMaxLength,
 } from '../engine/sort.js';
 import { state, getEditsWordlist } from '../data/state.js';
 import { getTrashScore } from '../data/serialize.js';
@@ -159,23 +159,25 @@ function blockSemicolon(e) {
 // for the router and tests that reach them through this module.
 export {
   compareItems, compareValues, activeGroupColumns,
-  chainSortTier, DEFAULT_SORT_BY_TIER, isValidSortAxis, rowMinScore, rowMaxScore,
+  chainSortTier, DEFAULT_SORT_BY_TIER, isValidSortAxis,
+  rowMinScore, rowMaxScore, rowMinLength, rowMaxLength,
 };
 // An axis with no counterpart in the new tier maps across rather than
-// snapping to the tier default, so a sort survives a tier round-trip.
-// Length↔Count are deliberately paired despite measuring different things —
-// both are descending magnitudes, and it keeps Length from being lost when
-// a group tool toggles.
+// snapping to the tier default, so a sort survives a tier round-trip. Count is
+// the deliberate odd one: group-only with no real twin, it maps to Length
+// one-way — a different thing, but it keeps a magnitude sort alive rather than
+// silently dropping to the tier default when the group dissolves.
 const SORT_AXIS_TIER_MAP = {
   'score': 'min-score', 'min-score': 'score', 'max-score': 'score',
-  'length': 'count', 'count': 'length',
+  'length': 'min-length', 'min-length': 'length', 'max-length': 'length',
+  'count': 'length',
 };
 
 // Order is load-bearing: the first surviving axis is the column's canonical
 // pick, consumed far away as nextSortForColumn's ownedAxes[0].
 const COLUMN_AXIS_CANDIDATES = {
   'col-entry':     ['entry'],
-  'col-len':       ['length'],
+  'col-len':       ['length', 'min-length', 'max-length'],
   'col-score':     ['score', 'min-score', 'max-score'],
   'col-comment':   ['comment'],
   'group-count':   ['count'],
@@ -183,7 +185,7 @@ const COLUMN_AXIS_CANDIDATES = {
   // 'entry' is conditional: an anchor owns the entry axis, so the group branch
   // drops it from this column then (see buildEntryHeadersHTML) — else both columns
   // double-own it.
-  'group-entries': ['entry', 'min-score', 'max-score'],
+  'group-entries': ['entry', 'min-score', 'max-score', 'min-length', 'max-length'],
 };
 export function columnSortAxes(colKind, tierAxes) {
   return (COLUMN_AXIS_CANDIDATES[colKind] || []).filter(k => k in tierAxes);

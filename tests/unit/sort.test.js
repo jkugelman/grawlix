@@ -52,6 +52,25 @@ test('sortGroups: chains stay in the designed seed order under a score filter', 
   assert.deepEqual(norms(sorted[0]), ['mango', 'zebra']); // not ['zebra','mango']
 });
 
+// The two clusters' min- and max-length disagree, so min-length and max-length
+// sorts order them oppositely. A same-spread fixture would pass even if both axes
+// read the same aggregate, or if _minLength/_maxLength never reached the group.
+function lengthGroups() {
+  const wide = { key: 'wide', anchor: null, chains: [chain('ab', 50), chain('abcde', 50)] };  // len 2..5
+  const mid  = { key: 'mid',  anchor: null, chains: [chain('abc', 50), chain('abcd', 50)] };   // len 3..4
+  cacheGroupStats(wide);
+  cacheGroupStats(mid);
+  return [wide, mid];
+}
+
+test('sortGroups: Min length and Max length read the cluster length spread independently', () => {
+  const keys = groups => groups.map(g => g.key);
+  const byMin = sortGroups(lengthGroups(), [{ key: 'min-length', dir: 'asc' }], GROUP_STACK);
+  assert.deepEqual(keys(byMin), ['wide', 'mid']);   // min 2 < min 3
+  const byMax = sortGroups(lengthGroups(), [{ key: 'max-length', dir: 'asc' }], GROUP_STACK);
+  assert.deepEqual(keys(byMax), ['mid', 'wide']);   // max 4 < max 5
+});
+
 test('single Entry sort: a multi-word base leads its inflections, collated on display not stripped norm', () => {
   // Regression: norm "latherup" collates after "lathersup", burying the base at
   // the family tail; the display's space sorts ahead of any letter, so it leads.
