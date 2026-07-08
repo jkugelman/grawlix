@@ -71,22 +71,20 @@ test.describe('Stats bar layout', () => {
     await gotoApp(page);
     await seedWordlist(page);
 
-    // Breakpoint widths are font-metric-dependent — they shift between rendering
-    // environments. Assert the hide priority, never a specific width; pinning one
-    // reintroduces a flake that only surfaces under a different font.
-    const widths = [1280, 1040, 880, 760, 680, 620, 560, 500, 460, 420, 380, 340];
-    const samples = [];
+    const shown = key => async () => (await statsBarBoxes(page))[key] !== null;
+
+    // Poll the terminal visibility, not the old settle heuristic: under a slow cold load
+    // the ResizeObserver fires late and "stable for N reads" reads a stale value (the flake).
+    await expect.poll(shown('histogram')).toBe(true);
+    await expect.poll(shown('scores')).toBe(true);
+
+    // Font-metric-dependent breakpoints shift between environments, so assert the hide
+    // priority (histogram sheds, score filter never does), never a specific width.
+    const widths = [1040, 880, 760, 680, 620, 560, 500, 460, 420, 380, 340];
     for (const width of widths) {
       await page.setViewportSize({ width, height: 800 });
-      samples.push({ width, ...(await settledStatsVisibility(page)) });
+      await expect.poll(shown('scores')).toBe(true);
     }
-
-    // Wide: both present. Narrow: the histogram is gone.
-    expect(samples.at(0)).toMatchObject({ histogram: true, scores: true });
-    expect(samples.at(-1).histogram).toBe(false);
-
-    // The score filter is load-bearing — it stays at every width, so it never
-    // sheds before the histogram (which is the only thing the cascade hides here).
-    for (const s of samples) expect(s.scores).toBe(true);
+    await expect.poll(shown('histogram'), { timeout: 15000 }).toBe(false);
   });
 });
