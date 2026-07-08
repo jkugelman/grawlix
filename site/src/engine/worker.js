@@ -1869,25 +1869,6 @@ async function handleMergeDisk({ requestId, fileText, conflictChoice }) {
   });
 }
 
-async function handleFlushEdits({ requestId }) {
-  const edits = editsWordlist();
-  if (!edits) {
-    postMessage({ type: 'flushResult', requestId, text: null, changed: false });
-    return;
-  }
-  const text = serializeEntries(sortedEntries(edits.rawEntries));
-  const brec = await idbGet(SYNC_WORKER_PREFIX + edits.dbKey);
-  // `?? ''` preserves _flushWrite's dedup against the connect-seeded '' baseline:
-  // a no-change flush (text === baseline) writes nothing.
-  const baseline = brec?.baseline ?? '';
-  if (text === baseline) {
-    postMessage({ type: 'flushResult', requestId, text, changed: false });
-    return;
-  }
-  await idbPut(SYNC_WORKER_PREFIX + edits.dbKey, { baseline: text });
-  postMessage({ type: 'flushResult', requestId, text, changed: true });
-}
-
 // ─── Fetch content-diff ── see docs/worker-protocol.md ──────────────────────
 
 // Only ADD/DELETE changes drive the cost: a rescore splices in place (equal-length
@@ -2310,10 +2291,6 @@ onmessage = ({ data }) => {
 
     case 'mergeDisk':
       handleMergeDisk(data);
-      break;
-
-    case 'flushEdits':
-      handleFlushEdits(data);
       break;
 
     case 'applyFetched':

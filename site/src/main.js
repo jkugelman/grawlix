@@ -29,7 +29,7 @@ import {
 } from './ui/rescore-editor.js';
 import { WordlistSelector, renderSyncIndicators } from './ui/scope-selector.js';
 import { renderFetchStatus } from './ui/fetch-status.js';
-import { configurePipelineWorker, fetchWorkerSerialize, fetchWorkerMergeDisk, fetchWorkerFlushEdits } from './ui/pipeline-worker.js';
+import { configurePipelineWorker, fetchWorkerSerialize, fetchWorkerMergeDisk } from './ui/pipeline-worker.js';
 import { configureManagePanel, ManagePanel } from './ui/manage-panel.js';
 import { configureDiscoveryBanner, DiscoveryBanner } from './ui/discovery-banner.js';
 import {
@@ -171,7 +171,6 @@ function boot() {
   // Injected (not imported) so data/disk-sync stays off the ui/ worker client.
   configureEditsMerger({
     mergeDisk: (fileText, choice) => fetchWorkerMergeDisk(fileText, choice),
-    flushEdits: () => fetchWorkerFlushEdits(),
   });
 
   // App-shell components must exist before init()'s renderAll: the render

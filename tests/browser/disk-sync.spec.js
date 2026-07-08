@@ -318,3 +318,23 @@ test('outbound flush: a local edit pushes to the file and advances the baseline;
   await page.evaluate(() => window.__grawlixTest.sync.flushWrites());
   expect(await page.evaluate(() => window.__fakeFS.files.get('edits.txt').mtime)).toBe(mtimeBefore);
 });
+
+test('outbound flush merges a concurrent external edit instead of clobbering it', async ({ page }) => {
+  await gotoApp(page);
+  await writeFile(page, 'edits.txt', 'ABLE;50\n');
+  await setNextName(page, 'edits.txt');
+  await page.evaluate(() => window.__grawlixTest.sync.attachEditsExisting());
+  const key = await editsKey(page);
+
+  await page.evaluate(() => window.__grawlixTest.saveMyEdit('ABLE', 'ABLE', 80, ''));  // local edit, arms the flush
+  await writeFile(page, 'edits.txt', 'ABLE;50\nZEBRA;30\n');                            // external editor adds ZEBRA
+
+  // Fire the armed write with the file externally changed: a blind push would drop
+  // ZEBRA (write only the corpus) and advance the baseline past it — the silent loss.
+  await page.evaluate(() => window.__grawlixTest.sync.flushWrites());
+
+  const merged = 'ABLE;80\nZEBRA;30\n';
+  expect(await readFile(page, 'edits.txt')).toBe(merged);
+  expect(await workerBaseline(page, key)).toEqual({ baseline: merged });
+  expect(await mainEntries(page)).toEqual(['able', 'zebra']);
+});

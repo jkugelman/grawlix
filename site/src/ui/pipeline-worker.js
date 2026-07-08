@@ -985,23 +985,6 @@ export function sendFreeDiff(diffId) {
   if (diffId != null) getWorker().postMessage({ type: 'freeDiff', diffId });
 }
 
-let flushEditsRequestId = 0;
-export function fetchWorkerFlushEdits(timeout = 5000) {
-  const w = getWorker();
-  const requestId = ++flushEditsRequestId;
-  return new Promise(resolve => {
-    const timer = setTimeout(() => { w.removeEventListener('message', onMessage); resolve(null); }, timeout);
-    function onMessage({ data }) {
-      if (data?.type !== 'flushResult' || data.requestId !== requestId) return;
-      clearTimeout(timer);
-      w.removeEventListener('message', onMessage);
-      resolve({ text: data.text, changed: data.changed });
-    }
-    w.addEventListener('message', onMessage);
-    w.postMessage({ type: 'flushEdits', requestId });
-  });
-}
-
 // ─── Windowed row fetch bridge (test) ── see docs/worker-protocol.md ─────────
 let fetchRowsRequestId = 0;
 export function lastCompletedRunId() { return lastResultRunId; }

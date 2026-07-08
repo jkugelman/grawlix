@@ -37,9 +37,9 @@ export function configureMirrorSerializer(fn) { _mirrorSerializer = fn; }
 
 // Injected like the dialog/serializer hooks above: the worker runs the My Edits
 // 3-way merge (it holds the corpus + baseline), and data/ can't import ui/, so the
-// app layer injects the bridge. mergeDisk = inbound (file → corpus); flushEdits =
-// outbound (corpus → file).
-let _editsMerger = { mergeDisk: async () => null, flushEdits: async () => null };
+// app layer injects the bridge. Both sync directions route through mergeDisk — the
+// outbound push is a reconcile against the unchanged file (see _flushWrite).
+let _editsMerger = { mergeDisk: async () => null };
 export function configureEditsMerger(fns) { _editsMerger = fns; }
 
 // key → { handle }. The My Edits 3-way-merge baseline lives in the worker's
@@ -253,20 +253,17 @@ const EditsSync = {
     clearTimeout(this._writeTimer);
     this._writeTimer = setTimeout(() => this._flushWrite(), MIRROR_WRITE_DELAY);
   },
+  // Route the push through the 3-way merge, not a blind write: overwriting a file that
+  // diverged externally since the baseline clobbers it and advances the baseline past
+  // the change — silent data loss. Serialized with the poll via _reconcileInFlight; if
+  // the poll holds it, re-arm rather than drop, else (the poll reconciles only on an
+  // external change) the local edit sits unflushed until the next one.
   async _flushWrite() {
-    const key = editsSyncKey();
-    const t = syncTargets.get(key);
-    if (!t) return;
-    const res = await _editsMerger.flushEdits();
-    if (!res?.changed) return;
-    SyncStatus.set(key, 'writing');
-    try {
-      await this._ownWrite(res.text);
-      SyncStatus.set(key, 'synced');
-    } catch (err) {
-      console.error('My Edits file write failed', err);
-      SyncStatus.set(key, 'unavailable');
-    }
+    if (!syncTargets.get(editsSyncKey())) return;
+    if (this._reconcileInFlight) { this.scheduleWrite(); return; }
+    this._reconcileInFlight = true;
+    try { await this.reconcile(); }
+    finally { this._reconcileInFlight = false; }
   },
   // `_held` skips ticks for the whole write so the watcher can't read a half-written
   // file; `_ownWritePending` consumes the mtime bump the write causes so the next
