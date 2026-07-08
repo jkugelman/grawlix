@@ -526,9 +526,9 @@ export function matchesPattern(word, pattern, constraints) {
 }
 
 // Where each variable occurrence sits in a matched word (`[{ name, start, len }]`),
-// for Umiaq's per-variable highlight colors. A pattern with more than one `*`
-// leaves the offsets under-determined — the stars' split isn't recoverable from the
-// assignment — so it yields no ranges rather than wrong ones; a single `*` takes the slack.
+// for Umiaq's per-variable highlight colors. A single star's slack is recoverable
+// from the token widths, but two or more leave the split under-determined by the
+// assignment alone — hence the regex fallback below rather than the offset walk.
 export function variableRanges(word, pattern, assignment) {
   const tokens = pattern.tokens;
   if (tokens.length === 1 && tokens[0].t === 'anagram') return [];
@@ -539,7 +539,7 @@ export function variableRanges(word, pattern, assignment) {
     else if (t.t === 'var' || t.t === 'rev') fixed += assignment[t.name].length;
     else fixed += 1;   // dot | class
   }
-  if (stars > 1) return [];
+  if (stars > 1) return variableRangesByRegex(word, tokens, assignment);
   const starLen = word.length - fixed;
   if (stars === 1 && starLen < 0) return [];
   const ranges = [];
@@ -552,6 +552,35 @@ export function variableRanges(word, pattern, assignment) {
       ranges.push({ name: t.name, start: off, len });
       off += len;
     } else off += 1;   // dot | class
+  }
+  return ranges;
+}
+
+// Any placement the lazy `.*?` stars settle on is a correct highlight — the variable
+// letters are identical whichever split the engine picks. Kept off the ≤1-star path
+// deliberately: a regex compiled per matched word is far pricier than the offset
+// walk, and that path is hot (a broad filter runs this per matching entry).
+function variableRangesByRegex(word, tokens, assignment) {
+  let src = '';
+  const names = [];
+  for (const t of tokens) {
+    if (t.t === 'lit') src += escapeRegex(t.s);
+    else if (t.t === 'dot') src += '.';
+    else if (t.t === 'star') src += '.*?';
+    else if (t.t === 'class') src += t.src;
+    else if (t.t === 'var' || t.t === 'rev') {
+      const val = t.t === 'rev' ? reverse(assignment[t.name]) : assignment[t.name];
+      names.push(t.name);
+      src += '(' + escapeRegex(val) + ')';
+    }
+  }
+  let m;
+  try { m = new RegExp('^' + src + '$', 'ud').exec(word); } catch { return []; }
+  if (!m) return [];
+  const ranges = [];
+  for (let g = 0; g < names.length; g++) {
+    const idx = m.indices[g + 1];
+    if (idx) ranges.push({ name: names[g], start: idx[0], len: idx[1] - idx[0] });
   }
   return ranges;
 }

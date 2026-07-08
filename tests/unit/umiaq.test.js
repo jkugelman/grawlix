@@ -325,8 +325,13 @@ test('variableRanges: a literal and a single star offset the variable', () => {
   assert.deepEqual(rangesFor('A*', 'hello', { A: 'he' }), [{ name: 'A', start: 0, len: 2 }]);
 });
 
-test('variableRanges: more than one star is ambiguous — no ranges', () => {
-  assert.deepEqual(rangesFor('*A*', 'banana', { A: 'an' }), []);
+test('variableRanges: two stars resolve via regex placement (leftmost)', () => {
+  assert.deepEqual(rangesFor('*A*', 'banana', { A: 'an' }), [{ name: 'A', start: 1, len: 2 }]);
+  assert.deepEqual(rangesFor('*ABCDAB*', 'xxabcdabyy', { A: 'a', B: 'b', C: 'c', D: 'd' }), [
+    { name: 'A', start: 2, len: 1 }, { name: 'B', start: 3, len: 1 },
+    { name: 'C', start: 4, len: 1 }, { name: 'D', start: 5, len: 1 },
+    { name: 'A', start: 6, len: 1 }, { name: 'B', start: 7, len: 1 },
+  ]);
 });
 
 test('find: tuples carry per-variable highlight ranges, stable color per variable', async () => {
