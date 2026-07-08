@@ -839,12 +839,14 @@ function transformJoinRows(join) {
 
 // ─── Pipeline caches ── see docs/worker-protocol.md § result, prefix & partial caches ─
 const RESULT_CACHE_MIN_MS = 1000;                     // below this, regenerating beats retaining
-const RESULT_CACHE_MAX_ENTRY_BYTES = 8 * 1024 * 1024; // jetsam prices peak bytes not time saved, so refuse any single entry too large
-const RESULT_CACHE_MAX_BYTES = 32 * 1024 * 1024;      // shared pool byte budget
+const RESULT_CACHE_MAX_BYTES = 32 * 1024 * 1024;      // shared pool byte budget; also the per-entry ceiling
 const BYTES_PER_FLAT_INDEX = 8;                     // a flat join row is one index into the shared corpus
 const BYTES_PER_JOIN_ATOM = 80;                     // an atom wrapper + amortized chain/group overhead; the wlEntry it points at is shared with the corpus, uncounted
 
-const admissionOpts = { minMs: RESULT_CACHE_MIN_MS, maxEntryBytes: RESULT_CACHE_MAX_ENTRY_BYTES };
+// Per-entry ceiling = the pool budget, so any single entry that could fit is admitted — a
+// minute-long Umiaq join is worth keeping, not jetsam to refuse for its size. The budget stays
+// a hard cap: an entry that can't fit the pool at all is still refused.
+const admissionOpts = { minMs: RESULT_CACHE_MIN_MS, maxEntryBytes: RESULT_CACHE_MAX_BYTES };
 const pipelineCache = new GdsCache({ maxBytes: RESULT_CACHE_MAX_BYTES });
 const finishedCache = new RoleCache(pipelineCache, 'finished', admissionOpts);
 const prefixCache = new RoleCache(pipelineCache, 'prefix', admissionOpts);
