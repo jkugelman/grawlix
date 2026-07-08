@@ -4,7 +4,7 @@ import { MERGED_ID } from '../core/constants.js';
 import { canonicalNormRow } from './snapshot.js';
 import { TOOLS, makeToolRow } from './tools.js';
 import { executePipeline, configureExecutorYield, lastPipelineSeedFrom, bottomLineAtoms, applyScoreRangeToRows, rowLastEntry, rowAtoms, collapseRepeatAtoms, streamPlan, cacheGroupStats, currentAtomCount } from './executor.js';
-import { GdsCache } from './gds-cache.js';
+import { GdsCache, RoleCache } from './gds-cache.js';
 import { sortGroups, sortChainRows, activeGroupRow, groupRowComparator, chainRowComparator, chainSortTier, DEFAULT_SORT_BY_TIER } from './sort.js';
 import { configureIO as configureSegmenterIO } from './segmenter.js';
 import { configureIO as configurePhoneticsIO } from './phonetics.js';
@@ -840,24 +840,26 @@ function transformJoinRows(join) {
 // ─── Pipeline caches ── see docs/worker-protocol.md § result, prefix & partial caches ─
 const RESULT_CACHE_MIN_MS = 1000;                     // below this, regenerating beats retaining
 const RESULT_CACHE_MAX_ENTRY_BYTES = 8 * 1024 * 1024; // jetsam prices peak bytes not time saved, so refuse any single entry too large
-const RESULT_CACHE_MAX_BYTES = 32 * 1024 * 1024;      // per-cache byte budget
+const RESULT_CACHE_MAX_BYTES = 32 * 1024 * 1024;      // shared pool byte budget
 const BYTES_PER_FLAT_INDEX = 8;                     // a flat join row is one index into the shared corpus
 const BYTES_PER_JOIN_ATOM = 80;                     // an atom wrapper + amortized chain/group overhead; the wlEntry it points at is shared with the corpus, uncounted
 
-const cacheOpts = { minMs: RESULT_CACHE_MIN_MS, maxEntryBytes: RESULT_CACHE_MAX_ENTRY_BYTES, maxBytes: RESULT_CACHE_MAX_BYTES };
-const finishedCache = new GdsCache(cacheOpts);
-const prefixCache = new GdsCache(cacheOpts);
+const admissionOpts = { minMs: RESULT_CACHE_MIN_MS, maxEntryBytes: RESULT_CACHE_MAX_ENTRY_BYTES };
+const pipelineCache = new GdsCache({ maxBytes: RESULT_CACHE_MAX_BYTES });
+const finishedCache = new RoleCache(pipelineCache, 'finished', admissionOpts);
+const prefixCache = new RoleCache(pipelineCache, 'prefix', admissionOpts);
 // The shared 1s floor doubles as the partial cache's admission gate — a keystroke-transient
 // aborts below it, so admit() refuses the per-keystroke flood. Don't add a rows/time heuristic.
-const partialCache = new GdsCache(cacheOpts);
-let cacheHits = 0, cacheMisses = 0;       // finished-cache telemetry (__testResultCacheState)
-let prefixHits = 0, prefixMisses = 0;     // prefix-cache telemetry (__testPrefixCacheState)
-let partialHits = 0, partialStashes = 0;  // partial-cache telemetry (__testPartialCacheState)
+const partialCache = new RoleCache(pipelineCache, 'partial', admissionOpts);
+let cacheHits = 0, cacheMisses = 0;       // finished-role telemetry (__testResultCacheState)
+let prefixHits = 0, prefixMisses = 0;     // prefix-role telemetry (__testPrefixCacheState)
+let partialHits = 0, partialStashes = 0;  // partial-role telemetry (__testPartialCacheState)
 
 // Keys all three caches. Excludes the view fields (sort, score-range) — they reproject on a
 // hit — and KEEPS the trailing search row (a prefix key is a stack SLICE, so the search
-// row is present when the slice reaches it). A finished/partial key spans the full stack; the
-// three live in separate maps so an equal-string full-stack and prefix key never collide.
+// row is present when the slice reaches it). A finished/partial key spans the full stack, a
+// prefix key a slice; the RoleCache role tag is what keeps an equal-string full-stack and
+// prefix key from colliding now that all three roles share one pool.
 function resultCacheKey(serialized, scope) {
   return scope + '\n' + JSON.stringify(serialized);
 }
@@ -1022,24 +1024,18 @@ function stashPartialOnAbort(runId, serialized, scope, t0, genAtStart) {
 // scope's does not. ownedMerged is already the new build at every setOwnedCorpus site.
 function purgeDiscardedCacheEntries() {
   const gone = e => e.corpus !== ownedMerged && e.corpus !== ownedCorpus;
-  finishedCache.purge(gone);
-  prefixCache.purge(gone);
-  partialCache.purge(gone);
+  pipelineCache.purge(gone);
 }
 
 // An in-place splice that swapped row objects (replaced===true) leaves the corpus OBJECT
 // identical, so the identity test can't catch it — purge that corpus's entries directly.
 function purgeCacheForCorpus(corpus) {
   const bound = e => e.corpus === corpus;
-  finishedCache.purge(bound);
-  prefixCache.purge(bound);
-  partialCache.purge(bound);
+  pipelineCache.purge(bound);
 }
 
 function clearResultCache() {
-  finishedCache.clear();
-  prefixCache.clear();
-  partialCache.clear();
+  pipelineCache.clear();
 }
 
 // The above-the-fold window shipped inline with every flat result. Generous
