@@ -3,7 +3,7 @@
 import { MERGED_ID } from '../core/constants.js';
 import { canonicalNormRow } from './snapshot.js';
 import { TOOLS, makeToolRow } from './tools.js';
-import { executePipeline, configureExecutorYield, lastPipelineSeedFrom, bottomLineAtoms, applyScoreRangeToRows, rowLastEntry, rowAtoms, collapseRepeatAtoms, streamPlan, cacheGroupStats, currentAtomCount } from './executor.js';
+import { executePipeline, configureExecutorYield, lastPipelineSeedFrom, lastPipelineTailMs, bottomLineAtoms, applyScoreRangeToRows, rowLastEntry, rowAtoms, collapseRepeatAtoms, streamPlan, cacheGroupStats, currentAtomCount } from './executor.js';
 import { GdsCache, RoleCache } from './gds-cache.js';
 import { sortGroups, sortChainRows, activeGroupRow, groupRowComparator, chainRowComparator, chainSortTier, DEFAULT_SORT_BY_TIER } from './sort.js';
 import { configureIO as configureSegmenterIO } from './segmenter.js';
@@ -303,7 +303,7 @@ async function runOne({ runId, stack: serialized, sort, scope, existsQuery, scor
   }
 
   const { tier: rtier, r } = postResult(runId, out, viewSpec, scope, stack, existsQuery, rebindQuery, streamState.streamed);
-  admitResultToCache(cacheKey, rtier, r, out, scope, performance.now() - t0);
+  admitResultToCache(cacheKey, rtier, r, out, scope, lastPipelineTailMs());
 }
 
 // Refresh-on-consent's fast path for a FLAT displayed result: re-derive the join over
@@ -900,7 +900,8 @@ function cacheEntryValid(entry) {
 }
 
 // Terminal-only (finished, non-superseded). `corpus` is the serve-time identity anchor —
-// the sole proof of non-staleness; the floor/ceiling/eviction live in GdsCache.admit.
+// the sole proof of non-staleness; the floor/ceiling live in RoleCache.admit, eviction in the
+// pool. `elapsed` is the caller's derive-from-tile tail, so a tile-cheap result stays out.
 function admitResultToCache(key, tier, r, out, scope, elapsed) {
   if (!ownedCorpusFresh || ownedScope !== scope) return;   // only bind a resident, scope-matched corpus
   const corpus = scope === MERGED_ID ? ownedMerged : ownedCorpus;

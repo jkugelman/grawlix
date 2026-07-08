@@ -221,6 +221,13 @@ export class ToolStageError extends Error {
 let _lastSeedFrom = 0;
 export function lastPipelineSeedFrom() { return _lastSeedFrom; }
 
+// Wall time from the last prefix-tile cut through to the finished result — the cost to
+// re-derive that result from the longest tile. The finished cache admits on THIS, not the
+// whole run, so a result cheap to derive from a tile (expensive producer, cheap terminal)
+// isn't stored redundantly. No cut → the whole run, so an untileable expensive terminal caches.
+let _lastTailMs = 0;
+export function lastPipelineTailMs() { return _lastTailMs; }
+
 // A shallow clone of the inter-stage state: new group objects sharing the chain arrays by
 // reference. Safe because a downstream stage REPLACES g.chains rather than mutating it in
 // place, so the clone never sees a later stage's edits — the discipline that lets a cached
@@ -274,6 +281,7 @@ export async function executePipeline(mergedWordlist, stack, signal, emit = null
   // tiling). The loop reaches the pre-search boundary (prefixLen userStackLen) like any
   // other, so a keystroke reuses the whole user stack and adding a row on top reuses it too.
   let acc = 0;
+  let tailStart = performance.now();   // reset at each cut, so it ends up marking the LAST tile boundary
   for (let i = from; i < userStackLen; i++) {
     const stackRow = stack[i];
     const t0 = performance.now();
@@ -283,6 +291,7 @@ export async function executePipeline(mergedWordlist, stack, signal, emit = null
     if (resume?.offer && acc >= resume.floorMs) {
       resume.offer(i + 1, cloneState(state), acc);
       acc = 0;
+      tailStart = performance.now();
     }
   }
 
@@ -309,6 +318,7 @@ export async function executePipeline(mergedWordlist, stack, signal, emit = null
     if (y.due()) await y.yield();
   }
 
+  _lastTailMs = performance.now() - tailStart;
   return {
     rows: multiLane ? result : (result[0]?.chains ?? []),
     atomCount: currentAtomCount(stack),

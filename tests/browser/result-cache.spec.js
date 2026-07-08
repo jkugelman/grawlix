@@ -76,6 +76,26 @@ test('the recompute-time floor gates admission: nothing is cached below it', asy
   expect(floored.size).toBe(1);
 });
 
+test('a result a prefix tile makes cheap to reproduce is not stored redundantly', async ({ page }) => {
+  await gotoApp(page);
+  await seedBirds(page);
+
+  await page.evaluate(() => {
+    window.__grawlixTest.configurePrefixCacheForTest({ minMs: 0 });     // tile every producer boundary
+    window.__grawlixTest.configureResultCacheForTest({ minMs: 100 });   // above the finished result's cheap tail
+  });
+
+  await runStack(page, [
+    { tool: 'search', params: { pattern: '[aeiou]' } },
+    { tool: 'search', params: { pattern: '[bcr]' } },
+    { tool: 'search', params: { pattern: '' } },
+  ]);
+
+  const prefix = await page.evaluate(() => window.__grawlixTest.prefixCacheState());
+  expect(prefix.size).toBeGreaterThanOrEqual(1);   // the prefix boundary is kept
+  expect((await cacheState(page)).size).toBe(0);   // ... the derivable finished result is not
+});
+
 test('a rescore-rule edit invalidates the entry — the re-run misses and serves fresh scores', async ({ page }) => {
   await gotoApp(page);
   await seedBirds(page);
