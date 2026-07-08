@@ -588,6 +588,10 @@ const __grawlixTest = {
       for (const [key, id] of [...MirrorSync._timers]) { clearTimeout(id); MirrorSync._timers.delete(key); await MirrorSync._flush(key); }
       if (EditsSync._writeTimer) { clearTimeout(EditsSync._writeTimer); EditsSync._writeTimer = null; await EditsSync._flushWrite(); }
     },
+    cancelPendingWrites() {
+      for (const [key, id] of [...MirrorSync._timers]) { clearTimeout(id); MirrorSync._timers.delete(key); }
+      if (EditsSync._writeTimer) { clearTimeout(EditsSync._writeTimer); EditsSync._writeTimer = null; }
+    },
     flushMerged() { return MirrorSync._flush(MERGED_ID); },
     flushSource(name) { return MirrorSync._flush(syncKey(this._list(name))); },
     migrateIdbRecords(from) { return migrateIdbRecords(from); },

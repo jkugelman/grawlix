@@ -252,6 +252,10 @@ test('conflict two-phase: choosing file vs device resolves deterministically', a
 
     // Diverge BOTH sides from the baseline=ABLE;50 on the SAME norm → a real conflict.
     await page.evaluate(() => window.__grawlixTest.saveMyEdit('ABLE', 'ABLE', 80, ''));  // device side
+    // Disarm the edit's debounced outbound write: left armed it fires (on slow webkit)
+    // before the reconcile, clobbering the file back to 80 and advancing the baseline,
+    // which erases the conflict this test sets up — the webkit flake (got 80).
+    await page.evaluate(() => window.__grawlixTest.sync.cancelPendingWrites());
     await writeFile(page, 'edits.txt', 'ABLE;90\n');                                     // file side
     await page.evaluate(c => window.__grawlixTest.sync.setConflictResolver(c), choice);
     await page.evaluate(() => window.__grawlixTest.sync.reconcileEdits());
@@ -265,9 +269,9 @@ test('conflict two-phase: choosing file vs device resolves deterministically', a
   }
 });
 
-// The case above hit a syncConfig's async-rebuild gap (corpus freed, not yet rebuilt)
-// only on slow webkit; this forces it deterministically — keep both. Pre-fix the merge
-// no-opped in the gap and `able` kept the device 80.
+// Distinct from the conflict test above: this forces the syncConfig async-rebuild gap
+// (corpus freed, not yet rebuilt) deterministically, which that test only reached
+// flakily. Pre-fix the merge no-opped in the gap and `able` kept the device 80.
 test('a conflict reconcile in a syncConfig rebuild gap still applies the file choice', async ({ page }) => {
   await gotoApp(page);
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({ name: 'Src', scores: [50], entries: ['ZEBRA'] }));
