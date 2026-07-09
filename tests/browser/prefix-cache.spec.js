@@ -4,7 +4,7 @@ import { stubPublisherFetches, gotoApp } from './helpers.js';
 // The prefix-state cache: a run resumes from the longest cached prefix and reruns only
 // the suffix, so iterating on a pipeline (add / edit / remove / revert a tool, type in the
 // search bar) reuses the untouched expensive work. It drops the moment the corpus changes
-// under it. See docs/planned/result-cache-followons.md §2 (shipped) and docs/worker-protocol.md
+// under it. See design.md § Streaming results and docs/worker-protocol.md
 // § prefixCache. The real recompute floor keeps it inert under these sub-ms queries, so each
 // test drops it via configurePrefixCacheForTest({ minMs: 0 }). These tests exercise the real
 // worker end-to-end (the executor-level byte-identity + tiling proofs are in the unit tier).
