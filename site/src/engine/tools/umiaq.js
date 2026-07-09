@@ -1,13 +1,19 @@
 'use strict';
 
 import { buildHelpHTML } from '../../core/util.js';
+import { UMIAQ_CAP_MOBILE } from '../../core/constants.js';
 import { parseUmiaqQuery, matchPattern, findTuples, variableColors, variableHighlights } from '../umiaq.js';
 
-// Memory ceiling, not a UX cap: Umiaq streams every tuple it finds, but the
-// worker retains the full list for scrollback, so a fully unbounded broad query
-// would blow memory. Sized past any realistic result set; a long run is bounded
-// by streaming + cancel-on-edit, not by this.
-const UMIAQ_MAX_RESULTS = 99_999;
+// Memory ceiling, not a UX cap: the worker retains every streamed tuple for
+// scrollback, so an unbounded broad query would blow memory. Defaults to the
+// conservative mobile cap, raised on desktop at boot. The default must be the SAFE
+// one: the worker can't detect mobile itself (no window.matchMedia), so a missed
+// boot message has to under-retain, not over-retain into an iOS reload.
+let umiaqMaxResults = UMIAQ_CAP_MOBILE;
+
+export function configureUmiaq({ maxResults } = {}) {
+  if (Number.isFinite(maxResults) && maxResults > 0) umiaqMaxResults = maxResults;
+}
 
 export const UMIAQ_HELP = buildHelpHTML([
   ['a–z', 'a literal letter'],
@@ -62,6 +68,6 @@ export default {
     return variableHighlights(entry, parsed.bindings[0], matches[0], parsed.varColor);
   },
   findTuples(pool, parsed, ctx) {
-    return findTuples(parsed, pool, { numResults: UMIAQ_MAX_RESULTS, onBatch: ctx.onBatch, y: ctx.y, signal: ctx.signal });
+    return findTuples(parsed, pool, { numResults: umiaqMaxResults, onBatch: ctx.onBatch, y: ctx.y, signal: ctx.signal });
   },
 };

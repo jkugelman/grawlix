@@ -28,7 +28,7 @@ import rhymes from './tools/rhymes.js';
 import space_out from './tools/space_out.js';
 import search from './tools/search.js';
 import regex from './tools/regex.js';
-import umiaq from './tools/umiaq.js';
+import umiaq, { configureUmiaq } from './tools/umiaq.js';
 import initialisms, { wordSplits } from './tools/initialisms.js';
 import behead from './tools/behead.js';
 import curtail from './tools/curtail.js';
@@ -40,7 +40,7 @@ import dead_center from './tools/dead_center.js';
 import rebus from './tools/rebus.js';
 import { WHOLE_WORD_PARAM, reverseString, sortLetters } from './tools/shared.js';
 
-export { WHOLE_WORD_PARAM, reverseString, sortLetters, consonantSkeleton, vowelSkeleton, wordSplits, caesarKey, caesarShift, patternKey };
+export { WHOLE_WORD_PARAM, reverseString, sortLetters, consonantSkeleton, vowelSkeleton, wordSplits, caesarKey, caesarShift, patternKey, configureUmiaq };
 
 export const TOOL_CATEGORIES = [
   { id: 'anagram',    label: 'Anagram' },

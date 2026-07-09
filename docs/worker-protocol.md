@@ -172,6 +172,9 @@ Messages on one `Worker` are **FIFO**, which gives ordering for free (a `setScop
 `{ type: 'preload-asset', asset }` — **warm one data asset.** Fired by main when a tool that declares `def.asset` is added to the stack (Space-out → `'unigrams'`), so the asset is fetching before the first keystroke rather than blocking the first `prepare`. `asset` is the logical key (`DATA_ASSETS[].key`). Fire-and-forget; no reply.
 - **On receipt:** `getDataAsset(asset)?.load()` (errors swallowed — surfaced when the tool runs). A no-op if already loaded (the load-promise guard).
 
+#### `configTools`
+`{ type: 'configTools', umiaqMaxResults }` — **inject device-tuned tool limits.** Sent by main from `getWorker()` on **every** worker spawn (initial and post-crash respawn), FIFO-before any run so the limit is in place first. Carries the Umiaq retained-tuple ceiling picked from `isMobile()` (`UMIAQ_CAP_MOBILE` / `UMIAQ_CAP_DESKTOP`); the worker applies it via `configureUmiaq`. The value can't be derived worker-side — `isMobile()` needs `window.matchMedia`, absent in a worker — so main is the only place it can be decided, and the engine tool defaults to the conservative mobile cap so a missed message under-retains rather than risking an iOS reload. Fire-and-forget; no reply.
+
 #### `fetchRows` (windowed row fetch)
 `{ type: 'fetchRows', requestId, runId, start, end }` — **request a window `[start, end)` of the retained flat result.** The flat scroller fetches its visible window + prefetch buffer, renders shimmer skeletons on a miss, and serves ordinary scrolling from a bounded local cache (seeded from the result's inline `firstRows`, so the first paint rarely misses).
 - `requestId` — monotonic per client; echoed on the `rows` reply so a stale response (superseded by a newer request) is matched and dropped.

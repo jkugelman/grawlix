@@ -2,7 +2,7 @@
 
 import { MERGED_ID } from '../core/constants.js';
 import { canonicalNormRow } from './snapshot.js';
-import { TOOLS, makeToolRow } from './tools.js';
+import { TOOLS, makeToolRow, configureUmiaq } from './tools.js';
 import { executePipeline, configureExecutorYield, lastPipelineSeedFrom, lastPipelineTailMs, bottomLineAtoms, applyScoreRangeToRows, rowLastEntry, rowAtoms, collapseRepeatAtoms, streamPlan, cacheGroupStats, currentAtomCount } from './executor.js';
 import { GdsCache, RoleCache } from './gds-cache.js';
 import { sortGroups, sortChainRows, activeGroupRow, groupRowComparator, chainRowComparator, chainSortTier, DEFAULT_SORT_BY_TIER } from './sort.js';
@@ -2228,6 +2228,10 @@ onmessage = ({ data }) => {
       if (asset) asset.load().catch(() => {});
       break;
     }
+
+    case 'configTools':
+      configureUmiaq({ maxResults: data.umiaqMaxResults });
+      break;
 
     case 'fetchRows':
       handleFetchRows(data);
