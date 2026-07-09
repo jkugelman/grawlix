@@ -91,6 +91,45 @@ test('a background structural auto-update to a COMBINATION tier pins it and rais
   expect(refreshed).not.toBe(before);                             // re-ran on consent
 });
 
+// A packed tuple result is POSITION-encoded (its lanes are corpus indices), so a
+// structural background update — which reindexes the corpus — would misresolve its frozen
+// view against the shifted live corpus. The pin (a pre-splice snapshot the view resolves
+// through) is what keeps a frozen packed record correct while the chip shows; without it a
+// scroll/fetch after the splice renders shifted-wrong entries.
+test('a packed tuple result frozen behind the chip resolves against the pinned pre-splice snapshot', async ({ page }) => {
+  const feed = {
+    updated: false,
+    initialBody: 'abcd;50\ncdab;50\nefgh;50\nghef;50\n',
+    updatedBody: 'aaaa;40\nabcd;50\ncdab;50\nefgh;50\nghef;50\n',   // aaaa added — sorts first, so it shifts every position
+  };
+  await stubPublisherFetches(page);
+  await routeJK(page, feed);
+  await gotoApp(page);
+  await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'umiaq', params: { query: 'AB;BA' } }]));
+  await page.evaluate(() => window.__grawlixTest.pipelineIdle());
+
+  const before = await page.evaluate(() => window.__grawlixTest.lastCompletedRunId());
+  const info = await page.evaluate(() => window.__grawlixTest.retainedResultInfo());
+  expect(info.packed).toBe(true);                                  // the pin only matters on the packed path
+  const keysBefore = await page.evaluate(rid =>
+    window.__grawlixTest.fetchWorkerAllGroups(rid).then(r => r.groups.map(g => g.key)), before);
+  expect(keysBefore.length).toBeGreaterThan(0);
+
+  feed.updated = true;
+  await enableAutoUpdate(page);
+
+  const chip = page.locator('#stats .results-stale-chip');
+  await expect(chip).toBeVisible();                                // structural → held behind the chip, corpus reindexed
+  const after = await page.evaluate(() => window.__grawlixTest.lastCompletedRunId());
+  expect(after).toBe(before);                                     // pinned, not re-run
+
+  // Re-materialize the frozen result from the worker AFTER the reindex — identical keys prove
+  // it resolved laneIdx against the pinned snapshot, not the shifted live corpus.
+  const keysAfter = await page.evaluate(rid =>
+    window.__grawlixTest.fetchWorkerAllGroups(rid).then(r => r.groups.map(g => g.key)), before);
+  expect(keysAfter).toEqual(keysBefore);
+});
+
 // The chip path reprojects to keep live scores; that reproject re-buckets over the
 // updated corpus, so its histogram layout can change slot count (discrete = one slot per
 // distinct score). Main must adopt the shipped layout or its stale-length one mismatches

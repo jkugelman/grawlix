@@ -6,6 +6,7 @@ import { TOOLS, makeToolRow, configureUmiaq } from './tools.js';
 import { executePipeline, configureExecutorYield, lastPipelineSeedFrom, lastPipelineTailMs, bottomLineAtoms, applyScoreRangeToRows, rowLastEntry, rowAtoms, collapseRepeatAtoms, streamPlan, cacheGroupStats, currentAtomCount } from './executor.js';
 import { GdsCache, RoleCache } from './gds-cache.js';
 import { sortGroups, sortChainRows, activeGroupRow, groupRowComparator, chainRowComparator, chainSortTier, DEFAULT_SORT_BY_TIER } from './sort.js';
+import { PackedRecordJoin, packRecordJoin, materializeRecordRow, recordView, recordComparator, recordInRange, PackedGroupJoin, tryPackGroupJoin, buildGroupFlyweights, materializeGroupRow } from './packed-join.js';
 import { configureIO as configureSegmenterIO } from './segmenter.js';
 import { configureIO as configurePhoneticsIO } from './phonetics.js';
 import { DATA_ASSETS, getDataAsset } from './assets.js';
@@ -123,7 +124,7 @@ let latestRunId = -1;       // the supersession key; a `run`/`cancel` advances i
 let pending = null;
 let running = false;
 let lastFlatResult = null;  // { runId, indices, scope, highlighters } retained to serve `fetchRows`
-let lastGroupedResult = null;  // { runId, groups, scope } — full sorted+filtered groups (all chains) retained to serve `fetchGroupChains`
+let lastGroupedResult = null;  // eager set: { runId, groups, join, scope }; packed record: { runId, packed, join, view, scope } — retained to serve fetchGroups/fetchGroupChains
 let lastTransformResult = null;  // { runId, chains, scope, version } — sorted+filtered transform chains; grows mid-stream, version bumped per batch for the fetch-drop guard
 let diffCounter = 0;
 // diffId -> { added, deleted, rescored } (lean, full, sorted) — retained to serve
@@ -283,7 +284,7 @@ async function runOne({ runId, stack: serialized, sort, scope, existsQuery, scor
   const resumeCtx = noResume ? null : armPartialResume(runId, cacheKey, tier, viewSpec, scope, stack, streamState);
   try {
     const emit = tier === 'flat' ? makeStreamEmitter(runId, viewSpec, scope, stack, signal, streamState, resumeCtx)
-      : tier === 'tuple' ? makeTupleStreamEmitter(runId, viewSpec, scope, stack, signal, streamState, resumeCtx)
+      : tier === 'tuple' ? (packableRecordStack(stack) ? makePackedTupleStreamEmitter : makeTupleStreamEmitter)(runId, viewSpec, scope, stack, signal, streamState, resumeCtx)
       : tier === 'transform' ? makeTransformStreamEmitter(runId, viewSpec, scope, stack, signal, streamState, resumeCtx)
       : null;
     out = await executePipeline(ownedCorpus, stack, signal, emit, resume);
@@ -536,16 +537,175 @@ function makeTupleStreamEmitter(runId, viewSpec, scope, stack, signal, streamSta
   };
 }
 
+// A tuple result is index-packable only when every lane stays a single corpus
+// entry. A non-inert transform/group before the producer reshapes the pool into
+// synthetic/member lanes (no `_i`), and a highlighting filter after it appends a
+// mark atom (multi-atom lane) — either forces the eager group path.
+function packableRecordStack(stack) {
+  let ti = -1;
+  for (let i = 0; i < stack.length; i++) {
+    const row = stack[i];
+    if (row.isInert()) continue;
+    if (row.kind() === 'tuple') { ti = i; break; }
+    if (row.kind() !== 'filter') return false;
+  }
+  if (ti === -1) return false;
+  for (let i = ti + 1; i < stack.length; i++) {
+    const row = stack[i];
+    if (row.isInert()) continue;
+    if (row.kind() !== 'filter' || row.def.inputHighlights) return false;
+  }
+  return true;
+}
+
+// The packed-record sibling of makeTupleStreamEmitter: append each batch's tuples
+// to the packed join and keep the view an ordinal permutation merged by the same
+// total comparator (so completion adopts the streamed order). Reads `viewSpec` per
+// batch for mid-stream reproject; materializes only the shipped window.
+function makePackedTupleStreamEmitter(runId, viewSpec, scope, stack, signal, streamState, resumeCtx = null) {
+  const join = resumeCtx ? resumeCtx.join : new PackedRecordJoin();
+  let cursor = 0, caughtUp = !resumeCtx;
+  return batchGroups => {
+    if (signal.aborted) return;
+    if (!caughtUp) {
+      let k = 0;
+      for (; k < batchGroups.length; k++) {
+        if (batchGroups[k].key !== join.keyOf(ownedCorpus, cursor)) throw new PartialDivergence();
+        if (++cursor === resumeCtx.len) { caughtUp = true; streamState.resuming = false; k++; break; }
+      }
+      if (!caughtUp) return;
+      batchGroups = batchGroups.slice(k);
+      if (batchGroups.length === 0) return;
+    }
+    const startOrd = join.count;
+    join.appendGroups(batchGroups);
+    const intervals = viewSpec.scoreRange ? parseRange(viewSpec.scoreRange) : null;
+    const cmp = recordComparator(viewSpec.sort, join, ownedCorpus);
+    const batchOrds = [];
+    for (let ord = startOrd; ord < join.count; ord++) {
+      if (intervals && !recordInRange(join, ownedCorpus, ord, intervals)) continue;
+      batchOrds.push(ord);
+    }
+    if (batchOrds.length === 0) return;   // join grew but no in-range tuple — no view change
+    const batchView = Int32Array.from(batchOrds);
+    if (cmp) batchView.sort(cmp);
+    if (!streamState.streamed) {
+      streamState.streamed = true;
+      lastFlatResult = null;
+      lastTransformResult = null;
+      lastGroupedResult = { runId, version: 0, packed: true, join, view: batchView, scope, viewSpec, stack, laneKind: 'record', summaries: null };
+    } else {
+      lastGroupedResult.view = cmp
+        ? mergeSortedIndices(lastGroupedResult.view, batchView, cmp)
+        : concatInt32(lastGroupedResult.view, batchView);
+    }
+    lastGroupedResult.version++;
+    lastGroupedResult.summaries = packedTupleSummaries(join, lastGroupedResult.view, ownedCorpus, scope, !!intervals);
+    postGroupSnapshot('partialGroups', runId);
+    maybeTestStopAfterTotal(lastGroupedResult.view.length);
+  };
+}
+
+function concatInt32(a, b) {
+  const out = new Int32Array(a.length + b.length);
+  out.set(a, 0); out.set(b, a.length);
+  return out;
+}
+
+// The retained grouped result is the eager set path (`groups`), a packed record
+// (`view` = ordinals over `join`), or a packed set (`view` = `{ ord, members }`
+// records over `join`); these resolve the display window either way so every caller
+// stays representation-agnostic. A packed row materializes lazily, per window.
+function groupResultLength(r) { return r.packed ? r.view.length : r.groups.length; }
+
+// Materialize one packed group row (record or set) at view position `i`.
+function materializePackedRow(r, corpus, i) {
+  return r.laneKind === 'record'
+    ? materializeRecordRow(r.join, corpus, r.view[i])
+    : materializeGroupRow(r.join, corpus, r.view[i], activeGroupRow(r.stack)?.def ?? null);
+}
+
+function encodeGroupWindow(r, lo, hi) {
+  lo = Math.max(0, lo); hi = Math.min(groupResultLength(r), hi);
+  if (!r.packed) return r.groups.slice(lo, hi).map(encodeGroup);
+  const corpus = corpusFor(r);
+  const out = [];
+  for (let i = lo; i < hi; i++) out.push(encodeGroup(materializePackedRow(r, corpus, i)));
+  return out;
+}
+
+function encodeGroupAllFull(r) {
+  if (!r.packed) return r.groups.map(encodeGroupFull);
+  const corpus = corpusFor(r);
+  const out = new Array(r.view.length);
+  for (let i = 0; i < r.view.length; i++) out[i] = encodeGroupFull(materializePackedRow(r, corpus, i));
+  return out;
+}
+
+function findGroupInResult(r, groupKey) {
+  if (!r.packed) return r.groups.find(g => g.key === groupKey) || null;
+  const corpus = corpusFor(r);
+  for (let i = 0; i < r.view.length; i++) {
+    const key = r.laneKind === 'record' ? r.join.keyOf(corpus, r.view[i]) : r.join.keys[r.view[i].ord];
+    if (key === groupKey) return materializePackedRow(r, corpus, i);
+  }
+  return null;
+}
+
+// The packed-set analogue of deriveGroupResult's eager body: rebuild transient flyweights
+// from the packed join, run the EXACT eager filter/sort/summaries over them (provable
+// parity), and retain only the compact view — per surviving group, its join ordinal and
+// its sorted+filtered member `_i`s. The flyweights are dropped; the join + view remain.
+function derivePackedSetView(join, viewSpec, corpus, scope, stack) {
+  const flyweights = buildGroupFlyweights(join, corpus);
+  const intervals = viewSpec.scoreRange ? parseRange(viewSpec.scoreRange) : null;
+  const filtered = intervals ? applyScoreRangeToRows(flyweights, intervals, 'set') : flyweights;
+  const sorted = sortGroups(filtered, viewSpec.sort, stack);
+  const summaries = groupSummaries(flyweights, sorted, scope, stack, !!intervals);
+  const view = sorted.map(g => ({ ord: g._ord, members: Int32Array.from(g.chains, c => c.atoms[0].wlEntry._i) }));
+  return { view, summaries };
+}
+
+// The packed-record analogue of groupSummaries for a tuple: histogram over the
+// UNFILTERED join scores, stats over the view, and the tuple's degenerate width
+// hints (computeGroupWidthHints reduces to arity + counts with no anchor/columns).
+function packedTupleSummaries(join, view, corpus, scope, didFilter) {
+  const arity = join.arity;
+  const histScores = new Array(join.count * arity);
+  let hp = 0;
+  for (let ord = 0; ord < join.count; ord++) for (let k = 0; k < arity; k++) histScores[hp++] = join.laneEntry(corpus, ord, k).score;
+  const statScores = new Array(view.length * arity);
+  let sp = 0;
+  for (let v = 0; v < view.length; v++) { const ord = view[v]; for (let k = 0; k < arity; k++) statScores[sp++] = join.laneEntry(corpus, ord, k).score; }
+
+  let histogramCounts, histogramLayout = null;
+  if (scope === MERGED_ID) {
+    histogramCounts = bucketCounts(histScores, ownedAllSourcesAxis);
+  } else {
+    histogramLayout = getHistogramLayout(ownedCorpus.entries, 'scoped:' + scope);
+    histogramCounts = bucketCounts(histScores, histogramLayout);
+  }
+  return {
+    stats: computeStatsRaw(statScores),
+    histogramCounts, histogramLayout,
+    groupWidthHints: { maxCount: join.count ? arity : 0, groupCount: join.count, maxAnchorDisplayLen: 0, maxAnchorScoreDigits: 0, columnWidestByKey: {} },
+    chainCount: view.length * arity,
+    groupCount: view.length,
+    filtered: didFilter,
+  };
+}
+
 // Shared by the streaming `partialGroups` and the reprojected snapshot so the two
 // can't drift; the version is the retained result's, monotonic across both.
 function postGroupSnapshot(type, runId, reprojectId) {
   const r = lastGroupedResult;
-  const { lo, hi } = streamWindow(runId, r.groups.length, GROUP_ROW_WINDOW);
+  const total = groupResultLength(r);
+  const { lo, hi } = streamWindow(runId, total, GROUP_ROW_WINDOW);
   postMessage({
     type, runId, reprojectId, version: r.version,
     laneKind: r.laneKind, atomCount: currentAtomCount(r.stack),
-    total: r.groups.length, windowStart: lo,
-    firstGroups: r.groups.slice(lo, hi).map(encodeGroup),
+    total, windowStart: lo,
+    firstGroups: encodeGroupWindow(r, lo, hi),
     ...r.summaries,
   });
 }
@@ -668,6 +828,18 @@ function reprojectFlat(r, reprojectId, recomputeHistogram) {
 }
 
 function reprojectGroup(r, reprojectId) {
+  if (r.packed) {
+    const corpus = corpusFor(r);
+    if (r.laneKind === 'record') {
+      r.view = recordView(r.join, r.viewSpec, corpus);
+      r.summaries = packedTupleSummaries(r.join, r.view, corpus, r.scope, !!(r.viewSpec.scoreRange && parseRange(r.viewSpec.scoreRange)));
+    } else {
+      ({ view: r.view, summaries: r.summaries } = derivePackedSetView(r.join, r.viewSpec, corpus, r.scope, r.stack));
+    }
+    r.version++;
+    postGroupSnapshot('reprojected', r.runId, reprojectId);
+    return;
+  }
   const intervals = r.viewSpec.scoreRange ? parseRange(r.viewSpec.scoreRange) : null;
   const view = intervals ? applyScoreRangeToRows(r.join, intervals, r.laneKind) : r.join;
   r.groups = sortGroups(view, r.viewSpec.sort, r.stack);
@@ -761,7 +933,7 @@ function shipResult(runId, tier, r, laneKind, atomCount, capped, viewSpec, exist
   if (tier === 'group') {
     // The shipped length is NOT the group count — main sizes from summaries, else it
     // silently drops every group past the inline window.
-    postMessage({ ...base, payload: { groups: r.groups.slice(0, GROUP_ROW_WINDOW).map(encodeGroup), ...r.summaries } });
+    postMessage({ ...base, payload: { groups: encodeGroupWindow(r, 0, GROUP_ROW_WINDOW), ...r.summaries } });
     return;
   }
   if (tier === 'transform') {
@@ -789,9 +961,20 @@ function postResult(runId, out, viewSpec, scope, stack, existsQuery, rebindQuery
   const tier = resultTier(out);
   const r = streamed
     ? adoptStreamedSlot(tier)
-    : deriveSlot(runId, tier, tier === 'flat' ? flatJoinFromRows(out.rows) : out.rows, viewSpec, scope, stack, laneKind);
+    : deriveSlot(runId, tier, terminalJoin(tier, laneKind, out.rows, stack), viewSpec, scope, stack, laneKind);
   shipResult(runId, tier, r, laneKind, atomCount, capped, viewSpec, existsQuery, rebindQuery);
   return { tier, r };
+}
+
+// The retained join to derive a NON-streamed terminal from: flat's indices, a packed
+// record join for a packable tuple, else the eager rows (set/transform/non-packable
+// record). Same packability gate the stream emitter selection uses, so a streamed and
+// a buffered run of the same stack retain the identical representation.
+function terminalJoin(tier, laneKind, rows, stack) {
+  if (tier === 'flat') return flatJoinFromRows(rows);
+  if (laneKind === 'record' && packableRecordStack(stack)) return packRecordJoin(rows);
+  if (laneKind === 'set') return tryPackGroupJoin(rows) ?? rows;   // null ⇒ multi-key/decorated ⇒ eager
+  return rows;
 }
 
 // Shared by the non-streamed terminal and reproject so a re-derived flat result is
@@ -807,6 +990,17 @@ function deriveFlatResult(runId, join, viewSpec, scope, stack) {
 }
 
 function deriveGroupResult(runId, join, viewSpec, scope, stack, laneKind) {
+  if (join instanceof PackedRecordJoin) {
+    const view = recordView(join, viewSpec, ownedCorpus);
+    return {
+      runId, version: 0, packed: true, join, view, scope, viewSpec, stack, laneKind,
+      summaries: packedTupleSummaries(join, view, ownedCorpus, scope, !!(viewSpec.scoreRange && parseRange(viewSpec.scoreRange))),
+    };
+  }
+  if (join instanceof PackedGroupJoin) {
+    const { view, summaries } = derivePackedSetView(join, viewSpec, ownedCorpus, scope, stack);
+    return { runId, version: 0, packed: true, join, view, scope, viewSpec, stack, laneKind, summaries };
+  }
   const intervals = viewSpec.scoreRange ? parseRange(viewSpec.scoreRange) : null;
   // Filter with the RESULT's laneKind: a record (tuple) drops out-of-range rows whole
   // (never trims a positional lane), a set trims cluster members. Filter BEFORE the
@@ -870,6 +1064,7 @@ function resultCacheKey(serialized, scope) {
 // every chain), NOT the shipped window — the ceiling caps peak RAM, which is the join.
 function estimateJoinBytes(tier, join) {
   if (tier === 'flat') return join.length * BYTES_PER_FLAT_INDEX;
+  if (join instanceof PackedRecordJoin || join instanceof PackedGroupJoin) return join.byteLength;
   let atoms = 0;
   if (tier === 'group') {
     for (const g of join) for (const c of g.chains) atoms += rowAtoms(c).length;
@@ -966,7 +1161,8 @@ function armPartialResume(runId, cacheKey, tier, viewSpec, scope, stack, streamS
   if (!cacheEntryValid(pe)) { partialCache.delete(cacheKey); return null; }
   partialCache.delete(cacheKey);
   partialHits++;
-  lastPartialResumeLen = pe.join.length;
+  const joinLen = pe.join instanceof PackedRecordJoin ? pe.join.count : pe.join.length;
+  lastPartialResumeLen = joinLen;
   streamState.streamed = true;
   streamState.resuming = true;   // cleared at crossover; still set at completion ⇒ never caught up (see runOne)
   if (tier === 'flat') {
@@ -979,7 +1175,7 @@ function armPartialResume(runId, cacheKey, tier, viewSpec, scope, stack, streamS
     lastGroupedResult = deriveGroupResult(runId, pe.join, viewSpec, scope, stack, pe.laneKind);
     lastFlatResult = lastTransformResult = null;
     postGroupSnapshot('partialGroups', runId);
-    return { join: pe.join, len: pe.join.length };
+    return { join: pe.join, len: joinLen };
   }
   lastTransformResult = deriveTransformResult(runId, pe.join, viewSpec, scope, stack);
   lastFlatResult = lastGroupedResult = null;
@@ -1109,10 +1305,12 @@ function handleFetchAllRows({ requestId, runId }) {
 }
 
 // ─── Windowed grouped-chain fetch ── see docs/worker-protocol.md ─────────────
-// The grouped analogue of fetchResultFresh. lastGroupedResult.groups hold their
-// chains by reference to THAT run's corpus, so a scope/config change between the
-// run and the fetch makes them name the wrong rows — drop silently, mirroring the
-// flat path; main re-fetches on its next run rather than rendering garbage.
+// The grouped analogue of fetchResultFresh. The retained result names THAT run's
+// corpus (an eager group's chains by reference, a packed record's laneIdx by
+// position), so a scope/config change between the run and the fetch makes them name
+// the wrong rows — drop silently, mirroring the flat path; main re-fetches on its
+// next run rather than rendering garbage. (A pinned packed result resolves through
+// corpusFor, which is why fetching a frozen record mid-refresh stays sound.)
 function groupedResultFresh(runId) {
   return !!lastGroupedResult && lastGroupedResult.runId === runId
     && ownedCorpus && ownedCorpusFresh && ownedScope === lastGroupedResult.scope;
@@ -1120,7 +1318,7 @@ function groupedResultFresh(runId) {
 
 function handleFetchGroupChains({ requestId, runId, groupKey, start, end }) {
   if (!groupedResultFresh(runId)) return;
-  const group = lastGroupedResult.groups.find(g => g.key === groupKey);
+  const group = findGroupInResult(lastGroupedResult, groupKey);
   if (!group) return;
   const lo = Math.max(0, start | 0);
   const hi = Math.min(group.chains.length, end | 0);
@@ -1133,11 +1331,12 @@ function handleFetchGroupChains({ requestId, runId, groupKey, start, end }) {
 // ─── Windowed group-row fetch ── see docs/worker-protocol.md ─────────────────
 function handleFetchGroups({ requestId, runId, start, end }) {
   if (!groupedResultFresh(runId)) return;
+  const r = lastGroupedResult;
   const lo = Math.max(0, start | 0);
-  const hi = Math.min(lastGroupedResult.groups.length, end | 0);
+  const hi = Math.min(groupResultLength(r), end | 0);
   postMessage({
-    type: 'groups', requestId, runId, version: lastGroupedResult.version ?? 0, start: lo,
-    groups: lastGroupedResult.groups.slice(lo, hi).map(encodeGroup),
+    type: 'groups', requestId, runId, version: r.version ?? 0, start: lo,
+    groups: encodeGroupWindow(r, lo, hi),
   });
 }
 
@@ -1146,7 +1345,7 @@ function handleFetchAllGroups({ requestId, runId }) {
   if (!groupedResultFresh(runId)) return;
   postMessage({
     type: 'allGroups', requestId, runId,
-    groups: lastGroupedResult.groups.map(encodeGroupFull),
+    groups: encodeGroupAllFull(lastGroupedResult),
   });
 }
 
@@ -1899,16 +2098,22 @@ function diffForFetch(oldEntries, newEntries) {
   };
 }
 
-function pinFlatSnapshot(snapshot) {
-  if (snapshot && lastFlatResult && !lastFlatResult.pinnedCorpus) lastFlatResult.pinnedCorpus = { entries: snapshot };
+// A position-encoded result (flat's indices, a packed record's laneIdx) can't survive
+// a reindexing splice on its own — unlike an eager grouped/transform result that holds
+// live wlEntry refs — so it pins the pre-splice snapshot and resolves through corpusFor.
+function pinResultSnapshot(snapshot) {
+  if (!snapshot) return;
+  if (lastFlatResult && !lastFlatResult.pinnedCorpus) lastFlatResult.pinnedCorpus = { entries: snapshot };
+  if (lastGroupedResult && lastGroupedResult.packed && !lastGroupedResult.pinnedCorpus) lastGroupedResult.pinnedCorpus = { entries: snapshot };
 }
 
-// Refresh-on-consent's per-tier fork. Flat REPATCHES (runRepatch); the pin only bridges
-// the gap until that lands — a fetchRows against the shifted positions between the splice
-// and the repatch would silently tear. Grouped/transform freeze on their object refs + chip.
+// Refresh-on-consent's per-tier fork. Flat REPATCHES (runRepatch); the pin bridges the
+// gap until that lands — a fetch against the shifted positions between the splice and
+// the repatch would silently tear. Grouped/transform freeze + chip: an eager result on
+// its object refs, a packed record on the pinned snapshot (its laneIdx would misresolve).
 function refreshFork(structural, preSplice) {
   const repatch = structural && !!lastFlatResult;
-  if (repatch) pinFlatSnapshot(preSplice);
+  if (structural) pinResultSnapshot(preSplice);
   return { repatch, stale: structural && !lastFlatResult };
 }
 
@@ -1932,7 +2137,8 @@ function handleApplyFetched({ requestId, sourceId, text, background }) {
   // Flat pins by position; grouped/transform hold object refs and freeze on their own.
   const displayed = lastFlatResult || lastGroupedResult || lastTransformResult;
   const scopeAffected = !!displayed && (displayed.scope === MERGED_ID || displayed.scope === sourceId);
-  const preSplice = background && scopeAffected && lastFlatResult ? ownedCorpus.entries.slice() : null;
+  const positionEncoded = !!lastFlatResult || (!!lastGroupedResult && lastGroupedResult.packed);
+  const preSplice = background && scopeAffected && positionEncoded ? ownedCorpus.entries.slice() : null;
 
   // Materialize the OLD raw entries (transient views over the current store) before
   // rebuilding — the diff reads them while the new store is built.
@@ -2428,6 +2634,22 @@ onmessage = ({ data }) => {
     case '__testPartialCacheState':
       postMessage({ type: '__testPartialCacheState', size: partialCache.size, bytes: partialCache.bytes, hits: partialHits, stashes: partialStashes, resumedFrom: lastPartialResumeLen, keys: partialCache.keys() });
       break;
+
+    // Test-only: the retained grouped/record result's representation + packed byte
+    // cost, so the memory-band assertion can prove a tuple result packs (not eager).
+    case '__testRetainedResultInfo': {
+      const g = lastGroupedResult;
+      const packedAtoms = g && g.packed && (g.laneKind === 'record' ? g.join.laneIdx.length : g.join.memberIdx.length);
+      postMessage({
+        type: '__testRetainedResultInfo',
+        packed: !!(g && g.packed),
+        laneKind: g ? g.laneKind : null,
+        count: g ? (g.packed ? g.join.count : g.join.length) : 0,
+        atoms: packedAtoms || 0,
+        bytes: g ? estimateJoinBytes('group', g.join) : 0,
+      });
+      break;
+    }
   }
 };
 

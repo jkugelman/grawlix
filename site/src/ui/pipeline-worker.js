@@ -748,6 +748,21 @@ export function partialCacheStateForTest(timeout = 2000) {
   });
 }
 
+export function retainedResultInfoForTest(timeout = 2000) {
+  const w = getWorker();
+  return new Promise(resolve => {
+    const timer = setTimeout(() => { w.removeEventListener('message', onMessage); resolve(null); }, timeout);
+    function onMessage({ data }) {
+      if (data?.type !== '__testRetainedResultInfo') return;
+      clearTimeout(timer);
+      w.removeEventListener('message', onMessage);
+      resolve({ packed: data.packed, laneKind: data.laneKind, count: data.count, atoms: data.atoms, bytes: data.bytes });
+    }
+    w.addEventListener('message', onMessage);
+    w.postMessage({ type: '__testRetainedResultInfo' });
+  });
+}
+
 export function workerAssetStateForTest(timeout = 2000) {
   const w = getWorker();
   return new Promise(resolve => {

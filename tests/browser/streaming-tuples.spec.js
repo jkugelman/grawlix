@@ -146,6 +146,47 @@ test('tuple partials stream a climbing total and a sorted group prefix', async (
   expect(last.groupKeys).toEqual(groups.slice(0, last.groupKeys.length));
 });
 
+// The retained tuple join is index-packed, not the eager atom object graph: a lane is
+// a corpus index (+ its variable-highlight ranges), so retained bytes-per-tuple land in
+// the tens, not the ~825-1465 the eager record carried. Regression guard for the
+// packableRecordStack gate — break it and the result silently reverts to eager.
+test('a tuple result retains an index-packed join, not the eager object graph', async ({ page }) => {
+  await gotoApp(page);
+  await seedCorpus(page);
+
+  const info = await page.evaluate(async () => {
+    const T = window.__grawlixTest;
+    await T.setStack([{ tool: 'umiaq', params: { query: 'AB;BA' } }]);
+    await T.pipelineIdle();
+    return T.retainedResultInfo();
+  });
+
+  expect(info.packed).toBe(true);
+  expect(info.laneKind).toBe('record');
+  expect(info.count).toBeGreaterThan(100);
+  expect(info.bytes / info.count).toBeLessThan(100);   // packed band; eager was 825-1465 B/tuple
+});
+
+// A downstream highlighting search appends a mark atom to each lane, so the tuple can't
+// index-pack — it falls back to the eager group path rather than silently corrupting.
+test('a highlighting filter after the tuple falls back to the eager (unpacked) join', async ({ page }) => {
+  await gotoApp(page);
+  await seedCorpus(page);
+
+  const info = await page.evaluate(async () => {
+    const T = window.__grawlixTest;
+    await T.setStack([
+      { tool: 'umiaq', params: { query: 'AB;BA' } },
+      { tool: 'search', params: { pattern: '*a*' } },
+    ]);
+    await T.pipelineIdle();
+    return T.retainedResultInfo();
+  });
+
+  expect(info.packed).toBe(false);
+  expect(info.laneKind).toBe('record');
+});
+
 // A tuple run's first tuple is ~1s out; without an eager indicator the prior result
 // lingers on screen looking current. Dispatch must show empty + dots at once.
 test('a tuple-run dispatch shows the streaming state at once, before the first tuple batch', async ({ page }) => {

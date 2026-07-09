@@ -150,6 +150,22 @@ test('grouped anagrams (string key) ship rich atoms that decode the group', asyn
   for (const g of groups) expect(g.count).toBeGreaterThanOrEqual(2);
 });
 
+// A single-key grouped result retains its members as corpus indices (materialized per
+// window), not the eager member object graph. Regression guard for the tryPackGroupJoin
+// gate — break it and the set silently reverts to eager (or, worse, packs a multi-key
+// result and mis-dedups its stats).
+test('a single-key grouped result is index-packed, not the eager member graph', async ({ page }) => {
+  await gotoApp(page);
+  await seedCorpus(page);
+  await renderRich(page, [{ tool: 'anagrams', grouped: true }], undefined);
+
+  const info = await page.evaluate(() => window.__grawlixTest.retainedResultInfo());
+  expect(info.packed).toBe(true);
+  expect(info.laneKind).toBe('set');
+  expect(info.atoms).toBeGreaterThan(0);              // members retained as indices
+  expect(info.bytes / info.atoms).toBeLessThan(20);   // packed band; the eager member was ~170 B
+});
+
 test('grouped initialisms (display-keyed, with anchor) ship rich atoms', async ({ page }) => {
   await gotoApp(page);
   await seedCorpus(page);
