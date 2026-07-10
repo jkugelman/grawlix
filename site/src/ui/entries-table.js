@@ -2387,7 +2387,9 @@ export const EntryPanel = (() => {
   }
 
   function renderProvenanceTableHTML() {
-    return renderProvenanceRowsHTML(applyPreviewOverlay(buildBaseRows()));
+    const table = renderProvenanceRowsHTML(applyPreviewOverlay(buildBaseRows()));
+    if (!table) return '';
+    return `<div class="lookup-sec"><div class="lookup-sec-head">Appears in</div>${table}</div>`;
   }
 
   function buildBaseRows() {
