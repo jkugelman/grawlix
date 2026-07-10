@@ -19,7 +19,7 @@ import {
   sources$, state, wrapWordlist, newDbKey, getEditsWordlist, setResultsStale,
 } from '../data/state.js';
 import {
-  lsLoad, lsSave, idbGet, Storage, openDB, resetAllDataAndReload,
+  lsLoad, lsSave, idbGet, idbGetAllKeys, Storage, openDB, requestPersistentStorage, resetAllDataAndReload,
 } from '../data/storage.js';
 import {
   SCHEMA_VERSION, canMigrate, migrateLocalStorage, migrateIdbRecords, remapStoredUrls,
@@ -230,11 +230,13 @@ export async function init() {
   await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
 
   // Only My Edits parses on main (it seeds edits + the legend); the worker reads every
-  // other source's text from its own IDB. The skip branch MUST still set `populated`
-  // from meta — left false, the boot re-fetch gate below re-fetches every URL source
-  // on every boot, and the source/manage cards mis-render.
+  // other source's text from its own IDB. Derive `populated` from actual IDB presence, not a
+  // surviving `lastUpdated`: localStorage (meta) and IndexedDB (text) evict independently, so a
+  // list whose data the browser dropped must read as unpopulated, or the re-fetch gate below
+  // trusts the stale flag and strands it on "No data" forever with no recovery.
+  const dataKeys = new Set(await idbGetAllKeys());
   await Promise.all(toParse.map(async ({ wordlist, m }) => {
-    if (wordlist.type !== 'edits') { wordlist.populated = !!(m.populated || m.lastUpdated); return; }
+    if (wordlist.type !== 'edits') { wordlist.populated = dataKeys.has('data_' + wordlist.dbKey); return; }
     const text = await Storage.readWordlist(m) ?? await idbGet('data_' + m.id);
     parseInto(wordlist, text, m);
   }));
@@ -271,6 +273,7 @@ export async function init() {
 
   bindEvents();
   syncHelp();
+  requestPersistentStorage();
   checkForUpdates();
   checkWorkerAssets();
   setInterval(() => { checkForUpdates(); checkWorkerAssets(); }, UPDATE_CHECK_INTERVAL);

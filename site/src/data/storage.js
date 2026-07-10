@@ -39,6 +39,17 @@ export function openDB() {
   });
 }
 
+// Ask for durable storage so a best-effort eviction can't silently drop the IDB
+// wordlist text while the localStorage metadata lingers — the exact desync that
+// strands a user on "No data". Idempotent; re-request each boot so a grant that
+// the browser's engagement heuristics only warrant later still lands.
+export async function requestPersistentStorage() {
+  try {
+    if (await navigator.storage?.persisted?.()) return;
+    await navigator.storage?.persist?.();
+  } catch { /* Storage API blocked/unavailable — best-effort remains the fallback */ }
+}
+
 export function idbPut(key, val) {
   return new Promise(resolve => {
     const tx = _db.transaction(IDB_STORE, 'readwrite');
