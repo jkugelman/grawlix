@@ -267,3 +267,21 @@ test('renderHighlightedText: a zero-or-negative-width range is skipped', () => {
   const out = renderHighlightedText('cat', [{ start: 1, end: 1, kind: 'search:0' }]);
   assert.equal(out, 'cat');
 });
+
+test('renderHighlightedText: a find kind wraps in <mark class="find-hit">', () => {
+  const out = renderHighlightedText('cat', [{ start: 0, end: 2, kind: 'find' }]);
+  assert.equal(out, '<mark class="find-hit">ca</mark>t');
+});
+
+test('renderHighlightedText: a find-current kind adds the find-current class', () => {
+  const out = renderHighlightedText('cat', [{ start: 0, end: 2, kind: 'find-current' }]);
+  assert.equal(out, '<mark class="find-hit find-current">ca</mark>t');
+});
+
+test('renderHighlightedText: a co-starting find hit wins the slot over a search mark', () => {
+  const out = renderHighlightedText('cat', [
+    { start: 0, end: 1, kind: 'search:0' },
+    { start: 0, end: 2, kind: 'find-current' },
+  ]);
+  assert.equal(out, '<mark class="find-hit find-current">ca</mark>t');
+});

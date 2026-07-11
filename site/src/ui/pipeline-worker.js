@@ -1041,6 +1041,25 @@ export function fetchWorkerRows(runId, start, end, timeout = 5000) {
   });
 }
 
+// ─── Find-in-page bridge ── see docs/worker-protocol.md ──────────────────────
+let findRequestId = 0;
+export function findInResult(runId, query, timeout = 8000) {
+  const w = getWorker();
+  const requestId = ++findRequestId;
+  return new Promise(resolve => {
+    const timer = setTimeout(() => { w.removeEventListener('message', onMessage); resolve(null); }, timeout);
+    function onMessage({ data }) {
+      if (data?.type !== 'findResult' || data.requestId !== requestId) return;
+      clearTimeout(timer);
+      w.removeEventListener('message', onMessage);
+      if (runId !== lastResultRunId) { resolve(null); return; }   // superseded run — drop
+      resolve({ matches: data.matches, capped: data.capped });
+    }
+    w.addEventListener('message', onMessage);
+    w.postMessage({ type: 'find', requestId, runId, query });
+  });
+}
+
 // ─── Windowed grouped-chain fetch bridge ── see docs/worker-protocol.md ──────
 let fetchGroupChainsRequestId = 0;
 export function fetchWorkerGroupChains(runId, groupKey, start, end, timeout = 5000) {

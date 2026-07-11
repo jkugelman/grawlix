@@ -74,6 +74,7 @@ You sync each list from its wordlist bar, list by list. Two kinds of sync, depen
 
 ## Keyboard shortcuts
 
+- **Ctrl-F / Cmd-F** — find in the entries table (see *Finding in the table*).
 - **Alt-T** — open the tool picker (also **Cmd-K** / **Ctrl-K**).
 - **Alt-S** — focus the search input (the permanent search bar).
 - **Alt-W** — toggle the whole-word checkbox. If a Search or Regex tool row has focus, toggles that row's; otherwise toggles the permanent search bar's.
@@ -152,6 +153,12 @@ When the table is sorted by **Entry** (the default), related entries are grouped
 A thin bracket down the left edge marks each group of two or more related entries; an entry with no relatives in the list is left unmarked, so only the clusters stand out. The grouping covers plurals, verb conjugations, and leading articles (`the best` groups with `best`); it does not chase word-derivations like `red` / `redness` / `redden`. Sorting by any other column returns to that column's plain order with no grouping.
 
 When you open an entry, the panel also lists its relatives at the bottom: its family (the group described above) together with any other spellings of the same entry across your lists — the same word with and without punctuation or spacing, say. Each shows inline with its score, the entry you're on in bold. Click any relative to jump straight to it — your current edits are saved first, so you can click around a family without losing changes. It's built for working through related entries together: open one and its siblings are right there, scores side by side, a click away. The list follows along as you retype the entry, so giving a run-together entry its spaces brings its relatives into view before you even save. It spans all your wordlists, not just whichever one you've scoped the table to.
+
+### Finding in the table
+
+Press **Ctrl-F** (**Cmd-F** on a Mac) to find text anywhere in the table. Because only the on-screen rows are actually drawn, your browser's own find would miss everything scrolled out of view — so Grawlix does its own, searching the whole result. Type in the bar that appears and it jumps to the first match and highlights every match on screen, with a counter showing where you are (`3/47`). Press **Enter** for the next match and **Shift-Enter** for the previous — both wrap around — or use the up/down carets; **Esc** closes it. It searches entry text and comments (entry text only in the grouped views), ignores case, and if a match sits inside a collapsed group it opens that group to show it. Finding never changes your sort or filter — it just moves you around what's already there.
+
+In **All Wordlists** and **My Edits**, the match you're on is also **selected**, so you can edit it straight from the keyboard. Press **Esc** then **Enter** to open the found entry for editing, or **Alt** + a digit to retier its score on the spot — and that retier works with the find bar still open, so you can rescore your way down every match in a rhythm: type, **Alt**-digit, **Enter**, repeat. (See *Selecting rows* and *Editing entries*.)
 
 ## Stats bar
 

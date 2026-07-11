@@ -18,6 +18,7 @@ import { isMobile } from '../core/platform.js';
 import { displayOf, projectRangesToDisplay, toNorm, buildUserWlEntry } from '../engine/norm.js';
 import { parseRange } from '../engine/range.js';
 import { renderHighlightedText } from '../engine/search.js';
+import { FIND_MATCH_CAP } from '../engine/find.js';
 import { TOOLS } from '../engine/tools.js';
 import {
   isGroupChain, rowLastEntry, rowSetAtoms,
@@ -43,7 +44,7 @@ import { LookupSection } from './lookup.js';
 import {
   getEntriesScroller, rescorePreviewActive, refreshMergedScroller, reprojectMergedScroller, setScope,
 } from './rendering.js';
-import { fetchWorkerRows, fetchWorkerGroups, fetchWorkerGroupChains, fetchWorkerAllRows, fetchWorkerAllGroups, fetchWorkerTransformRows, fetchWorkerAllTransformRows, lastCompletedRunId, fetchWorkerEditSeed, fetchWorkerFamily, fetchWorkerWinners, fetchWorkerProvenance, fetchWorkerEditPlan, sendViewport } from './pipeline-worker.js';
+import { fetchWorkerRows, fetchWorkerGroups, fetchWorkerGroupChains, fetchWorkerAllRows, fetchWorkerAllGroups, fetchWorkerTransformRows, fetchWorkerAllTransformRows, lastCompletedRunId, fetchWorkerEditSeed, fetchWorkerFamily, fetchWorkerWinners, fetchWorkerProvenance, fetchWorkerEditPlan, sendViewport, findInResult } from './pipeline-worker.js';
 
 let _navigate              = () => {};
 
@@ -435,19 +436,20 @@ function estimateChainWidth(chain, ctx) {
   return maxEntryW + 5 + maxScoreW;
 }
 
-function buildGroupAnchorHTML(anchor) {
+function buildGroupAnchorHTML(anchor, findRanges = null) {
   if (!anchor) return `<span class="group-anchor"></span>`;
   const displayed = displayOf(anchor);
   const truncTitle = displayed.length > ENTRY_SLOT_CAP ? ` title="${esc(displayed)}"` : '';
+  const text = findRanges ? renderHighlightedText(displayed, findRanges) : esc(displayed);
   return `<span class="group-anchor">` +
     `<span class="atom" data-atom-role="anchor">` +
-      `<span class="atom-entry"${truncTitle}>${esc(displayed)}</span>` +
+      `<span class="atom-entry"${truncTitle}>${text}</span>` +
       `<span class="atom-score">${buildScoreBadgeHTML(anchor.score)}</span>` +
     `</span>` +
   `</span>`;
 }
 
-function buildGroupChainHTML(chain, ci) {
+function buildGroupChainHTML(chain, ci, memberFind = null) {
   const atoms = chain.atoms;
   const html = [];
   for (let ai = 0; ai < atoms.length; ai++) {
@@ -458,7 +460,8 @@ function buildGroupChainHTML(chain, ci) {
     const glyphHTML = glyph ? `<span class="atom-glyph">${glyph} </span>` : '';
     const truncTitle = displayed.length > ENTRY_SLOT_CAP ? ` title="${esc(displayed)}"` : '';
     const noedit = wlEntry.wordlist === null ? ' atom-noedit' : '';
-    const text = renderHighlightedText(displayed, projected);
+    const findRanges = memberFind?.get(ai);
+    const text = renderHighlightedText(displayed, findRanges ? [...(projected || []), ...findRanges] : projected);
     const entryCell = `<span class="atom-entry${noedit}"${truncTitle}>${glyphHTML}${text}</span>`;
     const scoreCell = isRepeat
       ? `<span class="atom-score"></span>`
@@ -533,6 +536,7 @@ export const GroupMorePopover = (() => {
   let fetchSeq = 0;
   let sentinel = null;
   let io = null;
+  let findTarget = null;   // { member, ranges } a find is revealing; painted once its chain lands
 
   function mount() {
     el = document.createElement('div');
@@ -560,6 +564,7 @@ export const GroupMorePopover = (() => {
     anchor = group = scroller = chainCache = null;
     runId = null;
     rendered = 0;
+    findTarget = null;
     fetchSeq++;   // invalidate any in-flight fetch's fill so a late reply is a no-op
     if (io) { io.disconnect(); io = null; }
     sentinel = null;
@@ -619,6 +624,37 @@ export const GroupMorePopover = (() => {
         const skel = el.querySelector(`.group-chain.skeleton[data-chain="${abs}"]`);
         if (skel) skel.outerHTML = buildGroupChainHTML(reply.chains[k], abs);
       }
+      paintFindTarget();
+    });
+  }
+
+  // A member past firstChains renders as a skeleton first, so paintFindTarget also
+  // re-runs from the fetch reply — without that, a hit past firstChains never lights.
+  function revealMember(nextGroup, anchorEl, nextScroller, targetMember, findRanges) {
+    if (anchor !== anchorEl) toggle(nextGroup, anchorEl, nextScroller);
+    else clearFindMarks();
+    while (rendered <= targetMember && rendered < group._count) renderChunk();
+    findTarget = { member: targetMember, ranges: findRanges };
+    paintFindTarget();
+  }
+
+  function paintFindTarget() {
+    if (!findTarget) return;
+    const i = findTarget.member;
+    const chain = chainCache.get(i);
+    const node = el.querySelector(`.group-chain[data-chain="${i}"]`);
+    if (!chain || !node) return;
+    node.outerHTML = buildGroupChainHTML(chain, i, findTarget.ranges);
+    el.querySelector(`.group-chain[data-chain="${i}"]`)?.scrollIntoView({ block: 'center' });
+    findTarget = null;
+  }
+
+  function clearFindMarks() {
+    el.querySelectorAll('.group-chain').forEach(node => {
+      if (!node.querySelector('.find-hit')) return;
+      const i = parseInt(node.dataset.chain, 10);
+      const chain = chainCache.get(i);
+      if (chain) node.outerHTML = buildGroupChainHTML(chain, i);
     });
   }
 
@@ -658,7 +694,7 @@ export const GroupMorePopover = (() => {
     document.addEventListener('keydown', onKey, true);
     document.addEventListener('mousedown', onOutside, true);
   }
-  return { mount, toggle, close };
+  return { mount, toggle, close, revealMember };
 })();
 
 export class EntriesScroller extends BaseVirtualScroller {
@@ -700,6 +736,13 @@ export class EntriesScroller extends BaseVirtualScroller {
     this._onBatchDelete = null;
     this._sentViewport = null;
     this.onFilterChange = null;
+
+    this._find = null;
+    this._findBar = null;
+    this._findInput = null;
+    this._findSeq = 0;
+    this._findDebounce = null;
+    this._installFindKey();
 
     // Selection is keyed on an atom's (norm, display) identity, never a row index:
     // the flat scroller windows, so an index silently names a different entry after
@@ -1106,16 +1149,217 @@ export class EntriesScroller extends BaseVirtualScroller {
     return Math.max(0, Math.min(this._renderRowCount() - 1, Math.round(visTop / this._rowStride())));
   }
 
+  _scrollCursorIntoView() { this._scrollIndexIntoView(this._cursorIndex); }
+
   // Scrolls the document, not an inner box: the flat scroller windows against the
-  // page, so scrollIntoView on an off-window (unmounted) cursor row would no-op.
-  _scrollCursorIntoView() {
-    const i = this._cursorIndex;
+  // page, so scrollIntoView on an off-window (unmounted) row would no-op.
+  _scrollIndexIntoView(i) {
     if (i < 0) return;
     const stride = this._rowStride();
     const rowTop = this.host.getBoundingClientRect().top + i * stride;
     const top = this._stickyOffsetPx();
     if (rowTop < top) window.scrollBy({ top: rowTop - top - 4 });
     else if (rowTop + stride > window.innerHeight) window.scrollBy({ top: rowTop + stride - window.innerHeight + 8 });
+  }
+
+  _scrollIndexToCenter(i) {
+    if (i < 0) return;
+    const stride = this._rowStride();
+    const rowTop = this.host.getBoundingClientRect().top + i * stride;
+    const top = this._stickyOffsetPx();
+    if (rowTop >= top && rowTop + stride <= window.innerHeight) return;
+    window.scrollBy({ top: (rowTop + stride / 2) - (top + (window.innerHeight - top) / 2) });
+  }
+
+  // ─── Find in page ── see docs/design.md ─────────────────────────────────────
+  _installFindKey() {
+    this._onFindKey = e => {
+      // Escape closes an open find from anywhere — focus may have left the input
+      // (a nav step, or the revealed group popover), so the input's own handler
+      // isn't enough.
+      if (e.key === 'Escape') {
+        if (this._findBar && !this._findBar.hidden) { e.preventDefault(); this.closeFind(); }
+        return;
+      }
+      if (e.key !== 'f' && e.key !== 'F') return;
+      if (!(e.metaKey || e.ctrlKey) || e.altKey || e.shiftKey) return;
+      if (document.querySelector('dialog[open]')) return;   // a modal owns the keyboard
+      if (!this.host.offsetParent) return;                  // entries view not on screen
+      e.preventDefault();
+      this.openFind();
+    };
+    document.addEventListener('keydown', this._onFindKey);
+  }
+
+  // The scroller is torn down + rebuilt on some view swaps (rendering.js), so the
+  // document-level find key and the body-appended bar must be released, or a stale
+  // instance's openFind fires and a dead bar accumulates.
+  destroy() {
+    super.destroy();
+    document.removeEventListener('keydown', this._onFindKey);
+    clearTimeout(this._findDebounce);
+    this._findBar?.remove();
+  }
+
+  openFind() {
+    const bar = this._ensureFindBar();
+    const wasHidden = bar.hidden;
+    bar.hidden = false;
+    if (wasHidden && !this._findInput.value) {
+      const seed = String(window.getSelection?.() ?? '').trim();
+      if (seed && seed.length <= 64) this._findInput.value = seed;
+    }
+    this._findInput.focus();
+    this._findInput.select();
+    if (this._findInput.value) this._runFind(this._findInput.value);
+  }
+
+  closeFind() {
+    this._findSeq++;                     // supersede any in-flight worker reply
+    clearTimeout(this._findDebounce);
+    const had = !!this._find;
+    this._find = null;
+    if (this._findBar) this._findBar.hidden = true;
+    GroupMorePopover.close();
+    if (had) this._render();
+    this.sizer.focus({ preventScroll: true });
+  }
+
+  _ensureFindBar() {
+    if (this._findBar) return this._findBar;
+    const bar = document.createElement('div');
+    bar.className = 'find-bar';
+    bar.hidden = true;
+    const caret = up => `<svg class="entry-walk-caret${up ? ' entry-walk-caret--up' : ''}" viewBox="0 0 8 5" aria-hidden="true"><use href="#icon-arrow"/></svg>`;
+    bar.innerHTML =
+      `<span class="find-input-wrap">` +
+        `<input type="text" class="find-input" aria-label="Find in results">` +
+        `<span class="find-count" aria-live="polite"></span>` +
+      `</span>` +
+      `<button type="button" class="find-prev" aria-label="Previous match" title="Previous (Shift+Enter)">${caret(true)}</button>` +
+      `<button type="button" class="find-next" aria-label="Next match" title="Next (Enter)">${caret(false)}</button>` +
+      `<button type="button" class="find-close" aria-label="Close find" title="Close (Esc)">✕</button>`;
+    document.body.appendChild(bar);
+    const input = bar.querySelector('.find-input');
+    input.addEventListener('input', () => this._runFind(input.value));
+    input.addEventListener('keydown', e => {
+      if (e.key === 'Enter') { e.preventDefault(); e.shiftKey ? this.findPrev() : this.findNext(); }
+      else if (e.key === 'Escape') { e.preventDefault(); this.closeFind(); }
+      else if ((e.key === 'f' || e.key === 'F') && (e.metaKey || e.ctrlKey) && !e.altKey) { e.preventDefault(); e.stopPropagation(); input.select(); }
+    });
+    bar.querySelector('.find-prev').addEventListener('click', () => { this.findPrev(); input.focus(); });
+    bar.querySelector('.find-next').addEventListener('click', () => { this.findNext(); input.focus(); });
+    bar.querySelector('.find-close').addEventListener('click', () => this.closeFind());
+    this._findBar = bar;
+    this._findInput = input;
+    return bar;
+  }
+
+  _runFind(query, navigate = true) {
+    clearTimeout(this._findDebounce);
+    if (!query) {
+      this._findSeq++;
+      this._find = null;
+      this._updateFindBar();
+      this._render();
+      return;
+    }
+    this._findDebounce = setTimeout(() => this._doFind(query, navigate), 120);
+  }
+
+  async _doFind(query, navigate = true) {
+    const seq = ++this._findSeq;
+    const reply = await findInResult(this._currentStreamRunId(), query);
+    if (seq !== this._findSeq) return;                     // superseded by a newer keystroke or close
+    const matches = reply?.matches ?? [];
+    const byRow = new Map();
+    for (const m of matches) {
+      const arr = byRow.get(m.row);
+      if (arr) arr.push(m); else byRow.set(m.row, [m]);
+    }
+    this._find = { query, matches, capped: reply?.capped ?? false, current: -1, byRow };
+    this._find.current = this._pickInitialFindMatch();
+    this._updateFindBar();
+    if (navigate && this._find.current >= 0) this._navigateToCurrentFind();
+    else this._render();
+  }
+
+  _pickInitialFindMatch() {
+    const matches = this._find.matches;
+    if (!matches.length) return -1;
+    const top = this._firstVisibleIndex();
+    for (let k = 0; k < matches.length; k++) if (matches[k].row >= top) return k;
+    return 0;
+  }
+
+  findNext() { this._stepFind(1); }
+  findPrev() { this._stepFind(-1); }
+  _stepFind(dir) {
+    if (!this._find || !this._find.matches.length) return;
+    const n = this._find.matches.length;
+    this._find.current = (this._find.current + dir + n) % n;
+    this._updateFindBar();
+    this._navigateToCurrentFind();
+  }
+
+  _isGroupedTier() { return this.sortTier === 'group' || this.sortTier === 'tuple'; }
+  _windowIdleForTier() { return this._isGroupedTier() ? this.groupWindowIdle() : this.windowIdle(); }
+
+  async _navigateToCurrentFind() {
+    const m = this._find?.matches[this._find.current];
+    if (!m) { this._render(); return; }
+    this._scrollIndexToCenter(m.row);
+    this._render();
+    await this._windowIdleForTier();
+    if (!this._find || this._find.matches[this._find.current] !== m) return;   // closed / moved on while awaiting
+    // Adopt the match as cursor+selection so Esc lands edit-ready. Flat-tier only:
+    // _selectSingleAt reads the flat-only _rowIdentity; non-flat rows aren't selectable.
+    if (this._flat) this._selectSingleAt(m.row);
+    else this._render();
+    this._revealGroupMatch(m);
+  }
+
+  // A member's chain node is in the row exactly when it's visible (already lit by
+  // the render); its absence means it's behind "+N more" — the only case to reveal.
+  _revealGroupMatch(m) {
+    if (!this._isGroupedTier() || m.member == null || m.member < 0) return;
+    const rowNode = this._mounted.get(m.row)?.node;
+    if (!rowNode || rowNode.querySelector(`.group-chain[data-chain="${m.member}"]`)) return;
+    const moreBtn = rowNode.querySelector('.group-more');
+    const g = this._groupAt(m.row);
+    if (!moreBtn || moreBtn.hidden || !g) return;
+    GroupMorePopover.revealMember(g, moreBtn, this, m.member, this._groupMemberFind(this._find.byRow.get(m.row), m.member));
+  }
+
+  _updateFindBar() {
+    if (!this._findBar) return;
+    const count = this._findBar.querySelector('.find-count');
+    const prev = this._findBar.querySelector('.find-prev');
+    const next = this._findBar.querySelector('.find-next');
+    const find = this._find;
+    if (!find || !find.query) {
+      count.textContent = '';
+      this._findInput.classList.remove('find-nomatch');
+      prev.disabled = next.disabled = true;
+      return;
+    }
+    const total = find.matches.length;
+    if (!total) {
+      count.textContent = 'No results';
+      this._findInput.classList.add('find-nomatch');
+      prev.disabled = next.disabled = true;
+      return;
+    }
+    this._findInput.classList.remove('find-nomatch');
+    count.textContent = `${find.current + 1}/${find.capped ? FIND_MATCH_CAP + '+' : total}`;
+    prev.disabled = next.disabled = false;
+  }
+
+  // A fresh run reindexes rows, so stale coords would light the wrong ones — drop
+  // them and re-scan the new result when the bar is open.
+  _refreshFindForNewResult() {
+    this._find = null;
+    if (this._findBar && !this._findBar.hidden && this._findInput.value) this._runFind(this._findInput.value, false);
   }
 
   async _rangeIdentities(lo, hi) {
@@ -1663,6 +1907,7 @@ export class EntriesScroller extends BaseVirtualScroller {
     this._revealEmpty = false;
     clearTimeout(this._emptyRevealTimer);
     this._emptyRevealTimer = null;
+    this._refreshFindForNewResult();
     this.entries = this._getSortedSource();
     this._computeSlotWidths();
     this._render();
@@ -2015,7 +2260,9 @@ export class EntriesScroller extends BaseVirtualScroller {
   }
 
   _renderTupleRowHTML(tuple, rowIdx) {
-    const chainsHTML = tuple.chains.map((c, ci) => buildGroupChainHTML(c, ci)).join('');
+    const rowMatches = this._find?.byRow.get(rowIdx) || null;
+    const chainsHTML = tuple.chains
+      .map((c, ci) => buildGroupChainHTML(c, ci, this._groupMemberFind(rowMatches, ci))).join('');
     return `<span class="group-rownum">${rowIdx + 1}.</span>` +
       `<div class="group-chains">${chainsHTML}</div>`;
   }
@@ -2149,8 +2396,36 @@ export class EntriesScroller extends BaseVirtualScroller {
     });
   }
 
+  // Identity compare against the current match — `byRow` must hold the SAME
+  // objects as `matches`, or the find-current style silently never applies.
+  _findRanges(rowMatches, pred) {
+    if (!rowMatches) return null;
+    const cur = this._find.matches[this._find.current];
+    let out = null;
+    for (const m of rowMatches) {
+      if (!pred(m)) continue;
+      (out ??= []).push({ start: m.start, end: m.end, kind: m === cur ? 'find-current' : 'find' });
+    }
+    return out;
+  }
+
+  _groupMemberFind(rowMatches, member) {
+    if (!rowMatches) return null;
+    const cur = this._find.matches[this._find.current];
+    let map = null;
+    for (const m of rowMatches) {
+      if (m.member !== member) continue;
+      const range = { start: m.start, end: m.end, kind: m === cur ? 'find-current' : 'find' };
+      map ??= new Map();
+      const arr = map.get(m.atom);
+      if (arr) arr.push(range); else map.set(m.atom, [range]);
+    }
+    return map;
+  }
+
   _buildChainRow(chainRow, i, activeNorm, preview, draftRules) {
     const atoms = chainRow.atoms;
+    const rowMatches = this._find?.byRow.get(i) || null;
     let active = false;
     let html = `<span class="atom-count">${i + 1}.</span>`;
     atoms.forEach((atom, ai) => {
@@ -2160,18 +2435,23 @@ export class EntriesScroller extends BaseVirtualScroller {
       if (activeNorm && norm === activeNorm) active = true;
       const displayed = displayOf(wlEntry);
       const projected = projectRangesToDisplay(highlights, wlEntry);
+      // Flat stacks its atom lines on one shared entry, so a hit (scanned at atom 0)
+      // lights every line; transform lanes are distinct, so it's filtered to its atom.
+      const entryFind = this._findRanges(rowMatches, m => m.field === 'entry' && (this._flat || m.atom === ai));
       const glyphHTML = glyph ? `<span class="atom-glyph">${glyph} </span>` : '';
       const truncTitle = displayed.length > ENTRY_SLOT_CAP ? ` title="${esc(displayed)}"` : '';
       const entryCell =
-        `<span class="atom-entry"${truncTitle}>${glyphHTML}${renderHighlightedText(displayed, projected)}</span>`;
+        `<span class="atom-entry"${truncTitle}>${glyphHTML}${renderHighlightedText(displayed, entryFind ? [...(projected || []), ...entryFind] : projected)}</span>`;
       const scoreInner = buildScoreCellHTML(wlEntry, preview);
       const commentText = wlEntry.comment || '';
+      const commentFind = this._findRanges(rowMatches, m => m.field === 'comment' && (this._flat || m.atom === ai));
+      const commentInner = commentFind ? renderHighlightedText(commentText, commentFind) : esc(commentText);
       const sourceCell = buildSourcesMatrixHTML(wlEntry.sourceIds, wlEntry.activeIds, this._sourceSlots);
       html += `<span class="atom" data-atom="${ai}">` +
         entryCell +
         `<span class="atom-len">${norm.length}</span>` +
         `<span class="atom-score">${scoreInner}</span>` +
-        `<span class="atom-comment"${commentText ? ` title="${esc(commentText)}"` : ''}>${esc(commentText)}</span>` +
+        `<span class="atom-comment"${commentText ? ` title="${esc(commentText)}"` : ''}>${commentInner}</span>` +
         sourceCell +
         `</span>`;
     });
@@ -2234,11 +2514,14 @@ export class EntriesScroller extends BaseVirtualScroller {
       _groupWindowUnderfill++;
     }
     const hidden = total - visibleCount;
+    const rowMatches = this._find?.byRow.get(rowIdx) || null;
     const chainsHTML = [];
     for (let ci = 0; ci < visibleCount; ci++) {
-      chainsHTML.push(buildGroupChainHTML(chains[ci], ci));
+      chainsHTML.push(buildGroupChainHTML(chains[ci], ci, this._groupMemberFind(rowMatches, ci)));
     }
-    const anchorCell = hasAnchor ? buildGroupAnchorHTML(group.anchor) : '';
+    const anchorCell = hasAnchor
+      ? buildGroupAnchorHTML(group.anchor, this._findRanges(rowMatches, m => m.member === -1))
+      : '';
     const colCells = columns.map(c =>
       `<span class="group-col" data-col="${esc(c.key)}">${esc(String(c.value(group)))}</span>`
     ).join('');

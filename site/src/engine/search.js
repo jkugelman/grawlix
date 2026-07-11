@@ -133,14 +133,18 @@ export function groupSpansToRanges(m) {
 // from an untrusted URL, so an unescaped `<img onerror>` entry would be XSS.
 export function renderHighlightedText(text, ranges) {
   if (!ranges || !ranges.length) return esc(text);
-  const sorted = [...ranges].sort((a, b) => a.start - b.start);
+  // On a tie, a find hit wins the slot over a co-starting search mark (current
+  // match first), so a find never navigates to a row whose highlight is masked.
+  const sorted = [...ranges].sort((a, b) => a.start - b.start || findRank(a) - findRank(b));
   let result = '';
   let pos = 0;
   for (const r of sorted) {
     if (r.start < pos || r.end <= r.start) continue;
     result += esc(text.slice(pos, r.start));
     const content = esc(text.slice(r.start, r.end));
-    if (r.kind.startsWith('search:')) {
+    if (r.kind === 'find' || r.kind === 'find-current') {
+      result += `<mark class="find-hit${r.kind === 'find-current' ? ' find-current' : ''}">${content}</mark>`;
+    } else if (r.kind.startsWith('search:')) {
       result += `<mark class="search-match search-match-${r.kind.slice(7)}">${content}</mark>`;
     } else {
       result += `<span class="hl-${r.kind}">${content}</span>`;
@@ -148,4 +152,8 @@ export function renderHighlightedText(text, ranges) {
     pos = r.end;
   }
   return result + esc(text.slice(pos));
+}
+
+function findRank(r) {
+  return r.kind === 'find-current' ? 0 : r.kind === 'find' ? 1 : 2;
 }

@@ -52,6 +52,8 @@ html.dark-mode {
   --hl6: #7f1d1d; --hl6-fg: #fecaca;
   --hl7: #701a75; --hl7-fg: #f5d0fe;
   --hl8: #365314; --hl8-fg: #d9f99d;
+  --find-bg: #6e5600; --find-fg: #ffe9a8;
+  --find-current-bg: #c2600c; --find-current-fg: #fff0e0;
   --callout-bg: #201d09; --callout-border: #3d3410; --callout-fg: #b09840;
   --usd-added-bg:    #1a3d2a; --usd-added-fg:    #6ee89a;
   --usd-deleted-bg:  #3d1a1a; --usd-deleted-fg:  #f07070;
@@ -92,6 +94,8 @@ html.light-mode {
   --hl6: #fecaca; --hl6-fg: rgba(0,0,0,0.72);
   --hl7: #f5d0fe; --hl7-fg: rgba(0,0,0,0.72);
   --hl8: #d9f99d; --hl8-fg: rgba(0,0,0,0.72);
+  --find-bg: #ffe066; --find-fg: rgba(0,0,0,0.82);
+  --find-current-bg: #ff9d3c; --find-current-fg: rgba(0,0,0,0.85);
   --callout-bg: #fff3cd; --callout-border: #ffc107; --callout-fg: #856404;
   --usd-added-bg:    #e6f4ea; --usd-added-fg:    #2d7a3f;
   --usd-deleted-bg:  #fce8e6; --usd-deleted-fg:  #b71c1c;
