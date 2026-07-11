@@ -601,7 +601,11 @@ async function batchRescore(targets, score, refreshFn) {
   persistEditsMetaOnly(edits);
   refreshAfterEdit(refreshFn, ack);
 
-  showUndoToast(`Rescored ${pluralize(plans.length, 'entry', 'entries')} to ${score}`, () => {
+  const first = esc(displayOf(plans[0].primary));
+  const msg = plans.length === 1
+    ? `Rescored ${first} to ${score}`
+    : `Rescored ${first} and ${pluralize(plans.length - 1, 'other')} to ${score}`;
+  showUndoToast(msg, () => {
     const undoWrites = { deletes: inverse.deletes, upserts: inverse.upserts, primary: null };
     applyEditsChange(edits, () => applyEditsWriteSet(edits.rawEntries, undoWrites));
     const undoAck = sendEditEntry(undoWrites).then(a => { applyConfigAck(a); return a; });

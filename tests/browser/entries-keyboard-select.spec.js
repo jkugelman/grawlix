@@ -193,13 +193,23 @@ test('Alt+# rescores the whole selection in one write-set and one toast', async 
 
   await page.keyboard.press('Alt+Digit2');   // top tier, 90
 
-  await expect(toast(page)).toContainText('Rescored 3 entries to 90');
+  await expect(toast(page)).toContainText('Rescored alpha and 2 others to 90');
   await expect(toast(page)).toHaveCount(1);
   await expect.poll(() => myEdits(page).then(es => es.map(e => e.entry).sort()))
     .toEqual(['alpha', 'charlie', 'echo']);
   expect((await myEdits(page)).every(e => e.score === 90)).toBe(true);
   const src = await page.evaluate(() => window.__grawlixTest.dumpSourceEntries('Src'));
   expect(src.every(e => e.score === 50)).toBe(true);
+});
+
+test('rescoring a single row names the entry, not a count', async ({ page }) => {
+  await setup(page);
+  await row(page, 'alpha').locator('.atom-len').click();
+
+  await page.keyboard.press('Alt+Digit2');   // top tier, 90
+
+  await expect(toast(page)).toContainText('Rescored alpha to 90');
+  await expect(toast(page)).not.toContainText('other');
 });
 
 test('the batch rescore toast undoes all of it at once', async ({ page }) => {
