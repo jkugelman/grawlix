@@ -71,7 +71,7 @@ async function openPanelOnEntry(page, entryText, field = 'score') {
   // These tests run in All Wordlists, where the score cell opens the quick picker;
   // the panel opens from the entry cell in any scope, so default there.
   const cell = field === 'comment' ? '.atom-comment' : '.atom-entry';
-  await row.locator(cell).click();
+  await row.locator(cell).dblclick();
   await expect(page.locator('#entry-panel')).toBeVisible();
 }
 

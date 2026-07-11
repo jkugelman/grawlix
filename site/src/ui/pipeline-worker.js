@@ -837,6 +837,25 @@ export function fetchWorkerFamily(norm, display, boundNorm, boundDisplay, timeou
   });
 }
 
+// Own requestId space; a timeout resolves [] so the walk's list falls back to
+// bare entries rather than hanging.
+let fetchWinnersRequestId = 0;
+export function fetchWorkerWinners(ids, timeout = 5000) {
+  const w = getWorker();
+  const requestId = ++fetchWinnersRequestId;
+  return new Promise(resolve => {
+    const timer = setTimeout(() => { w.removeEventListener('message', onMessage); resolve([]); }, timeout);
+    function onMessage({ data }) {
+      if (data?.type !== 'winners' || data.requestId !== requestId) return;
+      clearTimeout(timer);
+      w.removeEventListener('message', onMessage);
+      resolve(data.members ?? []);
+    }
+    w.addEventListener('message', onMessage);
+    w.postMessage({ type: 'fetchWinners', requestId, ids });
+  });
+}
+
 // ─── Provenance + preview fetch bridge ── see docs/worker-protocol.md ────────
 // Its own requestId space, independent of both the run's runId and the edit-seed
 // lane: an entry-panel query must not touch run or seed supersession. A timeout resolves

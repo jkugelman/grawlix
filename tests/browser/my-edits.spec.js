@@ -29,9 +29,9 @@ test('editing a row sourced from another wordlist routes the edit into My Edits'
   const editsBefore = await page.evaluate(() => window.__grawlixTest.getWordlist('My Edits'));
   expect(editsBefore.entries).toEqual([]);
 
-  // Click the BAGEL row's entry cell to open the panel, edit, Enter. (The score
-  // cell opens the quick picker in this All Wordlists scope, not the panel.)
-  await page.locator('.entry-row[data-entry="bagel"] .atom-entry').click();
+  // Double-click the BAGEL row's entry cell to open the panel, edit, Enter. (The
+  // score cell opens the quick picker in this All Wordlists scope, not the panel.)
+  await page.locator('.entry-row[data-entry="bagel"] .atom-entry').dblclick();
   const scoreInput = page.locator('#entry-panel-score');
   await expect(scoreInput).toBeVisible();
   await scoreInput.fill('75');
@@ -58,7 +58,7 @@ test('panel edits only commit when the user clicks Save', async ({ page }) => {
     name: 'Source', entries: ['bagel'], scores: [50],
   }));
 
-  await page.locator('.entry-row[data-entry="bagel"] .atom-entry').click();
+  await page.locator('.entry-row[data-entry="bagel"] .atom-entry').dblclick();
   const scoreInput = page.locator('#entry-panel-score');
   await expect(scoreInput).toBeVisible();
   await scoreInput.fill('75');
@@ -88,7 +88,7 @@ test('Cancel closes the panel without committing edits', async ({ page }) => {
     name: 'Source', entries: ['bagel'], scores: [50],
   }));
 
-  await page.locator('.entry-row[data-entry="bagel"] .atom-entry').click();
+  await page.locator('.entry-row[data-entry="bagel"] .atom-entry').dblclick();
   await page.locator('#entry-panel-score').fill('99');
   await page.locator('.entry-panel-cancel').click();   // explicit cancel: closes outright, no prompt
   await expect(page.locator('#entry-panel')).toBeHidden();
@@ -103,7 +103,7 @@ test('the provenance table tracks the typed entry and flags the My Edits contrib
     name: 'Source', entries: ['bagel', 'carrot'], scores: [50, 50],
   }));
 
-  await page.locator('.entry-row[data-entry="bagel"] .atom-entry').click();
+  await page.locator('.entry-row[data-entry="bagel"] .atom-entry').dblclick();
   await page.locator('#entry-panel-score').fill('75');
   await page.locator('.entry-panel-save').click();
   await expect.poll(async () =>
@@ -111,7 +111,7 @@ test('the provenance table tracks the typed entry and flags the My Edits contrib
   ).toBe(1);
 
   // CARROT is Source-only: one row, no trash (My Edits has nothing to delete here).
-  await page.locator('.entry-row[data-entry="carrot"] .atom-entry').click();
+  await page.locator('.entry-row[data-entry="carrot"] .atom-entry').dblclick();
   await expect(page.locator('.entry-panel-prov tbody .entry-panel-prov-source')).toHaveCount(1);
   await expect(page.locator('.entry-panel-prov tbody .entry-panel-prov-source')).toContainText('Source');
   await expect(page.locator('.entry-panel-prov-trash')).toHaveCount(0);
@@ -139,14 +139,14 @@ test('editing the entry text renames the My Edits record', async ({ page }) => {
     name: 'Source', entries: ['bagel'], scores: [50],
   }));
 
-  await page.locator('.entry-row[data-entry="bagel"] .atom-entry').click();
+  await page.locator('.entry-row[data-entry="bagel"] .atom-entry').dblclick();
   await page.locator('#entry-panel-score').fill('75');
   await page.locator('.entry-panel-save').click();
   await expect.poll(async () =>
     page.evaluate(() => window.__grawlixTest.getWordlist('My Edits').entries)
   ).toEqual([{ entry: 'bagel', display: null, score: 75, comment: '' }]);
 
-  await page.locator('.entry-row[data-entry="bagel"] .atom-entry').click();
+  await page.locator('.entry-row[data-entry="bagel"] .atom-entry').dblclick();
   await page.locator('#entry-panel-entry').fill('Bagels');
   await page.locator('.entry-panel-save').click();
 
@@ -166,7 +166,7 @@ test('staging a delete via the row trash strikes it through and is reversible; S
   }));
 
   // Create a My Edits override by editing BAGEL's score.
-  await page.locator('.entry-row[data-entry="bagel"] .atom-entry').click();
+  await page.locator('.entry-row[data-entry="bagel"] .atom-entry').dblclick();
   await page.locator('#entry-panel-score').fill('75');
   await page.locator('#entry-panel-score').press('Enter');
   await expect.poll(async () =>
@@ -174,7 +174,7 @@ test('staging a delete via the row trash strikes it through and is reversible; S
   ).toBe(1);
 
   // Re-open the panel; the provenance table lists both My Edits and Source.
-  await page.locator('.entry-row[data-entry="bagel"] .atom-entry').click();
+  await page.locator('.entry-row[data-entry="bagel"] .atom-entry').dblclick();
   await expect(page.locator('.entry-panel-prov tbody .entry-panel-prov-source')).toContainText(['My Edits', 'Source']);
 
   const editsTrash = page.locator('.entry-panel-prov-row', { hasText: 'My Edits' }).locator('.entry-panel-prov-trash');
@@ -218,14 +218,14 @@ test('staging a delete survives a provenance re-render firing mid-click', async 
     name: 'Source', entries: ['bagel'], scores: [50],
   }));
 
-  await page.locator('.entry-row[data-entry="bagel"] .atom-entry').click();
+  await page.locator('.entry-row[data-entry="bagel"] .atom-entry').dblclick();
   await page.locator('#entry-panel-score').fill('75');
   await page.locator('#entry-panel-score').press('Enter');
   await expect.poll(async () =>
     page.evaluate(() => window.__grawlixTest.getWordlist('My Edits').entries.length)
   ).toBe(1);
 
-  await page.locator('.entry-row[data-entry="bagel"] .atom-entry').click();
+  await page.locator('.entry-row[data-entry="bagel"] .atom-entry').dblclick();
   await expect(page.locator('.entry-panel-prov tbody .entry-panel-prov-source')).toContainText(['My Edits', 'Source']);
 
   await page.evaluate(() => {
@@ -342,7 +342,7 @@ test('deleting a My Edits entry shows an undo toast that restores it', async ({ 
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
     name: 'Source', entries: ['bagel'], scores: [50],
   }));
-  await page.locator('.entry-row[data-entry="bagel"] .atom-entry').click();
+  await page.locator('.entry-row[data-entry="bagel"] .atom-entry').dblclick();
   await page.locator('#entry-panel-score').fill('75');
   await page.locator('#entry-panel-score').press('Enter');
 
@@ -351,7 +351,7 @@ test('deleting a My Edits entry shows an undo toast that restores it', async ({ 
   ).toBe(1);
 
   // Re-open the panel, stage the My Edits row's deletion, and Save to commit.
-  await page.locator('.entry-row[data-entry="bagel"] .atom-entry').click();
+  await page.locator('.entry-row[data-entry="bagel"] .atom-entry').dblclick();
   await page.locator('.entry-panel-prov-row', { hasText: 'My Edits' }).locator('.entry-panel-prov-trash').click();
   await page.locator('.entry-panel-save').click();
 
@@ -401,7 +401,7 @@ test('a My Edits entry deletes via the panel after a reload, matching its bare n
 
   const entryCell = page.locator('.entry-row[data-entry="words"] .atom-entry');
   await expect(entryCell).toBeVisible();
-  await entryCell.click();
+  await entryCell.dblclick();
   await page.locator('.entry-panel-prov-row', { hasText: 'My Edits' }).locator('.entry-panel-prov-trash').click();
   await page.locator('.entry-panel-save').click();
 
@@ -417,7 +417,7 @@ test('editing My Edits is reflected in the merged view', async ({ page }) => {
     name: 'Source', entries: ['bagel', 'carrot'], scores: [50, 60],
   }));
 
-  await page.locator('.entry-row[data-entry="bagel"] .atom-entry').click();
+  await page.locator('.entry-row[data-entry="bagel"] .atom-entry').dblclick();
   await page.locator('#entry-panel-score').fill('75');
   await page.locator('#entry-panel-score').press('Enter');
   await expect.poll(async () =>

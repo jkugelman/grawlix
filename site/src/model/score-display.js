@@ -55,7 +55,9 @@ export function buildScoreBadgeHTML(score) {
   const { bg, fg } = scoreColor(score);
   const tier = tierLabelFor(score);
   const title = tier ? ` title="${esc(tier)}"` : '';
-  return `<span class="score-badge"${title} style="--score-bg:${bg}; --score-fg:${fg}">${score}</span>`;
+  // The tier lives only in the title tooltip, which a screen reader ignores — name it.
+  const aria = ` aria-label="score ${score}${tier ? ', ' + esc(tier) : ''}"`;
+  return `<span class="score-badge"${title}${aria} style="--score-bg:${bg}; --score-fg:${fg}">${score}</span>`;
 }
 
 export function buildScoreCellHTML(wlEntry, preview) {

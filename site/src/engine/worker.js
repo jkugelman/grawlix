@@ -1431,6 +1431,26 @@ function handleFetchFamily({ requestId, norm, display, boundNorm = norm, boundDi
   postMessage({ type: 'family', requestId, members });
 }
 
+function handleFetchWinners({ requestId, ids }) {
+  const members = [];
+  const result = lastFlatResult;
+  if (result && ownedCorpusFresh && ids?.length) {
+    const entries = corpusFor(result).entries;
+    const indices = result.indices;
+    const wanted = new Set(ids.map(id => id.norm + '\x00' + (id.display ?? '')));
+    // Emit in result order, dropping any pick the current view filters out.
+    for (let i = 0; i < indices.length && wanted.size; i++) {
+      const e = entries[indices[i]];
+      const key = e.norm + '\x00' + (e.display ?? '');
+      if (wanted.has(key)) {
+        members.push({ norm: e.norm, display: e.display ?? null, score: e.score, comment: e.comment || '', sourceId: e.wordlist.dbKey });
+        wanted.delete(key);
+      }
+    }
+  }
+  postMessage({ type: 'winners', requestId, members });
+}
+
 // ─── Provenance + preview fetch ── see docs/worker-protocol.md ────────────────
 // ownedCorpusFresh stands in for an ownedMerged/ownedBuilt freshness flag (cleared
 // synchronously by syncConfig, re-set by a committed syncConfig or an edit command
@@ -2481,6 +2501,10 @@ onmessage = ({ data }) => {
 
     case 'fetchFamily':
       handleFetchFamily(data);
+      break;
+
+    case 'fetchWinners':
+      handleFetchWinners(data);
       break;
 
     case 'fetchProvenance':

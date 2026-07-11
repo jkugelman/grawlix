@@ -500,6 +500,8 @@ export async function clearEdits() {
 export function attachExternalEditHandlers(s, refreshFn) {
   s._onSave = (mode, baseline, newValues) =>
     saveEntry(mode, mode === 'create' ? null : baseline, newValues, refreshFn);
+  s._onBatchRescore = (targets, score) => batchRescore(targets, score, refreshFn);
+  s._onBatchDelete = (targets) => batchDelete(targets, refreshFn);
 }
 
 export function saveEdit(orig, newValues) {
@@ -541,6 +543,7 @@ export async function saveEntry(mode, clicked, { raw, score, comment }, refreshF
   const writes = { deletes: plan.deletes, upserts: plan.upserts, primary: plan.primary };
   let inverse;
   applyEditsChange(edits, () => { inverse = applyEditsWriteSet(edits.rawEntries, writes); });
+  if (clicked) getEntriesScroller()?.renameInSelection({ norm: clicked.norm, display: clicked.display ?? null }, plan.primary);
   const ack = sendEditEntry(writes).then(a => { applyConfigAck(a); return a; });
   persistEditsMetaOnly(edits);
   refreshAfterEdit(refreshFn, ack);
@@ -550,6 +553,7 @@ export async function saveEntry(mode, clicked, { raw, score, comment }, refreshF
     const undoWrites = { deletes: inverse.deletes, upserts: inverse.upserts, primary: plan.primary };
     showUndoToast(msg, () => {
       applyEditsChange(edits, () => applyEditsWriteSet(edits.rawEntries, undoWrites));
+      if (clicked) getEntriesScroller()?.renameInSelection(plan.primary, { norm: clicked.norm, display: clicked.display ?? null });
       const undoAck = sendEditEntry(undoWrites).then(a => { applyConfigAck(a); return a; });
       persistEditsMetaOnly(edits);
       refreshAfterEdit(refreshFn, undoAck);
@@ -571,6 +575,65 @@ function undoToastMessage(mode, plan, clicked) {
     ? `Updated ${esc(displayOf(plan.primary))} in My Edits`
     : `Added ${esc(displayOf(plan.primary))} to My Edits`;
   return null;
+}
+
+// Plain concatenation is safe only because a pure rescore renames nothing, so it adds
+// no keep-copy/downscore siblings and distinct atoms never collide on (norm, display).
+// `primary` is null (no single batch focus); the worker ignores it — see editEntry.
+function mergeWriteSets(plans) {
+  const deletes = [], upserts = [];
+  for (const p of plans) { deletes.push(...p.deletes); upserts.push(...p.upserts); }
+  return { deletes, upserts, primary: null };
+}
+
+async function batchRescore(targets, score, refreshFn) {
+  const edits = getEditsWordlist();
+  if (!edits || !targets.length) { refreshFn?.(); return; }
+  const plans = (await Promise.all(targets.map(t =>
+    planForSave({ mode: 'edit', clicked: t.clicked, typed: { raw: t.raw, score, comment: t.comment }, trashScore: getTrashScore() })
+  ))).filter(p => p && !p.blockedReason && (p.deletes.length || p.upserts.length));
+  if (!plans.length) { refreshFn?.(); return; }
+
+  const writes = mergeWriteSets(plans);
+  let inverse;
+  applyEditsChange(edits, () => { inverse = applyEditsWriteSet(edits.rawEntries, writes); });
+  const ack = sendEditEntry(writes).then(a => { applyConfigAck(a); return a; });
+  persistEditsMetaOnly(edits);
+  refreshAfterEdit(refreshFn, ack);
+
+  showUndoToast(`Rescored ${pluralize(plans.length, 'entry', 'entries')} to ${score}`, () => {
+    const undoWrites = { deletes: inverse.deletes, upserts: inverse.upserts, primary: null };
+    applyEditsChange(edits, () => applyEditsWriteSet(edits.rawEntries, undoWrites));
+    const undoAck = sendEditEntry(undoWrites).then(a => { applyConfigAck(a); return a; });
+    persistEditsMetaOnly(edits);
+    refreshAfterEdit(refreshFn, undoAck);
+  });
+}
+
+// Refreshes directly, not via refreshAfterEdit: a delete is always structural, and
+// refreshAfterEdit's reproject branch would leave the deleted rows on screen.
+async function batchDelete(targets, refreshFn) {
+  const edits = getEditsWordlist();
+  if (!edits || !targets.length) { refreshFn?.(); return; }
+  const deletes = targets
+    .filter(t => edits.rawEntries.some(e => e.norm === t.norm && displayOf(e) === t.display))
+    .map(t => ({ norm: t.norm, display: t.display }));
+  if (!deletes.length) { refreshFn?.(); return; }
+
+  const writes = { deletes, upserts: [], primary: null };
+  let inverse;
+  applyEditsChange(edits, () => { inverse = applyEditsWriteSet(edits.rawEntries, writes); });
+  sendEditEntry(writes).then(applyConfigAck);
+  persistEditsMetaOnly(edits);
+  refreshFn?.();
+
+  showUndoToast(`Deleted ${pluralize(deletes.length, 'entry', 'entries')} from ${buildWordlistNameHTML(edits)}`, () => {
+    const undoWrites = { deletes: inverse.deletes, upserts: inverse.upserts, primary: null };
+    applyEditsChange(edits, () => applyEditsWriteSet(edits.rawEntries, undoWrites));
+    sendEditEntry(undoWrites).then(applyConfigAck);
+    persistEditsMetaOnly(edits);
+    refreshFn?.();
+  });
 }
 
 // ─── Fetch, import & update ───────────────────────────────────────────────────

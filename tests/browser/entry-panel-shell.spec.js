@@ -18,7 +18,7 @@ async function openPanelOnEntry(page, entryText) {
   const row = page.locator('#vs-host .entry-row', {
     has: page.locator('.atom-entry', { hasText: new RegExp(`^${entryText}$`) }),
   }).first();
-  await row.locator('.atom-entry').click();
+  await row.locator('.atom-entry').dblclick();
   await expect(page.locator('#entry-panel')).toBeVisible();
 }
 
@@ -49,7 +49,8 @@ test('the frame pins header and footer outside the scrolling body', async ({ pag
   await scopeTo(page, 'All Wordlists');
   await openPanelOnEntry(page, 'ocean');
 
-  await expect(page.locator('#entry-panel > .entry-panel-header .entry-input')).toBeVisible();
+  await expect(page.locator('#entry-panel > .entry-panel-header .entry-panel-title')).toBeVisible();
+  await expect(page.locator('#entry-panel > .entry-panel-body .entry-input')).toBeVisible();
   await expect(page.locator('#entry-panel > .entry-panel-foot .entry-panel-save')).toBeVisible();
   await expect(page.locator('#entry-panel > .entry-panel-body > .entry-panel-lookup')).toBeAttached();
   await expect(page.locator('.entry-panel-foot .entry-panel-lookup')).toHaveCount(0);

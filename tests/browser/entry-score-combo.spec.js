@@ -34,7 +34,7 @@ const myEdits = page => page.evaluate(() => window.__grawlixTest.getWordlist('My
 async function openPanel(page) {
   const cell = page.locator('.entry-row[data-entry="bagel"] .atom-entry');
   await expect(cell).toBeVisible();
-  await cell.click();
+  await cell.dblclick();
   await expect(panel(page)).toBeVisible();
   await expect(scoreInput(page)).toBeEnabled();
 }

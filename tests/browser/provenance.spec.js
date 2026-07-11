@@ -19,7 +19,7 @@ async function openPanelOnEntry(page, entryText) {
   const row = page.locator('#vs-host .entry-row', {
     has: page.locator('.atom-entry', { hasText: new RegExp(`^${entryText}$`) }),
   }).first();
-  await row.locator('.atom-entry').click();
+  await row.locator('.atom-entry').dblclick();
   await expect(page.locator('#entry-panel')).toBeVisible();
 }
 

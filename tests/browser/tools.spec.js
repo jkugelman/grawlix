@@ -104,7 +104,7 @@ test('pipeline output preserves wlEntry refs (panel opens, source/score intact)'
   await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'anagrams', params: { entry: 'LINDSEY' } }]));
 
   // Open the panel on an entry produced by the pipeline.
-  await page.locator('.entry-row .atom-entry', { hasText: 'snidely' }).click();
+  await page.locator('.entry-row .atom-entry', { hasText: 'snidely' }).dblclick();
   await expect(page.locator('#entry-panel')).toBeVisible();
   // The score input reflects the entry's actual score from the merged view,
   // confirming the pipeline handed back the original wlEntry rather than a

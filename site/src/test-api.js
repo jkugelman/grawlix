@@ -450,6 +450,14 @@ const __grawlixTest = {
 
   groupWindowIdle() { return getEntriesScroller()?.groupWindowIdle() ?? Promise.resolve(); },
 
+  // The full selection as displayed entry strings — includes off-window rows a DOM
+  // read of `.selected` would miss (the virtual scroller only mounts the visible band).
+  scrollerSelection() {
+    const s = getEntriesScroller();
+    return s ? [...s._selection.values()].map(id => id.display ?? id.norm) : [];
+  },
+  scrollerCursorIndex() { return getEntriesScroller()?._cursorIndex ?? -1; },
+
   resultHistogramCounts() { const c = getEntriesScroller()?._workerHistogramCounts; return c ? [...c] : null; },
 
   // Resolves once init() has fully completed. gotoApp awaits this before the

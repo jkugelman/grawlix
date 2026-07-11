@@ -43,7 +43,7 @@ import { LookupSection } from './lookup.js';
 import {
   getEntriesScroller, rescorePreviewActive, refreshMergedScroller, reprojectMergedScroller, setScope,
 } from './rendering.js';
-import { fetchWorkerRows, fetchWorkerGroups, fetchWorkerGroupChains, fetchWorkerAllRows, fetchWorkerAllGroups, fetchWorkerTransformRows, fetchWorkerAllTransformRows, lastCompletedRunId, fetchWorkerEditSeed, fetchWorkerFamily, fetchWorkerProvenance, fetchWorkerEditPlan, sendViewport } from './pipeline-worker.js';
+import { fetchWorkerRows, fetchWorkerGroups, fetchWorkerGroupChains, fetchWorkerAllRows, fetchWorkerAllGroups, fetchWorkerTransformRows, fetchWorkerAllTransformRows, lastCompletedRunId, fetchWorkerEditSeed, fetchWorkerFamily, fetchWorkerWinners, fetchWorkerProvenance, fetchWorkerEditPlan, sendViewport } from './pipeline-worker.js';
 
 let _navigate              = () => {};
 
@@ -696,9 +696,26 @@ export class EntriesScroller extends BaseVirtualScroller {
     this._scoreIntervals = this.scoreRange ? parseRange(this.scoreRange) : null;
     this._onSave = null;
     this._onDeleteRow = null;
-    this._hoveredAtomEl = null;
+    this._onBatchRescore = null;
+    this._onBatchDelete = null;
     this._sentViewport = null;
     this.onFilterChange = null;
+
+    // Selection is keyed on an atom's (norm, display) identity, never a row index:
+    // the flat scroller windows, so an index silently names a different entry after
+    // a scroll or re-ingest. The cursor also carries a cached index (for nav/scroll/
+    // aria), re-derived from its identity on a result change. Flat tier only.
+    this._selection = new Map();   // idKey -> { norm, display }
+    this._cursor = null;           // { norm, display } | null
+    this._cursorIndex = -1;
+    this._anchor = null;           // range-select base identity
+    this._anchorIndex = -1;
+    this._navToken = 0;            // supersedes a stale async cursor move
+    this._dragAnchorIndex = -1;
+    this._dragLastIndex = -1;
+    this._suppressClick = false;
+    this._liveRegion = null;
+    this._liveTimer = null;
     // Sorted view of allEntries cached across keystrokes. Filter preserves
     // order, so a sorted source means the filter result is already sorted —
     // no per-keystroke re-sort needed. Invalidated when allEntries change.
@@ -736,13 +753,45 @@ export class EntriesScroller extends BaseVirtualScroller {
     this._groupReqSeq = 0;
     this._groupFetchOutstanding = 0;
 
+    this.sizer.tabIndex = -1;
+    this.sizer.setAttribute('role', 'listbox');
+    this.sizer.setAttribute('aria-multiselectable', 'true');
+    this.sizer.setAttribute('aria-label', 'Entries');
+    this.sizer.addEventListener('keydown', e => this._onListboxKeydown(e));
+
+    this.sizer.addEventListener('mousedown', e => this._onRowMouseDown(e));
+
     this.sizer.addEventListener('click', e => {
+      // A click that ends a drag-select must not fall through and re-select one row.
+      if (this._suppressClick) { this._suppressClick = false; return; }
       const moreBtn = e.target.closest('.group-more');
       if (moreBtn) {
         const gr = moreBtn.closest('.group-row');
         const g = this._groupAt(gr.dataset.idx);
         if (g) GroupMorePopover.toggle(g, moreBtn, this);
         return;
+      }
+      if (this._flat) {
+        const rowEl = e.target.closest('.entry-row');
+        if (rowEl && !rowEl.classList.contains('skeleton')) {
+          const idx = parseInt(rowEl.dataset.idx, 10);
+          const focus = () => this.sizer.focus({ preventScroll: true });
+          if (e.shiftKey)             { focus(); this._extendSelectionByClick(idx); return; }
+          if (e.ctrlKey || e.metaKey) { focus(); this._toggleSelectionAt(idx);      return; }
+          // The score badge keeps its single-click tier quick-pick; every other cell —
+          // entry text included — selects (the panel opens on double-click, below).
+          if (!e.target.closest('.atom-score')) {
+            // Touch can't double-click, drag, or reach multi-select (it's keyboard-fed),
+            // so a lone tap opens the panel rather than selecting a row it can't act on.
+            // View-first — don't pop the keyboard until a field is tapped.
+            if (isMobile()) {
+              const wlEntry = this._winCache.get(idx)?.atoms?.[0]?.wlEntry;
+              if (wlEntry) EntryPanel.open(wlEntry, rowEl, this, null);
+              return;
+            }
+            focus(); this._selectSingleAt(idx); return;
+          }
+        }
       }
       const resolved = this._resolveAtomTarget(e.target);
       if (!resolved) return;
@@ -754,17 +803,25 @@ export class EntriesScroller extends BaseVirtualScroller {
       EntryPanel.open(wlEntry, row, this, field === 'entry' ? null : field);
     });
 
-    this.sizer.addEventListener('mouseover', e => {
-      const atom = e.target.closest('.atom');
-      this._hoveredAtomEl = atom && this.sizer.contains(atom) ? atom : null;
-    });
-    this.sizer.addEventListener('mouseleave', () => {
-      this._hoveredAtomEl = null;
+    // The single clicks preceding a double-click already selected + cursored the row,
+    // so this just opens on it. The score badge keeps its quick-pick, so it's exempt.
+    this.sizer.addEventListener('dblclick', e => {
+      if (!this._flat) return;
+      if (e.target.closest('.atom-score, .group-more')) return;
+      const rowEl = e.target.closest('.entry-row');
+      if (!rowEl || rowEl.classList.contains('skeleton')) return;
+      // WebKit's default double-click word-select lands on the just-focused panel
+      // input, so it opens with the entry text selected instead of a caret.
+      e.preventDefault();
+      const idx = parseInt(rowEl.dataset.idx, 10);
+      this._cursorIndex = idx;
+      this._cursor = this._rowIdentity(idx);
+      this._openCursorPanel();
     });
   }
 
   _resolveAtomTarget(node) {
-    const target = node.closest?.('.atom-entry, .atom-score, .atom-comment');
+    const target = node.closest?.('.atom-entry, .atom-score');
     if (!target) return null;
     let row, wlEntry;
     const groupRow = target.closest('.group-row');
@@ -793,24 +850,383 @@ export class EntriesScroller extends BaseVirtualScroller {
         : this._winCache.get(parseInt(row.dataset.idx, 10))?.atoms[parseInt(atomEl.dataset.atom, 10)]?.wlEntry;
     }
     if (!wlEntry) return null;
-    const field = target.classList.contains('atom-score') ? 'score'
-                : target.classList.contains('atom-comment') ? 'comment'
-                : 'entry';
+    const field = target.classList.contains('atom-score') ? 'score' : 'entry';
     return { row, wlEntry, field, anchor: target };
   }
 
-  // Returns whether it acted, so the global key handler knows whether to swallow
-  // the keystroke.
-  hoverRescoreByDigit(digit) {
-    if (!scoreQuickPickable()) return false;
-    const atom = this._hoveredAtomEl;
-    if (!atom?.isConnected) return false;
-    const resolved = this._resolveAtomTarget(atom.querySelector('.atom-score'));
-    if (!resolved) return false;
+  // ─── Selection & keyboard navigation (flat tier) ──────────────────────────
+
+  _idKey(id) { return id.norm + '\x00' + (id.display ?? ''); }
+
+  _rowIdentity(idx) {
+    const wl = this._winCache.get(idx)?.atoms?.[0]?.wlEntry;
+    return wl ? { norm: wl.norm, display: wl.display ?? null } : null;
+  }
+
+  _indexOfIdentity(id) {
+    const key = this._idKey(id);
+    for (const [i, decoded] of this._winCache) {
+      const wl = decoded.atoms?.[0]?.wlEntry;
+      if (wl && this._idKey({ norm: wl.norm, display: wl.display ?? null }) === key) return i;
+    }
+    return -1;
+  }
+
+  _setSelection(ids) {
+    this._selection.clear();
+    for (const id of ids) if (id) this._selection.set(this._idKey(id), { norm: id.norm, display: id.display ?? null });
+  }
+
+  // A rename swaps an atom's (norm, display), which would drop the entry from the
+  // identity-keyed selection. Carry it over — old→next in the set and on the cursor/
+  // anchor — so a selected entry stays selected as it re-sorts to its new spot.
+  renameInSelection(oldId, nextId) {
+    const oldKey = this._idKey(oldId);
+    const next = { norm: nextId.norm, display: nextId.display ?? null };
+    if (this._selection.has(oldKey)) {
+      this._selection.delete(oldKey);
+      this._selection.set(this._idKey(next), next);
+    }
+    if (this._cursor && this._idKey(this._cursor) === oldKey) this._cursor = next;
+    if (this._anchor && this._idKey(this._anchor) === oldKey) this._anchor = next;
+  }
+
+  _selectSingleAt(idx) {
+    const id = this._rowIdentity(idx);
+    this._cursorIndex = idx; this._cursor = id;
+    this._anchorIndex = idx; this._anchor = id;
+    this._setSelection(id ? [id] : []);
+    this._render();
+  }
+
+  _toggleSelectionAt(idx) {
+    const id = this._rowIdentity(idx);
+    if (id) {
+      const key = this._idKey(id);
+      if (this._selection.has(key)) this._selection.delete(key);
+      else this._selection.set(key, { norm: id.norm, display: id.display ?? null });
+    }
+    this._cursorIndex = idx; this._cursor = id;
+    this._anchorIndex = idx; this._anchor = id;
+    this._render();
+  }
+
+  async _extendSelectionByClick(idx) {
+    const base = this._anchorIndex < 0 ? idx : this._anchorIndex;
+    this._cursorIndex = idx; this._cursor = this._rowIdentity(idx);
+    await this._selectRange(base, idx);
+    this._render();
+  }
+
+  async _selectAllRows() {
+    const n = this._renderRowCount();
+    if (n === 0) return;
+    const reply = await fetchWorkerAllRows(this._currentStreamRunId());
+    if (!reply) return;
+    this._setSelection(reply.rows.map(r => ({ norm: r.norm, display: r.display ?? null })));
+    this._render();
+  }
+
+  _onRowMouseDown(e) {
+    if (!this._flat || e.button !== 0) return;
+    if (e.target.closest('.group-more')) return;
+    const rowEl = e.target.closest('.entry-row');
+    if (!rowEl || rowEl.classList.contains('skeleton')) return;
+    // Kill the native text selection a drag would start — WebKit ignores the rows'
+    // user-select:none for a drag, so preventDefault is the portable stop. The click
+    // still fires (edit/select), and focus is set explicitly, so nothing is lost.
+    e.preventDefault();
+    if (e.shiftKey || e.ctrlKey || e.metaKey) return;   // modifier gestures live on click
+    this._dragAnchorIndex = parseInt(rowEl.dataset.idx, 10);
+    this._dragLastIndex = -1;
+    const onMove = ev => this._onRowDragMove(ev);
+    const onUp = () => {
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+      if (this._dragLastIndex >= 0) this._suppressClick = true;
+      this._dragAnchorIndex = -1;
+    };
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  }
+
+  _onRowDragMove(e) {
+    if (this._dragAnchorIndex < 0) return;
+    const idx = this._rowIndexAtPoint(e.clientY);
+    if (idx == null || idx === this._dragLastIndex) return;
+    if (this._dragLastIndex < 0 && idx === this._dragAnchorIndex) return;   // not yet a drag
+    this._dragLastIndex = idx;
+    this.sizer.focus({ preventScroll: true });
+    this._cursorIndex = idx; this._cursor = this._rowIdentity(idx);
+    this._anchorIndex = this._dragAnchorIndex; this._anchor = this._rowIdentity(this._dragAnchorIndex);
+    this._selectRange(this._dragAnchorIndex, idx).then(() => this._render());
+  }
+
+  _rowIndexAtPoint(clientY) {
+    const n = this._renderRowCount();
+    if (n === 0) return null;
+    const idx = Math.floor((clientY - this.host.getBoundingClientRect().top) / this._rowStride());
+    return Math.max(0, Math.min(n - 1, idx));
+  }
+
+  _clearSelection() {
+    if (this._selection.size === 0) return false;
+    this._selection.clear();
+    this._render();
+    return true;
+  }
+
+  _resetSelectionState() {
+    this._selection.clear();
+    this._cursor = null; this._cursorIndex = -1;
+    this._anchor = null; this._anchorIndex = -1;
+  }
+
+  // Membership is identity-keyed, so it survives a re-ingest untouched; only the
+  // cursor/anchor *indices* are re-derived here. Pruning the Map instead would drop
+  // a batch the moment the user keeps typing in the search box.
+  _reconcileSelectionCursor() {
+    if (!this._flat) { this._resetSelectionState(); return false; }
+    const n = this._renderRowCount();
+    if (n === 0) { this._resetSelectionState(); return false; }
+    const before = this._cursorIndex;
+    if (this._cursor) {
+      const idx = this._indexOfIdentity(this._cursor);
+      this._cursorIndex = idx >= 0 ? idx : Math.min(Math.max(0, this._cursorIndex), n - 1);
+    }
+    if (this._anchor) {
+      const idx = this._indexOfIdentity(this._anchor);
+      this._anchorIndex = idx >= 0 ? idx : Math.min(Math.max(0, this._anchorIndex), n - 1);
+    }
+    return this._cursorIndex !== before;
+  }
+
+  rescoreSelectionByDigit(digit) {
+    if (!scoreQuickPickable() || this._selection.size === 0) return false;
     const opt = optionForDigit(buildScoreOptions(), digit);
     if (!opt) return false;
-    commitRescore(this, resolved.wlEntry, opt.score);
+    this._batchRescoreSelection(opt.score);
     return true;
+  }
+
+  // fetchEditSeed resolves every target — even a visible, cached one — rather than
+  // reading the cached row: a second seed path would silently drift from the single-
+  // rescore one, writing subtly wrong scores/comments only for batches.
+  async _batchRescoreSelection(score) {
+    const ids = [...this._selection.values()];
+    if (!ids.length) return;
+    const edits = getEditsWordlist();
+    const seeds = await Promise.all(ids.map(id => fetchWorkerEditSeed(id.norm, id.display ?? null)));
+    const targets = [];
+    seeds.forEach((winner, i) => {
+      if (!winner) return;
+      const src = state.sources.find(s => s.dbKey === winner.sourceId) || null;
+      const seed = seedFromWinnerRow(
+        { norm: ids[i].norm, display: ids[i].display ?? null, score: winner.score, comment: winner.comment, wordlist: src },
+        edits != null && src === edits);
+      if (seed.score === score) return;
+      targets.push({ clicked: editBaselineFor(seed), raw: seed.entry, comment: seed.comment });
+    });
+    if (targets.length) this._onBatchRescore?.(targets, score);
+  }
+
+  _deleteAllowed() {
+    const edits = getEditsWordlist();
+    return edits != null && state.selected === edits && this._selection.size > 0;
+  }
+
+  _deleteSelection() {
+    const targets = [...this._selection.values()].map(id => ({ norm: id.norm, display: id.display ?? id.norm }));
+    if (!targets.length) return;
+    this._selection.clear();
+    this._render();
+    this._onBatchDelete?.(targets);
+  }
+
+  _openCursorPanel() {
+    if (this._cursorIndex < 0) return;
+    const wlEntry = this._winCache.get(this._cursorIndex)?.atoms?.[0]?.wlEntry;
+    if (!wlEntry) return;
+    // ≥2, not ≥1: a lone selected row walks the table rather than dead-ending as a
+    // one-member walk with nothing to step to.
+    const walkIds = this._selection.size >= 2 ? [...this._selection.values()] : null;
+    // Focus the entry field as a caret (no selection, so typing appends). Not the
+    // score field: its focus auto-opens the ScoreCombo, and the first Escape would
+    // then close the combo instead of the panel.
+    EntryPanel.open(wlEntry, this._mounted.get(this._cursorIndex)?.node ?? null, this, 'entry', 'edit', walkIds, false);
+  }
+
+  // The panel suppresses the scroller's own key nav while modal, so the walk must
+  // drive the cursor from here rather than through _onListboxKeydown. Anchor on the
+  // panel's active identity, not _cursorIndex: a cell-click open never set the cursor.
+  // 'replace' so the table selection tracks the walked entry — a visible anchor, and
+  // Esc-then-Enter reopens the same one.
+  _walkBaseIndex(fromId) {
+    const base = fromId ? this._indexOfIdentity(fromId) : -1;
+    return base >= 0 ? base : this._cursorIndex;
+  }
+
+  async stepPanelCursor(delta, fromId) {
+    const n = this._renderRowCount();
+    const base = this._walkBaseIndex(fromId);
+    if (n === 0 || base < 0) return null;
+    const target = base + delta;
+    if (target < 0 || target >= n) return null;
+    await this._moveCursor(target, 'replace');
+    return this._winCache.get(this._cursorIndex)?.atoms?.[0]?.wlEntry ?? null;
+  }
+
+  // Cursor-only ('move', not 'replace'): a multi-select walk moves the cursor to the
+  // current member but leaves the picked set selected — 'replace' would collapse the
+  // selection to the current row as you step. Best-effort if the member is off-window.
+  async setPanelCursor(id) {
+    const idx = this._indexOfIdentity(id);
+    if (idx >= 0) await this._moveCursor(idx, 'move');
+  }
+
+  panelWalkEdges(fromId) {
+    const n = this._renderRowCount();
+    const base = this._walkBaseIndex(fromId);
+    return { atFirst: base <= 0, atLast: base >= n - 1 };
+  }
+
+  _stickyOffsetPx() {
+    const cs = getComputedStyle(document.documentElement);
+    const px = v => parseFloat(cs.getPropertyValue(v)) || 0;
+    return px('--header-h') + px('--wordlist-bar-h') + px('--sticky-stack-h');
+  }
+
+  _pageRows() {
+    return Math.max(1, Math.floor((window.innerHeight - this._stickyOffsetPx()) / this._rowStride()));
+  }
+
+  _firstVisibleIndex() {
+    const rect = this.host.getBoundingClientRect();
+    const visTop = Math.max(0, this._stickyOffsetPx() - rect.top);
+    return Math.max(0, Math.min(this._renderRowCount() - 1, Math.round(visTop / this._rowStride())));
+  }
+
+  // Scrolls the document, not an inner box: the flat scroller windows against the
+  // page, so scrollIntoView on an off-window (unmounted) cursor row would no-op.
+  _scrollCursorIntoView() {
+    const i = this._cursorIndex;
+    if (i < 0) return;
+    const stride = this._rowStride();
+    const rowTop = this.host.getBoundingClientRect().top + i * stride;
+    const top = this._stickyOffsetPx();
+    if (rowTop < top) window.scrollBy({ top: rowTop - top - 4 });
+    else if (rowTop + stride > window.innerHeight) window.scrollBy({ top: rowTop + stride - window.innerHeight + 8 });
+  }
+
+  async _rangeIdentities(lo, hi) {
+    const cached = [];
+    for (let i = lo; i <= hi; i++) {
+      const id = this._rowIdentity(i);
+      if (!id) { cached.length = 0; break; }
+      cached.push(id);
+    }
+    if (cached.length === hi - lo + 1) return cached;
+    const reply = await fetchWorkerRows(this._currentStreamRunId(), lo, hi + 1);
+    return reply ? reply.rows.map(r => ({ norm: r.norm, display: r.display ?? null })) : [];
+  }
+
+  async _selectRange(a, b) {
+    this._setSelection(await this._rangeIdentities(Math.min(a, b), Math.max(a, b)));
+  }
+
+  // mode 'move' (Ctrl+arrow) advances the cursor while leaving the selection intact —
+  // the cursor and selection set are meant to diverge here, not a bug to "fix".
+  async _moveCursor(target, mode) {
+    const n = this._renderRowCount();
+    if (n === 0) return;
+    target = Math.max(0, Math.min(n - 1, target));
+    const token = ++this._navToken;
+    this._cursorIndex = target;
+    this._scrollCursorIntoView();
+    this._render();
+    if (!this._winCache.has(target)) await this.windowIdle();
+    if (token !== this._navToken) return;
+    const id = this._rowIdentity(target);
+    if (id) this._cursor = id;
+    if (mode === 'replace') {
+      this._anchorIndex = target; this._anchor = id;
+      this._setSelection(id ? [id] : []);
+    } else if (mode === 'extend') {
+      await this._selectRange(this._anchorIndex < 0 ? target : this._anchorIndex, target);
+      if (token !== this._navToken) return;
+    }
+    this._render();
+  }
+
+  _onListboxKeydown(e) {
+    if (!this._flat || EntryPanel.isOpen() || e.altKey) return;
+    const n = this._renderRowCount();
+    if (n === 0) return;
+    const mod = e.ctrlKey || e.metaKey;
+
+    if ((e.key === 'a' || e.key === 'A') && mod) { e.preventDefault(); this._selectAllRows(); return; }
+    if (e.key === 'Escape') { if (this._clearSelection()) e.preventDefault(); return; }
+    if (e.key === 'Enter') { if (this._cursorIndex >= 0) { e.preventDefault(); this._openCursorPanel(); } return; }
+    if (e.key === ' ' || e.key === 'Spacebar') { if (this._cursorIndex >= 0) { e.preventDefault(); this._toggleSelectionAt(this._cursorIndex); } return; }
+    if (e.key === 'Delete') { if (this._deleteAllowed()) { e.preventDefault(); this._deleteSelection(); } return; }
+
+    if (this._cursorIndex < 0 && ['ArrowDown', 'ArrowUp', 'PageDown', 'PageUp', 'Home', 'End'].includes(e.key)) {
+      e.preventDefault(); this._moveCursor(this._firstVisibleIndex(), 'replace'); return;
+    }
+    const cur = this._cursorIndex;
+    const page = Math.max(1, this._pageRows() - 1);
+    let target;
+    switch (e.key) {
+      case 'ArrowDown': target = cur + 1; break;
+      case 'ArrowUp':   target = cur - 1; break;
+      case 'PageDown':  target = cur + page; break;
+      case 'PageUp':    target = cur - page; break;
+      case 'Home':      target = 0; break;
+      case 'End':       target = n - 1; break;
+      default: return;
+    }
+    e.preventDefault();
+    this._moveCursor(target, e.shiftKey ? 'extend' : mod ? 'move' : 'replace');
+  }
+
+  _applyListboxRole() {
+    if (this._flat) {
+      this.sizer.tabIndex = 0;
+      this.sizer.setAttribute('role', 'listbox');
+      this.sizer.setAttribute('aria-multiselectable', 'true');
+    } else {
+      this.sizer.tabIndex = -1;
+      this.sizer.removeAttribute('role');
+      this.sizer.removeAttribute('aria-multiselectable');
+      this.sizer.removeAttribute('aria-activedescendant');
+    }
+  }
+
+  _applyRowSelection(row, i) {
+    row.id = 'entry-opt-' + i;
+    row.setAttribute('role', 'option');
+    row.setAttribute('aria-setsize', this._renderRowCount());
+    row.setAttribute('aria-posinset', i + 1);
+    const id = this._rowIdentity(i);
+    const selected = !!(id && this._selection.has(this._idKey(id)));
+    row.classList.toggle('selected', selected);
+    row.setAttribute('aria-selected', selected ? 'true' : 'false');
+    row.classList.toggle('cursor', i === this._cursorIndex);
+  }
+
+  _announceCount() {
+    if (!this._flat) return;
+    if (!this._liveRegion) {
+      this._liveRegion = document.createElement('div');
+      this._liveRegion.className = 'sr-only';
+      this._liveRegion.setAttribute('aria-live', 'polite');
+      this.host.appendChild(this._liveRegion);
+    }
+    clearTimeout(this._liveTimer);
+    this._liveTimer = setTimeout(() => {
+      const n = this._renderRowCount();
+      this._liveRegion.textContent = n === 0 ? 'No matches' : `${n} ${n === 1 ? 'entry' : 'entries'}`;
+    }, 500);
   }
 
   setEntries(result, atomCount = this.atomCount, sortTier = this.sortTier) {
@@ -820,6 +1236,9 @@ export class EntriesScroller extends BaseVirtualScroller {
     this._setChainShape(atomCount, sortTier);
     this._ingestResult(result);
     this._invalidateSortCache();
+    // Reset (not reconcile like updateEntries): setEntries means a fresh corpus, so
+    // a preserved selection would silently carry one scope's picks into another.
+    this._resetSelectionState();
     this._sortAndRender();
   }
 
@@ -831,6 +1250,10 @@ export class EntriesScroller extends BaseVirtualScroller {
     this._invalidateSortCache();
     if (tierChanged) rebuildEntryHeaders();
     this._sortAndRender();
+    // Must follow _sortAndRender: it reseeds the win cache to the new window, which
+    // _reconcileSelectionCursor scans — run before, and it maps identities against
+    // the prior run's window and silently lands the cursor on the wrong row.
+    if (this._reconcileSelectionCursor()) this._render();
     EntryPanel.rebindEntry(this);
   }
 
@@ -1243,6 +1666,7 @@ export class EntriesScroller extends BaseVirtualScroller {
     this.entries = this._getSortedSource();
     this._computeSlotWidths();
     this._render();
+    this._announceCount();
     // Not a suppression: while streaming the stats bar still refreshes, but via
     // _scheduleStreamStatsRefresh's rAF coalesce — firing it here too would
     // rebuild the histogram on every partial.
@@ -1488,6 +1912,13 @@ export class EntriesScroller extends BaseVirtualScroller {
 
     if (nextActiveRow) EntryPanel.rebindRow(nextActiveRow);
 
+    this._applyListboxRole();
+    if (this._flat && this._cursorIndex >= start && this._cursorIndex < end) {
+      this.sizer.setAttribute('aria-activedescendant', 'entry-opt-' + this._cursorIndex);
+    } else if (this._flat) {
+      this.sizer.removeAttribute('aria-activedescendant');
+    }
+
     if (minMiss >= 0) {
       const lo = Math.max(0, minMiss - VS_BUFFER);
       const hi = Math.min(n, maxMiss + 1 + VS_BUFFER);
@@ -1519,7 +1950,7 @@ export class EntriesScroller extends BaseVirtualScroller {
         this._buildChainRow(chainRow, i, ctx.activeNorm, ctx.preview, ctx.draftRules),
       skeletonHTML: i => `<span class="atom-count">${i + 1}.</span>`,
       decorateRow: (row, i) => {
-        if (this._flat) this._applyFamilyBracket(row, i);
+        if (this._flat) { this._applyFamilyBracket(row, i); this._applyRowSelection(row, i); }
       },
       invalidateCache: () => this._invalidateWinCacheIfStale(),
       fetchWindow: (lo, hi) => this._fetchWindow(lo, hi),
@@ -2031,6 +2462,16 @@ export const EntryPanel = (() => {
   let activeRow = null;
   let familyMembers = [];
   let familyToken = 0;
+  // Non-null bounds the walk to a multi-select ({ members, index }); null is the
+  // no-selection walk that steps the table cursor and shows the current family.
+  let walkSelection = null;
+  let walkToken = 0;
+  // Field to re-focus after a walk step; null means don't steal focus — a view-first
+  // open never focused a field, and forcing it would pop the mobile keyboard.
+  let lastFocusField = null;
+  // A fresh open selects the focused field's text (retype-a-score); a walk step only
+  // focuses, so continuing to type in the same column doesn't wipe the value.
+  let selectFieldOnFocus = true;
   let activeWlEntry = null;
   let activeSeed = null;
   let activeScroller = null;
@@ -2076,6 +2517,7 @@ export const EntryPanel = (() => {
   // it, so it strips the param in place instead.
   let ownsHistoryEntry = false;
   let scoreCombo = null;
+  let listboxOpener = null;
 
   function ensureElement() {
     if (el) return el;
@@ -2092,21 +2534,17 @@ export const EntryPanel = (() => {
       if (e.target.closest('.entry-panel-prov-untrash')) { toggleStagedAdopt(); return; }
       const trash = e.target.closest('.entry-panel-prov-trash');
       if (trash) { toggleStagedDelete(trash.dataset.norm, trash.dataset.display); return; }
+      if (e.target.closest('.entry-panel-prev')) { walkPrev(); return; }
+      if (e.target.closest('.entry-panel-next')) { walkNext(); return; }
       const famItem = e.target.closest('.entry-family-item');
-      if (famItem) {
-        const m = familyMembers[+famItem.dataset.famIdx];
-        // Pass the sibling's full merged winner (score, comment, source): in the
-        // merged scope the panel doesn't refetch the seed, so what's passed here IS
-        // it — a partial seed blanks the score and suppresses the My Edits adopt link.
-        if (m && !m.current) {
-          const wordlist = state.sources.find(s => s.dbKey === m.sourceId) ?? null;
-          open({ norm: m.norm, display: m.display, score: m.score, comment: m.comment, wordlist }, null, getEntriesScroller(), null);
-        }
-        return;
-      }
+      if (famItem) { clickFamilyRow(+famItem.dataset.famIdx); return; }
       if (e.target.closest('.entry-panel-adopt-btn')) toggleStagedAdopt();
     });
-    el.addEventListener('focus', e => { focusEl = e.target; }, true);
+    el.addEventListener('focus', e => {
+      focusEl = e.target;
+      const f = fieldNameOf(e.target);
+      if (f) lastFocusField = f;
+    }, true);
     el.addEventListener('blur', e => {
       focusEl = e.relatedTarget && el.contains(e.relatedTarget) ? e.relatedTarget : null;
     }, true);
@@ -2148,6 +2586,8 @@ export const EntryPanel = (() => {
     activeMode = 'edit';
     activeReadOnly = false;
     focusEl = null;
+    lastFocusField = null;
+    walkSelection = null;
     stagedDelete = null;
     stagedAdopt = false;
     ownsHistoryEntry = false;
@@ -2155,11 +2595,15 @@ export const EntryPanel = (() => {
     seedQueryToken++;
     provQueryToken++;
     planQueryToken++;
+    walkToken++;
     shippedProvRows = null;
     lastProvHTML = null;
     lastNoteHTML = null;
     _cachedPlan = null;
     document.removeEventListener('keydown', onKeydown, true);
+    const opener = listboxOpener;
+    listboxOpener = null;
+    if (opener?.isConnected) opener.focus({ preventScroll: true });
   }
 
   function close() {
@@ -2205,6 +2649,12 @@ export const EntryPanel = (() => {
       close();
       return;
     }
+    // Skip walk nav while the score combo is open — it owns the vertical keys.
+    if (activeMode !== 'create' && !scoreCombo?.isOpen()) {
+      const back = (e.altKey && e.key === 'ArrowUp') || e.key === 'PageUp';
+      const fwd = (e.altKey && e.key === 'ArrowDown') || e.key === 'PageDown';
+      if (back || fwd) { e.preventDefault(); (back ? walkPrev : walkNext)(); return; }
+    }
     // The exclusion defers to controls that own Enter: without it this capture-phase
     // handler would preempt the combobox's tier-pick and turn Enter on Cancel into a
     // save. Left over is the unfocused panel (a view-first open), where Enter saves.
@@ -2243,7 +2693,8 @@ export const EntryPanel = (() => {
   // `focus` names the field to focus and select, or is null for a view-first open:
   // entry-cell clicks, navigation, and deep links pass null because auto-focusing
   // there only pops the mobile keyboard for what is really a read.
-  function doOpen(wlEntry, rowEl, scroller, focus, mode, route, animate) {
+  function doOpen(wlEntry, rowEl, scroller, focus, mode, route, animate, selectField = true) {
+    selectFieldOnFocus = selectField;
     // The panel is modal — its scrim covers the page. Dismiss the other floating
     // surfaces (all z-600, so they'd float above the scrim and stay live).
     ScorePicker.close();
@@ -2281,7 +2732,8 @@ export const EntryPanel = (() => {
     lastNoteHTML = renderNotesHTML();
     revealModal(animate);
     wireFields();
-    renderFamily(wlEntry.norm, wlEntry.display ?? null);
+    renderFamily(activeWlEntry.norm, activeWlEntry.display ?? null);
+    updateNav();
 
     fireInitialProvenanceQuery(seed.entry);
     if (!activeReadOnly && needsWorkerSeed(wlEntry, route)) refineScopedSeed(wlEntry, focus);
@@ -2291,9 +2743,13 @@ export const EntryPanel = (() => {
     document.addEventListener('keydown', onKeydown, true);
   }
 
-  function open(wlEntry, rowEl, scroller, focus = 'score', mode = 'edit') {
+  function open(wlEntry, rowEl, scroller, focus = 'score', mode = 'edit', walkIds = null, selectField = true) {
     const reopening = isOpen();
-    doOpen(wlEntry, rowEl, scroller, focus, mode, false, true);
+    if (!reopening) listboxOpener = scroller && document.activeElement === scroller.sizer ? scroller.sizer : null;
+    // A fresh open starts a fresh walk; walkTo() reseeds without coming through here.
+    walkSelection = null;
+    lastFocusField = null;
+    doOpen(wlEntry, rowEl, scroller, focus, mode, false, true, selectField);
     if (reopening) _navigate();
     else {
       ownsHistoryEntry = true;
@@ -2303,11 +2759,14 @@ export const EntryPanel = (() => {
       // its param instead, lighting the Forward button on one close but not the next.
       history.replaceState({ ...history.state, entryPanel: true }, '');
     }
+    if (walkIds && walkIds.length >= 2) setupSelectionWalk(walkIds);
   }
 
   // Open from the URL (deep link, or Back/Forward into an entry): synthesize a
   // target, let the worker seed it, and DON'T navigate — the URL is already there.
   function openFromRoute({ norm, display }, { animate = false } = {}) {
+    walkSelection = null;
+    lastFocusField = null;
     // A value equal to its own norm is a bare entry rendered as the norm; seed it
     // as bare (display null) so the worker's bare fallback resolves the winner.
     const seedDisplay = display === norm ? null : display;
@@ -2369,10 +2828,13 @@ export const EntryPanel = (() => {
               : focus === 'comment' ? '.comment-input'
               : '.score-input';
     const input = el?.querySelector(sel);
-    // preventScroll: the field sits in the pinned header, so focus-into-view has
-    // nothing to do but yank the page when the mobile keyboard opens.
+    // preventScroll: focus-into-view has nothing to do but yank the page when the
+    // mobile keyboard opens.
     input?.focus({ preventScroll: true });
-    input?.select();
+    if (selectFieldOnFocus) input?.select();
+    // Land a caret at the end (typing appends) rather than whatever the focus left —
+    // number inputs reject setSelectionRange, so guard on type.
+    else if (input && input.type !== 'number') input.setSelectionRange(input.value.length, input.value.length);
   }
 
   function openForCreate(entryStr, scroller) {
@@ -2627,7 +3089,12 @@ export const EntryPanel = (() => {
           <span class="entry-panel-close-x" aria-hidden="true">✕</span>
           <span class="entry-panel-close-back" aria-hidden="true">←</span>
         </button>
-        <div class="entry-panel-title">${esc(headerText(seed.entry))}</div>
+        <div class="entry-panel-titlerow">
+          <div class="entry-panel-title">${esc(headerText(seed.entry))}</div>
+          ${renderNavHTML()}
+        </div>
+      </div>
+      <div class="entry-panel-body">
         <div class="entry-panel-fields">
           <label for="entry-panel-entry">Entry</label>
           <input id="entry-panel-entry" class="entry-input" type="text" autocapitalize="off" autocorrect="off" spellcheck="false" value="${esc(seed.entry)}"${ro}>
@@ -2641,13 +3108,21 @@ export const EntryPanel = (() => {
           <label for="entry-panel-comment">Comment</label>
           <input id="entry-panel-comment" class="comment-input" type="text" value="${esc(seed.comment)}"${ro}>
         </div>
-      </div>
-      <div class="entry-panel-body">
         <div class="entry-panel-prov-wrap">${provWrapHTML()}</div>
         <div class="entry-panel-lookup"></div>
         <div class="entry-panel-family"></div>
       </div>
       <div class="entry-panel-foot">${renderFooterHTML(seed.entry)}</div>`;
+  }
+
+  function renderNavHTML() {
+    if (activeMode === 'create') return '';
+    const caret = up => `<svg class="entry-walk-caret${up ? ' entry-walk-caret--up' : ''}" viewBox="0 0 8 5" aria-hidden="true"><use href="#icon-arrow"/></svg>`;
+    return `<div class="entry-panel-nav">
+      <button class="entry-panel-prev" type="button" aria-label="Previous entry" title="Previous entry (Alt+↑ / PageUp)">${caret(true)}</button>
+      <span class="entry-panel-walkpos" aria-live="polite"></span>
+      <button class="entry-panel-next" type="button" aria-label="Next entry" title="Next entry (Alt+↓ / PageDown)">${caret(false)}</button>
+    </div>`;
   }
 
   // Entry text is passed in, not read from `.entry-input`: during renderHTML `el`
@@ -2703,6 +3178,7 @@ export const EntryPanel = (() => {
       lastNoteHTML = renderNotesHTML();
       wireFields();
       renderFamily(activeWlEntry.norm, activeWlEntry.display ?? null);
+      updateNav();
       const inp = el.querySelector('.entry-input');
       fireProvenanceQuery('', inp ? inp.value : '');
       return;
@@ -2899,9 +3375,6 @@ export const EntryPanel = (() => {
     if (lookupHost) LookupSection.mount(lookupHost, entryInp.value);
   }
 
-  // Last-good held until the reply lands (not cleared up front): re-fired per
-  // keystroke as the entry is retyped, blanking each time would flash the section.
-  // At open the host is freshly empty anyway (renderHTML rebuilt it).
   function renderFamily(norm, display) {
     const token = ++familyToken;
     // The bound entry (what the panel is on) rides alongside the query so the
@@ -2918,6 +3391,18 @@ export const EntryPanel = (() => {
     });
   }
 
+  function setupSelectionWalk(walkIds) {
+    walkSelection = { members: [], index: 0 };
+    const token = ++walkToken;
+    fetchWorkerWinners(walkIds).then(members => {
+      if (token !== walkToken || !isOpen() || !walkSelection) return;
+      walkSelection.members = members;
+      const i = members.findIndex(m => m.norm === activeWlEntry?.norm && (m.display ?? null) === (activeWlEntry?.display ?? null));
+      walkSelection.index = i >= 0 ? i : 0;
+      updateNav();
+    });
+  }
+
   function buildFamilyHTML(members) {
     // Show only when a relative is present. The current entry may be absent — a
     // live rename drops it — so test for a non-current member, not the count.
@@ -2929,6 +3414,97 @@ export const EntryPanel = (() => {
     }).join(' · ');
     return `<div class="lookup-sec"><div class="lookup-sec-head">Related entries</div>`
       + `<div class="entry-family-list">${items}</div></div>`;
+  }
+
+  function updateNav() {
+    if (!isOpen()) return;
+    const prev = el.querySelector('.entry-panel-prev');
+    const next = el.querySelector('.entry-panel-next');
+    const pos = el.querySelector('.entry-panel-walkpos');
+    if (!prev || !next) return;
+    let atFirst, atLast, label = '';
+    if (walkSelection) {
+      atFirst = walkSelection.index <= 0;
+      atLast = walkSelection.index >= walkSelection.members.length - 1;
+      label = walkSelection.members.length ? `${walkSelection.index + 1} / ${walkSelection.members.length}` : '';
+    } else {
+      const edges = activeScroller?.panelWalkEdges?.(currentWalkId()) ?? { atFirst: false, atLast: false };
+      atFirst = edges.atFirst; atLast = edges.atLast;
+    }
+    prev.disabled = atFirst;
+    next.disabled = atLast;
+    if (pos) pos.textContent = label;
+  }
+
+  function fieldNameOf(node) {
+    if (!node || !node.classList) return null;
+    if (node.classList.contains('entry-input')) return 'entry';
+    if (node.classList.contains('score-input')) return 'score';
+    if (node.classList.contains('comment-input')) return 'comment';
+    return null;
+  }
+
+  // Auto-commit the current member on a walk step. Blocks the step on an invalid
+  // value (same gate as Save) so a bad score can't silently drop as you move on.
+  function commitForWalk() {
+    if (activeReadOnly || activeMode === 'create') return true;
+    const newValues = readNewValues();
+    if (!stagedAdopt && !pendingWritesChange(newValues)) return true;
+    if (!valuesValid(newValues)) {
+      el.querySelector(newValues.raw.length === 0 ? '.entry-input' : '.score-input')?.focus();
+      return false;
+    }
+    if (saveBlocked()) { el.querySelector('.entry-input')?.focus(); return false; }
+    activeScroller._onSave?.(stagedAdopt ? 'adopt' : 'edit', editBaselineFor(saveBaseline()), newValues);
+    if (walkSelection) {
+      const m = walkSelection.members[walkSelection.index];
+      if (m) { m.score = newValues.score; m.comment = newValues.comment; m.display = newValues.raw; m.norm = toNorm(newValues.raw); }
+    }
+    return true;
+  }
+
+  function memberTarget(m) {
+    const wl = state.sources.find(s => s.dbKey === m.sourceId) ?? null;
+    return { norm: m.norm, display: m.display ?? null, score: m.score, comment: m.comment, wordlist: wl };
+  }
+
+  async function walkStep(delta) {
+    if (!isOpen() || activeMode === 'create') return;
+    const focus = lastFocusField;
+    if (!commitForWalk()) return;
+    if (walkSelection) {
+      const target = walkSelection.index + delta;
+      if (target < 0 || target >= walkSelection.members.length) return;
+      walkSelection.index = target;
+      const m = walkSelection.members[target];
+      activeScroller?.setPanelCursor?.({ norm: m.norm, display: m.display ?? null });
+      walkTo(memberTarget(m), focus);
+    } else {
+      const wlEntry = await activeScroller?.stepPanelCursor?.(delta, currentWalkId());
+      if (wlEntry) walkTo(wlEntry, focus);
+    }
+  }
+  function currentWalkId() {
+    return activeWlEntry ? { norm: activeWlEntry.norm, display: activeWlEntry.display ?? null } : null;
+  }
+  function walkPrev() { walkStep(-1); }
+  function walkNext() { walkStep(1); }
+
+  function clickFamilyRow(i) {
+    const m = familyMembers[i];
+    if (!m || m.current) return;
+    if (!commitForWalk()) return;
+    // A relative can sit outside the current result, so open it fresh (a history push,
+    // Back returns here) instead of moving the table cursor onto a maybe-absent row.
+    const wordlist = state.sources.find(s => s.dbKey === m.sourceId) ?? null;
+    open({ norm: m.norm, display: m.display ?? null, score: m.score, comment: m.comment, wordlist }, null, getEntriesScroller(), null);
+  }
+
+  // Replace (not push): the whole walk is one history entry, so Back closes the
+  // panel rather than rewinding member-by-member.
+  function walkTo(target, focus) {
+    doOpen(target, null, activeScroller, focus, 'edit', false, true, false);
+    _navigate();
   }
 
   function setScoreByDigit(digit) {
@@ -3047,7 +3623,7 @@ function commitRescore(scroller, wlEntry, score) {
 export function handleScoreDigitShortcut(digit) {
   if (ScorePicker.isOpen()) return ScorePicker.pickDigit(digit);
   if (EntryPanel.isOpen()) return EntryPanel.setScoreByDigit(digit);
-  return getEntriesScroller()?.hoverRescoreByDigit(digit) ?? false;
+  return getEntriesScroller()?.rescoreSelectionByDigit(digit) ?? false;
 }
 
 // Offered only in the All Wordlists and My Edits scopes: there the clicked row

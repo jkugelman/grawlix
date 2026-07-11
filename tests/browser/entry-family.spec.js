@@ -55,7 +55,7 @@ const sibling = page => page.locator('.entry-family-item:not(.entry-family-item-
 async function openPanelFor(page, norm) {
   const cell = page.locator(`.entry-row[data-entry="${norm}"] .atom-entry`);
   await expect(cell).toBeVisible();
-  await cell.click();
+  await cell.dblclick();
   await expect(panel(page)).toBeVisible();
 }
 

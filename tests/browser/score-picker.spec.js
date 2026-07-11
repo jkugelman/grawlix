@@ -117,11 +117,12 @@ test('Alt+digit commits the matching tier while the picker is open', async ({ pa
   await expect.poll(() => mergedBagel(page)).toMatchObject({ score: 90, wordlist: 'My Edits' });
 });
 
-test('Alt+digit while hovering a score rescores it with no picker', async ({ page }) => {
+test('Alt+digit rescores the selected row with no picker', async ({ page }) => {
   await setup(page, { score: 50 });
-  const cell = page.locator('.entry-row[data-entry="bagel"] .atom-score');
-  await expect(cell).toBeVisible();
-  await cell.hover();
+  // The length cell is non-editable, so clicking it selects the row without side
+  // effects (a score-cell click would open the picker instead).
+  await page.locator('.entry-row[data-entry="bagel"] .atom-len').click();
+  await expect(page.locator('.entry-row[data-entry="bagel"]')).toHaveClass(/selected/);
   await page.keyboard.press('Alt+Digit0');   // bottom tier, 10
   await expect(picker(page)).toBeHidden();
   await expect(page.locator('#entry-panel')).toBeHidden();
@@ -129,23 +130,20 @@ test('Alt+digit while hovering a score rescores it with no picker', async ({ pag
   await expect.poll(() => mergedBagel(page)).toMatchObject({ score: 10, wordlist: 'My Edits' });
 });
 
-test('Alt+digit rescores while hovering anywhere in the row, not just the score', async ({ page }) => {
+test('Alt+digit with no selection does nothing (hover is not a target)', async ({ page }) => {
   await setup(page, { score: 50 });
-  const entryCell = page.locator('.entry-row[data-entry="bagel"] .atom-entry');
-  await expect(entryCell).toBeVisible();
-  await entryCell.hover();
-  await page.keyboard.press('Alt+Digit0');   // bottom tier, 10
-  await expect(picker(page)).toBeHidden();
+  await page.locator('.entry-row[data-entry="bagel"] .atom-entry').hover();
+  await page.keyboard.press('Alt+Digit0');
   await expect(page.locator('#entry-panel')).toBeHidden();
-  await expect(toast(page)).toContainText(/Rescored .* to 10/);
-  await expect.poll(() => mergedBagel(page)).toMatchObject({ score: 10, wordlist: 'My Edits' });
+  await expect(toast(page)).toHaveCount(0);
+  expect(await myEdits(page)).toEqual([]);
 });
 
 test('Alt+digit in the edit panel fills the score field without saving', async ({ page }) => {
   await setup(page, { score: 50 });
   // The entry cell opens the editable panel in All Wordlists (a foreign scope's panel
   // is read-only, so the score field there would be disabled and Alt+digit a no-op).
-  await page.locator('.entry-row[data-entry="bagel"] .atom-entry').click();
+  await page.locator('.entry-row[data-entry="bagel"] .atom-entry').dblclick();
   await expect(page.locator('#entry-panel')).toBeVisible();
   await expect(page.locator('#entry-panel .score-input')).toBeEnabled();
 
