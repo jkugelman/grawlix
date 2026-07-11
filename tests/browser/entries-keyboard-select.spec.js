@@ -97,6 +97,17 @@ test('arrow keys move the cursor and reset the selection to it', async ({ page }
   expect(await page.evaluate(() => window.__grawlixTest.scrollerCursorIndex())).toBe(1);
 });
 
+test('Alt+Down / Alt+Up move the cursor the same as plain Down / Up', async ({ page }) => {
+  await setup(page);
+  await row(page, 'alpha').locator('.atom-len').click();   // cursor on alpha (index 0), listbox focused
+  await page.keyboard.press('Alt+ArrowDown');
+  expect(await page.evaluate(() => window.__grawlixTest.scrollerCursorIndex())).toBe(1);
+  await page.keyboard.press('Alt+ArrowDown');
+  expect(await page.evaluate(() => window.__grawlixTest.scrollerCursorIndex())).toBe(2);
+  await page.keyboard.press('Alt+ArrowUp');
+  expect(await page.evaluate(() => window.__grawlixTest.scrollerCursorIndex())).toBe(1);
+});
+
 test('Shift+ArrowDown extends a contiguous range', async ({ page }) => {
   await setup(page);
   await row(page, 'alpha').locator('.atom-len').click();

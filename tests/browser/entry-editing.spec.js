@@ -80,16 +80,39 @@ test('Alt-A is inert while the create panel is already open, preserving in-progr
   await expect(page.locator('#entry-panel-entry')).toHaveValue('halfTypedEntry');
 });
 
-test('Save is disabled until an edit diverges from the entry, and re-disables on revert', async ({ page }) => {
+test('a pristine edit panel shows only Close; an edit reveals Save/Cancel, and reverting restores Close', async ({ page }) => {
   await gotoApp(page);
   await addList(page, { name: 'W', entries: ['ocean'], scores: [50] });
   await openPanelOnEntry(page, 'ocean');
   const save = page.locator('#entry-panel .entry-panel-save');
-  await expect(save).toBeDisabled();
+  const cancel = page.locator('#entry-panel .entry-panel-cancel');
+  const closeBtn = page.locator('#entry-panel .entry-panel-close');
+
+  await expect(closeBtn).toBeVisible();
+  await expect(save).toBeHidden();
+  await expect(cancel).toBeHidden();
+
   await page.locator('#entry-panel-score').fill('60');
+  await expect(save).toBeVisible();
   await expect(save).toBeEnabled();
+  await expect(cancel).toBeVisible();
+  await expect(closeBtn).toBeHidden();
+
   await page.locator('#entry-panel-score').fill('50');
-  await expect(save).toBeDisabled();
+  await expect(closeBtn).toBeVisible();
+  await expect(save).toBeHidden();
+  await expect(cancel).toBeHidden();
+});
+
+test('Enter on a pristine edit panel closes it without saving', async ({ page }) => {
+  await gotoApp(page);
+  await addList(page, { name: 'W', entries: ['ocean'], scores: [50] });
+  await openPanelOnEntry(page, 'ocean');
+  await expect(page.locator('#entry-panel .entry-panel-close')).toBeVisible();
+
+  await page.locator('#entry-panel-entry').press('Enter');
+  await expect(page.locator('#entry-panel')).toBeHidden();
+  expect(await page.evaluate(() => window.__grawlixTest.getWordlist('My Edits').entries)).toEqual([]);
 });
 
 // ─── Lookup ──────────────────────────────────────────────────────────────────
@@ -293,7 +316,8 @@ test('adopt link adds an unowned entry to My Edits without any edit', async ({ p
   await scopeTo(page, 'All Wordlists');
   await openPanelOnEntry(page, 'AAA battery');
   await expect(adoptLink(page)).toHaveText('Add to My Edits');
-  await expect(page.locator('#entry-panel .entry-panel-save')).toBeDisabled();
+  await expect(page.locator('#entry-panel .entry-panel-close')).toBeVisible();   // nothing to save yet
+  await expect(page.locator('#entry-panel .entry-panel-save')).toBeHidden();
   await adoptLink(page).click();
   await expect(adoptLink(page)).toHaveCount(0);   // link hides once staged
   await expect(page.locator('#entry-panel .entry-panel-save')).toBeEnabled();
@@ -316,7 +340,8 @@ test('the staged adopt row carries a trash that un-stages it, restoring the link
   await added.locator('.entry-panel-prov-untrash').click();
   await expect(added).toHaveCount(0);
   await expect(adoptLink(page)).toHaveText('Add to My Edits');
-  await expect(page.locator('#entry-panel .entry-panel-save')).toBeDisabled();
+  await expect(page.locator('#entry-panel .entry-panel-close')).toBeVisible();   // un-staged: back to nothing to save
+  await expect(page.locator('#entry-panel .entry-panel-save')).toBeHidden();
 });
 
 test('adopt upgrades a bare My Edits entry to the displayed spelling — no sibling left behind', async ({ page }) => {
@@ -462,10 +487,6 @@ for (const [name, dismiss] of Object.entries(explicitCancels)) {
     await addList(page, { name: 'W', entries: ['ocean'], scores: [50] });
     await openPanelOnEntry(page, 'ocean');
     await page.locator('#entry-panel-score').fill('60');
-    // The score field's tier combo auto-opens on focus and eats the first Escape;
-    // blur it so the dismissal reaches the panel (the combo's own Escape is covered
-    // in entry-score-combo.spec.js).
-    await page.locator('#entry-panel-score').blur();
 
     await dismiss(page);
     await expect(page.locator('#entry-panel')).toBeHidden();
@@ -478,7 +499,6 @@ test('an outside click on a dirty entry panel is refused, keeping the edit intac
   await addList(page, { name: 'W', entries: ['ocean'], scores: [50] });
   await openPanelOnEntry(page, 'ocean');
   await page.locator('#entry-panel-score').fill('60');
-  await page.locator('#entry-panel-score').blur();   // close the auto-opened tier combo (see above)
 
   await page.locator('#entry-panel-backdrop').click({ position: { x: 5, y: 5 } });
   await expect(page.locator('#entry-panel')).toBeVisible();

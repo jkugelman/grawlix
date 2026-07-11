@@ -1095,9 +1095,7 @@ export class EntriesScroller extends BaseVirtualScroller {
     // ≥2, not ≥1: a lone selected row walks the table rather than dead-ending as a
     // one-member walk with nothing to step to.
     const walkIds = this._selection.size >= 2 ? [...this._selection.values()] : null;
-    // Focus the entry field as a caret (no selection, so typing appends). Not the
-    // score field: its focus auto-opens the ScoreCombo, and the first Escape would
-    // then close the combo instead of the panel.
+    // Focus the entry field as a caret (no selection, so typing appends).
     EntryPanel.open(wlEntry, this._mounted.get(this._cursorIndex)?.node ?? null, this, 'entry', 'edit', walkIds, false);
   }
 
@@ -1410,7 +1408,10 @@ export class EntriesScroller extends BaseVirtualScroller {
   }
 
   _onListboxKeydown(e) {
-    if (!this._flat || EntryPanel.isOpen() || e.altKey) return;
+    // Alt+Up/Down move the cursor like plain Up/Down; every other Alt combo still
+    // falls through to the global Alt+digit/letter handler (don't broaden this bail).
+    const altArrow = e.altKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown');
+    if (!this._flat || EntryPanel.isOpen() || (e.altKey && !altArrow)) return;
     const n = this._renderRowCount();
     if (n === 0) return;
     const mod = e.ctrlKey || e.metaKey;
@@ -2939,18 +2940,19 @@ export const EntryPanel = (() => {
       close();
       return;
     }
-    // Skip walk nav while the score combo is open — it owns the vertical keys.
-    if (activeMode !== 'create' && !scoreCombo?.isOpen()) {
-      const back = (e.altKey && e.key === 'ArrowUp') || e.key === 'PageUp';
-      const fwd = (e.altKey && e.key === 'ArrowDown') || e.key === 'PageDown';
-      if (back || fwd) { e.preventDefault(); (back ? walkPrev : walkNext)(); return; }
+    // Alt+Up/Down walk entries even with the tier list open: the combo claims only
+    // the plain vertical arrows, so these never collide with it.
+    if (activeMode !== 'create' && e.altKey) {
+      if (e.key === 'ArrowUp')   { e.preventDefault(); walkPrev(); return; }
+      if (e.key === 'ArrowDown') { e.preventDefault(); walkNext(); return; }
     }
     // The exclusion defers to controls that own Enter: without it this capture-phase
     // handler would preempt the combobox's tier-pick and turn Enter on Cancel into a
-    // save. Left over is the unfocused panel (a view-first open), where Enter saves.
+    // save. Left over is the unfocused panel (a view-first open), where Enter saves
+    // when dirty and closes when pristine.
     if (e.key === 'Enter' && !e.target.closest('input, textarea, select, button, a[href], [role="button"]')) {
       e.preventDefault();
-      submit();
+      submitOrClose();
     }
   }
 
@@ -3134,8 +3136,9 @@ export const EntryPanel = (() => {
   }
 
   function renderFooterHTML(entryText) {
-    if (activeReadOnly) return `<button class="entry-panel-cancel" type="button">Close</button>`;
+    if (activeReadOnly) return `<button class="entry-panel-close" type="button">Close</button>`;
     return `<span class="entry-panel-adopt"></span>`
+      + `<button class="entry-panel-close" type="button">Close</button>`
       + `<button class="entry-panel-cancel" type="button">Cancel</button>`
       + `<button class="entry-panel-save" type="button">${esc(saveLabel(entryText))}</button>`;
   }
@@ -3412,9 +3415,9 @@ export const EntryPanel = (() => {
     if (activeMode === 'create') return '';
     const caret = up => `<svg class="entry-walk-caret${up ? ' entry-walk-caret--up' : ''}" viewBox="0 0 8 5" aria-hidden="true"><use href="#icon-chevron"/></svg>`;
     return `<div class="entry-panel-nav">
-      <button class="entry-panel-prev" type="button" aria-label="Previous entry" title="Previous entry (Alt+↑ / PageUp)">${caret(true)}</button>
+      <button class="entry-panel-prev" type="button" aria-label="Previous entry" title="Previous entry (Alt+↑)">${caret(true)}</button>
       <span class="entry-panel-walkpos" aria-live="polite"></span>
-      <button class="entry-panel-next" type="button" aria-label="Next entry" title="Next entry (Alt+↓ / PageDown)">${caret(false)}</button>
+      <button class="entry-panel-next" type="button" aria-label="Next entry" title="Next entry (Alt+↓)">${caret(false)}</button>
     </div>`;
   }
 
@@ -3574,6 +3577,18 @@ export const EntryPanel = (() => {
     return activeWlEntry;
   }
 
+  // Create always stays dirty so its Enter still targets the missing field rather
+  // than closing; edit/read-only defer to hasUnsavedChanges. Not the save-enabled
+  // predicate — a changed-but-blocked edit stays dirty (disabled Save, its reason shown).
+  function panelHasChanges() {
+    if (activeMode !== 'edit' && !activeReadOnly) return true;
+    return hasUnsavedChanges();
+  }
+
+  function submitOrClose() {
+    panelHasChanges() ? submit() : close();
+  }
+
   function submit() {
     if (activeReadOnly) return;
     if (stagedDelete) {
@@ -3597,7 +3612,8 @@ export const EntryPanel = (() => {
   }
 
   function wireFooter() {
-    el.querySelector('.entry-panel-cancel').addEventListener('click', close);
+    el.querySelector('.entry-panel-close')?.addEventListener('click', close);
+    el.querySelector('.entry-panel-cancel')?.addEventListener('click', close);
     if (activeReadOnly) return;
     el.querySelector('.entry-panel-save').addEventListener('click', submit);
     refreshSaveEnabled();
@@ -3615,6 +3631,7 @@ export const EntryPanel = (() => {
           || (activeMode === 'edit' && !pendingWritesChange(vals));
       }
     }
+    el.querySelector('.entry-panel-foot')?.classList.toggle('dirty', panelHasChanges());
     refreshAdoptLink();
   }
 
@@ -3653,14 +3670,14 @@ export const EntryPanel = (() => {
     for (const inp of [entryInp, scoreInp, commentInp]) {
       inp.addEventListener('input', refreshSaveEnabled);
     }
-    // The score field's Enter is owned by its combobox (pick a tier or submit);
-    // the other two submit directly.
+    // The score field's Enter is owned by its combobox (pick a tier, or fall to
+    // submitOrClose); the other two go straight to submitOrClose.
     for (const inp of [entryInp, commentInp]) {
       inp.addEventListener('keydown', e => {
-        if (e.key === 'Enter') { e.preventDefault(); submit(); }
+        if (e.key === 'Enter') { e.preventDefault(); submitOrClose(); }
       });
     }
-    scoreCombo = new ScoreCombo(scoreInp, { onSubmit: submit });
+    scoreCombo = new ScoreCombo(scoreInp, { onSubmit: submitOrClose });
 
     wireFooter();
 
@@ -4190,9 +4207,15 @@ class ScoreCombo {
       case 'Home': if (this.opened) { e.preventDefault(); this.navTo(0); } break;
       case 'End':  if (this.opened) { e.preventDefault(); this.navTo(this.list.length - 1); } break;
       case 'Enter':
+        // While the list is open Enter stays in the picker (accept the arrowed tier,
+        // else close keeping the typed value) — deliberately never the panel's save.
         e.preventDefault();
-        if (this.opened && this.navigated && this.activeIndex >= 0) this.pick(this.activeIndex);
-        else this.onSubmit?.();
+        if (this.opened) {
+          if (this.navigated && this.activeIndex >= 0) this.pick(this.activeIndex);
+          else this.close();
+        } else {
+          this.onSubmit?.();
+        }
         break;
       // Escape: handled by EntryPanel.onKeydown (combo-close when open, else panel
       // close), deliberately not here — so don't add an Escape case.

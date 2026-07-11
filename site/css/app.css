@@ -626,13 +626,16 @@ td.entry-panel-prov-entry { font-family: var(--font-mono); }
 .entry-panel-adopt:empty { display: none; }
 .entry-panel-adopt-btn { padding: 2px 0; border: none; background: none; color: var(--muted); font: inherit; cursor: pointer; }
 .entry-panel-adopt-btn:hover { color: var(--text); text-decoration: underline; text-underline-offset: 2px; }
-.entry-panel-cancel { margin-left: auto; }
-.entry-panel-cancel, .entry-panel-save { font: inherit; padding: 4px 12px; border-radius: 4px; cursor: pointer; }
-.entry-panel-cancel { background: none; border: 1px solid var(--border); color: var(--text); }
-.entry-panel-cancel:hover { background: var(--hover); }
+.entry-panel-cancel, .entry-panel-close { margin-left: auto; }
+.entry-panel-cancel, .entry-panel-close, .entry-panel-save { font: inherit; padding: 4px 12px; border-radius: 4px; cursor: pointer; }
+.entry-panel-cancel, .entry-panel-close { background: none; border: 1px solid var(--border); color: var(--text); }
+.entry-panel-cancel:hover, .entry-panel-close:hover { background: var(--hover); }
 .entry-panel-save { background: var(--accent); border: 1px solid var(--accent); color: white; }
 .entry-panel-save:hover:not(:disabled) { background: var(--accent-hover); border-color: var(--accent-hover); }
 .entry-panel-save:disabled { opacity: 0.5; cursor: not-allowed; }
+.entry-panel-foot:not(.dirty) .entry-panel-cancel,
+.entry-panel-foot:not(.dirty) .entry-panel-save { display: none; }
+.entry-panel-foot.dirty .entry-panel-close { display: none; }
 
 .entry-panel-foot.nudge .entry-panel-cancel,
 .entry-panel-foot.nudge .entry-panel-save { animation: entry-foot-shake 0.4s ease-in-out; }

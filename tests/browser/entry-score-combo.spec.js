@@ -110,14 +110,20 @@ test('a freely-typed non-tier score is saved as-is, not snapped to a tier', asyn
     .toEqual([{ entry: 'bagel', display: null, score: 55, comment: '' }]);
 });
 
-test('Enter keeps a freely-typed value instead of snapping to the highlighted tier', async ({ page }) => {
+test('Enter with the list open accepts the typed value in place, without saving; a second Enter saves', async ({ page }) => {
   await setup(page, { score: 50 });
   await openPanel(page);
   await openList(page);
   await scoreInput(page).fill('55');   // highlight tracks Okay (≥50), but not navigated-to
   await expect(list(page)).toBeVisible();
 
-  await scoreInput(page).press('Enter');
+  await scoreInput(page).press('Enter');   // stays in the picker: closes the list, keeps 55, no save
+  await expect(list(page)).toBeHidden();
+  await expect(panel(page)).toBeVisible();
+  await expect(scoreInput(page)).toHaveValue('55');
+  expect(await myEdits(page)).toEqual([]);
+
+  await scoreInput(page).press('Enter');   // list closed now → saves the typed value
   await expect(panel(page)).toBeHidden();
   await expect.poll(() => myEdits(page))
     .toEqual([{ entry: 'bagel', display: null, score: 55, comment: '' }]);

@@ -1,5 +1,5 @@
-// Entry-panel walk: Prev/Next (buttons, Alt+↑/↓, PageUp/Down) step through a set
-// without closing, auto-committing the current member as you move. A multi-select
+// Entry-panel walk: Prev/Next (buttons, Alt+↑/↓) step through a set without
+// closing, auto-committing the current member as you move. A multi-select
 // bounds the walk to those members; a lone open walks the table in order.
 // See site/src/ui/entries-table.js EntryPanel.
 
@@ -47,7 +47,7 @@ test('no-selection open walks the table in order via the Next/Prev buttons', asy
   await expect(entryInput(page)).toHaveValue('charlie');
 });
 
-test('Alt+Down / Alt+Up step the walk from the keyboard', async ({ page }) => {
+test('Alt+Down / Alt+Up step the walk; PageDown no longer does', async ({ page }) => {
   await setup(page);
   await openOn(page, 'bravo');
 
@@ -56,7 +56,32 @@ test('Alt+Down / Alt+Up step the walk from the keyboard', async ({ page }) => {
   await page.keyboard.press('Alt+ArrowUp');
   await expect(entryInput(page)).toHaveValue('bravo');
   await page.keyboard.press('PageDown');
+  await expect(entryInput(page)).toHaveValue('bravo');   // PageDown is a table-only page jump now, not a walk key
+});
+
+test('Alt+Down still walks the panel while the score tier list is open', async ({ page }) => {
+  await gotoApp(page);
+  await page.evaluate(t => window.__grawlixTest.setScoring(t), [
+    { input: '90', note: 'Great' }, { input: '50', note: 'Okay' }, { input: '10', note: 'Weak' },
+  ]);
+  await page.evaluate(e => window.__grawlixTest.addCustomWordlist({
+    name: 'Src', entries: e, scores: e.map(() => 50),
+  }), ENTRIES);
+  await page.evaluate(() => window.__grawlixTest.pipelineIdle());
+
+  await openOn(page, 'bravo');
+  const toggle = page.locator('#entry-panel .score-combo-toggle');
+  const tierList = page.locator('#entry-panel-score-list');
+
+  await toggle.click();
+  await expect(tierList).toBeVisible();
+  await page.keyboard.press('Alt+ArrowDown');   // walks despite the open tier list
   await expect(entryInput(page)).toHaveValue('charlie');
+
+  await toggle.click();   // the walk re-rendered a fresh, closed combo; reopen it
+  await expect(tierList).toBeVisible();
+  await page.keyboard.press('Alt+ArrowUp');
+  await expect(entryInput(page)).toHaveValue('bravo');
 });
 
 test('the table walk stops at the ends: Prev disabled on the first row, Next on the last', async ({ page }) => {

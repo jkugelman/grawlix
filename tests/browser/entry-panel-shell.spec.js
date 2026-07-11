@@ -51,7 +51,7 @@ test('the frame pins header and footer outside the scrolling body', async ({ pag
 
   await expect(page.locator('#entry-panel > .entry-panel-header .entry-panel-title')).toBeVisible();
   await expect(page.locator('#entry-panel > .entry-panel-body .entry-input')).toBeVisible();
-  await expect(page.locator('#entry-panel > .entry-panel-foot .entry-panel-save')).toBeVisible();
+  await expect(page.locator('#entry-panel > .entry-panel-foot .entry-panel-close')).toBeVisible();
   await expect(page.locator('#entry-panel > .entry-panel-body > .entry-panel-lookup')).toBeAttached();
   await expect(page.locator('.entry-panel-foot .entry-panel-lookup')).toHaveCount(0);
 });

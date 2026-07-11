@@ -46,7 +46,8 @@ test('a foreign scope is read-only and shows the scoped list value, not the merg
   await expect(page.locator('#entry-panel-score')).not.toBeEditable();
   await expect(page.locator('#entry-panel-comment')).not.toBeEditable();
   await expect(page.locator('.entry-panel-save')).toHaveCount(0);
-  await expect(page.locator('.entry-panel-cancel')).toHaveText('Close');
+  await expect(page.locator('.entry-panel-cancel')).toHaveCount(0);
+  await expect(page.locator('.entry-panel-close')).toHaveText('Close');
 });
 
 test('a read-only foreign scope shows the scoped entry/score/comment across all three fields', async ({ page }) => {
