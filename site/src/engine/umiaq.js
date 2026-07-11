@@ -673,6 +673,8 @@ function expandTokens(tokens, assignment) {
 // probe path can't cover (driver lacks a variable) yet the bucket path explodes on (a
 // free-affix binding matches the whole corpus in every split — `AandB;X;AX;XB`). It is
 // index-driven and exhaustive, so `truncated` stays false unless the driver overflows.
+// A free var grounds off a prefix (`AX`) or suffix (`XB`) range; with both, scanning the
+// more selective side (and verifying the other) is what bounds the otherwise-long tail.
 
 // A branch anchor (`?`/class) in the affix, a `*`/anagram, or an infix/second/unanchored
 // free var disqualify → bucket fallback (correct, just not index-solvable here).
@@ -747,6 +749,12 @@ function isNormSorted(arr) {
 function lowerBoundNorm(arr, key) {
   let lo = 0, hi = arr.length;
   while (lo < hi) { const mid = (lo + hi) >> 1; if (arr[mid].norm < key) lo = mid + 1; else hi = mid; }
+  return lo;
+}
+
+function lowerBoundRev(arr, key) {
+  let lo = 0, hi = arr.length;
+  while (lo < hi) { const mid = (lo + hi) >> 1; if (arr[mid].r < key) lo = mid + 1; else hi = mid; }
   return lo;
 }
 
@@ -1024,7 +1032,7 @@ export async function findTuples(parsed, pool, {
   }
 
   // ── Affix path ───────────────────────────────────────────────────────────────
-  const affixPlan = strategy !== 'bucket' ? planAffix(ordered, parsed.variables, false) : null;
+  const affixPlan = strategy !== 'bucket' ? planAffix(ordered, parsed.variables, true) : null;
   if (affixPlan) {
     const { driver, steps } = affixPlan;
 
@@ -1035,6 +1043,12 @@ export async function findTuples(parsed, pool, {
     const sortedByNorm = isNormSorted(pool)
       ? pool
       : [...pool].sort((a, b) => a.norm < b.norm ? -1 : a.norm > b.norm ? 1 : 0);
+    // The suffix index (reversed-norm order) is built per run and never cached, so a My
+    // Edits splice can't leave it stale; only pay its O(n log n) when a suffix scan exists.
+    const needsSuffix = steps.some(s => s.kind === 'introduce' && s.candidates.some(c => c.kind === 'suffix'));
+    const sortedByRev = needsSuffix
+      ? pool.map(e => ({ r: reverse(e.norm), e })).sort((a, b) => a.r < b.r ? -1 : a.r > b.r ? 1 : 0)
+      : null;
 
     // Reproduce matchPattern's per-variable filtering for a value bound off an affix
     // scan (length window, sub-pattern, length-guarded !=sub-pattern, A!=B) — drift
@@ -1087,6 +1101,22 @@ export async function findTuples(parsed, pool, {
         if (visit(e)) return;
       }
     };
+    const scanSuffix = (suffix, visit) => {
+      const target = reverse(suffix);
+      let prev = null;
+      for (let i = lowerBoundRev(sortedByRev, target); i < sortedByRev.length; i++) {
+        const e = sortedByRev[i].e;
+        if (!sortedByRev[i].r.startsWith(target)) break;
+        if (e.norm === prev) continue;
+        prev = e.norm;
+        if (visit(e)) return;
+      }
+    };
+    // ￿ exceeds every norm char (norm is [a-z0-9]), so [affix, affix+￿) is exactly the
+    // affix range; widen norm's alphabet past ￿ and this silently overcounts.
+    const countAffix = (kind, affix) => kind === 'prefix'
+      ? lowerBoundNorm(sortedByNorm, affix + '￿') - lowerBoundNorm(sortedByNorm, affix)
+      : (r => lowerBoundRev(sortedByRev, r + '￿') - lowerBoundRev(sortedByRev, r))(reverse(affix));
 
     const recurse = (si, assignment) => {
       if (tuples.length >= numResults) return true;
@@ -1109,35 +1139,44 @@ export async function findTuples(parsed, pool, {
         return false;
       }
       const X = step.freeVar;
-      const enumerator = step.candidates[0];
-      const others = step.candidates.slice(1);
-      const enumTok = enumerator.freeTok, enumWl = enumerator.solver.p.wordLen;
-      let stopped = false;
-      for (const prefix of expandTokens(enumerator.affix, assignment)) {
-        scanPrefix(prefix, e => {
-          const raw = e.norm.slice(prefix.length);
-          const boundVal = enumTok.t === 'rev' ? reverse(raw) : raw;
-          if (!acceptVar(X, boundVal, assignment)) return false;
-          if (!wordLenOK(enumWl, e.norm.length)) return false;
-          assignment[X] = boundVal;
-          const laneRecs = [{ solver: enumerator.solver, entry: e }];
-          let ok = true;
-          for (const oc of others) {
-            const owl = oc.solver.p.wordLen;
-            let hit = null;
-            for (const nrm of expandTokens(oc.solver.p.tokens, assignment)) {
-              if (wordLenOK(owl, nrm.length)) { const oe = byNorm.get(nrm); if (oe) { hit = oe; break; } }
-            }
-            if (!hit) { ok = false; break; }
-            laneRecs.push({ solver: oc.solver, entry: hit });
-          }
-          if (ok) { stepLanes[si] = laneRecs; if (recurse(si + 1, assignment)) stopped = true; }
-          delete assignment[X];
-          return stopped;
-        });
-        if (stopped) return true;
+      let enumerator = step.candidates[0];
+      let enumAffix = expandTokens(enumerator.affix, assignment)[0];   // branchless → one string
+      if (step.candidates.length > 1) {
+        let bestCount = countAffix(enumerator.kind, enumAffix);
+        for (let ci = 1; ci < step.candidates.length; ci++) {
+          const c = step.candidates[ci];
+          const affix = expandTokens(c.affix, assignment)[0];
+          const count = countAffix(c.kind, affix);
+          if (count < bestCount) { bestCount = count; enumerator = c; enumAffix = affix; }
+        }
       }
-      return false;
+      const others = step.candidates.filter(c => c !== enumerator);
+      const enumTok = enumerator.freeTok, enumWl = enumerator.solver.p.wordLen, enumLen = enumAffix.length;
+      let stopped = false;
+      const visit = e => {
+        const raw = enumerator.kind === 'prefix' ? e.norm.slice(enumLen) : e.norm.slice(0, e.norm.length - enumLen);
+        const boundVal = enumTok.t === 'rev' ? reverse(raw) : raw;
+        if (!acceptVar(X, boundVal, assignment)) return false;
+        if (!wordLenOK(enumWl, e.norm.length)) return false;
+        assignment[X] = boundVal;
+        const laneRecs = [{ solver: enumerator.solver, entry: e }];
+        let ok = true;
+        for (const oc of others) {
+          const owl = oc.solver.p.wordLen;
+          let hit = null;
+          for (const nrm of expandTokens(oc.solver.p.tokens, assignment)) {
+            if (wordLenOK(owl, nrm.length)) { const oe = byNorm.get(nrm); if (oe) { hit = oe; break; } }
+          }
+          if (!hit) { ok = false; break; }
+          laneRecs.push({ solver: oc.solver, entry: hit });
+        }
+        if (ok) { stepLanes[si] = laneRecs; if (recurse(si + 1, assignment)) stopped = true; }
+        delete assignment[X];
+        return stopped;
+      };
+      if (enumerator.kind === 'prefix') scanPrefix(enumAffix, visit);
+      else scanSuffix(enumAffix, visit);
+      return stopped;
     };
 
     // Best-first by score keeps high-value tuples inside the result cap: without it,

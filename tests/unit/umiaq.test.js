@@ -239,8 +239,11 @@ test('find: ABC;CBA;A!=C drops palindromic self-joins, keeps cross pairs', async
   assert.deepEqual(tuples, [['cat', 'tac'], ['pit', 'tip'], ['tac', 'cat'], ['tip', 'pit']]);
 });
 
-test('find: a free-variable query takes the bucket path and truncates at maxMatchesPerPattern', async () => {
-  const parsed = parseUmiaqQuery('AB;CB');
+test('find: a query with no incremental grounding takes the bucket path and truncates', async () => {
+  // Disjoint variable sets: the driver AB can't ground C or D by any affix, so no probe
+  // or affix plan exists and the free-variable bucket path (which truncates) is the only
+  // strategy. (AB;CB, once the affix path's hard case, is now solved — see umiaq-affix.)
+  const parsed = parseUmiaqQuery('AB;CD');
   const pool = ['abc', 'dbc'].map(n => entry(n, 100));
   const { truncated } = await findTuples(parsed, pool, { maxMatchesPerPattern: 1 });
   assert.equal(truncated, true);

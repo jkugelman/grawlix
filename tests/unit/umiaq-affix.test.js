@@ -120,12 +120,51 @@ test('affix: a zero-length driver var degrades but stays correct', async () => {
 });
 
 test('affix: a query with no incremental grounding falls back to the bucket path', async () => {
-  // AB;CB has a free var C reachable only as a SUFFIX (B ground, C leading) — B1a does
-  // not do suffix scans, so this declines the affix path and truncates like before.
-  const parsed = parseUmiaqQuery('AB;CB');
+  // Disjoint variable sets — C,D are reachable from neither A nor B by any affix — so no
+  // affix plan exists and this declines to the (truncating) bucket path.
+  const parsed = parseUmiaqQuery('AB;CD');
   const pool = ['abc', 'dbc'].map(n => entry(n, 100));
   const { truncated } = await findTuples(parsed, pool, { maxMatchesPerPattern: 1 });
   assert.equal(truncated, true);
+});
+
+// B1b: a free variable reachable only as a suffix (`XB`, X leading, B ground) is grounded
+// by a suffix scan over the reversed-norm index. AB;CB is the design's documented hard
+// case (design.md § the tuple tier) — under-constrained, it exploded the bucket path.
+const SUFFIX_QUERIES = [
+  'AB;CB',                   // shared-suffix pairs — the documented hard case
+  'AandB;X;XB;AX',           // XB reordered before AX: X grounds via suffix B
+  'AandB;X;XB;AX;|X|>=3',    // length floor on the suffix-grounded var
+  'AandB;X;XB;AX;X!=A',      // suffix-grounded var unequal to a driver var
+  'AandB;X;~XB;AX',          // reversed free var leading a suffix binding
+  'AandB;X;9:XB;AX',         // binding-level wordLen on the suffix binding
+];
+
+for (const q of SUFFIX_QUERIES) {
+  test(`affix parity (suffix): ${q} matches the bucket join`, async () => {
+    const { tuples } = await affixSet(q, CORPUS);
+    assert.deepEqual(sortKey(tuples), await bucketSet(q, CORPUS), `sets differ for "${q}"`);
+  });
+}
+
+test('affix: AB;CB (the documented hard case) no longer explodes — CB is index-resolved', async () => {
+  // On the bucket path CB matched the whole corpus in every split and truncated. Here CB
+  // is a suffix scan, so on a bounded pool the run is exhaustive (a full corpus can still
+  // overflow the non-selective AB driver — that's inherent under-constraint, not explosion).
+  const parsed = parseUmiaqQuery('AB;CB');
+  const pool = ['batman', 'catman', 'man', 'batboy', 'catboy', 'boy', 'xyz'].map((n, i) => entry(n, 100 - i));
+  const { tuples, truncated } = await findTuples(parsed, pool, { numResults: 1e6, maxMatchesPerPattern: 1e9 });
+  assert.equal(truncated, false, 'exhaustive on this bounded pool — no per-pattern explosion');
+  const set = sortKey(tuples);
+  assert.ok(set.includes('batman,catman'), 'bat+man / cat+man share the "man" suffix');
+  assert.ok(set.includes('batboy,catboy'), 'bat+boy / cat+boy share the "boy" suffix');
+});
+
+test('affix: the selective side is scanned when a var has both a prefix and a suffix introducer', async () => {
+  // AandB;X;AX;XB grounds X via AX (prefix A) OR XB (suffix B); both give the same set.
+  // A short A (broad prefix) vs a long B (narrow suffix) must not change the result.
+  const { tuples } = await affixSet('AandB;X;AX;XB', CORPUS);
+  assert.deepEqual(sortKey(tuples), await bucketSet('AandB;X;AX;XB', CORPUS));
 });
 
 test('affix: streamed batches equal the buffered result', async () => {
