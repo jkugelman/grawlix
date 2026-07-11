@@ -1230,7 +1230,7 @@ export class EntriesScroller extends BaseVirtualScroller {
     const bar = document.createElement('div');
     bar.className = 'find-bar';
     bar.hidden = true;
-    const caret = up => `<svg class="entry-walk-caret${up ? ' entry-walk-caret--up' : ''}" viewBox="0 0 8 5" aria-hidden="true"><use href="#icon-arrow"/></svg>`;
+    const caret = up => `<svg class="entry-walk-caret${up ? ' entry-walk-caret--up' : ''}" viewBox="0 0 8 5" aria-hidden="true"><use href="#icon-chevron"/></svg>`;
     bar.innerHTML =
       `<span class="find-input-wrap">` +
         `<input type="text" class="find-input" aria-label="Find in results">` +
@@ -3400,7 +3400,7 @@ export const EntryPanel = (() => {
 
   function renderNavHTML() {
     if (activeMode === 'create') return '';
-    const caret = up => `<svg class="entry-walk-caret${up ? ' entry-walk-caret--up' : ''}" viewBox="0 0 8 5" aria-hidden="true"><use href="#icon-arrow"/></svg>`;
+    const caret = up => `<svg class="entry-walk-caret${up ? ' entry-walk-caret--up' : ''}" viewBox="0 0 8 5" aria-hidden="true"><use href="#icon-chevron"/></svg>`;
     return `<div class="entry-panel-nav">
       <button class="entry-panel-prev" type="button" aria-label="Previous entry" title="Previous entry (Alt+↑ / PageUp)">${caret(true)}</button>
       <span class="entry-panel-walkpos" aria-live="polite"></span>

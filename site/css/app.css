@@ -566,7 +566,7 @@ mark.find-hit.find-current { background: var(--find-current-bg); color: var(--fi
 .entry-panel-prev, .entry-panel-next { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; padding: 0; border: none; border-radius: 4px; background: none; color: var(--muted); cursor: pointer; }
 .entry-panel-prev:hover:not(:disabled), .entry-panel-next:hover:not(:disabled) { background: var(--hover); color: var(--text); }
 .entry-panel-prev:disabled, .entry-panel-next:disabled { opacity: 0.35; cursor: default; }
-.entry-walk-caret { display: block; flex-shrink: 0; width: 12px; height: 8px; fill: currentColor; pointer-events: none; }
+.entry-walk-caret { display: block; flex-shrink: 0; width: 12px; height: 8px; fill: none; stroke: currentColor; pointer-events: none; }
 .entry-walk-caret--up { transform: rotate(180deg); }
 .entry-panel-walkpos { font-family: var(--font-mono); font-variant-numeric: tabular-nums; font-size: 12px; color: var(--muted); }
 
