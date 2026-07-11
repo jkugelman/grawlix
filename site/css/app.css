@@ -379,7 +379,7 @@ mark.find-hit.find-current { background: var(--find-current-bg); color: var(--fi
    atom above. */
 .atom { display: contents; }
 .entry-row .atom-count { grid-column: 1; grid-row: 1; text-align: right; color: var(--faint); font-family: var(--font-sans); font-size: 12px; }
-.entry-row .atom-entry { grid-column: 2; justify-self: start; max-width: 100%; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.entry-row .atom-entry { grid-column: 2; justify-self: start; max-width: 100%; overflow: hidden; text-overflow: ellipsis; min-width: 0; cursor: pointer; }
 .entry-row .atom-len { grid-column: 3; text-align: right; font-family: var(--font-sans); font-size: 12px; }
 .entry-row .atom-score { grid-column: 4; cursor: pointer; justify-self: end; }
 .atom-score-raw { color: var(--muted); }

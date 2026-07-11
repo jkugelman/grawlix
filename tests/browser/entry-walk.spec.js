@@ -30,7 +30,7 @@ const myEdits = page => page.evaluate(() => window.__grawlixTest.getWordlist('My
 const selection = page => page.evaluate(() => window.__grawlixTest.scrollerSelection());
 
 async function openOn(page, entry) {
-  await row(page, entry).locator('.atom-entry').dblclick();
+  await row(page, entry).locator('.atom-entry').click();
   await expect(panel(page)).toBeVisible();
   await expect(entryInput(page)).toHaveValue(entry);
 }

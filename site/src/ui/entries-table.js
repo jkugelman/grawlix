@@ -821,8 +821,6 @@ export class EntriesScroller extends BaseVirtualScroller {
           const focus = () => this.sizer.focus({ preventScroll: true });
           if (e.shiftKey)             { focus(); this._extendSelectionByClick(idx); return; }
           if (e.ctrlKey || e.metaKey) { focus(); this._toggleSelectionAt(idx);      return; }
-          // The score badge keeps its single-click tier quick-pick; every other cell —
-          // entry text included — selects (the panel opens on double-click, below).
           if (!e.target.closest('.atom-score')) {
             // Touch can't double-click, drag, or reach multi-select (it's keyboard-fed),
             // so a lone tap opens the panel rather than selecting a row it can't act on.
@@ -831,6 +829,10 @@ export class EntriesScroller extends BaseVirtualScroller {
               const wlEntry = this._winCache.get(idx)?.atoms?.[0]?.wlEntry;
               if (wlEntry) EntryPanel.open(wlEntry, rowEl, this, null);
               return;
+            }
+            // Selecting as well as opening keeps the table selection and the panel in sync.
+            if (e.target.closest('.atom-entry')) {
+              focus(); this._selectSingleAt(idx); this._openCursorPanel(); return;
             }
             focus(); this._selectSingleAt(idx); return;
           }
@@ -1101,7 +1103,8 @@ export class EntriesScroller extends BaseVirtualScroller {
 
   // The panel suppresses the scroller's own key nav while modal, so the walk must
   // drive the cursor from here rather than through _onListboxKeydown. Anchor on the
-  // panel's active identity, not _cursorIndex: a cell-click open never set the cursor.
+  // panel's active identity, not _cursorIndex: not every open sets the cursor (a touch
+  // tap, a Related-entry click, and a deep link don't).
   // 'replace' so the table selection tracks the walked entry — a visible anchor, and
   // Esc-then-Enter reopens the same one.
   _walkBaseIndex(fromId) {

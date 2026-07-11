@@ -106,7 +106,7 @@ test('find adopts the match as the selection; Esc hands off so Enter opens the p
 
 test('the open entry panel suppresses Ctrl+F', async ({ page }) => {
   await setup(page, { entries: AP });
-  await rowFor(page, 'apple').locator('.atom-entry').dblclick();
+  await rowFor(page, 'apple').locator('.atom-entry').click();
   await expect(page.locator('#entry-panel')).toBeVisible();
   await page.keyboard.press('Control+f');
   await expect(bar(page)).toBeHidden();
@@ -117,7 +117,7 @@ test('opening the entry panel closes an open find', async ({ page }) => {
   await openFind(page);
   await input(page).fill('ap');
   await expect(count(page)).toHaveText('1/4');
-  await rowFor(page, 'apple').locator('.atom-entry').dblclick();
+  await rowFor(page, 'apple').locator('.atom-entry').click();
   await expect(page.locator('#entry-panel')).toBeVisible();
   await expect(bar(page)).toBeHidden();
   await expect(page.locator('.entry-row .find-hit')).toHaveCount(0);

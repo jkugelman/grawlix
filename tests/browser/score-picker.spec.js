@@ -143,7 +143,7 @@ test('Alt+digit in the edit panel fills the score field without saving', async (
   await setup(page, { score: 50 });
   // The entry cell opens the editable panel in All Wordlists (a foreign scope's panel
   // is read-only, so the score field there would be disabled and Alt+digit a no-op).
-  await page.locator('.entry-row[data-entry="bagel"] .atom-entry').dblclick();
+  await page.locator('.entry-row[data-entry="bagel"] .atom-entry').click();
   await expect(page.locator('#entry-panel')).toBeVisible();
   await expect(page.locator('#entry-panel .score-input')).toBeEnabled();
 

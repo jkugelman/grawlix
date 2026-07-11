@@ -58,7 +58,7 @@ async function setScoreRange(page, range) {
   await page.evaluate(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))));
 }
 
-async function openPanelOnEntry(page, entryText, field = 'score') {
+async function openPanelOnEntry(page, entryText) {
   const row = page.locator('#vs-host .entry-row', {
     has: page.locator('.atom-entry', { hasText: new RegExp(`^${entryText}$`) }),
   }).first();
@@ -68,10 +68,7 @@ async function openPanelOnEntry(page, entryText, field = 'score') {
   // after a prior open → search → Escape choreography intermittently fails to
   // re-open the panel — a test-harness quirk, not the behavior under test.
   await page.mouse.click(5, 5);
-  // These tests run in All Wordlists, where the score cell opens the quick picker;
-  // the panel opens from the entry cell in any scope, so default there.
-  const cell = field === 'comment' ? '.atom-comment' : '.atom-entry';
-  await row.locator(cell).dblclick();
+  await row.locator('.atom-entry').click();
   await expect(page.locator('#entry-panel')).toBeVisible();
 }
 

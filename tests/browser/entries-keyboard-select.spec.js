@@ -57,20 +57,22 @@ test('clicking the comment cell selects the row instead of opening the panel', a
   expect(await selection(page)).toEqual(['alpha']);
 });
 
-test('single-click selects the row; double-click opens the panel', async ({ page }) => {
+test('clicking the entry opens the panel and selects the row', async ({ page }) => {
   await setup(page);
-  const entryCell = row(page, 'alpha').locator('.atom-entry');
 
-  await entryCell.click();
-  await expect(page.locator('#entry-panel')).toBeHidden();
-  await expect(row(page, 'alpha')).toHaveClass(/selected/);
-
-  await entryCell.dblclick();
+  await row(page, 'alpha').locator('.atom-entry').click();
   await expect(page.locator('#entry-panel')).toBeVisible();
+  await expect(row(page, 'alpha')).toHaveClass(/selected/);
   // Opens with the entry field focused as a caret (no selection), ready to edit.
   await expect(page.locator('#entry-panel-entry')).toBeFocused();
   expect(await page.locator('#entry-panel-entry')
     .evaluate(el => el.selectionStart === el.selectionEnd)).toBe(true);
+});
+
+test('double-clicking a non-entry cell opens the panel', async ({ page }) => {
+  await setup(page);
+  await row(page, 'alpha').locator('.atom-len').dblclick();
+  await expect(page.locator('#entry-panel')).toBeVisible();
 });
 
 test('the listbox exposes the virtualized-listbox ARIA', async ({ page }) => {
@@ -135,7 +137,7 @@ test('renaming a selected entry keeps it selected at its new name', async ({ pag
   await row(page, 'alpha').locator('.atom-len').click();
   expect(await selection(page)).toEqual(['alpha']);
 
-  await row(page, 'alpha').locator('.atom-entry').dblclick();
+  await row(page, 'alpha').locator('.atom-entry').click();
   const entryInput = page.locator('#entry-panel-entry');
   await expect(entryInput).toBeVisible();
   await entryInput.fill('alphax');
