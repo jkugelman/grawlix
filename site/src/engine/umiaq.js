@@ -654,6 +654,102 @@ function probeExpansion(pattern) {
   return prod;
 }
 
+// Callers must keep the branch count bounded (`probeExpansion` gates a ground binding;
+// the affix classifier forbids `?`/class anchors): unbounded `?`/class here blows memory.
+function expandTokens(tokens, assignment) {
+  let strs = [''];
+  for (const t of tokens) {
+    if (t.t === 'lit') strs = strs.map(s => s + t.s);
+    else if (t.t === 'var') strs = strs.map(s => s + assignment[t.name]);
+    else if (t.t === 'rev') strs = strs.map(s => s + reverse(assignment[t.name]));
+    else if (t.t === 'dot') strs = strs.flatMap(s => [...NORM_CHARS].map(c => s + c));
+    else if (t.t === 'class') strs = strs.flatMap(s => classMembers(t).map(c => s + c));
+  }
+  return strs;
+}
+
+// ─── Affix-indexed join ──────────────────────────────────────────────────────
+// A third strategy between the probe and bucket paths for chained-affix queries the
+// probe path can't cover (driver lacks a variable) yet the bucket path explodes on (a
+// free-affix binding matches the whole corpus in every split — `AandB;X;AX;XB`). It is
+// index-driven and exhaustive, so `truncated` stays false unless the driver overflows.
+
+// A branch anchor (`?`/class) in the affix, a `*`/anagram, or an infix/second/unanchored
+// free var disqualify → bucket fallback (correct, just not index-solvable here).
+function classifyAffixBinding(solver, freeVar, ground, allowSuffix) {
+  const tokens = solver.p.tokens;
+  let pos = -1;
+  for (let i = 0; i < tokens.length; i++) {
+    const t = tokens[i];
+    if (t.t === 'star' || t.t === 'anagram') return null;
+    if (t.t === 'var' || t.t === 'rev') {
+      if (t.name === freeVar) { if (pos !== -1) return null; pos = i; }   // free var must occur once
+      else if (!ground.has(t.name)) return null;                          // a second ungrounded var
+    } else if (t.t === 'dot' || t.t === 'class') return null;             // branch anchor → bucket
+  }
+  if (pos === -1) return null;
+  const head = tokens.slice(0, pos);
+  const tail = tokens.slice(pos + 1);
+  if (tail.length === 0 && head.length > 0) return { kind: 'prefix', affix: head, freeTok: tokens[pos] };
+  if (allowSuffix && head.length === 0 && tail.length > 0) return { kind: 'suffix', affix: tail, freeTok: tokens[pos] };
+  return null;   // infix, or an unanchored free var
+}
+
+// Order the non-driver bindings into affix steps, or return null when no incremental
+// grounding exists (→ bucket fallback). Each step either O(1)-probes a fully-ground
+// binding or grounds one free variable by scanning an affix range; a variable with
+// several affix introducers becomes one `introduce` step (one scans, the rest verify
+// once it's ground). Term clauses aren't steps — every term variable is bound by some
+// binding (parse guarantees it), so terms validate at emit like the bucket path's frame.
+function planAffix(ordered, variables, allowSuffix) {
+  const driver = ordered[0];
+  const ground = new Set(driver.p.variables);
+  const remaining = ordered.slice(1).filter(s => s.emit);
+  const steps = [];
+  while (remaining.length) {
+    let drained = false;
+    for (let i = remaining.length - 1; i >= 0; i--) {
+      const s = remaining[i];
+      if ([...s.p.variables].every(v => ground.has(v)) && probeExpansion(s.p) !== Infinity) {
+        steps.push({ kind: 'probe', solver: remaining.splice(i, 1)[0] });
+        drained = true;
+      }
+    }
+    if (drained) continue;
+    let introVar = null;
+    for (const s of remaining) {
+      const free = [...s.p.variables].filter(v => !ground.has(v));
+      if (free.length === 1 && classifyAffixBinding(s, free[0], ground, allowSuffix)) { introVar = free[0]; break; }
+    }
+    if (introVar === null) return null;
+    const candidates = [];
+    for (let i = remaining.length - 1; i >= 0; i--) {
+      const s = remaining[i];
+      const free = [...s.p.variables].filter(v => !ground.has(v));
+      if (free.length === 1 && free[0] === introVar) {
+        const cls = classifyAffixBinding(s, introVar, ground, allowSuffix);
+        if (cls) { candidates.unshift({ solver: s, ...cls }); remaining.splice(i, 1); }
+      }
+    }
+    steps.push({ kind: 'introduce', freeVar: introVar, candidates });
+    ground.add(introVar);
+  }
+  for (const v of variables) if (!ground.has(v)) return null;
+  return { driver, steps };
+}
+
+function isNormSorted(arr) {
+  for (let i = 1; i < arr.length; i++) if (arr[i].norm < arr[i - 1].norm) return false;
+  return true;
+}
+
+// First index whose norm is >= key, over a norm-sorted array.
+function lowerBoundNorm(arr, key) {
+  let lo = 0, hi = arr.length;
+  while (lo < hi) { const mid = (lo + hi) >> 1; if (arr[mid].norm < key) lo = mid + 1; else hi = mid; }
+  return lo;
+}
+
 // ─── Anagram solver ───────────────────────────────────────────────────────────
 // The unbounded path for `A;B;AB=/random`: index the corpus by letter-multiset and split
 // the target by recursive subtraction (how online anagram finders work), instead of
@@ -828,12 +924,15 @@ async function solveAnagram(parsed, pool, { numResults, maxMatchesPerPattern, on
 // The budget params aren't redundant with `numResults`: a search with few
 // consistent tuples pays its full cost before producing any, so the work itself —
 // not just the output count — has to be bounded.
+// `strategy` is a test/debug seam: 'bucket' forces the general path, so a parity test
+// can compare an index path's output against the exhaustive bucket join for one query.
 export async function findTuples(parsed, pool, {
   numResults = 100,
   maxMatchesPerPattern = 200_000,
   onBatch = null,
   y = NOOP_Y,
   signal = null,
+  strategy = 'auto',
 } = {}) {
   if (parsed.anagramSolve) return solveAnagram(parsed, pool, { numResults, maxMatchesPerPattern, onBatch, y, signal });
   const { bindings, constraints } = parsed;
@@ -874,7 +973,7 @@ export async function findTuples(parsed, pool, {
   };
 
   const driverHasAllVars = ordered[0].p.variables.size === parsed.variables.size;
-  const probeable = driverHasAllVars && ordered.slice(1).every(o => probeExpansion(o.p) !== Infinity);
+  const probeable = strategy !== 'bucket' && driverHasAllVars && ordered.slice(1).every(o => probeExpansion(o.p) !== Infinity);
 
   // ── Probe path ─────────────────────────────────────────────────────────────
   if (probeable) {
@@ -889,18 +988,6 @@ export async function findTuples(parsed, pool, {
       return m;
     });
 
-    const genCandidates = (oi, b) => {
-      let strs = [''];
-      for (const t of ordered[oi].p.tokens) {
-        if (t.t === 'lit') strs = strs.map(s => s + t.s);
-        else if (t.t === 'var') strs = strs.map(s => s + b[t.name]);
-        else if (t.t === 'rev') { const r = reverse(b[t.name]); strs = strs.map(s => s + r); }
-        else if (t.t === 'dot') strs = strs.flatMap(s => [...NORM_CHARS].map(c => s + c));
-        else if (t.t === 'class') strs = strs.flatMap(s => classMembers(t).map(c => s + c));
-      }
-      return strs;
-    };
-
     outer:
     for (const entry of ordered[0].pool) {
       if (signal?.aborted) throw signal.reason ?? new DOMException('Aborted', 'AbortError');
@@ -911,7 +998,7 @@ export async function findTuples(parsed, pool, {
         for (let oi = 1; oi < N; oi++) {
           const wl = ordered[oi].p.wordLen;
           const parts = [];
-          for (const nrm of genCandidates(oi, assignment)) {
+          for (const nrm of expandTokens(ordered[oi].p.tokens, assignment)) {
             if (wl && (nrm.length < wl.min || (wl.max !== null && nrm.length > wl.max))) continue;
             const e2 = lookups[oi].get(nrm);
             if (e2) parts.push({ entry: e2, assignment });
@@ -934,6 +1021,147 @@ export async function findTuples(parsed, pool, {
     }
     await flush();
     return { tuples, truncated: false, capped: tuples.length >= numResults };
+  }
+
+  // ── Affix path ───────────────────────────────────────────────────────────────
+  const affixPlan = strategy !== 'bucket' ? planAffix(ordered, parsed.variables, false) : null;
+  if (affixPlan) {
+    const { driver, steps } = affixPlan;
+
+    const byNorm = new Map();
+    for (const e of pool) if (!byNorm.has(e.norm)) byNorm.set(e.norm, e);
+    // Prefix scans need norm order. The head-tool pool already is (the corpus is
+    // norm-sorted); a chained pool may not be, so sort a copy only when it isn't.
+    const sortedByNorm = isNormSorted(pool)
+      ? pool
+      : [...pool].sort((a, b) => a.norm < b.norm ? -1 : a.norm > b.norm ? 1 : 0);
+
+    // Reproduce matchPattern's per-variable filtering for a value bound off an affix
+    // scan (length window, sub-pattern, length-guarded !=sub-pattern, A!=B) — drift
+    // and a constraint silently means something different here than on the flat path.
+    const acceptVar = (name, boundVal, assignment) => {
+      const L = boundVal.length;
+      const lc = constraints.length[name];
+      let min = 1, max = Infinity;
+      if (lc) { min = lc.min; max = lc.max; }
+      if (L < min || L > max) return false;
+      const vp = constraints.varEqualsPattern[name];
+      if (vp) { if (L < vp.min || (vp.max !== Infinity && L > vp.max)) return false; if (!vp.test(boundVal)) return false; }
+      const vnp = constraints.varNotEqualsPattern[name];
+      if (vnp && vnp.some(n => L >= n.min && (n.max === Infinity || L <= n.max) && n.test(boundVal))) return false;
+      const neq = constraints.varNotEqualsVar[name];
+      if (neq && neq.some(o => o in assignment && assignment[o] === boundVal)) return false;
+      return true;
+    };
+    const wordLenOK = (wl, len) => !wl || (len >= wl.min && (wl.max === null || len <= wl.max));
+    const makeLaneP = (pattern, entry, assignment) => {
+      const highlights = variableHighlights(entry.norm, pattern, assignment, varColor);
+      return { entry, highlights: highlights.length ? highlights : null };
+    };
+
+    const stepLanes = new Array(steps.length);   // {solver, entry}[] per step, filled during the DFS
+    let driverEntry = null;
+
+    const emitAffix = assignment => {
+      const lanes = new Array(emittingCount);
+      if (driver.emit) lanes[driver.outIdx] = makeLaneP(driver.p, driverEntry, assignment);
+      for (let si = 0; si < steps.length; si++)
+        for (const rec of stepLanes[si]) lanes[rec.solver.outIdx] = makeLaneP(rec.solver.p, rec.entry, assignment);
+      const dedupeKey = lanes.map(l => l.entry.norm).join('\0');
+      if (seenTuples.has(dedupeKey)) return;
+      seenTuples.add(dedupeKey);
+      tuples.push(lanes);
+      pending?.push(lanes);
+    };
+
+    // Yields one entry per distinct norm, and it must be byNorm's (the first in pool
+    // order — a stable sort keeps ties in place), or an emitted lane would differ from
+    // what the probe/bucket paths pick for the same norm and parity would break.
+    const scanPrefix = (prefix, visit) => {
+      let prev = null;
+      for (let i = lowerBoundNorm(sortedByNorm, prefix); i < sortedByNorm.length; i++) {
+        const e = sortedByNorm[i];
+        if (!e.norm.startsWith(prefix)) break;
+        if (e.norm === prev) continue;
+        prev = e.norm;
+        if (visit(e)) return;
+      }
+    };
+
+    const recurse = (si, assignment) => {
+      if (tuples.length >= numResults) return true;
+      if (si === steps.length) {
+        if (sumLen.length && !sumLenOK(sumLen, assignment)) return false;
+        if ((termEquals.length || termNotEquals.length) && !termsOK(termEquals, termNotEquals, assignment)) return false;
+        emitAffix(assignment);
+        return tuples.length >= numResults;
+      }
+      const step = steps[si];
+      if (step.kind === 'probe') {
+        const s = step.solver, wl = s.p.wordLen;
+        for (const nrm of expandTokens(s.p.tokens, assignment)) {
+          if (!wordLenOK(wl, nrm.length)) continue;
+          const e = byNorm.get(nrm);
+          if (!e) continue;
+          stepLanes[si] = [{ solver: s, entry: e }];
+          if (recurse(si + 1, assignment)) return true;
+        }
+        return false;
+      }
+      const X = step.freeVar;
+      const enumerator = step.candidates[0];
+      const others = step.candidates.slice(1);
+      const enumTok = enumerator.freeTok, enumWl = enumerator.solver.p.wordLen;
+      let stopped = false;
+      for (const prefix of expandTokens(enumerator.affix, assignment)) {
+        scanPrefix(prefix, e => {
+          const raw = e.norm.slice(prefix.length);
+          const boundVal = enumTok.t === 'rev' ? reverse(raw) : raw;
+          if (!acceptVar(X, boundVal, assignment)) return false;
+          if (!wordLenOK(enumWl, e.norm.length)) return false;
+          assignment[X] = boundVal;
+          const laneRecs = [{ solver: enumerator.solver, entry: e }];
+          let ok = true;
+          for (const oc of others) {
+            const owl = oc.solver.p.wordLen;
+            let hit = null;
+            for (const nrm of expandTokens(oc.solver.p.tokens, assignment)) {
+              if (wordLenOK(owl, nrm.length)) { const oe = byNorm.get(nrm); if (oe) { hit = oe; break; } }
+            }
+            if (!hit) { ok = false; break; }
+            laneRecs.push({ solver: oc.solver, entry: hit });
+          }
+          if (ok) { stepLanes[si] = laneRecs; if (recurse(si + 1, assignment)) stopped = true; }
+          delete assignment[X];
+          return stopped;
+        });
+        if (stopped) return true;
+      }
+      return false;
+    };
+
+    // Best-first by score keeps high-value tuples inside the result cap: without it,
+    // the answer (cock-and-bull) sits past a cap full of junk short-var tuples.
+    const driverMatches = [];
+    let truncated = false;
+    outer:
+    for (const entry of driver.pool) {
+      if (signal?.aborted) throw signal.reason ?? new DOMException('Aborted', 'AbortError');
+      for (const assignment of matchPattern(entry.norm, driver.p, constraints)) {
+        driverMatches.push({ entry, assignment });
+        if (driverMatches.length >= maxMatchesPerPattern) { truncated = true; break outer; }
+      }
+    }
+    driverMatches.sort((a, b) => (b.entry.score ?? 0) - (a.entry.score ?? 0));
+
+    for (const { entry, assignment } of driverMatches) {
+      if (signal?.aborted) throw signal.reason ?? new DOMException('Aborted', 'AbortError');
+      driverEntry = entry;
+      if (recurse(0, assignment)) break;
+      if (y.due()) { await flush(); await y.yield(); }
+    }
+    await flush();
+    return { tuples, truncated, capped: tuples.length >= numResults };
   }
 
   // ── Bucket path ──────────────────────────────────────────────────────────────

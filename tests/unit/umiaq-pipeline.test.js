@@ -49,6 +49,13 @@ test('pipeline: a multi-pattern query produces arity-N tuples', async () => {
   assert.deepEqual(tuples, [['ape', 'pea'], ['bro', 'rob'], ['pea', 'ape'], ['rob', 'bro']]);
 });
 
+test('pipeline: an affix-path query flows through the executor like any tuple run', async () => {
+  const res = await run('AandB;X;AX;XB', ['cockandbull', 'pit', 'cockpit', 'pitbull', 'dog']);
+  assert.equal(res.laneKind, 'record');
+  const tuples = res.rows.map(g => g.chains.map(c => rowLastEntry(c).norm));
+  assert.deepEqual(tuples, [['cockandbull', 'pit', 'cockpit', 'pitbull']]);
+});
+
 test('pipeline: each tuple is a multi-lane row, one single-atom chain per lane', async () => {
   const res = await run('AB;BA;|A|=1', ['ape', 'pea']);
   assert.equal(res.rows.length, 1);
