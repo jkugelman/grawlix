@@ -3395,6 +3395,7 @@ export const EntryPanel = (() => {
           <div class="score-combo">
             <input id="entry-panel-score" class="score-input" type="number" min="0" value="${seed.score}"
               role="combobox" aria-expanded="false" aria-controls="entry-panel-score-list" aria-autocomplete="list" autocomplete="off"${ro}>
+            ${ro ? '' : `<button type="button" class="score-combo-toggle" tabindex="-1" aria-expanded="false" aria-controls="entry-panel-score-list" aria-label="Show score tiers"><svg class="score-combo-chevron" width="8" height="5" aria-hidden="true"><use href="#icon-arrow"/></svg></button>`}
             <ul id="entry-panel-score-list" class="score-listbox score-combo-list" role="listbox" aria-label="Score tiers" hidden></ul>
           </div>
           <label for="entry-panel-comment">Comment</label>
@@ -3918,18 +3919,68 @@ export function handleScoreDigitShortcut(digit) {
   return getEntriesScroller()?.rescoreSelectionByDigit(digit) ?? false;
 }
 
+class ScoreOptionList {
+  constructor(el, { idPrefix, ariaHost = el } = {}) {
+    this.el = el;
+    this.idPrefix = idPrefix;
+    this.ariaHost = ariaHost;
+    this.options = [];
+    this.activeIndex = -1;
+  }
+
+  get length() { return this.options.length; }
+  option(i) { return this.options[i]; }
+  setOptions(options) { this.options = options; }
+
+  // A between-tiers score rounds down to the next tier, not the nearest.
+  indexForScore(score) {
+    if (!Number.isFinite(score)) return -1;
+    const i = this.options.findIndex(o => o.score <= score);
+    return i < 0 ? this.options.length - 1 : i;
+  }
+  indexForDigit(digit) { return this.options.findIndex(o => o.hint === digit); }
+
+  render(activeIndex = -1) {
+    this.activeIndex = activeIndex;
+    const { html, colW } = buildScoreOptionItemsHTML(this.options, activeIndex, this.idPrefix);
+    this.el.innerHTML = html;
+    this.el.style.setProperty('--badge-col', `${colW}px`);
+  }
+
+  setActive(i, scroll = true) {
+    const clamped = Math.max(0, Math.min(this.options.length - 1, i));
+    if (clamped === this.activeIndex) return;
+    this.activeIndex = clamped;
+    this.syncActive(scroll);
+  }
+
+  syncActive(scroll = true) {
+    const lis = this.el.querySelectorAll('.score-picker-opt');
+    lis.forEach((li, j) => {
+      const on = j === this.activeIndex;
+      li.classList.toggle('active', on);
+      li.setAttribute('aria-selected', on);
+    });
+    if (this.activeIndex >= 0) {
+      if (scroll) lis[this.activeIndex]?.scrollIntoView({ block: 'nearest' });
+      this.ariaHost.setAttribute('aria-activedescendant', lis[this.activeIndex]?.id ?? '');
+    } else {
+      this.ariaHost.removeAttribute('aria-activedescendant');
+    }
+  }
+}
+
 // Offered only in the All Wordlists and My Edits scopes: there the clicked row
 // holds the value a save writes, so the picked tier shows in place. A single-
 // source scope would write the edit into My Edits while still showing the
 // source's score — silently appearing to do nothing — so it uses the EntryPanel.
 export const ScorePicker = (() => {
   let el = null;
+  let list = null;
   let activeRow = null;
   let activeAnchor = null;
   let activeWlEntry = null;
   let activeScroller = null;
-  let options = [];
-  let activeIndex = 0;
   let startIndex = 0;
 
   function ensureElement() {
@@ -3947,9 +3998,10 @@ export const ScorePicker = (() => {
     });
     el.addEventListener('mousemove', e => {
       const opt = e.target.closest('.score-picker-opt');
-      if (opt) setActive(parseInt(opt.dataset.i, 10), false);
+      if (opt) list.setActive(parseInt(opt.dataset.i, 10), false);
     });
     document.body.appendChild(el);
+    list = new ScoreOptionList(el, { idPrefix: 'score-picker-opt' });
     return el;
   }
 
@@ -3957,7 +4009,7 @@ export const ScorePicker = (() => {
 
   function open(wlEntry, rowEl, scroller, anchorEl) {
     EntryPanel.close();
-    options = buildScoreOptions();
+    const options = buildScoreOptions();
     if (!options.length) { EntryPanel.open(wlEntry, rowEl, scroller, 'score'); return; }
 
     const picker = ensureElement();
@@ -3968,17 +4020,13 @@ export const ScorePicker = (() => {
     activeAnchor = anchorEl ?? rowEl;
     if (rowEl) rowEl.classList.add('active');
 
-    const score = wlEntry.score;
-    // A between-tiers score rounds down to the next tier, not the nearest.
-    startIndex = options.findIndex(o => o.score <= score);
-    if (startIndex < 0) startIndex = options.length - 1;
-    activeIndex = startIndex;
-
-    renderItems();
+    list.setOptions(options);
+    startIndex = list.indexForScore(wlEntry.score);
+    list.render(startIndex);
     picker.removeAttribute('hidden');
     position();
     picker.focus();
-    syncActive();
+    list.syncActive();
 
     document.addEventListener('mousedown', onDocMouseDown, true);
     document.addEventListener('keydown', onKeydown, true);
@@ -3989,35 +4037,12 @@ export const ScorePicker = (() => {
     el.setAttribute('hidden', '');
     if (activeRow) activeRow.classList.remove('active');
     activeRow = activeAnchor = activeWlEntry = activeScroller = null;
-    options = [];
     document.removeEventListener('mousedown', onDocMouseDown, true);
     document.removeEventListener('keydown', onKeydown, true);
   }
 
-  function renderItems() {
-    const { html, colW } = buildScoreOptionItemsHTML(options, activeIndex, 'score-picker-opt');
-    el.innerHTML = html;
-    el.style.setProperty('--badge-col', `${colW}px`);
-  }
-
-  function setActive(i, scroll = true) {
-    if (i === activeIndex) return;
-    activeIndex = i;
-    syncActive(scroll);
-  }
-
-  function syncActive(scroll = true) {
-    const lis = el.querySelectorAll('.score-picker-opt');
-    lis.forEach((li, j) => {
-      li.classList.toggle('active', j === activeIndex);
-      li.setAttribute('aria-selected', j === activeIndex);
-    });
-    if (scroll) lis[activeIndex]?.scrollIntoView({ block: 'nearest' });
-    el.setAttribute('aria-activedescendant', lis[activeIndex]?.id ?? '');
-  }
-
   function commit(i) {
-    const opt = options[i];
+    const opt = list.option(i);
     const scroller = activeScroller, w = activeWlEntry;
     close();
     if (opt) commitRescore(scroller, w, opt.score);
@@ -4025,7 +4050,7 @@ export const ScorePicker = (() => {
 
   function pickDigit(digit) {
     if (!isOpen()) return false;
-    const i = options.findIndex(o => o.hint === digit);
+    const i = list.indexForDigit(digit);
     if (i < 0) return false;
     commit(i);
     return true;
@@ -4047,11 +4072,11 @@ export const ScorePicker = (() => {
     if (e.altKey || e.ctrlKey || e.metaKey) return;   // Alt+digit is routed globally
     switch (e.key) {
       case 'Escape':    e.preventDefault(); close(); break;
-      case 'ArrowDown': e.preventDefault(); setActive(Math.min(options.length - 1, activeIndex + 1)); break;
-      case 'ArrowUp':   e.preventDefault(); setActive(Math.max(0, activeIndex - 1)); break;
-      case 'Home':      e.preventDefault(); setActive(0); break;
-      case 'End':       e.preventDefault(); setActive(options.length - 1); break;
-      case 'Enter':     e.preventDefault(); commit(activeIndex); break;
+      case 'ArrowDown': e.preventDefault(); list.setActive(list.activeIndex + 1); break;
+      case 'ArrowUp':   e.preventDefault(); list.setActive(list.activeIndex - 1); break;
+      case 'Home':      e.preventDefault(); list.setActive(0); break;
+      case 'End':       e.preventDefault(); list.setActive(list.length - 1); break;
+      case 'Enter':     e.preventDefault(); commit(list.activeIndex); break;
     }
   }
 
@@ -4084,52 +4109,52 @@ class ScoreCombo {
     this.input = input;
     this.onSubmit = onSubmit;
     this.combo = input.closest('.score-combo');
-    this.list = this.combo.querySelector('.score-combo-list');
-    this.idPrefix = `${input.id}-opt`;
-    this.options = buildScoreOptions();
+    this.listEl = this.combo.querySelector('.score-combo-list');
+    this.toggleBtn = this.combo.querySelector('.score-combo-toggle');
+    this.list = new ScoreOptionList(this.listEl, { idPrefix: `${input.id}-opt`, ariaHost: input });
+    this.list.setOptions(buildScoreOptions());
     this.opened = false;
-    this.activeIndex = -1;
     // Gates Enter: the highlight tracks the typed value, but Enter snaps to a tier
     // only after an arrow key — else a typed 55 in the ≥50 tier silently becomes 50.
     this.navigated = false;
 
-    if (!this.options.length) { this.combo.classList.add('score-combo--bare'); return; }
+    if (!this.list.length) { this.combo.classList.add('score-combo--bare'); return; }
 
-    this.input.addEventListener('focus', () => this.open());
     this.input.addEventListener('blur', () => this.close());
     this.input.addEventListener('input', () => this.onInput());
     this.input.addEventListener('keydown', e => this.onKeydown(e));
+    // The chevron is the only pointer affordance that opens the list; a plain focus
+    // (tab, Alt+digit, panel open) deliberately doesn't — don't re-add a focus opener.
+    this.toggleBtn.addEventListener('mousedown', e => e.preventDefault());
+    this.toggleBtn.addEventListener('click', () => {
+      this.input.focus();
+      this.opened ? this.close() : this.open();
+    });
     // Keep focus in the input so an option click isn't pre-empted by a blur that
     // closes the list first.
-    this.list.addEventListener('mousedown', e => e.preventDefault());
-    this.list.addEventListener('click', e => {
+    this.listEl.addEventListener('mousedown', e => e.preventDefault());
+    this.listEl.addEventListener('click', e => {
       const li = e.target.closest('.score-picker-opt');
       if (li) this.pick(parseInt(li.dataset.i, 10));
     });
-    this.list.addEventListener('mousemove', e => {
+    this.listEl.addEventListener('mousemove', e => {
       const li = e.target.closest('.score-picker-opt');
-      if (li) this.setActive(parseInt(li.dataset.i, 10), false, false);
+      if (li) this.list.setActive(parseInt(li.dataset.i, 10), false);
     });
   }
 
   isOpen() { return this.opened; }
-
-  indexForValue() {
-    const v = parseInt(this.input.value, 10);
-    if (isNaN(v)) return -1;
-    const i = this.options.findIndex(o => o.score <= v);
-    return i < 0 ? this.options.length - 1 : i;
-  }
+  get activeIndex() { return this.list.activeIndex; }
 
   open({ navigated = false } = {}) {
-    if (this.opened || !this.options.length || this.input.disabled) return;
+    if (this.opened || !this.list.length || this.input.disabled) return;
     this.opened = true;
     this.navigated = navigated;
-    this.activeIndex = this.indexForValue();
     this.input.setAttribute('aria-expanded', 'true');
-    this.list.hidden = false;
-    this.renderItems();
-    this.syncActive(true);
+    this.toggleBtn.setAttribute('aria-expanded', 'true');
+    this.listEl.hidden = false;
+    this.list.render(this.list.indexForScore(parseInt(this.input.value, 10)));
+    this.list.syncActive(true);
   }
 
   close() {
@@ -4137,16 +4162,16 @@ class ScoreCombo {
     this.opened = false;
     this.navigated = false;
     this.input.setAttribute('aria-expanded', 'false');
+    this.toggleBtn.setAttribute('aria-expanded', 'false');
     this.input.removeAttribute('aria-activedescendant');
-    this.list.hidden = true;
+    this.listEl.hidden = true;
   }
 
   onInput() {
     if (!this.opened) return;
     this.navigated = false;
-    this.activeIndex = this.indexForValue();
-    this.renderItems();
-    this.syncActive(false);
+    this.list.render(this.list.indexForScore(parseInt(this.input.value, 10)));
+    this.list.syncActive(false);
   }
 
   onKeydown(e) {
@@ -4155,15 +4180,15 @@ class ScoreCombo {
       case 'ArrowDown':
         e.preventDefault();
         if (!this.opened) this.open({ navigated: true });
-        else this.setActive(this.activeIndex < 0 ? 0 : this.activeIndex + 1);
+        else this.navTo(this.activeIndex < 0 ? 0 : this.activeIndex + 1);
         break;
       case 'ArrowUp':
         e.preventDefault();
         if (!this.opened) this.open({ navigated: true });
-        else this.setActive(this.activeIndex < 0 ? this.options.length - 1 : this.activeIndex - 1);
+        else this.navTo(this.activeIndex < 0 ? this.list.length - 1 : this.activeIndex - 1);
         break;
-      case 'Home': if (this.opened) { e.preventDefault(); this.setActive(0); } break;
-      case 'End':  if (this.opened) { e.preventDefault(); this.setActive(this.options.length - 1); } break;
+      case 'Home': if (this.opened) { e.preventDefault(); this.navTo(0); } break;
+      case 'End':  if (this.opened) { e.preventDefault(); this.navTo(this.list.length - 1); } break;
       case 'Enter':
         e.preventDefault();
         if (this.opened && this.navigated && this.activeIndex >= 0) this.pick(this.activeIndex);
@@ -4174,35 +4199,13 @@ class ScoreCombo {
     }
   }
 
-  setActive(i, scroll = true, navigated = true) {
-    this.activeIndex = Math.max(0, Math.min(this.options.length - 1, i));
-    if (navigated) this.navigated = true;
-    this.syncActive(scroll);
-  }
-
-  syncActive(scroll = true) {
-    const lis = this.list.querySelectorAll('.score-picker-opt');
-    lis.forEach((li, j) => {
-      const on = j === this.activeIndex;
-      li.classList.toggle('active', on);
-      li.setAttribute('aria-selected', on);
-    });
-    if (this.activeIndex >= 0) {
-      if (scroll) lis[this.activeIndex]?.scrollIntoView({ block: 'nearest' });
-      this.input.setAttribute('aria-activedescendant', lis[this.activeIndex]?.id ?? '');
-    } else {
-      this.input.removeAttribute('aria-activedescendant');
-    }
-  }
-
-  renderItems() {
-    const { html, colW } = buildScoreOptionItemsHTML(this.options, this.activeIndex, this.idPrefix);
-    this.list.innerHTML = html;
-    this.list.style.setProperty('--badge-col', `${colW}px`);
+  navTo(i) {
+    this.navigated = true;
+    this.list.setActive(i);
   }
 
   pick(i) {
-    const opt = this.options[i];
+    const opt = this.list.option(i);
     if (!opt) return;
     this.input.value = String(opt.score);
     this.close();

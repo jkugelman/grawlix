@@ -1,6 +1,6 @@
 // The entry panel's Score combo box (ScoreCombo in site/src/ui/entries-table.js):
-// the tier list drops in on focus; pick a tier or type any score; nothing commits
-// until Save/Enter.
+// the tier list drops in when you click the chevron (or press an arrow key) — never
+// on a plain focus; pick a tier or type any score; nothing commits until Save/Enter.
 
 import { test, expect } from '@playwright/test';
 import { stubPublisherFetches, gotoApp, scopeTo } from './helpers.js';
@@ -26,6 +26,7 @@ async function setup(page, { score = 50 } = {}) {
 
 const panel = page => page.locator('#entry-panel');
 const scoreInput = page => page.locator('#entry-panel-score');
+const toggle = page => page.locator('#entry-panel .score-combo-toggle');
 const list = page => page.locator('#entry-panel-score-list');
 const opts = page => page.locator('#entry-panel-score-list .score-picker-opt');
 const save = page => page.locator('#entry-panel .entry-panel-save');
@@ -39,15 +40,47 @@ async function openPanel(page) {
   await expect(scoreInput(page)).toBeEnabled();
 }
 
-test('focusing the Score field drops the tier list below it, current tier marked', async ({ page }) => {
+async function openList(page) {
+  await toggle(page).click();
+  await expect(list(page)).toBeVisible();
+}
+
+test('the tier list stays shut on focus and on a plain input click', async ({ page }) => {
   await setup(page, { score: 50 });
   await openPanel(page);
   await expect(list(page)).toBeHidden();
 
   await scoreInput(page).focus();
+  await expect(list(page)).toBeHidden();
+
+  await scoreInput(page).click();
+  await expect(list(page)).toBeHidden();
+});
+
+test('the chevron drops the tier list with the current tier marked, and toggles it shut', async ({ page }) => {
+  await setup(page, { score: 50 });
+  await openPanel(page);
+  await expect(list(page)).toBeHidden();
+
+  await toggle(page).click();
   await expect(list(page)).toBeVisible();
   await expect(opts(page).locator('.score-picker-badge')).toHaveText(['90', '50', '10']);
   await expect(opts(page).locator('.score-picker-label')).toHaveText(['Great', 'Okay', 'Weak']);
+  await expect(page.locator('#entry-panel-score-list .score-picker-opt', { hasText: 'Okay' }))
+    .toHaveAttribute('aria-selected', 'true');
+
+  await toggle(page).click();
+  await expect(list(page)).toBeHidden();
+});
+
+test('ArrowDown opens the list from the keyboard, highlighting the current tier', async ({ page }) => {
+  await setup(page, { score: 50 });
+  await openPanel(page);
+  await scoreInput(page).focus();
+  await expect(list(page)).toBeHidden();      // focus alone does not open
+
+  await scoreInput(page).press('ArrowDown');
+  await expect(list(page)).toBeVisible();
   await expect(page.locator('#entry-panel-score-list .score-picker-opt', { hasText: 'Okay' }))
     .toHaveAttribute('aria-selected', 'true');
 });
@@ -55,7 +88,7 @@ test('focusing the Score field drops the tier list below it, current tier marked
 test('picking a tier fills the score box but does not commit until Save', async ({ page }) => {
   await setup(page, { score: 50 });
   await openPanel(page);
-  await scoreInput(page).focus();
+  await openList(page);
   await page.locator('#entry-panel-score-list .score-picker-opt', { hasText: 'Great' }).click();
 
   await expect(list(page)).toBeHidden();
@@ -80,7 +113,8 @@ test('a freely-typed non-tier score is saved as-is, not snapped to a tier', asyn
 test('Enter keeps a freely-typed value instead of snapping to the highlighted tier', async ({ page }) => {
   await setup(page, { score: 50 });
   await openPanel(page);
-  await scoreInput(page).fill('55');   // list open, highlight tracks Okay (≥50), but not navigated-to
+  await openList(page);
+  await scoreInput(page).fill('55');   // highlight tracks Okay (≥50), but not navigated-to
   await expect(list(page)).toBeVisible();
 
   await scoreInput(page).press('Enter');
@@ -92,8 +126,8 @@ test('Enter keeps a freely-typed value instead of snapping to the highlighted ti
 test('arrowing onto a tier and pressing Enter fills that tier without committing', async ({ page }) => {
   await setup(page, { score: 50 });   // opens on Okay
   await openPanel(page);
-  await scoreInput(page).focus();            // list open, Okay highlighted
-  await scoreInput(page).press('ArrowUp');   // Okay → Great
+  await openList(page);                       // list open, Okay highlighted
+  await scoreInput(page).press('ArrowUp');    // Okay → Great
   await scoreInput(page).press('Enter');
 
   await expect(list(page)).toBeHidden();
@@ -105,7 +139,8 @@ test('arrowing onto a tier and pressing Enter fills that tier without committing
 test('Escape dismisses the open list first, regardless of unsaved changes', async ({ page }) => {
   await setup(page);
   await openPanel(page);
-  await scoreInput(page).fill('60');   // dirty edit, list open
+  await openList(page);
+  await scoreInput(page).fill('60');   // dirty edit, list still open
   await expect(list(page)).toBeVisible();
 
   await page.keyboard.press('Escape');

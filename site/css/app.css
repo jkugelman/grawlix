@@ -608,8 +608,17 @@ td.entry-panel-prov-entry { font-family: var(--font-mono); }
 .entry-panel-fields input { padding: 4px 7px; border-radius: 3px; width: 100%; box-sizing: border-box; }
 .entry-panel-fields input:read-only { background: var(--bg); color: var(--text); cursor: default; }
 .entry-panel-fields input.score-input { font-family: var(--font-mono); max-width: 8ch; }
-.score-combo { position: relative; display: inline-flex; }
-.entry-panel-fields .score-combo .score-input { flex: none; width: 8ch; max-width: none; }
+.score-combo { position: relative; display: inline-flex; align-items: stretch; }
+.entry-panel-fields .score-combo .score-input { flex: none; width: 8ch; max-width: none; border-top-right-radius: 0; border-bottom-right-radius: 0; }
+.score-combo .score-input { appearance: textfield; -moz-appearance: textfield; }
+.score-combo .score-input::-webkit-inner-spin-button,
+.score-combo .score-input::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+.score-combo-toggle { flex: none; box-sizing: border-box; display: inline-flex; align-items: center; justify-content: center; width: 22px; padding: 0; color: var(--muted); background: var(--input-bg); border: 1px solid var(--border); border-left: none; border-radius: 0 3px 3px 0; cursor: pointer; }
+.score-combo-toggle:hover { color: var(--text); background: var(--hover); }
+.score-combo .score-input:focus + .score-combo-toggle { border-color: var(--accent); }
+.score-combo-chevron { transition: transform 0.15s ease; }
+.score-combo-toggle[aria-expanded="true"] .score-combo-chevron { transform: rotate(180deg); }
+.score-combo--bare .score-combo-toggle,
 .score-combo--bare .score-combo-list { display: none; }
 .score-combo-list { position: absolute; top: calc(100% + 4px); left: 0; z-index: 5; max-width: min(320px, calc(100dvw - 28px)); max-height: 240px; }
 .score-combo-list[hidden] { display: none; }
