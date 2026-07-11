@@ -350,11 +350,11 @@ async function runStackRow(stackRow, state, mergedWordlist, signal, y, emit = nu
       const poolRows = state.grouped ? state.groups.flatMap(g => g.chains) : state.groups[0].chains;
       const prepared = def.prepare(params);
       const onBatch = emit ? await makeTupleEmit(emit, downstream, mergedWordlist, signal, y) : null;
-      const { tuples, capped } = await def.findTuples(poolRows.map(rowLastEntry), prepared, { wordlist: mergedWordlist, y, signal, onBatch });
+      const { tuples, capped, truncated } = await def.findTuples(poolRows.map(rowLastEntry), prepared, { wordlist: mergedWordlist, y, signal, onBatch });
       state.groups = tuples.map(tupleToGroup);
       state.grouped = true;
       state.laneKind = 'record';
-      state.capped = !!capped;
+      state.capped = !!capped || !!truncated;
       return;
     }
 

@@ -361,11 +361,12 @@ export function buildStatsBarHTML() {
     return `<div class="histogram-col" title="${title}"><div class="histogram-bar" data-lo="${s.lo}" data-hi="${s.hi}" style="--score-bg:${bg}; height:${barH(c)}px"></div></div>`;
   }).join('');
 
-  const countText = countValue.toLocaleString() + (tuple && scroller?._capped ? '+' : '');
+  const incomplete = !!(tuple && scroller?._capped);
+  const countText = countValue.toLocaleString() + (incomplete ? '+' : '');
   const countsHTML = groupCount != null
     ? buildStatItemHTML('Entries', countValue.toLocaleString(), null, 'stat-entries') +
       buildStatItemHTML('Groups', groupCount.toLocaleString())
-    : buildStatItemHTML(tuple ? 'Results' : 'Entries', countText, null, 'stat-entries');
+    : buildStatItemHTML(tuple ? 'Results' : 'Entries', countText, incomplete ? 'Results incomplete' : null, 'stat-entries');
 
   const rangeHTML = _buildScoreRangeInputHTML('score-range-input', AppView.scoreRange, 'AppView');
   const exportHTML = _buildExportMenuHTML();

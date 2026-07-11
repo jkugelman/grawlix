@@ -81,6 +81,16 @@ test('pipeline: a tuple run that hit its ceiling propagates capped through the r
   assert.equal(res.capped, true);
 });
 
+test('pipeline: a truncated tuple run folds into capped (one "there are more" fact)', async () => {
+  const wl = mergedWordlist(['ape', 'pea']);
+  const stubTupleTool = {
+    kind: () => 'tuple', isInert: () => false,
+    prepare: p => p, findTuples: () => ({ tuples: [], capped: false, truncated: true }),
+  };
+  const res = await executePipeline(wl, [toolRow(stubTupleTool, {}), inertSearch], null, null);
+  assert.equal(res.capped, true);
+});
+
 test('error: a broken query reports its message; a valid or half-typed one is silent', () => {
   assert.match(umiaqTool.error({ query: 'a.b' }), /unexpected character/);
   assert.match(umiaqTool.error({ query: 'a[bc' }), /unclosed/);
