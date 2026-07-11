@@ -1184,6 +1184,7 @@ export class EntriesScroller extends BaseVirtualScroller {
       if (e.key !== 'f' && e.key !== 'F') return;
       if (!(e.metaKey || e.ctrlKey) || e.altKey || e.shiftKey) return;
       if (document.querySelector('dialog[open]')) return;   // a modal owns the keyboard
+      if (EntryPanel.isOpen()) return;                      // …as does the entry panel (a modal div, not a <dialog>)
       if (!this.host.offsetParent) return;                  // entries view not on screen
       e.preventDefault();
       this.openFind();
@@ -1214,15 +1215,18 @@ export class EntriesScroller extends BaseVirtualScroller {
     if (this._findInput.value) this._runFind(this._findInput.value);
   }
 
-  closeFind() {
+  // refocus:false when the entry panel is taking over: refocusing would land focus
+  // on the table sizer behind the panel's scrim, where it's invisible and stranded.
+  closeFind({ refocus = true } = {}) {
+    if (!this._findBar || this._findBar.hidden) return;
     this._findSeq++;                     // supersede any in-flight worker reply
     clearTimeout(this._findDebounce);
     const had = !!this._find;
     this._find = null;
-    if (this._findBar) this._findBar.hidden = true;
+    this._findBar.hidden = true;
     GroupMorePopover.close();
     if (had) this._render();
-    this.sizer.focus({ preventScroll: true });
+    if (refocus) this.sizer.focus({ preventScroll: true });
   }
 
   _ensureFindBar() {
@@ -2979,10 +2983,12 @@ export const EntryPanel = (() => {
   function doOpen(wlEntry, rowEl, scroller, focus, mode, route, animate, selectField = true) {
     selectFieldOnFocus = selectField;
     // The panel is modal — its scrim covers the page. Dismiss the other floating
-    // surfaces (all z-600, so they'd float above the scrim and stay live).
+    // surfaces (the z-600 popovers and the z-700 find bar) that would otherwise
+    // float above the scrim and stay live.
     ScorePicker.close();
     SortMenu.close();
     GroupMorePopover.close();
+    scroller?.closeFind?.({ refocus: false });
     const panel = ensureElement();
     if (activeRow) activeRow.classList.remove('active');
     activeMode = mode;
