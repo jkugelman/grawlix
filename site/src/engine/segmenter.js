@@ -17,6 +17,7 @@ export const SPACE_OUT_SUFFIXES = ['s', 'es', 'ed', 'ied', 'ing', 'er', 'est', '
 // not just as a whole entry. A value must norm back to its key or it changes the
 // entry's letters, not just its spaces — a unit test pins that.
 export const SPACE_OUT_OVERRIDES = {
+  gota: 'got a',
   ofthe: 'of the',
 };
 
