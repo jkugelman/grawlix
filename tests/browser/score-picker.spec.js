@@ -98,6 +98,17 @@ test('Escape closes the picker without writing anything', async ({ page }) => {
   expect(await myEdits(page)).toEqual([]);
 });
 
+// Regression: the dismiss guard is scoped to the score badge, not the whole row,
+// so a click on a non-badge cell of the same row must still cancel the picker.
+test('a click elsewhere on the same row dismisses the picker without writing', async ({ page }) => {
+  await setup(page, { score: 50 });
+  await openPicker(page);
+  await page.locator('.entry-row[data-entry="bagel"] .atom-len').click();
+  await expect(picker(page)).toBeHidden();
+  expect(await myEdits(page)).toEqual([]);
+  await expect(toast(page)).toHaveCount(0);
+});
+
 test('a between-tiers score starts on the next-lowest tier', async ({ page }) => {
   await setup(page, { score: 22 });   // tiers 90/50/10 → falls between, nearest below is 10
   await openPicker(page);
