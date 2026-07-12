@@ -203,6 +203,33 @@ test('a phrase Wikipedia force-caps but Wiktionary lowercases keeps the lowercas
   await expect(link(page)).toHaveText('general assemblies');
 });
 
+// Mirror of the case above: "theirs" is a real spaceless word, so the suppressor
+// must keep it and retract the "the irs" split. Wikipedia is left to 404, so only
+// Wiktionary's spaceless form stands.
+async function stubTheirs(page) {
+  await page.route(/en\.wiktionary\.org\/w\/api\.php/, route =>
+    /srsearch=theirs&/i.test(route.request().url())
+      ? route.fulfill({ status: 200, contentType: 'application/json',
+          body: JSON.stringify({ query: { search: [{ title: 'theirs' }] } }) })
+      : route.fulfill({ status: 404, contentType: 'application/json', body: '{}' }));
+}
+
+test('a real spaceless word is kept whole, retracting the segmenter split', async ({ page }) => {
+  await gotoApp(page);
+  await stubTheirs(page);
+  await page.evaluate(w => window.__grawlixTest.addCustomWordlist(w),
+    { name: 'Src', entries: ['theirs', 'the', 'irs'], scores: [50, 50, 50] });
+  await page.evaluate(() => window.__grawlixTest.pipelineIdle());
+  await page.evaluate(c => window.__grawlixTest.setWorkerUnigramCorpus(c),
+    { the: -1, irs: -3 });
+
+  await openPanelFor(page, 'theirs');
+  await expect(link(page)).toHaveText('the irs');   // stage 1: the segmenter's split
+  // Resolved form equals the entry → no rename: the suppressor retracts the split.
+  await page.waitForTimeout(900);
+  await expect(link(page)).toHaveCount(0);
+});
+
 // Wiktionary's full-text search surfaces the accented singular "cliché" for the
 // plural query "cliches" but the singular query "cliche" returns nothing — so only
 // the short-circuit (reusing the plural's own results) can recover the accent; the
