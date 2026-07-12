@@ -74,7 +74,7 @@ import {
 import {
   syncWorkerConfig, resyncWorkerConfig,
   sendEditEntry, sendDeleteEntry, sendApplyFetched, fetchWorkerSerialize,
-  fetchWorkerEditPlan, whenWorkerCommitted,
+  fetchWorkerEditPlan, whenWorkerCommitted, beginPendingEdit, endPendingEdit,
   checkWorkerAssets, sendFreeDiff,
 } from '../ui/pipeline-worker.js';
 import { SyncDialog } from '../ui/dialogs/sync.js';
@@ -534,30 +534,38 @@ export async function saveEntry(mode, clicked, { raw, score, comment }, refreshF
   const edits = getEditsWordlist();
   if ((mode === 'edit' || mode === 'rescore') && clicked && noEditChange(clicked, raw, score, comment)) { refreshFn?.(); return; }
 
-  // Adopt deliberately writes values equal to the winner, so it must stay out of
-  // the no-op guard above; it plans through the edit branch.
-  const planMode = mode === 'adopt' || mode === 'rescore' ? 'edit' : mode;
-  const plan = await planForSave({ mode: planMode, clicked, typed: { raw, score, comment }, trashScore: getTrashScore() });
-  if (!plan || plan.blockedReason || (!plan.deletes.length && !plan.upserts.length)) { refreshFn?.(); return; }
+  // Hold the barrier from here — a walk/related-click opens the next panel while this
+  // save is still awaiting its plan, and that panel's corpus reads must land behind
+  // our editEntry (see pipeline-worker.js § Pending-edit barrier).
+  beginPendingEdit();
+  try {
+    // Adopt deliberately writes values equal to the winner, so it must stay out of
+    // the no-op guard above; it plans through the edit branch.
+    const planMode = mode === 'adopt' || mode === 'rescore' ? 'edit' : mode;
+    const plan = await planForSave({ mode: planMode, clicked, typed: { raw, score, comment }, trashScore: getTrashScore() });
+    if (!plan || plan.blockedReason || (!plan.deletes.length && !plan.upserts.length)) { refreshFn?.(); return; }
 
-  const writes = { deletes: plan.deletes, upserts: plan.upserts, primary: plan.primary };
-  let inverse;
-  applyEditsChange(edits, () => { inverse = applyEditsWriteSet(edits.rawEntries, writes); });
-  if (clicked) getEntriesScroller()?.renameInSelection({ norm: clicked.norm, display: clicked.display ?? null }, plan.primary);
-  const ack = sendEditEntry(writes).then(a => { applyConfigAck(a); return a; });
-  persistEditsMetaOnly(edits);
-  refreshAfterEdit(refreshFn, ack);
+    const writes = { deletes: plan.deletes, upserts: plan.upserts, primary: plan.primary };
+    let inverse;
+    applyEditsChange(edits, () => { inverse = applyEditsWriteSet(edits.rawEntries, writes); });
+    if (clicked) getEntriesScroller()?.renameInSelection({ norm: clicked.norm, display: clicked.display ?? null }, plan.primary);
+    const ack = sendEditEntry(writes).then(a => { applyConfigAck(a); return a; });
+    persistEditsMetaOnly(edits);
+    refreshAfterEdit(refreshFn, ack);
 
-  const msg = mode === 'rescore' ? `Rescored ${esc(raw)} to ${score}` : undoToastMessage(mode, plan, clicked);
-  if (msg) {
-    const undoWrites = { deletes: inverse.deletes, upserts: inverse.upserts, primary: plan.primary };
-    showUndoToast(msg, () => {
-      applyEditsChange(edits, () => applyEditsWriteSet(edits.rawEntries, undoWrites));
-      if (clicked) getEntriesScroller()?.renameInSelection(plan.primary, { norm: clicked.norm, display: clicked.display ?? null });
-      const undoAck = sendEditEntry(undoWrites).then(a => { applyConfigAck(a); return a; });
-      persistEditsMetaOnly(edits);
-      refreshAfterEdit(refreshFn, undoAck);
-    });
+    const msg = mode === 'rescore' ? `Rescored ${esc(raw)} to ${score}` : undoToastMessage(mode, plan, clicked);
+    if (msg) {
+      const undoWrites = { deletes: inverse.deletes, upserts: inverse.upserts, primary: plan.primary };
+      showUndoToast(msg, () => {
+        applyEditsChange(edits, () => applyEditsWriteSet(edits.rawEntries, undoWrites));
+        if (clicked) getEntriesScroller()?.renameInSelection(plan.primary, { norm: clicked.norm, display: clicked.display ?? null });
+        const undoAck = sendEditEntry(undoWrites).then(a => { applyConfigAck(a); return a; });
+        persistEditsMetaOnly(edits);
+        refreshAfterEdit(refreshFn, undoAck);
+      });
+    }
+  } finally {
+    endPendingEdit();
   }
 }
 
@@ -589,29 +597,34 @@ function mergeWriteSets(plans) {
 async function batchRescore(targets, score, refreshFn) {
   const edits = getEditsWordlist();
   if (!edits || !targets.length) { refreshFn?.(); return; }
-  const plans = (await Promise.all(targets.map(t =>
-    planForSave({ mode: 'edit', clicked: t.clicked, typed: { raw: t.raw, score, comment: t.comment }, trashScore: getTrashScore() })
-  ))).filter(p => p && !p.blockedReason && (p.deletes.length || p.upserts.length));
-  if (!plans.length) { refreshFn?.(); return; }
+  beginPendingEdit();
+  try {
+    const plans = (await Promise.all(targets.map(t =>
+      planForSave({ mode: 'edit', clicked: t.clicked, typed: { raw: t.raw, score, comment: t.comment }, trashScore: getTrashScore() })
+    ))).filter(p => p && !p.blockedReason && (p.deletes.length || p.upserts.length));
+    if (!plans.length) { refreshFn?.(); return; }
 
-  const writes = mergeWriteSets(plans);
-  let inverse;
-  applyEditsChange(edits, () => { inverse = applyEditsWriteSet(edits.rawEntries, writes); });
-  const ack = sendEditEntry(writes).then(a => { applyConfigAck(a); return a; });
-  persistEditsMetaOnly(edits);
-  refreshAfterEdit(refreshFn, ack);
-
-  const first = esc(displayOf(plans[0].primary));
-  const msg = plans.length === 1
-    ? `Rescored ${first} to ${score}`
-    : `Rescored ${first} and ${pluralize(plans.length - 1, 'other')} to ${score}`;
-  showUndoToast(msg, () => {
-    const undoWrites = { deletes: inverse.deletes, upserts: inverse.upserts, primary: null };
-    applyEditsChange(edits, () => applyEditsWriteSet(edits.rawEntries, undoWrites));
-    const undoAck = sendEditEntry(undoWrites).then(a => { applyConfigAck(a); return a; });
+    const writes = mergeWriteSets(plans);
+    let inverse;
+    applyEditsChange(edits, () => { inverse = applyEditsWriteSet(edits.rawEntries, writes); });
+    const ack = sendEditEntry(writes).then(a => { applyConfigAck(a); return a; });
     persistEditsMetaOnly(edits);
-    refreshAfterEdit(refreshFn, undoAck);
-  });
+    refreshAfterEdit(refreshFn, ack);
+
+    const first = esc(displayOf(plans[0].primary));
+    const msg = plans.length === 1
+      ? `Rescored ${first} to ${score}`
+      : `Rescored ${first} and ${pluralize(plans.length - 1, 'other')} to ${score}`;
+    showUndoToast(msg, () => {
+      const undoWrites = { deletes: inverse.deletes, upserts: inverse.upserts, primary: null };
+      applyEditsChange(edits, () => applyEditsWriteSet(edits.rawEntries, undoWrites));
+      const undoAck = sendEditEntry(undoWrites).then(a => { applyConfigAck(a); return a; });
+      persistEditsMetaOnly(edits);
+      refreshAfterEdit(refreshFn, undoAck);
+    });
+  } finally {
+    endPendingEdit();
+  }
 }
 
 // Refreshes directly, not via refreshAfterEdit: a delete is always structural, and

@@ -793,6 +793,22 @@ export function pingWorker(timeout = 2000) {
   });
 }
 
+// ─── Pending-edit barrier ── see docs/worker-protocol.md ─────────────────────
+// An edit posts its `editEntry` command only after its plan round-trips (saveEntry
+// awaits planForSave); the corpus reads below post synchronously, so FIFO lands them
+// ahead of the editEntry and they read the pre-edit corpus — the just-changed score
+// shows stale with no error. The gesture brackets itself begin→endPendingEdit (intent
+// → command posted); the reads await this barrier so they can't overtake it.
+let pendingEditCount = 0;
+let pendingEditBarrier = Promise.resolve();
+let releasePendingEdits = null;
+export function beginPendingEdit() {
+  if (pendingEditCount++ === 0) pendingEditBarrier = new Promise(r => { releasePendingEdits = r; });
+}
+export function endPendingEdit() {
+  if (pendingEditCount > 0 && --pendingEditCount === 0) { releasePendingEdits(); releasePendingEdits = null; }
+}
+
 // ─── Edit-seed fetch bridge ── see docs/worker-protocol.md ───────────────────
 // Own requestId space, independent of the run's runId: an entry-panel query must not
 // touch run supersession. A timeout resolves null so main falls back to its
@@ -800,7 +816,8 @@ export function pingWorker(timeout = 2000) {
 let fetchEditSeedRequestId = 0;
 let editSeedFetches = 0;
 export function fetchEditSeedFetchCount() { return editSeedFetches; }
-export function fetchWorkerEditSeed(norm, display, timeout = 5000) {
+export async function fetchWorkerEditSeed(norm, display, timeout = 5000) {
+  await pendingEditBarrier;
   const w = getWorker();
   const requestId = ++fetchEditSeedRequestId;
   editSeedFetches++;
@@ -821,7 +838,8 @@ export function fetchWorkerEditSeed(norm, display, timeout = 5000) {
 // Its own requestId space; a timeout resolves [] so the panel simply shows no
 // related entries rather than hanging.
 let fetchFamilyRequestId = 0;
-export function fetchWorkerFamily(norm, display, boundNorm, boundDisplay, timeout = 5000) {
+export async function fetchWorkerFamily(norm, display, boundNorm, boundDisplay, timeout = 5000) {
+  await pendingEditBarrier;
   const w = getWorker();
   const requestId = ++fetchFamilyRequestId;
   return new Promise(resolve => {
@@ -863,7 +881,8 @@ export function fetchWorkerWinners(ids, timeout = 5000) {
 let fetchProvenanceRequestId = 0;
 let provenanceFetches = 0;
 export function fetchProvenanceFetchCount() { return provenanceFetches; }
-export function fetchWorkerProvenance(typedRaw, previewRaw, clickedNorm, clickedDisplay, timeout = 5000) {
+export async function fetchWorkerProvenance(typedRaw, previewRaw, clickedNorm, clickedDisplay, timeout = 5000) {
+  await pendingEditBarrier;
   const w = getWorker();
   const requestId = ++fetchProvenanceRequestId;
   provenanceFetches++;

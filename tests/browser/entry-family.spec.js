@@ -120,6 +120,26 @@ test('a live rename drops the entry being renamed from its own Related list', as
   await expect(page.locator('.entry-family-item .entry-family-entry')).toHaveText(['7-layer dip']);
 });
 
+test('a rescore committed by clicking a relative shows on the next panel and on return', async ({ page }) => {
+  await setup(page);
+  await openPanelFor(page, 'cat');
+  await expect(current(page)).toContainText('cat');
+
+  // Rescore 'cat' 50 → 0, then commit it by clicking its relative 'cats'. The
+  // commit's worker command must land before the new panel's family query, or
+  // 'cat' shows its stale 50 in the relative list (and, on return, its score box).
+  await page.locator('#entry-panel-score').fill('0');
+  await sibling(page).click();
+
+  await expect(current(page)).toContainText('cats');
+  await expect(sibling(page)).toContainText('cat');
+  await expect(sibling(page).locator('.score-badge')).toHaveText('0');
+
+  await sibling(page).click();   // back to 'cat'
+  await expect(panel(page).locator('.entry-input')).toHaveValue('cat');
+  await expect(page.locator('#entry-panel-score')).toHaveValue('0');
+});
+
 test('navigating to a relative seeds its winner score and offers My Edits adopt', async ({ page }) => {
   await gotoApp(page);
   await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
