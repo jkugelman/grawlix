@@ -366,6 +366,13 @@ const __grawlixTest = {
     return wl.dbKey;
   },
 
+  // The BACKGROUND auto-update path (viaToast). Deliberately does NOT await pipelineIdle
+  // (unlike reimport) — a caller fires it mid-stream and awaits the run's own settle.
+  backgroundUpdate(name, text) {
+    const wl = this._lookup(name);
+    return applyWordlistText(wl, text, { source: name, silent: true, viaToast: true });
+  },
+
   // Runs a stack on the worker and returns its survivor norms. Post-flip there's
   // no main corpus to compare against, so the caller asserts the worker norms
   // against an expected set. A flat result holds only positions, so its norms come

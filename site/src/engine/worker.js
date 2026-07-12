@@ -127,6 +127,11 @@ async function handleCheckAssets() {
 let latestRunId = -1;       // the supersession key; a `run`/`cancel` advances it
 let pending = null;
 let running = false;
+// Structural corpus mutations queued here while a run is live. Splicing/reindexing the
+// corpus under a streaming run SILENTLY shifts every already-produced row's identity (the
+// run resolves position-encoded `_i` against the live corpus) — no crash, just plausibly
+// wrong rows. The run loop drains these between runs and at idle instead.
+const deferredCorpusOps = [];
 let lastFlatResult = null;  // { runId, indices, scope, highlighters } retained to serve `fetchRows`
 let lastGroupedResult = null;  // eager set: { runId, groups, join, scope }; packed record: { runId, packed, join, view, scope } — retained to serve fetchGroups/fetchGroupChains
 let lastTransformResult = null;  // { runId, chains, scope, version } — sorted+filtered transform chains; grows mid-stream, version bumped per batch for the fetch-drop guard
@@ -223,11 +228,17 @@ function maybeTestStopAfterTotal(total) {
   if (_testStopAfterTotal > 0 && total >= _testStopAfterTotal) { _testStopAfterTotal = 0; latestRunId++; }
 }
 
+function drainDeferredCorpusOps() {
+  while (deferredCorpusOps.length) deferredCorpusOps.shift()();
+}
+
 async function drainRuns() {
   if (running) return;
   running = true;
   try {
-    while (pending) {
+    for (;;) {
+      drainDeferredCorpusOps();   // land queued mutations before the next run reads the corpus
+      if (!pending) break;
       const req = pending;
       pending = null;
       await (req.type === 'repatch' ? runRepatch(req) : runOne(req));
@@ -2252,10 +2263,22 @@ function refreshFork(structural, preSplice) {
   return { repatch, stale: structural && !lastFlatResult };
 }
 
+function handleApplyFetched(data) {
+  if (running) {
+    // Defer past the live run (see deferredCorpusOps). The interim `deferred` ack is
+    // load-bearing: without it main's sendApplyFetched times out and silently falls back
+    // to a full resync — it tells main to cancel that timeout and await the real ack.
+    postMessage({ type: 'fetchApplied', requestId: data.requestId, deferred: true });
+    deferredCorpusOps.push(() => applyFetchedNow(data));
+    return;
+  }
+  applyFetchedNow(data);
+}
+
 // SYNCHRONOUS (no IDB write — main owns the data_ write of the raw text), so the
 // splice fully lands before the run main posts next; an await here would let the
 // run interleave against the un-spliced corpus and ship stale rows.
-function handleApplyFetched({ requestId, sourceId, text, background }) {
+function applyFetchedNow({ requestId, sourceId, text, background }) {
   // Edit-race harden (as editEntry): an older in-flight syncConfig build, reading
   // pre-fetch IDB text, must discard via its commit guard rather than clobber this.
   latestSyncToken++;

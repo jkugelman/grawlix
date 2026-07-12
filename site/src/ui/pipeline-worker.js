@@ -1029,6 +1029,10 @@ export function sendApplyFetched(sourceId, text, background = false, timeout = 1
     const timer = setTimeout(() => { settled = true; resolve(null); }, timeout);
     function onMessage({ data }) {
       if (data?.type !== 'fetchApplied' || data.requestId !== requestId) return;
+      // Interim ack: the worker deferred the apply behind a live run and will post the real
+      // ack when it lands. Cancel the timeout (the run's duration would otherwise trip it,
+      // silently falling back to a full resync) but keep the listener for the real ack.
+      if (data.deferred) { clearTimeout(timer); return; }
       w.removeEventListener('message', onMessage);
       clearTimeout(timer);
       if (settled) { sendFreeDiff(data.diffId); return; }
