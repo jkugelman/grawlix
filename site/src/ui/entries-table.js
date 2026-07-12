@@ -3395,11 +3395,14 @@ export const EntryPanel = (() => {
           <input id="entry-panel-entry" class="entry-input" type="text" autocapitalize="off" autocorrect="off" spellcheck="false" value="${esc(seed.entry)}"${ro}>
           <div class="entry-panel-note-slot">${activeReadOnly ? '' : renderNotesHTML()}</div>
           <label for="entry-panel-score">Score</label>
-          <div class="score-combo">
-            <input id="entry-panel-score" class="score-input" type="number" min="0" value="${seed.score}"
-              role="combobox" aria-expanded="false" aria-controls="entry-panel-score-list" aria-autocomplete="list" autocomplete="off"${ro}>
-            ${ro ? '' : `<button type="button" class="score-combo-toggle" tabindex="-1" aria-expanded="false" aria-controls="entry-panel-score-list" aria-label="Show score tiers"><svg class="score-combo-chevron" width="8" height="5" aria-hidden="true"><use href="#icon-arrow"/></svg></button>`}
-            <ul id="entry-panel-score-list" class="score-listbox score-combo-list" role="listbox" aria-label="Score tiers" hidden></ul>
+          <div class="entry-panel-score-row">
+            <div class="score-combo">
+              <input id="entry-panel-score" class="score-input" type="number" min="0" value="${seed.score}"
+                role="combobox" aria-expanded="false" aria-controls="entry-panel-score-list" aria-autocomplete="list" autocomplete="off"${ro}>
+              ${ro ? '' : `<button type="button" class="score-combo-toggle" tabindex="-1" aria-expanded="false" aria-controls="entry-panel-score-list" aria-label="Show score tiers"><svg class="score-combo-chevron" width="8" height="5" aria-hidden="true"><use href="#icon-arrow"/></svg></button>`}
+              <ul id="entry-panel-score-list" class="score-listbox score-combo-list" role="listbox" aria-label="Score tiers" hidden></ul>
+            </div>
+            <span class="entry-panel-length"><span class="entry-panel-length-label">Length</span><span class="entry-panel-length-value">${toNorm(seed.entry).length}</span></span>
           </div>
           <label for="entry-panel-comment">Comment</label>
           <input id="entry-panel-comment" class="comment-input" type="text" value="${esc(seed.comment)}"${ro}>
@@ -3486,10 +3489,17 @@ export const EntryPanel = (() => {
     if (!isOpen()) return;
     const inp = el.querySelector('.entry-input');
     const typed = inp ? inp.value : '';
+    const norm = toNorm(typed);
     fireProvenanceQuery(typed, typed);
-    renderFamily(toNorm(typed), typed);
+    renderFamily(norm, typed);
     renderProvWrap();
     updateModeLabels();
+    updateLengthDisplay(norm.length);
+  }
+
+  function updateLengthDisplay(len) {
+    const valEl = el?.querySelector('.entry-panel-length-value');
+    if (valEl) valEl.textContent = String(len);
   }
 
   function provWrapHTML() {

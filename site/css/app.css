@@ -608,6 +608,9 @@ td.entry-panel-prov-entry { font-family: var(--font-mono); }
 .entry-panel-fields input { padding: 4px 7px; border-radius: 3px; width: 100%; box-sizing: border-box; }
 .entry-panel-fields input:read-only { background: var(--bg); color: var(--text); cursor: default; }
 .entry-panel-fields input.score-input { font-family: var(--font-mono); max-width: 8ch; }
+.entry-panel-score-row { display: flex; align-items: center; gap: 24px; }
+.entry-panel-length { display: inline-flex; gap: 10px; color: var(--muted); white-space: nowrap; }
+.entry-panel-length-value { color: var(--text); }
 .score-combo { position: relative; display: inline-flex; align-items: stretch; }
 .entry-panel-fields .score-combo .score-input { flex: none; width: 8ch; max-width: none; border-top-right-radius: 0; border-bottom-right-radius: 0; }
 .score-combo .score-input { appearance: textfield; -moz-appearance: textfield; }
