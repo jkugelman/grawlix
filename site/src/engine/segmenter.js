@@ -12,6 +12,14 @@ export const SPACE_OUT_OOV_PER_LETTER = 1.5 * Math.LN10;
 export const SPACE_OUT_MORPHEME_PENALTY = 1.0;
 export const SPACE_OUT_SUFFIXES = ['s', 'es', 'ed', 'ied', 'ing', 'er', 'est', 'ly', 'ies'];
 
+// Manual space-out overrides: a glued part's norm → its forced spacing, applied
+// per segmentation part so `ofthe → of the` fires mid-entry (ageofthepyramids),
+// not just as a whole entry. A value must norm back to its key or it changes the
+// entry's letters, not just its spaces — a unit test pins that.
+export const SPACE_OUT_OVERRIDES = {
+  ofthe: 'of the',
+};
+
 // Injected so this engine module never imports the data layer (IDB/localStorage).
 let _idbGet = null;
 let _idbPut = null;
@@ -197,5 +205,15 @@ export function rankedSplits(entry, window, wordlist) {
   enumerate(entry, 0);
 
   results.sort((a, b) => b.score - a.score);
-  return results.map(r => r.parts);
+  // Expand overridden parts after ranking, so `ofthe → of the` re-splits a glued
+  // part wherever it lands mid-entry, not only when it's the whole entry. Dedup
+  // because two splits can coincide once expanded.
+  const seen = new Set();
+  const out = [];
+  for (const { parts } of results) {
+    const expanded = parts.flatMap(p => SPACE_OUT_OVERRIDES[p]?.split(' ') ?? [p]);
+    const key = expanded.join(' ');
+    if (!seen.has(key)) { seen.add(key); out.push(expanded); }
+  }
+  return out;
 }

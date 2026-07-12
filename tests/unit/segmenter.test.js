@@ -4,7 +4,9 @@ import {
   msgpackDecode, buildCorpusFromMsgpack, morphemeStemLogFreq,
   unigramLogFreq, rankedSplits, setUnigramCorpus,
   SPACE_OUT_PART_PENALTY, SPACE_OUT_MORPHEME_PENALTY, SPACE_OUT_OOV_PER_LETTER,
+  SPACE_OUT_OVERRIDES,
 } from '../../site/src/engine/segmenter.js';
+import { toNorm } from '../../site/src/engine/norm.js';
 
 const LN10 = Math.LN10;
 
@@ -208,4 +210,26 @@ test('rankedSplits: a numeric run is never cut mid-digit', () => {
   const { rankedSplits } = corpus([['cat', -1]]);
   const out = rankedSplits('cat12', 10, allowed('cat'));
   assert.ok(out.every(parts => !parts.join('|').includes('1|2')));
+});
+
+test('rankedSplits: an override re-splits a glued part in the middle of a longer entry', () => {
+  // 'ofthe' is an allowed part here (a run-together entry the list carries), so the
+  // scorer glues it into the top split; the override must break it into of+the even
+  // though it's the middle part — the ageofthepyramids/aheadofthetimes case.
+  const { rankedSplits } = corpus([['age', -1], ['pyramids', -1], ['ofthe', -5]]);
+  const out = rankedSplits('ageofthepyramids', 10, allowed('age', 'ofthe', 'pyramids'));
+  assert.deepEqual(out[0], ['age', 'of', 'the', 'pyramids']);
+});
+
+test('rankedSplits: an override also applies when the glued form is the whole entry', () => {
+  const { rankedSplits } = corpus([['ofthe', -5]]);
+  assert.deepEqual(rankedSplits('ofthe', 10, allowed('ofthe'))[0], ['of', 'the']);
+});
+
+test('SPACE_OUT_OVERRIDES: every value norms back to its key', () => {
+  // The override re-spaces an entry; a value that norms to anything but its key
+  // would change the entry's letters, so Space out would emit a different word.
+  for (const [key, spacing] of Object.entries(SPACE_OUT_OVERRIDES)) {
+    assert.equal(toNorm(spacing), key, `"${spacing}" must norm to "${key}"`);
+  }
 });
