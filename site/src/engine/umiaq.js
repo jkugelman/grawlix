@@ -95,29 +95,65 @@ function tokenizePattern(clause) {
 
 function compileAnagram(bag) {
   const required = {};
+  const classes = [];
   let fixed = 0, anyCount = 0, hasStar = false;
-  for (const ch of bag) {
+  for (let i = 0; i < bag.length; i++) {
+    const ch = bag[i];
     if (ch >= 'a' && ch <= 'z' || ch >= '0' && ch <= '9') { required[ch] = (required[ch] || 0) + 1; fixed++; }
     else if (ch === '?') anyCount++;
     else if (ch === '*') hasStar = true;
     else if (ch === ' ') continue;
+    else if (ch === '#') classes.push(classToken(CONSONANTS));
+    else if (ch === '@') classes.push(classToken(VOWELS));
+    else if (ch === '[') {
+      const end = bag.indexOf(']', i);
+      if (end === -1) throw 'unclosed [ character class';
+      const tok = classToken(bag.slice(i + 1, end));
+      if (!tok) throw 'invalid [ character class';
+      classes.push(tok); i = end;
+    }
     else if (ch >= 'A' && ch <= 'Z') throw 'an anagram (/) cannot contain variables';
-    else throw `an anagram (/) takes only letters, digits, ? and * (not "${ch}")`;
+    else throw `an anagram (/) takes only letters, digits, ?, *, #, @ and [ ] classes (not "${ch}")`;
   }
-  if (!fixed && !anyCount && !hasStar) throw 'empty anagram (/)';
-  const min = fixed + anyCount;
-  return { t: 'anagram', required, anyCount, hasStar, min, max: hasStar ? Infinity : min, src: '/' + bag };
+  if (!fixed && !anyCount && !hasStar && !classes.length) throw 'empty anagram (/)';
+  const min = fixed + anyCount + classes.length;
+  return { t: 'anagram', required, classes, anyCount, hasStar, min, max: hasStar ? Infinity : min, src: '/' + bag };
+}
+
+// Each class slot must claim a distinct leftover letter. This is bipartite matching, not a
+// per-slot "some letter fits" test: overlapping slots (`[ab][bc]` on `bc`) would each grab
+// b greedily and wrongly reject. Augmenting-path (Kuhn's); both sides are tiny.
+function anagramClassesFit(classes, remainder) {
+  const occ = [];   // one entry per leftover letter occurrence
+  for (const c in remainder) for (let k = 0; k < remainder[c]; k++) occ.push(c);
+  const members = classes.map(cl => classMembers(cl));
+  const owner = new Array(occ.length).fill(-1);   // occ index → slot that claimed it
+  const augment = (slot, seen) => {
+    for (let j = 0; j < occ.length; j++) {
+      if (seen[j] || !members[slot].includes(occ[j])) continue;
+      seen[j] = true;
+      if (owner[j] === -1 || augment(owner[j], seen)) { owner[j] = slot; return true; }
+    }
+    return false;
+  };
+  for (let slot = 0; slot < classes.length; slot++) {
+    if (!augment(slot, new Array(occ.length).fill(false))) return false;
+  }
+  return true;
 }
 
 // The length bounds carry the whole count: any surplus over the required letters is
-// exactly what fills the `?`/`*` slots, so a containment check plus [min, max] is the
-// full test — no separate wildcard accounting.
+// exactly what fills the `?`/`*`/class slots, so a containment check plus [min, max]
+// plus the class-slot matching is the full test — no separate wildcard accounting.
 function anagramMatches(a, s) {
   if (s.length < a.min || s.length > a.max) return false;
   const counts = {};
   for (let i = 0; i < s.length; i++) counts[s[i]] = (counts[s[i]] || 0) + 1;
-  for (const c in a.required) if ((counts[c] || 0) < a.required[c]) return false;
-  return true;
+  for (const c in a.required) {
+    if ((counts[c] || 0) < a.required[c]) return false;
+    counts[c] -= a.required[c];
+  }
+  return a.classes.length === 0 || anagramClassesFit(a.classes, counts);
 }
 
 function anagramFromBody(body) {
@@ -232,7 +268,7 @@ function compileTermOp(lhs, op, rhs) {
 
   const ana = anagramFromBody(rhs);
   if (ana) {
-    if (ana.anyCount || ana.hasStar) throw `? and * aren't supported in an anagram target (${lhs}${op}${rhs})`;
+    if (ana.anyCount || ana.hasStar || ana.classes.length) throw `?, *, and character classes aren't supported in an anagram target (${lhs}${op}${rhs})`;
     // rhsEntries (the permutation pool) is deferred to parseUmiaqQuery: the clean multi-word
     // form is index-solved and never expands, so only the exotic fallback pays the cap.
     return { ...common, anagram: ana, test: s => anagramMatches(ana, s), rhsEntries: negate ? null : undefined };

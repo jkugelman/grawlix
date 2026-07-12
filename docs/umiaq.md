@@ -40,14 +40,16 @@ The building blocks of a pattern:
 
 A pattern that begins with `/` is an **anagram**: it matches any rearrangement of the letters that follow. `/triangle` finds every word whose letters are exactly a permutation of `triangle`. The `/` reinterprets the whole body as an unordered bag of letters — unlike the rest of Umiaq's syntax, which is positional.
 
-`?` and `*` inside the bag loosen the exact anagram into a "must contain these letters" search:
+`?` and `*` inside the bag loosen the exact anagram into a "must contain these letters" search, and a [character class](#elements) pins one slot to a set of letters:
 
 - `/act` — exactly an anagram of A, C, T (CAT, ACT).
 - `/act?` — those three letters plus one more of anything (four-letter words that contain A, C, T).
 - `/act*` — those three letters plus any number more (TACTIC, ACROBAT).
+- `/[abcd]efg` — E, F, G plus one letter drawn from a, b, c, d.
+- `/#at` — A, T plus one consonant (BAT, CAT, HAT); `@`, `[^…]`, and ranges (`[l-p]`) fill a slot the same way.
 - `8:/tral*` — a [length prefix](#length-prefix) caps the whole word: eight-letter words containing T, R, A, L.
 
-The bag holds only letters, digits, `?`, and `*`; variables and character classes (`#`, `@`, `[…]`) can't appear inside it. An anagram works as a binding (contributing a word to the result), as a [sub-pattern](#sub-pattern--apattern-and-apattern) body (`A=/lilac` requires A to be an anagram of LILAC), and as a [term-equals](#term-equals--abword-and-abword) target (`AB=/random` finds two words whose letters together rearrange to RANDOM).
+The bag holds letters, digits, `?`, `*`, and the shared character classes (`#`, `@`, `[…]`) — each class filling exactly one slot; only variables can't appear inside it. An anagram works as a binding (contributing a word to the result) and as a [sub-pattern](#sub-pattern--apattern-and-apattern) body (`A=/lilac` requires A to be an anagram of LILAC; `A=/[abcd]efg` an anagram with a constrained slot). As a [term-equals](#term-equals--abword-and-abword) target (`AB=/random` finds two words whose letters together rearrange to RANDOM) the bag stays plain — `?`, `*`, and character classes aren't supported there.
 
 ## Variables
 

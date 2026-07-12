@@ -102,7 +102,7 @@ test('parse: errors', () => {
   assert.match(parseUmiaqQuery('a/bc').error, /must start a binding/);
   assert.match(parseUmiaqQuery('//abc').error, /letter-bank anagram/);
   assert.match(parseUmiaqQuery('/(abc)').error, /subset anagram/);
-  assert.match(parseUmiaqQuery('/a#c').error, /letters, digits/);
+  assert.match(parseUmiaqQuery('/a.c').error, /letters, digits/);
   assert.match(parseUmiaqQuery('a=b').error, /unsupported constraint/);
   assert.match(parseUmiaqQuery('A=B?').error, /cannot contain variables/);
   assert.match(parseUmiaqQuery('9-3:ab').error, /length prefix range is empty/);
@@ -609,8 +609,62 @@ test('find: an anagram term-equals splits an anagram of the target across bindin
 test('parse: anagram term-equals errors', () => {
   assert.match(parseUmiaqQuery('A;B;AB=/rand?m').error, /aren't supported in an anagram target/);
   assert.match(parseUmiaqQuery('A;B;AB=/rand*').error,  /aren't supported in an anagram target/);
+  assert.match(parseUmiaqQuery('A;B;AB=/[rn]ando').error, /aren't supported in an anagram target/);   // class slot in target
   assert.match(parseUmiaqQuery('A;B;C;AB=/abcdefghij').error, /too many letters/);   // exotic → capped fallback
   assert.match(parseUmiaqQuery('A;B;AB=//random').error, /letter-bank anagram/);
+});
+
+test('parse: a class slot in an anagram bag counts toward the length', () => {
+  const t = parseUmiaqQuery('/[abcd]efg').bindings[0].tokens[0];
+  assert.equal(t.t, 'anagram');
+  assert.deepEqual([t.min, t.max], [4, 4]);   // e,f,g + one class slot
+  assert.equal(t.classes.length, 1);
+  assert.deepEqual([parseUmiaqQuery('/ab#@*').bindings[0].tokens[0].min,
+                    parseUmiaqQuery('/ab#@*').bindings[0].tokens[0].max], [4, Infinity]);   // a,b + #,@ + open
+});
+
+test('match: a character class fills one anagram slot', () => {
+  assert.equal(matches('/[abcd]efg', 'cefg'), true);    // c ∈ [abcd]
+  assert.equal(matches('/[abcd]efg', 'gfea'), true);    // any order, a ∈ [abcd]
+  assert.equal(matches('/[abcd]efg', 'zefg'), false);   // z ∉ [abcd]
+  assert.equal(matches('/[abcd]efg', 'efg'),  false);   // slot unfilled
+  assert.equal(matches('/[abcd]efg', 'aefgh'), false);  // an extra letter, no wildcard
+  assert.equal(matches('/[^abc]xy', 'zxy'), true);      // negated class
+  assert.equal(matches('/[^abc]xy', 'axy'), false);
+  assert.equal(matches('/[l-p]xy', 'nxy'), true);       // range
+  assert.equal(matches('/[l-p]xy', 'qxy'), false);
+});
+
+test('match: # and @ are consonant/vowel anagram slots', () => {
+  assert.equal(matches('/#at', 'cat'), true);
+  assert.equal(matches('/#at', 'oat'), false);   // o is a vowel
+  assert.equal(matches('/@bt', 'bat'), true);
+  assert.equal(matches('/@bt', 'bbt'), false);   // b is a consonant
+});
+
+test('match: class slots compose with fixed letters, ? and *', () => {
+  assert.equal(matches('/[st]ea?', 'seat'), true);    // s slot, ea, ? → t
+  assert.equal(matches('/[st]ea*', 'teasers'), true); // t slot, ea, * absorbs rest
+  assert.equal(matches('/[st]ea*', 'earl'), false);   // no s or t
+});
+
+test('match: overlapping class slots need a matching, not a greedy claim', () => {
+  assert.equal(matches('/[ab][bc]', 'bc'), true);   // [ab]→b, [bc]→c (greedy [ab]→b then [bc]→b would fail)
+  assert.equal(matches('/[ab][bc]', 'cb'), true);   // [ab]→b, [bc]→c
+  assert.equal(matches('/[ab][bc]', 'ab'), true);   // [ab]→a, [bc]→b
+  assert.equal(matches('/[ab][bc]', 'bb'), true);   // two b's, one each
+  assert.equal(matches('/[ab][bc]', 'aa'), false);  // [bc] has nothing to claim
+  assert.equal(matches('/[ab][ab]', 'ba'), true);
+});
+
+test('match: a sub-pattern anagram takes a class slot', () => {
+  assert.deepEqual(bindings('A;A=/[abcd]efg', 'cefg'), [{ A: 'cefg' }]);
+  assert.deepEqual(bindings('A;A=/[abcd]efg', 'zefg'), []);
+});
+
+test('find: class-slot anagram bindings cross-join in a tuple', async () => {
+  const got = await tupleNorms('/[cd]at;/[gh]od', ['cat', 'bat', 'god', 'rod']);
+  assert.deepEqual(got, [['cat', 'god']]);
 });
 
 test('find: the index solver splits a long target the permutation cap rejected', async () => {
