@@ -226,6 +226,15 @@ test('rankedSplits: an override also applies when the glued form is the whole en
   assert.deepEqual(rankedSplits('ofthe', 10, allowed('ofthe'))[0], ['of', 'the']);
 });
 
+test('rankedSplits: override expansion dedupes a glued and a natural split that coincide', () => {
+  // When the list carries `of`, `the`, AND the glued `ofthe`, the scorer emits both
+  // [age, ofthe, pyramids] and [age, of, the, pyramids] within the window; expanding
+  // ofthe->of the makes them identical, so the result must list it once, not twice.
+  const { rankedSplits } = corpus([['age', -1], ['pyramids', -1], ['ofthe', -5], ['of', -1], ['the', -1]]);
+  const out = rankedSplits('ageofthepyramids', 10, allowed('age', 'ofthe', 'the', 'pyramids'));
+  assert.deepEqual(out, [['age', 'of', 'the', 'pyramids']]);
+});
+
 test('SPACE_OUT_OVERRIDES: every value norms back to its key', () => {
   // The override re-spaces an entry; a value that norms to anything but its key
   // would change the entry's letters, so Space out would emit a different word.

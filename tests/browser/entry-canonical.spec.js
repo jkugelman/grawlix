@@ -132,6 +132,52 @@ test('a plural recovers its singular’s casing and re-adds the "s"', async ({ p
   await expect(link(page)).toHaveText('DNA sequencers');   // stage 2: singular's casing + "s"
 });
 
+// Same entity, but Wiktionary 503s the singular query — a 5xx propagates where a 404
+// would be a clean empty, so the singular resolves incompletely. Phase 2 (recovery)
+// is what proves the plural's long path degraded without caching the partial.
+async function stubDnaSequencerFlaky(page) {
+  await page.route(/action=opensearch/, route =>
+    /search=dna(?:%20|\+| )sequencer(?!s)/i.test(route.request().url())
+      ? route.fulfill({ status: 200, contentType: 'application/json',
+          body: JSON.stringify(['dna sequencer', ['DNA sequencer'], [''], ['https://en.wikipedia.org/wiki/DNA_sequencer']]) })
+      : route.fulfill({ status: 404, contentType: 'application/json', body: '{}' }));
+  await page.route(/rest_v1\/page\/summary\/DNA(?:%20|_|\+| )sequencer(?!s)/i, route =>
+    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
+      title: 'DNA sequencer', extract: 'A DNA sequencer is an instrument.',
+      extract_html: '<p>A <b>DNA sequencer</b> is an instrument.</p>',
+    }) }));
+  await page.route(/en\.wiktionary\.org\/w\/api\.php/, route =>
+    /srsearch=dna(?:%20|\+| )sequencer(?!s)/i.test(route.request().url())
+      ? route.fulfill({ status: 503, contentType: 'application/json', body: '{}' })
+      : route.fulfill({ status: 404, contentType: 'application/json', body: '{}' }));
+}
+
+test('a plural whose singular lookup fails degrades, then upgrades once it recovers', async ({ page }) => {
+  await gotoApp(page);
+  await stubDnaSequencerFlaky(page);
+  await page.evaluate(w => window.__grawlixTest.addCustomWordlist(w),
+    { name: 'Src', entries: ['dnasequencers', 'dna', 'sequencer', 'sequencers'], scores: [50, 50, 50, 50] });
+  await page.evaluate(() => window.__grawlixTest.pipelineIdle());
+  await page.evaluate(c => window.__grawlixTest.setWorkerUnigramCorpus(c),
+    { dna: -3, sequencer: -4, sequencers: -4 });
+
+  await openPanelFor(page, 'dnasequencers');
+  await expect(link(page)).toHaveText('dna sequencers');   // stage 1: plain spacing
+  // Still the plain spacing past the debounce — the incomplete singular must not flip
+  // it to a partial "DNA sequencers".
+  await page.waitForTimeout(900);
+  await expect(link(page)).toHaveText('dna sequencers');
+
+  // The phase-1 result was incomplete, so it was evicted; reopening after recovery
+  // re-resolves and upgrades — which only holds if phase 1 refused to cache it.
+  await page.route(/en\.wiktionary\.org\/w\/api\.php/, route =>
+    route.fulfill({ status: 404, contentType: 'application/json', body: '{}' }));
+  await page.keyboard.press('Escape');
+  await expect(panel(page)).toBeHidden();
+  await openPanelFor(page, 'dnasequencers');
+  await expect(link(page)).toHaveText('DNA sequencers');   // upgraded after recovery
+});
+
 // Wiktionary's search lists the caron "Gdaňsk" before the acute "Gdańsk" and both
 // tie on richness; Wikipedia's article is the acute. The resolver must corroborate
 // with Wikipedia and pick the acute, not the caron that merely sorted first.
