@@ -1098,15 +1098,16 @@ export class EntriesScroller extends BaseVirtualScroller {
     this._onBatchDelete?.(targets);
   }
 
+  // Focus the entry field as a caret (no selection, so typing appends).
   _openCursorPanel() {
     if (this._cursorIndex < 0) return;
     const wlEntry = this._winCache.get(this._cursorIndex)?.atoms?.[0]?.wlEntry;
     if (!wlEntry) return;
+    const rowEl = this._mounted.get(this._cursorIndex)?.node ?? null;
     // ≥2, not ≥1: a lone selected row walks the table rather than dead-ending as a
     // one-member walk with nothing to step to.
-    const walkIds = this._selection.size >= 2 ? [...this._selection.values()] : null;
-    // Focus the entry field as a caret (no selection, so typing appends).
-    EntryPanel.open(wlEntry, this._mounted.get(this._cursorIndex)?.node ?? null, this, 'entry', 'edit', walkIds, false);
+    if (this._selection.size >= 2) EntryPanel.openSelectionWalk([...this._selection.values()], wlEntry, rowEl, this);
+    else EntryPanel.open(wlEntry, rowEl, this, 'entry', 'edit', false);
   }
 
   // The panel suppresses the scroller's own key nav while modal, so the walk must
@@ -3057,11 +3058,13 @@ export const EntryPanel = (() => {
     document.addEventListener('keydown', onKeydown, true);
   }
 
-  function open(wlEntry, rowEl, scroller, focus = 'score', mode = 'edit', walkIds = null, selectField = true) {
+  function open(wlEntry, rowEl, scroller, focus = 'score', mode = 'edit', selectField = true) {
     const reopening = isOpen();
     if (!reopening) listboxOpener = scroller && document.activeElement === scroller.sizer ? scroller.sizer : null;
     // A fresh open starts a fresh walk; walkTo() reseeds without coming through here.
+    // The bump cancels an in-flight openSelectionWalk, whose reply would reopen over this.
     walkSelection = null;
+    walkToken++;
     lastFocusField = null;
     doOpen(wlEntry, rowEl, scroller, focus, mode, false, true, selectField);
     if (reopening) _navigate();
@@ -3073,7 +3076,6 @@ export const EntryPanel = (() => {
       // its param instead, lighting the Forward button on one close but not the next.
       history.replaceState({ ...history.state, entryPanel: true }, '');
     }
-    if (walkIds && walkIds.length >= 2) setupSelectionWalk(walkIds);
   }
 
   // Open from the URL (deep link, or Back/Forward into an entry): synthesize a
@@ -3794,16 +3796,20 @@ export const EntryPanel = (() => {
     inp.setSelectionRange(inp.value.length, inp.value.length);
   }
 
-  function setupSelectionWalk(walkIds) {
-    walkSelection = { members: [], index: 0 };
+  // The walk's first member is the worker's to name — main can't order a hand-picked set
+  // (Ctrl-click order, and off-window picks aren't in the row window) — so the panel
+  // waits on the reply. Opening first and re-seeding on arrival would re-render the panel
+  // out from under the user's first keystroke, discarding it.
+  async function openSelectionWalk(walkIds, cursorWlEntry, rowEl, scroller) {
     const token = ++walkToken;
-    fetchWorkerWinners(walkIds).then(members => {
-      if (token !== walkToken || !isOpen() || !walkSelection) return;
-      walkSelection.members = members;
-      const i = members.findIndex(m => m.norm === activeWlEntry?.norm && (m.display ?? null) === (activeWlEntry?.display ?? null));
-      walkSelection.index = i >= 0 ? i : 0;
-      updateNav();
-    });
+    const members = await fetchWorkerWinners(walkIds);
+    if (token !== walkToken) return;
+    const first = members[0];
+    if (!first) { open(cursorWlEntry, rowEl, scroller, 'entry', 'edit', false); return; }
+    scroller?.setPanelCursor?.({ norm: first.norm, display: first.display ?? null });
+    open(memberTarget(first), null, scroller, 'entry', 'edit', false);
+    walkSelection = { members, index: 0 };
+    updateNav();
   }
 
   function buildFamilyHTML(members) {
@@ -3958,7 +3964,7 @@ export const EntryPanel = (() => {
     refresh({ resetInputs: !editing, skipExistsCheck: true });
   }
 
-  return { open, openForCreate, openFromRoute, close, isOpen, containsFocus, activeNorm, rebindRow, rebindEntry, rebindQuery, routeValue, setScoreByDigit, seedDebug, provenanceDebug };
+  return { open, openSelectionWalk, openForCreate, openFromRoute, close, isOpen, containsFocus, activeNorm, rebindRow, rebindEntry, rebindQuery, routeValue, setScoreByDigit, seedDebug, provenanceDebug };
 })();
 
 export function entryPanelRebindQuery() {

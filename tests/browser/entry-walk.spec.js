@@ -95,23 +95,23 @@ test('the table walk stops at the ends: Prev disabled on the first row, Next on 
   await expect(next(page)).toBeDisabled();
 });
 
-test('a multi-select bounds the walk to just those members, with a position', async ({ page }) => {
+test('a multi-select bounds the walk to just those members, starting at the first', async ({ page }) => {
   await setup(page);
   await row(page, 'alpha').locator('.atom-len').click();
   await row(page, 'charlie').locator('.atom-entry').click({ modifiers: ['Control'] });
   await page.keyboard.press('Enter');
   await expect(panel(page)).toBeVisible();
 
-  // Bounded to the two picks, not delta/echo: opened on the cursor (charlie, the
-  // last-clicked) is 2 of 2, and Prev reaches alpha then stops at the front.
-  await expect(walkpos(page)).toHaveText('2 / 2');
-  await expect(next(page)).toBeDisabled();
-  await expect(prev(page)).toBeEnabled();
-
-  await prev(page).click();
+  // The cursor sits on charlie (last-clicked); the walk still opens at the top of the set.
   await expect(entryInput(page)).toHaveValue('alpha');
   await expect(walkpos(page)).toHaveText('1 / 2');
   await expect(prev(page)).toBeDisabled();
+  await expect(next(page)).toBeEnabled();
+
+  await next(page).click();
+  await expect(entryInput(page)).toHaveValue('charlie');
+  await expect(walkpos(page)).toHaveText('2 / 2');
+  await expect(next(page)).toBeDisabled();
 });
 
 test('a multi-select walk moves the cursor but keeps the whole selection highlighted', async ({ page }) => {
@@ -119,10 +119,10 @@ test('a multi-select walk moves the cursor but keeps the whole selection highlig
   await row(page, 'alpha').locator('.atom-len').click();
   await row(page, 'charlie').locator('.atom-entry').click({ modifiers: ['Control'] });
   await page.keyboard.press('Enter');
-  await expect(walkpos(page)).toHaveText('2 / 2');   // opened on charlie
+  await expect(walkpos(page)).toHaveText('1 / 2');   // opened on alpha
 
-  await prev(page).click();                          // step the cursor to alpha
-  await expect(entryInput(page)).toHaveValue('alpha');
+  await next(page).click();                          // step the cursor to charlie
+  await expect(entryInput(page)).toHaveValue('charlie');
   // The pick stays selected — a step moves only the cursor, unlike a lone-open walk
   // (below) where the selection tracks the current row.
   await expect.poll(() => selection(page).then(s => [...s].sort())).toEqual(['alpha', 'charlie']);
@@ -146,15 +146,15 @@ test('moving to another member auto-commits the current edit into My Edits', asy
   await row(page, 'alpha').locator('.atom-len').click();
   await row(page, 'charlie').locator('.atom-entry').click({ modifiers: ['Control'] });
   await page.keyboard.press('Enter');
-  await expect(walkpos(page)).toHaveText('2 / 2');   // on charlie
+  await expect(walkpos(page)).toHaveText('1 / 2');   // on alpha
 
-  await page.locator('#entry-panel-comment').fill('c-note');
-  await page.keyboard.press('Alt+ArrowUp');          // commit charlie, move to alpha
+  await page.locator('#entry-panel-comment').fill('a-note');
+  await page.keyboard.press('Alt+ArrowDown');        // commit alpha, move to charlie
 
-  await expect(entryInput(page)).toHaveValue('alpha');
+  await expect(entryInput(page)).toHaveValue('charlie');
   await expect.poll(() => myEdits(page).then(es =>
-    es.filter(e => e.entry === 'charlie').map(e => e.comment)
-  )).toEqual(['c-note']);
+    es.filter(e => e.entry === 'alpha').map(e => e.comment)
+  )).toEqual(['a-note']);
   await expect(page.locator('#entry-panel-comment')).toBeFocused();
   // Lands as a caret, not a selection, so typing appends rather than replacing.
   expect(await page.locator('#entry-panel-comment').evaluate(el => el.selectionStart === el.selectionEnd)).toBe(true);
