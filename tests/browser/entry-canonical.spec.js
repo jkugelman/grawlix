@@ -132,6 +132,38 @@ test('a plural recovers its singular’s casing and re-adds the "s"', async ({ p
   await expect(link(page)).toHaveText('DNA sequencers');   // stage 2: singular's casing + "s"
 });
 
+// Wiktionary's search lists the caron "Gdaňsk" before the acute "Gdańsk" and both
+// tie on richness; Wikipedia's article is the acute. The resolver must corroborate
+// with Wikipedia and pick the acute, not the caron that merely sorted first.
+async function stubGdansk(page) {
+  await page.route(/en\.wiktionary\.org\/w\/api\.php/, route =>
+    /srsearch=Gdansk&/.test(route.request().url())
+      ? route.fulfill({ status: 200, contentType: 'application/json',
+          body: JSON.stringify({ query: { search: [{ title: 'Gdansk' }, { title: 'Gdaňsk' }, { title: 'Gdańsk' }] } }) })
+      : route.fulfill({ status: 404, contentType: 'application/json', body: '{}' }));
+  await page.route(/action=opensearch/, route =>
+    /search=Gdansk/i.test(route.request().url())
+      ? route.fulfill({ status: 200, contentType: 'application/json',
+          body: JSON.stringify(['Gdansk', ['Gdańsk'], [''], ['https://en.wikipedia.org/wiki/Gda%C5%84sk']]) })
+      : route.fulfill({ status: 404, contentType: 'application/json', body: '{}' }));
+  await page.route(/rest_v1\/page\/summary\/Gda/i, route =>
+    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
+      title: 'Gdańsk', extract: 'Gdańsk is a city in Poland.',
+      extract_html: '<p><b>Gdańsk</b> is a city in Poland.</p>',
+    }) }));
+}
+
+test('an accented city resolves to the Wikipedia-corroborated diacritic', async ({ page }) => {
+  await gotoApp(page);
+  await stubGdansk(page);
+  await page.evaluate(w => window.__grawlixTest.addCustomWordlist(w),
+    { name: 'Src', entries: ['Gdansk'], scores: [50] });
+  await page.evaluate(() => window.__grawlixTest.pipelineIdle());
+
+  await openPanelFor(page, 'gdansk');
+  await expect(link(page)).toHaveText('Gdańsk');   // acute (both sources), not caron (Wiktionary-only)
+});
+
 // Wiktionary's full-text search surfaces the accented singular "cliché" for the
 // plural query "cliches" but the singular query "cliche" returns nothing — so only
 // the short-circuit (reusing the plural's own results) can recover the accent; the

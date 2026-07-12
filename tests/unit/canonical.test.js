@@ -78,6 +78,17 @@ test('pickSameNorm breaks accent ties toward the most diacritics', () => {
   );
 });
 
+test('pickSameNorm uses Wikipedia corroboration only to break an exact tie', () => {
+  const gdansk = ['Gdansk', 'Gdaňsk', 'Gdańsk'];   // caron sorts before the acute
+  // Gdańsk and Gdaňsk tie on score and diacritic count, so without a hint the
+  // first-listed (caron) wins; Wikipedia's article corroborates the acute.
+  assert.equal(pickSameNorm(gdansk, toNorm('gdansk')), 'Gdaňsk');
+  assert.equal(pickSameNorm(gdansk, toNorm('gdansk'), 'Gdańsk'), 'Gdańsk');
+  // Corroboration is the LAST tiebreak — it never pulls down to a less-accented
+  // form even when Wikipedia returned that flatter spelling.
+  assert.equal(pickSameNorm(['café', 'Cafe'], toNorm('cafe'), 'Cafe'), 'café');
+});
+
 test('firstBold extracts the lead, strips tags/entities and trailing suffixes', () => {
   assert.equal(firstBold('<p>The <b>iPhone</b> is a line…'), 'iPhone');
   assert.equal(firstBold('<p><b>macOS</b> is a…'), 'macOS');

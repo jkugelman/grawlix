@@ -132,23 +132,22 @@ export function isRicher(candidate, current) {
   return added;
 }
 
-export function pickSameNorm(titles, norm) {
+export function pickSameNorm(titles, norm, prefer) {
   let best = null, bestScore = -1, bestDia = -1;
   for (const t of titles) {
     if (toNorm(t) !== norm) continue;
     const score = (hasInternalCap(t) ? 4 : 0) + (startsLowercase(t) ? 2 : 0) + (hasAccent(t) ? 1 : 0);
-    // Tiebreak on diacritic count so the most complete accenting wins among
-    // same-norm variants (naïveté over naïvete/naiveté).
     const dia = (t.match(/[^\x00-\x7f]/g) || []).length;
-    if (score > bestScore || (score === bestScore && dia > bestDia)) {
-      best = t; bestScore = score; bestDia = dia;
-    }
+    // Rank by richness, then most-complete accenting (naïveté over naïvete). A form
+    // Wikipedia also returned (`prefer`) breaks a still-exact tie toward the
+    // corroborated diacritic — `Gdańsk` over an equally-scored `Gdaňsk` that merely
+    // sorted first — but only as the last tiebreak, never overriding a richer form.
+    const better = score > bestScore
+      || (score === bestScore && dia > bestDia)
+      || (score === bestScore && dia === bestDia && t === prefer && best !== prefer);
+    if (better) { best = t; bestScore = score; bestDia = dia; }
   }
   return best;
-}
-
-export async function resolveWiktionary(query, norm) {
-  return pickSameNorm(await wiktionaryTitles(query), norm);
 }
 
 // Strip a trailing corporate suffix or parenthetical the lead sometimes appends
@@ -193,10 +192,14 @@ export function chooseCanonical(wiktionary, wikipedia) {
 // suppressor needs: a word that matched unchanged differs from one that found
 // nothing. Folding this into resolveCanonical's fallback would erase it.
 export async function resolveReference(query, norm) {
-  const [wiktionary, wikipedia] = await Promise.all([
-    resolveWiktionary(query, norm),
+  // Both fetches in parallel, then pick Wiktionary's form with Wikipedia's as the
+  // corroboration tiebreak (§ pickSameNorm): Wikipedia's curated article title
+  // resolves a diacritic ambiguity Wiktionary's cross-language search can't.
+  const [wtTitles, wikipedia] = await Promise.all([
+    wiktionaryTitles(query),
     resolveWikipedia(query, norm),
   ]);
+  const wiktionary = pickSameNorm(wtTitles, norm, wikipedia);
   return chooseCanonical(wiktionary, wikipedia);
 }
 
