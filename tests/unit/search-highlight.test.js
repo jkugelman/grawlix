@@ -110,6 +110,15 @@ test('buildSearchPattern: wholeWord anchors the pattern with ^…$', () => {
   assert.equal(matches(unanchored, 'scatter'), true);
 });
 
+test('buildSearchPattern: literal mode treats every wildcard character as plain text', () => {
+  const pat = buildSearchPattern('c*t', false, true);
+  assert.equal(matches(pat, 'cat'), false);   // '*' is a literal, not "any run"
+  assert.equal(matches(pat, 'c*t'), true);
+  const cls = buildSearchPattern('a[bc]', false, true);
+  assert.equal(matches(cls, 'ab'), false);     // '[bc]' is not a character class
+  assert.equal(matches(cls, 'a[bc]'), true);
+});
+
 test('buildSearchPattern: test() matches when either norm or display matches', () => {
   const pat = buildSearchPattern('irs');
   assert.equal(pat.test(wl('theirs', 'the IRS')), true);

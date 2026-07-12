@@ -131,6 +131,14 @@ test('a comment match highlights the comment cell', async ({ page }) => {
   await expect(page.locator('.entry-row[data-entry="xylophone"] .atom-comment .find-current')).toHaveText('music');
 });
 
+test('a space-free query matches a spaced entry via its norm', async ({ page }) => {
+  await setup(page, { entries: ['Mother Teresa'] });
+  await openFind(page);
+  await input(page).fill('motherteresa');
+  await expect(count(page)).toHaveText('1/1');
+  await expect(page.locator('.entry-row[data-entry="motherteresa"] .find-current')).toHaveText('Mother Teresa');
+});
+
 test('stepping among on-screen matches does not scroll the page', async ({ page }) => {
   await setup(page, { entries: AP });
   await openFind(page);

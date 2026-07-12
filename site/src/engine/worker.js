@@ -14,7 +14,7 @@ import {
 import { configureIO as configurePhoneticsIO } from './phonetics.js';
 import { DATA_ASSETS, getDataAsset } from './assets.js';
 import { parseWordlist, toNorm, displayOf } from './norm.js';
-import { findOccurrences, FIND_MATCH_CAP } from './find.js';
+import { findOccurrences, findEntryOccurrences, buildFindMatcher, FIND_MATCH_CAP } from './find.js';
 import { parseRange, matchesRange } from './range.js';
 import { compileRescoreRules } from './rescore.js';
 import { sourceAccessor, invalidateSourceAccessor, parseWordlistColumns, columnsFromEntries } from './sources.js';
@@ -1382,29 +1382,30 @@ function handleFetchAllTransformRows({ requestId, runId }) {
 
 // ─── Find-in-page scan ── see docs/worker-protocol.md ───────────────────────
 function handleFind({ requestId, runId, query }) {
-  const needle = (query ?? '').toLowerCase();
-  if (!needle) { postMessage({ type: 'findResult', requestId, runId, matches: [], capped: false }); return; }
+  const matcher = buildFindMatcher(query);
+  if (!matcher) { postMessage({ type: 'findResult', requestId, runId, matches: [], capped: false }); return; }
+  const commentNeedle = (query ?? '').toLowerCase();
   let out;
-  if (fetchResultFresh(runId)) out = scanFlatForFind(needle);
-  else if (transformResultFresh(runId)) out = scanTransformForFind(needle);
-  else if (groupedResultFresh(runId)) out = scanGroupedForFind(needle);
+  if (fetchResultFresh(runId)) out = scanFlatForFind(matcher, commentNeedle);
+  else if (transformResultFresh(runId)) out = scanTransformForFind(matcher, commentNeedle);
+  else if (groupedResultFresh(runId)) out = scanGroupedForFind(matcher);
   else return;
   postMessage({ type: 'findResult', requestId, runId, matches: out.matches, capped: out.capped });
 }
 
 // Flat rows stack their atoms on ONE shared entry (multiple highlight searches of
 // the same word), so a hit is scanned once and main lights every atom line.
-function scanFlatForFind(needle) {
+function scanFlatForFind(matcher, commentNeedle) {
   const { indices } = lastFlatResult;
   const entries = corpusFor(lastFlatResult).entries;
   const matches = [];
   for (let i = 0; i < indices.length; i++) {
     const e = entries[indices[i]];
-    for (const { start, end } of findOccurrences(displayOf(e), needle)) {
+    for (const { start, end } of findEntryOccurrences(matcher, e)) {
       matches.push({ row: i, atom: 0, field: 'entry', start, end });
       if (matches.length >= FIND_MATCH_CAP) return { matches, capped: true };
     }
-    if (e.comment) for (const { start, end } of findOccurrences(e.comment, needle)) {
+    if (e.comment) for (const { start, end } of findOccurrences(e.comment, commentNeedle)) {
       matches.push({ row: i, atom: 0, field: 'comment', start, end });
       if (matches.length >= FIND_MATCH_CAP) return { matches, capped: true };
     }
@@ -1412,18 +1413,18 @@ function scanFlatForFind(needle) {
   return { matches, capped: false };
 }
 
-function scanTransformForFind(needle) {
+function scanTransformForFind(matcher, commentNeedle) {
   const { chains } = lastTransformResult;
   const matches = [];
   for (let i = 0; i < chains.length; i++) {
     const atoms = rowAtoms(chains[i]);
     for (let a = 0; a < atoms.length; a++) {
       const wl = atoms[a].wlEntry;
-      for (const { start, end } of findOccurrences(displayOf(wl), needle)) {
+      for (const { start, end } of findEntryOccurrences(matcher, wl)) {
         matches.push({ row: i, atom: a, field: 'entry', start, end });
         if (matches.length >= FIND_MATCH_CAP) return { matches, capped: true };
       }
-      if (wl.comment) for (const { start, end } of findOccurrences(wl.comment, needle)) {
+      if (wl.comment) for (const { start, end } of findOccurrences(wl.comment, commentNeedle)) {
         matches.push({ row: i, atom: a, field: 'comment', start, end });
         if (matches.length >= FIND_MATCH_CAP) return { matches, capped: true };
       }
@@ -1435,14 +1436,14 @@ function scanTransformForFind(needle) {
 // Entry text only (group/tuple rows have no comment cell). Scans EVERY member,
 // including those hidden behind "+N more" — main auto-reveals a hidden hit, so
 // scanning only visible members would strand matches with nowhere to land.
-function scanGroupedForFind(needle) {
+function scanGroupedForFind(matcher) {
   const r = lastGroupedResult;
   const corpus = corpusFor(r);
   const n = groupResultLength(r);
   const matches = [];
   for (let i = 0; i < n; i++) {
     const g = r.packed ? materializePackedRow(r, corpus, i) : r.groups[i];
-    if (g.anchor) for (const { start, end } of findOccurrences(displayOf(g.anchor), needle)) {
+    if (g.anchor) for (const { start, end } of findEntryOccurrences(matcher, g.anchor)) {
       matches.push({ row: i, member: -1, atom: 0, start, end });
       if (matches.length >= FIND_MATCH_CAP) return { matches, capped: true };
     }
@@ -1450,7 +1451,7 @@ function scanGroupedForFind(needle) {
     for (let ci = 0; ci < chains.length; ci++) {
       const atoms = rowAtoms(chains[ci]);
       for (let a = 0; a < atoms.length; a++) {
-        for (const { start, end } of findOccurrences(displayOf(atoms[a].wlEntry), needle)) {
+        for (const { start, end } of findEntryOccurrences(matcher, atoms[a].wlEntry)) {
           matches.push({ row: i, member: ci, atom: a, start, end });
           if (matches.length >= FIND_MATCH_CAP) return { matches, capped: true };
         }

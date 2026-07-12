@@ -1,3 +1,6 @@
+import { projectRangesToDisplay } from './norm.js';
+import { buildSearchPattern } from './search.js';
+
 export const FIND_MATCH_CAP = 999;   // bounded so the worker never ships O(results) data (worker-protocol.md)
 
 // Advancing by the needle length (non-overlapping) matches the browser's find;
@@ -14,5 +17,15 @@ export function* findOccurrences(text, needleLower) {
     if (at === -1) return;
     yield { start: at, end: at + len };
     from = at + len;
+  }
+}
+
+export const buildFindMatcher = query => buildSearchPattern(query ?? '', /* wholeWord */ false, /* literal */ true);
+
+export function* findEntryOccurrences(matcher, wlEntry) {
+  if (!matcher.test(wlEntry)) return;
+  // Norm-arm spans arrive in norm coordinates; project or they highlight the wrong chars.
+  for (const r of projectRangesToDisplay(matcher.searchRanges(wlEntry), wlEntry)) {
+    yield { start: r.start, end: r.end };
   }
 }

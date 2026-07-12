@@ -21,7 +21,9 @@ export function isLiteralQuery(query) { return query !== '' && !SEARCH_WILDCARD_
 // Two arms: the regex runs against both the entry's norm (accents + separators
 // stripped) and its verbatim display, matching if either does — norm forgives
 // separators (`theirs` finds "the IRS"); display requires a typed space/accent.
-export function buildSearchPattern(query, wholeWord = false) {
+// `literal` treats the query as plain text (no wildcards) so Ctrl-F can share
+// this exact matcher and stay in agreement with Search on what matches.
+export function buildSearchPattern(query, wholeWord = false, literal = false) {
   // Don't trim: a typed space is a literal that anchors to a word boundary in
   // the display arm. Re-adding `.trim()` reads as an oversight but silently
   // kills that — even an all-whitespace query is a real space search.
@@ -37,7 +39,8 @@ export function buildSearchPattern(query, wholeWord = false) {
   const tokens = [];
   for (let i = 0; i < q.length; i++) {
     const ch = q[i];
-    if (ch === '*')      tokens.push({ kind: 'wild', re: '.*' });
+    if (literal)         tokens.push({ kind: 'literal', re: escapeRegex(ch) });
+    else if (ch === '*') tokens.push({ kind: 'wild', re: '.*' });
     else if (ch === '?') tokens.push({ kind: 'wild', re: '\\S' });
     else if (ch === '#') tokens.push({ kind: 'wild', re: `[${CONSONANTS}]` });
     else if (ch === '@') tokens.push({ kind: 'wild', re: `[${VOWELS}]` });
