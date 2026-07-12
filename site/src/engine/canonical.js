@@ -10,7 +10,7 @@
 // lemmas (`has designs on` would take `have designs on`); with it, the worst
 // case is an unchanged spelling.
 
-import { toNorm } from './norm.js';
+import { toNorm, FOLD_MAP } from './norm.js';
 import { fetchJSON, fetchWikipediaSummary } from './lookup.js';
 
 const WIKTIONARY_API = 'https://en.wiktionary.org/w/api.php';
@@ -74,6 +74,62 @@ export function startsLowercase(s) { return /^\p{Ll}/u.test(s); }
 export function hasInternalCap(s) { return /\p{Ll}\p{Lu}/u.test(s); }
 export function isTitleCase(s) {
   return s.split(/\s+/).slice(1).some(w => /^\p{Lu}/u.test(w));
+}
+
+// ─── Richness comparison ─────────────────────────────────────────────────────
+
+const hasFoldChar = s => { for (const c of s) if (FOLD_MAP[c] !== undefined) return true; return false; };
+
+// Relies on the caller excluding FOLD_MAP chars: each alnum char then contributes
+// exactly one norm char, the 1:1 letter alignment isRicher walks (ß/æ norm to two
+// and would desync it). Yields aligned letters + the punctuation/space gaps between.
+function parseRichness(s) {
+  const letters = [];
+  const gaps = [{ space: false, punct: new Map() }];
+  for (const ch of s.normalize('NFC')) {
+    const d = ch.normalize('NFD');
+    const base = d[0];
+    if (base >= '0' && base <= '9' || base >= 'A' && base <= 'Z' || base >= 'a' && base <= 'z') {
+      letters.push({ base: base.toLowerCase(), upper: base >= 'A' && base <= 'Z', marks: new Set(d.slice(1)) });
+      gaps.push({ space: false, punct: new Map() });
+    } else if (/\s/.test(ch)) {
+      gaps[gaps.length - 1].space = true;
+    } else {
+      const p = gaps[gaps.length - 1].punct;
+      p.set(ch, (p.get(ch) || 0) + 1);
+    }
+  }
+  return { letters, gaps };
+}
+
+// The rename hint's gate on an already-rich entry: true only when `candidate` adds
+// capitals, accents, or punctuation and removes none — enrich (`helen of troy →
+// Helen of Troy`, `well being → well-being`) but never strip a deliberate capital
+// or accent (the reported `Zoe → zoé`). Spaces are structural, not richness: they
+// may be added or swapped for punctuation. Caller guarantees toNorm-equality;
+// false is the safe default, so a fold char or length mismatch bails false.
+export function isRicher(candidate, current) {
+  if (candidate === current || hasFoldChar(candidate) || hasFoldChar(current)) return false;
+  const a = parseRichness(current), b = parseRichness(candidate);
+  if (a.letters.length !== b.letters.length) return false;
+  let added = false;
+  for (let i = 0; i < a.letters.length; i++) {
+    const x = a.letters[i], y = b.letters[i];
+    if (x.base !== y.base) return false;            // different letter → not the same word
+    if (x.upper && !y.upper) return false;          // capital removed
+    if (y.upper && !x.upper) added = true;          // capital added
+    for (const m of x.marks) if (!y.marks.has(m)) return false;  // accent removed
+    if (y.marks.size > x.marks.size) added = true;  // accent added
+  }
+  for (let i = 0; i < a.gaps.length; i++) {
+    const g = a.gaps[i], h = b.gaps[i];
+    if (h.space && !g.space) added = true;          // space added (removing one is fine — spaces aren't richness)
+    let want = 0, have = 0;
+    for (const [p, n] of g.punct) { want += n; if ((h.punct.get(p) || 0) < n) return false; }  // punct removed
+    for (const n of h.punct.values()) have += n;
+    if (have > want) added = true;                  // punct added
+  }
+  return added;
 }
 
 export function pickSameNorm(titles, norm) {

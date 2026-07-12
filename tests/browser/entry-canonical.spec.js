@@ -59,16 +59,41 @@ test('rename hint upgrades from segmenter spacing to the canonical casing', asyn
   await expect(link(page)).toHaveText('Helen of Troy');   // stage 2: canonical, in place
 });
 
-test('an already-spaced entry gets no rename suggestion', async ({ page }) => {
+test('an already-rich entry is offered a strictly richer respelling', async ({ page }) => {
   await gotoApp(page);
-  await stubHelenOfTroy(page);   // "helen of troy" WOULD resolve to "Helen of Troy"…
+  await stubHelenOfTroy(page);
   await page.evaluate(w => window.__grawlixTest.addCustomWordlist(w),
     { name: 'Src', entries: ['helen of troy'], scores: [50] });
   await page.evaluate(() => window.__grawlixTest.pipelineIdle());
 
   await openPanelFor(page, 'helenoftroy');
+  await expect(link(page)).toHaveText('Helen of Troy');   // adds caps, removes nothing
+});
+
+// The resolver finds "zoé" for "Zoe": accent added, but it lowercases the Z. isRicher
+// must reject it, or the hint strips a deliberate capital — the miss that motivated this.
+async function stubZoe(page) {
+  await page.route(/en\.wiktionary\.org\/w\/api\.php/, route => {
+    if (/srsearch=Zoe&/.test(route.request().url())) {
+      route.fulfill({ status: 200, contentType: 'application/json',
+        body: JSON.stringify({ query: { search: [{ title: 'zoé' }] } }) });
+    } else {
+      route.fulfill({ status: 404, contentType: 'application/json', body: '{}' });
+    }
+  });
+}
+
+test('a respelling that would strip a capital is suppressed', async ({ page }) => {
+  await gotoApp(page);
+  await stubZoe(page);
+  await page.evaluate(w => window.__grawlixTest.addCustomWordlist(w),
+    { name: 'Src', entries: ['Zoe'], scores: [50] });
+  await page.evaluate(() => window.__grawlixTest.pipelineIdle());
+
+  await openPanelFor(page, 'zoe');
   await expect(link(page)).toHaveCount(0);
-  // Re-check past the 600ms debounce so a not-yet-rendered link can't false-green.
+  // Past the debounce: the resolver did find "zoé", so the blank is isRicher's
+  // suppression, not a not-yet-resolved race.
   await page.waitForTimeout(900);
   await expect(link(page)).toHaveCount(0);
 });

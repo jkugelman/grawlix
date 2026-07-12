@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   hasAccent, startsLowercase, hasInternalCap, isTitleCase,
-  pickSameNorm, firstBold, decideWikipediaForm, chooseCanonical,
+  pickSameNorm, firstBold, decideWikipediaForm, chooseCanonical, isRicher,
 } from '../../site/src/engine/canonical.js';
 import { toNorm } from '../../site/src/engine/norm.js';
 
@@ -24,6 +24,39 @@ test('startsLowercase / hasAccent / isTitleCase', () => {
   assert.equal(isTitleCase('Helen of Troy'), true);   // Troy caps
   assert.equal(isTitleCase('café au lait'), false);
   assert.equal(isTitleCase('macOS'), false);           // single word
+});
+
+test('isRicher accepts pure additions of caps, accents, and punctuation', () => {
+  assert.equal(isRicher('Helen of Troy', 'helen of troy'), true);   // caps added
+  assert.equal(isRicher('café', 'cafe'), true);                     // accent added
+  assert.equal(isRicher('naïveté', 'naivete'), true);               // two accents added
+  assert.equal(isRicher("O'Hara", 'OHara'), true);                  // apostrophe added, caps kept
+  assert.equal(isRicher('Zoé', 'Zoe'), true);                       // accent added, capital kept
+});
+
+test('isRicher treats spaces as structural: addable and swappable for punctuation', () => {
+  assert.equal(isRicher('well-being', 'well being'), true);     // space → hyphen (punctuation added)
+  assert.equal(isRicher('New York', 'NewYork'), true);          // space added
+  assert.equal(isRicher('self esteem', 'self-esteem'), false);  // hyphen removed — punctuation is protected
+  assert.equal(isRicher('wellbeing', 'well being'), false);     // space removed, nothing added — not richer
+});
+
+test('isRicher rejects anything that removes caps, accents, or punctuation', () => {
+  assert.equal(isRicher('zoé', 'Zoe'), false);    // accent added BUT capital removed — the reported miss
+  assert.equal(isRicher('cafe', 'café'), false);  // accent removed
+  assert.equal(isRicher('dna', 'DNA'), false);    // capital removed
+  assert.equal(isRicher('dont', "don't"), false); // apostrophe removed
+  assert.equal(isRicher('è', 'é'), false);        // accent swapped, not a superset
+});
+
+test('isRicher rejects the no-op', () => {
+  assert.equal(isRicher('helen of troy', 'helen of troy'), false);
+});
+
+test('isRicher bails safe on fold chars rather than mis-aligning', () => {
+  // ß/æ norm to two letters, breaking the 1:1 alignment — better no suggestion.
+  assert.equal(isRicher('Straße', 'strasse'), false);
+  assert.equal(isRicher('Æther', 'aether'), false);
 });
 
 test('pickSameNorm keeps only same-norm titles', () => {

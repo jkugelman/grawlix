@@ -42,6 +42,7 @@ import { getDraftRescoreRules } from './rescore-editor.js';
 import { buildTrashIconHTML, positionPopover } from './components.js';
 import { LookupSection } from './lookup.js';
 import { resolveEntryCanonical } from './canonical.js';
+import { isRicher } from '../engine/canonical.js';
 import {
   getEntriesScroller, rescorePreviewActive, refreshMergedScroller, reprojectMergedScroller, setScope,
 } from './rendering.js';
@@ -3752,26 +3753,30 @@ export const EntryPanel = (() => {
 
   const RENAME_DEBOUNCE_MS = 600;
 
-  // Bare-only by design — an already-spaced entry gets no suggestion, so the
-  // /\s/ rejection reads like an oversight but is deliberate: re-casing a
-  // readable entry is out of scope. Ineligible entries clear *and* return —
-  // nothing else clears a stale hint left from the previous entry.
+  // A bare entry (display === norm) gets instant segmenter spacing plus a reference
+  // upgrade, ungated — any canonical only enriches the norm. An already-rich entry
+  // skips the segmenter (norm-based, it would strip the caps) and takes the
+  // reference form only when strictly richer (isRicher), never one that lowercases
+  // or de-accents. Clear *and* return when ineligible or a stale hint lingers.
   function refreshRenameSuggestion(display) {
     const token = ++renameToken;
     clearTimeout(renameTimer);
     const norm = toNorm(display);
-    if (activeReadOnly || activeMode === 'create' || !norm || /\s/.test(display)) {
+    if (activeReadOnly || activeMode === 'create' || !norm) { setRenameSuggestion(null); return; }
+    const bare = display === norm;
+    if (bare) {
+      fetchWorkerSpaceOut(norm).then(spaced => {
+        if (token !== renameToken || !isOpen()) return;
+        setRenameSuggestion(spaced && spaced !== display ? spaced : null);
+      });
+    } else {
       setRenameSuggestion(null);
-      return;
     }
-    fetchWorkerSpaceOut(norm).then(spaced => {
-      if (token !== renameToken || !isOpen()) return;
-      setRenameSuggestion(spaced && spaced !== display ? spaced : null);
-    });
     renameTimer = setTimeout(() => {
       resolveEntryCanonical(display).then(canonical => {
         if (token !== renameToken || !isOpen()) return;
-        setRenameSuggestion(canonical && canonical !== display ? canonical : null);
+        const ok = canonical && canonical !== display && (bare || isRicher(canonical, display));
+        setRenameSuggestion(ok ? canonical : null);
       });
     }, RENAME_DEBOUNCE_MS);
   }
