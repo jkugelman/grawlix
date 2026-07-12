@@ -11,11 +11,10 @@
 // case is an unchanged spelling.
 
 import { toNorm } from './norm.js';
-import { fetchJSON } from './lookup.js';
+import { fetchJSON, fetchWikipediaSummary } from './lookup.js';
 
 const WIKTIONARY_API = 'https://en.wiktionary.org/w/api.php';
 const WIKIPEDIA_API = 'https://en.wikipedia.org/w/api.php';
-const WIKIPEDIA_SUMMARY = 'https://en.wikipedia.org/api/rest_v1/page/summary/';
 
 // ─── Reference queries (network; soft-fail to empty) ─────────────────────────
 
@@ -62,15 +61,6 @@ export function wikipediaTitles(query) {
       const data = await fetchJSON(url);
       return Array.isArray(data?.[1]) ? data[1] : [];
     } catch (err) { return emptyOn404(err, []); }
-  });
-}
-
-export function wikipediaSummaryHTML(title) {
-  return memo('ws:' + title, async () => {
-    try {
-      const data = await fetchJSON(WIKIPEDIA_SUMMARY + encodeURIComponent(title));
-      return data?.extract_html || '';
-    } catch (err) { return emptyOn404(err, ''); }
   });
 }
 
@@ -128,7 +118,7 @@ export async function resolveWikipedia(query, norm) {
   const titles = await wikipediaTitles(query);
   const title = titles.find(t => toNorm(t) === norm);
   if (!title) return null;
-  const bold = firstBold(await wikipediaSummaryHTML(title));
+  const bold = firstBold((await fetchWikipediaSummary(title)).extractHtml);
   return decideWikipediaForm(bold, title, norm);
 }
 

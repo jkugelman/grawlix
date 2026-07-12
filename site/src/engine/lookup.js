@@ -33,27 +33,41 @@ async function synonymsLookup(entry) {
   return { kind: 'words', words: data.map(d => d.word).filter(Boolean) };
 }
 
-// Pass the entry verbatim: Wikipedia capitalizes the first letter itself but is
-// case-sensitive after it, so a display spelling like "Ana de Armas" must keep
-// its case — lowercasing the tail turns real articles into 404s.
+// One memoized REST-summary fetch shared by the card here and the canonical
+// resolver (which reads its bold lead for casing). Sharing is load-bearing:
+// separate fetches would let the hint and card silently diverge. Evict on failure
+// so a transient error re-fetches; a 404 is a real empty. Title passed verbatim —
+// case-sensitive past the first letter.
+const summaryMemo = new Map();
+export function fetchWikipediaSummary(title) {
+  const hit = summaryMemo.get(title);
+  if (hit) return hit;
+  const p = (async () => {
+    let data;
+    try {
+      data = await fetchJSON(WIKI_SUMMARY + encodeURIComponent(title));
+    } catch (err) {
+      if (err.status === 404) return { empty: true, extractHtml: '' };
+      throw err;
+    }
+    return {
+      empty: !data.extract,
+      title: data.title,
+      description: data.description || '',
+      extract: data.extract || '',
+      extractHtml: data.extract_html || '',
+      thumbnail: data.thumbnail?.source || null,
+      pageUrl: data.content_urls?.desktop?.page || null,
+      disambiguation: data.type === 'disambiguation',
+    };
+  })();
+  p.catch(() => summaryMemo.delete(title));
+  summaryMemo.set(title, p);
+  return p;
+}
+
 async function wikipediaLookup(entry) {
-  let data;
-  try {
-    data = await fetchJSON(WIKI_SUMMARY + encodeURIComponent(entry));
-  } catch (err) {
-    if (err.status === 404) return { kind: 'prose', empty: true };
-    throw err;
-  }
-  return {
-    kind: 'prose',
-    empty: !data.extract,
-    title: data.title,
-    description: data.description || '',
-    extract: data.extract || '',
-    thumbnail: data.thumbnail?.source || null,
-    pageUrl: data.content_urls?.desktop?.page || null,
-    disambiguation: data.type === 'disambiguation',
-  };
+  return { kind: 'prose', ...(await fetchWikipediaSummary(entry)) };
 }
 
 // Definitions from Wiktionary's structured REST endpoint — the same source the

@@ -168,6 +168,39 @@ test('empty inline lookups fall back to the resolved form', async ({ page }) => 
   await expect(wikt).toHaveAttribute('href', /\/wiki\/Helen(%20| )of(%20| )Troy$/);
 });
 
+// Deliberate stub mismatch: "Age of the Pyramids" is a redirect, so its summary is
+// the target article ("Old Kingdom of Egypt") whose bold lead doesn't norm-match.
+// The hint keeps the title; the card renders the target from that same fetch.
+async function stubAgeOfPyramids(page) {
+  await page.route(/action=opensearch/, route => {
+    if (/search=ageofthepyramids/i.test(route.request().url())) {
+      route.fulfill({ status: 200, contentType: 'application/json',
+        body: JSON.stringify(['ageofthepyramids', ['Age of the Pyramids'], [''], ['https://en.wikipedia.org/wiki/Age_of_the_Pyramids']]) });
+    } else {
+      route.fulfill({ status: 404, contentType: 'application/json', body: '{}' });
+    }
+  });
+  await page.route(/rest_v1\/page\/summary\/Age(?:%20|_|\+| )of/i, route =>
+    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
+      title: 'Old Kingdom of Egypt',
+      extract: 'The Old Kingdom is also known as the Age of the Pyramids.',
+      extract_html: '<p>The <b>Old Kingdom</b> is also known as the Age of the Pyramids.</p>',
+    }) }));
+}
+
+test('a redirect target renders in the card while the hint keeps the entry’s title', async ({ page }) => {
+  await gotoApp(page);
+  await stubAgeOfPyramids(page);
+  await page.evaluate(w => window.__grawlixTest.addCustomWordlist(w),
+    { name: 'Src', entries: ['ageofthepyramids'], scores: [50] });
+  await page.evaluate(() => window.__grawlixTest.pipelineIdle());
+
+  await openPanelFor(page, 'ageofthepyramids');
+  await expect(link(page)).toHaveText('Age of the Pyramids');   // bold "Old Kingdom" ≠ norm → title kept
+  await expect(lookup(page).locator('.lookup-alt-note')).toHaveText('Showing results for “Age of the Pyramids”');
+  await expect(lookup(page).locator('.lookup-prose-title')).toHaveText('Old Kingdom of Egypt');
+});
+
 // Wikipedia offers the force-capped title "Ground frost"; Wiktionary — the
 // lowercase authority — is made to fail (503, which is a failure, not an empty
 // 404). The resolver must degrade to the plain segmenter spacing rather than cache
