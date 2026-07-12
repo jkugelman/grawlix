@@ -41,10 +41,11 @@ import { getWordlistIcon } from './icons.js';
 import { getDraftRescoreRules } from './rescore-editor.js';
 import { buildTrashIconHTML, positionPopover } from './components.js';
 import { LookupSection } from './lookup.js';
+import { resolveEntryCanonical } from './canonical.js';
 import {
   getEntriesScroller, rescorePreviewActive, refreshMergedScroller, reprojectMergedScroller, setScope,
 } from './rendering.js';
-import { fetchWorkerRows, fetchWorkerGroups, fetchWorkerGroupChains, fetchWorkerAllRows, fetchWorkerAllGroups, fetchWorkerTransformRows, fetchWorkerAllTransformRows, lastCompletedRunId, fetchWorkerEditSeed, fetchWorkerFamily, fetchWorkerWinners, fetchWorkerProvenance, fetchWorkerEditPlan, sendViewport, findInResult } from './pipeline-worker.js';
+import { fetchWorkerRows, fetchWorkerGroups, fetchWorkerGroupChains, fetchWorkerAllRows, fetchWorkerAllGroups, fetchWorkerTransformRows, fetchWorkerAllTransformRows, lastCompletedRunId, fetchWorkerEditSeed, fetchWorkerFamily, fetchWorkerWinners, fetchWorkerProvenance, fetchWorkerEditPlan, fetchWorkerSpaceOut, sendViewport, findInResult } from './pipeline-worker.js';
 
 let _navigate              = () => {};
 
@@ -2753,6 +2754,9 @@ export const EntryPanel = (() => {
   let activeRow = null;
   let familyMembers = [];
   let familyToken = 0;
+  let renameSuggestion = null;
+  let renameToken = 0;
+  let renameTimer = null;
   // Non-null bounds the walk to a multi-select ({ members, index }); null is the
   // no-selection walk that steps the table cursor and shows the current family.
   let walkSelection = null;
@@ -2822,6 +2826,7 @@ export const EntryPanel = (() => {
     el.addEventListener('click', e => {
       if (e.target.closest('.dialog-close-btn')) { close(); return; }
       if (e.target.closest('.entry-panel-note-link')) { editExisting(); return; }
+      if (e.target.closest('.entry-panel-suggest-link')) { applyRename(); return; }
       if (e.target.closest('.entry-panel-prov-untrash')) { toggleStagedAdopt(); return; }
       const trash = e.target.closest('.entry-panel-prov-trash');
       if (trash) { toggleStagedDelete(trash.dataset.norm, trash.dataset.display); return; }
@@ -2883,10 +2888,14 @@ export const EntryPanel = (() => {
     stagedAdopt = false;
     ownsHistoryEntry = false;
     scoreCombo = null;
+    renameSuggestion = null;
+    clearTimeout(renameTimer);
+    renameTimer = null;
     seedQueryToken++;
     provQueryToken++;
     planQueryToken++;
     walkToken++;
+    renameToken++;
     shippedProvRows = null;
     lastProvHTML = null;
     lastNoteHTML = null;
@@ -3027,6 +3036,7 @@ export const EntryPanel = (() => {
     revealModal(animate);
     wireFields();
     renderFamily(activeWlEntry.norm, activeWlEntry.display ?? null);
+    refreshRenameSuggestion(activeWlEntry.display ?? activeWlEntry.norm);
     updateNav();
 
     fireInitialProvenanceQuery(seed.entry);
@@ -3394,6 +3404,7 @@ export const EntryPanel = (() => {
           <label for="entry-panel-entry">Entry</label>
           <input id="entry-panel-entry" class="entry-input" type="text" autocapitalize="off" autocorrect="off" spellcheck="false" value="${esc(seed.entry)}"${ro}>
           <div class="entry-panel-note-slot">${activeReadOnly ? '' : renderNotesHTML()}</div>
+          <div class="entry-panel-suggest-slot"></div>
           <label for="entry-panel-score">Score</label>
           <div class="entry-panel-score-row">
             <div class="score-combo">
@@ -3477,6 +3488,7 @@ export const EntryPanel = (() => {
       lastNoteHTML = renderNotesHTML();
       wireFields();
       renderFamily(activeWlEntry.norm, activeWlEntry.display ?? null);
+      refreshRenameSuggestion(activeWlEntry.display ?? activeWlEntry.norm);
       updateNav();
       const inp = el.querySelector('.entry-input');
       fireProvenanceQuery('', inp ? inp.value : '');
@@ -3492,6 +3504,7 @@ export const EntryPanel = (() => {
     const norm = toNorm(typed);
     fireProvenanceQuery(typed, typed);
     renderFamily(norm, typed);
+    refreshRenameSuggestion(typed);
     renderProvWrap();
     updateModeLabels();
     updateLengthDisplay(norm.length);
@@ -3709,6 +3722,63 @@ export const EntryPanel = (() => {
       familyMembers = members;
       h.innerHTML = buildFamilyHTML(members);
     });
+  }
+
+  function renderRenameHTML() {
+    if (!renameSuggestion) return '';
+    return `<div class="entry-panel-suggest">Rename to `
+      + `<button type="button" class="entry-panel-suggest-link">${esc(renameSuggestion)}</button></div>`;
+  }
+
+  function renderRenameSlot() {
+    const slot = el?.querySelector('.entry-panel-suggest-slot');
+    if (slot) slot.innerHTML = renderRenameHTML();
+  }
+
+  function setRenameSuggestion(s) {
+    if (s === renameSuggestion) return;
+    renameSuggestion = s;
+    renderRenameSlot();
+  }
+
+  const RENAME_DEBOUNCE_MS = 600;
+
+  // Instant local spacing for a bare entry, then a debounced network upgrade to
+  // the canonical form. Ineligible/already-spaced entries clear here — no worker
+  // reply will, so a stale hint would persist. Create mode is out: "Rename to" is
+  // wrong for a brand-new entry.
+  function refreshRenameSuggestion(display) {
+    const token = ++renameToken;
+    clearTimeout(renameTimer);
+    const norm = toNorm(display);
+    if (activeReadOnly || activeMode === 'create' || !norm) { setRenameSuggestion(null); return; }
+    if (/\s/.test(display)) {
+      setRenameSuggestion(null);
+    } else {
+      fetchWorkerSpaceOut(norm).then(spaced => {
+        if (token !== renameToken || !isOpen()) return;
+        setRenameSuggestion(spaced && spaced !== display ? spaced : null);
+      });
+    }
+    renameTimer = setTimeout(() => {
+      resolveEntryCanonical(display).then(canonical => {
+        if (token !== renameToken || !isOpen()) return;
+        setRenameSuggestion(canonical && canonical !== display ? canonical : null);
+      });
+    }, RENAME_DEBOUNCE_MS);
+  }
+
+  function applyRename() {
+    if (!renameSuggestion) return;
+    const inp = el?.querySelector('.entry-input');
+    if (!inp || inp.disabled) return;
+    inp.value = renameSuggestion;
+    // The dispatched input event is load-bearing, not cosmetic: it drives the
+    // rename-mode flip, provenance preview, and Save-enable. Setting value alone
+    // fills the field but stages nothing.
+    inp.dispatchEvent(new Event('input', { bubbles: true }));
+    inp.focus();
+    inp.setSelectionRange(inp.value.length, inp.value.length);
   }
 
   function setupSelectionWalk(walkIds) {

@@ -592,18 +592,24 @@ td.entry-panel-prov-entry { font-family: var(--font-mono); }
 .entry-panel-prov-row--added td, .entry-panel-prov-row--changed td { font-weight: 700; }
 .entry-panel-prov-row--deleted td { text-decoration: line-through; color: var(--faint); }
 .entry-panel-prov-row--deleted .score-badge { opacity: 0.55; }
-.entry-panel-note-slot { grid-column: 1 / -1; }
+.entry-panel-note-slot { grid-column: 2 / -1; margin-top: -2px; }
 .entry-panel-note-slot:empty { display: none; }
 .entry-panel-note { color: var(--muted); }
+.entry-panel-note::before, .entry-panel-suggest::before { content: '↳'; margin-right: 5px; }
 .entry-panel-note--block { color: #e53935; font-weight: 600; }
 .entry-panel-note-link { font: inherit; color: inherit; background: none; border: none; padding: 0; cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
 .entry-panel-note-link:hover { text-decoration: none; }
+.entry-panel-suggest-slot { grid-column: 2 / -1; margin-top: -2px; }
+.entry-panel-suggest-slot:empty { display: none; }
+.entry-panel-suggest { color: var(--muted); }
+.entry-panel-suggest-link { font: inherit; color: var(--accent); background: none; border: none; padding: 0; cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
+.entry-panel-suggest-link:hover { text-decoration: none; }
 .entry-panel-prov-action { width: 1%; white-space: nowrap; text-align: right; }
 .entry-panel-prov-trash { position: relative; background: none; border: none; padding: 2px 4px; line-height: 0; border-radius: 4px; color: var(--muted); cursor: pointer; }
 .entry-panel-prov-trash:hover { color: #e53935; background: rgba(229, 57, 53, 0.1); }
 .entry-panel-prov-trash.staged { color: #e53935; }
 .entry-panel-prov-trash.staged::after { content: ''; position: absolute; left: 1px; right: 1px; top: 50%; height: 1.5px; border-radius: 1px; background: currentColor; transform: rotate(-45deg); }
-.entry-panel-fields { display: grid; grid-template-columns: auto 1fr; grid-auto-rows: minmax(26px, auto); gap: 8px 10px; align-items: center; font-size: 13px; margin-bottom: 12px; }
+.entry-panel-fields { display: grid; grid-template-columns: auto 1fr; gap: 8px 10px; align-items: center; font-size: 13px; margin-bottom: 12px; }
 .entry-panel-fields label { color: var(--muted); }
 .entry-panel-fields input { padding: 4px 7px; border-radius: 3px; width: 100%; box-sizing: border-box; }
 .entry-panel-fields input:read-only { background: var(--bg); color: var(--text); cursor: default; }
@@ -665,6 +671,7 @@ td.entry-panel-prov-entry { font-family: var(--font-mono); }
 .entry-family-item--current { font-weight: 700; cursor: default; }
 .entry-family-item--current:hover .entry-family-entry { color: inherit; text-decoration: none; }
 .lookup-empty { color: var(--muted); font-style: italic; }
+.lookup-alt-note { color: var(--muted); font-style: italic; font-size: 10px; margin-bottom: 6px; }
 .lookup-sec { margin-bottom: 10px; }
 .lookup-sec:last-child { margin-bottom: 0; }
 .lookup-sec-head { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); margin-bottom: 3px; }
@@ -742,7 +749,10 @@ input.entry-input { font-family: var(--font-mono); }
 @media (max-width: 759px) {
   .detail-date { display: none; }
   .header-byline-group { display: none; }
-  .entry-panel-fields { grid-auto-rows: minmax(30px, auto); }
+  /* Touch-comfortable field height lives on the inputs, not the grid rows: a
+     row-level floor would also inflate the note/hint rows, which must stay
+     collapsed to their text. */
+  .entry-panel-fields input { min-height: 30px; }
 }
 .edit-hint { opacity: 0; flex-shrink: 0; cursor: pointer; user-select: none; transition: opacity 0.15s; }
 

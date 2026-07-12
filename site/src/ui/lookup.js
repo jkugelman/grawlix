@@ -8,6 +8,7 @@
 
 import { LOOKUP_SOURCES, getLookupSource } from '../engine/lookup.js';
 import { toNorm } from '../engine/norm.js';
+import { resolveEntryCanonical } from './canonical.js';
 import { esc } from '../core/util.js';
 
 const INLINE = LOOKUP_SOURCES.filter(s => s.fetch);
@@ -20,6 +21,10 @@ export const LookupSection = (() => {
   let shownEntry = '';   // entry whose inline results are on screen — swaps lazily
   let debounceTimer = null;
   const cache = new Map();
+  // entry → resolved canonical form to fall back to (string), null (resolved, no
+  // usable alternative), or undefined (not yet resolved). Keyed like `cache`, so
+  // it persists across entries at module scope.
+  const resolved = new Map();
 
   function key(entryStr, id) { return `${entryStr} ${id}`; }
 
@@ -28,6 +33,31 @@ export const LookupSection = (() => {
       const cell = cache.get(key(e, s.id));
       return cell && cell.status !== 'loading';
     });
+  }
+
+  function dataHasContent(data) {
+    if (data.kind === 'words') return data.words.length > 0;
+    return !data.empty;  // prose / definitions
+  }
+
+  function hasAnyResult(e) {
+    return INLINE.some(s => {
+      const cell = cache.get(key(e, s.id));
+      return cell?.status === 'ok' && dataHasContent(cell.data);
+    });
+  }
+
+  function effectiveEntry() {
+    if (!shownEntry || hasAnyResult(shownEntry)) return shownEntry;
+    return resolved.get(shownEntry) || shownEntry;
+  }
+
+  function fallbackPending(e) {
+    if (!inlineSettled(e) || hasAnyResult(e)) return false;
+    const alt = resolved.get(e);
+    if (alt === undefined) return true;   // resolution not done
+    if (alt === null) return false;       // resolved: genuinely nothing to show
+    return !inlineSettled(alt);           // fetching the alt's lookups
   }
 
   // EntryPanel rebuilds its innerHTML wholesale on open and on resetInputs, so
@@ -82,9 +112,33 @@ export const LookupSection = (() => {
       // arrive) or once it has fully settled and can replace the stale content.
       if (shownEntry === myEntry || inlineSettled(myEntry)) {
         shownEntry = myEntry;
+        if (inlineSettled(myEntry) && !hasAnyResult(myEntry)) ensureResolved(myEntry);
         render();
       }
     });
+  }
+
+  // Entry drew a blank everywhere: fetch its canonical form's lookups instead, so
+  // a concatenation/miscased entry still lights up. No usable alternative → null.
+  function ensureResolved(entryStr) {
+    if (resolved.has(entryStr)) return;
+    resolved.set(entryStr, undefined);
+    resolveEntryCanonical(entryStr).then(form => {
+      const alt = form && form !== entryStr ? form : null;
+      resolved.set(entryStr, alt);
+      if (alt) for (const s of INLINE) fetchInto(alt, s.id);
+      if (hostEl && shownEntry === entryStr) render();
+    });
+  }
+
+  function fetchInto(entryStr, id) {
+    const k = key(entryStr, id);
+    if (cache.has(k)) return;
+    cache.set(k, { status: 'loading' });
+    getLookupSource(id).fetch(entryStr).then(
+      data => cache.set(k, { status: 'ok', data }),
+      err => cache.set(k, { status: 'err', error: err }),
+    ).then(() => { if (hostEl && effectiveEntry() === entryStr) render(); });
   }
 
   function render() {
@@ -93,20 +147,28 @@ export const LookupSection = (() => {
 
   function build() {
     if (!entry && !shownEntry) return '';
-    const sections = shownEntry ? INLINE.map(s => sectionHTML(s.id)).filter(Boolean) : [];
-    const loading = shownEntry && !inlineSettled(shownEntry);
-    const info = sections.length ? sections.join('')
+    const eff = effectiveEntry();
+    const usingAlt = eff !== shownEntry;
+    const sections = shownEntry ? INLINE.map(s => sectionHTML(s.id, eff)).filter(Boolean) : [];
+    const loading = shownEntry && (!inlineSettled(shownEntry) || fallbackPending(shownEntry));
+    const note = usingAlt && sections.length
+      ? `<div class="lookup-alt-note">Showing results for “${esc(eff)}”</div>` : '';
+    const info = sections.length ? note + sections.join('')
       : loading ? `<div class="lookup-empty">Looking up “${esc(shownEntry)}”…</div>`
       : '';
-    const links = LOOKUP_SOURCES.map(s =>
-      `<a class="lookup-link" href="${esc(s.url(entry, norm))}" target="_blank" rel="noopener">${esc(s.name)} ↗</a>`,
-    ).join('');
+    // Wikipedia articles are titled canonically, so its link (and inline fetch)
+    // follows the resolved form once known; Google/OneLook handle raw text.
+    const wikiTarget = resolved.get(entry) || entry;
+    const links = LOOKUP_SOURCES.map(s => {
+      const target = s.id === 'wikipedia' ? wikiTarget : entry;
+      return `<a class="lookup-link" href="${esc(s.url(target, norm))}" target="_blank" rel="noopener">${esc(s.name)} ↗</a>`;
+    }).join('');
     const searchSec = `<div class="lookup-sec"><div class="lookup-sec-head">Search</div><div class="lookup-links">${links}</div></div>`;
     return searchSec + info;
   }
 
-  function sectionHTML(id) {
-    const cell = cache.get(key(shownEntry, id));
+  function sectionHTML(id, forEntry) {
+    const cell = cache.get(key(forEntry, id));
     if (!cell || cell.status !== 'ok') return '';
     const inner = renderData(cell.data);
     return inner ? `<div class="lookup-sec"><div class="lookup-sec-head">${esc(getLookupSource(id).name)}</div>${inner}</div>` : '';

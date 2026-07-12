@@ -518,6 +518,10 @@ export function stopRunAfterTotalForTest(total) {
   getWorker().postMessage({ type: '__testStopRunAfterTotal', total });
 }
 
+export function setWorkerUnigramCorpusForTest(freqs) {
+  getWorker().postMessage({ type: '__testSetUnigramCorpus', freqs });
+}
+
 // Test-only: collect streamed `partial`s for assertion against the final result.
 export function captureWorkerPartialsForTest() {
   const w = getWorker();
@@ -871,6 +875,28 @@ export function fetchWorkerWinners(ids, timeout = 5000) {
     }
     w.addEventListener('message', onMessage);
     w.postMessage({ type: 'fetchWinners', requestId, ids });
+  });
+}
+
+// No pending-edit barrier (unlike the family/provenance reads): the hint is
+// advisory and keys only on vocab membership, which a pending rescore never
+// changes. Longer timeout than its sibling bridges, though — a cold query
+// triggers the multi-MB unigram download in the worker; even if that outruns the
+// timeout the corpus still lands, so a later query (a keystroke, a reopen) uses it.
+let fetchSpaceOutRequestId = 0;
+export function fetchWorkerSpaceOut(norm, timeout = 15000) {
+  const w = getWorker();
+  const requestId = ++fetchSpaceOutRequestId;
+  return new Promise(resolve => {
+    const timer = setTimeout(() => { w.removeEventListener('message', onMessage); resolve(null); }, timeout);
+    function onMessage({ data }) {
+      if (data?.type !== 'spaceOut' || data.requestId !== requestId) return;
+      clearTimeout(timer);
+      w.removeEventListener('message', onMessage);
+      resolve(data.suggestion ?? null);
+    }
+    w.addEventListener('message', onMessage);
+    w.postMessage({ type: 'fetchSpaceOut', requestId, norm });
   });
 }
 

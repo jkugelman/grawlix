@@ -38,7 +38,7 @@ import { ToolStack, pipelineIdle } from './ui/tool-stack.js';
 import {
   pingWorker, runOnWorker, patchWorkerToolForTest, workerAssetStateForTest,
   pipelineWorkerState, crashWorkerForTest, forceWorkerCrashForTest, failNextWorkerBuildForTest,
-  setWorkerYieldIntervalForTest, stopRunAfterTotalForTest, captureWorkerPartialsForTest, captureWorkerGroupPartialsForTest, captureWorkerChainPartialsForTest,
+  setWorkerYieldIntervalForTest, stopRunAfterTotalForTest, setWorkerUnigramCorpusForTest, captureWorkerPartialsForTest, captureWorkerGroupPartialsForTest, captureWorkerChainPartialsForTest,
   configureResultCacheForTest, resultCacheStateForTest, configurePrefixCacheForTest, prefixCacheStateForTest, configurePartialCacheForTest, partialCacheStateForTest, retainedResultInfoForTest,
   syncWorkerConfig, dumpWorkerCorpus, queryWorkerEntry, fetchWorkerRows, fetchWorkerGroups, fetchWorkerGroupChains, fetchWorkerAllGroups, fetchWorkerAllRows, fetchWorkerAllTransformRows, lastCompletedRunId,
   workerOwnsCorpus, sendEditEntry, sendDeleteEntry,
@@ -257,6 +257,7 @@ const __grawlixTest = {
   failNextWorkerBuildForTest,
   setWorkerYieldIntervalForTest,
   stopRunAfterTotalForTest,
+  setWorkerUnigramCorpus: setWorkerUnigramCorpusForTest,
   configureResultCacheForTest: (opts = {}) => configureResultCacheForTest(opts),
   resultCacheState: () => resultCacheStateForTest(),
   configurePrefixCacheForTest: (opts = {}) => configurePrefixCacheForTest(opts),

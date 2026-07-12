@@ -7,7 +7,10 @@ import { executePipeline, configureExecutorYield, lastPipelineSeedFrom, lastPipe
 import { GdsCache, RoleCache } from './gds-cache.js';
 import { sortGroups, sortChainRows, activeGroupRow, groupRowComparator, chainRowComparator, chainSortTier, DEFAULT_SORT_BY_TIER } from './sort.js';
 import { PackedRecordJoin, packRecordJoin, materializeRecordRow, recordView, recordComparator, recordInRange, PackedGroupJoin, tryPackGroupJoin, buildGroupFlyweights, materializeGroupRow } from './packed-join.js';
-import { configureIO as configureSegmenterIO } from './segmenter.js';
+import {
+  configureIO as configureSegmenterIO, setUnigramCorpus,
+  rankedSplits, SPACE_OUT_WINDOWS, loadUnigramCorpus, hasUnigramCorpus,
+} from './segmenter.js';
 import { configureIO as configurePhoneticsIO } from './phonetics.js';
 import { DATA_ASSETS, getDataAsset } from './assets.js';
 import { parseWordlist, toNorm, displayOf } from './norm.js';
@@ -1532,6 +1535,36 @@ function handleFetchWinners({ requestId, ids }) {
   postMessage({ type: 'winners', requestId, members });
 }
 
+// Re-case a segmented part from the user's own list: its merged display carries
+// deliberate casing (DNA, iOS) lowercase segmentation drops. A word the list also
+// carries plainly is left alone (it, us never force-capitalized) — a distinguishing
+// norm stores that plain spelling as display === norm, so a (norm, norm) byKey row
+// is the lowercase signal.
+function caseFromWordlist(part) {
+  if (ownedMerged.byKey.has(mergeKey(part, part))) return part;
+  const display = ownedMerged.byNorm.get(part)?.display;
+  return display && !/\s/.test(display) ? display : part;
+}
+
+async function handleFetchSpaceOut({ requestId, norm }) {
+  let suggestion = null;
+  // ownedMerged, not the scoped ownedCorpus: it's the full-merge allowed-parts
+  // vocab regardless of active scope, so a scoped view still segments against
+  // every entry — a scoped corpus would silently thin the splits with no error.
+  if (ownedMerged && ownedCorpusFresh) {
+    // Lazy multi-MB asset loaded on demand: the panel only queries while editing
+    // an unspaced entry, the intent signal that justifies the one-time fetch.
+    if (!hasUnigramCorpus()) {
+      try { await loadUnigramCorpus(); } catch { /* offline / fetch failed → no hint */ }
+    }
+    if (hasUnigramCorpus()) {
+      const parts = rankedSplits(norm, SPACE_OUT_WINDOWS.one, ownedMerged)[0];
+      if (parts && parts.length >= 2) suggestion = parts.map(caseFromWordlist).join(' ');
+    }
+  }
+  postMessage({ type: 'spaceOut', requestId, suggestion });
+}
+
 // ─── Provenance + preview fetch ── see docs/worker-protocol.md ────────────────
 // ownedCorpusFresh stands in for an ownedMerged/ownedBuilt freshness flag (cleared
 // synchronously by syncConfig, re-set by a committed syncConfig or an edit command
@@ -2588,6 +2621,10 @@ onmessage = ({ data }) => {
       handleFetchWinners(data);
       break;
 
+    case 'fetchSpaceOut':
+      handleFetchSpaceOut(data);
+      break;
+
     case 'fetchProvenance':
       handleFetchProvenance(data);
       break;
@@ -2712,6 +2749,13 @@ onmessage = ({ data }) => {
     // worker's, so the eviction suite must ask the worker for the true loaded state.
     case '__testAssetState':
       postMessage({ type: '__testAssetState', state: Object.fromEntries(DATA_ASSETS.map(a => [a.key, a.has()])) });
+      break;
+
+    // Test-only: seed the worker realm's unigram corpus so the space-out hint runs
+    // without the multi-MB network fetch. Page-side setUnigramCorpus wouldn't reach
+    // here — the worker has its own segmenter module instance.
+    case '__testSetUnigramCorpus':
+      setUnigramCorpus(data.freqs);
       break;
 
     // Test-only: drop the recompute floor (and optionally the byte budgets) so a fast

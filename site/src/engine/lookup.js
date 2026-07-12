@@ -11,7 +11,7 @@ const DATAMUSE = 'https://api.datamuse.com/words';
 const WIKI_SUMMARY = 'https://en.wikipedia.org/api/rest_v1/page/summary/';
 const DICTIONARY = 'https://api.dictionaryapi.dev/api/v2/entries/en/';
 
-async function fetchJSON(url) {
+export async function fetchJSON(url) {
   const res = await fetch(url, { headers: { Accept: 'application/json' } });
   if (!res.ok) {
     const err = new Error(`HTTP ${res.status}`);
