@@ -164,6 +164,45 @@ test('an accented city resolves to the Wikipedia-corroborated diacritic', async 
   await expect(link(page)).toHaveText('Gdańsk');   // acute (both sources), not caron (Wiktionary-only)
 });
 
+// The bare concat reaches only Wikipedia — its search fuzz-matches across the missing
+// space to the force-capped "General assemblies" while Wiktionary's stricter search
+// 404s; only the spaced re-query surfaces Wiktionary's correct lowercase form.
+async function stubGeneralAssemblies(page) {
+  await page.route(/en\.wiktionary\.org\/w\/api\.php/, route =>
+    /srsearch=general(?:%20|\+| )assemblies&/i.test(route.request().url())
+      ? route.fulfill({ status: 200, contentType: 'application/json',
+          body: JSON.stringify({ query: { search: [{ title: 'general assemblies' }] } }) })
+      : route.fulfill({ status: 404, contentType: 'application/json', body: '{}' }));
+  await page.route(/action=opensearch/, route =>
+    /search=general(?:%20|\+| )?assemblies/i.test(route.request().url())
+      ? route.fulfill({ status: 200, contentType: 'application/json',
+          body: JSON.stringify(['general assemblies', ['General assemblies'], [''], ['https://en.wikipedia.org/wiki/General_assemblies']]) })
+      : route.fulfill({ status: 404, contentType: 'application/json', body: '{}' }));
+  await page.route(/rest_v1\/page\/summary\/General(?:%20|_|\+| )assemblies/i, route =>
+    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
+      title: 'General assembly',   // redirect target; bold lead won't norm-match the plural
+      extract: 'A general assembly is a meeting of all the members.',
+      extract_html: '<p>A <b>general assembly</b> is a meeting of all the members.</p>',
+    }) }));
+}
+
+test('a phrase Wikipedia force-caps but Wiktionary lowercases keeps the lowercase', async ({ page }) => {
+  await gotoApp(page);
+  await stubGeneralAssemblies(page);
+  await page.evaluate(w => window.__grawlixTest.addCustomWordlist(w),
+    { name: 'Src', entries: ['generalassemblies', 'general', 'assemblies'], scores: [50, 50, 50] });
+  await page.evaluate(() => window.__grawlixTest.pipelineIdle());
+  await page.evaluate(c => window.__grawlixTest.setWorkerUnigramCorpus(c),
+    { general: -3, assemblies: -4 });
+
+  await openPanelFor(page, 'generalassemblies');
+  await expect(link(page)).toHaveText('general assemblies');   // stage 1: plain spacing
+  // Past the debounce: the spaced re-query must bring in Wiktionary and keep the
+  // lowercase, not flip to Wikipedia's bare-match "General assemblies".
+  await page.waitForTimeout(900);
+  await expect(link(page)).toHaveText('general assemblies');
+});
+
 // Wiktionary's full-text search surfaces the accented singular "cliché" for the
 // plural query "cliches" but the singular query "cliche" returns nothing — so only
 // the short-circuit (reusing the plural's own results) can recover the accent; the

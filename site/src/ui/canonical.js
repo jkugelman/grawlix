@@ -25,11 +25,14 @@ async function computeCanonical(display) {
   // "Ground frost").
   const fallback = hasSpace ? display : (await fetchWorkerSpaceOut(norm)) || display;
   try {
-    // Bare: a same-norm reference form for the unsplit entry means it's a real word
-    // — take it and never offer a split (the whole-word suppressor). Spaced: this
-    // is the phrase resolution outright.
     let ref = await resolveReference(display, norm);
-    if (!ref && !hasSpace && fallback !== display) ref = await resolveReference(fallback, norm);
+    // A spaced bare reference is a Wikipedia-only fuzz-match across the missing space
+    // (generalassemblies → "General assemblies"); Wiktionary's stricter search never
+    // matched the concatenation, so re-resolve the spaced fallback to let its correct
+    // lowercase form win. The `/\s/` clause is load-bearing — dropping it re-caps.
+    if (!hasSpace && (!ref || /\s/.test(ref)) && fallback !== display) {
+      ref = (await resolveReference(fallback, norm)) || ref;
+    }
     if (ref) return { value: ref, complete: true };
     // Plural fallback: a plural can't match its singular's reference form under the
     // exact-norm guard (DNA sequencer ≠ dnasequencers). Re-add the "s" and norm-check
