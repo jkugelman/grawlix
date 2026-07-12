@@ -59,6 +59,20 @@ test('rename hint upgrades from segmenter spacing to the canonical casing', asyn
   await expect(link(page)).toHaveText('Helen of Troy');   // stage 2: canonical, in place
 });
 
+test('an already-spaced entry gets no rename suggestion', async ({ page }) => {
+  await gotoApp(page);
+  await stubHelenOfTroy(page);   // "helen of troy" WOULD resolve to "Helen of Troy"…
+  await page.evaluate(w => window.__grawlixTest.addCustomWordlist(w),
+    { name: 'Src', entries: ['helen of troy'], scores: [50] });
+  await page.evaluate(() => window.__grawlixTest.pipelineIdle());
+
+  await openPanelFor(page, 'helenoftroy');
+  await expect(link(page)).toHaveCount(0);
+  // Re-check past the 600ms debounce so a not-yet-rendered link can't false-green.
+  await page.waitForTimeout(900);
+  await expect(link(page)).toHaveCount(0);
+});
+
 // Only the singular "dna sequencer" resolves (a Wikipedia entity); the negative
 // lookahead makes the plural query miss, so the plural must recover its casing by
 // resolving the singular and re-adding the "s".
@@ -148,4 +162,58 @@ test('empty inline lookups fall back to the resolved form', async ({ page }) => 
   await openPanelFor(page, 'helenoftroy');
   await expect(lookup(page).locator('.lookup-alt-note')).toHaveText('Showing results for “Helen of Troy”');
   await expect(lookup(page).locator('.lookup-prose-title')).toHaveText('Helen of Troy');
+  // The Wiktionary link (renamed from Dictionary) points at the resolved page, not
+  // the raw concatenation that 404s.
+  const wikt = lookup(page).locator('.lookup-link', { hasText: 'Wiktionary' });
+  await expect(wikt).toHaveAttribute('href', /\/wiki\/Helen(%20| )of(%20| )Troy$/);
+});
+
+// Wikipedia offers the force-capped title "Ground frost"; Wiktionary — the
+// lowercase authority — is made to fail (503, which is a failure, not an empty
+// 404). The resolver must degrade to the plain segmenter spacing rather than cache
+// Wikipedia's force-capped partial, so the answer doesn't depend on the flaky fetch.
+async function stubGroundFrost(page) {
+  await page.route(/action=opensearch/, route => {
+    if (/search=ground(?:%20|\+| )frost/i.test(route.request().url())) {
+      route.fulfill({ status: 200, contentType: 'application/json',
+        body: JSON.stringify(['ground frost', ['Ground frost'], [''], ['https://en.wikipedia.org/wiki/Ground_frost']]) });
+    } else {
+      route.fulfill({ status: 404, contentType: 'application/json', body: '{}' });
+    }
+  });
+  await page.route(/rest_v1\/page\/summary\/Ground(?:%20|_|\+| )frost/i, route =>
+    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
+      title: 'Ground frost', extract: 'Ground frost refers to ice.',
+      extract_html: '<p><b>Ground frost</b> refers to ice.</p>',
+    }) }));
+  await page.route(/en\.wiktionary\.org\/w\/api\.php/, route =>
+    route.fulfill({ status: 503, contentType: 'application/json', body: '{}' }));
+}
+
+test('a failed reference fetch degrades to the local spacing, not a force-capped partial', async ({ page }) => {
+  await gotoApp(page);
+  await stubGroundFrost(page);
+  await page.evaluate(w => window.__grawlixTest.addCustomWordlist(w),
+    { name: 'Src', entries: ['groundfrost', 'ground', 'frost'], scores: [50, 50, 50] });
+  await page.evaluate(() => window.__grawlixTest.pipelineIdle());
+  await page.evaluate(c => window.__grawlixTest.setWorkerUnigramCorpus(c), { ground: -3, frost: -4 });
+
+  await openPanelFor(page, 'groundfrost');
+  await expect(link(page)).toHaveText('ground frost');   // not Wikipedia's "Ground frost"
+});
+
+test('the inline Wiktionary card renders structured definitions', async ({ page }) => {
+  await gotoApp(page);
+  await page.route(/rest_v1\/page\/definition\/cat$/i, route =>
+    route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
+      en: [{ partOfSpeech: 'Noun', language: 'English',
+        definitions: [{ definition: 'A <a href="/wiki/feline">feline</a> animal &amp; pet.' }] }],
+    }) }));
+  await page.evaluate(w => window.__grawlixTest.addCustomWordlist(w), { name: 'Src', entries: ['cat'], scores: [50] });
+  await page.evaluate(() => window.__grawlixTest.pipelineIdle());
+
+  await openPanelFor(page, 'cat');
+  const wikt = lookup(page).locator('.lookup-sec', { hasText: 'Wiktionary' });
+  await expect(wikt.locator('.lookup-pos')).toHaveText('Noun');
+  await expect(wikt.locator('.lookup-def li')).toHaveText('A feline animal & pet.');   // tags stripped, entity decoded
 });

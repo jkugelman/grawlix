@@ -1028,9 +1028,17 @@ export class EntriesScroller extends BaseVirtualScroller {
     this._anchor = null; this._anchorIndex = -1;
   }
 
+  // A search, tool, score-range, or wordlist-config edit changes which entries the
+  // result holds, so the selection is dropped — a row now out of sight must not stay a
+  // live Alt+digit/Delete target. A sort (reorder-only) or edit refresh keeps it instead.
+  resetSelectionForViewChange() {
+    if (this._selection.size === 0 && !this._cursor && !this._anchor) return;
+    this._resetSelectionState();
+    this._render();
+  }
+
   // Membership is identity-keyed, so it survives a re-ingest untouched; only the
-  // cursor/anchor *indices* are re-derived here. Pruning the Map instead would drop
-  // a batch the moment the user keeps typing in the search box.
+  // cursor/anchor *indices* are re-derived here.
   _reconcileSelectionCursor() {
     if (!this._flat) { this._resetSelectionState(); return false; }
     const n = this._renderRowCount();
@@ -1893,6 +1901,7 @@ export class EntriesScroller extends BaseVirtualScroller {
     this.scoreRange = next;
     this._scoreIntervals = next ? parseRange(next) : null;
     this._invalidateSortCache();
+    this.resetSelectionForViewChange();
     reprojectMergedScroller();
   }
 
@@ -3743,23 +3752,22 @@ export const EntryPanel = (() => {
 
   const RENAME_DEBOUNCE_MS = 600;
 
-  // Instant local spacing for a bare entry, then a debounced network upgrade to
-  // the canonical form. Ineligible/already-spaced entries clear here — no worker
-  // reply will, so a stale hint would persist. Create mode is out: "Rename to" is
-  // wrong for a brand-new entry.
+  // Bare-only by design — an already-spaced entry gets no suggestion, so the
+  // /\s/ rejection reads like an oversight but is deliberate: re-casing a
+  // readable entry is out of scope. Ineligible entries clear *and* return —
+  // nothing else clears a stale hint left from the previous entry.
   function refreshRenameSuggestion(display) {
     const token = ++renameToken;
     clearTimeout(renameTimer);
     const norm = toNorm(display);
-    if (activeReadOnly || activeMode === 'create' || !norm) { setRenameSuggestion(null); return; }
-    if (/\s/.test(display)) {
+    if (activeReadOnly || activeMode === 'create' || !norm || /\s/.test(display)) {
       setRenameSuggestion(null);
-    } else {
-      fetchWorkerSpaceOut(norm).then(spaced => {
-        if (token !== renameToken || !isOpen()) return;
-        setRenameSuggestion(spaced && spaced !== display ? spaced : null);
-      });
+      return;
     }
+    fetchWorkerSpaceOut(norm).then(spaced => {
+      if (token !== renameToken || !isOpen()) return;
+      setRenameSuggestion(spaced && spaced !== display ? spaced : null);
+    });
     renameTimer = setTimeout(() => {
       resolveEntryCanonical(display).then(canonical => {
         if (token !== renameToken || !isOpen()) return;

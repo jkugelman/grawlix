@@ -124,7 +124,10 @@ export function setupRenderEffect() {
     // in-place applyFetched diff path instead and never bumps cacheVersion$.
     resyncWorkerConfig();
     repaintAfterConfigChange();
-    if (entriesScroller) refreshMergedScroller();
+    if (entriesScroller) {
+      entriesScroller.resetSelectionForViewChange();
+      refreshMergedScroller();
+    }
   });
 
   // Pipeline effect for tool-stack/search changes. Two things that look missing
@@ -138,7 +141,10 @@ export function setupRenderEffect() {
       _pipelineEffectFirstRun = false;
       return;            // render effect's first run already painted everything
     }
-    if (entriesScroller) refreshMergedScroller();
+    if (entriesScroller) {
+      entriesScroller.resetSelectionForViewChange();
+      refreshMergedScroller();
+    }
   });
 
   // Two error channels, two signals: parse errors (pipelineVersion$, every

@@ -20,16 +20,26 @@ const WIKIPEDIA_SUMMARY = 'https://en.wikipedia.org/api/rest_v1/page/summary/';
 // ─── Reference queries (network; soft-fail to empty) ─────────────────────────
 
 // Dedupes fetches within a session so re-resolving the same query is free — the
-// plural short-circuit (§ ui/canonical.js) resolves the same query twice, once
-// per norm. An empty/failed result is dropped so a transient miss re-fetches.
+// plural short-circuit (§ ui/canonical.js) resolves the same query twice, once per
+// norm. A *failed* fetch is evicted so a transient error re-fetches; a successful
+// result (empty or not) is a real answer and stays cached.
 const fetchMemo = new Map();
 function memo(key, fetcher) {
   const hit = fetchMemo.get(key);
   if (hit) return hit;
   const p = fetcher();
-  p.then(r => { if (!r || r.length === 0) fetchMemo.delete(key); }, () => fetchMemo.delete(key));
+  p.catch(() => fetchMemo.delete(key));
   fetchMemo.set(key, p);
   return p;
+}
+
+// A 404 means "no such resource" — a genuine empty answer. Anything else (429,
+// 5xx, network) is a failure that must propagate, so the resolver can tell "the
+// source has nothing" from "the source didn't answer" and refuse to cache/finalize
+// a result built on a missing fetch (§ ui/canonical.js).
+function emptyOn404(err, empty) {
+  if (err.status === 404) return empty;
+  throw err;
 }
 
 // list=search, not opensearch: only the search index folds diacritics, so a bare
@@ -41,7 +51,7 @@ export function wiktionaryTitles(query) {
     try {
       const data = await fetchJSON(url);
       return (data?.query?.search || []).map(s => s.title).filter(Boolean);
-    } catch { return []; }
+    } catch (err) { return emptyOn404(err, []); }
   });
 }
 
@@ -51,7 +61,7 @@ export function wikipediaTitles(query) {
     try {
       const data = await fetchJSON(url);
       return Array.isArray(data?.[1]) ? data[1] : [];
-    } catch { return []; }
+    } catch (err) { return emptyOn404(err, []); }
   });
 }
 
@@ -60,7 +70,7 @@ export function wikipediaSummaryHTML(title) {
     try {
       const data = await fetchJSON(WIKIPEDIA_SUMMARY + encodeURIComponent(title));
       return data?.extract_html || '';
-    } catch { return ''; }
+    } catch (err) { return emptyOn404(err, ''); }
   });
 }
 

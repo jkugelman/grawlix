@@ -36,15 +36,15 @@ async function stubPublisherFetches(page, bodies = {}) {
   });
 }
 
-// Stub the external entry-lookup APIs the edit panel auto-fires on open
-// (Datamuse, Wikipedia/Wiktionary, Dictionary) so tests never reach the real
-// network. Empty/404 bodies leave every inline section hidden and the canonical
-// resolver empty-handed — all the panel tests need — while the link row and the
-// segmenter-driven rename hint still render.
+// Stub the external entry-lookup APIs the edit panel auto-fires on open (Datamuse,
+// Wikipedia, Wiktionary) so tests never reach the real network. A 404 reads as a
+// genuine empty — every inline section hidden and the canonical resolver empty-
+// handed, all the panel tests need — while the link row and the segmenter-driven
+// rename hint still render. A 5xx/network error would instead read as a failure.
 async function stubLookupFetches(page) {
   await page.route(/api\.datamuse\.com/, route =>
     route.fulfill({ status: 200, contentType: 'application/json', body: '[]' }));
-  await page.route(/wik(ipedia|tionary)\.org|dictionaryapi\.dev/, route =>
+  await page.route(/wik(ipedia|tionary)\.org/, route =>
     route.fulfill({ status: 404, contentType: 'application/json', body: '{}' }));
 }
 

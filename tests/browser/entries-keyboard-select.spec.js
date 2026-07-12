@@ -253,19 +253,71 @@ test('Delete does nothing outside the My Edits scope', async ({ page }) => {
   await expect(row(page, 'alpha')).toHaveClass(/selected/);
 });
 
-test('a batch selection survives a search that keeps the rows', async ({ page }) => {
+test('a search edit clears the selection, even rows the search keeps', async ({ page }) => {
   await setup(page, { entries: ['cat', 'catalog', 'category', 'dog'] });
   await row(page, 'cat').locator('.atom-len').click();
   await row(page, 'catalog').locator('.atom-entry').click({ modifiers: ['Control'] });
   expect((await selection(page)).sort()).toEqual(['cat', 'catalog']);
 
-  // Type into the real search input (the reactive re-run path, which reconciles the
-  // selection rather than resetting it like a scope change does). "dog" drops out.
   await page.locator('input[data-key="pattern"]').fill('cat*');
   await page.evaluate(() => window.__grawlixTest.pipelineIdle());
   await expect(row(page, 'dog')).toHaveCount(0);
-  expect((await selection(page)).sort()).toEqual(['cat', 'catalog']);
-  await expect(row(page, 'cat')).toHaveClass(/selected/);
+  await expect.poll(() => selection(page)).toEqual([]);
+  await expect(row(page, 'cat')).not.toHaveClass(/selected/);
+});
+
+test('Alt+# cannot rescore a row a search filtered out of sight', async ({ page }) => {
+  await setup(page, { entries: ['cat', 'catalog', 'dog'] });
+  await row(page, 'dog').locator('.atom-len').click();
+  expect(await selection(page)).toEqual(['dog']);
+
+  await page.locator('input[data-key="pattern"]').fill('cat*');
+  await page.evaluate(() => window.__grawlixTest.pipelineIdle());
+  await expect(row(page, 'dog')).toHaveCount(0);
+
+  // Fire the global Alt+digit with focus still in the search box — the reported repro.
+  await page.keyboard.press('Alt+Digit2');
+  await page.evaluate(() => window.__grawlixTest.pipelineIdle());
+  await expect(toast(page)).toHaveCount(0);
+  expect(await myEdits(page)).toEqual([]);
+});
+
+test('a re-sort keeps the selection — the same rows, just reordered', async ({ page }) => {
+  await setup(page);
+  await row(page, 'alpha').locator('.atom-len').click();
+  await row(page, 'charlie').locator('.atom-entry').click({ modifiers: ['Control'] });
+  expect((await selection(page)).sort()).toEqual(['alpha', 'charlie']);
+
+  await page.evaluate(() => window.__grawlixTest.applySort('score', 'desc'));
+  expect((await selection(page)).sort()).toEqual(['alpha', 'charlie']);
+  await expect(row(page, 'alpha')).toHaveClass(/selected/);
+});
+
+test('a score-range filter clears the selection, even rows it keeps', async ({ page }) => {
+  await setup(page);   // every entry scores 50
+  await row(page, 'alpha').locator('.atom-len').click();
+  await row(page, 'bravo').locator('.atom-entry').click({ modifiers: ['Control'] });
+  expect((await selection(page)).sort()).toEqual(['alpha', 'bravo']);
+
+  // 40-60 keeps every score-50 row, so an empty selection is the clear, not a 0-row view.
+  await page.locator('#score-range-input').fill('40-60');
+  await page.evaluate(() => window.__grawlixTest.pipelineIdle());
+  await expect(row(page, 'alpha')).toHaveCount(1);
+  await expect.poll(() => selection(page)).toEqual([]);
+});
+
+test('a rescore-rule edit clears the selection, even rows it keeps', async ({ page }) => {
+  await setup(page);   // every entry scores 50
+  await row(page, 'alpha').locator('.atom-len').click();
+  await row(page, 'bravo').locator('.atom-entry').click({ modifiers: ['Control'] });
+  expect((await selection(page)).sort()).toEqual(['alpha', 'bravo']);
+
+  // 50->80 keeps every row visible, so an empty selection is the clear, not a 0-row view.
+  await page.evaluate(() =>
+    window.__grawlixTest.setRescoreRules('Src', [{ input: '50', length: '', output: '80' }]));
+  await page.evaluate(() => window.__grawlixTest.pipelineIdle());
+  await expect(row(page, 'alpha')).toHaveCount(1);
+  await expect.poll(() => selection(page)).toEqual([]);
 });
 
 // Touch has no double-click, drag, or modifier keys, so the select-first model is

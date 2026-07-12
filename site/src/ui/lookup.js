@@ -156,11 +156,14 @@ export const LookupSection = (() => {
     const info = sections.length ? note + sections.join('')
       : loading ? `<div class="lookup-empty">Looking up “${esc(shownEntry)}”…</div>`
       : '';
-    // Wikipedia articles are titled canonically, so its link (and inline fetch)
-    // follows the resolved form once known; Google/OneLook handle raw text.
-    const wikiTarget = resolved.get(entry) || entry;
+    // Wikipedia and Wiktionary need an exact page title, so their links (and
+    // inline fetches) follow the resolved form once known — a raw `groundfrost`
+    // 404s where `ground frost` resolves. Google/OneLook are searches; XWord is
+    // letters-only — all fine on the raw text.
+    const resolvedTarget = resolved.get(entry) || entry;
+    const RESOLVED_LINKS = new Set(['wikipedia', 'wiktionary']);
     const links = LOOKUP_SOURCES.map(s => {
-      const target = s.id === 'wikipedia' ? wikiTarget : entry;
+      const target = RESOLVED_LINKS.has(s.id) ? resolvedTarget : entry;
       return `<a class="lookup-link" href="${esc(s.url(target, norm))}" target="_blank" rel="noopener">${esc(s.name)} ↗</a>`;
     }).join('');
     const searchSec = `<div class="lookup-sec"><div class="lookup-sec-head">Search</div><div class="lookup-links">${links}</div></div>`;
