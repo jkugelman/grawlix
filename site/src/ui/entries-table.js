@@ -1205,8 +1205,8 @@ export class EntriesScroller extends BaseVirtualScroller {
   }
 
   // The scroller is torn down + rebuilt on some view swaps (rendering.js), so the
-  // document-level find key and the body-appended bar must be released, or a stale
-  // instance's openFind fires and a dead bar accumulates.
+  // document-level find key and the bar must be released, or a stale instance's
+  // openFind fires and a dead bar accumulates.
   destroy() {
     super.destroy();
     document.removeEventListener('keydown', this._onFindKey);
@@ -1255,7 +1255,7 @@ export class EntriesScroller extends BaseVirtualScroller {
       `<button type="button" class="find-prev" aria-label="Previous match" title="Previous (Shift+Enter)">${caret(true)}</button>` +
       `<button type="button" class="find-next" aria-label="Next match" title="Next (Enter)">${caret(false)}</button>` +
       `<button type="button" class="find-close" aria-label="Close find" title="Close (Esc)">✕</button>`;
-    document.body.appendChild(bar);
+    document.querySelector('#app .sticky-stack').appendChild(bar);
     const input = bar.querySelector('.find-input');
     input.addEventListener('input', () => this._runFind(input.value));
     input.addEventListener('keydown', e => {
