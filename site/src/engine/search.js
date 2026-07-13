@@ -1,6 +1,7 @@
 'use strict';
 
 import { esc } from '../core/util.js';
+import { matchSpansWords, matchIsWholeWords, WORD_BREAK_RE } from './norm.js';
 
 // ─── Search ───────────────────────────────────────────────────────────────────
 
@@ -21,9 +22,11 @@ export function isLiteralQuery(query) { return query !== '' && !SEARCH_WILDCARD_
 // Two arms: the regex runs against both the entry's norm (accents + separators
 // stripped) and its verbatim display, matching if either does — norm forgives
 // separators (`theirs` finds "the IRS"); display requires a typed space/accent.
+// `mode` is the match-extent mode: '' (anywhere), 'full' (whole entry,
+// anchored), 'word' (whole words), or 'span' (crosses a word break).
 // `literal` treats the query as plain text (no wildcards) so Ctrl-F can share
 // this exact matcher and stay in agreement with Search on what matches.
-export function buildSearchPattern(query, wholeWord = false, literal = false) {
+export function buildSearchPattern(query, mode = '', literal = false) {
   // Don't trim: a typed space is a literal that anchors to a word boundary in
   // the display arm. Re-adding `.trim()` reads as an oversight but silently
   // kills that — even an all-whitespace query is a real space search.
@@ -64,7 +67,8 @@ export function buildSearchPattern(query, wholeWord = false, literal = false) {
   }
   closeRun();
 
-  const anchor = p => wholeWord ? '^(?:' + p + ')$' : p;
+  const anchor = p => mode === 'full' ? '^(?:' + p + ')$' : p;
+  const gated = mode === 'word' || mode === 'span';
   let filterRe, hlRe, globalRe;
   try {
     filterRe = new RegExp(anchor(pat),   'iu');
@@ -77,30 +81,61 @@ export function buildSearchPattern(query, wholeWord = false, literal = false) {
   const tag = (ranges, coord) => ranges.map(r => ({ ...r, coord }));
   return {
     test(wlEntry) {
-      if (filterRe.test(wlEntry.norm)) return true;
+      if (!gated) {
+        if (filterRe.test(wlEntry.norm)) return true;
+        const d = wlEntry.display;
+        return d != null && filterRe.test(d);
+      }
       const d = wlEntry.display;
-      return d != null && filterRe.test(d);
+      if (mode === 'span' && (d == null || !WORD_BREAK_RE.test(d))) return false;
+      return anyMatch(globalRe, wlEntry.norm, matchModeOk(mode, wlEntry, 'norm'))
+          || (d != null && anyMatch(globalRe, d, matchModeOk(mode, wlEntry, 'display')));
     },
     // Prefer the display arm's ranges (already in display coordinates); fall back
     // to the norm arm, whose coordinates projectRangesToDisplay maps at render.
     searchRanges(wlEntry) {
       const d = wlEntry.display;
       if (d != null) {
-        const dispRanges = searchRangesFor(d, hlRe);
+        const dispRanges = searchRangesFor(d, hlRe, gated ? matchModeOk(mode, wlEntry, 'display') : null);
         if (dispRanges.length) return tag(dispRanges, 'display');
+      } else if (mode === 'span') {
+        return [];
       }
-      return tag(searchRangesFor(wlEntry.norm, hlRe), 'norm');
+      return tag(searchRangesFor(wlEntry.norm, hlRe, gated ? matchModeOk(mode, wlEntry, 'norm') : null), 'norm');
     },
     globalRe,
     hlRe,
   };
 }
 
-export function searchRangesFor(text, hlRe) {
+export function matchModeOk(mode, wlEntry, coord) {
+  if (mode === 'word') return m => matchIsWholeWords(wlEntry, m.index, m.index + m[0].length, coord);
+  if (mode === 'span') return m => matchSpansWords(wlEntry, m.index, m.index + m[0].length, coord);
+  return null;
+}
+
+function anyMatch(re, text, matchOk) {
+  re.lastIndex = 0;
+  let m;
+  while ((m = re.exec(text)) !== null) {
+    if (matchOk(m)) return true;
+    re.lastIndex = m.index + 1;   // an accepted match may overlap the rejected one — see searchRangesFor
+  }
+  return false;
+}
+
+export function searchRangesFor(text, hlRe, matchOk = null) {
   hlRe.lastIndex = 0;
   const ranges = [];
   let m;
   while ((m = hlRe.exec(text)) !== null) {
+    if (matchOk && !matchOk(m)) {
+      // Resume just past the rejected match's *start*, not its end: a match
+      // that satisfies the gate can overlap the rejected one, and the normal
+      // hop-past-the-match scan silently skips it.
+      hlRe.lastIndex = m.index + 1;
+      continue;
+    }
     ranges.push(...groupSpansToRanges(m));
     if (m[0].length === 0) hlRe.lastIndex++;   // step past a zero-width match or loop forever
   }

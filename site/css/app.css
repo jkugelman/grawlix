@@ -1277,6 +1277,14 @@ body.picker-expanded #picker-backdrop { opacity: 1; }
 .tool-row-replace[hidden] { display: none; }
 .tool-row-param { display: flex; align-items: center; gap: 4px; min-height: var(--tool-control-h); font-size: 12px; color: var(--muted); }
 .tool-row-param label { display: flex; align-items: center; gap: 5px; white-space: nowrap; cursor: pointer; user-select: none; }
+.tool-row-match { gap: 4px; }
+.tool-row-match .more-menu-labeled { font-size: 12px; color: var(--muted); padding: 3px 5px; }
+.tool-row-match .more-menu-labeled:hover:not(:disabled) { color: var(--text); }
+.tool-row-match .more-menu-labeled:focus-visible { outline: 1px solid var(--accent); outline-offset: 1px; border-radius: 3px; }
+.match-mode-menu { position: fixed; right: auto; margin-top: 0; }
+.match-mode-menu.open { display: block; }
+.match-mode-menu button::before { content: ""; display: inline-block; width: 1.2em; }
+.match-mode-menu button[aria-checked="true"]::before { content: "✓"; }
 .tool-row-param-text { flex: 0 1 200px; max-width: 200px; justify-self: start; width: 100%; }
 .tool-row-param-text .clearable-input { flex: 1 1 auto; }
 .find-replace-caret { width: 16px; height: var(--tool-control-h); padding: 0; background: none; border: none; cursor: pointer; color: var(--muted); display: flex; align-items: center; justify-content: center; }

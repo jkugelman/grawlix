@@ -5,7 +5,8 @@ import {
   regexExecAll, runReplace,
 } from '../regex.js';
 import { buildHelpHTML } from '../../core/util.js';
-import { WHOLE_WORD_PARAM, ALLOW_UNLISTED_PARAM } from './shared.js';
+import { matchModeOk } from '../search.js';
+import { MATCH_PARAM, matchModeOf, ALLOW_UNLISTED_PARAM } from './shared.js';
 
 // The SyntaxError prefix is engine-specific: V8 echoes the pattern ("Invalid
 // regular expression: /<src>/<flags>: "), JSC bares it ("Invalid regular
@@ -42,7 +43,7 @@ export default {
       ['$&', 'the whole match'],
       ['$$', 'a literal $'],
     ], { cols: 1, link: { url: 'https://regexone.com/', text: 'Learn regex at regexone.com →' } }) },
-    WHOLE_WORD_PARAM,
+    MATCH_PARAM,
     ALLOW_UNLISTED_PARAM,
   ],
   // Blank replacement reads as filter mode, not "delete the match" — a blank
@@ -67,24 +68,26 @@ export default {
     // pattern match case-insensitively; `d` exposes match indices for
     // highlighting. The pattern runs against both norm and display (see run),
     // so `\s`, `-`, or an accent can match the punctuation display carries but
-    // norm strips. The whole-word wrap is non-capturing so `$N` backrefs keep
+    // norm strips. The whole-entry wrap is non-capturing so `$N` backrefs keep
     // their group numbers.
-    const wrap = src => params['whole-word'] ? '^(?:' + src + ')$' : src;
+    const matchMode = matchModeOf(params);
+    const wrap = src => matchMode === 'full' ? '^(?:' + src + ')$' : src;
     const { capturing, runs } = analyzeRegexPattern(body);
     if (replacement) {
       // The functional `re` can't be wrapped for highlighting — synthetic
       // groups would renumber the user's `$N`; `hlRe` is the wrapped copy.
       const hlRe = capturing ? null : new RegExp(wrap(wrapRuns(body, runs)), 'gid');
-      return { mode: 'replace', re: new RegExp(wrap(body), 'gid'), hlRe, tokens: parseReplacement(replacement), allowUnlisted: !!params['unlisted'] };
+      return { mode: 'replace', re: new RegExp(wrap(body), 'gid'), hlRe, tokens: parseReplacement(replacement), allowUnlisted: !!params['unlisted'], matchMode };
     }
-    return { mode: 'filter', re: new RegExp(wrap(capturing ? body : wrapRuns(body, runs)), 'gid') };
+    return { mode: 'filter', re: new RegExp(wrap(capturing ? body : wrapRuns(body, runs)), 'gid'), matchMode };
   },
   run(wlEntry, prepared, wordlist) {
     if (prepared.mode === 'filter') {
-      const { re } = prepared;
-      const normRes = regexExecAll(re, wlEntry.norm);
+      const { re, matchMode } = prepared;
       const d = wlEntry.display;
-      const dispRes = d != null ? regexExecAll(re, d) : null;
+      if (matchMode === 'span' && d == null) return null;
+      const normRes = regexExecAll(re, wlEntry.norm, matchModeOk(matchMode, wlEntry, 'norm'));
+      const dispRes = d != null ? regexExecAll(re, d, matchModeOk(matchMode, wlEntry, 'display')) : null;
       if (!normRes.hit && !dispRes?.hit) return null;
       if (dispRes?.ranges.length) return dispRes.ranges.map(r => ({ ...r, coord: 'display' }));
       if (normRes.ranges.length) return normRes.ranges.map(r => ({ ...r, coord: 'norm' }));

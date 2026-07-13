@@ -29,21 +29,48 @@ test('`[abc]` matches any listed letter and `[^abc]` matches any unlisted letter
   sameVisible(await visible(lib, search('[^bcr]at')), ['hat', 'mat']);
 });
 
-test('whole-word anchors the query to the entry boundaries', async () => {
+test('mode=full anchors the query to the entry boundaries', async () => {
   sameVisible(await visible(LIB, search('cat')), ['cat', 'cats', 'scat']);
-  sameVisible(await visible(LIB, search('cat', { 'whole-word': true })), ['cat']);
+  sameVisible(await visible(LIB, search('cat', { mode: 'full' })), ['cat']);
 });
 
-test('`*` spans separators, so a prefix matches a multi-word entry even when whole-word', async () => {
+test('`*` spans separators, so a prefix matches a multi-word entry even when mode=full', async () => {
   const lib = ['A Book from the Sky', 'abacus'];
   sameVisible(await visible(lib, search('abook*')), ['A Book from the Sky']);
-  sameVisible(await visible(lib, search('abook*', { 'whole-word': true })), ['A Book from the Sky']);
+  sameVisible(await visible(lib, search('abook*', { mode: 'full' })), ['A Book from the Sky']);
 });
 
-test('whole-word forgives separators at the entry edges, not just between letters', async () => {
+test('mode=full forgives separators at the entry edges, not just between letters', async () => {
   const lib = ['Yahoo!', 'U.S.A.', 'scat'];
-  sameVisible(await visible(lib, search('yahoo', { 'whole-word': true })), ['Yahoo!']);
-  sameVisible(await visible(lib, search('usa', { 'whole-word': true })), ['U.S.A.']);
+  sameVisible(await visible(lib, search('yahoo', { mode: 'full' })), ['Yahoo!']);
+  sameVisible(await visible(lib, search('usa', { mode: 'full' })), ['U.S.A.']);
+});
+
+test('mode=word keeps matches aligned to word boundaries', async () => {
+  const lib = ['cat', 'cat food', 'copycat food', 'scat'];
+  sameVisible(await visible(lib, search('cat', { mode: 'word' })), ['cat', 'cat food']);
+});
+
+test('mode=word may cover several complete words', async () => {
+  const lib = ['cat food bowl', 'tomcat food bowl'];
+  sameVisible(await visible(lib, search('catfood', { mode: 'word' })), ['cat food bowl']);
+});
+
+test('mode=span keeps only matches that cross a word break', async () => {
+  const lib = ['tsar', "it's a rarity", 'satsang'];
+  sameVisible(await visible(lib, search('tsa', { mode: 'span' })), ["it's a rarity"]);
+});
+
+test('mode=span rejects a break the match merely touches at its edge', async () => {
+  const lib = ['the IRS', 'theirs'];
+  sameVisible(await visible(lib, search('the', { mode: 'span' })), []);
+  sameVisible(await visible(lib, search('heir', { mode: 'span' })), ['the IRS']);
+});
+
+test('a hyphen counts as a word break; an apostrophe does not', async () => {
+  const lib = ['x-ray', "isn't"];
+  sameVisible(await visible(lib, search('xr', { mode: 'span' })), ['x-ray']);
+  sameVisible(await visible(lib, search('nt', { mode: 'span' })), []);
 });
 
 test('`?` fills exactly one non-whitespace character — letter or symbol — never a space or nothing', async () => {
@@ -51,9 +78,9 @@ test('`?` fills exactly one non-whitespace character — letter or symbol — ne
   sameVisible(await visible(lib, search('hi?c')), ['hisc', 'hi-c']);
 });
 
-test('whole-word matches an entry whose letters equal the query across its separators', async () => {
+test('mode=full matches an entry whose letters equal the query across its separators', async () => {
   const lib = ['the IRS', 'Theirs', 'theirsy'];
-  sameVisible(await visible(lib, search('theirs', { 'whole-word': true })), ['the IRS', 'Theirs']);
+  sameVisible(await visible(lib, search('theirs', { mode: 'full' })), ['the IRS', 'Theirs']);
 });
 
 test('an empty query is inert — the full merged view passes through', async () => {
@@ -82,9 +109,17 @@ test('a filled replacement rewrites matched entries as a transform; non-entry ou
     [['cat', 'dog'], ['cats', 'dogs']]);
 });
 
-test('whole-word constrains a replacement to entries that match in full', async () => {
-  sameVisible(await visible(REPLACE_LIB, search('cat', { replace: 'dog', 'whole-word': true })),
+test('mode=full constrains a replacement to entries that match in full', async () => {
+  sameVisible(await visible(REPLACE_LIB, search('cat', { replace: 'dog', mode: 'full' })),
     [['cat', 'dog']]);
+});
+
+test('mode=span constrains a replacement to break-crossing matches', async () => {
+  // "heir" spans the break in "the IRS" but sits whole inside a word of
+  // "to heir is human", so only the first entry is rewritten.
+  const lib = ['the IRS', 'theirs', 'to heir is human'];
+  sameVisible(await visible(lib, search('heir', { replace: 'x', unlisted: true, mode: 'span' })),
+    [['the IRS', 'txS']]);
 });
 
 test('replace highlights the matched span in and the replacement out, same color', async () => {

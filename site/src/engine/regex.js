@@ -1,7 +1,7 @@
 'use strict';
 
 import { toNorm, displayOf, normToDisplayMap } from './norm.js';
-import { HL_COLORS, groupSpansToRanges } from './search.js';
+import { HL_COLORS, groupSpansToRanges, matchModeOk } from './search.js';
 
 // ─── Regex tool helpers ─────────────────────────────────────────────────────
 
@@ -132,11 +132,15 @@ export function kindForGroup(g) {
   return 'search:' + (g <= 0 ? 0 : (g - 1) % HL_COLORS);
 }
 
-export function regexExecAll(re, text) {
+export function regexExecAll(re, text, matchOk = null) {
   re.lastIndex = 0;
   const ranges = [];
   let m, hit = false;
   while ((m = re.exec(text)) !== null) {
+    if (matchOk && !matchOk(m)) {
+      re.lastIndex = m.index + 1;   // an accepted match may overlap the rejected one — see searchRangesFor
+      continue;
+    }
     hit = true;
     ranges.push(...groupSpansToRanges(m));
     if (m[0].length === 0) re.lastIndex++;   // step past a zero-width match or loop forever
@@ -144,11 +148,15 @@ export function regexExecAll(re, text) {
   return { hit, ranges };
 }
 
-export function execMatches(re, text) {
+export function execMatches(re, text, matchOk = null) {
   re.lastIndex = 0;
   const matches = [];
   let m;
   while ((m = re.exec(text)) !== null) {
+    if (matchOk && !matchOk(m)) {
+      re.lastIndex = m.index + 1;   // an accepted match may overlap the rejected one — see searchRangesFor
+      continue;
+    }
     matches.push(m);
     if (m[0].length === 0) re.lastIndex++;   // a zero-width match leaves lastIndex put; step it or loop forever
   }
@@ -163,12 +171,13 @@ export function execMatches(re, text) {
 // misaligns in-list highlights, which must stay in norm coords because the
 // executor re-resolves the result onto the real entry.
 export function runReplace(wlEntry, prepared, wordlist) {
-  const { re, hlRe, tokens, allowUnlisted } = prepared;
+  const { re, hlRe, tokens, allowUnlisted, matchMode } = prepared;
   const norm = wlEntry.norm, display = displayOf(wlEntry);
-  let armNorm = true, matches = execMatches(re, norm);
+  if (matchMode === 'span' && wlEntry.display == null) return [];
+  let armNorm = true, matches = execMatches(re, norm, matchModeOk(matchMode, wlEntry, 'norm'));
   if (!matches.length && wlEntry.display != null) {
     armNorm = false;
-    matches = execMatches(re, display);
+    matches = execMatches(re, display, matchModeOk(matchMode, wlEntry, 'display'));
   }
   if (!matches.length) return [];
   const src = armNorm ? norm : display;

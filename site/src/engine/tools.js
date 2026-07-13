@@ -38,9 +38,9 @@ import add_suffix from './tools/add_suffix.js';
 import remove_suffix from './tools/remove_suffix.js';
 import dead_center from './tools/dead_center.js';
 import rebus from './tools/rebus.js';
-import { WHOLE_WORD_PARAM, reverseString, sortLetters } from './tools/shared.js';
+import { reverseString, sortLetters } from './tools/shared.js';
 
-export { WHOLE_WORD_PARAM, reverseString, sortLetters, consonantSkeleton, vowelSkeleton, wordSplits, caesarKey, caesarShift, patternKey, configureUmiaq };
+export { reverseString, sortLetters, consonantSkeleton, vowelSkeleton, wordSplits, caesarKey, caesarShift, patternKey, configureUmiaq };
 
 export const TOOL_CATEGORIES = [
   { id: 'anagram',    label: 'Anagram' },

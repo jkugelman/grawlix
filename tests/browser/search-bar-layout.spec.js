@@ -29,13 +29,14 @@ async function searchBarBoxes(page) {
       caret: pick('.find-replace-caret'),
       pattern: pick(':scope > .tool-row-param-text input'),
       replace: pick('.tool-row-replace .tool-row-param-text input'),
-      wholeWord: pick('.tool-row-asides input[type="checkbox"]'),
+      matchToggle: pick('.tool-row-asides input[type="checkbox"]'),
+      matchMenuBtn: pick('.tool-row-asides .match-mode-btn'),
     };
   });
 }
 
 test.describe('Search bar layout', () => {
-  test('at 1000px viewport: pattern ~200px, whole-word next to it, controls vertically centered', async ({ page }) => {
+  test('at 1000px viewport: pattern ~200px, match toggle next to it, controls vertically centered', async ({ page }) => {
     await page.setViewportSize({ width: 1000, height: 800 });
     await gotoApp(page);
 
@@ -44,12 +45,12 @@ test.describe('Search bar layout', () => {
     expect(b.pattern.width).toBeGreaterThanOrEqual(180);
     expect(b.pattern.width).toBeLessThanOrEqual(210);
 
-    const patternToWord = b.wholeWord.left - b.pattern.right;
-    expect(patternToWord).toBeGreaterThanOrEqual(0);
-    expect(patternToWord).toBeLessThanOrEqual(60);
+    const patternToToggle = b.matchToggle.left - b.pattern.right;
+    expect(patternToToggle).toBeGreaterThanOrEqual(0);
+    expect(patternToToggle).toBeLessThanOrEqual(60);
 
     const cy = b.pattern.cy;
-    for (const el of [b.drag, b.label, b.caret, b.wholeWord]) {
+    for (const el of [b.drag, b.label, b.caret, b.matchToggle, b.matchMenuBtn]) {
       expect(Math.abs(el.cy - cy)).toBeLessThanOrEqual(3);
     }
   });
@@ -78,8 +79,8 @@ test.describe('Search bar layout', () => {
     expect(caretToPattern).toBeGreaterThanOrEqual(4);
     expect(caretToPattern).toBeLessThanOrEqual(10);
 
-    const patternToWord = b.wholeWord.left - b.pattern.right;
-    expect(patternToWord).toBeGreaterThanOrEqual(8);
-    expect(patternToWord).toBeLessThanOrEqual(18);
+    const patternToToggle = b.matchToggle.left - b.pattern.right;
+    expect(patternToToggle).toBeGreaterThanOrEqual(8);
+    expect(patternToToggle).toBeLessThanOrEqual(18);
   });
 });

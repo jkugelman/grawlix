@@ -1,25 +1,29 @@
 'use strict';
 
-import { toNorm } from '../norm.js';
+import { toNorm, matchSpansWords } from '../norm.js';
+import { SPAN_PARAM, matchModeOf } from './shared.js';
 
 export default {
   name: 'Hidden anagram', icon: '🫥', category: 'anagram',
   desc: 'Anagrams hidden inside longer words',
   example: 'inside → windiest',
-  params: [{ placeholder: 'entry' }],
+  params: [{ placeholder: 'entry' }, SPAN_PARAM],
   kind: 'filter', inputHighlights: true, outputHighlights: false,
+  matchOn: 'both',
   isInert: params => !toNorm((params && params.entry) || ''),
   prepare(params) {
     const needle = toNorm(params.entry || '');
     if (!needle) return null;
     const need = new Map();
     for (const ch of needle) need.set(ch, (need.get(ch) || 0) + 1);
-    return { needle, need, len: needle.length };
+    return { needle, need, len: needle.length, spansWords: matchModeOf(params) === 'span' };
   },
-  run(entry, target, wordlist) {
+  run(wlEntry, target, wordlist) {
     if (!target) return true;
-    const { needle, need, len } = target;
+    const { needle, need, len, spansWords } = target;
+    const entry = wlEntry.norm;
     if (entry.length <= len) return false;   // hidden inside a *longer* word — a whole-word anagram is the Anagrams tool
+    if (spansWords && wlEntry.display == null) return false;
 
     // A window covering every required letter (deficit 0) can hold no stray one —
     // it's the needle's length — so containment alone is a full anagram test.
@@ -43,7 +47,8 @@ export default {
       if (i >= len - 1 && deficit === 0) {
         const start = i - len + 1;
         // Require a real rearrangement: the input spelled straight is containment, not an anagram.
-        if (entry.slice(start, start + len) !== needle)
+        if (entry.slice(start, start + len) !== needle
+            && (!spansWords || matchSpansWords(wlEntry, start, start + len)))
           return [{ start, end: start + len, kind: 'search:0' }];
       }
     }

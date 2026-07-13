@@ -28,7 +28,7 @@ export const AppView = (() => {
   // object; written either through the handlers below or through
   // `applyURLState` (Router) / `restoreScoreRange` (boot). The sort state
   // is mutated by EntriesScroller's toolbar via `setSortList`.
-  // Search query / whole-word are *not* here — they live in the permanent
+  // Search query / match mode are *not* here — they live in the permanent
   // Search bar's ToolStack row params; the getters below read them from it.
   let _scoreRange      = '';
   let _sortList        = [{ key: 'entry', dir: 'asc' }];

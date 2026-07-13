@@ -74,7 +74,17 @@ export function buildTextInputHTML(param, value, toolKey, wiring) {
 export function buildParamHTML(param, value, toolKey, wiring) {
   const titleAttr = param.title ? ` title="${esc(param.title)}"` : '';
   if (param.type === 'checkbox') {
-    return `<span class="tool-row-param"><label${titleAttr}><input type="checkbox"${value ? ' checked' : ''}${wiring}> ${esc(param.label)}</label></span>`;
+    const valueAttr = param.value ? ` data-value="${esc(param.value)}"` : '';
+    return `<span class="tool-row-param"><label${titleAttr}><input type="checkbox"${value ? ' checked' : ''}${valueAttr}${wiring}> ${esc(param.label)}</label></span>`;
+  }
+  if (param.type === 'match') {
+    const mode = value || param.menuDefault;
+    const current = param.choices.find(c => c.value === mode) || param.choices[0];
+    return `<span class="tool-row-param tool-row-match" data-mode="${esc(current.value)}">`
+      + `<input type="checkbox"${value ? ' checked' : ''}${titleAttr}${wiring} aria-label="${esc(param.label)}">`
+      + `<button type="button" class="more-menu-btn more-menu-labeled match-mode-btn" title="${esc(param.title)}"`
+      + ` aria-haspopup="menu" aria-expanded="false"><span class="match-mode-label">${esc(current.label)}</span>`
+      + `<svg class="more-menu-caret" aria-hidden="true" viewBox="0 0 8 5"><use href="#icon-arrow"/></svg></button></span>`;
   }
   const labelHTML = param.label ? `<label>${esc(param.label)}</label>` : '';
   if (param.type === 'number') {

@@ -365,11 +365,12 @@ test('a stack Search tool and the permanent Search bar both round-trip through t
   expect(search).toBe('?search=ca&search=cat');
 });
 
-test('whole-word rides as a bare key on its Search row and round-trips', async ({ page }) => {
+test('match mode rides its own Search row and the legacy whole-word key normalizes', async ({ page }) => {
   await gotoApp(page);
   await addAnagramFixture(page);
-  // whole-word is a successive param of the first Search row; the trailing
-  // empty `search=` is the permanent bar (not elided — preceded by a Search).
+  // `whole-word` (the legacy alias) is a successive param of the first Search
+  // row; the trailing empty `search=` is the permanent bar (not elided —
+  // preceded by a Search).
   await page.evaluate(() => {
     history.replaceState(null, '', '?search=cat&whole-word&search=');
     Router.applyURL();
@@ -378,10 +379,11 @@ test('whole-word rides as a bare key on its Search row and round-trips', async (
 
   const userStack = await page.evaluate(() =>
     ToolStack.getUserStack().map(r => ({ tool: r.tool, params: r.params })));
-  expect(userStack).toEqual([{ tool: 'search', params: { pattern: 'cat', 'whole-word': true } }]);
+  expect(userStack).toEqual([{ tool: 'search', params: { pattern: 'cat', mode: 'full' } }]);
 
+  // Re-encoding writes the modern key.
   const search = await page.evaluate(() => { Router.navigate(); return location.search; });
-  expect(search).toBe('?search=cat&whole-word&search=');
+  expect(search).toBe('?search=cat&mode=full&search=');
 });
 
 test('the caret expands a Search row into find/replace; collapsing clears it but keeps the text', async ({ page }) => {

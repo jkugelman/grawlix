@@ -65,15 +65,17 @@ test('a custom wordlist survives a page reload with its entries and rules intact
   });
 });
 
-test('URL search/sort/whole-word state applies on boot and updates as the UI changes', async ({ page }) => {
+test('URL search/sort/match-mode state applies on boot and updates as the UI changes', async ({ page }) => {
   // Visit the app with a URL that encodes a non-default sort axis, a
-  // search query, and the whole-word toggle. The Router's applyURL runs
-  // during init() and seeds AppView's state from these params.
+  // search query, and the match mode — via the legacy `whole-word` alias,
+  // so this doubles as the alias regression test. The Router's applyURL
+  // runs during init() and seeds AppView's state from these params.
   await gotoApp(page, '/?search=BAGEL&whole-word&sort=length');
 
   // UI reflects the URL.
   await expect(page.locator('input[data-key="pattern"]')).toHaveValue('BAGEL');
-  await expect(page.locator('input[data-key="whole-word"]')).toBeChecked();
+  await expect(page.locator('.tool-row-match input[type="checkbox"]')).toBeChecked();
+  await expect(page.locator('.tool-row-match .match-mode-label')).toHaveText('Whole entry');
   await expect(page.locator('.col-len .col-sort')).toHaveAttribute('aria-label', 'Sort by Len, ascending');
 
   // The other half of the round-trip: drive the UI, watch the URL update.
@@ -83,6 +85,13 @@ test('URL search/sort/whole-word state applies on boot and updates as the UI cha
 
   await page.locator('.col-score .col-sort').click();
   await expect.poll(async () => page.evaluate(() => location.search)).toContain('sort=score');
+
+  await page.locator('.search-bar .match-mode-btn').click();
+  await page.locator('.match-mode-menu button[data-mode="span"]').click();
+  await expect(page.locator('.search-bar .match-mode-label')).toHaveText('Spans words');
+  await expect.poll(async () => page.evaluate(() => location.search)).toContain('mode=span');
+  await page.locator('.search-bar .tool-row-match input[type="checkbox"]').uncheck();
+  await expect.poll(async () => page.evaluate(() => location.search)).not.toContain('mode=');
 });
 
 test('SCHEMA_VERSION reset prompt does not re-arm itself after the user clicks Reset', async ({ page }) => {

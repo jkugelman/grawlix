@@ -61,3 +61,19 @@ test('highlights the hidden anagram span on the matched word', async () => {
   const row = rowByFirst(rows, 'windiest');
   assert.deepEqual(highlightTexts(row.atoms[row.atoms.length - 1]), ['indies']);
 });
+
+test('word spanning keeps only windows that cross a word break', async () => {
+  // Both hide "salt" scrambled ("lts a" / "last"), but only the phrase's
+  // window crosses a space; the one-word entry drops.
+  const lib = ['melts away', 'lastly', 'windiest'];
+  sameVisible(await visible(lib, [{ tool: 'hidden_anagram', params: { entry: 'salt', mode: 'span' } }]),
+    ['melts away']);
+});
+
+test('word spanning skips a same-word window for a later crossing one', async () => {
+  // "tales" hides in "stale" (within word 1) and again across "least|ale";
+  // the first window fails the span gate but the scan continues to the second.
+  const lib = ['stale bread', 'least ale'];
+  const out = await visible(lib, [{ tool: 'hidden_anagram', params: { entry: 'tales', mode: 'span' } }]);
+  sameVisible(out, ['least ale']);
+});

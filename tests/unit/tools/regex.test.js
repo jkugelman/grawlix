@@ -25,9 +25,19 @@ test('the pattern matches against both the stripped norm and the verbatim displa
   sameVisible(await visible(lib, regex(' of ')), ['Helen of Troy']);
 });
 
-test('whole-word anchors the pattern to the entry boundaries', async () => {
+test('mode=full anchors the pattern to the entry boundaries', async () => {
   sameVisible(await visible(LIB, regex('cat')), ['cat', 'cats', 'scat']);
-  sameVisible(await visible(LIB, regex('cat', { 'whole-word': true })), ['cat']);
+  sameVisible(await visible(LIB, regex('cat', { mode: 'full' })), ['cat']);
+});
+
+test('mode=word keeps matches aligned to word boundaries', async () => {
+  const lib = ['cat', 'cat food', 'copycat food', 'scat'];
+  sameVisible(await visible(lib, regex('c.t', { mode: 'word' })), ['cat', 'cat food']);
+});
+
+test('mode=span keeps only matches that cross a word break', async () => {
+  const lib = ['data table', 'database', 'the IRS'];
+  sameVisible(await visible(lib, regex('at.', { mode: 'span' })), ['data table']);
 });
 
 test('an empty pattern is inert — the full merged view passes through', async () => {
@@ -53,8 +63,8 @@ test('`$1` in the replacement backreferences a capture group', async () => {
     [['bell', 'bel'], ['teen', 'ten']]);
 });
 
-test('whole-word constrains a replacement to entries that match in full', async () => {
-  sameVisible(await visible(REPLACE_LIB, regex('cat', { replace: 'dog', 'whole-word': true })),
+test('mode=full constrains a replacement to entries that match in full', async () => {
+  sameVisible(await visible(REPLACE_LIB, regex('cat', { replace: 'dog', mode: 'full' })),
     [['cat', 'dog']]);
 });
 

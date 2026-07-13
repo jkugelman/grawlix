@@ -39,12 +39,32 @@ test('encode∘decode is idempotent for a multi-pair row', () => {
 });
 
 test('scalar tools still round-trip (regression)', () => {
-  const qs = query(makeToolRow('search', { pattern: 'c?t', replace: 'dog', 'whole-word': true }));
-  assert.equal(qs, 'search=' + enc('c?t') + '&replace=dog&whole-word');
+  const qs = query(makeToolRow('search', { pattern: 'c?t', replace: 'dog', mode: 'full' }));
+  assert.equal(qs, 'search=' + enc('c?t') + '&replace=dog&mode=full');
   const { rows } = decode(qs);
   assert.equal(rows[0].params.pattern, 'c?t');
   assert.equal(rows[0].params.replace, 'dog');
-  assert.equal(rows[0].params['whole-word'], true);
+  assert.equal(rows[0].params.mode, 'full');
+});
+
+test('legacy whole-word key decodes as mode=full and re-encodes as the new key', () => {
+  const { rows, droppedUnknown } = decode('search=cat&whole-word');
+  assert.equal(droppedUnknown, false);
+  assert.equal(rows[0].params.mode, 'full');
+  assert.equal(query(rows[0]), 'search=cat&mode=full');
+});
+
+test('an off match mode stays out of the URL', () => {
+  assert.equal(query(makeToolRow('search', { pattern: 'cat' })), 'search=cat');
+});
+
+test("hidden anagram's spans-words checkbox rides the shared mode key", () => {
+  const qs = query(makeToolRow('hidden_anagram', { entry: 'inside', mode: 'span' }));
+  assert.equal(qs, 'hidden_anagram=inside&mode=span');
+  assert.equal(decode(qs).rows[0].params.mode, 'span');
+  // A mode the checkbox can't express decodes as off rather than sticking a
+  // truthy junk value into params.
+  assert.equal(decode('hidden_anagram=inside&mode=full').rows[0].params.mode, '');
 });
 
 test('a param at its default value stays out of the URL', () => {

@@ -1036,7 +1036,7 @@ export function bindEvents() {
     } else switch (e.code) {
       case 'KeyM': cycleDarkMode();          break;
       case 'KeyS': focusPermanentSearch();   break;
-      case 'KeyW': toggleWholeWord();        break;
+      case 'KeyW': toggleMatchMode();        break;
       case 'KeyC': focusScoreRange();        break;
       case 'KeyA': openCreateEntry();        break;
       default: handled = false;
@@ -1061,10 +1061,10 @@ function focusScoreRange() {
   if (input) { input.focus(); input.select(); }
 }
 
-function toggleWholeWord() {
+function toggleMatchMode() {
   const row = document.activeElement?.closest('.tool-row, .search-bar');
-  let cb = row?.querySelector('input[type="checkbox"][data-key="whole-word"]');
-  if (!cb) cb = document.querySelector('#app input[data-row="bar"][data-key="whole-word"]');
+  let cb = row?.querySelector('.tool-row-match input[type="checkbox"]');
+  if (!cb) cb = document.querySelector('#app .search-bar .tool-row-match input[type="checkbox"]');
   if (!cb) return;
   cb.checked = !cb.checked;
   cb.dispatchEvent(new Event('input', { bubbles: true }));

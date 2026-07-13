@@ -6,7 +6,24 @@ import { buildHelpHTML } from '../../core/util.js';
 // Only helpers used by 2+ tools belong here; single-use helpers live in their
 // tool's own file.
 
-export const WHOLE_WORD_PARAM = { key: 'whole-word', type: 'checkbox', label: 'Whole word', title: 'Whole word (Alt-W)' };
+export const MATCH_PARAM = {
+  key: 'mode', type: 'match', label: 'Match mode', title: 'Match mode (Alt-W)',
+  menuDefault: 'full',
+  choices: [
+    { value: 'full', label: 'Whole entry' },
+    { value: 'word', label: 'Whole word' },
+    { value: 'span', label: 'Spans words' },
+  ],
+};
+
+export function matchModeOf(params) {
+  const v = params && params.mode;
+  return v === 'full' || v === 'word' || v === 'span' ? v : '';
+}
+
+// `value` (not a boolean checkbox) so the URL reads mode=span like Search and
+// Regex — the key can grow into the full mode menu without breaking links.
+export const SPAN_PARAM = { key: 'mode', type: 'checkbox', value: 'span', label: 'Spans words', title: 'The match must cross a word break' };
 export const ALLOW_UNLISTED_PARAM = { key: 'unlisted', type: 'checkbox', replaceScoped: true, label: 'Allow unlisted', title: "Keep replacements that aren't in the wordlist" };
 
 export const SEARCH_HELP = buildHelpHTML([

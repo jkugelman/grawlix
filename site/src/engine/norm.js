@@ -65,6 +65,70 @@ export function projectRangesToDisplay(ranges, wlEntry) {
   });
 }
 
+// Deliberately whitespace + hyphen, not all punctuation: ISNT inside "isn't"
+// is one word, not a spanning match. Widening this silently changes what the
+// Spans-words filter keeps.
+export const WORD_BREAK_RE = /[\s-]/;
+
+function hasNormChar(ch) {
+  return /[a-z0-9]/.test(stripAccents(ch).toLowerCase());
+}
+
+// The edge trim is load-bearing: a display-coord match can start or end on a
+// separator (a regex `\s` at its edge), and without the trim such a one-word
+// match silently counts as spanning.
+export function matchSpansWords(wlEntry, start, end, coord = 'norm') {
+  const display = wlEntry.display;
+  if (display == null || end <= start) return false;
+  if (coord === 'display') {
+    let s = start, e = end;
+    while (s < e && !hasNormChar(display[s])) s++;
+    while (e > s && !hasNormChar(display[e - 1])) e--;
+    return WORD_BREAK_RE.test(display.slice(s, e));
+  }
+  const map = normToDisplayMap(wlEntry);
+  if (!map || !map.length || start >= map.length) return false;
+  const last = Math.min(end, map.length) - 1;
+  return WORD_BREAK_RE.test(display.slice(map[start], map[last] + 1));
+}
+
+// Deliberately allows the window to cover *several* complete words, not just
+// one — tightening it to a single word silently stops norm-arm queries from
+// matching exact multi-word phrases, with no error to show for it.
+export function matchIsWholeWords(wlEntry, start, end, coord = 'norm') {
+  if (end <= start) return false;
+  const display = wlEntry.display;
+  if (display == null) return start === 0 && end === wlEntry.norm.length;
+  if (coord === 'display') {
+    let s = start, e = end;
+    while (s < e && !hasNormChar(display[s])) s++;
+    while (e > s && !hasNormChar(display[e - 1])) e--;
+    if (s === e) return false;
+    return boundaryBefore(display, s) && boundaryAfter(display, e);
+  }
+  const map = normToDisplayMap(wlEntry);
+  if (!map || !map.length || start >= map.length || end > map.length) return false;
+  const startOk = start === 0 || WORD_BREAK_RE.test(display.slice(map[start - 1] + 1, map[start]));
+  const endOk = end === map.length || WORD_BREAK_RE.test(display.slice(map[end - 1] + 1, map[end]));
+  return startOk && endOk;
+}
+
+function boundaryBefore(display, pos) {
+  for (let i = pos - 1; i >= 0; i--) {
+    if (hasNormChar(display[i])) return false;
+    if (WORD_BREAK_RE.test(display[i])) return true;
+  }
+  return true;
+}
+
+function boundaryAfter(display, pos) {
+  for (let i = pos; i < display.length; i++) {
+    if (hasNormChar(display[i])) return false;
+    if (WORD_BREAK_RE.test(display[i])) return true;
+  }
+  return true;
+}
+
 export function parseWordlistLine(line) {
   if (!line) return null;
   const semi = line.indexOf(';');

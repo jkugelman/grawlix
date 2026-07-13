@@ -234,7 +234,7 @@ test('runReplace: an in-list result stays in norm space for the executor lookup'
   assert.deepEqual(out[0].outputHighlights, [{ start: 2, end: 5, kind: 'search:0' }]);
 });
 
-test('runReplace: a whole-word match on a formatted entry keeps boundary punctuation', () => {
+test('runReplace: a whole-entry match on a formatted entry keeps boundary punctuation', () => {
   const prepared = { re: /^(?:cat)$/gid, hlRe: null, tokens: parseReplacement('dog'), allowUnlisted: true };
   assert.deepEqual(runReplace(wl('cat', '"CAT!"'), prepared, corpus([]))[0].entry, ['"dog!"']);
 });

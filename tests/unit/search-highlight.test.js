@@ -102,19 +102,49 @@ test('buildSearchPattern: plain text is matched case-insensitively as a substrin
   assert.equal(matches(pat, 'dog'), false);
 });
 
-test('buildSearchPattern: wholeWord anchors the pattern with ^…$', () => {
-  const anchored = buildSearchPattern('cat', true);
+test('buildSearchPattern: mode=full anchors the pattern with ^…$', () => {
+  const anchored = buildSearchPattern('cat', 'full');
   assert.equal(matches(anchored, 'cat'), true);
   assert.equal(matches(anchored, 'scatter'), false);
-  const unanchored = buildSearchPattern('cat', false);
+  const unanchored = buildSearchPattern('cat');
   assert.equal(matches(unanchored, 'scatter'), true);
 });
 
+test('buildSearchPattern: mode=word keeps only word-boundary-aligned matches', () => {
+  const pat = buildSearchPattern('cat', 'word');
+  assert.equal(pat.test(wl('catfood', 'cat food')), true);
+  assert.equal(pat.test(wl('copycatfood', 'copycat food')), false);
+  assert.equal(pat.test(wl('cat', null)), true);        // a plain entry is one word
+  assert.equal(pat.test(wl('scat', null)), false);
+});
+
+test('buildSearchPattern: mode=word may cover several complete words', () => {
+  const pat = buildSearchPattern('catfood', 'word');
+  assert.equal(pat.test(wl('catfoodbowl', 'cat food bowl')), true);
+  assert.equal(pat.test(wl('tomcatfoodbowl', 'tomcat food bowl')), false);
+});
+
+test('buildSearchPattern: mode=span keeps only matches that cross a word break', () => {
+  const pat = buildSearchPattern('tsa', 'span');
+  assert.equal(pat.test(wl('itsararity', "it's a rarity")), true);   // spans "it's|a"
+  assert.equal(pat.test(wl('tsar', 'tsar')), false);                 // within one word
+  assert.equal(pat.test(wl('tsar', null)), false);                   // no breaks to span
+});
+
+test('buildSearchPattern: mode=span highlights only the spanning matches', () => {
+  const pat = buildSearchPattern('at', 'span');
+  // "at" occurs inside "data" (norm 1–3) and across the break (norm 3–5);
+  // only the break-crossing hit survives.
+  assert.deepEqual(pat.searchRanges(wl('datatable', 'data table')), [
+    { start: 3, end: 5, kind: 'search:0', coord: 'norm' },
+  ]);
+});
+
 test('buildSearchPattern: literal mode treats every wildcard character as plain text', () => {
-  const pat = buildSearchPattern('c*t', false, true);
+  const pat = buildSearchPattern('c*t', '', true);
   assert.equal(matches(pat, 'cat'), false);   // '*' is a literal, not "any run"
   assert.equal(matches(pat, 'c*t'), true);
-  const cls = buildSearchPattern('a[bc]', false, true);
+  const cls = buildSearchPattern('a[bc]', '', true);
   assert.equal(matches(cls, 'ab'), false);     // '[bc]' is not a character class
   assert.equal(matches(cls, 'a[bc]'), true);
 });

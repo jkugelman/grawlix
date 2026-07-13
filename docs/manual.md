@@ -77,7 +77,7 @@ You sync each list from its wordlist bar, list by list. Two kinds of sync, depen
 - **Ctrl-F / Cmd-F** — find in the entries table (see *Finding in the table*).
 - **Alt-T** — open the tool picker (also **Cmd-K** / **Ctrl-K**).
 - **Alt-S** — focus the search input (the permanent search bar).
-- **Alt-W** — toggle the whole-word checkbox. If a Search or Regex tool row has focus, toggles that row's; otherwise toggles the permanent search bar's.
+- **Alt-W** — toggle the match-mode checkbox (whichever mode its picker shows). If a Search or Regex tool row has focus, toggles that row's; otherwise toggles the permanent search bar's.
 - **Alt-C** — focus the score-range input.
 - **Alt-A** — add an entry (the floating **+** button); opens a blank entry panel that lands the entry in My Edits.
 - **Alt-↑ / Alt-↓** — with the entry panel open, step to the previous / next entry without closing (or the **Prev / Next** buttons). Moving saves the current edit. See *Editing entries*.
@@ -92,7 +92,14 @@ You sync each list from its wordlist bar, list by list. Two kinds of sync, depen
 - `*` — any substring
 - `[abc]` — character class
 - `[a-m]` — character range (`[0-9]` works too)
-- Whole-word toggle anchors the pattern.
+
+Next to the pattern box, a checkbox plus a mode picker constrain **where the match must sit**. Unchecked, the pattern matches anywhere inside an entry. Checked, the picker chooses one of three modes:
+
+- **Whole entry** — the match is the entire entry.
+- **Whole word** — the match is one or more complete words (`cat` matches `cat` and `cat food`, not `copycat`).
+- **Spans words** — the match crosses a word break, for hunting strings hidden across the words of a phrase (`heir` matches `the IRS`, not `theirs`). A space or hyphen counts as a break; an apostrophe or period doesn't (`isn't` is one word).
+
+Clicking the mode name opens the picker; picking a mode turns the checkbox on if it wasn't already. The same controls appear on Regex tool rows. The **Hidden anagram** tool carries a standalone **Spans words** checkbox — the same constraint, for anagrams hidden across the words of a phrase.
 
 Every pattern is matched two ways, and an entry counts as a hit if *either* matches: against the entry **as written** — so a space, hyphen, or accent you type has to be there (`co-op` matches `co-op` but not `coop`; `the IRS` matches `the IRS`; `résumé` matches only `résumé`) — and against its **letters alone**, lowercased with accents, spaces, and punctuation stripped (so `theirs` matches `the IRS`, and a bare `resume` matches both `resume` and `résumé`). The letters-only pass means you rarely need to type separators; the as-written pass means typing them narrows the match to exactly that form. A `?` fills exactly one character of any kind — a letter, or a symbol or space in the as-written form — never nothing.
 
@@ -284,7 +291,7 @@ The header `?` button opens **Help** — an FAQ covering what Grawlix is, rescor
 
 ## Sharing & links
 
-Your tool stack — every tool you've added and its inputs, in pipeline order — plus the search pattern, whole-word toggle, and sort all ride along in the URL. Refreshing the page keeps your state, and pasting the URL into a chat or saving it as a bookmark reproduces what you were looking at.
+Your tool stack — every tool you've added and its inputs, in pipeline order — plus the search pattern, match mode, and sort all ride along in the URL. Refreshing the page keeps your state, and pasting the URL into a chat or saving it as a bookmark reproduces what you were looking at.
 
 The link carries your tools and search settings, not your wordlists, your scope, or your score filter. Wordlists you've loaded stay local; so does the wordlist you're scoped to — a recipient sees the same tools applied to their own scope (usually All Wordlists). The score filter is omitted on purpose: a `60` on your scale isn't a `60` on theirs, so the number wouldn't translate. Your filter and your scope are remembered across your own visits instead.
 

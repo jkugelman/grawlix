@@ -18,7 +18,7 @@ function encodeTailParams(row, schema) {
     if (p.repeat) continue;
     const v = row.params[p.key];
     if (v === p.default) continue;   // a value at its default decodes from absence; don't serialize it
-    if (p.type === 'checkbox') { if (v) parts.push(encodeURIComponent(p.key)); }
+    if (p.type === 'checkbox') { if (v) parts.push(p.value ? encodeURIComponent(p.key) + '=' + encodeURIComponent(p.value) : encodeURIComponent(p.key)); }
     else if (v)                parts.push(encodeURIComponent(p.key) + '=' + encodeURIComponent(v));
   }
   return parts;
@@ -89,7 +89,14 @@ export function decodeRows(params) {
     const pdef = cur && cur.def.params.find(p => p.key === key);
     if (pdef) {
       if (pdef.repeat) (cur.params[pdef.key] ||= []).push(value || '');
-      else cur.params[key] = pdef.type === 'checkbox' ? true : (value || '');
+      else if (pdef.type === 'checkbox') cur.params[key] = pdef.value ? (value === pdef.value ? value : '') : true;
+      else cur.params[key] = value || '';
+      continue;
+    }
+    // Legacy alias: `whole-word` predates the `mode` key and anchored the
+    // whole entry, so it decodes as mode=full — links in the wild carry it.
+    if (key === 'whole-word') {
+      if (cur && cur.def.params.some(p => p.key === 'mode')) cur.params.mode = 'full';
       continue;
     }
     if (!knownParam.has(key)) droppedUnknown = true;

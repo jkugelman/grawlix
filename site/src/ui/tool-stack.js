@@ -39,6 +39,7 @@ import { HL_COLORS } from '../engine/search.js';
 import {
   TOOL_CATEGORIES, FEATURED_TOOLS, TOOLS, groupColumnCSS, makeToolRow,
 } from '../engine/tools.js';
+import { MATCH_PARAM } from '../engine/tools/shared.js';
 import { runOnWorker, preloadWorkerAsset } from './pipeline-worker.js';
 import { bumpPipelineVersion, setResultsStale } from '../data/state.js';
 import {
@@ -291,6 +292,78 @@ export const ToolStack = (() => {
     const row = token === 'bar' ? getSearchBarRow() : stack[token];
     return !!(row && (row._replaceExpanded || (row.params.replace || '').trim()));
   }
+
+  // Body-parented singleton (like SymbolSuggest) rather than a menu anchored
+  // inside the row: .tool-row clips overflow, so an in-row dropdown would be
+  // cut off on user-added Search/Regex rows.
+  const MatchModeMenu = (() => {
+    let el = null, anchor = null;
+
+    const reflow = () => { if (el?.classList.contains('open') && anchor) positionPopover(el, anchor, { placement: 'below', offset: 4 }); };
+
+    function ensure() {
+      if (el) return el;
+      el = document.createElement('div');
+      el.className = 'split-btn-menu match-mode-menu';
+      el.addEventListener('click', (e) => {
+        const opt = e.target.closest('button[data-mode]');
+        if (opt) pick(opt.dataset.mode);
+      });
+      document.addEventListener('click', (e) => {
+        if (el.classList.contains('open') && !el.contains(e.target)) close();
+      });
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') close();
+      });
+      window.addEventListener('resize', reflow);
+      window.addEventListener('scroll', reflow, true);
+      document.body.appendChild(el);
+      return el;
+    }
+
+    function pick(mode) {
+      const wrap = anchor.closest('.tool-row-match');
+      const box = wrap.querySelector('input[type="checkbox"]');
+      const token = box.dataset.row;
+      const row = token === 'bar' ? getSearchBarRow() : stack[parseInt(token, 10)];
+      const choice = MATCH_PARAM.choices.find(c => c.value === mode);
+      close();
+      if (!row || !choice) return;
+      wrap.dataset.mode = mode;
+      wrap.querySelector('.match-mode-label').textContent = choice.label;
+      box.checked = true;
+      row.params.mode = mode;
+      row._error = null;
+      bumpPipelineVersion();
+      _navigate();
+    }
+
+    function open(btn) {
+      anchor = btn;
+      const active = btn.closest('.tool-row-match').dataset.mode;
+      ensure().innerHTML = MATCH_PARAM.choices.map(c =>
+        `<button type="button" role="menuitemradio" aria-checked="${c.value === active}"`
+        + ` data-mode="${esc(c.value)}">${esc(c.label)}</button>`).join('');
+      el.classList.add('open');
+      btn.setAttribute('aria-expanded', 'true');
+      positionPopover(el, btn, { placement: 'below', offset: 4 });
+    }
+
+    function close() {
+      if (!el?.classList.contains('open')) return;
+      el.classList.remove('open');
+      anchor?.setAttribute('aria-expanded', 'false');
+      anchor = null;
+    }
+
+    return {
+      toggle(btn) {
+        const reopen = !(el?.classList.contains('open') && anchor === btn);
+        close();
+        if (reopen) open(btn);
+      },
+    };
+  })();
 
   function buildRowHTML(idx, row) {
     // The last row is the permanent Search bar — its own chrome, no remove
@@ -632,6 +705,12 @@ export const ToolStack = (() => {
 
     const p = panelEl();
     p?.addEventListener('click', (e) => {
+      const modeBtn = e.target.closest('.match-mode-btn');
+      if (modeBtn) {
+        e.stopPropagation();
+        MatchModeMenu.toggle(modeBtn);
+        return;
+      }
       const errBtn = e.target.closest('.tool-row-error-btn[data-error-row]');
       if (errBtn) {
         e.stopPropagation();
@@ -706,10 +785,17 @@ export const ToolStack = (() => {
       const row = rowAttr === 'bar' ? getSearchBarRow() : stack[parseInt(rowAttr, 10)];
       if (!row) return;
       const key = input.dataset.key;
+      const matchBox = input.closest('.tool-row-match');
       if (input.dataset.pair !== undefined) {
         (row.params[key] ||= [])[parseInt(input.dataset.pair, 10)] = input.value;
+      } else if (matchBox && input.type === 'checkbox') {
+        // The wrapper's data-mode is the toggle's memory: checking the box
+        // enables whatever mode the menu last showed. Reading params here
+        // instead would enable a mode other than the one displayed.
+        row.params[key] = input.checked ? matchBox.dataset.mode : '';
       } else if (input.type === 'checkbox') {
-        row.params[key] = input.checked;
+        const v = input.dataset.value;
+        row.params[key] = v ? (input.checked ? v : '') : input.checked;
       } else if (input.type === 'range' && input.dataset.rangeValues) {
         const values = input.dataset.rangeValues.split(',');
         row.params[key] = values[parseInt(input.value, 10)] || '';

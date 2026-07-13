@@ -13,7 +13,7 @@ function activePairs(params) {
   const symbols = asArray(params.symbol);
   const pairs = [];
   for (let i = 0; i < strings.length; i++) {
-    const matcher = buildSearchPattern(strings[i] || '', false);
+    const matcher = buildSearchPattern(strings[i] || '');
     const symbol = symbols[i] || '';
     if (matcher && symbol) pairs.push({ matcher, symbol, kind: `search:${pairs.length % HL_COLORS}` });
   }

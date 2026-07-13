@@ -20,7 +20,7 @@ export function* findOccurrences(text, needleLower) {
   }
 }
 
-export const buildFindMatcher = query => buildSearchPattern(query ?? '', /* wholeWord */ false, /* literal */ true);
+export const buildFindMatcher = query => buildSearchPattern(query ?? '', /* mode */ '', /* literal */ true);
 
 export function* findEntryOccurrences(matcher, wlEntry) {
   if (!matcher.test(wlEntry)) return;

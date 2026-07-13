@@ -2,7 +2,7 @@
 
 import { buildSearchPattern } from '../search.js';
 import { runReplace } from '../regex.js';
-import { WHOLE_WORD_PARAM, ALLOW_UNLISTED_PARAM, SEARCH_HELP } from './shared.js';
+import { MATCH_PARAM, matchModeOf, ALLOW_UNLISTED_PARAM, SEARCH_HELP } from './shared.js';
 
 export default {
   name: 'Search', icon: '<svg width="16" height="16" aria-hidden="true"><use href="#icon-search"/></svg>', category: 'search',
@@ -12,7 +12,7 @@ export default {
   params: [
     { placeholder: 'pattern', help: SEARCH_HELP },
     { key: 'replace', placeholder: 'replace', raw: true },
-    WHOLE_WORD_PARAM,
+    MATCH_PARAM,
     ALLOW_UNLISTED_PARAM,
   ],
   kind: params => (params.replace ? 'transform' : 'filter'),
@@ -24,13 +24,14 @@ export default {
   isInert: params => !buildSearchPattern(params && params.pattern || ''),
   matchOn: 'both',
   prepare(params) {
-    const matcher = buildSearchPattern(params.pattern || '', !!params['whole-word']);
+    const matchMode = matchModeOf(params);
+    const matcher = buildSearchPattern(params.pattern || '', matchMode);
     if (!matcher) return null;
     const replacement = params.replace || '';
     if (replacement) {
       // Not parseReplacement: `$` is plain text in search syntax, and parsing
       // would silently swallow `$N` (search patterns have no groups to echo).
-      return { mode: 'replace', re: matcher.globalRe, hlRe: matcher.hlRe, tokens: [{ lit: replacement }], allowUnlisted: !!params['unlisted'] };
+      return { mode: 'replace', re: matcher.globalRe, hlRe: matcher.hlRe, tokens: [{ lit: replacement }], allowUnlisted: !!params['unlisted'], matchMode };
     }
     return { mode: 'filter', matcher };
   },
