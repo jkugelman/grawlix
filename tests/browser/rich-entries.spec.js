@@ -63,4 +63,13 @@ test.describe('UI-typed entries preserve case', () => {
     ]));
     await expectVisible(page, [['Helen of Troy', 'Bob of Troy']]);
   });
+
+  test('Regex-replace keeps the source formatting in an unlisted output', async ({ page }) => {
+    await gotoApp(page);
+    await addRich(page, 'Replace', ['Helen of Troy'], [50]);
+    await page.evaluate(() => window.__grawlixTest.setStack([
+      { tool: 'regex', params: { pattern: 'helen', replace: 'xxx', unlisted: true } },
+    ]));
+    await expectVisible(page, [['Helen of Troy', 'xxx of Troy']]);
+  });
 });

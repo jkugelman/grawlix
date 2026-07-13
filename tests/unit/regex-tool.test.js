@@ -7,6 +7,7 @@ import {
 import regexTool from '../../site/src/engine/tools/regex.js';
 
 const corpus = keys => ({ byNorm: new Map(keys.map(k => [k, true])) });
+const wl = (norm, display = null) => ({ norm, display });
 
 test('analyzeRegexPattern: a fully-literal pattern is one run, no capture', () => {
   assert.deepEqual(analyzeRegexPattern('cat'), { capturing: false, runs: [[0, 3]] });
@@ -155,7 +156,7 @@ test('regexExecAll: a zero-width lookahead with a capture still advances and col
 
 test('runRegexReplace: capture-group replacement rewrites and highlights both sides', () => {
   const prepared = { re: /(cat)/gid, hlRe: null, tokens: parseReplacement('$1z') };
-  const out = runRegexReplace('cat', prepared, corpus(['catz']));
+  const out = runRegexReplace(wl('cat'), prepared, corpus(['catz']));
   assert.deepEqual(out, [{
     entry: 'catz',
     inputHighlights: [{ start: 0, end: 3, kind: 'search:0' }],
@@ -165,7 +166,7 @@ test('runRegexReplace: capture-group replacement rewrites and highlights both si
 
 test('runRegexReplace: a groupless pattern draws its input highlights from the wrapped hlRe', () => {
   const prepared = { re: /cat/gid, hlRe: /(cat)/gid, tokens: parseReplacement('dog') };
-  const out = runRegexReplace('cat', prepared, corpus(['dog']));
+  const out = runRegexReplace(wl('cat'), prepared, corpus(['dog']));
   assert.deepEqual(out, [{
     entry: 'dog',
     inputHighlights: [{ start: 0, end: 3, kind: 'search:0' }],
@@ -175,32 +176,67 @@ test('runRegexReplace: a groupless pattern draws its input highlights from the w
 
 test('runRegexReplace: a result absent from the corpus is dropped', () => {
   const prepared = { re: /(cat)/gid, hlRe: null, tokens: parseReplacement('$1z') };
-  assert.deepEqual(runRegexReplace('cat', prepared, corpus([])), []);
+  assert.deepEqual(runRegexReplace(wl('cat'), prepared, corpus([])), []);
 });
 
 test('runRegexReplace: an output equal to the input is dropped even if in the corpus', () => {
   const prepared = { re: /cat/gid, hlRe: /(cat)/gid, tokens: parseReplacement('$&') };
-  assert.deepEqual(runRegexReplace('cat', prepared, corpus(['cat'])), []);
+  assert.deepEqual(runRegexReplace(wl('cat'), prepared, corpus(['cat'])), []);
 });
 
 test('runRegexReplace: allowUnlisted keeps an off-list result, array-wrapped for a synthetic score', () => {
   const prepared = { re: /(cat)/gid, hlRe: null, tokens: parseReplacement('$1z'), allowUnlisted: true };
-  const out = runRegexReplace('cat', prepared, corpus([]));
+  const out = runRegexReplace(wl('cat'), prepared, corpus([]));
   assert.deepEqual(out, [{
     entry: ['catz'],
     inputHighlights: [{ start: 0, end: 3, kind: 'search:0' }],
-    outputHighlights: [{ start: 0, end: 3, kind: 'search:0' }],
+    outputHighlights: [{ start: 0, end: 3, kind: 'search:0', coord: 'display' }],
   }]);
 });
 
 test('runRegexReplace: allowUnlisted leaves an in-list result a plain string (keeps the real lookup)', () => {
   const prepared = { re: /(cat)/gid, hlRe: null, tokens: parseReplacement('$1z'), allowUnlisted: true };
-  assert.equal(runRegexReplace('cat', prepared, corpus(['catz']))[0].entry, 'catz');
+  assert.equal(runRegexReplace(wl('cat'), prepared, corpus(['catz']))[0].entry, 'catz');
 });
 
 test('runRegexReplace: allowUnlisted still drops an output equal to the input', () => {
   const prepared = { re: /cat/gid, hlRe: /(cat)/gid, tokens: parseReplacement('$&'), allowUnlisted: true };
-  assert.deepEqual(runRegexReplace('cat', prepared, corpus([])), []);
+  assert.deepEqual(runRegexReplace(wl('cat'), prepared, corpus([])), []);
+});
+
+test('runRegexReplace: a synthetic result splices the replacement into the display', () => {
+  const prepared = { re: /bonnie/gid, hlRe: /(bonnie)/gid, tokens: parseReplacement('xxx'), allowUnlisted: true };
+  const entry = wl('03bonnieandclyde', "'03 Bonnie and Clyde");
+  const out = runRegexReplace(entry, prepared, corpus([]));
+  assert.deepEqual(out, [{
+    entry: ["'03 xxx and Clyde"],
+    inputHighlights: [{ start: 2, end: 8, kind: 'search:0' }],
+    outputHighlights: [{ start: 4, end: 7, kind: 'search:0', coord: 'display' }],
+  }]);
+});
+
+test('runRegexReplace: a group echo in a synthetic result takes its display slice', () => {
+  const prepared = { re: /(03)(bonnie)/gid, hlRe: null, tokens: parseReplacement('$2$1'), allowUnlisted: true };
+  const entry = wl('03bonnieandclyde', "'03 Bonnie and Clyde");
+  const out = runRegexReplace(entry, prepared, corpus([]));
+  assert.deepEqual(out[0].entry, ["'Bonnie03 and Clyde"]);
+  assert.deepEqual(out[0].outputHighlights, [
+    { start: 1, end: 7, kind: 'search:1', coord: 'display' },
+    { start: 7, end: 9, kind: 'search:0', coord: 'display' },
+  ]);
+});
+
+test('runRegexReplace: an in-list result stays in norm space for the executor lookup', () => {
+  const prepared = { re: /bonnie/gid, hlRe: /(bonnie)/gid, tokens: parseReplacement('xxx') };
+  const entry = wl('03bonnieandclyde', "'03 Bonnie and Clyde");
+  const out = runRegexReplace(entry, prepared, corpus(['03xxxandclyde']));
+  assert.equal(out[0].entry, '03xxxandclyde');
+  assert.deepEqual(out[0].outputHighlights, [{ start: 2, end: 5, kind: 'search:0' }]);
+});
+
+test('runRegexReplace: a whole-word match on a formatted entry keeps boundary punctuation', () => {
+  const prepared = { re: /^(?:cat)$/gid, hlRe: null, tokens: parseReplacement('dog'), allowUnlisted: true };
+  assert.deepEqual(runRegexReplace(wl('cat', '"CAT!"'), prepared, corpus([]))[0].entry, ['"dog!"']);
 });
 
 test('runSearchReplace: rewrites a literal match and highlights with display coords', () => {

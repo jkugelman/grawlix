@@ -1,6 +1,6 @@
 'use strict';
 
-import { toNorm } from './norm.js';
+import { toNorm, displayOf, normToDisplayMap } from './norm.js';
 import { HL_COLORS, groupSpansToRanges } from './search.js';
 
 // ─── Regex tool helpers ─────────────────────────────────────────────────────
@@ -144,44 +144,65 @@ export function regexExecAll(re, text) {
   return { hit, ranges };
 }
 
-export function runRegexReplace(entry, prepared, wordlist) {
+// The lockstep norm/display builds aren't redundant — collapsing to one is a
+// silent regression either way: norm-only loses the synthetic output's
+// case/punctuation; display-only misaligns in-list highlights, which must stay
+// in norm coords because the executor re-resolves the result onto the real
+// entry (whose display differs from ours).
+export function runRegexReplace(wlEntry, prepared, wordlist) {
   const { re, hlRe, tokens, allowUnlisted } = prepared;
+  const norm = wlEntry.norm, display = displayOf(wlEntry);
+  const map = normToDisplayMap(wlEntry);
+  const projStart = i => !map ? i : i < map.length ? map[i] : display.length;
+  const projEnd = (s, e) => e === s ? projStart(s) : !map ? e : map[e - 1] + 1;
   re.lastIndex = 0;
-  let out = '', inPos = 0, m;
-  const inputHighlights = [], outputHighlights = [];
-  while ((m = re.exec(entry)) !== null) {
+  let outNorm = '', outDisp = '', inPos = 0, dispPos = 0, m;
+  const inputHighlights = [], normHl = [], dispHl = [];
+  while ((m = re.exec(norm)) !== null) {
     const mStart = m.index, mEnd = mStart + m[0].length;
     const groups = m.length > 1;
-    out += entry.slice(inPos, mStart);
+    outNorm += norm.slice(inPos, mStart);
+    outDisp += display.slice(dispPos, projStart(mStart));
     if (groups) {
       for (let g = 1; g < m.length; g++) {
         if (m.indices[g]) inputHighlights.push({ start: m.indices[g][0], end: m.indices[g][1], kind: kindForGroup(g) });
       }
     } else if (hlRe) {
       hlRe.lastIndex = mStart;   // lockstep with `re`: same pattern, literal runs wrapped
-      inputHighlights.push(...groupSpansToRanges(hlRe.exec(entry)));
+      inputHighlights.push(...groupSpansToRanges(hlRe.exec(norm)));
     }
     let litIdx = 0;
     for (const tok of tokens) {
+      let normVal, dispVal, kind = null;
       if (tok.lit !== undefined) {
-        if (!groups) outputHighlights.push({ start: out.length, end: out.length + tok.lit.length, kind: `search:${litIdx++ % HL_COLORS}` });
-        out += tok.lit;
-        continue;
+        normVal = dispVal = tok.lit;
+        if (!groups) kind = `search:${litIdx++ % HL_COLORS}`;
+      } else {
+        const span = m.indices[tok.group];
+        normVal = m[tok.group] || '';
+        dispVal = span ? display.slice(projStart(span[0]), projEnd(span[0], span[1])) : '';
+        if (normVal && groups) kind = kindForGroup(tok.group);
       }
-      const val = tok.group === 0 ? m[0] : (m[tok.group] || '');
-      if (val && groups) outputHighlights.push({ start: out.length, end: out.length + val.length, kind: kindForGroup(tok.group) });
-      out += val;
+      if (kind) {
+        normHl.push({ start: outNorm.length, end: outNorm.length + normVal.length, kind });
+        dispHl.push({ start: outDisp.length, end: outDisp.length + dispVal.length, kind, coord: 'display' });
+      }
+      outNorm += normVal;
+      outDisp += dispVal;
     }
     inPos = mEnd;
+    dispPos = projEnd(mStart, mEnd);
     if (m[0].length === 0) re.lastIndex++;   // a zero-width match leaves lastIndex put; step it or loop forever
   }
-  out += entry.slice(inPos);
-  if (out === entry) return [];
-  const inList = wordlist.byNorm.has(out);
+  outNorm += norm.slice(inPos);
+  outDisp += display.slice(dispPos);
+  if (outNorm === norm) return [];
+  const inList = wordlist.byNorm.has(outNorm);
   if (!inList && !allowUnlisted) return [];
+  if (inList) return [{ entry: outNorm, inputHighlights, outputHighlights: normHl }];
   // Array-wrap is load-bearing: it's the executor's synthetic-entry signal, so
   // an off-list result inherits the source score. Unwrap it and scores zero out.
-  return [{ entry: inList ? out : [out], inputHighlights, outputHighlights }];
+  return [{ entry: [outDisp], inputHighlights, outputHighlights: dispHl }];
 }
 
 export function runSearchReplace(entry, prepared, wordlist) {

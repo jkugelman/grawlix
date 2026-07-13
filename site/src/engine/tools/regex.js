@@ -90,6 +90,6 @@ export default {
       if (normRes.ranges.length) return normRes.ranges.map(r => ({ ...r, coord: 'norm' }));
       return true;
     }
-    return runRegexReplace(wlEntry.norm, prepared, wordlist);
+    return runRegexReplace(wlEntry, prepared, wordlist);
   },
 };
