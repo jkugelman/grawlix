@@ -386,7 +386,7 @@ test('match mode rides its own Search row and the legacy whole-word key normaliz
   expect(search).toBe('?search=cat&mode=full&search=');
 });
 
-test('the caret expands a Search row into find/replace; collapsing clears it but keeps the text', async ({ page }) => {
+test('the caret expands a Search row into find/replace; only toggles that change the replacement re-run the pipeline', async ({ page }) => {
   await gotoApp(page);
   await addAnagramFixture(page);
 
@@ -395,22 +395,36 @@ test('the caret expands a Search row into find/replace; collapsing clears it but
   const replace = row.locator('input[data-key="replace"]');
   const caret = row.locator('.find-replace-caret');
   const replaceParam = () => page.evaluate(() => ToolStack.getUserStack()[0].params.replace);
+  const pipelineVersion = () => page.evaluate(() => window.__grawlixTest.pipelineVersion());
 
   await expect(replace).toBeHidden();
 
+  const v0 = await pipelineVersion();
   await caret.click();
   await expect(replace).toBeVisible();
+  expect(await pipelineVersion()).toBe(v0);
   await replace.fill('dog');
   expect(await replaceParam()).toBe('dog');
 
+  const v1 = await pipelineVersion();
   await caret.click();
   await expect(replace).toBeHidden();
   expect(await replaceParam()).toBeUndefined();
   await expect(replace).toHaveValue('dog');
+  expect(await pipelineVersion()).toBe(v1 + 1);
 
   await caret.click();
   await expect(replace).toBeVisible();
   expect(await replaceParam()).toBe('dog');
+  expect(await pipelineVersion()).toBe(v1 + 2);
+
+  await replace.fill('');
+  const v2 = await pipelineVersion();
+  await caret.click();
+  await expect(replace).toBeHidden();
+  await caret.click();
+  await expect(replace).toBeVisible();
+  expect(await pipelineVersion()).toBe(v2);
 });
 
 test('score range drops chains whose journey touched an out-of-range atom', async ({ page }) => {

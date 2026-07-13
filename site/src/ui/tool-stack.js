@@ -767,14 +767,17 @@ export const ToolStack = (() => {
         const wrap = caret.closest('.tool-row, .search-bar').querySelector('.tool-row-replace');
         wrap.hidden = !expanding;
         const replaceInput = wrap.querySelector('input');
+        const before = row.params.replace || '';
         if (expanding) {
           row.params.replace = replaceInput.value;
           replaceInput.focus();
         } else {
           delete row.params.replace;
         }
-        bumpPipelineVersion();
-        _navigate();
+        if ((row.params.replace || '') !== before) {
+          bumpPipelineVersion();
+          _navigate();
+        }
         return;
       }
     });

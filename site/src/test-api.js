@@ -17,7 +17,7 @@ import { toNorm, displayOf, parseWordlist, buildUserWlEntry } from './engine/nor
 import { getTrashScore } from './data/serialize.js';
 import { setUnigramCorpus as segmenterSetCorpus } from './engine/segmenter.js';
 import { TOOLS, makeToolRow } from './engine/tools.js';
-import { state, newDbKey, syncKey, getEditsWordlist } from './data/state.js';
+import { state, newDbKey, syncKey, getEditsWordlist, pipelineVersion$ } from './data/state.js';
 import { getDb, Storage } from './data/storage.js';
 import { migrateLs } from './data/migrations.js';
 import {
@@ -319,6 +319,7 @@ const __grawlixTest = {
   sendWorkerDeleteEntry: (target, timeout) => sendDeleteEntry(target, timeout),
   syncConfigsSent,
   lastCompletedRunId,
+  pipelineVersion: () => pipelineVersion$.peek(),
   // 'splice' | 'rebuild' | null — how the last applyFetched resolved (threshold path).
   lastFetchMode: () => lastFetchAppliedMode$(),
   allRowsFetchesSent,
