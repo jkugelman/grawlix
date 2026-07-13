@@ -9,6 +9,7 @@
 import { LOOKUP_SOURCES, getLookupSource } from '../engine/lookup.js';
 import { toNorm } from '../engine/norm.js';
 import { resolveEntryCanonical } from './canonical.js';
+import { LruCache } from '../core/lru.js';
 import { esc } from '../core/util.js';
 
 const INLINE = LOOKUP_SOURCES.filter(s => s.fetch);
@@ -20,11 +21,11 @@ export const LookupSection = (() => {
   let norm = '';
   let shownEntry = '';   // entry whose inline results are on screen — swaps lazily
   let debounceTimer = null;
-  const cache = new Map();
+  const cache = new LruCache(300, 60 * 60 * 1000);
   // entry → resolved canonical form to fall back to (string), null (resolved, no
   // usable alternative), or undefined (not yet resolved). Keyed like `cache`, so
   // it persists across entries at module scope.
-  const resolved = new Map();
+  const resolved = new LruCache(100, 60 * 60 * 1000);
 
   function key(entryStr, id) { return `${entryStr} ${id}`; }
 
@@ -70,6 +71,7 @@ export const LookupSection = (() => {
     clearTimeout(debounceTimer);
     debounceTimer = null;
     for (const s of INLINE) ensureLoaded(s.id);
+    ensureFallback(entry);
     render();
   }
 
@@ -84,7 +86,7 @@ export const LookupSection = (() => {
     clearTimeout(debounceTimer);
     debounceTimer = null;
     if (!entry) shownEntry = '';
-    else if (inlineSettled(entry)) shownEntry = entry;   // already fetched — show at once
+    else if (inlineSettled(entry)) { shownEntry = entry; ensureFallback(entry); }   // already fetched — show at once
     else debounceTimer = setTimeout(runInlineLookups, LOOKUP_DEBOUNCE_MS);
     render();
   }
@@ -112,7 +114,7 @@ export const LookupSection = (() => {
       // arrive) or once it has fully settled and can replace the stale content.
       if (shownEntry === myEntry || inlineSettled(myEntry)) {
         shownEntry = myEntry;
-        if (inlineSettled(myEntry) && !hasAnyResult(myEntry)) ensureResolved(myEntry);
+        ensureFallback(myEntry);
         render();
       }
     });
@@ -120,8 +122,17 @@ export const LookupSection = (() => {
 
   // Entry drew a blank everywhere: fetch its canonical form's lookups instead, so
   // a concatenation/miscased entry still lights up. No usable alternative → null.
+  function ensureFallback(entryStr) {
+    if (inlineSettled(entryStr) && !hasAnyResult(entryStr)) ensureResolved(entryStr);
+  }
+
   function ensureResolved(entryStr) {
-    if (resolved.has(entryStr)) return;
+    const alt = resolved.get(entryStr);
+    // A cached alt can outlive its fetched lookups (the caches evict
+    // independently), so re-ensure them — otherwise fallbackPending waits on
+    // fetches nothing will start.
+    if (alt) { for (const s of INLINE) fetchInto(alt, s.id); return; }
+    if (resolved.has(entryStr)) return;   // in flight (undefined) or no alternative (null)
     resolved.set(entryStr, undefined);
     resolveEntryCanonical(entryStr).then(form => {
       const alt = form && form !== entryStr ? form : null;

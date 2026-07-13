@@ -8,9 +8,10 @@
 
 import { toNorm } from '../engine/norm.js';
 import { resolveReference } from '../engine/canonical.js';
+import { LruCache } from '../core/lru.js';
 import { fetchWorkerSpaceOut } from './pipeline-worker.js';
 
-const cache = new Map();
+const cache = new LruCache(100, 60 * 60 * 1000);
 
 // Resolve `display` to { value, complete }. `complete` is false when a reference
 // fetch failed, so resolveCached can refuse to keep it — the answer then depends
@@ -41,7 +42,7 @@ async function computeCanonical(display) {
     if (norm.length > 3 && display.endsWith('s')) {
       const stem = norm.slice(0, -1);
       // Short-circuit: the plural's own lookup may already hold the singular (a
-      // full-text hit or a redirect); the fetches are memoized, so re-resolving
+      // full-text hit or a redirect); fetchJSON caches by URL, so re-resolving
       // `fallback` against the singular norm reuses them at no network cost.
       const near = await resolveReference(fallback, stem);
       if (near && toNorm(near + 's') === norm) return { value: near + 's', complete: true };

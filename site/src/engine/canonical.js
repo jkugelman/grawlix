@@ -18,20 +18,6 @@ const WIKIPEDIA_API = 'https://en.wikipedia.org/w/api.php';
 
 // ─── Reference queries (network; soft-fail to empty) ─────────────────────────
 
-// Dedupes fetches within a session so re-resolving the same query is free — the
-// plural short-circuit (§ ui/canonical.js) resolves the same query twice, once per
-// norm. A *failed* fetch is evicted so a transient error re-fetches; a successful
-// result (empty or not) is a real answer and stays cached.
-const fetchMemo = new Map();
-function memo(key, fetcher) {
-  const hit = fetchMemo.get(key);
-  if (hit) return hit;
-  const p = fetcher();
-  p.catch(() => fetchMemo.delete(key));
-  fetchMemo.set(key, p);
-  return p;
-}
-
 // A 404 means "no such resource" — a genuine empty answer. Anything else (429,
 // 5xx, network) is a failure that must propagate, so the resolver can tell "the
 // source has nothing" from "the source didn't answer" and refuse to cache/finalize
@@ -44,24 +30,20 @@ function emptyOn404(err, empty) {
 // list=search, not opensearch: only the search index folds diacritics, so a bare
 // query recovers accented titles (emigre → émigré) that prefix-matching opensearch
 // never surfaces. Wiktionary titles are already true-case ($wgCapitalLinks off).
-export function wiktionaryTitles(query) {
-  return memo('wt:' + query, async () => {
-    const url = `${WIKTIONARY_API}?action=query&list=search&srsearch=${encodeURIComponent(query)}&srlimit=8&format=json&origin=*`;
-    try {
-      const data = await fetchJSON(url);
-      return (data?.query?.search || []).map(s => s.title).filter(Boolean);
-    } catch (err) { return emptyOn404(err, []); }
-  });
+export async function wiktionaryTitles(query) {
+  const url = `${WIKTIONARY_API}?action=query&list=search&srsearch=${encodeURIComponent(query)}&srlimit=8&format=json&origin=*`;
+  try {
+    const data = await fetchJSON(url);
+    return (data?.query?.search || []).map(s => s.title).filter(Boolean);
+  } catch (err) { return emptyOn404(err, []); }
 }
 
-export function wikipediaTitles(query) {
-  return memo('wp:' + query, async () => {
-    const url = `${WIKIPEDIA_API}?action=opensearch&search=${encodeURIComponent(query)}&limit=8&format=json&origin=*`;
-    try {
-      const data = await fetchJSON(url);
-      return Array.isArray(data?.[1]) ? data[1] : [];
-    } catch (err) { return emptyOn404(err, []); }
-  });
+export async function wikipediaTitles(query) {
+  const url = `${WIKIPEDIA_API}?action=opensearch&search=${encodeURIComponent(query)}&limit=8&format=json&origin=*`;
+  try {
+    const data = await fetchJSON(url);
+    return Array.isArray(data?.[1]) ? data[1] : [];
+  } catch (err) { return emptyOn404(err, []); }
 }
 
 // ─── Casing / stylization predicates (pure) ──────────────────────────────────

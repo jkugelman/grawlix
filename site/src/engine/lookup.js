@@ -7,18 +7,36 @@
 // site can only read a response whose server sends permissive CORS headers, so
 // only CORS-open APIs render inline — the link-out is the universal fallback.
 
+import { LruCache } from '../core/lru.js';
+
 const DATAMUSE = 'https://api.datamuse.com/words';
 const WIKI_SUMMARY = 'https://en.wikipedia.org/api/rest_v1/page/summary/';
 const WIKTIONARY_DEF = 'https://en.wiktionary.org/api/rest_v1/page/definition/';
 
-export async function fetchJSON(url, retries = 1) {
+// Sharing one cache across every endpoint is load-bearing for the summary URL:
+// the rename hint and the Wikipedia card read the same response here, and
+// separate fetches would let them silently diverge. A 404 stays cached — it's a
+// real answer — while a transient failure (429, 5xx, network) is evicted so the
+// next access retries.
+const responses = new LruCache(300, 60 * 60 * 1000);
+
+export function fetchJSON(url) {
+  const hit = responses.get(url);
+  if (hit) return hit;
+  const p = requestJSON(url, 1);
+  p.catch(err => { if (err.status !== 404) responses.delete(url); });
+  responses.set(url, p);
+  return p;
+}
+
+async function requestJSON(url, retries) {
   const res = await fetch(url, { headers: { Accept: 'application/json' } });
   // One polite retry on rate-limiting (honoring Retry-After, capped) so a
   // transient 429 doesn't turn into a degraded, sticky lookup result.
   if (res.status === 429 && retries > 0) {
     const after = parseInt(res.headers.get('retry-after'), 10);
     await new Promise(r => setTimeout(r, Math.min(2000, (after > 0 ? after : 1) * 1000)));
-    return fetchJSON(url, retries - 1);
+    return requestJSON(url, retries - 1);
   }
   if (!res.ok) {
     const err = new Error(`HTTP ${res.status}`);
@@ -33,37 +51,26 @@ async function synonymsLookup(entry) {
   return { kind: 'words', words: data.map(d => d.word).filter(Boolean) };
 }
 
-// One memoized REST-summary fetch shared by the card here and the canonical
-// resolver (which reads its bold lead for casing). Sharing is load-bearing:
-// separate fetches would let the hint and card silently diverge. Evict on failure
-// so a transient error re-fetches; a 404 is a real empty. Title passed verbatim —
-// case-sensitive past the first letter.
-const summaryMemo = new Map();
-export function fetchWikipediaSummary(title) {
-  const hit = summaryMemo.get(title);
-  if (hit) return hit;
-  const p = (async () => {
-    let data;
-    try {
-      data = await fetchJSON(WIKI_SUMMARY + encodeURIComponent(title));
-    } catch (err) {
-      if (err.status === 404) return { empty: true, extractHtml: '' };
-      throw err;
-    }
-    return {
-      empty: !data.extract,
-      title: data.title,
-      description: data.description || '',
-      extract: data.extract || '',
-      extractHtml: data.extract_html || '',
-      thumbnail: data.thumbnail?.source || null,
-      pageUrl: data.content_urls?.desktop?.page || null,
-      disambiguation: data.type === 'disambiguation',
-    };
-  })();
-  p.catch(() => summaryMemo.delete(title));
-  summaryMemo.set(title, p);
-  return p;
+// Title passed verbatim — case-sensitive past the first letter, so lowercasing
+// it would 404 proper nouns. A 404 is a real empty.
+export async function fetchWikipediaSummary(title) {
+  let data;
+  try {
+    data = await fetchJSON(WIKI_SUMMARY + encodeURIComponent(title));
+  } catch (err) {
+    if (err.status === 404) return { empty: true, extractHtml: '' };
+    throw err;
+  }
+  return {
+    empty: !data.extract,
+    title: data.title,
+    description: data.description || '',
+    extract: data.extract || '',
+    extractHtml: data.extract_html || '',
+    thumbnail: data.thumbnail?.source || null,
+    pageUrl: data.content_urls?.desktop?.page || null,
+    disambiguation: data.type === 'disambiguation',
+  };
 }
 
 async function wikipediaLookup(entry) {
