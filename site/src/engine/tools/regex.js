@@ -2,7 +2,7 @@
 
 import {
   analyzeRegexPattern, wrapRuns, parseReplacement,
-  regexExecAll, runRegexReplace,
+  regexExecAll, runReplace,
 } from '../regex.js';
 import { buildHelpHTML } from '../../core/util.js';
 import { WHOLE_WORD_PARAM, ALLOW_UNLISTED_PARAM } from './shared.js';
@@ -90,6 +90,6 @@ export default {
       if (normRes.ranges.length) return normRes.ranges.map(r => ({ ...r, coord: 'norm' }));
       return true;
     }
-    return runRegexReplace(wlEntry, prepared, wordlist);
+    return runReplace(wlEntry, prepared, wordlist);
   },
 };

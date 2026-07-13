@@ -92,6 +92,7 @@ export function buildSearchPattern(query, wholeWord = false, literal = false) {
       return tag(searchRangesFor(wlEntry.norm, hlRe), 'norm');
     },
     globalRe,
+    hlRe,
   };
 }
 

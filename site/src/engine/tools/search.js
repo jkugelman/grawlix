@@ -1,8 +1,7 @@
 'use strict';
 
-import { displayOf } from '../norm.js';
 import { buildSearchPattern } from '../search.js';
-import { runSearchReplace } from '../regex.js';
+import { runReplace } from '../regex.js';
 import { WHOLE_WORD_PARAM, ALLOW_UNLISTED_PARAM, SEARCH_HELP } from './shared.js';
 
 export default {
@@ -28,11 +27,16 @@ export default {
     const matcher = buildSearchPattern(params.pattern || '', !!params['whole-word']);
     if (!matcher) return null;
     const replacement = params.replace || '';
-    return replacement ? { mode: 'replace', matcher, replacement, allowUnlisted: !!params['unlisted'] } : { mode: 'filter', matcher };
+    if (replacement) {
+      // Not parseReplacement: `$` is plain text in search syntax, and parsing
+      // would silently swallow `$N` (search patterns have no groups to echo).
+      return { mode: 'replace', re: matcher.globalRe, hlRe: matcher.hlRe, tokens: [{ lit: replacement }], allowUnlisted: !!params['unlisted'] };
+    }
+    return { mode: 'filter', matcher };
   },
   run(wlEntry, prepared, wordlist) {
     if (!prepared) return true;
-    if (prepared.mode === 'replace') return runSearchReplace(displayOf(wlEntry), prepared, wordlist);
+    if (prepared.mode === 'replace') return runReplace(wlEntry, prepared, wordlist);
     const { matcher } = prepared;
     if (!matcher.test(wlEntry)) return null;
     const ranges = matcher.searchRanges(wlEntry);

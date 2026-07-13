@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   analyzeRegexPattern, isCapturingGroup, matchingParen, wrapRuns,
-  parseReplacement, kindForGroup, regexExecAll, runRegexReplace, runSearchReplace,
+  parseReplacement, kindForGroup, regexExecAll, runReplace,
 } from '../../site/src/engine/regex.js';
 import regexTool from '../../site/src/engine/tools/regex.js';
 
@@ -154,9 +154,9 @@ test('regexExecAll: a zero-width lookahead with a capture still advances and col
   ]);
 });
 
-test('runRegexReplace: capture-group replacement rewrites and highlights both sides', () => {
+test('runReplace: capture-group replacement rewrites and highlights both sides', () => {
   const prepared = { re: /(cat)/gid, hlRe: null, tokens: parseReplacement('$1z') };
-  const out = runRegexReplace(wl('cat'), prepared, corpus(['catz']));
+  const out = runReplace(wl('cat'), prepared, corpus(['catz']));
   assert.deepEqual(out, [{
     entry: 'catz',
     inputHighlights: [{ start: 0, end: 3, kind: 'search:0' }],
@@ -164,9 +164,9 @@ test('runRegexReplace: capture-group replacement rewrites and highlights both si
   }]);
 });
 
-test('runRegexReplace: a groupless pattern draws its input highlights from the wrapped hlRe', () => {
+test('runReplace: a groupless pattern draws its input highlights from the wrapped hlRe', () => {
   const prepared = { re: /cat/gid, hlRe: /(cat)/gid, tokens: parseReplacement('dog') };
-  const out = runRegexReplace(wl('cat'), prepared, corpus(['dog']));
+  const out = runReplace(wl('cat'), prepared, corpus(['dog']));
   assert.deepEqual(out, [{
     entry: 'dog',
     inputHighlights: [{ start: 0, end: 3, kind: 'search:0' }],
@@ -174,19 +174,19 @@ test('runRegexReplace: a groupless pattern draws its input highlights from the w
   }]);
 });
 
-test('runRegexReplace: a result absent from the corpus is dropped', () => {
+test('runReplace: a result absent from the corpus is dropped', () => {
   const prepared = { re: /(cat)/gid, hlRe: null, tokens: parseReplacement('$1z') };
-  assert.deepEqual(runRegexReplace(wl('cat'), prepared, corpus([])), []);
+  assert.deepEqual(runReplace(wl('cat'), prepared, corpus([])), []);
 });
 
-test('runRegexReplace: an output equal to the input is dropped even if in the corpus', () => {
+test('runReplace: an output equal to the input is dropped even if in the corpus', () => {
   const prepared = { re: /cat/gid, hlRe: /(cat)/gid, tokens: parseReplacement('$&') };
-  assert.deepEqual(runRegexReplace(wl('cat'), prepared, corpus(['cat'])), []);
+  assert.deepEqual(runReplace(wl('cat'), prepared, corpus(['cat'])), []);
 });
 
-test('runRegexReplace: allowUnlisted keeps an off-list result, array-wrapped for a synthetic score', () => {
+test('runReplace: allowUnlisted keeps an off-list result, array-wrapped for a synthetic score', () => {
   const prepared = { re: /(cat)/gid, hlRe: null, tokens: parseReplacement('$1z'), allowUnlisted: true };
-  const out = runRegexReplace(wl('cat'), prepared, corpus([]));
+  const out = runReplace(wl('cat'), prepared, corpus([]));
   assert.deepEqual(out, [{
     entry: ['catz'],
     inputHighlights: [{ start: 0, end: 3, kind: 'search:0' }],
@@ -194,20 +194,20 @@ test('runRegexReplace: allowUnlisted keeps an off-list result, array-wrapped for
   }]);
 });
 
-test('runRegexReplace: allowUnlisted leaves an in-list result a plain string (keeps the real lookup)', () => {
+test('runReplace: allowUnlisted leaves an in-list result a plain string (keeps the real lookup)', () => {
   const prepared = { re: /(cat)/gid, hlRe: null, tokens: parseReplacement('$1z'), allowUnlisted: true };
-  assert.equal(runRegexReplace(wl('cat'), prepared, corpus(['catz']))[0].entry, 'catz');
+  assert.equal(runReplace(wl('cat'), prepared, corpus(['catz']))[0].entry, 'catz');
 });
 
-test('runRegexReplace: allowUnlisted still drops an output equal to the input', () => {
+test('runReplace: allowUnlisted still drops an output equal to the input', () => {
   const prepared = { re: /cat/gid, hlRe: /(cat)/gid, tokens: parseReplacement('$&'), allowUnlisted: true };
-  assert.deepEqual(runRegexReplace(wl('cat'), prepared, corpus([])), []);
+  assert.deepEqual(runReplace(wl('cat'), prepared, corpus([])), []);
 });
 
-test('runRegexReplace: a synthetic result splices the replacement into the display', () => {
+test('runReplace: a synthetic result splices the replacement into the display', () => {
   const prepared = { re: /bonnie/gid, hlRe: /(bonnie)/gid, tokens: parseReplacement('xxx'), allowUnlisted: true };
   const entry = wl('03bonnieandclyde', "'03 Bonnie and Clyde");
-  const out = runRegexReplace(entry, prepared, corpus([]));
+  const out = runReplace(entry, prepared, corpus([]));
   assert.deepEqual(out, [{
     entry: ["'03 xxx and Clyde"],
     inputHighlights: [{ start: 2, end: 8, kind: 'search:0' }],
@@ -215,10 +215,10 @@ test('runRegexReplace: a synthetic result splices the replacement into the displ
   }]);
 });
 
-test('runRegexReplace: a group echo in a synthetic result takes its display slice', () => {
+test('runReplace: a group echo in a synthetic result takes its display slice', () => {
   const prepared = { re: /(03)(bonnie)/gid, hlRe: null, tokens: parseReplacement('$2$1'), allowUnlisted: true };
   const entry = wl('03bonnieandclyde', "'03 Bonnie and Clyde");
-  const out = runRegexReplace(entry, prepared, corpus([]));
+  const out = runReplace(entry, prepared, corpus([]));
   assert.deepEqual(out[0].entry, ["'Bonnie03 and Clyde"]);
   assert.deepEqual(out[0].outputHighlights, [
     { start: 1, end: 7, kind: 'search:1', coord: 'display' },
@@ -226,59 +226,79 @@ test('runRegexReplace: a group echo in a synthetic result takes its display slic
   ]);
 });
 
-test('runRegexReplace: an in-list result stays in norm space for the executor lookup', () => {
+test('runReplace: an in-list result stays in norm space for the executor lookup', () => {
   const prepared = { re: /bonnie/gid, hlRe: /(bonnie)/gid, tokens: parseReplacement('xxx') };
   const entry = wl('03bonnieandclyde', "'03 Bonnie and Clyde");
-  const out = runRegexReplace(entry, prepared, corpus(['03xxxandclyde']));
+  const out = runReplace(entry, prepared, corpus(['03xxxandclyde']));
   assert.equal(out[0].entry, '03xxxandclyde');
   assert.deepEqual(out[0].outputHighlights, [{ start: 2, end: 5, kind: 'search:0' }]);
 });
 
-test('runRegexReplace: a whole-word match on a formatted entry keeps boundary punctuation', () => {
+test('runReplace: a whole-word match on a formatted entry keeps boundary punctuation', () => {
   const prepared = { re: /^(?:cat)$/gid, hlRe: null, tokens: parseReplacement('dog'), allowUnlisted: true };
-  assert.deepEqual(runRegexReplace(wl('cat', '"CAT!"'), prepared, corpus([]))[0].entry, ['"dog!"']);
+  assert.deepEqual(runReplace(wl('cat', '"CAT!"'), prepared, corpus([]))[0].entry, ['"dog!"']);
 });
 
-test('runSearchReplace: rewrites a literal match and highlights with display coords', () => {
-  const prepared = { matcher: { globalRe: /a/gd }, replacement: 'o' };
-  const out = runSearchReplace('cat', prepared, corpus(['cot']));
+test('runReplace: a search-shaped literal token rewrites and highlights both sides', () => {
+  const prepared = { re: /a/gd, hlRe: /(a)/gd, tokens: [{ lit: 'o' }] };
+  const out = runReplace(wl('cat'), prepared, corpus(['cot']));
   assert.deepEqual(out, [{
     entry: 'cot',
-    inputHighlights: [{ start: 1, end: 2, kind: 'search:0', coord: 'display' }],
-    outputHighlights: [{ start: 1, end: 2, kind: 'search:0', coord: 'display' }],
+    inputHighlights: [{ start: 1, end: 2, kind: 'search:0' }],
+    outputHighlights: [{ start: 1, end: 2, kind: 'search:0' }],
   }]);
 });
 
-test('runSearchReplace: drops a result whose norm is absent from the corpus', () => {
-  const prepared = { matcher: { globalRe: /a/gd }, replacement: 'o' };
-  assert.deepEqual(runSearchReplace('cat', prepared, corpus([])), []);
+test('runReplace: a norm-only match reaches across display separators (search norm arm)', () => {
+  const prepared = { re: /noft/gd, hlRe: /(noft)/gd, tokens: [{ lit: 'X' }], allowUnlisted: true };
+  const out = runReplace(wl('helenoftroy', 'Helen of Troy'), prepared, corpus([]));
+  assert.deepEqual(out[0].entry, ['HeleXroy']);
 });
 
-test('runSearchReplace: allowUnlisted keeps an off-list result, array-wrapped', () => {
-  const prepared = { matcher: { globalRe: /a/gd }, replacement: 'o', allowUnlisted: true };
-  const out = runSearchReplace('cat', prepared, corpus([]));
+test('runReplace: both arms matching prefers the norm arm', () => {
+  const prepared = { re: /a./gid, hlRe: null, tokens: [{ lit: 'x' }], allowUnlisted: true };
+  // Norm arm: `a.` spans the whole norm "aa" → "x". The display arm would have
+  // matched only "a-" and produced "xa".
+  const out = runReplace(wl('aa', 'a-a'), prepared, corpus([]));
+  assert.deepEqual(out[0].entry, ['x']);
+});
+
+test('runReplace: a display-only pattern falls back to the display arm', () => {
+  const prepared = { re: /\s/gd, hlRe: null, tokens: [{ lit: '-' }], allowUnlisted: true };
+  const out = runReplace(wl('helenoftroy', 'Helen of Troy'), prepared, corpus([]));
   assert.deepEqual(out, [{
-    entry: ['cot'],
-    inputHighlights: [{ start: 1, end: 2, kind: 'search:0', coord: 'display' }],
-    outputHighlights: [{ start: 1, end: 2, kind: 'search:0', coord: 'display' }],
+    entry: ['Helen-of-Troy'],
+    inputHighlights: [],
+    outputHighlights: [
+      { start: 5, end: 6, kind: 'search:0', coord: 'display' },
+      { start: 8, end: 9, kind: 'search:0', coord: 'display' },
+    ],
   }]);
 });
 
-test('runSearchReplace: allowUnlisted still drops a result that norms back to the input', () => {
-  const prepared = { matcher: { globalRe: /a/gd }, replacement: 'A', allowUnlisted: true };
-  assert.deepEqual(runSearchReplace('cat', prepared, corpus([])), []);
+test('runReplace: a display-arm in-list result converts to norm space for the executor lookup', () => {
+  const prepared = { re: /of\s/gd, hlRe: null, tokens: [{ lit: 'X' }] };
+  const out = runReplace(wl('helenoftroy', 'Helen of Troy'), prepared, corpus(['helenxtroy']));
+  assert.equal(out[0].entry, 'helenxtroy');
+  assert.deepEqual(out[0].outputHighlights, [{ start: 5, end: 6, kind: 'search:0' }]);
 });
 
-test('runSearchReplace: drops a result that norms back to the input', () => {
-  const prepared = { matcher: { globalRe: /a/gd }, replacement: 'A' };
-  assert.deepEqual(runSearchReplace('cat', prepared, corpus(['cat'])), []);
+test('runReplace: a norm-preserving rewrite coins a synthetic form under allowUnlisted', () => {
+  const prepared = { re: /a/gd, hlRe: /(a)/gd, tokens: [{ lit: 'A' }], allowUnlisted: true };
+  assert.deepEqual(runReplace(wl('cat'), prepared, corpus([]))[0].entry, ['cAt']);
 });
 
-test('runSearchReplace: a zero-width matcher terminates (advance guard)', () => {
+test('runReplace: a norm-preserving rewrite is dropped without allowUnlisted', () => {
+  // Never resolved in-list either: the lookup could only re-emit the input row.
+  const prepared = { re: /a/gd, hlRe: /(a)/gd, tokens: [{ lit: 'A' }] };
+  assert.deepEqual(runReplace(wl('cat'), prepared, corpus(['cat'])), []);
+});
+
+test('runReplace: a zero-width matcher terminates (advance guard)', () => {
   // Reaching the assertion at all proves the guard advances lastIndex; a runaway
-  // empty-match loop would hang the test. (Output is dropped: "-c-a-" norms to "ca".)
-  const prepared = { matcher: { globalRe: /b*/gd }, replacement: '-' };
-  assert.deepEqual(runSearchReplace('ca', prepared, corpus(['ca'])), []);
+  // empty-match loop would hang the test.
+  const prepared = { re: /b*/gd, hlRe: null, tokens: [{ lit: '-' }] };
+  assert.deepEqual(runReplace(wl('ca'), prepared, corpus(['ca'])), []);
 });
 
 test('error: an invalid pattern reports the reason, stripped of V8 boilerplate', () => {

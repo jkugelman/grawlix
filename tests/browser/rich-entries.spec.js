@@ -72,4 +72,22 @@ test.describe('UI-typed entries preserve case', () => {
     ]));
     await expectVisible(page, [['Helen of Troy', 'xxx of Troy']]);
   });
+
+  test('Search-replace reaches a norm-only match across display separators', async ({ page }) => {
+    await gotoApp(page);
+    await addRich(page, 'Replace', ['Helen of Troy'], [50]);
+    await page.evaluate(() => window.__grawlixTest.setStack([
+      { tool: 'search', params: { pattern: 'noft', replace: 'X', unlisted: true } },
+    ]));
+    await expectVisible(page, [['Helen of Troy', 'HeleXroy']]);
+  });
+
+  test('Regex-replace falls back to the display arm for a display-only pattern', async ({ page }) => {
+    await gotoApp(page);
+    await addRich(page, 'Replace', ['Helen of Troy'], [50]);
+    await page.evaluate(() => window.__grawlixTest.setStack([
+      { tool: 'regex', params: { pattern: '\\s', replace: '-', unlisted: true } },
+    ]));
+    await expectVisible(page, [['Helen of Troy', 'Helen-of-Troy']]);
+  });
 });
