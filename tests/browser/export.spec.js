@@ -81,7 +81,7 @@ test('Wordlist dumps tail entries with chain-min score, alphabetically sorted', 
   const { text, count, skipped } = await getExport(page, 'wordlist');
   expect(skipped).toBe(0);
   expect(count).toBe(2);
-  expect(text).toBe('car;50\nwing;30\n');
+  expect(text).toBe('car;50;auto\nwing;30\n');   // comments ride along at the default format
 });
 
 test('CSV flat one-entry rows: header is entry,length,score,comment,source', async ({ page }) => {

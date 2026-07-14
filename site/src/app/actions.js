@@ -25,7 +25,7 @@ import {
   SCHEMA_VERSION, canMigrate, migrateLocalStorage, migrateIdbRecords, remapStoredUrls,
 } from '../data/migrations.js';
 import {
-  serializeEntries, sortedEntries,
+  serializeEntries, formatEntryText, AS_IS_FORMAT,
 } from '../engine/serialize.js';
 import {
   getOutputFormat, getTrashScore, defaultScoreRange,
@@ -394,7 +394,7 @@ export function persistEditsMetaOnly(edits) {
 }
 
 export async function persistEdits(edits) {
-  await Storage.writeWordlist(edits, serializeEntries(sortedEntries(edits.rawEntries)));
+  await Storage.writeWordlist(edits, serializeEntries(edits.rawEntries));
   persistEditsMetaOnly(edits);
   // My Edits mutations ship a `patch`, never a cacheVersion$ bump, so the
   // completeness hook never fires for them — this post-write re-sync, reading the
@@ -1156,7 +1156,7 @@ export async function downloadSourceWordlist(wordlist) {
     const entries = wordlist.type === 'edits'
       ? getRescoredEntries(wordlist)
       : applyRescoring(parseWordlist(await Storage.readWordlist(wordlist) ?? ''), wordlist.rescoreRules || []);
-    text = serializeEntries(sortedEntries(entries), getOutputFormat());
+    text = serializeEntries(entries, getOutputFormat());
   }
   triggerDownload(text, rescoredFilename(wordlist));
   showToast(`Downloaded ${pluralize(sourceTotal(wordlist), 'entry', 'entries')}`);
@@ -1389,28 +1389,29 @@ export async function exportCopy() {
 
 // ── Wordlist ──
 
-export function buildWordlistText(rows, grouped) {
-  const acc = new Map();
+export function buildWordlistText(rows, grouped, fmt = AS_IS_FORMAT) {
+  const best = new Map();
   let skipped = 0;
   for (const { chain } of iterDisplayChains(rows, grouped)) {
     const content = chainContentEntries(chain);
     if (!content.length) continue;
-    const tail = displayOf(content[content.length - 1]);
-    if (tail.includes(';')) { skipped++; continue; }
+    const tail = content[content.length - 1];
+    if (formatEntryText(tail, fmt).includes(';')) { skipped++; continue; }
     let chainMin = Infinity;
     for (const wlE of content) if (wlE.score < chainMin) chainMin = wlE.score;
-    const cur = acc.get(tail);
-    if (cur === undefined || chainMin > cur) acc.set(tail, chainMin);
+    const key = displayOf(tail);
+    const cur = best.get(key);
+    if (cur === undefined || chainMin > cur.score) best.set(key, { ...tail, score: chainMin });
   }
-  const lines = [...acc.keys()].sort().map(e => `${e};${acc.get(e)}`);
-  return { text: lines.length ? lines.join('\n') + '\n' : '', count: lines.length, skipped };
+  const text = serializeEntries([...best.values()], fmt);
+  return { text, count: text.split('\n').length - 1, skipped };
 }
 
 export async function exportWordlist() {
   const scroller = getEntriesScroller();
   if (!scroller) return;
   const grouped = isMultiLaneTier(scroller.sortTier);
-  const { text, count, skipped } = buildWordlistText(await scroller.exportRows(), grouped);
+  const { text, count, skipped } = buildWordlistText(await scroller.exportRows(), grouped, getOutputFormat());
   triggerDownload(text, exportFilename(ToolStack.getStack(), 'txt'));
   let msg = `Downloaded ${pluralize(count, 'entry', 'entries')}`;
   if (skipped) msg += ` (${pluralize(skipped, 'entry', 'entries')} skipped due to semicolons)`;
@@ -1429,7 +1430,7 @@ function csvRow(cells) { return cells.map(csvCell).join(','); }
 // A solution reads across (entry_1 beside entry_2), so a tuple gets its own shape:
 // one row per tuple with the lanes spread into columns, not the grouped shape's
 // one-row-per-member.
-export function buildTupleCSV(rows) {
+export function buildTupleCSV(rows, fmt = AS_IS_FORMAT) {
   const laneCount = rows[0]?.chains.length ?? 0;
   const header = [];
   for (let i = 1; i <= laneCount; i++) header.push(`entry_${i}`, `length_${i}`, `score_${i}`, `comment_${i}`, `source_${i}`);
@@ -1439,15 +1440,15 @@ export function buildTupleCSV(rows) {
     for (const lane of tuple.chains) {
       const wlE = chainContentEntries(lane)[0];
       if (!wlE) cells.push('', '', '', '', '');
-      else cells.push(displayOf(wlE), wlE.norm.length, wlE.score, wlE.comment || '', wlE.wordlist?.name ?? '');
+      else cells.push(formatEntryText(wlE, fmt), wlE.norm.length, wlE.score, wlE.comment || '', wlE.wordlist?.name ?? '');
     }
     out.push(csvRow(cells));
   }
   return out.join('\r\n') + '\r\n';
 }
 
-export function buildCSVText(rows, grouped, stack, tuple = false) {
-  if (tuple) return buildTupleCSV(rows);
+export function buildCSVText(rows, grouped, stack, tuple = false, fmt = AS_IS_FORMAT) {
+  if (tuple) return buildTupleCSV(rows, fmt);
   const atomCount = currentContentAtomCount(stack);
   const isMulti = atomCount > 1;
   const groupCols = grouped ? activeGroupColumns(stack) : [];
@@ -1485,7 +1486,7 @@ export function buildCSVText(rows, grouped, stack, tuple = false) {
         cells.push('', '', '');
         if (!grouped) cells.push('', '');
       } else {
-        cells.push(displayOf(wlE), wlE.norm.length, wlE.score);
+        cells.push(formatEntryText(wlE, fmt), wlE.norm.length, wlE.score);
         if (!grouped) cells.push(wlE.comment || '', wlE.wordlist?.name ?? '');
       }
     }
@@ -1499,7 +1500,7 @@ export async function exportCSV() {
   if (!scroller) return;
   const grouped = isMultiLaneTier(scroller.sortTier);
   const rows = await scroller.exportRows();
-  const text = buildCSVText(rows, grouped, ToolStack.getStack(), scroller.sortTier === 'tuple');
+  const text = buildCSVText(rows, grouped, ToolStack.getStack(), scroller.sortTier === 'tuple', getOutputFormat());
   triggerDownload(text, exportFilename(ToolStack.getStack(), 'csv'));
   showToast(`Downloaded ${exportCountPhrase(rows, scroller.sortTier)}`);
 }

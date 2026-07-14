@@ -5,7 +5,7 @@
 import { MERGED_ID, MERGED_NAME } from '../core/constants.js';
 import { state, syncKey, getEditsWordlist, bumpSyncStatus } from './state.js';
 import { idbGet, idbPut, idbDel } from './storage.js';
-import { serializeEntries, sortedEntries } from '../engine/serialize.js';
+import { serializeEntries } from '../engine/serialize.js';
 import { getOutputFormat } from './serialize.js';
 import { applyRescoring, compileRescoreRules } from '../engine/rescore.js';
 import { parseWordlist } from '../engine/norm.js';
@@ -190,7 +190,7 @@ const MirrorSync = {
     const entries = list.type === 'edits'
       ? list.rawEntries
       : parseWordlist(await idbGet('data_' + list.dbKey) ?? '');
-    return { text: serializeEntries(sortedEntries(applyRescoring(entries, list.rescoreRules || [])), getOutputFormat()) };
+    return { text: serializeEntries(applyRescoring(entries, list.rescoreRules || []), getOutputFormat()) };
   },
 };
 

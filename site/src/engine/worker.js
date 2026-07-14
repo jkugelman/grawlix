@@ -24,7 +24,7 @@ import { getHistogramLayout, invalidateHistogramLayout, bucketCounts } from './h
 import { computeStatsRaw } from './stats.js';
 import { makeWidthHintAcc, computeWidthHints, computeCorpusWidthBound } from './width-hints.js';
 import { compileFlatHighlighters, materializeFlatRow } from './flat-highlight.js';
-import { serializeEntries, sortedEntries } from './serialize.js';
+import { serializeEntries } from './serialize.js';
 import { threeWayMergeEdits, sameEditsEntries } from './edits-merge.js';
 import { applyEditsWriteSet, planEntryWrite } from './edit-plan.js';
 
@@ -2064,7 +2064,7 @@ function applyOwnedEdit(source, affectedNorms) {
 // post-flip). Callers post the ack BEFORE awaiting this so ack consumption isn't
 // gated on disk I/O.
 async function persistEditsCorpus(edits) {
-  await idbPut('data_' + edits.dbKey, serializeEntries(sortedEntries(edits.rawEntries)));
+  await idbPut('data_' + edits.dbKey, serializeEntries(edits.rawEntries));
 }
 
 // Gate on ownedBuilt, NOT ownedMerged/ownedCorpus: releasePriorCorpus frees the latter
@@ -2191,7 +2191,7 @@ async function handleMergeDisk({ requestId, fileText, conflictChoice }) {
   }
 
   const merged = [...resolved.values()];
-  const outText = serializeEntries(sortedEntries(merged));
+  const outText = serializeEntries(merged);
   const corpusChanged = !sameEditsEntries(merged, edits.rawEntries);
 
   let axis, counts;
@@ -2526,7 +2526,7 @@ function handleSerializeFor({ requestId, scope, format }) {
     postMessage({ type: 'serialized', requestId, retry: true });
     return;
   }
-  const text = serializeEntries(sortedEntries(entries), format);
+  const text = serializeEntries(entries, format);
   postMessage({ type: 'serialized', requestId, text });
 }
 

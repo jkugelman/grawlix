@@ -114,6 +114,66 @@ test.describe('output format UI', () => {
   });
 });
 
+test.describe('results exports follow the output format', () => {
+  async function addRichFixture(page) {
+    await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
+      name: 'Rich',
+      entries:  ['BLUE JAY', 'café', 'co-op'],
+      scores:   [50,         60,     40],
+      comments: ['bird',     'drink', ''],
+    }));
+  }
+
+  const STRIP = { spaces: false, punctuation: false, accents: false, comments: true };
+
+  test('Results as wordlist strips spaces, punctuation, and accents', async ({ page }) => {
+    await gotoApp(page);
+    await addRichFixture(page);
+    await page.evaluate(f => setOutputFormat(f), STRIP);
+
+    const { text } = await page.evaluate(() => window.__grawlixTest.exportText('wordlist'));
+    expect(text).toContain('BLUEJAY;50;bird');
+    expect(text).toContain('cafe;60;drink');
+    expect(text).toContain('coop;40');
+    expect(text).not.toContain('BLUE JAY');
+    expect(text).not.toContain('café');
+  });
+
+  test('Results as wordlist drops comments when the comments flag is off', async ({ page }) => {
+    await gotoApp(page);
+    await addRichFixture(page);
+    await page.evaluate(() => setOutputFormat({ spaces: true, punctuation: true, accents: true, comments: false }));
+
+    const { text } = await page.evaluate(() => window.__grawlixTest.exportText('wordlist'));
+    expect(text).toContain('BLUE JAY;50\n');
+    expect(text).not.toContain('bird');
+  });
+
+  test('Results as CSV formats the entry cell but keeps its comment and source columns', async ({ page }) => {
+    await gotoApp(page);
+    await addRichFixture(page);
+    await page.evaluate(f => setOutputFormat(f), STRIP);
+
+    const text = await page.evaluate(() => window.__grawlixTest.exportText('csv'));
+    const lines = text.trim().split('\r\n');
+    expect(lines[0]).toBe('entry,length,score,comment,source');
+    expect(lines).toContain('BLUEJAY,7,50,bird,Rich');
+    expect(lines).toContain('cafe,4,60,drink,Rich');
+    expect(text).not.toContain('BLUE JAY');
+  });
+
+  test('Results as JSON is a programmatic format — the output format never touches it', async ({ page }) => {
+    await gotoApp(page);
+    await addRichFixture(page);
+    await page.evaluate(f => setOutputFormat(f), STRIP);
+
+    const obj = await page.evaluate(() => window.__grawlixTest.exportText('json'));
+    const entries = obj.groups.flatMap(g => g.chains.flatMap(c => c.entries)).map(e => e.entry);
+    expect(entries).toContain('BLUE JAY');
+    expect(entries).toContain('café');
+  });
+});
+
 test.describe('stats-bar Share and Export menus', () => {
   test('Share holds only Copy; Export holds the three file downloads', async ({ page }) => {
     await gotoApp(page);

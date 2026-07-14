@@ -77,7 +77,7 @@ export const SettingsDialog = (() => {
       </div>
       <div class="of-section">
         <div class="dialog-row-label">Output format</div>
-        <div class="dialog-row-sub">How entries are written to files and downloads.</div>
+        <div class="dialog-row-sub">How entries are written in wordlists and CSV files.</div>
         <div id="output-format-ctrls" class="of-ctrls"></div>
       </div>
       <div class="dialog-row">

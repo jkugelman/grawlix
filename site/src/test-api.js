@@ -14,7 +14,7 @@
 
 import { MERGED_ID, MERGED_NAME } from './core/constants.js';
 import { toNorm, displayOf, parseWordlist, buildUserWlEntry } from './engine/norm.js';
-import { getTrashScore } from './data/serialize.js';
+import { getTrashScore, getOutputFormat } from './data/serialize.js';
 import { setUnigramCorpus as segmenterSetCorpus } from './engine/segmenter.js';
 import { TOOLS, makeToolRow } from './engine/tools.js';
 import { state, newDbKey, syncKey, getEditsWordlist, pipelineVersion$ } from './data/state.js';
@@ -59,7 +59,7 @@ import {
   buildCopyText, buildWordlistText, buildCSVText, buildExportJSONObject, exportFilename, _ready, loadIdle,
   setFetchRevealDelayForTest,
 } from './app/actions.js';
-import { serializeEntries, sortedEntries } from './engine/serialize.js';
+import { serializeEntries } from './engine/serialize.js';
 import { isMultiLaneTier } from './engine/sort.js';
 
 // The active scope's wire label — MERGED_ID for the merged view, else the scoped
@@ -354,7 +354,7 @@ const __grawlixTest = {
   // Edits, for the byte-identical-write oracle.
   expectedEditsIdbText() {
     const edits = getEditsWordlist();
-    return { dbKey: edits.dbKey, text: serializeEntries(sortedEntries(edits.rawEntries)) };
+    return { dbKey: edits.dbKey, text: serializeEntries(edits.rawEntries) };
   },
 
   // Awaited like flushEditsToIdb: applyWordlistText's worker command (the
@@ -569,8 +569,8 @@ const __grawlixTest = {
     const tuple = scroller.sortTier === 'tuple';
     const stack = ToolStack.getStack();
     if (format === 'copy')     return buildCopyText(rows, grouped, stack);
-    if (format === 'wordlist') return buildWordlistText(rows, grouped);
-    if (format === 'csv')      return buildCSVText(rows, grouped, stack, tuple);
+    if (format === 'wordlist') return buildWordlistText(rows, grouped, getOutputFormat());
+    if (format === 'csv')      return buildCSVText(rows, grouped, stack, tuple, getOutputFormat());
     if (format === 'json')     return buildExportJSONObject(rows, grouped, stack, tuple);
     throw new Error(`Unknown export format: ${format}`);
   },

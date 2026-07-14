@@ -14,38 +14,24 @@ export function formatEntryText(e, fmt) {
   return s;
 }
 
-export function serializeEntries(entries, fmt = AS_IS_FORMAT) {
-  const transforming = !fmt.spaces || !fmt.punctuation || !fmt.accents;
-  let lines;
-  if (transforming) {
-    // formatEntryText is many-to-one under stripping (café/cafe, the IRS/theirs);
-    // collapse or the output file gets duplicate, conflicting entry lines.
-    const byText = new Map();
-    for (const e of entries) {
-      const text = formatEntryText(e, fmt);
-      const cur = byText.get(text);
-      if (!cur) byText.set(text, { text, score: e.score, comments: e.comment ? [{ comment: e.comment, score: e.score }] : [] });
-      else {
-        cur.score = Math.max(cur.score, e.score);
-        if (e.comment) cur.comments.push({ comment: e.comment, score: e.score });
-      }
-    }
-    lines = [...byText.values()].map(({ text, score, comments }) => {
-      if (!fmt.comments || !comments.length) return `${text};${score}`;
-      const combined = [...new Set(comments.sort((a, b) => b.score - a.score).map(c => c.comment))].join(' / ');
-      return `${text};${score};${combined}`;
-    });
-  } else {
-    lines = entries.map(e => {
-      const head = e.display ?? e.norm;
-      return (fmt.comments && e.comment) ? `${head};${e.score};${e.comment}` : `${head};${e.score}`;
-    });
-  }
-  return lines.join('\n') + (lines.length ? '\n' : '');
+// Consumers (e.g. Ingrid) keep the first entry for a given norm, so the leader is the
+// one whose score and comment survive — serializing unsorted silently ships the loser.
+function sortedEntries(entries) {
+  return [...entries].sort((a, b) =>
+    a.norm.localeCompare(b.norm) ||
+    b.score - a.score ||
+    (b.comment ? 1 : 0) - (a.comment ? 1 : 0));
 }
 
-export function sortedEntries(entries) {
-  // Within a norm group, highest score first: downstream consumers (e.g. Ingrid)
-  // keep the first entry for a given norm, so the best-scored variant must lead.
-  return [...entries].sort((a, b) => a.norm.localeCompare(b.norm) || b.score - a.score);
+export function serializeEntries(entries, fmt = AS_IS_FORMAT) {
+  const seen = new Set();
+  const lines = [];
+  for (const e of sortedEntries(entries)) {
+    const text = formatEntryText(e, fmt);
+    const line = (fmt.comments && e.comment) ? `${text};${e.score};${e.comment}` : `${text};${e.score}`;
+    if (seen.has(line)) continue;   // only stripping can collide two entries onto one line
+    seen.add(line);
+    lines.push(line);
+  }
+  return lines.join('\n') + (lines.length ? '\n' : '');
 }
