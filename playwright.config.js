@@ -13,11 +13,13 @@ export default defineConfig({
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
+  // Not what CI runs: ci.yml's per-job --workers flag overrides this.
   workers: process.env.CI ? 1 : undefined,
   // A cold WebKit boot under a local fully-parallel `npm test` (worker build + IDB +
   // sync-target loads all contending for the CPU) can exceed Playwright's 30s default,
-  // so whenBootSettled times out with no local retry net; CI (serial + retries) never
-  // hits it. Confirmed surgically: a >30s boot times out at 30s and passes above it.
+  // so whenBootSettled times out with no local retry net; CI never hits it, where
+  // webkit stays single-worker and retries. Confirmed surgically: a >30s boot times
+  // out at 30s and passes above it.
   timeout: 60_000,
   reporter: process.env.CI ? [['html', { open: 'never' }], ['github']] : 'html',
   use: {

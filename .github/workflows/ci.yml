@@ -20,6 +20,15 @@ jobs:
   build:
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    # Supersede an in-flight run when a newer commit lands: the 16-job test
+    # matrix would otherwise contend with the older run's for the account-wide
+    # 20-concurrent-job ceiling and both would crawl. Scoped to build/test
+    # rather than the whole workflow so a cancel can never interrupt a Pages
+    # deployment — a cancelled test job leaves `deploy` skipped (needs: test),
+    # never killed mid-flight.
+    concurrency:
+      group: ci-build-${{ github.ref }}
+      cancel-in-progress: true
     steps:
       - uses: actions/checkout@v6
 
@@ -67,25 +76,40 @@ jobs:
       options: --ipc=host
     # Backstop only — the real gate is the step-level timeout on "Run tests".
     timeout-minutes: 20
-    # Each job runs Playwright single-worker (webkit flakes under parallel-worker
-    # load — see tests/browser/flaky.md). Playwright --shard splits a browser's
-    # suite across separate jobs that still run single-worker, so determinism is
-    # preserved while the engines run concurrently and the matrix finishes in
-    # ~the slowest shard's wall-clock, not the sum of all jobs. Shard counts are
-    # proportional to each engine's runtime — webkit is slowest, so it splits
-    # widest.
+    # WebKit flakes under parallel-worker load, so it alone stays --workers=1 and
+    # can only be sped up by sharding. That makes its per-shard time the matrix's
+    # long pole; chromium and firefox are sized to land under it even if 2 workers
+    # deliver well short of a 2x speedup, so the wall-clock doesn't hinge on how
+    # well workers happen to scale.
+    #
+    # 16 jobs against the account-wide ceiling of 20 concurrent (Free plan).
+    # Rebalance from measured per-shard times — the engine that looks slowest in
+    # aggregate is not the one with the slowest shard.
     strategy:
       fail-fast: false
       matrix:
         include:
-          - { browser: chromium, shard: 1, shards: 2 }
-          - { browser: chromium, shard: 2, shards: 2 }
-          - { browser: firefox,  shard: 1, shards: 2 }
-          - { browser: firefox,  shard: 2, shards: 2 }
-          - { browser: webkit,   shard: 1, shards: 4 }
-          - { browser: webkit,   shard: 2, shards: 4 }
-          - { browser: webkit,   shard: 3, shards: 4 }
-          - { browser: webkit,   shard: 4, shards: 4 }
+          - { browser: chromium, shard: 1, shards: 3, workers: 2 }
+          - { browser: chromium, shard: 2, shards: 3, workers: 2 }
+          - { browser: chromium, shard: 3, shards: 3, workers: 2 }
+          - { browser: firefox,  shard: 1, shards: 4, workers: 2 }
+          - { browser: firefox,  shard: 2, shards: 4, workers: 2 }
+          - { browser: firefox,  shard: 3, shards: 4, workers: 2 }
+          - { browser: firefox,  shard: 4, shards: 4, workers: 2 }
+          - { browser: webkit,   shard: 1, shards: 9, workers: 1 }
+          - { browser: webkit,   shard: 2, shards: 9, workers: 1 }
+          - { browser: webkit,   shard: 3, shards: 9, workers: 1 }
+          - { browser: webkit,   shard: 4, shards: 9, workers: 1 }
+          - { browser: webkit,   shard: 5, shards: 9, workers: 1 }
+          - { browser: webkit,   shard: 6, shards: 9, workers: 1 }
+          - { browser: webkit,   shard: 7, shards: 9, workers: 1 }
+          - { browser: webkit,   shard: 8, shards: 9, workers: 1 }
+          - { browser: webkit,   shard: 9, shards: 9, workers: 1 }
+    # Keyed per matrix cell — a bare group would make the 16 shards cancel each
+    # other instead of cancelling the superseded run's matching shard.
+    concurrency:
+      group: ci-test-${{ github.ref }}-${{ matrix.browser }}-${{ matrix.shard }}
+      cancel-in-progress: true
     env:
       # Firefox won't launch when $HOME is owned by another user — in the
       # container GitHub's HOME=/github/home is owned by the image's pwuser, so
@@ -126,10 +150,10 @@ jobs:
         # Step-level, not job-level: an overrun here FAILS the job (run → failure
         # → GitHub emails). A job-level timeout CANCELS instead, which GitHub
         # never notifies on. Don't hoist this to the job. Verified on-runner.
-        # Comfortably above a single shard's single-worker runtime — headroom
-        # for a noisy runner while still catching a genuine hang.
+        # Comfortably above a single shard's runtime — headroom for a noisy
+        # runner while still catching a genuine hang.
         timeout-minutes: 15
-        run: npm run test:browser -- --project=${{ matrix.browser }} --shard=${{ matrix.shard }}/${{ matrix.shards }}
+        run: npm run test:browser -- --project=${{ matrix.browser }} --shard=${{ matrix.shard }}/${{ matrix.shards }} --workers=${{ matrix.workers }}
         env:
           GRAWLIX_SITE_DIR: dist
 
