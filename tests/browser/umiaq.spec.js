@@ -205,3 +205,31 @@ test('the score range keeps or drops a whole tuple, never trims a lane', async (
   expect(await laneCounts(page)).toEqual([3]);
   expect(await tuples(page)).toEqual([['dogcat', 'dogball', 'catchain']]);
 });
+
+test('the row offers a one-click fix for variables the non-empty floor is hiding', async ({ page }) => {
+  await gotoApp(page);
+  await page.evaluate(() => window.__grawlixTest.addCustomWordlist({
+    name: 'Ten',
+    entries: ['TENOR', 'OR', 'MITTEN', 'MIT'],
+    scores:  [100,      90,   80,       70],
+  }));
+  await page.evaluate(() => window.__grawlixTest.setScope('Ten'));
+  await run(page, 'AtenB;AB');
+
+  // The trap the fix exists for: a plausible, empty result set, with nothing on
+  // screen to say that A and B being non-empty is what hid the answers.
+  expect(await tuples(page)).toEqual([]);
+
+  const fix = page.locator('.tool-row-fix');
+  await expect(fix).toHaveText('Allow empty variables');
+  await expect(fix).toHaveAttribute('title', "By default, variables can't be empty. Adds |A|>=0;|B|>=0.");
+  await fix.click();
+  await page.evaluate(() => window.__grawlixTest.pipelineIdle());
+
+  await expect(page.locator('.tool-row .entry-input').first()).toHaveValue('AtenB;AB;|A|>=0;|B|>=0');
+  const result = await tuples(page);
+  expect(result.length).toBe(2);
+  expect(result).toContainEqual(['TENOR', 'OR']);      // ten at the front
+  expect(result).toContainEqual(['MITTEN', 'MIT']);    // and at the back
+  await expect(fix).toBeHidden();
+});

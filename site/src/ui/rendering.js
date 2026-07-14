@@ -154,7 +154,7 @@ export function setupRenderEffect() {
   effect(() => {
     pipelineVersion$.get();
     errorMarks$.get();
-    ToolStack.refreshErrorMarks();
+    ToolStack.refreshRowMarks();
   });
 
   // Cosmetic effect: re-renders the wordlist list and the merged scroller's
@@ -315,7 +315,7 @@ export function mountPanel(panel) {
     ${buildEntriesTablePanelHTML()}
   `;
   ToolStack.refreshGalleryActive();
-  ToolStack.refreshErrorMarks();
+  ToolStack.refreshRowMarks();
   repositionAllHistogramRects();
   createScroller();
   entriesScroller.onFilterChange = refreshStatsBarFromScroller;

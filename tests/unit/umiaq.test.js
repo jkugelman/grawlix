@@ -7,6 +7,7 @@ import {
   findTuples,
   variableRanges,
 } from '../../site/src/engine/umiaq.js';
+import { TOOLS } from '../../site/src/engine/tools.js';
 
 function bindings(query, word) {
   const parsed = parseUmiaqQuery(query);
@@ -58,7 +59,7 @@ test('parse: collects variables across all bindings', () => {
 
 test('parse: length and not-equal constraints', () => {
   const p = parseUmiaqQuery('ABC;|A|=2;A!=B;B!=C');
-  assert.deepEqual(p.constraints.length, { A: { min: 2, max: 2 } });
+  assert.deepEqual(p.constraints.varBounds, { A: { min: 2, max: 2 } });
   assert.deepEqual(p.constraints.varNotEqualsVar.A, ['B']);
   assert.deepEqual(p.constraints.varNotEqualsVar.B.sort(), ['A', 'C']);
   assert.deepEqual(p.constraints.varNotEqualsVar.C, ['B']);
@@ -77,7 +78,7 @@ test('parse: ? is the any-char token; . is not a wildcard', () => {
 });
 
 test('parse: length comparison operators map to {min,max}', () => {
-  const len = q => parseUmiaqQuery('A;' + q).constraints.length.A;
+  const len = q => parseUmiaqQuery('A;' + q).constraints.varBounds.A;
   assert.deepEqual(len('|A|=3'),  { min: 3, max: 3 });
   assert.deepEqual(len('|A|>3'),  { min: 4, max: Infinity });
   assert.deepEqual(len('|A|>=3'), { min: 3, max: Infinity });
@@ -87,12 +88,62 @@ test('parse: length comparison operators map to {min,max}', () => {
 });
 
 test('parse: zero-length is opt-in via an explicit lower bound', () => {
-  const len = q => parseUmiaqQuery('A;' + q).constraints.length.A;
+  const len = q => parseUmiaqQuery('A;' + q).constraints.varBounds.A;
   assert.deepEqual(len('|A|>=0'), { min: 0, max: Infinity });   // empty or longer
   assert.deepEqual(len('|A|=0'),  { min: 0, max: 0 });          // forced empty
   assert.deepEqual(len('|A|>=0;|A|<=3'), { min: 0, max: 3 });   // empty up to 3
   assert.deepEqual(len('|A|<=0'), { min: 0, max: 0 });          // ceiling 0 ⇒ empty
   assert.deepEqual(len('|A|<=5'), { min: 1, max: 5 });          // upper bound alone keeps floor 1
+});
+
+test('parse: a sub-pattern that starts at zero relaxes the floor too', () => {
+  const len = q => parseUmiaqQuery('A;' + q).constraints.varBounds.A;
+  assert.deepEqual(len('A=*'), { min: 0, max: Infinity });      // "zero or more" means it
+  assert.deepEqual(len('A=0-6:*'), { min: 0, max: 6 });
+  assert.deepEqual(len('A=?*'), { min: 1, max: Infinity });     // a ? floors it at one
+  assert.deepEqual(len('A=#@#'), { min: 3, max: 3 });
+  assert.deepEqual(len('|A|>=2;A=*'), { min: 2, max: Infinity });  // an explicit floor still wins
+});
+
+test('match: an empty variable binds only where a clause declares a zero floor', () => {
+  assert.deepEqual(bindings('AtenB', 'tenor'), []);                       // A can't vanish
+  assert.deepEqual(bindings('AtenB;|A|>=0;|B|>=0', 'tenor'), [{ A: '', B: 'or' }]);
+  assert.deepEqual(bindings('AtenB;A=*;B=*', 'mitten'), [{ A: 'mit', B: '' }]);
+});
+
+test('find: the non-empty floor is what keeps AB;BA off every word in the pool', async () => {
+  const pool = ['ape', 'pea', 'ox'];
+  assert.deepEqual(await tupleNorms('AB;BA', pool), [['ape', 'pea'], ['pea', 'ape']]);
+  // Relaxed, every word W answers with the degenerate (W, W) — B empty makes both
+  // bindings just `A`. That flood is the whole reason the floor is 1.
+  const relaxed = await tupleNorms('AB;BA;|A|>=0;|B|>=0', pool);
+  assert.ok(relaxed.some(t => t[0] === 'ox' && t[1] === 'ox'));
+});
+
+test('find: AtenB;AB reaches a leading and a trailing ten once emptiness is allowed', async () => {
+  const pool = ['tenor', 'or', 'mitten', 'mit', 'tenant'];
+  assert.deepEqual(await tupleNorms('AtenB;AB', pool), []);
+  assert.deepEqual(await tupleNorms('AtenB;AB;|A|>=0;|B|>=0', pool),
+                   [['mitten', 'mit'], ['tenor', 'or']]);
+});
+
+test('quickFix: names only the variables an added |V|>=0 would actually free', () => {
+  const fix = q => TOOLS.umiaq.quickFix({ query: q });
+  assert.deepEqual(fix('AtenB;AB').params, { query: 'AtenB;AB;|A|>=0;|B|>=0' });
+  assert.equal(fix('AtenB;AB').label, 'Allow empty variables');
+  assert.deepEqual(fix('AtenB;AB;|A|>=0').params, { query: 'AtenB;AB;|A|>=0;|B|>=0' });
+  assert.equal(fix('AtenB;AB;|A|>=0;|B|>=0'), null);   // nothing left to free
+  assert.equal(fix('AtenB;AB;A=*;B=*'), null);
+  assert.equal(fix('ABBA;|A|>=2;B=#@#'), null);        // both are pinned above zero
+  assert.equal(fix('cat'), null);                     // no variables
+  assert.equal(fix('a[bc'), null);                    // doesn't parse
+});
+
+test('quickFix: the tooltip shows the clauses it is about to add', () => {
+  const title = q => TOOLS.umiaq.quickFix({ query: q }).title;
+  assert.equal(title('AtenB;AB'), "By default, variables can't be empty. Adds |A|>=0;|B|>=0.");
+  assert.equal(title('A?B;|B|>=2'), "By default, variables can't be empty. Adds |A|>=0.");   // B is already pinned
+  assert.equal(title('AxByC;ABC'), "By default, variables can't be empty. Adds |A|>=0;|B|>=0;|C|>=0.");
 });
 
 test('parse: errors', () => {
@@ -387,7 +438,7 @@ test('parse: a multi-variable length constraint parses into sumLen', () => {
   assert.deepEqual(parseUmiaqQuery('AB;|AB|>=5').constraints.sumLen, [{ vars: ['A', 'B'], lit: 0, min: 5, max: Infinity }]);
   assert.deepEqual(parseUmiaqQuery('AB;|AB|<=5').constraints.sumLen, [{ vars: ['A', 'B'], lit: 0, min: 0, max: 5 }]);
   assert.deepEqual(parseUmiaqQuery('AB;|A|=9').constraints.sumLen, []);   // single var stays off sumLen
-  assert.deepEqual(parseUmiaqQuery('AB;|A|=9').constraints.length, { A: { min: 9, max: 9 } });
+  assert.deepEqual(parseUmiaqQuery('AB;|A|=9').constraints.varBounds, { A: { min: 9, max: 9 } });
 });
 
 test('parse: a length term may mix variables and literals in any arrangement', () => {
@@ -397,7 +448,7 @@ test('parse: a length term may mix variables and literals in any arrangement', (
   assert.deepEqual(parseUmiaqQuery('A;B;C;|fooAbarBbazCquux|=20').constraints.sumLen,
     [{ vars: ['A', 'B', 'C'], lit: 13, min: 20, max: 20 }]);
   // A single var *with* literals rides the sumLen join, not the per-var pruning path.
-  assert.deepEqual(parseUmiaqQuery('A;|Afoo|=8').constraints.length, {});
+  assert.deepEqual(parseUmiaqQuery('A;|Afoo|=8').constraints.varBounds, {});
   assert.match(parseUmiaqQuery('A;|A*|=4').error, /variables and literals/);
   assert.match(parseUmiaqQuery('A;|A#B|=4').error, /variables and literals/);
 });

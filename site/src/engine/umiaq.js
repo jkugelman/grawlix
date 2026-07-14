@@ -33,6 +33,42 @@ function boundsFromOp(op, n) {
   return { lo: null, hi: n };   // '<='
 }
 
+const FREE_VAR = { min: 1, max: Infinity };
+const boundsOf = (varBounds, name) => varBounds[name] || FREE_VAR;
+
+// One window per variable, shared by every path that binds one: the prefilter, the flat
+// matcher, the affix scan, the anagram lanes. They must not each re-derive it — a
+// prefilter a hair stricter than the matcher drops real matches and reports nothing.
+//
+// The floor is 1 because a variable is a *chunk*: let one vanish and its binding
+// collapses into a weaker one — empty A turns `AB;BA` into `B;B`, which answers every
+// word W with the degenerate tuple (W, W). So zero has to be asked for, by a clause that
+// declares a minimum of zero. `|A|<=0` is the exception that looks like a bug: it
+// declares no minimum, so the floor is capped at the ceiling to mean "empty" rather than
+// contradict itself.
+function resolveVarBounds(bounds, varEqualsPattern) {
+  const varBounds = {};
+  for (const v of new Set([...Object.keys(bounds), ...Object.keys(varEqualsPattern)])) {
+    const lc = bounds[v];
+    const vp = varEqualsPattern[v];
+    const max = Math.min(lc ? lc.hi : Infinity, vp && vp.max !== Infinity ? vp.max : Infinity);
+    const declared = [];
+    if (lc && lc.lo !== null) declared.push(lc.lo);
+    if (vp) declared.push(vp.min);
+    varBounds[v] = { min: declared.length ? Math.max(...declared) : Math.min(1, max), max };
+  }
+  return varBounds;
+}
+
+export function varsForcedNonEmpty(parsed) {
+  const { varBounds, declaredLen, varEqualsPattern } = parsed.constraints;
+  return [...parsed.variables].filter(v => {
+    if (boundsOf(varBounds, v).min === 0) return false;
+    if (declaredLen[v] && declaredLen[v].lo !== null) return false;
+    return !(varEqualsPattern[v] && varEqualsPattern[v].min > 0);
+  });
+}
+
 function stripLenPrefix(clause) {
   const i = clause.indexOf(':');
   if (i === -1) return { wordLen: null, body: clause };
@@ -172,7 +208,7 @@ function tokenizeBody(body) {
 // (or `.{m,n}` when length-bound) independently, so this over-approximates —
 // repeated-variable equality is the matcher's job — but it never rejects a real
 // match, which is what makes short-circuiting on it safe.
-function compilePrefilter(tokens, length) {
+function compilePrefilter(tokens, varBounds) {
   let body = '';
   for (const part of tokens) {
     if (part.t === 'lit') body += escapeRegex(part.s);
@@ -181,10 +217,8 @@ function compilePrefilter(tokens, length) {
     else if (part.t === 'class') body += part.src;
     else if (part.t === 'anagram') body += part.max === Infinity ? `.{${part.min},}` : `.{${part.min},${part.max}}`;
     else {
-      const lc = length[part.name];
-      if (!lc) body += '.+';
-      else if (lc.max === Infinity) body += `.{${lc.min},}`;
-      else body += `.{${lc.min},${lc.max}}`;
+      const { min, max } = boundsOf(varBounds, part.name);
+      body += max === Infinity ? `.{${min},}` : `.{${min},${max}}`;
     }
   }
   return new RegExp(`^(?:${body})$`, 'u');
@@ -358,15 +392,11 @@ export function parseUmiaqQuery(query) {
     bindingSrcs.push(clause);
   }
 
-  // Zero-length is opt-in (|A|>=0, |A|=0); capping the default floor at the upper
-  // bound is what lets |A|<=0 mean "empty" instead of erroring as 1 > 0.
-  const length = {};
   for (const v in bounds) {
     const { lo, hi } = bounds[v];
-    const min = lo === null ? Math.min(1, hi) : lo;
-    if (min > hi) return { ok: false, error: `|${v}| length constraints contradict each other` };
-    length[v] = { min, max: hi };
+    if (lo !== null && lo > hi) return { ok: false, error: `|${v}| length constraints contradict each other` };
   }
+  const varBounds = resolveVarBounds(bounds, varEqualsPattern);
 
   if (!bindingSrcs.length) return { ok: false, empty: true };
 
@@ -384,7 +414,7 @@ export function parseUmiaqQuery(query) {
     if (wordLen && wordLen.max !== null && wordLen.min > wordLen.max) return { ok: false, error: 'length prefix range is empty' };
     for (const v of parsed.variables) variables.add(v);
     const stars = parsed.tokens.reduce((n, t) => n + (t.t === 'star' ? 1 : 0), 0);
-    bindings.push({ ...parsed, src: clause, wordLen, stars, prefilter: compilePrefilter(parsed.tokens, length) });
+    bindings.push({ ...parsed, src: clause, wordLen, stars, prefilter: compilePrefilter(parsed.tokens, varBounds) });
   }
 
   for (const v of Object.keys(varNotEqualsVar)) varNotEqualsVar[v] = [...new Set(varNotEqualsVar[v])];
@@ -393,10 +423,10 @@ export function parseUmiaqQuery(query) {
     for (const v of tc.vars) if (!variables.has(v)) return { ok: false, error: `${tc.src}: ${v} must appear in a binding` };
   }
   for (const tc of termEquals) {
-    tc.pattern = { tokens: tc.term.tokens, variables: tc.term.variables, wordLen: null, stars: 0, prefilter: compilePrefilter(tc.term.tokens, length) };
+    tc.pattern = { tokens: tc.term.tokens, variables: tc.term.variables, wordLen: null, stars: 0, prefilter: compilePrefilter(tc.term.tokens, varBounds) };
   }
 
-  const constraints = { length, varNotEqualsVar, sumLen, varEqualsPattern, varNotEqualsPattern, termEquals, termNotEquals };
+  const constraints = { varBounds, declaredLen: bounds, varNotEqualsVar, sumLen, varEqualsPattern, varNotEqualsPattern, termEquals, termNotEquals };
   const anagramSolve = planAnagramSolve(bindings, termEquals, termNotEquals, variables);
   if (!anagramSolve) {
     // Exotic anagram forms fall back to the permutation pool. This is its only expansion
@@ -416,9 +446,8 @@ export function parseUmiaqQuery(query) {
 // ─── Matching ────────────────────────────────────────────────────────────────
 // Enumerate every assignment (var → bound substring) by which `pattern` matches
 // `word`. Memoized backtracker over (word index, token index, assignment), faithful
-// to Umiaq's matcher except for the prefilter and the result-dedupe. A variable
-// binds a non-empty substring by default — |A|>=0 (or |A|=0) lets it bind the empty
-// string; `*` always spans zero or more characters.
+// to Umiaq's matcher except for the prefilter and the result-dedupe. Variables bind
+// within the window `resolveVarBounds` fixed; `*` always spans zero or more characters.
 
 function canonical(assignment) {
   const keys = Object.keys(assignment);
@@ -459,14 +488,14 @@ function termsOK(termEquals, termNotEquals, assignment) {
   return true;
 }
 
-export function matchPattern(word, pattern, constraints = { length: {}, varNotEqualsVar: {} }) {
+export function matchPattern(word, pattern, constraints = { varBounds: {}, varNotEqualsVar: {} }) {
   const W = word.length;
   const wl = pattern.wordLen;
   if (wl && (W < wl.min || (wl.max !== null && W > wl.max))) return [];
   if (!pattern.prefilter.test(word)) return [];
 
   const parts = pattern.tokens;
-  const length = constraints.length || {};
+  const varBounds = constraints.varBounds || {};
   const varNotEqualsVar = constraints.varNotEqualsVar || {};
   const sumLen = constraints.sumLen || [];
   const termEquals = constraints.termEquals || [];
@@ -529,11 +558,10 @@ export function matchPattern(word, pattern, constraints = { length: {}, varNotEq
           if (part.t === 'rev') val = reverse(val);
           if (word.startsWith(val, i)) helper(i + val.length, pi + 1, assignment);
         } else {
-          let min = 1, max = W - i;
-          const lc = length[name];
-          if (lc) { min = lc.min; max = Math.min(max, lc.max); }
+          const b = boundsOf(varBounds, name);
+          const min = b.min;
+          const max = Math.min(W - i, b.max);
           const vp = varEqualsPattern[name];
-          if (vp) { min = Math.max(min, vp.min); if (vp.max !== Infinity) max = Math.min(max, vp.max); }
           const vnp = varNotEqualsPattern[name];
           const neq = varNotEqualsVar[name];
           for (let L = min; L <= max; L++) {
@@ -847,7 +875,7 @@ function planAnagramSolve(bindings, termEquals, termNotEquals, variables) {
 
 async function solveAnagram(parsed, pool, { numResults, maxMatchesPerPattern, onBatch, y, signal }) {
   const plan = parsed.anagramSolve;
-  const { length, varNotEqualsVar, varEqualsPattern, varNotEqualsPattern, sumLen } = parsed.constraints;
+  const { varBounds, varNotEqualsVar, varEqualsPattern, varNotEqualsPattern, sumLen } = parsed.constraints;
   const k = plan.vars.length;
   const varColor = variableColors(parsed.variables);
   const target = plan.target;
@@ -862,10 +890,8 @@ async function solveAnagram(parsed, pool, { numResults, maxMatchesPerPattern, on
   if (!plan.feasible) { await flush(); return { tuples, truncated: false, capped: false }; }
 
   const laneBounds = plan.lanes.map(({ varName, binding }) => {
-    let min = 1, max = Infinity;
-    const lc = length[varName]; if (lc) { min = lc.min; max = lc.max; }
+    let { min, max } = boundsOf(varBounds, varName);
     const wl = binding.wordLen; if (wl) { min = Math.max(min, wl.min); if (wl.max !== null) max = Math.min(max, wl.max); }
-    const vp = varEqualsPattern[varName]; if (vp) { min = Math.max(min, vp.min); if (vp.max !== Infinity) max = Math.min(max, vp.max); }
     return { min, max };
   });
   const laneOfVar = {};
@@ -1091,12 +1117,10 @@ export async function findTuples(parsed, pool, {
     // and a constraint silently means something different here than on the flat path.
     const acceptVar = (name, boundVal, assignment) => {
       const L = boundVal.length;
-      const lc = constraints.length[name];
-      let min = 1, max = Infinity;
-      if (lc) { min = lc.min; max = lc.max; }
+      const { min, max } = boundsOf(constraints.varBounds, name);
       if (L < min || L > max) return false;
       const vp = constraints.varEqualsPattern[name];
-      if (vp) { if (L < vp.min || (vp.max !== Infinity && L > vp.max)) return false; if (!vp.test(boundVal)) return false; }
+      if (vp && !vp.test(boundVal)) return false;
       const vnp = constraints.varNotEqualsPattern[name];
       if (vnp && vnp.some(n => L >= n.min && (n.max === Infinity || L <= n.max) && n.test(boundVal))) return false;
       const neq = constraints.varNotEqualsVar[name];

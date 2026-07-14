@@ -75,7 +75,11 @@ A **constraint** conditions the variables without contributing a word to the res
 
 ### Zero-length
 
-A variable is non-empty by default. `|A|>=0` lets it bind the empty string; `|A|=0` forces it empty. This matters when a shared chunk may sit flush against a word's edge — `AaB;AeB;AiB;AoB;AuB;|A|>=0;|B|>=0` finds sets of words differing only in a vowel that can appear anywhere, leading and trailing positions included.
+A variable binds at least one character unless some clause explicitly gives it a **minimum of zero**: `|A|>=0` (empty or longer), `|A|=0` (forced empty), or a sub-pattern that starts at zero — `A=*`, `A=0-6:*`. An upper bound on its own (`|A|<=5`) declares no minimum, so the floor stays.
+
+That floor is what keeps a variable meaning *a chunk*. Let one vanish and its binding collapses into a weaker one: with A empty, `AB;BA` reads as `B;B` and answers every word W in the wordlist with the degenerate tuple (W, W), burying the APE / PEA pairs the query was for.
+
+It also quietly costs you the edge cases, which is the trap to know about. `AtenB;AB` — words that survive deleting a TEN — silently misses TENOR and MITTEN, where the TEN sits flush against an edge and A or B would have to be empty. The result set looks perfectly plausible; nothing in it says a floor hid the rest. So the Umiaq row carries an **Allow empty variables** link: it appends `|V|>=0` for each variable a floor is still holding, and disappears once none are. `AaB;AeB;AiB;AoB;AuB;|A|>=0;|B|>=0` is the same shape — sets of words differing only in a vowel, which can now appear in leading and trailing positions too.
 
 ### Sub-pattern — `A=pattern` and `A!=pattern`
 
@@ -110,7 +114,7 @@ Grawlix speaks its own dialect. Reusing Grawlix's search syntax and range conven
 - **Any-character is `?`, not `.`.** Grawlix reserves `.` — it separates the variable breakdown in results — so a pasted `.` errors rather than acting as a wildcard.
 - **Negation is `[^abc]`, not `[!abc]`.** A pasted `[!abc]` matches a literal `!` plus a, b, c.
 - **Digits are literals**, not Qat's "repeated any-letter" placeholders (`l0v0` is the literal string, not "same letter twice"). Variables cover that use.
-- **Lengths use the score-range syntax** (`10+:`, `0-6:`), not Qat's `10-:` / `-6:`. Zero-length is `|A|>=0`, not Qat's `|A|=0-`.
+- **Lengths use the score-range syntax** (`10+:`, `0-6:`), not Qat's `10-:` / `-6:`. Zero-length is `|A|>=0`, not Qat's `|A|=0-` — and Grawlix also honors a zero-floor sub-pattern (`A=*`), which the reference tools don't. CopyQat goes the other way and has no zero-length escape at all.
 - **Sub-patterns take no parentheses** (`A=#@#`, not `A=(#@#)`). Upstream, parentheses distinguish a variable that must be a real *word* from one that is any *letter-sequence*; Grawlix has no word-form variable, so the parens would carry nothing.
 - **Grawlix searches your merged wordlist**, not a bundled dictionary — a difference in kind, not a missing feature.
 
