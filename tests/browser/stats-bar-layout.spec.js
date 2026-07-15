@@ -22,6 +22,7 @@ async function statsBarBoxes(page) {
       controls: pick('.stats-bar-controls'),
       histogram: pick('.histogram'),
       scores: pick('.score-range-label'),
+      streamDots: pick('.stream-dots'),
     };
   });
 }
@@ -86,5 +87,34 @@ test.describe('Stats bar layout', () => {
       await expect.poll(shown('scores')).toBe(true);
     }
     await expect.poll(shown('histogram'), { timeout: 15000 }).toBe(false);
+  });
+
+  // Guards the overflow budget counting the streaming spinner: it sits at the right
+  // end of the distribution cell, so if excluded it overlaps the Share menu at any
+  // width where the histogram still fits but leaves less slack than the dots need.
+  test('the streaming spinner never overlaps the controls as the viewport narrows', async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await gotoApp(page);
+    await seedWordlist(page);
+
+    await page.evaluate(() => {
+      const rows = Array.from({ length: 10 }, (_, k) => ({ norm: 'ROW' + k, display: 'ROW' + k, score: 50, atoms: [{}] }));
+      window.__grawlixTest.streamSyntheticBatch({
+        runId: 'syn', version: 1, total: 10,
+        scores: Array(10).fill(50),
+        firstRows: rows,
+        widthHints: { maxDisplayLen: 5, maxLenDigits: 1, maxScoreDigits: 2, maxRawDigits: 0 },
+      });
+    });
+    await expect.poll(async () => (await statsBarBoxes(page)).streamDots !== null).toBe(true);
+
+    const widths = [1040, 880, 760, 680, 620, 560, 500, 460, 420, 380, 340];
+    for (const width of widths) {
+      await page.setViewportSize({ width, height: 800 });
+      await settledStatsVisibility(page);
+      const b = await statsBarBoxes(page);
+      expect(b.streamDots, `spinner present at width ${width}`).not.toBeNull();
+      expect(b.streamDots.right, `no overlap at width ${width}`).toBeLessThanOrEqual(b.controls.left + 1);
+    }
   });
 });

@@ -471,7 +471,7 @@ export function refreshStatsBarOverflow() {
       const ctrls = bar.querySelector('.stats-bar-controls');
       if (!ctrls) return false;
       const ctrlsLeft = ctrls.getBoundingClientRect().left;
-      for (const el of bar.querySelectorAll('.stats-bar-counts, .histogram, .score-range-label')) {
+      for (const el of bar.querySelectorAll('.stats-bar-counts, .histogram, .score-range-label, .stream-dots')) {
         if (!el.offsetWidth) continue;
         if (el.getBoundingClientRect().right > ctrlsLeft + 0.5) return true;
       }
