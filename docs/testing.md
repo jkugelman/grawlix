@@ -56,7 +56,7 @@ The suite covers what manual testing structurally misses. Manual already catches
 Pure logic — parsing, rescoring, the My Edits 3-way merge, schema migrations — lives in real `engine/` and `data/` modules, so the unit tier just **imports it directly**:
 
 - **Direct imports.** A spec imports the functions under test straight from their module — `import { toNorm } from '../../site/src/engine/norm.js'`, `import { threeWayMergeEdits } from '../../site/src/engine/edits-merge.js'`. No extraction harness, no source-text slicing; the `engine/` layer is DOM-free by construction (see [`design.md` § Code structure](design.md#code-structure)), so it loads in plain Node with nothing to stub. [`tests/unit/engine-dom-free.test.js`](../tests/unit/engine-dom-free.test.js) *enforces* that property rather than trusting it: it imports every `engine/` module under throwing getters on `document`/`window`/`localStorage`, so a stray DOM reach fails CI. The few `data/` functions the unit tier reaches are pure, param-driven entry points (the migration blob-transformers); anything `state`- or DOM-coupled stays in the browser tier.
-- **The runner.** `node:test` + `node:assert/strict`, no new dependencies. Specs are `tests/unit/*.test.js`; run `npm run test:unit` (or `node --test tests/unit/`). CI runs it in the build job, gating the browser matrix.
+- **The runner.** `node:test` + `node:assert/strict`, no new dependencies. Specs are `tests/unit/*.test.js`; run `npm run test:unit` (or `node --test 'tests/unit/**/*.js'`). CI runs it in the build job, gating the browser matrix.
 
 **What belongs here:** deterministic transforms with no browser-specific behavior — string→string, score mapping, dedup, sort/priority ordering, serialization, the 3-way merge, migration blob-transformers. Especially the branchy paths that are awkward to reach through Playwright: rescore range-output scaling and N+ shift, the rule-priority tie-break with *overlapping* rules, malformed-line parsing, `detectCase`'s ratio threshold.
 
@@ -71,11 +71,11 @@ Each tool's full contract lives in the unit tier. Every tool is its own `engine/
 
 ## First-time setup
 
-Requires **Node 18+** (Playwright dropped Node 16). On Ubuntu's older system Node, install via nvm:
+Requires **Node 21+** (the unit runner discovers specs via a glob, added in Node 21). CI and local dev pin the version in [`.nvmrc`](../.nvmrc) — currently Node 24, the active LTS — which `actions/setup-node` reads in CI. On Ubuntu's older system Node, install a matching version via nvm:
 
 ```sh
-nvm install 20
-nvm use 20
+nvm install   # reads .nvmrc
+nvm use
 ```
 
 Then:
