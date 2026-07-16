@@ -50,9 +50,8 @@ test('supports Search-style wildcards — TOOL/TOOT/TOOK collapse to one symbol'
   sameVisible(out, [['tool', 'Ⓣ'], ['toot', 'Ⓣ'], ['took', 'Ⓣ']]);
 });
 
-test('the display arm catches a wildcard match the norm arm misses (a ? eating a separator)', async () => {
-  // norm of "a-b" is "ab", which "a?b" (3 chars) cannot match; the display "a-b" can.
-  const { rows } = await run([{ entry: 'a-b', score: 10 }], rebus(['a?b'], ['Ⓧ']));
+test('the display arm catches a match the norm arm misses (a literal separator in the pattern)', async () => {
+  const { rows } = await run([{ entry: 'a-b', score: 10 }], rebus(['a-b'], ['Ⓧ']));
   assert.equal(atomWord(rowByFirst(rows, 'a-b').atoms.at(-1)), 'Ⓧ');
 });
 

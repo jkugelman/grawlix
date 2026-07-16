@@ -44,7 +44,7 @@ export function buildSearchPattern(query, mode = '', literal = false) {
     const ch = q[i];
     if (literal)         tokens.push({ kind: 'literal', re: escapeRegex(ch) });
     else if (ch === '*') tokens.push({ kind: 'wild', re: '.*' });
-    else if (ch === '?') tokens.push({ kind: 'wild', re: '\\S' });
+    else if (ch === '?') tokens.push({ kind: 'wild', re: '[\\p{L}\\p{N}]' });
     else if (ch === '#') tokens.push({ kind: 'wild', re: `[${CONSONANTS}]` });
     else if (ch === '@') tokens.push({ kind: 'wild', re: `[${VOWELS}]` });
     else if (ch === '[') {

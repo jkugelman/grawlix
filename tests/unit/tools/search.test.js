@@ -73,9 +73,14 @@ test('a hyphen counts as a word break; an apostrophe does not', async () => {
   sameVisible(await visible(lib, search('nt', { mode: 'span' })), []);
 });
 
-test('`?` fills exactly one non-whitespace character — letter or symbol — never a space or nothing', async () => {
-  const lib = ['hisc', 'hi-c', 'hi c', 'hic'];
-  sameVisible(await visible(lib, search('hi?c')), ['hisc', 'hi-c']);
+test('`?` fills exactly one letter or digit — never a separator, space, or nothing', async () => {
+  const lib = ['hisc', 'hi9c', 'hi-c', 'hi c', 'hic'];
+  sameVisible(await visible(lib, search('hi?c')), ['hisc', 'hi9c']);
+});
+
+test('`?` matches an accented display character across a literal-space (display-arm) query', async () => {
+  const lib = ['CAFÉS ROYAL', 'CAFES ROYALS'];
+  sameVisible(await visible(lib, search('????? ?????', { mode: 'full' })), ['CAFÉS ROYAL']);
 });
 
 test('mode=full matches an entry whose letters equal the query across its separators', async () => {

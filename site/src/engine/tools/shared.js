@@ -28,7 +28,7 @@ export const ALLOW_UNLISTED_PARAM = { key: 'unlisted', type: 'checkbox', replace
 
 export const SEARCH_HELP = buildHelpHTML([
   ['*', 'any string'],
-  ['?', 'any character'],
+  ['?', 'any letter or digit'],
   ['#', 'any consonant'],
   ['@', 'any vowel'],
   ['[abc]', 'any of a, b, c'],

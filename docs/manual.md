@@ -86,7 +86,7 @@ You sync each list from its wordlist bar, list by list. Two kinds of sync, depen
 
 ## Search syntax
 
-- `?` — any character
+- `?` — any letter or digit
 - `#` — consonant
 - `@` — vowel
 - `*` — any substring
@@ -101,7 +101,7 @@ Next to the pattern box, a checkbox plus a mode picker constrain **where the mat
 
 Clicking the mode name opens the picker; picking a mode turns the checkbox on if it wasn't already. The same controls appear on Regex tool rows. The **Hidden anagram** tool carries a standalone **Spans words** checkbox — the same constraint, for anagrams hidden across the words of a phrase.
 
-Every pattern is matched two ways, and an entry counts as a hit if *either* matches: against the entry **as written** — so a space, hyphen, or accent you type has to be there (`co-op` matches `co-op` but not `coop`; `the IRS` matches `the IRS`; `résumé` matches only `résumé`) — and against its **letters alone**, lowercased with accents, spaces, and punctuation stripped (so `theirs` matches `the IRS`, and a bare `resume` matches both `resume` and `résumé`). The letters-only pass means you rarely need to type separators; the as-written pass means typing them narrows the match to exactly that form. A `?` fills exactly one character of any kind — a letter, or a symbol or space in the as-written form — never nothing.
+Every pattern is matched two ways, and an entry counts as a hit if *either* matches: against the entry **as written** — so a space, hyphen, or accent you type has to be there (`co-op` matches `co-op` but not `coop`; `the IRS` matches `the IRS`; `résumé` matches only `résumé`) — and against its **letters alone**, lowercased with accents, spaces, and punctuation stripped (so `theirs` matches `the IRS`, and a bare `resume` matches both `resume` and `résumé`). The letters-only pass means you rarely need to type separators; the as-written pass means typing them narrows the match to exactly that form. A `?` fills exactly one letter or digit — including an accented letter, which counts as a square — but never a separator, space, or nothing, so it counts grid squares rather than characters (`WELL-DOCUMENTED` is fourteen, not fifteen).
 
 Focus any search box and this cheat sheet pops up above it. The Regex tool's pattern and replacement boxes show regex-specific cheat sheets instead, each linking out to [regexone.com](https://regexone.com/) for the syntax a popover can't cover; regex patterns are tested against the same two forms, so `\s` or `\b` can key on the spacing in a phrase (`Helen of Troy`) that the letters-only form drops.
 
