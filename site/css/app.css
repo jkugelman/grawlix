@@ -379,7 +379,12 @@ mark.find-hit.find-current { background: var(--find-current-bg); color: var(--fi
    atom above. */
 .atom { display: contents; }
 .entry-row .atom-count { grid-column: 1; grid-row: 1; text-align: right; color: var(--faint); font-family: var(--font-sans); font-size: 12px; }
-.entry-row .atom-entry { grid-column: 2; justify-self: start; max-width: 100%; overflow: hidden; text-overflow: ellipsis; min-width: 0; cursor: pointer; }
+/* padding-right (with a compensating negative margin so the track alignment is
+   unchanged) gives a trailing search/find <mark>'s 1px background bleed room
+   inside the overflow-clip box. Without it, a mark at the entry's end — a suffix
+   match, or a whole-string match like "blin" — overflows the shrink-wrapped cell
+   by that 1px and falsely trips text-overflow:ellipsis, lopping off a character. */
+.entry-row .atom-entry { grid-column: 2; justify-self: start; max-width: 100%; overflow: hidden; text-overflow: ellipsis; min-width: 0; cursor: pointer; padding-right: 1px; margin-right: -1px; }
 .entry-row .atom-len { grid-column: 3; text-align: right; font-family: var(--font-sans); font-size: 12px; }
 .entry-row .atom-score { grid-column: 4; cursor: pointer; justify-self: end; }
 .atom-score-raw { color: var(--muted); }
@@ -499,7 +504,7 @@ mark.find-hit.find-current { background: var(--find-current-bg); color: var(--fi
   justify-content: end;
 }
 .group-row .group-anchor .atom { display: contents; }
-.group-row .group-anchor .atom-entry { cursor: pointer; overflow: hidden; text-overflow: ellipsis; }
+.group-row .group-anchor .atom-entry { cursor: pointer; overflow: hidden; text-overflow: ellipsis; padding-right: 1px; margin-right: -1px; }
 .group-row .group-anchor .atom-score { cursor: pointer; }
 .group-more {
   position: absolute; right: 12px; top: 0;
