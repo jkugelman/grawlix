@@ -69,9 +69,11 @@ A **term** is a sequence of variables and literals — `A`, `AB`, `AxB`, `boardr
 
 A **constraint** conditions the variables without contributing a word to the result — the counterpart to a binding, whose match *is* one of the result words. A constraint can name any variable that appears in a binding, and it applies across the whole query.
 
-### Length — `|term| op n`
+### Length — `|term| op n` and `|term| op |term|`
 
 `|A|=5` pins A to five characters. The comparisons `<`, `<=`, `>`, `>=` bound it (`|A|>=3`, `|A|<5`), and two of them intersect into a range (`|A|>=2;|A|<=5`). A term of more than one element sums: `|AB|=9` means A and B's lengths total nine, and `|AxB|=9` counts the literal too (`|A|` + 1 + `|B|`). The term may hold only variables and literals — a wildcard like `|A*|` has no fixed length and is rejected. Multi-element terms are checked at the tuple join, so they hold even when the variables live in different bindings.
+
+The right side can be **another term** instead of a number: `|A|=|B|` requires A and B to bind equal-length chunks, `|AB|<|CD|` compares two sums, and all six operators (`=`, `!=`, `<`, `<=`, `>`, `>=`) work on either shape. `!=` also takes a number — `|A|!=3` excludes a length. Unlike the numeric `=`/`<`/`…` forms, which narrow a variable's search window, a relational comparison and `|A|!=n` are pure filters — neither side is fixed, so they only prune at the tuple join, holding across bindings the same way a multi-element `|AB|=9` does.
 
 ### Zero-length
 

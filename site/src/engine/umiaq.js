@@ -21,7 +21,7 @@ const VAR_HL_COLORS = 9;
 
 // ─── Parsing ─────────────────────────────────────────────────────────────────
 
-const LEN_CONSTRAINT_RE = /^\|([^|]+)\|(<=|>=|<|>|=)(\d+)$/;
+const LEN_CONSTRAINT_RE = /^\|([^|]+)\|(<=|>=|!=|<|>|=)(.+)$/;
 const VAR_OP_RE = /^([A-Z])(!?=)(.+)$/;
 const TERM_OP_RE = /^([A-Za-z0-9]+)(!?=)(.+)$/;
 
@@ -31,6 +31,20 @@ function boundsFromOp(op, n) {
   if (op === '>=') return { lo: n, hi: Infinity };
   if (op === '<')  return { lo: null, hi: n - 1 };
   return { lo: null, hi: n };   // '<='
+}
+
+function lenTermParts(inner) {
+  let tokens;
+  try { tokens = tokenizePattern(inner).tokens; }
+  catch { throw `invalid length term "|${inner}|"`; }
+  const vars = [];
+  let lit = 0;
+  for (const t of tokens) {
+    if (t.t === 'var') vars.push(t.name);
+    else if (t.t === 'lit') lit += t.s.length;
+    else throw `|${inner}| takes only variables and literals`;
+  }
+  return { vars, lit };
 }
 
 const FREE_VAR = { min: 1, max: Infinity };
@@ -326,6 +340,7 @@ export function parseUmiaqQuery(query) {
   const varEqualsPattern = {};
   const varNotEqualsPattern = {};
   const sumLen = [];
+  const lenCompare = [];
   const termEquals = [];
   const termNotEquals = [];
   const bindingSrcs = [];
@@ -349,17 +364,29 @@ export function parseUmiaqQuery(query) {
     if (clause.startsWith('|')) {
       const lm = LEN_CONSTRAINT_RE.exec(clause);
       if (lm) {
-        const { lo, hi } = boundsFromOp(lm[2], +lm[3]);
-        let termTokens;
-        try { termTokens = tokenizePattern(lm[1]).tokens; }
-        catch { return { ok: false, error: `invalid length term "|${lm[1]}|"` }; }
-        const vars = [];
-        let lit = 0;
-        for (const t of termTokens) {
-          if (t.t === 'var') vars.push(t.name);
-          else if (t.t === 'lit') lit += t.s.length;
-          else return { ok: false, error: `|${lm[1]}| takes only variables and literals` };
+        const [, leftSrc, op, rhs] = lm;
+        let left;
+        try { left = lenTermParts(leftSrc); }
+        catch (msg) { return { ok: false, error: typeof msg === 'string' ? msg : String(msg) }; }
+
+        // A relational RHS (`|A|=|B|`) fixes neither side, so it can't feed varBounds/sumLen
+        // like the numeric forms — it can only filter at the join. Same for `|A|!=3` below.
+        const rm = /^\|([^|]+)\|$/.exec(rhs);
+        if (rm) {
+          let right;
+          try { right = lenTermParts(rm[1]); }
+          catch (msg) { return { ok: false, error: typeof msg === 'string' ? msg : String(msg) }; }
+          lenCompare.push({ left, op, right, src: clause });
+          continue;
         }
+        if (!/^\d+$/.test(rhs)) return { ok: false, error: `unsupported constraint "${clause}"` };
+        const n = +rhs;
+        if (op === '!=') {
+          lenCompare.push({ left, op, right: { vars: [], lit: n }, src: clause });
+          continue;
+        }
+        const { lo, hi } = boundsFromOp(op, n);
+        const { vars, lit } = left;
         if (vars.length === 1 && lit === 0) {
           const v = vars[0];
           // A null lower bound must stay null (not default to 1) until every clause is
@@ -426,7 +453,7 @@ export function parseUmiaqQuery(query) {
     tc.pattern = { tokens: tc.term.tokens, variables: tc.term.variables, wordLen: null, stars: 0, prefilter: compilePrefilter(tc.term.tokens, varBounds) };
   }
 
-  const constraints = { varBounds, declaredLen: bounds, varNotEqualsVar, sumLen, varEqualsPattern, varNotEqualsPattern, termEquals, termNotEquals };
+  const constraints = { varBounds, declaredLen: bounds, varNotEqualsVar, sumLen, lenCompare, varEqualsPattern, varNotEqualsPattern, termEquals, termNotEquals };
   const anagramSolve = planAnagramSolve(bindings, termEquals, termNotEquals, variables);
   if (!anagramSolve) {
     // Exotic anagram forms fall back to the permutation pool. This is its only expansion
@@ -472,6 +499,30 @@ function sumLenOK(sumLen, assignment) {
   return true;
 }
 
+const termLenOf = ({ vars, lit }, assignment) => {
+  let total = lit;
+  for (const v of vars) total += assignment[v].length;
+  return total;
+};
+
+// Same fail-open discipline as sumLenOK: a relational constraint whose two terms straddle
+// separate bindings is only whole at the join, so skip it until every named variable binds.
+function lenCompareOK(lenCompare, assignment) {
+  for (const { left, op, right } of lenCompare) {
+    if (!left.vars.every(v => v in assignment) || !right.vars.every(v => v in assignment)) continue;
+    const a = termLenOf(left, assignment);
+    const b = termLenOf(right, assignment);
+    const ok = op === '=' ? a === b
+      : op === '!=' ? a !== b
+      : op === '<' ? a < b
+      : op === '<=' ? a <= b
+      : op === '>' ? a > b
+      : a >= b;
+    if (!ok) return false;
+  }
+  return true;
+}
+
 // The string a term spells once its variables are bound, or null when some variable it
 // names isn't bound yet — the fail-open case the callers skip (a cross-binding term is
 // only whole at the join).
@@ -498,6 +549,7 @@ export function matchPattern(word, pattern, constraints = { varBounds: {}, varNo
   const varBounds = constraints.varBounds || {};
   const varNotEqualsVar = constraints.varNotEqualsVar || {};
   const sumLen = constraints.sumLen || [];
+  const lenCompare = constraints.lenCompare || [];
   const termEquals = constraints.termEquals || [];
   const termNotEquals = constraints.termNotEquals || [];
   const varEqualsPattern = constraints.varEqualsPattern || {};
@@ -522,6 +574,7 @@ export function matchPattern(word, pattern, constraints = { varBounds: {}, varNo
     if (pi === parts.length) {
       if (i === W) {
         if (sumLen.length && !sumLenOK(sumLen, assignment)) return;
+        if (lenCompare.length && !lenCompareOK(lenCompare, assignment)) return;
         if ((termEquals.length || termNotEquals.length) && !termsOK(termEquals, termNotEquals, assignment)) return;
         if (needDedup) {
           const c = canonical(assignment);
@@ -875,7 +928,7 @@ function planAnagramSolve(bindings, termEquals, termNotEquals, variables) {
 
 async function solveAnagram(parsed, pool, { numResults, maxMatchesPerPattern, onBatch, y, signal }) {
   const plan = parsed.anagramSolve;
-  const { varBounds, varNotEqualsVar, varEqualsPattern, varNotEqualsPattern, sumLen } = parsed.constraints;
+  const { varBounds, varNotEqualsVar, varEqualsPattern, varNotEqualsPattern, sumLen, lenCompare } = parsed.constraints;
   const k = plan.vars.length;
   const varColor = variableColors(parsed.variables);
   const target = plan.target;
@@ -936,6 +989,7 @@ async function solveAnagram(parsed, pool, { numResults, maxMatchesPerPattern, on
     const assignment = {};
     for (let i = 0; i < k; i++) assignment[plan.vars[i]] = chosen[i].norm;
     if (sumLen.length && !sumLenOK(sumLen, assignment)) return;
+    if (lenCompare.length && !lenCompareOK(lenCompare, assignment)) return;
     const lanes = chosen.map((entry, i) => {
       const hl = variableHighlights(entry.norm, plan.lanes[i].binding, { [plan.vars[i]]: entry.norm }, varColor);
       return { entry, highlights: hl.length ? hl : null };
@@ -1007,6 +1061,7 @@ export async function findTuples(parsed, pool, {
   if (parsed.anagramSolve) return solveAnagram(parsed, pool, { numResults, maxMatchesPerPattern, onBatch, y, signal });
   const { bindings, constraints } = parsed;
   const sumLen = constraints.sumLen || [];
+  const lenCompare = constraints.lenCompare || [];
   const termEquals = constraints.termEquals || [];
   const termNotEquals = constraints.termNotEquals || [];
 
@@ -1182,6 +1237,7 @@ export async function findTuples(parsed, pool, {
       if (tuples.length >= numResults) return true;
       if (si === steps.length) {
         if (sumLen.length && !sumLenOK(sumLen, assignment)) return false;
+        if (lenCompare.length && !lenCompareOK(lenCompare, assignment)) return false;
         if ((termEquals.length || termNotEquals.length) && !termsOK(termEquals, termNotEquals, assignment)) return false;
         emitAffix(assignment);
         return tuples.length >= numResults;
@@ -1293,7 +1349,7 @@ export async function findTuples(parsed, pool, {
     if (signal?.aborted) throw signal.reason ?? new DOMException('Aborted', 'AbortError');
     const f = frames[frames.length - 1];
     if (f.index === N) {
-      if (sumLenOK(sumLen, f.dict) && termsOK(termEquals, termNotEquals, f.dict)) emit(f.selected);
+      if (sumLenOK(sumLen, f.dict) && lenCompareOK(lenCompare, f.dict) && termsOK(termEquals, termNotEquals, f.dict)) emit(f.selected);
       frames.pop(); continue;
     }
     if (f.i >= f.list.length) { frames.pop(); continue; }

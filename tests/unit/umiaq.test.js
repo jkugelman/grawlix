@@ -473,6 +473,48 @@ test('find: a sum-length constraint filters tuples by combined length', async ()
   assert.deepEqual(got, [['ab', 'cat'], ['ab', 'dog'], ['cat', 'ab'], ['dog', 'ab']]);
 });
 
+test('parse: a relational length constraint parses into lenCompare', () => {
+  assert.deepEqual(parseUmiaqQuery('AB;|A|=|B|').constraints.lenCompare,
+    [{ left: { vars: ['A'], lit: 0 }, op: '=', right: { vars: ['B'], lit: 0 }, src: '|A|=|B|' }]);
+  for (const op of ['<', '<=', '>', '>=', '!=']) {
+    assert.deepEqual(parseUmiaqQuery(`AB;|A|${op}|B|`).constraints.lenCompare[0].op, op);
+  }
+  assert.deepEqual(parseUmiaqQuery('AB;CD;|xAB|>=|Cy|').constraints.lenCompare,   // literals sum like a length term
+    [{ left: { vars: ['A', 'B'], lit: 1 }, op: '>=', right: { vars: ['C'], lit: 1 }, src: '|xAB|>=|Cy|' }]);
+  assert.deepEqual(parseUmiaqQuery('AB;|A|=|B|').constraints.varBounds, {});   // never a per-var window
+  assert.deepEqual(parseUmiaqQuery('AB;|A|=|B|').constraints.sumLen, []);      // nor the sumLen join
+});
+
+test('parse: |A|!=n is a numeric length filter, not a search window', () => {
+  assert.deepEqual(parseUmiaqQuery('A;|A|!=3').constraints.lenCompare,
+    [{ left: { vars: ['A'], lit: 0 }, op: '!=', right: { vars: [], lit: 3 }, src: '|A|!=3' }]);
+  assert.deepEqual(parseUmiaqQuery('A;|A|!=3').constraints.varBounds, {});   // a hole is not a window
+  assert.deepEqual(parseUmiaqQuery('A;|A|=3').constraints.lenCompare, []);                    // ordered ops keep
+  assert.deepEqual(parseUmiaqQuery('A;|A|=3').constraints.varBounds, { A: { min: 3, max: 3 } });  // their fast path
+});
+
+test('parse: a relational length term rejects wildcards and non-term right sides', () => {
+  assert.match(parseUmiaqQuery('A;B;|A*|=|B|').error, /variables and literals/);
+  assert.match(parseUmiaqQuery('A;B;|A|=|B#|').error, /variables and literals/);
+  assert.match(parseUmiaqQuery('A;B;|A|=B').error, /unsupported constraint/);   // bare variable RHS is not a length
+});
+
+test('match: a relational length constraint filters within one binding', () => {
+  assert.deepEqual(bindings('AB;|A|=|B|', 'abcd'), [{ A: 'ab', B: 'cd' }]);        // equal halves
+  assert.deepEqual(bindings('AB;|A|=|B|', 'abcde'), []);                           // no equal split
+  assert.deepEqual(bindings('AB;|A|<|B|', 'abcd'), [{ A: 'a', B: 'bcd' }]);
+  assert.deepEqual(bindings('AB;|A|!=|B|', 'abcd'), [{ A: 'a', B: 'bcd' }, { A: 'abc', B: 'd' }]);
+  assert.deepEqual(bindings('A;|A|!=3', 'at'),  [{ A: 'at' }]);
+  assert.deepEqual(bindings('A;|A|!=3', 'cat'), []);
+});
+
+test('find: a relational length constraint filters cross-binding tuples', async () => {
+  assert.deepEqual(await tupleNorms('A;B;|A|=|B|', ['ab', 'yz', 'cat', 'x']),   // whole only at the join
+    [['ab', 'ab'], ['ab', 'yz'], ['cat', 'cat'], ['x', 'x'], ['yz', 'ab'], ['yz', 'yz']]);
+  assert.deepEqual(await tupleNorms('A;B;|A|<|B|', ['x', 'ab', 'cat']),
+    [['ab', 'cat'], ['x', 'ab'], ['x', 'cat']]);
+});
+
 test('parse: a variable sub-pattern compiles into varPattern', () => {
   const vp = parseUmiaqQuery('A;A=#@#').constraints.varEqualsPattern.A;
   assert.deepEqual([vp.min, vp.max], [3, 3]);
