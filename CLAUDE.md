@@ -27,7 +27,7 @@ Design and manual:
 - [`docs/umiaq.md`](docs/umiaq.md) — **single source of truth for the Umiaq dialect**: elements, variables, the *term* concept, constraints, the deliberate divergences from Qat/Umiaq, and the Umiaq roadmap (implemented + planned, kept together on purpose). `design.md` (tool wiring) and `manual.md` (short version) defer to it. Read before touching the Umiaq language.
 - [`docs/wordlisted.md`](docs/wordlisted.md) — reference catalogue of Wordlisted's search modes; source material for the tool gallery.
 
-Plans (forward-looking, not yet shipped). `docs/planned/` is for plans that stay in version control for a while and aren't about to be implemented. A plan written to think through imminent work — one you'll implement right away and then discard — is ephemeral: write it to `/tmp`, not `docs/planned/`, and don't commit it. For a substantial rearchitecture whose feasibility is hard to judge up front, write the plan as a standalone doc (ephemeral → `/tmp`, long-lived → `docs/planned/`) and have an independent agent vet it before writing code; structure it so a reviewer can check the reasoning — load-bearing claims with `file:line` anchors, validated separated from uncertain, and a closing list of what to verify during implementation.
+Plans (forward-looking, not yet shipped). `docs/planned/` is for plans that stay in version control for a while and aren't about to be implemented — it's the long-lived home for a standalone plan doc.
 - [`docs/planned/tools.md`](docs/planned/tools.md) — runtime support sequencing, gallery polish (category picker, search), result download, tool API extensions (indexed lookups, annotations, escape hatches), open questions. The chain-row pipeline (executor, per-row tool API, symmetric unification, search-as-tool, per-atom-count sort, highlights) and the group-row model (group tools, group rows, the +N-more reveal) are shipped — see `design.md`. The tool catalog itself lives in `docs/tools.md`.
 - [`docs/planned/editing.md`](docs/planned/editing.md) — entries-table editing, **forward-looking remainder only** (Phase 1 shipped → `design.md` § *Keyboard navigation & multi-select*, `manual.md` § *Selecting rows*). What's left: the parked extensions (multi-atom transform/group tiers, multi-entry panel editor, family-as-selection, panel prev/next, type-ahead — all *additive* to the shipped atom-keyed selection) and the undesigned **bulk-editing stretch goal** with the motivating real-world cases captured verbatim (spacing out unspaced families, adding punctuation, conjugation-matched comments, name-variant comments).
 
@@ -123,15 +123,9 @@ All colors are CSS variables on `html.dark-mode` / `html.light-mode`. The naming
 - `--accent`, `--accent-hover` — brand purple
 - `--score-{tier}-bg/fg` — score badge colors
 
-## Committing
+## Commit messages
 
-When changes reach a complete, shippable point, commit them — don't stop at proposing a message. Group work into atomic, independently-shippable commits.
-
-When I ask for tweaks to something you just committed, prefer amending over a new commit whenever the changes belong with the original — especially bug fixes to code that hasn't been pushed yet. When several commits from this session are in play, that can mean rebasing and squashing a fix back into the older commit it fixes, not just amending the latest one.
-
-If amending is the right call but the target commit has already been pushed, ask me first rather than rewriting published history on your own. Sometimes I'll want a fresh commit; other times I'll approve amending and force-pushing to fix a buggy commit that got deployed — I'm the only developer, so rewriting recent published history is fine when I okay it.
-
-Message format: conventional commit prefix (`feat:`, `fix:`, `refactor:`, `chore:`, etc.), no parenthetical scope — just `fix:` not `fix(scope):`. Include a body unless the commit is trivial. Hard-wrap the body at 72 columns — including when writing it to a file or heredoc, not only when suggesting it in chat.
+Conventional commit prefix (`feat:`, `fix:`, `refactor:`, `chore:`, etc.), no parenthetical scope — just `fix:` not `fix(scope):`. Include a body unless the commit is trivial. Hard-wrap the body at 72 columns. See [`docs/style.md`](docs/style.md).
 
 ## Coding style
 
