@@ -106,6 +106,8 @@ CI=1 npm run test:browser                            # reproduce CI (1 worker, 2
 
 `CI=1` is worth knowing: local runs default to parallel workers, but CI uses one worker, which surfaces timing races (e.g. a click handler that hands off async work that the next assertion reads too early). If a test passes locally but fails in CI, run with `CI=1` first.
 
+**Concurrent runs don't collide.** The static server's port is derived from the directory being served, so every worktree gets its own — and `site/` and `dist/` differ within one worktree, letting `test:browser` and `test:dist` run side by side. Two agents can test at once without either seeing the other's bundle. Set `GRAWLIX_PORT` to pin a port by hand. The server is never reused: if anything already holds the port, the run stops with `… is already used` instead of quietly testing whatever that server was serving, which is the honest failure — a reused server from another checkout produces phantom test failures that look real.
+
 `npm run test:report` serves on `localhost:9323`; open it in your browser to inspect failures with screenshots, traces, and step-by-step playback. **This is the easiest way to debug from WSL** — failed-test artifacts are recorded automatically (`trace: retain-on-failure`).
 
 ## Running headed under WSL

@@ -1,4 +1,7 @@
 import { defineConfig, devices } from '@playwright/test';
+import { createHash } from 'node:crypto';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 // Three projects: Chromium, Firefox, WebKit. Each runs the full suite.
 // Tests run against a static server hosting site/. __grawlixTest is exposed
@@ -7,6 +10,14 @@ import { defineConfig, devices } from '@playwright/test';
 // CI overrides GRAWLIX_SITE_DIR to `dist` so the suite verifies the deployed
 // minified bundle; drop this indirection and CI silently tests the source.
 const siteDir = process.env.GRAWLIX_SITE_DIR || 'site';
+
+// Keyed by served directory, not hardcoded: a shared port let a run silently
+// attach to a parallel worktree's leftover server and test its bundle, surfacing
+// as phantom failures. Reuse stays off so a collision is a loud port error.
+const servedDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), siteDir);
+const derivedPort = 20_000 + (createHash('sha1').update(servedDir).digest().readUInt32BE(0) % 20_000);
+const port = Number(process.env.GRAWLIX_PORT) || derivedPort;
+const origin = `http://localhost:${port}`;
 
 export default defineConfig({
   testDir: './tests/browser',
@@ -23,7 +34,7 @@ export default defineConfig({
   timeout: 60_000,
   reporter: process.env.CI ? [['html', { open: 'never' }], ['github']] : 'html',
   use: {
-    baseURL: 'http://localhost:4173',
+    baseURL: origin,
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
   },
@@ -37,9 +48,9 @@ export default defineConfig({
     // so per-request access logs don't flood the test output. Genuine failures
     // (port in use, missing file) raise exceptions rather than routing through
     // log_message, so stderr: 'pipe' still surfaces real errors.
-    command: `python3 -c "import http.server as h,functools; h.SimpleHTTPRequestHandler.log_message=lambda *a:None; h.test(HandlerClass=functools.partial(h.SimpleHTTPRequestHandler,directory='${siteDir}'),port=4173,bind='127.0.0.1')"`,
-    url: 'http://localhost:4173/index.html',
-    reuseExistingServer: !process.env.CI,
+    command: `python3 -c "import http.server as h,functools; h.SimpleHTTPRequestHandler.log_message=lambda *a:None; h.test(HandlerClass=functools.partial(h.SimpleHTTPRequestHandler,directory='${siteDir}'),port=${port},bind='127.0.0.1')"`,
+    url: `${origin}/index.html`,
+    reuseExistingServer: false,
     stdout: 'ignore',
     stderr: 'pipe',
   },
