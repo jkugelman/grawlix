@@ -2,7 +2,8 @@ CLAUDE.local.md
 TODO.md
 settings.local.json
 .claude/scheduled_tasks.lock
-.claude/skills/dev-server/
+# machine-local skill: hardcodes this host's LAN/WSL networking, never shared
+.claude/skills/mobile-bridge/
 .claude/worktrees/
 
 # Build output
