@@ -6,7 +6,7 @@ const NON_CONSONANT = new RegExp(`[^${CONSONANTS}]`, 'g');
 export const consonantSkeleton = s => (s || '').replace(NON_CONSONANT, '');
 
 export default {
-  name: 'Consonantcy', icon: '🦴', category: 'letters',
+  name: 'Consonantcy', icon: '🅱️', category: 'letters',
   desc: 'Same consonants in order; vowels may differ',
   example: 'I said no → so done',
   params: [{ placeholder: 'entry' }],

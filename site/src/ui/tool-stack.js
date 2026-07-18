@@ -233,6 +233,15 @@ export const SymbolSuggest = (() => {
   };
 })();
 
+// Renders for every filter-CAPABLE tool, graying out when params currently make the
+// row a transform. Gating on kind() instead reads cleaner but rebuilds the label
+// mid-keystroke, dropping the search bar's focus.
+function invertOptsFor(row, rowToken) {
+  const def = TOOLS[row.tool];
+  if (def.kind !== 'filter' && typeof def.kind !== 'function') return null;
+  return { rowToken, active: row.inverted(), canInvert: row.kind() === 'filter' };
+}
+
 export function buildSearchBarHTML() {
   const row = ToolStack.getSearchBarRow();
   // `bar`, not a numeric index: the bar's DOM persists across rerenderRows, so
@@ -241,7 +250,7 @@ export function buildSearchBarHTML() {
   const parts = buildToolRowPartsHTML(TOOLS.search.params, row.params, 'search',
     p => ` data-row="bar" data-key="${p.key}"${p.key === 'pattern' ? ' title="Search (Alt-S)"' : ''}`,
     { findReplace: true, rowToken: 'bar', expanded: ToolStack.isRowExpanded('bar') });
-  const label = buildToolLabelHTML({ icon: '<svg width="16" height="16" aria-hidden="true"><use href="#icon-search"/></svg>', name: 'Search' });
+  const label = buildToolLabelHTML(TOOLS.search, undefined, invertOptsFor(row, 'bar'));
   const solo = ToolStack.getUserStack().length === 0 ? ' solo' : '';
   return `<div class="search-bar${solo}">
       <span class="drag-handle" aria-hidden="true">≡</span>
@@ -253,11 +262,32 @@ export function buildSearchBarHTML() {
     </div>`;
 }
 
-// Inline icon + name pair used by tool rows, the search bar, etc.
-// `icon` is raw HTML (emoji string or <svg>); `name` is plain text.
-export function buildToolLabelHTML({ icon, name }, suffix) {
+// Inline icon + name pair used by tool rows, the search bar, and gallery cards.
+// `icon` is raw HTML (emoji string or <svg>); `name` is plain text. `invert` makes
+// the icon the row's invert toggle; the gallery passes none.
+export function buildToolLabelHTML({ icon, name }, suffix, invert = null) {
   const suf = suffix ? `<span class="tool-row-name-suffix"> · ${esc(suffix)}</span>` : '';
-  return `<span class="tool-label"><span class="icon tool-row-icon">${icon}</span> <span class="tool-row-name">${esc(name)}${suf}</span></span>`;
+  const iconHTML = invert
+    ? buildInvertToggleHTML(icon, invert)
+    : `<span class="icon tool-row-icon">${icon}</span>`;
+  const labelTitle = invert ? ` title="${esc(invertTooltip(invert))}"` : '';
+  return `<span class="tool-label"${labelTitle}>${iconHTML} `
+    + `<span class="tool-row-name">${esc(name)}${suf}</span></span>`;
+}
+
+export function invertTooltip({ active, canInvert }) {
+  if (!canInvert) return 'Inverting needs a filter — clear the replacement';
+  return active ? 'Keep matches' : 'Exclude matches';
+}
+
+function buildInvertToggleHTML(icon, { rowToken, active, canInvert }) {
+  const title = invertTooltip({ active, canInvert });
+  const cls = ['icon', 'tool-row-icon', 'tool-row-invert'];
+  if (active) cls.push('active');
+  if (!canInvert) cls.push('disabled');
+  return `<button type="button" class="${cls.join(' ')}" data-invert="${rowToken}"`
+    + ` aria-pressed="${active}" aria-disabled="${!canInvert}"`
+    + ` aria-label="${esc(title)}"><span class="tool-row-invert-icon">${icon}</span></button>`;
 }
 
 export function allModeTooltip({ blocked, active, kind }) {
@@ -387,7 +417,7 @@ export const ToolStack = (() => {
     const errBtn = `<button type="button" class="icon tool-row-error-btn" data-error-row="${idx}" aria-label="Tool error" hidden>⚠️</button>`;
     return `<div class="tool-row" data-tool="${esc(row.tool)}">
       ${buildDragHandleHTML()}
-      ${buildToolLabelHTML(tool)}
+      ${buildToolLabelHTML(tool, undefined, invertOptsFor(row, idx))}
       ${parts.caret}
       ${main}
       ${parts.asides}
@@ -635,9 +665,37 @@ export const ToolStack = (() => {
         syncClearButton(input);
       }
     }
+    syncInvertState(rowEl, row);
     refreshOtherAllToggles(idx);
     refreshGalleryActive();
     repaintAfterStackChange();
+  }
+
+  function toggleInvert(token) {
+    const row = token === 'bar' ? getSearchBarRow() : stack[parseInt(token, 10)];
+    if (!row || row.kind() !== 'filter') return;
+    row.invert = !row.invert;
+    // searchBarEl, not rowEls()[last]: rowEls() is the user tool rows only — the bar
+    // isn't in it, so an index lookup silently repaints the wrong row or nothing.
+    syncInvertState(token === 'bar' ? searchBarEl() : rowEls()[parseInt(token, 10)], row);
+    repaintAfterStackChange();
+  }
+
+  // The clear below is load-bearing, not a stray side effect: a replacement typed (or
+  // ✱ switched on) moves the row out of filter kind, and the flag left behind would
+  // encode a `not` into a shared URL that no stage honors.
+  function syncInvertState(rowEl, row) {
+    const canInvert = row.kind() === 'filter';
+    if (!canInvert) row.invert = false;
+    const btn = rowEl?.querySelector('.tool-row-invert');
+    if (!btn) return;
+    const title = invertTooltip({ active: !!row.invert, canInvert });
+    btn.classList.toggle('active', !!row.invert);
+    btn.classList.toggle('disabled', !canInvert);
+    btn.closest('.tool-label').title = title;
+    btn.setAttribute('aria-pressed', String(!!row.invert));
+    btn.setAttribute('aria-disabled', String(!canInvert));
+    btn.setAttribute('aria-label', title);
   }
 
   function refreshOtherAllToggles(skipIdx) {
@@ -779,6 +837,11 @@ export const ToolStack = (() => {
         toggleAllMode(parseInt(allBtn.dataset.allToggle, 10));
         return;
       }
+      const invertBtn = e.target.closest('.tool-label')?.querySelector('.tool-row-invert[data-invert]');
+      if (invertBtn) {
+        if (!invertBtn.classList.contains('disabled')) toggleInvert(invertBtn.dataset.invert);
+        return;
+      }
       const caret = e.target.closest('.find-replace-caret[data-replace-row]');
       if (caret) {
         const token = caret.dataset.replaceRow;
@@ -797,6 +860,7 @@ export const ToolStack = (() => {
         } else {
           delete row.params.replace;
         }
+        syncInvertState(caret.closest('.tool-row, .search-bar'), row);
         if ((row.params.replace || '') !== before) {
           bumpPipelineVersion();
           _navigate();
@@ -831,6 +895,7 @@ export const ToolStack = (() => {
       // Drop the edited row's async error — it described the old input. The ⚠ mark
       // itself repaints reactively off the bumpPipelineVersion() below.
       row._error = null;
+      syncInvertState(input.closest('.tool-row, .search-bar'), row);
       bumpPipelineVersion();
       _navigate();
     });

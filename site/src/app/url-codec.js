@@ -44,14 +44,17 @@ function encodeRepeatRow(row, schema, slug) {
 // the row always has an anchor (kept even when empty, so an unfilled row
 // survives reload); a param-less tool is a bare tool key. Grouped rows keep their
 // secondary params (the `all` toggle drops only the irrelevant first/entry param).
+// An inverted row carries a bare `not`; a grouped one never does, since inverted()
+// gates on filter kind.
 export function encodeRow(row) {
   const { params: schema } = row.def;
   if (row.grouped) return [encodeURIComponent(row.tool), 'all', ...encodeTailParams(row, schema)];
   const slug = encodeURIComponent(row.tool);
-  if (!schema.length) return [slug];
-  if (schema.some(p => p.repeat)) return encodeRepeatRow(row, schema, slug);
-  const parts = [slug + '=' + encodeURIComponent(row.params[schema[0].key] || '')];
-  return parts.concat(encodeTailParams(row, schema));
+  const parts = !schema.length ? [slug]
+    : schema.some(p => p.repeat) ? encodeRepeatRow(row, schema, slug)
+    : [slug + '=' + encodeURIComponent(row.params[schema[0].key] || ''), ...encodeTailParams(row, schema)];
+  if (row.inverted()) parts.splice(1, 0, 'not');   // directly behind the slug: decode binds it to this row
+  return parts;
 }
 
 // Decode the pipeline rows from a URLSearchParams. Returns the rows plus a flag
@@ -72,6 +75,11 @@ export function decodeRows(params) {
         if (rows.some(r => r.grouped)) rows.pop();
         else { cur.grouped = true; cur.params = {}; }
       }
+      continue;
+    }
+    if (key === 'not') {
+      const cur = rows[rows.length - 1];
+      if (cur) cur.invert = true;
       continue;
     }
     const tool = TOOLS[key];
@@ -101,5 +109,8 @@ export function decodeRows(params) {
     }
     if (!knownParam.has(key)) droppedUnknown = true;
   }
+  // Not at the `not` key itself: `?search=a&not&replace=b` only becomes a transform
+  // once a later key lands, so the kind test is only conclusive with every key in.
+  for (const row of rows) if (row.invert && !row.inverted()) row.invert = false;
   return { rows, droppedUnknown };
 }

@@ -24,7 +24,7 @@ Source material: shipped catalog lives in `TOOLS` in [`site/src/engine/tools.js`
 | ✓ | Letters | 👩‍🎤 Monovocalics | Only one distinct vowel | too cool for school |
 | ✓ | Letters | 📈 Alphabetical | Letters in alphabetical order | abbey · billowy |
 | ✓ | Letters | 📉 Reverse alphabetical | Letters in reverse alphabetical order | spoofed · yuppie |
-| ✓ | Letters | 🦴 Consonantcy | Same consonants in order; vowels may differ | I said no → so done |
+| ✓ | Letters | 🅱️ Consonantcy | Same consonants in order; vowels may differ | I said no → so done |
 | ✓ | Letters | 🅰️ Vowelcy | Same vowels in order; consonants may differ | outhouse → out of use |
 | ✓ | Pairs | 🦘 Kangaroos | Words containing the input spread out | kanga → milk and sugar |
 | ✓ | Pairs | 🍼 Joeys | Words contained in the input spread out | major key → joey |
@@ -40,7 +40,7 @@ Source material: shipped catalog lives in `TOOLS` in [`site/src/engine/tools.js`
 | ✓ | Rebus | 🚌 Rebus | Squeeze a letter string into one rebus cell | I'm busy → I'm Ⓑy |
 |   | Required | ❗ Required letters | Contains every given letter (in any order) | TBD |
 | ✓ | Search | 🔍 Search | Search (and replace) with wildcards | un*ed · c?t |
-| ✓ | Search | 🪄 Regex | Search (and replace) with regular expressions | un.+ed · c.{2,4}t |
+| ✓ | Search | 🔮 Regex | Search (and replace) with regular expressions | un.+ed · c.{2,4}t |
 | ✓ | Search | 🛶 Umiaq | Advanced search with variables and constraints | ABBA · AB;BA |
 | ✓ | Side | 🪓 Behead | Remove the first N letters | swing → wing |
 | ✓ | Side | ✂️ Curtail | Remove the last N letters | party → part |

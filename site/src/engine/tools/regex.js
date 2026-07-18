@@ -20,7 +20,7 @@ function regexError(pattern) {
 }
 
 export default {
-  name: 'Regex', icon: '🪄', category: 'search',
+  name: 'Regex', icon: '🔮', category: 'search',
   desc: 'Search (and replace) with regular expressions',
   example: 'un.+ed · c.{2,4}t',
   findReplace: true,

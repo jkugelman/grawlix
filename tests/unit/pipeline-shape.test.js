@@ -8,17 +8,21 @@ import {
 
 // ─── Fixtures ───────────────────────────────────────────────────────────────
 
-// A minimal stack-row factory — only the four members currentAtomCount and the
-// chain predicates read: kind(), isInert(), def.inputHighlights, def.outputHighlights.
+// A minimal stack-row factory — only the members currentAtomCount and the chain
+// predicates read: kind(), isInert(), inverted(), def.inputHighlights,
+// def.outputHighlights.
 // No `state`, no catalog: shipped makeToolRow reads TOOLS, so it can't be fenced.
-function makeToolRow({ kind = 'filter', inert = false, inputHighlights = false, outputHighlights = false } = {}) {
+function makeToolRow({ kind = 'filter', inert = false, inputHighlights = false, outputHighlights = false, invert = false } = {}) {
   return {
     kind: () => kind,
     isInert: () => inert,
+    inverted: () => invert && kind === 'filter',
     def: { inputHighlights, outputHighlights },
   };
 }
 const search        = () => makeToolRow({ kind: 'filter', inputHighlights: true });
+const notSearch     = () => makeToolRow({ kind: 'filter', inputHighlights: true, invert: true });
+const notPlain      = () => makeToolRow({ kind: 'filter', invert: true });
 const plainFilter   = () => makeToolRow({ kind: 'filter', inputHighlights: false });
 const plainXform    = () => makeToolRow({ kind: 'transform', inputHighlights: false, outputHighlights: false });
 const markedXform   = () => makeToolRow({ kind: 'transform', inputHighlights: true, outputHighlights: true });
@@ -53,7 +57,7 @@ function emitAtoms(stack) {
     if (row.kind() === 'transform') {
       if (row.def.inputHighlights) atoms.push(atom(tail.wlEntry.norm, { slot: true }));
       atoms.push(atom('w' + (++wordSeq), { slot: !!row.def.outputHighlights, glyph: '→' }));
-    } else if (row.def.inputHighlights) {   // highlighting filter
+    } else if (row.def.inputHighlights && !row.inverted()) {   // highlighting filter
       atoms.push(atom(tail.wlEntry.norm, { slot: true }));
     }
   }
@@ -81,6 +85,11 @@ const agreementStacks = {
   'search then input-marked transform': [search(), inputXform()],
   'inert search is transparent': [inertSearch(), search()],
   'mixed pipeline': [search(), plainFilter(), plainXform(), search(), markedXform()],
+  'inverted search claims no slot': [notSearch()],
+  'inverted search after a plain one': [search(), notSearch()],
+  'inverted search before a plain one': [notSearch(), search()],
+  'inverted plain filter': [notPlain()],
+  'inverted search around a transform': [notSearch(), markedXform(), notSearch()],
 };
 for (const [name, stack] of Object.entries(agreementStacks)) {
   test(`agreement: currentAtomCount equals collapseRepeatAtoms length — ${name}`, () => {

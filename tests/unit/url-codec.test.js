@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { encodeRow, decodeRows } from '../../site/src/app/url-codec.js';
-import { makeToolRow } from '../../site/src/engine/tools.js';
+import { makeToolRow, TOOLS } from '../../site/src/engine/tools.js';
 
 const query = row => encodeRow(row).join('&');
 const decode = qs => decodeRows(new URLSearchParams(qs));
@@ -84,4 +84,59 @@ test('a grouped row keeps its secondary params through the `all` toggle', () => 
 test('an unknown key flags droppedUnknown', () => {
   assert.equal(decode('notatool=x').droppedUnknown, true);
   assert.equal(decode('rebus=tool&symbol=' + enc('Ⓣ')).droppedUnknown, false);
+});
+
+test('an inverted row carries a bare `not` behind its slug', () => {
+  assert.equal(query(makeToolRow('search', { pattern: 'c?t' }, false, true)), 'search=c%3Ft&not');
+  assert.equal(query(makeToolRow('isograms', {}, false, true)), 'isograms&not');
+  assert.equal(query(makeToolRow('search', { pattern: 'c?t' })), 'search=c%3Ft');
+});
+
+test('`not` binds to its own row, not the next one', () => {
+  const { rows } = decode('search=c%3Ft&not&isograms');
+  assert.equal(rows[0].inverted(), true);
+  assert.equal(rows[1].inverted(), false);
+});
+
+test('`not` survives a round-trip alongside tail params', () => {
+  const qs = query(makeToolRow('search', { pattern: 'c?t', mode: 'word' }, false, true));
+  assert.equal(qs, 'search=c%3Ft&not&mode=word');
+  const row = decode(qs).rows[0];
+  assert.equal(row.inverted(), true);
+  assert.equal(row.params.mode, 'word');
+  assert.equal(query(row), qs);
+});
+
+// Normalizing at the `not` key itself would miss this: the row is still a filter
+// when `not` is read, and only becomes a transform once `replace` lands.
+test('a hand-written `not` on a row a later key turns into a transform is dropped', () => {
+  const { rows } = decode('search=cat&not&replace=dog');
+  assert.equal(rows[0].kind(), 'transform');
+  assert.equal(rows[0].invert, false);
+  assert.equal(query(rows[0]), 'search=cat&replace=dog', 're-encodes without the dead `not`');
+});
+
+test('`not` on a grouped row is dropped — a group has no verdict to negate', () => {
+  const { rows } = decode('cryptogram&all&not');
+  assert.equal(rows[0].grouped, true);
+  assert.equal(rows[0].invert, false);
+});
+
+test('`not` is not mistaken for an unknown key', () => {
+  assert.equal(decode('search=cat&not').droppedUnknown, false);
+});
+
+// design.md § Tool stack encoding calls this "the one namespace rule the scheme
+// rests on": decode classifies each key positionally, so a tool slug or param key
+// that shadows a reserved word makes links decode as something else entirely —
+// no error, just a different pipeline than the one shared.
+test('no tool slug or param key collides with a reserved word', () => {
+  const slugs = Object.keys(TOOLS);
+  const params = [...new Set(Object.values(TOOLS).flatMap(t => t.params.map(p => p.key)))];
+  // `entry` is reserved but deliberately absent: it IS several tools' first-param
+  // key, and a first param always rides its tool-slug key, so it never collides.
+  for (const word of ['all', 'not', 'sort', 'sort-dir']) {
+    assert.ok(!slugs.includes(word), `tool slug "${word}" shadows a reserved word`);
+    assert.ok(!params.includes(word), `param key "${word}" shadows a reserved word`);
+  }
 });

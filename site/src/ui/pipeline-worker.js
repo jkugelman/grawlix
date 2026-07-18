@@ -192,7 +192,7 @@ export function runOnWorker(stack, sort) {
   return dispatchRun(stack, sort, scope);
 }
 
-const serializeStack = stack => stack.map(r => ({ tool: r.tool, params: r.params, grouped: r.grouped }));
+const serializeStack = stack => stack.map(r => ({ tool: r.tool, params: r.params, grouped: r.grouped, invert: r.invert }));
 
 function dispatchRun(stack, sort, scope) {
   const serialized = serializeStack(stack);

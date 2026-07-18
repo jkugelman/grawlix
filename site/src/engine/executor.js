@@ -49,7 +49,7 @@ export function currentAtomCount(stack) {
         if (tailSlot) count++;
         tailSlot = true;
       }
-    } else if (row.def.inputHighlights) {                 // highlighting filter (search)
+    } else if (row.def.inputHighlights && !row.inverted()) {   // highlighting filter (search)
       if (tailSlot) count++;
       tailSlot = true;
     }
@@ -155,7 +155,7 @@ export function chainProducesMultiAtom(stack) {
   return stack.some(row => {
     if (row.isInert()) return false;
     if (row.kind() === 'group') return false;   // bare members — unify would throw on them
-    return row.kind() === 'transform' || !!row.def.inputHighlights;
+    return row.kind() === 'transform' || (!!row.def.inputHighlights && !row.inverted());
   });
 }
 
@@ -388,6 +388,7 @@ function tagCoord(ranges, coord) {
 async function runToolStage(rows, stackRow, prepared, mergedWordlist, y, emit = null) {
   const { def } = stackRow;
   const kind = stackRow.kind();
+  const invert = stackRow.inverted();
   const glyph = stackRow.glyph();
   const matchOn = def.matchOn || 'norm';
   const coord = matchOn === 'display' ? 'display' : 'norm';
@@ -401,7 +402,11 @@ async function runToolStage(rows, stackRow, prepared, mergedWordlist, y, emit = 
       : tailEntry.norm;
     const result = def.run(inputText, prepared, mergedWordlist);
     if (kind === 'filter') {
-      if (result) {
+      if (invert) {
+        // A non-match has no ranges, so this opens no highlight slot whatever the
+        // tool declares. currentAtomCount agrees via inverted() — disagree and rows overlap.
+        if (!result) next.push(row);
+      } else if (result) {
         if (def.inputHighlights) {
           const highlights = Array.isArray(result) ? tagCoord(result, coord) : [];
           next.push({ atoms: [...rowAtoms(row),
@@ -453,6 +458,7 @@ async function runToolStage(rows, stackRow, prepared, mergedWordlist, y, emit = 
 // here — prune it and that gate silently goes dead, reviving the orphan cluster.
 async function runGroupFilterStage(rows, stackRow, prepared, mergedWordlist, y) {
   const { def } = stackRow;
+  const invert = stackRow.inverted();
   const glyph = stackRow.glyph();
   const matchOn = def.matchOn || 'norm';
   const coord = matchOn === 'display' ? 'display' : 'norm';
@@ -467,6 +473,14 @@ async function runGroupFilterStage(rows, stackRow, prepared, mergedWordlist, y) 
     results[i] = result;
     if (result) anyMatch = true;
     if (y.due()) await y.yield();
+  }
+  if (invert) {
+    // De Morgan on the STAGE, not the member. Negating per-member as the flat path
+    // does reads `any(!match)` — true of nearly every cluster, so the row would
+    // filter nothing while looking active.
+    if (anyMatch) return [];
+    // No match survives to hide, so matched:true opts out of the score-range orphan gate.
+    return rows.map(row => ({ atoms: rowAtoms(row), matched: true }));
   }
   if (!anyMatch) return [];
   // `matched` has no home on a bare row, so promote every member to a chain here —

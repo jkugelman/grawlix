@@ -153,7 +153,7 @@ export function normalizeParams(params, schema) {
   return out;
 }
 
-export function makeToolRow(tool, params = {}, grouped = false) {
+export function makeToolRow(tool, params = {}, grouped = false, invert = false) {
   const def = TOOLS[tool];
   if (!grouped) {
     for (const p of def.params) {
@@ -165,13 +165,16 @@ export function makeToolRow(tool, params = {}, grouped = false) {
     }
   }
   const row = {
-    tool, params, def, grouped,
+    tool, params, def, grouped, invert,
     kind() {
       // A function `kind` decides the all-mode (`*`) case itself, rather than
       // defaulting to group: Caesar's `*` is a transform when a shift is set.
       if (typeof def.kind === 'function') return def.kind(row.params, row.grouped);
       return row.grouped ? 'group' : def.kind;
     },
+    // Read this, never `row.invert`: `?search=a&replace=b&not` sets the flag on a
+    // non-filter row, where a reader skipping the kind test diverges from the stage.
+    inverted() { return !!row.invert && row.kind() === 'filter'; },
     isInert() {
       if (row.grouped) return false;
       return def.isInert ? def.isInert(row.params) : false;

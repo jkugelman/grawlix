@@ -1335,6 +1335,35 @@ body.picker-expanded #picker-backdrop { opacity: 1; }
 .tool-row-all-toggle.disabled { cursor: not-allowed; opacity: 0.35; }
 .tool-row-all-toggle.disabled:hover { color: var(--muted); background: none; }
 .tool-row-all-toggle .ast-glyph { font-size: 15px; line-height: 1; display: inline-block; }
+
+/* Invert lives on the tool's own icon rather than in a column of its own — a phone
+   row has no width to spare. Disabled must render identically to the plain icon a
+   non-invertible row shows, so hover and slash both drop out. */
+/* font-family alone, not the `font` shorthand: it resets font-size, and this rule
+   outranks .tool-row-icon's 16px by source order — the emoji would shrink. Same
+   reason `color` stays unset (the icon's --muted must win over the UA button color). */
+.tool-row-invert { position: relative; padding: 0; background: none; border: 0; border-radius: 4px; cursor: pointer; font-family: inherit; transition: background 0.15s; }
+.tool-row-invert::before { content: ''; position: absolute; inset: -6px; }   /* touch target, no layout cost */
+.tool-row-invert:hover { background: var(--hover); }
+.tool-row-invert:focus-visible { outline: 1px solid var(--accent); outline-offset: 1px; }
+.tool-row-invert-icon { display: inline-flex; align-items: center; justify-content: center; transition: filter 0.12s, opacity 0.12s; }
+.tool-row-invert::after {
+  content: ''; position: absolute; left: 50%; top: 50%; width: 22px; height: 2px;
+  border-radius: 1px; background: #e53935; pointer-events: none;
+  transform: translate(-50%, -50%) rotate(-45deg);
+  opacity: 0; transition: opacity 0.12s;
+}
+.tool-label:hover .tool-row-invert::after { opacity: 1; }
+.tool-row-invert.active::after { opacity: 1; }
+.tool-label:hover .tool-row-invert:not(.disabled) .tool-row-invert-icon,
+.tool-row-invert.active .tool-row-invert-icon { filter: grayscale(1); opacity: 0.5; }
+.tool-label:has(.tool-row-invert:not(.disabled)) { cursor: pointer; }
+.tool-row-invert.disabled { cursor: default; }
+.tool-row-invert.disabled:hover { background: none; }
+.tool-row-invert.disabled::after { display: none; }
+@media (prefers-reduced-motion: reduce) {
+  .tool-row-invert, .tool-row-invert::after, .tool-row-invert-icon { transition: none; }
+}
 .tool-row-remove { background: none; border: none; color: var(--faint); cursor: pointer; padding: 5px; border-radius: 4px; line-height: 1; display: flex; align-items: center; justify-content: center; }
 .tool-row-remove:hover { color: var(--text); background: var(--hover); }
 .tool-row-remove-placeholder { width: 24px; height: 24px; }

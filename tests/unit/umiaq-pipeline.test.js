@@ -5,16 +5,17 @@ import umiaqTool from '../../site/src/engine/tools/umiaq.js';
 
 function toolRow(def, params) {
   return {
-    tool: 'umiaq', def, params, grouped: false,
+    tool: 'umiaq', def, params, grouped: false, invert: false,
     kind: () => (typeof def.kind === 'function' ? def.kind(params, false) : def.kind),
     isInert: () => (def.isInert ? def.isInert(params) : false),
     glyph: () => (def.glyph ? def.glyph(params) : null),
+    inverted: () => false,
   };
 }
 
 const inertSearch = {
-  tool: 'search', def: { inputHighlights: true }, params: {}, grouped: false,
-  kind: () => 'filter', isInert: () => true, glyph: () => null,
+  tool: 'search', def: { inputHighlights: true }, params: {}, grouped: false, invert: false,
+  kind: () => 'filter', isInert: () => true, glyph: () => null, inverted: () => false,
 };
 
 function mergedWordlist(norms) {

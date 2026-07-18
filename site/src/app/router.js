@@ -27,8 +27,10 @@ export const Router = (() => {
   // navigate() doesn't strip the param off the URL before the panel claims it.
   let pendingEntry = null;
 
+  // `invert` is a row flag, not a param, so it needs its own clause here or an
+  // inverted-but-empty bar elides to a bare URL and loses the mode on reload.
   function rowIsDefault(row) {
-    return row.def.params.every(p => !row.params[p.key]);
+    return !row.invert && row.def.params.every(p => !row.params[p.key]);
   }
 
   function buildQuery() {

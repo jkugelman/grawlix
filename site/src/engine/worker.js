@@ -174,11 +174,12 @@ let ownedCorpusFresh = false;
 // different stack than the URL/main thread describes.
 function deserializeStack(serialized) {
   const rows = [];
-  for (const { tool, params, grouped } of serialized) {
+  for (const { tool, params, grouped, invert } of serialized) {
     if (!TOOLS[tool]) continue;
     const row = makeToolRow(tool);
     if (params) row.params = { ...row.params, ...params };
     if (grouped) row.grouped = true;
+    if (invert) row.invert = true;
     rows.push(row);
   }
   return rows;
