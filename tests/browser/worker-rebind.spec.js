@@ -72,11 +72,6 @@ async function openPanelOnEntry(page, entryText) {
   await expect(page.locator('#entry-panel')).toBeVisible();
 }
 
-async function closePanel(page) {
-  await page.keyboard.press('Escape');
-  await expect(page.locator('#entry-panel')).toBeHidden();
-}
-
 // Everything the re-bind must reproduce: the panel is visible, anchored to the
 // same norm (via the seed/inputs), with byte-identical fields, footer, provenance.
 function captureRebound(page) {
@@ -110,7 +105,6 @@ test('re-binds to an entry still present after the re-run', async ({ page }) => 
   expect(reb.visible).toBe(true);
   expect(reb.entry).toBe('CRANE');
   expect(await rebindConsumed(page)).toBeGreaterThan(0);   // non-vacuous: worker path taken
-  await closePanel(page);
 });
 
 // ─── Case 2: filtered OUT of the visible view but present in the FULL corpus ──
@@ -136,8 +130,6 @@ test('re-binds to an entry filtered OUT of the visible view (full-corpus lookup)
   await expect(page.locator('#vs-host .entry-row', {
     has: page.locator('.atom-entry', { hasText: /^EAGLE$/ }),
   })).toHaveCount(0);
-  await closePanel(page);
-  await setScoreRange(page, '');
 });
 
 // ─── Case 3: entry no longer present (the !found path) ────────────────────────
@@ -161,8 +153,6 @@ test('entry no longer present after a re-run (the !found path) holds the panel',
   const reb = await captureRebound(page);
   expect(reb.visible).toBe(true);
   expect(reb.entry).toBe('GULL');   // unchanged: !found left it in place
-  await closePanel(page);
-  await setSearch(page, '');
 });
 
 // ─── Case 4: the save path resolves the right target ──────────────────────────
