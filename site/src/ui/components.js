@@ -81,9 +81,11 @@ export function buildParamHTML(param, value, toolKey, wiring) {
     const mode = value || param.menuDefault;
     const current = param.choices.find(c => c.value === mode) || param.choices[0];
     return `<span class="tool-row-param tool-row-match" data-mode="${esc(current.value)}">`
-      + `<input type="checkbox"${value ? ' checked' : ''}${titleAttr}${wiring} aria-label="${esc(param.label)}">`
-      + `<button type="button" class="more-menu-btn more-menu-labeled match-mode-btn" title="${esc(param.title)}"`
-      + ` aria-haspopup="menu" aria-expanded="false"><span class="match-mode-label">${esc(current.label)}</span>`
+      + `<label class="match-mode-toggle"${titleAttr}>`
+      + `<input type="checkbox"${value ? ' checked' : ''}${wiring} aria-label="${esc(param.label)}">`
+      + `<span class="match-mode-label">${esc(current.label)}</span></label>`
+      + `<button type="button" class="match-mode-arrow" title="Change match mode"`
+      + ` aria-haspopup="menu" aria-expanded="false" aria-label="Change match mode">`
       + `<svg class="more-menu-caret" aria-hidden="true" viewBox="0 0 8 5"><use href="#icon-arrow"/></svg></button></span>`;
   }
   const labelHTML = param.label ? `<label>${esc(param.label)}</label>` : '';

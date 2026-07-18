@@ -301,7 +301,10 @@ export const ToolStack = (() => {
   const MatchModeMenu = (() => {
     let el = null, anchor = null;
 
-    const reflow = () => { if (el?.classList.contains('open') && anchor) positionPopover(el, anchor, { placement: 'below', offset: 4 }); };
+    // Anchor the menu under the whole match control, not the narrow arrow it
+    // sprang from, so it reads as the control's dropdown rather than the caret's.
+    const anchorRect = () => anchor?.closest('.tool-row-match');
+    const reflow = () => { if (el?.classList.contains('open') && anchor) positionPopover(el, anchorRect(), { placement: 'below', offset: 4 }); };
 
     function ensure() {
       if (el) return el;
@@ -348,7 +351,7 @@ export const ToolStack = (() => {
         + ` data-mode="${esc(c.value)}">${esc(c.label)}</button>`).join('');
       el.classList.add('open');
       btn.setAttribute('aria-expanded', 'true');
-      positionPopover(el, btn, { placement: 'below', offset: 4 });
+      positionPopover(el, anchorRect(), { placement: 'below', offset: 4 });
     }
 
     function close() {
@@ -710,7 +713,7 @@ export const ToolStack = (() => {
 
     const p = panelEl();
     p?.addEventListener('click', (e) => {
-      const modeBtn = e.target.closest('.match-mode-btn');
+      const modeBtn = e.target.closest('.match-mode-arrow');
       if (modeBtn) {
         e.stopPropagation();
         MatchModeMenu.toggle(modeBtn);

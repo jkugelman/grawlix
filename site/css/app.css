@@ -1282,10 +1282,14 @@ body.picker-expanded #picker-backdrop { opacity: 1; }
 .tool-row-replace[hidden] { display: none; }
 .tool-row-param { display: flex; align-items: center; gap: 4px; min-height: var(--tool-control-h); font-size: 12px; color: var(--muted); }
 .tool-row-param label { display: flex; align-items: center; gap: 5px; white-space: nowrap; cursor: pointer; user-select: none; }
-.tool-row-match { gap: 0; }
-.tool-row-match .more-menu-labeled { font-size: 12px; color: var(--muted); padding: 3px 5px; }
-.tool-row-match .more-menu-labeled:hover:not(:disabled) { color: var(--text); }
-.tool-row-match .more-menu-labeled:focus-visible { outline: 1px solid var(--accent); outline-offset: 1px; border-radius: 3px; }
+.tool-row-match { gap: 2px; }
+.match-mode-toggle { font-size: 12px; }
+.match-mode-toggle:hover { color: var(--text); }
+.match-mode-toggle:focus-within { color: var(--text); }
+.match-mode-arrow { display: inline-flex; align-items: center; justify-content: center; padding: 3px 4px; background: none; border: none; cursor: pointer; color: var(--muted); }
+.match-mode-arrow:hover:not(:disabled) { color: var(--text); }
+.match-mode-arrow:focus-visible { outline: 1px solid var(--accent); outline-offset: 1px; border-radius: 3px; }
+.match-mode-arrow .more-menu-caret { width: 8px; height: 5px; display: block; }
 .match-mode-menu { position: fixed; right: auto; margin-top: 0; }
 .match-mode-menu.open { display: block; }
 .match-mode-menu button::before { content: ""; display: inline-block; width: 1.2em; }

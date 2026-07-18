@@ -86,7 +86,7 @@ test('URL search/sort/match-mode state applies on boot and updates as the UI cha
   await page.locator('.col-score .col-sort').click();
   await expect.poll(async () => page.evaluate(() => location.search)).toContain('sort=score');
 
-  await page.locator('.search-bar .match-mode-btn').click();
+  await page.locator('.search-bar .match-mode-arrow').click();
   await page.locator('.match-mode-menu button[data-mode="span"]').click();
   await expect(page.locator('.search-bar .match-mode-label')).toHaveText('Spans words');
   await expect.poll(async () => page.evaluate(() => location.search)).toContain('mode=span');

@@ -386,6 +386,40 @@ test('match mode rides its own Search row and the legacy whole-word key normaliz
   expect(search).toBe('?search=cat&mode=full&search=');
 });
 
+test('the match-mode label toggles on/off; only the arrow opens the mode menu', async ({ page }) => {
+  await gotoApp(page);
+  const label = page.locator('.search-bar .match-mode-label');
+  const checkbox = page.locator('.search-bar .tool-row-match input[type="checkbox"]');
+  const menu = page.locator('.match-mode-menu');
+  const mode = () => page.evaluate(() => ToolStack.getSearchBarRow().params.mode || '');
+
+  // Off by default; clicking the label enables the shown mode without opening
+  // the menu.
+  await expect(checkbox).not.toBeChecked();
+  await label.click();
+  await expect(checkbox).toBeChecked();
+  await expect(menu).toBeHidden();
+  expect(await mode()).toBe('full');
+
+  // Clicking the label again turns it back off — still no menu.
+  await label.click();
+  await expect(checkbox).not.toBeChecked();
+  await expect(menu).toBeHidden();
+  expect(await mode()).toBe('');
+
+  // The arrow opens the menu and leaves the on/off state untouched.
+  await page.locator('.search-bar .match-mode-arrow').click();
+  await expect(menu).toBeVisible();
+  await expect(checkbox).not.toBeChecked();
+
+  // Picking a mode from the menu switches the label and auto-enables it.
+  await menu.locator('button[data-mode="word"]').click();
+  await expect(menu).toBeHidden();
+  await expect(label).toHaveText('Whole word');
+  await expect(checkbox).toBeChecked();
+  expect(await mode()).toBe('word');
+});
+
 test('the caret expands a Search row into find/replace; only toggles that change the replacement re-run the pipeline', async ({ page }) => {
   await gotoApp(page);
   await addAnagramFixture(page);

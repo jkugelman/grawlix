@@ -30,7 +30,7 @@ async function searchBarBoxes(page) {
       pattern: pick(':scope > .tool-row-param-text input'),
       replace: pick('.tool-row-replace .tool-row-param-text input'),
       matchToggle: pick('.tool-row-asides input[type="checkbox"]'),
-      matchMenuBtn: pick('.tool-row-asides .match-mode-btn'),
+      matchMenuBtn: pick('.tool-row-asides .match-mode-arrow'),
     };
   });
 }
