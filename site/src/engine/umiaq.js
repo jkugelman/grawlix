@@ -22,8 +22,8 @@ const VAR_HL_COLORS = 9;
 // ─── Parsing ─────────────────────────────────────────────────────────────────
 
 const LEN_CONSTRAINT_RE = /^\|([^|]+)\|(<=|>=|!=|<|>|=)(.+)$/;
-const VAR_OP_RE = /^([A-Z])(!?=)(.+)$/;
-const TERM_OP_RE = /^([A-Za-z0-9]+)(!?=)(.+)$/;
+const VAR_OP_RE = /^(~?)([A-Z])(!?=)(.+)$/;
+const TERM_OP_RE = /^([A-Za-z0-9~]+)(!?=)(.+)$/;
 
 function boundsFromOp(op, n) {
   if (op === '=')  return { lo: n, hi: n };
@@ -81,6 +81,20 @@ export function varsForcedNonEmpty(parsed) {
     if (declaredLen[v] && declaredLen[v].lo !== null) return false;
     return !(varEqualsPattern[v] && varEqualsPattern[v].min > 0);
   });
+}
+
+function pureTermTokens(src) {
+  let parsed;
+  try { parsed = tokenizePattern(src); } catch { return null; }
+  if (!parsed.tokens.length || !parsed.variables.size) return null;
+  for (const t of parsed.tokens) if (t.t !== 'var' && t.t !== 'lit' && t.t !== 'rev') return null;
+  return parsed.tokens;
+}
+
+function collectTermVars(...tokenLists) {
+  const s = new Set();
+  for (const list of tokenLists) for (const t of list) if (t.t === 'var' || t.t === 'rev') s.add(t.name);
+  return [...s].sort();
 }
 
 function stripLenPrefix(clause) {
@@ -308,9 +322,8 @@ function anagramPermutations(ana) {
 function compileTermOp(lhs, op, rhs) {
   const term = tokenizePattern(lhs);
   for (const t of term.tokens) {
-    if (t.t !== 'var' && t.t !== 'lit') throw `the left side of ${op} takes only variables and literals`;
+    if (t.t !== 'var' && t.t !== 'lit' && t.t !== 'rev') throw `the left side of ${op} takes only variables and literals`;
   }
-  if (/^[A-Z]$/.test(rhs)) throw `comparing two terms (${lhs}${op}${rhs}) is not supported`;
   const negate = op === '!=';
   const common = { term, vars: [...term.variables].sort(), src: `${lhs}${op}${rhs}` };
 
@@ -323,7 +336,7 @@ function compileTermOp(lhs, op, rhs) {
   }
 
   const rp = tokenizePattern(rhs);
-  if (rp.variables.size) throw `the right side of ${op} cannot contain variables`;
+  if (rp.variables.size) throw `the right side of ${op} can't mix a variable with wildcards or classes`;
   if (!rp.tokens.length) throw `empty right side of ${op}`;
   for (const t of rp.tokens) if (t.t === 'star') throw `* on the right side of ${op} is not supported`;
   const rhsRe = compilePrefilter(rp.tokens, {});
@@ -343,21 +356,34 @@ export function parseUmiaqQuery(query) {
   const lenCompare = [];
   const termEquals = [];
   const termNotEquals = [];
+  const termCompare = [];
   const bindingSrcs = [];
 
   for (const clause of clauses) {
     const vd = VAR_OP_RE.exec(clause);
     if (vd) {
-      const [, name, op, rhs] = vd;
-      if (op === '!=' && /^[A-Z]$/.test(rhs)) {
-        (varNotEqualsVar[name] ??= []).push(rhs);
-        (varNotEqualsVar[rhs] ??= []).push(name);
+      const [, tilde, name, op, rhs] = vd;
+      const reversed = tilde === '~';
+      const rhsTerm = pureTermTokens(rhs);
+      if (rhsTerm) {
+        const left = [{ t: reversed ? 'rev' : 'var', name }];
+        termCompare.push({ left, right: rhsTerm, op, vars: collectTermVars(left, rhsTerm), src: clause });
+        // Only plain A!=B seeds the early-prune accelerator (it compares canonical values); a
+        // reversed side compares reverse(A) and can't. Not redundant with the termCompare above:
+        // drop it and the join stops enforcing A!=B across bindings that never share it.
+        if (!reversed && op === '!=' && /^[A-Z]$/.test(rhs)) {
+          (varNotEqualsVar[name] ??= []).push(rhs);
+          (varNotEqualsVar[rhs] ??= []).push(name);
+        }
         continue;
       }
       try {
         const compiled = compileVarPattern(name, rhs);
-        if (op === '=') varEqualsPattern[name] = compiled;
-        else (varNotEqualsPattern[name] ??= []).push(compiled);
+        // ~A=pattern means reverse(A) fits the pattern, so test the canonical value reversed —
+        // drop the reverse and it silently tests A itself, matching the wrong words.
+        const spec = reversed ? { test: s => compiled.test(reverse(s)), min: compiled.min, max: compiled.max } : compiled;
+        if (op === '=') varEqualsPattern[name] = spec;
+        else (varNotEqualsPattern[name] ??= []).push(spec);
       } catch (msg) { return { ok: false, error: typeof msg === 'string' ? msg : String(msg) }; }
       continue;
     }
@@ -407,7 +433,16 @@ export function parseUmiaqQuery(query) {
     if (clause.includes('=')) {
       const m = TERM_OP_RE.exec(clause);
       if (m && /[A-Z]/.test(m[1])) {
-        try { (m[2] === '!=' ? termNotEquals : termEquals).push(compileTermOp(m[1], m[2], m[3])); }
+        const [, lhs, op, rhs] = m;
+        const rhsTerm = pureTermTokens(rhs);
+        if (rhsTerm) {
+          let left;
+          try { left = tokenizePattern(lhs).tokens; }
+          catch (msg) { return { ok: false, error: typeof msg === 'string' ? msg : String(msg) }; }
+          termCompare.push({ left, right: rhsTerm, op, vars: collectTermVars(left, rhsTerm), src: clause });
+          continue;
+        }
+        try { (op === '!=' ? termNotEquals : termEquals).push(compileTermOp(lhs, op, rhs)); }
         catch (msg) { return { ok: false, error: typeof msg === 'string' ? msg : String(msg) }; }
         continue;
       }
@@ -446,14 +481,14 @@ export function parseUmiaqQuery(query) {
 
   for (const v of Object.keys(varNotEqualsVar)) varNotEqualsVar[v] = [...new Set(varNotEqualsVar[v])];
 
-  for (const tc of [...termEquals, ...termNotEquals]) {
+  for (const tc of [...termEquals, ...termNotEquals, ...termCompare]) {
     for (const v of tc.vars) if (!variables.has(v)) return { ok: false, error: `${tc.src}: ${v} must appear in a binding` };
   }
   for (const tc of termEquals) {
     tc.pattern = { tokens: tc.term.tokens, variables: tc.term.variables, wordLen: null, stars: 0, prefilter: compilePrefilter(tc.term.tokens, varBounds) };
   }
 
-  const constraints = { varBounds, declaredLen: bounds, varNotEqualsVar, sumLen, lenCompare, varEqualsPattern, varNotEqualsPattern, termEquals, termNotEquals };
+  const constraints = { varBounds, declaredLen: bounds, varNotEqualsVar, sumLen, lenCompare, varEqualsPattern, varNotEqualsPattern, termEquals, termNotEquals, termCompare };
   const anagramSolve = planAnagramSolve(bindings, termEquals, termNotEquals, variables);
   if (!anagramSolve) {
     // Exotic anagram forms fall back to the permutation pool. This is its only expansion
@@ -523,19 +558,36 @@ function lenCompareOK(lenCompare, assignment) {
   return true;
 }
 
-// The string a term spells once its variables are bound, or null when some variable it
-// names isn't bound yet — the fail-open case the callers skip (a cross-binding term is
-// only whole at the join).
-function spellTerm(tc, assignment) {
-  if (!tc.vars.every(v => v in assignment)) return null;
+// The string a token list spells once its variables are bound, or null when some variable it
+// names isn't bound yet — the fail-open case the callers skip (a cross-binding term is only
+// whole at the join).
+function spellTokens(tokens, assignment) {
   let s = '';
-  for (const t of tc.term.tokens) s += t.t === 'var' ? assignment[t.name] : t.s;
+  for (const t of tokens) {
+    if (t.t === 'var' || t.t === 'rev') { if (!(t.name in assignment)) return null; s += t.t === 'rev' ? reverse(assignment[t.name]) : assignment[t.name]; }
+    else s += t.s;
+  }
   return s;
 }
+
+const spellTerm = (tc, assignment) => spellTokens(tc.term.tokens, assignment);
 
 function termsOK(termEquals, termNotEquals, assignment) {
   for (const tc of termEquals) { const s = spellTerm(tc, assignment); if (s !== null && !tc.test(s)) return false; }
   for (const tc of termNotEquals) { const s = spellTerm(tc, assignment); if (s !== null && tc.test(s)) return false; }
+  return true;
+}
+
+// Fail-open like lenCompareOK: skip a comparison until both sides' variables all bind. Return
+// false on the null (not-yet-whole) case instead and every tuple straddling bindings drops.
+function termCompareOK(termCompare, assignment) {
+  for (const { left, right, op } of termCompare) {
+    const a = spellTokens(left, assignment);
+    if (a === null) continue;
+    const b = spellTokens(right, assignment);
+    if (b === null) continue;
+    if (op === '=' ? a !== b : a === b) return false;
+  }
   return true;
 }
 
@@ -552,6 +604,7 @@ export function matchPattern(word, pattern, constraints = { varBounds: {}, varNo
   const lenCompare = constraints.lenCompare || [];
   const termEquals = constraints.termEquals || [];
   const termNotEquals = constraints.termNotEquals || [];
+  const termCompare = constraints.termCompare || [];
   const varEqualsPattern = constraints.varEqualsPattern || {};
   const varNotEqualsPattern = constraints.varNotEqualsPattern || {};
   const results = [];
@@ -576,6 +629,7 @@ export function matchPattern(word, pattern, constraints = { varBounds: {}, varNo
         if (sumLen.length && !sumLenOK(sumLen, assignment)) return;
         if (lenCompare.length && !lenCompareOK(lenCompare, assignment)) return;
         if ((termEquals.length || termNotEquals.length) && !termsOK(termEquals, termNotEquals, assignment)) return;
+        if (termCompare.length && !termCompareOK(termCompare, assignment)) return;
         if (needDedup) {
           const c = canonical(assignment);
           if (seen.has(c)) return;
@@ -905,7 +959,8 @@ function planAnagramSolve(bindings, termEquals, termNotEquals, variables) {
   const termVars = [];
   const litCounts = new Int16Array(36);
   for (const t of tc.term.tokens) {
-    if (t.t === 'var') { if (termVars.includes(t.name)) return null; termVars.push(t.name); }
+    // A reversed variable is multiset-invariant, so it splits the target's letters like a plain one.
+    if (t.t === 'var' || t.t === 'rev') { if (termVars.includes(t.name)) return null; termVars.push(t.name); }
     else if (t.t === 'lit') { for (const ch of t.s) litCounts[charIdx(ch)]++; }
     else return null;
   }
@@ -928,7 +983,7 @@ function planAnagramSolve(bindings, termEquals, termNotEquals, variables) {
 
 async function solveAnagram(parsed, pool, { numResults, maxMatchesPerPattern, onBatch, y, signal }) {
   const plan = parsed.anagramSolve;
-  const { varBounds, varNotEqualsVar, varEqualsPattern, varNotEqualsPattern, sumLen, lenCompare } = parsed.constraints;
+  const { varBounds, varNotEqualsVar, varEqualsPattern, varNotEqualsPattern, sumLen, lenCompare, termCompare } = parsed.constraints;
   const k = plan.vars.length;
   const varColor = variableColors(parsed.variables);
   const target = plan.target;
@@ -990,6 +1045,7 @@ async function solveAnagram(parsed, pool, { numResults, maxMatchesPerPattern, on
     for (let i = 0; i < k; i++) assignment[plan.vars[i]] = chosen[i].norm;
     if (sumLen.length && !sumLenOK(sumLen, assignment)) return;
     if (lenCompare.length && !lenCompareOK(lenCompare, assignment)) return;
+    if (termCompare.length && !termCompareOK(termCompare, assignment)) return;
     const lanes = chosen.map((entry, i) => {
       const hl = variableHighlights(entry.norm, plan.lanes[i].binding, { [plan.vars[i]]: entry.norm }, varColor);
       return { entry, highlights: hl.length ? hl : null };
@@ -1064,6 +1120,7 @@ export async function findTuples(parsed, pool, {
   const lenCompare = constraints.lenCompare || [];
   const termEquals = constraints.termEquals || [];
   const termNotEquals = constraints.termNotEquals || [];
+  const termCompare = constraints.termCompare || [];
 
   const solvers = [
     ...bindings.map((p, i) => ({ p, pool, emit: true, outIdx: i })),
@@ -1239,6 +1296,7 @@ export async function findTuples(parsed, pool, {
         if (sumLen.length && !sumLenOK(sumLen, assignment)) return false;
         if (lenCompare.length && !lenCompareOK(lenCompare, assignment)) return false;
         if ((termEquals.length || termNotEquals.length) && !termsOK(termEquals, termNotEquals, assignment)) return false;
+        if (termCompare.length && !termCompareOK(termCompare, assignment)) return false;
         emitAffix(assignment);
         return tuples.length >= numResults;
       }
@@ -1349,7 +1407,7 @@ export async function findTuples(parsed, pool, {
     if (signal?.aborted) throw signal.reason ?? new DOMException('Aborted', 'AbortError');
     const f = frames[frames.length - 1];
     if (f.index === N) {
-      if (sumLenOK(sumLen, f.dict) && lenCompareOK(lenCompare, f.dict) && termsOK(termEquals, termNotEquals, f.dict)) emit(f.selected);
+      if (sumLenOK(sumLen, f.dict) && lenCompareOK(lenCompare, f.dict) && termsOK(termEquals, termNotEquals, f.dict) && termCompareOK(termCompare, f.dict)) emit(f.selected);
       frames.pop(); continue;
     }
     if (f.i >= f.list.length) { frames.pop(); continue; }

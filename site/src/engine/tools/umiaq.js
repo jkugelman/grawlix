@@ -27,7 +27,6 @@ export const UMIAQ_HELP = buildHelpHTML([
   ['~A', 'the reverse of A'],
   ['A=#@#', 'A fits a sub-pattern'],
   ['A!=#@#', "A doesn't fit a sub-pattern"],
-  ['AB=word', 'A and B spell out a word'],
   ['|AB|=n', 'length check (also < <= > >=)'],
   ['|A|>=0', 'A may be empty'],
   ['7-9:…', 'only 7-to-9-letter matches'],

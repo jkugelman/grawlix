@@ -63,7 +63,7 @@ A variable binds **at least one character** by default; it can bind the empty st
 
 ## Terms
 
-A **term** is a sequence of variables and literals — `A`, `AB`, `AxB`, `boardroom`. A term is the left-hand side of the length and match operators below; the operator acts on the string the term spells out once its variables are bound. Thinking of that left side as one thing — a term — is what makes the operators uniform: both the length operator `|…|` (`|AxB|`) and the match operators `=` / `!=` (`AB=boardroom`) take a full term.
+A **term** is a sequence of variables, reversed variables (`~A`), and literals — `A`, `AB`, `AxB`, `~A`, `boardroom`. A term is the left-hand side of the length and match operators below; the operator acts on the string the term spells out once its variables are bound, a reversed variable contributing the reverse of its binding. Thinking of that left side as one thing — a term — is what makes the operators uniform: both the length operator `|…|` (`|AxB|`) and the match operators `=` / `!=` (`AB=boardroom`) take a full term. Reversal reaches only the match operators, though: a length can't tell a chunk from its reverse, so `|~A|` is rejected rather than silently reading as `|A|`.
 
 ## Constraints
 
@@ -89,15 +89,19 @@ It also quietly costs you the edge cases, which is the trap to know about. `Aten
 
 `A!=#@#` is the negation: A must *not* fit the sub-pattern. Positive and negative compose — `A=*s;A!=???` reads "ends in s but isn't a bare three-letter string." A sub-pattern body can't contain variables (`A=B?` is an error).
 
+Reversing the left side turns the test around: `~A=#@#` requires *reverse(A)* to be a consonant-vowel-consonant (equivalently, A read backwards fits the pattern), and `~A=??s` — reverse(A) ends in s — matches a three-letter A that *begins* with s. It stays a filter, never an expansion, so a wide `~A=????` is just a length check, not the term-equals "too broad".
+
 ### Term equals — `AB=word` and `AB!=word`
 
-When the left side of `=` is a **term of more than one element**, the clause is a **term-equals**: the string the term spells out, once its variables are bound, must equal the right-hand target. `A;B;AB=boardroom` finds pairs of real words that concatenate to BOARDROOM — BOARD + ROOM, BOA + RDROOM, and so on. A term-equals binds its variables and prunes the search but contributes no result word of its own, so every variable it names must also appear in a binding.
+When the left side of `=` is a **term of more than one element**, the clause is a **term-equals**: the string the term spells out, once its variables are bound, must equal the right-hand target. `A;B;AB=boardroom` finds pairs of real words that concatenate to BOARDROOM — BOARD + ROOM, BOA + RDROOM, and so on. A term-equals binds its variables and prunes the search but contributes no result word of its own, so every variable it names must also appear in a binding. The term's own variables may be reversed: `A;B;A~B=board` requires A followed by the reverse of B to spell BOARD (BO + reverse of DRA).
 
-The target is a literal (`boardroom`), a fixed-width pattern (`b?ard?oom`, `bo[oa]t`), or an [anagram](#anagram--letters): `AB=/random` finds two words whose letters together rearrange to RANDOM. When each variable is its own word (`A;B;AB=/…`, `A;B;C;ABC=/…`), the target can be any length — Grawlix splits it the way a multi-word anagram finder does, matching the corpus against the target's letters rather than enumerating rearrangements. More unusual shapes (a variable that is only part of a word, or a binding the term-equals doesn't name) fall back to enumerating rearrangements, so those need a short target. An unbounded `*` on the right is [not yet supported](#not-yet-supported). `AB!=boardroom` is the negation — a **term-not-equals**, dropping any tuple whose term spells the target. A single-variable left side stays a sub-pattern (`A=#@#`), and comparing a term against another variable (`AB=C`) is not yet supported.
+The target is a literal (`boardroom`), a fixed-width pattern (`b?ard?oom`, `bo[oa]t`), or an [anagram](#anagram--letters): `AB=/random` finds two words whose letters together rearrange to RANDOM. When each variable is its own word (`A;B;AB=/…`, `A;B;C;ABC=/…`), the target can be any length — Grawlix splits it the way a multi-word anagram finder does, matching the corpus against the target's letters rather than enumerating rearrangements. More unusual shapes (a variable that is only part of a word, or a binding the term-equals doesn't name) fall back to enumerating rearrangements, so those need a short target. An unbounded `*` on the right is [not yet supported](#not-yet-supported). `AB!=boardroom` is the negation — a **term-not-equals**, dropping any tuple whose term spells the target. A single-variable left side against a fixed target stays a sub-pattern (`A=#@#`); a right side that is *itself a term* — one that names a variable — makes the clause a [term comparison](#term-comparison--abcd-and-ab) instead (`AB=CD`, `AB=C`), which filters rather than drives.
 
-### Inequality — `A!=B`
+### Term comparison — `AB=CD` and `A!=B`
 
-When the right side of `!=` is a **bare variable**, `!=` is an inequality: A and B must bind different strings. `!=` is thus overloaded — a bare-variable right side means inequality, anything else means sub-pattern negation. Inequality is pairwise only (`A!=B;A!=C`, not `A!=B!=C`).
+When the right side of `=` or `!=` is **itself a term** — variables, reversed variables (`~A`), and literals, naming at least one variable — the clause compares the two strings the terms spell once their variables are bound. `AB=CD` holds when A followed by B spells the same as C followed by D; `AB!=CD` when they differ. The single-variable cases are the same rule at one element: `A=B` forces two variables equal, `A!=B` forces them apart, and comparing a variable against its own reverse — `A=~A`, `A!=~A` — selects or rejects palindromes (`A=~B` pairs a word with its reversal). Every variable named must appear in a binding, and the comparison fixes nothing — both sides are open — so it prunes at the tuple join and holds across bindings, exactly the way a relational `|A|=|B|` does. Only `=` and `!=` compare terms (the length form `|term|` keeps all six operators); inequality stays pairwise (`A!=B;A!=C`, not `A!=B!=C` or an ordered `A<B<C`).
+
+This is the overloading of `=`/`!=` on their right side: a term — a variable, or a longer run of variables and literals — means *compare two terms*, while a fixed target means *match one*. So `A=B` compares whereas `A=#@#` is a [sub-pattern](#sub-pattern--apattern-and-apattern), and `AB=CD` compares whereas `AB=boardroom` is a [term-equals](#term-equals--abword-and-abword). Mixing a variable with a wildcard (`A=B?`) is neither a term nor a fixed target, and is rejected.
 
 ### Length prefix
 
@@ -138,8 +142,8 @@ Things the reference tools do that Grawlix's dialect can't yet express. Several 
 
 ## Roadmap
 
-With [anagram](#anagram--letters) now shipped — `/word` as a binding and `A=/word` as a sub-pattern — the notation covers ordinary wildcards, variables, terms, the [term-equals](#term-equals--abword-and-abword) `AB=boardroom`, and rearrangement. What's left:
+With [anagram](#anagram--letters) now shipped — `/word` as a binding and `A=/word` as a sub-pattern — the notation covers ordinary wildcards, variables, terms, the [term-equals](#term-equals--abword-and-abword) `AB=boardroom`, [term-vs-term comparison](#term-comparison--abcd-and-ab) (`AB=CD`, `A!=B`), and rearrangement. What's left:
 
 1. **Anagram flavors** — subset `/(…)` (an anagram of *some* of the letters) and letter bank `//…` (each letter reusable). The plain anagram shipped; these two variants build on it.
 2. **`EXCLUDE`** — small, but wants a spelling that avoids the length-prefix colon.
-3. **Longer tail:** neighbor/misprint, subsequence, consonantcy, n-ary/ordered difference, term-vs-variable equality (`AB=C`, the symmetric completion of `A!=B`), `*` in a term-equals RHS, dictionary-word tokens, boolean algebra. Qategories need external data and are likely out of scope.
+3. **Longer tail:** neighbor/misprint, subsequence, consonantcy, n-ary/ordered difference (`!=ABCDEF`, `!=A<B<C`), `*` in a term-equals RHS, dictionary-word tokens, boolean algebra. Qategories need external data and are likely out of scope.

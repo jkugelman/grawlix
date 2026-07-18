@@ -571,8 +571,110 @@ test('parse: = expands a synthetic pool; != lands in termNotEquals and never dri
 test('parse: term-clause errors', () => {
   assert.match(parseUmiaqQuery('A;AB=boardroom').error, /B must appear in a binding/);
   assert.match(parseUmiaqQuery('A;B;AB=bo*m').error, /\* on the right side/);
-  assert.match(parseUmiaqQuery('A;B;AB=C').error, /comparing two terms/);
+  assert.match(parseUmiaqQuery('A;B;AB=C?').error, /mix a variable with wildcards/);   // var + wildcard RHS
   assert.match(parseUmiaqQuery('A;B;AB=????????????????').error, /too broad/);
+});
+
+// ─── Term-vs-term comparison ─────────────────────────────────────────────────
+
+test('parse: a variable-bearing RHS routes to constraints.termCompare', () => {
+  const p = parseUmiaqQuery('A;B;C;AB=C');
+  assert.equal(p.constraints.termEquals.length, 0);
+  assert.equal(p.constraints.termCompare.length, 1);
+  const tc = p.constraints.termCompare[0];
+  assert.deepEqual(tc.vars, ['A', 'B', 'C']);
+  assert.equal(tc.op, '=');
+  assert.deepEqual(tc.left.map(t => t.name), ['A', 'B']);
+  assert.deepEqual(tc.right.map(t => t.name), ['C']);
+});
+
+test('parse: A=B is a term comparison; A!=B also seeds the early-prune accelerator', () => {
+  const eq = parseUmiaqQuery('AB;A=B');
+  assert.equal(eq.constraints.termCompare.length, 1);
+  assert.deepEqual(eq.constraints.varNotEqualsVar, {});                 // = has no accelerator
+  const ne = parseUmiaqQuery('AB;A!=B');
+  assert.equal(ne.constraints.termCompare.length, 1);                   // authority (also cross-binding)
+  assert.deepEqual(ne.constraints.varNotEqualsVar.A, ['B']);            // + accelerator
+});
+
+test('parse: a term-compare variable must appear in a binding', () => {
+  assert.match(parseUmiaqQuery('A;B;AB=C').error, /C must appear in a binding/);
+  assert.match(parseUmiaqQuery('A;B;A=BC').error, /C must appear in a binding/);
+});
+
+test('match: A=B keeps only equal-chunk splits; a multi-element term compares strings', () => {
+  assert.deepEqual(bindings('AB;A=B', 'aa'),   [{ A: 'a', B: 'a' }]);   // the sole equal split
+  assert.deepEqual(bindings('AB;A=B', 'ab'),   []);                     // no split makes A == B
+  assert.deepEqual(bindings('AB;A!=B', 'aa'),  []);                     // = negated
+});
+
+test('find: AB=C splits a target word across two bindings', async () => {
+  const got = await tupleNorms('A;B;C;AB=C', ['boa', 'rd', 'board', 'x']);
+  assert.deepEqual(got, [['boa', 'rd', 'board']]);                      // BOA + RD spell BOARD
+});
+
+test('find: A!=B is enforced across bindings that never share it (bucket path)', async () => {
+  const pool = ['xax', 'xbx', 'yay', 'yby'];
+  for (const strategy of ['auto', 'bucket']) {
+    assert.deepEqual(await tupleNorms('xAx;yBy;A!=B', pool, { strategy }),
+      [['xax', 'yby'], ['xbx', 'yay']]);                                // equal-chunk pairs dropped
+  }
+});
+
+test('parse: a reversed variable is a valid term element on either side', () => {
+  const rhs = parseUmiaqQuery('A;A!=~A').constraints.termCompare[0];       // A != reverse(A)
+  assert.deepEqual(rhs.left, [{ t: 'var', name: 'A' }]);
+  assert.deepEqual(rhs.right, [{ t: 'rev', name: 'A' }]);
+  const lhs = parseUmiaqQuery('A;B;~A=B').constraints.termCompare[0];       // ~A on the left
+  assert.deepEqual(lhs.left, [{ t: 'rev', name: 'A' }]);
+  assert.deepEqual(lhs.vars, ['A', 'B']);                                  // ~A still names A
+  assert.match(parseUmiaqQuery('A;A~=B').error, /~ must be followed by a variable/);
+});
+
+test('match: A=~A selects palindromes, A!=~A rejects them', () => {
+  for (const w of ['noon', 'level', 'kayak']) {
+    assert.equal(matches('A;A=~A', w), true);
+    assert.equal(matches('A;A!=~A', w), false);
+  }
+  for (const w of ['cat', 'stop']) {
+    assert.equal(matches('A;A=~A', w), false);
+    assert.equal(matches('A;A!=~A', w), true);
+  }
+});
+
+test('find: A=~B pairs a word with its reversal', async () => {
+  const got = await tupleNorms('A;B;A=~B;A!=B', ['stop', 'pots', 'cat', 'tac', 'abc']);
+  assert.deepEqual(got, [['cat', 'tac'], ['pots', 'stop'], ['stop', 'pots'], ['tac', 'cat']]);
+});
+
+test('parse: ~A against a fixed target is a reversed sub-pattern, not a term-equals', () => {
+  const p = parseUmiaqQuery('A;~A=stop');                                 // reverse(A) == "stop"
+  assert.equal(p.constraints.termEquals.length, 0);
+  assert.ok(p.constraints.varEqualsPattern.A);                            // filters, never expands
+  assert.equal(p.constraints.varEqualsPattern.A.min, 4);                 // length carried through
+  const n = parseUmiaqQuery('A;~A!=#@#');
+  assert.equal(n.constraints.varNotEqualsPattern.A.length, 1);
+});
+
+test('parse: a wide reversed pattern stays a length filter (no "too broad" footgun)', () => {
+  assert.equal(parseUmiaqQuery('A;~A=????').ok, true);                    // A=???? works, so ~A=???? must too
+  assert.equal(parseUmiaqQuery('A;~A=????').constraints.termEquals.length, 0);
+});
+
+test('match: ~A=word matches the reversal; ~A=#@# tests reverse(A)', () => {
+  assert.deepEqual(bindings('A;~A=stop', 'pots'), [{ A: 'pots' }]);       // reverse(pots) = stop
+  assert.deepEqual(bindings('A;~A=stop', 'stop'), []);
+  assert.deepEqual(bindings('A;~A=#@#', 'tac'), [{ A: 'tac' }]);          // reverse(tac) = cat, a CVC
+  assert.deepEqual(bindings('A;~A!=#@#', 'ai'), [{ A: 'ai' }]);          // reverse(ai) = ia, not CVC → kept
+});
+
+test('find: A~B=word drives a term-equals with a reversed variable', async () => {
+  const got = await tupleNorms('A;B;A~B=board', ['bo', 'dra', 'draob', 'boa', 'rd', 'x']);
+  assert.deepEqual(got, [['bo', 'dra']]);                                // BO + reverse(DRA=ard) = BOARD
+});
+
+test('parse: an anagram term-equals index-solves through a reversed variable', () => {
+  assert.equal(parseUmiaqQuery('A;B;A~B=/random').anagramSolve !== null, true);   // rev is multiset-invariant
 });
 
 test('match: AB=word filters a single binding to words that spell the target', () => {
