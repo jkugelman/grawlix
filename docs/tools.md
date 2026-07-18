@@ -11,7 +11,7 @@ Source material: shipped catalog lives in `TOOLS` in [`site/src/engine/tools.js`
 | ✓ | Anagram | 🔀 Anagrams | Same letters, rearranged | elvis → lives |
 | ✓ | Anagram | 🫥 Hidden anagram | Anagrams hidden inside longer words | inside → windiest |
 |   | Anagram | 🤏 Almost anagram | Anagrams within *n* letter edits | TBD |
-| ✓ | Bank | 🏦 Letter bank | Uses every letter at least once | spot → stoops, tops, postop |
+| ✓ | Bank | 🏦 Letter bank | Only the given letters, each at least once | spot → stoops, tops, postop |
 | ✓ | Bank | 🔡 Restricted alphabet | Uses only the given letters | spot → stoop, top, pop |
 | ✓ | Bank | 🧱 Scrabble | Can be spelled with the given tiles | parental → plane, rent |
 |   | Bank | 🐝 Spelling bee | Made from a restricted alphabet, must include the center letter | TBD |

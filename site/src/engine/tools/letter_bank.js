@@ -2,7 +2,7 @@
 
 export default {
   name: 'Letter bank', icon: '🏦', category: 'bank',
-  desc: 'Uses every letter at least once',
+  desc: 'Only the given letters, each at least once',
   example: 'spot → stoops, tops, postop',
   params: [{ placeholder: 'letters' }],
   kind: 'filter', inputHighlights: false, outputHighlights: false,
