@@ -1344,7 +1344,6 @@ body.picker-expanded #picker-backdrop { opacity: 1; }
    reason `color` stays unset (the icon's --muted must win over the UA button color). */
 .tool-row-invert { position: relative; padding: 0; background: none; border: 0; border-radius: 4px; cursor: pointer; font-family: inherit; transition: background 0.15s; }
 .tool-row-invert::before { content: ''; position: absolute; inset: -6px; }   /* touch target, no layout cost */
-.tool-row-invert:hover { background: var(--hover); }
 .tool-row-invert:focus-visible { outline: 1px solid var(--accent); outline-offset: 1px; }
 .tool-row-invert-icon { display: inline-flex; align-items: center; justify-content: center; transition: filter 0.12s, opacity 0.12s; }
 .tool-row-invert::after {
@@ -1353,14 +1352,20 @@ body.picker-expanded #picker-backdrop { opacity: 1; }
   transform: translate(-50%, -50%) rotate(-45deg);
   opacity: 0; transition: opacity 0.12s;
 }
-.tool-label:hover .tool-row-invert::after { opacity: 1; }
 .tool-row-invert.active::after { opacity: 1; }
-.tool-label:hover .tool-row-invert:not(.disabled) .tool-row-invert-icon,
 .tool-row-invert.active .tool-row-invert-icon { filter: grayscale(1); opacity: 0.5; }
-.tool-label:has(.tool-row-invert:not(.disabled)) { cursor: pointer; }
 .tool-row-invert.disabled { cursor: default; }
-.tool-row-invert.disabled:hover { background: none; }
 .tool-row-invert.disabled::after { display: none; }
+/* Don't un-gate these onto plain :hover. Touch fires a sticky :hover on tap that never
+   clears until another tap, so an un-gated preview keeps painting the slash after
+   .active drops — the row reads as still-inverted. Invisible on a desktop dev machine. */
+@media (hover: hover) {
+  .tool-row-invert:hover { background: var(--hover); }
+  .tool-row-invert.disabled:hover { background: none; }
+  .tool-label:hover .tool-row-invert::after { opacity: 1; }
+  .tool-label:hover .tool-row-invert:not(.disabled) .tool-row-invert-icon { filter: grayscale(1); opacity: 0.5; }
+  .tool-label:has(.tool-row-invert:not(.disabled)) { cursor: pointer; }
+}
 @media (prefers-reduced-motion: reduce) {
   .tool-row-invert, .tool-row-invert::after, .tool-row-invert-icon { transition: none; }
 }
