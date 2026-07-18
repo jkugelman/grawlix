@@ -22,6 +22,28 @@ Meaning-based searches — synonyms, antonyms, words in the same semantic catego
 
 ---
 
+## Bank/anagram relation grid
+
+The four bank/anagram filters are one relation family sampled at different points. Each compares the letters of an entry **E** against the letters of the argument **A** along two independent axes:
+
+- **Multiplicity** — whether letter *counts* matter. A **set** view collapses repeats (distinct letters only); a **multiset** view counts them.
+- **Containment** — how E's letters must relate to A's: E draws only from A (E ⊆ A), E matches A exactly (E = A), or E covers at least A (E ⊇ A).
+
+That's a 2×3 grid, and four of the six cells are already shipped tools:
+
+| | Set (distinct letters) | Multiset (with counts) |
+|---|---|---|
+| **E ⊆ A** — only these letters | 🔡 Restricted alphabet | 🧱 Scrabble |
+| **E = A** — exactly these letters | 🏦 Letter bank | 🔀 Anagrams |
+| **E ⊇ A** — at least these letters | *(empty)* | *(empty)* |
+
+The two empty cells are the **E ⊇ A** row — "the entry contains at least the given letters":
+
+- **Set** → this is **❗ Required letters** (already planned in [`../tools.md`](../tools.md), *"Contains every given letter"*): every given letter appears at least once, extras and repeats allowed. It's currently filed under its own *Required* category, but the grid says it belongs to the bank family — a possible recategorization, not a decision made here.
+- **Multiset** → no tool, planned or shipped: the entry contains at least the given letters *counting duplicates* (`A = ee` demands two E's). A candidate cell if the need ever surfaces.
+
+The lens earns its keep two ways. It's a description check — it's what caught Letter bank's card claiming *"uses every letter at least once"* when the code demands set *equality* (E = A, extras rejected), now corrected to *"only the given letters, each at least once."* And it's a coverage map: the family is a tidy grid with one planned tool sitting in the wrong category and exactly one genuinely open cell.
+
 ## Open questions
 
 - **Custom JS tools.** Two paths:
