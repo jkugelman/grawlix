@@ -1294,8 +1294,11 @@ body.picker-expanded #picker-backdrop { opacity: 1; }
 .match-mode-menu.open { display: block; }
 .match-mode-menu button::before { content: ""; display: inline-block; width: 1.2em; }
 .match-mode-menu button[aria-checked="true"]::before { content: "✓"; }
-.tool-row-param-text { flex: 0 1 200px; max-width: 200px; justify-self: start; width: 100%; }
+.tool-row-param-text { width: 200px; max-width: 100%; min-width: 0; justify-self: start; }
 .tool-row-param-text .clearable-input { flex: 1 1 auto; }
+/* Must be an explicit width, not a max-width bump: the grid column is content-sized,
+   so a cap alone silently leaves the box at the input's intrinsic ~200px. */
+.tool-row[data-tool="umiaq"] .tool-row-param-text { width: 300px; }
 .find-replace-caret { width: 16px; height: var(--tool-control-h); padding: 0; background: none; border: none; cursor: pointer; color: var(--muted); display: flex; align-items: center; justify-content: center; }
 .find-replace-caret:hover { color: var(--text); }
 .find-replace-caret:focus-visible { outline: 1px solid var(--accent); outline-offset: 1px; border-radius: 3px; }

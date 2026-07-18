@@ -385,7 +385,7 @@ export const ToolStack = (() => {
     if (tool.group) main = decorateMainWithAllToggle(main, idx, row);
     const remove = `<button type="button" class="tool-row-remove" data-remove="${idx}" title="Remove" aria-label="Remove ${esc(tool.name)}"><svg width="12" height="12"><use href="#icon-x"/></svg></button>`;
     const errBtn = `<button type="button" class="icon tool-row-error-btn" data-error-row="${idx}" aria-label="Tool error" hidden>⚠️</button>`;
-    return `<div class="tool-row">
+    return `<div class="tool-row" data-tool="${esc(row.tool)}">
       ${buildDragHandleHTML()}
       ${buildToolLabelHTML(tool)}
       ${parts.caret}
