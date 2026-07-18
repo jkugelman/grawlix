@@ -111,4 +111,4 @@ Edits to files under the served `site/` take effect on reload — the server doe
 - Plain HTTP only — no HTTPS, self-signed certs, or anything fancy.
 - No auto-reload / HMR by design — the user reloads manually and explicitly didn't want a file watcher.
 - Don't smoke-test the page yourself afterward — the user does the visual verification. Your job ends after reporting the URL(s).
-- `/wt merge` and `/wt delete` remove worktrees without touching this server; if the one being served vanishes, the symlink dangles and the next `/dev-server` run self-heals back to main.
+- `/wt merge` and `/wt delete` remove worktrees without touching this server. Once the served worktree is gone the symlink dangles and the served URL 404s, so **after tearing one down, repoint promptly with `/dev-server main`** — `/wt merge` has just landed its change on main, so main's `site/` is what you want to see next anyway. The self-heal is only a fallback: the *next* `/dev-server` run falls back to main on its own, but nothing repoints in the meantime, so a browser or phone left open on the old URL keeps erroring until you do.
