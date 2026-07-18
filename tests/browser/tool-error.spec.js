@@ -99,6 +99,11 @@ test('a throwing tool prepare surfaces the error without hanging the splash', as
   await expect(page.locator('#splash-screen')).toHaveCount(0, { timeout: 10000 });
 
   await page.evaluate(() => window.__grawlixTest.whenReady());
+  // Drain the fire-and-forget boot publisher fetches before re-running: one
+  // re-rendering after setStack clears the error mark at dispatch and re-surfaces
+  // it a run later — a transient hidden window the visibility poll races under load.
+  await page.evaluate(() => window.__grawlixTest.loadIdle());
+  await page.evaluate(() => window.__grawlixTest.pipelineIdle());
   await page.evaluate(() => window.__grawlixTest.patchWorkerToolForTest('anagrams', 'prepare', 'boot-time failure'));
   await page.evaluate(() => window.__grawlixTest.setStack([{ tool: 'anagrams', params: { entry: 'CATX' } }]));
 
