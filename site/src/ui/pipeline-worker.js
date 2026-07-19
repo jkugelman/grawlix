@@ -13,7 +13,7 @@ import { setShippedConfigCounts, setShippedRescoreInputs } from '../data/merge.j
 import { MERGED_ID, UMIAQ_CAP_MOBILE, UMIAQ_CAP_DESKTOP } from '../core/constants.js';
 import { isMobile } from '../core/platform.js';
 import { AppView, activeScoreRange } from './app-view.js';
-import { entryPanelRebindQuery, streamFlatBatchToScroller, streamGroupBatchToScroller, streamTransformBatchToScroller, ingestReprojectToScroller } from './entries-table.js';
+import { entryPanelRebindQuery, streamFlatBatchToScroller, streamGroupBatchToScroller, streamTransformBatchToScroller, ingestReprojectToScroller, setPipelineProgress } from './entries-table.js';
 
 let workerBaseURL = null;
 let worker = null;
@@ -327,6 +327,13 @@ function onWorkerMessage({ data }) {
       histogramLayout: data.histogramLayout ?? null,
       filtered: !!data.filtered,
     });
+    return;
+  }
+  if (data.type === 'progress') {
+    // Advisory prepare-progress for the live run. Same supersession gate as
+    // `partial`, and likewise must NOT settle pendingRun.
+    if (!pendingRun || data.runId !== pendingRun.runId) return;
+    setPipelineProgress(data.fraction);
     return;
   }
   if (data.type === 'reprojected') {

@@ -42,6 +42,7 @@ import {
 } from '../engine/tools.js';
 import { MATCH_PARAM } from '../engine/tools/shared.js';
 import { runOnWorker, preloadWorkerAsset } from './pipeline-worker.js';
+import { resetPipelineProgress } from './entries-table.js';
 import { bumpPipelineVersion, setResultsStale } from '../data/state.js';
 import {
   buildTextInputHTML, buildParamHTML, syncClearButton,
@@ -106,6 +107,7 @@ export async function runPipeline(stack, sort) {
 
   const panel = document.getElementById('entries-table-panel');
   panel?.classList.add('pipeline-running');
+  resetPipelineProgress();   // fresh run starts on the indefinite spinner until its own progress arrives
 
   try {
     return await runOnWorker(stack, sort);

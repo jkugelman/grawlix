@@ -4495,8 +4495,26 @@ export const SortMenu = (() => {
 export function buildEntriesTablePanelHTML() {
   return `<div id="entries-table-panel">
       <div class="pipeline-spinner" aria-hidden="true"></div>
+      <svg class="progress-ring" viewBox="0 0 36 36" aria-hidden="true">
+        <circle class="progress-ring-track" cx="18" cy="18" r="16"></circle>
+        <circle class="progress-ring-fill" cx="18" cy="18" r="16"></circle>
+      </svg>
       <div id="vs-host"></div>
     </div>`;
+}
+
+export function setPipelineProgress(fraction) {
+  const panel = document.getElementById('entries-table-panel');
+  if (!panel) return;
+  panel.classList.add('has-progress');
+  panel.style.setProperty('--progress', String(Math.max(0, Math.min(1, fraction))));
+}
+
+export function resetPipelineProgress() {
+  const panel = document.getElementById('entries-table-panel');
+  if (!panel) return;
+  panel.classList.remove('has-progress');
+  panel.style.removeProperty('--progress');
 }
 
 // One header set for every chain shape — the Entry / Length / Score columns

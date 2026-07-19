@@ -310,6 +310,31 @@ mark.find-hit.find-current { background: var(--find-current-bg); color: var(--fi
    dots carry the in-progress signal instead. */
 #entries-table-panel.pipeline-running.pipeline-streaming #vs-host { animation: none; opacity: 1; }
 #entries-table-panel.pipeline-running.pipeline-streaming .pipeline-spinner { animation: none; opacity: 0; }
+.progress-ring {
+  position: sticky;
+  top: calc(var(--header-h) + var(--sticky-stack-h) + 40px);
+  display: block;   /* an inline <svg> ignores margin:auto — block centers it like the spinner */
+  margin: 40px auto -76px;
+  width: 36px; height: 36px;
+  transform: rotate(-90deg);
+  opacity: 0;
+  z-index: 5;
+  pointer-events: none;
+  transition: opacity 0.15s ease;
+}
+.progress-ring circle { fill: none; stroke-width: 3; }
+.progress-ring-track { stroke: var(--border); }
+.progress-ring-fill {
+  stroke: var(--accent);
+  stroke-linecap: round;
+  stroke-dasharray: 100.53px;
+  stroke-dashoffset: calc(100.53px - 100.53px * var(--progress, 0));
+  transition: stroke-dashoffset 0.2s linear;
+}
+#entries-table-panel.pipeline-running.has-progress .pipeline-spinner { animation: none; opacity: 0; }
+#entries-table-panel.pipeline-running.has-progress .progress-ring { opacity: 1; }
+#entries-table-panel.pipeline-running.pipeline-streaming .progress-ring { opacity: 0; }
+@media (prefers-reduced-motion: reduce) { .progress-ring-fill { transition: none; } }
 #vs-host { position: relative; }
 /* No text selection in the rows: a drag is a row-select gesture (see _onRowMouseDown),
    not a text highlight. Copy/Export cover getting entry text out. */

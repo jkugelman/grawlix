@@ -303,7 +303,8 @@ async function runOne({ runId, stack: serialized, sort, scope, existsQuery, scor
       : tier === 'tuple' ? (packableRecordStack(stack) ? makePackedTupleStreamEmitter : makeTupleStreamEmitter)(runId, viewSpec, scope, stack, signal, streamState, resumeCtx)
       : tier === 'transform' ? makeTransformStreamEmitter(runId, viewSpec, scope, stack, signal, streamState, resumeCtx)
       : null;
-    out = await executePipeline(ownedCorpus, stack, signal, emit, resume);
+    const onProgress = fraction => { if (!signal.aborted) postMessage({ type: 'progress', runId, fraction }); };
+    out = await executePipeline(ownedCorpus, stack, signal, emit, resume, onProgress);
   } catch (e) {
     if (isAbortError(e) || signal.aborted) { stashPartialOnAbort(runId, serialized, scope, t0, genAtStart); return; }
     if (divergenceError(e)) {

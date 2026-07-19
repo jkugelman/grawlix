@@ -179,18 +179,25 @@ function makeCtx(mergedWordlist, signal, y, grouped = false) {
     throwIfAborted: () => throwIfAborted(signal),
     due: y.due,
     yield: y.yield,
+    progress: y.progress,
     async forEach(iterable, fn) {
-      let i = 0;
+      const total = iterable?.length;
+      let i = 0, yielded = false;
       for (const item of iterable) {
         fn(item, i++);
-        if (y.due()) await y.yield();
+        if (y.due()) { if (total) y.progress(i, total); await y.yield(); yielded = true; }
       }
+      // Force a terminal 100% only if this pass actually reported — a fast forEach
+      // that never yielded stays silent rather than flashing a full ring.
+      if (yielded && total) y.progress(total, total, true);
     },
     async times(n, fn) {
+      let yielded = false;
       for (let i = 0; i < n; i++) {
         fn(i);
-        if (y.due()) await y.yield();
+        if (y.due()) { y.progress(i + 1, n); await y.yield(); yielded = true; }
       }
+      if (yielded && n) y.progress(n, n, true);
     },
   };
 }
@@ -247,8 +254,8 @@ function cloneState(state) {
 // bare corpus. Its seedState is shared with the cache, so it is CLONED before the suffix
 // mutates it (drop the clone and a suffix run silently corrupts the cached prefix under a
 // later reuse). Every boundary is a uniform tile candidate — no stage gets special caching.
-export async function executePipeline(mergedWordlist, stack, signal, emit = null, resume = null) {
-  const y = makeYielder(signal);
+export async function executePipeline(mergedWordlist, stack, signal, emit = null, resume = null, onProgress = null) {
+  const y = makeYielder(signal, onProgress);
   for (const stackRow of stack) stackRow._error = null;
 
   const userStackLen = stack.length - 1;   // stack[userStackLen] is the trailing search row
@@ -730,6 +737,7 @@ export function* rowSetAtoms(rows) {
 // burning hundreds of ms of pure yield overhead on a 500K filter. Time-based
 // chunking keeps yield count proportional to wall-clock cost.
 const DEFAULT_YIELD_INTERVAL_MS = 6;
+const DEFAULT_PROGRESS_INTERVAL_MS = 120;
 // scheduler.yield is the modern primitive (Chrome 129+); the setTimeout fallback
 // is universal and lands the browser back on the macrotask queue, which is what
 // we want — input events and paints get a turn before the tool resumes.
@@ -742,10 +750,12 @@ const defaultYieldImpl = (typeof scheduler !== 'undefined' && typeof scheduler.y
 // silently breaking supersession with no visible symptom in the code.
 let _yieldImpl = defaultYieldImpl;
 let _yieldIntervalMs = DEFAULT_YIELD_INTERVAL_MS;
+let _progressIntervalMs = DEFAULT_PROGRESS_INTERVAL_MS;
 
-export function configureExecutorYield({ yieldImpl, intervalMs } = {}) {
+export function configureExecutorYield({ yieldImpl, intervalMs, progressIntervalMs } = {}) {
   if (yieldImpl) _yieldImpl = yieldImpl;
   if (intervalMs != null) _yieldIntervalMs = intervalMs;
+  if (progressIntervalMs != null) _progressIntervalMs = progressIntervalMs;
 }
 
 function throwIfAborted(signal) {
@@ -758,9 +768,9 @@ function throwIfAborted(signal) {
 // those samples ~YIELD_CLOCK_TARGET_MS apart whatever the per-iteration cost.
 const YIELD_CLOCK_TARGET_MS = 1;
 const YIELD_STRIDE_MAX = 1 << 16;
-function makeYielder(signal) {
+function makeYielder(signal, onProgress = null) {
   let stride = 1, sinceCheck = 0;
-  let lastClock = performance.now(), lastYield = lastClock;
+  let lastClock = performance.now(), lastYield = lastClock, lastProgress = 0;
   return {
     due() {
       if (++sinceCheck < stride) return false;
@@ -775,6 +785,16 @@ function makeYielder(signal) {
       await _yieldImpl();
       throwIfAborted(signal);
       lastYield = lastClock = performance.now();
+    },
+    // Throttled far coarser than the yield cadence — emitting per yield (~160/s)
+    // would flood postMessage and can starve the cancel message. `force` bypasses
+    // the throttle for the terminal 100%, which the adaptive stride would else skip.
+    progress(done, total, force = false) {
+      if (!onProgress || !total) return;
+      const now = performance.now();
+      if (!force && now - lastProgress < _progressIntervalMs) return;
+      lastProgress = now;
+      onProgress(Math.min(1, done / total));
     },
   };
 }
