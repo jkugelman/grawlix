@@ -168,7 +168,7 @@ input:disabled, select:disabled { opacity: 0.5; cursor: not-allowed; }
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: start;
-  gap: 22px;
+  gap: 14px;
   background: var(--surface);
 }
 .stats-bar-counts { display: flex; align-items: center; gap: 14px; min-width: 0; flex-shrink: 0; }
